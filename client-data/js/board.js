@@ -1,35 +1,71 @@
-<!DOCTYPE html>
-<html>
+var Tools = {};
+Tools.svg = document.getElementById("canvas");
+Tools.socket = io.connect('');
+Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
-<head>
-	<meta charset="utf-8" />
-	<script src="/socket.io/socket.io.js"></script>
-	<style type="text/css">
-		html, body, svg {
-			padding:0;
-			margin:0;
+Tools.add = function (newTool) {
+	if (newTool.name in Tools.list) {
+		console.log("Tools.add: The tool '"+newTool.name+"' is already" +
+		"in the list. Updating it...");
+	}
+	//Add the tool to the list
+	Tools.list[newTool.name] = newTool;
+}
+
+Tools.change = function (toolName){
+	//There is not necessarily already a curTool
+	if (Tools.curTool) {
+		//Remove the old event listeners
+		for (var event in Tools.curTool.listeners) {
+			var listener = Tools.curTool.listeners[event];
+			Tools.svg.removeEventListener(event, listener);
 		}
-	</style>
-</head>
+	}
+	//Add the new event listeners
+	for (var event in newtool.listeners) {
+		var listener = newtool.listeners[event];
+		Tools.svg.addEventListener(event, listener);
+	}
+	Tools.curTool = Tools.list[toolName];
+}
 
-<body>
+Tools.drawAndSend = function (data) {
+	Tools.curTool.draw(data);
+	Tools.socket.emit('broadcast', {
+			'tool' : curTool.name,
+			'data' : data
+	});
+}
 
-<svg id="canvas"
-	width="500" height="500" version="1.1"
-     xmlns="http://www.w3.org/2000/svg">
-    <defs>
-	<style type="text/css"><![CDATA[
-      polyline {
-        fill: none;
-        stroke: black;
-        stroke-width: 3;
-      }
-    ]]></style>
-    </defs>
-</svg>
+Tools.socket.on("broadcast", function (message){
+	var tool = Tools.list[message.tool];
+	if (tool) {
+		tool.draw(message.data);
+	}
+});
+
+/**
+ What does a "tool" object look like?
+ newtool = {
+ 	"name" : "SuperTool",
+ 	"listeners" : {
+ 		"mousedown" : function(x){...},
+ 		"mousemove" : function(x){...}
+ 	},
+ 	"draw" : function(data){
+ 		//Print the data on Tools.svg
+ 	}
+ }
 
 
-<script>
+*/
+
+(function(){
+	var pen = {
+		"name" : "pen"
+	}; //pen is a tool
+})();
+
 var socket = io.connect('');
 
 socket.on('broadcast', function (data) {
@@ -125,6 +161,3 @@ function generateUID(prefix, suffix) {
 	if (suffix) rndStr = rndStr + suffix;
 	return rndStr;
 }
-</script>
-</body>
-</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<link rel="stylesheet" type="text/css" href="board.css">
+	<script type="text/javascript" src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+
+<div id="menu">
+	<h2>Menu</h2>
+
+	<div id="menuItems">
+		<h3>Tools</h3>
+		<ul id="tools">
+			<li class="tool">Tool template</li>
+		</ul>
+
+		<h3>Configuration</h3>
+	</div>
+</div>
+
+<svg id="canvas"
+	width="500" height="500" version="1.1"
+     xmlns="http://www.w3.org/2000/svg">
+    <defs>
+	<style type="text/css"><![CDATA[
+      polyline {
+        fill: none;
+        stroke: black;
+        stroke-width: 3;
+      }
+    ]]></style>
+    </defs>
+</svg>
+<script type="text/javascript" src="js/board.js"></script>
+</body>
+</html>

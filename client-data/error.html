@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>WBO - Error</title>
+	<style>
+html {
+	background-color : #303;
+}
+h1, h2 {
+	font-family : monospace;
+	color : #F77;
+	margin:auto;
+	margin-top:100px;
+	width:50%;
+	font-size:5em;
+}
+
+@keyframes rotation
+{
+0% {color: #FA0;transform:rotate(0deg);}
+50% {color: #F11;transform:rotate(150deg);font-size:3em;}
+100% {color: #F0A;transform:rotate(30deg);}
+}
+
+h1 {
+	 animation: rotation 5s infinite;
+	 animation-delay:3s;
+	 animation-direction:alternate;
+	 width:30px;
+}
+h1:hover {
+	 animation-play-state:paused;
+}
+	</style>
+</head>
+
+<body>
+<h1>:-(</h1>
+<h2>Sorry, an error occured...</h2>
+</body>
+</html>
