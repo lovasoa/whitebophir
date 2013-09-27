@@ -8,7 +8,7 @@ html, body, svg {
 	left:0;
 	top:0;
 	color:#EEE;
-	background-color:rgba(0,0,0,0.4);
+	background-color:rgba(0,0,255,0.4);
 	width:20px;
 	height:100%;
 	overflow:hidden;
