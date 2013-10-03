@@ -1,5 +1,8 @@
 function Minitpl(elem, data) {
 	this.elem = (typeof(elem)==="string") ? document.querySelector(elem) : elem;
+	if (!elem) {
+		throw "Invalid element!";
+	}
 	this.parent = this.elem.parentNode;
 	this.parent.removeChild(this.elem);
 }

@@ -1,6 +1,21 @@
 var Tools = {};
 Tools.svg = document.getElementById("canvas");
 Tools.socket = io.connect('');
+Tools.HTML = {
+	template : new Minitpl("#tools > .tool"),
+	addTool : function(toolName) {
+		var callback = function () {
+			Tools.change(toolName);
+		};
+		return this.template.add({
+			"a" : function (elem) {
+				elem.addEventListener("click", callback);
+				elem.id = "toolID-"+toolName;
+				return toolName;
+			}
+		});
+	}
+}
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
 Tools.add = function (newTool) {
@@ -10,23 +25,35 @@ Tools.add = function (newTool) {
 	}
 	//Add the tool to the list
 	Tools.list[newTool.name] = newTool;
+
+	//Add the tool to the GUI
+	Tools.HTML.addTool(newTool.name);
 }
 
 Tools.change = function (toolName){
+	if (! (toolName in Tools.list)) {
+		throw "Trying to select a tool that has never been added!";
+	}
+	var newtool = Tools.list[toolName];
+	
 	//There is not necessarily already a curTool
 	if (Tools.curTool) {
+		//It's useless to do anything if the new tool is already selected
+		if (newtool === curTool) return;
+
 		//Remove the old event listeners
 		for (var event in Tools.curTool.listeners) {
 			var listener = Tools.curTool.listeners[event];
 			Tools.svg.removeEventListener(event, listener);
 		}
 	}
+
 	//Add the new event listeners
 	for (var event in newtool.listeners) {
 		var listener = newtool.listeners[event];
 		Tools.svg.addEventListener(event, listener);
 	}
-	Tools.curTool = Tools.list[toolName];
+	Tools.curTool = newtool;
 }
 
 Tools.drawAndSend = function (data) {

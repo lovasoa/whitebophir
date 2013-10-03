@@ -2416,3 +2416,8 @@
 {"type":"point","line":"line1prny9qn4p69s","x":1301,"y":1436}
 {"type":"point","line":"line1prny9qn4p69s","x":1299,"y":1435}
 {"type":"point","line":"line1prny9qn4p69s","x":1299,"y":1435}
+{"type":"newLine","id":"linel5g0ktkg66f4"}
+{"type":"newLine","id":"linea02p3znygsg0"}
+{"type":"newLine","id":"linei9jb5lvcsum8"}
+{"type":"newLine","id":"line66q0z3uuescg"}
+{"type":"newLine","id":"linejt1atr87rf48"}

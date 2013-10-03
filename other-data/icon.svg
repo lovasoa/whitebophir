@@ -9,12 +9,12 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="210mm"
-   height="297mm"
+   width="274.99377"
+   height="226.93753"
    id="svg2"
    version="1.1"
    inkscape:version="0.48.4 r9939"
-   sodipodi:docname="icon.svg">
+   sodipodi:docname="apple-touch-icon.png">
   <defs
      id="defs4" />
   <sodipodi:namedview
@@ -25,8 +25,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="1.979899"
-     inkscape:cx="389.11966"
-     inkscape:cy="428.2751"
+     inkscape:cx="137.69467"
+     inkscape:cy="98.49419"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -34,7 +34,11 @@
      inkscape:window-height="876"
      inkscape:window-x="65"
      inkscape:window-y="24"
-     inkscape:window-maximized="1" />
+     inkscape:window-maximized="1"
+     fit-margin-top="0.2"
+     fit-margin-right="0.2"
+     fit-margin-left="0.2"
+     fit-margin-bottom="0.3" />
   <metadata
      id="metadata7">
     <rdf:RDF>
@@ -50,7 +54,8 @@
   <g
      inkscape:label="Calque 1"
      inkscape:groupmode="layer"
-     id="layer1">
+     id="layer1"
+     transform="translate(-251.42499,-495.64374)">
     <g
        id="g3770">
       <rect
@@ -77,7 +82,7 @@
     </g>
     <text
        xml:space="preserve"
-       style="font-size:154.44700622999999950px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#ff0000;fill-opacity:1;stroke:none;font-family:Sans"
+       style="font-size:154.44700623px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#ff0000;fill-opacity:1;stroke:none;font-family:Sans"
        x="265.4231"
        y="634.68677"
        id="text3775"
@@ -87,6 +92,6 @@
          id="tspan3777"
          x="265.4231"
          y="634.68677"
-         style="font-size:154.44700622999999950px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Ubuntu-Title;-inkscape-font-specification:Ubuntu-Title;fill:#ff0000">WBO</tspan></text>
+         style="font-size:154.44700623px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#ff0000;font-family:Ubuntu-Title;-inkscape-font-specification:Ubuntu-Title">WBO</tspan></text>
   </g>
 </svg>

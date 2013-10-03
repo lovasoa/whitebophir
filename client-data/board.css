@@ -4,20 +4,27 @@ html, body, svg {
 }
 
 #menu {
-	position:absolute;
-	left:0;
-	top:0;
-	color:#EEE;
-	background-color:rgba(0,0,255,0.4);
-	width:20px;
-	height:100%;
+	border-radius:3px;
+	font-family:"Segoe UI","Roboto","Ubuntu";
+	position:fixed;
+	left:10px;
+	top:10px;
+	background-color:rgba(100,200,255,0.7);
+	width:100px;
+	height:2em;
 	overflow:hidden;
+	box-shadow: 0px 0px 9px black;
+	transition-duration:1s;
 }
 
 #menu:hover {
-	background-color:rgba(0,0,0,0.8);
+	border-radius:0;
+	left:0;
+	top:0;
+	color:black;
+	background-color:rgba(0,100,255,0.9);
 	width:200px;
-	height:1000px;
+	height:100%;
 	transition-duration:1s;
 }
 
@@ -30,7 +37,10 @@ html, body, svg {
 }
 
 #menu h2{ /*Menu title ("Menu")*/
-	font-size:1em;
+	font-size:22px;
+	font-family:monospace;
+	letter-spacing:5px;
+	text-shadow: 0px 0px 9px white;
 	color:black;
 	text-align:center;
 	word-wrap:break-word;
@@ -39,16 +49,21 @@ html, body, svg {
 }
 
 #menu:hover h2{
-	color:#EEE;
+	text-shadow: 0px 0px 3px white;
 	word-wrap:normal;
 	font-size:2em;
 }
 
 #menu li {
 	width:150px;
-	color:#999;
 }
 
+#menu li a {
+	color:#111;
+	border:0;
+}
+
+
 #menu li:hover {
-	color:white;
+	text-shadow: 0px 0px 3px white;
 }
