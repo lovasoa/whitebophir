@@ -123,6 +123,8 @@ Tools.toolHooks = [
 					var x = ev.clientX + window.scrollX,
 						y = ev.clientY + window.scrollY;
 					listener(x,y,evt);
+					evt.preventDefault();
+					return false;
 			});		
 		}
 
