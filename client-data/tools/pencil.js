@@ -1,27 +1,55 @@
 (function(){ //Code isolation
-	var pencil = {}; //The new tool that will be added with Tools.add
-	pencil.name = "Pencil";
+	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
+	var curLineId = "",
+		lastTime = performance.now(); //The time at which the last point was drawn
 
+	function startLine (x,y) { 
+		curLineId = Tools.generateUID("l"); //"l" for line
 
-	var svg = Tools.svg;
+		Tools.drawAndSend({
+			'type' : 'line',
+			'id' : curLineId
+		});
+		
+		//Immediatly add a point to the line
+		continueLine(x,y);
+	}
 
-	var curLine = {},
-		lastTime = performance.now(),
-		drawing = false; //Indicates if a line is currently being draxn
- 
+	function continueLine (x,y){
+		/*Wait 50ms before adding any point to the currently drawing line.
+		This allows the animation to be smother*/
+		if (curLineId !== "" &&
+			performance.now() - lastTime > 50) {
+			Tools.drawAndSend({
+				'type' : 'point',
+				'line' : curLineId,
+				'x' : x,
+				'y' : y
+			});
+			lastTime = performance.now();
+		}
+	}
+
+	function stopLine (x,y){
+		//Add a last point to the line
+		continueLine(x,y);
+		curLineId = "";
+	}
+
 	function draw(data) {
 		switch(data.type) {
 			case "line":
-				curLine = createLine(data.id);
+				renderingLine = createLine(data.id);
 				break;
 			case "point":
-				var line = (data.line===curLine.id) ? curLine : svg.getElementById(data.line);
+				var line = (renderingLine.id == data.line) ? renderingLine : svg.getElementById(data.line);
 				if (!line) {
 					console.log("Pencil: Hmmm... I received a point of a line I don't know...");
 				}
 				addPoint(line, data.x, data.y);
 				break;
 			case "endline":
+				//TODO?
 				break;
 			default:
 				console.log("Pencil: Draw instruction with unknown type. ", data);
@@ -29,41 +57,8 @@
 		}
 	}
 
-	function pressHandler (ev) {
-		drawing = true;
-		Tools.drawAndSend({
-			'type' : 'line',
-			'id' : Tools.generateUID("l"); //"l" for line
-		});
-	}
 
-	function moveHandler (ev){
-		if (curLine !== null &&
-			performance.now() - lastTime > 50) {
-			var x = ev.clientX + window.scrollX,
-				y = ev.clientY + window.scrollY;
-			socket.emit('broadcast', {
-				'type' : 'point',
-				'line' : curLine.id,
-				'x' : x,
-				'y' : y
-			});
-			addPoint(curLine, x,y);
-			lastTime = performance.now();
-		}
-		ev.preventDefault();
-		return false;
-	}
-
-	function releaseHandler (){
-		drawing = false;
-	}
-svg.addEventListener("mouseup", releaseHandler);
-svg.addEventListener("mouseleave", releaseHandler);
-//svg.addEventListener("touchend", releaseHandler);
-
-
-
+	var svg = Tools.svg;
 	function addPoint (line, x,y) {
 		var point = svg.createSVGPoint();
 		point.x = x; point.y = y;
@@ -77,4 +72,13 @@ svg.addEventListener("mouseleave", releaseHandler);
 		return line;
 	}
 
+	Tools.add({ //The new tool
+	 	"name" : "Pencil",
+	 	"listeners" : {
+	 		"press" : startLine,
+	 		"move" : continueLine,
+	  		"release" : stopLine,
+	 	},
+	 	"draw" : draw
+	});
 })(); //End of code isolation
