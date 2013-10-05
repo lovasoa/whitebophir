@@ -46,6 +46,9 @@ Tools.change = function (toolName){
 			var listener = Tools.curTool.compiledListeners[event];
 			Tools.svg.removeEventListener(event, listener);
 		}
+		
+		//Call the callbacks of the old tool
+		Tools.curTool.onquit(newtool);
 	}
 
 	//Add the new event listeners
@@ -53,11 +56,9 @@ Tools.change = function (toolName){
 		var listener = newtool.compiledListeners[event];
 		Tools.svg.addEventListener(event, listener);
 	}
-	
-	//Call the callbacks of the new and the old tool
-	Tools.curTool.onquit(newtool);
-	newtool.onstart(Tools.curTool);
 
+	//Call the start callback of the new tool 
+	newTool.onstart(Tools.curTool);
 	Tools.curTool = newtool;
 }
 
