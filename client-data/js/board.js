@@ -127,7 +127,7 @@ Tools.toolHooks = [
 		tool.compiledListeners = compiled;
 
 		function compile (listener) { //closure
-			return (function(evt){
+			return (function listen (evt){
 					var x = evt.clientX + window.scrollX,
 						y = evt.clientY + window.scrollY;
 					listener(x,y,evt);
