@@ -19,7 +19,8 @@ var HISTORY_FILE = path.join(__dirname, "../server-data/history.txt");
 var MAX_HISTORY_LENGTH = 1e5;
 
 
-var history = [];
+var history = [],
+	unsaved_history = [];
 
 //Load existing history
 fs.readFile(HISTORY_FILE, 'utf8', function (file_err, history_str) {
@@ -57,19 +58,32 @@ function socketConnection (socket) {
 function addHistory(data) {
 		//Save the data in memory
 		history.push(data);
-		//Save the data to a file
-		fs.open(HISTORY_FILE, 'a', function (err, fd){
-			if (err) console.error(err);
-			else {
-				var str_data = JSON.stringify(data)+'\n';
-				fs.write(fd, str_data);
-			}		
-		});
+		unsaved_history.push(data);
+
 		//Avoid a memory overload
 		if (history.length > MAX_HISTORY_LENGTH) {
 			history.pop();
 		}
 }
+
+setInterval(function(){
+	if (unsaved_history.length > 0) {
+		fs.open(HISTORY_FILE, 'a', function (err, fd){
+			if (err) console.error("Unable to save history:", err);
+			else {
+				var tobesaved = unsaved_history;
+				unsaved_history = [];
+				var data_str = "#" + (new Date()).toString() + "\n";
+				data_str += tobesaved
+								.map(JSON.stringify)
+								.join("\n");
+				data_str += "\n";
+				fs.write(fd, data_str);
+				fs.close(fd);
+			}
+		});
+	}
+}, 10*1000);
 
 if (exports) {
 	exports.start = function(app){

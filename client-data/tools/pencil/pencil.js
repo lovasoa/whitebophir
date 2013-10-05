@@ -32,10 +32,11 @@
 
 	function stopLine (x,y){
 		//Add a last point to the line
-		continueLine(x,y);
+		continueLine(x+1,y+1);
 		curLineId = "";
 	}
 
+	var renderingLine = {};
 	function draw(data) {
 		switch(data.type) {
 			case "line":
@@ -45,6 +46,7 @@
 				var line = (renderingLine.id == data.line) ? renderingLine : svg.getElementById(data.line);
 				if (!line) {
 					console.log("Pencil: Hmmm... I received a point of a line I don't know...");
+					line = renderingLine = createLine(data.id);
 				}
 				addPoint(line, data.x, data.y);
 				break;
