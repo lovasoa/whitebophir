@@ -72,7 +72,7 @@ Tools.change = function (toolName){
 Tools.drawAndSend = function (data) {
 	Tools.curTool.draw(data);
 	var message = {
-			'tool' : curTool.name,
+			'tool' : Tools.curTool.name,
 			'data' : data
 	};
 	Tools.applyHooks(Tools.messageHooks, message);
