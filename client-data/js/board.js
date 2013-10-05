@@ -26,6 +26,10 @@ Tools.add = function (newTool) {
 		console.log("Tools.add: The tool '"+newTool.name+"' is already" +
 		"in the list. Updating it...");
 	}
+
+	//Format the new tool correctly
+	Tools.applyHooks(Tools.toolHooks, newTool);
+
 	//Add the tool to the list
 	Tools.list[newTool.name] = newTool;
 
@@ -124,8 +128,8 @@ Tools.toolHooks = [
 
 		function compile (listener) { //closure
 			return (function(evt){
-					var x = ev.clientX + window.scrollX,
-						y = ev.clientY + window.scrollY;
+					var x = evt.clientX + window.scrollX,
+						y = evt.clientY + window.scrollY;
 					listener(x,y,evt);
 					evt.preventDefault();
 					return false;
