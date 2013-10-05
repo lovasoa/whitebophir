@@ -81,4 +81,8 @@
 	 	},
 	 	"draw" : draw
 	});
+	
+	//The pencil tool is selected by default
+	Tools.change("Pencil");
+	alert("zizi")
 })(); //End of code isolation

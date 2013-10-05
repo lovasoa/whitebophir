@@ -1,6 +1,9 @@
 var Tools = {};
+
 Tools.svg = document.getElementById("canvas");
 Tools.socket = io.connect('');
+Tools.curTool = null;
+
 Tools.HTML = {
 	template : new Minitpl("#tools > .tool"),
 	addTool : function(toolName) {
@@ -37,7 +40,7 @@ Tools.change = function (toolName){
 	var newtool = Tools.list[toolName];
 
 	//There is not necessarily already a curTool
-	if (Tools.curTool) {
+	if (Tools.curTool !== null) {
 		//It's useless to do anything if the new tool is already selected
 		if (newtool === curTool) return;
 
@@ -58,7 +61,7 @@ Tools.change = function (toolName){
 	}
 
 	//Call the start callback of the new tool 
-	newTool.onstart(Tools.curTool);
+	newtool.onstart(Tools.curTool);
 	Tools.curTool = newtool;
 }
 
