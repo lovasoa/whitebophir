@@ -6,14 +6,24 @@
 	<title>WBO</title>
 	<link rel="icon" type="image/png" href="favicon.png" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="stylesheet" type="text/css" href="board.css">
+	<link rel="stylesheet" type="text/css" href="board.css"></link>
 	<script type="text/javascript" src="/socket.io/socket.io.js"></script>
 </head>
 
 <body>
 
+<div id="board">
+	<svg id="canvas"
+		width="500" height="500" version="1.1"
+		 xmlns="http://www.w3.org/2000/svg">
+		<defs id="defs"></defs>
+	</svg>
+</div>
+
 <div id="menu">
-	<h2>Menu</h2>
+	<h2 id="toggleMenu">Menu</h2>
+	
+	<br/>
 
 	<div id="menuItems">
 		<h3>Tools</h3>
@@ -28,24 +38,13 @@
 		<input type="color" id="chooseColor" value="black"></input>
 		<br/>
 		<label for="chooseSize">Size:</label>
-		<input type="range" id="chooseSize" value="3" min="1" max="50" step="1"></input>
+		<input type="range" id="chooseSize" value="10" min="1" max="50" step="1"></input>
 	</div>
 </div>
 
-<svg id="canvas"
-	width="500" height="500" version="1.1"
-     xmlns="http://www.w3.org/2000/svg">
-    <defs>
-	<style type="text/css"><![CDATA[
-      polyline {
-        fill: none;
-        stroke-linecap: round;
-      }
-    ]]></style>
-    </defs>
-</svg>
 <script type="text/javascript" src="js/minitpl.js"></script>
 <script type="text/javascript" src="js/board.js"></script>
 <script type="text/javascript" src="tools/pencil/pencil.js"></script>
+<script type="text/javascript" src="tools/text/text.js"></script>
 </body>
 </html>

@@ -9,7 +9,11 @@
 		},
 		lastTime = performance.now(); //The time at which the last point was drawn
 
-	function startLine (x,y) { 
+	function startLine (x,y, evt) {
+
+		//Prevent the press from being interpreted by the browser
+		evt.preventDefault();
+
 		curLineId = Tools.generateUID("l"); //"l" for line
 
 		Tools.drawAndSend({
@@ -75,7 +79,7 @@
 	}
 
 	function createLine(lineData) {
-		var line = Tools.createElement("polyline");
+		var line = Tools.createSVGElement("polyline");
 		line.id = lineData.id;
 		line.style.stroke = lineData.color || "black";
 		line.style.strokeWidth = lineData.size || 3;
@@ -90,7 +94,9 @@
 	 		"move" : continueLine,
 	  		"release" : stopLine,
 	 	},
-	 	"draw" : draw
+	 	"draw" : draw,
+	 	
+	 	"stylesheet" : "tools/pencil/pencil.css"
 	});
 
 	//The pencil tool is selected by default

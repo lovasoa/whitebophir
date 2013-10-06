@@ -1,5 +1,6 @@
 var Tools = {};
 
+Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 Tools.socket = io.connect('');
 Tools.curTool = null;
@@ -17,8 +18,17 @@ Tools.HTML = {
 				return toolName;
 			}
 		});
+	},
+	addStylesheet : function(href) {
+		//Adds a css stylesheet to the html or svg document
+		var link = document.createElement("link");
+		link.href = href;
+		link.rel = "stylesheet";
+		link.type = "text/css";
+		document.head.appendChild(link);
 	}
-}
+};
+
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
 Tools.add = function (newTool) {
@@ -32,6 +42,10 @@ Tools.add = function (newTool) {
 
 	//Add the tool to the list
 	Tools.list[newTool.name] = newTool;
+
+	if (newTool.stylesheet) {
+		Tools.HTML.addStylesheet(newTool.stylesheet);
+	}
 
 	//Add the tool to the GUI
 	Tools.HTML.addTool(newTool.name);
@@ -51,7 +65,7 @@ Tools.change = function (toolName){
 		//Remove the old event listeners
 		for (var event in Tools.curTool.compiledListeners) {
 			var listener = Tools.curTool.compiledListeners[event];
-			Tools.svg.removeEventListener(event, listener);
+			Tools.board.removeEventListener(event, listener);
 		}
 		
 		//Call the callbacks of the old tool
@@ -61,23 +75,28 @@ Tools.change = function (toolName){
 	//Add the new event listeners
 	for (var event in newtool.compiledListeners) {
 		var listener = newtool.compiledListeners[event];
-		Tools.svg.addEventListener(event, listener);
+		Tools.board.addEventListener(event, listener);
 	}
 
 	//Call the start callback of the new tool 
 	newtool.onstart(Tools.curTool);
 	Tools.curTool = newtool;
-}
+};
 
-Tools.drawAndSend = function (data) {
-	Tools.curTool.draw(data);
+Tools.send = function(data, toolName){
+	var toolName = toolName || Tools.curTool.name;
 	var message = {
-			'tool' : Tools.curTool.name,
+			'tool' : toolName,
 			'data' : data
 	};
 	Tools.applyHooks(Tools.messageHooks, message);
 	Tools.socket.emit('broadcast', message);
-}
+};
+
+Tools.drawAndSend = function (data) {
+	Tools.curTool.draw(data, true);
+	Tools.send(data);
+};
 
 Tools.socket.on("broadcast", function (message){
 	//Check if the message is in the expected format
@@ -85,7 +104,7 @@ Tools.socket.on("broadcast", function (message){
 	if (message.tool && message.data) {
 		var tool = Tools.list[message.tool];
 		if (!tool) throw "Received a message for an unknown tool!";
-		tool.draw(message.data);
+		tool.draw(message.data, false); //draw the received data
 	} else {
 		throw "Received a badly formatted message";
 	}
@@ -130,9 +149,7 @@ Tools.toolHooks = [
 			return (function listen (evt){
 					var x = evt.clientX + window.scrollX,
 						y = evt.clientY + window.scrollY;
-					listener(x,y,evt);
-					evt.preventDefault();
-					return false;
+					return listener(x,y,evt);
 			});		
 		}
 
@@ -163,8 +180,13 @@ Tools.generateUID = function (prefix, suffix) {
 	return rndStr;
 };
 
-Tools.createElement = function (name) {
+Tools.createSVGElement = function (name) {
 	return document.createElementNS(Tools.svg.namespaceURI, name);
+};
+
+Tools.positionElement = function (elem, x, y) {
+	elem.style.top = y+"px";
+	elem.style.left = x+"px";
 };
 
 (function color (){
@@ -200,6 +222,17 @@ Tools.createElement = function (name) {
 Tools.svg.width.baseVal.value = document.body.clientWidth;
 Tools.svg.height.baseVal.value = document.body.clientHeight;
 
+
+
+(function menu () {
+	var menu = document.getElementById("menu");
+		tog = document.getElementById("toggleMenu");
+
+	tog.onclick = function(e){
+		menu.classList.toggle("closed");
+	};
+})();
+
 /**
  What does a "tool" object look like?
  newtool = {
@@ -209,10 +242,11 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
  		"move" : function(x,y,evt){...},
   		"release" : function(x,y,evt){...},
  	},
- 	"draw" : function(data){
+ 	"draw" : function(data, isLocal){
  		//Print the data on Tools.svg
  	},
  	"onstart" : function(oldTool){...},
  	"onquit" : function(newTool){...},
+ 	"stylesheet" : "style.css",
 }
 */

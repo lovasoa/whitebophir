@@ -4,22 +4,11 @@ html, body, svg {
 }
 
 #menu {
-	border-radius:3px;
 	font-family:"Segoe UI","Roboto","Ubuntu";
-	position:fixed;
-	left:10px;
-	top:10px;
-	background-color:rgba(100,200,255,0.7);
-	width:100px;
-	height:2em;
-	overflow:hidden;
-	box-shadow: 0px 0px 9px black;
-	transition-duration:1s;
-	transition-delay:5s;
-}
-
-#menu:hover, #menu:focus {
 	border-radius:0;
+	box-shadow: 0px 0px 9px black;
+	overflow:hidden;
+	position:fixed;
 	left:0;
 	top:0;
 	color:black;
@@ -27,7 +16,20 @@ html, body, svg {
 	width:200px;
 	height:100%;
 	transition-duration:1s;
-	transition-delay:0s;
+}
+
+#menu.closed {
+	border-radius:3px;
+	left:10px;
+	top:10px;
+	background-color:rgba(100,200,255,0.7);
+	width:100px;
+	height:2em;
+	transition-duration:1s;
+}
+
+#menu.closed h2{ /*Menu title ("Menu")*/
+	text-align:center;
 }
 
 #menu h2{ /*Menu title ("Menu")*/
@@ -36,16 +38,9 @@ html, body, svg {
 	letter-spacing:5px;
 	text-shadow: 0px 0px 9px white;
 	color:black;
-	text-align:center;
 	word-wrap:break-word;
 	padding:0;
 	margin:0;
-}
-
-#menu:hover h2{
-	text-shadow: 0px 0px 3px white;
-	word-wrap:normal;
-	font-size:2em;
 }
 
 #menu li {
