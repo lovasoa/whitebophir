@@ -15,9 +15,10 @@ html, body, svg {
 	overflow:hidden;
 	box-shadow: 0px 0px 9px black;
 	transition-duration:1s;
+	transition-delay:5s;
 }
 
-#menu:hover {
+#menu:hover, #menu:focus {
 	border-radius:0;
 	left:0;
 	top:0;
@@ -26,14 +27,7 @@ html, body, svg {
 	width:200px;
 	height:100%;
 	transition-duration:1s;
-}
-
-#menu #menuItems {
-	display:none;
-}
-
-#menu:hover #menuItems {
-	display:block;
+	transition-delay:0s;
 }
 
 #menu h2{ /*Menu title ("Menu")*/

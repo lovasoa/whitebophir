@@ -46,7 +46,7 @@ Tools.change = function (toolName){
 	//There is not necessarily already a curTool
 	if (Tools.curTool !== null) {
 		//It's useless to do anything if the new tool is already selected
-		if (newtool === curTool) return;
+		if (newtool === Tools.curTool) return;
 
 		//Remove the old event listeners
 		for (var event in Tools.curTool.compiledListeners) {
@@ -151,16 +151,52 @@ Tools.applyHooks = function(hooks, object) {
 	hooks.forEach(function(hook) {
 		hook(object);
 	});
-}
+};
 
+
+// Utility functions
 
 Tools.generateUID = function (prefix, suffix) {
 	var rndStr = (Math.round(Math.random()*1e19)).toString(36);
 	if (prefix) rndStr = prefix + rndStr;
 	if (suffix) rndStr = rndStr + suffix;
 	return rndStr;
-}
+};
 
+Tools.createElement = function (name) {
+	return document.createElementNS(Tools.svg.namespaceURI, name);
+};
+
+(function color (){
+	var chooser = document.getElementById("chooseColor");
+	function update (){
+		chooser.style.backgroundColor = chooser.value;
+	}
+	update();
+	chooser.onkeyup = chooser.onchange = update;
+
+	Tools.getColor = function(){
+		return chooser.style.backgroundColor;
+	};
+})();
+
+(function size (){
+	var chooser = document.getElementById("chooseSize");
+
+	function update (){
+		if (chooser.value<1 || chooser.value > 50) {
+			chooser.value=3;
+		}
+	}
+	update();
+
+	chooser.onchange = update;
+	Tools.getSize = function(){
+		return chooser.value;
+	};
+})();
+
+//Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;
 Tools.svg.height.baseVal.value = document.body.clientHeight;
 

@@ -24,6 +24,11 @@
 		</ul>
 
 		<h3>Configuration</h3>
+		<label for="chooseColor">Color:</label>
+		<input type="color" id="chooseColor" value="black"></input>
+		<br/>
+		<label for="chooseSize">Size:</label>
+		<input type="range" id="chooseSize" value="3" min="1" max="50" step="1"></input>
 	</div>
 </div>
 
@@ -34,8 +39,7 @@
 	<style type="text/css"><![CDATA[
       polyline {
         fill: none;
-        stroke: black;
-        stroke-width: 3;
+        stroke-linecap: round;
       }
     ]]></style>
     </defs>

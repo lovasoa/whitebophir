@@ -14,7 +14,9 @@
 
 		Tools.drawAndSend({
 			'type' : 'line',
-			'id' : curLineId
+			'id' : curLineId,
+			'color' : Tools.getColor(),
+			'size' : Tools.getSize()
 		});
 
 		//Update the current point
@@ -45,7 +47,7 @@
 	function draw(data) {
 		switch(data.type) {
 			case "line":
-				renderingLine = createLine(data.id);
+				renderingLine = createLine(data);
 				break;
 			case "point":
 				var line = (renderingLine.id == data.line) ? renderingLine : svg.getElementById(data.line);
@@ -72,9 +74,11 @@
 		line.points.appendItem(point);
 	}
 
-	function createLine(id) {
-		var line = document.createElementNS(svg.namespaceURI, "polyline");
-		line.id = id;
+	function createLine(lineData) {
+		var line = Tools.createElement("polyline");
+		line.id = lineData.id;
+		line.style.stroke = lineData.color || "black";
+		line.style.strokeWidth = lineData.size || 3;
 		svg.appendChild(line);
 		return line;
 	}

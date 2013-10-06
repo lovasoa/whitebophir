@@ -7,7 +7,7 @@ function Minitpl(elem, data) {
 	this.parent.removeChild(this.elem);
 }
 Minitpl.prototype.add = function(data) {
-	var newElem = this.elem.cloneNode();
+	var newElem = this.elem.cloneNode(true);
 	for (var key in data) {
 		var val = data[key];
 		var matches = newElem.querySelectorAll(key);

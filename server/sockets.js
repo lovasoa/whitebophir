@@ -25,7 +25,11 @@ var history = [],
 //Load existing history
 fs.readFile(HISTORY_FILE, 'utf8', function (file_err, history_str) {
 	if (file_err) {
-		console.log("Unable to open history file: "+file_err);
+		if (file_err.code == "ENOENT") {
+			console.log("History file not found. It will be created.");
+		} else {
+			console.log("An error occured while trying to open history file: "+file_err);
+		}
 	}else {
 		try {
 			history = history_str
@@ -73,11 +77,11 @@ setInterval(function(){
 			else {
 				var tobesaved = unsaved_history;
 				unsaved_history = [];
-				var data_str = "#" + (new Date()).toString() + "\n";
+				var data_str = "";
 				data_str += tobesaved
 								.map(JSON.stringify)
 								.join("\n");
-				data_str += "\n";
+				data_str += "\n#" + (new Date()).toString() + "\n";
 				fs.write(fd, data_str);
 				fs.close(fd);
 			}
