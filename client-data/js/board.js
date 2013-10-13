@@ -11,13 +11,18 @@ Tools.HTML = {
 		var callback = function () {
 			Tools.change(toolName);
 		};
-		return this.template.add({
-			"a" : function (elem) {
+		return this.template.add(function (elem) {
 				elem.addEventListener("click", callback);
 				elem.id = "toolID-"+toolName;
 				return toolName;
 			}
-		});
+		);
+	},
+	changeTool : function(oldToolName, newToolName) {
+		var oldTool = document.getElementById("toolID-"+oldToolName);
+		var newTool = document.getElementById("toolID-"+newToolName);
+		if (oldTool) oldTool.classList.remove("curTool");
+		if (newTool) newTool.classList.add("curTool");
 	},
 	addStylesheet : function(href) {
 		//Adds a css stylesheet to the html or svg document
@@ -55,6 +60,11 @@ Tools.change = function (toolName){
 	if (! (toolName in Tools.list)) {
 		throw "Trying to select a tool that has never been added!";
 	}
+
+	//Update the GUI
+	var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
+	Tools.HTML.changeTool(curToolName, toolName);
+
 	var newtool = Tools.list[toolName];
 
 	//There is not necessarily already a curTool

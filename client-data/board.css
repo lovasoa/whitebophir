@@ -43,16 +43,43 @@ html, body, svg {
 	margin:0;
 }
 
+#menu ul {
+	list-style-type:none;
+	padding:0;
+}
+
 #menu li {
 	width:150px;
-}
-
-#menu li a {
-	color:#111;
+	font-size:1.5em;
+	list-style-position:inside;
+	width:100%;
+	color:#335;
 	border:0;
+	text-decoration:none;
+	width:100%;
+	transition-duration:0.5s;
 }
-
 
 #menu li:hover {
+	color:black;
+	transition-duration:0.5s;
+}
+
+#menu li.curTool {
+	box-shadow: 0 0 2px white;
+	background-color:rgba(0,100,255,1);
 	text-shadow: 0px 0px 3px white;
+	transition-duration:0.5s;
+}
+
+#chooseColor {
+	width:5em;
+	border:1px solid black;
+	border-radius:3px;
+	color:black;
+	text-shadow: 0 0 5px white;
+}
+
+#chooseSize {
+	width:5em;
 }

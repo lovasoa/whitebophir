@@ -38,7 +38,6 @@
 	
 	function fieldBlurHandler (evt) {
 		var field = evt.target;
-		console.log("blur", field);
 		if (field.textContent.trim() === "") {
 			Tools.drawAndSend({
 				"type" : "delete",
