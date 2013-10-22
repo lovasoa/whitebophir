@@ -77,7 +77,7 @@ Tools.change = function (toolName){
 			var listener = Tools.curTool.compiledListeners[event];
 			Tools.board.removeEventListener(event, listener);
 		}
-		
+
 		//Call the callbacks of the old tool
 		Tools.curTool.onquit(newtool);
 	}

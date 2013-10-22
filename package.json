@@ -1,14 +1,21 @@
 {
-   "keywords" : [
+   "keywords": [
       "collaborative",
       "whiteboard"
    ],
-   "version" : "0.1.0",
-   "dependencies" : {
-      "node-static" : "0.7.x",
-      "socket.io" : "0.9.x"
+   "version": "0.1.0-2",
+   "dependencies": {
+      "node-static": "0.7.x",
+      "socket.io": "0.9.x"
    },
-   "name" : "Whitebophir",
-   "description" : "Online collaborative whiteboard",
-   "main" : "./server/server.js"
+   "scripts": {
+      "start": "node ./server/server.js"
+   },
+   "name": "Whitebophir",
+   "description": "Online collaborative whiteboard",
+   "main": "./server/server.js",
+   "subdomain": "wbo",
+   "engines": {
+      "node": "0.10.x"
+   }
 }
