@@ -243,6 +243,13 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 	};
 })();
 
+//tools may use performance.now, but Safari doesn't support it
+if (!window.performance) {
+	window.performance = {
+		"now" : Date.now
+	}
+}
+
 /**
  What does a "tool" object look like?
  newtool = {
