@@ -95,7 +95,6 @@
 	  		"release" : stopLine,
 	 	},
 	 	"draw" : draw,
-	 	
 	 	"stylesheet" : "tools/pencil/pencil.css"
 	});
 
