@@ -65,7 +65,6 @@
 		input.value="";
 		input.focus();
 		input.addEventListener("keyup", textChangeHandler);
-		input.addEventListener("blur", inputBlurHandler);
 	}
 	function stopEdit () {
 		input.blur();
@@ -92,15 +91,6 @@
 		}
 	}
 
-	function inputBlurHandler (evt) {
-		if (input.value.trim() === "") {
-			Tools.drawAndSend({
-				"type" : "delete",
-				"field" : curText.id
-			});
-		}
-	}
-
 	function draw(data, isLocal) {
 		switch(data.type) {
 			case "new":
@@ -113,14 +103,6 @@
 					return false;
 				}
 				updateText(textField, data.txt);
-				break;
-			case "delete":
-				var textField = document.getElementById(data.field);
-				if (textField===null) {
-					console.log("Text: Hmmm... I'm trying to delete an unknown text field");
-					return false;
-				}
-				board.removeChild(textField);
 				break;
 			default:
 				console.log("Text: Draw instruction with unknown type. ", data);
