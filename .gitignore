@@ -1,4 +1,5 @@
 node_modules
+server-data/history.txt
 
 lib-cov
 *.seed
