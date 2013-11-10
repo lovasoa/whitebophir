@@ -45,7 +45,7 @@ function transform (element, transformer) {
 
 Minitpl.prototype.add = function(data) {
 	var newElem = this.elem.cloneNode(true);
-	if (typeof (data) === "object") {  
+	if (typeof (data) === "object") {
 		for (var key in data) {
 			var matches = newElem.querySelectorAll(key);
 			for (var i=0; i<matches.length; i++) {
