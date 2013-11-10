@@ -27,6 +27,10 @@
 (function(){ //Code isolation
 	var board = Tools.board, svg = Tools.svg;
 
+	var input = document.createElement("input");
+	input.id="textToolInput";
+	board.appendChild(input);
+
 	var curText = {
 		"x":0,
 		"y":0,
@@ -37,6 +41,7 @@
 	};
 
 	function clickHandler (x,y, evt) {
+		if (evt && evt.target == input) return;
 		stopEdit()
 		curText.id = Tools.generateUID("t");
 		curText.x=x; curText.y=y;
@@ -56,17 +61,15 @@
 		if (evt) evt.preventDefault();
 	}
 
-	var hiddenInput = document.createElement("input");
-	hiddenInput.id="hiddenInput";
-	board.appendChild(hiddenInput);
-
 	function startEdit () {
-		hiddenInput.value="";
-		hiddenInput.focus();
-		hiddenInput.addEventListener("keyup", textChangeHandler);
+		input.value="";
+		input.focus();
+		input.addEventListener("keyup", textChangeHandler);
+		input.addEventListener("blur", inputBlurHandler);
 	}
 	function stopEdit () {
-		hiddenInput.removeEventListener("keyup", textChangeHandler);
+		input.blur();
+		input.removeEventListener("keyup", textChangeHandler);
 	}
 
 	function textChangeHandler (evt) {
@@ -74,13 +77,13 @@
 			clickHandler(curText.x,curText.y + 1.5*curText.size);
 		}
 		if (performance.now() - curText.lastSending > 100) {
-			if (curText.sentText !== hiddenInput.value) {
+			if (curText.sentText !== input.value) {
 				Tools.drawAndSend({
 					'type' : "update",
 					'field' : curText.id,
-					'txt' : hiddenInput.value
+					'txt' : input.value
 				});
-				curText.sentText = hiddenInput.value;
+				curText.sentText = input.value;
 				curText.lastSending = performance.now();
 			}
 		} else {
@@ -89,12 +92,11 @@
 		}
 	}
 
-	function fieldBlurHandler (evt) {
-		var field = evt.target;
-		if (field.textContent.trim() === "") {
+	function inputBlurHandler (evt) {
+		if (input.value.trim() === "") {
 			Tools.drawAndSend({
 				"type" : "delete",
-				"field" : field.id
+				"field" : curText.id
 			});
 		}
 	}

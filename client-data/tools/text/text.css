@@ -1,5 +1,9 @@
-#hiddenInput {
+#textToolInput {
 	position:fixed;
-	top:0; left:0;
-	width:0; height:0;
+	top:-1000px; /*Hidden*/
+	left:200px;
+	width:100%;
+}
+#textToolInput:focus {
+	top:0;
 }
