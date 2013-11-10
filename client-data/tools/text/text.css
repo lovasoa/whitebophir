@@ -7,3 +7,8 @@
 #textToolInput:focus {
 	top:0;
 }
+
+text {
+	user-select:none;
+	-moz-user-select:none;
+}

@@ -150,7 +150,8 @@
 	 		"press" : clickHandler,
 	 	},
 	 	"draw" : draw,
-	 	"stylesheet" : "tools/text/text.css"
+	 	"stylesheet" : "tools/text/text.css",
+	 	"mouseCursor" : "text"
 	});
 
 })(); //End of code isolation

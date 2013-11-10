@@ -87,11 +87,12 @@ Tools.change = function (toolName){
 		throw "Trying to select a tool that has never been added!";
 	}
 
+	var newtool = Tools.list[toolName];
+
 	//Update the GUI
 	var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
 	Tools.HTML.changeTool(curToolName, toolName);
-
-	var newtool = Tools.list[toolName];
+	Tools.svg.style.cursor = newtool.mouseCursor || "auto";
 
 	//There is not necessarily already a curTool
 	if (Tools.curTool !== null) {

@@ -121,6 +121,7 @@
 	  		"release" : stopLine,
 	 	},
 	 	"draw" : draw,
+	 	"mouseCursor" : "crosshair",
 	 	"stylesheet" : "tools/pencil/pencil.css"
 	});
 

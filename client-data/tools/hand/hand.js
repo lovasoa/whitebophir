@@ -53,6 +53,7 @@
 	 		"move" : move,
 	 		"release" : release
 	 	},
+	 	"mouseCursor" : "move"
 	});
 
 })(); //End of code isolation
