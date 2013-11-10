@@ -1,5 +1,11 @@
-span.t_textField {
+.t_textField {
 	position:absolute;
 	white-space: pre;
 	font-family:Arial;
+}
+
+#hiddenInput {
+	position:fixed;
+	top:0; left:0;
+	width:0; height:0;
 }

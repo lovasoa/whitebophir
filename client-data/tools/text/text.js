@@ -1,41 +1,68 @@
 (function(){ //Code isolation
+	var board = Tools.board, svg = Tools.svg;
+
+	var curText = {
+		"x":0,
+		"y":0,
+		"size" : 0,
+		"id" : 0,
+		"sentText" : "",
+		"lastSending" : 0
+	};
 
 	function clickHandler (x,y, evt) {
-		//Let the user edit an existing textField
-		if (evt.target && evt.target.className === "t_textField") return true;
+		stopEdit()
+		curText.id = Tools.generateUID("t");
+		curText.x=x; curText.y=y;
+		curText.size = parseInt(Tools.getSize()*1.5 + 12);
 
 		//If the user clicked where there was no text, then create a new text field
 		Tools.drawAndSend({
 			'type' : 'new',
-			'id' : Tools.generateUID("t"), //"t" for text
+			'id' : curText.id, //"t" for text
 			'color' : Tools.getColor(),
-			'size' : Tools.getSize()+8,
+			'size' : curText.size,
 			'x' : x,
-			'y' : y
+			'y' : y+curText.size/2
 		});
 
-		evt.preventDefault();
+		startEdit();
+		if (evt) evt.preventDefault();
+	}
+
+	var hiddenInput = document.createElement("input");
+	hiddenInput.id="hiddenInput";
+	board.appendChild(hiddenInput);
+
+	function startEdit () {
+		hiddenInput.value="";
+		hiddenInput.focus();
+		hiddenInput.addEventListener("keyup", textChangeHandler);
+	}
+	function stopEdit () {
+		hiddenInput.removeEventListener("keyup", textChangeHandler);
 	}
 
 	function textChangeHandler (evt) {
-		var field = evt.target;
-		if (performance.now() - field.dataset.lastSending > 100) {
-			var innerText = getInnerText(field);
-			if (field.dataset.sentText !== innerText) {
-				Tools.send({
+		if (evt && evt.which===13) {
+			clickHandler(curText.x,curText.y + 1.5*curText.size);
+		}
+		if (performance.now() - curText.lastSending > 100) {
+			if (curText.sentText !== hiddenInput.value) {
+				Tools.drawAndSend({
 					'type' : "update",
-					'field' : field.id,
-					'txt' : getInnerText(field)
+					'field' : curText.id,
+					'txt' : hiddenInput.value
 				});
-				field.dataset.sentText = innerText;
-				field.dataset.lastSending = performance.now();
+				curText.sentText = hiddenInput.value;
+				curText.lastSending = performance.now();
 			}
 		} else {
-			clearTimeout(field.dataset.timeout);
-			field.dataset.timeout = setTimeout(textChangeHandler, 200, evt);
+			clearTimeout(curText.timeout);
+			curText.timeout = setTimeout(textChangeHandler, 200);
 		}
 	}
-	
+
 	function fieldBlurHandler (evt) {
 		var field = evt.target;
 		if (field.textContent.trim() === "") {
@@ -49,10 +76,7 @@
 	function draw(data, isLocal) {
 		switch(data.type) {
 			case "new":
-				var newField = createTextField(data);
-				if (isLocal) {
-					newField.focus();
-				}
+				createTextField(data);
 				break;
 			case "update":
 				var textField = document.getElementById(data.field);
@@ -76,41 +100,19 @@
 		}
 	}
 
-	function getInnerText(field) {
-		/*Firefox doesn't have node.innerText,
-		but it's needed in order to have get the new line characters*/
-		if (field.innerText) return field.innerText;
-		var text = "";
-		var nodes = field.childNodes;
-		for (var i=0; i<nodes.length; i++) {
-			var node = nodes[i];
-			if (node.nodeName === "BR") {
-				text += "\n";
-			} else {
-				text += node.textContent;
-			}
-		}
-		return text;
-	}
-
-	var board = Tools.board;
 	function updateText (textField, text) {
 		textField.textContent = text;
 	}
 
 	function createTextField (fieldData) {
-		var elem = document.createElement("span");
+		var elem = Tools.createSVGElement("text");
 		elem.id = fieldData.id;
-		elem.style.color = fieldData.color;
-		elem.style.fontSize = fieldData.size+"px";
-		elem.className = "t_textField";
-		elem.contentEditable="true";
-		Tools.positionElement(elem, fieldData.x, fieldData.y);
-		elem.addEventListener("keyup", textChangeHandler);
-		elem.addEventListener("change", textChangeHandler);
-		elem.addEventListener("blur", fieldBlurHandler);
-		elem.dataset.lastSending = performance.now();
-		board.appendChild(elem);
+		elem.setAttribute("x", fieldData.x);
+		elem.setAttribute("y", fieldData.y);
+		elem.setAttribute("font-size", fieldData.size);
+		elem.style.fill = fieldData.color;
+		if (fieldData.text) elem.textContent = fieldData.text;
+		svg.appendChild(elem);
 		return elem;
 	}
 
