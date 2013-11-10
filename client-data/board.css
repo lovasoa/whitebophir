@@ -16,6 +16,7 @@ html, body, svg {
 	width:200px;
 	height:100%;
 	transition-duration:1s;
+	cursor:default;
 }
 
 #menu.closed {
@@ -58,6 +59,7 @@ html, body, svg {
 	text-decoration:none;
 	width:100%;
 	transition-duration:0.5s;
+	cursor:pointer;
 }
 
 #menu li:hover {

@@ -29,6 +29,9 @@ function handler (request, response) {
 		case "/":
 			fileserver.serveFile("board.html", 200, {}, request, response);
 			break;
+		case "/download":
+			fileserver.serveFile("../server-data/history.txt", 200, {}, request, response);
+			break;
 		default:
 			fileserver.serve(request, response, function (err, res){
 				if (err) {
