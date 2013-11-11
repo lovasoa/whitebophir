@@ -95,4 +95,5 @@ if (exports) {
 		io.sockets.on('connection', socketConnection);
 		return io;
 	};
+	exports.HISTORY_FILE = HISTORY_FILE;
 }

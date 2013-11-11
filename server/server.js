@@ -1,8 +1,11 @@
 var app = require('http').createServer(handler)
-  , sockets = require('./sockets.js').start(app)
+  , sockets = require('./sockets.js')
   , fs = require('fs')
   , path = require('path')
   , nodestatic = require("node-static");
+
+
+var io = sockets.start(app);
 
 /**
  * Folder from which static files will be served
@@ -23,21 +26,35 @@ console.log("Server listening on "+PORT);
 
 var fileserver = new nodestatic.Server(WEBROOT);
 
+function serveError(request, response, err) {
+	console.warn("Error serving '"+request.url+"' : "+err.message);
+	fileserver.serveFile('error.html', err.status, {}, request, response);
+}
+
+function logRequest (request) {
+	console.log(Date() + " : Connection from " + request.connection.remoteAddress +
+				" ("+request.headers['user-agent']+")");
+}
+
 function handler (request, response) {
 
 	switch(request.url) {
 		case "/":
+			logRequest(request);
 			fileserver.serveFile("board.html", 200, {}, request, response);
 			break;
 		case "/download":
-			fileserver.serveFile("../server-data/history.txt", 200, {}, request, response);
+			var history_file = "../server-data/history.txt",
+				headers = {"Content-Type": "application/wbo"};
+			var promise = fileserver.serveFile(history_file, 200, headers, request, response);
+			promise.on("error", function(){
+				response.statusCode = 404;
+				response.end("ERROR: Unable to serve history file\n");
+			});
 			break;
 		default:
 			fileserver.serve(request, response, function (err, res){
-				if (err) {
-					console.warn("Error serving '"+request.url+"' : "+err.message);
-					fileserver.serveFile('error.html', err.status, {}, request, response);
-				}
+				if (err) serveError(request, response, err);
 			});
 	}
 }
