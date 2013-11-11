@@ -152,11 +152,11 @@ Tools.messageHooks = [
 	function resizeCanvas (m) {
 		if (m.data && m.data.x && m.data.y) {
 			var svg = Tools.svg, x=m.data.x, y=m.data.y;
-			if (x > svg.width.baseVal.value - 100) {
-				svg.width.baseVal.value = x + 1000;
+			if (x > svg.width.baseVal.value - 500) {
+				svg.width.baseVal.value = x + 1500;
 			}
-			if (y > svg.height.baseVal.value - 100) {
-				svg.height.baseVal.value = y + 1000;
+			if (y > svg.height.baseVal.value - 500) {
+				svg.height.baseVal.value = y + 2000;
 			}
 		}
 	}
