@@ -28,19 +28,17 @@
 
 	var orig = {x:0,y:0};
 	var pressed = false;
-	function press(x,y,evt) {
-		pressed=true;
-		orig.x=scrollX+evt.clientX;
-		orig.y=scrollY+evt.clientY;
-		evt.preventDefault();
-		return false;
+	function press(x,y,evt, isTouchEvent) {
+		if (!isTouchEvent) {
+			pressed=true;
+			orig.x=scrollX+evt.clientX;
+			orig.y=scrollY+evt.clientY;
+		}
 	}
-	function move(x,y,evt) {
-		if (pressed) {
+	function move(x,y,evt, isTouchEvent) {
+		if (pressed && !isTouchEvent) { //Let the browser handle touch to scroll
 			window.scrollTo(orig.x-evt.clientX, orig.y-evt.clientY);
 		}
-		evt.preventDefault();
-		return false;
 	}
 	function release() {
 		pressed=false;

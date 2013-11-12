@@ -184,18 +184,42 @@ Tools.toolHooks = [
 
 		function compile (listener) { //closure
 			return (function listen (evt){
-					var x = evt.clientX + window.scrollX,
-						y = evt.clientY + window.scrollY;
-					return listener(x,y,evt);
-			});		
+					var x = evt.pageX,
+						y = evt.pageY;
+					return listener(x,y,evt,false);
+			});
 		}
 
-		if (listeners.press) compiled.mousedown = compile(listeners.press);
-		if (listeners.move) compiled.mousemove = compile(listeners.move);
+		function compileTouch (listener) { //closure
+			return (function touchListen (evt) {
+				//Currently, we don't handle multitouch
+				if (evt.changedTouches.length === 1) {
+					//evt.preventDefault();
+					var touch = evt.changedTouches[0];
+					var x = touch.pageX,
+						y = touch.pageY;
+					return listener(x,y,evt,true);
+				}
+				return true;
+			});
+		}
+
+		if (listeners.press) {
+			compiled["mousedown"] = compile(listeners.press);
+			compiled["touchstart"] = compileTouch(listeners.press);
+		}
+		if (listeners.move) {
+			compiled["mousemove"] = compile(listeners.move);
+			compiled["touchmove"] = compileTouch(listeners.move);
+		}
 		if (listeners.release) {
-			var release = compile(listeners.release);
-			compiled.mouseup = release;
-			compiled.mouseleave = release;
+			var release = compile(listeners.release),
+				releaseTouch = compileTouch(listeners.release);
+			compiled["mouseup"] = release;
+			compiled["mouseleave"] = release;
+			compiled["touchleave"] = releaseTouch;
+			compiled["touchend"] = releaseTouch;
+			compiled["touchcancel"] = releaseTouch;
 		}
 	}
 ];
