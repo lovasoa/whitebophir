@@ -107,8 +107,8 @@
 	function createLine(lineData) {
 		var line = Tools.createSVGElement("polyline");
 		line.id = lineData.id;
-		line.style.stroke = lineData.color || "black";
-		line.style.strokeWidth = lineData.size || 3;
+		line.setAttribute("stroke", lineData.color);
+		line.setAttribute("stroke-width", lineData.size);
 		svg.appendChild(line);
 		return line;
 	}
