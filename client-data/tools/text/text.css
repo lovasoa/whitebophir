@@ -9,7 +9,8 @@
 }
 
 text {
-	font-family:"Courier";
+	font-family:"Arial", "Helvetica", sans-serif;
 	user-select:none;
 	-moz-user-select:none;
 }
+
