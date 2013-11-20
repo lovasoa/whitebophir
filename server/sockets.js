@@ -53,7 +53,6 @@ function socketConnection (socket) {
 	socket.on('broadcast', function (data) {
 		//Send data to all other connected users
 		socket.broadcast.emit('broadcast', data);
-		
 		addHistory(data);
 	});
 
