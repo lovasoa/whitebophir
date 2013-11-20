@@ -33,7 +33,7 @@ function serveError(request, response, err) {
 
 function logRequest (request) {
 	var ip = request.headers['X-Forwarded-For'] || request.connection.remoteAddress;
-	console.log(Date() + " : Connection from " + ip +
+	console.log("Connection from " + ip +
 				" ("+request.headers['user-agent']+")");
 }
 
