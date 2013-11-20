@@ -8,6 +8,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" type="text/css" href="board.css" />
 	<script type="text/javascript" src="/socket.io/socket.io.js"></script>
+	<script type="text/javascript" src="/js/jscolor/jscolor.js"></script>
 </head>
 
 <body>
@@ -32,7 +33,7 @@
 
 		<h3>Configuration</h3>
 		<label for="chooseColor">Color:</label>
-		<input type="color" id="chooseColor" value="black" />
+		<input type="color" class="color {hash:true}" id="chooseColor" value="black" />
 		<br/>
 		<label for="chooseSize">Size:</label>
 		<input type="range" id="chooseSize" value="10" min="1" max="50" step="1" />

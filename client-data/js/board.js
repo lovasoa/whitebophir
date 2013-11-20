@@ -252,14 +252,9 @@ Tools.positionElement = function (elem, x, y) {
 
 (function color (){
 	var chooser = document.getElementById("chooseColor");
-	function update (){
-		chooser.style.backgroundColor = chooser.value;
-	}
-	update();
-	chooser.onkeyup = chooser.onchange = update;
 
 	Tools.getColor = function(){
-		return chooser.style.backgroundColor;
+		return chooser.value;
 	};
 })();
 
