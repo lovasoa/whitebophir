@@ -296,12 +296,19 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 	};
 })();
 
-//tools may use performance.now, but Safari doesn't support it
+/***********  Polyfills  ***********/
 if (!window.performance) {
 	window.performance = {
 		"now" : Date.now
 	}
 }
+if (!Math.hypot) {
+	Math.hypot = function (x,y) {
+		//The true Math.hypot accepts any number of parameters
+		return Math.sqrt(x*x+y*y);
+	}
+}
+
 
 /**
  What does a "tool" object look like?

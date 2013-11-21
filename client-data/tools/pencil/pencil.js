@@ -57,10 +57,10 @@
 	}
 
 	function continueLine (x,y){
-		/*Wait 50ms before adding any point to the currently drawing line.
+		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
 		if (curLineId !== "" &&
-			performance.now() - lastTime > 50) {
+			performance.now() - lastTime > 70) {
 			curPoint.x = x; curPoint.y = y;
 			Tools.drawAndSend(curPoint);
 			lastTime = performance.now();
@@ -69,7 +69,7 @@
 
 	function stopLine (x,y){
 		//Add a last point to the line
-		continueLine(x+1,y+1);
+		continueLine(x,y);
 		curLineId = "";
 	}
 
@@ -99,13 +99,41 @@
 
 	var svg = Tools.svg;
 	function addPoint (line, x,y) {
-		var point = svg.createSVGPoint();
-		point.x = x; point.y = y;
-		line.points.appendItem(point);
+		var nbr = line.pathSegList.numberOfItems, //The number of points already in the line
+			pts = line.pathSegList, //The points that are already in the line as a SVGPathSegList
+			npoint;
+		switch (nbr) {
+			case 0: //The first point in the line
+				//If there is no point, we have to start the line with a moveTo statement
+				npoint = line.createSVGPathSegMovetoAbs(x,y);
+				break;
+			case 1: //There is only one point.
+				//Draw a curve that is segment between the old point and the new one
+				npoint = line.createSVGPathSegCurvetoCubicAbs(
+							x,y, pts.getItem(0).x,pts.getItem(0).y, x,y);
+				break;
+			default: //There are at least two points in the line
+				//We add the new point, and smoothen the line
+				var ANGULARITY = 5; //The lower this number, the smoother the line
+				var prev = [pts.getItem(nbr-2), pts.getItem(nbr-1)]; //The last two points that are already in the line
+				var vectx = x-prev[0].x,
+					vecty = y-prev[0].y;
+				vectx /= ANGULARITY;
+				vecty /= ANGULARITY;
+				//Create 2 control points around the last point
+				var cx1 = prev[1].x - vectx,
+					cy1 = prev[1].y - vecty, //First control point
+					cx2 = prev[1].x + vectx,
+					cy2 = prev[1].y + vecty; //Second control point
+				prev[1].x2 = cx1;
+				prev[1].y2 = cy1;
+				npoint = line.createSVGPathSegCurvetoCubicAbs(x,y,cx2,cy2,x,y);
+		}
+		line.pathSegList.appendItem(npoint);
 	}
 
 	function createLine(lineData) {
-		var line = Tools.createSVGElement("polyline");
+		var line = Tools.createSVGElement("path");
 		line.id = lineData.id;
 		line.setAttribute("stroke", lineData.color);
 		line.setAttribute("stroke-width", lineData.size);
