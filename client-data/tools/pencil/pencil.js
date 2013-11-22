@@ -114,19 +114,27 @@
 				break;
 			default: //There are at least two points in the line
 				//We add the new point, and smoothen the line
-				var ANGULARITY = 5; //The lower this number, the smoother the line
+				var ANGULARITY = 3; //The lower this number, the smoother the line
 				var prev = [pts.getItem(nbr-2), pts.getItem(nbr-1)]; //The last two points that are already in the line
+
+				//We don't want to add the same point twice consecutively
+				if (prev[1].x==x && prev[1].y==y) return;
+
 				var vectx = x-prev[0].x,
 					vecty = y-prev[0].y;
+				var norm = Math.hypot(vectx,vecty);
+				var dist1 = dist(prev[0].x,prev[0].y,prev[1].x,prev[1].y)/norm,
+					dist2 = dist(x,y,prev[1].x,prev[1].y)/norm;
 				vectx /= ANGULARITY;
 				vecty /= ANGULARITY;
 				//Create 2 control points around the last point
-				var cx1 = prev[1].x - vectx,
-					cy1 = prev[1].y - vecty, //First control point
-					cx2 = prev[1].x + vectx,
-					cy2 = prev[1].y + vecty; //Second control point
+				var cx1 = prev[1].x - dist1*vectx,
+					cy1 = prev[1].y - dist1*vecty, //First control point
+					cx2 = prev[1].x + dist2*vectx,
+					cy2 = prev[1].y + dist2*vecty; //Second control point
 				prev[1].x2 = cx1;
 				prev[1].y2 = cy1;
+
 				npoint = line.createSVGPathSegCurvetoCubicAbs(x,y,cx2,cy2,x,y);
 		}
 		line.pathSegList.appendItem(npoint);
