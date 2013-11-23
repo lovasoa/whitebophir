@@ -28,8 +28,11 @@
 
 	var erasing = false;
 
-	function startErasing () {
+	function startErasing (x,y, evt) {
+		//Prevent the press from being interpreted by the browser
+		evt.preventDefault();
 		erasing = true;
+		erase(x,y,evt);
 	}
 
 	var msg = {
