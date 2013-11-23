@@ -235,10 +235,11 @@ Tools.applyHooks = function(hooks, object) {
 // Utility functions
 
 Tools.generateUID = function (prefix, suffix) {
-	var rndStr = (Math.round(Math.random()*1e19)).toString(36);
-	if (prefix) rndStr = prefix + rndStr;
-	if (suffix) rndStr = rndStr + suffix;
-	return rndStr;
+	var uid = Date.now().toString(36); //Create the uids in chronological order
+	uid += (Math.round(Math.random()*36)).toString(36); //Add a random character at the end
+	if (prefix) uid = prefix + uid;
+	if (suffix) uid = uid + suffix;
+	return uid;
 };
 
 Tools.createSVGElement = function (name) {
