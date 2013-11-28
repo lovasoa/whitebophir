@@ -68,14 +68,14 @@
 	var svg = Tools.svg;
 
 	Tools.add({ //The new tool
-	 	"name" : "Eraser",
-	 	"listeners" : {
-	 		"press" : startErasing,
-	 		"move" : erase,
-	  		"release" : stopErasing,
-	 	},
-	 	"draw" : draw,
-	 	"mouseCursor" : "crosshair",
+		"name" : "Eraser",
+		"listeners" : {
+			"press" : startErasing,
+			"move" : erase,
+			"release" : stopErasing,
+		},
+		"draw" : draw,
+		"mouseCursor" : "crosshair",
 	});
 
 })(); //End of code isolation
