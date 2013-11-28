@@ -51,7 +51,6 @@
 		erasing = false;
 	}
 
-	var renderingLine = {};
 	function draw(data) {
 		switch(data.type) {
 			//TODO: add the ability to erase only some points in a line
