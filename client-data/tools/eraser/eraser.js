@@ -52,6 +52,7 @@
 	}
 
 	function draw(data) {
+		var elem;
 		switch(data.type) {
 			//TODO: add the ability to erase only some points in a line
 			case "delete":
