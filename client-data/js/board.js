@@ -300,7 +300,7 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 })();
 
 /***********  Polyfills  ***********/
-if (!window.performance) {
+if (!window.performance || !window.performance.now) {
 	window.performance = {
 		"now" : Date.now
 	}
