@@ -56,7 +56,7 @@
 		continueLine(x,y);
 	}
 
-	function continueLine (x,y){
+	function continueLine (x,y, evt){
 		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
 		if (curLineId !== "" &&
@@ -65,6 +65,7 @@
 			Tools.drawAndSend(curPoint);
 			lastTime = performance.now();
 		}
+		if (evt) evt.preventDefault();
 	}
 
 	function stopLine (x,y){
@@ -82,7 +83,7 @@
 			case "point":
 				var line = (renderingLine.id == data.line) ? renderingLine : svg.getElementById(data.line);
 				if (!line) {
-					console.log("Pencil: Hmmm... I received a point of a line I don't know...");
+					console.error("Pencil: Hmmm... I received a point of a line I don't know...");
 					line = renderingLine = createLine(data.id);
 				}
 				addPoint(line, data.x, data.y);
@@ -91,7 +92,7 @@
 				//TODO?
 				break;
 			default:
-				console.log("Pencil: Draw instruction with unknown type. ", data);
+				console.error("Pencil: Draw instruction with unknown type. ", data);
 				break;
 		}
 	}

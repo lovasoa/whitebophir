@@ -97,15 +97,15 @@
 				createTextField(data);
 				break;
 			case "update":
-				var textField = document.getElementById(data.field);
+				var textField = document.getElementById(data.id);
 				if (textField===null) {
-					console.log("Text: Hmmm... I received text that belongs to an unknown text field");
+					console.error("Text: Hmmm... I received text that belongs to an unknown text field");
 					return false;
 				}
 				updateText(textField, data.txt);
 				break;
 			default:
-				console.log("Text: Draw instruction with unknown type. ", data);
+				console.error("Text: Draw instruction with unknown type. ", data);
 				break;
 		}
 	}
