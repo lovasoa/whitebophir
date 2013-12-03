@@ -87,7 +87,7 @@
 			}
 		} else {
 			clearTimeout(curText.timeout);
-			curText.timeout = setTimeout(textChangeHandler, 200);
+			curText.timeout = setTimeout(textChangeHandler, 500);
 		}
 	}
 
