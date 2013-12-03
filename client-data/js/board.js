@@ -80,7 +80,7 @@ Tools.add = function (newTool) {
 
 	//Add the tool to the GUI
 	Tools.HTML.addTool(newTool.name);
-}
+};
 
 Tools.change = function (toolName){
 	if (! (toolName in Tools.list)) {
@@ -121,7 +121,7 @@ Tools.change = function (toolName){
 };
 
 Tools.send = function(data, toolName){
-	var toolName = toolName || Tools.curTool.name;
+	toolName = toolName || Tools.curTool.name;
 	var message = {
 			'tool' : toolName,
 			'data' : data
@@ -170,15 +170,17 @@ Tools.toolHooks = [
 			tool.listeners = {};
 		}
 		if (typeof(tool.onstart)!=="function") {
-			tool.onstart = new Function();
+			tool.onstart = function(){};
 		}
 		if (typeof(tool.onquit)!=="function") {
-			tool.onquit = new Function();
+			tool.onquit = function(){};
 		}
 	},
 	function compileListeners (tool) {
 		//compile listeners into compiledListeners
 		var listeners = tool.listeners;
+
+		//A tool may provide precompiled listeners
 		var compiled = tool.compiledListeners || {};
 		tool.compiledListeners = compiled;
 
