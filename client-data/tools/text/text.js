@@ -79,7 +79,7 @@
 			if (curText.sentText !== input.value) {
 				Tools.drawAndSend({
 					'type' : "update",
-					'field' : curText.id,
+					'id' : curText.id,
 					'txt' : input.value
 				});
 				curText.sentText = input.value;
