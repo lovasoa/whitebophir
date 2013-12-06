@@ -74,6 +74,10 @@ html, body, svg {
 	transition-duration:0.5s;
 }
 
+input {
+	font-size:16px;
+}
+
 #chooseColor {
 	width:5em;
 	border:1px solid black;
