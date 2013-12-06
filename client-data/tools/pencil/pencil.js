@@ -83,8 +83,8 @@
 			case "point":
 				var line = (renderingLine.id == data.line) ? renderingLine : svg.getElementById(data.line);
 				if (!line) {
-					console.error("Pencil: Hmmm... I received a point of a line I don't know...");
-					line = renderingLine = createLine(data.id);
+					console.error("Pencil: Hmmm... I received a point of a line that has not been created (%s).", data.line);
+					line = renderingLine = createLine({"id":data.line}); //create a new line in order not to loose the points
 				}
 				addPoint(line, data.x, data.y);
 				break;
@@ -146,10 +146,12 @@
 	}
 
 	function createLine(lineData) {
-		var line = Tools.createSVGElement("path");
+		//Creates a new line on the canvas, or update a line that already exists with new information
+		var line = svg.getElementById(lineData.id) || Tools.createSVGElement("path");
 		line.id = lineData.id;
-		line.setAttribute("stroke", lineData.color);
-		line.setAttribute("stroke-width", lineData.size);
+		//If some data is not provided, choose default value. The line may be updated later
+		line.setAttribute("stroke", lineData.color || "black" );
+		line.setAttribute("stroke-width", lineData.size || 10 );
 		svg.appendChild(line);
 		return line;
 	}
