@@ -65,6 +65,7 @@
 		input.value="";
 		input.focus();
 		input.addEventListener("keyup", textChangeHandler);
+		input.addEventListener("blur", textChangeHandler);
 	}
 	function stopEdit () {
 		input.blur();
