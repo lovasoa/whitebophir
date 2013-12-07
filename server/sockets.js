@@ -12,9 +12,12 @@ var boards = {
 var boardName = "anonymous";
 
 function socketConnection (socket) {
-	//On the first connection, send all previously broadcasted data
-	boards[boardName].data.getAll(function(data) {
-		socket.emit("broadcast", data);
+
+	socket.on("getboard", function() {
+		//Send all previously broadcasted data
+		boards[boardName].data.getAll(function(data) {
+			socket.emit("broadcast", data);
+		});
 	});
 
 	socket.on('broadcast', function (data) {

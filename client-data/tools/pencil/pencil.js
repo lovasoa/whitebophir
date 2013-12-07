@@ -123,7 +123,8 @@
 				var prev = [pts.getItem(nbr-2), pts.getItem(nbr-1)]; //The last two points that are already in the line
 
 				//We don't want to add the same point twice consecutively
-				if (prev[1].x==x && prev[1].y==y) return;
+				if ((prev[1].x==x && prev[1].y==y)
+					|| (prev[0].x==x && prev[0].y==y) ) return;
 
 				var vectx = x-prev[0].x,
 					vecty = y-prev[0].y;

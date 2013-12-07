@@ -31,6 +31,9 @@ Tools.svg = document.getElementById("canvas");
 Tools.socket = io.connect('');
 Tools.curTool = null;
 
+//Get the board as soon as the page is loaded
+Tools.socket.emit("getboard");
+
 Tools.HTML = {
 	template : new Minitpl("#tools > .tool"),
 	addTool : function(toolName) {
@@ -80,6 +83,17 @@ Tools.add = function (newTool) {
 
 	//Add the tool to the GUI
 	Tools.HTML.addTool(newTool.name);
+
+	//There may be pending messages for the tool
+	var pending = Tools.pendingMessages[newTool.name];
+	if (pending) {
+		console.log("Drawing pending messages for '%s'.", newTool.name);
+		var msg;
+		while (msg = pending.shift()) {
+			//Transmit the message to the tool (precising that it comes from the network)
+			newTool.draw(msg, false);
+		}
+	}
 };
 
 Tools.change = function (toolName){
@@ -133,20 +147,33 @@ Tools.drawAndSend = function (data) {
 	Tools.send(data);
 };
 
+//Object containing the messages that have been received before the corresponding tool
+//is loaded. keys : the name of the tool, values : array of messages for this tool
+Tools.pendingMessages = {};
+
+//Receive draw instructions from the server
 Tools.socket.on("broadcast", function (message){
 	//Check if the message is in the expected format
 	Tools.applyHooks(Tools.messageHooks, message);
 	if (message.tool) {
 		var tool = Tools.list[message.tool];
-		if (!tool) throw "Received a message for an unknown tool!";
-		tool.draw(message, false); //draw the received data
-		if (message._children) {
-			for (var i=0; i<message._children.length; i++) {
-				tool.draw(message._children[i]);
+		if (tool) {
+			tool.draw(message, false); //draw the received data
+			if (message._children) {
+				for (var i=0; i<message._children.length; i++) {
+					tool.draw(message._children[i]);
+				}
 			}
+		} else {
+			//We received a message destinated to a tool that we don't have
+			//So we add it to the pending messages
+			if (Tools.pendingMessages[message.tool] === undefined) {
+				Tools.pendingMessages[message.tool] = [];
+			}
+			Tools.pendingMessages[message.tool].push(message);
 		}
 	} else {
-		throw "Received a badly formatted message";
+		console.error("Received a badly formatted message (no tool). ", message);
 	}
 });
 
