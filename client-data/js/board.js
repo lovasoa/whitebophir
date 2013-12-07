@@ -122,10 +122,8 @@ Tools.change = function (toolName){
 
 Tools.send = function(data, toolName){
 	toolName = toolName || Tools.curTool.name;
-	var message = {
-			'tool' : toolName,
-			'data' : data
-	};
+	var message = data;
+	message.tool = toolName;
 	Tools.applyHooks(Tools.messageHooks, message);
 	Tools.socket.emit('broadcast', message);
 };
@@ -138,10 +136,15 @@ Tools.drawAndSend = function (data) {
 Tools.socket.on("broadcast", function (message){
 	//Check if the message is in the expected format
 	Tools.applyHooks(Tools.messageHooks, message);
-	if (message.tool && message.data) {
+	if (message.tool) {
 		var tool = Tools.list[message.tool];
 		if (!tool) throw "Received a message for an unknown tool!";
-		tool.draw(message.data, false); //draw the received data
+		tool.draw(message, false); //draw the received data
+		if (message._children) {
+			for (var i=0; i<message._children.length; i++) {
+				tool.draw(message._children[i]);
+			}
+		}
 	} else {
 		throw "Received a badly formatted message";
 	}
@@ -150,8 +153,9 @@ Tools.socket.on("broadcast", function (message){
 //List of hook functions that will be applied to messages before sending or drawing them
 Tools.messageHooks = [
 	function resizeCanvas (m) {
-		if (m.data && m.data.x && m.data.y) {
-			var svg = Tools.svg, x=m.data.x, y=m.data.y;
+		//Enlarge the canvas is something is drawn near its border
+		if (m.x && m.y) {
+			var svg = Tools.svg, x=m.x, y=m.y;
 			if (x > svg.width.baseVal.value - 1000) {
 				svg.width.baseVal.value = x + 2000;
 			}

@@ -1,98 +1,66 @@
 var iolib = require('socket.io')
   , path = require("path")
-  , fs = require('fs');
-
-/**
- * Name of the file the persistent data will be written to
- * if there are more messages, older ones will be erased
- * @const
- * @type {string}
- */
-var HISTORY_FILE = path.join(__dirname, "../server-data/history.txt");
-
-/**
- * Number of messages to keep in memory
- * if there are more messages, older ones will be erased
- * @const
- * @type {number}
- */
-var MAX_HISTORY_LENGTH = 1e5;
+  , fs = require('fs')
+  , BoardData = require("./boardData.js").BoardData;
 
 
-var history = [],
-	unsaved_history = [];
-
-//Load existing history
-fs.readFile(HISTORY_FILE, 'utf8', function (file_err, history_str) {
-	if (file_err) {
-		if (file_err.code == "ENOENT") {
-			console.log("History file not found. It will be created.");
-		} else {
-			console.log("An error occured while trying to open history file: "+file_err);
-		}
-	}else {
-		try {
-			history = history_str
-						.split("\n")
-						.slice(-MAX_HISTORY_LENGTH)
-						.filter(function(line){return line && line[0]!="#"})
-						.map(JSON.parse);
-		} catch(json_err) {
-			console.log("Bad history file: "+json_err);
-		}
+var boards = {
+	"anonymous" : {
+		"data" : new BoardData(),
 	}
-});
-
+};
+var boardName = "anonymous";
 
 function socketConnection (socket) {
 	//On the first connection, send all previously broadcasted data
-	for (var i=0;i<history.length;i++){
-		socket.emit("broadcast", history[i]);
-	}
+	boards[boardName].data.getAll(function(data) {
+		socket.emit("broadcast", data);
+	});
 
 	socket.on('broadcast', function (data) {
 		//Send data to all other connected users
 		socket.broadcast.emit('broadcast', data);
-		addHistory(data);
+
+		//Use setTimeout in order to be sure that the message is broadcasted
+		// as soon as possible (before we do anything else on the server side)
+		saveHistory(data);
 	});
-
 }
 
-function addHistory(data) {
-		//Save the data in memory
-		history.push(data);
-		unsaved_history.push(data);
-
-		//Avoid a memory overload
-		if (history.length > MAX_HISTORY_LENGTH) {
-			history.pop();
-		}
-}
-
-setInterval(function(){
-	if (unsaved_history.length > 0) {
-		fs.open(HISTORY_FILE, 'a', function (err, fd){
-			if (err) console.error("Unable to save history:", err);
-			else {
-				var tobesaved = unsaved_history;
-				unsaved_history = [];
-				var data_str = "";
-				data_str += tobesaved
-								.map(JSON.stringify)
-								.join("\n");
-				data_str += "\n#" + (new Date()).toString() + "\n";
-				fs.write(fd, data_str);
-				fs.close(fd);
-			}
-		});
+function saveHistory(message) {
+	var id = message.id;
+	var boardData = boards[boardName].data;
+	switch (message.type) {
+		case "delete":
+			if (id) boardData.delete(id);
+			break;
+		case "update":
+			delete message.type;
+			if (id) boardData.update(id, message);
+			break;
+		case "child":
+			boardData.addChild(message.parent, message);
+			break;
+		default: //Add data
+			if (!id) console.error("Invalid message: ", message);
+			else boardData.set(id, message);
 	}
-}, 10*1000);
+}
+
+function generateUID (prefix, suffix) {
+	var uid = Date.now().toString(36); //Create the uids in chronological order
+	uid += (Math.round(Math.random()*36)).toString(36); //Add a random character at the end
+	if (prefix) uid = prefix + uid;
+	if (suffix) uid = uid + suffix;
+	return uid;
+}
 
 if (exports) {
-	exports.start = function(app){
-		io = iolib.listen(app, {'log':false});
-		io.sockets.on('connection', socketConnection);
-		return io;
+	exports.start = function(app) {
+		boards[boardName].data.on("ready", function() {
+			io = iolib.listen(app, {'log':false});
+			io.sockets.on('connection', socketConnection);
+			return io;
+		});
 	};
-	exports.HISTORY_FILE = HISTORY_FILE;
 }

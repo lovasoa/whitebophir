@@ -46,7 +46,7 @@ function handler (request, response) {
 			break;
 		case "/download":
 			var history_file = "../server-data/history.txt",
-				headers = {"Content-Type": "application/wbo"};
+				headers = {"Content-Type": "text/x-wbo"};
 			var promise = fileserver.serveFile(history_file, 200, headers, request, response);
 			promise.on("error", function(){
 				response.statusCode = 404;

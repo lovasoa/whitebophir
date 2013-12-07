@@ -28,8 +28,8 @@
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
 		curPoint = { //The data of the message that will be sent for every new point
-				'type' : 'point',
-				'line' : "",
+				'type' : 'child',
+				'parent' : "",
 				'x' : 0,
 				'y' : 0
 		},
@@ -50,7 +50,7 @@
 		});
 
 		//Update the current point
-		curPoint.line = curLineId;
+		curPoint.parent = curLineId;
 
 		//Immediatly add a point to the line
 		continueLine(x,y);
@@ -80,11 +80,11 @@
 			case "line":
 				renderingLine = createLine(data);
 				break;
-			case "point":
-				var line = (renderingLine.id == data.line) ? renderingLine : svg.getElementById(data.line);
+			case "child":
+				var line = (renderingLine.id == data.parent) ? renderingLine : svg.getElementById(data.parent);
 				if (!line) {
-					console.error("Pencil: Hmmm... I received a point of a line that has not been created (%s).", data.line);
-					line = renderingLine = createLine({"id":data.line}); //create a new line in order not to loose the points
+					console.error("Pencil: Hmmm... I received a point of a line that has not been created (%s).", data.parent);
+					line = renderingLine = createLine({"id":data.parent}); //create a new line in order not to loose the points
 				}
 				addPoint(line, data.x, data.y);
 				break;
