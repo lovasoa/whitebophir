@@ -11,6 +11,23 @@ var boards = {
 };
 var boardName = "anonymous";
 
+function startIO(app) {
+	io = iolib.listen(app, {
+		'flash policy port' : -1 //Makes flashsocket work even if the server doesn't accept connection on any port
+	});
+	//Default configuration
+	//io.enable('browser client minification');  // send minified client
+	io.enable('browser client etag');          // apply etag caching logic based on version number
+	io.enable('browser client gzip');          // gzip the file
+	io.set('log level', 1);                    // reduce logging
+
+	// enable all transports
+	io.set('transports', ['websocket', 'flashsocket', 'htmlfile', 'xhr-polling', 'jsonp-polling']);
+
+	io.sockets.on('connection', socketConnection);
+	return io;
+}
+
 function socketConnection (socket) {
 
 	socket.on("getboard", function() {
@@ -61,9 +78,7 @@ function generateUID (prefix, suffix) {
 if (exports) {
 	exports.start = function(app) {
 		boards[boardName].data.on("ready", function() {
-			io = iolib.listen(app, {'log':false});
-			io.sockets.on('connection', socketConnection);
-			return io;
+			startIO(app);
 		});
 	};
 }
