@@ -105,7 +105,11 @@ Tools.change = function (toolName){
 
 	//Update the GUI
 	var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
-	Tools.HTML.changeTool(curToolName, toolName);
+	try {
+		Tools.HTML.changeTool(curToolName, toolName);
+	} catch (e) {
+		console.error("Unable to update the GUI with the new tool. "+e);
+	}
 	Tools.svg.style.cursor = newtool.mouseCursor || "auto";
 
 	//There is not necessarily already a curTool
