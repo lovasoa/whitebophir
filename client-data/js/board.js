@@ -28,7 +28,9 @@ var Tools = {};
 
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
-Tools.socket = io.connect('');
+Tools.socket = io.connect('', {
+	"reconnection delay" : 1, //Make the xhr connections as fast as possible
+});
 Tools.curTool = null;
 
 //Get the board as soon as the page is loaded
@@ -158,13 +160,15 @@ Tools.pendingMessages = {};
 //Receive draw instructions from the server
 Tools.socket.on("broadcast", function (message){
 	//Check if the message is in the expected format
-	Tools.applyHooks(Tools.messageHooks, message);
 	if (message.tool) {
 		var tool = Tools.list[message.tool];
 		if (tool) {
+			Tools.applyHooks(Tools.messageHooks, message);
 			tool.draw(message, false); //draw the received data
 			if (message._children) {
 				for (var i=0; i<message._children.length; i++) {
+					//Apply hooks on children too
+					Tools.applyHooks(Tools.messageHooks, message._children[i]);
 					tool.draw(message._children[i]);
 				}
 			}
