@@ -38,7 +38,6 @@ function logRequest (request) {
 }
 
 function handler (request, response) {
-	console.log(request.url);
 	switch(request.url) {
 		case "/":
 			logRequest(request);
