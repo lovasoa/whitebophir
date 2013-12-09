@@ -12,9 +12,7 @@ var boards = {
 var boardName = "anonymous";
 
 function startIO(app) {
-	io = iolib.listen(app, {
-		'flash policy port' : -1 //Makes flashsocket work even if the server doesn't accept connection on any port
-	});
+	io = iolib.listen(app);
 	//Default configuration
 	//io.enable('browser client minification');  // send minified client
 	io.enable('browser client etag');          // apply etag caching logic based on version number
