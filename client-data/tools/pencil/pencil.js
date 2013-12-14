@@ -159,6 +159,7 @@
 
 	Tools.add({ //The new tool
 	 	"name" : "Pencil",
+	 	"icon" : "fa-pencil",
 	 	"listeners" : {
 	 		"press" : startLine,
 	 		"move" : continueLine,

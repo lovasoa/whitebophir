@@ -37,7 +37,7 @@ function Minitpl(elem, data) {
 
 function transform (element, transformer) {
 	if (typeof(transformer)==="function") {
-		element.textContent = transformer(element);
+		transformer(element);
 	} else {
 		element.textContent = transformer;
 	}

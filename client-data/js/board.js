@@ -38,14 +38,15 @@ Tools.socket.emit("getboard");
 
 Tools.HTML = {
 	template : new Minitpl("#tools > .tool"),
-	addTool : function(toolName) {
+	addTool : function(toolName, toolIcon) {
 		var callback = function () {
 			Tools.change(toolName);
 		};
 		return this.template.add(function (elem) {
 				elem.addEventListener("click", callback);
 				elem.id = "toolID-"+toolName;
-				return toolName;
+				elem.getElementsByClassName("tool-name")[0].textContent = toolName;
+				elem.getElementsByClassName("tool-icon")[0].className += " " + toolIcon;
 			}
 		);
 	},
@@ -84,7 +85,7 @@ Tools.add = function (newTool) {
 	}
 
 	//Add the tool to the GUI
-	Tools.HTML.addTool(newTool.name);
+	Tools.HTML.addTool(newTool.name, newTool.icon);
 
 	//There may be pending messages for the tool
 	var pending = Tools.pendingMessages[newTool.name];

@@ -74,6 +74,14 @@ html, body, svg {
 	transition-duration:0.5s;
 }
 
+#menu .tool-icon {
+	padding:3px;
+	width:10px;
+}
+#menu .tool-name {
+	margin-left: 20px;
+}
+
 input {
 	font-size:16px;
 }

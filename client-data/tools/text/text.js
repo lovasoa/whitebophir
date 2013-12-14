@@ -129,6 +129,7 @@
 
 	Tools.add({ //The new tool
 	 	"name" : "Text",
+	 	"icon" : "fa-font",
 	 	"listeners" : {
 	 		"press" : clickHandler,
 	 	},

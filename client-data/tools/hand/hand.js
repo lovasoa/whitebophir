@@ -46,6 +46,7 @@
 
 	Tools.add({ //The new tool
 	 	"name" : "Hand",
+	 	"icon" : "fa-arrows",
 	 	"listeners" : {
 	 		"press" : press,
 	 		"move" : move,
