@@ -162,8 +162,9 @@ BoardData.prototype.delaySave = function (file) {
 BoardData.prototype.save = function (file) {
 	if (!file) file = HISTORY_FILE;
 	var board_txt = JSON.stringify(this.board);
+	var that = this;
 	fs.writeFile(file, board_txt, function (err) {
-		if (err) this.emit("error", err);
+		if (err) that.emit("error", err);
 	});
 };
 
