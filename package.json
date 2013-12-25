@@ -6,7 +6,7 @@
    "version": "0.2.1-9",
    "dependencies": {
       "node-static": "0.7.x",
-      "socket.io": "0.9.x",
+      "socket.io": "0.9.x"
    },
    "scripts": {
       "start": "node ./server/server.js"
