@@ -30,6 +30,7 @@ var Tools = {
 			case 1:
 				var pathstring = "M" + el._children[0].x + " " + el._children[0].y +
 								 "L" + el._children[0].x + " " + el._children[0].y;
+				break;
 			default:
 				var pathstring = "M"+el._children[0].x+" "+ el._children[0].y + "L";
 				for(var i=1;i<el._children.length;i++){
