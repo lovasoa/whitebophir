@@ -48,14 +48,17 @@ var Tools = {
 
 
 function toSVG(obj) {
-	var margin=500;
-	var elements = "", w=0, h=0;
+	var margin=500, maxelems = 1e4;
+	var elements = "", i=0, w=0, h=0;
+	var t=Date.now();
 	for (var id in obj) {
+		if (++i > maxelems) break;
 		var elem = obj[id];
-		if (elem.x && elem.x + margin > w) w = elem.x + margin;
+		if (elem.x && elem.x + margin > w ) w = elem.x + margin;
 		if (elem.y && elem.y + margin > h) h = elem.y + margin;
 		elements += Tools[elem.tool](elem);
 	}
+	console.error(i+" elements treated in "+(Date.now()-t)+"ms.");
 
 	var svg = '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="'+w+'" height="'+h+'">' +
   				'<defs><style type="text/css"><![CDATA[' +
@@ -70,6 +73,8 @@ function toSVG(obj) {
 
 fs.readFile(HISTORY_FILE, function (err, data) {
 	if (err) throw err;
+	var t=Date.now();
 	var board = JSON.parse(data);
+	console.error("JSON parsed in "+(Date.now()-t)+"ms.");
 	toSVG(board);
 });
