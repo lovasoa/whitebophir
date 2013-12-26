@@ -27,7 +27,7 @@ console.log("Server listening on "+PORT);
 var fileserver = new nodestatic.Server(WEBROOT);
 
 function serveError(request, response, err) {
-	console.warn("Error serving '"+request.url+"' : "+err.message);
+	console.warn("Error serving '"+request.url+"' : "+err.status+" "+err.message);
 	fileserver.serveFile('error.html', err.status, {}, request, response);
 }
 

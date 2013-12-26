@@ -121,7 +121,7 @@
 		elem.setAttribute("x", fieldData.x);
 		elem.setAttribute("y", fieldData.y);
 		elem.setAttribute("font-size", fieldData.size);
-		elem.style.fill = fieldData.color;
+		elem.setAttribute("fill", fieldData.color);
 		if (fieldData.txt) elem.textContent = fieldData.txt;
 		svg.appendChild(elem);
 		return elem;
