@@ -35,7 +35,7 @@ var fs = require('fs'),
     @default
     Path to the file where boards will be saved by default
 */
-var HISTORY_FILE = path.join(__dirname, "../server-data/history.txt");
+var HISTORY_DIR = path.join(__dirname, "../server-data/");
 
 /** @constant
     @type {Number}
@@ -43,6 +43,7 @@ var HISTORY_FILE = path.join(__dirname, "../server-data/history.txt");
     Number of seconds of inactivity after which the board should be saved to a file
 */
 var SAVE_INTERVAL = 1000 * 2; //Save every 2 seconds of inactivity
+
 
 /**
  * Represents a board.
@@ -53,14 +54,14 @@ var BoardData = function(name) {
 	this.name = name;
 	this.board = {};
 	this.ready = false;
+	this.file = path.join(HISTORY_DIR, "board-" + encodeURIComponent(name) + ".json");
 
 	//Loads the file. This will emit the "ready" event
-	this.load(HISTORY_FILE);
+	this.load(this.file);
 
 	this.on("ready", function(){
 		that.ready = true;
 	});
-
 };
 
 //Allows to use BoardData.emit() and BoardData.on()
@@ -157,10 +158,10 @@ BoardData.prototype.delaySave = function (file) {
 };
 
 /** Saves the data in the board to a file.
- * @param {string} [file=HISTORY_FILE] - Path to the file where the board data will be saved.
+ * @param {string} [file=this.file] - Path to the file where the board data will be saved.
 */
 BoardData.prototype.save = function (file) {
-	if (!file) file = HISTORY_FILE;
+	if (!file) file = this.file;
 	var board_txt = JSON.stringify(this.board);
 	var that = this;
 	fs.writeFile(file, board_txt, function (err) {
