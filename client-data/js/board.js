@@ -295,14 +295,6 @@ Tools.positionElement = function (elem, x, y) {
 
 (function color (){
 	var chooser = document.getElementById("chooseColor");
-	if (chooser.type == "text") {
-		//The browser doesn't support <input type='color'>, use jsColor instead
-		new jscolor.color(chooser, {
-			"required" : false,
-			"adjust" : false,
-			"hash" : true,
-		});
-	}
 	Tools.getColor = function(){
 		return chooser.value;
 	};
