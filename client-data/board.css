@@ -13,7 +13,8 @@ html, body, svg {
 	top:0;
 	color:black;
 	background-color:rgba(0,100,255,0.9);
-	width:200px;
+	width:15%;
+	max-width:200px;
 	height:100%;
 	transition-duration:1s;
 	cursor:default;
@@ -50,7 +51,8 @@ html, body, svg {
 }
 
 #menu li {
-	width:150px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	font-size:1.5em;
 	list-style-position:inside;
 	width:100%;
