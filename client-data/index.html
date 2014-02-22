@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<!-- This is a quick and dirty draft.-->
+<head>
+	<meta charset="utf-8" />
+	<title>WBO - Welcome</title>
+	<link rel="icon" type="image/png" href="favicon.ico" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<style>
+body {
+	background-color:black;
+}
+header {
+	position:fixed;
+	left:0;
+	top:0;
+	width:100%;
+}
+
+main {
+	margin:200px auto;
+	width:50%;
+	padding:50px;
+	font-size:2em;
+}
+
+header, main {
+	box-shadow: 0px 0px 9px white;
+	background-color:rgba(0,100,255,0.9);
+}
+	</style>
+</head>
+
+<body>
+
+<header>
+	<h1>Welcome to Whitebophir</h1>
+</header>
+
+<main>
+	<p>Welcome to <b>WBO</b>. You can go to <a href="/boards/anonymous">the public board</a>
+or create a new one with the form below. To share a board, just send it's URL to your friends.</p>
+
+<form onsubmit="window.location='/boards/'+document.getElementById('board').value; return false;">
+	<input type="text" id="board" placeholder="Name of the board..."/>
+	<input type="submit" value="Go">
+</form>
+
+</main>
+
+</body>
+
+</html>
