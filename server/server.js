@@ -41,7 +41,9 @@ function handler (request, response) {
 	var parts = request.url.split('/');
 	if (parts[0] === '') parts.shift();
 
-	if (parts[0] === "boards") {
+	if (parts.length === 0) {
+		fileserver.serveFile("index.html", 200, {}, request, response);
+	} else if (parts[0] === "boards") {
 		// "boards" refers to the root directory
 
 		// If there is no dot and no directory, parts[1] is the board name
