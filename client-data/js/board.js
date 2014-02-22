@@ -32,9 +32,13 @@ Tools.socket = io.connect('', {
 	"reconnection delay" : 1, //Make the xhr connections as fast as possible
 });
 Tools.curTool = null;
+Tools.boardName = (function(){
+	var path = window.location.pathname.split("/");
+	return path[path.length-1];
+})();
 
 //Get the board as soon as the page is loaded
-Tools.socket.emit("getboard");
+Tools.socket.emit("getboard", Tools.boardName);
 
 Tools.HTML = {
 	template : new Minitpl("#tools > .tool"),
@@ -143,9 +147,13 @@ Tools.change = function (toolName){
 
 Tools.send = function(data, toolName){
 	toolName = toolName || Tools.curTool.name;
-	var message = data;
-	message.tool = toolName;
-	Tools.applyHooks(Tools.messageHooks, message);
+	var d = data;
+	d.tool = toolName;
+	Tools.applyHooks(Tools.messageHooks, d);
+	var message = {
+		"board" : Tools.boardName,
+		"data" : d
+	}
 	Tools.socket.emit('broadcast', message);
 };
 

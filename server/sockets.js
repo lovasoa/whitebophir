@@ -6,10 +6,9 @@ var iolib = require('socket.io')
 
 var boards = {
 	"anonymous" : {
-		"data" : new BoardData(),
+		"data" : new BoardData("anonymous"),
 	}
 };
-var boardName = "anonymous";
 
 function startIO(app) {
 	io = iolib.listen(app);
@@ -28,24 +27,50 @@ function startIO(app) {
 
 function socketConnection (socket) {
 
-	socket.on("getboard", function() {
-		//Send all previously broadcasted data
-		boards[boardName].data.getAll(function(data) {
-			socket.emit("broadcast", data);
-		});
+	socket.on("getboard", function(name) {
+
+		// Default to the public board
+		if (name === undefined) name = "anonymous";
+
+		if ( ! boards[name] ) {
+			boards[name] = {
+				"data" : new BoardData(name)
+			};
+		}
+
+		var board_data = boards[name].data;
+
+		// Join the board
+		socket.join(name);
+
+		//Send all the board's data as soon as it's loaded
+		var sendIt = function () {
+			board_data.getAll(function(data) {
+				socket.emit("broadcast", data);
+			});
+		};
+
+		if (board_data.ready) sendIt();
+		else board_data.on("ready", sendIt);
 	});
 
-	socket.on('broadcast', function (data) {
-		//Send data to all other connected users
-		socket.broadcast.emit('broadcast', data);
+	socket.on('broadcast', function (message) {
+		var boardName = message.board;
+		var data = message.data;
 
-		//Use setTimeout in order to be sure that the message is broadcasted
-		// as soon as possible (before we do anything else on the server side)
-		saveHistory(data);
+		if (!data || !boardName) {
+			console.warn("Received invalid message: %s.", JSON.stringify(message));
+			return;
+		}
+
+		//Send data to all other users connected on the same board
+		socket.broadcast.to(boardName).emit('broadcast', data);
+
+		saveHistory(boardName, data);
 	});
 }
 
-function saveHistory(message) {
+function saveHistory(boardName, message) {
 	var id = message.id;
 	var boardData = boards[boardName].data;
 	switch (message.type) {
@@ -75,7 +100,7 @@ function generateUID (prefix, suffix) {
 
 if (exports) {
 	exports.start = function(app) {
-		boards[boardName].data.on("ready", function() {
+		boards["anonymous"].data.on("ready", function() {
 			startIO(app);
 		});
 	};

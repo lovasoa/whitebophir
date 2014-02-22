@@ -38,24 +38,36 @@ function logRequest (request) {
 }
 
 function handler (request, response) {
-	switch(request.url) {
-		case "/":
-			logRequest(request);
+	var parts = request.url.split('/');
+	if (parts[0] === '') parts.shift();
+
+	if (parts[0] === "boards") {
+		// "boards" refers to the root directory
+
+		// If there is no dot and no directory, parts[1] is the board name
+		if (parts.length === 2 && request.url.indexOf('.') === -1) {
 			fileserver.serveFile("board.html", 200, {}, request, response);
-			break;
-		case "/download":
-			var history_file = "../server-data/history.txt",
-				headers = {"Content-Type": "text/x-wbo"};
-			var promise = fileserver.serveFile(history_file, 200, headers, request, response);
-			promise.on("error", function(){
-				response.statusCode = 404;
-				response.end("ERROR: Unable to serve history file\n");
-			});
-			break;
-		default:
+			logRequest(request);
+		} else { // Else, it's a resource
+			request.url = "/" + parts.slice(1).join('/');
 			fileserver.serve(request, response, function (err, res){
 				if (err) serveError(request, response, err);
 			});
+		}
+
+	} else if (parts[0] === "download") {
+		var history_file = "../server-data/board-" + encodeURIComponent(parts[1]),
+			headers = {"Content-Type": "text/x-wbo"};
+		var promise = fileserver.serveFile(history_file, 200, headers, request, response);
+		promise.on("error", function(){
+			response.statusCode = 404;
+			response.end("ERROR: Unable to serve history file\n");
+		});
+
+	} else {
+		fileserver.serve(request, response, function (err, res){
+			if (err) serveError(request, response, err);
+		});
 	}
 }
 

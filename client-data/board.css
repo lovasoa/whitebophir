@@ -5,7 +5,7 @@ html, body, svg {
 
 #menu {
 	font-family:"Segoe UI","Roboto","Ubuntu";
-	font-size:4vh;
+	font-size:.7vw;
 	border-radius:0;
 	box-shadow: 0px 0px 9px black;
 	overflow:hidden;
@@ -35,7 +35,7 @@ html, body, svg {
 }
 
 #menu h2{ /*Menu title ("Menu")*/
-	font-size:6vh;
+	font-size:4vh;
 	font-family:monospace;
 	letter-spacing:.5vw;
 	text-shadow: 0px 0px 9px white;
@@ -43,6 +43,10 @@ html, body, svg {
 	word-wrap:break-word;
 	padding:0;
 	margin:0;
+}
+
+#menu h3 { /*Section titles ("tools", "configuration")*/
+	font-size:1vw;
 }
 
 #menu ul {
@@ -75,31 +79,34 @@ html, body, svg {
 }
 
 #menu .tool-icon {
+	text-align:center;
+	font-size:2.5vh;
 	padding:1vh;
-	width:2vw;
+	width:1vw;
 }
 #menu .tool-name {
 	margin-left: .5vw;
-	font-size:4vh;
+	font-size:2.5vh;
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 600px) {
     #menu {
-        font-size:2.5vw;
+        font-size:1vw;
     }
     #menu .tool-name {
         display: none;
     }
     #menu .tool-icon {
     	width:100%;
-    	font-size:5vw
+		font-size:5vw;
+		padding:0;
     }
     #menu h2 {
         white-space: nowrap;
-        font-size:3vw;
+        font-size:2.5vw;
     }
     #menu h3 {
-        font-size:2.5vw;
+        font-size:1.2vw;
         margin-top:0;
     }
     #chooseColor {
