@@ -11,6 +11,7 @@ body {
 	width:100%;
 	margin:0;
 	animation: colorchange 200s infinite;
+	animation-delay:20s;
 }
 header {
 	position:fixed;
@@ -35,7 +36,11 @@ main {
 	width:50%;
 	padding:50px;
 	font-size:2em;
-	animation: vibration 3s;
+	position:relative;
+	text-align:justify;
+	animation: move 20s infinite;
+	animation-delay:0s;
+	animation-direction:alternate;
 	transition:.5s;
 }
 
@@ -70,6 +75,19 @@ header:hover h2 {
 	80% {color:#1c0;}
 	80% {color:#b30;}
 	100% {color:#f00;}
+}
+
+@keyframes move {
+	0% {top:0;left:0;}
+	25% {top:0;left:-10;}
+	50% {top:-40px;left:-20px;}
+	70% {top:0px;left:60px;}
+	87% {top:50px;left:0px;}
+	90% {top:-60px;left:20px;}
+	94% {top:90px;left:-50px;}
+	95% {top:0px;left:50px;}
+	97% {top:-90px;left:-20px;}
+	100% {top:0;left:0;}
 }
 
 @media (max-width:600px) {
