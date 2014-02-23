@@ -3,7 +3,7 @@
       "collaborative",
       "whiteboard"
    ],
-   "version": "1.0.0-5",
+   "version": "1.0.0-7",
    "dependencies": {
       "node-static": "0.7.x",
       "socket.io": "0.9.x"

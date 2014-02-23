@@ -30,7 +30,7 @@ function socketConnection (socket) {
 	socket.on("getboard", function(name) {
 
 		// Default to the public board
-		if (name === undefined) name = "anonymous";
+		if ( !name ) name = "anonymous";
 
 		if ( ! boards[name] ) {
 			boards[name] = {
@@ -55,10 +55,10 @@ function socketConnection (socket) {
 	});
 
 	socket.on('broadcast', function (message) {
-		var boardName = message.board;
+		var boardName = message.board || "anonymous";
 		var data = message.data;
 
-		if (!data || !boardName) {
+		if (!data) {
 			console.warn("Received invalid message: %s.", JSON.stringify(message));
 			return;
 		}
