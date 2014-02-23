@@ -5,16 +5,27 @@
 	<meta charset="utf-8" />
 	<title>WBO - Welcome</title>
 	<link rel="icon" type="image/png" href="favicon.ico" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<style>
 body {
 	background-color:#eee;
+	width:100%;
+	margin:0;
 }
 header {
 	position:fixed;
 	left:0;
 	top:0;
+	text-shadow:1px 1px 2px #888;
 	width:100%;
+}
+
+h1, h2 {
+	display:inline-block;
+}
+
+h1 {
+	animation: colorchange 30s infinite;
+	animation-direction:alternate;
 }
 
 main {
@@ -22,11 +33,48 @@ main {
 	width:50%;
 	padding:50px;
 	font-size:2em;
+	animation: vibration 3s;
+	transition:.5s;
+}
+
+main:hover {
+	transform:scale(1.2);
+	transition:.5s;
 }
 
 header, main {
-	box-shadow: 0px 0px 9px #222;
+	box-shadow: 2px 2px 10px #000;
 	background-color:#fff;
+}
+
+header:hover h2 {
+	animation:colorchange 100s infinite;
+}
+
+@keyframes vibration
+{
+	0% {transform:scale(0.1);}
+	100% {transform:scale(1);}
+}
+
+@keyframes colorchange
+{
+	0% {color:#000;}
+	30% {color:#c04;}
+	40% {color:#706;}
+	50% {color:#007;}
+	60% {color:#04b;}
+	70% {color:#0a4;}
+	80% {color:#1c0;}
+	80% {color:#b30;}
+	100% {color:#f00;}
+}
+
+@media (max-width:600px) {
+	main {
+		width:90%;
+		margin: 100px auto;
+	}
 }
 	</style>
 </head>
@@ -34,7 +82,7 @@ header, main {
 <body>
 
 <header>
-	<h1>Welcome to Whitebophir</h1>
+	<h1>Whitebophir</h1> - <h2>Welcome</h2>
 </header>
 
 <main>
