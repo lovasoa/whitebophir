@@ -28,7 +28,8 @@
 	var board = Tools.board, svg = Tools.svg;
 
 	var input = document.createElement("input");
-	input.id="textToolInput";
+	input.id = "textToolInput";
+	input.setAttribute("autocomplete", "off");
 	board.appendChild(input);
 
 	var curText = {
