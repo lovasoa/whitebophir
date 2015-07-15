@@ -130,7 +130,7 @@
 
 	Tools.add({ //The new tool
 	 	"name" : "Text",
-	 	"icon" : "fa-font",
+	 	"icon" : "T",
 	 	"listeners" : {
 	 		"press" : clickHandler,
 	 	},
