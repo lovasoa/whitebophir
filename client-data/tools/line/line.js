@@ -52,7 +52,6 @@
 		});
 
     curUpdate.id = curLineId;
-    updateLine(x,y, evt);
 	}
 
 	function continueLine (x,y, evt){
