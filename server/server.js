@@ -24,7 +24,10 @@ var PORT = 8080;
 app.listen(PORT);
 console.log("Server listening on "+PORT);
 
-var fileserver = new nodestatic.Server(WEBROOT);
+var fileserver = new nodestatic.Server(WEBROOT,
+											{
+												"headers" : {"X-UA-Compatible": "IE=Edge"}
+											});
 
 function serveError(request, response, err) {
 	console.warn("Error serving '"+request.url+"' : "+err.status+" "+err.message);
