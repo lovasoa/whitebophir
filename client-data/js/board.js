@@ -50,7 +50,7 @@ Tools.HTML = {
 				elem.addEventListener("click", callback);
 				elem.id = "toolID-"+toolName;
 				elem.getElementsByClassName("tool-name")[0].textContent = toolName;
-				elem.getElementsByClassName("tool-icon")[0].className += " " + toolIcon;
+				elem.getElementsByClassName("tool-icon")[0].textContent = toolIcon;
 			}
 		);
 	},

@@ -119,7 +119,7 @@
 
 	Tools.add({ //The new tool
 	 	"name" : "Straight line",
-	 	"icon" : "fa-arrows-h",
+	 	"icon" : "☇",
 	 	"listeners" : {
 	 		"press" : startLine,
 	 		"move" : continueLine,

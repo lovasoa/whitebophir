@@ -70,7 +70,7 @@
 
 	Tools.add({ //The new tool
 		"name" : "Eraser",
-		"icon" : "fa-eraser",
+		"icon" : "❌",
 		"listeners" : {
 			"press" : startErasing,
 			"move" : erase,
