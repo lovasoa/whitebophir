@@ -51,8 +51,8 @@ Tools.HTML = {
 				elem.id = "toolID-"+toolName;
 				elem.getElementsByClassName("tool-name")[0].textContent = toolName;
 				elem.getElementsByClassName("tool-icon")[0].textContent = toolIcon;
-			}
-		);
+				Tools.i18n.translateDOM();
+		});
 	},
 	changeTool : function(oldToolName, newToolName) {
 		var oldTool = document.getElementById("toolID-"+oldToolName);
@@ -320,6 +320,35 @@ Tools.getSize = (function size (){
 	return function(){return chooser.value;};
 })();
 
+Tools.i18n = (function i18n(){
+	var lng = (navigator.language || navigator.browserLanguage).split('-')[0];
+	var translations = {};
+	var state = "pending";
+	var xhr = new XMLHttpRequest;
+	xhr.open("GET", "/translations/"+lng+".json");
+	xhr.send(null);
+	xhr.onload = function() {
+		translations = JSON.parse(xhr.responseText);
+		state = xhr.status === 200 ? "loaded" : "error";
+		Tools.i18n.translateDOM();
+	}
+	return {
+		"t" : function translate(s) {
+			return translations[s] || s;
+		},
+		"translateDOM" : function translateDOM() {
+			if (state !== "loaded") return false;
+			var els = document.querySelectorAll("[data-translation=waiting]");
+			for(var i=0; i<els.length; i++) {
+				var el = els[i];
+				el.setAttribute("data-translation", "done");
+				el.innerHTML = Tools.i18n.t(el.innerHTML);
+			}
+			return true;
+		}
+	};
+})();
+
 //Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;
 Tools.svg.height.baseVal.value = document.body.clientHeight;
@@ -345,7 +374,6 @@ if (!Math.hypot) {
 		return Math.sqrt(x*x+y*y);
 	}
 }
-
 
 /**
  What does a "tool" object look like?
