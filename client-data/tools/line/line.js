@@ -57,11 +57,14 @@
 	function continueLine (x,y, evt){
 		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
-		if (curLineId !== "" &&
-			performance.now() - lastTime > 70) {
+		if (curLineId !== "") {
 			curUpdate['x2'] = x; curUpdate['y2'] = y;
-			Tools.drawAndSend(curUpdate);
-			lastTime = performance.now();
+			if (performance.now() - lastTime > 70) {
+				Tools.drawAndSend(curUpdate);
+				lastTime = performance.now();
+			} else {
+				draw(curUpdate);
+			}
 		}
 		if (evt) evt.preventDefault();
 	}
@@ -80,7 +83,7 @@
 			case "update":
 				var line = svg.getElementById(data['id']);
 				if (!line) {
-					console.error("Pencil: Hmmm... I received a point of a line that has not been created (%s).", data['id']);
+					console.error("Straight line: Hmmm... I received a point of a line that has not been created (%s).", data['id']);
 					createLine({ //create a new line in order not to loose the points
             "id": data['id'],
             "x": data['x2'],
