@@ -301,14 +301,12 @@ Tools.positionElement = function (elem, x, y) {
 	elem.style.left = x+"px";
 };
 
-(function color (){
+Tools.getColor = (function color (){
 	var chooser = document.getElementById("chooseColor");
-	Tools.getColor = function(){
-		return chooser.value;
-	};
+	return function(){return chooser.value;};
 })();
 
-(function size (){
+Tools.getSize = (function size (){
 	var chooser = document.getElementById("chooseSize");
 
 	function update (){
@@ -319,16 +317,12 @@ Tools.positionElement = function (elem, x, y) {
 	update();
 
 	chooser.onchange = update;
-	Tools.getSize = function(){
-		return chooser.value;
-	};
+	return function(){return chooser.value;};
 })();
 
 //Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;
 Tools.svg.height.baseVal.value = document.body.clientHeight;
-
-
 
 (function menu () {
 	var menu = document.getElementById("menu");
