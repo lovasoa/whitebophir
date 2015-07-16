@@ -25,13 +25,14 @@ html, body, svg {
 	left:10px;
 	top:10px;
 	background-color:rgba(100,200,255,0.7);
-	width:100px;
+	width:6vw;
 	height:2em;
 	transition-duration:1s;
 }
 
 #menu.closed h2{ /*Menu title ("Menu")*/
 	text-align:center;
+	font-size: .9vw;
 }
 
 #menu h2{ /*Menu title ("Menu")*/
@@ -126,13 +127,21 @@ input {
 
 #chooseColor {
 	width:5vw;
-	height:4vh;
+	height:2vh;
 	border:1px solid black;
 	border-radius:3px;
 	color:black;
 	text-shadow: 0 0 6px white;
+	display: block;
+	width: 100%;
+	margin: 0;
+	padding: 0;
 }
 
 #chooseSize {
-	width:5vw;
+	width: 5vw;
+	border: 0;
+	display: block;
+	width: 100%;
+	margin:0;
 }
