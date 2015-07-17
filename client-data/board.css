@@ -1,10 +1,15 @@
+@font-face {
+	font-family: "Linux Biolinum";
+	src: url("/LinuxBiolinum.woff");
+}
+
 html, body, svg {
 	padding:0;
 	margin:0;
 }
 
 #menu {
-	font-family:"Segoe UI","Roboto","Ubuntu";
+	font-family:"Linux Biolinum", "Segoe UI","Roboto","Ubuntu";
 	font-size:.7vw;
 	border-radius:0;
 	box-shadow: 0px 0px 9px black;
@@ -37,11 +42,10 @@ html, body, svg {
 
 #menu h2{ /*Menu title ("Menu")*/
 	font-size:4vh;
-	font-family:monospace;
+	text-align: center;
 	letter-spacing:.5vw;
-	text-shadow: 0px 0px 9px white;
+	text-shadow: 0px 0px 5px white;
 	color:black;
-	word-wrap:break-word;
 	padding:0;
 	margin:0;
 }
@@ -82,8 +86,9 @@ html, body, svg {
 #menu .tool-icon {
 	text-align:center;
 	font-size:2.5vh;
-	padding:1vh;
-	width:1vw;
+	padding:.1vw;
+	width:1.5vw;
+	display: inline-block;
 }
 #menu .tool-name {
 	margin-left: .5vw;
