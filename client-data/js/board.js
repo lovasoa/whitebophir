@@ -168,28 +168,33 @@ Tools.pendingMessages = {};
 
 //Receive draw instructions from the server
 Tools.socket.on("broadcast", function (message){
-	//Check if the message is in the expected format
-	if (message.tool) {
+	function messageForTool(tool, message) {
 		var tool = Tools.list[message.tool];
 		if (tool) {
 			Tools.applyHooks(Tools.messageHooks, message);
-			tool.draw(message, false); //draw the received data
-			if (message._children) {
-				for (var i=0; i<message._children.length; i++) {
-					//Apply hooks on children too
-					Tools.applyHooks(Tools.messageHooks, message._children[i]);
-					tool.draw(message._children[i]);
-				}
-			}
+			tool.draw(message, false);
 		} else {
-			//We received a message destinated to a tool that we don't have
+			///We received a message destinated to a tool that we don't have
 			//So we add it to the pending messages
-			if (Tools.pendingMessages[message.tool] === undefined) {
-				Tools.pendingMessages[message.tool] = [];
+			if (!Tools.pendingMessages[tool] === undefined) {
+				Tools.pendingMessages[tool] = [];
 			}
-			Tools.pendingMessages[message.tool].push(message);
+			Tools.pendingMessages[tool].push(message);
 		}
-	} else {
+	}
+
+	//Check if the message is in the expected format
+	if (message.tool) {
+		messageForTool(message.tool, message);
+	}
+	if (message._children) {
+		for (var i=0; i<message._children.length; i++) {
+			//Apply hooks on children too
+			var msg = message._children[i];
+			messageForTool(msg.tool, msg);
+		}
+	}
+	if (!message.tool && !message._children) {
 		console.error("Received a badly formatted message (no tool). ", message);
 	}
 });
