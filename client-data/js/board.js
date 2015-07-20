@@ -176,10 +176,8 @@ Tools.socket.on("broadcast", function (message){
 		} else {
 			///We received a message destinated to a tool that we don't have
 			//So we add it to the pending messages
-			if (!Tools.pendingMessages[tool] === undefined) {
-				Tools.pendingMessages[tool] = [];
-			}
-			Tools.pendingMessages[tool].push(message);
+			if (!Tools.pendingMessages[tool]) Tools.pendingMessages[tool] = [message];
+			else Tools.pendingMessages[tool].push(message);
 		}
 	}
 
@@ -199,6 +197,16 @@ Tools.socket.on("broadcast", function (message){
 	}
 });
 
+Tools.unreadMessagesCount = 0;
+Tools.newUnreadMessage = function () {
+	document.title = "(" + (++Tools.unreadMessagesCount) + ") WBO";
+};
+
+window.addEventListener("focus", function(){
+	Tools.unreadMessagesCount = 0;
+	document.title = "WBO";
+});
+
 //List of hook functions that will be applied to messages before sending or drawing them
 Tools.messageHooks = [
 	function resizeCanvas (m) {
@@ -211,6 +219,11 @@ Tools.messageHooks = [
 			if (y > svg.height.baseVal.value - 500) {
 				svg.height.baseVal.value = y + 2000;
 			}
+		}
+	},
+	function updateUnreadCount(m) {
+		if (document.hidden && ["child", "update"].indexOf(m.type) === -1) {
+			Tools.newUnreadMessage();
 		}
 	}
 ];
