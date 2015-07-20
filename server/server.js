@@ -61,14 +61,18 @@ function handler (request, response) {
 		}
 
 	} else if (parts[0] === "download") {
-		var history_file = "../server-data/board-" + encodeURIComponent(parts[1]),
-			headers = {"Content-Type": "text/x-wbo"};
+		var boardName = encodeURIComponent(parts[1]),
+			history_file = "../server-data/board-" + boardName + ".json",
+			headers = {
+				"Content-Type": "application/json",
+				"Content-Disposition": 'attachment; filename="'+boardName+'.wbo"'
+			};
 		var promise = fileserver.serveFile(history_file, 200, headers, request, response);
-		promise.on("error", function(){
+		promise.on("error", function(err){
+			console.error("Error while downloading history", err);
 			response.statusCode = 404;
 			response.end("ERROR: Unable to serve history file\n");
 		});
-
 	} else {
 		fileserver.serve(request, response, function (err, res){
 			if (err) serveError(request, response, err);
