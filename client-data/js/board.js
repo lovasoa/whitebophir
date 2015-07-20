@@ -168,28 +168,29 @@ Tools.pendingMessages = {};
 
 //Receive draw instructions from the server
 Tools.socket.on("broadcast", function (message){
-	function messageForTool(tool, message) {
-		var tool = Tools.list[message.tool];
+	function messageForTool(message) {
+		var name = message.tool,
+				tool = Tools.list[name];
 		if (tool) {
 			Tools.applyHooks(Tools.messageHooks, message);
 			tool.draw(message, false);
 		} else {
 			///We received a message destinated to a tool that we don't have
 			//So we add it to the pending messages
-			if (!Tools.pendingMessages[tool]) Tools.pendingMessages[tool] = [message];
-			else Tools.pendingMessages[tool].push(message);
+			if (!Tools.pendingMessages[name]) Tools.pendingMessages[name] = [message];
+			else Tools.pendingMessages[name].push(message);
 		}
 	}
 
 	//Check if the message is in the expected format
 	if (message.tool) {
-		messageForTool(message.tool, message);
+		messageForTool(message);
 	}
 	if (message._children) {
 		for (var i=0; i<message._children.length; i++) {
 			//Apply hooks on children too
 			var msg = message._children[i];
-			messageForTool(msg.tool, msg);
+			messageForTool(msg);
 		}
 	}
 	if (!message.tool && !message._children) {
