@@ -36,30 +36,51 @@
 		"x":0,
 		"y":0,
 		"size" : 0,
+		"color" : "#000",
 		"id" : 0,
 		"sentText" : "",
 		"lastSending" : 0
 	};
 
 	function clickHandler (x,y, evt) {
-		if (evt && evt.target == input) return;
-		stopEdit()
-		curText.id = Tools.generateUID("t");
-		curText.x=x; curText.y=y;
+		if (evt.target == input) return;
+		if (evt.target.tagName === "text") {
+			editOldText(evt.target);
+			evt.preventDefault();
+			return;
+		}
 		curText.size = parseInt(Tools.getSize()*1.5 + 12);
+		curText.color = Tools.getColor();
+		curText.x = x;
+		curText.y = y + curText.size / 2;
 
+		drawCurText();
+		evt.preventDefault();
+	}
+
+	function editOldText(elem) {
+		curText.id = elem.id;
+		curText.x = elem.x.baseVal[0].value;
+		curText.y = elem.y.baseVal[0].value;
+		curText.size = parseInt(elem.getAttribute("font-size"));
+		curText.color = elem.getAttribute("fill");
+		startEdit();
+		input.value = elem.textContent;
+	}
+
+	function drawCurText() {
+		stopEdit();
 		//If the user clicked where there was no text, then create a new text field
+		curText.id = Tools.generateUID("t"); //"t" for text
 		Tools.drawAndSend({
 			'type' : 'new',
-			'id' : curText.id, //"t" for text
-			'color' : Tools.getColor(),
+			'id' : curText.id,
+			'color' : curText.color,
 			'size' : curText.size,
-			'x' : x,
-			'y' : y+curText.size/2
+			'x' : curText.x,
+			'y' : curText.y
 		});
-
 		startEdit();
-		if (evt) evt.preventDefault();
 	}
 
 	function startEdit () {
@@ -68,14 +89,16 @@
 		input.addEventListener("keyup", textChangeHandler);
 		input.addEventListener("blur", textChangeHandler);
 	}
+
 	function stopEdit () {
 		input.blur();
 		input.removeEventListener("keyup", textChangeHandler);
 	}
 
 	function textChangeHandler (evt) {
-		if (evt && evt.which===13) {
-			clickHandler(curText.x,curText.y + 1.5*curText.size);
+		if (evt.which===13) {
+			curText.y += 1.5*curText.size;
+			return drawCurText();
 		}
 		if (performance.now() - curText.lastSending > 100) {
 			if (curText.sentText !== input.value) {
@@ -89,7 +112,7 @@
 			}
 		} else {
 			clearTimeout(curText.timeout);
-			curText.timeout = setTimeout(textChangeHandler, 500);
+			curText.timeout = setTimeout(textChangeHandler, 500, evt);
 		}
 	}
 
