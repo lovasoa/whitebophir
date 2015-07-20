@@ -153,8 +153,7 @@ BoardData.prototype.getAll = function (id, callback) {
 */
 BoardData.prototype.delaySave = function (file) {
 	if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
-	var that = this;
-	this.saveTimeoutId = setTimeout(function(){that.save()}, SAVE_INTERVAL);
+	this.saveTimeoutId = setTimeout(this.save.bind(this), SAVE_INTERVAL);
 };
 
 /** Saves the data in the board to a file.
