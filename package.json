@@ -3,10 +3,10 @@
       "collaborative",
       "whiteboard"
    ],
-   "version": "1.0.0-20",
+   "version": "1.0.22",
    "dependencies": {
       "node-static": "0.7.x",
-      "socket.io": "0.9.x"
+      "socket.io": "1.x"
    },
    "scripts": {
       "start": "node ./server/server.js"

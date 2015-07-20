@@ -11,17 +11,8 @@ var boards = {
 };
 
 function startIO(app) {
-	io = iolib.listen(app);
-	//Default configuration
-	//io.enable('browser client minification');  // send minified client
-	io.enable('browser client etag');          // apply etag caching logic based on version number
-	io.enable('browser client gzip');          // gzip the file
-	io.set('log level', 1);                    // reduce logging
-
-	// enable all transports
-	io.set('transports', ['websocket', 'flashsocket', 'htmlfile', 'xhr-polling', 'jsonp-polling']);
-
-	io.sockets.on('connection', socketConnection);
+	io = iolib(app);
+	io.on('connection', socketConnection);
 	return io;
 }
 
