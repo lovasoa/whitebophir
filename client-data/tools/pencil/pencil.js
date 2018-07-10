@@ -104,46 +104,59 @@
 
 	var svg = Tools.svg;
 	function addPoint (line, x,y) {
-		var nbr = line.pathSegList.numberOfItems, //The number of points already in the line
-			pts = line.pathSegList, //The points that are already in the line as a SVGPathSegList
-			npoint;
+		var pts = line.getPathData(), //The points that are already in the line as a PathData
+			nbr = pts.length; //The number of points already in the line
 		switch (nbr) {
 			case 0: //The first point in the line
 				//If there is no point, we have to start the line with a moveTo statement
-				npoint = line.createSVGPathSegMovetoAbs(x,y);
+				npoint = {type:"M", values:[x,y]};
 				break;
 			case 1: //There is only one point.
 				//Draw a curve that is segment between the old point and the new one
-				npoint = line.createSVGPathSegCurvetoCubicAbs(
-							x,y, pts.getItem(0).x,pts.getItem(0).y, x,y);
+				npoint = {type:"C", values:[
+					pts[0].values[0], pts[0].values[1],
+					x,y,
+					x,y,
+				]};
 				break;
 			default: //There are at least two points in the line
 				//We add the new point, and smoothen the line
 				var ANGULARITY = 3; //The lower this number, the smoother the line
-				var prev = [pts.getItem(nbr-2), pts.getItem(nbr-1)]; //The last two points that are already in the line
+				var prev_values = pts[nbr-1].values; // Previous point
+				var ante_values = pts[nbr-2].values; // Point before the previous one
+				var prev_x = prev_values[prev_values.length - 2];
+				var prev_y = prev_values[prev_values.length - 1];
+				var ante_x = ante_values[ante_values.length - 2];
+				var ante_y = ante_values[ante_values.length - 1];
+
 
 				//We don't want to add the same point twice consecutively
-				if ((prev[1].x==x && prev[1].y==y)
-					|| (prev[0].x==x && prev[0].y==y) ) return;
+				if ((prev_x==x && prev_y==y)
+					|| (ante_x==x && ante_y==y) ) return;
 
-				var vectx = x-prev[0].x,
-					vecty = y-prev[0].y;
+				var vectx = x-ante_x,
+					vecty = y-ante_y;
 				var norm = Math.hypot(vectx,vecty);
-				var dist1 = dist(prev[0].x,prev[0].y,prev[1].x,prev[1].y)/norm,
-					dist2 = dist(x,y,prev[1].x,prev[1].y)/norm;
+				var dist1 = dist(ante_x,ante_y,prev_x,prev_y)/norm,
+					dist2 = dist(x,y,prev_x,prev_y)/norm;
 				vectx /= ANGULARITY;
 				vecty /= ANGULARITY;
 				//Create 2 control points around the last point
-				var cx1 = prev[1].x - dist1*vectx,
-					cy1 = prev[1].y - dist1*vecty, //First control point
-					cx2 = prev[1].x + dist2*vectx,
-					cy2 = prev[1].y + dist2*vecty; //Second control point
-				prev[1].x2 = cx1;
-				prev[1].y2 = cy1;
+				var cx1 = prev_x - dist1*vectx,
+					cy1 = prev_y - dist1*vecty, //First control point
+					cx2 = prev_x + dist2*vectx,
+					cy2 = prev_y + dist2*vecty; //Second control point
+				prev_values[2] = cx1;
+				prev_values[3] = cy1;
 
-				npoint = line.createSVGPathSegCurvetoCubicAbs(x,y,cx2,cy2,x,y);
+				npoint = {type:"C", values:[
+					cx2,cy2,
+					x,y,
+					x,y,
+				]};
 		}
-		line.pathSegList.appendItem(npoint);
+		pts.push(npoint);
+		line.setPathData(pts);
 	}
 
 	function createLine(lineData) {
