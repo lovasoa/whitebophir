@@ -347,8 +347,9 @@ Tools.i18n = (function i18n(){
 	xhr.open("GET", "/translations/"+lng+".json");
 	xhr.send(null);
 	xhr.onload = function() {
-		translations = JSON.parse(xhr.responseText);
 		state = xhr.status === 200 ? "loaded" : "error";
+		if (state !== "loaded") return;
+		translations = JSON.parse(xhr.responseText);
 		Tools.i18n.translateDOM();
 	}
 	return {
