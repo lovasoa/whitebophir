@@ -7,7 +7,7 @@
    "license": "GPL-3.0+",
    "dependencies": {
       "node-static": "0.7.x",
-      "socket.io": "1.x"
+      "socket.io": "2.x"
    },
    "scripts": {
       "start": "node ./server/server.js"
@@ -16,9 +16,6 @@
    "description": "Online collaborative whiteboard",
    "main": "./server/server.js",
    "subdomain": "wbo",
-   "engines": {
-      "node": "0.10.x"
-   },
    "repository": {
       "type": "git",
       "url": "http://github.com/lovasoa/whitebophir.git"
