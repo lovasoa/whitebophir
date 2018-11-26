@@ -1,7 +1,7 @@
 var fs = require("fs"),
 	path = require("path");
 
-var HISTORY_FILE = path.join(__dirname, "../server-data/history.txt");
+var HISTORY_FILE = process.argv[2] || path.join(__dirname, "../server-data/history.txt");
 
 function htmlspecialchars (str) {
 	//Hum, hum... Could do better
@@ -50,11 +50,13 @@ var Tools = {
 
 function toSVG(obj) {
 	var margin=500, maxelems = 1e4;
-	var elements = "", i=0, w=0, h=0;
+	var elements = "", i=0, w=500, h=500;
 	var t=Date.now();
-	for (var id in obj) {
+	var elems = Object.values(obj);
+	while (elems.length > 0) {
 		if (++i > maxelems) break;
-		var elem = obj[id];
+		var elem = elems.pop();
+		elems = elems.concat(elem._children || []);
 		if (elem.x && elem.x + margin > w ) w = elem.x + margin;
 		if (elem.y && elem.y + margin > h) h = elem.y + margin;
 		elements += Tools[elem.tool](elem);
