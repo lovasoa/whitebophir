@@ -2,7 +2,8 @@ var app = require('http').createServer(handler)
   , sockets = require('./sockets.js')
   , fs = require('fs')
   , path = require('path')
-  , nodestatic = require("node-static");
+  , nodestatic = require("node-static")
+  , createSVG = require("./createSVG.js");
 
 
 var io = sockets.start(app);
@@ -72,6 +73,17 @@ function handler (request, response) {
 			console.error("Error while downloading history", err);
 			response.statusCode = 404;
 			response.end("ERROR: Unable to serve history file\n");
+		});
+	} else if (parts[0] === "preview") {
+		var boardName = encodeURIComponent(parts[1]),
+			history_file = path.join(__dirname, "..", "server-data", "board-" + boardName + ".json");
+		createSVG.renderBoard(history_file, function(err, svg) {
+			if (err) {
+				response.writeHead(404, {'Content-Type': 'application/json'});
+				response.end(JSON.stringify(err));
+			}
+			response.writeHead(200, {"Content-Type": "image/svg+xml"});
+			response.end(svg);
 		});
 	} else {
 		fileserver.serve(request, response, function (err, res){

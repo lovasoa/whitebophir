@@ -1,8 +1,6 @@
 var fs = require("fs"),
 	path = require("path");
 
-var HISTORY_FILE = process.argv[2] || path.join(__dirname, "../server-data/history.txt");
-
 function htmlspecialchars (str) {
 	//Hum, hum... Could do better
 	if (typeof str !== "string") return "";
@@ -70,14 +68,27 @@ function toSVG(obj) {
 				']]></style></defs>' +
 				elements +
 				'</svg>';
-	console.log(svg);
 	return svg;
 }
 
-fs.readFile(HISTORY_FILE, function (err, data) {
-	if (err) throw err;
+function renderBoard(file, callback) {
 	var t=Date.now();
-	var board = JSON.parse(data);
-	console.error("JSON parsed in "+(Date.now()-t)+"ms.");
-	toSVG(board);
-});
+	fs.readFile(file, function (err, data) {
+		if (err) return callback(err);
+		var board = JSON.parse(data);
+		console.warn("JSON parsed in "+(Date.now()-t)+"ms.");
+		var svg = toSVG(board);
+		console.warn("Board rendered in "+(Date.now()-t)+"ms.");
+		callback(null, svg);
+	});
+}
+
+if (require.main === module) {
+	var HISTORY_FILE = process.argv[2] || path.join(__dirname, "../server-data/board-anonymous.json");
+
+	renderBoard(HISTORY_FILE, function(err, rendered) {
+		console.log(rendered);
+	});
+} else {
+	module.exports = { 'renderBoard': renderBoard };
+}
