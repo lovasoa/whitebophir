@@ -19,7 +19,7 @@ var WEBROOT = path.join(__dirname, "../client-data");
  * @const
  * @type {number}
  */
-var PORT = 8080;
+var PORT = parseInt(process.env['PORT']) || 8080;
 
 app.listen(PORT);
 console.log("Server listening on "+PORT);
