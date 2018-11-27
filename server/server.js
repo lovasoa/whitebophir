@@ -42,6 +42,16 @@ function logRequest (request) {
 }
 
 function handler (request, response) {
+	try {
+		handleRequest(request, response);
+	} catch(err) {
+		console.trace(err);
+		response.writeHead(500, {'Content-Type': 'text/plain'});
+		response.end(err.toString());
+	}
+}
+
+function handleRequest (request, response) {
 	var parts = request.url.split('/');
 	if (parts[0] === '') parts.shift();
 
