@@ -18,8 +18,8 @@
 	<p>Welcome to <b>WBO</b>. You can go to <a href="/boards/anonymous">the public board</a>
 or create a new one with the form below. To share a board, just send it's URL to your friends.</p>
 
-<form onsubmit="window.location='/boards/'+document.getElementById('board').value; return false;">
-	<input type="text" id="board" placeholder="Name of the board..."/>
+<form action="boards" method="GET">
+	<input type="text" id="board" name="board" placeholder="Name of the board..."/>
 	<input type="submit" value="Go">
 </form>
 

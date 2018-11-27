@@ -1,9 +1,9 @@
 var app = require('http').createServer(handler)
-  , sockets = require('./sockets.js')
-  , fs = require('fs')
-  , path = require('path')
-  , nodestatic = require("node-static")
-  , createSVG = require("./createSVG.js");
+	, sockets = require('./sockets.js')
+	, path = require('path')
+	, url = require('url')
+	, nodestatic = require("node-static")
+	, createSVG = require("./createSVG.js");
 
 
 var io = sockets.start(app);
@@ -55,17 +55,22 @@ function handler (request, response) {
 	}
 }
 
-function handleRequest (request, response) {
-	var parts = request.url.split('/');
+function handleRequest(request, response) {
+	var parsedUrl = url.parse(request.url, true);
+	var parts = parsedUrl.pathname.split('/');
 	if (parts[0] === '') parts.shift();
 
 	if (parts.length === 0) {
 		fileserver.serveFile("index.html", 200, {}, request, response);
 	} else if (parts[0] === "boards") {
 		// "boards" refers to the root directory
-
-		// If there is no dot and no directory, parts[1] is the board name
-		if (parts.length === 2 && request.url.indexOf('.') === -1) {
+		if (parts.length === 1 && parsedUrl.query.board) {
+			// '/boards?board=...' This allows html forms to point to boards
+			var headers = { Location: 'boards/' + encodeURIComponent(parsedUrl.query.board) };
+			response.writeHead(301, headers);
+			response.end();
+		} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
+				// If there is no dot and no directory, parts[1] is the board name
 			fileserver.serveFile("board.html", 200, {}, request, response);
 			logRequest(request);
 		} else { // Else, it's a resource
