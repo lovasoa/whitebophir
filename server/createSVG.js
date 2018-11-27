@@ -11,6 +11,16 @@ function htmlspecialchars (str) {
 			  .replace(/'/g, "&#039;");
 }
 
+function renderPath(el, pathstring) {
+	return '<path ' +
+		'id="'+htmlspecialchars(el.id||"l")+'" ' +
+		'stroke-width="'+(el.size|0)+'" '+
+		'stroke="'+htmlspecialchars(el.color||"#000")+'" '+
+		'd="'+pathstring+'" ' +
+		'/>';
+
+}
+
 var Tools = {
 	"Text" : function(el) {
 		return '<text ' +
@@ -36,12 +46,20 @@ var Tools = {
 				}
 		}
 
-		return '<path ' +
-				'id="'+htmlspecialchars(el.id||"l")+'" ' +
-				'stroke-width="'+(el.size|0)+'" '+
-				'stroke="'+htmlspecialchars(el.color||"#000")+'" '+
-				'd="'+pathstring+'" ' +
-				'/>';
+		return renderPath(el, pathstring);
+	},
+	"Rectangle": function(el) {
+		var pathstring =
+			"M" + el.x + " " + el.y +
+			"L" + el.x + " " + el.y2 +
+			"L" + el.x2 + " " + el.y2 +
+			"L" + el.x2 + " " + el.y +
+			"L" + el.x + " " + el.y;
+		return renderPath(el, pathstring);
+	},
+	"Straight line": function(el) {
+		var pathstring = "M" + el.x + " " + el.y + "L" + el.x2 + " " + el.y2;
+		return renderPath(el, pathstring);
 	}
 };
 
