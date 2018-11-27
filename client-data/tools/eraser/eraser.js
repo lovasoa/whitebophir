@@ -40,9 +40,16 @@
 		"id": ""
 	};
 	function erase(x, y, evt) {
-		/*evt.target is the element over which the mouse is.*/
-		if (erasing && evt.target !== Tools.svg) {
-			msg.id = evt.target.id;
+		// evt.target should be the element over which the mouse is...
+		var target = evt.target;
+		if (evt.type === "touchmove") {
+			// ... the target of touchmove events is the element that was initially touched,
+			// not the one **currently** being touched
+			var touch = evt.touches[0];
+			target = document.elementFromPoint(touch.clientX, touch.clientY);
+		}
+		if (erasing && target !== Tools.svg) {
+			msg.id = target.id;
 			Tools.drawAndSend(msg);
 		}
 	}
