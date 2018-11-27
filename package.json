@@ -10,7 +10,8 @@
       "socket.io": "2.x"
    },
    "scripts": {
-      "start": "node ./server/server.js"
+      "start": "node ./server/server.js",
+      "deploy": "openode deploy -t $OPENODE_TOKEN -s $OPENODE_SITENAME"
    },
    "name": "Whitebophir",
    "description": "Online collaborative whiteboard",
@@ -19,5 +20,8 @@
    "repository": {
       "type": "git",
       "url": "http://github.com/lovasoa/whitebophir.git"
+   },
+   "devDependencies": {
+      "openode": "^1.8.3"
    }
 }
