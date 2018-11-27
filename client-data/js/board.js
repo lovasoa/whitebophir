@@ -137,7 +137,7 @@ Tools.change = function (toolName) {
 	//Add the new event listeners
 	for (var event in newtool.compiledListeners) {
 		var listener = newtool.compiledListeners[event];
-		Tools.board.addEventListener(event, listener);
+		Tools.board.addEventListener(event, listener, { 'passive': false });
 	}
 
 	//Call the start callback of the new tool 
