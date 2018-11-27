@@ -23,19 +23,19 @@
  *
  * @licend
  */
- 
-(function(){ //Code isolation
+
+(function () { //Code isolation
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
 		curUpdate = { //The data of the message that will be sent for every new point
-				'type' : 'update',
-				'id' : "",
-				'x2' : 0,
-				'y2' : 0
+			'type': 'update',
+			'id': "",
+			'x2': 0,
+			'y2': 0
 		},
 		lastTime = performance.now(); //The time at which the last point was drawn
 
-	function startLine (x,y, evt) {
+	function startLine(x, y, evt) {
 
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
@@ -43,18 +43,18 @@
 		curLineId = Tools.generateUID("s"); //"s" for straight line
 
 		Tools.drawAndSend({
-			'type' : 'straight',
-			'id' : curLineId,
-			'color' : Tools.getColor(),
-			'size' : Tools.getSize(),
-      'x' : x,
-      'y' : y
+			'type': 'straight',
+			'id': curLineId,
+			'color': Tools.getColor(),
+			'size': Tools.getSize(),
+			'x': x,
+			'y': y
 		});
 
-    curUpdate.id = curLineId;
+		curUpdate.id = curLineId;
 	}
 
-	function continueLine (x,y, evt){
+	function continueLine(x, y, evt) {
 		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
 		if (curLineId !== "") {
@@ -69,14 +69,14 @@
 		if (evt) evt.preventDefault();
 	}
 
-	function stopLine (x,y){
+	function stopLine(x, y) {
 		//Add a last point to the line
-		continueLine(x,y);
+		continueLine(x, y);
 		curLineId = "";
 	}
 
 	function draw(data) {
-		switch(data.type) {
+		switch (data.type) {
 			case "straight":
 				createLine(data);
 				break;
@@ -85,12 +85,12 @@
 				if (!line) {
 					console.error("Straight line: Hmmm... I received a point of a line that has not been created (%s).", data['id']);
 					createLine({ //create a new line in order not to loose the points
-            "id": data['id'],
-            "x": data['x2'],
-            "y": data['y2']
-          });
+						"id": data['id'],
+						"x": data['x2'],
+						"y": data['y2']
+					});
 				}
-        updateLine(line, data);
+				updateLine(line, data);
 				break;
 			default:
 				console.error("Straight Line: Draw instruction with unknown type. ", data);
@@ -103,33 +103,33 @@
 		//Creates a new line on the canvas, or update a line that already exists with new information
 		var line = svg.getElementById(lineData.id) || Tools.createSVGElement("line");
 		line.id = lineData.id;
-    line.x1.baseVal.value = lineData['x'];
-    line.y1.baseVal.value = lineData['y'];
-    line.x2.baseVal.value = lineData['x2'] || lineData['x']; 
-    line.y2.baseVal.value = lineData['y2'] || lineData['y']; 
+		line.x1.baseVal.value = lineData['x'];
+		line.y1.baseVal.value = lineData['y'];
+		line.x2.baseVal.value = lineData['x2'] || lineData['x'];
+		line.y2.baseVal.value = lineData['y2'] || lineData['y'];
 		//If some data is not provided, choose default value. The line may be updated later
-		line.setAttribute("stroke", lineData.color || "black" );
-		line.setAttribute("stroke-width", lineData.size || 10 );
+		line.setAttribute("stroke", lineData.color || "black");
+		line.setAttribute("stroke-width", lineData.size || 10);
 		svg.appendChild(line);
 		return line;
 	}
 
-  function updateLine(line, data) {
-    line.x2.baseVal.value = data['x2']; 
-    line.y2.baseVal.value = data['y2']; 
-  }
+	function updateLine(line, data) {
+		line.x2.baseVal.value = data['x2'];
+		line.y2.baseVal.value = data['y2'];
+	}
 
 	Tools.add({ //The new tool
-	 	"name" : "Straight line",
-	 	"icon" : "☇",
-	 	"listeners" : {
-	 		"press" : startLine,
-	 		"move" : continueLine,
-      "release" : stopLine,
-	 	},
-	 	"draw" : draw,
-	 	"mouseCursor" : "crosshair",
-	 	"stylesheet" : "tools/line/line.css"
+		"name": "Straight line",
+		"icon": "☇",
+		"listeners": {
+			"press": startLine,
+			"move": continueLine,
+			"release": stopLine,
+		},
+		"draw": draw,
+		"mouseCursor": "crosshair",
+		"stylesheet": "tools/line/line.css"
 	});
 
 })(); //End of code isolation

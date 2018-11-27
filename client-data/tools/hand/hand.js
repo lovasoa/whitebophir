@@ -23,36 +23,36 @@
  *
  * @licend
  */
- 
-(function(){ //Code isolation
 
-	var orig = {x:0,y:0};
+(function () { //Code isolation
+
+	var orig = { x: 0, y: 0 };
 	var pressed = false;
-	function press(x,y,evt, isTouchEvent) {
+	function press(x, y, evt, isTouchEvent) {
 		if (!isTouchEvent) {
-			pressed=true;
-			orig.x=scrollX+evt.clientX;
-			orig.y=scrollY+evt.clientY;
+			pressed = true;
+			orig.x = scrollX + evt.clientX;
+			orig.y = scrollY + evt.clientY;
 		}
 	}
-	function move(x,y,evt, isTouchEvent) {
+	function move(x, y, evt, isTouchEvent) {
 		if (pressed && !isTouchEvent) { //Let the browser handle touch to scroll
-			window.scrollTo(orig.x-evt.clientX, orig.y-evt.clientY);
+			window.scrollTo(orig.x - evt.clientX, orig.y - evt.clientY);
 		}
 	}
 	function release() {
-		pressed=false;
+		pressed = false;
 	}
 
 	Tools.add({ //The new tool
-	 	"name" : "Hand",
-	 	"icon" : "✋",
-	 	"listeners" : {
-	 		"press" : press,
-	 		"move" : move,
-	 		"release" : release
-	 	},
-	 	"mouseCursor" : "move"
+		"name": "Hand",
+		"icon": "✋",
+		"listeners": {
+			"press": press,
+			"move": move,
+			"release": release
+		},
+		"mouseCursor": "move"
 	});
 
 })(); //End of code isolation

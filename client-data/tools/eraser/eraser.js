@@ -23,23 +23,23 @@
  *
  * @licend
  */
- 
-(function eraser (){ //Code isolation
+
+(function eraser() { //Code isolation
 
 	var erasing = false;
 
-	function startErasing (x,y, evt) {
+	function startErasing(x, y, evt) {
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
 		erasing = true;
-		erase(x,y,evt);
+		erase(x, y, evt);
 	}
 
 	var msg = {
-		"type" : "delete",
-		"id" : ""
+		"type": "delete",
+		"id": ""
 	};
-	function erase (x,y, evt){
+	function erase(x, y, evt) {
 		/*evt.target is the element over which the mouse is.*/
 		if (erasing && evt.target !== Tools.svg) {
 			msg.id = evt.target.id;
@@ -47,13 +47,13 @@
 		}
 	}
 
-	function stopErasing (){
+	function stopErasing() {
 		erasing = false;
 	}
 
 	function draw(data) {
 		var elem;
-		switch(data.type) {
+		switch (data.type) {
 			//TODO: add the ability to erase only some points in a line
 			case "delete":
 				elem = svg.getElementById(data.id);
@@ -69,15 +69,15 @@
 	var svg = Tools.svg;
 
 	Tools.add({ //The new tool
-		"name" : "Eraser",
-		"icon" : "❌",
-		"listeners" : {
-			"press" : startErasing,
-			"move" : erase,
-			"release" : stopErasing,
+		"name": "Eraser",
+		"icon": "❌",
+		"listeners": {
+			"press": startErasing,
+			"move": erase,
+			"release": stopErasing,
 		},
-		"draw" : draw,
-		"mouseCursor" : "crosshair",
+		"draw": draw,
+		"mouseCursor": "crosshair",
 	});
 
 })(); //End of code isolation

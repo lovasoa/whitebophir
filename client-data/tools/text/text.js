@@ -23,8 +23,8 @@
  *
  * @licend
  */
- 
-(function(){ //Code isolation
+
+(function () { //Code isolation
 	var board = Tools.board, svg = Tools.svg;
 
 	var input = document.createElement("input");
@@ -33,23 +33,23 @@
 	board.appendChild(input);
 
 	var curText = {
-		"x":0,
-		"y":0,
-		"size" : 0,
-		"color" : "#000",
-		"id" : 0,
-		"sentText" : "",
-		"lastSending" : 0
+		"x": 0,
+		"y": 0,
+		"size": 0,
+		"color": "#000",
+		"id": 0,
+		"sentText": "",
+		"lastSending": 0
 	};
 
-	function clickHandler (x,y, evt) {
+	function clickHandler(x, y, evt) {
 		if (evt.target == input) return;
 		if (evt.target.tagName === "text") {
 			editOldText(evt.target);
 			evt.preventDefault();
 			return;
 		}
-		curText.size = parseInt(Tools.getSize()*1.5 + 12);
+		curText.size = parseInt(Tools.getSize() * 1.5 + 12);
 		curText.color = Tools.getColor();
 		curText.x = x;
 		curText.y = y + curText.size / 2;
@@ -73,39 +73,39 @@
 		//If the user clicked where there was no text, then create a new text field
 		curText.id = Tools.generateUID("t"); //"t" for text
 		Tools.drawAndSend({
-			'type' : 'new',
-			'id' : curText.id,
-			'color' : curText.color,
-			'size' : curText.size,
-			'x' : curText.x,
-			'y' : curText.y
+			'type': 'new',
+			'id': curText.id,
+			'color': curText.color,
+			'size': curText.size,
+			'x': curText.x,
+			'y': curText.y
 		});
 		startEdit();
 	}
 
-	function startEdit () {
-		input.value="";
+	function startEdit() {
+		input.value = "";
 		input.focus();
 		input.addEventListener("keyup", textChangeHandler);
 		input.addEventListener("blur", textChangeHandler);
 	}
 
-	function stopEdit () {
+	function stopEdit() {
 		input.blur();
 		input.removeEventListener("keyup", textChangeHandler);
 	}
 
-	function textChangeHandler (evt) {
-		if (evt.which===13) {
-			curText.y += 1.5*curText.size;
+	function textChangeHandler(evt) {
+		if (evt.which === 13) {
+			curText.y += 1.5 * curText.size;
 			return drawCurText();
 		}
 		if (performance.now() - curText.lastSending > 100) {
 			if (curText.sentText !== input.value) {
 				Tools.drawAndSend({
-					'type' : "update",
-					'id' : curText.id,
-					'txt' : input.value
+					'type': "update",
+					'id': curText.id,
+					'txt': input.value
 				});
 				curText.sentText = input.value;
 				curText.lastSending = performance.now();
@@ -117,13 +117,13 @@
 	}
 
 	function draw(data, isLocal) {
-		switch(data.type) {
+		switch (data.type) {
 			case "new":
 				createTextField(data);
 				break;
 			case "update":
 				var textField = document.getElementById(data.id);
-				if (textField===null) {
+				if (textField === null) {
 					console.error("Text: Hmmm... I received text that belongs to an unknown text field");
 					return false;
 				}
@@ -135,11 +135,11 @@
 		}
 	}
 
-	function updateText (textField, text) {
+	function updateText(textField, text) {
 		textField.textContent = text;
 	}
 
-	function createTextField (fieldData) {
+	function createTextField(fieldData) {
 		var elem = Tools.createSVGElement("text");
 		elem.id = fieldData.id;
 		elem.setAttribute("x", fieldData.x);
@@ -152,14 +152,14 @@
 	}
 
 	Tools.add({ //The new tool
-	 	"name" : "Text",
-	 	"icon" : "T",
-	 	"listeners" : {
-	 		"press" : clickHandler,
-	 	},
-	 	"draw" : draw,
-	 	"stylesheet" : "tools/text/text.css",
-	 	"mouseCursor" : "text"
+		"name": "Text",
+		"icon": "T",
+		"listeners": {
+			"press": clickHandler,
+		},
+		"draw": draw,
+		"stylesheet": "tools/text/text.css",
+		"mouseCursor": "text"
 	});
 
 })(); //End of code isolation
