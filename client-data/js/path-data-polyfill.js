@@ -12,13 +12,13 @@
 // @license
 //   MIT License
 if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathData) {
-  (function() {
+  (function () {
     var commandsMap = {
-      "Z":"Z", "M":"M", "L":"L", "C":"C", "Q":"Q", "A":"A", "H":"H", "V":"V", "S":"S", "T":"T",
-      "z":"Z", "m":"m", "l":"l", "c":"c", "q":"q", "a":"a", "h":"h", "v":"v", "s":"s", "t":"t"
+      "Z": "Z", "M": "M", "L": "L", "C": "C", "Q": "Q", "A": "A", "H": "H", "V": "V", "S": "S", "T": "T",
+      "z": "Z", "m": "m", "l": "l", "c": "c", "q": "q", "a": "a", "h": "h", "v": "v", "s": "s", "t": "t"
     };
 
-    var Source = function(string) {
+    var Source = function (string) {
       this._string = string;
       this._currentIndex = 0;
       this._endIndex = this._string.length;
@@ -29,7 +29,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
     var isIE = window.navigator.userAgent.indexOf("MSIE ") !== -1;
 
     Source.prototype = {
-      parseSegment: function() {
+      parseSegment: function () {
         var char = this._string[this._currentIndex];
         var command = commandsMap[char] ? commandsMap[char] : null;
 
@@ -110,20 +110,20 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           return null;
         }
         else {
-          return {type: command, values: values};
+          return { type: command, values: values };
         }
       },
 
-      hasMoreData: function() {
+      hasMoreData: function () {
         return this._currentIndex < this._endIndex;
       },
 
-      peekSegmentType: function() {
+      peekSegmentType: function () {
         var char = this._string[this._currentIndex];
         return commandsMap[char] ? commandsMap[char] : null;
       },
 
-      initialCommandIsMoveTo: function() {
+      initialCommandIsMoveTo: function () {
         // If the path is empty it is still valid, so return true.
         if (!this.hasMoreData()) {
           return true;
@@ -134,12 +134,12 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         return command === "M" || command === "m";
       },
 
-      _isCurrentSpace: function() {
+      _isCurrentSpace: function () {
         var char = this._string[this._currentIndex];
         return char <= " " && (char === " " || char === "\n" || char === "\t" || char === "\r" || char === "\f");
       },
 
-      _skipOptionalSpaces: function() {
+      _skipOptionalSpaces: function () {
         while (this._currentIndex < this._endIndex && this._isCurrentSpace()) {
           this._currentIndex += 1;
         }
@@ -147,7 +147,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         return this._currentIndex < this._endIndex;
       },
 
-      _skipOptionalSpacesOrDelimiter: function() {
+      _skipOptionalSpacesOrDelimiter: function () {
         if (
           this._currentIndex < this._endIndex &&
           !this._isCurrentSpace() &&
@@ -168,7 +168,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       // Parse a number from an SVG path. This very closely follows genericParseNumber(...) from
       // Source/core/svg/SVGParserUtilities.cpp.
       // Spec: http://www.w3.org/TR/SVG11/single-page.html#paths-PathDataBNF
-      _parseNumber: function() {
+      _parseNumber: function () {
         var exponent = 0;
         var integer = 0;
         var frac = 1;
@@ -299,7 +299,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         return number;
       },
 
-      _parseArcFlag: function() {
+      _parseArcFlag: function () {
         if (this._currentIndex >= this._endIndex) {
           return null;
         }
@@ -324,7 +324,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       }
     };
 
-    var parsePathDataString = function(string) {
+    var parsePathDataString = function (string) {
       if (!string || string.length === 0) return [];
 
       var source = new Source(string);
@@ -354,15 +354,15 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
     // @info
     //   Get an array of corresponding cubic bezier curve parameters for given arc curve paramters.
-    var arcToCubicCurves = function(x1, y1, x2, y2, r1, r2, angle, largeArcFlag, sweepFlag, _recursive) {
-      var degToRad = function(degrees) {
+    var arcToCubicCurves = function (x1, y1, x2, y2, r1, r2, angle, largeArcFlag, sweepFlag, _recursive) {
+      var degToRad = function (degrees) {
         return (Math.PI * degrees) / 180;
       };
 
-      var rotate = function(x, y, angleRad) {
+      var rotate = function (x, y, angleRad) {
         var X = x * Math.cos(angleRad) - y * Math.sin(angleRad);
         var Y = x * Math.sin(angleRad) + y * Math.cos(angleRad);
-        return {x: X, y: Y};
+        return { x: X, y: Y };
       };
 
       var angleRad = degToRad(angle);
@@ -409,7 +409,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         var left = r1Pow * r2Pow - r1Pow * y * y - r2Pow * x * x;
         var right = r1Pow * y * y + r2Pow * x * x;
 
-        var k = sign * Math.sqrt(Math.abs(left/right));
+        var k = sign * Math.sqrt(Math.abs(left / right));
 
         cx = k * r1 * y / r2 + (x1 + x2) / 2;
         cy = k * -r2 * x / r1 + (y1 + y2) / 2;
@@ -484,10 +484,10 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
         var curves = [];
 
-        for (var i = 0; i < params.length; i+=3) {
+        for (var i = 0; i < params.length; i += 3) {
           var r1 = rotate(params[i][0], params[i][1], angleRad);
-          var r2 = rotate(params[i+1][0], params[i+1][1], angleRad);
-          var r3 = rotate(params[i+2][0], params[i+2][1], angleRad);
+          var r2 = rotate(params[i + 1][0], params[i + 1][1], angleRad);
+          var r3 = rotate(params[i + 2][0], params[i + 2][1], angleRad);
           curves.push([r1.x, r1.y, r2.x, r2.y, r3.x, r3.y]);
         }
 
@@ -495,15 +495,15 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       }
     };
 
-    var clonePathData = function(pathData) {
-      return pathData.map( function(seg) {
-        return {type: seg.type, values: Array.prototype.slice.call(seg.values)}
+    var clonePathData = function (pathData) {
+      return pathData.map(function (seg) {
+        return { type: seg.type, values: Array.prototype.slice.call(seg.values) }
       });
     };
 
     // @info
     //   Takes any path data, returns path data that consists only from absolute commands.
-    var absolutizePathData = function(pathData) {
+    var absolutizePathData = function (pathData) {
       var absolutizedPathData = [];
 
       var currentX = null;
@@ -512,14 +512,14 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       var subpathX = null;
       var subpathY = null;
 
-      pathData.forEach( function(seg) {
+      pathData.forEach(function (seg) {
         var type = seg.type;
 
         if (type === "M") {
           var x = seg.values[0];
           var y = seg.values[1];
 
-          absolutizedPathData.push({type: "M", values: [x, y]});
+          absolutizedPathData.push({ type: "M", values: [x, y] });
 
           subpathX = x;
           subpathY = y;
@@ -532,7 +532,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = currentX + seg.values[0];
           var y = currentY + seg.values[1];
 
-          absolutizedPathData.push({type: "M", values: [x, y]});
+          absolutizedPathData.push({ type: "M", values: [x, y] });
 
           subpathX = x;
           subpathY = y;
@@ -545,7 +545,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = seg.values[0];
           var y = seg.values[1];
 
-          absolutizedPathData.push({type: "L", values: [x, y]});
+          absolutizedPathData.push({ type: "L", values: [x, y] });
 
           currentX = x;
           currentY = y;
@@ -555,7 +555,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = currentX + seg.values[0];
           var y = currentY + seg.values[1];
 
-          absolutizedPathData.push({type: "L", values: [x, y]});
+          absolutizedPathData.push({ type: "L", values: [x, y] });
 
           currentX = x;
           currentY = y;
@@ -569,7 +569,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = seg.values[4];
           var y = seg.values[5];
 
-          absolutizedPathData.push({type: "C", values: [x1, y1, x2, y2, x, y]});
+          absolutizedPathData.push({ type: "C", values: [x1, y1, x2, y2, x, y] });
 
           currentX = x;
           currentY = y;
@@ -583,7 +583,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = currentX + seg.values[4];
           var y = currentY + seg.values[5];
 
-          absolutizedPathData.push({type: "C", values: [x1, y1, x2, y2, x, y]});
+          absolutizedPathData.push({ type: "C", values: [x1, y1, x2, y2, x, y] });
 
           currentX = x;
           currentY = y;
@@ -595,7 +595,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = seg.values[2];
           var y = seg.values[3];
 
-          absolutizedPathData.push({type: "Q", values: [x1, y1, x, y]});
+          absolutizedPathData.push({ type: "Q", values: [x1, y1, x, y] });
 
           currentX = x;
           currentY = y;
@@ -607,7 +607,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = currentX + seg.values[2];
           var y = currentY + seg.values[3];
 
-          absolutizedPathData.push({type: "Q", values: [x1, y1, x, y]});
+          absolutizedPathData.push({ type: "Q", values: [x1, y1, x, y] });
 
           currentX = x;
           currentY = y;
@@ -641,25 +641,25 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
         else if (type === "H") {
           var x = seg.values[0];
-          absolutizedPathData.push({type: "H", values: [x]});
+          absolutizedPathData.push({ type: "H", values: [x] });
           currentX = x;
         }
 
         else if (type === "h") {
           var x = currentX + seg.values[0];
-          absolutizedPathData.push({type: "H", values: [x]});
+          absolutizedPathData.push({ type: "H", values: [x] });
           currentX = x;
         }
 
         else if (type === "V") {
           var y = seg.values[0];
-          absolutizedPathData.push({type: "V", values: [y]});
+          absolutizedPathData.push({ type: "V", values: [y] });
           currentY = y;
         }
 
         else if (type === "v") {
           var y = currentY + seg.values[0];
-          absolutizedPathData.push({type: "V", values: [y]});
+          absolutizedPathData.push({ type: "V", values: [y] });
           currentY = y;
         }
 
@@ -669,7 +669,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = seg.values[2];
           var y = seg.values[3];
 
-          absolutizedPathData.push({type: "S", values: [x2, y2, x, y]});
+          absolutizedPathData.push({ type: "S", values: [x2, y2, x, y] });
 
           currentX = x;
           currentY = y;
@@ -681,7 +681,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = currentX + seg.values[2];
           var y = currentY + seg.values[3];
 
-          absolutizedPathData.push({type: "S", values: [x2, y2, x, y]});
+          absolutizedPathData.push({ type: "S", values: [x2, y2, x, y] });
 
           currentX = x;
           currentY = y;
@@ -691,7 +691,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = seg.values[0];
           var y = seg.values[1]
 
-          absolutizedPathData.push({type: "T", values: [x, y]});
+          absolutizedPathData.push({ type: "T", values: [x, y] });
 
           currentX = x;
           currentY = y;
@@ -701,14 +701,14 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = currentX + seg.values[0];
           var y = currentY + seg.values[1]
 
-          absolutizedPathData.push({type: "T", values: [x, y]});
+          absolutizedPathData.push({ type: "T", values: [x, y] });
 
           currentX = x;
           currentY = y;
         }
 
         else if (type === "Z" || type === "z") {
-          absolutizedPathData.push({type: "Z", values: []});
+          absolutizedPathData.push({ type: "Z", values: [] });
 
           currentX = subpathX;
           currentY = subpathY;
@@ -721,7 +721,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
     // @info
     //   Takes path data that consists only from absolute commands, returns path data that consists only from
     //   "M", "L", "C" and "Z" commands.
-    var reducePathData = function(pathData) {
+    var reducePathData = function (pathData) {
       var reducedPathData = [];
       var lastType = null;
 
@@ -734,12 +734,12 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       var subpathX = null;
       var subpathY = null;
 
-      pathData.forEach( function(seg) {
+      pathData.forEach(function (seg) {
         if (seg.type === "M") {
           var x = seg.values[0];
           var y = seg.values[1];
 
-          reducedPathData.push({type: "M", values: [x, y]});
+          reducedPathData.push({ type: "M", values: [x, y] });
 
           subpathX = x;
           subpathY = y;
@@ -756,7 +756,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = seg.values[4];
           var y = seg.values[5];
 
-          reducedPathData.push({type: "C", values: [x1, y1, x2, y2, x, y]});
+          reducedPathData.push({ type: "C", values: [x1, y1, x2, y2, x, y] });
 
           lastControlX = x2;
           lastControlY = y2;
@@ -769,7 +769,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = seg.values[0];
           var y = seg.values[1];
 
-          reducedPathData.push({type: "L", values: [x, y]});
+          reducedPathData.push({ type: "L", values: [x, y] });
 
           currentX = x;
           currentY = y;
@@ -778,7 +778,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         else if (seg.type === "H") {
           var x = seg.values[0];
 
-          reducedPathData.push({type: "L", values: [x, currentY]});
+          reducedPathData.push({ type: "L", values: [x, currentY] });
 
           currentX = x;
         }
@@ -786,7 +786,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         else if (seg.type === "V") {
           var y = seg.values[0];
 
-          reducedPathData.push({type: "L", values: [currentX, y]});
+          reducedPathData.push({ type: "L", values: [currentX, y] });
 
           currentY = y;
         }
@@ -808,7 +808,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
             cy1 = currentY;
           }
 
-          reducedPathData.push({type: "C", values: [cx1, cy1, x2, y2, x, y]});
+          reducedPathData.push({ type: "C", values: [cx1, cy1, x2, y2, x, y] });
 
           lastControlX = x2;
           lastControlY = y2;
@@ -837,7 +837,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var cx2 = x + 2 * (x1 - x) / 3;
           var cy2 = y + 2 * (y1 - y) / 3;
 
-          reducedPathData.push({type: "C", values: [cx1, cy1, cx2, cy2, x, y]});
+          reducedPathData.push({ type: "C", values: [cx1, cy1, cx2, cy2, x, y] });
 
           lastControlX = x1;
           lastControlY = y1;
@@ -857,7 +857,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var cx2 = x + 2 * (x1 - x) / 3;
           var cy2 = y + 2 * (y1 - y) / 3;
 
-          reducedPathData.push({type: "C", values: [cx1, cy1, cx2, cy2, x, y]});
+          reducedPathData.push({ type: "C", values: [cx1, cy1, cx2, cy2, x, y] });
 
           lastControlX = x1;
           lastControlY = y1;
@@ -876,7 +876,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var y = seg.values[6];
 
           if (r1 === 0 || r2 === 0) {
-            reducedPathData.push({type: "C", values: [currentX, currentY, x, y, x, y]});
+            reducedPathData.push({ type: "C", values: [currentX, currentY, x, y, x, y] });
 
             currentX = x;
             currentY = y;
@@ -885,8 +885,8 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
             if (currentX !== x || currentY !== y) {
               var curves = arcToCubicCurves(currentX, currentY, x, y, r1, r2, angle, largeArcFlag, sweepFlag);
 
-              curves.forEach( function(curve) {
-                reducedPathData.push({type: "C", values: curve});
+              curves.forEach(function (curve) {
+                reducedPathData.push({ type: "C", values: curve });
               });
 
               currentX = x;
@@ -908,7 +908,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       return reducedPathData;
     };
 
-    SVGPathElement.prototype.setAttribute = function(name, value) {
+    SVGPathElement.prototype.setAttribute = function (name, value) {
       if (name === "d") {
         this[$cachedPathData] = null;
         this[$cachedNormalizedPathData] = null;
@@ -917,7 +917,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       setAttribute.call(this, name, value);
     };
 
-    SVGPathElement.prototype.removeAttribute = function(name, value) {
+    SVGPathElement.prototype.removeAttribute = function (name, value) {
       if (name === "d") {
         this[$cachedPathData] = null;
         this[$cachedNormalizedPathData] = null;
@@ -926,7 +926,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       removeAttribute.call(this, name);
     };
 
-    SVGPathElement.prototype.getPathData = function(options) {
+    SVGPathElement.prototype.getPathData = function (options) {
       if (options && options.normalize) {
         if (this[$cachedNormalizedPathData]) {
           return clonePathData(this[$cachedNormalizedPathData]);
@@ -959,7 +959,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       }
     };
 
-    SVGPathElement.prototype.setPathData = function(pathData) {
+    SVGPathElement.prototype.setPathData = function (pathData) {
       if (pathData.length === 0) {
         if (isIE) {
           // @bugfix https://github.com/mbostock/d3/issues/1737
@@ -990,7 +990,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       }
     };
 
-    SVGRectElement.prototype.getPathData = function(options) {
+    SVGRectElement.prototype.getPathData = function (options) {
       var x = this.x.baseVal.value;
       var y = this.y.baseVal.value;
       var width = this.width.baseVal.value;
@@ -1007,20 +1007,20 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       }
 
       var pathData = [
-        {type: "M", values: [x+rx, y]},
-        {type: "H", values: [x+width-rx]},
-        {type: "A", values: [rx, ry, 0, 0, 1, x+width, y+ry]},
-        {type: "V", values: [y+height-ry]},
-        {type: "A", values: [rx, ry, 0, 0, 1, x+width-rx, y+height]},
-        {type: "H", values: [x+rx]},
-        {type: "A", values: [rx, ry, 0, 0, 1, x, y+height-ry]},
-        {type: "V", values: [y+ry]},
-        {type: "A", values: [rx, ry, 0, 0, 1, x+rx, y]},
-        {type: "Z", values: []}
+        { type: "M", values: [x + rx, y] },
+        { type: "H", values: [x + width - rx] },
+        { type: "A", values: [rx, ry, 0, 0, 1, x + width, y + ry] },
+        { type: "V", values: [y + height - ry] },
+        { type: "A", values: [rx, ry, 0, 0, 1, x + width - rx, y + height] },
+        { type: "H", values: [x + rx] },
+        { type: "A", values: [rx, ry, 0, 0, 1, x, y + height - ry] },
+        { type: "V", values: [y + ry] },
+        { type: "A", values: [rx, ry, 0, 0, 1, x + rx, y] },
+        { type: "Z", values: [] }
       ];
 
       // Get rid of redundant "A" segs when either rx or ry is 0
-      pathData = pathData.filter(function(s) {
+      pathData = pathData.filter(function (s) {
         return s.type === "A" && (s.values[0] === 0 || s.values[1] === 0) ? false : true;
       });
 
@@ -1031,18 +1031,18 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       return pathData;
     };
 
-    SVGCircleElement.prototype.getPathData = function(options) {
+    SVGCircleElement.prototype.getPathData = function (options) {
       var cx = this.cx.baseVal.value;
       var cy = this.cy.baseVal.value;
       var r = this.r.baseVal.value;
 
       var pathData = [
-        { type: "M",  values: [cx + r, cy] },
-        { type: "A",  values: [r, r, 0, 0, 1, cx, cy+r] },
-        { type: "A",  values: [r, r, 0, 0, 1, cx-r, cy] },
-        { type: "A",  values: [r, r, 0, 0, 1, cx, cy-r] },
-        { type: "A",  values: [r, r, 0, 0, 1, cx+r, cy] },
-        { type: "Z",  values: [] }
+        { type: "M", values: [cx + r, cy] },
+        { type: "A", values: [r, r, 0, 0, 1, cx, cy + r] },
+        { type: "A", values: [r, r, 0, 0, 1, cx - r, cy] },
+        { type: "A", values: [r, r, 0, 0, 1, cx, cy - r] },
+        { type: "A", values: [r, r, 0, 0, 1, cx + r, cy] },
+        { type: "Z", values: [] }
       ];
 
       if (options && options.normalize === true) {
@@ -1052,19 +1052,19 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       return pathData;
     };
 
-    SVGEllipseElement.prototype.getPathData = function(options) {
+    SVGEllipseElement.prototype.getPathData = function (options) {
       var cx = this.cx.baseVal.value;
       var cy = this.cy.baseVal.value;
       var rx = this.rx.baseVal.value;
       var ry = this.ry.baseVal.value;
 
       var pathData = [
-        { type: "M",  values: [cx + rx, cy] },
-        { type: "A",  values: [rx, ry, 0, 0, 1, cx, cy+ry] },
-        { type: "A",  values: [rx, ry, 0, 0, 1, cx-rx, cy] },
-        { type: "A",  values: [rx, ry, 0, 0, 1, cx, cy-ry] },
-        { type: "A",  values: [rx, ry, 0, 0, 1, cx+rx, cy] },
-        { type: "Z",  values: [] }
+        { type: "M", values: [cx + rx, cy] },
+        { type: "A", values: [rx, ry, 0, 0, 1, cx, cy + ry] },
+        { type: "A", values: [rx, ry, 0, 0, 1, cx - rx, cy] },
+        { type: "A", values: [rx, ry, 0, 0, 1, cx, cy - ry] },
+        { type: "A", values: [rx, ry, 0, 0, 1, cx + rx, cy] },
+        { type: "Z", values: [] }
       ];
 
       if (options && options.normalize === true) {
@@ -1074,14 +1074,14 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       return pathData;
     };
 
-    SVGLineElement.prototype.getPathData = function() {
+    SVGLineElement.prototype.getPathData = function () {
       return [
         { type: "M", values: [this.x1.baseVal.value, this.y1.baseVal.value] },
         { type: "L", values: [this.x2.baseVal.value, this.y2.baseVal.value] }
       ];
     };
 
-    SVGPolylineElement.prototype.getPathData = function() {
+    SVGPolylineElement.prototype.getPathData = function () {
       var pathData = [];
 
       for (var i = 0; i < this.points.numberOfItems; i += 1) {
@@ -1096,7 +1096,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       return pathData;
     };
 
-    SVGPolygonElement.prototype.getPathData = function() {
+    SVGPolygonElement.prototype.getPathData = function () {
       var pathData = [];
 
       for (var i = 0; i < this.points.numberOfItems; i += 1) {

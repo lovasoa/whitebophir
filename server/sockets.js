@@ -1,12 +1,12 @@
 var iolib = require('socket.io')
-  , path = require("path")
-  , fs = require('fs')
-  , BoardData = require("./boardData.js").BoardData;
+	, path = require("path")
+	, fs = require('fs')
+	, BoardData = require("./boardData.js").BoardData;
 
 
 var boards = {
-	"anonymous" : {
-		"data" : new BoardData("anonymous"),
+	"anonymous": {
+		"data": new BoardData("anonymous"),
 	}
 };
 
@@ -16,16 +16,16 @@ function startIO(app) {
 	return io;
 }
 
-function socketConnection (socket) {
+function socketConnection(socket) {
 
-	socket.on("getboard", function(name) {
+	socket.on("getboard", function (name) {
 
 		// Default to the public board
-		if ( !name ) name = "anonymous";
+		if (!name) name = "anonymous";
 
-		if ( ! boards[name] ) {
+		if (!boards[name]) {
 			boards[name] = {
-				"data" : new BoardData(name)
+				"data": new BoardData(name)
 			};
 		}
 
@@ -36,7 +36,7 @@ function socketConnection (socket) {
 
 		//Send all the board's data as soon as it's loaded
 		var sendIt = function () {
-			board_data.getAll(function(data) {
+			board_data.getAll(function (data) {
 				socket.emit("broadcast", data);
 			});
 		};
@@ -81,17 +81,17 @@ function saveHistory(boardName, message) {
 	}
 }
 
-function generateUID (prefix, suffix) {
+function generateUID(prefix, suffix) {
 	var uid = Date.now().toString(36); //Create the uids in chronological order
-	uid += (Math.round(Math.random()*36)).toString(36); //Add a random character at the end
+	uid += (Math.round(Math.random() * 36)).toString(36); //Add a random character at the end
 	if (prefix) uid = prefix + uid;
 	if (suffix) uid = uid + suffix;
 	return uid;
 }
 
 if (exports) {
-	exports.start = function(app) {
-		boards["anonymous"].data.on("ready", function() {
+	exports.start = function (app) {
+		boards["anonymous"].data.on("ready", function () {
 			startIO(app);
 		});
 	};

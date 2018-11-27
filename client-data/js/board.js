@@ -23,44 +23,44 @@
  *
  * @licend
  */
- 
+
 var Tools = {};
 
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 Tools.socket = io.connect('', {
-	"reconnection delay" : 1, //Make the xhr connections as fast as possible
+	"reconnection delay": 1, //Make the xhr connections as fast as possible
 });
 Tools.curTool = null;
-Tools.boardName = (function(){
+Tools.boardName = (function () {
 	var path = window.location.pathname.split("/");
-	return path[path.length-1];
+	return path[path.length - 1];
 })();
 
 //Get the board as soon as the page is loaded
 Tools.socket.emit("getboard", Tools.boardName);
 
 Tools.HTML = {
-	template : new Minitpl("#tools > .tool"),
-	addTool : function(toolName, toolIcon) {
+	template: new Minitpl("#tools > .tool"),
+	addTool: function (toolName, toolIcon) {
 		var callback = function () {
 			Tools.change(toolName);
 		};
 		return this.template.add(function (elem) {
-				elem.addEventListener("click", callback);
-				elem.id = "toolID-"+toolName;
-				elem.getElementsByClassName("tool-name")[0].textContent = toolName;
-				elem.getElementsByClassName("tool-icon")[0].textContent = toolIcon;
-				Tools.i18n.translateDOM();
+			elem.addEventListener("click", callback);
+			elem.id = "toolID-" + toolName;
+			elem.getElementsByClassName("tool-name")[0].textContent = toolName;
+			elem.getElementsByClassName("tool-icon")[0].textContent = toolIcon;
+			Tools.i18n.translateDOM();
 		});
 	},
-	changeTool : function(oldToolName, newToolName) {
-		var oldTool = document.getElementById("toolID-"+oldToolName);
-		var newTool = document.getElementById("toolID-"+newToolName);
+	changeTool: function (oldToolName, newToolName) {
+		var oldTool = document.getElementById("toolID-" + oldToolName);
+		var newTool = document.getElementById("toolID-" + newToolName);
 		if (oldTool) oldTool.classList.remove("curTool");
 		if (newTool) newTool.classList.add("curTool");
 	},
-	addStylesheet : function(href) {
+	addStylesheet: function (href) {
 		//Adds a css stylesheet to the html or svg document
 		var link = document.createElement("link");
 		link.href = href;
@@ -74,8 +74,8 @@ Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
 Tools.add = function (newTool) {
 	if (newTool.name in Tools.list) {
-		console.log("Tools.add: The tool '"+newTool.name+"' is already" +
-		"in the list. Updating it...");
+		console.log("Tools.add: The tool '" + newTool.name + "' is already" +
+			"in the list. Updating it...");
 	}
 
 	//Format the new tool correctly
@@ -103,8 +103,8 @@ Tools.add = function (newTool) {
 	}
 };
 
-Tools.change = function (toolName){
-	if (! (toolName in Tools.list)) {
+Tools.change = function (toolName) {
+	if (!(toolName in Tools.list)) {
 		throw "Trying to select a tool that has never been added!";
 	}
 
@@ -115,7 +115,7 @@ Tools.change = function (toolName){
 	try {
 		Tools.HTML.changeTool(curToolName, toolName);
 	} catch (e) {
-		console.error("Unable to update the GUI with the new tool. "+e);
+		console.error("Unable to update the GUI with the new tool. " + e);
 	}
 	Tools.svg.style.cursor = newtool.mouseCursor || "auto";
 
@@ -145,14 +145,14 @@ Tools.change = function (toolName){
 	Tools.curTool = newtool;
 };
 
-Tools.send = function(data, toolName){
+Tools.send = function (data, toolName) {
 	toolName = toolName || Tools.curTool.name;
 	var d = data;
 	d.tool = toolName;
 	Tools.applyHooks(Tools.messageHooks, d);
 	var message = {
-		"board" : Tools.boardName,
-		"data" : d
+		"board": Tools.boardName,
+		"data": d
 	}
 	Tools.socket.emit('broadcast', message);
 };
@@ -167,10 +167,10 @@ Tools.drawAndSend = function (data) {
 Tools.pendingMessages = {};
 
 //Receive draw instructions from the server
-Tools.socket.on("broadcast", function (message){
+Tools.socket.on("broadcast", function (message) {
 	function messageForTool(message) {
 		var name = message.tool,
-				tool = Tools.list[name];
+			tool = Tools.list[name];
 		if (tool) {
 			Tools.applyHooks(Tools.messageHooks, message);
 			tool.draw(message, false);
@@ -187,7 +187,7 @@ Tools.socket.on("broadcast", function (message){
 		messageForTool(message);
 	}
 	if (message._children) {
-		for (var i=0; i<message._children.length; i++) {
+		for (var i = 0; i < message._children.length; i++) {
 			//Apply hooks on children too
 			var msg = message._children[i];
 			messageForTool(msg);
@@ -203,17 +203,17 @@ Tools.newUnreadMessage = function () {
 	document.title = "(" + (++Tools.unreadMessagesCount) + ") WBO";
 };
 
-window.addEventListener("focus", function(){
+window.addEventListener("focus", function () {
 	Tools.unreadMessagesCount = 0;
 	document.title = "WBO";
 });
 
 //List of hook functions that will be applied to messages before sending or drawing them
 Tools.messageHooks = [
-	function resizeCanvas (m) {
+	function resizeCanvas(m) {
 		//Enlarge the canvas is something is drawn near its border
 		if (m.x && m.y) {
-			var svg = Tools.svg, x=m.x, y=m.y;
+			var svg = Tools.svg, x = m.x, y = m.y;
 			if (x > svg.width.baseVal.value - 1000) {
 				svg.width.baseVal.value = x + 2000;
 			}
@@ -232,18 +232,18 @@ Tools.messageHooks = [
 //List of hook functions that will be applied to tools before adding them
 Tools.toolHooks = [
 	function checkToolAttributes(tool) {
-		if (typeof(tool.name)!=="string") throw "A tool must have a name";
-		if (typeof(tool.listeners)!=="object") {
+		if (typeof (tool.name) !== "string") throw "A tool must have a name";
+		if (typeof (tool.listeners) !== "object") {
 			tool.listeners = {};
 		}
-		if (typeof(tool.onstart)!=="function") {
-			tool.onstart = function(){};
+		if (typeof (tool.onstart) !== "function") {
+			tool.onstart = function () { };
 		}
-		if (typeof(tool.onquit)!=="function") {
-			tool.onquit = function(){};
+		if (typeof (tool.onquit) !== "function") {
+			tool.onquit = function () { };
 		}
 	},
-	function compileListeners (tool) {
+	function compileListeners(tool) {
 		//compile listeners into compiledListeners
 		var listeners = tool.listeners;
 
@@ -251,23 +251,23 @@ Tools.toolHooks = [
 		var compiled = tool.compiledListeners || {};
 		tool.compiledListeners = compiled;
 
-		function compile (listener) { //closure
-			return (function listen (evt){
-					var x = evt.pageX,
-						y = evt.pageY;
-					return listener(x,y,evt,false);
+		function compile(listener) { //closure
+			return (function listen(evt) {
+				var x = evt.pageX,
+					y = evt.pageY;
+				return listener(x, y, evt, false);
 			});
 		}
 
-		function compileTouch (listener) { //closure
-			return (function touchListen (evt) {
+		function compileTouch(listener) { //closure
+			return (function touchListen(evt) {
 				//Currently, we don't handle multitouch
 				if (evt.changedTouches.length === 1) {
 					//evt.preventDefault();
 					var touch = evt.changedTouches[0];
 					var x = touch.pageX,
 						y = touch.pageY;
-					return listener(x,y,evt,true);
+					return listener(x, y, evt, true);
 				}
 				return true;
 			});
@@ -293,9 +293,9 @@ Tools.toolHooks = [
 	}
 ];
 
-Tools.applyHooks = function(hooks, object) {
+Tools.applyHooks = function (hooks, object) {
 	//Apply every hooks on the object
-	hooks.forEach(function(hook) {
+	hooks.forEach(function (hook) {
 		hook(object);
 	});
 };
@@ -305,7 +305,7 @@ Tools.applyHooks = function(hooks, object) {
 
 Tools.generateUID = function (prefix, suffix) {
 	var uid = Date.now().toString(36); //Create the uids in chronological order
-	uid += (Math.round(Math.random()*36)).toString(36); //Add a random character at the end
+	uid += (Math.round(Math.random() * 36)).toString(36); //Add a random character at the end
 	if (prefix) uid = prefix + uid;
 	if (suffix) uid = uid + suffix;
 	return uid;
@@ -316,50 +316,50 @@ Tools.createSVGElement = function (name) {
 };
 
 Tools.positionElement = function (elem, x, y) {
-	elem.style.top = y+"px";
-	elem.style.left = x+"px";
+	elem.style.top = y + "px";
+	elem.style.left = x + "px";
 };
 
-Tools.getColor = (function color (){
+Tools.getColor = (function color() {
 	var chooser = document.getElementById("chooseColor");
-	return function(){return chooser.value;};
+	return function () { return chooser.value; };
 })();
 
-Tools.getSize = (function size (){
+Tools.getSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
 
-	function update (){
-		if (chooser.value<1 || chooser.value > 50) {
-			chooser.value=3;
+	function update() {
+		if (chooser.value < 1 || chooser.value > 50) {
+			chooser.value = 3;
 		}
 	}
 	update();
 
 	chooser.onchange = update;
-	return function(){return chooser.value;};
+	return function () { return chooser.value; };
 })();
 
-Tools.i18n = (function i18n(){
+Tools.i18n = (function i18n() {
 	var lng = (navigator.language || navigator.browserLanguage).split('-')[0];
 	var translations = {};
 	var state = "pending";
 	var xhr = new XMLHttpRequest;
-	xhr.open("GET", "/translations/"+lng+".json");
+	xhr.open("GET", "/translations/" + lng + ".json");
 	xhr.send(null);
-	xhr.onload = function() {
+	xhr.onload = function () {
 		state = xhr.status === 200 ? "loaded" : "error";
 		if (state !== "loaded") return;
 		translations = JSON.parse(xhr.responseText);
 		Tools.i18n.translateDOM();
 	}
 	return {
-		"t" : function translate(s) {
+		"t": function translate(s) {
 			return translations[s] || s;
 		},
-		"translateDOM" : function translateDOM() {
+		"translateDOM": function translateDOM() {
 			if (state !== "loaded") return false;
 			var els = document.querySelectorAll("[data-translation=waiting]");
-			for(var i=0; i<els.length; i++) {
+			for (var i = 0; i < els.length; i++) {
 				var el = els[i];
 				el.setAttribute("data-translation", "done");
 				el.innerHTML = Tools.i18n.t(el.innerHTML);
@@ -373,11 +373,11 @@ Tools.i18n = (function i18n(){
 Tools.svg.width.baseVal.value = document.body.clientWidth;
 Tools.svg.height.baseVal.value = document.body.clientHeight;
 
-(function menu () {
+(function menu() {
 	var menu = document.getElementById("menu");
-		tog = document.getElementById("toggleMenu");
+	tog = document.getElementById("toggleMenu");
 
-	tog.onclick = function(e){
+	tog.onclick = function (e) {
 		menu.classList.toggle("closed");
 	};
 })();
@@ -385,13 +385,13 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 /***********  Polyfills  ***********/
 if (!window.performance || !window.performance.now) {
 	window.performance = {
-		"now" : Date.now
+		"now": Date.now
 	}
 }
 if (!Math.hypot) {
-	Math.hypot = function (x,y) {
+	Math.hypot = function (x, y) {
 		//The true Math.hypot accepts any number of parameters
-		return Math.sqrt(x*x+y*y);
+		return Math.sqrt(x * x + y * y);
 	}
 }
 

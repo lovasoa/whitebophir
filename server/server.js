@@ -23,34 +23,34 @@ var WEBROOT = path.join(__dirname, "../client-data");
 var PORT = parseInt(process.env['PORT']) || 8080;
 
 app.listen(PORT);
-console.log("Server listening on "+PORT);
+console.log("Server listening on " + PORT);
 
 var CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
 
 var fileserver = new nodestatic.Server(WEBROOT, {
-	"headers" : {
+	"headers": {
 		"X-UA-Compatible": "IE=Edge",
 		"Content-Security-Policy": CSP,
 	}
 });
 
 function serveError(request, response, err) {
-	console.warn("Error serving '"+request.url+"' : "+err.status+" "+err.message);
+	console.warn("Error serving '" + request.url + "' : " + err.status + " " + err.message);
 	fileserver.serveFile('error.html', err.status, {}, request, response);
 }
 
-function logRequest (request) {
+function logRequest(request) {
 	var ip = request.headers['X-Forwarded-For'] || request.connection.remoteAddress;
 	console.log("Connection from " + ip +
-				" ("+request.headers['user-agent']+") to "+request.url);
+		" (" + request.headers['user-agent'] + ") to " + request.url);
 }
 
-function handler (request, response) {
+function handler(request, response) {
 	try {
 		handleRequest(request, response);
-	} catch(err) {
+	} catch (err) {
 		console.trace(err);
-		response.writeHead(500, {'Content-Type': 'text/plain'});
+		response.writeHead(500, { 'Content-Type': 'text/plain' });
 		response.end(err.toString());
 	}
 }
@@ -70,25 +70,24 @@ function handleRequest(request, response) {
 			response.writeHead(301, headers);
 			response.end();
 		} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
-				// If there is no dot and no directory, parts[1] is the board name
+			// If there is no dot and no directory, parts[1] is the board name
 			fileserver.serveFile("board.html", 200, {}, request, response);
 			logRequest(request);
 		} else { // Else, it's a resource
 			request.url = "/" + parts.slice(1).join('/');
-			fileserver.serve(request, response, function (err, res){
+			fileserver.serve(request, response, function (err, res) {
 				if (err) serveError(request, response, err);
 			});
 		}
-
 	} else if (parts[0] === "download") {
 		var boardName = encodeURIComponent(parts[1]),
 			history_file = "../server-data/board-" + boardName + ".json",
 			headers = {
 				"Content-Type": "application/json",
-				"Content-Disposition": 'attachment; filename="'+boardName+'.wbo"'
+				"Content-Disposition": 'attachment; filename="' + boardName + '.wbo"'
 			};
 		var promise = fileserver.serveFile(history_file, 200, headers, request, response);
-		promise.on("error", function(err){
+		promise.on("error", function (err) {
 			console.error("Error while downloading history", err);
 			response.statusCode = 404;
 			response.end("ERROR: Unable to serve history file\n");
@@ -96,9 +95,9 @@ function handleRequest(request, response) {
 	} else if (parts[0] === "preview") {
 		var boardName = encodeURIComponent(parts[1]),
 			history_file = path.join(__dirname, "..", "server-data", "board-" + boardName + ".json");
-		createSVG.renderBoard(history_file, function(err, svg) {
+		createSVG.renderBoard(history_file, function (err, svg) {
 			if (err) {
-				response.writeHead(404, {'Content-Type': 'application/json'});
+				response.writeHead(404, { 'Content-Type': 'application/json' });
 				response.end(JSON.stringify(err));
 			}
 			response.writeHead(200, {
@@ -108,7 +107,7 @@ function handleRequest(request, response) {
 			response.end(svg);
 		});
 	} else {
-		fileserver.serve(request, response, function (err, res){
+		fileserver.serve(request, response, function (err, res) {
 			if (err) serveError(request, response, err);
 		});
 	}

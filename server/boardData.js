@@ -49,7 +49,7 @@ var SAVE_INTERVAL = 1000 * 2; //Save every 2 seconds of inactivity
  * Represents a board.
  * @constructor
  */
-var BoardData = function(name) {
+var BoardData = function (name) {
 	var that = this;
 	this.name = name;
 	this.board = {};
@@ -59,7 +59,7 @@ var BoardData = function(name) {
 	//Loads the file. This will emit the "ready" event
 	this.load(this.file);
 
-	this.on("ready", function(){
+	this.on("ready", function () {
 		that.ready = true;
 	});
 };
@@ -81,7 +81,7 @@ BoardData.prototype.set = function (id, data) {
  * @returns {boolean} - True if the child was added, else false
 */
 BoardData.prototype.addChild = function (parentId, child, create) {
-	if (create===undefined) create = true;
+	if (create === undefined) create = true;
 	var obj = this.board[parentId];
 	if (typeof obj !== "object") {
 		if (create) obj = this.board[parentId] = {};
@@ -178,7 +178,7 @@ BoardData.prototype.load = function (file) {
 			if (err) throw err;
 			that.board = JSON.parse(data);
 		} catch (e) {
-			console.error("Unable to read history from "+file+". The following error occured: " + e);
+			console.error("Unable to read history from " + file + ". The following error occured: " + e);
 			console.log("Creating an empty board.");
 			that.board = {}
 		}
