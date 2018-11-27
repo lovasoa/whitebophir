@@ -30,7 +30,6 @@
 	var input = document.createElement("input");
 	input.id = "textToolInput";
 	input.setAttribute("autocomplete", "off");
-	board.appendChild(input);
 
 	var curText = {
 		"x": 0,
@@ -84,6 +83,7 @@
 	}
 
 	function startEdit() {
+		if (!input.parentNode) board.appendChild(input);
 		input.value = "";
 		input.focus();
 		input.addEventListener("keyup", textChangeHandler);
