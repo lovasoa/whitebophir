@@ -57,7 +57,8 @@ function toSVG(obj) {
 		elems = elems.concat(elem._children || []);
 		if (elem.x && elem.x + margin > w ) w = elem.x + margin;
 		if (elem.y && elem.y + margin > h) h = elem.y + margin;
-		elements += Tools[elem.tool](elem);
+		var renderFun = Tools[elem.tool];
+		if (renderFun) elements += renderFun(elem);
 	}
 	console.error(i+" elements treated in "+(Date.now()-t)+"ms.");
 
