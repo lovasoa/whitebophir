@@ -62,7 +62,8 @@ function handleRequest (request, response) {
 
 		// If there is no dot and no directory, parts[1] is the board name
 		if (parts.length === 2 && request.url.indexOf('.') === -1) {
-			fileserver.serveFile("board.html", 200, {}, request, response);
+			var headers = { "Content-Security-Policy": "default-src 'self'" };
+			fileserver.serveFile("board.html", 200, headers, request, response);
 			logRequest(request);
 		} else { // Else, it's a resource
 			request.url = "/" + parts.slice(1).join('/');
@@ -92,7 +93,10 @@ function handleRequest (request, response) {
 				response.writeHead(404, {'Content-Type': 'application/json'});
 				response.end(JSON.stringify(err));
 			}
-			response.writeHead(200, {"Content-Type": "image/svg+xml"});
+			response.writeHead(200, {
+				"Content-Type": "image/svg+xml",
+				"Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'"
+			});
 			response.end(svg);
 		});
 	} else {
