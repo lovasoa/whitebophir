@@ -13,7 +13,7 @@ html, body, svg {
 	left:0;
 	top:0;
 	color:black;
-	background-color:rgba(0,100,255,0.9);
+	background-color:rgba(87, 154, 255, 0.9);
 	width:10vw;
 	height:100%;
 	transition-duration:1s;
@@ -73,9 +73,10 @@ html, body, svg {
 
 #menu li.curTool {
 	box-shadow: 0 0 2px white;
-	background-color:rgba(0,100,255,1);
+	background-color:rgb(255, 66, 66);
 	text-shadow: 0px 0px 3px white;
 	transition-duration:0.5s;
+	color: black;
 }
 
 #menu .tool-icon {
