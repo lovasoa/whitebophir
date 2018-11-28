@@ -43,7 +43,8 @@ var HISTORY_DIR = path.join(__dirname, "../server-data/");
     Number of seconds of inactivity after which the board should be saved to a file
 */
 var SAVE_INTERVAL = 1000 * 2; // Save after 2 seconds of inactivity
-var MAX_SAVE_DELAY = 1000 * 30; // Save after 30 seconds even if there is still activity 
+var MAX_SAVE_DELAY = 1000 * 30; // Save after 30 seconds even if there is still activity
+var MAX_SIZE = 1e6; // Max number of items to keep in the board
 
 /**
  * Represents a board.
@@ -155,7 +156,7 @@ BoardData.prototype.getAll = function (id, callback) {
 BoardData.prototype.delaySave = function (file) {
 	if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
 	this.saveTimeoutId = setTimeout(this.save.bind(this), SAVE_INTERVAL);
-	if (Date.now() - this.lastSaveDate > MAX_SAVE_DELAY) this.save();
+	if (Date.now() - this.lastSaveDate > MAX_SAVE_DELAY) setTimeout(this.save.bind(this), 0);
 };
 
 /** Saves the data in the board to a file.
@@ -163,6 +164,7 @@ BoardData.prototype.delaySave = function (file) {
 */
 BoardData.prototype.save = function (file) {
 	this.lastSaveDate = Date.now();
+	this.clean();
 	if (!file) file = this.file;
 	var board_txt = JSON.stringify(this.board);
 	var that = this;
@@ -174,6 +176,17 @@ BoardData.prototype.save = function (file) {
 		}
 	});
 };
+
+/** Remove old elements from the board */
+BoardData.prototype.clean = function cleanBoard() {
+	var toDestroy = Object.keys(this.board)
+		.sort((x, y) => x.slice(1) < y.slice(1) ? -1 : 1)
+		.slice(0, -MAX_SIZE);
+	console.log("Cleaning " + toDestroy.length + " items in " + this.name);
+	for (var i = 0; i < toDestroy.length; i++) {
+		delete this.board[toDestroy[i]];
+	}
+}
 
 /** Load the data in the board from a file.
  * @param {string} file - Path to the file where the board data will be read.
