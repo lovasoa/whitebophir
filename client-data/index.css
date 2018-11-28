@@ -49,6 +49,13 @@ header:hover h2 {
 	animation:colorchange 100s infinite;
 }
 
+footer{
+  font-size: .9em;
+	position: absolute;
+	bottom: 0;
+	right: 0;
+}
+
 @keyframes vibration
 {
 	0% {transform:scale(0.1);}
