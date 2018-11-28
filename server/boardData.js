@@ -42,8 +42,8 @@ var HISTORY_DIR = path.join(__dirname, "../server-data/");
     @default
     Number of seconds of inactivity after which the board should be saved to a file
 */
-var SAVE_INTERVAL = 1000 * 2; //Save every 2 seconds of inactivity
-
+var SAVE_INTERVAL = 1000 * 2; // Save after 2 seconds of inactivity
+var MAX_SAVE_DELAY = 1000 * 30; // Save after 30 seconds even if there is still activity 
 
 /**
  * Represents a board.
@@ -55,6 +55,7 @@ var BoardData = function (name) {
 	this.board = {};
 	this.ready = false;
 	this.file = path.join(HISTORY_DIR, "board-" + encodeURIComponent(name) + ".json");
+	this.lastSaveDate = Date.now();
 
 	//Loads the file. This will emit the "ready" event
 	this.load(this.file);
@@ -154,17 +155,23 @@ BoardData.prototype.getAll = function (id, callback) {
 BoardData.prototype.delaySave = function (file) {
 	if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
 	this.saveTimeoutId = setTimeout(this.save.bind(this), SAVE_INTERVAL);
+	if (Date.now() - this.lastSaveDate > MAX_SAVE_DELAY) this.save();
 };
 
 /** Saves the data in the board to a file.
  * @param {string} [file=this.file] - Path to the file where the board data will be saved.
 */
 BoardData.prototype.save = function (file) {
+	this.lastSaveDate = Date.now();
 	if (!file) file = this.file;
 	var board_txt = JSON.stringify(this.board);
 	var that = this;
-	fs.writeFile(file, board_txt, function (err) {
-		if (err) that.emit("error", err);
+	fs.writeFile(file, board_txt, function onBoardSaved(err) {
+		if (err) {
+			console.trace(new Error("Unable to save the board: " + err));
+		} else {
+			console.log("Successfully saved board: " + that.name);
+		}
 	});
 };
 
