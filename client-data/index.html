@@ -1,11 +1,16 @@
 <!DOCTYPE html>
 <html>
-<!-- This is a quick and dirty draft.-->
 <head>
 	<meta charset="utf-8" />
-	<title>WBO - Welcome</title>
+	<title>WBO — Online collaborative whiteboard</title>
 	<link rel="icon" type="image/png" href="favicon.ico" />
 	<link rel="stylesheet" href="index.css" />
+	<meta name="description" content="A free online whiteboard for realtime collaboration. Draw, write text and sketch new ideas together on whitebophir"/>
+	<meta name="keywords" content="whiteboard,collaborative,online,draw,paint,shared,realtime,wbo,whitebophir"/>
+	<link rel="icon" type="image/x-icon" sizes="16x16 32x32 64x64" href="favicon.ico">
+	<link rel="icon" type="image/svg+xml" sizes="256x256" href="favicon.svg">
+	<link rel="apple-touch-icon" href="favicon.svg">
+	<link rel="mask-icon" href="favicon.svg" color="black">
 </head>
 
 <body>
@@ -15,8 +20,12 @@
 </header>
 
 <main>
-	<p>Welcome to <b>WBO</b>. You can go to <a href="/boards/anonymous">the public board</a>
-or create a new one with the form below. To share a board, just send it's URL to your friends.</p>
+<p>Welcome to <b>WBO</b>. You can go to <a href="/boards/anonymous">the public board</a>
+or create a new one using the form below.
+</p><p>
+To collaborate on a drawing in real time with someone,
+just send them its URL.
+</p>
 
 <form action="boards" method="GET">
 	<input type="text" id="board" name="board" placeholder="Name of the board..."/>

@@ -3,7 +3,7 @@ body {
 	width:100%;
 	margin:0;
 	animation: colorchange 200s infinite;
-	animation-delay:20s;
+	animation-delay: 3620s;
 }
 header {
 	position:fixed;
@@ -20,7 +20,7 @@ h1, h2 {
 h1 {
 	animation: colorchange 30s infinite;
 	animation-direction:alternate;
-	animation-delay:10s;
+	animation-delay:3610s;
 }
 
 main {
@@ -31,14 +31,13 @@ main {
 	position:relative;
 	text-align:justify;
 	animation: move 20s infinite;
-	animation-delay:40s;
+	animation-delay: 3640s;
 	animation-direction:alternate;
-	transition:.5s;
+	transition:.1s;
 }
 
 main:hover {
-	transform:scale(1.2);
-	transition:.5s;
+	transform:scale(1.1);
 }
 
 header, main {
@@ -86,5 +85,9 @@ header:hover h2 {
 	main {
 		width:90%;
 		margin: 100px auto;
+		padding: 15px;
+	}
+	main:hover {
+		transform:none;
 	}
 }
