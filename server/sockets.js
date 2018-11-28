@@ -11,11 +11,11 @@ var boards = {
 };
 
 function noFail(fn) {
-	return function(arg) {
+	return function noFailWrapped(arg) {
 		try {
 			return fn(arg);
-		} catch(e) {
-			console.error(e);
+		} catch (e) {
+			console.trace(e);
 		}
 	}
 }
@@ -27,8 +27,7 @@ function startIO(app) {
 }
 
 function socketConnection(socket) {
-
-	socket.on("getboard", function (name) {
+	socket.on("getboard", noFail(function onGetBoard(name) {
 
 		// Default to the public board
 		if (!name) name = "anonymous";
@@ -53,9 +52,9 @@ function socketConnection(socket) {
 
 		if (board_data.ready) sendIt();
 		else board_data.on("ready", sendIt);
-	});
+	}));
 
-	socket.on('broadcast', function (message) {
+	socket.on('broadcast', noFail(function onBroadcast(message) {
 		var boardName = message.board || "anonymous";
 		var data = message.data;
 
@@ -68,11 +67,11 @@ function socketConnection(socket) {
 		socket.broadcast.to(boardName).emit('broadcast', data);
 
 		saveHistory(boardName, data);
-	});
+	}));
 }
 
 function saveHistory(boardName, message) {
-	if (! (boardName in boards)) return;
+	if (!(boardName in boards)) throw new Error("Missing board cannot be saved: ", boardName);
 	var id = message.id;
 	var boardData = boards[boardName].data;
 	switch (message.type) {
@@ -87,8 +86,8 @@ function saveHistory(boardName, message) {
 			boardData.addChild(message.parent, message);
 			break;
 		default: //Add data
-			if (!id) console.error("Invalid message: ", message);
-			else boardData.set(id, message);
+			if (!id) throw new Error("Invalid message: ", message);
+			boardData.set(id, message);
 	}
 }
 
