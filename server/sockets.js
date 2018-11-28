@@ -10,9 +10,19 @@ var boards = {
 	}
 };
 
+function noFail(fn) {
+	return function(arg) {
+		try {
+			return fn(arg);
+		} catch(e) {
+			console.error(e);
+		}
+	}
+}
+
 function startIO(app) {
 	io = iolib(app);
-	io.on('connection', socketConnection);
+	io.on('connection', noFail(socketConnection));
 	return io;
 }
 
