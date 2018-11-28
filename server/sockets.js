@@ -72,6 +72,7 @@ function socketConnection(socket) {
 }
 
 function saveHistory(boardName, message) {
+	if (! boardName in boards) return;
 	var id = message.id;
 	var boardData = boards[boardName].data;
 	switch (message.type) {
