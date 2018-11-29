@@ -66,10 +66,7 @@ function handleRequest(request, response) {
 	var parts = parsedUrl.pathname.split('/');
 	if (parts[0] === '') parts.shift();
 
-	if (parts.length === 0) {
-		fileserver.serveFile("index.html", 200, {}, request, response);
-		logRequest(request);
-	} else if (parts[0] === "boards") {
+	if (parts[0] === "boards") {
 		// "boards" refers to the root directory
 		if (parts.length === 1 && parsedUrl.query.board) {
 			// '/boards?board=...' This allows html forms to point to boards
@@ -114,8 +111,12 @@ function handleRequest(request, response) {
 			response.end(svg);
 		});
 	} else {
+		if (parts[0] === '') logRequest(request);
 		fileserver.serve(request, response, function (err, res) {
-			if (err) serveError(request, response, err);
+			if (err) {
+				logRequest(request);
+				serveError(request, response, err);
+			}
 		});
 	}
 }
