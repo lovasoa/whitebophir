@@ -68,6 +68,7 @@ function handleRequest(request, response) {
 
 	if (parts.length === 0) {
 		fileserver.serveFile("index.html", 200, {}, request, response);
+		logRequest(request);
 	} else if (parts[0] === "boards") {
 		// "boards" refers to the root directory
 		if (parts.length === 1 && parsedUrl.query.board) {
