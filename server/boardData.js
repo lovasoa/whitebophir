@@ -43,8 +43,10 @@ var HISTORY_DIR = path.join(__dirname, "../server-data/");
     Number of seconds of inactivity after which the board should be saved to a file
 */
 var SAVE_INTERVAL = 1000 * 2; // Save after 2 seconds of inactivity
-var MAX_SAVE_DELAY = 1000 * 30; // Save after 30 seconds even if there is still activity
-var MAX_SIZE = 1e5; // Max number of items to keep in the board
+var MAX_SAVE_DELAY = 1000 * 60; // Save after 60 seconds even if there is still activity
+var MAX_ITEM_COUNT = 65536; // Max number of items to keep in the board
+var MAX_CHILDREN = 40; // Max number of subitems in an item
+var MAX_BOARD_SIZE = 65536;
 
 /**
  * Represents a board.
@@ -72,6 +74,7 @@ util.inherits(BoardData, events.EventEmitter);
 /** Adds data to the board */
 BoardData.prototype.set = function (id, data) {
 	//KISS
+	this.validate(data);
 	this.board[id] = data;
 	this.delaySave();
 };
@@ -92,6 +95,7 @@ BoardData.prototype.addChild = function (parentId, child, create) {
 	if (Array.isArray(obj._children)) obj._children.push(child);
 	else obj._children = [child];
 
+	this.validate(obj);
 	this.delaySave();
 	return true;
 };
@@ -181,10 +185,34 @@ BoardData.prototype.save = function (file) {
 BoardData.prototype.clean = function cleanBoard() {
 	var toDestroy = Object.keys(this.board)
 		.sort((x, y) => x.slice(1) < y.slice(1) ? -1 : 1)
-		.slice(0, -MAX_SIZE);
+		.slice(0, -MAX_ITEM_COUNT);
 	console.log("Cleaning " + toDestroy.length + " items in " + this.name);
 	for (var i = 0; i < toDestroy.length; i++) {
 		delete this.board[toDestroy[i]];
+	}
+}
+
+/** Reformats an item if necessary in order to make it follow the boards' policy 
+ * @param {object} item The object to edit
+ * @param {object} parent The parent of the object to edit
+*/
+BoardData.prototype.validate = function validate(item, parent) {
+	if (item.hasOwnProperty("size")) {
+		item.size = parseInt(item.size) || 1;
+		item.size = Math.min(Math.max(item.size, 1), 50);
+	}
+	if (item.hasOwnProperty("x") || item.hasOwnProperty("y")) {
+		item.x = parseInt(item.x) || 0;
+		item.x = Math.min(Math.max(item.x, 0), MAX_BOARD_SIZE);
+		item.y = parseInt(item.y) || 0;
+		item.y = Math.min(Math.max(item.y, 0), MAX_BOARD_SIZE);
+	}
+	if (item.hasOwnProperty("_children")) {
+		if (!Array.isArray(item._children)) item._children = [];
+		if (item._children.length > MAX_CHILDREN) item._children.length = MAX_CHILDREN;
+		for (var i = 0; i < item._children.length; i++) {
+			this.validate(item._children[i]);
+		}
 	}
 }
 
@@ -197,6 +225,7 @@ BoardData.prototype.load = function (file) {
 		try {
 			if (err) throw err;
 			that.board = JSON.parse(data);
+			for (id in that.board) that.validate(that.board[id]);
 		} catch (e) {
 			console.error("Unable to read history from " + file + ". The following error occured: " + e);
 			console.log("Creating an empty board.");
