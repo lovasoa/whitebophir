@@ -70,7 +70,8 @@ function socketConnection(socket) {
 				event: 'banned',
 				user_agent: request.headers['user-agent'],
 				original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
-				connect_time: connectTime
+				connect_time: connectTime,
+				rate: emitCount / elapsedTime
 			}));
 			return;
 		}
