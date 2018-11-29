@@ -105,7 +105,7 @@
 				Tools.drawAndSend({
 					'type': "update",
 					'id': curText.id,
-					'txt': input.value
+					'txt': input.value.slice(0, 280)
 				});
 				curText.sentText = input.value;
 				curText.lastSending = performance.now();
