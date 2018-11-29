@@ -46,7 +46,8 @@ function logRequest(request) {
 		original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
 		user_agent: request.headers['user-agent'],
 		referer: request.headers['referer'],
-		url: request.url
+		url: request.url,
+		time: Date.now()
 	}));
 }
 
