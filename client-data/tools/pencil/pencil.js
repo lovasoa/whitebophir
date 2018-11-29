@@ -102,9 +102,19 @@
 		return Math.hypot(x2 - x1, y2 - y1);
 	}
 
+	var pathDataCache = {};
+	function getPathData(line) {
+		var pathData = pathDataCache[line.id];
+		if (!pathData) {
+			pathData = line.getPathData();
+			pathDataCache[line.id] = pathData;
+		}
+		return pathData;
+	}
+
 	var svg = Tools.svg;
 	function addPoint(line, x, y) {
-		var pts = line.getPathData(), //The points that are already in the line as a PathData
+		var pts = getPathData(line), //The points that are already in the line as a PathData
 			nbr = pts.length; //The number of points already in the line
 		switch (nbr) {
 			case 0: //The first point in the line
