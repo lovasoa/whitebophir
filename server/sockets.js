@@ -3,6 +3,7 @@ var iolib = require('socket.io')
 	, fs = require('fs')
 	, BoardData = require("./boardData.js").BoardData;
 
+var MAX_EMIT_PER_MS = 8 / 1000; // Maximum number of emitions /ms before getting banned
 
 var boards = {
 	"anonymous": {
@@ -54,7 +55,27 @@ function socketConnection(socket) {
 		else board_data.on("ready", sendIt);
 	}));
 
+	var connectTime = Date.now();
+	var emitCount = 0;
 	socket.on('broadcast', noFail(function onBroadcast(message) {
+		emitCount++;
+		var elapsedTime = Date.now() - connectTime;
+		console.log(emitCount / elapsedTime);
+		if (emitCount / elapsedTime > MAX_EMIT_PER_MS) {
+			var request = socket.client.request;
+			console.log(JSON.stringify({
+				event: 'banned',
+				user_agent: request.headers['user-agent'],
+				original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
+				connect_time: connectTime
+			}));
+			return;
+		}
+		if (elapsedTime > 1000 * 60) {
+			connectTime = Date.now();
+			emitCount = 0;
+		}
+
 		var boardName = message.board || "anonymous";
 		var data = message.data;
 
