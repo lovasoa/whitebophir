@@ -186,10 +186,10 @@ BoardData.prototype.clean = function cleanBoard() {
 	var toDestroy = Object.keys(this.board)
 		.sort((x, y) => x.slice(1) < y.slice(1) ? -1 : 1)
 		.slice(0, -MAX_ITEM_COUNT);
-	console.log("Cleaning " + toDestroy.length + " items in " + this.name);
 	for (var i = 0; i < toDestroy.length; i++) {
 		delete this.board[toDestroy[i]];
 	}
+	if (toDestroy.length > 0) console.log("Cleaned " + toDestroy.length + " items in " + this.name);
 }
 
 /** Reformats an item if necessary in order to make it follow the boards' policy 
