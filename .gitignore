@@ -14,3 +14,6 @@ logs
 results
 
 npm-debug.log
+
+# Openode
+.openode
