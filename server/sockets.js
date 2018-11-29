@@ -3,7 +3,7 @@ var iolib = require('socket.io')
 	, fs = require('fs')
 	, BoardData = require("./boardData.js").BoardData;
 
-var MAX_EMIT_PER_MS = 8 / 1000; // Maximum number of emitions /ms before getting banned
+var MAX_EMIT_PER_MS = 32 / 1000; // Maximum number of emitions /ms before getting banned
 
 var boards = {
 	"anonymous": {
