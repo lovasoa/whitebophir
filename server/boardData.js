@@ -45,8 +45,8 @@ var HISTORY_DIR = path.join(__dirname, "../server-data/");
 var SAVE_INTERVAL = 1000 * 2; // Save after 2 seconds of inactivity
 var MAX_SAVE_DELAY = 1000 * 60; // Save after 60 seconds even if there is still activity
 var MAX_ITEM_COUNT = 65536; // Max number of items to keep in the board
-var MAX_CHILDREN = 40; // Max number of subitems in an item
-var MAX_BOARD_SIZE = 65536;
+var MAX_CHILDREN = 128; // Max number of subitems in an item
+var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
 
 /**
  * Represents a board.
