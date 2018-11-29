@@ -138,13 +138,14 @@ BoardData.prototype.get = function (id, children) {
  * @param {string} [id] - Identifier of the first element to get.
  * @param {BoardData~processData} callback - Function to be called with each piece of data read
  */
-BoardData.prototype.getAll = function (id, callback) {
-	if (!callback) callback = id;
+BoardData.prototype.getAll = function (id) {
+	var results = [];
 	for (var i in this.board) {
 		if (!id || i > id) {
-			callback(this.board[i]);
+			results.push(this.board[i]);
 		}
 	}
+	return results;
 };
 
 /**

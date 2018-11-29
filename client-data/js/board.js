@@ -166,37 +166,44 @@ Tools.drawAndSend = function (data) {
 //is loaded. keys : the name of the tool, values : array of messages for this tool
 Tools.pendingMessages = {};
 
-//Receive draw instructions from the server
-Tools.socket.on("broadcast", function (message) {
-	function messageForTool(message) {
-		var name = message.tool,
-			tool = Tools.list[name];
-		if (tool) {
-			Tools.applyHooks(Tools.messageHooks, message);
-			tool.draw(message, false);
-		} else {
-			///We received a message destinated to a tool that we don't have
-			//So we add it to the pending messages
-			if (!Tools.pendingMessages[name]) Tools.pendingMessages[name] = [message];
-			else Tools.pendingMessages[name].push(message);
-		}
+// Send a message to the corresponding tool
+function messageForTool(message) {
+	var name = message.tool,
+		tool = Tools.list[name];
+	if (tool) {
+		Tools.applyHooks(Tools.messageHooks, message);
+		tool.draw(message, false);
+	} else {
+		///We received a message destinated to a tool that we don't have
+		//So we add it to the pending messages
+		if (!Tools.pendingMessages[name]) Tools.pendingMessages[name] = [message];
+		else Tools.pendingMessages[name].push(message);
 	}
+}
 
+// Apply the function to all arguments by batches
+function batchCall(fn, args) {
+	var BATCH_SIZE = 512;
+	if (args.length > 0) {
+		var batch = args.slice(0, BATCH_SIZE);
+		var rest = args.slice(BATCH_SIZE);
+		for (var i = 0; i < batch.length; i++) fn(batch[i]);
+		requestAnimationFrame(batchCall.bind(null, fn, rest));
+	}
+}
+
+// Call messageForTool recursively on the message and its children
+function handleMessage(message) {
 	//Check if the message is in the expected format
-	if (message.tool) {
-		messageForTool(message);
-	}
-	if (message._children) {
-		for (var i = 0; i < message._children.length; i++) {
-			//Apply hooks on children too
-			var msg = message._children[i];
-			messageForTool(msg);
-		}
-	}
+	if (message.tool) messageForTool(message);
+	if (message._children) batchCall(handleMessage, message._children);
 	if (!message.tool && !message._children) {
 		console.error("Received a badly formatted message (no tool). ", message);
 	}
-});
+}
+
+//Receive draw instructions from the server
+Tools.socket.on("broadcast", handleMessage);
 
 Tools.unreadMessagesCount = 0;
 Tools.newUnreadMessage = function () {

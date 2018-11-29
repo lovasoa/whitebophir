@@ -50,9 +50,7 @@ function socketConnection(socket) {
 
 		//Send all the board's data as soon as it's loaded
 		var sendIt = function () {
-			board_data.getAll(function (data) {
-				socket.emit("broadcast", data);
-			});
+			socket.emit("broadcast", { _children: board_data.getAll() });
 		};
 
 		if (board_data.ready) sendIt();
