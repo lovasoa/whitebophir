@@ -40,9 +40,14 @@ function serveError(request, response, err) {
 }
 
 function logRequest(request) {
-	var ip = request.headers['X-Forwarded-For'] || request.connection.remoteAddress;
-	console.log("Connection from " + ip +
-		" (" + request.headers['user-agent'] + ") to " + request.url);
+	console.log(JSON.stringify({
+		event: 'connection',
+		ip: request.connection.remoteAddress,
+		original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
+		user_agent: request.headers['user-agent'],
+		referer: request.headers['referer'],
+		url: request.url
+	}));
 }
 
 function handler(request, response) {
