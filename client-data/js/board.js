@@ -29,7 +29,8 @@ var Tools = {};
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 Tools.socket = io.connect('', {
-	"reconnection delay": 1, //Make the xhr connections as fast as possible
+	"reconnectionDelay": 100, //Make the xhr connections as fast as possible
+	"timeout": 1000 * 60 * 20 // Timeout after 20 minutes
 });
 Tools.curTool = null;
 Tools.boardName = (function () {
@@ -204,6 +205,9 @@ function handleMessage(message) {
 
 //Receive draw instructions from the server
 Tools.socket.on("broadcast", handleMessage);
+Tools.socket.on("reconnect", function onReconnection() {
+	Tools.socket.emit("getboard", Tools.boardName);
+});
 
 Tools.unreadMessagesCount = 0;
 Tools.newUnreadMessage = function () {
