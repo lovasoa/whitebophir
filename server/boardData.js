@@ -226,6 +226,7 @@ BoardData.prototype.load = function (file) {
 			if (err) throw err;
 			that.board = JSON.parse(data);
 			for (id in that.board) that.validate(that.board[id]);
+			console.log(that.name + " loaded from file.");
 		} catch (e) {
 			console.error("Unable to read history from " + file + ". The following error occured: " + e);
 			console.log("Creating an empty board.");

@@ -27,19 +27,23 @@ function startIO(app) {
 	return io;
 }
 
+function getBoard(name) {
+	var board = boards[name];
+	if (!board) {
+		boards[name] = board = {
+			"data": new BoardData(name)
+		};
+	}
+	return board;
+}
+
 function socketConnection(socket) {
 	socket.on("getboard", noFail(function onGetBoard(name) {
 
 		// Default to the public board
 		if (!name) name = "anonymous";
 
-		if (!boards[name]) {
-			boards[name] = {
-				"data": new BoardData(name)
-			};
-		}
-
-		var board_data = boards[name].data;
+		var board_data = getBoard(name).data;
 
 		// Join the board
 		socket.join(name);
@@ -91,9 +95,8 @@ function socketConnection(socket) {
 }
 
 function saveHistory(boardName, message) {
-	if (!(boardName in boards)) throw new Error("Missing board cannot be saved: ", boardName);
 	var id = message.id;
-	var boardData = boards[boardName].data;
+	var boardData = getBoard(boardName).data;
 	switch (message.type) {
 		case "delete":
 			if (id) boardData.delete(id);
@@ -121,7 +124,7 @@ function generateUID(prefix, suffix) {
 
 if (exports) {
 	exports.start = function (app) {
-		boards["anonymous"].data.on("ready", function () {
+		getBoard("anonymous").data.on("ready", function () {
 			startIO(app);
 		});
 	};
