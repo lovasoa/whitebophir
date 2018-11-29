@@ -60,7 +60,6 @@ function socketConnection(socket) {
 	socket.on('broadcast', noFail(function onBroadcast(message) {
 		emitCount++;
 		var elapsedTime = Date.now() - connectTime;
-		console.log(emitCount / elapsedTime);
 		if (emitCount / elapsedTime > MAX_EMIT_PER_MS) {
 			var request = socket.client.request;
 			console.log(JSON.stringify({
