@@ -53,7 +53,6 @@ var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
  * @constructor
  */
 var BoardData = function (name) {
-	var that = this;
 	this.name = name;
 	this.board = {};
 	this.ready = false;
@@ -62,10 +61,6 @@ var BoardData = function (name) {
 
 	//Loads the file. This will emit the "ready" event
 	this.load(this.file);
-
-	this.on("ready", function () {
-		that.ready = true;
-	});
 };
 
 //Allows to use BoardData.emit() and BoardData.on()
@@ -184,13 +179,16 @@ BoardData.prototype.save = function (file) {
 
 /** Remove old elements from the board */
 BoardData.prototype.clean = function cleanBoard() {
-	var toDestroy = Object.keys(this.board)
-		.sort((x, y) => x.slice(1) < y.slice(1) ? -1 : 1)
-		.slice(0, -MAX_ITEM_COUNT);
-	for (var i = 0; i < toDestroy.length; i++) {
-		delete this.board[toDestroy[i]];
+	var ids = Object.keys(this.board);
+	if (ids.length > MAX_ITEM_COUNT) {
+		var toDestroy = ids
+			.sort((x, y) => x.slice(1) < y.slice(1) ? -1 : 1)
+			.slice(0, -MAX_ITEM_COUNT);
+		for (var i = 0; i < toDestroy.length; i++) {
+			delete this.board[toDestroy[i]];
+		}
+		console.log("Cleaned " + toDestroy.length + " items in " + this.name);
 	}
-	if (toDestroy.length > 0) console.log("Cleaned " + toDestroy.length + " items in " + this.name);
 }
 
 /** Reformats an item if necessary in order to make it follow the boards' policy 
@@ -233,6 +231,7 @@ BoardData.prototype.load = function (file) {
 			console.log("Creating an empty board.");
 			that.board = {}
 		}
+		that.ready = true;
 		that.emit("ready");
 	});
 };
