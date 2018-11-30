@@ -44,7 +44,7 @@ var HISTORY_DIR = path.join(__dirname, "../server-data/");
 */
 var SAVE_INTERVAL = 1000 * 2; // Save after 2 seconds of inactivity
 var MAX_SAVE_DELAY = 1000 * 60; // Save after 60 seconds even if there is still activity
-var MAX_ITEM_COUNT = 65536; // Max number of items to keep in the board
+var MAX_ITEM_COUNT = 16384; // Max number of items to keep in the board
 var MAX_CHILDREN = 128; // Max number of subitems in an item
 var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
 
@@ -69,6 +69,7 @@ util.inherits(BoardData, events.EventEmitter);
 /** Adds data to the board */
 BoardData.prototype.set = function (id, data) {
 	//KISS
+	data.time = Date.now();
 	this.validate(data);
 	this.board[id] = data;
 	this.delaySave();
@@ -80,13 +81,9 @@ BoardData.prototype.set = function (id, data) {
  * @param {boolean} [create=true] - Whether to create an empty parent if it doesn't exist
  * @returns {boolean} - True if the child was added, else false
 */
-BoardData.prototype.addChild = function (parentId, child, create) {
-	if (create === undefined) create = true;
+BoardData.prototype.addChild = function (parentId, child) {
 	var obj = this.board[parentId];
-	if (typeof obj !== "object") {
-		if (create) obj = this.board[parentId] = {};
-		else return false;
-	}
+	if (typeof obj !== "object") return false;
 	if (Array.isArray(obj._children)) obj._children.push(child);
 	else obj._children = [child];
 
@@ -179,14 +176,13 @@ BoardData.prototype.save = function (file) {
 
 /** Remove old elements from the board */
 BoardData.prototype.clean = function cleanBoard() {
-	var ids = Object.keys(this.board);
+	var board = this.board;
+	var ids = Object.keys(board);
 	if (ids.length > MAX_ITEM_COUNT) {
-		var toDestroy = ids
-			.sort((x, y) => x.slice(1) < y.slice(1) ? -1 : 1)
-			.slice(0, -MAX_ITEM_COUNT);
-		for (var i = 0; i < toDestroy.length; i++) {
-			delete this.board[toDestroy[i]];
-		}
+		var toDestroy = ids.sort(function (x, y) {
+			return (board[x].time | 0) - (board[y].time | 0);
+		}).slice(0, -MAX_ITEM_COUNT);
+		for (var i = 0; i < toDestroy.length; i++) delete board[toDestroy[i]];
 		console.log("Cleaned " + toDestroy.length + " items in " + this.name);
 	}
 }
