@@ -7,7 +7,7 @@
    "license": "GPL-3.0+",
    "dependencies": {
       "node-static": "0.7.x",
-      "socket.io": "2.x"
+      "socket.io": "^2.2.0"
    },
    "scripts": {
       "start": "node ./server/server.js",
@@ -22,6 +22,6 @@
       "url": "http://github.com/lovasoa/whitebophir.git"
    },
    "devDependencies": {
-      "openode": "^1.8.3"
+      "openode": "^1.8.5"
    }
 }
