@@ -3,7 +3,8 @@ var iolib = require('socket.io')
 	, fs = require('fs')
 	, BoardData = require("./boardData.js").BoardData;
 
-var MAX_EMIT_PER_MS = 32 / 1000; // Maximum number of emitions /ms before getting banned
+var MAX_EMIT_COUNT = 64; // Maximum number of draw operations before getting banned
+var MAX_EMIT_COUNT_PERIOD = 5000; // Duration (in ms) after which the emit count is reset
 
 function Board(name) {
 	this.name = name;
@@ -64,25 +65,27 @@ function socketConnection(socket) {
 		else board_data.once("ready", sendIt);
 	}));
 
-	var connectTime = Date.now();
+	var lastEmitSecond = Date.now() / MAX_EMIT_COUNT_PERIOD | 0;
 	var emitCount = 0;
 	socket.on('broadcast', noFail(function onBroadcast(message) {
-		emitCount++;
-		var elapsedTime = Date.now() - connectTime;
-		if (emitCount / elapsedTime > MAX_EMIT_PER_MS) {
-			var request = socket.client.request;
-			console.log(JSON.stringify({
-				event: 'banned',
-				user_agent: request.headers['user-agent'],
-				original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
-				connect_time: connectTime,
-				rate: emitCount / elapsedTime
-			}));
-			return;
-		}
-		if (elapsedTime > 1000 * 60) {
-			connectTime = Date.now();
+		var currentSecond = Date.now() / MAX_EMIT_COUNT_PERIOD | 0;
+		if (currentSecond === lastEmitSecond) {
+			emitCount++;
+			if (emitCount > MAX_EMIT_COUNT) {
+				var request = socket.client.request;
+				console.log(JSON.stringify({
+					event: 'banned',
+					user_agent: request.headers['user-agent'],
+					original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
+					time: currentSecond,
+					emit_count: emitCount
+				}));
+				return;
+			}
+		} else {
+			console.log(emitCount);
 			emitCount = 0;
+			lastEmitSecond = currentSecond;
 		}
 
 		var boardName = message.board || "anonymous";
@@ -96,6 +99,7 @@ function socketConnection(socket) {
 		//Send data to all other users connected on the same board
 		socket.broadcast.to(boardName).emit('broadcast', data);
 
+		// Save the message in the board
 		saveHistory(boardName, data);
 	}));
 
@@ -105,7 +109,7 @@ function socketConnection(socket) {
 				boards[room].users.delete(socket.id);
 				var userCount = boards[room].users.size;
 				console.log(userCount + " users in " + room);
-				if (userCount === 0) { 
+				if (userCount === 0) {
 					boards[room].data.save();
 					delete boards[room];
 				}
