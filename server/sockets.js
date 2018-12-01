@@ -83,7 +83,6 @@ function socketConnection(socket) {
 				return;
 			}
 		} else {
-			console.log(emitCount);
 			emitCount = 0;
 			lastEmitSecond = currentSecond;
 		}
