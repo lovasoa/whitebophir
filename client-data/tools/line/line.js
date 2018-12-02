@@ -27,13 +27,15 @@
 (function () { //Code isolation
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
-		curUpdate = { //The data of the message that will be sent for every new point
-			'type': 'update',
-			'id': "",
-			'x2': 0,
-			'y2': 0
-		},
 		lastTime = performance.now(); //The time at which the last point was drawn
+
+	//The data of the message that will be sent for every update
+	function UpdateMessage(x, y) {
+		this.type = 'update';
+		this.id = curLineId;
+		this.x2 = x;
+		this.y2 = y;
+	}
 
 	function startLine(x, y, evt) {
 
@@ -51,20 +53,17 @@
 			'x': x,
 			'y': y
 		});
-
-		curUpdate.id = curLineId;
 	}
 
 	function continueLine(x, y, evt) {
 		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
 		if (curLineId !== "") {
-			curUpdate['x2'] = x; curUpdate['y2'] = y;
 			if (performance.now() - lastTime > 70) {
-				Tools.drawAndSend(curUpdate);
+				Tools.drawAndSend(new UpdateMessage(x, y));
 				lastTime = performance.now();
 			} else {
-				draw(curUpdate);
+				draw(new UpdateMessage(x, y));
 			}
 		}
 		if (evt) evt.preventDefault();

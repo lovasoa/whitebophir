@@ -25,15 +25,18 @@
  */
 
 (function () { //Code isolation
+
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
-		curPoint = { //The data of the message that will be sent for every new point
-			'type': 'child',
-			'parent': "",
-			'x': 0,
-			'y': 0
-		},
 		lastTime = performance.now(); //The time at which the last point was drawn
+
+	//The data of the message that will be sent for every new point
+	function PointMessage(x, y) {
+		this.type = 'child';
+		this.parent = curLineId;
+		this.x = x;
+		this.y = y;
+	}
 
 	function startLine(x, y, evt) {
 
@@ -50,9 +53,6 @@
 			'opacity': Tools.getOpacity()
 		});
 
-		//Update the current point
-		curPoint.parent = curLineId;
-
 		//Immediatly add a point to the line
 		continueLine(x, y);
 	}
@@ -60,10 +60,8 @@
 	function continueLine(x, y, evt) {
 		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
-		if (curLineId !== "" &&
-			performance.now() - lastTime > 70) {
-			curPoint.x = x; curPoint.y = y;
-			Tools.drawAndSend(curPoint);
+		if (curLineId !== "" && performance.now() - lastTime > 70) {
+			Tools.drawAndSend(new PointMessage(x, y));
 			lastTime = performance.now();
 		}
 		if (evt) evt.preventDefault();
