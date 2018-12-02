@@ -114,7 +114,7 @@ html, body, svg {
     #chooseColor {
         width:100%;
     }
-    #chooseSize {
+    .rangeChooser {
     	width:100%;
     	padding:0;
     	margin:0;
@@ -139,7 +139,7 @@ input {
 	padding: 0;
 }
 
-#chooseSize {
+.rangeChooser {
 	width: 5vw;
 	border: 0;
 	display: block;

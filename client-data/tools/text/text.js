@@ -35,6 +35,7 @@
 		"x": 0,
 		"y": 0,
 		"size": 0,
+		"opacity": 1,
 		"color": "#000",
 		"id": 0,
 		"sentText": "",
@@ -49,6 +50,7 @@
 			return;
 		}
 		curText.size = parseInt(Tools.getSize() * 1.5 + 12);
+		curText.opacity = Tools.getOpacity();
 		curText.color = Tools.getColor();
 		curText.x = x;
 		curText.y = y + curText.size / 2;
@@ -62,6 +64,7 @@
 		curText.x = elem.x.baseVal[0].value;
 		curText.y = elem.y.baseVal[0].value;
 		curText.size = parseInt(elem.getAttribute("font-size"));
+		curText.opacity = parseFloat(elem.getAttribute("opacity"));
 		curText.color = elem.getAttribute("fill");
 		startEdit();
 		input.value = elem.textContent;
@@ -76,6 +79,7 @@
 			'id': curText.id,
 			'color': curText.color,
 			'size': curText.size,
+			'opacity': curText.opacity,
 			'x': curText.x,
 			'y': curText.y
 		});
@@ -146,6 +150,7 @@
 		elem.setAttribute("y", fieldData.y);
 		elem.setAttribute("font-size", fieldData.size);
 		elem.setAttribute("fill", fieldData.color);
+		elem.setAttribute("opacity", Math.max(0.1, Math.min(1, fieldData.opacity)) || 1);
 		if (fieldData.txt) elem.textContent = fieldData.txt;
 		svg.appendChild(elem);
 		return elem;

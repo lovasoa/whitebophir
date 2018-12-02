@@ -46,7 +46,8 @@
 			'type': 'line',
 			'id': curLineId,
 			'color': Tools.getColor(),
-			'size': Tools.getSize()
+			'size': Tools.getSize(),
+			'opacity': Tools.getOpacity()
 		});
 
 		//Update the current point
@@ -180,6 +181,7 @@
 		//If some data is not provided, choose default value. The line may be updated later
 		line.setAttribute("stroke", lineData.color || "black");
 		line.setAttribute("stroke-width", lineData.size || 10);
+		line.setAttribute("opacity", Math.max(0.1, Math.min(1, lineData.opacity)) || 1);
 		svg.appendChild(line);
 		return line;
 	}

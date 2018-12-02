@@ -358,6 +358,13 @@ Tools.getSize = (function size() {
 	return function () { return chooser.value; };
 })();
 
+Tools.getOpacity = (function opacity() {
+	var chooser = document.getElementById("chooseOpacity");
+	return function () {
+		return Math.max(0.1, Math.min(1, chooser.value));
+	};
+})();
+
 Tools.i18n = (function i18n() {
 	var lng = (navigator.language || navigator.browserLanguage).split('-')[0];
 	var translations = {};

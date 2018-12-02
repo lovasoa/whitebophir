@@ -1,8 +1,9 @@
 {
   "Menu": "Menu",
   "Tools": "Outils",
-  "Size" : "Taille",
+  "Size": "Taille",
   "Color": "Couleur",
+  "Opacity": "Opacité",
   "Pencil": "Crayon",
   "Text": "Texte",
   "Eraser": "Gomme",

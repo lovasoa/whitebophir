@@ -49,6 +49,7 @@
 			'id': curId,
 			'color': Tools.getColor(),
 			'size': Tools.getSize(),
+			'opacity': Tools.getOpacity(),
 			'x': x,
 			'y': y,
 			'x2': x,
@@ -113,6 +114,7 @@
 		//If some data is not provided, choose default value. The shape may be updated later
 		shape.setAttribute("stroke", data.color || "black");
 		shape.setAttribute("stroke-width", data.size || 10);
+		shape.setAttribute("opacity", Math.max(0.1, Math.min(1, data.opacity)) || 1);
 		svg.appendChild(shape);
 		return shape;
 	}

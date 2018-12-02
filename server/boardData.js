@@ -202,6 +202,10 @@ BoardData.prototype.validate = function validate(item, parent) {
 		item.y = parseInt(item.y) || 0;
 		item.y = Math.min(Math.max(item.y, 0), MAX_BOARD_SIZE);
 	}
+	if (item.hasOwnProperty("opacity")) {
+		item.opacity = Math.min(Math.max(item.opacity, 0.1), 1) || 1;
+		if (item.opacity === 1) delete item.opacity;
+	}
 	if (item.hasOwnProperty("_children")) {
 		if (!Array.isArray(item._children)) item._children = [];
 		if (item._children.length > MAX_CHILDREN) item._children.length = MAX_CHILDREN;
