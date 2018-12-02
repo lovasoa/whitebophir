@@ -1,20 +1,11 @@
 var iolib = require('socket.io')
-	, path = require("path")
-	, fs = require('fs')
 	, BoardData = require("./boardData.js").BoardData;
 
 var MAX_EMIT_COUNT = 64; // Maximum number of draw operations before getting banned
 var MAX_EMIT_COUNT_PERIOD = 5000; // Duration (in ms) after which the emit count is reset
 
-function Board(name) {
-	this.name = name;
-	this.data = new BoardData(name);
-	this.users = new Set();
-}
-
-var boards = {
-	"anonymous": new Board("anonymous")
-};
+// Map from name to *promises* of BoardData
+var boards = {};
 
 function noFail(fn) {
 	return function noFailWrapped(arg) {
@@ -32,11 +23,12 @@ function startIO(app) {
 	return io;
 }
 
+/** Returns a promise to a BoardData with the given name*/
 function getBoard(name) {
 	if (boards.hasOwnProperty(name)) {
 		return boards[name];
 	} else {
-		var board = new Board(name);
+		var board = BoardData.load(name);
 		boards[name] = board;
 		return board;
 	}
@@ -48,21 +40,15 @@ function socketConnection(socket) {
 		// Default to the public board
 		if (!name) name = "anonymous";
 
-		var board = getBoard(name);
-		var board_data = board.data;
-
 		// Join the board
 		socket.join(name);
-		board.users.add(socket.id);
-		console.log(board.users.size + " users in " + board.name);
 
-		//Send all the board's data as soon as it's loaded
-		var sendIt = function () {
-			socket.emit("broadcast", { _children: board_data.getAll() });
-		};
-
-		if (board_data.ready) sendIt();
-		else board_data.once("ready", sendIt);
+		getBoard(name).then(board => {
+			board.users.add(socket.id);
+			console.log(board.users.size + " users in " + board.name);
+			//Send all the board's data as soon as it's loaded
+			socket.emit("broadcast", { _children: board.getAll() });
+		});
 	}));
 
 	var lastEmitSecond = Date.now() / MAX_EMIT_COUNT_PERIOD | 0;
@@ -105,13 +91,15 @@ function socketConnection(socket) {
 	socket.on('disconnecting', function onDisconnecting(reason) {
 		Object.keys(socket.rooms).forEach(function disconnectFrom(room) {
 			if (boards.hasOwnProperty(room)) {
-				boards[room].users.delete(socket.id);
-				var userCount = boards[room].users.size;
-				console.log(userCount + " users in " + room);
-				if (userCount === 0) {
-					boards[room].data.save();
-					delete boards[room];
-				}
+				boards[room].then(board => {
+					board.users.delete(socket.id);
+					var userCount = board.users.size;
+					console.log(userCount + " users in " + room);
+					if (userCount === 0) {
+						board.save();
+						delete boards[room];
+					}
+				});
 			}
 		});
 	});
@@ -119,22 +107,23 @@ function socketConnection(socket) {
 
 function saveHistory(boardName, message) {
 	var id = message.id;
-	var boardData = getBoard(boardName).data;
-	switch (message.type) {
-		case "delete":
-			if (id) boardData.delete(id);
-			break;
-		case "update":
-			delete message.type;
-			if (id) boardData.update(id, message);
-			break;
-		case "child":
-			boardData.addChild(message.parent, message);
-			break;
-		default: //Add data
-			if (!id) throw new Error("Invalid message: ", message);
-			boardData.set(id, message);
-	}
+	getBoard(boardName).then(board => {
+		switch (message.type) {
+			case "delete":
+				if (id) board.delete(id);
+				break;
+			case "update":
+				delete message.type;
+				if (id) board.update(id, message);
+				break;
+			case "child":
+				board.addChild(message.parent, message);
+				break;
+			default: //Add data
+				if (!id) throw new Error("Invalid message: ", message);
+				board.set(id, message);
+		}
+	});
 }
 
 function generateUID(prefix, suffix) {
@@ -146,9 +135,5 @@ function generateUID(prefix, suffix) {
 }
 
 if (exports) {
-	exports.start = function (app) {
-		getBoard("anonymous").data.on("ready", function () {
-			startIO(app);
-		});
-	};
+	exports.start = startIO;
 }

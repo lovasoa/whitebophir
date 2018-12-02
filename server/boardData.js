@@ -26,9 +26,7 @@
  */
 
 var fs = require('fs'),
-	path = require("path"),
-	util = require("util"),
-	events = require("events");
+	path = require("path");
 
 /** @constant
     @type {string}
@@ -55,16 +53,10 @@ var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
 var BoardData = function (name) {
 	this.name = name;
 	this.board = {};
-	this.ready = false;
 	this.file = path.join(HISTORY_DIR, "board-" + encodeURIComponent(name) + ".json");
 	this.lastSaveDate = Date.now();
-
-	//Loads the file. This will emit the "ready" event
-	this.load(this.file);
+	this.users = new Set();
 };
-
-//Allows to use BoardData.emit() and BoardData.on()
-util.inherits(BoardData, events.EventEmitter);
 
 /** Adds data to the board */
 BoardData.prototype.set = function (id, data) {
@@ -218,21 +210,22 @@ BoardData.prototype.validate = function validate(item, parent) {
 /** Load the data in the board from a file.
  * @param {string} file - Path to the file where the board data will be read.
 */
-BoardData.prototype.load = function (file) {
-	var that = this;
-	fs.readFile(file, function (err, data) {
-		try {
-			if (err) throw err;
-			that.board = JSON.parse(data);
-			for (id in that.board) that.validate(that.board[id]);
-			console.log(that.name + " loaded from file.");
-		} catch (e) {
-			console.error("Unable to read history from " + file + ". The following error occured: " + e);
-			console.log("Creating an empty board.");
-			that.board = {}
-		}
-		that.ready = true;
-		that.emit("ready");
+BoardData.load = function loadBoard(name) {
+	var boardData = new BoardData(name);
+	return new Promise((accept) => {
+		fs.readFile(boardData.file, function (err, data) {
+			try {
+				if (err) throw err;
+				boardData.board = JSON.parse(data);
+				for (id in boardData.board) boardData.validate(boardData.board[id]);
+				console.log(boardData.name + " loaded from file.");
+			} catch (e) {
+				console.error("Unable to read history from " + boardData.file + ". The following error occured: " + e);
+				console.log("Creating an empty board.");
+				boardData.board = {}
+			}
+			accept(boardData);
+		});
 	});
 };
 
