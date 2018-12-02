@@ -55,4 +55,6 @@
 		"mouseCursor": "move"
 	});
 
+	//The hand tool is selected by default
+	Tools.change("Hand");
 })(); //End of code isolation
