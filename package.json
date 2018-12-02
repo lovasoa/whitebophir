@@ -4,7 +4,7 @@
       "whiteboard"
    ],
    "version": "1.0.22",
-   "license": "GPL-3.0+",
+   "license": "AGPL-3.0-or-later",
    "dependencies": {
       "node-static": "0.7.x",
       "socket.io": "^2.2.0"
