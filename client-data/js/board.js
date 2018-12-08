@@ -225,14 +225,15 @@ window.addEventListener("focus", function () {
 //List of hook functions that will be applied to messages before sending or drawing them
 Tools.messageHooks = [
 	function resizeCanvas(m) {
-		//Enlarge the canvas is something is drawn near its border
+		//Enlarge the canvas whenever something is drawn near its border
 		if (m.x && m.y) {
+			var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
 			var svg = Tools.svg, x = m.x, y = m.y;
 			if (x > svg.width.baseVal.value - 1000) {
-				svg.width.baseVal.value = x + 2000;
+				svg.width.baseVal.value = Math.min(x + 2000, MAX_BOARD_SIZE);
 			}
 			if (y > svg.height.baseVal.value - 500) {
-				svg.height.baseVal.value = y + 2000;
+				svg.height.baseVal.value = Math.min(y + 2000, MAX_BOARD_SIZE);
 			}
 		}
 	},
