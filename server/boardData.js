@@ -133,6 +133,13 @@ BoardData.prototype.getAll = function (id) {
 };
 
 /**
+ * 
+ */
+BoardData.prototype.addUser = function addUser(userId) {
+
+}
+
+/**
  * This callback is displayed as part of the BoardData class.
  * Describes a function that processes data that comes from the board
  * @callback BoardData~processData

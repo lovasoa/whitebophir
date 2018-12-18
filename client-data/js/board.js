@@ -206,10 +206,7 @@ function handleMessage(message) {
 //Receive draw instructions from the server
 Tools.socket.on("broadcast", handleMessage);
 Tools.socket.on("reconnect", function onReconnection() {
-	// The server may have been updated.
-	// Just force-reload the page with a random timeout to avoid overloading the server
-	var timeout = Math.random() * 15 * 1000;
-	setTimeout(window.location.reload.bind(window.location, true), timeout);
+	Tools.socket.emit('joinboard', Tools.boardName);
 });
 
 Tools.unreadMessagesCount = 0;

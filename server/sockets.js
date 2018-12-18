@@ -76,6 +76,8 @@ function socketConnection(socket) {
 		var boardName = message.board || "anonymous";
 		var data = message.data;
 
+		if (!socket.rooms.hasOwnProperty(boardName)) socket.join(boardName);
+
 		if (!data) {
 			console.warn("Received invalid message: %s.", JSON.stringify(message));
 			return;
