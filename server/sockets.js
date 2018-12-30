@@ -35,21 +35,29 @@ function getBoard(name) {
 }
 
 function socketConnection(socket) {
-	socket.on("getboard", noFail(function onGetBoard(name) {
 
+	function joinBoard(name) {
 		// Default to the public board
 		if (!name) name = "anonymous";
 
 		// Join the board
 		socket.join(name);
 
-		getBoard(name).then(board => {
+		return getBoard(name).then(board => {
 			board.users.add(socket.id);
-			console.log(board.users.size + " users in " + board.name);
+			console.log(new Date() + ": " + board.users.size + " users in " + board.name);
+			return board;
+		});
+	}
+
+	socket.on("getboard", noFail(function onGetBoard(name) {
+		joinBoard(name).then(board => {
 			//Send all the board's data as soon as it's loaded
 			socket.emit("broadcast", { _children: board.getAll() });
 		});
 	}));
+
+	socket.on("joinboard", noFail(joinBoard));
 
 	var lastEmitSecond = Date.now() / MAX_EMIT_COUNT_PERIOD | 0;
 	var emitCount = 0;
