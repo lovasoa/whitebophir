@@ -184,7 +184,7 @@ function messageForTool(message) {
 
 // Apply the function to all arguments by batches
 function batchCall(fn, args) {
-	var BATCH_SIZE = 512;
+	var BATCH_SIZE = 1024;
 	if (args.length > 0) {
 		var batch = args.slice(0, BATCH_SIZE);
 		var rest = args.slice(BATCH_SIZE);
