@@ -11,4 +11,9 @@ A demonstration server is available at https://wbo.openode.io.
 
 ## Screenshots
 
-![Screenshot of WBO's user interface](https://user-images.githubusercontent.com/552629/49140426-8dd09800-f2f4-11e8-9ddf-a9263e9ad5c4.png)
+### Used for collaborative diagram editing
+![Screenshot of WBO's user interface: architecture](https://user-images.githubusercontent.com/552629/50559558-d36bf080-0cf8-11e9-8041-ac20c46fa634.png)
+
+
+### Used for drawing art
+![Screenshot of WBO: W. Hootkins](https://user-images.githubusercontent.com/552629/50559385-d534b480-0cf6-11e9-828c-6b4b816739df.png)
