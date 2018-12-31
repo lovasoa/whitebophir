@@ -219,27 +219,59 @@ window.addEventListener("focus", function () {
 	document.title = "WBO";
 });
 
-//List of hook functions that will be applied to messages before sending or drawing them
-Tools.messageHooks = [
-	function resizeCanvas(m) {
-		//Enlarge the canvas whenever something is drawn near its border
-		if (m.x && m.y) {
-			var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
-			var svg = Tools.svg, x = m.x, y = m.y;
-			if (x > svg.width.baseVal.value - 1000) {
-				svg.width.baseVal.value = Math.min(x + 2000, MAX_BOARD_SIZE);
+
+(function () {
+	// Scroll and hash handling
+	var scrollTimeout, lastStateUpdate = Date.now();
+
+	window.addEventListener("scroll", function onScroll() {
+		var x = window.scrollX, y = window.scrollY;
+
+		clearTimeout(scrollTimeout);
+		scrollTimeout = setTimeout(function updateHistory() {
+			var hash = '#' + (x | 0) + ',' + (y | 0);
+			if (Date.now() - lastStateUpdate > 5000 && hash != window.location.hash) {
+				window.history.pushState({}, "", hash);
+				lastStateUpdate = Date.now();
+			} else {
+				window.history.replaceState({}, "", hash);
 			}
-			if (y > svg.height.baseVal.value - 500) {
-				svg.height.baseVal.value = Math.min(y + 2000, MAX_BOARD_SIZE);
-			}
-		}
-	},
-	function updateUnreadCount(m) {
-		if (document.hidden && ["child", "update"].indexOf(m.type) === -1) {
-			Tools.newUnreadMessage();
-		}
+		}, 100);
+	});
+
+	function setScrollFromHash() {
+		var coords = window.location.hash.slice(1).split(',');
+		var x = coords[0] | 0;
+		var y = coords[1] | 0;
+		resizeCanvas({ x: x, y: y });
+		window.scrollTo(x, y);
 	}
-];
+
+	window.addEventListener("hashchange", setScrollFromHash, false);
+	window.addEventListener("popstate", setScrollFromHash, false);
+	window.addEventListener("DOMContentLoaded", setScrollFromHash, false);
+})();
+
+//List of hook functions that will be applied to messages before sending or drawing them
+function resizeCanvas(m) {
+	//Enlarge the canvas whenever something is drawn near its border
+	var x = m.x | 0, y = m.y | 0
+	var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
+	if (x > Tools.svg.width.baseVal.value - 2000) {
+		Tools.svg.width.baseVal.value = Math.min(x + 2000, MAX_BOARD_SIZE);
+	}
+	if (y > Tools.svg.height.baseVal.value - 2000) {
+		Tools.svg.height.baseVal.value = Math.min(y + 2000, MAX_BOARD_SIZE);
+	}
+}
+
+function updateUnreadCount(m) {
+	if (document.hidden && ["child", "update"].indexOf(m.type) === -1) {
+		Tools.newUnreadMessage();
+	}
+}
+
+Tools.messageHooks = [resizeCanvas, updateUnreadCount];
 
 //List of hook functions that will be applied to tools before adding them
 Tools.toolHooks = [
