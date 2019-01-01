@@ -119,6 +119,7 @@ Tools.change = function (toolName) {
 		console.error("Unable to update the GUI with the new tool. " + e);
 	}
 	Tools.svg.style.cursor = newtool.mouseCursor || "auto";
+	Tools.board.title = Tools.i18n.t(newtool.helpText || "");
 
 	//There is not necessarily already a curTool
 	if (Tools.curTool !== null) {
@@ -225,11 +226,12 @@ window.addEventListener("focus", function () {
 	var scrollTimeout, lastStateUpdate = Date.now();
 
 	window.addEventListener("scroll", function onScroll() {
-		var x = window.scrollX, y = window.scrollY;
+		var x = window.scrollX / Tools.getScale(),
+			y = window.scrollY / Tools.getScale();
 
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(function updateHistory() {
-			var hash = '#' + (x | 0) + ',' + (y | 0);
+			var hash = '#' + (x | 0) + ',' + (y | 0) + ',' + Tools.getScale().toFixed(1);
 			if (Date.now() - lastStateUpdate > 5000 && hash != window.location.hash) {
 				window.history.pushState({}, "", hash);
 				lastStateUpdate = Date.now();
@@ -243,8 +245,10 @@ window.addEventListener("focus", function () {
 		var coords = window.location.hash.slice(1).split(',');
 		var x = coords[0] | 0;
 		var y = coords[1] | 0;
+		var scale = parseFloat(coords[2]);
 		resizeCanvas({ x: x, y: y });
-		window.scrollTo(x, y);
+		Tools.setScale(scale);
+		window.scrollTo(x * scale, y * scale);
 	}
 
 	window.addEventListener("hashchange", setScrollFromHash, false);
@@ -273,6 +277,18 @@ function updateUnreadCount(m) {
 
 Tools.messageHooks = [resizeCanvas, updateUnreadCount];
 
+Tools.scale = 1.0;
+Tools.setScale = function setScale(scale) {
+	if (isNaN(scale)) scale = 1;
+	scale = Math.max(0.1, Math.min(10, scale));
+	Tools.svg.style.transform = 'scale(' + scale + ')';
+	Tools.scale = scale;
+	return scale;
+}
+Tools.getScale = function getScale() {
+	return Tools.scale;
+}
+
 //List of hook functions that will be applied to tools before adding them
 Tools.toolHooks = [
 	function checkToolAttributes(tool) {
@@ -297,8 +313,8 @@ Tools.toolHooks = [
 
 		function compile(listener) { //closure
 			return (function listen(evt) {
-				var x = evt.pageX,
-					y = evt.pageY;
+				var x = evt.pageX / Tools.getScale(),
+					y = evt.pageY / Tools.getScale();
 				return listener(x, y, evt, false);
 			});
 		}
@@ -309,8 +325,8 @@ Tools.toolHooks = [
 				if (evt.changedTouches.length === 1) {
 					//evt.preventDefault();
 					var touch = evt.changedTouches[0];
-					var x = touch.pageX,
-						y = touch.pageY;
+					var x = touch.pageX / Tools.getScale(),
+						y = touch.pageY / Tools.getScale();
 					return listener(x, y, evt, true);
 				}
 				return true;
