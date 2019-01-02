@@ -80,13 +80,15 @@
     }
 
     function onwheel(evt) {
+        evt.preventDefault();
         if (evt.ctrlKey) {
-            evt.preventDefault();
             var scale = Tools.getScale();
             var x = evt.pageX / scale;
             var y = evt.pageY / scale;
             setOrigin(x, y, evt, false);
             animate((1 - evt.deltaY * ZOOM_FACTOR / 10) * Tools.getScale());
+        } else {
+            window.scrollTo(window.scrollX + evt.deltaX, window.scrollY + evt.deltaY);
         }
     }
     Tools.board.addEventListener("wheel", onwheel);
