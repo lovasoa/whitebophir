@@ -92,7 +92,7 @@
     Tools.board.addEventListener("wheel", onwheel);
 
     function release(x, y, evt, isTouchEvent) {
-        if (!moved) {
+        if (pressed && !moved) {
             var delta = (evt.shiftKey === true) ? -1 : 1;
             var scale = Tools.getScale() * (1 + delta * ZOOM_FACTOR);
             zoom(origin, scale);
