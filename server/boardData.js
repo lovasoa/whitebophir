@@ -196,10 +196,12 @@ BoardData.prototype.validate = function validate(item, parent) {
 		item.size = Math.min(Math.max(item.size, 1), 50);
 	}
 	if (item.hasOwnProperty("x") || item.hasOwnProperty("y")) {
-		item.x = parseInt(item.x) || 0;
+		item.x = parseFloat(item.x) || 0;
 		item.x = Math.min(Math.max(item.x, 0), MAX_BOARD_SIZE);
-		item.y = parseInt(item.y) || 0;
+		item.x = Math.round(10 * item.x) / 10;
+		item.y = parseFloat(item.y) || 0;
 		item.y = Math.min(Math.max(item.y, 0), MAX_BOARD_SIZE);
+		item.y = Math.round(10 * item.y) / 10;
 	}
 	if (item.hasOwnProperty("opacity")) {
 		item.opacity = Math.min(Math.max(item.opacity, 0.1), 1) || 1;
