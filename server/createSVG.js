@@ -94,11 +94,14 @@ function renderBoard(file, callback) {
 	var t = Date.now();
 	fs.readFile(file, function (err, data) {
 		if (err) return callback(err);
-		var board = JSON.parse(data);
-		console.warn("JSON parsed in " + (Date.now() - t) + "ms.");
-		var svg = toSVG(board);
-		console.warn("Board rendered in " + (Date.now() - t) + "ms.");
-		callback(null, svg);
+		try {
+			var board = JSON.parse(data);
+			console.warn("JSON parsed in " + (Date.now() - t) + "ms.");
+			var svg = toSVG(board);
+			console.warn("Board rendered in " + (Date.now() - t) + "ms.");
+			callback(null, svg);
+		}
+		catch (err) { return callback(err) }
 	});
 }
 
