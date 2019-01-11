@@ -1,8 +1,9 @@
 FROM node:10-alpine
 
 WORKDIR /opt/app
-
+COPY . /opt/app
 ENV PORT=80
+VOLUME /opt/app/server-data
 
 RUN touch /usr/bin/start.sh # this is the script which will run on start
 
@@ -24,3 +25,5 @@ RUN echo 'npm install --production' >> /usr/bin/start.sh
 
 # npm start, make sure to have a start attribute in "scripts" in package.json
 RUN echo 'npm start' >> /usr/bin/start.sh
+
+CMD ["/bin/sh","/usr/bin/start.sh"]
