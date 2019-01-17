@@ -81,7 +81,7 @@
 
     function onwheel(evt) {
         evt.preventDefault();
-        if (evt.ctrlKey) {
+        if (evt.ctrlKey || Tools.curTool === zoomTool) {
             var scale = Tools.getScale();
             var x = evt.pageX / scale;
             var y = evt.pageY / scale;
@@ -156,7 +156,7 @@
         window.removeEventListener("keyup", keyup);
     }
 
-    Tools.add({ //The new tool
+    var zoomTool = {
         "name": "Zoom",
         "icon": "🔎",
         "listeners": {
@@ -168,5 +168,6 @@
         "onquit": onquit,
         "mouseCursor": "zoom-in",
         "helpText": "Click to zoom in\nPress shift and click to zoom out",
-    });
+    };
+    Tools.add(zoomTool);
 })(); //End of code isolation
