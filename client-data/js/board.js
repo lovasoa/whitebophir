@@ -278,10 +278,16 @@ function updateUnreadCount(m) {
 Tools.messageHooks = [resizeCanvas, updateUnreadCount];
 
 Tools.scale = 1.0;
+var scaleTimeout = null;
 Tools.setScale = function setScale(scale) {
 	if (isNaN(scale)) scale = 1;
 	scale = Math.max(0.1, Math.min(10, scale));
+	Tools.svg.style.willChange = 'transform';
 	Tools.svg.style.transform = 'scale(' + scale + ')';
+	clearTimeout(scaleTimeout);
+	scaleTimeout = setTimeout(function () {
+		Tools.svg.style.willChange = 'auto';
+	}, 1000);
 	Tools.scale = scale;
 	return scale;
 }
