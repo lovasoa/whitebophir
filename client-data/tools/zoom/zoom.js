@@ -93,6 +93,36 @@
     }
     Tools.board.addEventListener("wheel", onwheel);
 
+    Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
+        // 2-finger pan to zoom
+        var touches = evt.touches;
+        if (touches.length === 2) {
+            evt.preventDefault();
+            evt.stopPropagation();
+            var x0 = touches[0].clientX, x1 = touches[1].clientX,
+                y0 = touches[0].clientY, y1 = touches[1].clientY,
+                dx = x0 - x1,
+                dy = y0 - y1;
+            var x = (touches[0].pageX + touches[1].pageX) / 2 / Tools.getScale(),
+                y = (touches[0].pageY + touches[1].pageY) / 2 / Tools.getScale();
+            var distance = Math.sqrt(dx * dx + dy * dy);
+            if (!pressed) {
+                pressed = true;
+                setOrigin(x, y, evt, true);
+                origin.distance = distance;
+            } else {
+                var delta = distance - origin.distance;
+                var scale = origin.scale * (1 + delta * ZOOM_FACTOR / 100);
+                animate(scale);
+            }
+        }
+    });
+    function touchend() {
+        pressed = false;
+    }
+    Tools.board.addEventListener("touchend", touchend);
+    Tools.board.addEventListener("touchcancel", touchend);
+
     function release(x, y, evt, isTouchEvent) {
         if (pressed && !moved) {
             var delta = (evt.shiftKey === true) ? -1 : 1;
