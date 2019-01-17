@@ -91,14 +91,12 @@
             window.scrollTo(window.scrollX + evt.deltaX, window.scrollY + evt.deltaY);
         }
     }
-    Tools.board.addEventListener("wheel", onwheel);
+    Tools.board.addEventListener("wheel", onwheel, { passive: false });
 
     Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
         // 2-finger pan to zoom
         var touches = evt.touches;
         if (touches.length === 2) {
-            evt.preventDefault();
-            evt.stopPropagation();
             var x0 = touches[0].clientX, x1 = touches[1].clientX,
                 y0 = touches[0].clientY, y1 = touches[1].clientY,
                 dx = x0 - x1,
@@ -116,7 +114,7 @@
                 animate(scale);
             }
         }
-    });
+    }, { passive: true });
     function touchend() {
         pressed = false;
     }
