@@ -1,0 +1,12 @@
+version: '3'
+services:
+  www:
+
+    volumes:
+      - /opt/app/:/opt/app/
+    ports:
+      - '80:80'
+    build:
+      context: .
+
+
