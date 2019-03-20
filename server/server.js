@@ -2,8 +2,10 @@ var app = require('http').createServer(handler)
 	, sockets = require('./sockets.js')
 	, path = require('path')
 	, url = require('url')
+	, fs = require("fs")
 	, nodestatic = require("node-static")
-	, createSVG = require("./createSVG.js");
+	, createSVG = require("./createSVG.js")
+	, handlebars = require("handlebars");
 
 
 var io = sockets.start(app);
@@ -61,6 +63,16 @@ function handler(request, response) {
 	}
 }
 
+function baseUrl(req) {
+	var proto = req.headers['X-Forwarded-Proto'] || (req.connection.encrypted ? 'https' : 'http');
+	var host = req.headers['X-Forwarded-Host'] || req.headers.host;
+	return proto + '://' + host;
+}
+
+var BOARD_HTML_TEMPLATE = handlebars.compile(
+	fs.readFileSync(WEBROOT + '/board.html', { encoding: 'utf8' })
+);
+
 function handleRequest(request, response) {
 	var parsedUrl = url.parse(request.url, true);
 	var parts = parsedUrl.pathname.split('/');
@@ -75,8 +87,19 @@ function handleRequest(request, response) {
 			response.end();
 		} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
 			// If there is no dot and no directory, parts[1] is the board name
-			fileserver.serveFile("board.html", 200, {}, request, response);
 			logRequest(request);
+			var board = decodeURIComponent(parts[1]);
+			var body = BOARD_HTML_TEMPLATE({
+				board: board,
+				boardUriComponent : parts[1],
+				baseUrl: baseUrl(request)
+			});
+			var headers = {
+				'Content-Length': Buffer.byteLength(body),
+				'Content-Type': 'text/html'
+			};
+			response.writeHead(200, headers);
+			response.end(body);
 		} else { // Else, it's a resource
 			request.url = "/" + parts.slice(1).join('/');
 			fileserver.serve(request, response, function (err, res) {

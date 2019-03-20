@@ -212,14 +212,21 @@ Tools.socket.on("reconnect", function onReconnection() {
 
 Tools.unreadMessagesCount = 0;
 Tools.newUnreadMessage = function () {
-	document.title = "(" + (++Tools.unreadMessagesCount) + ") WBO";
+	Tools.unreadMessagesCount++;
+	updateDocumentTitle();
 };
 
 window.addEventListener("focus", function () {
 	Tools.unreadMessagesCount = 0;
-	document.title = "WBO";
+	updateDocumentTitle();
 });
 
+function updateDocumentTitle() {
+	document.title =
+		(Tools.unreadMessagesCount ? '(' + Tools.unreadMessagesCount + ') ' : '') +
+		Tools.boardName +
+		" | WBO";
+}
 
 (function () {
 	// Scroll and hash handling
