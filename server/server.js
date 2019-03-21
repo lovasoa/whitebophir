@@ -130,7 +130,7 @@ function handleRequest(request, response) {
 			response.writeHead(200, {
 				"Content-Type": "image/svg+xml",
 				"Content-Security-Policy": CSP,
-				'Content-Length': Buffer.byteLength(body),
+				'Content-Length': Buffer.byteLength(svg),
 			});
 			response.end(svg);
 		});
