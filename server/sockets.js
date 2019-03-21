@@ -1,4 +1,5 @@
 var iolib = require('socket.io')
+	, log = require("./log.js").log
 	, BoardData = require("./boardData.js").BoardData;
 
 var MAX_EMIT_COUNT = 64; // Maximum number of draw operations before getting banned
@@ -45,7 +46,7 @@ function socketConnection(socket) {
 
 		return getBoard(name).then(board => {
 			board.users.add(socket.id);
-			console.log(new Date() + ": " + board.users.size + " users in " + board.name);
+			log('board joined', { 'board': board.name, 'users': board.users.size });
 			return board;
 		});
 	}
@@ -67,11 +68,11 @@ function socketConnection(socket) {
 			emitCount++;
 			if (emitCount > MAX_EMIT_COUNT) {
 				var request = socket.client.request;
-				console.log(new Date() + ': BANNED: '+ JSON.stringify({
+				log('BANNED', {
 					user_agent: request.headers['user-agent'],
 					original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
 					emit_count: emitCount
-				}));
+				});
 				return;
 			}
 		} else {
@@ -102,7 +103,7 @@ function socketConnection(socket) {
 				boards[room].then(board => {
 					board.users.delete(socket.id);
 					var userCount = board.users.size;
-					console.log(userCount + " users in " + room);
+					log('disconnection', { 'board': board.name, 'users': board.users.size });
 					if (userCount === 0) {
 						board.save();
 						delete boards[room];

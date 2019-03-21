@@ -25,8 +25,9 @@
  * @module boardData
  */
 
-var fs = require('fs'),
-	path = require("path");
+var fs = require('fs')
+	, log = require("./log.js").log
+	, path = require("path");
 
 /** @constant
     @type {string}
@@ -168,7 +169,7 @@ BoardData.prototype.save = function (file) {
 		if (err) {
 			console.trace(new Error("Unable to save the board: " + err));
 		} else {
-			console.log("Successfully saved board: " + that.name);
+			log("saved board", { 'name': that.name });
 		}
 	});
 };
@@ -182,7 +183,7 @@ BoardData.prototype.clean = function cleanBoard() {
 			return (board[x].time | 0) - (board[y].time | 0);
 		}).slice(0, -MAX_ITEM_COUNT);
 		for (var i = 0; i < toDestroy.length; i++) delete board[toDestroy[i]];
-		console.log("Cleaned " + toDestroy.length + " items in " + this.name);
+		log("cleaned board", { 'removed': toDestroy.length, "board": this.name });
 	}
 }
 
@@ -227,10 +228,10 @@ BoardData.load = function loadBoard(name) {
 				if (err) throw err;
 				boardData.board = JSON.parse(data);
 				for (id in boardData.board) boardData.validate(boardData.board[id]);
-				console.log(boardData.name + " loaded from file.");
+				log('disk load', { 'board': boardData.name });
 			} catch (e) {
 				console.error("Unable to read history from " + boardData.file + ". The following error occured: " + e);
-				console.log("Creating an empty board.");
+				log('empty board creation', { 'board': boardData.name });
 				boardData.board = {}
 			}
 			accept(boardData);

@@ -1,5 +1,6 @@
 var app = require('http').createServer(handler)
 	, sockets = require('./sockets.js')
+	, log = require("./log.js").log
 	, path = require('path')
 	, url = require('url')
 	, fs = require("fs")
@@ -25,7 +26,7 @@ var WEBROOT = path.join(__dirname, "../client-data");
 var PORT = parseInt(process.env['PORT']) || 8080;
 
 app.listen(PORT);
-console.log("Server listening on " + PORT);
+log("server started", { port: PORT });
 
 var CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
 
@@ -42,13 +43,14 @@ function serveError(request, response, err) {
 }
 
 function logRequest(request) {
-	console.log(new Date() + ': connection: ' + JSON.stringify({
+	log('connection', {
 		ip: request.connection.remoteAddress,
 		original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
 		user_agent: request.headers['user-agent'],
 		referer: request.headers['referer'],
+		language: request.headers['accept-language'],
 		url: request.url,
-	}));
+	});
 }
 
 function handler(request, response) {
@@ -89,7 +91,7 @@ function handleRequest(request, response) {
 			var board = decodeURIComponent(parts[1]);
 			var body = BOARD_HTML_TEMPLATE({
 				board: board,
-				boardUriComponent : parts[1],
+				boardUriComponent: parts[1],
 				baseUrl: baseUrl(request)
 			});
 			var headers = {
@@ -128,6 +130,7 @@ function handleRequest(request, response) {
 			response.writeHead(200, {
 				"Content-Type": "image/svg+xml",
 				"Content-Security-Policy": CSP,
+				'Content-Length': Buffer.byteLength(body),
 			});
 			response.end(svg);
 		});
