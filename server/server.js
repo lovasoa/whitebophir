@@ -42,14 +42,12 @@ function serveError(request, response, err) {
 }
 
 function logRequest(request) {
-	console.log(JSON.stringify({
-		event: 'connection',
+	console.log(new Date() + ': connection: ' + JSON.stringify({
 		ip: request.connection.remoteAddress,
 		original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
 		user_agent: request.headers['user-agent'],
 		referer: request.headers['referer'],
 		url: request.url,
-		time: Date.now()
 	}));
 }
 

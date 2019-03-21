@@ -67,11 +67,9 @@ function socketConnection(socket) {
 			emitCount++;
 			if (emitCount > MAX_EMIT_COUNT) {
 				var request = socket.client.request;
-				console.log(JSON.stringify({
-					event: 'banned',
+				console.log(new Date() + ': BANNED: '+ JSON.stringify({
 					user_agent: request.headers['user-agent'],
 					original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
-					time: currentSecond,
 					emit_count: emitCount
 				}));
 				return;
