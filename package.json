@@ -6,6 +6,7 @@
    "version": "1.0.22",
    "license": "AGPL-3.0-or-later",
    "dependencies": {
+      "forever": "^0.15.3",
       "handlebars": "^4.1.1",
       "node-static": "0.7.x",
       "socket.io": "^2.2.0"
