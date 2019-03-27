@@ -1,12 +1,17 @@
 version: '3'
 services:
   www:
-
     volumes:
       - /opt/app/:/opt/app/
     ports:
       - '80:80'
     build:
       context: .
-
+    restart: on-failure
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 60s
 
