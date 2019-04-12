@@ -2,7 +2,7 @@ version: '3'
 services:
   www:
     volumes:
-      - /opt/app/:/opt/app/
+      - /opt/app/server-data:/opt/app/server-data
     ports:
       - '80:80'
     build:
