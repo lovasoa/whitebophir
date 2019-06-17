@@ -1,11 +1,7 @@
-whitebophir
-===========
+# WBO
 
-Online collaborative Whiteboard in node.js
-
-This is a collaborative whiteboard, where users can write text or draw in colors.
-The board is updated in real time for all connected users.
-
+WBO is an online collaborative whiteboard that allows many users to draw simultaneously on a large virtual board.
+The board is updated in real time for all connected users, and its state is always persisted. It can be used for many different purposes, including art, entertainment, design, teaching.
 
 A demonstration server is available at https://wbo.openode.io.
 
