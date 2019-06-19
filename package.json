@@ -12,7 +12,7 @@
    },
    "scripts": {
       "start": "node ./server/server.js",
-      "deploy": "openode sync -t $OPENODE_TOKEN -s $OPENODE_SITENAME && openode restart -t $OPENODE_TOKEN -s $OPENODE_SITENAME"
+      "deploy": "openode sync && openode restart"
    },
    "name": "Whitebophir",
    "description": "Online collaborative whiteboard",
