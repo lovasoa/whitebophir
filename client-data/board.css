@@ -8,7 +8,7 @@ html, body, svg {
 }
 
 #menu {
-	font-family: "sans";
+	font-family: Liberation sans, sans-serif;
 	font-size: 16px;
 	border-radius:0;
 	overflow:hidden;
@@ -58,7 +58,6 @@ html, body, svg {
 #menu .tools {
 	list-style-type:none;
 	padding:0;
-	font-family: Liberation sans, sans;
 }
 
 #menu .tool {
