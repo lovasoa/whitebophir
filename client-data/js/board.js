@@ -405,20 +405,28 @@ Tools.getColor = (function color() {
 
 Tools.getSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
+	var sizeIndicator = document.getElementById("sizeIndicator");
 
 	function update() {
-		if (chooser.value < 1 || chooser.value > 50) {
-			chooser.value = 3;
-		}
+		chooser.value = Math.max(1, Math.min(50, chooser.value | 0));
+		sizeIndicator.r.baseVal.value = chooser.value;
 	}
 	update();
 
-	chooser.onchange = update;
+	chooser.onchange = chooser.oninput = update;
 	return function () { return chooser.value; };
 })();
 
 Tools.getOpacity = (function opacity() {
 	var chooser = document.getElementById("chooseOpacity");
+	var opacityIndicator = document.getElementById("opacityIndicator");
+
+	function update() {
+		opacityIndicator.setAttribute("opacity", chooser.value);
+	}
+	update();
+
+	chooser.onchange = chooser.oninput = update;
 	return function () {
 		return Math.max(0.1, Math.min(1, chooser.value));
 	};

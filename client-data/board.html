@@ -28,8 +28,6 @@
 
 <div id="menu">
 	<h2 id="toggleMenu" data-translation="waiting">Menu</h2>
-	<br/>
-
 	<div id="menuItems">
 		<h3 data-translation="waiting">Tools</h3>
 		<ul id="tools" class="tools">
@@ -37,13 +35,40 @@
 		</ul>
 
 		<h3 data-translation="waiting">Configuration</h3>
-		<label for="chooseColor" data-translation="waiting">Color</label>
-		<input type="color" id="chooseColor" value="#1913B0" />
-		<br/>
-		<label for="chooseSize" data-translation="waiting">Size</label>
-		<input type="range" id="chooseSize" value="10" min="1" max="50" step="1" class="rangeChooser" />
-		<label for="chooseOpacity" data-translation="waiting">Opacity</label>
-		<input type="range" id="chooseOpacity" value="1" min="0.2" max="1" step="0.1" class="rangeChooser" />
+		<ul class="tools" id="settings">
+			<li class="tool">
+				<span class="tool-icon">
+					<input type="color" id="chooseColor" value="#1913B0" />
+				</span>
+				<label class="tool-name" for="chooseColor" data-translation="waiting">Color</label>
+			</li>
+			<li class="tool">
+				<span class="tool-icon">
+					<svg viewBox="-60 -60 120 120"><circle id="sizeIndicator" cx=0 cy=0 r=10 /></svg>
+				</span>
+				<label class="tool-name slider" for="chooseSize">
+					<span data-translation="waiting">Size</span>
+					<input type="range" id="chooseSize" value="10" min="1" max="50" step="1" class="rangeChooser" />
+				</label>
+			</li>
+			<li class="tool">
+					<span class="tool-icon">
+						<svg viewBox="0 0 12 12">
+							<pattern id="opacityPattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+								<rect x=0 y=0 width=2 height=2 fill=black />
+								<rect x=2 y=2 width=2 height=2 fill=black />
+								<rect x=2 y=0 width=2 height=2 fill=white />
+								<rect x=0 y=2 width=2 height=2 fill=white />
+							</pattern>
+							<rect id="opacityIndicator" rx=1 width="100%" height="100%" fill="url(#opacityPattern)"/>
+						</svg>
+					</span>
+					<label class="tool-name slider" for="chooseOpacity">
+						<span data-translation="waiting">Opacity</span>
+						<input type="range" id="chooseOpacity" value="1" min="0.2" max="1" step="0.1" class="rangeChooser" />
+					</label>
+			</li>
+		</ul>
 	</div>
 </div>
 
