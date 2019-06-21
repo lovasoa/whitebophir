@@ -10,6 +10,9 @@ A demonstration server is available at https://wbo.openode.io.
 ### The [*anonymous*](https://wbo.openode.io/boards/anonymous) board
 <img width="916" alt="WBO anonymous board" src="https://user-images.githubusercontent.com/552629/59885574-06e02b80-93bc-11e9-9150-0670a1c5d4f3.png">
 
+### Used for teaching
+<img width="960" alt="image" src="https://user-images.githubusercontent.com/552629/59915737-a386e580-941d-11e9-81ff-db9e37f140db.png">
+
 ### Used for collaborative diagram editing
 ![Screenshot of WBO's user interface: architecture](https://user-images.githubusercontent.com/552629/59915054-07101380-941c-11e9-97c9-4980f50d302a.png)
 
