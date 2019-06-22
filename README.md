@@ -7,9 +7,15 @@ A demonstration server is available at https://wbo.openode.io.
 
 ## Screenshots
 
+### The [*anonymous*](https://wbo.openode.io/boards/anonymous) board
+<img width="916" alt="WBO anonymous board" src="https://user-images.githubusercontent.com/552629/59885574-06e02b80-93bc-11e9-9150-0670a1c5d4f3.png">
+
+### Used for teaching
+<img width="960" alt="image" src="https://user-images.githubusercontent.com/552629/59915737-a386e580-941d-11e9-81ff-db9e37f140db.png">
+
 ### Used for collaborative diagram editing
-![Screenshot of WBO's user interface: architecture](https://user-images.githubusercontent.com/552629/50559558-d36bf080-0cf8-11e9-8041-ac20c46fa634.png)
+![Screenshot of WBO's user interface: architecture](https://user-images.githubusercontent.com/552629/59915054-07101380-941c-11e9-97c9-4980f50d302a.png)
 
 
 ### Used for drawing art
-![Screenshot of WBO: W. Hootkins](https://user-images.githubusercontent.com/552629/50559385-d534b480-0cf6-11e9-828c-6b4b816739df.png)
+<img width="1522" alt="WBO angel" src="https://user-images.githubusercontent.com/552629/59914139-08404100-941a-11e9-9c29-bd2569fe4730.png">
