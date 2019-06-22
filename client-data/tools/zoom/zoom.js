@@ -157,6 +157,7 @@
     var zoomTool = {
         "name": "Zoom",
         "icon": "🔎",
+		"shortcut": "z",
         "listeners": {
             "press": press,
             "move": move,

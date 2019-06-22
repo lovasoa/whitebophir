@@ -43,15 +43,25 @@ Tools.socket.emit("getboard", Tools.boardName);
 
 Tools.HTML = {
 	template: new Minitpl("#tools > .tool"),
-	addTool: function (toolName, toolIcon) {
+	addTool: function (toolName, toolIcon, toolShortcut) {
 		var callback = function () {
 			Tools.change(toolName);
 		};
+		window.addEventListener("keydown", function (e) {
+			if (e.key === toolShortcut && e.target.tagName !== "INPUT") {
+				Tools.change(toolName);
+			}
+		});
 		return this.template.add(function (elem) {
 			elem.addEventListener("click", callback);
 			elem.id = "toolID-" + toolName;
 			elem.getElementsByClassName("tool-name")[0].textContent = toolName;
 			elem.getElementsByClassName("tool-icon")[0].textContent = toolIcon;
+			elem.title =
+				Tools.i18n.t("Tool") + ": " +
+				Tools.i18n.t(toolName) + " (" +
+				Tools.i18n.t("keyboard shortcut") + ": " +
+				toolShortcut + ")";
 			Tools.i18n.translateDOM();
 		});
 	},
@@ -90,7 +100,7 @@ Tools.add = function (newTool) {
 	}
 
 	//Add the tool to the GUI
-	Tools.HTML.addTool(newTool.name, newTool.icon);
+	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.shortcut);
 
 	//There may be pending messages for the tool
 	var pending = Tools.pendingMessages[newTool.name];
@@ -106,7 +116,7 @@ Tools.add = function (newTool) {
 
 Tools.change = function (toolName) {
 	if (!(toolName in Tools.list)) {
-		throw "Trying to select a tool that has never been added!";
+		throw new Error("Trying to select a tool that has never been added!");
 	}
 
 	var newtool = Tools.list[toolName];

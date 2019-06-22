@@ -47,6 +47,7 @@
 	Tools.add({ //The new tool
 		"name": "Hand",
 		"icon": "✋",
+		"shortcut": "h",
 		"listeners": {
 			"press": press,
 			"move": move,

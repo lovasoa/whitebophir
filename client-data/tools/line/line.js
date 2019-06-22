@@ -123,6 +123,7 @@
 	Tools.add({ //The new tool
 		"name": "Straight line",
 		"icon": "☇",
+		"shortcut": "l",
 		"listeners": {
 			"press": startLine,
 			"move": continueLine,

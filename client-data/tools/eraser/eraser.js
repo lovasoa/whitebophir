@@ -78,6 +78,7 @@
 	Tools.add({ //The new tool
 		"name": "Eraser",
 		"icon": "❌",
+		"shortcut": "e",
 		"listeners": {
 			"press": startErasing,
 			"move": erase,

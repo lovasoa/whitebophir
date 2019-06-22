@@ -159,6 +159,7 @@
 	Tools.add({ //The new tool
 		"name": "Text",
 		"icon": "T",
+		"shortcut": "t",
 		"listeners": {
 			"press": clickHandler,
 		},

@@ -1,11 +1,11 @@
 #textToolInput {
 	position:fixed;
 	top:-1000px; /*Hidden*/
-	left:200px;
-	width:100%;
+	left: 80px;
+	width:500px;
 }
 #textToolInput:focus {
-	top:0;
+	top: 5px;
 }
 
 text {
