@@ -100,9 +100,11 @@
 	}
 
 	function textChangeHandler(evt) {
-		if (evt.which === 13) {
+		if (evt.which === 13) { // enter
 			curText.y += 1.5 * curText.size;
 			return drawCurText();
+		} else if (evt.which === 27) { // escape
+			stopEdit();
 		}
 		if (performance.now() - curText.lastSending > 100) {
 			if (curText.sentText !== input.value) {

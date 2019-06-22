@@ -58,7 +58,6 @@ Tools.HTML = {
 			elem.getElementsByClassName("tool-name")[0].textContent = toolName;
 			elem.getElementsByClassName("tool-icon")[0].textContent = toolIcon;
 			elem.title =
-				Tools.i18n.t("Tool") + ": " +
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")";
