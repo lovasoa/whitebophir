@@ -34,11 +34,6 @@ html, body, svg {
 	transition-duration:1s;
 }
 
-#menu.closed h2{ /*Menu title ("Menu")*/
-	text-align:center;
-	font-size: .9vw;
-}
-
 #menu h2{ /*Menu title ("Menu")*/
 	display: none;
 	font-size:4vh;
@@ -48,11 +43,6 @@ html, body, svg {
 	color:black;
 	padding:0;
 	margin:0;
-}
-
-#menu h3 { /*Section titles ("tools", "configuration")*/
-	font-size:1vw;
-	display: none;
 }
 
 #menu .tools {
