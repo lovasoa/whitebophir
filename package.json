@@ -14,7 +14,7 @@
       "start": "node ./server/server.js",
       "deploy": "openode sync && openode restart"
    },
-   "name": "Whitebophir",
+   "name": "whitebophir",
    "description": "Online collaborative whiteboard",
    "main": "./server/server.js",
    "subdomain": "wbo",

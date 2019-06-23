@@ -108,7 +108,7 @@ function handleRequest(request, response) {
 				boardUriComponent: parts[1],
 				baseUrl: baseUrl(request),
 				language: lang in TRANSLATIONS ? lang : "en",
-				translations: TRANSLATIONS[lang]
+				translations: TRANSLATIONS[lang] || {}
 			});
 			var headers = {
 				'Content-Length': Buffer.byteLength(body),
