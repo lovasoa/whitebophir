@@ -141,8 +141,9 @@ function handleRequest(request, response) {
 			history_file = path.join(__dirname, "..", "server-data", "board-" + boardName + ".json");
 		createSVG.renderBoard(history_file, function (err, svg) {
 			if (err) {
+				log(err);
 				response.writeHead(404, { 'Content-Type': 'application/json' });
-				response.end(JSON.stringify(err));
+				return response.end(JSON.stringify(err));
 			}
 			response.writeHead(200, {
 				"Content-Type": "image/svg+xml",
