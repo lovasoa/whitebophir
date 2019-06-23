@@ -48,8 +48,9 @@ Tools.HTML = {
 			Tools.change(toolName);
 		};
 		window.addEventListener("keydown", function (e) {
-			if (e.key === toolShortcut && e.target.tagName !== "INPUT") {
+			if (e.key === toolShortcut && !e.target.matches("input[type=text], textarea")) {
 				Tools.change(toolName);
+				document.activeElement.blur();
 			}
 		});
 		return this.template.add(function (elem) {
