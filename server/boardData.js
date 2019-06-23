@@ -233,6 +233,14 @@ BoardData.load = function loadBoard(name) {
 				console.error("Unable to read history from " + boardData.file + ". The following error occured: " + e);
 				log('empty board creation', { 'board': boardData.name });
 				boardData.board = {}
+				if (data) {
+					// There was an error loading the board, but some data was still read
+					var backupFileName = boardData.file + '.' + new Date().toISOString() + '.bak';
+					log("Writing the corrupted file to " + backupFileName);
+					fs.writeFile(backupFileName, data, function (err) {
+						if (err) log("Error writing " + backupFileName + ": " + err);
+					});
+				}
 			}
 			accept(boardData);
 		});
