@@ -4,6 +4,7 @@ var app = require('http').createServer(handler)
 	, path = require('path')
 	, url = require('url')
 	, fs = require("fs")
+	, crypto = require("crypto")
 	, nodestatic = require("node-static")
 	, createSVG = require("./createSVG.js")
 	, handlebars = require("handlebars");
@@ -150,6 +151,10 @@ function handleRequest(request, response) {
 			});
 			response.end(svg);
 		});
+	} else if (parts[0] === "random") {
+		var name = crypto.randomBytes(32).toString('base64').replace(/[^\w]/g, '-');
+		response.writeHead(307, { 'Location': '/boards/' + name });
+		response.end(name);
 	} else {
 		if (parts[0] === '') logRequest(request);
 		fileserver.serve(request, response, function (err, res) {
