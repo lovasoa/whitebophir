@@ -79,6 +79,12 @@ function baseUrl(req) {
 var BOARD_HTML_TEMPLATE = handlebars.compile(
 	fs.readFileSync(WEBROOT + '/board.html', { encoding: 'utf8' })
 );
+handlebars.registerHelper({
+	translate: function (translations, str) {
+		return translations[str] || str;
+	},
+	json: JSON.stringify.bind(JSON)
+});
 
 function handleRequest(request, response) {
 	var parsedUrl = url.parse(request.url, true);
@@ -102,7 +108,7 @@ function handleRequest(request, response) {
 				boardUriComponent: parts[1],
 				baseUrl: baseUrl(request),
 				language: lang in TRANSLATIONS ? lang : "en",
-				translations: JSON.stringify(TRANSLATIONS[lang] || {})
+				translations: TRANSLATIONS[lang]
 			});
 			var headers = {
 				'Content-Length': Buffer.byteLength(body),
