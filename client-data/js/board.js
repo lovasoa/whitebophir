@@ -442,24 +442,12 @@ Tools.getOpacity = (function opacity() {
 })();
 
 Tools.i18n = (function i18n() {
-	var lng = (navigator.language || navigator.browserLanguage).split('-')[0];
-	var translations = {};
-	var state = "pending";
-	var xhr = new XMLHttpRequest;
-	xhr.open("GET", "/translations/" + lng + ".json");
-	xhr.send(null);
-	xhr.onload = function () {
-		state = xhr.status === 200 ? "loaded" : "error";
-		if (state !== "loaded") return;
-		translations = JSON.parse(xhr.responseText);
-		Tools.i18n.translateDOM();
-	}
+	var translations = JSON.parse(document.getElementById("translations").text);
 	return {
 		"t": function translate(s) {
 			return translations[s] || s;
 		},
 		"translateDOM": function translateDOM() {
-			if (state !== "loaded") return false;
 			var els = document.querySelectorAll("[data-translation=waiting]");
 			for (var i = 0; i < els.length; i++) {
 				var el = els[i];

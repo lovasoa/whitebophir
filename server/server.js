@@ -25,6 +25,13 @@ var WEBROOT = path.join(__dirname, "../client-data");
  */
 var PORT = parseInt(process.env['PORT']) || 8080;
 
+/**
+ * Associations from language to translation dictionnaries
+ * @const
+ * @type {object}
+ */
+var TRANSLATIONS = JSON.parse(fs.readFileSync(path.join(__dirname, "translations.json")));
+
 app.listen(PORT);
 log("server started", { port: PORT });
 
@@ -88,11 +95,14 @@ function handleRequest(request, response) {
 		} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
 			// If there is no dot and no directory, parts[1] is the board name
 			logRequest(request);
+			var lang = (request.headers['accept-language'] || '').slice(0, 2);
 			var board = decodeURIComponent(parts[1]);
 			var body = BOARD_HTML_TEMPLATE({
 				board: board,
 				boardUriComponent: parts[1],
-				baseUrl: baseUrl(request)
+				baseUrl: baseUrl(request),
+				language: lang in TRANSLATIONS ? lang : "en",
+				translations: JSON.stringify(TRANSLATIONS[lang] || {})
 			});
 			var headers = {
 				'Content-Length': Buffer.byteLength(body),
