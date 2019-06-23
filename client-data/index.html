@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
+
 <head>
 	<meta charset="utf-8" />
 	<title>WBO — Online collaborative whiteboard</title>
 	<link rel="stylesheet" href="index.css" />
-	<meta name="description" content="A free online whiteboard for realtime collaboration. Draw, write text and sketch new ideas together on whitebophir"/>
-	<meta name="keywords" content="whiteboard,collaborative,online,draw,paint,shared,realtime,wbo,whitebophir"/>
+	<meta name="description"
+		content="A free online whiteboard for realtime collaboration. Draw, write text and sketch new ideas together on whitebophir" />
+	<meta name="keywords" content="whiteboard,collaborative,online,draw,paint,shared,realtime,wbo,whitebophir" />
 	<link rel="icon" type="image/x-icon" sizes="16x16" href="favicon.ico">
 	<link rel="icon" type="image/svg+xml" sizes="256x256" href="favicon.svg">
 	<link rel="apple-touch-icon" href="favicon.svg">
@@ -14,29 +16,50 @@
 
 <body>
 
-<header>
-	<h1>Whitebophir</h1> - <h2>Welcome</h2>
-</header>
+	<header>
+		<h1>WBO</h1> - <h2>Welcome</h2>
+	</header>
 
-<main>
-<p>Welcome to <b>WBO</b>. You can go to <a href="/boards/anonymous">the public board</a>
-or create a new one using the form below.
-</p><p>
-To collaborate on a drawing in real time with someone,
-just send them its URL.
-</p>
+	<main>
+		<div id="description">
+			<h3>Welcome to <strong>WBO</strong>!</h3>
+			<p>
+				WBO is a
+				<a href="https://github.com/lovasoa/whitebophir" title="Free as in free speech, not free beer">free</a>
+				online collaborative whiteboard that allows many users to draw
+				simultaneously on a large
+				virtual board.
+				The board is updated in real time for all connected users, and its state is always persisted.
+				It can be used for many different purposes, including art, entertainment, design and teaching.
+			</p>
+			<p>
+				To collaborate on a drawing in real time with someone, just send them its URL.
+			</p>
+		</div>
 
-<form action="boards" method="GET">
-	<input type="text" id="board" name="board" placeholder="Name of the board..."/>
-	<input type="submit" value="Go">
-</form>
-</main>
+		<div>
+			<p>
+				The <strong>anonymous board</strong> is accessible to everyone.
+				It is a happily disorganized mess where you can meet with strangers and draw together.
+				Everything there is ephemeral.
+				<a href="/boards/anonymous" class="wbo-button">Go to the anonymous board</a>
+			</p>
+		</div>
+
+		<div>
+			<p>You can also create a private board, that will be accessible only to those who know its name:</p>
+			<form action="boards" method="GET">
+				<input type="text" id="board" name="board" placeholder="Name of the board..." />
+				<input type="submit" value="Go">
+			</form>
+			<small><a href="/random">Create a private board with a random name</a></small>
+		</div>
+	</main>
 
 
-<footer>
-	<a href="https://github.com/lovasoa/whitebophir" class="smallink">Source code on github</a>
-</footer>
-	
+	<footer>
+		<a href="https://github.com/lovasoa/whitebophir" class="smallink">Source code on github</a>
+	</footer>
 </body>
 
 </html>

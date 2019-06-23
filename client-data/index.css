@@ -2,9 +2,8 @@ body {
 	background-color:#eee;
 	width:100%;
 	margin:0;
-	animation: colorchange 200s infinite;
-	animation-delay: 3620s;
 }
+
 header {
 	position:fixed;
 	left:0;
@@ -17,30 +16,36 @@ h1, h2 {
 	display:inline-block;
 }
 
-h1 {
-	animation: colorchange 30s infinite;
-	animation-direction:alternate;
-	animation-delay:3610s;
-}
-
 main {
-	margin:200px auto;
-	width:50%;
-	padding:50px;
-	font-size:2em;
+	margin:100px auto;
+	width:100%;
+	max-width: 1100px;
+	font-size:1.2em;
 	position:relative;
 	text-align:justify;
-	animation: move 20s infinite;
-	animation-delay: 3640s;
-	animation-direction:alternate;
 	transition:.1s;
+	display:flex;
+	flex-wrap: wrap;
+	justify-content: space-around; 
 }
 
-main:hover {
+#description{
+	flex: 100%;
+}
+
+main>div {
+	margin:25px;
+	min-width: 250px;
+	padding:35px;
+	transition:.1s;
+	flex:33%;
+}
+
+main>div:hover {
 	transform:scale(1.1);
 }
 
-header, main {
+header, main>div {
 	box-shadow: 2px 2px 10px #000;
 	background-color:#fff;
 }
@@ -49,52 +54,45 @@ header:hover h2 {
 	animation:colorchange 100s infinite;
 }
 
+.wbo-button {
+	white-space: nowrap;
+	text-decoration: none;
+	background: linear-gradient(#C4DFFF, #8FA2BC);
+	margin-top: 15px;
+	line-height: 60px;
+	border-radius: 30px;
+	box-shadow: inset 0 0 3px #8FA2BC;
+	display: block;
+	text-align: center;
+	color: black;
+	transition: .1s;
+}
+
+a{
+	color: black;
+}
+
+.wbo-button:hover{
+	box-shadow: 0 0 5px #C4DFFF;
+}
+
+.wbo-button:focus, .wbo-button:active {
+	box-shadow: 0 0 5px #0074D9;
+  background: linear-gradient(#96E1FF, #36A2FF);
+}
+
+input{
+	line-height: 20px;
+	border-radius: 5px;
+	border: 1px solid #ddd;
+	padding: 6px;
+	font-size: 1.1em;
+	margin: 9px 0;
+}
+
 footer{
   font-size: .9em;
-	position: absolute;
+	position:fixed;
 	bottom: 0;
 	right: 0;
-}
-
-@keyframes vibration
-{
-	0% {transform:scale(0.1);}
-	100% {transform:scale(1);}
-}
-
-@keyframes colorchange
-{
-	0% {color:#000;}
-	30% {color:#c04;}
-	40% {color:#706;}
-	50% {color:#007;}
-	60% {color:#04b;}
-	70% {color:#0a4;}
-	80% {color:#1c0;}
-	80% {color:#b30;}
-	100% {color:#f00;}
-}
-
-@keyframes move {
-	0% {top:0;left:0;}
-	25% {top:0;left:-10;}
-	50% {top:-40px;left:-20px;}
-	70% {top:0px;left:60px;}
-	87% {top:50px;left:0px;}
-	90% {top:-60px;left:20px;}
-	94% {top:90px;left:-50px;}
-	95% {top:0px;left:50px;}
-	97% {top:-90px;left:-20px;}
-	100% {top:0;left:0;}
-}
-
-@media (max-width:600px) {
-	main {
-		width:90%;
-		margin: 100px auto;
-		padding: 15px;
-	}
-	main:hover {
-		transform:none;
-	}
 }
