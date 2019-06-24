@@ -464,15 +464,6 @@ Tools.i18n = (function i18n() {
 Tools.svg.width.baseVal.value = document.body.clientWidth;
 Tools.svg.height.baseVal.value = document.body.clientHeight;
 
-(function menu() {
-	var menu = document.getElementById("menu");
-	tog = document.getElementById("toggleMenu");
-
-	tog.onclick = function (e) {
-		menu.classList.toggle("closed");
-	};
-})();
-
 /***********  Polyfills  ***********/
 if (!window.performance || !window.performance.now) {
 	window.performance = {
