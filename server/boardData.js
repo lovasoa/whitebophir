@@ -163,14 +163,25 @@ BoardData.prototype.save = function (file) {
 	this.lastSaveDate = Date.now();
 	this.clean();
 	if (!file) file = this.file;
+	var tmp_file = backupFileName(file);
 	var board_txt = JSON.stringify(this.board);
 	var that = this;
-	fs.writeFile(file, board_txt, function onBoardSaved(err) {
+	function afterSave(err) {
 		if (err) {
-			console.trace(new Error("Unable to save the board: " + err));
+			log("board saving error", {
+				'err': err,
+				'tmp_file': tmp_file,
+			});
 		} else {
-			log("saved board", { 'name': that.name });
+			log("saved board", {
+				'name': that.name,
+				'delay_ms': (Date.now() - that.lastSaveDate)
+			});
 		}
+	}
+	fs.writeFile(tmp_file, board_txt, function onBoardSaved(err) {
+		if (err) afterSave(err);
+		else fs.rename(tmp_file, file, afterSave);
 	});
 };
 
@@ -235,10 +246,10 @@ BoardData.load = function loadBoard(name) {
 				boardData.board = {}
 				if (data) {
 					// There was an error loading the board, but some data was still read
-					var backupFileName = boardData.file + '.' + new Date().toISOString() + '.bak';
-					log("Writing the corrupted file to " + backupFileName);
-					fs.writeFile(backupFileName, data, function (err) {
-						if (err) log("Error writing " + backupFileName + ": " + err);
+					var backup = backupFileName(boardData.file);
+					log("Writing the corrupted file to " + backup);
+					fs.writeFile(backup, data, function (err) {
+						if (err) log("Error writing " + backup + ": " + err);
 					});
 				}
 			}
@@ -246,5 +257,9 @@ BoardData.load = function loadBoard(name) {
 		});
 	});
 };
+
+function backupFileName(baseName) {
+	return baseName + '.' + new Date().toISOString() + '.bak';
+}
 
 module.exports.BoardData = BoardData;
