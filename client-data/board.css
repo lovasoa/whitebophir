@@ -1,14 +1,39 @@
 html, body, svg {
 	padding:0;
 	margin:0;
+	font-family: Liberation sans, sans-serif;
 }
 
 #canvas {
 	transform-origin: 0 0;
 }
 
+#loadingMessage {
+	font-size: 1.5em;
+	background: #3339 linear-gradient( #C4DFFF, #8FA2BC);
+	padding: 20px;
+	width: 40%;
+	line-height: 50px;
+	text-align: center;
+	border-radius: 10px;
+	position:fixed;
+	top: 40%;
+	left: 30%;
+	z-index: 1;
+	box-shadow: 0 0 2px black;
+	transition: 1s;
+}
+
+#loadingMessage.hidden {
+	opacity: 0;
+	z-index: -1;
+}
+
+#loadingMessage::after {
+	content: "...";
+}
+
 #menu {
-	font-family: Liberation sans, sans-serif;
 	font-size: 16px;
 	border-radius:0;
 	overflow:hidden;

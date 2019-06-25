@@ -196,26 +196,36 @@ function messageForTool(message) {
 // Apply the function to all arguments by batches
 function batchCall(fn, args) {
 	var BATCH_SIZE = 1024;
-	if (args.length > 0) {
+	if (args.length === 0) {
+		return Promise.resolve();
+	} else {
 		var batch = args.slice(0, BATCH_SIZE);
 		var rest = args.slice(BATCH_SIZE);
-		for (var i = 0; i < batch.length; i++) fn(batch[i]);
-		requestAnimationFrame(batchCall.bind(null, fn, rest));
+		return Promise.all(batch.map(fn))
+			.then(function () {
+				return new Promise(requestAnimationFrame);
+			}).then(batchCall.bind(null, fn, rest));
 	}
 }
 
 // Call messageForTool recursively on the message and its children
 function handleMessage(message) {
 	//Check if the message is in the expected format
-	if (message.tool) messageForTool(message);
-	if (message._children) batchCall(handleMessage, message._children);
 	if (!message.tool && !message._children) {
 		console.error("Received a badly formatted message (no tool). ", message);
 	}
+	if (message.tool) messageForTool(message);
+	if (message._children) return batchCall(handleMessage, message._children);
+	else return Promise.resolve();
 }
 
 //Receive draw instructions from the server
-Tools.socket.on("broadcast", handleMessage);
+Tools.socket.on("broadcast", function (msg) {
+	handleMessage(msg).finally(function afterload() {
+		var loadingEl = document.getElementById("loadingMessage");
+		loadingEl.classList.add("hidden");
+	});
+});
 Tools.socket.on("reconnect", function onReconnection() {
 	Tools.socket.emit('joinboard', Tools.boardName);
 });
