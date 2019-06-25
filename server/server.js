@@ -130,6 +130,10 @@ function handleRequest(request, response) {
 				"Content-Type": "application/json",
 				"Content-Disposition": 'attachment; filename="' + boardName + '.wbo"'
 			};
+		if (parts[2]) {
+			history_file += '.' + parts[2] + '.bak';
+		}
+		log("Downloading " + history_file);
 		var promise = fileserver.serveFile(history_file, 200, headers, request, response);
 		promise.on("error", function (err) {
 			console.error("Error while downloading history", err);
