@@ -56,13 +56,12 @@ Tools.HTML = {
 		return this.template.add(function (elem) {
 			elem.addEventListener("click", callback);
 			elem.id = "toolID-" + toolName;
-			elem.getElementsByClassName("tool-name")[0].textContent = toolName;
+			elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(toolName);
 			elem.getElementsByClassName("tool-icon")[0].textContent = toolIcon;
 			elem.title =
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")";
-			Tools.i18n.translateDOM();
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -457,15 +456,6 @@ Tools.i18n = (function i18n() {
 	return {
 		"t": function translate(s) {
 			return translations[s] || s;
-		},
-		"translateDOM": function translateDOM() {
-			var els = document.querySelectorAll("[data-translation=waiting]");
-			for (var i = 0; i < els.length; i++) {
-				var el = els[i];
-				el.setAttribute("data-translation", "done");
-				el.innerHTML = Tools.i18n.t(el.innerHTML);
-			}
-			return true;
 		}
 	};
 })();

@@ -1,5 +1,6 @@
 {
     "fr": {
+        "Collaborative whiteboard": "Tableau blanc collaboratif",
         "Loading": "Chargement",
         "Menu": "Menu",
         "Tools": "Outils",
@@ -12,9 +13,11 @@
         "Hand": "Main",
         "Straight line": "Ligne droite",
         "keyboard shortcut": "raccourci clavier",
-        "Click to zoom in\nPress shift and click to zoom out": "Cliquez pour zoomer\nCliquez en maintenant la touche majuscule enfoncée pour dézoomer"
+        "Click to zoom in\nPress shift and click to zoom out": "Cliquez pour zoomer\nCliquez en maintenant la touche majuscule enfoncée pour dézoomer",
+        "A free and opensource online collaborative drawing tool. Sketch new ideas together on WBO !": "Logiciel libre pour collaborer en ligne sur un tableau blanc. Venez dessiner vos idées ensemble sur WBO !"
     },
     "ru": {
+        "Collaborative whiteboard": "Онлайн доска для совместного рисования",
         "Loading": "Загрузка",
         "Menu": "Панель",
         "Tools": "Инструменты",
@@ -29,9 +32,11 @@
         "Rectangle": "Прямоугольник",
         "Zoom": "Лупа",
         "Configuration": "Настроики",
-        "keyboard shortcut": "горячая клавиша"
+        "keyboard shortcut": "горячая клавиша",
+        "A free and opensource online collaborative drawing tool. Sketch new ideas together on WBO !": "Бесплатная и открытая доска для совместной работы в интернете. Рисуете свои идеи вместе в WBO !"
     },
     "zh": {
+        "Collaborative whiteboard": "在线协作式白板",
         "Loading": "载入中",
         "Menu": "目录",
         "Tools": "工具",
@@ -47,6 +52,7 @@
         "Straight line": "直线",
         "Configuration": "刷设置",
         "keyboard shortcut": "键盘快捷键",
-        "Click to zoom in\nPress shift and click to zoom out": "点击放大。\n保持班次并单击缩小。"
+        "Click to zoom in\nPress shift and click to zoom out": "点击放大。\n保持班次并单击缩小。",
+        "A free and opensource online collaborative drawing tool. Sketch new ideas together on WBO !": "打开即用的免费在线白板工具"
     }
 }

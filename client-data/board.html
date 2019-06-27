@@ -3,17 +3,23 @@
 
 <head>
 	<meta charset="utf-8" />
-	<title>{{board}} | WBO | Collaborative whiteboard</title>
+	<title>{{board}} | WBO | {{translate translations 'Collaborative whiteboard'}}</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" type="text/css" href="board.css" />
 	<script type="text/javascript" src="/socket.io/socket.io.js"></script>
-	<meta name="description" content="An free online whiteboard for realtime collaboration. Draw, write text and sketch new ideas together."/>
-	<meta name="keywords" content="whiteboard,collaborative,online,draw,paint,shared,realtime,wbo,whitebophir"/>
+	<meta name="description" content="{{translate translations 'A free and opensource online collaborative drawing tool. Sketch new ideas together on WBO !'}}'"/>
+	<meta name="keywords" content="{{translate translations 'Collaborative whiteboard'}},online,draw,paint,shared,realtime,wbo,whitebophir"/>
 	<link rel="apple-touch-icon" href="/favicon.svg">
 	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0"/>
 	<meta property="og:title" content="{{board}} board on WBO" />
 	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
 	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
+	<link rel="canonical" href="{{baseUrl}}/boards/{{boardUriComponent}}?lang={{language}}" />
+	{{#languages}}
+	<link rel="alternate"
+		hreflang="{{.}}"
+		href="{{../baseUrl}}/boards/{{../boardUriComponent}}?lang={{.}}" />
+	{{/languages}}
 </head>
 
 <body>
@@ -31,7 +37,7 @@
 <div id="menu">
 	<div id="menuItems">
 		<ul id="tools" class="tools">
-			<li class="tool"><span class="tool-icon"></span><span class="tool-name" data-translation="waiting">Tool template</span></li>
+			<li class="tool"><span class="tool-icon"></span><span class="tool-name"></span></li>
 		</ul>
 
 		<ul class="tools" id="settings">

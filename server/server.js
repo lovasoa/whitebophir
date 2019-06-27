@@ -102,12 +102,17 @@ function handleRequest(request, response) {
 		} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
 			// If there is no dot and no directory, parts[1] is the board name
 			logRequest(request);
-			var lang = (request.headers['accept-language'] || '').slice(0, 2);
+			var lang = (
+				parsedUrl.query.lang ||
+				request.headers['accept-language'] ||
+				''
+			).slice(0, 2);
 			var board = decodeURIComponent(parts[1]);
 			var body = BOARD_HTML_TEMPLATE({
 				board: board,
 				boardUriComponent: parts[1],
 				baseUrl: baseUrl(request),
+				languages: Object.keys(TRANSLATIONS).concat("en"),
 				language: lang in TRANSLATIONS ? lang : "en",
 				translations: TRANSLATIONS[lang] || {}
 			});
