@@ -3,7 +3,7 @@
       "collaborative",
       "whiteboard"
    ],
-   "version": "1.0.22",
+   "version": "1.0.23",
    "license": "AGPL-3.0-or-later",
    "dependencies": {
       "handlebars": "^4.1.2",
@@ -23,6 +23,6 @@
       "url": "http://github.com/lovasoa/whitebophir.git"
    },
    "devDependencies": {
-      "openode": ">=2.0.3"
+      "openode": ">=2.0.9"
    }
 }
