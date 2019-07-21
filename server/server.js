@@ -135,7 +135,7 @@ function handleRequest(request, response) {
 				"Content-Type": "application/json",
 				"Content-Disposition": 'attachment; filename="' + boardName + '.wbo"'
 			};
-		if (parts.length > 2 && !isNaN( Date.parse( parts[2] ) ) ) {
+		if (parts.length > 2 && !isNaN(Date.parse(parts[2]))) {
 			history_file += '.' + parts[2] + '.bak';
 		}
 		log("Downloading " + history_file);
