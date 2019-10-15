@@ -3,7 +3,7 @@
       "collaborative",
       "whiteboard"
    ],
-   "version": "1.0.22",
+   "version": "1.0.23",
    "license": "AGPL-3.0-or-later",
    "dependencies": {
       "handlebars": "^4.4.3",
