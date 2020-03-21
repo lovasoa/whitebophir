@@ -24,7 +24,6 @@ A demonstration server is available at https://wbo.openode.io.
 ## Running your own instance of WBO
 
 If you have your own web server, and want to run a private instance of WBO on it, you can.
-It should be really simple, using [docker compose](https://docs.docker.com/compose/).
 
 #### Clone the repository
 
@@ -34,6 +33,9 @@ cd whitebophir
 ```
 
 ### Running the code in a container (safer)
+[![docker image status](https://img.shields.io/docker/image-size/lovasoa/wbo)](https://hub.docker.com/repository/docker/lovasoa/wbo)
+
+You can run the [official docker image hosted on dockerhub](https://hub.docker.com/repository/docker/lovasoa/wbo) or build your own very easily using [docker compose](https://docs.docker.com/compose/).
 
 #### Choose where to persist the data
 
