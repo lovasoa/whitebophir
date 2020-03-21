@@ -19,3 +19,55 @@ A demonstration server is available at https://wbo.openode.io.
 
 ### Used for drawing art
 <img width="1522" alt="WBO angel" src="https://user-images.githubusercontent.com/552629/59914139-08404100-941a-11e9-9c29-bd2569fe4730.png">
+
+
+## Running your own instance of WBO
+
+If you have your own web server, and want to run a private instance of WBO on it, you can.
+It should be really simple, using [docker compose](https://docs.docker.com/compose/).
+
+#### Clone the repository
+
+```
+git clone git@github.com:lovasoa/whitebophir.git
+cd whitebophir
+```
+
+### Running the code in a container (safer)
+
+#### Choose where to persist the data
+
+At the moment, WBO has a very simple persistance model: it saves each whiteboard as a separate json file in a directory.
+
+You can edit `docker-compose.yml` to choose where you want to persist the data :
+
+```yml
+    volumes:
+      - ./server-data:/opt/app/server-data
+```
+
+Here, I chose to persist the data in `./server-data` (inside the directory where I cloned the repo).
+
+#### Start the service
+
+```
+sudo docker-compose up
+```
+
+This will start wbo on port 80. (You can change the port number in `docker-compose.yaml` if you want).
+
+
+### Running the code without a container
+
+Alternatively, you can run the code with [node](https://nodejs.org/) directly, without docker : 
+
+```
+npm install
+npm start
+```
+
+If you do that, the code is running directly on your machine, without any isolation from the other services. Make sure you do not run another sensitive service on the same host.
+
+## Troubleshooting
+
+If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
