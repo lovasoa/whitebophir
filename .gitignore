@@ -15,5 +15,7 @@ results
 
 npm-debug.log
 
+.DS_Store
+
 # Openode
 .openode
