@@ -1,3 +1,5 @@
+> Hi. This is a fork of the original project. It adds couple of small features (2 new tools and minio support). They are described briefly at the bottom of this README.
+
 # WBO
 
 WBO is an online collaborative whiteboard that allows many users to draw simultaneously on a large virtual board.
@@ -73,3 +75,12 @@ If you do that, the code is running directly on your machine, without any isolat
 ## Troubleshooting
 
 If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
+
+
+### Additional Features
+#### Two new tools:
+- Background (Shortcut: `b`): Allows you to upload an image for the background of the canvas. 
+- Pointer (Shortcut: `f`): Allows users to point at things for others to see.
+
+#### Minio suport:
+- Instead of writing to the filesystem, the server now saves boards to a minio instance. The configuration is inside  [server/minio.js](server/minio.js).
