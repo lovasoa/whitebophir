@@ -1,0 +1,16 @@
+.pointer {
+    position: absolute;
+    font-size: 2.5rem;
+    visibility: hidden;
+    transform: translate(-50%, -50%);
+    cursor: none;
+    border-radius: 40%;
+}
+
+.pointer.visible {
+    visibility: visible;
+}
+
+.pointer.highlight {
+    background-color: cornflowerblue;
+}

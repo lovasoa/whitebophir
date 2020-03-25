@@ -25,16 +25,9 @@
  * @module boardData
  */
 
-var fs = require('fs')
+var { minioClient, bucketName } = require("./minio")
 	, log = require("./log.js").log
 	, path = require("path");
-
-/** @constant
-    @type {string}
-    @default
-    Path to the file where boards will be saved by default
-*/
-var HISTORY_DIR = path.join(__dirname, "../server-data/");
 
 /** @constant
     @type {Number}
@@ -54,7 +47,7 @@ var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
 var BoardData = function (name) {
 	this.name = name;
 	this.board = {};
-	this.file = path.join(HISTORY_DIR, "board-" + encodeURIComponent(name) + ".json");
+	this.file = "board-" + encodeURIComponent(name) + ".json";
 	this.lastSaveDate = Date.now();
 	this.users = new Set();
 };
@@ -179,10 +172,8 @@ BoardData.prototype.save = function (file) {
 			});
 		}
 	}
-	fs.writeFile(tmp_file, board_txt, function onBoardSaved(err) {
-		if (err) afterSave(err);
-		else fs.rename(tmp_file, file, afterSave);
-	});
+
+	minioClient.putObject(bucketName, file, board_txt, afterSave);
 };
 
 /** Remove old elements from the board */
@@ -234,26 +225,43 @@ BoardData.prototype.validate = function validate(item, parent) {
 BoardData.load = function loadBoard(name) {
 	var boardData = new BoardData(name);
 	return new Promise((accept) => {
-		fs.readFile(boardData.file, function (err, data) {
-			try {
-				if (err) throw err;
-				boardData.board = JSON.parse(data);
-				for (id in boardData.board) boardData.validate(boardData.board[id]);
-				log('disk load', { 'board': boardData.name });
-			} catch (e) {
-				console.error("Unable to read history from " + boardData.file + ". The following error occured: " + e);
+		minioClient.getObject(bucketName, boardData.file, (err, dataStream) => {
+			const buffer = [];
+
+			function catchCallback(err, hack) {
+				console.error("Unable to read history from " + boardData.file + ". The following error occurred: " + err);
 				log('empty board creation', { 'board': boardData.name });
-				boardData.board = {}
+				boardData.board = {};
+				const data = Buffer.concat(buffer).toString("utf-8");
 				if (data) {
 					// There was an error loading the board, but some data was still read
 					var backup = backupFileName(boardData.file);
 					log("Writing the corrupted file to " + backup);
-					fs.writeFile(backup, data, function (err) {
+					minioClient.putObject(bucketName, backup, data, err => {
 						if (err) log("Error writing " + backup + ": " + err);
 					});
 				}
+				if (hack) {
+					accept(boardData);
+				}
 			}
-			accept(boardData);
+
+			if (err) {
+				catchCallback(err, true);
+				return;
+			}
+
+			dataStream.on("data", buffer.push);
+			dataStream.on("end", () => {
+				try {
+					boardData.board = Buffer.concat(buffer).toJSON(); // TODO: Might have to do string -> json first
+					for (id in boardData.board) boardData.validate(boardData.board[id]);
+					log('disk load', { 'board': boardData.name });
+				} catch (err) {
+					catchCallback(err, false);
+				}
+				accept(boardData);
+			});
 		});
 	});
 };
