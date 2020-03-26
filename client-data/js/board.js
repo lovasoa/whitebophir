@@ -153,6 +153,7 @@ Tools.change = function (toolName) {
 
 	//Call the start callback of the new tool 
 	newtool.onstart(Tools.curTool);
+	Tools.prevToolName = curToolName;
 	Tools.curTool = newtool;
 };
 

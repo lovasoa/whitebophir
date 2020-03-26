@@ -1,4 +1,4 @@
-var fs = require("fs"),
+var { minioClient, bucketName } = require("./minio"),
 	path = require("path");
 
 function htmlspecialchars(str) {
@@ -92,16 +92,27 @@ function toSVG(obj) {
 
 function renderBoard(file, callback) {
 	var t = Date.now();
-	fs.readFile(file, function (err, data) {
-		if (err) return callback(err);
-		try {
-			var board = JSON.parse(data);
-			console.warn("JSON parsed in " + (Date.now() - t) + "ms.");
-			var svg = toSVG(board);
-			console.warn("Board rendered in " + (Date.now() - t) + "ms.");
-			callback(null, svg);
+
+	minioClient.getObject(bucketName, file,  (err, dataStream) => {
+		if (err) {
+			return callback(err);
 		}
-		catch (err) { return callback(err) }
+
+		const buffer = [];
+
+		dataStream.on("data", buffer.push);
+		dataStream.on("error", callback);
+		dataStream.on("end", () => {
+			try {
+				const board = Buffer.concat(buffer).toJSON(); // TODO: Might have to do string -> json first
+				console.warn("JSON parsed in " + (Date.now() - t) + "ms.");
+				const svg = toSVG(board);
+				console.warn("Board rendered in " + (Date.now() - t) + "ms.");
+				callback(null, svg);
+			} catch (err) {
+				callback(err);
+			}
+		});
 	});
 }
 

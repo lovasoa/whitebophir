@@ -7,6 +7,7 @@
    "license": "AGPL-3.0-or-later",
    "dependencies": {
       "handlebars": "^4.7.3",
+      "minio": "^7.0.15",
       "node-static": "^0.7.11",
       "socket.io": "^2.3.0"
    },
@@ -23,6 +24,9 @@
       "url": "http://github.com/lovasoa/whitebophir.git"
    },
    "devDependencies": {
+      "@types/minio": "^7.0.5",
+      "@types/node-static": "^0.7.3",
+      "@types/socket.io": "^2.1.4",
       "openode": "^2.0.15"
    }
 }
