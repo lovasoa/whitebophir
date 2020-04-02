@@ -26,6 +26,15 @@
 
 var Tools = {};
 
+Tools.i18n = (function i18n() {
+	var translations = JSON.parse(document.getElementById("translations").text);
+	return {
+		"t": function translate(s) {
+			return translations[s] || s;
+		}
+	};
+})();
+
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 Tools.socket = io.connect('', {
@@ -420,22 +429,31 @@ window.addEventListener("keydown", function (e) {
 	}
 });
 
-Tools.setColorPreset = function (digit){
-	var clrs = [
-		"#AAAAAA",
-		"#001f3f",
-		"#FF4136",
-		"#0074D9",
-		"#3D9970",
-	    "#B10DC9",
-		"#FF851B",
-		"#FFDC00",
-		"#91E99B",
-		"#7FDBFF",
-		"#01FF70",
-		]
-	Tools.color_chooser.value = clrs[Math.max(0, Math.min(clrs.length - 1, digit | 0))];
-};
+
+Tools.setColorPreset = (function () {
+	var clrs = ["#AAAAAA", "#001f3f", "#FF4136", "#0074D9", "#3D9970",
+	    "#B10DC9", "#FF851B", "#FFDC00", "#91E99B", "#7FDBFF", "#01FF70"];
+
+	colorSel = document.querySelector("#colorPresetSel");
+	[1,2,3,4,5,6,7,8,9,0].forEach(function(digit){
+		color = clrs[digit];
+		var callback = function () {
+			Tools.setColorPreset(digit);
+		};
+
+		var elem = colorSel.cloneNode(false);
+		elem.addEventListener("click", callback);
+		elem.id = "color" + digit;
+		elem.class = "";
+		elem.style.backgroundColor = color;
+		elem.title = Tools.i18n.t("keyboard shortcut") + ": " + digit;
+		colorSel.appendChild(elem);
+	});
+
+	return function setColorPreset (digit) {
+		Tools.color_chooser.value = clrs[Math.max(0, Math.min(clrs.length - 1, digit | 0))];
+	};
+})();
 
 Tools.getColor = (function color() {
 	Tools.setColorPreset(1);
@@ -469,15 +487,6 @@ Tools.getOpacity = (function opacity() {
 	chooser.onchange = chooser.oninput = update;
 	return function () {
 		return Math.max(0.1, Math.min(1, chooser.value));
-	};
-})();
-
-Tools.i18n = (function i18n() {
-	var translations = JSON.parse(document.getElementById("translations").text);
-	return {
-		"t": function translate(s) {
-			return translations[s] || s;
-		}
 	};
 })();
 

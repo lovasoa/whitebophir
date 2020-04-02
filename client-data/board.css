@@ -46,7 +46,7 @@ html, body, svg {
 	cursor:default;
 	padding: 10px;
 	pointer-events: none;
-	width: 300px;
+	width: max-content;
 }
 
 #menu.closed {
@@ -168,6 +168,27 @@ input {
 	width: 100%;
 	margin: 0;
 	padding: 0;
+
+}
+
+.colorPresets {
+	width: 100%;
+	height: 100%;
+	display: inline-block;
+	padding-right: 20px;
+}
+
+.colorPresets > * {
+	width:30px;
+	height:30px;
+	border:1px solid black;
+	border-radius:3px;
+	color:black;
+	background-color: #AAAAAA;
+	display: inline-block;
+	margin-right: 6px;
+	padding: 0;
+	vertical-align: text-bottom;
 }
 
 .rangeChooser {
