@@ -3,7 +3,7 @@
 WBO is an online collaborative whiteboard that allows many users to draw simultaneously on a large virtual board.
 The board is updated in real time for all connected users, and its state is always persisted. It can be used for many different purposes, including art, entertainment, design, teaching.
 
-A demonstration server is available at [wbo.openode.io](https://wbo.openode.io).
+A demonstration server is available at [wbo.openode.io](https://wbo.openode.io)
 
 ## Screenshots
 
@@ -73,3 +73,5 @@ If you do that, the code is running directly on your machine, without any isolat
 ## Troubleshooting
 
 If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
+
+<small>Demonstration server hosted by [openode](https://www.openode.io/)</small>
