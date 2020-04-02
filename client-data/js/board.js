@@ -1,7 +1,7 @@
 /**
  *                        WHITEBOPHIR
  *********************************************************
- * @licstart  The following is the entire license notice for the 
+ * @licstart  The following is the entire license notice for the
  *  JavaScript code in this page.
  *
  * Copyright (C) 2013  Ophir LOJKINE
@@ -151,7 +151,7 @@ Tools.change = function (toolName) {
 		Tools.board.addEventListener(event, listener, { 'passive': false });
 	}
 
-	//Call the start callback of the new tool 
+	//Call the start callback of the new tool
 	newtool.onstart(Tools.curTool);
 	Tools.curTool = newtool;
 };
@@ -412,20 +412,41 @@ Tools.positionElement = function (elem, x, y) {
 	elem.style.left = x + "px";
 };
 
+Tools.color_chooser = document.getElementById("chooseColor");
+
+window.addEventListener("keydown", function (e) {
+	if ('0123456789'.indexOf(e.key) !== -1 && !e.target.matches("input[type=text], textarea")) {
+		Tools.setColorPreset(e.key);
+	}
+});
+
+Tools.setColorPreset = function (digit){
+	var clrs = [
+		"#AAAAAA",
+		"#001f3f",
+		"#FF4136",
+		"#0074D9",
+		"#3D9970",
+	    "#B10DC9",
+		"#FF851B",
+		"#FFDC00",
+		"#91E99B",
+		"#7FDBFF",
+		"#01FF70",
+		]
+	Tools.color_chooser.value = clrs[Math.max(0, Math.min(clrs.length - 1, digit | 0))];
+};
+
 Tools.getColor = (function color() {
-	var chooser = document.getElementById("chooseColor");
-	// Init with a random color
-	var clrs = ["#001f3f", "#0074D9", "#7FDBFF", "#39CCCC", "#3D9970",
-		"#2ECC40", "#01FF70", "#FFDC00", "#FF851B", "#FF4136",
-		"#85144b", "#F012BE", "#B10DC9", "#111111", "#AAAAAA"];
-	chooser.value = clrs[Math.random() * clrs.length | 0];
-	return function () { return chooser.value; };
+	Tools.setColorPreset(1);
+	return function () { return Tools.color_chooser.value; };
 })();
 
 Tools.getSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
 	var sizeIndicator = document.getElementById("sizeIndicator");
 
+	chooser.value = 7;
 	function update() {
 		chooser.value = Math.max(1, Math.min(50, chooser.value | 0));
 		sizeIndicator.r.baseVal.value = chooser.value;
