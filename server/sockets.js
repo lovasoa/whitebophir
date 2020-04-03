@@ -51,6 +51,10 @@ function socketConnection(socket) {
 		});
 	}
 
+	socket.on("error", noFail(function onError(error) {
+		log("ERROR", error);
+	}));
+
 	socket.on("getboard", noFail(function onGetBoard(name) {
 		joinBoard(name).then(board => {
 			//Send all the board's data as soon as it's loaded
