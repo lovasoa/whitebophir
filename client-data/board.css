@@ -46,7 +46,7 @@ html, body, svg {
 	cursor:default;
 	padding: 10px;
 	pointer-events: none;
-	width: max-content;
+	width: 700px;
 }
 
 #menu.closed {
@@ -104,7 +104,7 @@ html, body, svg {
 	animation-name: minimize;
 	animation-duration: 1.2s;
 	animation-iteration-count: 2;
-	animation-timing-function: cubic-bezier(.08,.82,.17,1);
+	animation-timing-function: cubic-bezier(.4,.2,.2,1);
 	animation-direction: alternate;
 }
 
@@ -168,7 +168,6 @@ input {
 	width: 100%;
 	margin: 0;
 	padding: 0;
-
 }
 
 .colorPresets {
@@ -180,12 +179,10 @@ input {
 }
 
 .colorPresetButton {
-	width:30px;
-	height:30px;
-	border:1px solid black;
-	border-radius:3px;
-	color:black;
-	background-color: #AAAAAA;
+	width: 30px;
+	height: 30px;
+	border: 1px solid black;
+	border-radius: 3px;
 	display: inline-block;
 	margin-right: 6px;
 	padding: 0;

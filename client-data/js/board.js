@@ -52,15 +52,20 @@ Tools.socket.emit("getboard", Tools.boardName);
 
 Tools.HTML = {
 	template: new Minitpl("#tools > .tool"),
+	addShortcut: function addShortcut(key, callback) {
+		window.addEventListener("keydown", function (e) {
+			if (e.key === key && !e.target.matches("input[type=text], textarea")) {
+				callback();
+			}
+		});
+	},
 	addTool: function (toolName, toolIcon, toolShortcut) {
 		var callback = function () {
 			Tools.change(toolName);
 		};
-		window.addEventListener("keydown", function (e) {
-			if (e.key === toolShortcut && !e.target.matches("input[type=text], textarea")) {
-				Tools.change(toolName);
-				document.activeElement.blur();
-			}
+		this.addShortcut(toolShortcut, function () {
+			Tools.change(toolName);
+			document.activeElement.blur();
 		});
 		return this.template.add(function (elem) {
 			elem.addEventListener("click", callback);
@@ -88,24 +93,15 @@ Tools.HTML = {
 		document.head.appendChild(link);
 	},
 	colorPresetTemplate: new Minitpl("#colorPresetSel .colorPresetButton"),
-	addColorButton: function (color, key) {
-		var callback = function () {
-			Tools.setColor(color);
-		};
-
-		if(key !== undefined) {
-			window.addEventListener("keydown", function (e) {
-				if (e.key == key && !e.target.matches("input[type=text], textarea")) {
-					Tools.setColor(color);
-				}
-			});
-		}
+	addColorButton: function (button) {
+		var setColor = Tools.setColor.bind(Tools, button.color);
+		if (button.key) this.addShortcut(button.key, setColor);
 		return this.colorPresetTemplate.add(function (elem) {
-			elem.addEventListener("click", callback);
-			elem.id = "color_" + color.replace(/^#/, '');
-			elem.style.backgroundColor = color;
-			if( key !== undefined) {
-				elem.title = Tools.i18n.t("keyboard shortcut") + ": " + key;
+			elem.addEventListener("click", setColor);
+			elem.id = "color_" + button.color.replace(/^#/, '');
+			elem.style.backgroundColor = button.color;
+			if (button.key !== undefined) {
+				elem.title = Tools.i18n.t("keyboard shortcut") + ": " + button.key;
 			}
 		});
 	}
@@ -443,35 +439,34 @@ Tools.positionElement = function (elem, x, y) {
 	elem.style.left = x + "px";
 };
 
-Tools.colorPresets = new Map([
-	["#001f3f", '1'],
-	["#FF4136", '2'],
-	["#0074D9", '3'],
-	["#3D9970", '4'],
-	["#B10DC9", '5'],
-	["#FF851B", '6'],
-	["#FFDC00", '7'],
-	["#91E99B", '8'],
-	["#7FDBFF", '9'],
-	["#AAAAAA", '0'],
-	["#01FF70", undefined]
-]);
+Tools.colorPresets = [
+	{ color: "#001f3f", key: '1' },
+	{ color: "#FF4136", key: '2' },
+	{ color: "#0074D9", key: '3' },
+	{ color: "#FF851B", key: '4' },
+	{ color: "#FFDC00", key: '5' },
+	{ color: "#3D9970", key: '6' },
+	{ color: "#91E99B", key: '7' },
+	{ color: "#B10DC9", key: '8' },
+	{ color: "#7FDBFF", key: '9' },
+	{ color: "#AAAAAA", key: '0' },
+	{ color: "#01FF70" }
+];
 
-Tools.colorPresets.forEach(function(key, color){
-	Tools.HTML.addColorButton(color, key);
-});
+Tools.color_chooser = document.getElementById("chooseColor");
 
 Tools.setColor = function (color) {
 	Tools.color_chooser.value = color;
 };
 
-Tools.color_chooser = document.getElementById("chooseColor");
-
 Tools.getColor = (function color() {
-	initial_color = Tools.colorPresets.keys().next().value;
+	var color_index = (Math.random() * Tools.colorPresets.length) | 0;
+	var initial_color = Tools.colorPresets[color_index].color;
 	Tools.setColor(initial_color);
 	return function () { return Tools.color_chooser.value; };
 })();
+
+Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
 Tools.getSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
