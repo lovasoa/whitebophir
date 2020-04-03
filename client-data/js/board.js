@@ -86,6 +86,28 @@ Tools.HTML = {
 		link.rel = "stylesheet";
 		link.type = "text/css";
 		document.head.appendChild(link);
+	},
+	colorPresetTemplate: new Minitpl("#colorPresetSel .colorPresetButton"),
+	addColorButton: function (color, key) {
+		var callback = function () {
+			Tools.setColor(color);
+		};
+
+		if(key !== undefined) {
+			window.addEventListener("keydown", function (e) {
+				if (e.key == key && !e.target.matches("input[type=text], textarea")) {
+					Tools.setColor(color);
+				}
+			});
+		}
+		return this.colorPresetTemplate.add(function (elem) {
+			elem.addEventListener("click", callback);
+			elem.id = "color_" + color.replace(/^#/, '');
+			elem.style.backgroundColor = color;
+			if( key !== undefined) {
+				elem.title = Tools.i18n.t("keyboard shortcut") + ": " + key;
+			}
+		});
 	}
 };
 
@@ -421,42 +443,33 @@ Tools.positionElement = function (elem, x, y) {
 	elem.style.left = x + "px";
 };
 
-Tools.color_chooser = document.getElementById("chooseColor");
+Tools.colorPresets = new Map([
+	["#001f3f", '1'],
+	["#FF4136", '2'],
+	["#0074D9", '3'],
+	["#3D9970", '4'],
+	["#B10DC9", '5'],
+	["#FF851B", '6'],
+	["#FFDC00", '7'],
+	["#91E99B", '8'],
+	["#7FDBFF", '9'],
+	["#AAAAAA", '0'],
+	["#01FF70", undefined]
+]);
 
-window.addEventListener("keydown", function (e) {
-	if ('0123456789'.indexOf(e.key) !== -1 && !e.target.matches("input[type=text], textarea")) {
-		Tools.setColorPreset(e.key);
-	}
+Tools.colorPresets.forEach(function(key, color){
+	Tools.HTML.addColorButton(color, key);
 });
 
+Tools.setColor = function (color) {
+	Tools.color_chooser.value = color;
+};
 
-Tools.setColorPreset = (function () {
-	var clrs = ["#AAAAAA", "#001f3f", "#FF4136", "#0074D9", "#3D9970",
-	    "#B10DC9", "#FF851B", "#FFDC00", "#91E99B", "#7FDBFF", "#01FF70"];
-
-	colorSel = document.querySelector("#colorPresetSel");
-	[1,2,3,4,5,6,7,8,9,0].forEach(function(digit){
-		color = clrs[digit];
-		var callback = function () {
-			Tools.setColorPreset(digit);
-		};
-
-		var elem = colorSel.cloneNode(false);
-		elem.addEventListener("click", callback);
-		elem.id = "color" + digit;
-		elem.class = "";
-		elem.style.backgroundColor = color;
-		elem.title = Tools.i18n.t("keyboard shortcut") + ": " + digit;
-		colorSel.appendChild(elem);
-	});
-
-	return function setColorPreset (digit) {
-		Tools.color_chooser.value = clrs[Math.max(0, Math.min(clrs.length - 1, digit | 0))];
-	};
-})();
+Tools.color_chooser = document.getElementById("chooseColor");
 
 Tools.getColor = (function color() {
-	Tools.setColorPreset(1);
+	initial_color = Tools.colorPresets.keys().next().value;
+	Tools.setColor(initial_color);
 	return function () { return Tools.color_chooser.value; };
 })();
 

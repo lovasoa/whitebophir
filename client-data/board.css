@@ -178,7 +178,7 @@ input {
 	padding-right: 20px;
 }
 
-.colorPresets > * {
+.colorPresetButton {
 	width:30px;
 	height:30px;
 	border:1px solid black;
