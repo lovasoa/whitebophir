@@ -472,7 +472,6 @@ Tools.getSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
 	var sizeIndicator = document.getElementById("sizeIndicator");
 
-	chooser.value = 7;
 	function update() {
 		chooser.value = Math.max(1, Math.min(50, chooser.value | 0));
 		sizeIndicator.r.baseVal.value = chooser.value;
