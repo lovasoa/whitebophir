@@ -100,7 +100,7 @@ Tools.HTML = {
 			elem.addEventListener("click", setColor);
 			elem.id = "color_" + button.color.replace(/^#/, '');
 			elem.style.backgroundColor = button.color;
-			if (button.key !== undefined) {
+			if (button.key) {
 				elem.title = Tools.i18n.t("keyboard shortcut") + ": " + button.key;
 			}
 		});
