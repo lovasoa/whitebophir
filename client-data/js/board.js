@@ -44,7 +44,7 @@ Tools.socket = io.connect('', {
 Tools.curTool = null;
 Tools.boardName = (function () {
 	var path = window.location.pathname.split("/");
-	return path[path.length - 1];
+	return decodeURIComponent(path[path.length - 1]);
 })();
 
 //Get the board as soon as the page is loaded
