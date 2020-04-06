@@ -259,7 +259,8 @@ BoardData.load = function loadBoard(name) {
 };
 
 function backupFileName(baseName) {
-	return baseName + '.' + new Date().toISOString() + '.bak';
+	var date = new Date().toISOString().replace(/:/g, '');
+	return baseName + '.' + date + '.bak';
 }
 
 module.exports.BoardData = BoardData;
