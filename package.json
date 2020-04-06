@@ -23,6 +23,6 @@
       "url": "http://github.com/lovasoa/whitebophir.git"
    },
    "devDependencies": {
-      "openode": "^2.0.15"
+      "openode": "^2.0.17"
    }
 }
