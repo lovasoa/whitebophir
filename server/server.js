@@ -118,7 +118,9 @@ function handleRequest(request, response) {
 			});
 			var headers = {
 				'Content-Length': Buffer.byteLength(body),
-				'Content-Type': 'text/html'
+				'Content-Type': 'text/html',
+				'Vary': 'Accept-Language',
+				'Cache-Control': 'public, max-age=3600',
 			};
 			response.writeHead(200, headers);
 			response.end(body);
