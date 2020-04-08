@@ -132,6 +132,9 @@ function saveHistory(boardName, message) {
 			case "child":
 				board.addChild(message.parent, message);
 				break;
+			case "modify":
+				if (id)  board.modify(id, message);
+				break;
 			default: //Add data
 				if (!id) throw new Error("Invalid message: ", message);
 				board.set(id, message);
