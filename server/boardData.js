@@ -102,6 +102,31 @@ BoardData.prototype.update = function (id, data, create) {
 	this.delaySave();
 };
 
+BoardData.prototype.modify = function (id, data) {
+	// get object to modify
+	var obj = this.board[id];
+	switch (obj.type) {
+		case "line":
+			// path
+			break;
+		case "rect":
+		case "straight":
+			obj.x += data.x;
+			obj.y += data.y;
+			obj.x2 += data.x;
+			obj.y2 += data.y;
+			break;
+		case "new":
+			// oddly this seems to be text
+			obj.x += data.x;
+			obj.y += data.y;
+			break;
+		default:
+			break;
+	}
+	this.delaySave();
+};
+
 /** Removes data from the board
  * @param {string} id - Identifier of the data to delete.
  */
