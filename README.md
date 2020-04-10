@@ -23,52 +23,46 @@ A demonstration server is available at [wbo.ophir.dev](https://wbo.ophir.dev)
 
 ## Running your own instance of WBO
 
-If you have your own web server, and want to run a private instance of WBO on it, you can.
+If you have your own web server, and want to run a private instance of WBO on it, you can. It should be very easy to get it running on your own server.
 
-#### Clone the repository
+### Running the code in a container (safer)
 
+If you use the [docker](https://www.docker.com/) containerization service, you can easily run WBO as a container. 
+An official docker image for WBO is hosted on dockerhub as [`lovasoa/wbo`](https://hub.docker.com/repository/docker/lovasoa/wbo).
+
+You can run it with the following command :
+
+```
+docker run -it --publish 5001:80 --volume $(pwd)/wbo-boards:/opt/app/server-data lovasoa/wbo:latest
+```
+
+This will run WBO :
+ - on port 5001
+ - persisting the user data in `$(pwd)/wbo-boards`
+
+You can then access WBO at `http://localhost:5001`.
+
+### Running the code without a container
+
+Alternatively, you can run the code with [node.js](https://nodejs.org/) directly, without docker.
+
+First, download the sources:
 ```
 git clone git@github.com:lovasoa/whitebophir.git
 cd whitebophir
 ```
 
-### Running the code in a container (safer)
-[![docker image status](https://img.shields.io/docker/image-size/lovasoa/wbo)](https://hub.docker.com/repository/docker/lovasoa/wbo)
-
-You can run the [official docker image hosted on dockerhub](https://hub.docker.com/repository/docker/lovasoa/wbo) or build your own very easily using [docker compose](https://docs.docker.com/compose/).
-
-#### Choose where to persist the data
-
-At the moment, WBO has a very simple persistance model: it saves each whiteboard as a separate json file in a directory.
-
-You can edit `docker-compose.yml` to choose where you want to persist the data :
-
-```yml
-    volumes:
-      - ./server-data:/opt/app/server-data
-```
-
-Here, I chose to persist the data in `./server-data` (inside the directory where I cloned the repo).
-
-#### Start the service
-
-```
-sudo docker-compose up
-```
-
-This will start wbo on port 80. (You can change the port number in `docker-compose.yaml` if you want).
-
-
-### Running the code without a container
-
-Alternatively, you can run the code with [node](https://nodejs.org/) directly, without docker : 
-
+Then [install node.js](https://nodejs.org/en/download/) if you don't have it already, then install WBO's dependencies:
 ```
 npm install
-npm start
 ```
 
-If you do that, the code is running directly on your machine, without any isolation from the other services. Make sure you do not run another sensitive service on the same host.
+Finally, you can start the server:
+```
+PORT=5001 npm start
+```
+
+This will run WBO directly on your machine, on port 5001, without any isolation from the other services.
 
 ## Troubleshooting
 
