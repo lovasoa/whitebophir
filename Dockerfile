@@ -9,4 +9,4 @@ EXPOSE 80
 
 VOLUME /opt/app/server-data
 
-CMD ["/usr/local/bin/node", "/opt/app/server/server.js"]
+CMD ["npm", "start"]
