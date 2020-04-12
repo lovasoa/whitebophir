@@ -1,7 +1,0 @@
-language: node_js
-node_js: ["10"]
-before_script: npx openode ci-conf $OPENODE_TOKEN $OPENODE_SITENAME
-script: npm run deploy
-branches:
-  only:
-  - master
