@@ -159,30 +159,39 @@ BoardData.prototype.delaySave = function (file) {
 /** Saves the data in the board to a file.
  * @param {string} [file=this.file] - Path to the file where the board data will be saved.
 */
-BoardData.prototype.save = function (file) {
+BoardData.prototype.save = async function (file) {
 	this.lastSaveDate = Date.now();
 	this.clean();
 	if (!file) file = this.file;
 	var tmp_file = backupFileName(file);
 	var board_txt = JSON.stringify(this.board);
-	var that = this;
-	function afterSave(err) {
-		if (err) {
+	if (board_txt === "{}") { // empty board
+		try {
+			await fs.promises.unlink(file);
+			log("removed empty board", { 'name': this.name });
+		} catch (err) {
+			if (err.code !== "ENOENT") {
+				// If the file already wasn't saved, this is not an error
+				log("board deletion error", { "e": err })
+			}
+		}
+	} else {
+		try {
+			await fs.promises.writeFile(tmp_file, board_txt);
+			await fs.promises.rename(tmp_file, file);
+			log("saved board", {
+				'name': this.name,
+				'size': board_txt.length,
+				'delay_ms': (Date.now() - this.lastSaveDate),
+			});
+		} catch (err) {
 			log("board saving error", {
-				'err': err,
+				'err': err.toString(),
 				'tmp_file': tmp_file,
 			});
-		} else {
-			log("saved board", {
-				'name': that.name,
-				'delay_ms': (Date.now() - that.lastSaveDate)
-			});
+			return;
 		}
 	}
-	fs.writeFile(tmp_file, board_txt, function onBoardSaved(err) {
-		if (err) afterSave(err);
-		else fs.rename(tmp_file, file, afterSave);
-	});
 };
 
 /** Remove old elements from the board */
@@ -231,31 +240,32 @@ BoardData.prototype.validate = function validate(item, parent) {
 /** Load the data in the board from a file.
  * @param {string} file - Path to the file where the board data will be read.
 */
-BoardData.load = function loadBoard(name) {
-	var boardData = new BoardData(name);
-	return new Promise((accept) => {
-		fs.readFile(boardData.file, function (err, data) {
-			try {
-				if (err) throw err;
-				boardData.board = JSON.parse(data);
-				for (id in boardData.board) boardData.validate(boardData.board[id]);
-				log('disk load', { 'board': boardData.name });
-			} catch (e) {
-				console.error("Unable to read history from " + boardData.file + ". The following error occured: " + e);
-				log('empty board creation', { 'board': boardData.name });
-				boardData.board = {}
-				if (data) {
-					// There was an error loading the board, but some data was still read
-					var backup = backupFileName(boardData.file);
-					log("Writing the corrupted file to " + backup);
-					fs.writeFile(backup, data, function (err) {
-						if (err) log("Error writing " + backup + ": " + err);
-					});
-				}
-			}
-			accept(boardData);
+BoardData.load = async function loadBoard(name) {
+	var boardData = new BoardData(name), data;
+	try {
+		data = await fs.promises.readFile(boardData.file);
+		boardData.board = JSON.parse(data);
+		for (id in boardData.board) boardData.validate(boardData.board[id]);
+		log('disk load', { 'board': boardData.name });
+	} catch (e) {
+		log('empty board creation', {
+			'board': boardData.name,
+			// If the file doesn't exist, this is not an error
+			"error": e.code !== "ENOENT" && e.toString(),
 		});
-	});
+		boardData.board = {}
+		if (data) {
+			// There was an error loading the board, but some data was still read
+			var backup = backupFileName(boardData.file);
+			log("Writing the corrupted file to " + backup);
+			try {
+				await fs.promises.writeFile(backup, data);
+			} catch (err) {
+				log("Error writing " + backup + ": " + err);
+			}
+		}
+	}
+	return boardData;
 };
 
 function backupFileName(baseName) {
