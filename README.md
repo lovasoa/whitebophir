@@ -52,7 +52,9 @@ git clone git@github.com:lovasoa/whitebophir.git
 cd whitebophir
 ```
 
-Then [install node.js](https://nodejs.org/en/download/) if you don't have it already, then install WBO's dependencies:
+Then [install node.js](https://nodejs.org/en/download/) (v10.0 or superior)
+if you don't have it already, then install WBO's dependencies:
+
 ```
 npm install
 ```

@@ -10,6 +10,14 @@ var app = require('http').createServer(handler)
 	, handlebars = require("handlebars");
 
 
+var MIN_NODE_VERSION = 10.0;
+
+if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {
+	console.warn(
+		"!!! You are using node " + process.version +
+		", wbo requires at least " + MIN_NODE_VERSION + " !!!");
+}
+
 var io = sockets.start(app);
 
 /**
