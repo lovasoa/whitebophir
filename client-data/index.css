@@ -1,7 +1,9 @@
 body {
-	background-color:#eee;
+	background: linear-gradient(135deg, #c4dfffa0, transparent), url(/background.png);
 	width:100%;
 	margin:0;
+	font-family: sans;
+	font-weight: 300;
 }
 
 header {
@@ -13,7 +15,12 @@ header {
 }
 
 h1, h2 {
-	display:inline-block;
+	text-align: center;
+	font-weight: 300;
+}
+
+h3 {
+	font-weight: 400;
 }
 
 main {
@@ -81,13 +88,17 @@ a{
   background: linear-gradient(#96E1FF, #36A2FF);
 }
 
-input{
+input {
 	line-height: 20px;
 	border-radius: 5px;
 	border: 1px solid #ddd;
 	padding: 6px;
 	font-size: 1.1em;
 	margin: 9px 0;
+}
+
+#board {
+	width: 75%;
 }
 
 footer{
