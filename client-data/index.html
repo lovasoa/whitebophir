@@ -44,20 +44,31 @@
 
 		<div>
 			<p>
-				The <strong>anonymous board</strong> is accessible to everyone.
-				It is a happily disorganized mess where you can meet with strangers and draw together.
+				The <strong>public board</strong> is accessible to everyone.
+				It is a happily disorganized mess where you can meet with anonymous strangers and draw together.
 				Everything there is ephemeral.
-				<a href="/boards/anonymous" class="wbo-button">Go to the anonymous board</a>
 			</p>
+			<a href="/boards/anonymous" class="wbo-button">Go to the public board</a>
 		</div>
 
 		<div>
-			<p>You can also create a private board, that will be accessible only to those who know its name:</p>
+			<p>You can create a <strong>private board</strong> with a random name, that will be accessible only by its
+				link.
+				Use this if you want to share private information.
+			</p>
+			<a href="/random" class="wbo-button">Create a private board</a>
+		</div>
+
+		<div>
+			<p>
+				You can also create a <strong>named private board</strong>,
+				with a custom URL,
+				that will be accessible to all those who know its name.
+			</p>
 			<form action="boards" method="GET">
 				<input type="text" id="board" name="board" placeholder="Name of the board..." />
 				<input type="submit" value="Go">
 			</form>
-			<small><a href="/random">Create a private board with a random name</a></small>
 		</div>
 	</main>
 
