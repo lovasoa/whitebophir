@@ -7,7 +7,7 @@ var app = require('http').createServer(handler)
 	, crypto = require("crypto")
 	, serveStatic = require("serve-static")
 	, createSVG = require("./createSVG.js")
-	, handlebars = require("handlebars");
+	, templating = require("./templating.js");
 
 
 var MIN_NODE_VERSION = 10.0;
@@ -33,13 +33,6 @@ var WEBROOT = path.join(__dirname, "../client-data");
  * @type {number}
  */
 var PORT = parseInt(process.env['PORT']) || 8080;
-
-/**
- * Associations from language to translation dictionnaries
- * @const
- * @type {object}
- */
-var TRANSLATIONS = JSON.parse(fs.readFileSync(path.join(__dirname, "translations.json")));
 
 app.listen(PORT);
 log("server started", { port: PORT });
@@ -84,21 +77,8 @@ function handler(request, response) {
 	}
 }
 
-function baseUrl(req) {
-	var proto = req.headers['X-Forwarded-Proto'] || (req.connection.encrypted ? 'https' : 'http');
-	var host = req.headers['X-Forwarded-Host'] || req.headers.host;
-	return proto + '://' + host;
-}
-
-var BOARD_HTML_TEMPLATE = handlebars.compile(
-	fs.readFileSync(WEBROOT + '/board.html', { encoding: 'utf8' })
-);
-handlebars.registerHelper({
-	translate: function (translations, str) {
-		return translations[str] || str;
-	},
-	json: JSON.stringify.bind(JSON)
-});
+const boardTemplate = new templating.BoardTemplate(WEBROOT + '/board.html');
+const indexTemplate = new templating.Template(WEBROOT + '/index.html');
 
 function handleRequest(request, response) {
 	var parsedUrl = url.parse(request.url, true);
@@ -114,29 +94,7 @@ function handleRequest(request, response) {
 			response.end();
 		} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
 			// If there is no dot and no directory, parts[1] is the board name
-			logRequest(request);
-			var lang = (
-				parsedUrl.query.lang ||
-				request.headers['accept-language'] ||
-				''
-			).slice(0, 2);
-			var board = decodeURIComponent(parts[1]);
-			var body = BOARD_HTML_TEMPLATE({
-				board: board,
-				boardUriComponent: parts[1],
-				baseUrl: baseUrl(request),
-				languages: Object.keys(TRANSLATIONS).concat("en"),
-				language: lang in TRANSLATIONS ? lang : "en",
-				translations: TRANSLATIONS[lang] || {}
-			});
-			var headers = {
-				'Content-Length': Buffer.byteLength(body),
-				'Content-Type': 'text/html',
-				'Vary': 'Accept-Language',
-				'Cache-Control': 'public, max-age=3600',
-			};
-			response.writeHead(200, headers);
-			response.end(body);
+			boardTemplate.serve(request, response);
 		} else { // Else, it's a resource
 			request.url = "/" + parts.slice(1).join('/');
 			fileserver(request, response, serveError(request, response));
@@ -177,8 +135,11 @@ function handleRequest(request, response) {
 		var name = crypto.randomBytes(32).toString('base64').replace(/[^\w]/g, '-');
 		response.writeHead(307, { 'Location': '/boards/' + name });
 		response.end(name);
+
+	} else if (parts[0] === "") { // Index page
+		logRequest(request);
+		indexTemplate.serve(request, response);
 	} else {
-		if (parts[0] === '') logRequest(request);
 		fileserver(request, response, serveError(request, response));
 	}
 }

@@ -45,7 +45,7 @@ main {
 }
 
 main>div {
-	margin:25px;
+	margin:15px;
 	min-width: 250px;
 	padding:35px;
 	transition:.07s;
@@ -113,4 +113,39 @@ footer{
 	position:fixed;
 	bottom: 0;
 	right: 0;
+}
+
+.lang-selector {
+	top:0;
+	right:20px;
+	position: absolute;
+	width: 50px;
+	background: white;
+	border-radius: 5px;
+	transition-duration: 1s;
+	padding: 10px;
+	padding-left: 30px;
+	max-height: 25px;
+	overflow: hidden;
+	list-style: none;
+	border: 1px solid black;
+}
+
+.lang-selector:hover {
+	max-height: 300px;
+	box-shadow: 2px 2px 10px #666;
+	border: 0;
+}
+
+.lang-selector > li {
+	height: 25px;
+	padding: 5px;
+}
+
+.lang-selector:hover > li {
+	list-style: none;
+}
+
+.lang-selector > li:hover {
+	list-style:disclosure-closed;
 }
