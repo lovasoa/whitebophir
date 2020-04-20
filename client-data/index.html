@@ -21,11 +21,16 @@
 
 	<header>
 		<h1>WBO</h1>
+		<ul class="lang-selector">
+			{{#languages}}
+			<li><a href="?lang={{.}}">{{.}}</a></li>
+			{{/languages}}
+		</ul>
 	</header>
 
 	<main>
 		<div id="description">
-			<h3>Welcome to <strong>WBO</strong>!</h3>
+			<h3>{{translate translations 'Collaborative whiteboard'}}</h3>
 			<p>
 				WBO is a
 				<a href="https://github.com/lovasoa/whitebophir"
