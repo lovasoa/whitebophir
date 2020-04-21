@@ -166,7 +166,7 @@
         "onstart": onstart,
         "onquit": onquit,
         "mouseCursor": "zoom-in",
-        "helpText": "Click to zoom in\nPress shift and click to zoom out",
+        "helpText": "click_to_zoom",
     };
     Tools.add(zoomTool);
 })(); //End of code isolation

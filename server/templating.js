@@ -2,6 +2,7 @@ const handlebars = require("handlebars");
 const fs = require("fs");
 const path = require("path");
 const url = require("url");
+const accept_language_parser = require('accept-language-parser');
 
 /**
  * Associations from language to translation dictionnaries
@@ -9,11 +10,9 @@ const url = require("url");
  * @type {object}
  */
 const TRANSLATIONS = JSON.parse(fs.readFileSync(path.join(__dirname, "translations.json")));
+const languages = Object.keys(TRANSLATIONS);
 
 handlebars.registerHelper({
-    translate: function (translations, str) {
-        return translations[str] || str;
-    },
     json: JSON.stringify.bind(JSON)
 });
 
@@ -29,13 +28,8 @@ class Template {
         this.template = handlebars.compile(contents);
     }
     parameters(parsedUrl, request) {
-        const user_lang = (
-            parsedUrl.query.lang ||
-            request.headers['accept-language'] ||
-            ''
-        ).slice(0, 2);
-        const language = TRANSLATIONS.hasOwnProperty(user_lang) ? user_lang : "en";
-        const languages = Object.keys(TRANSLATIONS).concat("en");
+        const accept_languages = parsedUrl.query.lang || request.headers['accept-language'];
+        const language = accept_language_parser.pick(languages, accept_languages) || 'en';
         const translations = TRANSLATIONS[language] || {};
         const baseUrl = findBaseUrl(request);
         return { baseUrl, languages, language, translations };

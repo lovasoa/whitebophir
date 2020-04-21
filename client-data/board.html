@@ -3,14 +3,13 @@
 
 <head>
 	<meta charset="utf-8" />
-	<title>{{board}} | WBO | {{translate translations 'Collaborative whiteboard'}}</title>
+	<title>{{board}} | WBO | {{translations.collaborative_whiteboard}}</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" type="text/css" href="board.css" />
 	<script src="/socket.io/socket.io.js"></script>
-	<meta name="description"
-		content="{{translate translations 'A free and opensource online collaborative drawing tool. Sketch new ideas together on WBO !'}}'" />
+	<meta name="description" content="{{translations.tagline}}'" />
 	<meta name="keywords"
-		content="{{translate translations 'Collaborative whiteboard'}},online,draw,paint,shared,realtime,wbo,whitebophir" />
+		content="{{translations.collaborative_whiteboard}},online,draw,paint,shared,realtime,wbo,whitebophir" />
 	<link rel="apple-touch-icon" href="/favicon.svg">
 	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0" />
 	<meta property="og:title" content="{{board}} board on WBO" />
@@ -30,7 +29,7 @@
 		</svg>
 	</div>
 
-	<div id="loadingMessage">{{translate translations 'Loading'}}</div>
+	<div id="loadingMessage">{{translations.loading}}</div>
 
 	<div id="menu">
 		<div id="menuItems">
@@ -43,7 +42,7 @@
 					<span class="tool-icon">
 						<input type="color" id="chooseColor" value="#1913B0" />
 					</span>
-					<label class="tool-name" for="chooseColor">{{translate translations 'Color'}}</label>
+					<label class="tool-name" for="chooseColor">{{translations.color}}</label>
 					<span class="colorPresets" id="colorPresetSel">
 						<span class="colorPresetButton"></span>
 					</span>
@@ -54,7 +53,7 @@
 							<circle id="sizeIndicator" cx=0 cy=0 r=10 /></svg>
 					</span>
 					<label class="tool-name slider" for="chooseSize">
-						<span>{{translate translations 'Size'}}</span>
+						<span>{{translations.size}}</span>
 						<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />
 					</label>
 				</li>
@@ -71,7 +70,7 @@
 						</svg>
 					</span>
 					<label class="tool-name slider" for="chooseOpacity">
-						<span>{{translate translations 'Opacity'}}</span>
+						<span>{{translations.opacity}}</span>
 						<input type="range" id="chooseOpacity" value="1" min="0.2" max="1" step="0.1"
 							class="rangeChooser" />
 					</label>

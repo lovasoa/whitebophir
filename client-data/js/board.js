@@ -30,7 +30,8 @@ Tools.i18n = (function i18n() {
 	var translations = JSON.parse(document.getElementById("translations").text);
 	return {
 		"t": function translate(s) {
-			return translations[s] || s;
+			var key = s.toLowerCase().replace(/ /g, '_');
+			return translations[key] || s;
 		}
 	};
 })();
