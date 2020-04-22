@@ -101,7 +101,7 @@ function handleRequest(request, response) {
 		}
 	} else if (parts[0] === "download") {
 		var boardName = encodeURIComponent(parts[1]),
-			history_file = "server-data/board-" + boardName + ".json";
+			history_file = path.join(__dirname, "..", "server-data/board-" + boardName + ".json");
 		if (parts.length > 2 && !isNaN(Date.parse(parts[2]))) {
 			history_file += '.' + parts[2] + '.bak';
 		}
