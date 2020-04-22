@@ -27,25 +27,8 @@
 
 var fs = require('fs')
 	, log = require("./log.js").log
-	, path = require("path");
-
-/** @constant
-    @type {string}
-    @default
-    Path to the file where boards will be saved by default
-*/
-var HISTORY_DIR = path.join(__dirname, "../server-data/");
-
-/** @constant
-    @type {Number}
-    @default
-    Number of seconds of inactivity after which the board should be saved to a file
-*/
-var SAVE_INTERVAL = 1000 * 2; // Save after 2 seconds of inactivity
-var MAX_SAVE_DELAY = 1000 * 60; // Save after 60 seconds even if there is still activity
-var MAX_ITEM_COUNT = 32768; // Max number of items to keep in the board
-var MAX_CHILDREN = 128; // Max number of subitems in an item
-var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
+	, path = require("path")
+	, config = require("./configuration.js");
 
 /**
  * Represents a board.
@@ -54,7 +37,7 @@ var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
 var BoardData = function (name) {
 	this.name = name;
 	this.board = {};
-	this.file = path.join(HISTORY_DIR, "board-" + encodeURIComponent(name) + ".json");
+	this.file = path.join(config.HISTORY_DIR, "board-" + encodeURIComponent(name) + ".json");
 	this.lastSaveDate = Date.now();
 	this.users = new Set();
 };
@@ -152,8 +135,8 @@ BoardData.prototype.addUser = function addUser(userId) {
 */
 BoardData.prototype.delaySave = function (file) {
 	if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
-	this.saveTimeoutId = setTimeout(this.save.bind(this), SAVE_INTERVAL);
-	if (Date.now() - this.lastSaveDate > MAX_SAVE_DELAY) setTimeout(this.save.bind(this), 0);
+	this.saveTimeoutId = setTimeout(this.save.bind(this), config.SAVE_INTERVAL);
+	if (Date.now() - this.lastSaveDate > config.MAX_SAVE_DELAY) setTimeout(this.save.bind(this), 0);
 };
 
 /** Saves the data in the board to a file.
@@ -198,10 +181,10 @@ BoardData.prototype.save = async function (file) {
 BoardData.prototype.clean = function cleanBoard() {
 	var board = this.board;
 	var ids = Object.keys(board);
-	if (ids.length > MAX_ITEM_COUNT) {
+	if (ids.length > config.MAX_ITEM_COUNT) {
 		var toDestroy = ids.sort(function (x, y) {
 			return (board[x].time | 0) - (board[y].time | 0);
-		}).slice(0, -MAX_ITEM_COUNT);
+		}).slice(0, -config.MAX_ITEM_COUNT);
 		for (var i = 0; i < toDestroy.length; i++) delete board[toDestroy[i]];
 		log("cleaned board", { 'removed': toDestroy.length, "board": this.name });
 	}
@@ -218,10 +201,10 @@ BoardData.prototype.validate = function validate(item, parent) {
 	}
 	if (item.hasOwnProperty("x") || item.hasOwnProperty("y")) {
 		item.x = parseFloat(item.x) || 0;
-		item.x = Math.min(Math.max(item.x, 0), MAX_BOARD_SIZE);
+		item.x = Math.min(Math.max(item.x, 0), config.MAX_BOARD_SIZE);
 		item.x = Math.round(10 * item.x) / 10;
 		item.y = parseFloat(item.y) || 0;
-		item.y = Math.min(Math.max(item.y, 0), MAX_BOARD_SIZE);
+		item.y = Math.min(Math.max(item.y, 0), config.MAX_BOARD_SIZE);
 		item.y = Math.round(10 * item.y) / 10;
 	}
 	if (item.hasOwnProperty("opacity")) {
@@ -230,7 +213,7 @@ BoardData.prototype.validate = function validate(item, parent) {
 	}
 	if (item.hasOwnProperty("_children")) {
 		if (!Array.isArray(item._children)) item._children = [];
-		if (item._children.length > MAX_CHILDREN) item._children.length = MAX_CHILDREN;
+		if (item._children.length > config.MAX_CHILDREN) item._children.length = config.MAX_CHILDREN;
 		for (var i = 0; i < item._children.length; i++) {
 			this.validate(item._children[i]);
 		}

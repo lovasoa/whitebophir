@@ -7,7 +7,8 @@ var app = require('http').createServer(handler)
 	, crypto = require("crypto")
 	, serveStatic = require("serve-static")
 	, createSVG = require("./createSVG.js")
-	, templating = require("./templating.js");
+	, templating = require("./templating.js")
+	, config = require("./configuration.js");
 
 
 var MIN_NODE_VERSION = 10.0;
@@ -20,26 +21,12 @@ if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {
 
 var io = sockets.start(app);
 
-/**
- * Folder from which static files will be served
- * @const
- * @type {string}
- */
-var WEBROOT = path.join(__dirname, "../client-data");
-
-/**
- * Port on which the application will listen
- * @const
- * @type {number}
- */
-var PORT = parseInt(process.env['PORT']) || 8080;
-
-app.listen(PORT);
-log("server started", { port: PORT });
+app.listen(config.PORT);
+log("server started", { port: config.PORT });
 
 var CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
 
-var fileserver = serveStatic(WEBROOT, {
+var fileserver = serveStatic(config.WEBROOT, {
 	maxAge: 2 * 3600 * 1000,
 	setHeaders: function (res) {
 		res.setHeader("X-UA-Compatible", "IE=Edge");
@@ -47,7 +34,7 @@ var fileserver = serveStatic(WEBROOT, {
 	}
 });
 
-var errorPage = fs.readFileSync(path.join(WEBROOT, "error.html"));
+var errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
 function serveError(request, response) {
 	return function (err) {
 		log("error", { "error": err, "url": request.url });
@@ -77,8 +64,8 @@ function handler(request, response) {
 	}
 }
 
-const boardTemplate = new templating.BoardTemplate(WEBROOT + '/board.html');
-const indexTemplate = new templating.Template(WEBROOT + '/index.html');
+const boardTemplate = new templating.BoardTemplate(path.join(config.WEBROOT, 'board.html'));
+const indexTemplate = new templating.Template(path.join(config.WEBROOT, 'index.html'));
 
 function handleRequest(request, response) {
 	var parsedUrl = url.parse(request.url, true);
@@ -101,7 +88,7 @@ function handleRequest(request, response) {
 		}
 	} else if (parts[0] === "download") {
 		var boardName = encodeURIComponent(parts[1]),
-			history_file = "server-data/board-" + boardName + ".json";
+			history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
 		if (parts.length > 2 && !isNaN(Date.parse(parts[2]))) {
 			history_file += '.' + parts[2] + '.bak';
 		}
@@ -117,7 +104,7 @@ function handleRequest(request, response) {
 		});
 	} else if (parts[0] === "preview") {
 		var boardName = encodeURIComponent(parts[1]),
-			history_file = path.join(__dirname, "..", "server-data", "board-" + boardName + ".json");
+			history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
 		createSVG.renderBoard(history_file, function (err, svg) {
 			if (err) {
 				log(err);
