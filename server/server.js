@@ -89,7 +89,7 @@ function handleRequest(request, response) {
 	} else if (parts[0] === "download") {
 		var boardName = encodeURIComponent(parts[1]),
 			history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
-		if (parts.length > 2 && !isNaN(Date.parse(parts[2]))) {
+		if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
 			history_file += '.' + parts[2] + '.bak';
 		}
 		log("download", { "file": history_file });
