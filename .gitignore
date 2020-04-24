@@ -20,3 +20,6 @@ npm-debug.log
 # Openode
 .openode
 wbo-backup.zip
+
+# Jetbrains
+.idea/
