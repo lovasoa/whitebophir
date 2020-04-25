@@ -41,19 +41,14 @@
 
 			<ul class="tools" id="settings">
 				<li class="tool">
-					<span class="tool-icon">
-						<input type="color" id="chooseColor" value="#1913B0" />
-					</span>
+					<input class="tool-icon" type="color" id="chooseColor" value="#1913B0" />
 					<label class="tool-name" for="chooseColor">{{translations.color}}</label>
 					<span class="colorPresets" id="colorPresetSel">
 						<span class="colorPresetButton"></span>
 					</span>
 				</li>
 				<li class="tool">
-					<span class="tool-icon">
-						<svg viewBox="-60 -60 120 120">
-							<circle id="sizeIndicator" cx=0 cy=0 r=10 /></svg>
-					</span>
+					<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
 					<label class="tool-name slider" for="chooseSize">
 						<span>{{translations.size}}</span>
 						<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />

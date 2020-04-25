@@ -122,7 +122,6 @@
 
 	Tools.add({ //The new tool
 		"name": "Straight line",
-		"icon": "☇",
 		"shortcut": "l",
 		"listeners": {
 			"press": startLine,
@@ -131,6 +130,7 @@
 		},
 		"draw": draw,
 		"mouseCursor": "crosshair",
+		"icon": "tools/line/icon.svg",
 		"stylesheet": "tools/line/line.css"
 	});
 
