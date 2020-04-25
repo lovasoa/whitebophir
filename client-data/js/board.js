@@ -180,6 +180,14 @@ Tools.change = function (toolName) {
 
 	var newtool = Tools.list[toolName];
 
+	if (newtool === Tools.curTool) {
+		if(newtool.toggle){
+			var elem = document.getElementById("toolID-" + newtool.name);
+			newtool.toggle(elem);
+		}
+		return;
+	}
+
 	//Update the GUI
 	var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
 	try {
