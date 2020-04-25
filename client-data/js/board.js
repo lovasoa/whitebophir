@@ -38,11 +38,43 @@ Tools.i18n = (function i18n() {
 
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
-Tools.socket = io.connect('', {
-	"reconnectionDelay": 100, //Make the xhr connections as fast as possible
-	"timeout": 1000 * 60 * 20 // Timeout after 20 minutes
-});
+
+//Initialization
 Tools.curTool = null;
+
+Tools.socket = null;
+Tools.connect = function() {
+	var self = this;
+
+	// Destroy socket if one already exists
+	if (self.socket) {
+		self.socket.destroy();
+		delete self.socket;
+		self.socket = null;
+	}
+
+
+	this.socket = io.connect('', {
+		"reconnection": true,
+		"reconnectionDelay": 100, //Make the xhr connections as fast as possible
+		"timeout": 1000 * 60 * 20 // Timeout after 20 minutes
+	});
+
+	//Receive draw instructions from the server
+	this.socket.on("broadcast", function (msg) {
+		handleMessage(msg).finally(function afterload() {
+			var loadingEl = document.getElementById("loadingMessage");
+			loadingEl.classList.add("hidden");
+		});
+	});
+
+	this.socket.on("reconnect", function onReconnection() {
+		Tools.socket.emit('joinboard', Tools.boardName);
+	});
+};
+
+Tools.connect();
+
 Tools.boardName = (function () {
 	var path = window.location.pathname.split("/");
 	return decodeURIComponent(path[path.length - 1]);
@@ -148,6 +180,14 @@ Tools.change = function (toolName) {
 
 	var newtool = Tools.list[toolName];
 
+	if (newtool === Tools.curTool) {
+		if(newtool.toggle){
+			var elem = document.getElementById("toolID-" + newtool.name);
+			newtool.toggle(elem);
+		}
+		return;
+	}
+
 	//Update the GUI
 	var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
 	try {
@@ -245,17 +285,6 @@ function handleMessage(message) {
 	if (message._children) return batchCall(handleMessage, message._children);
 	else return Promise.resolve();
 }
-
-//Receive draw instructions from the server
-Tools.socket.on("broadcast", function (msg) {
-	handleMessage(msg).finally(function afterload() {
-		var loadingEl = document.getElementById("loadingMessage");
-		loadingEl.classList.add("hidden");
-	});
-});
-Tools.socket.on("reconnect", function onReconnection() {
-	Tools.socket.emit('joinboard', Tools.boardName);
-});
 
 Tools.unreadMessagesCount = 0;
 Tools.newUnreadMessage = function () {

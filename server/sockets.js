@@ -41,28 +41,30 @@ function getBoard(name) {
 
 function socketConnection(socket) {
 
-	async function joinBoard(name) {
+	function joinBoard(name) {
 		// Default to the public board
 		if (!name) name = "anonymous";
 
 		// Join the board
 		socket.join(name);
 
-		var board = await getBoard(name);
-		board.users.add(socket.id);
-		log('board joined', { 'board': board.name, 'users': board.users.size });
-		return board;
+		return getBoard(name).then(board => {
+			board.users.add(socket.id);
+			log('board joined', { 'board': board.name, 'users': board.users.size });
+			return board;
+		});
 	}
 
 	socket.on("error", noFail(function onError(error) {
 		log("ERROR", error);
 	}));
 
-	socket.on("getboard", async function onGetBoard(name) {
-		var board = await joinBoard(name);
-		//Send all the board's data as soon as it's loaded
-		socket.emit("broadcast", { _children: board.getAll() });
-	});
+	socket.on("getboard", noFail(function onGetBoard(name) {
+		joinBoard(name).then(board => {
+			//Send all the board's data as soon as it's loaded
+			socket.emit("broadcast", { _children: board.getAll() });
+		})
+	}));
 
 	socket.on("joinboard", noFail(joinBoard));
 
@@ -106,37 +108,39 @@ function socketConnection(socket) {
 	socket.on('disconnecting', function onDisconnecting(reason) {
 		Object.keys(socket.rooms).forEach(async function disconnectFrom(room) {
 			if (boards.hasOwnProperty(room)) {
-				var board = await boards[room];
-				board.users.delete(socket.id);
-				var userCount = board.users.size;
-				log('disconnection', { 'board': board.name, 'users': board.users.size });
-				if (userCount === 0) {
-					board.save();
-					delete boards[room];
-				}
+				boards[room].then(board => {
+					board.users.delete(socket.id);
+					var userCount = board.users.size;
+					log('disconnection', { 'board': board.name, 'users': board.users.size });
+					if (userCount === 0) {
+						board.save();
+						delete boards[room];
+					}
+				});
 			}
 		});
 	});
 }
 
-async function saveHistory(boardName, message) {
+function saveHistory(boardName, message) {
 	var id = message.id;
-	var board = await getBoard(boardName);
-	switch (message.type) {
-		case "delete":
-			if (id) board.delete(id);
-			break;
-		case "update":
-			delete message.type;
-			if (id) board.update(id, message);
-			break;
-		case "child":
-			board.addChild(message.parent, message);
-			break;
-		default: //Add data
-			if (!id) throw new Error("Invalid message: ", message);
-			board.set(id, message);
-	}
+	getBoard(boardName).then(board => {
+		switch (message.type) {
+			case "delete":
+				if (id) board.delete(id);
+				break;
+			case "update":
+				delete message.type;
+				if (id) board.update(id, message);
+				break;
+			case "child":
+				board.addChild(message.parent, message);
+				break;
+			default: //Add data
+				if (!id) throw new Error("Invalid message: ", message);
+				board.set(id, message);
+		}
+	});
 }
 
 function generateUID(prefix, suffix) {
