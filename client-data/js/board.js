@@ -104,11 +104,9 @@ Tools.HTML = {
 			elem.addEventListener("click", callback);
 			elem.id = "toolID-" + toolName;
 			elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(toolName);
-			if (toolIconHTML) {
-				elem.getElementsByClassName("tool-icon")[0].innerHTML = toolIconHTML;
-			} else {
-				elem.getElementsByClassName("tool-icon")[0].textContent = toolIcon;
-			}
+			var toolIconElem = elem.getElementsByClassName("tool-icon")[0];
+			toolIconElem.src = toolIcon;
+			toolIconElem.alt = toolIcon;
 			elem.title =
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +

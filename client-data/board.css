@@ -144,6 +144,7 @@ html, body, svg {
 	max-height: 24px;
 	margin: 0 26px auto 5px;
 	font-family: mono, monospace;
+	overflow: hidden;
 }
 
 #menu .tool-icon > * {

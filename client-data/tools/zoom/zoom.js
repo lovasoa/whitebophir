@@ -156,8 +156,6 @@
 
     var zoomTool = {
         "name": "Zoom",
-        "icon": "🔎",
-        "iconHTML": "<i style='margin-top:7px' class='fas fa-search-plus' aria-hidden='true'></i>",
 		"shortcut": "z",
         "listeners": {
             "press": press,
@@ -167,6 +165,7 @@
         "onstart": onstart,
         "onquit": onquit,
         "mouseCursor": "zoom-in",
+        "icon": "tools/zoom/icon.svg",
         "helpText": "click_to_zoom",
     };
     Tools.add(zoomTool);
