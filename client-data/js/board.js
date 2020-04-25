@@ -41,6 +41,7 @@ Tools.svg = document.getElementById("canvas");
 
 //Initialization
 Tools.curTool = null;
+Tools.eraserCache = {};
 
 Tools.socket = null;
 Tools.connect = function() {
