@@ -119,17 +119,7 @@ html, body, svg {
 }
 
 #menu .tool-icon {
-	display: inline-block;
-	text-align:center;
-	font-size:24px;
-	width: 30px;
-	margin-left: 15px;
-	margin-right: 26px;
-	height: 30px;
-	max-height: 24px;
-	height: 100%;
-	margin: 0px 26px auto 15px;
-	font-family: mono;
+
 }
 
 #menu .tool-icon > * {
