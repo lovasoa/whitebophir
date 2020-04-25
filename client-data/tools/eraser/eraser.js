@@ -93,20 +93,18 @@
 				erase(x, y);
 				end = false;
 				const shape = svg.getElementById("erase-rect");
+				erase_rect = shape.getBoundingClientRect();
 				shape.remove();
 				textElem.setAttribute("x", -1000);
 				textElem.setAttribute("y", 100);
 				makeRect = false;
 				const targets = [];
-				const rx = rect.x * Tools.scale - document.documentElement.scrollLeft;
-				const rx2 = rect.x2 * Tools.scale - document.documentElement.scrollLeft;
-				const ry = rect.y * Tools.scale - document.documentElement.scrollTop;
-				const ry2 = rect.y2 * Tools.scale - document.documentElement.scrollTop;
 				//document.querySelectorAll("#layer-" + Tools.layer + " *").forEach(
-				document.querySelectorAll("#canvas path").forEach(
+				document.querySelectorAll("#canvas path, #canvas text, #canvas line, #canvas rect").forEach(
 					function (el, i) {
 						let r = el.getBoundingClientRect();
-						if (insideRect(r.x, r.y, r.width, r.height, rx, ry, rx2, ry2)) {
+						if (r.left >= erase_rect.left && r.right <= erase_rect.right
+								&& r.top >= erase_rect.top && r.bottom <= erase_rect.bottom) {
 							targets.push(el);
 						}
 					}
@@ -124,18 +122,6 @@
 			erasing = false;
 		}
 	}
-
-	function insideRect(x,y,w,h,rx,ry,rx2,ry2){
-		if(rx<=x&&ry<=y){
-			if(rx2>=x+w&&ry2>=y+h){
-				if(rx2>rx&&ry2>ry){
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
 
 	function erase(x, y, evt) {
 		if (curTool === "multi") {
@@ -308,7 +294,7 @@
 
 	//Figure out if you should delete an object based upon whether the particular x,y coordinate of the object is in a valid masking region
 	function shouldDelete(x,y,layer){
-		for (let id in Tools.eraserCache) {
+		for (let id of Tools.eraserCache) {
 			if (Tools.eraserCache.hasOwnProperty(id)) {
 				// Do things here
 				if(layer<= Tools.eraserCache[id].layer){
