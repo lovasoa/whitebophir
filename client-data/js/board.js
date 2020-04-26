@@ -161,7 +161,8 @@ function moveCursor(message) {
 		Tools.svg.appendChild(cursor);
 	}
 	cursor.setAttributeNS(null, "fill", message.c);
-	cursor.setAttributeNS(null, "r", message.s*Tools.getScale());
+	//TODO: scaling is broken on mobile
+	cursor.setAttributeNS(null, "r", (message.s/2)*Tools.getScale());
 	cursor.setAttributeNS(null, "visibility", "visible");
 	cursor.setAttributeNS(null, "cx", message.x);
 	cursor.setAttributeNS(null, "cy", message.y);
