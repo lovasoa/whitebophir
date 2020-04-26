@@ -26,9 +26,9 @@
 
 (function () { //Code isolation
 	//Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-	var curshape="Rectangle",
-		shapeIcons = ["▢","◯"],
-		end=false,
+	let curshape = "Rectangle";
+	const icons = ["tools/rect/icon-rect.svg", "tools/rect/icon-circle.svg"];
+	let end=false,
 		curId = "",
 		curUpdate = { //The data of the message that will be sent for every new point
 			'type': 'update',
@@ -153,14 +153,15 @@
 	}
 
 	function toggle(elem){
-		var index = 0;
+		let index = 0;
 		if(curshape === "Rectangle"){
 			curshape = "Circle";
 			index = 1;
 		}else{
 			curshape = "Rectangle";
 		}
-		elem.getElementsByClassName("tool-icon")[0].textContent = shapeIcons[index];
+		elem.getElementsByClassName("tool-icon")[0].src = icons[index];
+		elem.getElementsByClassName("tool-name")[0].textContent = curshape;
 	}
 
 
@@ -175,7 +176,7 @@
 		"draw": draw,
 		"toggle": toggle,
 		"mouseCursor": "crosshair",
-		"icon": "tools/rect/icon.svg",
+		"icon": icons[0],
 		"stylesheet": "tools/rect/rect.css"
 	});
 
