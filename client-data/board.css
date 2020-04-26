@@ -131,6 +131,10 @@ html, body, svg {
   background: linear-gradient(#96E1FF, #36A2FF);
 }
 
+#menu .tool > * {
+	vertical-align: middle;
+}
+
 #menu .tool-icon {
 	display: inline-block;
 	text-align:center;

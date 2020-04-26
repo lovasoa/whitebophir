@@ -186,7 +186,6 @@
 
 	Tools.add({
 		"name": "Pencil",
-		"icon": "✏",
 		"shortcut": "p",
 		"listeners": {
 			"press": startLine,
@@ -195,6 +194,7 @@
 		},
 		"draw": draw,
 		"mouseCursor": "crosshair",
+		"icon": "tools/pencil/icon.svg",
 		"stylesheet": "tools/pencil/pencil.css"
 	});
 
