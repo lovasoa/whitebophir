@@ -31,6 +31,7 @@
 	const currShape = null;
 	let curTool = "single";
 	const icons = ["tools/eraser/icon-red.svg", "tools/eraser/icon.svg",];
+	const toolNames = ["Remove", "Remove multiple"];
 	let end = false;
 	let lastTime = performance.now(); //The time at which the last point was drawn
 	let makeRect = false;
@@ -328,6 +329,7 @@
 			curTool="single";
 		}
 		elem.getElementsByClassName("tool-icon")[0].src = icons[index];
+		elem.getElementsByClassName("tool-name")[0].textContent = toolNames[index];
 	}
 
 	Tools.add({ //The new tool
