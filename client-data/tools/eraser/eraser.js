@@ -26,36 +26,36 @@
 
 (function eraser() { //Code isolation
 
-	var erasing = false;
+	let erasing = false;
 
-	var currShape = null;
-	var curTool = "single";
-	var icons = ["tools/eraser/icon-red.svg","tools/eraser/icon.svg",];
-	var end = false;
-	var lastTime = performance.now(); //The time at which the last point was drawn
-	var makeRect = false;
-	var textElem;
+	const currShape = null;
+	let curTool = "single";
+	const icons = ["<i style='color: #e75480;margin-top:7px' class='fas fa-skull-crossbones'></i>", "<i style='color: black;margin-top:7px' class='fas fa-skull-crossbones'></i>",];
+	let end = false;
+	let lastTime = performance.now(); //The time at which the last point was drawn
+	let makeRect = false;
+	let textElem;
 
-	var msg = {
+	const msg = {
 		"type": "delete",
 		"id": null,
-		"x":0,
-		"y":0
+		"x": 0,
+		"y": 0
 	};
 
-	var rect = {
-		x:0,
-		y:0,
-		x2:0,
-		y2:0
+	const rect = {
+		x: 0,
+		y: 0,
+		x2: 0,
+		y2: 0
 	};
 
 	function startErasing(x, y, evt) {
 
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
-		if(curTool=="multi"){
-			var shape  = Tools.createSVGElement("rect");
+		if(curTool==="multi"){
+			const shape = Tools.createSVGElement("rect");
 
 			shape.id = "erase-rect";
 
@@ -86,37 +86,37 @@
 	}
 
 	function stopErasing(x, y) {
-		if (curTool == "multi") {
+		if (curTool === "multi") {
 			//Add a last point to the shape
 			if (makeRect) {
 				end = true;
 				erase(x, y);
 				end = false;
-				var shape = svg.getElementById("erase-rect");
+				const shape = svg.getElementById("erase-rect");
 				shape.remove();
 				textElem.setAttribute("x", -1000);
 				textElem.setAttribute("y", 100);
 				makeRect = false;
-				var targets = [];
-				var rx = rect.x * Tools.scale - document.documentElement.scrollLeft;
-				var rx2 = rect.x2 * Tools.scale - document.documentElement.scrollLeft;
-				var ry = rect.y * Tools.scale - document.documentElement.scrollTop;
-				var ry2 = rect.y2 * Tools.scale - document.documentElement.scrollTop;
-				$("#layer-" + Tools.layer).find("*").each(
-					function (i, el) {
-						var r = el.getBoundingClientRect();
+				const targets = [];
+				const rx = rect.x * Tools.scale - document.documentElement.scrollLeft;
+				const rx2 = rect.x2 * Tools.scale - document.documentElement.scrollLeft;
+				const ry = rect.y * Tools.scale - document.documentElement.scrollTop;
+				const ry2 = rect.y2 * Tools.scale - document.documentElement.scrollTop;
+				//document.querySelectorAll("#layer-" + Tools.layer + " *").forEach(
+				document.querySelectorAll("#canvas path").forEach(
+					function (el, i) {
+						let r = el.getBoundingClientRect();
 						if (insideRect(r.x, r.y, r.width, r.height, rx, ry, rx2, ry2)) {
 							targets.push(el);
 						}
 					}
-				);
+					);
 				if (targets.length > 0) {
 					msg.id = [];
-					for (var i = 0; i < targets.length; i++) {
+					for (let i = 0; i < targets.length; i++) {
 						msg.id.push(targets[i].id);
 
 					}
-					;
 					Tools.drawAndSend(msg);
 				}
 			}
@@ -138,12 +138,12 @@
 
 
 	function erase(x, y, evt) {
-		if (curTool == "multi") {
+		if (curTool === "multi") {
 			if (makeRect) {
 				rect['x2'] = x;
 				rect['y2'] = y;
 				if (performance.now() - lastTime > 20 || end) {
-					var shape = svg.getElementById("erase-rect");
+					const shape = svg.getElementById("erase-rect");
 					shape.x.baseVal.value = Math.min(rect['x2'], rect['x']);
 					shape.y.baseVal.value = Math.min(rect['y2'], rect['y']);
 					shape.width.baseVal.value = Math.abs(rect['x2'] - rect['x']);
@@ -161,25 +161,26 @@
 			}
 		} else {
 			// evt.target should be the element over which the mouse is...
-			var target = evt.target;
+			let target = evt.target;
 			if (evt.type === "touchmove") {
 				// ... the target of touchmove events is the element that was initially touched,
 				// not the one **currently** being touched
-				var touch = evt.touches[0];
+				const touch = evt.touches[0];
 				target = document.elementFromPoint(touch.clientX, touch.clientY);
 			}
-			if (false || evt.type === "touchmove") {
+			if (evt.type === "touchmove") {
 				if (erasing && target !== Tools.svg && target.id) {
 					msg.id = target.id;
 					msg.x = x;
 					msg.y = y;
 					msg.target = target;
-					if (!msg.id.startsWith("layer") && msg.id != "defs" && msg.id != "rect_1" && msg.id != "cursors") {
-						var elem = svg.getElementById(msg.id);
-						if (elem === null) return; //console.error("Eraser: Tried to delete an element that does not exist.");
-						else {
-							var layer;
-							var c = elem.getAttribute("class");
+					if (!msg.id.startsWith("layer") && msg.id !== "defs" && msg.id !== "rect_1" && msg.id !== "cursors") {
+						const elem = svg.getElementById(msg.id);
+						if (elem === null) {
+							//console.error("Eraser: Tried to delete an element that does not exist.");
+						} else {
+							let layer;
+							const c = elem.getAttribute("class");
 							if (c && c.startsWith("layer-")) {
 								layer = parseInt(c.substr(6));
 								if (shouldDelete(msg.x, msg.y, layer)) Tools.drawAndSend(msg);
@@ -189,12 +190,12 @@
 				}
 			} else {
 				if (erasing) {
-					for (var i = -1; i < 2; i++) {
-						for (var j = -1; j < 2; j++) {
+					for (let i = -1; i < 2; i++) {
+						for (let j = -1; j < 2; j++) {
 							scanForObject(x, y, target, i, j);
 						}
 					}
-					for (var i = 2; i < 7; i++) {
+					for (i = 2; i < 7; i++) {
 						scanForObject(x, y, target, 0, i);
 						scanForObject(x, y, target, i, 0);
 						scanForObject(x, y, target, 0, -i);
@@ -206,12 +207,12 @@
 	}
 
 	function draw(data) {
-		var elem;
+		let elem;
 		switch (data.type) {
 			//TODO: add the ability to erase only some points in a line
 			case "delete":
 				if(Array.isArray(data.id)){
-					for(var i = 0;i<data.id.length;i++){
+					for(let i = 0; i<data.id.length; i++){
 						elem = svg.getElementById(data.id[i]);
 						if (elem !== null){ //console.error("Eraser: Tried to delete an element that does not exist.");
 							elem.remove();
@@ -237,12 +238,13 @@
 			msg.x = x+i;
 			msg.y = y+j;
 			msg.target = target;
-			if(!msg.id.startsWith("layer")&&msg.id!="defs"&&msg.id!="rect_1"&&msg.id!="cursors"){
-				var elem = svg.getElementById(msg.id);
-				if (elem === null) return; //console.error("Eraser: Tried to delete an element that does not exist.");
-				else{
-					var layer;
-					var c = elem.getAttribute("class");
+			if(!msg.id.startsWith("layer")&&msg.id!=="defs"&&msg.id!=="rect_1"&&msg.id!=="cursors"){
+				const elem = svg.getElementById(msg.id);
+				if (elem === null) {
+					//console.error("Eraser: Tried to delete an element that does not exist.");
+				} else{
+					let layer;
+					const c = elem.getAttribute("class");
 					if(c && c.startsWith("layer-")){
 						layer = parseInt(c.substr(6));
 						if(shouldDelete(msg.x,msg.y,layer))Tools.drawAndSend(msg);
@@ -257,25 +259,25 @@
 		if( (x1 <= x+r && x1 >= x-r) || (x2  <= x+r && x2 >= x-r) ){ //within x range
 			if( (y1 <= y+r && y1 >= y-r) || (y2  <= y+r && y2 >= y-r) ){ //within y range
 
-				var A = x - x1;
-				var B = y - y1;
-				var C = x - x2;
-				var D = y - y2;
+				const A = x - x1;
+				const B = y - y1;
+				const C = x - x2;
+				const D = y - y2;
 
 				//test distance from points
 
 				if( (A * A + B * B <= r * r) || (C * C + D * D <= r * r) )return true;
 
-				var E = x2 - x1;
-				var F = y2 - y1;
+				const E = x2 - x1;
+				const F = y2 - y1;
 
-				var dot = A * E + B * F;
-				var len_sq = E * E + F * F;
-				var param = -1;
-				if (len_sq != 0) //in case of 0 length line
+				const dot = A * E + B * F;
+				const len_sq = E * E + F * F;
+				let param = -1;
+				if (len_sq !== 0) //in case of 0 length line
 					param = dot / len_sq;
 
-				var xx, yy;
+				let xx, yy;
 
 				if (param < 0) {
 					xx = x1;
@@ -290,8 +292,8 @@
 					yy = y1 + param * F;
 				}
 
-				var dx = x - xx;
-				var dy = y - yy;
+				const dx = x - xx;
+				const dy = y - yy;
 
 				if( dx * dx + dy * dy <= r * r){
 					if( xx <= Math.max(x1,x2) && xx >= Math.min(x1,x2) &&
@@ -306,17 +308,17 @@
 
 	//Figure out if you should delete an object based upon whether the particular x,y coordinate of the object is in a valid masking region
 	function shouldDelete(x,y,layer){
-		for (var id in Tools.eraserCache) {
+		for (let id in Tools.eraserCache) {
 			if (Tools.eraserCache.hasOwnProperty(id)) {
 				// Do things here
 				if(layer<= Tools.eraserCache[id].layer){
-					var pts = Tools.eraserCache[id].pts;
-					var r = Tools.eraserCache[id].size;
-					var x1,y1,x2,y2;
-					for (var i=0;i<pts.length-1;i++){
+					const pts = Tools.eraserCache[id].pts;
+					const r = Tools.eraserCache[id].size;
+					let x1, y1, x2, y2;
+					for (let i=0; i<pts.length-1; i++){
 						x1=pts[i].values[0];
 						y1=pts[i].values[1];
-						var n = i + 1
+						const n = i + 1;
 						x2=pts[n].values[0];
 						y2=pts[n].values[1];
 						//console.log(segIsWithinRofPt(x, y, x1, y1, x2, y2, r));
@@ -331,15 +333,15 @@
 	var svg = Tools.svg;
 
 	function toggle(elem){
-		var index = 0;
-		if(curTool=="single"){
+		let index = 0;
+		if(curTool==="single"){
 			curTool="multi";
 			index=1;
 		}else{
 			curTool="single";
 		}
 		elem.getElementsByClassName("tool-icon")[0].src = icons[index];
-	};
+	}
 
 	Tools.add({ //The new tool
 		"name": "Remove",
