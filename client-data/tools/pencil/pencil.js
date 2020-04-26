@@ -193,7 +193,7 @@
 			"release": stopLine,
 		},
 		"draw": draw,
-		"mouseCursor": "crosshair",
+		"mouseCursor": "url('tools/pencil/pencil.svg'), crosshair",
 		"icon": "tools/pencil/icon.svg",
 		"stylesheet": "tools/pencil/pencil.css"
 	});
