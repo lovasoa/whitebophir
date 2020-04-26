@@ -42,7 +42,7 @@ Tools.group = Tools.svg.getElementById("layer-1");
 
 //Initialization
 Tools.curTool = null;
-Tools.showMarker = false;
+Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 
@@ -139,8 +139,8 @@ function moveMarker(message) {
 	Tools.svg.appendChild(cursor);
 	//cursor.setAttributeNS(null, "r", Tools.getSize());
 	cursor.r.baseVal.value=Tools.getSize()/2;
-	cursor.setAttributeNS(null, "cx", message.x-25);
-	cursor.setAttributeNS(null, "cy", message.y-25);
+	cursor.setAttributeNS(null, "cx", message.x);
+	cursor.setAttributeNS(null, "cy", message.y);
 }
 
 const cursorLastUse = {};
