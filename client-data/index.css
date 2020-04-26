@@ -30,8 +30,8 @@ main {
 	margin: auto;
 	margin-top: 80px;
 	width:100%;
-	max-width: 1100px;
-	font-size:1.2em;
+	max-width: 1250px;
+	font-size: 1.1em;
 	position:relative;
 	text-align:justify;
 	transition:.1s;
@@ -132,13 +132,12 @@ footer{
 .lang-selector ul {
 	padding-left: 22px;
 	list-style: none;
-  width: 50px;
+	width: 50px;
 	background: white;
-  max-height: 0;
-  overflow: hidden;
+	max-height: 0;
+	overflow: hidden;
 	transition-duration: 1s;
 	border-radius: 5px;
-
 }
 
 .lang-selector:hover ul {
@@ -162,5 +161,6 @@ footer{
 }
 
 .lang-selector li:hover {
-	list-style:disclosure-closed;
+	list-style: circle;
+	list-style: disclosure-closed;
 }
