@@ -166,12 +166,13 @@
 						if (elem === null) {
 							//console.error("Eraser: Tried to delete an element that does not exist.");
 						} else {
-							let layer;
+							Tools.drawAndSend(msg);
+							/*let layer;
 							const c = elem.getAttribute("class");
 							if (c && c.startsWith("layer-")) {
 								layer = parseInt(c.substr(6));
 								if (shouldDelete(msg.x, msg.y, layer)) Tools.drawAndSend(msg);
-							}
+							}*/
 						}
 					}
 				}
