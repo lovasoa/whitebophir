@@ -1,6 +1,7 @@
 var iolib = require('socket.io')
 	, log = require("./log.js").log
-	, BoardData = require("./boardData.js").BoardData;
+	, BoardData = require("./boardData.js").BoardData
+	, config = require("./configuration");
 
 var MAX_EMIT_COUNT = 64; // Maximum number of draw operations before getting banned
 var MAX_EMIT_COUNT_PERIOD = 5000; // Duration (in ms) after which the emit count is reset
@@ -51,6 +52,9 @@ function socketConnection(socket) {
 		var board = await getBoard(name);
 		board.users.add(socket.id);
 		log('board joined', { 'board': board.name, 'users': board.users.size });
+
+		console.log(board);
+
 		return board;
 	}
 
@@ -94,6 +98,26 @@ function socketConnection(socket) {
 		if (!data) {
 			console.warn("Received invalid message: %s.", JSON.stringify(message));
 			return;
+		}
+
+		if (message.data.type === "doc") {
+			getBoard(boardName).then(boardData => {
+				let existingDocuments = 0;
+				for (key in boardData.board) {
+					if (boardData.board[key].type === "doc") {
+						existingDocuments += 1;
+					}
+					if (existingDocuments >= config.MAX_DOCUMENTS) {
+						console.warn("Received too many documents");
+						return;
+					}
+				}
+			});
+
+			if (!message.data.size || message.data.size > config.MAX_DOUMENT_SIZE) {
+				console.warn("Received too large file");
+				return;
+			}
 		}
 
 		//Send data to all other users connected on the same board

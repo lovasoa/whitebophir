@@ -3,33 +3,47 @@
 
 // This isn't an HTML5 canvas, it's an old svg hack, (the code is _that_ old!)
 
-    var xlinkNS = "http://www.w3.org/1999/xlink";
-    var imgCount = 1;
+    const xlinkNS = "http://www.w3.org/1999/xlink";
+    let imgCount = 1;
+
     function onstart() {
         const fileInput = document.createElement("input");
         fileInput.type = "file";
         fileInput.accept = "image/*";
         fileInput.click();
         fileInput.addEventListener("change", () => {
-            var reader = new FileReader();
+            const reader = new FileReader();
             reader.readAsDataURL(fileInput.files[0]);
 
             reader.onload = function (e) {
-                var image = new Image();
+                const image = new Image();
                 image.src = e.target.result;
                 image.onload = function () {
 
                     var uid = Tools.generateUID("doc"); // doc for document
-                    console.log(image.src.toString().length);
 
-                    var msg = {
+                    // File size as data url, approximately 1/3 larger than as bytestream
+                    //TODO: internationalization
+                    let size = image.src.toString().length;
+                    if (size > 1048576) { //TODO: get correct size from config
+                        alert("File too large");
+                        throw new Error("File too large");
+                    }
+
+                    if (Tools.svg.querySelectorAll("image").length > 5) { //TODO: get correct amount from config
+                        alert("Too many documents exist already");
+                        throw new Error("Too many documents exist already");
+                    }
+
+                    const msg = {
                         id: uid,
-                        type:"doc",
+                        type: "doc",
                         data: image.src,
+                        size: image.src.toString().length,
                         w: this.width || 300,
                         h: this.height || 300,
-                        x: (100+document.documentElement.scrollLeft)/Tools.scale+10*imgCount,
-                        y: (100+document.documentElement.scrollTop)/Tools.scale + 10*imgCount
+                        x: (100 + document.documentElement.scrollLeft) / Tools.scale + 10 * imgCount,
+                        y: (100 + document.documentElement.scrollTop) / Tools.scale + 10 * imgCount
                         //fileType: fileInput.files[0].type
                     };
                     draw(msg);

@@ -25,4 +25,10 @@ module.exports = {
 
     /** Maximum value for any x or y on the board */
     MAX_BOARD_SIZE: parseInt(process.env['WBO_MAX_BOARD_SIZE']) || 65536,
+
+    /** Maximum size of uploaded documents default 1MB */
+    MAX_DOUMENT_SIZE: parseInt(process.env['WBO_MAX_DOCUMENT_SIZE']) || 1048576,
+
+    /** Maximum number of documents allowed */
+    MAX_DOCUMENTS: parseInt(process.env['WBO_MAX_DOCUMENTS']) || 5,
 };
