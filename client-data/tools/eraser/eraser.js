@@ -28,34 +28,181 @@
 
 	var erasing = false;
 
-	function startErasing(x, y, evt) {
-		//Prevent the press from being interpreted by the browser
-		evt.preventDefault();
-		erasing = true;
-		erase(x, y, evt);
-	}
+	var currShape = null;
+	var curTool = "single";
+	var icons = ["tools/eraser/icon-red.svg","tools/eraser/icon.svg",];
+	var end = false;
+	var lastTime = performance.now(); //The time at which the last point was drawn
+	var makeRect = false;
+	var textElem;
 
 	var msg = {
 		"type": "delete",
-		"id": ""
+		"id": null,
+		"x":0,
+		"y":0
 	};
-	function erase(x, y, evt) {
-		// evt.target should be the element over which the mouse is...
-		var target = evt.target;
-		if (evt.type === "touchmove") {
-			// ... the target of touchmove events is the element that was initially touched,
-			// not the one **currently** being touched
-			var touch = evt.touches[0];
-			target = document.elementFromPoint(touch.clientX, touch.clientY);
-		}
-		if (erasing && target !== Tools.svg) {
-			msg.id = target.id;
-			Tools.drawAndSend(msg);
+
+	var rect = {
+		x:0,
+		y:0,
+		x2:0,
+		y2:0
+	};
+
+	function startErasing(x, y, evt) {
+
+		//Prevent the press from being interpreted by the browser
+		evt.preventDefault();
+		if(curTool=="multi"){
+			var shape  = Tools.createSVGElement("rect");
+
+			shape.id = "erase-rect";
+
+			shape.setAttribute("stroke", "red");
+			shape.setAttribute("fill", "gray");
+			shape.setAttribute("stroke-width",1);
+			shape.setAttribute("fill-opacity",.1);
+
+			Tools.svg.appendChild(shape);
+			if(!textElem){
+				textElem = Tools.createSVGElement("text");
+				textElem.setAttribute("x", -1000);
+				textElem.setAttribute("y", 100);
+
+				textElem.setAttribute("font-size", 32);
+				textElem.setAttribute("fill", "black");
+				textElem.setAttribute("opacity",.1);
+				textElem.textContent = "Kaboom!";
+				Tools.svg.appendChild(textElem);
+			}
+			rect.x = x;
+			rect.y = y;
+			makeRect = true;
+		}else{
+			erasing = true;
+			erase(x, y, evt);
 		}
 	}
 
-	function stopErasing() {
-		erasing = false;
+	function stopErasing(x, y) {
+		if (curTool == "multi") {
+			//Add a last point to the shape
+			if (makeRect) {
+				end = true;
+				erase(x, y);
+				end = false;
+				var shape = svg.getElementById("erase-rect");
+				shape.remove();
+				textElem.setAttribute("x", -1000);
+				textElem.setAttribute("y", 100);
+				makeRect = false;
+				var targets = [];
+				var rx = rect.x * Tools.scale - document.documentElement.scrollLeft;
+				var rx2 = rect.x2 * Tools.scale - document.documentElement.scrollLeft;
+				var ry = rect.y * Tools.scale - document.documentElement.scrollTop;
+				var ry2 = rect.y2 * Tools.scale - document.documentElement.scrollTop;
+				$("#layer-" + Tools.layer).find("*").each(
+					function (i, el) {
+						var r = el.getBoundingClientRect();
+						if (insideRect(r.x, r.y, r.width, r.height, rx, ry, rx2, ry2)) {
+							targets.push(el);
+						}
+					}
+				);
+				if (targets.length > 0) {
+					msg.id = [];
+					for (var i = 0; i < targets.length; i++) {
+						msg.id.push(targets[i].id);
+
+					}
+					;
+					Tools.drawAndSend(msg);
+				}
+			}
+		} else {
+			erasing = false;
+		}
+	}
+
+	function insideRect(x,y,w,h,rx,ry,rx2,ry2){
+		if(rx<=x&&ry<=y){
+			if(rx2>=x+w&&ry2>=y+h){
+				if(rx2>rx&&ry2>ry){
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+
+	function erase(x, y, evt) {
+		if (curTool == "multi") {
+			if (makeRect) {
+				rect['x2'] = x;
+				rect['y2'] = y;
+				if (performance.now() - lastTime > 20 || end) {
+					var shape = svg.getElementById("erase-rect");
+					shape.x.baseVal.value = Math.min(rect['x2'], rect['x']);
+					shape.y.baseVal.value = Math.min(rect['y2'], rect['y']);
+					shape.width.baseVal.value = Math.abs(rect['x2'] - rect['x']);
+					shape.height.baseVal.value = Math.abs(rect['y2'] - rect['y']);
+					if (shape.width.baseVal.value > 150 && shape.height.baseVal.value > 150) {
+						textElem.setAttribute("x", shape.x.baseVal.value + shape.width.baseVal.value / 2 - 60);
+						textElem.setAttribute("y", shape.y.baseVal.value + shape.height.baseVal.value / 2 + 14);
+					} else {
+						textElem.setAttribute("x", -1000);
+						textElem.setAttribute("y", 100);
+					}
+					lastTime = performance.now();
+				}
+				if (evt) evt.preventDefault();
+			}
+		} else {
+			// evt.target should be the element over which the mouse is...
+			var target = evt.target;
+			if (evt.type === "touchmove") {
+				// ... the target of touchmove events is the element that was initially touched,
+				// not the one **currently** being touched
+				var touch = evt.touches[0];
+				target = document.elementFromPoint(touch.clientX, touch.clientY);
+			}
+			if (false || evt.type === "touchmove") {
+				if (erasing && target !== Tools.svg && target.id) {
+					msg.id = target.id;
+					msg.x = x;
+					msg.y = y;
+					msg.target = target;
+					if (!msg.id.startsWith("layer") && msg.id != "defs" && msg.id != "rect_1" && msg.id != "cursors") {
+						var elem = svg.getElementById(msg.id);
+						if (elem === null) return; //console.error("Eraser: Tried to delete an element that does not exist.");
+						else {
+							var layer;
+							var c = elem.getAttribute("class");
+							if (c && c.startsWith("layer-")) {
+								layer = parseInt(c.substr(6));
+								if (shouldDelete(msg.x, msg.y, layer)) Tools.drawAndSend(msg);
+							}
+						}
+					}
+				}
+			} else {
+				if (erasing) {
+					for (var i = -1; i < 2; i++) {
+						for (var j = -1; j < 2; j++) {
+							scanForObject(x, y, target, i, j);
+						}
+					}
+					for (var i = 2; i < 7; i++) {
+						scanForObject(x, y, target, 0, i);
+						scanForObject(x, y, target, i, 0);
+						scanForObject(x, y, target, 0, -i);
+						scanForObject(x, y, target, -i, 0);
+					}
+				}
+			}
+		}
 	}
 
 	function draw(data) {
@@ -63,9 +210,18 @@
 		switch (data.type) {
 			//TODO: add the ability to erase only some points in a line
 			case "delete":
-				elem = svg.getElementById(data.id);
-				if (elem === null) console.error("Eraser: Tried to delete an element that does not exist.");
-				else svg.removeChild(elem);
+				if(Array.isArray(data.id)){
+					for(var i = 0;i<data.id.length;i++){
+						elem = svg.getElementById(data.id[i]);
+						if (elem !== null){ //console.error("Eraser: Tried to delete an element that does not exist.");
+							elem.remove();
+						}
+					}
+				}else{
+					elem = svg.getElementById(data.id);
+					if (elem === null) return; //console.error("Eraser: Tried to delete an element that does not exist.");
+					elem.remove();
+				}
 				break;
 			default:
 				console.error("Eraser: 'delete' instruction with unknown type. ", data);
@@ -73,18 +229,129 @@
 		}
 	}
 
+	function scanForObject(x,y,target, i,j){
+		target=document.elementFromPoint((x+i)*Tools.scale-document.documentElement.scrollLeft, (y+j)*Tools.scale-document.documentElement.scrollTop);
+
+		if (target && target !== Tools.svg) {
+			msg.id = target.id;
+			msg.x = x+i;
+			msg.y = y+j;
+			msg.target = target;
+			if(!msg.id.startsWith("layer")&&msg.id!="defs"&&msg.id!="rect_1"&&msg.id!="cursors"){
+				var elem = svg.getElementById(msg.id);
+				if (elem === null) return; //console.error("Eraser: Tried to delete an element that does not exist.");
+				else{
+					var layer;
+					var c = elem.getAttribute("class");
+					if(c && c.startsWith("layer-")){
+						layer = parseInt(c.substr(6));
+						if(shouldDelete(msg.x,msg.y,layer))Tools.drawAndSend(msg);
+					}
+				}
+			}
+		}
+	}
+
+	function segIsWithinRofPt(x, y, x1, y1, x2, y2, r) {
+
+		if( (x1 <= x+r && x1 >= x-r) || (x2  <= x+r && x2 >= x-r) ){ //within x range
+			if( (y1 <= y+r && y1 >= y-r) || (y2  <= y+r && y2 >= y-r) ){ //within y range
+
+				var A = x - x1;
+				var B = y - y1;
+				var C = x - x2;
+				var D = y - y2;
+
+				//test distance from points
+
+				if( (A * A + B * B <= r * r) || (C * C + D * D <= r * r) )return true;
+
+				var E = x2 - x1;
+				var F = y2 - y1;
+
+				var dot = A * E + B * F;
+				var len_sq = E * E + F * F;
+				var param = -1;
+				if (len_sq != 0) //in case of 0 length line
+					param = dot / len_sq;
+
+				var xx, yy;
+
+				if (param < 0) {
+					xx = x1;
+					yy = y1;
+				}
+				else if (param > 1) {
+					xx = x2;
+					yy = y2;
+				}
+				else {
+					xx = x1 + param * E;
+					yy = y1 + param * F;
+				}
+
+				var dx = x - xx;
+				var dy = y - yy;
+
+				if( dx * dx + dy * dy <= r * r){
+					if( xx <= Math.max(x1,x2) && xx >= Math.min(x1,x2) &&
+						yy <= Math.max(y1,y2) && yy >= Math.min(y1,y2)){
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	//Figure out if you should delete an object based upon whether the particular x,y coordinate of the object is in a valid masking region
+	function shouldDelete(x,y,layer){
+		for (var id in Tools.eraserCache) {
+			if (Tools.eraserCache.hasOwnProperty(id)) {
+				// Do things here
+				if(layer<= Tools.eraserCache[id].layer){
+					var pts = Tools.eraserCache[id].pts;
+					var r = Tools.eraserCache[id].size;
+					var x1,y1,x2,y2;
+					for (var i=0;i<pts.length-1;i++){
+						x1=pts[i].values[0];
+						y1=pts[i].values[1];
+						var n = i + 1
+						x2=pts[n].values[0];
+						y2=pts[n].values[1];
+						//console.log(segIsWithinRofPt(x, y, x1, y1, x2, y2, r));
+						if(segIsWithinRofPt(x, y, x1, y1, x2, y2, r))return false;
+					}
+				}
+			}
+		}
+		return true;
+	}
+
 	var svg = Tools.svg;
 
+	function toggle(elem){
+		var index = 0;
+		if(curTool=="single"){
+			curTool="multi";
+			index=1;
+		}else{
+			curTool="single";
+		}
+		elem.getElementsByClassName("tool-icon")[0].src = icons[index];
+	};
+
 	Tools.add({ //The new tool
-		"name": "Eraser",
-		"shortcut": "e",
+		"name": "Remove",
+		//"shortcut": "e",
+		"toggle": toggle,
 		"listeners": {
 			"press": startErasing,
 			"move": erase,
 			"release": stopErasing,
 		},
 		"draw": draw,
-		"icon": "tools/eraser/icon.svg",
+		"icon": "tools/eraser/icon-red.svg",
 		"mouseCursor": "crosshair",
 	});
 
