@@ -152,6 +152,7 @@ html, body, svg {
 	margin-right: 20px;
 	margin-left: 20px;
 	margin-bottom: 2.5px;
+	display: inline-block;
 	vertical-align: text-bottom;
 }
 #menu .tool-name.slider {
