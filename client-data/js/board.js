@@ -38,9 +38,11 @@ Tools.i18n = (function i18n() {
 
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
+Tools.group = Tools.svg.getElementById("layer-1");
 
 //Initialization
 Tools.curTool = null;
+Tools.showMarker = false;
 
 Tools.socket = null;
 Tools.connect = function() {
@@ -82,6 +84,60 @@ Tools.boardName = (function () {
 
 //Get the board as soon as the page is loaded
 Tools.socket.emit("getboard", Tools.boardName);
+
+//Turn on the cursor tracking
+Tools.svg.addEventListener("mousemove", handleMarker, false);
+Tools.svg.addEventListener("touchmove", handleMarker,{ 'passive': false });
+
+function handleMarker(evt){
+	var message = {
+		"board": Tools.boardName,
+		"data": {
+			type:"cursor",
+			x : evt.pageX / Tools.getScale(),
+			y : evt.pageY / Tools.getScale()
+		}
+	};
+	Tools.socket.emit('broadcast', message);
+	if(Tools.showMarker){
+		moveMarker(message.data);
+	}
+
+}
+
+
+
+function moveMarker(message) {
+	var cursor = Tools.svg.getElementById("mycursor");
+	if(!cursor){
+		Tools.svg.getElementById("cursors").innerHTML="<circle class='opcursor' id='mycursor' cx='100' cy='100' r='10' fill='#e75480' />";
+		cursor = Tools.svg.getElementById("mycursor");
+
+	}
+	Tools.svg.appendChild(cursor);
+	//cursor.setAttributeNS(null, "r", Tools.getSize());
+	cursor.r.baseVal.value=Tools.getSize()/2;
+	cursor.setAttributeNS(null, "cx", message.x-25);
+	cursor.setAttributeNS(null, "cy", message.y-25);
+}
+
+
+
+function moveCursor(message) {
+	var cursor = Tools.svg.getElementById("cursor"+message.socket);
+	if(!cursor){
+		var cursors = Tools.svg.getElementsByClassName("opcursor");
+		for(var i = 0; i < cursors.length; i++)
+		{
+			cursors[i].remove()
+		}
+		Tools.svg.getElementById("cursors").innerHTML="<circle class='opcursor' id='cursor"+message.socket+"' cx='100' cy='100' r='10' fill='orange' />";
+		cursor = Tools.svg.getElementById("cursor"+message.socket);
+		Tools.svg.appendChild(cursor);
+	}
+	cursor.setAttributeNS(null, "cx", message.x);
+	cursor.setAttributeNS(null, "cy", message.y);
+}
 
 Tools.HTML = {
 	template: new Minitpl("#tools > .tool"),
@@ -280,9 +336,15 @@ function batchCall(fn, args) {
 
 // Call messageForTool recursively on the message and its children
 function handleMessage(message) {
-	//Check if the message is in the expected format
-	if (!message.tool && !message._children) {
-		console.error("Received a badly formatted message (no tool). ", message);
+	//Handle cursor updates
+	if(message.type === "cursor"){
+		moveCursor(message);
+		console.log(message);
+	} else {
+		//Check if the message is in the expected format
+		if (!message.tool && !message._children) {
+			console.error("Received a badly formatted message (no tool). ", message);
+		}
 	}
 	if (message.tool) messageForTool(message);
 	if (message._children) return batchCall(handleMessage, message._children);
