@@ -47,7 +47,7 @@
 
         // fakeCanvas.style.background = `url("${fileURL}") 170px 0px no-repeat`;
         //fakeCanvas.style.backgroundSize = "400px 500px";
-        var aspect = msg.w/msg.h
+        var aspect = msg.w/msg.h;
         var img = Tools.createSVGElement("image");
         img.id=msg.id;
         img.setAttribute("class", "layer-"+Tools.layer);
@@ -58,7 +58,7 @@
         img.setAttribute("height", 400);
         if(msg.transform)
             img.setAttribute("transform",msg.transform);
-        Tools.group.appendChild(img);
+        Tools.svg.appendChild(img);
 
     }
 
