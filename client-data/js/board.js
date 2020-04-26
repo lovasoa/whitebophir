@@ -89,19 +89,27 @@ Tools.socket.emit("getboard", Tools.boardName);
 
 //Turn on the cursor tracking
 Tools.svg.addEventListener("mousemove", handleMarker, false);
-Tools.svg.addEventListener("touchmove", handleMarker,{ 'passive': false });
+Tools.svg.addEventListener("touchmove", handleMarker, { 'passive': false });
 
 function handleMarker(evt){
-	if(Tools.showMyCursor){
+	if (Tools.showMyCursor) {
+		if (evt.type === "touchmove") {
+			if (!(evt.changedTouches.length !== 1)) return;
+			x = evt.changedTouches[0].pageX;
+			y = evt.changedTouches[0].pageY;
+		} else {
+			x = evt.pageX;
+			y = evt.pageY;
+		}
 		var message = {
 			"board": Tools.boardName,
 			"data": {
 				type: "cursor",
-				x : evt.pageX / Tools.getScale(),
-				y : evt.pageY / Tools.getScale(),
+				x : x / Tools.getScale(),
+				y : y / Tools.getScale(),
 				c : Tools.getColor()
 			}
-		}
+		};
 		Tools.socket.emit('broadcast', message);
 	}
 
@@ -302,7 +310,7 @@ Tools.send = function (data, toolName) {
 	var message = {
 		"board": Tools.boardName,
 		"data": d
-	}
+	};
 	Tools.socket.emit('broadcast', message);
 };
 
