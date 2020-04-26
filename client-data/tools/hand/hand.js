@@ -46,13 +46,13 @@
 
 	Tools.add({ //The new tool
 		"name": "Hand",
+		"icon": "✋",
 		"shortcut": "h",
 		"listeners": {
 			"press": press,
 			"move": move,
 			"release": release
 		},
-		"icon": "tools/hand/icon.svg",
 		"mouseCursor": "move"
 	});
 

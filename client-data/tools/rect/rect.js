@@ -128,6 +128,7 @@
 
 	Tools.add({ //The new tool
 		"name": "Rectangle",
+		"icon": "▢",
 		"shortcut": "r",
 		"listeners": {
 			"press": start,
@@ -136,7 +137,6 @@
 		},
 		"draw": draw,
 		"mouseCursor": "crosshair",
-		"icon": "tools/rect/icon.svg",
 		"stylesheet": "tools/rect/rect.css"
 	});
 
