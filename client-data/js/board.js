@@ -91,7 +91,7 @@ Tools.socket.emit("getboard", Tools.boardName);
 Tools.svg.addEventListener("mousemove", handleMarker, false);
 Tools.svg.addEventListener("touchmove", handleMarker, { 'passive': false });
 
-function handleMarker(evt){
+function handleMarker(evt) {
 	if (Tools.showMyCursor) {
 		if (evt.type === "touchmove") {
 			if (!(evt.changedTouches.length !== 1)) return;
@@ -107,7 +107,8 @@ function handleMarker(evt){
 				type: "cursor",
 				x : x / Tools.getScale(),
 				y : y / Tools.getScale(),
-				c : Tools.getColor()
+				c : Tools.getColor(),
+				s : Tools.getSize(),
 			}
 		};
 		Tools.socket.emit('broadcast', message);
@@ -133,7 +134,7 @@ function moveMarker(message) {
 	cursor.setAttributeNS(null, "cy", message.y-25);
 }
 
-var cursorLastUse={};
+var cursorLastUse = {};
 
 function moveCursor(message) {
 	var cursor = Tools.svg.getElementById("cursor"+message.socket);
@@ -151,6 +152,7 @@ function moveCursor(message) {
 		Tools.svg.appendChild(cursor);
 	}
 	cursor.setAttributeNS(null, "fill", message.c);
+	cursor.setAttributeNS(null, "r", message.s*Tools.getScale());
 	cursor.setAttributeNS(null, "visibility", "visible");
 	cursor.setAttributeNS(null, "cx", message.x);
 	cursor.setAttributeNS(null, "cy", message.y);
@@ -358,7 +360,6 @@ function handleMessage(message) {
 	//Handle cursor updates
 	if(message.type === "cursor" && Tools.showOtherCursors){
 		moveCursor(message);
-		console.log(message);
 	} else {
 		//Check if the message is in the expected format
 		if (!message.tool && !message._children) {
