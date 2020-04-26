@@ -30,7 +30,7 @@
 
 	const currShape = null;
 	let curTool = "single";
-	const icons = ["<i style='color: #e75480;margin-top:7px' class='fas fa-skull-crossbones'></i>", "<i style='color: black;margin-top:7px' class='fas fa-skull-crossbones'></i>",];
+	const icons = ["tools/eraser/icon-red.svg", "tools/eraser/icon.svg",];
 	let end = false;
 	let lastTime = performance.now(); //The time at which the last point was drawn
 	let makeRect = false;
