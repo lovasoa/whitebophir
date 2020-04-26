@@ -92,7 +92,7 @@ Tools.HTML = {
 			}
 		});
 	},
-	addTool: function (toolName, toolIcon, toolShortcut) {
+	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut) {
 		var callback = function () {
 			Tools.change(toolName);
 		};
@@ -104,13 +104,16 @@ Tools.HTML = {
 			elem.addEventListener("click", callback);
 			elem.id = "toolID-" + toolName;
 			elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(toolName);
-			var toolIconElem = elem.getElementsByClassName("tool-icon")[0];
-			toolIconElem.src = toolIcon;
-			toolIconElem.alt = toolIcon;
+			if (toolIconHTML) {
+				elem.getElementsByClassName("tool-icon")[0].innerHTML = toolIconHTML;
+			} else {
+				elem.getElementsByClassName("tool-icon")[0].textContent = toolIcon;
+			}
 			elem.title =
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
-				toolShortcut + ")";
+				toolShortcut + ")" +
+				(Tools.list[toolName].toggle? " [" + Tools.i18n.t("Click to togle")+ "]":"");
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -161,7 +164,7 @@ Tools.add = function (newTool) {
 	}
 
 	//Add the tool to the GUI
-	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.shortcut);
+	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut);
 
 	//There may be pending messages for the tool
 	var pending = Tools.pendingMessages[newTool.name];
