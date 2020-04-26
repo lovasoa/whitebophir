@@ -92,14 +92,21 @@ Tools.HTML = {
 			}
 		});
 	},
-	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut) {
-		var callback = function () {
-			Tools.change(toolName);
-		};
-		this.addShortcut(toolShortcut, function () {
-			Tools.change(toolName);
-			document.activeElement.blur();
-		});
+	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
+		let callback;
+		if (oneTouch) {
+			callback = function (evt) {
+				Tools.onClick(toolName, evt);
+			};
+		} else {
+			callback = function () {
+				Tools.change(toolName);
+			};
+			this.addShortcut(toolShortcut, function () {
+				Tools.change(toolName);
+				document.activeElement.blur();
+			});
+		}
 		return this.template.add(function (elem) {
 			elem.addEventListener("click", callback);
 			elem.id = "toolID-" + toolName;
@@ -107,6 +114,7 @@ Tools.HTML = {
 			var toolIconElem = elem.getElementsByClassName("tool-icon")[0];
 			toolIconElem.src = toolIcon;
 			toolIconElem.alt = toolIcon;
+			if(oneTouch) elem.classList.add("oneTouch");
 			elem.title =
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
@@ -162,7 +170,7 @@ Tools.add = function (newTool) {
 	}
 
 	//Add the tool to the GUI
-	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut);
+	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut, newTool.oneTouch);
 
 	//There may be pending messages for the tool
 	var pending = Tools.pendingMessages[newTool.name];
@@ -174,6 +182,20 @@ Tools.add = function (newTool) {
 			newTool.draw(msg, false);
 		}
 	}
+};
+
+Tools.onClick = function (toolName,evt) {
+
+	if (!(toolName in Tools.list)) {
+		throw new Error("Trying to select a tool that has never been added!");
+	}
+
+	var tool = Tools.list[toolName];
+
+	//Do something with the GUI
+
+	//Call the start callback of the new tool
+	tool.onstart(evt);
 };
 
 Tools.change = function (toolName) {
