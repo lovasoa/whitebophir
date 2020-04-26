@@ -43,6 +43,8 @@ Tools.group = Tools.svg.getElementById("layer-1");
 //Initialization
 Tools.curTool = null;
 Tools.showMarker = false;
+Tools.showOtherCursors = true;
+Tools.showMyCursor = true;
 
 Tools.socket = null;
 Tools.connect = function() {
@@ -90,15 +92,19 @@ Tools.svg.addEventListener("mousemove", handleMarker, false);
 Tools.svg.addEventListener("touchmove", handleMarker,{ 'passive': false });
 
 function handleMarker(evt){
-	var message = {
-		"board": Tools.boardName,
-		"data": {
-			type:"cursor",
-			x : evt.pageX / Tools.getScale(),
-			y : evt.pageY / Tools.getScale()
+	if(Tools.showMyCursor){
+		var message = {
+			"board": Tools.boardName,
+			"data": {
+				type: "cursor",
+				x : evt.pageX / Tools.getScale(),
+				y : evt.pageY / Tools.getScale(),
+				c : Tools.getColor()
+			}
 		}
-	};
-	Tools.socket.emit('broadcast', message);
+		Tools.socket.emit('broadcast', message);
+	}
+
 	if(Tools.showMarker){
 		moveMarker(message.data);
 	}
@@ -106,13 +112,11 @@ function handleMarker(evt){
 }
 
 
-
 function moveMarker(message) {
 	var cursor = Tools.svg.getElementById("mycursor");
 	if(!cursor){
 		Tools.svg.getElementById("cursors").innerHTML="<circle class='opcursor' id='mycursor' cx='100' cy='100' r='10' fill='#e75480' />";
 		cursor = Tools.svg.getElementById("mycursor");
-
 	}
 	Tools.svg.appendChild(cursor);
 	//cursor.setAttributeNS(null, "r", Tools.getSize());
@@ -121,22 +125,29 @@ function moveMarker(message) {
 	cursor.setAttributeNS(null, "cy", message.y-25);
 }
 
-
+var cursorLastUse={};
 
 function moveCursor(message) {
 	var cursor = Tools.svg.getElementById("cursor"+message.socket);
-	if(!cursor){
+	if (!cursor) {
 		var cursors = Tools.svg.getElementsByClassName("opcursor");
-		for(var i = 0; i < cursors.length; i++)
-		{
-			cursors[i].remove()
+		for (var i = 0; i < cursors.length; i++) {
+			if (Date.now()-cursorLastUse[message.socket]>180000) {
+				cursors[i].remove();
+			} else {
+				cursors[i].setAttributeNS(null, "visibility", "hidden");
+			}
 		}
 		Tools.svg.getElementById("cursors").innerHTML="<circle class='opcursor' id='cursor"+message.socket+"' cx='100' cy='100' r='10' fill='orange' />";
 		cursor = Tools.svg.getElementById("cursor"+message.socket);
 		Tools.svg.appendChild(cursor);
 	}
+	cursor.setAttributeNS(null, "fill", message.c);
+	cursor.setAttributeNS(null, "visibility", "visible");
 	cursor.setAttributeNS(null, "cx", message.x);
 	cursor.setAttributeNS(null, "cy", message.y);
+
+	cursorLastUse[message.socket] = Date.now()
 }
 
 Tools.HTML = {
@@ -337,7 +348,7 @@ function batchCall(fn, args) {
 // Call messageForTool recursively on the message and its children
 function handleMessage(message) {
 	//Handle cursor updates
-	if(message.type === "cursor"){
+	if(message.type === "cursor" && Tools.showOtherCursors){
 		moveCursor(message);
 		console.log(message);
 	} else {
