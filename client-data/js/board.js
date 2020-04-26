@@ -98,10 +98,6 @@ let lastCursorUpdate = 0;
 
 function handleMarker(evt) {
 	if (Tools.showMyCursor) {
-		// throttle cursor updates
-		let cur_time = Date.now();
-		if (lastCursorUpdate > cur_time - (1000/MAX_CURSOR_UPDATES_PER_SECOND)) return;
-		lastCursorUpdate = cur_time;
 		if (evt.type === "touchmove") {
 			if (!(evt.changedTouches.length !== 1)) return;
 			x = evt.changedTouches[0].pageX;
@@ -120,7 +116,12 @@ function handleMarker(evt) {
 				s : Tools.getSize(),
 			}
 		};
-		Tools.socket.emit('broadcast', message);
+		// throttle cursor updates
+		let cur_time = Date.now();
+		if (lastCursorUpdate <= cur_time - (1000/MAX_CURSOR_UPDATES_PER_SECOND)) {
+			lastCursorUpdate = cur_time;
+			Tools.socket.emit('broadcast', message);
+		}
 	}
 
 	if(Tools.showMarker){
