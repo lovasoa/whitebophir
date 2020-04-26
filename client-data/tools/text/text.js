@@ -35,7 +35,9 @@
 	var curText = {
 		"x": 0,
 		"y": 0,
-		"size": 0,
+		"size": 36,
+		"rawSize": 16,
+		"oldSize": 0,
 		"opacity": 1,
 		"color": "#000",
 		"id": 0,
@@ -43,27 +45,44 @@
 		"lastSending": 0
 	};
 
-	function clickHandler(x, y, evt) {
-		if (evt.target == input) return;
+
+	function onStart(){
+		curText.oldSize=Tools.getSize();
+		Tools.setSize(curText.rawSize);
+	}
+
+	function onQuit(){
+		Tools.setSize(curText.oldSize);
+	}
+
+	function clickHandler(x, y, evt, isTouchEvent) {
+		//if(document.querySelector("#menu").offsetWidth>Tools.menu_width+3) return;
+		if (evt.target === input) return;
 		if (evt.target.tagName === "text") {
 			editOldText(evt.target);
 			evt.preventDefault();
 			return;
 		}
-		curText.size = parseInt(Tools.getSize() * 1.5 + 12);
+		curText.rawSize = Tools.getSize();
+		curText.size = parseInt(curText.rawSize * 1.5 + 12);
 		curText.opacity = Tools.getOpacity();
 		curText.color = Tools.getColor();
 		curText.x = x;
 		curText.y = y + curText.size / 2;
 
-		drawCurText();
+		stopEdit();
+		startEdit();
 		evt.preventDefault();
 	}
 
 	function editOldText(elem) {
 		curText.id = elem.id;
-		curText.x = elem.x.baseVal[0].value;
-		curText.y = elem.y.baseVal[0].value;
+		var r = elem.getBoundingClientRect();
+		var x = (r.x+document.documentElement.scrollLeft)/Tools.scale;
+		var y = (r.y+r.height+document.documentElement.scrollTop)/Tools.scale;
+
+		curText.x = x;
+		curText.y = y;
 		curText.size = parseInt(elem.getAttribute("font-size"));
 		curText.opacity = parseFloat(elem.getAttribute("opacity"));
 		curText.color = elem.getAttribute("fill");
@@ -71,44 +90,58 @@
 		input.value = elem.textContent;
 	}
 
-	function drawCurText() {
-		stopEdit();
-		//If the user clicked where there was no text, then create a new text field
-		curText.id = Tools.generateUID("t"); //"t" for text
-		Tools.drawAndSend({
-			'type': 'new',
-			'id': curText.id,
-			'color': curText.color,
-			'size': curText.size,
-			'opacity': curText.opacity,
-			'x': curText.x,
-			'y': curText.y
-		});
-		startEdit();
-	}
-
 	function startEdit() {
 		if (!input.parentNode) board.appendChild(input);
-		input.value = "";
+		input.value="";
+		var left = curText.x-scrollX +'px';
+		var clientW = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+		var x = curText.x*Tools.scale-scrollX;
+		if(x+250>clientW){
+			x = Math.max(60,clientW-260)
+		}
+
+		input.style.left=x +'px';
+		input.style.top=curText.y*Tools.scale-scrollY + 20 +'px';
 		input.focus();
 		input.addEventListener("keyup", textChangeHandler);
 		input.addEventListener("blur", textChangeHandler);
+		input.addEventListener("blur", blur);
 	}
 
 	function stopEdit() {
 		input.blur();
+		curText.id=0;
+		curText.sentText="";
 		input.removeEventListener("keyup", textChangeHandler);
+	}
+
+	function blur() {
+		input.style.top='-1000px';
 	}
 
 	function textChangeHandler(evt) {
 		if (evt.which === 13) { // enter
 			curText.y += 1.5 * curText.size;
-			return drawCurText();
+			stopEdit();
+			startEdit();
 		} else if (evt.which === 27) { // escape
 			stopEdit();
 		}
 		if (performance.now() - curText.lastSending > 100) {
 			if (curText.sentText !== input.value) {
+				//If the user clicked where there was no text, then create a new text field
+				if(curText.id === 0){
+					curText.id = Tools.generateUID("t"); //"t" for text
+					Tools.drawAndSend({
+						'type': 'new',
+						'id': curText.id,
+						'color': curText.color,
+						'size': curText.size,
+						'opacity': curText.opacity,
+						'x': curText.x,
+						'y': curText.y
+					})
+				}
 				Tools.drawAndSend({
 					'type': "update",
 					'id': curText.id,
@@ -124,6 +157,7 @@
 	}
 
 	function draw(data, isLocal) {
+		Tools.drawingEvent = true;
 		switch (data.type) {
 			case "new":
 				createTextField(data);
@@ -133,6 +167,13 @@
 				if (textField === null) {
 					console.error("Text: Hmmm... I received text that belongs to an unknown text field");
 					return false;
+				} else {
+					if(Tools.useLayers){
+						if(textField.getAttribute("class") !== "layer"+Tools.layer){
+							textField.setAttribute("class","layer-"+Tools.layer);
+							Tools.group.appendChild(textField);
+						}
+					}
 				}
 				updateText(textField, data.txt);
 				break;
@@ -151,6 +192,9 @@
 		elem.id = fieldData.id;
 		elem.setAttribute("x", fieldData.x);
 		elem.setAttribute("y", fieldData.y);
+		if(Tools.useLayers) {
+			elem.setAttribute("class", "layer-" + Tools.layer);
+		}
 		elem.setAttribute("font-size", fieldData.size);
 		elem.setAttribute("fill", fieldData.color);
 		elem.setAttribute("opacity", Math.max(0.1, Math.min(1, fieldData.opacity)) || 1);
@@ -165,6 +209,8 @@
 		"listeners": {
 			"press": clickHandler,
 		},
+		"onstart": onStart,
+		"onquit": onQuit,
 		"draw": draw,
 		"stylesheet": "tools/text/text.css",
 		"icon": "tools/text/icon.svg",
