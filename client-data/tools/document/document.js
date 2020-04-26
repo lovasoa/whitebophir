@@ -64,11 +64,11 @@
 
     Tools.add({
         "name": "Document",
-        "icon": "🖼️",
         //"shortcut": "",
         "draw": draw,
         "onstart": onstart,
-        "oneTouch":true
+        "oneTouch":true,
+        "icon": "/tools/document/icon.svg",
     });
 
 })(); //End of code isolation
