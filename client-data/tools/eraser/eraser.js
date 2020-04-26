@@ -77,7 +77,6 @@
 
 	Tools.add({ //The new tool
 		"name": "Eraser",
-		"icon": "❌",
 		"shortcut": "e",
 		"listeners": {
 			"press": startErasing,
@@ -85,6 +84,7 @@
 			"release": stopErasing,
 		},
 		"draw": draw,
+		"icon": "tools/eraser/icon.svg",
 		"mouseCursor": "crosshair",
 	});
 

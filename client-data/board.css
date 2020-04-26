@@ -118,18 +118,16 @@ html, body, svg {
   background: linear-gradient(#96E1FF, #36A2FF);
 }
 
+#menu .tool > * {
+	vertical-align: middle;
+}
+
 #menu .tool-icon {
+	width: 60px;
+	height: 60px;
 	display: inline-block;
-	text-align:center;
-	font-size:24px;
-	width: 30px;
-	margin-left: 15px;
-	margin-right: 26px;
-	height: 30px;
-	max-height: 24px;
-	height: 100%;
-	margin: 0px 26px auto 15px;
-	font-family: mono;
+	overflow: hidden;
+	text-align: center;
 }
 
 #menu .tool-icon > * {
@@ -141,6 +139,7 @@ html, body, svg {
 	text-align: center;
 	font-size: 25px;
 	margin-right: 30px;
+	margin-left: 5px;
 }
 #menu .tool-name.slider {
 	display: inline-block;
@@ -158,24 +157,18 @@ input {
 }
 
 #chooseColor {
-	width:5vw;
-	height:100%;
-	border:1px solid black;
-	border-radius:3px;
-	color:black;
-	text-shadow: 0 0 6px white;
-	display: block;
-	width: 100%;
-	margin: 0;
-	padding: 0;
+    border-radius: 5px;
+    color: black;
+    padding: 0;
+    box-shadow: none;
+    margin-right: 10px;
+    width: 35px !important;
+    height: 35px !important;
+    margin-left: 12px;
 }
 
 .colorPresets {
-	width: 100%;
-	height: 100%;
-	display: inline-block;
 	padding-right: 20px;
-	vertical-align: middle;
 }
 
 .colorPresetButton {
@@ -186,7 +179,7 @@ input {
 	display: inline-block;
 	margin-right: 6px;
 	padding: 0;
-	vertical-align: text-bottom;
+	vertical-align: middle;
 }
 
 .rangeChooser {

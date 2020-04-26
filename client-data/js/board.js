@@ -104,7 +104,9 @@ Tools.HTML = {
 			elem.addEventListener("click", callback);
 			elem.id = "toolID-" + toolName;
 			elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(toolName);
-			elem.getElementsByClassName("tool-icon")[0].textContent = toolIcon;
+			var toolIconElem = elem.getElementsByClassName("tool-icon")[0];
+			toolIconElem.src = toolIcon;
+			toolIconElem.alt = toolIcon;
 			elem.title =
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
@@ -500,14 +502,10 @@ Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
 Tools.getSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
-	var sizeIndicator = document.getElementById("sizeIndicator");
-
 	function update() {
 		chooser.value = Math.max(1, Math.min(50, chooser.value | 0));
-		sizeIndicator.r.baseVal.value = chooser.value;
 	}
 	update();
-
 	chooser.onchange = chooser.oninput = update;
 	return function () { return chooser.value; };
 })();
