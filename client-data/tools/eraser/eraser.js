@@ -109,12 +109,12 @@
 							targets.push(el);
 						}
 					}
-					);
+				);
+				console.log(targets);
 				if (targets.length > 0) {
 					msg.id = [];
 					for (let i = 0; i < targets.length; i++) {
 						msg.id.push(targets[i].id);
-
 					}
 					Tools.drawAndSend(msg);
 				}

@@ -90,7 +90,27 @@ BoardData.prototype.update = function (id, data, create) {
  */
 BoardData.prototype.delete = function (id) {
 	//KISS
-	delete this.board[id];
+	if(Array.isArray(id)){  //Bulk delete
+		//var removed = [];
+		for(var i = 0;i<id.length;i++){
+			if(this.board[id[i]]){
+				//removed.push(this.elements[id[i]]);
+				this.size -= this.board[id[i]].size;
+				delete this.board[id[i]];
+			}
+		}
+		/*if(removed.length>0){
+			this.actionHistory.push({type:'BR',elems:removed});
+			this.undoHistory = [];
+		}*/
+	}else{
+		if(this.board[id]){
+			/*this.actionHistory.push({type:'R',elem:this.elements[id]});
+			this.undoHistory = [];
+			this.size -= this.elements[id].size;*/
+			delete this.board[id];
+		}
+	}
 	this.delaySave();
 };
 
