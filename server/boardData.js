@@ -155,7 +155,7 @@ BoardData.prototype.save = async function (file) {
 		} catch (err) {
 			if (err.code !== "ENOENT") {
 				// If the file already wasn't saved, this is not an error
-				log("board deletion error", { "e": err })
+				log("board deletion error", { "err": err.toString() })
 			}
 		}
 	} else {
