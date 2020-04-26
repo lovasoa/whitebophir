@@ -36,6 +36,26 @@
         "click_to_zoom": "Cliquez pour zoomer\nCliquez en maintenant la touche majuscule enfoncée pour dézoomer",
         "tagline": "Logiciel libre pour collaborer en ligne sur un tableau blanc. Venez dessiner vos idées ensemble sur WBO !"
     },
+    "ja": {
+        "hand": "手のひらツール",
+        "loading": "読み込み中",
+        "tagline": "無料でオープンソースの協同作業できるオンラインホワイトボード。WBOでアイディアを共有しましょう!",
+        "configuration": "設定",
+        "collaborative_whiteboard": "協同作業できるオンラインホワイトボード",
+        "size": "サイズ",
+        "zoom": "拡大・縮小",
+        "tools": "ツール",
+        "rectangle": "矩形",
+        "menu": "メニュー",
+        "text": "テキスト",
+        "straight_line": "直線",
+        "pencil": "ペン",
+        "click_to_zoom": "クリックで拡大\nシフトを押しながらクリックで縮小",
+        "keyboard_shortcut": "キーボードショートカット",
+        "opacity": "透明度",
+        "color": "色",
+        "eraser": "消去"
+    },
     "ru": {
         "collaborative_whiteboard": "Онлайн доска для совместного рисования",
         "loading": "Загрузка",
