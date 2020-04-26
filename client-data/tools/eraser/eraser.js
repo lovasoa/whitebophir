@@ -178,16 +178,15 @@
 				}
 			} else {
 				if (erasing) {
-					for (let i = -1; i < 2; i++) {
-						for (let j = -1; j < 2; j++) {
-							scanForObject(x, y, target, i, j);
+					// get points all within a circle of a given radius
+					// https://stackoverflow.com/a/26802146
+					let radius = Tools.getSize(),
+						r2 = radius*radius;
+					for (let dx = -radius; dx <= radius; dx++) {
+						let h = Math.sqrt(r2 - dx * dx) | 0;
+						for (let dy = -h; dy <= h; dy++) {
+							scanForObject(x, y, target, dx, dy);
 						}
-					}
-					for (i = 2; i < 7; i++) {
-						scanForObject(x, y, target, 0, i);
-						scanForObject(x, y, target, i, 0);
-						scanForObject(x, y, target, 0, -i);
-						scanForObject(x, y, target, -i, 0);
 					}
 				}
 			}
