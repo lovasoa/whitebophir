@@ -131,18 +131,12 @@ html, body, svg {
   background: linear-gradient(#96E1FF, #36A2FF);
 }
 
-#menu .tool > * {
-	vertical-align: middle;
-}
-
 #menu .tool-icon {
 	display: inline-block;
 	text-align:center;
-	font-size:24px;
-	width: 30px;
-	height: 30px;
-	max-height: 24px;
-	margin: 0 26px auto 5px;
+	width: 35px;
+	height: 35px;
+	margin: 2.5px;
 	font-family: mono, monospace;
 	overflow: hidden;
 }
@@ -154,9 +148,11 @@ html, body, svg {
 
 #menu .tool-name {
 	text-align: center;
-	font-size: 25px;
-	margin-right: 30px;
-	margin-left: 5px;
+	font-size: 23px;
+	margin-right: 20px;
+	margin-left: 20px;
+	margin-bottom: 2.5px;
+	vertical-align: text-bottom;
 }
 #menu .tool-name.slider {
 	display: inline-block;
