@@ -1,9 +1,7 @@
 var iolib = require('socket.io')
 	, log = require("./log.js").log
-	, BoardData = require("./boardData.js").BoardData;
-
-var MAX_EMIT_COUNT = 64; // Maximum number of draw operations before getting banned
-var MAX_EMIT_COUNT_PERIOD = 5000; // Duration (in ms) after which the emit count is reset
+	, BoardData = require("./boardData.js").BoardData
+	, config = require("./configuration");
 
 /** Map from name to *promises* of BoardData
 	@type {Object<string, Promise<BoardData>>}
@@ -66,13 +64,13 @@ function socketConnection(socket) {
 
 	socket.on("joinboard", noFail(joinBoard));
 
-	var lastEmitSecond = Date.now() / MAX_EMIT_COUNT_PERIOD | 0;
+	var lastEmitSecond = Date.now() / config.MAX_EMIT_COUNT_PERIOD | 0;
 	var emitCount = 0;
 	socket.on('broadcast', noFail(function onBroadcast(message) {
-		var currentSecond = Date.now() / MAX_EMIT_COUNT_PERIOD | 0;
+		var currentSecond = Date.now() / config.MAX_EMIT_COUNT_PERIOD | 0;
 		if (currentSecond === lastEmitSecond) {
 			emitCount++;
-			if (emitCount > MAX_EMIT_COUNT) {
+			if (emitCount > config.MAX_EMIT_COUNT) {
 				var request = socket.client.request;
 				log('BANNED', {
 					user_agent: request.headers['user-agent'],
