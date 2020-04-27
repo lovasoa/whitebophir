@@ -48,6 +48,7 @@ Tools.showMyCursor = true;
 
 // TODO: get cursor update rate from config
 const MAX_CURSOR_UPDATES_PER_SECOND = 60;
+const MAX_LOCAL_CURSOR_UPDATES_PER_SECOND = 120;
 
 Tools.socket = null;
 Tools.connect = function() {
@@ -97,35 +98,40 @@ Tools.svg.addEventListener("touchmove", handleMarker, { 'passive': false });
 let lastCursorUpdate = 0;
 
 function handleMarker(evt) {
-	if (Tools.showMyCursor) {
-		if (evt.type === "touchmove") {
-			if (!(evt.changedTouches.length !== 1)) return;
-			x = evt.changedTouches[0].pageX;
-			y = evt.changedTouches[0].pageY;
-		} else {
-			x = evt.pageX;
-			y = evt.pageY;
+	if(!Tools.showMarker && !Tools.showMyCursor) return;
+
+	// throttle local cursor updates
+	let cur_time = Date.now();
+	if(lastCursorUpdate > cur_time - (1000/MAX_LOCAL_CURSOR_UPDATES_PER_SECOND)) return;
+
+	if (evt.type === "touchmove") {
+		if (!(evt.changedTouches.length !== 1)) return;
+		x = evt.changedTouches[0].pageX;
+		y = evt.changedTouches[0].pageY;
+	} else {
+		x = evt.pageX;
+		y = evt.pageY;
+	}
+	var message = {
+		"board": Tools.boardName,
+		"data": {
+			type: "cursor",
+			x : x / Tools.getScale(),
+			y : y / Tools.getScale(),
+			c : Tools.getColor(),
+			s : Tools.getSize(),
 		}
-		var message = {
-			"board": Tools.boardName,
-			"data": {
-				type: "cursor",
-				x : x / Tools.getScale(),
-				y : y / Tools.getScale(),
-				c : Tools.getColor(),
-				s : Tools.getSize(),
-			}
-		};
-		// throttle cursor updates
-		let cur_time = Date.now();
-		if (lastCursorUpdate <= cur_time - (1000/MAX_CURSOR_UPDATES_PER_SECOND)) {
-			lastCursorUpdate = cur_time;
-			Tools.socket.emit('broadcast', message);
-		}
+	};
+
+
+	if (Tools.showMarker) {
+		moveMarker(message.data);
 	}
 
-	if(Tools.showMarker){
-		moveMarker(message.data);
+	// throttle network cursor updates
+	if (Tools.showMyCursor && lastCursorUpdate <= cur_time - (1000/MAX_CURSOR_UPDATES_PER_SECOND)) {
+		lastCursorUpdate = cur_time;
+		Tools.socket.emit('broadcast', message);
 	}
 
 }
