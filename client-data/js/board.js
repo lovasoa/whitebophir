@@ -480,10 +480,10 @@ Tools.colorPresets = [
 	{ color: "#FFDC00", key: '5' },
 	{ color: "#3D9970", key: '6' },
 	{ color: "#91E99B", key: '7' },
-	{ color: "#B10DC9", key: '8' },
+	{ color: "#90468b", key: '8' },
 	{ color: "#7FDBFF", key: '9' },
 	{ color: "#AAAAAA", key: '0' },
-	{ color: "#01FF70" }
+	{ color: "#E65194" }
 ];
 
 Tools.color_chooser = document.getElementById("chooseColor");
