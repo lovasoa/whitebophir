@@ -2,8 +2,8 @@ var iolib = require('socket.io')
 	, log = require("./log.js").log
 	, BoardData = require("./boardData.js").BoardData;
 
-var MAX_EMIT_COUNT = 64; // Maximum number of draw operations before getting banned
-var MAX_EMIT_COUNT_PERIOD = 5000; // Duration (in ms) after which the emit count is reset
+var MAX_EMIT_COUNT = 200; // Maximum number of draw operations before getting banned
+var MAX_EMIT_COUNT_PERIOD = 1000; // Duration (in ms) after which the emit count is reset
 
 /** Map from name to *promises* of BoardData
 	@type {Object<string, Promise<BoardData>>}

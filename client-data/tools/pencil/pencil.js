@@ -28,7 +28,16 @@
 
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
-		lastTime = performance.now(); //The time at which the last point was drawn
+		lastTime = performance.now(), //The time at which the last point was drawn
+		penIcons = ["tools/pencil/icon.svg", "tools/pencil/whiteout_tape.svg"],
+		toolName = ["Pencil", "Whiteout Pen"],
+		end = false;
+
+	var curPen = {
+		"mode":"pencil",
+		//"penSize":3,
+		//"eraserSize":16
+	};
 
 	//The data of the message that will be sent for every new point
 	function PointMessage(x, y) {
@@ -36,6 +45,31 @@
 		this.parent = curLineId;
 		this.x = x;
 		this.y = y;
+	}
+
+	function hideMarker() {
+		// hide cursor again unless it is set to always be shown
+		Tools.showMarker = Tools.alwaysShowMarker;
+		if (!Tools.showMarker) {
+			var cursor = Tools.svg.getElementById("mycursor");
+			if (cursor) {
+				cursor.remove();
+			}
+		}
+	}
+
+	function onStart(){
+		if(curPen.mode === "whiteout"){
+			//Tools.setSize(curPen.eraserSize);
+			Tools.showMarker = true;
+		}
+	}
+
+	function onQuit(){
+		if(curPen.mode === "whiteout"){
+			//Tools.setSize(curPen.penSize);
+		}
+		hideMarker();
 	}
 
 	function startLine(x, y, evt) {
@@ -48,7 +82,7 @@
 		Tools.drawAndSend({
 			'type': 'line',
 			'id': curLineId,
-			'color': Tools.getColor(),
+			'color': (curPen.mode === "pencil" ? Tools.getColor() : "white"),
 			'size': Tools.getSize(),
 			'opacity': Tools.getOpacity()
 		});
@@ -58,9 +92,9 @@
 	}
 
 	function continueLine(x, y, evt) {
-		/*Wait 70ms before adding any point to the currently drawing line.
+		/*Wait 20ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
-		if (curLineId !== "" && performance.now() - lastTime > 70) {
+		if (curLineId !== "" && (performance.now() - lastTime > 20 || end)) {
 			Tools.drawAndSend(new PointMessage(x, y));
 			lastTime = performance.now();
 		}
@@ -69,21 +103,31 @@
 
 	function stopLine(x, y) {
 		//Add a last point to the line
+		end = true;
 		continueLine(x, y);
+		end = false;
 		curLineId = "";
 	}
 
 	var renderingLine = {};
 	function draw(data) {
+		Tools.drawingEvent = true;
 		switch (data.type) {
 			case "line":
 				renderingLine = createLine(data);
 				break;
 			case "child":
-				var line = (renderingLine.id == data.parent) ? renderingLine : svg.getElementById(data.parent);
+				let line = (renderingLine.id === data.parent) ? renderingLine : svg.getElementById(data.parent);
 				if (!line) {
 					console.error("Pencil: Hmmm... I received a point of a line that has not been created (%s).", data.parent);
 					line = renderingLine = createLine({ "id": data.parent }); //create a new line in order not to loose the points
+				/*} else {
+					if (Tools.useLayers) {
+						if (line.getAttribute("class") !== "layer" + Tools.layer) {
+							line.setAttribute("class", "layer-" + Tools.layer);
+							Tools.group.appendChild(line);
+						}
+					}*/
 				}
 				addPoint(line, data.x, data.y);
 				break;
@@ -179,10 +223,32 @@
 		//If some data is not provided, choose default value. The line may be updated later
 		line.setAttribute("stroke", lineData.color || "black");
 		line.setAttribute("stroke-width", lineData.size || 10);
+		if(Tools.useLayers)
+			line.setAttribute("class","layer-"+Tools.layer);
 		line.setAttribute("opacity", Math.max(0.1, Math.min(1, lineData.opacity)) || 1);
 		svg.appendChild(line);
 		return line;
 	}
+
+
+	function toggle(elem){
+		var index = 0;
+		if (curPen.mode === "pencil") {
+			curPen.mode = "whiteout";
+			curPen.penSize = Tools.getSize();
+			//Tools.setSize(curPen.eraserSize);
+			Tools.showMarker = true;
+			index = 1;
+		} else {
+			curPen.mode = "pencil";
+			//curPen.eraserSize = Tools.getSize();
+			//Tools.setSize(curPen.penSize);
+			hideMarker();
+		}
+		elem.getElementsByClassName("tool-icon")[0].src = penIcons[index];
+		elem.getElementsByClassName("tool-name")[0].textContent = toolName[index];
+	}
+
 
 	Tools.add({
 		"name": "Pencil",
@@ -193,8 +259,11 @@
 			"release": stopLine,
 		},
 		"draw": draw,
+		"toggle":toggle,
+		"onstart":onStart,
+		"onquit":onQuit,
 		"mouseCursor": "crosshair",
-		"icon": "tools/pencil/icon.svg",
+		"icon": penIcons[0],
 		"stylesheet": "tools/pencil/pencil.css"
 	});
 

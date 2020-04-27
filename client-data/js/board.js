@@ -41,6 +41,8 @@ Tools.svg = document.getElementById("canvas");
 
 //Initialization
 Tools.curTool = null;
+Tools.showMarker = false;
+Tools.alwaysShowMarker = true;
 
 Tools.socket = null;
 Tools.connect = function() {
