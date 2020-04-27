@@ -54,6 +54,7 @@ html, body, svg {
 	transition-duration:1s;
 	cursor:default;
 	padding: 10px;
+	pointer-events: none;
 }
 
 #menu.closed {
