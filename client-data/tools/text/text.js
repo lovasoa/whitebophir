@@ -46,12 +46,12 @@
 	};
 
 
-	function onStart(){
-		curText.oldSize=Tools.getSize();
+	function onStart() {
+		curText.oldSize = Tools.getSize();
 		Tools.setSize(curText.rawSize);
 	}
 
-	function onQuit(){
+	function onQuit() {
 		Tools.setSize(curText.oldSize);
 	}
 
@@ -78,8 +78,8 @@
 	function editOldText(elem) {
 		curText.id = elem.id;
 		var r = elem.getBoundingClientRect();
-		var x = (r.x+document.documentElement.scrollLeft)/Tools.scale;
-		var y = (r.y+r.height+document.documentElement.scrollTop)/Tools.scale;
+		var x = (r.x + document.documentElement.scrollLeft) / Tools.scale;
+		var y = (r.y + r.height + document.documentElement.scrollTop) / Tools.scale;
 
 		curText.x = x;
 		curText.y = y;
@@ -92,16 +92,16 @@
 
 	function startEdit() {
 		if (!input.parentNode) board.appendChild(input);
-		input.value="";
-		var left = curText.x-scrollX +'px';
+		input.value = "";
+		var left = curText.x - scrollX + 'px';
 		var clientW = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-		var x = curText.x*Tools.scale-scrollX;
-		if(x+250>clientW){
-			x = Math.max(60,clientW-260)
+		var x = curText.x * Tools.scale - scrollX;
+		if (x + 250 > clientW) {
+			x = Math.max(60, clientW - 260)
 		}
 
-		input.style.left=x +'px';
-		input.style.top=curText.y*Tools.scale-scrollY + 20 +'px';
+		input.style.left = x + 'px';
+		input.style.top = curText.y * Tools.scale - scrollY + 20 + 'px';
 		input.focus();
 		input.addEventListener("keyup", textChangeHandler);
 		input.addEventListener("blur", textChangeHandler);
@@ -110,13 +110,13 @@
 
 	function stopEdit() {
 		input.blur();
-		curText.id=0;
-		curText.sentText="";
+		curText.id = 0;
+		curText.sentText = "";
 		input.removeEventListener("keyup", textChangeHandler);
 	}
 
 	function blur() {
-		input.style.top='-1000px';
+		input.style.top = '-1000px';
 	}
 
 	function textChangeHandler(evt) {
@@ -130,7 +130,7 @@
 		if (performance.now() - curText.lastSending > 100) {
 			if (curText.sentText !== input.value) {
 				//If the user clicked where there was no text, then create a new text field
-				if(curText.id === 0){
+				if (curText.id === 0) {
 					curText.id = Tools.generateUID("t"); //"t" for text
 					Tools.drawAndSend({
 						'type': 'new',
