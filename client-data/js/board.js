@@ -47,7 +47,7 @@ Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 
 // TODO: get cursor update rate from config
-var MAX_CURSOR_UPDATES_PER_SECOND = 60;
+var MAX_CURSOR_UPDATES_PER_SECOND = 5;
 var MAX_LOCAL_CURSOR_UPDATES_PER_SECOND = 120;
 
 Tools.socket = null;
