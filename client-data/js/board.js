@@ -318,7 +318,7 @@ function updateDocumentTitle() {
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(function updateHistory() {
 			var hash = '#' + (x | 0) + ',' + (y | 0) + ',' + Tools.getScale().toFixed(1);
-			if (Date.now() - lastStateUpdate > 5000 && hash != window.location.hash) {
+			if (Date.now() - lastStateUpdate > 5000 && hash !== window.location.hash) {
 				window.history.pushState({}, "", hash);
 				lastStateUpdate = Date.now();
 			} else {
