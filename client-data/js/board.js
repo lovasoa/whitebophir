@@ -47,8 +47,8 @@ Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 
 // TODO: get cursor update rate from config
-const MAX_CURSOR_UPDATES_PER_SECOND = 60;
-const MAX_LOCAL_CURSOR_UPDATES_PER_SECOND = 120;
+var MAX_CURSOR_UPDATES_PER_SECOND = 60;
+var MAX_LOCAL_CURSOR_UPDATES_PER_SECOND = 120;
 
 Tools.socket = null;
 Tools.connect = function() {
@@ -95,13 +95,13 @@ Tools.socket.emit("getboard", Tools.boardName);
 Tools.svg.addEventListener("mousemove", handleMarker, false);
 Tools.svg.addEventListener("touchmove", handleMarker, { 'passive': false });
 
-let lastCursorUpdate = 0;
+var lastCursorUpdate = 0;
 
 function handleMarker(evt) {
 	if(!Tools.showMarker && !Tools.showMyCursor) return;
 
 	// throttle local cursor updates
-	let cur_time = Date.now();
+	var cur_time = Date.now();
 	if(lastCursorUpdate > cur_time - (1000/MAX_LOCAL_CURSOR_UPDATES_PER_SECOND)) return;
 
 	if (evt.type === "touchmove") {
@@ -150,7 +150,7 @@ function moveMarker(message) {
 	cursor.setAttributeNS(null, "cy", message.y);
 }
 
-const cursorLastUse = {};
+var cursorLastUse = {};
 
 function moveCursor(message) {
 	var cursor = Tools.svg.getElementById("cursor"+message.socket);
