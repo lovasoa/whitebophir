@@ -425,9 +425,22 @@ Tools.toolHooks = [
 			});
 		}
 
+		function wrapUnsetHover(f, toolName) {
+			// test for mobile device
+			// https://stackoverflow.com/a/24600597
+			if (/Mobi|Android/i.test(navigator.userAgent)) {
+				return (function unsetHover(evt) {
+					document.activeElement.blur();
+					return f(evt);
+				});
+			} else {
+				return f;
+			}
+		}
+
 		if (listeners.press) {
-			compiled["mousedown"] = compile(listeners.press);
-			compiled["touchstart"] = compileTouch(listeners.press);
+			compiled["mousedown"] = wrapUnsetHover(compile(listeners.press), tool.name);
+			compiled["touchstart"] = wrapUnsetHover(compileTouch(listeners.press), tool.name);
 		}
 		if (listeners.move) {
 			compiled["mousemove"] = compile(listeners.move);

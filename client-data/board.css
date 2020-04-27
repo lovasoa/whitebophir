@@ -109,10 +109,18 @@ html, body, svg {
 	box-shadow: inset 0 0 3px #8FA2BC;
 }
 
-#menu .tool:hover,
-#menu .tool:focus-within,
-#menu  #settings .tool:hover {
-	max-width:100%;
+#menu .tool:hover {
+	max-width: 100%;
+}
+
+@media (hover: none) {
+	#menu .tool:hover {
+		max-width: 40px;
+	}
+
+	#menu .tool:focus {
+		max-width: 100%;
+	}
 }
 
 #menu .tool.curTool {
