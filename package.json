@@ -12,18 +12,13 @@
       "socket.io": "^2.3.0"
    },
    "scripts": {
-      "start": "node ./server/server.js",
-      "deploy": "openode deploy"
+      "start": "node ./server/server.js"
    },
    "name": "whitebophir",
    "description": "Online collaborative whiteboard",
    "main": "./server/server.js",
-   "subdomain": "wbo",
    "repository": {
       "type": "git",
       "url": "http://github.com/lovasoa/whitebophir.git"
-   },
-   "devDependencies": {
-      "openode": "^2.0.18"
    }
 }
