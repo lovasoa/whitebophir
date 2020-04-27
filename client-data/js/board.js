@@ -511,7 +511,7 @@ Tools.setSize = (function size() {
 
 	chooser.onchange = chooser.oninput = update;
 	return function (value) {
-		if (value) { chooser.value=value; update(); }
+		if (value !== null && value !== undefined) { chooser.value=value; update(); }
 		return parseInt(chooser.value);
 	};
 })();
