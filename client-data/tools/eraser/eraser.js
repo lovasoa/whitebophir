@@ -48,7 +48,7 @@
 			var touch = evt.touches[0];
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
-		if (erasing && target !== Tools.svg) {
+		if (erasing && target !== Tools.svg && target.className.baseVal.indexOf("opcursor") === -1) {
 			msg.id = target.id;
 			Tools.drawAndSend(msg);
 		}
