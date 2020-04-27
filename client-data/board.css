@@ -179,11 +179,13 @@ input {
 	display: block;
 	margin: 0;
 	padding: 0;
+	vertical-align: top;
 }
 
 .colorPresets {
 	margin-right: 20px;
 	vertical-align: top;
+	display: inline-block;
 }
 
 .colorPresetButton {
