@@ -501,15 +501,22 @@ Tools.getColor = (function color() {
 
 Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
-Tools.getSize = (function size() {
+Tools.setSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
+
 	function update() {
 		chooser.value = Math.max(1, Math.min(50, chooser.value | 0));
 	}
 	update();
+
 	chooser.onchange = chooser.oninput = update;
-	return function () { return chooser.value; };
+	return function (value) {
+		if (value !== null && value !== undefined) { chooser.value=value; update(); }
+		return parseInt(chooser.value);
+	};
 })();
+
+Tools.getSize = (function() {return Tools.setSize()});
 
 Tools.getOpacity = (function opacity() {
 	var chooser = document.getElementById("chooseOpacity");
