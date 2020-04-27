@@ -167,13 +167,6 @@
 				if (textField === null) {
 					console.error("Text: Hmmm... I received text that belongs to an unknown text field");
 					return false;
-				} else {
-					/*if(Tools.useLayers){
-						if(textField.getAttribute("class") !== "layer"+Tools.layer){
-							textField.setAttribute("class","layer-"+Tools.layer);
-							Tools.group.appendChild(textField);
-						}
-					}*/
 				}
 				updateText(textField, data.txt);
 				break;
@@ -192,9 +185,6 @@
 		elem.id = fieldData.id;
 		elem.setAttribute("x", fieldData.x);
 		elem.setAttribute("y", fieldData.y);
-		/*if(Tools.useLayers) {
-			elem.setAttribute("class", "layer-" + Tools.layer);
-		}*/
 		elem.setAttribute("font-size", fieldData.size);
 		elem.setAttribute("fill", fieldData.color);
 		elem.setAttribute("opacity", Math.max(0.1, Math.min(1, fieldData.opacity)) || 1);
