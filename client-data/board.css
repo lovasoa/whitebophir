@@ -222,3 +222,7 @@ text {
 	user-select:none;
 	-moz-user-select:none;
 }
+
+circle.opcursor {
+	pointer-events: none;
+}

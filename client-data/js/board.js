@@ -38,7 +38,7 @@ Tools.i18n = (function i18n() {
 
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
-Tools.group = Tools.svg.getElementById("layer-1");
+Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
 //Initialization
 Tools.curTool = null;
