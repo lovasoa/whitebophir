@@ -36,6 +36,8 @@ Tools.i18n = (function i18n() {
 	};
 })();
 
+Tools.server_config = JSON.parse(document.getElementById("configuration").text);
+
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
@@ -46,8 +48,10 @@ Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 
-// TODO: get cursor update rate from config
-var MAX_CURSOR_UPDATES_PER_SECOND = 5;
+// Never send updates more frequently than 60 times per second
+var MAX_CURSOR_UPDATES_PER_SECOND = Math.min(Math.floor(Tools.server_config.MAX_EMIT_COUNT*1000
+														/ Tools.server_config.MAX_EMIT_COUNT_PERIOD / 2), 60);
+// TODO: create local settings and config store and pull info from there.
 var MAX_LOCAL_CURSOR_UPDATES_PER_SECOND = 120;
 
 Tools.socket = null;
