@@ -64,7 +64,7 @@
 		if (erasing) {
 			// get points all within a circle of a given radius
 			// https://stackoverflow.com/a/26802146
-			var radius = Tools.getSize(),
+			var radius = Tools.getSize()/2,
 				r2 = radius*radius;
 			for (var dx = -radius; dx <= radius; dx++) {
 				var h = Math.sqrt(r2 - dx * dx) | 0;
