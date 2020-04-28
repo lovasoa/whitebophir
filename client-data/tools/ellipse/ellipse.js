@@ -159,6 +159,16 @@
         elem.getElementsByClassName("tool-name")[0].textContent = curshape;
     }
 
+    function keyToggle(e) {
+        if (e.key === "Shift" && Tools.curTool.name === "Ellipse") {
+            var elem = document.getElementById("toolID-" + Tools.curTool.name);
+            Tools.curTool.toggle(elem);
+            curUpdate.shape = curshape;
+            draw(curUpdate);
+        }
+    }
+    window.addEventListener("keydown", keyToggle);
+    window.addEventListener("keyup", keyToggle);
 
     Tools.add({ //The new tool
         "name": "Ellipse",
