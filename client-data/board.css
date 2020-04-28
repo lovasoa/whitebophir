@@ -136,7 +136,7 @@ html, body, svg {
 	margin: 2.5px;
 	font-family: mono, monospace;
 	overflow: hidden;
-	pointer-events: none;
+	  pointer-events: none;
 }
 
 #menu .tool-icon > * {
@@ -177,7 +177,6 @@ input {
 	display: block;
 	margin: 0;
 	padding: 0;
-	vertical-align: top;
 }
 
 .colorPresets {
