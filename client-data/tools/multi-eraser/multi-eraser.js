@@ -26,23 +26,23 @@
 
 (function multi_eraser() { //Code isolation
 
-    let erasing = false;
+    var erasing = false;
 
-    let curTool = "single";
-    let end = false;
-    let lastTime = performance.now(); //The time at which the last point was drawn
-    let makeRect = false;
-    let textElem;
+    var curTool = "single";
+    var end = false;
+    var lastTime = performance.now(); //The time at which the last point was drawn
+    var makeRect = false;
+    var textElem;
     var oldScale = Tools.getScale();
 
-    const msg = {
+    var msg = {
         "type": "delete",
         "id": null,
         "x": 0,
         "y": 0
     };
 
-    const rect = {
+    var rect = {
         x: 0,
         y: 0,
         x2: 0,
@@ -53,7 +53,7 @@
 
         //Prevent the press from being interpreted by the browser
         evt.preventDefault();
-        const shape = Tools.createSVGElement("rect");
+        var shape = Tools.createSVGElement("rect");
 
         shape.id = "erase-rect";
 
@@ -85,18 +85,18 @@
             end = true;
             erase(x, y);
             end = false;
-            const shape = svg.getElementById("erase-rect");
+            var shape = svg.getElementById("erase-rect");
             erase_rect = shape.getBoundingClientRect();
             shape.remove();
             textElem.setAttribute("x", -1000);
             textElem.setAttribute("y", 100);
             textElem.style.visibility = "hidden";
             makeRect = false;
-            const targets = [];
+            var targets = [];
             //document.querySelectorAll("#layer-" + Tools.layer + " *").forEach(
             document.querySelectorAll("#canvas path, #canvas text, #canvas line, #canvas rect").forEach(
                 function (el, i) {
-                    let r = el.getBoundingClientRect();
+                    var r = el.getBoundingClientRect();
                     if (r.left >= erase_rect.left && r.right <= erase_rect.right
                         && r.top >= erase_rect.top && r.bottom <= erase_rect.bottom) {
                         targets.push(el);
@@ -105,7 +105,7 @@
             );
             if (targets.length > 0) {
                 msg.id = [];
-                for (let i = 0; i < targets.length; i++) {
+                for (var i = 0; i < targets.length; i++) {
                     msg.id.push(targets[i].id);
                 }
                 Tools.drawAndSend(msg);
@@ -118,7 +118,7 @@
             rect['x2'] = x;
             rect['y2'] = y;
             if (performance.now() - lastTime > 20 || end) {
-                const shape = svg.getElementById("erase-rect");
+                var shape = svg.getElementById("erase-rect");
                 shape.x.baseVal.value = Math.min(rect['x2'], rect['x']);
                 shape.y.baseVal.value = Math.min(rect['y2'], rect['y']);
                 shape.width.baseVal.value = Math.abs(rect['x2'] - rect['x']);
@@ -146,12 +146,12 @@
     }
 
     function draw (data) {
-        let elem;
+        var elem;
         switch (data.type) {
             //TODO: add the ability to erase only some points in a line
             case "delete":
                 if(Array.isArray(data.id)){
-                    for(let i = 0; i<data.id.length; i++){
+                    for(var i = 0; i<data.id.length; i++){
                         elem = svg.getElementById(data.id[i]);
                         if (elem !== null){ //console.error("Eraser: Tried to delete an element that does not exist.");
                             elem.remove();

@@ -26,14 +26,14 @@
 
 (function eraser() { //Code isolation
 
-	let erasing = false;
+	var erasing = false;
 
-	const currShape = null;
-	let curTool = "click";
-	const icons = ["tools/eraser/icon-red.svg", "tools/eraser/icon.svg",];
-	const toolNames = ["Remove single shape", "Remove all contacted shapes"];
+	var currShape = null;
+	var curTool = "click";
+	var icons = ["tools/eraser/icon-red.svg", "tools/eraser/icon.svg",];
+	var toolNames = ["Remove single shape", "Remove all contacted shapes"];
 
-	const msg = {
+	var msg = {
 		"type": "delete",
 		"id": null,
 		"x": 0,
@@ -54,21 +54,21 @@
 
 	function erase(x, y, evt) {
 		// evt.target should be the element over which the mouse is...
-		let target = evt.target;
+		var target = evt.target;
 		if (evt.type === "touchmove") {
 			// ... the target of touchmove events is the element that was initially touched,
 			// not the one **currently** being touched
-			const touch = evt.touches[0];
+			var touch = evt.touches[0];
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
 		if (erasing) {
 			// get points all within a circle of a given radius
 			// https://stackoverflow.com/a/26802146
-			let radius = Tools.getSize(),
+			var radius = Tools.getSize(),
 				r2 = radius*radius;
-			for (let dx = -radius; dx <= radius; dx++) {
-				let h = Math.sqrt(r2 - dx * dx) | 0;
-				for (let dy = -h; dy <= h; dy++) {
+			for (var dx = -radius; dx <= radius; dx++) {
+				var h = Math.sqrt(r2 - dx * dx) | 0;
+				for (var dy = -h; dy <= h; dy++) {
 					scanForObject(x, y, target, dx, dy);
 				}
 			}
@@ -79,12 +79,12 @@
 	}
 
 	function draw(data) {
-		let elem;
+		var elem;
 		switch (data.type) {
 			//TODO: add the ability to erase only some points in a line
 			case "delete":
 				if (Array.isArray(data.id)) {
-					for(let i = 0; i<data.id.length; i++){
+					for(var i = 0; i<data.id.length; i++){
 						elem = svg.getElementById(data.id[i]);
 						if (elem !== null){ //console.error("Eraser: Tried to delete an element that does not exist.");
 							elem.remove();
@@ -111,7 +111,7 @@
 			msg.y = y+j;
 			msg.target = target;
 			if(!msg.id.startsWith("layer")&&msg.id!=="defs"&&msg.id!=="rect_1"&&msg.id!=="cursors"){
-				const elem = svg.getElementById(msg.id);
+				var elem = svg.getElementById(msg.id);
 				if (elem !== null) Tools.drawAndSend(msg);
 			}
 		}
@@ -120,7 +120,7 @@
 	var svg = Tools.svg;
 
 	function toggle(elem){
-		let index = 0;
+		var index = 0;
 		if (curTool === "click") {
 			curTool = "drag";
 			index = 1;
