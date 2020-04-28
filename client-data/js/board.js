@@ -138,11 +138,11 @@ function handleMarker(evt) {
 function createCursor(id, color) {
 	var cursor = document.createElementNS("http://www.w3.org/2000/svg", "circle");
 	cursor.setAttributeNS(null, "class", "opcursor");
-	cursor.setAttributeNS(null, "id", "mycursor");
+	cursor.setAttributeNS(null, "id", id);
 	cursor.setAttributeNS(null, "cx", 0);
 	cursor.setAttributeNS(null, "cy", 0);
 	cursor.setAttributeNS(null, "r", 10);
-	cursor.setAttributeNS(null, "fill", Tools.getColor());
+	cursor.setAttributeNS(null, "fill", color);
 	return cursor;
 }
 
