@@ -113,7 +113,7 @@ html, body, svg {
 	max-width: 100%;
 }
 
-@media (hover: none) {
+@media (any-hover: none) or (any-pointer: coarse) {
 	#menu .tool:hover {
 		max-width: 40px;
 	}
