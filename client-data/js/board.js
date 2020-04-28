@@ -139,11 +139,15 @@ function handleMarker(evt) {
 function moveMarker(message) {
 	var cursor = Tools.svg.getElementById("mycursor");
 	if(!cursor){
-		Tools.svg.getElementById("cursors").innerHTML="<circle class='opcursor' id='mycursor' cx='0' cy='0' r='10' fill='#e75480' />";
-		cursor = Tools.svg.getElementById("mycursor");
+		cursor = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+		cursor.setAttributeNS(null, "class", "opcursor");
+		cursor.setAttributeNS(null, "id", "mycursor");
+		cursor.setAttributeNS(null, "cx", 0);
+		cursor.setAttributeNS(null, "cy", 0);
+		cursor.setAttributeNS(null, "r", 10);
+		cursor.setAttributeNS(null, "fill", Tools.getColor());
+		Tools.svg.getElementById("cursors").append(cursor);
 	}
-	Tools.svg.appendChild(cursor);
-	//cursor.setAttributeNS(null, "r", Tools.getSize());
 	cursor.r.baseVal.value=Tools.getSize()/2;
 	cursor.setAttributeNS(null, "visibility", "visible");
 	cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
@@ -162,9 +166,14 @@ function moveCursor(message) {
 				cursors[i].setAttributeNS(null, "visibility", "hidden");
 			}
 		}
-		Tools.svg.getElementById("cursors").innerHTML="<circle class='opcursor' id='cursor"+message.socket+"' cx='0' cy='0' r='10' fill='orange' />";
-		cursor = Tools.svg.getElementById("cursor"+message.socket);
-		Tools.svg.appendChild(cursor);
+		cursor = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+		cursor.setAttributeNS(null, "class", "opcursor");
+		cursor.setAttributeNS(null, "id", "cursor"+message.socket);
+		cursor.setAttributeNS(null, "cx", 0);
+		cursor.setAttributeNS(null, "cy", 0);
+		cursor.setAttributeNS(null, "r", 10);
+		cursor.setAttributeNS(null, "fill", message.c);
+		Tools.svg.getElementById("cursors").append(cursor);
 	}
 	cursor.setAttributeNS(null, "fill", message.c);
 	//TODO: scaling is broken on mobile
