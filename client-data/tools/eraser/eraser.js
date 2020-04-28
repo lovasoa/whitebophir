@@ -30,7 +30,7 @@
 
 	var currShape = null;
 	var curTool = "click";
-	var icons = ["tools/eraser/icon-red.svg", "tools/eraser/icon.svg",];
+	var icons = ["tools/eraser/icon-click.svg", "tools/eraser/icon-drag.svg",];
 	var toolNames = ["Remove single shape", "Remove all contacted shapes"];
 
 	var msg = {
@@ -133,7 +133,7 @@
 
 	Tools.add({ //The new tool
 		"name": toolNames[0],
-		//"shortcut": "e",
+		"shortcut": "e",
 		"toggle": toggle,
 		"listeners": {
 			"press": startErasing,
@@ -141,7 +141,7 @@
 			"release": stopErasing,
 		},
 		"draw": draw,
-		"icon": "tools/eraser/icon-red.svg",
+		"icon": icons[0],
 		"mouseCursor": "crosshair",
 	});
 

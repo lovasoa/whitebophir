@@ -173,7 +173,7 @@
 
     Tools.add({ //The new tool
         "name": "Remove in Area",
-        //"shortcut": "e",
+        "shortcut": "m",
         "listeners": {
             "press": startErasing,
             "move": erase,
