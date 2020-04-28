@@ -36,6 +36,8 @@ Tools.i18n = (function i18n() {
 	};
 })();
 
+Tools.server_config = JSON.parse(document.getElementById("configuration").text);
+
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 
