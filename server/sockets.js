@@ -94,6 +94,8 @@ function socketConnection(socket) {
 			return;
 		}
 
+		handleMessage(data, socket);
+
 		//Send data to all other users connected on the same board
 		socket.broadcast.to(boardName).emit('broadcast', data);
 
@@ -115,6 +117,14 @@ function socketConnection(socket) {
 			}
 		});
 	});
+}
+
+function handleMessage(message, socket) {
+
+	if (message.type === "cursor") {
+		message.socket=socket.id
+	}
+
 }
 
 async function saveHistory(boardName, message) {
