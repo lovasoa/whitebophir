@@ -86,7 +86,7 @@
             var x = evt.pageX / scale;
             var y = evt.pageY / scale;
             setOrigin(x, y, evt, false);
-            animate((1 - evt.deltaY * ZOOM_FACTOR / 10) * Tools.getScale());
+            animate((1 - ((evt.deltaY > 0) - (evt.deltaY < 0)) * 0.25) * Tools.getScale());
         } else {
             window.scrollTo(window.scrollX + evt.deltaX, window.scrollY + evt.deltaY);
         }

@@ -25,7 +25,7 @@
  * @module boardData
  */
 
-var fs = require('fs')
+var fs = require('./fs_promises.js')
 	, log = require("./log.js").log
 	, path = require("path")
 	, config = require("./configuration.js");
