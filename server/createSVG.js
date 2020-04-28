@@ -57,6 +57,23 @@ var Tools = {
 			"L" + el.x + " " + el.y;
 		return renderPath(el, pathstring);
 	},
+	"Circle": function (el) {
+		const cx = Math.round((el.x2 + el.x)/2);
+		const cy = Math.round((el.y2 + el.y)/2);
+		let rx, ry;
+		if (el.shape === "Circle") {
+			rx = ry = Math.round(Math.sqrt(Math.pow(el.x2 - el.x,2)+Math.pow(el.y2 - el.y,2))/2);
+		} else {
+			rx = Math.abs(el.x2 - el.x)/2;
+			ry = Math.abs(el.y2 - el.y)/2;
+		}
+		const pathstring =
+			"M" + cx + " " + cy +
+			"m" + -rx + ", 0" +
+			"a" + rx + "," + ry + " 0 1,0 " + (rx * 2) + ",0" +
+			"a" + rx + "," + ry + " 0 1,0 " + (rx * -2) + ",0";
+		return renderPath(el, pathstring);
+	},
 	"Straight line": function (el) {
 		var pathstring = "M" + el.x + " " + el.y + "L" + el.x2 + " " + el.y2;
 		return renderPath(el, pathstring);

@@ -26,14 +26,11 @@
 
 (function () { //Code isolation
 	//Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-	let curshape = "Rectangle";
-	const icons = ["tools/rect/icon-rect.svg", "tools/rect/icon-circle.svg"];
 	let end=false,
 		curId = "",
 		curUpdate = { //The data of the message that will be sent for every new point
 			'type': 'update',
 			'id': "",
-			'shape':curshape,
 			'x': 0,
 			'y': 0,
 			'x2': 0,
@@ -51,7 +48,6 @@
 		Tools.drawAndSend({
 			'type': 'rect',
 			'id': curId,
-			'shape': curshape,
 			'color': Tools.getColor(),
 			'size': Tools.getSize(),
 			'opacity': Tools.getOpacity(),
@@ -62,7 +58,6 @@
 		});
 
 		curUpdate.id = curId;
-		curUpdate.shape = curshape;
 		curUpdate.x = x;
 		curUpdate.y = y;
 	}
@@ -99,18 +94,14 @@
 			case "update":
 				var shape = svg.getElementById(data['id']);
 				if (!shape) {
-					console.error("Straight shape: Hmmm... I received a point of a shape that has not been created (%s).", data['id']);
+					console.error("Straight shape: Hmmm... I received a point of a rect that has not been created (%s).", data['id']);
 					createShape({ //create a new shape in order not to loose the points
 						"id": data['id'],
 						"x": data['x2'],
 						"y": data['y2']
 					});
 				}
-				if(data.shape === "Circle"){
-					updateCircle(shape, data);
-				}else {
-					updateRect(shape, data);
-				}
+				updateShape(shape, data);
 				break;
 			default:
 				console.error("Straight shape: Draw instruction with unknown type. ", data);
@@ -121,15 +112,9 @@
 	var svg = Tools.svg;
 	function createShape(data) {
 		//Creates a new shape on the canvas, or update a shape that already exists with new information
-		var shape = svg.getElementById(data.id)
-		if (data.shape === "Circle"){
-			if(!shape) shape = Tools.createSVGElement("circle");
-			updateCircle(shape, data);
-		} else {
-			if(!shape) shape = Tools.createSVGElement("rect");
-			updateRect(shape, data);
-		}
+		var shape = svg.getElementById(data.id) || Tools.createSVGElement("rect");
 		shape.id = data.id;
+		updateShape(shape, data);
 		//If some data is not provided, choose default value. The shape may be updated later
 		shape.setAttribute("stroke", data.color || "black");
 		shape.setAttribute("stroke-width", data.size || 10);
@@ -138,32 +123,13 @@
 		return shape;
 	}
 
-	function updateRect(shape, data) {
+	function updateShape(shape, data) {
+		console.log(data);
 		shape.x.baseVal.value = Math.min(data['x2'], data['x']);
 		shape.y.baseVal.value = Math.min(data['y2'], data['y']);
 		shape.width.baseVal.value = Math.abs(data['x2'] - data['x']);
 		shape.height.baseVal.value = Math.abs(data['y2'] - data['y']);
 	}
-
-	function updateCircle(shape, data) {
-		shape.cx.baseVal.value = Math.round((data['x2'] + data['x'])/2);
-		shape.cy.baseVal.value = Math.round((data['y2'] + data['y'])/2);
-		shape.r.baseVal.value = Math.round(Math.sqrt(Math.pow(data['x2'] - data['x'],2)+Math.pow(data['y2'] - data['y'],2))/2);
-		shape.setAttribute("fill", "none");
-	}
-
-	function toggle(elem){
-		let index = 0;
-		if(curshape === "Rectangle"){
-			curshape = "Circle";
-			index = 1;
-		}else{
-			curshape = "Rectangle";
-		}
-		elem.getElementsByClassName("tool-icon")[0].src = icons[index];
-		elem.getElementsByClassName("tool-name")[0].textContent = curshape;
-	}
-
 
 	Tools.add({ //The new tool
 		"name": "Rectangle",
@@ -174,9 +140,8 @@
 			"release": stop,
 		},
 		"draw": draw,
-		"toggle": toggle,
 		"mouseCursor": "crosshair",
-		"icon": icons[0],
+		"icon": "tools/rect/icon.svg",
 		"stylesheet": "tools/rect/rect.css"
 	});
 
