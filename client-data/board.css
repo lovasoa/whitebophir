@@ -136,6 +136,7 @@ html, body, svg {
 	margin: 2.5px;
 	font-family: mono, monospace;
 	overflow: hidden;
+	pointer-events: none;
 }
 
 #menu .tool-icon > * {
