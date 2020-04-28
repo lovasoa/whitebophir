@@ -157,6 +157,7 @@ function moveMarker(message) {
 		Tools.svg.getElementById("cursors").append(cursor);
 	}
 	cursor.r.baseVal.value=Tools.getSize()/2;
+	cursor.setAttributeNS(null, "fill", Tools.getColor());
 	cursor.setAttributeNS(null, "visibility", "visible");
 	cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
 }
