@@ -123,7 +123,6 @@ function handleMarker(evt) {
 		}
 	};
 
-
 	if (Tools.showMarker) {
 		moveMarker(message.data);
 	}
@@ -146,6 +145,7 @@ function moveMarker(message) {
 	Tools.svg.appendChild(cursor);
 	//cursor.setAttributeNS(null, "r", Tools.getSize());
 	cursor.r.baseVal.value=Tools.getSize()/2;
+	cursor.setAttributeNS(null, "visibility", "visible");
 	cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
 }
 
@@ -168,7 +168,7 @@ function moveCursor(message) {
 	}
 	cursor.setAttributeNS(null, "fill", message.c);
 	//TODO: scaling is broken on mobile
-	cursor.setAttributeNS(null, "r", (message.s/2)*Tools.getScale());
+	cursor.setAttributeNS(null, "r", (message.s/2));
 	cursor.setAttributeNS(null, "visibility", "visible");
 	cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
 
