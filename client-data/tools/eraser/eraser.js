@@ -41,7 +41,6 @@
 	};
 
 	function inDrawingArea(elem) {
-		console.log(elem);
 		if (window.navigator.userAgent.indexOf("MSIE") === -1) {
 			return Tools.drawingArea.contains(elem);
 		} else {
