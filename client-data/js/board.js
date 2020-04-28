@@ -140,14 +140,13 @@ function handleMarker(evt) {
 function moveMarker(message) {
 	var cursor = Tools.svg.getElementById("mycursor");
 	if(!cursor){
-		Tools.svg.getElementById("cursors").innerHTML="<circle class='opcursor' id='mycursor' cx='100' cy='100' r='10' fill='#e75480' />";
+		Tools.svg.getElementById("cursors").innerHTML="<circle class='opcursor' id='mycursor' cx='0' cy='0' r='10' fill='#e75480' />";
 		cursor = Tools.svg.getElementById("mycursor");
 	}
 	Tools.svg.appendChild(cursor);
 	//cursor.setAttributeNS(null, "r", Tools.getSize());
 	cursor.r.baseVal.value=Tools.getSize()/2;
-	cursor.setAttributeNS(null, "cx", message.x);
-	cursor.setAttributeNS(null, "cy", message.y);
+	cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
 }
 
 var cursorLastUse = {};
@@ -163,7 +162,7 @@ function moveCursor(message) {
 				cursors[i].setAttributeNS(null, "visibility", "hidden");
 			}
 		}
-		Tools.svg.getElementById("cursors").innerHTML="<circle class='opcursor' id='cursor"+message.socket+"' cx='100' cy='100' r='10' fill='orange' />";
+		Tools.svg.getElementById("cursors").innerHTML="<circle class='opcursor' id='cursor"+message.socket+"' cx='0' cy='0' r='10' fill='orange' />";
 		cursor = Tools.svg.getElementById("cursor"+message.socket);
 		Tools.svg.appendChild(cursor);
 	}
@@ -171,8 +170,7 @@ function moveCursor(message) {
 	//TODO: scaling is broken on mobile
 	cursor.setAttributeNS(null, "r", (message.s/2)*Tools.getScale());
 	cursor.setAttributeNS(null, "visibility", "visible");
-	cursor.setAttributeNS(null, "cx", message.x);
-	cursor.setAttributeNS(null, "cy", message.y);
+	cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
 
 	cursorLastUse[message.socket] = Date.now()
 }
