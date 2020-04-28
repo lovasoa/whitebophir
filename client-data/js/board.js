@@ -426,16 +426,10 @@ Tools.toolHooks = [
 		}
 
 		function wrapUnsetHover(f, toolName) {
-			// test for mobile device
-			// https://stackoverflow.com/a/24600597
-			if (/Mobi|Android/i.test(navigator.userAgent)) {
-				return (function unsetHover(evt) {
-					document.activeElement.blur();
-					return f(evt);
-				});
-			} else {
-				return f;
-			}
+			return (function unsetHover(evt) {
+				document.activeElement && document.activeElement.blur();
+				return f(evt);
+			});
 		}
 
 		if (listeners.press) {
