@@ -132,3 +132,4 @@ function handleRequest(request, response) {
 }
 
 
+module.exports = app;

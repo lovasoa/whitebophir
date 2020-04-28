@@ -93,7 +93,7 @@ Tools.HTML = {
 			}
 		});
 	},
-	addTool: function (toolName, toolIcon, toolShortcut) {
+	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut) {
 		var callback = function () {
 			Tools.change(toolName);
 		};
@@ -111,7 +111,8 @@ Tools.HTML = {
 			elem.title =
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
-				toolShortcut + ")";
+				toolShortcut + ")" +
+				(Tools.list[toolName].toggle? " [" + Tools.i18n.t("Click to togle")+ "]":"");
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -162,7 +163,7 @@ Tools.add = function (newTool) {
 	}
 
 	//Add the tool to the GUI
-	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.shortcut);
+	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut);
 
 	//There may be pending messages for the tool
 	var pending = Tools.pendingMessages[newTool.name];
@@ -318,7 +319,7 @@ function updateDocumentTitle() {
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(function updateHistory() {
 			var hash = '#' + (x | 0) + ',' + (y | 0) + ',' + Tools.getScale().toFixed(1);
-			if (Date.now() - lastStateUpdate > 5000 && hash != window.location.hash) {
+			if (Date.now() - lastStateUpdate > 5000 && hash !== window.location.hash) {
 				window.history.pushState({}, "", hash);
 				lastStateUpdate = Date.now();
 			} else {
@@ -425,9 +426,16 @@ Tools.toolHooks = [
 			});
 		}
 
+		function wrapUnsetHover(f, toolName) {
+			return (function unsetHover(evt) {
+				document.activeElement && document.activeElement.blur();
+				return f(evt);
+			});
+		}
+
 		if (listeners.press) {
-			compiled["mousedown"] = compile(listeners.press);
-			compiled["touchstart"] = compileTouch(listeners.press);
+			compiled["mousedown"] = wrapUnsetHover(compile(listeners.press), tool.name);
+			compiled["touchstart"] = wrapUnsetHover(compileTouch(listeners.press), tool.name);
 		}
 		if (listeners.move) {
 			compiled["mousemove"] = compile(listeners.move);
@@ -480,10 +488,10 @@ Tools.colorPresets = [
 	{ color: "#FFDC00", key: '5' },
 	{ color: "#3D9970", key: '6' },
 	{ color: "#91E99B", key: '7' },
-	{ color: "#B10DC9", key: '8' },
+	{ color: "#90468b", key: '8' },
 	{ color: "#7FDBFF", key: '9' },
 	{ color: "#AAAAAA", key: '0' },
-	{ color: "#01FF70" }
+	{ color: "#E65194" }
 ];
 
 Tools.color_chooser = document.getElementById("chooseColor");
@@ -501,15 +509,22 @@ Tools.getColor = (function color() {
 
 Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
-Tools.getSize = (function size() {
+Tools.setSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
+
 	function update() {
 		chooser.value = Math.max(1, Math.min(50, chooser.value | 0));
 	}
 	update();
+
 	chooser.onchange = chooser.oninput = update;
-	return function () { return chooser.value; };
+	return function (value) {
+		if (value !== null && value !== undefined) { chooser.value=value; update(); }
+		return parseInt(chooser.value);
+	};
 })();
+
+Tools.getSize = (function() {return Tools.setSize()});
 
 Tools.getOpacity = (function opacity() {
 	var chooser = document.getElementById("chooseOpacity");

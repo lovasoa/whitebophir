@@ -1,12 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{language}}">
 
 <head>
 	<meta charset="utf-8" />
-	<title>WBO — Online collaborative whiteboard</title>
+	<title>WBO — {{translations.collaborative_whiteboard}}</title>
 	<link rel="stylesheet" href="index.css" />
-	<meta name="description"
-		content="A free online whiteboard for realtime collaboration. Draw, write text and sketch new ideas together on whitebophir" />
+	<meta name="description" content="{{translations.tagline}}" />
 	<meta name="keywords"
 		content="whiteboard,collaborative,online,draw,paint,shared,realtime,wbo,whitebophir,open-source,GPL,javascript" />
 	<link rel="icon" type="image/x-icon" sizes="16x16" href="favicon.ico">
@@ -33,48 +32,25 @@
 
 	<main>
 		<div id="description">
-			<h3>{{translations.tagline}}</h3>
-			<p>
-				WBO is a
-				<a href="https://github.com/lovasoa/whitebophir"
-					title="Free as in free speech, not free beer. This software is released under the GPL license">free
-					and open-source</a>
-				online collaborative whiteboard that allows many users to draw
-				simultaneously on a large
-				virtual board.
-				The board is updated in real time for all connected users, and its state is always persisted.
-				It can be used for many different purposes, including art, entertainment, design and teaching.
-			</p>
-			<p>
-				To collaborate on a drawing in real time with someone, just send them its URL.
-			</p>
+			<h3>{{translations.index_title}}</h3>
+			<p>{{{translations.introduction_paragraph}}}</p>
+			<p>{{{translations.share_instructions}}}</p>
 		</div>
 
 		<div>
-			<p>
-				The <strong>public board</strong> is accessible to everyone.
-				It is a happily disorganized mess where you can meet with anonymous strangers and draw together.
-				Everything there is ephemeral.
-			</p>
-			<a href="/boards/anonymous" class="wbo-button">Go to the public board</a>
+			<p>{{{translations.public_board_description}}}</p>
+			<a href="/boards/anonymous" class="wbo-button">{{{translations.open_public_board}}}</a>
 		</div>
 
 		<div>
-			<p>You can create a <strong>private board</strong> with a random name, that will be accessible only by its
-				link.
-				Use this if you want to share private information.
-			</p>
-			<a href="/random" class="wbo-button">Create a private board</a>
+			<p>{{{translations.private_board_description}}}</p>
+			<a href="/random" class="wbo-button">{{{translations.create_private_board}}}</a>
 		</div>
 
 		<div>
-			<p>
-				You can also create a <strong>named private board</strong>,
-				with a custom URL,
-				that will be accessible to all those who know its name.
-			</p>
+			<p>{{{translations.named_private_board_description}}}</p>
 			<form action="boards" method="GET">
-				<input type="text" id="board" name="board" placeholder="Name of the board..." />
+				<input type="text" id="board" name="board" placeholder="{{{translations.board_name_placeholder}}}" />
 				<input type="submit" value="Go">
 			</form>
 		</div>
@@ -82,7 +58,7 @@
 
 
 	<footer>
-		<a href="https://github.com/lovasoa/whitebophir" class="smallink">Source code on github</a>
+		<a href="https://github.com/lovasoa/whitebophir" class="smallink">{{translations.view_source}}</a>
 	</footer>
 </body>
 

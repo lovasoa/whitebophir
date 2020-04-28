@@ -56,7 +56,7 @@ Then [install node.js](https://nodejs.org/en/download/) (v10.0 or superior)
 if you don't have it already, then install WBO's dependencies:
 
 ```
-npm install
+npm install --production
 ```
 
 Finally, you can start the server:
@@ -69,5 +69,3 @@ This will run WBO directly on your machine, on port 5001, without any isolation 
 ## Troubleshooting
 
 If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
-
-<small>Demonstration server hosted by [openode](https://www.openode.io/)</small>

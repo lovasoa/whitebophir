@@ -34,36 +34,36 @@
 	<div id="menu">
 		<div id="menuItems">
 			<ul id="tools" class="tools">
-				<li class="tool">
-					<img class="tool-icon" width="60" height="60" src="" alt="icon" /><span class="tool-name"></span>
+				<li class="tool" tabindex="-1">
+					<img class="tool-icon" width="35" height="35" src="" alt="icon" /><span class="tool-name"></span>
 				</li>
 			</ul>
 
 			<ul class="tools" id="settings">
-				<li class="tool">
+				<li class="tool" tabindex="-1">
 					<input class="tool-icon" type="color" id="chooseColor" value="#1913B0" />
 					<label class="tool-name" for="chooseColor">{{translations.color}}</label>
 					<span class="colorPresets" id="colorPresetSel">
 						<span class="colorPresetButton"></span>
 					</span>
 				</li>
-				<li class="tool">
+				<li class="tool" tabindex="-1">
 					<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
 					<label class="tool-name slider" for="chooseSize">
 						<span>{{translations.size}}</span>
 						<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />
 					</label>
 				</li>
-				<li class="tool">
+				<li class="tool" tabindex="-1">
 					<span class="tool-icon">
-						<svg viewBox="0 0 12 12">
+						<svg viewBox="0 0 8 8">
 							<pattern id="opacityPattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
 								<rect x=0 y=0 width=2 height=2 fill=black />
 								<rect x=2 y=2 width=2 height=2 fill=black />
-								<rect x=2 y=0 width=2 height=2 fill=white />
-								<rect x=0 y=2 width=2 height=2 fill=white />
+								<rect x=2 y=0 width=2 height=2 fill=#eeeeee />
+								<rect x=0 y=2 width=2 height=2 fill=#eeeeee />
 							</pattern>
-							<rect id="opacityIndicator" rx=1 width="100%" height="100%" fill="url(#opacityPattern)" />
+							<circle cx=4 cy=4 id="opacityIndicator" r=3.5  fill="url(#opacityPattern)" />
 						</svg>
 					</span>
 					<label class="tool-name slider" for="chooseOpacity">
