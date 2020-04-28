@@ -26,8 +26,8 @@
 
 (function () { //Code isolation
     //Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-    let curshape = "Circle";
-    const icons = ["tools/circle/icon-circle.svg", "tools/circle/icon-ellipse.svg"];
+    let curshape = "Ellipse";
+    const icons = ["tools/ellipse/icon-ellipse.svg", "tools/ellipse/icon-circle.svg"];
     let end=false,
         curId = "",
         curUpdate = { //The data of the message that will be sent for every new point
@@ -46,10 +46,10 @@
         //Prevent the press from being interpreted by the browser
         evt.preventDefault();
 
-        curId = Tools.generateUID("c"); //"c" for circle
+        curId = Tools.generateUID("e"); //"e" for ellipse
 
         Tools.drawAndSend({
-            'type': 'circle',
+            'type': 'ellipse',
             'id': curId,
             'shape': curshape,
             'color': Tools.getColor(),
@@ -93,7 +93,7 @@
     function draw(data) {
         Tools.drawingEvent=true;
         switch (data.type) {
-            case "circle":
+            case "ellipse":
                 createShape(data);
                 break;
             case "update":
@@ -129,7 +129,6 @@
     }
 
     function updateShape(shape, data, circle) {
-        console.log(data);
         shape.cx.baseVal.value = Math.round((data['x2'] + data['x'])/2);
         shape.cy.baseVal.value = Math.round((data['y2'] + data['y'])/2);
         if (circle) {
@@ -145,11 +144,11 @@
 
     function toggle(elem){
         let index = 0;
-        if (curshape === "Circle") {
-            curshape = "Ellipse";
+        if (curshape === "Ellipse") {
+            curshape = "Circle";
             index = 1;
         } else {
-            curshape = "Circle";
+            curshape = "Ellipse";
         }
         elem.getElementsByClassName("tool-icon")[0].src = icons[index];
         elem.getElementsByClassName("tool-name")[0].textContent = curshape;
@@ -157,7 +156,7 @@
 
 
     Tools.add({ //The new tool
-        "name": "Circle",
+        "name": "Ellipse",
         "shortcut": "c",
         "listeners": {
             "press": start,
@@ -168,7 +167,7 @@
         "toggle": toggle,
         "mouseCursor": "crosshair",
         "icon": icons[0],
-        "stylesheet": "tools/circle/circle.css"
+        "stylesheet": "tools/ellipse/ellipse.css"
     });
 
 })(); //End of code isolation

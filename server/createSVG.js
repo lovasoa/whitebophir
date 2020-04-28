@@ -57,7 +57,7 @@ var Tools = {
 			"L" + el.x + " " + el.y;
 		return renderPath(el, pathstring);
 	},
-	"Circle": function (el) {
+	"Ellipse": function (el) {
 		const cx = Math.round((el.x2 + el.x)/2);
 		const cy = Math.round((el.y2 + el.y)/2);
 		let rx, ry;
