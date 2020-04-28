@@ -129,13 +129,18 @@
     }
 
     function updateShape(shape, data, circle) {
-        shape.cx.baseVal.value = Math.round((data['x2'] + data['x'])/2);
-        shape.cy.baseVal.value = Math.round((data['y2'] + data['y'])/2);
         if (circle) {
-            var r = Math.round(Math.sqrt(Math.pow(data['x2'] - data['x'],2)+Math.pow(data['y2'] - data['y'],2))/2);
+            var deltaX = data['x2'] - data['x'];
+            var deltaY = data['y2'] - data['y'];
+            var r = Math.max(Math.abs(deltaX), Math.abs(deltaY))/2;
+            shape.cx.baseVal.value = data['x'] + ((deltaX > 0) - (deltaX < 0)) * r;
+            shape.cy.baseVal.value = data['y'] + ((deltaY > 0) - (deltaY < 0)) * r;
+            //var r = Math.round(Math.sqrt(Math.pow(data['x2'] - data['x'],2)+Math.pow(data['y2'] - data['y'],2))/2);
             shape.rx.baseVal.value = r;
             shape.ry.baseVal.value = r;
         } else {
+            shape.cx.baseVal.value = Math.round((data['x2'] + data['x'])/2);
+            shape.cy.baseVal.value = Math.round((data['y2'] + data['y'])/2);
             shape.rx.baseVal.value = Math.abs(data['x2'] - data['x'])/2;
             shape.ry.baseVal.value = Math.abs(data['y2'] - data['y'])/2;
         }

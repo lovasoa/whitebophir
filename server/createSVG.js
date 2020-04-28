@@ -58,12 +58,19 @@ var Tools = {
 		return renderPath(el, pathstring);
 	},
 	"Ellipse": function (el) {
-		const cx = Math.round((el.x2 + el.x)/2);
-		const cy = Math.round((el.y2 + el.y)/2);
+		let cx;
+		let cy;
 		let rx, ry;
 		if (el.shape === "Circle") {
-			rx = ry = Math.round(Math.sqrt(Math.pow(el.x2 - el.x,2)+Math.pow(el.y2 - el.y,2))/2);
+			const deltaX = el.x2 - el.x;
+			const deltaY = el.y2 - el.y;
+			const r = Math.max(Math.abs(deltaX), Math.abs(deltaY))/2;
+			cx = el.x + ((deltaX > 0) - (deltaX < 0)) * r;
+			cy = el.y + ((deltaY > 0) - (deltaY < 0)) * r;
+			rx = ry = r;
 		} else {
+			cx = Math.round((el.x2 + el.x)/2);
+			cy = Math.round((el.y2 + el.y)/2);
 			rx = Math.abs(el.x2 - el.x)/2;
 			ry = Math.abs(el.y2 - el.y)/2;
 		}
