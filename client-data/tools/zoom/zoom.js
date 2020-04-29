@@ -82,14 +82,22 @@
     function onwheel(evt) {
         evt.preventDefault();
         if (evt.ctrlKey || Tools.curTool === zoomTool) {
+            // zoom
             var scale = Tools.getScale();
             var x = evt.pageX / scale;
             var y = evt.pageY / scale;
             setOrigin(x, y, evt, false);
             animate((1 - ((evt.deltaY > 0) - (evt.deltaY < 0)) * 0.25) * Tools.getScale());
+        } else if (evt.altKey) {
+            // make finer changes if shift is being held
+            var change = evt.shiftKey ? 1 : 5;
+            // change tool size
+            Tools.setSize(Tools.getSize() - ((evt.deltaY > 0) - (evt.deltaY < 0)) * change);
         } else if (evt.shiftKey) {
+            // scroll horizontally
             window.scrollTo(window.scrollX + evt.deltaY, window.scrollY + evt.deltaX);
         } else {
+            // regular scrolling
             window.scrollTo(window.scrollX + evt.deltaX, window.scrollY + evt.deltaY);
         }
     }
