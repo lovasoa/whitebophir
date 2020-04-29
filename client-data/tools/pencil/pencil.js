@@ -118,9 +118,11 @@
 		switch (nbr) {
 			case 0: //The first point in the line
 				//If there is no point, we have to start the line with a moveTo statement
-				npoint = { type: "M", values: [x, y] };
+				pts.push({ type: "M", values: [x, y] });
+				//Temporary first point so that clicks are shown and can be erased
+				npoint = { type: "L", values: [x, y] };
 				break;
-			case 1: //There is only one point.
+			case 2: //There are two points, however one of them might be temporary. Since it is a line of 0 length we can ignore it
 				//Draw a curve that is segment between the old point and the new one
 				npoint = {
 					type: "C", values: [
