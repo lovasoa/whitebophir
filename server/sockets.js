@@ -72,11 +72,13 @@ function socketConnection(socket) {
 			emitCount++;
 			if (emitCount > config.MAX_EMIT_COUNT) {
 				var request = socket.client.request;
-				log('BANNED', {
-					user_agent: request.headers['user-agent'],
-					original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
-					emit_count: emitCount
-				});
+				if (emitCount % 100 === 0) {
+					log('BANNED', {
+						user_agent: request.headers['user-agent'],
+						original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
+						emit_count: emitCount
+					});
+				}
 				return;
 			}
 		} else {
@@ -122,7 +124,7 @@ function socketConnection(socket) {
 function handleMessage(message, socket) {
 
 	if (message.type === "cursor") {
-		message.socket=socket.id
+		message.socket = socket.id;
 	}
 
 }

@@ -48,14 +48,8 @@ Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 
-// Never send updates more frequently than 60 times per second
-var MAX_CURSOR_UPDATES_PER_SECOND = Math.min(Math.floor(Tools.server_config.MAX_EMIT_COUNT*1000
-														/ Tools.server_config.MAX_EMIT_COUNT_PERIOD / 2), 60);
-// TODO: create local settings and config store and pull info from there.
-var MAX_LOCAL_CURSOR_UPDATES_PER_SECOND = 120;
-
 Tools.socket = null;
-Tools.connect = function() {
+Tools.connect = function () {
 	var self = this;
 
 	// Destroy socket if one already exists
@@ -95,97 +89,6 @@ Tools.boardName = (function () {
 //Get the board as soon as the page is loaded
 Tools.socket.emit("getboard", Tools.boardName);
 
-//Turn on the cursor tracking
-Tools.svg.addEventListener("mousemove", handleMarker, false);
-Tools.svg.addEventListener("touchmove", handleMarker, { 'passive': false });
-
-var lastCursorUpdate = 0;
-
-function handleMarker(evt) {
-	if(!Tools.showMarker && !Tools.showMyCursor) return;
-
-	// throttle local cursor updates
-	var cur_time = Date.now();
-	if(lastCursorUpdate > cur_time - (1000/MAX_LOCAL_CURSOR_UPDATES_PER_SECOND)) return;
-
-	if (evt.type === "touchmove") {
-		if (!(evt.changedTouches.length !== 1)) return;
-		x = evt.changedTouches[0].pageX;
-		y = evt.changedTouches[0].pageY;
-	} else {
-		x = evt.pageX;
-		y = evt.pageY;
-	}
-	var message = {
-		"board": Tools.boardName,
-		"data": {
-			type: "cursor",
-			x : x / Tools.getScale(),
-			y : y / Tools.getScale(),
-			c : Tools.getColor(),
-			s : Tools.getSize(),
-		}
-	};
-
-	if (Tools.showMarker) {
-		moveMarker(message.data);
-	}
-
-	// throttle network cursor updates
-	if (Tools.showMyCursor && lastCursorUpdate <= cur_time - (1000/MAX_CURSOR_UPDATES_PER_SECOND)) {
-		lastCursorUpdate = cur_time;
-		Tools.socket.emit('broadcast', message);
-	}
-
-}
-
-function createCursor(id, color) {
-	var cursor = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-	cursor.setAttributeNS(null, "class", "opcursor");
-	cursor.setAttributeNS(null, "id", id);
-	cursor.setAttributeNS(null, "cx", 0);
-	cursor.setAttributeNS(null, "cy", 0);
-	cursor.setAttributeNS(null, "r", 10);
-	cursor.setAttributeNS(null, "fill", color);
-	return cursor;
-}
-
-function moveMarker(message) {
-	var cursor = Tools.svg.getElementById("mycursor");
-	if(!cursor){
-		cursor = createCursor("mycursor", Tools.getColor());
-		Tools.svg.getElementById("cursors").append(cursor);
-	}
-	cursor.r.baseVal.value=Tools.getSize()/2;
-	cursor.setAttributeNS(null, "fill", Tools.getColor());
-	cursor.setAttributeNS(null, "visibility", "visible");
-	cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
-}
-
-var cursorLastUse = {};
-
-function moveCursor(message) {
-	var cursor = Tools.svg.getElementById("cursor"+message.socket);
-	if (!cursor) {
-		var cursors = Tools.svg.getElementsByClassName("opcursor");
-		for (var i = 0; i < cursors.length; i++) {
-			if (Date.now()-cursorLastUse[message.socket]>180000) {
-				cursors[i].remove();
-			} else {
-				cursors[i].setAttributeNS(null, "visibility", "hidden");
-			}
-		}
-		cursor = createCursor("cursor"+message.socket, message.c);
-		Tools.svg.getElementById("cursors").append(cursor);
-	}
-	cursor.setAttributeNS(null, "fill", message.c);
-	cursor.setAttributeNS(null, "r", (message.s/2));
-	cursor.setAttributeNS(null, "visibility", "visible");
-	cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
-
-	cursorLastUse[message.socket] = Date.now()
-}
-
 Tools.HTML = {
 	template: new Minitpl("#tools > .tool"),
 	addShortcut: function addShortcut(key, callback) {
@@ -214,7 +117,7 @@ Tools.HTML = {
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")" +
-				(Tools.list[toolName].toggle? " [" + Tools.i18n.t("Click to togle")+ "]":"");
+				(Tools.list[toolName].toggle ? " [" + Tools.i18n.t("Click to togle") + "]" : "");
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -287,7 +190,7 @@ Tools.change = function (toolName) {
 	var newtool = Tools.list[toolName];
 
 	if (newtool === Tools.curTool) {
-		if(newtool.toggle){
+		if (newtool.toggle) {
 			var elem = document.getElementById("toolID-" + newtool.name);
 			newtool.toggle(elem);
 		}
@@ -383,14 +286,9 @@ function batchCall(fn, args) {
 
 // Call messageForTool recursively on the message and its children
 function handleMessage(message) {
-	//Handle cursor updates
-	if(message.type === "cursor" && Tools.showOtherCursors){
-		moveCursor(message);
-	} else {
-		//Check if the message is in the expected format
-		if (!message.tool && !message._children) {
-			console.error("Received a badly formatted message (no tool). ", message);
-		}
+	//Check if the message is in the expected format
+	if (!message.tool && !message._children) {
+		console.error("Received a badly formatted message (no tool). ", message);
 	}
 	if (message.tool) messageForTool(message);
 	if (message._children) return batchCall(handleMessage, message._children);
@@ -626,12 +524,12 @@ Tools.setSize = (function size() {
 
 	chooser.onchange = chooser.oninput = update;
 	return function (value) {
-		if (value !== null && value !== undefined) { chooser.value=value; update(); }
+		if (value !== null && value !== undefined) { chooser.value = value; update(); }
 		return parseInt(chooser.value);
 	};
 })();
 
-Tools.getSize = (function() {return Tools.setSize()});
+Tools.getSize = (function () { return Tools.setSize() });
 
 Tools.getOpacity = (function opacity() {
 	var chooser = document.getElementById("chooseOpacity");
