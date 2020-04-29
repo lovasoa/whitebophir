@@ -144,8 +144,8 @@
 
 
 				//We don't want to add the same point twice consecutively
-				if ((prev_x == x && prev_y == y)
-					|| (ante_x == x && ante_y == y)) return;
+				if ((prev_x === x && prev_y === y)
+					|| (ante_x === x && ante_y === y)) return;
 
 				var vectx = x - ante_x,
 					vecty = y - ante_y;
