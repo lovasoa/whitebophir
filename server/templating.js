@@ -33,7 +33,6 @@ class Template {
         const translations = TRANSLATIONS[language] || {};
         const prefix = request.url.split("/boards/")[0].substr(1);
         const baseUrl = findBaseUrl(request) + (prefix ? prefix + "/" : "");
-        console.log(prefix, findBaseUrl(request), baseUrl);
         return { baseUrl, languages, language, translations };
     }
     serve(request, response) {
