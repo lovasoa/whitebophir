@@ -5,19 +5,19 @@
 	<meta charset="utf-8" />
 	<title>{{board}} | WBO | {{translations.collaborative_whiteboard}}</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="stylesheet" type="text/css" href="board.css" />
-	<script src="/socket.io/socket.io.js"></script>
+	<link rel="stylesheet" type="text/css" href="../board.css" />
+	<script src="../socket.io/socket.io.js"></script>
 	<meta name="description" content="{{translations.tagline}}'" />
 	<meta name="keywords"
 		content="{{translations.collaborative_whiteboard}},online,draw,paint,shared,realtime,wbo,whitebophir" />
-	<link rel="apple-touch-icon" href="/favicon.svg">
+	<link rel="apple-touch-icon" href="../favicon.svg">
 	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0" />
 	<meta property="og:title" content="{{board}} board on WBO" />
-	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
-	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
-	<link rel="canonical" href="{{baseUrl}}/boards/{{boardUriComponent}}?lang={{language}}" />
+	<meta property="og:url" content="{{boardUriComponent}}" />
+	<meta property="og:image" content="../preview/{{boardUriComponent}}" />
+	<link rel="canonical" href="{{boardUriComponent}}?lang={{language}}" />
 	{{#languages}}
-	<link rel="alternate" hreflang="{{.}}" href="{{../baseUrl}}/boards/{{../boardUriComponent}}?lang={{.}}" />
+	<link rel="alternate" hreflang="{{.}}" href="{{../boardUriComponent}}?lang={{.}}" />
 	{{/languages}}
 </head>
 
@@ -78,17 +78,17 @@
 
 
 	<script type="application/json" id="translations">{{{json translations}}}</script>
-	<script src="js/path-data-polyfill.js"></script>
-	<script src="js/minitpl.js"></script>
-	<script src="js/board.js"></script>
-	<script src="tools/pencil/pencil.js"></script>
-	<script src="tools/line/line.js"></script>
-	<script src="tools/rect/rect.js"></script>
-	<script src="tools/text/text.js"></script>
-	<script src="tools/eraser/eraser.js"></script>
-	<script src="tools/hand/hand.js"></script>
-	<script src="tools/zoom/zoom.js"></script>
-	<script src="/js/canvascolor/canvascolor.min.js"></script>
+	<script src="../js/path-data-polyfill.js"></script>
+	<script src="../js/minitpl.js"></script>
+	<script src="../js/board.js"></script>
+	<script src="../tools/pencil/pencil.js"></script>
+	<script src="../tools/line/line.js"></script>
+	<script src="../tools/rect/rect.js"></script>
+	<script src="../tools/text/text.js"></script>
+	<script src="../tools/eraser/eraser.js"></script>
+	<script src="../tools/hand/hand.js"></script>
+	<script src="../tools/zoom/zoom.js"></script>
+	<script src="../js/canvascolor/canvascolor.min.js"></script>
 </body>
 
 </html>
