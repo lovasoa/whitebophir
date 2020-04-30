@@ -50,7 +50,7 @@ html, body, svg {
 	left:0;
 	top:0;
 	color:black;
-	height:100%;
+	max-height:100%;
 	transition-duration:1s;
 	cursor:default;
 	padding: 10px;
@@ -81,6 +81,10 @@ html, body, svg {
 #menu .tools {
 	list-style-type:none;
 	padding:0;
+}
+
+#settings {
+	margin-bottom: 0;
 }
 
 #menu .tool {
