@@ -36,6 +36,8 @@ Tools.i18n = (function i18n() {
 	};
 })();
 
+Tools.server_config = JSON.parse(document.getElementById("configuration").text);
+
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 
@@ -55,6 +57,7 @@ Tools.connect = function() {
 
 
 	this.socket = io.connect('', {
+		"path": "/" + Tools.server_config.URL_PREFIX_PATH + "socket.io",
 		"reconnection": true,
 		"reconnectionDelay": 100, //Make the xhr connections as fast as possible
 		"timeout": 1000 * 60 * 20 // Timeout after 20 minutes
