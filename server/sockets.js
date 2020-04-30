@@ -1,7 +1,6 @@
 var iolib = require('socket.io')
 	, log = require("./log.js").log
-	, BoardData = require("./boardData.js").BoardData
-	, config = require("./configuration");
+	, BoardData = require("./boardData.js").BoardData;
 
 var MAX_EMIT_COUNT = 64; // Maximum number of draw operations before getting banned
 var MAX_EMIT_COUNT_PERIOD = 5000; // Duration (in ms) after which the emit count is reset
@@ -22,9 +21,7 @@ function noFail(fn) {
 }
 
 function startIO(app) {
-	io = iolib(app, {
-		path: config.URL_PREFIX_PATH ? "/" + config.URL_PREFIX_PATH : "" + "/socket.io/"
-	});
+	io = iolib(app);
 	io.on('connection', noFail(socketConnection));
 	return io;
 }

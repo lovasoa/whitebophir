@@ -25,7 +25,4 @@ module.exports = {
 
     /** Maximum value for any x or y on the board */
     MAX_BOARD_SIZE: parseInt(process.env['WBO_MAX_BOARD_SIZE']) || 65536,
-
-    /** Path at which the app is served (without leading or trailing slash) */
-    URL_PREFIX_PATH: parseInt(process.env['WBO_URL_PREFIX_PATH']) || "",
 };

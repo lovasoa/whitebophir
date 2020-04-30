@@ -26,16 +26,13 @@ log("server started", { port: config.PORT });
 
 var CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
 
-var fileserver = function(request, response, errorHandleFunction) {
-	if (config.URL_PREFIX_PATH) request.url = request.url.replace(config.URL_PREFIX_PATH + "/", "");
-	return serveStatic(config.WEBROOT, {
-		maxAge: 2 * 3600 * 1000,
-		setHeaders: function (res) {
-			res.setHeader("X-UA-Compatible", "IE=Edge");
-			res.setHeader("Content-Security-Policy", CSP);
-		}
-	})(request, response, errorHandleFunction)
-};
+var fileserver = serveStatic(config.WEBROOT, {
+	maxAge: 2 * 3600 * 1000,
+	setHeaders: function (res) {
+		res.setHeader("X-UA-Compatible", "IE=Edge");
+		res.setHeader("Content-Security-Policy", CSP);
+	}
+});
 
 var errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
 function serveError(request, response) {
@@ -72,8 +69,7 @@ const indexTemplate = new templating.Template(path.join(config.WEBROOT, 'index.h
 
 function handleRequest(request, response) {
 	var parsedUrl = url.parse(request.url, true);
-	var path = config.URL_PREFIX_PATH ? parsedUrl.pathname.replace(config.URL_PREFIX_PATH + "/", "") : parsedUrl.pathname;
-	var parts = path.split('/');
+	var parts = parsedUrl.pathname.split('/');
 	if (parts[0] === '') parts.shift();
 
 	if (parts[0] === "boards") {
