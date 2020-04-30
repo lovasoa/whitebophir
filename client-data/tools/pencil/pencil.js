@@ -122,7 +122,11 @@
 				//Temporary first point so that clicks are shown and can be erased
 				npoint = { type: "L", values: [x, y] };
 				break;
-			case 2: //There are two points, however one of them might be temporary. Since it is a line of 0 length we can ignore it
+			case 1: //This should never happen
+				// First point will be the move. Add Line of zero length ensure there are two points and fall through
+				pts.push({ type: "L", values: [pts[0].x, pts[0].y] });
+			// noinspection FallThroughInSwitchStatementJS
+			case 2: //There are two points. The initial move and a line of zero length to make it visible
 				//Draw a curve that is segment between the old point and the new one
 				npoint = {
 					type: "C", values: [
