@@ -23,7 +23,7 @@ function noFail(fn) {
 
 function startIO(app) {
 	io = iolib(app, {
-		path: "/" +config.URL_PREFIX_PATH + "socket.io/"
+		path: config.URL_PREFIX_PATH ? "/" + config.URL_PREFIX_PATH : "" + "/socket.io/"
 	});
 	io.on('connection', noFail(socketConnection));
 	return io;

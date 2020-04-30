@@ -33,7 +33,7 @@ class Template {
         const language = accept_language_parser.pick(languages, accept_languages) || 'en';
         const translations = TRANSLATIONS[language] || {};
         const configuration = client_config || {};
-        const baseUrl = findBaseUrl(request);
+        const baseUrl = findBaseUrl(request) + configuration.URL_PREFIX_PATH ? "/" + configuration.URL_PREFIX_PATH : "";
         return { baseUrl, languages, language, translations, configuration };
     }
     serve(request, response) {

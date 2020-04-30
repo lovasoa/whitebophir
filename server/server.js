@@ -27,7 +27,7 @@ log("server started", { port: config.PORT });
 var CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
 
 var fileserver = function(request, response, errorHandleFunction) {
-	request.url = request.url.replace(config.URL_PREFIX_PATH, "");
+	if (config.URL_PREFIX_PATH) request.url = request.url.replace(config.URL_PREFIX_PATH + "/", "");
 	return serveStatic(config.WEBROOT, {
 		maxAge: 2 * 3600 * 1000,
 		setHeaders: function (res) {
@@ -72,7 +72,8 @@ const indexTemplate = new templating.Template(path.join(config.WEBROOT, 'index.h
 
 function handleRequest(request, response) {
 	var parsedUrl = url.parse(request.url, true);
-	var parts = parsedUrl.pathname.replace(config.URL_PREFIX_PATH, "").split('/');
+	var path = config.URL_PREFIX_PATH ? parsedUrl.pathname.replace(config.URL_PREFIX_PATH + "/", "") : parsedUrl.pathname;
+	var parts = path.split('/');
 	if (parts[0] === '') parts.shift();
 
 	if (parts[0] === "boards") {
