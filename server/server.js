@@ -114,7 +114,8 @@ function handleRequest(request, response) {
 			response.writeHead(200, {
 				"Content-Type": "image/svg+xml",
 				"Content-Security-Policy": CSP,
-				'Content-Length': Buffer.byteLength(svg),
+				"Content-Length": Buffer.byteLength(svg),
+				"Cache-Control": "public, max-age=7200",
 			});
 			response.end(svg);
 		});
