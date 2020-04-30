@@ -40,6 +40,40 @@ const Tools = {
 		if (!el._children) return "";
 		let pathstring;
 		switch (el._children.length) {
+			case 0: return "";
+			case 1:
+				pathstring = "M" + el._children[0].x + " " + el._children[0].y +
+					"L" + el._children[0].x + " " + el._children[0].y;
+				break;
+			default:
+				pathstring = "M" + el._children[0].x + " " + el._children[0].y + "L";
+				for (var i = 1; i < el._children.length; i++) {
+					pathstring += (+el._children[i].x) + " " + (+el._children[i].y) + " ";
+				}
+		}
+
+		return renderPath(el, pathstring);
+	},
+	"Rectangle": function (el) {
+		const pathstring =
+			"M" + el.x + " " + el.y +
+			"L" + el.x + " " + el.y2 +
+			"L" + el.x2 + " " + el.y2 +
+			"L" + el.x2 + " " + el.y +
+			"L" + el.x + " " + el.y;
+		return renderPath(el, pathstring);
+	},
+	"Straight line": function (el) {
+		const pathstring = "M" + el.x + " " + el.y + "L" + el.x2 + " " + el.y2;
+		return renderPath(el, pathstring);
+	}
+};
+
+exportTools = {
+	"Pencil": function (el) {
+		if (!el._children) return "";
+		let pathstring;
+		switch (el._children.length) {
 			case 0:
 				return "";
 			case 1:
@@ -57,8 +91,8 @@ const Tools = {
 				const pts = [
 					{type: "M", values: [el._children[0].x, el._children[0].y]},
 					{type: "C", values: [el._children[0].x, el._children[0].y,
-										 el._children[1].x, el._children[1].y,
-										 el._children[1].x, el._children[1].y]},
+							el._children[1].x, el._children[1].y,
+							el._children[1].x, el._children[1].y]},
 				];
 				for (let i = 2; i < el._children.length; i++) {
 					//We add the new point, and smoothen the line
@@ -107,23 +141,10 @@ const Tools = {
 
 		return renderPath(el, pathstring);
 	},
-	"Rectangle": function (el) {
-		const pathstring =
-			"M" + el.x + " " + el.y +
-			"L" + el.x + " " + el.y2 +
-			"L" + el.x2 + " " + el.y2 +
-			"L" + el.x2 + " " + el.y +
-			"L" + el.x + " " + el.y;
-		return renderPath(el, pathstring);
-	},
-	"Straight line": function (el) {
-		const pathstring = "M" + el.x + " " + el.y + "L" + el.x2 + " " + el.y2;
-		return renderPath(el, pathstring);
-	}
 };
 
 
-function toSVG(obj) {
+function toSVG(obj, type) {
 	const margin = 500, maxelems = 1e4;
 	let elements = "", i = 0, w = 500, h = 500;
 	const t = Date.now();
@@ -134,7 +155,7 @@ function toSVG(obj) {
 		elems = elems.concat(elem._children || []);
 		if (elem.x && elem.x + margin > w) w = elem.x + margin;
 		if (elem.y && elem.y + margin > h) h = elem.y + margin;
-		const renderFun = Tools[elem.tool];
+		const renderFun = (type === "export" && exportTools[elem.tool]) ? exportTools[elem.tool] : Tools[elem.tool];
 		if (renderFun) elements += renderFun(elem);
 	}
 	console.error(i + " elements treated in " + (Date.now() - t) + "ms.");
@@ -149,14 +170,14 @@ function toSVG(obj) {
 	return svg;
 }
 
-function renderBoard(file, callback) {
+function renderBoard(file, type, callback) {
 	const t = Date.now();
 	fs.readFile(file, function (err, data) {
 		if (err) return callback(err);
 		try {
 			const board = JSON.parse(data);
 			console.warn("JSON parsed in " + (Date.now() - t) + "ms.");
-			const svg = toSVG(board);
+			const svg = toSVG(board, type);
 			console.warn("Board rendered in " + (Date.now() - t) + "ms.");
 			callback(null, svg);
 		}

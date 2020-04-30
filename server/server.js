@@ -102,10 +102,10 @@ function handleRequest(request, response) {
 			});
 			response.end(data);
 		});
-	} else if (parts[0] === "preview") {
+	} else if (parts[0] === "preview" || parts[0] === "export") {
 		var boardName = encodeURIComponent(parts[1]),
 			history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
-		createSVG.renderBoard(history_file, function (err, svg) {
+		createSVG.renderBoard(history_file, parts[0], function (err, svg) {
 			if (err) {
 				log(err);
 				response.writeHead(404, { 'Content-Type': 'application/json' });
