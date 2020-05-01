@@ -36,6 +36,20 @@
 
     var lastCursorUpdate = 0;
 
+    var cursorTool = {
+        "name": "Cursor",
+        "listeners": {
+            //"press": startLine,
+            "move": handleMarker,
+            //"release": stopLine,
+        },
+        "draw": draw,
+        "mouseCursor": "crosshair",
+        "icon": "tools/pencil/icon.svg",
+    };
+    Tools.register(cursorTool);
+    Tools.addToolListeners(cursorTool);
+
     function handleMarker(x, y) {
         if (!Tools.showMarker && !Tools.showMyCursor) return;
 
@@ -53,7 +67,7 @@
         };
 
         if (Tools.showMarker) {
-            Tools.drawAndSend(message);
+            Tools.drawAndSend(message, cursorTool);
         }
     }
 
@@ -83,16 +97,4 @@
         cursor.setAttributeNS(null, "fill", message.color);
         cursor.setAttributeNS(null, "r", message.size / 2);
     }
-
-    Tools.add({
-        "name": "Cursor",
-        "listeners": {
-            //"press": startLine,
-            "move": handleMarker,
-            //"release": stopLine,
-        },
-        "draw": draw,
-        "mouseCursor": "crosshair",
-        "icon": "tools/pencil/icon.svg",
-    });
 })()
