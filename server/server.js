@@ -83,7 +83,7 @@ function handleRequest(request, response) {
 			// If there is no dot and no directory, parts[1] is the board name
 			boardTemplate.serve(request, response);
 		} else { // Else, it's a resource
-			request.url = "/" + parts.slice(1).join('/');
+			request.url = parts.slice(1).join('/');
 			fileserver(request, response, serveError(request, response));
 		}
 	} else if (parts[0] === "download") {
@@ -114,13 +114,14 @@ function handleRequest(request, response) {
 			response.writeHead(200, {
 				"Content-Type": "image/svg+xml",
 				"Content-Security-Policy": CSP,
-				'Content-Length': Buffer.byteLength(svg),
+				"Content-Length": Buffer.byteLength(svg),
+				"Cache-Control": "public, max-age=7200",
 			});
 			response.end(svg);
 		});
 	} else if (parts[0] === "random") {
 		var name = crypto.randomBytes(32).toString('base64').replace(/[^\w]/g, '-');
-		response.writeHead(307, { 'Location': '/boards/' + name });
+		response.writeHead(307, { 'Location': 'boards/' + name });
 		response.end(name);
 
 	} else if (parts[0] === "") { // Index page

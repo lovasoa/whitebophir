@@ -43,16 +43,16 @@ html, body, svg {
 	-ms-overflow-style: none;
 	scrollbar-width: none;
 	font-size: 16px;
-	border-radius:0;
-	overflow-y:scroll;
-	position:fixed;
+	border-radius: 0;
+	overflow-y: scroll;
+	position: fixed;
 	margin-bottom: 30px;
-	left:0;
-	top:0;
-	color:black;
-	height:100%;
-	transition-duration:1s;
-	cursor:default;
+	left: 0;
+	top: 0;
+	color: black;
+	max-height: 100%;
+	transition-duration: 1s;
+	cursor: default;
 	padding: 10px;
 	pointer-events: none;
 }
@@ -81,6 +81,10 @@ html, body, svg {
 #menu .tools {
 	list-style-type:none;
 	padding:0;
+}
+
+#settings {
+	margin-bottom: 0;
 }
 
 #menu .tool {
@@ -121,6 +125,15 @@ html, body, svg {
 	#menu .tool:focus {
 		max-width: 100%;
 	}
+
+	#menu {
+		pointer-events: auto;
+	}
+
+	#menu:focus-within {
+		pointer-events: none;
+	}
+
 }
 
 #menu .tool.curTool {
