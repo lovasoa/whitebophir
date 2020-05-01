@@ -84,21 +84,32 @@ function socketConnection(socket) {
 			lastEmitSecond = currentSecond;
 		}
 
-		var boardName = message.board || "anonymous";
-		var data = message.data;
+		const boardName = message.board || "anonymous";
+		let data = message.data;
+		const children = message._children;
 
 		if (!socket.rooms.hasOwnProperty(boardName)) socket.join(boardName);
 
-		if (!data) {
+		if (!data && !children) {
 			console.warn("Received invalid message: %s.", JSON.stringify(message));
 			return;
 		}
 
-		//Send data to all other users connected on the same board
-		socket.broadcast.to(boardName).emit('broadcast', data);
+		if (data) {
+			//Send data to all other users connected on the same board
+			socket.broadcast.to(boardName).emit('broadcast', data);
 
-		// Save the message in the board
-		saveHistory(boardName, data);
+			// Save the message in the board
+			saveHistory(boardName, data);
+		}
+
+		if (children) {
+			socket.broadcast.to(boardName).emit('broadcast', { _children: children });
+
+			for (data of children) {
+				saveHistory(boardName, data);
+			}
+		}
 	}));
 
 	socket.on('disconnecting', function onDisconnecting(reason) {

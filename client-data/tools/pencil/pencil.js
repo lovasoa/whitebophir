@@ -58,9 +58,9 @@
 	}
 
 	function continueLine(x, y, evt) {
-		/*Wait 70ms before adding any point to the currently drawing line.
+		/*Wait 20ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
-		if (curLineId !== "" && performance.now() - lastTime > 70) {
+		if (curLineId !== "" && performance.now() - lastTime > 20) {
 			Tools.drawAndSend(new PointMessage(x, y));
 			lastTime = performance.now();
 		}

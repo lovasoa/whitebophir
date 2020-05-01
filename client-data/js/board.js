@@ -168,7 +168,7 @@ Tools.add = function (newTool) {
 	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut);
 
 	//There may be pending messages for the tool
-	var pending = Tools.pendingMessages[newTool.name];
+	var pending = Tools.pendingInboundMessages[newTool.name];
 	if (pending) {
 		console.log("Drawing pending messages for '%s'.", newTool.name);
 		var msg;
@@ -230,26 +230,54 @@ Tools.change = function (toolName) {
 	Tools.curTool = newtool;
 };
 
-Tools.send = function (data, toolName) {
+Tools.pendingOutboundMessages = [];
+Tools.lastMessageSent = 0;
+
+Tools.send = function (data) {
+	if (!data && !Tools.pendingOutboundMessages) return;
+	if (Tools.sendTimout) clearTimeout(Tools.sendTimout);
+
+	var MAX_MESSAGE_INTERVAL = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT;
+
+	var cur_time = Date.now();
+	if (data && cur_time - Tools.lastMessageSent < MAX_MESSAGE_INTERVAL) {
+		Tools.pendingOutboundMessages.push(data);
+		Tools.sendTimout = setTimeout(Tools.send, 100);
+		return;
+	}
+	Tools.lastMessageSent = cur_time;
+
+	if (!Tools.pendingOutboundMessages) {
+		var message = {
+			"board": Tools.boardName,
+			"data": data,
+		};
+		Tools.socket.emit('broadcast', message);
+	} else {
+		if (data) Tools.pendingOutboundMessages.push(data);
+		Tools.socket.emit('broadcast', { _children: Tools.pendingOutboundMessages });
+		Tools.pendingOutboundMessages = [];
+	}
+};
+
+Tools.prepareData = function(data, toolName) {
 	toolName = toolName || Tools.curTool.name;
 	var d = data;
 	d.tool = toolName;
 	Tools.applyHooks(Tools.messageHooks, d);
-	var message = {
-		"board": Tools.boardName,
-		"data": d
-	}
-	Tools.socket.emit('broadcast', message);
+
+	return data;
 };
 
 Tools.drawAndSend = function (data) {
 	Tools.curTool.draw(data, true);
+	Tools.prepareData(data);
 	Tools.send(data);
 };
 
 //Object containing the messages that have been received before the corresponding tool
 //is loaded. keys : the name of the tool, values : array of messages for this tool
-Tools.pendingMessages = {};
+Tools.pendingInboundMessages = {};
 
 // Send a message to the corresponding tool
 function messageForTool(message) {
@@ -261,8 +289,8 @@ function messageForTool(message) {
 	} else {
 		///We received a message destinated to a tool that we don't have
 		//So we add it to the pending messages
-		if (!Tools.pendingMessages[name]) Tools.pendingMessages[name] = [message];
-		else Tools.pendingMessages[name].push(message);
+		if (!Tools.pendingInboundMessages[name]) Tools.pendingInboundMessages[name] = [message];
+		else Tools.pendingInboundMessages[name].push(message);
 	}
 }
 

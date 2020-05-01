@@ -181,6 +181,7 @@ BoardData.prototype.save = async function (file) {
 BoardData.prototype.clean = function cleanBoard() {
 	var board = this.board;
 	var ids = Object.keys(board);
+	console.log("cleaning", ids.length);
 	if (ids.length > config.MAX_ITEM_COUNT) {
 		var toDestroy = ids.sort(function (x, y) {
 			return (board[x].time | 0) - (board[y].time | 0);
