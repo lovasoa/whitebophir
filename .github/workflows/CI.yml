@@ -24,11 +24,8 @@ jobs:
       uses: actions/setup-node@v1
       with:
         node-version: ${{ matrix.node-version }}
-    - run: |
-        export DISPLAY=:99
-        sudo Xvfb -ac :99 -screen 0 1280x1024x24 > /dev/null 2>&1 & # optional
     - run: npm ci
     - run: npm run build --if-present
-    - run: npx nightwatch tests --verbose
+    - run: npm test
       env:
         CI: true
