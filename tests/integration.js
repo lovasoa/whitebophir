@@ -18,10 +18,8 @@ async function afterEach(browser, done) {
     done();
 }
 
-function testBoard(browser) {
-    browser
-        .url('http://localhost:8487/boards/anonymous?lang=fr')
-        .waitForElementVisible('.tool[title ~= Crayon]') // pencil
+function testPencil(browser) {
+    return browser
         .assert.titleContains('WBO')
         .click('.tool[title ~= Crayon]')
         .assert.cssClassPresent('.tool[title ~= Crayon]', ['curTool'])
@@ -36,7 +34,28 @@ function testBoard(browser) {
         .assert.visible("path[d='M 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
         .refresh()
         .assert.visible("path[d='M 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
-        .end();
+}
+
+
+function testCursor(browser) {
+    return browser
+        .execute(function (done) {
+            Tools.setColor('#456123'); // Move the cursor over the board
+            var e = new Event("mousemove")
+            e.pageX = 150
+            e.pageY = 200
+            Tools.board.dispatchEvent(e)
+        })
+        .assert.cssProperty("#cursor-me", "transform", "matrix(1, 0, 0, 1, 150, 200)")
+        .assert.attributeEquals("#cursor-me", "fill", "#456123")
+}
+
+function testBoard(browser) {
+    var page = browser.url('http://localhost:8487/boards/anonymous?lang=fr')
+        .waitForElementVisible('.tool[title ~= Crayon]') // pencil
+    page = testPencil(page);
+    page = testCursor(page);
+    page.end();
 }
 
 module.exports = { beforeEach, testBoard, afterEach };
