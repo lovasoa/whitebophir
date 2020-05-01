@@ -31,7 +31,8 @@ class Template {
         const accept_languages = parsedUrl.query.lang || request.headers['accept-language'];
         const language = accept_language_parser.pick(languages, accept_languages) || 'en';
         const translations = TRANSLATIONS[language] || {};
-        const baseUrl = findBaseUrl(request);
+        const prefix = request.url.split("/boards/")[0].substr(1);
+        const baseUrl = findBaseUrl(request) + (prefix ? prefix + "/" : "");
         return { baseUrl, languages, language, translations };
     }
     serve(request, response) {
