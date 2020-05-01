@@ -33,11 +33,7 @@
 		toolName = ["Pencil", "Whiteout Pen"],
 		end = false;
 
-	var curPen = {
-		"mode":"pencil",
-		//"penSize":3,
-		//"eraserSize":16
-	};
+	var curPen = "pencil";
 
 	//The data of the message that will be sent for every new point
 	function PointMessage(x, y) {
@@ -59,17 +55,15 @@
 	}
 
 	function onStart(){
-		if(curPen.mode === "whiteout"){
-			//Tools.setSize(curPen.eraserSize);
+		if(curPen === "whiteout"){
 			Tools.showMarker = true;
 		}
 	}
 
 	function onQuit(){
-		if(curPen.mode === "whiteout"){
-			//Tools.setSize(curPen.penSize);
+		if(curPen === "whiteout"){
+			hideMarker();
 		}
-		hideMarker();
 	}
 
 	function startLine(x, y, evt) {
@@ -82,9 +76,9 @@
 		Tools.drawAndSend({
 			'type': 'line',
 			'id': curLineId,
-			'color': (curPen.mode === "pencil" ? Tools.getColor() : "white"),
+			'color': (curPen === "pencil" ? Tools.getColor() : "white"),
 			'size': Tools.getSize(),
-			'opacity': Tools.getOpacity()
+			'opacity': (curPen === "pencil" ? Tools.getOpacity() : 1),
 		});
 
 		//Immediatly add a point to the line
@@ -233,16 +227,12 @@
 
 	function toggle(elem){
 		var index = 0;
-		if (curPen.mode === "pencil") {
-			curPen.mode = "whiteout";
-			curPen.penSize = Tools.getSize();
-			//Tools.setSize(curPen.eraserSize);
+		if (curPen === "pencil") {
+			curPen = "whiteout";
 			Tools.showMarker = true;
 			index = 1;
 		} else {
-			curPen.mode = "pencil";
-			//curPen.eraserSize = Tools.getSize();
-			//Tools.setSize(curPen.penSize);
+			curPen = "pencil";
 			hideMarker();
 		}
 		elem.getElementsByClassName("tool-icon")[0].src = penIcons[index];
