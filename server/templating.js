@@ -33,7 +33,8 @@ class Template {
         const language = accept_language_parser.pick(languages, accept_languages) || 'en';
         const translations = TRANSLATIONS[language] || {};
         const configuration = client_config || {};
-        const baseUrl = findBaseUrl(request);
+        const prefix = request.url.split("/boards/")[0].substr(1);
+        const baseUrl = findBaseUrl(request) + (prefix ? prefix + "/" : "");
         return { baseUrl, languages, language, translations, configuration };
     }
     serve(request, response) {

@@ -1,0 +1,25 @@
+{
+    "name": "WBO Online Whiteboard",
+    "short_name": "WBO",
+    "display": "standalone",
+    "background_color": "#8FA2BC",
+    "theme_color": "#C4DFFF",
+    "description": "A free and opensource online collaborative drawing tool.",
+    "icons": [
+        {
+            "src": "favicon.svg",
+            "sizes": "1024x1024",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "apple-touch-icon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "favicon.ico",
+            "sizes": "16x16",
+            "type": "image/x-icon"
+        }
+    ]
+}
