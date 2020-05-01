@@ -32,14 +32,14 @@
     var CURSOR_DELETE_AFTER_MS = 5000;
 
     var lastCursorUpdate = 0;
-    var showing = true;
+    var sending = true;
 
     var cursorTool = {
         "name": "Cursor",
         "listeners": {
-            "press": function () { showing = false },
+            "press": function () { sending = false },
             "move": handleMarker,
-            "release": function () { showing = true },
+            "release": function () { sending = true },
         },
         "draw": draw,
         "mouseCursor": "crosshair",
@@ -49,7 +49,7 @@
     Tools.addToolListeners(cursorTool);
 
     function handleMarker(x, y) {
-        if (!Tools.showMarker || !Tools.showMyCursor || !showing) return;
+        if (!Tools.showMarker || !Tools.showMyCursor) return;
 
         // throttle local cursor updates
         var cur_time = Date.now();
@@ -61,7 +61,8 @@
             size: Tools.getSize(),
         };
 
-        if (cur_time - lastCursorUpdate > MAX_CURSOR_UPDATES_INTERVAL_MS) {
+        if (cur_time - lastCursorUpdate > MAX_CURSOR_UPDATES_INTERVAL_MS &&
+            (sending || ["Pencil", "Straight line", "Rectangle"].indexOf(Tools.curTool.name) === -1)) {
             Tools.drawAndSend(message, cursorTool);
             lastCursorUpdate = cur_time;
         } else {
