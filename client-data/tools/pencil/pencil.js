@@ -115,13 +115,6 @@
 				if (!line) {
 					console.error("Pencil: Hmmm... I received a point of a line that has not been created (%s).", data.parent);
 					line = renderingLine = createLine({ "id": data.parent }); //create a new line in order not to loose the points
-				/*} else {
-					if (Tools.useLayers) {
-						if (line.getAttribute("class") !== "layer" + Tools.layer) {
-							line.setAttribute("class", "layer-" + Tools.layer);
-							Tools.group.appendChild(line);
-						}
-					}*/
 				}
 				addPoint(line, data.x, data.y);
 				break;
@@ -217,8 +210,6 @@
 		//If some data is not provided, choose default value. The line may be updated later
 		line.setAttribute("stroke", lineData.color || "black");
 		line.setAttribute("stroke-width", lineData.size || 10);
-		if(Tools.useLayers)
-			line.setAttribute("class","layer-"+Tools.layer);
 		line.setAttribute("opacity", Math.max(0.1, Math.min(1, lineData.opacity)) || 1);
 		svg.appendChild(line);
 		return line;
