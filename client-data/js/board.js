@@ -247,7 +247,7 @@ Tools.send = function (data) {
 	}
 	Tools.lastMessageSent = cur_time;
 
-	if (!Tools.pendingOutboundMessages) {
+	if (Tools.pendingOutboundMessages.length === 0) {
 		var message = {
 			"board": Tools.boardName,
 			"data": data,
