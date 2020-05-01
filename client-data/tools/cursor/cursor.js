@@ -29,19 +29,17 @@
     // Allocate half of the maximum server updates to cursor updates
     var MAX_CURSOR_UPDATES_INTERVAL_MS = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT * 2;
 
-    // Interval at which the cursor should move
-    var MAX_LOCAL_CURSOR_UPDATES_INTERVAL_MS = 1000 / 120;
-
     var CURSOR_DELETE_AFTER_MS = 5000;
 
     var lastCursorUpdate = 0;
+    var showing = true;
 
     var cursorTool = {
         "name": "Cursor",
         "listeners": {
-            //"press": startLine,
+            "press": function () { showing = false },
             "move": handleMarker,
-            //"release": stopLine,
+            "release": function () { showing = true },
         },
         "draw": draw,
         "mouseCursor": "crosshair",
@@ -51,13 +49,10 @@
     Tools.addToolListeners(cursorTool);
 
     function handleMarker(x, y) {
-        if (!Tools.showMarker && !Tools.showMyCursor) return;
+        if (!Tools.showMarker || !Tools.showMyCursor || !showing) return;
 
         // throttle local cursor updates
         var cur_time = Date.now();
-        if (cur_time - lastCursorUpdate < MAX_CURSOR_UPDATES_INTERVAL_MS) return;
-        lastCursorUpdate = cur_time;
-
         var message = {
             type: "cursor",
             x: x,
@@ -66,8 +61,11 @@
             size: Tools.getSize(),
         };
 
-        if (Tools.showMarker) {
+        if (cur_time - lastCursorUpdate > MAX_CURSOR_UPDATES_INTERVAL_MS) {
             Tools.drawAndSend(message, cursorTool);
+            lastCursorUpdate = cur_time;
+        } else {
+            draw(message);
         }
     }
 
