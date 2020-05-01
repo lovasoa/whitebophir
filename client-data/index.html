@@ -12,8 +12,13 @@
 	<link rel="apple-touch-icon" href="favicon.svg">
 	<link rel="mask-icon" href="favicon.svg" color="black">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="canonical" href="https://wbo.ophir.dev/" />
 	<meta property="og:url" content="https://wbo.ophir.dev">
+	<meta property="og:image" content="{{baseUrl}}/favicon.svg">
+	<link rel="canonical" href="?lang={{language}}" />
+	{{#languages}}
+	<link rel="alternate" hreflang="{{.}}" href="?lang={{.}}" />{{/languages}}
+	<link rel="manifest" href="manifest.json">
+	<meta name="theme-color" content="#C4DFFF" />
 </head>
 
 <body>
@@ -24,7 +29,7 @@
 			<span>{{language}}</span>
 			<ul>
 				{{#languages}}
-				<li><a href="?lang={{.}}">{{.}}</a></li>
+				<li><a href="?lang={{.}}" hreflang="{{.}}" rel="alternate">{{.}}</a></li>
 				{{/languages}}
 			</ul>
 		</nav>
@@ -39,16 +44,16 @@
 
 		<div>
 			<p>{{{translations.public_board_description}}}</p>
-			<a href="/boards/anonymous" class="wbo-button">{{{translations.open_public_board}}}</a>
+			<a href="boards/anonymous" class="wbo-button">{{{translations.open_public_board}}}</a>
 		</div>
 
 		<div>
 			<p>{{{translations.private_board_description}}}</p>
-			<a href="/random" class="wbo-button">{{{translations.create_private_board}}}</a>
+			<a href="random" class="wbo-button">{{{translations.create_private_board}}}</a>
 		</div>
 
 		<div>
-			<p>{{{translations.named_private_board_description}}}</p>
+			<p><label for="board">{{{translations.named_private_board_description}}}</label></p>
 			<form action="boards" method="GET">
 				<input type="text" id="board" name="board" placeholder="{{{translations.board_name_placeholder}}}" />
 				<input type="submit" value="Go">
@@ -58,7 +63,8 @@
 
 
 	<footer>
-		<a href="https://github.com/lovasoa/whitebophir" class="smallink">{{translations.view_source}}</a>
+		<a href="https://github.com/lovasoa/whitebophir" class="smallink"
+			rel="external">{{translations.view_source}}</a>
 	</footer>
 </body>
 

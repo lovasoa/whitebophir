@@ -43,17 +43,18 @@ html, body, svg {
 	-ms-overflow-style: none;
 	scrollbar-width: none;
 	font-size: 16px;
-	border-radius:0;
-	overflow-y:scroll;
-	position:fixed;
+	border-radius: 0;
+	overflow-y: scroll;
+	position: fixed;
 	margin-bottom: 30px;
-	left:0;
-	top:0;
-	color:black;
-	height:100%;
-	transition-duration:1s;
-	cursor:default;
+	left: 0;
+	top: 0;
+	color: black;
+	max-height: 100%;
+	transition-duration: 1s;
+	cursor: default;
 	padding: 10px;
+	pointer-events: none;
 }
 
 #menu.closed {
@@ -82,6 +83,10 @@ html, body, svg {
 	padding:0;
 }
 
+#settings {
+	margin-bottom: 0;
+}
+
 #menu .tool {
 	-webkit-touch-callout: none; /* iOS Safari */
 	-webkit-user-select: none; /* Safari */
@@ -108,22 +113,27 @@ html, body, svg {
 	box-shadow: inset 0 0 3px #8FA2BC;
 }
 
-
-@keyframes minimize {
-	to {max-width:100%;}
-}
 #menu .tool:hover {
-	color:black;
-	animation-name: minimize;
-	animation-duration: 1.2s;
-	animation-iteration-count: 2;
-	animation-timing-function: cubic-bezier(.4,.2,.2,1);
-	animation-direction: alternate;
+	max-width: 100%;
 }
 
-#menu .tool:focus-within,
-#menu  #settings .tool:hover {
-	max-width:100%;
+@media (hover: none), (pointer: coarse) {
+	#menu .tool:hover {
+		max-width: 40px;
+	}
+
+	#menu .tool:focus {
+		max-width: 100%;
+	}
+
+	#menu {
+		pointer-events: auto;
+	}
+
+	#menu:focus-within {
+		pointer-events: none;
+	}
+
 }
 
 #menu .tool.curTool {
@@ -139,6 +149,10 @@ html, body, svg {
 	margin: 2.5px;
 	font-family: mono, monospace;
 	overflow: hidden;
+}
+
+#menu img.tool-icon {
+	pointer-events: none;
 }
 
 #menu .tool-icon > * {
@@ -184,6 +198,7 @@ input {
 .colorPresets {
 	margin-right: 20px;
 	vertical-align: top;
+	display: inline-block;
 }
 
 .colorPresetButton {
