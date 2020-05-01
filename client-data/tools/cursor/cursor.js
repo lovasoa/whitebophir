@@ -29,7 +29,7 @@
     // Allocate half of the maximum server updates to cursor updates
     var MAX_CURSOR_UPDATES_INTERVAL_MS = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT * 2;
 
-    var CURSOR_DELETE_AFTER_MS = 5000;
+    var CURSOR_DELETE_AFTER_MS = 1000 * 10;
 
     var lastCursorUpdate = 0;
     var sending = true;
