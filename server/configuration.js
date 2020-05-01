@@ -31,4 +31,7 @@ module.exports = {
 
     /** Duration after which the emit count is reset in miliseconds */
     MAX_EMIT_COUNT_PERIOD: parseInt(process.env['WBO_MAX_EMIT_COUNT_PERIOD']) || 5000,
+
+    /** Minimum number of milliseconds between each tool action */
+    MAX_TOOL_POLLING_FREQUENCY: parseInt(process.env['WBO_MAX_TOOL_POLLING_FREQUENCY']) || 30,
 };
