@@ -96,13 +96,12 @@ function socketConnection(socket) {
 			return;
 		}
 
-		handleMessage(data, socket);
+
+		// Save the message in the board
+		handleMessage(boardName, data, socket);
 
 		//Send data to all other users connected on the same board
 		socket.broadcast.to(boardName).emit('broadcast', data);
-
-		// Save the message in the board
-		saveHistory(boardName, data);
 	}));
 
 	socket.on('disconnecting', function onDisconnecting(reason) {
@@ -121,20 +120,18 @@ function socketConnection(socket) {
 	});
 }
 
-function handleMessage(message, socket) {
-
-	if (message.type === "cursor") {
+function handleMessage(boardName, message, socket) {
+	if (message.tool === "Cursor") {
 		message.socket = socket.id;
+	} else {
+		saveHistory(boardName, message);
 	}
-
 }
 
 async function saveHistory(boardName, message) {
 	var id = message.id;
 	var board = await getBoard(boardName);
 	switch (message.type) {
-		case "cursor":
-			break;
 		case "delete":
 			if (id) board.delete(id);
 			break;

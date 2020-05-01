@@ -54,7 +54,7 @@
         // throttle local cursor updates
         var cur_time = Date.now();
         var message = {
-            type: "cursor",
+            type: "update",
             x: x,
             y: y,
             color: Tools.getColor(),
