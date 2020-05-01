@@ -56,7 +56,7 @@ Then [install node.js](https://nodejs.org/en/download/) (v10.0 or superior)
 if you don't have it already, then install WBO's dependencies:
 
 ```
-npm install
+npm install --production
 ```
 
 Finally, you can start the server:
@@ -66,8 +66,12 @@ PORT=5001 npm start
 
 This will run WBO directly on your machine, on port 5001, without any isolation from the other services.
 
+### Running WBO on a subfolder
+
+By default, WBO launches his own web server and serves all of its content at the root of the server (on `/`).
+If you want to make the server accessible with a different path like `https://your.domain.com/wbo/` you have to setup a reverse proxy.
+See instructions on our Wiki about [how to setup a reverse proxy for WBO](https://github.com/lovasoa/whitebophir/wiki/Setup-behind-Reverse-Proxies).
+
 ## Troubleshooting
 
 If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
-
-<small>Demonstration server hosted by [openode](https://www.openode.io/)</small>

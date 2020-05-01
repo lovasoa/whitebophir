@@ -23,3 +23,6 @@ wbo-backup.zip
 
 # Jetbrains
 .idea/
+
+# Nightwatch test results
+tests_output/
