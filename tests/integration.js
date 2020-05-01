@@ -30,7 +30,7 @@ function testBoard(browser) {
             Tools.curTool.listeners.press(100, 200, new Event("mousedown"));
             setTimeout(() => {
                 Tools.curTool.listeners.move(300, 400, new Event("mousemove"));
-                done();
+                setTimeout(() => {done();}, 150);
             }, 100);
         })
         .assert.visible("path[d='M 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
