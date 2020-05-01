@@ -53,7 +53,8 @@
 			"release": release
 		},
 		"icon": "tools/hand/icon.svg",
-		"mouseCursor": "move"
+		"mouseCursor": "move",
+		"showMarker": true,
 	});
 
 	//The hand tool is selected by default

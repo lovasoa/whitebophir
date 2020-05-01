@@ -102,6 +102,7 @@
 		"draw": draw,
 		"icon": "tools/eraser/icon.svg",
 		"mouseCursor": "crosshair",
+		"showMarker": true,
 	});
 
 })(); //End of code isolation
