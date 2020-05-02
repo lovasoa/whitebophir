@@ -1,4 +1,4 @@
-/**
+﻿/**
  *                        WHITEBOPHIR
  *********************************************************
  * @licstart  The following is the entire license notice for the
@@ -119,7 +119,7 @@
 		shape.setAttribute("stroke", data.color || "black");
 		shape.setAttribute("stroke-width", data.size || 10);
 		shape.setAttribute("opacity", Math.max(0.1, Math.min(1, data.opacity)) || 1);
-		svg.appendChild(shape);
+		Tools.drawingArea.appendChild(shape);
 		return shape;
 	}
 
