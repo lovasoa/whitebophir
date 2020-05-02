@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const url = require("url");
 const accept_language_parser = require('accept-language-parser');
+const client_config = require("./client_configuration");
 
 /**
  * Associations from language to translation dictionnaries
@@ -31,8 +32,10 @@ class Template {
         const accept_languages = parsedUrl.query.lang || request.headers['accept-language'];
         const language = accept_language_parser.pick(languages, accept_languages) || 'en';
         const translations = TRANSLATIONS[language] || {};
-        const baseUrl = findBaseUrl(request);
-        return { baseUrl, languages, language, translations };
+        const configuration = client_config || {};
+        const prefix = request.url.split("/boards/")[0].substr(1);
+        const baseUrl = findBaseUrl(request) + (prefix ? prefix + "/" : "");
+        return { baseUrl, languages, language, translations, configuration };
     }
     serve(request, response) {
         const parsedUrl = url.parse(request.url, true);

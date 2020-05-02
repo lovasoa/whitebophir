@@ -39,6 +39,22 @@
 		"type": "delete",
 		"id": ""
 	};
+
+	function inDrawingArea(elem) {
+		if (Tools.drawingArea.contains) {
+			return Tools.drawingArea.contains(elem);
+		} else {
+			var node = elem.parentNode;
+			while (node != null) {
+				if (node === Tools.drawingArea) {
+					return true;
+				}
+				node = node.parentNode;
+			}
+			return false;
+		}
+	}
+
 	function erase(x, y, evt) {
 		// evt.target should be the element over which the mouse is...
 		var target = evt.target;
@@ -48,7 +64,7 @@
 			var touch = evt.touches[0];
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
-		if (erasing && target !== Tools.svg) {
+		if (erasing && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
 			msg.id = target.id;
 			Tools.drawAndSend(msg);
 		}
@@ -65,7 +81,7 @@
 			case "delete":
 				elem = svg.getElementById(data.id);
 				if (elem === null) console.error("Eraser: Tried to delete an element that does not exist.");
-				else svg.removeChild(elem);
+				else Tools.drawingArea.removeChild(elem);
 				break;
 			default:
 				console.error("Eraser: 'delete' instruction with unknown type. ", data);
@@ -86,6 +102,7 @@
 		"draw": draw,
 		"icon": "tools/eraser/icon.svg",
 		"mouseCursor": "crosshair",
+		"showMarker": true,
 	});
 
 })(); //End of code isolation

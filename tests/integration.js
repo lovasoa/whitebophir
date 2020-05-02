@@ -1,0 +1,61 @@
+const fs = require("../server/fs_promises.js");
+const os = require("os");
+const path = require("path");
+
+let wbo, data_path;
+
+async function beforeEach(browser, done) {
+    data_path = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'wbo-test-data-'));
+    process.env["PORT"] = 8487;
+    process.env["WBO_HISTORY_DIR"] = data_path;
+    console.log("Launching WBO in " + data_path);
+    wbo = require("../server/server.js");
+    done();
+}
+
+async function afterEach(browser, done) {
+    wbo.close();
+    done();
+}
+
+function testPencil(browser) {
+    return browser
+        .assert.titleContains('WBO')
+        .click('.tool[title ~= Crayon]')
+        .assert.cssClassPresent('.tool[title ~= Crayon]', ['curTool'])
+        .executeAsync(function (done) {
+            Tools.setColor('#123456');
+            Tools.curTool.listeners.press(100, 200, new Event("mousedown"));
+            setTimeout(() => {
+                Tools.curTool.listeners.move(300, 400, new Event("mousemove"));
+                done();
+            }, 100);
+        })
+        .assert.visible("path[d='M 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
+        .refresh()
+        .assert.visible("path[d='M 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
+}
+
+
+function testCursor(browser) {
+    return browser
+        .execute(function (done) {
+            Tools.setColor('#456123'); // Move the cursor over the board
+            var e = new Event("mousemove")
+            e.pageX = 150
+            e.pageY = 200
+            Tools.board.dispatchEvent(e)
+        })
+        .assert.cssProperty("#cursor-me", "transform", "matrix(1, 0, 0, 1, 150, 200)")
+        .assert.attributeEquals("#cursor-me", "fill", "#456123")
+}
+
+function testBoard(browser) {
+    var page = browser.url('http://localhost:8487/boards/anonymous?lang=fr')
+        .waitForElementVisible('.tool[title ~= Crayon]') // pencil
+    page = testPencil(page);
+    page = testCursor(page);
+    page.end();
+}
+
+module.exports = { beforeEach, testBoard, afterEach };
