@@ -93,16 +93,15 @@
             textElem.style.visibility = "hidden";
             makeRect = false;
             var targets = [];
-            //document.querySelectorAll("#layer-" + Tools.layer + " *").forEach(
-            document.querySelectorAll("#canvas path, #canvas text, #canvas line, #canvas rect").forEach(
-                function (el, i) {
-                    var r = el.getBoundingClientRect();
-                    if (r.left >= erase_rect.left && r.right <= erase_rect.right
-                        && r.top >= erase_rect.top && r.bottom <= erase_rect.bottom) {
-                        targets.push(el);
-                    }
+            for (var i = 0; i < Tools.drawingArea.children.length; i++) {
+                var el = Tools.drawingArea.children[i];
+                var r = el.getBoundingClientRect();
+                if (r.left >= erase_rect.left && r.right <= erase_rect.right
+                    && r.top >= erase_rect.top && r.bottom <= erase_rect.bottom) {
+                    targets.push(el);
                 }
-            );
+            }
+            console.log(targets);
             if (targets.length > 0) {
                 msg.id = [];
                 for (var i = 0; i < targets.length; i++) {
