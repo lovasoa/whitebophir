@@ -16,7 +16,7 @@ A demonstration server is available at [wbo.ophir.dev](https://wbo.ophir.dev)
   
   <tr>
    <td> teaching math on <b>WBO</b>
-   <td> <img alt=wbo teaching" width="300" src="https://user-images.githubusercontent.com/552629/59915737-a386e580-941d-11e9-81ff-db9e37f140db.png" />
+   <td> <img alt="wbo teaching" width="300" src="https://user-images.githubusercontent.com/552629/59915737-a386e580-941d-11e9-81ff-db9e37f140db.png" />
    <td> drawing art
    <td> <img alt="angel drawn on WBO" width="300" src="https://user-images.githubusercontent.com/552629/59914139-08404100-941a-11e9-9c29-bd2569fe4730.png"/>
 </table>
@@ -65,6 +65,12 @@ PORT=5001 npm start
 ```
 
 This will run WBO directly on your machine, on port 5001, without any isolation from the other services.
+
+### Running WBO on a subfolder
+
+By default, WBO launches his own web server and serves all of its content at the root of the server (on `/`).
+If you want to make the server accessible with a different path like `https://your.domain.com/wbo/` you have to setup a reverse proxy.
+See instructions on our Wiki about [how to setup a reverse proxy for WBO](https://github.com/lovasoa/whitebophir/wiki/Setup-behind-Reverse-Proxies).
 
 ## Troubleshooting
 

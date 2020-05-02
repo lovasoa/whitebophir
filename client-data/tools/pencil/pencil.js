@@ -80,7 +80,7 @@
 				renderingLine = createLine(data);
 				break;
 			case "child":
-				var line = (renderingLine.id == data.parent) ? renderingLine : svg.getElementById(data.parent);
+				var line = (renderingLine.id === data.parent) ? renderingLine : svg.getElementById(data.parent);
 				if (!line) {
 					console.error("Pencil: Hmmm... I received a point of a line that has not been created (%s).", data.parent);
 					line = renderingLine = createLine({ "id": data.parent }); //create a new line in order not to loose the points
@@ -191,7 +191,7 @@
 		line.setAttribute("stroke", lineData.color || "black");
 		line.setAttribute("stroke-width", lineData.size || 10);
 		line.setAttribute("opacity", Math.max(0.1, Math.min(1, lineData.opacity)) || 1);
-		svg.appendChild(line);
+		Tools.drawingArea.appendChild(line);
 		return line;
 	}
 
@@ -204,7 +204,7 @@
 			"release": stopLine,
 		},
 		"draw": draw,
-		"mouseCursor": "crosshair",
+		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
 		"icon": "tools/pencil/icon.svg",
 		"stylesheet": "tools/pencil/pencil.css"
 	});

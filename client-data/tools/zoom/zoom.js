@@ -169,6 +169,7 @@
         "mouseCursor": "zoom-in",
         "icon": "tools/zoom/icon.svg",
         "helpText": "click_to_zoom",
+        "showMarker": true,
     };
     Tools.add(zoomTool);
 })(); //End of code isolation
