@@ -53,7 +53,7 @@
 		Tools.drawAndSend({
 			'type': 'line',
 			'id': curLineId,
-			'color': (curPen === "pencil" ? Tools.getColor() : "white"),
+			'color': (curPen === "pencil" ? Tools.getColor() : "#ffffff"),
 			'size': Tools.getSize(),
 			'opacity': (curPen === "pencil" ? Tools.getOpacity() : 1),
 		});
