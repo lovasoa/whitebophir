@@ -79,7 +79,7 @@
         cursor.setAttributeNS(null, "cx", 0);
         cursor.setAttributeNS(null, "cy", 0);
         cursor.setAttributeNS(null, "r", 10);
-        cursorsElem.append(cursor);
+        cursorsElem.appendChild(cursor);
         setTimeout(function () {
             cursorsElem.removeChild(cursor);
         }, CURSOR_DELETE_AFTER_MS);

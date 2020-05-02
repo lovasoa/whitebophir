@@ -27,7 +27,7 @@
 (function grid() { //Code isolation
 
     var index = 0; //grid off by default
-    var states = ["none", "url(#grid)", "url(#dots)"];
+    var states = ["none", "url(../tools/grid/patterns.svg#grid)", "url(../tools/grid/patterns.svg#dots)"];
 
     function toggleGrid(evt) {
         index = (index+1) % states.length;
@@ -43,27 +43,6 @@
     }
 
     function init() {
-        // create patterns
-        // small (inner) grid
-        var smallGrid = createSVGElement("pattern", {id: "smallGrid", width: "30", height: "30", patternUnits: "userSpaceOnUse"});
-        smallGrid.appendChild(
-            createSVGElement("path", {d: "M 30 0 L 0 0 0 30", fill: "none", stroke: "gray", 'stroke-width': "0.5"})
-        );
-        // (outer) grid
-        var grid = createSVGElement("pattern", {id: "grid", width: "300", height: "300", patternUnits: "userSpaceOnUse"});
-        grid.appendChild(createSVGElement("rect", {width: "300", height: "300", fill: "url(#smallGrid)"}));
-        grid.appendChild(
-            createSVGElement("path", {d: "M 300 0 L 0 0 0 300", fill: "none", stroke: "gray", 'stroke-width': "1"})
-        );
-        // dots
-        var dots = createSVGElement("pattern", {id: "dots", width: "30", height: "30", x: "-10", y: "-10", patternUnits: "userSpaceOnUse"});
-        dots.appendChild(createSVGElement("circle", {fill: "gray", cx: "10", cy: "10", r: "2"}));
-
-        var defs = Tools.svg.getElementById("defs");
-        defs.appendChild(smallGrid);
-        defs.appendChild(grid);
-        defs.appendChild(dots);
-
         // create grid container
         var gridContainer = createSVGElement("rect", {id: "gridContainer", width: "100%", height: "100%", fill: states[index]});
         Tools.svg.insertBefore(gridContainer, Tools.drawingArea);
