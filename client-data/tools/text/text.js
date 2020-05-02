@@ -25,7 +25,7 @@
  */
 
 (function () { //Code isolation
-	var board = Tools.board, svg = Tools.svg;
+	var board = Tools.board;
 
 	var input = document.createElement("input");
 	input.id = "textToolInput";
@@ -189,7 +189,7 @@
 		elem.setAttribute("fill", fieldData.color);
 		elem.setAttribute("opacity", Math.max(0.1, Math.min(1, fieldData.opacity)) || 1);
 		if (fieldData.txt) elem.textContent = fieldData.txt;
-		svg.appendChild(elem);
+		Tools.drawingArea.appendChild(elem);
 		return elem;
 	}
 

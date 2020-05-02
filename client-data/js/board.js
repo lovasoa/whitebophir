@@ -36,16 +36,21 @@ Tools.i18n = (function i18n() {
 	};
 })();
 
+Tools.server_config = JSON.parse(document.getElementById("configuration").text);
+
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
+Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
 //Initialization
 Tools.curTool = null;
-Tools.showMarker = false;
+Tools.showMarker = true;
 Tools.alwaysShowMarker = true;
+Tools.showOtherCursors = true;
+Tools.showMyCursor = true;
 
 Tools.socket = null;
-Tools.connect = function() {
+Tools.connect = function () {
 	var self = this;
 
 	// Destroy socket if one already exists
@@ -114,7 +119,7 @@ Tools.HTML = {
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")" +
-				(Tools.list[toolName].toggle? " [" + Tools.i18n.t("Click to togle")+ "]":"");
+				(Tools.list[toolName].toggle ? " [" + Tools.i18n.t("Click to togle") + "]" : "");
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -148,7 +153,10 @@ Tools.HTML = {
 
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
-Tools.add = function (newTool) {
+/**
+ * Register a new tool, without touching the User Interface
+ */
+Tools.register = function registerTool(newTool) {
 	if (newTool.name in Tools.list) {
 		console.log("Tools.add: The tool '" + newTool.name + "' is already" +
 			"in the list. Updating it...");
@@ -160,13 +168,6 @@ Tools.add = function (newTool) {
 	//Add the tool to the list
 	Tools.list[newTool.name] = newTool;
 
-	if (newTool.stylesheet) {
-		Tools.HTML.addStylesheet(newTool.stylesheet);
-	}
-
-	//Add the tool to the GUI
-	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut);
-
 	//There may be pending messages for the tool
 	var pending = Tools.pendingMessages[newTool.name];
 	if (pending) {
@@ -177,6 +178,20 @@ Tools.add = function (newTool) {
 			newTool.draw(msg, false);
 		}
 	}
+}
+
+/**
+ * Add a new tool to the user interface
+ */
+Tools.add = function (newTool) {
+	Tools.register(newTool);
+
+	if (newTool.stylesheet) {
+		Tools.HTML.addStylesheet(newTool.stylesheet);
+	}
+
+	//Add the tool to the GUI
+	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut);
 };
 
 Tools.change = function (toolName) {
@@ -187,7 +202,7 @@ Tools.change = function (toolName) {
 	var newtool = Tools.list[toolName];
 
 	if (newtool === Tools.curTool) {
-		if(newtool.toggle){
+		if (newtool.toggle) {
 			var elem = document.getElementById("toolID-" + newtool.name);
 			newtool.toggle(elem);
 		}
@@ -210,25 +225,33 @@ Tools.change = function (toolName) {
 		if (newtool === Tools.curTool) return;
 
 		//Remove the old event listeners
-		for (var event in Tools.curTool.compiledListeners) {
-			var listener = Tools.curTool.compiledListeners[event];
-			Tools.board.removeEventListener(event, listener);
-		}
+		Tools.removeToolListeners(Tools.curTool);
 
 		//Call the callbacks of the old tool
 		Tools.curTool.onquit(newtool);
 	}
 
 	//Add the new event listeners
-	for (var event in newtool.compiledListeners) {
-		var listener = newtool.compiledListeners[event];
-		Tools.board.addEventListener(event, listener, { 'passive': false });
-	}
+	Tools.addToolListeners(newtool);
 
 	//Call the start callback of the new tool
 	newtool.onstart(Tools.curTool);
 	Tools.curTool = newtool;
 };
+
+Tools.addToolListeners = function addToolListeners(tool) {
+	for (var event in tool.compiledListeners) {
+		var listener = tool.compiledListeners[event];
+		Tools.board.addEventListener(event, listener, { 'passive': false });
+	}
+}
+
+Tools.removeToolListeners = function removeToolListeners(tool) {
+	for (var event in tool.compiledListeners) {
+		var listener = tool.compiledListeners[event];
+		Tools.board.removeEventListener(event, listener);
+	}
+}
 
 Tools.send = function (data, toolName) {
 	toolName = toolName || Tools.curTool.name;
@@ -238,13 +261,14 @@ Tools.send = function (data, toolName) {
 	var message = {
 		"board": Tools.boardName,
 		"data": d
-	}
+	};
 	Tools.socket.emit('broadcast', message);
 };
 
-Tools.drawAndSend = function (data) {
-	Tools.curTool.draw(data, true);
-	Tools.send(data);
+Tools.drawAndSend = function (data, tool) {
+	if (tool == null) tool = Tools.curTool;
+	tool.draw(data, true);
+	Tools.send(data, tool.name);
 };
 
 //Object containing the messages that have been received before the corresponding tool
@@ -521,12 +545,12 @@ Tools.setSize = (function size() {
 
 	chooser.onchange = chooser.oninput = update;
 	return function (value) {
-		if (value !== null && value !== undefined) { chooser.value=value; update(); }
+		if (value !== null && value !== undefined) { chooser.value = value; update(); }
 		return parseInt(chooser.value);
 	};
 })();
 
-Tools.getSize = (function() {return Tools.setSize()});
+Tools.getSize = (function () { return Tools.setSize() });
 
 Tools.getOpacity = (function opacity() {
 	var chooser = document.getElementById("chooseOpacity");
