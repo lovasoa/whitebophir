@@ -1,5 +1,6 @@
 const fs = require("fs"),
-	path = require("path");
+	path = require("path"),
+	pencilExtrapolatePoints = require("../client-data/tools/pencil/pencil_extrapolate_points").pencilExtrapolatePoints;
 
 function htmlspecialchars(str) {
 	//Hum, hum... Could do better
@@ -95,43 +96,7 @@ exportTools = {
 							el._children[1].x, el._children[1].y]},
 				];
 				for (let i = 2; i < el._children.length; i++) {
-					//We add the new point, and smoothen the line
-					const ANGULARITY = 3; //The lower this number, the smoother the line
-					const prev_values = pts[pts.length - 1].values; // Previous point
-					const ante_values = pts[pts.length - 2].values; // Point before the previous one
-					const prev_x = prev_values[prev_values.length - 2];
-					const prev_y = prev_values[prev_values.length - 1];
-					const ante_x = ante_values[ante_values.length - 2];
-					const ante_y = ante_values[ante_values.length - 1];
-					const x = el._children[i].x;
-					const y = el._children[i].y;
-
-					//We don't want to add the same point twice consecutively
-					if ((prev_x === x && prev_y === y)
-						|| (ante_x === x && ante_y === y)) continue;
-
-					let vectx = x - ante_x,
-						vecty = y - ante_y;
-					const norm = Math.hypot(vectx, vecty);
-					const dist1 = dist(ante_x, ante_y, prev_x, prev_y) / norm,
-						dist2 = dist(x, y, prev_x, prev_y) / norm;
-					vectx /= ANGULARITY;
-					vecty /= ANGULARITY;
-					//Create 2 control points around the last point
-					const cx1 = prev_x - dist1 * vectx,
-						cy1 = prev_y - dist1 * vecty, //First control point
-						cx2 = prev_x + dist2 * vectx,
-						cy2 = prev_y + dist2 * vecty; //Second control point
-					prev_values[2] = cx1;
-					prev_values[3] = cy1;
-
-					npoint = {
-						type: "C", values: [
-							cx2, cy2,
-							x, y,
-							x, y,
-						]
-					};
+					let npoint = pencilExtrapolatePoints(pts, el._children[i].x, el._children[i].y)
 					pts.push(npoint);
 				}
 				for (let i = 1; i < pts.length; i++) {
