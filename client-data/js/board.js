@@ -230,32 +230,41 @@ Tools.change = function (toolName) {
 	Tools.curTool = newtool;
 };
 
+// List of the messages that wll be sent when the next slot is available
 Tools.pendingOutboundMessages = [];
 Tools.lastMessageSent = 0;
 
 Tools.send = function (data) {
-	if (!data && !Tools.pendingOutboundMessages) return;
+	var out = Tools.pendingOutboundMessages;
+
+	// ensure data is present to be sent
+	if (!data && out.length === 0) return;
 	if (Tools.sendTimout) clearTimeout(Tools.sendTimout);
 
 	var MAX_MESSAGE_INTERVAL = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT;
 
+	// check if we need to throttle
 	var cur_time = Date.now();
 	if (data && cur_time - Tools.lastMessageSent < MAX_MESSAGE_INTERVAL) {
-		Tools.pendingOutboundMessages.push(data);
+		// prepare message to be sent later
+		out.push(data);
+		// ensure messages will be sent even if no more messages are created
 		Tools.sendTimout = setTimeout(Tools.send, 100);
 		return;
 	}
 	Tools.lastMessageSent = cur_time;
 
-	if (Tools.pendingOutboundMessages.length === 0) {
+	// sned a single message if none are waiting
+	if (out.length === 0) {
 		var message = {
 			"board": Tools.boardName,
 			"data": data,
 		};
 		Tools.socket.emit('broadcast', message);
 	} else {
-		if (data) Tools.pendingOutboundMessages.push(data);
-		Tools.socket.emit('broadcast', { _children: Tools.pendingOutboundMessages });
+		// send all pending messages and clear queue
+		if (data) out.push(data);
+		Tools.socket.emit('broadcast', { _children: out });
 		Tools.pendingOutboundMessages = [];
 	}
 };
