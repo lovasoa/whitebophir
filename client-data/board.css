@@ -237,3 +237,12 @@ text {
 	user-select:none;
 	-moz-user-select:none;
 }
+
+circle.opcursor {
+	pointer-events: none;
+	transition: .1s;
+}
+
+#cursor-me {
+	transition: 0s;
+}
