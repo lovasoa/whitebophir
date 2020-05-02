@@ -5,19 +5,20 @@
 	<meta charset="utf-8" />
 	<title>{{board}} | WBO | {{translations.collaborative_whiteboard}}</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="stylesheet" type="text/css" href="board.css" />
-	<script src="/socket.io/socket.io.js"></script>
+	<link rel="stylesheet" type="text/css" href="../board.css" />
+	<script src="../socket.io/socket.io.js"></script>
 	<meta name="description" content="{{translations.tagline}}'" />
 	<meta name="keywords"
 		content="{{translations.collaborative_whiteboard}},online,draw,paint,shared,realtime,wbo,whitebophir" />
-	<link rel="apple-touch-icon" href="/favicon.svg">
+	<link rel="apple-touch-icon" href="../favicon.svg">
+	<link rel="icon" type="image/x-icon" sizes="16x16" href="../favicon.ico">
 	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0" />
 	<meta property="og:title" content="{{board}} board on WBO" />
-	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
-	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
-	<link rel="canonical" href="{{baseUrl}}/boards/{{boardUriComponent}}?lang={{language}}" />
+ 	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
+ 	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
+	<link rel="canonical" href="{{boardUriComponent}}?lang={{language}}" />
 	{{#languages}}
-	<link rel="alternate" hreflang="{{.}}" href="{{../baseUrl}}/boards/{{../boardUriComponent}}?lang={{.}}" />
+	<link rel="alternate" hreflang="{{.}}" href="{{../boardUriComponent}}?lang={{.}}" />
 	{{/languages}}
 </head>
 
@@ -26,6 +27,8 @@
 	<div id="board">
 		<svg id="canvas" width="500" height="500" version="1.1" xmlns="http://www.w3.org/2000/svg">
 			<defs id="defs"></defs>
+			<g id="drawingArea"></g>
+			<g id="cursors"></g>
 		</svg>
 	</div>
 
@@ -34,27 +37,27 @@
 	<div id="menu">
 		<div id="menuItems">
 			<ul id="tools" class="tools">
-				<li class="tool">
+				<li class="tool" tabindex="-1">
 					<img class="tool-icon" width="35" height="35" src="" alt="icon" /><span class="tool-name"></span>
 				</li>
 			</ul>
 
 			<ul class="tools" id="settings">
-				<li class="tool">
+				<li class="tool" tabindex="-1">
 					<input class="tool-icon" type="color" id="chooseColor" value="#1913B0" />
 					<label class="tool-name" for="chooseColor">{{translations.color}}</label>
 					<span class="colorPresets" id="colorPresetSel">
 						<span class="colorPresetButton"></span>
 					</span>
 				</li>
-				<li class="tool">
+				<li class="tool" tabindex="-1">
 					<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
 					<label class="tool-name slider" for="chooseSize">
 						<span>{{translations.size}}</span>
 						<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />
 					</label>
 				</li>
-				<li class="tool">
+				<li class="tool" tabindex="-1">
 					<span class="tool-icon">
 						<svg viewBox="0 0 8 8">
 							<pattern id="opacityPattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
@@ -63,7 +66,7 @@
 								<rect x=2 y=0 width=2 height=2 fill=#eeeeee />
 								<rect x=0 y=2 width=2 height=2 fill=#eeeeee />
 							</pattern>
-							<circle cx=4 cy=4 id="opacityIndicator" r=3.5  fill="url(#opacityPattern)" />
+							<circle cx=4 cy=4 id="opacityIndicator" r=3.5 fill="url(#opacityPattern)" />
 						</svg>
 					</span>
 					<label class="tool-name slider" for="chooseOpacity">
@@ -77,19 +80,21 @@
 	</div>
 
 
-	<script type="application/json" id="translations">{{{json translations}}}</script>
-	<script src="js/path-data-polyfill.js"></script>
-	<script src="js/minitpl.js"></script>
-	<script src="js/board.js"></script>
-	<script src="tools/pencil/pencil.js"></script>
-	<script src="tools/line/line.js"></script>
-	<script src="tools/rect/rect.js"></script>
-	<script src="tools/text/text.js"></script>
-	<script src="tools/eraser/eraser.js"></script>
-	<script src="tools/hand/hand.js"></script>
-	<script src="tools/zoom/zoom.js"></script>
-	<script src="tools/document/document.js"></script>
-	<script src="/js/canvascolor/canvascolor.min.js"></script>
+	<script type="application/json" id="translations">{{{ json translations }}}</script>
+	<script type="application/json" id="configuration">{{{ json configuration }}}</script>
+	<script src="../js/path-data-polyfill.js"></script>
+	<script src="../js/minitpl.js"></script>
+	<script src="../js/board.js"></script>
+	<script src="../tools/pencil/pencil.js"></script>
+	<script src="../tools/cursor/cursor.js"></script>
+	<script src="../tools/line/line.js"></script>
+	<script src="../tools/rect/rect.js"></script>
+	<script src="../tools/text/text.js"></script>
+	<script src="../tools/eraser/eraser.js"></script>
+	<script src="../tools/hand/hand.js"></script>
+	<script src="../tools/document/document.js"></script>
+	<script src="../tools/zoom/zoom.js"></script>
+	<script src="../js/canvascolor/canvascolor.min.js"></script>
 </body>
 
 </html>

@@ -3,9 +3,6 @@ var iolib = require('socket.io')
 	, BoardData = require("./boardData.js").BoardData
 	, config = require("./configuration");
 
-var MAX_EMIT_COUNT = 64; // Maximum number of draw operations before getting banned
-var MAX_EMIT_COUNT_PERIOD = 5000; // Duration (in ms) after which the emit count is reset
-
 /** Map from name to *promises* of BoardData
 	@type {Object<string, Promise<BoardData>>}
 */
@@ -70,19 +67,21 @@ function socketConnection(socket) {
 
 	socket.on("joinboard", noFail(joinBoard));
 
-	var lastEmitSecond = Date.now() / MAX_EMIT_COUNT_PERIOD | 0;
+	var lastEmitSecond = Date.now() / config.MAX_EMIT_COUNT_PERIOD | 0;
 	var emitCount = 0;
 	socket.on('broadcast', noFail(function onBroadcast(message) {
-		var currentSecond = Date.now() / MAX_EMIT_COUNT_PERIOD | 0;
+		var currentSecond = Date.now() / config.MAX_EMIT_COUNT_PERIOD | 0;
 		if (currentSecond === lastEmitSecond) {
 			emitCount++;
-			if (emitCount > MAX_EMIT_COUNT) {
+			if (emitCount > config.MAX_EMIT_COUNT) {
 				var request = socket.client.request;
-				log('BANNED', {
-					user_agent: request.headers['user-agent'],
-					original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
-					emit_count: emitCount
-				});
+				if (emitCount % 100 === 0) {
+					log('BANNED', {
+						user_agent: request.headers['user-agent'],
+						original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
+						emit_count: emitCount
+					});
+				}
 				return;
 			}
 		} else {
@@ -120,11 +119,11 @@ function socketConnection(socket) {
 			}
 		}
 
+		// Save the message in the board
+		handleMessage(boardName, data, socket);
+
 		//Send data to all other users connected on the same board
 		socket.broadcast.to(boardName).emit('broadcast', data);
-
-		// Save the message in the board
-		saveHistory(boardName, data);
 	}));
 
 	socket.on('disconnecting', function onDisconnecting(reason) {
@@ -141,6 +140,14 @@ function socketConnection(socket) {
 			}
 		});
 	});
+}
+
+function handleMessage(boardName, message, socket) {
+	if (message.tool === "Cursor") {
+		message.socket = socket.id;
+	} else {
+		saveHistory(boardName, message);
+	}
 }
 
 async function saveHistory(boardName, message) {

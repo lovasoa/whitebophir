@@ -31,4 +31,9 @@ module.exports = {
 
     /** Maximum number of documents allowed */
     MAX_DOCUMENTS: parseInt(process.env['WBO_MAX_DOCUMENTS']) || 5,
+    /** Maximum messages per user over the given time period before banning them  */
+    MAX_EMIT_COUNT: parseInt(process.env['WBO_MAX_EMIT_COUNT']) || 128,
+
+    /** Duration after which the emit count is reset in miliseconds */
+    MAX_EMIT_COUNT_PERIOD: parseInt(process.env['WBO_MAX_EMIT_COUNT_PERIOD']) || 4096,
 };
