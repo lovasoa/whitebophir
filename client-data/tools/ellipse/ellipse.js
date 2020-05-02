@@ -160,7 +160,7 @@
     }
 
     function keyToggle(e) {
-        if (e.key === "Shift" && Tools.curTool.name === "Ellipse") {
+        if (e.key === "Shift" && Tools.curTool.name === "Ellipse" && curId) {
             var elem = document.getElementById("toolID-" + Tools.curTool.name);
             Tools.curTool.toggle(elem);
             curUpdate.shape = curshape;
