@@ -45,7 +45,6 @@ Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 //Initialization
 Tools.curTool = null;
 Tools.showMarker = true;
-Tools.alwaysShowMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 

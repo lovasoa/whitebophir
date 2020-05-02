@@ -96,4 +96,4 @@
         cursor.setAttributeNS(null, "fill", message.color);
         cursor.setAttributeNS(null, "r", message.size / 2);
     }
-})()
+})();

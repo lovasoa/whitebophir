@@ -43,29 +43,6 @@
 		this.y = y;
 	}
 
-	function hideMarker() {
-		// hide cursor again unless it is set to always be shown
-		Tools.showMarker = Tools.alwaysShowMarker;
-		if (!Tools.showMarker) {
-			var cursor = Tools.svg.getElementById("mycursor");
-			if (cursor) {
-				cursor.remove();
-			}
-		}
-	}
-
-	function onStart(){
-		if(curPen === "whiteout"){
-			Tools.showMarker = true;
-		}
-	}
-
-	function onQuit(){
-		if(curPen === "whiteout"){
-			hideMarker();
-		}
-	}
-
 	function startLine(x, y, evt) {
 
 		//Prevent the press from being interpreted by the browser
@@ -220,11 +197,9 @@
 		var index = 0;
 		if (curPen === "pencil") {
 			curPen = "whiteout";
-			Tools.showMarker = true;
 			index = 1;
 		} else {
 			curPen = "pencil";
-			hideMarker();
 		}
 		elem.getElementsByClassName("tool-icon")[0].src = penIcons[index];
 		elem.getElementsByClassName("tool-name")[0].textContent = toolName[index];
@@ -241,8 +216,6 @@
 		},
 		"draw": draw,
 		"toggle":toggle,
-		"onstart":onStart,
-		"onquit":onQuit,
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
 		"icon": penIcons[0],
 		"stylesheet": "tools/pencil/pencil.css"
