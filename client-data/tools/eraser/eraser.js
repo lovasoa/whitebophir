@@ -52,6 +52,21 @@
 		erasing = false;
 	}
 
+	function inDrawingArea(elem) {
+		if (Tools.drawingArea.contains) {
+			return Tools.drawingArea.contains(elem);
+		} else {
+			var node = elem.parentNode;
+			while (node != null) {
+				if (node === Tools.drawingArea) {
+					return true;
+				}
+				node = node.parentNode;
+			}
+			return false;
+		}
+	}
+
 	function erase(x, y, evt) {
 		// evt.target should be the element over which the mouse is...
 		var target = evt.target;
@@ -87,13 +102,13 @@
 					for(var i = 0; i<data.id.length; i++){
 						elem = svg.getElementById(data.id[i]);
 						if (elem !== null){ //console.error("Eraser: Tried to delete an element that does not exist.");
-							elem.remove();
+							Tools.drawingArea.removeChild(elem);
 						}
 					}
 				} else {
 					elem = svg.getElementById(data.id);
 					if (elem === null) return; //console.error("Eraser: Tried to delete an element that does not exist.");
-					elem.remove();
+					Tools.drawingArea.removeChild(elem);
 				}
 				break;
 			default:
@@ -105,7 +120,7 @@
 	function scanForObject(x,y,target, i,j){
 		target=document.elementFromPoint((x+i)*Tools.scale-document.documentElement.scrollLeft, (y+j)*Tools.scale-document.documentElement.scrollTop);
 
-		if (target && target !== Tools.svg) {
+		if (target && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
 			msg.id = target.id;
 			msg.x = x+i;
 			msg.y = y+j;
@@ -143,6 +158,7 @@
 		"draw": draw,
 		"icon": icons[0],
 		"mouseCursor": "crosshair",
+		"showMarker": true,
 	});
 
 })(); //End of code isolation
