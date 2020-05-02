@@ -113,7 +113,7 @@ function socketConnection(socket) {
 				}
 			});
 
-			if (!message.data.size || message.data.size > config.MAX_DOUMENT_SIZE) {
+			if (!message.data.size || message.data.size > config.MAX_DOCUMENT_SIZE) {
 				console.warn("Received too large file");
 				return;
 			}

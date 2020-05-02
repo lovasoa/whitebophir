@@ -25,12 +25,12 @@
                     // File size as data url, approximately 1/3 larger than as bytestream
                     //TODO: internationalization
                     let size = image.src.toString().length;
-                    if (size > 1048576) { //TODO: get correct size from config
+                    if (size > Tools.server_config.MAX_DOCUMENT_SIZE) {
                         alert("File too large");
                         throw new Error("File too large");
                     }
 
-                    if (Tools.svg.querySelectorAll("image").length > 5) { //TODO: get correct amount from config
+                    if (Tools.svg.querySelectorAll("image").length > Tools.server_config.MAX_DOCUMENT_COUNT) {
                         alert("Too many documents exist already");
                         throw new Error("Too many documents exist already");
                     }
