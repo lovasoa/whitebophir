@@ -58,25 +58,12 @@ var Tools = {
 		return renderPath(el, pathstring);
 	},
 	"Ellipse": function (el) {
-		let cx;
-		let cy;
-		let rx, ry;
-		if (el.shape === "Circle") {
-			const deltaX = el.x2 - el.x;
-			const deltaY = el.y2 - el.y;
-			const r = Math.max(Math.abs(deltaX), Math.abs(deltaY))/2;
-			cx = el.x + ((deltaX > 0) - (deltaX < 0)) * r;
-			cy = el.y + ((deltaY > 0) - (deltaY < 0)) * r;
-			rx = ry = r;
-		} else {
-			cx = Math.round((el.x2 + el.x)/2);
-			cy = Math.round((el.y2 + el.y)/2);
-			rx = Math.abs(el.x2 - el.x)/2;
-			ry = Math.abs(el.y2 - el.y)/2;
-		}
+		const cx = Math.round((el.x2 + el.x) / 2);
+		const cy = Math.round((el.y2 + el.y) / 2);
+		const rx = Math.abs(el.x2 - el.x) / 2;
+		const ry = Math.abs(el.y2 - el.y) / 2;
 		const pathstring =
-			"M" + cx + " " + cy +
-			"m" + -rx + ", 0" +
+			"M" + (cx - rx) + " " + cy +
 			"a" + rx + "," + ry + " 0 1,0 " + (rx * 2) + ",0" +
 			"a" + rx + "," + ry + " 0 1,0 " + (rx * -2) + ",0";
 		return renderPath(el, pathstring);
