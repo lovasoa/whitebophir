@@ -106,7 +106,7 @@ Tools.HTML = {
 		};
 		this.addShortcut(toolShortcut, function () {
 			Tools.change(toolName);
-			document.activeElement.blur();
+			document.activeElement.blur && document.activeElement.blur();
 		});
 		return this.template.add(function (elem) {
 			elem.addEventListener("click", callback);
@@ -459,7 +459,7 @@ Tools.toolHooks = [
 
 		function wrapUnsetHover(f, toolName) {
 			return (function unsetHover(evt) {
-				document.activeElement && document.activeElement.blur();
+				document.activeElement && document.activeElement.blur && document.activeElement.blur();
 				return f(evt);
 			});
 		}
