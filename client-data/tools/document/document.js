@@ -72,7 +72,7 @@
         img.setAttribute("height", 400);
         if(msg.transform)
             img.setAttribute("transform",msg.transform);
-        Tools.svg.appendChild(img);
+        Tools.drawingArea.appendChild(img);
 
     }
 
