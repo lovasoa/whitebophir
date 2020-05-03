@@ -242,14 +242,16 @@ Tools.change = function (toolName) {
 Tools.addToolListeners = function addToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
 		var listener = tool.compiledListeners[event];
-		Tools.board.addEventListener(event, listener, { 'passive': false });
+		var target = listener.target || Tools.board;
+		target.addEventListener(event, listener, { 'passive': false });
 	}
 }
 
 Tools.removeToolListeners = function removeToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
 		var listener = tool.compiledListeners[event];
-		Tools.board.removeEventListener(event, listener);
+		var target = listener.target || Tools.board;
+		target.removeEventListener(event, listener);
 	}
 }
 

@@ -28,6 +28,7 @@
     //Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
     var curshape = "Ellipse";
     var icons = ["tools/ellipse/icon-ellipse.svg", "tools/ellipse/icon-circle.svg"];
+    var toolNames = ["Ellipse", "Circle"];
     var end = false,
         curId = "",
         curUpdate = { //The data of the message that will be sent for every new point
@@ -68,8 +69,10 @@
     }
 
     function move(x, y, evt) {
-        /*Wait 70ms before adding any point to the currently drawing shape.
-        This allows the animation to be smother*/
+        if (evt) {
+            evt.preventDefault();
+            switchTool(!evt.shiftKey);
+        }
         if (curId !== "") {
             curUpdate['x2'] = x; curUpdate['y2'] = y;
             if (performance.now() - lastTime > 70 || end) {
@@ -79,7 +82,6 @@
                 draw(curUpdate);
             }
         }
-        if (evt) evt.preventDefault();
     }
 
     function stop(x, y) {
@@ -109,7 +111,7 @@
                 updateShape(shape, data, data.shape === "Circle");
                 break;
             default:
-                console.error("Straight shape: Draw instruction with unknown type. ", data);
+                console.error("Ellipse: Draw instruction with unknown type. ", data);
                 break;
         }
     }
@@ -147,42 +149,47 @@
     }
 
 
-    function toggle(elem) {
-        var index = 0;
-        if (curshape === "Ellipse") {
-            curshape = "Circle";
-            index = 1;
-        } else {
-            curshape = "Ellipse";
-        }
+    function toggle() {
+        switchTool(curshape === "Circle");
+    }
+
+    // Switch between ellipse and circle
+    function switchTool(isEllipse) {
+        var index = isEllipse ? 0 : 1;
+        if (curshape === toolNames[index]) return; // The tool was already in the correct state
+        curshape = toolNames[index];
+        var elem = document.getElementById("toolID-" + circleTool.name);
         elem.getElementsByClassName("tool-icon")[0].src = icons[index];
-        elem.getElementsByClassName("tool-name")[0].textContent = curshape;
+        elem.getElementsByClassName("tool-name")[0].textContent = toolNames[index];
+        curUpdate.shape = curshape;
+        if (curId) draw(curUpdate);
     }
 
     function keyToggle(e) {
-        if (e.key === "Shift" && Tools.curTool.name === "Ellipse" && curId) {
-            var elem = document.getElementById("toolID-" + Tools.curTool.name);
-            Tools.curTool.toggle(elem);
-            curUpdate.shape = curshape;
-            draw(curUpdate);
-        }
+        if (e.key !== "Shift") return;
+        if (e.type === "keydown") switchTool(false);
+        if (e.type === "keyup") switchTool(true);
     }
-    window.addEventListener("keydown", keyToggle);
-    window.addEventListener("keyup", keyToggle);
+    keyToggle.target = window;
 
-    Tools.add({ //The new tool
-        "name": "Ellipse",
+    var circleTool = { //The new tool
+        "name": toolNames[0],
         "shortcut": "c",
         "listeners": {
             "press": start,
             "move": move,
             "release": stop,
         },
+        "compiledListeners": {
+            "keydown": keyToggle,
+            "keyup": keyToggle,
+        },
         "draw": draw,
         "toggle": toggle,
         "mouseCursor": "crosshair",
         "icon": icons[0],
         "stylesheet": "tools/ellipse/ellipse.css"
-    });
+    };
+    Tools.add(circleTool);
 
 })(); //End of code isolation
