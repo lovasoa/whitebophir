@@ -93,15 +93,15 @@
 	function startEdit() {
 		if (!input.parentNode) board.appendChild(input);
 		input.value = "";
-		var left = curText.x - scrollX + 'px';
+		var left = curText.x - document.documentElement.scrollLeft + 'px';
 		var clientW = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-		var x = curText.x * Tools.scale - scrollX;
+		var x = curText.x * Tools.scale - document.documentElement.scrollLeft;
 		if (x + 250 > clientW) {
 			x = Math.max(60, clientW - 260)
 		}
 
 		input.style.left = x + 'px';
-		input.style.top = curText.y * Tools.scale - scrollY + 20 + 'px';
+		input.style.top = curText.y * Tools.scale - document.documentElement.scrollTop + 20 + 'px';
 		input.focus();
 		input.addEventListener("keyup", textChangeHandler);
 		input.addEventListener("blur", textChangeHandler);
