@@ -246,3 +246,14 @@ circle.opcursor {
 #cursor-me {
 	transition: 0s;
 }
+
+
+/* Internet Explorer specific CSS */
+@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+	#chooseColor {
+		color: transparent;
+	}
+	label.tool-name[for=chooseColor] {
+		line-height: 10px;
+	}
+}
