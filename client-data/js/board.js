@@ -257,6 +257,8 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 		var listener = tool.compiledListeners[event];
 		var target = listener.target || Tools.board;
 		target.removeEventListener(event, listener);
+		// also attempt to remove with capture = true in IE
+		if (Tools.isIE) target.removeEventListener(event, listener, true);
 	}
 }
 
