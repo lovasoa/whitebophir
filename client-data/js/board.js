@@ -44,6 +44,7 @@ Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
 //Initialization
 Tools.curTool = null;
+Tools.drawingEvent = true;
 Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
@@ -126,7 +127,7 @@ Tools.HTML = {
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")" +
-				(Tools.list[toolName].toggle ? " [" + Tools.i18n.t("Click to togle") + "]" : "");
+				(Tools.list[toolName].toggle ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -174,6 +175,9 @@ Tools.register = function registerTool(newTool) {
 
 	//Add the tool to the list
 	Tools.list[newTool.name] = newTool;
+
+	// Register the change handlers
+	if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
 
 	//There may be pending messages for the tool
 	var pending = Tools.pendingMessages[newTool.name];
@@ -263,14 +267,16 @@ Tools.change = function (toolName) {
 Tools.addToolListeners = function addToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
 		var listener = tool.compiledListeners[event];
-		Tools.board.addEventListener(event, listener, { 'passive': false });
+		var target = listener.target || Tools.board;
+		target.addEventListener(event, listener, { 'passive': false });
 	}
 }
 
 Tools.removeToolListeners = function removeToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
 		var listener = tool.compiledListeners[event];
-		Tools.board.removeEventListener(event, listener);
+		var target = listener.target || Tools.board;
+		target.removeEventListener(event, listener);
 	}
 }
 
@@ -556,11 +562,16 @@ Tools.getColor = (function color() {
 
 Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
+Tools.sizeChangeHandlers = [];
 Tools.setSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
 
 	function update() {
-		chooser.value = Math.max(1, Math.min(50, chooser.value | 0));
+		var size = Math.max(1, Math.min(50, chooser.value | 0));
+		chooser.value = size;
+		Tools.sizeChangeHandlers.forEach(function (handler) {
+			handler(size);
+		});
 	}
 	update();
 
