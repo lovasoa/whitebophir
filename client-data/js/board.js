@@ -49,6 +49,8 @@ Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 
+Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
+
 Tools.socket = null;
 Tools.connect = function () {
 	var self = this;
@@ -476,7 +478,7 @@ Tools.toolHooks = [
 			var release = compile(listeners.release),
 				releaseTouch = compileTouch(listeners.release);
 			compiled["mouseup"] = release;
-			compiled["mouseleave"] = release;
+			if (!Tools.isIE) compiled["mouseleave"] = release;
 			compiled["touchleave"] = releaseTouch;
 			compiled["touchend"] = releaseTouch;
 			compiled["touchcancel"] = releaseTouch;
