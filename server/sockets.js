@@ -50,8 +50,6 @@ function socketConnection(socket) {
 		board.users.add(socket.id);
 		log('board joined', { 'board': board.name, 'users': board.users.size });
 
-		console.log(board);
-
 		return board;
 	}
 
