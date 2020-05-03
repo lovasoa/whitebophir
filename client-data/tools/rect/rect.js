@@ -124,7 +124,6 @@
 	}
 
 	function updateShape(shape, data) {
-		console.log(data);
 		shape.x.baseVal.value = Math.min(data['x2'], data['x']);
 		shape.y.baseVal.value = Math.min(data['y2'], data['y']);
 		shape.width.baseVal.value = Math.abs(data['x2'] - data['x']);
