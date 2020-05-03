@@ -101,20 +101,13 @@ Tools.HTML = {
 		});
 	},
 	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
-		var callback;
-		if (oneTouch) {
-			callback = function (evt) {
-				Tools.onClick(toolName, evt);
-			};
-		} else {
-			callback = function () {
-				Tools.change(toolName);
-			};
-			this.addShortcut(toolShortcut, function () {
-				Tools.change(toolName);
-				document.activeElement.blur();
-			});
-		}
+		var callback = function () {
+			Tools.change(toolName);
+		};
+		this.addShortcut(toolShortcut, function () {
+			Tools.change(toolName);
+			document.activeElement.blur();
+		});
 		return this.template.add(function (elem) {
 			elem.addEventListener("click", callback);
 			elem.id = "toolID-" + toolName;
@@ -122,7 +115,7 @@ Tools.HTML = {
 			var toolIconElem = elem.getElementsByClassName("tool-icon")[0];
 			toolIconElem.src = toolIcon;
 			toolIconElem.alt = toolIcon;
-			if(oneTouch) elem.classList.add("oneTouch");
+			if (oneTouch) elem.classList.add("oneTouch");
 			elem.title =
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
@@ -205,63 +198,44 @@ Tools.add = function (newTool) {
 	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut, newTool.oneTouch);
 };
 
-Tools.onClick = function (toolName,evt) {
-
-	if (!(toolName in Tools.list)) {
-		throw new Error("Trying to select a tool that has never been added!");
-	}
-
-	var tool = Tools.list[toolName];
-
-	//Do something with the GUI
-
-	//Call the start callback of the new tool
-	tool.onstart(evt);
-};
-
 Tools.change = function (toolName) {
-	if (!(toolName in Tools.list)) {
-		throw new Error("Trying to select a tool that has never been added!");
-	}
-
-	var newtool = Tools.list[toolName];
-
-	if (newtool === Tools.curTool) {
-		if (newtool.toggle) {
-			var elem = document.getElementById("toolID-" + newtool.name);
-			newtool.toggle(elem);
-		}
+	var newTool = Tools.list[toolName];
+	var oldTool = Tools.curTool;
+	if (!newTool) throw new Error("Trying to select a tool that has never been added!");
+	if (newTool === oldTool) {
+		if (newTool.toggle) newTool.toggle();
 		return;
 	}
+	if (!newTool.oneTouch) {
+		//Update the GUI
+		var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
+		try {
+			Tools.HTML.changeTool(curToolName, toolName);
+		} catch (e) {
+			console.error("Unable to update the GUI with the new tool. " + e);
+		}
+		Tools.svg.style.cursor = newTool.mouseCursor || "auto";
+		Tools.board.title = Tools.i18n.t(newTool.helpText || "");
 
-	//Update the GUI
-	var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
-	try {
-		Tools.HTML.changeTool(curToolName, toolName);
-	} catch (e) {
-		console.error("Unable to update the GUI with the new tool. " + e);
+		//There is not necessarily already a curTool
+		if (Tools.curTool !== null) {
+			//It's useless to do anything if the new tool is already selected
+			if (newTool === Tools.curTool) return;
+
+			//Remove the old event listeners
+			Tools.removeToolListeners(Tools.curTool);
+
+			//Call the callbacks of the old tool
+			Tools.curTool.onquit(newTool);
+		}
+
+		//Add the new event listeners
+		Tools.addToolListeners(newTool);
+		Tools.curTool = newTool;
 	}
-	Tools.svg.style.cursor = newtool.mouseCursor || "auto";
-	Tools.board.title = Tools.i18n.t(newtool.helpText || "");
-
-	//There is not necessarily already a curTool
-	if (Tools.curTool !== null) {
-		//It's useless to do anything if the new tool is already selected
-		if (newtool === Tools.curTool) return;
-
-		//Remove the old event listeners
-		Tools.removeToolListeners(Tools.curTool);
-
-		//Call the callbacks of the old tool
-		Tools.curTool.onquit(newtool);
-	}
-
-	//Add the new event listeners
-	Tools.addToolListeners(newtool);
 
 	//Call the start callback of the new tool
-	newtool.onstart(Tools.curTool);
-	Tools.curTool = newtool;
+	newTool.onstart(oldTool);
 };
 
 Tools.addToolListeners = function addToolListeners(tool) {
