@@ -45,6 +45,8 @@
 		"lastSending": 0
 	};
 
+	var curMode = "";
+
 
 	function onStart() {
 		curText.oldSize = Tools.getSize();
@@ -52,6 +54,7 @@
 	}
 
 	function onQuit() {
+		stopEdit();
 		Tools.setSize(curText.oldSize);
 	}
 
@@ -78,8 +81,8 @@
 	function editOldText(elem) {
 		curText.id = elem.id;
 		var r = elem.getBoundingClientRect();
-		var x = (r.x + document.documentElement.scrollLeft) / Tools.scale;
-		var y = (r.y + r.height + document.documentElement.scrollTop) / Tools.scale;
+		var x = (r.left + document.documentElement.scrollLeft) / Tools.scale;
+		var y = (r.top + r.height + document.documentElement.scrollTop) / Tools.scale;
 
 		curText.x = x;
 		curText.y = y;
@@ -91,6 +94,7 @@
 	}
 
 	function startEdit() {
+		curMode = "editing";
 		if (!input.parentNode) board.appendChild(input);
 		input.value = "";
 		var left = curText.x - document.documentElement.scrollLeft + 'px';
@@ -109,13 +113,17 @@
 	}
 
 	function stopEdit() {
-		input.blur();
+		try { input.blur(); } catch (e) { /* Internet Explorer */ }
+		curMode = "";
+		blur();
 		curText.id = 0;
 		curText.sentText = "";
+		input.value = "";
 		input.removeEventListener("keyup", textChangeHandler);
 	}
 
 	function blur() {
+		if (curMode !== "") return;
 		input.style.top = '-1000px';
 	}
 
