@@ -26,7 +26,8 @@
 
 (function () { //Code isolation
     //Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-    var curshape = "Ellipse";
+    var isCircle = false; // current state: true for a circle, false for an ellipse
+    var isShifted = false; // whether shift is pressed. When it is, the ellipse and circle functions are reversed
     var icons = ["tools/ellipse/icon-ellipse.svg", "tools/ellipse/icon-circle.svg"];
     var toolNames = ["Ellipse", "Circle"];
     var end = false,
@@ -69,11 +70,10 @@
         if (!curId) return; // Not currently drawing
         if (evt) {
             evt.preventDefault();
-            switchTool(!evt.shiftKey);
+            switchTool(isCircle, evt.shiftKey);
         }
 
-
-        if (curshape === "Circle") {
+        if (drawingCircle()) {
             var x0 = curUpdate['x'], y0 = curUpdate['y'];
             var deltaX = x - x0, deltaY = y - y0;
             var diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
@@ -82,7 +82,10 @@
         }
         curUpdate['x2'] = x;
         curUpdate['y2'] = y;
+        doUpdate();
+    }
 
+    function doUpdate() {
         if (performance.now() - lastTime > 70 || end) {
             Tools.drawAndSend(curUpdate);
             lastTime = performance.now();
@@ -92,7 +95,6 @@
     }
 
     function stop(x, y) {
-        //Add a last point to the shape
         end = true;
         move(x, y);
         end = false;
@@ -144,27 +146,31 @@
         shape.ry.baseVal.value = Math.abs(data['y2'] - data['y']) / 2;
     }
 
+    function drawingCircle() {
+        return !!(isCircle ^ isShifted);
+    }
 
     function toggle() {
-        switchTool(curshape === "Circle");
+        switchTool(!isCircle, isShifted);
     }
 
     // Switch between ellipse and circle
-    function switchTool(isEllipse) {
-        var index = isEllipse ? 0 : 1;
-        if (curshape === toolNames[index]) return; // The tool was already in the correct state
-        curshape = toolNames[index];
+    function switchTool(switchToCircle, switchtoShifted) {
+        if (isCircle === switchToCircle &&
+            isShifted === switchtoShifted) return; // The tool was already in the correct state
+        isCircle = switchToCircle;
+        isShifted = switchtoShifted;
+        var index = drawingCircle() ? 1 : 0;
         var elem = document.getElementById("toolID-" + circleTool.name);
         elem.getElementsByClassName("tool-icon")[0].src = icons[index];
         elem.getElementsByClassName("tool-name")[0].textContent = toolNames[index];
-        curUpdate.shape = curshape;
-        if (curId) draw(curUpdate);
+        if (curId) doUpdate();
     }
 
     function keyToggle(e) {
         if (e.key !== "Shift") return;
-        if (e.type === "keydown") switchTool(false);
-        if (e.type === "keyup") switchTool(true);
+        if (e.type === "keydown") switchTool(isCircle, true);
+        if (e.type === "keyup") switchTool(isCircle, false);
     }
     keyToggle.target = window;
 
