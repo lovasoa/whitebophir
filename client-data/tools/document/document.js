@@ -1,51 +1,72 @@
 (function documents() { //Code isolation
 
 
-// This isn't an HTML5 canvas, it's an old svg hack, (the code is _that_ old!)
+    var xlinkNS = "http://www.w3.org/1999/xlink";
+    var imgCount = 1;
 
-    const xlinkNS = "http://www.w3.org/1999/xlink";
-    let imgCount = 1;
+    function assert_count() {
+        if (Tools.svg.querySelectorAll("image").length > Tools.server_config.MAX_DOCUMENT_COUNT) {
+            alert("Too many documents exist already");
+            throw new Error("Too many documents exist already");
+        }
+    }
 
     function onstart() {
-        const fileInput = document.createElement("input");
+        var fileInput = document.createElement("input");
         fileInput.type = "file";
         fileInput.accept = "image/*";
         fileInput.click();
         fileInput.addEventListener("change", () => {
-            const reader = new FileReader();
+            assert_count();
+
+            var reader = new FileReader();
             reader.readAsDataURL(fileInput.files[0]);
 
             reader.onload = function (e) {
-                const image = new Image();
+                // use canvas to compress image
+                var image = new Image();
                 image.src = e.target.result;
                 image.onload = function () {
 
+                    assert_count();
+
                     var uid = Tools.generateUID("doc"); // doc for document
 
-                    // File size as data url, approximately 1/3 larger than as bytestream
-                    //TODO: internationalization
-                    let size = image.src.toString().length;
-                    if (size > Tools.server_config.MAX_DOCUMENT_SIZE) {
-                        alert("File too large");
-                        throw new Error("File too large");
-                    }
+                    var ctx, size;
+                    var scale = 1;
 
-                    if (Tools.svg.querySelectorAll("image").length > Tools.server_config.MAX_DOCUMENT_COUNT) {
-                        alert("Too many documents exist already");
-                        throw new Error("Too many documents exist already");
-                    }
+                    do {
+                        ctx = document.createElement("canvas").getContext("2d");
+                        ctx.canvas.width = image.width * scale;
+                        ctx.canvas.height = image.height * scale;
+                        ctx.drawImage(image, 0, 0, image.width * scale, image.height * scale);
+                        var dataURL = ctx.canvas.toDataURL("image/webp", 0.7);
 
-                    const msg = {
+                        // Compressed file size as data url, approximately 1/3 larger than as bytestream
+                        size = dataURL.length;
+
+                        console.log(size, scale);
+                        // attempt again with an image that is at least 10% smaller
+                        scale = scale * Math.sqrt(Math.min(
+                                0.9,
+                                Tools.server_config.MAX_DOCUMENT_SIZE / size
+                        ));
+                    } while (size > Tools.server_config.MAX_DOCUMENT_SIZE);
+
+                    var msg = {
                         id: uid,
                         type: "doc",
-                        data: image.src,
-                        size: image.src.toString().length,
-                        w: this.width || 300,
-                        h: this.height || 300,
+                        data: dataURL,
+                        size: size,
+                        w: this.width * scale || 300,
+                        h: this.height * scale || 300,
                         x: (100 + document.documentElement.scrollLeft) / Tools.scale + 10 * imgCount,
                         y: (100 + document.documentElement.scrollTop) / Tools.scale + 10 * imgCount
                         //fileType: fileInput.files[0].type
                     };
+
+                    assert_count();
+
                     draw(msg);
                     Tools.send(msg,"Document");
                     imgCount++;
@@ -56,11 +77,6 @@
     }
 
     function draw(msg) {
-        //const file = self ? msg.data : new Blob([msg.data], { type: msg.fileType });
-        //const fileURL = URL.createObjectURL(file);
-
-        // fakeCanvas.style.background = `url("${fileURL}") 170px 0px no-repeat`;
-        //fakeCanvas.style.backgroundSize = "400px 500px";
         var aspect = msg.w/msg.h;
         var img = Tools.createSVGElement("image");
         img.id=msg.id;
@@ -70,8 +86,6 @@
         img.y.baseVal.value = msg['y'];
         img.setAttribute("width", 400*aspect);
         img.setAttribute("height", 400);
-        if(msg.transform)
-            img.setAttribute("transform",msg.transform);
         Tools.drawingArea.appendChild(img);
 
     }
