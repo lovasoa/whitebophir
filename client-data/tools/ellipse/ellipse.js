@@ -30,16 +30,15 @@
     var isShifted = false; // whether shift is pressed. When it is, the ellipse and circle functions are reversed
     var icons = ["tools/ellipse/icon-ellipse.svg", "tools/ellipse/icon-circle.svg"];
     var toolNames = ["Ellipse", "Circle"];
-    var end = false,
-        curId = "",
-        curUpdate = { //The data of the message that will be sent for every new point
-            'type': 'update',
-            'id': "",
-            'x': 0,
-            'y': 0,
-            'x2': 0,
-            'y2': 0
-        },
+    var curUpdate = { //The data of the message that will be sent for every new point
+        'type': 'update',
+        'id': "",
+        'x': 0,
+        'y': 0,
+        'x2': 0,
+        'y2': 0
+    },
+        lastPos = { x: 0, y: 0 },
         lastTime = performance.now(); //The time at which the last point was drawn
 
     function start(x, y, evt) {
@@ -47,11 +46,11 @@
         //Prevent the press from being interpreted by the browser
         evt.preventDefault();
 
-        curId = Tools.generateUID("e"); //"e" for ellipse
+        curUpdate.id = Tools.generateUID("e"); //"e" for ellipse
 
         Tools.drawAndSend({
             'type': 'ellipse',
-            'id': curId,
+            'id': curUpdate.id,
             'color': Tools.getColor(),
             'size': Tools.getSize(),
             'opacity': Tools.getOpacity(),
@@ -61,32 +60,36 @@
             'y2': y
         });
 
-        curUpdate.id = curId;
+        curUpdate.id = curUpdate.id;
         curUpdate.x = x;
         curUpdate.y = y;
     }
 
     function move(x, y, evt) {
-        if (!curId) return; // Not currently drawing
+        if (!curUpdate.id) return; // Not currently drawing
         if (evt) {
             evt.preventDefault();
             switchTool(isCircle, evt.shiftKey);
         }
-
-        if (drawingCircle()) {
-            var x0 = curUpdate['x'], y0 = curUpdate['y'];
-            var deltaX = x - x0, deltaY = y - y0;
-            var diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
-            x = x0 + (deltaX > 0 ? diameter : -diameter);
-            y = y0 + (deltaY > 0 ? diameter : -diameter);
-        }
-        curUpdate['x2'] = x;
-        curUpdate['y2'] = y;
+        lastPos.x = x;
+        lastPos.y = y;
         doUpdate();
     }
 
-    function doUpdate() {
-        if (performance.now() - lastTime > 70 || end) {
+    function doUpdate(force) {
+        if (!curUpdate.id) return; // Not currently drawing
+        if (drawingCircle()) {
+            var x0 = curUpdate['x'], y0 = curUpdate['y'];
+            var deltaX = lastPos.x - x0, deltaY = lastPos.y - y0;
+            var diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+            curUpdate['x2'] = x0 + (deltaX > 0 ? diameter : -diameter);
+            curUpdate['y2'] = y0 + (deltaY > 0 ? diameter : -diameter);
+        } else {
+            curUpdate['x2'] = lastPos.x;
+            curUpdate['y2'] = lastPos.y;
+        }
+
+        if (performance.now() - lastTime > 70 || force) {
             Tools.drawAndSend(curUpdate);
             lastTime = performance.now();
         } else {
@@ -95,10 +98,10 @@
     }
 
     function stop(x, y) {
-        end = true;
-        move(x, y);
-        end = false;
-        curId = "";
+        lastPos.x = x;
+        lastPos.y = y;
+        doUpdate(true);
+        curUpdate.id = "";
     }
 
     function draw(data) {
@@ -164,11 +167,11 @@
         var elem = document.getElementById("toolID-" + circleTool.name);
         elem.getElementsByClassName("tool-icon")[0].src = icons[index];
         elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(toolNames[index]);
-        if (curId) doUpdate();
+        doUpdate(true);
     }
 
     function keyToggle(e) {
-        if (e.key !== "Shift") return;
+        if (e.keyCode !== 16) return; // 16 = Shift
         if (e.type === "keydown") switchTool(isCircle, true);
         if (e.type === "keyup") switchTool(isCircle, false);
     }
