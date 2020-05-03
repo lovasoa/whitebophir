@@ -26,7 +26,7 @@
 
 (function () { //Code isolation
 	//Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-	let end=false,
+	var end=false,
 		curId = "",
 		curUpdate = { //The data of the message that will be sent for every new point
 			'type': 'update',
