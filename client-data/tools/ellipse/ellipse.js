@@ -26,9 +26,9 @@
 
 (function () { //Code isolation
     //Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-    let curshape = "Ellipse";
-    const icons = ["tools/ellipse/icon-ellipse.svg", "tools/ellipse/icon-circle.svg"];
-    let end=false,
+    var curshape = "Ellipse";
+    var icons = ["tools/ellipse/icon-ellipse.svg", "tools/ellipse/icon-circle.svg"];
+    var end = false,
         curId = "",
         curUpdate = { //The data of the message that will be sent for every new point
             'type': 'update',
@@ -84,14 +84,14 @@
 
     function stop(x, y) {
         //Add a last point to the shape
-        end=true;
+        end = true;
         move(x, y);
-        end=false;
+        end = false;
         curId = "";
     }
 
     function draw(data) {
-        Tools.drawingEvent=true;
+        Tools.drawingEvent = true;
         switch (data.type) {
             case "ellipse":
                 createShape(data);
@@ -99,7 +99,7 @@
             case "update":
                 var shape = svg.getElementById(data['id']);
                 if (!shape) {
-                    console.error("Straight shape: Hmmm... I received a point of a shape that has not been created (%s).", data['id']);
+                    console.error("Ellipse: Hmmm... I received an update for a shape that has not been created (%s).", data['id']);
                     createShape({ //create a new shape in order not to loose the points
                         "id": data['id'],
                         "x": data['x2'],
@@ -132,23 +132,23 @@
         if (circle) {
             var deltaX = data['x2'] - data['x'];
             var deltaY = data['y2'] - data['y'];
-            var r = Math.max(Math.abs(deltaX), Math.abs(deltaY))/2;
+            var r = Math.max(Math.abs(deltaX), Math.abs(deltaY)) / 2;
             shape.cx.baseVal.value = data['x'] + ((deltaX > 0) - (deltaX < 0)) * r;
             shape.cy.baseVal.value = data['y'] + ((deltaY > 0) - (deltaY < 0)) * r;
             //var r = Math.round(Math.sqrt(Math.pow(data['x2'] - data['x'],2)+Math.pow(data['y2'] - data['y'],2))/2);
             shape.rx.baseVal.value = r;
             shape.ry.baseVal.value = r;
         } else {
-            shape.cx.baseVal.value = Math.round((data['x2'] + data['x'])/2);
-            shape.cy.baseVal.value = Math.round((data['y2'] + data['y'])/2);
-            shape.rx.baseVal.value = Math.abs(data['x2'] - data['x'])/2;
-            shape.ry.baseVal.value = Math.abs(data['y2'] - data['y'])/2;
+            shape.cx.baseVal.value = Math.round((data['x2'] + data['x']) / 2);
+            shape.cy.baseVal.value = Math.round((data['y2'] + data['y']) / 2);
+            shape.rx.baseVal.value = Math.abs(data['x2'] - data['x']) / 2;
+            shape.ry.baseVal.value = Math.abs(data['y2'] - data['y']) / 2;
         }
     }
 
 
-    function toggle(elem){
-        let index = 0;
+    function toggle(elem) {
+        var index = 0;
         if (curshape === "Ellipse") {
             curshape = "Circle";
             index = 1;
