@@ -1,9 +1,11 @@
 {
+   "name": "whitebophir",
+   "description": "Online collaborative whiteboard",
+   "version": "1.4.0",
    "keywords": [
       "collaborative",
       "whiteboard"
    ],
-   "version": "1.3.1",
    "license": "AGPL-3.0-or-later",
    "dependencies": {
       "accept-language-parser": "^1.5.0",
@@ -15,8 +17,6 @@
       "start": "node ./server/server.js",
       "test": "nightwatch tests"
    },
-   "name": "whitebophir",
-   "description": "Online collaborative whiteboard",
    "main": "./server/server.js",
    "repository": {
       "type": "git",
