@@ -4,7 +4,7 @@
  * @licstart  The following is the entire license notice for the
  *  JavaScript code in this page.
  *
- * Copyright (C) 2013  Ophir LOJKINE
+ * Copyright (C) 2020  Ophir LOJKINE
  *
  *
  * The JavaScript code in this page is free software: you can
@@ -30,27 +30,28 @@
     var states = ["none", "url(../tools/grid/patterns.svg#grid)", "url(../tools/grid/patterns.svg#dots)"];
 
     function toggleGrid(evt) {
-        index = (index+1) % states.length;
+        index = (index + 1) % states.length;
         gridContainer.setAttributeNS(null, "fill", states[index]);
     }
 
     function createSVGElement(name, attrs) {
         var elem = document.createElementNS("http://www.w3.org/2000/svg", name);
-        Object.keys(attrs).forEach(function(key, i) {
+        Object.keys(attrs).forEach(function (key, i) {
             elem.setAttributeNS(null, key, attrs[key]);
         });
         return elem;
     }
 
-    function init() {
+    var gridContainer = (function init() {
         // create grid container
-        var gridContainer = createSVGElement("rect", {id: "gridContainer", width: "100%", height: "100%", fill: states[index]});
+        var gridContainer = createSVGElement("rect", {
+            id: "gridContainer",
+            width: "100%", height: "100%",
+            fill: states[index]
+        });
         Tools.svg.insertBefore(gridContainer, Tools.drawingArea);
-
         return gridContainer;
-    }
-
-    var gridContainer = init();
+    })();
 
     Tools.add({ //The new tool
         "name": "Grid",
