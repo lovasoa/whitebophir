@@ -79,7 +79,9 @@
 		if (erasing) {
 			// get points all within a circle of a given radius
 			// https://stackoverflow.com/a/26802146
-			// TODO: This can be very slow if dragging is enabled and a large tool size has been chosen.
+			// TODO: This can be very slow if dragging is enabled, a large tool size has been chosen and the cursor
+			//       is inside the bounding box of a svg path or the board is zommed out and the cursor is allowed to
+			//       cover a large distance.
 			var radius = Tools.getSize()/2,
 				r2 = radius*radius;
 			for (var dx = -radius; dx <= radius; dx++) {
