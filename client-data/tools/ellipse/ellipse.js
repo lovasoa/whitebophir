@@ -4,7 +4,7 @@
  * @licstart  The following is the entire license notice for the
  *  JavaScript code in this page.
  *
- * Copyright (C) 2013  Ophir LOJKINE
+ * Copyright (C) 2020  Ophir LOJKINE
  *
  *
  * The JavaScript code in this page is free software: you can
@@ -34,7 +34,6 @@
         curUpdate = { //The data of the message that will be sent for every new point
             'type': 'update',
             'id': "",
-            'shape': curshape,
             'x': 0,
             'y': 0,
             'x2': 0,
@@ -52,7 +51,6 @@
         Tools.drawAndSend({
             'type': 'ellipse',
             'id': curId,
-            'shape': curshape,
             'color': Tools.getColor(),
             'size': Tools.getSize(),
             'opacity': Tools.getOpacity(),
@@ -63,24 +61,33 @@
         });
 
         curUpdate.id = curId;
-        curUpdate.shape = curshape;
         curUpdate.x = x;
         curUpdate.y = y;
     }
 
     function move(x, y, evt) {
+        if (!curId) return; // Not currently drawing
         if (evt) {
             evt.preventDefault();
             switchTool(!evt.shiftKey);
         }
-        if (curId !== "") {
-            curUpdate['x2'] = x; curUpdate['y2'] = y;
-            if (performance.now() - lastTime > 70 || end) {
-                Tools.drawAndSend(curUpdate);
-                lastTime = performance.now();
-            } else {
-                draw(curUpdate);
-            }
+
+
+        if (curshape === "Circle") {
+            var x0 = curUpdate['x'], y0 = curUpdate['y'];
+            var deltaX = x - x0, deltaY = y - y0;
+            var diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+            x = x0 + (deltaX > 0 ? diameter : -diameter);
+            y = y0 + (deltaY > 0 ? diameter : -diameter);
+        }
+        curUpdate['x2'] = x;
+        curUpdate['y2'] = y;
+
+        if (performance.now() - lastTime > 70 || end) {
+            Tools.drawAndSend(curUpdate);
+            lastTime = performance.now();
+        } else {
+            draw(curUpdate);
         }
     }
 
@@ -108,7 +115,7 @@
                         "y": data['y2']
                     });
                 }
-                updateShape(shape, data, data.shape === "Circle");
+                updateShape(shape, data);
                 break;
             default:
                 console.error("Ellipse: Draw instruction with unknown type. ", data);
@@ -120,7 +127,7 @@
     function createShape(data) {
         //Creates a new shape on the canvas, or update a shape that already exists with new information
         var shape = svg.getElementById(data.id) || Tools.createSVGElement("ellipse");
-        updateShape(shape, data, data.shape === "Circle");
+        updateShape(shape, data);
         shape.id = data.id;
         //If some data is not provided, choose default value. The shape may be updated later
         shape.setAttribute("stroke", data.color || "black");
@@ -130,22 +137,11 @@
         return shape;
     }
 
-    function updateShape(shape, data, circle) {
-        if (circle) {
-            var deltaX = data['x2'] - data['x'];
-            var deltaY = data['y2'] - data['y'];
-            var r = Math.max(Math.abs(deltaX), Math.abs(deltaY)) / 2;
-            shape.cx.baseVal.value = data['x'] + ((deltaX > 0) - (deltaX < 0)) * r;
-            shape.cy.baseVal.value = data['y'] + ((deltaY > 0) - (deltaY < 0)) * r;
-            //var r = Math.round(Math.sqrt(Math.pow(data['x2'] - data['x'],2)+Math.pow(data['y2'] - data['y'],2))/2);
-            shape.rx.baseVal.value = r;
-            shape.ry.baseVal.value = r;
-        } else {
-            shape.cx.baseVal.value = Math.round((data['x2'] + data['x']) / 2);
-            shape.cy.baseVal.value = Math.round((data['y2'] + data['y']) / 2);
-            shape.rx.baseVal.value = Math.abs(data['x2'] - data['x']) / 2;
-            shape.ry.baseVal.value = Math.abs(data['y2'] - data['y']) / 2;
-        }
+    function updateShape(shape, data) {
+        shape.cx.baseVal.value = Math.round((data['x2'] + data['x']) / 2);
+        shape.cy.baseVal.value = Math.round((data['y2'] + data['y']) / 2);
+        shape.rx.baseVal.value = Math.abs(data['x2'] - data['x']) / 2;
+        shape.ry.baseVal.value = Math.abs(data['y2'] - data['y']) / 2;
     }
 
 
