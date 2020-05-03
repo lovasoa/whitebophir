@@ -41,6 +41,7 @@
             "move": handleMarker,
             "release": function () { sending = true },
         },
+        "onSizeChange": onSizeChange,
         "draw": draw,
         "mouseCursor": "crosshair",
         "icon": "tools/pencil/icon.svg",
@@ -48,19 +49,31 @@
     Tools.register(cursorTool);
     Tools.addToolListeners(cursorTool);
 
+    var message = {
+        type: "update",
+        x: 0,
+        y: 0,
+        color: Tools.getColor(),
+        size: Tools.getSize(),
+    };
+
     function handleMarker(x, y) {
-        if (!Tools.showMarker || !Tools.showMyCursor) return;
-
         // throttle local cursor updates
-        var cur_time = Date.now();
-        var message = {
-            type: "update",
-            x: x,
-            y: y,
-            color: Tools.getColor(),
-            size: Tools.getSize(),
-        };
+        message.x = x;
+        message.y = y;
+        message.color = Tools.getColor();
+        message.size = Tools.getSize();
+        updateMarker();
+    }
 
+    function onSizeChange(size) {
+        message.size = size;
+        updateMarker();
+    }
+
+    function updateMarker() {
+        if (!Tools.showMarker || !Tools.showMyCursor) return;
+        var cur_time = Date.now();
         if (cur_time - lastCursorUpdate > MAX_CURSOR_UPDATES_INTERVAL_MS &&
             (sending || Tools.curTool.showMarker)) {
             Tools.drawAndSend(message, cursorTool);

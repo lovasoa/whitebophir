@@ -14,8 +14,8 @@
 	<link rel="icon" type="image/x-icon" sizes="16x16" href="../favicon.ico">
 	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0" />
 	<meta property="og:title" content="{{board}} board on WBO" />
- 	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
- 	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
+	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
+	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
 	<link rel="canonical" href="{{boardUriComponent}}?lang={{language}}" />
 	{{#languages}}
 	<link rel="alternate" hreflang="{{.}}" href="{{../boardUriComponent}}?lang={{.}}" />
@@ -50,7 +50,8 @@
 						<span class="colorPresetButton"></span>
 					</span>
 				</li>
-				<li class="tool" tabindex="-1">
+				<li class="tool" tabindex="-1"
+					title="{{translations.size}} ({{translations.keyboard_shortcut}}: alt + {{translations.mousewheel}})">
 					<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
 					<label class="tool-name slider" for="chooseSize">
 						<span>{{translations.size}}</span>
