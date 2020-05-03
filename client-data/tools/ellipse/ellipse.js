@@ -163,7 +163,7 @@
         var index = drawingCircle() ? 1 : 0;
         var elem = document.getElementById("toolID-" + circleTool.name);
         elem.getElementsByClassName("tool-icon")[0].src = icons[index];
-        elem.getElementsByClassName("tool-name")[0].textContent = toolNames[index];
+        elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(toolNames[index]);
         if (curId) doUpdate();
     }
 
