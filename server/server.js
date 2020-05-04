@@ -134,14 +134,13 @@ function handleRequest(request, response) {
 			break;
 
 		case "polyfill.js": // serve tailored polyfills
-			console.log();
-			const polyfillBundle = polyfillLibrary.getPolyfillString({
+			polyfillLibrary.getPolyfillString({
 				uaString: request.headers['user-agent'],
 				minify: true,
 				features: {
 					'es6': { flags: ['gated'] }
 				}
-			}).then(function(bundleString) {
+			}).then(function (bundleString) {
 				response.setHeader('Content-Type', 'application/javascript');
 				response.end(bundleString);
 			});
