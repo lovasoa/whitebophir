@@ -44,6 +44,7 @@ Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
 //Initialization
 Tools.curTool = null;
+Tools.drawingEvent = true;
 Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
@@ -99,7 +100,7 @@ Tools.HTML = {
 			}
 		});
 	},
-	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut) {
+	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
 		var callback = function () {
 			Tools.change(toolName);
 		};
@@ -114,11 +115,12 @@ Tools.HTML = {
 			var toolIconElem = elem.getElementsByClassName("tool-icon")[0];
 			toolIconElem.src = toolIcon;
 			toolIconElem.alt = toolIcon;
+			if (oneTouch) elem.classList.add("oneTouch");
 			elem.title =
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")" +
-				(Tools.list[toolName].toggle ? " [" + Tools.i18n.t("Click to togle") + "]" : "");
+				(Tools.list[toolName].toggle ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -167,6 +169,9 @@ Tools.register = function registerTool(newTool) {
 	//Add the tool to the list
 	Tools.list[newTool.name] = newTool;
 
+	// Register the change handlers
+	if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
+
 	//There may be pending messages for the tool
 	var pending = Tools.pendingMessages[newTool.name];
 	if (pending) {
@@ -190,65 +195,62 @@ Tools.add = function (newTool) {
 	}
 
 	//Add the tool to the GUI
-	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut);
+	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut, newTool.oneTouch);
 };
 
 Tools.change = function (toolName) {
-	if (!(toolName in Tools.list)) {
-		throw new Error("Trying to select a tool that has never been added!");
-	}
-
-	var newtool = Tools.list[toolName];
-
-	if (newtool === Tools.curTool) {
-		if (newtool.toggle) {
-			var elem = document.getElementById("toolID-" + newtool.name);
-			newtool.toggle(elem);
-		}
+	var newTool = Tools.list[toolName];
+	var oldTool = Tools.curTool;
+	if (!newTool) throw new Error("Trying to select a tool that has never been added!");
+	if (newTool === oldTool) {
+		if (newTool.toggle) newTool.toggle();
 		return;
 	}
+	if (!newTool.oneTouch) {
+		//Update the GUI
+		var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
+		try {
+			Tools.HTML.changeTool(curToolName, toolName);
+		} catch (e) {
+			console.error("Unable to update the GUI with the new tool. " + e);
+		}
+		Tools.svg.style.cursor = newTool.mouseCursor || "auto";
+		Tools.board.title = Tools.i18n.t(newTool.helpText || "");
 
-	//Update the GUI
-	var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
-	try {
-		Tools.HTML.changeTool(curToolName, toolName);
-	} catch (e) {
-		console.error("Unable to update the GUI with the new tool. " + e);
+		//There is not necessarily already a curTool
+		if (Tools.curTool !== null) {
+			//It's useless to do anything if the new tool is already selected
+			if (newTool === Tools.curTool) return;
+
+			//Remove the old event listeners
+			Tools.removeToolListeners(Tools.curTool);
+
+			//Call the callbacks of the old tool
+			Tools.curTool.onquit(newTool);
+		}
+
+		//Add the new event listeners
+		Tools.addToolListeners(newTool);
+		Tools.curTool = newTool;
 	}
-	Tools.svg.style.cursor = newtool.mouseCursor || "auto";
-	Tools.board.title = Tools.i18n.t(newtool.helpText || "");
-
-	//There is not necessarily already a curTool
-	if (Tools.curTool !== null) {
-		//It's useless to do anything if the new tool is already selected
-		if (newtool === Tools.curTool) return;
-
-		//Remove the old event listeners
-		Tools.removeToolListeners(Tools.curTool);
-
-		//Call the callbacks of the old tool
-		Tools.curTool.onquit(newtool);
-	}
-
-	//Add the new event listeners
-	Tools.addToolListeners(newtool);
 
 	//Call the start callback of the new tool
-	newtool.onstart(Tools.curTool);
-	Tools.curTool = newtool;
+	newTool.onstart(oldTool);
 };
 
 Tools.addToolListeners = function addToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
 		var listener = tool.compiledListeners[event];
-		Tools.board.addEventListener(event, listener, { 'passive': false });
+		var target = listener.target || Tools.board;
+		target.addEventListener(event, listener, { 'passive': false });
 	}
 }
 
 Tools.removeToolListeners = function removeToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
 		var listener = tool.compiledListeners[event];
-		Tools.board.removeEventListener(event, listener);
+		var target = listener.target || Tools.board;
+		target.removeEventListener(event, listener);
 	}
 }
 
@@ -496,8 +498,13 @@ Tools.generateUID = function (prefix, suffix) {
 	return uid;
 };
 
-Tools.createSVGElement = function (name) {
-	return document.createElementNS(Tools.svg.namespaceURI, name);
+Tools.createSVGElement = function createSVGElement(name, attrs) {
+	var elem = document.createElementNS(Tools.svg.namespaceURI, name);
+	if (typeof(attrs) !== "object") return elem;
+	Object.keys(attrs).forEach(function (key, i) {
+		elem.setAttributeNS(null, key, attrs[key]);
+	});
+	return elem;
 };
 
 Tools.positionElement = function (elem, x, y) {
@@ -534,11 +541,16 @@ Tools.getColor = (function color() {
 
 Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
+Tools.sizeChangeHandlers = [];
 Tools.setSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
 
 	function update() {
-		chooser.value = Math.max(1, Math.min(50, chooser.value | 0));
+		var size = Math.max(1, Math.min(50, chooser.value | 0));
+		chooser.value = size;
+		Tools.sizeChangeHandlers.forEach(function (handler) {
+			handler(size);
+		});
 	}
 	update();
 
