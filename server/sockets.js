@@ -67,7 +67,7 @@ function socketConnection(socket) {
 
 	var lastEmitSecond = Date.now() / config.MAX_EMIT_COUNT_PERIOD | 0;
 	var emitCount = 0;
-	socket.on('broadcast', noFail(function onBroadcast(message) {
+	socket.on('broadcast', noFail(async function onBroadcast(message) {
 		var currentSecond = Date.now() / config.MAX_EMIT_COUNT_PERIOD | 0;
 		if (currentSecond === lastEmitSecond) {
 			emitCount++;
@@ -97,23 +97,26 @@ function socketConnection(socket) {
 			return;
 		}
 
+		var boardData;
 		if (message.data.type === "doc") {
-			getBoard(boardName).then(boardData => {
-				let existingDocuments = 0;
-				for (key in boardData.board) {
-					if (boardData.board[key].type === "doc") {
-						existingDocuments += 1;
-					}
-					if (existingDocuments >= config.MAX_DOCUMENTS) {
-						console.warn("Received too many documents");
-						return;
-					}
-				}
-			});
+			boardData = await getBoard(boardName);
+
+			if (boardData.existingDocuments >= config.MAX_DOCUMENT_COUNT) {
+				console.warn("Received too many documents");
+				return;
+			}
 
 			if (message.data.data.length > config.MAX_DOCUMENT_SIZE) {
 				console.warn("Received too large file");
 				return;
+			}
+
+			boardData.existingDocuments += 1;
+		} else if (message.data.type === "delete") {
+			boardData = await getBoard(boardName);
+
+			if (boardData.board[message.data.id].type === "doc") {
+				boardData.existingDocuments -= 1;
 			}
 		}
 

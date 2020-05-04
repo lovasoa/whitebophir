@@ -5,7 +5,7 @@
     var imgCount = 1;
 
     function assert_count() {
-        if (Tools.svg.querySelectorAll("image").length > Tools.server_config.MAX_DOCUMENT_COUNT) {
+        if (Tools.svg.querySelectorAll("image").length >= Tools.server_config.MAX_DOCUMENT_COUNT) {
             alert("Too many documents exist already");
             throw new Error("Too many documents exist already");
         }
@@ -36,6 +36,8 @@
                     var scale = 1;
 
                     do {
+                        // Todo give feedback of processing effort
+
                         ctx = document.createElement("canvas").getContext("2d");
                         ctx.canvas.width = image.width * scale;
                         ctx.canvas.height = image.height * scale;
@@ -45,7 +47,6 @@
                         // Compressed file size as data url, approximately 1/3 larger than as bytestream
                         size = dataURL.length;
 
-                        console.log(size, scale);
                         // attempt again with an image that is at least 10% smaller
                         scale = scale * Math.sqrt(Math.min(
                                 0.9,
