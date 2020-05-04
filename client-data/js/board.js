@@ -585,32 +585,6 @@ Tools.getOpacity = (function opacity() {
 Tools.svg.width.baseVal.value = document.body.clientWidth;
 Tools.svg.height.baseVal.value = document.body.clientHeight;
 
-/***********  Polyfills  ***********/
-if (!window.performance || !window.performance.now) {
-	window.performance = {
-		"now": Date.now
-	}
-}
-if (!Math.hypot) {
-	Math.hypot = function (x, y) {
-		//The true Math.hypot accepts any number of parameters
-		return Math.sqrt(x * x + y * y);
-	}
-}
-if (!Element.prototype.matches) {
-	Element.prototype.matches =
-		Element.prototype.matchesSelector ||
-		Element.prototype.mozMatchesSelector ||
-		Element.prototype.msMatchesSelector ||
-		Element.prototype.oMatchesSelector ||
-		Element.prototype.webkitMatchesSelector ||
-		function(s) {
-			var matches = (this.document || this.ownerDocument).querySelectorAll(s),
-				i = matches.length;
-			while (--i >= 0 && matches.item(i) !== this) {}
-			return i > -1;
-		};
-}
 /**
  What does a "tool" object look like?
  newtool = {
