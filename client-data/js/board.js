@@ -498,8 +498,13 @@ Tools.generateUID = function (prefix, suffix) {
 	return uid;
 };
 
-Tools.createSVGElement = function (name) {
-	return document.createElementNS(Tools.svg.namespaceURI, name);
+Tools.createSVGElement = function createSVGElement(name, attrs) {
+	var elem = document.createElementNS(Tools.svg.namespaceURI, name);
+	if (typeof(attrs) !== "object") return elem;
+	Object.keys(attrs).forEach(function (key, i) {
+		elem.setAttributeNS(null, key, attrs[key]);
+	});
+	return elem;
 };
 
 Tools.positionElement = function (elem, x, y) {
