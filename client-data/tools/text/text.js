@@ -45,7 +45,7 @@
 		"lastSending": 0
 	};
 
-	var curMode = "";
+	var active = false;
 
 
 	function onStart() {
@@ -94,7 +94,7 @@
 	}
 
 	function startEdit() {
-		curMode = "editing";
+		active = true;
 		if (!input.parentNode) board.appendChild(input);
 		input.value = "";
 		var left = curText.x - document.documentElement.scrollLeft + 'px';
@@ -114,7 +114,7 @@
 
 	function stopEdit() {
 		try { input.blur(); } catch (e) { /* Internet Explorer */ }
-		curMode = "";
+		active = false;
 		blur();
 		curText.id = 0;
 		curText.sentText = "";
@@ -123,7 +123,7 @@
 	}
 
 	function blur() {
-		if (curMode !== "") return;
+		if (active) return;
 		input.style.top = '-1000px';
 	}
 
