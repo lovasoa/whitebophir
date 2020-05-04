@@ -142,7 +142,10 @@ function handleRequest(request, response) {
 					'es6': { flags: ['gated'] }
 				}
 			}).then(function (bundleString) {
+				response.setHeader('Cache-Control', 'public, max-age=100000, stale-while-revalidate=100000');
+				response.setHeader('Vary', 'User-Agent');
 				response.setHeader('Content-Type', 'application/javascript');
+				response.setHeader('Content-Length', bundleString.length);
 				response.end(bundleString);
 			});
 			break;
