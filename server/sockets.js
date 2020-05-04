@@ -96,6 +96,8 @@ function socketConnection(socket) {
 			return;
 		}
 
+		if (!message.data.tool ||
+			config.BLOCKED_TOOLS.includes(message.data.tool.split(" ").join("_").toLowerCase())) return;
 
 		// Save the message in the board
 		handleMessage(boardName, data, socket);

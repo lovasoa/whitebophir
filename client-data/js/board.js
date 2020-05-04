@@ -154,10 +154,22 @@ Tools.HTML = {
 
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
+Tools.setToolId = function setToolId(tool) {
+	tool._id = tool.name.split(" ").join("_").toLowerCase();
+	return tool._id;
+};
+
+Tools.isBlocked = function toolIsBanned(tool) {
+	if (!tool._id) Tools.setToolId(tool);
+	return Tools.server_config.BLOCKED_TOOLS.includes(tool._id);
+};
+
 /**
  * Register a new tool, without touching the User Interface
  */
 Tools.register = function registerTool(newTool) {
+	if (Tools.isBlocked(newTool)) return;
+
 	if (newTool.name in Tools.list) {
 		console.log("Tools.add: The tool '" + newTool.name + "' is already" +
 			"in the list. Updating it...");
@@ -182,12 +194,14 @@ Tools.register = function registerTool(newTool) {
 			newTool.draw(msg, false);
 		}
 	}
-}
+};
 
 /**
  * Add a new tool to the user interface
  */
 Tools.add = function (newTool) {
+	if (Tools.isBlocked(newTool)) return;
+
 	Tools.register(newTool);
 
 	if (newTool.stylesheet) {
@@ -244,7 +258,7 @@ Tools.addToolListeners = function addToolListeners(tool) {
 		var target = listener.target || Tools.board;
 		target.addEventListener(event, listener, { 'passive': false });
 	}
-}
+};
 
 Tools.removeToolListeners = function removeToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
@@ -252,7 +266,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 		var target = listener.target || Tools.board;
 		target.removeEventListener(event, listener);
 	}
-}
+};
 
 Tools.send = function (data, toolName) {
 	toolName = toolName || Tools.curTool.name;
