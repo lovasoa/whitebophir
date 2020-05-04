@@ -134,9 +134,10 @@ function handleRequest(request, response) {
 			break;
 
 		case "polyfill.js": // serve tailored polyfills
+		case "polyfill.min.js":
 			polyfillLibrary.getPolyfillString({
 				uaString: request.headers['user-agent'],
-				minify: true,
+				minify: request.url.endsWith(".min.js"),
 				features: {
 					'es6': { flags: ['gated'] }
 				}
