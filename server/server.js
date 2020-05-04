@@ -139,7 +139,10 @@ function handleRequest(request, response) {
 				uaString: request.headers['user-agent'],
 				minify: request.url.endsWith(".min.js"),
 				features: {
-					'es6': { flags: ['gated'] }
+					'default': { flags: ['gated'] },
+					'es5': { flags: ['gated'] },
+					'es6': { flags: ['gated'] },
+					'es7': { flags: ['gated'] },
 				}
 			}).then(function (bundleString) {
 				response.setHeader('Cache-Control', 'public, max-age=100000, stale-while-revalidate=100000');
