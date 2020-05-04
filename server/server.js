@@ -8,7 +8,8 @@ var app = require('http').createServer(handler)
 	, serveStatic = require("serve-static")
 	, createSVG = require("./createSVG.js")
 	, templating = require("./templating.js")
-	, config = require("./configuration.js");
+	, config = require("./configuration.js")
+	, polyfillLibrary = require('polyfill-library');
 
 
 var MIN_NODE_VERSION = 10.0;
@@ -130,6 +131,20 @@ function handleRequest(request, response) {
 			var name = crypto.randomBytes(32).toString('base64').replace(/[^\w]/g, '-');
 			response.writeHead(307, { 'Location': 'boards/' + name });
 			response.end(name);
+			break;
+
+		case "polyfill.js": // serve tailored polyfills
+			console.log();
+			const polyfillBundle = polyfillLibrary.getPolyfillString({
+				uaString: request.headers['user-agent'],
+				minify: true,
+				features: {
+					'es6': { flags: ['gated'] }
+				}
+			}).then(function(bundleString) {
+				response.setHeader('Content-Type', 'application/javascript');
+				response.end(bundleString);
+			});
 			break;
 
 		case "": // Index page
