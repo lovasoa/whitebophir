@@ -136,6 +136,16 @@ html, body, svg {
 
 }
 
+#menu .oneTouch:active {
+	border-radius: 3px;
+	background-color:#eeeeff;
+}
+
+#menu .tool:active {
+	box-shadow: inset 0 0 1px #ddeeff;
+	background-color:#eeeeff;
+}
+
 #menu .tool.curTool {
   box-shadow: 0 0 5px #0074D9;
   background: linear-gradient(#96E1FF, #36A2FF);
@@ -245,4 +255,15 @@ circle.opcursor {
 
 #cursor-me {
 	transition: 0s;
+}
+
+
+/* Internet Explorer specific CSS */
+@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+	#chooseColor {
+		color: transparent;
+	}
+	label.tool-name[for=chooseColor] {
+		line-height: 10px;
+	}
 }
