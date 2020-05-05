@@ -154,14 +154,8 @@ Tools.HTML = {
 
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
-Tools.setToolId = function setToolId(tool) {
-	tool._id = tool.name.split(" ").join("_").toLowerCase();
-	return tool._id;
-};
-
 Tools.isBlocked = function toolIsBanned(tool) {
-	if (!tool._id) Tools.setToolId(tool);
-	return Tools.server_config.BLOCKED_TOOLS.includes(tool._id);
+	return Tools.server_config.BLOCKED_TOOLS.includes(tool.name);
 };
 
 /**
