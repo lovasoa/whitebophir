@@ -25,7 +25,7 @@
  */
 
 (function () { //Code isolation
-	var board = Tools.board, svg = Tools.svg;
+	var board = Tools.board;
 
 	var input = document.createElement("input");
 	input.id = "textToolInput";
@@ -45,6 +45,8 @@
 		"lastSending": 0
 	};
 
+	var active = false;
+
 
 	function onStart() {
 		curText.oldSize = Tools.getSize();
@@ -52,6 +54,7 @@
 	}
 
 	function onQuit() {
+		stopEdit();
 		Tools.setSize(curText.oldSize);
 	}
 
@@ -78,8 +81,8 @@
 	function editOldText(elem) {
 		curText.id = elem.id;
 		var r = elem.getBoundingClientRect();
-		var x = (r.x + document.documentElement.scrollLeft) / Tools.scale;
-		var y = (r.y + r.height + document.documentElement.scrollTop) / Tools.scale;
+		var x = (r.left + document.documentElement.scrollLeft) / Tools.scale;
+		var y = (r.top + r.height + document.documentElement.scrollTop) / Tools.scale;
 
 		curText.x = x;
 		curText.y = y;
@@ -91,17 +94,18 @@
 	}
 
 	function startEdit() {
+		active = true;
 		if (!input.parentNode) board.appendChild(input);
 		input.value = "";
-		var left = curText.x - scrollX + 'px';
+		var left = curText.x - document.documentElement.scrollLeft + 'px';
 		var clientW = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-		var x = curText.x * Tools.scale - scrollX;
+		var x = curText.x * Tools.scale - document.documentElement.scrollLeft;
 		if (x + 250 > clientW) {
 			x = Math.max(60, clientW - 260)
 		}
 
 		input.style.left = x + 'px';
-		input.style.top = curText.y * Tools.scale - scrollY + 20 + 'px';
+		input.style.top = curText.y * Tools.scale - document.documentElement.scrollTop + 20 + 'px';
 		input.focus();
 		input.addEventListener("keyup", textChangeHandler);
 		input.addEventListener("blur", textChangeHandler);
@@ -109,13 +113,17 @@
 	}
 
 	function stopEdit() {
-		input.blur();
+		try { input.blur(); } catch (e) { /* Internet Explorer */ }
+		active = false;
+		blur();
 		curText.id = 0;
 		curText.sentText = "";
+		input.value = "";
 		input.removeEventListener("keyup", textChangeHandler);
 	}
 
 	function blur() {
+		if (active) return;
 		input.style.top = '-1000px';
 	}
 
@@ -189,7 +197,7 @@
 		elem.setAttribute("fill", fieldData.color);
 		elem.setAttribute("opacity", Math.max(0.1, Math.min(1, fieldData.opacity)) || 1);
 		if (fieldData.txt) elem.textContent = fieldData.txt;
-		svg.appendChild(elem);
+		Tools.drawingArea.appendChild(elem);
 		return elem;
 	}
 

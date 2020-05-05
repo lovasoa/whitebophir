@@ -27,8 +27,8 @@
 (function () { //Code isolation
     var ZOOM_FACTOR = .5;
     var origin = {
-        scrollX: window.scrollX,
-        scrollY: window.scrollY,
+        scrollX: document.documentElement.scrollLeft,
+        scrollY: document.documentElement.scrollTop,
         x: 0.0,
         y: 0.0,
         clientY: 0,
@@ -54,8 +54,8 @@
     }
 
     function setOrigin(x, y, evt, isTouchEvent) {
-        origin.scrollX = window.scrollX;
-        origin.scrollY = window.scrollY;
+        origin.scrollX = document.documentElement.scrollLeft;
+        origin.scrollY = document.documentElement.scrollTop;
         origin.x = x;
         origin.y = y;
         origin.clientY = getClientY(evt, isTouchEvent);
@@ -82,15 +82,23 @@
     function onwheel(evt) {
         evt.preventDefault();
         if (evt.ctrlKey || Tools.curTool === zoomTool) {
+            // zoom
             var scale = Tools.getScale();
             var x = evt.pageX / scale;
             var y = evt.pageY / scale;
             setOrigin(x, y, evt, false);
             animate((1 - ((evt.deltaY > 0) - (evt.deltaY < 0)) * 0.25) * Tools.getScale());
+        } else if (evt.altKey) {
+            // make finer changes if shift is being held
+            var change = evt.shiftKey ? 1 : 5;
+            // change tool size
+            Tools.setSize(Tools.getSize() - ((evt.deltaY > 0) - (evt.deltaY < 0)) * change);
         } else if (evt.shiftKey) {
-            window.scrollTo(window.scrollX + evt.deltaY, window.scrollY + evt.deltaX);
+            // scroll horizontally
+            window.scrollTo(document.documentElement.scrollLeft + evt.deltaY, document.documentElement.scrollTop + evt.deltaX);
         } else {
-            window.scrollTo(window.scrollX + evt.deltaX, window.scrollY + evt.deltaY);
+            // regular scrolling
+            window.scrollTo(document.documentElement.scrollLeft + evt.deltaX, document.documentElement.scrollTop + evt.deltaY);
         }
     }
     Tools.board.addEventListener("wheel", onwheel, { passive: false });
@@ -169,6 +177,7 @@
         "mouseCursor": "zoom-in",
         "icon": "tools/zoom/icon.svg",
         "helpText": "click_to_zoom",
+        "showMarker": true,
     };
     Tools.add(zoomTool);
 })(); //End of code isolation

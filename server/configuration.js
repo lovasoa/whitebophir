@@ -27,10 +27,10 @@ module.exports = {
     MAX_BOARD_SIZE: parseInt(process.env['WBO_MAX_BOARD_SIZE']) || 65536,
 
     /** Maximum messages per user over the given time period before banning them  */
-    MAX_EMIT_COUNT: parseInt(process.env['WBO_MAX_EMIT_COUNT']) || 64,
+    MAX_EMIT_COUNT: parseInt(process.env['WBO_MAX_EMIT_COUNT']) || 128,
 
     /** Duration after which the emit count is reset in miliseconds */
-    MAX_EMIT_COUNT_PERIOD: parseInt(process.env['WBO_MAX_EMIT_COUNT_PERIOD']) || 5000,
+    MAX_EMIT_COUNT_PERIOD: parseInt(process.env['WBO_MAX_EMIT_COUNT_PERIOD']) || 4096,
 
     /** Minimum number of milliseconds between each tool action */
     MAX_TOOL_POLLING_FREQUENCY: parseInt(process.env['WBO_MAX_TOOL_POLLING_FREQUENCY']) || 30,

@@ -72,11 +72,13 @@ function socketConnection(socket) {
 			emitCount++;
 			if (emitCount > config.MAX_EMIT_COUNT) {
 				var request = socket.client.request;
-				log('BANNED', {
-					user_agent: request.headers['user-agent'],
-					original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
-					emit_count: emitCount
-				});
+				if (emitCount % 100 === 0) {
+					log('BANNED', {
+						user_agent: request.headers['user-agent'],
+						original_ip: request.headers['x-forwarded-for'] || request.headers['forwarded'],
+						emit_count: emitCount
+					});
+				}
 				return;
 			}
 		} else {
@@ -96,20 +98,21 @@ function socketConnection(socket) {
 		}
 
 		if (data) {
+			// Save the message in the board
+			handleMessage(boardName, data, socket);
+
 			//Send data to all other users connected on the same board
 			socket.broadcast.to(boardName).emit('broadcast', data);
-
-			// Save the message in the board
-			saveHistory(boardName, data);
 		}
 
 		if (children) {
-			socket.broadcast.to(boardName).emit('broadcast', { _children: children });
-
 			for (data of children) {
-				saveHistory(boardName, data);
+				handleMessage(boardName, data, socket);
 			}
+
+			socket.broadcast.to(boardName).emit('broadcast', { _children: children });
 		}
+
 	}));
 
 	socket.on('disconnecting', function onDisconnecting(reason) {
@@ -126,6 +129,14 @@ function socketConnection(socket) {
 			}
 		});
 	});
+}
+
+function handleMessage(boardName, message, socket) {
+	if (message.tool === "Cursor") {
+		message.socket = socket.id;
+	} else {
+		saveHistory(boardName, message);
+	}
 }
 
 async function saveHistory(boardName, message) {

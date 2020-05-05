@@ -1,4 +1,4 @@
-/**
+﻿/**
  *                        WHITEBOPHIR
  *********************************************************
  * @licstart  The following is the entire license notice for the
@@ -26,7 +26,8 @@
 
 (function () { //Code isolation
 	//Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-	var curId = "",
+	var end=false,
+		curId = "",
 		curUpdate = { //The data of the message that will be sent for every new point
 			'type': 'update',
 			'id': "",
@@ -66,7 +67,7 @@
 		This allows the animation to be smother*/
 		if (curId !== "") {
 			curUpdate['x2'] = x; curUpdate['y2'] = y;
-			if (performance.now() - lastTime > 70) {
+			if (performance.now() - lastTime > 70 || end) {
 				Tools.drawAndSend(curUpdate);
 				lastTime = performance.now();
 			} else {
@@ -78,11 +79,14 @@
 
 	function stop(x, y) {
 		//Add a last point to the shape
+		end=true;
 		move(x, y);
+		end=false;
 		curId = "";
 	}
 
 	function draw(data) {
+		Tools.drawingEvent=true;
 		switch (data.type) {
 			case "rect":
 				createShape(data);
@@ -115,7 +119,7 @@
 		shape.setAttribute("stroke", data.color || "black");
 		shape.setAttribute("stroke-width", data.size || 10);
 		shape.setAttribute("opacity", Math.max(0.1, Math.min(1, data.opacity)) || 1);
-		svg.appendChild(shape);
+		Tools.drawingArea.appendChild(shape);
 		return shape;
 	}
 

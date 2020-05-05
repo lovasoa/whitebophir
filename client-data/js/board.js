@@ -40,12 +40,19 @@ Tools.server_config = JSON.parse(document.getElementById("configuration").text);
 
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
+Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
 //Initialization
 Tools.curTool = null;
+Tools.drawingEvent = true;
+Tools.showMarker = true;
+Tools.showOtherCursors = true;
+Tools.showMyCursor = true;
+
+Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
 Tools.socket = null;
-Tools.connect = function() {
+Tools.connect = function () {
 	var self = this;
 
 	// Destroy socket if one already exists
@@ -95,13 +102,13 @@ Tools.HTML = {
 			}
 		});
 	},
-	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut) {
+	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
 		var callback = function () {
 			Tools.change(toolName);
 		};
 		this.addShortcut(toolShortcut, function () {
 			Tools.change(toolName);
-			document.activeElement.blur();
+			document.activeElement.blur && document.activeElement.blur();
 		});
 		return this.template.add(function (elem) {
 			elem.addEventListener("click", callback);
@@ -110,11 +117,12 @@ Tools.HTML = {
 			var toolIconElem = elem.getElementsByClassName("tool-icon")[0];
 			toolIconElem.src = toolIcon;
 			toolIconElem.alt = toolIcon;
+			if (oneTouch) elem.classList.add("oneTouch");
 			elem.title =
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")" +
-				(Tools.list[toolName].toggle? " [" + Tools.i18n.t("Click to togle")+ "]":"");
+				(Tools.list[toolName].toggle ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -148,7 +156,10 @@ Tools.HTML = {
 
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
-Tools.add = function (newTool) {
+/**
+ * Register a new tool, without touching the User Interface
+ */
+Tools.register = function registerTool(newTool) {
 	if (newTool.name in Tools.list) {
 		console.log("Tools.add: The tool '" + newTool.name + "' is already" +
 			"in the list. Updating it...");
@@ -160,12 +171,8 @@ Tools.add = function (newTool) {
 	//Add the tool to the list
 	Tools.list[newTool.name] = newTool;
 
-	if (newTool.stylesheet) {
-		Tools.HTML.addStylesheet(newTool.stylesheet);
-	}
-
-	//Add the tool to the GUI
-	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut);
+	// Register the change handlers
+	if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
 
 	//There may be pending messages for the tool
 	var pending = Tools.pendingInboundMessages[newTool.name];
@@ -177,57 +184,60 @@ Tools.add = function (newTool) {
 			newTool.draw(msg, false);
 		}
 	}
+}
+
+/**
+ * Add a new tool to the user interface
+ */
+Tools.add = function (newTool) {
+	Tools.register(newTool);
+
+	if (newTool.stylesheet) {
+		Tools.HTML.addStylesheet(newTool.stylesheet);
+	}
+
+	//Add the tool to the GUI
+	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut, newTool.oneTouch);
 };
 
 Tools.change = function (toolName) {
-	if (!(toolName in Tools.list)) {
-		throw new Error("Trying to select a tool that has never been added!");
-	}
-
-	var newtool = Tools.list[toolName];
-
-	if (newtool === Tools.curTool) {
-		if(newtool.toggle){
-			var elem = document.getElementById("toolID-" + newtool.name);
-			newtool.toggle(elem);
-		}
+	var newTool = Tools.list[toolName];
+	var oldTool = Tools.curTool;
+	if (!newTool) throw new Error("Trying to select a tool that has never been added!");
+	if (newTool === oldTool) {
+		if (newTool.toggle) newTool.toggle();
 		return;
 	}
+	if (!newTool.oneTouch) {
+		//Update the GUI
+		var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
+		try {
+			Tools.HTML.changeTool(curToolName, toolName);
+		} catch (e) {
+			console.error("Unable to update the GUI with the new tool. " + e);
+		}
+		Tools.svg.style.cursor = newTool.mouseCursor || "auto";
+		Tools.board.title = Tools.i18n.t(newTool.helpText || "");
 
-	//Update the GUI
-	var curToolName = (Tools.curTool) ? Tools.curTool.name : "";
-	try {
-		Tools.HTML.changeTool(curToolName, toolName);
-	} catch (e) {
-		console.error("Unable to update the GUI with the new tool. " + e);
-	}
-	Tools.svg.style.cursor = newtool.mouseCursor || "auto";
-	Tools.board.title = Tools.i18n.t(newtool.helpText || "");
+		//There is not necessarily already a curTool
+		if (Tools.curTool !== null) {
+			//It's useless to do anything if the new tool is already selected
+			if (newTool === Tools.curTool) return;
 
-	//There is not necessarily already a curTool
-	if (Tools.curTool !== null) {
-		//It's useless to do anything if the new tool is already selected
-		if (newtool === Tools.curTool) return;
+			//Remove the old event listeners
+			Tools.removeToolListeners(Tools.curTool);
 
-		//Remove the old event listeners
-		for (var event in Tools.curTool.compiledListeners) {
-			var listener = Tools.curTool.compiledListeners[event];
-			Tools.board.removeEventListener(event, listener);
+			//Call the callbacks of the old tool
+			Tools.curTool.onquit(newTool);
 		}
 
-		//Call the callbacks of the old tool
-		Tools.curTool.onquit(newtool);
-	}
-
-	//Add the new event listeners
-	for (var event in newtool.compiledListeners) {
-		var listener = newtool.compiledListeners[event];
-		Tools.board.addEventListener(event, listener, { 'passive': false });
+		//Add the new event listeners
+		Tools.addToolListeners(newTool);
+		Tools.curTool = newTool;
 	}
 
 	//Call the start callback of the new tool
-	newtool.onstart(Tools.curTool);
-	Tools.curTool = newtool;
+	newTool.onstart(oldTool);
 };
 
 // List of the messages that wll be sent when the next slot is available
@@ -269,6 +279,25 @@ Tools.send = function (data) {
 	}
 };
 
+
+Tools.addToolListeners = function addToolListeners(tool) {
+	for (var event in tool.compiledListeners) {
+		var listener = tool.compiledListeners[event];
+		var target = listener.target || Tools.board;
+		target.addEventListener(event, listener, { 'passive': false });
+	}
+};
+
+Tools.removeToolListeners = function removeToolListeners(tool) {
+	for (var event in tool.compiledListeners) {
+		var listener = tool.compiledListeners[event];
+		var target = listener.target || Tools.board;
+		target.removeEventListener(event, listener);
+		// also attempt to remove with capture = true in IE
+		if (Tools.isIE) target.removeEventListener(event, listener, true);
+	}
+};
+
 Tools.prepareData = function(data, toolName) {
 	toolName = toolName || Tools.curTool.name;
 	var d = data;
@@ -278,8 +307,9 @@ Tools.prepareData = function(data, toolName) {
 	return data;
 };
 
-Tools.drawAndSend = function (data) {
-	Tools.curTool.draw(data, true);
+Tools.drawAndSend = function (data, tool) {
+	if (tool == null) tool = Tools.curTool;
+	tool.draw(data, true);
 	Tools.prepareData(data);
 	Tools.send(data);
 };
@@ -352,8 +382,8 @@ function updateDocumentTitle() {
 	var scrollTimeout, lastStateUpdate = Date.now();
 
 	window.addEventListener("scroll", function onScroll() {
-		var x = window.scrollX / Tools.getScale(),
-			y = window.scrollY / Tools.getScale();
+		var x = document.documentElement.scrollLeft / Tools.getScale(),
+			y = document.documentElement.scrollTop / Tools.getScale();
 
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(function updateHistory() {
@@ -467,7 +497,7 @@ Tools.toolHooks = [
 
 		function wrapUnsetHover(f, toolName) {
 			return (function unsetHover(evt) {
-				document.activeElement && document.activeElement.blur();
+				document.activeElement && document.activeElement.blur && document.activeElement.blur();
 				return f(evt);
 			});
 		}
@@ -484,7 +514,7 @@ Tools.toolHooks = [
 			var release = compile(listeners.release),
 				releaseTouch = compileTouch(listeners.release);
 			compiled["mouseup"] = release;
-			compiled["mouseleave"] = release;
+			if (!Tools.isIE) compiled["mouseleave"] = release;
 			compiled["touchleave"] = releaseTouch;
 			compiled["touchend"] = releaseTouch;
 			compiled["touchcancel"] = releaseTouch;
@@ -510,8 +540,13 @@ Tools.generateUID = function (prefix, suffix) {
 	return uid;
 };
 
-Tools.createSVGElement = function (name) {
-	return document.createElementNS(Tools.svg.namespaceURI, name);
+Tools.createSVGElement = function createSVGElement(name, attrs) {
+	var elem = document.createElementNS(Tools.svg.namespaceURI, name);
+	if (typeof(attrs) !== "object") return elem;
+	Object.keys(attrs).forEach(function (key, i) {
+		elem.setAttributeNS(null, key, attrs[key]);
+	});
+	return elem;
 };
 
 Tools.positionElement = function (elem, x, y) {
@@ -548,22 +583,27 @@ Tools.getColor = (function color() {
 
 Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
+Tools.sizeChangeHandlers = [];
 Tools.setSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
 
 	function update() {
-		chooser.value = Math.max(1, Math.min(50, chooser.value | 0));
+		var size = Math.max(1, Math.min(50, chooser.value | 0));
+		chooser.value = size;
+		Tools.sizeChangeHandlers.forEach(function (handler) {
+			handler(size);
+		});
 	}
 	update();
 
 	chooser.onchange = chooser.oninput = update;
 	return function (value) {
-		if (value !== null && value !== undefined) { chooser.value=value; update(); }
+		if (value !== null && value !== undefined) { chooser.value = value; update(); }
 		return parseInt(chooser.value);
 	};
 })();
 
-Tools.getSize = (function() {return Tools.setSize()});
+Tools.getSize = (function () { return Tools.setSize() });
 
 Tools.getOpacity = (function opacity() {
 	var chooser = document.getElementById("chooseOpacity");
@@ -583,19 +623,6 @@ Tools.getOpacity = (function opacity() {
 //Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;
 Tools.svg.height.baseVal.value = document.body.clientHeight;
-
-/***********  Polyfills  ***********/
-if (!window.performance || !window.performance.now) {
-	window.performance = {
-		"now": Date.now
-	}
-}
-if (!Math.hypot) {
-	Math.hypot = function (x, y) {
-		//The true Math.hypot accepts any number of parameters
-		return Math.sqrt(x * x + y * y);
-	}
-}
 
 /**
  What does a "tool" object look like?
