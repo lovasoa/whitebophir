@@ -146,7 +146,7 @@ function handleRequest(request, response) {
 					'performance.now': { flags: ['gated'] },
 				}
 			}).then(function (bundleString) {
-				response.setHeader('Cache-Control', 'public, max-age=100000, stale-while-revalidate=100000');
+				response.setHeader('Cache-Control', 'public, max-age=172800, stale-while-revalidate=1728000');
 				response.setHeader('Vary', 'User-Agent');
 				response.setHeader('Content-Type', 'application/javascript');
 				response.setHeader('Content-Length', bundleString.length);
