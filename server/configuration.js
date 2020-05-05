@@ -33,5 +33,5 @@ module.exports = {
     MAX_EMIT_COUNT_PERIOD: parseInt(process.env['WBO_MAX_EMIT_COUNT_PERIOD']) || 4096,
 
     /** Blocked Tools. Replace spaces in the tool names with underscores and separate tool names with spaces */
-    BLOCKED_TOOLS: process.env['WBO_BLOCKED_TOOLS'] ? process.env['WBO_BLOCKED_TOOLS'].toLowerCase().split(" ") : [],
+    BLOCKED_TOOLS: (process.env['WBO_BLOCKED_TOOLS'] || "").split(','),
 };
