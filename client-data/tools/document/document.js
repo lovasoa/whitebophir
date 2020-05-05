@@ -16,7 +16,7 @@
         fileInput.type = "file";
         fileInput.accept = "image/*";
         fileInput.click();
-        fileInput.addEventListener("change", () => {
+        fileInput.addEventListener("change", function () {
             assert_count();
 
             var reader = new FileReader();
