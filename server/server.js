@@ -149,7 +149,6 @@ function handleRequest(request, response) {
 				response.setHeader('Cache-Control', 'public, max-age=172800, stale-while-revalidate=1728000');
 				response.setHeader('Vary', 'User-Agent');
 				response.setHeader('Content-Type', 'application/javascript');
-				response.setHeader('Content-Length', bundleString.length);
 				response.end(bundleString);
 			});
 			break;
