@@ -31,8 +31,8 @@
 	function press(x, y, evt, isTouchEvent) {
 		if (!isTouchEvent) {
 			pressed = true;
-			orig.x = scrollX + evt.clientX;
-			orig.y = scrollY + evt.clientY;
+			orig.x = document.documentElement.scrollLeft + evt.clientX;
+			orig.y = document.documentElement.scrollTop + evt.clientY;
 		}
 	}
 	function move(x, y, evt, isTouchEvent) {

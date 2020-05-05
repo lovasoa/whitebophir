@@ -53,18 +53,7 @@
 	}
 
 	function inDrawingArea(elem) {
-		if (Tools.drawingArea.contains) {
-			return Tools.drawingArea.contains(elem);
-		} else {
-			var node = elem.parentNode;
-			while (node != null) {
-				if (node === Tools.drawingArea) {
-					return true;
-				}
-				node = node.parentNode;
-			}
-			return false;
-		}
+		return Tools.drawingArea.contains(elem);
 	}
 
 	function erase(x, y, evt) {

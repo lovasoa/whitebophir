@@ -17,9 +17,7 @@ npm-debug.log
 
 .DS_Store
 
-# Openode
-.openode
-wbo-backup.zip
+wbo-backup*
 
 # Jetbrains
 .idea/
