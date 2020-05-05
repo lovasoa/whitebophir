@@ -8,7 +8,8 @@ var app = require('http').createServer(handler)
 	, serveStatic = require("serve-static")
 	, createSVG = require("./createSVG.js")
 	, templating = require("./templating.js")
-	, config = require("./configuration.js");
+	, config = require("./configuration.js")
+	, polyfillLibrary = require('polyfill-library');
 
 
 var MIN_NODE_VERSION = 10.0;
@@ -72,63 +73,93 @@ function handleRequest(request, response) {
 	var parts = parsedUrl.pathname.split('/');
 	if (parts[0] === '') parts.shift();
 
-	if (parts[0] === "boards") {
-		// "boards" refers to the root directory
-		if (parts.length === 1 && parsedUrl.query.board) {
-			// '/boards?board=...' This allows html forms to point to boards
-			var headers = { Location: 'boards/' + encodeURIComponent(parsedUrl.query.board) };
-			response.writeHead(301, headers);
-			response.end();
-		} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
-			// If there is no dot and no directory, parts[1] is the board name
-			boardTemplate.serve(request, response);
-		} else { // Else, it's a resource
-			request.url = parts.slice(1).join('/');
-			fileserver(request, response, serveError(request, response));
-		}
-	} else if (parts[0] === "download") {
-		var boardName = encodeURIComponent(parts[1]),
-			history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
-		if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
-			history_file += '.' + parts[2] + '.bak';
-		}
-		log("download", { "file": history_file });
-		fs.readFile(history_file, function (err, data) {
-			if (err) return serveError(request, response)(err);
-			response.writeHead(200, {
-				"Content-Type": "application/json",
-				"Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
-				"Content-Length": data.length,
-			});
-			response.end(data);
-		});
-	} else if (parts[0] === "preview") {
-		var boardName = encodeURIComponent(parts[1]),
-			history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
-		createSVG.renderBoard(history_file, function (err, svg) {
-			if (err) {
-				log(err);
-				response.writeHead(404, { 'Content-Type': 'application/json' });
-				return response.end(JSON.stringify(err));
+	switch (parts[0]) {
+		case "boards":
+			// "boards" refers to the root directory
+			if (parts.length === 1 && parsedUrl.query.board) {
+				// '/boards?board=...' This allows html forms to point to boards
+				var headers = { Location: 'boards/' + encodeURIComponent(parsedUrl.query.board) };
+				response.writeHead(301, headers);
+				response.end();
+			} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
+				// If there is no dot and no directory, parts[1] is the board name
+				boardTemplate.serve(request, response);
+			} else { // Else, it's a resource
+				request.url = parts.slice(1).join('/');
+				fileserver(request, response, serveError(request, response));
 			}
-			response.writeHead(200, {
-				"Content-Type": "image/svg+xml",
-				"Content-Security-Policy": CSP,
-				"Content-Length": Buffer.byteLength(svg),
-				"Cache-Control": "public, max-age=7200",
-			});
-			response.end(svg);
-		});
-	} else if (parts[0] === "random") {
-		var name = crypto.randomBytes(32).toString('base64').replace(/[^\w]/g, '-');
-		response.writeHead(307, { 'Location': 'boards/' + name });
-		response.end(name);
+			break;
 
-	} else if (parts[0] === "") { // Index page
-		logRequest(request);
-		indexTemplate.serve(request, response);
-	} else {
-		fileserver(request, response, serveError(request, response));
+		case "download":
+			var boardName = encodeURIComponent(parts[1]),
+				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
+			if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
+				history_file += '.' + parts[2] + '.bak';
+			}
+			log("download", { "file": history_file });
+			fs.readFile(history_file, function (err, data) {
+				if (err) return serveError(request, response)(err);
+				response.writeHead(200, {
+					"Content-Type": "application/json",
+					"Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
+					"Content-Length": data.length,
+				});
+				response.end(data);
+			});
+			break;
+
+		case "preview":
+			var boardName = encodeURIComponent(parts[1]),
+				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
+			createSVG.renderBoard(history_file, function (err, svg) {
+				if (err) {
+					log(err);
+					response.writeHead(404, { 'Content-Type': 'application/json' });
+					return response.end(JSON.stringify(err));
+				}
+				response.writeHead(200, {
+					"Content-Type": "image/svg+xml",
+					"Content-Security-Policy": CSP,
+					"Content-Length": Buffer.byteLength(svg),
+					"Cache-Control": "public, max-age=7200",
+				});
+				response.end(svg);
+			});
+			break;
+
+		case "random":
+			var name = crypto.randomBytes(32).toString('base64').replace(/[^\w]/g, '-');
+			response.writeHead(307, { 'Location': 'boards/' + name });
+			response.end(name);
+			break;
+
+		case "polyfill.js": // serve tailored polyfills
+		case "polyfill.min.js":
+			polyfillLibrary.getPolyfillString({
+				uaString: request.headers['user-agent'],
+				minify: request.url.endsWith(".min.js"),
+				features: {
+					'default': { flags: ['gated'] },
+					'es5': { flags: ['gated'] },
+					'es6': { flags: ['gated'] },
+					'es7': { flags: ['gated'] },
+					'performance.now': { flags: ['gated'] },
+				}
+			}).then(function (bundleString) {
+				response.setHeader('Cache-Control', 'public, max-age=172800, stale-while-revalidate=1728000');
+				response.setHeader('Vary', 'User-Agent');
+				response.setHeader('Content-Type', 'application/javascript');
+				response.end(bundleString);
+			});
+			break;
+
+		case "": // Index page
+			logRequest(request);
+			indexTemplate.serve(request, response);
+			break;
+
+		default:
+			fileserver(request, response, serveError(request, response));
 	}
 }
 

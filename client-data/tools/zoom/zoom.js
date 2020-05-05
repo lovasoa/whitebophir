@@ -27,8 +27,8 @@
 (function () { //Code isolation
     var ZOOM_FACTOR = .5;
     var origin = {
-        scrollX: window.scrollX,
-        scrollY: window.scrollY,
+        scrollX: document.documentElement.scrollLeft,
+        scrollY: document.documentElement.scrollTop,
         x: 0.0,
         y: 0.0,
         clientY: 0,
@@ -54,8 +54,8 @@
     }
 
     function setOrigin(x, y, evt, isTouchEvent) {
-        origin.scrollX = window.scrollX;
-        origin.scrollY = window.scrollY;
+        origin.scrollX = document.documentElement.scrollLeft;
+        origin.scrollY = document.documentElement.scrollTop;
         origin.x = x;
         origin.y = y;
         origin.clientY = getClientY(evt, isTouchEvent);
@@ -95,10 +95,10 @@
             Tools.setSize(Tools.getSize() - ((evt.deltaY > 0) - (evt.deltaY < 0)) * change);
         } else if (evt.shiftKey) {
             // scroll horizontally
-            window.scrollTo(window.scrollX + evt.deltaY, window.scrollY + evt.deltaX);
+            window.scrollTo(document.documentElement.scrollLeft + evt.deltaY, document.documentElement.scrollTop + evt.deltaX);
         } else {
             // regular scrolling
-            window.scrollTo(window.scrollX + evt.deltaX, window.scrollY + evt.deltaY);
+            window.scrollTo(document.documentElement.scrollLeft + evt.deltaX, document.documentElement.scrollTop + evt.deltaY);
         }
     }
     Tools.board.addEventListener("wheel", onwheel, { passive: false });
