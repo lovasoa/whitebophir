@@ -126,7 +126,7 @@
 
 	var svg = Tools.svg;
 
-	function toggle(elem){
+	function toggle(){
 		var index = 0;
 		if (curTool === "click") {
 			curTool = "drag";
@@ -134,11 +134,12 @@
 		} else {
 			curTool = "click";
 		}
-		elem.getElementsByClassName("tool-icon")[0].src = icons[index];
-		elem.getElementsByClassName("tool-name")[0].textContent = toolNames[index];
+		document.getElementById("toolID-" + eraserTool.name).getElementsByClassName("tool-icon")[0].src = icons[index];
+		document.getElementById("toolID-" + eraserTool.name).getElementsByClassName("tool-name")[0].textContent = toolNames[index];
 	}
 
-	Tools.add({ //The new tool
+
+	var eraserTool = { //The new tool
 		"name": toolNames[0],
 		"shortcut": "e",
 		"toggle": toggle,
@@ -151,6 +152,7 @@
 		"icon": icons[0],
 		"mouseCursor": "crosshair",
 		"showMarker": true,
-	});
+	};
+	Tools.add(eraserTool);
 
 })(); //End of code isolation
