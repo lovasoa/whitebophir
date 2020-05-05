@@ -96,7 +96,7 @@ function socketConnection(socket) {
 			return;
 		}
 
-		if (!message.data.tool || config.BLOCKED_TOOLS.includes(message.data.tool) {
+		if (!message.data.tool || config.BLOCKED_TOOLS.includes(message.data.tool)) {
 			log('BLOCKED MESSAGE', message.data);
 			return;
 		}
