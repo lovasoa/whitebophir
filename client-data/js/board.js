@@ -49,6 +49,8 @@ Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 
+Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
+
 Tools.socket = null;
 Tools.connect = function () {
 	var self = this;
@@ -106,7 +108,7 @@ Tools.HTML = {
 		};
 		this.addShortcut(toolShortcut, function () {
 			Tools.change(toolName);
-			document.activeElement.blur();
+			document.activeElement.blur && document.activeElement.blur();
 		});
 		return this.template.add(function (elem) {
 			elem.addEventListener("click", callback);
@@ -251,6 +253,8 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 		var listener = tool.compiledListeners[event];
 		var target = listener.target || Tools.board;
 		target.removeEventListener(event, listener);
+		// also attempt to remove with capture = true in IE
+		if (Tools.isIE) target.removeEventListener(event, listener, true);
 	}
 }
 
@@ -340,8 +344,8 @@ function updateDocumentTitle() {
 	var scrollTimeout, lastStateUpdate = Date.now();
 
 	window.addEventListener("scroll", function onScroll() {
-		var x = window.scrollX / Tools.getScale(),
-			y = window.scrollY / Tools.getScale();
+		var x = document.documentElement.scrollLeft / Tools.getScale(),
+			y = document.documentElement.scrollTop / Tools.getScale();
 
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(function updateHistory() {
@@ -455,7 +459,7 @@ Tools.toolHooks = [
 
 		function wrapUnsetHover(f, toolName) {
 			return (function unsetHover(evt) {
-				document.activeElement && document.activeElement.blur();
+				document.activeElement && document.activeElement.blur && document.activeElement.blur();
 				return f(evt);
 			});
 		}
@@ -472,7 +476,7 @@ Tools.toolHooks = [
 			var release = compile(listeners.release),
 				releaseTouch = compileTouch(listeners.release);
 			compiled["mouseup"] = release;
-			compiled["mouseleave"] = release;
+			if (!Tools.isIE) compiled["mouseleave"] = release;
 			compiled["touchleave"] = releaseTouch;
 			compiled["touchend"] = releaseTouch;
 			compiled["touchcancel"] = releaseTouch;
@@ -581,19 +585,6 @@ Tools.getOpacity = (function opacity() {
 //Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;
 Tools.svg.height.baseVal.value = document.body.clientHeight;
-
-/***********  Polyfills  ***********/
-if (!window.performance || !window.performance.now) {
-	window.performance = {
-		"now": Date.now
-	}
-}
-if (!Math.hypot) {
-	Math.hypot = function (x, y) {
-		//The true Math.hypot accepts any number of parameters
-		return Math.sqrt(x * x + y * y);
-	}
-}
 
 /**
  What does a "tool" object look like?
