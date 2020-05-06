@@ -73,11 +73,16 @@
 			//       cover a large distance.
 			var radius = Tools.getSize()/2,
 				r2 = radius*radius;
+			let erased = false;
 			for (var dx = -radius; dx <= radius; dx++) {
 				var h = Math.sqrt(r2 - dx * dx) | 0;
 				for (var dy = -h; dy <= h; dy++) {
-					scanForObject(x, y, target, dx, dy);
+					if (scanForObject(x, y, target, dx, dy)) {
+						erased = true;
+						break;
+					}
 				}
+				if (erased) break;
 			}
 			if (curTool === "click") {
 				erasing = false;
@@ -117,11 +122,11 @@
 			msg.x = x+i;
 			msg.y = y+j;
 			msg.target = target;
-			if(!msg.id.startsWith("layer")&&msg.id!=="defs"&&msg.id!=="rect_1"&&msg.id!=="cursors"){
-				var elem = svg.getElementById(msg.id);
-				if (elem !== null) Tools.drawAndSend(msg);
-			}
+			var elem = svg.getElementById(msg.id);
+			if (elem !== null) Tools.drawAndSend(msg);
+			return true;
 		}
+		return false;
 	}
 
 	var svg = Tools.svg;
