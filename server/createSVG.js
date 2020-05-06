@@ -162,7 +162,7 @@ function renderBoard(file, type, callback) {
 }
 
 if (require.main === module) {
-	const config = require("./configuration.js")
+	const config = require("./configuration.js");
 	const HISTORY_FILE = process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
 
 	renderBoard(HISTORY_FILE, function (err, rendered) {
