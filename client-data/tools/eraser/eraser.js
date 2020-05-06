@@ -71,19 +71,27 @@
 			// TODO: This can be very slow if dragging is enabled, a large tool size has been chosen and the cursor
 			//       is inside the bounding box of a svg path or the board is zommed out and the cursor is allowed to
 			//       cover a large distance.
-			var radius = Tools.getSize()/2,
-				r2 = radius*radius;
-			let erased = false;
-			for (var dx = -radius; dx <= radius; dx++) {
-				var h = Math.sqrt(r2 - dx * dx) | 0;
-				for (var dy = -h; dy <= h; dy++) {
-					if (scanForObject(x, y, target, dx, dy)) {
-						erased = true;
-						break;
+			var radius = Tools.getSize()/2;
+
+			var erased = scanForObject(x, y, target, 0,0);
+			for (var i = 0; i <= radius; i++) {
+				for (var dx = 0; dx <= i; dx++) {
+					if (erased) break;
+					var h = Math.sqrt(i*i - dx * dx) | 0;
+					for (var dy = 1; dy <= h; dy++) {
+						if (Math.sqrt(dx * dx + dy * dy) > (i - 1)) {
+							if (scanForObject(x, y, target, dx, dy)
+								|| scanForObject(x, y, target, dy, -dx)
+								|| scanForObject(x, y, target, -dx, -dy)
+								|| scanForObject(x, y, target, -dy, dx)) {
+								erased = true;
+								break;
+							}
+						}
 					}
 				}
-				if (erased) break;
 			}
+
 			if (curTool === "click") {
 				erasing = false;
 			}
