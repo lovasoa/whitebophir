@@ -101,7 +101,6 @@
                     targets.push(el);
                 }
             }
-            console.log(targets);
             if (targets.length > 0) {
                 msg.id = [];
                 for (var i = 0; i < targets.length; i++) {
