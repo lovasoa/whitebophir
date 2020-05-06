@@ -91,7 +91,7 @@ function handleRequest(request, response) {
 			break;
 
 		case "download":
-			var boardName = encodeURIComponent(parts[1]),
+			var boardName = parts[1],
 				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
 			if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
 				history_file += '.' + parts[2] + '.bak';
@@ -109,7 +109,7 @@ function handleRequest(request, response) {
 			break;
 
 		case "preview":
-			var boardName = encodeURIComponent(parts[1]),
+			var boardName = parts[1],
 				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
 			createSVG.renderBoard(history_file, function (err, svg) {
 				if (err) {
