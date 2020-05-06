@@ -7,19 +7,20 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" type="text/css" href="../board.css" />
 	<script src="../socket.io/socket.io.js"></script>
-	<meta name="description" content="{{translations.tagline}}'" />
+	<meta name="description" content="{{translations.tagline}}" />
 	<meta name="keywords"
 		content="{{translations.collaborative_whiteboard}},online,draw,paint,shared,realtime,wbo,whitebophir" />
 	<link rel="apple-touch-icon" href="../favicon.svg">
 	<link rel="icon" type="image/x-icon" sizes="16x16" href="../favicon.ico">
 	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0" />
 	<meta property="og:title" content="{{board}} board on WBO" />
- 	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
- 	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
+	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
+	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
 	<link rel="canonical" href="{{boardUriComponent}}?lang={{language}}" />
 	{{#languages}}
 	<link rel="alternate" hreflang="{{.}}" href="{{../boardUriComponent}}?lang={{.}}" />
 	{{/languages}}
+	<script src="../polyfill.min.js"></script>
 </head>
 
 <body>
@@ -50,7 +51,8 @@
 						<span class="colorPresetButton"></span>
 					</span>
 				</li>
-				<li class="tool" tabindex="-1">
+				<li class="tool" tabindex="-1"
+					title="{{translations.size}} ({{translations.keyboard_shortcut}}: alt + {{translations.mousewheel}})">
 					<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
 					<label class="tool-name slider" for="chooseSize">
 						<span>{{translations.size}}</span>
@@ -61,12 +63,12 @@
 					<span class="tool-icon">
 						<svg viewBox="0 0 8 8">
 							<pattern id="opacityPattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
-								<rect x=0 y=0 width=2 height=2 fill=black />
-								<rect x=2 y=2 width=2 height=2 fill=black />
-								<rect x=2 y=0 width=2 height=2 fill=#eeeeee />
-								<rect x=0 y=2 width=2 height=2 fill=#eeeeee />
+								<rect x=0 y=0 width=2 height=2 fill=black></rect>
+								<rect x=2 y=2 width=2 height=2 fill=black></rect>
+								<rect x=2 y=0 width=2 height=2 fill=#eeeeee></rect>
+								<rect x=0 y=2 width=2 height=2 fill=#eeeeee></rect>
 							</pattern>
-							<circle cx=4 cy=4 id="opacityIndicator" r=3.5 fill="url(#opacityPattern)" />
+							<circle cx=4 cy=4 id="opacityIndicator" r=3.5 fill="url(#opacityPattern)"></circle>
 						</svg>
 					</span>
 					<label class="tool-name slider" for="chooseOpacity">
@@ -89,11 +91,13 @@
 	<script src="../tools/cursor/cursor.js"></script>
 	<script src="../tools/line/line.js"></script>
 	<script src="../tools/rect/rect.js"></script>
+	<script src="../tools/ellipse/ellipse.js"></script>
 	<script src="../tools/text/text.js"></script>
 	<script src="../tools/eraser/eraser.js"></script>
 	<script src="../tools/hand/hand.js"></script>
+	<script src="../tools/grid/grid.js"></script>
 	<script src="../tools/zoom/zoom.js"></script>
-	<script src="../js/canvascolor/canvascolor.min.js"></script>
+	<script src="../js/canvascolor.js"></script>
 </body>
 
 </html>
