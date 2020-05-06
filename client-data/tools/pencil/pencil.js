@@ -193,7 +193,7 @@
 	}
 
 
-	function toggle(elem){
+	function toggle(){
 		var index = 0;
 		if (curPen === "pencil") {
 			curPen = "whiteout";
@@ -201,12 +201,12 @@
 		} else {
 			curPen = "pencil";
 		}
-		elem.getElementsByClassName("tool-icon")[0].src = penIcons[index];
-		elem.getElementsByClassName("tool-name")[0].textContent = toolName[index];
+		document.getElementById("toolID-"+pencilTool.name).getElementsByClassName("tool-icon")[0].src = penIcons[index];
+		document.getElementById("toolID-"+pencilTool.name).getElementsByClassName("tool-name")[0].textContent = toolName[index];
 	}
 
 
-	Tools.add({
+	var pencilTool = {
 		"name": "Pencil",
 		"shortcut": "p",
 		"listeners": {
@@ -219,6 +219,7 @@
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
 		"icon": penIcons[0],
 		"stylesheet": "tools/pencil/pencil.css"
-	});
+	};
+	Tools.add(pencilTool);
 
 })(); //End of code isolation
