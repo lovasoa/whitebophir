@@ -69,7 +69,7 @@ function testPencil(browser) {
         .assert.visible("path[d='M 100 200 L 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
         .assert.visible("path[d='M 200 100 L 200 100 C 200 100 252.85954792089683 200 300 200 C 347.14045207910317 200 400 100 400 100'][stroke='#abcdef']")
         .refresh()
-        .assert.visible("path[d='M 100 200 L 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
+        .waitForElementVisible("path[d='M 100 200 L 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
         .assert.visible("path[d='M 200 100 L 200 100 C 200 100 252.85954792089683 200 300 200 C 347.14045207910317 200 400 100 400 100'][stroke='#abcdef']")
 }
 
@@ -88,7 +88,7 @@ function testCircle(browser) {
         })
         .assert.visible("ellipse[cx='0'][cy='200'][rx='200'][ry='200'][stroke='#112233']")
         .refresh()
-        .assert.visible("ellipse[cx='0'][cy='200'][rx='200'][ry='200'][stroke='#112233']")
+        .waitForElementVisible("ellipse[cx='0'][cy='200'][rx='200'][ry='200'][stroke='#112233']")
         .click('#toolID-Ellipse') // Click the ellipse tool
         .click('#toolID-Ellipse') // Click again to toggle
         .assert.containsText('#toolID-Ellipse .tool-name', 'Cercle') // Circle in french
