@@ -85,7 +85,7 @@ function handleRequest(request, response) {
 				// If there is no dot and no directory, parts[1] is the board name
 				boardTemplate.serve(request, response);
 			} else { // Else, it's a resource
-				request.url = parts.slice(1).join('/');
+				request.url = "/" + parts.slice(1).join('/');
 				fileserver(request, response, serveError(request, response));
 			}
 			break;
