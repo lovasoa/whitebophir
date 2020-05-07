@@ -109,33 +109,8 @@
 	var svg = Tools.svg;
 
 	function addPoint(line, x, y) {
-		var pts = getPathData(line), //The points that are already in the line as a PathData
-			nbr = pts.length; //The number of points already in the line
-		switch (nbr) {
-			case 0: //The first point in the line
-				//If there is no point, we have to start the line with a moveTo statement
-				pts.push({ type: "M", values: [x, y] });
-				//Temporary first point so that clicks are shown and can be erased
-				npoint = { type: "L", values: [x, y] };
-				break;
-			case 1: //This should never happen
-				// First point will be the move. Add Line of zero length ensure there are two points and fall through
-				pts.push({ type: "L", values: [pts[0].x, pts[0].y] });
-			// noinspection FallThroughInSwitchStatementJS
-			case 2: //There are two points. The initial move and a line of zero length to make it visible
-				//Draw a curve that is segment between the old point and the new one
-				npoint = {
-					type: "C", values: [
-						pts[0].values[0], pts[0].values[1],
-						x, y,
-						x, y,
-					]
-				};
-				break;
-			default: //There are at least two points in the line
-				npoint = pencilExtrapolatePoints(pts, x, y);
-		}
-		if (npoint) pts.push(npoint);
+		var pts = getPathData(line);
+		pts = wboPencilPoint(pts, x, y);
 		line.setPathData(pts);
 	}
 

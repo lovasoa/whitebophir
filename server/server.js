@@ -38,7 +38,7 @@ var fileserver = serveStatic(config.WEBROOT, {
 var errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
 function serveError(request, response) {
 	return function (err) {
-		log("error", { "error": err, "url": request.url });
+		log("error", { "error": err && err.toString(), "url": request.url });
 		response.writeHead(err ? 500 : 404, { "Content-Length": errorPage.length });
 		response.end(errorPage);
 	}
