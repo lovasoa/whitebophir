@@ -14,10 +14,12 @@ function htmlspecialchars(str) {
 
 function renderPath(el, pathstring) {
 	return '<path ' +
-		'id="' + htmlspecialchars(el.id || "l") + '" ' +
+		(el.id ?
+			('id="' + htmlspecialchars(el.id || "l") + '" ') : '') +
 		'stroke-width="' + (el.size | 0) + '" ' +
-		'opacity="' + parseFloat(el.opacity) + '" ' +
-		'stroke="' + htmlspecialchars(el.color || "#000") + '" ' +
+		(el.opacity ?
+			('opacity="' + parseFloat(el.opacity) + '" ') : '') +
+		'stroke="' + htmlspecialchars(el.color) + '" ' +
 		'd="' + pathstring + '" ' +
 		'/>';
 
