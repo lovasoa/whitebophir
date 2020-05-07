@@ -68,6 +68,11 @@ function handler(request, response) {
 const boardTemplate = new templating.BoardTemplate(path.join(config.WEBROOT, 'board.html'));
 const indexTemplate = new templating.Template(path.join(config.WEBROOT, 'index.html'));
 
+function validateBoardName(boardName) {
+	if (/^[\w%]*$/.test(boardName)) return boardName;
+	throw new Error("Illegal board name: " + boardName);
+}
+
 function handleRequest(request, response) {
 	var parsedUrl = url.parse(request.url, true);
 	var parts = parsedUrl.pathname.split('/');
@@ -82,6 +87,7 @@ function handleRequest(request, response) {
 				response.writeHead(301, headers);
 				response.end();
 			} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
+				validateBoardName(parts[1]);
 				// If there is no dot and no directory, parts[1] is the board name
 				boardTemplate.serve(request, response);
 			} else { // Else, it's a resource
@@ -91,7 +97,7 @@ function handleRequest(request, response) {
 			break;
 
 		case "download":
-			var boardName = encodeURIComponent(parts[1]),
+			var boardName = validateBoardName(parts[1]),
 				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
 			if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
 				history_file += '.' + parts[2] + '.bak';
@@ -109,7 +115,7 @@ function handleRequest(request, response) {
 			break;
 
 		case "preview":
-			var boardName = encodeURIComponent(parts[1]),
+			var boardName = validateBoardName(parts[1]),
 				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
 			createSVG.renderBoard(history_file, function (err, svg) {
 				if (err) {
