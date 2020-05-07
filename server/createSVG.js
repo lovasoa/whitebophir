@@ -1,4 +1,4 @@
-const fs = require("fs"),
+const fs = require("./fs_promises.js"),
 	path = require("path"),
 	pencilExtrapolatePoints = require("../client-data/tools/pencil/pencil_extrapolate_points").pencilExtrapolatePoints;
 
@@ -134,7 +134,6 @@ function toSVG(obj, type) {
 		const renderFun = (type === "export" && exportTools[elem.tool]) ? exportTools[elem.tool] : Tools[elem.tool];
 		if (renderFun) elements += renderFun(elem);
 	}
-	console.error(i + " elements treated in " + (Date.now() - t) + "ms.");
 
 	const svg = '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="' + w + '" height="' + h + '">' +
 		'<defs><style type="text/css"><![CDATA[' +
@@ -146,28 +145,19 @@ function toSVG(obj, type) {
 	return svg;
 }
 
-function renderBoard(file, type, callback) {
-	const t = Date.now();
-	fs.readFile(file, function (err, data) {
-		if (err) return callback(err);
-		try {
-			const board = JSON.parse(data);
-			console.warn("JSON parsed in " + (Date.now() - t) + "ms.");
-			const svg = toSVG(board, type);
-			console.warn("Board rendered in " + (Date.now() - t) + "ms.");
-			callback(null, svg);
-		}
-		catch (err) { return callback(err) }
-	});
+async function renderBoard(file) {
+	const data = await fs.promises.readFile(file);
+	var board = JSON.parse(data);
+	return toSVG(board);
 }
 
 if (require.main === module) {
 	const config = require("./configuration.js");
 	const HISTORY_FILE = process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
 
-	renderBoard(HISTORY_FILE, function (err, rendered) {
-		console.log(rendered);
-	});
+	renderBoard(HISTORY_FILE)
+		.then(console.log.bind(console))
+		.catch(console.error.bind(console));
 } else {
 	module.exports = { 'renderBoard': renderBoard };
 }
