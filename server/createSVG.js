@@ -75,39 +75,48 @@ const Tools = {
 };
 
 
-function toSVG(obj) {
-	const margin = 500;
-	let w = 500, h = 500;
-	const elements = Object.values(obj).map(function (elem) {
-		if (elem.x && elem.x + margin > w) w = elem.x + margin;
-		if (elem.y && elem.y + margin > h) h = elem.y + margin;
-		const renderFun = Tools[elem.tool];
-		if (renderFun) return renderFun(elem);
-		else console.warn("Missing render function for tool", elem.tool);
-	}).join('');
-
-	const svg = '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="' + w + '" height="' + h + '">' +
+/**
+ * Writes the given board as an svg to the given writeable stream
+ * @param {Object[string, BoardElem]} obj 
+ * @param {WritableStream} writeable 
+ */
+async function toSVG(obj, writeable) {
+	const margin = 400;
+	const elems = Object.values(obj);
+	const dim = elems.reduce(function (dim, elem) {
+		return [
+			Math.max(elem.x + margin | 0, dim[0]),
+			Math.max(elem.y + margin | 0, dim[1]),
+		]
+	}, [margin, margin]);
+	writeable.write(
+		'<svg xmlns="http://www.w3.org/2000/svg" version="1.1" ' +
+		'width="' + dim[0] + '" height="' + dim[1] + '">' +
 		'<defs><style type="text/css"><![CDATA[' +
 		'text {font-family:"Arial"}' +
 		'path {fill:none;stroke-linecap:round;stroke-linejoin:round;}' +
-		']]></style></defs>' +
-		elements +
-		'</svg>';
-	return svg;
+		']]></style></defs>'
+	);
+	await Promise.all(elems.map(async function (elem) {
+		await Promise.resolve(); // Do not block the event loop
+		const renderFun = Tools[elem.tool];
+		if (renderFun) writeable.write(renderFun(elem));
+		else console.warn("Missing render function for tool", elem.tool);
+	}));
+	writeable.write('</svg>');
 }
 
-async function renderBoard(file) {
+async function renderBoard(file, stream) {
 	const data = await fs.promises.readFile(file);
 	var board = JSON.parse(data);
-	return toSVG(board);
+	return toSVG(board, stream);
 }
 
 if (require.main === module) {
 	const config = require("./configuration.js");
 	const HISTORY_FILE = process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
 
-	renderBoard(HISTORY_FILE)
-		.then(console.log.bind(console))
+	renderBoard(HISTORY_FILE, process.stdout)
 		.catch(console.error.bind(console));
 } else {
 	module.exports = { 'renderBoard': renderBoard };

@@ -118,17 +118,19 @@ function handleRequest(request, response) {
 		case "preview":
 			var boardName = validateBoardName(parts[1]),
 				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
+			response.writeHead(200, {
+				"Content-Type": "image/svg+xml",
+				"Content-Security-Policy": CSP,
+				"Cache-Control": "public, max-age=30",
+			});
 			var t = Date.now();
-			createSVG.renderBoard(history_file).then(function (svg) {
+			createSVG.renderBoard(history_file, response).then(function () {
 				log("preview", { "board": boardName, "time": Date.now() - t });
-				response.writeHead(200, {
-					"Content-Type": "image/svg+xml",
-					"Content-Security-Policy": CSP,
-					"Content-Length": Buffer.byteLength(svg),
-					"Cache-Control": "public, max-age=30",
-				});
-				response.end(svg);
-			}).catch(serveError(request, response));
+				response.end();
+			}).catch(function (err) {
+				log("error", { "error": err.toString() });
+				response.end('<text>Sorry, an error occured</text>');
+			});
 			break;
 
 		case "random":
