@@ -1,4 +1,4 @@
-var fs = require("fs"),
+var fs = require("./fs_promises.js"),
 	path = require("path");
 
 function htmlspecialchars(str) {
@@ -89,7 +89,6 @@ function toSVG(obj) {
 		var renderFun = Tools[elem.tool];
 		if (renderFun) elements += renderFun(elem);
 	}
-	console.error(i + " elements treated in " + (Date.now() - t) + "ms.");
 
 	var svg = '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="' + w + '" height="' + h + '">' +
 		'<defs><style type="text/css"><![CDATA[' +
@@ -101,28 +100,19 @@ function toSVG(obj) {
 	return svg;
 }
 
-function renderBoard(file, callback) {
-	var t = Date.now();
-	fs.readFile(file, function (err, data) {
-		if (err) return callback(err);
-		try {
-			var board = JSON.parse(data);
-			console.warn("JSON parsed in " + (Date.now() - t) + "ms.");
-			var svg = toSVG(board);
-			console.warn("Board rendered in " + (Date.now() - t) + "ms.");
-			callback(null, svg);
-		}
-		catch (err) { return callback(err) }
-	});
+async function renderBoard(file) {
+	const data = await fs.promises.readFile(file);
+	var board = JSON.parse(data);
+	return toSVG(board);
 }
 
 if (require.main === module) {
 	const config = require("./configuration.js")
 	var HISTORY_FILE = process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
 
-	renderBoard(HISTORY_FILE, function (err, rendered) {
-		console.log(rendered);
-	});
+	renderBoard(HISTORY_FILE)
+		.then(console.log.bind(console))
+		.catch(console.error.bind(console));
 } else {
 	module.exports = { 'renderBoard': renderBoard };
 }

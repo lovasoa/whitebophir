@@ -117,20 +117,17 @@ function handleRequest(request, response) {
 		case "preview":
 			var boardName = validateBoardName(parts[1]),
 				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
-			createSVG.renderBoard(history_file, function (err, svg) {
-				if (err) {
-					log(err);
-					response.writeHead(404, { 'Content-Type': 'application/json' });
-					return response.end(JSON.stringify(err));
-				}
+			var t = Date.now();
+			createSVG.renderBoard(history_file).then(function (svg) {
+				log("preview", { "board": boardName, "time": Date.now() - t });
 				response.writeHead(200, {
 					"Content-Type": "image/svg+xml",
 					"Content-Security-Policy": CSP,
 					"Content-Length": Buffer.byteLength(svg),
-					"Cache-Control": "public, max-age=7200",
+					"Cache-Control": "public, max-age=30",
 				});
 				response.end(svg);
-			});
+			}).catch(serveError(request, response));
 			break;
 
 		case "random":
