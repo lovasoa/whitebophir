@@ -46,8 +46,8 @@ const Tools = {
 			return wboPencilPoint(pts, point.x, point.y);
 		}, []);
 		const pathstring = pts.map(function (op) {
-			return op.type + op.values.join(' ')
-		}).join('');
+			return op.type + ' ' + op.values.join(' ')
+		}).join(' ');
 		return renderPath(el, pathstring);
 	},
 	"Rectangle": function (el) {
