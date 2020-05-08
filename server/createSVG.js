@@ -15,7 +15,7 @@ function htmlspecialchars(str) {
 function renderPath(el, pathstring) {
 	return '<path ' +
 		(el.id ?
-			('id="' + htmlspecialchars(el.id || "l") + '" ') : '') +
+			('id="' + htmlspecialchars(el.id) + '" ') : '') +
 		'stroke-width="' + (el.size | 0) + '" ' +
 		(el.opacity ?
 			('opacity="' + parseFloat(el.opacity) + '" ') : '') +
