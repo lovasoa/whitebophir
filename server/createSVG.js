@@ -54,13 +54,16 @@ const Tools = {
 	 * @return {string}
 	 */
 	"Rectangle": function (el) {
-		const pathstring =
-			"M" + el.x + " " + el.y +
-			"L" + el.x + " " + el.y2 +
-			"L" + el.x2 + " " + el.y2 +
-			"L" + el.x2 + " " + el.y +
-			"L" + el.x + " " + el.y;
-		return renderPath(el, pathstring);
+		return '<rect ' +
+			(el.id ?
+				('id="' + htmlspecialchars(el.id) + '" ') : '') +
+			'x="' + (el.x || 0) + '" ' +
+			'y="' + (el.y || 0) + '" ' +
+			'width="' + (el.x2 - el.x) + '" ' +
+			'height="' + (el.y2 - el.y) + '" ' +
+			'stroke="' + htmlspecialchars(el.color) + '" ' +
+			'stroke-width="' + (el.size | 0) + '" ' +
+			'fill="none" />';
 	},
 	/**
 	 * @return {string}
