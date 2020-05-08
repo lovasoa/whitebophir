@@ -35,7 +35,7 @@
                 break;
             case 1: //This should never happen
                 // First point will be the move. Add Line of zero length ensure there are two points and fall through
-                pts.push(new PathDataPoint("L", [pts[0].x, pts[0].y]));
+                pts.push(new PathDataPoint("L", [pts[0].values[0], pts[0].values[1]]));
             // noinspection FallThroughInSwitchStatementJS
             case 2: //There are two points. The initial move and a line of zero length to make it visible
                 //Draw a curve that is segment between the old point and the new one
