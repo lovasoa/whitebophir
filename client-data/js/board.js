@@ -175,7 +175,7 @@ Tools.register = function registerTool(newTool) {
 	if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
 
 	//There may be pending messages for the tool
-	var pending = Tools.pendingMessages[newTool.name];
+	var pending = Tools.pendingInboundMessages[newTool.name];
 	if (pending) {
 		console.log("Drawing pending messages for '%s'.", newTool.name);
 		var msg;
@@ -240,13 +240,53 @@ Tools.change = function (toolName) {
 	newTool.onstart(oldTool);
 };
 
+// List of the messages that wll be sent when the next slot is available
+Tools.pendingOutboundMessages = [];
+Tools.lastMessageSent = 0;
+
+Tools.send = function (data) {
+	var out = Tools.pendingOutboundMessages;
+
+	// ensure data is present to be sent
+	if (!data && out.length === 0) return;
+	if (Tools.sendTimout) clearTimeout(Tools.sendTimout);
+
+	var MAX_MESSAGE_INTERVAL = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT;
+
+	// check if we need to throttle
+	var cur_time = Date.now();
+	if (data && cur_time - Tools.lastMessageSent < MAX_MESSAGE_INTERVAL) {
+		// prepare message to be sent later
+		out.push(data);
+		// ensure messages will be sent even if no more messages are created
+		Tools.sendTimout = setTimeout(Tools.send, 100);
+		return;
+	}
+	Tools.lastMessageSent = cur_time;
+
+	// sned a single message if none are waiting
+	if (out.length === 0) {
+		var message = {
+			"board": Tools.boardName,
+			"data": data,
+		};
+		Tools.socket.emit('broadcast', message);
+	} else {
+		// send all pending messages and clear queue
+		if (data) out.push(data);
+		Tools.socket.emit('broadcast', { _children: out });
+		Tools.pendingOutboundMessages = [];
+	}
+};
+
+
 Tools.addToolListeners = function addToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
 		var listener = tool.compiledListeners[event];
 		var target = listener.target || Tools.board;
 		target.addEventListener(event, listener, { 'passive': false });
 	}
-}
+};
 
 Tools.removeToolListeners = function removeToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
@@ -256,29 +296,27 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 		// also attempt to remove with capture = true in IE
 		if (Tools.isIE) target.removeEventListener(event, listener, true);
 	}
-}
+};
 
-Tools.send = function (data, toolName) {
+Tools.prepareData = function(data, toolName) {
 	toolName = toolName || Tools.curTool.name;
 	var d = data;
 	d.tool = toolName;
 	Tools.applyHooks(Tools.messageHooks, d);
-	var message = {
-		"board": Tools.boardName,
-		"data": d
-	};
-	Tools.socket.emit('broadcast', message);
+
+	return data;
 };
 
 Tools.drawAndSend = function (data, tool) {
 	if (tool == null) tool = Tools.curTool;
 	tool.draw(data, true);
-	Tools.send(data, tool.name);
+	Tools.prepareData(data);
+	Tools.send(data);
 };
 
 //Object containing the messages that have been received before the corresponding tool
 //is loaded. keys : the name of the tool, values : array of messages for this tool
-Tools.pendingMessages = {};
+Tools.pendingInboundMessages = {};
 
 // Send a message to the corresponding tool
 function messageForTool(message) {
@@ -290,8 +328,8 @@ function messageForTool(message) {
 	} else {
 		///We received a message destinated to a tool that we don't have
 		//So we add it to the pending messages
-		if (!Tools.pendingMessages[name]) Tools.pendingMessages[name] = [message];
-		else Tools.pendingMessages[name].push(message);
+		if (!Tools.pendingInboundMessages[name]) Tools.pendingInboundMessages[name] = [message];
+		else Tools.pendingInboundMessages[name].push(message);
 	}
 }
 
