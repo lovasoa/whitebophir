@@ -22,10 +22,12 @@ function renderPath(el, pathstring) {
 		'stroke="' + htmlspecialchars(el.color) + '" ' +
 		'd="' + pathstring + '" ' +
 		'/>';
-
 }
 
 const Tools = {
+	/**
+	 * @return {string}
+	 */
 	"Text": function (el) {
 		return '<text ' +
 			'id="' + htmlspecialchars(el.id || "t") + '" ' +
@@ -35,6 +37,9 @@ const Tools = {
 			'fill="' + htmlspecialchars(el.color || "#000") + '" ' +
 			'>' + htmlspecialchars(el.txt || "") + '</text>';
 	},
+	/**
+	 * @return {string}
+	 */
 	"Pencil": function (el) {
 		if (!el._children) return "";
 		let pts = el._children.reduce(function (pts, point) {
@@ -45,6 +50,9 @@ const Tools = {
 		}).join(' ');
 		return renderPath(el, pathstring);
 	},
+	/**
+	 * @return {string}
+	 */
 	"Rectangle": function (el) {
 		const pathstring =
 			"M" + el.x + " " + el.y +
@@ -54,6 +62,9 @@ const Tools = {
 			"L" + el.x + " " + el.y;
 		return renderPath(el, pathstring);
 	},
+	/**
+	 * @return {string}
+	 */
 	"Ellipse": function (el) {
 		const cx = Math.round((el.x2 + el.x) / 2);
 		const cy = Math.round((el.y2 + el.y) / 2);
@@ -65,6 +76,9 @@ const Tools = {
 			"a" + rx + "," + ry + " 0 1,0 " + (rx * -2) + ",0";
 		return renderPath(el, pathstring);
 	},
+	/**
+	 * @return {string}
+	 */
 	"Straight line": function (el) {
 		const pathstring = "M" + el.x + " " + el.y + "L" + el.x2 + " " + el.y2;
 		return renderPath(el, pathstring);
