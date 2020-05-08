@@ -63,7 +63,7 @@ const Tools = {
 			'height="' + (el.y2 - el.y) + '" ' +
 			'stroke="' + htmlspecialchars(el.color) + '" ' +
 			'stroke-width="' + (el.size | 0) + '" ' +
-			'fill="none" />';
+			'/>';
 	},
 	/**
 	 * @return {string}
@@ -109,6 +109,7 @@ async function toSVG(obj, writeable) {
 		'<defs><style type="text/css"><![CDATA[' +
 		'text {font-family:"Arial"}' +
 		'path {fill:none;stroke-linecap:round;stroke-linejoin:round;}' +
+		'rect {fill:none}' +
 		']]></style></defs>'
 	);
 	await Promise.all(elems.map(async function (elem) {
