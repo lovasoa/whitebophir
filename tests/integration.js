@@ -23,54 +23,31 @@ function testPencil(browser) {
         .assert.titleContains('WBO')
         .click('.tool[title ~= Crayon]') // pencil
         .assert.cssClassPresent('.tool[title ~= Crayon]', ['curTool'])
-        .executeAsync(function (done) {
-            // utility function for returning a promise that resolves after a delay
-            // https://stackoverflow.com/a/6921279
-            function delay(t) {
-                return new Promise(function (resolve) {
-                    setTimeout(resolve, t);
-                });
+        .executeAsync(async function (done) {
+            function sleep(t) {
+                return new Promise(function (accept) { setTimeout(accept, t); });
             }
-
-            Promise.delay = function (fn, t) {
-                // fn is an optional argument
-                if (!t) {
-                    t = fn;
-                    fn = function () {};
-                }
-                return delay(t).then(fn);
-            };
-
-            Promise.prototype.delay = function (fn, t) {
-                // return chained promise
-                return this.then(function () {
-                    return Promise.delay(fn, t);
-                });
-
-            };
-
+            // A straight path with just two points
             Tools.setColor('#123456');
             Tools.curTool.listeners.press(100, 200, new Event("mousedown"));
-            Promise.delay(() => {
-                Tools.curTool.listeners.release(300, 400, new Event("mouseup"));
-            }, 100)
-            .delay(() => {
-                Tools.setColor('#abcdef');
-                Tools.curTool.listeners.press(200, 100, new Event("mousedown"));
-            }, 100)
-            .delay(() => {
-                Tools.curTool.listeners.move(300, 200, new Event("mousemove"));
-            }, 100)
-            .delay(() => {
-                Tools.curTool.listeners.release(400, 100, new Event("mouseup"));
-                done();
-            }, 100);
+            await sleep(80);
+            Tools.curTool.listeners.release(300, 400, new Event("mouseup"));
+
+            // A line with three points that form an "U" shape
+            await sleep(80);
+            Tools.setColor('#abcdef');
+            Tools.curTool.listeners.press(0, 0, new Event("mousedown"));
+            await sleep(80);
+            Tools.curTool.listeners.move(90, 120, new Event("mousemove"));
+            await sleep(80);
+            Tools.curTool.listeners.release(180, 0, new Event("mouseup"));
+            done();
         })
         .assert.visible("path[d='M 100 200 L 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
-        .assert.visible("path[d='M 200 100 L 200 100 C 200 100 252.85954792089683 200 300 200 C 347.14045207910317 200 400 100 400 100'][stroke='#abcdef']")
+        .assert.visible("path[d='M 0 0 L 0 0 C 0 0 40 120 90 120 C 140 120 180 0 180 0'][stroke='#abcdef']")
         .refresh()
         .waitForElementVisible("path[d='M 100 200 L 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
-        .assert.visible("path[d='M 200 100 L 200 100 C 200 100 252.85954792089683 200 300 200 C 347.14045207910317 200 400 100 400 100'][stroke='#abcdef']")
+        .assert.visible("path[d='M 0 0 L 0 0 C 0 0 40 120 90 120 C 140 120 180 0 180 0'][stroke='#abcdef']")
 }
 
 function testCircle(browser) {
