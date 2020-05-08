@@ -96,6 +96,10 @@ function socketConnection(socket) {
 			return;
 		}
 
+		if (!message.data.tool || config.BLOCKED_TOOLS.includes(message.data.tool)) {
+			log('BLOCKED MESSAGE', message.data);
+			return;
+		}
 
 		// Save the message in the board
 		handleMessage(boardName, data, socket);
