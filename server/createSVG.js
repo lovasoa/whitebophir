@@ -25,11 +25,6 @@ function renderPath(el, pathstring) {
 
 }
 
-function dist(x1, y1, x2, y2) {
-	//Returns the distance between (x1,y1) and (x2,y2)
-	return Math.hypot(x2 - x1, y2 - y1);
-}
-
 const Tools = {
 	"Text": function (el) {
 		return '<text ' +
