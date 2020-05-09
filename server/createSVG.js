@@ -1,5 +1,6 @@
-var fs = require("fs"),
-	path = require("path");
+const fs = require("./fs_promises.js"),
+	path = require("path"),
+	wboPencilPoint = require("../client-data/tools/pencil/wbo_pencil_point.js").wboPencilPoint;
 
 function htmlspecialchars(str) {
 	//Hum, hum... Could do better
@@ -13,15 +14,20 @@ function htmlspecialchars(str) {
 
 function renderPath(el, pathstring) {
 	return '<path ' +
-		'id="' + htmlspecialchars(el.id || "l") + '" ' +
+		(el.id ?
+			('id="' + htmlspecialchars(el.id) + '" ') : '') +
 		'stroke-width="' + (el.size | 0) + '" ' +
-		'stroke="' + htmlspecialchars(el.color || "#000") + '" ' +
+		(el.opacity ?
+			('opacity="' + parseFloat(el.opacity) + '" ') : '') +
+		'stroke="' + htmlspecialchars(el.color) + '" ' +
 		'd="' + pathstring + '" ' +
 		'/>';
-
 }
 
-var Tools = {
+const Tools = {
+	/**
+	 * @return {string}
+	 */
 	"Text": function (el) {
 		return '<text ' +
 			'id="' + htmlspecialchars(el.id || "t") + '" ' +
@@ -31,32 +37,37 @@ var Tools = {
 			'fill="' + htmlspecialchars(el.color || "#000") + '" ' +
 			'>' + htmlspecialchars(el.txt || "") + '</text>';
 	},
+	/**
+	 * @return {string}
+	 */
 	"Pencil": function (el) {
 		if (!el._children) return "";
-		switch (el._children.length) {
-			case 0: return "";
-			case 1:
-				var pathstring = "M" + el._children[0].x + " " + el._children[0].y +
-					"L" + el._children[0].x + " " + el._children[0].y;
-				break;
-			default:
-				var pathstring = "M" + el._children[0].x + " " + el._children[0].y + "L";
-				for (var i = 1; i < el._children.length; i++) {
-					pathstring += (+el._children[i].x) + " " + (+el._children[i].y) + " ";
-				}
-		}
-
+		let pts = el._children.reduce(function (pts, point) {
+			return wboPencilPoint(pts, point.x, point.y);
+		}, []);
+		const pathstring = pts.map(function (op) {
+			return op.type + ' ' + op.values.join(' ')
+		}).join(' ');
 		return renderPath(el, pathstring);
 	},
+	/**
+	 * @return {string}
+	 */
 	"Rectangle": function (el) {
-		var pathstring =
-			"M" + el.x + " " + el.y +
-			"L" + el.x + " " + el.y2 +
-			"L" + el.x2 + " " + el.y2 +
-			"L" + el.x2 + " " + el.y +
-			"L" + el.x + " " + el.y;
-		return renderPath(el, pathstring);
+		return '<rect ' +
+			(el.id ?
+				('id="' + htmlspecialchars(el.id) + '" ') : '') +
+			'x="' + (el.x || 0) + '" ' +
+			'y="' + (el.y || 0) + '" ' +
+			'width="' + (el.x2 - el.x) + '" ' +
+			'height="' + (el.y2 - el.y) + '" ' +
+			'stroke="' + htmlspecialchars(el.color) + '" ' +
+			'stroke-width="' + (el.size | 0) + '" ' +
+			'/>';
 	},
+	/**
+	 * @return {string}
+	 */
 	"Ellipse": function (el) {
 		const cx = Math.round((el.x2 + el.x) / 2);
 		const cy = Math.round((el.y2 + el.y) / 2);
@@ -68,61 +79,60 @@ var Tools = {
 			"a" + rx + "," + ry + " 0 1,0 " + (rx * -2) + ",0";
 		return renderPath(el, pathstring);
 	},
+	/**
+	 * @return {string}
+	 */
 	"Straight line": function (el) {
-		var pathstring = "M" + el.x + " " + el.y + "L" + el.x2 + " " + el.y2;
+		const pathstring = "M" + el.x + " " + el.y + "L" + el.x2 + " " + el.y2;
 		return renderPath(el, pathstring);
 	}
 };
 
 
-function toSVG(obj) {
-	var margin = 500, maxelems = 1e4;
-	var elements = "", i = 0, w = 500, h = 500;
-	var t = Date.now();
-	var elems = Object.values(obj);
-	while (elems.length > 0) {
-		if (++i > maxelems) break;
-		var elem = elems.pop();
-		elems = elems.concat(elem._children || []);
-		if (elem.x && elem.x + margin > w) w = elem.x + margin;
-		if (elem.y && elem.y + margin > h) h = elem.y + margin;
-		var renderFun = Tools[elem.tool];
-		if (renderFun) elements += renderFun(elem);
-	}
-	console.error(i + " elements treated in " + (Date.now() - t) + "ms.");
-
-	var svg = '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="' + w + '" height="' + h + '">' +
+/**
+ * Writes the given board as an svg to the given writeable stream
+ * @param {Object[string, BoardElem]} obj 
+ * @param {WritableStream} writeable 
+ */
+async function toSVG(obj, writeable) {
+	const margin = 400;
+	const elems = Object.values(obj);
+	const dim = elems.reduce(function (dim, elem) {
+		return [
+			Math.max(elem.x + margin | 0, dim[0]),
+			Math.max(elem.y + margin | 0, dim[1]),
+		]
+	}, [margin, margin]);
+	writeable.write(
+		'<svg xmlns="http://www.w3.org/2000/svg" version="1.1" ' +
+		'width="' + dim[0] + '" height="' + dim[1] + '">' +
 		'<defs><style type="text/css"><![CDATA[' +
 		'text {font-family:"Arial"}' +
 		'path {fill:none;stroke-linecap:round;stroke-linejoin:round;}' +
-		']]></style></defs>' +
-		elements +
-		'</svg>';
-	return svg;
+		'rect {fill:none}' +
+		']]></style></defs>'
+	);
+	await Promise.all(elems.map(async function (elem) {
+		await Promise.resolve(); // Do not block the event loop
+		const renderFun = Tools[elem.tool];
+		if (renderFun) writeable.write(renderFun(elem));
+		else console.warn("Missing render function for tool", elem.tool);
+	}));
+	writeable.write('</svg>');
 }
 
-function renderBoard(file, callback) {
-	var t = Date.now();
-	fs.readFile(file, function (err, data) {
-		if (err) return callback(err);
-		try {
-			var board = JSON.parse(data);
-			console.warn("JSON parsed in " + (Date.now() - t) + "ms.");
-			var svg = toSVG(board);
-			console.warn("Board rendered in " + (Date.now() - t) + "ms.");
-			callback(null, svg);
-		}
-		catch (err) { return callback(err) }
-	});
+async function renderBoard(file, stream) {
+	const data = await fs.promises.readFile(file);
+	var board = JSON.parse(data);
+	return toSVG(board, stream);
 }
 
 if (require.main === module) {
-	const config = require("./configuration.js")
-	var HISTORY_FILE = process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
+	const config = require("./configuration.js");
+	const HISTORY_FILE = process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
 
-	renderBoard(HISTORY_FILE, function (err, rendered) {
-		console.log(rendered);
-	});
+	renderBoard(HISTORY_FILE, process.stdout)
+		.catch(console.error.bind(console));
 } else {
 	module.exports = { 'renderBoard': renderBoard };
 }

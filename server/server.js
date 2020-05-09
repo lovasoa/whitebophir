@@ -12,7 +12,7 @@ var app = require('http').createServer(handler)
 	, polyfillLibrary = require('polyfill-library');
 
 
-var MIN_NODE_VERSION = 10.0;
+var MIN_NODE_VERSION = 8.0;
 
 if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {
 	console.warn(
@@ -38,7 +38,7 @@ var fileserver = serveStatic(config.WEBROOT, {
 var errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
 function serveError(request, response) {
 	return function (err) {
-		log("error", { "error": err, "url": request.url });
+		log("error", { "error": err && err.toString(), "url": request.url });
 		response.writeHead(err ? 500 : 404, { "Content-Length": errorPage.length });
 		response.end(errorPage);
 	}
@@ -68,6 +68,11 @@ function handler(request, response) {
 const boardTemplate = new templating.BoardTemplate(path.join(config.WEBROOT, 'board.html'));
 const indexTemplate = new templating.Template(path.join(config.WEBROOT, 'index.html'));
 
+function validateBoardName(boardName) {
+	if (/^[\w%\-_~]*$/.test(boardName)) return boardName;
+	throw new Error("Illegal board name: " + boardName);
+}
+
 function handleRequest(request, response) {
 	var parsedUrl = url.parse(request.url, true);
 	var parts = parsedUrl.pathname.split('/');
@@ -82,16 +87,17 @@ function handleRequest(request, response) {
 				response.writeHead(301, headers);
 				response.end();
 			} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
+				validateBoardName(parts[1]);
 				// If there is no dot and no directory, parts[1] is the board name
 				boardTemplate.serve(request, response);
 			} else { // Else, it's a resource
-				request.url = parts.slice(1).join('/');
+				request.url = "/" + parts.slice(1).join('/');
 				fileserver(request, response, serveError(request, response));
 			}
 			break;
 
 		case "download":
-			var boardName = encodeURIComponent(parts[1]),
+			var boardName = validateBoardName(parts[1]),
 				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
 			if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
 				history_file += '.' + parts[2] + '.bak';
@@ -108,22 +114,22 @@ function handleRequest(request, response) {
 			});
 			break;
 
+		case "export":
 		case "preview":
-			var boardName = encodeURIComponent(parts[1]),
+			var boardName = validateBoardName(parts[1]),
 				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
-			createSVG.renderBoard(history_file, function (err, svg) {
-				if (err) {
-					log(err);
-					response.writeHead(404, { 'Content-Type': 'application/json' });
-					return response.end(JSON.stringify(err));
-				}
-				response.writeHead(200, {
-					"Content-Type": "image/svg+xml",
-					"Content-Security-Policy": CSP,
-					"Content-Length": Buffer.byteLength(svg),
-					"Cache-Control": "public, max-age=7200",
-				});
-				response.end(svg);
+			response.writeHead(200, {
+				"Content-Type": "image/svg+xml",
+				"Content-Security-Policy": CSP,
+				"Cache-Control": "public, max-age=30",
+			});
+			var t = Date.now();
+			createSVG.renderBoard(history_file, response).then(function () {
+				log("preview", { "board": boardName, "time": Date.now() - t });
+				response.end();
+			}).catch(function (err) {
+				log("error", { "error": err.toString() });
+				response.end('<text>Sorry, an error occured</text>');
 			});
 			break;
 

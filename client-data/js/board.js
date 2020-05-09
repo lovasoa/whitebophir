@@ -156,10 +156,17 @@ Tools.HTML = {
 
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
+Tools.isBlocked = function toolIsBanned(tool) {
+	if (tool.name.includes(",")) throw new Error("Tool Names must not contain a comma");
+	return Tools.server_config.BLOCKED_TOOLS.includes(tool.name);
+};
+
 /**
  * Register a new tool, without touching the User Interface
  */
 Tools.register = function registerTool(newTool) {
+	if (Tools.isBlocked(newTool)) return;
+
 	if (newTool.name in Tools.list) {
 		console.log("Tools.add: The tool '" + newTool.name + "' is already" +
 			"in the list. Updating it...");
@@ -184,12 +191,14 @@ Tools.register = function registerTool(newTool) {
 			newTool.draw(msg, false);
 		}
 	}
-}
+};
 
 /**
  * Add a new tool to the user interface
  */
 Tools.add = function (newTool) {
+	if (Tools.isBlocked(newTool)) return;
+
 	Tools.register(newTool);
 
 	if (newTool.stylesheet) {
@@ -246,7 +255,7 @@ Tools.addToolListeners = function addToolListeners(tool) {
 		var target = listener.target || Tools.board;
 		target.addEventListener(event, listener, { 'passive': false });
 	}
-}
+};
 
 Tools.removeToolListeners = function removeToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
@@ -256,7 +265,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 		// also attempt to remove with capture = true in IE
 		if (Tools.isIE) target.removeEventListener(event, listener, true);
 	}
-}
+};
 
 Tools.send = function (data, toolName) {
 	toolName = toolName || Tools.curTool.name;
