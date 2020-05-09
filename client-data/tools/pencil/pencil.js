@@ -30,8 +30,7 @@
 	var curLineId = "",
 		lastTime = performance.now(), //The time at which the last point was drawn
 		penIcons = ["tools/pencil/icon.svg", "tools/pencil/whiteout_tape.svg"],
-		toolName = ["Pencil", "Whiteout Pen"],
-		end = false;
+		toolName = ["Pencil", "Whiteout Pen"];
 
 	var curPen = "pencil";
 
@@ -63,9 +62,9 @@
 	}
 
 	function continueLine(x, y, evt) {
-		/*Wait 20ms before adding any point to the currently drawing line.
+		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
-		if (curLineId !== "" && (performance.now() - lastTime > 20 || end)) {
+		if (curLineId !== "" && performance.now() - lastTime > 70) {
 			Tools.drawAndSend(new PointMessage(x, y));
 			lastTime = performance.now();
 		}
@@ -74,9 +73,7 @@
 
 	function stopLine(x, y) {
 		//Add a last point to the line
-		end = true;
 		continueLine(x, y);
-		end = false;
 		curLineId = "";
 	}
 
@@ -135,7 +132,7 @@
 	}
 
 
-	function toggle(){
+	function toggle() {
 		var index = 0;
 		if (curPen === "pencil") {
 			curPen = "whiteout";
@@ -143,8 +140,8 @@
 		} else {
 			curPen = "pencil";
 		}
-		document.getElementById("toolID-"+pencilTool.name).getElementsByClassName("tool-icon")[0].src = penIcons[index];
-		document.getElementById("toolID-"+pencilTool.name).getElementsByClassName("tool-name")[0].textContent = toolName[index];
+		document.getElementById("toolID-" + pencilTool.name).getElementsByClassName("tool-icon")[0].src = penIcons[index];
+		document.getElementById("toolID-" + pencilTool.name).getElementsByClassName("tool-name")[0].textContent = toolName[index];
 	}
 
 
@@ -157,7 +154,7 @@
 			"release": stopLine,
 		},
 		"draw": draw,
-		"toggle":toggle,
+		"toggle": toggle,
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
 		"icon": penIcons[0],
 		"stylesheet": "tools/pencil/pencil.css"
