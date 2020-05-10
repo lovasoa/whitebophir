@@ -142,7 +142,7 @@
 		},
 		"draw": draw,
 		"secondary": {
-			"name": "Whiteout pen",
+			"name": "White-out",
 			"icon": "tools/pencil/whiteout_tape.svg",
 			"active": false,
 			"switch": stopLine,
