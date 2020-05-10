@@ -62,7 +62,10 @@
 
     function move(x, y, evt) {
         if (!curUpdate.id) return; // Not currently drawing
-        if (evt) evt.preventDefault();
+        if (evt) {
+            circleTool.secondary.active = circleTool.secondary.active || evt.shiftKey;
+            evt.preventDefault(); 
+        }
         lastPos.x = x;
         lastPos.y = y;
         doUpdate();
