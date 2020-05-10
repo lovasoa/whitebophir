@@ -28,11 +28,7 @@
 
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
-		lastTime = performance.now(), //The time at which the last point was drawn
-		penIcons = ["tools/pencil/icon.svg", "tools/pencil/whiteout_tape.svg"],
-		toolName = ["Pencil", "Whiteout Pen"];
-
-	var curPen = "pencil";
+		lastTime = performance.now(); //The time at which the last point was drawn
 
 	//The data of the message that will be sent for every new point
 	function PointMessage(x, y) {
@@ -52,9 +48,9 @@
 		Tools.drawAndSend({
 			'type': 'line',
 			'id': curLineId,
-			'color': (curPen === "pencil" ? Tools.getColor() : "#ffffff"),
+			'color': (pencilTool.secondary.active ? "#ffffff" : Tools.getColor()),
 			'size': Tools.getSize(),
-			'opacity': (curPen === "pencil" ? Tools.getOpacity() : 1),
+			'opacity': (pencilTool.secondary.active ? 1 : Tools.getOpacity()),
 		});
 
 		//Immediatly add a point to the line
@@ -71,9 +67,13 @@
 		if (evt) evt.preventDefault();
 	}
 
-	function stopLine(x, y) {
+	function stopLineAt(x, y) {
 		//Add a last point to the line
 		continueLine(x, y);
+		stopLine();
+	}
+
+	function stopLine() {
 		curLineId = "";
 	}
 
@@ -132,31 +132,23 @@
 	}
 
 
-	function toggle() {
-		var index = 0;
-		if (curPen === "pencil") {
-			curPen = "whiteout";
-			index = 1;
-		} else {
-			curPen = "pencil";
-		}
-		document.getElementById("toolID-" + pencilTool.name).getElementsByClassName("tool-icon")[0].src = penIcons[index];
-		document.getElementById("toolID-" + pencilTool.name).getElementsByClassName("tool-name")[0].textContent = toolName[index];
-	}
-
-
 	var pencilTool = {
 		"name": "Pencil",
 		"shortcut": "p",
 		"listeners": {
 			"press": startLine,
 			"move": continueLine,
-			"release": stopLine,
+			"release": stopLineAt,
 		},
 		"draw": draw,
-		"toggle": toggle,
+		"secondary": {
+			"name": "Whiteout pen",
+			"icon": "tools/pencil/whiteout_tape.svg",
+			"active": false,
+			"switch": stopLine,
+		},
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
-		"icon": penIcons[0],
+		"icon": "tools/pencil/icon.svg",
 		"stylesheet": "tools/pencil/pencil.css"
 	};
 	Tools.add(pencilTool);

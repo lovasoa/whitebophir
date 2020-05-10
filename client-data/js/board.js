@@ -122,7 +122,7 @@ Tools.HTML = {
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")" +
-				(Tools.list[toolName].toggle ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
+				(Tools.list[toolName].secondary ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -130,6 +130,11 @@ Tools.HTML = {
 		var newTool = document.getElementById("toolID-" + newToolName);
 		if (oldTool) oldTool.classList.remove("curTool");
 		if (newTool) newTool.classList.add("curTool");
+	},
+	toggle: function (toolName, name, icon) {
+		var elem = document.getElementById("toolID-" + toolName);
+		elem.getElementsByClassName("tool-icon")[0].src = icon;
+		elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(name);
 	},
 	addStylesheet: function (href) {
 		//Adds a css stylesheet to the html or svg document
@@ -214,7 +219,12 @@ Tools.change = function (toolName) {
 	var oldTool = Tools.curTool;
 	if (!newTool) throw new Error("Trying to select a tool that has never been added!");
 	if (newTool === oldTool) {
-		if (newTool.toggle) newTool.toggle();
+		if (newTool.secondary) {
+			newTool.secondary.active = !newTool.secondary.active;
+			var props = newTool.secondary.active ? newTool.secondary : newTool;
+			Tools.HTML.toggle(newTool.name, props.name, props.icon);
+			if (newTool.secondary.switch) newTool.secondary.switch();
+		}
 		return;
 	}
 	if (!newTool.oneTouch) {
@@ -266,6 +276,17 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 		if (Tools.isIE) target.removeEventListener(event, listener, true);
 	}
 };
+
+(function () {
+	// Handle secondary tool switch with shift (key code 16)
+	function handleShift(active, evt) {
+		if (evt.keyCode === 16 && Tools.curTool.secondary && Tools.curTool.secondary.active !== active) {
+			Tools.change(Tools.curTool.name);
+		}
+	}
+	window.addEventListener("keydown", handleShift.bind(null, true));
+	window.addEventListener("keyup", handleShift.bind(null, false));
+})();
 
 Tools.send = function (data, toolName) {
 	toolName = toolName || Tools.curTool.name;
@@ -513,7 +534,7 @@ Tools.generateUID = function (prefix, suffix) {
 
 Tools.createSVGElement = function createSVGElement(name, attrs) {
 	var elem = document.createElementNS(Tools.svg.namespaceURI, name);
-	if (typeof(attrs) !== "object") return elem;
+	if (typeof (attrs) !== "object") return elem;
 	Object.keys(attrs).forEach(function (key, i) {
 		elem.setAttributeNS(null, key, attrs[key]);
 	});

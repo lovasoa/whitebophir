@@ -25,11 +25,6 @@
  */
 
 (function () { //Code isolation
-    //Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-    var isCircle = false; // current state: true for a circle, false for an ellipse
-    var isShifted = false; // whether shift is pressed. When it is, the ellipse and circle functions are reversed
-    var icons = ["tools/ellipse/icon-ellipse.svg", "tools/ellipse/icon-circle.svg"];
-    var toolNames = ["Ellipse", "Circle"];
     var curUpdate = { //The data of the message that will be sent for every new point
         'type': 'update',
         'id': "",
@@ -67,10 +62,7 @@
 
     function move(x, y, evt) {
         if (!curUpdate.id) return; // Not currently drawing
-        if (evt) {
-            evt.preventDefault();
-            switchTool(isCircle, evt.shiftKey);
-        }
+        if (evt) evt.preventDefault();
         lastPos.x = x;
         lastPos.y = y;
         doUpdate();
@@ -150,49 +142,26 @@
     }
 
     function drawingCircle() {
-        return !!(isCircle ^ isShifted);
+        return circleTool.secondary.active;
     }
-
-    function toggle() {
-        switchTool(!isCircle, isShifted);
-    }
-
-    // Switch between ellipse and circle
-    function switchTool(switchToCircle, switchtoShifted) {
-        if (isCircle === switchToCircle &&
-            isShifted === switchtoShifted) return; // The tool was already in the correct state
-        isCircle = switchToCircle;
-        isShifted = switchtoShifted;
-        var index = drawingCircle() ? 1 : 0;
-        var elem = document.getElementById("toolID-" + circleTool.name);
-        elem.getElementsByClassName("tool-icon")[0].src = icons[index];
-        elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(toolNames[index]);
-        doUpdate(true);
-    }
-
-    function keyToggle(e) {
-        if (e.keyCode !== 16) return; // 16 = Shift
-        if (e.type === "keydown") switchTool(isCircle, true);
-        if (e.type === "keyup") switchTool(isCircle, false);
-    }
-    keyToggle.target = window;
 
     var circleTool = { //The new tool
-        "name": toolNames[0],
+        "name": "Ellipse",
+        "icon": "tools/ellipse/icon-ellipse.svg",
+        "secondary": {
+            "name": "Circle",
+            "icon": "tools/ellipse/icon-circle.svg",
+            "active": false,
+            "switch": doUpdate,
+        },
         "shortcut": "c",
         "listeners": {
             "press": start,
             "move": move,
             "release": stop,
         },
-        "compiledListeners": {
-            "keydown": keyToggle,
-            "keyup": keyToggle,
-        },
         "draw": draw,
-        "toggle": toggle,
         "mouseCursor": "crosshair",
-        "icon": icons[0],
         "stylesheet": "tools/ellipse/ellipse.css"
     };
     Tools.add(circleTool);
