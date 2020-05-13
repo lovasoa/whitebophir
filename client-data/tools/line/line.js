@@ -26,13 +26,13 @@
 
 (function () { //Code isolation
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
-	var curLineId = "",
+	var curLine = null,
 		lastTime = performance.now(); //The time at which the last point was drawn
 
 	//The data of the message that will be sent for every update
 	function UpdateMessage(x, y) {
 		this.type = 'update';
-		this.id = curLineId;
+		this.id = curLine.id;
 		this.x2 = x;
 		this.y2 = y;
 	}
@@ -42,23 +42,31 @@
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
 
-		curLineId = Tools.generateUID("s"); //"s" for straight line
-
-		Tools.drawAndSend({
+		curLine = {
 			'type': 'straight',
-			'id': curLineId,
+			'id': Tools.generateUID("s"), //"s" for straight line
 			'color': Tools.getColor(),
 			'size': Tools.getSize(),
 			'opacity': Tools.getOpacity(),
 			'x': x,
 			'y': y
-		});
+		}
+
+		Tools.drawAndSend(curLine);
 	}
 
 	function continueLine(x, y, evt) {
 		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
-		if (curLineId !== "") {
+		if (curLine !== null) {
+			if (lineTool.secondary.active) {
+				var alpha = Math.atan2(y - curLine.y, x - curLine.x);
+				var d = Math.hypot(y - curLine.y, x - curLine.x);
+				var increment = 2 * Math.PI / 16;
+				alpha = Math.round(alpha / increment) * increment;
+				x = curLine.x + d * Math.cos(alpha);
+				y = curLine.y + d * Math.sin(alpha);
+			}
 			if (performance.now() - lastTime > 70) {
 				Tools.drawAndSend(new UpdateMessage(x, y));
 				lastTime = performance.now();
@@ -72,7 +80,7 @@
 	function stopLine(x, y) {
 		//Add a last point to the line
 		continueLine(x, y);
-		curLineId = "";
+		curLine = null;
 	}
 
 	function draw(data) {
@@ -120,7 +128,7 @@
 		line.y2.baseVal.value = data['y2'];
 	}
 
-	Tools.add({ //The new tool
+	var lineTool = { //The new tool
 		"name": "Straight line",
 		"shortcut": "l",
 		"listeners": {
@@ -128,10 +136,15 @@
 			"move": continueLine,
 			"release": stopLine,
 		},
+		"secondary": {
+			"name": "Straight line",
+			"icon": "tools/line/icon-straight.svg",
+			"active": false,
+		},
 		"draw": draw,
 		"mouseCursor": "crosshair",
 		"icon": "tools/line/icon.svg",
 		"stylesheet": "tools/line/line.css"
-	});
-
+	};
+	Tools.add(lineTool);
 })(); //End of code isolation
