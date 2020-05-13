@@ -128,7 +128,7 @@
 		line.y2.baseVal.value = data['y2'];
 	}
 
-	var lineTool = { //The new tool
+	var lineTool = {
 		"name": "Straight line",
 		"shortcut": "l",
 		"listeners": {

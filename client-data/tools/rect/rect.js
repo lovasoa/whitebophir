@@ -26,7 +26,7 @@
 
 (function () { //Code isolation
 	//Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-	var end=false,
+	var end = false,
 		curId = "",
 		curUpdate = { //The data of the message that will be sent for every new point
 			'type': 'update',
@@ -66,6 +66,13 @@
 		/*Wait 70ms before adding any point to the currently drawing shape.
 		This allows the animation to be smother*/
 		if (curId !== "") {
+			if (rectangleTool.secondary.active) {
+				var dx = x - curUpdate.x;
+				var dy = y - curUpdate.y;
+				var d = Math.max(Math.abs(dx), Math.abs(dy));
+				x = curUpdate.x + (dx > 0 ? d : -d);
+				y = curUpdate.y + (dy > 0 ? d : -d);
+			}
 			curUpdate['x2'] = x; curUpdate['y2'] = y;
 			if (performance.now() - lastTime > 70 || end) {
 				Tools.drawAndSend(curUpdate);
@@ -79,14 +86,14 @@
 
 	function stop(x, y) {
 		//Add a last point to the shape
-		end=true;
+		end = true;
 		move(x, y);
-		end=false;
+		end = false;
 		curId = "";
 	}
 
 	function draw(data) {
-		Tools.drawingEvent=true;
+		Tools.drawingEvent = true;
 		switch (data.type) {
 			case "rect":
 				createShape(data);
@@ -130,7 +137,7 @@
 		shape.height.baseVal.value = Math.abs(data['y2'] - data['y']);
 	}
 
-	Tools.add({ //The new tool
+	var rectangleTool = {
 		"name": "Rectangle",
 		"shortcut": "r",
 		"listeners": {
@@ -138,10 +145,16 @@
 			"move": move,
 			"release": stop,
 		},
+		"secondary": {
+			"name": "Square",
+			"icon": "tools/rect/icon-square.svg",
+			"active": false,
+		},
 		"draw": draw,
 		"mouseCursor": "crosshair",
 		"icon": "tools/rect/icon.svg",
 		"stylesheet": "tools/rect/rect.css"
-	});
+	};
+	Tools.add(rectangleTool);
 
 })(); //End of code isolation
