@@ -48,9 +48,9 @@
 		Tools.drawAndSend({
 			'type': 'line',
 			'id': curLineId,
-			'color': Tools.getColor(),
+			'color': (pencilTool.secondary.active ? "#ffffff" : Tools.getColor()),
 			'size': Tools.getSize(),
-			'opacity': Tools.getOpacity()
+			'opacity': (pencilTool.secondary.active ? 1 : Tools.getOpacity()),
 		});
 
 		//Immediatly add a point to the line
@@ -67,14 +67,19 @@
 		if (evt) evt.preventDefault();
 	}
 
-	function stopLine(x, y) {
+	function stopLineAt(x, y) {
 		//Add a last point to the line
 		continueLine(x, y);
+		stopLine();
+	}
+
+	function stopLine() {
 		curLineId = "";
 	}
 
 	var renderingLine = {};
 	function draw(data) {
+		Tools.drawingEvent = true;
 		switch (data.type) {
 			case "line":
 				renderingLine = createLine(data);
@@ -126,18 +131,26 @@
 		return line;
 	}
 
-	Tools.add({
+
+	var pencilTool = {
 		"name": "Pencil",
 		"shortcut": "p",
 		"listeners": {
 			"press": startLine,
 			"move": continueLine,
-			"release": stopLine,
+			"release": stopLineAt,
 		},
 		"draw": draw,
+		"secondary": {
+			"name": "White-out",
+			"icon": "tools/pencil/whiteout_tape.svg",
+			"active": false,
+			"switch": stopLine,
+		},
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
 		"icon": "tools/pencil/icon.svg",
 		"stylesheet": "tools/pencil/pencil.css"
-	});
+	};
+	Tools.add(pencilTool);
 
 })(); //End of code isolation
