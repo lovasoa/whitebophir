@@ -69,7 +69,7 @@ const boardTemplate = new templating.BoardTemplate(path.join(config.WEBROOT, 'bo
 const indexTemplate = new templating.Template(path.join(config.WEBROOT, 'index.html'));
 
 function validateBoardName(boardName) {
-	if (/^[\w%\-_~]*$/.test(boardName)) return boardName;
+	if (/^[\w%\-_~()]*$/.test(boardName)) return boardName;
 	throw new Error("Illegal board name: " + boardName);
 }
 
