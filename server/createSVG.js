@@ -3,13 +3,15 @@ const fs = require("./fs_promises.js"),
 	wboPencilPoint = require("../client-data/tools/pencil/wbo_pencil_point.js").wboPencilPoint;
 
 function htmlspecialchars(str) {
-	//Hum, hum... Could do better
 	if (typeof str !== "string") return "";
-	return str.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;")
-		.replace(/'/g, "&#039;");
+
+	return str.replace(/[<>&"']/g, function (c) {
+		switch (c) {
+			case '<': return '&lt;';
+			case '>': return '&gt;';
+			case '&': return '&amp;';
+			case '"': return '&quot;';
+			case "'": return '&#39;'; }});
 }
 
 function renderPath(el, pathstring) {
