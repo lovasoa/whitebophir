@@ -1,10 +1,10 @@
 /**
- *                  WHITEBOPHIR SERVER
+ *					WHITEBOPHIR SERVER
  *********************************************************
  * @licstart  The following is the entire license notice for the 
- *  JavaScript code in this page.
+ *	JavaScript code in this page.
  *
- * Copyright (C) 2013-2014  Ophir LOJKINE
+ * Copyright (C) 2013-2014	Ophir LOJKINE
  *
  *
  * The JavaScript code in this page is free software: you can
@@ -74,11 +74,16 @@ BoardData.prototype.addChild = function (parentId, child) {
  * @param {boolean} create - True if the object should be created if it's not currently in the DB.
 */
 BoardData.prototype.update = function (id, data, create) {
+	delete data.type;
+	delete data.tool;
+
 	var obj = this.board[id];
 	if (typeof obj === "object") {
+		log('update message data', JSON.stringify(data));
 		for (var i in data) {
 			obj[i] = data[i];
 		}
+		log('update message obj', JSON.stringify(obj));
 	} else if (create || obj !== undefined) {
 		this.board[id] = data;
 	}

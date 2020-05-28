@@ -47,7 +47,6 @@
 	var moving = false;
 	var lastTime = performance.now();
 	var coord_screen = { x:0, y:0 };
-	var coord_server = { x:0, y:0 };
 
 	function doNothing() {
 		return typeof(moving) === 'boolean' && !moving;
@@ -58,16 +57,15 @@
 		evt.preventDefault();
 
 		moving = true;
-		coord_screen = { x:x, y:y };
-		coord_server = { x:x, y:y };
-
+		msg = new emptyMsg();
 		move(x, y, evt);
 	}
 
-	var msg = {
-		"type": "update",
-		"id": ""
-	};
+	var msg;
+	function emptyMsg() {
+		this.type = 'update';
+		this.id = '';
+	}
 
 	function inDrawingArea(elem) {
 		return Tools.drawingArea.contains(elem);
@@ -86,6 +84,7 @@
 		}
 
 		if (typeof(moving) === 'boolean' && moving && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
+			coord_screen = { x:x, y:y };
 			msg.id = target.id;
 			moving = svg.getElementById(target.id);
 		}
@@ -94,29 +93,89 @@
 			console.log('moving everything!');
 		} else {
 			if (typeof(moving) === 'object') {
-				console.log(moving);
+				move_one(x,y);
 			}
+		}
+	}
+
+	const get_coord_f= {
+		'rect': function(deltax, deltay) {
+			var x =0| moving.getAttribute('x');
+			var y =0| moving.getAttribute('y');
+			var width =0| moving.getAttribute('width');
+			var height =0| moving.getAttribute('height');
+
+			msg.x = (x + deltax);
+			msg.y = (y + deltay);
+			msg.x2 = (msg.x + width);
+			msg.y2 = (msg.y + height);
+		},
+		'ellipse': function(deltax, deltay) {
+			var cx =0| moving.getAttribute('cx');
+			var cy =0| moving.getAttribute('cy');
+			var rx =0| moving.getAttribute('rx');
+			var ry =0| moving.getAttribute('ry');
+
+			msg.x = (cx - rx + deltax);
+			msg.y = (cy - ry + deltay);
+			msg.x2 = (cx + rx + deltax);
+			msg.y2 = (cy + ry + deltay);
+		}
+	};
+
+	const move_coord_f= {
+		'rect': function(obj, msg) {
+			obj.setAttribute('x', msg.x);
+			obj.setAttribute('y', msg.y);
+		},
+		'ellipse': function (obj, msg) {
+			obj.setAttribute('cx', (msg.x + msg.x2) / 2);
+			obj.setAttribute('cy', (msg.y + msg.y2) / 2);
+		}
+	};
+
+/*
+*/
+
+	function move_one(x, y) {
+		var deltax = x - coord_screen.x;
+		var deltay = y - coord_screen.y;
+		if (deltax === 0  &&  deltay === 0) return;
+
+//		  console.log(moving.nodeName, moving);
+		get_coord_f[moving.nodeName]( deltax, deltay );
+
+		coord_screen = { x:x, y:y };
+
+		var now = performance.now();
+		if (now - lastTime > 70) {
+			lastTime = now;
+			Tools.drawAndSend(msg);
+		} else {
+			draw(msg);
 		}
 	}
 
 	function stopMoving(x, y, evt) {
 		if (doNothing()) return;
 
+		Tools.drawAndSend(msg);
 		moving = false;
 	}
 
-	function draw(data) {
-		var elem;
-		switch (data.type) {
+	function draw(msg) {
+		var obj;
+		switch (msg.type) {
 			case "update":
-				elem = svg.getElementById(data.id);
-				if (elem === null) console.error("Mover: Tried to move an element that does not exist.");
-				else Tools.drawingArea.removeChild(elem);
+				obj = svg.getElementById(msg.id);
+				if (obj == null) return;
+
+				move_coord_f[obj.nodeName](obj, msg);
 				break;
 			default:
 				console.error("Mover: 'move' instruction with unknown type. ", data);
 				break;
-		}
+		} 
 	}
 
 	var svg = Tools.svg;
