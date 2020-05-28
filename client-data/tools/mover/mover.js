@@ -1,8 +1,8 @@
 /**
- *                        WHITEBOPHIR
+ *						  WHITEBOPHIR
  *********************************************************
  * @licstart  The following is the entire license notice for the 
- *  JavaScript code in this page.
+ *	JavaScript code in this page.
  *
  * Copyright (C) 2013  Ophir LOJKINE
  *
@@ -25,18 +25,47 @@
  */
 
 (function mover() { //Code isolation
+	/*
+		typeof(moving) === 'boolean'
+			&&	moving === false
+				do nothing (initial state)
 
+		moverTool.secondary.active === false
+			&&	typeof(moving) === 'boolean'
+			&&	moving === true
+				seeking for an object to move
+
+		moverTool.secondary.active === false
+			&&	typeof(moving) === 'object'
+				moving the object referred in moving
+
+		moverTool.secondary.active === true
+			&&	typeof(moving) === 'boolean'
+			&&	moving === true
+				moving everything
+	*/
 	var moving = false;
+	var lastTime = performance.now();
+	var coord_screen = { x:0, y:0 };
+	var coord_server = { x:0, y:0 };
+
+	function doNothing() {
+		return typeof(moving) === 'boolean' && !moving;
+	}
 
 	function startMoving(x, y, evt) {
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
+
 		moving = true;
+		coord_screen = { x:x, y:y };
+		coord_server = { x:x, y:y };
+
 		move(x, y, evt);
 	}
 
 	var msg = {
-		"type": "delete",
+		"type": "update",
 		"id": ""
 	};
 
@@ -45,6 +74,8 @@
 	}
 
 	function move(x, y, evt) {
+		if (doNothing()) return;
+
 		// evt.target should be the element over which the mouse is...
 		var target = evt.target;
 		if (evt.type === "touchmove") {
@@ -53,20 +84,31 @@
 			var touch = evt.touches[0];
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
-		if (moving && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
+
+		if (typeof(moving) === 'boolean' && moving && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
 			msg.id = target.id;
-			Tools.drawAndSend(msg);
+			moving = svg.getElementById(target.id);
+		}
+
+		if (moverTool.secondary.active) {
+			console.log('moving everything!');
+		} else {
+			if (typeof(moving) === 'object') {
+				console.log(moving);
+			}
 		}
 	}
 
-	function stopMoving() {
+	function stopMoving(x, y, evt) {
+		if (doNothing()) return;
+
 		moving = false;
 	}
 
 	function draw(data) {
 		var elem;
 		switch (data.type) {
-			case "delete":
+			case "update":
 				elem = svg.getElementById(data.id);
 				if (elem === null) console.error("Mover: Tried to move an element that does not exist.");
 				else Tools.drawingArea.removeChild(elem);
@@ -79,7 +121,7 @@
 
 	var svg = Tools.svg;
 
-	Tools.add({ //The new tool
+	var moverTool = { //The new tool
 		"name": "Mover",
 		"shortcut": "m",
 		"listeners": {
@@ -89,13 +131,13 @@
 		},
 		"secondary": {
 			"name": "Mover-all",
-		    "icon": "tools/mover/icon_all.svg",
+			"icon": "tools/mover/icon_all.svg",
 			"active": false
 		},
 		"draw": draw,
 		"icon": "tools/mover/icon_one.svg",
 		"mouseCursor": "move",
 		"showMarker": true,
-	});
-
+	};
+	Tools.add(moverTool);
 })(); //End of code isolation
