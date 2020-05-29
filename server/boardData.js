@@ -74,18 +74,28 @@ BoardData.prototype.addChild = function (parentId, child) {
  * @param {boolean} create - True if the object should be created if it's not currently in the DB.
 */
 BoardData.prototype.update = function (id, data, create) {
+	var pencil_move = data.tool === 'Mover' && data.pencil_move != undefined;
 	delete data.type;
 	delete data.tool;
 
 	var obj = this.board[id];
-	if (typeof obj === "object") {
-		log('update message data', JSON.stringify(data));
-		for (var i in data) {
-			obj[i] = data[i];
+	if (pencil_move) {
+		if (obj._children.length > 0) {
+			var deltax = data.new_x - obj._children[0].x;
+			var deltay = data.new_y - obj._children[0].y;
+			obj._children.forEach( function(e) {
+				e.x += deltax;
+				e.y += deltay;
+			});
 		}
-		log('update message obj', JSON.stringify(obj));
-	} else if (create || obj !== undefined) {
-		this.board[id] = data;
+	} else {
+		if (typeof obj === "object") {
+			for (var i in data) {
+				obj[i] = data[i];
+			}
+		} else if (create || obj !== undefined) {
+			this.board[id] = data;
+		}
 	}
 	this.delaySave();
 };
