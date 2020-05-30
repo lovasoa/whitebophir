@@ -48,7 +48,8 @@
 	*/
 	var moving = false;
 	var lastTime = performance.now();
-	var coord_screen = { x:0, y:0 };
+	var coord_screen = null;
+	var last_msg = new emptyMsg();
 
 	function doNothing() {
 		return typeof(moving) === 'boolean' && !moving;
@@ -59,11 +60,10 @@
 		evt.preventDefault();
 
 		moving = true;
-		msg = new emptyMsg();
+		coord_screen = { x:x, y:y };
 		move(x, y, evt);
 	}
 
-	var msg;
 	function emptyMsg() {
 		this.type = 'update';
 		this.id = '';
@@ -85,77 +85,116 @@
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
 
-		if (typeof(moving) === 'boolean' && moving && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
-			coord_screen = { x:x, y:y };
-			msg.id = target.id;
-			moving = svg.getElementById(target.id);
-		}
-
 		if (moverTool.secondary.active) {
-			console.log('moving everything!');
+			move_everything(x, y);
 		} else {
-			if (typeof(moving) === 'object') {
-				move_one(x,y);
-			}
+			move_one(x,y, target);
 		}
 	}
 
-	const fillout_msg = {
-		'path': function(deltax, deltay) {
-			const path_data = moving.getPathData();
-			if (path_data.length > 0) {
-				msg.pencil_move = 1;
-				msg.new_x = path_data[0].values[0] + deltax;
-				msg.new_y = path_data[0].values[1] + deltay;
-			}
-		},
-		'line': function(deltax, deltay) {
-			var x =0| moving.getAttribute('x1');
-			var y =0| moving.getAttribute('y1');
-			var x2 =0| moving.getAttribute('x2');
-			var y2 =0| moving.getAttribute('y2');
 
-			msg.x = (x + deltax);
-			msg.y = (y + deltay);
-			msg.x2 = (x2 + deltax);
-			msg.y2 = (y2 + deltay);
-		},
-		'rect': function(deltax, deltay) {
-			var x =0| moving.getAttribute('x');
-			var y =0| moving.getAttribute('y');
-			var width =0| moving.getAttribute('width');
-			var height =0| moving.getAttribute('height');
-
-			msg.x = (x + deltax);
-			msg.y = (y + deltay);
-			msg.x2 = (msg.x + width);
-			msg.y2 = (msg.y + height);
-		},
-		'ellipse': function(deltax, deltay) {
-			var cx =0| moving.getAttribute('cx');
-			var cy =0| moving.getAttribute('cy');
-			var rx =0| moving.getAttribute('rx');
-			var ry =0| moving.getAttribute('ry');
-
-			msg.x = (cx - rx + deltax);
-			msg.y = (cy - ry + deltay);
-			msg.x2 = (cx + rx + deltax);
-			msg.y2 = (cy + ry + deltay);
-		},
-		'text': function(deltax, deltay) {
-			var x =0| moving.getAttribute('x');
-			var y =0| moving.getAttribute('y');
-
-			msg.x = (x + deltax);
-			msg.y = (y + deltay);
+	function move_everything(x, y) {
+		if (Tools.drawingArea.children == undefined  ||  Tools.drawingArea.children.length === 0) {
+			return;
 		}
+		var deltax = x - coord_screen.x;
+		var deltay = y - coord_screen.y;
+		if (deltax === 0  &&  deltay === 0) return;
+
+		var now = performance.now();
+		var reference_obj = Tools.drawingArea.children[0];
+
+		var msg = fillout_msg(reference_obj, deltax, deltay);
+		msg.type = 'move_all';
+		last_msg = msg;
+
+		if (now - lastTime > 140) {
+			lastTime = now;
+			Tools.drawAndSend(msg);
+		} else {
+			draw(msg);
+		}
+
+		coord_screen = { x:x, y:y };
+	}
+
+
+	const fillout_msg_table = {
+		'path': function(path, deltax, deltay) {
+			var new_msg = new emptyMsg();
+			const path_data = path.getPathData();
+			if (path_data.length > 0) {
+				new_msg.pencil_move = 1;
+				new_msg.new_x = path_data[0].values[0] + deltax;
+				new_msg.new_y = path_data[0].values[1] + deltay;
+			}
+			return new_msg;
+		},
+		'line': function(line, deltax, deltay) {
+			var new_msg = new emptyMsg();
+			var x =0|  line.getAttribute('x1');
+			var y =0|  line.getAttribute('y1');
+			var x2 =0| line.getAttribute('x2');
+			var y2 =0| line.getAttribute('y2');
+
+			new_msg.x = (x + deltax);
+			new_msg.y = (y + deltay);
+			new_msg.x2 = (x2 + deltax);
+			new_msg.y2 = (y2 + deltay);
+			return new_msg;
+		},
+		'rect': function(rect, deltax, deltay) {
+			var new_msg = new emptyMsg();
+			var x =0| rect.getAttribute('x');
+			var y =0| rect.getAttribute('y');
+			var width =0| rect.getAttribute('width');
+			var height =0| rect.getAttribute('height');
+
+			new_msg.x = (x + deltax);
+			new_msg.y = (y + deltay);
+			new_msg.x2 = (new_msg.x + width);
+			new_msg.y2 = (new_msg.y + height);
+			return new_msg;
+		},
+		'ellipse': function(ellipse, deltax, deltay) {
+			var new_msg = new emptyMsg();
+			var cx =0| ellipse.getAttribute('cx');
+			var cy =0| ellipse.getAttribute('cy');
+			var rx =0| ellipse.getAttribute('rx');
+			var ry =0| ellipse.getAttribute('ry');
+
+			new_msg.x = (cx - rx + deltax);
+			new_msg.y = (cy - ry + deltay);
+			new_msg.x2 = (cx + rx + deltax);
+			new_msg.y2 = (cy + ry + deltay);
+			return new_msg;
+		},
+		'text': function(text, deltax, deltay) {
+			var new_msg = new emptyMsg();
+			var x =0| text.getAttribute('x');
+			var y =0| text.getAttribute('y');
+
+			new_msg.x = (x + deltax);
+			new_msg.y = (y + deltay);
+			return new_msg;
+		}
+	}
+	function fillout_msg(obj, deltax, deltay) {
+		if (fillout_msg_table[obj.nodeName] == undefined) {
+			console.error('Cannot move!', obj.nodeName, obj);
+			return;
+		}
+		var msg = fillout_msg_table[obj.nodeName]( obj, deltax, deltay );
+		msg.id = obj.id;
+
+		return msg;
 	}
 
 	function update_xy(obj, msg) {
 		obj.setAttribute('x', msg.x);
 		obj.setAttribute('y', msg.y);
 	}
-	const move_coord_f = {
+	const move_coord_table = {
 		'line': function(obj, msg) {
 			obj.setAttribute('x1', msg.x);
 			obj.setAttribute('y1', msg.y);
@@ -192,23 +231,29 @@
 			}
 		}
 	};
+	function move_coord(obj, msg) {
+		if (move_coord_table[obj.nodeName] == undefined) {
+			console.error('Cannot update coords!', obj.nodeName, obj);
+			return;
+		}
+		move_coord_table[obj.nodeName](obj, msg);
+	}
 
-/*
-*/
+	function move_one(x, y, target) {
+		if (typeof(moving) === 'boolean' && moving && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
+			coord_screen = { x:x, y:y };
+			moving = svg.getElementById(target.id);
+		}
+		if (typeof(moving) !== 'object') { return; }
 
-	function move_one(x, y) {
 		var deltax = x - coord_screen.x;
 		var deltay = y - coord_screen.y;
 		if (deltax === 0  &&  deltay === 0) return;
 
-		if (fillout_msg[moving.nodeName] == undefined) {
-		  console.log(moving.nodeName, moving);
-		  return;
-		} else {
-			fillout_msg[moving.nodeName]( deltax, deltay );
-		}
-
+		var msg = fillout_msg(moving, deltax, deltay);
+		msg.type = 'update';
 		coord_screen = { x:x, y:y };
+		last_msg = msg;
 
 		var now = performance.now();
 		if (now - lastTime > 70) {
@@ -222,22 +267,72 @@
 	function stopMoving(x, y, evt) {
 		if (doNothing()) return;
 
-		Tools.drawAndSend(msg);
+		Tools.drawAndSend(last_msg);
 		moving = false;
 	}
 
-	function draw(msg) {
+	function use_xy(obj, msg) {
+		var x =0| obj.getAttribute('x');
+		var y =0| obj.getAttribute('y');
+		return { deltax: msg.x - x, deltay: msg.y - y }
+	}
+	const computedelta_table = {
+		'ellipse': function (ellipse, msg) {
+			var cx =0| ellipse.getAttribute('cx');
+			var cy =0| ellipse.getAttribute('cy');
+			return {
+				deltax: (msg.x + msg.x2) / 2 - cx,
+				deltay: (msg.y + msg.y2) / 2 - cy }
+		},
+		'rect': use_xy,
+		'text': use_xy,
+		'line': function(line, msg) {
+			var x1 = line.getAttribute('x1')
+			var y1 = line.getAttribute('y1')
+			return { deltax: msg.x - x1, deltay: msg.y - y1 };
+		},
+		'path': function (path, msg) {
+			const path_data = path.getPathData();
+			if (path_data.length > 0) {
+				return {
+					deltax: msg.new_x - path_data[0].values[0],
+					deltay: msg.new_y - path_data[0].values[1] }
+			}
+			return { deltax: 0, deltay: 0 }
+		}
+	}
+	function computedelta(obj, msg) {
+		if (computedelta_table[obj.nodeName] == undefined) {
+			console.error('Cannot update coords!', obj.nodeName, obj);
+			return { deltax:0, deltay:0 };
+		}
+		return computedelta_table[obj.nodeName](obj, msg);
+	}
+
+	function draw(data) {
 		var obj;
-		switch (msg.type) {
+		switch (data.type) {
 			case "update":
-				obj = svg.getElementById(msg.id);
+				obj = svg.getElementById(data.id);
 				if (obj == null) return;
 
-				if (move_coord_f[obj.nodeName] != undefined)
-					move_coord_f[obj.nodeName](obj, msg);
+				move_coord(obj, data);
 				break;
+
+			case "move_all":
+				obj = svg.getElementById(data.id);
+				if (obj == null) return;
+
+				var delta = computedelta(obj, data);
+				for (var i = 0; i < Tools.drawingArea.children.length; ++i) {
+					var shape = Tools.drawingArea.children[i];
+					var msg = fillout_msg(shape, delta.deltax, delta.deltay);
+					move_coord(shape, msg);
+				}
+				break;
+
 			default:
-				console.error("Mover: 'move' instruction with unknown type. ", data);
+				console.error("Mover: 'move' instruction with unknown type. ", data.type, data);
 				break;
 		} 
 	}
