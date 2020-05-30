@@ -182,11 +182,12 @@
 	function fillout_msg(obj, deltax, deltay) {
 		if (fillout_msg_table[obj.nodeName] == undefined) {
 			console.error('Cannot move!', obj.nodeName, obj);
-			return;
+			var empty = new emptyMsg();
+			empty.id = obj.id;
+			return empty;
 		}
 		var msg = fillout_msg_table[obj.nodeName]( obj, deltax, deltay );
 		msg.id = obj.id;
-
 		return msg;
 	}
 

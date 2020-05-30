@@ -1,10 +1,10 @@
 /**
- *					WHITEBOPHIR SERVER
+ *                  WHITEBOPHIR SERVER
  *********************************************************
  * @licstart  The following is the entire license notice for the 
- *	JavaScript code in this page.
+ *  JavaScript code in this page.
  *
- * Copyright (C) 2013-2014	Ophir LOJKINE
+ * Copyright (C) 2013-2014  Ophir LOJKINE
  *
  *
  * The JavaScript code in this page is free software: you can
@@ -159,9 +159,9 @@ BoardData.prototype.move_all = function (id, data) {
 		}
 		return get_delta_table[obj.type](obj, data);
 	}
-
-	var delta = get_delta(this.board[id], data);
 	var board = this.board;
+
+	var delta = get_delta(board[id], data);
 	Object.keys(board).forEach( function(id) {
 		update(board[id], delta);
 	});
