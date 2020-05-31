@@ -119,10 +119,10 @@
 	}
 
 
-	const fillout_msg_table = {
+	var fillout_msg_table = {
 		'path': function(path, deltax, deltay) {
 			var new_msg = new emptyMsg();
-			const path_data = path.getPathData();
+			var path_data = path.getPathData();
 			if (path_data.length > 0) {
 				new_msg.pencil_move = 1;
 				new_msg.new_x = path_data[0].values[0] + deltax;
@@ -195,7 +195,7 @@
 		obj.setAttribute('x', msg.x);
 		obj.setAttribute('y', msg.y);
 	}
-	const move_coord_table = {
+	var move_coord_table = {
 		'line': function(obj, msg) {
 			obj.setAttribute('x1', msg.x);
 			obj.setAttribute('y1', msg.y);
@@ -211,15 +211,15 @@
 		'path': function (obj, msg) {
 			if (msg.pencil_move == undefined) return;
 
-			const path_data = obj.getPathData();
+			var path_data = obj.getPathData();
 			if (path_data.length > 0) {
 				var deltax = msg.new_x - path_data[0].values[0];
 				var deltay = msg.new_y - path_data[0].values[1];
 
-				for (let i = 0; i < path_data.length; ++i) {
-					const child = path_data[i];
-					let even = true;
-					for (let j = 0; j < child.values.length; ++j) {
+				for (var i = 0; i < path_data.length; ++i) {
+					var child = path_data[i];
+					var even = true;
+					for (var j = 0; j < child.values.length; ++j) {
 						if (even) {
 							child.values[j] += deltax;
 						} else {
@@ -277,7 +277,7 @@
 		var y =0| obj.getAttribute('y');
 		return { deltax: msg.x - x, deltay: msg.y - y }
 	}
-	const computedelta_table = {
+	var computedelta_table = {
 		'ellipse': function (ellipse, msg) {
 			var cx =0| ellipse.getAttribute('cx');
 			var cy =0| ellipse.getAttribute('cy');
@@ -293,7 +293,7 @@
 			return { deltax: msg.x - x1, deltay: msg.y - y1 };
 		},
 		'path': function (path, msg) {
-			const path_data = path.getPathData();
+			var path_data = path.getPathData();
 			if (path_data.length > 0) {
 				return {
 					deltax: msg.new_x - path_data[0].values[0],
