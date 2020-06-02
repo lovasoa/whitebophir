@@ -64,10 +64,6 @@
 		move(x, y, evt);
 	}
 
-	var msg = {
-		"type": "update",
-		"id": ""
-	};
 
 	function inDrawingArea(elem) {
 		return Tools.drawingArea.contains(elem);
@@ -85,24 +81,56 @@
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
 
-		if (typeof(moving) === 'boolean' && moving && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
-			msg.id = target.id;
-			moving = svg.getElementById(target.id);
-		}
-
 		if (moverTool.secondary.active) {
-			console.log('moving everything!');
+			move_everything(x,y);
 		} else {
-			if (typeof(moving) === 'object') {
-				console.log(moving);
-			}
+			mode_one(x,y,target);
 		}
+	}
+
+	function move_everything(x,y) {
+		console.log('moving everything!');
+	}
+
+	function mode_one(x,y,target) {
+		if (typeof(moving) === 'boolean' && moving && target !== svg && target !== Tools.drawingArea && inDrawingArea(target)) {
+			moving = svg.getElementById(target.id);
+			coord_screen = { x:x, y:y };
+			coord_server = { x:x, y:y };
+		}
+		if (typeof(moving) !== 'object') return;
+
+		deltax = x - coord_screen.x;
+		deltay = y - coord_screen.y;
+		if (deltax === 0  &&  deltay === 0) return
+
+		console.log({ deltax:deltax, deltay:deltay, id: moving.id, type: "update" });
+		draw({ deltax:deltax, deltay:deltay, id: moving.id, type: "update" });
+		coord_screen = { x:x, y:y };
 	}
 
 	function stopMoving(x, y, evt) {
 		if (doNothing()) return;
-
 		moving = false;
+	}
+
+	function shift(elem, deltax, deltay) {
+		var translate = null;
+		for (var i=0; i < elem.transform.baseVal.numberOfItems; ++i) {
+			var baseVal = elem.transform.baseVal[i];
+		    if (baseVal.type === SVGTransform.SVG_TRANSFORM_TRANSLATE  ||  baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
+				translate = baseVal;
+			}
+		}
+		if (translate != null) {
+			deltax += translate.matrix.e;
+			deltay += translate.matrix.f;
+		} else {
+			translate = elem.transform.baseVal.createSVGTransformFromMatrix(svg.createSVGMatrix());
+			elem.transform.baseVal.appendItem(translate);
+		}
+		translate.matrix.e = deltax;
+		translate.matrix.f = deltay;
 	}
 
 	function draw(data) {
@@ -110,8 +138,11 @@
 		switch (data.type) {
 			case "update":
 				elem = svg.getElementById(data.id);
-				if (elem === null) console.error("Mover: Tried to move an element that does not exist.");
-				else Tools.drawingArea.removeChild(elem);
+				if (elem == null) {
+					console.error("Mover: Tried to move an element that does not exist.");
+					return;
+				}
+				shift(elem, data.deltax, data.deltay);
 				break;
 			default:
 				console.error("Mover: 'move' instruction with unknown type. ", data);
