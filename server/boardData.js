@@ -70,101 +70,18 @@ BoardData.prototype.addChild = function (parentId, child) {
 
 /** Update the data in the board
  * @param {string} id - Identifier of the data to update.
- * @param {object} data - Object containing the values to update.
+ * @param {object} data - Object containing the the values to update.
  * @param {boolean} create - True if the object should be created if it's not currently in the DB.
- * The move of pencils is treated differently
 */
 BoardData.prototype.update = function (id, data, create) {
-	var pencil_move = data.tool === 'Mover' && data.pencil_move != undefined;
-	delete data.type;
-	delete data.tool;
-
 	var obj = this.board[id];
-	if (pencil_move) {
-		if (obj._children.length > 0) {
-			var deltax = data.new_x - obj._children[0].x;
-			var deltay = data.new_y - obj._children[0].y;
-			obj._children.forEach( function(e) {
-				e.x += deltax;
-				e.y += deltay;
-			});
+	if (typeof obj === "object") {
+		for (var i in data) {
+			obj[i] = data[i];
 		}
-	} else {
-		if (typeof obj === "object") {
-			for (var i in data) {
-				obj[i] = data[i];
-			}
-		} else if (create || obj !== undefined) {
-			this.board[id] = data;
-		}
+	} else if (create || obj !== undefined) {
+		this.board[id] = data;
 	}
-	this.delaySave();
-};
-
-
-/** Move all the elements of the board.
- * @param {string} id - Identifier of object with the new position
- * @param {object} data - Object containing the new positions
- * All object will moved as the movement requested for id
-*/
-BoardData.prototype.move_all = function (id, data) {
-	function update_xy_x2y2(obj, d) {
-		obj.x += d.deltax;
-		obj.x2 += d.deltax;
-		obj.y += d.deltay;
-		obj.y2 += d.deltay;
-	}
-	var update_table = {
-		'straight': update_xy_x2y2,
-		'rect': update_xy_x2y2,
-		'ellipse': update_xy_x2y2,
-		'new': function(text, d) {
-			text.x += d.deltax;
-			text.y += d.deltay;
-		},
-		'line': function(line, d) {
-			line._children.forEach( function(e) {
-				e.x += d.deltax;
-				e.y += d.deltay;
-			});
-		}
-	}
-	function update(shape, delta) {
-		if (update_table[shape.type] == undefined) {
-			log("Cannot update coord of " + shape.type);
-            return;
-		}
-		update_table[shape.type](shape, delta);
-	}
-	function get_delta_xy(obj, data) {
-		return { deltax: data.x - obj.x, deltay: data.y - obj.y }
-	}
-	var get_delta_table = {
-		'straight': get_delta_xy,
-		'rect': get_delta_xy,
-		'ellipse': get_delta_xy,
-		'new': get_delta_xy,
-		'line': function(line, data) {
-			if (line._children.length > 0) {
-				return { deltax: data.new_x - line._children[0].x,
-					deltay: data.new_y - line._children[0].y }
-			}
-			return { deltax: 0, deltay: 0 }
-		}
-	}
-	function get_delta(obj, data) {
-		if (get_delta_table[obj.type] == undefined) {
-			log('Cannot get delta from ' + obj.type);
-			return { deltax: 0, deltay: 0 }
-		}
-		return get_delta_table[obj.type](obj, data);
-	}
-	var board = this.board;
-
-	var delta = get_delta(board[id], data);
-	Object.keys(board).forEach( function(id) {
-		update(board[id], delta);
-	});
 	this.delaySave();
 };
 
