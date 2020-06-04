@@ -124,26 +124,10 @@
 	}
 
 	function make_msg(elem, deltax, deltay) {
-		var tmatrix = get_tmatrix(elem);
+		var tmatrix = Tools.getTranslateMatrix(elem);
 		return { type: "update", id: elem.id, deltax: deltax + tmatrix.e, deltay: deltay + tmatrix.f };
 	}
 
-	function get_tmatrix(elem) {
-		// We assume there is one or no transformation matrices
-		var translate = null;
-		for (var i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
-			var baseVal = elem.transform.baseVal[i];
-		    if (baseVal.type === SVGTransform.SVG_TRANSFORM_TRANSLATE  ||  baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
-				translate = baseVal;
-				break;
-			}
-		}
-		if (translate == null) {
-			translate = elem.transform.baseVal.createSVGTransformFromMatrix(svg.createSVGMatrix());
-			elem.transform.baseVal.appendItem(translate);
-		}
-		return translate.matrix;
-	}
 
 	function draw(data) {
 		var elem;
@@ -155,7 +139,7 @@
 					return;
 				}
 
-				var tmatrix = get_tmatrix(elem);
+				var tmatrix = Tools.getTranslateMatrix(elem);
 				tmatrix.e = data.deltax ||0;
 				tmatrix.f = data.deltay ||0;
 
