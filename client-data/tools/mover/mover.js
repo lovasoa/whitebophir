@@ -46,8 +46,8 @@
 	*/
 	var moving = false;
 	var lastTime = performance.now();
-	var coord_screen = { x:0, y:0 };
-	var coord_server = { x:0, y:0 };
+	var coord = { x:0, y:0 };
+	var last_sent = 0;
 
 	function doNothing() {
 		return typeof(moving) === 'boolean' && !moving;
@@ -58,8 +58,7 @@
 		evt.preventDefault();
 
 		moving = true;
-		coord_screen = { x:x, y:y };
-		coord_server = { x:x, y:y };
+		coord = { x:x, y:y };
 
 		move(x, y, evt);
 	}
@@ -95,42 +94,55 @@
 	function mode_one(x,y,target) {
 		if (typeof(moving) === 'boolean' && moving && target !== svg && target !== Tools.drawingArea && inDrawingArea(target)) {
 			moving = svg.getElementById(target.id);
-			coord_screen = { x:x, y:y };
-			coord_server = { x:x, y:y };
+			coord = { x:x, y:y };
 		}
 		if (typeof(moving) !== 'object') return;
 
-		deltax = x - coord_screen.x;
-		deltay = y - coord_screen.y;
+		deltax = x - coord.x;
+		deltay = y - coord.y;
 		if (deltax === 0  &&  deltay === 0) return
+		coord = { x:x, y:y };
 
-		console.log({ deltax:deltax, deltay:deltay, id: moving.id, type: "update" });
-		draw({ deltax:deltax, deltay:deltay, id: moving.id, type: "update" });
-		coord_screen = { x:x, y:y };
+		var msg = make_msg(moving, deltax, deltay);
+
+		var now = performance.now();
+		if (now - last_sent > 70) {
+			last_sent = now;
+			Tools.drawAndSend(msg);
+		} else {
+			draw(msg);
+		}
 	}
 
 	function stopMoving(x, y, evt) {
 		if (doNothing()) return;
+		deltax = x - coord.x;
+		deltay = y - coord.y;
+		Tools.drawAndSend(make_msg(moving, deltax, deltay));
+
 		moving = false;
 	}
 
-	function shift(elem, deltax, deltay) {
+	function make_msg(elem, deltax, deltay) {
+		var tmatrix = get_tmatrix(elem);
+		return { type: "update", id: elem.id, deltax: deltax + tmatrix.e, deltay: deltay + tmatrix.f };
+	}
+
+	function get_tmatrix(elem) {
+		// We assume there is one or no transformation matrices
 		var translate = null;
-		for (var i=0; i < elem.transform.baseVal.numberOfItems; ++i) {
+		for (var i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
 			var baseVal = elem.transform.baseVal[i];
 		    if (baseVal.type === SVGTransform.SVG_TRANSFORM_TRANSLATE  ||  baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
 				translate = baseVal;
+				break;
 			}
 		}
-		if (translate != null) {
-			deltax += translate.matrix.e;
-			deltay += translate.matrix.f;
-		} else {
+		if (translate == null) {
 			translate = elem.transform.baseVal.createSVGTransformFromMatrix(svg.createSVGMatrix());
 			elem.transform.baseVal.appendItem(translate);
 		}
-		translate.matrix.e = deltax;
-		translate.matrix.f = deltay;
+		return translate.matrix;
 	}
 
 	function draw(data) {
@@ -142,7 +154,11 @@
 					console.error("Mover: Tried to move an element that does not exist.");
 					return;
 				}
-				shift(elem, data.deltax, data.deltay);
+
+				var tmatrix = get_tmatrix(elem);
+				tmatrix.e = data.deltax ||0;
+				tmatrix.f = data.deltay ||0;
+
 				break;
 			default:
 				console.error("Mover: 'move' instruction with unknown type. ", data);

@@ -74,6 +74,9 @@ BoardData.prototype.addChild = function (parentId, child) {
  * @param {boolean} create - True if the object should be created if it's not currently in the DB.
 */
 BoardData.prototype.update = function (id, data, create) {
+	delete data.type;
+	delete data.tool;
+
 	var obj = this.board[id];
 	if (typeof obj === "object") {
 		for (var i in data) {
