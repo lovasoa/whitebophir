@@ -197,6 +197,11 @@
 		elem.setAttribute("fill", fieldData.color);
 		elem.setAttribute("opacity", Math.max(0.1, Math.min(1, fieldData.opacity)) || 1);
 		if (fieldData.txt) elem.textContent = fieldData.txt;
+		if (fieldData.deltax != undefined  ||  fieldData.deltay != undefined) {
+			var tmatrix = Tools.getTranslateMatrix(elem);
+			tmatrix.e = fieldData.deltax ||0;
+			tmatrix.f = fieldData.deltay ||0;
+		}
 		Tools.drawingArea.appendChild(elem);
 		return elem;
 	}

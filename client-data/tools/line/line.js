@@ -119,6 +119,11 @@
 		line.setAttribute("stroke", lineData.color || "black");
 		line.setAttribute("stroke-width", lineData.size || 10);
 		line.setAttribute("opacity", Math.max(0.1, Math.min(1, lineData.opacity)) || 1);
+		if (lineData.deltax != undefined  ||  lineData.deltay != undefined) {
+			var tmatrix = Tools.getTranslateMatrix(line);
+			tmatrix.e = lineData.deltax ||0;
+			tmatrix.f = lineData.deltay ||0;
+		}
 		Tools.drawingArea.appendChild(line);
 		return line;
 	}

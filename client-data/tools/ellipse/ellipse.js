@@ -142,6 +142,11 @@
         shape.cy.baseVal.value = Math.round((data['y2'] + data['y']) / 2);
         shape.rx.baseVal.value = Math.abs(data['x2'] - data['x']) / 2;
         shape.ry.baseVal.value = Math.abs(data['y2'] - data['y']) / 2;
+        if (data.deltax != undefined  ||  data.deltay != undefined) {
+            var tmatrix = Tools.getTranslateMatrix(shape);
+            tmatrix.e = data.deltax ||0;
+            tmatrix.f = data.deltay ||0;
+        }
     }
 
     function drawingCircle() {

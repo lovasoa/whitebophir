@@ -135,6 +135,11 @@
 		shape.y.baseVal.value = Math.min(data['y2'], data['y']);
 		shape.width.baseVal.value = Math.abs(data['x2'] - data['x']);
 		shape.height.baseVal.value = Math.abs(data['y2'] - data['y']);
+		if (data.deltax != undefined  ||  data.deltay != undefined) {
+			var tmatrix = Tools.getTranslateMatrix(shape);
+			tmatrix.e = data.deltax ||0;
+			tmatrix.f = data.deltay ||0;
+		}
 	}
 
 	var rectangleTool = {
