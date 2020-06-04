@@ -89,7 +89,7 @@ BoardData.prototype.update = function (id, data, create) {
 };
 
 /** Moves all shapes in the board of the same amount of a reference shape
- * @param {string} id - Identifier of the shape reference shape
+ * @param {string} id - Identifier of the reference shape
  * @param {object} data - Object containing the new deltax and deltax of the reference
 */
 BoardData.prototype.move_all = function (id, data) {

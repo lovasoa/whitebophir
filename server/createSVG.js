@@ -23,7 +23,7 @@ function renderPath(el, pathstring) {
 			('opacity="' + parseFloat(el.opacity) + '" ') : '') +
 		'stroke="' + htmlspecialchars(el.color) + '" ' +
 		'd="' + pathstring + '" ' +
-		el.deltax || el.deltay ?( 'transform="translate(' + el.deltax||0 + ',' + el.deltay||0 + ")"): '' +
+		(el.deltax || el.deltay ?( 'transform="translate(' + (el.deltax||0) + ',' + (el.deltay||0) + ')"'): '' ) +
 		'/>';
 }
 
@@ -38,7 +38,7 @@ const Tools = {
 			'y="' + (el.y | 0) + '" ' +
 			'font-size="' + (el.size | 0) + '" ' +
 			'fill="' + htmlspecialchars(el.color || "#000") + '" ' +
-			el.deltax || el.deltay ?( 'transform="translate(' + el.deltax||0 + ',' + el.deltay||0 + ")"): '' +
+			(el.deltax || el.deltay ?( 'transform="translate(' + (el.deltax||0) + ',' + (el.deltay||0) + ')"'): '' ) +
 			'>' + htmlspecialchars(el.txt || "") + '</text>';
 	},
 	/**
@@ -67,7 +67,7 @@ const Tools = {
 			'height="' + (el.y2 - el.y) + '" ' +
 			'stroke="' + htmlspecialchars(el.color) + '" ' +
 			'stroke-width="' + (el.size | 0) + '" ' +
-			el.deltax || el.deltay ?( 'transform="translate(' + el.deltax||0 + ',' + el.deltay||0 + ")"): '' +
+			(el.deltax || el.deltay ?( 'transform="translate(' + (el.deltax||0) + ',' + (el.deltay||0) + ')"'): '' )+
 			'/>';
 	},
 	/**
