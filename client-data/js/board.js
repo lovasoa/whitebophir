@@ -314,6 +314,15 @@ Tools.pendingMessages = {};
 function messageForTool(message) {
 	var name = message.tool,
 		tool = Tools.list[name];
+
+	var mover_message = null;
+	if (message.tool !== 'Mover'  &&  message.id != undefined  &&  (message.deltax != undefined  ||  message.deltay != undefined)) {
+		//this message has special info for the mover
+		mover_message = { tool: 'Mover', type: 'update', deltax: message.deltax||0, deltay: message.deltay||0, id: message.id };
+		delete message.deltax;
+		delete message.deltay;
+	}
+
 	if (tool) {
 		Tools.applyHooks(Tools.messageHooks, message);
 		tool.draw(message, false);
@@ -322,6 +331,10 @@ function messageForTool(message) {
 		//So we add it to the pending messages
 		if (!Tools.pendingMessages[name]) Tools.pendingMessages[name] = [message];
 		else Tools.pendingMessages[name].push(message);
+	}
+
+	if (mover_message != null) {
+		messageForTool(mover_message);
 	}
 }
 
@@ -612,24 +625,6 @@ Tools.getOpacity = (function opacity() {
 	};
 })();
 
-Tools.getTranslateMatrix = (function(elem) {
-	// Returns the first translate or transform matrix or makes one
-	var translate = null;
-	for (var i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
-		var baseVal = elem.transform.baseVal[i];
-		// quick tests shown that even if one changes only the fields e and f or uses createSVGTransformFromMatrix
-		// the brower may add a SVG_TRANSFORM_MATRIX instead of a SVG_TRANSFORM_TRANSLATE
-		if (baseVal.type === SVGTransform.SVG_TRANSFORM_TRANSLATE  ||  baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
-			translate = baseVal;
-			break;
-		}
-	}
-	if (translate == null) {
-		translate = elem.transform.baseVal.createSVGTransformFromMatrix(Tools.svg.createSVGMatrix());
-		elem.transform.baseVal.appendItem(translate);
-	}
-	return translate.matrix;
-});
 
 //Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;

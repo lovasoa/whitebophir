@@ -138,9 +138,28 @@
 	}
 
 	function make_msg(elem, shiftx, shifty, type) {
-		var tmatrix = Tools.getTranslateMatrix(elem);
+		var tmatrix = get_translate_matrix(elem);
 		return { type: type, id: elem.id, deltax: shiftx + tmatrix.e, deltay: shifty + tmatrix.f };
 	}
+
+    function get_translate_matrix(elem) {
+    	// Returns the first translate or transform matrix or makes one
+    	var translate = null;
+    	for (var i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
+    		var baseVal = elem.transform.baseVal[i];
+    		// quick tests shown that even if one changes only the fields e and f or uses createSVGTransformFromMatrix
+    		// the brower may add a SVG_TRANSFORM_MATRIX instead of a SVG_TRANSFORM_TRANSLATE
+    		if (baseVal.type === SVGTransform.SVG_TRANSFORM_TRANSLATE  ||  baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
+    			translate = baseVal;
+    			break;
+    		}
+    	}
+    	if (translate == null) {
+    		translate = elem.transform.baseVal.createSVGTransformFromMatrix(Tools.svg.createSVGMatrix());
+    		elem.transform.baseVal.appendItem(translate);
+    	}
+    	return translate.matrix;
+    }
 
 	function draw(data) {
 		var elem;
@@ -152,10 +171,9 @@
 					return;
 				}
 
-				var tmatrix = Tools.getTranslateMatrix(elem);
+				var tmatrix = get_translate_matrix(elem);
 				tmatrix.e = data.deltax||0;
 				tmatrix.f = data.deltay||0;
-
 				break;
 
 			case "move-all":
@@ -165,13 +183,13 @@
 					return;
 				}
 
-				var tmatrix = Tools.getTranslateMatrix(elem);
+				var tmatrix = get_translate_matrix(elem);
 				var shiftx = (data.deltax||0) - tmatrix.e;
 				var shifty = (data.deltay||0) - tmatrix.f;
 
 				for (var i = 0; i < Tools.drawingArea.children.length; ++i) {
 					var obj = Tools.drawingArea.children[i];
-					tmatrix = Tools.getTranslateMatrix(obj);
+					tmatrix = get_translate_matrix(obj);
 					tmatrix.e += shiftx;
 					tmatrix.f += shifty;
 				}
