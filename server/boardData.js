@@ -70,7 +70,7 @@ BoardData.prototype.addChild = function (parentId, child) {
 
 /** Update the data in the board
  * @param {string} id - Identifier of the data to update.
- * @param {object} data - Object containing the the values to update.
+ * @param {object} data - Object containing the values to update.
  * @param {boolean} create - True if the object should be created if it's not currently in the DB.
 */
 BoardData.prototype.update = function (id, data, create) {
@@ -84,6 +84,27 @@ BoardData.prototype.update = function (id, data, create) {
 		}
 	} else if (create || obj !== undefined) {
 		this.board[id] = data;
+	}
+	this.delaySave();
+};
+
+/** Moves all shapes in the board of the same amount of a reference shape
+ * @param {string} id - Identifier of the shape reference shape
+ * @param {object} data - Object containing the new deltax and deltax of the reference
+*/
+BoardData.prototype.move_all = function (id, data) {
+	var obj = this.board[id];
+	if (typeof obj === "object") {
+		var shiftx = data.deltax - (obj.deltax||0);
+		var shifty = data.deltay - (obj.deltay||0);
+
+		for (var cid of Object.keys(this.board)) {
+			obj = this.board[cid];
+			if (typeof obj === "object") {
+				obj.deltax = shiftx + (obj.deltax||0);
+				obj.deltay = shifty + (obj.deltay||0);
+			}
+		}
 	}
 	this.delaySave();
 };

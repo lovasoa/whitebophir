@@ -49,9 +49,6 @@
 	var coord = { x:0, y:0 };
 	var last_sent = 0;
 
-	function doNothing() {
-		return typeof(moving) === 'boolean' && !moving;
-	}
 
 	function startMoving(x, y, evt) {
 		//Prevent the press from being interpreted by the browser
@@ -69,7 +66,7 @@
 	}
 
 	function move(x, y, evt) {
-		if (doNothing()) return;
+		if (typeof(moving) === 'boolean' && !moving) return;
 
 		// evt.target should be the element over which the mouse is...
 		var target = evt.target;
@@ -81,30 +78,38 @@
 		}
 
 		if (moverTool.secondary.active) {
-			move_everything(x,y);
+			move_everything(x, y);
 		} else {
-			mode_one(x,y,target);
+			move_one(x, y, target);
 		}
 	}
 
-	function move_everything(x,y) {
-		console.log('moving everything!');
-	}
-
-	function mode_one(x,y,target) {
+	function move_one(x,y,target) {
 		if (typeof(moving) === 'boolean' && moving && target !== svg && target !== Tools.drawingArea && inDrawingArea(target)) {
 			moving = svg.getElementById(target.id);
 			coord = { x:x, y:y };
 		}
 		if (typeof(moving) !== 'object') return;
 
-		deltax = x - coord.x;
-		deltay = y - coord.y;
-		if (deltax === 0  &&  deltay === 0) return
+		send_message(x, y, 'update');
+	}
+
+	function move_everything(x,y) {
+		if (Tools.drawingArea.children == undefined  ||  Tools.drawingArea.children.length === 0) {
+			return;
+		}
+
+		moving = Tools.drawingArea.children[0];
+		send_message(x, y, 'move-all');
+	}
+
+	function send_message(x,y, message_type) {
+		var shiftx = x - coord.x;
+		var shifty = y - coord.y;
+		if (shiftx === 0  &&  shifty === 0) return
 		coord = { x:x, y:y };
 
-		var msg = make_msg(moving, deltax, deltay);
-
+		var msg = make_msg(moving, shiftx, shifty, message_type);
 		var now = performance.now();
 		if (now - last_sent > 70) {
 			last_sent = now;
@@ -115,19 +120,22 @@
 	}
 
 	function stopMoving(x, y, evt) {
-		if (doNothing()) return;
-		deltax = x - coord.x;
-		deltay = y - coord.y;
-		Tools.drawAndSend(make_msg(moving, deltax, deltay));
-
+		if (typeof(moving) === 'object') {
+			var shiftx = x - coord.x;
+			var shifty = y - coord.y;
+			if (moverTool.secondary.active) {
+			    Tools.drawAndSend(make_msg(moving, shiftx, shifty, 'move-all'));
+			} else {
+			    Tools.drawAndSend(make_msg(moving, shiftx, shifty, 'update'));
+			}
+		}
 		moving = false;
 	}
 
-	function make_msg(elem, deltax, deltay) {
+	function make_msg(elem, shiftx, shifty, type) {
 		var tmatrix = Tools.getTranslateMatrix(elem);
-		return { type: "update", id: elem.id, deltax: deltax + tmatrix.e, deltay: deltay + tmatrix.f };
+		return { type: type, id: elem.id, deltax: shiftx + tmatrix.e, deltay: shifty + tmatrix.f };
 	}
-
 
 	function draw(data) {
 		var elem;
@@ -140,8 +148,28 @@
 				}
 
 				var tmatrix = Tools.getTranslateMatrix(elem);
-				tmatrix.e = data.deltax ||0;
-				tmatrix.f = data.deltay ||0;
+				tmatrix.e = data.deltax||0;
+				tmatrix.f = data.deltay||0;
+
+				break;
+
+			case "move-all":
+				elem = svg.getElementById(data.id);
+				if (elem == null) {
+					console.error("Mover: Tried to move everything using an element that does not exist.");
+					return;
+				}
+
+				var tmatrix = Tools.getTranslateMatrix(elem);
+				var shiftx = (data.deltax||0) - tmatrix.e;
+				var shifty = (data.deltay||0) - tmatrix.f;
+
+				for (var i = 0; i < Tools.drawingArea.children.length; ++i) {
+					var obj = Tools.drawingArea.children[i];
+					tmatrix = Tools.getTranslateMatrix(obj);
+					tmatrix.e += shiftx;
+					tmatrix.f += shifty;
+				}
 
 				break;
 			default:
