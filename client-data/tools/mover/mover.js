@@ -27,23 +27,28 @@
 (function mover() { //Code isolation
 	/*
 		typeof(moving) === 'boolean'
-			&&	moving === false
+			&& moving === false
 				do nothing (initial state)
 
 		moverTool.secondary.active === false
-			&&	typeof(moving) === 'boolean'
-			&&	moving === true
+			&& typeof(moving) === 'boolean'
+			&& moving === true
 				seeking for an object to move
 
 		moverTool.secondary.active === false
-			&&	typeof(moving) === 'object'
+			&& typeof(moving) === 'object'
 				moving the object referred in moving
 
 		moverTool.secondary.active === true
-			&&	typeof(moving) === 'boolean'
-			&&	moving === true
-				moving everything
+			&& typeof(moving) === 'boolean'
+			&& moving === true
+				trying to move everything but nothing is on the board
+
+		moverTool.secondary.active === true
+			&& typeof(moving) === 'object'
+				move everything using the shape in moving as reference
 	*/
+
 	var moving = false;
 	var lastTime = performance.now();
 	var coord = { x:0, y:0 };
