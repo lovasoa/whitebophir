@@ -142,9 +142,6 @@ async function saveHistory(boardName, message) {
 		case "update":
 			if (id) board.update(id, message);
 			break;
-		case "move-all":
-			if (id) board.move_all(id, message);
-			break;
 		case "child":
 			board.addChild(message.parent, message);
 			break;
