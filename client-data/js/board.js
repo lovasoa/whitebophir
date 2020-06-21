@@ -315,14 +315,6 @@ function messageForTool(message) {
 	var name = message.tool,
 		tool = Tools.list[name];
 
-	var mover_message = null;
-	if (message.tool !== 'Mover'  &&  message.id != undefined  &&  (message.deltax != undefined  ||  message.deltay != undefined)) {
-		//this message has special info for the mover
-		mover_message = { tool: 'Mover', type: 'update', deltax: message.deltax||0, deltay: message.deltay||0, id: message.id };
-		delete message.deltax;
-		delete message.deltay;
-	}
-
 	if (tool) {
 		Tools.applyHooks(Tools.messageHooks, message);
 		tool.draw(message, false);
@@ -333,8 +325,9 @@ function messageForTool(message) {
 		else Tools.pendingMessages[name].push(message);
 	}
 
-	if (mover_message != null) {
-		messageForTool(mover_message);
+	if (message.tool !== 'Hand' && message.deltax != null && message.deltay != null) {
+		//this message has special info for the mover
+		messageForTool({ tool: 'Hand', type: 'update', deltax: message.deltax || 0, deltay: message.deltay || 0, id: message.id });
 	}
 }
 
