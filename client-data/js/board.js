@@ -314,6 +314,7 @@ Tools.pendingMessages = {};
 function messageForTool(message) {
 	var name = message.tool,
 		tool = Tools.list[name];
+
 	if (tool) {
 		Tools.applyHooks(Tools.messageHooks, message);
 		tool.draw(message, false);
@@ -322,6 +323,11 @@ function messageForTool(message) {
 		//So we add it to the pending messages
 		if (!Tools.pendingMessages[name]) Tools.pendingMessages[name] = [message];
 		else Tools.pendingMessages[name].push(message);
+	}
+
+	if (message.tool !== 'Hand' && message.deltax != null && message.deltay != null) {
+		//this message has special info for the mover
+		messageForTool({ tool: 'Hand', type: 'update', deltax: message.deltax || 0, deltay: message.deltay || 0, id: message.id });
 	}
 }
 
@@ -611,6 +617,7 @@ Tools.getOpacity = (function opacity() {
 		return Math.max(0.1, Math.min(1, chooser.value));
 	};
 })();
+
 
 //Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;
