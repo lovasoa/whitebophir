@@ -99,7 +99,7 @@
 			"release": stopMoving,
 		},
 		"draw": draw,
-		"icon": "tools/mover/icon_one.svg",
+		"icon": "tools/mover/icon.svg",
 		"mouseCursor": "move",
 		"showMarker": true,
 	};
