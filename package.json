@@ -1,7 +1,7 @@
 {
    "name": "whitebophir",
    "description": "Online collaborative whiteboard",
-   "version": "1.6.0",
+   "version": "1.6.1",
    "keywords": [
       "collaborative",
       "whiteboard"
@@ -10,7 +10,7 @@
    "dependencies": {
       "accept-language-parser": "^1.5.0",
       "handlebars": "^4.7.6",
-      "polyfill-library": "^3.92.0",
+      "polyfill-library": "^3.95.0",
       "serve-static": "^1.14.1",
       "socket.io": "^2.3.0"
    },
@@ -25,6 +25,6 @@
    },
    "devDependencies": {
       "geckodriver": "^1.19.1",
-      "nightwatch": "^1.3.5"
+      "nightwatch": "^1.3.6"
    }
 }
