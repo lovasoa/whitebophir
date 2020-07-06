@@ -2,7 +2,7 @@
     "en": {
         "hand": "Hand",
         "loading": "Loading",
-        "tagline": "A free and opensource online collaborative drawing tool. Sketch new ideas together on WBO !",
+        "tagline": "A free and open-source online collaborative drawing tool. Sketch new ideas together on WBO!",
         "configuration": "Configuration",
         "collaborative_whiteboard": "Collaborative whiteboard",
         "size": "Size",
@@ -21,21 +21,21 @@
         "grid": "Grid",
         "click_to_zoom": "Click to zoom in\nPress shift and click to zoom out",
         "keyboard_shortcut": "keyboard shortcut",
-        "mousewheel": "mousewheel",
+        "mousewheel": "mouse wheel",
         "opacity": "Opacity",
         "color": "Color",
         "eraser": "Eraser",
         "White-out": "White-out",
-        "index_title": "Welcome to the free online whiteboard WBO !",
+        "index_title": "Welcome to the free online whiteboard WBO!",
         "introduction_paragraph": "WBO is a <a href=\"https://github.com/lovasoa/whitebophir\" title=\"Free as in free speech, not free beer. This software is released under the GPL license\">free and open-source</a> online collaborative whiteboard that allows many users to draw simultaneously on a large virtual board. The board is updated in real time for all connected users, and its state is always persisted. It can be used for many different purposes, including art, entertainment, design and teaching.",
         "share_instructions": "To collaborate on a drawing in real time with someone, just send them its URL.",
-        "public_board_description": " The <b>public board</b> is accessible to everyone. It is a happily disorganized mess where you can meet with anonymous strangers and draw together. Everything there is ephemeral.",
+        "public_board_description": "The <b>public board</b> is accessible to everyone. It is a happily disorganized mess where you can meet with anonymous strangers and draw together. Everything there is ephemeral.",
         "open_public_board": "Go to the public board",
         "private_board_description": "You can create a <b>private board</b> with a random name, that will be accessible only by its link. Use this if you want to share private information.",
         "create_private_board": "Create a private board",
         "named_private_board_description": "You can also create a <strong>named private board</strong>, with a custom URL, that will be accessible to all those who know its name.",
-        "board_name_placeholder": "Name of the board...",
-        "view_source": "Source code on github"
+        "board_name_placeholder": "Name of the board…",
+        "view_source": "Source code on GitHub"
     },
     "de": {
         "hand": "Hand",
@@ -72,7 +72,7 @@
         "private_board_description": "Du kannst ein <b>privates Whiteboard</b> mit einem zufälligen Namen erstellen, welches man nur mit seinem Link öffnen kann. Benutze dies wenn du private Informationen teilen möchtest.",
         "create_private_board": "Erstelle ein privates Whiteboard",
         "named_private_board_description": "Du kannst auch ein <strong>privates Whiteboard mit Namen</strong> mit einer benutzerdefinierten URL erstellen. Alle die den Namen kennen, können darauf zugreifen.",
-        "board_name_placeholder": "Name des Whiteboards...",
+        "board_name_placeholder": "Name des Whiteboards…",
         "view_source": "Quellcode auf GitHub"
     },
     "es": {
@@ -110,7 +110,7 @@
         "private_board_description": "Puede crear una <b>pizarra privada</b> con un nombre aleatorio, al que solo se podrá acceder mediante su enlace. Úselo si desea compartir información privada.",
         "create_private_board": "Crea una pizarra privada",
         "named_private_board_description": "También puede crear una <strong>pizarra privada dándole un nombre aleatorio o un nombre especifico</strong>, una <abbr title=\"tipo: https://wbo.ophir.dev/boards/el-código-que-te-parezca\">URL personalizada</abbr>, que será accesible para todos aquellos que conozcan su nombre.",
-        "board_name_placeholder": "Nombre de la pizarra ...",
+        "board_name_placeholder": "Nombre de la pizarra …",
         "view_source": "Código fuente en github"
     },
     "fr": {
@@ -146,7 +146,7 @@
         "private_board_description": "Vous pouvez créer un <b>tableau privé</b> dont le nom sera aléatoire. Il sera accessible uniquement à ceux avec qui vous partagerez son adresse. À utiliser lorsque vous voulez partager des informations confidentielles.",
         "create_private_board": "Créer un tableau privé",
         "named_private_board_description": "Vous pouvez aussi créer un <strong>tableau privé nommé</strong>, avec une adresse personnalisée, accessible à tous ceux qui en connaissent le nom.",
-        "board_name_placeholder": "Nom du tableau...",
+        "board_name_placeholder": "Nom du tableau…",
         "view_source": "Code source sur github"
     },
     "hu": {
@@ -222,7 +222,7 @@
         "private_board_description": "Puoi creare una <b>lavagna privata</b> con un nome casuale, che sarà accessibile solo dal suo URL. Usalo se vuoi condividere informazioni private.",
         "create_private_board": "Crea una lavagna privata",
         "named_private_board_description": "Puoi anche creare una <strong>lavagna privata con un nome creato da te</strong>, con un URL personalizzato, che sarà accessibile a tutti coloro che ne conoscono il nome.",
-        "board_name_placeholder": "Nome della lavagna...",
+        "board_name_placeholder": "Nome della lavagna…",
         "view_source": "Codice sorgente su github"
     },
     "ja": {
