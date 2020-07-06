@@ -72,6 +72,11 @@ By default, WBO launches his own web server and serves all of its content at the
 If you want to make the server accessible with a different path like `https://your.domain.com/wbo/` you have to setup a reverse proxy.
 See instructions on our Wiki about [how to setup a reverse proxy for WBO](https://github.com/lovasoa/whitebophir/wiki/Setup-behind-Reverse-Proxies).
 
+## Translations
+
+WBO is available in multiple languages. The translations are stored in [`server/translations.json`](./server/translations.json). 
+If you feel like contributing to this collaborative project, you can [translate WBO into your own language](https://github.com/lovasoa/whitebophir/wiki/How-to-translate-WBO-into-your-own-language).
+
 ## Troubleshooting
 
 If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
