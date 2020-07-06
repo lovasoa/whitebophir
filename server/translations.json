@@ -111,7 +111,7 @@
         "create_private_board": "Crea una pizarra privada",
         "named_private_board_description": "También puede crear una <strong>pizarra privada dándole un nombre aleatorio o un nombre especifico</strong>, una <abbr title=\"tipo: https://wbo.ophir.dev/boards/el-código-que-te-parezca\">URL personalizada</abbr>, que será accesible para todos aquellos que conozcan su nombre.",
         "board_name_placeholder": "Nombre de la pizarra …",
-        "view_source": "Código fuente en github"
+        "view_source": "Código fuente en GitHub"
     },
     "fr": {
         "collaborative_whiteboard": "Tableau blanc collaboratif",
@@ -147,7 +147,7 @@
         "create_private_board": "Créer un tableau privé",
         "named_private_board_description": "Vous pouvez aussi créer un <strong>tableau privé nommé</strong>, avec une adresse personnalisée, accessible à tous ceux qui en connaissent le nom.",
         "board_name_placeholder": "Nom du tableau…",
-        "view_source": "Code source sur github"
+        "view_source": "Code source sur GitHub"
     },
     "hu": {
         "hand": "Kéz",
@@ -223,7 +223,7 @@
         "create_private_board": "Crea una lavagna privata",
         "named_private_board_description": "Puoi anche creare una <strong>lavagna privata con un nome creato da te</strong>, con un URL personalizzato, che sarà accessibile a tutti coloro che ne conoscono il nome.",
         "board_name_placeholder": "Nome della lavagna…",
-        "view_source": "Codice sorgente su github"
+        "view_source": "Codice sorgente su GitHub"
     },
     "ja": {
         "hand": "手のひらツール",
@@ -298,7 +298,7 @@
         "create_private_board": "Создать приватную доску",
         "named_private_board_description": "Также можно создать <b>именную приватную доску</b> которая будет доступна всем тем, кому вы отправили название вашей доски.",
         "board_name_placeholder": "Название доски",
-        "view_source": "Исходный код на github"
+        "view_source": "Исходный код на GitHub"
     },
     "zh": {
         "collaborative_whiteboard": "在线协作式白板",
@@ -336,6 +336,6 @@
         "create_private_board": "创建私人白板",
         "named_private_board_description": "您还可以创建一个命名的私有白板，它有一个自定义的URL，所有知道它名字的人都可以访问它。",
         "board_name_placeholder": "白板名称",
-        "view_source": "github上的源代码"
+        "view_source": "GitHub上的源代码"
     }
 }
