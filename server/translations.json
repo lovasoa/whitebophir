@@ -138,7 +138,7 @@
         "mousewheel": "molette de la souris",
         "click_to_zoom": "Cliquez pour zoomer\nCliquez en maintenant la touche majuscule enfoncée pour dézoomer",
         "tagline": "Logiciel libre pour collaborer en ligne sur un tableau blanc. Venez dessiner vos idées ensemble sur WBO !",
-        "index_title": "Bienvenue sur la tableau blanc collaboratif WBO !",
+        "index_title": "Bienvenue sur le tableau blanc collaboratif WBO !",
         "introduction_paragraph": "WBO est un logiciel <a href=\"https://github.com/lovasoa/whitebophir\" title=\"voir le code sous license GPL\">libre et gratuit</a> de dessin collaboratif en ligne qui permet à plusieurs utilisateurs de collaborer simultanément sur un tableau blanc. Le tableau est mis à jour en temps réel pour tous les utilisateurs connectés, et reste disponible après votre déconnexion. Il peut être utilisé notemment pour l'enseignement, l'art, le design ou juste pour s'amuser.",
         "share_instructions": "Pour collaborer sur un tableau avec quelqu'un, envoyez-lui simplement son URL.",
         "public_board_description": "Le <b>tableau anonyme</b> est accessible publiquement. C'est un joyeux bazar où vous pourrez rencontrer des étrangers anonymes, et dessiner avec eux. Tout ce que vous y inscrivez est éphémère.",
