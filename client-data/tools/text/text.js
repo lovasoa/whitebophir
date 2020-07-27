@@ -86,6 +86,7 @@
 
 		curText.x = x;
 		curText.y = y;
+		curText.sentText = elem.textContent;
 		curText.size = parseInt(elem.getAttribute("font-size"));
 		curText.opacity = parseFloat(elem.getAttribute("opacity"));
 		curText.color = elem.getAttribute("fill");
