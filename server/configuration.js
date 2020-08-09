@@ -3,12 +3,12 @@ const app_root = path.dirname(__dirname); // Parent of the directory where this 
 
 module.exports = {
     /** Port on which the application will listen */
-    PORT: parseInt(process.env['PORT']) || 8080,
+    PORT: parseInt(process.env['PORT']) || 3000,
 
     /** Path to the directory where boards will be saved by default */
     HISTORY_DIR: process.env['WBO_HISTORY_DIR'] || path.join(app_root, "server-data"),
 
-    /** Folder from w .hich static files will be served */
+    /** Folder from which static files will be served */
     WEBROOT: process.env['WBO_WEBROOT'] || path.join(app_root, "client-data"),
 
     /** Number of milliseconds of inactivity after which the board should be saved to a file */

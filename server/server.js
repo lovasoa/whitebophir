@@ -9,7 +9,8 @@ var app = require('http').createServer(handler)
 	, createSVG = require("./createSVG.js")
 	, templating = require("./templating.js")
 	, config = require("./configuration.js")
-	, polyfillLibrary = require('polyfill-library');
+	, polyfillLibrary = require('polyfill-library')
+	, db = require('./db/db.js');
 
 var MIN_NODE_VERSION = 8.0;
 
@@ -96,20 +97,20 @@ function handleRequest(request, response) {
 			break;
 
 		case "download":
-			var boardName = validateBoardName(parts[1]),
-				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
-			if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
-				history_file += '.' + parts[2] + '.bak';
-			}
-			log("download", { "file": history_file });
-			fs.readFile(history_file, function (err, data) {
-				if (err) return serveError(request, response)(err);
-				response.writeHead(200, {
-					"Content-Type": "application/json",
-					"Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
-					"Content-Length": data.length,
-				});
-				response.end(data);
+			var boardName = validateBoardName(parts[1]);
+			db.getBoard(boardName).then(function (data) {
+				if (data) {
+					data = JSON.stringify(data.board);
+					response.writeHead(200, {
+						"Content-Type": "application/json",
+						"Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
+						"Content-Length": data.length,
+					});
+					response.end(data);
+				} else {
+					response.end('404');
+				}
+
 			});
 			break;
 

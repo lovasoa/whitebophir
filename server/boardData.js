@@ -29,7 +29,7 @@ var log = require("./log.js").log
 	, path = require("path")
 	, config = require("./configuration.js");
 
-const db = require('./db/db');
+const db = require('./db/db.js');
 
 /**
  * Represents a board.
