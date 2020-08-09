@@ -27,11 +27,12 @@ function startIO(app) {
 /** Returns a promise to a BoardData with the given name
  * @returns {Promise<BoardData>}
 */
-function getBoard(name) {
+async function getBoard(name) {
 	if (boards.hasOwnProperty(name)) {
+		console.log(boards[name]);
 		return boards[name];
 	} else {
-		var board = BoardData.load(name);
+		var board = await BoardData.load(name);
 		boards[name] = board;
 		return board;
 	}

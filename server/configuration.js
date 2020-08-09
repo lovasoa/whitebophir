@@ -8,7 +8,7 @@ module.exports = {
     /** Path to the directory where boards will be saved by default */
     HISTORY_DIR: process.env['WBO_HISTORY_DIR'] || path.join(app_root, "server-data"),
 
-    /** Folder from which static files will be served */
+    /** Folder from w .hich static files will be served */
     WEBROOT: process.env['WBO_WEBROOT'] || path.join(app_root, "client-data"),
 
     /** Number of milliseconds of inactivity after which the board should be saved to a file */

@@ -11,7 +11,6 @@ var app = require('http').createServer(handler)
 	, config = require("./configuration.js")
 	, polyfillLibrary = require('polyfill-library');
 
-
 var MIN_NODE_VERSION = 8.0;
 
 if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {

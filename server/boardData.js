@@ -25,10 +25,11 @@
  * @module boardData
  */
 
-var fs = require('./fs_promises.js')
-	, log = require("./log.js").log
+var log = require("./log.js").log
 	, path = require("path")
 	, config = require("./configuration.js");
+
+const db = require('./db/db');
 
 /**
  * Represents a board.
@@ -37,7 +38,6 @@ var fs = require('./fs_promises.js')
 var BoardData = function (name) {
 	this.name = name;
 	this.board = {};
-	this.file = path.join(config.HISTORY_DIR, "board-" + encodeURIComponent(name) + ".json");
 	this.lastSaveDate = Date.now();
 	this.users = new Set();
 };
@@ -142,41 +142,14 @@ BoardData.prototype.delaySave = function (file) {
 	if (Date.now() - this.lastSaveDate > config.MAX_SAVE_DELAY) setTimeout(this.save.bind(this), 0);
 };
 
-/** Saves the data in the board to a file.
- * @param {string} [file=this.file] - Path to the file where the board data will be saved.
-*/
-BoardData.prototype.save = async function (file) {
+/** Saves the data in the board to a mongodb. */
+BoardData.prototype.save = async function () {
 	this.lastSaveDate = Date.now();
 	this.clean();
-	if (!file) file = this.file;
-	var tmp_file = backupFileName(file);
-	var board_txt = JSON.stringify(this.board);
-	if (board_txt === "{}") { // empty board
-		try {
-			await fs.promises.unlink(file);
-			log("removed empty board", { 'name': this.name });
-		} catch (err) {
-			if (err.code !== "ENOENT") {
-				// If the file already wasn't saved, this is not an error
-				log("board deletion error", { "err": err.toString() })
-			}
-		}
+	if (Object.keys(this.board).length === 0) { // empty board
+		db.deleteBoard(this.name);
 	} else {
-		try {
-			await fs.promises.writeFile(tmp_file, board_txt);
-			await fs.promises.rename(tmp_file, file);
-			log("saved board", {
-				'name': this.name,
-				'size': board_txt.length,
-				'delay_ms': (Date.now() - this.lastSaveDate),
-			});
-		} catch (err) {
-			log("board saving error", {
-				'err': err.toString(),
-				'tmp_file': tmp_file,
-			});
-			return;
-		}
+		db.insertOrUpdateBoard(this.name, this.board);
 	}
 };
 
@@ -223,40 +196,19 @@ BoardData.prototype.validate = function validate(item, parent) {
 	}
 }
 
-/** Load the data in the board from a file.
- * @param {string} file - Path to the file where the board data will be read.
+/** Load the data in the board from a mongoDb.
+ * @param {string} name - name of board
 */
 BoardData.load = async function loadBoard(name) {
-	var boardData = new BoardData(name), data;
-	try {
-		data = await fs.promises.readFile(boardData.file);
-		boardData.board = JSON.parse(data);
+	var boardData = new BoardData(name);
+	const boardFromDb = await db.getBoard(name);
+	boardData.board = boardFromDb ? boardFromDb.board : null;
+	if (!boardData.board) {
+		boardData.board = {};
+	} else {
 		for (id in boardData.board) boardData.validate(boardData.board[id]);
-		log('disk load', { 'board': boardData.name });
-	} catch (e) {
-		log('empty board creation', {
-			'board': boardData.name,
-			// If the file doesn't exist, this is not an error
-			"error": e.code !== "ENOENT" && e.toString(),
-		});
-		boardData.board = {}
-		if (data) {
-			// There was an error loading the board, but some data was still read
-			var backup = backupFileName(boardData.file);
-			log("Writing the corrupted file to " + backup);
-			try {
-				await fs.promises.writeFile(backup, data);
-			} catch (err) {
-				log("Error writing " + backup + ": " + err);
-			}
-		}
 	}
 	return boardData;
 };
-
-function backupFileName(baseName) {
-	var date = new Date().toISOString().replace(/:/g, '');
-	return baseName + '.' + date + '.bak';
-}
 
 module.exports.BoardData = BoardData;
