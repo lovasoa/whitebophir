@@ -3,7 +3,7 @@ const app_root = path.dirname(__dirname); // Parent of the directory where this 
 
 module.exports = {
     /** Port on which the application will listen */
-    PORT: parseInt(process.env['PORT']) || 3000,
+    PORT: parseInt(process.env['PORT']) || 8080,
 
     /** Path to the directory where boards will be saved by default */
     HISTORY_DIR: process.env['WBO_HISTORY_DIR'] || path.join(app_root, "server-data"),
