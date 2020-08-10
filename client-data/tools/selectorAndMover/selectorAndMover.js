@@ -1,11 +1,11 @@
 (function mover() {
     var selected = null;
+    var selectedEl = null;
     var last_sent = 0;
 
     function startMovingElement(x, y, evt) {
         //Prevent the press from being interpreted by the browser
         evt.preventDefault();
-        if (!evt.target || !Tools.drawingArea.contains(evt.target)) return;
         var tmatrix = get_translate_matrix(evt.target);
         selected = { x: x - tmatrix.e, y: y - tmatrix.f, elem: evt.target };
     }
@@ -54,9 +54,21 @@
 
     function switchTool() {
         selected = null;
+        unSelect();
+    }
+
+    function unSelect() {
+        if (selectedEl) {
+            selectedEl.classList.remove('selectedEl');
+            selectedEl = null;
+        }
     }
 
     function press(x, y, evt, isTouchEvent) {
+        unSelect();
+        if (!evt.target || !Tools.drawingArea.contains(evt.target)) return;
+        selectedEl = evt.target;
+        selectedEl.classList.add('selectedEl');
         startMovingElement(x, y, evt, isTouchEvent);
     }
 
@@ -74,9 +86,9 @@
         }
     }
 
-    var moverTool = { //The new tool
-        "name": "Mover",
-        "shortcut": "p",
+    Tools.add({ //The new tool
+        "name": "SelectorAndMover",
+        "shortcut": "v",
         "listeners": {
             "press": press,
             "move": move,
@@ -84,9 +96,8 @@
         },
         "onquit": switchTool,
         "draw": draw,
-        "icon": "tools/mover/mover.svg",
+        "icon": "tools/selectorAndMover/selectorAndMover.svg",
         "mouseCursor": "move",
         "showMarker": true,
-    };
-    Tools.add(moverTool);
+    });
 })();
