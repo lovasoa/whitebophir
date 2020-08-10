@@ -8,6 +8,10 @@ html, body, svg {
 	transform-origin: 0 0;
 }
 
+.selectedEl {
+	outline: 1px solid red;
+}
+
 #loadingMessage {
 	font-size: 1.5em;
 	background: #eee linear-gradient(#eeeeee, #cccccc);

@@ -99,19 +99,8 @@
 		}
 	}
 
-	function press(x, y, evt, isTouchEvent) {
-		if (!handTool.secondary.active) startHand(x, y, evt, isTouchEvent);
-		else startMovingElement(x, y, evt, isTouchEvent);
-	}
-
-
-	function move(x, y, evt, isTouchEvent) {
-		if (!handTool.secondary.active) moveHand(x, y, evt, isTouchEvent);
-		else moveElement(x, y, evt, isTouchEvent);
-	}
-
 	function release(x, y, evt, isTouchEvent) {
-		move(x, y, evt, isTouchEvent);
+		moveHand(x, y, evt, isTouchEvent);
 		selected = null;
 	}
 
@@ -123,21 +112,16 @@
 		"name": "Hand",
 		"shortcut": "h",
 		"listeners": {
-			"press": press,
-			"move": move,
+			"press": startHand,
+			"move": moveHand,
 			"release": release,
-		},
-		"secondary": {
-			"name": "Mover",
-			"icon": "tools/hand/mover.svg",
-			"active": false,
-			"switch": switchTool,
 		},
 		"draw": draw,
 		"icon": "tools/hand/hand.svg",
 		"mouseCursor": "move",
 		"showMarker": true,
 	};
+
 	Tools.add(handTool);
 	Tools.change("Hand"); // Use the hand tool by default
 })(); //End of code isolation
