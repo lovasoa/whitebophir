@@ -83,7 +83,7 @@ When you start a WBO server, it loads its configuration from several environment
 You can see a list of these variables in [`configuration.js`](./server/configuration.js).
 Some important environment variables are :
  - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
- - `WBO_MAX_EMIT_COUNT` : the maximum number of messages that a client can send per unit of time. Increase this value if you want smoother drawings, at the expense of being susceptible to denial of service attacks if your server does not have enough processing power. 
+ - `WBO_MAX_EMIT_COUNT` : the maximum number of messages that a client can send per unit of time. Increase this value if you want smoother drawings, at the expense of being susceptible to denial of service attacks if your server does not have enough processing power. By default, the units of this quantity are messages per 4 seconds, and the default value is `192`.
 
 ## Troubleshooting
 
