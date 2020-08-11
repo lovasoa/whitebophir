@@ -21,13 +21,13 @@ module.exports = {
     MAX_ITEM_COUNT: parseInt(process.env['WBO_MAX_ITEM_COUNT']) || 32768,
 
     /** Max number of sub-items in an item. This prevents flooding */
-    MAX_CHILDREN: parseInt(process.env['WBO_MAX_CHILDREN']) || 128,
+    MAX_CHILDREN: parseInt(process.env['WBO_MAX_CHILDREN']) || 192,
 
     /** Maximum value for any x or y on the board */
     MAX_BOARD_SIZE: parseInt(process.env['WBO_MAX_BOARD_SIZE']) || 65536,
 
     /** Maximum messages per user over the given time period before banning them  */
-    MAX_EMIT_COUNT: parseInt(process.env['WBO_MAX_EMIT_COUNT']) || 128,
+    MAX_EMIT_COUNT: parseInt(process.env['WBO_MAX_EMIT_COUNT']) || 192,
 
     /** Duration after which the emit count is reset in miliseconds */
     MAX_EMIT_COUNT_PERIOD: parseInt(process.env['WBO_MAX_EMIT_COUNT_PERIOD']) || 4096,
