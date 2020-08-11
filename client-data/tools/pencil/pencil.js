@@ -26,6 +26,14 @@
 
 (function () { //Code isolation
 
+	// Allocate the full maximum server update rate to pencil messages.
+	// This feels a bit risky in terms of dropped messages, but any less
+	// gives terrible results with the default parameters.  In practice it
+	// seems to work, either because writing tends to happen in bursts, or
+	// maybe because the messages are sent when the time interval is *greater*
+	// than this?
+	var MIN_PENCIL_INTERVAL_MS = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT;
+
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
 		lastTime = performance.now(); //The time at which the last point was drawn
@@ -60,7 +68,7 @@
 	function continueLine(x, y, evt) {
 		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
-		if (curLineId !== "" && performance.now() - lastTime > 70) {
+		if (curLineId !== "" && performance.now() - lastTime > MIN_PENCIL_INTERVAL_MS) {
 			Tools.drawAndSend(new PointMessage(x, y));
 			lastTime = performance.now();
 		}
