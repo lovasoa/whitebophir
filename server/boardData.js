@@ -136,7 +136,7 @@ BoardData.prototype.addUser = function addUser(userId) {
 
 /** Delays the triggering of auto-save by SAVE_INTERVAL seconds
 */
-BoardData.prototype.delaySave = function (file) {
+BoardData.prototype.delaySave = function () {
 	if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
 	this.saveTimeoutId = setTimeout(this.save.bind(this), config.SAVE_INTERVAL);
 	if (Date.now() - this.lastSaveDate > config.MAX_SAVE_DELAY) setTimeout(this.save.bind(this), 0);
@@ -163,6 +163,13 @@ BoardData.prototype.clean = function cleanBoard() {
 		}).slice(0, -config.MAX_ITEM_COUNT);
 		for (var i = 0; i < toDestroy.length; i++) delete board[toDestroy[i]];
 		log("cleaned board", { 'removed': toDestroy.length, "board": this.name });
+	}
+}
+
+/** Remove all elements from the board */
+BoardData.prototype.clearAll = function() {
+	for (var i in this.board) {
+		this.delete(i);
 	}
 }
 
