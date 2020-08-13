@@ -29,7 +29,6 @@ function startIO(app) {
 */
 async function getBoard(name) {
 	if (boards.hasOwnProperty(name)) {
-		console.log(boards[name]);
 		return boards[name];
 	} else {
 		var board = await BoardData.load(name);

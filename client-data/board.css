@@ -191,7 +191,10 @@ html, body, svg {
     line-height: 15px;
     vertical-align: top;
     padding: 6px;
+}
 
+#menu .tools-undoPanel {
+	display: flex;
 }
 
 input {

@@ -96,6 +96,9 @@
         lastPos.x = x;
         lastPos.y = y;
         doUpdate(true);
+        if (curUpdate.id) {
+            Tools.addActionToHistory({type: "delete", id: curUpdate.id})
+        }
         curUpdate.id = "";
     }
 

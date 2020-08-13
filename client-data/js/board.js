@@ -618,6 +618,41 @@ Tools.getOpacity = (function opacity() {
 	};
 })();
 
+// Undo/Redo tools
+
+Tools.undo = (function () {
+	const el = document.getElementById("undo");
+	function update() {
+		if (Tools.history[0].type === 'delete') {
+			Tools.change("Eraser");
+		}
+		Tools.drawAndSend(Tools.history[0]);
+	}
+	el.onclick = update;
+	return function () {
+		update();
+	}
+})();
+
+Tools.redo = (function () {
+	const el = document.getElementById("redo");
+	function update() {
+		console.log(Tools.history, 'redo');
+	}
+	el.onclick = update;
+	return function () {
+		update();
+	}
+})();
+
+Tools.history = [];
+
+Tools.addActionToHistory = function (data) {
+	if (Tools.history.length === 20) {
+		Tools.history.shift();
+	}
+	Tools.history.push(data);
+}
 
 //Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;
