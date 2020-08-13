@@ -37,7 +37,8 @@
 
 	var msg = {
 		"type": "delete",
-		"id": ""
+		"id": "",
+		"sendBack": true,
 	};
 
 	function inDrawingArea(elem) {

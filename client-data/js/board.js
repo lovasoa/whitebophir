@@ -78,6 +78,10 @@ Tools.connect = function () {
 		});
 	});
 
+	this.socket.on("addActionToHistory", function (msg) {
+		Tools.addActionToHistory({ type: "update", ...msg });
+	});
+
 	this.socket.on("reconnect", function onReconnection() {
 		Tools.socket.emit('joinboard', Tools.boardName);
 	});
@@ -623,10 +627,21 @@ Tools.getOpacity = (function opacity() {
 Tools.undo = (function () {
 	const el = document.getElementById("undo");
 	function update() {
-		if (Tools.history[0].type === 'delete') {
-			Tools.change("Eraser");
+		if (Tools.history.length) {
+			console.log(Tools.history);
+			const action = Tools.history.pop();
+			console.log(action);
+			var instrument = null;
+			if (action.type === "delete") {
+				instrument = Tools.list.Eraser;
+				action.sendBack = false;
+			} else if (action.type === "update") {
+				instrument = Tools.list.SelectorAndMover;
+			} else {
+				instrument = Tools.list[action.tool];
+			}
+			Tools.drawAndSend(action, instrument);
 		}
-		Tools.drawAndSend(Tools.history[0]);
 	}
 	el.onclick = update;
 	return function () {

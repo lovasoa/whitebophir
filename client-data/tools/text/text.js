@@ -117,6 +117,9 @@
 		try { input.blur(); } catch (e) { /* Internet Explorer */ }
 		active = false;
 		blur();
+		if (curText.id) {
+			Tools.addActionToHistory({ type: "delete", id: curText.id });
+		}
 		curText.id = 0;
 		curText.sentText = "";
 		input.value = "";

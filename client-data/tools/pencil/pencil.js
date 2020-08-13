@@ -74,6 +74,9 @@
 	}
 
 	function stopLine() {
+		if (curLineId) {
+			Tools.addActionToHistory({type: "delete", id: curLineId});
+		}
 		curLineId = "";
 	}
 
