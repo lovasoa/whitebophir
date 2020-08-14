@@ -26,7 +26,7 @@
 
 (function grid() { //Code isolation
 
-    var index = 0; //grid off by default
+    var index = 1; //grid on by default
     var states = ["none", "url(#grid)", "url(#dots)"];
 
     function toggleGrid(evt) {
