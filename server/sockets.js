@@ -29,7 +29,6 @@ function startIO(app) {
 */
 async function getBoard(name) {
 	if (boards.hasOwnProperty(name)) {
-		console.log(boards[name]);
 		return boards[name];
 	} else {
 		var board = await BoardData.load(name);
@@ -145,6 +144,9 @@ async function saveHistory(boardName, message) {
 			break;
 		case "child":
 			board.addChild(message.parent, message);
+			break;
+		case "clearBoard":
+			board.clearAll();
 			break;
 		default: //Add data
 			if (!id) throw new Error("Invalid message: ", message);
