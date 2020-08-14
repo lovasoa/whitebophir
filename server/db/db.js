@@ -1,8 +1,7 @@
 const MongoClient = require('mongodb').MongoClient;
-const url = require('./db_config').url;
 
 function getClient() {
-    return new MongoClient(url, {useNewUrlParser: true});
+    return new MongoClient(process.env.DB_CONN, {useNewUrlParser: true});
 }
 
 /** Вставляет или обновляет доску **/

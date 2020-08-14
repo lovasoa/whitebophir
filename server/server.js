@@ -12,6 +12,8 @@ var app = require('http').createServer(handler)
 	, polyfillLibrary = require('polyfill-library')
 	, db = require('./db/db.js');
 
+require('dotenv').config();
+
 var MIN_NODE_VERSION = 8.0;
 
 if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {

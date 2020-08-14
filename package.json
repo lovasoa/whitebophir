@@ -9,6 +9,7 @@
    "license": "AGPL-3.0-or-later",
    "dependencies": {
       "accept-language-parser": "^1.5.0",
+      "dotenv": "^8.2.0",
       "handlebars": "^4.7.6",
       "mongodb": "^3.6.0",
       "polyfill-library": "^3.95.0",
