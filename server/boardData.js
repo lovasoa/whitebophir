@@ -184,10 +184,10 @@ BoardData.prototype.validate = function validate(item, parent) {
 	}
 	if (item.hasOwnProperty("x") || item.hasOwnProperty("y")) {
 		item.x = parseFloat(item.x) || 0;
-		item.x = Math.min(Math.max(item.x, 0), config.MAX_BOARD_SIZE);
+		item.x = Math.min(Math.max(item.x, 0), config.MAX_BOARD_SIZE_X);
 		item.x = Math.round(10 * item.x) / 10;
 		item.y = parseFloat(item.y) || 0;
-		item.y = Math.min(Math.max(item.y, 0), config.MAX_BOARD_SIZE);
+		item.y = Math.min(Math.max(item.y, 0), config.MAX_BOARD_SIZE_Y);
 		item.y = Math.round(10 * item.y) / 10;
 	}
 	if (item.hasOwnProperty("opacity")) {
