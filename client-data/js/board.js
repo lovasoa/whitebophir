@@ -78,6 +78,14 @@ Tools.connect = function () {
 		});
 	});
 
+	this.socket.on("addActionToHistory", function (msg) {
+		Tools.addActionToHistory({ type: "update", ...msg }, true);
+	});
+
+	this.socket.on("addActionToHistoryRedo", function (msg) {
+		Tools.historyRedo.push(msg);
+	});
+
 	this.socket.on("reconnect", function onReconnection() {
 		Tools.socket.emit('joinboard', Tools.boardName);
 	});
@@ -619,6 +627,156 @@ Tools.getOpacity = (function opacity() {
 	};
 })();
 
+// Undo/Redo tools
+
+Tools.undo = (function () {
+	const el = document.getElementById("undo");
+	function update() {
+		if (Tools.history.length) {
+			const action = Tools.history.pop();
+			var instrument = null;
+			switch (action.type) {
+				case "line":
+					instrument = Tools.list.Pencil;
+					Tools.drawAndSend({
+						'type': 'line',
+						'id': action.id,
+						'color': action.color,
+						'size': action.size,
+						'opacity': action.opacity || 1,
+					}, instrument);
+					for (var child of action._children) {
+						Tools.drawAndSend({
+							'type': 'child',
+							'parent': action.id,
+							'tool': 'Pencil',
+							'x': child.x,
+							'y': child.y,
+						}, instrument);
+					}
+					Tools.historyRedo.push({type: "delete", id: action.id});
+					break;
+				case "delete":
+					instrument = Tools.list.Eraser;
+					action.sendBack = true;
+					action.sendToRedo = true;
+					break;
+				case "update":
+					var matrix = document.getElementById(action.id).getAttribute("transform");
+					if (matrix) {
+						matrix = matrix.split(' ');
+						const x = matrix[4];
+						const y = matrix[5].replace(')', '');
+						Tools.historyRedo.push({type: "update", id: action.id, deltax: x, deltay: y});
+					}
+					instrument = Tools.list.SelectorAndMover;
+					break;
+				default:
+					instrument = Tools.list[action.tool];
+					Tools.historyRedo.push({type: "delete", id: action.id});
+					break;
+			}
+			if (action.type !== "line") {
+				Tools.drawAndSend(action, instrument);
+			}
+			if (action.deltax) {
+				instrument = Tools.list.SelectorAndMover;
+				Tools.drawAndSend({
+					'type': 'update',
+					'id': action.id,
+					'deltax': action.deltax,
+					'deltay': action.deltay,
+				}, instrument);
+			}
+		}
+	}
+	el.onclick = update;
+	return function () {
+		update();
+	}
+})();
+
+Tools.redo = (function () {
+	const el = document.getElementById("redo");
+	function update() {
+		if (Tools.historyRedo.length) {
+			const action = Tools.historyRedo.pop();
+			var instrument = null;
+			action.sendBack = true;
+			switch (action.type) {
+				case "line":
+					instrument = Tools.list.Pencil;
+					Tools.drawAndSend({
+						'type': 'line',
+						'id': action.id,
+						'color': action.color,
+						'size': action.size,
+						'opacity': action.opacity || 1,
+					}, instrument);
+					for (var child of action._children) {
+						Tools.drawAndSend({
+							'type': 'child',
+							'parent': action.id,
+							'tool': 'Pencil',
+							'x': child.x,
+							'y': child.y,
+						}, instrument);
+					}
+					Tools.history.push({type: "delete", id: action.id});
+					break;
+				case "delete":
+					instrument = Tools.list.Eraser;
+					action.sendBack = true;
+					break;
+				case "update":
+					var matrix = document.getElementById(action.id).getAttribute("transform");
+					if (matrix) {
+						matrix = matrix.split(' ');
+						const x = matrix[4];
+						const y = matrix[5].replace(')', '');
+						Tools.history.push({type: "update", id: action.id, deltax: x, deltay: y});
+
+					}
+					instrument = Tools.list.SelectorAndMover;
+					break;
+				default:
+					instrument = Tools.list[action.tool];
+					Tools.history.push({type: "delete", id: action.id});
+					break;
+			}
+			if (action.type !== "line") {
+				Tools.drawAndSend(action, instrument);
+			}
+			if (action.deltax) {
+				instrument = Tools.list.SelectorAndMover;
+				Tools.drawAndSend({
+					'type': 'update',
+					'id': action.id,
+					'deltax': action.deltax,
+					'deltay': action.deltay,
+				}, instrument);
+			}
+		}
+	}
+	el.onclick = update;
+	return function () {
+		update();
+	}
+})();
+
+Tools.history = [];
+Tools.historyRedo = [];
+
+Tools.addActionToHistory = function (data, dontClear) {
+	if (Tools.history.length === 20) {
+		Tools.history.shift();
+	}
+	const clear = dontClear || false;
+	if (!clear) {
+		Tools.historyRedo.splice(0, Tools.historyRedo.length);
+	}
+	Tools.history.push(data);
+}
 
 //Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;

@@ -128,16 +128,23 @@ function handleMessage(boardName, message, socket) {
 	if (message.tool === "Cursor") {
 		message.socket = socket.id;
 	} else {
-		saveHistory(boardName, message);
+		saveHistory(boardName, message, socket);
 	}
 }
 
-async function saveHistory(boardName, message) {
+async function saveHistory(boardName, message, socket) {
 	var id = message.id;
 	var board = await getBoard(boardName);
 	switch (message.type) {
 		case "delete":
-			if (id) board.delete(id);
+			if (id) {
+				if (message.sendBack && !message.sendToRedo) {
+					socket.emit("addActionToHistory", board.get(id));
+				} else if (message.sendBack && message.sendToRedo) {
+					socket.emit("addActionToHistoryRedo", board.get(id));
+				}
+				board.delete(id)
+			};
 			break;
 		case "update":
 			if (id) board.update(id, message);

@@ -89,6 +89,9 @@
 		end = true;
 		move(x, y);
 		end = false;
+		if (curId) {
+			Tools.addActionToHistory({type: "delete", id: curId});
+		}
 		curId = "";
 	}
 

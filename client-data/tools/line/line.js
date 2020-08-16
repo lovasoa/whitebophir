@@ -80,6 +80,7 @@
 	function stopLine(x, y) {
 		//Add a last point to the line
 		continueLine(x, y);
+		if (curLine) Tools.addActionToHistory({ type: "delete", id: curLine.id })
 		curLine = null;
 	}
 
