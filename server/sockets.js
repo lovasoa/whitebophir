@@ -138,7 +138,11 @@ async function saveHistory(boardName, message, socket) {
 	switch (message.type) {
 		case "delete":
 			if (id) {
-				if (message.sendBack) socket.emit("addActionToHistory", board.get(id));
+				if (message.sendBack && !message.sendToRedo) {
+					socket.emit("addActionToHistory", board.get(id));
+				} else if (message.sendBack && message.sendToRedo) {
+					socket.emit("addActionToHistoryRedo", board.get(id));
+				}
 				board.delete(id)
 			};
 			break;

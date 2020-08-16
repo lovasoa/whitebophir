@@ -21,7 +21,7 @@ module.exports = {
     MAX_ITEM_COUNT: parseInt(process.env['WBO_MAX_ITEM_COUNT']) || 32768,
 
     /** Max number of sub-items in an item. This prevents flooding */
-    MAX_CHILDREN: parseInt(process.env['WBO_MAX_CHILDREN']) || 128,
+    MAX_CHILDREN: parseInt(process.env['WBO_MAX_CHILDREN']) || 512,
 
     /** Maximum value for any x or y on the board */
     MAX_BOARD_SIZE: parseInt(process.env['WBO_MAX_BOARD_SIZE']) || 65536,

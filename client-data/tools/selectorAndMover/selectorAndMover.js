@@ -42,7 +42,6 @@
         var deltax = x - selected.x;
         var deltay = y - selected.y;
         var msg = { type: "update", id: selected.elem.id, deltax: deltax, deltay: deltay };
-        console.log(msg)
         var now = performance.now();
         if (now - last_sent > 70) {
             last_sent = now;
