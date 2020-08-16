@@ -4,8 +4,13 @@ html, body, svg {
 	font-family: Liberation sans, sans-serif;
 }
 
+body {
+	background-color: #ffda97;
+}
+
 #canvas {
 	transform-origin: 0 0;
+	background-color: #fff;
 }
 
 .selectedEl {
@@ -119,6 +124,10 @@ html, body, svg {
 
 #menu .tool:hover {
 	max-width: 100%;
+}
+
+#board {
+	overflow: hidden;
 }
 
 @media (hover: none), (pointer: coarse) {
