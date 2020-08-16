@@ -24,7 +24,7 @@ module.exports = {
     MAX_CHILDREN: parseInt(process.env['WBO_MAX_CHILDREN']) || 512,
 
     /** Maximum value for x on the board */
-    MAX_BOARD_SIZE_X: parseInt(process.env['WBO_MAX_BOARD_SIZE']) || 2000,
+    MAX_BOARD_SIZE_X: parseInt(process.env['WBO_MAX_BOARD_SIZE']) || 2048,
 
     /** Maximum value for y on the board */
     MAX_BOARD_SIZE_Y: parseInt(process.env['WBO_MAX_BOARD_SIZE']) || 65536,

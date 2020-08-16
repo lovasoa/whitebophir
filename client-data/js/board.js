@@ -428,6 +428,14 @@ function resizeCanvas(m) {
 	if (y > Tools.svg.height.baseVal.value - 2000) {
 		Tools.svg.height.baseVal.value = Math.min(y + 2000, Tools.server_config.MAX_BOARD_SIZE_Y);
 	}
+	resizeBoard();
+}
+
+function resizeBoard() {
+	// Update board container size
+	var board = document.getElementById("board");
+	board.style.width = Tools.svg.width.baseVal.value * Tools.getScale() + "px";
+	board.style.height = Tools.svg.height.baseVal.value * Tools.getScale() + "px";
 }
 
 function updateUnreadCount(m) {
@@ -437,7 +445,7 @@ function updateUnreadCount(m) {
 }
 
 Tools.messageHooks = [resizeCanvas, updateUnreadCount];
-
+Tools.scaleForWindow = document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X;
 Tools.scale = document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X;
 var scaleTimeout = null;
 Tools.setScale = function setScale(scale) {
@@ -452,6 +460,11 @@ Tools.setScale = function setScale(scale) {
 		Tools.svg.style.willChange = 'auto';
 	}, 1000);
 	Tools.scale = scale;
+	if (scale < Tools.scaleForWindow) {
+		document.getElementsByTagName('body')[0].style = 'display: flex; justify-content: center;';
+	} else {
+		document.getElementsByTagName('body')[0].style = '';
+	}
 	return scale;
 }
 Tools.getScale = function getScale() {

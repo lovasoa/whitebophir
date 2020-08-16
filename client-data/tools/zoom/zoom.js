@@ -43,6 +43,7 @@
             origin.scrollX + origin.x * (newScale - oldScale),
             origin.scrollY + origin.y * (newScale - oldScale)
         );
+        resizeBoard();
     }
 
     var animation = null;
