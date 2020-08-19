@@ -385,6 +385,7 @@ function updateDocumentTitle() {
 
 (function () {
 	// Scroll and hash handling
+	// events for button scaling
 	var scrollTimeout, lastStateUpdate = Date.now();
 
 	window.addEventListener("scroll", function onScroll() {
@@ -393,7 +394,7 @@ function updateDocumentTitle() {
 
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(function updateHistory() {
-			var hash = '#' + (x | 0) + ',' + (y | 0) + ',' + Tools.getScale().toFixed(1);
+			var hash = '#' + (x | 0) + ',' + (y | 0) + ',' + Tools.getScale().toFixed(2);
 			if (Date.now() - lastStateUpdate > 5000 && hash !== window.location.hash) {
 				window.history.pushState({}, "", hash);
 				lastStateUpdate = Date.now();
@@ -412,6 +413,31 @@ function updateDocumentTitle() {
 		Tools.setScale(scale);
 		window.scrollTo(x * scale, y * scale);
 	}
+
+	function scaleToFull() {
+		Tools.setScale(1);
+		resizeBoard();
+	}
+
+	function scaleToWidth() {
+		Tools.setScale(document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X);
+		resizeBoard();
+	}
+
+	function minusScale() {
+		Tools.setScale(Tools.getScale() - 0.1);
+		resizeBoard();
+	}
+
+	function plusScale() {
+		Tools.setScale(Tools.getScale() + 0.1);
+		resizeBoard();
+	}
+
+	document.getElementById('scalingWidth').addEventListener('click', scaleToWidth, false);
+	document.getElementById('scalingFull').addEventListener('click', scaleToFull, false);
+	document.getElementById('minusScale').addEventListener('click', minusScale, false);
+	document.getElementById('plusScale').addEventListener('click', plusScale, false);
 
 	window.addEventListener("hashchange", setScrollFromHash, false);
 	window.addEventListener("popstate", setScrollFromHash, false);
@@ -445,7 +471,6 @@ function updateUnreadCount(m) {
 }
 
 Tools.messageHooks = [resizeCanvas, updateUnreadCount];
-Tools.scaleForWindow = document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X;
 Tools.scale = document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X;
 var scaleTimeout = null;
 Tools.setScale = function setScale(scale) {
@@ -460,11 +485,12 @@ Tools.setScale = function setScale(scale) {
 		Tools.svg.style.willChange = 'auto';
 	}, 1000);
 	Tools.scale = scale;
-	if (scale < Tools.scaleForWindow) {
+	if (scale < document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X) {
 		document.getElementsByTagName('body')[0].style = 'display: flex; justify-content: center;';
 	} else {
 		document.getElementsByTagName('body')[0].style = '';
 	}
+	document.getElementById('scaleValue').innerText = Math.round(scale * 100) + '%';
 	return scale;
 }
 Tools.getScale = function getScale() {
