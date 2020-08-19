@@ -22,7 +22,7 @@
         "name": "clearBoard",
         "icon": "tools/clearBoard/clearBoard.svg",
         "draw": draw,
-        "shortcut": "/",
+        "shortcut": "m",
         "onstart": clear,
     };
 
