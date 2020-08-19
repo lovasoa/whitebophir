@@ -34,7 +34,12 @@
         clientY: 0,
         scale: 1.0
     };
-    var moved = false, pressed = false;
+    var pressed = false;
+    var animation = null;
+
+    Tools.board.addEventListener("touchend", touchend);
+    Tools.board.addEventListener("touchcancel", touchend);
+    Tools.board.addEventListener("wheel", onwheel, { passive: false });
 
     function zoom(origin, scale) {
         var oldScale = origin.scale;
@@ -46,7 +51,6 @@
         resizeBoard();
     }
 
-    var animation = null;
     function animate(scale) {
         cancelAnimationFrame(animation);
         animation = requestAnimationFrame(function () {
@@ -63,46 +67,20 @@
         origin.scale = Tools.getScale();
     }
 
-    function press(x, y, evt, isTouchEvent) {
-        evt.preventDefault();
-        setOrigin(x, y, evt, isTouchEvent);
-        moved = false;
-        pressed = true;
-    }
-
-    function move(x, y, evt, isTouchEvent) {
-        if (pressed) {
-            evt.preventDefault();
-            var delta = getClientY(evt, isTouchEvent) - origin.clientY;
-            var scale = origin.scale * (1 + delta * ZOOM_FACTOR / 100);
-            if (Math.abs(delta) > 1) moved = true;
-            animation = animate(scale);
-        }
-    }
-
     function onwheel(evt) {
         evt.preventDefault();
-        if (evt.ctrlKey || Tools.curTool === zoomTool) {
+        if (evt.ctrlKey) {
             // zoom
             var scale = Tools.getScale();
             var x = evt.pageX / scale;
             var y = evt.pageY / scale;
             setOrigin(x, y, evt, false);
-            animate((1 - ((evt.deltaY > 0) - (evt.deltaY < 0)) * 0.25) * Tools.getScale());
-        } else if (evt.altKey) {
-            // make finer changes if shift is being held
-            var change = evt.shiftKey ? 1 : 5;
-            // change tool size
-            Tools.setSize(Tools.getSize() - ((evt.deltaY > 0) - (evt.deltaY < 0)) * change);
-        } else if (evt.shiftKey) {
-            // scroll horizontally
-            window.scrollTo(document.documentElement.scrollLeft + evt.deltaY, document.documentElement.scrollTop + evt.deltaX);
+            animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.2);
         } else {
             // regular scrolling
             window.scrollTo(document.documentElement.scrollLeft + evt.deltaX, document.documentElement.scrollTop + evt.deltaY);
         }
     }
-    Tools.board.addEventListener("wheel", onwheel, { passive: false });
 
     Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
         // 2-finger pan to zoom
@@ -126,59 +104,14 @@
             }
         }
     }, { passive: true });
+
     function touchend() {
         pressed = false;
-    }
-    Tools.board.addEventListener("touchend", touchend);
-    Tools.board.addEventListener("touchcancel", touchend);
-
-    function release(x, y, evt, isTouchEvent) {
-        if (pressed && !moved) {
-            var delta = (evt.shiftKey === true) ? -1 : 1;
-            var scale = Tools.getScale() * (1 + delta * ZOOM_FACTOR);
-            zoom(origin, scale);
-        }
-        pressed = false;
-    }
-
-    function key(down) {
-        return function (evt) {
-            if (evt.key === "Shift") {
-                Tools.svg.style.cursor = "zoom-" + (down ? "out" : "in");
-            }
-        }
     }
 
     function getClientY(evt, isTouchEvent) {
         return isTouchEvent ? evt.changedTouches[0].clientY : evt.clientY;
     }
 
-    var keydown = key(true);
-    var keyup = key(false);
-
-    function onstart() {
-        window.addEventListener("keydown", keydown);
-        window.addEventListener("keyup", keyup);
-    }
-    function onquit() {
-        window.removeEventListener("keydown", keydown);
-        window.removeEventListener("keyup", keyup);
-    }
-
-    var zoomTool = {
-        "name": "Zoom",
-		"shortcut": "z",
-        "listeners": {
-            "press": press,
-            "move": move,
-            "release": release,
-        },
-        "onstart": onstart,
-        "onquit": onquit,
-        "mouseCursor": "zoom-in",
-        "icon": "tools/zoom/icon.svg",
-        "helpText": "click_to_zoom",
-        "showMarker": true,
-    };
-    Tools.add(zoomTool);
+    Tools.register({"name": "Zoom"});
 })(); //End of code isolation
