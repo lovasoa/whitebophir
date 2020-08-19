@@ -36,10 +36,11 @@
     };
     var pressed = false;
     var animation = null;
-
-    Tools.board.addEventListener("touchend", touchend);
-    Tools.board.addEventListener("touchcancel", touchend);
-    Tools.board.addEventListener("wheel", onwheel, { passive: false });
+    const body = document.getElementsByTagName('body')[0];
+    body.addEventListener("touchend", touchend);
+    body.addEventListener("touchcancel", touchend);
+    body.addEventListener("wheel", onwheel, { passive: false });
+    body.addEventListener("keydown", onKeyDown);
 
     function zoom(origin, scale) {
         var oldScale = origin.scale;
@@ -65,6 +66,25 @@
         origin.y = y;
         origin.clientY = getClientY(evt, isTouchEvent);
         origin.scale = Tools.getScale();
+    }
+
+    function onKeyDown(evt) {
+        if (evt.ctrlKey) {
+            evt.preventDefault();
+            if (evt.key === '=') {
+                Tools.setScale(1);
+                resizeBoard();
+            } else if (evt.key === '+') {
+                Tools.setScale(Tools.getScale() + 0.1);
+                resizeBoard();
+            } else if (evt.key === '-') {
+                Tools.setScale(Tools.getScale() - 0.1);
+                resizeBoard();
+            } else if (evt.key === '/') {
+                Tools.setScale(document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X);
+                resizeBoard();
+            }
+        }
     }
 
     function onwheel(evt) {
