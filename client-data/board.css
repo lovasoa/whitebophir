@@ -164,6 +164,11 @@ body {
 	overflow: hidden;
 	width: max-content;
 	box-shadow: inset 0 0 3px #8FA2BC;
+	outline: none;
+}
+
+#menu .tool.disabled {
+	background-color: #5b5b59;
 }
 
 #menu .tool:hover {

@@ -7,6 +7,10 @@
                 'type': 'clearBoard',
             });
         }
+        Tools.historyRedo.splice(0, Tools.historyRedo.length);
+        Tools.history.splice(0, Tools.history.length);
+        Tools.disableToolsEl('undo');
+        Tools.disableToolsEl('redo');
         Tools.change("Hand");
     }
 

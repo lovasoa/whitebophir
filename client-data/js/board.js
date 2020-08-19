@@ -84,6 +84,7 @@ Tools.connect = function () {
 
 	this.socket.on("addActionToHistoryRedo", function (msg) {
 		Tools.historyRedo.push(msg);
+		Tools.enableToolsEl('redo');
 	});
 
 	this.socket.on("reconnect", function onReconnection() {
@@ -629,6 +630,14 @@ Tools.getColor = (function color() {
 
 Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
+Tools.disableToolsEl = function (elementId){
+	document.getElementById(elementId).classList.add('disabled');
+}
+
+Tools.enableToolsEl = function (elementId) {
+	document.getElementById(elementId).classList.remove('disabled');
+}
+
 Tools.sizeChangeHandlers = [];
 Tools.setSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
@@ -673,6 +682,9 @@ Tools.undo = (function () {
 	function update() {
 		if (Tools.history.length) {
 			const action = Tools.history.pop();
+			if (Tools.history.length === 0) {
+				Tools.disableToolsEl('undo');
+			}
 			var instrument = null;
 			switch (action.type) {
 				case "line":
@@ -727,6 +739,7 @@ Tools.undo = (function () {
 					'deltay': action.deltay,
 				}, instrument);
 			}
+			Tools.enableToolsEl('redo');
 		}
 	}
 	el.onclick = update;
@@ -740,6 +753,9 @@ Tools.redo = (function () {
 	function update() {
 		if (Tools.historyRedo.length) {
 			const action = Tools.historyRedo.pop();
+			if (Tools.historyRedo.length === 0) {
+				Tools.disableToolsEl('redo');
+			}
 			var instrument = null;
 			action.sendBack = true;
 			switch (action.type) {
@@ -795,6 +811,7 @@ Tools.redo = (function () {
 					'deltay': action.deltay,
 				}, instrument);
 			}
+			Tools.enableToolsEl('undo');
 		}
 	}
 	el.onclick = update;
@@ -807,11 +824,13 @@ Tools.history = [];
 Tools.historyRedo = [];
 
 Tools.addActionToHistory = function (data, dontClear) {
+	Tools.enableToolsEl('undo');
 	if (Tools.history.length === 20) {
 		Tools.history.shift();
 	}
 	const clear = dontClear || false;
 	if (!clear) {
+		Tools.disableToolsEl('redo');
 		Tools.historyRedo.splice(0, Tools.historyRedo.length);
 	}
 	Tools.history.push(data);
