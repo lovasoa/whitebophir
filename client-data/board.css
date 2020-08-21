@@ -96,15 +96,13 @@ body {
 	margin-bottom: 0;
 }
 
-.scale-panel {
+#menu .scale-panel {
 	position: fixed;
 	bottom: 18px;
 	right: 16px;
-	z-index: 2;
 }
 
-.scale-panel-scaleValue {
-	z-index: 2;
+#menu .scale-panel-scaleValue {
 	padding: 0 5px;
 	height: 42px;
 	font-size: 20px;
@@ -119,12 +117,12 @@ body {
 	cursor: text;
 }
 
-.scale-panel__block {
+#menu .scale-panel__block {
 	display: flex;
 	margin-top: 8px;
 }
 
-.scale-panel_button {
+#menu .scale-panel_button {
 	cursor: pointer;
 	user-select: none;
 	pointer-events: auto;
@@ -138,7 +136,7 @@ body {
 	transition: 0.2s;
 }
 
-.scale-panel_button:hover {
+#menu .scale-panel_button:hover {
 	filter: brightness(0.7);
 }
 

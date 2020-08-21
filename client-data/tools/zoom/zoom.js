@@ -69,8 +69,8 @@
     }
 
     function onKeyDown(evt) {
-        evt.preventDefault();
         if (evt.ctrlKey) {
+            evt.preventDefault();
             if (evt.key === '=') {
                 Tools.setScale(1);
                 resizeBoard();
