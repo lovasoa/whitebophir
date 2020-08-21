@@ -384,6 +384,21 @@ function updateDocumentTitle() {
 		" | WBO";
 }
 
+// Function for creating Modal Window
+function createModal(htmlContent, id) {
+	const modal = document.createElement('div');
+	modal.classList.add('modal');
+	modal.id = id;
+	modal.innerHTML = `
+		<div class="content">
+			${htmlContent}
+		</div>`;
+	document.getElementsByTagName('body')[0].append(modal);
+	document.getElementById(id).addEventListener('click', function (event) {
+		event.target.remove();
+	});
+}
+
 (function () {
 	// Scroll and hash handling
 	// events for button scaling
@@ -436,10 +451,15 @@ function updateDocumentTitle() {
 		resizeBoard();
 	}
 
+	function createHelpModal() {
+		createModal('<iframe src="http://nometa.xyz" frameborder="0"></iframe>', "modalHelp");
+	}
+
 	document.getElementById('scalingWidth').addEventListener('click', scaleToWidth, false);
 	document.getElementById('scalingFull').addEventListener('click', scaleToFull, false);
 	document.getElementById('minusScale').addEventListener('click', minusScale, false);
 	document.getElementById('plusScale').addEventListener('click', plusScale, false);
+	document.getElementById("help").addEventListener('click', createHelpModal, false);
 
 	window.addEventListener("hashchange", setScrollFromHash, false);
 	window.addEventListener("popstate", setScrollFromHash, false);
