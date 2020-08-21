@@ -523,7 +523,7 @@ Tools.toolHooks = [
 
 		function compile(listener) { //closure
 			return (function listen(evt) {
-				var x = (evt.pageX - Tools.board.getBoundingClientRect().x) / Tools.getScale(),
+				var x = (evt.pageX - (Tools.board.getBoundingClientRect().x < 0 ? 0 : Tools.board.getBoundingClientRect().x)) / Tools.getScale(),
 					y = evt.pageY / Tools.getScale();
 				return listener(x, y, evt, false);
 			});
