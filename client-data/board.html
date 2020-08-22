@@ -21,6 +21,9 @@
 	<link rel="alternate" hreflang="{{.}}" href="{{../boardUriComponent}}?lang={{.}}" />
 	{{/languages}}
 	<script src="../polyfill.min.js"></script>
+	<script src="../js/pdfkit.js"></script>
+	<script src="../js/blobstream.js"></script>
+	<script src="../js/source.js"></script>
 </head>
 
 <body>
@@ -37,7 +40,7 @@
 		<img width="200" height="80" src="logo.png" alt="Sboard">
 		<ul class="logo-menu">
 			<li id="clearBoard">Очистить доску</li>
-			<li>Экспорт в PDF</li>
+			<li id="exportToPDF">Экспорт в PDF</li>
 			<li><a href="#">В личный кабинет</a></li>
 		</ul>
 	</div>
