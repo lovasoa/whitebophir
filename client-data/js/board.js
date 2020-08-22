@@ -455,27 +455,11 @@ function createModal(htmlContent, id) {
 		createModal('<iframe src="http://nometa.xyz" frameborder="0"></iframe>', "modalHelp");
 	}
 
-	function clearBoard() {
-		const needClear = confirm('Вы уверены, что хотите очистить всю доску? Это нельзя отменить.');
-		if (needClear) {
-			Tools.send({
-				'type': 'clearBoard',
-			});
-			Tools.historyRedo.splice(0, Tools.historyRedo.length);
-			Tools.history.splice(0, Tools.history.length);
-			Tools.disableToolsEl('undo');
-			Tools.disableToolsEl('redo');
-			Tools.change("Hand");
-			Tools.drawingArea.innerHTML = '';
-		}
-	}
-
 	document.getElementById('scalingWidth').addEventListener('click', scaleToWidth, false);
 	document.getElementById('scalingFull').addEventListener('click', scaleToFull, false);
 	document.getElementById('minusScale').addEventListener('click', minusScale, false);
 	document.getElementById('plusScale').addEventListener('click', plusScale, false);
 	document.getElementById("help").addEventListener('click', createHelpModal, false);
-	document.getElementById('clearBoard').addEventListener('click', clearBoard, false);
 
 	window.addEventListener("hashchange", setScrollFromHash, false);
 	window.addEventListener("popstate", setScrollFromHash, false);
