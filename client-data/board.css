@@ -17,6 +17,54 @@ body {
 	outline: 1px solid red;
 }
 
+.logo {
+	top: 10px;
+	left: 10px;
+	position: fixed;
+	z-index: 2;
+	background-color: #e5f1f6;
+	width: 200px;
+	height: 80px;
+	transition: .25s background-color;
+	cursor: pointer;
+}
+
+.logo:hover {
+	background-color: #3393bf;
+}
+
+.logo:hover .logo-menu {
+	display: block;
+}
+
+.logo .logo-menu {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	top: 80px;
+	display: none;
+	width: 200px;
+}
+
+.logo .logo-menu li {
+	background-color: #C4C4C4;
+	transition: .25s background-color;
+	text-align: center;
+	height: 72px;
+	line-height: 72px;
+	font-size: 18px;
+}
+
+.logo .logo-menu li:hover {
+	background-color: #979595;
+}
+
+.logo .logo-menu li a {
+	color: #000;
+	text-decoration: none;
+}
+
 #loadingMessage {
 	font-size: 1.5em;
 	background: #eee linear-gradient(#eeeeee, #cccccc);
@@ -56,6 +104,7 @@ body {
 	overflow-y: scroll;
 	position: fixed;
 	margin-bottom: 30px;
+	margin-top: 90px;
 	left: 0;
 	top: 0;
 	color: black;
