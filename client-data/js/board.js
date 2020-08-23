@@ -472,11 +472,11 @@ function createModal(htmlContent, id) {
 	}
 
 	function createPdf() {
-		let doc = new PDFDocument({compress: false, size: [Tools.svg.getAttribute('width'), Tools.svg.getAttribute('height')]});
+		let doc = new PDFDocument({compress: false, size: [+Tools.svg.getAttribute('width'), +Tools.svg.getAttribute('height') - 1900]});
 		let value = Tools.svg.outerHTML
-			.replace(/(?<=<svg)(.*?)(?=>)/, ' width="2048" version="1.1" xmlns="http://www.w3.org/2000/svg"')
+			.replace(/(?<=<svg)(.*?)(?=>)/, ` width="${Tools.svg.getAttribute('width')}" version="1.1" xmlns="http://www.w3.org/2000/svg"`)
 			.replace('</svg>', "<style>ellipse,line,path,rect{fill:none}line,path{stroke-linecap:round;stroke-linejoin:round}</style></svg>");
-		const options = {"useCSS":true,"assumePt":true,"preserveAspectRatio":"xMinYMin meet","width": Tools.svg.getAttribute('width'),"height": Tools.svg.getAttribute('height')};
+		const options = {"useCSS":false,"assumePt":true,"preserveAspectRatio":"xMinYMin meet","width": +Tools.svg.getAttribute('width'),"height": +Tools.svg.getAttribute('height') - 1900};
 		SVGtoPDF(doc, value, 0, 0, options);
 		let stream = doc.pipe(blobStream());
 		const saveData = (function () {
