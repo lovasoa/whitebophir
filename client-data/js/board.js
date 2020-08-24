@@ -482,6 +482,9 @@ function createModal(htmlContent, id) {
 			const newName = document.getElementById('newBoardName').value;
 			fetch(Tools.server_config.API_URL + '/api/v1/boards/' + Tools.boardName, {
 				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json'
+				},
 				body: JSON.stringify({ name: newName }),
 			}).then(function () {
 				document.getElementById('boardName').innerText = newName;
