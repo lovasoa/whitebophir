@@ -17,6 +17,18 @@ body {
 	outline: 1px solid red;
 }
 
+.boardName {
+	position: fixed;
+	top: 10px;
+	left: 220px;
+	z-index: 2;
+	background-color: #e5f1f6;
+	height: 80px;
+	cursor: pointer;
+	font-size: 25px;
+	line-height: 80px;
+}
+
 .logo {
 	top: 10px;
 	left: 10px;
@@ -186,6 +198,25 @@ body {
 	border-radius: 5px;
 	overflow: hidden;
 	height: calc(100vh - 100px);
+}
+
+#modalRename.modal .content{
+	padding: 15px;
+	width: 350px;
+	background-color: #fff;
+	position: relative;
+	margin: 100px auto;
+	border-radius: 5px;
+	overflow: hidden;
+}
+
+#modalRename.modal .content input{
+	box-sizing: border-box;
+	width: 100%;
+	height: 30px;
+	font-size: 18px;
+	line-height: 30px;
+	margin-bottom: 20px;
 }
 
 #modalHelp.modal .content iframe {

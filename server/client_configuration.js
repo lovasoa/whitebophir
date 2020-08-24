@@ -7,4 +7,5 @@ module.exports = {
     "MAX_EMIT_COUNT": config.MAX_EMIT_COUNT,
     "MAX_EMIT_COUNT_PERIOD": config.MAX_EMIT_COUNT_PERIOD,
     "BLOCKED_TOOLS": config.BLOCKED_TOOLS,
+    "API_URL": config.API_URL,
 };
