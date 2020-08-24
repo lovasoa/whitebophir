@@ -624,7 +624,7 @@ Tools.toolHooks = [
 				if (evt.changedTouches.length === 1) {
 					//evt.preventDefault();
 					var touch = evt.changedTouches[0];
-					var x = touch.pageX / Tools.getScale(),
+					var x = (touch.pageX - (Tools.board.getBoundingClientRect().x < 0 ? 0 : Tools.board.getBoundingClientRect().x)) / Tools.getScale(),
 						y = touch.pageY / Tools.getScale();
 					return listener(x, y, evt, true);
 				}

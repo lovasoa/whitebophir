@@ -25,7 +25,9 @@
  */
 
 (function () { //Code isolation
-    var ZOOM_FACTOR = .5;
+    console.log('new');
+    var ZOOM_FACTOR = .01;
+    var ctrl_pressed = false;
     var origin = {
         scrollX: document.documentElement.scrollLeft,
         scrollY: document.documentElement.scrollTop,
@@ -36,11 +38,12 @@
     };
     var pressed = false;
     var animation = null;
-    const body = document.getElementsByTagName('body')[0];
+    const body = document;
     body.addEventListener("touchend", touchend);
     body.addEventListener("touchcancel", touchend);
     body.addEventListener("wheel", onwheel, { passive: false });
     body.addEventListener("keydown", onKeyDown);
+    body.addEventListener("keyup", onKeyUp);
 
     function zoom(origin, scale) {
         var oldScale = origin.scale;
@@ -70,6 +73,7 @@
 
     function onKeyDown(evt) {
         if (evt.ctrlKey) {
+            ctrl_pressed = true;
             evt.preventDefault();
             if (evt.key === '=') {
                 Tools.setScale(1);
@@ -87,17 +91,34 @@
         }
     }
 
+    function onKeyUp(evt) {
+        if (evt.ctrlKey) ctrl_pressed = false;
+    }
+
     function onwheel(evt) {
         evt.preventDefault();
-        if (evt.ctrlKey) {
-            // zoom
+        if (evt.ctrlKey && ctrl_pressed) {
             var scale = Tools.getScale();
             var x = evt.pageX / scale;
             var y = evt.pageY / scale;
             setOrigin(x, y, evt, false);
             animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.2);
+        } else if (evt.ctrlKey && !ctrl_pressed) {
+            var scale = Tools.getScale();
+            var x = evt.pageX / scale;
+            var y = evt.pageY / scale;
+            setOrigin(x, y, evt, false);
+            if (Tools.getScale() < 1) {
+                if (document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X > Tools.getScale()) {
+                    animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.001);
+                } else {
+                    animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.01);
+                }
+
+            } else {
+                animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.02);
+            }
         } else {
-            // regular scrolling
             window.scrollTo(document.documentElement.scrollLeft + evt.deltaX, document.documentElement.scrollTop + evt.deltaY);
         }
     }
