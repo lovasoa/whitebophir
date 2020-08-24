@@ -395,7 +395,9 @@ function createModal(htmlContent, id) {
 		</div>`;
 	document.getElementsByTagName('body')[0].append(modal);
 	document.getElementById(id).addEventListener('click', function (event) {
-		event.target.remove();
+		if (event.target.getAttribute('class') === 'modal') {
+			event.target.remove();
+		}
 	});
 }
 
@@ -453,7 +455,7 @@ function createModal(htmlContent, id) {
 	}
 
 	function createHelpModal() {
-		createModal('<iframe src="http://nometa.xyz" frameborder="0"></iframe>', "modalHelp");
+		createModal(`<iframe src="${Tools.server_config.API_URL}/lite/help" frameborder="0"></iframe>`, "modalHelp");
 	}
 
 	function clearBoard() {
@@ -469,6 +471,17 @@ function createModal(htmlContent, id) {
 			Tools.change("Hand");
 			Tools.drawingArea.innerHTML = '';
 		}
+	}
+
+	function createModalRename() {
+		createModal(`
+			<input type="text" value="Новая доска">
+			<input id="buttonRenameBoard" type="button" value="Переименовать">
+			<script>document.getElementById('buttonRenameBoard').addEventListener('click', function () {
+			    console.log('rename');
+			})</script>			
+`, "modalRename");
+
 	}
 
 	function createPdf() {
@@ -506,6 +519,7 @@ function createModal(htmlContent, id) {
 	document.getElementById("help").addEventListener('click', createHelpModal, false);
 	document.getElementById('clearBoard').addEventListener('click', clearBoard, false);
 	document.getElementById('exportToPDF').addEventListener('click', createPdf, false);
+	document.getElementById('boardName').addEventListener('click', createModalRename, false);
 
 	window.addEventListener("hashchange", setScrollFromHash, false);
 	window.addEventListener("popstate", setScrollFromHash, false);
