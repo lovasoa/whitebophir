@@ -35,8 +35,8 @@ Tools.i18n = (function i18n() {
 		}
 	};
 })();
-
 Tools.server_config = JSON.parse(document.getElementById("configuration").text);
+document.getElementById('cabinetURL').setAttribute('href', Tools.server_config.CABINET_URL);
 
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");

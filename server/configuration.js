@@ -39,5 +39,10 @@ module.exports = {
     /** Blocked Tools. A comma-separated list of tools that should not appear on boards. */
     BLOCKED_TOOLS: (process.env['WBO_BLOCKED_TOOLS'] || "").split(','),
 
+    /** URL for API */
     API_URL: process.env.API_URL,
+
+    /** URL for cabinet */
+    CABINET_URL: process.env.CABINET_URL || '#',
+
 };
