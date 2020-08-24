@@ -475,13 +475,19 @@ function createModal(htmlContent, id) {
 
 	function createModalRename() {
 		createModal(`
-			<input type="text" value="Новая доска">
-			<input id="buttonRenameBoard" type="button" value="Переименовать">
-			<script>document.getElementById('buttonRenameBoard').addEventListener('click', function () {
-			    console.log('rename');
-			})</script>			
-`, "modalRename");
-
+			<input id="newBoardName" type="text" value="Новая доска">
+			<input id="buttonRenameBoard" type="button" value="Переименовать">`, "modalRename");
+		document.getElementById('newBoardName').value = document.getElementById('boardName').innerText;
+		document.getElementById('buttonRenameBoard').addEventListener('click', function () {
+			const newName = document.getElementById('newBoardName').value;
+			fetch(Tools.server_config.API_URL + '/api/v1/boards/' + Tools.boardName, {
+				method: 'PUT',
+				body: JSON.stringify({ name: newName }),
+			}).then(function () {
+				document.getElementById('boardName').innerText = newName;
+				document.getElementsByClassName('modal')[0].click();
+			});
+		});
 	}
 
 	function createPdf() {
