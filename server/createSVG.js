@@ -17,7 +17,7 @@ function htmlspecialchars(str) {
 }
 
 function renderPath(el, pathstring) {
-	return '<path ' +
+	return '<path class="nofill"' +
 		(el.id ?
 			('id="' + htmlspecialchars(el.id) + '" ') : '') +
 		'stroke-width="' + (el.size | 0) + '" ' +
@@ -47,6 +47,22 @@ const Tools = {
 	/**
 	 * @return {string}
 	 */
+	"Mathematics": function (el) {
+		return '<svg ' +
+			'id="' + htmlspecialchars(el.id || "m") + '" ' +
+			'class="MathElement" ' +
+			'x="' + (el.x | 0) + '" ' +
+			'y="' + (el.y | 0) + '" ' +
+			'aria-label="' + htmlspecialchars(el.txt || "TeX not found") + '" ' +
+			'width="' + (el.mWidth | 0) + '" ' +
+			'height="' + (el.mHeight | 0) + '" ' +
+			'viewBox="' + (el.mViewBox | 0) + '" ' +
+			(el.deltax || el.deltay ? ('transform="translate(' + (el.deltax || 0) + ',' + (el.deltay || 0) + ')"') : '') +
+			'>' + (el.mInnerHTML || '') + '</svg>';
+	},
+	/**
+	 * @return {string}
+	 */
 	"Pencil": function (el) {
 		if (!el._children) return "";
 		let pts = el._children.reduce(function (pts, point) {
@@ -61,7 +77,7 @@ const Tools = {
 	 * @return {string}
 	 */
 	"Rectangle": function (el) {
-		return '<rect ' +
+		return '<rect class="nofill"' +
 			(el.id ?
 				('id="' + htmlspecialchars(el.id) + '" ') : '') +
 			'x="' + (el.x || 0) + '" ' +

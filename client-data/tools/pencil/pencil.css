@@ -1,5 +1,8 @@
 path {
-	fill: none;
 	stroke-linecap: round;
 	stroke-linejoin: round;
+}
+
+path.nofill {
+	fill: none;
 }

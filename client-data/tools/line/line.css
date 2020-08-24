@@ -1,5 +1,8 @@
 line {
-	fill: none;
 	stroke-linecap: round;
 	stroke-linejoin: round;
+}
+
+line.nofill {
+	fill: none;
 }
