@@ -494,31 +494,7 @@ function createModal(htmlContent, id) {
 	}
 
 	function createPdf() {
-		let doc = new PDFDocument({compress: false, size: [+Tools.svg.getAttribute('width'), +Tools.svg.getAttribute('height') - 1900]});
-		let value = Tools.svg.outerHTML
-			.replace(/(?<=<svg)(.*?)(?=>)/, ` width="${Tools.svg.getAttribute('width')}" version="1.1" xmlns="http://www.w3.org/2000/svg"`)
-			.replace('</svg>', "<style>ellipse,line,path,rect{fill:none}line,path{stroke-linecap:round;stroke-linejoin:round}</style></svg>");
-		const options = {"useCSS":false,"assumePt":true,"preserveAspectRatio":"xMinYMin meet","width": +Tools.svg.getAttribute('width'),"height": +Tools.svg.getAttribute('height') - 1900};
-		SVGtoPDF(doc, value, 0, 0, options);
-		let stream = doc.pipe(blobStream());
-		const saveData = (function () {
-			var a = document.createElement("a");
-			document.body.appendChild(a);
-			a.style = "display: none";
-			return function (blob, fileName) {
-				var url = window.URL.createObjectURL(blob);
-				a.href = url;
-				a.download = fileName;
-				a.click();
-				window.URL.revokeObjectURL(url);
-				a.remove();
-			};
-		}());
-		stream.on('finish', function() {
-			let blob = stream.toBlob('application/pdf');
-			saveData(blob, 'Sboard.pdf');
-		});
-		doc.end();
+		alert('Тут будет экспорт в PDF');
 	}
 
 	document.getElementById('scalingWidth').addEventListener('click', scaleToWidth, false);

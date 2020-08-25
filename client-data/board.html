@@ -12,7 +12,7 @@
 		content="{{translations.collaborative_whiteboard}},online,draw,paint,shared,realtime,wbo,whitebophir" />
 	<link rel="apple-touch-icon" href="../favicon.svg">
 	<link rel="icon" type="image/x-icon" sizes="16x16" href="../favicon.ico">
-	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0" />
+	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0 maximum-scale=1" />
 	<meta property="og:title" content="{{board}} board on WBO" />
 	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
 	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
@@ -21,9 +21,6 @@
 	<link rel="alternate" hreflang="{{.}}" href="{{../boardUriComponent}}?lang={{.}}" />
 	{{/languages}}
 	<script src="../polyfill.min.js"></script>
-	<script src="../js/pdfkit.js"></script>
-	<script src="../js/blobstream.js"></script>
-	<script src="../js/source.js"></script>
 </head>
 
 <body>
@@ -145,6 +142,7 @@
 	<script src="../tools/zoom/zoom.js"></script>
 	<script src="../tools/selectorAndMover/selectorAndMover.js"></script>
 	<script src="../js/canvascolor.js"></script>
+	<script src="../tools/shapes/shapes.js"></script>
 </body>
 
 </html>
