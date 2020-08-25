@@ -4,6 +4,10 @@ html, body, svg {
 	font-family: Liberation sans, sans-serif;
 }
 
+* {
+	touch-action: pan-x pan-y;
+}
+
 body {
 	background-color: #ffda97;
 }
