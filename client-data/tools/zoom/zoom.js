@@ -44,7 +44,7 @@
     body.addEventListener("keydown", onKeyDown);
     body.addEventListener("keyup", onKeyUp);
     body.addEventListener("gesturestart", prevent, false);
-    body.addEventListener("gesturechange", prevent, false);
+    body.addEventListener("gesturechange", ontouchmove, false);
     body.addEventListener("gestureend", prevent, false);
 
     function prevent(evt) {
@@ -120,12 +120,11 @@
         }
     }
 
-    Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
+    function ontouchmove(evt) {
         // 2-finger pan to zoom
         evt.preventDefault();
         var touches = evt.touches;
         if (touches.length === 2) {
-            evt.preventDefault();
             var x0 = touches[0].clientX, x1 = touches[1].clientX,
                 y0 = touches[0].clientY, y1 = touches[1].clientY,
                 dx = x0 - x1,
@@ -143,7 +142,9 @@
                 animate(scale);
             }
         }
-    }, false);
+    }
+
+    Tools.board.addEventListener("touchmove", ontouchmove, false);
 
     function touchend(evt) {
         evt.preventDefault();
