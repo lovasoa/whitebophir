@@ -43,6 +43,13 @@
     body.addEventListener("wheel", onwheel);
     body.addEventListener("keydown", onKeyDown);
     body.addEventListener("keyup", onKeyUp);
+    body.addEventListener("gesturestart", prevent, false);
+    body.addEventListener("gesturechange", prevent, false);
+    body.addEventListener("gestureend", prevent, false);
+
+    function prevent(evt) {
+        evt.preventDefault();
+    }
 
     function zoom(origin, scale) {
         var oldScale = origin.scale;
@@ -136,9 +143,10 @@
                 animate(scale);
             }
         }
-    });
+    }, false);
 
-    function touchend() {
+    function touchend(evt) {
+        evt.preventDefault();
         pressed = false;
     }
 
