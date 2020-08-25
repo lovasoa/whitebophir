@@ -40,7 +40,7 @@
     const body = document;
     body.addEventListener("touchend", touchend);
     body.addEventListener("touchcancel", touchend);
-    body.addEventListener("wheel", onwheel, { passive: false });
+    body.addEventListener("wheel", onwheel);
     body.addEventListener("keydown", onKeyDown);
     body.addEventListener("keyup", onKeyUp);
 
@@ -117,6 +117,7 @@
         // 2-finger pan to zoom
         var touches = evt.touches;
         if (touches.length === 2) {
+            evt.preventDefault();
             var x0 = touches[0].clientX, x1 = touches[1].clientX,
                 y0 = touches[0].clientY, y1 = touches[1].clientY,
                 dx = x0 - x1,
@@ -134,7 +135,7 @@
                 animate(scale);
             }
         }
-    }, { passive: true });
+    });
 
     function touchend() {
         pressed = false;
