@@ -25,8 +25,7 @@
  */
 
 (function () { //Code isolation
-    console.log('new');
-    var ZOOM_FACTOR = .01;
+    var ZOOM_FACTOR = .005;
     var ctrl_pressed = false;
     var origin = {
         scrollX: document.documentElement.scrollLeft,
@@ -108,16 +107,7 @@
             var x = evt.pageX / scale;
             var y = evt.pageY / scale;
             setOrigin(x, y, evt, false);
-            if (Tools.getScale() < 1) {
-                if (document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X > Tools.getScale()) {
-                    animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.001);
-                } else {
-                    animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.01);
-                }
-
-            } else {
-                animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.02);
-            }
+            animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.01);
         } else {
             window.scrollTo(document.documentElement.scrollLeft + evt.deltaX, document.documentElement.scrollTop + evt.deltaY);
         }
@@ -140,7 +130,7 @@
                 origin.distance = distance;
             } else {
                 var delta = distance - origin.distance;
-                var scale = origin.scale * (1 + delta * ZOOM_FACTOR / 100);
+                var scale = origin.scale * (1 + delta * ZOOM_FACTOR);
                 animate(scale);
             }
         }
