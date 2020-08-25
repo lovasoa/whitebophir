@@ -141,6 +141,7 @@
     }
 
     function updateShape(shape, data) {
+        console.log(shape, data);
         shape.cx.baseVal.value = Math.round((data['x2'] + data['x']) / 2);
         shape.cy.baseVal.value = Math.round((data['y2'] + data['y']) / 2);
         shape.rx.baseVal.value = Math.abs(data['x2'] - data['x']) / 2;
