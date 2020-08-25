@@ -47,10 +47,11 @@
     document.addEventListener('gesturechange', gesture);
     document.addEventListener('gestureend', gesture);
 
-    function gesture(e) {
-        console.log(e);
-        console.log(e.scale)
-        e.preventDefault()
+    function gesture(evt) {
+        evt.preventDefault();
+        setOrigin(e.screenX, e.screenY, evt, true);
+        console.log(evt.scale);
+        animate(Tools.getScale() * evt.scale);
     }
     function zoom(origin, scale) {
         var oldScale = origin.scale;
