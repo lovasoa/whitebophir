@@ -43,7 +43,15 @@
     body.addEventListener("wheel", onwheel, { passive: false });
     body.addEventListener("keydown", onKeyDown);
     body.addEventListener("keyup", onKeyUp);
+    document.addEventListener('gesturestart', gesture);
+    document.addEventListener('gesturechange', gesture);
+    document.addEventListener('gestureend', gesture);
 
+    function gesture(e) {
+        console.log(e);
+        console.log(e.scale)
+        e.preventDefault()
+    }
     function zoom(origin, scale) {
         var oldScale = origin.scale;
         var newScale = Tools.setScale(scale);
