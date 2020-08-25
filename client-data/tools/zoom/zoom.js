@@ -48,8 +48,7 @@
     document.addEventListener('gestureend', gesture);
 
     function gesture(evt) {
-        evt.preventDefault();
-        setOrigin(e.screenX, e.screenY, evt, true);
+        evt.preventDefault;
         console.log(evt.scale);
         animate(Tools.getScale() * evt.scale);
     }
