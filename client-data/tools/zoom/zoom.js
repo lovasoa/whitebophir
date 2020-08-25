@@ -43,9 +43,9 @@
     body.addEventListener("wheel", onwheel);
     body.addEventListener("keydown", onKeyDown);
     body.addEventListener("keyup", onKeyUp);
-    body.addEventListener("gesturestart", prevent, false);
-    body.addEventListener("gesturechange", ontouchmove, false);
-    body.addEventListener("gestureend", prevent, false);
+    // body.addEventListener("gesturestart", prevent, false);
+    // body.addEventListener("gesturechange", prevent, false);
+    // body.addEventListener("gestureend", prevent, false);
 
     function prevent(evt) {
         evt.preventDefault();
@@ -120,11 +120,15 @@
         }
     }
 
-    function ontouchmove(evt) {
+    Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
         // 2-finger pan to zoom
-        evt.preventDefault();
+        console.log(evt);
         var touches = evt.touches;
+        if (evt.originalEvent && evt.originalEvent.scale !== 1) {
+            evt.preventDefault();
+        }
         if (touches.length === 2) {
+            evt.preventDefault();
             var x0 = touches[0].clientX, x1 = touches[1].clientX,
                 y0 = touches[0].clientY, y1 = touches[1].clientY,
                 dx = x0 - x1,
@@ -142,12 +146,9 @@
                 animate(scale);
             }
         }
-    }
-
-    Tools.board.addEventListener("touchmove", ontouchmove, false);
+    });
 
     function touchend(evt) {
-        evt.preventDefault();
         pressed = false;
     }
 
