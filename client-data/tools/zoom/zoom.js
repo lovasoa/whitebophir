@@ -1,7 +1,7 @@
 /**
  *                        WHITEBOPHIR
  *********************************************************
- * @licstart  The following is the entire license notice for the 
+ * @licstart  The following is the entire license notice for the
  *  JavaScript code in this page.
  *
  * Copyright (C) 2013  Ophir LOJKINE
@@ -40,16 +40,9 @@
     const body = document;
     body.addEventListener("touchend", touchend);
     body.addEventListener("touchcancel", touchend);
-    body.addEventListener("wheel", onwheel);
+    body.addEventListener("wheel", onwheel, { passive: false });
     body.addEventListener("keydown", onKeyDown);
     body.addEventListener("keyup", onKeyUp);
-    // body.addEventListener("gesturestart", prevent, false);
-    // body.addEventListener("gesturechange", prevent, false);
-    // body.addEventListener("gestureend", prevent, false);
-
-    function prevent(evt) {
-        evt.preventDefault();
-    }
 
     function zoom(origin, scale) {
         var oldScale = origin.scale;
@@ -102,6 +95,7 @@
     }
 
     function onwheel(evt) {
+        console.log('onwheel');
         evt.preventDefault();
         if (evt.ctrlKey && ctrl_pressed) {
             var scale = Tools.getScale();
@@ -121,6 +115,8 @@
     }
 
     Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
+        // 2-finger pan to zoom
+        console.log('touchmove')
         var touches = evt.touches;
         if (touches.length === 2) {
             var x0 = touches[0].clientX, x1 = touches[1].clientX,
@@ -140,9 +136,9 @@
                 animate(scale);
             }
         }
-    });
+    }, { passive: true });
 
-    function touchend(evt) {
+    function touchend() {
         pressed = false;
     }
 
