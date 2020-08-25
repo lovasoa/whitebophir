@@ -121,14 +121,8 @@
     }
 
     Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
-        // 2-finger pan to zoom
-        console.log(evt);
         var touches = evt.touches;
-        if (evt.originalEvent && evt.originalEvent.scale !== 1) {
-            evt.preventDefault();
-        }
         if (touches.length === 2) {
-            evt.preventDefault();
             var x0 = touches[0].clientX, x1 = touches[1].clientX,
                 y0 = touches[0].clientY, y1 = touches[1].clientY,
                 dx = x0 - x1,
