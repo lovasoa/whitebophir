@@ -79,7 +79,7 @@ Tools.connect = function () {
 	});
 
 	this.socket.on("addActionToHistory", function (msg) {
-		Tools.addActionToHistory({ type: "update", ...msg }, true);
+		Tools.addActionToHistory(msg, true);
 	});
 
 	this.socket.on("addActionToHistoryRedo", function (msg) {
