@@ -26,6 +26,7 @@
 
 (function () { //Code isolation
 	var end = false,
+		index = 0
 		selected = false,
 		curId = "",
 		curUpdate = { //The data of the message that will be sent for every new point
@@ -40,7 +41,6 @@
 		lastPos = { x: 0, y: 0 },
 		lastTime = performance.now(); //The time at which the last point was drawn
 	//Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-	var index = 0;
 	// 0 = Прямоугольник, 1 = Квадрат, 2 = Эллипс, 3 = Круг
 	const localTools = [
 		{ icon: 'icon.svg', name: 'rectangle' },
@@ -50,6 +50,7 @@
 	]
 
 	function toogleTool() {
+		end = true;
 		if (!selected) index = (index + 1) % localTools.length;
 		selected = false;
 		Tools.HTML.toggle("Shapes", localTools[index].name, '/tools/shapes/' + localTools[index].icon);
@@ -246,8 +247,7 @@
 	}
 
 	function updateShape(shape, data) {
-		console.log(shape, data);
-		if (index === 0 || index === 1) {
+		if (data.index === 0 || data.index === 1) {
 			shape.x.baseVal.value = Math.min(data['x2'], data['x']);
 			shape.y.baseVal.value = Math.min(data['y2'], data['y']);
 			shape.width.baseVal.value = Math.abs(data['x2'] - data['x']);
@@ -273,7 +273,7 @@
 		"draw": draw,
 		"mouseCursor": "crosshair",
 		"icon": "tools/rect/icon.svg",
-		"stylesheet": "tools/rect/rect.css"
+		"stylesheet": "tools/shapes/shapes.css"
 	};
 	Tools.add(rectangleTool);
 	Tools.HTML.toggle("Shapes", localTools[0].name, '/tools/shapes/' + localTools[0].icon);

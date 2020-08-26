@@ -49,7 +49,6 @@
 
     function gesture(evt) {
         evt.preventDefault;
-        console.log(evt.scale);
         animate(Tools.getScale() * evt.scale);
     }
     function zoom(origin, scale) {
@@ -103,7 +102,6 @@
     }
 
     function onwheel(evt) {
-        console.log('onwheel');
         evt.preventDefault();
         if (evt.ctrlKey && ctrl_pressed) {
             var scale = Tools.getScale();
@@ -124,7 +122,6 @@
 
     Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
         // 2-finger pan to zoom
-        console.log('touchmove')
         var touches = evt.touches;
         if (touches.length === 2) {
             var x0 = touches[0].clientX, x1 = touches[1].clientX,
