@@ -49,6 +49,7 @@
 			'color': Tools.getColor(),
 			'size': Tools.getSize(),
 			'opacity': Tools.getOpacity(),
+			'dotted': Tools.curTool.secondary.active,
 		});
 
 		//Immediatly add a point to the line
@@ -124,6 +125,9 @@
 	function createLine(lineData) {
 		//Creates a new line on the canvas, or update a line that already exists with new information
 		var line = svg.getElementById(lineData.id) || Tools.createSVGElement("path");
+		if (lineData.dotted) {
+			line.classList.add('dotted');
+		}
 		line.id = lineData.id;
 		//If some data is not provided, choose default value. The line may be updated later
 		line.setAttribute("stroke", lineData.color || "black");
@@ -141,6 +145,11 @@
 			"press": startLine,
 			"move": continueLine,
 			"release": stopLineAt,
+		},
+		"secondary": {
+			"name": "Dotted Pencil",
+			"icon": "tools/line/icon-straight.svg",
+			"active": false,
 		},
 		"draw": draw,
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",

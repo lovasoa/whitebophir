@@ -289,7 +289,9 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 (function () {
 	// Handle secondary tool switch with shift (key code 16)
 	function handleShift(active, evt) {
-		if (evt.keyCode === 16 && Tools.curTool.secondary && Tools.curTool.secondary.active !== active) {
+		// list tools for ignore handle shift
+		const toolsIgnore = ["Straight line", "Pencil"];
+		if (!toolsIgnore.includes(Tools.curTool.name) && evt.keyCode === 16 && Tools.curTool.secondary && Tools.curTool.secondary.active !== active) {
 			Tools.change(Tools.curTool.name);
 		}
 	}

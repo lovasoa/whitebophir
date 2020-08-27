@@ -27,6 +27,7 @@
 (function () { //Code isolation
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLine = null,
+		shift = false,
 		lastTime = performance.now(); //The time at which the last point was drawn
 
 	//The data of the message that will be sent for every update
@@ -49,17 +50,22 @@
 			'size': Tools.getSize(),
 			'opacity': Tools.getOpacity(),
 			'x': x,
-			'y': y
+			'y': y,
+			'dotted': Tools.curTool.secondary.active,
 		}
 
 		Tools.drawAndSend(curLine);
 	}
 
 	function continueLine(x, y, evt) {
-		/*Wait 70ms before adding any point to the currently drawing line.
+		if (evt) {
+			shift = evt.shiftKey;
+			evt.preventDefault();
+		}
+		/*Wait 50ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
 		if (curLine !== null) {
-			if (lineTool.secondary.active) {
+			if (shift) {
 				var alpha = Math.atan2(y - curLine.y, x - curLine.x);
 				var d = Math.hypot(y - curLine.y, x - curLine.x);
 				var increment = 2 * Math.PI / 16;
@@ -67,14 +73,13 @@
 				x = curLine.x + d * Math.cos(alpha);
 				y = curLine.y + d * Math.sin(alpha);
 			}
-			if (performance.now() - lastTime > 70) {
+			if (performance.now() - lastTime > 50) {
 				Tools.drawAndSend(new UpdateMessage(x, y));
 				lastTime = performance.now();
 			} else {
 				draw(new UpdateMessage(x, y));
 			}
 		}
-		if (evt) evt.preventDefault();
 	}
 
 	function stopLine(x, y) {
@@ -111,6 +116,7 @@
 	function createLine(lineData) {
 		//Creates a new line on the canvas, or update a line that already exists with new information
 		var line = svg.getElementById(lineData.id) || Tools.createSVGElement("line");
+		if (lineData.dotted) line.classList.add('dotted');
 		line.id = lineData.id;
 		line.x1.baseVal.value = lineData['x'];
 		line.y1.baseVal.value = lineData['y'];
@@ -138,7 +144,7 @@
 			"release": stopLine,
 		},
 		"secondary": {
-			"name": "Straight line",
+			"name": "Dotted line",
 			"icon": "tools/line/icon-straight.svg",
 			"active": false,
 		},

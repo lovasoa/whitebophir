@@ -3,3 +3,7 @@ line {
 	stroke-linecap: round;
 	stroke-linejoin: round;
 }
+
+line.dotted {
+	stroke-dasharray: 15;
+}
