@@ -105,7 +105,7 @@
 
 	function move(x, y, evt) {
 		if (evt) evt.preventDefault();
-		if (index === 0 || index === 1) {
+		if (curUpdate.index === 0 || curUpdate.index === 1) {
 			if (curId !== "") {
 				if (index === 1) {
 					var dx = x - curUpdate.x;
