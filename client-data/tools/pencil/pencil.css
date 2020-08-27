@@ -3,3 +3,7 @@ path {
 	stroke-linecap: round;
 	stroke-linejoin: round;
 }
+
+path.dotted {
+	stroke-dasharray: 15;
+}
