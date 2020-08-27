@@ -26,7 +26,8 @@
 
 (function () { //Code isolation
 	var end = false,
-		index = 0
+		shift = false,
+		index = 0,
 		selected = false,
 		curId = "",
 		curUpdate = { //The data of the message that will be sent for every new point
@@ -62,7 +63,6 @@
 
 	function start(x, y, evt) {
 		evt.preventDefault();
-
 		if (index === 0 || index === 1) {
 			curId = Tools.generateUID("r");
 			Tools.drawAndSend({
@@ -104,10 +104,13 @@
 	}
 
 	function move(x, y, evt) {
-		if (evt) evt.preventDefault();
+		if (evt) {
+			shift = index === 1 || index === 3 || evt.shiftKey;
+			evt.preventDefault();
+		}
 		if (curUpdate.index === 0 || curUpdate.index === 1) {
 			if (curId !== "") {
-				if (index === 1) {
+				if (index === 1 || shift) {
 					var dx = x - curUpdate.x;
 					var dy = y - curUpdate.y;
 					var d = Math.max(Math.abs(dx), Math.abs(dy));
@@ -132,7 +135,7 @@
 
 	function doUpdate(force) {
 		if (!curUpdate.id) return; // Not currently drawing
-		if (index === 3) {
+		if (index === 3 || shift) {
 			var x0 = curUpdate['x'], y0 = curUpdate['y'];
 			var deltaX = lastPos.x - x0, deltaY = lastPos.y - y0;
 			var diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
