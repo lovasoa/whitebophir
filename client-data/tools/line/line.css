@@ -6,4 +6,5 @@ line {
 
 line.dotted {
 	stroke-dasharray: 15;
+	stroke-linecap: butt;
 }
