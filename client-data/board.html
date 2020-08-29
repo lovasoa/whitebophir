@@ -56,7 +56,6 @@
 					<img class="tool-icon" width="35" height="35" src="" alt="icon" /><span class="tool-name"></span>
 				</li>
 			</ul>
-
 			<ul class="tools" id="settings">
 				<li class="tool" tabindex="-1">
 					<input class="tool-icon" type="color" id="chooseColor" value="#1913B0" />
@@ -68,10 +67,18 @@
 				<li class="tool" tabindex="-1"
 					title="{{translations.size}} ({{translations.keyboard_shortcut}}: alt + {{translations.mousewheel}})">
 					<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
-					<label class="tool-name slider" for="chooseSize">
+					<label class="tool-name" for="chooseSize">
 						<span>{{translations.size}}</span>
-						<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />
 					</label>
+					<span id="sizeValue" class="sizeValue">23</span>
+					<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="hide rangeChooser" />
+					<span class="size-list" id="size-list">
+						<span class="size-item">5</span>
+						<span class="size-item">5</span>
+						<span class="size-item">5</span>
+						<span class="size-item">5</span>
+						<span class="size-item">5</span>
+					</span>
 				</li>
 				<li class="tool" tabindex="-1">
 					<span class="tool-icon">

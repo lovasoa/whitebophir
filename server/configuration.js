@@ -45,4 +45,9 @@ module.exports = {
     /** URL for cabinet */
     CABINET_URL: process.env.CABINET_URL || '#',
 
+    /** Minimal line width on selector size for draw*/
+    MINIMAL_LINE_WIDTH: 5,
+
+    /** Maximum line width on selector size for draw*/
+    MAX_LINE_WIDTH: 50,
 };

@@ -709,10 +709,11 @@ Tools.enableToolsEl = function (elementId) {
 Tools.sizeChangeHandlers = [];
 Tools.setSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
-
+	const valueEl = document.getElementById("sizeValue");
 	function update() {
 		var size = Math.max(1, Math.min(50, chooser.value | 0));
 		chooser.value = size;
+		valueEl.innerText = size;
 		Tools.sizeChangeHandlers.forEach(function (handler) {
 			handler(size);
 		});

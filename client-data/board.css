@@ -103,6 +103,10 @@ body {
 	z-index: -1;
 }
 
+.hide {
+	display: none !important;
+}
+
 #loadingMessage::after {
 	content: "...";
 }
@@ -120,9 +124,9 @@ body {
 	overflow-y: scroll;
 	position: fixed;
 	margin-bottom: 30px;
-	margin-top: 90px;
 	left: 0;
-	top: 0;
+	top: 90px;
+	bottom: 0;
 	color: black;
 	max-height: 100%;
 	transition-duration: 1s;
@@ -309,6 +313,31 @@ body {
 	max-width: 100%;
 }
 
+#menu .size-list {
+	vertical-align: top;
+}
+
+#menu .size-item,
+#menu .sizeValue {
+	width: 30px;
+	height: 30px;
+	line-height: 30px;
+	border: 1px solid black;
+	border-radius: 3px;
+	display: inline-block;
+	margin-right: 6px;
+	padding: 0;
+	vertical-align: middle;
+	text-align: center;
+}
+
+#menu .sizeValue {
+	cursor: text;
+	width: 40px;
+	vertical-align: top;
+	margin-top: 5px;
+}
+
 #board {
 	overflow: hidden;
 }
@@ -423,9 +452,10 @@ input {
 }
 
 .rangeChooser {
-	display: block;
+	display: inline-block;
 	border: 0;
-	width: 100%;
+	width: 200px;
+	height: 40px;
 	margin: 0;
 	background: transparent;
 }

@@ -62,7 +62,7 @@
 	}
 
 	function start(x, y, evt) {
-		evt.preventDefault();
+		if (evt) evt.preventDefault();
 		if (index === 0 || index === 1) {
 			curId = Tools.generateUID("r");
 			Tools.drawAndSend({
