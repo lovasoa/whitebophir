@@ -103,6 +103,10 @@ body {
 	z-index: -1;
 }
 
+.hide {
+	display: none !important;
+}
+
 #loadingMessage::after {
 	content: "...";
 }
@@ -120,15 +124,16 @@ body {
 	overflow-y: scroll;
 	position: fixed;
 	margin-bottom: 30px;
-	margin-top: 90px;
 	left: 0;
-	top: 0;
+	top: 90px;
+	bottom: 0;
 	color: black;
 	max-height: 100%;
 	transition-duration: 1s;
 	cursor: default;
 	padding: 10px;
 	pointer-events: none;
+	z-index: 2;
 }
 
 #menu.closed {
@@ -232,11 +237,11 @@ body {
 	position: fixed;
 	bottom: 18px;
 	right: 16px;
-	z-index: 2;
+	z-index: 1;
 }
 
 .scale-panel-scaleValue {
-	z-index: 2;
+	z-index: 1;
 	padding: 0 5px;
 	height: 42px;
 	font-size: 20px;
@@ -307,6 +312,31 @@ body {
 
 #menu .tool:hover {
 	max-width: 100%;
+}
+
+#menu .size-list {
+	vertical-align: top;
+}
+
+#menu .size-item,
+#menu .sizeValue {
+	width: 30px;
+	height: 30px;
+	line-height: 30px;
+	border: 1px solid black;
+	border-radius: 3px;
+	display: inline-block;
+	margin-right: 6px;
+	padding: 0;
+	vertical-align: middle;
+	text-align: center;
+}
+
+#menu .sizeValue {
+	cursor: text;
+	width: 40px;
+	vertical-align: top;
+	margin-top: 3px;
 }
 
 #board {
@@ -428,6 +458,12 @@ input {
 	width: 100%;
 	margin: 0;
 	background: transparent;
+}
+
+.rangeChooser.sizeChooser {
+	display: inline-block;
+	width: 200px;
+	height: 40px;
 }
 
 line {

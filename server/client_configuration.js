@@ -9,4 +9,6 @@ module.exports = {
     "BLOCKED_TOOLS": config.BLOCKED_TOOLS,
     "API_URL": config.API_URL,
     "CABINET_URL": config.CABINET_URL,
+    "MINIMAL_LINE_WIDTH": config.MINIMAL_LINE_WIDTH,
+    "MAX_LINE_WIDTH": config.MAX_LINE_WIDTH,
 };

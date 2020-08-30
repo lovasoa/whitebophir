@@ -39,9 +39,11 @@
 	}
 
 	function startLine(x, y, evt) {
-
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
+		if (evt.touches && evt.touches.length > 1) {
+			return;
+		}
 		curLineId = Tools.generateUID("l"); //"l" for line
 		Tools.drawAndSend({
 			'type': 'line',
@@ -59,11 +61,16 @@
 	function continueLine(x, y, evt) {
 		/*Wait 20ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
+		if (evt) {
+			evt.preventDefault();
+			if (evt.touches && evt.touches.length > 1) {
+				return;
+			}
+		}
 		if (curLineId !== "" && performance.now() - lastTime > 20) {
 			Tools.drawAndSend(new PointMessage(x, y));
 			lastTime = performance.now();
 		}
-		if (evt) evt.preventDefault();
 	}
 
 	function stopLineAt(x, y) {

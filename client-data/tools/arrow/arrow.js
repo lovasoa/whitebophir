@@ -41,8 +41,7 @@
     function startLine(x, y, evt) {
 
         //Prevent the press from being interpreted by the browser
-        evt.preventDefault();
-
+        if (evt) evt.preventDefault();
         curLine = {
             'type': 'straight',
             'id': Tools.generateUID("s"), //"s" for straight line
