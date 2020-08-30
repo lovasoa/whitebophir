@@ -25,6 +25,7 @@
  */
 
 (function eraser() { //Code isolation
+	var targetID = '';
 
 	var erasing = false;
 
@@ -33,6 +34,28 @@
 		evt.preventDefault();
 		erasing = true;
 		erase(x, y, evt);
+	}
+
+	function onMouseMove(evt) {
+		if (evt.target.id !== targetID) {
+			if (targetID) {
+				document.getElementById(targetID).classList.remove('selectedEl');
+			}
+			if (evt.target.id !== 'gridContainer') {
+				targetID = evt.target.id;
+				document.getElementById(targetID).classList.add('selectedEl');
+			} else {
+				targetID = '';
+			}
+		}
+	}
+
+	function enableEraser() {
+		Tools.svg.addEventListener('mousemove', onMouseMove);
+	}
+
+	function disableEraser() {
+		Tools.svg.removeEventListener('mousemove', onMouseMove);
 	}
 
 	var msg = {
@@ -70,6 +93,7 @@
 			//TODO: add the ability to erase only some points in a line
 			case "delete":
 				elem = svg.getElementById(data.id);
+				targetID = '';
 				if (elem === null) console.error("Eraser: Tried to delete an element that does not exist.");
 				else Tools.drawingArea.removeChild(elem);
 				break;
@@ -89,6 +113,8 @@
 			"move": erase,
 			"release": stopErasing,
 		},
+		"onstart": enableEraser,
+		"onquit": disableEraser,
 		"draw": draw,
 		"icon": "tools/eraser/icon.svg",
 		"mouseCursor": "crosshair",
