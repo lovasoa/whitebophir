@@ -36,6 +36,7 @@ Tools.i18n = (function i18n() {
 	};
 })();
 Tools.server_config = JSON.parse(document.getElementById("configuration").text);
+
 document.getElementById('cabinetURL').setAttribute('href', Tools.server_config.CABINET_URL);
 
 Tools.board = document.getElementById("board");
@@ -710,6 +711,36 @@ Tools.sizeChangeHandlers = [];
 Tools.setSize = (function size() {
 	var chooser = document.getElementById("chooseSize");
 	const valueEl = document.getElementById("sizeValue");
+	const sizeList = document.getElementById("size-list");
+	const middleSize = (Tools.server_config.MINIMAL_LINE_WIDTH + Tools.server_config.MAX_LINE_WIDTH) / 2;
+	const sizes = [Tools.server_config.MINIMAL_LINE_WIDTH, (Tools.server_config.MINIMAL_LINE_WIDTH + middleSize) / 2, middleSize, (middleSize + Tools.server_config.MAX_LINE_WIDTH) / 2, Tools.server_config.MAX_LINE_WIDTH];
+	const sizeListElement = document.getElementById('sizeListElement');
+
+	chooser.setAttribute('min', Tools.server_config.MINIMAL_LINE_WIDTH);
+	chooser.setAttribute('max', Tools.server_config.MAX_LINE_WIDTH);
+	sizes.forEach(size => {
+		sizeList.insertAdjacentHTML("beforeend", `<span class="size-item">${Math.round(size)}</span>`)
+	});
+	sizeList.addEventListener('click', function (evt) {
+		evt.stopPropagation();
+		if (evt.target.classList.contains('size-item')) {
+			Tools.setSize(+evt.target.innerText);
+		}
+	});
+	function chooserDisplay(evt) {
+		if (chooser.classList.contains('hide')) {
+			chooser.classList.remove('hide');
+		} else {
+			chooser.classList.add('hide');
+		}
+	}
+	sizeListElement.addEventListener('click', function (evt) {
+		evt.preventDefault();
+		if (evt.target.id !== 'chooseSize') chooserDisplay(evt)
+	});
+	sizeListElement.addEventListener('mouseleave', function () {
+		chooser.classList.remove('hide');
+	});
 	function update() {
 		var size = Math.max(1, Math.min(50, chooser.value | 0));
 		chooser.value = size;
@@ -719,7 +750,6 @@ Tools.setSize = (function size() {
 		});
 	}
 	update();
-
 	chooser.onchange = chooser.oninput = update;
 	return function (value) {
 		if (value !== null && value !== undefined) { chooser.value = value; update(); }

@@ -133,6 +133,7 @@ body {
 	cursor: default;
 	padding: 10px;
 	pointer-events: none;
+	z-index: 2;
 }
 
 #menu.closed {
@@ -236,11 +237,11 @@ body {
 	position: fixed;
 	bottom: 18px;
 	right: 16px;
-	z-index: 2;
+	z-index: 1;
 }
 
 .scale-panel-scaleValue {
-	z-index: 2;
+	z-index: 1;
 	padding: 0 5px;
 	height: 42px;
 	font-size: 20px;
@@ -335,7 +336,7 @@ body {
 	cursor: text;
 	width: 40px;
 	vertical-align: top;
-	margin-top: 5px;
+	margin-top: 3px;
 }
 
 #board {
@@ -452,12 +453,17 @@ input {
 }
 
 .rangeChooser {
-	display: inline-block;
+	display: block;
 	border: 0;
-	width: 200px;
-	height: 40px;
+	width: 100%;
 	margin: 0;
 	background: transparent;
+}
+
+.rangeChooser.sizeChooser {
+	display: inline-block;
+	width: 200px;
+	height: 40px;
 }
 
 line {
