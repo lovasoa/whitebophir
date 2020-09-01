@@ -37,7 +37,7 @@ body {
 	top: 10px;
 	left: 10px;
 	position: fixed;
-	z-index: 2;
+	z-index: 200;
 	background-color: #e5f1f6;
 	width: 200px;
 	height: 80px;
