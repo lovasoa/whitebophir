@@ -108,8 +108,8 @@ async function toSVG(obj, writeable) {
 	const dim = elems.reduce(function (dim, elem) {
 		if (elem._children) elem = elem._children[0];
 		return [
-			Math.max(elem.x + margin + elem.deltax | 0, dim[0]),
-			Math.max(elem.y + margin + elem.deltay | 0, dim[1]),
+			Math.max(elem.x + margin + (elem.deltax | 0) | 0, dim[0]),
+			Math.max(elem.y + margin + (elem.deltay | 0) | 0, dim[1]),
 		]
 	}, [margin, margin]);
 	writeable.write(
