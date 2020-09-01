@@ -26,6 +26,7 @@
 
 (function () { //Code isolation
 	var end = false,
+		cancel = false,
 		shift = false,
 		index = 0,
 		selected = false,
@@ -62,7 +63,12 @@
 	}
 
 	function start(x, y, evt) {
-		if (evt) evt.preventDefault();
+		evt.preventDefault();
+		if (evt.touches && evt.touches.length > 1) {
+			cancel = true;
+			return;
+		}
+		cancel = false;
 		if (index === 0 || index === 1) {
 			curId = Tools.generateUID("r");
 			Tools.drawAndSend({
@@ -107,6 +113,10 @@
 		if (evt) {
 			shift = index === 1 || index === 3 || evt.shiftKey;
 			evt.preventDefault();
+			if (evt.touches && evt.touches.length > 1) {
+				cancel = true;
+				return;
+			}
 		}
 		if (curUpdate.index === 0 || curUpdate.index === 1) {
 			if (curId !== "") {
@@ -155,22 +165,33 @@
 	}
 
 	function stop(x, y) {
-		if (index === 0 || index === 1) {
-			end = true;
-			move(x, y);
-			end = false;
-			if (curId) {
-				Tools.addActionToHistory({type: "delete", id: curId});
-			}
+		if (cancel) {
+			var msg = {
+				"type": "delete",
+				"id": curId,
+				"sendBack": false,
+			};
+			Tools.drawAndSend(msg, Tools.list.Eraser);
+			curUpdate.id = "";
 			curId = "";
 		} else {
-			lastPos.x = x;
-			lastPos.y = y;
-			doUpdate(true);
-			if (curUpdate.id) {
-				Tools.addActionToHistory({type: "delete", id: curUpdate.id})
+			if (index === 0 || index === 1) {
+				end = true;
+				move(x, y);
+				end = false;
+				if (curId) {
+					Tools.addActionToHistory({type: "delete", id: curId});
+				}
+				curId = "";
+			} else {
+				lastPos.x = x;
+				lastPos.y = y;
+				doUpdate(true);
+				if (curUpdate.id) {
+					Tools.addActionToHistory({type: "delete", id: curUpdate.id})
+				}
+				curUpdate.id = "";
 			}
-			curUpdate.id = "";
 		}
 	}
 
@@ -266,7 +287,7 @@
 
 	var rectangleTool = {
 		"name": "Shapes",
-		"shortcut": "rt",
+		"shortcut": "r",
 		"listeners": {
 			"press": start,
 			"move": move,

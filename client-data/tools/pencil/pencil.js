@@ -28,6 +28,7 @@
 
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
+		cancel = false,
 		lastTime = performance.now(); //The time at which the last point was drawn
 
 	//The data of the message that will be sent for every new point
@@ -42,8 +43,10 @@
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
 		if (evt.touches && evt.touches.length > 1) {
+			cancel = true;
 			return;
 		}
+		cancel = false;
 		curLineId = Tools.generateUID("l"); //"l" for line
 		Tools.drawAndSend({
 			'type': 'line',
@@ -61,9 +64,11 @@
 	function continueLine(x, y, evt) {
 		/*Wait 20ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
+		console.log('continue line', +new Date())
 		if (evt) {
 			evt.preventDefault();
 			if (evt.touches && evt.touches.length > 1) {
+				cancel = true;
 				return;
 			}
 		}
@@ -75,8 +80,17 @@
 
 	function stopLineAt(x, y) {
 		//Add a last point to the line
-		continueLine(x, y);
-		stopLine();
+		if (cancel) {
+			var msg = {
+				"type": "delete",
+				"id": curLineId,
+				"sendBack": false,
+			};
+			Tools.drawAndSend(msg, Tools.list.Eraser);
+		} else {
+			continueLine(x, y);
+			stopLine();
+		}
 	}
 
 	function stopLine() {

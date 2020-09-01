@@ -27,6 +27,7 @@
 (function () { //Code isolation
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLine = null,
+		cancel = false,
 		shift = false,
 		lastTime = performance.now(); //The time at which the last point was drawn
 
@@ -42,7 +43,11 @@
 
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
-
+		if (evt.touches && evt.touches.length > 1) {
+			cancel = true;
+			return;
+		}
+		cancel = false;
 		curLine = {
 			'type': 'straight',
 			'id': Tools.generateUID("s"), //"s" for straight line
@@ -61,6 +66,10 @@
 		if (evt) {
 			shift = evt.shiftKey;
 			evt.preventDefault();
+			if (evt.touches && evt.touches.length > 1) {
+				cancel = true;
+				return;
+			}
 		}
 		/*Wait 50ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
@@ -84,9 +93,19 @@
 
 	function stopLine(x, y) {
 		//Add a last point to the line
-		continueLine(x, y);
-		if (curLine) Tools.addActionToHistory({ type: "delete", id: curLine.id })
-		curLine = null;
+		if (cancel) {
+			var msg = {
+				"type": "delete",
+				"id": curLine.id,
+				"sendBack": false,
+			};
+			Tools.drawAndSend(msg, Tools.list.Eraser);
+			curLine = null;
+		} else {
+			continueLine(x, y);
+			if (curLine) Tools.addActionToHistory({ type: "delete", id: curLine.id })
+			curLine = null;
+		}
 	}
 
 	function draw(data) {
