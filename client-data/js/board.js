@@ -521,8 +521,8 @@ function resizeCanvas(m) {
 	if (x > Tools.svg.width.baseVal.value - 2048) {
 		Tools.svg.width.baseVal.value = Math.min(x + 2048, Tools.server_config.MAX_BOARD_SIZE_X);
 	}
-	if (y > Tools.svg.height.baseVal.value - 5000) {
-		Tools.svg.height.baseVal.value = Math.min(y + 5000, Tools.server_config.MAX_BOARD_SIZE_Y);
+	if (y > Tools.svg.height.baseVal.value - 2000) {
+		Tools.svg.height.baseVal.value = Math.min(y + 2000, Tools.server_config.MAX_BOARD_SIZE_Y);
 	}
 	resizeBoard();
 }
