@@ -40,7 +40,6 @@
     }
 
     function startLine(x, y, evt) {
-
         //Prevent the press from being interpreted by the browser
         evt.preventDefault();
         if (Tools.deleteForTouches(evt, curLine.id)) {
@@ -71,7 +70,7 @@
             }
             /*Wait 50ms before adding any point to the currently drawing line.
             This allows the animation to be smother*/
-            if (curLine !== null) {
+            if (curLine.id) {
                 if (shift) {
                     var alpha = Math.atan2(y - curLine.y, x - curLine.x);
                     var d = Math.hypot(y - curLine.y, x - curLine.x);
@@ -91,10 +90,10 @@
     }
 
     function stopLine(x, y) {
+        //Add a last point to the line
         if (!cancel) {
-            //Add a last point to the line
             continueLine(x, y);
-            if (curLine) Tools.addActionToHistory({ type: "delete", id: curLine.id })
+            if (curLine.id) Tools.addActionToHistory({ type: "delete", id: curLine.id })
             curLine = {};
         }
     }
@@ -130,7 +129,7 @@
         if (lineData.dotted) line.classList.add('dotted');
         if (lineData.arrow) {
             createMarker(color);
-            line.style = `marker-end: url(#m-${color});`
+            line.style = `marker-end: url(#arrw_${color.replace('#', '')});`
         }
         line.id = lineData.id;
         line.x1.baseVal.value = lineData['x'];
@@ -147,16 +146,23 @@
 
     const defs = document.getElementById('defs');
     function createMarker(color) {
-        const id = 'm-' + color;
+        const id = 'arrw_' + color.replace('#', '');
         if (!document.getElementById(id)) {
-            const newMarker =
-                `<marker id="${id}"  viewBox="0 0 10 10" refX="7.7" refY="5"
-                        fill="${color}"
-						markerUnits="strokeWidth"  orient="auto"
-						markerWidth="5" markerHeight="5">
-					<polyline points="0 0 10 5 0 10 0 5" />
-				</marker>`;
-            defs.insertAdjacentHTML('beforeend', newMarker)
+            var marker = Tools.createSVGElement("marker", {
+                id: "arrw_"+color.replace('#', ''),
+                markerWidth: "6",
+                markerHeight: "4",
+                refX: "0",
+                refY: "2",
+                orient:"auto"
+            });
+            var polygon = Tools.createSVGElement("polygon", {
+                id:"arrw_poly_"+color.replace('#', ''),
+                points:"0 0, 6 2, 0 4",
+                fill: color || "black"
+            });
+            marker.appendChild(polygon);
+            document.getElementById("defs").appendChild(marker);
         }
     }
 
