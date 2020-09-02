@@ -27,10 +27,20 @@
 (function () { //Code isolation
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLine = {},
+		index = 0,
+		selected = false,
 		cancel = false,
 		shift = false,
 		lastTime = performance.now(); //The time at which the last point was drawn
 
+	const localTools = [
+		{ icon: 'icon-line.svg', name: 'line', shift: false },
+		{ icon: 'icon-straight.svg', name: 'straight_line', shift: true },
+		{ icon: 'icon-dotted.svg', name: 'dotted_line', shift: false },
+		{ icon: 'icon-straight-dotted.svg', name: 'straight_dotted_line', shift: true },
+		{ icon: 'icon-arrow.svg', name: 'arrow_line', shift: false },
+		{ icon: 'icon-arrow-straight.svg', name: 'arrow_straight_line', shift: true },
+	]
 	//The data of the message that will be sent for every update
 	function UpdateMessage(x, y) {
 		this.type = 'update';
@@ -39,8 +49,17 @@
 		this.y2 = y;
 	}
 
-	function startLine(x, y, evt) {
+	function onstart() {
+		selected = true;
+	}
 
+	function toogleTool() {
+		if (!selected) index = (index + 1) % localTools.length;
+		selected = false;
+		Tools.HTML.toggle("Straight line", localTools[index].name, '/tools/line/' + localTools[index].icon);
+	}
+
+	function startLine(x, y, evt) {
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
 		if (Tools.deleteForTouches(evt, curLine.id)) {
@@ -57,7 +76,8 @@
 			'opacity': Tools.getOpacity(),
 			'x': x,
 			'y': y,
-			'dotted': Tools.curTool.secondary.active,
+			'dotted': index === 2 || index === 3,
+			'arrow': index === 4 || index === 5,
 		}
 
 		Tools.drawAndSend(curLine);
@@ -66,7 +86,7 @@
 	function continueLine(x, y, evt) {
 		if (!cancel) {
 			if (evt) {
-				shift = evt.shiftKey;
+				shift = evt.shiftKey || localTools[index].shift;
 				evt.preventDefault();
 			}
 			/*Wait 50ms before adding any point to the currently drawing line.
@@ -126,7 +146,12 @@
 	function createLine(lineData) {
 		//Creates a new line on the canvas, or update a line that already exists with new information
 		var line = svg.getElementById(lineData.id) || Tools.createSVGElement("line");
+		const color = lineData.color || "black";
 		if (lineData.dotted) line.classList.add('dotted');
+		if (lineData.arrow) {
+			createMarker(color);
+			line.style = `marker-end: url(#arrw_${color.replace('#', '')});`
+		}
 		line.id = lineData.id;
 		line.x1.baseVal.value = lineData['x'];
 		line.y1.baseVal.value = lineData['y'];
@@ -138,6 +163,28 @@
 		line.setAttribute("opacity", Math.max(0.1, Math.min(1, lineData.opacity)) || 1);
 		Tools.drawingArea.appendChild(line);
 		return line;
+	}
+
+	const defs = document.getElementById('defs');
+	function createMarker(color) {
+		const id = 'arrw_' + color.replace('#', '');
+		if (!document.getElementById(id)) {
+			var marker = Tools.createSVGElement("marker", {
+				id: "arrw_"+color.replace('#', ''),
+				markerWidth: "6",
+				markerHeight: "4",
+				refX: "0",
+				refY: "2",
+				orient:"auto"
+			});
+			var polygon = Tools.createSVGElement("polygon", {
+				id:"arrw_poly_"+color.replace('#', ''),
+				points:"0 0, 6 2, 0 4",
+				fill: color || "black"
+			});
+			marker.appendChild(polygon);
+			defs.appendChild(marker);
+		}
 	}
 
 	function updateLine(line, data) {
@@ -153,15 +200,13 @@
 			"move": continueLine,
 			"release": stopLine,
 		},
-		"secondary": {
-			"name": "Dotted line",
-			"icon": "tools/line/icon-straight.svg",
-			"active": false,
-		},
+		"onstart": onstart,
 		"draw": draw,
 		"mouseCursor": "crosshair",
 		"icon": "tools/line/icon.svg",
 		"stylesheet": "tools/line/line.css"
 	};
 	Tools.add(lineTool);
+	Tools.HTML.toggle("Straight line", localTools[0].name, '/tools/line/' + localTools[0].icon);
+	document.getElementById('toolID-Straight line').addEventListener('click', toogleTool);
 })(); //End of code isolation
