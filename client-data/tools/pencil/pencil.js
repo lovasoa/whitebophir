@@ -42,8 +42,9 @@
 	function startLine(x, y, evt) {
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
-		if (evt.touches && evt.touches.length > 1) {
+		if (Tools.deleteForTouches(evt, curLineId)) {
 			cancel = true;
+			curLineId = "";
 			return;
 		}
 		cancel = false;
@@ -64,33 +65,21 @@
 	function continueLine(x, y, evt) {
 		/*Wait 20ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
-		console.log('continue line', +new Date())
-		if (evt) {
-			evt.preventDefault();
-			if (evt.touches && evt.touches.length > 1) {
-				cancel = true;
-				return;
+		if (!cancel) {
+			if (evt) {
+				evt.preventDefault();
 			}
-		}
-		if (curLineId !== "" && performance.now() - lastTime > 20) {
-			Tools.drawAndSend(new PointMessage(x, y));
-			lastTime = performance.now();
+			if (curLineId !== "" && performance.now() - lastTime > 20) {
+				Tools.drawAndSend(new PointMessage(x, y));
+				lastTime = performance.now();
+			}
 		}
 	}
 
 	function stopLineAt(x, y) {
 		//Add a last point to the line
-		if (cancel) {
-			var msg = {
-				"type": "delete",
-				"id": curLineId,
-				"sendBack": false,
-			};
-			Tools.drawAndSend(msg, Tools.list.Eraser);
-		} else {
-			continueLine(x, y);
-			stopLine();
-		}
+		continueLine(x, y);
+		stopLine();
 	}
 
 	function stopLine() {

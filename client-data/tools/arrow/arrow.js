@@ -26,7 +26,8 @@
 
 (function () { //Code isolation
     //Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
-    var curLine = null,
+    var curLine = {},
+        cancel = false,
         shift = false,
         lastTime = performance.now(); //The time at which the last point was drawn
 
@@ -41,7 +42,13 @@
     function startLine(x, y, evt) {
 
         //Prevent the press from being interpreted by the browser
-        if (evt) evt.preventDefault();
+        evt.preventDefault();
+        if (Tools.deleteForTouches(evt, curLine.id)) {
+            cancel = true;
+            curLine.id = "";
+            return;
+        }
+        cancel = false;
         curLine = {
             'type': 'straight',
             'id': Tools.generateUID("s"), //"s" for straight line
@@ -57,35 +64,39 @@
     }
 
     function continueLine(x, y, evt) {
-        if (evt) {
-            shift = evt.shiftKey;
-            evt.preventDefault();
-        }
-        /*Wait 50ms before adding any point to the currently drawing line.
-        This allows the animation to be smother*/
-        if (curLine !== null) {
-            if (shift) {
-                var alpha = Math.atan2(y - curLine.y, x - curLine.x);
-                var d = Math.hypot(y - curLine.y, x - curLine.x);
-                var increment = 2 * Math.PI / 16;
-                alpha = Math.round(alpha / increment) * increment;
-                x = curLine.x + d * Math.cos(alpha);
-                y = curLine.y + d * Math.sin(alpha);
+        if (!cancel) {
+            if (evt) {
+                shift = evt.shiftKey;
+                evt.preventDefault();
             }
-            if (performance.now() - lastTime > 50) {
-                Tools.drawAndSend(new UpdateMessage(x, y));
-                lastTime = performance.now();
-            } else {
-                draw(new UpdateMessage(x, y));
+            /*Wait 50ms before adding any point to the currently drawing line.
+            This allows the animation to be smother*/
+            if (curLine !== null) {
+                if (shift) {
+                    var alpha = Math.atan2(y - curLine.y, x - curLine.x);
+                    var d = Math.hypot(y - curLine.y, x - curLine.x);
+                    var increment = 2 * Math.PI / 16;
+                    alpha = Math.round(alpha / increment) * increment;
+                    x = curLine.x + d * Math.cos(alpha);
+                    y = curLine.y + d * Math.sin(alpha);
+                }
+                if (performance.now() - lastTime > 50) {
+                    Tools.drawAndSend(new UpdateMessage(x, y));
+                    lastTime = performance.now();
+                } else {
+                    draw(new UpdateMessage(x, y));
+                }
             }
         }
     }
 
     function stopLine(x, y) {
-        //Add a last point to the line
-        continueLine(x, y);
-        if (curLine) Tools.addActionToHistory({ type: "delete", id: curLine.id })
-        curLine = null;
+        if (!cancel) {
+            //Add a last point to the line
+            continueLine(x, y);
+            if (curLine) Tools.addActionToHistory({ type: "delete", id: curLine.id })
+            curLine = {};
+        }
     }
 
     function draw(data) {

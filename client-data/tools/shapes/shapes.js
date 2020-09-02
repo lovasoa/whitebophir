@@ -64,8 +64,9 @@
 
 	function start(x, y, evt) {
 		evt.preventDefault();
-		if (evt.touches && evt.touches.length > 1) {
+		if (Tools.deleteForTouches(evt, curUpdate.id)) {
 			cancel = true;
+			curUpdate.id = "";
 			return;
 		}
 		cancel = false;
@@ -110,36 +111,38 @@
 	}
 
 	function move(x, y, evt) {
-		if (evt) {
-			shift = index === 1 || index === 3 || evt.shiftKey;
-			evt.preventDefault();
-			if (evt.touches && evt.touches.length > 1) {
-				cancel = true;
-				return;
-			}
-		}
-		if (curUpdate.index === 0 || curUpdate.index === 1) {
-			if (curId !== "") {
-				if (index === 1 || shift) {
-					var dx = x - curUpdate.x;
-					var dy = y - curUpdate.y;
-					var d = Math.max(Math.abs(dx), Math.abs(dy));
-					x = curUpdate.x + (dx > 0 ? d : -d);
-					y = curUpdate.y + (dy > 0 ? d : -d);
-				}
-				curUpdate['x2'] = x; curUpdate['y2'] = y;
-				if (performance.now() - lastTime > 50 || end) {
-					Tools.drawAndSend(curUpdate);
-					lastTime = performance.now();
-				} else {
-					draw(curUpdate);
+		if (!cancel) {
+			if (evt) {
+				shift = index === 1 || index === 3 || evt.shiftKey;
+				evt.preventDefault();
+				if (evt.touches && evt.touches.length > 1) {
+					cancel = true;
+					return;
 				}
 			}
-		} else {
-			if (!curUpdate.id) return; // Not currently drawing
-			lastPos.x = x;
-			lastPos.y = y;
-			doUpdate();
+			if (curUpdate.index === 0 || curUpdate.index === 1) {
+				if (curId !== "") {
+					if (index === 1 || shift) {
+						var dx = x - curUpdate.x;
+						var dy = y - curUpdate.y;
+						var d = Math.max(Math.abs(dx), Math.abs(dy));
+						x = curUpdate.x + (dx > 0 ? d : -d);
+						y = curUpdate.y + (dy > 0 ? d : -d);
+					}
+					curUpdate['x2'] = x; curUpdate['y2'] = y;
+					if (performance.now() - lastTime > 50 || end) {
+						Tools.drawAndSend(curUpdate);
+						lastTime = performance.now();
+					} else {
+						draw(curUpdate);
+					}
+				}
+			} else {
+				if (!curUpdate.id) return; // Not currently drawing
+				lastPos.x = x;
+				lastPos.y = y;
+				doUpdate();
+			}
 		}
 	}
 
@@ -165,16 +168,7 @@
 	}
 
 	function stop(x, y) {
-		if (cancel) {
-			var msg = {
-				"type": "delete",
-				"id": curId,
-				"sendBack": false,
-			};
-			Tools.drawAndSend(msg, Tools.list.Eraser);
-			curUpdate.id = "";
-			curId = "";
-		} else {
+		if (!cancel) {
 			if (index === 0 || index === 1) {
 				end = true;
 				move(x, y);
