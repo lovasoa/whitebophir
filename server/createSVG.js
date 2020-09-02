@@ -17,7 +17,7 @@ function htmlspecialchars(str) {
 }
 
 function renderPath(el, pathstring) {
-	return '<path class="nofill"' +
+	return '<path class="nofill" ' +
 		(el.id ?
 			('id="' + htmlspecialchars(el.id) + '" ') : '') +
 		'stroke-width="' + (el.size | 0) + '" ' +
@@ -130,6 +130,7 @@ async function toSVG(obj, writeable) {
 	}, [margin, margin]);
 	writeable.write(
 		'<svg xmlns="http://www.w3.org/2000/svg" version="1.1" ' +
+		'xmlns:xlink="http://www.w3.org/1999/xlink" ' +
 		'width="' + dim[0] + '" height="' + dim[1] + '">' +
 		'<defs><style type="text/css"><![CDATA[' +
 		'text {font-family:"Arial"}' +
