@@ -26,7 +26,8 @@
 
 (function () { //Code isolation
     //Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
-    var curLine = null,
+    var curLine = {},
+        cancel = false,
         shift = false,
         lastTime = performance.now(); //The time at which the last point was drawn
 
@@ -39,9 +40,14 @@
     }
 
     function startLine(x, y, evt) {
-
         //Prevent the press from being interpreted by the browser
-        if (evt) evt.preventDefault();
+        evt.preventDefault();
+        if (Tools.deleteForTouches(evt, curLine.id)) {
+            cancel = true;
+            curLine.id = "";
+            return;
+        }
+        cancel = false;
         curLine = {
             'type': 'straight',
             'id': Tools.generateUID("s"), //"s" for straight line
@@ -57,35 +63,39 @@
     }
 
     function continueLine(x, y, evt) {
-        if (evt) {
-            shift = evt.shiftKey;
-            evt.preventDefault();
-        }
-        /*Wait 50ms before adding any point to the currently drawing line.
-        This allows the animation to be smother*/
-        if (curLine !== null) {
-            if (shift) {
-                var alpha = Math.atan2(y - curLine.y, x - curLine.x);
-                var d = Math.hypot(y - curLine.y, x - curLine.x);
-                var increment = 2 * Math.PI / 16;
-                alpha = Math.round(alpha / increment) * increment;
-                x = curLine.x + d * Math.cos(alpha);
-                y = curLine.y + d * Math.sin(alpha);
+        if (!cancel) {
+            if (evt) {
+                shift = evt.shiftKey;
+                evt.preventDefault();
             }
-            if (performance.now() - lastTime > 50) {
-                Tools.drawAndSend(new UpdateMessage(x, y));
-                lastTime = performance.now();
-            } else {
-                draw(new UpdateMessage(x, y));
+            /*Wait 50ms before adding any point to the currently drawing line.
+            This allows the animation to be smother*/
+            if (curLine.id) {
+                if (shift) {
+                    var alpha = Math.atan2(y - curLine.y, x - curLine.x);
+                    var d = Math.hypot(y - curLine.y, x - curLine.x);
+                    var increment = 2 * Math.PI / 16;
+                    alpha = Math.round(alpha / increment) * increment;
+                    x = curLine.x + d * Math.cos(alpha);
+                    y = curLine.y + d * Math.sin(alpha);
+                }
+                if (performance.now() - lastTime > 50) {
+                    Tools.drawAndSend(new UpdateMessage(x, y));
+                    lastTime = performance.now();
+                } else {
+                    draw(new UpdateMessage(x, y));
+                }
             }
         }
     }
 
     function stopLine(x, y) {
         //Add a last point to the line
-        continueLine(x, y);
-        if (curLine) Tools.addActionToHistory({ type: "delete", id: curLine.id })
-        curLine = null;
+        if (!cancel) {
+            continueLine(x, y);
+            if (curLine.id) Tools.addActionToHistory({ type: "delete", id: curLine.id })
+            curLine = {};
+        }
     }
 
     function draw(data) {
@@ -119,7 +129,7 @@
         if (lineData.dotted) line.classList.add('dotted');
         if (lineData.arrow) {
             createMarker(color);
-            line.style = `marker-end: url(#m-${color});`
+            line.style = `marker-end: url(#arrw_${color.replace('#', '')});`
         }
         line.id = lineData.id;
         line.x1.baseVal.value = lineData['x'];
@@ -136,16 +146,23 @@
 
     const defs = document.getElementById('defs');
     function createMarker(color) {
-        const id = 'm-' + color;
+        const id = 'arrw_' + color.replace('#', '');
         if (!document.getElementById(id)) {
-            const newMarker =
-                `<marker id="${id}"  viewBox="0 0 10 10" refX="7.7" refY="5"
-                        fill="${color}"
-						markerUnits="strokeWidth"  orient="auto"
-						markerWidth="5" markerHeight="5">
-					<polyline points="0 0 10 5 0 10 0 5" />
-				</marker>`;
-            defs.insertAdjacentHTML('beforeend', newMarker)
+            var marker = Tools.createSVGElement("marker", {
+                id: "arrw_"+color.replace('#', ''),
+                markerWidth: "6",
+                markerHeight: "4",
+                refX: "0",
+                refY: "2",
+                orient:"auto"
+            });
+            var polygon = Tools.createSVGElement("polygon", {
+                id:"arrw_poly_"+color.replace('#', ''),
+                points:"0 0, 6 2, 0 4",
+                fill: color || "black"
+            });
+            marker.appendChild(polygon);
+            document.getElementById("defs").appendChild(marker);
         }
     }
 

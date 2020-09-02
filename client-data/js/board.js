@@ -692,7 +692,7 @@ Tools.setColor = function (color) {
 
 Tools.getColor = (function color() {
 	var color_index = (Math.random() * Tools.colorPresets.length) | 0;
-	var initial_color = Tools.colorPresets[color_index].color;
+	var initial_color = '#000000';
 	Tools.setColor(initial_color);
 	return function () { return Tools.color_chooser.value; };
 })();
@@ -773,6 +773,21 @@ Tools.getOpacity = (function opacity() {
 		return Math.max(0.1, Math.min(1, chooser.value));
 	};
 })();
+
+Tools.deleteForTouches = function (evt, id) {
+	if (evt.touches && evt.touches.length > 1) {
+		if (id) {
+			const msg = {
+				"type": "delete",
+				"id": id,
+				"sendBack": false,
+			};
+			Tools.drawAndSend(msg, Tools.list.Eraser);
+		}
+		return true;
+	}
+	return false;
+}
 
 // Undo/Redo tools
 
