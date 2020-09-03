@@ -107,10 +107,7 @@
     }
 
     function selectObject(id) {
-        console.log('func select obj')
         unSelect();
-        console.log(id);
-        console.log(document.getElementById(id));
         selectedEl = document.getElementById(id);
         selectedEl.classList.add('selectedEl');
         panel.classList.remove('hide');

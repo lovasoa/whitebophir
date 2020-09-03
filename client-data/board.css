@@ -31,6 +31,7 @@ body {
 	cursor: pointer;
 	font-size: 25px;
 	line-height: 80px;
+	user-select: none;
 }
 
 .object-panel {
@@ -70,6 +71,7 @@ body {
 	height: 80px;
 	transition: .25s background-color;
 	cursor: pointer;
+	user-select: none;
 }
 
 .logo:hover {
@@ -204,6 +206,7 @@ body {
 	cursor: pointer;
 	transition: .25s background-color;
 	background-color: #fff;
+	user-select: none;
 }
 
 .help:hover {
@@ -216,7 +219,7 @@ body {
 }
 
 .modal {
-	z-index: 100;
+	z-index: 1000;
 	position: fixed;
 	top: 0;
 	bottom: 0;
