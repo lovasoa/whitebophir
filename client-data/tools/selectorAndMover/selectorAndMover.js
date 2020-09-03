@@ -4,7 +4,7 @@
     var last_sent = 0;
     var start_x = 0;
     var start_y = 0;
-
+    const panel = document.getElementById('object-panel');
     function startMovingElement(x, y, evt) {
         //Prevent the press from being interpreted by the browser
         evt.preventDefault();
@@ -12,6 +12,34 @@
         start_x = tmatrix.e;
         start_y = tmatrix.f;
         selected = { x: x - tmatrix.e, y: y - tmatrix.f, elem: evt.target };
+    }
+
+    function actionsForEvent(evt) {
+        if (evt.keyCode === 46 || evt.keyCode === 8) { // Delete key
+            deleteElement();
+        }
+    }
+
+    function deleteElement() {
+        Tools.drawAndSend({
+            "type": "delete",
+            "id": selectedEl.id,
+            "sendBack": true,
+        }, Tools.list.Eraser);
+        Tools.change("Hand");
+    }
+
+    function dublicateObject() {
+        Tools.send({
+           "type": "dublicate",
+           "id": selectedEl.id,
+        });
+    }
+
+    function onstart() {
+        document.addEventListener('keydown', actionsForEvent);
+        document.getElementById('object-delete').addEventListener('click', deleteElement);
+        document.getElementById('object-dublicate').addEventListener('click', dublicateObject);
     }
 
     function get_translate_matrix(elem) {
@@ -43,7 +71,7 @@
         var deltay = y - selected.y;
         var msg = { type: "update", id: selected.elem.id, deltax: deltax, deltay: deltay };
         var now = performance.now();
-        if (now - last_sent > 70) {
+        if (now - last_sent > 20) {
             last_sent = now;
             Tools.drawAndSend(msg);
         } else {
@@ -52,30 +80,46 @@
     }
 
     function release(x, y, evt, isTouchEvent) {
-        move(x, y, evt, isTouchEvent);
-        if ((x !== start_x || y !== start_y) && selected) {
-            Tools.addActionToHistory({ type: "update", id: selected.elem.id, deltax: start_x, deltay: start_y });
+        if (selected) {
+            move(x, y, evt, isTouchEvent);
+            const matrix = get_translate_matrix(selectedEl);
+            if ((matrix.e !== start_x || matrix.f !== start_y) && selected) {
+                Tools.addActionToHistory({ type: "update", id: selected.elem.id, deltax: start_x, deltay: start_y });
+            }
+            selected = null;
         }
-        selected = null;
     }
 
     function switchTool() {
         selected = null;
         unSelect();
+        document.removeEventListener('keydown', actionsForEvent);
+        document.getElementById('object-delete').removeEventListener('click', deleteElement);
+        panel.classList.add('hide');
     }
 
     function unSelect() {
         if (selectedEl) {
             selectedEl.classList.remove('selectedEl');
             selectedEl = null;
+            panel.classList.add('hide');
         }
+    }
+
+    function selectObject(id) {
+        console.log('func select obj')
+        unSelect();
+        console.log(id);
+        console.log(document.getElementById(id));
+        selectedEl = document.getElementById(id);
+        selectedEl.classList.add('selectedEl');
+        panel.classList.remove('hide');
     }
 
     function press(x, y, evt, isTouchEvent) {
         unSelect();
         if (!evt.target || !Tools.drawingArea.contains(evt.target)) return;
-        selectedEl = evt.target;
-        selectedEl.classList.add('selectedEl');
+        selectObject(evt.target.id);
         startMovingElement(x, y, evt, isTouchEvent);
     }
 
@@ -101,6 +145,8 @@
             "move": move,
             "release": release,
         },
+        "selectObject": selectObject,
+        "onstart": onstart,
         "onquit": switchTool,
         "draw": draw,
         "icon": "tools/selectorAndMover/selectorAndMover.svg",

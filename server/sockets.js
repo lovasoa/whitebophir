@@ -136,6 +136,9 @@ async function saveHistory(boardName, message, socket) {
 	var id = message.id;
 	var board = await getBoard(boardName);
 	switch (message.type) {
+		case "dublicate":
+			socket.emit("dublicateObject", board.get(id));
+			break;
 		case "delete":
 			if (id) {
 				if (message.sendBack && !message.sendToRedo) {

@@ -88,6 +88,42 @@ Tools.connect = function () {
 		Tools.enableToolsEl('redo');
 	});
 
+	this.socket.on("dublicateObject", function (msg) {
+		var instrument = Tools.list[msg.tool];
+		msg.id = Tools.generateUID();
+		if (msg.type === "line") {
+			Tools.drawAndSend({
+				'type': 'line',
+				'id': msg.id,
+				'color': msg.color,
+				'size': msg.size,
+				'opacity': msg.opacity || 1,
+			}, instrument);
+			for (var child of msg._children) {
+				Tools.drawAndSend({
+					'type': 'child',
+					'parent': msg.id,
+					'tool': 'Pencil',
+					'x': child.x,
+					'y': child.y,
+				}, instrument);
+			}
+		} else {
+			Tools.drawAndSend(msg, instrument);
+		}
+		instrument = Tools.list.SelectorAndMover;
+		Tools.drawAndSend({
+			'type': 'update',
+			'id': msg.id,
+			'deltax': msg.deltax + 40,
+			'deltay': msg.deltay + 40,
+		}, instrument);
+		instrument.selectObject(msg.id);
+		console.log(msg.id);
+		console.log(document.getElementById(msg.id));
+		Tools.addActionToHistory({ type: "delete", id: msg.id })
+	});
+
 	this.socket.on("reconnect", function onReconnection() {
 		Tools.socket.emit('joinboard', Tools.boardName);
 	});
