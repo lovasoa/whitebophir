@@ -97,6 +97,14 @@
 				if (elem === null) console.error("Eraser: Tried to delete an element that does not exist.");
 				else Tools.drawingArea.removeChild(elem);
 				break;
+			case "clearBoard":
+				Tools.historyRedo.splice(0, Tools.historyRedo.length);
+				Tools.history.splice(0, Tools.history.length);
+				Tools.disableToolsEl('undo');
+				Tools.disableToolsEl('redo');
+				Tools.change("Hand");
+				Tools.drawingArea.innerHTML = '';
+				break;
 			default:
 				console.error("Eraser: 'delete' instruction with unknown type. ", data);
 				break;

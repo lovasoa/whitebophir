@@ -146,7 +146,7 @@ async function saveHistory(boardName, message, socket) {
 				} else if (message.sendBack && message.sendToRedo) {
 					socket.emit("addActionToHistoryRedo", board.get(id));
 				}
-				board.delete(id)
+				board.delete(id);
 			};
 			break;
 		case "update":
@@ -156,7 +156,11 @@ async function saveHistory(boardName, message, socket) {
 			board.addChild(message.parent, message);
 			break;
 		case "clearBoard":
+			if (boards[board.name]) {
+				boards[board.name].board = {};
+			}
 			board.clearAll();
+			socket.broadcast.to(board.name).emit('deleteBoard');
 			break;
 		default: //Add data
 			if (!id) throw new Error("Invalid message: ", message);

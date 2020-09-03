@@ -119,8 +119,6 @@ Tools.connect = function () {
 			'deltay': msg.deltay + 40,
 		}, instrument);
 		instrument.selectObject(msg.id);
-		console.log(msg.id);
-		console.log(document.getElementById(msg.id));
 		Tools.addActionToHistory({ type: "delete", id: msg.id })
 	});
 
@@ -497,18 +495,12 @@ function createModal(htmlContent, id) {
 		createModal(`<iframe src="${Tools.server_config.API_URL}/lite/help" frameborder="0"></iframe>`, "modalHelp");
 	}
 
-	function clearBoard() {
+	function sendClearBoard() {
 		const needClear = confirm('Вы уверены, что хотите очистить всю доску? Это нельзя отменить.');
 		if (needClear) {
-			Tools.send({
+			Tools.drawAndSend({
 				'type': 'clearBoard',
-			});
-			Tools.historyRedo.splice(0, Tools.historyRedo.length);
-			Tools.history.splice(0, Tools.history.length);
-			Tools.disableToolsEl('undo');
-			Tools.disableToolsEl('redo');
-			Tools.change("Hand");
-			Tools.drawingArea.innerHTML = '';
+			}, Tools.list.Eraser);
 		}
 	}
 
@@ -541,10 +533,17 @@ function createModal(htmlContent, id) {
 	document.getElementById('minusScale').addEventListener('click', minusScale, false);
 	document.getElementById('plusScale').addEventListener('click', plusScale, false);
 	document.getElementById("help").addEventListener('click', createHelpModal, false);
-	document.getElementById('clearBoard').addEventListener('click', clearBoard, false);
+	document.getElementById('clearBoard').addEventListener('click', sendClearBoard, false);
 	document.getElementById('exportToPDF').addEventListener('click', createPdf, false);
 	document.getElementById('boardName').addEventListener('click', createModalRename, false);
-
+    document.getElementById('logo').addEventListener('click', function () {
+        document.getElementById('logoMenu').classList.remove('hide');
+    });
+	document.getElementById('logoMenu').addEventListener('touchstart', function (evt) {
+	    setTimeout(function () {
+            document.getElementById('logoMenu').classList.add('hide');
+        }, 100);
+    });
 	window.addEventListener("hashchange", setScrollFromHash, false);
 	window.addEventListener("popstate", setScrollFromHash, false);
 	window.addEventListener("DOMContentLoaded", setScrollFromHash, false);
