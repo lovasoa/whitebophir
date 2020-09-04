@@ -700,6 +700,124 @@ Tools.createSVGElement = function createSVGElement(name, attrs) {
 	return elem;
 };
 
+Tools.getMarkerBoundingRect = function(el,r,m){
+	var marker = el.getAttributeNS(null,"marker-end");
+	if(marker && marker.split("_")[0]=="url(#arrw"){
+
+		var x = el.x1.baseVal.value;
+		var x2 = el.x2.baseVal.value;
+		var y = el.y1.baseVal.value;
+		var y2 = el.y2.baseVal.value;
+
+		var strokeWidth = (el.getAttributeNS(null,"stroke-width") || 0);
+
+		var rad = Math.atan2(y2 - y, x2 - x);
+
+		var l = 6*strokeWidth;
+		var h = 2*strokeWidth;
+
+		var p1 = [[l * Math.cos(rad) + x2],[ l * Math.sin(rad) + y2],[1]];
+		var p2 = [[h * Math.sin(rad) + x2],[ h * Math.cos(rad) + y2],[1]];
+		var p3 = [[-h * Math.sin(rad) + x2],[ -h * Math.cos(rad) + y2],[1]];
+		p1 = Tools.multiplyMatrices(m,p1);
+		console.log(p1);
+		p2 = Tools.multiplyMatrices(m,p2);
+		p3 = Tools.multiplyMatrices(m,p3);
+		r.x = Math.min(p1[0][0],p2[0][0], p3[0][0]);
+		r.y = Math.min(p1[1][0],p2[1][0], p3[1][0]);
+		r.width =  Math.max(p1[0][0],p2[0][0], p3[0][0]) - r.x;
+		r.height = Math.max(p1[1][0],p2[1][0], p3[1][0]) - r.y;
+		console.log(r);
+		return true;
+	}else{
+		return false;
+	}
+};
+
+Tools.adjustBox = function(el,r,m){
+	var strokeWidth =  (el.getAttributeNS(null,"stroke-width") || 0) - 0;
+	var mat = {
+		a:m[0][0],
+		b:m[1][0],
+		c:m[0][1],
+		d:m[1][1],
+		e:0,
+		f:0,
+	}
+	var result = Tools.decomposeMatrix(mat);
+	var rot = result.rotation*Math.PI/180;
+	var xstroke = Math.hypot(Math.cos(rot)*result.scale[0],Math.sin(rot)*result.scale[1])*strokeWidth*.6;
+	var ystroke = Math.hypot(Math.cos(rot)*result.scale[1],Math.sin(rot)*result.scale[0])*strokeWidth*.6;
+	r.x-=xstroke;
+	r.y-=ystroke;
+	r.width+=2*xstroke;
+	r.height+=2*ystroke;
+};
+
+Tools.composeRects = function(r,r2){
+	var x1 = Math.min(r.x,r2.x);
+	var y1 = Math.min(r.y,r2.y);
+	var x2 = Math.max(r.x+r.width,r2.x+r2.width);
+	var y2 = Math.max(r.y+r.height,r2.y+r2.height);
+	r.x = x1;
+	r.y = y1;
+	r.width = x2 - r.x;
+	r.height = y2 - r.y
+};
+
+Tools.multiplyMatrices = function(m1, m2) {
+	var result = [];
+	for (var i = 0; i < m1.length; i++) {
+		result[i] = [];
+		for (var j = 0; j < m2[0].length; j++) {
+			var sum = 0;
+			for (var k = 0; k < m1[0].length; k++) {
+				sum += m1[i][k] * m2[k][j];
+			}
+			result[i][j] = sum;
+		}
+	}
+	return result;
+};
+
+Tools.decomposeMatrix = function(mat) {
+	var a = mat.a;
+	var b = mat.b;
+	var c = mat.c;
+	var d = mat.d;
+	var e = mat.e;
+	var f = mat.f;
+
+	var delta = a * d - b * c;
+
+	let result = {
+		translation: [e, f],
+		rotation: 0,
+		scale: [0, 0],
+		skew: [0, 0],
+	};
+
+	// Apply the QR-like decomposition.
+	if (a != 0 || b != 0) {
+		var r = Math.sqrt(a * a + b * b);
+		result.rotation = b > 0 ? Math.acos(a / r) : -Math.acos(a / r);
+		result.scale = [r, delta / r];
+		result.skew = [Math.atan((a * c + b * d) / (r * r)), 0];
+	} else if (c != 0 || d != 0) {
+		var s = Math.sqrt(c * c + d * d);
+		result.rotation =
+			Math.PI / 2 - (d > 0 ? Math.acos(-c / s) : -Math.acos(c / s));
+		result.scale = [delta / s, s];
+		result.skew = [0, Math.atan((a * c + b * d) / (s * s))];
+	} else {
+		// a = b = c = d = 0
+	}
+	result.rotation=result.rotation*180/Math.PI;
+	result.skew[0]=result.skew[0]*180/Math.PI
+	result.skew[1]=result.skew[1]*180/Math.PI
+	return result;
+};
+
 Tools.positionElement = function (elem, x, y) {
 	elem.style.top = y + "px";
 	elem.style.left = x + "px";
