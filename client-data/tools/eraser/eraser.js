@@ -61,6 +61,7 @@
 	}
 
 	function erase(x, y, evt) {
+		erasing = erasing || evt.which === 1;
 		// evt.target should be the element over which the mouse is...
 		var target = evt.target;
 		if (evt.type === "touchmove") {
@@ -83,7 +84,7 @@
 				}
 			} else {
 				if (erasing) {
-					const coordinates = generateCoordinates(evt.x, evt.y, 5);
+					const coordinates = generateCoordinates(evt.x, evt.y, 11);
 					for (let i of coordinates) {
 						const el = document.elementFromPoint(i[0], i[1]);
 						if (el && checkElementIsDraw(el)) {
