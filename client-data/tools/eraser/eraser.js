@@ -41,9 +41,14 @@
 			if (targetID) {
 				document.getElementById(targetID).classList.remove('selectedEl');
 			}
-			if (evt.target.id !== 'gridContainer') {
+			if (evt.target !== Tools.svg && evt.target !== Tools.drawingArea && inDrawingArea(evt.target)) {
 				targetID = evt.target.id;
-				document.getElementById(targetID).classList.add('selectedEl');
+				msg.id = targetID;
+				if (erasing) {
+					Tools.drawAndSend(msg);
+				} else {
+					document.getElementById(targetID).classList.add('selectedEl');
+				}
 			} else {
 				targetID = '';
 			}

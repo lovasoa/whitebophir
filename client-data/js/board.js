@@ -25,8 +25,6 @@
  */
 
 var Tools = {};
-var wb_comp = {};
-
 
 Tools.i18n = (function i18n() {
 	var translations = JSON.parse(document.getElementById("translations").text);
