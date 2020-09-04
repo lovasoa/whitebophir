@@ -36,31 +36,14 @@
 		erase(x, y, evt);
 	}
 
-	function onMouseMove(evt) {
-		if (evt.target.id !== targetID) {
-			if (targetID) {
-				document.getElementById(targetID).classList.remove('selectedEl');
-			}
-			if (evt.target !== Tools.svg && evt.target !== Tools.drawingArea && inDrawingArea(evt.target)) {
-				targetID = evt.target.id;
-				msg.id = targetID;
-				if (erasing) {
-					Tools.drawAndSend(msg);
-				} else {
-					document.getElementById(targetID).classList.add('selectedEl');
-				}
-			} else {
-				targetID = '';
+	function generateCoordinates(x, y, r) {
+		const array = [];
+		for (var i = x - r; i <= x + r; i++) {
+			for (var k = y - r; k <= y + r; k++) {
+				array.push([i, k]);
 			}
 		}
-	}
-
-	function enableEraser() {
-		Tools.svg.addEventListener('mousemove', onMouseMove);
-	}
-
-	function disableEraser() {
-		Tools.svg.removeEventListener('mousemove', onMouseMove);
+		return array;
 	}
 
 	var msg = {
@@ -73,6 +56,10 @@
 		return Tools.drawingArea.contains(elem);
 	}
 
+	function checkElementIsDraw(element) {
+		return element !== Tools.svg && element !== Tools.drawingArea && inDrawingArea(element);
+	}
+
 	function erase(x, y, evt) {
 		// evt.target should be the element over which the mouse is...
 		var target = evt.target;
@@ -82,9 +69,31 @@
 			var touch = evt.touches[0];
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
-		if (erasing && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
-			msg.id = target.id;
-			Tools.drawAndSend(msg);
+		if (target.id !== targetID) {
+			if (targetID) {
+				document.getElementById(targetID).classList.remove('selectedEl');
+			}
+			if (checkElementIsDraw(target)) {
+				targetID = evt.target.id;
+				msg.id = targetID;
+				if (erasing) {
+					Tools.drawAndSend(msg);
+				} else {
+					target.classList.add('selectedEl');
+				}
+			} else {
+				if (erasing) {
+					const coordinates = generateCoordinates(evt.x, evt.y, 2);
+					for (let i of coordinates) {
+						const el = document.elementFromPoint(i[0], i[1]);
+						if (el && checkElementIsDraw(el)) {
+							msg.id = el.id;
+							Tools.drawAndSend(msg);
+						}
+					}
+				}
+				targetID = '';
+			}
 		}
 	}
 
@@ -126,8 +135,6 @@
 			"move": erase,
 			"release": stopErasing,
 		},
-		"onstart": enableEraser,
-		"onquit": disableEraser,
 		"draw": draw,
 		"icon": "tools/eraser/icon.svg",
 		"mouseCursor": "crosshair",
