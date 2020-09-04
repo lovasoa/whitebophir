@@ -83,7 +83,7 @@
 				}
 			} else {
 				if (erasing) {
-					const coordinates = generateCoordinates(evt.x, evt.y, 2);
+					const coordinates = generateCoordinates(evt.x, evt.y, 4);
 					for (let i of coordinates) {
 						const el = document.elementFromPoint(i[0], i[1]);
 						if (el && checkElementIsDraw(el)) {
