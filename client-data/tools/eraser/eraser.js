@@ -57,7 +57,7 @@
 	}
 
 	function checkElementIsDraw(element) {
-		return element !== Tools.svg && element !== Tools.drawingArea && inDrawingArea(element);
+		return (element.id !== 'gridContainer' && element !== Tools.svg && element !== Tools.drawingArea && inDrawingArea(element));
 	}
 
 	function erase(x, y, evt) {
@@ -74,7 +74,7 @@
 				document.getElementById(targetID).classList.remove('selectedEl');
 			}
 			if (checkElementIsDraw(target)) {
-				targetID = evt.target.id;
+				targetID = target.id;
 				msg.id = targetID;
 				if (erasing) {
 					Tools.drawAndSend(msg);
@@ -83,7 +83,7 @@
 				}
 			} else {
 				if (erasing) {
-					const coordinates = generateCoordinates(evt.x, evt.y, 4);
+					const coordinates = generateCoordinates(evt.x, evt.y, 5);
 					for (let i of coordinates) {
 						const el = document.elementFromPoint(i[0], i[1]);
 						if (el && checkElementIsDraw(el)) {
