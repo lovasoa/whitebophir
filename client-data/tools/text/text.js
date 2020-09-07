@@ -197,6 +197,11 @@
 		elem.id = fieldData.id;
 		elem.setAttribute("x", fieldData.x);
 		elem.setAttribute("y", fieldData.y);
+		if (fieldData.properties) {
+			for (var i = 0; i < fieldData.properties.length; i++) {
+				elem.setAttribute(fieldData.properties[i][0], fieldData.properties[i][1]);
+			}
+		}
 		elem.setAttribute("font-size", fieldData.size);
 		elem.setAttribute("fill", fieldData.color);
 		elem.setAttribute("opacity", Math.max(0.1, Math.min(1, fieldData.opacity)) || 1);

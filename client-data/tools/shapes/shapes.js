@@ -248,7 +248,6 @@
 			shape.setAttribute("stroke-width", data.size || 10);
 			shape.setAttribute("opacity", Math.max(0.1, Math.min(1, data.opacity)) || 1);
 			Tools.drawingArea.appendChild(shape);
-			return shape;
 		}
 		else {
 			//Creates a new shape on the canvas, or update a shape that already exists with new information
@@ -260,8 +259,13 @@
 			shape.setAttribute("stroke-width", data.size || 10);
 			shape.setAttribute("opacity", Math.max(0.1, Math.min(1, data.opacity)) || 1);
 			Tools.drawingArea.appendChild(shape);
-			return shape;
 		}
+		if (data.properties) {
+			for (var i = 0; i < data.properties.length; i++) {
+				shape.setAttribute(data.properties[i][0], data.properties[i][1]);
+			}
+		}
+		return shape;
 	}
 
 	function updateShape(shape, data) {

@@ -398,6 +398,7 @@ function handleMessage(message) {
 	if (!message.tool && !message._children) {
 		console.error("Received a badly formatted message (no tool). ", message);
 	}
+	console.log(message);
 	if (message.tool) messageForTool(message);
 	if (message._children) return batchCall(handleMessage, message._children);
 	else return Promise.resolve();
@@ -626,7 +627,7 @@ Tools.toolHooks = [
 
 		function compile(listener) { //closure
 			return (function listen(evt) {
-				var x = (evt.pageX - (Tools.board.getBoundingClientRect().x < 0 ? 0 : Tools.board.getBoundingClientRect().x)) / Tools.getScale(),
+				var x = (evt.pageX - (Tools.board.getBoundingClientRect().left < 0 ? 0 : Tools.board.getBoundingClientRect().left)) / Tools.getScale(),
 					y = evt.pageY / Tools.getScale();
 				return listener(x, y, evt, false);
 			});
@@ -980,14 +981,16 @@ Tools.undo = (function () {
 					action.sendToRedo = true;
 					break;
 				case "update":
-					var matrix = document.getElementById(action.id).getAttribute("transform");
-					if (matrix) {
-						matrix = matrix.split(' ');
-						const x = matrix[4];
-						const y = matrix[5].replace(')', '');
-						Tools.historyRedo.push({type: "update", id: action.id, deltax: x, deltay: y});
+					const transformEl = document.getElementById(action.id)
+					const propertiesForSend = ['x', 'width', 'height', 'y', 'transform', 'x1', 'y1', 'x2', 'y2', 'd', 'rx', 'cx', 'ry', 'cy'];
+					var msg = { type: "update", id: action.id, properties: [] };
+					for (var i = 0; i < propertiesForSend.length; i++) {
+						if (transformEl.hasAttribute(propertiesForSend[i])) {
+							msg.properties.push([propertiesForSend[i], transformEl.getAttribute(propertiesForSend[i])]);
+						}
 					}
-					instrument = Tools.list.SelectorAndMover;
+					Tools.historyRedo.push(msg);
+					instrument = Tools.list.transform;
 					break;
 				default:
 					instrument = Tools.list[action.tool];
@@ -996,15 +999,6 @@ Tools.undo = (function () {
 			}
 			if (action.type !== "line") {
 				Tools.drawAndSend(action, instrument);
-			}
-			if (action.deltax) {
-				instrument = Tools.list.SelectorAndMover;
-				Tools.drawAndSend({
-					'type': 'update',
-					'id': action.id,
-					'deltax': action.deltax,
-					'deltay': action.deltay,
-				}, instrument);
 			}
 			Tools.enableToolsEl('redo');
 		}
@@ -1051,15 +1045,16 @@ Tools.redo = (function () {
 					action.sendBack = true;
 					break;
 				case "update":
-					var matrix = document.getElementById(action.id).getAttribute("transform");
-					if (matrix) {
-						matrix = matrix.split(' ');
-						const x = matrix[4];
-						const y = matrix[5].replace(')', '');
-						Tools.history.push({type: "update", id: action.id, deltax: x, deltay: y});
-
+					const transformEl = document.getElementById(action.id)
+					const propertiesForSend = ['x', 'width', 'height', 'y', 'transform', 'x1', 'y1', 'x2', 'y2', 'd', 'rx', 'cx', 'ry', 'cy'];
+					var msg = { type: "update", id: action.id, properties: [] };
+					for (var i = 0; i < propertiesForSend.length; i++) {
+						if (transformEl.hasAttribute(propertiesForSend[i])) {
+							msg.properties.push([propertiesForSend[i], transformEl.getAttribute(propertiesForSend[i])]);
+						}
 					}
-					instrument = Tools.list.SelectorAndMover;
+					Tools.history.push(msg);
+					instrument = Tools.list.transform;
 					break;
 				default:
 					instrument = Tools.list[action.tool];
