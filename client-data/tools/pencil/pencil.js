@@ -90,6 +90,7 @@
 	}
 
 	var renderingLine = {};
+	var elementsWithoutChild = {};
 	function draw(data) {
 		Tools.drawingEvent = true;
 		switch (data.type) {
@@ -98,12 +99,14 @@
 				pathDataCache[data.id] = "";
 				break;
 			case "child":
-				var line = (renderingLine.id === data.parent) ? renderingLine : svg.getElementById(data.parent);
-				if (!line) {
-					console.error("Pencil: Hmmm... I received a point of a line that has not been created (%s).", data.parent);
-					line = renderingLine = createLine({ "id": data.parent }); //create a new line in order not to loose the points
+				if (!elementsWithoutChild[data.parent]) {
+					var line = (renderingLine.id === data.parent) ? renderingLine : svg.getElementById(data.parent);
+					if (!line) {
+						console.error("Pencil: Hmmm... I received a point of a line that has not been created (%s).", data.parent);
+						line = renderingLine = createLine({ "id": data.parent }); //create a new line in order not to loose the points
+					}
+					addPoint(line, data.x, data.y);
 				}
-				addPoint(line, data.x, data.y);
 				break;
 			case "endline":
 				//TODO?
@@ -144,6 +147,12 @@
 		line.setAttribute("stroke-width", lineData.size || 10);
 		line.setAttribute("opacity", Math.max(0.1, Math.min(1, lineData.opacity)) || 1);
 		Tools.drawingArea.appendChild(line);
+		if (lineData.properties) {
+			elementsWithoutChild[lineData.id] = true;
+			for (var i = 0; i < lineData.properties.length; i++) {
+				line.setAttribute(lineData.properties[i][0], lineData.properties[i][1]);
+			}
+		}
 		return line;
 	}
 

@@ -110,7 +110,9 @@
 				elem = svg.getElementById(data.id);
 				targetID = '';
 				if (elem === null) console.error("Eraser: Tried to delete an element that does not exist.");
-				else Tools.drawingArea.removeChild(elem);
+				else {
+					Tools.drawingArea.removeChild(elem);
+				}
 				break;
 			case "clearBoard":
 				Tools.historyRedo.splice(0, Tools.historyRedo.length);
