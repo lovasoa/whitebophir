@@ -25,10 +25,10 @@ module.exports = {
     MAX_CHILDREN: parseInt(process.env['WBO_MAX_CHILDREN']) || 512,
 
     /** Maximum value for x on the board */
-    MAX_BOARD_SIZE_X: parseInt(process.env['WBO_MAX_BOARD_SIZE']) || 2048,
+    MAX_BOARD_SIZE_X: parseInt(process.env['WBO_MAX_BOARD_SIZE_X']) || 2048,
 
     /** Maximum value for y on the board */
-    MAX_BOARD_SIZE_Y: parseInt(process.env['WBO_MAX_BOARD_SIZE']) || 65536,
+    MAX_BOARD_SIZE_Y: parseInt(process.env['WBO_MAX_BOARD_SIZE_Y']) || 65536,
 
     /** Maximum messages per user over the given time period before banning them  */
     MAX_EMIT_COUNT: parseInt(process.env['WBO_MAX_EMIT_COUNT']) || 256,
