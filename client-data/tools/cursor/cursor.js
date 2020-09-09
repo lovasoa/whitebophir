@@ -104,10 +104,17 @@
     }
 
     function draw(message) {
-        var cursor = getCursor("cursor-" + (message.socket || 'me'));
-        cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
-        if (Tools.isIE) cursor.setAttributeNS(null, "transform", "translate(" + message.x + " " + message.y + ")");
-        cursor.setAttributeNS(null, "fill", message.color);
-        cursor.setAttributeNS(null, "r", message.size / 2);
-    }
+        if (message.selectElement) {
+            document.getElementById(message.selectElement).classList.add('selectedEl');
+        } else if (message.unSelectElement) {
+            document.getElementById(message.unSelectElement).classList.remove('selectedEl');
+        } else {
+            var cursor = getCursor("cursor-" + (message.socket || 'me'));
+            cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
+            if (Tools.isIE) cursor.setAttributeNS(null, "transform", "translate(" + message.x + " " + message.y + ")");
+            cursor.setAttributeNS(null, "fill", message.color);
+            cursor.setAttributeNS(null, "r", message.size / 2);
+
+        }
+      }
 })();

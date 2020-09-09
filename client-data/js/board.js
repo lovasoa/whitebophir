@@ -75,7 +75,12 @@ Tools.connect = function () {
 	this.socket.on("broadcast", function (msg) {
 		handleMessage(msg).finally(function afterload() {
 			var loadingEl = document.getElementById("loadingMessage");
-			loadingEl.classList.add("hidden");
+			if (!loadingEl.classList.contains('hidden')) {
+				loadingEl.classList.add("hidden");
+				setTimeout(function () {
+					Tools.socket.emit('getSelectedElements', Tools.boardName);
+				}, 300);
+			}
 		});
 	});
 

@@ -17,8 +17,12 @@ body {
 	background-color: #fff;
 }
 
-.selectedEl {
+.forErasing {
 	outline: 2px solid red;
+}
+
+.selectedEl {
+	outline: 2px solid blue;
 }
 
 .boardName {
