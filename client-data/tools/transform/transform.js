@@ -10,6 +10,7 @@
         if (!evt.target || !Tools.drawingArea.contains(evt.target)) {
             if (transformEl) {
                 transformTool[0].disable();
+                Tools.send({type: "update", unSelectElement: transformEl.id}, "Cursor");
                 transformEl = null;
                 panel.classList.add('hide');
             }
@@ -17,10 +18,11 @@
         }
         if (transformEl && evt.target.id !== transformEl.id) {
             transformTool[0].disable();
+            Tools.send({type: "update", unSelectElement: transformEl.id}, "Cursor");
             transformEl = null;
             panel.classList.add('hide');
         }
-        if (transformEl === null) {
+        if (transformEl === null && !evt.target.classList.contains('selectedEl')) {
             selectElement(evt.target);
         }
     }
@@ -77,6 +79,7 @@
             messageForUndo = createMessage();
             Tools.drawAndSend(createMessage());
         }
+        Tools.send({type: "update", selectElement: transformEl.id}, "Cursor");
     }
 
     function createAndSendMessage() {
@@ -122,6 +125,7 @@
     function onQuit() {
         if (transformEl) {
             transformTool[0].disable();
+            Tools.send({type: "update", unSelectElement: transformEl.id}, "Cursor");
         }
         document.removeEventListener('keydown', enableProportions);
         document.removeEventListener('keyup', enableProportions);

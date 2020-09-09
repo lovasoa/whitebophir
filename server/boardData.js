@@ -40,6 +40,8 @@ var BoardData = function (name) {
 	this.board = {};
 	this.lastSaveDate = Date.now();
 	this.users = new Set();
+	this.selectedElements = [];
+	// { id: 'elId', socketId: 'socketId' }
 };
 
 /** Adds data to the board */
