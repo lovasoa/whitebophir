@@ -4,6 +4,7 @@
     var messageForUndo = null;
     var lastSend = performance.now();
     const panel = document.getElementById('object-panel');
+    var sendingInverval = null;
     const propertiesForSend = ['x', 'width', 'height', 'y', 'transform', 'x1', 'y1', 'x2', 'y2', 'd', 'rx', 'cx', 'ry', 'cy'];
 
     function press(x, y, evt) {
@@ -105,6 +106,11 @@
         document.addEventListener('keydown', actionsForEvent);
         document.getElementById('object-delete').addEventListener('click', deleteElement);
         document.getElementById('object-dublicate').addEventListener('click', dublicateObject);
+        sendingInverval = setInterval(sendInInterval, 1000);
+    }
+
+    function sendInInterval () {
+        if (transformEl && transformEl.id) Tools.send({type: "update", selectElement: transformEl.id}, "Cursor");
     }
 
     function enableProportions(evt) {
@@ -118,10 +124,6 @@
         });
     }
 
-    function release() {
-
-    }
-
     function onQuit() {
         if (transformEl) {
             transformTool[0].disable();
@@ -132,6 +134,7 @@
         document.removeEventListener('keydown', actionsForEvent);
         document.getElementById('object-delete').removeEventListener('click', deleteElement);
         panel.classList.add('hide');
+        clearInterval(sendingInverval);
     }
 
     function draw(data) {
@@ -157,7 +160,6 @@
         "shortcut": "v",
         "listeners": {
             "press": press,
-            "release": release,
         },
         "selectElement": selectElement,
         "checkAndDisable": checkAndDisable, // Проверить если элемент удалили, то прекратить выделение и убрать панель

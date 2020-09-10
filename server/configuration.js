@@ -50,4 +50,8 @@ module.exports = {
 
     /** Maximum line width on selector size for draw*/
     MAX_LINE_WIDTH: 50,
+
+    /** Maximum size of uploaded documents default 5MB */
+    MAX_DOCUMENT_SIZE: parseInt(process.env['WBO_MAX_DOCUMENT_SIZE']) || 1048576 * 5,
+
 };

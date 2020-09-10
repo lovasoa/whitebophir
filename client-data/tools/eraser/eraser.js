@@ -62,7 +62,6 @@
 
 	function erase(x, y, evt) {
 		erasing = erasing || evt.which === 1;
-		// evt.target should be the element over which the mouse is...
 		var target = evt.target;
 		if (evt.type === "touchmove") {
 			// ... the target of touchmove events is the element that was initially touched,
@@ -70,31 +69,29 @@
 			var touch = evt.touches[0];
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
-		if (target.id !== targetID) {
-			if (targetID) {
-				document.getElementById(targetID).classList.remove('forErasing');
+		if (targetID) {
+			document.getElementById(targetID).classList.remove('forErasing');
+		}
+		if (checkElementIsDraw(target)) {
+			targetID = target.id;
+			msg.id = targetID;
+			if (erasing && !target.classList.contains('selectedEl')) {
+				Tools.drawAndSend(msg);
+			} else if (!target.classList.contains('selectedEl')) {
+				target.classList.add('forErasing');
 			}
-			if (checkElementIsDraw(target)) {
-				targetID = target.id;
-				msg.id = targetID;
-				if (erasing && !target.classList.contains('selectedEl')) {
-					Tools.drawAndSend(msg);
-				} else if (!target.classList.contains('selectedEl')) {
-					target.classList.add('forErasing');
-				}
-			} else {
-				if (erasing) {
-					const coordinates = generateCoordinates(evt.x, evt.y, 11);
-					for (let i of coordinates) {
-						const el = document.elementFromPoint(i[0], i[1]);
-						if (el && checkElementIsDraw(el) && !el.classList.contains('selectedEl')) {
-							msg.id = el.id;
-							Tools.drawAndSend(msg);
-						}
+		} else {
+			if (erasing) {
+				const coordinates = generateCoordinates(evt.x, evt.y, 11);
+				for (let i of coordinates) {
+					const el = document.elementFromPoint(i[0], i[1]);
+					if (el && checkElementIsDraw(el) && !el.classList.contains('selectedEl')) {
+						msg.id = el.id;
+						Tools.drawAndSend(msg);
 					}
 				}
-				targetID = '';
 			}
+			targetID = '';
 		}
 	}
 

@@ -114,7 +114,6 @@
             if (Tools.isIE) cursor.setAttributeNS(null, "transform", "translate(" + message.x + " " + message.y + ")");
             cursor.setAttributeNS(null, "fill", message.color);
             cursor.setAttributeNS(null, "r", message.size / 2);
-
         }
       }
 })();
