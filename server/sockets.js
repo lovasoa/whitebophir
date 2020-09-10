@@ -72,7 +72,7 @@ function socketConnection(socket) {
 
 	var lastEmitSecond = Date.now() / config.MAX_EMIT_COUNT_PERIOD | 0;
 	var emitCount = 0;
-	socket.on('broadcast', noFail(function onBroadcast(message) {
+	socket.on('broadcast', noFail(async function onBroadcast(message) {
 		var currentSecond = Date.now() / config.MAX_EMIT_COUNT_PERIOD | 0;
 		if (currentSecond === lastEmitSecond) {
 			emitCount++;
@@ -96,6 +96,16 @@ function socketConnection(socket) {
 		var data = message.data;
 
 		if (!socket.rooms.hasOwnProperty(boardName)) socket.join(boardName);
+
+		var boardData;
+		if (message.data.type === "doc") {
+			boardData = await getBoard(boardName);
+
+			if (message.data.data.length > config.MAX_DOCUMENT_SIZE) {
+				console.warn("Received too large file");
+				return;
+			}
+		}
 
 		if (!data) {
 			console.warn("Received invalid message: %s.", JSON.stringify(message));
@@ -137,18 +147,32 @@ function socketConnection(socket) {
 	});
 }
 
-function handleMessage(boardName, message, socket) {
+async function handleMessage(boardName, message, socket) {
 	if (message.tool === "Cursor") {
 		message.socket = socket.id;
+		var localBoard = await getBoard(boardName);
 		if (message.selectElement) {
-			const unSelectIndex = boards[boardName].selectedElements.findIndex(function (el) {
-				return el.socketID === message.socket;
+			const inList = localBoard.selectedElements.findIndex(function (el) {
+				return el.id === message.selectElement;
+			}) !== -1;
+			if (inList === false) {
+				const unSelectIndex = localBoard.selectedElements.findIndex(function (el) {
+					return el.socketID === message.socket;
+				});
+				if (unSelectIndex !== -1) {
+					socket.broadcast.to(boardName).emit('broadcast', { unSelectElement: localBoard.selectedElements[unSelectIndex].id, tool: "Cursor" });
+					localBoard.selectedElements.splice(unSelectIndex, 1);
+				}
+				localBoard.selectedElements.push({ id: message.selectElement, socketID: message.socket});
+			}
+		}
+		if (message.unSelectElement) {
+			const unSelectIndex = localBoard.selectedElements.findIndex(function (el) {
+				return el.id === message.unSelectElement;
 			});
 			if (unSelectIndex !== -1) {
-				socket.broadcast.to(boardName).emit('broadcast', { unSelectElement: boards[boardName].selectedElements[unSelectIndex].id, tool: "Cursor" });
-				boards[boardName].selectedElements.splice(unSelectIndex, 1);
+				localBoard.selectedElements.splice(unSelectIndex, 1);
 			}
-			boards[boardName].selectedElements.push({ id: message.selectElement, socketID: message.socket});
 		}
 	}
 	else {
