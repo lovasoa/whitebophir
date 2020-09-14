@@ -27,9 +27,8 @@
 (function () { //Code isolation
 	var board = Tools.board;
 
-	var input = document.createElement("input");
+	var input = document.createElement("textarea");
 	input.id = "textToolInput";
-	input.type = "text";
 	input.setAttribute("autocomplete", "off");
 
 	var curText = {
@@ -106,15 +105,19 @@
 		active = true;
 		if (!input.parentNode) board.appendChild(input);
 		input.value = "";
-		var left = curText.x - document.documentElement.scrollLeft + 'px';
 		var clientW = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
 		var x = curText.x * Tools.scale - document.documentElement.scrollLeft;
-		if (x + 250 > clientW) {
-			x = Math.max(60, clientW - 260)
+		if (x < 360) {
+			x = Math.max(60, clientW - 320);
+		} else {
+			x = 60;
 		}
 
+		input.style.opacity = '0.5';
 		input.style.left = x + 'px';
-		input.style.top = curText.y * Tools.scale - document.documentElement.scrollTop + 20 + 'px';
+		input.style.top = curText.y * Tools.scale - document.documentElement.scrollTop - 20 + 'px';
+		input.style.height = '150px';
+		input.style.width = '300px';
 		input.focus();
 		input.addEventListener("keyup", textChangeHandler);
 		input.addEventListener("blur", textChangeHandler);
@@ -138,18 +141,14 @@
 
 	function textChangeHandler(evt) {
 		input.value = removeDoubleQuotes(input.value); // remove all double quotes; they are unnecessary in (La)TeX and difficult to escape
-        if (evt.which === 13) { // enter
-			curText.y += 1.5 * curText.size;
-			stopEdit();
-			startEdit();
-		} else if (evt.which === 27) { // escape
+        if (evt.which === 27) { // escape
 			stopEdit();
 		}
 		if (performance.now() - curText.lastSending > 1000) {
 			if (curText.sentText !== input.value) {
 				//If the user clicked where there was no text, then create a new text field
 				if (curText.id === 0) {
-					curText.id = Tools.generateUID("m"); //"t" for text
+					curText.id = Tools.generateUID("m"); //"m" for math
 					Tools.drawAndSend({
 						'type': 'new',
 						'id': curText.id,
@@ -160,11 +159,11 @@
 						'y': curText.y
 					})
 				}
-                let mathematicsSVG = getSVGFromMathJax(input.value.slice(0, 280));
+                let mathematicsSVG = getSVGFromMathJax(input.value);
 				Tools.drawAndSend({
 					'type': "update",
 					'id': curText.id,
-					'txt': input.value.slice(0, 280),
+					'txt': input.value,
                     'mWidth': mathematicsSVG.getAttribute('width'),
                     'mHeight': mathematicsSVG.getAttribute('height'),
                     'mViewBox': mathematicsSVG.getAttribute('viewBox'),
@@ -184,7 +183,7 @@
     
 	function getSVGFromMathJax(rawTeX) {
 		let userColor = Tools.getColor();
-        let svgFromMathJax = MathJax.tex2svg("\\color{" + userColor + "}" + rawTeX, {display: true});
+        let svgFromMathJax = MathJax.tex2svg("\\color{" + userColor + "}\\begin{align}" + rawTeX + '\\end{align}', {display: true});
 		let svgOnly = svgFromMathJax.children[0];
 		// Split the viewBox into separate strings
 		var strArrViewBox = svgOnly.getAttribute("viewBox").split(" ");
