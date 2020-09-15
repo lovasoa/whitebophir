@@ -299,7 +299,8 @@
 .tool .main-tool:hover .shape path,
 .tool .sub-tool-item.shape:hover svg path,
 .tool .main-tool.selected-tool.shape path,
-.tool .sub-tool-item.selected-tool.shape path{
+.tool .sub-tool-item.selected-tool.shape path,
+.tool .main-tool.selected-tool .shape path{
     fill: white;
     stroke: #2D9CDB;
 }
@@ -446,10 +447,6 @@
     align-items: center;
     text-align: center;
     border: none;
-}
-
-.tool.openOnHover:hover .sub-tool-panel{
-    display: block;
 }
 
 @media (max-width:645px) {

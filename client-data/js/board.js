@@ -125,36 +125,40 @@ Tools.HTML = {
 	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
 		var toolOpenedFromClick = false;
 		const toolEl = document.getElementById('Tool-' + toolName);
-		console.log(toolName);
 		const toolParentEl = document.getElementById('Tool-' + toolName).parentElement;
 		const subTools = toolParentEl.getElementsByClassName('sub-tool-item');
 
 		const onClick = function (e) {
+			console.log('onClick')
+			Tools.change(toolName, toolEl.dataset.index);
 			toolOpenedFromClick = true;
 			toolParentEl.classList.add('opened');
 			e.stopPropagation();
 			document.addEventListener('touchstart', closeFromClick, { once: true});
-			document.addEventListener('mousedown', closeFromClick, { once: true});
-			Tools.change(toolName, toolEl.dataset.index);
 		};
 
 		const closeFromClick = function (e) {
 			for (var el of e.path) {
+				if (el && el.classList && el.classList.contains('sub-tool-item')) return;
 				if (el && el.id === 'Tool-' + toolName) return;
 			}
 			toolOpenedFromClick = false;
+			console.log('closeFromClick');
 			setTimeout(function () {toolParentEl.classList.remove('opened')}, 100);
 		}
 
 		const onMouseEnter = function (e) {
+			console.log('onmouseenter');
 			toolParentEl.classList.add('opened');
 		}
 
 		const onMouseLeave = function (e) {
+			console.log('onmouseleave');
 			if (!toolOpenedFromClick) toolParentEl.classList.remove('opened');
 		}
 
 		const subToolClick = function (e) {
+			console.log('SubTool click')
 			const subTool = e.path.find(function (item) {
 				return item.classList.contains('sub-tool-item');
 			});
@@ -166,8 +170,12 @@ Tools.HTML = {
 			subTool.addEventListener('click', subToolClick);
 		}
 
-		Tools.change(toolName);
-		toolEl.addEventListener("click", onClick);
+		//Tools.change(toolName);
+
+		toolEl.addEventListener('click', function () {
+			Tools.change(toolName, toolEl.dataset.index);
+		});
+		toolEl.addEventListener("touchstart", onClick);
 		toolParentEl.addEventListener('mouseenter', onMouseEnter);
 		toolParentEl.addEventListener('mouseleave', onMouseLeave);
 	},
@@ -247,12 +255,11 @@ Tools.add = function (newTool) {
 };
 
 Tools.change = function (toolName, subToolIndex) {
-	console.log(subToolIndex);
 	var newTool = Tools.list[toolName];
 	var oldTool = Tools.curTool;
 
 	const toolEl = document.getElementById('Tool-' + toolName);
-	if (toolEl.dataset.index !== subToolIndex) {
+	if (toolEl.dataset.index !== subToolIndex || true) {
 		toolEl.classList.remove('fix');
 		toolEl.classList.remove('dash');
 		toolEl.classList.remove('shape');
@@ -856,6 +863,21 @@ function watchColorPicker (e) {
 	presetsList[0].classList.add('selected-color');
 }
 
+const toolColorEl = document.getElementById('color-tool');
+
+toolColorEl.addEventListener('mouseenter', function () {
+	console.log('mouseenter');
+	toolColorEl.classList.add('opened');
+});
+toolColorEl.addEventListener('mouseleave', function () {
+	console.log('mouseleave');
+	toolColorEl.classList.remove('opened');
+});
+toolColorEl.addEventListener('touchstart', function () {
+	console.log('touchStart');
+	toolColorEl.classList.add('opened');
+});
+
 for (var colorPreset of document.getElementsByClassName('color-preset')) {
 	colorPreset.addEventListener('click', function (e) {
 		if (e.target.tagName === 'DIV') {
@@ -865,6 +887,7 @@ for (var colorPreset of document.getElementsByClassName('color-preset')) {
 				node.classList.remove('selected-color');
 			}
 			e.path[1].classList.add('selected-color');
+			document.getElementById('color-tool').classList.remove('opened');
 		}
 	});
 }
