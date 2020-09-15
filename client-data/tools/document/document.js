@@ -1,6 +1,5 @@
 (function documents() { //Code isolation
     var xlinkNS = "http://www.w3.org/1999/xlink";
-    var first = true;
     const fileTypes = ['jpeg', 'jpg', 'webp', 'png'];
     function preventDefault(e) {
         e.preventDefault();
@@ -28,10 +27,6 @@
     }
 
     function onstart() {
-        if (first) {
-            first = false;
-            return;
-        }
         var fileInput = document.createElement("input");
         fileInput.type = "file";
         fileInput.accept = "image/*";

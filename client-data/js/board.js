@@ -868,15 +868,16 @@ function watchColorPicker (e) {
 const toolColorEl = document.getElementById('color-tool');
 
 toolColorEl.addEventListener('mouseenter', function () {
-	console.log('mouseenter');
 	toolColorEl.classList.add('opened');
 });
 toolColorEl.addEventListener('mouseleave', function () {
-	console.log('mouseleave');
 	toolColorEl.classList.remove('opened');
 });
-toolColorEl.addEventListener('touchstart', function () {
-	console.log('touchStart');
+toolColorEl.addEventListener('touchstart', function (e) {
+	e.stopPropagation();
+	document.addEventListener('touchstart', function (e) {
+		toolColorEl.classList.remove('opened');
+	}, { once: true });
 	toolColorEl.classList.add('opened');
 });
 
