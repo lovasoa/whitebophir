@@ -138,7 +138,7 @@ Tools.HTML = {
 		};
 
 		const closeFromClick = function (e) {
-			for (var el of e.path) {
+			for (var el of e.composedPath()) {
 				if (el && el.classList && el.classList.contains('sub-tool-item')) return;
 				if (el && el.id === 'Tool-' + toolName) return;
 			}
@@ -159,7 +159,8 @@ Tools.HTML = {
 
 		const subToolClick = function (e) {
 			console.log('SubTool click')
-			const subTool = e.path.find(function (item) {
+			console.log(e);
+			const subTool = e.composedPath().find(function (item) {
 				return item.classList.contains('sub-tool-item');
 			});
 			Tools.change(toolName, subTool.dataset.index);
@@ -257,7 +258,8 @@ Tools.add = function (newTool) {
 Tools.change = function (toolName, subToolIndex) {
 	var newTool = Tools.list[toolName];
 	var oldTool = Tools.curTool;
-
+	console.log(toolName);
+	console.log(subToolIndex);
 	const toolEl = document.getElementById('Tool-' + toolName);
 	if (toolEl.dataset.index !== subToolIndex || true) {
 		toolEl.classList.remove('fix');
@@ -886,7 +888,7 @@ for (var colorPreset of document.getElementsByClassName('color-preset')) {
 			for (var node of presetsList) {
 				node.classList.remove('selected-color');
 			}
-			e.path[1].classList.add('selected-color');
+			e.composedPath()[1].classList.add('selected-color');
 			document.getElementById('color-tool').classList.remove('opened');
 		}
 	});
@@ -935,7 +937,7 @@ Tools.setSize = (function size() {
 			for (var item of listAllItems) {
 				item.classList.remove('selected-width');
 			}
-			evt.path[0].classList.add('selected-width');
+			evt.composedPath()[0].classList.add('selected-width');
 			Tools.setSize(+evt.target.innerText);
 		}
 	});
