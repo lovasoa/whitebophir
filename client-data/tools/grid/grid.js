@@ -105,14 +105,18 @@
         return gridContainer;
     })();
 
+    function setIndex(newIndex) {
+        index = +newIndex || 0;
+    }
+
     Tools.add({ //The new tool
         "name": "Grid",
         "shortcut": "g",
         "listeners": {},
-        "icon": "tools/grid/icon.svg",
         "oneTouch": true,
         "onstart": toggleGrid,
         "mouseCursor": "crosshair",
+        "setIndex": setIndex,
     });
 
 })(); //End of code isolation

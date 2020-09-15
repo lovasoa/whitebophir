@@ -25,19 +25,6 @@ body {
 	outline: 2px solid blue;
 }
 
-.boardName {
-	position: fixed;
-	top: 10px;
-	left: 220px;
-	z-index: 2;
-	background-color: #e5f1f6;
-	height: 80px;
-	cursor: pointer;
-	font-size: 25px;
-	line-height: 80px;
-	user-select: none;
-}
-
 .object-panel {
 	position: fixed;
 	right: 20px;
@@ -63,55 +50,6 @@ body {
 .object-panel > div > img {
 	width: 100%;
 	height: 100%;
-}
-
-.logo {
-	top: 10px;
-	left: 10px;
-	position: fixed;
-	z-index: 200;
-	background-color: #e5f1f6;
-	width: 200px;
-	height: 80px;
-	transition: .25s background-color;
-	cursor: pointer;
-	user-select: none;
-}
-
-.logo:hover {
-	background-color: #3393bf;
-}
-
-.logo:hover .logo-menu {
-	display: block;
-}
-
-.logo .logo-menu {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	position: absolute;
-	top: 80px;
-	display: none;
-	width: 200px;
-}
-
-.logo .logo-menu li {
-	background-color: #C4C4C4;
-	transition: .25s background-color;
-	text-align: center;
-	height: 72px;
-	line-height: 72px;
-	font-size: 18px;
-}
-
-.logo .logo-menu li:hover {
-	background-color: #979595;
-}
-
-.logo .logo-menu li a {
-	color: #000;
-	text-decoration: none;
 }
 
 #loadingMessage {
@@ -199,29 +137,6 @@ body {
 	margin-bottom: 0;
 }
 
-.help {
-	position: fixed;
-	z-index: 2;
-	width: 77px;
-	height: 77px;
-	top: 10px;
-	right: 20px;
-	border-radius: 50%;
-	cursor: pointer;
-	transition: .25s background-color;
-	background-color: #fff;
-	user-select: none;
-}
-
-.help:hover {
-	background-color: #cbc8c2;
-}
-
-.help img {
-	width: 77px;
-	height: 77px;
-}
-
 .modal {
 	z-index: 1000;
 	position: fixed;
@@ -265,52 +180,6 @@ body {
 #modalHelp.modal .content iframe {
 	width: 100%;
 	height: 100%;
-}
-
-.scale-panel {
-	position: fixed;
-	bottom: 18px;
-	right: 16px;
-	z-index: 1;
-}
-
-.scale-panel-scaleValue {
-	z-index: 1;
-	padding: 0 5px;
-	height: 42px;
-	font-size: 20px;
-	background-color: #3285ae;
-	color: #fff;
-	line-height: 42px;
-	position: absolute;
-	right: 110%;
-	bottom: 4px;
-	user-select: none;
-	pointer-events: auto;
-	cursor: text;
-}
-
-.scale-panel__block {
-	display: flex;
-	margin-top: 8px;
-}
-
-.scale-panel_button {
-	cursor: pointer;
-	user-select: none;
-	pointer-events: auto;
-	width: 50px;
-	height: 50px;
-	background-color: #3285ae;
-	text-align: center;
-	line-height: 50px;
-	color: #fff;
-	font-size: 20px;
-	transition: 0.2s;
-}
-
-.scale-panel_button:hover {
-	filter: brightness(0.7);
 }
 
 #menu .tool {
@@ -454,86 +323,29 @@ body {
 	display: flex;
 }
 
-input {
-	font-size:16px;
-}
-
-#chooseColor {
-	width: 100%;
-	height:100%;
-	border: 0;
-	border-radius: 0;
-	color:black;
-	display: block;
-	margin: 0;
-	padding: 0;
-}
-
-.colorPresets {
-	margin-right: 20px;
-	vertical-align: top;
-	display: inline-block;
-}
-
-.colorPresetButton {
-	width: 30px;
-	height: 30px;
-	border: 1px solid black;
-	border-radius: 3px;
-	display: inline-block;
-	margin-right: 6px;
-	padding: 0;
-	vertical-align: middle;
-}
-
-.rangeChooser {
-	display: block;
-	border: 0;
-	width: 100%;
-	margin: 0;
-	background: transparent;
-}
-
-.rangeChooser.sizeChooser {
-	display: inline-block;
-	width: 200px;
-	height: 40px;
-}
-
-line {
+#canvas line {
 	fill: none;
 	stroke-linecap: round;
 	stroke-linejoin: round;
 }
 
-path {
+#canvas path {
 	fill: none;
 	stroke-linecap: round;
 	stroke-linejoin: round;
 }
 
-text {
+#canvas text {
 	font-family:"Arial", "Helvetica", sans-serif;
 	user-select:none;
 	-moz-user-select:none;
 }
 
-circle.opcursor {
+#canvas circle.opcursor {
 	pointer-events: none;
 	transition: .1s;
 }
 
 #cursor-me {
 	transition: 0s;
-}
-
-
-/* Internet Explorer specific CSS */
-@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-	#chooseColor {
-		color: transparent;
-	}
-	label.tool-name[for=chooseColor] {
-		line-height: 10px;
-	}
 }

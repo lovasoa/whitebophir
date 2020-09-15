@@ -28,6 +28,7 @@
 
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
+		index = 0,
 		cancel = false,
 		lastTime = performance.now(); //The time at which the last point was drawn
 
@@ -55,7 +56,7 @@
 			'color': Tools.getColor(),
 			'size': Tools.getSize(),
 			'opacity': Tools.getOpacity(),
-			'dotted': Tools.curTool.secondary.active,
+			'dotted': index === 1,
 		});
 
 		//Immediatly add a point to the line
@@ -156,6 +157,10 @@
 		return line;
 	}
 
+	function setIndex(newIndex) {
+		index = +newIndex;
+	}
+
 
 	var pencilTool = {
 		"name": "Pencil",
@@ -165,14 +170,9 @@
 			"move": continueLine,
 			"release": stopLineAt,
 		},
-		"secondary": {
-			"name": "Dotted Pencil",
-			"icon": "tools/line/icon-straight.svg",
-			"active": false,
-		},
+		"setIndex": setIndex,
 		"draw": draw,
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
-		"icon": "tools/pencil/icon.svg",
 		"stylesheet": "tools/pencil/pencil.css"
 	};
 	Tools.add(pencilTool);

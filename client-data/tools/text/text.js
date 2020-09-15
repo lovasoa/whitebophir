@@ -59,6 +59,8 @@
 	}
 
 	function clickHandler(x, y, evt, isTouchEvent) {
+		alert('Эта функция находится в разработке!');
+		return;
 		//if(document.querySelector("#menu").offsetWidth>Tools.menu_width+3) return;
 		if (evt.target === input) return;
 		if (evt.target.tagName === "text") {
@@ -220,7 +222,6 @@
 		"onquit": onQuit,
 		"draw": draw,
 		"stylesheet": "tools/text/text.css",
-		"icon": "tools/text/icon.svg",
 		"mouseCursor": "text"
 	});
 

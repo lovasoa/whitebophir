@@ -43,20 +43,12 @@
 		lastPos = { x: 0, y: 0 },
 		lastTime = performance.now(); //The time at which the last point was drawn
 	//Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-	// 0 = Линия, 1 = Прямая линия, 2 = Пунктир, 3 = Прямой пунктир, 4 = Стрелка, 5 = Прямая стрелка
 	const localTools = [
 		{ icon: 'icon.svg', name: 'rectangle' },
 		{ icon: 'icon-square.svg', name: 'square' },
 		{ icon: 'icon-ellipse.svg', name: 'ellipse' },
 		{ icon: 'icon-circle.svg', name: 'circle' },
 	]
-
-	function toogleTool() {
-		end = true;
-		if (!selected) index = (index + 1) % localTools.length;
-		selected = false;
-		Tools.HTML.toggle("Shapes", localTools[index].name, '/tools/shapes/' + localTools[index].icon);
-	}
 
 	function onstart() {
 		selected = true;
@@ -283,6 +275,10 @@
 
 	}
 
+	function setIndex(newIndex) {
+		index = +newIndex || 0;
+	}
+
 	var rectangleTool = {
 		"name": "Shapes",
 		"shortcut": "r",
@@ -294,10 +290,8 @@
 		"onstart": onstart,
 		"draw": draw,
 		"mouseCursor": "crosshair",
-		"icon": "tools/rect/icon.svg",
+		"setIndex": setIndex,
 		"stylesheet": "tools/shapes/shapes.css"
 	};
 	Tools.add(rectangleTool);
-	Tools.HTML.toggle("Shapes", localTools[0].name, '/tools/shapes/' + localTools[0].icon);
-	document.getElementById('toolID-Shapes').addEventListener('click', toogleTool);
 })(); //End of code isolation

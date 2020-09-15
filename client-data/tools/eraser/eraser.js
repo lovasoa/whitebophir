@@ -136,7 +136,6 @@
 			"release": stopErasing,
 		},
 		"draw": draw,
-		"icon": "tools/eraser/icon.svg",
 		"mouseCursor": "crosshair",
 		"showMarker": true,
 	});

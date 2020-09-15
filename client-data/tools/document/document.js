@@ -104,18 +104,16 @@
         }
         Tools.drawingArea.appendChild(img);
         if (msg.select) {
-            Tools.change("Transform");
+            Tools.change("Transform", 1);
             Tools.list.Transform.selectElement(img);
         }
     }
 
     Tools.add({
         "name": "Document",
-        //"shortcut": "",
         "draw": draw,
         "onstart": onstart,
         "oneTouch":true,
-        "icon": "/tools/document/icon.svg",
     });
 
 })(); //End of code isolation
