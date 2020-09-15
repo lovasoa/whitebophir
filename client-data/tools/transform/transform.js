@@ -5,6 +5,7 @@
     var lastSend = performance.now();
     const panel = document.getElementById('object-panel');
     var sendingInverval = null;
+    var index = 0;
     const propertiesForSend = ['x', 'width', 'height', 'y', 'transform', 'x1', 'y1', 'x2', 'y2', 'd', 'rx', 'cx', 'ry', 'cy'];
 
     function press(x, y, evt) {
@@ -41,6 +42,7 @@
             "sendBack": true,
         }, Tools.list.Eraser);
         Tools.change("Hand");
+        Tools.change("Transform", 1);
     }
 
     function selectElement(el, offset) {
@@ -155,6 +157,10 @@
         if (transformEl && transformEl.id === id) transformTool[0].disable();
     }
 
+    function setIndex(newIndex) {
+        index = +newIndex || 0;
+    }
+
     Tools.add({ //The new tool
         "name": "Transform",
         "shortcut": "v",
@@ -166,8 +172,8 @@
         "onstart": onStart,
         "onquit": onQuit,
         "draw": draw,
-        "icon": "tools/transform/transform.svg",
         "mouseCursor": "move",
         "showMarker": true,
+        "setIndex": setIndex,
     });
 })();

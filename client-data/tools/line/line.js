@@ -34,12 +34,12 @@
 		lastTime = performance.now(); //The time at which the last point was drawn
 
 	const localTools = [
-		{ icon: 'icon-line.svg', name: 'line', shift: false },
-		{ icon: 'icon-straight.svg', name: 'straight_line', shift: true },
-		{ icon: 'icon-dotted.svg', name: 'dotted_line', shift: false },
-		{ icon: 'icon-straight-dotted.svg', name: 'straight_dotted_line', shift: true },
-		{ icon: 'icon-arrow.svg', name: 'arrow_line', shift: false },
-		{ icon: 'icon-arrow-straight.svg', name: 'arrow_straight_line', shift: true },
+		{ shift: false },
+		{ shift: true },
+		{ shift: false },
+		{ shift: true },
+		{ shift: false },
+		{ shift: true },
 	]
 	//The data of the message that will be sent for every update
 	function UpdateMessage(x, y) {
@@ -51,12 +51,6 @@
 
 	function onstart() {
 		selected = true;
-	}
-
-	function toogleTool() {
-		if (!selected) index = (index + 1) % localTools.length;
-		selected = false;
-		Tools.HTML.toggle("Straight line", localTools[index].name, '/tools/line/' + localTools[index].icon);
 	}
 
 	function startLine(x, y, evt) {
@@ -76,8 +70,8 @@
 			'opacity': Tools.getOpacity(),
 			'x': x,
 			'y': y,
-			'dotted': index === 2 || index === 3,
-			'arrow': index === 4 || index === 5,
+			'dotted': index === 4 || index === 5,
+			'arrow': index === 2 || index === 3,
 		}
 
 		Tools.drawAndSend(curLine);
@@ -197,8 +191,12 @@
 		line.y2.baseVal.value = data['y2'];
 	}
 
+	function setIndex(newIndex) {
+		index = +newIndex || 0;
+	}
+
 	var lineTool = {
-		"name": "Straight line",
+		"name": "Line",
 		"shortcut": "l",
 		"listeners": {
 			"press": startLine,
@@ -208,10 +206,8 @@
 		"onstart": onstart,
 		"draw": draw,
 		"mouseCursor": "crosshair",
-		"icon": "tools/line/icon.svg",
+		"setIndex": setIndex,
 		"stylesheet": "tools/line/line.css"
 	};
 	Tools.add(lineTool);
-	Tools.HTML.toggle("Straight line", localTools[0].name, '/tools/line/' + localTools[0].icon);
-	document.getElementById('toolID-Straight line').addEventListener('click', toogleTool);
 })(); //End of code isolation

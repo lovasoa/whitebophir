@@ -27,7 +27,7 @@
 (function () { // Code isolation
 
     // Allocate half of the maximum server updates to cursor updates
-    var MAX_CURSOR_UPDATES_INTERVAL_MS = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT * 2;
+    var MAX_CURSOR_UPDATES_INTERVAL_MS = 32;
 
     var CURSOR_DELETE_AFTER_MS = 1000 * 5;
 
@@ -73,13 +73,11 @@
 
     function updateMarker() {
         if (!Tools.showMarker || !Tools.showMyCursor) return;
-        var cur_time = Date.now();
+        var cur_time = performance.now();
         if (cur_time - lastCursorUpdate > MAX_CURSOR_UPDATES_INTERVAL_MS &&
             (sending || Tools.curTool.showMarker)) {
             Tools.drawAndSend(message, cursorTool);
             lastCursorUpdate = cur_time;
-        } else {
-            draw(message);
         }
     }
 

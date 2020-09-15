@@ -38,7 +38,6 @@ Tools.i18n = (function i18n() {
 Tools.server_config = JSON.parse(document.getElementById("configuration").text);
 
 document.getElementById('cabinetURL').setAttribute('href', Tools.server_config.CABINET_URL);
-
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
@@ -123,47 +122,64 @@ Tools.boardName = (function () {
 Tools.socket.emit("getboard", Tools.boardName);
 
 Tools.HTML = {
-	template: new Minitpl("#tools > .tool"),
-	addShortcut: function addShortcut(key, callback) {
-		window.addEventListener("keydown", function (e) {
-			if (e.key === key && !e.target.matches("input[type=text], textarea")) {
-				callback();
-			}
-		});
-	},
 	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
-		var callback = function () {
-			Tools.change(toolName);
+		var toolOpenedFromClick = false;
+		const toolEl = document.getElementById('Tool-' + toolName);
+		console.log(toolName);
+		const toolParentEl = document.getElementById('Tool-' + toolName).parentElement;
+		const subTools = toolParentEl.getElementsByClassName('sub-tool-item');
+
+		const onClick = function (e) {
+			toolOpenedFromClick = true;
+			toolParentEl.classList.add('opened');
+			e.stopPropagation();
+			document.addEventListener('touchstart', closeFromClick, { once: true});
+			document.addEventListener('mousedown', closeFromClick, { once: true});
+			Tools.change(toolName, toolEl.dataset.index);
 		};
-		this.addShortcut(toolShortcut, function () {
-			Tools.change(toolName);
-			document.activeElement.blur && document.activeElement.blur();
-		});
-		return this.template.add(function (elem) {
-			elem.addEventListener("click", callback);
-			elem.id = "toolID-" + toolName;
-			elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(toolName);
-			var toolIconElem = elem.getElementsByClassName("tool-icon")[0];
-			toolIconElem.src = toolIcon;
-			toolIconElem.alt = toolIcon;
-			if (oneTouch) elem.classList.add("oneTouch");
-			elem.title =
-				Tools.i18n.t(toolName) + " (" +
-				Tools.i18n.t("keyboard shortcut") + ": " +
-				toolShortcut + ")" +
-				(Tools.list[toolName].secondary ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
-		});
+
+		const closeFromClick = function (e) {
+			for (var el of e.path) {
+				if (el && el.id === 'Tool-' + toolName) return;
+			}
+			toolOpenedFromClick = false;
+			setTimeout(function () {toolParentEl.classList.remove('opened')}, 100);
+		}
+
+		const onMouseEnter = function (e) {
+			toolParentEl.classList.add('opened');
+		}
+
+		const onMouseLeave = function (e) {
+			if (!toolOpenedFromClick) toolParentEl.classList.remove('opened');
+		}
+
+		const subToolClick = function (e) {
+			const subTool = e.path.find(function (item) {
+				return item.classList.contains('sub-tool-item');
+			});
+			Tools.change(toolName, subTool.dataset.index);
+			toolParentEl.classList.remove('opened');
+}
+
+		for (var subTool of subTools) {
+			subTool.addEventListener('click', subToolClick);
+		}
+
+		Tools.change(toolName);
+		toolEl.addEventListener("click", onClick);
+		toolParentEl.addEventListener('mouseenter', onMouseEnter);
+		toolParentEl.addEventListener('mouseleave', onMouseLeave);
 	},
 	changeTool: function (oldToolName, newToolName) {
-		var oldTool = document.getElementById("toolID-" + oldToolName);
-		var newTool = document.getElementById("toolID-" + newToolName);
-		if (oldTool) oldTool.classList.remove("curTool");
-		if (newTool) newTool.classList.add("curTool");
+		var oldTool = document.getElementById("Tool-" + oldToolName);
+		var newTool = document.getElementById("Tool-" + newToolName);
+		if (oldTool) oldTool.classList.remove("selected-tool");
+		if (newTool) newTool.classList.add("selected-tool");
 	},
-	toggle: function (toolName, name, icon) {
-		var elem = document.getElementById("toolID-" + toolName);
-		elem.getElementsByClassName("tool-icon")[0].src = icon;
-		elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(name);
+	toggle: function (toolName) {
+		var elem = document.getElementById("Tool-" + toolName);
+		elem.classList.add('selected-tool');
 	},
 	addStylesheet: function (href) {
 		//Adds a css stylesheet to the html or svg document
@@ -173,19 +189,6 @@ Tools.HTML = {
 		link.type = "text/css";
 		document.head.appendChild(link);
 	},
-	colorPresetTemplate: new Minitpl("#colorPresetSel .colorPresetButton"),
-	addColorButton: function (button) {
-		var setColor = Tools.setColor.bind(Tools, button.color);
-		if (button.key) this.addShortcut(button.key, setColor);
-		return this.colorPresetTemplate.add(function (elem) {
-			elem.addEventListener("click", setColor);
-			elem.id = "color_" + button.color.replace(/^#/, '');
-			elem.style.backgroundColor = button.color;
-			if (button.key) {
-				elem.title = Tools.i18n.t("keyboard shortcut") + ": " + button.key;
-			}
-		});
-	}
 };
 
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
@@ -243,9 +246,34 @@ Tools.add = function (newTool) {
 	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut, newTool.oneTouch);
 };
 
-Tools.change = function (toolName) {
+Tools.change = function (toolName, subToolIndex) {
+	console.log(subToolIndex);
 	var newTool = Tools.list[toolName];
 	var oldTool = Tools.curTool;
+
+	const toolEl = document.getElementById('Tool-' + toolName);
+	if (toolEl.dataset.index !== subToolIndex) {
+		toolEl.classList.remove('fix');
+		toolEl.classList.remove('dash');
+		toolEl.classList.remove('shape');
+		toolElParent = toolEl.parentElement;
+		for (var item of toolElParent.getElementsByClassName('sub-tool-item')) {
+			if (item.dataset.index == subToolIndex) {
+				toolEl.innerHTML = item.innerHTML;
+				if (item.classList.contains('fix')) toolEl.classList.add('fix');
+				if (item.classList.contains('dash')) toolEl.classList.add('dash');
+				if (item.classList.contains('shape')) toolEl.classList.add('shape');
+				item.classList.add('selected-tool');
+			} else {
+				item.classList.remove('selected-tool');
+			}
+		}
+	}
+	if (newTool.setIndex) {
+		toolEl.dataset.index = +subToolIndex || 0;
+		newTool.setIndex(subToolIndex);
+	}
+
 	if (!newTool) throw new Error("Trying to select a tool that has never been added!");
 	if (newTool === oldTool) {
 		if (newTool.secondary) {
@@ -310,7 +338,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 	// Handle secondary tool switch with shift (key code 16)
 	function handleShift(active, evt) {
 		// list tools for ignore handle shift
-		const toolsIgnore = ["Straight line", "Pencil"];
+		const toolsIgnore = ["Line", "Pencil"];
 		if (!toolsIgnore.includes(Tools.curTool.name) && evt.keyCode === 16 && Tools.curTool.secondary && Tools.curTool.secondary.active !== active) {
 			Tools.change(Tools.curTool.name);
 		}
@@ -503,7 +531,7 @@ function createModal(htmlContent, id) {
 				},
 				body: JSON.stringify({ name: newName }),
 			}).then(function () {
-				document.getElementById('boardName').innerText = newName;
+				document.getElementById('board-name-span').innerText = newName;
 				document.getElementsByClassName('modal')[0].click();
 			});
 		});
@@ -521,14 +549,6 @@ function createModal(htmlContent, id) {
 	document.getElementById('clearBoard').addEventListener('click', sendClearBoard, false);
 	document.getElementById('exportToPDF').addEventListener('click', createPdf, false);
 	document.getElementById('boardName').addEventListener('click', createModalRename, false);
-    document.getElementById('logo').addEventListener('click', function () {
-        document.getElementById('logoMenu').classList.remove('hide');
-    });
-	document.getElementById('logoMenu').addEventListener('touchstart', function (evt) {
-	    setTimeout(function () {
-            document.getElementById('logoMenu').classList.add('hide');
-        }, 100);
-    });
 	window.addEventListener("hashchange", setScrollFromHash, false);
 	window.addEventListener("popstate", setScrollFromHash, false);
 	window.addEventListener("DOMContentLoaded", setScrollFromHash, false);
@@ -808,81 +828,103 @@ Tools.positionElement = function (elem, x, y) {
 	elem.style.left = x + "px";
 };
 
-Tools.colorPresets = [
-	{ color: "#001f3f", key: '1' },
-	{ color: "#FF4136", key: '2' },
-	{ color: "#0074D9", key: '3' },
-	{ color: "#FF851B", key: '4' },
-	{ color: "#FFDC00", key: '5' },
-	{ color: "#3D9970", key: '6' },
-	{ color: "#91E99B", key: '7' },
-	{ color: "#90468b", key: '8' },
-	{ color: "#7FDBFF", key: '9' },
-	{ color: "#AAAAAA", key: '0' },
-	{ color: "#E65194" }
-];
-
-Tools.color_chooser = document.getElementById("chooseColor");
+Tools.color_chooser = document.getElementById("color-picker");
 
 Tools.setColor = function (color) {
 	Tools.color_chooser.value = color;
+	const presetsList = document.getElementsByClassName('color-preset-box');
+	for (var node of presetsList) {
+		node.classList.remove('selected-color');
+	}
 };
 
 Tools.getColor = (function color() {
-	var color_index = (Math.random() * Tools.colorPresets.length) | 0;
 	var initial_color = '#000000';
 	Tools.setColor(initial_color);
 	return function () { return Tools.color_chooser.value; };
 })();
 
-Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
+document.getElementById('color-picker').addEventListener("change", watchColorPicker, false);
+
+function watchColorPicker (e) {
+	// e.target.value
+	document.getElementById('color-picker-btn').style = `background-color: ${e.target.value};`;
+	const presetsList = document.getElementsByClassName('color-preset-box');
+	for (var node of presetsList) {
+		node.classList.remove('selected-color');
+	}
+	presetsList[0].classList.add('selected-color');
+}
+
+for (var colorPreset of document.getElementsByClassName('color-preset')) {
+	colorPreset.addEventListener('click', function (e) {
+		if (e.target.tagName === 'DIV') {
+			const presetsList = document.getElementsByClassName('color-preset-box');
+			Tools.setColor(e.target.getAttribute('style').replace('background-color: ', '').replace(';', ''));
+			for (var node of presetsList) {
+				node.classList.remove('selected-color');
+			}
+			e.path[1].classList.add('selected-color');
+		}
+	});
+}
+
+//repost
+document.getElementsByClassName('repost-block')[0].addEventListener('click', () => {
+	const copyPanel = document.getElementsByClassName('copy-link-panel')[0];
+	if (copyPanel.classList.contains('hide')) {
+		copyPanel.classList.remove('hide');
+		setTimeout(selectLink, 25);
+	} else {
+		copyPanel.classList.add('hide');
+	}
+});
+
+document.getElementsByClassName('copy-link-icon')[0].addEventListener('click', selectLink);
+
+function selectLink() {
+	const r = new Range();
+	const linkEl = document.getElementsByClassName('copy-link-link')[0];
+	r.selectNodeContents(linkEl);
+	document.getSelection().removeAllRanges();
+	document.getSelection().addRange(r);
+	navigator.clipboard.writeText(linkEl.innerText);
+}
+
+//repost
 
 Tools.disableToolsEl = function (elementId){
-	document.getElementById(elementId).classList.add('disabled');
+	document.getElementById(elementId).classList.add('disabled-icon');
 }
 
 Tools.enableToolsEl = function (elementId) {
-	document.getElementById(elementId).classList.remove('disabled');
+	document.getElementById(elementId).classList.remove('disabled-icon');
 }
 
 Tools.sizeChangeHandlers = [];
 Tools.setSize = (function size() {
-	var chooser = document.getElementById("chooseSize");
-	const valueEl = document.getElementById("sizeValue");
-	const sizeList = document.getElementById("size-list");
-	const middleSize = (Tools.server_config.MINIMAL_LINE_WIDTH + Tools.server_config.MAX_LINE_WIDTH) / 2;
-	const sizes = [Tools.server_config.MINIMAL_LINE_WIDTH, (Tools.server_config.MINIMAL_LINE_WIDTH + middleSize) / 2, middleSize, (middleSize + Tools.server_config.MAX_LINE_WIDTH) / 2, Tools.server_config.MAX_LINE_WIDTH];
-	const sizeListElement = document.getElementById('sizeListElement');
-
-	chooser.setAttribute('min', Tools.server_config.MINIMAL_LINE_WIDTH);
-	chooser.setAttribute('max', Tools.server_config.MAX_LINE_WIDTH);
-	sizes.forEach(size => {
-		sizeList.insertAdjacentHTML("beforeend", `<span class="size-item">${Math.round(size)}</span>`)
-	});
-	sizeList.addEventListener('click', function (evt) {
+	const chooser = document.getElementById("width-range");
+	const sizeListElement = document.getElementById('width-list');
+	const listAllItems = document.getElementsByClassName('width-item');
+	sizeListElement.addEventListener('click', function (evt) {
 		evt.stopPropagation();
-		if (evt.target.classList.contains('size-item')) {
+		if (evt.target.classList.contains('width-item')) {
+			for (var item of listAllItems) {
+				item.classList.remove('selected-width');
+			}
+			evt.path[0].classList.add('selected-width');
 			Tools.setSize(+evt.target.innerText);
 		}
 	});
-	function chooserDisplay(evt) {
-		if (chooser.classList.contains('hide')) {
-			chooser.classList.remove('hide');
-		} else {
-			chooser.classList.add('hide');
-		}
-	}
-	sizeListElement.addEventListener('click', function (evt) {
-		evt.preventDefault();
-		if (evt.target.id !== 'chooseSize') chooserDisplay(evt)
-	});
-	sizeListElement.addEventListener('mouseleave', function () {
-		chooser.classList.remove('hide');
-	});
 	function update() {
-		var size = Math.max(1, Math.min(50, chooser.value | 0));
+		var size = Math.max(10, Math.min(64, chooser.value | 0));
 		chooser.value = size;
-		valueEl.innerText = size;
+		for (var item of listAllItems) {
+			item.classList.remove('selected-width');
+			if (item.innerText == size) {
+				item.classList.add('selected-width');
+			}
+		}
 		Tools.sizeChangeHandlers.forEach(function (handler) {
 			handler(size);
 		});
@@ -898,17 +940,8 @@ Tools.setSize = (function size() {
 Tools.getSize = (function () { return Tools.setSize() });
 
 Tools.getOpacity = (function opacity() {
-	var chooser = document.getElementById("chooseOpacity");
-	var opacityIndicator = document.getElementById("opacityIndicator");
-
-	function update() {
-		opacityIndicator.setAttribute("opacity", chooser.value);
-	}
-	update();
-
-	chooser.onchange = chooser.oninput = update;
 	return function () {
-		return Math.max(0.1, Math.min(1, chooser.value));
+		return 1;
 	};
 })();
 
@@ -964,7 +997,7 @@ Tools.undo = (function () {
 					break;
 				case "delete":
 					instrument = Tools.list.Eraser;
-					Tools.list.Transform.checkAndDisable(action.id);
+					// Tools.list.Transform.checkAndDisable(action.id);
 					action.sendBack = true;
 					action.sendToRedo = true;
 					break;
@@ -1033,7 +1066,7 @@ Tools.redo = (function () {
 					break;
 				case "delete":
 					instrument = Tools.list.Eraser;
-					Tools.list.Transform.checkAndDisable(action.id);
+					// Tools.list.Transform.checkAndDisable(action.id);
 					action.sendBack = true;
 					break;
 				case "update":

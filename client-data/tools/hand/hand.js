@@ -117,7 +117,6 @@
 			"release": release,
 		},
 		"draw": draw,
-		"icon": "tools/hand/hand.svg",
 		"mouseCursor": "move",
 		"showMarker": true,
 	};

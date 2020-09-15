@@ -1,14 +1,14 @@
-#textToolInput {
+#canvas #textToolInput {
 	position:fixed;
 	top:-1000px; /*Hidden*/
 	left: 80px;
 	width:500px;
 }
-#textToolInput:focus {
+#canvas #textToolInput:focus {
 	top: 5px;
 }
 
-text {
+#canvas text {
 	font-family:"Arial", "Helvetica", sans-serif;
 	user-select:none;
 	-moz-user-select:none;

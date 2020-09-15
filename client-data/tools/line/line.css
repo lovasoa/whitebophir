@@ -1,10 +1,10 @@
-line {
+#canvas line {
 	fill: none;
 	stroke-linecap: round;
 	stroke-linejoin: round;
 }
 
-line.dotted {
+#canvas line.dotted {
 	stroke-dasharray: 15;
 	stroke-linecap: butt;
 }
