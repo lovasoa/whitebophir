@@ -166,7 +166,9 @@ function handleRequest(request, response) {
 
 		case "": // Index page
 			logRequest(request);
-			indexTemplate.serve(request, response);
+			// indexTemplate.serve(request, response);
+			response.writeHead(301, { 'Location': config.CABINET_URL });
+			response.end();
 			break;
 
 		default:
