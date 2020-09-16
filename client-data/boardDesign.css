@@ -45,6 +45,7 @@
 }
 
 .logo svg {
+
     margin-top: 15px;
     margin-bottom: 15px;
 }
@@ -165,6 +166,15 @@
 
 .repost-block:hover .repost-icon path{
     fill: #828282;
+}
+
+.unselectable {
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none;   /* Chrome/Safari/Opera */
+    -khtml-user-select: none;    /* Konqueror */
+    -moz-user-select: none;      /* Firefox */
+    -ms-user-select: none;       /* Internet Explorer/Edge */
+    user-select: none;
 }
 
 .copy-link-panel {
@@ -338,6 +348,7 @@
     border-right: 1px solid #F2F2F2;
     position: relative;
     cursor: pointer;
+
 }
 
 .sub-tool-item.fix:after,
@@ -441,12 +452,16 @@
     width: 100px;
     margin: 0 10px;
 }
+#width-list {
+    padding-right: 10px;
+}
 
 .width-item {
     justify-content: center;
     align-items: center;
     text-align: center;
     border: none;
+    width: 25px;
 }
 
 @media (max-width:645px) {

@@ -47,7 +47,7 @@ Tools.curTool = null;
 Tools.drawingEvent = true;
 Tools.showMarker = true;
 Tools.showOtherCursors = true;
-Tools.showMyCursor = true;
+Tools.showMyCursor = false;
 
 Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
@@ -943,7 +943,7 @@ Tools.setSize = (function size() {
 		}
 	});
 	function update() {
-		var size = Math.max(10, Math.min(64, chooser.value | 0));
+		var size = Math.max(1, Math.min(60, chooser.value | 0));
 		chooser.value = size;
 		for (var item of listAllItems) {
 			item.classList.remove('selected-width');
@@ -962,6 +962,23 @@ Tools.setSize = (function size() {
 		return parseInt(chooser.value);
 	};
 })();
+
+const toolWidthEl = document.getElementById('width-tool');
+
+toolWidthEl.addEventListener('mouseenter', function () {
+	toolWidthEl.classList.add('opened');
+});
+
+toolWidthEl.addEventListener('mouseleave', function () {
+	toolWidthEl.classList.remove('opened');
+});
+toolWidthEl.addEventListener('touchstart', function (e) {
+	e.stopPropagation();
+	document.addEventListener('touchstart', function (e) {
+		toolWidthEl.classList.remove('opened');
+	}, { once: true });
+	toolWidthEl.classList.add('opened');
+});
 
 Tools.getSize = (function () { return Tools.setSize() });
 
