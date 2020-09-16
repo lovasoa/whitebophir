@@ -35,7 +35,7 @@
 <div id="loadingMessage">{{translations.loading}}</div>
 
 <div class="top-panel panel">
-	<div class="logo">
+	<div class="logo unselectable">
 		<img src="assets/logo.png" alt="Sboard">
 		<svg class="logo-select-icon" width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
 			<mask id="mask0" mask-type="alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="10" height="10">
@@ -54,7 +54,7 @@
 		</div>
 	</div>
 	<div id="boardName" class="board-name">
-		<span id="board-name-span">Новая доска</span>
+		<span id="board-name-span" class="unselectable">Новая доска</span>
 	</div>
 	<div class="download-pdf defolt-icon">
 		<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -91,7 +91,7 @@
 			<path d="M16.6406 13.2813C15.6022 13.2813 14.6724 13.7549 14.0557 14.4973L11.4417 13.1972C11.0554 13.0052 10.5864 13.1624 10.3943 13.5488C10.2021 13.9351 10.3596 14.4041 10.7459 14.5962L13.3639 15.8983C13.3098 16.1372 13.2812 16.3856 13.2812 16.6406C13.2812 18.493 14.7883 20 16.6406 20C18.493 20 20 18.493 20 16.6406C20 14.7883 18.493 13.2813 16.6406 13.2813ZM16.6406 18.4375C15.6498 18.4375 14.8437 17.6314 14.8437 16.6406C14.8437 16.3949 14.8933 16.1606 14.983 15.9471C15.0022 15.9187 15.0198 15.8887 15.0355 15.8571C15.0521 15.8236 15.0662 15.7894 15.0777 15.7549C15.387 15.2112 15.9717 14.8438 16.6406 14.8438C17.6314 14.8438 18.4375 15.6499 18.4375 16.6406C18.4375 17.6314 17.6314 18.4375 16.6406 18.4375Z" fill="#828282"/>
 			<path d="M16.6406 0C14.7883 0 13.2812 1.50699 13.2812 3.35938C13.2812 3.61824 13.3107 3.87035 13.3664 4.11254L5.93125 7.84105C5.31453 7.10758 4.39047 6.64062 3.35938 6.64062C1.50703 6.64062 0 8.14762 0 10C0 11.8524 1.50703 13.3594 3.35938 13.3594C4.38602 13.3594 5.30656 12.8964 5.92324 12.1684L7.18469 12.8104C7.2982 12.8682 7.41918 12.8956 7.5384 12.8956C7.82301 12.8956 8.09738 12.7395 8.23531 12.4685C8.43102 12.0839 8.27797 11.6136 7.8934 11.4179L6.62867 10.7743C6.68758 10.5256 6.71875 10.2664 6.71875 10C6.71875 9.73793 6.68859 9.48277 6.63152 9.23785L14.0628 5.51125C14.6795 6.24883 15.6062 6.71875 16.6406 6.71875C18.493 6.71875 20 5.21176 20 3.35938C20 1.50699 18.493 0 16.6406 0ZM3.35938 11.7969C2.36859 11.7969 1.5625 10.9908 1.5625 10C1.5625 9.00922 2.36859 8.20312 3.35938 8.20312C4.35016 8.20312 5.15625 9.00922 5.15625 10C5.15625 10.9908 4.35016 11.7969 3.35938 11.7969ZM16.6406 5.15625C15.6498 5.15625 14.8438 4.35016 14.8438 3.35938C14.8438 2.36859 15.6498 1.5625 16.6406 1.5625C17.6314 1.5625 18.4375 2.36859 18.4375 3.35938C18.4375 4.35016 17.6314 5.15625 16.6406 5.15625Z" fill="#828282"/>
 		</svg>
-		<span class="repost-link">Поделиться</span>
+		<span class="repost-link unselectable">Поделиться</span>
 	</div>
 	<div id="help" class="help defolt-icon">
 		<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -396,15 +396,12 @@
 		</div>
 		<div class="sub-tool-panel toLeft">
 			<div id="width-list" class="sub-tool-list panel">
-				<input id="width-range" class="width-range" value="10" type="range" min="10" max="64">
-				<div class="sub-tool-item width-item selected-width">10</div>
-				<div class="sub-tool-item width-item">12</div>
-				<div class="sub-tool-item width-item">14</div>
-				<div class="sub-tool-item width-item">18</div>
-				<div class="sub-tool-item width-item">24</div>
-				<div class="sub-tool-item width-item">36</div>
-				<div class="sub-tool-item width-item">48</div>
-				<div class="sub-tool-item width-item">64</div>
+				<input id="width-range" class="width-range" value="3" type="range" min="1" max="60">
+				<div class="sub-tool-item width-item">1</div>
+				<div class="sub-tool-item width-item selected-width">3</div>
+				<div class="sub-tool-item width-item">5</div>
+				<div class="sub-tool-item width-item">9</div>
+				<div class="sub-tool-item width-item">15</div>
 			</div>
 		</div>
 	</div>
@@ -485,7 +482,7 @@
 			<path d="M19.2188 9.21875H0.78125C0.349766 9.21875 0 9.56852 0 10C0 10.4315 0.349766 10.7812 0.78125 10.7812H19.2188C19.6502 10.7812 20 10.4315 20 10C20 9.56852 19.6502 9.21875 19.2188 9.21875Z" fill="#828282"/>
 		</svg>
 	</div>
-	<div id="scaleValue" class="scale-value">
+	<div id="scaleValue" class="scale-value unselectable">
 		100%
 	</div>
 	<div id="plusScale" class="plus-scale defolt-icon">
