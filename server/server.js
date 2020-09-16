@@ -137,7 +137,7 @@ function handleRequest(request, response) {
 
 		case "random":
 			var name = crypto.randomBytes(32).toString('base64').replace(/[^\w]/g, '-');
-			response.writeHead(307, { 'Location': 'boards/' + name });
+			//response.writeHead(307, { 'Location': 'boards/' + name });
 			response.end(name);
 			break;
 
