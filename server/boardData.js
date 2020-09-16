@@ -150,7 +150,7 @@ BoardData.prototype.save = async function () {
 	if (Object.keys(this.board).length === 0) { // empty board
 		db.deleteBoard(this.name);
 	} else {
-		db.insertOrUpdateBoard(this.name, this.board);
+		db.updateBoard(this.name, this.board);
 	}
 };
 

@@ -83,16 +83,33 @@ function handleRequest(request, response) {
 	switch (parts[0]) {
 		case "boards":
 			// "boards" refers to the root directory
+			log('board action', { 'url': request.url });
 			if (parts.length === 1 && parsedUrl.query.board) {
+				log('board action for html forms', { 'url': request.url });
 				// '/boards?board=...' This allows html forms to point to boards
 				var headers = { Location: 'boards/' + encodeURIComponent(parsedUrl.query.board) };
 				response.writeHead(301, headers);
 				response.end();
 			} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
-				validateBoardName(parts[1]);
-				// If there is no dot and no directory, parts[1] is the board name
-				boardTemplate.serve(request, response);
+				log('board attempt opening', { 'url': request.url });
+
+				const name = parts[1];
+
+				validateBoardName(name);
+
+				db.boardExists(name).then(boardExists => {
+					if (!boardExists) {
+						log('board not exists and go to cabinet', { 'board': name });
+						response.writeHead(301, { 'Location': config.CABINET_URL });
+						response.end();
+					} else {
+						// If there is no dot and no directory, parts[1] is the board name
+						log('board opened', { 'board': name });
+						boardTemplate.serve(request, response);
+					}
+				});
 			} else { // Else, it's a resource
+				log('board action for resource', { 'url': request.url });
 				request.url = "/" + parts.slice(1).join('/');
 				fileserver(request, response, serveError(request, response));
 			}
@@ -135,9 +152,20 @@ function handleRequest(request, response) {
 			});
 			break;
 
-		case "random":
-			var name = crypto.randomBytes(32).toString('base64').replace(/[^\w]/g, '-');
-			//response.writeHead(307, { 'Location': 'boards/' + name });
+		case "s7Jvva3mleIV":
+			var name = parts[1];
+
+			db.boardExists(name).then(boardExists => {
+				log('board attempt creating', { 'boardName': name, 'exists': boardExists });
+
+				if (!boardExists) {
+					db.createBoard(name);
+					log('board created', { 'boardName': name });
+				} else {
+					log('board exists and skipped', { 'boardName': name });
+				}
+			});
+
 			response.end(name);
 			break;
 
@@ -166,7 +194,6 @@ function handleRequest(request, response) {
 
 		case "": // Index page
 			logRequest(request);
-			// indexTemplate.serve(request, response);
 			response.writeHead(301, { 'Location': config.CABINET_URL });
 			response.end();
 			break;
