@@ -4,7 +4,6 @@
 }
 
 .panel {
-    overflow: hidden;
     border-radius: 10px;
     background-color: #fff;
     height: 40px;
@@ -94,6 +93,7 @@
 }
 
 .board-name {
+    cursor: pointer;
     padding: 0 10px;
     display: flex;
     border-right: 1px solid #F2F2F2;
@@ -287,7 +287,7 @@
     position: relative;
 }
 
-.tool .main-tool, .sub-tool-item {
+.tool .main-tool, .sub-tool-item, .objectTransfrom-item {
     width: 40px;
     height: 40px;
     display: flex;
@@ -325,7 +325,8 @@
     fill: #2D9CDB;
 }
 
-.sub-tool-panel {
+.sub-tool-panel,
+.selected-element-panel{
     position: absolute;
     top: 0;
     left: 40px;
@@ -343,18 +344,22 @@
     display: block;
 }
 
-.sub-tool-item {
+.selected-element-panel {
+    display: block;
+}
+
+.sub-tool-item,
+.objectTransfrom-item {
     border-bottom: none;
     border-right: 1px solid #F2F2F2;
     position: relative;
     cursor: pointer;
-
 }
 
-.sub-tool-item.fix:after,
-.sub-tool-item.dash:after,
-.main-tool.fix:after,
-.main-tool.dash:after{
+.sub-tool-item.fix:before,
+.sub-tool-item.dash:before,
+.main-tool.fix:before,
+.main-tool.dash:before{
     content: 'FIX';
     position: absolute;
     bottom: 0;
@@ -369,8 +374,8 @@
     text-align: center;
 }
 
-.sub-tool-item.dash:after,
-.main-tool.dash:after{
+.sub-tool-item.dash:before,
+.main-tool.dash:before{
     content: 'Dash';
     width: 25px;
 }
