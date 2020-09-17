@@ -583,6 +583,8 @@ function createModal(htmlContent, id) {
             ).then(function () {
                     document.getElementById('board-name-span').innerText = newName;
                     document.getElementsByClassName('modal')[0].click();
+                    Tools.boardTitle = newName;
+                    updateDocumentTitle();
                 }
             );
         });
