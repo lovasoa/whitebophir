@@ -9,6 +9,9 @@ module.exports = {
     /** Секретный путь для хендлера создания доски */
     CREATE_KEY: process.env['CREATE_KEY'] || 's7Jvva3mleIV',
 
+    /** For development */
+    DEV_MODE: parseInt(process.env['DEV_MODE']) || 0,
+
     /** URL for PDF */
     PDF_URL: process.env['PDF_URL'],
 

@@ -603,7 +603,39 @@ function createModal(htmlContent, id) {
         }
     }
 
+    function showBoard() {
+        Tools.boardTitle = Tools.params.board.name;
+        updateDocumentTitle();
+
+        document.getElementById('board-name-span').innerText = Tools.boardTitle;
+
+        if (Tools.params.permissions.edit) {
+            document.getElementById('boardName').addEventListener('click', createModalRename, false);
+        } else {
+            document.getElementById('boardName')
+                .removeAttribute('data-tooltip');
+        }
+
+        if (Tools.params.permissions.invite) {
+            document.querySelector('.js-link-text').innerText = Tools.params.invite_link;
+        } else {
+            document.querySelector('.js-link-panel').remove();
+            document.querySelector('.js-join-link').remove();
+        }
+
+        let b = document.querySelectorAll('.js-elements');
+        b.forEach((el) => {
+            el.classList.toggle('sjx-hidden');
+        });
+    }
+
     function checkBoard() {
+        if (Tools.server_config.DEV_MODE === 1) {
+            Tools.params = {"status":true,"board":{"name":"\u041d\u043e\u0432\u0430\u044f \u0434\u043e\u0441\u043a\u0430"},"user":{"name":"\u0414\u0435\u043d\u0438\u0441","surname":"\u0411\u0435\u0434\u043e\u044f\u0440","full_name":"\u0414\u0435\u043d\u0438\u0441 \u0411\u0435\u0434\u043e\u044f\u0440"},"permissions":{"edit":true,"invite":true,"image":false,"pdf":false},"invite_link":"https:\/\/back.sboard.su\/cabinet\/boards\/join\/ikz8jf1hrc4R96iOAUJo5Ec="};
+            showBoard();
+            return;
+        }
+
         fetch(
             Tools.server_config.API_URL + 'boards/' + Tools.boardName + '/info',
             {
@@ -616,30 +648,7 @@ function createModal(htmlContent, id) {
             })
             .then(data => {
                 Tools.params = data;
-
-                Tools.boardTitle = data.board.name;
-                updateDocumentTitle();
-
-                document.getElementById('board-name-span').innerText = data.board.name;
-
-                if (data.permissions.edit) {
-                    document.getElementById('boardName').addEventListener('click', createModalRename, false);
-                } else {
-                    document.getElementById('boardName')
-                        .removeAttribute('data-tooltip');
-                }
-
-                if (data.permissions.invite) {
-                    document.querySelector('.js-link-text').innerText = data.invite_link;
-                } else {
-                    document.querySelector('.js-link-panel').remove();
-                    document.querySelector('.js-join-link').remove();
-                }
-
-                let b = document.querySelectorAll('.js-elements');
-                b.forEach((el) => {
-                    el.classList.toggle('sjx-hidden');
-                });
+                showBoard();
             })
             .catch(function (error) {
                 window.location.href = Tools.server_config.CABINET_URL;
