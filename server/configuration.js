@@ -9,7 +9,17 @@ module.exports = {
     /** Секретный путь для хендлера создания доски */
     CREATE_KEY: process.env['CREATE_KEY'] || 's7Jvva3mleIV',
 
+    /** URL for PDF */
     PDF_URL: process.env['PDF_URL'],
+
+    /** URL for API */
+    API_URL: process.env['API_URL'],
+
+    /** URL for API */
+    LANDING_URL: process.env['LANDING_URL'] || '#',
+
+    /** URL for cabinet */
+    CABINET_URL: process.env['CABINET_URL'] || '#',
 
     /** Path to the directory where boards will be saved by default */
     HISTORY_DIR: process.env['WBO_HISTORY_DIR'] || path.join(app_root, "server-data"),
@@ -43,12 +53,6 @@ module.exports = {
 
     /** Blocked Tools. A comma-separated list of tools that should not appear on boards. */
     BLOCKED_TOOLS: (process.env['WBO_BLOCKED_TOOLS'] || "").split(','),
-
-    /** URL for API */
-    API_URL: process.env.API_URL,
-
-    /** URL for cabinet */
-    CABINET_URL: process.env.CABINET_URL || '#',
 
     /** Minimal line width on selector size for draw*/
     MINIMAL_LINE_WIDTH: 5,

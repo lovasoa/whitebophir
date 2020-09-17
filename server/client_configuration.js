@@ -9,6 +9,8 @@ module.exports = {
     "BLOCKED_TOOLS": config.BLOCKED_TOOLS,
     "API_URL": config.API_URL,
     "CABINET_URL": config.CABINET_URL,
+    "PDF_URL": config.PDF_URL,
+    "LANDING_URL": config.LANDING_URL,
     "MINIMAL_LINE_WIDTH": config.MINIMAL_LINE_WIDTH,
     "MAX_LINE_WIDTH": config.MAX_LINE_WIDTH,
     "MAX_DOCUMENT_SIZE": config.MAX_DOCUMENT_SIZE,

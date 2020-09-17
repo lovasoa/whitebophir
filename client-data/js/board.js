@@ -517,7 +517,7 @@ function createModal(htmlContent, id) {
 	}
 
 	function createHelpModal() {
-		createModal(`<iframe src="${Tools.server_config.API_URL}/lite/help" frameborder="0"></iframe>`, "modalHelp");
+		createModal(`<iframe src="${Tools.server_config.LANDING_URL}lite/help" frameborder="0"></iframe>`, "modalHelp");
 	}
 
 	function sendClearBoard() {
@@ -536,7 +536,7 @@ function createModal(htmlContent, id) {
 		document.getElementById('newBoardName').value = document.getElementById('boardName').innerText;
 		document.getElementById('buttonRenameBoard').addEventListener('click', function () {
 			const newName = document.getElementById('newBoardName').value;
-			fetch(Tools.server_config.API_URL + '/api/v1/boards/' + Tools.boardName, {
+			fetch(Tools.server_config.API_URL + '/boards/' + Tools.boardName, {
 				method: 'PUT',
 				headers: {
 					'Content-Type': 'application/json'
