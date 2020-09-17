@@ -549,13 +549,15 @@ function createModal(htmlContent, id) {
         document.getElementById('buttonRenameBoard').addEventListener('click', function () {
             const newName = document.getElementById('newBoardName').value;
             fetch(
-                Tools.server_config.API_URL + '/boards/' + Tools.boardName,
+                Tools.server_config.API_URL + 'boards/' + Tools.boardName + '?name=' + newName,
                 {
-                    method: 'PUT',
+                    method: 'GET',
+                    credentials: 'include',
+                    mode: 'no-cors',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({name: newName}),
+                    //body: JSON.stringify({name: newName}),
                 }
             ).then(function () {
                     document.getElementById('board-name-span').innerText = newName;
