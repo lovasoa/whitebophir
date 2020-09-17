@@ -550,7 +550,7 @@ function createModal(htmlContent, id) {
 	}
 
 	function createPdf() {
-		window.open('http://pdf.wbo.sboard.su:8001/generate/' + Tools.boardName);
+		window.open(Tools.server_config.PDF_URL + 'generate/' + Tools.boardName);
 	}
 
 	document.getElementById('scalingWidth').addEventListener('click', scaleToWidth, false);

@@ -9,6 +9,8 @@ module.exports = {
     /** Секретный путь для хендлера создания доски */
     CREATE_KEY: process.env['CREATE_KEY'] || 's7Jvva3mleIV',
 
+    PDF_URL: process.env['PDF_URL'],
+
     /** Path to the directory where boards will be saved by default */
     HISTORY_DIR: process.env['WBO_HISTORY_DIR'] || path.join(app_root, "server-data"),
 
