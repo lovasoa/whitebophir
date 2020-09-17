@@ -205,7 +205,7 @@ async function saveHistory(boardName, message, socket) {
 				boards[board.name].board = {};
 			}
 			board.clearAll();
-			socket.broadcast.to(board.name).emit('deleteBoard');
+			socket.broadcast.to(board.name).emit('clearBoard');
 			break;
 		default: //Add data
 			if (!id) throw new Error("Invalid message: ", message);

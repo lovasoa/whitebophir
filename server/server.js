@@ -83,7 +83,7 @@ function handleRequest(request, response) {
 	switch (parts[0]) {
 		case "boards":
 			// "boards" refers to the root directory
-			log('board action', { 'url': request.url });
+			//log('board action', { 'url': request.url });
 			if (parts.length === 1 && parsedUrl.query.board) {
 				log('board action for html forms', { 'url': request.url });
 				// '/boards?board=...' This allows html forms to point to boards
@@ -109,50 +109,13 @@ function handleRequest(request, response) {
 					}
 				});
 			} else { // Else, it's a resource
-				log('board action for resource', { 'url': request.url });
+				//log('board action for resource', { 'url': request.url });
 				request.url = "/" + parts.slice(1).join('/');
 				fileserver(request, response, serveError(request, response));
 			}
 			break;
 
-		case "download":
-			var boardName = validateBoardName(parts[1]);
-			db.getBoard(boardName).then(function (data) {
-				if (data) {
-					data = JSON.stringify(data.board);
-					response.writeHead(200, {
-						"Content-Type": "application/json",
-						"Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
-						"Content-Length": data.length,
-					});
-					response.end(data);
-				} else {
-					response.end('404');
-				}
-
-			});
-			break;
-
-		case "export":
-		case "preview":
-			var boardName = validateBoardName(parts[1]),
-				history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
-			response.writeHead(200, {
-				"Content-Type": "image/svg+xml",
-				"Content-Security-Policy": CSP,
-				"Cache-Control": "public, max-age=30",
-			});
-			var t = Date.now();
-			createSVG.renderBoard(history_file, response).then(function () {
-				log("preview", { "board": boardName, "time": Date.now() - t });
-				response.end();
-			}).catch(function (err) {
-				log("error", { "error": err.toString() });
-				response.end('<text>Sorry, an error occured</text>');
-			});
-			break;
-
-		case "s7Jvva3mleIV":
+		case config.CREATE_KEY:
 			var name = parts[1];
 
 			db.boardExists(name).then(boardExists => {

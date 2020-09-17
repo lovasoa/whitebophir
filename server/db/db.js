@@ -13,7 +13,7 @@ async function updateBoard(boardName, board) {
     const db = client.db("boardsdb");
     const collection = db.collection('boards');
     await collection.updateOne({ name: boardName }, {$set: { board: board }}, {upsert: false});
-    log('db.board updated', { 'boardName': boardName });
+    //log('db.board updated', { 'boardName': boardName });
     client.close();
 }
 
@@ -35,6 +35,17 @@ async function deleteBoard(boardName) {
     const collection = db.collection('boards');
     await collection.deleteOne({ name: boardName }, true);
     log('db.board deleted', { 'boardName': boardName });
+    client.close();
+}
+
+async function clearBoard(boardName) {
+    const client = getClient();
+    await client.connect();
+    const db = client.db("boardsdb");
+    const collection = db.collection('boards');
+    await collection.deleteOne({ name: boardName }, true);
+    await collection.updateOne({ name: boardName }, {$set: { board: {} }}, {upsert: true});
+    log('db.board cleared', { 'boardName': boardName });
     client.close();
 }
 
@@ -68,6 +79,7 @@ module.exports = {
     updateBoard,
     createBoard,
     deleteBoard,
+    clearBoard,
     boardExists,
     getBoard
 };
