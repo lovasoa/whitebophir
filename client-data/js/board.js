@@ -126,83 +126,81 @@ Tools.boardTitle = Tools.boardName;
 Tools.socket.emit("getboard", Tools.boardName);
 
 Tools.HTML = {
-    addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
-        var toolOpenedFromClick = false;
-        const toolEl = document.getElementById('Tool-' + toolName);
-        const toolParentEl = document.getElementById('Tool-' + toolName).parentElement;
-        const subTools = toolParentEl.getElementsByClassName('sub-tool-item');
+	addTool: function (toolName) {
+		var toolOpenedFromClick = false;
+		const toolEl = document.getElementById('Tool-' + toolName);
+		const toolParentEl = document.getElementById('Tool-' + toolName).parentElement;
+		const subTools = toolParentEl.getElementsByClassName('sub-tool-item');
 
-        const onClick = function (e) {
-            console.log('onClick')
-            Tools.change(toolName, toolEl.dataset.index);
-            toolOpenedFromClick = true;
-            toolParentEl.classList.add('opened');
-            e.stopPropagation();
-            document.addEventListener('touchstart', closeFromClick, {once: true});
-        };
+		const onClick = function (e) {
+			console.log('onClick')
+			Tools.change(toolName, toolEl.dataset.index);
+			toolOpenedFromClick = true;
+			toolParentEl.classList.add('opened');
+			e.stopPropagation();
+			document.addEventListener('touchstart', closeFromClick, { once: true});
+		};
 
-        const closeFromClick = function (e) {
-            for (var el of e.composedPath()) {
-                if (el && el.classList && el.classList.contains('sub-tool-item')) return;
-                if (el && el.id === 'Tool-' + toolName) return;
-            }
-            toolOpenedFromClick = false;
-            console.log('closeFromClick');
-            setTimeout(function () {
-                toolParentEl.classList.remove('opened')
-            }, 100);
-        }
+		const closeFromClick = function (e) {
+			for (var el of e.composedPath()) {
+				if (el && el.classList && el.classList.contains('sub-tool-item')) return;
+				if (el && el.id === 'Tool-' + toolName) return;
+			}
+			toolOpenedFromClick = false;
+			console.log('closeFromClick');
+			setTimeout(function () {toolParentEl.classList.remove('opened')}, 100);
+		}
 
-        const onMouseEnter = function (e) {
-            console.log('onmouseenter');
-            toolParentEl.classList.add('opened');
-        }
+		const onMouseEnter = function (e) {
+			console.log('onmouseenter');
+			toolParentEl.classList.add('opened');
+		}
 
-        const onMouseLeave = function (e) {
-            console.log('onmouseleave');
-            if (!toolOpenedFromClick) toolParentEl.classList.remove('opened');
-        }
+		const onMouseLeave = function (e) {
+			console.log('onmouseleave');
+			if (!toolOpenedFromClick) toolParentEl.classList.remove('opened');
+		}
 
-        const subToolClick = function (e) {
-            console.log('SubTool click')
-            const subTool = e.composedPath().find(function (item) {
-                return item.classList.contains('sub-tool-item');
-            });
-            Tools.change(toolName, subTool.dataset.index);
-            toolParentEl.classList.remove('opened');
-        }
+		const subToolClick = function (e) {
+			console.log('SubTool click')
+			const subTool = e.composedPath().find(function (item) {
+				return item.classList.contains('sub-tool-item');
+			});
+			Tools.change(toolName, subTool.dataset.index);
+			toolParentEl.classList.remove('opened');
+}
 
-        for (var subTool of subTools) {
-            subTool.addEventListener('click', subToolClick);
-        }
+		for (var subTool of subTools) {
+			subTool.addEventListener('click', subToolClick);
+		}
 
-        //Tools.change(toolName);
+		//Tools.change(toolName);
 
-        toolEl.addEventListener('click', function () {
-            Tools.change(toolName, toolEl.dataset.index);
-        });
-        toolEl.addEventListener("touchstart", onClick);
-        toolParentEl.addEventListener('mouseenter', onMouseEnter);
-        toolParentEl.addEventListener('mouseleave', onMouseLeave);
-    },
-    changeTool: function (oldToolName, newToolName) {
-        var oldTool = document.getElementById("Tool-" + oldToolName);
-        var newTool = document.getElementById("Tool-" + newToolName);
-        if (oldTool) oldTool.classList.remove("selected-tool");
-        if (newTool) newTool.classList.add("selected-tool");
-    },
-    toggle: function (toolName) {
-        var elem = document.getElementById("Tool-" + toolName);
-        elem.classList.add('selected-tool');
-    },
-    addStylesheet: function (href) {
-        //Adds a css stylesheet to the html or svg document
-        var link = document.createElement("link");
-        link.href = href;
-        link.rel = "stylesheet";
-        link.type = "text/css";
-        document.head.appendChild(link);
-    },
+		toolEl.addEventListener('click', function () {
+			Tools.change(toolName, toolEl.dataset.index);
+		});
+		toolEl.addEventListener("touchstart", onClick);
+		toolParentEl.addEventListener('mouseenter', onMouseEnter);
+		toolParentEl.addEventListener('mouseleave', onMouseLeave);
+	},
+	changeTool: function (oldToolName, newToolName) {
+		var oldTool = document.getElementById("Tool-" + oldToolName);
+		var newTool = document.getElementById("Tool-" + newToolName);
+		if (oldTool) oldTool.classList.remove("selected-tool");
+		if (newTool) newTool.classList.add("selected-tool");
+	},
+	toggle: function (toolName) {
+		var elem = document.getElementById("Tool-" + toolName);
+		elem.classList.add('selected-tool');
+	},
+	addStylesheet: function (href) {
+		//Adds a css stylesheet to the html or svg document
+		var link = document.createElement("link");
+		link.href = href;
+		link.rel = "stylesheet";
+		link.type = "text/css";
+		document.head.appendChild(link);
+	}
 };
 
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
@@ -248,6 +246,32 @@ Tools.isMobile = function () {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
 
+(function hotkeys() {
+	if (!Tools.isMobile()) {
+		document.addEventListener('keydown', function (e) {
+			if (e.keyCode === 86) { // v
+				Tools.change('Transform');
+			} else if (e.keyCode === 72) {
+				Tools.change('Hand');
+			} else if (e.keyCode === 69) {
+				Tools.change('Eraser');
+			} else if (e.keyCode === 76) {
+				Tools.change('Line');
+			} else if (e.keyCode === 84) {
+				Tools.change('Text');
+			} else if (e.keyCode === 73) {
+				Tools.change('Document');
+			} else if (e.keyCode === 80) {
+				Tools.change('Pencil');
+			} else if (e.keyCode === 89 && e.ctrlKey) {
+				Tools.redo();
+			} else if (e.keyCode === 90 && e.ctrlKey) {
+				Tools.undo();
+			}
+		}, false);
+	}
+})();
+
 /**
  * Add a new tool to the user interface
  */
@@ -260,8 +284,8 @@ Tools.add = function (newTool) {
         Tools.HTML.addStylesheet(newTool.stylesheet);
     }
 
-    //Add the tool to the GUI
-    Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut, newTool.oneTouch);
+	//Add the tool to the GUI
+	Tools.HTML.addTool(newTool.name);
 };
 
 Tools.change = function (toolName, subToolIndex) {
