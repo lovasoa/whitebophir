@@ -146,12 +146,7 @@ BoardData.prototype.delaySave = function () {
 /** Saves the data in the board to a mongodb. */
 BoardData.prototype.save = async function () {
 	this.lastSaveDate = Date.now();
-	this.clean();
-	if (Object.keys(this.board).length === 0) { // empty board
-		db.deleteBoard(this.name);
-	} else {
-		db.insertOrUpdateBoard(this.name, this.board);
-	}
+	db.updateBoard(this.name, this.board);
 };
 
 /** Remove old elements from the board */

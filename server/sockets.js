@@ -40,9 +40,6 @@ async function getBoard(name) {
 function socketConnection(socket) {
 
 	async function joinBoard(name) {
-		// Default to the public board
-		if (!name) name = "anonymous";
-
 		// Join the board
 		socket.join(name);
 
@@ -92,7 +89,7 @@ function socketConnection(socket) {
 			lastEmitSecond = currentSecond;
 		}
 
-		var boardName = message.board || "anonymous";
+		var boardName = message.board;
 		var data = message.data;
 
 		if (!socket.rooms.hasOwnProperty(boardName)) socket.join(boardName);
@@ -208,7 +205,7 @@ async function saveHistory(boardName, message, socket) {
 				boards[board.name].board = {};
 			}
 			board.clearAll();
-			socket.broadcast.to(board.name).emit('deleteBoard');
+			socket.broadcast.to(board.name).emit('clearBoard');
 			break;
 		default: //Add data
 			if (!id) throw new Error("Invalid message: ", message);
