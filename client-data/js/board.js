@@ -72,12 +72,12 @@ Tools.connect = function () {
         "timeout": 1000 * 60 * 20 // Timeout after 20 minutes
     });
 
+    const preloaderEl = document.getElementById("preloader");
     //Receive draw instructions from the server
     this.socket.on("broadcast", function (msg) {
         handleMessage(msg).finally(function afterload() {
-            var loadingEl = document.getElementById("loadingMessage");
-            if (!loadingEl.classList.contains('hidden')) {
-                loadingEl.classList.add("hidden");
+            if (!preloaderEl.classList.contains('hide')) {
+                preloaderEl.classList.add("hide");
                 setTimeout(function () {
                     Tools.socket.emit('getSelectedElements', Tools.boardName);
                 }, 300);
@@ -133,7 +133,6 @@ Tools.HTML = {
 		const subTools = toolParentEl.getElementsByClassName('sub-tool-item');
 
 		const onClick = function (e) {
-			console.log('onClick')
 			Tools.change(toolName, toolEl.dataset.index);
 			toolOpenedFromClick = true;
 			toolParentEl.classList.add('opened');
@@ -147,22 +146,18 @@ Tools.HTML = {
 				if (el && el.id === 'Tool-' + toolName) return;
 			}
 			toolOpenedFromClick = false;
-			console.log('closeFromClick');
 			setTimeout(function () {toolParentEl.classList.remove('opened')}, 100);
 		}
 
 		const onMouseEnter = function (e) {
-			console.log('onmouseenter');
 			toolParentEl.classList.add('opened');
 		}
 
 		const onMouseLeave = function (e) {
-			console.log('onmouseleave');
 			if (!toolOpenedFromClick) toolParentEl.classList.remove('opened');
 		}
 
 		const subToolClick = function (e) {
-			console.log('SubTool click')
 			const subTool = e.composedPath().find(function (item) {
 				return item.classList.contains('sub-tool-item');
 			});
@@ -291,8 +286,6 @@ Tools.add = function (newTool) {
 Tools.change = function (toolName, subToolIndex) {
     var newTool = Tools.list[toolName];
     var oldTool = Tools.curTool;
-    console.log(toolName);
-    console.log(subToolIndex);
     const toolEl = document.getElementById('Tool-' + toolName);
     if (toolEl.classList) {
         toolEl.classList.remove('fix');
@@ -623,6 +616,10 @@ function createModal(htmlContent, id) {
             document.querySelector('.js-join-link').remove();
         }
 
+        if (!Tools.params.permissions.image) {
+            document.getElementById('Tool-Document').classList.add('disabled-icon');
+        }
+
         let b = document.querySelectorAll('.js-elements');
         b.forEach((el) => {
             el.classList.toggle('sjx-hidden');
@@ -635,7 +632,6 @@ function createModal(htmlContent, id) {
             showBoard();
             return;
         }
-
         fetch(
             Tools.server_config.API_URL + 'boards/' + Tools.boardName + '/info',
             {
@@ -683,7 +679,6 @@ function resizeCanvas(m) {
 }
 
 (function createTooltips() {
-    console.log('Tooltip');
     if (!Tools.isMobile()) {
         const styles = document.createElement('style');
         styles.innerHTML = `*[data-tooltip] {
@@ -899,14 +894,12 @@ Tools.getMarkerBoundingRect = function (el, r, m) {
         var p2 = [[h * Math.sin(rad) + x2], [h * Math.cos(rad) + y2], [1]];
         var p3 = [[-h * Math.sin(rad) + x2], [-h * Math.cos(rad) + y2], [1]];
         p1 = Tools.multiplyMatrices(m, p1);
-        console.log(p1);
         p2 = Tools.multiplyMatrices(m, p2);
         p3 = Tools.multiplyMatrices(m, p3);
         r.x = Math.min(p1[0][0], p2[0][0], p3[0][0]);
         r.y = Math.min(p1[1][0], p2[1][0], p3[1][0]);
         r.width = Math.max(p1[0][0], p2[0][0], p3[0][0]) - r.x;
         r.height = Math.max(p1[1][0], p2[1][0], p3[1][0]) - r.y;
-        console.log(r);
         return true;
     } else {
         return false;

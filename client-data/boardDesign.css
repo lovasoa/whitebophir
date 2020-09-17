@@ -469,6 +469,17 @@
     width: 25px;
 }
 
+.preloader {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    z-index: 1000;
+    background-color: lightblue;
+}
+
 @media (max-width:645px) {
     .repost-link {
         display: none;

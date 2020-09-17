@@ -12,32 +12,40 @@
     Tools.svg.addEventListener('drop', handleDrop, false);
 
     function handleDrop(e) {
-        const data = e.dataTransfer;
-        const file = data.files[0];
-        const fileType = file.name.split('.')[file.name.split('.').length - 1].toLowerCase();
+        if (Tools.params.permissions.image) {
+            const data = e.dataTransfer;
+            const file = data.files[0];
+            const fileType = file.name.split('.')[file.name.split('.').length - 1].toLowerCase();
 
-        if (fileTypes.includes(fileType)) {
-            var reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = workWithImage;
+            if (fileTypes.includes(fileType)) {
+                var reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = workWithImage;
+            } else {
+                alert('Неподдерживаемый тип изображения! Поддерживаются: ' + fileTypes.join(', '));
+            }   
         } else {
-            alert('Неподдерживаемый тип изображения! Поддерживаются: ' + fileTypes.join(', '));
+            alert('Эта функция недоступна для вас!');
         }
         preventDefault(e);
     }
 
     function onstart() {
-        var fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept = "image/*";
-        fileInput.multiple = false;
-        fileInput.click();
-        fileInput.addEventListener("change", function () {
-            var reader = new FileReader();
-            reader.readAsDataURL(fileInput.files[0]);
-            reader.onload = workWithImage;
-            // Tools.change(Tools.prevToolName);
-        });
+        if (Tools.params.permissions.image) {
+            var fileInput = document.createElement("input");
+            fileInput.type = "file";
+            fileInput.accept = "image/*";
+            fileInput.multiple = false;
+            fileInput.click();
+            fileInput.addEventListener("change", function () {
+                var reader = new FileReader();
+                reader.readAsDataURL(fileInput.files[0]);
+                reader.onload = workWithImage;
+                // Tools.change(Tools.prevToolName);
+            });
+        } else {
+            alert('Эта функция недоступна для вас!');
+        }
     }
 
     function workWithImage(e) {
