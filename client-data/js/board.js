@@ -159,7 +159,6 @@ Tools.HTML = {
 
 		const subToolClick = function (e) {
 			console.log('SubTool click')
-			console.log(e);
 			const subTool = e.composedPath().find(function (item) {
 				return item.classList.contains('sub-tool-item');
 			});
@@ -239,6 +238,10 @@ Tools.register = function registerTool(newTool) {
 	}
 };
 
+Tools.isMobile = function () {
+	return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
 /**
  * Add a new tool to the user interface
  */
@@ -261,21 +264,21 @@ Tools.change = function (toolName, subToolIndex) {
 	console.log(toolName);
 	console.log(subToolIndex);
 	const toolEl = document.getElementById('Tool-' + toolName);
-	if (toolEl.dataset.index !== subToolIndex || true) {
+	if (toolEl.classList) {
 		toolEl.classList.remove('fix');
 		toolEl.classList.remove('dash');
 		toolEl.classList.remove('shape');
-		toolElParent = toolEl.parentElement;
-		for (var item of toolElParent.getElementsByClassName('sub-tool-item')) {
-			if (item.dataset.index == subToolIndex) {
-				toolEl.innerHTML = item.innerHTML;
-				if (item.classList.contains('fix')) toolEl.classList.add('fix');
-				if (item.classList.contains('dash')) toolEl.classList.add('dash');
-				if (item.classList.contains('shape')) toolEl.classList.add('shape');
-				item.classList.add('selected-tool');
-			} else {
-				item.classList.remove('selected-tool');
-			}
+	}
+	toolElParent = toolEl.parentElement;
+	for (var item of toolElParent.getElementsByClassName('sub-tool-item')) {
+		if (item.dataset.index == subToolIndex) {
+			toolEl.innerHTML = item.innerHTML;
+			if (item.classList.contains('fix')) toolEl.classList.add('fix');
+			if (item.classList.contains('dash')) toolEl.classList.add('dash');
+			if (item.classList.contains('shape')) toolEl.classList.add('shape');
+			item.classList.add('selected-tool');
+		} else {
+			item.classList.remove('selected-tool');
 		}
 	}
 	if (newTool.setIndex) {
@@ -547,7 +550,7 @@ function createModal(htmlContent, id) {
 	}
 
 	function createPdf() {
-		alert('Тут будет экспорт в PDF');
+		window.open('http://pdf.wbo.sboard.su:8001/generate/' + Tools.boardName);
 	}
 
 	document.getElementById('scalingWidth').addEventListener('click', scaleToWidth, false);
@@ -557,6 +560,7 @@ function createModal(htmlContent, id) {
 	document.getElementById("help").addEventListener('click', createHelpModal, false);
 	document.getElementById('clearBoard').addEventListener('click', sendClearBoard, false);
 	document.getElementById('exportToPDF').addEventListener('click', createPdf, false);
+	document.getElementById('exportToPDFButton').addEventListener('click', createPdf, false);
 	document.getElementById('boardName').addEventListener('click', createModalRename, false);
 	window.addEventListener("hashchange", setScrollFromHash, false);
 	window.addEventListener("popstate", setScrollFromHash, false);
@@ -575,6 +579,63 @@ function resizeCanvas(m) {
 	}
 	resizeBoard();
 }
+
+(function createTooltips () {
+	console.log('Tooltip');
+	if (!Tools.isMobile()) {
+		const styles = document.createElement('style');
+		styles.innerHTML = `*[data-tooltip] {
+    position: relative;
+}
+
+*[data-tooltip]::after {
+    white-space: nowrap;
+    font-family: 'Montserrat', sans-serif;
+    content: attr(data-tooltip);
+    font-size: 12px;
+    line-height: 15px;
+    text-align: center;
+    position: absolute;
+    top: 10px;
+    left: 50px;
+    pointer-events: none;
+    opacity: 0;
+    -webkit-transition: opacity .15s ease-in-out;
+    -moz-transition: opacity .15s ease-in-out;
+    -ms-transition: opacity .15s ease-in-out;
+    -o-transition: opacity .15s ease-in-out;
+    transition: opacity .15s ease-in-out;
+    display: block;
+    background: #fff;
+    padding: 5px 10px;
+    box-shadow: 0px 5px 5px rgba(0, 0, 0, 0.05);
+    border-radius: 5px;
+    color: #000 !important;
+}
+
+.tooltip-bottom[data-tooltip]::after {
+    bottom: -40px;
+    left: 0;
+    right: initial;
+    top: initial;
+}
+
+.tooltip-toLeft[data-tooltip]::after {
+    right: 0;
+    left: initial;
+}
+
+.tooltip-top[data-tooltip]::after {
+    top: -40px;
+    bottom: initial;
+}
+
+*[data-tooltip]:hover::after {
+    opacity: 1;
+}`;
+		document.getElementsByTagName('body')[0].append(styles);
+	}
+})();
 
 function resizeBoard() {
 	// Update board container size
