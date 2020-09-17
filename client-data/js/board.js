@@ -26,6 +26,8 @@
 
 var Tools = {};
 
+Tools.params = {};
+
 Tools.i18n = (function i18n() {
     var translations = JSON.parse(document.getElementById("translations").text);
     return {
@@ -117,6 +119,8 @@ Tools.boardName = (function () {
     var path = window.location.pathname.split("/");
     return decodeURIComponent(path[path.length - 1]);
 })();
+
+Tools.boardTitle = Tools.boardName;
 
 //Get the board as soon as the page is loaded
 Tools.socket.emit("getboard", Tools.boardName);
@@ -451,8 +455,8 @@ window.addEventListener("focus", function () {
 function updateDocumentTitle() {
     document.title =
         (Tools.unreadMessagesCount ? '(' + Tools.unreadMessagesCount + ') ' : '') +
-        Tools.boardName +
-        " | WBO";
+        Tools.boardTitle +
+        " | sBoard";
 }
 
 // Function for creating Modal Window
@@ -540,7 +544,7 @@ function createModal(htmlContent, id) {
 
     function createModalRename() {
         createModal(`
-			<input id="newBoardName" type="text" value="Новая доска">
+			<input id="newBoardName" type="text" value="">
 			<input id="buttonRenameBoard" type="button" value="Переименовать">`, "modalRename");
 
         document.getElementById('newBoardName').value
@@ -568,7 +572,54 @@ function createModal(htmlContent, id) {
     }
 
     function createPdf() {
-        window.open(Tools.server_config.PDF_URL + 'generate/' + Tools.boardName);
+        if (Tools.params.permissions.pdf) {
+            window.open(Tools.server_config.PDF_URL + 'generate/' + Tools.boardName);
+        } else {
+            alert('Красивая модалка, что тариф не позволяет делать экспорт в PDF.')
+        }
+    }
+
+    function checkBoard() {
+        fetch(
+            Tools.server_config.API_URL + 'boards/' + Tools.boardName + '/info',
+            {
+                method: 'GET',
+                credentials: 'include',
+            }
+        )
+            .then(response => {
+                return response.json();
+            })
+            .then(data => {
+                Tools.params = data;
+
+                Tools.boardTitle = data.board.name;
+                updateDocumentTitle();
+
+                document.getElementById('board-name-span').innerText = data.board.name;
+
+                if (data.permissions.edit) {
+                    document.getElementById('boardName').addEventListener('click', createModalRename, false);
+                } else {
+                    document.getElementById('boardName')
+                        .removeAttribute('data-tooltip');
+                }
+
+                if (data.permissions.invite) {
+                    document.querySelector('.js-link-text').innerText = data.invite_link;
+                } else {
+                    document.querySelector('.js-link-panel').remove();
+                    document.querySelector('.js-join-link').remove();
+                }
+
+                let b = document.querySelectorAll('.js-elements');
+                b.forEach((el) => {
+                    el.classList.toggle('sjx-hidden');
+                });
+            })
+            .catch(function (error) {
+                window.location.href = Tools.server_config.CABINET_URL;
+            })
     }
 
     document.getElementById('scalingWidth').addEventListener('click', scaleToWidth, false);
@@ -579,10 +630,10 @@ function createModal(htmlContent, id) {
     document.getElementById('clearBoard').addEventListener('click', sendClearBoard, false);
     document.getElementById('exportToPDF').addEventListener('click', createPdf, false);
     document.getElementById('exportToPDFButton').addEventListener('click', createPdf, false);
-    document.getElementById('boardName').addEventListener('click', createModalRename, false);
     window.addEventListener("hashchange", setScrollFromHash, false);
     window.addEventListener("popstate", setScrollFromHash, false);
     window.addEventListener("DOMContentLoaded", setScrollFromHash, false);
+    window.addEventListener("DOMContentLoaded", checkBoard, false);
 })();
 
 //List of hook functions that will be applied to messages before sending or drawing them
