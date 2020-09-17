@@ -7,18 +7,8 @@
     "description": "A free and opensource online collaborative drawing tool.",
     "icons": [
         {
-            "src": "favicon.svg",
-            "sizes": "1024x1024",
-            "type": "image/svg+xml"
-        },
-        {
-            "src": "apple-touch-icon.png",
-            "sizes": "512x512",
-            "type": "image/png"
-        },
-        {
-            "src": "favicon.ico",
-            "sizes": "16x16",
+            "src": "favicon.png",
+            "sizes": "32x32",
             "type": "image/x-icon"
         }
     ]
