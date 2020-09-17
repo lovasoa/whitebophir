@@ -122,7 +122,7 @@ Tools.boardName = (function () {
 Tools.socket.emit("getboard", Tools.boardName);
 
 Tools.HTML = {
-	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
+	addTool: function (toolName) {
 		var toolOpenedFromClick = false;
 		const toolEl = document.getElementById('Tool-' + toolName);
 		const toolParentEl = document.getElementById('Tool-' + toolName).parentElement;
@@ -242,6 +242,32 @@ Tools.isMobile = function () {
 	return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
 
+(function hotkeys() {
+	if (!Tools.isMobile()) {
+		document.addEventListener('keydown', function (e) {
+			if (e.keyCode === 86) { // v
+				Tools.change('Transform');
+			} else if (e.keyCode === 72) {
+				Tools.change('Hand');
+			} else if (e.keyCode === 69) {
+				Tools.change('Eraser');
+			} else if (e.keyCode === 76) {
+				Tools.change('Line');
+			} else if (e.keyCode === 84) {
+				Tools.change('Text');
+			} else if (e.keyCode === 73) {
+				Tools.change('Document');
+			} else if (e.keyCode === 80) {
+				Tools.change('Pencil');
+			} else if (e.keyCode === 89 && e.ctrlKey) {
+				Tools.redo();
+			} else if (e.keyCode === 90 && e.ctrlKey) {
+				Tools.undo();
+			}
+		}, false);
+	}
+})();
+
 /**
  * Add a new tool to the user interface
  */
@@ -255,7 +281,7 @@ Tools.add = function (newTool) {
 	}
 
 	//Add the tool to the GUI
-	Tools.HTML.addTool(newTool.name, newTool.icon, newTool.iconHTML, newTool.shortcut, newTool.oneTouch);
+	Tools.HTML.addTool(newTool.name);
 };
 
 Tools.change = function (toolName, subToolIndex) {

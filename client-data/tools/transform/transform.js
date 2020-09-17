@@ -33,6 +33,8 @@
     function actionsForEvent(evt) {
         if (evt.keyCode === 46 || evt.keyCode === 8) { // Delete key
             deleteElement();
+        } else if (evt.keyCode === 68 && evt.ctrlKey && transformEl) {
+            dublicateObject();
         }
     }
 
@@ -117,7 +119,7 @@
     }
 
     function enableProportions(evt) {
-        transformTool[0].options.proportions = evt.shiftKey && transformEl;
+        if (transformEl) transformTool[0].options.proportions = evt.shiftKey && transformEl;
     }
 
     function dublicateObject() {
