@@ -103,15 +103,16 @@ const Tools = {
  * @param {WritableStream} writeable 
  */
 async function toSVG(obj, writeable) {
-	const margin = 400;
+	const mX = 2080;
+	const mY = 1040;
 	const elems = Object.values(obj);
 	const dim = elems.reduce(function (dim, elem) {
 		if (elem._children) elem = elem._children[0];
 		return [
-			Math.max(elem.x + margin + elem.deltax | 0, dim[0]),
-			Math.max(elem.y + margin + elem.deltay | 0, dim[1]),
+			Math.max(elem.x + mX + elem.deltax | 0, dim[0]),
+			Math.max(elem.y + mY + elem.deltay | 0, dim[1]),
 		]
-	}, [margin, margin]);
+	}, [mX, mY]);
 	writeable.write(
 		'<svg xmlns="http://www.w3.org/2000/svg" version="1.1" ' +
 		'width="' + dim[0] + '" height="' + dim[1] + '">' +
@@ -130,10 +131,8 @@ async function toSVG(obj, writeable) {
 	writeable.write('</svg>');
 }
 
-async function renderBoard(file, stream) {
-	const data = await fs.promises.readFile(file);
-	var board = JSON.parse(data);
-	return toSVG(board, stream);
+async function renderBoard(data, stream) {
+	return toSVG(data, stream);
 }
 
 if (require.main === module) {

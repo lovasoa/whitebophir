@@ -115,6 +115,26 @@ function handleRequest(request, response) {
 			}
 			break;
 
+		case 'preview':
+			const boardUuid = parts[1];
+
+			response.writeHead(200, {
+				"Content-Type": "image/svg+xml",
+				"Content-Security-Policy": CSP,
+				"Cache-Control": "public, max-age=30",
+			});
+
+			db.getBoard(boardUuid).then(d => {
+				const boardData = d ? d.board : {};
+				createSVG.renderBoard(boardData, response).then(r => {
+					response.end();
+				}).catch(function (err) {
+					log("error", {"error": err.toString()});
+					response.end('<text>Sorry, an error occured</text>');
+				});
+			});
+			break;
+
 		case config.CREATE_KEY:
 			var name = parts[1];
 
@@ -131,6 +151,22 @@ function handleRequest(request, response) {
 
 			response.end(name);
 			break;
+
+			// var boardName = validateBoardName(parts[1]),
+			// 	history_file = path.join(config.HISTORY_DIR, "board-" + boardName + ".json");
+			// response.writeHead(200, {
+			// 	"Content-Type": "image/svg+xml",
+			// 	"Content-Security-Policy": CSP,
+			// 	"Cache-Control": "public, max-age=30",
+			// });
+			// var t = Date.now();
+			// createSVG.renderBoard(history_file, response).then(function () {
+			// 	log("preview", { "board": boardName, "time": Date.now() - t });
+			// 	response.end();
+			// }).catch(function (err) {
+			// 	log("error", { "error": err.toString() });
+			// 	response.end('<text>Sorry, an error occured</text>');
+			// });
 
 		case "polyfill.js": // serve tailored polyfills
 		case "polyfill.min.js":
