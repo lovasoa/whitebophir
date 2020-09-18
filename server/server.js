@@ -126,12 +126,11 @@ function handleRequest(request, response) {
 			});
 
 			bd.BoardData.load(boardUuid).then(d => {
-				const boardData = d ? d.board : {};
-				createSVG.renderBoard(boardData, response).then(r => {
+				createSVG.renderBoard(d.board, response).then(r => {
 					response.end();
 				}).catch(function (err) {
 					log("error", {"error": err.toString()});
-					response.end('<text>Sorry, an error occured</text>');
+					response.end();
 				});
 			});
 			break;
