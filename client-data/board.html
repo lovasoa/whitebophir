@@ -15,6 +15,7 @@
 	<meta property="og:title" content="{{board}} board on WBO" />
 	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
 	<meta property="og:image" content="{{baseUrl}}/preview/{{boardUriComponent}}" />
+	<link rel="shortcut icon" href="/favicon.png" type="image/png"/>
 	<link rel="canonical" href="{{boardUriComponent}}?lang={{language}}" />
 	{{#languages}}
 	<link rel="alternate" hreflang="{{.}}" href="{{../boardUriComponent}}?lang={{.}}" />
@@ -454,7 +455,7 @@
 </div>
 
 <div class="scale-width-panel panel js-elements sjx-hidden">
-	<div data-tooltip="Вписать доску по ширине экрана (=)" id="scalingWidth" class="tooltip-toLeft tooltip-top scale-to-width defolt-icon">
+	<div data-tooltip="Вписать доску по ширине экрана (ctrl + '=')" id="scalingWidth" class="tooltip-toLeft tooltip-top scale-to-width defolt-icon">
 		<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
 			<g clip-path="url(#clip0)">
 				<path d="M10.8207 7.22633V12.6956C10.8207 13.1271 10.4709 13.4769 10.0394 13.4769C9.60785 13.4769 9.25806 13.1271 9.25806 12.6956V7.22633C9.25806 6.79481 9.60785 6.44502 10.0394 6.44502C10.4709 6.44502 10.8207 6.79481 10.8207 7.22633ZM6.9141 9.17963H2.1765L3.87532 7.46346C4.1789 7.15676 4.1764 6.66207 3.86969 6.35852C3.56302 6.05498 3.06833 6.05744 2.76475 6.36415L0.569518 8.5818C-0.19008 9.34355 -0.189377 10.5812 0.568854 11.3395L2.88207 13.6751C3.03485 13.8294 3.236 13.9066 3.43719 13.9066C3.63588 13.9066 3.83465 13.8313 3.98697 13.6804C4.29356 13.3768 4.29594 12.8821 3.99228 12.5755L2.17665 10.7423H6.91402C7.34554 10.7423 7.69534 10.3925 7.69534 9.96098C7.69542 9.52942 7.34562 9.17963 6.9141 9.17963ZM19.427 8.5777L17.1529 6.3202C16.8467 6.01619 16.3519 6.01803 16.0479 6.32426C15.7439 6.6305 15.7458 7.12519 16.052 7.4292L17.8153 9.17959H13.1646C12.7331 9.17959 12.3833 9.52938 12.3833 9.9609C12.3833 10.3924 12.7331 10.7422 13.1646 10.7422H17.8239L16.0083 12.5754C15.7046 12.8821 15.707 13.3767 16.0136 13.6804C16.1659 13.8312 16.3647 13.9066 16.5633 13.9066C16.7645 13.9066 16.9657 13.8293 17.1185 13.6751L19.4291 11.342C20.1907 10.5805 20.1907 9.34132 19.427 8.5777Z" fill="#828282"/>
@@ -466,7 +467,7 @@
 			</defs>
 		</svg>
 	</div>
-	<div data-tooltip="Масштаб 100% (/)" id="scalingFull" class="tooltip-toLeft tooltip-top defolt-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<div data-tooltip="Масштаб 100% (ctrl + '/')" id="scalingFull" class="full-width tooltip-toLeft tooltip-top defolt-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
 		<g clip-path="url(#clip0)">
 			<path d="M7.46648 6.36164L2.66738 1.5625H5.74219C6.17367 1.5625 6.52344 1.21273 6.52344 0.78125C6.52344 0.349766 6.17367 0 5.74219 0H2.34375C1.05141 0 0 1.05141 0 2.34375V5.74219C0 6.17367 0.349766 6.52344 0.78125 6.52344C1.21273 6.52344 1.5625 6.17367 1.5625 5.74219V2.66738L6.36164 7.46652C6.51418 7.61906 6.7141 7.69531 6.91406 7.69531C7.11402 7.69531 7.31395 7.61906 7.46648 7.46652C7.7716 7.16141 7.7716 6.66672 7.46648 6.36164Z" fill="#828282"/>
 			<path d="M7.46648 12.5335C7.16137 12.2284 6.66672 12.2284 6.36164 12.5335L1.5625 17.3326V14.2578C1.5625 13.8263 1.21273 13.4766 0.78125 13.4766C0.349766 13.4766 0 13.8263 0 14.2578V17.6562C0 18.9486 1.05141 20 2.34375 20H5.74219C6.17367 20 6.52344 19.6502 6.52344 19.2188C6.52344 18.7873 6.17367 18.4375 5.74219 18.4375H2.66738L7.46648 13.6384C7.7716 13.3333 7.7716 12.8386 7.46648 12.5335Z" fill="#828282"/>
@@ -483,7 +484,7 @@
 </div>
 
 <div class="scale-panel panel js-elements sjx-hidden">
-	<div data-tooltip="Уменьшить масштаб (-)" id="minusScale" class="tooltip-top tooltip-toLeft minus-scale defolt-icon">
+	<div data-tooltip="Уменьшить масштаб (ctrl + '-')" id="minusScale" class="tooltip-top tooltip-toLeft minus-scale defolt-icon">
 		<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
 			<path d="M19.2188 9.21875H0.78125C0.349766 9.21875 0 9.56852 0 10C0 10.4315 0.349766 10.7812 0.78125 10.7812H19.2188C19.6502 10.7812 20 10.4315 20 10C20 9.56852 19.6502 9.21875 19.2188 9.21875Z" fill="#828282"/>
 		</svg>
@@ -491,7 +492,7 @@
 	<div id="scaleValue" class="scale-value unselectable">
 		100%
 	</div>
-	<div data-tooltip="Увеличить масштаб (+)" id="plusScale" class="tooltip-top tooltip-toLeft plus-scale defolt-icon">
+	<div data-tooltip="Увеличить масштаб (ctrl + '+')" id="plusScale" class="tooltip-top tooltip-toLeft plus-scale defolt-icon">
 		<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
 			<path d="M19.2188 9.21875H10.7812V0.78125C10.7812 0.349766 10.4315 0 10 0C9.56852 0 9.21875 0.349766 9.21875 0.78125V9.21875H0.78125C0.349766 9.21875 0 9.56852 0 10C0 10.4315 0.349766 10.7812 0.78125 10.7812H9.21875V19.2188C9.21875 19.6502 9.56852 20 10 20C10.4315 20 10.7812 19.6502 10.7812 19.2188V10.7812H19.2188C19.6502 10.7812 20 10.4315 20 10C20 9.56852 19.6502 9.21875 19.2188 9.21875Z" fill="#828282"/>
 		</svg>

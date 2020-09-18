@@ -9,7 +9,7 @@
     height: 40px;
     display: flex;
     position: fixed;
-    box-shadow: 0px 5px 5px rgba(0, 0, 0, 0.05);
+    box-shadow: 3px 3px 5px 0px rgba(0, 0, 0, 0.1)
 }
 
 .defolt-icon {
@@ -127,7 +127,14 @@
     padding: 10px;
 }
 
+.redo {
+    border-bottom-right-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
 .undo {
+    border-bottom-left-radius: 10px;
+    border-top-left-radius: 10px;
     border-right: 1px solid #F2F2F2;
 }
 
@@ -199,6 +206,8 @@
     border-radius: 5px;
     color: #000;
     width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .copy-link-input {
@@ -247,10 +256,14 @@
 }
 
 .minus-scale {
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
     border-right: 1px solid #F2F2F2;
 }
 
 .plus-scale {
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
     border-left: 1px solid #F2F2F2;
 }
 
@@ -262,7 +275,14 @@
 }
 
 .scale-to-width {
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
     border-right: 1px solid #F2F2F2;
+}
+
+.full-width {
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
 
 .scale-width-panel {
@@ -654,11 +674,13 @@
     }
 
     .minus-scale {
+        border-top-left-radius: 0px;
         border-bottom-left-radius: 10px;
     }
 
     .plus-scale {
         border-bottom-right-radius: 10px;
+        border-top-right-radius: 0px;
     }
 
 }

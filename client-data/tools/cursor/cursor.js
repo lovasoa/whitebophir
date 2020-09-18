@@ -57,7 +57,8 @@
         size: Tools.getSize(),
     };
 
-    function handleMarker(x, y) {
+    function handleMarker(x, y, evt) {
+        if (evt && evt.touches && evt.touches.length > 1) return;
         // throttle local cursor updates
         message.x = x;
         message.y = y;
