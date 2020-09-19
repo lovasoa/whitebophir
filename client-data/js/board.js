@@ -372,20 +372,6 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
     }
 };
 
-(function () {
-    // Handle secondary tool switch with shift (key code 16)
-    function handleShift(active, evt) {
-        // list tools for ignore handle shift
-        const toolsIgnore = ["Line", "Pencil"];
-        if (!toolsIgnore.includes(Tools.curTool.name) && evt.keyCode === 16 && Tools.curTool.secondary && Tools.curTool.secondary.active !== active) {
-            Tools.change(Tools.curTool.name);
-        }
-    }
-
-    window.addEventListener("keydown", handleShift.bind(null, true));
-    window.addEventListener("keyup", handleShift.bind(null, false));
-})();
-
 Tools.send = function (data, toolName) {
     toolName = toolName || Tools.curTool.name;
     var d = data;

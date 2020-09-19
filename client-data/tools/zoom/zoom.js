@@ -29,6 +29,7 @@
     var ctrl_pressed = false;
     var lastY = null;
     var lastX = null;
+    var diffFromTouches = null;
     var origin = {
         scrollX: document.documentElement.scrollLeft,
         scrollY: document.documentElement.scrollTop,
@@ -125,39 +126,47 @@
     Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
         // 2-finger pan to zoom
         var touches = evt.touches;
-        if (touches.length > 1) {
-            console.log(evt);
-            if (lastY !== null) {
-                const newMoveY = lastY - evt.touches[0].clientY - evt.touches[1].clientY;
-                const newMoveX = lastX - evt.touches[0].clientX - evt.touches[1].clientX;
-                window.scrollTo(document.documentElement.scrollLeft + newMoveX >> 0, document.documentElement.scrollTop + newMoveY >> 0);
-            }
-            lastY = evt.touches[0].clientY + evt.touches[1].clientY;
-            lastX = evt.touches[0].clientX + evt.touches[1].clientX;
-            return;
-        }
         if (touches.length === 2) {
-            var x0 = touches[0].clientX, x1 = touches[1].clientX,
-                y0 = touches[0].clientY, y1 = touches[1].clientY,
-                dx = x0 - x1,
-                dy = y0 - y1;
-            var x = (touches[0].pageX + touches[1].pageX) / 2 / Tools.getScale(),
-                y = (touches[0].pageY + touches[1].pageY) / 2 / Tools.getScale();
-            var distance = Math.sqrt(dx * dx + dy * dy);
-            if (!pressed) {
-                pressed = true;
-                setOrigin(x, y, evt, true);
-                origin.distance = distance;
+            if (diffFromTouches === null) {
+                diffFromTouches = Math.hypot( //get rough estimate of distance between two fingers
+                    evt.touches[0].pageX - evt.touches[1].pageX,
+                    evt.touches[0].pageY - evt.touches[1].pageY);
+            }
+            if ((diffFromTouches >> 0) - Math.hypot(evt.touches[0].pageX - evt.touches[1].pageX, evt.touches[0].pageY - evt.touches[1].pageY) >> 0 > 40 ||
+                (diffFromTouches >> 0) - Math.hypot(evt.touches[0].pageX - evt.touches[1].pageX, evt.touches[0].pageY - evt.touches[1].pageY) >> 0 < -40) {
+                var x0 = touches[0].clientX, x1 = touches[1].clientX,
+                    y0 = touches[0].clientY, y1 = touches[1].clientY,
+                    dx = x0 - x1,
+                    dy = y0 - y1;
+                var x = (touches[0].pageX + touches[1].pageX) / 2 / Tools.getScale(),
+                    y = (touches[0].pageY + touches[1].pageY) / 2 / Tools.getScale();
+                var distance = Math.sqrt(dx * dx + dy * dy);
+                if (!pressed) {
+                    pressed = true;
+                    setOrigin(x, y, evt, true);
+                    origin.distance = distance;
+                } else {
+                    var delta = distance - origin.distance;
+                    var scale = origin.scale * (1 + delta * ZOOM_FACTOR);
+                    animate(scale);
+                }
             } else {
-                var delta = distance - origin.distance;
-                var scale = origin.scale * (1 + delta * ZOOM_FACTOR);
-                animate(scale);
+                // moving
+                if (lastY !== null) {
+                    const newMoveY = lastY - evt.touches[0].clientY - evt.touches[1].clientY;
+                    const newMoveX = lastX - evt.touches[0].clientX - evt.touches[1].clientX;
+                    window.scrollTo(document.documentElement.scrollLeft + newMoveX >> 0, document.documentElement.scrollTop + newMoveY >> 0);
+                }
+                lastY = evt.touches[0].clientY + evt.touches[1].clientY;
+                lastX = evt.touches[0].clientX + evt.touches[1].clientX;
             }
         }
     }, { passive: true });
 
     function touchend() {
         lastY = null;
+        lastX = null;
+        diffFromTouches = null;
         pressed = false;
     }
 

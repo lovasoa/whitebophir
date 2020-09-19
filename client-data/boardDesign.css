@@ -600,7 +600,7 @@
     }
 }
 
-@media (max-height:560px) {
+@media (max-height:550px) {
     .tool-panel {
         bottom: 10px;
         transform: rotate(270deg);
