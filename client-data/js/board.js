@@ -286,6 +286,9 @@ Tools.add = function (newTool) {
 Tools.change = function (toolName, subToolIndex) {
     var newTool = Tools.list[toolName];
     var oldTool = Tools.curTool;
+    if (oldTool && oldTool !== newTool) {
+        document.getElementById('Tool-' + oldTool.name).parentElement.classList.remove('opened');
+    }
     const toolEl = document.getElementById('Tool-' + toolName);
     if (toolEl.classList) {
         toolEl.classList.remove('fix');
@@ -750,8 +753,10 @@ function updateUnreadCount(m) {
 }
 
 Tools.messageHooks = [resizeCanvas, updateUnreadCount];
-Tools.scale = document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X;
 var scaleTimeout = null;
+const scaleValueEl = document.getElementById('scaleValue');
+const htmlBodyEl = document.getElementsByTagName('body')[0];
+const test = document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X;
 Tools.setScale = function setScale(scale) {
     if (isNaN(scale)) {
         scale = document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X;
@@ -764,12 +769,12 @@ Tools.setScale = function setScale(scale) {
         Tools.svg.style.willChange = 'auto';
     }, 1000);
     Tools.scale = scale;
+    scaleValueEl.innerText = Math.round(scale * 100) + '%';
     if (scale < document.body.clientWidth / Tools.server_config.MAX_BOARD_SIZE_X) {
-        document.getElementsByTagName('body')[0].style = 'display: flex; justify-content: center;';
+        htmlBodyEl.style = 'display: flex; justify-content: center;';
     } else {
-        document.getElementsByTagName('body')[0].style = '';
+        htmlBodyEl.style = '';
     }
-    document.getElementById('scaleValue').innerText = Math.round(scale * 100) + '%';
     return scale;
 }
 Tools.getScale = function getScale() {
@@ -1037,6 +1042,7 @@ toolColorEl.addEventListener('mouseleave', function () {
 });
 toolColorEl.addEventListener('touchstart', function (e) {
     e.stopPropagation();
+    document.getElementById('Tool-' + Tools.curTool.name).parentElement.classList.remove('opened');
     document.addEventListener('touchstart', function (e) {
         toolColorEl.classList.remove('opened');
     }, {once: true});
@@ -1141,6 +1147,7 @@ toolWidthEl.addEventListener('mouseleave', function () {
 });
 toolWidthEl.addEventListener('touchstart', function (e) {
     e.stopPropagation();
+    document.getElementById('Tool-' + Tools.curTool.name).parentElement.classList.remove('opened');
     document.addEventListener('touchstart', function (e) {
         toolWidthEl.classList.remove('opened');
     }, {once: true});

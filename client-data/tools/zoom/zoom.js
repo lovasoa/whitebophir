@@ -27,13 +27,15 @@
 (function () { //Code isolation
     var ZOOM_FACTOR = .005;
     var ctrl_pressed = false;
+    var lastY = null;
+    var lastX = null;
     var origin = {
         scrollX: document.documentElement.scrollLeft,
         scrollY: document.documentElement.scrollTop,
         x: 0.0,
         y: 0.0,
         clientY: 0,
-        scale: 1.0
+        scale: 1.0,
     };
     var pressed = false;
     var animation = null;
@@ -123,6 +125,17 @@
     Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
         // 2-finger pan to zoom
         var touches = evt.touches;
+        if (touches.length > 1) {
+            console.log(evt);
+            if (lastY !== null) {
+                const newMoveY = lastY - evt.touches[0].clientY - evt.touches[1].clientY;
+                const newMoveX = lastX - evt.touches[0].clientX - evt.touches[1].clientX;
+                window.scrollTo(document.documentElement.scrollLeft + newMoveX >> 0, document.documentElement.scrollTop + newMoveY >> 0);
+            }
+            lastY = evt.touches[0].clientY + evt.touches[1].clientY;
+            lastX = evt.touches[0].clientX + evt.touches[1].clientX;
+            return;
+        }
         if (touches.length === 2) {
             var x0 = touches[0].clientX, x1 = touches[1].clientX,
                 y0 = touches[0].clientY, y1 = touches[1].clientY,
@@ -144,6 +157,7 @@
     }, { passive: true });
 
     function touchend() {
+        lastY = null;
         pressed = false;
     }
 
