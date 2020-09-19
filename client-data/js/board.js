@@ -1054,6 +1054,16 @@ document.getElementsByClassName('repost-block')[0].addEventListener('click', () 
     const copyPanel = document.getElementsByClassName('copy-link-panel')[0];
     if (copyPanel.classList.contains('hide')) {
         copyPanel.classList.remove('hide');
+        const hideCopyPanel = function (e) {
+            if (!copyPanel.contains(e.target)) {
+                copyPanel.classList.add('hide');
+                document.removeEventListener('mousedown', hideCopyPanel);
+                document.removeEventListener('touchstart', hideCopyPanel);
+            }
+        }
+
+        document.addEventListener('mousedown', hideCopyPanel);
+        document.addEventListener('touchstart', hideCopyPanel);
         setTimeout(selectLink, 25);
     } else {
         copyPanel.classList.add('hide');
