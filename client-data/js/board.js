@@ -619,7 +619,7 @@ function createModal(htmlContent, id) {
 
     function checkBoard() {
         if (Tools.server_config.DEV_MODE === 1) {
-            Tools.params = {"status":true,"board":{"name":"\u041d\u043e\u0432\u0430\u044f \u0434\u043e\u0441\u043a\u0430"},"user":{"name":"\u0414\u0435\u043d\u0438\u0441","surname":"\u0411\u0435\u0434\u043e\u044f\u0440","full_name":"\u0414\u0435\u043d\u0438\u0441 \u0411\u0435\u0434\u043e\u044f\u0440"},"permissions":{"edit":true,"invite":true,"image":false,"pdf":false},"invite_link":"https:\/\/back.sboard.su\/cabinet\/boards\/join\/ikz8jf1hrc4R96iOAUJo5Ec="};
+            Tools.params = {"status":true,"board":{"name":"\u041d\u043e\u0432\u0430\u044f \u0434\u043e\u0441\u043a\u0430"},"user":{"name":"\u0414\u0435\u043d\u0438\u0441","surname":"\u0411\u0435\u0434\u043e\u044f\u0440","full_name":"\u0414\u0435\u043d\u0438\u0441 \u0411\u0435\u0434\u043e\u044f\u0440"},"permissions":{"edit":true,"invite":true,"image":true,"pdf":false},"invite_link":"https:\/\/back.sboard.su\/cabinet\/boards\/join\/ikz8jf1hrc4R96iOAUJo5Ec="};
             showBoard();
             return;
         }

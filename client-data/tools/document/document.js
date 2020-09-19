@@ -65,7 +65,7 @@
                 ctx.canvas.width = image.width * scale;
                 ctx.canvas.height = image.height * scale;
                 ctx.drawImage(image, 0, 0, image.width * scale, image.height * scale);
-                var dataURL = ctx.canvas.toDataURL("image/webp", 0.8);
+                var dataURL = ctx.canvas.toDataURL("image/jpeg", 0.8);
 
                 // Compressed file size as data url, approximately 1/3 larger than as bytestream
                 size = dataURL.length;
