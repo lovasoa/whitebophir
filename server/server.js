@@ -11,9 +11,11 @@ var app = require('http').createServer(handler)
 	, config = require("./configuration.js")
 	, polyfillLibrary = require('polyfill-library')
 	, bd = require('./boardData.js')
+	, dotenv = require('dotenv')
 	, db = require('./db/db.js');
 
-require('dotenv').config();
+const envFie = path.resolve(__dirname, '../.env');
+dotenv.config({path: envFie});
 
 var MIN_NODE_VERSION = 8.0;
 
