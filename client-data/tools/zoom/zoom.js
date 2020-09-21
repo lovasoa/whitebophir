@@ -60,6 +60,8 @@
         console.log('gesture start');
         console.log(evt);
         console.log('gesture end');
+        evt.preventDefault;
+        evt.stopPropagation();
         // animate(Tools.getScale() * evt.scale);
     }
     function zoom(origin, scale) {

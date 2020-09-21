@@ -5,7 +5,7 @@ html, body, svg {
 }
 
 * {
-	touch-action: none;
+	touch-action: pan-x pan-y;
 }
 
 body {
