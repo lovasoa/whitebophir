@@ -13,13 +13,16 @@ body {
 }
 
 #canvas {
-	display: none;
 	transform-origin: 0 0;
 	background-color: #fff;
 	touch-action: none;
 }
 
 #testLog {
+	display: none;
+}
+
+#testLogg {
 	border: 3px solid green;
 	border-radius: 5px;
 	position: fixed;

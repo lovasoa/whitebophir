@@ -31,6 +31,8 @@
     var lastX = null;
     var diffFromTouches = null;
     var lastScaleOnMac = 1;
+    var lastScreenXOnIos = null;
+    var lastScreenYOnIons = null;
     var origin = {
         scrollX: document.documentElement.scrollLeft,
         scrollY: document.documentElement.scrollTop,
@@ -56,19 +58,30 @@
     var testI = 0;
     function gesture(evt) {
         evt.preventDefault();
-        animate(Tools.getScale() * (1 - lastScaleOnMac + evt.scale));
-        console.log(evt.type);
-        testI++;
-        if (testI === 10) {
-            testLogEl.innerText = '';
-            testI = 0;
-        }
-        testLogEl.innerText = testLogEl.innerText + JSON.stringify({type: evt.type, screenX: evt.screenX, screenY: evt.screenY, scale: evt.scale}) + '\n';
-        if (evt.type === 'gestureend') {
-            lastScaleOnMac = 1;
+        if (evt.scale < 1.1 && evt.scale > 0.9) {
+            const newMoveX = 3;
+            const newMoveY = 3;
+            window.scrollTo(document.documentElement.scrollLeft + newMoveX >> 0, document.documentElement.scrollTop + newMoveY >> 0);
         } else {
-            lastScaleOnMac = evt.scale;
+            animate(Tools.getScale() * (1 - lastScaleOnMac + evt.scale));
+            if (evt.type === 'gestureend') {
+                lastScaleOnMac = 1;
+            } else {
+                lastScaleOnMac = evt.scale;
+            }
         }
+
+        // testI++;
+        //if (testI === 50) {
+        //     testLogEl.innerText = '';
+        //     testI = 0;
+        // }
+        // testLogEl.innerText = testLogEl.innerText + JSON.stringify({type: evt.type, screenX: evt.screenX, screenY: evt.screenY, scale: evt.scale}) + '\n';
+        // if (evt.type === 'gestureend') {
+        //     lastScaleOnMac = 1;
+        // } else {
+        //     lastScaleOnMac = evt.scale;
+        // }
         evt.stopPropagation();
     }
     function zoom(origin, scale) {
