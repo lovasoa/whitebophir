@@ -56,6 +56,9 @@
     });
 
     function gesture(evt) {
+        console.log('TEST');
+        console.log(window.devicePixelRatio);
+        console.log('TEST2');
         evt.preventDefault;
         console.log('gesture start');
         console.log(evt);
