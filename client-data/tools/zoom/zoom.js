@@ -69,24 +69,19 @@
             lastScreenYOnIos = evt.screenY;
             window.scrollTo(document.documentElement.scrollLeft + newMoveX >> 0, document.documentElement.scrollTop + newMoveY >> 0);
         } else {
-            if (false) {
-                var newScale = evt.scale;
-                if (newScale < 1) {
-                    newScale = newScale + 0.2;
-                } else {
-                    newScale = newScale - 0.2;
-                }
-                animate(Tools.getScale() * (1 - lastScaleOnMac + newScale));
-                if (evt.type === 'gestureend') {
-                    lastScaleOnMac = 1;
-                } else {
-                    lastScaleOnMac = evt.scale;
-                }
+            var newScale = evt.scale;
+            if (newScale < 1) {
+                newScale = newScale + 0.2;
+            } else {
+                newScale = newScale - 0.2;
             }
+            animate(Tools.getScale() * (1 - lastScaleOnMac + newScale));
+            lastScaleOnMac = evt.scale;
         }
         if (evt.type === 'gestureend') {
             lastScreenXOnIos = null;
             lastScreenYOnIos = null;
+            lastScaleOnMac = 1;
         }
 
         // testI++;
@@ -155,22 +150,20 @@
 
     function onwheel(evt) {
         evt.preventDefault();
-        if (!/iPad|iPhone|iPod/.test(navigator.platform)) {
-            if (evt.ctrlKey && ctrl_pressed) {
-                var scale = Tools.getScale();
-                var x = evt.pageX / scale;
-                var y = evt.pageY / scale;
-                setOrigin(x, y, evt, false);
-                animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.2);
-            } else if (evt.ctrlKey && !ctrl_pressed) {
-                var scale = Tools.getScale();
-                var x = evt.pageX / scale;
-                var y = evt.pageY / scale;
-                setOrigin(x, y, evt, false);
-                animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.01);
-            } else {
-                window.scrollTo(document.documentElement.scrollLeft + evt.deltaX, document.documentElement.scrollTop + evt.deltaY);
-            }
+        if (evt.ctrlKey && ctrl_pressed) {
+            var scale = Tools.getScale();
+            var x = evt.pageX / scale;
+            var y = evt.pageY / scale;
+            setOrigin(x, y, evt, false);
+            animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.2);
+        } else if (evt.ctrlKey && !ctrl_pressed) {
+            var scale = Tools.getScale();
+            var x = evt.pageX / scale;
+            var y = evt.pageY / scale;
+            setOrigin(x, y, evt, false);
+            animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.01);
+        } else {
+            window.scrollTo(document.documentElement.scrollLeft + evt.deltaX, document.documentElement.scrollTop + evt.deltaY);
         }
     }
 
