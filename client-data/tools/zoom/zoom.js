@@ -59,6 +59,10 @@
     function gesture(evt) {
         evt.preventDefault();
         if (evt.scale < 1.2 && evt.scale > 0.8) {
+            if (lastScreenXOnIons === null) {
+                lastScreenXOnIons = evt.screenX;
+                lastScreenYOnIons = evt.screenY;
+            }
             const newMoveX = evt.screenX - lastScreenXOnIons;
             const newMoveY = evt.screenY - lastScreenYOnIons;
             lastScreenXOnIos = evt.screenX;
@@ -79,6 +83,10 @@
                     lastScaleOnMac = evt.scale;
                 }
             }
+        }
+        if (evt.type === 'gestureend') {
+            lastScreenXOnIos = null;
+            var lastScreenYOnIons = null;
         }
 
         // testI++;
@@ -147,20 +155,22 @@
 
     function onwheel(evt) {
         evt.preventDefault();
-        if (evt.ctrlKey && ctrl_pressed) {
-            var scale = Tools.getScale();
-            var x = evt.pageX / scale;
-            var y = evt.pageY / scale;
-            setOrigin(x, y, evt, false);
-            animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.2);
-        } else if (evt.ctrlKey && !ctrl_pressed) {
-            var scale = Tools.getScale();
-            var x = evt.pageX / scale;
-            var y = evt.pageY / scale;
-            setOrigin(x, y, evt, false);
-            animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.01);
-        } else {
-            window.scrollTo(document.documentElement.scrollLeft + evt.deltaX, document.documentElement.scrollTop + evt.deltaY);
+        if (!/iPad|iPhone|iPod/.test(navigator.platform)) {
+            if (evt.ctrlKey && ctrl_pressed) {
+                var scale = Tools.getScale();
+                var x = evt.pageX / scale;
+                var y = evt.pageY / scale;
+                setOrigin(x, y, evt, false);
+                animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.2);
+            } else if (evt.ctrlKey && !ctrl_pressed) {
+                var scale = Tools.getScale();
+                var x = evt.pageX / scale;
+                var y = evt.pageY / scale;
+                setOrigin(x, y, evt, false);
+                animate(Tools.getScale() - (((evt.deltaY > 0) - (evt.deltaY < 0))) * 0.01);
+            } else {
+                window.scrollTo(document.documentElement.scrollLeft + evt.deltaX, document.documentElement.scrollTop + evt.deltaY);
+            }
         }
     }
 
