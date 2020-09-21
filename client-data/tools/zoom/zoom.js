@@ -58,7 +58,7 @@
     var testI = 0;
     function gesture(evt) {
         evt.preventDefault();
-        if (evt.scale < 1.2 && evt.scale > 0.8) {
+        if (evt.scale < 1.2 && evt.scale > 0.8 && false) {
             if (lastScreenXOnIos === null) {
                 lastScreenXOnIos = evt.screenX;
                 lastScreenYOnIos = evt.screenY;
