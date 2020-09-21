@@ -15,6 +15,7 @@ body {
 #canvas {
 	transform-origin: 0 0;
 	background-color: #fff;
+	touch-action: none;
 }
 
 .forErasing {
