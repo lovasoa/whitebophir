@@ -32,7 +32,7 @@
     var diffFromTouches = null;
     var lastScaleOnMac = 1;
     var lastScreenXOnIos = null;
-    var lastScreenYOnIons = null;
+    var lastScreenYOnIos = null;
     var origin = {
         scrollX: document.documentElement.scrollLeft,
         scrollY: document.documentElement.scrollTop,
@@ -59,14 +59,14 @@
     function gesture(evt) {
         evt.preventDefault();
         if (evt.scale < 1.2 && evt.scale > 0.8) {
-            if (lastScreenXOnIons === null) {
-                lastScreenXOnIons = evt.screenX;
-                lastScreenYOnIons = evt.screenY;
+            if (lastScreenXOnIos === null) {
+                lastScreenXOnIos = evt.screenX;
+                lastScreenYOnIos = evt.screenY;
             }
-            const newMoveX = evt.screenX - lastScreenXOnIons;
-            const newMoveY = evt.screenY - lastScreenYOnIons;
+            const newMoveX = evt.screenX - lastScreenXOnIos;
+            const newMoveY = evt.screenY - lastScreenYOnIos;
             lastScreenXOnIos = evt.screenX;
-            lastScreenYOnIons = evt.screenY;
+            lastScreenYOnIos = evt.screenY;
             window.scrollTo(document.documentElement.scrollLeft + newMoveX >> 0, document.documentElement.scrollTop + newMoveY >> 0);
         } else {
             if (false) {
@@ -86,7 +86,7 @@
         }
         if (evt.type === 'gestureend') {
             lastScreenXOnIos = null;
-            var lastScreenYOnIons = null;
+            lastScreenYOnIos = null;
         }
 
         // testI++;
