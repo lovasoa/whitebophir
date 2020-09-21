@@ -41,7 +41,8 @@
     };
     var pressed = false;
     var animation = null;
-    const diffForMoving = /iPad|iPhone|iPod/.test(navigator.platform) ? 100: 40;
+    const testLogEl = document.getElementById('testLog');
+    const diffForMoving = 40;
     const body = document;
     body.addEventListener("touchend", touchend);
     body.addEventListener("touchcancel", touchend);
@@ -52,10 +53,17 @@
     body.addEventListener('gesturechange', gesture);
     body.addEventListener('gestureend', gesture);
 
+    var testI = 0;
     function gesture(evt) {
         evt.preventDefault();
         animate(Tools.getScale() * (1 - lastScaleOnMac + evt.scale));
         console.log(evt.type);
+        testI++;
+        if (testI === 10) {
+            testLogEl.innerText = '';
+            testI = 0;
+        }
+        testLogEl.innerText = testLogEl.innerText + JSON.stringify({type: evt.type, screenX: evt.screenX, screenY: evt.screenY, scale: evt.scale}) + '\n';
         if (evt.type === 'gestureend') {
             lastScaleOnMac = 1;
         } else {
@@ -112,6 +120,7 @@
     function onKeyUp(evt) {
         if (evt.ctrlKey) ctrl_pressed = false;
     }
+
 
     function onwheel(evt) {
         evt.preventDefault();

@@ -13,9 +13,21 @@ body {
 }
 
 #canvas {
+	display: none;
 	transform-origin: 0 0;
 	background-color: #fff;
 	touch-action: none;
+}
+
+#testLog {
+	border: 3px solid green;
+	border-radius: 5px;
+	position: fixed;
+	top: 10px;
+	bottom: 10px;
+	left: 5px;
+	right: 5px;
+	background-color: #8FA2BC;
 }
 
 .forErasing {
