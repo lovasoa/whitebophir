@@ -65,17 +65,19 @@
             lastScreenYOnIons = evt.screenY;
             window.scrollTo(document.documentElement.scrollLeft + newMoveX >> 0, document.documentElement.scrollTop + newMoveY >> 0);
         } else {
-            var newScale = evt.scale;
-            if (newScale < 1) {
-                newScale = newScale + 0.2;
-            } else {
-                newScale = newScale - 0.2;
-            }
-            animate(Tools.getScale() * (1 - lastScaleOnMac + newScale));
-            if (evt.type === 'gestureend') {
-                lastScaleOnMac = 1;
-            } else {
-                lastScaleOnMac = evt.scale;
+            if (false) {
+                var newScale = evt.scale;
+                if (newScale < 1) {
+                    newScale = newScale + 0.2;
+                } else {
+                    newScale = newScale - 0.2;
+                }
+                animate(Tools.getScale() * (1 - lastScaleOnMac + newScale));
+                if (evt.type === 'gestureend') {
+                    lastScaleOnMac = 1;
+                } else {
+                    lastScaleOnMac = evt.scale;
+                }
             }
         }
 
