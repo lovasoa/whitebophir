@@ -30,6 +30,7 @@
     var lastY = null;
     var lastX = null;
     var diffFromTouches = null;
+    var lastScaleOnMac = 1;
     var origin = {
         scrollX: document.documentElement.scrollLeft,
         scrollY: document.documentElement.scrollTop,
@@ -58,8 +59,11 @@
     function gesture(evt) {
         evt.preventDefault();
         console.log('gesture start');
-        console.log(evt);
+        console.log(evt.scale);
         console.log('gesture end');
+        console.log('Scale * ' + Tools.getScale() * (1 - lastScaleOnMac + evt.scale))
+        animate(Tools.getScale() * (1 - lastScaleOnMac + evt.scale));
+        lastScaleOnMac = evt.scale;
         evt.stopPropagation();
         // animate(Tools.getScale() * evt.scale);
     }
