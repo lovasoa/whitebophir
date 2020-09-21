@@ -58,12 +58,20 @@
     var testI = 0;
     function gesture(evt) {
         evt.preventDefault();
-        if (evt.scale < 1.1 && evt.scale > 0.9) {
-            const newMoveX = 3;
-            const newMoveY = 3;
+        if (evt.scale < 1.2 && evt.scale > 0.8) {
+            const newMoveX = evt.screenX - lastScreenXOnIons;
+            const newMoveY = evt.screenY - lastScreenYOnIons;
+            lastScreenXOnIos = evt.screenX;
+            lastScreenYOnIons = evt.screenY;
             window.scrollTo(document.documentElement.scrollLeft + newMoveX >> 0, document.documentElement.scrollTop + newMoveY >> 0);
         } else {
-            animate(Tools.getScale() * (1 - lastScaleOnMac + evt.scale));
+            var newScale = evt.scale;
+            if (newScale < 1) {
+                newScale = newScale + 0.2;
+            } else {
+                newScale = newScale - 0.2;
+            }
+            animate(Tools.getScale() * (1 - lastScaleOnMac + newScale));
             if (evt.type === 'gestureend') {
                 lastScaleOnMac = 1;
             } else {
