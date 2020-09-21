@@ -41,6 +41,7 @@
     };
     var pressed = false;
     var animation = null;
+    const diffForMoving = /iPad|iPhone|iPod/.test(navigator.platform) ? 100: 40;
     const body = document;
     body.addEventListener("touchend", touchend);
     body.addEventListener("touchcancel", touchend);
@@ -50,22 +51,17 @@
     body.addEventListener('gesturestart', gesture);
     body.addEventListener('gesturechange', gesture);
     body.addEventListener('gestureend', gesture);
-    body.addEventListener('touchstart', function (evt) {
-        console.log('touchstart');
-        console.log(evt);
-        console.log('touchend');
-    });
 
     function gesture(evt) {
         evt.preventDefault();
-        console.log('gesture start');
-        console.log(evt.scale);
-        console.log('gesture end');
-        console.log('Scale * ' + Tools.getScale() * (1 - lastScaleOnMac + evt.scale))
         animate(Tools.getScale() * (1 - lastScaleOnMac + evt.scale));
-        lastScaleOnMac = evt.scale;
+        console.log(evt.type);
+        if (evt.type === 'gestureend') {
+            lastScaleOnMac = 1;
+        } else {
+            lastScaleOnMac = evt.scale;
+        }
         evt.stopPropagation();
-        // animate(Tools.getScale() * evt.scale);
     }
     function zoom(origin, scale) {
         var oldScale = origin.scale;
@@ -119,9 +115,6 @@
 
     function onwheel(evt) {
         evt.preventDefault();
-        console.log('onwheel start');
-        console.log(evt);
-        console.log('onwheel end');
         if (evt.ctrlKey && ctrl_pressed) {
             var scale = Tools.getScale();
             var x = evt.pageX / scale;
@@ -141,9 +134,6 @@
 
     Tools.board.addEventListener("touchmove", function ontouchmove(evt) {
         // 2-finger pan to zoom
-        console.log('touchmove start');
-        console.log(evt);
-        console.log('touchmove end');
         var touches = evt.touches;
         if (touches.length === 2) {
             if (diffFromTouches === null) {
@@ -151,8 +141,9 @@
                     evt.touches[0].pageX - evt.touches[1].pageX,
                     evt.touches[0].pageY - evt.touches[1].pageY);
             }
-            if ((diffFromTouches >> 0) - Math.hypot(evt.touches[0].pageX - evt.touches[1].pageX, evt.touches[0].pageY - evt.touches[1].pageY) >> 0 > 40 ||
-                (diffFromTouches >> 0) - Math.hypot(evt.touches[0].pageX - evt.touches[1].pageX, evt.touches[0].pageY - evt.touches[1].pageY) >> 0 < -40) {
+
+            if ((diffFromTouches >> 0) - Math.hypot(evt.touches[0].pageX - evt.touches[1].pageX, evt.touches[0].pageY - evt.touches[1].pageY) >> 0 > diffForMoving ||
+                (diffFromTouches >> 0) - Math.hypot(evt.touches[0].pageX - evt.touches[1].pageX, evt.touches[0].pageY - evt.touches[1].pageY) >> 0 < -diffForMoving) {
                 var x0 = touches[0].clientX, x1 = touches[1].clientX,
                     y0 = touches[0].clientY, y1 = touches[1].clientY,
                     dx = x0 - x1,
