@@ -46,9 +46,14 @@
     body.addEventListener("wheel", onwheel, { passive: false });
     body.addEventListener("keydown", onKeyDown);
     body.addEventListener("keyup", onKeyUp);
-    document.addEventListener('gesturestart', gesture);
-    document.addEventListener('gesturechange', gesture);
-    document.addEventListener('gestureend', gesture);
+    body.addEventListener('gesturestart', gesture);
+    body.addEventListener('gesturechange', gesture);
+    body.addEventListener('gestureend', gesture);
+    body.addEventListener('touchstart', function (evt) {
+        console.log('touchstart');
+        console.log(evt);
+        console.log('touchend');
+    });
 
     function gesture(evt) {
         evt.preventDefault;
