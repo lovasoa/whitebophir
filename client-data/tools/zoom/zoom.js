@@ -58,30 +58,32 @@
     var testI = 0;
     function gesture(evt) {
         evt.preventDefault();
-        if (evt.scale < 1.2 && evt.scale > 0.8 && false) {
-            if (lastScreenXOnIos === null) {
+        if (false) {
+            if (evt.scale < 1.2 && evt.scale > 0.8 && false) {
+                if (lastScreenXOnIos === null) {
+                    lastScreenXOnIos = evt.screenX;
+                    lastScreenYOnIos = evt.screenY;
+                }
+                const newMoveX = evt.screenX - lastScreenXOnIos;
+                const newMoveY = evt.screenY - lastScreenYOnIos;
                 lastScreenXOnIos = evt.screenX;
                 lastScreenYOnIos = evt.screenY;
-            }
-            const newMoveX = evt.screenX - lastScreenXOnIos;
-            const newMoveY = evt.screenY - lastScreenYOnIos;
-            lastScreenXOnIos = evt.screenX;
-            lastScreenYOnIos = evt.screenY;
-            window.scrollTo(document.documentElement.scrollLeft + newMoveX >> 0, document.documentElement.scrollTop + newMoveY >> 0);
-        } else {
-            var newScale = evt.scale;
-            if (newScale < 1) {
-                newScale = newScale + 0.2;
+                window.scrollTo(document.documentElement.scrollLeft + newMoveX >> 0, document.documentElement.scrollTop + newMoveY >> 0);
             } else {
-                newScale = newScale - 0.2;
+                var newScale = evt.scale;
+                if (newScale < 1) {
+                    newScale = newScale + 0.2;
+                } else {
+                    newScale = newScale - 0.2;
+                }
+                animate(Tools.getScale() * (1 - lastScaleOnMac + newScale));
+                lastScaleOnMac = evt.scale;
             }
-            animate(Tools.getScale() * (1 - lastScaleOnMac + newScale));
-            lastScaleOnMac = evt.scale;
-        }
-        if (evt.type === 'gestureend') {
-            lastScreenXOnIos = null;
-            lastScreenYOnIos = null;
-            lastScaleOnMac = 1;
+            if (evt.type === 'gestureend') {
+                lastScreenXOnIos = null;
+                lastScreenYOnIos = null;
+                lastScaleOnMac = 1;
+            }
         }
 
         // testI++;
