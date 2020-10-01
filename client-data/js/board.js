@@ -49,6 +49,8 @@ Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 
+Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
+
 Tools.socket = null;
 Tools.connect = function () {
 	var self = this;
@@ -106,7 +108,7 @@ Tools.HTML = {
 		};
 		this.addShortcut(toolShortcut, function () {
 			Tools.change(toolName);
-			document.activeElement.blur();
+			document.activeElement.blur && document.activeElement.blur();
 		});
 		return this.template.add(function (elem) {
 			elem.addEventListener("click", callback);
@@ -120,7 +122,7 @@ Tools.HTML = {
 				Tools.i18n.t(toolName) + " (" +
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")" +
-				(Tools.list[toolName].toggle ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
+				(Tools.list[toolName].secondary ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -128,6 +130,11 @@ Tools.HTML = {
 		var newTool = document.getElementById("toolID-" + newToolName);
 		if (oldTool) oldTool.classList.remove("curTool");
 		if (newTool) newTool.classList.add("curTool");
+	},
+	toggle: function (toolName, name, icon) {
+		var elem = document.getElementById("toolID-" + toolName);
+		elem.getElementsByClassName("tool-icon")[0].src = icon;
+		elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(name);
 	},
 	addStylesheet: function (href) {
 		//Adds a css stylesheet to the html or svg document
@@ -154,10 +161,17 @@ Tools.HTML = {
 
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
+Tools.isBlocked = function toolIsBanned(tool) {
+	if (tool.name.includes(",")) throw new Error("Tool Names must not contain a comma");
+	return Tools.server_config.BLOCKED_TOOLS.includes(tool.name);
+};
+
 /**
  * Register a new tool, without touching the User Interface
  */
 Tools.register = function registerTool(newTool) {
+	if (Tools.isBlocked(newTool)) return;
+
 	if (newTool.name in Tools.list) {
 		console.log("Tools.add: The tool '" + newTool.name + "' is already" +
 			"in the list. Updating it...");
@@ -182,12 +196,14 @@ Tools.register = function registerTool(newTool) {
 			newTool.draw(msg, false);
 		}
 	}
-}
+};
 
 /**
  * Add a new tool to the user interface
  */
 Tools.add = function (newTool) {
+	if (Tools.isBlocked(newTool)) return;
+
 	Tools.register(newTool);
 
 	if (newTool.stylesheet) {
@@ -203,7 +219,12 @@ Tools.change = function (toolName) {
 	var oldTool = Tools.curTool;
 	if (!newTool) throw new Error("Trying to select a tool that has never been added!");
 	if (newTool === oldTool) {
-		if (newTool.toggle) newTool.toggle();
+		if (newTool.secondary) {
+			newTool.secondary.active = !newTool.secondary.active;
+			var props = newTool.secondary.active ? newTool.secondary : newTool;
+			Tools.HTML.toggle(newTool.name, props.name, props.icon);
+			if (newTool.secondary.switch) newTool.secondary.switch();
+		}
 		return;
 	}
 	if (!newTool.oneTouch) {
@@ -244,15 +265,28 @@ Tools.addToolListeners = function addToolListeners(tool) {
 		var target = listener.target || Tools.board;
 		target.addEventListener(event, listener, { 'passive': false });
 	}
-}
+};
 
 Tools.removeToolListeners = function removeToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
 		var listener = tool.compiledListeners[event];
 		var target = listener.target || Tools.board;
 		target.removeEventListener(event, listener);
+		// also attempt to remove with capture = true in IE
+		if (Tools.isIE) target.removeEventListener(event, listener, true);
 	}
-}
+};
+
+(function () {
+	// Handle secondary tool switch with shift (key code 16)
+	function handleShift(active, evt) {
+		if (evt.keyCode === 16 && Tools.curTool.secondary && Tools.curTool.secondary.active !== active) {
+			Tools.change(Tools.curTool.name);
+		}
+	}
+	window.addEventListener("keydown", handleShift.bind(null, true));
+	window.addEventListener("keyup", handleShift.bind(null, false));
+})();
 
 Tools.send = function (data, toolName) {
 	toolName = toolName || Tools.curTool.name;
@@ -280,6 +314,7 @@ Tools.pendingMessages = {};
 function messageForTool(message) {
 	var name = message.tool,
 		tool = Tools.list[name];
+
 	if (tool) {
 		Tools.applyHooks(Tools.messageHooks, message);
 		tool.draw(message, false);
@@ -288,6 +323,11 @@ function messageForTool(message) {
 		//So we add it to the pending messages
 		if (!Tools.pendingMessages[name]) Tools.pendingMessages[name] = [message];
 		else Tools.pendingMessages[name].push(message);
+	}
+
+	if (message.tool !== 'Hand' && message.deltax != null && message.deltay != null) {
+		//this message has special info for the mover
+		messageForTool({ tool: 'Hand', type: 'update', deltax: message.deltax || 0, deltay: message.deltay || 0, id: message.id });
 	}
 }
 
@@ -340,8 +380,8 @@ function updateDocumentTitle() {
 	var scrollTimeout, lastStateUpdate = Date.now();
 
 	window.addEventListener("scroll", function onScroll() {
-		var x = window.scrollX / Tools.getScale(),
-			y = window.scrollY / Tools.getScale();
+		var x = document.documentElement.scrollLeft / Tools.getScale(),
+			y = document.documentElement.scrollTop / Tools.getScale();
 
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(function updateHistory() {
@@ -455,7 +495,7 @@ Tools.toolHooks = [
 
 		function wrapUnsetHover(f, toolName) {
 			return (function unsetHover(evt) {
-				document.activeElement && document.activeElement.blur();
+				document.activeElement && document.activeElement.blur && document.activeElement.blur();
 				return f(evt);
 			});
 		}
@@ -472,7 +512,7 @@ Tools.toolHooks = [
 			var release = compile(listeners.release),
 				releaseTouch = compileTouch(listeners.release);
 			compiled["mouseup"] = release;
-			compiled["mouseleave"] = release;
+			if (!Tools.isIE) compiled["mouseleave"] = release;
 			compiled["touchleave"] = releaseTouch;
 			compiled["touchend"] = releaseTouch;
 			compiled["touchcancel"] = releaseTouch;
@@ -500,7 +540,7 @@ Tools.generateUID = function (prefix, suffix) {
 
 Tools.createSVGElement = function createSVGElement(name, attrs) {
 	var elem = document.createElementNS(Tools.svg.namespaceURI, name);
-	if (typeof(attrs) !== "object") return elem;
+	if (typeof (attrs) !== "object") return elem;
 	Object.keys(attrs).forEach(function (key, i) {
 		elem.setAttributeNS(null, key, attrs[key]);
 	});
@@ -578,22 +618,10 @@ Tools.getOpacity = (function opacity() {
 	};
 })();
 
+
 //Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;
 Tools.svg.height.baseVal.value = document.body.clientHeight;
-
-/***********  Polyfills  ***********/
-if (!window.performance || !window.performance.now) {
-	window.performance = {
-		"now": Date.now
-	}
-}
-if (!Math.hypot) {
-	Math.hypot = function (x, y) {
-		//The true Math.hypot accepts any number of parameters
-		return Math.sqrt(x * x + y * y);
-	}
-}
 
 /**
  What does a "tool" object look like?

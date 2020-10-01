@@ -7,7 +7,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" type="text/css" href="../board.css" />
 	<script src="../socket.io/socket.io.js"></script>
-	<meta name="description" content="{{translations.tagline}}'" />
+	<meta name="description" content="{{translations.tagline}}" />
 	<meta name="keywords"
 		content="{{translations.collaborative_whiteboard}},online,draw,paint,shared,realtime,wbo,whitebophir" />
 	<link rel="apple-touch-icon" href="../favicon.svg">
@@ -20,6 +20,7 @@
 	{{#languages}}
 	<link rel="alternate" hreflang="{{.}}" href="{{../boardUriComponent}}?lang={{.}}" />
 	{{/languages}}
+	<script src="../polyfill.min.js"></script>
 </head>
 
 <body>
@@ -62,12 +63,12 @@
 					<span class="tool-icon">
 						<svg viewBox="0 0 8 8">
 							<pattern id="opacityPattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
-								<rect x=0 y=0 width=2 height=2 fill=black />
-								<rect x=2 y=2 width=2 height=2 fill=black />
-								<rect x=2 y=0 width=2 height=2 fill=#eeeeee />
-								<rect x=0 y=2 width=2 height=2 fill=#eeeeee />
+								<rect x=0 y=0 width=2 height=2 fill=black></rect>
+								<rect x=2 y=2 width=2 height=2 fill=black></rect>
+								<rect x=2 y=0 width=2 height=2 fill=#eeeeee></rect>
+								<rect x=0 y=2 width=2 height=2 fill=#eeeeee></rect>
 							</pattern>
-							<circle cx=4 cy=4 id="opacityIndicator" r=3.5 fill="url(#opacityPattern)" />
+							<circle cx=4 cy=4 id="opacityIndicator" r=3.5 fill="url(#opacityPattern)"></circle>
 						</svg>
 					</span>
 					<label class="tool-name slider" for="chooseOpacity">
@@ -86,6 +87,7 @@
 	<script src="../js/path-data-polyfill.js"></script>
 	<script src="../js/minitpl.js"></script>
 	<script src="../js/board.js"></script>
+	<script src="../tools/pencil/wbo_pencil_point.js"></script>
 	<script src="../tools/pencil/pencil.js"></script>
 	<script src="../tools/cursor/cursor.js"></script>
 	<script src="../tools/line/line.js"></script>
@@ -97,7 +99,7 @@
 	<script src="../tools/document/document.js"></script>
 	<script src="../tools/grid/grid.js"></script>
 	<script src="../tools/zoom/zoom.js"></script>
-	<script src="../js/canvascolor/canvascolor.min.js"></script>
+	<script src="../js/canvascolor.js"></script>
 </body>
 
 </html>

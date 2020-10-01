@@ -52,7 +52,7 @@ git clone git@github.com:lovasoa/whitebophir.git
 cd whitebophir
 ```
 
-Then [install node.js](https://nodejs.org/en/download/) (v10.0 or superior)
+Then [install node.js](https://nodejs.org/en/download/) (v8.0 or superior)
 if you don't have it already, then install WBO's dependencies:
 
 ```
@@ -68,9 +68,22 @@ This will run WBO directly on your machine, on port 5001, without any isolation 
 
 ### Running WBO on a subfolder
 
-By default, WBO launches his own web server and serves all of its content at the root of the server (on `/`).
+By default, WBO launches its own web server and serves all of its content at the root of the server (on `/`).
 If you want to make the server accessible with a different path like `https://your.domain.com/wbo/` you have to setup a reverse proxy.
 See instructions on our Wiki about [how to setup a reverse proxy for WBO](https://github.com/lovasoa/whitebophir/wiki/Setup-behind-Reverse-Proxies).
+
+## Translations
+
+WBO is available in multiple languages. The translations are stored in [`server/translations.json`](./server/translations.json). 
+If you feel like contributing to this collaborative project, you can [translate WBO into your own language](https://github.com/lovasoa/whitebophir/wiki/How-to-translate-WBO-into-your-own-language).
+
+## Configuration
+
+When you start a WBO server, it loads its configuration from several environment variables.
+You can see a list of these variables in [`configuration.js`](./server/configuration.js).
+Some important environment variables are :
+ - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
+ - `WBO_MAX_EMIT_COUNT` : the maximum number of messages that a client can send per unit of time. Increase this value if you want smoother drawings, at the expense of being susceptible to denial of service attacks if your server does not have enough processing power. By default, the units of this quantity are messages per 4 seconds, and the default value is `192`.
 
 ## Troubleshooting
 

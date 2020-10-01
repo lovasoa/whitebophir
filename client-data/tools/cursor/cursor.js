@@ -27,7 +27,7 @@
 (function () { // Code isolation
 
     // Allocate half of the maximum server updates to cursor updates
-    var MAX_CURSOR_UPDATES_INTERVAL_MS = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT * 2;
+    var MIN_CURSOR_UPDATES_INTERVAL_MS = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT * 2;
 
     var CURSOR_DELETE_AFTER_MS = 1000 * 5;
 
@@ -74,7 +74,7 @@
     function updateMarker() {
         if (!Tools.showMarker || !Tools.showMyCursor) return;
         var cur_time = Date.now();
-        if (cur_time - lastCursorUpdate > MAX_CURSOR_UPDATES_INTERVAL_MS &&
+        if (cur_time - lastCursorUpdate > MIN_CURSOR_UPDATES_INTERVAL_MS &&
             (sending || Tools.curTool.showMarker)) {
             Tools.drawAndSend(message, cursorTool);
             lastCursorUpdate = cur_time;
@@ -106,7 +106,8 @@
     function draw(message) {
         var cursor = getCursor("cursor-" + (message.socket || 'me'));
         cursor.style.transform = "translate(" + message.x + "px, " + message.y + "px)";
+        if (Tools.isIE) cursor.setAttributeNS(null, "transform", "translate(" + message.x + " " + message.y + ")");
         cursor.setAttributeNS(null, "fill", message.color);
         cursor.setAttributeNS(null, "r", message.size / 2);
     }
-})()
+})();

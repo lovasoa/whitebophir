@@ -1,0 +1,10 @@
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 70" >
+    <path id="arrow" stroke="black" fill="none" stroke-width="2" stroke-linecap="round"
+        d="M 8 28 h 54
+           M 8 42 h 54
+           M 57 22 L 70 35 L 57 48
+        " />
+    <use href="#arrow" transform="rotate(90 35 35)"/>
+    <use href="#arrow" transform="rotate(180 35 35)"/>
+    <use href="#arrow" transform="rotate(-90 35 35)"/>
+</svg>

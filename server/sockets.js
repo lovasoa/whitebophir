@@ -97,6 +97,11 @@ function socketConnection(socket) {
 			return;
 		}
 
+    if (!message.data.tool || config.BLOCKED_TOOLS.includes(message.data.tool)) {
+			log('BLOCKED MESSAGE', message.data);
+			return;
+		}
+    
 		var boardData;
 		if (message.data.type === "doc") {
 			boardData = await getBoard(boardName);
@@ -117,7 +122,6 @@ function socketConnection(socket) {
 
 			if (boardData.board[message.data.id].type === "doc") {
 				boardData.existingDocuments -= 1;
-			}
 		}
 
 		// Save the message in the board
@@ -159,7 +163,6 @@ async function saveHistory(boardName, message) {
 			if (id) board.delete(id);
 			break;
 		case "update":
-			delete message.type;
 			if (id) board.update(id, message);
 			break;
 		case "child":

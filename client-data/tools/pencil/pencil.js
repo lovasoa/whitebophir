@@ -26,6 +26,14 @@
 
 (function () { //Code isolation
 
+	// Allocate the full maximum server update rate to pencil messages.
+	// This feels a bit risky in terms of dropped messages, but any less
+	// gives terrible results with the default parameters.  In practice it
+	// seems to work, either because writing tends to happen in bursts, or
+	// maybe because the messages are sent when the time interval is *greater*
+	// than this?
+	var MIN_PENCIL_INTERVAL_MS = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT;
+
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
 		lastTime = performance.now(); //The time at which the last point was drawn
@@ -48,9 +56,9 @@
 		Tools.drawAndSend({
 			'type': 'line',
 			'id': curLineId,
-			'color': Tools.getColor(),
+			'color': (pencilTool.secondary.active ? "#ffffff" : Tools.getColor()),
 			'size': Tools.getSize(),
-			'opacity': Tools.getOpacity()
+			'opacity': (pencilTool.secondary.active ? 1 : Tools.getOpacity()),
 		});
 
 		//Immediatly add a point to the line
@@ -60,21 +68,26 @@
 	function continueLine(x, y, evt) {
 		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
-		if (curLineId !== "" && performance.now() - lastTime > 70) {
+		if (curLineId !== "" && performance.now() - lastTime > MIN_PENCIL_INTERVAL_MS) {
 			Tools.drawAndSend(new PointMessage(x, y));
 			lastTime = performance.now();
 		}
 		if (evt) evt.preventDefault();
 	}
 
-	function stopLine(x, y) {
+	function stopLineAt(x, y) {
 		//Add a last point to the line
 		continueLine(x, y);
+		stopLine();
+	}
+
+	function stopLine() {
 		curLineId = "";
 	}
 
 	var renderingLine = {};
 	function draw(data) {
+		Tools.drawingEvent = true;
 		switch (data.type) {
 			case "line":
 				renderingLine = createLine(data);
@@ -96,11 +109,6 @@
 		}
 	}
 
-	function dist(x1, y1, x2, y2) {
-		//Returns the distance between (x1,y1) and (x2,y2)
-		return Math.hypot(x2 - x1, y2 - y1);
-	}
-
 	var pathDataCache = {};
 	function getPathData(line) {
 		var pathData = pathDataCache[line.id];
@@ -112,63 +120,10 @@
 	}
 
 	var svg = Tools.svg;
+
 	function addPoint(line, x, y) {
-		var pts = getPathData(line), //The points that are already in the line as a PathData
-			nbr = pts.length; //The number of points already in the line
-		switch (nbr) {
-			case 0: //The first point in the line
-				//If there is no point, we have to start the line with a moveTo statement
-				npoint = { type: "M", values: [x, y] };
-				break;
-			case 1: //There is only one point.
-				//Draw a curve that is segment between the old point and the new one
-				npoint = {
-					type: "C", values: [
-						pts[0].values[0], pts[0].values[1],
-						x, y,
-						x, y,
-					]
-				};
-				break;
-			default: //There are at least two points in the line
-				//We add the new point, and smoothen the line
-				var ANGULARITY = 3; //The lower this number, the smoother the line
-				var prev_values = pts[nbr - 1].values; // Previous point
-				var ante_values = pts[nbr - 2].values; // Point before the previous one
-				var prev_x = prev_values[prev_values.length - 2];
-				var prev_y = prev_values[prev_values.length - 1];
-				var ante_x = ante_values[ante_values.length - 2];
-				var ante_y = ante_values[ante_values.length - 1];
-
-
-				//We don't want to add the same point twice consecutively
-				if ((prev_x == x && prev_y == y)
-					|| (ante_x == x && ante_y == y)) return;
-
-				var vectx = x - ante_x,
-					vecty = y - ante_y;
-				var norm = Math.hypot(vectx, vecty);
-				var dist1 = dist(ante_x, ante_y, prev_x, prev_y) / norm,
-					dist2 = dist(x, y, prev_x, prev_y) / norm;
-				vectx /= ANGULARITY;
-				vecty /= ANGULARITY;
-				//Create 2 control points around the last point
-				var cx1 = prev_x - dist1 * vectx,
-					cy1 = prev_y - dist1 * vecty, //First control point
-					cx2 = prev_x + dist2 * vectx,
-					cy2 = prev_y + dist2 * vecty; //Second control point
-				prev_values[2] = cx1;
-				prev_values[3] = cy1;
-
-				npoint = {
-					type: "C", values: [
-						cx2, cy2,
-						x, y,
-						x, y,
-					]
-				};
-		}
-		pts.push(npoint);
+		var pts = getPathData(line);
+		pts = wboPencilPoint(pts, x, y);
 		line.setPathData(pts);
 	}
 
@@ -184,18 +139,26 @@
 		return line;
 	}
 
-	Tools.add({
+
+	var pencilTool = {
 		"name": "Pencil",
 		"shortcut": "p",
 		"listeners": {
 			"press": startLine,
 			"move": continueLine,
-			"release": stopLine,
+			"release": stopLineAt,
 		},
 		"draw": draw,
+		"secondary": {
+			"name": "White-out",
+			"icon": "tools/pencil/whiteout_tape.svg",
+			"active": false,
+			"switch": stopLine,
+		},
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
 		"icon": "tools/pencil/icon.svg",
 		"stylesheet": "tools/pencil/pencil.css"
-	});
+	};
+	Tools.add(pencilTool);
 
 })(); //End of code isolation
