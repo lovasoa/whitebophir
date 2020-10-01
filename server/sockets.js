@@ -97,7 +97,7 @@ function socketConnection(socket) {
 			return;
 		}
 
-    if (!message.data.tool || config.BLOCKED_TOOLS.includes(message.data.tool)) {
+    		if (!message.data.tool || config.BLOCKED_TOOLS.includes(message.data.tool)) {
 			log('BLOCKED MESSAGE', message.data);
 			return;
 		}
@@ -122,6 +122,7 @@ function socketConnection(socket) {
 
 			if (boardData.board[message.data.id].type === "doc") {
 				boardData.existingDocuments -= 1;
+			}
 		}
 
 		// Save the message in the board
