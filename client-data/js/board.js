@@ -125,10 +125,9 @@ Tools.HTML = {
 				(Tools.list[toolName].secondary ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
 			if(Tools.list[toolName].secondary) {
 				elem.classList.add('hasSecondary');
-				var secondaryIcon = toolIconElem.cloneNode();
-				secondaryIcon.classList.add("secondaryIcon");
+				var secondaryIcon = elem.getElementsByClassName('secondaryIcon')[0];
 				secondaryIcon.src = Tools.list[toolName].secondary.icon;
-				elem.appendChild(secondaryIcon);
+				secondaryIcon.style = "display:block;";
 				toolIconElem.classList.add("primaryIcon");
 			}
 		});
