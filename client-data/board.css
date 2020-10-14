@@ -196,7 +196,12 @@ html, body, svg {
 	margin-left:0px;
 }
 
+#menu .tool .tool-icon.secondaryIcon{
+	display: none;
+}
+
 #menu .tool.hasSecondary .tool-icon.secondaryIcon{
+	display: block;
 	position: absolute;
     bottom: 0px;
     left: 26px;

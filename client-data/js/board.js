@@ -127,7 +127,6 @@ Tools.HTML = {
 				elem.classList.add('hasSecondary');
 				var secondaryIcon = elem.getElementsByClassName('secondaryIcon')[0];
 				secondaryIcon.src = Tools.list[toolName].secondary.icon;
-				secondaryIcon.style = "display:block;";
 				toolIconElem.classList.add("primaryIcon");
 			}
 		});
