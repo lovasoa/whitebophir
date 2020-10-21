@@ -88,6 +88,7 @@ html, body, svg {
 }
 
 #menu .tool {
+	position: relative;
 	-webkit-touch-callout: none; /* iOS Safari */
 	-webkit-user-select: none; /* Safari */
 	-khtml-user-select: none; /* Konqueror HTML */
@@ -188,6 +189,24 @@ html, body, svg {
     vertical-align: top;
     padding: 6px;
 
+}
+
+#menu .tool.hasSecondary .tool-icon{
+	margin-top:0px;
+	margin-left:0px;
+}
+
+#menu .tool .tool-icon.secondaryIcon{
+	display: none;
+}
+
+#menu .tool.hasSecondary .tool-icon.secondaryIcon{
+	display: block;
+	position: absolute;
+    bottom: 0px;
+    left: 26px;
+    width: 12px;
+    height: 12px;
 }
 
 input {

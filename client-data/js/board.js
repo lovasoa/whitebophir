@@ -123,6 +123,12 @@ Tools.HTML = {
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")" +
 				(Tools.list[toolName].secondary ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
+			if(Tools.list[toolName].secondary) {
+				elem.classList.add('hasSecondary');
+				var secondaryIcon = elem.getElementsByClassName('secondaryIcon')[0];
+				secondaryIcon.src = Tools.list[toolName].secondary.icon;
+				toolIconElem.classList.add("primaryIcon");
+			}
 		});
 	},
 	changeTool: function (oldToolName, newToolName) {
@@ -133,6 +139,16 @@ Tools.HTML = {
 	},
 	toggle: function (toolName, name, icon) {
 		var elem = document.getElementById("toolID-" + toolName);
+
+		// Change secondary icon
+		var primaryIcon = elem.getElementsByClassName("primaryIcon")[0];
+		var secondaryIcon = elem.getElementsByClassName("secondaryIcon")[0];
+		var primaryIconSrc = primaryIcon.src;
+		var secondaryIconSrc = secondaryIcon.src;
+		primaryIcon.src = secondaryIconSrc;
+		secondaryIcon.src = primaryIconSrc;
+
+		// Change primary icon
 		elem.getElementsByClassName("tool-icon")[0].src = icon;
 		elem.getElementsByClassName("tool-name")[0].textContent = Tools.i18n.t(name);
 	},
