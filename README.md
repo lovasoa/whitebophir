@@ -33,7 +33,7 @@ An official docker image for WBO is hosted on dockerhub as [`lovasoa/wbo`](https
 You can run it with the following bash command :
 
 ```
-docker run -it --publish 5001:80 --volume $(pwd)/wbo-boards:/opt/app/server-data lovasoa/wbo:latest
+docker run -it --publish 5001:80 --volume "$(pwd)/wbo-boards:/opt/app/server-data" lovasoa/wbo:latest
 ```
 
 This will run WBO :
