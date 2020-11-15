@@ -30,7 +30,7 @@ If you have your own web server, and want to run a private instance of WBO on it
 If you use the [docker](https://www.docker.com/) containerization service, you can easily run WBO as a container. 
 An official docker image for WBO is hosted on dockerhub as [`lovasoa/wbo`](https://hub.docker.com/repository/docker/lovasoa/wbo).
 
-You can run it with the following command :
+You can run it with the following bash command :
 
 ```
 docker run -it --publish 5001:80 --volume $(pwd)/wbo-boards:/opt/app/server-data lovasoa/wbo:latest
