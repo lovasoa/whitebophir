@@ -38,7 +38,7 @@ docker run -it --publish 5001:80 --volume "$(pwd)/wbo-boards:/opt/app/server-dat
 
 This will run WBO :
  - on port 5001
- - persisting the user data in `$(pwd)/wbo-boards`
+ - persisting the user data in a folder named `wbo-boards` in the current working directory.
 
 You can then access WBO at `http://localhost:5001`.
 
