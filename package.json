@@ -1,30 +1,30 @@
 {
-   "name": "whitebophir",
-   "description": "Online collaborative whiteboard",
-   "version": "1.6.4",
-   "keywords": [
-      "collaborative",
-      "whiteboard"
-   ],
-   "license": "AGPL-3.0-or-later",
-   "dependencies": {
-      "accept-language-parser": "^1.5.0",
-      "handlebars": "^4.7.6",
-      "polyfill-library": "^3.95.0",
-      "serve-static": "^1.14.1",
-      "socket.io": "^2.3.0"
-   },
-   "scripts": {
-      "start": "node ./server/server.js",
-      "test": "nightwatch tests"
-   },
-   "main": "./server/server.js",
-   "repository": {
-      "type": "git",
-      "url": "http://github.com/lovasoa/whitebophir.git"
-   },
-   "devDependencies": {
-      "geckodriver": "^1.20.0",
-      "nightwatch": "^1.3.7"
-   }
+  "name": "whitebophir",
+  "description": "Online collaborative whiteboard",
+  "version": "1.6.5",
+  "keywords": [
+    "collaborative",
+    "whiteboard"
+  ],
+  "license": "AGPL-3.0-or-later",
+  "dependencies": {
+    "accept-language-parser": "^1.5.0",
+    "handlebars": "^4.7.6",
+    "polyfill-library": "^3.97.0",
+    "serve-static": "^1.14.1",
+    "socket.io": "^3.0.1"
+  },
+  "scripts": {
+    "start": "node ./server/server.js",
+    "test": "nightwatch tests"
+  },
+  "main": "./server/server.js",
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/lovasoa/whitebophir.git"
+  },
+  "devDependencies": {
+    "geckodriver": "^1.20.0",
+    "nightwatch": "^1.5.1"
+  }
 }

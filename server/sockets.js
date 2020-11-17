@@ -37,6 +37,10 @@ function getBoard(name) {
 	}
 }
 
+/**
+ * Executes on every new connection
+ * @param {iolib.Socket} socket 
+ */
 function socketConnection(socket) {
 
 	async function joinBoard(name) {
@@ -89,7 +93,7 @@ function socketConnection(socket) {
 		var boardName = message.board || "anonymous";
 		var data = message.data;
 
-		if (!socket.rooms.hasOwnProperty(boardName)) socket.join(boardName);
+		if (!socket.rooms.has(boardName)) socket.join(boardName);
 
 		if (!data) {
 			console.warn("Received invalid message: %s.", JSON.stringify(message));
@@ -109,7 +113,7 @@ function socketConnection(socket) {
 	}));
 
 	socket.on('disconnecting', function onDisconnecting(reason) {
-		Object.keys(socket.rooms).forEach(async function disconnectFrom(room) {
+		socket.rooms.forEach(async function disconnectFrom(room) {
 			if (boards.hasOwnProperty(room)) {
 				var board = await boards[room];
 				board.users.delete(socket.id);
