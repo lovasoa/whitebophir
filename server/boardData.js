@@ -97,6 +97,14 @@ BoardData.prototype.delete = function (id) {
 	this.delaySave();
 };
 
+/** Removes all data from the board
+ */
+BoardData.prototype.deleteall = function () {
+	//KISS
+	this.board = [];
+	this.delaySave();
+};
+
 /** Reads data from the board
  * @param {string} id - Identifier of the element to get.
  * @returns {object} The element with the given id, or undefined if no element has this id

@@ -143,6 +143,9 @@ async function saveHistory(boardName, message) {
 		case "delete":
 			if (id) board.delete(id);
 			break;
+		case "deleteall":
+			board.deleteall();
+			break;
 		case "update":
 			if (id) board.update(id, message);
 			break;
