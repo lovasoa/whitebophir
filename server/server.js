@@ -81,9 +81,10 @@ function handleRequest(request, response) {
 	switch (parts[0]) {
 		case "boards":
 			// "boards" refers to the root directory
-			if (parts.length === 1 && parsedUrl.query.board) {
+			if (parts.length === 1) {
 				// '/boards?board=...' This allows html forms to point to boards
-				var headers = { Location: 'boards/' + encodeURIComponent(parsedUrl.query.board) };
+				var boardName = parsedUrl.query.board || "anonymous";
+				var headers = { Location: 'boards/' + encodeURIComponent(boardName) };
 				response.writeHead(301, headers);
 				response.end();
 			} else if (parts.length === 2 && request.url.indexOf('.') === -1) {
