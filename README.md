@@ -48,7 +48,7 @@ Alternatively, you can run the code with [node.js](https://nodejs.org/) directly
 
 First, download the sources:
 ```
-git clone git@github.com:lovasoa/whitebophir.git
+git clone https://github.com/lovasoa/whitebophir.git
 cd whitebophir
 ```
 
