@@ -4,6 +4,10 @@ html, body, svg {
 	font-family: Liberation sans, sans-serif;
 }
 
+#board {
+	overflow: hidden;
+}
+
 #canvas {
 	transform-origin: 0 0;
 }

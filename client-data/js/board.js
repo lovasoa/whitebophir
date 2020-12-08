@@ -429,7 +429,7 @@ function updateDocumentTitle() {
 //List of hook functions that will be applied to messages before sending or drawing them
 function resizeCanvas(m) {
 	//Enlarge the canvas whenever something is drawn near its border
-	var x = m.x | 0, y = m.y | 0
+	var x = m.x | 0, y = m.y | 0;
 	var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
 	if (x > Tools.svg.width.baseVal.value - 2000) {
 		Tools.svg.width.baseVal.value = Math.min(x + 2000, MAX_BOARD_SIZE);
@@ -437,6 +437,14 @@ function resizeCanvas(m) {
 	if (y > Tools.svg.height.baseVal.value - 2000) {
 		Tools.svg.height.baseVal.value = Math.min(y + 2000, MAX_BOARD_SIZE);
 	}
+	resizeBoard();
+}
+
+function resizeBoard() {
+	// Update board container size
+	var board = document.getElementById("board");
+	board.style.width = Tools.svg.width.baseVal.value * Tools.getScale() + "px";
+	board.style.height = Tools.svg.height.baseVal.value * Tools.getScale() + "px";
 }
 
 function updateUnreadCount(m) {
@@ -460,10 +468,10 @@ Tools.setScale = function setScale(scale) {
 	}, 1000);
 	Tools.scale = scale;
 	return scale;
-}
+};
 Tools.getScale = function getScale() {
 	return Tools.scale;
-}
+};
 
 //List of hook functions that will be applied to tools before adding them
 Tools.toolHooks = [
