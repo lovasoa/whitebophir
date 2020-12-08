@@ -430,12 +430,11 @@ function updateDocumentTitle() {
 function resizeCanvas(m) {
 	//Enlarge the canvas whenever something is drawn near its border
 	var x = m.x | 0, y = m.y | 0
-	var MAX_BOARD_SIZE = 65536; // Maximum value for any x or y on the board
 	if (x > Tools.svg.width.baseVal.value - 2000) {
-		Tools.svg.width.baseVal.value = Math.min(x + 2000, MAX_BOARD_SIZE);
+		Tools.svg.width.baseVal.value = Math.min(x + 2000, Tools.server_config.MAX_BOARD_SIZE_X);
 	}
 	if (y > Tools.svg.height.baseVal.value - 2000) {
-		Tools.svg.height.baseVal.value = Math.min(y + 2000, MAX_BOARD_SIZE);
+		Tools.svg.height.baseVal.value = Math.min(y + 2000, Tools.server_config.MAX_BOARD_SIZE);
 	}
 }
 
@@ -451,7 +450,8 @@ Tools.scale = 1.0;
 var scaleTimeout = null;
 Tools.setScale = function setScale(scale) {
 	if (isNaN(scale)) scale = 1;
-	scale = Math.max(0.1, Math.min(10, scale));
+	var max_scale = document.documentElement.clientWidth/Tools.server_config.MAX_BOARD_SIZE_X;
+	scale = Math.max(0.1, Math.min(10, max_scale, scale));
 	Tools.svg.style.willChange = 'transform';
 	Tools.svg.style.transform = 'scale(' + scale + ')';
 	clearTimeout(scaleTimeout);
