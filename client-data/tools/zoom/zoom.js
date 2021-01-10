@@ -81,24 +81,29 @@
 
     function onwheel(evt) {
         evt.preventDefault();
+        var multiplier =
+            (evt.deltaMode === WheelEvent.DOM_DELTA_LINE) ? 30 :
+                (evt.deltaMode === WheelEvent.DOM_DELTA_PAGE) ? 1000 :
+                    1;
+        var deltaX = evt.deltaX * multiplier, deltaY = evt.deltaY * multiplier;
         if (!evt.ctrlKey) {
             // zoom
             var scale = Tools.getScale();
             var x = evt.pageX / scale;
             var y = evt.pageY / scale;
             setOrigin(x, y, evt, false);
-            animate((1 - ((evt.deltaY > 0) - (evt.deltaY < 0)) * 0.25) * Tools.getScale());
+            animate((1 - deltaY / 800) * Tools.getScale());
         } else if (evt.altKey) {
             // make finer changes if shift is being held
             var change = evt.shiftKey ? 1 : 5;
             // change tool size
-            Tools.setSize(Tools.getSize() - ((evt.deltaY > 0) - (evt.deltaY < 0)) * change);
+            Tools.setSize(Tools.getSize() - deltaY / 100 * change);
         } else if (evt.shiftKey) {
             // scroll horizontally
-            window.scrollTo(document.documentElement.scrollLeft + evt.deltaY, document.documentElement.scrollTop + evt.deltaX);
+            window.scrollTo(document.documentElement.scrollLeft + deltaY, document.documentElement.scrollTop + deltaX);
         } else {
             // regular scrolling
-            window.scrollTo(document.documentElement.scrollLeft + evt.deltaX, document.documentElement.scrollTop + evt.deltaY);
+            window.scrollTo(document.documentElement.scrollLeft + deltaX, document.documentElement.scrollTop + deltaY);
         }
     }
     Tools.board.addEventListener("wheel", onwheel, { passive: false });
@@ -166,7 +171,7 @@
 
     var zoomTool = {
         "name": "Zoom",
-		"shortcut": "z",
+        "shortcut": "z",
         "listeners": {
             "press": press,
             "move": move,
