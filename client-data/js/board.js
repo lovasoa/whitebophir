@@ -396,8 +396,9 @@ function updateDocumentTitle() {
 	var scrollTimeout, lastStateUpdate = Date.now();
 
 	window.addEventListener("scroll", function onScroll() {
-		var x = document.documentElement.scrollLeft / Tools.getScale(),
-			y = document.documentElement.scrollTop / Tools.getScale();
+		var scale = Tools.getScale();
+		var x = document.documentElement.scrollLeft / scale,
+			y = document.documentElement.scrollTop / scale;
 
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(function updateHistory() {
