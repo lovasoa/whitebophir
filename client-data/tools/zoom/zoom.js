@@ -81,7 +81,7 @@
 
     function onwheel(evt) {
         evt.preventDefault();
-        if (evt.ctrlKey || Tools.curTool === zoomTool) {
+        if (!evt.ctrlKey) {
             // zoom
             var scale = Tools.getScale();
             var x = evt.pageX / scale;
