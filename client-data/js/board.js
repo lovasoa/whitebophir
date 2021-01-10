@@ -123,7 +123,7 @@ Tools.HTML = {
 				Tools.i18n.t("keyboard shortcut") + ": " +
 				toolShortcut + ")" +
 				(Tools.list[toolName].secondary ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
-			if(Tools.list[toolName].secondary) {
+			if (Tools.list[toolName].secondary) {
 				elem.classList.add('hasSecondary');
 				var secondaryIcon = elem.getElementsByClassName('secondaryIcon')[0];
 				secondaryIcon.src = Tools.list[toolName].secondary.icon;
@@ -646,17 +646,17 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 /**
  What does a "tool" object look like?
  newtool = {
- 	"name" : "SuperTool",
- 	"listeners" : {
- 		"press" : function(x,y,evt){...},
- 		"move" : function(x,y,evt){...},
-  		"release" : function(x,y,evt){...},
- 	},
- 	"draw" : function(data, isLocal){
- 		//Print the data on Tools.svg
- 	},
- 	"onstart" : function(oldTool){...},
- 	"onquit" : function(newTool){...},
- 	"stylesheet" : "style.css",
+	  "name" : "SuperTool",
+	  "listeners" : {
+			"press" : function(x,y,evt){...},
+			"move" : function(x,y,evt){...},
+			"release" : function(x,y,evt){...},
+	  },
+	  "draw" : function(data, isLocal){
+			//Print the data on Tools.svg
+	  },
+	  "onstart" : function(oldTool){...},
+	  "onquit" : function(newTool){...},
+	  "stylesheet" : "style.css",
 }
 */
