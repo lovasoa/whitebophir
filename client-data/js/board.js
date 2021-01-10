@@ -426,7 +426,6 @@ function updateDocumentTitle() {
 	window.addEventListener("DOMContentLoaded", setScrollFromHash, false);
 })();
 
-//List of hook functions that will be applied to messages before sending or drawing them
 function resizeCanvas(m) {
 	//Enlarge the canvas whenever something is drawn near its border
 	var x = m.x | 0, y = m.y | 0
@@ -445,6 +444,7 @@ function updateUnreadCount(m) {
 	}
 }
 
+// List of hook functions that will be applied to messages before sending or drawing them
 Tools.messageHooks = [resizeCanvas, updateUnreadCount];
 
 Tools.scale = 1.0;
