@@ -64,7 +64,11 @@ Finally, you can start the server:
 PORT=5001 npm start
 ```
 
-This will run WBO directly on your machine, on port 5001, without any isolation from the other services.
+This will run WBO directly on your machine, on port 5001, without any isolation from the other services. You can also use an invokation like
+```
+PORT=5001 HOST=127.0.0.1 npm start
+```
+to make whitebophir only listen on the loopback device. This is useful if you want to put whitebophir behind a reverse proxy.
 
 ### Running WBO on a subfolder
 

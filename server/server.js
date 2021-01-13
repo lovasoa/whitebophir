@@ -22,7 +22,7 @@ if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {
 
 var io = sockets.start(app);
 
-app.listen(config.PORT);
+app.listen(config.PORT, config.HOST);
 log("server started", { port: config.PORT });
 
 var CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
