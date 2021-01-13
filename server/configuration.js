@@ -5,6 +5,11 @@ module.exports = {
     /** Port on which the application will listen */
     PORT: parseInt(process.env['PORT']) || 8080,
 
+    /** Host on which the application will listen (defaults to undefined,
+        hence listen on all interfaces on all IP addresses, but could also be
+        '127.0.0.1' **/
+    HOST: process.env['HOST'] || undefined,
+
     /** Path to the directory where boards will be saved by default */
     HISTORY_DIR: process.env['WBO_HISTORY_DIR'] || path.join(app_root, "server-data"),
 
