@@ -13,7 +13,7 @@ var app = require('http').createServer(handler)
 	, check_output_directory = require("./check_output_directory.js");
 
 
-var MIN_NODE_VERSION = 8.0;
+var MIN_NODE_VERSION = 10.0;
 
 if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {
 	console.warn(
