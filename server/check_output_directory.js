@@ -27,10 +27,8 @@ async function get_error(directory) {
             `user with UID ${uid} has access to them. This can be achieved by running the command: chown ${uid}:${gid} on the directory`;
     }
     const fileChecks = [];
-    const dir = fs.opendirSync(directory);
-    while (true) {
-        const elem = await dir.read();
-        if (!elem) break;
+    const files = await fs.promises.readdir(directory, {withFileTypes: true});
+    for (const elem of files) {
         if (/^board-(.*)\.json$/.test(elem.name)) {
             const elemPath = path.join(directory, elem.name);
             if (!elem.isFile()) return `contains a board file named "${elemPath}" which is not a normal file`
@@ -38,12 +36,11 @@ async function get_error(directory) {
                 .catch(function () { return elemPath }))
         }
     }
-    dir.closeSync();
     const errs = (await Promise.all(fileChecks)).filter(function (x) { return x });
     if (errs.length > 0) {
         return `contains the following board files that are not readable and writable by the current user: "` +
             errs.join('", "') +
-            `". Please make all board files accessible with chown 1000:1000.`
+            `". Please make all board files accessible with chown 1000:1000`
     }
 }
 
