@@ -9,7 +9,8 @@ var app = require('http').createServer(handler)
 	, createSVG = require("./createSVG.js")
 	, templating = require("./templating.js")
 	, config = require("./configuration.js")
-	, polyfillLibrary = require('polyfill-library');
+	, polyfillLibrary = require('polyfill-library')
+	, check_output_directory = require("./check_output_directory.js");
 
 
 var MIN_NODE_VERSION = 8.0;
@@ -20,7 +21,9 @@ if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {
 		", wbo requires at least " + MIN_NODE_VERSION + " !!!");
 }
 
-var io = sockets.start(app);
+check_output_directory(config.HISTORY_DIR);
+
+sockets.start(app);
 
 app.listen(config.PORT, config.HOST);
 log("server started", { port: config.PORT });
