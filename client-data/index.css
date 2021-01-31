@@ -157,7 +157,7 @@ footer a:hover {
 }
 
 .lang-selector:hover ul {
-	max-height: 300px;
+	max-height: 600px;
 	box-shadow: 2px 2px 10px #666;
 	border: 0;
 }
