@@ -54,6 +54,17 @@
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
 		if (erasing && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
+			// search for a parent that is a MathElement. If one is found then act on that instead.
+			var a = target;
+			var els = [];
+			while (a) {
+				els.unshift(a);
+				a = a.parentElement;
+			}
+			var parentMathematics = els.find(el => el.getAttribute("class") === "MathElement");
+			if ((parentMathematics) && parentMathematics.tagName === "svg") {
+				target = parentMathematics;
+			}
 			msg.id = target.id;
 			Tools.drawAndSend(msg);
 		}

@@ -17,7 +17,7 @@ function htmlspecialchars(str) {
 }
 
 function renderPath(el, pathstring) {
-	return '<path ' +
+	return '<path class="nofill" ' +
 		(el.id ?
 			('id="' + htmlspecialchars(el.id) + '" ') : '') +
 		'stroke-width="' + (el.size | 0) + '" ' +
@@ -47,6 +47,22 @@ const Tools = {
 	/**
 	 * @return {string}
 	 */
+	"Mathematics": function (el) {
+		return '<svg ' +
+			'id="' + htmlspecialchars(el.id || "m") + '" ' +
+			'class="MathElement" ' +
+			'x="' + (el.x | 0) + '" ' +
+			'y="' + (el.y | 0) + '" ' +
+			'aria-label="' + htmlspecialchars(el.txt || "TeX not found") + '" ' +
+			'width="' + (el.mWidth || 0) + '" ' +
+			'height="' + (el.mHeight || 0) + '" ' +
+			'viewBox="' + (el.mViewBox || 0) + '" ' +
+			(el.deltax || el.deltay ? ('transform="translate(' + (el.deltax || 0) + ',' + (el.deltay || 0) + ')"') : '') +
+			'>' + (el.mInnerHTML || '') + '</svg>';
+	},
+	/**
+	 * @return {string}
+	 */
 	"Pencil": function (el) {
 		if (!el._children) return "";
 		let pts = el._children.reduce(function (pts, point) {
@@ -61,7 +77,7 @@ const Tools = {
 	 * @return {string}
 	 */
 	"Rectangle": function (el) {
-		return '<rect ' +
+		return '<rect class="nofill" ' +
 			(el.id ?
 				('id="' + htmlspecialchars(el.id) + '" ') : '') +
 			'x="' + (el.x || 0) + '" ' +
@@ -114,11 +130,15 @@ async function toSVG(obj, writeable) {
 	}, [margin, margin]);
 	writeable.write(
 		'<svg xmlns="http://www.w3.org/2000/svg" version="1.1" ' +
+		'xmlns:xlink="http://www.w3.org/1999/xlink" ' +
 		'width="' + dim[0] + '" height="' + dim[1] + '">' +
 		'<defs><style type="text/css"><![CDATA[' +
-		'text {font-family:"Arial"}' +
-		'path {fill:none;stroke-linecap:round;stroke-linejoin:round;}' +
-		'rect {fill:none}' +
+		'text {font-family:"Arial", "Helvetica", sans-serif; user-select:none; -moz-user-select:none;}' +
+		'path {stroke-linecap:round;stroke-linejoin:round;}' +
+		'path.nofill {fill:none}' +
+		'rect.nofill {fill:none}' +
+		'ellipse.nofill {fill:none}' +
+		'line.nofill {fill:none}' +
 		']]></style></defs>'
 	);
 	await Promise.all(elems.map(async function (elem) {

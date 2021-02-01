@@ -33,8 +33,20 @@
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
 		if (!evt.target || !Tools.drawingArea.contains(evt.target)) return;
-		var tmatrix = get_translate_matrix(evt.target);
-		selected = { x: x - tmatrix.e, y: y - tmatrix.f, elem: evt.target };
+		// search for a parent that is a MathElement. If one is found then act on that instead.
+		var target = evt.target;
+		var a = target;
+		var els = [];
+		while (a) {
+			els.unshift(a);
+			a = a.parentElement;
+		}
+		var parentMathematics = els.find(el => el.getAttribute("class") === "MathElement");
+		if ((parentMathematics) && parentMathematics.tagName === "svg") {
+			target = parentMathematics;
+		}
+		var tmatrix = get_translate_matrix(target);
+		selected = { x: x - tmatrix.e, y: y - tmatrix.f, elem: target };
 	}
 
 	function moveElement(x, y) {

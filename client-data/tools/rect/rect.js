@@ -126,6 +126,7 @@
 		shape.setAttribute("stroke", data.color || "black");
 		shape.setAttribute("stroke-width", data.size || 10);
 		shape.setAttribute("opacity", Math.max(0.1, Math.min(1, data.opacity)) || 1);
+		shape.setAttribute("class", "nofill");
 		Tools.drawingArea.appendChild(shape);
 		return shape;
 	}
