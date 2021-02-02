@@ -231,7 +231,11 @@ BoardData.load = async function loadBoard(name) {
 	try {
 		data = await fs.promises.readFile(boardData.file);
 		boardData.board = JSON.parse(data);
-		for (id in boardData.board) boardData.validate(boardData.board[id]);
+		boardData.existingDocuments = 0;
+		for (id in boardData.board) {
+			boardData.validate(boardData.board[id]);
+			if (boardData.board[id].type === "doc") existingDocuments += 1;
+		}
 		log('disk load', { 'board': boardData.name });
 	} catch (e) {
 		log('empty board creation', {
