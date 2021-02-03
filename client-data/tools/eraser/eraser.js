@@ -28,17 +28,29 @@
 
 	var erasing = false;
 
+	var currShape = null;
+	var curTool = "click";
+	var icons = ["tools/eraser/icon-click.svg", "tools/eraser/icon-drag.svg",];
+	var toolNames = ["Remove single shape", "Remove all contacted shapes"];
+
+	var msg = {
+		"type": "delete",
+		"id": null,
+		"x": 0,
+		"y": 0
+	};
+
 	function startErasing(x, y, evt) {
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
+
 		erasing = true;
 		erase(x, y, evt);
 	}
 
-	var msg = {
-		"type": "delete",
-		"id": ""
-	};
+	function stopErasing(x, y) {
+		erasing = false;
+	}
 
 	function inDrawingArea(elem) {
 		return Tools.drawingArea.contains(elem);
@@ -53,14 +65,37 @@
 			var touch = evt.touches[0];
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
-		if (erasing && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
-			msg.id = target.id;
-			Tools.drawAndSend(msg);
-		}
-	}
+		if (erasing) {
+			// get points all within a circle of a given radius
+			// https://stackoverflow.com/a/26802146
+			// TODO: This can be very slow if dragging is enabled, a large tool size has been chosen and the cursor
+			//       is inside the bounding box of a svg path or the board is zommed out and the cursor is allowed to
+			//       cover a large distance.
+			var radius = Tools.getSize()/2;
 
-	function stopErasing() {
-		erasing = false;
+			var erased = scanForObject(x, y, target, 0,0);
+			for (var i = 0; i <= radius; i++) {
+				for (var dx = 0; dx <= i; dx++) {
+					if (erased) break;
+					var h = Math.sqrt(i*i - dx * dx) | 0;
+					for (var dy = 1; dy <= h; dy++) {
+						if (Math.sqrt(dx * dx + dy * dy) > (i - 1)) {
+							if (scanForObject(x, y, target, dx, dy)
+								|| scanForObject(x, y, target, dy, -dx)
+								|| scanForObject(x, y, target, -dx, -dy)
+								|| scanForObject(x, y, target, -dy, dx)) {
+								erased = true;
+								break;
+							}
+						}
+					}
+				}
+			}
+
+			if (curTool === "click") {
+				erasing = false;
+			}
+		}
 	}
 
 	function draw(data) {
@@ -68,9 +103,18 @@
 		switch (data.type) {
 			//TODO: add the ability to erase only some points in a line
 			case "delete":
-				elem = svg.getElementById(data.id);
-				if (elem === null) console.error("Eraser: Tried to delete an element that does not exist.");
-				else Tools.drawingArea.removeChild(elem);
+				if (Array.isArray(data.id)) {
+					for(var i = 0; i<data.id.length; i++){
+						elem = svg.getElementById(data.id[i]);
+						if (elem !== null){ //console.error("Eraser: Tried to delete an element that does not exist.");
+							Tools.drawingArea.removeChild(elem);
+						}
+					}
+				} else {
+					elem = svg.getElementById(data.id);
+					if (elem === null) return; //console.error("Eraser: Tried to delete an element that does not exist.");
+					Tools.drawingArea.removeChild(elem);
+				}
 				break;
 			default:
 				console.error("Eraser: 'delete' instruction with unknown type. ", data);
@@ -78,20 +122,50 @@
 		}
 	}
 
+	function scanForObject(x,y,target, i,j){
+		target=document.elementFromPoint((x+i)*Tools.scale-document.documentElement.scrollLeft, (y+j)*Tools.scale-document.documentElement.scrollTop);
+
+		if (target && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
+			msg.id = target.id;
+			msg.x = x+i;
+			msg.y = y+j;
+			msg.target = target;
+			var elem = svg.getElementById(msg.id);
+			if (elem !== null) Tools.drawAndSend(msg);
+			return true;
+		}
+		return false;
+	}
+
 	var svg = Tools.svg;
 
-	Tools.add({ //The new tool
-		"name": "Eraser",
+	function toggle(){
+		var index = 0;
+		if (curTool === "click") {
+			curTool = "drag";
+			index = 1;
+		} else {
+			curTool = "click";
+		}
+		document.getElementById("toolID-" + eraserTool.name).getElementsByClassName("tool-icon")[0].src = icons[index];
+		document.getElementById("toolID-" + eraserTool.name).getElementsByClassName("tool-name")[0].textContent = toolNames[index];
+	}
+
+
+	var eraserTool = { //The new tool
+		"name": toolNames[0],
 		"shortcut": "e",
+		"toggle": toggle,
 		"listeners": {
 			"press": startErasing,
 			"move": erase,
 			"release": stopErasing,
 		},
 		"draw": draw,
-		"icon": "tools/eraser/icon.svg",
+		"icon": icons[0],
 		"mouseCursor": "crosshair",
 		"showMarker": true,
-	});
+	};
+	Tools.add(eraserTool);
 
 })(); //End of code isolation
