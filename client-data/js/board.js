@@ -240,6 +240,22 @@ Tools.change = function (toolName) {
 			var props = newTool.secondary.active ? newTool.secondary : newTool;
 			Tools.HTML.toggle(newTool.name, props.name, props.icon);
 			if (newTool.secondary.switch) newTool.secondary.switch();
+
+			//Toggle size
+			var oldSubTool, newSubTool;
+			if (newTool.secondary.active) {
+				oldSubTool = newTool;
+				newSubTool = newTool.secondary;
+			} else {
+				oldSubTool = newTool.secondary;
+				newSubTool = newTool;
+			}
+			if (oldSubTool.size != null) {
+				oldSubTool.size = Tools.getSize();
+			}
+			if (newSubTool.size != null && newSubTool.size != -1) {
+				Tools.setSize(newSubTool.size);
+			}
 		}
 		return;
 	}

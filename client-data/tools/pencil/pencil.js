@@ -154,10 +154,12 @@
 			"icon": "tools/pencil/whiteout_tape.svg",
 			"active": false,
 			"switch": stopLine,
+			"size": -1
 		},
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
 		"icon": "tools/pencil/icon.svg",
-		"stylesheet": "tools/pencil/pencil.css"
+		"stylesheet": "tools/pencil/pencil.css",
+		"size": -1
 	};
 	Tools.add(pencilTool);
 
