@@ -132,7 +132,7 @@ function handleRequest(request, response) {
 				log("preview", { "board": boardName, "time": Date.now() - t });
 				response.end();
 			}).catch(function (err) {
-				log("error", { "error": err.toString() });
+				log("error", { "error": err.toString(), "stack": err.stack });
 				response.end('<text>Sorry, an error occured</text>');
 			});
 			break;
