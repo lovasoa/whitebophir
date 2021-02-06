@@ -46,10 +46,29 @@
 		this.y = y;
 	}
 
+	function handleStylus(evt) {
+		if (evt.touches && evt.touches[0] && evt.touches[0].touchType == "stylus") {
+			//When using stylus, switch back to the primary
+			if (Tools.curTool.stylus && Tools.curTool.secondary.active) {
+				Tools.change("Pencil");
+			}
+			//Remember if starting a line with a stylus
+			Tools.curTool.stylus = true;
+		}
+		if (evt.touches && evt.touches[0] && evt.touches[0].touchType == "direct") {
+			//When used stylus and touched with a finger, switch to secondary
+			if (Tools.curTool.stylus && !Tools.curTool.secondary.active) {
+				Tools.change("Pencil");
+			}
+		}
+	}
+
 	function startLine(x, y, evt) {
 
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
+
+		handleStylus(evt);
 
 		curLineId = Tools.generateUID("l"); //"l" for line
 
@@ -149,6 +168,11 @@
 			"release": stopLineAt,
 		},
 		"draw": draw,
+		"stylus": false,
+		"onstart": function(oldTool) {
+			//Reset stylus
+			Tools.curTool.stylus = false;
+		},
 		"secondary": {
 			"name": "White-out",
 			"icon": "tools/pencil/whiteout_tape.svg",
