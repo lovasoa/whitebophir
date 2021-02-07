@@ -8,6 +8,14 @@ var iolib = require('socket.io')
 */
 var boards = {};
 
+/**
+ * Prevents a function from throwing errors.
+ * If the inner function throws, the outer function just returns undefined
+ * and logs the error.
+ * @template A
+ * @param {A} fn 
+ * @returns {A}
+ */
 function noFail(fn) {
 	return function noFailWrapped(arg) {
 		try {
@@ -43,6 +51,10 @@ function getBoard(name) {
  */
 function socketConnection(socket) {
 
+	/**
+	 * Function to call when an user joins a board
+	 * @param {string} name 
+	 */
 	async function joinBoard(name) {
 		// Default to the public board
 		if (!name) name = "anonymous";

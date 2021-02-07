@@ -47,6 +47,10 @@ function serveError(request, response) {
 	}
 }
 
+/**
+ * Write a request to the logs
+ * @param {import("http").IncomingMessage} request 
+ */
 function logRequest(request) {
 	log('connection', {
 		ip: request.connection.remoteAddress,
@@ -58,6 +62,9 @@ function logRequest(request) {
 	});
 }
 
+/**
+ * @type {import('http').RequestListener}
+ */
 function handler(request, response) {
 	try {
 		handleRequest(request, response);
@@ -71,11 +78,19 @@ function handler(request, response) {
 const boardTemplate = new templating.BoardTemplate(path.join(config.WEBROOT, 'board.html'));
 const indexTemplate = new templating.Template(path.join(config.WEBROOT, 'index.html'));
 
+/**
+ * Throws an error if the given board name is not allowed
+ * @param {string} boardName 
+ * @throws {Error}
+ */
 function validateBoardName(boardName) {
 	if (/^[\w%\-_~()]*$/.test(boardName)) return boardName;
 	throw new Error("Illegal board name: " + boardName);
 }
 
+/**
+ * @type {import('http').RequestListener}
+ */
 function handleRequest(request, response) {
 	var parsedUrl = url.parse(request.url, true);
 	var parts = parsedUrl.pathname.split('/');

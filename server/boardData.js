@@ -32,10 +32,13 @@ var fs = require('./fs_promises.js')
 
 /**
  * Represents a board.
+ * @class
  * @constructor
+ * @param {string} name
  */
 var BoardData = function (name) {
 	this.name = name;
+	/** @type {{[name: string]: {[object_id:string]: any}}} */
 	this.board = {};
 	this.file = path.join(config.HISTORY_DIR, "board-" + encodeURIComponent(name) + ".json");
 	this.lastSaveDate = Date.now();
@@ -118,13 +121,6 @@ BoardData.prototype.getAll = function (id) {
 	}
 	return results;
 };
-
-/**
- * 
- */
-BoardData.prototype.addUser = function addUser(userId) {
-
-}
 
 /**
  * This callback is displayed as part of the BoardData class.
@@ -224,7 +220,7 @@ BoardData.prototype.validate = function validate(item, parent) {
 }
 
 /** Load the data in the board from a file.
- * @param {string} file - Path to the file where the board data will be read.
+ * @param {string} name - name of the board
 */
 BoardData.load = async function loadBoard(name) {
 	var boardData = new BoardData(name), data;
@@ -254,6 +250,10 @@ BoardData.load = async function loadBoard(name) {
 	return boardData;
 };
 
+/**
+ * Given a board file name, return a name to use for temporary data saving. 
+ * @param {string} baseName 
+ */
 function backupFileName(baseName) {
 	var date = new Date().toISOString().replace(/:/g, '');
 	return baseName + '.' + date + '.bak';
