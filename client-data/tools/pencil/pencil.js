@@ -171,7 +171,6 @@
 			"release": stopLineAt,
 		},
 		"draw": draw,
-		"stylus": false,
 		"onstart": function(oldTool) {
 			//Reset stylus
 			hasUsedStylus = false;
