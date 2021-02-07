@@ -34,6 +34,9 @@
 	// than this?
 	var MIN_PENCIL_INTERVAL_MS = Tools.server_config.MAX_EMIT_COUNT_PERIOD / Tools.server_config.MAX_EMIT_COUNT;
 
+	var AUTO_FINGER_WHITEOUT = Tools.server_config.AUTO_FINGER_WHITEOUT;
+	var hasUsedStylus = false;
+
 	//Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
 	var curLineId = "",
 		lastTime = performance.now(); //The time at which the last point was drawn
@@ -46,18 +49,18 @@
 		this.y = y;
 	}
 
-	function handleStylus(evt) {
+	function handleAutoWhiteOut(evt) {
 		if (evt.touches && evt.touches[0] && evt.touches[0].touchType == "stylus") {
 			//When using stylus, switch back to the primary
-			if (Tools.curTool.stylus && Tools.curTool.secondary.active) {
+			if (hasUsedStylus && Tools.curTool.secondary.active) {
 				Tools.change("Pencil");
 			}
 			//Remember if starting a line with a stylus
-			Tools.curTool.stylus = true;
+			hasUsedStylus = true;
 		}
 		if (evt.touches && evt.touches[0] && evt.touches[0].touchType == "direct") {
 			//When used stylus and touched with a finger, switch to secondary
-			if (Tools.curTool.stylus && !Tools.curTool.secondary.active) {
+			if (hasUsedStylus && !Tools.curTool.secondary.active) {
 				Tools.change("Pencil");
 			}
 		}
@@ -68,7 +71,7 @@
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
 
-		handleStylus(evt);
+		if (AUTO_FINGER_WHITEOUT) handleAutoWhiteOut(evt);
 
 		curLineId = Tools.generateUID("l"); //"l" for line
 
@@ -171,7 +174,7 @@
 		"stylus": false,
 		"onstart": function(oldTool) {
 			//Reset stylus
-			Tools.curTool.stylus = false;
+			hasUsedStylus = false;
 		},
 		"secondary": {
 			"name": "White-out",
