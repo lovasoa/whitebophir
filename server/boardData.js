@@ -28,7 +28,8 @@
 var fs = require("./fs_promises.js"),
   log = require("./log.js").log,
   path = require("path"),
-  config = require("./configuration.js");
+  config = require("./configuration.js"),
+  Mutex = require("async-mutex").Mutex;
 
 /**
  * Represents a board.
@@ -48,6 +49,7 @@ class BoardData {
     );
     this.lastSaveDate = Date.now();
     this.users = new Set();
+    this.saveMutex = new Mutex();
   }
 
   /** Adds data to the board
@@ -125,8 +127,7 @@ class BoardData {
       .map(([_, elem]) => elem);
   }
 
-  /** Delays the triggering of auto-save by SAVE_INTERVAL seconds
-   */
+  /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
   delaySave() {
     if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
     this.saveTimeoutId = setTimeout(this.save.bind(this), config.SAVE_INTERVAL);
@@ -134,13 +135,17 @@ class BoardData {
       setTimeout(this.save.bind(this), 0);
   }
 
-  /** Saves the data in the board to a file.
-   * @param {string} [file=this.file] - Path to the file where the board data will be saved.
-   */
-  async save(file) {
+  /** Saves the data in the board to a file. */
+  async save() {
+    // The mutex prevents multiple save operation to happen simultaneously
+    this.saveMutex.runExclusive(this._unsafe_save.bind(this));
+  }
+
+  /** Save the board to disk without preventing multiple simultaneaous saves. Use save() instead */
+  async _unsafe_save() {
     this.lastSaveDate = Date.now();
     this.clean();
-    if (!file) file = this.file;
+    var file = this.file;
     var tmp_file = backupFileName(file);
     var board_txt = JSON.stringify(this.board);
     if (board_txt === "{}") {
@@ -156,7 +161,7 @@ class BoardData {
       }
     } else {
       try {
-        await fs.promises.writeFile(tmp_file, board_txt);
+        await fs.promises.writeFile(tmp_file, board_txt, { flag: "wx" });
         await fs.promises.rename(tmp_file, file);
         log("saved board", {
           name: this.name,
@@ -227,14 +232,19 @@ class BoardData {
     try {
       data = await fs.promises.readFile(boardData.file);
       boardData.board = JSON.parse(data);
-      for (id in boardData.board) boardData.validate(boardData.board[id]);
+      for (const id in boardData.board) boardData.validate(boardData.board[id]);
       log("disk load", { board: boardData.name });
     } catch (e) {
-      log("empty board creation", {
-        board: boardData.name,
-        // If the file doesn't exist, this is not an error
-        error: e.code !== "ENOENT" && e.toString(),
-      });
+      // If the file doesn't exist, this is not an error
+      if (e.code === "ENOENT") {
+        log("empty board creation", { board: boardData.name });
+      } else {
+        log("board load error", {
+          board: name,
+          error: e.toString(),
+          stack: e.stack,
+        });
+      }
       boardData.board = {};
       if (data) {
         // There was an error loading the board, but some data was still read
