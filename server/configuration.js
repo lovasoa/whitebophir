@@ -1,13 +1,6 @@
 const path = require("path");
 const app_root = path.dirname(__dirname); // Parent of the directory where this file is
 
-function parseBool(val) {
-    switch(val && val.toLowerCase && val.toLowerCase().trim()) {
-        case "true": case "yes": case "y": case "1": return true;
-        default: return false;
-    }
-}
-
 module.exports = {
     /** Port on which the application will listen */
     PORT: parseInt(process.env['PORT']) || 8080,
@@ -47,6 +40,7 @@ module.exports = {
     /** Blocked Tools. A comma-separated list of tools that should not appear on boards. */
     BLOCKED_TOOLS: (process.env['WBO_BLOCKED_TOOLS'] || "").split(','),
 
-    /** Automatically switch to White-out on finger touch after drawing with Pencil using a stylus */
+    /** Automatically switch to White-out on finger touch after drawing
+        with Pencil using a stylus. Only supported on iPad with Apple Pencil. */
     AUTO_FINGER_WHITEOUT: process.env['AUTO_FINGER_WHITEOUT'] !== "disabled",
 };
