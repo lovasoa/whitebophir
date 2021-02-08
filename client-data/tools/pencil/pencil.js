@@ -139,22 +139,30 @@
 		return line;
 	}
 
-	//Remember primary and secondary sizes separately
-	var pencilSize = -1;
+	//Remember drawing and white-out sizes separately
+	var drawingSize = -1;
 	var whiteOutSize = -1;
+
+	function restoreDrawingSize() {
+		whiteOutSize = Tools.getSize();
+		if (drawingSize != -1) {
+			Tools.setSize(drawingSize);
+		}
+	}
+
+	function restoreWhiteOutSize() {
+		drawingSize = Tools.getSize();
+		if (whiteOutSize != -1) {
+			Tools.setSize(whiteOutSize);
+		}
+	}
 
 	//Restore remembered size after switch
 	function toggleSize() {
 		if (pencilTool.secondary.active) {
-			pencilSize = Tools.getSize();
-			if (whiteOutSize != -1) {
-				Tools.setSize(whiteOutSize);
-			}
+			restoreWhiteOutSize();
 		} else {
-			whiteOutSize = Tools.getSize();
-			if (pencilSize != -1) {
-				Tools.setSize(pencilSize);
-			}
+			restoreDrawingSize();
 		}
 	}
 
@@ -176,10 +184,16 @@
 				toggleSize();
 			},
 		},
-		"onquit": function() {
-			//When switching to another tool, restore Pencil and its size
+		"onstart": function() {
+			//When switching from another tool to white-out, restore white-out size
 			if (pencilTool.secondary.active) {
-				Tools.change("Pencil");
+				restoreWhiteOutSize();
+			}
+		},
+		"onquit": function() {
+			//When switching from white-out to another tool, restore drawing size
+			if (pencilTool.secondary.active) {
+				restoreDrawingSize();
 			}
 		},
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
