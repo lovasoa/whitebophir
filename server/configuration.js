@@ -48,5 +48,5 @@ module.exports = {
     BLOCKED_TOOLS: (process.env['WBO_BLOCKED_TOOLS'] || "").split(','),
 
     /** Automatically switch to White-out on finger touch after drawing with Pencil using a stylus */
-    AUTO_FINGER_WHITEOUT: parseBool(process.env['AUTO_FINGER_WHITEOUT']),
+    AUTO_FINGER_WHITEOUT: process.env['AUTO_FINGER_WHITEOUT'] !== "disabled",
 };
