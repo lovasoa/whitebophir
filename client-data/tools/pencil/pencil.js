@@ -161,6 +161,32 @@
 		return line;
 	}
 
+	//Remember drawing and white-out sizes separately
+	var drawingSize = -1;
+	var whiteOutSize = -1;
+
+	function restoreDrawingSize() {
+		whiteOutSize = Tools.getSize();
+		if (drawingSize != -1) {
+			Tools.setSize(drawingSize);
+		}
+	}
+
+	function restoreWhiteOutSize() {
+		drawingSize = Tools.getSize();
+		if (whiteOutSize != -1) {
+			Tools.setSize(whiteOutSize);
+		}
+	}
+
+	//Restore remembered size after switch
+	function toggleSize() {
+		if (pencilTool.secondary.active) {
+			restoreWhiteOutSize();
+		} else {
+			restoreDrawingSize();
+		}
+	}
 
 	var pencilTool = {
 		"name": "Pencil",
@@ -179,11 +205,26 @@
 			"name": "White-out",
 			"icon": "tools/pencil/whiteout_tape.svg",
 			"active": false,
-			"switch": stopLine,
+			"switch": function() {
+				stopLine();
+				toggleSize();
+			},
+		},
+		"onstart": function() {
+			//When switching from another tool to white-out, restore white-out size
+			if (pencilTool.secondary.active) {
+				restoreWhiteOutSize();
+			}
+		},
+		"onquit": function() {
+			//When switching from white-out to another tool, restore drawing size
+			if (pencilTool.secondary.active) {
+				restoreDrawingSize();
+			}
 		},
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
 		"icon": "tools/pencil/icon.svg",
-		"stylesheet": "tools/pencil/pencil.css"
+		"stylesheet": "tools/pencil/pencil.css",
 	};
 	Tools.add(pencilTool);
 
