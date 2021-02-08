@@ -41,4 +41,8 @@ module.exports = {
 
   /** Blocked Tools. A comma-separated list of tools that should not appear on boards. */
   BLOCKED_TOOLS: (process.env["WBO_BLOCKED_TOOLS"] || "").split(","),
+
+  /** Automatically switch to White-out on finger touch after drawing
+      with Pencil using a stylus. Only supported on iPad with Apple Pencil. */
+  AUTO_FINGER_WHITEOUT: process.env['AUTO_FINGER_WHITEOUT'] !== "disabled",
 };
