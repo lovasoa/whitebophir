@@ -30,14 +30,20 @@ If you have your own web server, and want to run a private instance of WBO on it
 If you use the [docker](https://www.docker.com/) containerization service, you can easily run WBO as a container. 
 An official docker image for WBO is hosted on dockerhub as [`lovasoa/wbo`](https://hub.docker.com/repository/docker/lovasoa/wbo).
 
-You can run the following bash command to launch WBO on port 5001, while persisting the boards outside of docker:
-
+You can run the following bash command to launch WBO on port 5001. This command also creates a anonymous volume to persist the board data.
 ```bash
-mkdir wbo-boards # Create a directory that will contain your whiteboards
-chown -R 1000:1000 wbo-boards # Make this directory accessible to WBO
-docker run -it --publish 5001:8080 --volume "$(pwd)/wbo-boards:/opt/app/server-data" lovasoa/wbo:latest # run wbo
+docker run -it --publish 5001:8080 lovasoa/wbo:latest # run wbo
 ```
-
+If you want to persist the board data in a named volume you have to create this volume first and bind-mount it to the corresponding directory inside the container.
+```bash
+docker volume create wbo # create volume
+docker run -it --publish 5001:8080 --volume wbo:/opt/app/server-data lovasoa/wbo:latest # run wbo
+```
+Or alternatively bind the board data to some local directory of yours.
+```bash
+mkdir /your/wbo/directory # create directory
+docker run -it --publish 5001:8080 --volume /your/wbo/directory:/opt/app/server-data lovasoa/wbo:latest # run wbo
+```
 You can then access WBO at `http://localhost:5001`.
 
 ### Running the code without a container
