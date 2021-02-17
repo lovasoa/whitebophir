@@ -68,7 +68,6 @@ class BoardTemplate extends Template {
     const boardUriComponent = parts[1];
     params["boardUriComponent"] = boardUriComponent;
     params["board"] = decodeURIComponent(boardUriComponent);
-    params["hideMenu"] = parsedUrl.search.includes("hideMenu");
     return params;
   }
 }
