@@ -97,6 +97,11 @@ function testBoard(browser) {
     page = testPencil(page);
     page = testCircle(page);
     page = testCursor(page);
+
+    // test hideMenu
+    browser.url(SERVER + '/boards/anonymous?lang=fr&hideMenu=true').waitForElementNotVisible('#menu');
+    browser.url(SERVER + '/boards/anonymous?lang=fr&hideMenu=false').waitForElementVisible('#menu');
+
     page.end();
 }
 
