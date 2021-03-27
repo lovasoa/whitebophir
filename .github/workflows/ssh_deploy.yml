@@ -1,8 +1,9 @@
 name: ssh deploy
 on:
   push:
-    branches:
-      - prod
+    tags:        
+      - v*
+
 jobs:
   build:
     name: deploy
