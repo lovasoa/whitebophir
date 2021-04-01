@@ -93,6 +93,31 @@ Tools.boardName = (function () {
 //Get the board as soon as the page is loaded
 Tools.socket.emit("getboard", Tools.boardName);
 
+function saveBoardNametoLocalStorage() {
+	const boardName = Tools.boardName;
+	if (boardName.toLowerCase() === 'anonymous') return;
+	
+	try {
+		const key = "recent-boards";
+		let recentBoards = JSON.parse(localStorage.getItem(key)) || [];
+
+		const nameIndex = recentBoards.findIndex((name) => {
+			return name.toLowerCase() === boardName.toLowerCase();
+		});
+
+		if (nameIndex > -1) recentBoards.splice(nameIndex, 1);
+
+		if (recentBoards.length === 20) recentBoards.pop();
+	
+		recentBoards = [boardName, ...recentBoards];
+		localStorage.setItem(key, JSON.stringify(recentBoards));
+	} catch (e) {
+		console.error("Unable to update localStorage.", e);
+	}
+}
+
+saveBoardNametoLocalStorage();
+
 Tools.HTML = {
 	template: new Minitpl("#tools > .tool"),
 	addShortcut: function addShortcut(key, callback) {
