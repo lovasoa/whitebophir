@@ -94,29 +94,26 @@ Tools.boardName = (function () {
 Tools.socket.emit("getboard", Tools.boardName);
 
 function saveBoardNametoLocalStorage() {
-	const boardName = Tools.boardName;
+	var boardName = Tools.boardName;
 	if (boardName.toLowerCase() === 'anonymous') return;
-	
+	var recentBoards, key = "recent-boards";
 	try {
-		const key = "recent-boards";
-		let recentBoards = JSON.parse(localStorage.getItem(key)) || [];
-
-		const nameIndex = recentBoards.findIndex((name) => {
-			return name.toLowerCase() === boardName.toLowerCase();
-		});
-
-		if (nameIndex > -1) recentBoards.splice(nameIndex, 1);
-
-		if (recentBoards.length === 20) recentBoards.pop();
-	
-		recentBoards = [boardName, ...recentBoards];
-		localStorage.setItem(key, JSON.stringify(recentBoards));
-	} catch (e) {
-		console.error("Unable to update localStorage.", e);
+		recentBoards = JSON.parse(localStorage.getItem(key));
+		if (!Array.isArray(recentBoards)) throw new Error("Invalid type");
+	} catch(e) {
+		// On localstorage or json error, reset board list
+		recentBoards = [];
+		console.log("Board history loading error", e);
 	}
+	recentBoards = recentBoards.filter(function (name) {
+		return name !== boardName;
+	});
+	recentBoards.unshift(boardName);
+	recentBoards = recentBoards.slice(0, 20);
+	localStorage.setItem(key, JSON.stringify(recentBoards));
 }
-
-saveBoardNametoLocalStorage();
+// Refresh recent boards list on each page show
+window.addEventListener("pageshow", saveBoardNametoLocalStorage);
 
 Tools.HTML = {
 	template: new Minitpl("#tools > .tool"),
