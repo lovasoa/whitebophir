@@ -106,7 +106,7 @@ function saveBoardNametoLocalStorage() {
 		console.log("Board history loading error", e);
 	}
 	recentBoards = recentBoards.filter(function (name) {
-		return name.toLowerCase() !== boardName.toLowerCase();
+		return name !== boardName;
 	});
 	recentBoards.unshift(boardName);
 	recentBoards = recentBoards.slice(0, 20);
