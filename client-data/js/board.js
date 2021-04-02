@@ -93,6 +93,28 @@ Tools.boardName = (function () {
 //Get the board as soon as the page is loaded
 Tools.socket.emit("getboard", Tools.boardName);
 
+function saveBoardNametoLocalStorage() {
+	var boardName = Tools.boardName;
+	if (boardName.toLowerCase() === 'anonymous') return;
+	var recentBoards, key = "recent-boards";
+	try {
+		recentBoards = JSON.parse(localStorage.getItem(key));
+		if (!Array.isArray(recentBoards)) throw new Error("Invalid type");
+	} catch(e) {
+		// On localstorage or json error, reset board list
+		recentBoards = [];
+		console.log("Board history loading error", e);
+	}
+	recentBoards = recentBoards.filter(function (name) {
+		return name !== boardName;
+	});
+	recentBoards.unshift(boardName);
+	recentBoards = recentBoards.slice(0, 20);
+	localStorage.setItem(key, JSON.stringify(recentBoards));
+}
+// Refresh recent boards list on each page show
+window.addEventListener("pageshow", saveBoardNametoLocalStorage);
+
 Tools.HTML = {
 	template: new Minitpl("#tools > .tool"),
 	addShortcut: function addShortcut(key, callback) {
