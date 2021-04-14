@@ -56,7 +56,7 @@ async function get_error(directory) {
 
 /**
  * Checks that the output directory is writeable,
- * ans exits the current process with an error otherwise.
+ * and exits the current process with an error otherwise.
  * @param {string} directory
  */
 function check_output_directory(directory) {
