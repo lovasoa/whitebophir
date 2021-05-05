@@ -9,7 +9,7 @@ USER 1000:1000
 
 COPY package.json package-lock.json ./
 RUN npm ci --production
-COPY . .
+COPY --chown=1000:1000 . .
 
 ENV PORT=8080
 EXPOSE 8080
