@@ -589,6 +589,46 @@ Tools.createSVGElement = function createSVGElement(name, attrs) {
 	return elem;
 };
 
+// Taken from https://gist.github.com/danallison/3ec9d5314788b337b682
+Tools.downloadString = function downloadString(text, fileType, fileName) {
+	var blob = new Blob([text], { type: fileType });
+
+	var a = document.createElement('a');
+	a.download = fileName;
+	a.href = URL.createObjectURL(blob);
+	a.dataset.downloadurl = [fileType, a.download, a.href].join(':');
+	a.style.display = "none";
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	setTimeout(function() { URL.revokeObjectURL(a.href); }, 1500);
+}
+
+Tools.exportSVGCanvas = function exportSVGCanvas() {
+	const {x, y, width, height} = Tools.svg.querySelector("#drawingArea").getBBox();
+	const viewBoxValue = [x, y , width, height].join(' ');
+	serializer = new XMLSerializer();
+	canvas = Tools.svg.cloneNode(true);
+	canvas.setAttribute('viewBox', viewBoxValue);
+	stylesheets = document.styleSheets;
+	styleText = "<style>";
+	Array.from(stylesheets).filter(stylesheet => {
+		hr = stylesheet.href;
+		return hr?.match(/boards\/tools\/.*\.css/) ||
+			hr?.match(/board\.css/)
+	}).forEach(stylesheet => {
+		styleText += "\n" + Array.from(stylesheet.cssRules).map(x => x.cssText).join("\n");
+	});
+	styleText += "\n</style>";
+	canvas.innerHTML += styleText;
+	svgText = serializer.serializeToString(canvas);
+	date = new Date();
+	timeString = date.toLocaleString().replace(/ /g, "_").replace(/,/, "").replace(/:/g, "-");
+	Tools.downloadString(svgText,
+			     "text/svg",
+			     Tools.boardName + "_" + timeString  + ".svg");
+};
+
 Tools.positionElement = function (elem, x, y) {
 	elem.style.top = y + "px";
 	elem.style.left = x + "px";
