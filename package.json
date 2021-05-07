@@ -1,7 +1,7 @@
 {
   "name": "whitebophir",
   "description": "Online collaborative whiteboard",
-  "version": "1.10.1",
+  "version": "1.10.2",
   "keywords": [
     "collaborative",
     "whiteboard"
@@ -9,11 +9,11 @@
   "license": "AGPL-3.0-or-later",
   "dependencies": {
     "accept-language-parser": "^1.5.0",
-    "async-mutex": "^0.3.0",
-    "handlebars": "^4.7.6",
-    "polyfill-library": "^3.101.0",
+    "async-mutex": "^0.3.1",
+    "handlebars": "^4.7.7",
+    "polyfill-library": "^3.104.0",
     "serve-static": "^1.14.1",
-    "socket.io": "^3.0.5"
+    "socket.io": "^3.1.2"
   },
   "scripts": {
     "start": "node ./server/server.js",
@@ -25,7 +25,7 @@
     "url": "http://github.com/lovasoa/whitebophir.git"
   },
   "devDependencies": {
-    "geckodriver": "^1.21.1",
-    "nightwatch": "^1.5.1"
+    "geckodriver": "^1.22.3",
+    "nightwatch": "^1.6.3"
   }
 }
