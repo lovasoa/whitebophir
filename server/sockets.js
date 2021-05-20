@@ -171,6 +171,9 @@ async function saveHistory(boardName, message) {
     case "child":
       board.addChild(message.parent, message);
       break;
+    case "batch":
+      board.batch(message);
+      break;
     default:
       //Add data
       if (!id) throw new Error("Invalid message: ", message);

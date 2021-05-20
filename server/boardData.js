@@ -109,6 +109,32 @@ class BoardData {
     this.delaySave();
   }
 
+  /** Process a batch of messages
+   * @param {envelope} array of messages to be delegated to the other methods
+   */
+  batch(envelope) {
+    for (const message of envelope.msgs) {
+      let id = message.id;
+      switch (message.type) {
+        case "delete":
+          if (id) this.delete(id);
+          break;
+        case "update":
+          if (id) this.update(id, message);
+          break;
+        case "child":
+          this.addChild(message.parent, message);
+          break;
+        case "batch":
+          throw new Error("Nested batch message: ", message);
+        default:
+          //Add data
+          if (!id) throw new Error("Invalid message: ", message);
+          this.set(id, message);
+      }
+    }
+  }
+
   /** Reads data from the board
    * @param {string} id - Identifier of the element to get.
    * @returns {BoardElem} The element with the given id, or undefined if no element has this id
