@@ -160,24 +160,29 @@ function handleMessage(boardName, message, socket) {
 
 async function saveHistory(boardName, message) {
   var id = message.id;
+  if (!message.tool && !message._children) {
+    console.error("Received a badly formatted message (no tool). ", message);
+  }
   var board = await getBoard(boardName);
-  switch (message.type) {
-    case "delete":
-      if (id) board.delete(id);
-      break;
-    case "update":
-      if (id) board.update(id, message);
-      break;
-    case "child":
-      board.addChild(message.parent, message);
-      break;
-    case "batch":
-      board.batch(message);
-      break;
-    default:
-      //Add data
-      if (!id) throw new Error("Invalid message: ", message);
-      board.set(id, message);
+  if (message._children) {
+    board.batch(message);
+  }
+  else {
+    switch (message.type) {
+      case "delete":
+        if (id) board.delete(id);
+        break;
+      case "update":
+        if (id) board.update(id, message);
+        break;
+      case "child":
+        board.addChild(message.parent, message);
+        break;
+      default:
+        //Add data
+        if (!id) throw new Error("Invalid message: ", message);
+        board.set(id, message);
+    }
   }
 }
 

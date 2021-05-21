@@ -113,7 +113,7 @@ class BoardData {
    * @param {envelope} array of messages to be delegated to the other methods
    */
   batch(envelope) {
-    for (const message of envelope.msgs) {
+    for (const message of envelope._children) {
       let id = message.id;
       switch (message.type) {
         case "delete":
@@ -125,8 +125,6 @@ class BoardData {
         case "child":
           this.addChild(message.parent, message);
           break;
-        case "batch":
-          throw new Error("Nested batch message: ", message);
         default:
           //Add data
           if (!id) throw new Error("Invalid message: ", message);

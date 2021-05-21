@@ -140,8 +140,7 @@
 	    }
 	})
 	var msg = {
-	    type: "batch",
-	    msgs: msgs
+	    _children: msgs
 	};
 	{
 	    let tmatrix = get_translate_matrix(selectionRect);
@@ -184,19 +183,11 @@
 	}
 
     function draw(data) {
+	if (data._children) {
+	    batchCall(draw, data._children);
+	}
+	else {
 	switch (data.type) {
-	case "batch":
-	    for ([i,msg] of data.msgs.entries()) {
-		switch (msg.type) {
-		case "update":
-		    let tmatrix = get_translate_matrix(Tools.svg.getElementById(msg.id));
-		    tmatrix.e = msg.deltax || 0;
-		    tmatrix.f = msg.deltay || 0;
-		    break;
-		    // Eventually also "delete"?
-		}
-	    }
-	    break;
 		case "update":
 			var elem = Tools.svg.getElementById(data.id);
 			if (!elem) throw new Error("Mover: Tried to move an element that does not exist.");
@@ -208,6 +199,7 @@
 	    throw new Error("Mover: 'move' instruction with unknown type. ", data);
 		}
 	}
+    }
 
     function clickSelector(x ,y , evt) {
 	var scale = Tools.drawingArea.getCTM().a
