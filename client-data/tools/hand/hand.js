@@ -75,7 +75,8 @@
 	shape.width.baseVal.value = 0;
 	shape.height.baseVal.value = 0;
 	shape.setAttribute("stroke", "black");
-	shape.setAttribute("stroke-width", 3);
+	shape.setAttribute("stroke-width", 1);
+	shape.setAttribute("vector-effect", "non-scaling-stroke");
 	shape.setAttribute("fill", "none");
 	shape.setAttribute("stroke-dasharray", "5 5");
 	shape.setAttribute("opacity", 1);
