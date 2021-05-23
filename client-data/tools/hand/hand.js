@@ -38,20 +38,6 @@
 	var selectorState = selectorStates.pointing;
 	var last_sent = 0;
 
-	function inRect(x, y, rect) {
-		return (x >= rect.x && x <= rect.x + rect.width) &&
-			(y >= rect.y && y >= rect.w + rect.height)
-	}
-
-	function intersectRect(rect1, rect2) {
-		return !(
-			(rect1.x + rect1.width <= rect2.x) ||
-			(rect2.x + rect2.width <= rect1.x) ||
-			(rect1.y + rect1.height <= rect2.y) ||
-			(rect2.y + rect2.height <= rect1.y)
-		)
-	}
-
 	function getParentMathematics(el) {
 		var target
 		var a = el
