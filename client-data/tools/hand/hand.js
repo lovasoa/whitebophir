@@ -25,144 +25,144 @@
  */
 
 (function hand() { //Code isolation
-    const selectorStates = {
-	pointing: 0,
-	selecting: 1,
-	moving: 2
-    }
-    	var selected = null;
-        var selected_els = [];
-        var selectionRect = createSelectorRect();
-        var selectionRectTranslation;
-        var translation_elements = [];
-        var selectorState = selectorStates.pointing;
+	const selectorStates = {
+		pointing: 0,
+		selecting: 1,
+		moving: 2
+	}
+	var selected = null;
+	var selected_els = [];
+	var selectionRect = createSelectorRect();
+	var selectionRectTranslation;
+	var translation_elements = [];
+	var selectorState = selectorStates.pointing;
 	var last_sent = 0;
 
-    function inRect(x ,y , rect) {
-	return (x>=rect.x && x<=rect.x+rect.width) &&
-	    (y>=rect.y && y>=rect.w+rect.height)
-    }
-
-    function intersectRect(rect1 , rect2) {
-	return !(
-	    (rect1.x+rect1.width<=rect2.x) ||
-	    (rect2.x+rect2.width<=rect1.x) ||
-	    (rect1.y+rect1.height<=rect2.y) ||
-	    (rect2.y+rect2.height<=rect1.y)
-	)
-    }
-
-    function getParentMathematics(el) {
-	var target
-	var a  = el
-	var els = [];
-	while (a) {
-		els.unshift(a);
-		a = a.parentElement;
+	function inRect(x, y, rect) {
+		return (x >= rect.x && x <= rect.x + rect.width) &&
+			(y >= rect.y && y >= rect.w + rect.height)
 	}
-	var parentMathematics = els.find(el => el.getAttribute("class") === "MathElement");
-	if ((parentMathematics) && parentMathematics.tagName === "svg") {
-		target = parentMathematics;
+
+	function intersectRect(rect1, rect2) {
+		return !(
+			(rect1.x + rect1.width <= rect2.x) ||
+			(rect2.x + rect2.width <= rect1.x) ||
+			(rect1.y + rect1.height <= rect2.y) ||
+			(rect2.y + rect2.height <= rect1.y)
+		)
 	}
-	return target ?? el;
-    }
 
-    function createSelectorRect() {
-	var shape = Tools.createSVGElement("rect");
-	shape.id = "selectionRect";
-	shape.x.baseVal.value = 0;
-	shape.y.baseVal.value = 0;
-	shape.width.baseVal.value = 0;
-	shape.height.baseVal.value = 0;
-	shape.setAttribute("stroke", "black");
-	shape.setAttribute("stroke-width", 1);
-	shape.setAttribute("vector-effect", "non-scaling-stroke");
-	shape.setAttribute("fill", "none");
-	shape.setAttribute("stroke-dasharray", "5 5");
-	shape.setAttribute("opacity", 1);
-	Tools.svg.appendChild(shape);
-	return shape;
-    }
-
-    function startMovingElements(x, y, evt) {
-	evt.preventDefault();
-	selectorState = selectorStates.moving;
-	selected = {x: x, y: y};
-	// Some of the selected elements could have been deleted
-	selected_els = selected_els.filter(el=>{
-	    return Tools.svg.getElementById(el.id) !== null
-	});
-	translation_elements = selected_els.map(el => {
-	    let tmatrix = get_translate_matrix(el);
-	    return {x: tmatrix.e, y: tmatrix.f}
-	});
-	{
-	    let tmatrix = get_translate_matrix(selectionRect);
-	    selectionRectTranslation = {x: tmatrix.e, y: tmatrix.f};
+	function getParentMathematics(el) {
+		var target
+		var a = el
+		var els = [];
+		while (a) {
+			els.unshift(a);
+			a = a.parentElement;
+		}
+		var parentMathematics = els.find(el => el.getAttribute("class") === "MathElement");
+		if ((parentMathematics) && parentMathematics.tagName === "svg") {
+			target = parentMathematics;
+		}
+		return target ?? el;
 	}
-    }
 
-    function startSelector(x, y , evt) {
-	evt.preventDefault();
-	selected = {x: x, y: y};
-	selected_els= [];
-	selectorState = selectorStates.selecting;
-	selectionRect.x.baseVal.value = x;
-	selectionRect.y.baseVal.value = y;
-	selectionRect.width.baseVal.value = 0;
-	selectionRect.height.baseVal.value = 0;
-	selectionRect.style.display = "";
-	tmatrix = get_translate_matrix(selectionRect);
-	tmatrix.e = 0;
-	tmatrix.f = 0;
-    }
-
-
-    function calculateSelection() {
-	var scale = Tools.drawingArea.getCTM().a;
-	var selectionTBBox = selectionRect .transformedBBox(scale);
-	return Array.from(Tools.drawingArea.children).filter(el => {
-	    return transformedBBoxIntersects(
-		selectionTBBox,
-		el.transformedBBox(scale)
-	    )
-	});
-    }
-
-    function moveSelection(x, y) {
-	var dx = x - selected.x;
-	var dy = y - selected.y;
-	var msgs = selected_els.map((el,i) =>{
-	    return {
-		type: "update",
-		id: el.id,
-		deltax: dx+translation_elements[i].x,
-		deltay: dy+translation_elements[i].y
-	    }
-	})
-	var msg = {
-	    _children: msgs
-	};
-	{
-	    let tmatrix = get_translate_matrix(selectionRect);
-	    tmatrix.e = dx + selectionRectTranslation.x;
-	    tmatrix.f = dy + selectionRectTranslation.y;
+	function createSelectorRect() {
+		var shape = Tools.createSVGElement("rect");
+		shape.id = "selectionRect";
+		shape.x.baseVal.value = 0;
+		shape.y.baseVal.value = 0;
+		shape.width.baseVal.value = 0;
+		shape.height.baseVal.value = 0;
+		shape.setAttribute("stroke", "black");
+		shape.setAttribute("stroke-width", 1);
+		shape.setAttribute("vector-effect", "non-scaling-stroke");
+		shape.setAttribute("fill", "none");
+		shape.setAttribute("stroke-dasharray", "5 5");
+		shape.setAttribute("opacity", 1);
+		Tools.svg.appendChild(shape);
+		return shape;
 	}
-	var now = performance.now();
-	if (now - last_sent > 70) {
-		last_sent = now;
-		Tools.drawAndSend(msg);
-	} else {
-		draw(msg);
-	}
-    }
 
-    function updateRect(x,y, rect) {
-	rect.x.baseVal.value = Math.min(x,selected.x);
-	rect.y.baseVal.value = Math.min(y,selected.y);
-	rect.width.baseVal.value = Math.abs(x-selected.x);
-	rect.height.baseVal.value = Math.abs(y-selected.y);
-    }
+	function startMovingElements(x, y, evt) {
+		evt.preventDefault();
+		selectorState = selectorStates.moving;
+		selected = { x: x, y: y };
+		// Some of the selected elements could have been deleted
+		selected_els = selected_els.filter(el => {
+			return Tools.svg.getElementById(el.id) !== null
+		});
+		translation_elements = selected_els.map(el => {
+			let tmatrix = get_translate_matrix(el);
+			return { x: tmatrix.e, y: tmatrix.f }
+		});
+		{
+			let tmatrix = get_translate_matrix(selectionRect);
+			selectionRectTranslation = { x: tmatrix.e, y: tmatrix.f };
+		}
+	}
+
+	function startSelector(x, y, evt) {
+		evt.preventDefault();
+		selected = { x: x, y: y };
+		selected_els = [];
+		selectorState = selectorStates.selecting;
+		selectionRect.x.baseVal.value = x;
+		selectionRect.y.baseVal.value = y;
+		selectionRect.width.baseVal.value = 0;
+		selectionRect.height.baseVal.value = 0;
+		selectionRect.style.display = "";
+		tmatrix = get_translate_matrix(selectionRect);
+		tmatrix.e = 0;
+		tmatrix.f = 0;
+	}
+
+
+	function calculateSelection() {
+		var scale = Tools.drawingArea.getCTM().a;
+		var selectionTBBox = selectionRect.transformedBBox(scale);
+		return Array.from(Tools.drawingArea.children).filter(el => {
+			return transformedBBoxIntersects(
+				selectionTBBox,
+				el.transformedBBox(scale)
+			)
+		});
+	}
+
+	function moveSelection(x, y) {
+		var dx = x - selected.x;
+		var dy = y - selected.y;
+		var msgs = selected_els.map((el, i) => {
+			return {
+				type: "update",
+				id: el.id,
+				deltax: dx + translation_elements[i].x,
+				deltay: dy + translation_elements[i].y
+			}
+		})
+		var msg = {
+			_children: msgs
+		};
+		{
+			let tmatrix = get_translate_matrix(selectionRect);
+			tmatrix.e = dx + selectionRectTranslation.x;
+			tmatrix.f = dy + selectionRectTranslation.y;
+		}
+		var now = performance.now();
+		if (now - last_sent > 70) {
+			last_sent = now;
+			Tools.drawAndSend(msg);
+		} else {
+			draw(msg);
+		}
+	}
+
+	function updateRect(x, y, rect) {
+		rect.x.baseVal.value = Math.min(x, selected.x);
+		rect.y.baseVal.value = Math.min(y, selected.y);
+		rect.width.baseVal.value = Math.abs(x - selected.x);
+		rect.height.baseVal.value = Math.abs(y - selected.y);
+	}
 
 	function get_translate_matrix(elem) {
 		// Returns the first translate or transform matrix or makes one
@@ -183,58 +183,57 @@
 		return translate.matrix;
 	}
 
-    function draw(data) {
-	if (data._children) {
-	    batchCall(draw, data._children);
-	}
-	else {
-	switch (data.type) {
-		case "update":
-			var elem = Tools.svg.getElementById(data.id);
-			if (!elem) throw new Error("Mover: Tried to move an element that does not exist.");
-			var tmatrix = get_translate_matrix(elem);
-			tmatrix.e = data.deltax || 0;
-			tmatrix.f = data.deltay || 0;
-			break;
-	default:
-	    throw new Error("Mover: 'move' instruction with unknown type. ", data);
+	function draw(data) {
+		if (data._children) {
+			batchCall(draw, data._children);
+		}
+		else {
+			switch (data.type) {
+				case "update":
+					var elem = Tools.svg.getElementById(data.id);
+					if (!elem) throw new Error("Mover: Tried to move an element that does not exist.");
+					var tmatrix = get_translate_matrix(elem);
+					tmatrix.e = data.deltax || 0;
+					tmatrix.f = data.deltay || 0;
+					break;
+				default:
+					throw new Error("Mover: 'move' instruction with unknown type. ", data);
+			}
 		}
 	}
-    }
 
-    function clickSelector(x ,y , evt) {
-	var scale = Tools.drawingArea.getCTM().a
-	selectionRect = selectionRect ?? createSelectorRect();
-	if (pointInTransformedBBox([x,y],selectionRect.transformedBBox(scale))) {
-	    startMovingElements(x, y, evt);
-	} else if (Tools.drawingArea.contains(evt.target))
-	{
-	    selectionRect.style.display = "none";
-	    selected_els = [getParentMathematics(evt.target)];
-	    startMovingElements(x, y, evt);
-	} else {
-	    startSelector(x, y, evt);
+	function clickSelector(x, y, evt) {
+		var scale = Tools.drawingArea.getCTM().a
+		selectionRect = selectionRect ?? createSelectorRect();
+		if (pointInTransformedBBox([x, y], selectionRect.transformedBBox(scale))) {
+			startMovingElements(x, y, evt);
+		} else if (Tools.drawingArea.contains(evt.target)) {
+			selectionRect.style.display = "none";
+			selected_els = [getParentMathematics(evt.target)];
+			startMovingElements(x, y, evt);
+		} else {
+			startSelector(x, y, evt);
+		}
 	}
-    }
 
-    function releaseSelector(x ,y , evt) {
-	if (selectorState == selectorStates.selecting) {
-	    selected_els = calculateSelection();
-	    if (selected_els.length == 0) {
-		selectionRect.style.display = "none";
-	    }
+	function releaseSelector(x, y, evt) {
+		if (selectorState == selectorStates.selecting) {
+			selected_els = calculateSelection();
+			if (selected_els.length == 0) {
+				selectionRect.style.display = "none";
+			}
+		}
+		translation_elements = [];
+		selectorState = selectorStates.pointing;
 	}
-	translation_elements = [];
-	selectorState = selectorStates.pointing;
-    }
 
-    function moveSelector(x, y, evt) {
-	if (selectorState == selectorStates.selecting) {
-	    updateRect(x,y, selectionRect);
-	} else if (selectorState == selectorStates.moving) {
-	    moveSelection(x,y, selectionRect);
+	function moveSelector(x, y, evt) {
+		if (selectorState == selectorStates.selecting) {
+			updateRect(x, y, selectionRect);
+		} else if (selectorState == selectorStates.moving) {
+			moveSelection(x, y, selectionRect);
+		}
 	}
-    }
 
 	function startHand(x, y, evt, isTouchEvent) {
 		if (!isTouchEvent) {
@@ -263,7 +262,7 @@
 
 	function release(x, y, evt, isTouchEvent) {
 		move(x, y, evt, isTouchEvent);
-	        if (handTool.secondary.active) releaseSelector(x, y, evt, isTouchEvent);
+		if (handTool.secondary.active) releaseSelector(x, y, evt, isTouchEvent);
 		selected = null;
 	}
 
