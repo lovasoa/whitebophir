@@ -110,26 +110,40 @@ class BoardData {
   }
 
   /** Process a batch of messages
-   * @param {envelope} array of messages to be delegated to the other methods
+   * @typedef {{
+   *  id:string,
+   *  type: "delete" | "update" | "child",
+   *  parent?: string,
+   *  _children?: BoardMessage[],
+   * } & BoardElem } BoardMessage
+   * @param {BoardMessage[]} children array of messages to be delegated to the other methods
    */
-  batch(envelope) {
-    for (const message of envelope._children) {
-      let id = message.id;
-      switch (message.type) {
-        case "delete":
-          if (id) this.delete(id);
-          break;
-        case "update":
-          if (id) this.update(id, message);
-          break;
-        case "child":
-          this.addChild(message.parent, message);
-          break;
-        default:
-          //Add data
-          if (!id) throw new Error("Invalid message: ", message);
-          this.set(id, message);
-      }
+  processMessageBatch(children) {
+    for (const message of children) {
+      this.processMessage(message);
+    }
+  }
+
+  /** Process a single message
+   * @param {BoardMessage} message instruction to apply to the board
+   */
+  processMessage(message) {
+    if (message._children) return this.processMessageBatch(message._children);
+    let id = message.id;
+    switch (message.type) {
+      case "delete":
+        if (id) this.delete(id);
+        break;
+      case "update":
+        if (id) this.update(id, message);
+        break;
+      case "child":
+        this.addChild(message.parent, message);
+        break;
+      default:
+        //Add data
+        if (!id) throw new Error("Invalid message: ", message);
+        this.set(id, message);
     }
   }
 
