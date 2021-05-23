@@ -682,3 +682,26 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 	  "stylesheet" : "style.css",
 }
 */
+
+
+(function () {
+    let pos = {top: 0, scroll:0};
+    let menu = document.getElementById("menu");
+    function menu_mousedown(evt) {
+	pos = {
+	    top: menu.scrollTop,
+	    scroll: evt.clientY
+	}
+	menu.addEventListener("mousemove", menu_mousemove);
+	document.addEventListener("mouseup", menu_mouseup);
+    }
+    function menu_mousemove(evt) {
+	const dy = evt.clientY - pos.scroll;
+	menu.scrollTop = pos.top - dy;
+    }
+    function menu_mouseup(evt) {
+	menu.removeEventListener("mousemove", menu_mousemove);
+	document.removeEventListener("mouseup", menu_mouseup);
+    }
+    menu.addEventListener("mousedown", menu_mousedown);
+})()
