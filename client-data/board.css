@@ -276,10 +276,6 @@ circle.opcursor {
 	transition: 0s;
 }
 
-#board #selectionRect {
-    fill: none;
-}
-
 /* Internet Explorer specific CSS */
 @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
 	#chooseColor {
