@@ -4,7 +4,7 @@ var iolib = require("socket.io"),
   config = require("./configuration");
 
 /** Map from name to *promises* of BoardData
-	@type {Object<string, Promise<BoardData>>}
+  @type {Object<string, Promise<BoardData>>}
 */
 var boards = {};
 
@@ -159,23 +159,11 @@ function handleMessage(boardName, message, socket) {
 }
 
 async function saveHistory(boardName, message) {
-  var id = message.id;
-  var board = await getBoard(boardName);
-  switch (message.type) {
-    case "delete":
-      if (id) board.delete(id);
-      break;
-    case "update":
-      if (id) board.update(id, message);
-      break;
-    case "child":
-      board.addChild(message.parent, message);
-      break;
-    default:
-      //Add data
-      if (!id) throw new Error("Invalid message: ", message);
-      board.set(id, message);
+  if (!message.tool && !message._children) {
+    console.error("Received a badly formatted message (no tool). ", message);
   }
+  var board = await getBoard(boardName);
+  board.processMessage(message);
 }
 
 function generateUID(prefix, suffix) {
