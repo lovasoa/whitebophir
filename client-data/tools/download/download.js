@@ -38,6 +38,7 @@
         document.body.appendChild(element);
         element.click();
         document.body.removeChild(element);
+        canvas.removeChild(styleNode);
     }
 
     Tools.add({ //The new tool
