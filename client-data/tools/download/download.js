@@ -29,7 +29,7 @@
     var canvas = document.getElementById('canvas');
     function downloadFile(evt) {
         var styleNode = document.createElement("style");
-        styleNode.innerHTML = "rect { fill:none; } path, line {fill: none;stroke-linecap: round; stroke-linejoin: round;}";
+        styleNode.innerHTML = "rect, ellipse { fill:none; } path, line {fill: none;stroke-linecap: round; stroke-linejoin: round;}";
         canvas.appendChild(styleNode);
         var element = document.createElement('a');
         element.setAttribute('href', 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(canvas.outerHTML));
