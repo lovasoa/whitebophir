@@ -26,19 +26,22 @@
 
 (function download() { //Code isolation
 
-    var canvas = document.getElementById('canvas');
-    function downloadFile(evt) {
+    function downloadSVGFile(evt) {
+        var canvasCopy = document.getElementById('canvas').cloneNode(true);
         var styleNode = document.createElement("style");
         styleNode.innerHTML = "rect, ellipse { fill:none; } path, line {fill: none;stroke-linecap: round; stroke-linejoin: round;}";
-        canvas.appendChild(styleNode);
+        canvasCopy.appendChild(styleNode);
+        downloadContent('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(canvasCopy.outerHTML), "svg")
+    }
+
+    function downloadContent(href, type){
         var element = document.createElement('a');
-        element.setAttribute('href', 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(canvas.outerHTML));
-        element.setAttribute('download', "file.svg");
+        element.setAttribute('href', href);
+        element.setAttribute('download',  Tools.boardName + "." + type);
         element.style.display = 'none';
         document.body.appendChild(element);
         element.click();
         document.body.removeChild(element);
-        canvas.removeChild(styleNode);
     }
 
     Tools.add({ //The new tool
@@ -47,7 +50,7 @@
         "listeners": {},
         "icon": "tools/download/download.svg",
         "oneTouch": true,
-        "onstart": downloadFile,
+        "onstart": downloadSVGFile,
         "mouseCursor": "crosshair",
     });
 
