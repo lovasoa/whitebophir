@@ -29,7 +29,14 @@
     function downloadSVGFile(evt) {
         var canvasCopy = Tools.svg.cloneNode(true);
         var styleNode = document.createElement("style");
-        styleNode.innerHTML = "rect, ellipse { fill:none; } path, line {fill: none;stroke-linecap: round; stroke-linejoin: round;}";
+
+        // Copy the stylesheets from the whiteboard to the exported SVG
+        stylesheets = document.styleSheets;
+        styleText = "";
+        Array.from(stylesheets).forEach(stylesheet => {
+            styleText += "\n" + Array.from(stylesheet.cssRules).map(x => x.cssText).join("\n");
+        });
+        styleNode.innerHTML = styleText;
         canvasCopy.appendChild(styleNode);
         downloadContent('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(canvasCopy.outerHTML), "svg")
     }
