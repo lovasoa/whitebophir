@@ -27,7 +27,7 @@
 (function download() { //Code isolation
 
     function downloadSVGFile(evt) {
-        var canvasCopy = document.getElementById('canvas').cloneNode(true);
+        var canvasCopy = Tools.svg.cloneNode(true);
         var styleNode = document.createElement("style");
         styleNode.innerHTML = "rect, ellipse { fill:none; } path, line {fill: none;stroke-linecap: round; stroke-linejoin: round;}";
         canvasCopy.appendChild(styleNode);
