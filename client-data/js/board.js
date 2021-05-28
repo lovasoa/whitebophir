@@ -610,15 +610,18 @@ Tools.exportSVGCanvas = function exportSVGCanvas() {
 	serializer = new XMLSerializer();
 	canvas = Tools.svg.cloneNode(true);
 	canvas.setAttribute('viewBox', viewBoxValue);
-	stylesheets = document.styleSheets;
+	styleSheets = document.styleSheets;
 	styleText = "<style>";
-	Array.from(stylesheets).filter(stylesheet => {
-		hr = stylesheet.href;
-		return hr?.match(/boards\/tools\/.*\.css/) ||
-			hr?.match(/board\.css/)
-	}).forEach(stylesheet => {
-		styleText += "\n" + Array.from(stylesheet.cssRules).map(x => x.cssText).join("\n");
-	});
+	for (var i=0; i<styleSheets.length; i++) {
+		var styleSheet = styleSheets[i];
+		var rules = styleSheet.cssRules;
+		if (styleSheet.href && !(styleSheet.href.match(/boards\/tools\/.*\.css/)
+					|| styleSheet.href.match(/board\.css/))) continue;
+
+		for (var j=0;  j<rules.length; j++) {
+			styleText += "\n" + rules[j].cssText;
+		}
+	}
 	styleText += "\n</style>";
 	canvas.innerHTML += styleText;
 	svgText = serializer.serializeToString(canvas);
