@@ -55,6 +55,40 @@
 		return target || el;
 	}
 
+	function deleteSelection() {
+		var msgs = selected_els.map(function(el) {
+                return ({
+                    "type": "delete",
+                    "id": el.id
+                });
+            });
+		var data = {
+			_children: msgs
+		}
+		Tools.drawAndSend(data);
+		selected_els = [];
+	}
+
+	function duplicateSelection() {
+		if (!(selectorState == selectorStates.pointing)
+			|| (selected_els.length == 0)) return;
+		var msgs = [];
+		var newids = [];
+		for (var i=0; i<selected_els.length; i++) {
+			var id = selected_els[i].id;
+			msgs[i] = {
+				type: "copy",
+				id: id,
+				newid: Tools.generateUID(id[0])
+			};
+			newids[i] = id;
+		}
+		Tools.drawAndSend({_children: msgs});
+		selected_els = newids.map(function(id) {
+                return Tools.svg.getElementById(id);
+            });
+	}
+
 	function createSelectorRect() {
 		var shape = Tools.createSVGElement("rect");
 		shape.id = "selectionRect";
@@ -181,6 +215,15 @@
 					tmatrix.e = data.deltax || 0;
 					tmatrix.f = data.deltay || 0;
 					break;
+				case "copy":
+					var newElement = Tools.svg.getElementById(data.id).cloneNode(true);
+					newElement.id = data.newid;
+					Tools.drawingArea.appendChild(newElement);
+				    break;
+				case "delete":
+					data.tool = "Eraser";
+					messageForTool(data);
+					break;
 				default:
 					throw new Error("Mover: 'move' instruction with unknown type. ", data);
 			}
@@ -251,8 +294,28 @@
 		selected = null;
 	}
 
+	function deleteShortcut(e) {
+		if (e.key == "Delete" &&
+			!e.target.matches("input[type=text], textarea"))
+			deleteSelection();
+	}
+
+	function duplicateShortcut(e) {
+		if (e.key == "d" &&
+			!e.target.matches("input[type=text], textarea"))
+			duplicateSelection();
+	}
+
 	function switchTool() {
 		selected = null;
+		if (handTool.secondary.active) {
+			window.addEventListener("keydown", deleteShortcut);
+			window.addEventListener("keydown", duplicateShortcut);
+		}
+		else {
+			window.removeEventListener("keydown", deleteShortcut);
+			window.removeEventListener("keydown", duplicateShortcut);
+		}
 	}
 
 	var handTool = { //The new tool

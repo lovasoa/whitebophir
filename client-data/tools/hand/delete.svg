@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg role="img" version="1.1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <title>Instagram icon</title>
+ <g transform="matrix(2.3668 2.3668 -2.3668 2.3668 13.98 -131.11)" fill="#ff002d">
+  <g transform="translate(-.5821 .16648)" fill="#f00">
+   <rect transform="scale(1,-1)" x="30.056" y="-33.755" width=".6819" height="6.5387" ry=".34186"/>
+   <rect transform="matrix(0,1,1,0,0,0)" x="30.145" y="27.128" width=".6819" height="6.5387" ry=".34186"/>
+  </g>
+ </g>
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:title>Delete icon</dc:title>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+</svg>
