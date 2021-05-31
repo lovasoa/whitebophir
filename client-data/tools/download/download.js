@@ -31,12 +31,15 @@
         var styleNode = document.createElement("style");
 
         // Copy the stylesheets from the whiteboard to the exported SVG
-        stylesheets = document.styleSheets;
-        styleText = "";
-        Array.from(stylesheets).forEach(stylesheet => {
-            styleText += "\n" + Array.from(stylesheet.cssRules).map(x => x.cssText).join("\n");
-        });
-        styleNode.innerHTML = styleText;
+        styleNode.innerHTML = Array.from(document.styleSheets).map(
+            function (stylesheet) {
+                return Array.from(stylesheet.cssRules).map(
+                    function (rule) {
+                        return rule.cssText
+                }
+            )}
+        ).join("\n")
+
         canvasCopy.appendChild(styleNode);
         downloadContent('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(canvasCopy.outerHTML), "svg")
     }
