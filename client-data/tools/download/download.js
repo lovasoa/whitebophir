@@ -50,17 +50,23 @@
         ).join("\n")
 
         canvasCopy.appendChild(styleNode);
-        downloadContent('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(canvasCopy.outerHTML), "svg")
+        downloadContent(new Blob([canvasCopy.outerHTML || new XMLSerializer().serializeToString(canvasCopy)], { type: 'image/svg+xml;charset=utf-8' }), Tools.boardName + ".svg")
     }
 
-    function downloadContent(href, type){
-        var element = document.createElement('a');
-        element.setAttribute('href', href);
-        element.setAttribute('download',  Tools.boardName + "." + type);
-        element.style.display = 'none';
-        document.body.appendChild(element);
-        element.click();
-        document.body.removeChild(element);
+    function downloadContent(blob, filename){
+        if (window.navigator.msSaveBlob) {
+            window.navigator.msSaveBlob(blob, filename);
+          } else {
+            const url = URL.createObjectURL(blob);
+            var element = document.createElement('a');
+            element.setAttribute('href', url);
+            element.setAttribute('download',  filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+            window.URL.revokeObjectURL(url);
+          }
     }
 
     Tools.add({ //The new tool
