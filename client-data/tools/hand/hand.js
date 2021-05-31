@@ -38,9 +38,34 @@
 	var selectorState = selectorStates.pointing;
 	var last_sent = 0;
 
+	var deleteButton = createButton("delete", "delete", 22, 22,
+		function(me, bbox, s) {
+			me.width.baseVal.value = me.origWidth / s;
+			me.height.baseVal.value = me.origHeight / s;
+			me.x.baseVal.value = bbox.r[0];
+			me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
+			me.style.display = "";
+		},
+									deleteSelection);
+
+	var duplicateButton = createButton("duplicate", "duplicate", 22, 22,
+		function(me, bbox, s) {
+			me.width.baseVal.value = me.origWidth / s;
+			me.height.baseVal.value = me.origHeight / s;
+			me.x.baseVal.value = bbox.r[0] + (me.origWidth + 2) / s;
+			me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
+			me.style.display = "";
+		},
+									   duplicateSelection);
+	var selectionButtons = [deleteButton, duplicateButton];
+
+	function getScale() {
+		return Tools.drawingArea.getCTM().a;
+	}
+
 	function getParentMathematics(el) {
-		var target
-		var a = el
+		var target;
+		var a = el;
 		var els = [];
 		while (a) {
 			els.unshift(a);
@@ -67,6 +92,7 @@
 		}
 		Tools.drawAndSend(data);
 		selected_els = [];
+		hideSelectionUI();
 	}
 
 	function duplicateSelection() {
@@ -106,6 +132,43 @@
 		return shape;
 	}
 
+	function createButton(name, icon , width, height, drawCallback, clickCallback) {
+		var shape = Tools.createSVGElement("image", {
+			id: name + "Icon",
+			href: "tools/hand/" + icon + ".svg",
+			width: width,
+			height: height,
+		});
+		shape.style.display = "none";
+		shape.origWidth = width;
+		shape.origHeight = height;
+		shape.drawCallback = drawCallback;
+		shape.clickCallback = clickCallback;
+		Tools.svg.appendChild(shape);
+		return shape;
+	}
+
+	function showSelectionButtons() {
+		var scale = getScale();
+		var selectionBBox = selectionRect.transformedBBox(scale);
+		for (var i = 0; i < selectionButtons.length; i++) {
+			selectionButtons[i].drawCallback(selectionButtons[i],
+				selectionBBox,
+				scale);
+		}
+	}
+
+	function hideSelectionButtons() {
+		for (var i = 0; i < selectionButtons.length; i++) {
+			selectionButtons[i].style.display = "none";
+		}
+	}
+
+	function hideSelectionUI() {
+		hideSelectionButtons();
+		selectionRect.style.display = "none";
+	}
+
 	function startMovingElements(x, y, evt) {
 		evt.preventDefault();
 		selectorState = selectorStates.moving;
@@ -139,7 +202,7 @@
 
 
 	function calculateSelection() {
-		var scale = Tools.drawingArea.getCTM().a;
+		var scale = getScale();
 		var selectionTBBox = selectionRect.transformedBBox(scale);
 		var elements = Tools.drawingArea.children;
 		var selected = [];
@@ -231,15 +294,25 @@
 	}
 
 	function clickSelector(x, y, evt) {
-		var scale = Tools.drawingArea.getCTM().a
+		var scale = getScale();
 		selectionRect = selectionRect || createSelectorRect();
-		if (pointInTransformedBBox([x, y], selectionRect.transformedBBox(scale))) {
+		var button = null;
+		for (var i=0; i<selectionButtons.length; i++) {
+			if (selectionButtons[i].contains(evt.target)) {
+				button = selectionButtons[i];
+			}
+		}
+		if (button) {
+			button.clickCallback();
+		} else if (pointInTransformedBBox([x, y], selectionRect.transformedBBox(scale))) {
+			hideSelectionButtons();
 			startMovingElements(x, y, evt);
 		} else if (Tools.drawingArea.contains(evt.target)) {
-			selectionRect.style.display = "none";
+			hideSelectionUI();
 			selected_els = [getParentMathematics(evt.target)];
 			startMovingElements(x, y, evt);
 		} else {
+			hideSelectionButtons();
 			startSelector(x, y, evt);
 		}
 	}
@@ -248,9 +321,10 @@
 		if (selectorState == selectorStates.selecting) {
 			selected_els = calculateSelection();
 			if (selected_els.length == 0) {
-				selectionRect.style.display = "none";
+				hideSelectionUI();
 			}
 		}
+		if (selected_els.length != 0) showSelectionButtons();
 		translation_elements = [];
 		selectorState = selectorStates.pointing;
 	}
