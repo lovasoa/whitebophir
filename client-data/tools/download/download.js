@@ -31,8 +31,17 @@
         var styleNode = document.createElement("style");
 
         // Copy the stylesheets from the whiteboard to the exported SVG
-        styleNode.innerHTML = Array.from(document.styleSheets).map(
-            function (stylesheet) {
+        styleNode.innerHTML = Array.from(document.styleSheets)
+            .filter(function (stylesheet) {
+                if(stylesheet.href && (stylesheet.href.match(/boards\/tools\/.*\.css/)
+                    || stylesheet.href.match(/board\.css/))) {
+                    // This is a Stylesheet from a Tool or the Board itself, so we should include it
+                    return true;
+                }
+                // Not a stylesheet of the tool, so we can ignore it for export
+                return false;
+            })
+            .map(function (stylesheet) {
                 return Array.from(stylesheet.cssRules).map(
                     function (rule) {
                         return rule.cssText
