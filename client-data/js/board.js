@@ -685,8 +685,8 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 
 
 (function () {
-    let pos = {top: 0, scroll:0};
-    let menu = document.getElementById("menu");
+    var pos = {top: 0, scroll:0};
+    var menu = document.getElementById("menu");
     function menu_mousedown(evt) {
 	pos = {
 	    top: menu.scrollTop,
@@ -696,7 +696,7 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 	document.addEventListener("mouseup", menu_mouseup);
     }
     function menu_mousemove(evt) {
-	const dy = evt.clientY - pos.scroll;
+	var dy = evt.clientY - pos.scroll;
 	menu.scrollTop = pos.top - dy;
     }
     function menu_mouseup(evt) {

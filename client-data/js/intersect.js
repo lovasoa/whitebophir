@@ -28,7 +28,7 @@ if (!SVGGraphicsElement.prototype.transformedBBox || !SVGGraphicsElement.prototy
     [pointInTransformedBBox,
      transformedBBoxIntersects] = (function () {
 
-	let applyTransform = function (m,t) {
+	var applyTransform = function (m,t) {
 	    return [
 		m.a*t[0]+m.c*t[1],
 		m.b*t[0]+m.d*t[1]
@@ -60,7 +60,7 @@ if (!SVGGraphicsElement.prototype.transformedBBox || !SVGGraphicsElement.prototy
 	    }
 	}
 
-	let pointInTransformedBBox = function ([x,y],{r,a,b}) {
+	var pointInTransformedBBox = function ([x,y],{r,a,b}) {
 	    var d = [x-r[0],y-r[1]];
 	    var idet = (a[0]*b[1]-a[1]*b[0]);
 	    var c1 = (d[0]*b[1]-d[1]*b[0]) / idet;
@@ -79,7 +79,9 @@ if (!SVGGraphicsElement.prototype.transformedBBox || !SVGGraphicsElement.prototy
 		[bbox_b.r[0] + bbox_b.b[0], bbox_b.r[1] + bbox_b.b[1]],
 		[bbox_b.r[0] + bbox_b.a[0] + bbox_b.b[0], bbox_b.r[1] + bbox_b.a[1] + bbox_b.b[1]]
 	    ]
-	    return corners.every(corner=>pointInTransformedBBox(corner,bbox_a))
+	    return corners.every(function(corner) {
+				return pointInTransformedBBox(corner, bbox_a);
+			})
 	}
 
 	SVGGraphicsElement.prototype.transformedBBoxIntersects= function (bbox) {

@@ -25,7 +25,7 @@
  */
 
 (function hand() { //Code isolation
-	const selectorStates = {
+	var selectorStates = {
 		pointing: 0,
 		selecting: 1,
 		moving: 2
@@ -46,11 +46,13 @@
 			els.unshift(a);
 			a = a.parentElement;
 		}
-		var parentMathematics = els.find(el => el.getAttribute("class") === "MathElement");
+		var parentMathematics = els.find(function(el) {
+				return el.getAttribute("class") === "MathElement";
+			});
 		if ((parentMathematics) && parentMathematics.tagName === "svg") {
 			target = parentMathematics;
 		}
-		return target ?? el;
+		return target || el;
 	}
 
 	function createSelectorRect() {
@@ -75,17 +77,15 @@
 		selectorState = selectorStates.moving;
 		selected = { x: x, y: y };
 		// Some of the selected elements could have been deleted
-		selected_els = selected_els.filter(el => {
-			return Tools.svg.getElementById(el.id) !== null
+		selected_els = selected_els.filter(function(el) {
+				return Tools.svg.getElementById(el.id) !== null;
+			});
+		translation_elements = selected_els.map(function(el) {
+			var tmatrix = get_translate_matrix(el);
+			return { x: tmatrix.e, y: tmatrix.f };
 		});
-		translation_elements = selected_els.map(el => {
-			let tmatrix = get_translate_matrix(el);
-			return { x: tmatrix.e, y: tmatrix.f }
-		});
-		{
-			let tmatrix = get_translate_matrix(selectionRect);
-			selectionRectTranslation = { x: tmatrix.e, y: tmatrix.f };
-		}
+		var tmatrix = get_translate_matrix(selectionRect);
+		selectionRectTranslation = { x: tmatrix.e, y: tmatrix.f };
 	}
 
 	function startSelector(x, y, evt) {
@@ -107,33 +107,32 @@
 	function calculateSelection() {
 		var scale = Tools.drawingArea.getCTM().a;
 		var selectionTBBox = selectionRect.transformedBBox(scale);
-		return Array.from(Tools.drawingArea.children).filter(el => {
-			return transformedBBoxIntersects(
-				selectionTBBox,
-				el.transformedBBox(scale)
-			)
-		});
+		var elements = Tools.drawingArea.children;
+		var selected = [];
+		for (var i=0; i < elements.length; i++) {
+			if (transformedBBoxIntersects(selectionTBBox, elements[i].transformedBBox(scale)))
+				selected.push(Tools.drawingArea.children[i]);
+		}
+		return selected;
 	}
 
 	function moveSelection(x, y) {
 		var dx = x - selected.x;
 		var dy = y - selected.y;
-		var msgs = selected_els.map((el, i) => {
-			return {
-				type: "update",
-				id: el.id,
-				deltax: dx + translation_elements[i].x,
-				deltay: dy + translation_elements[i].y
-			}
-		})
+		var msgs = selected_els.map(function(el, i) {
+				return {
+					type: "update",
+					id: el.id,
+					deltax: dx + translation_elements[i].x,
+					deltay: dy + translation_elements[i].y
+				};
+			})
 		var msg = {
 			_children: msgs
 		};
-		{
-			let tmatrix = get_translate_matrix(selectionRect);
-			tmatrix.e = dx + selectionRectTranslation.x;
-			tmatrix.f = dy + selectionRectTranslation.y;
-		}
+		var tmatrix = get_translate_matrix(selectionRect);
+		tmatrix.e = dx + selectionRectTranslation.x;
+		tmatrix.f = dy + selectionRectTranslation.y;
 		var now = performance.now();
 		if (now - last_sent > 70) {
 			last_sent = now;
@@ -190,7 +189,7 @@
 
 	function clickSelector(x, y, evt) {
 		var scale = Tools.drawingArea.getCTM().a
-		selectionRect = selectionRect ?? createSelectorRect();
+		selectionRect = selectionRect || createSelectorRect();
 		if (pointInTransformedBBox([x, y], selectionRect.transformedBBox(scale))) {
 			startMovingElements(x, y, evt);
 		} else if (Tools.drawingArea.contains(evt.target)) {
