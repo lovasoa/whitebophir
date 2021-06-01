@@ -28,20 +28,29 @@ if (!SVGGraphicsElement.prototype.transformedBBox || !SVGGraphicsElement.prototy
     [pointInTransformedBBox,
      transformedBBoxIntersects] = (function () {
 
-	var applyTransform = function (m,t) {
+	var transformRelative = function (m,t) {
 	    return [
 		m.a*t[0]+m.c*t[1],
 		m.b*t[0]+m.d*t[1]
 	    ]
 	}
 
+	var transformAbsolute = function (m,t) {
+	    return [
+		m.a*t[0]+m.c*t[1]+m.e,
+		m.b*t[0]+m.d*t[1]+m.f
+	    ]
+	}
+
 	SVGGraphicsElement.prototype.transformedBBox = function (scale=1) {
 	    bbox = this.getBBox();
 	    tmatrix = this.getCTM();
+	    tmatrix.e /= scale;
+	    tmatrix.f /= scale;
 	    return {
-		r: [bbox.x + tmatrix.e/scale, bbox.y + tmatrix.f/scale],
-		a: applyTransform(tmatrix,[bbox.width/scale,0]),
-		b: applyTransform(tmatrix,[0,bbox.height/scale])
+		r: transformAbsolute(tmatrix,[bbox.x/scale,bbox.y/scale]),
+		a: transformRelative(tmatrix,[bbox.width/scale,0]),
+		b: transformRelative(tmatrix,[0,bbox.height/scale])
 	    }
 	}
 
@@ -53,10 +62,12 @@ if (!SVGGraphicsElement.prototype.transformedBBox || !SVGGraphicsElement.prototy
 		height: this.height.baseVal.value
 	    };
 	    tmatrix = this.getCTM();
+	    tmatrix.e /= scale;
+	    tmatrix.f /= scale;
 	    return {
-		r: [bbox.x + tmatrix.e/scale, bbox.y + tmatrix.f/scale],
-		a: applyTransform(tmatrix,[bbox.width/scale,0]),
-		b: applyTransform(tmatrix,[0,bbox.height/scale])
+		r: transformAbsolute(tmatrix,[bbox.x/scale,bbox.y/scale]),
+		a: transformRelative(tmatrix,[bbox.width/scale,0]),
+		b: transformRelative(tmatrix,[0,bbox.height/scale])
 	    }
 	}
 

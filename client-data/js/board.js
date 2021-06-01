@@ -363,9 +363,9 @@ function messageForTool(message) {
 		else Tools.pendingMessages[name].push(message);
 	}
 
-	if (message.tool !== 'Hand' && message.deltax != null && message.deltay != null) {
+	if (message.tool !== 'Hand' && message.transform != null) {
 		//this message has special info for the mover
-		messageForTool({ tool: 'Hand', type: 'update', deltax: message.deltax || 0, deltay: message.deltay || 0, id: message.id });
+	    messageForTool({ tool: 'Hand', type: 'update', transform: message.transform, id: message.id});
 	}
 }
 
