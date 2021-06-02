@@ -67,6 +67,7 @@
             document.body.removeChild(element);
             window.URL.revokeObjectURL(url);
         }
+        Tools.metadata.downloaded = true;
     }
 
     Tools.add({ //The new tool

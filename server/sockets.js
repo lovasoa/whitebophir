@@ -63,8 +63,8 @@ function socketConnection(socket) {
 
     var board = await getBoard(name);
     board.users.add(socket.id);
-    broadcastMetaData(socket, board.name, { users: board.users.size })
     log("board joined", { board: board.name, users: board.users.size });
+    broadcastMetaData(socket, board.name, { users: board.users.size })
     return board;
   }
 
