@@ -63,6 +63,7 @@ function socketConnection(socket) {
 
     var board = await getBoard(name);
     board.users.add(socket.id);
+    broadcastMetaData(socket, board.name, { users: board.users.size })
     log("board joined", { board: board.name, users: board.users.size });
     return board;
   }
@@ -141,13 +142,22 @@ function socketConnection(socket) {
         board.users.delete(socket.id);
         var userCount = board.users.size;
         log("disconnection", { board: board.name, users: board.users.size });
+        broadcastMetaData(socket, board.name, { users: board.users.size })
         if (userCount === 0) {
-          board.save();
+            if(config.DELETE_ON_LEAVE){
+                board.deleteBoard()
+            } else {
+                board.save();
+            }
           delete boards[room];
         }
       }
     });
   });
+}
+
+function broadcastMetaData(socket, boardName, metaData) {
+    socket.broadcast.to(boardName).emit("metadata", metaData);
 }
 
 function handleMessage(boardName, message, socket) {

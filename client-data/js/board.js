@@ -48,6 +48,7 @@ Tools.drawingEvent = true;
 Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
+Tools.metadata = {users: 1};
 
 Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
@@ -76,6 +77,14 @@ Tools.connect = function () {
 			var loadingEl = document.getElementById("loadingMessage");
 			loadingEl.classList.add("hidden");
 		});
+	});
+
+    //Receive metadata about the board from server
+	this.socket.on("metadata", function (msg) {
+        if (!message.users) {
+            console.error("Received a badly formatted message (no users). ", message);
+        }
+        Object.assign(Tools.metadata, message)
 	});
 
 	this.socket.on("reconnect", function onReconnection() {
@@ -704,4 +713,15 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 	document.removeEventListener("mouseup", menu_mouseup);
     }
     menu.addEventListener("mousedown", menu_mousedown);
+    // Ask to save before leave 
+    if(Tools.server_config.DELETE_ON_LEAVE){
+        window.onbeforeunload = function() {
+            if(Tools.metadata.users === 1) {
+            // TODO: Add config from other PR
+            // if(Tools.metadata.saved === true) {
+                return 'The board will be deleted after you leave, make sure you saved the content!';
+            }
+            return undefined;
+        }
+    }
 })()
