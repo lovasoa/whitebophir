@@ -166,7 +166,7 @@
 
 	function showSelectionButtons() {
 		var scale = getScale();
-		var selectionBBox = selectionRect.transformedBBox(scale);
+		var selectionBBox = selectionRect.transformedBBox();
 		for (var i = 0; i < selectionButtons.length; i++) {
 			selectionButtons[i].drawCallback(selectionButtons[i],
 				selectionBBox,
@@ -209,14 +209,12 @@
 		evt.preventDefault();
 		hideSelectionButtons();
 		selectorState = selectorStates.transform;
-		var scale = getScale();
-		var bbox = selectionRect.transformedBBox(scale);
+		var bbox = selectionRect.transformedBBox();
 		selected = {
 			x: bbox.r[0],
 			y: bbox.r[1],
 			w: bbox.a[0],
 			h: bbox.b[1],
-			s: scale
 		};
 		transform_elements = selected_els.map(function(el) {
 			var tmatrix = get_transform_matrix(el);
@@ -250,12 +248,11 @@
 
 
 	function calculateSelection() {
-		var scale = getScale();
-		var selectionTBBox = selectionRect.transformedBBox(scale);
+		var selectionTBBox = selectionRect.transformedBBox();
 		var elements = Tools.drawingArea.children;
 		var selected = [];
 		for (var i=0; i < elements.length; i++) {
-			if (transformedBBoxIntersects(selectionTBBox, elements[i].transformedBBox(scale)))
+			if (transformedBBoxIntersects(selectionTBBox, elements[i].transformedBBox()))
 				selected.push(Tools.drawingArea.children[i]);
 		}
 		return selected;
@@ -297,11 +294,10 @@
 	function scaleSelection(x, y) {
 		var rx = (x - selected.x)/(selected.w);
 		var ry = (y - selected.y)/(selected.h);
-		var scale = getScale();
 		var msgs = selected_els.map(function(el, i) {
 			var oldTransform = transform_elements[i];
-			var x = el.transformedBBox(scale).r[0];
-			var y = el.transformedBBox(scale).r[1];
+			var x = el.transformedBBox().r[0];
+			var y = el.transformedBBox().r[1];
 			var a = oldTransform.a * rx;
 			var d = oldTransform.d * ry;
 			var e = selected.x * (1 - rx) - x * a +
@@ -349,7 +345,7 @@
 	}
 
 	function resetSelectionRect() {
-		var bbox = selectionRect.transformedBBox(getScale());
+		var bbox = selectionRect.transformedBBox();
 		var tmatrix = get_transform_matrix(selectionRect);
 		selectionRect.x.baseVal.value = bbox.r[0];
 		selectionRect.y.baseVal.value = bbox.r[1];
@@ -418,7 +414,7 @@
 		}
 		if (button) {
 			button.clickCallback(x, y, evt);
-		} else if (pointInTransformedBBox([x, y], selectionRect.transformedBBox(scale))) {
+		} else if (pointInTransformedBBox([x, y], selectionRect.transformedBBox())) {
 			hideSelectionButtons();
 			startMovingElements(x, y, evt);
 		} else if (Tools.drawingArea.contains(evt.target)) {

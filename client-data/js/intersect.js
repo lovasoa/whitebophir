@@ -28,6 +28,25 @@ if (!SVGGraphicsElement.prototype.transformedBBox || !SVGGraphicsElement.prototy
     [pointInTransformedBBox,
      transformedBBoxIntersects] = (function () {
 
+	 var get_transform_matrix = function (elem) {
+	     // Returns the first translate or transform matrix or makes one
+	     var transform = null;
+	     for (var i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
+		 var baseVal = elem.transform.baseVal[i];
+		 // quick tests showed that even if one changes only the fields e and f or uses createSVGTransformFromMatrix
+		 // the brower may add a SVG_TRANSFORM_MATRIX instead of a SVG_TRANSFORM_TRANSLATE
+		 if (baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
+		     transform = baseVal;
+		     break;
+		 }
+	     }
+	     if (transform == null) {
+		 transform = elem.transform.baseVal.createSVGTransformFromMatrix(Tools.svg.createSVGMatrix());
+		 elem.transform.baseVal.appendItem(transform);
+	     }
+	     return transform.matrix;
+	 }
+
 	var transformRelative = function (m,t) {
 	    return [
 		m.a*t[0]+m.c*t[1],
@@ -44,7 +63,7 @@ if (!SVGGraphicsElement.prototype.transformedBBox || !SVGGraphicsElement.prototy
 
 	SVGGraphicsElement.prototype.transformedBBox = function (scale=1) {
 	    bbox = this.getBBox();
-	    tmatrix = this.getCTM();
+	    tmatrix = get_transform_matrix(this);
 	    tmatrix.e /= scale;
 	    tmatrix.f /= scale;
 	    return {
@@ -61,7 +80,7 @@ if (!SVGGraphicsElement.prototype.transformedBBox || !SVGGraphicsElement.prototy
 		width: this.width.baseVal.value,
 		height: this.height.baseVal.value
 	    };
-	    tmatrix = this.getCTM();
+	    tmatrix = get_transform_matrix(this);
 	    tmatrix.e /= scale;
 	    tmatrix.f /= scale;
 	    return {
