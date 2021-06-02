@@ -81,10 +81,11 @@ Tools.connect = function () {
 
     //Receive metadata about the board from server
 	this.socket.on("metadata", function (msg) {
-        if (!message.users) {
-            console.error("Received a badly formatted message (no users). ", message);
+        if (!msg.users) {
+            Tools.metadata.users = 1;
+            console.error("Received a badly formatted message (no users). ", msg);
         }
-        Object.assign(Tools.metadata, message)
+        Tools.metadata.users = msg.users;
 	});
 
 	this.socket.on("reconnect", function onReconnection() {

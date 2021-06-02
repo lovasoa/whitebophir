@@ -157,6 +157,7 @@ function socketConnection(socket) {
 }
 
 function broadcastMetaData(socket, boardName, metaData) {
+    socket.emit("metadata", metaData);
     socket.broadcast.to(boardName).emit("metadata", metaData);
 }
 
