@@ -26,8 +26,9 @@
 
 (function download() { //Code isolation
 
-    function downloadSVGFile(evt) {
+    function downloadSVGFile() {
         var canvasCopy = Tools.svg.cloneNode(true);
+        canvasCopy.removeAttribute("style", ""); // Remove css transform
         var styleNode = document.createElement("style");
 
         // Copy the stylesheets from the whiteboard to the exported SVG
@@ -42,13 +43,9 @@
                 return false;
             })
             .map(function (stylesheet) {
-                return Array.from(stylesheet.cssRules).map(
-                    function (rule) {
-                        return rule.cssText
-                    }
-                )
-            }
-            ).join("\n")
+                return Array.from(stylesheet.cssRules)
+                    .map(function (rule) { return rule.cssText })
+            }).join("\n")
 
         canvasCopy.appendChild(styleNode);
         var outerHTML = canvasCopy.outerHTML || new XMLSerializer().serializeToString(canvasCopy);
