@@ -54,6 +54,7 @@
     }
 
     function downloadContent(blob, filename){
+        Tools.metadata.downloaded = true;
         if (window.navigator.msSaveBlob) {
             window.navigator.msSaveBlob(blob, filename);
           } else {

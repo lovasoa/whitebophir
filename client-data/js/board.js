@@ -81,10 +81,11 @@ Tools.connect = function () {
 
     //Receive metadata about the board from server
 	this.socket.on("metadata", function (msg) {
-        if (!message.users) {
-            console.error("Received a badly formatted message (no users). ", message);
+        if (!msg.users) {
+            Tools.metadata.users = 1;
+            console.error("Received a badly formatted message (no users). ", msg);
         }
-        Object.assign(Tools.metadata, message)
+        Tools.metadata.users = msg.users;
 	});
 
 	this.socket.on("reconnect", function onReconnection() {
@@ -344,6 +345,10 @@ Tools.send = function (data, toolName) {
 		"board": Tools.boardName,
 		"data": d
 	};
+    if(d.tool !== "Cursor"){
+        // Reset the downloaded property as the Whiteboard was updated
+        Tools.metadata.downloaded = false;
+    }
 	Tools.socket.emit('broadcast', message);
 };
 
@@ -406,6 +411,8 @@ function handleMessage(message) {
 
 Tools.unreadMessagesCount = 0;
 Tools.newUnreadMessage = function () {
+    // Reset the downloaded property as the Whiteboard was updated
+    Tools.metadata.downloaded = false;
 	Tools.unreadMessagesCount++;
 	updateDocumentTitle();
 };
@@ -716,9 +723,7 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
     // Ask to save before leave 
     if(Tools.server_config.DELETE_ON_LEAVE){
         window.onbeforeunload = function() {
-            if(Tools.metadata.users === 1) {
-            // TODO: Add config from other PR
-            // if(Tools.metadata.saved === true) {
+        if(Tools.metadata.users === 1 && Tools.metadata.downloaded === false ) {
                 return 'The board will be deleted after you leave, make sure you saved the content!';
             }
             return undefined;

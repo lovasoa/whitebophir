@@ -63,7 +63,6 @@ function socketConnection(socket) {
 
     var board = await getBoard(name);
     board.users.add(socket.id);
-    broadcastMetaData(socket, board.name, { users: board.users.size })
     log("board joined", { board: board.name, users: board.users.size });
     return board;
   }
@@ -79,6 +78,7 @@ function socketConnection(socket) {
     var board = await joinBoard(name);
     //Send all the board's data as soon as it's loaded
     socket.emit("broadcast", { _children: board.getAll() });
+    broadcastMetaData(socket, board.name, { users: board.users.size })
   });
 
   socket.on("joinboard", noFail(joinBoard));
@@ -157,6 +157,7 @@ function socketConnection(socket) {
 }
 
 function broadcastMetaData(socket, boardName, metaData) {
+    socket.emit("metadata", metaData);
     socket.broadcast.to(boardName).emit("metadata", metaData);
 }
 
