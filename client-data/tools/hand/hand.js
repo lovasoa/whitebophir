@@ -38,8 +38,10 @@
 	var transform_elements = [];
 	var selectorState = selectorStates.pointing;
 	var last_sent = 0;
+	var blockedSelectionButtons = Tools.server_config.BLOCKED_SELECTION_BUTTONS;
+	var selectionButtons = {};
 
-	var deleteButton = createButton("delete", "delete", 22, 22,
+	selectionButtons["delete"] = createButton("delete", "delete", 22, 22,
 		function(me, bbox, s) {
 			me.width.baseVal.value = me.origWidth / s;
 			me.height.baseVal.value = me.origHeight / s;
@@ -49,7 +51,7 @@
 		},
 									deleteSelection);
 
-	var duplicateButton = createButton("duplicate", "duplicate", 22, 22,
+	selectionButtons["duplicate"] = createButton("duplicate", "duplicate", 22, 22,
 		function(me, bbox, s) {
 			me.width.baseVal.value = me.origWidth / s;
 			me.height.baseVal.value = me.origHeight / s;
@@ -58,7 +60,7 @@
 			me.style.display = "";
 		},
 									   duplicateSelection);
-	var scaleHandle = createButton("scaleHandle", "handle", 14, 14,
+	selectionButtons["scale"] = createButton("scaleHandle", "handle", 14, 14,
 		function(me, bbox, s) {
 			me.width.baseVal.value = me.origWidth / s;
 			me.height.baseVal.value = me.origHeight / s;
@@ -66,8 +68,14 @@
 			me.y.baseVal.value = bbox.r[1] + bbox.b[1] - me.origHeight/(2*s);
 			me.style.display = "";
 		},
-								   startScalingTransform);
-	var selectionButtons = [deleteButton, duplicateButton, scaleHandle];
+								startScalingTransform);
+
+	for (i in blockedSelectionButtons) {
+		delete selectionButtons[blockedSelectionButtons[i]];
+	}
+	selectionButtons = Object.keys(selectionButtons).map(function(k) {
+			return selectionButtons[k];
+		});
 
 	var getScale = Tools.getScale;
 
