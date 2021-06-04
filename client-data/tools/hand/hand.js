@@ -491,15 +491,18 @@
 	}
 
 	function switchTool() {
-		selected = null;
+		onquit();
 		if (handTool.secondary.active) {
 			window.addEventListener("keydown", deleteShortcut);
 			window.addEventListener("keydown", duplicateShortcut);
 		}
-		else {
-			window.removeEventListener("keydown", deleteShortcut);
-			window.removeEventListener("keydown", duplicateShortcut);
-		}
+	}
+
+	function onquit() {
+		selected = null;
+		hideSelectionUI();
+		window.removeEventListener("keydown", deleteShortcut);
+		window.removeEventListener("keydown", duplicateShortcut);
 	}
 
 	var handTool = { //The new tool
@@ -510,6 +513,7 @@
 			"move": move,
 			"release": release,
 		},
+		"onquit": onquit,
 		"secondary": {
 			"name": "Selector",
 			"icon": "tools/hand/selector.svg",
