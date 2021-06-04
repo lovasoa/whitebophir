@@ -42,40 +42,40 @@
 	var selectionButtons = {};
 
 	selectionButtons["delete"] = createButton("delete", "delete", 22, 22,
-		function(me, bbox, s) {
+		function (me, bbox, s) {
 			me.width.baseVal.value = me.origWidth / s;
 			me.height.baseVal.value = me.origHeight / s;
 			me.x.baseVal.value = bbox.r[0];
 			me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
 			me.style.display = "";
 		},
-									deleteSelection);
+		deleteSelection);
 
 	selectionButtons["duplicate"] = createButton("duplicate", "duplicate", 22, 22,
-		function(me, bbox, s) {
+		function (me, bbox, s) {
 			me.width.baseVal.value = me.origWidth / s;
 			me.height.baseVal.value = me.origHeight / s;
 			me.x.baseVal.value = bbox.r[0] + (me.origWidth + 2) / s;
 			me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
 			me.style.display = "";
 		},
-									   duplicateSelection);
+		duplicateSelection);
 	selectionButtons["scale"] = createButton("scaleHandle", "handle", 14, 14,
-		function(me, bbox, s) {
+		function (me, bbox, s) {
 			me.width.baseVal.value = me.origWidth / s;
 			me.height.baseVal.value = me.origHeight / s;
-			me.x.baseVal.value = bbox.r[0] + bbox.a[0] - me.origWidth/(2*s);
-			me.y.baseVal.value = bbox.r[1] + bbox.b[1] - me.origHeight/(2*s);
+			me.x.baseVal.value = bbox.r[0] + bbox.a[0] - me.origWidth / (2 * s);
+			me.y.baseVal.value = bbox.r[1] + bbox.b[1] - me.origHeight / (2 * s);
 			me.style.display = "";
 		},
-								startScalingTransform);
+		startScalingTransform);
 
 	for (i in blockedSelectionButtons) {
 		delete selectionButtons[blockedSelectionButtons[i]];
 	}
-	selectionButtons = Object.keys(selectionButtons).map(function(k) {
-			return selectionButtons[k];
-		});
+	selectionButtons = Object.keys(selectionButtons).map(function (k) {
+		return selectionButtons[k];
+	});
 
 	var getScale = Tools.getScale;
 
@@ -87,9 +87,9 @@
 			els.unshift(a);
 			a = a.parentElement;
 		}
-		var parentMathematics = els.find(function(el) {
-				return el.getAttribute("class") === "MathElement";
-			});
+		var parentMathematics = els.find(function (el) {
+			return el.getAttribute("class") === "MathElement";
+		});
 		if ((parentMathematics) && parentMathematics.tagName === "svg") {
 			target = parentMathematics;
 		}
@@ -97,12 +97,12 @@
 	}
 
 	function deleteSelection() {
-		var msgs = selected_els.map(function(el) {
-                return ({
-                    "type": "delete",
-                    "id": el.id
-                });
-            });
+		var msgs = selected_els.map(function (el) {
+			return ({
+				"type": "delete",
+				"id": el.id
+			});
+		});
 		var data = {
 			_children: msgs
 		}
@@ -116,7 +116,7 @@
 			|| (selected_els.length == 0)) return;
 		var msgs = [];
 		var newids = [];
-		for (var i=0; i<selected_els.length; i++) {
+		for (var i = 0; i < selected_els.length; i++) {
 			var id = selected_els[i].id;
 			msgs[i] = {
 				type: "copy",
@@ -125,10 +125,10 @@
 			};
 			newids[i] = id;
 		}
-		Tools.drawAndSend({_children: msgs});
-		selected_els = newids.map(function(id) {
-                return Tools.svg.getElementById(id);
-            });
+		Tools.drawAndSend({ _children: msgs });
+		selected_els = newids.map(function (id) {
+			return Tools.svg.getElementById(id);
+		});
 	}
 
 	function createSelectorRect() {
@@ -148,7 +148,7 @@
 		return shape;
 	}
 
-	function createButton(name, icon , width, height, drawCallback, clickCallback) {
+	function createButton(name, icon, width, height, drawCallback, clickCallback) {
 		var shape = Tools.createSVGElement("image", {
 			id: name + "Icon",
 			href: "tools/hand/" + icon + ".svg",
@@ -191,10 +191,10 @@
 		currentTransform = moveSelection;
 		selected = { x: x, y: y };
 		// Some of the selected elements could have been deleted
-		selected_els = selected_els.filter(function(el) {
-				return Tools.svg.getElementById(el.id) !== null;
-			});
-		transform_elements = selected_els.map(function(el) {
+		selected_els = selected_els.filter(function (el) {
+			return Tools.svg.getElementById(el.id) !== null;
+		});
+		transform_elements = selected_els.map(function (el) {
 			var tmatrix = get_transform_matrix(el);
 			return {
 				a: tmatrix.a, b: tmatrix.b, c: tmatrix.c,
@@ -216,7 +216,7 @@
 			w: bbox.a[0],
 			h: bbox.b[1],
 		};
-		transform_elements = selected_els.map(function(el) {
+		transform_elements = selected_els.map(function (el) {
 			var tmatrix = get_transform_matrix(el);
 			return {
 				a: tmatrix.a, b: tmatrix.b, c: tmatrix.c,
@@ -251,7 +251,7 @@
 		var selectionTBBox = selectionRect.transformedBBox();
 		var elements = Tools.drawingArea.children;
 		var selected = [];
-		for (var i=0; i < elements.length; i++) {
+		for (var i = 0; i < elements.length; i++) {
 			if (transformedBBoxIntersects(selectionTBBox, elements[i].transformedBBox()))
 				selected.push(Tools.drawingArea.children[i]);
 		}
@@ -261,7 +261,7 @@
 	function moveSelection(x, y) {
 		var dx = x - selected.x;
 		var dy = y - selected.y;
-		var msgs = selected_els.map(function(el, i) {
+		var msgs = selected_els.map(function (el, i) {
 			var oldTransform = transform_elements[i];
 			return {
 				type: "update",
@@ -292,9 +292,9 @@
 	}
 
 	function scaleSelection(x, y) {
-		var rx = (x - selected.x)/(selected.w);
-		var ry = (y - selected.y)/(selected.h);
-		var msgs = selected_els.map(function(el, i) {
+		var rx = (x - selected.x) / (selected.w);
+		var ry = (y - selected.y) / (selected.h);
+		var msgs = selected_els.map(function (el, i) {
 			var oldTransform = transform_elements[i];
 			var x = el.transformedBBox().r[0];
 			var y = el.transformedBBox().r[1];
@@ -392,7 +392,7 @@
 					var newElement = Tools.svg.getElementById(data.id).cloneNode(true);
 					newElement.id = data.newid;
 					Tools.drawingArea.appendChild(newElement);
-				    break;
+					break;
 				case "delete":
 					data.tool = "Eraser";
 					messageForTool(data);
@@ -406,7 +406,7 @@
 	function clickSelector(x, y, evt) {
 		selectionRect = selectionRect || createSelectorRect();
 		var button = null;
-		for (var i=0; i<selectionButtons.length; i++) {
+		for (var i = 0; i < selectionButtons.length; i++) {
 			if (selectionButtons[i].contains(evt.target)) {
 				button = selectionButtons[i];
 			}
