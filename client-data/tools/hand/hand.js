@@ -404,7 +404,6 @@
 	}
 
 	function clickSelector(x, y, evt) {
-		var scale = getScale();
 		selectionRect = selectionRect || createSelectorRect();
 		var button = null;
 		for (var i=0; i<selectionButtons.length; i++) {
