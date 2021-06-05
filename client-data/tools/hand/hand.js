@@ -39,43 +39,41 @@
 	var selectorState = selectorStates.pointing;
 	var last_sent = 0;
 	var blockedSelectionButtons = Tools.server_config.BLOCKED_SELECTION_BUTTONS;
-	var selectionButtons = {};
+	var selectionButtons = [
+		createButton("delete", "delete", 24, 24,
+			function (me, bbox, s) {
+				me.width.baseVal.value = me.origWidth / s;
+				me.height.baseVal.value = me.origHeight / s;
+				me.x.baseVal.value = bbox.r[0];
+				me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
+				me.style.display = "";
+			},
+			deleteSelection),
 
-	selectionButtons["delete"] = createButton("delete", "delete", 22, 22,
-		function (me, bbox, s) {
-			me.width.baseVal.value = me.origWidth / s;
-			me.height.baseVal.value = me.origHeight / s;
-			me.x.baseVal.value = bbox.r[0];
-			me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
-			me.style.display = "";
-		},
-		deleteSelection);
+		createButton("duplicate", "duplicate", 24, 24,
+			function (me, bbox, s) {
+				me.width.baseVal.value = me.origWidth / s;
+				me.height.baseVal.value = me.origHeight / s;
+				me.x.baseVal.value = bbox.r[0] + (me.origWidth + 2) / s;
+				me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
+				me.style.display = "";
+			},
+			duplicateSelection),
 
-	selectionButtons["duplicate"] = createButton("duplicate", "duplicate", 22, 22,
-		function (me, bbox, s) {
-			me.width.baseVal.value = me.origWidth / s;
-			me.height.baseVal.value = me.origHeight / s;
-			me.x.baseVal.value = bbox.r[0] + (me.origWidth + 2) / s;
-			me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
-			me.style.display = "";
-		},
-		duplicateSelection);
-	selectionButtons["scale"] = createButton("scaleHandle", "handle", 14, 14,
-		function (me, bbox, s) {
-			me.width.baseVal.value = me.origWidth / s;
-			me.height.baseVal.value = me.origHeight / s;
-			me.x.baseVal.value = bbox.r[0] + bbox.a[0] - me.origWidth / (2 * s);
-			me.y.baseVal.value = bbox.r[1] + bbox.b[1] - me.origHeight / (2 * s);
-			me.style.display = "";
-		},
-		startScalingTransform);
+		createButton("scaleHandle", "handle", 14, 14,
+			function (me, bbox, s) {
+				me.width.baseVal.value = me.origWidth / s;
+				me.height.baseVal.value = me.origHeight / s;
+				me.x.baseVal.value = bbox.r[0] + bbox.a[0] - me.origWidth / (2 * s);
+				me.y.baseVal.value = bbox.r[1] + bbox.b[1] - me.origHeight / (2 * s);
+				me.style.display = "";
+			},
+			startScalingTransform)
+	];
 
 	for (i in blockedSelectionButtons) {
 		delete selectionButtons[blockedSelectionButtons[i]];
 	}
-	selectionButtons = Object.keys(selectionButtons).map(function (k) {
-		return selectionButtons[k];
-	});
 
 	var getScale = Tools.getScale;
 
@@ -149,12 +147,7 @@
 	}
 
 	function createButton(name, icon, width, height, drawCallback, clickCallback) {
-		var shape = Tools.createSVGElement("image", {
-			id: name + "Icon",
-			href: "tools/hand/" + icon + ".svg",
-			width: width,
-			height: height,
-		});
+		var shape = Tools.createSVGElement("use", {href: "tools/hand/" + icon + ".svg#root"});
 		shape.style.display = "none";
 		shape.origWidth = width;
 		shape.origHeight = height;
@@ -405,10 +398,9 @@
 
 	function clickSelector(x, y, evt) {
 		selectionRect = selectionRect || createSelectorRect();
-		var button = null;
 		for (var i = 0; i < selectionButtons.length; i++) {
 			if (selectionButtons[i].contains(evt.target)) {
-				button = selectionButtons[i];
+				var button = selectionButtons[i];
 			}
 		}
 		if (button) {
