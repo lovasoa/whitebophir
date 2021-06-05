@@ -100,6 +100,28 @@ class BoardData {
     this.delaySave();
   }
 
+  /** Copy elements in the board
+   * @param {string} id - Identifier of the data to copy.
+   * @param {BoardElem} data - Object containing the id of the new copied element.
+   */
+  copy(id, data) {
+    var obj = this.board[id];
+    var newid = data.newid;
+    if (obj) {
+      var newobj = JSON.parse(JSON.stringify(obj));
+      newobj.id = newid;
+      if (newobj._children) {
+	for (var child of newobj._children) {
+	    child.parent = newid;
+	}
+      }
+      this.board[newid] = newobj;
+    } else  {
+      log("Copied object does not exist in board.", {object: id});
+    }
+    this.delaySave();
+  }
+
   /** Removes data from the board
    * @param {string} id - Identifier of the data to delete.
    */
@@ -136,6 +158,9 @@ class BoardData {
         break;
       case "update":
         if (id) this.update(id, message);
+        break;
+      case "copy":
+        if (id) this.copy(id, message);
         break;
       case "child":
         this.addChild(message.parent, message);
