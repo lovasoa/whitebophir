@@ -147,7 +147,10 @@
 	}
 
 	function createButton(name, icon, width, height, drawCallback, clickCallback) {
-		var shape = Tools.createSVGElement("use", {href: "tools/hand/" + icon + ".svg#root"});
+		var shape = Tools.createSVGElement("image", {
+			href: "tools/hand/" + icon + ".svg",
+			width: width, height: height
+		});
 		shape.style.display = "none";
 		shape.origWidth = width;
 		shape.origHeight = height;
