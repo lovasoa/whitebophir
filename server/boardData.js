@@ -131,7 +131,14 @@ class BoardData {
     this.delaySave();
   }
 
-  /** Process a batch of messages
+	/** Clear all data from the board
+	 */
+  clear() {
+		this.board = [];
+		this.delaySave();
+	}
+
+	/** Process a batch of messages
    * @typedef {{
    *  id:string,
    *  type: "delete" | "update" | "child",
@@ -155,6 +162,9 @@ class BoardData {
     switch (message.type) {
       case "delete":
         if (id) this.delete(id);
+        break;
+      case "clear":
+        this.clear();
         break;
       case "update":
         if (id) this.update(id, message);
