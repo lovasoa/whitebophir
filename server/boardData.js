@@ -134,7 +134,7 @@ class BoardData {
 	/** Clear all data from the board
 	 */
   clear() {
-		this.board = [];
+		this.board = {};
 		this.delaySave();
 	}
 
