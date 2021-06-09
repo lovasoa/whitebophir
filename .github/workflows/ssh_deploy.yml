@@ -15,3 +15,4 @@ jobs:
       with:
         git_remote_url: ssh://dokku@${{ secrets.SSH_SERVER }}:22/wbo
         ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+        git_push_flags: --force
