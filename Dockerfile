@@ -11,8 +11,8 @@ COPY package.json package-lock.json ./
 RUN npm ci --production
 COPY --chown=1000:1000 . .
 
-ENV PORT=8080
-EXPOSE 8080
+ENV PORT=80
+EXPOSE 80
 
 VOLUME /opt/app/server-data
 
