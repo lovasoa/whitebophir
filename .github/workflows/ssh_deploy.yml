@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
     - name: Dokku
       uses: dokku/github-action@9c1a871eab9daef563cf08b9602c7675f4a8bb56
       with:
