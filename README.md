@@ -35,7 +35,7 @@ You can run the following bash command to launch WBO on port 5001, while persist
 ```bash
 mkdir wbo-boards # Create a directory that will contain your whiteboards
 chown -R 1000:1000 wbo-boards # Make this directory accessible to WBO
-docker run -it --publish 5001:8080 --volume "$(pwd)/wbo-boards:/opt/app/server-data" lovasoa/wbo:latest # run wbo
+docker run -it --publish 5001:80 --volume "$(pwd)/wbo-boards:/opt/app/server-data" lovasoa/wbo:latest # run wbo
 ```
 
 You can then access WBO at `http://localhost:5001`.
