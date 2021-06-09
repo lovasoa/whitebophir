@@ -9,8 +9,9 @@ jobs:
     name: deploy
     runs-on: ubuntu-latest
     steps:
-    - name: executing remote ssh
-      run: echo "$SSH_PRIVATE_KEY" > pkey && chmod og-rwx pkey && ssh -i pkey -o StrictHostKeyChecking=no "$SSH_SERVER" ./update-wbo.sh
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        SSH_SERVER: ${{ secrets.SSH_SERVER }}
+    - uses: actions/checkout@v2
+    - name: Dokku
+      uses: dokku/github-action@9c1a871eab9daef563cf08b9602c7675f4a8bb56
+      with:
+        git_remote_url: ssh://dokku@${{ secrets.SSH_SERVER }}:22/wbo
+        ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
