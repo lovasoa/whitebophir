@@ -4,7 +4,7 @@
  * @param {any} infos
  */
 function log(type, infos) {
-  var msg = new Date().toISOString() + "\t" + type;
+  var msg = type;
   if (infos) msg += "\t" + JSON.stringify(infos);
   console.log(msg);
 }
