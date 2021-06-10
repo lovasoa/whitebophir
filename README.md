@@ -90,3 +90,16 @@ Some important environment variables are :
 ## Troubleshooting
 
 If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
+
+## Monitoring
+
+If you are self-hosting a WBO instance, you may want to monitor its load,
+the number of connected users, and different metrics.
+
+You can start WBO with the `STATSD_URL` to send it to a statsd-compatible
+metrics collection agent.
+
+Example: `docker run -e STATSD_URL=udp://127.0.0.1:8125 lovasoa/wbo`.
+
+ - If you use **prometheus**, you can collect the metrics with [statsd-exporter](https://hub.docker.com/r/prom/statsd-exporter).
+ - If you use **datadog**, you can collect the metrics with [dogstatsd](https://docs.datadoghq.com/developers/dogstatsd).

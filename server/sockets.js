@@ -1,5 +1,5 @@
 var iolib = require("socket.io"),
-  log = require("./log.js").log,
+  { log, gauge, monitorFunction } = require("./log.js"),
   BoardData = require("./boardData.js").BoardData,
   config = require("./configuration");
 
@@ -17,9 +17,10 @@ var boards = {};
  * @returns {A}
  */
 function noFail(fn) {
+  const monitored = monitorFunction(fn);
   return function noFailWrapped(arg) {
     try {
-      return fn(arg);
+      return monitored(arg);
     } catch (e) {
       console.trace(e);
     }
@@ -28,7 +29,7 @@ function noFail(fn) {
 
 function startIO(app) {
   io = iolib(app);
-  io.on("connection", noFail(socketConnection));
+  io.on("connection", noFail(handleSocketConnection));
   return io;
 }
 
@@ -41,6 +42,7 @@ function getBoard(name) {
   } else {
     var board = BoardData.load(name);
     boards[name] = board;
+    gauge("boards in memory", Object.keys(boards).length);
     return board;
   }
 }
@@ -49,7 +51,7 @@ function getBoard(name) {
  * Executes on every new connection
  * @param {iolib.Socket} socket
  */
-function socketConnection(socket) {
+function handleSocketConnection(socket) {
   /**
    * Function to call when an user joins a board
    * @param {string} name
@@ -64,6 +66,7 @@ function socketConnection(socket) {
     var board = await getBoard(name);
     board.users.add(socket.id);
     log("board joined", { board: board.name, users: board.users.size });
+    gauge("connected", board.users.size, {board: name});
     return board;
   }
 
@@ -141,9 +144,11 @@ function socketConnection(socket) {
         board.users.delete(socket.id);
         var userCount = board.users.size;
         log("disconnection", { board: board.name, users: board.users.size });
+        gauge("connected", userCount, { board: board.name });
         if (userCount === 0) {
           board.save();
           delete boards[room];
+          gauge("boards in memory", Object.keys(boards).length);
         }
       }
     });

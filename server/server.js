@@ -1,8 +1,7 @@
 var app = require("http").createServer(handler),
   sockets = require("./sockets.js"),
-  log = require("./log.js").log,
+  {log, monitorFunction} = require("./log.js"),
   path = require("path"),
-  url = require("url"),
   fs = require("fs"),
   crypto = require("crypto"),
   serveStatic = require("serve-static"),
@@ -57,7 +56,7 @@ function serveError(request, response) {
  */
 function logRequest(request) {
   log("connection", {
-    ip: request.connection.remoteAddress,
+    ip: request.socket.remoteAddress,
     original_ip:
       request.headers["x-forwarded-for"] || request.headers["forwarded"],
     user_agent: request.headers["user-agent"],
@@ -72,7 +71,7 @@ function logRequest(request) {
  */
 function handler(request, response) {
   try {
-    handleRequest(request, response);
+    handleRequestAndLog(request, response);
   } catch (err) {
     console.trace(err);
     response.writeHead(500, { "Content-Type": "text/plain" });
@@ -101,7 +100,7 @@ function validateBoardName(boardName) {
  * @type {import('http').RequestListener}
  */
 function handleRequest(request, response) {
-  var parsedUrl = url.parse(request.url, true);
+  var parsedUrl = new URL(request.url, 'http://wbo/');
   var parts = parsedUrl.pathname.split("/");
   if (parts[0] === "") parts.shift();
 
@@ -110,7 +109,7 @@ function handleRequest(request, response) {
       // "boards" refers to the root directory
       if (parts.length === 1) {
         // '/boards?board=...' This allows html forms to point to boards
-        var boardName = parsedUrl.query.board || "anonymous";
+        var boardName = parsedUrl.searchParams.get("board") || "anonymous";
         var headers = { Location: "boards/" + encodeURIComponent(boardName) };
         response.writeHead(301, headers);
         response.end();
@@ -218,4 +217,5 @@ function handleRequest(request, response) {
   }
 }
 
+const handleRequestAndLog = monitorFunction(handleRequest);
 module.exports = app;

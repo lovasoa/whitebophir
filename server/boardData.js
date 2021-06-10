@@ -215,7 +215,7 @@ class BoardData {
       // empty board
       try {
         await fs.promises.unlink(file);
-        log("removed empty board", { name: this.name });
+        log("removed empty board", { board: this.name });
       } catch (err) {
         if (err.code !== "ENOENT") {
           // If the file already wasn't saved, this is not an error
@@ -227,12 +227,13 @@ class BoardData {
         await fs.promises.writeFile(tmp_file, board_txt, { flag: "wx" });
         await fs.promises.rename(tmp_file, file);
         log("saved board", {
-          name: this.name,
+          board: this.name,
           size: board_txt.length,
           delay_ms: Date.now() - this.lastSaveDate,
         });
       } catch (err) {
         log("board saving error", {
+          board: this.name,
           err: err.toString(),
           tmp_file: tmp_file,
         });

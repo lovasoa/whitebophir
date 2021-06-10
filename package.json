@@ -11,9 +11,10 @@
     "accept-language-parser": "^1.5.0",
     "async-mutex": "^0.3.1",
     "handlebars": "^4.7.7",
-    "polyfill-library": "^3.104.0",
+    "polyfill-library": "^3.105.0",
     "serve-static": "^1.14.1",
-    "socket.io": "^3.1.2"
+    "socket.io": "^3.1.2",
+    "statsd-client": "^0.4.7"
   },
   "scripts": {
     "start": "node ./server/server.js",
@@ -26,6 +27,6 @@
   },
   "devDependencies": {
     "geckodriver": "^1.22.3",
-    "nightwatch": "^1.6.3"
+    "nightwatch": "^1.6.4"
   }
 }
