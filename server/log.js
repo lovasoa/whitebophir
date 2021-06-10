@@ -64,8 +64,9 @@ function monitorFunction(f) {
   return function () {
     let startTime = new Date();
     try {
-      f.apply(null, arguments);
+      const result = f.apply(null, arguments);
       client.increment("ok", 1);
+      return result;
     } catch (e) {
       client.increment("err", 1);
       throw e;
