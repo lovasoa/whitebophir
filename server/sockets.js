@@ -143,7 +143,7 @@ function handleSocketConnection(socket) {
         var board = await boards[room];
         board.users.delete(socket.id);
         var userCount = board.users.size;
-        log("disconnection", { board: board.name, users: board.users.size });
+        log("disconnection", { board: board.name, users: board.users.size, reason });
         gauge("connected." + board.name, userCount);
         if (userCount === 0) {
           board.save();
