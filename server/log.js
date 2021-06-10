@@ -30,9 +30,9 @@ if (config.STATSD_URL) {
 }
 
 if (statsd) {
-  setInterval(function reportHealth(){
-    statsd.gauge('memory', process.memoryUsage().heapUsed);
-  }, 1000);
+  setInterval(function reportHealth() {
+    statsd.gauge("memory", process.memoryUsage().heapUsed);
+  }, 30 * 1000);
 }
 
 /**
@@ -44,10 +44,9 @@ function log(type, infos) {
   var msg = type;
   if (infos) msg += "\t" + JSON.stringify(infos);
   if (statsd) {
-    const tags = {};
-    if (infos.board) tags.board = infos.board;
-    if (infos.original_ip) tags.original_ip = infos.original_ip;
-    statsd.increment(type, 1, tags);
+    let stat_name = type;
+    if (infos.board) stat_name += "." + infos.board;
+    statsd.increment(stat_name, 1);
   }
   console.log(msg);
 }
@@ -58,17 +57,31 @@ function log(type, infos) {
  * @returns {F}
  */
 function monitorFunction(f) {
-  if (statsd) return statsd.helpers.wrapCallback(f.name, f);
-  else return f;
+  if (!statsd) {
+    return f;
+  }
+  let client = statsd.getChildClient(f.name);
+  return function () {
+    let startTime = new Date();
+    try {
+      f.apply(null, arguments);
+      client.increment("ok", 1);
+    } catch (e) {
+      client.increment("err", 1);
+      throw e;
+    } finally {
+      client.timing("time", startTime);
+    }
+  };
 }
 
 /**
  * Report a number
- * @param {string} name 
- * @param {number} value 
+ * @param {string} name
+ * @param {number} value
  * @param {{[name:string]: string}=} tags
  */
-function gauge(name, value, tags){
+function gauge(name, value, tags) {
   if (statsd) statsd.gauge(name, value, tags);
 }
 

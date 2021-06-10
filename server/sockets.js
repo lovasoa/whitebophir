@@ -72,7 +72,7 @@ function handleSocketConnection(socket) {
 
   socket.on(
     "error",
-    noFail(function onError(error) {
+    noFail(function onSocketError(error) {
       log("ERROR", error);
     })
   );
