@@ -46,7 +46,7 @@ function log(type, infos) {
   if (statsd) {
     let stat_name = type;
     if (infos.board) stat_name += "." + infos.board;
-    statsd.increment(stat_name, 1);
+    statsd.increment(stat_name);
   }
   console.log(msg);
 }
