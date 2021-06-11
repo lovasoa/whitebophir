@@ -94,9 +94,9 @@ If you experience an issue or want to propose a new feature in WBO, please [open
 ## Monitoring
 
 If you are self-hosting a WBO instance, you may want to monitor its load,
-the number of connected users, and different metrics.
+the number of connected users, and various other metrics.
 
-You can start WBO with the `STATSD_URL` to send it to a statsd-compatible
+You can start WBO with the `STATSD_URL` environment variable to send it to a statsd-compatible
 metrics collection agent.
 
 Example: `docker run -e STATSD_URL=udp://127.0.0.1:8125 lovasoa/wbo`.
