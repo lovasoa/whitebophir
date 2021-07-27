@@ -4,7 +4,7 @@ var iolib = require("socket.io"),
   config = require("./configuration");
 
 /** Map from name to *promises* of BoardData
-  @type {Object<string, Promise<BoardData>>}
+  @type {{[boardName: string]: Promise<BoardData>}}
 */
 var boards = {};
 
@@ -143,16 +143,30 @@ function handleSocketConnection(socket) {
         var board = await boards[room];
         board.users.delete(socket.id);
         var userCount = board.users.size;
-        log("disconnection", { board: board.name, users: board.users.size, reason });
+        log("disconnection", {
+          board: board.name,
+          users: board.users.size,
+          reason,
+        });
         gauge("connected." + board.name, userCount);
-        if (userCount === 0) {
-          board.save();
-          delete boards[room];
-          gauge("boards in memory", Object.keys(boards).length);
-        }
+        if (userCount === 0) unloadBoard(room);
       }
     });
   });
+}
+
+/**
+ * Unloads a board from memory.
+ * @param {string} boardName
+ **/
+async function unloadBoard(boardName) {
+  if (boards.hasOwnProperty(boardName)) {
+    const board = await boards[boardName];
+    await board.save();
+    log("unload board", { board: board.name, users: board.users.size });
+    delete boards[boardName];
+    gauge("boards in memory", Object.keys(boards).length);
+  }
 }
 
 function handleMessage(boardName, message, socket) {
