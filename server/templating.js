@@ -33,11 +33,19 @@ class Template {
     this.template = handlebars.compile(contents);
   }
   parameters(parsedUrl, request) {
-    const accept_languages =
-      parsedUrl.query.lang || request.headers["accept-language"];
+    const accept_language_str = parsedUrl.query.lang || request.headers["accept-language"];
+    const accept_languages = accept_language_parser.parse(accept_language_str);
     const opts = { loose: true };
-    const language =
+    let language =
       accept_language_parser.pick(languages, accept_languages, opts) || "en";
+    // The loose matcher returns the first language that partially matches, so we need to
+    // check if the preferred language is supported to return it
+    if (accept_languages.length > 0) {
+      const preferred_language = accept_languages[0].code + "-" + accept_languages[0].region;
+      if (languages.includes(preferred_language)) {
+        language = preferred_language;
+      }
+    }
     const translations = TRANSLATIONS[language] || {};
     const configuration = client_config || {};
     const prefix = request.url.split("/boards/")[0].substr(1);
