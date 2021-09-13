@@ -28,7 +28,7 @@ If you have your own web server, and want to run a private instance of WBO on it
 ### Running the code in a container (safer)
 
 If you use the [docker](https://www.docker.com/) containerization service, you can easily run WBO as a container. 
-An official docker image for WBO is hosted on dockerhub as [`lovasoa/wbo`](https://hub.docker.com/repository/docker/lovasoa/wbo): [![WBO 1M docker pulls](https://img.shields.io/docker/pulls/lovasoa/wbo.svg)](https://hub.docker.com/repository/docker/lovasoa/wbo).
+An official docker image for WBO is hosted on dockerhub as [`lovasoa/wbo`](https://hub.docker.com/r/lovasoa/wbo): [![WBO 1M docker pulls](https://img.shields.io/docker/pulls/lovasoa/wbo.svg)](https://hub.docker.com/repository/docker/lovasoa/wbo).
 
 You can run the following bash command to launch WBO on port 5001, while persisting the boards outside of docker:
 
