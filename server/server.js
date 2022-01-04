@@ -9,7 +9,8 @@ var app = require("http").createServer(handler),
   templating = require("./templating.js"),
   config = require("./configuration.js"),
   polyfillLibrary = require("polyfill-library"),
-  check_output_directory = require("./check_output_directory.js");
+  check_output_directory = require("./check_output_directory.js"),
+  jsonwebtoken = require("jsonwebtoken");
 
 var MIN_NODE_VERSION = 10.0;
 
@@ -102,6 +103,23 @@ function validateBoardName(boardName) {
 function handleRequest(request, response) {
   var parsedUrl = new URL(request.url, 'http://wbo/');
   var parts = parsedUrl.pathname.split("/");
+
+  // Check for auth if required
+  if(config.AUTH_METHOD == "jwt") {
+    if(parsedUrl.searchParams.get("token")) {
+      var token = parsedUrl.searchParams.get("token");
+      jsonwebtoken.verify(token, config.AUTH_SECRET_KEY, function(error, decoded) {
+        if(error) { // Token not valid
+          response.writeHead(403, { 'Content-Type': 'text/plain' });
+          response.end("Error: Forbidden\n" + error);
+        }
+      });
+    } else { // Error out as no token provided
+      response.writeHead(403, { 'Content-Type': 'text/plain' });
+      response.end("Error: Forbidden\nNo token provided");
+    }
+  }
+
   if (parts[0] === "") parts.shift();
 
   switch (parts[0]) {
@@ -113,7 +131,7 @@ function handleRequest(request, response) {
         var headers = { Location: "boards/" + encodeURIComponent(boardName) };
         response.writeHead(301, headers);
         response.end();
-      } else if (parts.length === 2 && request.url.indexOf(".") === -1) {
+      } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
         validateBoardName(parts[1]);
         // If there is no dot and no directory, parts[1] is the board name
         boardTemplate.serve(request, response);
