@@ -98,27 +98,31 @@ function validateBoardName(boardName) {
 }
 
 /**
+ * Throws an error if the user does not have permission
+ * @param {URL} url
+ * @throws {Error}
+ */
+ function userHasPermission(url) {
+  if(config.AUTH_SECRET_KEY != "") {
+    if(url.searchParams.get("token")) {
+      var token = url.searchParams.get("token");
+      try {
+        jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
+      } catch(error) { // Token not valid
+        throw new Error(error)
+      }
+    } else { // Error out as no token provided
+      throw new Error("No token provided");
+    }
+  }
+}
+
+/**
  * @type {import('http').RequestListener}
  */
 function handleRequest(request, response) {
   var parsedUrl = new URL(request.url, 'http://wbo/');
   var parts = parsedUrl.pathname.split("/");
-
-  // Check for auth if required
-  if(config.AUTH_METHOD == "jwt") {
-    if(parsedUrl.searchParams.get("token")) {
-      var token = parsedUrl.searchParams.get("token");
-      jsonwebtoken.verify(token, config.AUTH_SECRET_KEY, function(error, decoded) {
-        if(error) { // Token not valid
-          response.writeHead(403, { 'Content-Type': 'text/plain' });
-          response.end("Error: Forbidden\n" + error);
-        }
-      });
-    } else { // Error out as no token provided
-      response.writeHead(403, { 'Content-Type': 'text/plain' });
-      response.end("Error: Forbidden\nNo token provided");
-    }
-  }
 
   if (parts[0] === "") parts.shift();
 
@@ -134,7 +138,14 @@ function handleRequest(request, response) {
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
         validateBoardName(parts[1]);
         // If there is no dot and no directory, parts[1] is the board name
-        boardTemplate.serve(request, response);
+        try {
+          userHasPermission(parsedUrl);
+          // User has permission so we can proceed
+          boardTemplate.serve(request, response);
+        } catch (error) {
+          response.writeHead(403, { 'Content-Type': 'text/plain' });
+          response.end("Forbidden\n" + error);
+        }
       } else {
         // Else, it's a resource
         request.url = "/" + parts.slice(1).join("/");
@@ -143,49 +154,63 @@ function handleRequest(request, response) {
       break;
 
     case "download":
-      var boardName = validateBoardName(parts[1]),
-        history_file = path.join(
-          config.HISTORY_DIR,
-          "board-" + boardName + ".json"
-        );
-      if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
-        history_file += "." + parts[2] + ".bak";
-      }
-      log("download", { file: history_file });
-      fs.readFile(history_file, function (err, data) {
-        if (err) return serveError(request, response)(err);
-        response.writeHead(200, {
-          "Content-Type": "application/json",
-          "Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
-          "Content-Length": data.length,
+      try {
+        userHasPermission(parsedUrl);
+        // User has permission so we can proceed
+        var boardName = validateBoardName(parts[1]),
+          history_file = path.join(
+            config.HISTORY_DIR,
+            "board-" + boardName + ".json"
+          );
+        if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
+          history_file += "." + parts[2] + ".bak";
+        }
+        log("download", { file: history_file });
+        fs.readFile(history_file, function (err, data) {
+          if (err) return serveError(request, response)(err);
+          response.writeHead(200, {
+            "Content-Type": "application/json",
+            "Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
+            "Content-Length": data.length,
+          });
+          response.end(data);
         });
-        response.end(data);
-      });
+      } catch (error) {
+        response.writeHead(403, { 'Content-Type': 'text/plain' });
+        response.end("Forbidden\n" + error);
+      }
       break;
 
     case "export":
     case "preview":
-      var boardName = validateBoardName(parts[1]),
-        history_file = path.join(
-          config.HISTORY_DIR,
-          "board-" + boardName + ".json"
-        );
-      response.writeHead(200, {
-        "Content-Type": "image/svg+xml",
-        "Content-Security-Policy": CSP,
-        "Cache-Control": "public, max-age=30",
-      });
-      var t = Date.now();
-      createSVG
-        .renderBoard(history_file, response)
-        .then(function () {
-          log("preview", { board: boardName, time: Date.now() - t });
-          response.end();
-        })
-        .catch(function (err) {
-          log("error", { error: err.toString(), stack: err.stack });
-          response.end("<text>Sorry, an error occured</text>");
+      try {
+        userHasPermission(parsedUrl);
+        // User has permission so we can proceed
+        var boardName = validateBoardName(parts[1]),
+          history_file = path.join(
+            config.HISTORY_DIR,
+            "board-" + boardName + ".json"
+          );
+        response.writeHead(200, {
+          "Content-Type": "image/svg+xml",
+          "Content-Security-Policy": CSP,
+          "Cache-Control": "public, max-age=30",
         });
+        var t = Date.now();
+        createSVG
+          .renderBoard(history_file, response)
+          .then(function () {
+            log("preview", { board: boardName, time: Date.now() - t });
+            response.end();
+          })
+          .catch(function (err) {
+            log("error", { error: err.toString(), stack: err.stack });
+            response.end("<text>Sorry, an error occured</text>");
+          });
+      } catch (error) {
+        response.writeHead(403, { 'Content-Type': 'text/plain' });
+        response.end("Forbidden\n" + error);
+      }
       break;
 
     case "random":
@@ -227,7 +252,14 @@ function handleRequest(request, response) {
 
     case "": // Index page
       logRequest(request);
-      indexTemplate.serve(request, response);
+      try {
+        userHasPermission(parsedUrl);
+        // User has permission so we can proceed
+        indexTemplate.serve(request, response);
+      } catch (error) {
+        response.writeHead(403, { 'Content-Type': 'text/plain' });
+        response.end("Forbidden\n" + error);
+      }
       break;
 
     default:
