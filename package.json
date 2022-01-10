@@ -19,7 +19,7 @@
   },
   "scripts": {
     "start": "node ./server/server.js",
-    "test": "nightwatch tests"
+    "test": "nightwatch tests && nightwatch tests --env jwt"
   },
   "main": "./server/server.js",
   "repository": {

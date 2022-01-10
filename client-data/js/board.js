@@ -62,8 +62,12 @@ Tools.connect = function () {
 		self.socket = null;
 	}
 
+	var url = new URL(window.location);
+	var params = new URLSearchParams(url.search);
+	var token = params.get("token");
 
 	this.socket = io.connect('', {
+		"query": "token=" + token,
 		"path": window.location.pathname.split("/boards/")[0] + "/socket.io",
 		"reconnection": true,
 		"reconnectionDelay": 100, //Make the xhr connections as fast as possible

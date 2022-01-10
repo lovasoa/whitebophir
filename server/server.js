@@ -104,13 +104,9 @@ function validateBoardName(boardName) {
  */
  function userHasPermission(url) {
   if(config.AUTH_SECRET_KEY != "") {
-    if(url.searchParams.get("token")) {
-      var token = url.searchParams.get("token");
-      try {
-        jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-      } catch(error) { // Token not valid
-        throw new Error(error)
-      }
+    var token = url.searchParams.get("token");
+    if(token) {
+      jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
     } else { // Error out as no token provided
       throw new Error("No token provided");
     }

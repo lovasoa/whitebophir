@@ -79,6 +79,12 @@ See instructions on our Wiki about [how to setup a reverse proxy for WBO](https:
 WBO is available in multiple languages. The translations are stored in [`server/translations.json`](./server/translations.json). 
 If you feel like contributing to this collaborative project, you can [translate WBO into your own language](https://github.com/lovasoa/whitebophir/wiki/How-to-translate-WBO-into-your-own-language).
 
+## Authentication
+
+WBO supports authentication with a JWT. This should be passed in as a query with the key `token`, eg, `http://myboard.com/boards/test?token={token}`
+
+The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should filled with the secret key for the JWT.
+
 ## Configuration
 
 When you start a WBO server, it loads its configuration from several environment variables.

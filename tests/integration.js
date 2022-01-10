@@ -5,12 +5,16 @@ const path = require("path");
 const PORT = 8487
 const SERVER = 'http://localhost:' + PORT;
 
-let wbo, data_path;
+let wbo, data_path, tokenQuery;
 
 async function beforeEach(browser, done) {
     data_path = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'wbo-test-data-'));
     process.env["PORT"] = PORT;
     process.env["WBO_HISTORY_DIR"] = data_path;
+    if(browser.globals.token) {
+        process.env["AUTH_SECRET_KEY"] = "test";
+        tokenQuery = "token=" + browser.globals.token;
+    }
     console.log("Launching WBO in " + data_path);
     wbo = require("../server/server.js");
     done();
@@ -51,7 +55,7 @@ function testPencil(browser) {
         .refresh()
         .waitForElementVisible("path[d='M 100 200 L 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
         .assert.visible("path[d='M 0 0 L 0 0 C 0 0 40 120 90 120 C 140 120 180 0 180 0'][stroke='#abcdef']")
-        .url(SERVER + '/preview/anonymous')
+        .url(SERVER + '/preview/anonymous?' + tokenQuery)
         .waitForElementVisible("path[d='M 100 200 L 100 200 C 100 200 300 400 300 400'][stroke='#123456']")
         .assert.visible("path[d='M 0 0 L 0 0 C 0 0 40 120 90 120 C 140 120 180 0 180 0'][stroke='#abcdef']")
         .back()
@@ -92,15 +96,15 @@ function testCursor(browser) {
 }
 
 function testBoard(browser) {
-    var page = browser.url(SERVER + '/boards/anonymous?lang=fr')
+    var page = browser.url(SERVER + '/boards/anonymous?lang=fr&' + tokenQuery)
         .waitForElementVisible('.tool[title ~= Crayon]') // pencil
     page = testPencil(page);
     page = testCircle(page);
     page = testCursor(page);
 
     // test hideMenu
-    browser.url(SERVER + '/boards/anonymous?lang=fr&hideMenu=true').waitForElementNotVisible('#menu');
-    browser.url(SERVER + '/boards/anonymous?lang=fr&hideMenu=false').waitForElementVisible('#menu');
+    browser.url(SERVER + '/boards/anonymous?lang=fr&hideMenu=true&' + tokenQuery).waitForElementNotVisible('#menu');
+    browser.url(SERVER + '/boards/anonymous?lang=fr&hideMenu=false&' + tokenQuery).waitForElementVisible('#menu');
 
     page.end();
 }
