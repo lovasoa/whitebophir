@@ -67,7 +67,7 @@ Tools.connect = function () {
 	var token = params.get("token");
 
 	this.socket = io.connect('', {
-		"query": "token=" + token,
+		...(token && {"query" : "token=" + token}),
 		"path": window.location.pathname.split("/boards/")[0] + "/socket.io",
 		"reconnection": true,
 		"reconnectionDelay": 100, //Make the xhr connections as fast as possible
