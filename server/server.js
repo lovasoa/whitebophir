@@ -122,8 +122,10 @@ function handleRequest(request, response) {
 
   if (parts[0] === "") parts.shift();
 
+  var fileExt = path.extname(parsedUrl.pathname);
+  var staticResources = ['.js','.css', '.svg', '.ico', '.png', '.jpg', 'gif'];
   // If we're not being asked for a file, then we should check permissions.
-  if(parsedUrl.pathname.indexOf(".") === -1) {
+  if(!staticResources.includes(fileExt)) {
     checkUserPermission(parsedUrl);
   }
 
