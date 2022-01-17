@@ -36,7 +36,6 @@ function startIO(app) {
       if(socket.handshake.query && socket.handshake.query.token) {
         jsonwebtoken.verify(socket.handshake.query.token, config.AUTH_SECRET_KEY, function(err, decoded) {
           if(err) return next(new Error("Authentication error: Invalid JWT"));
-          socket.decoded = decoded;
           next();
         })
       } else {
