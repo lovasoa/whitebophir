@@ -102,7 +102,7 @@ function validateBoardName(boardName) {
  * @param {URL} url
  * @throws {Error}
  */
- function userHasPermission(url) {
+function checkUserPermission(url) {
   if(config.AUTH_SECRET_KEY != "") {
     var token = url.searchParams.get("token");
     if(token) {
@@ -122,6 +122,11 @@ function handleRequest(request, response) {
 
   if (parts[0] === "") parts.shift();
 
+  // If we're not being asked for a file, then we should check permissions.
+  if(parsedUrl.pathname.indexOf(".") === -1) {
+    checkUserPermission(parsedUrl);
+  }
+
   switch (parts[0]) {
     case "boards":
       // "boards" refers to the root directory
@@ -133,26 +138,15 @@ function handleRequest(request, response) {
         response.end();
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
         validateBoardName(parts[1]);
+        boardTemplate.serve(request, response);
         // If there is no dot and no directory, parts[1] is the board name
-        try {
-          userHasPermission(parsedUrl);
-          // User has permission so we can proceed
-          boardTemplate.serve(request, response);
-        } catch (error) {
-          response.writeHead(403, { 'Content-Type': 'text/plain' });
-          response.end("Forbidden\n" + error);
-        }
       } else {
-        // Else, it's a resource
         request.url = "/" + parts.slice(1).join("/");
         fileserver(request, response, serveError(request, response));
       }
       break;
 
     case "download":
-      try {
-        userHasPermission(parsedUrl);
-        // User has permission so we can proceed
         var boardName = validateBoardName(parts[1]),
           history_file = path.join(
             config.HISTORY_DIR,
@@ -171,17 +165,10 @@ function handleRequest(request, response) {
           });
           response.end(data);
         });
-      } catch (error) {
-        response.writeHead(403, { 'Content-Type': 'text/plain' });
-        response.end("Forbidden\n" + error);
-      }
       break;
 
     case "export":
     case "preview":
-      try {
-        userHasPermission(parsedUrl);
-        // User has permission so we can proceed
         var boardName = validateBoardName(parts[1]),
           history_file = path.join(
             config.HISTORY_DIR,
@@ -203,10 +190,6 @@ function handleRequest(request, response) {
             log("error", { error: err.toString(), stack: err.stack });
             response.end("<text>Sorry, an error occured</text>");
           });
-      } catch (error) {
-        response.writeHead(403, { 'Content-Type': 'text/plain' });
-        response.end("Forbidden\n" + error);
-      }
       break;
 
     case "random":
@@ -248,14 +231,7 @@ function handleRequest(request, response) {
 
     case "": // Index page
       logRequest(request);
-      try {
-        userHasPermission(parsedUrl);
-        // User has permission so we can proceed
         indexTemplate.serve(request, response);
-      } catch (error) {
-        response.writeHead(403, { 'Content-Type': 'text/plain' });
-        response.end("Forbidden\n" + error);
-      }
       break;
 
     default:
