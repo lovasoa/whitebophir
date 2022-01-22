@@ -1,7 +1,7 @@
 {
   "name": "whitebophir",
   "description": "Online collaborative whiteboard",
-  "version": "1.16.1",
+  "version": "1.17.0",
   "keywords": [
     "collaborative",
     "whiteboard"
@@ -27,7 +27,7 @@
     "url": "http://github.com/lovasoa/whitebophir.git"
   },
   "devDependencies": {
-    "geckodriver": "^2.0.4",
-    "nightwatch": "^1.6.4"
+    "geckodriver": "^3.0.1",
+    "nightwatch": "^1.7.12"
   }
 }
