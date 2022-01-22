@@ -54,4 +54,7 @@ module.exports = {
    * example: udp://127.0.0.1
   */
   STATSD_URL: process.env["STATSD_URL"],
+
+  /** Secret key for jwt */
+  AUTH_SECRET_KEY: (process.env["AUTH_SECRET_KEY"] || ""),
 };

@@ -1,7 +1,8 @@
 var iolib = require("socket.io"),
   { log, gauge, monitorFunction } = require("./log.js"),
   BoardData = require("./boardData.js").BoardData,
-  config = require("./configuration");
+  config = require("./configuration"),
+  jsonwebtoken = require("jsonwebtoken");
 
 /** Map from name to *promises* of BoardData
   @type {{[boardName: string]: Promise<BoardData>}}
@@ -29,6 +30,19 @@ function noFail(fn) {
 
 function startIO(app) {
   io = iolib(app);
+  if (config.AUTH_SECRET_KEY) {
+    // Middleware to check for valid jwt
+    io.use(function(socket, next) {
+      if(socket.handshake.query && socket.handshake.query.token) {
+        jsonwebtoken.verify(socket.handshake.query.token, config.AUTH_SECRET_KEY, function(err, decoded) {
+          if(err) return next(new Error("Authentication error: Invalid JWT"));
+          next();
+        })
+      } else {
+        next(new Error("Authentication error: No jwt provided"));
+      }
+    });
+  }
   io.on("connection", noFail(handleSocketConnection));
   return io;
 }
