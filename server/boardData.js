@@ -100,6 +100,28 @@ class BoardData {
     this.delaySave();
   }
 
+  /** Copy elements in the board
+   * @param {string} id - Identifier of the data to copy.
+   * @param {BoardElem} data - Object containing the id of the new copied element.
+   */
+  copy(id, data) {
+    var obj = this.board[id];
+    var newid = data.newid;
+    if (obj) {
+      var newobj = JSON.parse(JSON.stringify(obj));
+      newobj.id = newid;
+      if (newobj._children) {
+        for (var child of newobj._children) {
+          child.parent = newid;
+        }
+      }
+      this.board[newid] = newobj;
+    } else {
+      log("Copied object does not exist in board.", { object: id });
+    }
+    this.delaySave();
+  }
+
   /** Removes data from the board
    * @param {string} id - Identifier of the data to delete.
    */
@@ -136,6 +158,9 @@ class BoardData {
         break;
       case "update":
         if (id) this.update(id, message);
+        break;
+      case "copy":
+        if (id) this.copy(id, message);
         break;
       case "child":
         this.addChild(message.parent, message);
@@ -190,7 +215,7 @@ class BoardData {
       // empty board
       try {
         await fs.promises.unlink(file);
-        log("removed empty board", { name: this.name });
+        log("removed empty board", { board: this.name });
       } catch (err) {
         if (err.code !== "ENOENT") {
           // If the file already wasn't saved, this is not an error
@@ -202,12 +227,13 @@ class BoardData {
         await fs.promises.writeFile(tmp_file, board_txt, { flag: "wx" });
         await fs.promises.rename(tmp_file, file);
         log("saved board", {
-          name: this.name,
+          board: this.name,
           size: board_txt.length,
           delay_ms: Date.now() - this.lastSaveDate,
         });
       } catch (err) {
         log("board saving error", {
+          board: this.name,
           err: err.toString(),
           tmp_file: tmp_file,
         });

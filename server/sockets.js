@@ -1,10 +1,11 @@
 var iolib = require("socket.io"),
-  log = require("./log.js").log,
+  { log, gauge, monitorFunction } = require("./log.js"),
   BoardData = require("./boardData.js").BoardData,
-  config = require("./configuration");
+  config = require("./configuration"),
+  jsonwebtoken = require("jsonwebtoken");
 
 /** Map from name to *promises* of BoardData
-  @type {Object<string, Promise<BoardData>>}
+  @type {{[boardName: string]: Promise<BoardData>}}
 */
 var boards = {};
 
@@ -17,9 +18,10 @@ var boards = {};
  * @returns {A}
  */
 function noFail(fn) {
+  const monitored = monitorFunction(fn);
   return function noFailWrapped(arg) {
     try {
-      return fn(arg);
+      return monitored(arg);
     } catch (e) {
       console.trace(e);
     }
@@ -28,7 +30,20 @@ function noFail(fn) {
 
 function startIO(app) {
   io = iolib(app);
-  io.on("connection", noFail(socketConnection));
+  if (config.AUTH_SECRET_KEY) {
+    // Middleware to check for valid jwt
+    io.use(function(socket, next) {
+      if(socket.handshake.query && socket.handshake.query.token) {
+        jsonwebtoken.verify(socket.handshake.query.token, config.AUTH_SECRET_KEY, function(err, decoded) {
+          if(err) return next(new Error("Authentication error: Invalid JWT"));
+          next();
+        })
+      } else {
+        next(new Error("Authentication error: No jwt provided"));
+      }
+    });
+  }
+  io.on("connection", noFail(handleSocketConnection));
   return io;
 }
 
@@ -41,6 +56,7 @@ function getBoard(name) {
   } else {
     var board = BoardData.load(name);
     boards[name] = board;
+    gauge("boards in memory", Object.keys(boards).length);
     return board;
   }
 }
@@ -49,7 +65,7 @@ function getBoard(name) {
  * Executes on every new connection
  * @param {iolib.Socket} socket
  */
-function socketConnection(socket) {
+function handleSocketConnection(socket) {
   /**
    * Function to call when an user joins a board
    * @param {string} name
@@ -65,12 +81,13 @@ function socketConnection(socket) {
     board.users.add(socket.id);
     log("board joined", { board: board.name, users: board.users.size });
     broadcastMetaData(socket, board.name, { users: board.users.size })
+    gauge("connected." + name, board.users.size);
     return board;
   }
 
   socket.on(
     "error",
-    noFail(function onError(error) {
+    noFail(function onSocketError(error) {
       log("ERROR", error);
     })
   );
@@ -141,16 +158,14 @@ function socketConnection(socket) {
         var board = await boards[room];
         board.users.delete(socket.id);
         var userCount = board.users.size;
-        log("disconnection", { board: board.name, users: board.users.size });
-        broadcastMetaData(socket, board.name, { users: board.users.size })
-        if (userCount === 0) {
-            if(config.DELETE_ON_LEAVE){
-                board.deleteBoard()
-            } else {
-                board.save();
-            }
-          delete boards[room];
-        }
+        log("disconnection", {
+          board: board.name,
+          users: board.users.size,
+          reason,
+        });
+        broadcastMetaData(socket, board.name, { users: board.users.size });
+        gauge("connected." + board.name, userCount);
+        if (userCount === 0) unloadBoard(room);
       }
     });
   });
@@ -159,6 +174,26 @@ function socketConnection(socket) {
 function broadcastMetaData(socket, boardName, metaData) {
     socket.emit("metadata", metaData);
     socket.broadcast.to(boardName).emit("metadata", metaData);
+}
+
+/**
+ * Unloads a board from memory.
+ * @param {string} boardName
+ **/
+async function unloadBoard(boardName) {
+  if (boards.hasOwnProperty(boardName)) {
+    const board = await boards[boardName];
+    if(config.DELETE_ON_LEAVE){
+      await board.deleteBoard()
+      log("delete board", { board: board.name });
+
+    } else {
+      await board.save();
+    }
+    log("unload board", { board: board.name, users: board.users.size });
+    delete boards[boardName];
+    gauge("boards in memory", Object.keys(boards).length);
+  }
 }
 
 function handleMessage(boardName, message, socket) {

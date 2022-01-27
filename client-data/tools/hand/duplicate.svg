@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg role="img" version="1.1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" id="root">
+    <title>Duplicate</title>
+    <rect fill="#ffffffa0" x="0" y="0" width="24" height="24" rx="4"></rect>
+    <path d="m7.1549 7.1542v-3.5315c0-0.65725 0.52912-1.1864 1.1864-1.1864h11.991c0.65725 0 1.1864 0.52912 1.1864 1.1864v12.036c0 0.65725-0.52912 1.1864-1.1864 1.1864h-3.4867" fill="none" stroke="#000" stroke-linejoin="round" stroke-width=".3" />
+    <rect x="2.481" y="7.155" width="14.364" height="14.409" ry="1.1864" fill="none" stroke="#000" stroke-linejoin="round" stroke-width=".3" />
+    <rect transform="translate(-20.734 -16.126) scale(1,-1)" x="30.056" y="-33.755" width=".6819" height="6.5387" ry=".34186" />
+    <rect transform="translate(-20.734 -16.126) matrix(0,1,1,0,0,0)" x="30.145" y="27.128" width=".6819" height="6.5387" ry=".34186" />
+</svg>

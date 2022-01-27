@@ -25,32 +25,108 @@
  */
 
 (function hand() { //Code isolation
-	const selectorStates = {
+	var selectorStates = {
 		pointing: 0,
 		selecting: 1,
-		moving: 2
+		transform: 2
 	}
 	var selected = null;
 	var selected_els = [];
 	var selectionRect = createSelectorRect();
-	var selectionRectTranslation;
-	var translation_elements = [];
+	var selectionRectTransform;
+	var currentTransform = null;
+	var transform_elements = [];
 	var selectorState = selectorStates.pointing;
 	var last_sent = 0;
+	var blockedSelectionButtons = Tools.server_config.BLOCKED_SELECTION_BUTTONS;
+	var selectionButtons = [
+		createButton("delete", "delete", 24, 24,
+			function (me, bbox, s) {
+				me.width.baseVal.value = me.origWidth / s;
+				me.height.baseVal.value = me.origHeight / s;
+				me.x.baseVal.value = bbox.r[0];
+				me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
+				me.style.display = "";
+			},
+			deleteSelection),
+
+		createButton("duplicate", "duplicate", 24, 24,
+			function (me, bbox, s) {
+				me.width.baseVal.value = me.origWidth / s;
+				me.height.baseVal.value = me.origHeight / s;
+				me.x.baseVal.value = bbox.r[0] + (me.origWidth + 2) / s;
+				me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
+				me.style.display = "";
+			},
+			duplicateSelection),
+
+		createButton("scaleHandle", "handle", 14, 14,
+			function (me, bbox, s) {
+				me.width.baseVal.value = me.origWidth / s;
+				me.height.baseVal.value = me.origHeight / s;
+				me.x.baseVal.value = bbox.r[0] + bbox.a[0] - me.origWidth / (2 * s);
+				me.y.baseVal.value = bbox.r[1] + bbox.b[1] - me.origHeight / (2 * s);
+				me.style.display = "";
+			},
+			startScalingTransform)
+	];
+
+	for (i in blockedSelectionButtons) {
+		delete selectionButtons[blockedSelectionButtons[i]];
+	}
+
+	var getScale = Tools.getScale;
 
 	function getParentMathematics(el) {
-		var target
-		var a = el
+		var target;
+		var a = el;
 		var els = [];
 		while (a) {
 			els.unshift(a);
 			a = a.parentElement;
 		}
-		var parentMathematics = els.find(el => el.getAttribute("class") === "MathElement");
+		var parentMathematics = els.find(function (el) {
+			return el.getAttribute("class") === "MathElement";
+		});
 		if ((parentMathematics) && parentMathematics.tagName === "svg") {
 			target = parentMathematics;
 		}
-		return target ?? el;
+		return target || el;
+	}
+
+	function deleteSelection() {
+		var msgs = selected_els.map(function (el) {
+			return ({
+				"type": "delete",
+				"id": el.id
+			});
+		});
+		var data = {
+			_children: msgs
+		}
+		Tools.drawAndSend(data);
+		selected_els = [];
+		hideSelectionUI();
+	}
+
+	function duplicateSelection() {
+		if (!(selectorState == selectorStates.pointing)
+			|| (selected_els.length == 0)) return;
+		var msgs = [];
+		var newids = [];
+		for (var i = 0; i < selected_els.length; i++) {
+			var id = selected_els[i].id;
+			msgs[i] = {
+				type: "copy",
+				id: id,
+				newid: Tools.generateUID(id[0])
+			};
+			newids[i] = id;
+		}
+		Tools.drawAndSend({ _children: msgs });
+		selected_els = newids.map(function (id) {
+			return Tools.svg.getElementById(id);
+		});
 	}
 
 	function createSelectorRect() {
@@ -70,22 +146,85 @@
 		return shape;
 	}
 
+	function createButton(name, icon, width, height, drawCallback, clickCallback) {
+		var shape = Tools.createSVGElement("image", {
+			href: "tools/hand/" + icon + ".svg",
+			width: width, height: height
+		});
+		shape.style.display = "none";
+		shape.origWidth = width;
+		shape.origHeight = height;
+		shape.drawCallback = drawCallback;
+		shape.clickCallback = clickCallback;
+		Tools.svg.appendChild(shape);
+		return shape;
+	}
+
+	function showSelectionButtons() {
+		var scale = getScale();
+		var selectionBBox = selectionRect.transformedBBox();
+		for (var i = 0; i < selectionButtons.length; i++) {
+			selectionButtons[i].drawCallback(selectionButtons[i],
+				selectionBBox,
+				scale);
+		}
+	}
+
+	function hideSelectionButtons() {
+		for (var i = 0; i < selectionButtons.length; i++) {
+			selectionButtons[i].style.display = "none";
+		}
+	}
+
+	function hideSelectionUI() {
+		hideSelectionButtons();
+		selectionRect.style.display = "none";
+	}
+
 	function startMovingElements(x, y, evt) {
 		evt.preventDefault();
-		selectorState = selectorStates.moving;
+		selectorState = selectorStates.transform;
+		currentTransform = moveSelection;
 		selected = { x: x, y: y };
 		// Some of the selected elements could have been deleted
-		selected_els = selected_els.filter(el => {
-			return Tools.svg.getElementById(el.id) !== null
+		selected_els = selected_els.filter(function (el) {
+			return Tools.svg.getElementById(el.id) !== null;
 		});
-		translation_elements = selected_els.map(el => {
-			let tmatrix = get_translate_matrix(el);
-			return { x: tmatrix.e, y: tmatrix.f }
+		transform_elements = selected_els.map(function (el) {
+			var tmatrix = get_transform_matrix(el);
+			return {
+				a: tmatrix.a, b: tmatrix.b, c: tmatrix.c,
+				d: tmatrix.d, e: tmatrix.e, f: tmatrix.f
+			};
 		});
-		{
-			let tmatrix = get_translate_matrix(selectionRect);
-			selectionRectTranslation = { x: tmatrix.e, y: tmatrix.f };
-		}
+		var tmatrix = get_transform_matrix(selectionRect);
+		selectionRectTransform = { x: tmatrix.e, y: tmatrix.f };
+	}
+
+	function startScalingTransform(x, y, evt) {
+		evt.preventDefault();
+		hideSelectionButtons();
+		selectorState = selectorStates.transform;
+		var bbox = selectionRect.transformedBBox();
+		selected = {
+			x: bbox.r[0],
+			y: bbox.r[1],
+			w: bbox.a[0],
+			h: bbox.b[1],
+		};
+		transform_elements = selected_els.map(function (el) {
+			var tmatrix = get_transform_matrix(el);
+			return {
+				a: tmatrix.a, b: tmatrix.b, c: tmatrix.c,
+				d: tmatrix.d, e: tmatrix.e, f: tmatrix.f
+			};
+		});
+		var tmatrix = get_transform_matrix(selectionRect);
+		selectionRectTransform = {
+			a: tmatrix.a, d: tmatrix.d,
+			e: tmatrix.e, f: tmatrix.f
+		};
+		currentTransform = scaleSelection;
 	}
 
 	function startSelector(x, y, evt) {
@@ -98,42 +237,93 @@
 		selectionRect.width.baseVal.value = 0;
 		selectionRect.height.baseVal.value = 0;
 		selectionRect.style.display = "";
-		tmatrix = get_translate_matrix(selectionRect);
+		tmatrix = get_transform_matrix(selectionRect);
 		tmatrix.e = 0;
 		tmatrix.f = 0;
 	}
 
 
 	function calculateSelection() {
-		var scale = Tools.drawingArea.getCTM().a;
-		var selectionTBBox = selectionRect.transformedBBox(scale);
-		return Array.from(Tools.drawingArea.children).filter(el => {
-			return transformedBBoxIntersects(
-				selectionTBBox,
-				el.transformedBBox(scale)
-			)
-		});
+		var selectionTBBox = selectionRect.transformedBBox();
+		var elements = Tools.drawingArea.children;
+		var selected = [];
+		for (var i = 0; i < elements.length; i++) {
+			if (transformedBBoxIntersects(selectionTBBox, elements[i].transformedBBox()))
+				selected.push(Tools.drawingArea.children[i]);
+		}
+		return selected;
 	}
 
 	function moveSelection(x, y) {
 		var dx = x - selected.x;
 		var dy = y - selected.y;
-		var msgs = selected_els.map((el, i) => {
+		var msgs = selected_els.map(function (el, i) {
+			var oldTransform = transform_elements[i];
 			return {
 				type: "update",
 				id: el.id,
-				deltax: dx + translation_elements[i].x,
-				deltay: dy + translation_elements[i].y
-			}
+				transform: {
+					a: oldTransform.a,
+					b: oldTransform.b,
+					c: oldTransform.c,
+					d: oldTransform.d,
+					e: dx + oldTransform.e,
+					f: dy + oldTransform.f
+				}
+			};
 		})
 		var msg = {
 			_children: msgs
 		};
-		{
-			let tmatrix = get_translate_matrix(selectionRect);
-			tmatrix.e = dx + selectionRectTranslation.x;
-			tmatrix.f = dy + selectionRectTranslation.y;
+		var tmatrix = get_transform_matrix(selectionRect);
+		tmatrix.e = dx + selectionRectTransform.x;
+		tmatrix.f = dy + selectionRectTransform.y;
+		var now = performance.now();
+		if (now - last_sent > 70) {
+			last_sent = now;
+			Tools.drawAndSend(msg);
+		} else {
+			draw(msg);
 		}
+	}
+
+	function scaleSelection(x, y) {
+		var rx = (x - selected.x) / (selected.w);
+		var ry = (y - selected.y) / (selected.h);
+		var msgs = selected_els.map(function (el, i) {
+			var oldTransform = transform_elements[i];
+			var x = el.transformedBBox().r[0];
+			var y = el.transformedBBox().r[1];
+			var a = oldTransform.a * rx;
+			var d = oldTransform.d * ry;
+			var e = selected.x * (1 - rx) - x * a +
+				(x * oldTransform.a + oldTransform.e) * rx
+			var f = selected.y * (1 - ry) - y * d +
+				(y * oldTransform.d + oldTransform.f) * ry
+			return {
+				type: "update",
+				id: el.id,
+				transform: {
+					a: a,
+					b: oldTransform.b,
+					c: oldTransform.c,
+					d: d,
+					e: e,
+					f: f
+				}
+			};
+		})
+		var msg = {
+			_children: msgs
+		};
+
+		var tmatrix = get_transform_matrix(selectionRect);
+		tmatrix.a = rx;
+		tmatrix.d = ry;
+		tmatrix.e = selectionRectTransform.e +
+			selectionRect.x.baseVal.value * (selectionRectTransform.a - rx)
+		tmatrix.f = selectionRectTransform.f +
+			selectionRect.y.baseVal.value * (selectionRectTransform.d - ry)
 		var now = performance.now();
 		if (now - last_sent > 70) {
 			last_sent = now;
@@ -150,23 +340,34 @@
 		rect.height.baseVal.value = Math.abs(y - selected.y);
 	}
 
-	function get_translate_matrix(elem) {
+	function resetSelectionRect() {
+		var bbox = selectionRect.transformedBBox();
+		var tmatrix = get_transform_matrix(selectionRect);
+		selectionRect.x.baseVal.value = bbox.r[0];
+		selectionRect.y.baseVal.value = bbox.r[1];
+		selectionRect.width.baseVal.value = bbox.a[0];
+		selectionRect.height.baseVal.value = bbox.b[1];
+		tmatrix.a = 1; tmatrix.b = 0; tmatrix.c = 0;
+		tmatrix.d = 1; tmatrix.e = 0; tmatrix.f = 0;
+	}
+
+	function get_transform_matrix(elem) {
 		// Returns the first translate or transform matrix or makes one
-		var translate = null;
+		var transform = null;
 		for (var i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
 			var baseVal = elem.transform.baseVal[i];
 			// quick tests showed that even if one changes only the fields e and f or uses createSVGTransformFromMatrix
 			// the brower may add a SVG_TRANSFORM_MATRIX instead of a SVG_TRANSFORM_TRANSLATE
-			if (baseVal.type === SVGTransform.SVG_TRANSFORM_TRANSLATE || baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
-				translate = baseVal;
+			if (baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
+				transform = baseVal;
 				break;
 			}
 		}
-		if (translate == null) {
-			translate = elem.transform.baseVal.createSVGTransformFromMatrix(Tools.svg.createSVGMatrix());
-			elem.transform.baseVal.appendItem(translate);
+		if (transform == null) {
+			transform = elem.transform.baseVal.createSVGTransformFromMatrix(Tools.svg.createSVGMatrix());
+			elem.transform.baseVal.appendItem(transform);
 		}
-		return translate.matrix;
+		return transform.matrix;
 	}
 
 	function draw(data) {
@@ -178,9 +379,19 @@
 				case "update":
 					var elem = Tools.svg.getElementById(data.id);
 					if (!elem) throw new Error("Mover: Tried to move an element that does not exist.");
-					var tmatrix = get_translate_matrix(elem);
-					tmatrix.e = data.deltax || 0;
-					tmatrix.f = data.deltay || 0;
+					var tmatrix = get_transform_matrix(elem);
+					for (i in data.transform) {
+						tmatrix[i] = data.transform[i]
+					}
+					break;
+				case "copy":
+					var newElement = Tools.svg.getElementById(data.id).cloneNode(true);
+					newElement.id = data.newid;
+					Tools.drawingArea.appendChild(newElement);
+					break;
+				case "delete":
+					data.tool = "Eraser";
+					messageForTool(data);
 					break;
 				default:
 					throw new Error("Mover: 'move' instruction with unknown type. ", data);
@@ -189,15 +400,23 @@
 	}
 
 	function clickSelector(x, y, evt) {
-		var scale = Tools.drawingArea.getCTM().a
-		selectionRect = selectionRect ?? createSelectorRect();
-		if (pointInTransformedBBox([x, y], selectionRect.transformedBBox(scale))) {
+		selectionRect = selectionRect || createSelectorRect();
+		for (var i = 0; i < selectionButtons.length; i++) {
+			if (selectionButtons[i].contains(evt.target)) {
+				var button = selectionButtons[i];
+			}
+		}
+		if (button) {
+			button.clickCallback(x, y, evt);
+		} else if (pointInTransformedBBox([x, y], selectionRect.transformedBBox())) {
+			hideSelectionButtons();
 			startMovingElements(x, y, evt);
 		} else if (Tools.drawingArea.contains(evt.target)) {
-			selectionRect.style.display = "none";
+			hideSelectionUI();
 			selected_els = [getParentMathematics(evt.target)];
 			startMovingElements(x, y, evt);
 		} else {
+			hideSelectionButtons();
 			startSelector(x, y, evt);
 		}
 	}
@@ -206,18 +425,20 @@
 		if (selectorState == selectorStates.selecting) {
 			selected_els = calculateSelection();
 			if (selected_els.length == 0) {
-				selectionRect.style.display = "none";
+				hideSelectionUI();
 			}
-		}
-		translation_elements = [];
+		} else if (selectorState == selectorStates.transform)
+			resetSelectionRect();
+		if (selected_els.length != 0) showSelectionButtons();
+		transform_elements = [];
 		selectorState = selectorStates.pointing;
 	}
 
 	function moveSelector(x, y, evt) {
 		if (selectorState == selectorStates.selecting) {
 			updateRect(x, y, selectionRect);
-		} else if (selectorState == selectorStates.moving) {
-			moveSelection(x, y, selectionRect);
+		} else if (selectorState == selectorStates.transform && currentTransform) {
+			currentTransform(x, y);
 		}
 	}
 
@@ -252,8 +473,31 @@
 		selected = null;
 	}
 
+	function deleteShortcut(e) {
+		if (e.key == "Delete" &&
+			!e.target.matches("input[type=text], textarea"))
+			deleteSelection();
+	}
+
+	function duplicateShortcut(e) {
+		if (e.key == "d" &&
+			!e.target.matches("input[type=text], textarea"))
+			duplicateSelection();
+	}
+
 	function switchTool() {
+		onquit();
+		if (handTool.secondary.active) {
+			window.addEventListener("keydown", deleteShortcut);
+			window.addEventListener("keydown", duplicateShortcut);
+		}
+	}
+
+	function onquit() {
 		selected = null;
+		hideSelectionUI();
+		window.removeEventListener("keydown", deleteShortcut);
+		window.removeEventListener("keydown", duplicateShortcut);
 	}
 
 	var handTool = { //The new tool
@@ -264,6 +508,7 @@
 			"move": move,
 			"release": release,
 		},
+		"onquit": onquit,
 		"secondary": {
 			"name": "Selector",
 			"icon": "tools/hand/selector.svg",
