@@ -64,7 +64,7 @@ function check_output_directory(directory) {
     if (error) {
       console.error(
         `The configured history directory in which boards are stored ${error}.` +
-          `\nThe history directory can be configured with the environment variable HISTORY_DIR. ` +
+          `\nThe history directory can be configured with the environment variable WBO_HISTORY_DIR. ` +
           `It is currently set to "${directory}".`
       );
       process.exit(1);

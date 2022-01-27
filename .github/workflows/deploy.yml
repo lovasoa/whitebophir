@@ -1,0 +1,44 @@
+name: deploy
+on:
+  push:
+    tags:        
+      - v*
+
+jobs:
+  build:
+    name: deploy
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Dokku
+      uses: dokku/github-action@9c1a871eab9daef563cf08b9602c7675f4a8bb56
+      with:
+        git_remote_url: ssh://dokku@${{ secrets.SSH_SERVER }}:22/wbo
+        ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+        git_push_flags: --force
+  push_to_registry:
+    name: Push Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: lovasoa
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push to Docker Hub
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: lovasoa/wbo:latest,lovasoa/wbo:${{ env.RELEASE_VERSION }}
+          platforms: linux/amd64,linux/arm64,linux/arm/v7

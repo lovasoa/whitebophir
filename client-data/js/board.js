@@ -63,13 +63,20 @@ Tools.connect = function () {
 		self.socket = null;
 	}
 
+	var url = new URL(window.location);
+	var params = new URLSearchParams(url.search);
 
-	this.socket = io.connect('', {
+	var socket_params = {
 		"path": window.location.pathname.split("/boards/")[0] + "/socket.io",
 		"reconnection": true,
 		"reconnectionDelay": 100, //Make the xhr connections as fast as possible
 		"timeout": 1000 * 60 * 20 // Timeout after 20 minutes
-	});
+	}
+	if(params.has("token")) {
+		socket_params.query = "token=" + params.get("token");
+	}
+
+	this.socket = io.connect('', socket_params);
 
 	//Receive draw instructions from the server
 	this.socket.on("broadcast", function (msg) {
@@ -377,9 +384,9 @@ function messageForTool(message) {
 		else Tools.pendingMessages[name].push(message);
 	}
 
-	if (message.tool !== 'Hand' && message.deltax != null && message.deltay != null) {
+	if (message.tool !== 'Hand' && message.transform != null) {
 		//this message has special info for the mover
-		messageForTool({ tool: 'Hand', type: 'update', deltax: message.deltax || 0, deltay: message.deltay || 0, id: message.id });
+	    messageForTool({ tool: 'Hand', type: 'update', transform: message.transform, id: message.id});
 	}
 }
 
@@ -701,8 +708,8 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 
 
 (function () {
-    let pos = {top: 0, scroll:0};
-    let menu = document.getElementById("menu");
+    var pos = {top: 0, scroll:0};
+    var menu = document.getElementById("menu");
     function menu_mousedown(evt) {
 	pos = {
 	    top: menu.scrollTop,
@@ -712,7 +719,7 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 	document.addEventListener("mouseup", menu_mouseup);
     }
     function menu_mousemove(evt) {
-	const dy = evt.clientY - pos.scroll;
+	var dy = evt.clientY - pos.scroll;
 	menu.scrollTop = pos.top - dy;
     }
     function menu_mouseup(evt) {

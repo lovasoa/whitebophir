@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg role="img" version="1.1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" id="root">
+    <title>Delete</title>
+    <rect fill="#ffffffa0" x="0" y="0" width="24" height="24" rx="4"></rect>
+    <path stroke="red" stroke-width="2" d="M 2 2 L 22 22 M 2 22 L 22 2"></path>
+</svg>
