@@ -26,8 +26,7 @@
 <body>
 
 	<div id="board">
-		<svg id="canvas" width="500" height="500" version="1.1" xmlns="http://www.w3.org/2000/svg"
-			style="background-repeat:no-repeat;">
+		<svg id="canvas" width="500" height="500" version="1.1" xmlns="http://www.w3.org/2000/svg">
 			<defs id="defs"></defs>
 			<g id="drawingArea"></g>
 			<g id="cursors"></g>
@@ -37,7 +36,6 @@
 	<div id="loadingMessage">{{translations.loading}}</div>
 
 	<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>
-<button id="buttonCapture" type="button">Capture</button>
 		<div id="menuItems">
 			<ul id="tools" class="tools">
 				<li class="tool" tabindex="-1">
@@ -59,7 +57,7 @@
 					title="{{translations.size}} ({{translations.keyboard_shortcut}}: alt + {{translations.mousewheel}})">
 					<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
 					<label class="tool-name slider" for="chooseSize">
-						<span>{{translations.size}}</span>
+						<span>MARKD {{translations.size}}</span>
 						<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />
 					</label>
 				</li>
@@ -84,6 +82,7 @@
 			</ul>
 		</div>
 	</div>
+	<img id="fullimage" style="position:absolute;top:0;left:0;width:100%;display:none" src="aruco_markers.png" />
 
 
 	<script type="application/json" id="translations">{{{ json translations }}}</script>

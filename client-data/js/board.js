@@ -24,6 +24,8 @@
  * @licend
  */
 
+const delay = t => new Promise(resolve => setTimeout(resolve, t));
+
 var Tools = {};
 
 Tools.i18n = (function i18n() {
@@ -51,6 +53,25 @@ Tools.showMyCursor = true;
 
 Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
+if (window.location.pathname.includes("/robotboards/")) {
+	document.getElementById("menu").style.display = "none";
+}
+(function setupRobotTools() {
+	btn = document.getElementById("buttonCapture");
+	if (btn) {
+		btn.addEventListener("click", onCaptureClick);
+	}
+})();
+async function onCaptureClick() {
+	console.log("MARKD capture clicked");
+	Tools.send({type:"robotmessage", msg:"showmarkers"},"robotTool");
+	await delay(1000);
+	Tools.send({type:"robotmessage", msg:"showblack"},"robotTool");
+	await delay(1000);
+	Tools.send({type:"robotmessage", msg:"clearoverlay"},"robotTool");
+	document.getElementById("canvas").style.backgroundImage = "url('background_whiteboard.jpg')";
+}
+
 Tools.socket = null;
 Tools.connect = function () {
 	var self = this;
@@ -65,8 +86,14 @@ Tools.connect = function () {
 	var url = new URL(window.location);
 	var params = new URLSearchParams(url.search);
 
+	var sockethost;
+	if (window.location.pathname.includes("/robotboards/"))
+		sockethost = window.location.pathname.split("/robotboards/")[0];
+	else
+		sockethost = window.location.pathname.split("/boards/")[0];
 	var socket_params = {
-		"path": window.location.pathname.split("/boards/")[0] + "/socket.io",
+		//"path": window.location.pathname.split("/boards/")[0] + "/socket.io",
+		"path": sockethost + "/socket.io",
 		"reconnection": true,
 		"reconnectionDelay": 100, //Make the xhr connections as fast as possible
 		"timeout": 1000 * 60 * 20 // Timeout after 20 minutes
@@ -355,11 +382,38 @@ Tools.drawAndSend = function (data, tool) {
 //is loaded. keys : the name of the tool, values : array of messages for this tool
 Tools.pendingMessages = {};
 
+function messageForRobotTool(message) {
+	console.log("MARKD got robotTool msg", message);
+	const m = message.msg;
+	const img = document.getElementById("fullimage");
+	if (m == "showblack") {
+		if (img) {
+			img.src = "black.png"
+			img.style.display = "block";
+		}
+	}
+	if (m == "showmarkers") {
+		if (img) {
+			img.src = "aruco_markers.png"
+			img.style.display = "block";
+		}
+	}
+	if (m == "clearoverlay") {
+		if (img) {
+			img.style.display = "none";
+		}
+	}
+}
+
 // Send a message to the corresponding tool
 function messageForTool(message) {
 	var name = message.tool,
 		tool = Tools.list[name];
-
+	
+	if (name == "robotTool") {
+		messageForRobotTool(message);
+		return;
+	}
 	if (tool) {
 		Tools.applyHooks(Tools.messageHooks, message);
 		tool.draw(message, false);

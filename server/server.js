@@ -83,6 +83,9 @@ function handler(request, response) {
 const boardTemplate = new templating.BoardTemplate(
   path.join(config.WEBROOT, "board.html")
 );
+const robotboardTemplate = new templating.BoardTemplate(
+  path.join(config.WEBROOT, "robotboard.html")
+);
 const indexTemplate = new templating.Template(
   path.join(config.WEBROOT, "index.html")
 );
@@ -119,6 +122,7 @@ function checkUserPermission(url) {
 function handleRequest(request, response) {
   var parsedUrl = new URL(request.url, 'http://wbo/');
   var parts = parsedUrl.pathname.split("/");
+  log("MARKD request pathname", {url:parsedUrl.pathname});
 
   if (parts[0] === "") parts.shift();
 
@@ -143,6 +147,25 @@ function handleRequest(request, response) {
         boardTemplate.serve(request, response);
         // If there is no dot and no directory, parts[1] is the board name
       } else {
+        request.url = "/" + parts.slice(1).join("/");
+        fileserver(request, response, serveError(request, response));
+      }
+      break;
+
+    case "robotboards":
+      // "boards" refers to the root directory
+      if (parts.length === 1) {
+        // '/boards?board=...' This allows html forms to point to boards
+        var boardName = parsedUrl.searchParams.get("board") || "anonymous";
+        var headers = { Location: "boards/" + encodeURIComponent(boardName) };
+        response.writeHead(301, headers);
+        response.end();
+      } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
+        validateBoardName(parts[1]);
+        robotboardTemplate.serve(request, response);
+        // If there is no dot and no directory, parts[1] is the board name
+      } else {
+        parts[0] = "boards";
         request.url = "/" + parts.slice(1).join("/");
         fileserver(request, response, serveError(request, response));
       }
