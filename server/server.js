@@ -35,7 +35,8 @@ var CSP =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
 
 var fileserver = serveStatic(config.WEBROOT, {
-  maxAge: 2 * 3600 * 1000,
+  //maxAge: 2 * 3600 * 1000,
+  maxAge: 0,
   setHeaders: function (res) {
     res.setHeader("X-UA-Compatible", "IE=Edge");
     res.setHeader("Content-Security-Policy", CSP);

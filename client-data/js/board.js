@@ -61,15 +61,61 @@ if (window.location.pathname.includes("/robotboards/")) {
 	if (btn) {
 		btn.addEventListener("click", onCaptureClick);
 	}
+	btn = document.getElementById("buttonMarkers");
+	if (btn) {
+		btn.addEventListener("click", onMarkersClick);
+	}
+	btn = document.getElementById("buttonBlack");
+	if (btn) {
+		btn.addEventListener("click", onBlackClick);
+	}
+	btn = document.getElementById("buttonClearOverlay");
+	if (btn) {
+		btn.addEventListener("click", onClearOverlayClick);
+	}
 })();
+console.log("MARKD board.js define async function");
+/*
+// It seems the chromium browser in the robot doesn't like "async" keyword, it throws an
+// exception for this.
 async function onCaptureClick() {
 	console.log("MARKD capture clicked");
 	Tools.send({type:"robotmessage", msg:"showmarkers"},"robotTool");
-	await delay(1000);
+	await delay(5000);
 	Tools.send({type:"robotmessage", msg:"showblack"},"robotTool");
-	await delay(1000);
+	await delay(5000);
 	Tools.send({type:"robotmessage", msg:"clearoverlay"},"robotTool");
 	document.getElementById("canvas").style.backgroundImage = "url('background_whiteboard.jpg')";
+}*/
+function onCaptureClick() {
+	console.log("MARKD capture clicked");
+	Tools.send({type:"robotmessage", msg:"showmarkers"},"robotTool");
+	delay(1500).then(()=>{
+		Tools.send({type:"robotmessage", msg:"showblack"},"robotTool");
+		return delay(1500);
+	}).then(()=>{
+		Tools.send({type:"robotmessage", msg:"clearoverlay"},"robotTool");
+		return delay(1500);
+	}).then(()=>{
+		const num = new Date().getTime();
+		const imageurl = `background_whiteboard.jpg?unique=${num}`;
+		document.getElementById("canvas").style.backgroundImage = `url('${imageurl}')`;
+	});
+}
+
+function onMarkersClick() {
+	console.log("MARKD markers clicked");
+	Tools.send({type:"robotmessage", msg:"showmarkers"},"robotTool");
+}
+
+function onBlackClick() {
+	console.log("MARKD black clicked");
+	Tools.send({type:"robotmessage", msg:"showblack"},"robotTool");
+}
+
+function onClearOverlayClick() {
+	console.log("MARKD clearoverlay clicked");
+	Tools.send({type:"robotmessage", msg:"clearoverlay"},"robotTool");
 }
 
 Tools.socket = null;

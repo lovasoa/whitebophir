@@ -11,14 +11,23 @@ function pwd () {
 	});
 }
 
-function transformWhiteboardImage() {
+function getSnapshotMarkers() {
 	return new Promise( (resolve, reject) => {
-		exec("./transform_robot_image.sh", (error, stdout, stderr) => {
+		exec("./get_snapshot_markers.sh", (error, stdout, stderr) => {
 			if (error) reject(error.message);
 			else resolve(stdout);
 		});
 	});
-
 }
 
-module.exports = { pwd, transformWhiteboardImage };
+
+function transformWhiteboardImage() {
+	return new Promise( (resolve, reject) => {
+		exec("./transform_robot_image.sh", (error, stdout, stderr) => {
+			if (error) reject(stdout + ' ' + error.message);
+			else resolve(stdout);
+		});
+	});
+}
+
+module.exports = { pwd, getSnapshotMarkers, transformWhiteboardImage };

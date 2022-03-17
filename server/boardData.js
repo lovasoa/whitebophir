@@ -30,7 +30,7 @@ var fs = require("./fs_promises.js"),
   path = require("path"),
   config = require("./configuration.js"),
   Mutex = require("async-mutex").Mutex,
-  { pwd, transformWhiteboardImage } = require("./robotimage.js");
+  { pwd, getSnapshotMarkers, transformWhiteboardImage } = require("./robotimage.js");
 
 /**
  * Represents a board.
@@ -168,10 +168,15 @@ class BoardData {
         break;
       case "robotmessage":
         log("MARKD robotmessage", message);
+        if (message.msg == "showmarkers") {
+            getSnapshotMarkers()
+                .then(val => log(`MARKD getSnapshotMarkers: ${val}`))
+                .catch(e => log(`MARKD ERROR from getSnapshotMarkers ${e}`));
+        }
         if (message.msg == "showblack") {
-            pwd()
-                .then(val => log(`MARKD ${val}`))
-                .catch(e => log(`MARKD ERROR from pwd ${e}`));
+            //pwd()
+            //    .then(val => log(`MARKD ${val}`))
+            //    .catch(e => log(`MARKD ERROR from pwd ${e}`));
             transformWhiteboardImage()
                 .then(val => log(`MARKD xform ${val}`))
                 .catch(e => log(`MARKD ERROR from xform ${e}`));
