@@ -2,6 +2,7 @@ html, body, svg {
 	padding:0;
 	margin:0;
 	font-family: Liberation sans, sans-serif;
+    overflow: hidden;
 }
 
 #canvas {
@@ -39,6 +40,12 @@ html, body, svg {
 	display: none;
 }
 
+#robotButtons {
+	position: fixed;
+	left: 0;
+	top: 0;
+}
+
 #menu {
 	-ms-overflow-style: none;
 	scrollbar-width: none;
@@ -48,7 +55,7 @@ html, body, svg {
 	position: fixed;
 	margin-bottom: 30px;
 	left: 0;
-	top: 0;
+	top: 120px;
 	color: black;
 	max-height: 100%;
 	transition-duration: 1s;

@@ -26,7 +26,7 @@
 <body>
 
 	<div id="board">
-		<svg id="canvas" width="500" height="500" version="1.1" xmlns="http://www.w3.org/2000/svg"
+		<svg id="canvas" width="1920" height="1080" version="1.1" xmlns="http://www.w3.org/2000/svg"
 			style="background-repeat:no-repeat;">
 			<defs id="defs"></defs>
 			<g id="drawingArea"></g>
@@ -34,13 +34,17 @@
 		</svg>
 	</div>
 
+<div id="robotButtons" left:0 top:0>
+<button id="buttonCapture" type="button" style="cursor:pointer">Capture</button><br/>
+<button id="buttonMarkers" type="button" style="cursor:pointer">Markers</button><br/>
+<button id="buttonBlack" type="button" style="cursor:pointer">Black</button><br/>
+<button id="buttonClearOverlay" type="button" style="cursor:pointer">Drawing</button><br/>
+<button id="buttonWhiteboard" type="button" style="cursor:pointer">Whiteboard</button><br/>
+<button id="buttonStation1" type="button" style="cursor:pointer">Station 1</button><br/>
+<button id="buttonStation2" type="button" style="cursor:pointer">Station 2</button><br/>
+</div>
 	<div id="loadingMessage">{{translations.loading}}</div>
-
 	<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>
-<button id="buttonCapture" type="button">Capture</button>
-<button id="buttonMarkers" type="button">Markers</button>
-<button id="buttonBlack" type="button">Black</button>
-<button id="buttonClearOverlay" type="button">Drawing</button>
 		<div id="menuItems">
 			<ul id="tools" class="tools">
 				<li class="tool" tabindex="-1">

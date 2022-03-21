@@ -73,8 +73,30 @@ if (window.location.pathname.includes("/robotboards/")) {
 	if (btn) {
 		btn.addEventListener("click", onClearOverlayClick);
 	}
+	btn = document.getElementById("buttonWhiteboard");
+	if (btn) {
+		btn.addEventListener("click", onDriveClick);
+	}
+	btn = document.getElementById("buttonStation1");
+	if (btn) {
+		btn.addEventListener("click", onDriveClick);
+	}
+	btn = document.getElementById("buttonStation2");
+	if (btn) {
+		btn.addEventListener("click", onDriveClick);
+	}
+	
+	window.addEventListener('resize', (e)=>{
+		setBoardScale();
+	});
 })();
-console.log("MARKD board.js define async function");
+
+// set scale to fit the board width to the window width
+function setBoardScale(){
+	boardAreaScale = window.innerWidth / Tools.svg.width.baseVal.value;
+	console.log(`window width: ${window.innerWidth} boardAreaScale factor: ${boardAreaScale} svg width: ${Tools.svg.width.baseVal.value}`);
+	Tools.setScale(boardAreaScale);
+}
 /*
 // It seems the chromium browser in the robot doesn't like "async" keyword, it throws an
 // exception for this.
@@ -99,6 +121,7 @@ function onCaptureClick() {
 	}).then(()=>{
 		const num = new Date().getTime();
 		const imageurl = `background_whiteboard.jpg?unique=${num}`;
+		//const imageurl = `aruco_markers_1080_borders.png`;
 		document.getElementById("canvas").style.backgroundImage = `url('${imageurl}')`;
 	});
 }
@@ -116,6 +139,30 @@ function onBlackClick() {
 function onClearOverlayClick() {
 	console.log("MARKD clearoverlay clicked");
 	Tools.send({type:"robotmessage", msg:"clearoverlay"},"robotTool");
+}
+
+const RMSHOST = "eft.ava8.net";
+const ROBOT = "SB00243";
+const BASICAUTH = "Basic " + btoa("avasupport:avasupport")
+function doRMSHttpGet(apiurl) {
+	var req = new XMLHttpRequest();
+	const url = `https://${RMSHOST}/api/htproxy/whiteboard/${ROBOT}/${apiurl}`;
+	req.open("GET", url);
+	req.setRequestHeader("Authorization", BASICAUTH);
+	req.send();
+}
+
+robotMapTags = {
+	"buttonStation1": "3",
+	"buttonStation2": "4",
+	"buttonWhiteboard": "2",
+};
+function onDriveClick(e) {
+	let id = e.target.id;
+	console.log(`MARKD drive clicked: ${id}`);
+	const tag = robotMapTags[id];
+	doRMSHttpGet(`robot/drive/driveToTag/1/${tag}`);
+	//doRMSHttpGet(`robot/tel/goToRoom?map=AppleProjectXMap1&room=Whiteboard`);
 }
 
 Tools.socket = null;
@@ -542,6 +589,8 @@ function updateDocumentTitle() {
 	});
 
 	function setScrollFromHash() {
+		//MARKD skip this, keep the board scaled to fit the window width
+		return;
 		var coords = window.location.hash.slice(1).split(',');
 		var x = coords[0] | 0;
 		var y = coords[1] | 0;
@@ -557,11 +606,15 @@ function updateDocumentTitle() {
 })();
 
 function resizeCanvas(m) {
+	// MARKD do not resize
+	return;
 	//Enlarge the canvas whenever something is drawn near its border
 	var x = m.x | 0, y = m.y | 0
 	var MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 65536; // Maximum value for any x or y on the board
+	//console.log("MARKD resizeCanvas");
 	if (x > Tools.svg.width.baseVal.value - 2000) {
 		Tools.svg.width.baseVal.value = Math.min(x + 2000, MAX_BOARD_SIZE);
+		console.log(`MARKD new svg width: ${Tools.svg.width.baseVal.value}`);
 	}
 	if (y > Tools.svg.height.baseVal.value - 2000) {
 		Tools.svg.height.baseVal.value = Math.min(y + 2000, MAX_BOARD_SIZE);
@@ -769,8 +822,9 @@ Tools.getOpacity = (function opacity() {
 
 
 //Scale the canvas on load
-Tools.svg.width.baseVal.value = document.body.clientWidth;
-Tools.svg.height.baseVal.value = document.body.clientHeight;
+//Tools.svg.width.baseVal.value = document.body.clientWidth;
+//Tools.svg.height.baseVal.value = document.body.clientHeight;
+console.log(`MARKD body.clientWidth: ${document.body.clientWidth}`);
 
 /**
  What does a "tool" object look like?
@@ -812,3 +866,5 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
     }
     menu.addEventListener("mousedown", menu_mousedown);
 })()
+
+setBoardScale();
