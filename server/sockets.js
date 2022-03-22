@@ -80,6 +80,7 @@ function handleSocketConnection(socket) {
     var board = await getBoard(name);
     board.users.add(socket.id);
     log("board joined", { board: board.name, users: board.users.size });
+    broadcastMetaData(socket, board.name, { users: board.users.size })
     gauge("connected." + name, board.users.size);
     return board;
   }
@@ -162,11 +163,17 @@ function handleSocketConnection(socket) {
           users: board.users.size,
           reason,
         });
+        broadcastMetaData(socket, board.name, { users: board.users.size });
         gauge("connected." + board.name, userCount);
         if (userCount === 0) unloadBoard(room);
       }
     });
   });
+}
+
+function broadcastMetaData(socket, boardName, metaData) {
+    socket.emit("metadata", metaData);
+    socket.broadcast.to(boardName).emit("metadata", metaData);
 }
 
 /**
@@ -176,7 +183,13 @@ function handleSocketConnection(socket) {
 async function unloadBoard(boardName) {
   if (boards.hasOwnProperty(boardName)) {
     const board = await boards[boardName];
-    await board.save();
+    if(config.DELETE_ON_LEAVE){
+      await board.deleteBoard()
+      log("delete board", { board: board.name });
+
+    } else {
+      await board.save();
+    }
     log("unload board", { board: board.name, users: board.users.size });
     delete boards[boardName];
     gauge("boards in memory", Object.keys(boards).length);

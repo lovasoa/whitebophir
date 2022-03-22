@@ -48,8 +48,16 @@ Tools.drawingEvent = true;
 Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
+Tools.metadata = {users: 1};
 
 Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
+Tools.isInIFrame = function inIframe () {
+    try {
+        return window.self !== window.top;
+    } catch (e) {
+        return true;
+    }
+}()
 
 Tools.socket = null;
 Tools.connect = function () {
@@ -83,6 +91,15 @@ Tools.connect = function () {
 			var loadingEl = document.getElementById("loadingMessage");
 			loadingEl.classList.add("hidden");
 		});
+	});
+
+    //Receive metadata about the board from server
+	this.socket.on("metadata", function (msg) {
+        if (!msg.users) {
+            Tools.metadata.users = 1;
+            console.error("Received a badly formatted message (no users). ", msg);
+        }
+        Tools.metadata.users = msg.users;
 	});
 
 	this.socket.on("reconnect", function onReconnection() {
@@ -342,6 +359,10 @@ Tools.send = function (data, toolName) {
 		"board": Tools.boardName,
 		"data": d
 	};
+    if(d.tool !== "Cursor"){
+        // Reset the downloaded property as the Whiteboard was updated
+        Tools.metadata.downloaded = false;
+    }
 	Tools.socket.emit('broadcast', message);
 };
 
@@ -469,6 +490,10 @@ function resizeCanvas(m) {
 }
 
 function updateUnreadCount(m) {
+    if(m.tool !== "Cursor"){
+        // Reset the downloaded property as the Whiteboard was updated
+        Tools.metadata.downloaded = false;
+    }
 	if (document.hidden && ["child", "update"].indexOf(m.type) === -1) {
 		Tools.newUnreadMessage();
 	}
@@ -711,4 +736,15 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 	document.removeEventListener("mouseup", menu_mouseup);
     }
     menu.addEventListener("mousedown", menu_mousedown);
+    // Ask to save before leave 
+    if(Tools.server_config.DELETE_ON_LEAVE && !Tools.isInIFrame){
+        window.addEventListener('beforeunload', function (e) {
+            if (Tools.metadata.users === 1 && Tools.metadata.downloaded === false ) {
+                e.preventDefault(); // If you prevent default behavior in Mozilla Firefox prompt will always be shown
+                e.returnValue = 'The board will be deleted after you leave, make sure you saved the content!';
+            } else {
+                delete e['returnValue'];
+            }
+        });
+    }
 })()

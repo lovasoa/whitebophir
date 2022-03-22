@@ -47,7 +47,9 @@ module.exports = {
 
   /** Automatically switch to White-out on finger touch after drawing
       with Pencil using a stylus. Only supported on iPad with Apple Pencil. */
-  AUTO_FINGER_WHITEOUT: process.env["AUTO_FINGER_WHITEOUT"] !== "disabled",
+  AUTO_FINGER_WHITEOUT: process.env['AUTO_FINGER_WHITEOUT'] !== "disabled",
+  /** Automatically delete boards as soon as the last user leaves the board */
+  DELETE_ON_LEAVE: process.env['DELETE_ON_LEAVE'] === "true",
 
   /** If this variable is set, it should point to a statsd listener that will 
    * receive WBO's monitoring information.

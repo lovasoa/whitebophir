@@ -287,6 +287,13 @@ class BoardData {
     }
   }
 
+  /** Deletes the board from storage
+   */
+   deleteBoard() {
+       this.board = {}
+       this.save()
+  }
+
   /** Load the data in the board from a file.
    * @param {string} name - name of the board
    */

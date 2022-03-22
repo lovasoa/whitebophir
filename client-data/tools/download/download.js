@@ -53,7 +53,8 @@
         downloadContent(blob, Tools.boardName + ".svg");
     }
 
-    function downloadContent(blob, filename) {
+    function downloadContent(blob, filename){
+        Tools.metadata.downloaded = true;
         if (window.navigator.msSaveBlob) { // Internet Explorer
             window.navigator.msSaveBlob(blob, filename);
         } else {
@@ -67,6 +68,7 @@
             document.body.removeChild(element);
             window.URL.revokeObjectURL(url);
         }
+        Tools.metadata.downloaded = true;
     }
 
     Tools.add({ //The new tool
