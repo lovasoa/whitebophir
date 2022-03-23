@@ -775,7 +775,8 @@ Tools.setColor = function (color) {
 };
 
 Tools.getColor = (function color() {
-	var color_index = (Math.random() * Tools.colorPresets.length) | 0;
+	//var color_index = (Math.random() * Tools.colorPresets.length) | 0;
+	var color_index = 0;
 	var initial_color = Tools.colorPresets[color_index].color;
 	Tools.setColor(initial_color);
 	return function () { return Tools.color_chooser.value; };
@@ -806,6 +807,7 @@ Tools.setSize = (function size() {
 Tools.getSize = (function () { return Tools.setSize() });
 
 Tools.getOpacity = (function opacity() {
+	return function () {return 1;}; //MARKD remove opacity tool
 	var chooser = document.getElementById("chooseOpacity");
 	var opacityIndicator = document.getElementById("opacityIndicator");
 
