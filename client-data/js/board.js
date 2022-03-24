@@ -755,7 +755,7 @@ Tools.positionElement = function (elem, x, y) {
 };
 
 Tools.colorPresets = [
-	{ color: "#001f3f", key: '1' },
+	{ color: "#ffffff", key: '1' },
 	{ color: "#FF4136", key: '2' },
 	{ color: "#0074D9", key: '3' },
 	{ color: "#FF851B", key: '4' },
