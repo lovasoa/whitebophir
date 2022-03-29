@@ -121,8 +121,7 @@ function onCaptureClick() {
 	}).then(()=>{
 		const num = new Date().getTime();
 		const imageurl = `background_whiteboard.jpg?unique=${num}`;
-		//const imageurl = `aruco_markers_1080_borders.png`;
-		document.getElementById("canvas").style.backgroundImage = `url('${imageurl}')`;
+		Tools.svg.style.backgroundImage = `url('${imageurl}')`;
 	});
 }
 
@@ -502,7 +501,7 @@ function messageForRobotTool(message) {
 function messageForTool(message) {
 	var name = message.tool,
 		tool = Tools.list[name];
-	
+	console.log(`MARKD messageForTool: ${name}`);
 	if (name == "robotTool") {
 		messageForRobotTool(message);
 		return;
@@ -755,7 +754,7 @@ Tools.positionElement = function (elem, x, y) {
 };
 
 Tools.colorPresets = [
-	{ color: "#ffffff", key: '1' },
+	{ color: "#001f3f", key: '1' },
 	{ color: "#FF4136", key: '2' },
 	{ color: "#0074D9", key: '3' },
 	{ color: "#FF851B", key: '4' },

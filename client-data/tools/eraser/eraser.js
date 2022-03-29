@@ -53,7 +53,9 @@
 			var touch = evt.touches[0];
 			target = document.elementFromPoint(touch.clientX, touch.clientY);
 		}
-		if (erasing && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target)) {
+		// Do not erase background images the user has loaded. This allows erasing annotations
+		// that are on top of the image, without erasing the image.
+		if (erasing && target !== Tools.svg && target !== Tools.drawingArea && inDrawingArea(target) && target.tagName != "image") {
 			msg.id = target.id;
 			Tools.drawAndSend(msg);
 		}

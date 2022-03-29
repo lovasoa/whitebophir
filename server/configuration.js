@@ -32,6 +32,12 @@ module.exports = {
   /** Maximum value for any x or y on the board */
   MAX_BOARD_SIZE: parseInt(process.env["WBO_MAX_BOARD_SIZE"]) || 65536,
 
+  /** Maximum size of uploaded documents default 1MB */
+  MAX_DOCUMENT_SIZE: parseInt(process.env['WBO_MAX_DOCUMENT_SIZE']) || 1048576,
+
+  /** Maximum number of documents allowed */
+  MAX_DOCUMENT_COUNT: parseInt(process.env['WBO_MAX_DOCUMENT_COUNT']) || 5,
+
   /** Maximum messages per user over the given time period before banning them  */
   MAX_EMIT_COUNT: parseInt(process.env["WBO_MAX_EMIT_COUNT"]) || 192,
 

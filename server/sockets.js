@@ -103,7 +103,7 @@ function handleSocketConnection(socket) {
   var emitCount = 0;
   socket.on(
     "broadcast",
-    noFail(function onBroadcast(message) {
+    noFail(async function onBroadcast(message) {
       var currentSecond = (Date.now() / config.MAX_EMIT_COUNT_PERIOD) | 0;
       if (currentSecond === lastEmitSecond) {
         emitCount++;
@@ -143,10 +143,37 @@ function handleSocketConnection(socket) {
         return;
       }
 
+      var boardData;
+      if (message.data.type === "doc") {
+        boardData = await getBoard(boardName);
+  
+        if (boardData.existingDocuments >= config.MAX_DOCUMENT_COUNT) {
+          console.warn("Received too many documents");
+          return;
+        }
+  
+        if (message.data.data.length > config.MAX_DOCUMENT_SIZE) {
+          console.warn("Received too large file");
+          return;
+        }
+  
+        boardData.existingDocuments += 1;
+      } else if (message.data.type === "delete") {
+        boardData = await getBoard(boardName);
+  
+        if (boardData.board[message.data.id].type === "doc") {
+          boardData.existingDocuments -= 1;
+        }
+      } else if (message.data.type === "deleteall") {
+        boardData = await getBoard(boardName);
+        boardData.existingDocuments = 0;
+      }
+  
       // Save the message in the board
       handleMessage(boardName, data, socket);
 
       //Send data to all other users connected on the same board
+      //log("MARKD broadcast", {type: message.data.type});
       socket.broadcast.to(boardName).emit("broadcast", data);
     })
   );

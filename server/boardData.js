@@ -193,6 +193,7 @@ class BoardData {
       default:
         //Add data
         if (!id) throw new Error("Invalid message: ", message);
+        log("MARKD add to board", {type: message.type});
         this.set(id, message);
     }
   }
@@ -321,7 +322,11 @@ class BoardData {
     try {
       data = await fs.promises.readFile(boardData.file);
       boardData.board = JSON.parse(data);
-      for (const id in boardData.board) boardData.validate(boardData.board[id]);
+      boardData.existingDocuments = 0;
+      for (const id in boardData.board) {
+        boardData.validate(boardData.board[id]);
+        if (boardData.board[id].type === "doc") boardData.existingDocuments += 1;
+      }
       log("disk load", { board: boardData.name });
     } catch (e) {
       // If the file doesn't exist, this is not an error
