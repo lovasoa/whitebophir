@@ -85,6 +85,10 @@ WBO supports authentication with a JWT. This should be passed in as a query with
 
 The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
 
+## Admin API
+
+WBO provides an administrative API for deleting boards. It can be used as following:  `https://myboard.com/admin/delete/<boardname>?secret={key}` where `key` is the secret set in environment variable `ADMIN_SECRET_KEY`. If it is not provided the API will not be available. 
+
 ## Configuration
 
 When you start a WBO server, it loads its configuration from several environment variables.
@@ -93,6 +97,7 @@ Some important environment variables are :
  - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
  - `WBO_MAX_EMIT_COUNT` : the maximum number of messages that a client can send per unit of time. Increase this value if you want smoother drawings, at the expense of being susceptible to denial of service attacks if your server does not have enough processing power. By default, the units of this quantity are messages per 4 seconds, and the default value is `192`.
  - `AUTH_SECRET_KEY` : If you would like to authenticate your boards using jwt, this declares the secret key.
+ - `ADMIN_SECRET_KEY` : If you would like to use the administrative API provide the secret key for authentication.
 
 ## Troubleshooting
 

@@ -47,6 +47,15 @@ function startIO(app) {
   return io;
 }
 
+async function deleteBoard(boardName) {
+    const board = await getBoard(boardName)
+    // Delete board if it exists, otherwise its already non-existent
+    if(board){
+        await board.deleteBoard()
+        log("deleted board", { board: board.name });
+    }
+  }
+
 /** Returns a promise to a BoardData with the given name
  * @returns {Promise<BoardData>}
  */
@@ -209,4 +218,5 @@ function generateUID(prefix, suffix) {
 
 if (exports) {
   exports.start = startIO;
+  exports.deleteBoard = deleteBoard
 }
