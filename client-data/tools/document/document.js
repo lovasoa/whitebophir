@@ -25,7 +25,7 @@
             Tools.drawAndSend({
                 'type': 'deleteall',
                 },
-                Tools.list.Clear,
+                Tools.list.Clear
             );
 
             var reader = new FileReader();
