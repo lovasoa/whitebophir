@@ -60,11 +60,12 @@ async function deleteBoard(boardName) {
  * @returns {Promise<BoardData>}
  */
 function getBoard(name) {
-  if (boards.hasOwnProperty(name)) {
-    return boards[name];
+  const standardisedName = name.toLowerCase()
+  if (boards.hasOwnProperty(standardisedName)) {
+    return boards[standardisedName];
   } else {
-    var board = BoardData.load(name);
-    boards[name] = board;
+    var board = BoardData.load(standardisedName);
+    boards[standardisedName] = board;
     gauge("boards in memory", Object.keys(boards).length);
     return board;
   }
