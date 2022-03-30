@@ -117,4 +117,4 @@ Example: `docker run -e STATSD_URL=udp://127.0.0.1:8125 lovasoa/wbo`.
 > Do not use these command for production!
 
 Use `npm run dev` to develop the app locally and restart as you edit.
-You can set environemnt variables in the `package.json` scripts section.
+You can set environemnt variables by creating a `.env` file and specifying your variables inside, e.g. `AUTH_SECRET_KEY="key"` 

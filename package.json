@@ -19,6 +19,7 @@
   },
   "scripts": {
     "start": "node ./server/server.js",
+    "dev": "nodemon -r dotenv/config --watch . --watch .env --ignore ./server-data/ --ignore ./node_modules/ ./server/server.js",
     "test": "nightwatch tests && nightwatch tests --env jwt"
   },
   "main": "./server/server.js",
@@ -27,7 +28,9 @@
     "url": "http://github.com/lovasoa/whitebophir.git"
   },
   "devDependencies": {
+    "dotenv": "^16.0.0",
     "geckodriver": "^3.0.1",
-    "nightwatch": "^1.7.12"
+    "nightwatch": "^1.7.12",
+    "nodemon": "^2.0.15"
   }
 }
