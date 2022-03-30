@@ -152,9 +152,9 @@ function doRMSHttpGet(apiurl) {
 }
 
 robotMapTags = {
-	"buttonStation1": "3",
-	"buttonStation2": "4",
-	"buttonWhiteboard": "2",
+	"buttonStation1": "76",
+	"buttonStation2": "75",
+	"buttonWhiteboard": "72",
 };
 function onDriveClick(e) {
 	let id = e.target.id;
