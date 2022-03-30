@@ -73,6 +73,10 @@ if (window.location.pathname.includes("/robotboards/")) {
 	if (btn) {
 		btn.addEventListener("click", onClearOverlayClick);
 	}
+	btn = document.getElementById("buttonToggleBgnd");
+	if (btn) {
+		btn.addEventListener("click", onToggleBgndClick);
+	}
 	btn = document.getElementById("buttonWhiteboard");
 	if (btn) {
 		btn.addEventListener("click", onDriveClick);
@@ -138,6 +142,15 @@ function onBlackClick() {
 function onClearOverlayClick() {
 	console.log("MARKD clearoverlay clicked");
 	Tools.send({type:"robotmessage", msg:"clearoverlay"},"robotTool");
+}
+
+function onToggleBgndClick() {
+	var bgnd = Tools.svg.style.backgroundColor;
+	var newcolor = "white";
+	if (bgnd == "white") newcolor = "black";
+	Tools.svg.style.backgroundColor = newcolor;
+	console.log(`MARKD Toggle Background to ${newcolor}`);
+	Tools.send({type:"robotmessage", msg:`bgnd-${newcolor}`},"robotTool");
 }
 
 const RMSHOST = "eft.ava8.net";
@@ -494,6 +507,12 @@ function messageForRobotTool(message) {
 		if (img) {
 			img.style.display = "none";
 		}
+	}
+	if (m == "bgnd-black") {
+		Tools.svg.style.backgroundColor = "black";
+	}
+	if (m == "bgnd-white") {
+		Tools.svg.style.backgroundColor = "white";
 	}
 }
 
