@@ -110,3 +110,11 @@ Example: `docker run -e STATSD_URL=udp://127.0.0.1:8125 lovasoa/wbo`.
 
  - If you use **prometheus**, you can collect the metrics with [statsd-exporter](https://hub.docker.com/r/prom/statsd-exporter).
  - If you use **datadog**, you can collect the metrics with [dogstatsd](https://docs.datadoghq.com/developers/dogstatsd).
+
+
+## Development
+
+> Do not use these command for production!
+
+Use `npm run dev` to develop the app locally and restart as you edit.
+You can set environemnt variables in the `package.json` scripts section.
