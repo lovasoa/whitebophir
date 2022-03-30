@@ -28,6 +28,14 @@ function noFail(fn) {
   };
 }
 
+/**
+ * Standardises the Board name
+ *  - Making it CaseInsenitive
+ */
+function standardiseBoardName(name) {
+    return name.toLowerCase()
+}
+
 function startIO(app) {
   io = iolib(app);
   if (config.AUTH_SECRET_KEY) {
@@ -60,7 +68,7 @@ async function deleteBoard(boardName) {
  * @returns {Promise<BoardData>}
  */
 function getBoard(name) {
-  const standardisedName = name.toLowerCase()
+  const standardisedName = standardiseBoardName(name);
   if (boards.hasOwnProperty(standardisedName)) {
     return boards[standardisedName];
   } else {
@@ -82,15 +90,15 @@ function handleSocketConnection(socket) {
    */
   async function joinBoard(name) {
     // Default to the public board
-    if (!name) name = "anonymous";
+    const boardname = standardiseBoardName(name || "anonymous");
 
     // Join the board
-    socket.join(name);
+    socket.join(boardname);
 
-    var board = await getBoard(name);
+    var board = await getBoard(boardname);
     board.users.add(socket.id);
     log("board joined", { board: board.name, users: board.users.size });
-    gauge("connected." + name, board.users.size);
+    gauge("connected." + board.name, board.users.size);
     return board;
   }
 
@@ -135,7 +143,7 @@ function handleSocketConnection(socket) {
         lastEmitSecond = currentSecond;
       }
 
-      var boardName = message.board || "anonymous";
+      var boardName = standardiseBoardName(message.board || "anonymous");
       var data = message.data;
 
       if (!socket.rooms.has(boardName)) socket.join(boardName);
@@ -163,8 +171,9 @@ function handleSocketConnection(socket) {
 
   socket.on("disconnecting", function onDisconnecting(reason) {
     socket.rooms.forEach(async function disconnectFrom(room) {
-      if (boards.hasOwnProperty(room)) {
-        var board = await boards[room];
+        const standardisedName = standardiseBoardName(room)
+        if (boards.hasOwnProperty(standardisedName)) {
+            var board = await boards[standardisedName];
         board.users.delete(socket.id);
         var userCount = board.users.size;
         log("disconnection", {
@@ -173,7 +182,7 @@ function handleSocketConnection(socket) {
           reason,
         });
         gauge("connected." + board.name, userCount);
-        if (userCount === 0) unloadBoard(room);
+        if (userCount === 0) unloadBoard(board.name);
       }
     });
   });
