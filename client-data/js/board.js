@@ -123,9 +123,7 @@ function onCaptureClick() {
 		Tools.send({type:"robotmessage", msg:"clearoverlay"},"robotTool");
 		return delay(1500);
 	}).then(()=>{
-		const num = new Date().getTime();
-		const imageurl = `background_whiteboard.jpg?unique=${num}`;
-		Tools.svg.style.backgroundImage = `url('${imageurl}')`;
+		updateWhiteboardSnapshot();
 	});
 }
 
@@ -137,6 +135,61 @@ function onMarkersClick() {
 function onBlackClick() {
 	console.log("MARKD black clicked");
 	Tools.send({type:"robotmessage", msg:"showblack"},"robotTool");
+}
+
+/**
+ * Fetch a file from the URL, convert it into a dataURL
+ * @param {string} fileurl 
+ * @param {function} callback 
+ */
+function getDataURLfromFile(fileurl, callback) {
+	var xhr = new XMLHttpRequest();       
+	xhr.open("GET", fileurl, true); 
+	xhr.responseType = "blob";
+	xhr.onload = function (e) {
+		//console.log(this.response);
+		var reader = new FileReader();
+		reader.onload = function(event) {
+			var dataurl = event.target.result;
+			//console.log(dataurl)
+			if (callback) callback(dataurl);
+		}
+		var file = this.response;
+		reader.readAsDataURL(file)
+	};
+	xhr.send()
+}
+
+/**
+ * Fetch the latest whiteboard snapshot from the server. Put the image into
+ * our local svg drawing area as a dataURL so it is included in the downloaded
+ * SVG file when the user clicks the download button.
+ * This updates only the local user's view. Other users of the same board do
+ * not get this updated whiteboard snapshot, and the snapshot image is not included
+ * in the board data saved on the server.
+ */
+function updateWhiteboardSnapshot() {
+	// Use a unique number to make sure the image isn't cached anywhere
+	const num = new Date().getTime();
+	const imageurl = `background_whiteboard.jpg?unique=${num}`;
+	getDataURLfromFile(imageurl, (dataurl) => {
+		// This code is very similar to document.js for adding a new image
+		var xlinkNS = "http://www.w3.org/1999/xlink";
+		var img = Tools.createSVGElement("image");
+		img.id="whiteboard_snapshot";
+		img.setAttribute("class", "layer-"+Tools.layer); // is this necessary?
+		img.setAttributeNS(xlinkNS, "href", dataurl);
+		// Assume the image is same size as the drawing area
+		img.x.baseVal.value = 0;
+		img.y.baseVal.value = 0;
+		img.setAttribute("width", Tools.svg.width.baseVal.value);
+		img.setAttribute("height", Tools.svg.height.baseVal.value);
+		//Remove any previous image, there should be only one whiteboard background image
+		elem = Tools.svg.getElementById(img.id);
+		if (elem) Tools.drawingArea.removeChild(elem);
+		// Put the image at the beginning, so it is behind all the annotations
+		Tools.drawingArea.insertBefore(img, Tools.drawingArea.firstChild);
+	});
 }
 
 function onClearOverlayClick() {
@@ -457,7 +510,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 (function () {
 	// Handle secondary tool switch with shift (key code 16)
 	function handleShift(active, evt) {
-		if (evt.keyCode === 16 && Tools.curTool.secondary && Tools.curTool.secondary.active !== active) {
+		if (evt.keyCode === 16 && Tools.curtool && Tools.curTool.secondary && Tools.curTool.secondary.active !== active) {
 			Tools.change(Tools.curTool.name);
 		}
 	}
