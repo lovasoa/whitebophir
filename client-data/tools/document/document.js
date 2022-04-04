@@ -29,6 +29,8 @@
             );
 
             var reader = new FileReader();
+            const filename = fileInput.files[0].name;
+            const filetype = fileInput.files[0].type;
             reader.readAsDataURL(fileInput.files[0]);
 
             reader.onload = function (e) {
@@ -52,7 +54,7 @@
                         ctx.canvas.width = image.width * scale;
                         ctx.canvas.height = image.height * scale;
                         ctx.drawImage(image, 0, 0, image.width * scale, image.height * scale);
-                        var dataURL = ctx.canvas.toDataURL("image/webp", 0.7);
+                        var dataURL = ctx.canvas.toDataURL("image/jpeg", 0.7);
                         scale_used = scale;
 
                         // Compressed file size as data url, approximately 1/3 larger than as bytestream
@@ -65,16 +67,16 @@
                         ));
                     } while (size > Tools.server_config.MAX_DOCUMENT_SIZE);
 
+                    console.log(`load image size:${size} type:${dataURL.substring(0, dataURL.indexOf(';'))}`);
                     var msg = {
                         id: uid,
                         type: "doc",
                         data: dataURL,
                         size: size,
+                        filename: filename, //for logging on server side
+                        filetype: filetype, //for logging on server side
                         w: this.width * scale_used || 300,
                         h: this.height * scale_used || 300,
-                        x: (100 + document.documentElement.scrollLeft) / Tools.scale + 10 * imgCount,
-                        y: (100 + document.documentElement.scrollTop) / Tools.scale + 10 * imgCount
-                        //fileType: fileInput.files[0].type
                     };
 
                     assert_count();
@@ -102,28 +104,22 @@
             height = canvas_height;
             width = height*aspect_image;
         }
-        // Center the image on the canvas
-        x = (canvas_width - width) / 2;
-        y = (canvas_height - height) / 2;
         var img = Tools.createSVGElement("image");
         img.id=msg.id;
         img.setAttribute("class", "layer-"+Tools.layer);
         img.setAttributeNS(xlinkNS, "href", msg.data);
-        //img.x.baseVal.value = msg['x'];
-        //img.y.baseVal.value = msg['y'];
+        // Center the image on the canvas
+        x = (canvas_width - width) / 2;
+        y = (canvas_height - height) / 2;
         img.x.baseVal.value = x;
         img.y.baseVal.value = y;
-        //img.setAttribute("width", 400*aspect);
-        //img.setAttribute("height", 400);
         img.setAttribute("width", width);
         img.setAttribute("height", height);
         Tools.drawingArea.appendChild(img);
-
     }
 
     Tools.add({
         "name": toolName,
-        //"shortcut": "",
         "draw": draw,
         "onstart": onstart,
         "oneTouch":true,

@@ -158,6 +158,14 @@ class BoardData {
   processMessage(message) {
     if (message._children) return this.processMessageBatch(message._children);
     let id = message.id;
+    let logobj = {id: message.id, type: message.type}
+    if (message.type == "doc") {
+      logobj.size = message.size,
+      logobj.filename = message.filename,
+      logobj.filetype = message.filetype,
+      logobj.imagetype = message.data.substring(0, message.data.indexOf(';'))
+    }
+    if (message.type != "child" && message.type != "update") log("processMessage", logobj);
     switch (message.type) {
       case "delete":
         if (id) this.delete(id);
@@ -175,7 +183,7 @@ class BoardData {
         this.addChild(message.parent, message);
         break;
       case "robotmessage":
-        log("MARKD robotmessage", message);
+        log("robotmessage", message);
         if (message.msg == "showmarkers") {
             getSnapshotMarkers()
                 .then(val => log(`MARKD getSnapshotMarkers: ${val}`))
@@ -193,7 +201,7 @@ class BoardData {
       default:
         //Add data
         if (!id) throw new Error("Invalid message: ", message);
-        log("MARKD add to board", {type: message.type});
+        //log("MARKD add to board", {type: message.type});
         this.set(id, message);
     }
   }

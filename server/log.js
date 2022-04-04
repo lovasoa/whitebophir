@@ -48,7 +48,9 @@ function log(type, infos) {
     if (infos.board) stat_name += "." + infos.board;
     statsd.increment(stat_name);
   }
-  console.log(msg);
+  let timestamp = new Date().toISOString();
+  let consolemsg = timestamp + " " + msg;
+  console.log(consolemsg);
 }
 
 /**

@@ -573,7 +573,8 @@ function messageForRobotTool(message) {
 function messageForTool(message) {
 	var name = message.tool,
 		tool = Tools.list[name];
-	console.log(`MARKD messageForTool: ${name}`);
+	if (name != "Cursor" && message.type != "child" && message.type != "update")
+		console.log(`messageForTool: ${name}`);
 	if (name == "robotTool") {
 		messageForRobotTool(message);
 		return;
