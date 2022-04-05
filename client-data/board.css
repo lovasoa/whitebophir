@@ -7,7 +7,6 @@ html, body, svg {
 
 #canvas {
 	transform-origin: 0 0;
-	background-color: black;
 }
 
 #loadingMessage {

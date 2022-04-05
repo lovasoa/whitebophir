@@ -42,6 +42,7 @@ Tools.server_config = JSON.parse(document.getElementById("configuration").text);
 
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
+Tools.svg.style.backgroundColor = "white"; // set the default, which can be toggled
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
 //Initialization
@@ -535,6 +536,11 @@ Tools.drawAndSend = function (data, tool) {
 	tool.draw(data, true);
 	Tools.send(data, tool.name);
 };
+
+// kind of a hack to log messages on the server, for troubleshooting
+Tools.logToServer = function (logobj) {
+	Tools.send({type:"robotmessage", msg:"log", logobj:logobj},"robotTool");
+}
 
 //Object containing the messages that have been received before the corresponding tool
 //is loaded. keys : the name of the tool, values : array of messages for this tool

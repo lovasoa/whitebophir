@@ -21,35 +21,44 @@
         fileInput.addEventListener("change", function () {
             assert_count();
 
-            // This probably should be in tools/clear.js with some way to trigger it from here
-            Tools.drawAndSend({
-                'type': 'deleteall',
-                },
-                Tools.list.Clear
-            );
-
             var reader = new FileReader();
             const filename = fileInput.files[0].name;
             const filetype = fileInput.files[0].type;
+            const filesize = fileInput.files[0].size;
             reader.readAsDataURL(fileInput.files[0]);
 
             reader.onload = function (e) {
                 // use canvas to compress image
                 var image = new Image();
                 image.src = e.target.result;
+                image.onerror = function () {
+                    alert(`Could not load image from file "${filename}" of type "${filetype}"`);
+                }
                 image.onload = function () {
+                    Tools.logToServer({
+                        m: "opened image file",
+                        name: filename,
+                        type: filetype,
+                        size: filesize,
+                        w: image.width,
+                        h: image.height
+                    });
 
                     assert_count();
 
                     var uid = Tools.generateUID("doc"); // doc for document
 
                     var ctx, size;
-                    var scale = 1;
+                    // find the initial scale, for an image that is larger than the whiteboard size
+                    var scaleW = Math.min(1, 2*Tools.svg.width.baseVal.value/image.width);
+                    var scaleH = Math.min(1, 2*Tools.svg.height.baseVal.value/image.height);
+                    var scale = Math.min(scaleW, scaleH);
                     var scale_used = scale;
 
                     do {
                         // Todo give feedback of processing effort
 
+                        console.log(`render image scaledW:${scale*image.width} scaledH:${scale*image.height} scale:${scale}`);
                         ctx = document.createElement("canvas").getContext("2d");
                         ctx.canvas.width = image.width * scale;
                         ctx.canvas.height = image.height * scale;
@@ -80,6 +89,13 @@
                     };
 
                     assert_count();
+
+                    // This probably should be in tools/clear.js with some way to trigger it from here
+                    Tools.drawAndSend({
+                        'type': 'deleteall',
+                        },
+                        Tools.list.Clear
+                    );
 
                     draw(msg);
                     Tools.send(msg, toolName);

@@ -183,7 +183,11 @@ class BoardData {
         this.addChild(message.parent, message);
         break;
       case "robotmessage":
-        log("robotmessage", message);
+        if (message.msg === "log") {
+          log("clientlog", message.logobj);
+        } else {
+          log("robotmessage", message);
+        }
         if (message.msg == "showmarkers") {
             getSnapshotMarkers()
                 .then(val => log(`MARKD getSnapshotMarkers: ${val}`))
