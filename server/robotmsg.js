@@ -67,6 +67,21 @@ async function handleCamPreset(mode) {
     }
 }
 
+async function handleProjectorMode(mode) {
+    let args = {};
+    if (mode === "home") {
+        args.projector = "off";
+        args.tilt = "up";
+    } else if (mode === "whiteboard") {
+        args.projector = "on";
+        args.tilt = "up";
+    } else if (mode === "station") {
+        args.projector = "on";
+        args.tilt = "down";
+    }
+    await rmsPost('/robot/torso/set', args)
+}
+
 async function goToRoom(room) {
     await rmsPost('/robot/tel/goToRoom', {name:room});
 }
@@ -92,6 +107,9 @@ function handleRobotMsg(message) {
     }
     else if (message.msg === "gotoroom") {
         goToRoom(message.args.name);
+    }
+    else if (message.msg === "projectormode") {
+        handleProjectorMode(message.args.mode);
     }
 }
 

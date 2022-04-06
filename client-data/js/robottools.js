@@ -19,6 +19,14 @@ RobotTools.cameraPreset = function (mode) {
 };
 
 /**
+ * Set the projector tilt and power according to the mode
+ * @param {string} mode home | whiteboard | station
+ */
+ RobotTools.projectorMode = function (mode) {
+    RobotTools.send("projectormode", {mode:mode});
+};
+
+/**
  * Drive the robot to a room
  * @param {string} room The room name (aka named space) in the RMS map
  */
