@@ -103,6 +103,10 @@ if (window.location.pathname.includes("/robotboards/")) {
 	if (btn) {
 		btn.addEventListener("click", onDriveClick);
 	}
+	btn = document.getElementById("buttonStation3");
+	if (btn) {
+		btn.addEventListener("click", onDriveClick);
+	}
 	
 	window.addEventListener('resize', (e)=>{
 		setBoardScale();
@@ -111,16 +115,25 @@ if (window.location.pathname.includes("/robotboards/")) {
 
 function onTogglePageClick(e) {
 	let id = e.target.id;
+	let mode;
 	console.log(`page toggle clicked: ${id}`);
 	if(id =="buttonBack"){
 		console.log("Show home page");
-		document.getElementById("homePageContainer").style.display = "grid"
-		document.getElementById("boardContainer").style.display = "none"
+		document.getElementById("homePageContainer").style.display = "grid";
+		document.getElementById("boardContainer").style.display = "none";
+		mode = "home"
 	}else{
 		console.log("Show board");
-		document.getElementById("homePageContainer").style.display = "none"
-		document.getElementById("boardContainer").style.display = "grid"
+		document.getElementById("homePageContainer").style.display = "none";
+		document.getElementById("boardContainer").style.display = "grid";
+		if (id === "collabWhiteboard") {
+			mode = "whiteboard";
+		} else {
+			mode = "station"
+		}
 	}
+	Tools.robotTools.cameraPreset(mode);
+	Tools.robotTools.projectorMode(mode);
 }
 
 // set scale to fit the board width to the window width
