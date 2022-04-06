@@ -58,6 +58,7 @@ if (window.location.pathname.includes("/robotboards/")) {
 	document.getElementById("menu").style.display = "none";
 }
 (function setupRobotTools() {
+	Tools.robotTools = RobotTools;
 	btn = document.getElementById("buttonCapture");
 	if (btn) {
 		btn.addEventListener("click", onCaptureClick);
@@ -194,7 +195,6 @@ function updateWhiteboardSnapshot() {
 }
 
 function onClearOverlayClick() {
-	console.log("MARKD clearoverlay clicked");
 	Tools.send({type:"robotmessage", msg:"clearoverlay"},"robotTool");
 }
 
@@ -203,32 +203,20 @@ function onToggleBgndClick() {
 	var newcolor = "white";
 	if (bgnd == "white") newcolor = "black";
 	Tools.svg.style.backgroundColor = newcolor;
-	console.log(`MARKD Toggle Background to ${newcolor}`);
+	console.log(`Toggle Background to ${newcolor}`);
 	Tools.send({type:"robotmessage", msg:`bgnd-${newcolor}`},"robotTool");
 }
 
-const RMSHOST = "eft.ava8.net";
-const ROBOT = "SB00243";
-const BASICAUTH = "Basic " + btoa("avasupport:avasupport")
-function doRMSHttpGet(apiurl) {
-	var req = new XMLHttpRequest();
-	const url = `https://${RMSHOST}/api/htproxy/whiteboard/${ROBOT}/${apiurl}`;
-	req.open("GET", url);
-	req.setRequestHeader("Authorization", BASICAUTH);
-	req.send();
-}
-
-robotMapTags = {
-	"buttonStation1": "76",
-	"buttonStation2": "75",
-	"buttonWhiteboard": "72",
+robotRooms = {
+	"buttonStation1": "Station 1",
+	"buttonStation2": "Station 2",
+	"buttonStation3": "Station 3",
+	"buttonWhiteboard": "Whiteboard",
 };
 function onDriveClick(e) {
 	let id = e.target.id;
-	console.log(`MARKD drive clicked: ${id}`);
-	const tag = robotMapTags[id];
-	doRMSHttpGet(`robot/drive/driveToTag/1/${tag}`);
-	//doRMSHttpGet(`robot/tel/goToRoom?map=AppleProjectXMap1&room=Whiteboard`);
+	console.log(`drive clicked: ${id}`);
+	Tools.robotTools.goToRoom(robotRooms[id]);
 }
 
 Tools.socket = null;

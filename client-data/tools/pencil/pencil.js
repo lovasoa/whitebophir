@@ -227,5 +227,6 @@
 		"stylesheet": "tools/pencil/pencil.css",
 	};
 	Tools.add(pencilTool);
+	Tools.change("Pencil"); // Use the pencil tool by default, since we removed the Hand tool for custom app
 
 })(); //End of code isolation
