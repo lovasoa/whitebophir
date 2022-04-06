@@ -59,6 +59,18 @@ if (window.location.pathname.includes("/robotboards/")) {
 }
 (function setupRobotTools() {
 	Tools.robotTools = RobotTools;
+	btn = document.getElementById("collabWhiteboard");
+	if (btn) {
+		btn.addEventListener("click", onTogglePageClick);
+	}
+	btn = document.getElementById("collabStation");
+	if (btn) {
+		btn.addEventListener("click", onTogglePageClick);
+	}
+	btn = document.getElementById("buttonBack");
+	if (btn) {
+		btn.addEventListener("click", onTogglePageClick);
+	}
 	btn = document.getElementById("buttonCapture");
 	if (btn) {
 		btn.addEventListener("click", onCaptureClick);
@@ -96,6 +108,20 @@ if (window.location.pathname.includes("/robotboards/")) {
 		setBoardScale();
 	});
 })();
+
+function onTogglePageClick(e) {
+	let id = e.target.id;
+	console.log(`page toggle clicked: ${id}`);
+	if(id =="buttonBack"){
+		console.log("Show home page");
+		document.getElementById("homePageContainer").style.display = "grid"
+		document.getElementById("boardContainer").style.display = "none"
+	}else{
+		console.log("Show board");
+		document.getElementById("homePageContainer").style.display = "none"
+		document.getElementById("boardContainer").style.display = "grid"
+	}
+}
 
 // set scale to fit the board width to the window width
 function setBoardScale(){
