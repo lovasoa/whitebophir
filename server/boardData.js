@@ -25,12 +25,13 @@
  * @module boardData
  */
 
+const { handleRobotMsg } = require("./robotmsg.js");
+
 var fs = require("./fs_promises.js"),
   log = require("./log.js").log,
   path = require("path"),
   config = require("./configuration.js"),
-  Mutex = require("async-mutex").Mutex,
-  { pwd, getSnapshotMarkers, transformWhiteboardImage } = require("./robotimage.js");
+  Mutex = require("async-mutex").Mutex;
 
 /**
  * Represents a board.
@@ -183,24 +184,7 @@ class BoardData {
         this.addChild(message.parent, message);
         break;
       case "robotmessage":
-        if (message.msg === "log") {
-          log("clientlog", message.logobj);
-        } else {
-          log("robotmessage", message);
-        }
-        if (message.msg == "showmarkers") {
-            getSnapshotMarkers()
-                .then(val => log(`MARKD getSnapshotMarkers: ${val}`))
-                .catch(e => log(`MARKD ERROR from getSnapshotMarkers ${e}`));
-        }
-        if (message.msg == "showblack") {
-            //pwd()
-            //    .then(val => log(`MARKD ${val}`))
-            //    .catch(e => log(`MARKD ERROR from pwd ${e}`));
-            transformWhiteboardImage()
-                .then(val => log(`MARKD xform ${val}`))
-                .catch(e => log(`MARKD ERROR from xform ${e}`));
-        }
+        handleRobotMsg(message);
         break;
       default:
         //Add data
