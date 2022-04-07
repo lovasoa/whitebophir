@@ -13,7 +13,7 @@ var ROBOT = process.env["WBO_ROBOT"] || "SB00243";
 
 // Camera preset values. Could these be different for different robots?
 const tiltWhiteboard = 0.0;
-const tiltStation = 0.528;
+const tiltStation = 0.4;
 const zoomWhiteboard = 8;
 const zoomStation = 3;
 
