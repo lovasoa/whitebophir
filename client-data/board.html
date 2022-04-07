@@ -3,7 +3,7 @@
 
 <head>
 	<meta charset="utf-8" />
-	<title>{{board}} | WBO | {{translations.collaborative_whiteboard}}</title>
+	<title>Ava Robotics | Collaboration | {{translations.collaborative_whiteboard}}</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" type="text/css" href="../board.css" />
 	<script src="../socket.io/socket.io.js"></script>
@@ -54,8 +54,9 @@
 				</div>
 			</div>
 		</div>
-		<div id="boardContainer" style="display: none;">
-			<div id="board">
+		<div id="boardContainer"  style="display: none;">
+			
+			<div id="board" class="boardDiv">
 				<svg id="canvas" width="1920" height="1080" version="1.1" xmlns="http://www.w3.org/2000/svg"
 					xmlns:xlink="http://www.w3.org/1999/xlink"
 					style="background-repeat:no-repeat;">
@@ -63,46 +64,54 @@
 					<g id="drawingArea"></g>
 					<g id="cursors"></g>
 				</svg>
-			</div>
-		
-			<div id="robotButtons" left:0 top:0>
-				<button id="buttonBack" type="button" style="cursor:pointer">< Back</button><br/>
-				<button id="buttonCapture" type="button" style="cursor:pointer">Capture</button><br/>
-				<button id="buttonMarkers" type="button" style="cursor:pointer">Markers</button><br/>
-				<button id="buttonBlack" type="button" style="cursor:pointer">Black</button><br/>
-				<button id="buttonClearOverlay" type="button" style="cursor:pointer">Drawing</button><br/>
-				<button id="buttonToggleBgnd" type="button" style="cursor:pointer">Toggle Bgnd</button><br/>
-			</div>
-			<div id="loadingMessage">{{translations.loading}}</div>
-			<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>
-				<div id="menuItems">
-					<ul id="tools" class="tools">
-						<li class="tool" tabindex="-1">
-							<img class="tool-icon" width="35" height="35" src="" alt="icon" />
-							<span class="tool-name"></span>
-							<img class="tool-icon secondaryIcon" width="35" height="35" src="data:," alt="icon" />
-						</li>
-					</ul>
-		
-					<ul class="tools" id="settings">
-						<li class="tool" tabindex="-1">
-							<input class="tool-icon" type="color" id="chooseColor" value="#1913B0" disabled />
-							<label class="tool-name" for="chooseColor">{{translations.color}}</label>
-							<span class="colorPresets" id="colorPresetSel">
-								<span class="colorPresetButton"></span>
-							</span>
-						</li>
-						<li class="tool" tabindex="-1"
-							title="{{translations.size}} ({{translations.keyboard_shortcut}}: alt + {{translations.mousewheel}})">
-							<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
-							<label class="tool-name slider" for="chooseSize">
-								<span>{{translations.size}}</span>
-								<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />
-							</label>
-						</li>
-					</ul>
+				<div id="backButtonDiv">
+					<button id="buttonBack" type="button" style="cursor:pointer">< Back</button>
 				</div>
 			</div>
+			
+			<div>
+				<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>
+					<div id="menuItems">
+						<ul id="tools" class="tools">
+							<li class="tool" tabindex="-1">
+								<img class="tool-icon" width="35" height="35" src="" alt="icon" />
+								<span class="tool-name"></span>
+								<img class="tool-icon secondaryIcon" width="35" height="35" src="data:," alt="icon" />
+							</li>
+						</ul>
+			
+						<ul class="tools" id="settings">
+							<li class="tool" tabindex="-1">
+								<input class="tool-icon" type="color" id="chooseColor" value="#1913B0" disabled />
+								<label class="tool-name" for="chooseColor">{{translations.color}}</label>
+								<span class="colorPresets" id="colorPresetSel">
+									<span class="colorPresetButton"></span>
+								</span>
+							</li>
+							<li class="tool" tabindex="-1"
+								title="{{translations.size}} ({{translations.keyboard_shortcut}}: alt + {{translations.mousewheel}})">
+								<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
+								<label class="tool-name slider" for="chooseSize">
+									<span>{{translations.size}}</span>
+									<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />
+								</label>
+							</li>
+						</ul>
+					</div>
+				</div>
+				
+				<div id="robotButtons">
+					<button id="buttonCapture" type="button" style="cursor:pointer">Capture</button>
+					<button id="buttonMarkers" type="button" style="cursor:pointer">Markers</button>
+					<button id="buttonBlack" type="button" style="cursor:pointer">Black</button>
+					<button id="buttonClearOverlay" type="button" style="cursor:pointer">Drawing</button>
+					<button id="buttonToggleBgnd" type="button" style="cursor:pointer">Toggle Bgnd</button>
+				</div>
+				<div id="loadingMessage">{{translations.loading}}</div>
+
+			</div>
+			
+			
 		</div>
 		
 	</div>
