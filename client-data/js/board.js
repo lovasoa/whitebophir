@@ -244,6 +244,7 @@ function onToggleBgndClick() {
 	Tools.svg.style.backgroundColor = newcolor;
 	console.log(`Toggle Background to ${newcolor}`);
 	Tools.send({type:"robotmessage", msg:`bgnd-${newcolor}`},"robotTool");
+	document.getElementById("boardContainer").style.backgroundColor = newcolor;
 }
 
 robotRooms = {
