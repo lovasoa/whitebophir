@@ -41,7 +41,7 @@ html, body, svg {
 }
 
 #robotButtons {
-
+	padding: 0px 10px;
 }
 
 #menu {
@@ -299,9 +299,10 @@ circle.opcursor {
 	width: 100%;
 	height: 100%;
 	grid-template-columns: 1fr 1fr;
-	grid-template-rows: 1fr 7fr 0.5fr;
+	grid-template-rows: 1fr 8fr;
 	overflow: hidden !important;
 	background-color: black;
+	position: fixed;
 }
 
 #logoContainer{
@@ -378,6 +379,8 @@ circle.opcursor {
 	height: 100vh;
 	grid-template-rows: 8fr 1.5fr 0.5fr;
 	overflow: hidden !important;
+	position: fixed;
+	background-color: #333333;
 }
 
 .boardDiv{
@@ -393,4 +396,8 @@ circle.opcursor {
 	top: 0;
 	z-index: 1000;
 	padding: 5px;
+}
+#footerBar{
+	bottom: 2%;
+	position: fixed;
 }
