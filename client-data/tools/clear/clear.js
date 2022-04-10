@@ -40,7 +40,6 @@
         switch (data.type) {
             case "deleteall":
                 Tools.drawingArea.innerHTML = '';
-                Tools.svg.style.backgroundImage = 'none';
                 break;
         }
     }
