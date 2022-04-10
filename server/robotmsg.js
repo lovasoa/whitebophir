@@ -13,7 +13,7 @@ var ROBOT = process.env["WBO_ROBOT"] || "SB00243";
 
 // Camera preset values. Could these be different for different robots?
 const tiltWhiteboard = 0.0;
-const tiltStation = 0.528;
+const tiltStation = 0.4;
 const zoomWhiteboard = 8;
 const zoomStation = 3;
 
@@ -69,17 +69,26 @@ async function handleCamPreset(mode) {
 
 async function handleProjectorMode(mode) {
     let args = {};
+    let restartRobotBrowser = false;
     if (mode === "home") {
         args.projector = "off";
         args.tilt = "up";
     } else if (mode === "whiteboard") {
         args.projector = "on";
         args.tilt = "up";
+        restartRobotBrowser = true;
     } else if (mode === "station") {
         args.projector = "on";
         args.tilt = "down";
+        restartRobotBrowser = true;
     }
     await rmsPost('/robot/torso/set', args)
+    // If we're going to project, then brute force restart the robot's
+    // browser as a safeguard against it getting stuck without a connection
+    // to the server.
+    if (restartRobotBrowser) {
+        await rmsPost('/robot/browser/restart', {});
+    }
 }
 
 async function goToRoom(room) {
