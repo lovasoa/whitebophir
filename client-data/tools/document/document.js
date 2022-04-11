@@ -100,6 +100,7 @@
                     draw(msg);
                     Tools.send(msg, toolName);
                     imgCount++;
+                    Tools.robotTools.showKeepout(false);
                 };
             };
             // Tools.change(Tools.prevToolName);

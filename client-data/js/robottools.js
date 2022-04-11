@@ -33,3 +33,8 @@ RobotTools.cameraPreset = function (mode) {
 RobotTools.goToRoom = function (room) {
     RobotTools.send("gotoroom", {name:room});
 };
+
+RobotTools.showKeepout = function (show) {
+    document.getElementById("keepoutImg").style.display = show?"block":"none";
+    RobotTools.send("showkeepout", {show:show});
+};

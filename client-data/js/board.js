@@ -43,7 +43,6 @@ Tools.server_config = JSON.parse(document.getElementById("configuration").text);
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 Tools.svg.style.backgroundColor = "white"; // set the default, which can be toggled
-Tools.svg.style.backgroundImage = 'url("keepout.png")';
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
 //Initialization
@@ -601,6 +600,9 @@ function messageForRobotTool(message) {
 	}
 	if (m == "bgnd-white") {
 		Tools.svg.style.backgroundColor = "white";
+	}
+	if (m == "showkeepout") {
+		document.getElementById("keepoutImg").style.display = message.args.show?"block":"none";
 	}
 }
 

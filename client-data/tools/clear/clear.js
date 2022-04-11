@@ -32,6 +32,7 @@
                 'type': 'deleteall',
             },
             clearTool);
+            Tools.robotTools.showKeepout(true);
         }
     }
     

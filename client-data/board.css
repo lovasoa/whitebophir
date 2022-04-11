@@ -9,6 +9,12 @@ html, body, svg {
 	transform-origin: 0 0;
 }
 
+#keepoutImg {
+	position: absolute;
+	width: 100%;
+	pointer-events: none;
+}
+
 #loadingMessage {
 	font-size: 1.5em;
 	background: #eee linear-gradient(#eeeeee, #cccccc);
@@ -387,6 +393,7 @@ circle.opcursor {
 	display: grid;
 	width: 100%;
 	height: 100%;
+	position: relative;
 	overflow: hidden !important;
 }
 
