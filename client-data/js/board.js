@@ -111,6 +111,10 @@ if (window.location.pathname.includes("/robotboards/")) {
 	window.addEventListener('resize', (e)=>{
 		setBoardScale();
 	});
+
+	if (Tools.robotTools.isRobotBoard()) {
+		Tools.svg.style.backgroundImage = "url('keepout.png')";
+	}
 })();
 
 function onTogglePageClick(e) {
@@ -602,7 +606,15 @@ function messageForRobotTool(message) {
 		Tools.svg.style.backgroundColor = "white";
 	}
 	if (m == "showkeepout") {
-		document.getElementById("keepoutImg").style.display = message.args.show?"block":"none";
+		// The robot board uses a background image on the svg canvas only because chromium
+		// in the robot didn't show the "keepoutImg" element at all. Rather than debug that,
+		// using the background image is a quick fix. The  client app needs to use the "keepoutImg"
+		// in order to render the keepouts on top of the captured whiteboard snapshot image.
+		if (Tools.robotTools.isRobotBoard()) {
+			Tools.svg.style.backgroundImage = message.args.show?"url('keepout.png')":'none';
+		} else {
+			document.getElementById("keepoutImg").style.display = message.args.show?"block":"none";
+		}
 	}
 }
 

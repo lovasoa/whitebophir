@@ -13,6 +13,7 @@ html, body, svg {
 	position: absolute;
 	width: 100%;
 	pointer-events: none;
+	z-index: 1;
 }
 
 #loadingMessage {
