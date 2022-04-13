@@ -91,11 +91,54 @@ async function handleProjectorMode(mode) {
     }
 }
 
+/**
+ * Orchestrate the whiteboard snapshot capture and alignment process.
+ * @param {string} boardName name of the whiteboard
+ * @param {*} socket the triggering message came in on, from the client
+ * @param {*} io sockets.io object
+ */
+function getSnapshot(boardName, socket, io) {
+    // these message go to all clients of the board, except the one
+    // that sent the "getwbsnapshot" message
+    socket.broadcast.to(boardName).emit("broadcast", {
+        type:"robotmessage", msg:"showmarkers", tool:"robotTool"
+    });
+    getSnapshotMarkers() // get image with projected alignment marks
+    .then((val) => {
+        log(`getSnapshotMarkers: ${val}`);
+        socket.broadcast.to(boardName).emit("broadcast", {
+            type:"robotmessage", msg:"showblack", tool:"robotTool"
+        });
+        // get image without alignment marks, align the image to the app annotations
+        return transformWhiteboardImage();
+    })
+    .then((val) => {
+        log(`transformWhiteboardImage: ${val}`);
+        // these message go to all clients of the board, including the one
+        // that sent the "getwbsnapshot" message
+        io.in(boardName).emit("broadcast", {
+            type:"robotmessage", msg:"wbcaptured", args:{success:true}, tool:"robotTool"
+        });
+    })
+    .catch(e => {
+        log(`ERROR getwbsnapshot ${e}`);
+        io.in(boardName).emit("broadcast", {
+            type:"robotmessage", msg:"wbcaptured", args:{success:false}, tool:"robotTool"
+        });
+    })
+    .finally(()=>{
+        // tell the robot board to clear markers and black image
+        socket.broadcast.to(boardName).emit("broadcast", {
+            type:"robotmessage", msg:"clearoverlay", tool:"robotTool"
+        });
+    });
+}
+
 async function goToRoom(room) {
     await rmsPost('/robot/tel/goToRoom', {name:room});
 }
 
-function handleRobotMsg(message) {
+function handleRobotMsg(message, boardName, socket, io) {
     if (message.msg === "log") {
         log("clientlog", message.logobj);
     } else {
@@ -119,6 +162,9 @@ function handleRobotMsg(message) {
     }
     else if (message.msg === "projectormode") {
         handleProjectorMode(message.args.mode);
+    }
+    else if (message.msg === "getwbsnapshot") {
+        getSnapshot(boardName, socket, io);
     }
 }
 

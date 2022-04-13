@@ -11,5 +11,5 @@ ROBOT=SB00243
 #curl --silent -u avasupport:avasupport --cookie-jar cookies.txt --cookie cookies.txt -b "rms_proxy_robot=SB00243; rms_proxy_cid=voip-admin" https://eft-proxy.ava8.net/web/api/snapshot/get
 
 curl --silent -o /dev/null -u avasupport:avasupport https://$RMS.ava8.net/api/htproxy/whiteboard/$ROBOT/robot/cameraPose/sendCommand?value=149
-sleep 0.5
+sleep 0.3
 curl --silent -u avasupport:avasupport https://$RMS.ava8.net/api/htproxy/whiteboard/$ROBOT/images/snapshot.jpg

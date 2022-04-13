@@ -156,7 +156,7 @@ class BoardData {
   /** Process a single message
    * @param {BoardMessage} message instruction to apply to the board
    */
-  processMessage(message) {
+  processMessage(message, socket, io) {
     if (message._children) return this.processMessageBatch(message._children);
     let id = message.id;
     let logobj = {id: message.id, type: message.type}
@@ -184,7 +184,7 @@ class BoardData {
         this.addChild(message.parent, message);
         break;
       case "robotmessage":
-        handleRobotMsg(message);
+        handleRobotMsg(message, this.name, socket, io);
         break;
       default:
         //Add data

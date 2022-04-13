@@ -159,26 +159,17 @@ async function onCaptureClick() {
 	document.getElementById("canvas").style.backgroundImage = "url('background_whiteboard.jpg')";
 }*/
 function onCaptureClick() {
-	console.log("MARKD capture clicked");
-	Tools.send({type:"robotmessage", msg:"showmarkers"},"robotTool");
-	delay(1500).then(()=>{
-		Tools.send({type:"robotmessage", msg:"showblack"},"robotTool");
-		return delay(1500);
-	}).then(()=>{
-		Tools.send({type:"robotmessage", msg:"clearoverlay"},"robotTool");
-		return delay(1500);
-	}).then(()=>{
-		updateWhiteboardSnapshot();
-	});
+	console.log("capture clicked");
+	Tools.send({type:"robotmessage", msg:"getwbsnapshot"},"robotTool");
 }
 
 function onMarkersClick() {
-	console.log("MARKD markers clicked");
+	console.log("markers clicked");
 	Tools.send({type:"robotmessage", msg:"showmarkers"},"robotTool");
 }
 
 function onBlackClick() {
-	console.log("MARKD black clicked");
+	console.log("black clicked");
 	Tools.send({type:"robotmessage", msg:"showblack"},"robotTool");
 }
 
@@ -235,6 +226,14 @@ function updateWhiteboardSnapshot() {
 		// Put the image at the beginning, so it is behind all the annotations
 		Tools.drawingArea.insertBefore(img, Tools.drawingArea.firstChild);
 	});
+}
+
+/**
+ * Remove the whiteboard snapshot from the drawing area.
+ */
+function removeWhiteboardSnapshot() {
+	elem = Tools.svg.getElementById("whiteboard_snapshot");
+	if (elem) Tools.drawingArea.removeChild(elem);
 }
 
 function onClearOverlayClick() {
@@ -614,6 +613,14 @@ function messageForRobotTool(message) {
 			Tools.svg.style.backgroundImage = message.args.show?"url('keepout.png')":'none';
 		} else {
 			document.getElementById("keepoutImg").style.display = message.args.show?"block":"none";
+		}
+	}
+	if (m == "wbcaptured" && !Tools.robotTools.isRobotBoard()) {
+		if (message.args.success) {
+			updateWhiteboardSnapshot();
+		} else {
+			removeWhiteboardSnapshot();
+			alert("Could not capture the whiteboard.");
 		}
 	}
 }

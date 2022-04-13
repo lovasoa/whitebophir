@@ -9,6 +9,8 @@ var iolib = require("socket.io"),
 */
 var boards = {};
 
+var globalio;
+
 /**
  * Prevents a function from throwing errors.
  * If the inner function throws, the outer function just returns undefined
@@ -30,6 +32,7 @@ function noFail(fn) {
 
 function startIO(app) {
   io = iolib(app);
+  globalio = io;
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
     io.use(function(socket, next) {
@@ -170,7 +173,7 @@ function handleSocketConnection(socket) {
       }
   
       // Save the message in the board
-      handleMessage(boardName, data, socket);
+      handleMessage(boardName, data, socket, globalio);
 
       // don't need to send log messages to other users
       if (data.type === "robotmessage" && data.msg === "log") return;
@@ -212,20 +215,20 @@ async function unloadBoard(boardName) {
   }
 }
 
-function handleMessage(boardName, message, socket) {
+function handleMessage(boardName, message, socket, io) {
   if (message.tool === "Cursor") {
     message.socket = socket.id;
   } else {
-    saveHistory(boardName, message);
+    saveHistory(boardName, message, socket, io);
   }
 }
 
-async function saveHistory(boardName, message) {
+async function saveHistory(boardName, message, socket, io) {
   if (!message.tool && !message._children) {
     console.error("Received a badly formatted message (no tool). ", message);
   }
   var board = await getBoard(boardName);
-  board.processMessage(message);
+  board.processMessage(message, socket, io);
 }
 
 function generateUID(prefix, suffix) {
