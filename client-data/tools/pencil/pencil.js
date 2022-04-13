@@ -201,27 +201,27 @@
 			//Reset stylus
 			hasUsedStylus = false;
 		},
-		"secondary": {
-			"name": "White-out",
-			"icon": "tools/pencil/whiteout_tape.svg",
-			"active": false,
-			"switch": function() {
-				stopLine();
-				toggleSize();
-			},
-		},
-		"onstart": function() {
-			//When switching from another tool to white-out, restore white-out size
-			if (pencilTool.secondary.active) {
-				restoreWhiteOutSize();
-			}
-		},
-		"onquit": function() {
-			//When switching from white-out to another tool, restore drawing size
-			if (pencilTool.secondary.active) {
-				restoreDrawingSize();
-			}
-		},
+		// "secondary": {
+		// 	"name": "White-out",
+		// 	"icon": "tools/pencil/whiteout_tape.svg",
+		// 	"active": false,
+		// 	"switch": function() {
+		// 		stopLine();
+		// 		toggleSize();
+		// 	},
+		// },
+		// "onstart": function() {
+		// 	//When switching from another tool to white-out, restore white-out size
+		// 	if (pencilTool.secondary.active) {
+		// 		restoreWhiteOutSize();
+		// 	}
+		// },
+		// "onquit": function() {
+		// 	//When switching from white-out to another tool, restore drawing size
+		// 	if (pencilTool.secondary.active) {
+		// 		restoreDrawingSize();
+		// 	}
+		// },
 		"mouseCursor": "url('tools/pencil/cursor.svg'), crosshair",
 		"icon": "tools/pencil/icon.svg",
 		"stylesheet": "tools/pencil/pencil.css",
