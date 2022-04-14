@@ -37,9 +37,11 @@
 		}).catch(function(e) {
 			console.log(e);
 		});
-	
+		
 		function onStart() {
-			keycloak.logout();	
+			keycloak.logout({
+				redirectUri: window.location.href.split("/boards/")[0]
+			});	
 		}
 	
 		keycloak.onAuthSuccess = function() { 
@@ -53,7 +55,6 @@
 				var avatar = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"><circle cx="500" cy="500" r="500" fill="#d32f2f" /><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" letter-spacing="-25" font-size="400" fill="#FFFFFF" font-family="sans-serif">' +
 					userInfo.given_name.charAt(0).toUpperCase() + userInfo.family_name.charAt(0).toUpperCase() +
 					'</text></svg>';
-				console.log(encodeURIComponent(avatar));
 				Tools.add({ //The new tool
 					"name": 'Logout ' + userInfo.given_name + " " + userInfo.family_name,
 					"shortcut": "L",
