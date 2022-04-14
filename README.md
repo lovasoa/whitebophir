@@ -85,6 +85,16 @@ WBO supports authentication with a JWT. This should be passed in as a query with
 
 The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
 
+WBO supports authentication with OIDC based on [`keycloak`](https://github.com/keycloak) 
+Some important environment variables are :
+- `KEYCLOAK_ENABLE` is used for enable OIDC authentication
+- `KEYCLOAK_URL` is the URL of Keycloak, eg, `https://keycloak-server/auth`
+- `KEYCLOAK_REALM` is the Realm name, eg, **myrealm**
+- `KEYCLOAK_CLIENTID` is the Public Client Id, eg, **myapp**
+- `KEYCLOAK_USERINFO_ATTRIBUTE` is the attribute name for authorization, and it is not mandatory 
+
+For any further information you can see [`here`](https://www.keycloak.org/docs/latest/securing_apps/#_javascript_adapter)
+
 ## Configuration
 
 When you start a WBO server, it loads its configuration from several environment variables.
