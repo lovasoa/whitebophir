@@ -160,6 +160,7 @@ async function onCaptureClick() {
 }*/
 function onCaptureClick() {
 	console.log("capture clicked");
+	toggleLoadingImg(true);
 	Tools.send({type:"robotmessage", msg:"getwbsnapshot"},"robotTool");
 }
 
@@ -226,6 +227,7 @@ function updateWhiteboardSnapshot() {
 		// Put the image at the beginning, so it is behind all the annotations
 		Tools.drawingArea.insertBefore(img, Tools.drawingArea.firstChild);
 	});
+	toggleLoadingImg(false);
 }
 
 /**
@@ -619,6 +621,7 @@ function messageForRobotTool(message) {
 		if (message.args.success) {
 			updateWhiteboardSnapshot();
 		} else {
+			toggleLoadingImg(false);
 			removeWhiteboardSnapshot();
 			alert("Could not capture the whiteboard.");
 		}
@@ -998,3 +1001,7 @@ console.log(`MARKD body.clientWidth: ${document.body.clientWidth}`);
 })()
 
 setBoardScale();
+function toggleLoadingImg(showLoadingImg){
+	var displayStyle = showLoadingImg? "" : "none";
+	document.getElementById("loadingImg").style.display = displayStyle;
+}

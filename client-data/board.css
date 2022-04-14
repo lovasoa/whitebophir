@@ -15,6 +15,21 @@ html, body, svg {
 	pointer-events: none;
 	z-index: 1;
 }
+#loadingImg {
+	animation: blink 2s linear 5;
+	position: absolute;
+	pointer-events: none;
+	z-index: 1;
+	align-self: center;
+	justify-self: center;
+	width: 10%;
+}
+
+@keyframes blink {
+	25%{opacity: 0.5;}
+	50%{opacity: 0;}
+	75%{opacity: 0.5;}
+}
 
 #loadingMessage {
 	font-size: 1.5em;
