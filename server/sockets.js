@@ -28,6 +28,14 @@ function noFail(fn) {
   };
 }
 
+/**
+ * Standardises the Board name
+ *  - Making it CaseInsenitive
+ */
+function standardiseBoardName(name) {
+    return name.toLowerCase()
+}
+
 function startIO(app) {
   io = iolib(app);
   if (config.AUTH_SECRET_KEY) {
@@ -47,15 +55,25 @@ function startIO(app) {
   return io;
 }
 
+async function deleteBoard(boardName) {
+    const board = await getBoard(boardName)
+    // Delete board if it exists, otherwise its already non-existent
+    if(board){
+        await board.deleteBoard()
+        log("deleted board", { board: board.name });
+    }
+  }
+
 /** Returns a promise to a BoardData with the given name
  * @returns {Promise<BoardData>}
  */
 function getBoard(name) {
-  if (boards.hasOwnProperty(name)) {
-    return boards[name];
+  const standardisedName = standardiseBoardName(name);
+  if (boards.hasOwnProperty(standardisedName)) {
+    return boards[standardisedName];
   } else {
-    var board = BoardData.load(name);
-    boards[name] = board;
+    var board = BoardData.load(standardisedName);
+    boards[standardisedName] = board;
     gauge("boards in memory", Object.keys(boards).length);
     return board;
   }
@@ -72,15 +90,15 @@ function handleSocketConnection(socket) {
    */
   async function joinBoard(name) {
     // Default to the public board
-    if (!name) name = "anonymous";
+    const boardname = standardiseBoardName(name || "anonymous");
 
     // Join the board
-    socket.join(name);
+    socket.join(boardname);
 
-    var board = await getBoard(name);
+    var board = await getBoard(boardname);
     board.users.add(socket.id);
     log("board joined", { board: board.name, users: board.users.size });
-    gauge("connected." + name, board.users.size);
+    gauge("connected." + board.name, board.users.size);
     return board;
   }
 
@@ -125,7 +143,7 @@ function handleSocketConnection(socket) {
         lastEmitSecond = currentSecond;
       }
 
-      var boardName = message.board || "anonymous";
+      var boardName = standardiseBoardName(message.board || "anonymous");
       var data = message.data;
 
       if (!socket.rooms.has(boardName)) socket.join(boardName);
@@ -153,8 +171,9 @@ function handleSocketConnection(socket) {
 
   socket.on("disconnecting", function onDisconnecting(reason) {
     socket.rooms.forEach(async function disconnectFrom(room) {
-      if (boards.hasOwnProperty(room)) {
-        var board = await boards[room];
+        const standardisedName = standardiseBoardName(room)
+        if (boards.hasOwnProperty(standardisedName)) {
+            var board = await boards[standardisedName];
         board.users.delete(socket.id);
         var userCount = board.users.size;
         log("disconnection", {
@@ -163,7 +182,7 @@ function handleSocketConnection(socket) {
           reason,
         });
         gauge("connected." + board.name, userCount);
-        if (userCount === 0) unloadBoard(room);
+        if (userCount === 0) unloadBoard(board.name);
       }
     });
   });
@@ -209,4 +228,5 @@ function generateUID(prefix, suffix) {
 
 if (exports) {
   exports.start = startIO;
+  exports.deleteBoard = deleteBoard
 }

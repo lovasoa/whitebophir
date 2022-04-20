@@ -114,6 +114,27 @@ function checkUserPermission(url) {
 }
 
 /**
+ * Throws an error if the user does not have admin permission
+ * @param {URL} url
+ * @throws {Error}
+ */
+ function checkAdminPermission(url) {
+    if(config.ADMIN_SECRET_KEY != "") {
+      var secret = url.searchParams.get("secret");
+      if(secret) {
+        console.log(secret, config.ADMIN_SECRET_KEY)
+        if(secret !== config.ADMIN_SECRET_KEY){
+            throw new Error("Secret is wrong");
+        }
+      } else { // Error out as no token provided
+        throw new Error("No secret provided");
+      }
+    } else {
+        throw new Error("Admin API is not activated")
+    }
+  }
+
+/**
  * @type {import('http').RequestListener}
  */
 function handleRequest(request, response) {
@@ -230,6 +251,22 @@ function handleRequest(request, response) {
           response.end(bundleString);
         });
       break;
+
+      case "admin":
+        // Check if allowed access
+        checkAdminPermission(parsedUrl)
+        if (parts.length >= 2 && parts[1] !== "") {
+            if (parts[1] === "delete" && parts[2] !== ""){
+                validateBoardName(parts[2]);
+                sockets.deleteBoard(parts[2])
+                response.end("Ok");
+            }else{
+                throw new Error("Not enough arguments")
+            }
+        }else {
+            throw new Error("No action argument provided")
+        }
+        break;
 
     case "": // Index page
       logRequest(request);

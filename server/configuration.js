@@ -57,4 +57,7 @@ module.exports = {
 
   /** Secret key for jwt */
   AUTH_SECRET_KEY: (process.env["AUTH_SECRET_KEY"] || ""),
+
+  /** Admin Secret key for admin API */
+  ADMIN_SECRET_KEY: (process.env["ADMIN_SECRET_KEY"] || ""),
 };
