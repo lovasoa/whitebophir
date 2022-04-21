@@ -37,7 +37,9 @@
     "tools": "Werkzeuge",
     "view_source": "Quellcode auf GitHub",
     "white-out": "Korrekturflüssigkeit",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "access_denied": "System nicht verfügbar für ",
+    "logout": "Logout "
   },
   "en": {
     "White-out": "White-out",
@@ -77,7 +79,9 @@
     "text": "Text",
     "tools": "Tools",
     "view_source": "Source code on GitHub",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "access_denied": "System not available for ",
+    "logout": "Logout "
   },
   "es": {
     "board_name_placeholder": "Nombre de la pizarra …",
@@ -116,7 +120,9 @@
     "tools": "Herramientas",
     "view_source": "Código fuente en GitHub",
     "white-out": "Blanqueado",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "access_denied": "Sistema no disponible para ",
+    "logout": "Logout "
   },
   "fr": {
     "board_name_placeholder": "Nom du tableau…",
@@ -154,7 +160,9 @@
     "text": "Texte",
     "tools": "Outils",
     "view_source": "Code source sur GitHub",
-    "white-out": "Blanco"
+    "white-out": "Blanco",
+    "access_denied": "Système non disponible pour ",
+    "logout": "Logout "
   },
   "hu": {
     "White-out": "Lefedő",
@@ -232,7 +240,9 @@
     "tools": "Strumenti",
     "view_source": "Codice sorgente su GitHub",
     "white-out": "Bianchetto",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "access_denied": "Sistema non disponibile per ",
+    "logout": "Logout "
   },
   "ja": {
     "board_name_placeholder": "ボードの名前",

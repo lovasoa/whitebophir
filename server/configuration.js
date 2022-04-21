@@ -57,4 +57,15 @@ module.exports = {
 
   /** Secret key for jwt */
   AUTH_SECRET_KEY: (process.env["AUTH_SECRET_KEY"] || ""),
+
+  KEYCLOAK_ENABLE: (process.env["KEYCLOAK_ENABLE"] || false),
+
+  KEYCLOAK_URL: process.env["KEYCLOAK_URL"],
+
+  KEYCLOAK_REALM: process.env["KEYCLOAK_REALM"],
+
+  KEYCLOAK_CLIENTID: process.env["KEYCLOAK_CLIENTID"],
+
+  KEYCLOAK_USERINFO_ATTRIBUTE: process.env["KEYCLOAK_USERINFO_ATTRIBUTE"],
+
 };
