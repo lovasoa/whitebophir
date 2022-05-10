@@ -132,7 +132,13 @@ function handleRequest(request, response) {
   switch (parts[0]) {
     case "boards":
       // "boards" refers to the root directory
-      if (parts.length === 1) {
+      
+      if (parts[1] === "delete" ) {  
+        console.log("parts", parts);
+        var boardName = parsedUrl.searchParams.get("board") || "anonymous";
+        const board = new BoardData();
+        board.delete(boardName);
+      } else if (parts.length === 1) {
         // '/boards?board=...' This allows html forms to point to boards
         var boardName = parsedUrl.searchParams.get("board") || "anonymous";
         var headers = { Location: "boards/" + encodeURIComponent(boardName) };
