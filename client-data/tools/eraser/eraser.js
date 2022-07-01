@@ -29,6 +29,7 @@
 	var erasing = false;
 
 	function startErasing(x, y, evt) {
+		Tools.isCompile = true;
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
 		erasing = true;
@@ -61,6 +62,7 @@
 
 	function stopErasing() {
 		erasing = false;
+		Tools.isCompile = false;
 	}
 
 	function draw(data) {

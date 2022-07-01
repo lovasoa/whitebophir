@@ -40,6 +40,8 @@
 
 	function start(x, y, evt) {
 
+		Tools.isCompile = true;
+
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
 
@@ -85,6 +87,9 @@
 	}
 
 	function stop(x, y) {
+
+		Tools.isCompile = false;
+
 		//Add a last point to the shape
 		end = true;
 		move(x, y);

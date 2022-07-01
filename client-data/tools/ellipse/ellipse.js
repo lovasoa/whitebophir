@@ -37,7 +37,7 @@
         lastTime = performance.now(); //The time at which the last point was drawn
 
     function start(x, y, evt) {
-
+        Tools.isCompile = true;
         //Prevent the press from being interpreted by the browser
         evt.preventDefault();
 
@@ -97,6 +97,7 @@
         lastPos.y = y;
         doUpdate(true);
         curUpdate.id = "";
+        Tools.isCompile = false;
     }
 
     function draw(data) {

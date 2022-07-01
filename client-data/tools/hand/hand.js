@@ -110,23 +110,23 @@
 	}
 
 	function duplicateSelection() {
-		if (!(selectorState == selectorStates.pointing)
-			|| (selected_els.length == 0)) return;
-		var msgs = [];
-		var newids = [];
-		for (var i = 0; i < selected_els.length; i++) {
-			var id = selected_els[i].id;
-			msgs[i] = {
-				type: "copy",
-				id: id,
-				newid: Tools.generateUID(id[0])
-			};
-			newids[i] = id;
-		}
-		Tools.drawAndSend({ _children: msgs });
-		selected_els = newids.map(function (id) {
-			return Tools.svg.getElementById(id);
-		});
+		// if (!(selectorState == selectorStates.pointing)
+		// 	|| (selected_els.length == 0)) return;
+		// var msgs = [];
+		// var newids = [];
+		// for (var i = 0; i < selected_els.length; i++) {
+		// 	var id = selected_els[i].id;
+		// 	msgs[i] = {
+		// 		type: "copy",
+		// 		id: id,
+		// 		newid: Tools.generateUID(id[0])
+		// 	};
+		// 	newids[i] = id;
+		// }
+		// Tools.drawAndSend({ _children: msgs });
+		// selected_els = newids.map(function (id) {
+		// 	return Tools.svg.getElementById(id);
+		// });
 	}
 
 	function createSelectorRect() {
@@ -467,10 +467,13 @@
 		else moveSelector(x, y, evt, isTouchEvent);
 	}
 
-	function release(x, y, evt, isTouchEvent) {
+	function release(x, y, evt, isTouchEvent, oldToolName) {
 		move(x, y, evt, isTouchEvent);
 		if (handTool.secondary.active) releaseSelector(x, y, evt, isTouchEvent);
 		selected = null;
+		if(Tools.oldToolName) {
+			Tools.change(Tools.oldToolName);
+		}
 	}
 
 	function deleteShortcut(e) {

@@ -68,6 +68,8 @@
 
 	function startLine(x, y, evt) {
 
+		Tools.isCompile = true;
+
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
 
@@ -84,7 +86,7 @@
 		});
 
 		//Immediatly add a point to the line
-		continueLine(x, y);
+		//continueLine(x, y);
 	}
 
 	function continueLine(x, y, evt) {
@@ -104,6 +106,7 @@
 	}
 
 	function stopLine() {
+		Tools.isCompile = false;
 		curLineId = "";
 	}
 

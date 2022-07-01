@@ -38,7 +38,7 @@
 	}
 
 	function startLine(x, y, evt) {
-
+		Tools.isCompile = true;
 		//Prevent the press from being interpreted by the browser
 		evt.preventDefault();
 
@@ -81,6 +81,7 @@
 		//Add a last point to the line
 		continueLine(x, y);
 		curLine = null;
+		Tools.isCompile = false;
 	}
 
 	function draw(data) {

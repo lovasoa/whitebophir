@@ -48,6 +48,8 @@ Tools.drawingEvent = true;
 Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
+Tools.oldTool = null;
+Tools.isCompile = false;
 
 Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
@@ -246,6 +248,10 @@ Tools.register = function registerTool(newTool) {
 /**
  * Add a new tool to the user interface
  */
+/**
+ * ツールの追加
+ * ツールの使用を決めたオブジェクトが引数として渡される 
+ */
 Tools.add = function (newTool) {
 	if (Tools.isBlocked(newTool)) return;
 
@@ -326,7 +332,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 	// Handle secondary tool switch with shift (key code 16)
 	function handleShift(active, evt) {
 		if (evt.keyCode === 16 && Tools.curTool.secondary && Tools.curTool.secondary.active !== active) {
-			Tools.change(Tools.curTool.name);
+			//Tools.change(Tools.curTool.name);
 		}
 	}
 	window.addEventListener("keydown", handleShift.bind(null, true));
@@ -529,17 +535,40 @@ Tools.toolHooks = [
 		}
 
 		function compileTouch(listener) { //closure
+			console.log('compileTouch');
 			return (function touchListen(evt) {
 				//Currently, we don't handle multitouch
-				if (evt.changedTouches.length === 1) {
-					//evt.preventDefault();
-					var touch = evt.changedTouches[0];
-					var x = touch.pageX / Tools.getScale(),
-						y = touch.pageY / Tools.getScale();
-					return listener(x, y, evt, true);
+				if (!Tools.isCompile) {
+					setTimeout(function () {
+						return compileTouches(evt, listener);
+					}, 10);
+				} else {
+					return compileTouches(evt, listener);
 				}
-				return true;
 			});
+		}
+
+		function compileTouches(evt, listener) {
+			if (evt.changedTouches.length == 1) {
+				var touch = evt.changedTouches[0];
+				var x = touch.pageX / Tools.getScale(),
+					y = touch.pageY / Tools.getScale();
+				return listener(x, y, evt, true);
+
+			} else if (evt.changedTouches.length == 2) {
+				if (Tools.curTool.name != "Hand") {
+					Tools.oldTool = Tools.curTool.name;
+					Tools.change("Hand");
+				}
+			} else if (evt.changedTouches.length == 3) {
+				if (Tools.oldTool != null) {
+					setTimeout(function () {
+						Tools.change(Tools.oldTool);
+						Tools.oldTool = null;
+					},300)
+				}
+			}
+			return true;
 		}
 
 		function wrapUnsetHover(f, toolName) {
