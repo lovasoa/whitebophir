@@ -83,6 +83,8 @@ If you feel like contributing to this collaborative project, you can [translate 
 
 WBO supports authentication with a JWT. This should be passed in as a query with the key `token`, eg, `http://myboard.com/boards/test?token={token}`
 
+Within the payload, you can provide a `moderator` key to declare the user as a moderator.
+
 The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
 
 ## Configuration

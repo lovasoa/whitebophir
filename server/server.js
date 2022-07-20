@@ -106,7 +106,8 @@ function checkUserPermission(url) {
   if(config.AUTH_SECRET_KEY != "") {
     var token = url.searchParams.get("token");
     if(token) {
-      jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
+      var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
+      return payload.moderator;
     } else { // Error out as no token provided
       throw new Error("No token provided");
     }
@@ -126,7 +127,7 @@ function handleRequest(request, response) {
   var staticResources = ['.js','.css', '.svg', '.ico', '.png', '.jpg', 'gif'];
   // If we're not being asked for a file, then we should check permissions.
   if(!staticResources.includes(fileExt)) {
-    checkUserPermission(parsedUrl);
+    var isModerator = checkUserPermission(parsedUrl);
   }
 
   switch (parts[0]) {
