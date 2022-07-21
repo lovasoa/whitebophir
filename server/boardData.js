@@ -122,6 +122,13 @@ class BoardData {
     this.delaySave();
   }
 
+  /** Clear the board of all data
+   */
+  clear() {
+    this.board = {};
+    this.delaySave();
+  }
+
   /** Removes data from the board
    * @param {string} id - Identifier of the data to delete.
    */
@@ -164,6 +171,9 @@ class BoardData {
         break;
       case "child":
         this.addChild(message.parent, message);
+        break;
+      case "clear":
+        this.clear();
         break;
       default:
         //Add data
