@@ -107,7 +107,10 @@ function checkUserPermission(url) {
     var token = url.searchParams.get("token");
     if(token) {
       var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-      return payload.moderator;
+      var roles = payload.roles;
+      if(roles) {
+        return roles.includes("moderator");
+      }
     } else { // Error out as no token provided
       throw new Error("No token provided");
     }

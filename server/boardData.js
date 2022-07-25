@@ -356,7 +356,10 @@ function backupFileName(baseName) {
 function isModerator(token) {
   if(config.AUTH_SECRET_KEY != "") {
     var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-    return payload.moderator;
+    var roles = payload.roles;
+    if(roles) {
+      return roles.includes("moderator");
+    }
   } else {
     return false;
   }
