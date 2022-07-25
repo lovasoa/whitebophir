@@ -359,6 +359,8 @@ function isModerator(token) {
     var roles = payload.roles;
     if(roles) {
       return roles.includes("moderator");
+    } else {
+      return false;
     }
   } else {
     return false;

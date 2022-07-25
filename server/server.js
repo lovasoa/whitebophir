@@ -98,9 +98,10 @@ function validateBoardName(boardName) {
 }
 
 /**
- * Throws an error if the user does not have permission
+ * Validates jwt and returns whether user is a moderator
  * @param {URL} url
- * @throws {Error}
+ * @returns {boolean} - True if user is a moderator, else false
+ * @throws {Error} - If no token is provided when it should be
  */
 function checkUserPermission(url) {
   if(config.AUTH_SECRET_KEY != "") {
@@ -110,10 +111,14 @@ function checkUserPermission(url) {
       var roles = payload.roles;
       if(roles) {
         return roles.includes("moderator");
+      } else {
+        return false;
       }
     } else { // Error out as no token provided
       throw new Error("No token provided");
     }
+  } else {
+    return false;
   }
 }
 
