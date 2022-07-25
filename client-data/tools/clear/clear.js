@@ -29,7 +29,8 @@
     function clearBoard() {
         var msg = {
             "type": "clear",
-            "id": ""
+            "id": "",
+            "token": Tools.token
         };
 		Tools.drawAndSend(msg, Tools.list["Clear"]);
     }

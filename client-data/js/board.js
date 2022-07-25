@@ -97,6 +97,12 @@ Tools.boardName = (function () {
 	return decodeURIComponent(path[path.length - 1]);
 })();
 
+Tools.token = (function() {
+	var url = new URL(window.location);
+	var params = new URLSearchParams(url.search);
+	return params.get("token");
+})();
+
 //Get the board as soon as the page is loaded
 Tools.socket.emit("getboard", Tools.boardName);
 
