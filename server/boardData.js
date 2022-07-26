@@ -29,7 +29,8 @@ var fs = require("./fs_promises.js"),
   log = require("./log.js").log,
   path = require("path"),
   config = require("./configuration.js"),
-  Mutex = require("async-mutex").Mutex;
+  Mutex = require("async-mutex").Mutex,
+  jwtauth = require("./jwtauth.js");
 
 /**
  * Represents a board.
@@ -122,6 +123,13 @@ class BoardData {
     this.delaySave();
   }
 
+  /** Clear the board of all data
+   */
+  clear() {
+    this.board = {};
+    this.delaySave();
+  }
+
   /** Removes data from the board
    * @param {string} id - Identifier of the data to delete.
    */
@@ -164,6 +172,13 @@ class BoardData {
         break;
       case "child":
         this.addChild(message.parent, message);
+        break;
+      case "clear":
+        if(jwtauth.checkIfModerator(message.token)) {
+          this.clear();
+        } else {
+          throw new Error("User is not a moderator");
+        }
         break;
       default:
         //Add data

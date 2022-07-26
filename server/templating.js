@@ -32,7 +32,7 @@ class Template {
     const contents = fs.readFileSync(path, { encoding: "utf8" });
     this.template = handlebars.compile(contents);
   }
-  parameters(parsedUrl, request) {
+  parameters(parsedUrl, request, isModerator) {
     const accept_language_str = parsedUrl.query.lang || request.headers["accept-language"];
     const accept_languages = accept_language_parser.parse(accept_language_str);
     const opts = { loose: true };
@@ -50,11 +50,12 @@ class Template {
     const configuration = client_config || {};
     const prefix = request.url.split("/boards/")[0].substr(1);
     const baseUrl = findBaseUrl(request) + (prefix ? prefix + "/" : "");
-    return { baseUrl, languages, language, translations, configuration };
+    const moderator = isModerator;
+    return { baseUrl, languages, language, translations, configuration, moderator };
   }
-  serve(request, response) {
+  serve(request, response, isModerator) {
     const parsedUrl = url.parse(request.url, true);
-    const parameters = this.parameters(parsedUrl, request);
+    const parameters = this.parameters(parsedUrl, request, isModerator);
     var body = this.template(parameters);
     var headers = {
       "Content-Length": Buffer.byteLength(body),
@@ -70,8 +71,8 @@ class Template {
 }
 
 class BoardTemplate extends Template {
-  parameters(parsedUrl, request) {
-    const params = super.parameters(parsedUrl, request);
+  parameters(parsedUrl, request, isModerator) {
+    const params = super.parameters(parsedUrl, request, isModerator);
     const parts = parsedUrl.pathname.split("boards/", 2);
     const boardUriComponent = parts[1];
     params["boardUriComponent"] = boardUriComponent;

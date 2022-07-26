@@ -10,7 +10,7 @@ var app = require("http").createServer(handler),
   config = require("./configuration.js"),
   polyfillLibrary = require("polyfill-library"),
   check_output_directory = require("./check_output_directory.js"),
-  jsonwebtoken = require("jsonwebtoken");
+  jwtauth = require("./jwtauth.js");
 
 var MIN_NODE_VERSION = 10.0;
 
@@ -98,22 +98,6 @@ function validateBoardName(boardName) {
 }
 
 /**
- * Throws an error if the user does not have permission
- * @param {URL} url
- * @throws {Error}
- */
-function checkUserPermission(url) {
-  if(config.AUTH_SECRET_KEY != "") {
-    var token = url.searchParams.get("token");
-    if(token) {
-      jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-    } else { // Error out as no token provided
-      throw new Error("No token provided");
-    }
-  }
-}
-
-/**
  * @type {import('http').RequestListener}
  */
 function handleRequest(request, response) {
@@ -125,8 +109,9 @@ function handleRequest(request, response) {
   var fileExt = path.extname(parsedUrl.pathname);
   var staticResources = ['.js','.css', '.svg', '.ico', '.png', '.jpg', 'gif'];
   // If we're not being asked for a file, then we should check permissions.
+  var isModerator = false;
   if(!staticResources.includes(fileExt)) {
-    checkUserPermission(parsedUrl);
+    isModerator = jwtauth.checkUserPermission(parsedUrl);
   }
 
   switch (parts[0]) {
@@ -140,7 +125,7 @@ function handleRequest(request, response) {
         response.end();
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
         validateBoardName(parts[1]);
-        boardTemplate.serve(request, response);
+        boardTemplate.serve(request, response, isModerator);
         // If there is no dot and no directory, parts[1] is the board name
       } else {
         request.url = "/" + parts.slice(1).join("/");
