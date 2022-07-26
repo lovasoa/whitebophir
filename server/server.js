@@ -104,22 +104,20 @@ function validateBoardName(boardName) {
  * @throws {Error} - If no token is provided when it should be
  */
 function checkUserPermission(url) {
+  var isModerator = false;
   if(config.AUTH_SECRET_KEY != "") {
     var token = url.searchParams.get("token");
     if(token) {
       var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
       var roles = payload.roles;
       if(roles) {
-        return roles.includes("moderator");
-      } else {
-        return false;
+        isModerator = roles.includes("moderator");
       }
     } else { // Error out as no token provided
       throw new Error("No token provided");
     }
-  } else {
-    return false;
   }
+  return isModerator;
 }
 
 /**
