@@ -10,7 +10,7 @@ var app = require("http").createServer(handler),
   config = require("./configuration.js"),
   polyfillLibrary = require("polyfill-library"),
   check_output_directory = require("./check_output_directory.js"),
-  jsonwebtoken = require("jsonwebtoken");
+  jwtauth = require("./jwtauth.js");
 
 var MIN_NODE_VERSION = 10.0;
 
@@ -98,29 +98,6 @@ function validateBoardName(boardName) {
 }
 
 /**
- * Validates jwt and returns whether user is a moderator
- * @param {URL} url
- * @returns {boolean} - True if user is a moderator, else false
- * @throws {Error} - If no token is provided when it should be
- */
-function checkUserPermission(url) {
-  var isModerator = false;
-  if(config.AUTH_SECRET_KEY != "") {
-    var token = url.searchParams.get("token");
-    if(token) {
-      var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-      var roles = payload.roles;
-      if(roles) {
-        isModerator = roles.includes("moderator");
-      }
-    } else { // Error out as no token provided
-      throw new Error("No token provided");
-    }
-  }
-  return isModerator;
-}
-
-/**
  * @type {import('http').RequestListener}
  */
 function handleRequest(request, response) {
@@ -134,7 +111,7 @@ function handleRequest(request, response) {
   // If we're not being asked for a file, then we should check permissions.
   var isModerator = false;
   if(!staticResources.includes(fileExt)) {
-    isModerator = checkUserPermission(parsedUrl);
+    isModerator = jwtauth.checkUserPermission(parsedUrl);
   }
 
   switch (parts[0]) {

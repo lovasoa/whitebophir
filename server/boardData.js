@@ -30,7 +30,7 @@ var fs = require("./fs_promises.js"),
   path = require("path"),
   config = require("./configuration.js"),
   Mutex = require("async-mutex").Mutex,
-  jsonwebtoken = require("jsonwebtoken");
+  jwtauth = require("./jwtauth.js");
 
 /**
  * Represents a board.
@@ -174,7 +174,7 @@ class BoardData {
         this.addChild(message.parent, message);
         break;
       case "clear":
-        if(isModerator(message.token)) {
+        if(jwtauth.checkIfModerator(message.token)) {
           this.clear();
         } else {
           throw new Error("User is not a moderator");
@@ -347,24 +347,6 @@ class BoardData {
 function backupFileName(baseName) {
   var date = new Date().toISOString().replace(/:/g, "");
   return baseName + "." + date + ".bak";
-}
-
-/**
- * Check if user is a moderator
- * @param {string} token
- */
-function isModerator(token) {
-  if(config.AUTH_SECRET_KEY != "") {
-    var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-    var roles = payload.roles;
-    if(roles) {
-      return roles.includes("moderator");
-    } else {
-      return false;
-    }
-  } else {
-    return false;
-  }
 }
 
 module.exports.BoardData = BoardData;
