@@ -565,7 +565,7 @@ Tools.toolHooks = [
 					setTimeout(function () {
 						Tools.change(Tools.oldTool);
 						Tools.oldTool = null;
-					},300)
+					},100) // 300->100 changed.
 				}
 			}
 			return true;

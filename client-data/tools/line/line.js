@@ -52,13 +52,14 @@
 			'y': y
 		}
 
-		Tools.drawAndSend(curLine);
+//		Tools.drawAndSend(curLine);
 	}
 
 	function continueLine(x, y, evt) {
 		/*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
 		if (curLine !== null) {
+			Tools.drawAndSend(curLine);
 			if (lineTool.secondary.active) {
 				var alpha = Math.atan2(y - curLine.y, x - curLine.x);
 				var d = Math.hypot(y - curLine.y, x - curLine.x);
