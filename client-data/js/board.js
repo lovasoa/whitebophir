@@ -538,6 +538,9 @@ Tools.toolHooks = [
 			console.log('compileTouch');
 			return (function touchListen(evt) {
 				//Currently, we don't handle multitouch
+				if (Tools.curTool.name == 'Eraser') {
+					return compileTouches(evt, listener);
+				}
 				if (!Tools.isCompile) {
 					setTimeout(function () {
 						return compileTouches(evt, listener);
