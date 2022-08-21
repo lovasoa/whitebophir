@@ -1,80 +1,114 @@
 <!DOCTYPE html>
 <html lang="{{language}}">
+  <head>
+    <meta charset="utf-8" />
+    <title>WBO — {{translations.collaborative_whiteboard}}</title>
+    <link rel="stylesheet" href="index.css" />
+    <meta name="description" content="{{translations.tagline}}" />
+    <meta
+      name="keywords"
+      content="whiteboard,collaborative,online,draw,paint,shared,realtime,wbo,whitebophir,open-source,GPL,javascript"
+    />
+    <link rel="icon" type="image/x-icon" sizes="16x16" href="favicon.ico" />
+    <link rel="apple-touch-icon" href="favicon.svg" />
+    <link rel="mask-icon" href="favicon.svg" color="black" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta property="og:url" content="https://wbo.ophir.dev" />
+    <meta property="og:image" content="{{baseUrl}}/favicon.svg" />
+    <link rel="canonical" href="?lang={{language}}" />
+    {{#languages}}
+    <link rel="alternate" hreflang="{{.}}" href="?lang={{.}}" />
+    {{/languages}}
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#C4DFFF" />
+  </head>
 
-<head>
-	<meta charset="utf-8" />
-	<title>WBO — {{translations.collaborative_whiteboard}}</title>
-	<link rel="stylesheet" href="index.css" />
-	<meta name="description" content="{{translations.tagline}}" />
-	<meta name="keywords"
-		content="whiteboard,collaborative,online,draw,paint,shared,realtime,wbo,whitebophir,open-source,GPL,javascript" />
-	<link rel="icon" type="image/x-icon" sizes="16x16" href="favicon.ico">
-	<link rel="apple-touch-icon" href="favicon.svg">
-	<link rel="mask-icon" href="favicon.svg" color="black">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta property="og:url" content="https://wbo.ophir.dev">
-	<meta property="og:image" content="{{baseUrl}}/favicon.svg">
-	<link rel="canonical" href="?lang={{language}}" />
-	{{#languages}}
-	<link rel="alternate" hreflang="{{.}}" href="?lang={{.}}" />{{/languages}}
-	<link rel="manifest" href="manifest.json">
-	<meta name="theme-color" content="#C4DFFF" />
-</head>
+  <body>
+    <header>
+      <h1>WBO</h1>
+      <nav class="lang-selector">
+        <span>{{language}}</span>
+        <ul>
+          {{#languages}}
+          <li>
+            <a href="?lang={{.}}" hreflang="{{.}}" rel="alternate">{{.}}</a>
+          </li>
+          {{/languages}}
+        </ul>
+      </nav>
+    </header>
 
-<body>
+    <main>
+      <div id="description">
+        <img
+          src="frontpage-illustration.svg"
+          alt="Public board illustration"
+          with="700"
+          height="560"
+        />
+        <div class="text">
+          <h3>{{translations.index_title}}</h3>
+          <p>{{{translations.introduction_paragraph}}}</p>
+          <p>{{{translations.share_instructions}}}</p>
+        </div>
+      </div>
 
-	<header>
-		<h1>WBO</h1>
-		<nav class="lang-selector">
-			<span>{{language}}</span>
-			<ul>
-				{{#languages}}
-				<li><a href="?lang={{.}}" hreflang="{{.}}" rel="alternate">{{.}}</a></li>
-				{{/languages}}
-			</ul>
-		</nav>
-	</header>
+      <div id="actions">
+        <div>
+          <p>{{{translations.public_board_description}}}</p>
+          <a href="boards/anonymous" class="wbo-button"
+            >{{{translations.open_public_board}}}</a
+          >
+        </div>
 
-	<main>
-		<div id="description">
-			<h3>{{translations.index_title}}</h3>
-			<p>{{{translations.introduction_paragraph}}}</p>
-			<p>{{{translations.share_instructions}}}</p>
-		</div>
+        <div>
+          <p>{{{translations.private_board_description}}}</p>
+          <a href="random" class="wbo-button"
+            >{{{translations.create_private_board}}}</a
+          >
+        </div>
 
-		<div>
-			<p>{{{translations.public_board_description}}}</p>
-			<a href="boards/anonymous" class="wbo-button">{{{translations.open_public_board}}}</a>
-		</div>
+        <div>
+          <p>
+            <label for="board"
+              >{{{translations.named_private_board_description}}}</label
+            >
+          </p>
+          <form id="named-board-form" action="boards" method="GET">
+            <input
+              type="text"
+              id="board"
+              name="board"
+              required
+              placeholder="{{{translations.board_name_placeholder}}}"
+            />
+            <input type="submit" value="Go" />
+          </form>
+        </div>
 
-		<div>
-			<p>{{{translations.private_board_description}}}</p>
-			<a href="random" class="wbo-button">{{{translations.create_private_board}}}</a>
-		</div>
+        <div id="recent-boards" class="hidden">
+          <h3>{{{translations.recent_boards}}}</h3>
+        </div>
 
-		<div>
-			<p><label for="board">{{{translations.named_private_board_description}}}</label></p>
-			<form action="boards" method="GET">
-				<input type="text" id="board" name="board" required placeholder="{{{translations.board_name_placeholder}}}" />
-				<input type="submit" value="Go">
-			</form>
-		</div>
+        <footer>
+          <a
+            href="https://www.instagram.com/wbo_whiteboard/"
+            class="smallink"
+            rel="external"
+            title="Instagram"
+            ><img alt="instagram" src="instagram.svg" width="30" height="30"
+          /></a>
+          <a
+            href="https://github.com/lovasoa/whitebophir"
+            class="smallink"
+            rel="external"
+            title="{{translations.view_source}}"
+            ><img alt="github" src="github.svg" width="30" height="30" />
+          </a>
+        </footer>
+      </div>
+    </main>
+  </body>
 
-		<div id="recent-boards" class="hidden">
-			<h3>{{{translations.recent_boards}}}</h3>
-		</div>
-	</main>
-
-
-	<footer>
-		<a href="https://www.instagram.com/wbo_whiteboard/" class="smallink" rel="external" title="Instagram"><img
-				alt="instagram" src="instagram.svg" width="30" height="30" /></a>
-		<a href="https://github.com/lovasoa/whitebophir" class="smallink" rel="external"
-			title="{{translations.view_source}}"><img alt="github" src="github.svg" width="30" height="30" />
-		</a>
-	</footer>
-</body>
-
-<script src="../js/index.js" async defer></script>
-
+  <script src="../js/index.js" async defer></script>
 </html>
