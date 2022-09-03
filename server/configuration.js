@@ -57,6 +57,5 @@ module.exports = {
 
   /** Secret key for jwt */
   AUTH_SECRET_KEY: (process.env["AUTH_SECRET_KEY"] || ""),
-  CHECK_BOARDNAME_IN_JWT: (process.env["CHECK_BOARDNAME_IN_JWT"] || false),
 
 };
