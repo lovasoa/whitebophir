@@ -56,13 +56,20 @@ function checkUserPermission(url) {
       var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
       var roles = payload.roles;
       if(roles) {
-        return roles.includes("moderator");
+
+        if (Array.isArray(roles) && roles.includes("moderator")){
+            return true
+        }
+        for (var r in roles) {
+            if (r==='moderator'){
+                return true
+            }
+        }
+        return false;
+        }
       } else {
         return false;
       }
-    } else {
-      return false;
-    }
   }
 
 module.exports = { checkUserPermission, checkIfModerator };
