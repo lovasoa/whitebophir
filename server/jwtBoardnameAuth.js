@@ -28,7 +28,7 @@ config = require("./configuration.js"),
     jsonwebtoken = require("jsonwebtoken");
 
 /**
- * Validates jwt and returns whether boar name fits to the boarname given in the JWT
+ * Validates jwt and returns whether board name fits to the board name given in the JWT
  * @param {URL} url
  * @param {string} boardNameIn
  * @returns {boolean} - True if user is a moderator, else false
