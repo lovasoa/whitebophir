@@ -91,31 +91,36 @@ Within the payload, you can declare the user's roles as an array. Currently the 
 {
   "iat": 1516239022,
   "exp": 1516298489,
-  "roles": ["moderator"],
+  "roles": ["moderator"]
 }
 ```
+Moderators have access to the Clear tool, which will wipe all content from the board.
+
 ## Board name verification in the JWT
 
 WBO supports verification of the board with a JWT. The board name should be passed in the JWT in the `room_name` claim in the JWT.
 
 The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
-The `CHECK_BOARDNAME_IN_JWT` variable in [`configuration.js`](./server/configuration.js) should be set to `true`
+
+To check for a valid board, make the roles a __object__ instead a array. Add all boards you want want to moderate or only edit to the array.
+With this you can select which bards are to moderate or only to edit.
 
 ```
 {
   ....
-  "board_name": "<boardName>"
+  "roles": {moderator:["<boardName1>","<boardName2>"],editor:["<boardName3>","<boardName4>"] }
 }
 ```
-eg, `http://myboard.com/boards/mySecretBoarName?token={token}`
+eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
 ```
 {
   "iat": 1516239022,
   "exp": 1516298489,
   "roles": ["moderator"],
-  "board_name": "mySecretBoarName"
+  "roles": {moderator:["mySecretBoardName","mySecretBoardName"]]
 }
 ```
+
 
 You can now be sure that only users who have the correct token have access to the board with the specific name.
 

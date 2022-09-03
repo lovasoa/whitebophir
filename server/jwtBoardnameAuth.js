@@ -39,10 +39,8 @@ function checkBoardName(url, boardNameIn) {
     if (config.AUTH_SECRET_KEY != "") {
         var token = url.searchParams.get("token");
         if (token) {
-            if (config.CHECK_BOARDNAME_IN_JWT) {
                 roomIsCorrect = getBoardnamefromToken(token, boardNameIn);
-            }
-        }else {
+        } else {
             throw new Error("No token provided");
         }
     }
@@ -58,15 +56,23 @@ function checkBoardName(url, boardNameIn) {
 function getBoardnamefromToken(token, boardNameIn) {
     if (config.AUTH_SECRET_KEY != "") {
         var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-        var boardName = payload.board_name;
-        if (boardName) {
-            if (boardName === boardNameIn) {
-             return true;
-            } else {
+        var roles = payload.roles;
+        if (typeof roles === 'object'){
+            if (roles) {
+                for (var r in roles) {
+                    for (var i = 0; i<roles[r].length; i++){
+                        if (roles[r][i] === boardNameIn){
+                            return true;
+                        }
+                    }
+                }
                 throw new Error("No board name match");
+
+            } else {
+                throw new Error("No board name provided");
             }
-        } else {
-            throw new Error("No board name provided");
+        }else {
+            return true;
         }
     } else {
         return true;
