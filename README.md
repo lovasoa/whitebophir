@@ -91,11 +91,33 @@ Within the payload, you can declare the user's roles as an array. Currently the 
 {
   "iat": 1516239022,
   "exp": 1516298489,
-  "roles": ["moderator"]
+  "roles": ["moderator"],
+}
+```
+## Board name verification in the JWT
+
+WBO supports verification of the board with a JWT. The board name should be passed in the JWT in the `room_name` claim in the JWT.
+
+The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
+The `CHECK_BOARDNAME_IN_JWT` variable in [`configuration.js`](./server/configuration.js) should be set to `true`
+
+```
+{
+  ....
+  "board_name": "<boardName>"
+}
+```
+eg, `http://myboard.com/boards/mySecretBoarName?token={token}`
+```
+{
+  "iat": 1516239022,
+  "exp": 1516298489,
+  "roles": ["moderator"],
+  "board_name": "mySecretBoarName"
 }
 ```
 
-Moderators have access to the Clear tool, which will wipe all content from the board.
+You can now be sure that only users who have the correct token have access to the board with the specific name.
 
 ## Configuration
 
