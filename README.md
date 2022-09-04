@@ -115,8 +115,7 @@ eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
 {
   "iat": 1516239022,
   "exp": 1516298489,
-  "roles": ["moderator"],
-  "roles": {"moderator:mySecretBoardName"]}
+  "roles": ["moderator:mySecretBoardName"]
 }
 ```
 
