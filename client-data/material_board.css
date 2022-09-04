@@ -1,0 +1,23 @@
+
+#menu .tool {
+	border-radius: 0.5rem;
+	box-shadow: 0 10px 15px -3px rgb(0 0 0 / 7%), 0 4px 6px -2px rgb(0 0 0 / 5%);
+	background-color: #f2f6fc;
+	margin-top: 16px;
+}
+#menu .tool.curTool {
+	box-shadow: 0 4px 10px 0 rgb(0 0 0 / 20%), 0 4px 20px 0 rgb(0 0 0 / 10%);
+	border-bottom: 4px solid #36A2FF;
+	background: #f2f6fc;
+}
+#textToolInput {
+	box-shadow: 0 10px 15px -3px rgb(0 0 0 / 7%), 0 4px 6px -2px rgb(0 0 0 / 5%);
+	padding: 8px;
+	font-size: 24px;
+	border: none;
+	background: #f2f6fc;
+}
+#textToolInput:focus-visible {
+	border: none;
+	box-shadow: 0 4px 10px 0 rgb(0 0 0 / 20%), 0 4px 20px 0 rgb(0 0 0 / 10%);
+}

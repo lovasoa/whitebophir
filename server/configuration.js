@@ -58,4 +58,7 @@ module.exports = {
   /** Secret key for jwt */
   AUTH_SECRET_KEY: (process.env["AUTH_SECRET_KEY"] || ""),
 
+  /** Theme options e.g. material */
+  THEME_OPTIONS: (process.env["THEME_OPTIONS"] || ""),
+
 };
