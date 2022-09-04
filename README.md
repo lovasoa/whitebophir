@@ -98,7 +98,7 @@ Moderators have access to the Clear tool, which will wipe all content from the b
 
 ## Board name verification in the JWT
 
-WBO supports verification of the board with a JWT. The board name should be passed in the JWT in the `room_name` claim in the JWT.
+WBO supports verification of the board with a JWT.
 
 The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
 
@@ -107,7 +107,7 @@ To check for a valid board name just add the board name to the role with a ":". 
 ```
 {
   ....
-  "roles": {"moderator:<boardName1>","moderator:<boardName2>","editor:<boardName3>","editor:<boardName4>"] }
+  "roles": ["moderator:<boardName1>","moderator:<boardName2>","editor:<boardName3>","editor:<boardName4>"] }
 }
 ```
 eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
