@@ -62,8 +62,7 @@ function getBoardnamefromToken(token, boardNameIn) {
 
         var regex = new RegExp(":\ *"+boardNameIn+"$","gm");
         if (roles) {
-            for (var r in roles) {
-                var role = roles[r]
+            for (var role of roles) {
                 if (role.includes(':')) {
                     oneHasBoardName = true;
                 }
@@ -78,7 +77,7 @@ function getBoardnamefromToken(token, boardNameIn) {
             throw new Error("No board name match");
 
         } else {
-            throw new Error("No board name provided");
+            return  true;
         }
     }
 }

@@ -56,9 +56,8 @@ function checkUserPermission(url) {
       var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
       var roles = payload.roles;
       if(roles) {
-          for (var r in roles) {
-              var role = roles[r]
-              if (role.match(/moderator/gm)) {
+          for (var role of roles) {
+              if (role.match(/^moderator/gm)) {
                   return true;
               }
           return false;
