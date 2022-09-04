@@ -102,13 +102,12 @@ WBO supports verification of the board with a JWT. The board name should be pass
 
 The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
 
-To check for a valid board, make the roles a __object__ instead a array. Add all boards you want want to moderate or only edit to the array.
-With this you can select which bards are to moderate or only to edit.
+To check for a valid board name just add the board name to the role with a ":". With this you can set a moderator for a specific board.
 
 ```
 {
   ....
-  "roles": {moderator:["<boardName1>","<boardName2>"],editor:["<boardName3>","<boardName4>"] }
+  "roles": {"moderator:<boardName1>","moderator:<boardName2>","editor:<boardName3>","editor:<boardName4>"] }
 }
 ```
 eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
@@ -117,7 +116,7 @@ eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
   "iat": 1516239022,
   "exp": 1516298489,
   "roles": ["moderator"],
-  "roles": {moderator:["mySecretBoardName","mySecretBoardName"]}
+  "roles": {"moderator:mySecretBoardName"]}
 }
 ```
 
