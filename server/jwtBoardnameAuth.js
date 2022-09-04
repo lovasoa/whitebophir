@@ -39,7 +39,7 @@ function checkBoardName(url, boardNameIn) {
     if (config.AUTH_SECRET_KEY != "") {
         var token = url.searchParams.get("token");
         if (token) {
-                roomIsCorrect = getBoardnamefromToken(token, boardNameIn);
+            roomIsCorrect = getBoardnamefromToken(token, boardNameIn);
         } else {
             throw new Error("No token provided");
         }
@@ -57,25 +57,34 @@ function getBoardnamefromToken(token, boardNameIn) {
     if (config.AUTH_SECRET_KEY != "") {
         var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
         var roles = payload.roles;
-        if (typeof roles === 'object'){
-            if (roles) {
-                for (var r in roles) {
-                    for (var i = 0; i<roles[r].length; i++){
-                        if (roles[r][i] === boardNameIn){
-                            return true;
-                        }
-                    }
-                }
-                throw new Error("No board name match");
+        var oneHasBoardName = false;
+        var oneHasCorretBoardname = false;
 
-            } else {
-                throw new Error("No board name provided");
+        var regex = new RegExp(":.*"+boardNameIn+"$","gm");
+        console.log(regex);
+        if (roles) {
+            for (var r in roles) {
+                var role = roles[r]
+
+                console.log(role);
+                if (role.includes(':')) {
+                    console.log('found :')
+                    oneHasBoardName = true;
+                }
+                if (role.match(regex)) {
+                    console.log('found Boardname')
+                    return true;
+                }
             }
-        }else {
-            return true;
+            if (!oneHasBoardName) {
+                return true;
+            }
+
+            throw new Error("No board name match");
+
+        } else {
+            throw new Error("No board name provided");
         }
-    } else {
-        return true;
     }
 }
 
