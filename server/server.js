@@ -121,13 +121,13 @@ function handleRequest(request, response) {
       if (parts.length === 1) {
         // '/boards?board=...' This allows html forms to point to boards
         var boardName = parsedUrl.searchParams.get("board") || "anonymous";
-        jwtBoardName.checkBoardName(parsedUrl, boardName);
+        jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         var headers = { Location: "boards/" + encodeURIComponent(boardName) };
         response.writeHead(301, headers);
         response.end();
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
         var boardName = validateBoardName(parts[1]);
-        jwtBoardName.checkBoardName(parsedUrl, boardName);
+        jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         boardTemplate.serve(request, response, isModerator);
         // If there is no dot and no directory, parts[1] is the board name
       } else {
@@ -142,7 +142,7 @@ function handleRequest(request, response) {
             config.HISTORY_DIR,
             "board-" + boardName + ".json"
           );
-        jwtBoardName.checkBoardName(parsedUrl, boardName);
+        jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
           history_file += "." + parts[2] + ".bak";
         }
@@ -165,7 +165,7 @@ function handleRequest(request, response) {
             config.HISTORY_DIR,
             "board-" + boardName + ".json"
           );
-        jwtBoardName.checkBoardName(parsedUrl, boardName);
+        jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         response.writeHead(200, {
           "Content-Type": "image/svg+xml",
           "Content-Security-Policy": CSP,

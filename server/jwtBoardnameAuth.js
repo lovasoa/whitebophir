@@ -28,56 +28,18 @@ config = require("./configuration.js"),
     jsonwebtoken = require("jsonwebtoken");
 
 /**
- * Validates jwt and returns whether board name fits to the board name given in the JWT
- * @param {URL} url
+ * This function checks if a board name is set in the roles claim.
+ * Returns true of the board name is set in the JWT and the board name matches the board name in the URL
+ * @param {string} url
  * @param {string} boardNameIn
- * @returns {boolean} - True if user is a moderator, else false
- * @throws {Error} - If no token is provided when it should be or when the board name is incorrect
- */
-function checkBoardName(url, boardNameIn) {
-    var roomIsCorrect = true;
-    if (config.AUTH_SECRET_KEY != "") {
-        var token = url.searchParams.get("token");
-        if (token) {
-            roomIsCorrect = getBoardnamefromToken(token, boardNameIn);
-        } else {
-            throw new Error("No token provided");
-        }
-    }
-    return roomIsCorrect;
-}
-
-/**
- * Check if user is a moderator
- * @param {string} token
- * @param {string} boardNameIn
+ @returns {boolean} - True if user does not have the role forbidden false if the user hase the role forbidden
+ @throws {Error} - If no boardname match
  */
 
-function getBoardnamefromToken(token, boardNameIn) {
-    if (config.AUTH_SECRET_KEY != "") {
-        var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-        var roles = payload.roles;
-        var oneHasBoardName = false;
-        var oneHasCorretBoardname = false;
-        if (roles) {
-            for (var line of roles) {
-                var role = parse_role(line);
-                if (role.board_name !== '') {
-                    oneHasBoardName = true;
-                }
-                if (role.board_name === boardNameIn) {
-                    return true;
-                }
-            }
-            if (!oneHasBoardName) {
-                return true;
-            }
-
-            throw new Error("No board name match");
-
-        } else {
-            return  true;
-        }
+function checkBoardnameInToken(url, boardNameIn) {
+    var token = url.searchParams.get("token");
+    if (roleInBoard(token, boardNameIn) === 'forbidden') {
+        throw new Error("Acess Forbidden");
     }
 }
 
@@ -85,4 +47,53 @@ function parse_role(role) {
     let [_, role_name, board_name] = role.match(/^([^:]*):?(.*)$/);
     return {role_name, board_name}
 }
-module.exports = {checkBoardName, parse_role};
+
+/**
+ * This function checks if a oard name is set in the roles claim.
+ * Returns string depending on the role in the board
+ * @param {string} token
+ * @param {string} board
+ @returns {string}  "moderator"|"editor"|"forbidden"
+ */
+function roleInBoard(token, board = null) {
+    if (config.AUTH_SECRET_KEY != "") {
+        if (!token) {
+            throw new Error("No token provided");
+        }
+        var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
+
+        var roles = payload.roles;
+        var oneHasBoardName = false;
+        var oneHasModerator = false;
+
+        if (roles) {
+            for (var line of roles) {
+                var role = parse_role(line);
+
+                if (role.board_name !== '') {
+                    oneHasBoardName = true;
+                }
+                if (role.role_name === "moderator") {
+                    oneHasModerator = true;
+                }
+                if (role.board_name === board) {
+                    return role.role_name;
+                }
+            }
+            if ((!board && oneHasModerator) || !oneHasBoardName) {
+                if (oneHasModerator) {
+                    return "moderator";
+                } else {
+                    return "editor";
+                }
+            }
+            return "forbidden";
+        } else {
+            return "editor";
+        }
+    } else {
+        return "editor";
+    }
+}
+
+module.exports = {checkBoardnameInToken, roleInBoard};

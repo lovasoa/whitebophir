@@ -24,9 +24,10 @@
  * @licend
  */
 
+
 config = require("./configuration.js"),
 jsonwebtoken = require("jsonwebtoken");
-
+const {roleInBoard} = require("./jwtBoardnameAuth");
 /**
  * Validates jwt and returns whether user is a moderator
  * @param {URL} url
@@ -38,7 +39,7 @@ function checkUserPermission(url) {
   if (config.AUTH_SECRET_KEY != "") {
     var token = url.searchParams.get("token");
     if (token) {
-      isModerator = checkIfModerator(token);
+      isModerator = roleInBoard(token) === "moderator";
     } else {
       // Error out as no token provided
       throw new Error("No token provided");
@@ -47,25 +48,5 @@ function checkUserPermission(url) {
   return isModerator;
 }
 
-/**
- * Check if user is a moderator
- * @param {string} token
- */
- function checkIfModerator(token) {
-    if(config.AUTH_SECRET_KEY != "") {
-      var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-      var roles = payload.roles;
-      if(roles) {
-          for (var role of roles) {
-              if (role.match(/^moderator/gm)) {
-                  return true;
-              }
-          return false;
-        }
-      } else {
-        return false;
-      }
-  }
- }
 
-module.exports = { checkUserPermission, checkIfModerator };
+module.exports = { checkUserPermission };
