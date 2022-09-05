@@ -59,8 +59,8 @@ function getBoardnamefromToken(token, boardNameIn) {
         var roles = payload.roles;
         var oneHasBoardName = false;
         var oneHasCorretBoardname = false;
-
-        var regex = new RegExp(":\ *"+boardNameIn+"$","gm");
+        var regex = new RegExp(  "(^[^\:]*\:)("+boardNameIn+"$)","gm");
+        console.log(regex);
         if (roles) {
             for (var role of roles) {
                 if (role.includes(':')) {

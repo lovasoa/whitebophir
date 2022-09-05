@@ -122,7 +122,9 @@ function testBoard(browser) {
         browser.url(SERVER + '/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0bzp0ZXN0Ym9hcmQiXX0.-P6gjYlPP5I2zgSoVTlADdesVPfSXV-JXZQK5uh3Xwo').waitForElementNotPresent('#toolID-Clear');
         //has editor JWT and  boardname provided and and not match to the board in the url
         browser.url(SERVER + '/boards/testboard123?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0bzp0ZXN0Ym9hcmQiXX0.-P6gjYlPP5I2zgSoVTlADdesVPfSXV-JXZQK5uh3Xwo').waitForElementNotPresent('#menu');
-
+        //is moderator and boardname contains ":"
+        browser.url(SERVER + '/boards/test:board?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3I6dGVzdDpib2FyZCJdfQ.LKYcDccheD2oXAMAemxSekDeowGsMl29CFkgJgwbkGE').waitForElementNotPresent('#menu');
+        browser.url(SERVER + '/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3I6dGVzdDpib2FyZCJdfQ.LKYcDccheD2oXAMAemxSekDeowGsMl29CFkgJgwbkGE').waitForElementNotPresent('#menu');
     }
     page.end();
 }
