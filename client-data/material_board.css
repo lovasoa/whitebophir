@@ -1,4 +1,19 @@
-
+/* roboto-regular - latin */
+@font-face {
+	font-family: 'Roboto';
+	font-style: normal;
+	font-weight: 400;
+	src: url('fonts/roboto-v30-latin-regular.eot'); /* IE9 Compat Modes */
+	src: local(''),
+	url('fonts/roboto-v30-latin-regular.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+	url('fonts/roboto-v30-latin-regular.woff2') format('woff2'), /* Super Modern Browsers */
+	url('fonts/roboto-v30-latin-regular.woff') format('woff'), /* Modern Browsers */
+	url('fonts/roboto-v30-latin-regular.ttf') format('truetype'), /* Safari, Android, iOS */
+	url('fonts/roboto-v30-latin-regular.svg#Roboto') format('svg'); /* Legacy iOS */
+}
+html, body, svg {
+	font-family: Roboto, Arial, sans-serif;
+}
 #menu .tool {
 	border-radius: 0.5rem;
 	box-shadow: 0 10px 15px -3px rgb(0 0 0 / 7%), 0 4px 6px -2px rgb(0 0 0 / 5%);
