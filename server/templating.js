@@ -51,8 +51,7 @@ class Template {
     const prefix = request.url.split("/boards/")[0].substr(1);
     const baseUrl = findBaseUrl(request) + (prefix ? prefix + "/" : "");
     const moderator = isModerator;
-    const theme = process.env.THEME_OPTIONS===''?false:process.env.THEME_OPTIONS;
-    return { baseUrl, languages, language, translations, configuration, moderator,  theme};
+    return { baseUrl, languages, language, translations, configuration, moderator};
   }
   serve(request, response, isModerator) {
     const parsedUrl = url.parse(request.url, true);

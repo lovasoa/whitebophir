@@ -1,7 +1,19 @@
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 400;
+  src: url('fonts/roboto-v30-latin-regular.eot'); /* IE9 Compat Modes */
+  src: local(''),
+  url('fonts/roboto-v30-latin-regular.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+  url('fonts/roboto-v30-latin-regular.woff2') format('woff2'), /* Super Modern Browsers */
+  url('fonts/roboto-v30-latin-regular.woff') format('woff'), /* Modern Browsers */
+  url('fonts/roboto-v30-latin-regular.ttf') format('truetype'), /* Safari, Android, iOS */
+  url('fonts/roboto-v30-latin-regular.svg#Roboto') format('svg'); /* Legacy iOS */
+}
 html {
   min-height: 100%;
   margin: 0;
-  font-family: sans-serif;
+  font-family:Roboto, Arial, sans-serif;
   font-weight: 300;
   font-size: 15px;
 }
@@ -74,15 +86,15 @@ header:hover h2 {
 .wbo-button {
   white-space: nowrap;
   text-decoration: none;
-  background: linear-gradient(#ccdfdf, #abc6c6);
-  margin-top: 15px;
   line-height: 60px;
-  border-radius: 5px;
-  box-shadow: 1px 1px 2.5px #555;
   display: block;
   text-align: center;
   color: black;
   transition: 0.1s;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 7%), 0 4px 6px -2px rgb(0 0 0 / 5%);
+  margin-top: 16px;
+  background: linear-gradient(#ccdfdf, #abc6c6);
 }
 
 a {
@@ -90,7 +102,7 @@ a {
 }
 
 .wbo-button:hover {
-  box-shadow: 0 0 5px #0074d9;
+  box-shadow: 0 4px 10px 0 rgb(0 0 0 / 20%), 0 4px 20px 0 rgb(0 0 0 / 10%);
 }
 
 .wbo-button:focus,

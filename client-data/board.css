@@ -1,7 +1,19 @@
+@font-face {
+	font-family: 'Roboto';
+	font-style: normal;
+	font-weight: 400;
+	src: url('fonts/roboto-v30-latin-regular.eot'); /* IE9 Compat Modes */
+	src: local(''),
+	url('fonts/roboto-v30-latin-regular.eot?#iefix') format('embedded-opentype'), /* IE6-IE8 */
+	url('fonts/roboto-v30-latin-regular.woff2') format('woff2'), /* Super Modern Browsers */
+	url('fonts/roboto-v30-latin-regular.woff') format('woff'), /* Modern Browsers */
+	url('fonts/roboto-v30-latin-regular.ttf') format('truetype'), /* Safari, Android, iOS */
+	url('fonts/roboto-v30-latin-regular.svg#Roboto') format('svg'); /* Legacy iOS */
+}
 html, body, svg {
 	padding:0;
 	margin:0;
-	font-family: Liberation sans, sans-serif;
+	font-family:Roboto, Arial, sans-serif;
 }
 
 #canvas {
@@ -10,7 +22,6 @@ html, body, svg {
 
 #loadingMessage {
 	font-size: 1.5em;
-	background: #eee linear-gradient(#eeeeee, #cccccc);
 	padding: 20px;
 	width: 40%;
 	line-height: 50px;
@@ -20,7 +31,8 @@ html, body, svg {
 	top: 40%;
 	left: 30%;
 	z-index: 1;
-	box-shadow: 0 0 2px #333333;
+	box-shadow: 0 10px 15px -3px rgb(0 0 0 / 7%), 0 4px 6px -2px rgb(0 0 0 / 5%);
+	background-color: #f2f6fc;
 	transition: 1s;
 }
 
@@ -101,16 +113,16 @@ html, body, svg {
 	border:1px solid #eeeeee;
 	text-decoration:none;
 	cursor:pointer;
-	background: #ffffff;
-	margin-top: 10px;
 	height: 40px;
 	line-height: 40px;
-	border-radius: 0px;
 	max-width: 40px;
 	transition-duration: .2s;
 	overflow: hidden;
 	width: max-content;
-	box-shadow: inset 0 0 3px #8FA2BC;
+	border-radius: 0.5rem;
+	box-shadow: 0 10px 15px -3px rgb(0 0 0 / 7%), 0 4px 6px -2px rgb(0 0 0 / 5%);
+	background-color: #f2f6fc;
+	margin-top: 16px;
 }
 
 #menu .tool:hover {
@@ -147,8 +159,10 @@ html, body, svg {
 }
 
 #menu .tool.curTool {
-  box-shadow: 0 0 5px #0074D9;
-  background: linear-gradient(#96E1FF, #36A2FF);
+
+	box-shadow: 0 4px 10px 0 rgb(0 0 0 / 20%), 0 4px 20px 0 rgb(0 0 0 / 10%);
+	border-bottom: 4px solid #36A2FF;
+	background: #f2f6fc;
 }
 
 #menu .tool-icon {
@@ -283,4 +297,16 @@ circle.opcursor {
 	label.tool-name[for=chooseColor] {
 		line-height: 10px;
 	}
+}
+
+#textToolInput {
+	box-shadow: 0 10px 15px -3px rgb(0 0 0 / 7%), 0 4px 6px -2px rgb(0 0 0 / 5%);
+	padding: 8px;
+	font-size: 24px;
+	border: none;
+	background: #f2f6fc;
+}
+#textToolInput:focus-visible {
+	border: none;
+	box-shadow: 0 4px 10px 0 rgb(0 0 0 / 20%), 0 4px 20px 0 rgb(0 0 0 / 10%);
 }
