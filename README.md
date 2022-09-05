@@ -85,9 +85,13 @@ WBO supports authentication with a JWT. This should be passed in as a query with
 
 The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
 
-Within the payload, you can declare the user's roles as an array. Currently the only accepted role is `moderator`. This will give the user an additional tool to wipe all data from the board. To declare this role, see the example below:
+Within the payload, you can declare the user's roles as an array.
+Currently the only accepted roles are `moderator` and `editor`. 
 
-```
+ - `moderator` will give the user an additional tool to wipe all data from the board. To declare this role, see the example below.
+ - `editor` will give the user the ability to edit the board. This is the default role for all users.
+
+```json
 {
   "iat": 1516239022,
   "exp": 1516298489,
@@ -100,25 +104,22 @@ Moderators have access to the Clear tool, which will wipe all content from the b
 
 WBO supports verification of the board with a JWT.
 
-The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
-
 To check for a valid board name just add the board name to the role with a ":". With this you can set a moderator for a specific board.
 
-```
+```json
 {
-  ....
-  "roles": ["moderator:<boardName1>","moderator:<boardName2>","editor:<boardName3>","editor:<boardName4>"] }
+  "roles": ["moderator:<boardName1>","moderator:<boardName2>","editor:<boardName3>","editor:<boardName4>"]
 }
 ```
 eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
-```
+
+```json
 {
   "iat": 1516239022,
   "exp": 1516298489,
   "roles": ["moderator:mySecretBoardName"]
 }
 ```
-
 
 You can now be sure that only users who have the correct token have access to the board with the specific name.
 
