@@ -105,7 +105,27 @@ function testBoard(browser) {
     // test hideMenu
     browser.url(SERVER + '/boards/anonymous?lang=fr&hideMenu=true&' + tokenQuery).waitForElementNotVisible('#menu');
     browser.url(SERVER + '/boards/anonymous?lang=fr&hideMenu=false&' + tokenQuery).waitForElementVisible('#menu');
-
+    if(browser.globals.token) {
+        //has moderator jwt and no board name
+        browser.url(SERVER + '/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3IiXX0.PqYHmV0loeKwyLLYZ1a1eIXBCCaa3t5lYUTu_P_-i14').waitForElementVisible('#toolID-Clear');
+        //has moderator JWT and other board name
+        browser.url(SERVER + '/boards/testboard123?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3IiXX0.PqYHmV0loeKwyLLYZ1a1eIXBCCaa3t5lYUTu_P_-i14').waitForElementVisible('#toolID-Clear');
+        //has moderator JWT and board name match board name in url
+        browser.url(SERVER + '/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3I6dGVzdGJvYXJkIl19.UVf6awGEChVxcWBbt6dYoNH0Scq7cVD_xfQn-U8A1lw').waitForElementVisible('#toolID-Clear');
+        //has moderator JWT and board name NOT match board name in url
+        browser.url(SERVER + '/boards/testboard123?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3I6dGVzdGJvYXJkIl19.UVf6awGEChVxcWBbt6dYoNH0Scq7cVD_xfQn-U8A1lw').waitForElementNotPresent('#menu');
+        //has editor JWT and no boardname provided
+        browser.url(SERVER + '/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0b3IiXX0.IJehwM8tPVQFzJ2fZMBHveii1DRChVtzo7PEnSmmFt8').waitForElementNotPresent('#toolID-Clear');
+        browser.url(SERVER + '/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0b3IiXX0.IJehwM8tPVQFzJ2fZMBHveii1DRChVtzo7PEnSmmFt8').waitForElementVisible('#menu')
+        //has editor JWT and  boardname provided and match to the board in the url
+        browser.url(SERVER + '/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0bzp0ZXN0Ym9hcmQiXX0.-P6gjYlPP5I2zgSoVTlADdesVPfSXV-JXZQK5uh3Xwo').waitForElementVisible('#menu');
+        browser.url(SERVER + '/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0bzp0ZXN0Ym9hcmQiXX0.-P6gjYlPP5I2zgSoVTlADdesVPfSXV-JXZQK5uh3Xwo').waitForElementNotPresent('#toolID-Clear');
+        //has editor JWT and  boardname provided and and not match to the board in the url
+        browser.url(SERVER + '/boards/testboard123?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0bzp0ZXN0Ym9hcmQiXX0.-P6gjYlPP5I2zgSoVTlADdesVPfSXV-JXZQK5uh3Xwo').waitForElementNotPresent('#menu');
+        //is moderator and boardname contains ":"
+        browser.url(SERVER + '/boards/test:board?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3I6dGVzdDpib2FyZCJdfQ.LKYcDccheD2oXAMAemxSekDeowGsMl29CFkgJgwbkGE').waitForElementNotPresent('#menu');
+        browser.url(SERVER + '/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3I6dGVzdDpib2FyZCJdfQ.LKYcDccheD2oXAMAemxSekDeowGsMl29CFkgJgwbkGE').waitForElementNotPresent('#menu');
+    }
     page.end();
 }
 

@@ -94,8 +94,33 @@ Within the payload, you can declare the user's roles as an array. Currently the 
   "roles": ["moderator"]
 }
 ```
-
 Moderators have access to the Clear tool, which will wipe all content from the board.
+
+## Board name verification in the JWT
+
+WBO supports verification of the board with a JWT.
+
+The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
+
+To check for a valid board name just add the board name to the role with a ":". With this you can set a moderator for a specific board.
+
+```
+{
+  ....
+  "roles": ["moderator:<boardName1>","moderator:<boardName2>","editor:<boardName3>","editor:<boardName4>"] }
+}
+```
+eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
+```
+{
+  "iat": 1516239022,
+  "exp": 1516298489,
+  "roles": ["moderator:mySecretBoardName"]
+}
+```
+
+
+You can now be sure that only users who have the correct token have access to the board with the specific name.
 
 ## Configuration
 
