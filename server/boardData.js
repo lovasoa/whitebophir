@@ -30,7 +30,7 @@ var fs = require("./fs_promises.js"),
   path = require("path"),
   config = require("./configuration.js"),
   Mutex = require("async-mutex").Mutex,
-  jwtauth = require("./jwtauth.js");
+  jwtBoardnameAuth = require("./jwtBoardnameAuth.js");
 
 /**
  * Represents a board.
@@ -174,7 +174,7 @@ class BoardData {
         this.addChild(message.parent, message);
         break;
       case "clear":
-        if(jwtauth.checkIfModerator(message.token)) {
+        if(jwtBoardnameAuth.roleInBoard(message.token) === "moderator") {
           this.clear();
         } else {
           throw new Error("User is not a moderator");
