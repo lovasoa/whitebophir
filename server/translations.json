@@ -13,7 +13,7 @@
     "grid": "Gitter",
     "hand": "Hand",
     "download": "Herunterladen",
-    "index_title": "Wilkommen bei WBO!",
+    "index_title": "Willkommen bei WBO!",
     "introduction_paragraph": "WBO ist ein <a href=\"https://github.com/lovasoa/whitebophir\" title=\"Frei im Sinne von Redefreiheit, nicht Freibier. Diese Software wird unter der AGPL Lizenz veröffentlicht.\">freies und quelloffenes</a> kollaboratives Online-Whiteboard das vielen Nutzern erlaubt gleichzeitig auf einem großen virtuellen Whiteboard zu zeichnen. Das Whiteboard wird in Echtzeit für alle Nutzer aktualisiert und sein Inhalt wird gespeichert. Es kann für verschiedenste Anwendungen genutzt werden, z.B. Kunst, Unterhaltung, Design, Unterricht und Lehre.",
     "keyboard_shortcut": "Tastenkombination",
     "loading": "Lädt",
