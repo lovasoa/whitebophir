@@ -70,14 +70,26 @@ class Template {
   }
 }
 
+
+const jwtBoardnameAuth = require("./jwtBoardnameAuth"); // have to delete
 class BoardTemplate extends Template {
   parameters(parsedUrl, request, isModerator) {
     const params = super.parameters(parsedUrl, request, isModerator);
     const parts = parsedUrl.pathname.split("boards/", 2);
+    console.log(parts[1]);
     const boardUriComponent = parts[1];
     params["boardUriComponent"] = boardUriComponent;
     params["board"] = decodeURIComponent(boardUriComponent);
-    params["hideMenu"] = parsedUrl.query.hideMenu == "true" || false;
+    const query = parsedUrl.query;
+    const token = query.token;
+    const boardName = parts[1];
+    const userRole = jwtBoardnameAuth.roleInBoard(token, boardName);
+    if (userRole === "viewer") {
+      params["hideMenu"] = true;
+    } else {
+      params["hideMenu"] = false;
+    }
+    params["moderator"] = isModerator;
     return params;
   }
 }
