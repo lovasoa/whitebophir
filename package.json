@@ -28,6 +28,6 @@
   },
   "devDependencies": {
     "geckodriver": "^3.0.1",
-    "nightwatch": "^1.7.12"
+    "nightwatch": "^3.1.3"
   }
 }
