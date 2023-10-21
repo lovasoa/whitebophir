@@ -20,7 +20,7 @@ end
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # Base on a 64-bit Debian box with vboxsf support (ex. contrib-buster64, bullseye64)
-  config.vm.box = "debian/bullseye64"
+  config.vm.box = "debian/bookworm64"
   config.vm.post_up_message = "Your virtual server is running at: http://local.sandstorm.io:6090"
 
 
@@ -31,6 +31,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     # needs to know how to compile kernel modules, etc., and so
     # we give it this hint about operating system type.
     config.vm.guest = "debian"
+    config.vbguest.auto_update = false
   end
 
   # We forward port 6090, the vagrant-spk web port, so that developers can
