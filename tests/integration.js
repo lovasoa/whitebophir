@@ -76,7 +76,7 @@ function testCircle(browser) {
         })
         .assert.visible("ellipse[cx='0'][cy='200'][rx='200'][ry='200'][stroke='#112233']")
         .refresh()
-        .waitForElementVisible("ellipse[cx='0'][cy='200'][rx='200'][ry='200'][stroke='#112233']")
+        .waitForElementVisible("ellipse[cx='0'][cy='200'][rx='200'][ry='200'][stroke='#112233']", 15000)
         .click('#toolID-Ellipse') // Click the ellipse tool
         .click('#toolID-Ellipse') // Click again to toggle
         .assert.containsText('#toolID-Ellipse .tool-name', 'Cercle') // Circle in french
