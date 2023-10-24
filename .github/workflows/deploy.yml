@@ -9,11 +9,11 @@ jobs:
     name: deploy
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - name: Dokku
-      uses: dokku/github-action@9c1a871eab9daef563cf08b9602c7675f4a8bb56
+      uses: dokku/github-action@bbb8818f9bad88edd3099a2399ef9be366754ff9
       with:
         git_remote_url: ssh://dokku@${{ secrets.SSH_SERVER }}:22/wbo
         ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
