@@ -57,5 +57,8 @@ module.exports = {
 
   /** Secret key for jwt */
   AUTH_SECRET_KEY: (process.env["AUTH_SECRET_KEY"] || ""),
+  
+  /** If this variable is set, automatically redirect to this board. */
+  DEFAULT_BOARD: (process.env["WBO_DEFAULT_BOARD"]),
 
 };

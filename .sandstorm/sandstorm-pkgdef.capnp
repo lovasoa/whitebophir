@@ -21,7 +21,7 @@ const pkgdef :Spk.PackageDefinition = (
 
     appVersion = 0,  # Increment this for every release.
 
-    appMarketingVersion = (defaultText = "0.0.1"),
+    appMarketingVersion = (defaultText = "1.19.2"),
     # Human-readable representation of appVersion. Should match the way you
     # identify versions of your app in documentation and marketing.
 
@@ -44,7 +44,7 @@ const pkgdef :Spk.PackageDefinition = (
         marketBig = (svg = embed "../client-data/favicon.svg"),
       ),
       website = "https://wbo.ophir.dev",
-      codeUrl = "https://github.com/ocdtrekkie/whitebophir-sandstorm",
+      codeUrl = "https://github.com/lovasoa/whitebophir",
       license = (openSource = agpl3),
       categories = [graphics],
 

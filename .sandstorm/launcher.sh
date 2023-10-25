@@ -36,5 +36,6 @@ export HOME=/opt/app
 export PORT=8000
 export HOST=127.0.0.1
 export WBO_HISTORY_DIR=/var/wbo_data/
+export WBO_DEFAULT_BOARD=board
 
 npm start

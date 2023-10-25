@@ -223,7 +223,11 @@ function handleRequest(request, response) {
 
     case "": // Index page
       logRequest(request);
+      if (!config.DEFAULT_BOARD)
         indexTemplate.serve(request, response);
+      else
+        response.writeHead(302, { Location: 'boards/' + config.DEFAULT_BOARD });
+        response.end(name);
       break;
 
     default:

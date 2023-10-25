@@ -16,7 +16,12 @@ async function get_error(directory) {
   if (!fs.statSync(directory).isDirectory()) {
     error = "exists, but is not a directory";
   }
-  const { uid, gid } = []; //SANDSTORM HACK
+  try {
+    const { uid, gid } = os.userInfo();
+  } catch (e) {
+    console.error(`os.userInfo does not work in this environment.`);
+    const { uid, gid } = [];
+  }
   const tmpfile = path.join(directory, Math.random() + ".json");
   try {
     fs.writeFileSync(tmpfile, "{}");
