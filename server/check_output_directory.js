@@ -23,12 +23,12 @@ async function get_error(directory) {
   } catch (e) {
     let err_msg = "does not allow file creation and deletion. ";
     try {
-        const { uid, gid } = os.userInfo();
-        err_msg += "Check the permissions of the directory, and if needed change them so that " +
+      const { uid, gid } = os.userInfo();
+      err_msg += "Check the permissions of the directory, and if needed change them so that " +
         `user with UID ${uid} has access to them. This can be achieved by running the command: chown ${uid}:${gid} on the directory`;
-      } finally {
-        return err_msg;
-      }
+    } finally {
+      return err_msg;
+    }
   }
   const fileChecks = [];
   const files = await fs.promises.readdir(directory, { withFileTypes: true });
@@ -66,8 +66,8 @@ function check_output_directory(directory) {
     if (error) {
       console.error(
         `The configured history directory in which boards are stored ${error}.` +
-          `\nThe history directory can be configured with the environment variable WBO_HISTORY_DIR. ` +
-          `It is currently set to "${directory}".`
+        `\nThe history directory can be configured with the environment variable WBO_HISTORY_DIR. ` +
+        `It is currently set to "${directory}".`
       );
       process.exit(1);
     }
