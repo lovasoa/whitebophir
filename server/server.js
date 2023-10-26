@@ -223,6 +223,10 @@ function handleRequest(request, response) {
 
     case "": // Index page
       logRequest(request);
+      if (config.DEFAULT_BOARD) {
+        response.writeHead(302, { Location: 'boards/' + encodeURIComponent(config.DEFAULT_BOARD) });
+        response.end(name);
+      } else
         indexTemplate.serve(request, response);
       break;
 
