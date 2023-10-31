@@ -61,4 +61,5 @@ module.exports = {
   /** If this variable is set, automatically redirect to this board from the root of the application. */
   DEFAULT_BOARD: (process.env["WBO_DEFAULT_BOARD"]),
 
+
 };

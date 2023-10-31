@@ -108,7 +108,7 @@ function handleRequest(request, response) {
   if (parts[0] === "") parts.shift();
 
   var fileExt = path.extname(parsedUrl.pathname);
-  var staticResources = ['.js','.css', '.svg', '.ico', '.png', '.jpg', 'gif'];
+  var staticResources = ['.js','.css', '.svg', '.ico', '.png', '.jpg', '.gif', '.ttf', '.eot', '.woff', '.woff2'];
   // If we're not being asked for a file, then we should check permissions.
   var isModerator = false;
   if(!staticResources.includes(fileExt)) {
