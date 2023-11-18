@@ -176,7 +176,7 @@
       const xhr = new XMLHttpRequest();
 
       function onError(error) {
-        alert('Failed to upload image :`(')
+        alert('An error occurred while attempti')
         console.log('error: ', error);
         reject(error);
       }
@@ -188,7 +188,7 @@
 
       function onLoad(response) {
         if (xhr.status >= 400) {
-          alert('Failed to upload image :`(')
+          alert('A server error occurred while uploading the image.')
           reject(response);
           console.log('onLoad: ', response);
         }
@@ -216,7 +216,15 @@
     uploadImage(event.dataTransfer.files[0], position);
   }
 
+  function checkFileIsImage(file) {
+    return file.type.startsWith('image/');
+  }
+
   function onDrop(event) {
+    if (!checkFileIsImage(event.dataTransfer.files[0])) {
+      alert('File type not supported.');
+      return;
+    }
     onUploadEvent(event);
   }
 

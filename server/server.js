@@ -13,6 +13,7 @@ var app = require("http").createServer(handler),
   jwtauth = require("./jwtauth.js"),
   BoardDataList = require('./boardDataList.js'),
   getMimeType = require("./getMimeType.js"),
+  ensureIsImage = require("./ensureIsImage.js"),
   parseFormData = require("./parseFormData.js");
   jwtBoardName = require("./jwtBoardnameAuth.js");
 
@@ -125,8 +126,12 @@ function validateBoardName(boardName) {
   throw new Error("Illegal board name: " + boardName);
 }
 
-function validateImage(image) {
-  if (image.size > config.MAX_IMAGE_ASSET_SIZE) {
+async function validateImage(imageFormDataField) {
+  // Basic check to make sure the file is an image.
+  await ensureIsImage(imageFormDataField);
+
+  // Check that the image is not too large.
+  if (imageFormDataField.size > config.MAX_IMAGE_ASSET_SIZE) {
     throw new Error("Image is too large");
   }
 }
@@ -211,7 +216,7 @@ async function handleRequest(request, response) {
         }
 
         try {
-          validateImage(files.image[0]);
+          await validateImage(files.image[0]);
         } catch (error) {
           response.writeHead(400, { "Content-Type": "text/plain" });
           response.end(error.message);
