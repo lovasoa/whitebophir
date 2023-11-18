@@ -26,69 +26,17 @@
  */
 
 (function () { //Code isolation
-  //Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-  var end = false,
-    curId = "",
-    curUpdate = { //The data of the message that will be sent for every new point
-      'type': 'update',
-      'id': "",
-      'x': 0,
-      'y': 0,
-      'x2': 0,
-      'y2': 0
-    },
-    lastTime = performance.now(); //The time at which the last point was drawn
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.addEventListener('change', onFileInputChange);
 
-  function start(x, y, evt) {
-
-    //Prevent the press from being interpreted by the browser
-    evt.preventDefault();
-
-    curId = Tools.generateUID("i"); // "i" for image
-
-    Tools.drawAndSend({
-      type: 'image',
-      tool: "Image",
-      id: curId,
-      x: x,
-      y: y,
-      x2: x,
-      y2: y
-    });
-
-    curUpdate.id = curId;
-    curUpdate.x = x;
-    curUpdate.y = y;
+  function onFileInputChange(event) {
+    // TODO: Initialize upload
   }
 
-  function move(x, y, evt) {
-    /*Wait 70ms before adding any point to the currently drawing shape.
-    This allows the animation to be smother*/
-    if (curId !== "") {
-      if (imageTool.secondary.active) {
-        var dx = x - curUpdate.x;
-        var dy = y - curUpdate.y;
-        var d = Math.max(Math.abs(dx), Math.abs(dy));
-        x = curUpdate.x + (dx > 0 ? d : -d);
-        y = curUpdate.y + (dy > 0 ? d : -d);
-      }
-      curUpdate['x2'] = x; curUpdate['y2'] = y;
-      if (performance.now() - lastTime > 70 || end) {
-        Tools.drawAndSend(curUpdate);
-        lastTime = performance.now();
-      } else {
-        draw(curUpdate);
-      }
-    }
-    if (evt) evt.preventDefault();
-  }
-
-  function stop(x, y) {
-    //Add a last point to the shape
-    end = true;
-    move(x, y);
-    end = false;
-    curId = "";
+  function promptForImage() {
+    fileInput.click();
   }
 
   function draw(data) {
@@ -131,13 +79,130 @@
     shape.height.baseVal.value = Math.abs(data['y2'] - data['y']);
   }
 
+  const canvas = document.getElementById('canvas');
+
+  const events = [
+    "drag",
+    "dragend",
+    "dragenter",
+    "dragleave",
+    "dragover",
+    "dragstart",
+    "drop"
+  ];
+
+  function getCurrentBoardName() {
+    let boardName = window.location.pathname.split('/');
+    boardName = boardName[boardName.length - 1];
+    boardName = boardName.split('#').shift();
+    return boardName;
+  }
+
+  async function previewImage(image) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = function () {
+          resolve(img);
+        }
+        img.onerror = function (error) {
+          reject(error);
+        }
+      }
+      reader.readAsDataURL(image);
+    });
+  }
+
+  async function uploadImage(image, position) {
+    const id = Tools.generateUID();
+    const ImageTool = Tools.list["Image"];
+
+    // Get a preview of the image
+    const previewElement = await previewImage(image);
+
+    const dimensions = {
+      x: previewElement.width,
+      y: previewElement.height
+    };
+
+    // Optimistically draw the image on the canvas before uploading.
+    ImageTool.draw({
+      id,
+      type: "image",
+      src: previewElement.src,
+      opacity: 0.5,
+      x: position.x,
+      y: position.y,
+      x2: position.x + dimensions.x,
+      y2: position.y + dimensions.y,
+    });
+
+    // Upload the image to the server
+    const formData = new FormData();
+    formData.append('image', image);
+    formData.append('id', id);
+    formData.append('position', JSON.stringify(position));
+    formData.append('dimensions', JSON.stringify(dimensions));
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      function onError(error) {
+        alert('Failed to upload image :`(')
+        console.log('error: ', error);
+        reject(error);
+      }
+
+      function onProgress(event) {
+        // TODO: Show a loading indicator while the image is uploading.
+        console.log('progress: ', event);
+      }
+
+      function onLoad(response) {
+        if (xhr.status >= 400) {
+          alert('Failed to upload image :`(')
+          reject(response);
+          console.log('onLoad: ', response);
+        }
+        resolve(response);
+      }
+
+      xhr.open('POST', `/image-upload/${getCurrentBoardName()}`, true);
+      xhr.onerror =  onError;
+      xhr.onprogress = onProgress;
+      xhr.onload = onLoad;
+      xhr.send(formData);
+    });
+  }
+
+  // TODO: Move all canvas event listeners to tool hooks maybe?
+  function preventDefault(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function onDrop(event) {
+    const scale = Tools.getScale();
+    const position = {
+      x: event.clientX / scale,
+      y: event.clientY / scale
+    };
+    uploadImage(event.dataTransfer.files[0], position);
+  }
+
+  events.forEach((eventName) => {
+    canvas.addEventListener(eventName, preventDefault, false);
+  });
+
+  canvas.addEventListener("drop", onDrop, false);
+
   var imageTool = {
     "name": "Image",
     "shortcut": "i",
     "listeners": {
-      "press": start,
-      "move": move,
-      "release": stop,
+      "press": promptForImage,
     },
     "secondary": null,
     "draw": draw,
