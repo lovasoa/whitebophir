@@ -26,6 +26,8 @@
  */
 
 (function () { //Code isolation
+  const drawingArea = document.getElementById('board');
+  const canvas = document.getElementById('canvas');
   const newImageDropPoint = {
     x: 0,
     y: 0,
@@ -96,8 +98,6 @@
     imageElement.width.baseVal.value = Math.abs(data['x2'] - data['x']);
     imageElement.height.baseVal.value = Math.abs(data['y2'] - data['y']);
   }
-
-  const canvas = document.getElementById('canvas');
 
   /**
     * Get the name of the current board based on the current URL.
@@ -252,10 +252,10 @@
   }
 
   events.forEach((eventName) => {
-    canvas.addEventListener(eventName, preventDefault, false);
+    drawingArea.addEventListener(eventName, preventDefault, false);
   });
 
-  canvas.addEventListener("drop", onDrop, false);
+  drawingArea.addEventListener("drop", onDrop, false);
 
   var imageTool = {
     "name": "Image",
