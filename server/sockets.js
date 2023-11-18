@@ -28,7 +28,6 @@ function noFail(fn) {
   };
 }
 
-// TODO: Passing boards this way is a little hacky...
 function startIO(app, boardDataList) {
   boards = boardDataList;
   io = iolib(app);
