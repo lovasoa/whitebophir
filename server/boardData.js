@@ -334,7 +334,6 @@ class BoardData {
     fs.mkdirSync(this.assetsDir, { recursive: true });
   }
 
-  // TODO: Make sure saveImageAsset is "thread safe" using mutex
   saveImageAsset(id, imageFile) {
     this.ensureAssetsDirectoryExists();
     const fileExtension = imageFile.originalFilename.split('.').pop();
@@ -343,8 +342,8 @@ class BoardData {
 
     // Data is automatically copied to a tmp directory (apparently) so we just
     // need to copy it from there.
-    // TODO: Delete temp image file after copy
     fs.promises.copyFile(imageFile.path, fileSystemAssetPath);
+    fs.promises.unlink(imageFile.path);
 
     return {
       fileSystemAssetPath,
