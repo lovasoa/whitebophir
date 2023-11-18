@@ -46,7 +46,10 @@ function startIO(app, boardDataList) {
     });
   }
   io.on("connection", noFail(handleSocketConnection));
-  return io;
+  return {
+    io,
+    handleMessage,
+  }
 }
 
 /** Returns a promise to a BoardData with the given name

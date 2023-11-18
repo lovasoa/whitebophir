@@ -30,7 +30,7 @@ if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {
 check_output_directory(config.HISTORY_DIR);
 
 const boardDataList = new BoardDataList();
-sockets.start(app, boardDataList);
+const socketsInstance = sockets.start(app, boardDataList);
 
 app.listen(config.PORT, config.HOST);
 log("server started", { port: config.PORT });
