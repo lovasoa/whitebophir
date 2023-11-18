@@ -96,7 +96,6 @@ class BoardData {
     delete data.tool;
 
     var obj = this.board[id];
-    console.log('Updating object: ', obj);
     if (typeof obj === "object") {
       for (var i in data) {
         obj[i] = data[i];
@@ -189,7 +188,6 @@ class BoardData {
   processMessage(message) {
     if (message._children) return this.processMessageBatch(message._children);
     let id = message.id;
-    console.log('processMessage :: message : ', message);
     switch (message.type) {
       case "delete":
         if (id) this.delete(id);
