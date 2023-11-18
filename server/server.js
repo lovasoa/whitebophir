@@ -10,7 +10,9 @@ var app = require("http").createServer(handler),
   config = require("./configuration.js"),
   polyfillLibrary = require("polyfill-library"),
   check_output_directory = require("./check_output_directory.js"),
-  jwtauth = require("./jwtauth.js");
+  jwtauth = require("./jwtauth.js"),
+  multiparty = require('multiparty'),
+  BoardDataList = require('./boardDataList.js');
   jwtBoardName = require("./jwtBoardnameAuth.js");
 
 var MIN_NODE_VERSION = 10.0;
@@ -27,7 +29,8 @@ if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {
 
 check_output_directory(config.HISTORY_DIR);
 
-sockets.start(app);
+const boardDataList = new BoardDataList();
+sockets.start(app, boardDataList);
 
 app.listen(config.PORT, config.HOST);
 log("server started", { port: config.PORT });
