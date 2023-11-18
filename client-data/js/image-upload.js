@@ -52,6 +52,7 @@
       id,
       type: "image",
       src: previewElement.src,
+      opacity: 0.5,
       x: position.x,
       y: position.y,
       x2: position.x + dimensions.x,
@@ -59,22 +60,40 @@
     });
 
     // Upload the image to the server
-    // TODO: Show a loading indicator while the image is uploading.
     const formData = new FormData();
     formData.append('image', image);
     formData.append('id', id);
     formData.append('position', JSON.stringify(position));
     formData.append('dimensions', JSON.stringify(dimensions));
 
-    return fetch(`/image-upload/${getCurrentBoardName()}`, {
-      method: 'POST',
-      body: formData
-    })
-    .then((response) => {
-      console.log('response: ', response);
-    })
-    .catch((error) => {
-      console.log('error: ', error);
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      function onError(error) {
+        alert('Failed to upload image :`(')
+        console.log('error: ', error);
+        reject(error);
+      }
+
+      function onProgress(event) {
+        // TODO: Show a loading indicator while the image is uploading.
+        console.log('progress: ', event);
+      }
+
+      function onLoad(response) {
+        if (xhr.status >= 400) {
+          alert('Failed to upload image :`(')
+          reject(response);
+          console.log('onLoad: ', response);
+        }
+        resolve(response);
+      }
+
+      xhr.open('POST', `/image-upload/${getCurrentBoardName()}`, true);
+      xhr.onerror =  onError;
+      xhr.onprogress = onProgress;
+      xhr.onload = onLoad;
+      xhr.send(formData);
     });
   }
 
