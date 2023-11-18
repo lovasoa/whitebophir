@@ -26,16 +26,27 @@
  */
 
 (function () { //Code isolation
+  const newImageDropPoint = {
+    x: 0,
+    y: 0,
+  };
+
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.accept = 'image/*';
-  fileInput.addEventListener('change', onFileInputChange);
 
   function onFileInputChange(event) {
-    // TODO: Initialize upload
+    uploadImage(event.target.files[0], {
+      x: newImageDropPoint.x,
+      y: newImageDropPoint.y,
+    });
   }
 
-  function promptForImage() {
+  function promptForImage(x, y, event) {
+    // Get the position of the click on the canvas so when the user uploads
+    // an image, we can draw it at the same position.
+    newImageDropPoint.x = x;
+    newImageDropPoint.y = y;
     fileInput.click();
   }
 
@@ -59,8 +70,12 @@
   }
 
   var svg = Tools.svg;
+  /**
+    * Creates a new image element on the canvas, or updates an existing image
+    * with new information.
+    * @param {Object} data - The data to use to create the image.
+    */
   function createImageElement(data) {
-    //Creates a new shape on the canvas, or update a shape that already exists with new information
     var img = svg.getElementById(data.id) || Tools.createSVGElement("image");
     img.setAttribute("id", data.id);
     img.setAttribute("href", data.src);
@@ -72,25 +87,22 @@
     return img;
   }
 
-  function updateImageElement(shape, data) {
-    shape.x.baseVal.value = Math.min(data['x2'], data['x']);
-    shape.y.baseVal.value = Math.min(data['y2'], data['y']);
-    shape.width.baseVal.value = Math.abs(data['x2'] - data['x']);
-    shape.height.baseVal.value = Math.abs(data['y2'] - data['y']);
+  /**
+    * Updates the image element with new data.
+    */
+  function updateImageElement(imageElement, data) {
+    imageElement.x.baseVal.value = Math.min(data['x2'], data['x']);
+    imageElement.y.baseVal.value = Math.min(data['y2'], data['y']);
+    imageElement.width.baseVal.value = Math.abs(data['x2'] - data['x']);
+    imageElement.height.baseVal.value = Math.abs(data['y2'] - data['y']);
   }
 
   const canvas = document.getElementById('canvas');
 
-  const events = [
-    "drag",
-    "dragend",
-    "dragenter",
-    "dragleave",
-    "dragover",
-    "dragstart",
-    "drop"
-  ];
-
+  /**
+    * Get the name of the current board based on the current URL.
+    * @returns {string} - The name of the current board.
+    */
   function getCurrentBoardName() {
     let boardName = window.location.pathname.split('/');
     boardName = boardName[boardName.length - 1];
@@ -98,6 +110,12 @@
     return boardName;
   }
 
+  /**
+    * Loads the image from the filesystem to generate a preview while uploading
+    * occurs as well as to get the dimensions of the image.
+    * @param {File} image - The image to preview.
+    * @returns {Promise} - A promise that resolves with the image preview.
+    */
   async function previewImage(image) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -115,6 +133,14 @@
     });
   }
 
+  /**
+    * Uploads an image to the server, draws it on the canvas optimistically.
+    * @param {File} image - The image to upload.
+    * @param {Object} position - The position to draw the image on the canvas.
+    * @param {number} position.x - The x coordinate of the image.
+    * @param {number} position.y - The y coordinate of the image.
+    * @returns {Promise} - A promise that resolves when the image has been uploaded.
+    */
   async function uploadImage(image, position) {
     const id = Tools.generateUID();
     const ImageTool = Tools.list["Image"];
@@ -170,26 +196,59 @@
       }
 
       xhr.open('POST', `/image-upload/${getCurrentBoardName()}`, true);
-      xhr.onerror =  onError;
+      xhr.onerror = onError;
       xhr.onprogress = onProgress;
       xhr.onload = onLoad;
       xhr.send(formData);
     });
   }
 
-  // TODO: Move all canvas event listeners to tool hooks maybe?
-  function preventDefault(e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-
-  function onDrop(event) {
+  /**
+    * Handles the drop event on the canvas.
+    * @param {Event} event - The drop event.
+    */
+  function onUploadEvent(event) {
     const scale = Tools.getScale();
     const position = {
       x: event.clientX / scale,
       y: event.clientY / scale
     };
     uploadImage(event.dataTransfer.files[0], position);
+  }
+
+  function onDrop(event) {
+    onUploadEvent(event);
+  }
+
+  /**
+    * Called when the tool is selected.
+    */
+  function onStart() {
+    fileInput.addEventListener('change', onFileInputChange);
+  }
+
+  /**
+    * Called when the tool is deselected.
+    */
+  function onQuit() {
+    fileInput.removeEventListener('change', onFileInputChange);
+  }
+
+  // List of all drag/drop events.
+  const events = [
+    "drag",
+    "dragend",
+    "dragenter",
+    "dragleave",
+    "dragover",
+    "dragstart",
+    "drop"
+  ];
+
+  // Ignore all default handling of drag/drop events on the canvas.
+  function preventDefault(e) {
+    e.preventDefault();
+    e.stopPropagation();
   }
 
   events.forEach((eventName) => {
@@ -204,10 +263,12 @@
     "listeners": {
       "press": promptForImage,
     },
+    "onstart": onStart,
+    "onquit": onQuit,
     "secondary": null,
     "draw": draw,
     "mouseCursor": "crosshair",
-    "icon": "",
+		"icon": "tools/image/icon.svg",
     "stylesheet": ""
   };
   Tools.add(imageTool);
