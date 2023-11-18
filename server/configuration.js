@@ -39,6 +39,9 @@ module.exports = {
   MAX_EMIT_COUNT_PERIOD:
     parseInt(process.env["WBO_MAX_EMIT_COUNT_PERIOD"]) || 4096,
 
+  /** Maximum file size of image assets */
+  MAX_IMAGE_ASSET_SIZE: parseInt(process.env["WBO_MAX_IMAGE_ASSET_SIZE"]) || 1024 * 1024 * 10, // 10 MB
+
   /** Blocked Tools. A comma-separated list of tools that should not appear on boards. */
   BLOCKED_TOOLS: (process.env["WBO_BLOCKED_TOOLS"] || "").split(","),
 

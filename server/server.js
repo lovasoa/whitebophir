@@ -101,6 +101,12 @@ function validateBoardName(boardName) {
   throw new Error("Illegal board name: " + boardName);
 }
 
+function validateImage(image) {
+  if (image.size > config.MAX_IMAGE_ASSET_SIZE) {
+    throw new Error("Image is too large");
+  }
+}
+
 /**
  * @type {import('http').RequestListener}
  */
@@ -161,33 +167,49 @@ async function handleRequest(request, response) {
         });
       break;
     case "image-upload":
-        // TODO: Validate image size and whatnot
         var boardName = parts[1];
         if (!boardName) {
           response.writeHead(400, { "Content-Type": "text/plain" });
           response.end("No board name provided");
+          return;
         }
+
         const { fields, files } = await parseFormData(request);
-        if (files && files.image && files.image.length > 0) {
-          const id = fields.id[0];
-          const position = JSON.parse(fields.position[0]);
-          const dimensions = JSON.parse(fields.dimensions[0]);
-          const image = files.image[0];
-
-          if (!boardDataList.has(boardName)) {
-            response.writeHead(404, { "Content-Type": "text/plain" });
-            response.end("Board not found");
-            return;
-          }
-
-          // Save the image to disk.
-          const board = await boardDataList.get(boardName);
-          const { publicAssetPath, } = await board.saveImageAsset(id, image)
-
-          socketsInstance.handleImageUpload(
-            boardName, id, publicAssetPath, position, dimensions
-          );
+        if (!files?.image[0]) {
+          response.writeHead(400, { "Content-Type": "text/plain" });
+          response.end("No image provided");
+          return;
         }
+
+        try {
+          validateImage(files.image[0]);
+        } catch (error) {
+          response.writeHead(400, { "Content-Type": "text/plain" });
+          response.end(error.message);
+          return;
+        }
+
+        const id = fields.id[0];
+        const position = JSON.parse(fields.position[0]);
+        const dimensions = JSON.parse(fields.dimensions[0]);
+        const image = files.image[0];
+
+        if (!boardDataList.has(boardName)) {
+          response.writeHead(404, { "Content-Type": "text/plain" });
+          response.end("Board not found");
+          return;
+        }
+
+        // Save the image to disk.
+        const board = await boardDataList.get(boardName);
+        const { publicAssetPath, } = await board.saveImageAsset(id, image)
+
+        // Notify all clients of the new image.
+        socketsInstance.handleImageUpload(
+          boardName, id, publicAssetPath, position, dimensions
+        );
+
+        // Upload successful!
         response.writeHead(200, {
           "Content-Type": "application/json",
           "Content-Security-Policy": CSP,
