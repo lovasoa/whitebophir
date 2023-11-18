@@ -47,6 +47,29 @@ var fileserver = serveStatic(config.WEBROOT, {
   },
 });
 
+async function serveBoardImageAsset(request, response) {
+  return new Promise((resolve, reject) => {
+    const [,, boardId, assetName] = request.url.split("/");
+    const filePath = path.join(config.HISTORY_DIR, `board-${boardId}`, assetName)
+    const file = fs.readFileSync(filePath);
+
+    if (!file) {
+      response.writeHead(404, { "Content-Type": "text/plain" });
+      response.end("File not found");
+      return reject(response);
+    }
+
+    const mimeType = getMimeType(file);
+    response.writeHead(200, {
+      "Content-Type": mimeType,
+      "Content-Security-Policy": CSP,
+      "Cache-Control": "public, max-age=30",
+    });
+    response.end(file);
+    return resolve(response);
+  });
+}
+
 var errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
 function serveError(request, response) {
   return function (err) {
@@ -224,22 +247,8 @@ async function handleRequest(request, response) {
       response.end(JSON.stringify({ status: 'ok' }));
       break;
     case "board-assets":
-        const [, boardId, assetName] = parts;
-        const file = fs.readFileSync(path.join(config.HISTORY_DIR, `board-${boardId}`, assetName));
-
-        if (!file) {
-          response.writeHead(404, { "Content-Type": "text/plain" });
-          response.end("File not found");
-          return;
-        }
-
-        const mimeType = getMimeType(file);
-        response.writeHead(200, {
-          "Content-Type": mimeType,
-          "Content-Security-Policy": CSP,
-          "Cache-Control": "public, max-age=30",
-        });
-        response.end(file);
+        // Returns a promise and will not block.
+        serveBoardImageAsset(request, response);
         break;
     case "export":
     case "preview":
