@@ -12,6 +12,7 @@ var app = require("http").createServer(handler),
   check_output_directory = require("./check_output_directory.js"),
   jwtauth = require("./jwtauth.js"),
   BoardDataList = require('./boardDataList.js'),
+  getMimeType = require("./getMimeType.js"),
   parseFormData = require("./parseFormData.js");
   jwtBoardName = require("./jwtBoardnameAuth.js");
 
@@ -218,22 +219,22 @@ async function handleRequest(request, response) {
       response.end(JSON.stringify({ status: 'ok' }));
       break;
     case "board-assets":
-        // TODO: Ensure user has access to board before serving assets.
-        const boardId = parts[1];
-        const assetName = parts[2];
+        const [, boardId, assetName] = parts;
         const file = fs.readFileSync(path.join(config.HISTORY_DIR, `board-${boardId}`, assetName));
+
         if (!file) {
           response.writeHead(404, { "Content-Type": "text/plain" });
           response.end("File not found");
-        } else {
-          response.writeHead(200, {
-            // TODO: Get MIME type from file.
-            "Content-Type": "image/png",
-            "Content-Security-Policy": CSP,
-            "Cache-Control": "public, max-age=30",
-          });
-          response.end(file);
+          return;
         }
+
+        const mimeType = getMimeType(file);
+        response.writeHead(200, {
+          "Content-Type": mimeType,
+          "Content-Security-Policy": CSP,
+          "Cache-Control": "public, max-age=30",
+        });
+        response.end(file);
         break;
     case "export":
     case "preview":
