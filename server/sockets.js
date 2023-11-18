@@ -48,7 +48,7 @@ function startIO(app, boardDataList) {
   io.on("connection", noFail(handleSocketConnection));
   return {
     io,
-    handleMessage,
+    handleImageUpload
   }
 }
 
@@ -172,6 +172,37 @@ function handleSocketConnection(socket) {
       }
     });
   });
+}
+
+/**
+  * Assuming an image has been saved to disk, this function updates the board
+  * to include a reference to the image and then broadcasts the update to all
+  * connected clients.
+  * @param {string} boardName
+  * @param {string} id
+  * @param {string} publicAssetPath
+  * @param {object} position
+  * @param {number} position.x
+  * @param {number} position.y
+  * @param {object} dimensions
+  * @param {number} dimensions.x
+  * @param {number} dimensions.y
+  */
+function handleImageUpload(boardName, id, publicAssetPath, position, dimensions) {
+  // Update the board to include a reference to the image.
+  const message = {
+    type: "image",
+    id,
+    src: publicAssetPath,
+    x: position.x,
+    y: position.y,
+    tool: "Image",
+    time: Date.now(),
+    x2: position.x + dimensions.x,
+    y2: position.y + dimensions.y,
+  }
+  handleMessage(boardName, message);
+  io.to(boardName).emit("broadcast", message);
 }
 
 /**

@@ -11,8 +11,8 @@ var app = require("http").createServer(handler),
   polyfillLibrary = require("polyfill-library"),
   check_output_directory = require("./check_output_directory.js"),
   jwtauth = require("./jwtauth.js"),
-  multiparty = require('multiparty'),
-  BoardDataList = require('./boardDataList.js');
+  BoardDataList = require('./boardDataList.js'),
+  parseFormData = require("./parseFormData.js");
   jwtBoardName = require("./jwtBoardnameAuth.js");
 
 var MIN_NODE_VERSION = 10.0;
@@ -104,7 +104,7 @@ function validateBoardName(boardName) {
 /**
  * @type {import('http').RequestListener}
  */
-function handleRequest(request, response) {
+async function handleRequest(request, response) {
   var parsedUrl = new URL(request.url, 'http://wbo/');
   var parts = parsedUrl.pathname.split("/");
 
@@ -160,7 +160,59 @@ function handleRequest(request, response) {
           response.end(data);
         });
       break;
+    case "image-upload":
+        // TODO: Validate image size and whatnot
+        var boardName = parts[1];
+        if (!boardName) {
+          response.writeHead(400, { "Content-Type": "text/plain" });
+          response.end("No board name provided");
+        }
+        const { fields, files } = await parseFormData(request);
+        if (files && files.image && files.image.length > 0) {
+          const id = fields.id[0];
+          const position = JSON.parse(fields.position[0]);
+          const dimensions = JSON.parse(fields.dimensions[0]);
+          const image = files.image[0];
 
+          if (!boardDataList.has(boardName)) {
+            response.writeHead(404, { "Content-Type": "text/plain" });
+            response.end("Board not found");
+            return;
+          }
+
+          // Save the image to disk.
+          const board = await boardDataList.get(boardName);
+          const { publicAssetPath, } = await board.saveImageAsset(id, image)
+
+          socketsInstance.handleImageUpload(
+            boardName, id, publicAssetPath, position, dimensions
+          );
+        }
+        response.writeHead(200, {
+          "Content-Type": "application/json",
+          "Content-Security-Policy": CSP,
+          "Cache-Control": "public, max-age=30",
+        });
+      response.end(JSON.stringify({ status: 'ok' }));
+      break;
+    case "board-assets":
+        // TODO: Ensure user has access to board before serving assets.
+        const boardId = parts[1];
+        const assetName = parts[2];
+        const file = fs.readFileSync(path.join(config.HISTORY_DIR, `board-${boardId}`, assetName));
+        if (!file) {
+          response.writeHead(404, { "Content-Type": "text/plain" });
+          response.end("File not found");
+        } else {
+          response.writeHead(200, {
+            // TODO: Get MIME type from file.
+            "Content-Type": "image/png",
+            "Content-Security-Policy": CSP,
+            "Cache-Control": "public, max-age=30",
+          });
+          response.end(file);
+        }
+        break;
     case "export":
     case "preview":
         var boardName = validateBoardName(parts[1]),

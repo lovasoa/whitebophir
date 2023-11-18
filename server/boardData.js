@@ -48,6 +48,10 @@ class BoardData {
       config.HISTORY_DIR,
       "board-" + encodeURIComponent(name) + ".json"
     );
+    this.assetsDir = path.join(
+      config.HISTORY_DIR,
+      "board-" + encodeURIComponent(name)
+    );
     this.lastSaveDate = Date.now();
     this.users = new Set();
     this.saveMutex = new Mutex();
@@ -71,6 +75,7 @@ class BoardData {
    * @returns {boolean} - True if the child was added, else false
    */
   addChild(parentId, child) {
+    // console.log('addChild :: child : ', child);
     var obj = this.board[parentId];
     if (typeof obj !== "object") return false;
     if (Array.isArray(obj._children)) obj._children.push(child);
@@ -91,6 +96,7 @@ class BoardData {
     delete data.tool;
 
     var obj = this.board[id];
+    console.log('Updating object: ', obj);
     if (typeof obj === "object") {
       for (var i in data) {
         obj[i] = data[i];
@@ -160,6 +166,7 @@ class BoardData {
   processMessage(message) {
     if (message._children) return this.processMessageBatch(message._children);
     let id = message.id;
+    console.log('processMessage :: message : ', message);
     switch (message.type) {
       case "delete":
         if (id) this.delete(id);
@@ -299,6 +306,29 @@ class BoardData {
       for (var i = 0; i < item._children.length; i++) {
         this.validate(item._children[i]);
       }
+    }
+  }
+
+  ensureAssetsDirectoryExists() {
+    fs.mkdirSync(this.assetsDir, { recursive: true });
+  }
+
+  // TODO: Make sure saveImageAsset is "thread safe" using mutex
+  saveImageAsset(id, imageFile) {
+    this.ensureAssetsDirectoryExists();
+    const fileExtension = imageFile.originalFilename.split('.').pop();
+    const fileSystemAssetPath = path.join(this.assetsDir, `${id}.${fileExtension}`);
+    const publicAssetPath = `/board-assets/${this.name}/${id}.${fileExtension}`;
+
+    // Data is automatically copied to a tmp directory (apparently) so we just
+    // need to copy it from there.
+    // TODO: Delete temp image file after copy
+    fs.promises.copyFile(imageFile.path, fileSystemAssetPath);
+
+    return {
+      fileSystemAssetPath,
+      publicAssetPath,
+      fileExtension,
     }
   }
 
