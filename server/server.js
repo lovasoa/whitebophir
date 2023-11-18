@@ -168,6 +168,11 @@ async function handleRequest(request, response) {
         });
       break;
     case "image-upload":
+        if (config.BLOCKED_TOOLS.includes('Image')) {
+          response.writeHead(403, { "Content-Type": "text/plain" });
+          response.end("Image upload is disabled");
+          return;
+        }
         var boardName = parts[1];
         if (!boardName) {
           response.writeHead(400, { "Content-Type": "text/plain" });
