@@ -140,9 +140,32 @@ class BoardData {
    * @param {string} id - Identifier of the data to delete.
    */
   delete(id) {
+    const element = this.board[id];
+    if (element.type === 'image') {
+      this.purgeImage(id);
+    }
     //KISS
     delete this.board[id];
     this.delaySave();
+  }
+
+  /**
+    * Removes an image file from the server if it is no longer used.
+    * @param {string} id - Identifier of the image to purge.
+    */
+  purgeImage(id) {
+    const image = this.board[id];
+    const isStillUsed = Object.values(this.board).some(
+      (elem) => {
+        console.log(elem);
+        return elem.id !== id && elem.type === 'image' && elem.src === image.src
+      }
+    );
+    if (!isStillUsed) {
+      const fileName = image.src.split('/').pop();
+      const imagePath = path.join(this.assetsDir, fileName);
+      fs.promises.unlink(imagePath);
+    }
   }
 
   /** Process a batch of messages
