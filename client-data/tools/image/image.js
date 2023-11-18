@@ -267,7 +267,7 @@
     "onquit": onQuit,
     "secondary": null,
     "draw": draw,
-    "mouseCursor": "crosshair",
+    "mouseCursor": "cell",
 		"icon": "tools/image/icon.svg",
     "stylesheet": ""
   };
