@@ -71,6 +71,15 @@
     }
   }
 
+  /**
+    * Gets the absolute URL of a relative URL.  Ensures that the URL points to
+    * the same origin as the current page.
+    */
+  function getAbsoluteImageUrl(relativeUrl) {
+    const normalizedUrl = relativeUrl.startsWith('/') ? relativeUrl : `/${relativeUrl}`;
+    return `${window.location.origin}${normalizedUrl}`;
+  }
+
   var svg = Tools.svg;
   /**
     * Creates a new image element on the canvas, or updates an existing image
@@ -80,7 +89,7 @@
   function createImageElement(data) {
     var img = svg.getElementById(data.id) || Tools.createSVGElement("image");
     img.setAttribute("id", data.id);
-    img.setAttribute("href", data.src);
+    img.setAttribute("href", getAbsoluteImageUrl(data.src));
     img.setAttribute("x", data.x);
     img.setAttribute("y", data.y);
 
