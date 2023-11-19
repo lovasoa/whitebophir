@@ -2,7 +2,7 @@ var app = require("http").createServer(handler),
   sockets = require("./sockets.js"),
   {log, monitorFunction} = require("./log.js"),
   path = require("path"),
-  fs = require("fs"),
+  fs = require("./fs_promises.js"),
   crypto = require("crypto"),
   serveStatic = require("serve-static"),
   createSVG = require("./createSVG.js"),
@@ -49,26 +49,24 @@ var fileserver = serveStatic(config.WEBROOT, {
 });
 
 async function serveBoardImageAsset(request, response) {
-  return new Promise((resolve, reject) => {
-    const [,, boardId, assetName] = request.url.split("/");
-    const filePath = path.join(config.HISTORY_DIR, `board-${boardId}`, assetName)
-    const file = fs.readFileSync(filePath);
+  const [,, boardId, assetName] = request.url.split("/");
+  const filePath = path.join(config.HISTORY_DIR, `board-${boardId}`, assetName)
+  const file = await fs.promises.readFile(filePath);
 
-    if (!file) {
-      response.writeHead(404, { "Content-Type": "text/plain" });
-      response.end("File not found");
-      return reject(response);
-    }
+  if (!file) {
+    response.writeHead(404, { "Content-Type": "text/plain" });
+    response.end("File not found");
+    return response;
+  }
 
-    const mimeType = getMimeType(file);
-    response.writeHead(200, {
-      "Content-Type": mimeType,
-      "Content-Security-Policy": CSP,
-      "Cache-Control": "public, max-age=30",
-    });
-    response.end(file);
-    return resolve(response);
+  const mimeType = getMimeType(file);
+  response.writeHead(200, {
+    "Content-Type": mimeType,
+    "Content-Security-Policy": CSP,
+    "Cache-Control": "public, max-age=30",
   });
+  response.end(file);
+  return response;
 }
 
 var errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
@@ -252,7 +250,8 @@ async function handleRequest(request, response) {
       response.end(JSON.stringify({ status: 'ok' }));
       break;
     case "board-assets":
-        // Returns a promise and will not block.
+        // Returns a promise but we don't need to wait for it to resolve as we
+        // don't want to block.
         serveBoardImageAsset(request, response);
         break;
     case "export":
