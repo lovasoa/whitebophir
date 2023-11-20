@@ -335,21 +335,17 @@ class BoardData {
     fs.mkdirSync(this.assetsDir, { recursive: true });
   }
 
-  saveImageAsset(id, imageFile) {
+  async saveImageAsset(id, imageFile) {
     this.ensureAssetsDirectoryExists();
-    const fileExtension = imageFile.originalFilename.split('.').pop();
-    const fileSystemAssetPath = path.join(this.assetsDir, `${id}.${fileExtension}`);
-    const publicAssetPath = `/board-assets/${this.name}/${id}.${fileExtension}`;
+    const fileSystemAssetPath = path.join(this.assetsDir, `${id}`);
 
     // Data is automatically copied to a tmp directory (apparently) so we just
     // need to copy it from there.
-    fs.promises.copyFile(imageFile.path, fileSystemAssetPath);
-    fs.promises.unlink(imageFile.path);
+    await fs.promises.copyFile(imageFile.path, fileSystemAssetPath);
+    await fs.promises.unlink(imageFile.path);
 
     return {
       fileSystemAssetPath,
-      publicAssetPath,
-      fileExtension,
     }
   }
 

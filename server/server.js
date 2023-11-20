@@ -49,11 +49,12 @@ var fileserver = serveStatic(config.WEBROOT, {
 });
 
 async function serveBoardImageAsset(request, response) {
-  const [,, boardId, assetName] = request.url.split("/");
-  const filePath = path.join(config.HISTORY_DIR, `board-${boardId}`, assetName)
-  const file = await fs.promises.readFile(filePath);
-
-  if (!file) {
+  const [,, boardId, assetId] = request.url.split("/");
+  const filePath = path.join(config.HISTORY_DIR, `board-${boardId}`, assetId)
+  let file;
+  try {
+    file = await fs.promises.readFile(filePath);
+  } catch (error) {
     response.writeHead(404, { "Content-Type": "text/plain" });
     response.end("File not found");
     return response;
@@ -234,11 +235,11 @@ async function handleRequest(request, response) {
 
         // Save the image to disk.
         const board = await boardDataList.get(boardName);
-        const { publicAssetPath, } = await board.saveImageAsset(id, image)
+        await board.saveImageAsset(id, image)
 
         // Notify all clients of the new image.
         socketsInstance.handleImageUpload(
-          boardName, id, publicAssetPath, position, dimensions
+          boardName, id, position, dimensions
         );
 
         // Upload successful!

@@ -179,7 +179,6 @@ function handleSocketConnection(socket) {
   * connected clients.
   * @param {string} boardName
   * @param {string} id
-  * @param {string} publicAssetPath
   * @param {object} position
   * @param {number} position.x
   * @param {number} position.y
@@ -187,12 +186,11 @@ function handleSocketConnection(socket) {
   * @param {number} dimensions.x
   * @param {number} dimensions.y
   */
-function handleImageUpload(boardName, id, publicAssetPath, position, dimensions) {
+function handleImageUpload(boardName, id, position, dimensions) {
   // Update the board to include a reference to the image.
   const message = {
     type: "image",
     id,
-    src: publicAssetPath,
     x: position.x,
     y: position.y,
     tool: "Image",

@@ -87,9 +87,22 @@
     * @param {Object} data - The data to use to create the image.
     */
   function createImageElement(data) {
-    var img = svg.getElementById(data.id) || Tools.createSVGElement("image");
+    const boardName = getCurrentBoardName();
+    const img = svg.getElementById(data.id) || Tools.createSVGElement("image");
     img.setAttribute("id", data.id);
-    img.setAttribute("href", getAbsoluteImageUrl(data.src));
+    img.setAttribute("href", `/board-assets/${boardName}/${data.id}`);
+    img.setAttribute("x", data.x);
+    img.setAttribute("y", data.y);
+
+    updateImageElement(img, data);
+    Tools.drawingArea.appendChild(img);
+    return img;
+  }
+
+  function createPreviewImageElement(data) {
+    const img = svg.getElementById(data.id) || Tools.createSVGElement("image");
+    img.setAttribute("id", data.id);
+    img.setAttribute("href", data.href);
     img.setAttribute("x", data.x);
     img.setAttribute("y", data.y);
 
@@ -152,7 +165,6 @@
     */
   async function uploadImage(image, position) {
     const id = Tools.generateUID();
-    const ImageTool = Tools.list["Image"];
 
     // Get a preview of the image
     const previewElement = await previewImage(image);
@@ -163,10 +175,10 @@
     };
 
     // Optimistically draw the image on the canvas before uploading.
-    ImageTool.draw({
+    createPreviewImageElement({
       id,
       type: "image",
-      src: previewElement.src,
+      href: previewElement.src,
       opacity: 0.5,
       x: position.x,
       y: position.y,
