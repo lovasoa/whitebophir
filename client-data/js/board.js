@@ -27,45 +27,45 @@
 var Tools = {};
 
 function createSignal() {
-  var listeners = [];
+	var listeners = [];
 
-  function remove(listener) {
-    var index = listeners.indexOf(listener);
-    if (index !== -1) listeners.splice(index, 1);
-  }
+	function remove(listener) {
+		var index = listeners.indexOf(listener);
+		if (index !== -1) listeners.splice(index, 1);
+	}
 
-  function add (listener) {
-    listeners.push(listener);
-    return function remove() {
-      var index = listeners.indexOf(listener);
-      if (index !== -1) listeners.splice(index, 1);
-    };
-  }
+	function add (listener) {
+		listeners.push(listener);
+		return function remove() {
+			var index = listeners.indexOf(listener);
+			if (index !== -1) listeners.splice(index, 1);
+		};
+	}
 
-  function emit () {
-    var args = arguments;
-    listeners.forEach(function (listener) {
-      listener.apply(null, args);
-    });
-  }
+	function emit () {
+		var args = arguments;
+		listeners.forEach(function (listener) {
+			listener.apply(null, args);
+		});
+	}
 
-  function destroy() {
-    listeners.splice(0, listeners.length);
-  }
+	function destroy() {
+		listeners.splice(0, listeners.length);
+	}
 
-  return {
-    add,
-    remove,
-    emit,
-    destroy
-  };
+	return {
+		add,
+		remove,
+		emit,
+		destroy
+	};
 }
 
 Tools.events = {
-  strokeSizeChange: createSignal(),
-  colorChange: createSignal(),
-  opacityChange: createSignal(),
-  toolChange: createSignal(),
+	strokeSizeChange: createSignal(),
+	colorChange: createSignal(),
+	opacityChange: createSignal(),
+	toolChange: createSignal(),
 }
 
 Tools.i18n = (function i18n() {
@@ -174,11 +174,11 @@ Tools.HTML = {
 	template: new Minitpl("#tools > .tool"),
 	addShortcut: function addShortcut(key, callback) {
 		window.addEventListener("keydown", function (e) {
-      // Ignore keypresses that occur in combination with ctrl or meta
-      // ex. Prevents switching to Rectangle when using CMD+R to reload the page.
-      if (e.metaKey || e.ctrlKey) return;
-      // Ignore keypresses that occur in an input or textarea
-      if (e.target.matches("input[type=text], textarea")) return;
+			// Ignore keypresses that occur in combination with ctrl or meta
+			// ex. Prevents switching to Rectangle when using CMD+R to reload the page.
+			if (e.metaKey || e.ctrlKey) return;
+			// Ignore keypresses that occur in an input or textarea
+			if (e.target.matches("input[type=text], textarea")) return;
 			if (e.key === key) callback();
 		});
 	},
@@ -281,8 +281,8 @@ Tools.register = function registerTool(newTool) {
 
 	// Register the change handlers
 	if (newTool.onSizeChange) {
-    Tools.events.strokeSizeChange.add(newTool.onSizeChange);
-  }
+		Tools.events.strokeSizeChange.add(newTool.onSizeChange);
+	}
 
 	//There may be pending messages for the tool
 	var pending = Tools.pendingMessages[newTool.name];
@@ -675,7 +675,7 @@ Tools.colorChooser = document.getElementById("chooseColor");
 
 Tools.setColor = function (color) {
 	Tools.colorChooser.value = color;
-  Tools.events.colorChange.emit(color);
+	Tools.events.colorChange.emit(color);
 };
 
 Tools.getColor = (function color() {
@@ -689,29 +689,29 @@ Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
 Tools.strokeSizeChooser = document.getElementById("chooseSize");
 Tools.setSize = function setSize(size) {
-  // if (typeof size !== 'number') throw new Error('Size must be a number');
-  Tools.strokeSizeChooser.value = size;
-  Tools.events.strokeSizeChange.emit(size);
+	// if (typeof size !== 'number') throw new Error('Size must be a number');
+	Tools.strokeSizeChooser.value = size;
+	Tools.events.strokeSizeChange.emit(size);
 }
 Tools.strokeSizeChooser.onchange = Tools.strokeSizeChooser.oninput = function (event) {
-  Tools.setSize(parseFloat(event.target.value, 10));
+	Tools.setSize(parseFloat(event.target.value, 10));
 }
 Tools.getSize = function () {
-  return Math.max(1, Math.min(50, Tools.strokeSizeChooser.value | 0));
+	return Math.max(1, Math.min(50, Tools.strokeSizeChooser.value | 0));
 }
 
 Tools.opacityChooser = document.getElementById("chooseOpacity");
 Tools.opacityChooser.onchange = Tools.opacityChooser.oninput = function (event) {
-  Tools.setOpacity(parseFloat(event.target.value, 10));
+	Tools.setOpacity(parseFloat(event.target.value, 10));
 }
 Tools.setOpacity = function setOpacity(opacity) {
-  // if (typeof opacity !== 'number') throw new Error('Opacity must be a number');
-  Tools.opacityChooser.value = opacity;
-  Tools.events.opacityChange.emit(opacity);
+	// if (typeof opacity !== 'number') throw new Error('Opacity must be a number');
+	Tools.opacityChooser.value = opacity;
+	Tools.events.opacityChange.emit(opacity);
 }
 
 Tools.getOpacity = function getOpacity() {
-  return Math.max(0.1, Math.min(1, Tools.opacityChooser.value | 0));
+	return Math.max(0.1, Math.min(1, Tools.opacityChooser.value | 0));
 }
 
 //Scale the canvas on load
