@@ -32,6 +32,7 @@
     function toggleGrid(evt) {
         index = (index + 1) % states.length;
         gridContainer.setAttributeNS(null, "fill", states[index]);
+        saveGridState();
     }
 
     function createPatterns() {
@@ -104,6 +105,10 @@
         Tools.svg.insertBefore(gridContainer, Tools.drawingArea);
         return gridContainer;
     })();
+
+    function saveGridState() {
+      localStorage.setItem('gridState', index);
+    }
 
     Tools.add({ //The new tool
         "name": "Grid",
