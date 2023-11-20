@@ -26,16 +26,18 @@
  */
 
 (function () { //Code isolation
-  const drawingArea = document.getElementById('board');
   const canvas = document.getElementById('canvas');
+  const drawingArea = document.getElementById('drawingArea');
   const newImageDropPoint = {
     x: 0,
     y: 0,
   };
 
   const fileInput = document.createElement('input');
+  fileInput.setAttribute('id', 'imageUpload');
   fileInput.type = 'file';
   fileInput.accept = 'image/*';
+  document.body.appendChild(fileInput);
 
   function onFileInputChange(event) {
     uploadImage(event.target.files[0], {
@@ -95,7 +97,7 @@
     img.setAttribute("y", data.y);
 
     updateImageElement(img, data);
-    Tools.drawingArea.appendChild(img);
+    drawingArea.appendChild(img);
     return img;
   }
 
@@ -107,7 +109,7 @@
     img.setAttribute("y", data.y);
 
     updateImageElement(img, data);
-    Tools.drawingArea.appendChild(img);
+    drawingArea.appendChild(img);
     return img;
   }
 
@@ -197,7 +199,7 @@
       const xhr = new XMLHttpRequest();
 
       function onError(error) {
-        alert('An error occurred while attempti')
+        alert('An error occurred while attempting to upload the image.')
         console.log('error: ', error);
         reject(error);
       }
@@ -281,10 +283,10 @@
   }
 
   events.forEach((eventName) => {
-    drawingArea.addEventListener(eventName, preventDefault, false);
+    canvas.addEventListener(eventName, preventDefault, false);
   });
 
-  drawingArea.addEventListener("drop", onDrop, false);
+  canvas.addEventListener("drop", onDrop, false);
 
   var imageTool = {
     "name": "Image",
