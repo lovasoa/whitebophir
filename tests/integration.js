@@ -5,10 +5,11 @@ const path = require("path");
 const PORT = 8487
 const SERVER = 'http://localhost:' + PORT;
 
-let wbo, data_path, tokenQuery;
+let wbo, data_path, tokenQuery, currentPath;
 
 async function beforeEach(browser, done) {
     data_path = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'wbo-test-data-'));
+    currentPath = process.cwd();
     process.env["PORT"] = PORT;
     process.env["WBO_HISTORY_DIR"] = data_path;
     if(browser.globals.token) {
@@ -95,9 +96,45 @@ function testCursor(browser) {
         .assert.attributeEquals("#cursor-me", "fill", "#456123")
 }
 
+function testImageUpload(browser) {
+    const fullImagePath = path.join(currentPath, 'tests', 'assets', 'test-image.png');
+    const imageSelector = "image[x='200'][y='200'][width='100'][height='100']";
+    return browser
+        // Select image tool
+        .pause(1000)
+        .click('#toolID-Image')
+        .perform(async function () {
+            return browser
+                .actions({ async: true })
+                .move({
+                    x: 200,
+                    y: 200
+                })
+                .press();
+
+        })
+        // .click('#canvas')
+        .setValue('#imageUpload', fullImagePath)
+        // Check that the image is visible
+        .waitForElementVisible(imageSelector)
+        // Switch to selector tool
+        .click("#toolID-Hand")
+        .click("#toolID-Hand")
+        // Delete the image
+        .click(imageSelector)
+        .perform(function () {
+            return browser
+                .actions({ async: true })
+                .keyDown(browser.Keys.DELETE)
+        })
+        // Check that the image is not visible
+        .waitForElementNotPresent(imageSelector);
+}
+
 function testBoard(browser) {
     var page = browser.url(SERVER + '/boards/anonymous?lang=fr&' + tokenQuery)
         .waitForElementVisible('.tool[title ~= Crayon]') // pencil
+    page = testImageUpload(page);
     page = testPencil(page);
     page = testCircle(page);
     page = testCursor(page);
