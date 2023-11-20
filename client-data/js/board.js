@@ -689,7 +689,7 @@ Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
 Tools.strokeSizeChooser = document.getElementById("chooseSize");
 Tools.setSize = function setSize(size) {
-	// if (typeof size !== 'number') throw new Error('Size must be a number');
+	if (typeof size !== 'number') throw new Error('Size must be a number');
 	Tools.strokeSizeChooser.value = size;
 	Tools.events.strokeSizeChange.emit(size);
 }
@@ -697,7 +697,7 @@ Tools.strokeSizeChooser.onchange = Tools.strokeSizeChooser.oninput = function (e
 	Tools.setSize(parseFloat(event.target.value, 10));
 }
 Tools.getSize = function () {
-	return Math.max(1, Math.min(50, Tools.strokeSizeChooser.value | 0));
+	return Math.max(1, Math.min(50, Tools.strokeSizeChooser.value || 0));
 }
 
 Tools.opacityChooser = document.getElementById("chooseOpacity");
@@ -705,7 +705,7 @@ Tools.opacityChooser.onchange = Tools.opacityChooser.oninput = function (event) 
 	Tools.setOpacity(parseFloat(event.target.value, 10));
 }
 Tools.setOpacity = function setOpacity(opacity) {
-	// if (typeof opacity !== 'number') throw new Error('Opacity must be a number');
+	if (typeof opacity !== 'number') throw new Error('Opacity must be a number');
 	Tools.opacityChooser.value = opacity;
 	Tools.events.opacityChange.emit(opacity);
 }

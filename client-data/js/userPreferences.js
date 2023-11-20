@@ -25,7 +25,6 @@
 			Tools.change('Hand');
 		}
 	}
-	Tools.events.toolChange.add(saveSelectedTool);
 
 	// Stroke Size
 	function saveStrokeSize(size) {
@@ -37,7 +36,6 @@
 			Tools.setSize(parseFloat(size), 10);
 		}
 	}
-	Tools.events.strokeSizeChange.add(saveStrokeSize);
 
 	// Stroke Color
 	function saveStrokeColor(color) {
@@ -49,7 +47,6 @@
 			Tools.setColor(color);
 		}
 	}
-	Tools.events.colorChange.add(saveStrokeColor);
 
 	// Stroke Opacity
 	function saveStrokeOpacity(opacity) {
@@ -61,13 +58,17 @@
 			Tools.setOpacity(parseFloat(opacity, 10));
 		}
 	}
-	Tools.events.opacityChange.add(saveStrokeOpacity);
 
-	document.addEventListener('DOMContentLoaded', function () {
+	window.addEventListener('DOMContentLoaded', function () {
 		restoreGridState();
 		restoreSelectedTool();
 		restoreStrokeSize();
 		restoreStrokeColor();
 		restoreStrokeOpacity();
+
+		Tools.events.toolChange.add(saveSelectedTool);
+		Tools.events.strokeSizeChange.add(saveStrokeSize);
+		Tools.events.colorChange.add(saveStrokeColor);
+		Tools.events.opacityChange.add(saveStrokeOpacity);
 	})
 })();
