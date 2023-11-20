@@ -26,6 +26,48 @@
 
 var Tools = {};
 
+function createSignal() {
+	var listeners = [];
+
+	function remove(listener) {
+		var index = listeners.indexOf(listener);
+		if (index !== -1) listeners.splice(index, 1);
+	}
+
+	function add (listener) {
+		listeners.push(listener);
+		return function remove() {
+			var index = listeners.indexOf(listener);
+			if (index !== -1) listeners.splice(index, 1);
+		};
+	}
+
+	function emit () {
+		var args = arguments;
+		listeners.forEach(function (listener) {
+			listener.apply(null, args);
+		});
+	}
+
+	function destroy() {
+		listeners.splice(0, listeners.length);
+	}
+
+	return {
+		add,
+		remove,
+		emit,
+		destroy
+	};
+}
+
+Tools.events = {
+	strokeSizeChange: createSignal(),
+	colorChange: createSignal(),
+	opacityChange: createSignal(),
+	toolChange: createSignal(),
+}
+
 Tools.i18n = (function i18n() {
 	var translations = JSON.parse(document.getElementById("translations").text);
 	return {
@@ -132,9 +174,12 @@ Tools.HTML = {
 	template: new Minitpl("#tools > .tool"),
 	addShortcut: function addShortcut(key, callback) {
 		window.addEventListener("keydown", function (e) {
-			if (e.key === key && !e.target.matches("input[type=text], textarea")) {
-				callback();
-			}
+			// Ignore keypresses that occur in combination with ctrl or meta
+			// ex. Prevents switching to Rectangle when using CMD+R to reload the page.
+			if (e.metaKey || e.ctrlKey) return;
+			// Ignore keypresses that occur in an input or textarea
+			if (e.target.matches("input[type=text], textarea")) return;
+			if (e.key === key) callback();
 		});
 	},
 	addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
@@ -235,7 +280,9 @@ Tools.register = function registerTool(newTool) {
 	Tools.list[newTool.name] = newTool;
 
 	// Register the change handlers
-	if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
+	if (newTool.onSizeChange) {
+		Tools.events.strokeSizeChange.add(newTool.onSizeChange);
+	}
 
 	//There may be pending messages for the tool
 	var pending = Tools.pendingMessages[newTool.name];
@@ -275,6 +322,7 @@ Tools.change = function (toolName) {
 			var props = newTool.secondary.active ? newTool.secondary : newTool;
 			Tools.HTML.toggle(newTool.name, props.name, props.icon);
 			if (newTool.secondary.switch) newTool.secondary.switch();
+			Tools.events.toolChange.emit(newTool);
 		}
 		return;
 	}
@@ -304,6 +352,7 @@ Tools.change = function (toolName) {
 		//Add the new event listeners
 		Tools.addToolListeners(newTool);
 		Tools.curTool = newTool;
+		Tools.events.toolChange.emit(newTool);
 	}
 
 	//Call the start callback of the new tool
@@ -621,58 +670,48 @@ Tools.colorPresets = [
 	{ color: "#E65194" }
 ];
 
-Tools.color_chooser = document.getElementById("chooseColor");
+Tools.colorChooser = document.getElementById("chooseColor");
 
 Tools.setColor = function (color) {
-	Tools.color_chooser.value = color;
+	Tools.colorChooser.value = color;
+	Tools.events.colorChange.emit(color);
 };
 
 Tools.getColor = (function color() {
-	var color_index = (Math.random() * Tools.colorPresets.length) | 0;
-	var initial_color = Tools.colorPresets[color_index].color;
-	Tools.setColor(initial_color);
-	return function () { return Tools.color_chooser.value; };
+	var colorIndex = (Math.random() * Tools.colorPresets.length) | 0;
+	var initialColor = Tools.colorPresets[colorIndex].color;
+	Tools.setColor(initialColor);
+	return function () { return Tools.colorChooser.value; };
 })();
 
 Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
-Tools.sizeChangeHandlers = [];
-Tools.setSize = (function size() {
-	var chooser = document.getElementById("chooseSize");
+Tools.strokeSizeChooser = document.getElementById("chooseSize");
+Tools.setSize = function setSize(size) {
+	if (typeof size !== 'number') throw new Error('Size must be a number');
+	Tools.strokeSizeChooser.value = size;
+	Tools.events.strokeSizeChange.emit(size);
+}
+Tools.strokeSizeChooser.onchange = Tools.strokeSizeChooser.oninput = function (event) {
+	Tools.setSize(parseFloat(event.target.value, 10));
+}
+Tools.getSize = function () {
+	return Math.max(1, Math.min(50, Tools.strokeSizeChooser.value || 0));
+}
 
-	function update() {
-		var size = Math.max(1, Math.min(50, chooser.value | 0));
-		chooser.value = size;
-		Tools.sizeChangeHandlers.forEach(function (handler) {
-			handler(size);
-		});
-	}
-	update();
+Tools.opacityChooser = document.getElementById("chooseOpacity");
+Tools.opacityChooser.onchange = Tools.opacityChooser.oninput = function (event) {
+	Tools.setOpacity(parseFloat(event.target.value, 10));
+}
+Tools.setOpacity = function setOpacity(opacity) {
+	if (typeof opacity !== 'number') throw new Error('Opacity must be a number');
+	Tools.opacityChooser.value = opacity;
+	Tools.events.opacityChange.emit(opacity);
+}
 
-	chooser.onchange = chooser.oninput = update;
-	return function (value) {
-		if (value !== null && value !== undefined) { chooser.value = value; update(); }
-		return parseInt(chooser.value);
-	};
-})();
-
-Tools.getSize = (function () { return Tools.setSize() });
-
-Tools.getOpacity = (function opacity() {
-	var chooser = document.getElementById("chooseOpacity");
-	var opacityIndicator = document.getElementById("opacityIndicator");
-
-	function update() {
-		opacityIndicator.setAttribute("opacity", chooser.value);
-	}
-	update();
-
-	chooser.onchange = chooser.oninput = update;
-	return function () {
-		return Math.max(0.1, Math.min(1, chooser.value));
-	};
-})();
-
+Tools.getOpacity = function getOpacity() {
+	return Math.max(0.1, Math.min(1, Tools.opacityChooser.value | 0));
+}
 
 //Scale the canvas on load
 Tools.svg.width.baseVal.value = document.body.clientWidth;
