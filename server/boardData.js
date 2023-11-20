@@ -161,9 +161,8 @@ class BoardData {
       }
     );
     if (!isStillUsed) {
-      log('purging unused image', { id, src: image.src });
-      const fileName = image.src.split('/').pop();
-      const imagePath = path.join(this.assetsDir, fileName);
+      log('purging unused image', { id });
+      const imagePath = path.join(this.assetsDir, id);
       fs.promises.unlink(imagePath);
     }
   }
