@@ -107,7 +107,7 @@
     })();
 
     function saveGridState() {
-      localStorage.setItem('gridState', index);
+        localStorage.setItem('gridState', index);
     }
 
     Tools.add({ //The new tool

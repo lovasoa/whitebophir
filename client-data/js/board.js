@@ -322,7 +322,7 @@ Tools.change = function (toolName) {
 			var props = newTool.secondary.active ? newTool.secondary : newTool;
 			Tools.HTML.toggle(newTool.name, props.name, props.icon);
 			if (newTool.secondary.switch) newTool.secondary.switch();
-      Tools.events.toolChange.emit(newTool);
+			Tools.events.toolChange.emit(newTool);
 		}
 		return;
 	}
@@ -352,13 +352,12 @@ Tools.change = function (toolName) {
 		//Add the new event listeners
 		Tools.addToolListeners(newTool);
 		Tools.curTool = newTool;
-    Tools.events.toolChange.emit(newTool);
+		Tools.events.toolChange.emit(newTool);
 	}
 
 	//Call the start callback of the new tool
 	newTool.onstart(oldTool);
 };
-
 
 Tools.addToolListeners = function addToolListeners(tool) {
 	for (var event in tool.compiledListeners) {
