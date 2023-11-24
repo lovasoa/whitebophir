@@ -24,30 +24,31 @@
  * @licend
  */
 
- (function clear() { //Code isolation
+(function clear() {
+  //Code isolation
 
-    function clearBoard() {
-        var msg = {
-            "type": "clear",
-            "id": "",
-            "token": Tools.token
-        };
-		Tools.drawAndSend(msg, Tools.list["Clear"]);
-    }
+  function clearBoard() {
+    var msg = {
+      type: "clear",
+      id: "",
+      token: Tools.token,
+    };
+    Tools.drawAndSend(msg, Tools.list["Clear"]);
+  }
 
-    function draw(data) {
-		Tools.drawingArea.innerHTML = "";
-	}
+  function draw(data) {
+    Tools.drawingArea.innerHTML = "";
+  }
 
-    Tools.add({ //The new tool
-        "name": "Clear",
-        "shortcut": "c",
-        "listeners": {},
-        "icon": "tools/clear/clear.svg",
-        "oneTouch": true,
-        "onstart": clearBoard,
-        "draw": draw,
-        "mouseCursor": "crosshair",
-    });
-
+  Tools.add({
+    //The new tool
+    name: "Clear",
+    shortcut: "c",
+    listeners: {},
+    icon: "tools/clear/clear.svg",
+    oneTouch: true,
+    onstart: clearBoard,
+    draw: draw,
+    mouseCursor: "crosshair",
+  });
 })(); //End of code isolation

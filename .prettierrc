@@ -1,0 +1,12 @@
+{
+  "arrowParens": "always",
+  "bracketSpacing": true,
+  "embeddedLanguageFormatting": "auto",
+  "endOfLine": "lf",
+  "insertPragma": false,
+  "proseWrap": "preserve",
+  "requirePragma": false,
+  "tabWidth": 2,
+  "useTabs": false,
+  "printWidth": 80
+}

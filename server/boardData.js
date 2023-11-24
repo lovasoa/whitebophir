@@ -46,7 +46,7 @@ class BoardData {
     this.board = {};
     this.file = path.join(
       config.HISTORY_DIR,
-      "board-" + encodeURIComponent(name) + ".json"
+      "board-" + encodeURIComponent(name) + ".json",
     );
     this.lastSaveDate = Date.now();
     this.users = new Set();
@@ -174,7 +174,7 @@ class BoardData {
         this.addChild(message.parent, message);
         break;
       case "clear":
-        if(jwtauth.roleInBoard(message.token,message.board) === 'moderator') {
+        if (jwtauth.roleInBoard(message.token, message.board) === "moderator") {
           this.clear();
         } else {
           throw new Error("User is not a moderator");

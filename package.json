@@ -15,11 +15,14 @@
     "polyfill-library": "^3.107.1",
     "serve-static": "^1.14.1",
     "socket.io": "^4",
+    "socket.io-client": "^4.7.2",
     "statsd-client": "^0.4.7"
   },
   "scripts": {
     "start": "node ./server/server.js",
-    "test": "nightwatch tests && nightwatch tests --env jwt"
+    "test": "nightwatch tests && nightwatch tests --env jwt",
+    "prettier": "prettier . --write",
+    "lint": "npx eslint ."
   },
   "main": "./server/server.js",
   "repository": {
@@ -27,7 +30,9 @@
     "url": "http://github.com/lovasoa/whitebophir.git"
   },
   "devDependencies": {
+    "eslint": "^8.54.0",
     "geckodriver": "^4.2.1",
-    "nightwatch": "^3.2.1"
+    "nightwatch": "^3.2.1",
+    "prettier": "3.1.0"
   }
 }
