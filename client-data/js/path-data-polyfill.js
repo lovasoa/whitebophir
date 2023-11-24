@@ -1,4 +1,3 @@
-
 // @info
 //   Polyfill for SVG getPathData() and setPathData() methods. Based on:
 //   - SVGPathSeg polyfill by Philip Rogers (MIT License)
@@ -11,11 +10,32 @@
 //   Jarosław Foksa
 // @license
 //   MIT License
-if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathData) {
+if (
+  !SVGPathElement.prototype.getPathData ||
+  !SVGPathElement.prototype.setPathData
+) {
   (function () {
     var commandsMap = {
-      "Z": "Z", "M": "M", "L": "L", "C": "C", "Q": "Q", "A": "A", "H": "H", "V": "V", "S": "S", "T": "T",
-      "z": "Z", "m": "m", "l": "l", "c": "c", "q": "q", "a": "a", "h": "h", "v": "v", "s": "s", "t": "t"
+      Z: "Z",
+      M: "M",
+      L: "L",
+      C: "C",
+      Q: "Q",
+      A: "A",
+      H: "H",
+      V: "V",
+      S: "S",
+      T: "T",
+      z: "Z",
+      m: "m",
+      l: "l",
+      c: "c",
+      q: "q",
+      a: "a",
+      h: "h",
+      v: "v",
+      s: "s",
+      t: "t",
     };
 
     var Source = function (string) {
@@ -41,27 +61,27 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           // Check for remaining coordinates in the current command.
           if (
-            (char === "+" || char === "-" || char === "." || (char >= "0" && char <= "9")) && this._prevCommand !== "Z"
+            (char === "+" ||
+              char === "-" ||
+              char === "." ||
+              (char >= "0" && char <= "9")) &&
+            this._prevCommand !== "Z"
           ) {
             if (this._prevCommand === "M") {
               command = "L";
-            }
-            else if (this._prevCommand === "m") {
+            } else if (this._prevCommand === "m") {
               command = "l";
-            }
-            else {
+            } else {
               command = this._prevCommand;
             }
-          }
-          else {
+          } else {
             command = null;
           }
 
           if (command === null) {
             return null;
           }
-        }
-        else {
+        } else {
           this._currentIndex += 1;
         }
 
@@ -72,24 +92,25 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
         if (cmd === "H" || cmd === "V") {
           values = [this._parseNumber()];
-        }
-        else if (cmd === "M" || cmd === "L" || cmd === "T") {
+        } else if (cmd === "M" || cmd === "L" || cmd === "T") {
           values = [this._parseNumber(), this._parseNumber()];
-        }
-        else if (cmd === "S" || cmd === "Q") {
-          values = [this._parseNumber(), this._parseNumber(), this._parseNumber(), this._parseNumber()];
-        }
-        else if (cmd === "C") {
+        } else if (cmd === "S" || cmd === "Q") {
+          values = [
+            this._parseNumber(),
+            this._parseNumber(),
+            this._parseNumber(),
+            this._parseNumber(),
+          ];
+        } else if (cmd === "C") {
           values = [
             this._parseNumber(),
             this._parseNumber(),
             this._parseNumber(),
             this._parseNumber(),
             this._parseNumber(),
-            this._parseNumber()
+            this._parseNumber(),
           ];
-        }
-        else if (cmd === "A") {
+        } else if (cmd === "A") {
           values = [
             this._parseNumber(),
             this._parseNumber(),
@@ -97,10 +118,9 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
             this._parseArcFlag(),
             this._parseArcFlag(),
             this._parseNumber(),
-            this._parseNumber()
+            this._parseNumber(),
           ];
-        }
-        else if (cmd === "Z") {
+        } else if (cmd === "Z") {
           this._skipOptionalSpaces();
           values = [];
         }
@@ -108,8 +128,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         if (values === null || values.indexOf(null) >= 0) {
           // Unknown command or known command with invalid values
           return null;
-        }
-        else {
+        } else {
           return { type: command, values: values };
         }
       },
@@ -136,7 +155,14 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
       _isCurrentSpace: function () {
         var char = this._string[this._currentIndex];
-        return char <= " " && (char === " " || char === "\n" || char === "\t" || char === "\r" || char === "\f");
+        return (
+          char <= " " &&
+          (char === " " ||
+            char === "\n" ||
+            char === "\t" ||
+            char === "\r" ||
+            char === "\f")
+        );
       },
 
       _skipOptionalSpaces: function () {
@@ -157,7 +183,10 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         }
 
         if (this._skipOptionalSpaces()) {
-          if (this._currentIndex < this._endIndex && this._string[this._currentIndex] === ",") {
+          if (
+            this._currentIndex < this._endIndex &&
+            this._string[this._currentIndex] === ","
+          ) {
             this._currentIndex += 1;
             this._skipOptionalSpaces();
           }
@@ -180,20 +209,24 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         this._skipOptionalSpaces();
 
         // Read the sign.
-        if (this._currentIndex < this._endIndex && this._string[this._currentIndex] === "+") {
+        if (
+          this._currentIndex < this._endIndex &&
+          this._string[this._currentIndex] === "+"
+        ) {
           this._currentIndex += 1;
-        }
-        else if (this._currentIndex < this._endIndex && this._string[this._currentIndex] === "-") {
+        } else if (
+          this._currentIndex < this._endIndex &&
+          this._string[this._currentIndex] === "-"
+        ) {
           this._currentIndex += 1;
           sign = -1;
         }
 
         if (
           this._currentIndex === this._endIndex ||
-          (
-            (this._string[this._currentIndex] < "0" || this._string[this._currentIndex] > "9") &&
-            this._string[this._currentIndex] !== "."
-          )
+          ((this._string[this._currentIndex] < "0" ||
+            this._string[this._currentIndex] > "9") &&
+            this._string[this._currentIndex] !== ".")
         ) {
           // The first character of a number must be one of [0-9+-.].
           return null;
@@ -222,7 +255,10 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         }
 
         // Read the decimals.
-        if (this._currentIndex < this._endIndex && this._string[this._currentIndex] === ".") {
+        if (
+          this._currentIndex < this._endIndex &&
+          this._string[this._currentIndex] === "."
+        ) {
           this._currentIndex += 1;
 
           // There must be a least one digit following the .
@@ -249,16 +285,17 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         if (
           this._currentIndex !== startIndex &&
           this._currentIndex + 1 < this._endIndex &&
-          (this._string[this._currentIndex] === "e" || this._string[this._currentIndex] === "E") &&
-          (this._string[this._currentIndex + 1] !== "x" && this._string[this._currentIndex + 1] !== "m")
+          (this._string[this._currentIndex] === "e" ||
+            this._string[this._currentIndex] === "E") &&
+          this._string[this._currentIndex + 1] !== "x" &&
+          this._string[this._currentIndex + 1] !== "m"
         ) {
           this._currentIndex += 1;
 
           // Read the sign of the exponent.
           if (this._string[this._currentIndex] === "+") {
             this._currentIndex += 1;
-          }
-          else if (this._string[this._currentIndex] === "-") {
+          } else if (this._string[this._currentIndex] === "-") {
             this._currentIndex += 1;
             expsign = -1;
           }
@@ -278,7 +315,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
             this._string[this._currentIndex] <= "9"
           ) {
             exponent *= 10;
-            exponent += (this._string[this._currentIndex] - "0");
+            exponent += this._string[this._currentIndex] - "0";
             this._currentIndex += 1;
           }
         }
@@ -311,17 +348,15 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
         if (flagChar === "0") {
           flag = 0;
-        }
-        else if (flagChar === "1") {
+        } else if (flagChar === "1") {
           flag = 1;
-        }
-        else {
+        } else {
           return null;
         }
 
         this._skipOptionalSpacesOrDelimiter();
         return flag;
-      }
+      },
     };
 
     var parsePathDataString = function (string) {
@@ -336,25 +371,37 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           if (pathSeg === null) {
             break;
-          }
-          else {
+          } else {
             pathData.push(pathSeg);
           }
         }
       }
 
       return pathData;
-    }
+    };
 
     var setAttribute = SVGPathElement.prototype.setAttribute;
     var removeAttribute = SVGPathElement.prototype.removeAttribute;
 
     var $cachedPathData = window.Symbol ? Symbol() : "__cachedPathData";
-    var $cachedNormalizedPathData = window.Symbol ? Symbol() : "__cachedNormalizedPathData";
+    var $cachedNormalizedPathData = window.Symbol
+      ? Symbol()
+      : "__cachedNormalizedPathData";
 
     // @info
     //   Get an array of corresponding cubic bezier curve parameters for given arc curve paramters.
-    var arcToCubicCurves = function (x1, y1, x2, y2, r1, r2, angle, largeArcFlag, sweepFlag, _recursive) {
+    var arcToCubicCurves = function (
+      x1,
+      y1,
+      x2,
+      y2,
+      r1,
+      r2,
+      angle,
+      largeArcFlag,
+      sweepFlag,
+      _recursive,
+    ) {
       var degToRad = function (degrees) {
         return (Math.PI * degrees) / 180;
       };
@@ -374,8 +421,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         f2 = _recursive[1];
         cx = _recursive[2];
         cy = _recursive[3];
-      }
-      else {
+      } else {
         var p1 = rotate(x1, y1, -angleRad);
         x1 = p1.x;
         y1 = p1.y;
@@ -398,8 +444,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
         if (largeArcFlag === sweepFlag) {
           sign = -1;
-        }
-        else {
+        } else {
           sign = 1;
         }
 
@@ -411,8 +456,8 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
         var k = sign * Math.sqrt(Math.abs(left / right));
 
-        cx = k * r1 * y / r2 + (x1 + x2) / 2;
-        cy = k * -r2 * x / r1 + (y1 + y2) / 2;
+        cx = (k * r1 * y) / r2 + (x1 + x2) / 2;
+        cy = (k * -r2 * x) / r1 + (y1 + y2) / 2;
 
         f1 = Math.asin(parseFloat(((y1 - cy) / r2).toFixed(9)));
         f2 = Math.asin(parseFloat(((y2 - cy) / r2).toFixed(9)));
@@ -441,21 +486,31 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
       var df = f2 - f1;
 
-      if (Math.abs(df) > (Math.PI * 120 / 180)) {
+      if (Math.abs(df) > (Math.PI * 120) / 180) {
         var f2old = f2;
         var x2old = x2;
         var y2old = y2;
 
         if (sweepFlag && f2 > f1) {
-          f2 = f1 + (Math.PI * 120 / 180) * (1);
-        }
-        else {
-          f2 = f1 + (Math.PI * 120 / 180) * (-1);
+          f2 = f1 + ((Math.PI * 120) / 180) * 1;
+        } else {
+          f2 = f1 + ((Math.PI * 120) / 180) * -1;
         }
 
         x2 = cx + r1 * Math.cos(f2);
         y2 = cy + r2 * Math.sin(f2);
-        params = arcToCubicCurves(x2, y2, x2old, y2old, r1, r2, angle, 0, sweepFlag, [f2, f2old, cx, cy]);
+        params = arcToCubicCurves(
+          x2,
+          y2,
+          x2old,
+          y2old,
+          r1,
+          r2,
+          angle,
+          0,
+          sweepFlag,
+          [f2, f2old, cx, cy],
+        );
       }
 
       df = f2 - f1;
@@ -465,8 +520,8 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       var c2 = Math.cos(f2);
       var s2 = Math.sin(f2);
       var t = Math.tan(df / 4);
-      var hx = 4 / 3 * r1 * t;
-      var hy = 4 / 3 * r2 * t;
+      var hx = (4 / 3) * r1 * t;
+      var hy = (4 / 3) * r2 * t;
 
       var m1 = [x1, y1];
       var m2 = [x1 + hx * s1, y1 - hy * c1];
@@ -478,8 +533,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
       if (_recursive) {
         return [m2, m3, m4].concat(params);
-      }
-      else {
+      } else {
         params = [m2, m3, m4].concat(params);
 
         var curves = [];
@@ -497,7 +551,10 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
     var clonePathData = function (pathData) {
       return pathData.map(function (seg) {
-        return { type: seg.type, values: Array.prototype.slice.call(seg.values) }
+        return {
+          type: seg.type,
+          values: Array.prototype.slice.call(seg.values),
+        };
       });
     };
 
@@ -526,9 +583,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "m") {
+        } else if (type === "m") {
           var x = currentX + seg.values[0];
           var y = currentY + seg.values[1];
 
@@ -539,9 +594,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "L") {
+        } else if (type === "L") {
           var x = seg.values[0];
           var y = seg.values[1];
 
@@ -549,9 +602,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "l") {
+        } else if (type === "l") {
           var x = currentX + seg.values[0];
           var y = currentY + seg.values[1];
 
@@ -559,9 +610,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "C") {
+        } else if (type === "C") {
           var x1 = seg.values[0];
           var y1 = seg.values[1];
           var x2 = seg.values[2];
@@ -569,13 +618,14 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = seg.values[4];
           var y = seg.values[5];
 
-          absolutizedPathData.push({ type: "C", values: [x1, y1, x2, y2, x, y] });
+          absolutizedPathData.push({
+            type: "C",
+            values: [x1, y1, x2, y2, x, y],
+          });
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "c") {
+        } else if (type === "c") {
           var x1 = currentX + seg.values[0];
           var y1 = currentY + seg.values[1];
           var x2 = currentX + seg.values[2];
@@ -583,13 +633,14 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var x = currentX + seg.values[4];
           var y = currentY + seg.values[5];
 
-          absolutizedPathData.push({ type: "C", values: [x1, y1, x2, y2, x, y] });
+          absolutizedPathData.push({
+            type: "C",
+            values: [x1, y1, x2, y2, x, y],
+          });
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "Q") {
+        } else if (type === "Q") {
           var x1 = seg.values[0];
           var y1 = seg.values[1];
           var x = seg.values[2];
@@ -599,9 +650,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "q") {
+        } else if (type === "q") {
           var x1 = currentX + seg.values[0];
           var y1 = currentY + seg.values[1];
           var x = currentX + seg.values[2];
@@ -611,59 +660,61 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "A") {
+        } else if (type === "A") {
           var x = seg.values[5];
           var y = seg.values[6];
 
           absolutizedPathData.push({
             type: "A",
-            values: [seg.values[0], seg.values[1], seg.values[2], seg.values[3], seg.values[4], x, y]
+            values: [
+              seg.values[0],
+              seg.values[1],
+              seg.values[2],
+              seg.values[3],
+              seg.values[4],
+              x,
+              y,
+            ],
           });
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "a") {
+        } else if (type === "a") {
           var x = currentX + seg.values[5];
           var y = currentY + seg.values[6];
 
           absolutizedPathData.push({
             type: "A",
-            values: [seg.values[0], seg.values[1], seg.values[2], seg.values[3], seg.values[4], x, y]
+            values: [
+              seg.values[0],
+              seg.values[1],
+              seg.values[2],
+              seg.values[3],
+              seg.values[4],
+              x,
+              y,
+            ],
           });
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "H") {
+        } else if (type === "H") {
           var x = seg.values[0];
           absolutizedPathData.push({ type: "H", values: [x] });
           currentX = x;
-        }
-
-        else if (type === "h") {
+        } else if (type === "h") {
           var x = currentX + seg.values[0];
           absolutizedPathData.push({ type: "H", values: [x] });
           currentX = x;
-        }
-
-        else if (type === "V") {
+        } else if (type === "V") {
           var y = seg.values[0];
           absolutizedPathData.push({ type: "V", values: [y] });
           currentY = y;
-        }
-
-        else if (type === "v") {
+        } else if (type === "v") {
           var y = currentY + seg.values[0];
           absolutizedPathData.push({ type: "V", values: [y] });
           currentY = y;
-        }
-
-        else if (type === "S") {
+        } else if (type === "S") {
           var x2 = seg.values[0];
           var y2 = seg.values[1];
           var x = seg.values[2];
@@ -673,9 +724,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "s") {
+        } else if (type === "s") {
           var x2 = currentX + seg.values[0];
           var y2 = currentY + seg.values[1];
           var x = currentX + seg.values[2];
@@ -685,29 +734,23 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "T") {
+        } else if (type === "T") {
           var x = seg.values[0];
-          var y = seg.values[1]
+          var y = seg.values[1];
 
           absolutizedPathData.push({ type: "T", values: [x, y] });
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "t") {
+        } else if (type === "t") {
           var x = currentX + seg.values[0];
-          var y = currentY + seg.values[1]
+          var y = currentY + seg.values[1];
 
           absolutizedPathData.push({ type: "T", values: [x, y] });
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (type === "Z" || type === "z") {
+        } else if (type === "Z" || type === "z") {
           absolutizedPathData.push({ type: "Z", values: [] });
 
           currentX = subpathX;
@@ -746,9 +789,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (seg.type === "C") {
+        } else if (seg.type === "C") {
           var x1 = seg.values[0];
           var y1 = seg.values[1];
           var x2 = seg.values[2];
@@ -763,9 +804,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (seg.type === "L") {
+        } else if (seg.type === "L") {
           var x = seg.values[0];
           var y = seg.values[1];
 
@@ -773,25 +812,19 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (seg.type === "H") {
+        } else if (seg.type === "H") {
           var x = seg.values[0];
 
           reducedPathData.push({ type: "L", values: [x, currentY] });
 
           currentX = x;
-        }
-
-        else if (seg.type === "V") {
+        } else if (seg.type === "V") {
           var y = seg.values[0];
 
           reducedPathData.push({ type: "L", values: [currentX, y] });
 
           currentY = y;
-        }
-
-        else if (seg.type === "S") {
+        } else if (seg.type === "S") {
           var x2 = seg.values[0];
           var y2 = seg.values[1];
           var x = seg.values[2];
@@ -802,8 +835,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           if (lastType === "C" || lastType === "S") {
             cx1 = currentX + (currentX - lastControlX);
             cy1 = currentY + (currentY - lastControlY);
-          }
-          else {
+          } else {
             cx1 = currentX;
             cy1 = currentY;
           }
@@ -815,9 +847,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (seg.type === "T") {
+        } else if (seg.type === "T") {
           var x = seg.values[0];
           var y = seg.values[1];
 
@@ -826,47 +856,48 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           if (lastType === "Q" || lastType === "T") {
             x1 = currentX + (currentX - lastControlX);
             y1 = currentY + (currentY - lastControlY);
-          }
-          else {
+          } else {
             x1 = currentX;
             y1 = currentY;
           }
 
-          var cx1 = currentX + 2 * (x1 - currentX) / 3;
-          var cy1 = currentY + 2 * (y1 - currentY) / 3;
-          var cx2 = x + 2 * (x1 - x) / 3;
-          var cy2 = y + 2 * (y1 - y) / 3;
+          var cx1 = currentX + (2 * (x1 - currentX)) / 3;
+          var cy1 = currentY + (2 * (y1 - currentY)) / 3;
+          var cx2 = x + (2 * (x1 - x)) / 3;
+          var cy2 = y + (2 * (y1 - y)) / 3;
 
-          reducedPathData.push({ type: "C", values: [cx1, cy1, cx2, cy2, x, y] });
+          reducedPathData.push({
+            type: "C",
+            values: [cx1, cy1, cx2, cy2, x, y],
+          });
 
           lastControlX = x1;
           lastControlY = y1;
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (seg.type === "Q") {
+        } else if (seg.type === "Q") {
           var x1 = seg.values[0];
           var y1 = seg.values[1];
           var x = seg.values[2];
           var y = seg.values[3];
 
-          var cx1 = currentX + 2 * (x1 - currentX) / 3;
-          var cy1 = currentY + 2 * (y1 - currentY) / 3;
-          var cx2 = x + 2 * (x1 - x) / 3;
-          var cy2 = y + 2 * (y1 - y) / 3;
+          var cx1 = currentX + (2 * (x1 - currentX)) / 3;
+          var cy1 = currentY + (2 * (y1 - currentY)) / 3;
+          var cx2 = x + (2 * (x1 - x)) / 3;
+          var cy2 = y + (2 * (y1 - y)) / 3;
 
-          reducedPathData.push({ type: "C", values: [cx1, cy1, cx2, cy2, x, y] });
+          reducedPathData.push({
+            type: "C",
+            values: [cx1, cy1, cx2, cy2, x, y],
+          });
 
           lastControlX = x1;
           lastControlY = y1;
 
           currentX = x;
           currentY = y;
-        }
-
-        else if (seg.type === "A") {
+        } else if (seg.type === "A") {
           var r1 = Math.abs(seg.values[0]);
           var r2 = Math.abs(seg.values[1]);
           var angle = seg.values[2];
@@ -876,14 +907,26 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           var y = seg.values[6];
 
           if (r1 === 0 || r2 === 0) {
-            reducedPathData.push({ type: "C", values: [currentX, currentY, x, y, x, y] });
+            reducedPathData.push({
+              type: "C",
+              values: [currentX, currentY, x, y, x, y],
+            });
 
             currentX = x;
             currentY = y;
-          }
-          else {
+          } else {
             if (currentX !== x || currentY !== y) {
-              var curves = arcToCubicCurves(currentX, currentY, x, y, r1, r2, angle, largeArcFlag, sweepFlag);
+              var curves = arcToCubicCurves(
+                currentX,
+                currentY,
+                x,
+                y,
+                r1,
+                r2,
+                angle,
+                largeArcFlag,
+                sweepFlag,
+              );
 
               curves.forEach(function (curve) {
                 reducedPathData.push({ type: "C", values: curve });
@@ -893,9 +936,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
               currentY = y;
             }
           }
-        }
-
-        else if (seg.type === "Z") {
+        } else if (seg.type === "Z") {
           reducedPathData.push(seg);
 
           currentX = subpathX;
@@ -930,14 +971,12 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       if (options && options.normalize) {
         if (this[$cachedNormalizedPathData]) {
           return clonePathData(this[$cachedNormalizedPathData]);
-        }
-        else {
+        } else {
           var pathData;
 
           if (this[$cachedPathData]) {
             pathData = clonePathData(this[$cachedPathData]);
-          }
-          else {
+          } else {
             pathData = parsePathDataString(this.getAttribute("d") || "");
             this[$cachedPathData] = clonePathData(pathData);
           }
@@ -946,12 +985,10 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
           this[$cachedNormalizedPathData] = clonePathData(normalizedPathData);
           return normalizedPathData;
         }
-      }
-      else {
+      } else {
         if (this[$cachedPathData]) {
           return clonePathData(this[$cachedPathData]);
-        }
-        else {
+        } else {
           var pathData = parsePathDataString(this.getAttribute("d") || "");
           this[$cachedPathData] = clonePathData(pathData);
           return pathData;
@@ -964,12 +1001,10 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         if (isIE) {
           // @bugfix https://github.com/mbostock/d3/issues/1737
           this.setAttribute("d", "");
-        }
-        else {
+        } else {
           this.removeAttribute("d");
         }
-      }
-      else {
+      } else {
         var d = "";
 
         for (var i = 0, l = pathData.length; i < l; i += 1) {
@@ -995,8 +1030,12 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
       var y = this.y.baseVal.value;
       var width = this.width.baseVal.value;
       var height = this.height.baseVal.value;
-      var rx = this.hasAttribute("rx") ? this.rx.baseVal.value : this.ry.baseVal.value;
-      var ry = this.hasAttribute("ry") ? this.ry.baseVal.value : this.rx.baseVal.value;
+      var rx = this.hasAttribute("rx")
+        ? this.rx.baseVal.value
+        : this.ry.baseVal.value;
+      var ry = this.hasAttribute("ry")
+        ? this.ry.baseVal.value
+        : this.rx.baseVal.value;
 
       if (rx > width / 2) {
         rx = width / 2;
@@ -1016,12 +1055,14 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         { type: "A", values: [rx, ry, 0, 0, 1, x, y + height - ry] },
         { type: "V", values: [y + ry] },
         { type: "A", values: [rx, ry, 0, 0, 1, x + rx, y] },
-        { type: "Z", values: [] }
+        { type: "Z", values: [] },
       ];
 
       // Get rid of redundant "A" segs when either rx or ry is 0
       pathData = pathData.filter(function (s) {
-        return s.type === "A" && (s.values[0] === 0 || s.values[1] === 0) ? false : true;
+        return s.type === "A" && (s.values[0] === 0 || s.values[1] === 0)
+          ? false
+          : true;
       });
 
       if (options && options.normalize === true) {
@@ -1042,7 +1083,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         { type: "A", values: [r, r, 0, 0, 1, cx - r, cy] },
         { type: "A", values: [r, r, 0, 0, 1, cx, cy - r] },
         { type: "A", values: [r, r, 0, 0, 1, cx + r, cy] },
-        { type: "Z", values: [] }
+        { type: "Z", values: [] },
       ];
 
       if (options && options.normalize === true) {
@@ -1064,7 +1105,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         { type: "A", values: [rx, ry, 0, 0, 1, cx - rx, cy] },
         { type: "A", values: [rx, ry, 0, 0, 1, cx, cy - ry] },
         { type: "A", values: [rx, ry, 0, 0, 1, cx + rx, cy] },
-        { type: "Z", values: [] }
+        { type: "Z", values: [] },
       ];
 
       if (options && options.normalize === true) {
@@ -1077,7 +1118,7 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
     SVGLineElement.prototype.getPathData = function () {
       return [
         { type: "M", values: [this.x1.baseVal.value, this.y1.baseVal.value] },
-        { type: "L", values: [this.x2.baseVal.value, this.y2.baseVal.value] }
+        { type: "L", values: [this.x2.baseVal.value, this.y2.baseVal.value] },
       ];
     };
 
@@ -1088,8 +1129,8 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         var point = this.points.getItem(i);
 
         pathData.push({
-          type: (i === 0 ? "M" : "L"),
-          values: [point.x, point.y]
+          type: i === 0 ? "M" : "L",
+          values: [point.x, point.y],
         });
       }
 
@@ -1103,14 +1144,14 @@ if (!SVGPathElement.prototype.getPathData || !SVGPathElement.prototype.setPathDa
         var point = this.points.getItem(i);
 
         pathData.push({
-          type: (i === 0 ? "M" : "L"),
-          values: [point.x, point.y]
+          type: i === 0 ? "M" : "L",
+          values: [point.x, point.y],
         });
       }
 
       pathData.push({
         type: "Z",
-        values: []
+        values: [],
       });
 
       return pathData;

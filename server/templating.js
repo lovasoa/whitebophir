@@ -11,7 +11,7 @@ const client_config = require("./client_configuration");
  * @type {object}
  */
 const TRANSLATIONS = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "translations.json"))
+  fs.readFileSync(path.join(__dirname, "translations.json")),
 );
 const languages = Object.keys(TRANSLATIONS);
 
@@ -33,7 +33,8 @@ class Template {
     this.template = handlebars.compile(contents);
   }
   parameters(parsedUrl, request, isModerator) {
-    const accept_language_str = parsedUrl.query.lang || request.headers["accept-language"];
+    const accept_language_str =
+      parsedUrl.query.lang || request.headers["accept-language"];
     const accept_languages = accept_language_parser.parse(accept_language_str);
     const opts = { loose: true };
     let language =
@@ -41,7 +42,8 @@ class Template {
     // The loose matcher returns the first language that partially matches, so we need to
     // check if the preferred language is supported to return it
     if (accept_languages.length > 0) {
-      const preferred_language = accept_languages[0].code + "-" + accept_languages[0].region;
+      const preferred_language =
+        accept_languages[0].code + "-" + accept_languages[0].region;
       if (languages.includes(preferred_language)) {
         language = preferred_language;
       }
@@ -51,7 +53,14 @@ class Template {
     const prefix = request.url.split("/boards/")[0].substr(1);
     const baseUrl = findBaseUrl(request) + (prefix ? prefix + "/" : "");
     const moderator = isModerator;
-    return { baseUrl, languages, language, translations, configuration, moderator };
+    return {
+      baseUrl,
+      languages,
+      language,
+      translations,
+      configuration,
+      moderator,
+    };
   }
   serve(request, response, isModerator) {
     const parsedUrl = url.parse(request.url, true);

@@ -234,7 +234,10 @@ footer a:hover {
   width: 300px;
   box-shadow: -150px 0 150px 150px black;
   background: black;
-  transition: width 0.5s, box-shadow 0.3s ease 0.2s, background-color 0.5s;
+  transition:
+    width 0.5s,
+    box-shadow 0.3s ease 0.2s,
+    background-color 0.5s;
 }
 
 .lang-selector ul {
@@ -253,7 +256,10 @@ footer a:hover {
   text-align: right;
   text-transform: uppercase;
   list-style: none;
-  transition: box-shadow 0.3s, width 0.5s, background-color 0.5s ease 0.3s;
+  transition:
+    box-shadow 0.3s,
+    width 0.5s,
+    background-color 0.5s ease 0.3s;
 }
 
 .lang-selector li a {

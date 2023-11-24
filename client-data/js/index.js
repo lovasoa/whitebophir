@@ -9,7 +9,7 @@ function showRecentBoards() {
 
   var list = document.createElement("ul");
 
-  recentBoards.forEach(function(name) {
+  recentBoards.forEach(function (name) {
     var listItem = document.createElement("li");
     var link = document.createElement("a");
     link.setAttribute("href", `/boards/${encodeURIComponent(name)}`);
