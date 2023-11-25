@@ -1,7 +1,7 @@
 /**
  *                        WHITEBOPHIR
  *********************************************************
- * @licstart  The following is the entire license notice for the 
+ * @licstart  The following is the entire license notice for the
  *  JavaScript code in this page.
  *
  * Copyright (C) 2013  Ophir LOJKINE
@@ -24,10 +24,9 @@
  * @licend
  */
 
-
-config = require("./configuration.js"),
-jsonwebtoken = require("jsonwebtoken");
-const {roleInBoard} = require("./jwtBoardnameAuth");
+(config = require("./configuration.js")),
+  (jsonwebtoken = require("jsonwebtoken"));
+const { roleInBoard } = require("./jwtBoardnameAuth");
 /**
  * Validates jwt and returns whether user is a moderator
  * @param {URL} url
@@ -47,6 +46,5 @@ function checkUserPermission(url) {
   }
   return isModerator;
 }
-
 
 module.exports = { checkUserPermission };

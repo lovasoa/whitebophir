@@ -19,7 +19,9 @@
   },
   "scripts": {
     "start": "node ./server/server.js",
-    "test": "nightwatch tests && nightwatch tests --env jwt"
+    "test": "nightwatch tests && nightwatch tests --env jwt",
+    "prettier": "prettier . --write",
+    "prettier-check": "prettier . --check"
   },
   "main": "./server/server.js",
   "repository": {
@@ -28,6 +30,7 @@
   },
   "devDependencies": {
     "geckodriver": "^4.2.1",
-    "nightwatch": "^3.2.1"
+    "nightwatch": "^3.2.1",
+    "prettier": "^3.1.0"
   }
 }

@@ -27,7 +27,7 @@ If you have your own web server, and want to run a private instance of WBO on it
 
 ### Running the code in a container (safer)
 
-If you use the [docker](https://www.docker.com/) containerization service, you can easily run WBO as a container. 
+If you use the [docker](https://www.docker.com/) containerization service, you can easily run WBO as a container.
 An official docker image for WBO is hosted on dockerhub as [`lovasoa/wbo`](https://hub.docker.com/r/lovasoa/wbo): [![WBO 1M docker pulls](https://img.shields.io/docker/pulls/lovasoa/wbo?style=flat)](https://hub.docker.com/repository/docker/lovasoa/wbo).
 
 You can run the following bash command to launch WBO on port 5001, while persisting the boards outside of docker:
@@ -45,6 +45,7 @@ You can then access WBO at `http://localhost:5001`.
 Alternatively, you can run the code with [node.js](https://nodejs.org/) directly, without docker.
 
 First, download the sources:
+
 ```
 git clone https://github.com/lovasoa/whitebophir.git
 cd whitebophir
@@ -58,14 +59,17 @@ npm install --production
 ```
 
 Finally, you can start the server:
+
 ```
 PORT=5001 npm start
 ```
 
 This will run WBO directly on your machine, on port 5001, without any isolation from the other services. You can also use an invokation like
+
 ```
 PORT=5001 HOST=127.0.0.1 npm start
 ```
+
 to make whitebophir only listen on the loopback device. This is useful if you want to put whitebophir behind a reverse proxy.
 
 ### Running WBO on a subfolder
@@ -76,7 +80,7 @@ See instructions on our Wiki about [how to setup a reverse proxy for WBO](https:
 
 ## Translations
 
-WBO is available in multiple languages. The translations are stored in [`server/translations.json`](./server/translations.json). 
+WBO is available in multiple languages. The translations are stored in [`server/translations.json`](./server/translations.json).
 If you feel like contributing to this collaborative project, you can [translate WBO into your own language](https://github.com/lovasoa/whitebophir/wiki/How-to-translate-WBO-into-your-own-language).
 
 ## Authentication
@@ -86,10 +90,10 @@ WBO supports authentication using [Json Web Tokens](https://jwt.io/introduction)
 The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
 
 Within the payload, you can declare the user's roles as an array.
-Currently the only accepted roles are `moderator` and `editor`. 
+Currently the only accepted roles are `moderator` and `editor`.
 
- - `moderator` will give the user an additional tool to wipe all data from the board. To declare this role, see the example below.
- - `editor` will give the user the ability to edit the board. This is the default role for all users.
+- `moderator` will give the user an additional tool to wipe all data from the board. To declare this role, see the example below.
+- `editor` will give the user the ability to edit the board. This is the default role for all users.
 
 ```json
 {
@@ -98,6 +102,7 @@ Currently the only accepted roles are `moderator` and `editor`.
   "roles": ["moderator"]
 }
 ```
+
 Moderators have access to the Clear tool, which will wipe all content from the board.
 
 ## Board name verification in the JWT
@@ -108,9 +113,15 @@ To check for a valid board name just add the board name to the role with a ":". 
 
 ```json
 {
-  "roles": ["moderator:<boardName1>","moderator:<boardName2>","editor:<boardName3>","editor:<boardName4>"]
+  "roles": [
+    "moderator:<boardName1>",
+    "moderator:<boardName2>",
+    "editor:<boardName3>",
+    "editor:<boardName4>"
+  ]
 }
 ```
+
 eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
 
 ```json
@@ -128,9 +139,10 @@ You can now be sure that only users who have the correct token have access to th
 When you start a WBO server, it loads its configuration from several environment variables.
 You can see a list of these variables in [`configuration.js`](./server/configuration.js).
 Some important environment variables are :
- - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
- - `WBO_MAX_EMIT_COUNT` : the maximum number of messages that a client can send per unit of time. Increase this value if you want smoother drawings, at the expense of being susceptible to denial of service attacks if your server does not have enough processing power. By default, the units of this quantity are messages per 4 seconds, and the default value is `192`.
- - `AUTH_SECRET_KEY` : If you would like to authenticate your boards using jwt, this declares the secret key.
+
+- `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
+- `WBO_MAX_EMIT_COUNT` : the maximum number of messages that a client can send per unit of time. Increase this value if you want smoother drawings, at the expense of being susceptible to denial of service attacks if your server does not have enough processing power. By default, the units of this quantity are messages per 4 seconds, and the default value is `192`.
+- `AUTH_SECRET_KEY` : If you would like to authenticate your boards using jwt, this declares the secret key.
 
 ## Troubleshooting
 
@@ -146,5 +158,5 @@ metrics collection agent.
 
 Example: `docker run -e STATSD_URL=udp://127.0.0.1:8125 lovasoa/wbo`.
 
- - If you use **prometheus**, you can collect the metrics with [statsd-exporter](https://hub.docker.com/r/prom/statsd-exporter).
- - If you use **datadog**, you can collect the metrics with [dogstatsd](https://docs.datadoghq.com/developers/dogstatsd).
+- If you use **prometheus**, you can collect the metrics with [statsd-exporter](https://hub.docker.com/r/prom/statsd-exporter).
+- If you use **datadog**, you can collect the metrics with [dogstatsd](https://docs.datadoghq.com/developers/dogstatsd).
