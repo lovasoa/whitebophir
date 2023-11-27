@@ -1,16 +1,15 @@
 #textToolInput {
-	position:fixed;
-	top:-1000px; /*Hidden*/
-	left: 80px;
-	width:500px;
+  position: fixed;
+  top: -1000px; /*Hidden*/
+  left: 80px;
+  width: 500px;
 }
 #textToolInput:focus {
-	top: 5px;
+  top: 5px;
 }
 
 text {
-	font-family:"Arial", "Helvetica", sans-serif;
-	user-select:none;
-	-moz-user-select:none;
+  font-family: "Arial", "Helvetica", sans-serif;
+  user-select: none;
+  -moz-user-select: none;
 }
-

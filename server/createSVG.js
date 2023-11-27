@@ -1,7 +1,7 @@
 const fs = require("./fs_promises.js"),
   path = require("path"),
-  wboPencilPoint = require("../client-data/tools/pencil/wbo_pencil_point.js")
-    .wboPencilPoint;
+  wboPencilPoint =
+    require("../client-data/tools/pencil/wbo_pencil_point.js").wboPencilPoint;
 
 function htmlspecialchars(str) {
   if (typeof str !== "string") return "";
@@ -181,7 +181,7 @@ async function toSVG(obj, writeable) {
         Math.max((elem.y + margin + (elem.deltay | 0)) | 0, dim[1]),
       ];
     },
-    [margin, margin]
+    [margin, margin],
   );
   writeable.write(
     '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" ' +
@@ -194,7 +194,7 @@ async function toSVG(obj, writeable) {
       'text {font-family:"Arial"}' +
       "path {fill:none;stroke-linecap:round;stroke-linejoin:round;}" +
       "rect {fill:none}" +
-      "]]></style></defs>"
+      "]]></style></defs>",
   );
   await Promise.all(
     elems.map(async function (elem) {
@@ -202,7 +202,7 @@ async function toSVG(obj, writeable) {
       const renderFun = Tools[elem.tool];
       if (renderFun) writeable.write(renderFun(elem));
       else console.warn("Missing render function for tool", elem.tool);
-    })
+    }),
   );
   writeable.write("</svg>");
 }

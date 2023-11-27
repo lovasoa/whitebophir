@@ -33,12 +33,17 @@ function startIO(app, boardDataList) {
   io = iolib(app);
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
-    io.use(function(socket, next) {
-      if(socket.handshake.query && socket.handshake.query.token) {
-        jsonwebtoken.verify(socket.handshake.query.token, config.AUTH_SECRET_KEY, function(err, decoded) {
-          if(err) return next(new Error("Authentication error: Invalid JWT"));
-          next();
-        })
+    io.use(function (socket, next) {
+      if (socket.handshake.query && socket.handshake.query.token) {
+        jsonwebtoken.verify(
+          socket.handshake.query.token,
+          config.AUTH_SECRET_KEY,
+          function (err, decoded) {
+            if (err)
+              return next(new Error("Authentication error: Invalid JWT"));
+            next();
+          },
+        );
       } else {
         next(new Error("Authentication error: No jwt provided"));
       }
@@ -92,7 +97,7 @@ function handleSocketConnection(socket) {
     "error",
     noFail(function onSocketError(error) {
       log("ERROR", error);
-    })
+    }),
   );
 
   socket.on("getboard", async function onGetBoard(name) {
@@ -152,7 +157,7 @@ function handleSocketConnection(socket) {
 
       //Send data to all other users connected on the same board
       socket.broadcast.to(boardName).emit("broadcast", data);
-    })
+    }),
   );
 
   socket.on("disconnecting", function onDisconnecting(reason) {

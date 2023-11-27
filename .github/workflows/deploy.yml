@@ -1,7 +1,7 @@
 name: deploy
 on:
   push:
-    tags:        
+    tags:
       - v*
 
 jobs:
@@ -9,15 +9,15 @@ jobs:
     name: deploy
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: Dokku
-      uses: dokku/github-action@bbb8818f9bad88edd3099a2399ef9be366754ff9
-      with:
-        git_remote_url: ssh://dokku@${{ secrets.SSH_SERVER }}:22/wbo
-        ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-        git_push_flags: --force
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Dokku
+        uses: dokku/github-action@bbb8818f9bad88edd3099a2399ef9be366754ff9
+        with:
+          git_remote_url: ssh://dokku@${{ secrets.SSH_SERVER }}:22/wbo
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          git_push_flags: --force
   push_to_registry:
     name: Push Docker image to Docker Hub
     runs-on: ubuntu-latest

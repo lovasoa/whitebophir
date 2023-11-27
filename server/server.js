@@ -1,6 +1,6 @@
 var app = require("http").createServer(handler),
   sockets = require("./sockets.js"),
-  {log, monitorFunction} = require("./log.js"),
+  { log, monitorFunction } = require("./log.js"),
   path = require("path"),
   fs = require("./fs_promises.js"),
   crypto = require("crypto"),
@@ -25,7 +25,7 @@ if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {
       process.version +
       ", wbo requires at least " +
       MIN_NODE_VERSION +
-      " !!!"
+      " !!!",
   );
 }
 
@@ -109,10 +109,10 @@ function handler(request, response) {
 }
 
 const boardTemplate = new templating.BoardTemplate(
-  path.join(config.WEBROOT, "board.html")
+  path.join(config.WEBROOT, "board.html"),
 );
 const indexTemplate = new templating.Template(
-  path.join(config.WEBROOT, "index.html")
+  path.join(config.WEBROOT, "index.html"),
 );
 
 /**
@@ -145,10 +145,10 @@ async function handleRequest(request, response) {
   if (parts[0] === "") parts.shift();
 
   var fileExt = path.extname(parsedUrl.pathname);
-  var staticResources = ['.js','.css', '.svg', '.ico', '.png', '.jpg', 'gif'];
+  var staticResources = [".js", ".css", ".svg", ".ico", ".png", ".jpg", "gif"];
   // If we're not being asked for a file, then we should check permissions.
   var isModerator = false;
-  if(!staticResources.includes(fileExt)) {
+  if (!staticResources.includes(fileExt)) {
     isModerator = jwtauth.checkUserPermission(parsedUrl);
   }
 
@@ -174,25 +174,25 @@ async function handleRequest(request, response) {
       break;
 
     case "download":
-        var boardName = validateBoardName(parts[1]),
-          history_file = path.join(
-            config.HISTORY_DIR,
-            "board-" + boardName + ".json"
-          );
-        jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-        if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
-          history_file += "." + parts[2] + ".bak";
-        }
-        log("download", { file: history_file });
-        fs.readFile(history_file, function (err, data) {
-          if (err) return serveError(request, response)(err);
-          response.writeHead(200, {
-            "Content-Type": "application/json",
-            "Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
-            "Content-Length": data.length,
-          });
-          response.end(data);
+      var boardName = validateBoardName(parts[1]),
+        history_file = path.join(
+          config.HISTORY_DIR,
+          "board-" + boardName + ".json",
+        );
+      jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+      if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
+        history_file += "." + parts[2] + ".bak";
+      }
+      log("download", { file: history_file });
+      fs.readFile(history_file, function (err, data) {
+        if (err) return serveError(request, response)(err);
+        response.writeHead(200, {
+          "Content-Type": "application/json",
+          "Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
+          "Content-Length": data.length,
         });
+        response.end(data);
+      });
       break;
     case "image-upload":
         if (config.BLOCKED_TOOLS.includes('Image')) {
@@ -257,28 +257,28 @@ async function handleRequest(request, response) {
         break;
     case "export":
     case "preview":
-        var boardName = validateBoardName(parts[1]),
-          history_file = path.join(
-            config.HISTORY_DIR,
-            "board-" + boardName + ".json"
-          );
-        jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-        response.writeHead(200, {
-          "Content-Type": "image/svg+xml",
-          "Content-Security-Policy": CSP,
-          "Cache-Control": "public, max-age=30",
+      var boardName = validateBoardName(parts[1]),
+        history_file = path.join(
+          config.HISTORY_DIR,
+          "board-" + boardName + ".json",
+        );
+      jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+      response.writeHead(200, {
+        "Content-Type": "image/svg+xml",
+        "Content-Security-Policy": CSP,
+        "Cache-Control": "public, max-age=30",
+      });
+      var t = Date.now();
+      createSVG
+        .renderBoard(history_file, response)
+        .then(function () {
+          log("preview", { board: boardName, time: Date.now() - t });
+          response.end();
+        })
+        .catch(function (err) {
+          log("error", { error: err.toString(), stack: err.stack });
+          response.end("<text>Sorry, an error occured</text>");
         });
-        var t = Date.now();
-        createSVG
-          .renderBoard(history_file, response)
-          .then(function () {
-            log("preview", { board: boardName, time: Date.now() - t });
-            response.end();
-          })
-          .catch(function (err) {
-            log("error", { error: err.toString(), stack: err.stack });
-            response.end("<text>Sorry, an error occured</text>");
-          });
       break;
 
     case "random":
@@ -310,7 +310,7 @@ async function handleRequest(request, response) {
         .then(function (bundleString) {
           response.setHeader(
             "Cache-Control",
-            "private, max-age=172800, stale-while-revalidate=1728000"
+            "private, max-age=172800, stale-while-revalidate=1728000",
           );
           response.setHeader("Vary", "User-Agent");
           response.setHeader("Content-Type", "application/javascript");
@@ -321,10 +321,11 @@ async function handleRequest(request, response) {
     case "": // Index page
       logRequest(request);
       if (config.DEFAULT_BOARD) {
-        response.writeHead(302, { Location: 'boards/' + encodeURIComponent(config.DEFAULT_BOARD) });
+        response.writeHead(302, {
+          Location: "boards/" + encodeURIComponent(config.DEFAULT_BOARD),
+        });
         response.end(name);
-      } else
-        indexTemplate.serve(request, response);
+      } else indexTemplate.serve(request, response);
       break;
 
     default:
