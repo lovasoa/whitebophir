@@ -23,7 +23,7 @@
  *
  * @licend
  */
-
+const Minitpl = require("./minitpl");
 var Tools = {};
 
 Tools.i18n = (function i18n() {
@@ -75,6 +75,7 @@ Tools.connect = function () {
     socket_params.query = "token=" + params.get("token");
   }
 
+  // eslint-disable-next-line no-undef
   this.socket = io.connect("", socket_params);
 
   //Receive draw instructions from the server
@@ -588,6 +589,7 @@ Tools.toolHooks = [
       };
     }
 
+    // eslint-disable-next-line no-unused-vars
     function wrapUnsetHover(f, toolName) {
       return function unsetHover(evt) {
         document.activeElement &&
@@ -643,6 +645,7 @@ Tools.generateUID = function (prefix, suffix) {
 Tools.createSVGElement = function createSVGElement(name, attrs) {
   var elem = document.createElementNS(Tools.svg.namespaceURI, name);
   if (typeof attrs !== "object") return elem;
+  // eslint-disable-next-line no-unused-vars
   Object.keys(attrs).forEach(function (key, i) {
     elem.setAttributeNS(null, key, attrs[key]);
   });
@@ -764,6 +767,7 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
     var dy = evt.clientY - pos.scroll;
     menu.scrollTop = pos.top - dy;
   }
+  // eslint-disable-next-line no-unused-vars
   function menu_mouseup(evt) {
     menu.removeEventListener("mousemove", menu_mousemove);
     document.removeEventListener("mouseup", menu_mouseup);

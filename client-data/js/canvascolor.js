@@ -34,6 +34,7 @@
 // @use_types_for_optimization true
 // ==/ClosureCompiler==
 
+// eslint-disable-next-line no-unused-vars
 var canvascolor = (function () {
   //Code Isolation
   "use strict";

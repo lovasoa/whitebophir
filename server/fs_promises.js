@@ -6,6 +6,7 @@ if (typeof fs.promises === "undefined") {
   const util = require("util");
   fs.promises = {};
   Object.entries(fs)
+    // eslint-disable-next-line no-unused-vars
     .filter(([_, v]) => typeof v === "function")
     .forEach(([k, v]) => (fs.promises[k] = util.promisify(v)));
 }

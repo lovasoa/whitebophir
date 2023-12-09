@@ -21,7 +21,8 @@
     "start": "node ./server/server.js",
     "test": "nightwatch tests && nightwatch tests --env jwt",
     "prettier": "prettier . --write",
-    "prettier-check": "prettier . --check"
+    "prettier-check": "prettier . --check",
+    "lint": "eslint ."
   },
   "main": "./server/server.js",
   "repository": {
@@ -29,6 +30,7 @@
     "url": "http://github.com/lovasoa/whitebophir.git"
   },
   "devDependencies": {
+    "eslint": "^8.55.0",
     "geckodriver": "^4.2.1",
     "nightwatch": "^3.2.1",
     "prettier": "^3.1.0"

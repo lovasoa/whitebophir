@@ -87,7 +87,7 @@
     ),
   ];
 
-  for (i in blockedSelectionButtons) {
+  for (var i in blockedSelectionButtons) {
     delete selectionButtons[blockedSelectionButtons[i]];
   }
 
@@ -273,7 +273,7 @@
     selectionRect.width.baseVal.value = 0;
     selectionRect.height.baseVal.value = 0;
     selectionRect.style.display = "";
-    tmatrix = get_transform_matrix(selectionRect);
+    var tmatrix = get_transform_matrix(selectionRect);
     tmatrix.e = 0;
     tmatrix.f = 0;
   }
@@ -284,6 +284,7 @@
     var selected = [];
     for (var i = 0; i < elements.length; i++) {
       if (
+        // eslint-disable-next-line no-undef
         transformedBBoxIntersects(selectionTBBox, elements[i].transformedBBox())
       )
         selected.push(Tools.drawingArea.children[i]);
@@ -421,6 +422,7 @@
 
   function draw(data) {
     if (data._children) {
+      // eslint-disable-next-line no-undef
       batchCall(draw, data._children);
     } else {
       switch (data.type) {
@@ -442,6 +444,7 @@
           break;
         case "delete":
           data.tool = "Eraser";
+          // eslint-disable-next-line no-undef
           messageForTool(data);
           break;
         default:
@@ -463,6 +466,7 @@
     if (button) {
       button.clickCallback(x, y, evt);
     } else if (
+      // eslint-disable-next-line no-undef
       pointInTransformedBBox([x, y], selectionRect.transformedBBox())
     ) {
       hideSelectionButtons();
@@ -477,6 +481,7 @@
     }
   }
 
+  // eslint-disable-next-line no-unused-vars
   function releaseSelector(x, y, evt) {
     if (selectorState == selectorStates.selecting) {
       selected_els = calculateSelection();
@@ -489,6 +494,7 @@
     selectorState = selectorStates.pointing;
   }
 
+  // eslint-disable-next-line no-unused-vars
   function moveSelector(x, y, evt) {
     if (selectorState == selectorStates.selecting) {
       updateRect(x, y, selectionRect);

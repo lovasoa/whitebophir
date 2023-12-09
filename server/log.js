@@ -11,6 +11,7 @@ function parse_statsd_url(url) {
   const match = url.match(regex);
   if (!match)
     throw new Error("Invalid statsd connection string, doesn't match " + regex);
+  // eslint-disable-next-line no-unused-vars
   const [_, protocol, host, port_str] = match;
   const tcp = protocol === "tcp";
   const port = parseInt(port_str);

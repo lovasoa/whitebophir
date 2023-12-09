@@ -105,7 +105,8 @@ function testCircle(browser) {
 
 function testCursor(browser) {
   return browser
-    .execute(function (done) {
+    .execute(function () {
+      // Remove done variable which is unused function(done)
       Tools.setColor("#456123"); // Move the cursor over the board
       var e = new Event("mousemove");
       e.pageX = 150;
