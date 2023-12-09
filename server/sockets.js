@@ -29,7 +29,7 @@ function noFail(fn) {
 }
 
 function startIO(app) {
-  io = iolib(app);
+  var io = iolib(app);
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
     io.use(function (socket, next) {
@@ -37,6 +37,7 @@ function startIO(app) {
         jsonwebtoken.verify(
           socket.handshake.query.token,
           config.AUTH_SECRET_KEY,
+          // eslint-disable-next-line no-unused-vars
           function (err, decoded) {
             if (err)
               return next(new Error("Authentication error: Invalid JWT"));
@@ -204,6 +205,7 @@ async function saveHistory(boardName, message) {
   board.processMessage(message);
 }
 
+// eslint-disable-next-line no-unused-vars
 function generateUID(prefix, suffix) {
   var uid = Date.now().toString(36); //Create the uids in chronological order
   uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end

@@ -24,8 +24,8 @@
  * @licend
  */
 
-(config = require("./configuration.js")),
-  (jsonwebtoken = require("jsonwebtoken"));
+const config = require("./configuration.js");
+const jsonwebtoken = require("jsonwebtoken");
 
 /**
  * This function checks if a board name is set in the roles claim.
@@ -44,6 +44,7 @@ function checkBoardnameInToken(url, boardNameIn) {
 }
 
 function parse_role(role) {
+  // eslint-disable-next-line no-unused-vars
   let [_, role_name, board_name] = role.match(/^([^:]*):?(.*)$/);
   return { role_name, board_name };
 }
