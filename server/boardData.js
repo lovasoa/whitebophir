@@ -200,10 +200,12 @@ class BoardData {
    * @returns {BoardElem[]}
    */
   getAll(id) {
-    return Object.entries(this.board)
-      .filter(([i]) => !id || i > id)
-      // eslint-disable-next-line no-unused-vars
-      .map(([_, elem]) => elem);
+    return (
+      Object.entries(this.board)
+        .filter(([i]) => !id || i > id)
+        // eslint-disable-next-line no-unused-vars
+        .map(([_, elem]) => elem)
+    );
   }
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
