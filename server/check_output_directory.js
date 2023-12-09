@@ -14,7 +14,8 @@ async function get_error(directory) {
     return "does not exist";
   }
   if (!fs.statSync(directory).isDirectory()) {
-    error = "exists, but is not a directory";
+    // error = "exists, but is not a directory";
+    return "exists, but is not a directory";
   }
   const tmpfile = path.join(directory, Math.random() + ".json");
   try {
@@ -28,6 +29,7 @@ async function get_error(directory) {
         "Check the permissions of the directory, and if needed change them so that " +
         `user with UID ${uid} has access to them. This can be achieved by running the command: chown ${uid}:${gid} on the directory`;
     } finally {
+      // eslint-disable-next-line no-unsafe-finally
       return err_msg;
     }
   }
