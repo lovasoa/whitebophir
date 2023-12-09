@@ -11,5 +11,5 @@ CHECKS
 docker-compose.yml
 Dockerfile
 LICENSE
-nightwatch.conf.js
+# nightwatch.conf.js
 README.md
