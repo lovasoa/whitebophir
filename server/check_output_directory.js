@@ -10,11 +10,12 @@ const { R_OK, W_OK } = fs.constants;
  * @returns {string?}
  */
 async function get_error(directory) {
+  let error = "exists, but is not a directory";
   if (!fs.existsSync(directory)) {
     return "does not exist";
   }
   if (!fs.statSync(directory).isDirectory()) {
-    error = "exists, but is not a directory";
+    error;
   }
   const tmpfile = path.join(directory, Math.random() + ".json");
   try {
@@ -28,7 +29,8 @@ async function get_error(directory) {
         "Check the permissions of the directory, and if needed change them so that " +
         `user with UID ${uid} has access to them. This can be achieved by running the command: chown ${uid}:${gid} on the directory`;
     } finally {
-      return err_msg;
+      // eslint-disable-next-line no-unsafe-finally
+      return err_msg; //For now I have added eslint-disable-next-line no-unsafe-finally
     }
   }
   const fileChecks = [];

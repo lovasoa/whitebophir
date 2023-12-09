@@ -29,6 +29,7 @@
     "url": "http://github.com/lovasoa/whitebophir.git"
   },
   "devDependencies": {
+    "eslint": "^8.55.0",
     "geckodriver": "^4.2.1",
     "nightwatch": "^3.2.1",
     "prettier": "^3.1.0"

@@ -202,6 +202,7 @@ class BoardData {
   getAll(id) {
     return Object.entries(this.board)
       .filter(([i]) => !id || i > id)
+      // eslint-disable-next-line no-unused-vars
       .map(([_, elem]) => elem);
   }
 

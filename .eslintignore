@@ -1,0 +1,15 @@
+package.json
+package-lock.json
+node_modules/
+.DS_Store
+*.html
+.gitignore
+.prettierignore
+.prettierrc
+AUTHORS
+CHECKS
+docker-compose.yml
+Dockerfile
+LICENSE
+nightwatch.config.js
+README.md

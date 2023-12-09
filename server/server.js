@@ -11,7 +11,7 @@ var app = require("http").createServer(handler),
   polyfillLibrary = require("polyfill-library"),
   check_output_directory = require("./check_output_directory.js"),
   jwtauth = require("./jwtauth.js");
-jwtBoardName = require("./jwtBoardnameAuth.js");
+const jwtBoardName = require("./jwtBoardnameAuth.js");
 
 var MIN_NODE_VERSION = 10.0;
 
@@ -120,7 +120,7 @@ function handleRequest(request, response) {
       // "boards" refers to the root directory
       if (parts.length === 1) {
         // '/boards?board=...' This allows html forms to point to boards
-        var boardName = parsedUrl.searchParams.get("board") || "anonymous";
+        let boardName = parsedUrl.searchParams.get("board") || "anonymous";
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         var headers = { Location: "boards/" + encodeURIComponent(boardName) };
         response.writeHead(301, headers);
@@ -137,12 +137,13 @@ function handleRequest(request, response) {
       break;
 
     case "download":
-      var boardName = validateBoardName(parts[1]),
-        history_file = path.join(
+      boardName = validateBoardName(parts[1]),
+      history_file = path.join(
           config.HISTORY_DIR,
           "board-" + boardName + ".json",
         );
       jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+      // eslint-disable-next-line no-useless-escape
       if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
         history_file += "." + parts[2] + ".bak";
       }
@@ -160,8 +161,8 @@ function handleRequest(request, response) {
 
     case "export":
     case "preview":
-      var boardName = validateBoardName(parts[1]),
-        history_file = path.join(
+      boardName = validateBoardName(parts[1]);
+      var history_file = path.join(
           config.HISTORY_DIR,
           "board-" + boardName + ".json",
         );
