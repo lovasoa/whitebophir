@@ -156,6 +156,7 @@
 
   function addPoint(line, x, y) {
     var pts = getPathData(line);
+    // eslint-disable-next-line no-undef
     pts = wboPencilPoint(pts, x, y);
     line.setPathData(pts);
   }
@@ -212,6 +213,7 @@
       release: stopLineAt,
     },
     draw: draw,
+    // eslint-disable-next-line no-unused-vars
     onstart: function (oldTool) {
       //Reset stylus
       hasUsedStylus = false;
@@ -225,6 +227,7 @@
         toggleSize();
       },
     },
+    // eslint-disable-next-line no-dupe-keys
     onstart: function () {
       //When switching from another tool to white-out, restore white-out size
       if (pencilTool.secondary.active) {

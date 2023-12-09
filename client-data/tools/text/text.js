@@ -58,6 +58,7 @@
     Tools.setSize(curText.oldSize);
   }
 
+  // eslint-disable-next-line no-unused-vars
   function clickHandler(x, y, evt, isTouchEvent) {
     //if(document.querySelector("#menu").offsetWidth>Tools.menu_width+3) return;
     if (evt.target === input) return;
@@ -99,6 +100,7 @@
     active = true;
     if (!input.parentNode) board.appendChild(input);
     input.value = "";
+    // eslint-disable-next-line no-unused-vars
     var left = curText.x - document.documentElement.scrollLeft + "px";
     var clientW = Math.max(
       document.documentElement.clientWidth,
@@ -176,6 +178,7 @@
     }
   }
 
+  // eslint-disable-next-line no-unused-vars
   function draw(data, isLocal) {
     Tools.drawingEvent = true;
     switch (data.type) {
