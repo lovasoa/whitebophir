@@ -23,8 +23,7 @@
  *
  * @licend
  */
-const io = require("socket.io-client");
-const Minitpl = require("./minitpl");
+
 var Tools = {};
 
 Tools.i18n = (function i18n() {
@@ -76,6 +75,7 @@ Tools.connect = function () {
     socket_params.query = "token=" + params.get("token");
   }
 
+  // eslint-disable-next-line no-undef
   this.socket = io.connect("", socket_params);
 
   //Receive draw instructions from the server
@@ -131,6 +131,7 @@ function saveBoardNametoLocalStorage() {
 window.addEventListener("pageshow", saveBoardNametoLocalStorage);
 
 Tools.HTML = {
+  // eslint-disable-next-line no-undef
   template: new Minitpl("#tools > .tool"),
   addShortcut: function addShortcut(key, callback) {
     window.addEventListener("keydown", function (e) {
@@ -204,6 +205,7 @@ Tools.HTML = {
     link.type = "text/css";
     document.head.appendChild(link);
   },
+  // eslint-disable-next-line no-undef
   colorPresetTemplate: new Minitpl("#colorPresetSel .colorPresetButton"),
   addColorButton: function (button) {
     var setColor = Tools.setColor.bind(Tools, button.color);
