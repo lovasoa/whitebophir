@@ -23,5 +23,7 @@ module.exports = {
   globals: {
     Tools: true,
   },
-  rules: {},
+  rules: {
+    "no-prototype-builtins": "off",
+  },
 };
