@@ -153,6 +153,7 @@
   Tools.board.addEventListener("touchend", touchend);
   Tools.board.addEventListener("touchcancel", touchend);
 
+  // eslint-disable-next-line no-unused-vars
   function release(x, y, evt, isTouchEvent) {
     if (pressed && !moved) {
       var delta = evt.shiftKey === true ? -1 : 1;

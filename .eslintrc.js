@@ -25,5 +25,6 @@ module.exports = {
   },
   rules: {
     "no-prototype-builtins": "off",
+    "no-undef": "warn",
   },
 };
