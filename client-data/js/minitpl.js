@@ -24,7 +24,9 @@
  * @licend
  */
 
+// eslint-disable-next-line no-undef
 Minitpl = (function () {
+  // eslint-disable-next-line no-unused-vars
   function Minitpl(elem, data) {
     this.elem = typeof elem === "string" ? document.querySelector(elem) : elem;
     if (!elem) {
