@@ -21,7 +21,8 @@
     "start": "node ./server/server.js",
     "test": "nightwatch tests && nightwatch tests --env jwt",
     "prettier": "prettier . --write",
-    "prettier-check": "prettier . --check"
+    "prettier-check": "prettier . --check",
+    "lint": "eslint ."
   },
   "main": "./server/server.js",
   "repository": {

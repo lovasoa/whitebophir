@@ -104,20 +104,23 @@ function testCircle(browser) {
 }
 
 function testCursor(browser) {
-  return browser
-    .execute(function (done) {
-      Tools.setColor("#456123"); // Move the cursor over the board
-      var e = new Event("mousemove");
-      e.pageX = 150;
-      e.pageY = 200;
-      Tools.board.dispatchEvent(e);
-    })
-    .assert.cssProperty(
-      "#cursor-me",
-      "transform",
-      "matrix(1, 0, 0, 1, 150, 200)",
-    )
-    .assert.attributeEquals("#cursor-me", "fill", "#456123");
+  return (
+    browser
+      // eslint-disable-next-line no-unused-vars
+      .execute(function (done) {
+        Tools.setColor("#456123"); // Move the cursor over the board
+        var e = new Event("mousemove");
+        e.pageX = 150;
+        e.pageY = 200;
+        Tools.board.dispatchEvent(e);
+      })
+      .assert.cssProperty(
+        "#cursor-me",
+        "transform",
+        "matrix(1, 0, 0, 1, 150, 200)",
+      )
+      .assert.attributeEquals("#cursor-me", "fill", "#456123")
+  );
 }
 
 function testBoard(browser) {
