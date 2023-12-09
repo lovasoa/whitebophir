@@ -37,13 +37,16 @@ module.exports = {
 function loadServices() {
   try {
     Services.seleniumServer = require("selenium-server");
+  // eslint-disable-next-line no-empty
   } catch (err) {}
 
   try {
     Services.chromedriver = require("chromedriver");
+  // eslint-disable-next-line no-empty
   } catch (err) {}
 
   try {
     Services.geckodriver = require("geckodriver");
+  // eslint-disable-next-line no-empty
   } catch (err) {}
 }
