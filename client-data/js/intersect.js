@@ -28,6 +28,7 @@ if (
   !SVGGraphicsElement.prototype.transformedBBox ||
   !SVGGraphicsElement.prototype.transformedBBoxContains
 ) {
+  // eslint-disable-next-line no-undef
   [pointInTransformedBBox, transformedBBoxIntersects] = (function () {
     var get_transform_matrix = function (elem) {
       // Returns the first translate or transform matrix or makes one
@@ -59,8 +60,8 @@ if (
     };
 
     SVGGraphicsElement.prototype.transformedBBox = function (scale = 1) {
-      bbox = this.getBBox();
-      tmatrix = get_transform_matrix(this);
+      var bbox = this.getBBox();
+      var tmatrix = get_transform_matrix(this);
       tmatrix.e /= scale;
       tmatrix.f /= scale;
       return {
@@ -71,13 +72,13 @@ if (
     };
 
     SVGSVGElement.prototype.transformedBBox = function (scale = 1) {
-      bbox = {
+      var bbox = {
         x: this.x.baseVal.value,
         y: this.y.baseVal.value,
         width: this.width.baseVal.value,
         height: this.height.baseVal.value,
       };
-      tmatrix = get_transform_matrix(this);
+      var tmatrix = get_transform_matrix(this);
       tmatrix.e /= scale;
       tmatrix.f /= scale;
       return {
