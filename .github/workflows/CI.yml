@@ -42,7 +42,6 @@ jobs:
       - name: Run Prettier check
         run: npx prettier --check .
 
-  
   lint:
     runs-on: ubuntu-latest
 

@@ -23,7 +23,7 @@
  *
  * @licend
  */
-const Minitpl = require('./minitpl')
+const Minitpl = require("./minitpl");
 var Tools = {};
 
 Tools.i18n = (function i18n() {
