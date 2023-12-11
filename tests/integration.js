@@ -111,6 +111,7 @@ function testCursor(browser) {
       e.pageX = 150;
       e.pageY = 200;
       Tools.board.dispatchEvent(e);
+      done();
     })
     .assert.cssProperty(
       "#cursor-me",

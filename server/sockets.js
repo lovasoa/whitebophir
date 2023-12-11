@@ -29,7 +29,7 @@ function noFail(fn) {
 }
 
 function startIO(app) {
-  io = iolib(app);
+  var io = iolib(app);
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
     io.use(function (socket, next) {
@@ -37,9 +37,10 @@ function startIO(app) {
         jsonwebtoken.verify(
           socket.handshake.query.token,
           config.AUTH_SECRET_KEY,
-          function (err, decoded) {
-            if (err)
+          function (err) {
+            if (err) {
               return next(new Error("Authentication error: Invalid JWT"));
+            }
             next();
           },
         );
@@ -77,7 +78,9 @@ function handleSocketConnection(socket) {
    */
   async function joinBoard(name) {
     // Default to the public board
-    if (!name) name = "anonymous";
+    if (!name) {
+      name = "anonymous";
+    }
 
     // Join the board
     socket.join(name);
@@ -133,7 +136,9 @@ function handleSocketConnection(socket) {
       var boardName = message.board || "anonymous";
       var data = message.data;
 
-      if (!socket.rooms.has(boardName)) socket.join(boardName);
+      if (!socket.rooms.has(boardName)) {
+        socket.join(boardName);
+      }
 
       if (!data) {
         console.warn("Received invalid message: %s.", JSON.stringify(message));
@@ -168,7 +173,9 @@ function handleSocketConnection(socket) {
           reason,
         });
         gauge("connected." + board.name, userCount);
-        if (userCount === 0) unloadBoard(room);
+        if (userCount === 0) {
+          unloadBoard(room);
+        }
       }
     });
   });
@@ -202,14 +209,6 @@ async function saveHistory(boardName, message) {
   }
   var board = await getBoard(boardName);
   board.processMessage(message);
-}
-
-function generateUID(prefix, suffix) {
-  var uid = Date.now().toString(36); //Create the uids in chronological order
-  uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
-  if (prefix) uid = prefix + uid;
-  if (suffix) uid = uid + suffix;
-  return uid;
 }
 
 if (exports) {

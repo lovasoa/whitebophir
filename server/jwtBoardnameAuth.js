@@ -24,8 +24,8 @@
  * @licend
  */
 
-(config = require("./configuration.js")),
-  (jsonwebtoken = require("jsonwebtoken"));
+const config = require("./configuration.js");
+const jsonwebtoken = require("jsonwebtoken");
 
 /**
  * This function checks if a board name is set in the roles claim.
@@ -60,6 +60,7 @@ function roleInBoard(token, board = null) {
     if (!token) {
       throw new Error("No token provided");
     }
+
     var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
 
     var roles = payload.roles;

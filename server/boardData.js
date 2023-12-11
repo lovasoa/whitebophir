@@ -72,9 +72,14 @@ class BoardData {
    */
   addChild(parentId, child) {
     var obj = this.board[parentId];
-    if (typeof obj !== "object") return false;
-    if (Array.isArray(obj._children)) obj._children.push(child);
-    else obj._children = [child];
+    if (typeof obj !== "object") {
+      return false;
+    }
+    if (Array.isArray(obj._children)) {
+      obj._children.push(child);
+    } else {
+      obj._children = [child];
+    }
 
     this.validate(obj);
     this.delaySave();
@@ -158,17 +163,25 @@ class BoardData {
    * @param {BoardMessage} message instruction to apply to the board
    */
   processMessage(message) {
-    if (message._children) return this.processMessageBatch(message._children);
+    if (message._children) {
+      return this.processMessageBatch(message._children);
+    }
     let id = message.id;
     switch (message.type) {
       case "delete":
-        if (id) this.delete(id);
+        if (id) {
+          this.delete(id);
+        }
         break;
       case "update":
-        if (id) this.update(id, message);
+        if (id) {
+          this.update(id, message);
+        }
         break;
       case "copy":
-        if (id) this.copy(id, message);
+        if (id) {
+          this.copy(id, message);
+        }
         break;
       case "child":
         this.addChild(message.parent, message);
@@ -182,7 +195,9 @@ class BoardData {
         break;
       default:
         //Add data
-        if (!id) throw new Error("Invalid message: ", message);
+        if (!id) {
+          throw new Error("Invalid message: ", message);
+        }
         this.set(id, message);
     }
   }
@@ -207,10 +222,13 @@ class BoardData {
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
   delaySave() {
-    if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
+    if (this.saveTimeoutId !== undefined) {
+      clearTimeout(this.saveTimeoutId);
+    }
     this.saveTimeoutId = setTimeout(this.save.bind(this), config.SAVE_INTERVAL);
-    if (Date.now() - this.lastSaveDate > config.MAX_SAVE_DELAY)
+    if (Date.now() - this.lastSaveDate > config.MAX_SAVE_DELAY) {
       setTimeout(this.save.bind(this), 0);
+    }
   }
 
   /** Saves the data in the board to a file. */
@@ -267,7 +285,9 @@ class BoardData {
           return (board[x].time | 0) - (board[y].time | 0);
         })
         .slice(0, -config.MAX_ITEM_COUNT);
-      for (var i = 0; i < toDestroy.length; i++) delete board[toDestroy[i]];
+      for (var i = 0; i < toDestroy.length; i++) {
+        delete board[toDestroy[i]];
+      }
       log("cleaned board", { removed: toDestroy.length, board: this.name });
     }
   }
@@ -290,12 +310,17 @@ class BoardData {
     }
     if (item.hasOwnProperty("opacity")) {
       item.opacity = Math.min(Math.max(item.opacity, 0.1), 1) || 1;
-      if (item.opacity === 1) delete item.opacity;
+      if (item.opacity === 1) {
+        delete item.opacity;
+      }
     }
     if (item.hasOwnProperty("_children")) {
-      if (!Array.isArray(item._children)) item._children = [];
-      if (item._children.length > config.MAX_CHILDREN)
+      if (!Array.isArray(item._children)) {
+        item._children = [];
+      }
+      if (item._children.length > config.MAX_CHILDREN) {
         item._children.length = config.MAX_CHILDREN;
+      }
       for (var i = 0; i < item._children.length; i++) {
         this.validate(item._children[i]);
       }
@@ -311,7 +336,9 @@ class BoardData {
     try {
       data = await fs.promises.readFile(boardData.file);
       boardData.board = JSON.parse(data);
-      for (const id in boardData.board) boardData.validate(boardData.board[id]);
+      for (const id in boardData.board) {
+        boardData.validate(boardData.board[id]);
+      }
       log("disk load", { board: boardData.name });
     } catch (e) {
       // If the file doesn't exist, this is not an error

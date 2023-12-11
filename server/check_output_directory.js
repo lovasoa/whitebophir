@@ -14,7 +14,7 @@ async function get_error(directory) {
     return "does not exist";
   }
   if (!fs.statSync(directory).isDirectory()) {
-    error = "exists, but is not a directory";
+    return "exists, but is not a directory";
   }
   const tmpfile = path.join(directory, Math.random() + ".json");
   try {
@@ -36,8 +36,9 @@ async function get_error(directory) {
   for (const elem of files) {
     if (/^board-(.*)\.json$/.test(elem.name)) {
       const elemPath = path.join(directory, elem.name);
-      if (!elem.isFile())
+      if (!elem.isFile()) {
         return `contains a board file named "${elemPath}" which is not a normal file`;
+      }
       fileChecks.push(
         fs.promises.access(elemPath, R_OK | W_OK).catch(function () {
           return elemPath;

@@ -4,7 +4,9 @@ const fs = require("./fs_promises.js"),
     require("../client-data/tools/pencil/wbo_pencil_point.js").wboPencilPoint;
 
 function htmlspecialchars(str) {
-  if (typeof str !== "string") return "";
+  if (typeof str !== "string") {
+    return "";
+  }
 
   return str.replace(/[<>&"']/g, function (c) {
     switch (c) {
@@ -81,7 +83,9 @@ const Tools = {
    * @return {string}
    */
   Pencil: function (el) {
-    if (!el._children) return "";
+    if (!el._children) {
+      return "";
+    }
     let pts = el._children.reduce(function (pts, point) {
       return wboPencilPoint(pts, point.x, point.y);
     }, []);
@@ -175,7 +179,9 @@ async function toSVG(obj, writeable) {
   const elems = Object.values(obj);
   const dim = elems.reduce(
     function (dim, elem) {
-      if (elem._children && elem._children.length) elem = elem._children[0];
+      if (elem._children && elem._children.length) {
+        elem = elem._children[0];
+      }
       return [
         Math.max((elem.x + margin + (elem.deltax | 0)) | 0, dim[0]),
         Math.max((elem.y + margin + (elem.deltay | 0)) | 0, dim[1]),
@@ -200,8 +206,11 @@ async function toSVG(obj, writeable) {
     elems.map(async function (elem) {
       await Promise.resolve(); // Do not block the event loop
       const renderFun = Tools[elem.tool];
-      if (renderFun) writeable.write(renderFun(elem));
-      else console.warn("Missing render function for tool", elem.tool);
+      if (renderFun) {
+        writeable.write(renderFun(elem));
+      } else {
+        console.warn("Missing render function for tool", elem.tool);
+      }
     }),
   );
   writeable.write("</svg>");

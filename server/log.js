@@ -9,8 +9,10 @@ const config = require("./configuration.js"),
 function parse_statsd_url(url) {
   const regex = /^(tcp|udp|statsd):\/\/(.*):(\d+)$/;
   const match = url.match(regex);
-  if (!match)
+  if (!match) {
     throw new Error("Invalid statsd connection string, doesn't match " + regex);
+  }
+
   const [_, protocol, host, port_str] = match;
   const tcp = protocol === "tcp";
   const port = parseInt(port_str);
@@ -42,10 +44,14 @@ if (statsd) {
  */
 function log(type, infos) {
   var msg = type;
-  if (infos) msg += "\t" + JSON.stringify(infos);
+  if (infos) {
+    msg += "\t" + JSON.stringify(infos);
+  }
   if (statsd) {
     let stat_name = type;
-    if (infos.board) stat_name += "." + infos.board;
+    if (infos.board) {
+      stat_name += "." + infos.board;
+    }
     statsd.increment(stat_name);
   }
   console.log(msg);
@@ -83,7 +89,9 @@ function monitorFunction(f) {
  * @param {{[name:string]: string}=} tags
  */
 function gauge(name, value, tags) {
-  if (statsd) statsd.gauge(name, value, tags);
+  if (statsd) {
+    statsd.gauge(name, value, tags);
+  }
 }
 
 module.exports = { log, gauge, monitorFunction };

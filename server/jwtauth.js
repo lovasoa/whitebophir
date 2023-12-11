@@ -24,8 +24,7 @@
  * @licend
  */
 
-(config = require("./configuration.js")),
-  (jsonwebtoken = require("jsonwebtoken"));
+const config = require("./configuration.js");
 const { roleInBoard } = require("./jwtBoardnameAuth");
 /**
  * Validates jwt and returns whether user is a moderator

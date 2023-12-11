@@ -11,7 +11,7 @@ var app = require("http").createServer(handler),
   polyfillLibrary = require("polyfill-library"),
   check_output_directory = require("./check_output_directory.js"),
   jwtauth = require("./jwtauth.js");
-jwtBoardName = require("./jwtBoardnameAuth.js");
+const jwtBoardName = require("./jwtBoardnameAuth.js");
 
 var MIN_NODE_VERSION = 10.0;
 
@@ -94,7 +94,9 @@ const indexTemplate = new templating.Template(
  * @throws {Error}
  */
 function validateBoardName(boardName) {
-  if (/^[\w%\-_~()]*$/.test(boardName)) return boardName;
+  if (/^[\w%\-_~()]*$/.test(boardName)) {
+    return boardName;
+  }
   throw new Error("Illegal board name: " + boardName);
 }
 
@@ -105,7 +107,9 @@ function handleRequest(request, response) {
   var parsedUrl = new URL(request.url, "http://wbo/");
   var parts = parsedUrl.pathname.split("/");
 
-  if (parts[0] === "") parts.shift();
+  if (parts[0] === "") {
+    parts.shift();
+  }
 
   var fileExt = path.extname(parsedUrl.pathname);
   var staticResources = [".js", ".css", ".svg", ".ico", ".png", ".jpg", "gif"];
@@ -126,7 +130,7 @@ function handleRequest(request, response) {
         response.writeHead(301, headers);
         response.end();
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
-        var boardName = validateBoardName(parts[1]);
+        boardName = validateBoardName(parts[1]);
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         boardTemplate.serve(request, response, isModerator);
         // If there is no dot and no directory, parts[1] is the board name
@@ -137,18 +141,20 @@ function handleRequest(request, response) {
       break;
 
     case "download":
-      var boardName = validateBoardName(parts[1]),
-        history_file = path.join(
-          config.HISTORY_DIR,
-          "board-" + boardName + ".json",
-        );
+      boardName = validateBoardName(parts[1]);
+      var history_file = path.join(
+        config.HISTORY_DIR,
+        "board-" + boardName + ".json",
+      );
       jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-      if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
+      if (parts.length > 2 && /^[0-9A-Za-z.-]+$/.test(parts[2])) {
         history_file += "." + parts[2] + ".bak";
       }
       log("download", { file: history_file });
       fs.readFile(history_file, function (err, data) {
-        if (err) return serveError(request, response)(err);
+        if (err) {
+          return serveError(request, response)(err);
+        }
         response.writeHead(200, {
           "Content-Type": "application/json",
           "Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
@@ -160,11 +166,11 @@ function handleRequest(request, response) {
 
     case "export":
     case "preview":
-      var boardName = validateBoardName(parts[1]),
-        history_file = path.join(
+      (boardName = validateBoardName(parts[1])),
+        (history_file = path.join(
           config.HISTORY_DIR,
           "board-" + boardName + ".json",
-        );
+        ));
       jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
       response.writeHead(200, {
         "Content-Type": "image/svg+xml",
@@ -228,7 +234,9 @@ function handleRequest(request, response) {
           Location: "boards/" + encodeURIComponent(config.DEFAULT_BOARD),
         });
         response.end(name);
-      } else indexTemplate.serve(request, response);
+      } else {
+        indexTemplate.serve(request, response);
+      }
       break;
 
     default:
