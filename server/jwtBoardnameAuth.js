@@ -24,8 +24,10 @@
  * @licend
  */
 
-const config = require("./configuration.js");
-const jsonwebtoken = require("jsonwebtoken");
+// eslint-disable-next-line no-undef
+(config = require("./configuration.js")),
+  // eslint-disable-next-line no-undef
+  (jsonwebtoken = require("jsonwebtoken"));
 
 /**
  * This function checks if a board name is set in the roles claim.
@@ -44,8 +46,8 @@ function checkBoardnameInToken(url, boardNameIn) {
 }
 
 function parse_role(role) {
-  // let [_, role_name, board_name] = role.match(/^([^:]*):?(.*)$/);
-  let [role_name, board_name] = role.match(/^([^:]*):?(.*)$/);
+  // eslint-disable-next-line no-unused-vars
+  let [_, role_name, board_name] = role.match(/^([^:]*):?(.*)$/);
   return { role_name, board_name };
 }
 
@@ -57,10 +59,12 @@ function parse_role(role) {
  @returns {string}  "moderator"|"editor"|"forbidden"
  */
 function roleInBoard(token, board = null) {
+  // eslint-disable-next-line no-undef
   if (config.AUTH_SECRET_KEY != "") {
     if (!token) {
       throw new Error("No token provided");
     }
+    // eslint-disable-next-line no-undef
     var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
 
     var roles = payload.roles;
