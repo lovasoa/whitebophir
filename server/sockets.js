@@ -29,18 +29,16 @@ function noFail(fn) {
 }
 
 function startIO(app) {
-  // eslint-disable-next-line no-undef
-  io = iolib(app);
+  var io = iolib(app);
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
-    // eslint-disable-next-line no-undef
     io.use(function (socket, next) {
       if (socket.handshake.query && socket.handshake.query.token) {
         jsonwebtoken.verify(
           socket.handshake.query.token,
           config.AUTH_SECRET_KEY,
-          // eslint-disable-next-line no-unused-vars
-          function (err, decoded) {
+          // function (err, decoded) {
+          function (err) {
             if (err)
               return next(new Error("Authentication error: Invalid JWT"));
             next();
@@ -51,9 +49,7 @@ function startIO(app) {
       }
     });
   }
-  // eslint-disable-next-line no-undef
   io.on("connection", noFail(handleSocketConnection));
-  // eslint-disable-next-line no-undef
   return io;
 }
 
@@ -209,14 +205,14 @@ async function saveHistory(boardName, message) {
   board.processMessage(message);
 }
 
-// eslint-disable-next-line no-unused-vars
-function generateUID(prefix, suffix) {
-  var uid = Date.now().toString(36); //Create the uids in chronological order
-  uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
-  if (prefix) uid = prefix + uid;
-  if (suffix) uid = uid + suffix;
-  return uid;
-}
+// This is function is declared in board.js file and it is not used here
+// function generateUID(prefix, suffix) {
+//   var uid = Date.now().toString(36); //Create the uids in chronological order
+//   uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
+//   if (prefix) uid = prefix + uid;
+//   if (suffix) uid = uid + suffix;
+//   return uid;
+// }
 
 if (exports) {
   exports.start = startIO;
