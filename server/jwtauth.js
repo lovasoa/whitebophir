@@ -24,10 +24,8 @@
  * @licend
  */
 
-// eslint-disable-next-line no-undef
-(config = require("./configuration.js")),
-  // eslint-disable-next-line no-undef
-  (jsonwebtoken = require("jsonwebtoken"));
+const config = require("./configuration.js");
+// const jsonwebtoken = require("jsonwebtoken");
 const { roleInBoard } = require("./jwtBoardnameAuth");
 /**
  * Validates jwt and returns whether user is a moderator
@@ -37,7 +35,6 @@ const { roleInBoard } = require("./jwtBoardnameAuth");
  */
 function checkUserPermission(url) {
   var isModerator = false;
-  // eslint-disable-next-line no-undef
   if (config.AUTH_SECRET_KEY != "") {
     var token = url.searchParams.get("token");
     if (token) {
