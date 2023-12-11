@@ -208,13 +208,14 @@ async function saveHistory(boardName, message) {
   board.processMessage(message);
 }
 // This function is created ib board.js file
-// function generateUID(prefix, suffix) {
-//   var uid = Date.now().toString(36); //Create the uids in chronological order
-//   uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
-//   if (prefix) uid = prefix + uid;
-//   if (suffix) uid = uid + suffix;
-//   return uid;
-// }
+// eslint-disable-next-line no-unused-vars
+function generateUID(prefix, suffix) {
+  var uid = Date.now().toString(36); //Create the uids in chronological order
+  uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
+  if (prefix) uid = prefix + uid;
+  if (suffix) uid = uid + suffix;
+  return uid;
+}
 
 if (exports) {
   exports.start = startIO;
