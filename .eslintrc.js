@@ -31,5 +31,6 @@ module.exports = {
     semi: ["error", "always"],
     "no-cond-assign": ["error", "always"],
     curly: "error",
+    "no-unsafe-finally": "off",
   },
 };

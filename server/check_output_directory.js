@@ -28,7 +28,7 @@ async function get_error(directory) {
         "Check the permissions of the directory, and if needed change them so that " +
         `user with UID ${uid} has access to them. This can be achieved by running the command: chown ${uid}:${gid} on the directory`;
     } finally {
-      console.log(err_msg);
+      return err_msg;
     }
   }
   const fileChecks = [];
