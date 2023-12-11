@@ -94,7 +94,9 @@ const indexTemplate = new templating.Template(
  * @throws {Error}
  */
 function validateBoardName(boardName) {
-  if (/^[\w%\-_~()]*$/.test(boardName)) return boardName;
+  if (/^[\w%\-_~()]*$/.test(boardName)) {
+    return boardName;
+  }
   throw new Error("Illegal board name: " + boardName);
 }
 
@@ -105,7 +107,9 @@ function handleRequest(request, response) {
   var parsedUrl = new URL(request.url, "http://wbo/");
   var parts = parsedUrl.pathname.split("/");
 
-  if (parts[0] === "") parts.shift();
+  if (parts[0] === "") {
+    parts.shift();
+  }
 
   var fileExt = path.extname(parsedUrl.pathname);
   var staticResources = [".js", ".css", ".svg", ".ico", ".png", ".jpg", "gif"];
@@ -149,7 +153,9 @@ function handleRequest(request, response) {
       }
       log("download", { file: history_file });
       fs.readFile(history_file, function (err, data) {
-        if (err) return serveError(request, response)(err);
+        if (err) {
+          return serveError(request, response)(err);
+        }
         response.writeHead(200, {
           "Content-Type": "application/json",
           "Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
@@ -229,7 +235,9 @@ function handleRequest(request, response) {
           Location: "boards/" + encodeURIComponent(config.DEFAULT_BOARD),
         });
         response.end(name);
-      } else indexTemplate.serve(request, response);
+      } else {
+        indexTemplate.serve(request, response);
+      }
       break;
 
     default:

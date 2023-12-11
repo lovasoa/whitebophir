@@ -39,8 +39,9 @@ function startIO(app) {
           config.AUTH_SECRET_KEY,
           // function (err, decoded) {
           function (err) {
-            if (err)
+            if (err) {
               return next(new Error("Authentication error: Invalid JWT"));
+            }
             next();
           },
         );
@@ -78,7 +79,9 @@ function handleSocketConnection(socket) {
    */
   async function joinBoard(name) {
     // Default to the public board
-    if (!name) name = "anonymous";
+    if (!name) {
+      name = "anonymous";
+    }
 
     // Join the board
     socket.join(name);
@@ -134,7 +137,9 @@ function handleSocketConnection(socket) {
       var boardName = message.board || "anonymous";
       var data = message.data;
 
-      if (!socket.rooms.has(boardName)) socket.join(boardName);
+      if (!socket.rooms.has(boardName)) {
+        socket.join(boardName);
+      }
 
       if (!data) {
         console.warn("Received invalid message: %s.", JSON.stringify(message));
@@ -169,7 +174,9 @@ function handleSocketConnection(socket) {
           reason,
         });
         gauge("connected." + board.name, userCount);
-        if (userCount === 0) unloadBoard(room);
+        if (userCount === 0) {
+          unloadBoard(room);
+        }
       }
     });
   });
