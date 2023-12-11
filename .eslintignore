@@ -13,3 +13,4 @@ Dockerfile
 LICENSE
 nightwatch.conf.js
 README.md
+client-data/

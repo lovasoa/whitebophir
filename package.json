@@ -22,7 +22,7 @@
     "test": "nightwatch tests && nightwatch tests --env jwt",
     "prettier": "prettier . --write",
     "prettier-check": "prettier . --check",
-    "lint": "eslint ."
+    "lint": "eslint --config .eslintrc.js \"./server/*.js\" \"tests/*.js\""
   },
   "main": "./server/server.js",
   "repository": {

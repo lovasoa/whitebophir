@@ -1,6 +1,5 @@
 module.exports = {
   env: {
-    browser: true,
     commonjs: true,
     es2021: true,
     node: true,
@@ -24,6 +23,6 @@ module.exports = {
     Tools: true,
   },
   rules: {
-    "no-prototype-builtins": "off",
+    "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
   },
 };

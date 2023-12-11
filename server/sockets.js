@@ -37,8 +37,8 @@ function startIO(app) {
         jsonwebtoken.verify(
           socket.handshake.query.token,
           config.AUTH_SECRET_KEY,
-          // eslint-disable-next-line no-unused-vars
-          function (err, decoded) {
+          // function (err, decoded) {
+          function (err) {
             if (err)
               return next(new Error("Authentication error: Invalid JWT"));
             next();
@@ -57,7 +57,8 @@ function startIO(app) {
  * @returns {Promise<BoardData>}
  */
 function getBoard(name) {
-  if (boards.hasOwnProperty(name)) {
+  // if (boards.hasOwnProperty(name)) {
+  if (Object.prototype.hasOwnProperty.call(name)) {
     return boards[name];
   } else {
     var board = BoardData.load(name);
@@ -159,7 +160,8 @@ function handleSocketConnection(socket) {
 
   socket.on("disconnecting", function onDisconnecting(reason) {
     socket.rooms.forEach(async function disconnectFrom(room) {
-      if (boards.hasOwnProperty(room)) {
+      // if (boards.hasOwnProperty(room)) {
+      if (Object.prototype.hasOwnProperty.call(room)) {
         var board = await boards[room];
         board.users.delete(socket.id);
         var userCount = board.users.size;
@@ -180,7 +182,8 @@ function handleSocketConnection(socket) {
  * @param {string} boardName
  **/
 async function unloadBoard(boardName) {
-  if (boards.hasOwnProperty(boardName)) {
+  // if (boards.hasOwnProperty(boardName)) {
+  if (Object.prototype.hasOwnProperty.call(boardName)) {
     const board = await boards[boardName];
     await board.save();
     log("unload board", { board: board.name, users: board.users.size });
@@ -204,15 +207,14 @@ async function saveHistory(boardName, message) {
   var board = await getBoard(boardName);
   board.processMessage(message);
 }
-
-// eslint-disable-next-line no-unused-vars
-function generateUID(prefix, suffix) {
-  var uid = Date.now().toString(36); //Create the uids in chronological order
-  uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
-  if (prefix) uid = prefix + uid;
-  if (suffix) uid = uid + suffix;
-  return uid;
-}
+// This function is created ib board.js file
+// function generateUID(prefix, suffix) {
+//   var uid = Date.now().toString(36); //Create the uids in chronological order
+//   uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
+//   if (prefix) uid = prefix + uid;
+//   if (suffix) uid = uid + suffix;
+//   return uid;
+// }
 
 if (exports) {
   exports.start = startIO;

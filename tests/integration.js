@@ -106,8 +106,8 @@ function testCircle(browser) {
 function testCursor(browser) {
   return (
     browser
-      // eslint-disable-next-line no-unused-vars
-      .execute(function (done) {
+      //.execute(function (done)
+      .execute(function () {
         Tools.setColor("#456123"); // Move the cursor over the board
         var e = new Event("mousemove");
         e.pageX = 150;

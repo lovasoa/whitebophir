@@ -203,7 +203,6 @@ class BoardData {
     return (
       Object.entries(this.board)
         .filter(([i]) => !id || i > id)
-        // eslint-disable-next-line no-unused-vars
         .map(([_, elem]) => elem)
     );
   }
@@ -279,11 +278,16 @@ class BoardData {
    * @param {object} item The object to edit
    */
   validate(item) {
-    if (item.hasOwnProperty("size")) {
+        // if (item.hasOwnProperty("size")) {
+    if (Object.prototype.hasOwnProperty.call("size")) {
       item.size = parseInt(item.size) || 1;
       item.size = Math.min(Math.max(item.size, 1), 50);
     }
-    if (item.hasOwnProperty("x") || item.hasOwnProperty("y")) {
+    // if (item.hasOwnProperty("x") || item.hasOwnProperty("y")) {
+    if (
+      Object.prototype.hasOwnProperty.call("x") ||
+      Object.prototype.hasOwnProperty.call("y")
+    ) {
       item.x = parseFloat(item.x) || 0;
       item.x = Math.min(Math.max(item.x, 0), config.MAX_BOARD_SIZE);
       item.x = Math.round(10 * item.x) / 10;
@@ -291,11 +295,13 @@ class BoardData {
       item.y = Math.min(Math.max(item.y, 0), config.MAX_BOARD_SIZE);
       item.y = Math.round(10 * item.y) / 10;
     }
-    if (item.hasOwnProperty("opacity")) {
+    // if (item.hasOwnProperty("opacity")) {
+    if (Object.prototype.hasOwnProperty.call("opacity")) {
       item.opacity = Math.min(Math.max(item.opacity, 0.1), 1) || 1;
       if (item.opacity === 1) delete item.opacity;
     }
-    if (item.hasOwnProperty("_children")) {
+    // if (item.hasOwnProperty("_children")) {
+    if (Object.prototype.hasOwnProperty.call("_children")) {
       if (!Array.isArray(item._children)) item._children = [];
       if (item._children.length > config.MAX_CHILDREN)
         item._children.length = config.MAX_CHILDREN;

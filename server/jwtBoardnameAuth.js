@@ -44,8 +44,8 @@ function checkBoardnameInToken(url, boardNameIn) {
 }
 
 function parse_role(role) {
-  // eslint-disable-next-line no-unused-vars
-  let [_, role_name, board_name] = role.match(/^([^:]*):?(.*)$/);
+  // let [_, role_name, board_name] = role.match(/^([^:]*):?(.*)$/);
+  let [role_name, board_name] = role.match(/^([^:]*):?(.*)$/);
   return { role_name, board_name };
 }
 
@@ -97,4 +97,4 @@ function roleInBoard(token, board = null) {
   }
 }
 
-module.exports = { checkBoardnameInToken, roleInBoard };
+module.exports = { checkBoardnameInToken, roleInBoard,  };
