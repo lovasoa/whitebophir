@@ -23,6 +23,7 @@ module.exports = {
     Tools: true,
   },
   rules: {
+    "no-prototype-builtins": "off",
     "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
   },
 };

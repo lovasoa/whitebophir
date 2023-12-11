@@ -97,4 +97,4 @@ function roleInBoard(token, board = null) {
   }
 }
 
-module.exports = { checkBoardnameInToken, roleInBoard,  };
+module.exports = { checkBoardnameInToken, roleInBoard };

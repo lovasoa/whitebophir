@@ -36,7 +36,6 @@
     Tools.drawAndSend(msg, Tools.list["Clear"]);
   }
 
-  // eslint-disable-next-line no-unused-vars
   function draw(data) {
     Tools.drawingArea.innerHTML = "";
   }

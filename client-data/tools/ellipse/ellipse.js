@@ -56,7 +56,6 @@
       y2: y,
     });
 
-    // eslint-disable-next-line no-self-assign
     curUpdate.id = curUpdate.id;
     curUpdate.x = x;
     curUpdate.y = y;

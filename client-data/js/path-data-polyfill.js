@@ -956,7 +956,6 @@ if (
       setAttribute.call(this, name, value);
     };
 
-    // eslint-disable-next-line no-unused-vars
     SVGPathElement.prototype.removeAttribute = function (name, value) {
       if (name === "d") {
         this[$cachedPathData] = null;

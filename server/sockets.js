@@ -58,7 +58,7 @@ function startIO(app) {
  */
 function getBoard(name) {
   // if (boards.hasOwnProperty(name)) {
-  if (Object.prototype.hasOwnProperty.call(name)) {
+  if (boards.hasOwnProperty(name)) {
     return boards[name];
   } else {
     var board = BoardData.load(name);
@@ -161,7 +161,7 @@ function handleSocketConnection(socket) {
   socket.on("disconnecting", function onDisconnecting(reason) {
     socket.rooms.forEach(async function disconnectFrom(room) {
       // if (boards.hasOwnProperty(room)) {
-      if (Object.prototype.hasOwnProperty.call(room)) {
+      if (boards.hasOwnProperty(room)) {
         var board = await boards[room];
         board.users.delete(socket.id);
         var userCount = board.users.size;
@@ -183,7 +183,7 @@ function handleSocketConnection(socket) {
  **/
 async function unloadBoard(boardName) {
   // if (boards.hasOwnProperty(boardName)) {
-  if (Object.prototype.hasOwnProperty.call(boardName)) {
+  if (boards.hasOwnProperty(boardName)) {
     const board = await boards[boardName];
     await board.save();
     log("unload board", { board: board.name, users: board.users.size });

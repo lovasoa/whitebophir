@@ -30,7 +30,6 @@
   var index = 0; //grid off by default
   var states = ["none", "url(#grid)", "url(#dots)"];
 
-  // eslint-disable-next-line no-unused-vars
   function toggleGrid(evt) {
     index = (index + 1) % states.length;
     gridContainer.setAttributeNS(null, "fill", states[index]);

@@ -200,11 +200,9 @@ class BoardData {
    * @returns {BoardElem[]}
    */
   getAll(id) {
-    return (
-      Object.entries(this.board)
-        .filter(([i]) => !id || i > id)
-        .map(([_, elem]) => elem)
-    );
+    return Object.entries(this.board)
+      .filter(([i]) => !id || i > id)
+      .map(([_, elem]) => elem);
   }
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
@@ -278,16 +276,13 @@ class BoardData {
    * @param {object} item The object to edit
    */
   validate(item) {
-        // if (item.hasOwnProperty("size")) {
-    if (Object.prototype.hasOwnProperty.call("size")) {
+    // if (item.hasOwnProperty("size")) {
+    if (item.hasOwnProperty("size")) {
       item.size = parseInt(item.size) || 1;
       item.size = Math.min(Math.max(item.size, 1), 50);
     }
     // if (item.hasOwnProperty("x") || item.hasOwnProperty("y")) {
-    if (
-      Object.prototype.hasOwnProperty.call("x") ||
-      Object.prototype.hasOwnProperty.call("y")
-    ) {
+    if (item.hasOwnProperty("x") || item.hasOwnProperty("y")) {
       item.x = parseFloat(item.x) || 0;
       item.x = Math.min(Math.max(item.x, 0), config.MAX_BOARD_SIZE);
       item.x = Math.round(10 * item.x) / 10;
@@ -296,12 +291,12 @@ class BoardData {
       item.y = Math.round(10 * item.y) / 10;
     }
     // if (item.hasOwnProperty("opacity")) {
-    if (Object.prototype.hasOwnProperty.call("opacity")) {
+    if (item.hasOwnProperty("opacity")) {
       item.opacity = Math.min(Math.max(item.opacity, 0.1), 1) || 1;
       if (item.opacity === 1) delete item.opacity;
     }
     // if (item.hasOwnProperty("_children")) {
-    if (Object.prototype.hasOwnProperty.call("_children")) {
+    if (item.hasOwnProperty("_children")) {
       if (!Array.isArray(item._children)) item._children = [];
       if (item._children.length > config.MAX_CHILDREN)
         item._children.length = config.MAX_CHILDREN;

@@ -75,7 +75,6 @@ Tools.connect = function () {
     socket_params.query = "token=" + params.get("token");
   }
 
-  // eslint-disable-next-line no-undef
   this.socket = io.connect("", socket_params);
 
   //Receive draw instructions from the server
@@ -131,7 +130,6 @@ function saveBoardNametoLocalStorage() {
 window.addEventListener("pageshow", saveBoardNametoLocalStorage);
 
 Tools.HTML = {
-  // eslint-disable-next-line no-undef
   template: new Minitpl("#tools > .tool"),
   addShortcut: function addShortcut(key, callback) {
     window.addEventListener("keydown", function (e) {
@@ -205,7 +203,6 @@ Tools.HTML = {
     link.type = "text/css";
     document.head.appendChild(link);
   },
-  // eslint-disable-next-line no-undef
   colorPresetTemplate: new Minitpl("#colorPresetSel .colorPresetButton"),
   addColorButton: function (button) {
     var setColor = Tools.setColor.bind(Tools, button.color);
@@ -591,7 +588,6 @@ Tools.toolHooks = [
       };
     }
 
-    // eslint-disable-next-line no-unused-vars
     function wrapUnsetHover(f, toolName) {
       return function unsetHover(evt) {
         document.activeElement &&
@@ -647,7 +643,6 @@ Tools.generateUID = function (prefix, suffix) {
 Tools.createSVGElement = function createSVGElement(name, attrs) {
   var elem = document.createElementNS(Tools.svg.namespaceURI, name);
   if (typeof attrs !== "object") return elem;
-  // eslint-disable-next-line no-unused-vars
   Object.keys(attrs).forEach(function (key, i) {
     elem.setAttributeNS(null, key, attrs[key]);
   });
@@ -769,7 +764,6 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
     var dy = evt.clientY - pos.scroll;
     menu.scrollTop = pos.top - dy;
   }
-  // eslint-disable-next-line no-unused-vars
   function menu_mouseup(evt) {
     menu.removeEventListener("mousemove", menu_mousemove);
     document.removeEventListener("mouseup", menu_mouseup);

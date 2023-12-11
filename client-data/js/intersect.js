@@ -28,7 +28,6 @@ if (
   !SVGGraphicsElement.prototype.transformedBBox ||
   !SVGGraphicsElement.prototype.transformedBBoxContains
 ) {
-  // eslint-disable-next-line no-undef
   [pointInTransformedBBox, transformedBBoxIntersects] = (function () {
     var get_transform_matrix = function (elem) {
       // Returns the first translate or transform matrix or makes one
