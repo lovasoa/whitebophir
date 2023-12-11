@@ -20,9 +20,8 @@
   "scripts": {
     "start": "node ./server/server.js",
     "test": "nightwatch tests && nightwatch tests --env jwt",
-    "prettier": "prettier . --write",
     "prettier-check": "prettier . --check",
-    "lint": "eslint --config .eslintrc.js \"./server/*.js\" \"tests/*.js\"",
+    "lint": "eslint --config .eslintrc.js \"./server/*.js\" \"tests/*.js\" && prettier . --write",
     "lint-fix": "eslint --config .eslintrc.js \"./server/*.js\" \"tests/*.js\" --fix"
   },
   "main": "./server/server.js",
