@@ -30,7 +30,6 @@ async function get_error(directory) {
         `user with UID ${uid} has access to them. This can be achieved by running the command: chown ${uid}:${gid} on the directory`;
     } finally {
       console.log(err_msg);
-      // return err_msg;
     }
   }
   const fileChecks = [];

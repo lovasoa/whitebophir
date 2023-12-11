@@ -24,7 +24,10 @@ module.exports = {
   },
   rules: {
     "no-prototype-builtins": "off",
-    "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+    "no-unused-vars": [
+      "error",
+      { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+    ],
     semi: ["error", "always"],
     "no-cond-assign": ["error", "always"],
     curly: "error",

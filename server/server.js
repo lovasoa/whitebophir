@@ -147,8 +147,7 @@ function handleRequest(request, response) {
         "board-" + boardName + ".json",
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-      // eslint-disable-next-line no-useless-escape
-      if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
+      if (parts.length > 2 && /^[0-9A-Za-z.-]+$/.test(parts[2])) {
         history_file += "." + parts[2] + ".bak";
       }
       log("download", { file: history_file });
