@@ -126,8 +126,7 @@ function handleRequest(request, response) {
         response.writeHead(301, headers);
         response.end();
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
-        // eslint-disable-next-line no-redeclare
-        var boardName = validateBoardName(parts[1]);
+        boardName = validateBoardName(parts[1]);
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         boardTemplate.serve(request, response, isModerator);
         // If there is no dot and no directory, parts[1] is the board name
@@ -138,12 +137,11 @@ function handleRequest(request, response) {
       break;
 
     case "download":
-      // eslint-disable-next-line no-redeclare
-      var boardName = validateBoardName(parts[1]),
-        history_file = path.join(
-          config.HISTORY_DIR,
-          "board-" + boardName + ".json",
-        );
+      boardName = validateBoardName(parts[1]);
+      var history_file = path.join(
+        config.HISTORY_DIR,
+        "board-" + boardName + ".json",
+      );
       jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
       // eslint-disable-next-line no-useless-escape
       if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
@@ -163,13 +161,11 @@ function handleRequest(request, response) {
 
     case "export":
     case "preview":
-      // eslint-disable-next-line no-redeclare
-      var boardName = validateBoardName(parts[1]),
-        // eslint-disable-next-line no-redeclare
-        history_file = path.join(
+      (boardName = validateBoardName(parts[1])),
+        (history_file = path.join(
           config.HISTORY_DIR,
           "board-" + boardName + ".json",
-        );
+        ));
       jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
       response.writeHead(200, {
         "Content-Type": "image/svg+xml",
