@@ -2,7 +2,7 @@ var app = require("http").createServer(handler),
   sockets = require("./sockets.js"),
   { log, monitorFunction } = require("./log.js"),
   path = require("path"),
-  fs = require("fs"),
+  fs = require("./fs_promises.js"),
   crypto = require("crypto"),
   serveStatic = require("serve-static"),
   createSVG = require("./createSVG.js"),
@@ -10,8 +10,12 @@ var app = require("http").createServer(handler),
   config = require("./configuration.js"),
   polyfillLibrary = require("polyfill-library"),
   check_output_directory = require("./check_output_directory.js"),
-  jwtauth = require("./jwtauth.js");
-jwtBoardName = require("./jwtBoardnameAuth.js");
+  jwtauth = require("./jwtauth.js"),
+  BoardDataList = require('./boardDataList.js'),
+  getMimeType = require("./getMimeType.js"),
+  ensureIsImage = require("./ensureIsImage.js"),
+  parseFormData = require("./parseFormData.js");
+  jwtBoardName = require("./jwtBoardnameAuth.js");
 
 var MIN_NODE_VERSION = 10.0;
 
@@ -27,7 +31,8 @@ if (parseFloat(process.versions.node) < MIN_NODE_VERSION) {
 
 check_output_directory(config.HISTORY_DIR);
 
-sockets.start(app);
+const boardDataList = new BoardDataList();
+const socketsInstance = sockets.start(app, boardDataList);
 
 app.listen(config.PORT, config.HOST);
 log("server started", { port: config.PORT });
@@ -42,6 +47,28 @@ var fileserver = serveStatic(config.WEBROOT, {
     res.setHeader("Content-Security-Policy", CSP);
   },
 });
+
+async function serveBoardImageAsset(request, response) {
+  const [,, boardId, assetId] = request.url.split("/");
+  const filePath = path.join(config.HISTORY_DIR, `board-${boardId}`, assetId)
+  let file;
+  try {
+    file = await fs.promises.readFile(filePath);
+  } catch (error) {
+    response.writeHead(404, { "Content-Type": "text/plain" });
+    response.end("File not found");
+    return response;
+  }
+
+  const mimeType = getMimeType(file);
+  response.writeHead(200, {
+    "Content-Type": mimeType,
+    "Content-Security-Policy": CSP,
+    "Cache-Control": "public, max-age=30",
+  });
+  response.end(file);
+  return response;
+}
 
 var errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
 function serveError(request, response) {
@@ -98,11 +125,21 @@ function validateBoardName(boardName) {
   throw new Error("Illegal board name: " + boardName);
 }
 
+async function validateImage(imageFormDataField) {
+  // Basic check to make sure the file is an image.
+  await ensureIsImage(imageFormDataField);
+
+  // Check that the image is not too large.
+  if (imageFormDataField.size > config.MAX_IMAGE_ASSET_SIZE) {
+    throw new Error("Image is too large");
+  }
+}
+
 /**
  * @type {import('http').RequestListener}
  */
-function handleRequest(request, response) {
-  var parsedUrl = new URL(request.url, "http://wbo/");
+async function handleRequest(request, response) {
+  var parsedUrl = new URL(request.url, 'http://wbo/');
   var parts = parsedUrl.pathname.split("/");
 
   if (parts[0] === "") parts.shift();
@@ -157,7 +194,67 @@ function handleRequest(request, response) {
         response.end(data);
       });
       break;
+    case "image-upload":
+        if (config.BLOCKED_TOOLS.includes('Image')) {
+          response.writeHead(403, { "Content-Type": "text/plain" });
+          response.end("Image upload is disabled");
+          return;
+        }
+        var boardName = parts[1];
+        if (!boardName) {
+          response.writeHead(400, { "Content-Type": "text/plain" });
+          response.end("No board name provided");
+          return;
+        }
 
+        const { fields, files } = await parseFormData(request);
+        if (!files?.image[0]) {
+          response.writeHead(400, { "Content-Type": "text/plain" });
+          response.end("No image provided");
+          return;
+        }
+
+        try {
+          await validateImage(files.image[0]);
+        } catch (error) {
+          response.writeHead(400, { "Content-Type": "text/plain" });
+          response.end(error.message);
+          return;
+        }
+
+        const id = fields.id[0];
+        const position = JSON.parse(fields.position[0]);
+        const dimensions = JSON.parse(fields.dimensions[0]);
+        const image = files.image[0];
+
+        if (!boardDataList.has(boardName)) {
+          response.writeHead(404, { "Content-Type": "text/plain" });
+          response.end("Board not found");
+          return;
+        }
+
+        // Save the image to disk.
+        const board = await boardDataList.get(boardName);
+        await board.saveImageAsset(id, image)
+
+        // Notify all clients of the new image.
+        socketsInstance.handleImageUpload(
+          boardName, id, position, dimensions
+        );
+
+        // Upload successful!
+        response.writeHead(200, {
+          "Content-Type": "application/json",
+          "Content-Security-Policy": CSP,
+          "Cache-Control": "public, max-age=30",
+        });
+      response.end(JSON.stringify({ status: 'ok' }));
+      break;
+    case "board-assets":
+        // Returns a promise but we don't need to wait for it to resolve as we
+        // don't want to block.
+        serveBoardImageAsset(request, response);
+        break;
     case "export":
     case "preview":
       var boardName = validateBoardName(parts[1]),

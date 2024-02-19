@@ -12,6 +12,7 @@
     "async-mutex": "^0.3.1",
     "handlebars": "^4.7.7",
     "jsonwebtoken": "^9.0.0",
+    "multiparty": "^4.2.3",
     "polyfill-library": "^3.107.1",
     "serve-static": "^1.14.1",
     "socket.io": "^4",

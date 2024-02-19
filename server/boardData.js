@@ -48,6 +48,10 @@ class BoardData {
       config.HISTORY_DIR,
       "board-" + encodeURIComponent(name) + ".json",
     );
+    this.assetsDir = path.join(
+      config.HISTORY_DIR,
+      "board-" + encodeURIComponent(name)
+    );
     this.lastSaveDate = Date.now();
     this.users = new Set();
     this.saveMutex = new Mutex();
@@ -71,6 +75,7 @@ class BoardData {
    * @returns {boolean} - True if the child was added, else false
    */
   addChild(parentId, child) {
+    // console.log('addChild :: child : ', child);
     var obj = this.board[parentId];
     if (typeof obj !== "object") return false;
     if (Array.isArray(obj._children)) obj._children.push(child);
@@ -134,9 +139,32 @@ class BoardData {
    * @param {string} id - Identifier of the data to delete.
    */
   delete(id) {
+    const element = this.board[id];
+    if (element.type === 'image') {
+      this.purgeImage(id);
+    }
     //KISS
     delete this.board[id];
     this.delaySave();
+  }
+
+  /**
+    * Removes an image file from the server if it is no longer used.
+    * @param {string} id - Identifier of the image to purge.
+    */
+  purgeImage(id) {
+    const image = this.board[id];
+    const isStillUsed = Object.values(this.board).some(
+      (elem) => {
+        console.log(elem);
+        return elem.id !== id && elem.type === 'image' && elem.src === image.src
+      }
+    );
+    if (!isStillUsed) {
+      log('purging unused image', { id });
+      const imagePath = path.join(this.assetsDir, id);
+      fs.promises.unlink(imagePath);
+    }
   }
 
   /** Process a batch of messages
@@ -299,6 +327,24 @@ class BoardData {
       for (var i = 0; i < item._children.length; i++) {
         this.validate(item._children[i]);
       }
+    }
+  }
+
+  ensureAssetsDirectoryExists() {
+    fs.mkdirSync(this.assetsDir, { recursive: true });
+  }
+
+  async saveImageAsset(id, imageFile) {
+    this.ensureAssetsDirectoryExists();
+    const fileSystemAssetPath = path.join(this.assetsDir, `${id}`);
+
+    // Data is automatically copied to a tmp directory (apparently) so we just
+    // need to copy it from there.
+    await fs.promises.copyFile(imageFile.path, fileSystemAssetPath);
+    await fs.promises.unlink(imageFile.path);
+
+    return {
+      fileSystemAssetPath,
     }
   }
 
