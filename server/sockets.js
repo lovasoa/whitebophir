@@ -7,7 +7,7 @@ var iolib = require("socket.io"),
 /** Map from name to *promises* of BoardData
   @type {{[boardName: string]: Promise<BoardData>}}
 */
-var boards = {};
+let boards = null;
 
 /**
  * Prevents a function from throwing errors.
@@ -28,7 +28,8 @@ function noFail(fn) {
   };
 }
 
-function startIO(app) {
+function startIO(app, boardDataList) {
+  boards = boardDataList;
   io = iolib(app);
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
@@ -49,19 +50,22 @@ function startIO(app) {
     });
   }
   io.on("connection", noFail(handleSocketConnection));
-  return io;
+  return {
+    io,
+    handleImageUpload
+  }
 }
 
 /** Returns a promise to a BoardData with the given name
  * @returns {Promise<BoardData>}
  */
 function getBoard(name) {
-  if (boards.hasOwnProperty(name)) {
-    return boards[name];
+  if (boards.has(name)) {
+    return boards.get(name);
   } else {
     var board = BoardData.load(name);
-    boards[name] = board;
-    gauge("boards in memory", Object.keys(boards).length);
+    boards.add(name, board);
+    gauge("boards in memory", boards.getCount());
     return board;
   }
 }
@@ -158,8 +162,8 @@ function handleSocketConnection(socket) {
 
   socket.on("disconnecting", function onDisconnecting(reason) {
     socket.rooms.forEach(async function disconnectFrom(room) {
-      if (boards.hasOwnProperty(room)) {
-        var board = await boards[room];
+      if (boards.has(room)) {
+        var board = await boards.get(room);
         board.users.delete(socket.id);
         var userCount = board.users.size;
         log("disconnection", {
@@ -175,16 +179,45 @@ function handleSocketConnection(socket) {
 }
 
 /**
+  * Assuming an image has been saved to disk, this function updates the board
+  * to include a reference to the image and then broadcasts the update to all
+  * connected clients.
+  * @param {string} boardName
+  * @param {string} id
+  * @param {object} position
+  * @param {number} position.x
+  * @param {number} position.y
+  * @param {object} dimensions
+  * @param {number} dimensions.x
+  * @param {number} dimensions.y
+  */
+function handleImageUpload(boardName, id, position, dimensions) {
+  // Update the board to include a reference to the image.
+  const message = {
+    type: "image",
+    id,
+    x: position.x,
+    y: position.y,
+    tool: "Image",
+    time: Date.now(),
+    x2: position.x + dimensions.x,
+    y2: position.y + dimensions.y,
+  }
+  handleMessage(boardName, message);
+  io.to(boardName).emit("broadcast", message);
+}
+
+/**
  * Unloads a board from memory.
  * @param {string} boardName
  **/
 async function unloadBoard(boardName) {
-  if (boards.hasOwnProperty(boardName)) {
-    const board = await boards[boardName];
+  if (boards.has(boardName)) {
+    const board = await boards.get(boardName);
     await board.save();
     log("unload board", { board: board.name, users: board.users.size });
-    delete boards[boardName];
-    gauge("boards in memory", Object.keys(boards).length);
+    boards.remove(boardName);
+    gauge("boards in memory", boards.getCount());
   }
 }
 

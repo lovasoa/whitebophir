@@ -61,10 +61,10 @@ function monitorFunction(f) {
     return f;
   }
   let client = statsd.getChildClient(f.name);
-  return function () {
+  return async function () {
     let startTime = new Date();
     try {
-      const result = f.apply(null, arguments);
+      const result = await f.apply(null, arguments);
       client.increment("ok", 1);
       return result;
     } catch (e) {
