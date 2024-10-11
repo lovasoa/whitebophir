@@ -411,19 +411,28 @@ function messageForTool(message) {
   }
 }
 
-// Apply the function to all arguments by batches
-function batchCall(fn, args) {
-  var BATCH_SIZE = 1024;
-  if (args.length === 0) {
+var BATCH_SIZE = 1024;
+
+/**
+ * Apply the function to all arguments by batches
+ * @param {Function} fn - The function to apply to the arguments
+ * @param {Array} args - The arguments to apply the function to
+ * @param {number} [index] - The index to start from
+ * @returns {Promise}
+ */
+function batchCall(fn, args, index) {
+  index = index | 0;
+  if (index >= args.length) {
     return Promise.resolve();
   } else {
-    var batch = args.slice(0, BATCH_SIZE);
-    var rest = args.slice(BATCH_SIZE);
+    var batch = args.slice(index, index + BATCH_SIZE);
     return Promise.all(batch.map(fn))
       .then(function () {
         return new Promise(requestAnimationFrame);
       })
-      .then(batchCall.bind(null, fn, rest));
+      .then(function () {
+        return batchCall(fn, args, index + BATCH_SIZE);
+      });
   }
 }
 
@@ -441,13 +450,12 @@ function handleMessage(message) {
 
 // Takes a parent message, and returns a function that will handle a single child message
 function childMessageHandler(parent) {
-  var parent_props = {
-    parent: parent.id,
-    tool: parent.tool,
-    parent: parent.id,
-  };
+  if (!parent.id) return handleMessage;
   return function handleChild(child) {
-    return handleMessage(Object.create(parent_props, child));
+    child.parent = parent.id;
+    child.tool = parent.tool;
+    child.type = "child";
+    return handleMessage(child);
   };
 }
 
