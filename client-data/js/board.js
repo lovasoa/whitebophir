@@ -441,11 +441,13 @@ function handleMessage(message) {
 
 // Takes a parent message, and returns a function that will handle a single child message
 function childMessageHandler(parent) {
+  var parent_props = {
+    parent: parent.id,
+    tool: parent.tool,
+    parent: parent.id,
+  };
   return function handleChild(child) {
-    if (!child.parent) child.parent = parent.id;
-    if (!child.type) child.type = "child";
-    if (!child.tool) child.tool = parent.tool;
-    return handleMessage(child);
+    return handleMessage(Object.create(parent_props, child));
   };
 }
 
