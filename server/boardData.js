@@ -171,7 +171,12 @@ class BoardData {
         if (id) this.copy(id, message);
         break;
       case "child":
-        this.addChild(message.parent, message);
+        // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
+        const parent = message.parent;
+        delete message.type;
+        delete message.parent;
+        delete message.tool;
+        this.addChild(parent, message);
         break;
       case "clear":
         if (jwtauth.roleInBoard(message.token, message.board) === "moderator") {
