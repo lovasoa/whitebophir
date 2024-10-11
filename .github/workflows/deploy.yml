@@ -13,7 +13,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Dokku
-        uses: dokku/github-action@bbb8818f9bad88edd3099a2399ef9be366754ff9
+        uses: dokku/github-action@036bf9c07f1b40707a16201bc7a349074c3ec554
         with:
           git_remote_url: ssh://dokku@${{ secrets.SSH_SERVER }}:22/wbo
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
