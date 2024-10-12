@@ -31,7 +31,7 @@ function testPencil(browser) {
   return browser.assert
     .titleContains("WBO")
     .click(".tool[title ~= Crayon]") // pencil
-    .assert.cssClassPresent(".tool[title ~= Crayon]", ["curTool"])
+    .assert.hasClass(".tool[title ~= Crayon]", "curTool")
     .executeAsync(async function (done) {
       function sleep(t) {
         return new Promise(function (accept) {
@@ -100,7 +100,7 @@ function testCircle(browser) {
     )
     .click("#toolID-Ellipse") // Click the ellipse tool
     .click("#toolID-Ellipse") // Click again to toggle
-    .assert.containsText("#toolID-Ellipse .tool-name", "Cercle"); // Circle in french
+    .assert.textContains("#toolID-Ellipse .tool-name", "Cercle"); // Circle in french
 }
 
 function testCursor(browser) {
@@ -127,7 +127,7 @@ function testCollaborativeness(browser) {
     .url(boardUrl)
     .waitForElementVisible(".tool[title ~= Pencil]")
     .click(".tool[title ~= Pencil]")
-    .assert.cssClassPresent(".tool[title ~= Pencil]", ["curTool"])
+    .assert.hasClass(".tool[title ~= Pencil]", "curTool")
     .window.open()
     .window.getAllHandles(function (result) {
       const handles = result.value;
