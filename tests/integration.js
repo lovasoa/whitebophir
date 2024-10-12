@@ -120,13 +120,46 @@ function testCursor(browser) {
     .assert.attributeEquals("#cursor-me", "fill", "#456123");
 }
 
+function testCollaborativeness(browser) {
+  const boardUrl = SERVER + "/boards/collaborative-test?lang=en&" + tokenQuery;
+
+  return browser
+    .url(boardUrl)
+    .waitForElementVisible(".tool[title ~= Pencil]")
+    .click(".tool[title ~= Pencil]")
+    .assert.cssClassPresent(".tool[title ~= Pencil]", ["curTool"])
+    .window.open()
+    .window.getAllHandles(function (result) {
+      const handles = result.value;
+      const newWindowHandle = handles[handles.length - 1];
+
+      browser.window
+        .switchTo(newWindowHandle)
+        .url(boardUrl)
+        .window.switchTo(handles[0])
+        .executeAsync(function (done) {
+          Tools.setColor("#ff0000");
+          Tools.curTool.listeners.press(100, 100, new Event("mousedown"));
+          Tools.curTool.listeners.move(200, 200, new Event("mousemove"));
+          Tools.curTool.listeners.release(200, 200, new Event("mouseup"));
+          done();
+        })
+        .window.switchTo(newWindowHandle)
+        .waitForElementVisible("path[d^='M 100 100'][stroke='#ff0000']")
+        .assert.visible("path[d^='M 100 100'][stroke='#ff0000']")
+        .window.close()
+        .window.switchTo(handles[0]);
+    });
+}
+
 function testBoard(browser) {
   var page = browser
     .url(SERVER + "/boards/anonymous?lang=fr&" + tokenQuery)
-    .waitForElementVisible(".tool[title ~= Crayon]"); // pencil
+    .waitForElementVisible(".tool[title ~= Crayon]");
   page = testPencil(page);
   page = testCircle(page);
   page = testCursor(page);
+  page = testCollaborativeness(page);
 
   // test hideMenu
   browser
