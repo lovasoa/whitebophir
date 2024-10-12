@@ -364,13 +364,14 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 })();
 
 Tools.send = function (data, toolName) {
-  toolName = toolName || Tools.curTool.name;
-  var d = data;
-  d.tool = toolName;
-  Tools.applyHooks(Tools.messageHooks, d);
+  if (data.type !== "child") {
+    toolName = toolName || Tools.curTool.name;
+    data.tool = toolName;
+  }
+  Tools.applyHooks(Tools.messageHooks, data);
   var message = {
     board: Tools.boardName,
-    data: d,
+    data: data,
   };
   Tools.socket.emit("broadcast", message);
 };

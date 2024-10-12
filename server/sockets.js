@@ -141,10 +141,10 @@ function handleSocketConnection(socket) {
       }
 
       if (
-        !message.data.tool ||
-        config.BLOCKED_TOOLS.includes(message.data.tool)
+        !(data.tool || data.type === "child") ||
+        config.BLOCKED_TOOLS.includes(data.tool)
       ) {
-        log("BLOCKED MESSAGE", message.data);
+        log("BLOCKED MESSAGE", data);
         return;
       }
 
@@ -197,7 +197,7 @@ function handleMessage(boardName, message, socket) {
 }
 
 async function saveHistory(boardName, message) {
-  if (!message.tool && !message._children) {
+  if (!(message.tool || message.type === "child") && !message._children) {
     console.error("Received a badly formatted message (no tool). ", message);
   }
   var board = await getBoard(boardName);
