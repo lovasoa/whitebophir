@@ -187,8 +187,8 @@ class BoardData {
         break;
       default:
         //Add data
-        if (!id) throw new Error("Invalid message: ", message);
-        this.set(id, message);
+        if (id) this.set(id, message);
+        else console.error("Invalid message: ", message);
     }
   }
 
