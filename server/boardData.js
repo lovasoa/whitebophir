@@ -175,7 +175,7 @@ class BoardData {
         break;
       case "child":
         // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
-        const { parent, type, ...childData } = message;
+        const { parent, type, tool, ...childData } = message;
         this.addChild(parent, childData);
         break;
       case "clear":

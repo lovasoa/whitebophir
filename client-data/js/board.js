@@ -364,10 +364,8 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 })();
 
 Tools.send = function (data, toolName) {
-  if (data.type !== "child") {
-    toolName = toolName || Tools.curTool.name;
-    data.tool = toolName;
-  }
+  toolName = toolName || Tools.curTool.name;
+  data.tool = toolName;
   Tools.applyHooks(Tools.messageHooks, data);
   var message = {
     board: Tools.boardName,
