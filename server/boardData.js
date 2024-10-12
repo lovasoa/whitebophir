@@ -73,10 +73,13 @@ class BoardData {
   addChild(parentId, child) {
     var obj = this.board[parentId];
     if (typeof obj !== "object") return false;
-    if (Array.isArray(obj._children)) obj._children.push(child);
-    else obj._children = [child];
-
-    this.validate(obj);
+    this.validate(child);
+    if (Array.isArray(obj._children)) {
+      if (obj._children.length >= config.MAX_CHILDREN) return false;
+      obj._children.push(child);
+    } else {
+      obj._children = [child];
+    }
     this.delaySave();
     return true;
   }
