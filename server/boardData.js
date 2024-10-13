@@ -182,7 +182,7 @@ class BoardData {
         if (jwtauth.roleInBoard(message.token, message.board) === "moderator") {
           this.clear();
         } else {
-          throw new Error("User is not a moderator");
+          console.error("User is not a moderator and tried to clear the board");
         }
         break;
       default:
