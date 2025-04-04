@@ -1,7 +1,7 @@
 {
   "name": "whitebophir",
   "description": "Online collaborative whiteboard",
-  "version": "1.21.2",
+  "version": "1.22.0",
   "keywords": [
     "collaborative",
     "whiteboard"
@@ -12,7 +12,7 @@
     "async-mutex": "^0.5.0",
     "handlebars": "^4.7.7",
     "jsonwebtoken": "^9.0.0",
-    "polyfill-library": "^3.107.1",
+    "polyfill-library": "^4.8.0",
     "serve-static": "^1.14.1",
     "socket.io": "^4",
     "statsd-client": "^0.4.7"
