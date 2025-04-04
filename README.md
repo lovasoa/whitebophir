@@ -143,7 +143,7 @@ Some important environment variables are :
 - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
 - `WBO_MAX_EMIT_COUNT` : the maximum number of messages that a client can send per unit of time. Increase this value if you want smoother drawings, at the expense of being susceptible to denial of service attacks if your server does not have enough processing power. By default, the units of this quantity are messages per 4 seconds, and the default value is `192`.
 - `AUTH_SECRET_KEY` : If you would like to authenticate your boards using jwt, this declares the secret key.
-
+- `WBO_SHOW_EXIT_BUTTON` : If set to `true`, an exit button will be shown on the board. This is useful if you want to run in kiosk mode and need a way to close the window.
 ## Troubleshooting
 
 If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).

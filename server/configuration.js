@@ -62,4 +62,7 @@ module.exports = {
 
   /** If this variable is set, automatically redirect to this board from the root of the application. */
   DEFAULT_BOARD: process.env["WBO_DEFAULT_BOARD"],
+
+  /** If this variable is set, the exit button will be shown on the board */
+  SHOW_EXIT_BUTTON: process.env["WBO_SHOW_EXIT_BUTTON"],
 };
