@@ -557,12 +557,25 @@
     }
   };
 
-  if (
-    !SVGPathElement.prototype.getPathData ||
-    !SVGPathElement.prototype.setPathData ||
-    // Path Data API was introduced in Firefox 137, but it is not usable
-    navigator.userAgent.indexOf("Firefox/") > -1
-  ) {
+  let isPathDataSupported =
+    SVGPathElement.prototype.getPathData !== undefined &&
+    SVGPathElement.prototype.setPathData !== undefined;
+
+  // Apply the polyfill if the native implementation of setPathData() accepts only SVGPathSegment instances
+  // https://github.com/w3c/svgwg/issues/974
+  // https://github.com/w3c/editing/issues/483
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1954044#c18
+  if (isPathDataSupported) {
+    try {
+      document
+        .createElementNS("http://www.w3.org/2000/svg", "path")
+        .setPathData([{ type: "M", values: [0, 0] }]);
+    } catch (error) {
+      isPathDataSupported = false;
+    }
+  }
+
+  if (isPathDataSupported === false) {
     var commandsMap = {
       Z: "Z",
       M: "M",
