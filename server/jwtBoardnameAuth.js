@@ -24,8 +24,8 @@
  * @licend
  */
 
-(config = require("./configuration.js")),
-  (jsonwebtoken = require("jsonwebtoken"));
+((config = require("./configuration.js")),
+  (jsonwebtoken = require("jsonwebtoken")));
 
 /**
  * This function checks if a board name is set in the roles claim.
