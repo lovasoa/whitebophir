@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{language}}">
+<html lang="{{language}}" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <title>WBO — {{translations.collaborative_whiteboard}}</title>
@@ -36,6 +36,9 @@
           {{/languages}}
         </ul>
       </nav>
+      <button id="theme-toggle" class="theme-toggle" type="button" title="{{translations.toggle_theme}}" aria-label="{{translations.toggle_theme}}" aria-pressed="false">
+        <span class="theme-icon" aria-hidden="true">🌙</span>
+      </button>
     </header>
 
     <main>
@@ -111,4 +114,5 @@
   </body>
 
   <script src="../js/index.js" async defer></script>
+  <script src="js/theme.js"></script>
 </html>

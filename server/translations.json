@@ -37,7 +37,8 @@
     "text": "نص",
     "tools": "ادوات",
     "view_source": "الملفات المصدرية على موقع جيتهب",
-    "zoom": "تقريب"
+    "zoom": "تقريب",
+    "toggle_theme": "تبديل السمة"
   },
   "be": {
     "White-out": "Замазка",
@@ -76,7 +77,8 @@
     "text": "Тэкст",
     "tools": "Інструменты",
     "view_source": "Зыходны код на GitHub",
-    "zoom": "Лупа"
+    "zoom": "Лупа",
+    "toggle_theme": "Пераключыць тэму"
   },
   "ca": {
     "White-out": "Corrector blanc",
@@ -116,7 +118,8 @@
     "text": "Text",
     "tools": "Eines",
     "view_source": "Codi font a GitHub",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "toggle_theme": "Toggle theme"
   },
   "de": {
     "board_name_placeholder": "Name des Whiteboards…",
@@ -156,7 +159,8 @@
     "tools": "Werkzeuge",
     "view_source": "Quellcode auf GitHub",
     "white-out": "Korrekturflüssigkeit",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "toggle_theme": "Toggle theme"
   },
   "en": {
     "White-out": "White-out",
@@ -196,7 +200,8 @@
     "text": "Text",
     "tools": "Tools",
     "view_source": "Source code on GitHub",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "toggle_theme": "Toggle theme"
   },
   "es": {
     "board_name_placeholder": "Nombre de la pizarra …",
@@ -235,7 +240,8 @@
     "tools": "Herramientas",
     "view_source": "Código fuente en GitHub",
     "white-out": "Blanqueado",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "toggle_theme": "Toggle theme"
   },
   "fr": {
     "board_name_placeholder": "Nom du tableau…",
@@ -273,7 +279,8 @@
     "text": "Texte",
     "tools": "Outils",
     "view_source": "Code source sur GitHub",
-    "white-out": "Blanco"
+    "white-out": "Blanco",
+    "toggle_theme": "Toggle theme"
   },
   "hu": {
     "White-out": "Lefedő",
@@ -312,7 +319,8 @@
     "text": "Szöveg",
     "tools": "Eszközök",
     "view_source": "Forráskód a GitHub-on",
-    "zoom": "Nagyítás/kicsinyítés"
+    "zoom": "Nagyítás/kicsinyítés",
+    "toggle_theme": "Téma váltása"
   },
   "id": {
     "White-out": "Cairan koreksi",
@@ -352,7 +360,8 @@
     "text": "Teks",
     "tools": "Alat",
     "view_source": "Kode sumber di GitHub",
-    "zoom": "Lup"
+    "zoom": "Lup",
+    "toggle_theme": "Przełącz motyw"
   },
   "it": {
     "board_name_placeholder": "Nome della lavagna…",
@@ -391,7 +400,8 @@
     "tools": "Strumenti",
     "view_source": "Codice sorgente su GitHub",
     "white-out": "Bianchetto",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "toggle_theme": "Toggle theme"
   },
   "ja": {
     "board_name_placeholder": "ボードの名前",
@@ -430,7 +440,8 @@
     "tools": "ツール",
     "view_source": "GitHubでソースコード見る",
     "white-out": "修正液",
-    "zoom": "拡大・縮小"
+    "zoom": "拡大・縮小",
+    "toggle_theme": "テーマを切り替え"
   },
   "my": {
     "board_name_placeholder": "ဝှိုက်ဘုတ်အမည် ... ",
@@ -470,7 +481,8 @@
     "tools": "ကိရိယာများ",
     "view_source": "GitHub ရှိရင်းမြစ်ကုဒ်",
     "white-out": "ပြုပြင်မှုအရည်",
-    "zoom": "ချဲ့ခြင်း"
+    "zoom": "ချဲ့ခြင်း",
+    "toggle_theme": "အပြင်အဆင်ပြောင်း"
   },
   "pt": {
     "White-out": "Branquejar",
@@ -509,7 +521,8 @@
     "text": "Texto",
     "tools": "Ferramentas",
     "view_source": "Código-fonte no GitHub",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "toggle_theme": "Toggle theme"
   },
   "ru": {
     "board_name_placeholder": "Название доски",
@@ -548,7 +561,8 @@
     "tools": "Инструменты",
     "view_source": "Исходный код на GitHub",
     "white-out": "Корректор",
-    "zoom": "Лупа"
+    "zoom": "Лупа",
+    "toggle_theme": "Пераключыць тэму"
   },
   "sw": {
     "board_name_placeholder": "Jina la ubao mweupe ...",
@@ -588,7 +602,8 @@
     "tools": "zana",
     "view_source": "Nambari ya chanzo kwenye GitHub",
     "white-out": "maji ya kusahihisha",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "toggle_theme": "Toggle theme"
   },
   "th": {
     "board_name_placeholder": "ชื่อไวท์บอร์ด ...",
@@ -628,7 +643,8 @@
     "tools": "เครื่องมือ",
     "view_source": "ซอร์สโค้ดบน GitHub",
     "white-out": "น้ำยาลบคำผิด",
-    "zoom": "ซูม"
+    "zoom": "ซูม",
+    "toggle_theme": "สลับธีม"
   },
   "uk": {
     "White-out": "Коректор",
@@ -667,7 +683,8 @@
     "text": "Текст",
     "tools": "Засоби",
     "view_source": "Вихідний код на GitHub",
-    "zoom": "Лупа"
+    "zoom": "Лупа",
+    "toggle_theme": "Пераключыць тэму"
   },
   "vn": {
     "White-out": "Trắng",
@@ -706,7 +723,8 @@
     "text": "Text",
     "tools": "Công cụ",
     "view_source": "Source code on GitHub",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "toggle_theme": "Toggle theme"
   },
   "zh-CN": {
     "board_name_placeholder": "白板名称",
@@ -746,7 +764,8 @@
     "tools": "工具",
     "view_source": "GitHub上的源代码",
     "white-out": "修正液",
-    "zoom": "放大"
+    "zoom": "放大",
+    "toggle_theme": "切换主题"
   },
   "zh-TW": {
     "board_name_placeholder": "白板名稱",
@@ -785,7 +804,8 @@
     "tools": "工具",
     "view_source": "檢視位於GitHub上的原始碼",
     "white-out": "修正液",
-    "zoom": "放大"
+    "zoom": "放大",
+    "toggle_theme": "切换主题"
   },
   "pl": {
     "board_name_placeholder": "Nazwa tablicy",
@@ -824,6 +844,7 @@
     "tools": "Narzędzia",
     "view_source": "Kod źródłowy na GitHub",
     "white-out": "Korektor",
-    "zoom": "Lupa"
+    "zoom": "Lupa",
+    "toggle_theme": "Alternar tema"
   }
 }

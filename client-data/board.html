@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{language}}">
+<html lang="{{language}}" data-theme="light">
 
 <head>
 	<meta charset="utf-8" />
@@ -37,6 +37,10 @@
 
 	<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>
 		<div id="menuItems">
+			<button id="theme-toggle" class="tool" type="button" title="{{translations.toggle_theme}}" aria-label="{{translations.toggle_theme}}" aria-pressed="false">
+				<span class="tool-icon theme-icon" aria-hidden="true">🌙</span>
+				<span class="tool-name theme-label">Dark</span>
+			</button>
 			<ul id="tools" class="tools">
 				<li class="tool" tabindex="-1">
 					<img class="tool-icon" width="35" height="35" src="" alt="icon" />
@@ -104,6 +108,7 @@
 	<script src="../tools/zoom/zoom.js"></script>
 	{{#moderator}}<script src="../tools/clear/clear.js"></script>{{/moderator}}
 	<script src="../js/canvascolor.js"></script>
+	<script src="../js/theme.js"></script>
 </body>
 
 </html>

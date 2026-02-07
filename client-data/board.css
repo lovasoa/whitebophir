@@ -1,3 +1,66 @@
+:root {
+  /* Light theme (default) */
+  --bg-color: #ffffff;
+  --bg-secondary: #eeeeee;
+  --bg-tertiary: #cccccc;
+  --text-color: #000000;
+  --text-secondary: #333333;
+  --border-color: #eeeeee;
+  --shadow-color: #8fa2bc;
+  --tool-bg: #ffffff;
+  --tool-hover-bg: #eeeeff;
+  --tool-active-bg: #eeeeff;
+  --tool-selected-bg-start: #96e1ff;
+  --tool-selected-bg-end: #36a2ff;
+  --tool-selected-shadow: #0074d9;
+  --loading-bg-start: #eeeeee;
+  --loading-bg-end: #cccccc;
+  --loading-box-shadow: #333333;
+  --menu-closed-bg: rgba(100, 200, 255, 0.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-color: #1a1a1a;
+    --bg-secondary: #2d2d2d;
+    --bg-tertiary: #404040;
+    --text-color: #f0f0f0;
+    --text-secondary: #c0c0c0;
+    --border-color: #505050;
+    --shadow-color: #000000;
+    --tool-bg: #2d2d2d;
+    --tool-hover-bg: #404040;
+    --tool-active-bg: #404040;
+    --tool-selected-bg-start: #1a5a7a;
+    --tool-selected-bg-end: #0d3d5c;
+    --tool-selected-shadow: #0074d9;
+    --loading-bg-start: #2d2d2d;
+    --loading-bg-end: #1a1a1a;
+    --loading-box-shadow: #000000;
+    --menu-closed-bg: rgba(30, 80, 120, 0.8);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg-color: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #404040;
+  --text-color: #f0f0f0;
+  --text-secondary: #c0c0c0;
+  --border-color: #505050;
+  --shadow-color: #000000;
+  --tool-bg: #2d2d2d;
+  --tool-hover-bg: #404040;
+  --tool-active-bg: #404040;
+  --tool-selected-bg-start: #1a5a7a;
+  --tool-selected-bg-end: #0d3d5c;
+  --tool-selected-shadow: #0074d9;
+  --loading-bg-start: #2d2d2d;
+  --loading-bg-end: #1a1a1a;
+  --loading-box-shadow: #000000;
+  --menu-closed-bg: rgba(30, 80, 120, 0.8);
+}
+
 html,
 body,
 svg {
@@ -6,6 +69,20 @@ svg {
   font-family:
     Liberation sans,
     sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+/* Smooth theme transitions - exclude canvas for performance */
+body,
+#menu,
+#loadingMessage,
+.tool {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 #canvas {
@@ -14,7 +91,7 @@ svg {
 
 #loadingMessage {
   font-size: 1.5em;
-  background: #eee linear-gradient(#eeeeee, #cccccc);
+  background: linear-gradient(var(--loading-bg-start), var(--loading-bg-end));
   padding: 20px;
   width: 40%;
   line-height: 50px;
@@ -24,8 +101,9 @@ svg {
   top: 40%;
   left: 30%;
   z-index: 1;
-  box-shadow: 0 0 2px #333333;
+  box-shadow: 0 0 2px var(--loading-box-shadow);
   transition: 1s;
+  color: var(--text-color);
 }
 
 #loadingMessage.hidden {
@@ -53,7 +131,7 @@ svg {
   margin-bottom: 30px;
   left: 0;
   top: 0;
-  color: black;
+  color: var(--text-color);
   max-height: 100%;
   transition-duration: 1s;
   cursor: default;
@@ -64,7 +142,7 @@ svg {
   border-radius: 3px;
   left: 10px;
   top: 10px;
-  background-color: rgba(100, 200, 255, 0.7);
+  background-color: var(--menu-closed-bg);
   width: 6vw;
   height: 2em;
   transition-duration: 1s;
@@ -76,8 +154,8 @@ svg {
   font-size: 4vh;
   text-align: center;
   letter-spacing: 0.5vw;
-  text-shadow: 0px 0px 5px white;
-  color: black;
+  text-shadow: 0px 0px 5px var(--bg-color);
+  color: var(--text-color);
   padding: 0;
   margin: 0;
 }
@@ -103,10 +181,10 @@ svg {
   pointer-events: auto;
   white-space: nowrap;
   list-style-position: inside;
-  border: 1px solid #eeeeee;
+  border: 1px solid var(--border-color);
   text-decoration: none;
   cursor: pointer;
-  background: #ffffff;
+  background: var(--tool-bg);
   margin-top: 10px;
   height: 40px;
   line-height: 40px;
@@ -115,7 +193,7 @@ svg {
   transition-duration: 0.2s;
   overflow: hidden;
   width: max-content;
-  box-shadow: inset 0 0 3px #8fa2bc;
+  box-shadow: inset 0 0 3px var(--shadow-color);
 }
 
 #menu .tool:hover {
@@ -142,17 +220,20 @@ svg {
 
 #menu .oneTouch:active {
   border-radius: 3px;
-  background-color: #eeeeff;
+  background-color: var(--tool-active-bg);
 }
 
 #menu .tool:active {
-  box-shadow: inset 0 0 1px #ddeeff;
-  background-color: #eeeeff;
+  box-shadow: inset 0 0 1px var(--tool-active-bg);
+  background-color: var(--tool-active-bg);
 }
 
 #menu .tool.curTool {
-  box-shadow: 0 0 5px #0074d9;
-  background: linear-gradient(#96e1ff, #36a2ff);
+  box-shadow: 0 0 5px var(--tool-selected-shadow);
+  background: linear-gradient(
+    var(--tool-selected-bg-start),
+    var(--tool-selected-bg-end)
+  );
 }
 
 #menu .tool-icon {
@@ -172,6 +253,10 @@ svg {
 #menu .tool-icon > * {
   display: block;
   margin: auto;
+}
+
+#menu .tool-icon svg {
+  color: var(--text-color);
 }
 
 #menu .tool-name {
@@ -220,7 +305,7 @@ input {
   height: 100%;
   border: 0;
   border-radius: 0;
-  color: black;
+  color: var(--text-color);
   display: block;
   margin: 0;
   padding: 0;
@@ -235,7 +320,7 @@ input {
 .colorPresetButton {
   width: 30px;
   height: 30px;
-  border: 1px solid black;
+  border: 1px solid var(--text-color);
   border-radius: 3px;
   display: inline-block;
   margin-right: 6px;
@@ -276,6 +361,33 @@ circle.opcursor {
 
 #cursor-me {
   transition: 0s;
+}
+
+/* Theme toggle styles */
+#theme-toggle {
+  margin-bottom: 10px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+}
+
+#theme-toggle:focus {
+  outline: 2px solid var(--tool-selected-shadow);
+  outline-offset: 2px;
+}
+
+#theme-toggle:focus-visible {
+  outline: 2px solid var(--tool-selected-shadow);
+  outline-offset: 2px;
+}
+
+#theme-toggle .tool-icon {
+  font-size: 24px;
+  line-height: 35px;
+  text-align: center;
 }
 
 /* Internet Explorer specific CSS */
