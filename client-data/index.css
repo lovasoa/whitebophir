@@ -1,15 +1,97 @@
+:root {
+  /* Light theme (default) */
+  --bg-color: #ffffff;
+  --bg-gradient-start: #ccdfdf;
+  --bg-gradient-end: #abc6c6;
+  --bg-secondary: #ffffff;
+  --text-color: #000000;
+  --text-secondary: #333333;
+  --link-color: #000000;
+  --button-shadow: #555;
+  --button-hover-shadow: #0074d9;
+  --input-bg: #ffffffcf;
+  --input-focus-bg: #fff;
+  --input-border: #ffffff8f;
+  --submit-bg: #fff6;
+  --submit-hover-bg: #fff3;
+  --recent-boards-bg: #ffffff;
+  --recent-board-item-bg-start: #ccdfdf;
+  --recent-board-item-bg-end: #abc6c6;
+  --recent-board-item-shadow: #000;
+  --lang-selector-bg: black;
+  --lang-selector-link-color: white;
+  --footer-link-opacity: 0.3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-color: #1a1a1a;
+    --bg-gradient-start: #2d5a5a;
+    --bg-gradient-end: #1a3d3d;
+    --bg-secondary: #2d2d2d;
+    --text-color: #f0f0f0;
+    --text-secondary: #c0c0c0;
+    --link-color: #f0f0f0;
+    --button-shadow: #000;
+    --button-hover-shadow: #0074d9;
+    --input-bg: #3d3d3dcf;
+    --input-focus-bg: #3d3d3d;
+    --input-border: #5050508f;
+    --submit-bg: #50505066;
+    --submit-hover-bg: #50505033;
+    --recent-boards-bg: #2d2d2d;
+    --recent-board-item-bg-start: #2d5a5a;
+    --recent-board-item-bg-end: #1a3d3d;
+    --recent-board-item-shadow: #000;
+    --lang-selector-bg: #1a1a1a;
+    --lang-selector-link-color: #f0f0f0;
+    --footer-link-opacity: 0.6;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg-color: #1a1a1a;
+  --bg-gradient-start: #2d5a5a;
+  --bg-gradient-end: #1a3d3d;
+  --bg-secondary: #2d2d2d;
+  --text-color: #f0f0f0;
+  --text-secondary: #c0c0c0;
+  --link-color: #f0f0f0;
+  --button-shadow: #000;
+  --button-hover-shadow: #0074d9;
+  --input-bg: #3d3d3dcf;
+  --input-focus-bg: #3d3d3d;
+  --input-border: #5050508f;
+  --submit-bg: #50505066;
+  --submit-hover-bg: #50505033;
+  --recent-boards-bg: #2d2d2d;
+  --recent-board-item-bg-start: #2d5a5a;
+  --recent-board-item-bg-end: #1a3d3d;
+  --recent-board-item-shadow: #000;
+  --lang-selector-bg: #1a1a1a;
+  --lang-selector-link-color: #f0f0f0;
+  --footer-link-opacity: 0.6;
+}
+
 html {
   min-height: 100%;
   margin: 0;
   font-family: sans-serif;
   font-weight: 300;
   font-size: 15px;
+  background-color: var(--bg-color);
+  color: var(--text-color);
 }
 
 body {
   min-height: 100%;
   margin: 0;
   overflow-x: hidden;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 header {
@@ -74,23 +156,23 @@ header:hover h2 {
 .wbo-button {
   white-space: nowrap;
   text-decoration: none;
-  background: linear-gradient(#ccdfdf, #abc6c6);
+  background: linear-gradient(var(--bg-gradient-start), var(--bg-gradient-end));
   margin-top: 15px;
   line-height: 60px;
   border-radius: 5px;
-  box-shadow: 1px 1px 2.5px #555;
+  box-shadow: 1px 1px 2.5px var(--button-shadow);
   display: block;
   text-align: center;
-  color: black;
+  color: var(--link-color);
   transition: 0.1s;
 }
 
 a {
-  color: black;
+  color: var(--link-color);
 }
 
 .wbo-button:hover {
-  box-shadow: 0 0 5px #0074d9;
+  box-shadow: 0 0 5px var(--button-hover-shadow);
 }
 
 .wbo-button:focus,
@@ -99,7 +181,7 @@ a {
 }
 #named-board-form {
   display: flex;
-  background: linear-gradient(#ccdfdf, #abc6c6);
+  background: linear-gradient(var(--bg-gradient-start), var(--bg-gradient-end));
   padding: 0 9px;
   border-radius: 28px;
   margin-bottom: 40px;
@@ -107,40 +189,42 @@ a {
 #named-board-form input {
   line-height: 20px;
   border-radius: 5px;
-  border: 1px solid #ffffff8f;
+  border: 1px solid var(--input-border);
   padding: 6px;
   font-size: 1.1em;
   margin: 9px 0;
-  background: #ffffff09;
+  background: var(--input-bg);
+  color: var(--text-color);
 }
 
 #named-board-form input[type="text"] {
   width: 75%;
   border-radius: 15px 0 0 15px;
-  background: #ffffffcf;
+  background: var(--input-bg);
 }
 #named-board-form input[type="text"]:focus {
-  background: #fff;
+  background: var(--input-focus-bg);
 }
 
 #named-board-form input[type="submit"] {
   flex: 1;
   border-radius: 0 15px 15px 0;
-  background: #fff6;
+  background: var(--submit-bg);
+  color: var(--text-color);
 }
 #named-board-form input[type="submit"]:hover {
-  background: #fff3;
+  background: var(--submit-hover-bg);
 }
 
 #named-board-form input[type="submit"]:focus,
 #named-board-form input[type="submit"]:active {
-  box-shadow: inset 0 0 3px white;
+  box-shadow: inset 0 0 3px var(--text-color);
 }
 
 #recent-boards {
-  box-shadow: 0px 0px 2px black;
+  box-shadow: 0px 0px 2px var(--button-shadow);
   border-radius: 15px;
-  background: linear-gradient(#ccdfdf, #abc6c6);
+  background: linear-gradient(var(--bg-gradient-start), var(--bg-gradient-end));
   padding: 5px;
 }
 
@@ -161,10 +245,10 @@ a {
   flex-wrap: wrap;
   list-style: none;
   margin: 0;
-  background: white;
+  background: var(--recent-boards-bg);
   padding: 7px;
   border-radius: 15px;
-  box-shadow: inset 0 0 1px black;
+  box-shadow: inset 0 0 1px var(--text-color);
   max-height: 110px;
   overflow-y: scroll;
 }
@@ -174,15 +258,17 @@ a {
   text-align: center;
   margin: 3px;
   display: inline-block;
-  background: #abc6c6;
   border-radius: 6px;
   padding: 2px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   height: 1.5em;
   line-height: 1.5em;
-  background: linear-gradient(#ccdfdf, #abc6c6);
-  box-shadow: 0px 0px 1px;
+  background: linear-gradient(
+    var(--recent-board-item-bg-start),
+    var(--recent-board-item-bg-end)
+  );
+  box-shadow: 0px 0px 1px var(--recent-board-item-shadow);
   white-space: nowrap;
 }
 
@@ -203,7 +289,7 @@ footer {
 }
 
 footer a {
-  opacity: 0.3;
+  opacity: var(--footer-link-opacity);
 }
 
 footer a:hover {
@@ -232,8 +318,8 @@ footer a:hover {
 .lang-selector:active ul,
 .lang-selector:focus ul {
   width: 300px;
-  box-shadow: -150px 0 150px 150px black;
-  background: black;
+  box-shadow: -150px 0 150px 150px var(--lang-selector-bg);
+  background: var(--lang-selector-bg);
   transition:
     width 0.5s,
     box-shadow 0.3s ease 0.2s,
@@ -268,7 +354,7 @@ footer a:hover {
   text-transform: uppercase;
   text-decoration: none;
   padding-right: 3em;
-  color: white;
+  color: var(--lang-selector-link-color);
   opacity: 0.6;
   transition: 0.2s;
 }
@@ -279,6 +365,41 @@ footer a:hover {
 
 .lang-selector li:hover a::before {
   content: "🌐 ";
+}
+
+/* Theme toggle styles */
+.theme-toggle {
+  position: absolute;
+  top: 10px;
+  right: 80px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  transition: 0.2s;
+  z-index: 10;
+}
+
+.theme-toggle:hover {
+  background: rgba(128, 128, 128, 0.2);
+}
+
+.theme-toggle:focus {
+  outline: 2px solid var(--button-hover-shadow);
+  outline-offset: 2px;
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--button-hover-shadow);
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .theme-toggle {
+    right: 60px;
+  }
 }
 
 @keyframes appear {
