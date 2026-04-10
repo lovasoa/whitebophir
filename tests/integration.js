@@ -1,11 +1,62 @@
 const fs = require("../server/fs_promises.js");
+const jsonwebtoken = require("jsonwebtoken");
 const os = require("os");
 const path = require("path");
 
 const PORT = 8487;
 const SERVER = "http://localhost:" + PORT;
+const AUTH_SECRET = "test";
+
+const TOKENS = {
+  globalModerator: jsonwebtoken.sign(
+    { sub: "moderator", roles: ["moderator"] },
+    AUTH_SECRET,
+  ),
+  boardModeratorTestboard: jsonwebtoken.sign(
+    { sub: "moderator-board", roles: ["moderator:testboard"] },
+    AUTH_SECRET,
+  ),
+  globalEditor: jsonwebtoken.sign(
+    { sub: "editor", roles: ["editor"] },
+    AUTH_SECRET,
+  ),
+  boardEditorTestboard: jsonwebtoken.sign(
+    { sub: "editor-board", roles: ["editor:testboard"] },
+    AUTH_SECRET,
+  ),
+  readOnlyViewer: jsonwebtoken.sign(
+    { sub: "viewer", roles: ["reader:readonly-test"] },
+    AUTH_SECRET,
+  ),
+  readOnlyGlobalEditor: jsonwebtoken.sign(
+    { sub: "readonly-editor", roles: ["editor"] },
+    AUTH_SECRET,
+  ),
+  readOnlyBoardEditor: jsonwebtoken.sign(
+    { sub: "readonly-board-editor", roles: ["editor:readonly-test"] },
+    AUTH_SECRET,
+  ),
+  readOnlyGlobalModerator: jsonwebtoken.sign(
+    { sub: "readonly-moderator", roles: ["moderator"] },
+    AUTH_SECRET,
+  ),
+};
 
 let wbo, data_path, tokenQuery;
+
+function withToken(url, token) {
+  const query = token ? "token=" + token : tokenQuery;
+  if (!query) return url;
+  return url + (url.includes("?") ? "&" : "?") + query;
+}
+
+function boardFile(name) {
+  return path.join(data_path, "board-" + encodeURIComponent(name) + ".json");
+}
+
+async function writeBoard(name, storedBoard) {
+  await fs.promises.writeFile(boardFile(name), JSON.stringify(storedBoard));
+}
 
 async function beforeEach(browser, done) {
   data_path = await fs.promises.mkdtemp(
@@ -13,9 +64,12 @@ async function beforeEach(browser, done) {
   );
   process.env["PORT"] = PORT;
   process.env["WBO_HISTORY_DIR"] = data_path;
+  tokenQuery = "";
   if (browser.globals.token) {
-    process.env["AUTH_SECRET_KEY"] = "test";
+    process.env["AUTH_SECRET_KEY"] = AUTH_SECRET;
     tokenQuery = "token=" + browser.globals.token;
+  } else {
+    delete process.env["AUTH_SECRET_KEY"];
   }
   console.log("Launching WBO in " + data_path);
   wbo = require("../server/server.js");
@@ -152,6 +206,137 @@ function testCollaborativeness(browser) {
     });
 }
 
+function testReadOnlyBoardWithoutAuth(browser) {
+  const selector =
+    "rect[x='10'][y='10'][width='20'][height='20'][stroke='#123456']";
+
+  return browser
+    .perform(async function (done) {
+      await writeBoard("readonly-public", {
+        __wbo_meta__: { readonly: true },
+      });
+      done();
+    })
+    .url(SERVER + "/boards/readonly-public")
+    .waitForElementVisible("#toolID-Hand")
+    .assert.elementNotPresent("#toolID-Pencil")
+    .assert.elementNotPresent("#toolID-Line")
+    .waitForElementNotVisible("#settings")
+    .execute(function () {
+      Tools.socket.emit("broadcast", {
+        board: Tools.boardName,
+        data: {
+          type: "rect",
+          id: "readonly-public-rect",
+          tool: "Rectangle",
+          x: 10,
+          y: 10,
+          x2: 30,
+          y2: 30,
+          color: "#123456",
+          size: 4,
+        },
+      });
+    })
+    .refresh()
+    .waitForElementVisible("#toolID-Hand")
+    .assert.elementNotPresent(selector);
+}
+
+function testReadOnlyBoardWithJwt(browser) {
+  const selector =
+    "rect[x='10'][y='10'][width='20'][height='20'][stroke='#123456']";
+
+  return browser
+    .perform(async function (done) {
+      await writeBoard("readonly-test", {
+        __wbo_meta__: { readonly: true },
+      });
+      await writeBoard("readonly-clear", {
+        __wbo_meta__: { readonly: true },
+        "readonly-clear-rect": {
+          type: "rect",
+          id: "readonly-clear-rect",
+          tool: "Rectangle",
+          x: 10,
+          y: 10,
+          x2: 30,
+          y2: 30,
+          color: "#ff00ff",
+          size: 4,
+        },
+      });
+      done();
+    })
+    .url(withToken(SERVER + "/boards/readonly-test", TOKENS.readOnlyViewer))
+    .waitForElementVisible("#toolID-Hand")
+    .assert.elementNotPresent("#toolID-Pencil")
+    .waitForElementNotVisible("#settings")
+    .execute(function () {
+      Tools.socket.emit("broadcast", {
+        board: Tools.boardName,
+        data: {
+          type: "rect",
+          id: "readonly-viewer-rect",
+          tool: "Rectangle",
+          x: 10,
+          y: 10,
+          x2: 30,
+          y2: 30,
+          color: "#123456",
+          size: 4,
+        },
+      });
+    })
+    .refresh()
+    .waitForElementVisible("#toolID-Hand")
+    .assert.elementNotPresent(selector)
+    .url(
+      withToken(SERVER + "/boards/readonly-test", TOKENS.readOnlyGlobalEditor),
+    )
+    .waitForElementVisible("#toolID-Pencil")
+    .assert.visible("#settings")
+    .execute(function () {
+      Tools.socket.emit("broadcast", {
+        board: Tools.boardName,
+        data: {
+          type: "rect",
+          id: "readonly-editor-rect",
+          tool: "Rectangle",
+          x: 10,
+          y: 10,
+          x2: 30,
+          y2: 30,
+          color: "#123456",
+          size: 4,
+        },
+      });
+    })
+    .refresh()
+    .waitForElementVisible(selector)
+    .url(
+      withToken(SERVER + "/boards/readonly-test", TOKENS.readOnlyBoardEditor),
+    )
+    .waitForElementVisible(selector)
+    .assert.visible("#toolID-Pencil")
+    .url(
+      withToken(
+        SERVER + "/boards/readonly-clear",
+        TOKENS.readOnlyGlobalModerator,
+      ),
+    )
+    .waitForElementVisible("#toolID-Clear")
+    .waitForElementVisible(
+      "rect[x='10'][y='10'][width='20'][height='20'][stroke='#ff00ff']",
+    )
+    .click("#toolID-Clear")
+    .refresh()
+    .waitForElementVisible("#toolID-Clear")
+    .assert.elementNotPresent(
+      "rect[x='10'][y='10'][width='20'][height='20'][stroke='#ff00ff']",
+    );
+}
+
 function testBoard(browser) {
   var page = browser
     .url(SERVER + "/boards/anonymous?lang=fr&" + tokenQuery)
@@ -168,81 +353,77 @@ function testBoard(browser) {
   browser
     .url(SERVER + "/boards/anonymous?lang=fr&hideMenu=false&" + tokenQuery)
     .waitForElementVisible("#menu");
+  if (!browser.globals.token) {
+    testReadOnlyBoardWithoutAuth(browser);
+  }
   if (browser.globals.token) {
     //has moderator jwt and no board name
     browser
-      .url(
-        SERVER +
-          "/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3IiXX0.PqYHmV0loeKwyLLYZ1a1eIXBCCaa3t5lYUTu_P_-i14",
-      )
+      .url(withToken(SERVER + "/boards/testboard", TOKENS.globalModerator))
       .waitForElementVisible("#toolID-Clear");
     //has moderator JWT and other board name
     browser
-      .url(
-        SERVER +
-          "/boards/testboard123?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3IiXX0.PqYHmV0loeKwyLLYZ1a1eIXBCCaa3t5lYUTu_P_-i14",
-      )
+      .url(withToken(SERVER + "/boards/testboard123", TOKENS.globalModerator))
       .waitForElementVisible("#toolID-Clear");
     //has moderator JWT and board name match board name in url
     browser
       .url(
-        SERVER +
-          "/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3I6dGVzdGJvYXJkIl19.UVf6awGEChVxcWBbt6dYoNH0Scq7cVD_xfQn-U8A1lw",
+        withToken(SERVER + "/boards/testboard", TOKENS.boardModeratorTestboard),
       )
       .waitForElementVisible("#toolID-Clear");
     //has moderator JWT and board name NOT match board name in url
     browser
       .url(
-        SERVER +
-          "/boards/testboard123?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3I6dGVzdGJvYXJkIl19.UVf6awGEChVxcWBbt6dYoNH0Scq7cVD_xfQn-U8A1lw",
+        withToken(
+          SERVER + "/boards/testboard123",
+          TOKENS.boardModeratorTestboard,
+        ),
       )
       .waitForElementNotPresent("#menu");
     //has editor JWT and no boardname provided
     browser
-      .url(
-        SERVER +
-          "/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0b3IiXX0.IJehwM8tPVQFzJ2fZMBHveii1DRChVtzo7PEnSmmFt8",
-      )
+      .url(withToken(SERVER + "/boards/testboard", TOKENS.globalEditor))
       .waitForElementNotPresent("#toolID-Clear");
     browser
-      .url(
-        SERVER +
-          "/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0b3IiXX0.IJehwM8tPVQFzJ2fZMBHveii1DRChVtzo7PEnSmmFt8",
-      )
+      .url(withToken(SERVER + "/boards/testboard", TOKENS.globalEditor))
       .waitForElementVisible("#menu");
     //has editor JWT and  boardname provided and match to the board in the url
     browser
-      .url(
-        SERVER +
-          "/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0bzp0ZXN0Ym9hcmQiXX0.-P6gjYlPP5I2zgSoVTlADdesVPfSXV-JXZQK5uh3Xwo",
-      )
+      .url(withToken(SERVER + "/boards/testboard", TOKENS.boardEditorTestboard))
       .waitForElementVisible("#menu");
     browser
-      .url(
-        SERVER +
-          "/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0bzp0ZXN0Ym9hcmQiXX0.-P6gjYlPP5I2zgSoVTlADdesVPfSXV-JXZQK5uh3Xwo",
-      )
+      .url(withToken(SERVER + "/boards/testboard", TOKENS.boardEditorTestboard))
       .waitForElementNotPresent("#toolID-Clear");
     //has editor JWT and  boardname provided and and not match to the board in the url
     browser
       .url(
-        SERVER +
-          "/boards/testboard123?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJlZGl0bzp0ZXN0Ym9hcmQiXX0.-P6gjYlPP5I2zgSoVTlADdesVPfSXV-JXZQK5uh3Xwo",
+        withToken(SERVER + "/boards/testboard123", TOKENS.boardEditorTestboard),
       )
       .waitForElementNotPresent("#menu");
     //is moderator and boardname contains ":"
     browser
       .url(
-        SERVER +
-          "/boards/test:board?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3I6dGVzdDpib2FyZCJdfQ.LKYcDccheD2oXAMAemxSekDeowGsMl29CFkgJgwbkGE",
+        withToken(
+          SERVER + "/boards/test:board",
+          jsonwebtoken.sign(
+            { sub: "moderator-colon", roles: ["moderator:test:board"] },
+            AUTH_SECRET,
+          ),
+        ),
       )
       .waitForElementNotPresent("#menu");
     browser
       .url(
-        SERVER +
-          "/boards/testboard?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJyb2xlcyI6WyJtb2RlcmF0b3I6dGVzdDpib2FyZCJdfQ.LKYcDccheD2oXAMAemxSekDeowGsMl29CFkgJgwbkGE",
+        withToken(
+          SERVER + "/boards/testboard",
+          jsonwebtoken.sign(
+            { sub: "moderator-colon", roles: ["moderator:test:board"] },
+            AUTH_SECRET,
+          ),
+        ),
       )
       .waitForElementNotPresent("#menu");
+    testReadOnlyBoardWithJwt(browser);
   }
   page.end();
 }

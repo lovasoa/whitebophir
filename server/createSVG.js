@@ -1,5 +1,6 @@
 const fs = require("./fs_promises.js"),
   path = require("path"),
+  parseStoredBoard = require("./boardData.js").parseStoredBoard,
   wboPencilPoint =
     require("../client-data/tools/pencil/wbo_pencil_point.js").wboPencilPoint;
 
@@ -209,7 +210,7 @@ async function toSVG(obj, writeable) {
 
 async function renderBoard(file, stream) {
   const data = await fs.promises.readFile(file);
-  var board = JSON.parse(data);
+  var board = parseStoredBoard(JSON.parse(data)).board;
   return toSVG(board, stream);
 }
 

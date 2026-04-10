@@ -2,7 +2,8 @@ var iolib = require("socket.io"),
   { log, gauge, monitorFunction } = require("./log.js"),
   BoardData = require("./boardData.js").BoardData,
   config = require("./configuration"),
-  jsonwebtoken = require("jsonwebtoken");
+  jsonwebtoken = require("jsonwebtoken"),
+  roleInBoard = require("./jwtBoardnameAuth.js").roleInBoard;
 
 /** Map from name to *promises* of BoardData
   @type {{[boardName: string]: Promise<BoardData>}}
@@ -19,13 +20,43 @@ var boards = {};
  */
 function noFail(fn) {
   const monitored = monitorFunction(fn);
-  return function noFailWrapped(arg) {
+  return function noFailWrapped() {
     try {
-      return monitored(arg);
+      const result = monitored.apply(this, arguments);
+      if (result && typeof result.catch === "function") {
+        return result.catch(function logError(err) {
+          console.trace(err);
+        });
+      }
+      return result;
     } catch (e) {
       console.trace(e);
     }
   };
+}
+
+function getSocketToken(socket) {
+  return socket.handshake.query && socket.handshake.query.token;
+}
+
+function accessRole(boardName, socket) {
+  if (!config.AUTH_SECRET_KEY) return "editor";
+  return roleInBoard(getSocketToken(socket), boardName);
+}
+
+function canAccessBoard(boardName, socket) {
+  return accessRole(boardName, socket) !== "forbidden";
+}
+
+function writerRole(boardName, socket) {
+  if (!config.AUTH_SECRET_KEY) return "forbidden";
+  const role = accessRole(boardName, socket);
+  return role === "editor" || role === "moderator" ? role : "forbidden";
+}
+
+function canWriteToBoard(board, socket) {
+  if (!board.isReadOnly()) return true;
+  return writerRole(board.name, socket) !== "forbidden";
 }
 
 function startIO(app) {
@@ -78,6 +109,9 @@ function handleSocketConnection(socket) {
   async function joinBoard(name) {
     // Default to the public board
     if (!name) name = "anonymous";
+    if (!canAccessBoard(name, socket)) {
+      throw new Error("Access forbidden");
+    }
 
     // Join the board
     socket.join(name);
@@ -96,11 +130,18 @@ function handleSocketConnection(socket) {
     }),
   );
 
-  socket.on("getboard", async function onGetBoard(name) {
-    var board = await joinBoard(name);
-    //Send all the board's data as soon as it's loaded
-    socket.emit("broadcast", { _children: board.getAll() });
-  });
+  socket.on(
+    "getboard",
+    noFail(async function onGetBoard(name) {
+      var board = await joinBoard(name);
+      socket.emit("boardstate", {
+        readonly: board.isReadOnly(),
+        canWrite: canWriteToBoard(board, socket),
+      });
+      //Send all the board's data as soon as it's loaded
+      socket.emit("broadcast", { _children: board.getAll() });
+    }),
+  );
 
   socket.on("joinboard", noFail(joinBoard));
 
@@ -108,7 +149,7 @@ function handleSocketConnection(socket) {
   var emitCount = 0;
   socket.on(
     "broadcast",
-    noFail(function onBroadcast(message) {
+    noFail(async function onBroadcast(message) {
       var currentSecond = (Date.now() / config.MAX_EMIT_COUNT_PERIOD) | 0;
       if (currentSecond === lastEmitSecond) {
         emitCount++;
@@ -133,6 +174,10 @@ function handleSocketConnection(socket) {
       var boardName = message.board || "anonymous";
       var data = message.data;
 
+      if (!canAccessBoard(boardName, socket)) {
+        log("ACCESS BLOCKED", { board: boardName });
+        return;
+      }
       if (!socket.rooms.has(boardName)) socket.join(boardName);
 
       if (!data) {
@@ -148,8 +193,27 @@ function handleSocketConnection(socket) {
         return;
       }
 
+      var board = await getBoard(boardName);
+      if (
+        data.tool !== "Cursor" &&
+        (!canWriteToBoard(board, socket) ||
+          (data.type === "clear" &&
+            writerRole(board.name, socket) !== "moderator"))
+      ) {
+        log("WRITE BLOCKED", {
+          board: board.name,
+          tool: data.tool,
+          type: data.type,
+        });
+        return;
+      }
+
       // Save the message in the board
-      handleMessage(boardName, data, socket);
+      handleMessage(
+        board,
+        data.tool === "Cursor" ? data : JSON.parse(JSON.stringify(data)),
+        socket,
+      );
 
       //Send data to all other users connected on the same board
       socket.broadcast.to(boardName).emit("broadcast", data);
@@ -188,19 +252,18 @@ async function unloadBoard(boardName) {
   }
 }
 
-function handleMessage(boardName, message, socket) {
+function handleMessage(board, message, socket) {
   if (message.tool === "Cursor") {
     message.socket = socket.id;
   } else {
-    saveHistory(boardName, message);
+    saveHistory(board, message);
   }
 }
 
-async function saveHistory(boardName, message) {
+function saveHistory(board, message) {
   if (!(message.tool || message.type === "child") && !message._children) {
     console.error("Received a badly formatted message (no tool). ", message);
   }
-  var board = await getBoard(boardName);
   board.processMessage(message);
 }
 

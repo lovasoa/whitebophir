@@ -37,6 +37,49 @@ Tools.i18n = (function i18n() {
 })();
 
 Tools.server_config = JSON.parse(document.getElementById("configuration").text);
+Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
+
+Tools.setBoardState = function setBoardState(state) {
+  state = state || {};
+  Tools.boardState = {
+    readonly: state.readonly === true,
+    canWrite: state.canWrite === true,
+  };
+  Tools.readOnly = Tools.boardState.readonly;
+  Tools.canWrite = Tools.boardState.canWrite;
+
+  var hideEditingTools = Tools.readOnly && !Tools.canWrite;
+  var settings = document.getElementById("settings");
+  if (settings) settings.style.display = hideEditingTools ? "none" : "";
+
+  Object.keys(Tools.list || {}).forEach(function (toolName) {
+    var toolElem = document.getElementById("toolID-" + toolName);
+    if (!toolElem) return;
+    toolElem.style.display = Tools.shouldDisplayTool(toolName) ? "" : "none";
+  });
+
+  if (
+    hideEditingTools &&
+    Tools.curTool &&
+    !Tools.shouldDisplayTool(Tools.curTool.name) &&
+    Tools.list.Hand
+  ) {
+    Tools.change("Hand");
+  }
+};
+
+Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
+  return (
+    !Tools.readOnly || Tools.canWrite || Tools.readOnlyToolNames.has(toolName)
+  );
+};
+
+Tools.setBoardState(
+  JSON.parse(
+    document.getElementById("board-state").text ||
+      '{"readonly":false,"canWrite":true}',
+  ),
+);
 
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
@@ -84,6 +127,7 @@ Tools.connect = function () {
       loadingEl.classList.add("hidden");
     });
   });
+  this.socket.on("boardstate", Tools.setBoardState);
 
   this.socket.on("reconnect", function onReconnection() {
     Tools.socket.emit("joinboard", Tools.boardName);
@@ -275,13 +319,15 @@ Tools.add = function (newTool) {
   }
 
   //Add the tool to the GUI
-  Tools.HTML.addTool(
-    newTool.name,
-    newTool.icon,
-    newTool.iconHTML,
-    newTool.shortcut,
-    newTool.oneTouch,
-  );
+  if (Tools.shouldDisplayTool(newTool.name)) {
+    Tools.HTML.addTool(
+      newTool.name,
+      newTool.icon,
+      newTool.iconHTML,
+      newTool.shortcut,
+      newTool.oneTouch,
+    );
+  }
 };
 
 Tools.change = function (toolName) {
