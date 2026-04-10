@@ -81,7 +81,7 @@ function createSocket(headers, remoteAddress) {
   return { socket, handlers, emitted };
 }
 
-test("configuration defaults WBO_IP_SOURCE to remoteAddress", function () {
+test("configuration defaults are set correctly", function () {
   return withEnv({ WBO_IP_SOURCE: undefined }, function () {
     const config = require(CONFIG_PATH);
     assert.equal(config.IP_SOURCE, "remoteAddress");
