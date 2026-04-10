@@ -1,8 +1,5 @@
 const path = require("path");
-const {
-  parseEnumEnv,
-  parseIntegerEnv,
-} = require("./configuration_helpers.js");
+const { parseEnumEnv, parseIntegerEnv } = require("./configuration_helpers.js");
 const app_root = path.dirname(__dirname); // Parent of the directory where this file is
 
 module.exports = {

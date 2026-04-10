@@ -121,22 +121,12 @@ test("countDestructiveActions counts delete-like mutations only", function () {
   const sockets = require(SOCKETS_PATH);
   assert.equal(
     sockets.__test.countDestructiveActions({
-      _children: [
-        { type: "delete" },
-        { type: "update" },
-        { type: "delete" },
-      ],
+      _children: [{ type: "delete" }, { type: "update" }, { type: "delete" }],
     }),
     2,
   );
-  assert.equal(
-    sockets.__test.countDestructiveActions({ type: "clear" }),
-    1,
-  );
-  assert.equal(
-    sockets.__test.countDestructiveActions({ type: "update" }),
-    0,
-  );
+  assert.equal(sockets.__test.countDestructiveActions({ type: "clear" }), 1);
+  assert.equal(sockets.__test.countDestructiveActions({ type: "update" }), 0);
 });
 
 test("general rate limit closes the socket when exceeded", async function () {

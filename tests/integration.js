@@ -68,15 +68,16 @@ function rootUrl(token) {
 }
 
 function seedSocketHeaders(browser, headers, token) {
-  return browser
-    .url(rootUrl(token))
-    .execute(function (socketHeaders) {
+  return browser.url(rootUrl(token)).execute(
+    function (socketHeaders) {
       window.socketio_extra_headers = socketHeaders;
       sessionStorage.setItem(
         "socketio_extra_headers",
         JSON.stringify(socketHeaders),
       );
-    }, [headers]);
+    },
+    [headers],
+  );
 }
 
 async function beforeEach(browser, done) {
@@ -120,31 +121,34 @@ function testRateLimitAlert(browser) {
         window.__lastAlert = message;
       };
     })
-    .executeAsync(function (done) {
-      for (var i = 0; i < 101; i++) {
-        Tools.socket.emit("broadcast", {
-          board: Tools.boardName,
-          data: {
-            tool: "Eraser",
-            type: "delete",
-            id: "rate-limit-" + i,
-          },
-        });
-      }
+    .executeAsync(
+      function (done) {
+        for (var i = 0; i < 101; i++) {
+          Tools.socket.emit("broadcast", {
+            board: Tools.boardName,
+            data: {
+              tool: "Eraser",
+              type: "delete",
+              id: "rate-limit-" + i,
+            },
+          });
+        }
 
-      setTimeout(function () {
-        done({
-          alert: window.__lastAlert,
-          connected: Tools.socket.connected,
-        });
-      }, 1000);
-    }, function (result) {
-      browser.assert.equal(
-        result.value.alert,
-        "You're sending changes too quickly, so we paused your connection to protect the board. Please wait a minute and try again.",
-      );
-      browser.assert.equal(result.value.connected, false);
-    });
+        setTimeout(function () {
+          done({
+            alert: window.__lastAlert,
+            connected: Tools.socket.connected,
+          });
+        }, 1000);
+      },
+      function (result) {
+        browser.assert.equal(
+          result.value.alert,
+          "You're sending changes too quickly, so we paused your connection to protect the board. Please wait a minute and try again.",
+        );
+        browser.assert.equal(result.value.connected, false);
+      },
+    );
 }
 
 function testPencil(browser) {
@@ -256,13 +260,16 @@ function testCollaborativeness(browser) {
       browser.window
         .switchTo(newWindowHandle)
         .url(rootUrl())
-        .execute(function (socketHeaders) {
-          window.socketio_extra_headers = socketHeaders;
-          sessionStorage.setItem(
-            "socketio_extra_headers",
-            JSON.stringify(socketHeaders),
-          );
-        }, [DEFAULT_SOCKETIO_EXTRA_HEADERS])
+        .execute(
+          function (socketHeaders) {
+            window.socketio_extra_headers = socketHeaders;
+            sessionStorage.setItem(
+              "socketio_extra_headers",
+              JSON.stringify(socketHeaders),
+            );
+          },
+          [DEFAULT_SOCKETIO_EXTRA_HEADERS],
+        )
         .url(boardUrl)
         .window.switchTo(handles[0])
         .executeAsync(function (done) {
@@ -412,9 +419,8 @@ function testReadOnlyBoardWithJwt(browser) {
 }
 
 function testBoard(browser) {
-  var page = seedSocketHeaders(browser, DEFAULT_SOCKETIO_EXTRA_HEADERS).url(
-    SERVER + "/boards/anonymous?lang=fr&" + tokenQuery,
-  )
+  var page = seedSocketHeaders(browser, DEFAULT_SOCKETIO_EXTRA_HEADERS)
+    .url(SERVER + "/boards/anonymous?lang=fr&" + tokenQuery)
     .waitForElementVisible(".tool[title ~= Crayon]");
   page = testPencil(page);
   page = testCircle(page);

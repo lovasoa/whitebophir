@@ -107,9 +107,7 @@ function getClientIp(socket) {
 
     case "X-Forwarded-For":
       if (headers["x-forwarded-for"]) {
-        var xForwardedFor = headers["x-forwarded-for"]
-          .split(",")[0]
-          .trim();
+        var xForwardedFor = headers["x-forwarded-for"].split(",")[0].trim();
         if (xForwardedFor) return xForwardedFor;
       }
       throw new Error("Missing x-forwarded-for header");
@@ -180,7 +178,13 @@ function resolveClientIp(socket, boardName) {
   }
 }
 
-function enforceGeneralRateLimit(socket, boardName, clientIp, rateLimitState, now) {
+function enforceGeneralRateLimit(
+  socket,
+  boardName,
+  clientIp,
+  rateLimitState,
+  now,
+) {
   var emitCount = consumeFixedWindowRateLimit(
     rateLimitState,
     1,
@@ -405,7 +409,15 @@ function handleSocketConnection(socket) {
       var clientIp = resolveClientIp(socket, boardName);
 
       if (clientIp === null) return;
-      if (!enforceGeneralRateLimit(socket, boardName, clientIp, generalRateLimit, now))
+      if (
+        !enforceGeneralRateLimit(
+          socket,
+          boardName,
+          clientIp,
+          generalRateLimit,
+          now,
+        )
+      )
         return;
       if (!enforceDestructiveRateLimit(socket, boardName, data, clientIp, now))
         return;
