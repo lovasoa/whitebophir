@@ -95,6 +95,25 @@ Tools.showMyCursor = true;
 Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
 Tools.socket = null;
+Tools.rateLimitAlertShown = false;
+Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
+  if (window.socketio_extra_headers) return window.socketio_extra_headers;
+  try {
+    var storedHeaders = sessionStorage.getItem("socketio_extra_headers");
+    if (storedHeaders) {
+      window.socketio_extra_headers = JSON.parse(storedHeaders);
+      return window.socketio_extra_headers;
+    }
+  } catch (err) {
+    console.warn("Unable to load Socket.IO extra headers", err);
+  }
+  return null;
+})();
+Tools.showRateLimitAlert = function showRateLimitAlert() {
+  if (Tools.rateLimitAlertShown) return;
+  Tools.rateLimitAlertShown = true;
+  window.alert(Tools.i18n.t("rate_limit_disconnect_message"));
+};
 Tools.connect = function () {
   var self = this;
 
@@ -114,8 +133,19 @@ Tools.connect = function () {
     reconnectionDelay: 100, //Make the xhr connections as fast as possible
     timeout: 1000 * 60 * 20, // Timeout after 20 minutes
   };
+  var socketQuery = new URLSearchParams();
   if (params.has("token")) {
-    socket_params.query = "token=" + params.get("token");
+    socketQuery.set("token", params.get("token"));
+  }
+  if (
+    Tools.socketIOExtraHeaders &&
+    typeof Tools.socketIOExtraHeaders === "object" &&
+    Object.keys(Tools.socketIOExtraHeaders).length > 0
+  ) {
+    socket_params.extraHeaders = Tools.socketIOExtraHeaders;
+  }
+  if (socketQuery.toString()) {
+    socket_params.query = socketQuery.toString();
   }
 
   this.socket = io.connect("", socket_params);
@@ -128,6 +158,9 @@ Tools.connect = function () {
     });
   });
   this.socket.on("boardstate", Tools.setBoardState);
+  this.socket.on("rate-limited", function onRateLimited() {
+    Tools.showRateLimitAlert();
+  });
 
   this.socket.on("reconnect", function onReconnection() {
     Tools.socket.emit("joinboard", Tools.boardName);

@@ -19,7 +19,7 @@
   },
   "scripts": {
     "start": "node ./server/server.js",
-    "test": "nightwatch tests && nightwatch tests --env jwt",
+    "test": "node --test test-node/rate_limits.test.js && nightwatch tests && nightwatch tests --env jwt",
     "prettier": "prettier . --write",
     "prettier-check": "prettier . --check"
   },

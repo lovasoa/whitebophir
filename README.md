@@ -40,6 +40,8 @@ docker run -it --publish 5001:80 --volume "$(pwd)/wbo-boards:/opt/app/server-dat
 
 You can then access WBO at `http://localhost:5001`.
 
+The official Docker image defaults `WBO_IP_SOURCE` to `X-Forwarded-For`, which matches the common Docker/Dokku deployment pattern behind a reverse proxy. If you expose the container directly without a trusted proxy in front of it, override this with `-e WBO_IP_SOURCE=remoteAddress`.
+
 ### Running the code without a container
 
 Alternatively, you can run the code with [node.js](https://nodejs.org/) directly, without docker.
@@ -177,6 +179,9 @@ Some important environment variables are :
 
 - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
 - `WBO_MAX_EMIT_COUNT` : the maximum number of messages that a client can send per unit of time. Increase this value if you want smoother drawings, at the expense of being susceptible to denial of service attacks if your server does not have enough processing power. By default, the units of this quantity are messages per 4 seconds, and the default value is `192`.
+- `WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP` : the maximum number of delete-like actions (`delete`, `clear`, and batched child deletes) accepted from one resolved client IP during `WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS`. The default is `100`.
+- `WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS` : the destructive-action rate-limit window in milliseconds. The default is `60000`.
+- `WBO_IP_SOURCE` : which request attribute to trust for client IP based limits and logs. Accepted values are `remoteAddress`, `X-Forwarded-For`, and `Forwarded`. The application defaults to `remoteAddress`; the official Docker image defaults to `X-Forwarded-For`.
 - `AUTH_SECRET_KEY` : If you would like to authenticate your boards using jwt, this declares the secret key.
 
 ## Troubleshooting

@@ -6,6 +6,11 @@ const path = require("path");
 const PORT = 8487;
 const SERVER = "http://localhost:" + PORT;
 const AUTH_SECRET = "test";
+const DEFAULT_FORWARDED_IP = "198.51.100.10";
+const RATE_LIMIT_TEST_IP = "198.51.100.200";
+const DEFAULT_SOCKETIO_EXTRA_HEADERS = {
+  "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+};
 
 const TOKENS = {
   globalModerator: jsonwebtoken.sign(
@@ -58,12 +63,31 @@ async function writeBoard(name, storedBoard) {
   await fs.promises.writeFile(boardFile(name), JSON.stringify(storedBoard));
 }
 
+function rootUrl(token) {
+  return withToken(SERVER + "/", token);
+}
+
+function seedSocketHeaders(browser, headers, token) {
+  return browser
+    .url(rootUrl(token))
+    .execute(function (socketHeaders) {
+      window.socketio_extra_headers = socketHeaders;
+      sessionStorage.setItem(
+        "socketio_extra_headers",
+        JSON.stringify(socketHeaders),
+      );
+    }, [headers]);
+}
+
 async function beforeEach(browser, done) {
   data_path = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "wbo-test-data-"),
   );
   process.env["PORT"] = PORT;
   process.env["WBO_HISTORY_DIR"] = data_path;
+  process.env["WBO_MAX_EMIT_COUNT"] = "1000";
+  process.env["WBO_MAX_EMIT_COUNT_PERIOD"] = "4096";
+  process.env["WBO_IP_SOURCE"] = "X-Forwarded-For";
   tokenQuery = "";
   if (browser.globals.token) {
     process.env["AUTH_SECRET_KEY"] = AUTH_SECRET;
@@ -79,6 +103,48 @@ async function beforeEach(browser, done) {
 async function afterEach(browser, done) {
   wbo.close();
   done();
+}
+
+function testRateLimitAlert(browser) {
+  const boardUrl = SERVER + "/boards/rate-limit-test?lang=en&" + tokenQuery;
+  const rateLimitHeaders = {
+    "X-Forwarded-For": RATE_LIMIT_TEST_IP,
+  };
+
+  return seedSocketHeaders(browser, rateLimitHeaders)
+    .url(boardUrl)
+    .waitForElementVisible("#toolID-Eraser")
+    .execute(function () {
+      window.__lastAlert = null;
+      window.alert = function (message) {
+        window.__lastAlert = message;
+      };
+    })
+    .executeAsync(function (done) {
+      for (var i = 0; i < 101; i++) {
+        Tools.socket.emit("broadcast", {
+          board: Tools.boardName,
+          data: {
+            tool: "Eraser",
+            type: "delete",
+            id: "rate-limit-" + i,
+          },
+        });
+      }
+
+      setTimeout(function () {
+        done({
+          alert: window.__lastAlert,
+          connected: Tools.socket.connected,
+        });
+      }, 1000);
+    }, function (result) {
+      browser.assert.equal(
+        result.value.alert,
+        "You're sending changes too quickly, so we paused your connection to protect the board. Please wait a minute and try again.",
+      );
+      browser.assert.equal(result.value.connected, false);
+    });
 }
 
 function testPencil(browser) {
@@ -177,7 +243,7 @@ function testCursor(browser) {
 function testCollaborativeness(browser) {
   const boardUrl = SERVER + "/boards/collaborative-test?lang=en&" + tokenQuery;
 
-  return browser
+  return seedSocketHeaders(browser, DEFAULT_SOCKETIO_EXTRA_HEADERS)
     .url(boardUrl)
     .waitForElementVisible(".tool[title ~= Pencil]")
     .click(".tool[title ~= Pencil]")
@@ -189,6 +255,14 @@ function testCollaborativeness(browser) {
 
       browser.window
         .switchTo(newWindowHandle)
+        .url(rootUrl())
+        .execute(function (socketHeaders) {
+          window.socketio_extra_headers = socketHeaders;
+          sessionStorage.setItem(
+            "socketio_extra_headers",
+            JSON.stringify(socketHeaders),
+          );
+        }, [DEFAULT_SOCKETIO_EXTRA_HEADERS])
         .url(boardUrl)
         .window.switchTo(handles[0])
         .executeAsync(function (done) {
@@ -338,8 +412,9 @@ function testReadOnlyBoardWithJwt(browser) {
 }
 
 function testBoard(browser) {
-  var page = browser
-    .url(SERVER + "/boards/anonymous?lang=fr&" + tokenQuery)
+  var page = seedSocketHeaders(browser, DEFAULT_SOCKETIO_EXTRA_HEADERS).url(
+    SERVER + "/boards/anonymous?lang=fr&" + tokenQuery,
+  )
     .waitForElementVisible(".tool[title ~= Crayon]");
   page = testPencil(page);
   page = testCircle(page);
@@ -425,6 +500,7 @@ function testBoard(browser) {
       .waitForElementNotPresent("#menu");
     testReadOnlyBoardWithJwt(browser);
   }
+  page = testRateLimitAlert(page);
   page.end();
 }
 

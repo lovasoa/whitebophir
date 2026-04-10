@@ -15,6 +15,7 @@ RUN npm ci --production
 COPY --chown=1000:1000 . .
 
 ENV PORT=80
+ENV WBO_IP_SOURCE=X-Forwarded-For
 EXPOSE 80
 
 VOLUME /opt/app/server-data
