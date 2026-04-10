@@ -140,8 +140,8 @@ If a token contains any board-scoped claims, it can only open the boards named i
 
 Board visibility and board editability are separate.
 
-- A writable board behaves as before.
-- A read-only board can still be opened by anyone who has access to it.
+- A writable board accepts writes from users who can access it.
+- A read-only board can be opened by users who have access to it.
 - On a read-only board, only `editor` and `moderator` claims may write.
 - On instances without JWT authentication, a read-only board blocks all writes because there is no authenticated editor or moderator identity.
 
@@ -167,7 +167,7 @@ Read-only state is stored in the board JSON file itself under the reserved key `
 1. Find the board file in `WBO_HISTORY_DIR`. The filename is `board-${encodeURIComponent(boardName)}.json`.
 2. Add or update the `__wbo_meta__.readonly` flag in that file.
 3. Reload the board after it is unloaded from memory, or restart the server, so the new state is picked up.
-4. Remove the flag or set it to `false` to make the board writable again.
+4. Remove the flag or set it to `false` to make the board writable.
 
 ## Configuration
 
