@@ -87,7 +87,7 @@ test("configuration defaults WBO_IP_SOURCE to remoteAddress", function () {
     assert.equal(config.IP_SOURCE, "remoteAddress");
     assert.equal(config.MAX_DESTRUCTIVE_ACTIONS_PER_IP, 100);
     assert.equal(config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS, 60000);
-    assert.equal(config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP, 1000);
+    assert.equal(config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP, 360);
     assert.equal(config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS, 60000);
   });
 });

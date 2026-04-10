@@ -54,7 +54,7 @@ module.exports = {
   /** Maximum constructive actions per resolved client IP over the WBO_MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS */
   MAX_CONSTRUCTIVE_ACTIONS_PER_IP: parseIntegerEnv(
     "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
-    1000,
+    360,
   ),
 
   /** Duration after which the constructive per-IP count is reset in milliseconds */
