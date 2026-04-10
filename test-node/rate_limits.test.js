@@ -94,6 +94,16 @@ test("configuration provides sane defaults when environment is empty", function 
     assert.ok(config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS > 0);
     assert.ok(config.MAX_EMIT_COUNT > 0);
     assert.ok(config.MAX_EMIT_COUNT_PERIOD > 0);
+
+    const emitRate = config.MAX_EMIT_COUNT / config.MAX_EMIT_COUNT_PERIOD;
+    const constructiveRate = config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP / config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS;
+    const destructiveRate = config.MAX_DESTRUCTIVE_ACTIONS_PER_IP / config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS;
+
+    // The allowed rate of general events (like drawing points) should be higher than creating objects
+    assert.ok(emitRate > constructiveRate, "Emit rate should be higher than constructive rate");
+    
+    // The allowed rate of creating objects should be higher than destroying objects
+    assert.ok(constructiveRate > destructiveRate, "Constructive rate should be higher than destructive rate");
   });
 });
 
