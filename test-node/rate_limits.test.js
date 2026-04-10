@@ -188,7 +188,7 @@ test("destructive per-IP rate limit closes the socket when exceeded", async func
   );
 });
 
-test("missing configured IP source closes the socket", async function () {
+test("missing configured IP source does not close the socket and fallbacks", async function () {
   await withEnv(
     {
       WBO_IP_SOURCE: "X-Forwarded-For",
@@ -205,8 +205,8 @@ test("missing configured IP source closes the socket", async function () {
 
       await handlers.broadcast({});
 
-      assert.equal(socket.disconnected, true);
-      assert.equal(socket.disconnectCalls.length, 1);
+      assert.notEqual(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 0);
     },
   );
 });

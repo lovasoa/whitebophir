@@ -110,13 +110,17 @@ function getClientIp(socket) {
         var xForwardedFor = headers["x-forwarded-for"].split(",")[0].trim();
         if (xForwardedFor) return xForwardedFor;
       }
-      throw new Error("Missing x-forwarded-for header");
+      throw new Error(
+        "Missing x-forwarded-for header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
+      );
 
     case "Forwarded":
       if (headers["forwarded"]) {
         return parseForwardedHeader(headers["forwarded"]);
       }
-      throw new Error("Missing Forwarded header");
+      throw new Error(
+        "Missing Forwarded header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
+      );
   }
 }
 
@@ -166,15 +170,19 @@ function resolveClientIp(socket, boardName) {
   try {
     return getClientIp(socket);
   } catch (err) {
-    closeSocket(
-      socket,
+    log(
       "INVALID_IP_SOURCE",
       buildSocketLogInfo(socket, boardName, {
         ip_source: config.IP_SOURCE,
         error: err.message,
       }),
     );
-    return null;
+    // Fallback to remoteAddress
+    var request = getSocketRequest(socket);
+    if (request.socket && request.socket.remoteAddress) {
+      return request.socket.remoteAddress;
+    }
+    return "unknown";
   }
 }
 

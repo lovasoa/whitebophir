@@ -1,7 +1,6 @@
 const handlebars = require("handlebars");
 const fs = require("fs");
 const path = require("path");
-const url = require("url");
 const accept_language_parser = require("accept-language-parser");
 const client_config = require("./client_configuration");
 
@@ -34,7 +33,7 @@ class Template {
   }
   parameters(parsedUrl, request, isModerator, extraParams) {
     const accept_language_str =
-      parsedUrl.query.lang || request.headers["accept-language"];
+      parsedUrl.searchParams.get("lang") || request.headers["accept-language"];
     const accept_languages = accept_language_parser.parse(accept_language_str);
     const opts = { loose: true };
     let language =
@@ -66,7 +65,7 @@ class Template {
     );
   }
   serve(request, response, isModerator, extraParams) {
-    const parsedUrl = url.parse(request.url, true);
+    const parsedUrl = new URL(request.url, "http://wbo/");
     const parameters = this.parameters(
       parsedUrl,
       request,
@@ -79,7 +78,7 @@ class Template {
       "Content-Type": "text/html",
       "Cache-Control": "public, max-age=3600",
     };
-    if (!parsedUrl.query.lang) {
+    if (!parsedUrl.searchParams.get("lang")) {
       headers["Vary"] = "Accept-Language";
     }
     response.writeHead(200, headers);
@@ -99,7 +98,7 @@ class BoardTemplate extends Template {
     const boardUriComponent = parts[1];
     params["boardUriComponent"] = boardUriComponent;
     params["board"] = decodeURIComponent(boardUriComponent);
-    params["hideMenu"] = parsedUrl.query.hideMenu == "true" || false;
+    params["hideMenu"] = parsedUrl.searchParams.get("hideMenu") == "true" || false;
     return params;
   }
 }
