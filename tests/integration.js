@@ -25,7 +25,7 @@ const TOKENS = {
     AUTH_SECRET,
   ),
   readOnlyViewer: jsonwebtoken.sign(
-    { sub: "viewer", roles: ["access:readonly-test"] },
+    { sub: "viewer", roles: ["reader:readonly-test"] },
     AUTH_SECRET,
   ),
   readOnlyGlobalEditor: jsonwebtoken.sign(

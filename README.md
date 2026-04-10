@@ -116,13 +116,13 @@ If `AUTH_SECRET_KEY` is set, opening a board requires a valid token. You can the
 
 ```json
 {
-  "roles": ["editor:board-a", "moderator:board-b", "access:board-c"]
+  "roles": ["editor:board-a", "moderator:board-b", "reader:board-c"]
 }
 ```
 
 - `editor:<boardName>` allows editing that board.
 - `moderator:<boardName>` allows moderating that board.
-- Any other `<claim>:<boardName>` value limits the token to that board without granting editor or moderator privileges.
+- `reader:<boardName>` allows opening that board without granting editor or moderator privileges.
 
 For example, `http://myboard.com/boards/mySecretBoardName?token={token}` with:
 
@@ -160,7 +160,7 @@ Read-only state is stored in the board JSON file itself under the reserved key `
 - Without JWT auth: visibility is controlled by sharing or not sharing the board URL.
 - With JWT auth: visibility is controlled by the token you issue. Add or remove board-scoped claims to decide which boards a token may open.
 - Use `editor` or `moderator` claims for users who should write.
-- Use a different board-scoped claim, such as `access:<boardName>`, for users who should only view a read-only board.
+- Use `reader:<boardName>` for users who should only view a read-only board.
 
 ### How To Change A Board Between Writable And Read-Only
 
