@@ -10,7 +10,8 @@ var iolib = require("socket.io"),
 */
 var boards = {};
 var destructiveRateLimits = new Map();
-
+var constructiveRateLimits = new Map();
+var io;
 /**
  * Prevents a function from throwing errors.
  * If the inner function throws, the outer function just returns undefined
@@ -134,6 +135,26 @@ function countDestructiveActions(data) {
   return data.type === "delete" || data.type === "clear" ? 1 : 0;
 }
 
+function isConstructiveAction(data) {
+  if (!data || !data.id) return false;
+  // destructive types
+  if (data.type === "delete" || data.type === "clear") return false;
+  // non-constructive types
+  if (data.type === "update" || data.type === "child") return false;
+  // everything else is considered constructive as it results in board.set() or board.copy()
+  return true;
+}
+
+function countConstructiveActions(data) {
+  if (!data || typeof data !== "object") return 0;
+  if (Array.isArray(data._children)) {
+    return data._children.reduce(function countConstructs(total, child) {
+      return total + (isConstructiveAction(child) ? 1 : 0);
+    }, 0);
+  }
+  return isConstructiveAction(data) ? 1 : 0;
+}
+
 function closeSocket(socket, eventName, infos) {
   log(eventName, infos);
   socket.disconnect(true);
@@ -252,6 +273,48 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
   pruneRateLimitMap(
     destructiveRateLimits,
     config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS,
+    now,
+  );
+  return true;
+}
+
+function getConstructiveRateLimitState(clientIp, now) {
+  var rateLimitState =
+    constructiveRateLimits.get(clientIp) || createRateLimitState(now);
+  constructiveRateLimits.set(clientIp, rateLimitState);
+  return rateLimitState;
+}
+
+function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
+  var constructiveCost = countConstructiveActions(data);
+  if (constructiveCost === 0) return true;
+
+  var rateLimitState = getConstructiveRateLimitState(clientIp, now);
+  var constructiveCount = consumeFixedWindowRateLimit(
+    rateLimitState,
+    constructiveCost,
+    config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS,
+    now,
+  );
+  if (constructiveCount > config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP) {
+    closeRateLimitedSocket(
+      socket,
+      "CONSTRUCTIVE_RATE_LIMIT_EXCEEDED",
+      buildSocketLogInfo(socket, boardName, {
+        ip: clientIp,
+        ip_source: config.IP_SOURCE,
+        count: constructiveCount,
+        limit: config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP,
+        period_ms: config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS,
+        constructive_cost: constructiveCost,
+      }),
+    );
+    return false;
+  }
+
+  pruneRateLimitMap(
+    constructiveRateLimits,
+    config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS,
     now,
   );
   return true;
@@ -429,6 +492,8 @@ function handleSocketConnection(socket) {
         return;
       if (!enforceDestructiveRateLimit(socket, boardName, data, clientIp, now))
         return;
+      if (!enforceConstructiveRateLimit(socket, boardName, data, clientIp, now))
+        return;
       if (!ensureSocketCanAccessBoard(socket, boardName)) return;
 
       ensureSocketJoinedBoard(socket, boardName);
@@ -513,12 +578,14 @@ if (exports) {
     handleSocketConnection,
     consumeFixedWindowRateLimit,
     countDestructiveActions,
+    countConstructiveActions,
     createRateLimitState,
     getClientIp,
     parseForwardedHeader,
     pruneRateLimitMap,
     resetRateLimitMaps: function resetRateLimitMaps() {
       destructiveRateLimits.clear();
+      constructiveRateLimits.clear();
     },
   };
 }

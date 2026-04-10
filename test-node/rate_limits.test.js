@@ -87,6 +87,8 @@ test("configuration defaults WBO_IP_SOURCE to remoteAddress", function () {
     assert.equal(config.IP_SOURCE, "remoteAddress");
     assert.equal(config.MAX_DESTRUCTIVE_ACTIONS_PER_IP, 100);
     assert.equal(config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS, 60000);
+    assert.equal(config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP, 1000);
+    assert.equal(config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS, 60000);
   });
 });
 
@@ -127,6 +129,40 @@ test("countDestructiveActions counts delete-like mutations only", function () {
   );
   assert.equal(sockets.__test.countDestructiveActions({ type: "clear" }), 1);
   assert.equal(sockets.__test.countDestructiveActions({ type: "update" }), 0);
+});
+
+test("countConstructiveActions counts new object creation only", function () {
+  const sockets = require(SOCKETS_PATH);
+  assert.equal(
+    sockets.__test.countConstructiveActions({
+      _children: [
+        { type: "line", id: "l1" },
+        { type: "update", id: "l1" },
+        { type: "rect", id: "r1" },
+      ],
+    }),
+    2,
+  );
+  assert.equal(
+    sockets.__test.countConstructiveActions({ type: "line", id: "l1" }),
+    1,
+  );
+  assert.equal(
+    sockets.__test.countConstructiveActions({ type: "copy", id: "l2" }),
+    1,
+  );
+  assert.equal(
+    sockets.__test.countConstructiveActions({ type: "update", id: "l1" }),
+    0,
+  );
+  assert.equal(
+    sockets.__test.countConstructiveActions({ type: "delete", id: "l1" }),
+    0,
+  );
+  assert.equal(
+    sockets.__test.countConstructiveActions({ type: "child", id: "c1" }),
+    0,
+  );
 });
 
 test("general rate limit closes the socket when exceeded", async function () {
@@ -182,6 +218,41 @@ test("destructive per-IP rate limit closes the socket when exceeded", async func
         event: "rate-limited",
         payload: {
           event: "DESTRUCTIVE_RATE_LIMIT_EXCEEDED",
+        },
+      });
+    },
+  );
+});
+
+test("constructive per-IP rate limit closes the socket when exceeded", async function () {
+  await withEnv(
+    {
+      WBO_IP_SOURCE: "remoteAddress",
+      WBO_MAX_EMIT_COUNT: "10",
+      WBO_MAX_EMIT_COUNT_PERIOD: "4096",
+      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "0",
+      WBO_MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS: "10000",
+    },
+    async function () {
+      const sockets = require(SOCKETS_PATH);
+      sockets.__test.resetRateLimitMaps();
+      const { socket, handlers, emitted } = createSocket(
+        { "user-agent": "test-agent" },
+        "203.0.113.13",
+      );
+      sockets.__test.handleSocketConnection(socket);
+
+      await handlers.broadcast({
+        board: "anonymous",
+        data: { tool: "Pencil", type: "line", id: "line-1" },
+      });
+
+      assert.equal(socket.disconnected, true);
+      assert.equal(socket.disconnectCalls.length, 1);
+      assert.deepEqual(emitted[0], {
+        event: "rate-limited",
+        payload: {
+          event: "CONSTRUCTIVE_RATE_LIMIT_EXCEEDED",
         },
       });
     },
