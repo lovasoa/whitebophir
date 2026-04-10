@@ -85,44 +85,46 @@ If you feel like contributing to this collaborative project, you can [translate 
 
 ## Authentication
 
-WBO supports authentication using [Json Web Tokens](https://jwt.io/introduction). This should be passed in as a query with the key `token`, eg, `http://myboard.com/boards/test?token={token}`
+WBO supports authentication using [Json Web Tokens](https://jwt.io/introduction). Pass the token as a `token` query parameter, for example `http://myboard.com/boards/test?token={token}`.
 
 The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
 
-Within the payload, you can declare the user's roles as an array.
-Currently the only accepted roles are `moderator` and `editor`.
+### Roles
 
-- `moderator` will give the user an additional tool to wipe all data from the board. To declare this role, see the example below.
-- `editor` will give the user the ability to edit the board. This is the default role for all users.
+WBO recognizes two privileged roles:
+
+- `editor`: can modify accessible boards.
+- `moderator`: can modify accessible boards and use the Clear tool.
+
+Roles are declared in the JWT payload:
 
 ```json
 {
   "iat": 1516239022,
   "exp": 1516298489,
-  "roles": ["moderator"]
+  "roles": ["editor"]
 }
 ```
 
-Moderators have access to the Clear tool, which will wipe all content from the board.
+Moderators have access to the Clear tool, which wipes all content from the board.
 
-## Board name verification in the JWT
+### Board Visibility / Access
 
-WBO supports verification of the board with a JWT.
+If `AUTH_SECRET_KEY` is not set, boards are visible to anyone who knows the URL.
 
-To check for a valid board name just add the board name to the role with a ":". With this you can set a moderator for a specific board.
+If `AUTH_SECRET_KEY` is set, opening a board requires a valid token. You can then restrict which board names a token may open by adding `:<boardName>` to a claim:
 
 ```json
 {
-  "roles": [
-    "moderator:<boardName1>",
-    "moderator:<boardName2>",
-    "editor:<boardName3>",
-    "editor:<boardName4>"
-  ]
+  "roles": ["editor:board-a", "moderator:board-b", "access:board-c"]
 }
 ```
 
-eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
+- `editor:<boardName>` allows editing that board.
+- `moderator:<boardName>` allows moderating that board.
+- Any other `<claim>:<boardName>` value limits the token to that board without granting editor or moderator privileges.
+
+For example, `http://myboard.com/boards/mySecretBoardName?token={token}` with:
 
 ```json
 {
@@ -132,7 +134,40 @@ eg, `http://myboard.com/boards/mySecretBoardName?token={token}`
 }
 ```
 
-You can now be sure that only users who have the correct token have access to the board with the specific name.
+If a token contains any board-scoped claims, it can only open the boards named in those claims.
+
+### Board Editability / Read-Only
+
+Board visibility and board editability are separate.
+
+- A writable board behaves as before.
+- A read-only board can still be opened by anyone who has access to it.
+- On a read-only board, only `editor` and `moderator` claims may write.
+- On instances without JWT authentication, a read-only board blocks all writes because there is no authenticated editor or moderator identity.
+
+Read-only state is stored in the board JSON file itself under the reserved key `__wbo_meta__`:
+
+```json
+{
+  "__wbo_meta__": {
+    "readonly": true
+  }
+}
+```
+
+### How To Change Board Visibility
+
+- Without JWT auth: visibility is controlled by sharing or not sharing the board URL.
+- With JWT auth: visibility is controlled by the token you issue. Add or remove board-scoped claims to decide which boards a token may open.
+- Use `editor` or `moderator` claims for users who should write.
+- Use a different board-scoped claim, such as `access:<boardName>`, for users who should only view a read-only board.
+
+### How To Change A Board Between Writable And Read-Only
+
+1. Find the board file in `WBO_HISTORY_DIR`. The filename is `board-${encodeURIComponent(boardName)}.json`.
+2. Add or update the `__wbo_meta__.readonly` flag in that file.
+3. Reload the board after it is unloaded from memory, or restart the server, so the new state is picked up.
+4. Remove the flag or set it to `false` to make the board writable again.
 
 ## Configuration
 

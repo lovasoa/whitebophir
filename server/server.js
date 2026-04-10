@@ -8,6 +8,7 @@ var app = require("http").createServer(handler),
   createSVG = require("./createSVG.js"),
   templating = require("./templating.js"),
   config = require("./configuration.js"),
+  BoardData = require("./boardData.js").BoardData,
   polyfillLibrary = require("polyfill-library"),
   check_output_directory = require("./check_output_directory.js"),
   jwtauth = require("./jwtauth.js");
@@ -128,7 +129,19 @@ function handleRequest(request, response) {
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
         var boardName = validateBoardName(parts[1]);
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-        boardTemplate.serve(request, response, isModerator);
+        var token = parsedUrl.searchParams.get("token");
+        var boardRole = jwtBoardName.roleInBoard(token, boardName);
+        var boardMetadata = BoardData.loadMetadataSync(boardName);
+        var canWrite =
+          !boardMetadata.readonly ||
+          (config.AUTH_SECRET_KEY &&
+            ["editor", "moderator"].includes(boardRole));
+        boardTemplate.serve(request, response, boardRole === "moderator", {
+          boardState: {
+            readonly: boardMetadata.readonly,
+            canWrite: canWrite,
+          },
+        });
         // If there is no dot and no directory, parts[1] is the board name
       } else {
         request.url = "/" + parts.slice(1).join("/");

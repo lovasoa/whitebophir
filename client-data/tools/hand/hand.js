@@ -563,12 +563,14 @@
       release: release,
     },
     onquit: onquit,
-    secondary: {
-      name: "Selector",
-      icon: "tools/hand/selector.svg",
-      active: false,
-      switch: switchTool,
-    },
+    secondary: Tools.canWrite
+      ? {
+          name: "Selector",
+          icon: "tools/hand/selector.svg",
+          active: false,
+          switch: switchTool,
+        }
+      : null,
     draw: draw,
     icon: "tools/hand/hand.svg",
     mouseCursor: "move",

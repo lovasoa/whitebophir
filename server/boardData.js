@@ -26,11 +26,63 @@
  */
 
 var fs = require("./fs_promises.js"),
+  nativeFs = require("fs"),
   log = require("./log.js").log,
   path = require("path"),
   config = require("./configuration.js"),
-  Mutex = require("async-mutex").Mutex,
-  jwtauth = require("./jwtBoardnameAuth.js");
+  Mutex = require("async-mutex").Mutex;
+
+const BOARD_METADATA_KEY = "__wbo_meta__";
+
+function defaultBoardMetadata() {
+  return {
+    readonly: false,
+  };
+}
+
+function normalizeBoardMetadata(metadata) {
+  return {
+    readonly: metadata && metadata.readonly === true,
+  };
+}
+
+function boardFilePath(name) {
+  return path.join(
+    config.HISTORY_DIR,
+    "board-" + encodeURIComponent(name) + ".json",
+  );
+}
+
+function parseStoredBoard(storedBoard) {
+  if (
+    !storedBoard ||
+    typeof storedBoard !== "object" ||
+    Array.isArray(storedBoard)
+  ) {
+    throw new Error("Invalid board file format");
+  }
+
+  var board = {};
+  var metadata = defaultBoardMetadata();
+
+  for (const [key, value] of Object.entries(storedBoard)) {
+    if (key === BOARD_METADATA_KEY) {
+      metadata = normalizeBoardMetadata(value);
+    } else {
+      board[key] = value;
+    }
+  }
+
+  return { board, metadata };
+}
+
+function serializeStoredBoard(board, metadata) {
+  var storedBoard = Object.assign({}, board);
+  if (metadata && metadata.readonly) {
+    storedBoard[BOARD_METADATA_KEY] = { readonly: true };
+  }
+  return storedBoard;
+}
 
 /**
  * Represents a board.
@@ -44,13 +96,15 @@ class BoardData {
     this.name = name;
     /** @type {{[name: string]: BoardElem}} */
     this.board = {};
-    this.file = path.join(
-      config.HISTORY_DIR,
-      "board-" + encodeURIComponent(name) + ".json",
-    );
+    this.metadata = defaultBoardMetadata();
+    this.file = boardFilePath(name);
     this.lastSaveDate = Date.now();
     this.users = new Set();
     this.saveMutex = new Mutex();
+  }
+
+  isReadOnly() {
+    return this.metadata.readonly === true;
   }
 
   /** Adds data to the board
@@ -179,11 +233,7 @@ class BoardData {
         this.addChild(parent, childData);
         break;
       case "clear":
-        if (jwtauth.roleInBoard(message.token, message.board) === "moderator") {
-          this.clear();
-        } else {
-          console.error("User is not a moderator and tried to clear the board");
-        }
+        this.clear();
         break;
       default:
         //Add data
@@ -230,7 +280,8 @@ class BoardData {
     this.clean();
     var file = this.file;
     var tmp_file = backupFileName(file);
-    var board_txt = JSON.stringify(this.board);
+    var storedBoard = serializeStoredBoard(this.board, this.metadata);
+    var board_txt = JSON.stringify(storedBoard);
     if (board_txt === "{}") {
       // empty board
       try {
@@ -315,7 +366,9 @@ class BoardData {
       data;
     try {
       data = await fs.promises.readFile(boardData.file);
-      boardData.board = JSON.parse(data);
+      const storedBoard = parseStoredBoard(JSON.parse(data));
+      boardData.board = storedBoard.board;
+      boardData.metadata = storedBoard.metadata;
       for (const id in boardData.board) boardData.validate(boardData.board[id]);
       log("disk load", { board: boardData.name });
     } catch (e) {
@@ -343,6 +396,24 @@ class BoardData {
     }
     return boardData;
   }
+
+  static loadMetadataSync(name) {
+    const metadata = defaultBoardMetadata();
+    try {
+      const data = nativeFs.readFileSync(boardFilePath(name), {
+        encoding: "utf8",
+      });
+      return parseStoredBoard(JSON.parse(data)).metadata;
+    } catch (err) {
+      if (err.code !== "ENOENT") {
+        log("board metadata load error", {
+          board: name,
+          error: err.toString(),
+        });
+      }
+      return metadata;
+    }
+  }
 }
 
 /**
@@ -354,4 +425,8 @@ function backupFileName(baseName) {
   return baseName + "." + date + ".bak";
 }
 
-module.exports.BoardData = BoardData;
+module.exports = {
+  BoardData,
+  BOARD_METADATA_KEY,
+  parseStoredBoard,
+};
