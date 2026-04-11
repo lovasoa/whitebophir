@@ -11,7 +11,7 @@ module.exports = {
   },
 
   async afterEach(browser, done) {
-    await teardown(serverProcess, done);
+    await teardown(serverProcess, done, browser);
   },
 
   "Test Rate Limit Alert"(browser) {
