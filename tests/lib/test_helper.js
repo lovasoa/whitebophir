@@ -8,38 +8,14 @@ const AUTH_SECRET = "test";
 const DEFAULT_FORWARDED_IP = "198.51.100.10";
 
 const TOKENS = {
-  globalModerator: jsonwebtoken.sign(
-    { sub: "moderator", roles: ["moderator"] },
-    AUTH_SECRET,
-  ),
-  boardModeratorTestboard: jsonwebtoken.sign(
-    { sub: "moderator-board", roles: ["moderator:testboard"] },
-    AUTH_SECRET,
-  ),
-  globalEditor: jsonwebtoken.sign(
-    { sub: "editor", roles: ["editor"] },
-    AUTH_SECRET,
-  ),
-  boardEditorTestboard: jsonwebtoken.sign(
-    { sub: "editor-board", roles: ["editor:testboard"] },
-    AUTH_SECRET,
-  ),
-  readOnlyViewer: jsonwebtoken.sign(
-    { sub: "viewer", roles: ["reader:readonly-test"] },
-    AUTH_SECRET,
-  ),
-  readOnlyGlobalEditor: jsonwebtoken.sign(
-    { sub: "readonly-editor", roles: ["editor"] },
-    AUTH_SECRET,
-  ),
-  readOnlyBoardEditor: jsonwebtoken.sign(
-    { sub: "readonly-board-editor", roles: ["editor:readonly-test"] },
-    AUTH_SECRET,
-  ),
-  readOnlyGlobalModerator: jsonwebtoken.sign(
-    { sub: "readonly-moderator", roles: ["moderator"] },
-    AUTH_SECRET,
-  ),
+  globalModerator: jsonwebtoken.sign({ sub: "moderator", roles: ["moderator"] }, AUTH_SECRET),
+  boardModeratorTestboard: jsonwebtoken.sign({ sub: "moderator-board", roles: ["moderator:testboard"] }, AUTH_SECRET),
+  globalEditor: jsonwebtoken.sign({ sub: "editor", roles: ["editor"] }, AUTH_SECRET),
+  boardEditorTestboard: jsonwebtoken.sign({ sub: "editor-board", roles: ["editor:testboard"] }, AUTH_SECRET),
+  readOnlyViewer: jsonwebtoken.sign({ sub: "viewer", roles: ["reader:readonly-test"] }, AUTH_SECRET),
+  readOnlyGlobalEditor: jsonwebtoken.sign({ sub: "readonly-editor", roles: ["editor"] }, AUTH_SECRET),
+  readOnlyBoardEditor: jsonwebtoken.sign({ sub: "readonly-board-editor", roles: ["editor:readonly-test"] }, AUTH_SECRET),
+  readOnlyGlobalModerator: jsonwebtoken.sign({ sub: "readonly-moderator", roles: ["moderator"] }, AUTH_SECRET),
 };
 
 function withToken(url, token, tokenQuery) {
@@ -64,10 +40,7 @@ function seedSocketHeaders(browser, serverUrl, headers, token, tokenQuery) {
   return browser.url(rootUrl(serverUrl, token, tokenQuery)).execute(
     function (socketHeaders) {
       window.socketio_extra_headers = socketHeaders;
-      sessionStorage.setItem(
-        "socketio_extra_headers",
-        JSON.stringify(socketHeaders),
-      );
+      sessionStorage.setItem("socketio_extra_headers", JSON.stringify(socketHeaders));
     },
     [headers],
   );
@@ -95,11 +68,14 @@ async function setup(browser, options = {}) {
   } else {
     delete env["AUTH_SECRET_KEY"];
   }
+
   const serverPath = path.resolve(__dirname, "..", "..", "server", "server.js");
-  const child = spawn("node", [serverPath], {
+  const child = spawn("node", [serverPath], { 
     env,
-    stdio: ["inherit", "pipe", "pipe", "ipc"],
+    stdio: ["inherit", "pipe", "pipe", "ipc"] 
   });
+
+  browser.currentTestServerErrors = [];
 
   return new Promise((resolve, reject) => {
     let output = "";
@@ -123,7 +99,6 @@ async function setup(browser, options = {}) {
     child.stdout.on("data", (data) => {
       const line = data.toString();
       output += line;
-      // Fallback if IPC fails for some reason
       if (line.includes("server started")) {
         const match = line.match(/server started\s+({.*})/);
         if (match) {
@@ -134,8 +109,7 @@ async function setup(browser, options = {}) {
     });
 
     child.stderr.on("data", (data) => {
-      // Silence expected errors in tests to keep output clean
-      // if (!child.killed) console.error(`[Server Error] ${data}`);
+      if (!child.killed) browser.currentTestServerErrors.push(data.toString());
     });
 
     child.on("error", (err) => {
@@ -145,7 +119,15 @@ async function setup(browser, options = {}) {
   });
 }
 
-async function teardown(child, done) {
+async function teardown(child, done, browser) {
+  if (browser && browser.currentTest && browser.currentTest.results && browser.currentTest.results.failed > 0) {
+    if (browser.currentTestServerErrors && browser.currentTestServerErrors.length > 0) {
+      process.stderr.write("\n--- SERVER ERRORS DURING FAILED TEST ---\n");
+      browser.currentTestServerErrors.forEach(err => process.stderr.write(err));
+      process.stderr.write("----------------------------------------\n");
+    }
+  }
+
   if (child) {
     if (child.connected) {
       child.on("exit", () => done());

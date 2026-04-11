@@ -24,9 +24,8 @@ module.exports = {
   test_settings: {
     default: {
       asyncHookTimeout: 30000,
-      detailed_output: false,
-      live_output: false,
-      output: false,
+      detailed_output: true,
+      output: true,
       silent: true,
       desiredCapabilities: {
         browserName: "firefox",
