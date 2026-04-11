@@ -73,8 +73,9 @@ function seedSocketHeaders(browser, serverUrl, headers, token, tokenQuery) {
   );
 }
 
-async function setup(browser) {
+async function setup(browser, options = {}) {
   const dataPath = await fsp.mkdtemp(path.join(os.tmpdir(), "wbo-test-data-"));
+  const useJWT = options.useJWT || !!browser.globals.token;
 
   const env = {
     ...process.env,
@@ -87,13 +88,13 @@ async function setup(browser) {
   };
 
   let tokenQuery = "";
-  if (browser.globals.token) {
+  if (useJWT) {
+    const token = options.token || browser.globals.token || TOKENS.globalEditor;
     env["AUTH_SECRET_KEY"] = AUTH_SECRET;
-    tokenQuery = "token=" + browser.globals.token;
+    tokenQuery = "token=" + token;
   } else {
     delete env["AUTH_SECRET_KEY"];
   }
-
   const serverPath = path.resolve(__dirname, "..", "..", "server", "server.js");
   const child = spawn("node", [serverPath], {
     env,
