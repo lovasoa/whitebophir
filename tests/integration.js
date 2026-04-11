@@ -204,20 +204,21 @@ function testCircle(browser) {
     .click("#toolID-Ellipse")
     .executeAsync(function (done) {
       Tools.setColor("#112233");
-      Tools.curTool.listeners.press(200, 400, new Event("mousedown"));
+      Tools.curTool.listeners.press(400, 400, new Event("mousedown"));
       setTimeout(() => {
         const evt = new Event("mousemove");
         evt.shiftKey = true;
         Tools.curTool.listeners.move(0, 0, evt);
+        Tools.curTool.listeners.release(0, 0, new Event("mouseup"));
         done();
       }, 100);
     })
     .assert.visible(
-      "ellipse[cx='0'][cy='200'][rx='200'][ry='200'][stroke='#112233']",
+      "ellipse[cx='200'][cy='200'][rx='200'][ry='200'][stroke='#112233']",
     )
     .refresh()
     .waitForElementVisible(
-      "ellipse[cx='0'][cy='200'][rx='200'][ry='200'][stroke='#112233']",
+      "ellipse[cx='200'][cy='200'][rx='200'][ry='200'][stroke='#112233']",
       15000,
     )
     .click("#toolID-Ellipse") // Click the ellipse tool
