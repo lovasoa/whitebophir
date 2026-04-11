@@ -28,7 +28,7 @@ module.exports = {
     default: {
       asyncHookTimeout: 30000,
       detailed_output: false,
-      output: true,
+      output: false,
       silent: true,
       desiredCapabilities: {
         browserName: "firefox",
