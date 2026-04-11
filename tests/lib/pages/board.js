@@ -1,6 +1,20 @@
+const { waitForStoredBoard } = require("../test_helper.js");
+
 module.exports = {
   commands: [
     {
+      waitForSavedBoard(name, predicate, options) {
+        return this.api.perform(async function (done) {
+          await waitForStoredBoard(
+            this.currentTestDataPath,
+            name,
+            predicate,
+            options,
+          );
+          done();
+        });
+      },
+
       drawPencilPaths(paths) {
         return this.executeAsync(
           function (paths, done) {

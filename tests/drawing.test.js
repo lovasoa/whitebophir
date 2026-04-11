@@ -96,8 +96,10 @@ module.exports = {
   },
 
   "Test Text Tool Creates Persistent Text"(browser) {
-    browser
-      .url(serverUrl + "/boards/text-test?lang=en&" + tokenQuery)
+    const board = browser.page.board();
+    browser.url(serverUrl + "/boards/text-test?lang=en&" + tokenQuery);
+
+    board
       .waitForElementVisible("#toolID-Text")
       .click("#toolID-Text")
       .executeAsync(
@@ -125,7 +127,11 @@ module.exports = {
           browser.assert.equal(result.value.text, "Hello text");
         },
       )
-      .pause(1000)
+      .waitForSavedBoard("text-test", function (storedBoard) {
+        return Object.values(storedBoard).some(function (item) {
+          return item && item.tool === "Text" && item.txt === "Hello text";
+        });
+      })
       .refresh()
       .waitForElementVisible("#drawingArea text")
       .execute(
@@ -144,8 +150,10 @@ module.exports = {
   },
 
   "Test Straight Line Snap Persists"(browser) {
-    browser
-      .url(serverUrl + "/boards/line-test?lang=en&" + tokenQuery)
+    const board = browser.page.board();
+    browser.url(serverUrl + "/boards/line-test?lang=en&" + tokenQuery);
+
+    board
       .waitForElementVisible("[id='toolID-Straight line']")
       .click("[id='toolID-Straight line']")
       .click("[id='toolID-Straight line']")
@@ -178,7 +186,16 @@ module.exports = {
           browser.assert.ok(Math.abs(result.value.y2 - 160) < 0.5);
         },
       )
-      .pause(1000)
+      .waitForSavedBoard("line-test", function (storedBoard) {
+        return Object.values(storedBoard).some(function (item) {
+          return (
+            item &&
+            item.tool === "Straight line" &&
+            Math.abs(item.x2 - 100) < 0.5 &&
+            Math.abs(item.y2 - 160) < 0.5
+          );
+        });
+      })
       .refresh()
       .waitForElementVisible("#drawingArea line")
       .execute(
@@ -203,8 +220,10 @@ module.exports = {
   },
 
   "Test Square Mode Persists"(browser) {
-    browser
-      .url(serverUrl + "/boards/rectangle-test?lang=en&" + tokenQuery)
+    const board = browser.page.board();
+    browser.url(serverUrl + "/boards/rectangle-test?lang=en&" + tokenQuery);
+
+    board
       .waitForElementVisible("#toolID-Rectangle")
       .click("#toolID-Rectangle")
       .click("#toolID-Rectangle")
@@ -237,7 +256,18 @@ module.exports = {
           browser.assert.equal(result.value.height, 60);
         },
       )
-      .pause(1000)
+      .waitForSavedBoard("rectangle-test", function (storedBoard) {
+        return Object.values(storedBoard).some(function (item) {
+          return (
+            item &&
+            item.tool === "Rectangle" &&
+            item.x === 100 &&
+            item.y === 100 &&
+            item.x2 === 160 &&
+            item.y2 === 160
+          );
+        });
+      })
       .refresh()
       .waitForElementVisible("#drawingArea rect")
       .execute(
@@ -262,24 +292,27 @@ module.exports = {
   },
 
   "Test Eraser Removes Persistent Shape"(browser) {
-    browser
-      .perform(async function (done) {
-        await writeBoard(dataPath, "eraser-test", {
-          "erase-rect": {
-            type: "rect",
-            id: "erase-rect",
-            tool: "Rectangle",
-            x: 100,
-            y: 100,
-            x2: 160,
-            y2: 140,
-            color: "#123456",
-            size: 4,
-          },
-        });
-        done();
-      })
-      .url(serverUrl + "/boards/eraser-test?lang=en&" + tokenQuery)
+    const board = browser.page.board();
+    browser.perform(async function (done) {
+      await writeBoard(dataPath, "eraser-test", {
+        "erase-rect": {
+          type: "rect",
+          id: "erase-rect",
+          tool: "Rectangle",
+          x: 100,
+          y: 100,
+          x2: 160,
+          y2: 140,
+          color: "#123456",
+          size: 4,
+        },
+      });
+      done();
+    });
+
+    browser.url(serverUrl + "/boards/eraser-test?lang=en&" + tokenQuery);
+
+    board
       .waitForElementVisible("#toolID-Eraser")
       .waitForElementVisible("#erase-rect")
       .click("#toolID-Eraser")
@@ -304,8 +337,11 @@ module.exports = {
           browser.assert.equal(result.value.erased, true);
         },
       )
-      .pause(1000)
+      .waitForSavedBoard("eraser-test", function (storedBoard) {
+        return !Object.prototype.hasOwnProperty.call(storedBoard, "erase-rect");
+      })
       .refresh()
+      .waitForElementVisible("#toolID-Eraser")
       .assert.not.elementPresent("#erase-rect")
       .end();
   },

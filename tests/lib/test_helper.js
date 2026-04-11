@@ -56,6 +56,39 @@ async function writeBoard(dataPath, name, storedBoard) {
   await fsp.writeFile(boardFile(dataPath, name), JSON.stringify(storedBoard));
 }
 
+async function readStoredBoard(dataPath, name) {
+  try {
+    const content = await fsp.readFile(boardFile(dataPath, name), "utf8");
+    return JSON.parse(content);
+  } catch (err) {
+    if (err.code === "ENOENT") return {};
+    throw err;
+  }
+}
+
+async function waitForStoredBoard(
+  dataPath,
+  name,
+  predicate,
+  { timeoutMs = 5000, pollIntervalMs = 25 } = {},
+) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const storedBoard = await readStoredBoard(dataPath, name);
+    if (await predicate(storedBoard)) return storedBoard;
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error("Timed out waiting for stored board state for " + name);
+}
+
+function waitForBoardPersistence(browser, dataPath, name, predicate, options) {
+  return browser.perform(async function (done) {
+    await waitForStoredBoard(dataPath, name, predicate, options);
+    done();
+  });
+}
+
 function rootUrl(serverUrl, token, tokenQuery) {
   return withToken(serverUrl + "/", token, tokenQuery);
 }
@@ -75,12 +108,15 @@ function seedSocketHeaders(browser, serverUrl, headers, token, tokenQuery) {
 
 async function setup(browser, options = {}) {
   const dataPath = await fsp.mkdtemp(path.join(os.tmpdir(), "wbo-test-data-"));
+  browser.currentTestDataPath = dataPath;
   const useJWT = options.useJWT || !!browser.globals.token;
 
   const env = {
     ...process.env,
     PORT: "0",
     WBO_HISTORY_DIR: dataPath,
+    WBO_SAVE_INTERVAL: "100",
+    WBO_MAX_SAVE_DELAY: "100",
     WBO_MAX_EMIT_COUNT: "1000",
     WBO_MAX_EMIT_COUNT_PERIOD: "4096",
     WBO_IP_SOURCE: "X-Forwarded-For",
@@ -183,7 +219,10 @@ module.exports = {
   DEFAULT_FORWARDED_IP,
   withToken,
   boardFile,
+  readStoredBoard,
   writeBoard,
+  waitForStoredBoard,
+  waitForBoardPersistence,
   rootUrl,
   seedSocketHeaders,
   setup,

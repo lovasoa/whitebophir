@@ -18,24 +18,27 @@ module.exports = {
   },
 
   "Test Selector Moves Existing Rectangle"(browser) {
-    browser
-      .perform(async function (done) {
-        await writeBoard(dataPath, "selector-test", {
-          "seed-rect": {
-            type: "rect",
-            id: "seed-rect",
-            tool: "Rectangle",
-            x: 100,
-            y: 100,
-            x2: 160,
-            y2: 140,
-            color: "#123456",
-            size: 4,
-          },
-        });
-        done();
-      })
-      .url(serverUrl + "/boards/selector-test?lang=en&" + tokenQuery)
+    const board = browser.page.board();
+    browser.perform(async function (done) {
+      await writeBoard(dataPath, "selector-test", {
+        "seed-rect": {
+          type: "rect",
+          id: "seed-rect",
+          tool: "Rectangle",
+          x: 100,
+          y: 100,
+          x2: 160,
+          y2: 140,
+          color: "#123456",
+          size: 4,
+        },
+      });
+      done();
+    });
+
+    browser.url(serverUrl + "/boards/selector-test?lang=en&" + tokenQuery);
+
+    board
       .waitForElementVisible("#toolID-Hand")
       .waitForElementVisible("#seed-rect")
       .click("#toolID-Hand")
@@ -79,7 +82,15 @@ module.exports = {
           browser.assert.equal(result.value.translation.f, 25);
         },
       )
-      .pause(1000)
+      .waitForSavedBoard("selector-test", function (storedBoard) {
+        var rect = storedBoard["seed-rect"];
+        return (
+          rect &&
+          rect.transform &&
+          rect.transform.e === 40 &&
+          rect.transform.f === 25
+        );
+      })
       .refresh()
       .waitForElementVisible("#seed-rect")
       .execute(
@@ -106,8 +117,10 @@ module.exports = {
   },
 
   "Test Zoom Click In And Out"(browser) {
-    browser
-      .url(serverUrl + "/boards/zoom-test?lang=en&" + tokenQuery)
+    const board = browser.page.board();
+    browser.url(serverUrl + "/boards/zoom-test?lang=en&" + tokenQuery);
+
+    board
       .waitForElementVisible("#toolID-Zoom")
       .click("#toolID-Zoom")
       .executeAsync(
@@ -153,24 +166,27 @@ module.exports = {
   },
 
   "Test Download Exports SVG Content"(browser) {
-    browser
-      .perform(async function (done) {
-        await writeBoard(dataPath, "download-test", {
-          "download-rect": {
-            type: "rect",
-            id: "download-rect",
-            tool: "Rectangle",
-            x: 100,
-            y: 100,
-            x2: 160,
-            y2: 140,
-            color: "#123456",
-            size: 4,
-          },
-        });
-        done();
-      })
-      .url(serverUrl + "/boards/download-test?lang=en&" + tokenQuery)
+    const board = browser.page.board();
+    browser.perform(async function (done) {
+      await writeBoard(dataPath, "download-test", {
+        "download-rect": {
+          type: "rect",
+          id: "download-rect",
+          tool: "Rectangle",
+          x: 100,
+          y: 100,
+          x2: 160,
+          y2: 140,
+          color: "#123456",
+          size: 4,
+        },
+      });
+      done();
+    });
+
+    browser.url(serverUrl + "/boards/download-test?lang=en&" + tokenQuery);
+
+    board
       .waitForElementVisible("#toolID-Download")
       .waitForElementVisible("#download-rect")
       .execute(function () {
@@ -210,6 +226,109 @@ module.exports = {
           browser.assert.equal(result.value.hasSvgTag, true);
           browser.assert.equal(result.value.hasRect, true);
           browser.assert.equal(result.value.hasBoardStyles, true);
+        },
+      )
+      .end();
+  },
+
+  "Test Selector Duplicate And Delete Persist"(browser) {
+    const board = browser.page.board();
+    browser.perform(async function (done) {
+      await writeBoard(dataPath, "selector-advanced-test", {
+        "seed-rect": {
+          type: "rect",
+          id: "seed-rect",
+          tool: "Rectangle",
+          x: 100,
+          y: 100,
+          x2: 160,
+          y2: 140,
+          color: "#123456",
+          size: 4,
+        },
+      });
+      done();
+    });
+
+    browser.url(
+      serverUrl + "/boards/selector-advanced-test?lang=en&" + tokenQuery,
+    );
+
+    board
+      .waitForElementVisible("#toolID-Hand")
+      .waitForElementVisible("#seed-rect")
+      .click("#toolID-Hand")
+      .executeAsync(
+        function (done) {
+          function rectState() {
+            return Array.from(
+              document.querySelectorAll("#drawingArea rect"),
+            ).map(function (rect) {
+              return rect.id;
+            });
+          }
+
+          var rect = document.getElementById("seed-rect");
+          var evt = {
+            preventDefault: function () {},
+            target: rect,
+            clientX: 0,
+            clientY: 0,
+          };
+
+          Tools.curTool.listeners.press(110, 110, evt);
+          Tools.curTool.listeners.release(110, 110, evt);
+          document.body.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "d", bubbles: true }),
+          );
+
+          setTimeout(function () {
+            var afterDuplicate = rectState();
+            document.body.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "Delete", bubbles: true }),
+            );
+
+            setTimeout(function () {
+              done({
+                afterDuplicate: afterDuplicate,
+                afterDelete: rectState(),
+              });
+            }, 150);
+          }, 150);
+        },
+        function (result) {
+          browser.assert.equal(result.value.afterDuplicate.length, 2);
+          browser.assert.equal(
+            result.value.afterDuplicate.includes("seed-rect"),
+            true,
+          );
+          browser.assert.equal(result.value.afterDelete.length, 1);
+          browser.assert.equal(
+            result.value.afterDelete[0] === "seed-rect",
+            false,
+          );
+        },
+      )
+      .waitForSavedBoard("selector-advanced-test", function (storedBoard) {
+        var ids = Object.keys(storedBoard).filter(function (id) {
+          return id !== "__wbo_meta__";
+        });
+        return ids.length === 1 && ids[0] !== "seed-rect";
+      })
+      .refresh()
+      .waitForElementVisible("#drawingArea rect")
+      .execute(
+        function () {
+          return Array.from(document.querySelectorAll("#drawingArea rect")).map(
+            function (rect) {
+              return rect.id;
+            },
+          );
+        },
+        [],
+        function (result) {
+          browser.assert.equal(result.value.length, 1);
+          browser.assert.equal(result.value[0] === "seed-rect", false);
         },
       )
       .end();
