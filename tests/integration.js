@@ -1,7 +1,7 @@
-const fs = require("../server/fs_promises.js");
+const fsp = require("node:fs/promises");
 const jsonwebtoken = require("jsonwebtoken");
-const os = require("os");
-const path = require("path");
+const os = require("node:os");
+const path = require("node:path");
 
 const PORT = 8487;
 const SERVER = "http://localhost:" + PORT;
@@ -60,7 +60,7 @@ function boardFile(name) {
 }
 
 async function writeBoard(name, storedBoard) {
-  await fs.promises.writeFile(boardFile(name), JSON.stringify(storedBoard));
+  await fsp.writeFile(boardFile(name), JSON.stringify(storedBoard));
 }
 
 function rootUrl(token) {
@@ -81,9 +81,7 @@ function seedSocketHeaders(browser, headers, token) {
 }
 
 async function beforeEach(browser, done) {
-  data_path = await fs.promises.mkdtemp(
-    path.join(os.tmpdir(), "wbo-test-data-"),
-  );
+  data_path = await fsp.mkdtemp(path.join(os.tmpdir(), "wbo-test-data-"));
   process.env["PORT"] = PORT;
   process.env["WBO_HISTORY_DIR"] = data_path;
   process.env["WBO_MAX_EMIT_COUNT"] = "1000";

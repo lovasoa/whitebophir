@@ -24,8 +24,8 @@
  * @licend
  */
 
-((config = require("./configuration.js")),
-  (jsonwebtoken = require("jsonwebtoken")));
+const config = require("./configuration.js");
+const jsonwebtoken = require("jsonwebtoken");
 
 /**
  * This function checks if a board name is set in the roles claim.
@@ -37,15 +37,15 @@
  */
 
 function checkBoardnameInToken(url, boardNameIn) {
-  var token = url.searchParams.get("token");
+  const token = url.searchParams.get("token");
   if (roleInBoard(token, boardNameIn) === "forbidden") {
     throw new Error("Acess Forbidden");
   }
 }
 
-function parse_role(role) {
-  let [_, role_name, board_name] = role.match(/^([^:]*):?(.*)$/);
-  return { role_name, board_name };
+function parseRole(role) {
+  const [, roleName, boardName] = role.match(/^([^:]*):?(.*)$/);
+  return { roleName, boardName };
 }
 
 /**
@@ -56,44 +56,42 @@ function parse_role(role) {
  @returns {string}  "moderator"|"editor"|"forbidden"
  */
 function roleInBoard(token, board = null) {
-  if (config.AUTH_SECRET_KEY != "") {
-    if (!token) {
-      throw new Error("No token provided");
-    }
-    var payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-
-    var roles = payload.roles;
-    var oneHasBoardName = false;
-    var oneHasModerator = false;
-
-    if (roles) {
-      for (var line of roles) {
-        var role = parse_role(line);
-
-        if (role.board_name !== "") {
-          oneHasBoardName = true;
-        }
-        if (role.role_name === "moderator") {
-          oneHasModerator = true;
-        }
-        if (role.board_name === board) {
-          return role.role_name;
-        }
-      }
-      if ((!board && oneHasModerator) || !oneHasBoardName) {
-        if (oneHasModerator) {
-          return "moderator";
-        } else {
-          return "editor";
-        }
-      }
-      return "forbidden";
-    } else {
-      return "editor";
-    }
-  } else {
+  if (config.AUTH_SECRET_KEY === "") {
     return "editor";
   }
+
+  if (!token) {
+    throw new Error("No token provided");
+  }
+
+  const payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
+  const roles = payload.roles;
+  let oneHasBoardName = false;
+  let oneHasModerator = false;
+
+  if (!roles) {
+    return "editor";
+  }
+
+  for (const line of roles) {
+    const role = parseRole(line);
+
+    if (role.boardName !== "") {
+      oneHasBoardName = true;
+    }
+    if (role.roleName === "moderator") {
+      oneHasModerator = true;
+    }
+    if (role.boardName === board) {
+      return role.roleName;
+    }
+  }
+
+  if ((!board && oneHasModerator) || !oneHasBoardName) {
+    return oneHasModerator ? "moderator" : "editor";
+  }
+
+  return "forbidden";
 }
 
 module.exports = { checkBoardnameInToken, roleInBoard };

@@ -1,6 +1,7 @@
-const fs = require("./fs_promises");
-const path = require("path");
-let os = require("os");
+const fs = require("node:fs");
+const fsp = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 
 const { R_OK, W_OK } = fs.constants;
 
@@ -14,7 +15,7 @@ async function get_error(directory) {
     return "does not exist";
   }
   if (!fs.statSync(directory).isDirectory()) {
-    error = "exists, but is not a directory";
+    return "exists, but is not a directory";
   }
   const tmpfile = path.join(directory, Math.random() + ".json");
   try {
@@ -32,14 +33,14 @@ async function get_error(directory) {
     }
   }
   const fileChecks = [];
-  const files = await fs.promises.readdir(directory, { withFileTypes: true });
+  const files = await fsp.readdir(directory, { withFileTypes: true });
   for (const elem of files) {
     if (/^board-(.*)\.json$/.test(elem.name)) {
       const elemPath = path.join(directory, elem.name);
       if (!elem.isFile())
         return `contains a board file named "${elemPath}" which is not a normal file`;
       fileChecks.push(
-        fs.promises.access(elemPath, R_OK | W_OK).catch(function () {
+        fsp.access(elemPath, R_OK | W_OK).catch(function () {
           return elemPath;
         }),
       );

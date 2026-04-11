@@ -357,7 +357,7 @@ function canApplyBoardMessage(board, data, socket) {
 }
 
 function cloneMessageForPersistence(data) {
-  return data.tool === "Cursor" ? data : JSON.parse(JSON.stringify(data));
+  return data.tool === "Cursor" ? data : structuredClone(data);
 }
 
 function getSocketToken(socket) {

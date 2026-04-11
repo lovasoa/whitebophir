@@ -25,10 +25,10 @@
  * @module boardData
  */
 
-var fs = require("./fs_promises.js"),
-  nativeFs = require("fs"),
+var nativeFs = require("node:fs"),
+  { readFile, rename, unlink, writeFile } = require("node:fs/promises"),
   log = require("./log.js").log,
-  path = require("path"),
+  path = require("node:path"),
   config = require("./configuration.js"),
   Mutex = require("async-mutex").Mutex;
 
@@ -166,7 +166,7 @@ class BoardData {
     var obj = this.board[id];
     var newid = data.newid;
     if (obj) {
-      var newobj = JSON.parse(JSON.stringify(obj));
+      var newobj = structuredClone(obj);
       newobj.id = newid;
       if (newobj._children) {
         for (var child of newobj._children) {
@@ -271,7 +271,7 @@ class BoardData {
   /** Saves the data in the board to a file. */
   async save() {
     // The mutex prevents multiple save operation to happen simultaneously
-    this.saveMutex.runExclusive(this._unsafe_save.bind(this));
+    return this.saveMutex.runExclusive(this._unsafe_save.bind(this));
   }
 
   /** Save the board to disk without preventing multiple simultaneaous saves. Use save() instead */
@@ -285,7 +285,7 @@ class BoardData {
     if (board_txt === "{}") {
       // empty board
       try {
-        await fs.promises.unlink(file);
+        await unlink(file);
         log("removed empty board", { board: this.name });
       } catch (err) {
         if (err.code !== "ENOENT") {
@@ -295,8 +295,8 @@ class BoardData {
       }
     } else {
       try {
-        await fs.promises.writeFile(tmp_file, board_txt, { flag: "wx" });
-        await fs.promises.rename(tmp_file, file);
+        await writeFile(tmp_file, board_txt, { flag: "wx" });
+        await rename(tmp_file, file);
         log("saved board", {
           board: this.name,
           size: board_txt.length,
@@ -365,7 +365,7 @@ class BoardData {
     var boardData = new BoardData(name),
       data;
     try {
-      data = await fs.promises.readFile(boardData.file);
+      data = await readFile(boardData.file);
       const storedBoard = parseStoredBoard(JSON.parse(data));
       boardData.board = storedBoard.board;
       boardData.metadata = storedBoard.metadata;
@@ -388,7 +388,7 @@ class BoardData {
         var backup = backupFileName(boardData.file);
         log("Writing the corrupted file to " + backup);
         try {
-          await fs.promises.writeFile(backup, data);
+          await writeFile(backup, data);
         } catch (err) {
           log("Error writing " + backup + ": " + err);
         }

@@ -1,6 +1,6 @@
 const handlebars = require("handlebars");
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 const accept_language_parser = require("accept-language-parser");
 const client_config = require("./client_configuration");
 
@@ -20,9 +20,9 @@ handlebars.registerHelper({
 
 function findBaseUrl(req) {
   var proto =
-    req.headers["X-Forwarded-Proto"] ||
-    (req.connection.encrypted ? "https" : "http");
-  var host = req.headers["X-Forwarded-Host"] || req.headers.host;
+    req.headers["x-forwarded-proto"] ||
+    (req.socket.encrypted ? "https" : "http");
+  var host = req.headers["x-forwarded-host"] || req.headers.host;
   return proto + "://" + host;
 }
 

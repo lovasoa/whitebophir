@@ -1,4 +1,4 @@
-const path = require("path");
+const path = require("node:path");
 const { parseEnumEnv, parseIntegerEnv } = require("./configuration_helpers.js");
 const app_root = path.dirname(__dirname); // Parent of the directory where this file is
 
