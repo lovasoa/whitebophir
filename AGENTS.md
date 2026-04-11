@@ -23,7 +23,7 @@
 
 Run these before opening a PR:
 
-- Focused Node suite: `node --test test-node/rate_limits.test.js`
+- Focused Node suite: `node --test test-node/*.test.js`
 - Full local suite: `npm test`: This runs the Node tests, then Nightwatch browser tests, then the JWT browser variant.
 - Auto-format: `npm run prettier`
   - Rules live in [.prettierrc](./.prettierrc); ignored paths are in [.prettierignore](./.prettierignore).
