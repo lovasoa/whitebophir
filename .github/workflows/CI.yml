@@ -28,6 +28,18 @@ jobs:
       - run: npm test
         env:
           CI: true
+      - name: Display WebDriver logs on failure
+        if: failure()
+        run: |
+          [ -f logs/geckodriver.log ] && cat logs/geckodriver.log || echo "No geckodriver log found"
+      - name: Upload Test Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-output
+          path: |
+            tests_output/
+            logs/
 
   format:
     runs-on: ubuntu-latest

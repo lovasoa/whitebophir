@@ -9,7 +9,7 @@ module.exports = {
 
   test_workers: {
     enabled: true,
-    workers: "auto",
+    workers: 2,
   },
 
   exclude: ["tests/lib/**"],
@@ -19,6 +19,7 @@ module.exports = {
     server_path: "./node_modules/.bin/geckodriver",
     cli_args: ["--log", "debug"],
     port: 4444,
+    log_path: "logs",
   },
 
   test_settings: {
