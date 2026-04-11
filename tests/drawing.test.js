@@ -1,10 +1,15 @@
-const { setup, teardown } = require("./lib/test_helper.js");
+const { setup, teardown, writeBoard } = require("./lib/test_helper.js");
 
-let serverProcess, serverUrl, tokenQuery;
+let serverProcess, dataPath, serverUrl, tokenQuery;
 
 module.exports = {
   async beforeEach(browser, done) {
-    ({ child: serverProcess, serverUrl, tokenQuery } = await setup(browser));
+    ({
+      child: serverProcess,
+      dataPath,
+      serverUrl,
+      tokenQuery,
+    } = await setup(browser));
     done();
   },
 
@@ -253,6 +258,55 @@ module.exports = {
           browser.assert.equal(result.value.height, 60);
         },
       )
+      .end();
+  },
+
+  "Test Eraser Removes Persistent Shape"(browser) {
+    browser
+      .perform(async function (done) {
+        await writeBoard(dataPath, "eraser-test", {
+          "erase-rect": {
+            type: "rect",
+            id: "erase-rect",
+            tool: "Rectangle",
+            x: 100,
+            y: 100,
+            x2: 160,
+            y2: 140,
+            color: "#123456",
+            size: 4,
+          },
+        });
+        done();
+      })
+      .url(serverUrl + "/boards/eraser-test?lang=en&" + tokenQuery)
+      .waitForElementVisible("#toolID-Eraser")
+      .waitForElementVisible("#erase-rect")
+      .click("#toolID-Eraser")
+      .executeAsync(
+        function (done) {
+          var rect = document.getElementById("erase-rect");
+          var evt = {
+            preventDefault: function () {},
+            target: rect,
+          };
+
+          Tools.curTool.listeners.press(110, 110, evt);
+          Tools.curTool.listeners.release(110, 110, evt);
+
+          setTimeout(function () {
+            done({
+              erased: document.getElementById("erase-rect") === null,
+            });
+          }, 150);
+        },
+        function (result) {
+          browser.assert.equal(result.value.erased, true);
+        },
+      )
+      .pause(1000)
+      .refresh()
+      .assert.not.elementPresent("#erase-rect")
       .end();
   },
 
