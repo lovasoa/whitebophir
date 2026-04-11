@@ -9,12 +9,12 @@ const {
 let serverProcess, serverUrl, tokenQuery;
 
 module.exports = {
-  async beforeEach(browser, done) {
+  async before(browser, done) {
     ({ child: serverProcess, serverUrl, tokenQuery } = await setup(browser));
     done();
   },
 
-  async afterEach(browser, done) {
+  async after(browser, done) {
     await teardown(serverProcess, done, browser);
   },
 

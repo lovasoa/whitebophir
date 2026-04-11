@@ -3,7 +3,7 @@ const { setup, teardown, writeBoard } = require("./lib/test_helper.js");
 let serverProcess, dataPath, serverUrl;
 
 module.exports = {
-  async beforeEach(browser, done) {
+  async before(browser, done) {
     ({
       child: serverProcess,
       dataPath,
@@ -12,7 +12,7 @@ module.exports = {
     done();
   },
 
-  async afterEach(browser, done) {
+  async after(browser, done) {
     await teardown(serverProcess, done, browser);
   },
 

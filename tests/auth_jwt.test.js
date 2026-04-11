@@ -11,7 +11,7 @@ const jsonwebtoken = require("jsonwebtoken");
 let serverProcess, dataPath, serverUrl, tokenQuery;
 
 module.exports = {
-  async beforeEach(browser, done) {
+  async before(browser, done) {
     ({
       child: serverProcess,
       dataPath,
@@ -21,7 +21,7 @@ module.exports = {
     done();
   },
 
-  async afterEach(browser, done) {
+  async after(browser, done) {
     await teardown(serverProcess, done, browser);
   },
 

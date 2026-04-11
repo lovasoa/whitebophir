@@ -5,12 +5,12 @@ let serverProcess, serverUrl, tokenQuery;
 const RATE_LIMIT_TEST_IP = "198.51.100.200";
 
 module.exports = {
-  async beforeEach(browser, done) {
+  async before(browser, done) {
     ({ child: serverProcess, serverUrl, tokenQuery } = await setup(browser));
     done();
   },
 
-  async afterEach(browser, done) {
+  async after(browser, done) {
     await teardown(serverProcess, done, browser);
   },
 
