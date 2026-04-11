@@ -25,6 +25,7 @@
  */
 
 var Tools = {};
+var MessageCommon = window.WBOMessageCommon;
 
 Tools.i18n = (function i18n() {
   var translations = JSON.parse(document.getElementById("translations").text);
@@ -789,7 +790,7 @@ Tools.setSize = (function size() {
   var chooser = document.getElementById("chooseSize");
 
   function update() {
-    var size = Math.max(1, Math.min(50, chooser.value | 0));
+    var size = MessageCommon.clampSize(chooser.value);
     chooser.value = size;
     Tools.sizeChangeHandlers.forEach(function (handler) {
       handler(size);
@@ -816,13 +817,14 @@ Tools.getOpacity = (function opacity() {
   var opacityIndicator = document.getElementById("opacityIndicator");
 
   function update() {
+    chooser.value = MessageCommon.clampOpacity(chooser.value);
     opacityIndicator.setAttribute("opacity", chooser.value);
   }
   update();
 
   chooser.onchange = chooser.oninput = update;
   return function () {
-    return Math.max(0.1, Math.min(1, chooser.value));
+    return MessageCommon.clampOpacity(chooser.value);
   };
 })();
 

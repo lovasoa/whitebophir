@@ -27,6 +27,7 @@
 (function () {
   //Code isolation
   var board = Tools.board;
+  var MessageCommon = window.WBOMessageCommon;
 
   var input = document.createElement("input");
   input.id = "textToolInput";
@@ -165,7 +166,7 @@
         Tools.drawAndSend({
           type: "update",
           id: curText.id,
-          txt: input.value.slice(0, 280),
+          txt: MessageCommon.truncateText(input.value),
         });
         curText.sentText = input.value;
         curText.lastSending = performance.now();
