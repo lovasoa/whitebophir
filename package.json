@@ -32,7 +32,7 @@
     "url": "http://github.com/lovasoa/whitebophir.git"
   },
   "devDependencies": {
-    "geckodriver": "^4.2.1",
+    "geckodriver": "^6.1.0",
     "nightwatch": "^3.2.1",
     "prettier": "^3.1.0"
   }
