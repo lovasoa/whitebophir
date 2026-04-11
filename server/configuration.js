@@ -54,13 +54,13 @@ module.exports = {
   /** Maximum constructive actions per resolved client IP over the WBO_MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS */
   MAX_CONSTRUCTIVE_ACTIONS_PER_IP: parseIntegerEnv(
     "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
-    360,
+    50,
   ),
 
   /** Duration after which the constructive per-IP count is reset in milliseconds */
   MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS: parseIntegerEnv(
     "WBO_MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS",
-    60 * 1000,
+    10 * 1000,
   ),
 
   /** Source used to resolve client IPs for logging and rate limiting.
