@@ -12,6 +12,8 @@ module.exports = {
     workers: 2,
   },
 
+  disable_output_boxes: true,
+
   exclude: ["tests/lib/**"],
 
   webdriver: {
@@ -25,7 +27,7 @@ module.exports = {
   test_settings: {
     default: {
       asyncHookTimeout: 30000,
-      detailed_output: true,
+      detailed_output: false,
       output: true,
       silent: true,
       desiredCapabilities: {

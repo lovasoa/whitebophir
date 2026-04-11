@@ -1,40 +1,44 @@
 module.exports = {
   commands: [
     {
-      drawPencilPath(color, points) {
+      drawPencilPaths(paths) {
         return this.executeAsync(
-          function (color, points, done) {
+          function (paths, done) {
             function sleep(t) {
               return new Promise((accept) => setTimeout(accept, t));
             }
             (async () => {
-              Tools.setColor(color);
-              const first = points[0];
-              Tools.curTool.listeners.press(
-                first.x,
-                first.y,
-                new Event("mousedown"),
-              );
-              for (let i = 1; i < points.length; i++) {
-                await sleep(80);
-                if (i === points.length - 1) {
-                  Tools.curTool.listeners.release(
-                    points[i].x,
-                    points[i].y,
-                    new Event("mouseup"),
-                  );
-                } else {
-                  Tools.curTool.listeners.move(
-                    points[i].x,
-                    points[i].y,
-                    new Event("mousemove"),
-                  );
+              for (const path of paths) {
+                const { color, points } = path;
+                Tools.setColor(color);
+                const first = points[0];
+                Tools.curTool.listeners.press(
+                  first.x,
+                  first.y,
+                  new Event("mousedown"),
+                );
+                for (let i = 1; i < points.length; i++) {
+                  await sleep(80);
+                  if (i === points.length - 1) {
+                    Tools.curTool.listeners.release(
+                      points[i].x,
+                      points[i].y,
+                      new Event("mouseup"),
+                    );
+                  } else {
+                    Tools.curTool.listeners.move(
+                      points[i].x,
+                      points[i].y,
+                      new Event("mousemove"),
+                    );
+                  }
                 }
+                await sleep(80); // Wait between paths
               }
               done();
             })();
           },
-          [color, points],
+          [paths],
         );
       },
 

@@ -21,21 +21,29 @@ module.exports = {
       .assert.titleContains("WBO")
       .click("@pencilTool")
       .assert.hasClass("@pencilTool", "curTool")
-      .drawPencilPath("#123456", [
-        { x: 100, y: 200 },
-        { x: 300, y: 400 },
-      ])
-      .drawPencilPath("#abcdef", [
-        { x: 0, y: 0 },
-        { x: 90, y: 120 },
-        { x: 180, y: 0 },
+      .drawPencilPaths([
+        {
+          color: "#123456",
+          points: [
+            { x: 100, y: 200 },
+            { x: 300, y: 400 },
+          ],
+        },
+        {
+          color: "#abcdef",
+          points: [
+            { x: 0, y: 0 },
+            { x: 90, y: 120 },
+            { x: 180, y: 0 },
+          ],
+        },
       ]);
 
-    browser.assert
-      .visible(
+    browser
+      .waitForElementVisible(
         "path[d='M 100 200 L 100 200 C 100 200 300 400 300 400'][stroke='#123456']",
       )
-      .assert.visible(
+      .waitForElementVisible(
         "path[d='M 0 0 L 0 0 C 0 0 40 120 90 120 C 140 120 180 0 180 0'][stroke='#abcdef']",
       )
       .refresh()
