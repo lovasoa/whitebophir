@@ -12,11 +12,7 @@ function rejected(reason) {
 }
 
 function isPlainObject(value) {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value)
-  );
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function required(normalize, options) {
