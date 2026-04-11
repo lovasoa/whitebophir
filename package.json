@@ -1,14 +1,14 @@
 {
   "name": "whitebophir",
   "description": "Online collaborative whiteboard",
-  "version": "1.25.0",
+  "version": "1.25.1",
   "keywords": [
     "collaborative",
     "whiteboard"
   ],
   "license": "AGPL-3.0-or-later",
   "engines": {
-    "node": ">=24"
+    "node": ">=22"
   },
   "dependencies": {
     "accept-language-parser": "^1.5.0",
