@@ -183,7 +183,7 @@ Some important environment variables are :
 - `WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS` : the destructive-action rate-limit window in milliseconds. The default is `60000`.
 - `WBO_IP_SOURCE` : which request attribute to trust for client IP based limits and logs. Accepted values are `remoteAddress`, `X-Forwarded-For`, and `Forwarded`. The application defaults to `remoteAddress`; the official Docker image defaults to `X-Forwarded-For`.
 - `AUTH_SECRET_KEY` : If you would like to authenticate your boards using jwt, this declares the secret key.
-
+- `WBO_SHOW_EXIT_BUTTON` : If set to `true`, an exit button will be shown on the board. This is useful if you want to run in kiosk mode and need a way to close the window.
 ## Troubleshooting
 
 If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
