@@ -31,7 +31,7 @@ Run these before opening a PR:
 Notes:
 
 - `npm test` expects Firefox + `geckodriver` via Nightwatch. See [nightwatch.conf.js](./nightwatch.conf.js).
-- `npm test` and `npm start` need an environment that allows local networking and browser/driver startup. They will not run correctly in a sandbox.
+- `npm test` needs an environment that allows local networking and browser/driver startup. Run them unsandboxed.
 
 ## Formatting
 
