@@ -236,8 +236,12 @@ class BoardData {
    * } & BoardElem } BoardMessage
    * @param {BoardMessage[]} children array of messages to be delegated to the other methods
    */
-  processMessageBatch(children) {
-    for (const message of children) {
+  processMessageBatch(children, parentMessage) {
+    for (const childMessage of children) {
+      const message =
+        parentMessage && childMessage.tool === undefined
+          ? Object.assign({ tool: parentMessage.tool }, childMessage)
+          : childMessage;
       this.processMessage(message);
     }
   }
@@ -246,7 +250,8 @@ class BoardData {
    * @param {BoardMessage} message instruction to apply to the board
    */
   processMessage(message) {
-    if (message._children) return this.processMessageBatch(message._children);
+    if (message._children)
+      return this.processMessageBatch(message._children, message);
     let id = message.id;
     switch (message.type) {
       case "delete":

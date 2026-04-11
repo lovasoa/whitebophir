@@ -15,7 +15,7 @@
 - Board persistence and normalization on load/save: [server/boardData.js](./server/boardData.js)
 - Message validation on the server: [server/message_validation.js](./server/message_validation.js)
 - Shared message normalization helpers: [client-data/js/message_common.js](./client-data/js/message_common.js)
-- Integration tests: [tests/integration.js](./tests/integration.js)
+- Browser integration tests: files under [tests](./tests)
 - Node/unit-style tests: [test-node/rate_limits.test.js](./test-node/rate_limits.test.js)
 - Browser test runner config: [nightwatch.conf.js](./nightwatch.conf.js)
 
@@ -24,7 +24,8 @@
 Run these before opening a PR:
 
 - Focused Node suite: `node --test test-node/*.test.js`
-- Full local suite: `npm test`: This runs the Node tests, then Nightwatch browser tests, then the JWT browser variant.
+- Focused browser suite: `WBO_SILENT=true nightwatch tests/<file>.test.js --testcase "<name>"`
+- Full local suite: `npm test`: This runs the Node tests, then all Nightwatch browser tests in `tests/`, then `prettier-check`.
 - Auto-format: `npm run prettier`
   - Rules live in [.prettierrc](./.prettierrc); ignored paths are in [.prettierignore](./.prettierignore).
 

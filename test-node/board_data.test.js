@@ -69,6 +69,43 @@ test("BoardData replays batch updates, copies, and deletes consistently", functi
   });
 });
 
+test("BoardData applies parent tool metadata to batched Hand updates", function () {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const board = disableSaves(new BoardData("hand-batch-board"));
+
+  board.processMessage({
+    tool: "Rectangle",
+    type: "rect",
+    id: "rect-1",
+    color: "#112233",
+    size: 4,
+    x: 0,
+    y: 0,
+    x2: 10,
+    y2: 10,
+  });
+
+  board.processMessage({
+    tool: "Hand",
+    _children: [
+      {
+        type: "update",
+        id: "rect-1",
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
+      },
+    ],
+  });
+
+  assert.deepEqual(board.get("rect-1").transform, {
+    a: 1,
+    b: 0,
+    c: 0,
+    d: 1,
+    e: 25,
+    f: 30,
+  });
+});
+
 test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async function () {
   await withEnv({ WBO_MAX_CHILDREN: "1" }, async function () {
     const BoardData = require(BOARD_DATA_PATH).BoardData;
