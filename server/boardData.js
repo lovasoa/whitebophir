@@ -28,6 +28,10 @@
 var nativeFs = require("node:fs"),
   { readFile, rename, unlink, writeFile } = require("node:fs/promises"),
   log = require("./log.js").log,
+  {
+    normalizeStoredChildPoint,
+    normalizeStoredItem,
+  } = require("./message_validation.js"),
   path = require("node:path"),
   config = require("./configuration.js"),
   Mutex = require("async-mutex").Mutex;
@@ -84,6 +88,34 @@ function serializeStoredBoard(board, metadata) {
   return storedBoard;
 }
 
+function filterUpdatableFields(tool, data) {
+  switch (tool) {
+    case "Straight line":
+      return {
+        x2: data.x2,
+        y2: data.y2,
+      };
+    case "Rectangle":
+    case "Ellipse":
+      return {
+        x: data.x,
+        y: data.y,
+        x2: data.x2,
+        y2: data.y2,
+      };
+    case "Text":
+      return {
+        txt: data.txt,
+      };
+    case "Hand":
+      return {
+        transform: data.transform,
+      };
+    default:
+      return {};
+  }
+}
+
 /**
  * Represents a board.
  * @typedef {{[object_id:string]: any}} BoardElem
@@ -114,8 +146,8 @@ class BoardData {
   set(id, data) {
     //KISS
     data.time = Date.now();
-    this.validate(data);
     this.board[id] = data;
+    this.normalizeStoredElement(id);
     this.delaySave();
   }
 
@@ -127,13 +159,15 @@ class BoardData {
   addChild(parentId, child) {
     var obj = this.board[parentId];
     if (typeof obj !== "object") return false;
-    this.validate(child);
+    const normalizedChild = normalizeStoredChildPoint(child);
+    if (!normalizedChild.ok) return false;
     if (Array.isArray(obj._children)) {
       if (obj._children.length >= config.MAX_CHILDREN) return false;
-      obj._children.push(child);
+      obj._children.push(normalizedChild.value);
     } else {
-      obj._children = [child];
+      obj._children = [normalizedChild.value];
     }
+    this.normalizeStoredElement(parentId);
     this.delaySave();
     return true;
   }
@@ -144,16 +178,18 @@ class BoardData {
    * @param {boolean} create - True if the object should be created if it's not currently in the DB.
    */
   update(id, data, create) {
-    delete data.type;
-    delete data.tool;
+    var tool = data.tool;
+    var updateData = filterUpdatableFields(tool, data);
 
     var obj = this.board[id];
     if (typeof obj === "object") {
-      for (var i in data) {
-        obj[i] = data[i];
+      for (var i in updateData) {
+        if (updateData[i] !== undefined) obj[i] = updateData[i];
       }
+      this.normalizeStoredElement(id);
     } else if (create || obj !== undefined) {
-      this.board[id] = data;
+      this.board[id] = updateData;
+      this.normalizeStoredElement(id);
     }
     this.delaySave();
   }
@@ -167,13 +203,8 @@ class BoardData {
     var newid = data.newid;
     if (obj) {
       var newobj = structuredClone(obj);
-      newobj.id = newid;
-      if (newobj._children) {
-        for (var child of newobj._children) {
-          child.parent = newid;
-        }
-      }
       this.board[newid] = newobj;
+      this.normalizeStoredElement(newid);
     } else {
       log("Copied object does not exist in board.", { object: id });
     }
@@ -328,34 +359,15 @@ class BoardData {
     }
   }
 
-  /** Reformats an item if necessary in order to make it follow the boards' policy
-   * @param {object} item The object to edit
-   */
-  validate(item) {
-    if (item.hasOwnProperty("size")) {
-      item.size = parseInt(item.size) || 1;
-      item.size = Math.min(Math.max(item.size, 1), 50);
+  normalizeStoredElement(id) {
+    const normalized = normalizeStoredItem(this.board[id], id);
+    if (!normalized.ok) {
+      delete this.board[id];
+      return false;
     }
-    if (item.hasOwnProperty("x") || item.hasOwnProperty("y")) {
-      item.x = parseFloat(item.x) || 0;
-      item.x = Math.min(Math.max(item.x, 0), config.MAX_BOARD_SIZE);
-      item.x = Math.round(10 * item.x) / 10;
-      item.y = parseFloat(item.y) || 0;
-      item.y = Math.min(Math.max(item.y, 0), config.MAX_BOARD_SIZE);
-      item.y = Math.round(10 * item.y) / 10;
-    }
-    if (item.hasOwnProperty("opacity")) {
-      item.opacity = Math.min(Math.max(item.opacity, 0.1), 1) || 1;
-      if (item.opacity === 1) delete item.opacity;
-    }
-    if (item.hasOwnProperty("_children")) {
-      if (!Array.isArray(item._children)) item._children = [];
-      if (item._children.length > config.MAX_CHILDREN)
-        item._children.length = config.MAX_CHILDREN;
-      for (var i = 0; i < item._children.length; i++) {
-        this.validate(item._children[i]);
-      }
-    }
+
+    this.board[id] = normalized.value;
+    return true;
   }
 
   /** Load the data in the board from a file.
@@ -369,7 +381,9 @@ class BoardData {
       const storedBoard = parseStoredBoard(JSON.parse(data));
       boardData.board = storedBoard.board;
       boardData.metadata = storedBoard.metadata;
-      for (const id in boardData.board) boardData.validate(boardData.board[id]);
+      for (const id of Object.keys(boardData.board)) {
+        boardData.normalizeStoredElement(id);
+      }
       log("disk load", { board: boardData.name });
     } catch (e) {
       // If the file doesn't exist, this is not an error

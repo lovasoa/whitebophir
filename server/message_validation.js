@@ -1,0 +1,455 @@
+const config = require("./configuration.js");
+const MessageCommon = require("../client-data/js/message_common.js");
+
+const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
+
+function accepted(value) {
+  return { ok: true, value: value };
+}
+
+function rejected(reason) {
+  return { ok: false, reason: reason };
+}
+
+function isPlainObject(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  );
+}
+
+function required(normalize, options) {
+  return Object.assign({ normalize: normalize, required: true }, options);
+}
+
+function optional(normalize, options) {
+  return Object.assign({ normalize: normalize, required: false }, options);
+}
+
+function literal(expected) {
+  return function normalizeLiteral(value) {
+    return value === expected
+      ? accepted(expected)
+      : rejected("expected " + JSON.stringify(expected));
+  };
+}
+
+function normalizeId(value) {
+  const id = MessageCommon.normalizeId(value);
+  return id === null ? rejected("invalid id") : accepted(id);
+}
+
+function normalizeSize(value) {
+  return accepted(MessageCommon.clampSize(value));
+}
+
+function normalizeOpacity(value) {
+  const opacity = MessageCommon.clampOpacity(value);
+  return opacity === 1 ? accepted(undefined) : accepted(opacity);
+}
+
+function normalizeCoord(value) {
+  return accepted(MessageCommon.clampCoord(value, config.MAX_BOARD_SIZE));
+}
+
+function normalizeColor(value) {
+  const color = MessageCommon.normalizeColor(value);
+  return color === null ? rejected("invalid color") : accepted(color);
+}
+
+function normalizeText(value) {
+  return accepted(MessageCommon.truncateText(value));
+}
+
+function normalizeTime(value) {
+  const time = MessageCommon.normalizeFiniteNumber(value);
+  return time === null ? rejected("invalid time") : accepted(time);
+}
+
+function normalizeTransform(value) {
+  if (!isPlainObject(value)) return rejected("invalid transform");
+
+  const transform = {};
+  for (const key of TRANSFORM_KEYS) {
+    const number = MessageCommon.normalizeFiniteNumber(value[key]);
+    if (number === null) {
+      return rejected("invalid transform." + key);
+    }
+    transform[key] = number;
+  }
+
+  return accepted(transform);
+}
+
+function normalizeObject(raw, fields) {
+  if (!isPlainObject(raw)) return rejected("expected object");
+
+  const normalized = {};
+  for (const [key, field] of Object.entries(fields)) {
+    const hasValue = Object.prototype.hasOwnProperty.call(raw, key);
+    let value;
+
+    if (hasValue) {
+      value = raw[key];
+    } else if (Object.prototype.hasOwnProperty.call(field, "defaultValue")) {
+      value =
+        typeof field.defaultValue === "function"
+          ? field.defaultValue(raw, normalized)
+          : field.defaultValue;
+    } else if (field.required) {
+      return rejected("missing " + key);
+    } else {
+      continue;
+    }
+
+    const result = field.normalize(value, raw, normalized);
+    if (!result.ok) return rejected(key + ": " + result.reason);
+    if (result.value !== undefined) normalized[key] = result.value;
+  }
+
+  return accepted(normalized);
+}
+
+const LIVE_MESSAGE_SCHEMAS = {
+  Pencil: {
+    line: {
+      tool: required(literal("Pencil")),
+      type: required(literal("line")),
+      id: required(normalizeId),
+      color: required(normalizeColor),
+      size: required(normalizeSize),
+      opacity: optional(normalizeOpacity),
+    },
+    child: {
+      tool: required(literal("Pencil")),
+      type: required(literal("child")),
+      parent: required(normalizeId),
+      x: required(normalizeCoord),
+      y: required(normalizeCoord),
+    },
+  },
+  "Straight line": {
+    straight: {
+      tool: required(literal("Straight line")),
+      type: required(literal("straight")),
+      id: required(normalizeId),
+      color: required(normalizeColor),
+      size: required(normalizeSize),
+      opacity: optional(normalizeOpacity),
+      x: required(normalizeCoord),
+      y: required(normalizeCoord),
+      x2: optional(normalizeCoord, {
+        defaultValue: function defaultX2(raw, normalized) {
+          return normalized.x !== undefined ? normalized.x : raw.x;
+        },
+      }),
+      y2: optional(normalizeCoord, {
+        defaultValue: function defaultY2(raw, normalized) {
+          return normalized.y !== undefined ? normalized.y : raw.y;
+        },
+      }),
+    },
+    update: {
+      tool: required(literal("Straight line")),
+      type: required(literal("update")),
+      id: required(normalizeId),
+      x2: required(normalizeCoord),
+      y2: required(normalizeCoord),
+    },
+  },
+  Rectangle: {
+    rect: {
+      tool: required(literal("Rectangle")),
+      type: required(literal("rect")),
+      id: required(normalizeId),
+      color: required(normalizeColor),
+      size: required(normalizeSize),
+      opacity: optional(normalizeOpacity),
+      x: required(normalizeCoord),
+      y: required(normalizeCoord),
+      x2: optional(normalizeCoord, {
+        defaultValue: function defaultRectX2(raw, normalized) {
+          return normalized.x !== undefined ? normalized.x : raw.x;
+        },
+      }),
+      y2: optional(normalizeCoord, {
+        defaultValue: function defaultRectY2(raw, normalized) {
+          return normalized.y !== undefined ? normalized.y : raw.y;
+        },
+      }),
+    },
+    update: {
+      tool: required(literal("Rectangle")),
+      type: required(literal("update")),
+      id: required(normalizeId),
+      x: required(normalizeCoord),
+      y: required(normalizeCoord),
+      x2: required(normalizeCoord),
+      y2: required(normalizeCoord),
+    },
+  },
+  Ellipse: {
+    ellipse: {
+      tool: required(literal("Ellipse")),
+      type: required(literal("ellipse")),
+      id: required(normalizeId),
+      color: required(normalizeColor),
+      size: required(normalizeSize),
+      opacity: optional(normalizeOpacity),
+      x: required(normalizeCoord),
+      y: required(normalizeCoord),
+      x2: optional(normalizeCoord, {
+        defaultValue: function defaultEllipseX2(raw, normalized) {
+          return normalized.x !== undefined ? normalized.x : raw.x;
+        },
+      }),
+      y2: optional(normalizeCoord, {
+        defaultValue: function defaultEllipseY2(raw, normalized) {
+          return normalized.y !== undefined ? normalized.y : raw.y;
+        },
+      }),
+    },
+    update: {
+      tool: required(literal("Ellipse")),
+      type: required(literal("update")),
+      id: required(normalizeId),
+      x: required(normalizeCoord),
+      y: required(normalizeCoord),
+      x2: required(normalizeCoord),
+      y2: required(normalizeCoord),
+    },
+  },
+  Text: {
+    new: {
+      tool: required(literal("Text")),
+      type: required(literal("new")),
+      id: required(normalizeId),
+      color: required(normalizeColor),
+      size: required(normalizeSize),
+      opacity: optional(normalizeOpacity),
+      x: required(normalizeCoord),
+      y: required(normalizeCoord),
+    },
+    update: {
+      tool: required(literal("Text")),
+      type: required(literal("update")),
+      id: required(normalizeId),
+      txt: required(normalizeText),
+    },
+  },
+  Cursor: {
+    update: {
+      tool: required(literal("Cursor")),
+      type: required(literal("update")),
+      color: required(normalizeColor),
+      size: required(normalizeSize),
+      x: required(normalizeCoord),
+      y: required(normalizeCoord),
+    },
+  },
+  Eraser: {
+    delete: {
+      tool: required(literal("Eraser")),
+      type: required(literal("delete")),
+      id: required(normalizeId),
+    },
+  },
+  Clear: {
+    clear: {
+      tool: required(literal("Clear")),
+      type: required(literal("clear")),
+    },
+  },
+};
+
+const LIVE_BATCH_CHILD_SCHEMAS = {
+  Hand: {
+    update: {
+      type: required(literal("update")),
+      id: required(normalizeId),
+      transform: required(normalizeTransform),
+    },
+    delete: {
+      type: required(literal("delete")),
+      id: required(normalizeId),
+    },
+    copy: {
+      type: required(literal("copy")),
+      id: required(normalizeId),
+      newid: required(normalizeId),
+    },
+  },
+};
+
+const STORED_ITEM_SCHEMAS = {
+  Pencil: {
+    tool: required(literal("Pencil")),
+    type: optional(literal("line"), { defaultValue: "line" }),
+    color: required(normalizeColor),
+    size: required(normalizeSize),
+    opacity: optional(normalizeOpacity),
+    transform: optional(normalizeTransform),
+    time: optional(normalizeTime),
+  },
+  "Straight line": {
+    tool: required(literal("Straight line")),
+    type: optional(literal("straight"), { defaultValue: "straight" }),
+    color: required(normalizeColor),
+    size: required(normalizeSize),
+    opacity: optional(normalizeOpacity),
+    x: required(normalizeCoord),
+    y: required(normalizeCoord),
+    x2: optional(normalizeCoord, {
+      defaultValue: function defaultStoredLineX2(raw, normalized) {
+        return normalized.x !== undefined ? normalized.x : raw.x;
+      },
+    }),
+    y2: optional(normalizeCoord, {
+      defaultValue: function defaultStoredLineY2(raw, normalized) {
+        return normalized.y !== undefined ? normalized.y : raw.y;
+      },
+    }),
+    transform: optional(normalizeTransform),
+    time: optional(normalizeTime),
+  },
+  Rectangle: {
+    tool: required(literal("Rectangle")),
+    type: optional(literal("rect"), { defaultValue: "rect" }),
+    color: required(normalizeColor),
+    size: required(normalizeSize),
+    opacity: optional(normalizeOpacity),
+    x: required(normalizeCoord),
+    y: required(normalizeCoord),
+    x2: optional(normalizeCoord, {
+      defaultValue: function defaultStoredRectX2(raw, normalized) {
+        return normalized.x !== undefined ? normalized.x : raw.x;
+      },
+    }),
+    y2: optional(normalizeCoord, {
+      defaultValue: function defaultStoredRectY2(raw, normalized) {
+        return normalized.y !== undefined ? normalized.y : raw.y;
+      },
+    }),
+    transform: optional(normalizeTransform),
+    time: optional(normalizeTime),
+  },
+  Ellipse: {
+    tool: required(literal("Ellipse")),
+    type: optional(literal("ellipse"), { defaultValue: "ellipse" }),
+    color: required(normalizeColor),
+    size: required(normalizeSize),
+    opacity: optional(normalizeOpacity),
+    x: required(normalizeCoord),
+    y: required(normalizeCoord),
+    x2: optional(normalizeCoord, {
+      defaultValue: function defaultStoredEllipseX2(raw, normalized) {
+        return normalized.x !== undefined ? normalized.x : raw.x;
+      },
+    }),
+    y2: optional(normalizeCoord, {
+      defaultValue: function defaultStoredEllipseY2(raw, normalized) {
+        return normalized.y !== undefined ? normalized.y : raw.y;
+      },
+    }),
+    transform: optional(normalizeTransform),
+    time: optional(normalizeTime),
+  },
+  Text: {
+    tool: required(literal("Text")),
+    type: optional(literal("new"), { defaultValue: "new" }),
+    color: required(normalizeColor),
+    size: required(normalizeSize),
+    opacity: optional(normalizeOpacity),
+    x: required(normalizeCoord),
+    y: required(normalizeCoord),
+    txt: optional(normalizeText),
+    transform: optional(normalizeTransform),
+    time: optional(normalizeTime),
+  },
+};
+
+function normalizeIncomingBatch(raw) {
+  if (!isPlainObject(raw)) return rejected("expected object");
+  if (typeof raw.tool !== "string") return rejected("missing tool");
+
+  const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[raw.tool];
+  if (!childSchemas) return rejected("unsupported batch tool");
+  if (!Array.isArray(raw._children)) return rejected("invalid _children");
+  if (raw._children.length > config.MAX_CHILDREN) {
+    return rejected("too many children");
+  }
+
+  const children = [];
+  for (let index = 0; index < raw._children.length; index++) {
+    const child = raw._children[index];
+    const type = child && child.type;
+    const schema = childSchemas[type];
+    if (!schema) {
+      return rejected("_children[" + index + "]: invalid type");
+    }
+
+    const normalizedChild = normalizeObject(child, schema);
+    if (!normalizedChild.ok) {
+      return rejected("_children[" + index + "]: " + normalizedChild.reason);
+    }
+    children.push(normalizedChild.value);
+  }
+
+  return accepted({
+    tool: raw.tool,
+    _children: children,
+  });
+}
+
+function normalizeIncomingMessage(raw) {
+  if (!isPlainObject(raw)) return rejected("expected object");
+  if (Array.isArray(raw._children)) return normalizeIncomingBatch(raw);
+
+  const toolSchemas = LIVE_MESSAGE_SCHEMAS[raw.tool];
+  const schema = toolSchemas && toolSchemas[raw.type];
+  if (!schema) return rejected("invalid tool/type");
+
+  return normalizeObject(raw, schema);
+}
+
+function normalizeStoredChildPoint(raw) {
+  return normalizeObject(raw, {
+    x: required(normalizeCoord),
+    y: required(normalizeCoord),
+  });
+}
+
+function normalizeStoredItem(raw, storedId) {
+  const normalizedId = MessageCommon.normalizeId(storedId);
+  if (normalizedId === null) return rejected("invalid stored id");
+  if (!isPlainObject(raw)) return rejected("invalid stored item");
+
+  const schema = STORED_ITEM_SCHEMAS[raw.tool];
+  if (!schema) return rejected("unsupported stored tool");
+
+  const normalized = normalizeObject(raw, schema);
+  if (!normalized.ok) return normalized;
+
+  normalized.value.id = normalizedId;
+  if (raw.tool === "Pencil") {
+    const rawChildren = Array.isArray(raw._children)
+      ? raw._children.slice(0, config.MAX_CHILDREN)
+      : [];
+    const children = [];
+    for (let index = 0; index < rawChildren.length; index++) {
+      const child = normalizeStoredChildPoint(rawChildren[index]);
+      if (!child.ok) continue;
+      children.push(child.value);
+    }
+    if (children.length) normalized.value._children = children;
+  }
+
+  return normalized;
+}
+
+module.exports = {
+  normalizeIncomingMessage,
+  normalizeStoredChildPoint,
+  normalizeStoredItem,
+};

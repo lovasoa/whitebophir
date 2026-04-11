@@ -3,7 +3,16 @@ var iolib = require("socket.io"),
   BoardData = require("./boardData.js").BoardData,
   config = require("./configuration"),
   jsonwebtoken = require("jsonwebtoken"),
-  roleInBoard = require("./jwtBoardnameAuth.js").roleInBoard;
+  socketPolicy = require("./socket_policy.js");
+
+var canAccessBoard = socketPolicy.canAccessBoard;
+var canApplyBoardMessage = socketPolicy.canApplyBoardMessage;
+var canWriteToBoard = socketPolicy.canWriteToBoard;
+var countConstructiveActions = socketPolicy.countConstructiveActions;
+var countDestructiveActions = socketPolicy.countDestructiveActions;
+var getClientIp = socketPolicy.getClientIp;
+var normalizeBroadcastData = socketPolicy.normalizeBroadcastData;
+var parseForwardedHeader = socketPolicy.parseForwardedHeader;
 
 /** Map from name to *promises* of BoardData
   @type {{[boardName: string]: Promise<BoardData>}}
@@ -61,98 +70,6 @@ function pruneRateLimitMap(map, periodMs, now) {
 
 function getSocketRequest(socket) {
   return socket.client.request;
-}
-
-function getSocketHeaders(socket) {
-  return getSocketRequest(socket).headers || {};
-}
-
-function parseForwardedHeader(value) {
-  var firstProxy = value.split(",")[0];
-  var forwardedFor = firstProxy
-    .split(";")
-    .map(function trimPart(part) {
-      return part.trim();
-    })
-    .find(function isForPart(part) {
-      return /^for=/i.test(part);
-    });
-  if (!forwardedFor) {
-    throw new Error("Missing for= in Forwarded header");
-  }
-
-  var resolved = forwardedFor.replace(/^for=/i, "").trim();
-  if (
-    resolved.startsWith('"') &&
-    resolved.endsWith('"') &&
-    resolved.length >= 2
-  ) {
-    resolved = resolved.slice(1, -1);
-  }
-  if (!resolved) {
-    throw new Error("Invalid Forwarded header");
-  }
-  return resolved;
-}
-
-function getClientIp(socket) {
-  var request = getSocketRequest(socket);
-  var headers = getSocketHeaders(socket);
-
-  switch (config.IP_SOURCE) {
-    case "remoteAddress":
-      if (request.socket && request.socket.remoteAddress) {
-        return request.socket.remoteAddress;
-      }
-      throw new Error("Missing remoteAddress");
-
-    case "X-Forwarded-For":
-      if (headers["x-forwarded-for"]) {
-        var xForwardedFor = headers["x-forwarded-for"].split(",")[0].trim();
-        if (xForwardedFor) return xForwardedFor;
-      }
-      throw new Error(
-        "Missing x-forwarded-for header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
-      );
-
-    case "Forwarded":
-      if (headers["forwarded"]) {
-        return parseForwardedHeader(headers["forwarded"]);
-      }
-      throw new Error(
-        "Missing Forwarded header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
-      );
-  }
-}
-
-function countDestructiveActions(data) {
-  if (!data || typeof data !== "object") return 0;
-  if (Array.isArray(data._children)) {
-    return data._children.reduce(function countDeletes(total, child) {
-      return total + (child && child.type === "delete" ? 1 : 0);
-    }, 0);
-  }
-  return data.type === "delete" || data.type === "clear" ? 1 : 0;
-}
-
-function isConstructiveAction(data) {
-  if (!data || !data.id) return false;
-  // destructive types
-  if (data.type === "delete" || data.type === "clear") return false;
-  // non-constructive types
-  if (data.type === "update" || data.type === "child") return false;
-  // everything else is considered constructive as it results in board.set() or board.copy()
-  return true;
-}
-
-function countConstructiveActions(data) {
-  if (!data || typeof data !== "object") return 0;
-  if (Array.isArray(data._children)) {
-    return data._children.reduce(function countConstructs(total, child) {
-      return total + (isConstructiveAction(child) ? 1 : 0);
-    }, 0);
-  }
-  return isConstructiveAction(data) ? 1 : 0;
 }
 
 function closeSocket(socket, eventName, infos) {
@@ -330,58 +247,8 @@ function ensureSocketJoinedBoard(socket, boardName) {
   if (!socket.rooms.has(boardName)) socket.join(boardName);
 }
 
-function validateBroadcastData(message, data) {
-  if (!data) {
-    console.warn("Received invalid message: %s.", JSON.stringify(message));
-    return false;
-  }
-
-  if (
-    !(data.tool || data.type === "child") ||
-    config.BLOCKED_TOOLS.includes(data.tool)
-  ) {
-    log("BLOCKED MESSAGE", data);
-    return false;
-  }
-
-  return true;
-}
-
-function canApplyBoardMessage(board, data, socket) {
-  if (data.tool === "Cursor") return true;
-  if (!canWriteToBoard(board, socket)) return false;
-  if (data.type === "clear" && writerRole(board.name, socket) !== "moderator") {
-    return false;
-  }
-  return true;
-}
-
 function cloneMessageForPersistence(data) {
   return data.tool === "Cursor" ? data : structuredClone(data);
-}
-
-function getSocketToken(socket) {
-  return socket.handshake.query && socket.handshake.query.token;
-}
-
-function accessRole(boardName, socket) {
-  if (!config.AUTH_SECRET_KEY) return "editor";
-  return roleInBoard(getSocketToken(socket), boardName);
-}
-
-function canAccessBoard(boardName, socket) {
-  return accessRole(boardName, socket) !== "forbidden";
-}
-
-function writerRole(boardName, socket) {
-  if (!config.AUTH_SECRET_KEY) return "forbidden";
-  const role = accessRole(boardName, socket);
-  return role === "editor" || role === "moderator" ? role : "forbidden";
-}
-
-function canWriteToBoard(board, socket) {
-  if (!board.isReadOnly()) return true;
-  return writerRole(board.name, socket) !== "forbidden";
 }
 
 function startIO(app) {
@@ -490,14 +357,17 @@ function handleSocketConnection(socket) {
         )
       )
         return;
+      if (!ensureSocketCanAccessBoard(socket, boardName)) return;
+
+      const normalized = normalizeBroadcastData(message, data);
+      if (!normalized.ok) return;
+      data = normalized.value;
       if (!enforceDestructiveRateLimit(socket, boardName, data, clientIp, now))
         return;
       if (!enforceConstructiveRateLimit(socket, boardName, data, clientIp, now))
         return;
-      if (!ensureSocketCanAccessBoard(socket, boardName)) return;
 
       ensureSocketJoinedBoard(socket, boardName);
-      if (!validateBroadcastData(message, data)) return;
 
       var board = await getBoard(boardName);
       if (!canApplyBoardMessage(board, data, socket)) {
@@ -581,6 +451,7 @@ if (exports) {
     countConstructiveActions,
     createRateLimitState,
     getClientIp,
+    normalizeBroadcastData,
     parseForwardedHeader,
     pruneRateLimitMap,
     resetRateLimitMaps: function resetRateLimitMaps() {
