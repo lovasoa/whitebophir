@@ -1,4 +1,10 @@
-const { setup, teardown, seedSocketHeaders, DEFAULT_FORWARDED_IP, rootUrl } = require("./lib/test_helper.js");
+const {
+  setup,
+  teardown,
+  seedSocketHeaders,
+  DEFAULT_FORWARDED_IP,
+  rootUrl,
+} = require("./lib/test_helper.js");
 
 let serverProcess, serverUrl, tokenQuery;
 
@@ -13,9 +19,16 @@ module.exports = {
   },
 
   "Test Collaborativeness"(browser) {
-    const boardUrl = serverUrl + "/boards/collaborative-test?lang=en&" + tokenQuery;
+    const boardUrl =
+      serverUrl + "/boards/collaborative-test?lang=en&" + tokenQuery;
 
-    seedSocketHeaders(browser, serverUrl, DEFAULT_FORWARDED_IP, null, tokenQuery)
+    seedSocketHeaders(
+      browser,
+      serverUrl,
+      DEFAULT_FORWARDED_IP,
+      null,
+      tokenQuery,
+    )
       .url(boardUrl)
       .waitForElementVisible(".tool[title ~= Pencil]")
       .click(".tool[title ~= Pencil]")

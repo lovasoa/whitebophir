@@ -68,10 +68,14 @@ function handler(request, response) {
   try {
     handleRequestAndLog(request, response);
   } catch (err) {
-    if (config.AUTH_SECRET_KEY && (err.message.includes("Access Forbidden") || err.message.includes("Illegal board name"))) {
-       log("error", { error: err.message, url: request.url });
+    if (
+      config.AUTH_SECRET_KEY &&
+      (err.message.includes("Access Forbidden") ||
+        err.message.includes("Illegal board name"))
+    ) {
+      log("error", { error: err.message, url: request.url });
     } else {
-       console.trace(err);
+      console.trace(err);
     }
     response.writeHead(500, { "Content-Type": "text/plain" });
     response.end(err.toString());

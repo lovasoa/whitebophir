@@ -10,13 +10,25 @@ module.exports = {
             (async () => {
               Tools.setColor(color);
               const first = points[0];
-              Tools.curTool.listeners.press(first.x, first.y, new Event("mousedown"));
+              Tools.curTool.listeners.press(
+                first.x,
+                first.y,
+                new Event("mousedown"),
+              );
               for (let i = 1; i < points.length; i++) {
                 await sleep(80);
                 if (i === points.length - 1) {
-                  Tools.curTool.listeners.release(points[i].x, points[i].y, new Event("mouseup"));
+                  Tools.curTool.listeners.release(
+                    points[i].x,
+                    points[i].y,
+                    new Event("mouseup"),
+                  );
                 } else {
-                  Tools.curTool.listeners.move(points[i].x, points[i].y, new Event("mousemove"));
+                  Tools.curTool.listeners.move(
+                    points[i].x,
+                    points[i].y,
+                    new Event("mousemove"),
+                  );
                 }
               }
               done();
@@ -30,12 +42,24 @@ module.exports = {
         return this.executeAsync(
           function (color, center, radius, done) {
             Tools.setColor(color);
-            Tools.curTool.listeners.press(center.x + radius, center.y + radius, new Event("mousedown"));
+            Tools.curTool.listeners.press(
+              center.x + radius,
+              center.y + radius,
+              new Event("mousedown"),
+            );
             setTimeout(() => {
               const evt = new Event("mousemove");
               evt.shiftKey = true;
-              Tools.curTool.listeners.move(center.x - radius, center.y - radius, evt);
-              Tools.curTool.listeners.release(center.x - radius, center.y - radius, new Event("mouseup"));
+              Tools.curTool.listeners.move(
+                center.x - radius,
+                center.y - radius,
+                evt,
+              );
+              Tools.curTool.listeners.release(
+                center.x - radius,
+                center.y - radius,
+                new Event("mouseup"),
+              );
               done();
             }, 100);
           },

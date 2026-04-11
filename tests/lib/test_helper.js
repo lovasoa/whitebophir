@@ -8,14 +8,38 @@ const AUTH_SECRET = "test";
 const DEFAULT_FORWARDED_IP = "198.51.100.10";
 
 const TOKENS = {
-  globalModerator: jsonwebtoken.sign({ sub: "moderator", roles: ["moderator"] }, AUTH_SECRET),
-  boardModeratorTestboard: jsonwebtoken.sign({ sub: "moderator-board", roles: ["moderator:testboard"] }, AUTH_SECRET),
-  globalEditor: jsonwebtoken.sign({ sub: "editor", roles: ["editor"] }, AUTH_SECRET),
-  boardEditorTestboard: jsonwebtoken.sign({ sub: "editor-board", roles: ["editor:testboard"] }, AUTH_SECRET),
-  readOnlyViewer: jsonwebtoken.sign({ sub: "viewer", roles: ["reader:readonly-test"] }, AUTH_SECRET),
-  readOnlyGlobalEditor: jsonwebtoken.sign({ sub: "readonly-editor", roles: ["editor"] }, AUTH_SECRET),
-  readOnlyBoardEditor: jsonwebtoken.sign({ sub: "readonly-board-editor", roles: ["editor:readonly-test"] }, AUTH_SECRET),
-  readOnlyGlobalModerator: jsonwebtoken.sign({ sub: "readonly-moderator", roles: ["moderator"] }, AUTH_SECRET),
+  globalModerator: jsonwebtoken.sign(
+    { sub: "moderator", roles: ["moderator"] },
+    AUTH_SECRET,
+  ),
+  boardModeratorTestboard: jsonwebtoken.sign(
+    { sub: "moderator-board", roles: ["moderator:testboard"] },
+    AUTH_SECRET,
+  ),
+  globalEditor: jsonwebtoken.sign(
+    { sub: "editor", roles: ["editor"] },
+    AUTH_SECRET,
+  ),
+  boardEditorTestboard: jsonwebtoken.sign(
+    { sub: "editor-board", roles: ["editor:testboard"] },
+    AUTH_SECRET,
+  ),
+  readOnlyViewer: jsonwebtoken.sign(
+    { sub: "viewer", roles: ["reader:readonly-test"] },
+    AUTH_SECRET,
+  ),
+  readOnlyGlobalEditor: jsonwebtoken.sign(
+    { sub: "readonly-editor", roles: ["editor"] },
+    AUTH_SECRET,
+  ),
+  readOnlyBoardEditor: jsonwebtoken.sign(
+    { sub: "readonly-board-editor", roles: ["editor:readonly-test"] },
+    AUTH_SECRET,
+  ),
+  readOnlyGlobalModerator: jsonwebtoken.sign(
+    { sub: "readonly-moderator", roles: ["moderator"] },
+    AUTH_SECRET,
+  ),
 };
 
 function withToken(url, token, tokenQuery) {
@@ -40,7 +64,10 @@ function seedSocketHeaders(browser, serverUrl, headers, token, tokenQuery) {
   return browser.url(rootUrl(serverUrl, token, tokenQuery)).execute(
     function (socketHeaders) {
       window.socketio_extra_headers = socketHeaders;
-      sessionStorage.setItem("socketio_extra_headers", JSON.stringify(socketHeaders));
+      sessionStorage.setItem(
+        "socketio_extra_headers",
+        JSON.stringify(socketHeaders),
+      );
     },
     [headers],
   );
@@ -48,7 +75,7 @@ function seedSocketHeaders(browser, serverUrl, headers, token, tokenQuery) {
 
 async function setup(browser) {
   const dataPath = await fsp.mkdtemp(path.join(os.tmpdir(), "wbo-test-data-"));
-  
+
   const env = {
     ...process.env,
     PORT: "0",
@@ -68,9 +95,9 @@ async function setup(browser) {
   }
 
   const serverPath = path.resolve(__dirname, "..", "..", "server", "server.js");
-  const child = spawn("node", [serverPath], { 
+  const child = spawn("node", [serverPath], {
     env,
-    stdio: ["inherit", "pipe", "pipe", "ipc"] 
+    stdio: ["inherit", "pipe", "pipe", "ipc"],
   });
 
   return new Promise((resolve, reject) => {

@@ -15,7 +15,8 @@ module.exports = {
   },
 
   "Test Rate Limit Alert"(browser) {
-    const boardUrl = serverUrl + "/boards/rate-limit-test?lang=en&" + tokenQuery;
+    const boardUrl =
+      serverUrl + "/boards/rate-limit-test?lang=en&" + tokenQuery;
     const rateLimitHeaders = {
       "X-Forwarded-For": RATE_LIMIT_TEST_IP,
     };

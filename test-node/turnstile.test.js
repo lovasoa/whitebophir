@@ -78,7 +78,7 @@ test("server-side Turnstile enforcement in broadcast", async function () {
       // but in this test context, we just want to see if it reached that point.
       // Since it's a unit test of the enforcement logic, we've already shown it returns early if NOT validated.
       // To show it DOES NOT return early if validated, we can check if it tries to continue.
-      
+
       await broadcastHandler({
         board: "anonymous",
         data: { tool: "Pencil", type: "line", id: "l2" },
