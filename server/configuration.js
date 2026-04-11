@@ -92,6 +92,12 @@ module.exports = {
   /** Secret key for jwt */
   AUTH_SECRET_KEY: process.env["AUTH_SECRET_KEY"] || "",
 
+  /** Cloudflare Turnstile secret key */
+  TURNSTILE_SECRET_KEY: process.env["TURNSTILE_SECRET_KEY"],
+
+  /** Cloudflare Turnstile site key */
+  TURNSTILE_SITE_KEY: process.env["TURNSTILE_SITE_KEY"],
+
   /** If this variable is set, automatically redirect to this board from the root of the application. */
   DEFAULT_BOARD: process.env["WBO_DEFAULT_BOARD"],
 };

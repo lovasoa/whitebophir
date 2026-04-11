@@ -83,6 +83,12 @@
     return toFiniteNumber(value) !== null;
   }
 
+  function requiresTurnstile(boardName, toolName) {
+    if (boardName !== "anonymous") return false;
+    if (!toolName || toolName === "Cursor") return false;
+    return true;
+  }
+
   return {
     LIMITS: LIMITS,
     clampOpacity: clampOpacity,
@@ -94,5 +100,6 @@
     normalizeId: normalizeId,
     resolveMaxBoardSize: resolveMaxBoardSize,
     truncateText: truncateText,
+    requiresTurnstile: requiresTurnstile,
   };
 });

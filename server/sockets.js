@@ -3,7 +3,8 @@ var iolib = require("socket.io"),
   BoardData = require("./boardData.js").BoardData,
   config = require("./configuration"),
   jsonwebtoken = require("jsonwebtoken"),
-  socketPolicy = require("./socket_policy.js");
+  socketPolicy = require("./socket_policy.js"),
+  WBOMessageCommon = require("../client-data/js/message_common.js");
 
 var canAccessBoard = socketPolicy.canAccessBoard;
 var canApplyBoardMessage = socketPolicy.canApplyBoardMessage;
@@ -337,6 +338,43 @@ function handleSocketConnection(socket) {
 
   socket.on("joinboard", noFail(joinBoard));
 
+  socket.on(
+    "turnstile_token",
+    noFail(async function onTurnstileToken(token, ack) {
+      if (!config.TURNSTILE_SECRET_KEY) {
+        if (typeof ack === "function") ack(true);
+        return;
+      }
+      try {
+        var response = await fetch(
+          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              secret: config.TURNSTILE_SECRET_KEY,
+              response: token,
+            }),
+          },
+        );
+        var result = await response.json();
+        if (result.success) {
+          socket.turnstileValidated = true;
+          if (typeof ack === "function") ack(true);
+        } else {
+          log("TURNSTILE REJECTED", {
+            ip: resolveClientIp(socket, "anonymous"),
+            error_codes: result["error-codes"],
+          });
+          if (typeof ack === "function") ack(false);
+        }
+      } catch (err) {
+        log("TURNSTILE ERROR", { error: err.message });
+        if (typeof ack === "function") ack(false);
+      }
+    }),
+  );
+
   var generalRateLimit = createRateLimitState(Date.now());
   socket.on(
     "broadcast",
@@ -347,6 +385,14 @@ function handleSocketConnection(socket) {
       var clientIp = resolveClientIp(socket, boardName);
 
       if (clientIp === null) return;
+      if (
+        config.TURNSTILE_SECRET_KEY &&
+        data &&
+        WBOMessageCommon.requiresTurnstile(boardName, data.tool) &&
+        !socket.turnstileValidated
+      ) {
+        return;
+      }
       if (
         !enforceGeneralRateLimit(
           socket,

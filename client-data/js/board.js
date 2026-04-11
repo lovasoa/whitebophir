@@ -39,6 +39,69 @@ Tools.i18n = (function i18n() {
 
 Tools.server_config = JSON.parse(document.getElementById("configuration").text);
 Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
+Tools.turnstileValidated = false;
+
+if (Tools.server_config.TURNSTILE_SITE_KEY) {
+  var script = document.createElement("script");
+  script.src =
+    "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
+}
+
+Tools.showTurnstileWidget = function () {
+  if (document.getElementById("turnstile-overlay")) return;
+
+  var overlay = document.createElement("div");
+  overlay.id = "turnstile-overlay";
+
+  var modal = document.createElement("div");
+  modal.id = "turnstile-modal";
+
+  var title = document.createElement("div");
+  title.id = "turnstile-title";
+  title.innerText = "Please verify you are human before drawing";
+  modal.appendChild(title);
+
+  var widget = document.createElement("div");
+  widget.id = "turnstile-widget";
+  modal.appendChild(widget);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  if (typeof turnstile !== "undefined") {
+    var widgetId = turnstile.render("#turnstile-widget", {
+      sitekey: Tools.server_config.TURNSTILE_SITE_KEY,
+      callback: function (token) {
+        Tools.socket.emit("turnstile_token", token, function (success) {
+          if (success) {
+            Tools.turnstileValidated = true;
+            turnstile.remove(widgetId);
+            document.body.removeChild(overlay);
+          } else {
+            turnstile.reset(widgetId);
+          }
+        });
+      },
+      "error-callback": function (err) {
+        console.error("Turnstile error:", err);
+      },
+      "timeout-callback": function () {
+        turnstile.reset(widgetId);
+      },
+      "expired-callback": function () {
+        turnstile.reset(widgetId);
+      },
+    });
+  } else {
+    title.innerText = "Error loading Turnstile. Please refresh the page.";
+    setTimeout(function () {
+      if (overlay.parentNode) document.body.removeChild(overlay);
+    }, 3000);
+  }
+};
 
 Tools.setBoardState = function setBoardState(state) {
   state = state || {};
@@ -456,6 +519,14 @@ Tools.send = function (data, toolName) {
 
 Tools.drawAndSend = function (data, tool) {
   if (tool == null) tool = Tools.curTool;
+  if (
+    WBOMessageCommon.requiresTurnstile(Tools.boardName, tool.name) &&
+    Tools.server_config.TURNSTILE_SITE_KEY &&
+    !Tools.turnstileValidated
+  ) {
+    Tools.showTurnstileWidget();
+    return;
+  }
   tool.draw(data, true);
   Tools.send(data, tool.name);
 };
