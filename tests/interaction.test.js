@@ -151,4 +151,67 @@ module.exports = {
       )
       .end();
   },
+
+  "Test Download Exports SVG Content"(browser) {
+    browser
+      .perform(async function (done) {
+        await writeBoard(dataPath, "download-test", {
+          "download-rect": {
+            type: "rect",
+            id: "download-rect",
+            tool: "Rectangle",
+            x: 100,
+            y: 100,
+            x2: 160,
+            y2: 140,
+            color: "#123456",
+            size: 4,
+          },
+        });
+        done();
+      })
+      .url(serverUrl + "/boards/download-test?lang=en&" + tokenQuery)
+      .waitForElementVisible("#toolID-Download")
+      .waitForElementVisible("#download-rect")
+      .execute(function () {
+        window.__downloadCapture = null;
+        window.__downloadAnchorClicks = 0;
+        window.URL.createObjectURL = function (blob) {
+          window.__downloadBlob = blob;
+          return "blob:test-download";
+        };
+        window.URL.revokeObjectURL = function () {};
+        HTMLAnchorElement.prototype.click = function () {
+          window.__downloadAnchorClicks++;
+          window.__downloadCapture = {
+            href: this.getAttribute("href"),
+            download: this.getAttribute("download"),
+          };
+        };
+      })
+      .click("#toolID-Download")
+      .executeAsync(
+        async function (done) {
+          var text = await window.__downloadBlob.text();
+          done({
+            clicks: window.__downloadAnchorClicks,
+            href: window.__downloadCapture && window.__downloadCapture.href,
+            download:
+              window.__downloadCapture && window.__downloadCapture.download,
+            hasSvgTag: text.includes("<svg"),
+            hasRect: text.includes('id="download-rect"'),
+            hasBoardStyles: text.includes("#drawingArea"),
+          });
+        },
+        function (result) {
+          browser.assert.equal(result.value.clicks, 1);
+          browser.assert.equal(result.value.href, "blob:test-download");
+          browser.assert.equal(result.value.download, "download-test.svg");
+          browser.assert.equal(result.value.hasSvgTag, true);
+          browser.assert.equal(result.value.hasRect, true);
+          browser.assert.equal(result.value.hasBoardStyles, true);
+        },
+      )
+      .end();
+  },
 };
