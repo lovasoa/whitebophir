@@ -1,6 +1,6 @@
 const { setup, teardown, writeBoard } = require("./lib/test_helper.js");
 
-let serverProcess, dataPath, serverUrl;
+let serverProcess, dataPath, serverUrl, tokenQuery;
 
 module.exports = {
   async beforeEach(browser, done) {
@@ -8,7 +8,8 @@ module.exports = {
       child: serverProcess,
       dataPath,
       serverUrl,
-    } = await setup(browser, { useJWT: false }));
+      tokenQuery,
+    } = await setup(browser));
     done();
   },
 
@@ -34,7 +35,7 @@ module.exports = {
         });
         done();
       })
-      .url(serverUrl + "/boards/selector-test?lang=en")
+      .url(serverUrl + "/boards/selector-test?lang=en&" + tokenQuery)
       .waitForElementVisible("#toolID-Hand")
       .waitForElementVisible("#seed-rect")
       .click("#toolID-Hand")
@@ -99,6 +100,53 @@ module.exports = {
         function (result) {
           browser.assert.equal(result.value.e, 40);
           browser.assert.equal(result.value.f, 25);
+        },
+      )
+      .end();
+  },
+
+  "Test Zoom Click In And Out"(browser) {
+    browser
+      .url(serverUrl + "/boards/zoom-test?lang=en&" + tokenQuery)
+      .waitForElementVisible("#toolID-Zoom")
+      .click("#toolID-Zoom")
+      .executeAsync(
+        function (done) {
+          var zoomInEvent = {
+            preventDefault: function () {},
+            clientY: 100,
+            shiftKey: false,
+          };
+
+          Tools.curTool.listeners.press(200, 200, zoomInEvent);
+          Tools.curTool.listeners.release(200, 200, zoomInEvent);
+
+          setTimeout(function () {
+            var scaleAfterZoomIn = Tools.getScale();
+            var zoomOutEvent = {
+              preventDefault: function () {},
+              clientY: 100,
+              shiftKey: true,
+            };
+
+            Tools.curTool.listeners.press(200, 200, zoomOutEvent);
+            Tools.curTool.listeners.release(200, 200, zoomOutEvent);
+
+            setTimeout(function () {
+              done({
+                scaleAfterZoomIn: scaleAfterZoomIn,
+                scaleAfterZoomOut: Tools.getScale(),
+              });
+            }, 50);
+          }, 50);
+        },
+        function (result) {
+          browser.assert.ok(
+            Math.abs(result.value.scaleAfterZoomIn - 1.5) < 0.01,
+          );
+          browser.assert.ok(
+            Math.abs(result.value.scaleAfterZoomOut - 0.75) < 0.01,
+          );
         },
       )
       .end();

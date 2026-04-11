@@ -90,6 +90,172 @@ module.exports = {
     browser.end();
   },
 
+  "Test Text Tool Creates Persistent Text"(browser) {
+    browser
+      .url(serverUrl + "/boards/text-test?lang=en&" + tokenQuery)
+      .waitForElementVisible("#toolID-Text")
+      .click("#toolID-Text")
+      .executeAsync(
+        function (done) {
+          Tools.curTool.listeners.press(120, 140, {
+            target: Tools.board,
+            preventDefault: function () {},
+          });
+
+          var input = document.getElementById("textToolInput");
+          input.value = "Hello text";
+          input.dispatchEvent(new Event("keyup"));
+
+          setTimeout(function () {
+            input.blur();
+            setTimeout(function () {
+              var text = document.querySelector("#drawingArea text");
+              done({
+                text: text && text.textContent,
+              });
+            }, 150);
+          }, 150);
+        },
+        function (result) {
+          browser.assert.equal(result.value.text, "Hello text");
+        },
+      )
+      .pause(1000)
+      .refresh()
+      .waitForElementVisible("#drawingArea text")
+      .execute(
+        function () {
+          var text = document.querySelector("#drawingArea text");
+          return {
+            text: text && text.textContent,
+          };
+        },
+        [],
+        function (result) {
+          browser.assert.equal(result.value.text, "Hello text");
+        },
+      )
+      .end();
+  },
+
+  "Test Straight Line Snap Persists"(browser) {
+    browser
+      .url(serverUrl + "/boards/line-test?lang=en&" + tokenQuery)
+      .waitForElementVisible("[id='toolID-Straight line']")
+      .click("[id='toolID-Straight line']")
+      .click("[id='toolID-Straight line']")
+      .executeAsync(
+        function (done) {
+          var evt = {
+            preventDefault: function () {},
+          };
+
+          Tools.curTool.listeners.press(100, 100, evt);
+          Tools.curTool.listeners.move(102, 160, evt);
+          Tools.curTool.listeners.release(102, 160, evt);
+
+          setTimeout(function () {
+            var line = document.querySelector("#drawingArea line");
+            done({
+              secondaryActive: Tools.curTool.secondary.active,
+              x1: parseFloat(line.getAttribute("x1")),
+              y1: parseFloat(line.getAttribute("y1")),
+              x2: parseFloat(line.getAttribute("x2")),
+              y2: parseFloat(line.getAttribute("y2")),
+            });
+          }, 150);
+        },
+        function (result) {
+          browser.assert.equal(result.value.secondaryActive, true);
+          browser.assert.equal(result.value.x1, 100);
+          browser.assert.equal(result.value.y1, 100);
+          browser.assert.ok(Math.abs(result.value.x2 - 100) < 0.5);
+          browser.assert.ok(Math.abs(result.value.y2 - 160) < 0.5);
+        },
+      )
+      .pause(1000)
+      .refresh()
+      .waitForElementVisible("#drawingArea line")
+      .execute(
+        function () {
+          var line = document.querySelector("#drawingArea line");
+          return {
+            x1: parseFloat(line.getAttribute("x1")),
+            y1: parseFloat(line.getAttribute("y1")),
+            x2: parseFloat(line.getAttribute("x2")),
+            y2: parseFloat(line.getAttribute("y2")),
+          };
+        },
+        [],
+        function (result) {
+          browser.assert.equal(result.value.x1, 100);
+          browser.assert.equal(result.value.y1, 100);
+          browser.assert.ok(Math.abs(result.value.x2 - 100) < 0.5);
+          browser.assert.ok(Math.abs(result.value.y2 - 160) < 0.5);
+        },
+      )
+      .end();
+  },
+
+  "Test Square Mode Persists"(browser) {
+    browser
+      .url(serverUrl + "/boards/rectangle-test?lang=en&" + tokenQuery)
+      .waitForElementVisible("#toolID-Rectangle")
+      .click("#toolID-Rectangle")
+      .click("#toolID-Rectangle")
+      .executeAsync(
+        function (done) {
+          var evt = {
+            preventDefault: function () {},
+          };
+
+          Tools.curTool.listeners.press(100, 100, evt);
+          Tools.curTool.listeners.move(160, 130, evt);
+          Tools.curTool.listeners.release(160, 130, evt);
+
+          setTimeout(function () {
+            var rect = document.querySelector("#drawingArea rect");
+            done({
+              secondaryActive: Tools.curTool.secondary.active,
+              x: parseFloat(rect.getAttribute("x")),
+              y: parseFloat(rect.getAttribute("y")),
+              width: parseFloat(rect.getAttribute("width")),
+              height: parseFloat(rect.getAttribute("height")),
+            });
+          }, 150);
+        },
+        function (result) {
+          browser.assert.equal(result.value.secondaryActive, true);
+          browser.assert.equal(result.value.x, 100);
+          browser.assert.equal(result.value.y, 100);
+          browser.assert.equal(result.value.width, 60);
+          browser.assert.equal(result.value.height, 60);
+        },
+      )
+      .pause(1000)
+      .refresh()
+      .waitForElementVisible("#drawingArea rect")
+      .execute(
+        function () {
+          var rect = document.querySelector("#drawingArea rect");
+          return {
+            x: parseFloat(rect.getAttribute("x")),
+            y: parseFloat(rect.getAttribute("y")),
+            width: parseFloat(rect.getAttribute("width")),
+            height: parseFloat(rect.getAttribute("height")),
+          };
+        },
+        [],
+        function (result) {
+          browser.assert.equal(result.value.x, 100);
+          browser.assert.equal(result.value.y, 100);
+          browser.assert.equal(result.value.width, 60);
+          browser.assert.equal(result.value.height, 60);
+        },
+      )
+      .end();
+  },
+
   "Test Cursor"(browser) {
     const board = browser.page.board();
     browser.url(serverUrl + "/boards/anonymous?lang=fr&" + tokenQuery);
