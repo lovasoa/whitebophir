@@ -8,14 +8,38 @@ const AUTH_SECRET = "test";
 const DEFAULT_FORWARDED_IP = "198.51.100.10";
 
 const TOKENS = {
-  globalModerator: jsonwebtoken.sign({ sub: "moderator", roles: ["moderator"] }, AUTH_SECRET),
-  boardModeratorTestboard: jsonwebtoken.sign({ sub: "moderator-board", roles: ["moderator:testboard"] }, AUTH_SECRET),
-  globalEditor: jsonwebtoken.sign({ sub: "editor", roles: ["editor"] }, AUTH_SECRET),
-  boardEditorTestboard: jsonwebtoken.sign({ sub: "editor-board", roles: ["editor:testboard"] }, AUTH_SECRET),
-  readOnlyViewer: jsonwebtoken.sign({ sub: "viewer", roles: ["reader:readonly-test"] }, AUTH_SECRET),
-  readOnlyGlobalEditor: jsonwebtoken.sign({ sub: "readonly-editor", roles: ["editor"] }, AUTH_SECRET),
-  readOnlyBoardEditor: jsonwebtoken.sign({ sub: "readonly-board-editor", roles: ["editor:readonly-test"] }, AUTH_SECRET),
-  readOnlyGlobalModerator: jsonwebtoken.sign({ sub: "readonly-moderator", roles: ["moderator"] }, AUTH_SECRET),
+  globalModerator: jsonwebtoken.sign(
+    { sub: "moderator", roles: ["moderator"] },
+    AUTH_SECRET,
+  ),
+  boardModeratorTestboard: jsonwebtoken.sign(
+    { sub: "moderator-board", roles: ["moderator:testboard"] },
+    AUTH_SECRET,
+  ),
+  globalEditor: jsonwebtoken.sign(
+    { sub: "editor", roles: ["editor"] },
+    AUTH_SECRET,
+  ),
+  boardEditorTestboard: jsonwebtoken.sign(
+    { sub: "editor-board", roles: ["editor:testboard"] },
+    AUTH_SECRET,
+  ),
+  readOnlyViewer: jsonwebtoken.sign(
+    { sub: "viewer", roles: ["reader:readonly-test"] },
+    AUTH_SECRET,
+  ),
+  readOnlyGlobalEditor: jsonwebtoken.sign(
+    { sub: "readonly-editor", roles: ["editor"] },
+    AUTH_SECRET,
+  ),
+  readOnlyBoardEditor: jsonwebtoken.sign(
+    { sub: "readonly-board-editor", roles: ["editor:readonly-test"] },
+    AUTH_SECRET,
+  ),
+  readOnlyGlobalModerator: jsonwebtoken.sign(
+    { sub: "readonly-moderator", roles: ["moderator"] },
+    AUTH_SECRET,
+  ),
 };
 
 function withToken(url, token, tokenQuery) {
@@ -40,7 +64,10 @@ function seedSocketHeaders(browser, serverUrl, headers, token, tokenQuery) {
   return browser.url(rootUrl(serverUrl, token, tokenQuery)).execute(
     function (socketHeaders) {
       window.socketio_extra_headers = socketHeaders;
-      sessionStorage.setItem("socketio_extra_headers", JSON.stringify(socketHeaders));
+      sessionStorage.setItem(
+        "socketio_extra_headers",
+        JSON.stringify(socketHeaders),
+      );
     },
     [headers],
   );
@@ -70,9 +97,9 @@ async function setup(browser, options = {}) {
   }
 
   const serverPath = path.resolve(__dirname, "..", "..", "server", "server.js");
-  const child = spawn("node", [serverPath], { 
+  const child = spawn("node", [serverPath], {
     env,
-    stdio: ["inherit", "pipe", "pipe", "ipc"] 
+    stdio: ["inherit", "pipe", "pipe", "ipc"],
   });
 
   browser.currentTestServerErrors = [];
@@ -120,10 +147,20 @@ async function setup(browser, options = {}) {
 }
 
 async function teardown(child, done, browser) {
-  if (browser && browser.currentTest && browser.currentTest.results && browser.currentTest.results.failed > 0) {
-    if (browser.currentTestServerErrors && browser.currentTestServerErrors.length > 0) {
+  if (
+    browser &&
+    browser.currentTest &&
+    browser.currentTest.results &&
+    browser.currentTest.results.failed > 0
+  ) {
+    if (
+      browser.currentTestServerErrors &&
+      browser.currentTestServerErrors.length > 0
+    ) {
       process.stderr.write("\n--- SERVER ERRORS DURING FAILED TEST ---\n");
-      browser.currentTestServerErrors.forEach(err => process.stderr.write(err));
+      browser.currentTestServerErrors.forEach((err) =>
+        process.stderr.write(err),
+      );
       process.stderr.write("----------------------------------------\n");
     }
   }

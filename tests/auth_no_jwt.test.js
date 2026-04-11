@@ -4,7 +4,11 @@ let serverProcess, dataPath, serverUrl;
 
 module.exports = {
   async beforeEach(browser, done) {
-    ({ child: serverProcess, dataPath, serverUrl } = await setup(browser, { useJWT: false }));
+    ({
+      child: serverProcess,
+      dataPath,
+      serverUrl,
+    } = await setup(browser, { useJWT: false }));
     done();
   },
 
@@ -13,7 +17,8 @@ module.exports = {
   },
 
   "Test ReadOnly Board Without Auth"(browser) {
-    const selector = "rect[x='10'][y='10'][width='20'][height='20'][stroke='#123456']";
+    const selector =
+      "rect[x='10'][y='10'][width='20'][height='20'][stroke='#123456']";
 
     browser
       .perform(async function (done) {
