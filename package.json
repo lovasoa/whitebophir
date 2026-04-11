@@ -21,8 +21,8 @@
   },
   "scripts": {
     "start": "node ./server/server.js",
-    "test-node": "node --test test-node/*.test.js",
-    "test": "npm run test-node && nightwatch tests && nightwatch tests --env jwt",
+    "test-node": "WBO_SILENT=true node --test test-node/*.test.js",
+    "test": "npm run test-node && WBO_SILENT=true nightwatch tests && WBO_SILENT=true nightwatch tests --env jwt",
     "prettier": "prettier . --write",
     "prettier-check": "prettier . --check"
   },

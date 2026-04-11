@@ -41,6 +41,7 @@ if (statsd) {
  * @param {any} infos
  */
 function log(type, infos) {
+  if (process.env["WBO_SILENT"] === "true") return;
   var msg = type;
   if (infos) msg += "\t" + JSON.stringify(infos);
   if (statsd) {

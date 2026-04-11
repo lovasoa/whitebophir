@@ -5,6 +5,14 @@ loadServices();
 
 module.exports = {
   src_folders: ["tests"],
+  page_objects_path: ["tests/lib/pages"],
+
+  test_workers: {
+    enabled: true,
+    workers: "auto",
+  },
+
+  exclude: ["tests/lib/**"],
 
   webdriver: {
     start_process: true,
@@ -15,6 +23,11 @@ module.exports = {
 
   test_settings: {
     default: {
+      asyncHookTimeout: 30000,
+      detailed_output: false,
+      live_output: false,
+      output: false,
+      silent: true,
       desiredCapabilities: {
         browserName: "firefox",
         acceptInsecureCerts: true,

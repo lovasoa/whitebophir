@@ -26,6 +26,8 @@ function findBaseUrl(req) {
   return proto + "://" + host;
 }
 
+const packageJson = require("../package.json");
+
 class Template {
   constructor(path) {
     const contents = fs.readFileSync(path, { encoding: "utf8" });
@@ -52,6 +54,7 @@ class Template {
     const prefix = request.url.split("/boards/")[0].substr(1);
     const baseUrl = findBaseUrl(request) + (prefix ? prefix + "/" : "");
     const moderator = isModerator;
+    const version = packageJson.version;
     return Object.assign(
       {
         baseUrl,
@@ -60,6 +63,7 @@ class Template {
         translations,
         configuration,
         moderator,
+        version,
       },
       extraParams,
     );

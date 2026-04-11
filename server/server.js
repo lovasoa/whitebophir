@@ -20,8 +20,11 @@ check_output_directory(config.HISTORY_DIR);
 
 sockets.start(app);
 
-app.listen(config.PORT, config.HOST);
-log("server started", { port: config.PORT });
+app.listen(config.PORT, config.HOST, () => {
+  const actualPort = app.address().port;
+  log("server started", { port: actualPort });
+  if (process.send) process.send({ type: "server-started", port: actualPort });
+});
 
 const CSP =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
@@ -65,7 +68,11 @@ function handler(request, response) {
   try {
     handleRequestAndLog(request, response);
   } catch (err) {
-    console.trace(err);
+    if (config.AUTH_SECRET_KEY && (err.message.includes("Access Forbidden") || err.message.includes("Illegal board name"))) {
+       log("error", { error: err.message, url: request.url });
+    } else {
+       console.trace(err);
+    }
     response.writeHead(500, { "Content-Type": "text/plain" });
     response.end(err.toString());
   }
