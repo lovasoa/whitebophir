@@ -31,7 +31,12 @@ jobs:
           CI: true
       - name: Display WebDriver logs on failure
         if: failure()
-        run: cat logs/*.log || echo "No logs found"
+        run: |
+          for f in logs/*.log; do
+            [ -e "$f" ] || continue
+            echo "--- $f ---"
+            cat "$f"
+          done
       - name: Upload Test Artifacts
         if: always()
         uses: actions/upload-artifact@v7

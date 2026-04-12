@@ -8,7 +8,7 @@ module.exports = {
   page_objects_path: ["tests/lib/pages"],
 
   test_workers: {
-    enabled: true,
+    enabled: !process.env.CI,
     workers: "auto",
   },
 
