@@ -78,6 +78,9 @@ Tools.resetTurnstileValidation = function resetTurnstileValidation() {
   }
 };
 
+Tools.scale = 1.0;
+Tools.drawToolsAllowed = null;
+
 if (Tools.server_config.TURNSTILE_SITE_KEY) {
   var script = document.createElement("script");
   script.src =
@@ -143,6 +146,46 @@ Tools.showTurnstileWidget = function () {
   }
 };
 
+Tools.shouldDisableTool = function shouldDisableTool(toolName) {
+  return (
+    MessageCommon.isDrawTool(toolName) &&
+    !MessageCommon.isDrawToolAllowedAtScale(Tools.scale || 1)
+  );
+};
+
+Tools.canUseTool = function canUseTool(toolName) {
+  return (
+    Tools.shouldDisplayTool(toolName) && !Tools.shouldDisableTool(toolName)
+  );
+};
+
+Tools.syncToolDisabledState = function syncToolDisabledState(toolName) {
+  var toolElem = document.getElementById("toolID-" + toolName);
+  if (!toolElem) return;
+  var disabled = Tools.shouldDisableTool(toolName);
+  toolElem.classList.toggle("disabledTool", disabled);
+  toolElem.setAttribute("aria-disabled", disabled ? "true" : "false");
+};
+
+Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
+  var drawToolsAllowed = MessageCommon.isDrawToolAllowedAtScale(Tools.scale);
+  if (!force && drawToolsAllowed === Tools.drawToolsAllowed) return;
+  Tools.drawToolsAllowed = drawToolsAllowed;
+
+  Object.keys(Tools.list || {}).forEach(function (toolName) {
+    Tools.syncToolDisabledState(toolName);
+  });
+
+  if (
+    !drawToolsAllowed &&
+    Tools.curTool &&
+    MessageCommon.isDrawTool(Tools.curTool.name) &&
+    Tools.list.Hand
+  ) {
+    Tools.change("Hand");
+  }
+};
+
 Tools.setBoardState = function setBoardState(state) {
   state = state || {};
   Tools.boardState = {
@@ -161,6 +204,8 @@ Tools.setBoardState = function setBoardState(state) {
     if (!toolElem) return;
     toolElem.style.display = Tools.shouldDisplayTool(toolName) ? "" : "none";
   });
+
+  Tools.syncDrawToolAvailability(true);
 
   if (
     hideEditingTools &&
@@ -323,9 +368,11 @@ Tools.HTML = {
   },
   addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
     var callback = function () {
+      if (!Tools.canUseTool(toolName)) return;
       Tools.change(toolName);
     };
     this.addShortcut(toolShortcut, function () {
+      if (!Tools.canUseTool(toolName)) return;
       Tools.change(toolName);
       document.activeElement.blur && document.activeElement.blur();
     });
@@ -354,6 +401,7 @@ Tools.HTML = {
         secondaryIcon.src = Tools.list[toolName].secondary.icon;
         toolIconElem.classList.add("primaryIcon");
       }
+      Tools.syncToolDisabledState(toolName);
     });
   },
   changeTool: function (oldToolName, newToolName) {
@@ -467,6 +515,8 @@ Tools.add = function (newTool) {
       newTool.oneTouch,
     );
   }
+
+  Tools.syncToolDisabledState(newTool.name);
 };
 
 Tools.change = function (toolName) {
@@ -474,6 +524,7 @@ Tools.change = function (toolName) {
   var oldTool = Tools.curTool;
   if (!newTool)
     throw new Error("Trying to select a tool that has never been added!");
+  if (Tools.shouldDisableTool(toolName)) return false;
   if (newTool === oldTool) {
     if (newTool.secondary) {
       newTool.secondary.active = !newTool.secondary.active;
@@ -513,6 +564,7 @@ Tools.change = function (toolName) {
 
   //Call the start callback of the new tool
   newTool.onstart(oldTool);
+  return true;
 };
 
 Tools.addToolListeners = function addToolListeners(tool) {
@@ -561,6 +613,7 @@ Tools.send = function (data, toolName) {
 
 Tools.drawAndSend = function (data, tool) {
   if (tool == null) tool = Tools.curTool;
+  if (tool && Tools.shouldDisableTool(tool.name)) return false;
   if (
     WBOMessageCommon.requiresTurnstile(Tools.boardName, tool.name) &&
     Tools.server_config.TURNSTILE_SITE_KEY &&
@@ -571,6 +624,7 @@ Tools.drawAndSend = function (data, tool) {
   }
   tool.draw(data, true);
   Tools.send(data, tool.name);
+  return true;
 };
 
 //Object containing the messages that have been received before the corresponding tool
@@ -732,7 +786,6 @@ function updateUnreadCount(m) {
 // List of hook functions that will be applied to messages before sending or drawing them
 Tools.messageHooks = [resizeCanvas, updateUnreadCount];
 
-Tools.scale = 1.0;
 var scaleTimeout = null;
 Tools.setScale = function setScale(scale) {
   var fullScale =
@@ -749,6 +802,7 @@ Tools.setScale = function setScale(scale) {
     Tools.svg.style.willChange = "auto";
   }, 1000);
   Tools.scale = scale;
+  Tools.syncDrawToolAvailability(false);
   return scale;
 };
 Tools.getScale = function getScale() {

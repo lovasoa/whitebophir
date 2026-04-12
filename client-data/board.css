@@ -185,6 +185,17 @@ svg {
   background: linear-gradient(#96e1ff, #36a2ff);
 }
 
+#menu .tool.disabledTool {
+  opacity: 0.45;
+  filter: grayscale(1);
+  cursor: not-allowed;
+}
+
+#menu .tool.disabledTool.curTool {
+  box-shadow: none;
+  background: inherit;
+}
+
 #menu .tool-icon {
   display: inline-block;
   text-align: center;

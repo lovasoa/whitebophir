@@ -406,7 +406,15 @@ function normalizeIncomingMessage(raw) {
   const schema = toolSchemas && toolSchemas[raw.type];
   if (!schema) return rejected("invalid tool/type");
 
-  return normalizeObject(raw, schema);
+  const normalized = normalizeObject(raw, schema);
+  if (!normalized.ok) return normalized;
+  if (
+    normalized.value.type !== "update" &&
+    MessageCommon.isGeometryTooLarge(normalized.value)
+  ) {
+    return rejected("shape too large");
+  }
+  return normalized;
 }
 
 function normalizeStoredChildPoint(raw) {
@@ -439,6 +447,10 @@ function normalizeStoredItem(raw, storedId) {
       children.push(child.value);
     }
     if (children.length) normalized.value._children = children;
+  }
+
+  if (MessageCommon.isGeometryTooLarge(normalized.value)) {
+    return rejected("shape too large");
   }
 
   return normalized;
