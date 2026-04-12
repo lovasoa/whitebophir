@@ -3,6 +3,16 @@ const assert = require("node:assert/strict");
 const { withEnv, createSocket, SOCKETS_PATH } = require("./test_helpers.js");
 const WBOMessageCommon = require("../client-data/js/message_common.js");
 
+function withMockedNow(value, fn) {
+  const originalNow = Date.now;
+  Date.now = () => value;
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      Date.now = originalNow;
+    });
+}
+
 test("requiresTurnstile shared utility logic", function () {
   assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "Pencil"), true);
   assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "Clear"), true);
@@ -25,6 +35,7 @@ test("server-side Turnstile enforcement in broadcast", async function () {
     {
       TURNSTILE_SECRET_KEY: "test-secret",
       TURNSTILE_SITE_KEY: "test-site-key",
+      TURNSTILE_VALIDATION_WINDOW_MS: "1000",
     },
     async function () {
       const sockets = require(SOCKETS_PATH);
@@ -48,7 +59,13 @@ test("server-side Turnstile enforcement in broadcast", async function () {
 
       await broadcastHandler({
         board: "anonymous",
-        data: { tool: "Pencil", type: "line", id: "l1" },
+        data: {
+          tool: "Pencil",
+          type: "line",
+          id: "l1",
+          color: "#123456",
+          size: 4,
+        },
       });
       assert.strictEqual(
         broadcastCalled,
@@ -64,41 +81,62 @@ test("server-side Turnstile enforcement in broadcast", async function () {
       });
 
       // 3. Allowed: Pencil tool, AFTER validation
-      socket.turnstileValidated = true;
-      let broadcastCalledAfterValidation = false;
-      socket.broadcast.to = function () {
-        return {
-          emit: () => {
-            broadcastCalledAfterValidation = true;
+      socket.turnstileValidatedUntil = 1000;
+      await withMockedNow(500, async function () {
+        await broadcastHandler({
+          board: "anonymous",
+          data: {
+            tool: "Pencil",
+            type: "line",
+            id: "l2",
+            color: "#123456",
+            size: 4,
           },
-        };
-      };
-
-      // We need to mock getBoard since after the turnstile check, sockets.js calls await getBoard(boardName)
-      // but in this test context, we just want to see if it reached that point.
-      // Since it's a unit test of the enforcement logic, we've already shown it returns early if NOT validated.
-      // To show it DOES NOT return early if validated, we can check if it tries to continue.
-
-      await broadcastHandler({
-        board: "anonymous",
-        data: { tool: "Pencil", type: "line", id: "l2" },
+        });
       });
-      // In the real code, it would continue to rate limiting and board loading.
-      // Since our mock socket and environment might not fully support the rest of the chain,
-      // the fact that it didn't return early is what we are verifying.
+      assert.equal(
+        socket.rooms.has("anonymous"),
+        true,
+        "Should advance to board handling before validation expiry",
+      );
+
+      socket.rooms.delete("anonymous");
+      socket.turnstileValidatedUntil = 1000;
+      await withMockedNow(1001, async function () {
+        await broadcastHandler({
+          board: "anonymous",
+          data: {
+            tool: "Pencil",
+            type: "line",
+            id: "l3",
+            color: "#123456",
+            size: 4,
+          },
+        });
+      });
+      assert.equal(
+        socket.rooms.has("anonymous"),
+        false,
+        "Should block protected broadcasts after validation expiry",
+      );
     },
   );
 });
 
-test("server-side Turnstile token validation", async function () {
+test("server-side Turnstile token validation binds Siteverify to request context", async function () {
   await withEnv(
     {
       TURNSTILE_SECRET_KEY: "test-secret",
       TURNSTILE_SITE_KEY: "test-site-key",
+      TURNSTILE_VALIDATION_WINDOW_MS: "120000",
     },
     async function () {
+      const config = require("../server/configuration.js");
       const sockets = require(SOCKETS_PATH);
-      const { socket, handlers } = createSocket();
+      const { socket, handlers } = createSocket({
+        headers: { host: "board.example" },
+        remoteAddress: "203.0.113.10",
+      });
 
       // Mock global fetch
       const originalFetch = globalThis.fetch;
@@ -112,8 +150,12 @@ test("server-side Turnstile token validation", async function () {
         const body = new URLSearchParams(options.body);
         assert.strictEqual(body.get("secret"), "test-secret");
         assert.strictEqual(body.get("response"), "valid-token");
+        assert.strictEqual(body.get("remoteip"), "203.0.113.10");
         return {
-          json: async () => ({ success: true }),
+          json: async () => ({
+            success: true,
+            hostname: "board.example",
+          }),
         };
       };
 
@@ -127,12 +169,16 @@ test("server-side Turnstile token validation", async function () {
           ackCalledWith = result;
         });
         assert.strictEqual(fetchCalled, true, "fetch should have been called");
-        assert.strictEqual(
-          socket.turnstileValidated,
-          true,
-          "socket should be validated",
+        const expectedTime = Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS;
+        assert.ok(
+          Math.abs(socket.turnstileValidatedUntil - expectedTime) <= 10,
+          "socket validation should expire after the configured window",
         );
-        assert.strictEqual(ackCalledWith, true, "ack should be true");
+        assert.deepEqual(ackCalledWith, {
+          success: true,
+          validationWindowMs: config.TURNSTILE_VALIDATION_WINDOW_MS,
+          validatedUntil: socket.turnstileValidatedUntil,
+        });
 
         // Test failed validation
         globalThis.fetch = async (url, options) => {
@@ -147,7 +193,54 @@ test("server-side Turnstile token validation", async function () {
         await tokenHandler("invalid-token", (result) => {
           failedAck = result;
         });
-        assert.strictEqual(failedAck, false, "ack should be false on failure");
+        assert.deepEqual(
+          failedAck,
+          { success: false },
+          "ack should be false on failure",
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    },
+  );
+});
+
+test("server-side Turnstile token validation rejects hostname mismatches", async function () {
+  await withEnv(
+    {
+      TURNSTILE_SECRET_KEY: "test-secret",
+      TURNSTILE_SITE_KEY: "test-site-key",
+    },
+    async function () {
+      const config = require("../server/configuration.js");
+      const sockets = require(SOCKETS_PATH);
+      const { socket, handlers } = createSocket({
+        headers: { host: "board.example:8080" },
+      });
+
+      const originalFetch = globalThis.fetch;
+      try {
+        sockets.__test.handleSocketConnection(socket);
+        const tokenHandler = handlers["turnstile_token"];
+
+        globalThis.fetch = async function hostnameMismatch() {
+          return {
+            json: async () => ({
+              success: true,
+              hostname: "other.example",
+            }),
+          };
+        };
+        let hostnameMismatchAck = null;
+        await tokenHandler("valid-token", (result) => {
+          hostnameMismatchAck = result;
+        });
+        assert.deepEqual(hostnameMismatchAck, { success: false });
+        assert.equal(
+          socket.turnstileValidatedUntil,
+          undefined,
+          "hostname mismatch should not validate the socket",
+        );
       } finally {
         globalThis.fetch = originalFetch;
       }

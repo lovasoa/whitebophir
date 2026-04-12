@@ -39,7 +39,35 @@ Tools.i18n = (function i18n() {
 
 Tools.server_config = JSON.parse(document.getElementById("configuration").text);
 Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
-Tools.turnstileValidated = false;
+Tools.turnstileValidatedUntil = 0;
+Tools.turnstileWidgetId = null;
+Tools.turnstileRefreshTimeout = null;
+Tools.turnstilePending = false;
+Tools.turnstilePendingWrites = [];
+
+Tools.cloneMessage = function cloneMessage(message) {
+  if (typeof structuredClone === "function") return structuredClone(message);
+  return JSON.parse(JSON.stringify(message));
+};
+
+Tools.queueProtectedWrite = function queueProtectedWrite(data, tool) {
+  Tools.turnstilePendingWrites.push({
+    data: Tools.cloneMessage(data),
+    toolName: tool.name,
+  });
+  Tools.showTurnstileWidget();
+};
+
+Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
+  var pendingWrites = Tools.turnstilePendingWrites;
+  Tools.turnstilePendingWrites = [];
+  pendingWrites.forEach(function replayPendingWrite(write) {
+    var tool = Tools.list[write.toolName];
+    if (!tool) return;
+    Tools.send(write.data, write.toolName);
+  });
+};
+
 Tools.scale = 1.0;
 Tools.drawToolsAllowed = null;
 
@@ -52,56 +80,174 @@ if (Tools.server_config.TURNSTILE_SITE_KEY) {
   document.head.appendChild(script);
 }
 
-Tools.showTurnstileWidget = function () {
-  if (document.getElementById("turnstile-overlay")) return;
+Tools.isTurnstileValidated = function isTurnstileValidated() {
+  return Tools.turnstileValidatedUntil > Date.now();
+};
 
-  var overlay = document.createElement("div");
+Tools.clearTurnstileRefreshTimeout = function clearTurnstileRefreshTimeout() {
+  if (Tools.turnstileRefreshTimeout) {
+    clearTimeout(Tools.turnstileRefreshTimeout);
+    Tools.turnstileRefreshTimeout = null;
+  }
+};
+
+Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(
+  validationWindowMs,
+) {
+  if (!Tools.server_config.TURNSTILE_SITE_KEY || !(validationWindowMs > 0))
+    return;
+  Tools.clearTurnstileRefreshTimeout();
+  var refreshDelay = Math.floor(validationWindowMs * 0.8);
+  if (!(refreshDelay > 0)) return;
+  Tools.turnstileRefreshTimeout = setTimeout(function refreshTurnstileToken() {
+    Tools.refreshTurnstile();
+  }, refreshDelay);
+};
+
+Tools.setTurnstileValidation = function setTurnstileValidation(result) {
+  Tools.clearTurnstileRefreshTimeout();
+  if (!result || result.success !== true) {
+    Tools.turnstileValidatedUntil = 0;
+    return;
+  }
+
+  var validationWindowMs =
+    Number(result.validationWindowMs) ||
+    Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS) ||
+    0;
+
+  // Subtract a 5-second safety margin to account for network latency.
+  // This ensures the client stops sending and requests a new token *before*
+  // the server actually expires the validation, preventing dropped in-flight messages.
+  var safeWindowMs = Math.max(0, validationWindowMs - 5000);
+
+  Tools.turnstileValidatedUntil =
+    safeWindowMs > 0 ? Date.now() + safeWindowMs : 0;
+
+  if (validationWindowMs > 0) {
+    Tools.scheduleTurnstileRefresh(validationWindowMs);
+  }
+};
+
+Tools.normalizeTurnstileAck = function normalizeTurnstileAck(result) {
+  if (result === true) {
+    return {
+      success: true,
+      validationWindowMs: Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS,
+      validatedUntil:
+        Date.now() + Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS),
+    };
+  }
+  if (result && typeof result === "object") return result;
+  return { success: false };
+};
+
+Tools.ensureTurnstileElements = function ensureTurnstileElements() {
+  var overlay = document.getElementById("turnstile-overlay");
+  var widget = document.getElementById("turnstile-widget");
+  if (overlay && widget) return { overlay: overlay };
+
+  overlay = document.createElement("div");
   overlay.id = "turnstile-overlay";
+  overlay.classList.add("turnstile-overlay-hidden");
 
   var modal = document.createElement("div");
   modal.id = "turnstile-modal";
 
-  var title = document.createElement("div");
-  title.id = "turnstile-title";
-  title.innerText = "Please verify you are human before drawing";
-  modal.appendChild(title);
-
-  var widget = document.createElement("div");
+  widget = document.createElement("div");
   widget.id = "turnstile-widget";
   modal.appendChild(widget);
 
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
+  return { overlay: overlay };
+};
+
+Tools.showTurnstileOverlayTimeout = null;
+
+Tools.showTurnstileOverlay = function showTurnstileOverlay(delay) {
+  var elements = Tools.ensureTurnstileElements();
+  if (delay > 0) {
+    Tools.showTurnstileOverlayTimeout = setTimeout(function () {
+      elements.overlay.classList.remove("turnstile-overlay-hidden");
+    }, delay);
+  } else {
+    elements.overlay.classList.remove("turnstile-overlay-hidden");
+  }
+};
+
+Tools.hideTurnstileOverlay = function hideTurnstileOverlay() {
+  if (Tools.showTurnstileOverlayTimeout) {
+    clearTimeout(Tools.showTurnstileOverlayTimeout);
+    Tools.showTurnstileOverlayTimeout = null;
+  }
+  var overlay = document.getElementById("turnstile-overlay");
+  if (overlay) overlay.classList.add("turnstile-overlay-hidden");
+};
+
+function handleTurnstileError(errorCode) {
+  alert("Turnstile verification failed: " + errorCode);
+  location.reload();
+}
+
+Tools.refreshTurnstile = function refreshTurnstile() {
+  if (!Tools.server_config.TURNSTILE_SITE_KEY) return;
+  Tools.ensureTurnstileElements();
 
   if (typeof turnstile !== "undefined") {
-    var widgetId = turnstile.render("#turnstile-widget", {
-      sitekey: Tools.server_config.TURNSTILE_SITE_KEY,
-      callback: function (token) {
-        Tools.socket.emit("turnstile_token", token, function (success) {
-          if (success) {
-            Tools.turnstileValidated = true;
-            turnstile.remove(widgetId);
-            document.body.removeChild(overlay);
-          } else {
-            turnstile.reset(widgetId);
-          }
-        });
-      },
-      "error-callback": function (err) {
-        console.error("Turnstile error:", err);
-      },
-      "timeout-callback": function () {
-        turnstile.reset(widgetId);
-      },
-      "expired-callback": function () {
-        turnstile.reset(widgetId);
-      },
-    });
+    if (Tools.turnstilePending) return;
+
+    if (Tools.turnstileWidgetId === null) {
+      Tools.turnstilePending = true;
+      Tools.turnstileWidgetId = turnstile.render("#turnstile-widget", {
+        sitekey: Tools.server_config.TURNSTILE_SITE_KEY,
+        appearance: "interaction-only",
+        theme: "light",
+        "refresh-expired": "manual",
+        callback: function (token) {
+          Tools.socket.emit("turnstile_token", token, function (result) {
+            var turnstileResult = Tools.normalizeTurnstileAck(result);
+            Tools.turnstilePending = false;
+            if (turnstileResult.success) {
+              Tools.setTurnstileValidation(turnstileResult);
+              Tools.hideTurnstileOverlay();
+              Tools.flushTurnstilePendingWrites();
+            } else {
+              Tools.setTurnstileValidation(null);
+              Tools.refreshTurnstile();
+            }
+          });
+        },
+        "before-interactive-callback": function () {
+          Tools.showTurnstileOverlay(500);
+        },
+        "after-interactive-callback": function () {
+          if (Tools.isTurnstileValidated()) Tools.hideTurnstileOverlay();
+        },
+        "error-callback": function (err) {
+          Tools.turnstilePending = false;
+          Tools.setTurnstileValidation(null);
+          console.error("Turnstile error:", err);
+          handleTurnstileError(err);
+        },
+        "timeout-callback": function () {
+          Tools.turnstilePending = false;
+          Tools.setTurnstileValidation(null);
+          Tools.refreshTurnstile();
+        },
+        "expired-callback": function () {
+          Tools.turnstilePending = false;
+          Tools.refreshTurnstile();
+        },
+      });
+      return;
+    }
+
+    Tools.turnstilePending = true;
+    turnstile.reset(Tools.turnstileWidgetId);
   } else {
-    title.innerText = "Error loading Turnstile. Please refresh the page.";
-    setTimeout(function () {
-      if (overlay.parentNode) document.body.removeChild(overlay);
-    }, 3000);
+    console.error("Error loading Turnstile. Refreshing the page.");
+    location.reload();
   }
 };
 
@@ -143,6 +289,10 @@ Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
   ) {
     Tools.change("Hand");
   }
+};
+
+Tools.showTurnstileWidget = function showTurnstileWidget() {
+  Tools.refreshTurnstile();
 };
 
 Tools.setBoardState = function setBoardState(state) {
@@ -189,6 +339,11 @@ Tools.setBoardState(
   ),
 );
 
+Tools.resolveBoardName = function resolveBoardName() {
+  var path = window.location.pathname.split("/");
+  return decodeURIComponent(path[path.length - 1]);
+};
+
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
@@ -203,6 +358,7 @@ Tools.showMyCursor = true;
 Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
 Tools.socket = null;
+Tools.hasConnectedOnce = false;
 Tools.rateLimitAlertShown = false;
 Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
   if (window.socketio_extra_headers) return window.socketio_extra_headers;
@@ -259,6 +415,16 @@ Tools.connect = function () {
   this.socket = io.connect("", socket_params);
 
   //Receive draw instructions from the server
+  this.socket.on("connect", function onConnection() {
+    if (Tools.hasConnectedOnce && Tools.server_config.TURNSTILE_SITE_KEY) {
+      Tools.setTurnstileValidation(null);
+      if (Tools.turnstileWidgetId !== null) {
+        turnstile.reset(Tools.turnstileWidgetId);
+      }
+    }
+    Tools.hasConnectedOnce = true;
+    Tools.socket.emit("getboard", Tools.boardName);
+  });
   this.socket.on("broadcast", function (msg) {
     handleMessage(msg).finally(function afterload() {
       var loadingEl = document.getElementById("loadingMessage");
@@ -269,18 +435,8 @@ Tools.connect = function () {
   this.socket.on("rate-limited", function onRateLimited() {
     Tools.showRateLimitAlert();
   });
-
-  this.socket.on("reconnect", function onReconnection() {
-    Tools.socket.emit("joinboard", Tools.boardName);
-  });
 };
-
-Tools.connect();
-
-Tools.boardName = (function () {
-  var path = window.location.pathname.split("/");
-  return decodeURIComponent(path[path.length - 1]);
-})();
+Tools.boardName = Tools.resolveBoardName();
 
 Tools.token = (function () {
   var url = new URL(window.location);
@@ -288,8 +444,7 @@ Tools.token = (function () {
   return params.get("token");
 })();
 
-//Get the board as soon as the page is loaded
-Tools.socket.emit("getboard", Tools.boardName);
+Tools.connect();
 
 function saveBoardNametoLocalStorage() {
   var boardName = Tools.boardName;
@@ -571,15 +726,19 @@ Tools.send = function (data, toolName) {
 Tools.drawAndSend = function (data, tool) {
   if (tool == null) tool = Tools.curTool;
   if (tool && Tools.shouldDisableTool(tool.name)) return false;
+
+  // Optimistically render the drawing immediately
+  tool.draw(data, true);
+
   if (
     WBOMessageCommon.requiresTurnstile(Tools.boardName, tool.name) &&
     Tools.server_config.TURNSTILE_SITE_KEY &&
-    !Tools.turnstileValidated
+    !Tools.isTurnstileValidated()
   ) {
-    Tools.showTurnstileWidget();
+    Tools.queueProtectedWrite(data, tool);
     return;
   }
-  tool.draw(data, true);
+
   Tools.send(data, tool.name);
   return true;
 };

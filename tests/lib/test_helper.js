@@ -121,6 +121,7 @@ async function setup(browser, options = {}) {
     WBO_MAX_EMIT_COUNT_PERIOD: "4096",
     WBO_IP_SOURCE: "X-Forwarded-For",
     WBO_SILENT: "true",
+    ...(options.env || {}),
   };
 
   let tokenQuery = "";

@@ -77,13 +77,16 @@
 
     curLineId = Tools.generateUID("l"); //"l" for line
 
-    Tools.drawAndSend({
+    var initialData = {
       type: "line",
       id: curLineId,
       color: pencilTool.secondary.active ? "#ffffff" : Tools.getColor(),
       size: Tools.getSize(),
       opacity: pencilTool.secondary.active ? 1 : Tools.getOpacity(),
-    });
+    };
+
+    draw(initialData);
+    Tools.drawAndSend(initialData);
 
     //Immediatly add a point to the line
     continueLine(x, y);
