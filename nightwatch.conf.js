@@ -20,15 +20,15 @@ module.exports = {
     start_process: true,
     server_path: "./node_modules/.bin/geckodriver",
     cli_args: ["--log", "debug"],
-    log_path: "logs",
+    log_path: require("node:path").join(__dirname, "logs"),
   },
 
   test_settings: {
     default: {
       asyncHookTimeout: 30000,
-      detailed_output: false,
-      output: false,
-      silent: true,
+      detailed_output: !!process.env.CI,
+      output: !!process.env.CI,
+      silent: !process.env.CI,
       desiredCapabilities: {
         browserName: "firefox",
         acceptInsecureCerts: true,
