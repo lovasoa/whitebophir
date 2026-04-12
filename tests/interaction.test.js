@@ -165,6 +165,70 @@ module.exports = {
       .end();
   },
 
+  "Test Draw Tools Disable At Giant Shape Zoom Threshold"(browser) {
+    const board = browser.page.board();
+    browser.url(
+      serverUrl + "/boards/zoom-threshold-test?lang=en&" + tokenQuery,
+    );
+
+    board
+      .waitForElementVisible("#toolID-Hand")
+      .waitForElementVisible("#toolID-Pencil")
+      .click("#toolID-Pencil")
+      .assert.hasClass("#toolID-Pencil", "curTool")
+      .execute(
+        function () {
+          Tools.setScale(0.4);
+          return {
+            currentTool: Tools.curTool && Tools.curTool.name,
+            pencilDisabled: document
+              .getElementById("toolID-Pencil")
+              .classList.contains("disabledTool"),
+            rectDisabled: document
+              .getElementById("toolID-Rectangle")
+              .classList.contains("disabledTool"),
+          };
+        },
+        [],
+        function (result) {
+          browser.assert.equal(result.value.currentTool, "Hand");
+          browser.assert.equal(result.value.pencilDisabled, true);
+          browser.assert.equal(result.value.rectDisabled, true);
+        },
+      )
+      .click("#toolID-Pencil")
+      .execute(
+        function () {
+          return {
+            currentTool: Tools.curTool && Tools.curTool.name,
+            changeResult: Tools.change("Pencil"),
+          };
+        },
+        [],
+        function (result) {
+          browser.assert.equal(result.value.currentTool, "Hand");
+          browser.assert.equal(result.value.changeResult, false);
+        },
+      )
+      .execute(
+        function () {
+          Tools.setScale(0.5);
+          return {
+            pencilDisabled: document
+              .getElementById("toolID-Pencil")
+              .classList.contains("disabledTool"),
+          };
+        },
+        [],
+        function (result) {
+          browser.assert.equal(result.value.pencilDisabled, false);
+        },
+      )
+      .click("#toolID-Pencil")
+      .assert.hasClass("#toolID-Pencil", "curTool")
+      .end();
+  },
+
   "Test Download Exports SVG Content"(browser) {
     const board = browser.page.board();
     browser.perform(async function (done) {

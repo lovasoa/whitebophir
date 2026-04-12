@@ -1,0 +1,43 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const MessageCommon = require("../client-data/js/message_common.js");
+
+test("shared giant-shape policy exposes the draw zoom threshold", function () {
+  assert.equal(MessageCommon.getMaxShapeSpan(), 3200);
+  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.4), false);
+  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.41), true);
+});
+
+test("shared geometry helpers apply transforms to bounds", function () {
+  const bounds = MessageCommon.applyTransformToBounds(
+    {
+      minX: 0,
+      minY: 0,
+      maxX: 100,
+      maxY: 50,
+    },
+    { a: 2, b: 0, c: 0, d: 3, e: 10, f: 20 },
+  );
+
+  assert.deepEqual(bounds, {
+    minX: 10,
+    minY: 20,
+    maxX: 210,
+    maxY: 170,
+  });
+});
+
+test("shared geometry helpers grow pencil bounds incrementally", function () {
+  let bounds = null;
+  bounds = MessageCommon.extendBoundsWithPoint(bounds, 10, 20);
+  bounds = MessageCommon.extendBoundsWithPoint(bounds, 100, 5);
+  bounds = MessageCommon.extendBoundsWithPoint(bounds, -5, 25);
+
+  assert.deepEqual(bounds, {
+    minX: -5,
+    minY: 5,
+    maxX: 100,
+    maxY: 25,
+  });
+});

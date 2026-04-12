@@ -32,6 +32,7 @@ var nativeFs = require("node:fs"),
     normalizeStoredChildPoint,
     normalizeStoredItem,
   } = require("./message_validation.js"),
+  MessageCommon = require("../client-data/js/message_common.js"),
   path = require("node:path"),
   config = require("./configuration.js"),
   Mutex = require("async-mutex").Mutex;
@@ -133,10 +134,121 @@ class BoardData {
     this.lastSaveDate = Date.now();
     this.users = new Set();
     this.saveMutex = new Mutex();
+    this.localBoundsCache = new Map();
   }
 
   isReadOnly() {
     return this.metadata.readonly === true;
+  }
+
+  cloneBounds(bounds) {
+    return bounds
+      ? {
+          minX: bounds.minX,
+          minY: bounds.minY,
+          maxX: bounds.maxX,
+          maxY: bounds.maxY,
+        }
+      : null;
+  }
+
+  cacheLocalBounds(id, bounds) {
+    if (bounds) {
+      this.localBoundsCache.set(id, this.cloneBounds(bounds));
+    } else {
+      this.localBoundsCache.delete(id);
+    }
+  }
+
+  getLocalBounds(id, item) {
+    const target = item || this.board[id];
+    if (!target) return null;
+
+    const cachedBounds = this.localBoundsCache.get(id);
+    if (cachedBounds) return this.cloneBounds(cachedBounds);
+
+    const bounds = MessageCommon.getLocalGeometryBounds(target);
+    this.cacheLocalBounds(id, bounds);
+    return bounds;
+  }
+
+  validateStoredCandidate(id, data) {
+    const normalized = normalizeStoredItem(data, id);
+    if (!normalized.ok) return normalized;
+    return {
+      ok: true,
+      value: normalized.value,
+      localBounds: MessageCommon.getLocalGeometryBounds(normalized.value),
+    };
+  }
+
+  isCandidateTooLarge(candidate, localBounds) {
+    const effectiveBounds = MessageCommon.applyTransformToBounds(
+      localBounds,
+      candidate && candidate.transform,
+    );
+    return MessageCommon.isBoundsTooLarge(effectiveBounds);
+  }
+
+  canStore(id, data) {
+    return this.validateStoredCandidate(id, data).ok;
+  }
+
+  canUpdate(id, updateData) {
+    const obj = this.board[id];
+    if (typeof obj !== "object") return false;
+
+    const candidate = Object.assign({}, obj, updateData);
+    const localBounds =
+      obj.tool === "Pencil" && updateData.transform !== undefined
+        ? this.getLocalBounds(id, obj)
+        : MessageCommon.getLocalGeometryBounds(candidate);
+    return !this.isCandidateTooLarge(candidate, localBounds);
+  }
+
+  canAddChild(parentId, child) {
+    const obj = this.board[parentId];
+    if (!obj || obj.tool !== "Pencil") return false;
+
+    const normalizedChild = normalizeStoredChildPoint(child);
+    if (!normalizedChild.ok) return false;
+    if (
+      Array.isArray(obj._children) &&
+      obj._children.length >= config.MAX_CHILDREN
+    )
+      return false;
+
+    const nextBounds = MessageCommon.extendBoundsWithPoint(
+      this.getLocalBounds(parentId, obj),
+      normalizedChild.value.x,
+      normalizedChild.value.y,
+    );
+    return !this.isCandidateTooLarge(obj, nextBounds);
+  }
+
+  canCopy(id, data) {
+    const obj = this.board[id];
+    if (!obj) return false;
+    return this.validateStoredCandidate(data.newid, structuredClone(obj)).ok;
+  }
+
+  canProcessMessage(message) {
+    let id = message.id;
+    switch (message.type) {
+      case "delete":
+      case "clear":
+        return true;
+      case "update":
+        return id
+          ? this.canUpdate(id, filterUpdatableFields(message.tool, message))
+          : false;
+      case "copy":
+        return id ? this.canCopy(id, message) : false;
+      case "child":
+        return this.canAddChild(message.parent, message);
+      default:
+        return id ? this.canStore(id, message) : false;
+    }
   }
 
   /** Adds data to the board
@@ -146,9 +258,12 @@ class BoardData {
   set(id, data) {
     //KISS
     data.time = Date.now();
-    this.board[id] = data;
-    this.normalizeStoredElement(id);
+    const validated = this.validateStoredCandidate(id, data);
+    if (!validated.ok) return false;
+    this.board[id] = validated.value;
+    this.cacheLocalBounds(id, validated.localBounds);
     this.delaySave();
+    return true;
   }
 
   /** Adds a child to an element that is already in the board
@@ -158,16 +273,20 @@ class BoardData {
    */
   addChild(parentId, child) {
     var obj = this.board[parentId];
-    if (typeof obj !== "object") return false;
+    if (typeof obj !== "object" || obj.tool !== "Pencil") return false;
     const normalizedChild = normalizeStoredChildPoint(child);
     if (!normalizedChild.ok) return false;
-    if (Array.isArray(obj._children)) {
-      if (obj._children.length >= config.MAX_CHILDREN) return false;
-      obj._children.push(normalizedChild.value);
-    } else {
-      obj._children = [normalizedChild.value];
-    }
-    this.normalizeStoredElement(parentId);
+    const children = Array.isArray(obj._children) ? obj._children : [];
+    if (children.length >= config.MAX_CHILDREN) return false;
+    const nextBounds = MessageCommon.extendBoundsWithPoint(
+      this.getLocalBounds(parentId, obj),
+      normalizedChild.value.x,
+      normalizedChild.value.y,
+    );
+    if (this.isCandidateTooLarge(obj, nextBounds)) return false;
+    if (!Array.isArray(obj._children)) obj._children = children;
+    obj._children.push(normalizedChild.value);
+    this.cacheLocalBounds(parentId, nextBounds);
     this.delaySave();
     return true;
   }
@@ -182,16 +301,14 @@ class BoardData {
     var updateData = filterUpdatableFields(tool, data);
 
     var obj = this.board[id];
-    if (typeof obj === "object") {
-      for (var i in updateData) {
-        if (updateData[i] !== undefined) obj[i] = updateData[i];
-      }
-      this.normalizeStoredElement(id);
-    } else if (create || obj !== undefined) {
-      this.board[id] = updateData;
-      this.normalizeStoredElement(id);
+    if (typeof obj !== "object") return false;
+    if (!this.canUpdate(id, updateData)) return false;
+    for (var i in updateData) {
+      if (updateData[i] !== undefined) obj[i] = updateData[i];
     }
+    this.cacheLocalBounds(id, MessageCommon.getLocalGeometryBounds(obj));
     this.delaySave();
+    return true;
   }
 
   /** Copy elements in the board
@@ -203,19 +320,25 @@ class BoardData {
     var newid = data.newid;
     if (obj) {
       var newobj = structuredClone(obj);
-      this.board[newid] = newobj;
-      this.normalizeStoredElement(newid);
+      const validated = this.validateStoredCandidate(newid, newobj);
+      if (!validated.ok) return false;
+      this.board[newid] = validated.value;
+      this.cacheLocalBounds(newid, validated.localBounds);
     } else {
       log("Copied object does not exist in board.", { object: id });
+      return false;
     }
     this.delaySave();
+    return true;
   }
 
   /** Clear the board of all data
    */
   clear() {
     this.board = {};
+    this.localBoundsCache.clear();
     this.delaySave();
+    return true;
   }
 
   /** Removes data from the board
@@ -224,7 +347,9 @@ class BoardData {
   delete(id) {
     //KISS
     delete this.board[id];
+    this.localBoundsCache.delete(id);
     this.delaySave();
+    return true;
   }
 
   /** Process a batch of messages
@@ -237,13 +362,93 @@ class BoardData {
    * @param {BoardMessage[]} children array of messages to be delegated to the other methods
    */
   processMessageBatch(children, parentMessage) {
-    for (const childMessage of children) {
-      const message =
-        parentMessage && childMessage.tool === undefined
-          ? Object.assign({ tool: parentMessage.tool }, childMessage)
-          : childMessage;
-      this.processMessage(message);
+    const messages = children.map((childMessage) =>
+      parentMessage && childMessage.tool === undefined
+        ? Object.assign({ tool: parentMessage.tool }, childMessage)
+        : childMessage,
+    );
+
+    let boardCleared = false;
+    const shadowItems = new Map();
+    const readShadowItem = (id) =>
+      shadowItems.has(id)
+        ? shadowItems.get(id)
+        : boardCleared
+          ? undefined
+          : this.board[id];
+
+    for (const message of messages) {
+      const id = message.id;
+      switch (message.type) {
+        case "clear":
+          boardCleared = true;
+          shadowItems.clear();
+          break;
+        case "delete":
+          if (id) shadowItems.set(id, undefined);
+          break;
+        case "update": {
+          if (!id) return false;
+          const current = readShadowItem(id);
+          if (typeof current !== "object") return false;
+          const updateData = filterUpdatableFields(message.tool, message);
+          const candidate = Object.assign({}, current, updateData);
+          const localBounds =
+            current.tool === "Pencil" && updateData.transform !== undefined
+              ? MessageCommon.getLocalGeometryBounds(current)
+              : MessageCommon.getLocalGeometryBounds(candidate);
+          if (this.isCandidateTooLarge(candidate, localBounds)) return false;
+          shadowItems.set(id, candidate);
+          break;
+        }
+        case "copy": {
+          if (!id) return false;
+          const current = readShadowItem(id);
+          if (!current) return false;
+          const validated = this.validateStoredCandidate(
+            message.newid,
+            structuredClone(current),
+          );
+          if (!validated.ok) return false;
+          shadowItems.set(message.newid, validated.value);
+          break;
+        }
+        case "child": {
+          const current = readShadowItem(message.parent);
+          if (!current || current.tool !== "Pencil") return false;
+          const normalizedChild = normalizeStoredChildPoint(message);
+          if (!normalizedChild.ok) return false;
+          const currentChildren = Array.isArray(current._children)
+            ? current._children.slice()
+            : [];
+          if (currentChildren.length >= config.MAX_CHILDREN) return false;
+          const nextBounds = MessageCommon.extendBoundsWithPoint(
+            MessageCommon.getLocalGeometryBounds(current),
+            normalizedChild.value.x,
+            normalizedChild.value.y,
+          );
+          if (this.isCandidateTooLarge(current, nextBounds)) return false;
+          currentChildren.push(normalizedChild.value);
+          shadowItems.set(
+            message.parent,
+            Object.assign({}, current, { _children: currentChildren }),
+          );
+          break;
+        }
+        default: {
+          if (!id) return false;
+          const validated = this.validateStoredCandidate(id, message);
+          if (!validated.ok) return false;
+          shadowItems.set(id, validated.value);
+          break;
+        }
+      }
     }
+
+    for (const message of messages) {
+      if (!this.processMessage(message)) return false;
+    }
+    return true;
   }
 
   /** Process a single message
@@ -255,26 +460,22 @@ class BoardData {
     let id = message.id;
     switch (message.type) {
       case "delete":
-        if (id) this.delete(id);
-        break;
+        return id ? this.delete(id) : false;
       case "update":
-        if (id) this.update(id, message);
-        break;
+        return id ? this.update(id, message) : false;
       case "copy":
-        if (id) this.copy(id, message);
-        break;
+        return id ? this.copy(id, message) : false;
       case "child":
         // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
         const { parent, type, tool, ...childData } = message;
-        this.addChild(parent, childData);
-        break;
+        return this.addChild(parent, childData);
       case "clear":
-        this.clear();
-        break;
+        return this.clear();
       default:
         //Add data
-        if (id) this.set(id, message);
-        else console.error("Invalid message: ", message);
+        if (id) return this.set(id, message);
+        console.error("Invalid message: ", message);
+        return false;
     }
   }
 
@@ -365,13 +566,15 @@ class BoardData {
   }
 
   normalizeStoredElement(id) {
-    const normalized = normalizeStoredItem(this.board[id], id);
-    if (!normalized.ok) {
+    const validated = this.validateStoredCandidate(id, this.board[id]);
+    if (!validated.ok) {
       delete this.board[id];
+      this.localBoundsCache.delete(id);
       return false;
     }
 
-    this.board[id] = normalized.value;
+    this.board[id] = validated.value;
+    this.cacheLocalBounds(id, validated.localBounds);
     return true;
   }
 

@@ -426,7 +426,14 @@ function handleSocketConnection(socket) {
       }
 
       // Save the message in the board
-      handleMessage(board, cloneMessageForPersistence(data), socket);
+      if (!handleMessage(board, cloneMessageForPersistence(data), socket)) {
+        log("BOARD_MESSAGE_REJECTED", {
+          board: board.name,
+          tool: data.tool,
+          type: data.type,
+        });
+        return;
+      }
 
       //Send data to all other users connected on the same board
       socket.broadcast.to(boardName).emit("broadcast", data);
@@ -468,16 +475,16 @@ async function unloadBoard(boardName) {
 function handleMessage(board, message, socket) {
   if (message.tool === "Cursor") {
     message.socket = socket.id;
-  } else {
-    saveHistory(board, message);
+    return true;
   }
+  return saveHistory(board, message);
 }
 
 function saveHistory(board, message) {
   if (!(message.tool || message.type === "child") && !message._children) {
     console.error("Received a badly formatted message (no tool). ", message);
   }
-  board.processMessage(message);
+  return board.processMessage(message);
 }
 
 function generateUID(prefix, suffix) {

@@ -53,6 +53,48 @@ test("normalizeIncomingMessage rejects malformed hand batches atomically", funct
   assert.match(normalized.reason, /_children\[1\]/);
 });
 
+test("normalizeIncomingMessage rejects oversized live shapes", function () {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const normalized = messageValidation.normalizeIncomingMessage({
+    tool: "Rectangle",
+    type: "rect",
+    id: "rect-big",
+    color: "#123456",
+    size: 4,
+    x: 0,
+    y: 0,
+    x2: 4000,
+    y2: 20,
+  });
+
+  assert.deepEqual(normalized, {
+    ok: false,
+    reason: "shape too large",
+  });
+});
+
+test("normalizeStoredItem rejects transformed oversized shapes", function () {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const normalized = messageValidation.normalizeStoredItem(
+    {
+      tool: "Rectangle",
+      color: "#123456",
+      size: 4,
+      x: 0,
+      y: 0,
+      x2: 1000,
+      y2: 1000,
+      transform: { a: 4, b: 0, c: 0, d: 4, e: 0, f: 0 },
+    },
+    "rect-scaled",
+  );
+
+  assert.deepEqual(normalized, {
+    ok: false,
+    reason: "shape too large",
+  });
+});
+
 test("normalizeStoredItem sanitizes stored pencil children before replay", async function () {
   await withEnv({ WBO_MAX_CHILDREN: "2" }, async function () {
     const messageValidation = require(MESSAGE_VALIDATION_PATH);
