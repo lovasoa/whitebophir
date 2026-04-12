@@ -25,26 +25,15 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
       - run: npm ci
-      - run: mkdir -p logs
       - run: npm test
         env:
           CI: true
-      - name: Display WebDriver logs on failure
-        if: failure()
-        run: |
-          for f in logs/*.log; do
-            [ -e "$f" ] || continue
-            echo "--- $f ---"
-            cat "$f"
-          done
       - name: Upload Test Artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: tests-output-${{ matrix.node-version }}
-          path: |
-            tests_output/
-            logs/
+          path: tests_output/
 
   format:
     runs-on: ubuntu-latest
