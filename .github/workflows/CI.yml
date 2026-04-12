@@ -18,9 +18,9 @@ jobs:
         node-version: [22.x]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
@@ -30,8 +30,7 @@ jobs:
           CI: true
       - name: Display WebDriver logs on failure
         if: failure()
-        run: |
-          [ -f logs/geckodriver.log ] && cat logs/geckodriver.log || echo "No geckodriver log found"
+        run: cat logs/geckodriver.log
       - name: Upload Test Artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -46,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
 
       - name: Install dependencies
         run: npm install
