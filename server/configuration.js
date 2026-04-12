@@ -98,6 +98,15 @@ module.exports = {
   /** Cloudflare Turnstile site key */
   TURNSTILE_SITE_KEY: process.env["TURNSTILE_SITE_KEY"],
 
+  /** Cloudflare Turnstile action used for anonymous-board drawing validation */
+  TURNSTILE_ACTION: process.env["TURNSTILE_ACTION"] || "anonymous_draw",
+
+  /** Duration for which a successful Turnstile validation authorizes protected writes */
+  TURNSTILE_VALIDATION_WINDOW_MS: parseIntegerEnv(
+    "TURNSTILE_VALIDATION_WINDOW_MS",
+    1000 * 60 * 4,
+  ),
+
   /** If this variable is set, automatically redirect to this board from the root of the application. */
   DEFAULT_BOARD: process.env["WBO_DEFAULT_BOARD"],
 };

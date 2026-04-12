@@ -125,6 +125,55 @@ function resolveClientIp(socket, boardName) {
   }
 }
 
+function normalizeTurnstileHostname(hostname) {
+  if (!hostname || typeof hostname !== "string") return null;
+  return hostname.trim().toLowerCase().replace(/\.$/, "").split(":")[0] || null;
+}
+
+function getExpectedTurnstileHostname(socket) {
+  var headers = getSocketRequest(socket).headers || {};
+  var host = headers["x-forwarded-host"] || headers.host;
+  if (Array.isArray(host)) host = host[0];
+  if (!host || typeof host !== "string") return null;
+  return normalizeTurnstileHostname(host.split(",")[0]);
+}
+
+function isTurnstileValidationActive(socket, now) {
+  return (
+    typeof socket.turnstileValidatedUntil === "number" &&
+    socket.turnstileValidatedUntil > now
+  );
+}
+
+function buildTurnstileAck(socket) {
+  return {
+    success: true,
+    validationWindowMs: config.TURNSTILE_VALIDATION_WINDOW_MS,
+    validatedUntil: socket.turnstileValidatedUntil,
+  };
+}
+
+function validateTurnstileResult(socket, result) {
+  if (!result || result.success !== true) {
+    return { ok: false, reason: "siteverify_failed" };
+  }
+
+  var expectedHostname = getExpectedTurnstileHostname(socket);
+  var actualHostname = normalizeTurnstileHostname(result.hostname);
+  if (
+    !actualHostname ||
+    (expectedHostname && actualHostname !== expectedHostname)
+  ) {
+    return { ok: false, reason: "hostname_mismatch" };
+  }
+
+  if (result.action !== config.TURNSTILE_ACTION) {
+    return { ok: false, reason: "action_mismatch" };
+  }
+
+  return { ok: true };
+}
+
 function enforceGeneralRateLimit(
   socket,
   boardName,
@@ -346,31 +395,39 @@ function handleSocketConnection(socket) {
         return;
       }
       try {
+        var clientIp = resolveClientIp(socket, "anonymous");
+        var requestBody = new URLSearchParams({
+          secret: config.TURNSTILE_SECRET_KEY,
+          response: token,
+        });
+        if (clientIp !== null) requestBody.set("remoteip", clientIp);
         var response = await fetch(
           "https://challenges.cloudflare.com/turnstile/v0/siteverify",
           {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              secret: config.TURNSTILE_SECRET_KEY,
-              response: token,
-            }),
+            body: requestBody,
           },
         );
         var result = await response.json();
-        if (result.success) {
-          socket.turnstileValidated = true;
-          if (typeof ack === "function") ack(true);
+        var validation = validateTurnstileResult(socket, result);
+        if (validation.ok) {
+          socket.turnstileValidatedUntil =
+            Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS;
+          if (typeof ack === "function") ack(buildTurnstileAck(socket));
         } else {
           log("TURNSTILE REJECTED", {
-            ip: resolveClientIp(socket, "anonymous"),
+            ip: clientIp,
             error_codes: result["error-codes"],
+            reason: validation.reason,
+            hostname: result.hostname,
+            action: result.action,
           });
-          if (typeof ack === "function") ack(false);
+          if (typeof ack === "function") ack({ success: false });
         }
       } catch (err) {
         log("TURNSTILE ERROR", { error: err.message });
-        if (typeof ack === "function") ack(false);
+        if (typeof ack === "function") ack({ success: false });
       }
     }),
   );
@@ -389,7 +446,7 @@ function handleSocketConnection(socket) {
         config.TURNSTILE_SECRET_KEY &&
         data &&
         WBOMessageCommon.requiresTurnstile(boardName, data.tool) &&
-        !socket.turnstileValidated
+        !isTurnstileValidationActive(socket, now)
       ) {
         return;
       }
