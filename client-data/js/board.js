@@ -64,7 +64,6 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
   pendingWrites.forEach(function replayPendingWrite(write) {
     var tool = Tools.list[write.toolName];
     if (!tool) return;
-    tool.draw(write.data, true);
     Tools.send(write.data, write.toolName);
   });
 };
@@ -101,7 +100,7 @@ Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(
   var refreshDelay = Math.floor(validationWindowMs * 0.8);
   if (!(refreshDelay > 0)) return;
   Tools.turnstileRefreshTimeout = setTimeout(function refreshTurnstileToken() {
-    Tools.refreshTurnstile(false);
+    Tools.refreshTurnstile();
   }, refreshDelay);
 };
 
@@ -164,20 +163,36 @@ Tools.ensureTurnstileElements = function ensureTurnstileElements() {
   return { overlay: overlay };
 };
 
-Tools.showTurnstileOverlay = function showTurnstileOverlay() {
+Tools.showTurnstileOverlayTimeout = null;
+
+Tools.showTurnstileOverlay = function showTurnstileOverlay(delay) {
   var elements = Tools.ensureTurnstileElements();
-  elements.overlay.classList.remove("turnstile-overlay-hidden");
+  if (delay > 0) {
+    Tools.showTurnstileOverlayTimeout = setTimeout(function () {
+      elements.overlay.classList.remove("turnstile-overlay-hidden");
+    }, delay);
+  } else {
+    elements.overlay.classList.remove("turnstile-overlay-hidden");
+  }
 };
 
 Tools.hideTurnstileOverlay = function hideTurnstileOverlay() {
+  if (Tools.showTurnstileOverlayTimeout) {
+    clearTimeout(Tools.showTurnstileOverlayTimeout);
+    Tools.showTurnstileOverlayTimeout = null;
+  }
   var overlay = document.getElementById("turnstile-overlay");
   if (overlay) overlay.classList.add("turnstile-overlay-hidden");
 };
 
-Tools.refreshTurnstile = function refreshTurnstile(showOverlay) {
+function handleTurnstileError(errorCode) {
+  alert("Turnstile verification failed: " + errorCode);
+  location.reload();
+}
+
+Tools.refreshTurnstile = function refreshTurnstile() {
   if (!Tools.server_config.TURNSTILE_SITE_KEY) return;
   Tools.ensureTurnstileElements();
-  if (showOverlay) Tools.showTurnstileOverlay();
 
   if (typeof turnstile !== "undefined") {
     if (Tools.turnstilePending) return;
@@ -199,13 +214,12 @@ Tools.refreshTurnstile = function refreshTurnstile(showOverlay) {
               Tools.flushTurnstilePendingWrites();
             } else {
               Tools.setTurnstileValidation(null);
-              Tools.showTurnstileOverlay();
-              Tools.refreshTurnstile(true);
+              Tools.refreshTurnstile();
             }
           });
         },
         "before-interactive-callback": function () {
-          Tools.showTurnstileOverlay();
+          Tools.showTurnstileOverlay(500);
         },
         "after-interactive-callback": function () {
           if (Tools.isTurnstileValidated()) Tools.hideTurnstileOverlay();
@@ -214,17 +228,16 @@ Tools.refreshTurnstile = function refreshTurnstile(showOverlay) {
           Tools.turnstilePending = false;
           Tools.setTurnstileValidation(null);
           console.error("Turnstile error:", err);
-          Tools.showTurnstileOverlay();
+          handleTurnstileError(err);
         },
         "timeout-callback": function () {
           Tools.turnstilePending = false;
           Tools.setTurnstileValidation(null);
-          Tools.showTurnstileOverlay();
-          Tools.refreshTurnstile(true);
+          Tools.refreshTurnstile();
         },
         "expired-callback": function () {
           Tools.turnstilePending = false;
-          Tools.refreshTurnstile(false);
+          Tools.refreshTurnstile();
         },
       });
       return;
@@ -279,7 +292,7 @@ Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
 };
 
 Tools.showTurnstileWidget = function showTurnstileWidget() {
-  Tools.refreshTurnstile(true);
+  Tools.refreshTurnstile();
 };
 
 Tools.setBoardState = function setBoardState(state) {
@@ -713,6 +726,10 @@ Tools.send = function (data, toolName) {
 Tools.drawAndSend = function (data, tool) {
   if (tool == null) tool = Tools.curTool;
   if (tool && Tools.shouldDisableTool(tool.name)) return false;
+
+  // Optimistically render the drawing immediately
+  tool.draw(data, true);
+
   if (
     WBOMessageCommon.requiresTurnstile(Tools.boardName, tool.name) &&
     Tools.server_config.TURNSTILE_SITE_KEY &&
@@ -721,7 +738,7 @@ Tools.drawAndSend = function (data, tool) {
     Tools.queueProtectedWrite(data, tool);
     return;
   }
-  tool.draw(data, true);
+
   Tools.send(data, tool.name);
   return true;
 };

@@ -244,8 +244,8 @@ module.exports = {
             },
           )
           .window.switchTo(firstHandle)
-          .execute(
-            function () {
+          .executeAsync(
+            function (done) {
               Tools.drawAndSend(
                 {
                   type: "rect",
@@ -261,11 +261,25 @@ module.exports = {
                 Tools.list.Rectangle,
               );
 
-              return {
-                overlayPresent: !!document.getElementById("turnstile-overlay"),
-                pendingWrites: Tools.turnstilePendingWrites.length,
-                validated: Tools.isTurnstileValidated(),
-              };
+              // Simulate Cloudflare triggering the interactive challenge
+              if (
+                window.__turnstileOptions &&
+                window.__turnstileOptions["before-interactive-callback"]
+              ) {
+                window.__turnstileOptions["before-interactive-callback"]();
+              }
+
+              setTimeout(function () {
+                done({
+                  overlayPresent:
+                    !!document.getElementById("turnstile-overlay") &&
+                    !document
+                      .getElementById("turnstile-overlay")
+                      .classList.contains("turnstile-overlay-hidden"),
+                  pendingWrites: Tools.turnstilePendingWrites.length,
+                  validated: Tools.isTurnstileValidated(),
+                });
+              }, 550);
             },
             [],
             function (pendingResult) {
@@ -280,7 +294,10 @@ module.exports = {
               setTimeout(function () {
                 done({
                   overlayPresent:
-                    !!document.getElementById("turnstile-overlay"),
+                    !!document.getElementById("turnstile-overlay") &&
+                    !document
+                      .getElementById("turnstile-overlay")
+                      .classList.contains("turnstile-overlay-hidden"),
                   pendingWrites: Tools.turnstilePendingWrites.length,
                   validated: Tools.isTurnstileValidated(),
                 });
