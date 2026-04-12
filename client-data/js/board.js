@@ -40,6 +40,43 @@ Tools.i18n = (function i18n() {
 Tools.server_config = JSON.parse(document.getElementById("configuration").text);
 Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
 Tools.turnstileValidated = false;
+Tools.turnstilePendingWrites = [];
+Tools.turnstileWidgetId = null;
+
+Tools.cloneMessage = function cloneMessage(message) {
+  if (typeof structuredClone === "function") return structuredClone(message);
+  return JSON.parse(JSON.stringify(message));
+};
+
+Tools.queueProtectedWrite = function queueProtectedWrite(data, tool) {
+  Tools.turnstilePendingWrites.push({
+    data: Tools.cloneMessage(data),
+    toolName: tool.name,
+  });
+  Tools.showTurnstileWidget();
+};
+
+Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
+  var pendingWrites = Tools.turnstilePendingWrites;
+  Tools.turnstilePendingWrites = [];
+  pendingWrites.forEach(function replayPendingWrite(write) {
+    var tool = Tools.list[write.toolName];
+    if (!tool) return;
+    tool.draw(write.data, true);
+    Tools.send(write.data, write.toolName);
+  });
+};
+
+Tools.resetTurnstileValidation = function resetTurnstileValidation() {
+  Tools.turnstileValidated = false;
+  if (
+    Tools.turnstileWidgetId !== null &&
+    typeof turnstile !== "undefined" &&
+    typeof turnstile.reset === "function"
+  ) {
+    turnstile.reset(Tools.turnstileWidgetId);
+  }
+};
 
 if (Tools.server_config.TURNSTILE_SITE_KEY) {
   var script = document.createElement("script");
@@ -78,8 +115,10 @@ Tools.showTurnstileWidget = function () {
         Tools.socket.emit("turnstile_token", token, function (success) {
           if (success) {
             Tools.turnstileValidated = true;
+            Tools.turnstileWidgetId = null;
             turnstile.remove(widgetId);
             document.body.removeChild(overlay);
+            Tools.flushTurnstilePendingWrites();
           } else {
             turnstile.reset(widgetId);
           }
@@ -95,6 +134,7 @@ Tools.showTurnstileWidget = function () {
         turnstile.reset(widgetId);
       },
     });
+    Tools.turnstileWidgetId = widgetId;
   } else {
     title.innerText = "Error loading Turnstile. Please refresh the page.";
     setTimeout(function () {
@@ -145,6 +185,11 @@ Tools.setBoardState(
   ),
 );
 
+Tools.resolveBoardName = function resolveBoardName() {
+  var path = window.location.pathname.split("/");
+  return decodeURIComponent(path[path.length - 1]);
+};
+
 Tools.board = document.getElementById("board");
 Tools.svg = document.getElementById("canvas");
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
@@ -159,6 +204,7 @@ Tools.showMyCursor = true;
 Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
 Tools.socket = null;
+Tools.hasConnectedOnce = false;
 Tools.rateLimitAlertShown = false;
 Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
   if (window.socketio_extra_headers) return window.socketio_extra_headers;
@@ -215,6 +261,13 @@ Tools.connect = function () {
   this.socket = io.connect("", socket_params);
 
   //Receive draw instructions from the server
+  this.socket.on("connect", function onConnection() {
+    if (Tools.hasConnectedOnce && Tools.server_config.TURNSTILE_SITE_KEY) {
+      Tools.resetTurnstileValidation();
+    }
+    Tools.hasConnectedOnce = true;
+    Tools.socket.emit("getboard", Tools.boardName);
+  });
   this.socket.on("broadcast", function (msg) {
     handleMessage(msg).finally(function afterload() {
       var loadingEl = document.getElementById("loadingMessage");
@@ -225,18 +278,8 @@ Tools.connect = function () {
   this.socket.on("rate-limited", function onRateLimited() {
     Tools.showRateLimitAlert();
   });
-
-  this.socket.on("reconnect", function onReconnection() {
-    Tools.socket.emit("joinboard", Tools.boardName);
-  });
 };
-
-Tools.connect();
-
-Tools.boardName = (function () {
-  var path = window.location.pathname.split("/");
-  return decodeURIComponent(path[path.length - 1]);
-})();
+Tools.boardName = Tools.resolveBoardName();
 
 Tools.token = (function () {
   var url = new URL(window.location);
@@ -244,8 +287,7 @@ Tools.token = (function () {
   return params.get("token");
 })();
 
-//Get the board as soon as the page is loaded
-Tools.socket.emit("getboard", Tools.boardName);
+Tools.connect();
 
 function saveBoardNametoLocalStorage() {
   var boardName = Tools.boardName;
@@ -524,7 +566,7 @@ Tools.drawAndSend = function (data, tool) {
     Tools.server_config.TURNSTILE_SITE_KEY &&
     !Tools.turnstileValidated
   ) {
-    Tools.showTurnstileWidget();
+    Tools.queueProtectedWrite(data, tool);
     return;
   }
   tool.draw(data, true);

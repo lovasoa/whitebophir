@@ -98,6 +98,11 @@ module.exports = {
   /** Cloudflare Turnstile site key */
   TURNSTILE_SITE_KEY: process.env["TURNSTILE_SITE_KEY"],
 
+  /** Override Turnstile verification endpoint, primarily for tests */
+  TURNSTILE_VERIFY_URL:
+    process.env["TURNSTILE_VERIFY_URL"] ||
+    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+
   /** If this variable is set, automatically redirect to this board from the root of the application. */
   DEFAULT_BOARD: process.env["WBO_DEFAULT_BOARD"],
 };

@@ -346,17 +346,14 @@ function handleSocketConnection(socket) {
         return;
       }
       try {
-        var response = await fetch(
-          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              secret: config.TURNSTILE_SECRET_KEY,
-              response: token,
-            }),
-          },
-        );
+        var response = await fetch(config.TURNSTILE_VERIFY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            secret: config.TURNSTILE_SECRET_KEY,
+            response: token,
+          }),
+        });
         var result = await response.json();
         if (result.success) {
           socket.turnstileValidated = true;
