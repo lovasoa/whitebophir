@@ -21,6 +21,12 @@ svg {
   z-index: 9999;
 }
 
+.turnstile-overlay-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 #turnstile-modal {
   background: white;
   padding: 24px;

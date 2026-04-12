@@ -103,6 +103,12 @@ module.exports = {
     process.env["TURNSTILE_VERIFY_URL"] ||
     "https://challenges.cloudflare.com/turnstile/v0/siteverify",
 
+  /** Duration for which a successful Turnstile validation authorizes protected writes */
+  TURNSTILE_VALIDATION_WINDOW_MS: parseIntegerEnv(
+    "TURNSTILE_VALIDATION_WINDOW_MS",
+    1000 * 60 * 4,
+  ),
+
   /** If this variable is set, automatically redirect to this board from the root of the application. */
   DEFAULT_BOARD: process.env["WBO_DEFAULT_BOARD"],
 };

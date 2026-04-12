@@ -19,6 +19,7 @@ function startTurnstileVerifyServer() {
             success:
               params.get("secret") === "test-secret" &&
               !!params.get("response"),
+            hostname: "localhost",
           }),
         );
       });
@@ -88,11 +89,13 @@ module.exports = {
           Tools.socket.emit(
             "turnstile_token",
             "validated-before-reconnect",
-            function (success) {
-              Tools.turnstileValidated = success;
+            function (result) {
+              var turnstileResult = Tools.normalizeTurnstileAck(result);
+              if (turnstileResult.success)
+                Tools.setTurnstileValidation(turnstileResult);
               done({
-                success: success,
-                validated: Tools.turnstileValidated,
+                success: turnstileResult.success,
+                validated: Tools.isTurnstileValidated(),
               });
             },
           );
@@ -124,7 +127,7 @@ module.exports = {
                 done({
                   timedOut: true,
                   connected: Tools.socket.connected,
-                  validated: Tools.turnstileValidated,
+                  validated: Tools.isTurnstileValidated(),
                 });
               }, 5000);
 
@@ -134,7 +137,7 @@ module.exports = {
                   done({
                     timedOut: false,
                     connected: Tools.socket.connected,
-                    validated: Tools.turnstileValidated,
+                    validated: Tools.isTurnstileValidated(),
                   });
                 }, 100);
               });
@@ -261,7 +264,7 @@ module.exports = {
               return {
                 overlayPresent: !!document.getElementById("turnstile-overlay"),
                 pendingWrites: Tools.turnstilePendingWrites.length,
-                validated: Tools.turnstileValidated,
+                validated: Tools.isTurnstileValidated(),
               };
             },
             [],
@@ -279,7 +282,7 @@ module.exports = {
                   overlayPresent:
                     !!document.getElementById("turnstile-overlay"),
                   pendingWrites: Tools.turnstilePendingWrites.length,
-                  validated: Tools.turnstileValidated,
+                  validated: Tools.isTurnstileValidated(),
                 });
               }, 250);
             },
