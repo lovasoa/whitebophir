@@ -1,4 +1,9 @@
-const { setup, teardown, writeBoard } = require("./lib/test_helper.js");
+const {
+  setup,
+  teardown,
+  writeBoard,
+  readStoredBoard,
+} = require("./lib/test_helper.js");
 
 let serverProcess, dataPath, serverUrl, tokenQuery;
 
@@ -196,9 +201,65 @@ module.exports = {
           browser.assert.equal(result.value.rectDisabled, true);
         },
       )
-      .click("#toolID-Pencil")
+      .executeAsync(
+        function (done) {
+          var rectangleTool = Tools.list.Rectangle;
+          var rectToolElem = document.getElementById("toolID-Rectangle");
+          var evt = {
+            preventDefault: function () {},
+          };
+
+          rectToolElem.classList.remove("disabledTool");
+          rectToolElem.setAttribute("aria-disabled", "false");
+          Tools.shouldDisableTool = function () {
+            return false;
+          };
+          Tools.canUseTool = function () {
+            return true;
+          };
+
+          var changed = Tools.change("Rectangle");
+          rectangleTool.listeners.press(10, 10, evt);
+          rectangleTool.listeners.move(4015, 30, evt);
+          rectangleTool.listeners.release(4015, 30, evt);
+
+          setTimeout(function () {
+            done({
+              currentTool: Tools.curTool && Tools.curTool.name,
+              changeResult: changed,
+              rectPresent: !!document.querySelector("#drawingArea rect"),
+            });
+          }, 200);
+        },
+        function (result) {
+          browser.assert.equal(result.value.currentTool, "Rectangle");
+          browser.assert.equal(result.value.changeResult, true);
+          browser.assert.equal(result.value.rectPresent, true);
+        },
+      )
+      .perform(async function (done) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        var storedBoard = await readStoredBoard(
+          dataPath,
+          "zoom-threshold-test",
+        );
+        browser.assert.equal(Object.keys(storedBoard).length, 0);
+        done();
+      })
       .execute(
         function () {
+          Tools.shouldDisableTool = function (toolName) {
+            return (
+              MessageCommon.isDrawTool(toolName) &&
+              !MessageCommon.isDrawToolAllowedAtScale(Tools.scale || 1)
+            );
+          };
+          Tools.canUseTool = function (toolName) {
+            return (
+              Tools.shouldDisplayTool(toolName) &&
+              !Tools.shouldDisableTool(toolName)
+            );
+          };
           return {
             currentTool: Tools.curTool && Tools.curTool.name,
             changeResult: Tools.change("Pencil"),
@@ -206,7 +267,7 @@ module.exports = {
         },
         [],
         function (result) {
-          browser.assert.equal(result.value.currentTool, "Hand");
+          browser.assert.equal(result.value.currentTool, "Rectangle");
           browser.assert.equal(result.value.changeResult, false);
         },
       )

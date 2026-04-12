@@ -177,6 +177,40 @@ test("BoardData rejects transform updates that make a stored shape oversized", f
   assert.equal(board.get("rect-1").transform, undefined);
 });
 
+test("BoardData drops zero-size seed shapes after an oversized update is rejected", function () {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const board = disableSaves(new BoardData("oversized-seed-shape-board"));
+
+  assert.equal(
+    board.processMessage({
+      tool: "Rectangle",
+      type: "rect",
+      id: "rect-1",
+      color: "#112233",
+      size: 4,
+      x: 10,
+      y: 10,
+      x2: 10,
+      y2: 10,
+    }),
+    true,
+  );
+
+  assert.equal(
+    board.processMessage({
+      tool: "Rectangle",
+      type: "update",
+      id: "rect-1",
+      x: 10,
+      y: 10,
+      x2: 4015,
+      y2: 30,
+    }),
+    false,
+  );
+  assert.equal(board.get("rect-1"), undefined);
+});
+
 test("BoardData rejects hand batches atomically when one transform is oversized", function () {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("atomic-hand-batch-board"));

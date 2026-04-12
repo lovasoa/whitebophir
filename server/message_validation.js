@@ -408,7 +408,10 @@ function normalizeIncomingMessage(raw) {
 
   const normalized = normalizeObject(raw, schema);
   if (!normalized.ok) return normalized;
-  if (MessageCommon.isGeometryTooLarge(normalized.value)) {
+  if (
+    normalized.value.type !== "update" &&
+    MessageCommon.isGeometryTooLarge(normalized.value)
+  ) {
     return rejected("shape too large");
   }
   return normalized;

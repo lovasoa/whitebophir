@@ -190,6 +190,24 @@ class BoardData {
     return MessageCommon.isBoundsTooLarge(effectiveBounds);
   }
 
+  hasZeroLocalExtent(item, id) {
+    const bounds = this.getLocalBounds(id, item);
+    if (!bounds) return false;
+    return bounds.minX === bounds.maxX && bounds.minY === bounds.maxY;
+  }
+
+  shouldDropSeedShapeOnRejectedUpdate(tool, item, id) {
+    return (
+      (tool === "Straight line" ||
+        tool === "Rectangle" ||
+        tool === "Ellipse") &&
+      item &&
+      item.tool === tool &&
+      this.hasZeroLocalExtent(item, id) &&
+      item.transform === undefined
+    );
+  }
+
   canStore(id, data) {
     return this.validateStoredCandidate(id, data).ok;
   }
@@ -302,7 +320,13 @@ class BoardData {
 
     var obj = this.board[id];
     if (typeof obj !== "object") return false;
-    if (!this.canUpdate(id, updateData)) return false;
+    if (!this.canUpdate(id, updateData)) {
+      if (this.shouldDropSeedShapeOnRejectedUpdate(obj.tool, obj, id)) {
+        delete this.board[id];
+        this.localBoundsCache.delete(id);
+      }
+      return false;
+    }
     for (var i in updateData) {
       if (updateData[i] !== undefined) obj[i] = updateData[i];
     }
