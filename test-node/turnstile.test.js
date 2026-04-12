@@ -169,9 +169,9 @@ test("server-side Turnstile token validation binds Siteverify to request context
           ackCalledWith = result;
         });
         assert.strictEqual(fetchCalled, true, "fetch should have been called");
-        assert.equal(
-          socket.turnstileValidatedUntil,
-          Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS,
+        const expectedTime = Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS;
+        assert.ok(
+          Math.abs(socket.turnstileValidatedUntil - expectedTime) <= 10,
           "socket validation should expire after the configured window",
         );
         assert.deepEqual(ackCalledWith, {

@@ -116,13 +116,15 @@ Tools.setTurnstileValidation = function setTurnstileValidation(result) {
     Number(result.validationWindowMs) ||
     Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS) ||
     0;
-  var validatedUntil = Number(result.validatedUntil);
-  if (!Number.isFinite(validatedUntil) && validationWindowMs > 0) {
-    validatedUntil = Date.now() + validationWindowMs;
-  }
-  Tools.turnstileValidatedUntil = Number.isFinite(validatedUntil)
-    ? validatedUntil
-    : 0;
+
+  // Subtract a 5-second safety margin to account for network latency.
+  // This ensures the client stops sending and requests a new token *before*
+  // the server actually expires the validation, preventing dropped in-flight messages.
+  var safeWindowMs = Math.max(0, validationWindowMs - 5000);
+
+  Tools.turnstileValidatedUntil =
+    safeWindowMs > 0 ? Date.now() + safeWindowMs : 0;
+
   if (validationWindowMs > 0) {
     Tools.scheduleTurnstileRefresh(validationWindowMs);
   }
@@ -143,9 +145,8 @@ Tools.normalizeTurnstileAck = function normalizeTurnstileAck(result) {
 
 Tools.ensureTurnstileElements = function ensureTurnstileElements() {
   var overlay = document.getElementById("turnstile-overlay");
-  var title = document.getElementById("turnstile-title");
   var widget = document.getElementById("turnstile-widget");
-  if (overlay && title && widget) return { overlay: overlay, title: title };
+  if (overlay && widget) return { overlay: overlay };
 
   overlay = document.createElement("div");
   overlay.id = "turnstile-overlay";
@@ -154,24 +155,17 @@ Tools.ensureTurnstileElements = function ensureTurnstileElements() {
   var modal = document.createElement("div");
   modal.id = "turnstile-modal";
 
-  title = document.createElement("div");
-  title.id = "turnstile-title";
-  title.innerText = "Please verify you are human before drawing";
-  modal.appendChild(title);
-
   widget = document.createElement("div");
   widget.id = "turnstile-widget";
   modal.appendChild(widget);
 
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
-  return { overlay: overlay, title: title };
+  return { overlay: overlay };
 };
 
-Tools.showTurnstileOverlay = function showTurnstileOverlay(message) {
+Tools.showTurnstileOverlay = function showTurnstileOverlay() {
   var elements = Tools.ensureTurnstileElements();
-  elements.title.innerText =
-    message || "Please verify you are human before drawing";
   elements.overlay.classList.remove("turnstile-overlay-hidden");
 };
 
@@ -193,6 +187,7 @@ Tools.refreshTurnstile = function refreshTurnstile(showOverlay) {
       Tools.turnstileWidgetId = turnstile.render("#turnstile-widget", {
         sitekey: Tools.server_config.TURNSTILE_SITE_KEY,
         appearance: "interaction-only",
+        theme: "light",
         "refresh-expired": "manual",
         callback: function (token) {
           Tools.socket.emit("turnstile_token", token, function (result) {
@@ -219,9 +214,7 @@ Tools.refreshTurnstile = function refreshTurnstile(showOverlay) {
           Tools.turnstilePending = false;
           Tools.setTurnstileValidation(null);
           console.error("Turnstile error:", err);
-          Tools.showTurnstileOverlay(
-            "Unable to verify automatically. Please try again.",
-          );
+          Tools.showTurnstileOverlay();
         },
         "timeout-callback": function () {
           Tools.turnstilePending = false;
@@ -240,14 +233,8 @@ Tools.refreshTurnstile = function refreshTurnstile(showOverlay) {
     Tools.turnstilePending = true;
     turnstile.reset(Tools.turnstileWidgetId);
   } else {
-    Tools.showTurnstileOverlay(
-      "Error loading Turnstile. Please refresh the page.",
-    );
-    setTimeout(function () {
-      if (!Tools.isTurnstileValidated()) {
-        Tools.hideTurnstileOverlay();
-      }
-    }, 3000);
+    console.error("Error loading Turnstile. Refreshing the page.");
+    location.reload();
   }
 };
 
