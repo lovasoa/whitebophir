@@ -31,12 +31,12 @@ jobs:
           CI: true
       - name: Display WebDriver logs on failure
         if: failure()
-        run: cat logs/geckodriver.log
+        run: cat logs/*.log || echo "No logs found"
       - name: Upload Test Artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: tests-output
+          name: tests-output-${{ matrix.node-version }}
           path: |
             tests_output/
             logs/
