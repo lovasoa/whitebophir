@@ -171,11 +171,12 @@
     var x = toFiniteNumber(item.x);
     var y = toFiniteNumber(item.y);
     var size = toFiniteNumber(item.size);
-    if (x === null || y === null || size === null) return null;
+    var len = toFiniteNumber(item.txt && item.txt.length);
+    if (x === null || y === null || size === null || len === null) return null;
     return {
       minX: x,
       minY: y - size,
-      maxX: x + size,
+      maxX: x + size * len,
       maxY: y,
     };
   }

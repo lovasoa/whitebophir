@@ -41,3 +41,19 @@ test("shared geometry helpers grow pencil bounds incrementally", function () {
     maxY: 25,
   });
 });
+
+test("getLocalGeometryBounds measures text", function () {
+  const bounds = MessageCommon.getLocalGeometryBounds({
+    tool: "Text",
+    x: 100,
+    y: 200,
+    txt: "0123456789",
+    size: 55,
+  });
+  assert.deepEqual(bounds, {
+    minX: 100,
+    minY: 200 - 55,
+    maxX: 100 + 10 * 55,
+    maxY: 200,
+  });
+});

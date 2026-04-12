@@ -224,6 +224,23 @@ class BoardData {
     return !this.isCandidateTooLarge(candidate, localBounds);
   }
 
+  isIncrementalUpdateTooLarge(id, obj, updateData) {
+    if (obj.tool === "Pencil") {
+      const nextBounds = MessageCommon.extendBoundsWithPoint(
+        this.getLocalBounds(id, obj),
+        updateData.x,
+        updateData.y,
+      );
+      return this.isCandidateTooLarge(obj, nextBounds);
+    }
+    if (obj.tool === "Text") {
+      const candidate = Object.assign({}, obj, { txt: updateData.txt });
+      const nextBounds = MessageCommon.getLocalGeometryBounds(candidate);
+      return this.isCandidateTooLarge(candidate, nextBounds);
+    }
+    return false;
+  }
+
   canAddChild(parentId, child) {
     const obj = this.board[parentId];
     if (!obj || obj.tool !== "Pencil") return false;
@@ -236,12 +253,11 @@ class BoardData {
     )
       return false;
 
-    const nextBounds = MessageCommon.extendBoundsWithPoint(
-      this.getLocalBounds(parentId, obj),
-      normalizedChild.value.x,
-      normalizedChild.value.y,
+    return !this.isIncrementalUpdateTooLarge(
+      parentId,
+      obj,
+      normalizedChild.value,
     );
-    return !this.isCandidateTooLarge(obj, nextBounds);
   }
 
   canCopy(id, data) {
