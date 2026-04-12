@@ -477,11 +477,17 @@ function handleSocketConnection(socket) {
       }
 
       // Save the message in the board
-      if (!handleMessage(board, cloneMessageForPersistence(data), socket)) {
+      const handleResult = handleMessage(
+        board,
+        cloneMessageForPersistence(data),
+        socket,
+      );
+      if (!handleResult.ok) {
         log("BOARD_MESSAGE_REJECTED", {
           board: board.name,
           tool: data.tool,
           type: data.type,
+          reason: handleResult.reason,
         });
         return;
       }
@@ -526,7 +532,7 @@ async function unloadBoard(boardName) {
 function handleMessage(board, message, socket) {
   if (message.tool === "Cursor") {
     message.socket = socket.id;
-    return true;
+    return { ok: true };
   }
   return saveHistory(board, message);
 }

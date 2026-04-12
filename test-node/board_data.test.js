@@ -119,8 +119,8 @@ test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async functio
       size: 4,
     });
 
-    assert.equal(board.addChild("line-1", { x: 1, y: 2 }), true);
-    assert.equal(board.addChild("line-1", { x: 3, y: 4 }), false);
+    assert.equal(board.addChild("line-1", { x: 1, y: 2 }).ok, true);
+    assert.equal(board.addChild("line-1", { x: 3, y: 4 }).ok, false);
     assert.deepEqual(board.get("line-1")._children, [{ x: 1, y: 2 }]);
   });
 });
@@ -136,13 +136,13 @@ test("BoardData rejects the first pencil child that makes a stroke oversized", f
       id: "line-1",
       color: "#123456",
       size: 4,
-    }),
+    }).ok,
     true,
   );
 
-  assert.equal(board.addChild("line-1", { x: 0, y: 0 }), true);
-  assert.equal(board.addChild("line-1", { x: 3199, y: 0 }), true);
-  assert.equal(board.addChild("line-1", { x: 3201, y: 0 }), false);
+  assert.equal(board.addChild("line-1", { x: 0, y: 0 }).ok, true);
+  assert.equal(board.addChild("line-1", { x: 3199, y: 0 }).ok, true);
+  assert.equal(board.addChild("line-1", { x: 3201, y: 0 }).ok, false);
   assert.deepEqual(board.get("line-1")._children, [
     { x: 0, y: 0 },
     { x: 3199, y: 0 },
@@ -171,7 +171,7 @@ test("BoardData rejects transform updates that make a stored shape oversized", f
       type: "update",
       id: "rect-1",
       transform: { a: 4, b: 0, c: 0, d: 4, e: 0, f: 0 },
-    }),
+    }).ok,
     false,
   );
   assert.equal(board.get("rect-1").transform, undefined);
@@ -192,7 +192,7 @@ test("BoardData drops zero-size seed shapes after an oversized update is rejecte
       y: 10,
       x2: 10,
       y2: 10,
-    }),
+    }).ok,
     true,
   );
 
@@ -205,7 +205,7 @@ test("BoardData drops zero-size seed shapes after an oversized update is rejecte
       y: 10,
       x2: 4015,
       y2: 30,
-    }),
+    }).ok,
     false,
   );
   assert.equal(board.get("rect-1"), undefined);
@@ -253,7 +253,7 @@ test("BoardData rejects hand batches atomically when one transform is oversized"
           transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
         },
       ],
-    }),
+    }).ok,
     false,
   );
   assert.equal(board.get("rect-1").transform, undefined);
