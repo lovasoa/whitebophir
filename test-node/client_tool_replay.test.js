@@ -456,6 +456,34 @@ test("Pencil replay updates stroke styling on the reused DOM node", function () 
   assert.deepEqual(line.pathData, []);
 });
 
+test("Pencil input sends an initial child point without waiting for throttle", function () {
+  const harness = createHarness();
+  const pencilTool = harness.loadTool("Pencil");
+  const event = { preventDefault: function () {} };
+
+  global.Tools.curTool = pencilTool;
+  harness.clock.now = 0;
+
+  pencilTool.listeners.press(100, 100, event);
+  harness.clock.now = 1;
+  pencilTool.listeners.move(200, 200, event);
+  harness.clock.now = 2;
+  pencilTool.listeners.release(200, 200, event);
+
+  assert.deepEqual(
+    global.Tools.sentMessages.map(function (message) {
+      return message.data.type;
+    }),
+    ["line", "child"],
+  );
+  assert.deepEqual(global.Tools.sentMessages[1].data, {
+    type: "child",
+    parent: "l-1",
+    x: 100,
+    y: 100,
+  });
+});
+
 test("Straight line replay refreshes endpoints and styling on an existing node", function () {
   const harness = createHarness();
   const lineTool = harness.loadTool("Straight line");

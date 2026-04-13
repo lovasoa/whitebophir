@@ -47,6 +47,7 @@
   //Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
   var curLineId = "",
     lastTime = performance.now(); //The time at which the last point was drawn
+  var hasSentPoint = false;
 
   //The data of the message that will be sent for every new point
   /**
@@ -96,9 +97,16 @@
     //Prevent the press from being interpreted by the browser
     evt.preventDefault();
 
-    if (AUTO_FINGER_WHITEOUT && evt instanceof TouchEvent) handleAutoWhiteOut(evt);
+    if (
+      AUTO_FINGER_WHITEOUT &&
+      typeof TouchEvent !== "undefined" &&
+      evt instanceof TouchEvent
+    ) {
+      handleAutoWhiteOut(evt);
+    }
 
     curLineId = Tools.generateUID("l"); //"l" for line
+    hasSentPoint = false;
 
     var initialData = {
       type: "line",
@@ -125,9 +133,10 @@
 		This allows the animation to be smother*/
     if (
       curLineId !== "" &&
-      performance.now() - lastTime > MIN_PENCIL_INTERVAL_MS
+      (!hasSentPoint || performance.now() - lastTime > MIN_PENCIL_INTERVAL_MS)
     ) {
       Tools.drawAndSend(new PointMessage(x, y));
+      hasSentPoint = true;
       lastTime = performance.now();
     }
     if (evt) evt.preventDefault();
@@ -145,6 +154,7 @@
 
   function stopLine() {
     curLineId = "";
+    hasSentPoint = false;
   }
 
   /** @type {PencilLine | null} */
