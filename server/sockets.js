@@ -15,11 +15,18 @@ var getClientIp = socketPolicy.getClientIp;
 var normalizeBroadcastData = socketPolicy.normalizeBroadcastData;
 var parseForwardedHeader = socketPolicy.parseForwardedHeader;
 
+/** @typedef {{[key: string]: any}} MessageData */
+/** @typedef {{windowStart: number, count: number, lastSeen: number}} RateLimitState */
+/** @typedef {{success: true, validationWindowMs: number, validatedUntil: number | undefined}} TurnstileAck */
+/** @typedef {{ok: true} | {ok: false, reason: string}} ValidationStatus */
+
 /** Map from name to *promises* of BoardData
   @type {{[boardName: string]: Promise<BoardData>}}
 */
 var boards = {};
+/** @type {Map<string, RateLimitState>} */
 var destructiveRateLimits = new Map();
+/** @type {Map<string, RateLimitState>} */
 var constructiveRateLimits = new Map();
 var io;
 /**
@@ -36,7 +43,7 @@ function noFail(fn) {
     try {
       const result = monitored.apply(this, arguments);
       if (result && typeof result.catch === "function") {
-        return result.catch(function logError(err) {
+        return result.catch(function logError(/** @type {unknown} */ err) {
           console.trace(err);
         });
       }
@@ -47,10 +54,21 @@ function noFail(fn) {
   });
 }
 
+/**
+ * @param {number} now
+ * @returns {RateLimitState}
+ */
 function createRateLimitState(now) {
   return { windowStart: now, count: 0, lastSeen: now };
 }
 
+/**
+ * @param {RateLimitState} state
+ * @param {number} cost
+ * @param {number} periodMs
+ * @param {number} now
+ * @returns {number}
+ */
 function consumeFixedWindowRateLimit(state, cost, periodMs, now) {
   if (now - state.windowStart >= periodMs) {
     state.windowStart = now;
@@ -61,14 +79,27 @@ function consumeFixedWindowRateLimit(state, cost, periodMs, now) {
   return state.count;
 }
 
+/**
+ * @param {Map<string, RateLimitState>} map
+ * @param {number} periodMs
+ * @param {number} now
+ * @returns {void}
+ */
 function pruneRateLimitMap(map, periodMs, now) {
-  map.forEach(function pruneEntry(state, key) {
+  map.forEach(function pruneEntry(
+    /** @type {RateLimitState} */ state,
+    /** @type {string} */ key,
+  ) {
     if (now - state.lastSeen >= 2 * periodMs) {
       map.delete(key);
     }
   });
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @returns {import("./socket_policy.js").SocketRequest | any}
+ */
 function getSocketRequest(socket) {
   return socket.client.request;
 }
@@ -81,11 +112,23 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {string} eventName
+ * @param {{[key: string]: any}} infos
+ * @returns {void}
+ */
 function closeSocket(socket, eventName, infos) {
   log(eventName, infos);
   socket.disconnect(true);
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {string} eventName
+ * @param {{[key: string]: any}} infos
+ * @returns {void}
+ */
 function closeRateLimitedSocket(socket, eventName, infos) {
   socket.emit("rate-limited", {
     event: eventName,
@@ -93,14 +136,28 @@ function closeRateLimitedSocket(socket, eventName, infos) {
   closeSocket(socket, eventName, infos);
 }
 
+/**
+ * @param {any} message
+ * @returns {string}
+ */
 function getBoardName(message) {
   return (message && message.board) || "anonymous";
 }
 
+/**
+ * @param {any} message
+ * @returns {MessageData | undefined}
+ */
 function getMessageData(message) {
   return message && message.data;
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {string} boardName
+ * @param {{[key: string]: any}} extras
+ * @returns {{[key: string]: any}}
+ */
 function buildSocketLogInfo(socket, boardName, extras) {
   var request = getSocketRequest(socket);
   return Object.assign(
@@ -113,6 +170,11 @@ function buildSocketLogInfo(socket, boardName, extras) {
   );
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {string} boardName
+ * @returns {string}
+ */
 function resolveClientIp(socket, boardName) {
   try {
     return getClientIp(socket);
@@ -133,11 +195,19 @@ function resolveClientIp(socket, boardName) {
   }
 }
 
+/**
+ * @param {any} hostname
+ * @returns {string | null}
+ */
 function normalizeTurnstileHostname(hostname) {
   if (!hostname || typeof hostname !== "string") return null;
   return hostname.trim().toLowerCase().replace(/\.$/, "").split(":")[0] || null;
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @returns {string | null}
+ */
 function getExpectedTurnstileHostname(socket) {
   var headers = getSocketRequest(socket).headers || {};
   var host = headers["x-forwarded-host"] || headers.host;
@@ -146,6 +216,11 @@ function getExpectedTurnstileHostname(socket) {
   return normalizeTurnstileHostname(host.split(",")[0]);
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {number} now
+ * @returns {boolean}
+ */
 function isTurnstileValidationActive(socket, now) {
   return (
     typeof socket.turnstileValidatedUntil === "number" &&
@@ -153,6 +228,10 @@ function isTurnstileValidationActive(socket, now) {
   );
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @returns {TurnstileAck}
+ */
 function buildTurnstileAck(socket) {
   return {
     success: true,
@@ -161,6 +240,11 @@ function buildTurnstileAck(socket) {
   };
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {any} result
+ * @returns {ValidationStatus}
+ */
 function validateTurnstileResult(socket, result) {
   if (!result || result.success !== true) {
     return { ok: false, reason: "siteverify_failed" };
@@ -180,6 +264,14 @@ function validateTurnstileResult(socket, result) {
   return { ok: true };
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {string} boardName
+ * @param {string} clientIp
+ * @param {RateLimitState} rateLimitState
+ * @param {number} now
+ * @returns {boolean}
+ */
 function enforceGeneralRateLimit(
   socket,
   boardName,
@@ -209,6 +301,11 @@ function enforceGeneralRateLimit(
   return false;
 }
 
+/**
+ * @param {string} clientIp
+ * @param {number} now
+ * @returns {RateLimitState}
+ */
 function getDestructiveRateLimitState(clientIp, now) {
   var rateLimitState =
     destructiveRateLimits.get(clientIp) || createRateLimitState(now);
@@ -216,6 +313,14 @@ function getDestructiveRateLimitState(clientIp, now) {
   return rateLimitState;
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {string} boardName
+ * @param {MessageData} data
+ * @param {string} clientIp
+ * @param {number} now
+ * @returns {boolean}
+ */
 function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
   var destructiveCost = countDestructiveActions(data);
   if (destructiveCost === 0) return true;
@@ -251,6 +356,11 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
   return true;
 }
 
+/**
+ * @param {string} clientIp
+ * @param {number} now
+ * @returns {RateLimitState}
+ */
 function getConstructiveRateLimitState(clientIp, now) {
   var rateLimitState =
     constructiveRateLimits.get(clientIp) || createRateLimitState(now);
@@ -258,6 +368,14 @@ function getConstructiveRateLimitState(clientIp, now) {
   return rateLimitState;
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {string} boardName
+ * @param {MessageData} data
+ * @param {string} clientIp
+ * @param {number} now
+ * @returns {boolean}
+ */
 function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
   var constructiveCost = countConstructiveActions(data);
   if (constructiveCost === 0) return true;
@@ -293,20 +411,38 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
   return true;
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {string} boardName
+ * @returns {boolean}
+ */
 function ensureSocketCanAccessBoard(socket, boardName) {
   if (canAccessBoard(boardName, socket)) return true;
   log("ACCESS BLOCKED", { board: boardName });
   return false;
 }
 
+/**
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {string} boardName
+ * @returns {void}
+ */
 function ensureSocketJoinedBoard(socket, boardName) {
   if (!socket.rooms.has(boardName)) socket.join(boardName);
 }
 
+/**
+ * @param {MessageData} data
+ * @returns {MessageData}
+ */
 function cloneMessageForPersistence(data) {
   return data.tool === "Cursor" ? data : structuredClone(data);
 }
 
+/**
+ * @param {any} app
+ * @returns {Server}
+ */
 function startIO(app) {
   io = new Server(app);
   if (config.AUTH_SECRET_KEY) {
@@ -316,7 +452,10 @@ function startIO(app) {
         jsonwebtoken.verify(
           socket.handshake.query.token,
           config.AUTH_SECRET_KEY,
-          function (err, decoded) {
+          function (
+            /** @type {unknown} */ err,
+            /** @type {any} */ decoded,
+          ) {
             if (err)
               return next(new Error("Authentication error: Invalid JWT"));
             next();
@@ -354,7 +493,7 @@ function handleSocketConnection(socket) {
    * Function to call when an user joins a board
    * @param {string} name
    */
-  async function joinBoard(name) {
+  async function joinBoard(/** @type {string} */ name) {
     // Default to the public board
     if (!name) name = "anonymous";
     if (!canAccessBoard(name, socket)) {
@@ -414,7 +553,7 @@ function handleSocketConnection(socket) {
         });
         var result = await response.json();
         var validation = validateTurnstileResult(socket, result);
-        if (validation.ok) {
+        if (validation.ok === true) {
           socket.turnstileValidatedUntil =
             Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS;
           if (typeof ack === "function") ack(buildTurnstileAck(socket));
@@ -442,8 +581,6 @@ function handleSocketConnection(socket) {
       var boardName = getBoardName(message);
       var data = getMessageData(message);
       var clientIp = resolveClientIp(socket, boardName);
-
-      if (clientIp === null) return;
       if (
         config.TURNSTILE_SECRET_KEY &&
         data &&
@@ -490,7 +627,7 @@ function handleSocketConnection(socket) {
         cloneMessageForPersistence(data),
         socket,
       );
-      if (!handleResult.ok) {
+      if (handleResult.ok === false) {
         log("BOARD_MESSAGE_REJECTED", {
           board: board.name,
           tool: data.tool,
@@ -537,6 +674,12 @@ async function unloadBoard(boardName) {
   }
 }
 
+/**
+ * @param {BoardData} board
+ * @param {MessageData} message
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @returns {{ok: true} | {ok: false, reason: string}}
+ */
 function handleMessage(board, message, socket) {
   if (message.tool === "Cursor") {
     message.socket = socket.id;
@@ -545,13 +688,23 @@ function handleMessage(board, message, socket) {
   return saveHistory(board, message);
 }
 
+/**
+ * @param {BoardData} board
+ * @param {MessageData} message
+ * @returns {{ok: true} | {ok: false, reason: string}}
+ */
 function saveHistory(board, message) {
   if (!(message.tool || message.type === "child") && !message._children) {
     console.error("Received a badly formatted message (no tool). ", message);
   }
-  return board.processMessage(message);
+  return board.processMessage(/** @type {any} */ (message));
 }
 
+/**
+ * @param {string | undefined} prefix
+ * @param {string | undefined} suffix
+ * @returns {string}
+ */
 function generateUID(prefix, suffix) {
   var uid = Date.now().toString(36); //Create the uids in chronological order
   uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
