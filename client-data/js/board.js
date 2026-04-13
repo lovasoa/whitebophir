@@ -28,6 +28,7 @@ var Tools = {};
 var MessageCommon = window.WBOMessageCommon;
 var BoardConnection = window.WBOBoardConnection;
 var BoardMessages = window.WBOBoardMessages;
+var BoardState = window.WBOBoardState;
 
 Tools.i18n = (function i18n() {
   var translations = JSON.parse(document.getElementById("translations").text);
@@ -298,11 +299,7 @@ Tools.showTurnstileWidget = function showTurnstileWidget() {
 };
 
 Tools.setBoardState = function setBoardState(state) {
-  state = state || {};
-  Tools.boardState = {
-    readonly: state.readonly === true,
-    canWrite: state.canWrite === true,
-  };
+  Tools.boardState = BoardState.normalizeBoardState(state);
   Tools.readOnly = Tools.boardState.readonly;
   Tools.canWrite = Tools.boardState.canWrite;
 
@@ -335,15 +332,14 @@ Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
 };
 
 Tools.setBoardState(
-  JSON.parse(
-    document.getElementById("board-state").text ||
-      '{"readonly":false,"canWrite":true}',
+  BoardState.parseBoardStateText(
+    document.getElementById("board-state") &&
+      document.getElementById("board-state").text,
   ),
 );
 
 Tools.resolveBoardName = function resolveBoardName() {
-  var path = window.location.pathname.split("/");
-  return decodeURIComponent(path[path.length - 1]);
+  return BoardState.resolveBoardName(window.location.pathname);
 };
 
 Tools.board = document.getElementById("board");
@@ -445,22 +441,16 @@ Tools.connect();
 
 function saveBoardNametoLocalStorage() {
   var boardName = Tools.boardName;
-  if (boardName.toLowerCase() === "anonymous") return;
   var recentBoards,
     key = "recent-boards";
   try {
     recentBoards = JSON.parse(localStorage.getItem(key));
-    if (!Array.isArray(recentBoards)) throw new Error("Invalid type");
   } catch (e) {
     // On localstorage or json error, reset board list
     recentBoards = [];
     console.log("Board history loading error", e);
   }
-  recentBoards = recentBoards.filter(function (name) {
-    return name !== boardName;
-  });
-  recentBoards.unshift(boardName);
-  recentBoards = recentBoards.slice(0, 20);
+  recentBoards = BoardState.updateRecentBoards(recentBoards, boardName);
   localStorage.setItem(key, JSON.stringify(recentBoards));
 }
 // Refresh recent boards list on each page show

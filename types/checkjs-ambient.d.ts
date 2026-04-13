@@ -14,6 +14,9 @@ declare global {
 
   interface Window {
     WBOMessageCommon: any;
+    WBOBoardState: any;
+    WBOBoardMessages: any;
+    WBOBoardConnection: any;
     socketio_extra_headers?: Record<string, string>;
     __downloadCapture?: any;
     __downloadAnchorClicks?: any;
