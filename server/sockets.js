@@ -306,6 +306,88 @@ function cleanupBoardUserMap(boardName) {
 }
 
 /**
+ * @param {BoardUser} user
+ * @returns {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string}}
+ */
+function serializeBoardUser(user) {
+  return {
+    socketId: user.socketId,
+    userId: user.userId,
+    name: user.name,
+    color: user.color,
+    size: user.size,
+    lastTool: user.lastTool,
+  };
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @returns {boolean}
+ */
+function hasBoardUser(socket, boardName) {
+  return getBoardUserMap(boardName).has(socket.id);
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @returns {BoardUser}
+ */
+function ensureBoardUser(socket, boardName) {
+  var users = getBoardUserMap(boardName);
+  var existing = users.get(socket.id);
+  if (existing) return existing;
+
+  var user = buildBoardUserRecord(socket, boardName);
+  users.set(socket.id, user);
+  return user;
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @returns {void}
+ */
+function emitBoardUsersToSocket(socket, boardName) {
+  var users = getBoardUserMap(boardName);
+  users.forEach(function emitUserJoined(user) {
+    socket.emit(
+      "user_joined",
+      Object.assign({ board: boardName }, serializeBoardUser(user)),
+    );
+  });
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {BoardUser} user
+ * @returns {void}
+ */
+function emitUserJoinedToBoard(socket, boardName, user) {
+  socket.broadcast
+    .to(boardName)
+    .emit("user_joined", Object.assign({ board: boardName }, serializeBoardUser(user)));
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @returns {void}
+ */
+function removeBoardUser(socket, boardName) {
+  var users = getBoardUserMap(boardName);
+  if (!users.delete(socket.id)) return;
+
+  socket.broadcast.to(boardName).emit("user_left", {
+    board: boardName,
+    socketId: socket.id,
+  });
+  cleanupBoardUserMap(boardName);
+}
+
+/**
  * @param {AppSocket} socket
  * @param {string} eventName
  * @param {{[key: string]: any}} infos
@@ -695,7 +777,13 @@ function handleSocketConnection(socket) {
     socket.join(name);
 
     var board = await getBoard(name);
+    var wasJoined = board.users.has(socket.id);
     board.users.add(socket.id);
+    if (!wasJoined || !hasBoardUser(socket, name)) {
+      var user = ensureBoardUser(socket, name);
+      emitBoardUsersToSocket(socket, name);
+      emitUserJoinedToBoard(socket, name, user);
+    }
     log("board joined", { board: board.name, users: board.users.size });
     gauge("connected." + name, board.users.size);
     return board;
@@ -854,6 +942,7 @@ function handleSocketConnection(socket) {
       if (boards.hasOwnProperty(room)) {
         var board = await /** @type {Promise<BoardData>} */ (boards[room]);
         board.users.delete(socket.id);
+        removeBoardUser(socket, room);
         var userCount = board.users.size;
         log("disconnection", {
           board: board.name,
