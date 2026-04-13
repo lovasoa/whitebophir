@@ -378,7 +378,7 @@ class BoardData {
       case "copy":
         return id ? this.canCopy(id, message) : false;
       case "child":
-        return this.canAddChild(message.parent, message);
+        return message.parent ? this.canAddChild(message.parent, message) : false;
       default:
         return id ? this.canStore(id, message) : false;
     }
@@ -553,7 +553,7 @@ class BoardData {
           break;
         }
         case "copy": {
-          if (!id) return { ok: false, reason: "missing id" };
+          if (!id || !message.newid) return { ok: false, reason: "missing id" };
           const current = readShadowItem(id);
           if (!current)
             return { ok: false, reason: "copied object does not exist" };
@@ -566,6 +566,8 @@ class BoardData {
           break;
         }
         case "child": {
+          if (!message.parent)
+            return { ok: false, reason: "invalid parent for child" };
           const current = readShadowItem(message.parent);
           if (!current || current.tool !== "Pencil")
             return { ok: false, reason: "invalid parent for child" };
@@ -630,7 +632,9 @@ class BoardData {
       case "child":
         // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
         const { parent, type, tool, ...childData } = message;
-        return this.addChild(parent, childData);
+        return parent
+          ? this.addChild(parent, childData)
+          : { ok: false, reason: "invalid parent for child" };
       case "clear":
         return this.clear();
       default:
@@ -719,10 +723,13 @@ class BoardData {
     if (ids.length > config.MAX_ITEM_COUNT) {
       var toDestroy = ids
         .sort(function (x, y) {
-          return (board[x].time | 0) - (board[y].time | 0);
+          return ((board[x] && board[x].time) | 0) - ((board[y] && board[y].time) | 0);
         })
         .slice(0, -config.MAX_ITEM_COUNT);
-      for (var i = 0; i < toDestroy.length; i++) delete board[toDestroy[i]];
+      for (var i = 0; i < toDestroy.length; i++) {
+        const id = toDestroy[i];
+        if (id !== undefined) delete board[id];
+      }
       log("cleaned board", { removed: toDestroy.length, board: this.name });
     }
   }
@@ -731,12 +738,13 @@ class BoardData {
    * @param {string} id
    * @returns {boolean}
    */
-  /**
-   * @param {string} id
-   * @returns {boolean}
-   */
   normalizeStoredElement(id) {
-    const validated = this.validateStoredCandidate(id, this.board[id]);
+    const existing = this.board[id];
+    if (existing === undefined) {
+      this.localBoundsCache.delete(id);
+      return false;
+    }
+    const validated = this.validateStoredCandidate(id, existing);
     if (!validated.ok) {
       delete this.board[id];
       this.localBoundsCache.delete(id);

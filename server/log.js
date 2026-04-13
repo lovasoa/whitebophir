@@ -43,7 +43,7 @@ if (statsd) {
 /**
  * Add a message to the logs
  * @param {string} type
- * @param {any} infos
+ * @param {any} [infos]
  */
 function log(type, infos) {
   if (process.env["WBO_SILENT"] === "true") return;
