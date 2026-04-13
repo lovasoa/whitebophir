@@ -208,7 +208,7 @@ function buildPronounceableName(seed, minParts, maxParts) {
   var digest = crypto.createHash("sha256").update(seed).digest();
   var partCount = minParts;
   if (maxParts > minParts) {
-    partCount += digest[0] % (maxParts - minParts + 1);
+    partCount += (digest[0] || 0) % (maxParts - minParts + 1);
   }
   var word = "";
   for (var index = 0; index < partCount; index++) {
@@ -722,7 +722,10 @@ function startIO(app) {
   io = new Server(app);
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
-    io.use(function (socket, next) {
+    io.use(function (
+      /** @type {AppSocket} */ socket,
+      /** @type {(error?: Error) => void} */ next,
+    ) {
       if (socket.handshake.query && socket.handshake.query.token) {
         jsonwebtoken.verify(
           socket.handshake.query.token,
@@ -937,8 +940,8 @@ function handleSocketConnection(socket) {
     }),
   );
 
-  socket.on("disconnecting", function onDisconnecting(reason) {
-    socket.rooms.forEach(async function disconnectFrom(room) {
+  socket.on("disconnecting", function onDisconnecting(/** @type {string} */ reason) {
+    socket.rooms.forEach(async function disconnectFrom(/** @type {string} */ room) {
       if (boards.hasOwnProperty(room)) {
         var board = await /** @type {Promise<BoardData>} */ (boards[room]);
         board.users.delete(socket.id);
