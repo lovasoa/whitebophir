@@ -11,8 +11,13 @@ const {
   writeBoard,
 } = require("./test_helpers.js");
 
+/**
+ * @template T
+ * @param {T} board
+ * @returns {T}
+ */
 function disableSaves(board) {
-  board.delaySave = function () {};
+  /** @type {{delaySave: () => void}} */ (board).delaySave = function () {};
   return board;
 }
 

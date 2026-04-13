@@ -42,6 +42,10 @@ function checkBoardnameInToken(url, boardNameIn) {
   }
 }
 
+/**
+ * @param {string} role
+ * @returns {{roleName: "moderator" | "editor" | "forbidden" | string, boardName: string}}
+ */
 function parseRole(role) {
   const [, roleName, boardName] = role.match(/^([^:]*):?(.*)$/);
   return { roleName, boardName };
@@ -82,7 +86,9 @@ function roleInBoard(token, board = null) {
       oneHasModerator = true;
     }
     if (role.boardName === board) {
-      return role.roleName;
+      return role.roleName === "moderator" || role.roleName === "editor"
+        ? role.roleName
+        : "forbidden";
     }
   }
 

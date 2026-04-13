@@ -3,6 +3,11 @@ const assert = require("node:assert/strict");
 const { withEnv, createSocket, SOCKETS_PATH } = require("./test_helpers.js");
 const WBOMessageCommon = require("../client-data/js/message_common.js");
 
+/**
+ * @param {number} value
+ * @param {() => any | Promise<any>} fn
+ * @returns {Promise<any>}
+ */
 function withMockedNow(value, fn) {
   const originalNow = Date.now;
   Date.now = () => value;
@@ -141,23 +146,28 @@ test("server-side Turnstile token validation binds Siteverify to request context
       // Mock global fetch
       const originalFetch = globalThis.fetch;
       let fetchCalled = false;
-      globalThis.fetch = /** @type {any} */ (async (url, options) => {
-        fetchCalled = true;
-        assert.strictEqual(
-          url,
-          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-        );
-        const body = new URLSearchParams(options.body);
-        assert.strictEqual(body.get("secret"), "test-secret");
-        assert.strictEqual(body.get("response"), "valid-token");
-        assert.strictEqual(body.get("remoteip"), "203.0.113.10");
-        return {
-          json: async () => ({
-            success: true,
-            hostname: "board.example",
-          }),
-        };
-      });
+      globalThis.fetch = /** @type {any} */ (
+        async function mockFetch(
+          /** @type {string} */ url,
+          /** @type {{body: URLSearchParams}} */ options,
+        ) {
+          fetchCalled = true;
+          assert.strictEqual(
+            url,
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          );
+          const body = new URLSearchParams(options.body);
+          assert.strictEqual(body.get("secret"), "test-secret");
+          assert.strictEqual(body.get("response"), "valid-token");
+          assert.strictEqual(body.get("remoteip"), "203.0.113.10");
+          return {
+            json: async () => ({
+              success: true,
+              hostname: "board.example",
+            }),
+          };
+        }
+      );
 
       try {
         sockets.__test.handleSocketConnection(socket);
@@ -165,7 +175,7 @@ test("server-side Turnstile token validation binds Siteverify to request context
         assert.ok(tokenHandler, "turnstile_token handler should be registered");
 
         let ackCalledWith = null;
-        await tokenHandler("valid-token", (result) => {
+        await tokenHandler("valid-token", (/** @type {any} */ result) => {
           ackCalledWith = result;
         });
         assert.strictEqual(fetchCalled, true, "fetch should have been called");
@@ -181,16 +191,21 @@ test("server-side Turnstile token validation binds Siteverify to request context
         });
 
         // Test failed validation
-        globalThis.fetch = /** @type {any} */ (async (url, options) => {
-          return {
-            json: async () => ({
-              success: false,
-              "error-codes": ["invalid-input-response"],
-            }),
-          };
-        });
+        globalThis.fetch = /** @type {any} */ (
+          async function failedFetch(
+            /** @type {string} */ url,
+            /** @type {{body: URLSearchParams}} */ options,
+          ) {
+            return {
+              json: async () => ({
+                success: false,
+                "error-codes": ["invalid-input-response"],
+              }),
+            };
+          }
+        );
         let failedAck = null;
-        await tokenHandler("invalid-token", (result) => {
+        await tokenHandler("invalid-token", (/** @type {any} */ result) => {
           failedAck = result;
         });
         assert.deepEqual(
@@ -223,16 +238,18 @@ test("server-side Turnstile token validation rejects hostname mismatches", async
         sockets.__test.handleSocketConnection(socket);
         const tokenHandler = handlers["turnstile_token"];
 
-        globalThis.fetch = /** @type {any} */ (async function hostnameMismatch() {
-          return {
-            json: async () => ({
-              success: true,
-              hostname: "other.example",
-            }),
-          };
-        });
+        globalThis.fetch = /** @type {any} */ (
+          async function hostnameMismatch() {
+            return {
+              json: async () => ({
+                success: true,
+                hostname: "other.example",
+              }),
+            };
+          }
+        );
         let hostnameMismatchAck = null;
-        await tokenHandler("valid-token", (result) => {
+        await tokenHandler("valid-token", (/** @type {any} */ result) => {
           hostnameMismatchAck = result;
         });
         assert.deepEqual(hostnameMismatchAck, { success: false });

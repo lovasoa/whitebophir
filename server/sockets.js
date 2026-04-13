@@ -41,19 +41,21 @@ var io;
  */
 function noFail(fn) {
   const monitored = monitorFunction(fn);
-  return /** @type {A} */ (function noFailWrapped() {
-    try {
-      const result = monitored.apply(this, arguments);
-      if (result && typeof result.catch === "function") {
-        return result.catch(function logError(/** @type {unknown} */ err) {
-          console.trace(err);
-        });
+  return /** @type {A} */ (
+    function noFailWrapped() {
+      try {
+        const result = monitored.apply(this, arguments);
+        if (result && typeof result.catch === "function") {
+          return result.catch(function logError(/** @type {unknown} */ err) {
+            console.trace(err);
+          });
+        }
+        return result;
+      } catch (e) {
+        console.trace(e);
       }
-      return result;
-    } catch (e) {
-      console.trace(e);
     }
-  });
+  );
 }
 
 /**
@@ -88,14 +90,16 @@ function consumeFixedWindowRateLimit(state, cost, periodMs, now) {
  * @returns {void}
  */
 function pruneRateLimitMap(map, periodMs, now) {
-  map.forEach(function pruneEntry(
-    /** @type {RateLimitState} */ state,
-    /** @type {string} */ key,
-  ) {
-    if (now - state.lastSeen >= 2 * periodMs) {
-      map.delete(key);
-    }
-  });
+  map.forEach(
+    function pruneEntry(
+      /** @type {RateLimitState} */ state,
+      /** @type {string} */ key,
+    ) {
+      if (now - state.lastSeen >= 2 * periodMs) {
+        map.delete(key);
+      }
+    },
+  );
 }
 
 /**
@@ -454,10 +458,7 @@ function startIO(app) {
         jsonwebtoken.verify(
           socket.handshake.query.token,
           config.AUTH_SECRET_KEY,
-          function (
-            /** @type {unknown} */ err,
-            /** @type {any} */ decoded,
-          ) {
+          function (/** @type {unknown} */ err, /** @type {any} */ decoded) {
             if (err)
               return next(new Error("Authentication error: Invalid JWT"));
             next();
@@ -473,6 +474,7 @@ function startIO(app) {
 }
 
 /** Returns a promise to a BoardData with the given name
+ * @param {string} name
  * @returns {Promise<BoardData>}
  */
 function getBoard(name) {
@@ -521,7 +523,7 @@ function handleSocketConnection(socket) {
 
   socket.on(
     "getboard",
-    noFail(async function onGetBoard(name) {
+    noFail(async function onGetBoard(/** @type {string} */ name) {
       var board = await joinBoard(name);
       socket.emit("boardstate", {
         readonly: board.isReadOnly(),
@@ -547,7 +549,7 @@ function handleSocketConnection(socket) {
           secret: config.TURNSTILE_SECRET_KEY,
           response: token,
         });
-        if (clientIp !== null) requestBody.set("remoteip", clientIp);
+        requestBody.set("remoteip", clientIp);
         var response = await fetch(config.TURNSTILE_VERIFY_URL, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },

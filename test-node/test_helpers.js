@@ -24,6 +24,13 @@ const JWT_BOARDNAME_AUTH_PATH = path.join(
   "jwtBoardnameAuth.js",
 );
 
+/** @typedef {{[key: string]: any}} Dict */
+/** @typedef {{headers?: {[key: string]: string | string[] | undefined}, remoteAddress?: string, token?: string}} SocketOptions */
+/** @typedef {{event: string, payload: any}} EmittedEvent */
+/** @typedef {{[event: string]: (...args: any[]) => any}} HandlerMap */
+/** @typedef {{id: string, turnstileValidatedUntil?: number, disconnected?: boolean, handshake: {query: {token?: string}}, rooms: Set<string>, client: {request: {headers: {[key: string]: string | string[] | undefined}, socket: {remoteAddress: string}}}, broadcast: {to: (room: string) => {emit: (event: string, payload: any) => void}}, disconnectCalls: boolean[], on: (event: string, handler: (...args: any[]) => any) => void, join: (room: string) => void, emit: (event: string, payload: any) => void, disconnect: (close: boolean) => void}} TestSocket */
+/** @typedef {{socket: TestSocket, handlers: HandlerMap, emitted: EmittedEvent[]}} CreatedSocket */
+
 const DEFAULT_CLEARED_MODULES = [
   CONFIG_PATH,
   LOG_PATH,
@@ -35,12 +42,23 @@ const DEFAULT_CLEARED_MODULES = [
   JWT_BOARDNAME_AUTH_PATH,
 ];
 
+/**
+ * @param {string} modulePath
+ * @returns {void}
+ */
 function clearModuleCache(modulePath) {
   const resolved = require.resolve(modulePath);
   delete require.cache[resolved];
 }
 
+/**
+ * @param {Dict} overrides
+ * @param {() => any | Promise<any>} fn
+ * @param {string[]} [extraModules]
+ * @returns {Promise<any>}
+ */
 async function withEnv(overrides, fn, extraModules) {
+  /** @type {Dict} */
   const previous = {};
   const modulesToClear = DEFAULT_CLEARED_MODULES.concat(extraModules || []);
 
@@ -74,10 +92,18 @@ async function withEnv(overrides, fn, extraModules) {
   }
 }
 
+/**
+ * @param {SocketOptions} [options]
+ * @returns {CreatedSocket}
+ */
 function createSocket(options) {
+  /** @type {SocketOptions} */
   const settings = options || {};
+  /** @type {HandlerMap} */
   const handlers = {};
+  /** @type {EmittedEvent[]} */
   const emitted = [];
+  /** @type {TestSocket} */
   const socket = {
     id: "socket-1",
     turnstileValidatedUntil: undefined,
@@ -113,13 +139,25 @@ function createSocket(options) {
       this.disconnected = true;
     },
   };
+  /** @type {CreatedSocket} */
   return { socket, handlers, emitted };
 }
 
+/**
+ * @param {string} historyDir
+ * @param {string} name
+ * @returns {string}
+ */
 function boardFile(historyDir, name) {
   return path.join(historyDir, "board-" + encodeURIComponent(name) + ".json");
 }
 
+/**
+ * @param {string} historyDir
+ * @param {string} name
+ * @param {any} storedBoard
+ * @returns {Promise<void>}
+ */
 async function writeBoard(historyDir, name, storedBoard) {
   await fs.writeFile(boardFile(historyDir, name), JSON.stringify(storedBoard));
 }

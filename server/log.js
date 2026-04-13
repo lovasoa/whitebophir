@@ -1,10 +1,12 @@
 const config = require("./configuration.js"),
   SDC = require("statsd-client");
 
+/** @typedef {{tcp: boolean, host: string, port: number, prefix: string}} StatsdOptions */
+
 /**
  * Parse a statsd connection string
  * @param {string} url
- * @returns {SDC.TcpOptions|SDC.UdpOptions}
+ * @returns {StatsdOptions}
  */
 function parse_statsd_url(url) {
   const regex = /^(tcp|udp|statsd):\/\/(.*):(\d+)$/;
@@ -53,7 +55,7 @@ function log(type, infos) {
 }
 
 /**
- * @template {(...args) => any} F
+ * @template {(...args: any[]) => any} F
  * @param {F} f
  * @returns {F}
  */
@@ -63,21 +65,21 @@ function monitorFunction(f) {
   }
   let client = statsd.getChildClient(f.name);
   /** @param {...any} args */
-  return /** @type {F} */ (function monitoredFunction(
-    ...args
-  ) {
-    let startTime = new Date();
-    try {
-      const result = f.apply(null, args);
-      client.increment("ok", 1);
-      return result;
-    } catch (e) {
-      client.increment("err", 1);
-      throw e;
-    } finally {
-      client.timing("time", startTime);
+  return /** @type {F} */ (
+    function monitoredFunction(...args) {
+      let startTime = new Date();
+      try {
+        const result = f.apply(null, args);
+        client.increment("ok", 1);
+        return result;
+      } catch (e) {
+        client.increment("err", 1);
+        throw e;
+      } finally {
+        client.timing("time", startTime);
+      }
     }
-  });
+  );
 }
 
 /**
