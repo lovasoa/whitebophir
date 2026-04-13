@@ -58,6 +58,105 @@ svg {
   content: "...";
 }
 
+.connected-users-panel {
+  position: fixed;
+  top: 18px;
+  left: 68px;
+  width: min(320px, calc(100vw - 88px));
+  max-height: min(420px, calc(100vh - 36px));
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(67, 94, 120, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(27, 43, 58, 0.2);
+  backdrop-filter: blur(10px);
+  z-index: 20;
+  overflow: hidden;
+}
+
+.connected-users-panel-hidden {
+  display: none;
+}
+
+.connected-users-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #173042;
+}
+
+.connected-users-close {
+  border: 0;
+  background: transparent;
+  color: #4f6577;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.connected-users-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 10px 10px;
+  overflow-y: auto;
+  max-height: calc(min(420px, calc(100vh - 36px)) - 48px);
+}
+
+.connected-users-empty {
+  padding: 0 16px 16px;
+  color: #5f7687;
+  font-size: 14px;
+}
+
+.connected-user-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  border-top: 1px solid rgba(95, 118, 135, 0.14);
+}
+
+.connected-user-name {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #173042;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connected-user-meta {
+  font-size: 12px;
+  color: #5f7687;
+}
+
+.connected-user-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(23, 48, 66, 0.18);
+}
+
+.connected-user-report {
+  border: 1px solid rgba(57, 85, 109, 0.16);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #f5f8fb;
+  color: #2d5068;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.connected-user-report[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 #menu::-webkit-scrollbar {
   display: none;

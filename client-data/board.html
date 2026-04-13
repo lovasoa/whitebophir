@@ -78,8 +78,21 @@
 							class="rangeChooser" />
 					</label>
 				</li>
+				<li class="tool" tabindex="-1" id="connectedUsersToggle" title="Users">
+					<img class="tool-icon" width="35" height="35" src="users.svg" alt="users" />
+					<span class="tool-name">Users</span>
+				</li>
 			</ul>
 		</div>
+	</div>
+
+	<div id="connectedUsersPanel" class="connected-users-panel connected-users-panel-hidden">
+		<div class="connected-users-header">
+			<span id="connectedUsersTitle">Users</span>
+			<button type="button" id="connectedUsersClose" class="connected-users-close" aria-label="Close">×</button>
+		</div>
+		<div id="connectedUsersEmpty" class="connected-users-empty">No connected users yet.</div>
+		<ul id="connectedUsersList" class="connected-users-list"></ul>
 	</div>
 
 

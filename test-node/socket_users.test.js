@@ -7,6 +7,27 @@ const path = require("node:path");
 const { SOCKETS_PATH, createSocket, withEnv } = require("./test_helpers.js");
 const { withConsole } = require("./test_console.js");
 
+/**
+ * @param {{[event: string]: ((...args: any[]) => any) | undefined}} handlers
+ * @param {string} eventName
+ * @returns {(...args: any[]) => any}
+ */
+function getRequiredHandler(handlers, eventName) {
+  var handler = handlers[eventName];
+  assert.equal(typeof handler, "function");
+  return /** @type {(...args: any[]) => any} */ (handler);
+}
+
+/**
+ * @template T
+ * @param {T | undefined} value
+ * @returns {T}
+ */
+function getRequiredValue(value) {
+  assert.notEqual(value, undefined);
+  return /** @type {T} */ (value);
+}
+
 test("user id and visible name are deterministic from userSecret and ip", async function () {
   await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async function () {
     const sockets = require(SOCKETS_PATH);
@@ -103,13 +124,13 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
         },
       });
       sockets.__test.handleSocketConnection(first.socket);
-      await first.handlers.getboard("board-a");
+      await getRequiredHandler(first.handlers, "getboard")("board-a");
 
       const firstJoined = first.emitted.filter(function (event) {
         return event.event === "user_joined";
       });
       assert.equal(firstJoined.length, 1);
-      assert.equal(firstJoined[0].payload.socketId, "socket-1");
+      assert.equal(getRequiredValue(firstJoined[0]).payload.socketId, "socket-1");
 
       const second = createSocket({
         id: "socket-2",
@@ -122,7 +143,7 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
         },
       });
       sockets.__test.handleSocketConnection(second.socket);
-      await second.handlers.getboard("board-a");
+      await getRequiredHandler(second.handlers, "getboard")("board-a");
 
       const secondJoined = second.emitted.filter(function (event) {
         return event.event === "user_joined";
@@ -136,7 +157,7 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
       );
       assert.deepEqual(second.broadcasted[0], {
         event: "user_joined",
-        payload: secondJoined[1].payload,
+        payload: getRequiredValue(secondJoined[1]).payload,
         room: "board-a",
       });
     },
@@ -162,15 +183,19 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
         },
       });
       sockets.__test.handleSocketConnection(created.socket);
-      await created.handlers.getboard("board-left");
+      await getRequiredHandler(created.handlers, "getboard")("board-left");
 
-      await created.handlers.disconnecting("transport close");
+      await getRequiredHandler(created.handlers, "disconnecting")(
+        "transport close",
+      );
 
       assert.deepEqual(created.broadcasted[0], {
         event: "user_joined",
-        payload: created.emitted.find(function (event) {
-          return event.event === "user_joined";
-        }).payload,
+        payload: getRequiredValue(
+          created.emitted.find(function (event) {
+            return event.event === "user_joined";
+          }),
+        ).payload,
         room: "board-left",
       });
       assert.deepEqual(created.broadcasted[1], {
@@ -205,9 +230,9 @@ test("live broadcasts attach userId and keep the user's latest non-cursor state"
         },
       });
       sockets.__test.handleSocketConnection(created.socket);
-      await created.handlers.getboard("board-live");
+      await getRequiredHandler(created.handlers, "getboard")("board-live");
 
-      await created.handlers.broadcast({
+      await getRequiredHandler(created.handlers, "broadcast")({
         board: "board-live",
         data: {
           tool: "Rectangle",
@@ -222,14 +247,18 @@ test("live broadcasts attach userId and keep the user's latest non-cursor state"
         },
       });
 
-      const user = sockets.__test.getBoardUserMap("board-live").get("socket-live");
-      assert.ok(user);
-      assert.equal(user.userId, created.broadcasted[1].payload.userId);
+      const user = getRequiredValue(
+        sockets.__test.getBoardUserMap("board-live").get("socket-live"),
+      );
+      assert.equal(
+        user.userId,
+        getRequiredValue(created.broadcasted[1]).payload.userId,
+      );
       assert.equal(user.lastTool, "Rectangle");
       assert.equal(user.color, "#123456");
       assert.equal(user.size, 9);
 
-      await created.handlers.broadcast({
+      await getRequiredHandler(created.handlers, "broadcast")({
         board: "board-live",
         data: {
           tool: "Cursor",
@@ -244,7 +273,10 @@ test("live broadcasts attach userId and keep the user's latest non-cursor state"
       assert.equal(user.lastTool, "Rectangle");
       assert.equal(user.color, "#abcdef");
       assert.equal(user.size, 12);
-      assert.equal(created.broadcasted[2].payload.userId, user.userId);
+      assert.equal(
+        getRequiredValue(created.broadcasted[2]).payload.userId,
+        user.userId,
+      );
     },
   );
 });
@@ -268,7 +300,7 @@ test("report_user logs reporter and reported user details for active board membe
         },
       });
       sockets.__test.handleSocketConnection(reporter.socket);
-      await reporter.handlers.getboard("board-report");
+      await getRequiredHandler(reporter.handlers, "getboard")("board-report");
 
       const reported = createSocket({
         id: "socket-reported",
@@ -281,7 +313,7 @@ test("report_user logs reporter and reported user details for active board membe
         },
       });
       sockets.__test.handleSocketConnection(reported.socket);
-      await reported.handlers.getboard("board-report");
+      await getRequiredHandler(reported.handlers, "getboard")("board-report");
 
       /** @type {string[]} */
       const logged = [];
@@ -292,7 +324,7 @@ test("report_user logs reporter and reported user details for active board membe
           },
         },
         function () {
-          reporter.handlers.report_user({
+          getRequiredHandler(reporter.handlers, "report_user")({
             board: "board-report",
             socketId: "socket-reported",
           });
@@ -300,11 +332,11 @@ test("report_user logs reporter and reported user details for active board membe
       );
 
       assert.equal(logged.length, 1);
-      assert.match(logged[0], /USER_REPORTED/);
-      assert.match(logged[0], /203\.0\.113\.90/);
-      assert.match(logged[0], /203\.0\.113\.91/);
-      assert.match(logged[0], /socket-reporter/);
-      assert.match(logged[0], /socket-reported/);
+      assert.match(getRequiredValue(logged[0]), /USER_REPORTED/);
+      assert.match(getRequiredValue(logged[0]), /203\.0\.113\.90/);
+      assert.match(getRequiredValue(logged[0]), /203\.0\.113\.91/);
+      assert.match(getRequiredValue(logged[0]), /socket-reporter/);
+      assert.match(getRequiredValue(logged[0]), /socket-reported/);
     },
   );
 });

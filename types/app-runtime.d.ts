@@ -81,6 +81,7 @@ export type ToolRegistry = {
 };
 
 export type AppSocket = {
+  id?: string;
   on: (eventName: string, handler: (...args: any[]) => void) => void;
   emit: (eventName: string, ...args: any[]) => void;
   disconnect?: () => void;

@@ -514,12 +514,123 @@ Tools.getInitialSocketQuery = function getInitialSocketQuery() {
   };
 };
 
+Tools.connectedUsers = {};
+Tools.connectedUsersPanelOpen = false;
+
+function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
+  return !!(Tools.socket && typeof Tools.socket.id === "string" && user.socketId === Tools.socket.id);
+}
+
+function getConnectedUsersPanel() {
+  return BoardBootstrap.getRequiredElement("connectedUsersPanel");
+}
+
+function getConnectedUsersList() {
+  return BoardBootstrap.getRequiredElement("connectedUsersList");
+}
+
+function getConnectedUsersEmpty() {
+  return BoardBootstrap.getRequiredElement("connectedUsersEmpty");
+}
+
+Tools.renderConnectedUsers = function renderConnectedUsers() {
+  var list = getConnectedUsersList();
+  list.textContent = "";
+
+  var users = Object.values(Tools.connectedUsers).sort(function (left, right) {
+    return left.name.localeCompare(right.name);
+  });
+  var empty = getConnectedUsersEmpty();
+  empty.style.display = users.length > 0 ? "none" : "";
+
+  users.forEach(function (user) {
+    var row = document.createElement("li");
+    row.className = "connected-user-row";
+    row.dataset.socketId = user.socketId;
+
+    var name = document.createElement("div");
+    name.className = "connected-user-name";
+    name.textContent = user.name + (isCurrentSocketUser(user) ? " (You)" : "");
+    row.appendChild(name);
+
+    var color = document.createElement("span");
+    color.className = "connected-user-color";
+    color.style.backgroundColor = user.color || "#001f3f";
+    row.appendChild(color);
+
+    var meta = document.createElement("span");
+    meta.className = "connected-user-meta";
+    meta.textContent = user.lastTool + " • " + user.size;
+    row.appendChild(meta);
+
+    var report = document.createElement("button");
+    report.type = "button";
+    report.className = "connected-user-report";
+    report.textContent = "Report";
+    if (isCurrentSocketUser(user)) {
+      report.disabled = true;
+    } else {
+      report.addEventListener("click", function () {
+        if (!Tools.socket) return;
+        Tools.socket.emit("report_user", {
+          board: Tools.boardName,
+          socketId: user.socketId,
+        });
+      });
+    }
+    row.appendChild(report);
+
+    list.appendChild(row);
+  });
+};
+
+Tools.setConnectedUsersPanelOpen = function setConnectedUsersPanelOpen(
+  /** @type {boolean} */ open,
+) {
+  Tools.connectedUsersPanelOpen = open;
+  getConnectedUsersPanel().classList.toggle("connected-users-panel-hidden", !open);
+};
+
+Tools.upsertConnectedUser = function upsertConnectedUser(
+  /** @type {ConnectedUser} */ user,
+) {
+  Tools.connectedUsers[user.socketId] = Object.assign(
+    {},
+    Tools.connectedUsers[user.socketId] || {},
+    user,
+  );
+  Tools.renderConnectedUsers();
+};
+
+Tools.removeConnectedUser = function removeConnectedUser(
+  /** @type {string} */ socketId,
+) {
+  delete Tools.connectedUsers[socketId];
+  Tools.renderConnectedUsers();
+};
+
+Tools.initConnectedUsersUI = function initConnectedUsersUI() {
+  var toggle = BoardBootstrap.getRequiredElement("connectedUsersToggle");
+  var close = BoardBootstrap.getRequiredElement("connectedUsersClose");
+  toggle.addEventListener("click", function () {
+    Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
+  });
+  close.addEventListener("click", function () {
+    Tools.setConnectedUsersPanelOpen(false);
+  });
+  Tools.renderConnectedUsers();
+};
+
+Tools.initConnectedUsersUI();
+
 Tools.connect = function () {
   // Destroy socket if one already exists
   if (Tools.socket) {
     BoardConnection.closeSocket(Tools.socket);
     Tools.socket = null;
   }
+  Tools.connectedUsers = {};
+  Tools.renderConnectedUsers();
 
   var url = new URL(window.location.href);
   var params = new URLSearchParams(url.search);
@@ -552,6 +663,13 @@ Tools.connect = function () {
     });
   });
   socket.on("boardstate", Tools.setBoardState);
+  socket.on("user_joined", function onUserJoined(/** @type {ConnectedUser} */ user) {
+    Tools.upsertConnectedUser(user);
+  });
+  socket.on("user_left", function onUserLeft(/** @type {{socketId?: string}} */ user) {
+    if (typeof user.socketId !== "string") return;
+    Tools.removeConnectedUser(user.socketId);
+  });
   socket.on("rate-limited", function onRateLimited() {
     Tools.showRateLimitAlert();
   });
