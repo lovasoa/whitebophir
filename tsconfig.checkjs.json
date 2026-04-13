@@ -25,12 +25,14 @@
     "client-data/tools/pencil/wbo_pencil_point.js",
     "server/configuration.js",
     "server/configuration_helpers.js",
+    "server/client_configuration.js",
     "server/createSVG.js",
     "server/jwtBoardnameAuth.js",
     "server/message_validation.js",
     "server/boardData.js",
     "server/socket_policy.js",
     "server/sockets.js",
+    "server/templating.js",
     "test-node/test_helpers.js",
     "test-node/message_common.test.js",
     "test-node/message_validation.test.js",
@@ -38,6 +40,7 @@
     "test-node/create_svg.test.js",
     "test-node/socket_policy.test.js",
     "test-node/rate_limits.test.js",
+    "test-node/templating.test.js",
     "test-node/turnstile.test.js"
   ],
   "exclude": ["node_modules", "server-data"]

@@ -113,9 +113,3 @@ declare global {
     outerHTML?: string;
   }
 }
-
-declare module "selenium-server";
-declare module "chromedriver";
-declare module "jsonwebtoken";
-declare module "statsd-client";
-declare module "accept-language-parser";
