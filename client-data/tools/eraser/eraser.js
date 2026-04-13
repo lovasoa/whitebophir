@@ -26,9 +26,16 @@
 
 (function eraser() {
   //Code isolation
+  /** @typedef {{type: "delete", id: string}} EraserMessage */
+  /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
 
   var erasing = false;
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {EraserPointerEvent} evt
+   */
   function startErasing(x, y, evt) {
     //Prevent the press from being interpreted by the browser
     evt.preventDefault();
@@ -36,31 +43,69 @@
     erase(x, y, evt);
   }
 
-  var msg = {
-    type: "delete",
-    id: "",
-  };
-
-  function inDrawingArea(elem) {
-    return Tools.drawingArea.contains(elem);
+  /**
+   * @param {EventTarget | null} elem
+   * @returns {elem is Element}
+   */
+  function isElement(elem) {
+    return !!(elem && typeof elem === "object" && "parentNode" in elem);
   }
 
-  function erase(x, y, evt) {
-    // evt.target should be the element over which the mouse is...
+  /**
+   * @param {EventTarget | null} elem
+   * @returns {elem is Element & {id: string}}
+   */
+  function isErasableElement(elem) {
+    return !!(
+      isElement(elem) &&
+      typeof elem.id === "string" &&
+      elem.id !== ""
+    );
+  }
+
+  /**
+   * @param {EventTarget | null} elem
+   * @returns {boolean}
+   */
+  function inDrawingArea(elem) {
+    return !!(Tools.drawingArea && isElement(elem) && Tools.drawingArea.contains(elem));
+  }
+
+  /**
+   * @param {EraserPointerEvent} evt
+   * @returns {EventTarget | null}
+   */
+  function resolveTarget(evt) {
     var target = evt.target;
-    if (evt.type === "touchmove") {
-      // ... the target of touchmove events is the element that was initially touched,
-      // not the one **currently** being touched
-      var touch = evt.touches[0];
-      target = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (evt.type === "touchmove" || evt.type === "touchstart") {
+      // The target of touchmove events is the initially touched element, not the one currently touched.
+      var touch = evt.touches && evt.touches[0];
+      if (touch) {
+        target = document.elementFromPoint(touch.clientX, touch.clientY);
+      }
     }
+    return target;
+  }
+
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {EraserPointerEvent} evt
+   */
+  function erase(x, y, evt) {
+    var target = resolveTarget(evt);
     if (
       erasing &&
       target !== Tools.svg &&
       target !== Tools.drawingArea &&
+      isErasableElement(target) &&
       inDrawingArea(target)
     ) {
-      msg.id = target.id;
+      /** @type {EraserMessage} */
+      var msg = {
+        type: "delete",
+        id: target.id,
+      };
       Tools.drawAndSend(msg);
     }
   }
@@ -69,17 +114,26 @@
     erasing = false;
   }
 
+  /** @param {EraserMessage | {type?: string, id?: string}} data */
   function draw(data) {
     var elem;
     switch (data.type) {
       //TODO: add the ability to erase only some points in a line
       case "delete":
+        if (!data.id) {
+          console.error("Eraser: Missing id for delete message.", data);
+          break;
+        }
         elem = svg.getElementById(data.id);
         if (elem === null)
           console.error(
             "Eraser: Tried to delete an element that does not exist.",
           );
-        else Tools.drawingArea.removeChild(elem);
+        else if (!Tools.drawingArea) {
+          throw new Error("Eraser: Missing drawing area.");
+        } else {
+          Tools.drawingArea.removeChild(elem);
+        }
         break;
       default:
         console.error("Eraser: 'delete' instruction with unknown type. ", data);

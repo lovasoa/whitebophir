@@ -15,7 +15,12 @@ test("queuePendingMessage accumulates messages by tool name", function () {
 
 test("hasChildMessages only accepts array children", function () {
   assert.equal(BoardMessages.hasChildMessages({ _children: [{ tool: "Pencil" }] }), true);
-  assert.equal(BoardMessages.hasChildMessages({ _children: { tool: "Pencil" } }), false);
+  assert.equal(
+    BoardMessages.hasChildMessages(
+      /** @type {any} */ ({ _children: { tool: "Pencil" } }),
+    ),
+    false,
+  );
 });
 
 test("normalizeChildMessage applies parent tool metadata", function () {

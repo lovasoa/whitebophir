@@ -26,13 +26,31 @@
 
 (function grid() {
   //Code isolation
+  /** @typedef {"none" | "url(#grid)" | "url(#dots)"} GridFill */
 
   var index = 0; //grid off by default
+  /** @type {GridFill[]} */
   var states = ["none", "url(#grid)", "url(#dots)"];
 
+  /** @param {Event} evt */
   function toggleGrid(evt) {
     index = (index + 1) % states.length;
     gridContainer.setAttributeNS(null, "fill", states[index]);
+  }
+
+  /** @returns {SVGDefsElement} */
+  function getDefs() {
+    var existingDefs = Tools.svg.getElementById("defs");
+    if (existingDefs instanceof SVGDefsElement) return existingDefs;
+    var defs = /** @type {SVGDefsElement} */ (
+      Tools.createSVGElement("defs", { id: "defs" })
+    );
+    if (Tools.svg.firstChild) {
+      Tools.svg.insertBefore(defs, Tools.svg.firstChild);
+    } else {
+      Tools.svg.appendChild(defs);
+    }
+    return defs;
   }
 
   function createPatterns() {
@@ -92,7 +110,7 @@
       }),
     );
 
-    var defs = Tools.svg.getElementById("defs");
+    var defs = getDefs();
     defs.appendChild(smallGrid);
     defs.appendChild(grid);
     defs.appendChild(dots);

@@ -1,12 +1,12 @@
 (function (global) {
   "use strict";
 
-  /** @typedef {{[name: string]: string}} SocketHeaders */
-  /** @typedef {{path: string, reconnection: boolean, reconnectionDelay: number, timeout: number, extraHeaders?: SocketHeaders, query?: string}} SocketParams */
+  /** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
+  /** @typedef {import("../../types/app-runtime").PendingMessages} PendingMessages */
   /** @typedef {{[name: string]: string}} SocketQueryParams */
-  /** @typedef {{tool?: string, id?: string, type?: string, parent?: string, _children?: unknown}} BoardMessage */
-  /** @typedef {{[toolName: string]: BoardMessage[]}} PendingMessages */
-  /** @typedef {{success: boolean, validationWindowMs?: unknown, validatedUntil?: unknown}} TurnstileAck */
+  /** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
+  /** @typedef {import("../../types/app-runtime").SocketParams} SocketParams */
+  /** @typedef {import("../../types/app-runtime").TurnstileAck} TurnstileAck */
 
   var BATCH_SIZE = 1024;
 

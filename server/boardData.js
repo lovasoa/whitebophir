@@ -44,7 +44,7 @@ const BOARD_METADATA_KEY = "__wbo_meta__";
 /** @typedef {{ok: true}} ValidationSuccess */
 /** @typedef {ValidationSuccess | ValidationFailure} BoardMutationResult */
 /** @typedef {{ok: true, value: BoardElem, localBounds: Bounds | null}} ValidatedStoredCandidate */
-/** @typedef {{[key: string]: any, id?: string, type: string, tool?: string, parent?: string, newid?: string, _children?: BoardMessage[]}} BoardMessage */
+/** @typedef {import("../types/app-runtime").BoardMessage} BoardMessage */
 
 /** @returns {BoardMetadata} */
 function defaultBoardMetadata() {

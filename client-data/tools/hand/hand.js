@@ -204,8 +204,6 @@
       return;
     /** @type {HandCopyMessage[]} */
     var msgs = [];
-    /** @type {string[]} */
-    var newids = [];
     for (var i = 0; i < selected_els.length; i++) {
       var selectedElement = selected_els[i];
       if (!selectedElement) continue;
@@ -216,17 +214,8 @@
         id: id,
         newid: newid,
       };
-      newids[i] = newid;
     }
     Tools.drawAndSend({ _children: msgs });
-    selected_els = newids
-      .map(function (id) {
-        var element = Tools.svg.getElementById(id);
-        return isSelectableElement(element) ? element : null;
-      })
-      .filter(function (element) {
-        return element !== null;
-      });
   }
 
   /** @returns {SVGRectElement} */

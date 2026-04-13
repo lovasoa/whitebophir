@@ -16,14 +16,14 @@ var getClientIp = socketPolicy.getClientIp;
 var normalizeBroadcastData = socketPolicy.normalizeBroadcastData;
 var parseForwardedHeader = socketPolicy.parseForwardedHeader;
 
-/** @typedef {{[key: string]: any}} MessageData */
-/** @typedef {{headers: {[key: string]: string | string[] | undefined}, socket?: {remoteAddress?: string}}} SocketRequest */
 /** @typedef {{token?: string, userSecret?: string, tool?: string, color?: string, size?: string}} SocketQuery */
-/** @typedef {Socket & { turnstileValidatedUntil?: number, handshake: {query?: SocketQuery} }} AppSocket */
-/** @typedef {{windowStart: number, count: number, lastSeen: number}} RateLimitState */
-/** @typedef {{success: true, validationWindowMs: number, validatedUntil: number | undefined}} TurnstileAck */
-/** @typedef {{ok: true} | {ok: false, reason: string}} ValidationStatus */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
+/** @typedef {import("../types/server-runtime").AppSocket} AppSocket */
+/** @typedef {import("../types/server-runtime").MessageData} MessageData */
+/** @typedef {import("../types/server-runtime").RateLimitState} RateLimitState */
+/** @typedef {import("../types/server-runtime").SocketRequest} SocketRequest */
+/** @typedef {import("../types/server-runtime").TurnstileAck} TurnstileAck */
+/** @typedef {import("../types/server-runtime").ValidationStatus} ValidationStatus */
 
 /** Map from name to *promises* of BoardData
   @type {{[boardName: string]: Promise<BoardData>}}
