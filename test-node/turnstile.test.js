@@ -141,7 +141,7 @@ test("server-side Turnstile token validation binds Siteverify to request context
       // Mock global fetch
       const originalFetch = globalThis.fetch;
       let fetchCalled = false;
-      globalThis.fetch = async (url, options) => {
+      globalThis.fetch = /** @type {any} */ (async (url, options) => {
         fetchCalled = true;
         assert.strictEqual(
           url,
@@ -157,7 +157,7 @@ test("server-side Turnstile token validation binds Siteverify to request context
             hostname: "board.example",
           }),
         };
-      };
+      });
 
       try {
         sockets.__test.handleSocketConnection(socket);
@@ -181,14 +181,14 @@ test("server-side Turnstile token validation binds Siteverify to request context
         });
 
         // Test failed validation
-        globalThis.fetch = async (url, options) => {
+        globalThis.fetch = /** @type {any} */ (async (url, options) => {
           return {
             json: async () => ({
               success: false,
               "error-codes": ["invalid-input-response"],
             }),
           };
-        };
+        });
         let failedAck = null;
         await tokenHandler("invalid-token", (result) => {
           failedAck = result;
@@ -223,14 +223,14 @@ test("server-side Turnstile token validation rejects hostname mismatches", async
         sockets.__test.handleSocketConnection(socket);
         const tokenHandler = handlers["turnstile_token"];
 
-        globalThis.fetch = async function hostnameMismatch() {
+        globalThis.fetch = /** @type {any} */ (async function hostnameMismatch() {
           return {
             json: async () => ({
               success: true,
               hostname: "other.example",
             }),
           };
-        };
+        });
         let hostnameMismatchAck = null;
         await tokenHandler("valid-token", (result) => {
           hostnameMismatchAck = result;

@@ -23,11 +23,14 @@
     "server/message_validation.js",
     "server/boardData.js",
     "server/socket_policy.js",
+    "server/sockets.js",
     "test-node/test_helpers.js",
     "test-node/message_common.test.js",
     "test-node/message_validation.test.js",
     "test-node/board_data.test.js",
-    "test-node/socket_policy.test.js"
+    "test-node/socket_policy.test.js",
+    "test-node/rate_limits.test.js",
+    "test-node/turnstile.test.js"
   ],
   "exclude": ["node_modules", "server-data"]
 }

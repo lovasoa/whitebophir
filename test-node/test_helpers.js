@@ -80,6 +80,7 @@ function createSocket(options) {
   const emitted = [];
   const socket = {
     id: "socket-1",
+    turnstileValidatedUntil: undefined,
     handshake: {
       query: settings.token ? { token: settings.token } : {},
     },

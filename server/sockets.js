@@ -1,4 +1,4 @@
-var iolib = require("socket.io"),
+var { Server, Socket } = require("socket.io"),
   { log, gauge, monitorFunction } = require("./log.js"),
   BoardData = require("./boardData.js").BoardData,
   config = require("./configuration"),
@@ -26,13 +26,13 @@ var io;
  * Prevents a function from throwing errors.
  * If the inner function throws, the outer function just returns undefined
  * and logs the error.
- * @template A
+ * @template {(...args: any[]) => any} A
  * @param {A} fn
  * @returns {A}
  */
 function noFail(fn) {
   const monitored = monitorFunction(fn);
-  return function noFailWrapped() {
+  return /** @type {A} */ (function noFailWrapped() {
     try {
       const result = monitored.apply(this, arguments);
       if (result && typeof result.catch === "function") {
@@ -44,7 +44,7 @@ function noFail(fn) {
     } catch (e) {
       console.trace(e);
     }
-  };
+  });
 }
 
 function createRateLimitState(now) {
@@ -300,7 +300,7 @@ function cloneMessageForPersistence(data) {
 }
 
 function startIO(app) {
-  io = iolib(app);
+  io = new Server(app);
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
     io.use(function (socket, next) {
@@ -339,7 +339,7 @@ function getBoard(name) {
 
 /**
  * Executes on every new connection
- * @param {iolib.Socket} socket
+ * @param {Socket & { turnstileValidatedUntil?: number }} socket
  */
 function handleSocketConnection(socket) {
   /**
