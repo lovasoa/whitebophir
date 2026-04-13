@@ -594,9 +594,9 @@ class BoardData {
         await unlink(file);
         log("removed empty board", { board: this.name });
       } catch (err) {
-        if (err.code !== "ENOENT") {
+        if (errorCode(err) !== "ENOENT") {
           // If the file already wasn't saved, this is not an error
-          log("board deletion error", { err: err.toString() });
+          log("board deletion error", { err: errorToString(err) });
         }
       }
     } else {
@@ -611,7 +611,7 @@ class BoardData {
       } catch (err) {
         log("board saving error", {
           board: this.name,
-          err: err.toString(),
+          err: errorToString(err),
           tmp_file: tmp_file,
         });
         return;
@@ -664,13 +664,13 @@ class BoardData {
       log("disk load", { board: boardData.name });
     } catch (e) {
       // If the file doesn't exist, this is not an error
-      if (e.code === "ENOENT") {
+      if (errorCode(e) === "ENOENT") {
         log("empty board creation", { board: boardData.name });
       } else {
         log("board load error", {
           board: name,
-          error: e.toString(),
-          stack: e.stack,
+          error: errorToString(e),
+          stack: errorStack(e),
         });
       }
       boardData.board = {};
@@ -681,7 +681,7 @@ class BoardData {
         try {
           await writeFile(backup, data);
         } catch (err) {
-          log("Error writing " + backup + ": " + err);
+          log("Error writing " + backup + ": " + errorToString(err));
         }
       }
     }
@@ -696,10 +696,10 @@ class BoardData {
       });
       return parseStoredBoard(JSON.parse(data)).metadata;
     } catch (err) {
-      if (err.code !== "ENOENT") {
+      if (errorCode(err) !== "ENOENT") {
         log("board metadata load error", {
           board: name,
-          error: err.toString(),
+          error: errorToString(err),
         });
       }
       return metadata;
@@ -714,6 +714,33 @@ class BoardData {
 function backupFileName(baseName) {
   var date = new Date().toISOString().replace(/:/g, "");
   return baseName + "." + date + ".bak";
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string | undefined}
+ */
+function errorCode(error) {
+  if (!error || typeof error !== "object") return undefined;
+  if (!("code" in error)) return undefined;
+  return typeof error.code === "string" ? error.code : undefined;
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function errorToString(error) {
+  if (error instanceof Error) return error.toString();
+  return String(error);
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string | undefined}
+ */
+function errorStack(error) {
+  return error instanceof Error ? error.stack : undefined;
 }
 
 module.exports = {

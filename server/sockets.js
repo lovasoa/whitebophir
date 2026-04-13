@@ -73,6 +73,14 @@ function getSocketRequest(socket) {
   return socket.client.request;
 }
 
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function closeSocket(socket, eventName, infos) {
   log(eventName, infos);
   socket.disconnect(true);
@@ -113,7 +121,7 @@ function resolveClientIp(socket, boardName) {
       "INVALID_IP_SOURCE",
       buildSocketLogInfo(socket, boardName, {
         ip_source: config.IP_SOURCE,
-        error: err.message,
+        error: errorMessage(err),
       }),
     );
     // Fallback to remoteAddress
@@ -420,7 +428,7 @@ function handleSocketConnection(socket) {
           if (typeof ack === "function") ack({ success: false });
         }
       } catch (err) {
-        log("TURNSTILE ERROR", { error: err.message });
+        log("TURNSTILE ERROR", { error: errorMessage(err) });
         if (typeof ack === "function") ack({ success: false });
       }
     }),
