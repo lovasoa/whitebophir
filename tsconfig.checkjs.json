@@ -25,7 +25,6 @@
     "tests",
     "nightwatch.conf.js",
     "scripts/benchmark-server.js",
-    "test-node/client_tool_replay.test.js",
     "client-data/js/path-data-polyfill.js"
   ]
 }

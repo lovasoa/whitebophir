@@ -5,6 +5,24 @@ const { installTestConsole } = require("./test_console.js");
 
 installTestConsole();
 
+/**
+ * @typedef {{type: string, values: number[]}} PathSegment
+ * @typedef {{a: number, b: number, c: number, d: number, e: number, f: number}} MatrixState
+ * @typedef {{baseVal: {value: number}}} AnimatedLength
+ * @typedef {{type: number, matrix: MatrixState}} TransformEntry
+ * @typedef {{
+ *   items: TransformEntry[],
+ *   numberOfItems: number,
+ *   [index: number]: TransformEntry | undefined,
+ *   createSVGTransformFromMatrix(matrix: MatrixState): TransformEntry,
+ *   appendItem(transform: TransformEntry): TransformEntry,
+ * }} TransformList
+ * @typedef {{set(id: string, element: any): void, get(id: string): any}} ElementStore
+ * @typedef {{elementsById: Map<string, any>, clock: {now: number}, windowListeners: Map<string, Function>, loadTool(toolName: keyof typeof TOOL_PATHS): any}} ReplayHarness
+ */
+
+const globalAny = /** @type {any} */ (global);
+
 const PENCIL_POINT_PATH = path.join(
   __dirname,
   "..",
@@ -64,36 +82,55 @@ const TOOL_PATHS = {
   ),
 };
 
+/**
+ * @param {string} modulePath
+ */
 function clearModule(modulePath) {
   delete require.cache[require.resolve(modulePath)];
 }
 
+/**
+ * @param {PathSegment[]} pathData
+ * @returns {PathSegment[]}
+ */
 function clonePathData(pathData) {
   return pathData.map(function (seg) {
     return { type: seg.type, values: seg.values.slice() };
   });
 }
 
+/** @returns {AnimatedLength} */
 function createAnimatedLength() {
   return { baseVal: { value: 0 } };
 }
 
+/** @returns {MatrixState} */
 function createMatrix() {
   return { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
 }
 
+/** @returns {TransformList} */
 function createTransformList() {
   return {
+    /** @type {TransformEntry[]} */
     items: [],
     get numberOfItems() {
       return this.items.length;
     },
+    /**
+     * @param {MatrixState} matrix
+     * @returns {TransformEntry}
+     */
     createSVGTransformFromMatrix: function (matrix) {
       return {
-        type: global.SVGTransform.SVG_TRANSFORM_MATRIX,
+        type: globalAny.SVGTransform.SVG_TRANSFORM_MATRIX,
         matrix: matrix,
       };
     },
+    /**
+     * @param {TransformEntry} transform
+     * @returns {TransformEntry}
+     */
     appendItem: function (transform) {
       this.items.push(transform);
       this[this.items.length - 1] = transform;
@@ -102,17 +139,33 @@ function createTransformList() {
   };
 }
 
+/**
+ * @param {Map<string, any>} elementsById
+ * @returns {ElementStore}
+ */
 function createElementStore(elementsById) {
   return {
+    /**
+     * @param {string} id
+     * @param {any} element
+     */
     set: function (id, element) {
       if (id) elementsById.set(id, element);
     },
+    /**
+     * @param {string} id
+     * @returns {any}
+     */
     get: function (id) {
       return elementsById.get(id) || null;
     },
   };
 }
 
+/**
+ * @param {any} element
+ * @param {ElementStore} store
+ */
 function attachElementId(element, store) {
   Object.defineProperty(element, "id", {
     get: function () {
@@ -127,34 +180,39 @@ function attachElementId(element, store) {
   });
 }
 
+/**
+ * @param {ElementStore} store
+ * @param {string} tagName
+ * @returns {any}
+ */
 function createBaseElement(store, tagName) {
   const element = {
     _id: "",
     tagName: tagName,
-    style: {},
-    attributes: {},
+    style: /** @type {{[key: string]: any}} */ ({}),
+    attributes: /** @type {{[key: string]: any}} */ ({}),
     parentNode: null,
     parentElement: null,
-    children: [],
+    children: /** @type {any[]} */ ([]),
     textContent: "",
-    appendChild: function (child) {
+    appendChild: function (/** @type {any} */ child) {
       child.parentNode = this;
       child.parentElement = this;
       this.children.push(child);
       if (child.id) store.set(child.id, child);
       return child;
     },
-    setAttribute: function (name, value) {
+    setAttribute: function (/** @type {string} */ name, /** @type {any} */ value) {
       this.attributes[name] = value;
     },
-    getAttribute: function (name) {
+    getAttribute: function (/** @type {string} */ name) {
       return this.attributes[name];
     },
     addEventListener: function () {},
     removeEventListener: function () {},
     focus: function () {},
     blur: function () {},
-    contains: function (target) {
+    contains: function (/** @type {any} */ target) {
       while (target) {
         if (target === this) return true;
         target = target.parentNode;
@@ -165,21 +223,21 @@ function createBaseElement(store, tagName) {
       return { left: 0, top: 0, height: 0 };
     },
     cloneNode: function () {
-      const clone = createSVGElement(store, this.tagName);
-      clone.style = { ...this.style };
-      clone.attributes = { ...this.attributes };
-      clone.textContent = this.textContent;
+      const current = /** @type {any} */ (this);
+      const clone = createSVGElement(store, current.tagName);
+      clone.style = { ...current.style };
+      clone.attributes = { ...current.attributes };
+      clone.textContent = current.textContent;
       ["x", "y", "width", "height", "x1", "y1", "x2", "y2", "cx", "cy", "rx", "ry"].forEach(
         function (name) {
-          if (this[name] && clone[name]) {
-            clone[name].baseVal.value = this[name].baseVal.value;
+          if (current[name] && clone[name]) {
+            clone[name].baseVal.value = current[name].baseVal.value;
           }
-        },
-        this,
+        }
       );
-      if (this.transform && clone.transform) {
-        const matrix = this.transform.baseVal.numberOfItems
-          ? this.transform.baseVal[0].matrix
+      if (current.transform && clone.transform) {
+        const matrix = current.transform.baseVal.numberOfItems
+          ? current.transform.baseVal[0].matrix
           : createMatrix();
         clone.transform.baseVal.appendItem(
           clone.transform.baseVal.createSVGTransformFromMatrix({
@@ -192,7 +250,7 @@ function createBaseElement(store, tagName) {
           }),
         );
       }
-      if (this.pathData && clone.setPathData) clone.setPathData(this.pathData);
+      if (current.pathData && clone.setPathData) clone.setPathData(current.pathData);
       return clone;
     },
   };
@@ -200,6 +258,11 @@ function createBaseElement(store, tagName) {
   return element;
 }
 
+/**
+ * @param {ElementStore} store
+ * @param {string} tagName
+ * @returns {any}
+ */
 function createBBoxElement(store, tagName) {
   const element = createBaseElement(store, tagName);
   element.transform = { baseVal: createTransformList() };
@@ -220,16 +283,26 @@ function createBBoxElement(store, tagName) {
   return element;
 }
 
+/**
+ * @param {ElementStore} store
+ * @param {string} tagName
+ * @param {Record<string, string | number>} [attrs]
+ * @returns {any}
+ */
 function createSVGElement(store, tagName, attrs) {
   const element = createBBoxElement(store, tagName);
   if (tagName === "path") {
-    if (global.SVGPathElement) {
-      Object.setPrototypeOf(element, global.SVGPathElement.prototype);
+    if (globalAny.SVGPathElement) {
+      Object.setPrototypeOf(element, globalAny.SVGPathElement.prototype);
     }
+    /** @type {PathSegment[]} */
     element.pathData = [];
     element.getPathData = function () {
       return clonePathData(this.pathData);
     };
+    /**
+     * @param {PathSegment[]} pathData
+     */
     element.setPathData = function (pathData) {
       this.pathData = clonePathData(pathData);
     };
@@ -270,11 +343,12 @@ function createSVGElement(store, tagName, attrs) {
   return element;
 }
 
+/** @returns {ReplayHarness} */
 function createHarness() {
-  const elementsById = new Map();
+  const elementsById = /** @type {Map<string, any>} */ (new Map());
   const store = createElementStore(elementsById);
   const drawingArea = createBaseElement(store, "g");
-  drawingArea.appendChild = function (child) {
+  drawingArea.appendChild = function (/** @type {any} */ child) {
     child.parentNode = this;
     child.parentElement = this;
     this.children.push(child);
@@ -283,7 +357,7 @@ function createHarness() {
   };
   const svg = createBaseElement(store, "svg");
   svg.appendChild = drawingArea.appendChild.bind(svg);
-  svg.getElementById = function (id) {
+  svg.getElementById = function (/** @type {string} */ id) {
     return store.get(id);
   };
   svg.namespaceURI = "http://www.w3.org/2000/svg";
@@ -292,7 +366,7 @@ function createHarness() {
   };
 
   const board = createBaseElement(store, "div");
-  board.appendChild = function (child) {
+  board.appendChild = function (/** @type {any} */ child) {
     child.parentNode = this;
     child.parentElement = this;
     this.children.push(child);
@@ -300,50 +374,56 @@ function createHarness() {
     return child;
   };
 
-  const tools = {};
+  const tools = /** @type {{[name: string]: any}} */ ({});
   const clock = { now: 0 };
-  const windowListeners = new Map();
-  global.performance = {
+  const windowListeners = /** @type {Map<string, Function>} */ (new Map());
+  globalAny.performance = {
     now: function () {
       return clock.now;
     },
   };
-  global.window = global;
-  global.window.addEventListener = function (eventName, listener) {
+  globalAny.window = globalAny;
+  globalAny.window.addEventListener = function (
+    /** @type {string} */ eventName,
+    /** @type {Function} */ listener,
+  ) {
     windowListeners.set(eventName, listener);
   };
-  global.window.removeEventListener = function (eventName, listener) {
+  globalAny.window.removeEventListener = function (
+    /** @type {string} */ eventName,
+    /** @type {Function} */ listener,
+  ) {
     if (windowListeners.get(eventName) === listener) {
       windowListeners.delete(eventName);
     }
   };
-  global.window.scrollTo = function () {};
-  global.window.WBOMessageCommon = {
-    truncateText: function (value) {
+  globalAny.window.scrollTo = function () {};
+  globalAny.window.WBOMessageCommon = {
+    truncateText: function (/** @type {unknown} */ value) {
       return String(value);
     },
   };
-  global.window.WBOBoardMessages = {
-    batchCall: function (fn, args) {
+  globalAny.window.WBOBoardMessages = {
+    batchCall: function (/** @type {(value: any) => void} */ fn, /** @type {any[]} */ args) {
       args.forEach(fn);
       return Promise.resolve();
     },
   };
-  global.pointInTransformedBBox = function () {
+  globalAny.pointInTransformedBBox = function () {
     return false;
   };
-  global.transformedBBoxIntersects = function () {
+  globalAny.transformedBBoxIntersects = function () {
     return false;
   };
-  global.SVGPathElement = function SVGPathElement() {};
-  global.SVGTransform = {
+  globalAny.SVGPathElement = function SVGPathElement() {};
+  globalAny.SVGTransform = {
     SVG_TRANSFORM_MATRIX: 1,
   };
-  global.document = {
-    createElement: function (tagName) {
+  globalAny.document = {
+    createElement: function (/** @type {string} */ tagName) {
       return createBaseElement(store, tagName);
     },
-    getElementById: function (id) {
+    getElementById: function (/** @type {string} */ id) {
       return store.get(id);
     },
     documentElement: {
@@ -352,9 +432,9 @@ function createHarness() {
       clientWidth: 1024,
     },
   };
-  global.innerWidth = 1024;
+  globalAny.innerWidth = 1024;
 
-  global.Tools = {
+  globalAny.Tools = {
     svg: svg,
     board: board,
     drawingArea: drawingArea,
@@ -379,24 +459,26 @@ function createHarness() {
     getOpacity: function () {
       return 1;
     },
-    generateUID: function (prefix) {
+    generateUID: function (/** @type {string} */ prefix) {
       return prefix + "-1";
     },
-    change: function () {},
     getScale: function () {
       return 1;
     },
-    createSVGElement: function (tagName, attrs) {
+    createSVGElement: function (
+      /** @type {string} */ tagName,
+      /** @type {Record<string, string | number>} */ attrs,
+    ) {
       return createSVGElement(store, tagName, attrs);
     },
-    add: function (tool) {
+    add: function (/** @type {any} */ tool) {
       tools[tool.name] = tool;
     },
-    change: function (toolName) {
+    change: function (/** @type {string} */ toolName) {
       this.curTool = tools[toolName];
       return true;
     },
-    drawAndSend: function (data, tool) {
+    drawAndSend: function (/** @type {any} */ data, /** @type {any} */ tool) {
       if (tool == null) tool = this.curTool;
       if (!tool) throw new Error("No active tool available");
       tool.draw(data, true);
@@ -416,7 +498,7 @@ function createHarness() {
       clearModule(TOOL_PATHS[toolName]);
       if (toolName === "Pencil") {
         clearModule(PENCIL_POINT_PATH);
-        global.wboPencilPoint = require(PENCIL_POINT_PATH).wboPencilPoint;
+        globalAny.wboPencilPoint = require(PENCIL_POINT_PATH).wboPencilPoint;
       }
       require(TOOL_PATHS[toolName]);
       return tools[toolName];
@@ -432,6 +514,9 @@ function expectedTwoPointStroke() {
   ];
 }
 
+/**
+ * @param {any} pencilTool
+ */
 function drawReplayStroke(pencilTool) {
   pencilTool.draw({
     type: "line",
@@ -502,7 +587,7 @@ test("Pencil input sends an initial child point without waiting for throttle", f
   const pencilTool = harness.loadTool("Pencil");
   const event = { preventDefault: function () {} };
 
-  global.Tools.curTool = pencilTool;
+  globalAny.Tools.curTool = pencilTool;
   harness.clock.now = 0;
 
   pencilTool.listeners.press(100, 100, event);
@@ -512,12 +597,12 @@ test("Pencil input sends an initial child point without waiting for throttle", f
   pencilTool.listeners.release(200, 200, event);
 
   assert.deepEqual(
-    global.Tools.sentMessages.map(function (message) {
+    globalAny.Tools.sentMessages.map(function (/** @type {any} */ message) {
       return message.data.type;
     }),
     ["line", "child"],
   );
-  assert.deepEqual(global.Tools.sentMessages[1].data, {
+  assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
     type: "child",
     parent: "l-1",
     x: 100,
@@ -712,7 +797,7 @@ test("Hand selector sends a final transform on quick release", function () {
   rect.y.baseVal.value = 100;
   rect.width.baseVal.value = 60;
   rect.height.baseVal.value = 40;
-  global.Tools.drawingArea.appendChild(rect);
+  globalAny.Tools.drawingArea.appendChild(rect);
 
   handTool.secondary.active = true;
   harness.clock.now = 10;
@@ -754,21 +839,21 @@ test("Hand selector keeps the original element selected after duplicate", functi
   const handTool = harness.loadTool("Hand");
   let nextId = 1;
 
-  global.Tools.generateUID = function (prefix) {
+  globalAny.Tools.generateUID = function (/** @type {string} */ prefix) {
     nextId += 1;
     return prefix + "-" + nextId;
   };
-  global.transformedBBoxIntersects = function () {
+  globalAny.transformedBBoxIntersects = function () {
     return true;
   };
 
-  const rect = global.Tools.createSVGElement("rect");
+  const rect = globalAny.Tools.createSVGElement("rect");
   rect.id = "r-1";
   rect.x.baseVal.value = 100;
   rect.y.baseVal.value = 100;
   rect.width.baseVal.value = 60;
   rect.height.baseVal.value = 40;
-  global.Tools.drawingArea.appendChild(rect);
+  globalAny.Tools.drawingArea.appendChild(rect);
 
   handTool.secondary.active = true;
   handTool.secondary.switch();
