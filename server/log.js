@@ -62,10 +62,13 @@ function monitorFunction(f) {
     return f;
   }
   let client = statsd.getChildClient(f.name);
-  return /** @type {F} */ (function monitoredFunction() {
+  /** @param {...any} args */
+  return /** @type {F} */ (function monitoredFunction(
+    ...args
+  ) {
     let startTime = new Date();
     try {
-      const result = f.apply(null, arguments);
+      const result = f.apply(null, args);
       client.increment("ok", 1);
       return result;
     } catch (e) {
