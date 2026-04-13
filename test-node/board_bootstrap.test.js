@@ -1,5 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const {
+  installTestConsole,
+  withConsole,
+} = require("./test_console.js");
+
+installTestConsole();
 
 global.document = /** @type {any} */ ({
   /** @param {string} id */
@@ -22,6 +28,31 @@ test("parseEmbeddedJson returns fallback for missing or invalid content", functi
   assert.deepEqual(BoardBootstrap.parseEmbeddedJson("missing", { ok: false }), {
     ok: false,
   });
+});
+
+test("parseEmbeddedJson reports invalid JSON when silent mode is off", function () {
+  const previousSilent = process.env.WBO_SILENT;
+  let warned = false;
+
+  delete process.env.WBO_SILENT;
+  try {
+    withConsole(
+      {
+        warn: function () {
+          warned = true;
+        },
+      },
+      function () {
+        assert.deepEqual(BoardBootstrap.parseEmbeddedJson("bad", { ok: false }), {
+          ok: false,
+        });
+      },
+    );
+    assert.equal(warned, true);
+  } finally {
+    if (previousSilent === undefined) delete process.env.WBO_SILENT;
+    else process.env.WBO_SILENT = previousSilent;
+  }
 });
 
 test("getRequiredElement throws for missing DOM nodes", function () {

@@ -63,7 +63,7 @@ function parseRole(role) {
  * Returns string depending on the role in the board
  * @param {string} token
  * @param {string | null} [board]
- * @returns {"moderator" | "editor" | "forbidden"}
+ * @returns {"moderator" | "editor" | "reader" | "forbidden"}
  */
 function roleInBoard(token, board = null) {
   if (config.AUTH_SECRET_KEY === "") {
@@ -93,7 +93,11 @@ function roleInBoard(token, board = null) {
       oneHasModerator = true;
     }
     if (role.boardName === board) {
-      return role.roleName === "moderator" || role.roleName === "editor"
+      return (
+        role.roleName === "moderator" ||
+        role.roleName === "editor" ||
+        role.roleName === "reader"
+      )
         ? role.roleName
         : "forbidden";
     }

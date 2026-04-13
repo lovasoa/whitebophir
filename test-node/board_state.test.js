@@ -1,5 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { installTestConsole } = require("./test_console.js");
+
+installTestConsole();
 
 const BoardState = require("../client-data/js/board_page_state.js").state;
 

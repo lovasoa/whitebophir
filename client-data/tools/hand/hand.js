@@ -26,6 +26,7 @@
 
 (function hand() {
   //Code isolation
+  var BoardMessages = window.WBOBoardMessages;
   var selectorStates = {
     pointing: 0,
     selecting: 1,
@@ -291,7 +292,7 @@
     return selected;
   }
 
-  function moveSelection(x, y) {
+  function moveSelection(x, y, force) {
     var dx = x - selected.x;
     var dy = y - selected.y;
     var msgs = selected_els.map(function (el, i) {
@@ -315,16 +316,10 @@
     var tmatrix = get_transform_matrix(selectionRect);
     tmatrix.e = dx + selectionRectTransform.x;
     tmatrix.f = dy + selectionRectTransform.y;
-    var now = performance.now();
-    if (now - last_sent > 70) {
-      last_sent = now;
-      Tools.drawAndSend(msg);
-    } else {
-      draw(msg);
-    }
+    dispatchTransform(msg, force);
   }
 
-  function scaleSelection(x, y) {
+  function scaleSelection(x, y, force) {
     var rx = (x - selected.x) / selected.w;
     var ry = (y - selected.y) / selected.h;
     var msgs = selected_els.map(function (el, i) {
@@ -367,8 +362,12 @@
     tmatrix.f =
       selectionRectTransform.f +
       selectionRect.y.baseVal.value * (selectionRectTransform.d - ry);
+    dispatchTransform(msg, force);
+  }
+
+  function dispatchTransform(msg, force) {
     var now = performance.now();
-    if (now - last_sent > 70) {
+    if (force || now - last_sent > 70) {
       last_sent = now;
       Tools.drawAndSend(msg);
     } else {
@@ -421,7 +420,7 @@
 
   function draw(data) {
     if (data._children) {
-      batchCall(draw, data._children);
+      BoardMessages.batchCall(draw, data._children);
     } else {
       switch (data.type) {
         case "update":
@@ -489,11 +488,11 @@
     selectorState = selectorStates.pointing;
   }
 
-  function moveSelector(x, y, evt) {
+  function moveSelector(x, y, evt, force) {
     if (selectorState == selectorStates.selecting) {
       updateRect(x, y, selectionRect);
     } else if (selectorState == selectorStates.transform && currentTransform) {
-      currentTransform(x, y);
+      currentTransform(x, y, force);
     }
   }
 
@@ -517,13 +516,13 @@
     else clickSelector(x, y, evt, isTouchEvent);
   }
 
-  function move(x, y, evt, isTouchEvent) {
+  function move(x, y, evt, isTouchEvent, force) {
     if (!handTool.secondary.active) moveHand(x, y, evt, isTouchEvent);
-    else moveSelector(x, y, evt, isTouchEvent);
+    else moveSelector(x, y, evt, force);
   }
 
   function release(x, y, evt, isTouchEvent) {
-    move(x, y, evt, isTouchEvent);
+    move(x, y, evt, isTouchEvent, true);
     if (handTool.secondary.active) releaseSelector(x, y, evt, isTouchEvent);
     selected = null;
   }
