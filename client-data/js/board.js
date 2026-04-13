@@ -26,6 +26,7 @@
 
 var Tools = {};
 var MessageCommon = window.WBOMessageCommon;
+var BoardConnection = window.WBOBoardConnection;
 
 Tools.i18n = (function i18n() {
   var translations = JSON.parse(document.getElementById("translations").text);
@@ -361,12 +362,23 @@ Tools.socket = null;
 Tools.hasConnectedOnce = false;
 Tools.rateLimitAlertShown = false;
 Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
-  if (window.socketio_extra_headers) return window.socketio_extra_headers;
+  var extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+    window.socketio_extra_headers,
+  );
+  if (extraHeaders) {
+    window.socketio_extra_headers = extraHeaders;
+    return extraHeaders;
+  }
   try {
     var storedHeaders = sessionStorage.getItem("socketio_extra_headers");
     if (storedHeaders) {
-      window.socketio_extra_headers = JSON.parse(storedHeaders);
-      return window.socketio_extra_headers;
+      extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+        JSON.parse(storedHeaders),
+      );
+      if (extraHeaders) {
+        window.socketio_extra_headers = extraHeaders;
+        return extraHeaders;
+      }
     }
   } catch (err) {
     console.warn("Unable to load Socket.IO extra headers", err);
@@ -383,34 +395,18 @@ Tools.connect = function () {
 
   // Destroy socket if one already exists
   if (self.socket) {
-    self.socket.destroy();
+    BoardConnection.closeSocket(self.socket);
     delete self.socket;
     self.socket = null;
   }
 
   var url = new URL(window.location);
   var params = new URLSearchParams(url.search);
-
-  var socket_params = {
-    path: window.location.pathname.split("/boards/")[0] + "/socket.io",
-    reconnection: true,
-    reconnectionDelay: 100, //Make the xhr connections as fast as possible
-    timeout: 1000 * 60 * 20, // Timeout after 20 minutes
-  };
-  var socketQuery = new URLSearchParams();
-  if (params.has("token")) {
-    socketQuery.set("token", params.get("token"));
-  }
-  if (
-    Tools.socketIOExtraHeaders &&
-    typeof Tools.socketIOExtraHeaders === "object" &&
-    Object.keys(Tools.socketIOExtraHeaders).length > 0
-  ) {
-    socket_params.extraHeaders = Tools.socketIOExtraHeaders;
-  }
-  if (socketQuery.toString()) {
-    socket_params.query = socketQuery.toString();
-  }
+  var socket_params = BoardConnection.buildSocketParams(
+    window.location.pathname,
+    Tools.socketIOExtraHeaders,
+    params.get("token"),
+  );
 
   this.socket = io.connect("", socket_params);
 
