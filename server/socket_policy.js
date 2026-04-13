@@ -8,11 +8,11 @@ const roleInBoard = require("./jwtBoardnameAuth.js").roleInBoard;
 /** @typedef {{ok: true, value: any} | RejectedBroadcast} BroadcastResult */
 /** @typedef {{[key: string]: any}} MessageData */
 /** @typedef {{headers?: {[key: string]: string | string[] | undefined}, socket?: {remoteAddress?: string}}} SocketRequest */
-/** @typedef {{client: {request: SocketRequest}, handshake: {query?: {token?: string}}}} SocketLike */
+/** @typedef {{client: {request: SocketRequest}, handshake: {query?: {token?: string}}}} AppSocket */
 /** @typedef {{name: string, isReadOnly: () => boolean}} BoardLike */
 
 /**
- * @param {SocketLike} socket
+ * @param {AppSocket} socket
  * @returns {SocketRequest}
  */
 function getSocketRequest(socket) {
@@ -20,7 +20,7 @@ function getSocketRequest(socket) {
 }
 
 /**
- * @param {SocketLike} socket
+ * @param {AppSocket} socket
  * @returns {{[key: string]: string | string[] | undefined}}
  */
 function getSocketHeaders(socket) {
@@ -68,7 +68,7 @@ function parseForwardedHeader(value) {
 }
 
 /**
- * @param {SocketLike} socket
+ * @param {AppSocket} socket
  * @returns {string}
  */
 function getClientIp(socket) {
@@ -197,7 +197,7 @@ function normalizeBroadcastData(message, data) {
 }
 
 /**
- * @param {SocketLike} socket
+ * @param {AppSocket} socket
  * @returns {string | undefined}
  */
 function getSocketToken(socket) {
@@ -206,7 +206,7 @@ function getSocketToken(socket) {
 
 /**
  * @param {string} boardName
- * @param {SocketLike} socket
+ * @param {AppSocket} socket
  * @returns {"editor" | "moderator" | "forbidden"}
  */
 function accessRole(boardName, socket) {
@@ -216,7 +216,7 @@ function accessRole(boardName, socket) {
 
 /**
  * @param {string} boardName
- * @param {SocketLike} socket
+ * @param {AppSocket} socket
  * @returns {boolean}
  */
 function canAccessBoard(boardName, socket) {
@@ -225,7 +225,7 @@ function canAccessBoard(boardName, socket) {
 
 /**
  * @param {string} boardName
- * @param {SocketLike} socket
+ * @param {AppSocket} socket
  * @returns {"editor" | "moderator" | "forbidden"}
  */
 function writerRole(boardName, socket) {
@@ -236,7 +236,7 @@ function writerRole(boardName, socket) {
 
 /**
  * @param {BoardLike} board
- * @param {SocketLike} socket
+ * @param {AppSocket} socket
  * @returns {boolean}
  */
 function canWriteToBoard(board, socket) {
@@ -247,7 +247,7 @@ function canWriteToBoard(board, socket) {
 /**
  * @param {BoardLike} board
  * @param {MessageData} data
- * @param {SocketLike} socket
+ * @param {AppSocket} socket
  * @returns {boolean}
  */
 function canApplyBoardMessage(board, data, socket) {

@@ -17,7 +17,7 @@ var parseForwardedHeader = socketPolicy.parseForwardedHeader;
 
 /** @typedef {{[key: string]: any}} MessageData */
 /** @typedef {{headers: {[key: string]: string | string[] | undefined}, socket?: {remoteAddress?: string}}} SocketRequest */
-/** @typedef {Socket & { turnstileValidatedUntil?: number }} SocketWithTurnstile */
+/** @typedef {Socket & { turnstileValidatedUntil?: number }} AppSocket */
 /** @typedef {{windowStart: number, count: number, lastSeen: number}} RateLimitState */
 /** @typedef {{success: true, validationWindowMs: number, validatedUntil: number | undefined}} TurnstileAck */
 /** @typedef {{ok: true} | {ok: false, reason: string}} ValidationStatus */
@@ -99,7 +99,7 @@ function pruneRateLimitMap(map, periodMs, now) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @returns {SocketRequest}
  */
 function getSocketRequest(socket) {
@@ -115,7 +115,7 @@ function errorMessage(error) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {string} eventName
  * @param {{[key: string]: any}} infos
  * @returns {void}
@@ -126,7 +126,7 @@ function closeSocket(socket, eventName, infos) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {string} eventName
  * @param {{[key: string]: any}} infos
  * @returns {void}
@@ -155,7 +155,7 @@ function getMessageData(message) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {string} boardName
  * @param {{[key: string]: any}} extras
  * @returns {{[key: string]: any}}
@@ -173,7 +173,7 @@ function buildSocketLogInfo(socket, boardName, extras) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {string} boardName
  * @returns {string}
  */
@@ -207,7 +207,7 @@ function normalizeTurnstileHostname(hostname) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @returns {string | null}
  */
 function getExpectedTurnstileHostname(socket) {
@@ -219,7 +219,7 @@ function getExpectedTurnstileHostname(socket) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {number} now
  * @returns {boolean}
  */
@@ -231,7 +231,7 @@ function isTurnstileValidationActive(socket, now) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @returns {TurnstileAck}
  */
 function buildTurnstileAck(socket) {
@@ -243,7 +243,7 @@ function buildTurnstileAck(socket) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {any} result
  * @returns {ValidationStatus}
  */
@@ -267,7 +267,7 @@ function validateTurnstileResult(socket, result) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {string} boardName
  * @param {string} clientIp
  * @param {RateLimitState} rateLimitState
@@ -316,7 +316,7 @@ function getDestructiveRateLimitState(clientIp, now) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {string} boardName
  * @param {MessageData} data
  * @param {string} clientIp
@@ -371,7 +371,7 @@ function getConstructiveRateLimitState(clientIp, now) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {string} boardName
  * @param {MessageData} data
  * @param {string} clientIp
@@ -414,7 +414,7 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {string} boardName
  * @returns {boolean}
  */
@@ -425,7 +425,7 @@ function ensureSocketCanAccessBoard(socket, boardName) {
 }
 
 /**
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @param {string} boardName
  * @returns {void}
  */
@@ -488,7 +488,7 @@ function getBoard(name) {
 
 /**
  * Executes on every new connection
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  */
 function handleSocketConnection(socket) {
   /**
@@ -679,7 +679,7 @@ async function unloadBoard(boardName) {
 /**
  * @param {BoardData} board
  * @param {MessageData} message
- * @param {SocketWithTurnstile} socket
+ * @param {AppSocket} socket
  * @returns {{ok: true} | {ok: false, reason: string}}
  */
 function handleMessage(board, message, socket) {
