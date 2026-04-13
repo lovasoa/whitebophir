@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const BoardTurnstile = require("../client-data/js/board_realtime.js").turnstile;
+const BoardTurnstile = require("../client-data/js/board_transport.js").turnstile;
 
 test("computeTurnstileValidation applies the client-side safety window", function () {
   const before = Date.now();

@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const BoardState = require("../client-data/js/board_helpers.js").state;
+const BoardState = require("../client-data/js/board_page_state.js").state;
 
 test("parseBoardStateText falls back safely on missing or invalid JSON", function () {
   assert.deepEqual(BoardState.parseBoardStateText(null), {

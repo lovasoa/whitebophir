@@ -10,7 +10,7 @@ global.document = /** @type {any} */ ({
   },
 });
 
-const BoardBootstrap = require("../client-data/js/board_helpers.js").bootstrap;
+const BoardBootstrap = require("../client-data/js/board_page_state.js").bootstrap;
 
 test("parseEmbeddedJson returns fallback for missing or invalid content", function () {
   assert.deepEqual(BoardBootstrap.parseEmbeddedJson("good", { ok: false }), {

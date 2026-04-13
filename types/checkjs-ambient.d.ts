@@ -14,6 +14,8 @@ declare global {
 
   interface Window {
     WBOMessageCommon: any;
+    WBOBoardPageState: any;
+    WBOBoardTransport: any;
     WBOBoardState: any;
     WBOBoardMessages: any;
     WBOBoardConnection: any;

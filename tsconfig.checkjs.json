@@ -21,8 +21,8 @@
   },
   "include": [
     "types/**/*.d.ts",
-    "client-data/js/board_helpers.js",
-    "client-data/js/board_realtime.js",
+    "client-data/js/board_page_state.js",
+    "client-data/js/board_transport.js",
     "client-data/js/index.js",
     "client-data/js/message_common.js",
     "client-data/tools/pencil/wbo_pencil_point.js",
