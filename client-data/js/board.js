@@ -609,6 +609,40 @@ Tools.removeConnectedUser = function removeConnectedUser(
   Tools.renderConnectedUsers();
 };
 
+Tools.updateConnectedUsersFromActivity = function updateConnectedUsersFromActivity(
+  /** @type {string | undefined} */ userId,
+  /** @type {BoardMessage} */ message,
+) {
+  if (!userId) return;
+  var changed = false;
+  Object.values(Tools.connectedUsers).forEach(function (user) {
+    if (user.userId !== userId) return;
+    if (typeof message.color === "string") {
+      user.color = message.color;
+      changed = true;
+    }
+    if (message.size !== undefined) {
+      user.size = Number(message.size) || user.size;
+      changed = true;
+    }
+    if (typeof message.tool === "string" && message.tool !== "Cursor") {
+      user.lastTool = message.tool;
+      changed = true;
+    }
+  });
+  if (changed) Tools.renderConnectedUsers();
+};
+
+Tools.updateCurrentConnectedUserFromActivity =
+  function updateCurrentConnectedUserFromActivity(
+    /** @type {BoardMessage} */ message,
+  ) {
+    if (!Tools.socket || typeof Tools.socket.id !== "string") return;
+    var current = Tools.connectedUsers[Tools.socket.id];
+    if (!current) return;
+    Tools.updateConnectedUsersFromActivity(current.userId, message);
+  };
+
 Tools.initConnectedUsersUI = function initConnectedUsersUI() {
   var toggle = BoardBootstrap.getRequiredElement("connectedUsersToggle");
   var close = BoardBootstrap.getRequiredElement("connectedUsersClose");
@@ -657,6 +691,10 @@ Tools.connect = function () {
     if (Tools.socket) Tools.socket.emit("getboard", Tools.boardName);
   });
   socket.on("broadcast", function (/** @type {BoardMessage} */ msg) {
+    Tools.updateConnectedUsersFromActivity(
+      typeof msg.userId === "string" ? msg.userId : undefined,
+      msg,
+    );
     handleMessage(msg).finally(function afterload() {
       var loadingEl = document.getElementById("loadingMessage");
       if (loadingEl) loadingEl.classList.add("hidden");
@@ -999,6 +1037,7 @@ Tools.send = function (data, toolName) {
     data: data,
   };
   if (!Tools.socket) throw new Error("Socket is not connected");
+  Tools.updateCurrentConnectedUserFromActivity(data);
   Tools.socket.emit("broadcast", message);
 };
 
