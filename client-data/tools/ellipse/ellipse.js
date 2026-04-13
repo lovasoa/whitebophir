@@ -26,6 +26,27 @@
 
 (function () {
   //Code isolation
+  /** @typedef {{type: "ellipse", id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} EllipseStartData */
+  /** @typedef {{type: "update", id: string, x: number, y: number, x2: number, y2: number}} EllipseUpdateData */
+  /** @typedef {EllipseStartData | EllipseUpdateData} EllipseMessage */
+  /** @typedef {{id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} EllipseShapeData */
+  /** @typedef {SVGEllipseElement & {id: string}} ExistingEllipse */
+
+  /**
+   * @param {Element | null} element
+   * @returns {element is ExistingEllipse}
+   */
+  function isEllipseElement(element) {
+    return !!(
+      element &&
+      typeof element === "object" &&
+      "cx" in element &&
+      "cy" in element &&
+      "rx" in element &&
+      "ry" in element
+    );
+  }
+  /** @type {EllipseUpdateData} */
   var curUpdate = {
       //The data of the message that will be sent for every new point
       type: "update",
@@ -38,6 +59,11 @@
     lastPos = { x: 0, y: 0 },
     lastTime = performance.now(); //The time at which the last point was drawn
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {MouseEvent | TouchEvent} evt
+   */
   function start(x, y, evt) {
     //Prevent the press from being interpreted by the browser
     evt.preventDefault();
@@ -56,11 +82,15 @@
       y2: y,
     });
 
-    curUpdate.id = curUpdate.id;
     curUpdate.x = x;
     curUpdate.y = y;
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {(MouseEvent & {shiftKey?: boolean}) | (TouchEvent & {shiftKey?: boolean}) | undefined} evt
+   */
   function move(x, y, evt) {
     if (!curUpdate.id) return; // Not currently drawing
     if (evt) {
@@ -72,6 +102,7 @@
     doUpdate();
   }
 
+  /** @param {boolean} [force] */
   function doUpdate(force) {
     if (!curUpdate.id) return; // Not currently drawing
     if (drawingCircle()) {
@@ -95,6 +126,10 @@
     }
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
   function stop(x, y) {
     lastPos.x = x;
     lastPos.y = y;
@@ -102,6 +137,7 @@
     curUpdate.id = "";
   }
 
+  /** @param {EllipseMessage} data */
   function draw(data) {
     Tools.drawingEvent = true;
     switch (data.type) {
@@ -115,14 +151,16 @@
             "Ellipse: Hmmm... I received an update for a shape that has not been created (%s).",
             data["id"],
           );
-          createShape({
+          shape = createShape({
             //create a new shape in order not to loose the points
             id: data["id"],
             x: data["x2"],
             y: data["y2"],
+            x2: data["x2"],
+            y2: data["y2"],
           });
         }
-        updateShape(shape, data);
+        updateShape(/** @type {ExistingEllipse} */ (shape), data);
         break;
       default:
         console.error("Ellipse: Draw instruction with unknown type. ", data);
@@ -131,23 +169,36 @@
   }
 
   var svg = Tools.svg;
+  /**
+   * @param {EllipseShapeData} data
+   * @returns {ExistingEllipse}
+   */
   function createShape(data) {
     //Creates a new shape on the canvas, or update a shape that already exists with new information
-    var shape =
-      svg.getElementById(data.id) || Tools.createSVGElement("ellipse");
+    var existingShape = svg.getElementById(data.id);
+    var shape = isEllipseElement(existingShape)
+      ? existingShape
+      : /** @type {ExistingEllipse} */ (Tools.createSVGElement("ellipse"));
     updateShape(shape, data);
     shape.id = data.id;
     //If some data is not provided, choose default value. The shape may be updated later
     shape.setAttribute("stroke", data.color || "black");
-    shape.setAttribute("stroke-width", data.size || 10);
+    shape.setAttribute("stroke-width", String(data.size || 10));
     shape.setAttribute(
       "opacity",
-      Math.max(0.1, Math.min(1, data.opacity)) || 1,
+      String(Math.max(0.1, Math.min(1, data.opacity || 1))),
     );
+    if (!Tools.drawingArea) {
+      throw new Error("Ellipse: Missing drawing area.");
+    }
     Tools.drawingArea.appendChild(shape);
     return shape;
   }
 
+  /**
+   * @param {ExistingEllipse} shape
+   * @param {EllipseShapeData} data
+   */
   function updateShape(shape, data) {
     shape.cx.baseVal.value = Math.round((data["x2"] + data["x"]) / 2);
     shape.cy.baseVal.value = Math.round((data["y2"] + data["y"]) / 2);
@@ -167,7 +218,9 @@
       name: "Circle",
       icon: "tools/ellipse/icon-circle.svg",
       active: false,
-      switch: doUpdate,
+      switch: function () {
+        doUpdate();
+      },
     },
     shortcut: "c",
     listeners: {

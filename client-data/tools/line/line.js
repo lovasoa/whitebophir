@@ -26,18 +26,51 @@
 
 (function () {
   //Code isolation
+  /** @typedef {{type: "straight", id: string, x: number, y: number, x2?: number, y2?: number, color?: string, size?: number, opacity?: number}} LineStartData */
+  /** @typedef {{type: "update", id: string, x2: number, y2: number}} LineUpdateData */
+  /** @typedef {LineStartData | LineUpdateData} LineMessage */
+  /** @typedef {{id: string, x: number, y: number, x2?: number, y2?: number, color?: string, size?: number, opacity?: number}} LineShapeData */
+  /** @typedef {SVGLineElement & {id: string}} ExistingLine */
+
+  /**
+   * @param {Element | null} element
+   * @returns {element is ExistingLine}
+   */
+  function isLineElement(element) {
+    return !!(
+      element &&
+      typeof element === "object" &&
+      "x1" in element &&
+      "y1" in element &&
+      "x2" in element &&
+      "y2" in element
+    );
+  }
+
   //Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
+  /** @type {LineStartData | null} */
   var curLine = null,
     lastTime = performance.now(); //The time at which the last point was drawn
 
-  //The data of the message that will be sent for every update
-  function UpdateMessage(x, y) {
-    this.type = "update";
-    this.id = curLine.id;
-    this.x2 = x;
-    this.y2 = y;
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @returns {LineUpdateData}
+   */
+  function createUpdateMessage(x, y) {
+    return {
+      type: "update",
+      id: curLine ? curLine.id : "",
+      x2: x,
+      y2: y,
+    };
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {MouseEvent | TouchEvent} evt
+   */
   function startLine(x, y, evt) {
     //Prevent the press from being interpreted by the browser
     evt.preventDefault();
@@ -55,6 +88,11 @@
     Tools.drawAndSend(curLine);
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {MouseEvent | TouchEvent | undefined} evt
+   */
   function continueLine(x, y, evt) {
     /*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
@@ -68,21 +106,26 @@
         y = curLine.y + d * Math.sin(alpha);
       }
       if (performance.now() - lastTime > 70) {
-        Tools.drawAndSend(new UpdateMessage(x, y));
+        Tools.drawAndSend(createUpdateMessage(x, y));
         lastTime = performance.now();
       } else {
-        draw(new UpdateMessage(x, y));
+        draw(createUpdateMessage(x, y));
       }
     }
     if (evt) evt.preventDefault();
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
   function stopLine(x, y) {
     //Add a last point to the line
-    continueLine(x, y);
+    continueLine(x, y, undefined);
     curLine = null;
   }
 
+  /** @param {LineMessage} data */
   function draw(data) {
     switch (data.type) {
       case "straight":
@@ -95,14 +138,16 @@
             "Straight line: Hmmm... I received a point of a line that has not been created (%s).",
             data["id"],
           );
-          createLine({
+          line = createLine({
             //create a new line in order not to loose the points
             id: data["id"],
             x: data["x2"],
             y: data["y2"],
+            x2: data["x2"],
+            y2: data["y2"],
           });
         }
-        updateLine(line, data);
+        updateLine(/** @type {ExistingLine} */ (line), data);
         break;
       default:
         console.error(
@@ -114,10 +159,16 @@
   }
 
   var svg = Tools.svg;
+  /**
+   * @param {LineShapeData} lineData
+   * @returns {ExistingLine}
+   */
   function createLine(lineData) {
     //Creates a new line on the canvas, or update a line that already exists with new information
-    var line =
-      svg.getElementById(lineData.id) || Tools.createSVGElement("line");
+    var existingLine = svg.getElementById(lineData.id);
+    var line = isLineElement(existingLine)
+      ? existingLine
+      : /** @type {ExistingLine} */ (Tools.createSVGElement("line"));
     line.id = lineData.id;
     line.x1.baseVal.value = lineData["x"];
     line.y1.baseVal.value = lineData["y"];
@@ -125,15 +176,22 @@
     line.y2.baseVal.value = lineData["y2"] || lineData["y"];
     //If some data is not provided, choose default value. The line may be updated later
     line.setAttribute("stroke", lineData.color || "black");
-    line.setAttribute("stroke-width", lineData.size || 10);
+    line.setAttribute("stroke-width", String(lineData.size || 10));
     line.setAttribute(
       "opacity",
-      Math.max(0.1, Math.min(1, lineData.opacity)) || 1,
+      String(Math.max(0.1, Math.min(1, lineData.opacity || 1))),
     );
+    if (!Tools.drawingArea) {
+      throw new Error("Straight line: Missing drawing area.");
+    }
     Tools.drawingArea.appendChild(line);
     return line;
   }
 
+  /**
+   * @param {ExistingLine} line
+   * @param {LineUpdateData} data
+   */
   function updateLine(line, data) {
     line.x2.baseVal.value = data["x2"];
     line.y2.baseVal.value = data["y2"];

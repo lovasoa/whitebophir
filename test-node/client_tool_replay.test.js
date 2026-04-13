@@ -558,8 +558,26 @@ test("Straight line replay refreshes endpoints and styling on an existing node",
   assert.equal(line.x2.baseVal.value, 300);
   assert.equal(line.y2.baseVal.value, 400);
   assert.equal(line.attributes.stroke, "#abcdef");
-  assert.equal(line.attributes["stroke-width"], 7);
-  assert.equal(line.attributes.opacity, 0.8);
+  assert.equal(line.attributes["stroke-width"], "7");
+  assert.equal(line.attributes.opacity, "0.8");
+});
+
+test("Straight line update recreates a missing line before applying endpoints", function () {
+  const harness = createHarness();
+  const lineTool = harness.loadTool("Straight line");
+
+  lineTool.draw({
+    type: "update",
+    id: "line-1",
+    x2: 300,
+    y2: 400,
+  });
+
+  const line = harness.elementsById.get("line-1");
+  assert.equal(line.x1.baseVal.value, 300);
+  assert.equal(line.y1.baseVal.value, 400);
+  assert.equal(line.x2.baseVal.value, 300);
+  assert.equal(line.y2.baseVal.value, 400);
 });
 
 test("Rectangle replay normalizes reverse-drag bounds on a reused node", function () {
@@ -585,6 +603,26 @@ test("Rectangle replay normalizes reverse-drag bounds on a reused node", functio
   assert.equal(rect.height.baseVal.value, 130);
 });
 
+test("Rectangle update recreates a missing shape before applying bounds", function () {
+  const harness = createHarness();
+  const rectangleTool = harness.loadTool("Rectangle");
+
+  rectangleTool.draw({
+    type: "update",
+    id: "rect-1",
+    x: 60,
+    y: 90,
+    x2: 0,
+    y2: 30,
+  });
+
+  const rect = harness.elementsById.get("rect-1");
+  assert.equal(rect.x.baseVal.value, 0);
+  assert.equal(rect.y.baseVal.value, 30);
+  assert.equal(rect.width.baseVal.value, 60);
+  assert.equal(rect.height.baseVal.value, 60);
+});
+
 test("Ellipse replay updates center and radii on a reused node", function () {
   const harness = createHarness();
   const ellipseTool = harness.loadTool("Ellipse");
@@ -600,6 +638,26 @@ test("Ellipse replay updates center and radii on a reused node", function () {
     x2: 110,
     y2: 220,
   });
+  ellipseTool.draw({
+    type: "update",
+    id: "ellipse-1",
+    x: 0,
+    y: 30,
+    x2: 60,
+    y2: 90,
+  });
+
+  const ellipse = harness.elementsById.get("ellipse-1");
+  assert.equal(ellipse.cx.baseVal.value, 30);
+  assert.equal(ellipse.cy.baseVal.value, 60);
+  assert.equal(ellipse.rx.baseVal.value, 30);
+  assert.equal(ellipse.ry.baseVal.value, 30);
+});
+
+test("Ellipse update recreates a missing shape before applying radii", function () {
+  const harness = createHarness();
+  const ellipseTool = harness.loadTool("Ellipse");
+
   ellipseTool.draw({
     type: "update",
     id: "ellipse-1",
