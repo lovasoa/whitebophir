@@ -19,12 +19,15 @@
     "client-data/js/message_common.js",
     "server/configuration.js",
     "server/configuration_helpers.js",
+    "server/jwtBoardnameAuth.js",
     "server/message_validation.js",
     "server/boardData.js",
+    "server/socket_policy.js",
     "test-node/test_helpers.js",
     "test-node/message_common.test.js",
     "test-node/message_validation.test.js",
-    "test-node/board_data.test.js"
+    "test-node/board_data.test.js",
+    "test-node/socket_policy.test.js"
   ],
   "exclude": ["node_modules", "server-data"]
 }

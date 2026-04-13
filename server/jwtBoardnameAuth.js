@@ -30,10 +30,9 @@ const jsonwebtoken = require("jsonwebtoken");
 /**
  * This function checks if a board name is set in the roles claim.
  * Returns true of the board name is set in the JWT and the board name matches the board name in the URL
- * @param {string} url
+ * @param {URL} url
  * @param {string} boardNameIn
- @returns {boolean} - True if user does not have the role forbidden false if the user hase the role forbidden
- @throws {Error} - If no boardname match
+ * @throws {Error} - If no boardname match
  */
 
 function checkBoardnameInToken(url, boardNameIn) {
@@ -52,8 +51,8 @@ function parseRole(role) {
  * This function checks if a oard name is set in the roles claim.
  * Returns string depending on the role in the board
  * @param {string} token
- * @param {string} board
- @returns {string}  "moderator"|"editor"|"forbidden"
+ * @param {string | null} [board]
+ * @returns {"moderator" | "editor" | "forbidden"}
  */
 function roleInBoard(token, board = null) {
   if (config.AUTH_SECRET_KEY === "") {
