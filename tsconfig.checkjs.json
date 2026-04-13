@@ -22,6 +22,7 @@
   "include": [
     "types/**/*.d.ts",
     "client-data/js/board_connection.js",
+    "client-data/js/board_bootstrap.js",
     "client-data/js/board_messages.js",
     "client-data/js/board_state.js",
     "client-data/js/board_tools.js",
@@ -46,6 +47,7 @@
     "test-node/message_validation.test.js",
     "test-node/board_data.test.js",
     "test-node/board_connection.test.js",
+    "test-node/board_bootstrap.test.js",
     "test-node/board_messages.test.js",
     "test-node/board_state.test.js",
     "test-node/board_tools.test.js",

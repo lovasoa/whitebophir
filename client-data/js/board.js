@@ -31,10 +31,12 @@ var BoardMessages = window.WBOBoardMessages;
 var BoardState = window.WBOBoardState;
 var BoardTurnstile = window.WBOBoardTurnstile;
 var BoardTools = window.WBOBoardTools;
+var BoardBootstrap = window.WBOBoardBootstrap;
 
 Tools.i18n = (function i18n() {
-  var translations = JSON.parse(document.getElementById("translations").text);
+  var translations = BoardBootstrap.parseEmbeddedJson("translations", {});
   return {
+    /** @param {string} s */
     t: function translate(s) {
       var key = s.toLowerCase().replace(/ /g, "_");
       return translations[key] || s;
@@ -42,7 +44,7 @@ Tools.i18n = (function i18n() {
   };
 })();
 
-Tools.server_config = JSON.parse(document.getElementById("configuration").text);
+Tools.server_config = BoardBootstrap.parseEmbeddedJson("configuration", {});
 Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
 Tools.turnstileValidatedUntil = 0;
 Tools.turnstileWidgetId = null;
@@ -324,18 +326,18 @@ Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
 };
 
 Tools.setBoardState(
-  BoardState.parseBoardStateText(
-    document.getElementById("board-state") &&
-      document.getElementById("board-state").text,
-  ),
+  BoardBootstrap.parseEmbeddedJson("board-state", {
+    readonly: false,
+    canWrite: true,
+  }),
 );
 
 Tools.resolveBoardName = function resolveBoardName() {
   return BoardState.resolveBoardName(window.location.pathname);
 };
 
-Tools.board = document.getElementById("board");
-Tools.svg = document.getElementById("canvas");
+Tools.board = BoardBootstrap.getRequiredElement("board");
+Tools.svg = /** @type {SVGSVGElement} */ (BoardBootstrap.getRequiredElement("canvas"));
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
 //Initialization

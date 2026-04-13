@@ -19,6 +19,7 @@ declare global {
     WBOBoardConnection: any;
     WBOBoardTurnstile: any;
     WBOBoardTools: any;
+    WBOBoardBootstrap: any;
     socketio_extra_headers?: Record<string, string>;
     __downloadCapture?: any;
     __downloadAnchorClicks?: any;
