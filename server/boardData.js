@@ -39,21 +39,34 @@ var nativeFs = require("node:fs"),
 
 const BOARD_METADATA_KEY = "__wbo_meta__";
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds */
+/** @typedef {{readonly: boolean}} BoardMetadata */
 /** @typedef {{ok: false, reason: string}} ValidationFailure */
+/** @typedef {{ok: true}} ValidationSuccess */
+/** @typedef {ValidationSuccess | ValidationFailure} BoardMutationResult */
 /** @typedef {{ok: true, value: BoardElem, localBounds: Bounds | null}} ValidatedStoredCandidate */
+/** @typedef {{[key: string]: any, id?: string, type: string, tool?: string, parent?: string, newid?: string, _children?: BoardMessage[]}} BoardMessage */
 
+/** @returns {BoardMetadata} */
 function defaultBoardMetadata() {
   return {
     readonly: false,
   };
 }
 
+/**
+ * @param {any} metadata
+ * @returns {BoardMetadata}
+ */
 function normalizeBoardMetadata(metadata) {
   return {
     readonly: metadata && metadata.readonly === true,
   };
 }
 
+/**
+ * @param {string} name
+ * @returns {string}
+ */
 function boardFilePath(name) {
   return path.join(
     config.HISTORY_DIR,
@@ -61,6 +74,10 @@ function boardFilePath(name) {
   );
 }
 
+/**
+ * @param {any} storedBoard
+ * @returns {{board: {[name: string]: BoardElem}, metadata: BoardMetadata}}
+ */
 function parseStoredBoard(storedBoard) {
   if (
     !storedBoard ||
@@ -85,6 +102,11 @@ function parseStoredBoard(storedBoard) {
   return { board, metadata };
 }
 
+/**
+ * @param {{[name: string]: BoardElem}} board
+ * @param {BoardMetadata} metadata
+ * @returns {{[name: string]: BoardElem | BoardMetadata}}
+ */
 function serializeStoredBoard(board, metadata) {
   var storedBoard = Object.assign({}, board);
   if (metadata && metadata.readonly) {
@@ -93,6 +115,11 @@ function serializeStoredBoard(board, metadata) {
   return storedBoard;
 }
 
+/**
+ * @param {string | undefined} tool
+ * @param {BoardElem} data
+ * @returns {BoardElem}
+ */
 function filterUpdatableFields(tool, data) {
   switch (tool) {
     case "Straight line":
@@ -145,6 +172,10 @@ class BoardData {
     return this.metadata.readonly === true;
   }
 
+  /**
+   * @param {Bounds | null | undefined} bounds
+   * @returns {Bounds | null}
+   */
   cloneBounds(bounds) {
     return bounds
       ? {
@@ -156,6 +187,11 @@ class BoardData {
       : null;
   }
 
+  /**
+   * @param {string} id
+   * @param {Bounds | null | undefined} bounds
+   * @returns {void}
+   */
   cacheLocalBounds(id, bounds) {
     if (bounds) {
       this.localBoundsCache.set(id, this.cloneBounds(bounds));
@@ -164,6 +200,11 @@ class BoardData {
     }
   }
 
+  /**
+   * @param {string} id
+   * @param {BoardElem} [item]
+   * @returns {Bounds | null}
+   */
   getLocalBounds(id, item) {
     const target = item || this.board[id];
     if (!target) return null;
@@ -194,6 +235,11 @@ class BoardData {
     };
   }
 
+  /**
+   * @param {BoardElem} candidate
+   * @param {Bounds | null | undefined} localBounds
+   * @returns {boolean}
+   */
   isCandidateTooLarge(candidate, localBounds) {
     const effectiveBounds = MessageCommon.applyTransformToBounds(
       localBounds,
@@ -202,12 +248,23 @@ class BoardData {
     return MessageCommon.isBoundsTooLarge(effectiveBounds);
   }
 
+  /**
+   * @param {BoardElem} item
+   * @param {string} id
+   * @returns {boolean}
+   */
   hasZeroLocalExtent(item, id) {
     const bounds = this.getLocalBounds(id, item);
     if (!bounds) return false;
     return bounds.minX === bounds.maxX && bounds.minY === bounds.maxY;
   }
 
+  /**
+   * @param {string | undefined} tool
+   * @param {BoardElem} item
+   * @param {string} id
+   * @returns {boolean}
+   */
   shouldDropSeedShapeOnRejectedUpdate(tool, item, id) {
     return (
       (tool === "Straight line" ||
@@ -220,10 +277,20 @@ class BoardData {
     );
   }
 
+  /**
+   * @param {string} id
+   * @param {BoardElem} data
+   * @returns {boolean}
+   */
   canStore(id, data) {
     return this.validateStoredCandidate(id, data).ok;
   }
 
+  /**
+   * @param {string} id
+   * @param {BoardElem} updateData
+   * @returns {boolean}
+   */
   canUpdate(id, updateData) {
     const obj = this.board[id];
     if (typeof obj !== "object") return false;
@@ -236,6 +303,12 @@ class BoardData {
     return !this.isCandidateTooLarge(candidate, localBounds);
   }
 
+  /**
+   * @param {string} id
+   * @param {BoardElem} obj
+   * @param {BoardElem} updateData
+   * @returns {boolean}
+   */
   isIncrementalUpdateTooLarge(id, obj, updateData) {
     if (obj.tool === "Pencil") {
       const nextBounds = MessageCommon.extendBoundsWithPoint(
@@ -253,6 +326,11 @@ class BoardData {
     return false;
   }
 
+  /**
+   * @param {string} parentId
+   * @param {BoardElem} child
+   * @returns {boolean}
+   */
   canAddChild(parentId, child) {
     const obj = this.board[parentId];
     if (!obj || obj.tool !== "Pencil") return false;
@@ -272,12 +350,21 @@ class BoardData {
     );
   }
 
+  /**
+   * @param {string} id
+   * @param {BoardElem} data
+   * @returns {boolean}
+   */
   canCopy(id, data) {
     const obj = this.board[id];
     if (!obj) return false;
     return this.validateStoredCandidate(data.newid, structuredClone(obj)).ok;
   }
 
+  /**
+   * @param {BoardMessage} message
+   * @returns {boolean}
+   */
   canProcessMessage(message) {
     let id = message.id;
     switch (message.type) {
@@ -300,6 +387,7 @@ class BoardData {
   /** Adds data to the board
    * @param {string} id
    * @param {BoardElem} data
+   * @returns {BoardMutationResult | ValidationFailure}
    */
   set(id, data) {
     //KISS
@@ -315,7 +403,7 @@ class BoardData {
   /** Adds a child to an element that is already in the board
    * @param {string} parentId - Identifier of the parent element.
    * @param {BoardElem} child - Object containing the the values to update.
-   * @returns {{ok: boolean, reason?: string}} - True if the child was added, else false
+   * @returns {BoardMutationResult | ValidationFailure} - True if the child was added, else false
    */
   addChild(parentId, child) {
     var obj = this.board[parentId];
@@ -344,6 +432,7 @@ class BoardData {
    * @param {string} id - Identifier of the data to update.
    * @param {BoardElem} data - Object containing the values to update.
    * @param {boolean} [create] - True if the object should be created if it's not currently in the DB.
+   * @returns {BoardMutationResult}
    */
   update(id, data, create) {
     var tool = data.tool;
@@ -370,6 +459,7 @@ class BoardData {
   /** Copy elements in the board
    * @param {string} id - Identifier of the data to copy.
    * @param {BoardElem} data - Object containing the id of the new copied element.
+   * @returns {BoardMutationResult | ValidationFailure}
    */
   copy(id, data) {
     var obj = this.board[id];
@@ -389,6 +479,7 @@ class BoardData {
   }
 
   /** Clear the board of all data
+   * @returns {ValidationSuccess}
    */
   clear() {
     this.board = {};
@@ -399,6 +490,7 @@ class BoardData {
 
   /** Removes data from the board
    * @param {string} id - Identifier of the data to delete.
+   * @returns {ValidationSuccess}
    */
   delete(id) {
     //KISS
@@ -409,15 +501,9 @@ class BoardData {
   }
 
   /** Process a batch of messages
-   * @typedef {{
-   *  id?: string,
-   *  type: string,
-   *  tool?: string,
-   *  parent?: string,
-   *  newid?: string,
-   *  _children?: BoardMessage[],
-   * } & BoardElem } BoardMessage
    * @param {BoardMessage[]} children array of messages to be delegated to the other methods
+   * @param {BoardMessage} [parentMessage]
+   * @returns {BoardMutationResult | ValidationFailure}
    */
   processMessageBatch(children, parentMessage) {
     const messages = children.map((childMessage) =>
@@ -427,7 +513,12 @@ class BoardData {
     );
 
     let boardCleared = false;
+    /** @type {Map<string, BoardElem | undefined>} */
     const shadowItems = new Map();
+    /**
+     * @param {string} id
+     * @returns {BoardElem | undefined}
+     */
     const readShadowItem = (id) =>
       shadowItems.has(id)
         ? shadowItems.get(id)
@@ -510,6 +601,7 @@ class BoardData {
     }
 
     for (const message of messages) {
+      /** @type {BoardMutationResult | ValidationFailure} */
       const result = this.processMessage(message);
       if (!result.ok) return result;
     }
@@ -518,6 +610,7 @@ class BoardData {
 
   /** Process a single message
    * @param {BoardMessage} message instruction to apply to the board
+   * @returns {BoardMutationResult | ValidationFailure}
    */
   processMessage(message) {
     if (message._children)
@@ -550,7 +643,7 @@ class BoardData {
 
   /** Reads data from the board
    * @param {string} id - Identifier of the element to get.
-   * @returns {BoardElem} The element with the given id, or undefined if no element has this id
+   * @returns {BoardElem | undefined} The element with the given id, or undefined if no element has this id
    */
   get(id) {
     return this.board[id];
@@ -634,6 +727,14 @@ class BoardData {
     }
   }
 
+  /**
+   * @param {string} id
+   * @returns {boolean}
+   */
+  /**
+   * @param {string} id
+   * @returns {boolean}
+   */
   normalizeStoredElement(id) {
     const validated = this.validateStoredCandidate(id, this.board[id]);
     if (!validated.ok) {
@@ -688,6 +789,10 @@ class BoardData {
     return boardData;
   }
 
+  /**
+   * @param {string} name
+   * @returns {BoardMetadata}
+   */
   static loadMetadataSync(name) {
     const metadata = defaultBoardMetadata();
     try {
