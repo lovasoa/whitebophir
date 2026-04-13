@@ -207,12 +207,14 @@ function getSocketToken(socket) {
 /**
  * @param {string} boardName
  * @param {AppSocket} socket
- * @returns {"editor" | "moderator" | "forbidden"}
+ * @returns {"editor" | "moderator" | "reader" | "forbidden"}
  */
 function accessRole(boardName, socket) {
   if (!config.AUTH_SECRET_KEY) return "editor";
   const token = getSocketToken(socket);
-  return token ? roleInBoard(token, boardName) : "forbidden";
+  return /** @type {"editor" | "moderator" | "reader" | "forbidden"} */ (
+    token ? roleInBoard(token, boardName) : "forbidden"
+  );
 }
 
 /**

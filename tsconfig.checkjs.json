@@ -21,6 +21,7 @@
   },
   "include": [
     "types/**/*.d.ts",
+    "client-data/js/board.js",
     "client-data/js/board_page_state.js",
     "client-data/js/board_transport.js",
     "client-data/js/index.js",

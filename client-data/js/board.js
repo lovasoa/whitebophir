@@ -23,8 +23,93 @@
  *
  * @licend
  */
+/** @typedef {{readonly: boolean, canWrite: boolean}} AppBoardState */
+/** @typedef {{tool?: string, id?: string, type?: string, parent?: string, transform?: unknown, _children?: unknown, x?: number, y?: number, [key: string]: unknown}} BoardMessage */
+/** @typedef {{data: BoardMessage, toolName: string}} PendingWrite */
+/** @typedef {{[toolName: string]: BoardMessage[]}} PendingMessages */
+/** @typedef {(x: number, y: number, evt: MouseEvent | TouchEvent, isTouchEvent: boolean) => unknown} ToolPointerListener */
+/** @typedef {{press?: ToolPointerListener, move?: ToolPointerListener, release?: ToolPointerListener}} ToolPointerListeners */
+/** @typedef {((evt: Event) => unknown) & {target?: EventTarget | null}} CompiledToolListener */
+/** @typedef {{[eventName: string]: CompiledToolListener}} CompiledToolListeners */
+/** @typedef {{name: string, icon: string, active: boolean, switch?: () => void}} ToolSecondaryMode */
+/** @typedef {{[toolName: string]: AppTool}} ToolRegistry */
+/**
+ * @typedef {object} AppTool
+ * @property {string} name
+ * @property {string} shortcut
+ * @property {string} icon
+ * @property {(message: BoardMessage, isLocal: boolean) => void} draw
+ * @property {string} [iconHTML]
+ * @property {ToolPointerListeners} [listeners]
+ * @property {CompiledToolListeners} [compiledListeners]
+ * @property {(oldTool: AppTool | null) => void} [onstart]
+ * @property {(newTool: AppTool) => void} [onquit]
+ * @property {string} [stylesheet]
+ * @property {boolean} [oneTouch]
+ * @property {string} [mouseCursor]
+ * @property {string} [helpText]
+ * @property {ToolSecondaryMode} [secondary]
+ * @property {(size: number) => void} [onSizeChange]
+ */
+/** @typedef {{on: (eventName: string, handler: (...args: any[]) => void) => void, emit: (eventName: string, ...args: any[]) => void, disconnect?: () => void, destroy?: () => void}} AppSocket */
+/** @typedef {(message: BoardMessage) => void} MessageHook */
+/** @typedef {(tool: AppTool) => void} ToolHook */
+/** @typedef {{color: string, key?: string}} ColorPreset */
+/** @typedef {{TURNSTILE_SITE_KEY?: string, TURNSTILE_VALIDATION_WINDOW_MS?: number | string, BLOCKED_TOOLS?: string[], BLOCKED_SELECTION_BUTTONS?: string[], MAX_BOARD_SIZE?: number}} ServerConfig */
+/**
+ * @typedef {object} ToolPalette
+ * @property {any} template
+ * @property {(key: string, callback: () => void) => void} addShortcut
+ * @property {(toolName: string, toolIcon: string, toolIconHTML: string | undefined, toolShortcut: string, oneTouch: boolean | undefined) => unknown} addTool
+ * @property {(oldToolName: string, newToolName: string) => void} changeTool
+ * @property {(toolName: string, name: string, icon: string) => void} toggle
+ * @property {(href: string) => void} addStylesheet
+ * @property {any} colorPresetTemplate
+ * @property {(button: ColorPreset) => unknown} addColorButton
+ */
+/**
+ * @typedef {object} AppToolsState
+ * @property {{t: (s: string) => string}} i18n
+ * @property {ServerConfig} server_config
+ * @property {Set<string>} readOnlyToolNames
+ * @property {number} turnstileValidatedUntil
+ * @property {unknown | null} turnstileWidgetId
+ * @property {ReturnType<typeof setTimeout> | null} turnstileRefreshTimeout
+ * @property {boolean} turnstilePending
+ * @property {PendingWrite[]} turnstilePendingWrites
+ * @property {ReturnType<typeof setTimeout> | null} showTurnstileOverlayTimeout
+ * @property {number} scale
+ * @property {boolean | null} drawToolsAllowed
+ * @property {AppBoardState} boardState
+ * @property {boolean} readOnly
+ * @property {boolean} canWrite
+ * @property {HTMLElement} board
+ * @property {SVGSVGElement} svg
+ * @property {Element | null} drawingArea
+ * @property {AppTool | null} curTool
+ * @property {boolean} drawingEvent
+ * @property {boolean} showMarker
+ * @property {boolean} showOtherCursors
+ * @property {boolean} showMyCursor
+ * @property {boolean} isIE
+ * @property {AppSocket | null} socket
+ * @property {boolean} hasConnectedOnce
+ * @property {boolean} rateLimitAlertShown
+ * @property {{[name: string]: string} | null} socketIOExtraHeaders
+ * @property {string} boardName
+ * @property {string | null} token
+ * @property {ToolPalette} HTML
+ * @property {ToolRegistry} list
+ * @property {PendingMessages} pendingMessages
+ * @property {number} unreadMessagesCount
+ * @property {MessageHook[]} messageHooks
+ * @property {ToolHook[]} toolHooks
+ * @property {ColorPreset[]} colorPresets
+ * @property {HTMLInputElement} color_chooser
+ * @property {((size: number) => void)[]} sizeChangeHandlers
+ */
 
-var Tools = {};
+var Tools = /** @type {AppToolsState & {[name: string]: any}} */ ({});
 var MessageCommon = window.WBOMessageCommon;
 var BoardConnection = window.WBOBoardConnection;
 var BoardMessages = window.WBOBoardMessages;
@@ -32,6 +117,58 @@ var BoardState = window.WBOBoardState;
 var BoardTurnstile = window.WBOBoardTurnstile;
 var BoardTools = window.WBOBoardTools;
 var BoardBootstrap = window.WBOBoardBootstrap;
+
+/**
+ * @param {string} elementId
+ * @returns {HTMLInputElement}
+ */
+function getRequiredInput(elementId) {
+  return /** @type {HTMLInputElement} */ (BoardBootstrap.getRequiredElement(elementId));
+}
+
+/**
+ * @param {string} toolName
+ * @returns {{button: HTMLElement, primaryIcon: HTMLImageElement, secondaryIcon: HTMLImageElement | null, label: HTMLElement}}
+ */
+function getRequiredToolButtonParts(toolName) {
+  var button = BoardBootstrap.getRequiredElement("toolID-" + toolName);
+  var primaryIcon = /** @type {HTMLImageElement | null} */ (
+    button.querySelector(".tool-icon")
+  );
+  var label = /** @type {HTMLElement | null} */ (
+    button.querySelector(".tool-name")
+  );
+  if (!primaryIcon || !label) {
+    throw new Error("Missing required tool button structure for " + toolName);
+  }
+  return {
+    button: button,
+    primaryIcon: primaryIcon,
+    secondaryIcon: /** @type {HTMLImageElement | null} */ (
+      button.querySelector(".secondaryIcon")
+    ),
+    label: label,
+  };
+}
+
+/**
+ * @param {EventTarget | null} target
+ * @returns {target is HTMLInputElement | HTMLTextAreaElement}
+ */
+function isTextEntryTarget(target) {
+  return (
+    (target instanceof HTMLInputElement && target.type === "text") ||
+    target instanceof HTMLTextAreaElement
+  );
+}
+
+function blurActiveElement() {
+  if (document.activeElement instanceof HTMLElement) {
+    if (typeof document.activeElement.blur === "function") {
+      document.activeElement.blur();
+    }
+  }
+}
 
 Tools.i18n = (function i18n() {
   var translations = BoardBootstrap.parseEmbeddedJson("translations", {});
@@ -52,11 +189,16 @@ Tools.turnstileRefreshTimeout = null;
 Tools.turnstilePending = false;
 Tools.turnstilePendingWrites = [];
 
+/** @param {BoardMessage} message */
 Tools.cloneMessage = function cloneMessage(message) {
   if (typeof structuredClone === "function") return structuredClone(message);
-  return JSON.parse(JSON.stringify(message));
+  return /** @type {BoardMessage} */ (JSON.parse(JSON.stringify(message)));
 };
 
+/**
+ * @param {BoardMessage} data
+ * @param {AppTool} tool
+ */
 Tools.queueProtectedWrite = function queueProtectedWrite(data, tool) {
   Tools.turnstilePendingWrites.push({
     data: Tools.cloneMessage(data),
@@ -98,9 +240,8 @@ Tools.clearTurnstileRefreshTimeout = function clearTurnstileRefreshTimeout() {
   }
 };
 
-Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(
-  validationWindowMs,
-) {
+/** @param {number} validationWindowMs */
+Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(validationWindowMs) {
   if (!Tools.server_config.TURNSTILE_SITE_KEY || !(validationWindowMs > 0))
     return;
   Tools.clearTurnstileRefreshTimeout();
@@ -111,15 +252,17 @@ Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(
   }, refreshDelay);
 };
 
+/** @param {unknown} result */
 Tools.setTurnstileValidation = function setTurnstileValidation(result) {
   Tools.clearTurnstileRefreshTimeout();
-  if (!result || result.success !== true) {
+  var ack = Tools.normalizeTurnstileAck(result);
+  if (ack.success !== true) {
     Tools.turnstileValidatedUntil = 0;
     return;
   }
 
   var validation = BoardTurnstile.computeTurnstileValidation(
-    result,
+    ack,
     Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS),
   );
   var validationWindowMs = validation.validationWindowMs;
@@ -130,6 +273,7 @@ Tools.setTurnstileValidation = function setTurnstileValidation(result) {
   }
 };
 
+/** @param {unknown} result */
 Tools.normalizeTurnstileAck = function normalizeTurnstileAck(result) {
   return BoardTurnstile.normalizeTurnstileAck(
     result,
@@ -160,6 +304,7 @@ Tools.ensureTurnstileElements = function ensureTurnstileElements() {
 
 Tools.showTurnstileOverlayTimeout = null;
 
+/** @param {number} delay */
 Tools.showTurnstileOverlay = function showTurnstileOverlay(delay) {
   var elements = Tools.ensureTurnstileElements();
   if (delay > 0) {
@@ -180,6 +325,7 @@ Tools.hideTurnstileOverlay = function hideTurnstileOverlay() {
   if (overlay) overlay.classList.add("turnstile-overlay-hidden");
 };
 
+/** @param {unknown} errorCode */
 function handleTurnstileError(errorCode) {
   alert("Turnstile verification failed: " + errorCode);
   location.reload();
@@ -199,8 +345,12 @@ Tools.refreshTurnstile = function refreshTurnstile() {
         appearance: "interaction-only",
         theme: "light",
         "refresh-expired": "manual",
+        /** @param {string} token */
         callback: function (token) {
-          Tools.socket.emit("turnstile_token", token, function (result) {
+          if (!Tools.socket) return;
+          Tools.socket.emit("turnstile_token", token, function (
+            /** @type {unknown} */ result
+          ) {
             var turnstileResult = Tools.normalizeTurnstileAck(result);
             Tools.turnstilePending = false;
             if (turnstileResult.success) {
@@ -219,7 +369,7 @@ Tools.refreshTurnstile = function refreshTurnstile() {
         "after-interactive-callback": function () {
           if (Tools.isTurnstileValidated()) Tools.hideTurnstileOverlay();
         },
-        "error-callback": function (err) {
+        "error-callback": function (/** @type {unknown} */ err) {
           Tools.turnstilePending = false;
           Tools.setTurnstileValidation(null);
           console.error("Turnstile error:", err);
@@ -246,6 +396,7 @@ Tools.refreshTurnstile = function refreshTurnstile() {
   }
 };
 
+/** @param {string} toolName */
 Tools.shouldDisableTool = function shouldDisableTool(toolName) {
   return (
     MessageCommon.isDrawTool(toolName) &&
@@ -253,12 +404,14 @@ Tools.shouldDisableTool = function shouldDisableTool(toolName) {
   );
 };
 
+/** @param {string} toolName */
 Tools.canUseTool = function canUseTool(toolName) {
   return (
     Tools.shouldDisplayTool(toolName) && !Tools.shouldDisableTool(toolName)
   );
 };
 
+/** @param {string} toolName */
 Tools.syncToolDisabledState = function syncToolDisabledState(toolName) {
   var toolElem = document.getElementById("toolID-" + toolName);
   if (!toolElem) return;
@@ -267,6 +420,7 @@ Tools.syncToolDisabledState = function syncToolDisabledState(toolName) {
   toolElem.setAttribute("aria-disabled", disabled ? "true" : "false");
 };
 
+/** @param {boolean} force */
 Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
   var drawToolsAllowed = MessageCommon.isDrawToolAllowedAtScale(Tools.scale);
   if (!force && drawToolsAllowed === Tools.drawToolsAllowed) return;
@@ -290,8 +444,9 @@ Tools.showTurnstileWidget = function showTurnstileWidget() {
   Tools.refreshTurnstile();
 };
 
+/** @param {unknown} state */
 Tools.setBoardState = function setBoardState(state) {
-  Tools.boardState = BoardState.normalizeBoardState(state);
+  Tools.boardState = /** @type {AppBoardState} */ (BoardState.normalizeBoardState(state));
   Tools.readOnly = Tools.boardState.readonly;
   Tools.canWrite = Tools.boardState.canWrite;
 
@@ -317,6 +472,7 @@ Tools.setBoardState = function setBoardState(state) {
   }
 };
 
+/** @param {string} toolName */
 Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
   return BoardTools.shouldDisplayTool(
     toolName,
@@ -382,27 +538,25 @@ Tools.showRateLimitAlert = function showRateLimitAlert() {
   window.alert(Tools.i18n.t("rate_limit_disconnect_message"));
 };
 Tools.connect = function () {
-  var self = this;
-
   // Destroy socket if one already exists
-  if (self.socket) {
-    BoardConnection.closeSocket(self.socket);
-    delete self.socket;
-    self.socket = null;
+  if (Tools.socket) {
+    BoardConnection.closeSocket(Tools.socket);
+    Tools.socket = null;
   }
 
-  var url = new URL(window.location);
+  var url = new URL(window.location.href);
   var params = new URLSearchParams(url.search);
-  var socket_params = BoardConnection.buildSocketParams(
+  var socketParams = BoardConnection.buildSocketParams(
     window.location.pathname,
     Tools.socketIOExtraHeaders,
     params.get("token"),
   );
 
-  this.socket = io.connect("", socket_params);
+  var socket = io.connect("", socketParams);
+  Tools.socket = socket;
 
   //Receive draw instructions from the server
-  this.socket.on("connect", function onConnection() {
+  socket.on("connect", function onConnection() {
     if (Tools.hasConnectedOnce && Tools.server_config.TURNSTILE_SITE_KEY) {
       Tools.setTurnstileValidation(null);
       BoardTurnstile.resetTurnstileWidget(
@@ -411,23 +565,23 @@ Tools.connect = function () {
       );
     }
     Tools.hasConnectedOnce = true;
-    Tools.socket.emit("getboard", Tools.boardName);
+    if (Tools.socket) Tools.socket.emit("getboard", Tools.boardName);
   });
-  this.socket.on("broadcast", function (msg) {
+  socket.on("broadcast", function (/** @type {BoardMessage} */ msg) {
     handleMessage(msg).finally(function afterload() {
       var loadingEl = document.getElementById("loadingMessage");
-      loadingEl.classList.add("hidden");
+      if (loadingEl) loadingEl.classList.add("hidden");
     });
   });
-  this.socket.on("boardstate", Tools.setBoardState);
-  this.socket.on("rate-limited", function onRateLimited() {
+  socket.on("boardstate", Tools.setBoardState);
+  socket.on("rate-limited", function onRateLimited() {
     Tools.showRateLimitAlert();
   });
 };
 Tools.boardName = Tools.resolveBoardName();
 
 Tools.token = (function () {
-  var url = new URL(window.location);
+  var url = new URL(window.location.href);
   var params = new URLSearchParams(url.search);
   return params.get("token");
 })();
@@ -439,7 +593,8 @@ function saveBoardNametoLocalStorage() {
   var recentBoards,
     key = "recent-boards";
   try {
-    recentBoards = JSON.parse(localStorage.getItem(key));
+    var storedBoards = localStorage.getItem(key);
+    recentBoards = storedBoards ? JSON.parse(storedBoards) : [];
   } catch (e) {
     // On localstorage or json error, reset board list
     recentBoards = [];
@@ -451,16 +606,22 @@ function saveBoardNametoLocalStorage() {
 // Refresh recent boards list on each page show
 window.addEventListener("pageshow", saveBoardNametoLocalStorage);
 
-Tools.HTML = {
+Tools.HTML = /** @type {ToolPalette} */ ({
   template: new Minitpl("#tools > .tool"),
   addShortcut: function addShortcut(key, callback) {
     window.addEventListener("keydown", function (e) {
-      if (e.key === key && !e.target.matches("input[type=text], textarea")) {
+      if (e.key === key && !isTextEntryTarget(e.target)) {
         callback();
       }
     });
   },
-  addTool: function (toolName, toolIcon, toolIconHTML, toolShortcut, oneTouch) {
+  addTool: function addTool(
+    toolName,
+    toolIcon,
+    toolIconHTML,
+    toolShortcut,
+    oneTouch,
+  ) {
     var callback = function () {
       if (!Tools.canUseTool(toolName)) return;
       Tools.change(toolName);
@@ -468,17 +629,28 @@ Tools.HTML = {
     this.addShortcut(toolShortcut, function () {
       if (!Tools.canUseTool(toolName)) return;
       Tools.change(toolName);
-      document.activeElement.blur && document.activeElement.blur();
+      blurActiveElement();
     });
-    return this.template.add(function (elem) {
+    return this.template.add(function (/** @type {HTMLElement} */ elem) {
       elem.addEventListener("click", callback);
       elem.id = "toolID-" + toolName;
-      elem.getElementsByClassName("tool-name")[0].textContent =
-        Tools.i18n.t(toolName);
-      var toolIconElem = elem.getElementsByClassName("tool-icon")[0];
+      var label = /** @type {HTMLElement | undefined} */ (
+        elem.getElementsByClassName("tool-name")[0]
+      );
+      var toolIconElem = /** @type {HTMLImageElement | undefined} */ (
+        elem.getElementsByClassName("tool-icon")[0]
+      );
+      if (!label || !toolIconElem) {
+        throw new Error("Invalid tool template structure");
+      }
+      label.textContent = Tools.i18n.t(toolName);
       toolIconElem.src = toolIcon;
       toolIconElem.alt = toolIcon;
       if (oneTouch) elem.classList.add("oneTouch");
+      var tool = Tools.list[toolName];
+      if (!tool) {
+        throw new Error("Tool not registered before rendering: " + toolName);
+      }
       elem.title =
         Tools.i18n.t(toolName) +
         " (" +
@@ -486,13 +658,18 @@ Tools.HTML = {
         ": " +
         toolShortcut +
         ")" +
-        (Tools.list[toolName].secondary
+        (tool.secondary
           ? " [" + Tools.i18n.t("click_to_toggle") + "]"
           : "");
-      if (Tools.list[toolName].secondary) {
+      if (tool.secondary) {
         elem.classList.add("hasSecondary");
-        var secondaryIcon = elem.getElementsByClassName("secondaryIcon")[0];
-        secondaryIcon.src = Tools.list[toolName].secondary.icon;
+        var secondaryIcon = /** @type {HTMLImageElement | undefined} */ (
+          elem.getElementsByClassName("secondaryIcon")[0]
+        );
+        if (!secondaryIcon) {
+          throw new Error("Missing secondary icon for tool " + toolName);
+        }
+        secondaryIcon.src = tool.secondary.icon;
         toolIconElem.classList.add("primaryIcon");
       }
       Tools.syncToolDisabledState(toolName);
@@ -504,23 +681,21 @@ Tools.HTML = {
     if (oldTool) oldTool.classList.remove("curTool");
     if (newTool) newTool.classList.add("curTool");
   },
-  toggle: function (toolName, name, icon) {
-    var elem = document.getElementById("toolID-" + toolName);
+  toggle: function toggle(toolName, name, icon) {
+    var parts = getRequiredToolButtonParts(toolName);
+    var secondaryIcon = parts.secondaryIcon;
+    if (!secondaryIcon) {
+      throw new Error("Missing secondary icon for tool " + toolName);
+    }
 
-    // Change secondary icon
-    var primaryIcon = elem.getElementsByClassName("primaryIcon")[0];
-    var secondaryIcon = elem.getElementsByClassName("secondaryIcon")[0];
-    var primaryIconSrc = primaryIcon.src;
+    var primaryIconSrc = parts.primaryIcon.src;
     var secondaryIconSrc = secondaryIcon.src;
-    primaryIcon.src = secondaryIconSrc;
+    parts.primaryIcon.src = secondaryIconSrc;
     secondaryIcon.src = primaryIconSrc;
-
-    // Change primary icon
-    elem.getElementsByClassName("tool-icon")[0].src = icon;
-    elem.getElementsByClassName("tool-name")[0].textContent =
-      Tools.i18n.t(name);
+    parts.primaryIcon.src = icon;
+    parts.label.textContent = Tools.i18n.t(name);
   },
-  addStylesheet: function (href) {
+  addStylesheet: function addStylesheet(href) {
     //Adds a css stylesheet to the html or svg document
     var link = document.createElement("link");
     link.href = href;
@@ -529,10 +704,10 @@ Tools.HTML = {
     document.head.appendChild(link);
   },
   colorPresetTemplate: new Minitpl("#colorPresetSel .colorPresetButton"),
-  addColorButton: function (button) {
+  addColorButton: function addColorButton(button) {
     var setColor = Tools.setColor.bind(Tools, button.color);
     if (button.key) this.addShortcut(button.key, setColor);
-    return this.colorPresetTemplate.add(function (elem) {
+    return this.colorPresetTemplate.add(function (/** @type {HTMLElement} */ elem) {
       elem.addEventListener("click", setColor);
       elem.id = "color_" + button.color.replace(/^#/, "");
       elem.style.backgroundColor = button.color;
@@ -541,10 +716,11 @@ Tools.HTML = {
       }
     });
   },
-};
+});
 
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
+/** @param {AppTool} tool */
 Tools.isBlocked = function toolIsBanned(tool) {
   return BoardTools.isBlockedToolName(
     tool.name,
@@ -555,6 +731,7 @@ Tools.isBlocked = function toolIsBanned(tool) {
 /**
  * Register a new tool, without touching the User Interface
  */
+/** @param {AppTool} newTool */
 Tools.register = function registerTool(newTool) {
   if (Tools.isBlocked(newTool)) return;
 
@@ -583,7 +760,7 @@ Tools.register = function registerTool(newTool) {
   );
   if (pending.length > 0) {
     console.log("Drawing pending messages for '%s'.", newTool.name);
-    pending.forEach(function (msg) {
+    pending.forEach(function (/** @type {BoardMessage} */ msg) {
       //Transmit the message to the tool (precising that it comes from the network)
       newTool.draw(msg, false);
     });
@@ -593,6 +770,7 @@ Tools.register = function registerTool(newTool) {
 /**
  * Add a new tool to the user interface
  */
+/** @param {AppTool} newTool */
 Tools.add = function (newTool) {
   if (Tools.isBlocked(newTool)) return;
 
@@ -616,6 +794,7 @@ Tools.add = function (newTool) {
   Tools.syncToolDisabledState(newTool.name);
 };
 
+/** @param {string} toolName */
 Tools.change = function (toolName) {
   var newTool = Tools.list[toolName];
   var oldTool = Tools.curTool;
@@ -651,7 +830,7 @@ Tools.change = function (toolName) {
       Tools.removeToolListeners(Tools.curTool);
 
       //Call the callbacks of the old tool
-      Tools.curTool.onquit(newTool);
+      Tools.curTool.onquit && Tools.curTool.onquit(newTool);
     }
 
     //Add the new event listeners
@@ -660,21 +839,27 @@ Tools.change = function (toolName) {
   }
 
   //Call the start callback of the new tool
-  newTool.onstart(oldTool);
+  if (newTool.onstart) newTool.onstart(oldTool);
   return true;
 };
 
+/** @param {AppTool} tool */
 Tools.addToolListeners = function addToolListeners(tool) {
+  if (!tool.compiledListeners) return;
   for (var event in tool.compiledListeners) {
     var listener = tool.compiledListeners[event];
+    if (!listener) continue;
     var target = listener.target || Tools.board;
     target.addEventListener(event, listener, { passive: false });
   }
 };
 
+/** @param {AppTool} tool */
 Tools.removeToolListeners = function removeToolListeners(tool) {
+  if (!tool.compiledListeners) return;
   for (var event in tool.compiledListeners) {
     var listener = tool.compiledListeners[event];
+    if (!listener) continue;
     var target = listener.target || Tools.board;
     target.removeEventListener(event, listener);
     // also attempt to remove with capture = true in IE
@@ -684,9 +869,14 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 
 (function () {
   // Handle secondary tool switch with shift (key code 16)
+  /**
+   * @param {boolean} active
+   * @param {KeyboardEvent} evt
+   */
   function handleShift(active, evt) {
     if (
       evt.keyCode === 16 &&
+      Tools.curTool &&
       Tools.curTool.secondary &&
       Tools.curTool.secondary.active !== active
     ) {
@@ -697,26 +887,39 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
   window.addEventListener("keyup", handleShift.bind(null, false));
 })();
 
+/**
+ * @param {BoardMessage} data
+ * @param {string | undefined} toolName
+ */
 Tools.send = function (data, toolName) {
-  toolName = toolName || Tools.curTool.name;
+  if (!toolName) {
+    if (!Tools.curTool) throw new Error("No current tool selected");
+    toolName = Tools.curTool.name;
+  }
   data.tool = toolName;
   Tools.applyHooks(Tools.messageHooks, data);
   var message = {
     board: Tools.boardName,
     data: data,
   };
+  if (!Tools.socket) throw new Error("Socket is not connected");
   Tools.socket.emit("broadcast", message);
 };
 
+/**
+ * @param {BoardMessage} data
+ * @param {AppTool | null | undefined} tool
+ */
 Tools.drawAndSend = function (data, tool) {
   if (tool == null) tool = Tools.curTool;
+  if (!tool) throw new Error("No active tool available");
   if (tool && Tools.shouldDisableTool(tool.name)) return false;
 
   // Optimistically render the drawing immediately
   tool.draw(data, true);
 
   if (
-    WBOMessageCommon.requiresTurnstile(Tools.boardName, tool.name) &&
+    MessageCommon.requiresTurnstile(Tools.boardName, tool.name) &&
     Tools.server_config.TURNSTILE_SITE_KEY &&
     !Tools.isTurnstileValidated()
   ) {
@@ -732,10 +935,14 @@ Tools.drawAndSend = function (data, tool) {
 //is loaded. keys : the name of the tool, values : array of messages for this tool
 Tools.pendingMessages = {};
 
-// Send a message to the corresponding tool
+/**
+ * Send a message to the corresponding tool.
+ * @param {BoardMessage} message
+ * @returns {void}
+ */
 function messageForTool(message) {
   var name = message.tool,
-    tool = Tools.list[name];
+    tool = name ? Tools.list[name] : undefined;
 
   if (tool) {
     Tools.applyHooks(Tools.messageHooks, message);
@@ -757,7 +964,11 @@ function messageForTool(message) {
   }
 }
 
-// Call messageForTool recursively on the message and its children
+/**
+ * Call messageForTool recursively on the message and its children.
+ * @param {BoardMessage} message
+ * @returns {Promise<void>}
+ */
 function handleMessage(message) {
   //Check if the message is in the expected format
   if (!message.tool && !message._children) {
@@ -774,11 +985,16 @@ function handleMessage(message) {
       "Received a badly formatted message (_children must be an array). ",
       message,
     );
+    return Promise.resolve();
   }
-  else return Promise.resolve();
+  return Promise.resolve();
 }
 
-// Takes a parent message, and returns a function that will handle a single child message
+/**
+ * Takes a parent message, and returns a function that will handle a single child message.
+ * @param {BoardMessage} parent
+ * @returns {(child: BoardMessage) => Promise<void>}
+ */
 function childMessageHandler(parent) {
   if (!parent.id) return handleMessage;
   return function handleChild(child) {
@@ -806,7 +1022,8 @@ function updateDocumentTitle() {
 
 (function () {
   // Scroll and hash handling
-  var scrollTimeout,
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  var scrollTimeout = null,
     lastStateUpdate = Date.now();
 
   window.addEventListener("scroll", function onScroll() {
@@ -814,7 +1031,7 @@ function updateDocumentTitle() {
     var x = document.documentElement.scrollLeft / scale,
       y = document.documentElement.scrollTop / scale;
 
-    clearTimeout(scrollTimeout);
+    if (scrollTimeout !== null) clearTimeout(scrollTimeout);
     scrollTimeout = setTimeout(function updateHistory() {
       var hash =
         "#" + (x | 0) + "," + (y | 0) + "," + Tools.getScale().toFixed(1);
@@ -832,9 +1049,9 @@ function updateDocumentTitle() {
 
   function setScrollFromHash() {
     var coords = window.location.hash.slice(1).split(",");
-    var x = coords[0] | 0;
-    var y = coords[1] | 0;
-    var scale = parseFloat(coords[2]);
+    var x = Number(coords[0]) || 0;
+    var y = Number(coords[1]) || 0;
+    var scale = Number.parseFloat(coords[2] || "");
     resizeCanvas({ x: x, y: y });
     Tools.setScale(scale);
     window.scrollTo(x * scale, y * scale);
@@ -845,10 +1062,11 @@ function updateDocumentTitle() {
   window.addEventListener("DOMContentLoaded", setScrollFromHash, false);
 })();
 
+/** @param {BoardMessage} m */
 function resizeCanvas(m) {
   //Enlarge the canvas whenever something is drawn near its border
-  var x = m.x | 0,
-    y = m.y | 0;
+  var x = Number(m.x) | 0,
+    y = Number(m.y) | 0;
   var MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 65536; // Maximum value for any x or y on the board
   if (x > Tools.svg.width.baseVal.value - 2000) {
     Tools.svg.width.baseVal.value = Math.min(x + 2000, MAX_BOARD_SIZE);
@@ -858,8 +1076,12 @@ function resizeCanvas(m) {
   }
 }
 
+/** @param {BoardMessage} m */
 function updateUnreadCount(m) {
-  if (document.hidden && ["child", "update"].indexOf(m.type) === -1) {
+  if (
+    document.hidden &&
+    ["child", "update"].indexOf(typeof m.type === "string" ? m.type : "") === -1
+  ) {
     Tools.newUnreadMessage();
   }
 }
@@ -867,18 +1089,20 @@ function updateUnreadCount(m) {
 // List of hook functions that will be applied to messages before sending or drawing them
 Tools.messageHooks = [resizeCanvas, updateUnreadCount];
 
+/** @type {ReturnType<typeof setTimeout> | null} */
 var scaleTimeout = null;
+/** @param {number} scale */
 Tools.setScale = function setScale(scale) {
   var fullScale =
     Math.max(window.innerWidth, window.innerHeight) /
-    Tools.server_config.MAX_BOARD_SIZE;
+    (Number(Tools.server_config.MAX_BOARD_SIZE) || 65536);
   var minScale = Math.max(0.1, fullScale);
   var maxScale = 10;
   if (isNaN(scale)) scale = 1;
   scale = Math.max(minScale, Math.min(maxScale, scale));
   Tools.svg.style.willChange = "transform";
   Tools.svg.style.transform = "scale(" + scale + ")";
-  clearTimeout(scaleTimeout);
+  if (scaleTimeout !== null) clearTimeout(scaleTimeout);
   scaleTimeout = setTimeout(function () {
     Tools.svg.style.willChange = "auto";
   }, 1000);
@@ -892,6 +1116,7 @@ Tools.getScale = function getScale() {
 
 //List of hook functions that will be applied to tools before adding them
 Tools.toolHooks = [
+  /** @param {AppTool} tool */
   function checkToolAttributes(tool) {
     if (typeof tool.name !== "string") throw "A tool must have a name";
     if (typeof tool.listeners !== "object") {
@@ -904,56 +1129,64 @@ Tools.toolHooks = [
       tool.onquit = function () {};
     }
   },
+  /** @param {AppTool} tool */
   function compileListeners(tool) {
     //compile listeners into compiledListeners
-    var listeners = tool.listeners;
+    var listeners = tool.listeners || {};
 
     //A tool may provide precompiled listeners
     var compiled = tool.compiledListeners || {};
     tool.compiledListeners = compiled;
 
+    /**
+     * @param {ToolPointerListener} listener
+     * @returns {CompiledToolListener}
+     */
     function compile(listener) {
       //closure
       return function listen(evt) {
-        var x = evt.pageX / Tools.getScale(),
-          y = evt.pageY / Tools.getScale();
-        return listener(x, y, evt, false);
+        var mouseEvent = /** @type {MouseEvent} */ (evt);
+        var x = mouseEvent.pageX / Tools.getScale(),
+          y = mouseEvent.pageY / Tools.getScale();
+        return listener(x, y, mouseEvent, false);
       };
     }
 
+    /**
+     * @param {ToolPointerListener} listener
+     * @returns {CompiledToolListener}
+     */
     function compileTouch(listener) {
       //closure
       return function touchListen(evt) {
+        var touchEvent = /** @type {TouchEvent} */ (evt);
         //Currently, we don't handle multitouch
-        if (evt.changedTouches.length === 1) {
+        if (touchEvent.changedTouches.length === 1) {
           //evt.preventDefault();
-          var touch = evt.changedTouches[0];
+          var touch = touchEvent.changedTouches[0];
+          if (!touch) return true;
           var x = touch.pageX / Tools.getScale(),
             y = touch.pageY / Tools.getScale();
-          return listener(x, y, evt, true);
+          return listener(x, y, touchEvent, true);
         }
         return true;
       };
     }
 
-    function wrapUnsetHover(f, toolName) {
+    /**
+     * @param {CompiledToolListener} f
+     * @returns {CompiledToolListener}
+     */
+    function wrapUnsetHover(f) {
       return function unsetHover(evt) {
-        document.activeElement &&
-          document.activeElement.blur &&
-          document.activeElement.blur();
+        blurActiveElement();
         return f(evt);
       };
     }
 
     if (listeners.press) {
-      compiled["mousedown"] = wrapUnsetHover(
-        compile(listeners.press),
-        tool.name,
-      );
-      compiled["touchstart"] = wrapUnsetHover(
-        compileTouch(listeners.press),
-        tool.name,
-      );
+      compiled["mousedown"] = wrapUnsetHover(compile(listeners.press));
+      compiled["touchstart"] = wrapUnsetHover(compileTouch(listeners.press));
     }
     if (listeners.move) {
       compiled["mousemove"] = compile(listeners.move);
@@ -971,7 +1204,13 @@ Tools.toolHooks = [
   },
 ];
 
-Tools.applyHooks = function (hooks, object) {
+/**
+ * @template T
+ * @param {((value: T) => void)[]} hooks
+ * @param {T} object
+ * @returns {void}
+ */
+Tools.applyHooks = function applyHooks(hooks, object) {
   //Apply every hooks on the object
   hooks.forEach(function (hook) {
     hook(object);
@@ -980,7 +1219,11 @@ Tools.applyHooks = function (hooks, object) {
 
 // Utility functions
 
-Tools.generateUID = function (prefix, suffix) {
+/**
+ * @param {string | undefined} prefix
+ * @param {string | undefined} suffix
+ */
+Tools.generateUID = function generateUID(prefix, suffix) {
   var uid = Date.now().toString(36); //Create the uids in chronological order
   uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
   if (prefix) uid = prefix + uid;
@@ -988,16 +1231,28 @@ Tools.generateUID = function (prefix, suffix) {
   return uid;
 };
 
+/**
+ * @param {string} name
+ * @param {{[key: string]: string | number} | undefined} attrs
+ * @returns {SVGElement}
+ */
 Tools.createSVGElement = function createSVGElement(name, attrs) {
-  var elem = document.createElementNS(Tools.svg.namespaceURI, name);
-  if (typeof attrs !== "object") return elem;
-  Object.keys(attrs).forEach(function (key, i) {
-    elem.setAttributeNS(null, key, attrs[key]);
+  var elem = /** @type {SVGElement} */ (
+    document.createElementNS(Tools.svg.namespaceURI, name)
+  );
+  if (!attrs || typeof attrs !== "object") return elem;
+  Object.keys(attrs).forEach(function (key) {
+    elem.setAttributeNS(null, key, String(attrs[key]));
   });
   return elem;
 };
 
-Tools.positionElement = function (elem, x, y) {
+/**
+ * @param {HTMLElement} elem
+ * @param {number} x
+ * @param {number} y
+ */
+Tools.positionElement = function positionElement(elem, x, y) {
   elem.style.top = y + "px";
   elem.style.left = x + "px";
 };
@@ -1016,15 +1271,18 @@ Tools.colorPresets = [
   { color: "#E65194" },
 ];
 
-Tools.color_chooser = document.getElementById("chooseColor");
+Tools.color_chooser = getRequiredInput("chooseColor");
 
-Tools.setColor = function (color) {
+/** @param {string} color */
+Tools.setColor = function setColor(color) {
   Tools.color_chooser.value = color;
 };
 
 Tools.getColor = (function color() {
   var color_index = (Math.random() * Tools.colorPresets.length) | 0;
-  var initial_color = Tools.colorPresets[color_index].color;
+  var initialPreset =
+    Tools.colorPresets[color_index] || Tools.colorPresets[0] || { color: "#001f3f" };
+  var initial_color = initialPreset.color;
   Tools.setColor(initial_color);
   return function () {
     return Tools.color_chooser.value;
@@ -1035,7 +1293,7 @@ Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
 Tools.sizeChangeHandlers = [];
 Tools.setSize = (function size() {
-  var chooser = document.getElementById("chooseSize");
+  var chooser = getRequiredInput("chooseSize");
 
   function update() {
     var size = MessageCommon.clampSize(chooser.value);
@@ -1047,9 +1305,13 @@ Tools.setSize = (function size() {
   update();
 
   chooser.onchange = chooser.oninput = update;
+  /**
+   * @param {number | string | null | undefined} value
+   * @returns {number}
+   */
   return function (value) {
     if (value !== null && value !== undefined) {
-      chooser.value = value;
+      chooser.value = String(value);
       update();
     }
     return parseInt(chooser.value);
@@ -1061,8 +1323,8 @@ Tools.getSize = function () {
 };
 
 Tools.getOpacity = (function opacity() {
-  var chooser = document.getElementById("chooseOpacity");
-  var opacityIndicator = document.getElementById("opacityIndicator");
+  var chooser = getRequiredInput("chooseOpacity");
+  var opacityIndicator = BoardBootstrap.getRequiredElement("opacityIndicator");
 
   function update() {
     chooser.value = MessageCommon.clampOpacity(chooser.value);
@@ -1100,7 +1362,8 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 
 (function () {
   var pos = { top: 0, scroll: 0 };
-  var menu = document.getElementById("menu");
+  var menu = BoardBootstrap.getRequiredElement("menu");
+  /** @param {MouseEvent} evt */
   function menu_mousedown(evt) {
     pos = {
       top: menu.scrollTop,
@@ -1109,10 +1372,12 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
     menu.addEventListener("mousemove", menu_mousemove);
     document.addEventListener("mouseup", menu_mouseup);
   }
+  /** @param {MouseEvent} evt */
   function menu_mousemove(evt) {
     var dy = evt.clientY - pos.scroll;
     menu.scrollTop = pos.top - dy;
   }
+  /** @param {MouseEvent} evt */
   function menu_mouseup(evt) {
     menu.removeEventListener("mousemove", menu_mousemove);
     document.removeEventListener("mouseup", menu_mouseup);
