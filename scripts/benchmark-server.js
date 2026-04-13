@@ -13,13 +13,15 @@ const config = require("../server/configuration.js");
 const { renderBoardToSVG } = require("../server/createSVG.js");
 
 const DEFAULT_COLOR = "#1f2937";
+const WARMUP_COUNT = 1;
+const SAMPLE_COUNT = 5;
 const DENSE_BOARD_ITEMS = 18000;
 const DENSE_BOARD_PENCIL_EVERY = 6;
 const DENSE_PENCIL_POINTS = config.MAX_CHILDREN;
 const SNAPSHOT_BOARD_ITEMS = 24000;
 const OVERFULL_BOARD_ITEMS = config.MAX_ITEM_COUNT + 2048;
 const HAND_BATCH_ITEMS = config.MAX_CHILDREN;
-const HAND_BATCH_PASSES = 24;
+const HAND_BATCH_PASSES = 96;
 const EXPORT_PENCIL_SHAPES = 768;
 
 function bytesToMiB(bytes) {
@@ -29,6 +31,27 @@ function bytesToMiB(bytes) {
 function formatDelta(bytes) {
   const sign = bytes >= 0 ? "+" : "-";
   return sign + bytesToMiB(Math.abs(bytes));
+}
+
+function formatMs(milliseconds) {
+  return milliseconds.toFixed(1) + " ms";
+}
+
+function median(values) {
+  const sorted = values.slice().sort(function (left, right) {
+    return left - right;
+  });
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function spreadPercent(values) {
+  const min = Math.min.apply(null, values);
+  const max = Math.max.apply(null, values);
+  const mid = median(values);
+  return mid === 0 ? 0 : ((max - min) / mid) * 100;
 }
 
 function forceGc() {
@@ -44,28 +67,6 @@ function snapshotMemory() {
     heapUsed: memory.heapUsed,
     rss: memory.rss,
   };
-}
-
-async function measure(name, run) {
-  forceGc();
-  const before = snapshotMemory();
-  const startedAt = performance.now();
-  const details = await run();
-  const active = snapshotMemory();
-  const durationMs = performance.now() - startedAt;
-  forceGc();
-  const retained = snapshotMemory();
-
-  console.log(name);
-  console.log("  time:          " + durationMs.toFixed(1) + " ms");
-  console.log(
-    "  heap active:   " + formatDelta(active.heapUsed - before.heapUsed),
-  );
-  console.log(
-    "  heap retained: " + formatDelta(retained.heapUsed - before.heapUsed),
-  );
-  console.log("  rss delta:     " + formatDelta(active.rss - before.rss));
-  if (details) console.log("  details:       " + details);
 }
 
 function boardFile(name) {
@@ -168,180 +169,289 @@ function buildMixedBoard(itemCount, pencilEvery, pencilPointsPerShape) {
   return board;
 }
 
-async function loadBoardFromFile(
-  name,
-  itemCount,
-  pencilEvery,
-  pencilPointsPerShape,
-) {
-  const persisted = await writeBoardFile(
-    name,
-    buildMixedBoard(itemCount, pencilEvery, pencilPointsPerShape),
-  );
-  const boardData = await BoardData.load(name);
-  return { boardData, persisted };
-}
-
-async function benchmarkLoadDenseBoard() {
-  const { boardData, persisted } = await loadBoardFromFile(
-    "bench-load-dense-board",
-    DENSE_BOARD_ITEMS,
-    DENSE_BOARD_PENCIL_EVERY,
-    DENSE_PENCIL_POINTS,
-  );
-  return (
-    Object.keys(boardData.board).length +
-    " items normalized from " +
-    bytesToMiB(persisted.bytes)
-  );
-}
-
-async function benchmarkInitialBoardSnapshot() {
-  const { boardData, persisted } = await loadBoardFromFile(
-    "bench-initial-board-snapshot",
-    SNAPSHOT_BOARD_ITEMS,
-    8,
-    64,
-  );
-  const payload = { _children: boardData.getAll() };
-  const snapshot = JSON.stringify(payload);
-  return (
-    payload._children.length +
-    " items materialized and serialized to " +
-    bytesToMiB(Buffer.byteLength(snapshot)) +
-    " from " +
-    bytesToMiB(persisted.bytes)
-  );
-}
-
-async function benchmarkSaveDenseBoard() {
-  const { boardData, persisted } = await loadBoardFromFile(
-    "bench-save-dense-board",
-    DENSE_BOARD_ITEMS,
-    DENSE_BOARD_PENCIL_EVERY,
-    DENSE_PENCIL_POINTS,
-  );
-  await boardData.save();
-  if (boardData.saveTimeoutId !== undefined)
+function clearPendingSave(boardData) {
+  if (boardData.saveTimeoutId !== undefined) {
     clearTimeout(boardData.saveTimeoutId);
-  const stat = await fsp.stat(boardData.file);
-  return (
-    Object.keys(boardData.board).length +
-    " items stringified and written as " +
-    bytesToMiB(stat.size) +
-    " from " +
-    bytesToMiB(persisted.bytes)
-  );
-}
-
-async function benchmarkCleanOverfullBoard() {
-  const boardData = new BoardData("bench-clean-overfull-board");
-  for (let index = 0; index < OVERFULL_BOARD_ITEMS; index++) {
-    boardData.board["overflow-" + index] = rectangleItem(index);
+    boardData.saveTimeoutId = undefined;
   }
-  const beforeCount = Object.keys(boardData.board).length;
-  await boardData.save();
-  if (boardData.saveTimeoutId !== undefined)
-    clearTimeout(boardData.saveTimeoutId);
-  const afterCount = Object.keys(boardData.board).length;
-  const removedCount = beforeCount - afterCount;
-  const stat = await fsp.stat(boardData.file);
-  return (
-    "cleaned " +
-    removedCount +
-    " items, kept " +
-    afterCount +
-    ", wrote " +
-    bytesToMiB(stat.size)
-  );
 }
 
-async function benchmarkHandBatchMoveDensePencils() {
-  const boardData = new BoardData("bench-hand-batch-move");
-  for (let index = 0; index < HAND_BATCH_ITEMS; index++) {
-    const result = boardData.set(
-      "pencil-" + index,
-      pencilItem(index, DENSE_PENCIL_POINTS),
-    );
-    if (!result.ok) throw new Error(result.reason);
+async function runMeasuredSample(run, context) {
+  forceGc();
+  const before = snapshotMemory();
+  const startedAt = performance.now();
+  const details = await run(context);
+  const active = snapshotMemory();
+  const durationMs = performance.now() - startedAt;
+  forceGc();
+  const retained = snapshotMemory();
+  return {
+    durationMs,
+    activeHeapDelta: active.heapUsed - before.heapUsed,
+    retainedHeapDelta: retained.heapUsed - before.heapUsed,
+    rssDelta: active.rss - before.rss,
+    details,
+  };
+}
+
+async function measureScenario(scenario) {
+  if (scenario.prepare) {
+    await scenario.prepare();
   }
 
-  let moved = 0;
-  for (let pass = 0; pass < HAND_BATCH_PASSES; pass++) {
-    const delta = pass + 1;
-    const result = boardData.processMessage({
-      tool: "Hand",
-      _children: Array.from({ length: HAND_BATCH_ITEMS }, function (_, index) {
-        return {
-          type: "update",
-          id: "pencil-" + index,
-          transform: {
-            a: 1,
-            b: 0,
-            c: 0,
-            d: 1,
-            e: delta * 2,
-            f: delta * 3,
-          },
-        };
-      }),
-    });
-    if (!result.ok) throw new Error(result.reason);
-    moved += HAND_BATCH_ITEMS;
+  for (let warmup = 0; warmup < WARMUP_COUNT; warmup++) {
+    const context = await scenario.setup();
+    try {
+      await scenario.run(context);
+    } finally {
+      if (scenario.teardown) await scenario.teardown(context);
+    }
   }
 
-  if (boardData.saveTimeoutId !== undefined)
-    clearTimeout(boardData.saveTimeoutId);
-  return (
-    moved +
-    " batched transform updates across " +
-    HAND_BATCH_ITEMS +
-    " dense pencils"
-  );
-}
+  const samples = [];
+  for (let sample = 0; sample < SAMPLE_COUNT; sample++) {
+    const context = await scenario.setup();
+    try {
+      samples.push(await runMeasuredSample(scenario.run, context));
+    } finally {
+      if (scenario.teardown) await scenario.teardown(context);
+    }
+  }
 
-async function benchmarkExportLargePencils() {
-  const persisted = await writeBoardFile(
-    "bench-export-large-pencils",
-    buildMixedBoard(EXPORT_PENCIL_SHAPES, 1, DENSE_PENCIL_POINTS),
+  const durations = samples.map(function (sample) {
+    return sample.durationMs;
+  });
+  const activeHeaps = samples.map(function (sample) {
+    return sample.activeHeapDelta;
+  });
+  const retainedHeaps = samples.map(function (sample) {
+    return sample.retainedHeapDelta;
+  });
+  const rssDeltas = samples.map(function (sample) {
+    return sample.rssDelta;
+  });
+  const representative = samples[Math.floor(samples.length / 2)];
+
+  console.log(scenario.name);
+  console.log(
+    "  time median:   " +
+      formatMs(median(durations)) +
+      " (" +
+      formatMs(Math.min.apply(null, durations)) +
+      ".." +
+      formatMs(Math.max.apply(null, durations)) +
+      ", spread " +
+      spreadPercent(durations).toFixed(1) +
+      "%)",
   );
-  const svg = await renderBoardToSVG(persisted.file);
-  return (
-    EXPORT_PENCIL_SHAPES +
-    " dense pencils exported to " +
-    bytesToMiB(Buffer.byteLength(svg)) +
-    " from " +
-    bytesToMiB(persisted.bytes)
+  console.log("  heap active:   " + formatDelta(median(activeHeaps)));
+  console.log("  heap retained: " + formatDelta(median(retainedHeaps)));
+  console.log("  rss delta:     " + formatDelta(median(rssDeltas)));
+  console.log(
+    "  samples:       " + SAMPLE_COUNT + " + " + WARMUP_COUNT + " warmup",
   );
+  if (representative.details) {
+    console.log("  details:       " + representative.details);
+  }
 }
 
 async function main() {
+  const fixtures = {};
+
+  const scenarios = [
+    {
+      name: "load dense persisted board",
+      prepare: async function () {
+        fixtures.loadDense = await writeBoardFile(
+          "bench-load-dense-board",
+          buildMixedBoard(
+            DENSE_BOARD_ITEMS,
+            DENSE_BOARD_PENCIL_EVERY,
+            DENSE_PENCIL_POINTS,
+          ),
+        );
+      },
+      setup: async function () {
+        return fixtures.loadDense;
+      },
+      run: async function (fixture) {
+        const boardData = await BoardData.load("bench-load-dense-board");
+        clearPendingSave(boardData);
+        return (
+          Object.keys(boardData.board).length +
+          " items normalized from " +
+          bytesToMiB(fixture.bytes)
+        );
+      },
+    },
+    {
+      name: "materialize initial board snapshot",
+      prepare: async function () {
+        fixtures.snapshot = await writeBoardFile(
+          "bench-initial-board-snapshot",
+          buildMixedBoard(SNAPSHOT_BOARD_ITEMS, 8, 64),
+        );
+      },
+      setup: async function () {
+        const boardData = await BoardData.load("bench-initial-board-snapshot");
+        clearPendingSave(boardData);
+        return { boardData, fixture: fixtures.snapshot };
+      },
+      run: async function (context) {
+        const payload = { _children: context.boardData.getAll() };
+        const snapshot = JSON.stringify(payload);
+        return (
+          payload._children.length +
+          " items materialized and serialized to " +
+          bytesToMiB(Buffer.byteLength(snapshot)) +
+          " from " +
+          bytesToMiB(context.fixture.bytes)
+        );
+      },
+    },
+    {
+      name: "save dense board to disk",
+      prepare: async function () {
+        fixtures.saveDense = await writeBoardFile(
+          "bench-save-dense-board",
+          buildMixedBoard(
+            DENSE_BOARD_ITEMS,
+            DENSE_BOARD_PENCIL_EVERY,
+            DENSE_PENCIL_POINTS,
+          ),
+        );
+      },
+      setup: async function () {
+        const boardData = await BoardData.load("bench-save-dense-board");
+        clearPendingSave(boardData);
+        return { boardData, fixture: fixtures.saveDense };
+      },
+      run: async function (context) {
+        await context.boardData.save();
+        clearPendingSave(context.boardData);
+        const stat = await fsp.stat(context.boardData.file);
+        return (
+          Object.keys(context.boardData.board).length +
+          " items stringified and written as " +
+          bytesToMiB(stat.size) +
+          " from " +
+          bytesToMiB(context.fixture.bytes)
+        );
+      },
+    },
+    {
+      name: "clean and save overfull board",
+      setup: async function () {
+        const boardData = new BoardData("bench-clean-overfull-board");
+        for (let index = 0; index < OVERFULL_BOARD_ITEMS; index++) {
+          boardData.board["overflow-" + index] = rectangleItem(index);
+        }
+        return { boardData, beforeCount: OVERFULL_BOARD_ITEMS };
+      },
+      run: async function (context) {
+        await context.boardData.save();
+        clearPendingSave(context.boardData);
+        const afterCount = Object.keys(context.boardData.board).length;
+        const removedCount = context.beforeCount - afterCount;
+        const stat = await fsp.stat(context.boardData.file);
+        return (
+          "cleaned " +
+          removedCount +
+          " items, kept " +
+          afterCount +
+          ", wrote " +
+          bytesToMiB(stat.size)
+        );
+      },
+    },
+    {
+      name: "apply hand batch transforms to dense pencils",
+      setup: async function () {
+        const boardData = new BoardData("bench-hand-batch-move");
+        const batches = [];
+        for (let index = 0; index < HAND_BATCH_ITEMS; index++) {
+          const result = boardData.set(
+            "pencil-" + index,
+            pencilItem(index, DENSE_PENCIL_POINTS),
+          );
+          if (!result.ok) throw new Error(result.reason);
+        }
+        for (let pass = 0; pass < HAND_BATCH_PASSES; pass++) {
+          const delta = pass + 1;
+          batches.push({
+            tool: "Hand",
+            _children: Array.from(
+              { length: HAND_BATCH_ITEMS },
+              function (_, index) {
+                return {
+                  type: "update",
+                  id: "pencil-" + index,
+                  transform: {
+                    a: 1,
+                    b: 0,
+                    c: 0,
+                    d: 1,
+                    e: delta * 2,
+                    f: delta * 3,
+                  },
+                };
+              },
+            ),
+          });
+        }
+        clearPendingSave(boardData);
+        return { boardData, batches };
+      },
+      run: async function (context) {
+        let moved = 0;
+        for (const batch of context.batches) {
+          const result = context.boardData.processMessage(batch);
+          if (!result.ok) throw new Error(result.reason);
+          moved += HAND_BATCH_ITEMS;
+        }
+        clearPendingSave(context.boardData);
+        return (
+          moved +
+          " batched transform updates across " +
+          HAND_BATCH_ITEMS +
+          " dense pencils"
+        );
+      },
+    },
+    {
+      name: "export large pencil board to svg",
+      prepare: async function () {
+        fixtures.exportDense = await writeBoardFile(
+          "bench-export-large-pencils",
+          buildMixedBoard(EXPORT_PENCIL_SHAPES, 1, DENSE_PENCIL_POINTS),
+        );
+      },
+      setup: async function () {
+        return fixtures.exportDense;
+      },
+      run: async function (fixture) {
+        const svg = await renderBoardToSVG(fixture.file);
+        return (
+          EXPORT_PENCIL_SHAPES +
+          " dense pencils exported to " +
+          bytesToMiB(Buffer.byteLength(svg)) +
+          " from " +
+          bytesToMiB(fixture.bytes)
+        );
+      },
+    },
+  ];
+
   console.log("history dir: " + historyDir);
   if (typeof global.gc !== "function") {
     console.log("note: run with --expose-gc for steadier memory numbers");
   }
   console.log("");
 
-  await measure("load dense persisted board", benchmarkLoadDenseBoard);
-  console.log("");
-  await measure(
-    "materialize initial board snapshot",
-    benchmarkInitialBoardSnapshot,
-  );
-  console.log("");
-  await measure("save dense board to disk", benchmarkSaveDenseBoard);
-  console.log("");
-  await measure("clean and save overfull board", benchmarkCleanOverfullBoard);
-  console.log("");
-  await measure(
-    "apply hand batch transforms to dense pencils",
-    benchmarkHandBatchMoveDensePencils,
-  );
-  console.log("");
-  await measure(
-    "export large pencil board to svg",
-    benchmarkExportLargePencils,
-  );
+  for (let index = 0; index < scenarios.length; index++) {
+    if (index > 0) console.log("");
+    await measureScenario(scenarios[index]);
+  }
 }
 
 main()
