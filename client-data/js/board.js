@@ -29,6 +29,7 @@ var MessageCommon = window.WBOMessageCommon;
 var BoardConnection = window.WBOBoardConnection;
 var BoardMessages = window.WBOBoardMessages;
 var BoardState = window.WBOBoardState;
+var BoardTurnstile = window.WBOBoardTurnstile;
 
 Tools.i18n = (function i18n() {
   var translations = JSON.parse(document.getElementById("translations").text);
@@ -114,18 +115,12 @@ Tools.setTurnstileValidation = function setTurnstileValidation(result) {
     return;
   }
 
-  var validationWindowMs =
-    Number(result.validationWindowMs) ||
-    Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS) ||
-    0;
-
-  // Subtract a 5-second safety margin to account for network latency.
-  // This ensures the client stops sending and requests a new token *before*
-  // the server actually expires the validation, preventing dropped in-flight messages.
-  var safeWindowMs = Math.max(0, validationWindowMs - 5000);
-
-  Tools.turnstileValidatedUntil =
-    safeWindowMs > 0 ? Date.now() + safeWindowMs : 0;
+  var validation = BoardTurnstile.computeTurnstileValidation(
+    result,
+    Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS),
+  );
+  var validationWindowMs = validation.validationWindowMs;
+  Tools.turnstileValidatedUntil = validation.validatedUntil;
 
   if (validationWindowMs > 0) {
     Tools.scheduleTurnstileRefresh(validationWindowMs);
@@ -133,16 +128,10 @@ Tools.setTurnstileValidation = function setTurnstileValidation(result) {
 };
 
 Tools.normalizeTurnstileAck = function normalizeTurnstileAck(result) {
-  if (result === true) {
-    return {
-      success: true,
-      validationWindowMs: Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS,
-      validatedUntil:
-        Date.now() + Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS),
-    };
-  }
-  if (result && typeof result === "object") return result;
-  return { success: false };
+  return BoardTurnstile.normalizeTurnstileAck(
+    result,
+    Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS),
+  );
 };
 
 Tools.ensureTurnstileElements = function ensureTurnstileElements() {
@@ -411,9 +400,10 @@ Tools.connect = function () {
   this.socket.on("connect", function onConnection() {
     if (Tools.hasConnectedOnce && Tools.server_config.TURNSTILE_SITE_KEY) {
       Tools.setTurnstileValidation(null);
-      if (Tools.turnstileWidgetId !== null) {
-        turnstile.reset(Tools.turnstileWidgetId);
-      }
+      BoardTurnstile.resetTurnstileWidget(
+        typeof turnstile !== "undefined" ? turnstile : undefined,
+        Tools.turnstileWidgetId,
+      );
     }
     Tools.hasConnectedOnce = true;
     Tools.socket.emit("getboard", Tools.boardName);
