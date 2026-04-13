@@ -16,6 +16,8 @@ var normalizeBroadcastData = socketPolicy.normalizeBroadcastData;
 var parseForwardedHeader = socketPolicy.parseForwardedHeader;
 
 /** @typedef {{[key: string]: any}} MessageData */
+/** @typedef {{headers: {[key: string]: string | string[] | undefined}, socket?: {remoteAddress?: string}}} SocketRequest */
+/** @typedef {Socket & { turnstileValidatedUntil?: number }} SocketWithTurnstile */
 /** @typedef {{windowStart: number, count: number, lastSeen: number}} RateLimitState */
 /** @typedef {{success: true, validationWindowMs: number, validatedUntil: number | undefined}} TurnstileAck */
 /** @typedef {{ok: true} | {ok: false, reason: string}} ValidationStatus */
@@ -97,11 +99,11 @@ function pruneRateLimitMap(map, periodMs, now) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
- * @returns {import("./socket_policy.js").SocketRequest | any}
+ * @param {SocketWithTurnstile} socket
+ * @returns {SocketRequest}
  */
 function getSocketRequest(socket) {
-  return socket.client.request;
+  return /** @type {SocketRequest} */ (socket.client.request);
 }
 
 /**
@@ -113,7 +115,7 @@ function errorMessage(error) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {string} eventName
  * @param {{[key: string]: any}} infos
  * @returns {void}
@@ -124,7 +126,7 @@ function closeSocket(socket, eventName, infos) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {string} eventName
  * @param {{[key: string]: any}} infos
  * @returns {void}
@@ -153,7 +155,7 @@ function getMessageData(message) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {string} boardName
  * @param {{[key: string]: any}} extras
  * @returns {{[key: string]: any}}
@@ -171,7 +173,7 @@ function buildSocketLogInfo(socket, boardName, extras) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {string} boardName
  * @returns {string}
  */
@@ -205,7 +207,7 @@ function normalizeTurnstileHostname(hostname) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @returns {string | null}
  */
 function getExpectedTurnstileHostname(socket) {
@@ -217,7 +219,7 @@ function getExpectedTurnstileHostname(socket) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {number} now
  * @returns {boolean}
  */
@@ -229,7 +231,7 @@ function isTurnstileValidationActive(socket, now) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @returns {TurnstileAck}
  */
 function buildTurnstileAck(socket) {
@@ -241,7 +243,7 @@ function buildTurnstileAck(socket) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {any} result
  * @returns {ValidationStatus}
  */
@@ -265,7 +267,7 @@ function validateTurnstileResult(socket, result) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {string} boardName
  * @param {string} clientIp
  * @param {RateLimitState} rateLimitState
@@ -314,7 +316,7 @@ function getDestructiveRateLimitState(clientIp, now) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {string} boardName
  * @param {MessageData} data
  * @param {string} clientIp
@@ -369,7 +371,7 @@ function getConstructiveRateLimitState(clientIp, now) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {string} boardName
  * @param {MessageData} data
  * @param {string} clientIp
@@ -412,7 +414,7 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {string} boardName
  * @returns {boolean}
  */
@@ -423,7 +425,7 @@ function ensureSocketCanAccessBoard(socket, boardName) {
 }
 
 /**
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @param {string} boardName
  * @returns {void}
  */
@@ -486,7 +488,7 @@ function getBoard(name) {
 
 /**
  * Executes on every new connection
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  */
 function handleSocketConnection(socket) {
   /**
@@ -677,7 +679,7 @@ async function unloadBoard(boardName) {
 /**
  * @param {BoardData} board
  * @param {MessageData} message
- * @param {Socket & { turnstileValidatedUntil?: number }} socket
+ * @param {SocketWithTurnstile} socket
  * @returns {{ok: true} | {ok: false, reason: string}}
  */
 function handleMessage(board, message, socket) {
