@@ -28,33 +28,33 @@ module.exports = {
   MAX_ITEM_COUNT: parseIntegerEnv("WBO_MAX_ITEM_COUNT", 32768),
 
   /** Max number of sub-items in an item. This prevents flooding */
-  MAX_CHILDREN: parseIntegerEnv("WBO_MAX_CHILDREN", 192),
+  MAX_CHILDREN: parseIntegerEnv("WBO_MAX_CHILDREN", 500),
 
   /** Maximum value for any x or y on the board */
   MAX_BOARD_SIZE: parseIntegerEnv("WBO_MAX_BOARD_SIZE", 65536),
 
   /** Maximum messages per user over the given time period before banning them  */
-  MAX_EMIT_COUNT: parseIntegerEnv("WBO_MAX_EMIT_COUNT", 192),
+  MAX_EMIT_COUNT: parseIntegerEnv("WBO_MAX_EMIT_COUNT", 250),
 
   /** Duration after which the emit count is reset in miliseconds */
-  MAX_EMIT_COUNT_PERIOD: parseIntegerEnv("WBO_MAX_EMIT_COUNT_PERIOD", 4096),
+  MAX_EMIT_COUNT_PERIOD: parseIntegerEnv("WBO_MAX_EMIT_COUNT_PERIOD", 5000),
 
   /** Maximum destructive actions per resolved client IP over the WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS */
   MAX_DESTRUCTIVE_ACTIONS_PER_IP: parseIntegerEnv(
     "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
-    150,
+    30,
   ),
 
   /** Duration after which the destructive per-IP count is reset in milliseconds */
   MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS: parseIntegerEnv(
     "WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS",
-    60 * 1000,
+    10 * 1000,
   ),
 
   /** Maximum constructive actions per resolved client IP over the WBO_MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS */
   MAX_CONSTRUCTIVE_ACTIONS_PER_IP: parseIntegerEnv(
     "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
-    30,
+    50,
   ),
 
   /** Duration after which the constructive per-IP count is reset in milliseconds */

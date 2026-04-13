@@ -3,6 +3,7 @@ const {
   teardown,
   TOKENS,
   writeBoard,
+  waitForBoardPersistence,
   withToken,
   AUTH_SECRET,
 } = require("./lib/test_helper.js");
@@ -127,6 +128,17 @@ module.exports = {
         "rect[x='10'][y='10'][width='20'][height='20'][stroke='#ff00ff']",
       )
       .click("#toolID-Clear")
+      .perform(async function (done) {
+        await waitForBoardPersistence(
+          browser,
+          dataPath,
+          "readonly-clear",
+          function (storedBoard) {
+            return !storedBoard["readonly-clear-rect"];
+          },
+        );
+        done();
+      })
       .refresh()
       .waitForElementVisible("#toolID-Clear")
       .assert.not.elementPresent(
