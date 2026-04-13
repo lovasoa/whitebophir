@@ -26,6 +26,10 @@
 
 (function () {
   //Code isolation
+  /** @typedef {{type: "line", id: string, color?: string, size?: number, opacity?: number}} PencilLineData */
+  /** @typedef {{type: "child", parent: string, x: number, y: number}} PencilChildData */
+  /** @typedef {PencilLineData | PencilChildData | {type: "endline"} | {type?: string, id?: string, color?: string, size?: number, opacity?: number, parent?: string, x?: number, y?: number}} PencilMessage */
+  /** @typedef {SVGPathElement & {id: string}} PencilLine */
 
   // Allocate the full maximum server update rate to pencil messages.
   // This feels a bit risky in terms of dropped messages, but any less
@@ -34,10 +38,10 @@
   // maybe because the messages are sent when the time interval is *greater*
   // than this?
   var MIN_PENCIL_INTERVAL_MS =
-    Tools.server_config.MAX_EMIT_COUNT_PERIOD /
-    Tools.server_config.MAX_EMIT_COUNT;
+    (Number(Tools.server_config.MAX_EMIT_COUNT_PERIOD) || 4096) /
+    (Number(Tools.server_config.MAX_EMIT_COUNT) || 192);
 
-  var AUTO_FINGER_WHITEOUT = Tools.server_config.AUTO_FINGER_WHITEOUT;
+  var AUTO_FINGER_WHITEOUT = Tools.server_config.AUTO_FINGER_WHITEOUT === true;
   var hasUsedStylus = false;
 
   //Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
@@ -45,6 +49,11 @@
     lastTime = performance.now(); //The time at which the last point was drawn
 
   //The data of the message that will be sent for every new point
+  /**
+   * @constructor
+   * @param {number} x
+   * @param {number} y
+   */
   function PointMessage(x, y) {
     this.type = "child";
     this.parent = curLineId;
@@ -52,28 +61,42 @@
     this.y = y;
   }
 
+  /** @param {TouchEvent} evt */
   function handleAutoWhiteOut(evt) {
-    if (evt.touches && evt.touches[0] && evt.touches[0].touchType == "stylus") {
+    var touch = evt.touches && evt.touches[0];
+    var touchType =
+      touch && "touchType" in touch ? /** @type {{touchType?: string}} */ (touch).touchType : undefined;
+    if (touchType == "stylus") {
       //When using stylus, switch back to the primary
-      if (hasUsedStylus && Tools.curTool.secondary.active) {
+      if (hasUsedStylus && Tools.curTool && Tools.curTool.secondary && Tools.curTool.secondary.active) {
         Tools.change("Pencil");
       }
       //Remember if starting a line with a stylus
       hasUsedStylus = true;
     }
-    if (evt.touches && evt.touches[0] && evt.touches[0].touchType == "direct") {
+    if (touchType == "direct") {
       //When used stylus and touched with a finger, switch to secondary
-      if (hasUsedStylus && !Tools.curTool.secondary.active) {
+      if (
+        hasUsedStylus &&
+        Tools.curTool &&
+        Tools.curTool.secondary &&
+        !Tools.curTool.secondary.active
+      ) {
         Tools.change("Pencil");
       }
     }
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {MouseEvent | TouchEvent} evt
+   */
   function startLine(x, y, evt) {
     //Prevent the press from being interpreted by the browser
     evt.preventDefault();
 
-    if (AUTO_FINGER_WHITEOUT) handleAutoWhiteOut(evt);
+    if (AUTO_FINGER_WHITEOUT && evt instanceof TouchEvent) handleAutoWhiteOut(evt);
 
     curLineId = Tools.generateUID("l"); //"l" for line
 
@@ -89,9 +112,14 @@
     Tools.drawAndSend(initialData);
 
     //Immediatly add a point to the line
-    continueLine(x, y);
+    continueLine(x, y, evt);
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {MouseEvent | TouchEvent | undefined} evt
+   */
   function continueLine(x, y, evt) {
     /*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
@@ -105,9 +133,13 @@
     if (evt) evt.preventDefault();
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
   function stopLineAt(x, y) {
     //Add a last point to the line
-    continueLine(x, y);
+    continueLine(x, y, undefined);
     stopLine();
   }
 
@@ -115,26 +147,29 @@
     curLineId = "";
   }
 
-  var renderingLine = {};
+  /** @type {PencilLine | null} */
+  var renderingLine = null;
+  /** @param {PencilMessage} data */
   function draw(data) {
     Tools.drawingEvent = true;
     switch (data.type) {
       case "line":
-        renderingLine = createLine(data);
+        renderingLine = createLine(/** @type {PencilLineData} */ (data));
         break;
       case "child":
+        var childData = /** @type {PencilChildData} */ (data);
         var line =
-          renderingLine.id === data.parent
+          renderingLine && renderingLine.id === childData.parent
             ? renderingLine
-            : svg.getElementById(data.parent);
+            : getLineById(childData.parent);
         if (!line) {
           console.error(
             "Pencil: Hmmm... I received a point of a line that has not been created (%s).",
-            data.parent,
+            childData.parent,
           );
-          line = renderingLine = createLine({ id: data.parent }); //create a new line in order not to loose the points
+          line = renderingLine = createLine({ type: "line", id: childData.parent }); //create a new line in order not to loose the points
         }
-        addPoint(line, data.x, data.y);
+        addPoint(line, childData.x, childData.y);
         break;
       case "endline":
         //TODO?
@@ -145,7 +180,9 @@
     }
   }
 
+  /** @type {{[lineId: string]: any[]}} */
   var pathDataCache = {};
+  /** @param {PencilLine} line */
   function getPathData(line) {
     var pathData = pathDataCache[line.id];
     if (!pathData) {
@@ -157,30 +194,52 @@
 
   var svg = Tools.svg;
 
+  /**
+   * @param {string | undefined} lineId
+   * @returns {PencilLine | null}
+   */
+  function getLineById(lineId) {
+    if (!lineId) return null;
+    var line = svg.getElementById(lineId);
+    return line instanceof SVGPathElement ? /** @type {PencilLine} */ (line) : null;
+  }
+
+  /**
+   * @param {PencilLine} line
+   * @param {number} x
+   * @param {number} y
+   */
   function addPoint(line, x, y) {
     var pts = getPathData(line);
     pts = wboPencilPoint(pts, x, y);
     line.setPathData(pts);
   }
 
+  /**
+   * @param {PencilLineData} lineData
+   * @returns {PencilLine}
+   */
   function createLine(lineData) {
     //Creates a new line on the canvas, or update a line that already exists with new information
-    var line = svg.getElementById(lineData.id);
+    var line = getLineById(lineData.id);
     if (line) {
       // Replays can recreate an existing DOM node after reconnect; reset the path before reapplying children.
       line.setPathData([]);
       delete pathDataCache[lineData.id];
     } else {
-      line = Tools.createSVGElement("path");
+      line = /** @type {PencilLine} */ (Tools.createSVGElement("path"));
     }
-    line.id = lineData.id;
+    line.id = lineData.id || "";
     //If some data is not provided, choose default value. The line may be updated later
     line.setAttribute("stroke", lineData.color || "black");
-    line.setAttribute("stroke-width", lineData.size || 10);
+    line.setAttribute("stroke-width", String(lineData.size || 10));
     line.setAttribute(
       "opacity",
-      Math.max(0.1, Math.min(1, lineData.opacity)) || 1,
+      String(Math.max(0.1, Math.min(1, Number(lineData.opacity) || 1))),
     );
+    if (!Tools.drawingArea) {
+      throw new Error("Missing drawing area for pencil tool");
+    }
     Tools.drawingArea.appendChild(line);
     return line;
   }

@@ -27,6 +27,7 @@
     "client-data/js/index.js",
     "client-data/js/message_common.js",
     "client-data/tools/download/download.js",
+    "client-data/tools/pencil/pencil.js",
     "client-data/tools/pencil/wbo_pencil_point.js",
     "client-data/tools/text/text.js",
     "server/configuration.js",
