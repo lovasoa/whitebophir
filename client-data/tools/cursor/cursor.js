@@ -26,11 +26,36 @@
 
 (function () {
   // Code isolation
+  /** @typedef {{type: "update", x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
+  /** @typedef {{name: string, listeners: {press: () => void, move: typeof handleMarker, release: () => void}, onSizeChange: typeof onSizeChange, draw: typeof draw, mouseCursor: string, icon: string, showMarker: boolean}} CursorTool */
+
+  /**
+   * @param {unknown} value
+   * @param {number} fallback
+   * @returns {number}
+   */
+  function getPositiveNumber(value, fallback) {
+    var number = Number(value);
+    return number > 0 ? number : fallback;
+  }
+
+  /**
+   * @param {Element | null} element
+   * @returns {element is SVGCircleElement}
+   */
+  function isCursorElement(element) {
+    return !!(
+      element &&
+      typeof element === "object" &&
+      "style" in element &&
+      "setAttributeNS" in element
+    );
+  }
 
   // Allocate half of the maximum server updates to cursor updates
   var MIN_CURSOR_UPDATES_INTERVAL_MS =
-    (Tools.server_config.MAX_EMIT_COUNT_PERIOD /
-      Tools.server_config.MAX_EMIT_COUNT) *
+    (getPositiveNumber(Tools.server_config.MAX_EMIT_COUNT_PERIOD, 4096) /
+      getPositiveNumber(Tools.server_config.MAX_EMIT_COUNT, 192)) *
     2;
 
   var CURSOR_DELETE_AFTER_MS = 1000 * 5;
@@ -38,6 +63,7 @@
   var lastCursorUpdate = 0;
   var sending = true;
 
+  /** @type {CursorTool} */
   var cursorTool = {
     name: "Cursor",
     listeners: {
@@ -53,10 +79,12 @@
     draw: draw,
     mouseCursor: "crosshair",
     icon: "tools/pencil/icon.svg",
+    showMarker: true,
   };
   Tools.register(cursorTool);
   Tools.addToolListeners(cursorTool);
 
+  /** @type {CursorMessage} */
   var message = {
     type: "update",
     x: 0,
@@ -65,6 +93,10 @@
     size: Tools.getSize(),
   };
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
   function handleMarker(x, y) {
     // throttle local cursor updates
     message.x = x;
@@ -74,17 +106,19 @@
     updateMarker();
   }
 
+  /** @param {number} size */
   function onSizeChange(size) {
     message.size = size;
     updateMarker();
   }
 
   function updateMarker() {
+    var activeTool = /** @type {{showMarker?: boolean} | null} */ (Tools.curTool);
     if (!Tools.showMarker || !Tools.showMyCursor) return;
     var cur_time = Date.now();
     if (
       cur_time - lastCursorUpdate > MIN_CURSOR_UPDATES_INTERVAL_MS &&
-      (sending || Tools.curTool.showMarker)
+      (sending || (activeTool && activeTool.showMarker === true))
     ) {
       Tools.drawAndSend(message, cursorTool);
       lastCursorUpdate = cur_time;
@@ -93,18 +127,30 @@
     }
   }
 
-  var cursorsElem = Tools.svg.getElementById("cursors");
+  function getCursorsLayer() {
+    var existingLayer = Tools.svg.getElementById("cursors");
+    if (existingLayer instanceof SVGGElement) return existingLayer;
+    var createdLayer = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "g",
+    );
+    createdLayer.setAttributeNS(null, "id", "cursors");
+    Tools.svg.appendChild(createdLayer);
+    return createdLayer;
+  }
 
+  /** @param {string} id */
   function createCursor(id) {
+    var cursorsElem = getCursorsLayer();
     var cursor = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "circle",
     );
     cursor.setAttributeNS(null, "class", "opcursor");
     cursor.setAttributeNS(null, "id", id);
-    cursor.setAttributeNS(null, "cx", 0);
-    cursor.setAttributeNS(null, "cy", 0);
-    cursor.setAttributeNS(null, "r", 10);
+    cursor.setAttributeNS(null, "cx", "0");
+    cursor.setAttributeNS(null, "cy", "0");
+    cursor.setAttributeNS(null, "r", "10");
     cursorsElem.appendChild(cursor);
     setTimeout(function () {
       cursorsElem.removeChild(cursor);
@@ -112,10 +158,13 @@
     return cursor;
   }
 
+  /** @param {string} id */
   function getCursor(id) {
-    return document.getElementById(id) || createCursor(id);
+    var existingCursor = document.getElementById(id);
+    return isCursorElement(existingCursor) ? existingCursor : createCursor(id);
   }
 
+  /** @param {CursorMessage} message */
   function draw(message) {
     var cursor = getCursor("cursor-" + (message.socket || "me"));
     cursor.style.transform =
@@ -127,6 +176,6 @@
         "translate(" + message.x + " " + message.y + ")",
       );
     cursor.setAttributeNS(null, "fill", message.color);
-    cursor.setAttributeNS(null, "r", message.size / 2);
+    cursor.setAttributeNS(null, "r", String(message.size / 2));
   }
 })();
