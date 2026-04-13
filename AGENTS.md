@@ -25,6 +25,8 @@ Run these before opening a PR:
 
 - Focused Node suite: `node --test test-node/*.test.js`
 - Focused browser suite: `WBO_SILENT=true nightwatch tests/<file>.test.js --testcase "<name>"`
+- Server benchmark: `npm run bench`
+  Run this before and after a change when you suspect it may have a performance impact.
 - Full local suite: `npm test`: This runs the Node tests, then all Nightwatch browser tests in `tests/`, then `prettier-check`.
 - Auto-format: `npm run prettier`
   - Rules live in [.prettierrc](./.prettierrc); ignored paths are in [.prettierignore](./.prettierignore).

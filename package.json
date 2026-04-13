@@ -22,6 +22,7 @@
   "scripts": {
     "prepare": "node scripts/install-git-hooks.js",
     "start": "node ./server/server.js",
+    "bench": "node --expose-gc ./scripts/benchmark-server.js",
     "test-node": "WBO_SILENT=true node --test test-node/*.test.js",
     "test": "npm run test-node && WBO_SILENT=true nightwatch tests",
     "typecheck": "tsc -p tsconfig.checkjs.json",
