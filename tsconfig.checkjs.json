@@ -28,6 +28,7 @@
     "client-data/js/message_common.js",
     "client-data/tools/download/download.js",
     "client-data/tools/cursor/cursor.js",
+    "client-data/tools/eraser/eraser.js",
     "client-data/tools/hand/hand.js",
     "client-data/tools/line/line.js",
     "client-data/tools/pencil/pencil.js",
