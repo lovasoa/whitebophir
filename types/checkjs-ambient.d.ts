@@ -6,7 +6,6 @@ declare global {
   var Minitpl: any;
   const WBOMessageCommon: any;
   const wboPencilPoint: any;
-  var fetch: any;
   var pointInTransformedBBox: any;
   var transformedBBoxIntersects: any;
   var bbox: any;
@@ -36,45 +35,8 @@ declare global {
     msSaveBlob?: (blob: Blob, defaultName?: string) => boolean;
   }
 
-  interface EventTarget {
-    matches?(selectors: string): boolean;
-  }
-
-  interface Event {
-    pageX?: number;
-    pageY?: number;
-    shiftKey?: boolean;
-  }
-
-  interface Element {
-    blur?(): void;
-    src?: string;
-    type?: any;
-    style: any;
-    width: any;
-    height: any;
-    x: any;
-    y: any;
-    origWidth?: number;
-    origHeight?: number;
-    drawCallback?: any;
-    clickCallback?: any;
-    transformedBBox?(scale?: number): any;
-    transformedBBoxContains?(x: number, y: number): boolean;
-    transformedBBoxIntersects?(bbox: any): boolean;
-    setAttribute(qualifiedName: string, value: any): void;
-    setAttributeNS(namespace: string | null, qualifiedName: string, value: any): void;
-  }
-
   interface HTMLElement {
-    text: string;
-    value: any;
-    width: any;
-    height: any;
-    x: any;
-    y: any;
-    getElementById(id: string): any;
-    createSVGMatrix(): any;
+    text?: string;
   }
 
   interface SVGPathElement {
@@ -107,17 +69,12 @@ declare global {
   }
 
   interface SVGGraphicsElement {
+    origWidth?: number;
+    origHeight?: number;
+    drawCallback?: any;
+    clickCallback?: any;
     transformedBBox(scale?: number): any;
     transformedBBoxContains(x: number, y: number): boolean;
     transformedBBoxIntersects(bbox: any): boolean;
-  }
-
-  interface SVGSVGElement {
-    transformedBBox(scale?: number): any;
-  }
-
-  interface Node {
-    removeAttribute?(qualifiedName: string): void;
-    outerHTML?: string;
   }
 }

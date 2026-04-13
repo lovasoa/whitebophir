@@ -55,7 +55,7 @@
 /** @typedef {(message: BoardMessage) => void} MessageHook */
 /** @typedef {(tool: AppTool) => void} ToolHook */
 /** @typedef {{color: string, key?: string}} ColorPreset */
-/** @typedef {{TURNSTILE_SITE_KEY?: string, TURNSTILE_VALIDATION_WINDOW_MS?: number | string, BLOCKED_TOOLS?: string[], BLOCKED_SELECTION_BUTTONS?: string[], MAX_BOARD_SIZE?: number}} ServerConfig */
+/** @typedef {{TURNSTILE_SITE_KEY?: string, TURNSTILE_VALIDATION_WINDOW_MS?: number | string, BLOCKED_TOOLS?: string[], BLOCKED_SELECTION_BUTTONS?: string[], MAX_BOARD_SIZE?: number, MAX_EMIT_COUNT?: number, MAX_EMIT_COUNT_PERIOD?: number, AUTO_FINGER_WHITEOUT?: boolean}} ServerConfig */
 /**
  * @typedef {object} ToolPalette
  * @property {any} template
