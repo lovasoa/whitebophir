@@ -40,7 +40,7 @@ function firstHeaderValue(value) {
  * @returns {string}
  */
 function parseForwardedHeader(value) {
-  var firstProxy = value.split(",")[0];
+  var firstProxy = value.split(",")[0] || "";
   var forwardedFor = firstProxy
     .split(";")
     .map(function trimPart(/** @type {string} */ part) {
@@ -85,7 +85,7 @@ function getClientIp(socket) {
     case "X-Forwarded-For":
       var forwardedForHeader = firstHeaderValue(headers["x-forwarded-for"]);
       if (forwardedForHeader) {
-        var xForwardedFor = forwardedForHeader.split(",")[0].trim();
+        var xForwardedFor = (forwardedForHeader.split(",")[0] || "").trim();
         if (xForwardedFor) return xForwardedFor;
       }
       throw new Error(

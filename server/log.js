@@ -15,7 +15,10 @@ function parse_statsd_url(url) {
     throw new Error("Invalid statsd connection string, doesn't match " + regex);
   const [_, protocol, host, port_str] = match;
   const tcp = protocol === "tcp";
-  const port = parseInt(port_str);
+  const port = parseInt(port_str || "", 10);
+  if (!host || Number.isNaN(port)) {
+    throw new Error("Invalid statsd connection string");
+  }
   return { tcp, host, port, prefix: "wbo" };
 }
 

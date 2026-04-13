@@ -37,7 +37,7 @@ const jsonwebtoken = require("jsonwebtoken");
 
 function checkBoardnameInToken(url, boardNameIn) {
   const token = url.searchParams.get("token");
-  if (roleInBoard(token, boardNameIn) === "forbidden") {
+  if (token === null || roleInBoard(token, boardNameIn) === "forbidden") {
     throw new Error("Acess Forbidden");
   }
 }
@@ -47,7 +47,11 @@ function checkBoardnameInToken(url, boardNameIn) {
  * @returns {{roleName: "moderator" | "editor" | "forbidden" | string, boardName: string}}
  */
 function parseRole(role) {
-  const [, roleName, boardName] = role.match(/^([^:]*):?(.*)$/);
+  const match = role.match(/^([^:]*):?(.*)$/);
+  if (!match) {
+    return { roleName: "forbidden", boardName: "" };
+  }
+  const [, roleName, boardName] = match;
   return { roleName, boardName };
 }
 

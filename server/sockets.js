@@ -42,9 +42,9 @@ var io;
 function noFail(fn) {
   const monitored = monitorFunction(fn);
   return /** @type {A} */ (
-    function noFailWrapped() {
+    function noFailWrapped(...args) {
       try {
-        const result = monitored.apply(this, arguments);
+        const result = monitored.apply(null, args);
         if (result && typeof result.catch === "function") {
           return result.catch(function logError(/** @type {unknown} */ err) {
             console.trace(err);
@@ -479,7 +479,7 @@ function startIO(app) {
  */
 function getBoard(name) {
   if (boards.hasOwnProperty(name)) {
-    return boards[name];
+    return /** @type {Promise<BoardData>} */ (boards[name]);
   } else {
     var board = BoardData.load(name);
     boards[name] = board;
@@ -607,6 +607,7 @@ function handleSocketConnection(socket) {
 
       const normalized = normalizeBroadcastData(message, data);
       if (normalized.ok === false) return;
+      /** @type {MessageData} */
       data = normalized.value;
       if (!enforceDestructiveRateLimit(socket, boardName, data, clientIp, now))
         return;
@@ -649,7 +650,7 @@ function handleSocketConnection(socket) {
   socket.on("disconnecting", function onDisconnecting(reason) {
     socket.rooms.forEach(async function disconnectFrom(room) {
       if (boards.hasOwnProperty(room)) {
-        var board = await boards[room];
+        var board = await /** @type {Promise<BoardData>} */ (boards[room]);
         board.users.delete(socket.id);
         var userCount = board.users.size;
         log("disconnection", {
@@ -670,7 +671,7 @@ function handleSocketConnection(socket) {
  **/
 async function unloadBoard(boardName) {
   if (boards.hasOwnProperty(boardName)) {
-    const board = await boards[boardName];
+    const board = await /** @type {Promise<BoardData>} */ (boards[boardName]);
     await board.save();
     log("unload board", { board: board.name, users: board.users.size });
     delete boards[boardName];
