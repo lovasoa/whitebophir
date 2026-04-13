@@ -215,9 +215,14 @@
       release: stopLineAt,
     },
     draw: draw,
-    onstart: function (oldTool) {
+    onstart: function () {
       //Reset stylus
       hasUsedStylus = false;
+
+      //When switching from another tool to white-out, restore white-out size
+      if (pencilTool.secondary.active) {
+        restoreWhiteOutSize();
+      }
     },
     secondary: {
       name: "White-out",
@@ -227,12 +232,6 @@
         stopLine();
         toggleSize();
       },
-    },
-    onstart: function () {
-      //When switching from another tool to white-out, restore white-out size
-      if (pencilTool.secondary.active) {
-        restoreWhiteOutSize();
-      }
     },
     onquit: function () {
       //When switching from white-out to another tool, restore drawing size
