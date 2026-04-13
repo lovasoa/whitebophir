@@ -749,7 +749,7 @@ test("Hand selector sends a final transform on quick release", function () {
   });
 });
 
-test("Hand selector keeps the duplicated elements selected", function () {
+test("Hand selector keeps the original element selected after duplicate", function () {
   const harness = createHarness();
   const handTool = harness.loadTool("Hand");
   let nextId = 1;
@@ -805,17 +805,18 @@ test("Hand selector keeps the duplicated elements selected", function () {
     _children: [{ type: "copy", id: "r-1", newid: "r-2" }],
   });
 
+  const originalRect = harness.elementsById.get("r-1");
   handTool.listeners.press(110, 110, {
     preventDefault: function () {},
-    target: harness.elementsById.get("r-2"),
+    target: originalRect,
   });
   handTool.listeners.move(150, 135, {
     preventDefault: function () {},
-    target: harness.elementsById.get("r-2"),
+    target: originalRect,
   });
   handTool.listeners.release(150, 135, {
     preventDefault: function () {},
-    target: harness.elementsById.get("r-2"),
+    target: originalRect,
   });
 
   assert.equal(global.Tools.sentMessages.length, 2);
@@ -823,7 +824,7 @@ test("Hand selector keeps the duplicated elements selected", function () {
     _children: [
       {
         type: "update",
-        id: "r-2",
+        id: "r-1",
         transform: {
           a: 1,
           b: 0,
