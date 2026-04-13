@@ -32,6 +32,7 @@
     "client-data/tools/pencil/pencil.js",
     "client-data/tools/rect/rect.js",
     "client-data/tools/ellipse/ellipse.js",
+    "client-data/tools/zoom/zoom.js",
     "client-data/tools/pencil/wbo_pencil_point.js",
     "client-data/tools/text/text.js",
     "server/configuration.js",

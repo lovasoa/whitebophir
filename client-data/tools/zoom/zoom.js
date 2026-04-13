@@ -26,7 +26,11 @@
 
 (function () {
   //Code isolation
+  /** @typedef {{scrollX: number, scrollY: number, x: number, y: number, clientY: number, scale: number, distance: number | null}} ZoomOrigin */
+  /** @typedef {{preventDefault(): void, clientY?: number, pageX?: number, pageY?: number, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, deltaMode?: number, deltaX?: number, deltaY?: number, changedTouches?: TouchList, touches?: TouchList}} ZoomPointerEvent */
+  /** @typedef {(evt: KeyboardEvent) => void} ZoomKeyHandler */
   var ZOOM_FACTOR = 0.5;
+  /** @type {ZoomOrigin} */
   var origin = {
     scrollX: document.documentElement.scrollLeft,
     scrollY: document.documentElement.scrollTop,
@@ -34,10 +38,15 @@
     y: 0.0,
     clientY: 0,
     scale: 1.0,
+    distance: null,
   };
   var moved = false,
     pressed = false;
 
+  /**
+   * @param {ZoomOrigin} origin
+   * @param {number} scale
+   */
   function zoom(origin, scale) {
     var oldScale = origin.scale;
     var newScale = Tools.setScale(scale);
@@ -47,14 +56,22 @@
     );
   }
 
+  /** @type {number | null} */
   var animation = null;
+  /** @param {number} scale */
   function animate(scale) {
-    cancelAnimationFrame(animation);
+    if (animation !== null) cancelAnimationFrame(animation);
     animation = requestAnimationFrame(function () {
       zoom(origin, scale);
     });
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {ZoomPointerEvent} evt
+   * @param {boolean} isTouchEvent
+   */
   function setOrigin(x, y, evt, isTouchEvent) {
     origin.scrollX = document.documentElement.scrollLeft;
     origin.scrollY = document.documentElement.scrollTop;
@@ -64,6 +81,12 @@
     origin.scale = Tools.getScale();
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {ZoomPointerEvent} evt
+   * @param {boolean} isTouchEvent
+   */
   function press(x, y, evt, isTouchEvent) {
     evt.preventDefault();
     setOrigin(x, y, evt, isTouchEvent);
@@ -71,16 +94,23 @@
     pressed = true;
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {ZoomPointerEvent} evt
+   * @param {boolean} isTouchEvent
+   */
   function move(x, y, evt, isTouchEvent) {
     if (pressed) {
       evt.preventDefault();
       var delta = getClientY(evt, isTouchEvent) - origin.clientY;
       var scale = origin.scale * (1 + (delta * ZOOM_FACTOR) / 100);
       if (Math.abs(delta) > 1) moved = true;
-      animation = animate(scale);
+      animate(scale);
     }
   }
 
+  /** @param {WheelEvent} evt */
   function onwheel(evt) {
     evt.preventDefault();
     var multiplier =
@@ -121,25 +151,29 @@
 
   Tools.board.addEventListener(
     "touchmove",
+    /** @param {TouchEvent} evt */
     function ontouchmove(evt) {
       // 2-finger pan to zoom
       var touches = evt.touches;
       if (touches.length === 2) {
-        var x0 = touches[0].clientX,
-          x1 = touches[1].clientX,
-          y0 = touches[0].clientY,
-          y1 = touches[1].clientY,
+        var firstTouch = touches[0];
+        var secondTouch = touches[1];
+        if (!firstTouch || !secondTouch) return;
+        var x0 = firstTouch.clientX,
+          x1 = secondTouch.clientX,
+          y0 = firstTouch.clientY,
+          y1 = secondTouch.clientY,
           dx = x0 - x1,
           dy = y0 - y1;
-        var x = (touches[0].pageX + touches[1].pageX) / 2 / Tools.getScale(),
-          y = (touches[0].pageY + touches[1].pageY) / 2 / Tools.getScale();
+        var x = (firstTouch.pageX + secondTouch.pageX) / 2 / Tools.getScale(),
+          y = (firstTouch.pageY + secondTouch.pageY) / 2 / Tools.getScale();
         var distance = Math.sqrt(dx * dx + dy * dy);
         if (!pressed) {
           pressed = true;
           setOrigin(x, y, evt, true);
           origin.distance = distance;
         } else {
-          var delta = distance - origin.distance;
+          var delta = distance - (origin.distance || distance);
           var scale = origin.scale * (1 + (delta * ZOOM_FACTOR) / 100);
           animate(scale);
         }
@@ -149,10 +183,17 @@
   );
   function touchend() {
     pressed = false;
+    origin.distance = null;
   }
   Tools.board.addEventListener("touchend", touchend);
   Tools.board.addEventListener("touchcancel", touchend);
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {ZoomPointerEvent & {shiftKey?: boolean}} evt
+   * @param {boolean} isTouchEvent
+   */
   function release(x, y, evt, isTouchEvent) {
     if (pressed && !moved) {
       var delta = evt.shiftKey === true ? -1 : 1;
@@ -160,9 +201,12 @@
       zoom(origin, scale);
     }
     pressed = false;
+    origin.distance = null;
   }
 
+  /** @param {boolean} down */
   function key(down) {
+    /** @type {ZoomKeyHandler} */
     return function (evt) {
       if (evt.key === "Shift") {
         Tools.svg.style.cursor = "zoom-" + (down ? "out" : "in");
@@ -170,8 +214,17 @@
     };
   }
 
+  /**
+   * @param {ZoomPointerEvent} evt
+   * @param {boolean} isTouchEvent
+   * @returns {number}
+   */
   function getClientY(evt, isTouchEvent) {
-    return isTouchEvent ? evt.changedTouches[0].clientY : evt.clientY;
+    if (isTouchEvent) {
+      var touch = evt.changedTouches && evt.changedTouches[0];
+      return touch ? touch.clientY : 0;
+    }
+    return evt.clientY || 0;
   }
 
   var keydown = key(true);
