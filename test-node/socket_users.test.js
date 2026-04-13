@@ -308,7 +308,7 @@ test("report_user logs reporter and reported user details for active board membe
     {
       WBO_IP_SOURCE: "remoteAddress",
       WBO_HISTORY_DIR: historyDir,
-      WBO_SILENT: "false",
+      WBO_SILENT: "true",
     },
     async function () {
       const sockets = require(SOCKETS_PATH);
@@ -349,13 +349,19 @@ test("report_user logs reporter and reported user details for active board membe
           },
         },
         function () {
-          getRequiredHandler(
-            reporter.handlers,
-            "report_user",
-          )({
-            board: "board-report",
-            socketId: "socket-reported",
-          });
+          var previousSilent = process.env.WBO_SILENT;
+          process.env.WBO_SILENT = "false";
+          try {
+            getRequiredHandler(
+              reporter.handlers,
+              "report_user",
+            )({
+              board: "board-report",
+              socketId: "socket-reported",
+            });
+          } finally {
+            process.env.WBO_SILENT = previousSilent;
+          }
         },
       );
 
