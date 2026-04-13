@@ -17,7 +17,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "useUnknownInCatchVariables": true,
-    "strict": false
+    "strict": true
   },
   "include": [
     "types/**/*.d.ts",

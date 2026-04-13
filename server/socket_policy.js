@@ -211,7 +211,8 @@ function getSocketToken(socket) {
  */
 function accessRole(boardName, socket) {
   if (!config.AUTH_SECRET_KEY) return "editor";
-  return roleInBoard(getSocketToken(socket), boardName);
+  const token = getSocketToken(socket);
+  return token ? roleInBoard(token, boardName) : "forbidden";
 }
 
 /**

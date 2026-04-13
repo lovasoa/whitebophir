@@ -181,7 +181,9 @@
    * @returns {boolean}
    */
   function isDrawTool(toolName) {
-    return typeof toolName === "string" && DRAW_TOOL_NAMES.indexOf(toolName) !== -1;
+    return (
+      typeof toolName === "string" && DRAW_TOOL_NAMES.indexOf(toolName) !== -1
+    );
   }
 
   /**
@@ -374,7 +376,9 @@
     ];
     var transformed = null;
     for (var i = 0; i < points.length; i++) {
-      var point = applyTransformToPoint(points[i], transform);
+      var sourcePoint = points[i];
+      if (!sourcePoint) return null;
+      var point = applyTransformToPoint(sourcePoint, transform);
       if (point === null) return null;
       transformed = extendBoundsWithPoint(transformed, point.x, point.y);
     }

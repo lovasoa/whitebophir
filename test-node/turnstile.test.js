@@ -180,8 +180,11 @@ test("server-side Turnstile token validation binds Siteverify to request context
         });
         assert.strictEqual(fetchCalled, true, "fetch should have been called");
         const expectedTime = Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS;
+        assert.notEqual(socket.turnstileValidatedUntil, undefined);
+        const validatedUntil = socket.turnstileValidatedUntil;
         assert.ok(
-          Math.abs(socket.turnstileValidatedUntil - expectedTime) <= 10,
+          validatedUntil !== undefined &&
+            Math.abs(validatedUntil - expectedTime) <= 10,
           "socket validation should expire after the configured window",
         );
         assert.deepEqual(ackCalledWith, {
@@ -237,6 +240,7 @@ test("server-side Turnstile token validation rejects hostname mismatches", async
       try {
         sockets.__test.handleSocketConnection(socket);
         const tokenHandler = handlers["turnstile_token"];
+        assert.ok(tokenHandler);
 
         globalThis.fetch = /** @type {any} */ (
           async function hostnameMismatch() {

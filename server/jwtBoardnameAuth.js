@@ -52,7 +52,7 @@ function parseRole(role) {
     return { roleName: "forbidden", boardName: "" };
   }
   const [, roleName, boardName] = match;
-  return { roleName, boardName };
+  return { roleName: roleName || "forbidden", boardName: boardName || "" };
 }
 
 /**

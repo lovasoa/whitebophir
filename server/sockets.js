@@ -607,21 +607,36 @@ function handleSocketConnection(socket) {
 
       const normalized = normalizeBroadcastData(message, data);
       if (normalized.ok === false) return;
-      /** @type {MessageData} */
-      data = normalized.value;
-      if (!enforceDestructiveRateLimit(socket, boardName, data, clientIp, now))
+      const normalizedData = normalized.value;
+      if (
+        !enforceDestructiveRateLimit(
+          socket,
+          boardName,
+          normalizedData,
+          clientIp,
+          now,
+        )
+      )
         return;
-      if (!enforceConstructiveRateLimit(socket, boardName, data, clientIp, now))
+      if (
+        !enforceConstructiveRateLimit(
+          socket,
+          boardName,
+          normalizedData,
+          clientIp,
+          now,
+        )
+      )
         return;
 
       ensureSocketJoinedBoard(socket, boardName);
 
       var board = await getBoard(boardName);
-      if (!canApplyBoardMessage(board, data, socket)) {
+      if (!canApplyBoardMessage(board, normalizedData, socket)) {
         log("WRITE BLOCKED", {
           board: board.name,
-          tool: data.tool,
-          type: data.type,
+          tool: normalizedData.tool,
+          type: normalizedData.type,
         });
         return;
       }
@@ -629,21 +644,21 @@ function handleSocketConnection(socket) {
       // Save the message in the board
       const handleResult = handleMessage(
         board,
-        cloneMessageForPersistence(data),
+        cloneMessageForPersistence(normalizedData),
         socket,
       );
       if (handleResult.ok === false) {
         log("BOARD_MESSAGE_REJECTED", {
           board: board.name,
-          tool: data.tool,
-          type: data.type,
+          tool: normalizedData.tool,
+          type: normalizedData.type,
           reason: handleResult.reason,
         });
         return;
       }
 
       //Send data to all other users connected on the same board
-      socket.broadcast.to(boardName).emit("broadcast", data);
+      socket.broadcast.to(boardName).emit("broadcast", normalizedData);
     }),
   );
 

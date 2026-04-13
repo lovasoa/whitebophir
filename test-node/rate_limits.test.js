@@ -54,10 +54,12 @@ test("general rate limit closes the socket when exceeded", async function () {
       });
       sockets.__test.handleSocketConnection(socket);
 
+      assert.ok(handlers.broadcast);
       await handlers.broadcast({});
 
       assert.equal(socket.disconnected, true);
       assert.equal(socket.disconnectCalls.length, 1);
+      assert.ok(emitted[0]);
       assert.equal(emitted[0].event, "rate-limited");
     },
   );
@@ -81,6 +83,7 @@ test("destructive per-IP rate limit closes the socket when exceeded", async func
       });
       sockets.__test.handleSocketConnection(socket);
 
+      assert.ok(handlers.broadcast);
       await handlers.broadcast({
         board: "anonymous",
         data: { tool: "Eraser", type: "delete", id: "shape-1" },
@@ -116,6 +119,7 @@ test("constructive per-IP rate limit closes the socket when exceeded", async fun
       });
       sockets.__test.handleSocketConnection(socket);
 
+      assert.ok(handlers.broadcast);
       await handlers.broadcast({
         board: "anonymous",
         data: {
@@ -154,6 +158,7 @@ test("missing configured IP source falls back without disconnecting", async func
       });
       sockets.__test.handleSocketConnection(socket);
 
+      assert.ok(handlers.broadcast);
       await handlers.broadcast({});
 
       assert.notEqual(socket.disconnected, true);
