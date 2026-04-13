@@ -192,6 +192,9 @@ function createBBoxElement(store, tagName) {
 function createSVGElement(store, tagName, attrs) {
   const element = createBBoxElement(store, tagName);
   if (tagName === "path") {
+    if (global.SVGPathElement) {
+      Object.setPrototypeOf(element, global.SVGPathElement.prototype);
+    }
     element.pathData = [];
     element.getPathData = function () {
       return clonePathData(this.pathData);
@@ -292,6 +295,7 @@ function createHarness() {
   global.transformedBBoxIntersects = function () {
     return false;
   };
+  global.SVGPathElement = function SVGPathElement() {};
   global.SVGTransform = {
     SVG_TRANSFORM_MATRIX: 1,
   };
@@ -447,8 +451,8 @@ test("Pencil replay updates stroke styling on the reused DOM node", function () 
 
   const line = harness.elementsById.get("line-1");
   assert.equal(line.attributes.stroke, "#abcdef");
-  assert.equal(line.attributes["stroke-width"], 7);
-  assert.equal(line.attributes.opacity, 0.8);
+  assert.equal(line.attributes["stroke-width"], "7");
+  assert.equal(line.attributes.opacity, "0.8");
   assert.deepEqual(line.pathData, []);
 });
 
