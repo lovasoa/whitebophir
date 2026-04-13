@@ -38,6 +38,11 @@ var canvascolor = (function () {
   //Code Isolation
   "use strict";
 
+  /**
+   * @typedef {[number, number, number]} RGBColor
+   * @typedef {[number, number]} CanvasCoords
+   */
+
   (function addCSS() {
     var styleTag = document.createElement("style");
     styleTag.innerHTML = [
@@ -63,6 +68,12 @@ var canvascolor = (function () {
     document.head.appendChild(styleTag);
   })();
 
+  /**
+   * @param {number} h
+   * @param {number} s
+   * @param {number} v
+   * @returns {RGBColor}
+   */
   function hsv2rgb(h, s, v) {
     if (s === 0) return [v, v, v]; // achromatic (grey)
 
@@ -86,15 +97,24 @@ var canvascolor = (function () {
       case 5:
         return [v, p, q];
     }
+    throw new Error("CanvasColor: invalid HSV sector");
   }
 
+  /**
+   * @param {HTMLElement} elem
+   * @returns {boolean}
+   */
   function isFixedPosition(elem) {
-    do {
-      if (getComputedStyle(elem).position === "fixed") return true;
-    } while ((elem = elem.parentElement) !== null);
+    /** @type {HTMLElement | null} */
+    var current = elem;
+    while (current) {
+      if (getComputedStyle(current).position === "fixed") return true;
+      current = current.parentElement;
+    }
     return false;
   }
 
+  /** @type {HTMLDivElement} */
   var containerTemplate;
   (function createContainer() {
     containerTemplate = document.createElement("div");
@@ -106,6 +126,9 @@ var canvascolor = (function () {
     containerTemplate.appendChild(historyDiv);
   })();
 
+  /**
+   * @param {HTMLInputElement} elem
+   */
   function canvascolor(elem) {
     var curcolor = elem.value || "#000";
 
@@ -113,39 +136,61 @@ var canvascolor = (function () {
       h = w / 2;
 
     var container = containerTemplate.cloneNode(true);
-    container.style.width = w + "px";
-    container.style.position = isFixedPosition(elem) ? "fixed" : "absolute";
-    var canvas = container.getElementsByTagName("canvas")[0];
-    var ctx = canvas.getContext("2d");
+    if (!(container instanceof HTMLDivElement)) {
+      throw new Error("CanvasColor: invalid container template");
+    }
+    var pickerContainer = container;
+    pickerContainer.style.width = w + "px";
+    pickerContainer.style.position = isFixedPosition(elem) ? "fixed" : "absolute";
+    var canvasElement = pickerContainer.getElementsByTagName("canvas")[0];
+    if (!(canvasElement instanceof HTMLCanvasElement)) {
+      throw new Error("CanvasColor: missing canvas element");
+    }
+    var context = canvasElement.getContext("2d");
+    if (!context) {
+      throw new Error("CanvasColor: 2D context unavailable");
+    }
+    var canvas = canvasElement;
+    var ctx = context;
     canvas.width = w;
     canvas.height = h;
 
-    var prevcolorsDiv = container.getElementsByClassName(
+    var prevcolorsDiv = pickerContainer.getElementsByClassName(
       "canvascolor-history",
     )[0];
-    prevcolorsDiv.style.width = w + "px";
-    prevcolorsDiv.style.maxHeight = h + "px";
+    if (!(prevcolorsDiv instanceof HTMLDivElement)) {
+      throw new Error("CanvasColor: missing history element");
+    }
+    var historyDiv = prevcolorsDiv;
+    historyDiv.style.width = w + "px";
+    historyDiv.style.maxHeight = h + "px";
 
     var previewdiv = createColorDiv(curcolor);
     previewdiv.style.border = "1px solid white";
     previewdiv.style.borderRadius = "5px";
 
-    document.body.appendChild(container);
+    document.body.appendChild(pickerContainer);
 
+    /**
+     * @returns {void}
+     */
     function displayContainer() {
       var rect = elem.getBoundingClientRect();
       var conttop = rect.top + rect.height + 3,
         contleft = rect.left;
-      if (container.style.position !== "fixed") {
+      if (pickerContainer.style.position !== "fixed") {
         conttop += document.documentElement.scrollTop;
         contleft += document.documentElement.scrollLeft;
       }
-      container.style.top = conttop + "px";
-      container.style.left = contleft + "px";
-      container.style.display = "block";
+      pickerContainer.style.top = conttop + "px";
+      pickerContainer.style.left = contleft + "px";
+      pickerContainer.style.display = "block";
     }
+    /**
+     * @returns {void}
+     */
     function hideContainer() {
-      container.style.display = "none";
+      pickerContainer.style.display = "none";
     }
 
     elem.addEventListener("mouseover", displayContainer, true);
@@ -162,19 +207,32 @@ var canvascolor = (function () {
 
     var idata = ctx.createImageData(w, h);
 
+    /**
+     * @param {RGBColor} rgb
+     * @returns {string}
+     */
     function rgb2hex(rgb) {
+      /**
+       * @param {number} c
+       * @returns {string}
+       */
       function num2hex(c) {
         return (((c * 15) / 255) | 0).toString(16);
       }
       return "#" + num2hex(rgb[0]) + num2hex(rgb[1]) + num2hex(rgb[2]);
     }
 
+    /**
+     * @param {CanvasCoords} coords
+     * @returns {RGBColor}
+     */
     function colorAt(coords) {
       var x = coords[0],
         y = coords[1];
       return hsv2rgb((x / w) * Math.PI, 1, (1 - y / h) * 255);
     }
 
+    /** @returns {void} */
     function render() {
       for (var x = 0; x < w; x++) {
         for (var y = 0; y < h; y++) {
@@ -207,6 +265,10 @@ var canvascolor = (function () {
       elem.focus();
     }
 
+    /**
+     * @param {string} color
+     * @returns {HTMLDivElement}
+     */
     function createColorDiv(color) {
       var div = document.createElement("div");
       div.style.width = w / 3 - 10 + "px";
@@ -219,11 +281,18 @@ var canvascolor = (function () {
         },
         true,
       );
-      if (prevcolorsDiv.childElementCount <= 1) prevcolorsDiv.appendChild(div);
-      else prevcolorsDiv.insertBefore(div, prevcolorsDiv.children[1]);
+      if (historyDiv.childElementCount <= 1) historyDiv.appendChild(div);
+      else {
+        var secondChild = historyDiv.children[1];
+        historyDiv.insertBefore(div, secondChild || null);
+      }
       return div;
     }
 
+    /**
+     * @param {MouseEvent} evt
+     * @returns {CanvasCoords}
+     */
     function canvasPos(evt) {
       var canvasrect = canvas.getBoundingClientRect();
       return [evt.clientX - canvasrect.left, evt.clientY - canvasrect.top];
@@ -265,6 +334,9 @@ var canvascolor = (function () {
   );
   for (var i = 0; i < pickers.length; i++) {
     var input = pickers.item(i);
+    if (!(input instanceof HTMLInputElement)) {
+      continue;
+    }
     //If the browser supports native color picker and the user didn't
     //explicitly added canvascolor to the element, we do not add a custom color picker
     if (
