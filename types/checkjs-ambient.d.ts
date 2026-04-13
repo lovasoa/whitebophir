@@ -3,6 +3,11 @@ export {};
 declare global {
   const io: any;
   const turnstile: any;
+  type TransformedBBox = {
+    r: [number, number];
+    a: [number, number];
+    b: [number, number];
+  };
   var Minitpl: {
     new (elem: string | Element): {
       elem: Element;
@@ -17,10 +22,14 @@ declare global {
   };
   const WBOMessageCommon: typeof import("../client-data/js/message_common.js");
   const wboPencilPoint: any;
-  var pointInTransformedBBox: any;
-  var transformedBBoxIntersects: any;
-  var bbox: any;
-  var tmatrix: any;
+  var pointInTransformedBBox: (
+    point: [number, number],
+    bbox: TransformedBBox,
+  ) => boolean;
+  var transformedBBoxIntersects: (
+    left: TransformedBBox,
+    right: TransformedBBox,
+  ) => boolean;
 
   interface Window {
     WBOMessageCommon: typeof import("../client-data/js/message_common.js");
@@ -84,8 +93,12 @@ declare global {
     origHeight?: number;
     drawCallback?: any;
     clickCallback?: any;
-    transformedBBox(scale?: number): any;
+    transformedBBox(scale?: number): TransformedBBox;
     transformedBBoxContains(x: number, y: number): boolean;
-    transformedBBoxIntersects(bbox: any): boolean;
+    transformedBBoxIntersects(bbox: TransformedBBox): boolean;
+  }
+
+  interface SVGSVGElement {
+    transformedBBox(scale?: number): TransformedBBox;
   }
 }
