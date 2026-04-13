@@ -260,6 +260,7 @@ function originPointForBounds(elem) {
  * Writes the given board as an svg to the given writeable stream
  * @param {RenderableBoard} obj
  * @param {WritableTarget} writeable
+ * @returns {Promise<void>}
  */
 async function toSVG(obj, writeable) {
   const margin = 400;
@@ -312,14 +313,30 @@ async function toSVG(obj, writeable) {
 
 /**
  * @param {string} file
+ * @returns {Promise<string>}
+ */
+async function renderBoardToSVG(file) {
+  const data = await fsp.readFile(file, "utf8");
+  /** @type {RenderableBoard} */
+  var board = /** @type {RenderableBoard} */ (parseStoredBoard(JSON.parse(data)).board);
+  /** @type {string[]} */
+  const chunks = [];
+  await toSVG(board, {
+    write: function (chunk) {
+      chunks.push(chunk);
+    },
+  });
+  return chunks.join("");
+}
+
+/**
+ * @param {string} file
  * @param {WritableTarget} stream
  * @returns {Promise<void>}
  */
 async function renderBoard(file, stream) {
-  const data = await fsp.readFile(file, "utf8");
-  /** @type {RenderableBoard} */
-  var board = /** @type {RenderableBoard} */ (parseStoredBoard(JSON.parse(data)).board);
-  return toSVG(board, stream);
+  const svg = await renderBoardToSVG(file);
+  stream.write(svg);
 }
 
 if (require.main === module) {
@@ -329,5 +346,5 @@ if (require.main === module) {
 
   renderBoard(HISTORY_FILE, process.stdout).catch(console.error.bind(console));
 } else {
-  module.exports = { renderBoard: renderBoard };
+  module.exports = { renderBoard: renderBoard, renderBoardToSVG: renderBoardToSVG };
 }

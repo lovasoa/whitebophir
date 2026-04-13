@@ -4,12 +4,12 @@ const path = require("node:path");
 const accept_language_parser = require("accept-language-parser");
 const client_config = require("./client_configuration");
 
-/** @typedef {string | string[] | undefined} HeaderValue */
-/** @typedef {{headers: {[name: string]: HeaderValue}, socket: {encrypted?: boolean}, url: string}} TemplateRequest */
-/** @typedef {{writeHead: (statusCode: number, headers: {[name: string]: string | number}) => void, end: (body?: string) => void}} TemplateResponse */
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
 /** @typedef {{baseUrl: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, version: string, [name: string]: any}} TemplateParameters */
+/** @typedef {import("http").IncomingMessage} TemplateRequest */
+/** @typedef {import("http").ServerResponse} TemplateResponse */
+/** @typedef {string | string[] | undefined} HeaderValue */
 
 /**
  * Associations from language to translation dictionnaries
@@ -40,7 +40,7 @@ function firstHeaderValue(value) {
 function findBaseUrl(req) {
   var proto =
     firstHeaderValue(req.headers["x-forwarded-proto"]) ||
-    (req.socket.encrypted ? "https" : "http");
+    (("encrypted" in req.socket && req.socket.encrypted) ? "https" : "http");
   var host =
     firstHeaderValue(req.headers["x-forwarded-host"]) ||
     firstHeaderValue(req.headers.host) ||
@@ -90,7 +90,8 @@ class Template {
     }
     const translations = TRANSLATIONS[language] || {};
     const configuration = client_config || {};
-    const prefixPart = request.url.split("/boards/", 1)[0] || "";
+    const requestUrl = request.url || "/";
+    const prefixPart = requestUrl.split("/boards/", 1)[0] || "";
     const prefix = prefixPart.startsWith("/") ? prefixPart.slice(1) : prefixPart;
     const baseUrl = findBaseUrl(request) + (prefix ? "/" + prefix + "/" : "");
     const moderator = isModerator;
@@ -116,7 +117,7 @@ class Template {
    * @param {object} [extraParams]
    */
   serve(request, response, isModerator, extraParams) {
-    const parsedUrl = new URL(request.url, "http://wbo/");
+    const parsedUrl = new URL(request.url || "/", "http://wbo/");
     const parameters = this.parameters(
       parsedUrl,
       request,

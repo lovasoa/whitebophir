@@ -8,7 +8,7 @@ const { R_OK, W_OK } = fs.constants;
 /**
  * Checks that the output directory is writeable
  * @param {string} directory
- * @returns {string?}
+ * @returns {Promise<string | undefined>}
  */
 async function get_error(directory) {
   if (!fs.existsSync(directory)) {
@@ -56,6 +56,7 @@ async function get_error(directory) {
       `". Please make all board files accessible with chown 1000:1000`
     );
   }
+  return undefined;
 }
 
 /**

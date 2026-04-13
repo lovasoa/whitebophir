@@ -30,7 +30,9 @@ test("Template.parameters uses the first forwarded host and proto values", async
 
   const parameters = template.parameters(
     new URL("http://wbo/prefix/boards/demo"),
-    request,
+    /** @type {import("http").IncomingMessage} */ (
+      /** @type {unknown} */ (request)
+    ),
     false,
     {},
   );

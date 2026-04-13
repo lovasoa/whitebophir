@@ -36,6 +36,9 @@ const jsonwebtoken = require("jsonwebtoken");
  */
 
 function checkBoardnameInToken(url, boardNameIn) {
+  if (config.AUTH_SECRET_KEY === "") {
+    return;
+  }
   const token = url.searchParams.get("token");
   if (token === null || roleInBoard(token, boardNameIn) === "forbidden") {
     throw new Error("Acess Forbidden");

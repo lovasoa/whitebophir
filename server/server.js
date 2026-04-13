@@ -14,6 +14,10 @@ const { log, monitorFunction } = require("./log.js");
 const sockets = require("./sockets.js");
 const templating = require("./templating.js");
 
+/** @typedef {import("http").IncomingMessage} HttpRequest */
+/** @typedef {import("http").ServerResponse} HttpResponse */
+/** @typedef {import("node:net").AddressInfo | string | null} ServerAddress */
+
 const app = createServer(handler);
 
 check_output_directory(config.HISTORY_DIR);
@@ -21,7 +25,7 @@ check_output_directory(config.HISTORY_DIR);
 sockets.start(app);
 
 app.listen(config.PORT, config.HOST, () => {
-  const actualPort = app.address().port;
+  const actualPort = getAddressPort(app.address());
   log("server started", { port: actualPort });
   if (process.send) process.send({ type: "server-started", port: actualPort });
 });
@@ -31,15 +35,54 @@ const CSP =
 
 const fileserver = serveStatic(config.WEBROOT, {
   maxAge: 2 * 3600 * 1000,
+  /** @param {HttpResponse} res */
   setHeaders: function (res) {
     res.setHeader("Content-Security-Policy", CSP);
   },
 });
 
 const errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
+/**
+ * @param {ServerAddress} address
+ * @returns {number | undefined}
+ */
+function getAddressPort(address) {
+  if (!address || typeof address === "string") return undefined;
+  return address.port;
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function errorToString(error) {
+  return error instanceof Error ? error.toString() : String(error);
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string | undefined}
+ */
+function errorStack(error) {
+  return error instanceof Error ? error.stack : undefined;
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @returns {(err?: unknown) => void}
+ */
 function serveError(request, response) {
   return function (err) {
-    log("error", { error: err && err.toString(), url: request.url });
+    log("error", { error: err ? errorToString(err) : undefined, url: request.url });
     response.writeHead(err ? 500 : 404, { "Content-Length": errorPage.length });
     response.end(errorPage);
   };
@@ -68,17 +111,18 @@ function handler(request, response) {
   try {
     handleRequestAndLog(request, response);
   } catch (err) {
+    const message = errorMessage(err);
     if (
       config.AUTH_SECRET_KEY &&
-      (err.message.includes("Access Forbidden") ||
-        err.message.includes("Illegal board name"))
+      (message.includes("Access Forbidden") ||
+        message.includes("Illegal board name"))
     ) {
-      log("error", { error: err.message, url: request.url });
+      log("error", { error: message, url: request.url });
     } else {
       console.trace(err);
     }
     response.writeHead(500, { "Content-Type": "text/plain" });
-    response.end(err.toString());
+    response.end(errorToString(err));
   }
 }
 
@@ -100,10 +144,20 @@ function validateBoardName(boardName) {
 }
 
 /**
+ * @param {string[]} parts
+ * @param {number} index
+ * @returns {string | undefined}
+ */
+function getPathPart(parts, index) {
+  return parts[index];
+}
+
+/**
  * @type {import('http').RequestListener}
  */
 function handleRequest(request, response) {
-  const parsedUrl = new URL(request.url, "http://wbo/");
+  const requestUrl = request.url || "/";
+  const parsedUrl = new URL(requestUrl, "http://wbo/");
   const parts = parsedUrl.pathname.split("/");
 
   if (parts[0] === "") parts.shift();
@@ -134,10 +188,12 @@ function handleRequest(request, response) {
         response.writeHead(301, headers);
         response.end();
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
-        const boardName = validateBoardName(parts[1]);
+        const boardNamePart = getPathPart(parts, 1);
+        if (boardNamePart === undefined) return serveError(request, response)();
+        const boardName = validateBoardName(boardNamePart);
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         const token = parsedUrl.searchParams.get("token");
-        const boardRole = jwtBoardName.roleInBoard(token, boardName);
+        const boardRole = jwtBoardName.roleInBoard(token || "", boardName);
         const boardMetadata = BoardData.loadMetadataSync(boardName);
         const canWrite =
           !boardMetadata.readonly ||
@@ -158,14 +214,17 @@ function handleRequest(request, response) {
     }
 
     case "download": {
-      const boardName = validateBoardName(parts[1]);
+      const boardNamePart = getPathPart(parts, 1);
+      if (boardNamePart === undefined) return serveError(request, response)();
+      const boardName = validateBoardName(boardNamePart);
       let historyFile = path.join(
         config.HISTORY_DIR,
         "board-" + boardName + ".json",
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-      if (parts.length > 2 && /^[0-9A-Za-z.\-]+$/.test(parts[2])) {
-        historyFile += "." + parts[2] + ".bak";
+      const backupSuffix = getPathPart(parts, 2);
+      if (backupSuffix && /^[0-9A-Za-z.\-]+$/.test(backupSuffix)) {
+        historyFile += "." + backupSuffix + ".bak";
       }
       log("download", { file: historyFile });
       fs.readFile(historyFile, function (err, data) {
@@ -182,30 +241,32 @@ function handleRequest(request, response) {
 
     case "export":
     case "preview": {
-      const exportBoardName = validateBoardName(parts[1]);
+      const boardNamePart = getPathPart(parts, 1);
+      if (boardNamePart === undefined) return serveError(request, response)();
+      const exportBoardName = validateBoardName(boardNamePart);
       const historyFile = path.join(
         config.HISTORY_DIR,
         "board-" + exportBoardName + ".json",
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, exportBoardName);
-      response.writeHead(200, {
-        "Content-Type": "image/svg+xml",
-        "Content-Security-Policy": CSP,
-        "Cache-Control": "public, max-age=30",
-      });
       const startedAt = Date.now();
       createSVG
-        .renderBoard(historyFile, response)
-        .then(function () {
+        .renderBoardToSVG(historyFile)
+        .then(function (svg) {
+          response.writeHead(200, {
+            "Content-Type": "image/svg+xml",
+            "Content-Security-Policy": CSP,
+            "Cache-Control": "public, max-age=30",
+          });
           log("preview", {
             board: exportBoardName,
             time: Date.now() - startedAt,
           });
-          response.end();
+          response.end(svg);
         })
         .catch(function (err) {
-          log("error", { error: err.toString(), stack: err.stack });
-          response.end("<text>Sorry, an error occured</text>");
+          log("error", { error: errorToString(err), stack: errorStack(err) });
+          serveError(request, response)(err);
         });
       break;
     }
