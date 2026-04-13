@@ -27,9 +27,10 @@
 (function download() {
   //Code isolation
 
+  /** @returns {void} */
   function downloadSVGFile() {
-    var canvasCopy = Tools.svg.cloneNode(true);
-    canvasCopy.removeAttribute("style", ""); // Remove css transform
+    var canvasCopy = /** @type {SVGSVGElement} */ (Tools.svg.cloneNode(true));
+    canvasCopy.removeAttribute("style"); // Remove css transform
     var styleNode = document.createElement("style");
 
     // Copy the stylesheets from the whiteboard to the exported SVG
@@ -60,12 +61,18 @@
     downloadContent(blob, Tools.boardName + ".svg");
   }
 
+  /**
+   * @param {Blob} blob
+   * @param {string} filename
+   * @returns {void}
+   */
   function downloadContent(blob, filename) {
-    if (window.navigator.msSaveBlob) {
+    var msSaveBlob = window.navigator.msSaveBlob;
+    if (typeof msSaveBlob === "function") {
       // Internet Explorer
-      window.navigator.msSaveBlob(blob, filename);
+      msSaveBlob.call(window.navigator, blob, filename);
     } else {
-      const url = URL.createObjectURL(blob);
+      var url = URL.createObjectURL(blob);
       var element = document.createElement("a");
       element.setAttribute("href", url);
       element.setAttribute("download", filename);
