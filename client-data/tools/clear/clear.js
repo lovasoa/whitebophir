@@ -26,17 +26,27 @@
 
 (function clear() {
   //Code isolation
+  /** @typedef {{type: "clear", id: string, token?: string | null}} ClearMessage */
 
   function clearBoard() {
+    /** @type {ClearMessage} */
     var msg = {
       type: "clear",
       id: "",
       token: Tools.token,
     };
-    Tools.drawAndSend(msg, Tools.list["Clear"]);
+    var clearTool = Tools.list["Clear"];
+    if (!clearTool) {
+      throw new Error("Clear: tool is not registered.");
+    }
+    Tools.drawAndSend(msg, clearTool);
   }
 
+  /** @param {ClearMessage | {type?: string}} data */
   function draw(data) {
+    if (!Tools.drawingArea) {
+      throw new Error("Clear: Missing drawing area.");
+    }
     Tools.drawingArea.innerHTML = "";
   }
 
