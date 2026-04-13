@@ -33,7 +33,7 @@
 /** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
 /** @typedef {import("../../types/app-runtime").ToolPalette} ToolPalette */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
-/** @typedef {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string}} ConnectedUser */
+/** @typedef {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastCursorX?: number, lastCursorY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
 
 var Tools = /** @type {AppToolsState} */ ({});
 var MessageCommon = window.WBOMessageCommon;
@@ -49,7 +49,9 @@ var BoardBootstrap = window.WBOBoardBootstrap;
  * @returns {HTMLInputElement}
  */
 function getRequiredInput(elementId) {
-  return /** @type {HTMLInputElement} */ (BoardBootstrap.getRequiredElement(elementId));
+  return /** @type {HTMLInputElement} */ (
+    BoardBootstrap.getRequiredElement(elementId)
+  );
 }
 
 /**
@@ -171,7 +173,9 @@ Tools.clearTurnstileRefreshTimeout = function clearTurnstileRefreshTimeout() {
 };
 
 /** @param {number} validationWindowMs */
-Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(validationWindowMs) {
+Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(
+  validationWindowMs,
+) {
   if (!Tools.server_config.TURNSTILE_SITE_KEY || !(validationWindowMs > 0))
     return;
   Tools.clearTurnstileRefreshTimeout();
@@ -278,20 +282,22 @@ Tools.refreshTurnstile = function refreshTurnstile() {
         /** @param {string} token */
         callback: function (token) {
           if (!Tools.socket) return;
-          Tools.socket.emit("turnstile_token", token, function (
-            /** @type {unknown} */ result
-          ) {
-            var turnstileResult = Tools.normalizeTurnstileAck(result);
-            Tools.turnstilePending = false;
-            if (turnstileResult.success) {
-              Tools.setTurnstileValidation(turnstileResult);
-              Tools.hideTurnstileOverlay();
-              Tools.flushTurnstilePendingWrites();
-            } else {
-              Tools.setTurnstileValidation(null);
-              Tools.refreshTurnstile();
-            }
-          });
+          Tools.socket.emit(
+            "turnstile_token",
+            token,
+            function (/** @type {unknown} */ result) {
+              var turnstileResult = Tools.normalizeTurnstileAck(result);
+              Tools.turnstilePending = false;
+              if (turnstileResult.success) {
+                Tools.setTurnstileValidation(turnstileResult);
+                Tools.hideTurnstileOverlay();
+                Tools.flushTurnstilePendingWrites();
+              } else {
+                Tools.setTurnstileValidation(null);
+                Tools.refreshTurnstile();
+              }
+            },
+          );
         },
         "before-interactive-callback": function () {
           Tools.showTurnstileOverlay(500);
@@ -376,7 +382,9 @@ Tools.showTurnstileWidget = function showTurnstileWidget() {
 
 /** @param {unknown} state */
 Tools.setBoardState = function setBoardState(state) {
-  Tools.boardState = /** @type {AppBoardState} */ (BoardState.normalizeBoardState(state));
+  Tools.boardState = /** @type {AppBoardState} */ (
+    BoardState.normalizeBoardState(state)
+  );
   Tools.readOnly = Tools.boardState.readonly;
   Tools.canWrite = Tools.boardState.canWrite;
 
@@ -518,7 +526,24 @@ Tools.connectedUsers = {};
 Tools.connectedUsersPanelOpen = false;
 
 function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
-  return !!(Tools.socket && typeof Tools.socket.id === "string" && user.socketId === Tools.socket.id);
+  return !!(
+    Tools.socket &&
+    typeof Tools.socket.id === "string" &&
+    user.socketId === Tools.socket.id
+  );
+}
+
+/**
+ * @param {unknown} value
+ * @returns {number | null}
+ */
+function toFiniteCoordinate(value) {
+  var number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function getConnectedUsersToggle() {
+  return BoardBootstrap.getRequiredElement("connectedUsersToggle");
 }
 
 function getConnectedUsersPanel() {
@@ -529,8 +554,83 @@ function getConnectedUsersList() {
   return BoardBootstrap.getRequiredElement("connectedUsersList");
 }
 
-function getConnectedUsersEmpty() {
-  return BoardBootstrap.getRequiredElement("connectedUsersEmpty");
+/**
+ * @param {number | undefined} size
+ * @returns {number}
+ */
+function getConnectedUserDotSize(size) {
+  var userSize = Number(size);
+  if (!Number.isFinite(userSize) || userSize <= 0) return 8;
+  return Math.max(8, Math.min(18, 6 + userSize / 3));
+}
+
+/**
+ * @param {ConnectedUser} user
+ * @returns {string}
+ */
+function getConnectedUserToolLabel(user) {
+  return Tools.i18n.t(user.lastTool || "Hand");
+}
+
+/**
+ * @param {ConnectedUser} user
+ * @returns {boolean}
+ */
+function hasConnectedUserCursor(user) {
+  return (
+    typeof user.lastCursorX === "number" &&
+    Number.isFinite(user.lastCursorX) &&
+    typeof user.lastCursorY === "number" &&
+    Number.isFinite(user.lastCursorY)
+  );
+}
+
+/**
+ * @param {ConnectedUser} user
+ * @returns {void}
+ */
+function scheduleConnectedUserPulseEnd(user) {
+  if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
+  if (!user.pulseUntil) {
+    user.pulseTimeoutId = null;
+    return;
+  }
+  var remainingMs = Math.max(0, user.pulseUntil - Date.now());
+  user.pulseTimeoutId = setTimeout(function () {
+    if (user.pulseUntil && user.pulseUntil <= Date.now()) {
+      user.pulseUntil = 0;
+      user.pulseTimeoutId = null;
+      Tools.renderConnectedUsers();
+    }
+  }, remainingMs + 20);
+}
+
+/**
+ * @param {ConnectedUser} user
+ * @returns {void}
+ */
+function markConnectedUserActivity(user) {
+  var now = Date.now();
+  var interval = user.lastActivityAt ? now - user.lastActivityAt : 700;
+  user.lastActivityAt = now;
+  user.pulseMs = Math.max(160, Math.min(1200, interval));
+  user.pulseUntil = now + user.pulseMs * 2;
+  scheduleConnectedUserPulseEnd(user);
+}
+
+/**
+ * @param {ConnectedUser} user
+ * @returns {void}
+ */
+function focusConnectedUser(user) {
+  if (!hasConnectedUserCursor(user)) return;
+  var scale = Tools.getScale();
+  var x = /** @type {number} */ (user.lastCursorX);
+  var y = /** @type {number} */ (user.lastCursorY);
+  window.scrollTo(
+    Math.max(0, x * scale - window.innerWidth / 2),
+    Math.max(0, y * scale - window.innerHeight / 2),
+  );
 }
 
 Tools.renderConnectedUsers = function renderConnectedUsers() {
@@ -540,45 +640,76 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
   var users = Object.values(Tools.connectedUsers).sort(function (left, right) {
     return left.name.localeCompare(right.name);
   });
-  var empty = getConnectedUsersEmpty();
-  empty.style.display = users.length > 0 ? "none" : "";
 
   users.forEach(function (user) {
     var row = document.createElement("li");
     row.className = "connected-user-row";
     row.dataset.socketId = user.socketId;
-
-    var name = document.createElement("div");
-    name.className = "connected-user-name";
-    name.textContent = user.name + (isCurrentSocketUser(user) ? " (You)" : "");
-    row.appendChild(name);
+    row.tabIndex = hasConnectedUserCursor(user) ? 0 : -1;
+    if (isCurrentSocketUser(user)) row.classList.add("connected-user-row-self");
+    if (hasConnectedUserCursor(user)) {
+      row.classList.add("connected-user-row-jumpable");
+      row.addEventListener("click", function () {
+        focusConnectedUser(user);
+      });
+      row.addEventListener("keydown", function (evt) {
+        if (evt.key === "Enter" || evt.key === " ") {
+          evt.preventDefault();
+          focusConnectedUser(user);
+        }
+      });
+    }
 
     var color = document.createElement("span");
     color.className = "connected-user-color";
     color.style.backgroundColor = user.color || "#001f3f";
+    var dotSize = getConnectedUserDotSize(user.size);
+    color.style.width = dotSize + "px";
+    color.style.height = dotSize + "px";
+    if (user.pulseUntil && user.pulseUntil > Date.now()) {
+      color.classList.add("active");
+      color.style.setProperty("--pulse-ms", (user.pulseMs || 700) + "ms");
+    }
     row.appendChild(color);
+
+    var main = document.createElement("div");
+    main.className = "connected-user-main";
+
+    var name = document.createElement("div");
+    name.className = "connected-user-name";
+    name.textContent = user.name;
+    main.appendChild(name);
 
     var meta = document.createElement("span");
     meta.className = "connected-user-meta";
-    meta.textContent = user.lastTool + " • " + user.size;
-    row.appendChild(meta);
+    meta.textContent = getConnectedUserToolLabel(user);
+    main.appendChild(meta);
 
-    var report = document.createElement("button");
-    report.type = "button";
-    report.className = "connected-user-report";
-    report.textContent = "Report";
-    if (isCurrentSocketUser(user)) {
-      report.disabled = true;
-    } else {
-      report.addEventListener("click", function () {
-        if (!Tools.socket) return;
-        Tools.socket.emit("report_user", {
-          board: Tools.boardName,
-          socketId: user.socketId,
+    row.appendChild(main);
+
+    if (!user.reported || isCurrentSocketUser(user)) {
+      var report = document.createElement("button");
+      report.type = "button";
+      report.className = "connected-user-report";
+      report.textContent = "!";
+      report.title = Tools.i18n.t("report");
+      report.setAttribute("aria-label", Tools.i18n.t("report"));
+      if (isCurrentSocketUser(user)) {
+        report.disabled = true;
+      } else {
+        report.addEventListener("click", function (evt) {
+          evt.stopPropagation();
+          if (!Tools.socket) return;
+          user.reported = true;
+          Tools.renderConnectedUsers();
+          Tools.socket.emit("report_user", {
+            board: Tools.boardName,
+            socketId: user.socketId,
+          });
         });
-      });
+      }
+      row.appendChild(report);
     }
-    row.appendChild(report);
 
     list.appendChild(row);
   });
@@ -588,7 +719,11 @@ Tools.setConnectedUsersPanelOpen = function setConnectedUsersPanelOpen(
   /** @type {boolean} */ open,
 ) {
   Tools.connectedUsersPanelOpen = open;
-  getConnectedUsersPanel().classList.toggle("connected-users-panel-hidden", !open);
+  getConnectedUsersPanel().classList.toggle(
+    "connected-users-panel-hidden",
+    !open,
+  );
+  getConnectedUsersToggle().classList.toggle("curTool", open);
 };
 
 Tools.upsertConnectedUser = function upsertConnectedUser(
@@ -605,33 +740,48 @@ Tools.upsertConnectedUser = function upsertConnectedUser(
 Tools.removeConnectedUser = function removeConnectedUser(
   /** @type {string} */ socketId,
 ) {
+  var user = Tools.connectedUsers[socketId];
+  if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   delete Tools.connectedUsers[socketId];
   Tools.renderConnectedUsers();
 };
 
-Tools.updateConnectedUsersFromActivity = function updateConnectedUsersFromActivity(
-  /** @type {string | undefined} */ userId,
-  /** @type {BoardMessage} */ message,
-) {
-  if (!userId) return;
-  var changed = false;
-  Object.values(Tools.connectedUsers).forEach(function (user) {
-    if (user.userId !== userId) return;
-    if (typeof message.color === "string") {
-      user.color = message.color;
+Tools.updateConnectedUsersFromActivity =
+  function updateConnectedUsersFromActivity(
+    /** @type {string | undefined} */ userId,
+    /** @type {BoardMessage} */ message,
+  ) {
+    if (!userId) return;
+    var changed = false;
+    var cursorX = toFiniteCoordinate(message.x);
+    var cursorY = toFiniteCoordinate(message.y);
+    var cursorSocket =
+      typeof message.socket === "string" ? message.socket : null;
+    Object.values(Tools.connectedUsers).forEach(function (user) {
+      if (user.userId !== userId) return;
+      markConnectedUserActivity(user);
       changed = true;
-    }
-    if (message.size !== undefined) {
-      user.size = Number(message.size) || user.size;
-      changed = true;
-    }
-    if (typeof message.tool === "string" && message.tool !== "Cursor") {
-      user.lastTool = message.tool;
-      changed = true;
-    }
-  });
-  if (changed) Tools.renderConnectedUsers();
-};
+      if (typeof message.color === "string") {
+        user.color = message.color;
+      }
+      if (message.size !== undefined) {
+        user.size = Number(message.size) || user.size;
+      }
+      if (typeof message.tool === "string" && message.tool !== "Cursor") {
+        user.lastTool = message.tool;
+      }
+      if (
+        message.tool === "Cursor" &&
+        cursorX !== null &&
+        cursorY !== null &&
+        (cursorSocket === null || cursorSocket === user.socketId)
+      ) {
+        user.lastCursorX = cursorX;
+        user.lastCursorY = cursorY;
+      }
+    });
+    if (changed) Tools.renderConnectedUsers();
+  };
 
 Tools.updateCurrentConnectedUserFromActivity =
   function updateCurrentConnectedUserFromActivity(
@@ -644,13 +794,21 @@ Tools.updateCurrentConnectedUserFromActivity =
   };
 
 Tools.initConnectedUsersUI = function initConnectedUsersUI() {
-  var toggle = BoardBootstrap.getRequiredElement("connectedUsersToggle");
-  var close = BoardBootstrap.getRequiredElement("connectedUsersClose");
+  var toggle = getConnectedUsersToggle();
+  var label = /** @type {HTMLElement | null} */ (
+    toggle.querySelector(".tool-name")
+  );
+  toggle.title = Tools.i18n.t("users");
+  toggle.setAttribute("aria-label", Tools.i18n.t("users"));
+  if (label) label.textContent = Tools.i18n.t("users");
   toggle.addEventListener("click", function () {
     Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
   });
-  close.addEventListener("click", function () {
-    Tools.setConnectedUsersPanelOpen(false);
+  toggle.addEventListener("keydown", function (evt) {
+    if (evt.key === "Enter" || evt.key === " ") {
+      evt.preventDefault();
+      Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
+    }
   });
   Tools.renderConnectedUsers();
 };
@@ -663,6 +821,9 @@ Tools.connect = function () {
     BoardConnection.closeSocket(Tools.socket);
     Tools.socket = null;
   }
+  Object.values(Tools.connectedUsers).forEach(function (user) {
+    if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
+  });
   Tools.connectedUsers = {};
   Tools.renderConnectedUsers();
 
@@ -701,13 +862,19 @@ Tools.connect = function () {
     });
   });
   socket.on("boardstate", Tools.setBoardState);
-  socket.on("user_joined", function onUserJoined(/** @type {ConnectedUser} */ user) {
-    Tools.upsertConnectedUser(user);
-  });
-  socket.on("user_left", function onUserLeft(/** @type {{socketId?: string}} */ user) {
-    if (typeof user.socketId !== "string") return;
-    Tools.removeConnectedUser(user.socketId);
-  });
+  socket.on(
+    "user_joined",
+    function onUserJoined(/** @type {ConnectedUser} */ user) {
+      Tools.upsertConnectedUser(user);
+    },
+  );
+  socket.on(
+    "user_left",
+    function onUserLeft(/** @type {{socketId?: string}} */ user) {
+      if (typeof user.socketId !== "string") return;
+      Tools.removeConnectedUser(user.socketId);
+    },
+  );
   socket.on("rate-limited", function onRateLimited() {
     Tools.showRateLimitAlert();
   });
@@ -792,9 +959,7 @@ Tools.HTML = /** @type {ToolPalette} */ ({
         ": " +
         toolShortcut +
         ")" +
-        (tool.secondary
-          ? " [" + Tools.i18n.t("click_to_toggle") + "]"
-          : "");
+        (tool.secondary ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
       if (tool.secondary) {
         elem.classList.add("hasSecondary");
         var secondaryIcon = /** @type {HTMLImageElement | undefined} */ (
@@ -841,14 +1006,16 @@ Tools.HTML = /** @type {ToolPalette} */ ({
   addColorButton: function addColorButton(button) {
     var setColor = Tools.setColor.bind(Tools, button.color);
     if (button.key) this.addShortcut(button.key, setColor);
-    return this.colorPresetTemplate.add(function (/** @type {HTMLElement} */ elem) {
-      elem.addEventListener("click", setColor);
-      elem.id = "color_" + button.color.replace(/^#/, "");
-      elem.style.backgroundColor = button.color;
-      if (button.key) {
-        elem.title = Tools.i18n.t("keyboard shortcut") + ": " + button.key;
-      }
-    });
+    return this.colorPresetTemplate.add(
+      function (/** @type {HTMLElement} */ elem) {
+        elem.addEventListener("click", setColor);
+        elem.id = "color_" + button.color.replace(/^#/, "");
+        elem.style.backgroundColor = button.color;
+        if (button.key) {
+          elem.title = Tools.i18n.t("keyboard shortcut") + ": " + button.key;
+        }
+      },
+    );
   },
 });
 
@@ -1085,7 +1252,8 @@ function messageForTool(message) {
   } else {
     ///We received a message destinated to a tool that we don't have
     //So we add it to the pending messages
-    if (name) BoardMessages.queuePendingMessage(Tools.pendingMessages, name, message);
+    if (name)
+      BoardMessages.queuePendingMessage(Tools.pendingMessages, name, message);
   }
 
   if (message.tool !== "Hand" && message.transform != null) {
@@ -1415,8 +1583,8 @@ Tools.setColor = function setColor(color) {
 
 Tools.getColor = (function color() {
   var color_index = (Math.random() * Tools.colorPresets.length) | 0;
-  var initialPreset =
-    Tools.colorPresets[color_index] || Tools.colorPresets[0] || { color: "#001f3f" };
+  var initialPreset = Tools.colorPresets[color_index] ||
+    Tools.colorPresets[0] || { color: "#001f3f" };
   var initial_color = initialPreset.color;
   Tools.setColor(initial_color);
   return function () {

@@ -38,7 +38,9 @@
     "tools": "ادوات",
     "view_source": "الملفات المصدرية على موقع جيتهب",
     "zoom": "تقريب",
-    "rate_limit_disconnect_message": "أنت ترسل التعديلات بسرعة كبيرة. لحماية اللوحة، أوقفنا اتصالك مؤقتًا. يرجى الانتظار دقيقة ثم المحاولة مرة أخرى."
+    "rate_limit_disconnect_message": "أنت ترسل التعديلات بسرعة كبيرة. لحماية اللوحة، أوقفنا اتصالك مؤقتًا. يرجى الانتظار دقيقة ثم المحاولة مرة أخرى.",
+    "users": "المستخدمون",
+    "report": "إبلاغ"
   },
   "be": {
     "White-out": "Замазка",
@@ -78,7 +80,9 @@
     "tools": "Інструменты",
     "view_source": "Зыходны код на GitHub",
     "zoom": "Лупа",
-    "rate_limit_disconnect_message": "Вы адпраўляеце змены занадта хутка. Каб абараніць дошку, мы прыпынілі ваша злучэнне. Пачакайце хвіліну і паспрабуйце яшчэ раз."
+    "rate_limit_disconnect_message": "Вы адпраўляеце змены занадта хутка. Каб абараніць дошку, мы прыпынілі ваша злучэнне. Пачакайце хвіліну і паспрабуйце яшчэ раз.",
+    "users": "Карыстальнікі",
+    "report": "Паскардзіцца"
   },
   "ca": {
     "White-out": "Corrector blanc",
@@ -119,7 +123,9 @@
     "tools": "Eines",
     "view_source": "Codi font a GitHub",
     "zoom": "Zoom",
-    "rate_limit_disconnect_message": "Esteu enviant canvis massa ràpid. Per protegir la pissarra, hem pausat la vostra connexió. Espereu un minut i torneu-ho a provar."
+    "rate_limit_disconnect_message": "Esteu enviant canvis massa ràpid. Per protegir la pissarra, hem pausat la vostra connexió. Espereu un minut i torneu-ho a provar.",
+    "users": "Usuaris",
+    "report": "Denuncia"
   },
   "de": {
     "board_name_placeholder": "Name des Whiteboards…",
@@ -160,7 +166,9 @@
     "view_source": "Quellcode auf GitHub",
     "white-out": "Korrekturflüssigkeit",
     "zoom": "Zoom",
-    "rate_limit_disconnect_message": "Sie senden Änderungen zu schnell. Zum Schutz des Whiteboards haben wir Ihre Verbindung pausiert. Bitte warten Sie eine Minute und versuchen Sie es erneut."
+    "rate_limit_disconnect_message": "Sie senden Änderungen zu schnell. Zum Schutz des Whiteboards haben wir Ihre Verbindung pausiert. Bitte warten Sie eine Minute und versuchen Sie es erneut.",
+    "users": "Nutzer",
+    "report": "Melden"
   },
   "en": {
     "White-out": "White-out",
@@ -201,7 +209,9 @@
     "tools": "Tools",
     "view_source": "Source code on GitHub",
     "zoom": "Zoom",
-    "rate_limit_disconnect_message": "You're sending changes too quickly, so we paused your connection to protect the board. Please wait a minute and try again."
+    "rate_limit_disconnect_message": "You're sending changes too quickly, so we paused your connection to protect the board. Please wait a minute and try again.",
+    "users": "Users",
+    "report": "Report"
   },
   "es": {
     "board_name_placeholder": "Nombre de la pizarra …",
@@ -241,7 +251,9 @@
     "view_source": "Código fuente en GitHub",
     "white-out": "Blanqueado",
     "zoom": "Zoom",
-    "rate_limit_disconnect_message": "Estás enviando cambios demasiado rápido. Para proteger la pizarra, hemos pausado tu conexión. Espera un minuto y vuelve a intentarlo."
+    "rate_limit_disconnect_message": "Estás enviando cambios demasiado rápido. Para proteger la pizarra, hemos pausado tu conexión. Espera un minuto y vuelve a intentarlo.",
+    "users": "Usuarios",
+    "report": "Denunciar"
   },
   "fr": {
     "board_name_placeholder": "Nom du tableau…",
@@ -280,7 +292,9 @@
     "tools": "Outils",
     "view_source": "Code source sur GitHub",
     "white-out": "Blanco",
-    "rate_limit_disconnect_message": "Vous envoyez des modifications trop vite. Pour protéger le tableau, nous avons mis votre connexion en pause. Attendez une minute puis réessayez."
+    "rate_limit_disconnect_message": "Vous envoyez des modifications trop vite. Pour protéger le tableau, nous avons mis votre connexion en pause. Attendez une minute puis réessayez.",
+    "users": "Utilisateurs",
+    "report": "Signaler"
   },
   "hu": {
     "White-out": "Lefedő",
@@ -320,7 +334,9 @@
     "tools": "Eszközök",
     "view_source": "Forráskód a GitHub-on",
     "zoom": "Nagyítás/kicsinyítés",
-    "rate_limit_disconnect_message": "Túl gyorsan küldesz módosításokat. A tábla védelme érdekében szüneteltettük a kapcsolatodat. Várj egy percet, majd próbáld újra."
+    "rate_limit_disconnect_message": "Túl gyorsan küldesz módosításokat. A tábla védelme érdekében szüneteltettük a kapcsolatodat. Várj egy percet, majd próbáld újra.",
+    "users": "Felhasználók",
+    "report": "Jelentés"
   },
   "id": {
     "White-out": "Cairan koreksi",
@@ -361,7 +377,9 @@
     "tools": "Alat",
     "view_source": "Kode sumber di GitHub",
     "zoom": "Lup",
-    "rate_limit_disconnect_message": "Anda mengirim perubahan terlalu cepat. Untuk melindungi papan, kami menjeda koneksi Anda. Tunggu satu menit lalu coba lagi."
+    "rate_limit_disconnect_message": "Anda mengirim perubahan terlalu cepat. Untuk melindungi papan, kami menjeda koneksi Anda. Tunggu satu menit lalu coba lagi.",
+    "users": "Pengguna",
+    "report": "Laporkan"
   },
   "it": {
     "board_name_placeholder": "Nome della lavagna…",
@@ -401,7 +419,9 @@
     "view_source": "Codice sorgente su GitHub",
     "white-out": "Bianchetto",
     "zoom": "Zoom",
-    "rate_limit_disconnect_message": "Stai inviando modifiche troppo velocemente. Per proteggere la lavagna, abbiamo messo in pausa la tua connessione. Attendi un minuto e riprova."
+    "rate_limit_disconnect_message": "Stai inviando modifiche troppo velocemente. Per proteggere la lavagna, abbiamo messo in pausa la tua connessione. Attendi un minuto e riprova.",
+    "users": "Utenti",
+    "report": "Segnala"
   },
   "ja": {
     "board_name_placeholder": "ボードの名前",
@@ -441,7 +461,9 @@
     "view_source": "GitHubでソースコード見る",
     "white-out": "修正液",
     "zoom": "拡大・縮小",
-    "rate_limit_disconnect_message": "変更の送信が速すぎます。ボードを保護するため、接続を一時停止しました。1分ほど待ってからもう一度お試しください。"
+    "rate_limit_disconnect_message": "変更の送信が速すぎます。ボードを保護するため、接続を一時停止しました。1分ほど待ってからもう一度お試しください。",
+    "users": "ユーザー",
+    "report": "報告"
   },
   "my": {
     "board_name_placeholder": "ဝှိုက်ဘုတ်အမည် ... ",
@@ -482,7 +504,9 @@
     "view_source": "GitHub ရှိရင်းမြစ်ကုဒ်",
     "white-out": "ပြုပြင်မှုအရည်",
     "zoom": "ချဲ့ခြင်း",
-    "rate_limit_disconnect_message": "သင်သည် ပြောင်းလဲမှုများကို မြန်လွန်းစွာ ပို့နေပါသည်။ ဘုတ်ကို ကာကွယ်ရန် သင့်ချိတ်ဆက်မှုကို ခဏရပ်ထားပါသည်။ တစ်မိနစ်စောင့်ပြီး ထပ်စမ်းပါ။"
+    "rate_limit_disconnect_message": "သင်သည် ပြောင်းလဲမှုများကို မြန်လွန်းစွာ ပို့နေပါသည်။ ဘုတ်ကို ကာကွယ်ရန် သင့်ချိတ်ဆက်မှုကို ခဏရပ်ထားပါသည်။ တစ်မိနစ်စောင့်ပြီး ထပ်စမ်းပါ။",
+    "users": "အသုံးပြုသူများ",
+    "report": "တိုင်ကြားရန်"
   },
   "pt": {
     "White-out": "Branquejar",
@@ -522,7 +546,9 @@
     "tools": "Ferramentas",
     "view_source": "Código-fonte no GitHub",
     "zoom": "Zoom",
-    "rate_limit_disconnect_message": "Você está enviando alterações rápido demais. Para proteger o quadro, pausamos sua conexão. Aguarde um minuto e tente novamente."
+    "rate_limit_disconnect_message": "Você está enviando alterações rápido demais. Para proteger o quadro, pausamos sua conexão. Aguarde um minuto e tente novamente.",
+    "users": "Utilizadores",
+    "report": "Denunciar"
   },
   "ru": {
     "board_name_placeholder": "Название доски",
@@ -562,7 +588,9 @@
     "view_source": "Исходный код на GitHub",
     "white-out": "Корректор",
     "zoom": "Лупа",
-    "rate_limit_disconnect_message": "Вы отправляете изменения слишком быстро. Чтобы защитить доску, мы приостановили ваше соединение. Подождите минуту и попробуйте снова."
+    "rate_limit_disconnect_message": "Вы отправляете изменения слишком быстро. Чтобы защитить доску, мы приостановили ваше соединение. Подождите минуту и попробуйте снова.",
+    "users": "Пользователи",
+    "report": "Пожаловаться"
   },
   "sw": {
     "board_name_placeholder": "Jina la ubao mweupe ...",
@@ -603,7 +631,9 @@
     "view_source": "Nambari ya chanzo kwenye GitHub",
     "white-out": "maji ya kusahihisha",
     "zoom": "Zoom",
-    "rate_limit_disconnect_message": "Unatuma mabadiliko haraka sana. Ili kulinda ubao, tumesitisha muunganisho wako kwa muda. Subiri dakika moja kisha ujaribu tena."
+    "rate_limit_disconnect_message": "Unatuma mabadiliko haraka sana. Ili kulinda ubao, tumesitisha muunganisho wako kwa muda. Subiri dakika moja kisha ujaribu tena.",
+    "users": "Watumiaji",
+    "report": "Ripoti"
   },
   "th": {
     "board_name_placeholder": "ชื่อไวท์บอร์ด ...",
@@ -644,7 +674,9 @@
     "view_source": "ซอร์สโค้ดบน GitHub",
     "white-out": "น้ำยาลบคำผิด",
     "zoom": "ซูม",
-    "rate_limit_disconnect_message": "คุณส่งการเปลี่ยนแปลงเร็วเกินไป เพื่อปกป้องกระดาน เราได้หยุดการเชื่อมต่อของคุณชั่วคราว โปรดรอหนึ่งนาทีแล้วลองอีกครั้ง"
+    "rate_limit_disconnect_message": "คุณส่งการเปลี่ยนแปลงเร็วเกินไป เพื่อปกป้องกระดาน เราได้หยุดการเชื่อมต่อของคุณชั่วคราว โปรดรอหนึ่งนาทีแล้วลองอีกครั้ง",
+    "users": "ผู้ใช้",
+    "report": "รายงาน"
   },
   "uk": {
     "White-out": "Коректор",
@@ -684,7 +716,9 @@
     "tools": "Засоби",
     "view_source": "Вихідний код на GitHub",
     "zoom": "Лупа",
-    "rate_limit_disconnect_message": "Ви надсилаєте зміни занадто швидко. Щоб захистити дошку, ми призупинили ваше зʼєднання. Зачекайте хвилину й спробуйте ще раз."
+    "rate_limit_disconnect_message": "Ви надсилаєте зміни занадто швидко. Щоб захистити дошку, ми призупинили ваше зʼєднання. Зачекайте хвилину й спробуйте ще раз.",
+    "users": "Користувачі",
+    "report": "Поскаржитися"
   },
   "vn": {
     "White-out": "Trắng",
@@ -724,7 +758,9 @@
     "tools": "Công cụ",
     "view_source": "Source code on GitHub",
     "zoom": "Zoom",
-    "rate_limit_disconnect_message": "Bạn đang gửi thay đổi quá nhanh. Để bảo vệ bảng, chúng tôi đã tạm dừng kết nối của bạn. Hãy đợi một phút rồi thử lại."
+    "rate_limit_disconnect_message": "Bạn đang gửi thay đổi quá nhanh. Để bảo vệ bảng, chúng tôi đã tạm dừng kết nối của bạn. Hãy đợi một phút rồi thử lại.",
+    "users": "Người dùng",
+    "report": "Báo cáo"
   },
   "zh-CN": {
     "board_name_placeholder": "白板名称",
@@ -765,7 +801,9 @@
     "view_source": "GitHub上的源代码",
     "white-out": "修正液",
     "zoom": "放大",
-    "rate_limit_disconnect_message": "你发送更改的速度太快了。为了保护白板，我们已暂停你的连接。请稍等一分钟后再试。"
+    "rate_limit_disconnect_message": "你发送更改的速度太快了。为了保护白板，我们已暂停你的连接。请稍等一分钟后再试。",
+    "users": "用户",
+    "report": "举报"
   },
   "zh-TW": {
     "board_name_placeholder": "白板名稱",
@@ -805,7 +843,9 @@
     "view_source": "檢視位於GitHub上的原始碼",
     "white-out": "修正液",
     "zoom": "放大",
-    "rate_limit_disconnect_message": "你送出變更的速度太快了。為了保護白板，我們已暫停你的連線。請等一分鐘後再試一次。"
+    "rate_limit_disconnect_message": "你送出變更的速度太快了。為了保護白板，我們已暫停你的連線。請等一分鐘後再試一次。",
+    "users": "使用者",
+    "report": "檢舉"
   },
   "pl": {
     "board_name_placeholder": "Nazwa tablicy",
@@ -845,6 +885,8 @@
     "view_source": "Kod źródłowy na GitHub",
     "white-out": "Korektor",
     "zoom": "Lupa",
-    "rate_limit_disconnect_message": "Wysyłasz zmiany zbyt szybko. Aby chronić tablicę, wstrzymaliśmy Twoje połączenie. Odczekaj minutę i spróbuj ponownie."
+    "rate_limit_disconnect_message": "Wysyłasz zmiany zbyt szybko. Aby chronić tablicę, wstrzymaliśmy Twoje połączenie. Odczekaj minutę i spróbuj ponownie.",
+    "users": "Użytkownicy",
+    "report": "Zgłoś"
   }
 }

@@ -269,7 +269,9 @@ function buildBoardUserRecord(socket, boardName, now) {
   var userSecret = getSocketQueryValue(socket, "userSecret");
   var ip = resolveClientIp(socket, boardName);
   var size = WBOMessageCommon.clampSize(getSocketQueryValue(socket, "size"));
-  var color = WBOMessageCommon.normalizeColor(getSocketQueryValue(socket, "color"));
+  var color = WBOMessageCommon.normalizeColor(
+    getSocketQueryValue(socket, "color"),
+  );
   return {
     socketId: socket.id,
     userId: buildUserId(userSecret),
@@ -368,7 +370,10 @@ function emitBoardUsersToSocket(socket, boardName) {
 function emitUserJoinedToBoard(socket, boardName, user) {
   socket.broadcast
     .to(boardName)
-    .emit("user_joined", Object.assign({ board: boardName }, serializeBoardUser(user)));
+    .emit(
+      "user_joined",
+      Object.assign({ board: boardName }, serializeBoardUser(user)),
+    );
 }
 
 /**
@@ -762,24 +767,26 @@ function startIO(app) {
   io = new Server(app);
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
-    io.use(function (
-      /** @type {AppSocket} */ socket,
-      /** @type {(error?: Error) => void} */ next,
-    ) {
-      if (socket.handshake.query && socket.handshake.query.token) {
-        jsonwebtoken.verify(
-          socket.handshake.query.token,
-          config.AUTH_SECRET_KEY,
-          function (/** @type {unknown} */ err, /** @type {any} */ decoded) {
-            if (err)
-              return next(new Error("Authentication error: Invalid JWT"));
-            next();
-          },
-        );
-      } else {
-        next(new Error("Authentication error: No jwt provided"));
-      }
-    });
+    io.use(
+      function (
+        /** @type {AppSocket} */ socket,
+        /** @type {(error?: Error) => void} */ next,
+      ) {
+        if (socket.handshake.query && socket.handshake.query.token) {
+          jsonwebtoken.verify(
+            socket.handshake.query.token,
+            config.AUTH_SECRET_KEY,
+            function (/** @type {unknown} */ err, /** @type {any} */ decoded) {
+              if (err)
+                return next(new Error("Authentication error: Invalid JWT"));
+              next();
+            },
+          );
+        } else {
+          next(new Error("Authentication error: No jwt provided"));
+        }
+      },
+    );
   }
   io.on("connection", noFail(handleSocketConnection));
   return io;
@@ -975,7 +982,12 @@ function handleSocketConnection(socket) {
         return;
       }
 
-      var user = updateBoardUserFromMessage(socket, boardName, normalizedData, now);
+      var user = updateBoardUserFromMessage(
+        socket,
+        boardName,
+        normalizedData,
+        now,
+      );
       attachLiveUserId(normalizedData, user);
 
       //Send data to all other users connected on the same board
@@ -1001,31 +1013,34 @@ function handleSocketConnection(socket) {
         reported_socket: reported.socketId,
         reporter_ip: reporter.ip,
         reported_ip: reported.ip,
-        reporter_user_id: reporter.userId,
-        reported_user_id: reported.userId,
         reporter_name: reporter.name,
         reported_name: reported.name,
       });
     }),
   );
 
-  socket.on("disconnecting", function onDisconnecting(/** @type {string} */ reason) {
-    socket.rooms.forEach(async function disconnectFrom(/** @type {string} */ room) {
-      if (boards.hasOwnProperty(room)) {
-        var board = await /** @type {Promise<BoardData>} */ (boards[room]);
-        board.users.delete(socket.id);
-        removeBoardUser(socket, room);
-        var userCount = board.users.size;
-        log("disconnection", {
-          board: board.name,
-          users: board.users.size,
-          reason,
-        });
-        gauge("connected." + board.name, userCount);
-        if (userCount === 0) unloadBoard(room);
-      }
-    });
-  });
+  socket.on(
+    "disconnecting",
+    function onDisconnecting(/** @type {string} */ reason) {
+      socket.rooms.forEach(
+        async function disconnectFrom(/** @type {string} */ room) {
+          if (boards.hasOwnProperty(room)) {
+            var board = await /** @type {Promise<BoardData>} */ (boards[room]);
+            board.users.delete(socket.id);
+            removeBoardUser(socket, room);
+            var userCount = board.users.size;
+            log("disconnection", {
+              board: board.name,
+              users: board.users.size,
+              reason,
+            });
+            gauge("connected." + board.name, userCount);
+            if (userCount === 0) unloadBoard(room);
+          }
+        },
+      );
+    },
+  );
 }
 
 /**

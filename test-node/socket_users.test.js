@@ -48,7 +48,10 @@ test("user id and visible name are deterministic from userSecret and ip", async 
 
     assert.equal(userId, sockets.__test.buildUserId("alpha-secret"));
     assert.match(userId, /^[a-z]+$/);
-    assert.equal(name, sockets.__test.buildUserName("203.0.113.40", "alpha-secret"));
+    assert.equal(
+      name,
+      sockets.__test.buildUserName("203.0.113.40", "alpha-secret"),
+    );
     assert.equal(record.userId, userId);
     assert.equal(record.name, name);
     assert.equal(record.lastSeen, 123);
@@ -106,7 +109,9 @@ test("board user maps are created lazily and cleaned when emptied", async functi
 });
 
 test("joining a board replays joined users to the socket and broadcasts newcomer joins", async function () {
-  const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "wbo-users-join-"));
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-join-"),
+  );
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
     async function () {
@@ -130,7 +135,10 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
         return event.event === "user_joined";
       });
       assert.equal(firstJoined.length, 1);
-      assert.equal(getRequiredValue(firstJoined[0]).payload.socketId, "socket-1");
+      assert.equal(
+        getRequiredValue(firstJoined[0]).payload.socketId,
+        "socket-1",
+      );
 
       const second = createSocket({
         id: "socket-2",
@@ -165,7 +173,9 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
 });
 
 test("disconnecting from a board broadcasts user_left and cleans the board user map", async function () {
-  const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "wbo-users-left-"));
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-left-"),
+  );
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
     async function () {
@@ -185,9 +195,10 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
       sockets.__test.handleSocketConnection(created.socket);
       await getRequiredHandler(created.handlers, "getboard")("board-left");
 
-      await getRequiredHandler(created.handlers, "disconnecting")(
-        "transport close",
-      );
+      await getRequiredHandler(
+        created.handlers,
+        "disconnecting",
+      )("transport close");
 
       assert.deepEqual(created.broadcasted[0], {
         event: "user_joined",
@@ -212,7 +223,9 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
 });
 
 test("live broadcasts attach userId and keep the user's latest non-cursor state", async function () {
-  const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "wbo-users-live-"));
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-live-"),
+  );
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
     async function () {
@@ -232,7 +245,10 @@ test("live broadcasts attach userId and keep the user's latest non-cursor state"
       sockets.__test.handleSocketConnection(created.socket);
       await getRequiredHandler(created.handlers, "getboard")("board-live");
 
-      await getRequiredHandler(created.handlers, "broadcast")({
+      await getRequiredHandler(
+        created.handlers,
+        "broadcast",
+      )({
         board: "board-live",
         data: {
           tool: "Rectangle",
@@ -258,7 +274,10 @@ test("live broadcasts attach userId and keep the user's latest non-cursor state"
       assert.equal(user.color, "#123456");
       assert.equal(user.size, 9);
 
-      await getRequiredHandler(created.handlers, "broadcast")({
+      await getRequiredHandler(
+        created.handlers,
+        "broadcast",
+      )({
         board: "board-live",
         data: {
           tool: "Cursor",
@@ -282,9 +301,15 @@ test("live broadcasts attach userId and keep the user's latest non-cursor state"
 });
 
 test("report_user logs reporter and reported user details for active board members", async function () {
-  const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "wbo-users-report-"));
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-report-"),
+  );
   await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    {
+      WBO_IP_SOURCE: "remoteAddress",
+      WBO_HISTORY_DIR: historyDir,
+      WBO_SILENT: "false",
+    },
     async function () {
       const sockets = require(SOCKETS_PATH);
       sockets.__test.resetRateLimitMaps();
@@ -324,7 +349,10 @@ test("report_user logs reporter and reported user details for active board membe
           },
         },
         function () {
-          getRequiredHandler(reporter.handlers, "report_user")({
+          getRequiredHandler(
+            reporter.handlers,
+            "report_user",
+          )({
             board: "board-report",
             socketId: "socket-reported",
           });
