@@ -3,7 +3,18 @@ export {};
 declare global {
   const io: any;
   const turnstile: any;
-  var Minitpl: any;
+  var Minitpl: {
+    new (elem: string | Element): {
+      elem: Element;
+      parent: ParentNode;
+      add(
+        data:
+          | string
+          | ((element: Element) => void)
+          | { [selector: string]: string | ((element: Element) => void) },
+      ): Element;
+    };
+  };
   const WBOMessageCommon: typeof import("../client-data/js/message_common.js");
   const wboPencilPoint: any;
   var pointInTransformedBBox: any;

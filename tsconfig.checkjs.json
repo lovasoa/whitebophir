@@ -28,7 +28,6 @@
     "test-node/client_tool_replay.test.js",
     "client-data/js/canvascolor.js",
     "client-data/js/intersect.js",
-    "client-data/js/minitpl.js",
     "client-data/js/path-data-polyfill.js"
   ]
 }
