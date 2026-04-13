@@ -165,8 +165,14 @@
 
   function createLine(lineData) {
     //Creates a new line on the canvas, or update a line that already exists with new information
-    var line =
-      svg.getElementById(lineData.id) || Tools.createSVGElement("path");
+    var line = svg.getElementById(lineData.id);
+    if (line) {
+      // Replays can recreate an existing DOM node after reconnect; reset the path before reapplying children.
+      line.setPathData([]);
+      delete pathDataCache[lineData.id];
+    } else {
+      line = Tools.createSVGElement("path");
+    }
     line.id = lineData.id;
     //If some data is not provided, choose default value. The line may be updated later
     line.setAttribute("stroke", lineData.color || "black");
