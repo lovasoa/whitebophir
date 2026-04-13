@@ -164,6 +164,37 @@ function createBaseElement(store, tagName) {
     getBoundingClientRect: function () {
       return { left: 0, top: 0, height: 0 };
     },
+    cloneNode: function () {
+      const clone = createSVGElement(store, this.tagName);
+      clone.style = { ...this.style };
+      clone.attributes = { ...this.attributes };
+      clone.textContent = this.textContent;
+      ["x", "y", "width", "height", "x1", "y1", "x2", "y2", "cx", "cy", "rx", "ry"].forEach(
+        function (name) {
+          if (this[name] && clone[name]) {
+            clone[name].baseVal.value = this[name].baseVal.value;
+          }
+        },
+        this,
+      );
+      if (this.transform && clone.transform) {
+        const matrix = this.transform.baseVal.numberOfItems
+          ? this.transform.baseVal[0].matrix
+          : createMatrix();
+        clone.transform.baseVal.appendItem(
+          clone.transform.baseVal.createSVGTransformFromMatrix({
+            a: matrix.a,
+            b: matrix.b,
+            c: matrix.c,
+            d: matrix.d,
+            e: matrix.e,
+            f: matrix.f,
+          }),
+        );
+      }
+      if (this.pathData && clone.setPathData) clone.setPathData(this.pathData);
+      return clone;
+    },
   };
   attachElementId(element, store);
   return element;
@@ -246,6 +277,7 @@ function createHarness() {
   drawingArea.appendChild = function (child) {
     child.parentNode = this;
     child.parentElement = this;
+    this.children.push(child);
     if (child.id) store.set(child.id, child);
     return child;
   };
@@ -263,20 +295,28 @@ function createHarness() {
   board.appendChild = function (child) {
     child.parentNode = this;
     child.parentElement = this;
+    this.children.push(child);
     if (child.id) store.set(child.id, child);
     return child;
   };
 
   const tools = {};
   const clock = { now: 0 };
+  const windowListeners = new Map();
   global.performance = {
     now: function () {
       return clock.now;
     },
   };
   global.window = global;
-  global.window.addEventListener = function () {};
-  global.window.removeEventListener = function () {};
+  global.window.addEventListener = function (eventName, listener) {
+    windowListeners.set(eventName, listener);
+  };
+  global.window.removeEventListener = function (eventName, listener) {
+    if (windowListeners.get(eventName) === listener) {
+      windowListeners.delete(eventName);
+    }
+  };
   global.window.scrollTo = function () {};
   global.window.WBOMessageCommon = {
     truncateText: function (value) {
@@ -371,6 +411,7 @@ function createHarness() {
   return {
     elementsById: elementsById,
     clock: clock,
+    windowListeners: windowListeners,
     loadTool: function (toolName) {
       clearModule(TOOL_PATHS[toolName]);
       if (toolName === "Pencil") {
@@ -637,6 +678,94 @@ test("Hand selector sends a final transform on quick release", function () {
       {
         type: "update",
         id: "seed-rect",
+        transform: {
+          a: 1,
+          b: 0,
+          c: 0,
+          d: 1,
+          e: 40,
+          f: 25,
+        },
+      },
+    ],
+  });
+});
+
+test("Hand selector keeps the duplicated elements selected", function () {
+  const harness = createHarness();
+  const handTool = harness.loadTool("Hand");
+  let nextId = 1;
+
+  global.Tools.generateUID = function (prefix) {
+    nextId += 1;
+    return prefix + "-" + nextId;
+  };
+  global.transformedBBoxIntersects = function () {
+    return true;
+  };
+
+  const rect = global.Tools.createSVGElement("rect");
+  rect.id = "r-1";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  global.Tools.drawingArea.appendChild(rect);
+
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
+
+  const outsideTarget = {
+    parentNode: null,
+    matches: function () {
+      return false;
+    },
+  };
+
+  handTool.listeners.press(50, 50, {
+    preventDefault: function () {},
+    target: outsideTarget,
+  });
+  handTool.listeners.move(200, 200, {
+    preventDefault: function () {},
+    target: outsideTarget,
+  });
+  handTool.listeners.release(200, 200, {
+    preventDefault: function () {},
+    target: outsideTarget,
+  });
+
+  const duplicateShortcut = harness.windowListeners.get("keydown");
+  assert.ok(duplicateShortcut, "selector shortcut listener should be installed");
+  duplicateShortcut({
+    key: "d",
+    target: outsideTarget,
+  });
+
+  assert.equal(global.Tools.sentMessages.length, 1);
+  assert.deepEqual(global.Tools.sentMessages[0].data, {
+    _children: [{ type: "copy", id: "r-1", newid: "r-2" }],
+  });
+
+  handTool.listeners.press(110, 110, {
+    preventDefault: function () {},
+    target: harness.elementsById.get("r-2"),
+  });
+  handTool.listeners.move(150, 135, {
+    preventDefault: function () {},
+    target: harness.elementsById.get("r-2"),
+  });
+  handTool.listeners.release(150, 135, {
+    preventDefault: function () {},
+    target: harness.elementsById.get("r-2"),
+  });
+
+  assert.equal(global.Tools.sentMessages.length, 2);
+  assert.deepEqual(global.Tools.sentMessages[1].data, {
+    _children: [
+      {
+        type: "update",
+        id: "r-2",
         transform: {
           a: 1,
           b: 0,
