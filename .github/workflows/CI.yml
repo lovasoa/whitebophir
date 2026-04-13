@@ -49,16 +49,3 @@ jobs:
         with:
           name: tests-output-${{ matrix.node-version }}
           path: tests_output/
-
-  format:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run Prettier check
-        run: npm run prettier-check

@@ -20,10 +20,12 @@
     "statsd-client": "^0.4.7"
   },
   "scripts": {
+    "prepare": "node scripts/install-git-hooks.js",
     "start": "node ./server/server.js",
     "test-node": "WBO_SILENT=true node --test test-node/*.test.js",
-    "test": "npm run test-node && WBO_SILENT=true nightwatch tests && npm run prettier-check",
+    "test": "npm run test-node && WBO_SILENT=true nightwatch tests",
     "typecheck": "tsc -p tsconfig.checkjs.json",
+    "format-staged": "node scripts/prettier-staged.js",
     "prettier": "prettier . --write",
     "prettier-check": "prettier . --check"
   },
