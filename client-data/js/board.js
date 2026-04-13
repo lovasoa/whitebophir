@@ -98,6 +98,7 @@
  * @property {{[name: string]: string} | null} socketIOExtraHeaders
  * @property {string} boardName
  * @property {string | null} token
+ * @property {string} userSecret
  * @property {ToolPalette} HTML
  * @property {ToolRegistry} list
  * @property {PendingMessages} pendingMessages
@@ -537,6 +538,51 @@ Tools.showRateLimitAlert = function showRateLimitAlert() {
   Tools.rateLimitAlertShown = true;
   window.alert(Tools.i18n.t("rate_limit_disconnect_message"));
 };
+
+function generateUserSecret() {
+  if (
+    window.crypto &&
+    typeof window.crypto.getRandomValues === "function" &&
+    typeof Uint8Array === "function"
+  ) {
+    var bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes)
+      .map(function (value) {
+        return value.toString(16).padStart(2, "0");
+      })
+      .join("");
+  }
+
+  return (
+    Date.now().toString(16) +
+    Math.random().toString(16).slice(2) +
+    Math.random().toString(16).slice(2)
+  );
+}
+
+Tools.userSecret = (function resolveUserSecret() {
+  var key = "wbo-user-secret-v1";
+  try {
+    var existing = localStorage.getItem(key);
+    if (existing) return existing;
+    var created = generateUserSecret();
+    localStorage.setItem(key, created);
+    return created;
+  } catch (err) {
+    return generateUserSecret();
+  }
+})();
+
+Tools.getInitialSocketQuery = function getInitialSocketQuery() {
+  return {
+    userSecret: Tools.userSecret,
+    tool: "Hand",
+    color: getRequiredInput("chooseColor").value,
+    size: getRequiredInput("chooseSize").value,
+  };
+};
+
 Tools.connect = function () {
   // Destroy socket if one already exists
   if (Tools.socket) {
@@ -550,6 +596,7 @@ Tools.connect = function () {
     window.location.pathname,
     Tools.socketIOExtraHeaders,
     params.get("token"),
+    Tools.getInitialSocketQuery(),
   );
 
   var socket = io.connect("", socketParams);

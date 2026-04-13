@@ -3,6 +3,7 @@
 
   /** @typedef {{[name: string]: string}} SocketHeaders */
   /** @typedef {{path: string, reconnection: boolean, reconnectionDelay: number, timeout: number, extraHeaders?: SocketHeaders, query?: string}} SocketParams */
+  /** @typedef {{[name: string]: string}} SocketQueryParams */
   /** @typedef {{tool?: string, id?: string, type?: string, parent?: string, _children?: unknown}} BoardMessage */
   /** @typedef {{[toolName: string]: BoardMessage[]}} PendingMessages */
   /** @typedef {{success: boolean, validationWindowMs?: unknown, validatedUntil?: unknown}} TurnstileAck */
@@ -29,9 +30,10 @@
    * @param {string} pathname
    * @param {SocketHeaders | null} extraHeaders
    * @param {string | null} token
+   * @param {SocketQueryParams | null} [extraQueryParams]
    * @returns {SocketParams}
    */
-  function buildSocketParams(pathname, extraHeaders, token) {
+  function buildSocketParams(pathname, extraHeaders, token, extraQueryParams) {
     /** @type {SocketParams} */
     var socketParams = {
       path: pathname.split("/boards/")[0] + "/socket.io",
@@ -39,10 +41,16 @@
       reconnectionDelay: 100,
       timeout: 1000 * 60 * 20,
     };
+    var query = new URLSearchParams();
     if (extraHeaders) socketParams.extraHeaders = extraHeaders;
-    if (typeof token === "string" && token !== "") {
-      socketParams.query = "token=" + encodeURIComponent(token);
+    if (typeof token === "string" && token !== "") query.set("token", token);
+    if (extraQueryParams) {
+      Object.entries(extraQueryParams).forEach(function ([key, value]) {
+        if (typeof value === "string" && value !== "") query.set(key, value);
+      });
     }
+    var queryString = query.toString();
+    if (queryString) socketParams.query = queryString;
     return socketParams;
   }
 
