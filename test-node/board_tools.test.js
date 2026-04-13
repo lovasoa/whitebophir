@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const BoardTools = require("../client-data/js/board_tools.js");
+const BoardTools = require("../client-data/js/board_helpers.js").tools;
 
 test("isBlockedToolName rejects invalid tool names and respects the blocked list", function () {
   assert.equal(BoardTools.isBlockedToolName("Pencil", ["Text"]), false);

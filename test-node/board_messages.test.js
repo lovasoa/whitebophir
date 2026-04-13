@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const BoardMessages = require("../client-data/js/board_messages.js");
+const BoardMessages = require("../client-data/js/board_realtime.js").messages;
 
 test("queuePendingMessage accumulates messages by tool name", function () {
   /** @type {{[toolName: string]: {tool?: string}[]}} */

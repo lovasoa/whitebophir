@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const BoardConnection = require("../client-data/js/board_connection.js");
+const BoardConnection = require("../client-data/js/board_realtime.js").connection;
 
 test("normalizeSocketIOExtraHeaders keeps only string header values", function () {
   assert.deepEqual(
