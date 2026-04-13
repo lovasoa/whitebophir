@@ -25,7 +25,7 @@ const JWT_BOARDNAME_AUTH_PATH = path.join(
 );
 
 /** @typedef {{[key: string]: any}} Dict */
-/** @typedef {{headers?: {[key: string]: string | string[] | undefined}, remoteAddress?: string, token?: string}} SocketOptions */
+/** @typedef {{headers?: {[key: string]: string | string[] | undefined}, remoteAddress?: string, token?: string, query?: {[key: string]: string | undefined}}} SocketOptions */
 /** @typedef {{event: string, payload: any}} EmittedEvent */
 /** @typedef {{[event: string]: (...args: any[]) => any}} HandlerMap */
 /** @typedef {{id: string, turnstileValidatedUntil?: number, disconnected?: boolean, handshake: {query: {token?: string}}, rooms: Set<string>, client: {request: {headers: {[key: string]: string | string[] | undefined}, socket: {remoteAddress: string}}}, broadcast: {to: (room: string) => {emit: (event: string, payload: any) => void}}, disconnectCalls: boolean[], on: (event: string, handler: (...args: any[]) => any) => void, join: (room: string) => void, emit: (event: string, payload: any) => void, disconnect: (close: boolean) => void}} TestSocket */
@@ -108,7 +108,7 @@ function createSocket(options) {
     id: "socket-1",
     turnstileValidatedUntil: undefined,
     handshake: {
-      query: settings.token ? { token: settings.token } : {},
+      query: Object.assign({}, settings.query || {}, settings.token ? { token: settings.token } : {}),
     },
     rooms: new Set(),
     client: {

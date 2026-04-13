@@ -1,4 +1,5 @@
-var { Server, Socket } = require("socket.io"),
+var crypto = require("node:crypto"),
+  { Server, Socket } = require("socket.io"),
   { log, gauge, monitorFunction } = require("./log.js"),
   BoardData = require("./boardData.js").BoardData,
   config = require("./configuration"),
@@ -17,10 +18,12 @@ var parseForwardedHeader = socketPolicy.parseForwardedHeader;
 
 /** @typedef {{[key: string]: any}} MessageData */
 /** @typedef {{headers: {[key: string]: string | string[] | undefined}, socket?: {remoteAddress?: string}}} SocketRequest */
-/** @typedef {Socket & { turnstileValidatedUntil?: number }} AppSocket */
+/** @typedef {{token?: string, userSecret?: string, tool?: string, color?: string, size?: string}} SocketQuery */
+/** @typedef {Socket & { turnstileValidatedUntil?: number, handshake: {query?: SocketQuery} }} AppSocket */
 /** @typedef {{windowStart: number, count: number, lastSeen: number}} RateLimitState */
 /** @typedef {{success: true, validationWindowMs: number, validatedUntil: number | undefined}} TurnstileAck */
 /** @typedef {{ok: true} | {ok: false, reason: string}} ValidationStatus */
+/** @typedef {{socketId: string, userId: string, name: string, ip: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 
 /** Map from name to *promises* of BoardData
   @type {{[boardName: string]: Promise<BoardData>}}
@@ -30,7 +33,84 @@ var boards = {};
 var destructiveRateLimits = new Map();
 /** @type {Map<string, RateLimitState>} */
 var constructiveRateLimits = new Map();
+/** @type {Map<string, Map<string, BoardUser>>} */
+var boardUsers = new Map();
 var io;
+var NAME_SYLLABLES = [
+  "al",
+  "an",
+  "ar",
+  "ba",
+  "be",
+  "bi",
+  "bo",
+  "da",
+  "de",
+  "di",
+  "do",
+  "el",
+  "en",
+  "er",
+  "fa",
+  "fe",
+  "fi",
+  "ga",
+  "ge",
+  "gi",
+  "ha",
+  "he",
+  "hi",
+  "io",
+  "ka",
+  "ke",
+  "ki",
+  "ko",
+  "la",
+  "le",
+  "li",
+  "lo",
+  "lu",
+  "ma",
+  "me",
+  "mi",
+  "mo",
+  "na",
+  "ne",
+  "ni",
+  "no",
+  "oa",
+  "ol",
+  "or",
+  "pa",
+  "pe",
+  "pi",
+  "ra",
+  "re",
+  "ri",
+  "ro",
+  "sa",
+  "se",
+  "si",
+  "so",
+  "ta",
+  "te",
+  "ti",
+  "to",
+  "ul",
+  "ur",
+  "va",
+  "ve",
+  "vi",
+  "vo",
+  "wa",
+  "we",
+  "wi",
+  "ya",
+  "yo",
+  "za",
+  "ze",
+  "zi",
+];
 /**
  * Prevents a function from throwing errors.
  * If the inner function throws, the outer function just returns undefined
@@ -116,6 +196,113 @@ function getSocketRequest(socket) {
  */
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * @param {string} seed
+ * @param {number} minParts
+ * @param {number} maxParts
+ * @returns {string}
+ */
+function buildPronounceableName(seed, minParts, maxParts) {
+  var digest = crypto.createHash("sha256").update(seed).digest();
+  var partCount = minParts;
+  if (maxParts > minParts) {
+    partCount += digest[0] % (maxParts - minParts + 1);
+  }
+  var word = "";
+  for (var index = 0; index < partCount; index++) {
+    var offset = 1 + index * 2;
+    var value = digest.readUInt16BE(offset);
+    word +=
+      NAME_SYLLABLES[value % NAME_SYLLABLES.length] ||
+      NAME_SYLLABLES[0] ||
+      "na";
+  }
+  return word;
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} key
+ * @returns {string}
+ */
+function getSocketQueryValue(socket, key) {
+  var query = socket.handshake && socket.handshake.query;
+  if (!query) return "";
+  var value = query[key];
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * @param {string} userSecret
+ * @returns {string}
+ */
+function buildUserId(userSecret) {
+  return buildPronounceableName(userSecret || "anonymous", 2, 3);
+}
+
+/**
+ * @param {string} ip
+ * @returns {string}
+ */
+function buildIpWord(ip) {
+  return buildPronounceableName(ip || "unknown", 2, 2);
+}
+
+/**
+ * @param {string} ip
+ * @param {string} userSecret
+ * @returns {string}
+ */
+function buildUserName(ip, userSecret) {
+  return buildIpWord(ip) + " " + buildUserId(userSecret);
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {number} [now]
+ * @returns {BoardUser}
+ */
+function buildBoardUserRecord(socket, boardName, now) {
+  var userSecret = getSocketQueryValue(socket, "userSecret");
+  var ip = resolveClientIp(socket, boardName);
+  var size = WBOMessageCommon.clampSize(getSocketQueryValue(socket, "size"));
+  var color = WBOMessageCommon.normalizeColor(getSocketQueryValue(socket, "color"));
+  return {
+    socketId: socket.id,
+    userId: buildUserId(userSecret),
+    name: buildUserName(ip, userSecret),
+    ip: ip,
+    color: color || "#001f3f",
+    size: size,
+    lastTool: getSocketQueryValue(socket, "tool") || "Hand",
+    lastSeen: now || Date.now(),
+  };
+}
+
+/**
+ * @param {string} boardName
+ * @returns {Map<string, BoardUser>}
+ */
+function getBoardUserMap(boardName) {
+  var users = boardUsers.get(boardName);
+  if (users) return users;
+  users = new Map();
+  boardUsers.set(boardName, users);
+  return users;
+}
+
+/**
+ * @param {string} boardName
+ * @returns {void}
+ */
+function cleanupBoardUserMap(boardName) {
+  var users = boardUsers.get(boardName);
+  if (users && users.size === 0) {
+    boardUsers.delete(boardName);
+  }
 }
 
 /**
@@ -736,6 +923,10 @@ function generateUID(prefix, suffix) {
 if (exports) {
   exports.start = startIO;
   exports.__test = {
+    buildBoardUserRecord,
+    buildIpWord,
+    buildUserId,
+    buildUserName,
     handleSocketConnection,
     consumeFixedWindowRateLimit,
     countDestructiveActions,
@@ -745,9 +936,12 @@ if (exports) {
     normalizeBroadcastData,
     parseForwardedHeader,
     pruneRateLimitMap,
+    cleanupBoardUserMap,
+    getBoardUserMap,
     resetRateLimitMaps: function resetRateLimitMaps() {
       destructiveRateLimits.clear();
       constructiveRateLimits.clear();
+      boardUsers.clear();
     },
   };
 }
