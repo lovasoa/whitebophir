@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0",
+    "target": "ES2023",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowUmdGlobalAccess": true,
+    "strict": false
+  },
+  "include": [
+    "types/**/*.d.ts",
+    "client-data/js/message_common.js",
+    "server/configuration.js",
+    "server/configuration_helpers.js",
+    "server/message_validation.js",
+    "server/boardData.js",
+    "test-node/test_helpers.js",
+    "test-node/message_common.test.js",
+    "test-node/message_validation.test.js",
+    "test-node/board_data.test.js"
+  ],
+  "exclude": ["node_modules", "server-data"]
+}

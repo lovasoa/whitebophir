@@ -23,6 +23,7 @@
     "start": "node ./server/server.js",
     "test-node": "WBO_SILENT=true node --test test-node/*.test.js",
     "test": "npm run test-node && WBO_SILENT=true nightwatch tests && npm run prettier-check",
+    "typecheck": "tsc -p tsconfig.checkjs.json",
     "prettier": "prettier . --write",
     "prettier-check": "prettier . --check"
   },
@@ -32,8 +33,10 @@
     "url": "http://github.com/lovasoa/whitebophir.git"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "geckodriver": "^6.1.0",
     "nightwatch": "^3.2.1",
-    "prettier": "^3.1.0"
+    "prettier": "^3.1.0",
+    "typescript": "^6.0.2"
   }
 }

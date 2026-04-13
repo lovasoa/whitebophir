@@ -1,7 +1,7 @@
 (function (root, factory) {
   var api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  root.WBOMessageCommon = api;
+  /** @type {any} */ (root).WBOMessageCommon = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   var LIMITS = {
     MIN_SIZE: 1,

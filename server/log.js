@@ -62,7 +62,7 @@ function monitorFunction(f) {
     return f;
   }
   let client = statsd.getChildClient(f.name);
-  return function () {
+  return /** @type {F} */ (function monitoredFunction() {
     let startTime = new Date();
     try {
       const result = f.apply(null, arguments);
@@ -74,7 +74,7 @@ function monitorFunction(f) {
     } finally {
       client.timing("time", startTime);
     }
-  };
+  });
 }
 
 /**

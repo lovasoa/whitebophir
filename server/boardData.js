@@ -67,6 +67,7 @@ function parseStoredBoard(storedBoard) {
     throw new Error("Invalid board file format");
   }
 
+  /** @type {{[name: string]: BoardElem}} */
   var board = {};
   var metadata = defaultBoardMetadata();
 
@@ -303,7 +304,7 @@ class BoardData {
   /** Adds a child to an element that is already in the board
    * @param {string} parentId - Identifier of the parent element.
    * @param {BoardElem} child - Object containing the the values to update.
-   * @returns {boolean} - True if the child was added, else false
+   * @returns {{ok: boolean, reason?: string}} - True if the child was added, else false
    */
   addChild(parentId, child) {
     var obj = this.board[parentId];
@@ -331,7 +332,7 @@ class BoardData {
   /** Update the data in the board
    * @param {string} id - Identifier of the data to update.
    * @param {BoardElem} data - Object containing the values to update.
-   * @param {boolean} create - True if the object should be created if it's not currently in the DB.
+   * @param {boolean} [create] - True if the object should be created if it's not currently in the DB.
    */
   update(id, data, create) {
     var tool = data.tool;
@@ -398,9 +399,11 @@ class BoardData {
 
   /** Process a batch of messages
    * @typedef {{
-   *  id:string,
-   *  type: "delete" | "update" | "child",
+   *  id?: string,
+   *  type: string,
+   *  tool?: string,
    *  parent?: string,
+   *  newid?: string,
    *  _children?: BoardMessage[],
    * } & BoardElem } BoardMessage
    * @param {BoardMessage[]} children array of messages to be delegated to the other methods
@@ -640,7 +643,7 @@ class BoardData {
     var boardData = new BoardData(name),
       data;
     try {
-      data = await readFile(boardData.file);
+      data = await readFile(boardData.file, "utf8");
       const storedBoard = parseStoredBoard(JSON.parse(data));
       boardData.board = storedBoard.board;
       boardData.metadata = storedBoard.metadata;
