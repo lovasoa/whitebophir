@@ -6,15 +6,22 @@ const BoardMessages = require("../client-data/js/board_transport.js").messages;
 test("queuePendingMessage accumulates messages by tool name", function () {
   /** @type {{[toolName: string]: {tool?: string}[]}} */
   const pending = {};
-  BoardMessages.queuePendingMessage(pending, "Rectangle", { tool: "Rectangle" });
-  BoardMessages.queuePendingMessage(pending, "Rectangle", { tool: "Rectangle" });
+  BoardMessages.queuePendingMessage(pending, "Rectangle", {
+    tool: "Rectangle",
+  });
+  BoardMessages.queuePendingMessage(pending, "Rectangle", {
+    tool: "Rectangle",
+  });
 
   assert.ok(pending.Rectangle);
   assert.equal(pending.Rectangle.length, 2);
 });
 
 test("hasChildMessages only accepts array children", function () {
-  assert.equal(BoardMessages.hasChildMessages({ _children: [{ tool: "Pencil" }] }), true);
+  assert.equal(
+    BoardMessages.hasChildMessages({ _children: [{ tool: "Pencil" }] }),
+    true,
+  );
   assert.equal(
     BoardMessages.hasChildMessages(
       /** @type {any} */ ({ _children: { tool: "Pencil" } }),

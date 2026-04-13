@@ -90,11 +90,13 @@
       return normalizeRecentBoards(storedBoards);
     /** @type {{[name: string]: boolean}} */
     var seen = {};
-    var recentBoards = normalizeRecentBoards(storedBoards).filter(function (name) {
-      if (seen[name]) return false;
-      seen[name] = true;
-      return name !== boardName;
-    });
+    var recentBoards = normalizeRecentBoards(storedBoards).filter(
+      function (name) {
+        if (seen[name]) return false;
+        seen[name] = true;
+        return name !== boardName;
+      },
+    );
     recentBoards.unshift(boardName);
     return recentBoards.slice(0, 20);
   }
@@ -156,8 +158,7 @@
       drainPendingMessages: drainPendingMessages,
     },
   };
-  var root =
-    /** @type {typeof globalThis & {
+  var root = /** @type {typeof globalThis & {
       WBOBoardPageState?: typeof exports,
       WBOBoardBootstrap?: typeof exports.bootstrap,
       WBOBoardState?: typeof exports.state,

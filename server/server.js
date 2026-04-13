@@ -82,7 +82,10 @@ function errorMessage(error) {
  */
 function serveError(request, response) {
   return function (err) {
-    log("error", { error: err ? errorToString(err) : undefined, url: request.url });
+    log("error", {
+      error: err ? errorToString(err) : undefined,
+      url: request.url,
+    });
     response.writeHead(err ? 500 : 404, { "Content-Length": errorPage.length });
     response.end(errorPage);
   };

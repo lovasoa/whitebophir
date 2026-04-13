@@ -1,7 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const BoardTurnstile = require("../client-data/js/board_transport.js").turnstile;
+const BoardTurnstile =
+  require("../client-data/js/board_transport.js").turnstile;
 
 test("computeTurnstileValidation applies the client-side safety window", function () {
   const before = Date.now();
@@ -39,5 +40,8 @@ test("resetTurnstileWidget only resets when the api is available", function () {
     true,
   );
   assert.deepEqual(calls, ["widget-1"]);
-  assert.equal(BoardTurnstile.resetTurnstileWidget(undefined, "widget-1"), false);
+  assert.equal(
+    BoardTurnstile.resetTurnstileWidget(undefined, "widget-1"),
+    false,
+  );
 });

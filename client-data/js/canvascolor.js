@@ -141,7 +141,9 @@ var canvascolor = (function () {
     }
     var pickerContainer = container;
     pickerContainer.style.width = w + "px";
-    pickerContainer.style.position = isFixedPosition(elem) ? "fixed" : "absolute";
+    pickerContainer.style.position = isFixedPosition(elem)
+      ? "fixed"
+      : "absolute";
     var canvasElement = pickerContainer.getElementsByTagName("canvas")[0];
     if (!(canvasElement instanceof HTMLCanvasElement)) {
       throw new Error("CanvasColor: missing canvas element");

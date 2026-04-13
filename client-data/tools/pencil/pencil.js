@@ -66,10 +66,17 @@
   function handleAutoWhiteOut(evt) {
     var touch = evt.touches && evt.touches[0];
     var touchType =
-      touch && "touchType" in touch ? /** @type {{touchType?: string}} */ (touch).touchType : undefined;
+      touch && "touchType" in touch
+        ? /** @type {{touchType?: string}} */ (touch).touchType
+        : undefined;
     if (touchType == "stylus") {
       //When using stylus, switch back to the primary
-      if (hasUsedStylus && Tools.curTool && Tools.curTool.secondary && Tools.curTool.secondary.active) {
+      if (
+        hasUsedStylus &&
+        Tools.curTool &&
+        Tools.curTool.secondary &&
+        Tools.curTool.secondary.active
+      ) {
         Tools.change("Pencil");
       }
       //Remember if starting a line with a stylus
@@ -177,7 +184,10 @@
             "Pencil: Hmmm... I received a point of a line that has not been created (%s).",
             childData.parent,
           );
-          line = renderingLine = createLine({ type: "line", id: childData.parent }); //create a new line in order not to loose the points
+          line = renderingLine = createLine({
+            type: "line",
+            id: childData.parent,
+          }); //create a new line in order not to loose the points
         }
         addPoint(line, childData.x, childData.y);
         break;
@@ -211,7 +221,9 @@
   function getLineById(lineId) {
     if (!lineId) return null;
     var line = svg.getElementById(lineId);
-    return line instanceof SVGPathElement ? /** @type {PencilLine} */ (line) : null;
+    return line instanceof SVGPathElement
+      ? /** @type {PencilLine} */ (line)
+      : null;
   }
 
   /**

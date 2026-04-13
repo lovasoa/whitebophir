@@ -16,12 +16,12 @@ function showRecentBoards() {
   recentBoards.forEach(
     /** @param {string} name */
     function (name) {
-    var listItem = document.createElement("li");
-    var link = document.createElement("a");
-    link.setAttribute("href", `/boards/${encodeURIComponent(name)}`);
-    link.textContent = name;
-    listItem.appendChild(link);
-    list.appendChild(listItem);
+      var listItem = document.createElement("li");
+      var link = document.createElement("a");
+      link.setAttribute("href", `/boards/${encodeURIComponent(name)}`);
+      link.textContent = name;
+      listItem.appendChild(link);
+      list.appendChild(listItem);
     },
   );
 

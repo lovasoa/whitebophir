@@ -20,8 +20,14 @@ test("roleInBoard allows board-scoped reader access without editor privileges", 
       "test",
     );
 
-    assert.equal(jwtBoardnameAuth.roleInBoard(token, "readonly-test"), "reader");
-    assert.equal(jwtBoardnameAuth.roleInBoard(token, "other-board"), "forbidden");
+    assert.equal(
+      jwtBoardnameAuth.roleInBoard(token, "readonly-test"),
+      "reader",
+    );
+    assert.equal(
+      jwtBoardnameAuth.roleInBoard(token, "other-board"),
+      "forbidden",
+    );
     assert.doesNotThrow(function () {
       jwtBoardnameAuth.checkBoardnameInToken(
         new URL("http://wbo.test/boards/readonly-test?token=" + token),

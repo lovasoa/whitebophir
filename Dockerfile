@@ -11,7 +11,7 @@ RUN setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/node
 USER 1000:1000
 
 COPY package.json package-lock.json ./
-RUN npm ci --production
+RUN npm ci --omit=dev --ignore-scripts
 COPY --chown=1000:1000 . .
 
 ENV PORT=80

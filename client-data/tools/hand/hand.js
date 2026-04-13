@@ -68,7 +68,8 @@
   var transform_elements = [];
   var selectorState = selectorStates.pointing;
   var last_sent = 0;
-  var blockedSelectionButtons = Tools.server_config.BLOCKED_SELECTION_BUTTONS || [];
+  var blockedSelectionButtons =
+    Tools.server_config.BLOCKED_SELECTION_BUTTONS || [];
   /** @type {SelectionButton[]} */
   var selectionButtons = [
     createButton(
@@ -171,7 +172,10 @@
       els.unshift(a);
       /** @type {EventTarget | null} */
       var parentElement = a.parentElement;
-      a = parentElement && isSelectableElement(parentElement) ? parentElement : null;
+      a =
+        parentElement && isSelectableElement(parentElement)
+          ? parentElement
+          : null;
     }
     var parentMathematics = els.find(function (el) {
       return el.getAttribute("class") === "MathElement";
@@ -400,7 +404,11 @@
    * @param {boolean} force
    */
   function moveSelection(x, y, force) {
-    if (!selected || !selectionRectTransform || !("x" in selectionRectTransform)) {
+    if (
+      !selected ||
+      !selectionRectTransform ||
+      !("x" in selectionRectTransform)
+    ) {
       return;
     }
     var pointSelection = selected;
@@ -495,11 +503,9 @@
     tmatrix.a = rx;
     tmatrix.d = ry;
     tmatrix.e =
-      rectTransform.e +
-      selectionRect.x.baseVal.value * (rectTransform.a - rx);
+      rectTransform.e + selectionRect.x.baseVal.value * (rectTransform.a - rx);
     tmatrix.f =
-      rectTransform.f +
-      selectionRect.y.baseVal.value * (rectTransform.d - ry);
+      rectTransform.f + selectionRect.y.baseVal.value * (rectTransform.d - ry);
     dispatchTransform(msg, force);
   }
 
@@ -602,7 +608,9 @@
               "Mover: Tried to copy an element that does not exist.",
             );
           }
-          var newElement = /** @type {SelectableElement} */ (sourceElement.cloneNode(true));
+          var newElement = /** @type {SelectableElement} */ (
+            sourceElement.cloneNode(true)
+          );
           newElement.id = data.newid;
           Tools.drawingArea.appendChild(newElement);
           break;
@@ -627,7 +635,11 @@
     var button;
     for (var i = 0; i < selectionButtons.length; i++) {
       var candidate = selectionButtons[i];
-      if (candidate && evt.target && candidate.contains(/** @type {Node} */ (evt.target))) {
+      if (
+        candidate &&
+        evt.target &&
+        candidate.contains(/** @type {Node} */ (evt.target))
+      ) {
         button = candidate;
       }
     }

@@ -40,7 +40,7 @@ function firstHeaderValue(value) {
 function findBaseUrl(req) {
   var proto =
     firstHeaderValue(req.headers["x-forwarded-proto"]) ||
-    (("encrypted" in req.socket && req.socket.encrypted) ? "https" : "http");
+    ("encrypted" in req.socket && req.socket.encrypted ? "https" : "http");
   var host =
     firstHeaderValue(req.headers["x-forwarded-host"]) ||
     firstHeaderValue(req.headers.host) ||
@@ -92,7 +92,9 @@ class Template {
     const configuration = client_config || {};
     const requestUrl = request.url || "/";
     const prefixPart = requestUrl.split("/boards/", 1)[0] || "";
-    const prefix = prefixPart.startsWith("/") ? prefixPart.slice(1) : prefixPart;
+    const prefix = prefixPart.startsWith("/")
+      ? prefixPart.slice(1)
+      : prefixPart;
     const baseUrl = findBaseUrl(request) + (prefix ? "/" + prefix + "/" : "");
     const moderator = isModerator;
     const version = packageJson.version;

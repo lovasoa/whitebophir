@@ -1,7 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const BoardConnection = require("../client-data/js/board_transport.js").connection;
+const BoardConnection =
+  require("../client-data/js/board_transport.js").connection;
 
 test("normalizeSocketIOExtraHeaders keeps only string header values", function () {
   assert.deepEqual(
@@ -51,8 +52,7 @@ test("buildSocketParams keeps board prefixes and omits empty tokens", function (
       reconnection: true,
       reconnectionDelay: 100,
       timeout: 1000 * 60 * 20,
-      query:
-        "token=abc+123&userSecret=secret&tool=Hand&color=%23123456&size=4",
+      query: "token=abc+123&userSecret=secret&tool=Hand&color=%23123456&size=4",
     },
   );
 });

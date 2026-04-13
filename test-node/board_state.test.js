@@ -18,7 +18,10 @@ test("parseBoardStateText falls back safely on missing or invalid JSON", functio
 });
 
 test("resolveBoardName decodes the last path segment", function () {
-  assert.equal(BoardState.resolveBoardName("/boards/demo%20board"), "demo board");
+  assert.equal(
+    BoardState.resolveBoardName("/boards/demo%20board"),
+    "demo board",
+  );
   assert.equal(BoardState.resolveBoardName("/boards/demo/"), "");
 });
 
@@ -27,8 +30,7 @@ test("updateRecentBoards filters malformed entries and deduplicates the current 
     BoardState.updateRecentBoards(["alpha", 42, "", "beta", "alpha"], "beta"),
     ["beta", "alpha"],
   );
-  assert.deepEqual(
-    BoardState.updateRecentBoards(["alpha"], "anonymous"),
-    ["alpha"],
-  );
+  assert.deepEqual(BoardState.updateRecentBoards(["alpha"], "anonymous"), [
+    "alpha",
+  ]);
 });

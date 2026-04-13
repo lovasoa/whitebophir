@@ -196,8 +196,7 @@
       resetTurnstileWidget: resetTurnstileWidget,
     },
   };
-  var root =
-    /** @type {typeof globalThis & {
+  var root = /** @type {typeof globalThis & {
       WBOBoardTransport?: typeof exports,
       WBOBoardConnection?: typeof exports.connection,
       WBOBoardMessages?: typeof exports.messages,

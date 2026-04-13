@@ -378,7 +378,9 @@ class BoardData {
       case "copy":
         return id ? this.canCopy(id, message) : false;
       case "child":
-        return message.parent ? this.canAddChild(message.parent, message) : false;
+        return message.parent
+          ? this.canAddChild(message.parent, message)
+          : false;
       default:
         return id ? this.canStore(id, message) : false;
     }
@@ -723,7 +725,10 @@ class BoardData {
     if (ids.length > config.MAX_ITEM_COUNT) {
       var toDestroy = ids
         .sort(function (x, y) {
-          return ((board[x] && board[x].time) | 0) - ((board[y] && board[y].time) | 0);
+          return (
+            ((board[x] && board[x].time) | 0) -
+            ((board[y] && board[y].time) | 0)
+          );
         })
         .slice(0, -config.MAX_ITEM_COUNT);
       for (var i = 0; i < toDestroy.length; i++) {

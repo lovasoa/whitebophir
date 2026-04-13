@@ -110,7 +110,11 @@ function createSocket(options) {
     id: settings.id || "socket-1",
     turnstileValidatedUntil: undefined,
     handshake: {
-      query: Object.assign({}, settings.query || {}, settings.token ? { token: settings.token } : {}),
+      query: Object.assign(
+        {},
+        settings.query || {},
+        settings.token ? { token: settings.token } : {},
+      ),
     },
     rooms: new Set(),
     client: {

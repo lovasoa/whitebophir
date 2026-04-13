@@ -11,7 +11,9 @@ const { renderBoard } = require("../server/createSVG.js");
  * @returns {Promise<string>}
  */
 async function renderStoredBoard(storedBoard) {
-  const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "wbo-create-svg-"));
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-create-svg-"),
+  );
   const file = path.join(historyDir, "board-export.json");
   await fs.writeFile(file, JSON.stringify(storedBoard), "utf8");
   /** @type {string[]} */

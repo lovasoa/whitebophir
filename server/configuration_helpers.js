@@ -22,11 +22,11 @@ function parseEnumEnv(name, allowedValues, defaultValue) {
   if (value === undefined || value === "") return defaultValue;
 
   const normalizedValue = value.toLowerCase();
-  const match = allowedValues.find(function findAllowed(
-    /** @type {T} */ candidate,
-  ) {
-    return candidate.toLowerCase() === normalizedValue;
-  });
+  const match = allowedValues.find(
+    function findAllowed(/** @type {T} */ candidate) {
+      return candidate.toLowerCase() === normalizedValue;
+    },
+  );
   if (match) return match;
 
   throw new Error(

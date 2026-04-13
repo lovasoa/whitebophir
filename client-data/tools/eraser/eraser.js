@@ -56,11 +56,7 @@
    * @returns {elem is Element & {id: string}}
    */
   function isErasableElement(elem) {
-    return !!(
-      isElement(elem) &&
-      typeof elem.id === "string" &&
-      elem.id !== ""
-    );
+    return !!(isElement(elem) && typeof elem.id === "string" && elem.id !== "");
   }
 
   /**
@@ -68,7 +64,11 @@
    * @returns {boolean}
    */
   function inDrawingArea(elem) {
-    return !!(Tools.drawingArea && isElement(elem) && Tools.drawingArea.contains(elem));
+    return !!(
+      Tools.drawingArea &&
+      isElement(elem) &&
+      Tools.drawingArea.contains(elem)
+    );
   }
 
   /**

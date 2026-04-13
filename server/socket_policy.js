@@ -166,7 +166,10 @@ function normalizeBroadcastData(message, data) {
     return rejectedBroadcast("missing data");
   }
 
-  if (typeof data.tool === "string" && config.BLOCKED_TOOLS.includes(data.tool)) {
+  if (
+    typeof data.tool === "string" &&
+    config.BLOCKED_TOOLS.includes(data.tool)
+  ) {
     return rejectedBroadcast("blocked tool");
   }
 

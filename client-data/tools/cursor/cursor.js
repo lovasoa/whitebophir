@@ -113,7 +113,9 @@
   }
 
   function updateMarker() {
-    var activeTool = /** @type {{showMarker?: boolean} | null} */ (Tools.curTool);
+    var activeTool = /** @type {{showMarker?: boolean} | null} */ (
+      Tools.curTool
+    );
     if (!Tools.showMarker || !Tools.showMyCursor) return;
     var cur_time = Date.now();
     if (

@@ -64,22 +64,8 @@ const TOOL_PATHS = {
     "ellipse",
     "ellipse.js",
   ),
-  Text: path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "text",
-    "text.js",
-  ),
-  Hand: path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "hand",
-    "hand.js",
-  ),
+  Text: path.join(__dirname, "..", "client-data", "tools", "text", "text.js"),
+  Hand: path.join(__dirname, "..", "client-data", "tools", "hand", "hand.js"),
 };
 
 /**
@@ -202,7 +188,10 @@ function createBaseElement(store, tagName) {
       if (child.id) store.set(child.id, child);
       return child;
     },
-    setAttribute: function (/** @type {string} */ name, /** @type {any} */ value) {
+    setAttribute: function (
+      /** @type {string} */ name,
+      /** @type {any} */ value,
+    ) {
       this.attributes[name] = value;
     },
     getAttribute: function (/** @type {string} */ name) {
@@ -228,13 +217,24 @@ function createBaseElement(store, tagName) {
       clone.style = { ...current.style };
       clone.attributes = { ...current.attributes };
       clone.textContent = current.textContent;
-      ["x", "y", "width", "height", "x1", "y1", "x2", "y2", "cx", "cy", "rx", "ry"].forEach(
-        function (name) {
-          if (current[name] && clone[name]) {
-            clone[name].baseVal.value = current[name].baseVal.value;
-          }
+      [
+        "x",
+        "y",
+        "width",
+        "height",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "cx",
+        "cy",
+        "rx",
+        "ry",
+      ].forEach(function (name) {
+        if (current[name] && clone[name]) {
+          clone[name].baseVal.value = current[name].baseVal.value;
         }
-      );
+      });
       if (current.transform && clone.transform) {
         const matrix = current.transform.baseVal.numberOfItems
           ? current.transform.baseVal[0].matrix
@@ -250,7 +250,8 @@ function createBaseElement(store, tagName) {
           }),
         );
       }
-      if (current.pathData && clone.setPathData) clone.setPathData(current.pathData);
+      if (current.pathData && clone.setPathData)
+        clone.setPathData(current.pathData);
       return clone;
     },
   };
@@ -334,7 +335,8 @@ function createSVGElement(store, tagName, attrs) {
   if (attrs) {
     Object.entries(attrs).forEach(function ([name, value]) {
       element.setAttribute(name, value);
-      if (name === "width" && element.width) element.width.baseVal.value = Number(value);
+      if (name === "width" && element.width)
+        element.width.baseVal.value = Number(value);
       if (name === "height" && element.height) {
         element.height.baseVal.value = Number(value);
       }
@@ -404,7 +406,10 @@ function createHarness() {
     },
   };
   globalAny.window.WBOBoardMessages = {
-    batchCall: function (/** @type {(value: any) => void} */ fn, /** @type {any[]} */ args) {
+    batchCall: function (
+      /** @type {(value: any) => void} */ fn,
+      /** @type {any[]} */ args,
+    ) {
       args.forEach(fn);
       return Promise.resolve();
     },
@@ -879,7 +884,10 @@ test("Hand selector keeps the original element selected after duplicate", functi
   });
 
   const duplicateShortcut = harness.windowListeners.get("keydown");
-  assert.ok(duplicateShortcut, "selector shortcut listener should be installed");
+  assert.ok(
+    duplicateShortcut,
+    "selector shortcut listener should be installed",
+  );
   duplicateShortcut({
     key: "d",
     target: outsideTarget,

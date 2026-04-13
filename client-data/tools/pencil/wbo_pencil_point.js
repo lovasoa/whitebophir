@@ -42,7 +42,12 @@
       case 1: //This should never happen
         // First point will be the move. Add Line of zero length ensure there are two points and fall through
         if (!pts[0]) return pts;
-        pts.push(createPathDataPoint("L", [pts[0].values[0] || 0, pts[0].values[1] || 0]));
+        pts.push(
+          createPathDataPoint("L", [
+            pts[0].values[0] || 0,
+            pts[0].values[1] || 0,
+          ]),
+        );
         npoint = createPathDataPoint("C", [
           pts[0].values[0] || 0,
           pts[0].values[1] || 0,

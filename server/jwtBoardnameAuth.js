@@ -93,11 +93,9 @@ function roleInBoard(token, board = null) {
       oneHasModerator = true;
     }
     if (role.boardName === board) {
-      return (
-        role.roleName === "moderator" ||
+      return role.roleName === "moderator" ||
         role.roleName === "editor" ||
         role.roleName === "reader"
-      )
         ? role.roleName
         : "forbidden";
     }

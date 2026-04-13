@@ -29,7 +29,7 @@ if (files.length === 0) {
   process.exit(0);
 }
 
-execFileSync(prettierBin, ["--write", ...files], {
+execFileSync(prettierBin, ["--write", "--ignore-unknown", ...files], {
   cwd: repoRoot,
   stdio: "inherit",
 });

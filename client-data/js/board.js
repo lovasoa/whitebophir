@@ -755,41 +755,41 @@ Tools.updateConnectedUsersFromActivity =
     /** @type {BoardMessage} */ message,
   ) {
     if (!userId) return;
-  var changed = false;
-  var cursorX = toFiniteCoordinate(message.x);
-  var cursorY = toFiniteCoordinate(message.y);
-  var cursorSocket =
-    typeof message.socket === "string" ? message.socket : null;
-  var shouldPulse = message.tool !== "Cursor";
-  Object.values(Tools.connectedUsers).forEach(function (user) {
-    if (user.userId !== userId) return;
-    if (shouldPulse) {
-      markConnectedUserActivity(user);
-      changed = true;
-    }
-    if (typeof message.color === "string") {
-      user.color = message.color;
-      changed = true;
-    }
-    if (message.size !== undefined) {
-      user.size = Number(message.size) || user.size;
-      changed = true;
-    }
-    if (typeof message.tool === "string" && message.tool !== "Cursor") {
-      user.lastTool = message.tool;
-      changed = true;
-    }
-    if (
-      message.tool === "Cursor" &&
-      cursorX !== null &&
-      cursorY !== null &&
-      (cursorSocket === null || cursorSocket === user.socketId)
-    ) {
-      user.lastCursorX = cursorX;
-      user.lastCursorY = cursorY;
-      changed = true;
-    }
-  });
+    var changed = false;
+    var cursorX = toFiniteCoordinate(message.x);
+    var cursorY = toFiniteCoordinate(message.y);
+    var cursorSocket =
+      typeof message.socket === "string" ? message.socket : null;
+    var shouldPulse = message.tool !== "Cursor";
+    Object.values(Tools.connectedUsers).forEach(function (user) {
+      if (user.userId !== userId) return;
+      if (shouldPulse) {
+        markConnectedUserActivity(user);
+        changed = true;
+      }
+      if (typeof message.color === "string") {
+        user.color = message.color;
+        changed = true;
+      }
+      if (message.size !== undefined) {
+        user.size = Number(message.size) || user.size;
+        changed = true;
+      }
+      if (typeof message.tool === "string" && message.tool !== "Cursor") {
+        user.lastTool = message.tool;
+        changed = true;
+      }
+      if (
+        message.tool === "Cursor" &&
+        cursorX !== null &&
+        cursorY !== null &&
+        (cursorSocket === null || cursorSocket === user.socketId)
+      ) {
+        user.lastCursorX = cursorX;
+        user.lastCursorY = cursorY;
+        changed = true;
+      }
+    });
     if (changed) Tools.renderConnectedUsers();
   };
 
