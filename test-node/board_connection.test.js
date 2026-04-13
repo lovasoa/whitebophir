@@ -35,7 +35,24 @@ test("buildSocketParams keeps board prefixes and omits empty tokens", function (
       reconnection: true,
       reconnectionDelay: 100,
       timeout: 1000 * 60 * 20,
-      query: "token=abc%20123",
+      query: "token=abc+123",
+    },
+  );
+
+  assert.deepEqual(
+    BoardConnection.buildSocketParams("/boards/demo", null, "abc 123", {
+      userSecret: "secret",
+      tool: "Hand",
+      color: "#123456",
+      size: "4",
+    }),
+    {
+      path: "/socket.io",
+      reconnection: true,
+      reconnectionDelay: 100,
+      timeout: 1000 * 60 * 20,
+      query:
+        "token=abc+123&userSecret=secret&tool=Hand&color=%23123456&size=4",
     },
   );
 });

@@ -25,11 +25,11 @@ const JWT_BOARDNAME_AUTH_PATH = path.join(
 );
 
 /** @typedef {{[key: string]: any}} Dict */
-/** @typedef {{headers?: {[key: string]: string | string[] | undefined}, remoteAddress?: string, token?: string}} SocketOptions */
-/** @typedef {{event: string, payload: any}} EmittedEvent */
+/** @typedef {{headers?: {[key: string]: string | string[] | undefined}, remoteAddress?: string, token?: string, query?: {[key: string]: string | undefined}, id?: string}} SocketOptions */
+/** @typedef {{event: string, payload: any, room?: string}} EmittedEvent */
 /** @typedef {{[event: string]: (...args: any[]) => any}} HandlerMap */
 /** @typedef {{id: string, turnstileValidatedUntil?: number, disconnected?: boolean, handshake: {query: {token?: string}}, rooms: Set<string>, client: {request: {headers: {[key: string]: string | string[] | undefined}, socket: {remoteAddress: string}}}, broadcast: {to: (room: string) => {emit: (event: string, payload: any) => void}}, disconnectCalls: boolean[], on: (event: string, handler: (...args: any[]) => any) => void, join: (room: string) => void, emit: (event: string, payload: any) => void, disconnect: (close: boolean) => void}} TestSocket */
-/** @typedef {{socket: TestSocket, handlers: HandlerMap, emitted: EmittedEvent[]}} CreatedSocket */
+/** @typedef {{socket: TestSocket, handlers: HandlerMap, emitted: EmittedEvent[], broadcasted: EmittedEvent[]}} CreatedSocket */
 
 const DEFAULT_CLEARED_MODULES = [
   CONFIG_PATH,
@@ -103,12 +103,14 @@ function createSocket(options) {
   const handlers = {};
   /** @type {EmittedEvent[]} */
   const emitted = [];
+  /** @type {EmittedEvent[]} */
+  const broadcasted = [];
   /** @type {TestSocket} */
   const socket = {
-    id: "socket-1",
+    id: settings.id || "socket-1",
     turnstileValidatedUntil: undefined,
     handshake: {
-      query: settings.token ? { token: settings.token } : {},
+      query: Object.assign({}, settings.query || {}, settings.token ? { token: settings.token } : {}),
     },
     rooms: new Set(),
     client: {
@@ -118,9 +120,11 @@ function createSocket(options) {
       },
     },
     broadcast: {
-      to: function () {
+      to: function (room) {
         return {
-          emit: function () {},
+          emit: function (event, payload) {
+            broadcasted.push({ event, payload, room });
+          },
         };
       },
     },
@@ -140,7 +144,7 @@ function createSocket(options) {
     },
   };
   /** @type {CreatedSocket} */
-  return { socket, handlers, emitted };
+  return { socket, handlers, emitted, broadcasted };
 }
 
 /**

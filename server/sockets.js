@@ -1,4 +1,5 @@
-var { Server, Socket } = require("socket.io"),
+var crypto = require("node:crypto"),
+  { Server, Socket } = require("socket.io"),
   { log, gauge, monitorFunction } = require("./log.js"),
   BoardData = require("./boardData.js").BoardData,
   config = require("./configuration"),
@@ -15,6 +16,8 @@ var getClientIp = socketPolicy.getClientIp;
 var normalizeBroadcastData = socketPolicy.normalizeBroadcastData;
 var parseForwardedHeader = socketPolicy.parseForwardedHeader;
 
+/** @typedef {{token?: string, userSecret?: string, tool?: string, color?: string, size?: string}} SocketQuery */
+/** @typedef {{socketId: string, userId: string, name: string, ip: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {import("../types/server-runtime").AppSocket} AppSocket */
 /** @typedef {import("../types/server-runtime").MessageData} MessageData */
 /** @typedef {import("../types/server-runtime").RateLimitState} RateLimitState */
@@ -30,7 +33,84 @@ var boards = {};
 var destructiveRateLimits = new Map();
 /** @type {Map<string, RateLimitState>} */
 var constructiveRateLimits = new Map();
+/** @type {Map<string, Map<string, BoardUser>>} */
+var boardUsers = new Map();
 var io;
+var NAME_SYLLABLES = [
+  "al",
+  "an",
+  "ar",
+  "ba",
+  "be",
+  "bi",
+  "bo",
+  "da",
+  "de",
+  "di",
+  "do",
+  "el",
+  "en",
+  "er",
+  "fa",
+  "fe",
+  "fi",
+  "ga",
+  "ge",
+  "gi",
+  "ha",
+  "he",
+  "hi",
+  "io",
+  "ka",
+  "ke",
+  "ki",
+  "ko",
+  "la",
+  "le",
+  "li",
+  "lo",
+  "lu",
+  "ma",
+  "me",
+  "mi",
+  "mo",
+  "na",
+  "ne",
+  "ni",
+  "no",
+  "oa",
+  "ol",
+  "or",
+  "pa",
+  "pe",
+  "pi",
+  "ra",
+  "re",
+  "ri",
+  "ro",
+  "sa",
+  "se",
+  "si",
+  "so",
+  "ta",
+  "te",
+  "ti",
+  "to",
+  "ul",
+  "ur",
+  "va",
+  "ve",
+  "vi",
+  "vo",
+  "wa",
+  "we",
+  "wi",
+  "ya",
+  "yo",
+  "za",
+  "ze",
+  "zi",
+];
 /**
  * Prevents a function from throwing errors.
  * If the inner function throws, the outer function just returns undefined
@@ -116,6 +196,240 @@ function getSocketRequest(socket) {
  */
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * @param {string} seed
+ * @param {number} minParts
+ * @param {number} maxParts
+ * @returns {string}
+ */
+function buildPronounceableName(seed, minParts, maxParts) {
+  var digest = crypto.createHash("sha256").update(seed).digest();
+  var partCount = minParts;
+  if (maxParts > minParts) {
+    partCount += (digest[0] || 0) % (maxParts - minParts + 1);
+  }
+  var word = "";
+  for (var index = 0; index < partCount; index++) {
+    var offset = 1 + index * 2;
+    var value = digest.readUInt16BE(offset);
+    word +=
+      NAME_SYLLABLES[value % NAME_SYLLABLES.length] ||
+      NAME_SYLLABLES[0] ||
+      "na";
+  }
+  return word;
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} key
+ * @returns {string}
+ */
+function getSocketQueryValue(socket, key) {
+  var query = socket.handshake && socket.handshake.query;
+  if (!query) return "";
+  var value = query[key];
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * @param {string} userSecret
+ * @returns {string}
+ */
+function buildUserId(userSecret) {
+  return buildPronounceableName(userSecret || "anonymous", 2, 3);
+}
+
+/**
+ * @param {string} ip
+ * @returns {string}
+ */
+function buildIpWord(ip) {
+  return buildPronounceableName(ip || "unknown", 2, 2);
+}
+
+/**
+ * @param {string} ip
+ * @param {string} userSecret
+ * @returns {string}
+ */
+function buildUserName(ip, userSecret) {
+  return buildIpWord(ip) + " " + buildUserId(userSecret);
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {number} [now]
+ * @returns {BoardUser}
+ */
+function buildBoardUserRecord(socket, boardName, now) {
+  var userSecret = getSocketQueryValue(socket, "userSecret");
+  var ip = resolveClientIp(socket, boardName);
+  var size = WBOMessageCommon.clampSize(getSocketQueryValue(socket, "size"));
+  var color = WBOMessageCommon.normalizeColor(
+    getSocketQueryValue(socket, "color"),
+  );
+  return {
+    socketId: socket.id,
+    userId: buildUserId(userSecret),
+    name: buildUserName(ip, userSecret),
+    ip: ip,
+    color: color || "#001f3f",
+    size: size,
+    lastTool: getSocketQueryValue(socket, "tool") || "Hand",
+    lastSeen: now || Date.now(),
+  };
+}
+
+/**
+ * @param {string} boardName
+ * @returns {Map<string, BoardUser>}
+ */
+function getBoardUserMap(boardName) {
+  var users = boardUsers.get(boardName);
+  if (users) return users;
+  users = new Map();
+  boardUsers.set(boardName, users);
+  return users;
+}
+
+/**
+ * @param {string} boardName
+ * @returns {void}
+ */
+function cleanupBoardUserMap(boardName) {
+  var users = boardUsers.get(boardName);
+  if (users && users.size === 0) {
+    boardUsers.delete(boardName);
+  }
+}
+
+/**
+ * @param {BoardUser} user
+ * @returns {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string}}
+ */
+function serializeBoardUser(user) {
+  return {
+    socketId: user.socketId,
+    userId: user.userId,
+    name: user.name,
+    color: user.color,
+    size: user.size,
+    lastTool: user.lastTool,
+  };
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @returns {boolean}
+ */
+function hasBoardUser(socket, boardName) {
+  return getBoardUserMap(boardName).has(socket.id);
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @returns {BoardUser}
+ */
+function ensureBoardUser(socket, boardName) {
+  var users = getBoardUserMap(boardName);
+  var existing = users.get(socket.id);
+  if (existing) return existing;
+
+  var user = buildBoardUserRecord(socket, boardName);
+  users.set(socket.id, user);
+  return user;
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @returns {void}
+ */
+function emitBoardUsersToSocket(socket, boardName) {
+  var users = getBoardUserMap(boardName);
+  users.forEach(function emitUserJoined(user) {
+    socket.emit(
+      "user_joined",
+      Object.assign({ board: boardName }, serializeBoardUser(user)),
+    );
+  });
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {BoardUser} user
+ * @returns {void}
+ */
+function emitUserJoinedToBoard(socket, boardName, user) {
+  socket.broadcast
+    .to(boardName)
+    .emit(
+      "user_joined",
+      Object.assign({ board: boardName }, serializeBoardUser(user)),
+    );
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @returns {void}
+ */
+function removeBoardUser(socket, boardName) {
+  var users = getBoardUserMap(boardName);
+  if (!users.delete(socket.id)) return;
+
+  socket.broadcast.to(boardName).emit("user_left", {
+    board: boardName,
+    socketId: socket.id,
+  });
+  cleanupBoardUserMap(boardName);
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} socketId
+ * @returns {BoardUser | undefined}
+ */
+function getBoardUser(boardName, socketId) {
+  return getBoardUserMap(boardName).get(socketId);
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {MessageData} data
+ * @param {number} now
+ * @returns {BoardUser | undefined}
+ */
+function updateBoardUserFromMessage(socket, boardName, data, now) {
+  var user = getBoardUser(boardName, socket.id);
+  if (!user) return undefined;
+
+  user.lastSeen = now;
+  if (typeof data.color === "string") user.color = data.color;
+  if (data.size !== undefined) user.size = Number(data.size) || user.size;
+  if (typeof data.tool === "string" && data.tool !== "Cursor") {
+    user.lastTool = data.tool;
+  }
+  return user;
+}
+
+/**
+ * @param {MessageData} data
+ * @param {BoardUser | undefined} user
+ * @returns {MessageData}
+ */
+function attachLiveUserId(data, user) {
+  if (!user) return data;
+  data.userId = user.userId;
+  return data;
 }
 
 /**
@@ -453,21 +767,26 @@ function startIO(app) {
   io = new Server(app);
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
-    io.use(function (socket, next) {
-      if (socket.handshake.query && socket.handshake.query.token) {
-        jsonwebtoken.verify(
-          socket.handshake.query.token,
-          config.AUTH_SECRET_KEY,
-          function (/** @type {unknown} */ err, /** @type {any} */ decoded) {
-            if (err)
-              return next(new Error("Authentication error: Invalid JWT"));
-            next();
-          },
-        );
-      } else {
-        next(new Error("Authentication error: No jwt provided"));
-      }
-    });
+    io.use(
+      function (
+        /** @type {AppSocket} */ socket,
+        /** @type {(error?: Error) => void} */ next,
+      ) {
+        if (socket.handshake.query && socket.handshake.query.token) {
+          jsonwebtoken.verify(
+            socket.handshake.query.token,
+            config.AUTH_SECRET_KEY,
+            function (/** @type {unknown} */ err, /** @type {any} */ decoded) {
+              if (err)
+                return next(new Error("Authentication error: Invalid JWT"));
+              next();
+            },
+          );
+        } else {
+          next(new Error("Authentication error: No jwt provided"));
+        }
+      },
+    );
   }
   io.on("connection", noFail(handleSocketConnection));
   return io;
@@ -508,7 +827,13 @@ function handleSocketConnection(socket) {
     socket.join(name);
 
     var board = await getBoard(name);
+    var wasJoined = board.users.has(socket.id);
     board.users.add(socket.id);
+    if (!wasJoined || !hasBoardUser(socket, name)) {
+      var user = ensureBoardUser(socket, name);
+      emitBoardUsersToSocket(socket, name);
+      emitUserJoinedToBoard(socket, name, user);
+    }
     log("board joined", { board: board.name, users: board.users.size });
     gauge("connected." + name, board.users.size);
     return board;
@@ -657,27 +982,65 @@ function handleSocketConnection(socket) {
         return;
       }
 
+      var user = updateBoardUserFromMessage(
+        socket,
+        boardName,
+        normalizedData,
+        now,
+      );
+      attachLiveUserId(normalizedData, user);
+
       //Send data to all other users connected on the same board
       socket.broadcast.to(boardName).emit("broadcast", normalizedData);
     }),
   );
 
-  socket.on("disconnecting", function onDisconnecting(reason) {
-    socket.rooms.forEach(async function disconnectFrom(room) {
-      if (boards.hasOwnProperty(room)) {
-        var board = await /** @type {Promise<BoardData>} */ (boards[room]);
-        board.users.delete(socket.id);
-        var userCount = board.users.size;
-        log("disconnection", {
-          board: board.name,
-          users: board.users.size,
-          reason,
-        });
-        gauge("connected." + board.name, userCount);
-        if (userCount === 0) unloadBoard(room);
-      }
-    });
-  });
+  socket.on(
+    "report_user",
+    noFail(function onReportUser(message) {
+      var boardName = getBoardName(message);
+      var targetSocketId =
+        message && typeof message.socketId === "string" ? message.socketId : "";
+      if (!targetSocketId || !socket.rooms.has(boardName)) return;
+
+      var reporter = getBoardUser(boardName, socket.id);
+      var reported = getBoardUser(boardName, targetSocketId);
+      if (!reporter || !reported) return;
+
+      log("USER_REPORTED", {
+        board: boardName,
+        reporter_socket: reporter.socketId,
+        reported_socket: reported.socketId,
+        reporter_ip: reporter.ip,
+        reported_ip: reported.ip,
+        reporter_name: reporter.name,
+        reported_name: reported.name,
+      });
+    }),
+  );
+
+  socket.on(
+    "disconnecting",
+    function onDisconnecting(/** @type {string} */ reason) {
+      socket.rooms.forEach(
+        async function disconnectFrom(/** @type {string} */ room) {
+          if (boards.hasOwnProperty(room)) {
+            var board = await /** @type {Promise<BoardData>} */ (boards[room]);
+            board.users.delete(socket.id);
+            removeBoardUser(socket, room);
+            var userCount = board.users.size;
+            log("disconnection", {
+              board: board.name,
+              users: board.users.size,
+              reason,
+            });
+            gauge("connected." + board.name, userCount);
+            if (userCount === 0) unloadBoard(room);
+          }
+        },
+      );
+    },
+  );
 }
 
 /**
@@ -736,6 +1099,10 @@ function generateUID(prefix, suffix) {
 if (exports) {
   exports.start = startIO;
   exports.__test = {
+    buildBoardUserRecord,
+    buildIpWord,
+    buildUserId,
+    buildUserName,
     handleSocketConnection,
     consumeFixedWindowRateLimit,
     countDestructiveActions,
@@ -745,9 +1112,12 @@ if (exports) {
     normalizeBroadcastData,
     parseForwardedHeader,
     pruneRateLimitMap,
+    cleanupBoardUserMap,
+    getBoardUserMap,
     resetRateLimitMaps: function resetRateLimitMaps() {
       destructiveRateLimits.clear();
       constructiveRateLimits.clear();
+      boardUsers.clear();
     },
   };
 }

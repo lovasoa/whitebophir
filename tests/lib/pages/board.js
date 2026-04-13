@@ -108,5 +108,8 @@ module.exports = {
     settings: "#settings",
     menu: "#menu",
     myCursor: "#cursor-me",
+    connectedUsersToggle: "#connectedUsersToggle",
+    connectedUsersPanel: "#connectedUsersPanel",
+    connectedUsersRows: "#connectedUsersList .connected-user-row",
   },
 };

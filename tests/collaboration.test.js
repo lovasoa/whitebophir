@@ -31,6 +31,7 @@ module.exports = {
     )
       .url(boardUrl)
       .waitForElementVisible(".tool[title ~= Pencil]")
+      .waitForElementVisible("#connectedUsersToggle")
       .click(".tool[title ~= Pencil]")
       .assert.hasClass(".tool[title ~= Pencil]", "curTool")
       .window.open()
@@ -53,18 +54,143 @@ module.exports = {
           )
           .url(boardUrl)
           .window.switchTo(handles[0])
+          .click("#connectedUsersToggle")
+          .waitForElementVisible("#connectedUsersPanel")
+          .waitForElementVisible("#connectedUsersList .connected-user-row")
+          .execute(
+            function () {
+              var rows = Array.from(
+                document.querySelectorAll(
+                  "#connectedUsersList .connected-user-row",
+                ),
+              );
+              return rows.map(function (row) {
+                var name = row.querySelector(".connected-user-name");
+                var meta = row.querySelector(".connected-user-meta");
+                var report = row.querySelector(".connected-user-report");
+                var dot = row.querySelector(".connected-user-color");
+                return {
+                  name: name && name.textContent,
+                  meta: meta && meta.textContent,
+                  isSelf: row.classList.contains("connected-user-row-self"),
+                  reportDisabled: !!(report && report.disabled),
+                  dotWidth: dot && dot.style.width,
+                };
+              });
+            },
+            [],
+            function (result) {
+              browser.assert.equal(result.value.length, 2);
+              browser.assert.equal(
+                result.value.filter(function (row) {
+                  return row.isSelf;
+                }).length,
+                1,
+              );
+              browser.assert.equal(
+                result.value.filter(function (row) {
+                  return row.reportDisabled;
+                }).length,
+                1,
+              );
+            },
+          )
           .executeAsync(function (done) {
             Tools.setColor("#ff0000");
+            Tools.setSize(11);
             Tools.curTool.listeners.press(100, 100, new Event("mousedown"));
             Tools.curTool.listeners.move(200, 200, new Event("mousemove"));
             Tools.curTool.listeners.release(200, 200, new Event("mouseup"));
+            Tools.send(
+              {
+                type: "update",
+                x: 1200,
+                y: 900,
+                color: "#ff0000",
+                size: 11,
+              },
+              "Cursor",
+            );
             done();
           })
           .window.switchTo(newWindowHandle)
           .waitForElementVisible("path[d^='M 100 100'][stroke='#ff0000']")
           .assert.visible("path[d^='M 100 100'][stroke='#ff0000']")
+          .click("#connectedUsersToggle")
+          .waitForElementVisible("#connectedUsersPanel")
+          .pause(150)
+          .execute(
+            function () {
+              var rows = Array.from(
+                document.querySelectorAll(
+                  "#connectedUsersList .connected-user-row",
+                ),
+              );
+              return rows.map(function (row) {
+                return {
+                  name:
+                    row.querySelector(".connected-user-name") &&
+                    row.querySelector(".connected-user-name").textContent,
+                  isSelf: row.classList.contains("connected-user-row-self"),
+                  meta:
+                    row.querySelector(".connected-user-meta") &&
+                    row.querySelector(".connected-user-meta").textContent,
+                  color:
+                    row.querySelector(".connected-user-color") &&
+                    row.querySelector(".connected-user-color").style
+                      .backgroundColor,
+                  dotWidth:
+                    row.querySelector(".connected-user-color") &&
+                    row.querySelector(".connected-user-color").style.width,
+                };
+              });
+            },
+            [],
+            function (result) {
+              var remoteRow = result.value.find(function (row) {
+                return !row.isSelf;
+              });
+              browser.assert.ok(remoteRow);
+              browser.assert.ok(/Rectangle|Pencil/.test(remoteRow.meta || ""));
+              browser.assert.ok(parseFloat(remoteRow.dotWidth || "0") > 9);
+              browser.assert.ok(
+                remoteRow.color === "rgb(255, 0, 0)" ||
+                  remoteRow.color === "#ff0000",
+              );
+            },
+          )
+          .execute(function () {
+            window.scrollTo(0, 0);
+          })
+          .click("#connectedUsersList .connected-user-row-jumpable")
+          .pause(150)
+          .execute(
+            function () {
+              return {
+                left: document.documentElement.scrollLeft,
+                top: document.documentElement.scrollTop,
+              };
+            },
+            [],
+            function (result) {
+              browser.assert.ok(result.value.left > 0);
+              browser.assert.ok(result.value.top > 0);
+            },
+          )
           .window.close()
           .window.switchTo(handles[0])
+          .pause(150)
+          .execute(
+            function () {
+              return document.querySelectorAll(
+                "#connectedUsersList .connected-user-row",
+              ).length;
+            },
+            [],
+            function (result) {
+              browser.assert.equal(result.value, 1);
+            },
+          )
           .end();
       });
   },
