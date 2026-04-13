@@ -4,6 +4,8 @@ const normalizeIncomingMessage =
   require("./message_validation.js").normalizeIncomingMessage;
 const roleInBoard = require("./jwtBoardnameAuth.js").roleInBoard;
 
+/** @typedef {{ok: false, reason: string}} RejectedBroadcast */
+
 function getSocketRequest(socket) {
   return socket.client.request;
 }
@@ -101,6 +103,11 @@ function getBoardName(message) {
   return (message && message.board) || "anonymous";
 }
 
+/**
+ * @param {any} message
+ * @param {any} data
+ * @returns {{ok: true, value: any} | RejectedBroadcast}
+ */
 function normalizeBroadcastData(message, data) {
   if (!data) {
     return rejectedBroadcast("missing data");
@@ -111,7 +118,7 @@ function normalizeBroadcastData(message, data) {
   }
 
   const normalized = normalizeIncomingMessage(data);
-  if (!normalized.ok) {
+  if (normalized.ok === false) {
     return rejectedBroadcast(normalized.reason);
   }
 
@@ -121,6 +128,10 @@ function normalizeBroadcastData(message, data) {
 
   return normalized;
 
+  /**
+   * @param {string} reason
+   * @returns {RejectedBroadcast}
+   */
   function rejectedBroadcast(reason) {
     log("INVALID MESSAGE", {
       board: getBoardName(message),

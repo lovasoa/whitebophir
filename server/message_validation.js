@@ -1,28 +1,79 @@
 const config = require("./configuration.js");
 const MessageCommon = require("../client-data/js/message_common.js");
 
+/** @typedef {{[key: string]: any}} RawRecord */
+/** @typedef {{a: number, b: number, c: number, d: number, e: number, f: number}} Transform */
+/** @typedef {{x: number, y: number}} ChildPoint */
+/**
+ * @template T
+ * @typedef {{ok: true, value: T}} Accepted
+ */
+/** @typedef {{ok: false, reason: string}} Rejected */
+/**
+ * @template T
+ * @typedef {Accepted<T> | Rejected} ValidationResult
+ */
+/**
+ * @typedef {{
+ *   normalize: (value: any, raw?: RawRecord, normalized?: RawRecord) => ValidationResult<any>,
+ *   required: boolean,
+ *   defaultValue?: any | ((raw: RawRecord, normalized: RawRecord) => any),
+ * }} FieldSpec
+ */
+/** @typedef {{[key: string]: FieldSpec}} FieldSchema */
+/** @typedef {{[tool: string]: {[type: string]: FieldSchema}}} ToolSchemas */
+
+/** @type {string[]} */
 const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
 
+/**
+ * @template T
+ * @param {T} value
+ * @returns {Accepted<T>}
+ */
 function accepted(value) {
   return { ok: true, value: value };
 }
 
+/**
+ * @param {string} reason
+ * @returns {Rejected}
+ */
 function rejected(reason) {
   return { ok: false, reason: reason };
 }
 
+/**
+ * @param {any} value
+ * @returns {value is RawRecord}
+ */
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/**
+ * @param {FieldSpec["normalize"]} normalize
+ * @param {Partial<FieldSpec>} [options]
+ * @returns {FieldSpec}
+ */
 function required(normalize, options) {
   return Object.assign({ normalize: normalize, required: true }, options);
 }
 
+/**
+ * @param {FieldSpec["normalize"]} normalize
+ * @param {Partial<FieldSpec>} [options]
+ * @returns {FieldSpec}
+ */
 function optional(normalize, options) {
   return Object.assign({ normalize: normalize, required: false }, options);
 }
 
+/**
+ * @template {string} T
+ * @param {T} expected
+ * @returns {(value: any) => ValidationResult<T>}
+ */
 function literal(expected) {
   return function normalizeLiteral(value) {
     return value === expected
@@ -31,59 +82,99 @@ function literal(expected) {
   };
 }
 
+/**
+ * @param {any} value
+ * @returns {ValidationResult<string>}
+ */
 function normalizeId(value) {
   const id = MessageCommon.normalizeId(value);
   return id === null ? rejected("invalid id") : accepted(id);
 }
 
+/**
+ * @param {any} value
+ * @returns {Accepted<number>}
+ */
 function normalizeSize(value) {
   return accepted(MessageCommon.clampSize(value));
 }
 
+/**
+ * @param {any} value
+ * @returns {Accepted<number | undefined>}
+ */
 function normalizeOpacity(value) {
   const opacity = MessageCommon.clampOpacity(value);
   return opacity === 1 ? accepted(undefined) : accepted(opacity);
 }
 
+/**
+ * @param {any} value
+ * @returns {Accepted<number>}
+ */
 function normalizeCoord(value) {
   return accepted(MessageCommon.clampCoord(value, config.MAX_BOARD_SIZE));
 }
 
+/**
+ * @param {any} value
+ * @returns {ValidationResult<string>}
+ */
 function normalizeColor(value) {
   const color = MessageCommon.normalizeColor(value);
   return color === null ? rejected("invalid color") : accepted(color);
 }
 
+/**
+ * @param {any} value
+ * @returns {Accepted<string>}
+ */
 function normalizeText(value) {
   return accepted(MessageCommon.truncateText(value));
 }
 
+/**
+ * @param {any} value
+ * @returns {ValidationResult<number>}
+ */
 function normalizeTime(value) {
   const time = MessageCommon.normalizeFiniteNumber(value);
   return time === null ? rejected("invalid time") : accepted(time);
 }
 
+/**
+ * @param {any} value
+ * @returns {ValidationResult<Transform>}
+ */
 function normalizeTransform(value) {
   if (!isPlainObject(value)) return rejected("invalid transform");
 
-  const transform = {};
+  /** @type {Transform} */
+  const transform = { a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 };
   for (const key of TRANSFORM_KEYS) {
     const number = MessageCommon.normalizeFiniteNumber(value[key]);
     if (number === null) {
       return rejected("invalid transform." + key);
     }
-    transform[key] = number;
+    transform[/** @type {keyof Transform} */ (key)] = number;
   }
 
   return accepted(transform);
 }
 
+/**
+ * @param {any} raw
+ * @param {FieldSchema} fields
+ * @returns {ValidationResult<RawRecord>}
+ */
 function normalizeObject(raw, fields) {
   if (!isPlainObject(raw)) return rejected("expected object");
 
+  /** @type {RawRecord} */
   const normalized = {};
   for (const [key, field] of Object.entries(fields)) {
     const hasValue = Object.prototype.hasOwnProperty.call(raw, key);
+    /** @type {any} */
     let value;
 
     if (hasValue) {
@@ -100,13 +191,14 @@ function normalizeObject(raw, fields) {
     }
 
     const result = field.normalize(value, raw, normalized);
-    if (!result.ok) return rejected(key + ": " + result.reason);
+    if (result.ok === false) return rejected(key + ": " + result.reason);
     if (result.value !== undefined) normalized[key] = result.value;
   }
 
   return accepted(normalized);
 }
 
+/** @type {ToolSchemas} */
 const LIVE_MESSAGE_SCHEMAS = {
   Pencil: {
     line: {
@@ -136,12 +228,18 @@ const LIVE_MESSAGE_SCHEMAS = {
       x: required(normalizeCoord),
       y: required(normalizeCoord),
       x2: optional(normalizeCoord, {
-        defaultValue: function defaultX2(raw, normalized) {
+        defaultValue: function defaultX2(
+          /** @type {RawRecord} */ raw,
+          /** @type {RawRecord} */ normalized,
+        ) {
           return normalized.x !== undefined ? normalized.x : raw.x;
         },
       }),
       y2: optional(normalizeCoord, {
-        defaultValue: function defaultY2(raw, normalized) {
+        defaultValue: function defaultY2(
+          /** @type {RawRecord} */ raw,
+          /** @type {RawRecord} */ normalized,
+        ) {
           return normalized.y !== undefined ? normalized.y : raw.y;
         },
       }),
@@ -165,12 +263,18 @@ const LIVE_MESSAGE_SCHEMAS = {
       x: required(normalizeCoord),
       y: required(normalizeCoord),
       x2: optional(normalizeCoord, {
-        defaultValue: function defaultRectX2(raw, normalized) {
+        defaultValue: function defaultRectX2(
+          /** @type {RawRecord} */ raw,
+          /** @type {RawRecord} */ normalized,
+        ) {
           return normalized.x !== undefined ? normalized.x : raw.x;
         },
       }),
       y2: optional(normalizeCoord, {
-        defaultValue: function defaultRectY2(raw, normalized) {
+        defaultValue: function defaultRectY2(
+          /** @type {RawRecord} */ raw,
+          /** @type {RawRecord} */ normalized,
+        ) {
           return normalized.y !== undefined ? normalized.y : raw.y;
         },
       }),
@@ -196,12 +300,18 @@ const LIVE_MESSAGE_SCHEMAS = {
       x: required(normalizeCoord),
       y: required(normalizeCoord),
       x2: optional(normalizeCoord, {
-        defaultValue: function defaultEllipseX2(raw, normalized) {
+        defaultValue: function defaultEllipseX2(
+          /** @type {RawRecord} */ raw,
+          /** @type {RawRecord} */ normalized,
+        ) {
           return normalized.x !== undefined ? normalized.x : raw.x;
         },
       }),
       y2: optional(normalizeCoord, {
-        defaultValue: function defaultEllipseY2(raw, normalized) {
+        defaultValue: function defaultEllipseY2(
+          /** @type {RawRecord} */ raw,
+          /** @type {RawRecord} */ normalized,
+        ) {
           return normalized.y !== undefined ? normalized.y : raw.y;
         },
       }),
@@ -259,6 +369,7 @@ const LIVE_MESSAGE_SCHEMAS = {
   },
 };
 
+/** @type {ToolSchemas} */
 const LIVE_BATCH_CHILD_SCHEMAS = {
   Hand: {
     update: {
@@ -278,6 +389,7 @@ const LIVE_BATCH_CHILD_SCHEMAS = {
   },
 };
 
+/** @type {{[tool: string]: FieldSchema}} */
 const STORED_ITEM_SCHEMAS = {
   Pencil: {
     tool: required(literal("Pencil")),
@@ -297,12 +409,18 @@ const STORED_ITEM_SCHEMAS = {
     x: required(normalizeCoord),
     y: required(normalizeCoord),
     x2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredLineX2(raw, normalized) {
+      defaultValue: function defaultStoredLineX2(
+        /** @type {RawRecord} */ raw,
+        /** @type {RawRecord} */ normalized,
+      ) {
         return normalized.x !== undefined ? normalized.x : raw.x;
       },
     }),
     y2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredLineY2(raw, normalized) {
+      defaultValue: function defaultStoredLineY2(
+        /** @type {RawRecord} */ raw,
+        /** @type {RawRecord} */ normalized,
+      ) {
         return normalized.y !== undefined ? normalized.y : raw.y;
       },
     }),
@@ -318,12 +436,18 @@ const STORED_ITEM_SCHEMAS = {
     x: required(normalizeCoord),
     y: required(normalizeCoord),
     x2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredRectX2(raw, normalized) {
+      defaultValue: function defaultStoredRectX2(
+        /** @type {RawRecord} */ raw,
+        /** @type {RawRecord} */ normalized,
+      ) {
         return normalized.x !== undefined ? normalized.x : raw.x;
       },
     }),
     y2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredRectY2(raw, normalized) {
+      defaultValue: function defaultStoredRectY2(
+        /** @type {RawRecord} */ raw,
+        /** @type {RawRecord} */ normalized,
+      ) {
         return normalized.y !== undefined ? normalized.y : raw.y;
       },
     }),
@@ -339,12 +463,18 @@ const STORED_ITEM_SCHEMAS = {
     x: required(normalizeCoord),
     y: required(normalizeCoord),
     x2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredEllipseX2(raw, normalized) {
+      defaultValue: function defaultStoredEllipseX2(
+        /** @type {RawRecord} */ raw,
+        /** @type {RawRecord} */ normalized,
+      ) {
         return normalized.x !== undefined ? normalized.x : raw.x;
       },
     }),
     y2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredEllipseY2(raw, normalized) {
+      defaultValue: function defaultStoredEllipseY2(
+        /** @type {RawRecord} */ raw,
+        /** @type {RawRecord} */ normalized,
+      ) {
         return normalized.y !== undefined ? normalized.y : raw.y;
       },
     }),
@@ -365,6 +495,10 @@ const STORED_ITEM_SCHEMAS = {
   },
 };
 
+/**
+ * @param {any} raw
+ * @returns {ValidationResult<RawRecord>}
+ */
 function normalizeIncomingBatch(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
   if (typeof raw.tool !== "string") return rejected("missing tool");
@@ -386,7 +520,7 @@ function normalizeIncomingBatch(raw) {
     }
 
     const normalizedChild = normalizeObject(child, schema);
-    if (!normalizedChild.ok) {
+    if (normalizedChild.ok === false) {
       return rejected("_children[" + index + "]: " + normalizedChild.reason);
     }
     children.push(normalizedChild.value);
@@ -398,6 +532,10 @@ function normalizeIncomingBatch(raw) {
   });
 }
 
+/**
+ * @param {any} raw
+ * @returns {ValidationResult<RawRecord>}
+ */
 function normalizeIncomingMessage(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
   if (Array.isArray(raw._children)) return normalizeIncomingBatch(raw);
@@ -417,13 +555,27 @@ function normalizeIncomingMessage(raw) {
   return normalized;
 }
 
+/**
+ * @param {any} raw
+ * @returns {ValidationResult<ChildPoint>}
+ */
 function normalizeStoredChildPoint(raw) {
-  return normalizeObject(raw, {
+  const normalized = normalizeObject(raw, {
     x: required(normalizeCoord),
     y: required(normalizeCoord),
   });
+  if (normalized.ok === false) return normalized;
+  return accepted({
+    x: normalized.value.x,
+    y: normalized.value.y,
+  });
 }
 
+/**
+ * @param {any} raw
+ * @param {any} storedId
+ * @returns {ValidationResult<RawRecord>}
+ */
 function normalizeStoredItem(raw, storedId) {
   const normalizedId = MessageCommon.normalizeId(storedId);
   if (normalizedId === null) return rejected("invalid stored id");

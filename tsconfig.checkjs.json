@@ -12,6 +12,9 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowUmdGlobalAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
     "strict": false
   },
   "include": [

@@ -38,6 +38,9 @@ var nativeFs = require("node:fs"),
   Mutex = require("async-mutex").Mutex;
 
 const BOARD_METADATA_KEY = "__wbo_meta__";
+/** @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds */
+/** @typedef {{ok: false, reason: string}} ValidationFailure */
+/** @typedef {{ok: true, value: BoardElem, localBounds: Bounds | null}} ValidatedStoredCandidate */
 
 function defaultBoardMetadata() {
   return {
@@ -173,9 +176,17 @@ class BoardData {
     return bounds;
   }
 
+  /**
+   * @param {string} id
+   * @param {BoardElem} data
+   * @returns {ValidatedStoredCandidate | ValidationFailure}
+   */
   validateStoredCandidate(id, data) {
     const normalized = normalizeStoredItem(data, id);
-    if (!normalized.ok) return normalized;
+    if (normalized.ok === false) {
+      return { ok: false, reason: normalized.reason };
+    }
+    /** @type {ValidatedStoredCandidate} */
     return {
       ok: true,
       value: normalized.value,

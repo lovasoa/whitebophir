@@ -457,7 +457,7 @@ function handleSocketConnection(socket) {
       if (!ensureSocketCanAccessBoard(socket, boardName)) return;
 
       const normalized = normalizeBroadcastData(message, data);
-      if (!normalized.ok) return;
+      if (normalized.ok === false) return;
       data = normalized.value;
       if (!enforceDestructiveRateLimit(socket, boardName, data, clientIp, now))
         return;
