@@ -26,6 +26,23 @@
 
 (function () {
   //Code isolation
+  /** @typedef {{type?: string, id?: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} TextMessage */
+  /** @typedef {SVGTextElement & {id: string}} ExistingTextElement */
+  /** @typedef {KeyboardEvent | FocusEvent} TextInputEvent */
+  /**
+   * @typedef {object} TextEditState
+   * @property {number} x
+   * @property {number} y
+   * @property {number} size
+   * @property {number} rawSize
+   * @property {number} oldSize
+   * @property {number} opacity
+   * @property {string} color
+   * @property {string | 0} id
+   * @property {string} sentText
+   * @property {number} lastSending
+   * @property {ReturnType<typeof setTimeout> | null} timeout
+   */
   var board = Tools.board;
   var MessageCommon = window.WBOMessageCommon;
 
@@ -34,6 +51,7 @@
   input.type = "text";
   input.setAttribute("autocomplete", "off");
 
+  /** @type {TextEditState} */
   var curText = {
     x: 0,
     y: 0,
@@ -45,9 +63,18 @@
     id: 0,
     sentText: "",
     lastSending: 0,
+    timeout: null,
   };
 
   var active = false;
+
+  /**
+   * @param {EventTarget | null} target
+   * @returns {target is ExistingTextElement}
+   */
+  function isExistingTextElement(target) {
+    return target instanceof SVGTextElement;
+  }
 
   function onStart() {
     curText.oldSize = Tools.getSize();
@@ -59,16 +86,22 @@
     Tools.setSize(curText.oldSize);
   }
 
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {MouseEvent | TouchEvent} evt
+   * @param {boolean} isTouchEvent
+   */
   function clickHandler(x, y, evt, isTouchEvent) {
     //if(document.querySelector("#menu").offsetWidth>Tools.menu_width+3) return;
     if (evt.target === input) return;
-    if (evt.target.tagName === "text") {
+    if (isExistingTextElement(evt.target)) {
       editOldText(evt.target);
       evt.preventDefault();
       return;
     }
     curText.rawSize = Tools.getSize();
-    curText.size = parseInt(curText.rawSize * 1.5 + 12);
+    curText.size = Math.round(curText.rawSize * 1.5 + 12);
     curText.opacity = Tools.getOpacity();
     curText.color = Tools.getColor();
     curText.x = x;
@@ -79,6 +112,7 @@
     evt.preventDefault();
   }
 
+  /** @param {ExistingTextElement} elem */
   function editOldText(elem) {
     curText.id = elem.id;
     var r = elem.getBoundingClientRect();
@@ -88,19 +122,18 @@
 
     curText.x = x;
     curText.y = y;
-    curText.sentText = elem.textContent;
-    curText.size = parseInt(elem.getAttribute("font-size"));
-    curText.opacity = parseFloat(elem.getAttribute("opacity"));
-    curText.color = elem.getAttribute("fill");
+    curText.sentText = elem.textContent || "";
+    curText.size = Number(elem.getAttribute("font-size")) || curText.size;
+    curText.opacity = Number(elem.getAttribute("opacity")) || 1;
+    curText.color = elem.getAttribute("fill") || "#000";
     startEdit();
-    input.value = elem.textContent;
+    input.value = elem.textContent || "";
   }
 
   function startEdit() {
     active = true;
     if (!input.parentNode) board.appendChild(input);
     input.value = "";
-    var left = curText.x - document.documentElement.scrollLeft + "px";
     var clientW = Math.max(
       document.documentElement.clientWidth,
       window.innerWidth || 0,
@@ -120,8 +153,15 @@
   }
 
   function stopEdit() {
+    input.removeEventListener("keyup", textChangeHandler);
+    input.removeEventListener("blur", textChangeHandler);
+    input.removeEventListener("blur", blur);
+    if (curText.timeout !== null) {
+      clearTimeout(curText.timeout);
+      curText.timeout = null;
+    }
     try {
-      input.blur();
+      if (typeof input.blur === "function") input.blur();
     } catch (e) {
       /* Internet Explorer */
     }
@@ -130,7 +170,6 @@
     curText.id = 0;
     curText.sentText = "";
     input.value = "";
-    input.removeEventListener("keyup", textChangeHandler);
   }
 
   function blur() {
@@ -138,13 +177,14 @@
     input.style.top = "-1000px";
   }
 
+  /** @param {TextInputEvent} evt */
   function textChangeHandler(evt) {
-    if (evt.which === 13) {
+    if (evt instanceof KeyboardEvent && evt.key === "Enter") {
       // enter
       curText.y += 1.5 * curText.size;
       stopEdit();
       startEdit();
-    } else if (evt.which === 27) {
+    } else if (evt instanceof KeyboardEvent && evt.key === "Escape") {
       // escape
       stopEdit();
     }
@@ -172,11 +212,16 @@
         curText.lastSending = performance.now();
       }
     } else {
-      clearTimeout(curText.timeout);
+      if (curText.timeout !== null) clearTimeout(curText.timeout);
       curText.timeout = setTimeout(textChangeHandler, 500, evt);
     }
   }
 
+  /**
+   * @param {TextMessage} data
+   * @param {boolean} isLocal
+   * @returns {boolean | void}
+   */
   function draw(data, isLocal) {
     Tools.drawingEvent = true;
     switch (data.type) {
@@ -184,6 +229,10 @@
         createTextField(data);
         break;
       case "update":
+        if (typeof data.id !== "string") {
+          console.error("Text: update is missing an id.", data);
+          return false;
+        }
         var textField = document.getElementById(data.id);
         if (textField === null) {
           console.error(
@@ -199,22 +248,33 @@
     }
   }
 
+  /**
+   * @param {Node & {textContent: string | null}} textField
+   * @param {string | undefined} text
+   */
   function updateText(textField, text) {
-    textField.textContent = text;
+    textField.textContent = text || "";
   }
 
+  /**
+   * @param {TextMessage} fieldData
+   * @returns {SVGElement}
+   */
   function createTextField(fieldData) {
     var elem = Tools.createSVGElement("text");
-    elem.id = fieldData.id;
-    elem.setAttribute("x", fieldData.x);
-    elem.setAttribute("y", fieldData.y);
-    elem.setAttribute("font-size", fieldData.size);
-    elem.setAttribute("fill", fieldData.color);
+    elem.id = typeof fieldData.id === "string" ? fieldData.id : "";
+    elem.setAttribute("x", String(fieldData.x || 0));
+    elem.setAttribute("y", String(fieldData.y || 0));
+    elem.setAttribute("font-size", String(fieldData.size || 0));
+    elem.setAttribute("fill", fieldData.color || "#000");
     elem.setAttribute(
       "opacity",
-      Math.max(0.1, Math.min(1, fieldData.opacity)) || 1,
+      String(Math.max(0.1, Math.min(1, Number(fieldData.opacity) || 1))),
     );
     if (fieldData.txt) elem.textContent = fieldData.txt;
+    if (!Tools.drawingArea) {
+      throw new Error("Missing drawing area for text tool");
+    }
     Tools.drawingArea.appendChild(elem);
     return elem;
   }
