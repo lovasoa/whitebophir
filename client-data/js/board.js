@@ -30,6 +30,7 @@ var BoardConnection = window.WBOBoardConnection;
 var BoardMessages = window.WBOBoardMessages;
 var BoardState = window.WBOBoardState;
 var BoardTurnstile = window.WBOBoardTurnstile;
+var BoardTools = window.WBOBoardTools;
 
 Tools.i18n = (function i18n() {
   var translations = JSON.parse(document.getElementById("translations").text);
@@ -315,8 +316,10 @@ Tools.setBoardState = function setBoardState(state) {
 };
 
 Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
-  return (
-    !Tools.readOnly || Tools.canWrite || Tools.readOnlyToolNames.has(toolName)
+  return BoardTools.shouldDisplayTool(
+    toolName,
+    Tools.boardState,
+    Tools.readOnlyToolNames,
   );
 };
 
@@ -541,9 +544,10 @@ Tools.HTML = {
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 
 Tools.isBlocked = function toolIsBanned(tool) {
-  if (tool.name.includes(","))
-    throw new Error("Tool Names must not contain a comma");
-  return Tools.server_config.BLOCKED_TOOLS.includes(tool.name);
+  return BoardTools.isBlockedToolName(
+    tool.name,
+    Tools.server_config.BLOCKED_TOOLS,
+  );
 };
 
 /**
@@ -571,14 +575,16 @@ Tools.register = function registerTool(newTool) {
   if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
 
   //There may be pending messages for the tool
-  var pending = Tools.pendingMessages[newTool.name];
-  if (pending) {
+  var pending = BoardTools.drainPendingMessages(
+    Tools.pendingMessages,
+    newTool.name,
+  );
+  if (pending.length > 0) {
     console.log("Drawing pending messages for '%s'.", newTool.name);
-    var msg;
-    while ((msg = pending.shift())) {
+    pending.forEach(function (msg) {
       //Transmit the message to the tool (precising that it comes from the network)
       newTool.draw(msg, false);
-    }
+    });
   }
 };
 
