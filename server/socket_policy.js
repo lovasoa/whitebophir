@@ -4,12 +4,12 @@ const normalizeIncomingMessage =
   require("./message_validation.js").normalizeIncomingMessage;
 const roleInBoard = require("./jwtBoardnameAuth.js").roleInBoard;
 
-/** @typedef {{ok: false, reason: string}} RejectedBroadcast */
-/** @typedef {{ok: true, value: any} | RejectedBroadcast} BroadcastResult */
-/** @typedef {{[key: string]: any}} MessageData */
-/** @typedef {{headers?: {[key: string]: string | string[] | undefined}, socket?: {remoteAddress?: string}}} SocketRequest */
-/** @typedef {{client: {request: SocketRequest}, handshake: {query?: {token?: string}}}} AppSocket */
-/** @typedef {{name: string, isReadOnly: () => boolean}} BoardLike */
+/** @typedef {import("../types/server-runtime").AppSocket} AppSocket */
+/** @typedef {import("../types/server-runtime").BoardLike} BoardLike */
+/** @typedef {import("../types/server-runtime").BroadcastResult} BroadcastResult */
+/** @typedef {import("../types/server-runtime").MessageData} MessageData */
+/** @typedef {import("../types/server-runtime").RejectedBroadcast} RejectedBroadcast */
+/** @typedef {import("../types/server-runtime").SocketRequest} SocketRequest */
 
 /**
  * @param {AppSocket} socket
@@ -166,7 +166,7 @@ function normalizeBroadcastData(message, data) {
     return rejectedBroadcast("missing data");
   }
 
-  if (config.BLOCKED_TOOLS.includes(data.tool)) {
+  if (typeof data.tool === "string" && config.BLOCKED_TOOLS.includes(data.tool)) {
     return rejectedBroadcast("blocked tool");
   }
 

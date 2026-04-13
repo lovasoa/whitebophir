@@ -23,93 +23,18 @@
  *
  * @licend
  */
-/** @typedef {{readonly: boolean, canWrite: boolean}} AppBoardState */
-/** @typedef {{tool?: string, id?: string, type?: string, parent?: string, transform?: unknown, _children?: unknown, x?: number, y?: number, [key: string]: unknown}} BoardMessage */
-/** @typedef {{data: BoardMessage, toolName: string}} PendingWrite */
-/** @typedef {{[toolName: string]: BoardMessage[]}} PendingMessages */
-/** @typedef {(x: number, y: number, evt: MouseEvent | TouchEvent, isTouchEvent: boolean) => unknown} ToolPointerListener */
-/** @typedef {{press?: ToolPointerListener, move?: ToolPointerListener, release?: ToolPointerListener}} ToolPointerListeners */
-/** @typedef {((evt: Event) => unknown) & {target?: EventTarget | null}} CompiledToolListener */
-/** @typedef {{[eventName: string]: CompiledToolListener}} CompiledToolListeners */
-/** @typedef {{name: string, icon: string, active: boolean, switch?: () => void}} ToolSecondaryMode */
-/** @typedef {{[toolName: string]: AppTool}} ToolRegistry */
-/**
- * @typedef {object} AppTool
- * @property {string} name
- * @property {string} shortcut
- * @property {string} icon
- * @property {(message: BoardMessage, isLocal: boolean) => void} draw
- * @property {string} [iconHTML]
- * @property {ToolPointerListeners} [listeners]
- * @property {CompiledToolListeners} [compiledListeners]
- * @property {(oldTool: AppTool | null) => void} [onstart]
- * @property {(newTool: AppTool) => void} [onquit]
- * @property {string} [stylesheet]
- * @property {boolean} [oneTouch]
- * @property {string} [mouseCursor]
- * @property {string} [helpText]
- * @property {ToolSecondaryMode} [secondary]
- * @property {(size: number) => void} [onSizeChange]
- */
-/** @typedef {{on: (eventName: string, handler: (...args: any[]) => void) => void, emit: (eventName: string, ...args: any[]) => void, disconnect?: () => void, destroy?: () => void}} AppSocket */
-/** @typedef {(message: BoardMessage) => void} MessageHook */
-/** @typedef {(tool: AppTool) => void} ToolHook */
-/** @typedef {{color: string, key?: string}} ColorPreset */
-/** @typedef {{TURNSTILE_SITE_KEY?: string, TURNSTILE_VALIDATION_WINDOW_MS?: number | string, BLOCKED_TOOLS?: string[], BLOCKED_SELECTION_BUTTONS?: string[], MAX_BOARD_SIZE?: number, MAX_EMIT_COUNT?: number, MAX_EMIT_COUNT_PERIOD?: number, AUTO_FINGER_WHITEOUT?: boolean}} ServerConfig */
-/**
- * @typedef {object} ToolPalette
- * @property {any} template
- * @property {(key: string, callback: () => void) => void} addShortcut
- * @property {(toolName: string, toolIcon: string, toolIconHTML: string | undefined, toolShortcut: string, oneTouch: boolean | undefined) => unknown} addTool
- * @property {(oldToolName: string, newToolName: string) => void} changeTool
- * @property {(toolName: string, name: string, icon: string) => void} toggle
- * @property {(href: string) => void} addStylesheet
- * @property {any} colorPresetTemplate
- * @property {(button: ColorPreset) => unknown} addColorButton
- */
-/**
- * @typedef {object} AppToolsState
- * @property {{t: (s: string) => string}} i18n
- * @property {ServerConfig} server_config
- * @property {Set<string>} readOnlyToolNames
- * @property {number} turnstileValidatedUntil
- * @property {unknown | null} turnstileWidgetId
- * @property {ReturnType<typeof setTimeout> | null} turnstileRefreshTimeout
- * @property {boolean} turnstilePending
- * @property {PendingWrite[]} turnstilePendingWrites
- * @property {ReturnType<typeof setTimeout> | null} showTurnstileOverlayTimeout
- * @property {number} scale
- * @property {boolean | null} drawToolsAllowed
- * @property {AppBoardState} boardState
- * @property {boolean} readOnly
- * @property {boolean} canWrite
- * @property {HTMLElement} board
- * @property {SVGSVGElement} svg
- * @property {Element | null} drawingArea
- * @property {AppTool | null} curTool
- * @property {boolean} drawingEvent
- * @property {boolean} showMarker
- * @property {boolean} showOtherCursors
- * @property {boolean} showMyCursor
- * @property {boolean} isIE
- * @property {AppSocket | null} socket
- * @property {boolean} hasConnectedOnce
- * @property {boolean} rateLimitAlertShown
- * @property {{[name: string]: string} | null} socketIOExtraHeaders
- * @property {string} boardName
- * @property {string | null} token
- * @property {ToolPalette} HTML
- * @property {ToolRegistry} list
- * @property {PendingMessages} pendingMessages
- * @property {number} unreadMessagesCount
- * @property {MessageHook[]} messageHooks
- * @property {ToolHook[]} toolHooks
- * @property {ColorPreset[]} colorPresets
- * @property {HTMLInputElement} color_chooser
- * @property {((size: number) => void)[]} sizeChangeHandlers
- */
+/** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
+/** @typedef {import("../../types/app-runtime").AppTool} AppTool */
+/** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
+/** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
+/** @typedef {import("../../types/app-runtime").ColorPreset} ColorPreset */
+/** @typedef {import("../../types/app-runtime").PendingMessages} PendingMessages */
+/** @typedef {import("../../types/app-runtime").ServerConfig} ServerConfig */
+/** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
+/** @typedef {import("../../types/app-runtime").ToolPalette} ToolPalette */
+/** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
 
-var Tools = /** @type {AppToolsState & {[name: string]: any}} */ ({});
+var Tools = /** @type {AppToolsState} */ ({});
 var MessageCommon = window.WBOMessageCommon;
 var BoardConnection = window.WBOBoardConnection;
 var BoardMessages = window.WBOBoardMessages;
@@ -171,7 +96,9 @@ function blurActiveElement() {
 }
 
 Tools.i18n = (function i18n() {
-  var translations = BoardBootstrap.parseEmbeddedJson("translations", {});
+  var translations = /** @type {{[key: string]: string}} */ (
+    BoardBootstrap.parseEmbeddedJson("translations", {})
+  );
   return {
     /** @param {string} s */
     t: function translate(s) {
@@ -181,7 +108,9 @@ Tools.i18n = (function i18n() {
   };
 })();
 
-Tools.server_config = BoardBootstrap.parseEmbeddedJson("configuration", {});
+Tools.server_config = /** @type {ServerConfig} */ (
+  BoardBootstrap.parseEmbeddedJson("configuration", {})
+);
 Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
 Tools.turnstileValidatedUntil = 0;
 Tools.turnstileWidgetId = null;
@@ -493,7 +422,9 @@ Tools.resolveBoardName = function resolveBoardName() {
 };
 
 Tools.board = BoardBootstrap.getRequiredElement("board");
-Tools.svg = /** @type {SVGSVGElement} */ (BoardBootstrap.getRequiredElement("canvas"));
+Tools.svg = /** @type {SVGSVGElement} */ (
+  /** @type {unknown} */ (BoardBootstrap.getRequiredElement("canvas"))
+);
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
 //Initialization
@@ -724,7 +655,7 @@ Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
 Tools.isBlocked = function toolIsBanned(tool) {
   return BoardTools.isBlockedToolName(
     tool.name,
-    Tools.server_config.BLOCKED_TOOLS,
+    Tools.server_config.BLOCKED_TOOLS || [],
   );
 };
 
@@ -786,7 +717,7 @@ Tools.add = function (newTool) {
       newTool.name,
       newTool.icon,
       newTool.iconHTML,
-      newTool.shortcut,
+      newTool.shortcut || "",
       newTool.oneTouch,
     );
   }
@@ -950,7 +881,7 @@ function messageForTool(message) {
   } else {
     ///We received a message destinated to a tool that we don't have
     //So we add it to the pending messages
-    BoardMessages.queuePendingMessage(Tools.pendingMessages, name, message);
+    if (name) BoardMessages.queuePendingMessage(Tools.pendingMessages, name, message);
   }
 
   if (message.tool !== "Hand" && message.transform != null) {
@@ -1297,7 +1228,7 @@ Tools.setSize = (function size() {
 
   function update() {
     var size = MessageCommon.clampSize(chooser.value);
-    chooser.value = size;
+    chooser.value = String(size);
     Tools.sizeChangeHandlers.forEach(function (handler) {
       handler(size);
     });
@@ -1327,7 +1258,7 @@ Tools.getOpacity = (function opacity() {
   var opacityIndicator = BoardBootstrap.getRequiredElement("opacityIndicator");
 
   function update() {
-    chooser.value = MessageCommon.clampOpacity(chooser.value);
+    chooser.value = String(MessageCommon.clampOpacity(chooser.value));
     opacityIndicator.setAttribute("opacity", chooser.value);
   }
   update();

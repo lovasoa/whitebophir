@@ -2,7 +2,7 @@ const config = require("./configuration.js");
 const MessageCommon = require("../client-data/js/message_common.js");
 
 /** @typedef {{[key: string]: any}} RawRecord */
-/** @typedef {{a: number, b: number, c: number, d: number, e: number, f: number}} Transform */
+/** @typedef {import("../types/app-runtime").Transform} Transform */
 /** @typedef {{x: number, y: number}} ChildPoint */
 /**
  * @template T
