@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { SOCKETS_PATH, createSocket, withEnv } = require("./test_helpers.js");
+const { withConsole } = require("./test_console.js");
 
 test("user id and visible name are deterministic from userSecret and ip", async function () {
   await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async function () {
@@ -181,6 +182,129 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
         room: "board-left",
       });
       assert.equal(sockets.__test.getBoardUserMap("board-left").size, 0);
+    },
+  );
+});
+
+test("live broadcasts attach userId and keep the user's latest non-cursor state", async function () {
+  const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "wbo-users-live-"));
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async function () {
+      const sockets = require(SOCKETS_PATH);
+      sockets.__test.resetRateLimitMaps();
+
+      const created = createSocket({
+        id: "socket-live",
+        remoteAddress: "203.0.113.80",
+        query: {
+          userSecret: "live-secret",
+          tool: "Hand",
+          color: "#101010",
+          size: "4",
+        },
+      });
+      sockets.__test.handleSocketConnection(created.socket);
+      await created.handlers.getboard("board-live");
+
+      await created.handlers.broadcast({
+        board: "board-live",
+        data: {
+          tool: "Rectangle",
+          type: "rect",
+          id: "shape-1",
+          color: "#123456",
+          size: 9,
+          x: 1,
+          y: 2,
+          x2: 11,
+          y2: 22,
+        },
+      });
+
+      const user = sockets.__test.getBoardUserMap("board-live").get("socket-live");
+      assert.ok(user);
+      assert.equal(user.userId, created.broadcasted[1].payload.userId);
+      assert.equal(user.lastTool, "Rectangle");
+      assert.equal(user.color, "#123456");
+      assert.equal(user.size, 9);
+
+      await created.handlers.broadcast({
+        board: "board-live",
+        data: {
+          tool: "Cursor",
+          type: "update",
+          x: 9,
+          y: 10,
+          color: "#abcdef",
+          size: 12,
+        },
+      });
+
+      assert.equal(user.lastTool, "Rectangle");
+      assert.equal(user.color, "#abcdef");
+      assert.equal(user.size, 12);
+      assert.equal(created.broadcasted[2].payload.userId, user.userId);
+    },
+  );
+});
+
+test("report_user logs reporter and reported user details for active board members", async function () {
+  const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "wbo-users-report-"));
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async function () {
+      const sockets = require(SOCKETS_PATH);
+      sockets.__test.resetRateLimitMaps();
+
+      const reporter = createSocket({
+        id: "socket-reporter",
+        remoteAddress: "203.0.113.90",
+        query: {
+          userSecret: "reporter-secret",
+          tool: "Hand",
+          color: "#222222",
+          size: "4",
+        },
+      });
+      sockets.__test.handleSocketConnection(reporter.socket);
+      await reporter.handlers.getboard("board-report");
+
+      const reported = createSocket({
+        id: "socket-reported",
+        remoteAddress: "203.0.113.91",
+        query: {
+          userSecret: "reported-secret",
+          tool: "Ellipse",
+          color: "#333333",
+          size: "7",
+        },
+      });
+      sockets.__test.handleSocketConnection(reported.socket);
+      await reported.handlers.getboard("board-report");
+
+      /** @type {string[]} */
+      const logged = [];
+      withConsole(
+        {
+          log: function (message) {
+            logged.push(String(message));
+          },
+        },
+        function () {
+          reporter.handlers.report_user({
+            board: "board-report",
+            socketId: "socket-reported",
+          });
+        },
+      );
+
+      assert.equal(logged.length, 1);
+      assert.match(logged[0], /USER_REPORTED/);
+      assert.match(logged[0], /203\.0\.113\.90/);
+      assert.match(logged[0], /203\.0\.113\.91/);
+      assert.match(logged[0], /socket-reporter/);
+      assert.match(logged[0], /socket-reported/);
     },
   );
 });

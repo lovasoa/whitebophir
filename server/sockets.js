@@ -388,6 +388,46 @@ function removeBoardUser(socket, boardName) {
 }
 
 /**
+ * @param {string} boardName
+ * @param {string} socketId
+ * @returns {BoardUser | undefined}
+ */
+function getBoardUser(boardName, socketId) {
+  return getBoardUserMap(boardName).get(socketId);
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {MessageData} data
+ * @param {number} now
+ * @returns {BoardUser | undefined}
+ */
+function updateBoardUserFromMessage(socket, boardName, data, now) {
+  var user = getBoardUser(boardName, socket.id);
+  if (!user) return undefined;
+
+  user.lastSeen = now;
+  if (typeof data.color === "string") user.color = data.color;
+  if (data.size !== undefined) user.size = Number(data.size) || user.size;
+  if (typeof data.tool === "string" && data.tool !== "Cursor") {
+    user.lastTool = data.tool;
+  }
+  return user;
+}
+
+/**
+ * @param {MessageData} data
+ * @param {BoardUser | undefined} user
+ * @returns {MessageData}
+ */
+function attachLiveUserId(data, user) {
+  if (!user) return data;
+  data.userId = user.userId;
+  return data;
+}
+
+/**
  * @param {AppSocket} socket
  * @param {string} eventName
  * @param {{[key: string]: any}} infos
@@ -935,8 +975,37 @@ function handleSocketConnection(socket) {
         return;
       }
 
+      var user = updateBoardUserFromMessage(socket, boardName, normalizedData, now);
+      attachLiveUserId(normalizedData, user);
+
       //Send data to all other users connected on the same board
       socket.broadcast.to(boardName).emit("broadcast", normalizedData);
+    }),
+  );
+
+  socket.on(
+    "report_user",
+    noFail(function onReportUser(message) {
+      var boardName = getBoardName(message);
+      var targetSocketId =
+        message && typeof message.socketId === "string" ? message.socketId : "";
+      if (!targetSocketId || !socket.rooms.has(boardName)) return;
+
+      var reporter = getBoardUser(boardName, socket.id);
+      var reported = getBoardUser(boardName, targetSocketId);
+      if (!reporter || !reported) return;
+
+      log("USER_REPORTED", {
+        board: boardName,
+        reporter_socket: reporter.socketId,
+        reported_socket: reported.socketId,
+        reporter_ip: reporter.ip,
+        reported_ip: reported.ip,
+        reporter_user_id: reporter.userId,
+        reported_user_id: reported.userId,
+        reporter_name: reporter.name,
+        reported_name: reported.name,
+      });
     }),
   );
 
