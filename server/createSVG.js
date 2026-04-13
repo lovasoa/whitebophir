@@ -4,6 +4,45 @@ const fsp = require("node:fs/promises"),
   wboPencilPoint =
     require("../client-data/tools/pencil/wbo_pencil_point.js").wboPencilPoint;
 
+/** @typedef {{x: number, y: number}} Point */
+/** @typedef {{type: string, values: number[]}} PathOperation */
+/** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number}} ElementStyle */
+/** @typedef {ElementStyle & {tool: "Text", x: number, y: number, txt?: string}} TextElement */
+/** @typedef {ElementStyle & {tool: "Pencil", _children?: Point[]}} PencilElement */
+/** @typedef {ElementStyle & {tool: "Rectangle" | "Ellipse" | "Straight line", x: number, y: number, x2: number, y2: number}} ShapeElement */
+/** @typedef {TextElement | PencilElement | ShapeElement} RenderableElement */
+/** @typedef {{[name: string]: RenderableElement}} RenderableBoard */
+/** @typedef {{write: (chunk: string) => void}} WritableTarget */
+/** @typedef {(element: RenderableElement) => string} ToolRenderer */
+
+/**
+ * @param {number | undefined} value
+ * @returns {number}
+ */
+function numberOrZero(value) {
+  return typeof value === "number" ? value : 0;
+}
+
+/**
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} x2
+ * @param {number} y2
+ * @returns {{x: number, y: number, width: number, height: number}}
+ */
+function normalizeRectBounds(x1, y1, x2, y2) {
+  return {
+    x: Math.min(x1, x2),
+    y: Math.min(y1, y2),
+    width: Math.abs(x2 - x1),
+    height: Math.abs(y2 - y1),
+  };
+}
+
+/**
+ * @param {unknown} str
+ * @returns {string}
+ */
 function htmlspecialchars(str) {
   if (typeof str !== "string") return "";
 
@@ -19,123 +58,154 @@ function htmlspecialchars(str) {
         return "&quot;";
       case "'":
         return "&#39;";
+      default:
+        return c;
     }
   });
 }
 
+/**
+ * @param {ElementStyle} el
+ * @returns {string}
+ */
+function renderTranslate(el) {
+  const deltax = numberOrZero(el.deltax);
+  const deltay = numberOrZero(el.deltay);
+  if (deltax === 0 && deltay === 0) return "";
+  return 'transform="translate(' + deltax + "," + deltay + ')"';
+}
+
+/**
+ * @param {ElementStyle} el
+ * @param {string} pathstring
+ * @returns {string}
+ */
 function renderPath(el, pathstring) {
   return (
     "<path " +
     (el.id ? 'id="' + htmlspecialchars(el.id) + '" ' : "") +
     'stroke-width="' +
-    (el.size | 0) +
+    (numberOrZero(el.size) | 0) +
     '" ' +
-    (el.opacity ? 'opacity="' + parseFloat(el.opacity) + '" ' : "") +
+    (el.opacity ? 'opacity="' + numberOrZero(el.opacity) + '" ' : "") +
     'stroke="' +
     htmlspecialchars(el.color) +
     '" ' +
     'd="' +
     pathstring +
     '" ' +
-    (el.deltax || el.deltay
-      ? 'transform="translate(' + +el.deltax + "," + +el.deltay + ')"'
-      : "") +
+    renderTranslate(el) +
     "/>"
   );
 }
 
+/** @type {{[tool: string]: ToolRenderer}} */
 const Tools = {
   /**
+   * @param {RenderableElement} el
    * @return {string}
    */
   Text: function (el) {
+    if (el.tool !== "Text") return "";
+    /** @type {TextElement} */
+    const text = el;
     return (
       "<text " +
       'id="' +
-      htmlspecialchars(el.id || "t") +
+      htmlspecialchars(text.id || "t") +
       '" ' +
       'x="' +
-      (el.x | 0) +
+      (text.x | 0) +
       '" ' +
       'y="' +
-      (el.y | 0) +
+      (text.y | 0) +
       '" ' +
       'font-size="' +
-      (el.size | 0) +
+      (numberOrZero(text.size) | 0) +
       '" ' +
       'fill="' +
-      htmlspecialchars(el.color || "#000") +
+      htmlspecialchars(text.color || "#000") +
       '" ' +
-      (el.deltax || el.deltay
-        ? 'transform="translate(' +
-          (el.deltax || 0) +
-          "," +
-          (el.deltay || 0) +
-          ')"'
-        : "") +
+      renderTranslate(text) +
       ">" +
-      htmlspecialchars(el.txt || "") +
+      htmlspecialchars(text.txt || "") +
       "</text>"
     );
   },
   /**
+   * @param {RenderableElement} el
    * @return {string}
    */
   Pencil: function (el) {
-    if (!el._children) return "";
-    let pts = el._children.reduce(function (pts, point) {
-      return wboPencilPoint(pts, point.x, point.y);
-    }, []);
+    if (el.tool !== "Pencil") return "";
+    /** @type {PencilElement} */
+    const pencil = el;
+    if (!pencil._children) return "";
+    /** @type {PathOperation[]} */
+    let pts = pencil._children.reduce(
+      /**
+       * @param {PathOperation[]} pts
+       * @param {Point} point
+       * @returns {PathOperation[]}
+       */
+      function (pts, point) {
+        return wboPencilPoint(pts, point.x, point.y);
+      },
+      /** @type {PathOperation[]} */ ([]),
+    );
     const pathstring = pts
       .map(function (op) {
         return op.type + " " + op.values.join(" ");
       })
       .join(" ");
-    return renderPath(el, pathstring);
+    return renderPath(pencil, pathstring);
   },
   /**
+   * @param {RenderableElement} el
    * @return {string}
    */
   Rectangle: function (el) {
+    if (el.tool !== "Rectangle") return "";
+    /** @type {ShapeElement} */
+    const shape = el;
+    const bounds = normalizeRectBounds(shape.x, shape.y, shape.x2, shape.y2);
     return (
       "<rect " +
-      (el.id ? 'id="' + htmlspecialchars(el.id) + '" ' : "") +
+      (shape.id ? 'id="' + htmlspecialchars(shape.id) + '" ' : "") +
       'x="' +
-      (el.x || 0) +
+      bounds.x +
       '" ' +
       'y="' +
-      (el.y || 0) +
+      bounds.y +
       '" ' +
       'width="' +
-      (el.x2 - el.x) +
+      bounds.width +
       '" ' +
       'height="' +
-      (el.y2 - el.y) +
+      bounds.height +
       '" ' +
       'stroke="' +
-      htmlspecialchars(el.color) +
+      htmlspecialchars(shape.color) +
       '" ' +
       'stroke-width="' +
-      (el.size | 0) +
+      (numberOrZero(shape.size) | 0) +
       '" ' +
-      (el.deltax || el.deltay
-        ? 'transform="translate(' +
-          (el.deltax || 0) +
-          "," +
-          (el.deltay || 0) +
-          ')"'
-        : "") +
+      renderTranslate(shape) +
       "/>"
     );
   },
   /**
+   * @param {RenderableElement} el
    * @return {string}
    */
   Ellipse: function (el) {
-    const cx = Math.round((el.x2 + el.x) / 2);
-    const cy = Math.round((el.y2 + el.y) / 2);
-    const rx = Math.abs(el.x2 - el.x) / 2;
-    const ry = Math.abs(el.y2 - el.y) / 2;
+    if (el.tool !== "Ellipse") return "";
+    /** @type {ShapeElement} */
+    const shape = el;
+    const cx = Math.round((shape.x2 + shape.x) / 2);
+    const cy = Math.round((shape.y2 + shape.y) / 2);
+    const rx = Math.abs(shape.x2 - shape.x) / 2;
+    const ry = Math.abs(shape.y2 - shape.y) / 2;
     const pathstring =
       "M" +
       (cx - rx) +
@@ -155,34 +225,66 @@ const Tools = {
       " 0 1,0 " +
       rx * -2 +
       ",0";
-    return renderPath(el, pathstring);
+    return renderPath(shape, pathstring);
   },
   /**
+   * @param {RenderableElement} el
    * @return {string}
    */
   "Straight line": function (el) {
-    const pathstring = "M" + el.x + " " + el.y + "L" + el.x2 + " " + el.y2;
-    return renderPath(el, pathstring);
+    if (el.tool !== "Straight line") return "";
+    /** @type {ShapeElement} */
+    const shape = el;
+    const pathstring =
+      "M" + shape.x + " " + shape.y + "L" + shape.x2 + " " + shape.y2;
+    return renderPath(shape, pathstring);
   },
 };
 
 /**
+ * @param {RenderableElement} elem
+ * @returns {Point | null}
+ */
+function originPointForBounds(elem) {
+  if (elem.tool === "Pencil") {
+    const firstPoint = elem._children && elem._children[0];
+    return firstPoint || null;
+  }
+  if (elem.tool === "Text") {
+    return { x: elem.x, y: elem.y };
+  }
+  return { x: elem.x, y: elem.y };
+}
+
+/**
  * Writes the given board as an svg to the given writeable stream
- * @param {Object[string, BoardElem]} obj
- * @param {WritableStream} writeable
+ * @param {RenderableBoard} obj
+ * @param {WritableTarget} writeable
  */
 async function toSVG(obj, writeable) {
   const margin = 400;
   const elems = Object.values(obj);
   const dim = elems.reduce(
+    /**
+     * @param {[number, number]} dim
+     * @param {RenderableElement} elem
+     * @returns {[number, number]}
+     */
     function (dim, elem) {
-      if (elem._children && elem._children.length) elem = elem._children[0];
+      const point = originPointForBounds(elem);
+      if (!point) return dim;
       return [
-        Math.max((elem.x + margin + (elem.deltax | 0)) | 0, dim[0]),
-        Math.max((elem.y + margin + (elem.deltay | 0)) | 0, dim[1]),
+        Math.max(
+          (point.x + margin + (numberOrZero(elem.deltax) | 0)) | 0,
+          dim[0],
+        ),
+        Math.max(
+          (point.y + margin + (numberOrZero(elem.deltay) | 0)) | 0,
+          dim[1],
+        ),
       ];
     },
-    [margin, margin],
+    /** @type {[number, number]} */ ([margin, margin]),
   );
   writeable.write(
     '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" ' +
@@ -208,9 +310,15 @@ async function toSVG(obj, writeable) {
   writeable.write("</svg>");
 }
 
+/**
+ * @param {string} file
+ * @param {WritableTarget} stream
+ * @returns {Promise<void>}
+ */
 async function renderBoard(file, stream) {
-  const data = await fsp.readFile(file);
-  var board = parseStoredBoard(JSON.parse(data)).board;
+  const data = await fsp.readFile(file, "utf8");
+  /** @type {RenderableBoard} */
+  var board = /** @type {RenderableBoard} */ (parseStoredBoard(JSON.parse(data)).board);
   return toSVG(board, stream);
 }
 
