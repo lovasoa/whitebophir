@@ -28,6 +28,26 @@ test("getClientIp resolves the first proxy hop from forwarding headers", async f
     });
     assert.equal(socketPolicy.getClientIp(socket), "198.51.100.9");
   });
+
+  await withEnv({ WBO_IP_SOURCE: "X-Forwarded-For" }, async function () {
+    const socketPolicy = require(SOCKET_POLICY_PATH);
+    const { socket } = createSocket({
+      headers: {
+        "x-forwarded-for": ["198.51.100.11, 203.0.113.7"],
+      },
+    });
+    assert.equal(socketPolicy.getClientIp(socket), "198.51.100.11");
+  });
+
+  await withEnv({ WBO_IP_SOURCE: "Forwarded" }, async function () {
+    const socketPolicy = require(SOCKET_POLICY_PATH);
+    const { socket } = createSocket({
+      headers: {
+        forwarded: ['for="198.51.100.12";proto=https, for=203.0.113.7'],
+      },
+    });
+    assert.equal(socketPolicy.getClientIp(socket), "198.51.100.12");
+  });
 });
 
 test("parseForwardedHeader rejects malformed forwarded headers", function () {
