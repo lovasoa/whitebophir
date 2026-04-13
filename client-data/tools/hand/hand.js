@@ -87,7 +87,7 @@
     ),
   ];
 
-  for (i in blockedSelectionButtons) {
+  for (var i in blockedSelectionButtons) {
     delete selectionButtons[blockedSelectionButtons[i]];
   }
 
@@ -273,7 +273,7 @@
     selectionRect.width.baseVal.value = 0;
     selectionRect.height.baseVal.value = 0;
     selectionRect.style.display = "";
-    tmatrix = get_transform_matrix(selectionRect);
+    var tmatrix = get_transform_matrix(selectionRect);
     tmatrix.e = 0;
     tmatrix.f = 0;
   }
@@ -431,7 +431,7 @@
               "Mover: Tried to move an element that does not exist.",
             );
           var tmatrix = get_transform_matrix(elem);
-          for (i in data.transform) {
+          for (var i in data.transform) {
             tmatrix[i] = data.transform[i];
           }
           break;

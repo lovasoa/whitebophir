@@ -28,7 +28,7 @@ if (
   !SVGGraphicsElement.prototype.transformedBBox ||
   !SVGGraphicsElement.prototype.transformedBBoxContains
 ) {
-  [pointInTransformedBBox, transformedBBoxIntersects] = (function () {
+  var transformedBBoxHelpers = (function () {
     var get_transform_matrix = function (elem) {
       // Returns the first translate or transform matrix or makes one
       var transform = null;
@@ -59,8 +59,8 @@ if (
     };
 
     SVGGraphicsElement.prototype.transformedBBox = function (scale = 1) {
-      bbox = this.getBBox();
-      tmatrix = get_transform_matrix(this);
+      var bbox = this.getBBox();
+      var tmatrix = get_transform_matrix(this);
       tmatrix.e /= scale;
       tmatrix.f /= scale;
       return {
@@ -71,13 +71,13 @@ if (
     };
 
     SVGSVGElement.prototype.transformedBBox = function (scale = 1) {
-      bbox = {
+      var bbox = {
         x: this.x.baseVal.value,
         y: this.y.baseVal.value,
         width: this.width.baseVal.value,
         height: this.height.baseVal.value,
       };
-      tmatrix = get_transform_matrix(this);
+      var tmatrix = get_transform_matrix(this);
       tmatrix.e /= scale;
       tmatrix.f /= scale;
       return {
@@ -120,4 +120,6 @@ if (
 
     return [pointInTransformedBBox, transformedBBoxIntersects];
   })();
+  var pointInTransformedBBox = transformedBBoxHelpers[0];
+  var transformedBBoxIntersects = transformedBBoxHelpers[1];
 }
