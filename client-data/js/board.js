@@ -27,6 +27,7 @@
 var Tools = {};
 var MessageCommon = window.WBOMessageCommon;
 var BoardConnection = window.WBOBoardConnection;
+var BoardMessages = window.WBOBoardMessages;
 
 Tools.i18n = (function i18n() {
   var translations = JSON.parse(document.getElementById("translations").text);
@@ -754,8 +755,7 @@ function messageForTool(message) {
   } else {
     ///We received a message destinated to a tool that we don't have
     //So we add it to the pending messages
-    if (!Tools.pendingMessages[name]) Tools.pendingMessages[name] = [message];
-    else Tools.pendingMessages[name].push(message);
+    BoardMessages.queuePendingMessage(Tools.pendingMessages, name, message);
   }
 
   if (message.tool !== "Hand" && message.transform != null) {
@@ -769,31 +769,6 @@ function messageForTool(message) {
   }
 }
 
-var BATCH_SIZE = 1024;
-
-/**
- * Apply the function to all arguments by batches
- * @param {Function} fn - The function to apply to the arguments
- * @param {Array} args - The arguments to apply the function to
- * @param {number} [index] - The index to start from
- * @returns {Promise}
- */
-function batchCall(fn, args, index) {
-  index = index | 0;
-  if (index >= args.length) {
-    return Promise.resolve();
-  } else {
-    var batch = args.slice(index, index + BATCH_SIZE);
-    return Promise.all(batch.map(fn))
-      .then(function () {
-        return new Promise(requestAnimationFrame);
-      })
-      .then(function () {
-        return batchCall(fn, args, index + BATCH_SIZE);
-      });
-  }
-}
-
 // Call messageForTool recursively on the message and its children
 function handleMessage(message) {
   //Check if the message is in the expected format
@@ -801,8 +776,17 @@ function handleMessage(message) {
     console.error("Received a badly formatted message (no tool). ", message);
   }
   if (message.tool) messageForTool(message);
-  if (message._children)
-    return batchCall(childMessageHandler(message), message._children);
+  if (BoardMessages.hasChildMessages(message))
+    return BoardMessages.batchCall(
+      childMessageHandler(message),
+      message._children,
+    );
+  if (message._children) {
+    console.error(
+      "Received a badly formatted message (_children must be an array). ",
+      message,
+    );
+  }
   else return Promise.resolve();
 }
 
@@ -810,10 +794,7 @@ function handleMessage(message) {
 function childMessageHandler(parent) {
   if (!parent.id) return handleMessage;
   return function handleChild(child) {
-    child.parent = parent.id;
-    child.tool = parent.tool;
-    child.type = "child";
-    return handleMessage(child);
+    return handleMessage(BoardMessages.normalizeChildMessage(parent, child));
   };
 }
 
