@@ -166,6 +166,13 @@ svg {
   cursor: default;
 }
 
+.connected-user-report-latched {
+  opacity: 1;
+  background: #dddddd;
+  border-color: #444444;
+  color: #111111;
+}
+
 @keyframes connected-user-pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(17, 17, 17, 0.45);

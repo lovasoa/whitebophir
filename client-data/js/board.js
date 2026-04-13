@@ -696,6 +696,9 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
       report.setAttribute("aria-label", Tools.i18n.t("report"));
       if (isCurrentSocketUser(user)) {
         report.disabled = true;
+      } else if (user.reported) {
+        report.disabled = true;
+        report.classList.add("connected-user-report-latched");
       } else {
         report.addEventListener("click", function (evt) {
           evt.stopPropagation();
