@@ -1,5 +1,6 @@
 const config = require("./configuration.js");
 const MessageCommon = require("../client-data/js/message_common.js");
+const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 
 /** @typedef {{[key: string]: any}} RawRecord */
 /** @typedef {import("../types/app-runtime").Transform} Transform */
@@ -198,6 +199,93 @@ function normalizeObject(raw, fields) {
   return accepted(normalized);
 }
 
+/**
+ * @param {RawRecord} raw
+ * @param {RawRecord} normalized
+ * @returns {number}
+ */
+function defaultCoordinateFromX(raw, normalized) {
+  return normalized.x !== undefined ? normalized.x : raw.x;
+}
+
+/**
+ * @param {RawRecord} raw
+ * @param {RawRecord} normalized
+ * @returns {number}
+ */
+function defaultCoordinateFromY(raw, normalized) {
+  return normalized.y !== undefined ? normalized.y : raw.y;
+}
+
+/**
+ * @param {string} toolName
+ * @returns {FieldSchema}
+ */
+function makeLiveShapeCreateSchema(toolName) {
+  const type = MessageToolMetadata.SHAPE_TOOL_TYPES[toolName];
+  return {
+    tool: required(literal(toolName)),
+    type: required(literal(type)),
+    id: required(normalizeId),
+    color: required(normalizeColor),
+    size: required(normalizeSize),
+    opacity: optional(normalizeOpacity),
+    x: required(normalizeCoord),
+    y: required(normalizeCoord),
+    x2: optional(normalizeCoord, {
+      defaultValue: defaultCoordinateFromX,
+    }),
+    y2: optional(normalizeCoord, {
+      defaultValue: defaultCoordinateFromY,
+    }),
+  };
+}
+
+/**
+ * @param {string} toolName
+ * @returns {FieldSchema}
+ */
+function makeLiveShapeUpdateSchema(toolName) {
+  /** @type {FieldSchema} */
+  const schema = {
+    tool: required(literal(toolName)),
+    type: required(literal("update")),
+    id: required(normalizeId),
+  };
+
+  const fields = MessageToolMetadata.getUpdatableFieldNames(toolName);
+  for (let i = 0; i < fields.length; i++) {
+    schema[fields[i]] = required(normalizeCoord);
+  }
+
+  return schema;
+}
+
+/**
+ * @param {string} toolName
+ * @returns {FieldSchema}
+ */
+function makeStoredShapeSchema(toolName) {
+  const type = MessageToolMetadata.SHAPE_TOOL_TYPES[toolName];
+  return {
+    tool: required(literal(toolName)),
+    type: optional(literal(type), { defaultValue: type }),
+    color: required(normalizeColor),
+    size: required(normalizeSize),
+    opacity: optional(normalizeOpacity),
+    x: required(normalizeCoord),
+    y: required(normalizeCoord),
+    x2: optional(normalizeCoord, {
+      defaultValue: defaultCoordinateFromX,
+    }),
+    y2: optional(normalizeCoord, {
+      defaultValue: defaultCoordinateFromY,
+    }),
+    transform: optional(normalizeTransform),
+    time: optional(normalizeTime),
+  };
+}
+
 /** @type {ToolSchemas} */
 const LIVE_MESSAGE_SCHEMAS = {
   Pencil: {
@@ -218,113 +306,16 @@ const LIVE_MESSAGE_SCHEMAS = {
     },
   },
   "Straight line": {
-    straight: {
-      tool: required(literal("Straight line")),
-      type: required(literal("straight")),
-      id: required(normalizeId),
-      color: required(normalizeColor),
-      size: required(normalizeSize),
-      opacity: optional(normalizeOpacity),
-      x: required(normalizeCoord),
-      y: required(normalizeCoord),
-      x2: optional(normalizeCoord, {
-        defaultValue: function defaultX2(
-          /** @type {RawRecord} */ raw,
-          /** @type {RawRecord} */ normalized,
-        ) {
-          return normalized.x !== undefined ? normalized.x : raw.x;
-        },
-      }),
-      y2: optional(normalizeCoord, {
-        defaultValue: function defaultY2(
-          /** @type {RawRecord} */ raw,
-          /** @type {RawRecord} */ normalized,
-        ) {
-          return normalized.y !== undefined ? normalized.y : raw.y;
-        },
-      }),
-    },
-    update: {
-      tool: required(literal("Straight line")),
-      type: required(literal("update")),
-      id: required(normalizeId),
-      x2: required(normalizeCoord),
-      y2: required(normalizeCoord),
-    },
+    straight: makeLiveShapeCreateSchema("Straight line"),
+    update: makeLiveShapeUpdateSchema("Straight line"),
   },
   Rectangle: {
-    rect: {
-      tool: required(literal("Rectangle")),
-      type: required(literal("rect")),
-      id: required(normalizeId),
-      color: required(normalizeColor),
-      size: required(normalizeSize),
-      opacity: optional(normalizeOpacity),
-      x: required(normalizeCoord),
-      y: required(normalizeCoord),
-      x2: optional(normalizeCoord, {
-        defaultValue: function defaultRectX2(
-          /** @type {RawRecord} */ raw,
-          /** @type {RawRecord} */ normalized,
-        ) {
-          return normalized.x !== undefined ? normalized.x : raw.x;
-        },
-      }),
-      y2: optional(normalizeCoord, {
-        defaultValue: function defaultRectY2(
-          /** @type {RawRecord} */ raw,
-          /** @type {RawRecord} */ normalized,
-        ) {
-          return normalized.y !== undefined ? normalized.y : raw.y;
-        },
-      }),
-    },
-    update: {
-      tool: required(literal("Rectangle")),
-      type: required(literal("update")),
-      id: required(normalizeId),
-      x: required(normalizeCoord),
-      y: required(normalizeCoord),
-      x2: required(normalizeCoord),
-      y2: required(normalizeCoord),
-    },
+    rect: makeLiveShapeCreateSchema("Rectangle"),
+    update: makeLiveShapeUpdateSchema("Rectangle"),
   },
   Ellipse: {
-    ellipse: {
-      tool: required(literal("Ellipse")),
-      type: required(literal("ellipse")),
-      id: required(normalizeId),
-      color: required(normalizeColor),
-      size: required(normalizeSize),
-      opacity: optional(normalizeOpacity),
-      x: required(normalizeCoord),
-      y: required(normalizeCoord),
-      x2: optional(normalizeCoord, {
-        defaultValue: function defaultEllipseX2(
-          /** @type {RawRecord} */ raw,
-          /** @type {RawRecord} */ normalized,
-        ) {
-          return normalized.x !== undefined ? normalized.x : raw.x;
-        },
-      }),
-      y2: optional(normalizeCoord, {
-        defaultValue: function defaultEllipseY2(
-          /** @type {RawRecord} */ raw,
-          /** @type {RawRecord} */ normalized,
-        ) {
-          return normalized.y !== undefined ? normalized.y : raw.y;
-        },
-      }),
-    },
-    update: {
-      tool: required(literal("Ellipse")),
-      type: required(literal("update")),
-      id: required(normalizeId),
-      x: required(normalizeCoord),
-      y: required(normalizeCoord),
-      x2: required(normalizeCoord),
-      y2: required(normalizeCoord),
-    },
+    ellipse: makeLiveShapeCreateSchema("Ellipse"),
+    update: makeLiveShapeUpdateSchema("Ellipse"),
   },
   Text: {
     new: {
@@ -401,85 +392,13 @@ const STORED_ITEM_SCHEMAS = {
     time: optional(normalizeTime),
   },
   "Straight line": {
-    tool: required(literal("Straight line")),
-    type: optional(literal("straight"), { defaultValue: "straight" }),
-    color: required(normalizeColor),
-    size: required(normalizeSize),
-    opacity: optional(normalizeOpacity),
-    x: required(normalizeCoord),
-    y: required(normalizeCoord),
-    x2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredLineX2(
-        /** @type {RawRecord} */ raw,
-        /** @type {RawRecord} */ normalized,
-      ) {
-        return normalized.x !== undefined ? normalized.x : raw.x;
-      },
-    }),
-    y2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredLineY2(
-        /** @type {RawRecord} */ raw,
-        /** @type {RawRecord} */ normalized,
-      ) {
-        return normalized.y !== undefined ? normalized.y : raw.y;
-      },
-    }),
-    transform: optional(normalizeTransform),
-    time: optional(normalizeTime),
+    ...makeStoredShapeSchema("Straight line"),
   },
   Rectangle: {
-    tool: required(literal("Rectangle")),
-    type: optional(literal("rect"), { defaultValue: "rect" }),
-    color: required(normalizeColor),
-    size: required(normalizeSize),
-    opacity: optional(normalizeOpacity),
-    x: required(normalizeCoord),
-    y: required(normalizeCoord),
-    x2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredRectX2(
-        /** @type {RawRecord} */ raw,
-        /** @type {RawRecord} */ normalized,
-      ) {
-        return normalized.x !== undefined ? normalized.x : raw.x;
-      },
-    }),
-    y2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredRectY2(
-        /** @type {RawRecord} */ raw,
-        /** @type {RawRecord} */ normalized,
-      ) {
-        return normalized.y !== undefined ? normalized.y : raw.y;
-      },
-    }),
-    transform: optional(normalizeTransform),
-    time: optional(normalizeTime),
+    ...makeStoredShapeSchema("Rectangle"),
   },
   Ellipse: {
-    tool: required(literal("Ellipse")),
-    type: optional(literal("ellipse"), { defaultValue: "ellipse" }),
-    color: required(normalizeColor),
-    size: required(normalizeSize),
-    opacity: optional(normalizeOpacity),
-    x: required(normalizeCoord),
-    y: required(normalizeCoord),
-    x2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredEllipseX2(
-        /** @type {RawRecord} */ raw,
-        /** @type {RawRecord} */ normalized,
-      ) {
-        return normalized.x !== undefined ? normalized.x : raw.x;
-      },
-    }),
-    y2: optional(normalizeCoord, {
-      defaultValue: function defaultStoredEllipseY2(
-        /** @type {RawRecord} */ raw,
-        /** @type {RawRecord} */ normalized,
-      ) {
-        return normalized.y !== undefined ? normalized.y : raw.y;
-      },
-    }),
-    transform: optional(normalizeTransform),
-    time: optional(normalizeTime),
+    ...makeStoredShapeSchema("Ellipse"),
   },
   Text: {
     tool: required(literal("Text")),

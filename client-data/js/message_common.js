@@ -35,13 +35,15 @@
     DEFAULT_MAX_CHILDREN: 192,
     MAX_ID_LENGTH: 128,
   };
-  var DRAW_TOOL_NAMES = [
-    "Pencil",
-    "Straight line",
-    "Rectangle",
-    "Ellipse",
-    "Text",
-  ];
+  var MessageToolMetadata =
+    typeof module === "object" &&
+    module.exports &&
+    module.require &&
+    require("./message_tool_metadata.js");
+  var DRAW_TOOL_NAMES =
+    MessageToolMetadata && MessageToolMetadata.DRAW_TOOL_NAMES
+      ? MessageToolMetadata.DRAW_TOOL_NAMES
+      : ["Pencil", "Straight line", "Rectangle", "Ellipse", "Text"];
 
   /**
    * @param {unknown} value

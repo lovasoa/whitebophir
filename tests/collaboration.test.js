@@ -98,24 +98,15 @@ module.exports = {
           .executeAsync(function (done) {
             Tools.setColor("#ff0000");
             Tools.setSize(11);
-            Tools.curTool.listeners.press(100, 100, new Event("mousedown"));
-            Tools.curTool.listeners.move(200, 200, new Event("mousemove"));
-            Tools.curTool.listeners.release(200, 200, new Event("mouseup"));
-            Tools.send(
-              {
-                type: "update",
-                x: 1200,
-                y: 900,
-                color: "#ff0000",
-                size: 11,
-              },
-              "Cursor",
-            );
+            Tools.change("Rectangle");
+            Tools.curTool.listeners.press(1100, 800, new Event("mousedown"));
+            Tools.curTool.listeners.move(1300, 1000, new Event("mousemove"));
+            Tools.curTool.listeners.release(1300, 1000, new Event("mouseup"));
             done();
           })
           .window.switchTo(newWindowHandle)
-          .waitForElementVisible("path[d^='M 100 100'][stroke='#ff0000']")
-          .assert.visible("path[d^='M 100 100'][stroke='#ff0000']")
+          .waitForElementVisible("rect[x='1100'][y='800'][stroke='#ff0000']")
+          .assert.visible("rect[x='1100'][y='800'][stroke='#ff0000']")
           .click("#connectedUsersToggle")
           .waitForElementVisible("#connectedUsersPanel")
           .pause(150)

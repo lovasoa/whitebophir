@@ -231,6 +231,22 @@ test("normalizeIncomingMessage defaults shape end coordinates from the starting 
   });
 });
 
+test("normalizeIncomingMessage defaults x2 and y2 from distinct axes", function () {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const normalized = messageValidation.normalizeIncomingMessage({
+    tool: "Rectangle",
+    type: "rect",
+    id: "rect-1",
+    color: "#123456",
+    size: 4,
+    x: 1,
+    y: 42,
+  });
+
+  assert.deepEqual(normalized.value.x2, 1);
+  assert.deepEqual(normalized.value.y2, 42);
+});
+
 test("normalizeIncomingMessage rejects malformed hand batches atomically", function () {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({

@@ -28,6 +28,7 @@
 var nativeFs = require("node:fs"),
   { readFile, rename, unlink, writeFile } = require("node:fs/promises"),
   log = require("./log.js").log,
+  MessageToolMetadata = require("../client-data/js/message_tool_metadata.js"),
   {
     normalizeStoredChildPoint,
     normalizeStoredItem,
@@ -121,31 +122,7 @@ function serializeStoredBoard(board, metadata) {
  * @returns {BoardElem}
  */
 function filterUpdatableFields(tool, data) {
-  switch (tool) {
-    case "Straight line":
-      return {
-        x2: data.x2,
-        y2: data.y2,
-      };
-    case "Rectangle":
-    case "Ellipse":
-      return {
-        x: data.x,
-        y: data.y,
-        x2: data.x2,
-        y2: data.y2,
-      };
-    case "Text":
-      return {
-        txt: data.txt,
-      };
-    case "Hand":
-      return {
-        transform: data.transform,
-      };
-    default:
-      return {};
-  }
+  return MessageToolMetadata.getUpdatableFields(tool, data);
 }
 
 /**

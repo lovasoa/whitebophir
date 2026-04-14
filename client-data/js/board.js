@@ -33,7 +33,7 @@
 /** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
 /** @typedef {import("../../types/app-runtime").ToolPalette} ToolPalette */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
-/** @typedef {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastCursorX?: number, lastCursorY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
+/** @typedef {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastFocusX?: number, lastFocusY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
 
 var Tools = /** @type {AppToolsState} */ ({});
 var MessageCommon = window.WBOMessageCommon;
@@ -576,13 +576,144 @@ function getConnectedUserToolLabel(user) {
  * @param {ConnectedUser} user
  * @returns {boolean}
  */
-function hasConnectedUserCursor(user) {
+function hasConnectedUserFocus(user) {
   return (
-    typeof user.lastCursorX === "number" &&
-    Number.isFinite(user.lastCursorX) &&
-    typeof user.lastCursorY === "number" &&
-    Number.isFinite(user.lastCursorY)
+    typeof user.lastFocusX === "number" &&
+    Number.isFinite(user.lastFocusX) &&
+    typeof user.lastFocusY === "number" &&
+    Number.isFinite(user.lastFocusY)
   );
+}
+
+/**
+ * @param {{minX: number, minY: number, maxX: number, maxY: number} | null} bounds
+ * @returns {{x: number, y: number} | null}
+ */
+function getBoundsCenter(bounds) {
+  if (!bounds) return null;
+  return {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+  };
+}
+
+/**
+ * @param {SVGGraphicsElement} element
+ * @returns {{minX: number, minY: number, maxX: number, maxY: number} | null}
+ */
+function getRenderedElementBounds(element) {
+  if (typeof element.transformedBBox !== "function") return null;
+  var box = element.transformedBBox();
+  /** @type {[number, number][]} */
+  var points = [
+    box.r,
+    [box.r[0] + box.a[0], box.r[1] + box.a[1]],
+    [box.r[0] + box.b[0], box.r[1] + box.b[1]],
+    [box.r[0] + box.a[0] + box.b[0], box.r[1] + box.a[1] + box.b[1]],
+  ];
+  var firstPoint = points[0];
+  if (!firstPoint) return null;
+  return points.reduce(
+    /**
+     * @param {{minX: number, minY: number, maxX: number, maxY: number}} bounds
+     * @param {[number, number]} point
+     */
+    function extend(bounds, point) {
+      return {
+        minX: Math.min(bounds.minX, point[0]),
+        minY: Math.min(bounds.minY, point[1]),
+        maxX: Math.max(bounds.maxX, point[0]),
+        maxY: Math.max(bounds.maxY, point[1]),
+      };
+    },
+    {
+      minX: firstPoint[0],
+      minY: firstPoint[1],
+      maxX: firstPoint[0],
+      maxY: firstPoint[1],
+    },
+  );
+}
+
+/**
+ * @param {string} elementId
+ * @returns {{x: number, y: number} | null}
+ */
+function getRenderedElementCenterById(elementId) {
+  var element = document.getElementById(elementId);
+  if (!(element instanceof SVGGraphicsElement)) return null;
+  return getBoundsCenter(getRenderedElementBounds(element));
+}
+
+/**
+ * @param {BoardMessage} child
+ * @returns {string | null}
+ */
+function getHandChildTargetId(child) {
+  if (child.type === "update") {
+    return typeof child.id === "string" ? child.id : null;
+  }
+  if (child.type === "copy") {
+    return typeof child.newid === "string" ? child.newid : null;
+  }
+  return null;
+}
+
+/**
+ * @param {BoardMessage[]} children
+ * @returns {{x: number, y: number} | null}
+ */
+function getHandBatchFocusPoint(children) {
+  /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
+  var bounds = null;
+  children.forEach(function (child) {
+    var targetId = getHandChildTargetId(child);
+    if (!targetId) return;
+    var element = document.getElementById(targetId);
+    if (!(element instanceof SVGGraphicsElement)) return;
+    var elementBounds = getRenderedElementBounds(element);
+    if (!elementBounds) return;
+    if (!bounds) {
+      bounds = elementBounds;
+      return;
+    }
+    bounds = {
+      minX: Math.min(bounds.minX, elementBounds.minX),
+      minY: Math.min(bounds.minY, elementBounds.minY),
+      maxX: Math.max(bounds.maxX, elementBounds.maxX),
+      maxY: Math.max(bounds.maxY, elementBounds.maxY),
+    };
+  });
+  return getBoundsCenter(bounds);
+}
+
+/**
+ * @param {BoardMessage} message
+ * @returns {{x: number, y: number} | null}
+ */
+function getMessageFocusPoint(message) {
+  if (BoardMessages.hasChildMessages(message)) {
+    if (message.tool === "Hand" && Array.isArray(message._children)) {
+      return getHandBatchFocusPoint(message._children);
+    }
+    return null;
+  }
+
+  if (message.tool === "Cursor" || message.tool === "Pencil") {
+    var pointX = toFiniteCoordinate(message.x);
+    var pointY = toFiniteCoordinate(message.y);
+    if (pointX !== null && pointY !== null) {
+      return { x: pointX, y: pointY };
+    }
+  }
+
+  if (message.tool === "Text" && message.type === "update") {
+    return typeof message.id === "string"
+      ? getRenderedElementCenterById(message.id)
+      : null;
+  }
+
+  return getBoundsCenter(MessageCommon.getEffectiveGeometryBounds(message));
 }
 
 /**
@@ -623,10 +754,10 @@ function markConnectedUserActivity(user) {
  * @returns {void}
  */
 function focusConnectedUser(user) {
-  if (!hasConnectedUserCursor(user)) return;
+  if (!hasConnectedUserFocus(user)) return;
   var scale = Tools.getScale();
-  var x = /** @type {number} */ (user.lastCursorX);
-  var y = /** @type {number} */ (user.lastCursorY);
+  var x = /** @type {number} */ (user.lastFocusX);
+  var y = /** @type {number} */ (user.lastFocusY);
   window.scrollTo(
     Math.max(0, x * scale - window.innerWidth / 2),
     Math.max(0, y * scale - window.innerHeight / 2),
@@ -645,9 +776,9 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
     var row = document.createElement("li");
     row.className = "connected-user-row";
     row.dataset.socketId = user.socketId;
-    row.tabIndex = hasConnectedUserCursor(user) ? 0 : -1;
+    row.tabIndex = hasConnectedUserFocus(user) ? 0 : -1;
     if (isCurrentSocketUser(user)) row.classList.add("connected-user-row-self");
-    if (hasConnectedUserCursor(user)) {
+    if (hasConnectedUserFocus(user)) {
       row.classList.add("connected-user-row-jumpable");
       row.addEventListener("click", function () {
         focusConnectedUser(user);
@@ -756,10 +887,9 @@ Tools.updateConnectedUsersFromActivity =
   ) {
     if (!userId) return;
     var changed = false;
-    var cursorX = toFiniteCoordinate(message.x);
-    var cursorY = toFiniteCoordinate(message.y);
     var cursorSocket =
       typeof message.socket === "string" ? message.socket : null;
+    var focusPoint = getMessageFocusPoint(message);
     var shouldPulse = message.tool !== "Cursor";
     Object.values(Tools.connectedUsers).forEach(function (user) {
       if (user.userId !== userId) return;
@@ -780,13 +910,13 @@ Tools.updateConnectedUsersFromActivity =
         changed = true;
       }
       if (
-        message.tool === "Cursor" &&
-        cursorX !== null &&
-        cursorY !== null &&
-        (cursorSocket === null || cursorSocket === user.socketId)
+        focusPoint &&
+        (message.tool !== "Cursor" ||
+          cursorSocket === null ||
+          cursorSocket === user.socketId)
       ) {
-        user.lastCursorX = cursorX;
-        user.lastCursorY = cursorY;
+        user.lastFocusX = focusPoint.x;
+        user.lastFocusY = focusPoint.y;
         changed = true;
       }
     });
@@ -862,11 +992,11 @@ Tools.connect = function () {
     if (Tools.socket) Tools.socket.emit("getboard", Tools.boardName);
   });
   socket.on("broadcast", function (/** @type {BoardMessage} */ msg) {
-    Tools.updateConnectedUsersFromActivity(
-      typeof msg.userId === "string" ? msg.userId : undefined,
-      msg,
-    );
     handleMessage(msg).finally(function afterload() {
+      Tools.updateConnectedUsersFromActivity(
+        typeof msg.userId === "string" ? msg.userId : undefined,
+        msg,
+      );
       var loadingEl = document.getElementById("loadingMessage");
       if (loadingEl) loadingEl.classList.add("hidden");
     });
