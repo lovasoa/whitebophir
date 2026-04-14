@@ -223,7 +223,7 @@ function defaultCoordinateFromY(raw, normalized) {
  * @returns {FieldSchema}
  */
 function makeLiveShapeCreateSchema(toolName) {
-  const type = MessageToolMetadata.SHAPE_TOOL_TYPES[toolName];
+  const type = MessageToolMetadata.getShapeToolType(toolName);
   if (type === undefined) {
     throw new Error("unsupported shape tool");
   }
@@ -272,7 +272,7 @@ function makeLiveShapeUpdateSchema(toolName) {
  * @returns {FieldSchema}
  */
 function makeStoredShapeSchema(toolName) {
-  const type = MessageToolMetadata.SHAPE_TOOL_TYPES[toolName];
+  const type = MessageToolMetadata.getShapeToolType(toolName);
   if (type === undefined) {
     throw new Error("unsupported shape tool");
   }
@@ -301,10 +301,11 @@ function makeStoredShapeSchema(toolName) {
 function buildLiveShapeSchemas() {
   /** @type {LiveToolSchemas} */
   const shapeSchemas = {};
-  for (const [toolName, typeNameMaybe] of Object.entries(
-    MessageToolMetadata.SHAPE_TOOL_TYPES,
-  )) {
-    const typeName = typeNameMaybe;
+  const shapeTools = MessageToolMetadata.getShapeToolNames();
+  for (let index = 0; index < shapeTools.length; index++) {
+    const toolName = shapeTools[index];
+    if (typeof toolName !== "string") continue;
+    const typeName = MessageToolMetadata.getShapeToolType(toolName);
     if (typeName === undefined) continue;
     shapeSchemas[toolName] = {
       /** @type {FieldSchema} */
@@ -321,7 +322,7 @@ function buildLiveShapeSchemas() {
 function buildStoredShapeSchemas() {
   /** @type {StoredToolSchemas} */
   const shapeSchemas = {};
-  for (const toolName of Object.keys(MessageToolMetadata.SHAPE_TOOL_TYPES)) {
+  for (const toolName of MessageToolMetadata.getShapeToolNames()) {
     shapeSchemas[toolName] = makeStoredShapeSchema(toolName);
   }
   return shapeSchemas;
