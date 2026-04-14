@@ -24,11 +24,11 @@
  * @licend
  */
 
-import { messages as BoardMessages } from "../js/board_transport.js";
+import { messages as BoardMessages } from "../../js/board_transport.js";
 import {
   pointInTransformedBBox,
   transformedBBoxIntersects,
-} from "../js/intersect.js";
+} from "../../js/intersect.js";
 
 (function hand() {
   //Code isolation

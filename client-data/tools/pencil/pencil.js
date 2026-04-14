@@ -24,7 +24,8 @@
  * @licend
  */
 
-import { LIMITS } from "../js/message_common.js";
+import { LIMITS } from "../../js/message_common.js";
+import { wboPencilPoint } from "./wbo_pencil_point.js";
 
 (function () {
   //Code isolation

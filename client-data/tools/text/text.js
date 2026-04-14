@@ -24,7 +24,7 @@
  * @licend
  */
 
-import { truncateText } from "../js/message_common.js";
+import { truncateText } from "../../js/message_common.js";
 
 (function () {
   //Code isolation
