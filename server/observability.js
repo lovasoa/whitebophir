@@ -30,9 +30,11 @@ const {
 } = require("@opentelemetry/sdk-trace-base");
 const { NodeSDK } = require("@opentelemetry/sdk-node");
 const {
+  ATTR_ERROR_TYPE,
   ATTR_HTTP_REQUEST_METHOD,
   ATTR_HTTP_RESPONSE_STATUS_CODE,
   ATTR_HTTP_ROUTE,
+  ATTR_SERVER_ADDRESS,
   ATTR_URL_SCHEME,
   SEMRESATTRS_SERVICE_NAME,
 } = require("@opentelemetry/semantic-conventions");
@@ -195,14 +197,18 @@ const runtimeState = {
   connectedUsers: 0,
 };
 
-const httpRequests = meter.createCounter("wbo_http_requests_total", {
-  description: "Total completed HTTP requests.",
-});
-const httpRequestDuration = meter.createHistogram(
-  "wbo_http_request_duration_ms",
+const httpServerRequestDuration = meter.createHistogram(
+  "http.server.request.duration",
   {
-    description: "HTTP request duration in milliseconds.",
-    unit: "ms",
+    description: "Duration of HTTP server requests.",
+    unit: "s",
+  },
+);
+const httpServerActiveRequests = meter.createUpDownCounter(
+  "http.server.active_requests",
+  {
+    description: "Number of active HTTP server requests.",
+    unit: "{request}",
   },
 );
 const socketEvents = meter.createCounter("wbo_socket_events_total", {
@@ -748,11 +754,34 @@ function emitLog(level, name, fields) {
 
 /**
  * @param {{
+ *   change: 1 | -1,
+ *   method: string,
+ *   scheme: string,
+ *   serverAddress?: string,
+ * }}
+ * request
+ * @returns {void}
+ */
+function changeHttpActiveRequests(request) {
+  /** @type {{[key: string]: string | number | boolean}} */
+  const attributes = {
+    [ATTR_HTTP_REQUEST_METHOD]: request.method,
+    [ATTR_URL_SCHEME]: request.scheme,
+  };
+  if (request.serverAddress) {
+    attributes[ATTR_SERVER_ADDRESS] = request.serverAddress;
+  }
+  httpServerActiveRequests.add(request.change, attributes);
+}
+
+/**
+ * @param {{
  *   method: string,
  *   route?: string,
  *   scheme: string,
  *   statusCode: number,
- *   durationMs: number,
+ *   durationSeconds: number,
+ *   errorType?: string,
  * }}
  * request
  * @returns {void}
@@ -765,8 +794,8 @@ function recordHttpRequest(request) {
     [ATTR_HTTP_RESPONSE_STATUS_CODE]: request.statusCode,
   };
   if (request.route) attributes[ATTR_HTTP_ROUTE] = request.route;
-  httpRequests.add(1, attributes);
-  httpRequestDuration.record(request.durationMs, attributes);
+  if (request.errorType) attributes[ATTR_ERROR_TYPE] = request.errorType;
+  httpServerRequestDuration.record(request.durationSeconds, attributes);
 }
 
 /**
@@ -867,6 +896,7 @@ module.exports = {
   formatReadableLogRecord,
   logger,
   metrics: {
+    changeHttpActiveRequests,
     recordBoardOperation,
     recordHttpRequest,
     recordRejection,

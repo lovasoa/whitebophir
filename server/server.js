@@ -308,6 +308,12 @@ function observeRequest(request, response) {
         },
       })
     : null;
+  metrics.changeHttpActiveRequests({
+    change: 1,
+    method: method,
+    scheme: scheme,
+    serverAddress: serverAddress,
+  });
   let finalized = false;
 
   function finalize() {
@@ -319,7 +325,20 @@ function observeRequest(request, response) {
       function finalizeRequestContext() {
         const statusCode = response.statusCode || 200;
         const durationMs = Date.now() - startedAt;
+        const durationSeconds = durationMs / 1000;
         const routeTemplate = requestRouteTemplate(route);
+        const errorType =
+          requestError instanceof Error
+            ? requestError.name || "Error"
+            : statusCode >= 500
+              ? String(statusCode)
+              : undefined;
+        metrics.changeHttpActiveRequests({
+          change: -1,
+          method: method,
+          scheme: scheme,
+          serverAddress: serverAddress,
+        });
         if (requestSpan) {
           tracing.setSpanAttributes(requestSpan, {
             [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
@@ -336,7 +355,8 @@ function observeRequest(request, response) {
           route: routeTemplate,
           scheme: scheme,
           statusCode: statusCode,
-          durationMs: durationMs,
+          durationSeconds: durationSeconds,
+          errorType: errorType,
         });
         const logTarget = classifyRequestLog(route, statusCode, durationMs);
         if (!logTarget) {
