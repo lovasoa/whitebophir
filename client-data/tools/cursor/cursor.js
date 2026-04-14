@@ -24,11 +24,12 @@
  * @licend
  */
 
-(function () {
-  // Code isolation
-  /** @typedef {{type: "update", x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
-  /** @typedef {{name: string, listeners: {press: () => void, move: typeof handleMarker, release: () => void}, onSizeChange: typeof onSizeChange, draw: typeof draw, mouseCursor: string, icon: string, showMarker: boolean}} CursorTool */
+/** @typedef {{getEffectiveRateLimit: (name: "general") => {periodMs?: number, limit?: number} | null, server_config: {RATE_LIMITS?: {[kind: string]: {periodMs?: number, limit?: number}}}, register: (tool: unknown) => void, addToolListeners: (tool: unknown) => void, getColor: () => string, getSize: () => number, drawAndSend: (msg: {type: string}, tool: unknown) => void, showMarker: boolean | undefined, showMyCursor: boolean | undefined, isIE: boolean, svg: SVGSVGElement | null, curTool: {showMarker?: boolean} | null}} CursorToolRegistry */
+/** @typedef {{type: "update", x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
+/** @typedef {{name: string, listeners: {press: () => void, move: (x: number, y: number) => void, release: () => void}, onSizeChange: (size: number) => void, draw: (message: CursorMessage) => void, mouseCursor: string, icon: string, showMarker: boolean}} CursorTool */
 
+/** @param {CursorToolRegistry} tools */
+export function registerCursorTool(tools) {
   /**
    * @param {unknown} value
    * @param {number} fallback
@@ -44,12 +45,15 @@
    */
   function getMinCursorUpdateIntervalMs() {
     var generalLimit =
-      typeof Tools.getEffectiveRateLimit === "function"
-        ? Tools.getEffectiveRateLimit("general")
-        : (Tools.server_config &&
-            Tools.server_config.RATE_LIMITS &&
-            Tools.server_config.RATE_LIMITS.general) ||
+      typeof tools.getEffectiveRateLimit === "function"
+        ? tools.getEffectiveRateLimit("general")
+        : (tools.server_config &&
+            tools.server_config.RATE_LIMITS &&
+            tools.server_config.RATE_LIMITS.general) ||
           {};
+    if (!generalLimit) {
+      generalLimit = {};
+    }
     return (
       (getPositiveNumber(generalLimit.periodMs, 4096) /
         getPositiveNumber(generalLimit.limit, 192)) *
@@ -94,16 +98,16 @@
     icon: "tools/pencil/icon.svg",
     showMarker: true,
   };
-  Tools.register(cursorTool);
-  Tools.addToolListeners(cursorTool);
+  tools.register(cursorTool);
+  tools.addToolListeners(cursorTool);
 
   /** @type {CursorMessage} */
   var message = {
     type: "update",
     x: 0,
     y: 0,
-    color: Tools.getColor(),
-    size: Tools.getSize(),
+    color: tools.getColor(),
+    size: tools.getSize(),
   };
 
   /**
@@ -114,8 +118,8 @@
     // throttle local cursor updates
     message.x = x;
     message.y = y;
-    message.color = Tools.getColor();
-    message.size = Tools.getSize();
+    message.color = tools.getColor();
+    message.size = tools.getSize();
     updateMarker();
   }
 
@@ -127,15 +131,15 @@
 
   function updateMarker() {
     var activeTool = /** @type {{showMarker?: boolean} | null} */ (
-      Tools.curTool
+      tools.curTool
     );
-    if (!Tools.showMarker || !Tools.showMyCursor) return;
+    if (!tools.showMarker || !tools.showMyCursor) return;
     var cur_time = Date.now();
     if (
       cur_time - lastCursorUpdate > getMinCursorUpdateIntervalMs() &&
       (sending || (activeTool && activeTool.showMarker === true))
     ) {
-      Tools.drawAndSend(message, cursorTool);
+      tools.drawAndSend(message, cursorTool);
       lastCursorUpdate = cur_time;
     } else {
       draw(message);
@@ -143,14 +147,17 @@
   }
 
   function getCursorsLayer() {
-    var existingLayer = Tools.svg.getElementById("cursors");
+    if (!tools.svg) {
+      throw new Error("Cursor: Missing SVG canvas.");
+    }
+    var existingLayer = tools.svg.getElementById("cursors");
     if (existingLayer instanceof SVGGElement) return existingLayer;
     var createdLayer = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "g",
     );
     createdLayer.setAttributeNS(null, "id", "cursors");
-    Tools.svg.appendChild(createdLayer);
+    tools.svg.appendChild(createdLayer);
     return createdLayer;
   }
 
@@ -184,7 +191,7 @@
     var cursor = getCursor("cursor-" + (message.socket || "me"));
     cursor.style.transform =
       "translate(" + message.x + "px, " + message.y + "px)";
-    if (Tools.isIE)
+    if (tools.isIE)
       cursor.setAttributeNS(
         null,
         "transform",
@@ -193,4 +200,10 @@
     cursor.setAttributeNS(null, "fill", message.color);
     cursor.setAttributeNS(null, "r", String(message.size / 2));
   }
-})();
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerCursorTool(
+    /** @type {CursorToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
+  );
+}
