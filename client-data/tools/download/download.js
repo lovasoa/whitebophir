@@ -24,12 +24,16 @@
  * @licend
  */
 
-(function download() {
-  //Code isolation
+/** @typedef {{svg: SVGSVGElement | null, boardName: string, add: (tool: unknown) => void}} DownloadToolRegistry */
 
+/** @param {DownloadToolRegistry} tools */
+export function registerDownloadTool(tools) {
   /** @returns {void} */
   function downloadSVGFile() {
-    var canvasCopy = /** @type {SVGSVGElement} */ (Tools.svg.cloneNode(true));
+    if (!tools.svg) {
+      throw new Error("Download: Missing SVG canvas.");
+    }
+    var canvasCopy = /** @type {SVGSVGElement} */ (tools.svg.cloneNode(true));
     canvasCopy.removeAttribute("style"); // Remove css transform
     var styleNode = document.createElement("style");
 
@@ -58,7 +62,7 @@
     var outerHTML =
       canvasCopy.outerHTML || new XMLSerializer().serializeToString(canvasCopy);
     var blob = new Blob([outerHTML], { type: "image/svg+xml;charset=utf-8" });
-    downloadContent(blob, Tools.boardName + ".svg");
+    downloadContent(blob, tools.boardName + ".svg");
   }
 
   /**
@@ -84,7 +88,7 @@
     }
   }
 
-  Tools.add({
+  tools.add({
     //The new tool
     name: "Download",
     shortcut: "d",
@@ -94,4 +98,10 @@
     onstart: downloadSVGFile,
     mouseCursor: "crosshair",
   });
-})(); //End of code isolation
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerDownloadTool(
+    /** @type {DownloadToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
+  );
+}
