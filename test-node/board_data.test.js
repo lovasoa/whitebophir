@@ -446,3 +446,43 @@ test("BoardData.loadMetadataSync preserves readonly metadata and falls back safe
     });
   });
 });
+
+test("BoardData.save serializes concurrent saves and releases after failure", async function () {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const board = new BoardData("serial-save-board");
+  /** @type {string[]} */
+  const calls = [];
+  let shouldFail = true;
+
+  board._unsafe_save = async function () {
+    calls.push("start");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (shouldFail) {
+      shouldFail = false;
+      calls.push("fail");
+      throw new Error("boom");
+    }
+    calls.push("ok");
+  };
+
+  const firstSave = board.save().then(
+    function () {
+      calls.push("first-resolved");
+    },
+    function () {
+      calls.push("first-rejected");
+    },
+  );
+  const secondSave = board.save().then(function () {
+    calls.push("second-resolved");
+  });
+
+  await Promise.all([firstSave, secondSave]);
+
+  assert.equal(calls[0], "start");
+  assert.equal(calls[1], "fail");
+  assert.equal(calls[2], "start");
+  assert.equal(calls.includes("first-rejected"), true);
+  assert.equal(calls[calls.length - 2], "ok");
+  assert.equal(calls[calls.length - 1], "second-resolved");
+});

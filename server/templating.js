@@ -1,7 +1,6 @@
 const handlebars = require("handlebars");
 const fs = require("node:fs");
 const path = require("node:path");
-const accept_language_parser = require("accept-language-parser");
 const client_config = require("./client_configuration");
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
@@ -31,6 +30,86 @@ handlebars.registerHelper({
  */
 function firstHeaderValue(value) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * @param {string} tag
+ * @returns {string}
+ */
+function canonicalizeLocale(tag) {
+  const trimmed = tag.trim();
+  if (!trimmed || trimmed === "*") return trimmed;
+  try {
+    return new Intl.Locale(trimmed).toString();
+  } catch {
+    return trimmed;
+  }
+}
+
+/**
+ * @param {string} header
+ * @returns {{tag: string, quality: number}[]}
+ */
+function parseAcceptLanguage(header) {
+  return header
+    .split(",")
+    .map(function parsePart(part, index) {
+      const [rawTag, ...rawParams] = part.split(";");
+      const tag = canonicalizeLocale(rawTag || "");
+      if (!tag) return null;
+      let quality = 1;
+      for (const rawParam of rawParams) {
+        const [key, value] = rawParam.split("=");
+        if (key && key.trim() === "q") {
+          const parsed = Number.parseFloat((value || "").trim());
+          quality = Number.isFinite(parsed) ? parsed : 0;
+        }
+      }
+      return { tag, quality, index };
+    })
+    .filter(
+      /**
+       * @param {{tag: string, quality: number, index: number} | null} language
+       * @returns {language is {tag: string, quality: number, index: number}}
+       */
+      function isSupported(language) {
+        return language !== null && language.quality > 0;
+      },
+    )
+    .sort(function compareLanguages(a, b) {
+      if (b.quality !== a.quality) return b.quality - a.quality;
+      return a.index - b.index;
+    })
+    .map(function stripIndex(language) {
+      return { tag: language.tag, quality: language.quality };
+    });
+}
+
+/**
+ * @param {string} locale
+ * @returns {string}
+ */
+function localeBase(locale) {
+  return locale.split("-", 1)[0] || locale;
+}
+
+/**
+ * @param {string[]} supportedLanguages
+ * @param {{tag: string, quality: number}[]} acceptedLanguages
+ * @returns {string | undefined}
+ */
+function pickLanguage(supportedLanguages, acceptedLanguages) {
+  for (const accepted of acceptedLanguages) {
+    const acceptedTag = accepted.tag;
+    if (acceptedTag === "*") return supportedLanguages[0];
+    const acceptedBase = localeBase(acceptedTag);
+    for (const supportedLanguage of supportedLanguages) {
+      if (localeBase(supportedLanguage) === acceptedBase) {
+        return supportedLanguage;
+      }
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -71,18 +150,14 @@ class Template {
       parsedUrl.searchParams.get("lang") ||
       firstHeaderValue(request.headers["accept-language"]) ||
       "";
-    const accept_languages = accept_language_parser.parse(accept_language_str);
-    const opts = { loose: true };
-    let language =
-      accept_language_parser.pick(languages, accept_languages, opts) || "en";
+    const accept_languages = parseAcceptLanguage(accept_language_str);
+    let language = pickLanguage(languages, accept_languages) || "en";
     // The loose matcher returns the first language that partially matches, so we need to
     // check if the preferred language is supported to return it
     if (accept_languages.length > 0) {
       const preferred = accept_languages[0];
       if (preferred) {
-        const preferred_language = preferred.region
-          ? preferred.code + "-" + preferred.region
-          : preferred.code;
+        const preferred_language = preferred.tag;
         if (languages.includes(preferred_language)) {
           language = preferred_language;
         }

@@ -39,3 +39,47 @@ test("Template.parameters uses the first forwarded host and proto values", async
 
   assert.equal(parameters.baseUrl, "https://example.com/prefix/");
 });
+
+test("Template.parameters prefers an exact region match over a loose base-language match", async function () {
+  const template = await createTemplate();
+  const request = {
+    url: "/boards/demo",
+    headers: {
+      "accept-language": "zh-TW,zh;q=0.9,en;q=0.8",
+    },
+    socket: { encrypted: false },
+  };
+
+  const parameters = template.parameters(
+    new URL("http://wbo/boards/demo"),
+    /** @type {import("http").IncomingMessage} */ (
+      /** @type {unknown} */ (request)
+    ),
+    false,
+    {},
+  );
+
+  assert.equal(parameters.language, "zh-TW");
+});
+
+test("Template.parameters falls back loosely by base language when region is unsupported", async function () {
+  const template = await createTemplate();
+  const request = {
+    url: "/boards/demo",
+    headers: {
+      "accept-language": "fr-CA,fr;q=0.9,en;q=0.8",
+    },
+    socket: { encrypted: false },
+  };
+
+  const parameters = template.parameters(
+    new URL("http://wbo/boards/demo"),
+    /** @type {import("http").IncomingMessage} */ (
+      /** @type {unknown} */ (request)
+    ),
+    false,
+    {},
+  );
+
+  assert.equal(parameters.language, "fr");
+});

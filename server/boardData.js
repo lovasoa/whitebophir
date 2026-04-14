@@ -35,8 +35,28 @@ var nativeFs = require("node:fs"),
   } = require("./message_validation.js"),
   MessageCommon = require("../client-data/js/message_common.js"),
   path = require("node:path"),
-  config = require("./configuration.js"),
-  Mutex = require("async-mutex").Mutex;
+  config = require("./configuration.js");
+
+class SerialTaskQueue {
+  constructor() {
+    this.lastTask = Promise.resolve();
+  }
+
+  /**
+   * @template T
+   * @param {() => Promise<T>} task
+   * @returns {Promise<T>}
+   */
+  runExclusive(task) {
+    const runTask = () => task();
+    const result = this.lastTask.then(runTask, runTask);
+    this.lastTask = result.then(
+      function clearTask() {},
+      function swallowTaskError() {},
+    );
+    return result;
+  }
+}
 
 const BOARD_METADATA_KEY = "__wbo_meta__";
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds */
@@ -141,7 +161,7 @@ class BoardData {
     this.file = boardFilePath(name);
     this.lastSaveDate = Date.now();
     this.users = new Set();
-    this.saveMutex = new Mutex();
+    this.saveMutex = new SerialTaskQueue();
     this.localBoundsCache = new Map();
   }
 
