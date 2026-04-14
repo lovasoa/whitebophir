@@ -49,6 +49,7 @@
     "url": "http://github.com/lovasoa/whitebophir.git"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.12",
     "@playwright/test": "^1.59.1",
     "@types/node": "^25.6.0",
     "prettier": "^3.1.0",
