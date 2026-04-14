@@ -4,8 +4,8 @@
   /** @type {any} */ (root).WBOMessageToolMetadata = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   /**
-   * @typedef {"Pencil"|"Straight line"|"Rectangle"|"Ellipse"|"Text"|"Hand"|"Cursor"|"Eraser"|"Clear"} ToolName
-   * @typedef {Record<ToolName, string[]>} UpdatableFieldMap
+   * @typedef {string} ToolName
+   * @typedef {Record<string, string[]>} UpdatableFieldMap
 
    * @typedef {Record<string, string>} ShapeTools
    */
@@ -38,7 +38,7 @@
   };
 
   /**
-   * @param {keyof UpdatableFieldMap} toolName
+   * @param {string} toolName
    * @returns {string[]}
    */
   function getUpdatableFieldNames(toolName) {
@@ -50,10 +50,7 @@
    * @returns {boolean}
    */
   function isShapeTool(toolName) {
-    return Object.prototype.hasOwnProperty.call(
-      SHAPE_TOOL_TYPES,
-      toolName,
-    );
+    return Object.prototype.hasOwnProperty.call(SHAPE_TOOL_TYPES, toolName);
   }
 
   /**
@@ -75,11 +72,10 @@
    */
   function getUpdatableFields(toolName, data) {
     const updatable = {};
-    var fields = getUpdatableFieldNames(
-      /** @type {keyof UpdatableFieldMap} */ (toolName),
-    );
+    var fields = getUpdatableFieldNames(toolName);
     for (var index = 0; index < fields.length; index++) {
       var field = fields[index];
+      if (field === undefined) continue;
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         updatable[field] = data[field];
       }
