@@ -35,6 +35,7 @@ Notes:
 
 - `npm test` expects Playwright Chromium to be installed. Run `npx playwright install chromium` if needed.
 - `npm test` needs an environment that allows local networking and browser/driver startup. Run them unsandboxed.
+- In `playwright/tests`, prefer short deterministic scenarios that assert our actual socket and persistence guarantees, use the shared test server env overrides instead of production defaults when timing matters, and wait on authoritative app state rather than fixed delays or incidental peer DOM timing so tests stay fast and CI-reliable.
 
 ## Formatting
 
