@@ -22,8 +22,7 @@
   "exclude": [
     "node_modules",
     "server-data",
-    "tests",
-    "nightwatch.conf.js",
+    "playwright",
     "scripts/benchmark-server.js",
     "client-data/js/path-data-polyfill.js"
   ]

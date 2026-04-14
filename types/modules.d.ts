@@ -1,5 +1,3 @@
-declare module "selenium-server";
-declare module "chromedriver";
 declare module "jsonwebtoken";
 declare module "serve-static";
 declare module "accept-language-parser" {

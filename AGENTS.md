@@ -15,25 +15,25 @@
 - Board persistence and normalization on load/save: [server/boardData.js](./server/boardData.js)
 - Message validation on the server: [server/message_validation.js](./server/message_validation.js)
 - Shared message normalization helpers: [client-data/js/message_common.js](./client-data/js/message_common.js)
-- Browser integration tests: files under [tests](./tests)
+- Browser integration tests: files under [playwright/tests](./playwright/tests)
 - Node/unit-style tests: [test-node/rate_limits.test.js](./test-node/rate_limits.test.js)
-- Browser test runner config: [nightwatch.conf.js](./nightwatch.conf.js)
+- Browser test runner config: [playwright.config.ts](./playwright.config.ts)
 
 ## Test Commands
 
 Run these before opening a PR:
 
 - Focused Node suite: `node --test test-node/*.test.js`
-- Focused browser suite: `WBO_SILENT=true nightwatch tests/<file>.test.js --testcase "<name>"`
+- Focused browser suite: `npm run test:pw -- --project=chromium playwright/tests/<file>.spec.ts`
 - Server benchmark: `npm run bench`
   Run this before and after a change when you suspect it may have a performance impact.
-- Full local suite: `npm test`: This runs the Node tests, then all Nightwatch browser tests in `tests/`, then `prettier-check`.
+- Full local suite: `npm test`: This runs the Node tests, then the Playwright browser tests, then `prettier-check`.
 - Auto-format: `npm run prettier`
   - Rules live in [.prettierrc](./.prettierrc); ignored paths are in [.prettierignore](./.prettierignore).
 
 Notes:
 
-- `npm test` expects Firefox + `geckodriver` via Nightwatch. See [nightwatch.conf.js](./nightwatch.conf.js).
+- `npm test` expects Playwright Chromium to be installed. Run `npx playwright install chromium` if needed.
 - `npm test` needs an environment that allows local networking and browser/driver startup. Run them unsandboxed.
 
 ## Formatting
@@ -45,4 +45,4 @@ Notes:
 
 - If you touch message shapes or drawing payloads, update both [server/message_validation.js](./server/message_validation.js) and [client-data/js/message_common.js](./client-data/js/message_common.js), then rerun the Node suite.
 - If you touch board persistence or replay behavior, read [server/boardData.js](./server/boardData.js) and rerun `node --test test-node/rate_limits.test.js` plus `npm test`.
-- If you touch UI tools, start in the relevant file under [client-data/tools](./client-data/tools/) and verify through the Nightwatch integration tests.
+- If you touch UI tools, start in the relevant file under [client-data/tools](./client-data/tools/) and verify through the Playwright browser tests.
