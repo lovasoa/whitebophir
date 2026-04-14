@@ -52,6 +52,15 @@ const DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS = parseRateLimitProfileEnv(
   },
 );
 
+const DEFAULT_GENERAL_RATE_LIMITS = parseRateLimitProfileEnv(
+  "WBO_MAX_EMIT_COUNT",
+  {
+    limit: 250,
+    periodMs: 5 * 1000,
+    overrides: {},
+  },
+);
+
 module.exports = {
   /** Port on which the application will listen */
   PORT: parseIntegerEnv("PORT", 8080),
@@ -83,14 +92,13 @@ module.exports = {
   /** Maximum value for any x or y on the board */
   MAX_BOARD_SIZE: parseIntegerEnv("WBO_MAX_BOARD_SIZE", 65536),
 
-  /** General socket write limit. This uses a fixed window:
-      the first write starts a window, every write in that window increments the counter,
-      and the counter resets completely once WBO_MAX_EMIT_COUNT_PERIOD has elapsed.
-      This is enforced per socket connection and each broadcast event costs exactly 1. */
-  MAX_EMIT_COUNT: parseIntegerEnv("WBO_MAX_EMIT_COUNT", 250),
-
-  /** Duration of the fixed general write window in milliseconds. */
-  MAX_EMIT_COUNT_PERIOD: parseIntegerEnv("WBO_MAX_EMIT_COUNT_PERIOD", 5000),
+  /** General socket write limits.
+      Use WBO_MAX_EMIT_COUNT with compact profiles such as `*:250/5s anonymous:125/5s`.
+      Each profile entry is `board:limit/period`, `*` is the default, and every board keeps one counter per socket connection.
+      Every broadcast event costs exactly 1 regardless of tool.
+      This is a fixed window: the first write starts the window, every write increments the counter,
+      and the counter resets completely once the configured period elapses. */
+  GENERAL_RATE_LIMITS: DEFAULT_GENERAL_RATE_LIMITS,
 
   /** Destructive per-IP fixed-window limits.
       Use WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP with compact profiles such as `*:190/60s anonymous:95/60s`.

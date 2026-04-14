@@ -178,9 +178,9 @@ You can see a list of these variables in [`configuration.js`](./server/configura
 Some important environment variables are :
 
 - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
-- `WBO_MAX_EMIT_COUNT` : the maximum number of messages that a client can send per unit of time. Increase this value if you want smoother drawings, at the expense of being susceptible to denial of service attacks if your server does not have enough processing power. By default, the units of this quantity are messages per 4 seconds, and the default value is `192`.
-- `WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP` : the maximum number of delete-like actions (`delete`, `clear`, and batched child deletes) accepted from one resolved client IP during `WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS`. The default is `100`.
-- `WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS` : the destructive-action rate-limit window in milliseconds. The default is `60000`.
+- `WBO_MAX_EMIT_COUNT` : the general socket write limit profile. Use compact entries such as `*:250/5s anonymous:125/5s`. Increase this if you want smoother drawings, at the expense of making denial-of-service bursts cheaper for clients. The default is `*:250/5s`.
+- `WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP` : the constructive per-IP write limit profile. Use compact entries such as `*:40/10s anonymous:20/10s`.
+- `WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP` : the destructive per-IP write limit profile. Use compact entries such as `*:190/60s anonymous:95/60s`.
 - `WBO_IP_SOURCE` : which request attribute to trust for client IP based limits and logs. Supports `remoteAddress`, `X-Forwarded-For`, `Forwarded`, or a custom header such as `CF-Connecting-IP`. The default is `remoteAddress`.
 - `AUTH_SECRET_KEY` : If you would like to authenticate your boards using jwt, this declares the secret key.
 

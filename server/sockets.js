@@ -605,10 +605,10 @@ function getEffectiveRateLimitConfig(kind, boardName) {
         boardName,
       );
     default:
-      return {
-        limit: config.MAX_EMIT_COUNT,
-        periodMs: config.MAX_EMIT_COUNT_PERIOD,
-      };
+      return getEffectiveRateLimitDefinition(
+        config.GENERAL_RATE_LIMITS,
+        boardName,
+      );
   }
 }
 

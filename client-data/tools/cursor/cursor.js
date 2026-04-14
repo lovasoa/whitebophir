@@ -40,6 +40,24 @@
   }
 
   /**
+   * @returns {number}
+   */
+  function getMinCursorUpdateIntervalMs() {
+    var generalLimit =
+      typeof Tools.getEffectiveRateLimit === "function"
+        ? Tools.getEffectiveRateLimit("general")
+        : (Tools.server_config &&
+            Tools.server_config.RATE_LIMITS &&
+            Tools.server_config.RATE_LIMITS.general) ||
+          {};
+    return (
+      (getPositiveNumber(generalLimit.periodMs, 4096) /
+        getPositiveNumber(generalLimit.limit, 192)) *
+      2
+    );
+  }
+
+  /**
    * @param {Element | null} element
    * @returns {element is SVGCircleElement}
    */
@@ -53,11 +71,6 @@
   }
 
   // Allocate half of the maximum server updates to cursor updates
-  var MIN_CURSOR_UPDATES_INTERVAL_MS =
-    (getPositiveNumber(Tools.server_config.MAX_EMIT_COUNT_PERIOD, 4096) /
-      getPositiveNumber(Tools.server_config.MAX_EMIT_COUNT, 192)) *
-    2;
-
   var CURSOR_DELETE_AFTER_MS = 1000 * 5;
 
   var lastCursorUpdate = 0;
@@ -119,7 +132,7 @@
     if (!Tools.showMarker || !Tools.showMyCursor) return;
     var cur_time = Date.now();
     if (
-      cur_time - lastCursorUpdate > MIN_CURSOR_UPDATES_INTERVAL_MS &&
+      cur_time - lastCursorUpdate > getMinCursorUpdateIntervalMs() &&
       (sending || (activeTool && activeTool.showMarker === true))
     ) {
       Tools.drawAndSend(message, cursorTool);

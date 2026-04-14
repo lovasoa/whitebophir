@@ -116,7 +116,14 @@ export type ColorPreset = {
 
 export type ServerConfig = {
   RATE_LIMITS?: {
-    general?: { limit?: number; periodMs?: number };
+    general?: {
+      limit?: number;
+      anonymousLimit?: number;
+      periodMs?: number;
+      overrides?: {
+        [boardName: string]: { limit?: number; periodMs?: number };
+      };
+    };
     constructive?: {
       limit?: number;
       anonymousLimit?: number;
@@ -140,8 +147,6 @@ export type ServerConfig = {
   BLOCKED_SELECTION_BUTTONS?: number[] | string[];
   MAX_CHILDREN?: number;
   MAX_BOARD_SIZE?: number;
-  MAX_EMIT_COUNT?: number;
-  MAX_EMIT_COUNT_PERIOD?: number;
   AUTO_FINGER_WHITEOUT?: boolean;
 };
 

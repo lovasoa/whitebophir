@@ -466,8 +466,12 @@ function createHarness() {
     canWrite: true,
     sentMessages: [],
     server_config: {
-      MAX_EMIT_COUNT_PERIOD: 1000,
-      MAX_EMIT_COUNT: 10,
+      RATE_LIMITS: {
+        general: {
+          limit: 10,
+          periodMs: 1000,
+        },
+      },
       AUTO_FINGER_WHITEOUT: false,
       BLOCKED_SELECTION_BUTTONS: [],
     },

@@ -31,16 +31,39 @@
   /** @typedef {PencilLineData | PencilChildData | {type: "endline"} | {type?: string, id?: string, color?: string, size?: number, opacity?: number, parent?: string, x?: number, y?: number}} PencilMessage */
   /** @typedef {SVGPathElement & {id: string}} PencilLine */
 
+  /**
+   * @param {unknown} value
+   * @param {number} fallback
+   * @returns {number}
+   */
+  function getPositiveNumber(value, fallback) {
+    var number = Number(value);
+    return number > 0 ? number : fallback;
+  }
+
+  /**
+   * @returns {number}
+   */
+  function getMinPencilIntervalMs() {
+    var generalLimit =
+      typeof Tools.getEffectiveRateLimit === "function"
+        ? Tools.getEffectiveRateLimit("general")
+        : (Tools.server_config &&
+            Tools.server_config.RATE_LIMITS &&
+            Tools.server_config.RATE_LIMITS.general) ||
+          {};
+    return (
+      getPositiveNumber(generalLimit.periodMs, 4096) /
+      getPositiveNumber(generalLimit.limit, 192)
+    );
+  }
+
   // Allocate the full maximum server update rate to pencil messages.
   // This feels a bit risky in terms of dropped messages, but any less
   // gives terrible results with the default parameters.  In practice it
   // seems to work, either because writing tends to happen in bursts, or
   // maybe because the messages are sent when the time interval is *greater*
   // than this?
-  var MIN_PENCIL_INTERVAL_MS =
-    (Number(Tools.server_config.MAX_EMIT_COUNT_PERIOD) || 4096) /
-    (Number(Tools.server_config.MAX_EMIT_COUNT) || 192);
-
   var AUTO_FINGER_WHITEOUT = Tools.server_config.AUTO_FINGER_WHITEOUT === true;
   var DEFAULT_MAX_PENCIL_CHILDREN =
     typeof MessageCommon === "object" &&
@@ -156,7 +179,7 @@
 		This allows the animation to be smother*/
     if (
       curLineId !== "" &&
-      (!hasSentPoint || performance.now() - lastTime > MIN_PENCIL_INTERVAL_MS)
+      (!hasSentPoint || performance.now() - lastTime > getMinPencilIntervalMs())
     ) {
       Tools.drawAndSend(new PointMessage(x, y));
       currentLineChildCount += 1;

@@ -26,10 +26,11 @@ test("configuration provides sane default rate-limit ordering", function () {
       config.ANONYMOUS_MAX_DESTRUCTIVE_ACTIONS_PER_IP,
       Math.floor(config.MAX_DESTRUCTIVE_ACTIONS_PER_IP / 2),
     );
-    assert.ok(config.MAX_EMIT_COUNT > 0);
-    assert.ok(config.MAX_EMIT_COUNT_PERIOD > 0);
+    assert.ok(config.GENERAL_RATE_LIMITS.limit > 0);
+    assert.ok(config.GENERAL_RATE_LIMITS.periodMs > 0);
 
-    const emitRate = config.MAX_EMIT_COUNT / config.MAX_EMIT_COUNT_PERIOD;
+    const emitRate =
+      config.GENERAL_RATE_LIMITS.limit / config.GENERAL_RATE_LIMITS.periodMs;
     const constructiveRate =
       config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP /
       config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS;
@@ -66,12 +67,23 @@ test("configuration rejects trust proxy hops with incompatible ip sources", func
 test("configuration parses compact rate-limit profiles", function () {
   return withEnv(
     {
+      WBO_MAX_EMIT_COUNT: "*:300/6s anonymous:150/6s",
       WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:240/60s anonymous:120/60s",
       WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:180/2m anonymous:90/45s",
     },
     function () {
       const config = require(CONFIG_PATH);
 
+      assert.deepEqual(config.GENERAL_RATE_LIMITS, {
+        limit: 300,
+        periodMs: 6_000,
+        overrides: {
+          anonymous: {
+            limit: 150,
+            periodMs: 6_000,
+          },
+        },
+      });
       assert.deepEqual(config.CONSTRUCTIVE_ACTION_RATE_LIMITS, {
         limit: 240,
         periodMs: 60_000,
@@ -99,10 +111,16 @@ test("configuration parses compact rate-limit profiles", function () {
 test("compact rate-limit profiles do not invent board overrides", function () {
   return withEnv(
     {
+      WBO_MAX_EMIT_COUNT: "*:300/6s",
       WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:240/60s",
     },
     function () {
       const config = require(CONFIG_PATH);
+      assert.deepEqual(config.GENERAL_RATE_LIMITS, {
+        limit: 300,
+        periodMs: 6_000,
+        overrides: {},
+      });
       assert.deepEqual(config.CONSTRUCTIVE_ACTION_RATE_LIMITS, {
         limit: 240,
         periodMs: 60_000,
@@ -116,8 +134,7 @@ test("general rate limit closes the socket when exceeded", async function () {
   await withEnv(
     {
       WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "0",
-      WBO_MAX_EMIT_COUNT_PERIOD: "4096",
+      WBO_MAX_EMIT_COUNT: "*:0/4096ms",
     },
     async function () {
       const sockets = require(SOCKETS_PATH);
@@ -142,8 +159,7 @@ test("destructive per-IP rate limit closes the socket when exceeded", async func
   await withEnv(
     {
       WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "10",
-      WBO_MAX_EMIT_COUNT_PERIOD: "4096",
+      WBO_MAX_EMIT_COUNT: "*:10/4096ms",
       WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:0/10s",
     },
     async function () {
@@ -181,8 +197,7 @@ test("constructive per-IP rate limit closes the socket when exceeded", async fun
   await withEnv(
     {
       WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "10",
-      WBO_MAX_EMIT_COUNT_PERIOD: "4096",
+      WBO_MAX_EMIT_COUNT: "*:10/4096ms",
       WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:0/10s",
     },
     async function () {
@@ -226,7 +241,7 @@ test("missing configured IP source falls back without disconnecting", async func
   await withEnv(
     {
       WBO_IP_SOURCE: "X-Forwarded-For",
-      WBO_MAX_EMIT_COUNT: "10",
+      WBO_MAX_EMIT_COUNT: "*:10/5s",
       WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:10/60s anonymous:5/60s",
     },
     async function () {

@@ -191,23 +191,10 @@ Tools.getRateLimitDefinition = function getRateLimitDefinition(kind) {
   var configured = Tools.server_config.RATE_LIMITS || {};
   if (configured && configured[kind]) return configured[kind];
 
-  if (kind === "constructive") {
-    return {
-      limit: 0,
-      anonymousLimit: 0,
-      periodMs: 0,
-    };
-  }
-  if (kind === "destructive") {
-    return {
-      limit: 0,
-      anonymousLimit: 0,
-      periodMs: 0,
-    };
-  }
   return {
-    limit: Number(Tools.server_config.MAX_EMIT_COUNT) || 0,
-    periodMs: Number(Tools.server_config.MAX_EMIT_COUNT_PERIOD) || 0,
+    limit: 0,
+    anonymousLimit: 0,
+    periodMs: 0,
   };
 };
 

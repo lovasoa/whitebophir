@@ -3,13 +3,8 @@ const config = require("./configuration");
 /** Settings that should be handed through to the clients  */
 module.exports = {
   MAX_BOARD_SIZE: config.MAX_BOARD_SIZE,
-  MAX_EMIT_COUNT: config.MAX_EMIT_COUNT,
-  MAX_EMIT_COUNT_PERIOD: config.MAX_EMIT_COUNT_PERIOD,
   RATE_LIMITS: {
-    general: {
-      limit: config.MAX_EMIT_COUNT,
-      periodMs: config.MAX_EMIT_COUNT_PERIOD,
-    },
+    general: config.GENERAL_RATE_LIMITS,
     constructive: config.CONSTRUCTIVE_ACTION_RATE_LIMITS,
     destructive: config.DESTRUCTIVE_ACTION_RATE_LIMITS,
   },
