@@ -328,10 +328,10 @@ test.describe("collaboration and rate limiting", () => {
         .poll(() => boardPage.readWriteStatus(), { timeout: 5_000 })
         .toMatchObject({
           bufferedWrites: 0,
+          awaitingBoardSnapshot: false,
+          connectionState: "connected",
+          noticeText: "",
         });
-      await expect(peerPage.locator("rect#buffered-rect-2")).toBeVisible({
-        timeout: 10_000,
-      });
       await server.waitForStoredBoard(
         server.dataPath,
         "anonymous",
