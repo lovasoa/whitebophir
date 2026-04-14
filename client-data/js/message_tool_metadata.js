@@ -5,36 +5,67 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   /**
    * @typedef {string} ToolName
+   * @typedef {{shapeType?: string, updatableFields: string[], draw?: boolean}} ToolMetadata
+   * @typedef {Record<string, ToolMetadata>} ToolMetadataMap
    * @typedef {Record<string, string[]>} UpdatableFieldMap
-
    * @typedef {Record<string, string>} ShapeTools
    */
 
-  /** @type {string[]} */
-  var DRAW_TOOL_NAMES = [
-    "Pencil",
-    "Straight line",
-    "Rectangle",
-    "Ellipse",
-    "Text",
-  ];
-  /** @type {ShapeTools} */
-  var SHAPE_TOOL_TYPES = {
-    "Straight line": "straight",
-    Rectangle: "rect",
-    Ellipse: "ellipse",
+  /** @type {ToolMetadataMap} */
+  var TOOL_METADATA = Object.create(null);
+  TOOL_METADATA["Pencil"] = {
+    updatableFields: [],
+    draw: true,
   };
+  TOOL_METADATA["Straight line"] = {
+    shapeType: "straight",
+    updatableFields: ["x2", "y2"],
+    draw: true,
+  };
+  TOOL_METADATA["Rectangle"] = {
+    shapeType: "rect",
+    updatableFields: ["x", "y", "x2", "y2"],
+    draw: true,
+  };
+  TOOL_METADATA["Ellipse"] = {
+    shapeType: "ellipse",
+    updatableFields: ["x", "y", "x2", "y2"],
+    draw: true,
+  };
+  TOOL_METADATA["Text"] = {
+    updatableFields: ["txt"],
+    draw: true,
+  };
+  TOOL_METADATA["Hand"] = {
+    updatableFields: ["transform"],
+  };
+  TOOL_METADATA["Cursor"] = {
+    updatableFields: [],
+  };
+  TOOL_METADATA["Eraser"] = {
+    updatableFields: [],
+  };
+  TOOL_METADATA["Clear"] = {
+    updatableFields: [],
+  };
+
+  /** @type {string[]} */
+  var DRAW_TOOL_NAMES = [];
+  /** @type {ShapeTools} */
+  var SHAPE_TOOL_TYPES = Object.create(null);
   /** @type {UpdatableFieldMap} */
   var TOOL_UPDATE_FIELDS = Object.create(null);
-  TOOL_UPDATE_FIELDS["Straight line"] = ["x2", "y2"];
-  TOOL_UPDATE_FIELDS["Rectangle"] = ["x", "y", "x2", "y2"];
-  TOOL_UPDATE_FIELDS["Ellipse"] = ["x", "y", "x2", "y2"];
-  TOOL_UPDATE_FIELDS["Text"] = ["txt"];
-  TOOL_UPDATE_FIELDS["Hand"] = ["transform"];
-  TOOL_UPDATE_FIELDS["Pencil"] = [];
-  TOOL_UPDATE_FIELDS["Cursor"] = [];
-  TOOL_UPDATE_FIELDS["Eraser"] = [];
-  TOOL_UPDATE_FIELDS["Clear"] = [];
+  for (var toolName in TOOL_METADATA) {
+    var metadata = TOOL_METADATA[toolName];
+    if (metadata === undefined) continue;
+    TOOL_UPDATE_FIELDS[toolName] = metadata.updatableFields;
+    if (metadata.draw === true) {
+      DRAW_TOOL_NAMES.push(toolName);
+    }
+    if (metadata.shapeType !== undefined) {
+      SHAPE_TOOL_TYPES[toolName] = metadata.shapeType;
+    }
+  }
 
   /**
    * @param {string | undefined} toolName
