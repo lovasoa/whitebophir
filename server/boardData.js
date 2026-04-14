@@ -818,6 +818,7 @@ class BoardData {
         attributes: boardTraceAttributes(this.name, "save"),
       },
       async () => {
+        const startedAt = Date.now();
         this.lastSaveDate = Date.now();
         this.clean();
         var file = this.file;
@@ -834,6 +835,11 @@ class BoardData {
               }),
             );
             metrics.recordBoardOperation("save", "removed_empty");
+            metrics.recordBoardOperationDuration(
+              "save",
+              "removed_empty",
+              (Date.now() - startedAt) / 1000,
+            );
           } catch (err) {
             if (errorCode(err) !== "ENOENT") {
               // If the file already wasn't saved, this is not an error
@@ -845,6 +851,11 @@ class BoardData {
                 error: err,
               });
               metrics.recordBoardOperation("save", "error");
+              metrics.recordBoardOperationDuration(
+                "save",
+                "error",
+                (Date.now() - startedAt) / 1000,
+              );
             }
           }
         } else {
@@ -865,6 +876,11 @@ class BoardData {
               items: Object.keys(this.board).length,
             });
             metrics.recordBoardOperation("save", "success");
+            metrics.recordBoardOperationDuration(
+              "save",
+              "success",
+              (Date.now() - startedAt) / 1000,
+            );
           } catch (err) {
             tracing.recordActiveSpanError(err, {
               "wbo.board.result": "error",
@@ -875,6 +891,11 @@ class BoardData {
               "file.path": tmp_file,
             });
             metrics.recordBoardOperation("save", "error");
+            metrics.recordBoardOperationDuration(
+              "save",
+              "error",
+              (Date.now() - startedAt) / 1000,
+            );
             return;
           }
         }
@@ -930,6 +951,7 @@ class BoardData {
         attributes: boardTraceAttributes(name, "load"),
       },
       async function loadBoardData() {
+        const startedAt = Date.now();
         var boardData = new BoardData(name);
         /** @type {string | undefined} */
         var data;
@@ -950,6 +972,11 @@ class BoardData {
             }),
           );
           metrics.recordBoardOperation("load", "success");
+          metrics.recordBoardOperationDuration(
+            "load",
+            "success",
+            (Date.now() - startedAt) / 1000,
+          );
         } catch (e) {
           // If the file doesn't exist, this is not an error
           if (errorCode(e) === "ENOENT") {
@@ -959,6 +986,11 @@ class BoardData {
               }),
             );
             metrics.recordBoardOperation("load", "empty");
+            metrics.recordBoardOperationDuration(
+              "load",
+              "empty",
+              (Date.now() - startedAt) / 1000,
+            );
           } else {
             tracing.recordActiveSpanError(e, {
               "wbo.board.result": "error",
@@ -968,6 +1000,11 @@ class BoardData {
               error: e,
             });
             metrics.recordBoardOperation("load", "error");
+            metrics.recordBoardOperationDuration(
+              "load",
+              "error",
+              (Date.now() - startedAt) / 1000,
+            );
           }
           boardData.board = {};
           const backupData = data;

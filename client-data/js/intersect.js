@@ -167,10 +167,14 @@ if (
     };
   };
 
+  /** @param {number} x
+   * @param {number} y
+   * @returns {boolean} */
   SVGGraphicsElement.prototype.transformedBBoxContains = function (x, y) {
     return pointInTransformedBBox([x, y], this.transformedBBox());
   };
 
+  /** @param {TransformedBBox} bbox */
   SVGGraphicsElement.prototype.transformedBBoxIntersects = function (bbox) {
     return transformedBBoxIntersects(this.transformedBBox(), bbox);
   };

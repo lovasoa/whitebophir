@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 
+// @ts-ignore
 const nodeRequire = createRequire(import.meta.url);
 
 /**

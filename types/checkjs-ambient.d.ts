@@ -4,6 +4,12 @@ export {};
 declare global {
   const io: any;
   const turnstile: any;
+  var Tools: import("../types/app-runtime").AppToolsState & {
+    [name: string]: any;
+  };
+  function messageForTool(
+    message: import("../types/app-runtime").BoardMessage,
+  ): void;
   type TransformedBBox = {
     r: [number, number];
     a: [number, number];
@@ -36,6 +42,8 @@ declare global {
 
   interface Window {
     WBOMessageCommon: typeof import("../client-data/js/message_common.js");
+    Tools: typeof Tools;
+    messageForTool: typeof messageForTool;
     WBOBoardPageState: typeof import("../client-data/js/board_page_state.js");
     WBOBoardTransport: typeof import("../client-data/js/board_transport.js");
     WBOBoardState: typeof import("../client-data/js/board_page_state.js")["state"];

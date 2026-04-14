@@ -414,7 +414,7 @@ function createHarness() {
       callback(globalAny.Tools.clock?.now || 0);
     }, 0);
   };
-  globalAny.window.cancelAnimationFrame = function (id) {
+  globalAny.window.cancelAnimationFrame = function (/** @type {number} */ id) {
     globalAny.clearTimeout(id);
   };
   globalAny.requestAnimationFrame = globalAny.window.requestAnimationFrame;
@@ -999,7 +999,7 @@ test("Hand selector sends a final transform on quick release", async function ()
   const harness = createHarness();
   const handTool = await harness.loadTool("Hand");
 
-  const rect = global.Tools.createSVGElement("rect");
+  const rect = globalAny.Tools.createSVGElement("rect");
   rect.id = "seed-rect";
   rect.x.baseVal.value = 100;
   rect.y.baseVal.value = 100;
@@ -1022,9 +1022,9 @@ test("Hand selector sends a final transform on quick release", async function ()
     target: rect,
   });
 
-  assert.equal(global.Tools.sentMessages.length, 1);
-  assert.equal(global.Tools.sentMessages[0].toolName, "Hand");
-  assert.deepEqual(global.Tools.sentMessages[0].data, {
+  assert.equal(globalAny.Tools.sentMessages.length, 1);
+  assert.equal(globalAny.Tools.sentMessages[0].toolName, "Hand");
+  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
     _children: [
       {
         type: "update",
@@ -1096,8 +1096,8 @@ test("Hand selector keeps the original element selected after duplicate", async 
     target: outsideTarget,
   });
 
-  assert.equal(global.Tools.sentMessages.length, 1);
-  assert.deepEqual(global.Tools.sentMessages[0].data, {
+  assert.equal(globalAny.Tools.sentMessages.length, 1);
+  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
     _children: [{ type: "copy", id: "r-1", newid: "r-2" }],
   });
 
@@ -1115,8 +1115,8 @@ test("Hand selector keeps the original element selected after duplicate", async 
     target: originalRect,
   });
 
-  assert.equal(global.Tools.sentMessages.length, 2);
-  assert.deepEqual(global.Tools.sentMessages[1].data, {
+  assert.equal(globalAny.Tools.sentMessages.length, 2);
+  assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
     _children: [
       {
         type: "update",

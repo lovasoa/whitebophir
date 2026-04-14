@@ -579,6 +579,14 @@ function boardMutationTraceAttributes(boardName, userName, message) {
 }
 
 /**
+ * @param {string} value
+ * @returns {string}
+ */
+function boardMessageErrorType(value) {
+  return value;
+}
+
+/**
  * @param {AppSocket} socket
  * @param {string} boardName
  * @returns {string}
@@ -737,6 +745,7 @@ function validateTurnstileResult(socket, result) {
 function enforceGeneralRateLimit(
   socket,
   boardName,
+  /** @type {{ [key: string]: unknown } | undefined} */ data,
   clientIp,
   rateLimitState,
   now,
@@ -781,7 +790,10 @@ function enforceGeneralRateLimit(
         retry_after_ms: retryAfterMs,
         "user.name": userName,
       });
-      metrics.recordRejection("rate_limit", "general");
+      metrics.recordBoardMessage(
+        data || {},
+        boardMessageErrorType("rate_limit.general"),
+      );
     },
   );
   closeRateLimitedSocket(
@@ -865,7 +877,10 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
           retry_after_ms: retryAfterMs,
           destructive_cost: destructiveCost,
         });
-        metrics.recordRejection("rate_limit", "destructive");
+        metrics.recordBoardMessage(
+          data,
+          boardMessageErrorType("rate_limit.destructive"),
+        );
       },
     );
     closeRateLimitedSocket(
@@ -957,7 +972,10 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
           retry_after_ms: retryAfterMs,
           constructive_cost: constructiveCost,
         });
-        metrics.recordRejection("rate_limit", "constructive");
+        metrics.recordBoardMessage(
+          data,
+          boardMessageErrorType("rate_limit.constructive"),
+        );
       },
     );
     closeRateLimitedSocket(
@@ -986,7 +1004,12 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
  * @param {string} clientIp
  * @returns {boolean}
  */
-function ensureSocketCanAccessBoard(socket, boardName, clientIp) {
+function ensureSocketCanAccessBoard(
+  socket,
+  boardName,
+  /** @type {{ [key: string]: unknown } | undefined} */ data,
+  clientIp,
+) {
   if (canAccessBoard(boardName, socket)) return true;
   tracing.withDetachedSpan(
     "board.access_blocked",
@@ -1004,7 +1027,7 @@ function ensureSocketCanAccessBoard(socket, boardName, clientIp) {
         "client.address": clientIp,
         "user.name": clientIp ? getSocketUserName(socket, clientIp) : undefined,
       });
-      metrics.recordRejection("access", "blocked");
+      metrics.recordBoardMessage(data || {}, boardMessageErrorType("access"));
     },
   );
   return false;
@@ -1317,20 +1340,25 @@ function handleSocketConnection(socket) {
             "wbo.board.result": "rejected",
             "wbo.rejection.reason": "turnstile_validation_required",
           });
-          metrics.recordRejection("turnstile", "validation_required");
+          metrics.recordBoardMessage(
+            data,
+            boardMessageErrorType("turnstile.validation_required"),
+          );
           return;
         }
         if (
           !enforceGeneralRateLimit(
             socket,
             boardName,
+            data,
             clientIp,
             generalRateLimit,
             now,
           )
         )
           return;
-        if (!ensureSocketCanAccessBoard(socket, boardName, clientIp)) return;
+        if (!ensureSocketCanAccessBoard(socket, boardName, data, clientIp))
+          return;
 
         const normalized = normalizeBroadcastData(message, data);
         if (normalized.ok === false) {
@@ -1381,7 +1409,10 @@ function handleSocketConnection(socket) {
             tool: normalizedData.tool,
             type: normalizedData.type,
           });
-          metrics.recordRejection("write", "blocked");
+          metrics.recordBoardMessage(
+            normalizedData,
+            boardMessageErrorType("write"),
+          );
           return;
         }
 
@@ -1405,7 +1436,10 @@ function handleSocketConnection(socket) {
             type: normalizedData.type,
             reason: handleResult.reason,
           });
-          metrics.recordRejection("board_message", handleResult.reason);
+          metrics.recordBoardMessage(
+            normalizedData,
+            boardMessageErrorType("board_message"),
+          );
           return;
         }
 
@@ -1421,7 +1455,7 @@ function handleSocketConnection(socket) {
           "wbo.board.result": "success",
           "user.name": user ? user.name : userName,
         });
-        metrics.recordAcceptedBoardMessage(normalizedData);
+        metrics.recordBoardMessage(normalizedData);
 
         //Send data to all other users connected on the same board
         socket.broadcast.to(boardName).emit("broadcast", normalizedData);
@@ -1570,17 +1604,37 @@ async function unloadBoard(boardName) {
         },
       },
       async function traceBoardUnload() {
+        const startedAt = Date.now();
         const board = await /** @type {Promise<BoardData>} */ (
           boards[boardName]
         );
-        await board.save();
-        tracing.setActiveSpanAttributes({
-          "wbo.board": boardName,
-          "wbo.board.result": "success",
-        });
-        metrics.recordBoardOperation("unload", "success");
-        delete boards[boardName];
-        updateLoadedBoardsGauge();
+        try {
+          await board.save();
+          tracing.setActiveSpanAttributes({
+            "wbo.board": boardName,
+            "wbo.board.result": "success",
+          });
+          metrics.recordBoardOperation("unload", "success");
+          metrics.recordBoardOperationDuration(
+            "unload",
+            "success",
+            (Date.now() - startedAt) / 1000,
+          );
+          delete boards[boardName];
+          updateLoadedBoardsGauge();
+        } catch (error) {
+          tracing.recordActiveSpanError(error, {
+            "wbo.board": boardName,
+            "wbo.board.result": "error",
+          });
+          metrics.recordBoardOperation("unload", "error");
+          metrics.recordBoardOperationDuration(
+            "unload",
+            "error",
+            (Date.now() - startedAt) / 1000,
+          );
+          throw error;
+        }
       },
     );
   }
