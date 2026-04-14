@@ -440,9 +440,9 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
  * @param {BoardUser | undefined} user
  * @returns {MessageData}
  */
-function attachLiveUserId(data, user) {
+function attachLiveSocketId(data, user) {
   if (!user) return data;
-  data.userId = user.userId;
+  data.socket = user.socketId;
   return data;
 }
 
@@ -1002,7 +1002,7 @@ function handleSocketConnection(socket) {
         normalizedData,
         now,
       );
-      attachLiveUserId(normalizedData, user);
+      attachLiveSocketId(normalizedData, user);
 
       //Send data to all other users connected on the same board
       socket.broadcast.to(boardName).emit("broadcast", normalizedData);

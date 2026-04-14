@@ -887,14 +887,23 @@ Tools.updateConnectedUsersFromActivity =
     /** @type {string | undefined} */ userId,
     /** @type {BoardMessage} */ message,
   ) {
-    if (!userId) return;
-    var changed = false;
-    var cursorSocket =
+    // Presence has three layers:
+    // - `socketId`: one live browser tab/socket connection. This is the most precise activity target.
+    // - `userId`: derived from the persisted per-browser `userSecret`, so multiple tabs from one browser session can share it.
+    // - displayed name: combines an IP-derived word with the `userId`, so it is human-readable but not a stable routing key.
+    // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
+    var messageSocketId =
       typeof message.socket === "string" ? message.socket : null;
+    if (!userId && messageSocketId === null) return;
+    var changed = false;
     var focusPoint = getMessageFocusPoint(message);
     var shouldPulse = message.tool !== "Cursor";
     Object.values(Tools.connectedUsers).forEach(function (user) {
-      if (user.userId !== userId) return;
+      if (messageSocketId !== null) {
+        if (user.socketId !== messageSocketId) return;
+      } else if (user.userId !== userId) {
+        return;
+      }
       if (shouldPulse) {
         markConnectedUserActivity(user);
         changed = true;
@@ -914,8 +923,8 @@ Tools.updateConnectedUsersFromActivity =
       if (
         focusPoint &&
         (message.tool !== "Cursor" ||
-          cursorSocket === null ||
-          cursorSocket === user.socketId)
+          messageSocketId === null ||
+          messageSocketId === user.socketId)
       ) {
         user.lastFocusX = focusPoint.x;
         user.lastFocusY = focusPoint.y;

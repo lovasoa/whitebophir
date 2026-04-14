@@ -222,7 +222,7 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
   );
 });
 
-test("live broadcasts attach userId and keep the user's latest non-cursor state", async function () {
+test("live broadcasts attach socket attribution and keep the user's latest non-cursor state", async function () {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-live-"),
   );
@@ -267,8 +267,15 @@ test("live broadcasts attach userId and keep the user's latest non-cursor state"
         sockets.__test.getBoardUserMap("board-live").get("socket-live"),
       );
       assert.equal(
-        user.userId,
-        getRequiredValue(created.broadcasted[1]).payload.userId,
+        getRequiredValue(created.broadcasted[1]).payload.socket,
+        "socket-live",
+      );
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(
+          getRequiredValue(created.broadcasted[1]).payload,
+          "userId",
+        ),
+        false,
       );
       assert.equal(user.lastTool, "Rectangle");
       assert.equal(user.color, "#123456");
@@ -293,9 +300,85 @@ test("live broadcasts attach userId and keep the user's latest non-cursor state"
       assert.equal(user.color, "#abcdef");
       assert.equal(user.size, 12);
       assert.equal(
-        getRequiredValue(created.broadcasted[2]).payload.userId,
-        user.userId,
+        getRequiredValue(created.broadcasted[2]).payload.socket,
+        user.socketId,
       );
+    },
+  );
+});
+
+test("same-session sockets keep a shared userId in presence but live payload attribution stays per socket", async function () {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-session-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async function () {
+      const sockets = require(SOCKETS_PATH);
+      sockets.__test.resetRateLimitMaps();
+
+      const first = createSocket({
+        id: "socket-a",
+        remoteAddress: "203.0.113.81",
+        query: {
+          userSecret: "shared-secret",
+          tool: "Hand",
+          color: "#111111",
+          size: "4",
+        },
+      });
+      sockets.__test.handleSocketConnection(first.socket);
+      await getRequiredHandler(first.handlers, "getboard")("board-session");
+
+      const second = createSocket({
+        id: "socket-b",
+        remoteAddress: "203.0.113.81",
+        query: {
+          userSecret: "shared-secret",
+          tool: "Hand",
+          color: "#222222",
+          size: "5",
+        },
+      });
+      sockets.__test.handleSocketConnection(second.socket);
+      await getRequiredHandler(second.handlers, "getboard")("board-session");
+
+      const users = sockets.__test.getBoardUserMap("board-session");
+      const firstUser = getRequiredValue(users.get("socket-a"));
+      const secondUser = getRequiredValue(users.get("socket-b"));
+      assert.equal(firstUser.userId, secondUser.userId);
+
+      await getRequiredHandler(
+        first.handlers,
+        "broadcast",
+      )({
+        board: "board-session",
+        data: {
+          tool: "Rectangle",
+          type: "rect",
+          id: "shape-session",
+          color: "#123456",
+          size: 7,
+          x: 10,
+          y: 20,
+          x2: 30,
+          y2: 40,
+        },
+      });
+
+      const liveBroadcast = getRequiredValue(
+        first.broadcasted.find(function (event) {
+          return event.event === "broadcast";
+        }),
+      );
+      const payload = liveBroadcast.payload;
+      assert.equal(payload.socket, "socket-a");
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(payload, "userId"),
+        false,
+      );
+      assert.equal(firstUser.lastTool, "Rectangle");
+      assert.equal(secondUser.lastTool, "Hand");
     },
   );
 });
