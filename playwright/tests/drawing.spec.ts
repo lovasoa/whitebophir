@@ -1,4 +1,4 @@
-import { test, expect } from "../fixtures/test";
+import { expect, test } from "../fixtures/test";
 
 test.describe("drawing and persistence", () => {
   test("pencil persists and renders in preview", async ({

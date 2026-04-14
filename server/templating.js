@@ -124,7 +124,7 @@ function findBaseUrl(req) {
     firstHeaderValue(req.headers["x-forwarded-host"]) ||
     firstHeaderValue(req.headers.host) ||
     "localhost";
-  return proto + "://" + host;
+  return `${proto}://${host}`;
 }
 
 const packageJson = require("../package.json");
@@ -170,7 +170,7 @@ class Template {
     const prefix = prefixPart.startsWith("/")
       ? prefixPart.slice(1)
       : prefixPart;
-    const baseUrl = findBaseUrl(request) + (prefix ? "/" + prefix + "/" : "");
+    const baseUrl = findBaseUrl(request) + (prefix ? `/${prefix}/` : "");
     const moderator = isModerator;
     const version = packageJson.version;
     return Object.assign(
@@ -209,7 +209,7 @@ class Template {
       "Cache-Control": "public, max-age=3600",
     };
     if (!parsedUrl.searchParams.get("lang")) {
-      headers["Vary"] = "Accept-Language";
+      headers.Vary = "Accept-Language";
     }
     response.writeHead(200, headers);
     response.end(body);
@@ -233,10 +233,10 @@ class BoardTemplate extends Template {
     );
     const parts = parsedUrl.pathname.split("boards/", 2);
     const boardUriComponent = parts[1] || "";
-    params["boardUriComponent"] = boardUriComponent;
-    params["board"] = decodeURIComponent(boardUriComponent);
-    params["hideMenu"] =
-      parsedUrl.searchParams.get("hideMenu") == "true" || false;
+    params.boardUriComponent = boardUriComponent;
+    params.board = decodeURIComponent(boardUriComponent);
+    params.hideMenu =
+      parsedUrl.searchParams.get("hideMenu") === "true" || false;
     return params;
   }
 }

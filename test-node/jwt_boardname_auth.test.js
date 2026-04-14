@@ -12,8 +12,8 @@ const JWT_BOARDNAME_AUTH_PATH = path.join(
   "jwtBoardnameAuth.js",
 );
 
-test("roleInBoard allows board-scoped reader access without editor privileges", async function () {
-  await withEnv({ AUTH_SECRET_KEY: "test" }, async function () {
+test("roleInBoard allows board-scoped reader access without editor privileges", async () => {
+  await withEnv({ AUTH_SECRET_KEY: "test" }, async () => {
     const jwtBoardnameAuth = require(JWT_BOARDNAME_AUTH_PATH);
     const token = jsonwebtoken.sign(
       { sub: "viewer", roles: ["reader:readonly-test"] },
@@ -28,9 +28,9 @@ test("roleInBoard allows board-scoped reader access without editor privileges", 
       jwtBoardnameAuth.roleInBoard(token, "other-board"),
       "forbidden",
     );
-    assert.doesNotThrow(function () {
+    assert.doesNotThrow(() => {
       jwtBoardnameAuth.checkBoardnameInToken(
-        new URL("http://wbo.test/boards/readonly-test?token=" + token),
+        new URL(`http://wbo.test/boards/readonly-test?token=${token}`),
         "readonly-test",
       );
     });

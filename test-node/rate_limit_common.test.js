@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 
-test("fixed-window helpers are stateless and reset after the period", function () {
+test("fixed-window helpers are stateless and reset after the period", () => {
   const initial = RateLimitCommon.createRateLimitState(1_000);
   const consumed = RateLimitCommon.consumeFixedWindowRateLimit(
     initial,
@@ -56,7 +56,7 @@ test("fixed-window helpers are stateless and reset after the period", function (
   );
 });
 
-test("effective rate-limit definitions honor board overrides", function () {
+test("effective rate-limit definitions honor board overrides", () => {
   const definition = {
     limit: 240,
     periodMs: 60_000,
@@ -84,7 +84,7 @@ test("effective rate-limit definitions honor board overrides", function () {
   );
 });
 
-test("action counters classify constructive and destructive batch costs", function () {
+test("action counters classify constructive and destructive batch costs", () => {
   const batch = {
     _children: [
       { type: "delete", id: "shape-1" },

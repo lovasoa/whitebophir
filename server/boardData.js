@@ -91,7 +91,7 @@ function normalizeBoardMetadata(metadata) {
 function boardFilePath(name) {
   return path.join(
     config.HISTORY_DIR,
-    "board-" + encodeURIComponent(name) + ".json",
+    `board-${encodeURIComponent(name)}.json`,
   );
 }
 
@@ -130,7 +130,7 @@ function parseStoredBoard(storedBoard) {
  */
 function serializeStoredBoard(board, metadata) {
   var storedBoard = Object.assign({}, board);
-  if (metadata && metadata.readonly) {
+  if (metadata?.readonly) {
     storedBoard[BOARD_METADATA_KEY] = { readonly: true };
   }
   return storedBoard;
@@ -272,7 +272,7 @@ class BoardData {
   isCandidateTooLarge(candidate, localBounds) {
     const effectiveBounds = MessageCommon.applyTransformToBounds(
       localBounds,
-      candidate && candidate.transform,
+      candidate?.transform,
     );
     return MessageCommon.isBoundsTooLarge(effectiveBounds);
   }
@@ -408,7 +408,7 @@ class BoardData {
    * @returns {boolean}
    */
   canProcessMessage(message) {
-    let id = message.id;
+    const id = message.id;
     switch (message.type) {
       case "delete":
       case "clear":
@@ -478,7 +478,7 @@ class BoardData {
    * @param {boolean} [create] - True if the object should be created if it's not currently in the DB.
    * @returns {BoardMutationResult}
    */
-  update(id, data, create) {
+  update(id, data, _create) {
     var tool = data.tool;
     var updateData = filterUpdatableFields(tool, data);
 
@@ -524,7 +524,7 @@ class BoardData {
     var obj = this.board[id];
     var newid = data.newid;
     if (obj) {
-      var newobj = structuredClone(obj);
+      const newobj = structuredClone(obj);
       const validated = this.validateStoredCandidate(newid, newobj);
       if (!validated.ok) return validated;
       this.board[newid] = validated.value;
@@ -746,7 +746,7 @@ class BoardData {
   processMessage(message) {
     if (message._children)
       return this.processMessageBatch(message._children, message);
-    let id = message.id;
+    const id = message.id;
     switch (message.type) {
       case "delete":
         return id ? this.delete(id) : { ok: false, reason: "missing id" };
@@ -758,12 +758,13 @@ class BoardData {
         return id
           ? this.copy(id, message)
           : { ok: false, reason: "missing id" };
-      case "child":
+      case "child": {
         // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
         const { parent, type, tool, ...childData } = message;
         return parent
           ? this.addChild(parent, childData)
           : { ok: false, reason: "invalid parent for child" };
+      }
       case "clear":
         return this.clear();
       default:
@@ -884,15 +885,10 @@ class BoardData {
     var board = this.board;
     var ids = Object.keys(board);
     if (ids.length > config.MAX_ITEM_COUNT) {
-      var toDestroy = ids
-        .sort(function (x, y) {
-          return (
-            ((board[x] && board[x].time) | 0) -
-            ((board[y] && board[y].time) | 0)
-          );
-        })
+      const toDestroy = ids
+        .sort((x, y) => (board[x]?.time | 0) - (board[y]?.time | 0))
         .slice(0, -config.MAX_ITEM_COUNT);
-      for (var i = 0; i < toDestroy.length; i++) {
+      for (let i = 0; i < toDestroy.length; i++) {
         const id = toDestroy[i];
         if (id !== undefined) delete board[id];
       }
@@ -973,7 +969,7 @@ class BoardData {
           const backupData = data;
           if (backupData !== undefined) {
             // There was an error loading the board, but some data was still read
-            var backup = backupFileName(boardData.file);
+            const backup = backupFileName(boardData.file);
             logger.warn("board.backup_created", {
               board: boardData.name,
               backup_file: backup,
@@ -1051,7 +1047,7 @@ class BoardData {
  */
 function backupFileName(baseName) {
   var date = new Date().toISOString().replace(/:/g, "");
-  return baseName + "." + date + ".bak";
+  return `${baseName}.${date}.bak`;
 }
 
 /**
@@ -1062,23 +1058,6 @@ function errorCode(error) {
   if (!error || typeof error !== "object") return undefined;
   if (!("code" in error)) return undefined;
   return typeof error.code === "string" ? error.code : undefined;
-}
-
-/**
- * @param {unknown} error
- * @returns {string}
- */
-function errorToString(error) {
-  if (error instanceof Error) return error.toString();
-  return String(error);
-}
-
-/**
- * @param {unknown} error
- * @returns {string | undefined}
- */
-function errorStack(error) {
-  return error instanceof Error ? error.stack : undefined;
 }
 
 module.exports = {

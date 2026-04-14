@@ -6,7 +6,7 @@ const {
   withConsole,
 } = require("./test_console.js");
 
-test("createSilentConsole preserves the console shape while muting noisy methods", function () {
+test("createSilentConsole preserves the console shape while muting noisy methods", () => {
   const silentConsole = createSilentConsole(console);
 
   assert.equal(typeof silentConsole.warn, "function");
@@ -16,7 +16,7 @@ test("createSilentConsole preserves the console shape while muting noisy methods
   assert.equal(silentConsole.error("ignored"), undefined);
 });
 
-test("installTestConsole swaps in a silent console only in silent mode", function () {
+test("installTestConsole swaps in a silent console only in silent mode", () => {
   const previousSilent = process.env.WBO_SILENT;
   const previousConsole = global.console;
 
@@ -35,16 +35,16 @@ test("installTestConsole swaps in a silent console only in silent mode", functio
   assert.equal(global.console, previousConsole);
 });
 
-test("withConsole temporarily patches console methods", function () {
+test("withConsole temporarily patches console methods", () => {
   let warned = false;
 
   withConsole(
     {
-      warn: function () {
+      warn: () => {
         warned = true;
       },
     },
-    function () {
+    () => {
       global.console.warn("patched");
     },
   );

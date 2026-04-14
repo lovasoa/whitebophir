@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noExplicitAny: This file defines global types for untyped external libraries and internal global state.
 export {};
 
 declare global {

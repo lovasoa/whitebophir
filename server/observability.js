@@ -1,5 +1,3 @@
-"use strict";
-
 const { randomUUID } = require("node:crypto");
 const {
   context,
@@ -20,7 +18,6 @@ const {
 } = require("@opentelemetry/exporter-metrics-otlp-http");
 const { resourceFromAttributes } = require("@opentelemetry/resources");
 const {
-  LoggerProvider,
   BatchLogRecordProcessor,
   SimpleLogRecordProcessor,
 } = require("@opentelemetry/sdk-logs");
@@ -78,12 +75,12 @@ class LogfmtLogRecordExporter {
    */
   constructor(options) {
     this.writeStdout =
-      (options && options.writeStdout) ||
+      options?.writeStdout ||
       function writeStdout(chunk) {
         globalThis.console.log(chunk.replace(/\n$/, ""));
       };
     this.writeStderr =
-      (options && options.writeStderr) ||
+      options?.writeStderr ||
       function writeStderr(chunk) {
         globalThis.console.error(chunk.replace(/\n$/, ""));
       };
@@ -108,19 +105,18 @@ class LogfmtLogRecordExporter {
     }
 
     for (const record of records) {
-      const level = normalizeSeverityText(
+      const _level = normalizeSeverityText(
         record.severityText,
         record.severityNumber,
       );
       const useStderr =
         record.severityNumber !== undefined &&
         record.severityNumber >= SeverityNumber.ERROR;
-      const line =
-        formatReadableLogRecord(record, {
-          colorizeLevel: useStderr
-            ? this.stderrSupportsColor
-            : this.stdoutSupportsColor,
-        }) + "\n";
+      const line = `${formatReadableLogRecord(record, {
+        colorizeLevel: useStderr
+          ? this.stderrSupportsColor
+          : this.stdoutSupportsColor,
+      })}\n`;
       if (useStderr) {
         this.writeStderr(line);
       } else {
@@ -283,9 +279,7 @@ function formatReadableLogRecord(record, options) {
       record.attributes,
     ),
   );
-  return options && options.colorizeLevel
-    ? styleTerminalLogLine(line, level)
-    : line;
+  return options?.colorizeLevel ? styleTerminalLogLine(line, level) : line;
 }
 
 /**
@@ -452,7 +446,7 @@ function getActiveSpan() {
 function getActiveTraceFields() {
   if (!tracingEnabled) return {};
   const activeSpan = getActiveSpan();
-  if (!activeSpan || !activeSpan.isRecording()) return {};
+  if (!activeSpan?.isRecording()) return {};
   const spanContext = activeSpan.spanContext();
   if (!isSpanContextValid(spanContext)) return {};
   return {
@@ -582,12 +576,12 @@ function startSpan(name, options) {
   return tracer.startSpan(
     name,
     {
-      kind: options && options.kind,
+      kind: options?.kind,
       attributes: /** @type {any} */ (
-        normalizeSpanAttributes(options && options.attributes)
+        normalizeSpanAttributes(options?.attributes)
       ),
     },
-    (options && options.parentContext) || context.active(),
+    options?.parentContext || context.active(),
   );
 }
 
@@ -617,14 +611,14 @@ function withSpanContext(span, parentContext, fn) {
  */
 function withActiveSpan(name, options, fn) {
   if (!tracingEnabled) return fn(undefined);
-  const parentContext = (options && options.parentContext) || context.active();
+  const parentContext = options?.parentContext || context.active();
   return withContext(parentContext, function runSpan() {
     return tracer.startActiveSpan(
       name,
       {
-        kind: options && options.kind,
+        kind: options?.kind,
         attributes: /** @type {any} */ (
-          normalizeSpanAttributes(options && options.attributes)
+          normalizeSpanAttributes(options?.attributes)
         ),
       },
       function handleSpan(span) {
@@ -667,8 +661,8 @@ function withOptionalActiveSpan(name, options, fn) {
   return withActiveSpan(
     name,
     {
-      kind: options && options.kind,
-      attributes: options && options.attributes,
+      kind: options?.kind,
+      attributes: options?.attributes,
     },
     function runOptionalSpan() {
       return fn();
@@ -688,15 +682,15 @@ function withOptionalActiveSpan(name, options, fn) {
 function withDetachedSpan(name, options, fn) {
   const activeSpan = getActiveSpan();
   if (activeSpan) {
-    setSpanAttributes(activeSpan, options && options.attributes);
-    addSpanEvent(activeSpan, name, options && options.attributes);
+    setSpanAttributes(activeSpan, options?.attributes);
+    addSpanEvent(activeSpan, name, options?.attributes);
     return fn();
   }
   return withActiveSpan(
     name,
     {
-      kind: (options && options.kind) || SpanKind.INTERNAL,
-      attributes: options && options.attributes,
+      kind: options?.kind || SpanKind.INTERNAL,
+      attributes: options?.attributes,
     },
     function runDetachedSpan() {
       return fn();

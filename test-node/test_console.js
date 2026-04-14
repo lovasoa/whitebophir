@@ -1,11 +1,11 @@
 /** @param {Console} baseConsole */
 function createSilentConsole(baseConsole) {
   return Object.assign({}, baseConsole, {
-    log: function () {},
-    warn: function () {},
-    error: function () {},
-    info: function () {},
-    debug: function () {},
+    log: () => {},
+    warn: () => {},
+    error: () => {},
+    info: () => {},
+    debug: () => {},
   });
 }
 
@@ -29,9 +29,9 @@ function withConsole(patch, fn) {
   var previousConsole = global.console;
   global.console = Object.assign({}, previousConsole, patch);
   try {
-    var result = fn();
+    const result = fn();
     if (result && typeof result.then === "function") {
-      return result.finally(function () {
+      return result.finally(() => {
         global.console = previousConsole;
       });
     }

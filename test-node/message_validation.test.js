@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const { MESSAGE_VALIDATION_PATH, withEnv } = require("./test_helpers.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 
-test("normalizeIncomingMessage supports every live tool/type pair", function () {
+test("normalizeIncomingMessage supports every live tool/type pair", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
 
   /**
@@ -142,7 +142,7 @@ test("normalizeIncomingMessage supports every live tool/type pair", function () 
   }
 });
 
-test("metadata shape tools are all supported by incoming and stored validation", function () {
+test("metadata shape tools are all supported by incoming and stored validation", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const shapeTools = MessageToolMetadata.SHAPE_TOOL_TYPES;
   const shapeEntries = Object.entries(shapeTools);
@@ -152,7 +152,7 @@ test("metadata shape tools are all supported by incoming and stored validation",
     const [toolName, typeNameMaybe] = entry;
     if (typeof typeNameMaybe !== "string") continue;
     const typeName = typeNameMaybe;
-    const id = "shape-" + index;
+    const id = `shape-${index}`;
     const normalizedIncoming = messageValidation.normalizeIncomingMessage({
       tool: toolName,
       type: typeName,
@@ -183,13 +183,13 @@ test("metadata shape tools are all supported by incoming and stored validation",
         x: 10,
         y: 20,
       },
-      "stored-" + index,
+      `stored-${index}`,
     );
     assert.equal(normalizedStored.ok, true);
   }
 });
 
-test("normalizeStoredItem supports every stored tool", function () {
+test("normalizeStoredItem supports every stored tool", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
 
   /**
@@ -251,7 +251,7 @@ test("normalizeStoredItem supports every stored tool", function () {
   }
 });
 
-test("normalizeIncomingMessage defaults shape end coordinates from the starting point", function () {
+test("normalizeIncomingMessage defaults shape end coordinates from the starting point", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
     tool: "Straight line",
@@ -279,7 +279,7 @@ test("normalizeIncomingMessage defaults shape end coordinates from the starting 
   });
 });
 
-test("normalizeIncomingMessage defaults x2 and y2 from distinct axes", function () {
+test("normalizeIncomingMessage defaults x2 and y2 from distinct axes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
     tool: "Rectangle",
@@ -295,7 +295,7 @@ test("normalizeIncomingMessage defaults x2 and y2 from distinct axes", function 
   assert.deepEqual(normalized.value.y2, 42);
 });
 
-test("normalizeIncomingMessage rejects malformed hand batches atomically", function () {
+test("normalizeIncomingMessage rejects malformed hand batches atomically", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
     tool: "Hand",
@@ -317,7 +317,7 @@ test("normalizeIncomingMessage rejects malformed hand batches atomically", funct
   assert.match(normalized.reason, /_children\[1\]/);
 });
 
-test("normalizeIncomingMessage rejects oversized live shapes", function () {
+test("normalizeIncomingMessage rejects oversized live shapes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
     tool: "Rectangle",
@@ -337,7 +337,7 @@ test("normalizeIncomingMessage rejects oversized live shapes", function () {
   });
 });
 
-test("normalizeIncomingMessage allows text updates but truncates long text", function () {
+test("normalizeIncomingMessage allows text updates but truncates long text", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const longText = "A".repeat(500);
   const normalized = messageValidation.normalizeIncomingMessage({
@@ -351,7 +351,7 @@ test("normalizeIncomingMessage allows text updates but truncates long text", fun
   assert.equal(normalized.value.txt.length, 280); // MAX_TEXT_LENGTH
 });
 
-test("normalizeStoredItem rejects oversized stored text", function () {
+test("normalizeStoredItem rejects oversized stored text", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeStoredItem(
     {
@@ -371,7 +371,7 @@ test("normalizeStoredItem rejects oversized stored text", function () {
   });
 });
 
-test("normalizeStoredItem rejects oversized stored pencil", function () {
+test("normalizeStoredItem rejects oversized stored pencil", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeStoredItem(
     {
@@ -392,7 +392,7 @@ test("normalizeStoredItem rejects oversized stored pencil", function () {
   });
 });
 
-test("normalizeStoredItem rejects transformed oversized shapes", function () {
+test("normalizeStoredItem rejects transformed oversized shapes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeStoredItem(
     {
@@ -414,8 +414,8 @@ test("normalizeStoredItem rejects transformed oversized shapes", function () {
   });
 });
 
-test("normalizeStoredItem sanitizes stored pencil children before replay", async function () {
-  await withEnv({ WBO_MAX_CHILDREN: "2" }, async function () {
+test("normalizeStoredItem sanitizes stored pencil children before replay", async () => {
+  await withEnv({ WBO_MAX_CHILDREN: "2" }, async () => {
     const messageValidation = require(MESSAGE_VALIDATION_PATH);
 
     const malformedChildren = messageValidation.normalizeStoredItem(

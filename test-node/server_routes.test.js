@@ -29,7 +29,7 @@ const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.js");
  * @returns {Promise<void>}
  */
 function waitForListening(server) {
-  return new Promise(function (resolve) {
+  return new Promise((resolve) => {
     if (server.listening) resolve();
     else server.once("listening", resolve);
   });
@@ -40,8 +40,8 @@ function waitForListening(server) {
  * @returns {Promise<void>}
  */
 function closeServer(server) {
-  return new Promise(function (resolve, reject) {
-    server.close(function (error) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
       if (error) reject(error);
       else resolve();
     });
@@ -54,7 +54,7 @@ function closeServer(server) {
  * @returns {Promise<{statusCode: number, headers: http.IncomingHttpHeaders, body: string}>}
  */
 function request(server, requestPath) {
-  return new Promise(function (resolve, reject) {
+  return new Promise((resolve, reject) => {
     const address = server.address();
     if (!address || typeof address === "string") {
       reject(new Error("Server is not listening on a TCP port"));
@@ -66,14 +66,14 @@ function request(server, requestPath) {
         port: address.port,
         path: requestPath,
       },
-      function (response) {
+      (response) => {
         /** @type {string[]} */
         const chunks = [];
         response.setEncoding("utf8");
-        response.on("data", function (chunk) {
+        response.on("data", (chunk) => {
           chunks.push(chunk);
         });
-        response.on("end", function () {
+        response.on("end", () => {
           resolve({
             statusCode: response.statusCode || 0,
             headers: response.headers,
@@ -101,7 +101,7 @@ async function createServerDirs() {
   return { historyDir, webroot };
 }
 
-test("server returns 404 for preview and download routes without a board name", async function () {
+test("server returns 404 for preview and download routes without a board name", async () => {
   const dirs = await createServerDirs();
 
   await withEnv(
@@ -113,7 +113,7 @@ test("server returns 404 for preview and download routes without a board name", 
       WBO_WEBROOT: dirs.webroot,
       WBO_SILENT: "true",
     },
-    async function () {
+    async () => {
       const app = require(SERVER_PATH);
       await waitForListening(app);
       try {
@@ -141,7 +141,7 @@ test("server returns 404 for preview and download routes without a board name", 
   );
 });
 
-test("server returns an error status instead of 200 when preview rendering fails", async function () {
+test("server returns an error status instead of 200 when preview rendering fails", async () => {
   const dirs = await createServerDirs();
 
   await withEnv(
@@ -153,7 +153,7 @@ test("server returns an error status instead of 200 when preview rendering fails
       WBO_WEBROOT: dirs.webroot,
       WBO_SILENT: "true",
     },
-    async function () {
+    async () => {
       const app = require(SERVER_PATH);
       await waitForListening(app);
       try {
@@ -177,7 +177,7 @@ test("server returns an error status instead of 200 when preview rendering fails
   );
 });
 
-test("server preserves an incoming request id header", async function () {
+test("server preserves an incoming request id header", async () => {
   const dirs = await createServerDirs();
 
   await withEnv(
@@ -189,7 +189,7 @@ test("server preserves an incoming request id header", async function () {
       WBO_WEBROOT: dirs.webroot,
       WBO_SILENT: "true",
     },
-    async function () {
+    async () => {
       const app = require(SERVER_PATH);
       await waitForListening(app);
       try {
@@ -198,7 +198,7 @@ test("server preserves an incoming request id header", async function () {
           throw new Error("Server is not listening on a TCP port");
         }
 
-        const response = await new Promise(function (resolve, reject) {
+        const response = await new Promise((resolve, reject) => {
           const req = http.get(
             {
               host: "127.0.0.1",
@@ -212,7 +212,7 @@ test("server preserves an incoming request id header", async function () {
         });
 
         response.resume();
-        await new Promise(function (resolve) {
+        await new Promise((resolve) => {
           response.on("end", resolve);
         });
         assert.equal(response.headers["x-request-id"], "req-123");

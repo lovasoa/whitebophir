@@ -22,7 +22,7 @@ async function renderStoredBoard(storedBoard) {
   /** @type {string[]} */
   const chunks = [];
   await renderBoard(file, {
-    write: function (chunk) {
+    write: (chunk) => {
       chunks.push(chunk);
     },
   });
@@ -47,14 +47,10 @@ function renderExpectedPencilPath(points) {
   for (const point of points) {
     wboPencilPoint(pathData, point.x, point.y);
   }
-  return pathData
-    .map(function (op) {
-      return op.type + " " + op.values.join(" ");
-    })
-    .join(" ");
+  return pathData.map((op) => `${op.type} ${op.values.join(" ")}`).join(" ");
 }
 
-test("renderBoard normalizes rectangle bounds for reverse-dragged shapes", async function () {
+test("renderBoard normalizes rectangle bounds for reverse-dragged shapes", async () => {
   const svg = await renderStoredBoard({
     rect1: {
       tool: "Rectangle",
@@ -77,7 +73,7 @@ test("renderBoard normalizes rectangle bounds for reverse-dragged shapes", async
   assert.doesNotMatch(svg, /height="-/);
 });
 
-test("renderBoard keeps pencil path smoothing compatible with the client renderer", async function () {
+test("renderBoard keeps pencil path smoothing compatible with the client renderer", async () => {
   const points = [
     { x: 1, y: 2 },
     { x: 10, y: 12 },
@@ -96,5 +92,5 @@ test("renderBoard keeps pencil path smoothing compatible with the client rendere
   });
 
   const expectedPath = renderExpectedPencilPath(points);
-  assert.match(svg, new RegExp('d="' + escapeRegExp(expectedPath) + '"'));
+  assert.match(svg, new RegExp(`d="${escapeRegExp(expectedPath)}"`));
 });

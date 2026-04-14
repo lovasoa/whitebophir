@@ -67,7 +67,7 @@ function clearModuleCache(modulePath) {
  * @returns {Promise<void>}
  */
 function waitForListening(server) {
-  return new Promise(function (resolve) {
+  return new Promise((resolve) => {
     if (server.listening) resolve();
     else server.once("listening", resolve);
   });
@@ -78,8 +78,8 @@ function waitForListening(server) {
  * @returns {Promise<void>}
  */
 function closeServer(server) {
-  return new Promise(function (resolve, reject) {
-    server.close(function (error) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
       if (error) reject(error);
       else resolve();
     });
@@ -93,7 +93,7 @@ function closeServer(server) {
  * @returns {Promise<{statusCode: number, headers: http.IncomingHttpHeaders, body: string}>}
  */
 function request(server, requestPath, headers) {
-  return new Promise(function (resolve, reject) {
+  return new Promise((resolve, reject) => {
     const address = server.address();
     if (!address || typeof address === "string") {
       reject(new Error("Server is not listening on a TCP port"));
@@ -106,14 +106,14 @@ function request(server, requestPath, headers) {
         path: requestPath,
         headers: headers,
       },
-      function (response) {
+      (response) => {
         /** @type {string[]} */
         const chunks = [];
         response.setEncoding("utf8");
-        response.on("data", function (chunk) {
+        response.on("data", (chunk) => {
           chunks.push(chunk);
         });
-        response.on("end", function () {
+        response.on("end", () => {
           resolve({
             statusCode: response.statusCode || 0,
             headers: response.headers,
@@ -231,9 +231,9 @@ test.after(async function shutdownTracingObservability() {
  * @returns {any}
  */
 function getSpanByName(exporter, name) {
-  const span = exporter.getFinishedSpans().find(function (candidate) {
-    return candidate.name === name;
-  });
+  const span = exporter
+    .getFinishedSpans()
+    .find((candidate) => candidate.name === name);
   assert.ok(span, `expected span ${name}`);
   return span;
 }
@@ -243,7 +243,7 @@ function getSpanByName(exporter, name) {
  * @returns {Promise<void>}
  */
 function sleep(ms) {
-  return new Promise(function (resolve) {
+  return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 }
@@ -257,21 +257,15 @@ function sleep(ms) {
 async function waitForSpans(exporter, names, timeoutMs) {
   const deadline = Date.now() + (timeoutMs || 1000);
   while (Date.now() < deadline) {
-    const exportedNames = exporter.getFinishedSpans().map(function (span) {
-      return span.name;
-    });
-    const hasAllSpans = names.every(function (name) {
-      return exportedNames.includes(name);
-    });
+    const exportedNames = exporter.getFinishedSpans().map((span) => span.name);
+    const hasAllSpans = names.every((name) => exportedNames.includes(name));
     if (hasAllSpans) return;
     await sleep(20);
   }
   assert.fail(
     `timed out waiting for spans: ${names.join(", ")}; got ${exporter
       .getFinishedSpans()
-      .map(function (span) {
-        return span.name;
-      })
+      .map((span) => span.name)
       .join(", ")}`,
   );
 }
@@ -287,7 +281,7 @@ function getRequiredHandler(handlers, eventName) {
   return /** @type {(...args: any[]) => any} */ (handler);
 }
 
-test("preview requests continue traceparent and create a child render span", async function () {
+test("preview requests continue traceparent and create a child render span", async () => {
   const dirs = await createServerDirs();
   await withTracing(
     {
@@ -297,7 +291,7 @@ test("preview requests continue traceparent and create a child render span", asy
       WBO_HISTORY_DIR: dirs.historyDir,
       WBO_WEBROOT: dirs.webroot,
     },
-    async function ({ exporter }) {
+    async ({ exporter }) => {
       const app = require(SERVER_PATH);
       await waitForListening(app);
       try {
@@ -340,7 +334,7 @@ test("preview requests continue traceparent and create a child render span", asy
   );
 });
 
-test("static asset requests do not create spans", async function () {
+test("static asset requests do not create spans", async () => {
   const dirs = await createServerDirs();
   await withTracing(
     {
@@ -350,7 +344,7 @@ test("static asset requests do not create spans", async function () {
       WBO_HISTORY_DIR: dirs.historyDir,
       WBO_WEBROOT: dirs.webroot,
     },
-    async function ({ exporter }) {
+    async ({ exporter }) => {
       const app = require(SERVER_PATH);
       await waitForListening(app);
       try {
@@ -372,7 +366,7 @@ test("static asset requests do not create spans", async function () {
   );
 });
 
-test("getboard traces the root socket event and board load", async function () {
+test("getboard traces the root socket event and board load", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-trace-socket-"),
   );
@@ -383,7 +377,7 @@ test("getboard traces the root socket event and board load", async function () {
       WBO_IP_SOURCE: "remoteAddress",
       WBO_HISTORY_DIR: historyDir,
     },
-    async function ({ exporter }) {
+    async ({ exporter }) => {
       const sockets = require(SOCKETS_PATH);
       const created = createSocket({
         id: "socket-trace",
@@ -413,7 +407,7 @@ test("getboard traces the root socket event and board load", async function () {
   );
 });
 
-test("active traces correlate log records and board.save spans", async function () {
+test("active traces correlate log records and board.save spans", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-trace-save-"),
   );
@@ -422,7 +416,7 @@ test("active traces correlate log records and board.save spans", async function 
     {
       WBO_HISTORY_DIR: historyDir,
     },
-    async function ({ exporter, observability }) {
+    async ({ exporter, observability }) => {
       const { BoardData } = require(BOARD_DATA_PATH);
 
       const record = await observability.tracing.withActiveSpan(
@@ -470,7 +464,7 @@ test("active traces correlate log records and board.save spans", async function 
   );
 });
 
-test("successful cursor broadcasts stay untraced, but invalid cursor messages create rejection spans", async function () {
+test("successful cursor broadcasts stay untraced, but invalid cursor messages create rejection spans", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-trace-cursor-"),
   );
@@ -480,7 +474,7 @@ test("successful cursor broadcasts stay untraced, but invalid cursor messages cr
       WBO_IP_SOURCE: "remoteAddress",
       WBO_HISTORY_DIR: historyDir,
     },
-    async function ({ exporter }) {
+    async ({ exporter }) => {
       const sockets = require(SOCKETS_PATH);
       const created = createSocket({
         id: "socket-cursor",

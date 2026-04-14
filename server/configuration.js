@@ -6,7 +6,7 @@ const {
 const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 const app_root = path.dirname(__dirname); // Parent of the directory where this file is
 
-const ipSource = (process.env["WBO_IP_SOURCE"] || "remoteAddress").trim();
+const ipSource = (process.env.WBO_IP_SOURCE || "remoteAddress").trim();
 const trustProxyHops = parseIntegerEnv("WBO_TRUST_PROXY_HOPS", 0);
 
 if (trustProxyHops < 0) {
@@ -68,14 +68,14 @@ module.exports = {
   /** Host on which the application will listen (defaults to undefined,
         hence listen on all interfaces on all IP addresses, but could also be
         '127.0.0.1' **/
-  HOST: process.env["HOST"] || undefined,
+  HOST: process.env.HOST || undefined,
 
   /** Path to the directory where boards will be saved by default */
   HISTORY_DIR:
-    process.env["WBO_HISTORY_DIR"] || path.join(app_root, "server-data"),
+    process.env.WBO_HISTORY_DIR || path.join(app_root, "server-data"),
 
   /** Folder from which static files will be served */
-  WEBROOT: process.env["WBO_WEBROOT"] || path.join(app_root, "client-data"),
+  WEBROOT: process.env.WBO_WEBROOT || path.join(app_root, "client-data"),
 
   /** Number of milliseconds of inactivity after which the board should be saved to a file */
   SAVE_INTERVAL: parseIntegerEnv("WBO_SAVE_INTERVAL", 1000 * 2), // Save after 2 seconds of inactivity
@@ -117,8 +117,7 @@ module.exports = {
 
   /** Anonymous-board destructive limit derived from WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP. */
   ANONYMOUS_MAX_DESTRUCTIVE_ACTIONS_PER_IP:
-    DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous &&
-    DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous.limit,
+    DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous?.limit,
 
   /** Constructive per-IP fixed-window limits.
       Use WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP with compact profiles such as `*:40/10s anonymous:20/10s`.
@@ -138,8 +137,7 @@ module.exports = {
 
   /** Anonymous-board constructive limit derived from WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP. */
   ANONYMOUS_MAX_CONSTRUCTIVE_ACTIONS_PER_IP:
-    DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous &&
-    DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous.limit,
+    DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous?.limit,
 
   /** Source used to resolve client IPs for logging and rate limiting.
       Supports remoteAddress, Forwarded, X-Forwarded-For, or any custom header
@@ -154,29 +152,29 @@ module.exports = {
   TRUST_PROXY_HOPS: trustProxyHops,
 
   /** Blocked Tools. A comma-separated list of tools that should not appear on boards. */
-  BLOCKED_TOOLS: (process.env["WBO_BLOCKED_TOOLS"] || "").split(","),
+  BLOCKED_TOOLS: (process.env.WBO_BLOCKED_TOOLS || "").split(","),
 
   /** Selection Buttons. A comma-separated list of selection buttons that should not be available. */
   BLOCKED_SELECTION_BUTTONS: (
-    process.env["WBO_BLOCKED_SELECTION_BUTTONS"] || ""
+    process.env.WBO_BLOCKED_SELECTION_BUTTONS || ""
   ).split(","),
 
   /** Automatically switch to White-out on finger touch after drawing
       with Pencil using a stylus. Only supported on iPad with Apple Pencil. */
-  AUTO_FINGER_WHITEOUT: process.env["AUTO_FINGER_WHITEOUT"] !== "disabled",
+  AUTO_FINGER_WHITEOUT: process.env.AUTO_FINGER_WHITEOUT !== "disabled",
 
   /** Secret key for jwt */
-  AUTH_SECRET_KEY: process.env["AUTH_SECRET_KEY"] || "",
+  AUTH_SECRET_KEY: process.env.AUTH_SECRET_KEY || "",
 
   /** Cloudflare Turnstile secret key */
-  TURNSTILE_SECRET_KEY: process.env["TURNSTILE_SECRET_KEY"],
+  TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
 
   /** Cloudflare Turnstile site key */
-  TURNSTILE_SITE_KEY: process.env["TURNSTILE_SITE_KEY"],
+  TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY,
 
   /** Override Turnstile verification endpoint, primarily for tests */
   TURNSTILE_VERIFY_URL:
-    process.env["TURNSTILE_VERIFY_URL"] ||
+    process.env.TURNSTILE_VERIFY_URL ||
     "https://challenges.cloudflare.com/turnstile/v0/siteverify",
 
   /** Duration for which a successful Turnstile validation authorizes protected writes */
@@ -186,5 +184,5 @@ module.exports = {
   ),
 
   /** If this variable is set, automatically redirect to this board from the root of the application. */
-  DEFAULT_BOARD: process.env["WBO_DEFAULT_BOARD"],
+  DEFAULT_BOARD: process.env.WBO_DEFAULT_BOARD,
 };

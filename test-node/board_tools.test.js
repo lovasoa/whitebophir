@@ -3,15 +3,15 @@ const assert = require("node:assert/strict");
 
 const BoardTools = require("../client-data/js/board_page_state.js").tools;
 
-test("isBlockedToolName rejects invalid tool names and respects the blocked list", function () {
+test("isBlockedToolName rejects invalid tool names and respects the blocked list", () => {
   assert.equal(BoardTools.isBlockedToolName("Pencil", ["Text"]), false);
   assert.equal(BoardTools.isBlockedToolName("Pencil", ["Pencil"]), true);
-  assert.throws(function () {
+  assert.throws(() => {
     BoardTools.isBlockedToolName("Bad,Tool", []);
   }, /must not contain a comma/);
 });
 
-test("shouldDisplayTool respects readonly and writable board states", function () {
+test("shouldDisplayTool respects readonly and writable board states", () => {
   const readOnlyToolNames = new Set(["Hand", "Download"]);
   assert.equal(
     BoardTools.shouldDisplayTool(
@@ -31,7 +31,7 @@ test("shouldDisplayTool respects readonly and writable board states", function (
   );
 });
 
-test("drainPendingMessages returns and clears the queued tool messages", function () {
+test("drainPendingMessages returns and clears the queued tool messages", () => {
   const pending = { Pencil: [{ id: "1" }, { id: "2" }] };
   assert.deepEqual(BoardTools.drainPendingMessages(pending, "Pencil"), [
     { id: "1" },

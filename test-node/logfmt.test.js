@@ -10,13 +10,13 @@ const {
   styleTerminalLogLine,
 } = require("../server/logfmt.js");
 
-test("formatLogfmtValue quotes whitespace and escapes quotes", function () {
+test("formatLogfmtValue quotes whitespace and escapes quotes", () => {
   assert.equal(formatLogfmtValue("plain"), "plain");
   assert.equal(formatLogfmtValue("two words"), '"two words"');
   assert.equal(formatLogfmtValue('say "hi"'), '"say \\"hi\\""');
 });
 
-test("flattenError extracts stable error fields", function () {
+test("flattenError extracts stable error fields", () => {
   const error = new TypeError("boom");
   const flattened = flattenError(error);
 
@@ -25,7 +25,7 @@ test("flattenError extracts stable error fields", function () {
   assert.match(flattened.error_stack || "", /TypeError: boom/);
 });
 
-test("formatCanonicalLogLine emits the canonical envelope first", function () {
+test("formatCanonicalLogLine emits the canonical envelope first", () => {
   const line = formatCanonicalLogLine({
     ts: "2026-04-14T12:00:00.000Z",
     level: "info",
@@ -39,7 +39,7 @@ test("formatCanonicalLogLine emits the canonical envelope first", function () {
   );
 });
 
-test("colorizeLevelInLogLine colors only the level value", function () {
+test("colorizeLevelInLogLine colors only the level value", () => {
   assert.equal(
     colorizeLevelInLogLine(
       "ts=2026-04-14T12:00:00.000Z level=warn event=board.joined",
@@ -56,7 +56,7 @@ test("colorizeLevelInLogLine colors only the level value", function () {
   );
 });
 
-test("dimLogLineKeys dims only the keys", function () {
+test("dimLogLineKeys dims only the keys", () => {
   assert.equal(
     dimLogLineKeys(
       "ts=2026-04-14T12:00:00.000Z level=warn event=board.joined board=demo",
@@ -65,7 +65,7 @@ test("dimLogLineKeys dims only the keys", function () {
   );
 });
 
-test("styleTerminalLogLine combines dim keys with colored level values", function () {
+test("styleTerminalLogLine combines dim keys with colored level values", () => {
   assert.equal(
     styleTerminalLogLine(
       "ts=2026-04-14T12:00:00.000Z level=warn event=board.joined board=demo",

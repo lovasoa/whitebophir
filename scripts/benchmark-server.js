@@ -25,7 +25,7 @@ const HAND_BATCH_PASSES = 96;
 const EXPORT_PENCIL_SHAPES = 768;
 
 function bytesToMiB(bytes) {
-  return (bytes / (1024 * 1024)).toFixed(1) + " MiB";
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
 function formatDelta(bytes) {
@@ -34,13 +34,11 @@ function formatDelta(bytes) {
 }
 
 function formatMs(milliseconds) {
-  return milliseconds.toFixed(1) + " ms";
+  return `${milliseconds.toFixed(1)} ms`;
 }
 
 function median(values) {
-  const sorted = values.slice().sort(function (left, right) {
-    return left - right;
-  });
+  const sorted = values.slice().sort((left, right) => left - right);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0
     ? (sorted[middle - 1] + sorted[middle]) / 2
@@ -70,7 +68,7 @@ function snapshotMemory() {
 }
 
 function boardFile(name) {
-  return path.join(historyDir, "board-" + encodeURIComponent(name) + ".json");
+  return path.join(historyDir, `board-${encodeURIComponent(name)}.json`);
 }
 
 async function writeBoardFile(name, board) {
@@ -103,7 +101,7 @@ function textItem(index) {
     size: 18,
     x: (index * 7) % 7000,
     y: (index * 11) % 7000,
-    txt: "bench-" + index + "-payload",
+    txt: `bench-${index}-payload`,
     time: index,
   };
 }
@@ -149,7 +147,7 @@ function pencilItem(index, pointCount) {
 function buildMixedBoard(itemCount, pencilEvery, pencilPointsPerShape) {
   const board = {};
   for (let index = 0; index < itemCount; index++) {
-    const id = "item-" + index;
+    const id = `item-${index}`;
     if (index % pencilEvery === 0) {
       board[id] = pencilItem(index, pencilPointsPerShape);
       continue;
@@ -218,18 +216,10 @@ async function measureScenario(scenario) {
     }
   }
 
-  const durations = samples.map(function (sample) {
-    return sample.durationMs;
-  });
-  const activeHeaps = samples.map(function (sample) {
-    return sample.activeHeapDelta;
-  });
-  const retainedHeaps = samples.map(function (sample) {
-    return sample.retainedHeapDelta;
-  });
-  const rssDeltas = samples.map(function (sample) {
-    return sample.rssDelta;
-  });
+  const durations = samples.map((sample) => sample.durationMs);
+  const activeHeaps = samples.map((sample) => sample.activeHeapDelta);
+  const retainedHeaps = samples.map((sample) => sample.retainedHeapDelta);
+  const rssDeltas = samples.map((sample) => sample.rssDelta);
   const representative = samples[Math.floor(samples.length / 2)];
 
   console.log(scenario.name);
@@ -244,14 +234,12 @@ async function measureScenario(scenario) {
       spreadPercent(durations).toFixed(1) +
       "%)",
   );
-  console.log("  heap active:   " + formatDelta(median(activeHeaps)));
-  console.log("  heap retained: " + formatDelta(median(retainedHeaps)));
-  console.log("  rss delta:     " + formatDelta(median(rssDeltas)));
-  console.log(
-    "  samples:       " + SAMPLE_COUNT + " + " + WARMUP_COUNT + " warmup",
-  );
+  console.log(`  heap active:   ${formatDelta(median(activeHeaps))}`);
+  console.log(`  heap retained: ${formatDelta(median(retainedHeaps))}`);
+  console.log(`  rss delta:     ${formatDelta(median(rssDeltas))}`);
+  console.log(`  samples:       ${SAMPLE_COUNT} + ${WARMUP_COUNT} warmup`);
   if (representative.details) {
-    console.log("  details:       " + representative.details);
+    console.log(`  details:       ${representative.details}`);
   }
 }
 
@@ -261,7 +249,7 @@ async function main() {
   const scenarios = [
     {
       name: "load dense persisted board",
-      prepare: async function () {
+      prepare: async () => {
         fixtures.loadDense = await writeBoardFile(
           "bench-load-dense-board",
           buildMixedBoard(
@@ -271,10 +259,8 @@ async function main() {
           ),
         );
       },
-      setup: async function () {
-        return fixtures.loadDense;
-      },
-      run: async function (fixture) {
+      setup: async () => fixtures.loadDense,
+      run: async (fixture) => {
         const boardData = await BoardData.load("bench-load-dense-board");
         clearPendingSave(boardData);
         return (
@@ -286,18 +272,18 @@ async function main() {
     },
     {
       name: "materialize initial board snapshot",
-      prepare: async function () {
+      prepare: async () => {
         fixtures.snapshot = await writeBoardFile(
           "bench-initial-board-snapshot",
           buildMixedBoard(SNAPSHOT_BOARD_ITEMS, 8, 64),
         );
       },
-      setup: async function () {
+      setup: async () => {
         const boardData = await BoardData.load("bench-initial-board-snapshot");
         clearPendingSave(boardData);
         return { boardData, fixture: fixtures.snapshot };
       },
-      run: async function (context) {
+      run: async (context) => {
         const payload = { _children: context.boardData.getAll() };
         const snapshot = JSON.stringify(payload);
         return (
@@ -311,7 +297,7 @@ async function main() {
     },
     {
       name: "save dense board to disk",
-      prepare: async function () {
+      prepare: async () => {
         fixtures.saveDense = await writeBoardFile(
           "bench-save-dense-board",
           buildMixedBoard(
@@ -321,12 +307,12 @@ async function main() {
           ),
         );
       },
-      setup: async function () {
+      setup: async () => {
         const boardData = await BoardData.load("bench-save-dense-board");
         clearPendingSave(boardData);
         return { boardData, fixture: fixtures.saveDense };
       },
-      run: async function (context) {
+      run: async (context) => {
         await context.boardData.save();
         clearPendingSave(context.boardData);
         const stat = await fsp.stat(context.boardData.file);
@@ -341,14 +327,14 @@ async function main() {
     },
     {
       name: "clean and save overfull board",
-      setup: async function () {
+      setup: async () => {
         const boardData = new BoardData("bench-clean-overfull-board");
         for (let index = 0; index < OVERFULL_BOARD_ITEMS; index++) {
-          boardData.board["overflow-" + index] = rectangleItem(index);
+          boardData.board[`overflow-${index}`] = rectangleItem(index);
         }
         return { boardData, beforeCount: OVERFULL_BOARD_ITEMS };
       },
-      run: async function (context) {
+      run: async (context) => {
         await context.boardData.save();
         clearPendingSave(context.boardData);
         const afterCount = Object.keys(context.boardData.board).length;
@@ -366,12 +352,12 @@ async function main() {
     },
     {
       name: "apply hand batch transforms to dense pencils",
-      setup: async function () {
+      setup: async () => {
         const boardData = new BoardData("bench-hand-batch-move");
         const batches = [];
         for (let index = 0; index < HAND_BATCH_ITEMS; index++) {
           const result = boardData.set(
-            "pencil-" + index,
+            `pencil-${index}`,
             pencilItem(index, DENSE_PENCIL_POINTS),
           );
           if (!result.ok) throw new Error(result.reason);
@@ -380,29 +366,24 @@ async function main() {
           const delta = pass + 1;
           batches.push({
             tool: "Hand",
-            _children: Array.from(
-              { length: HAND_BATCH_ITEMS },
-              function (_, index) {
-                return {
-                  type: "update",
-                  id: "pencil-" + index,
-                  transform: {
-                    a: 1,
-                    b: 0,
-                    c: 0,
-                    d: 1,
-                    e: delta * 2,
-                    f: delta * 3,
-                  },
-                };
+            _children: Array.from({ length: HAND_BATCH_ITEMS }, (_, index) => ({
+              type: "update",
+              id: `pencil-${index}`,
+              transform: {
+                a: 1,
+                b: 0,
+                c: 0,
+                d: 1,
+                e: delta * 2,
+                f: delta * 3,
               },
-            ),
+            })),
           });
         }
         clearPendingSave(boardData);
         return { boardData, batches };
       },
-      run: async function (context) {
+      run: async (context) => {
         let moved = 0;
         for (const batch of context.batches) {
           const result = context.boardData.processMessage(batch);
@@ -420,16 +401,14 @@ async function main() {
     },
     {
       name: "export large pencil board to svg",
-      prepare: async function () {
+      prepare: async () => {
         fixtures.exportDense = await writeBoardFile(
           "bench-export-large-pencils",
           buildMixedBoard(EXPORT_PENCIL_SHAPES, 1, DENSE_PENCIL_POINTS),
         );
       },
-      setup: async function () {
-        return fixtures.exportDense;
-      },
-      run: async function (fixture) {
+      setup: async () => fixtures.exportDense,
+      run: async (fixture) => {
         const svg = await renderBoardToSVG(fixture.file);
         return (
           EXPORT_PENCIL_SHAPES +
@@ -442,7 +421,7 @@ async function main() {
     },
   ];
 
-  console.log("history dir: " + historyDir);
+  console.log(`history dir: ${historyDir}`);
   if (typeof global.gc !== "function") {
     console.log("note: run with --expose-gc for steadier memory numbers");
   }
@@ -455,10 +434,10 @@ async function main() {
 }
 
 main()
-  .catch(function (error) {
+  .catch((error) => {
     console.error(error);
     process.exitCode = 1;
   })
-  .finally(async function () {
+  .finally(async () => {
     await fsp.rm(historyDir, { recursive: true, force: true });
   });

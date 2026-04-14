@@ -1,8 +1,8 @@
-(function (root, factory) {
+((root, factory) => {
   var api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
   /** @type {any} */ (root).WBOSharedModuleResolver = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+})(typeof globalThis !== "undefined" ? globalThis : this, () => {
   /**
    * @param {string} requirePath
    * @param {string} globalName

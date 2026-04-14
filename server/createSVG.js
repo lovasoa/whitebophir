@@ -55,7 +55,7 @@ function dist(x1, y1, x2, y2) {
 function htmlspecialchars(str) {
   if (typeof str !== "string") return "";
 
-  return str.replace(/[<>&"']/g, function (c) {
+  return str.replace(/[<>&"']/g, (c) => {
     switch (c) {
       case "<":
         return "&lt;";
@@ -81,7 +81,7 @@ function renderTranslate(el) {
   const deltax = numberOrZero(el.deltax);
   const deltay = numberOrZero(el.deltay);
   if (deltax === 0 && deltay === 0) return "";
-  return 'transform="translate(' + deltax + "," + deltay + ')"';
+  return `transform="translate(${deltax},${deltay})"`;
 }
 
 /**
@@ -92,11 +92,11 @@ function renderTranslate(el) {
 function renderPath(el, pathstring) {
   return (
     "<path " +
-    (el.id ? 'id="' + htmlspecialchars(el.id) + '" ' : "") +
+    (el.id ? `id="${htmlspecialchars(el.id)}" ` : "") +
     'stroke-width="' +
     (numberOrZero(el.size) | 0) +
     '" ' +
-    (el.opacity ? 'opacity="' + numberOrZero(el.opacity) + '" ' : "") +
+    (el.opacity ? `opacity="${numberOrZero(el.opacity)}" ` : "") +
     'stroke="' +
     htmlspecialchars(el.color) +
     '" ' +
@@ -114,7 +114,7 @@ function renderPath(el, pathstring) {
  * @returns {string}
  */
 function renderMoveTo(x, y) {
-  return "M " + x + " " + y;
+  return `M ${x} ${y}`;
 }
 
 /**
@@ -123,7 +123,7 @@ function renderMoveTo(x, y) {
  * @returns {string}
  */
 function renderLineTo(x, y) {
-  return "L " + x + " " + y;
+  return `L ${x} ${y}`;
 }
 
 /**
@@ -136,7 +136,7 @@ function renderLineTo(x, y) {
  * @returns {string}
  */
 function renderCurveTo(c1x, c1y, c2x, c2y, x, y) {
-  return "C " + c1x + " " + c1y + " " + c2x + " " + c2y + " " + x + " " + y;
+  return `C ${c1x} ${c1y} ${c2x} ${c2y} ${x} ${y}`;
 }
 
 /**
@@ -230,7 +230,7 @@ const Tools = {
    * @param {RenderableElement} el
    * @return {string}
    */
-  Text: function (el) {
+  Text: (el) => {
     if (el.tool !== "Text") return "";
     /** @type {TextElement} */
     const text = el;
@@ -261,7 +261,7 @@ const Tools = {
    * @param {RenderableElement} el
    * @return {string}
    */
-  Pencil: function (el) {
+  Pencil: (el) => {
     if (el.tool !== "Pencil") return "";
     /** @type {PencilElement} */
     const pencil = el;
@@ -273,14 +273,14 @@ const Tools = {
    * @param {RenderableElement} el
    * @return {string}
    */
-  Rectangle: function (el) {
+  Rectangle: (el) => {
     if (el.tool !== "Rectangle") return "";
     /** @type {ShapeElement} */
     const shape = el;
     const bounds = normalizeRectBounds(shape.x, shape.y, shape.x2, shape.y2);
     return (
       "<rect " +
-      (shape.id ? 'id="' + htmlspecialchars(shape.id) + '" ' : "") +
+      (shape.id ? `id="${htmlspecialchars(shape.id)}" ` : "") +
       'x="' +
       bounds.x +
       '" ' +
@@ -307,7 +307,7 @@ const Tools = {
    * @param {RenderableElement} el
    * @return {string}
    */
-  Ellipse: function (el) {
+  Ellipse: (el) => {
     if (el.tool !== "Ellipse") return "";
     /** @type {ShapeElement} */
     const shape = el;
@@ -340,12 +340,11 @@ const Tools = {
    * @param {RenderableElement} el
    * @return {string}
    */
-  "Straight line": function (el) {
+  "Straight line": (el) => {
     if (el.tool !== "Straight line") return "";
     /** @type {ShapeElement} */
     const shape = el;
-    const pathstring =
-      "M" + shape.x + " " + shape.y + "L" + shape.x2 + " " + shape.y2;
+    const pathstring = `M${shape.x} ${shape.y}L${shape.x2} ${shape.y2}`;
     return renderPath(shape, pathstring);
   },
 };
@@ -356,7 +355,7 @@ const Tools = {
  */
 function originPointForBounds(elem) {
   if (elem.tool === "Pencil") {
-    const firstPoint = elem._children && elem._children[0];
+    const firstPoint = elem._children?.[0];
     return firstPoint || null;
   }
   if (elem.tool === "Text") {
@@ -380,7 +379,7 @@ async function toSVG(obj, writeable) {
      * @param {RenderableElement} elem
      * @returns {[number, number]}
      */
-    function (dim, elem) {
+    (dim, elem) => {
       const point = originPointForBounds(elem);
       if (!point) return dim;
       return [
@@ -438,7 +437,7 @@ async function renderBoardToSVG(file) {
   /** @type {string[]} */
   const chunks = [];
   await toSVG(board, {
-    write: function (chunk) {
+    write: (chunk) => {
       chunks.push(chunk);
     },
   });
@@ -460,7 +459,7 @@ if (require.main === module) {
   const HISTORY_FILE =
     process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
 
-  renderBoard(HISTORY_FILE, process.stdout).catch(function (error) {
+  renderBoard(HISTORY_FILE, process.stdout).catch((error) => {
     logger.error("svg.render_failed", {
       error: error,
     });

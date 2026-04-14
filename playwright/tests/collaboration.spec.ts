@@ -1,4 +1,5 @@
-import { test, expect, createBoardPage } from "../fixtures/test";
+// biome-ignore-all lint/suspicious/noExplicitAny: Playwright tests frequently access global state on the window object.
+import { createBoardPage, expect, test } from "../fixtures/test";
 import { DEFAULT_FORWARDED_IP } from "../helpers/tokens";
 
 const rateLimitTest = test.extend({

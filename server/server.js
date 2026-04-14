@@ -43,7 +43,7 @@ const CSP =
 const fileserver = serveStatic(config.WEBROOT, {
   maxAge: 2 * 3600 * 1000,
   /** @param {HttpResponse} res */
-  setHeaders: function (res) {
+  setHeaders: (res) => {
     res.setHeader("Content-Security-Policy", CSP);
   },
 });
@@ -311,8 +311,8 @@ function observeRequest(request, response) {
  * @param {{noteError: (error: unknown) => void}} requestContext
  * @returns {(err?: unknown) => void}
  */
-function serveError(request, response, requestContext) {
-  return function (err) {
+function serveError(_request, response, requestContext) {
+  return (err) => {
     if (err) requestContext.noteError(err);
     response.writeHead(err ? 500 : 404, { "Content-Length": errorPage.length });
     response.end(errorPage);
@@ -342,7 +342,7 @@ function handler(request, response) {
  */
 function validateBoardName(boardName) {
   if (/^[\w%\-_~()]*$/.test(boardName)) return boardName;
-  throw new Error("Illegal board name: " + boardName);
+  throw new Error(`Illegal board name: ${boardName}`);
 }
 
 /**
@@ -397,7 +397,7 @@ function handleRequest(request, response, requestContext) {
         requestContext.annotate({ board: boardName });
         requestContext.setTraceAttributes({ board: boardName });
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-        const headers = { Location: "boards/" + encodeURIComponent(boardName) };
+        const headers = { Location: `boards/${encodeURIComponent(boardName)}` };
         response.writeHead(301, headers);
         response.end();
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
@@ -424,7 +424,7 @@ function handleRequest(request, response, requestContext) {
         });
       } else {
         requestContext.setRoute("static_file");
-        request.url = "/" + parts.slice(1).join("/");
+        request.url = `/${parts.slice(1).join("/")}`;
         fileserver(
           request,
           response,
@@ -445,12 +445,12 @@ function handleRequest(request, response, requestContext) {
       requestContext.setTraceAttributes({ board: boardName });
       let historyFile = path.join(
         config.HISTORY_DIR,
-        "board-" + boardName + ".json",
+        `board-${boardName}.json`,
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
       const backupSuffix = getPathPart(parts, 2);
-      if (backupSuffix && /^[0-9A-Za-z.\-]+$/.test(backupSuffix)) {
-        historyFile += "." + backupSuffix + ".bak";
+      if (backupSuffix && /^[0-9A-Za-z.-]+$/.test(backupSuffix)) {
+        historyFile += `.${backupSuffix}.bak`;
       }
       Promise.resolve(
         tracing.withActiveSpan(
@@ -466,11 +466,10 @@ function handleRequest(request, response, requestContext) {
           },
         ),
       )
-        .then(function (data) {
+        .then((data) => {
           response.writeHead(200, {
             "Content-Type": "application/json",
-            "Content-Disposition":
-              'attachment; filename="' + boardName + '.wbo"',
+            "Content-Disposition": `attachment; filename="${boardName}.wbo"`,
             "Content-Length": data.length,
           });
           response.end(data);
@@ -491,7 +490,7 @@ function handleRequest(request, response, requestContext) {
       requestContext.setTraceAttributes({ board: exportBoardName });
       const historyFile = path.join(
         config.HISTORY_DIR,
-        "board-" + exportBoardName + ".json",
+        `board-${exportBoardName}.json`,
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, exportBoardName);
       const startedAt = Date.now();
@@ -509,7 +508,7 @@ function handleRequest(request, response, requestContext) {
           },
         ),
       )
-        .then(function (svg) {
+        .then((svg) => {
           response.writeHead(200, {
             "Content-Type": "image/svg+xml",
             "Content-Security-Policy": CSP,
@@ -517,7 +516,7 @@ function handleRequest(request, response, requestContext) {
           });
           response.end(svg);
         })
-        .catch(function (err) {
+        .catch((err) => {
           requestContext.noteError(err);
           requestContext.annotate({
             render_duration_ms: Date.now() - startedAt,
@@ -533,7 +532,7 @@ function handleRequest(request, response, requestContext) {
     case "random": {
       requestContext.setRoute("random_board");
       const name = crypto.randomBytes(24).toString("base64url");
-      response.writeHead(307, { Location: "boards/" + name });
+      response.writeHead(307, { Location: `boards/${name}` });
       response.end(name);
       break;
     }
@@ -544,7 +543,7 @@ function handleRequest(request, response, requestContext) {
         requestContext.annotate({ board: config.DEFAULT_BOARD });
         requestContext.setTraceAttributes({ board: config.DEFAULT_BOARD });
         response.writeHead(302, {
-          Location: "boards/" + encodeURIComponent(config.DEFAULT_BOARD),
+          Location: `boards/${encodeURIComponent(config.DEFAULT_BOARD)}`,
         });
         response.end(config.DEFAULT_BOARD);
       } else {

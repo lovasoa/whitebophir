@@ -124,22 +124,20 @@ function createSocket(options) {
       },
     },
     broadcast: {
-      to: function (room) {
-        return {
-          emit: function (event, payload) {
-            broadcasted.push({ event, payload, room });
-          },
-        };
-      },
+      to: (room) => ({
+        emit: (event, payload) => {
+          broadcasted.push({ event, payload, room });
+        },
+      }),
     },
     disconnectCalls: [],
-    on: function (event, handler) {
+    on: (event, handler) => {
       handlers[event] = handler;
     },
     join: function (room) {
       this.rooms.add(room);
     },
-    emit: function (event, payload) {
+    emit: (event, payload) => {
       emitted.push({ event, payload });
     },
     disconnect: function (close) {
@@ -157,7 +155,7 @@ function createSocket(options) {
  * @returns {string}
  */
 function boardFile(historyDir, name) {
-  return path.join(historyDir, "board-" + encodeURIComponent(name) + ".json");
+  return path.join(historyDir, `board-${encodeURIComponent(name)}.json`);
 }
 
 /**

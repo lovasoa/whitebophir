@@ -1,5 +1,3 @@
-"use strict";
-
 const DEFAULT_SERVICE_NAME = "whitebophir-server";
 const ENVELOPE_KEYS = ["ts", "level", "event", "msg"];
 const ANSI_DIM = "\x1b[2m";

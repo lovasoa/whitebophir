@@ -82,7 +82,7 @@ function literal(expected) {
   return function normalizeLiteral(value) {
     return value === expected
       ? accepted(expected)
-      : rejected("expected " + JSON.stringify(expected));
+      : rejected(`expected ${JSON.stringify(expected)}`);
   };
 }
 
@@ -158,7 +158,7 @@ function normalizeTransform(value) {
   for (const key of TRANSFORM_KEYS) {
     const number = MessageCommon.normalizeFiniteNumber(value[key]);
     if (number === null) {
-      return rejected("invalid transform." + key);
+      return rejected(`invalid transform.${key}`);
     }
     transform[/** @type {keyof Transform} */ (key)] = number;
   }
@@ -177,25 +177,25 @@ function normalizeObject(raw, fields) {
   /** @type {RawRecord} */
   const normalized = {};
   for (const [key, field] of Object.entries(fields)) {
-    const hasValue = Object.prototype.hasOwnProperty.call(raw, key);
+    const hasValue = Object.hasOwn(raw, key);
     /** @type {any} */
     let value;
 
     if (hasValue) {
       value = raw[key];
-    } else if (Object.prototype.hasOwnProperty.call(field, "defaultValue")) {
+    } else if (Object.hasOwn(field, "defaultValue")) {
       value =
         typeof field.defaultValue === "function"
           ? field.defaultValue(raw, normalized)
           : field.defaultValue;
     } else if (field.required) {
-      return rejected("missing " + key);
+      return rejected(`missing ${key}`);
     } else {
       continue;
     }
 
     const result = field.normalize(value, raw, normalized);
-    if (result.ok === false) return rejected(key + ": " + result.reason);
+    if (result.ok === false) return rejected(`${key}: ${result.reason}`);
     if (result.value !== undefined) normalized[key] = result.value;
   }
 
@@ -457,16 +457,16 @@ function normalizeIncomingBatch(raw) {
   const children = [];
   for (let index = 0; index < raw._children.length; index++) {
     const child = raw._children[index];
-    const type = child && child.type;
-    if (typeof type !== "string") return rejected("_children[" + index + "]");
+    const type = child?.type;
+    if (typeof type !== "string") return rejected(`_children[${index}]`);
     const schema = childSchemas[type];
     if (!schema) {
-      return rejected("_children[" + index + "]: invalid type");
+      return rejected(`_children[${index}]: invalid type`);
     }
 
     const normalizedChild = normalizeObject(child, schema);
     if (normalizedChild.ok === false) {
-      return rejected("_children[" + index + "]: " + normalizedChild.reason);
+      return rejected(`_children[${index}]: ${normalizedChild.reason}`);
     }
     children.push(normalizedChild.value);
   }
@@ -486,7 +486,7 @@ function normalizeIncomingMessage(raw) {
   if (Array.isArray(raw._children)) return normalizeIncomingBatch(raw);
 
   const toolSchemas = LIVE_MESSAGE_SCHEMAS[raw.tool];
-  const schema = toolSchemas && toolSchemas[raw.type];
+  const schema = toolSchemas?.[raw.type];
   if (!schema) return rejected("invalid tool/type");
 
   const normalized = normalizeObject(raw, schema);

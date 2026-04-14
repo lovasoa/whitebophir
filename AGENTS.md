@@ -43,8 +43,8 @@
 - Node suite: `node --test test-node/*.test.js`.
 - Browser suite: `npx playwright test playwright/tests/<file>.spec.ts`.
 - Throughput check: `npm run bench` before/after suspected performance changes.
-- Full gate: `npm test` (Node tests, Playwright, `prettier-check`).
-- Auto-format: `npm run prettier` (rules: [prettierrc](./.prettierrc), ignores: [prettierignore](./.prettierignore)).
+- Full gate: `npm test` (Node tests, Playwright, `lint`).
+- Auto-format: `npm run format`.
 
 ## notes
 
@@ -54,7 +54,7 @@
 
 ## formatting
 
-- CI has no separate linter; `npm run prettier-check` + `npm test` define pass/fail.
+- CI has no separate lint job; `npm run lint` and `npm test` define pass/fail.
 - Keep edits minimal and style-consistent unless doing full-module refactors.
 
 ## change strategy

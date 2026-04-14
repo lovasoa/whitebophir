@@ -1,5 +1,5 @@
 var crypto = require("node:crypto"),
-  { Server, Socket } = require("socket.io"),
+  { Server } = require("socket.io"),
   { logger, metrics, tracing } = require("./observability.js"),
   BoardData = require("./boardData.js").BoardData,
   config = require("./configuration"),
@@ -229,14 +229,6 @@ function getSocketRequest(socket) {
 }
 
 /**
- * @param {unknown} error
- * @returns {string}
- */
-function errorMessage(error) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/**
  * @param {string} seed
  * @param {number} minParts
  * @param {number} maxParts
@@ -249,9 +241,9 @@ function buildPronounceableName(seed, minParts, maxParts) {
     partCount += (digest[0] || 0) % (maxParts - minParts + 1);
   }
   var word = "";
-  for (var index = 0; index < partCount; index++) {
-    var offset = 1 + index * 2;
-    var value = digest.readUInt16BE(offset);
+  for (let index = 0; index < partCount; index++) {
+    const offset = 1 + index * 2;
+    const value = digest.readUInt16BE(offset);
     word +=
       NAME_SYLLABLES[value % NAME_SYLLABLES.length] ||
       NAME_SYLLABLES[0] ||
@@ -266,7 +258,7 @@ function buildPronounceableName(seed, minParts, maxParts) {
  * @returns {string}
  */
 function getSocketQueryValue(socket, key) {
-  var query = socket.handshake && socket.handshake.query;
+  var query = socket.handshake?.query;
   if (!query) return "";
   var value = query[key];
   return typeof value === "string" ? value : "";
@@ -306,7 +298,7 @@ function buildIpWord(ip) {
  * @returns {string}
  */
 function buildUserName(ip, userSecret) {
-  return buildIpWord(ip) + " " + buildUserId(userSecret);
+  return `${buildIpWord(ip)} ${buildUserId(userSecret)}`;
 }
 
 /**
@@ -490,7 +482,7 @@ function attachLiveSocketId(data, user) {
  * @param {{[key: string]: any}} infos
  * @returns {void}
  */
-function closeSocket(socket, eventName, infos) {
+function closeSocket(socket, _eventName, _infos) {
   socket.disconnect(true);
 }
 
@@ -524,7 +516,7 @@ function closeRateLimitedSocket(socket, eventName, infos) {
  * @returns {string}
  */
 function getBoardName(message) {
-  return (message && message.board) || "anonymous";
+  return message?.board || "anonymous";
 }
 
 /**
@@ -532,7 +524,7 @@ function getBoardName(message) {
  * @returns {MessageData | undefined}
  */
 function getMessageData(message) {
-  return message && message.data;
+  return message?.data;
 }
 
 /**
@@ -575,8 +567,8 @@ function boardMutationTraceAttributes(boardName, userName, message) {
   return socketTraceAttributes("broadcast_write", {
     "wbo.board": boardName,
     "wbo.user": userName,
-    "wbo.tool": message && message.tool,
-    "wbo.message.type": message && message.type,
+    "wbo.tool": message?.tool,
+    "wbo.message.type": message?.type,
   });
 }
 
@@ -585,7 +577,7 @@ function boardMutationTraceAttributes(boardName, userName, message) {
  * @param {string} boardName
  * @returns {string}
  */
-function normalizedBoardName(socket, boardName) {
+function normalizedBoardName(_socket, boardName) {
   return boardName || "anonymous";
 }
 
@@ -650,8 +642,8 @@ function resolveClientIp(socket, boardName) {
       );
     }
     // Fallback to remoteAddress
-    var request = getSocketRequest(socket);
-    if (request.socket && request.socket.remoteAddress) {
+    const request = getSocketRequest(socket);
+    if (request.socket?.remoteAddress) {
       return request.socket.remoteAddress;
     }
     return "unknown";
@@ -836,12 +828,12 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
   rateLimitState.count = nextState.count;
   rateLimitState.lastSeen = nextState.lastSeen;
   if (rateLimitState.count > destructiveLimit.limit) {
-    var retryAfterMs = getRateLimitRemainingMs(
+    const retryAfterMs = getRateLimitRemainingMs(
       rateLimitState,
       destructiveLimit.periodMs,
       now,
     );
-    var userName = getSocketUserName(socket, clientIp);
+    const userName = getSocketUserName(socket, clientIp);
     tracing.withDetachedSpan(
       "socket.rate_limited",
       {
@@ -928,12 +920,12 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
   rateLimitState.count = nextState.count;
   rateLimitState.lastSeen = nextState.lastSeen;
   if (rateLimitState.count > constructiveLimit.limit) {
-    var retryAfterMs = getRateLimitRemainingMs(
+    const retryAfterMs = getRateLimitRemainingMs(
       rateLimitState,
       constructiveLimit.periodMs,
       now,
     );
-    var userName = getSocketUserName(socket, clientIp);
+    const userName = getSocketUserName(socket, clientIp);
     tracing.withDetachedSpan(
       "socket.rate_limited",
       {
@@ -1037,15 +1029,15 @@ function startIO(app) {
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
     io.use(
-      function (
+      (
         /** @type {AppSocket} */ socket,
         /** @type {(error?: Error) => void} */ next,
-      ) {
-        if (socket.handshake.query && socket.handshake.query.token) {
+      ) => {
+        if (socket.handshake.query?.token) {
           jsonwebtoken.verify(
             socket.handshake.query.token,
             config.AUTH_SECRET_KEY,
-            function (/** @type {unknown} */ err, /** @type {any} */ decoded) {
+            (/** @type {unknown} */ err, /** @type {any} */ _decoded) => {
               if (err)
                 return next(new Error("Authentication error: Invalid JWT"));
               next();
@@ -1066,10 +1058,10 @@ function startIO(app) {
  * @returns {Promise<BoardData>}
  */
 function getBoard(name) {
-  if (boards.hasOwnProperty(name)) {
+  if (Object.hasOwn(boards, name)) {
     return /** @type {Promise<BoardData>} */ (boards[name]);
   } else {
-    var board = BoardData.load(name);
+    const board = BoardData.load(name);
     boards[name] = board;
     updateLoadedBoardsGauge();
     return board;
@@ -1106,7 +1098,7 @@ function handleSocketConnection(socket) {
     var wasJoined = board.users.has(socket.id);
     board.users.add(socket.id);
     if (!wasJoined || !hasBoardUser(socket, name)) {
-      var user = ensureBoardUser(socket, name);
+      const user = ensureBoardUser(socket, name);
       if (!wasJoined) {
         connectedUsersTotal += 1;
         updateConnectedUsersGauge();
@@ -1155,8 +1147,7 @@ function handleSocketConnection(socket) {
           var board = await joinBoard(boardName);
           tracing.setActiveSpanAttributes({
             "wbo.board.result": "success",
-            "wbo.user":
-              (getBoardUser(boardName, socket.id) || {}).name || undefined,
+            "wbo.user": getBoardUser(boardName, socket.id)?.name || undefined,
           });
           socket.emit("boardstate", {
             readonly: board.isReadOnly(),
@@ -1206,16 +1197,16 @@ function handleSocketConnection(socket) {
             return;
           }
           try {
-            var clientIp = resolveClientIp(socket, "anonymous");
-            var userName = getSocketUserName(socket, clientIp);
+            const clientIp = resolveClientIp(socket, "anonymous");
+            const userName = getSocketUserName(socket, clientIp);
             tracing.setActiveSpanAttributes({ "wbo.user": userName });
-            var requestBody = new URLSearchParams({
+            const requestBody = new URLSearchParams({
               secret: config.TURNSTILE_SECRET_KEY,
               response: token,
             });
             requestBody.set("remoteip", clientIp);
-            var verifyUrl = new URL(config.TURNSTILE_VERIFY_URL);
-            var verification = await tracing.withActiveSpan(
+            const verifyUrl = new URL(config.TURNSTILE_VERIFY_URL);
+            const verification = await tracing.withActiveSpan(
               "turnstile.verify",
               {
                 kind: tracing.SpanKind.CLIENT,
@@ -1243,8 +1234,8 @@ function handleSocketConnection(socket) {
                 return { response: response, result: result };
               },
             );
-            var result = verification.result;
-            var validation = validateTurnstileResult(socket, result);
+            const result = verification.result;
+            const validation = validateTurnstileResult(socket, result);
             if (validation.ok === true) {
               socket.turnstileValidatedUntil =
                 Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS;
@@ -1520,15 +1511,17 @@ function handleSocketConnection(socket) {
 
   socket.on(
     "disconnecting",
-    function onDisconnecting(/** @type {string} */ reason) {
+    function onDisconnecting(/** @type {string} */ _reason) {
       activeSockets.delete(socket.id);
       socket.rooms.forEach(
         async function disconnectFrom(/** @type {string} */ room) {
-          if (boards.hasOwnProperty(room)) {
-            var board = await /** @type {Promise<BoardData>} */ (boards[room]);
-            var removed = board.users.delete(socket.id);
+          if (Object.hasOwn(boards, room)) {
+            const board = await /** @type {Promise<BoardData>} */ (
+              boards[room]
+            );
+            const removed = board.users.delete(socket.id);
             removeBoardUser(socket, room);
-            var userCount = board.users.size;
+            const userCount = board.users.size;
             if (removed) {
               connectedUsersTotal = Math.max(0, connectedUsersTotal - 1);
               updateConnectedUsersGauge();
@@ -1546,7 +1539,7 @@ function handleSocketConnection(socket) {
  * @param {string} boardName
  **/
 async function unloadBoard(boardName) {
-  if (boards.hasOwnProperty(boardName)) {
+  if (Object.hasOwn(boards, boardName)) {
     return tracing.withOptionalActiveSpan(
       "board.unload",
       {
@@ -1599,19 +1592,6 @@ function saveHistory(board, message) {
     });
   }
   return board.processMessage(/** @type {any} */ (message));
-}
-
-/**
- * @param {string | undefined} prefix
- * @param {string | undefined} suffix
- * @returns {string}
- */
-function generateUID(prefix, suffix) {
-  var uid = Date.now().toString(36); //Create the uids in chronological order
-  uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
-  if (prefix) uid = prefix + uid;
-  if (suffix) uid = uid + suffix;
-  return uid;
 }
 
 if (exports) {

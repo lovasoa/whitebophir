@@ -18,7 +18,7 @@ function withMockedNow(value, fn) {
     });
 }
 
-test("requiresTurnstile shared utility logic", function () {
+test("requiresTurnstile shared utility logic", () => {
   assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "Pencil"), true);
   assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "Clear"), true);
   assert.equal(
@@ -35,32 +35,30 @@ test("requiresTurnstile shared utility logic", function () {
   );
 });
 
-test("server-side Turnstile enforcement in broadcast", async function () {
+test("server-side Turnstile enforcement in broadcast", async () => {
   await withEnv(
     {
       TURNSTILE_SECRET_KEY: "test-secret",
       TURNSTILE_SITE_KEY: "test-site-key",
       TURNSTILE_VALIDATION_WINDOW_MS: "1000",
     },
-    async function () {
+    async () => {
       const sockets = require(SOCKETS_PATH);
       const { socket, handlers } = createSocket();
 
       // Initialize socket state by calling handleSocketConnection
       sockets.__test.handleSocketConnection(socket);
 
-      const broadcastHandler = handlers["broadcast"];
+      const broadcastHandler = handlers.broadcast;
       assert.ok(broadcastHandler, "broadcast handler should be registered");
 
       // 1. Blocked: Anonymous board, Pencil tool, not validated
       let broadcastCalled = false;
-      socket.broadcast.to = function () {
-        return {
-          emit: () => {
-            broadcastCalled = true;
-          },
-        };
-      };
+      socket.broadcast.to = () => ({
+        emit: () => {
+          broadcastCalled = true;
+        },
+      });
 
       await broadcastHandler({
         board: "anonymous",
@@ -87,7 +85,7 @@ test("server-side Turnstile enforcement in broadcast", async function () {
 
       // 3. Allowed: Pencil tool, AFTER validation
       socket.turnstileValidatedUntil = 1000;
-      await withMockedNow(500, async function () {
+      await withMockedNow(500, async () => {
         await broadcastHandler({
           board: "anonymous",
           data: {
@@ -107,7 +105,7 @@ test("server-side Turnstile enforcement in broadcast", async function () {
 
       socket.rooms.delete("anonymous");
       socket.turnstileValidatedUntil = 1000;
-      await withMockedNow(1001, async function () {
+      await withMockedNow(1001, async () => {
         await broadcastHandler({
           board: "anonymous",
           data: {
@@ -128,14 +126,14 @@ test("server-side Turnstile enforcement in broadcast", async function () {
   );
 });
 
-test("server-side Turnstile token validation binds Siteverify to request context", async function () {
+test("server-side Turnstile token validation binds Siteverify to request context", async () => {
   await withEnv(
     {
       TURNSTILE_SECRET_KEY: "test-secret",
       TURNSTILE_SITE_KEY: "test-site-key",
       TURNSTILE_VALIDATION_WINDOW_MS: "120000",
     },
-    async function () {
+    async () => {
       const config = require("../server/configuration.js");
       const sockets = require(SOCKETS_PATH);
       const { socket, handlers } = createSocket({
@@ -171,7 +169,7 @@ test("server-side Turnstile token validation binds Siteverify to request context
 
       try {
         sockets.__test.handleSocketConnection(socket);
-        const tokenHandler = handlers["turnstile_token"];
+        const tokenHandler = handlers.turnstile_token;
         assert.ok(tokenHandler, "turnstile_token handler should be registered");
 
         let ackCalledWith = null;
@@ -196,8 +194,8 @@ test("server-side Turnstile token validation binds Siteverify to request context
         // Test failed validation
         globalThis.fetch = /** @type {any} */ (
           async function failedFetch(
-            /** @type {string} */ url,
-            /** @type {{body: URLSearchParams}} */ options,
+            /** @type {string} */ _url,
+            /** @type {{body: URLSearchParams}} */ _options,
           ) {
             return {
               json: async () => ({
@@ -223,14 +221,14 @@ test("server-side Turnstile token validation binds Siteverify to request context
   );
 });
 
-test("server-side Turnstile token validation rejects hostname mismatches", async function () {
+test("server-side Turnstile token validation rejects hostname mismatches", async () => {
   await withEnv(
     {
       TURNSTILE_SECRET_KEY: "test-secret",
       TURNSTILE_SITE_KEY: "test-site-key",
     },
-    async function () {
-      const config = require("../server/configuration.js");
+    async () => {
+      const _config = require("../server/configuration.js");
       const sockets = require(SOCKETS_PATH);
       const { socket, handlers } = createSocket({
         headers: { host: "board.example:8080" },
@@ -239,7 +237,7 @@ test("server-side Turnstile token validation rejects hostname mismatches", async
       const originalFetch = globalThis.fetch;
       try {
         sockets.__test.handleSocketConnection(socket);
-        const tokenHandler = handlers["turnstile_token"];
+        const tokenHandler = handlers.turnstile_token;
         assert.ok(tokenHandler);
 
         globalThis.fetch = /** @type {any} */ (

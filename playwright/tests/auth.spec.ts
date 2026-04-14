@@ -1,5 +1,5 @@
 import jsonwebtoken from "jsonwebtoken";
-import { test, expect } from "../fixtures/test";
+import { expect, test } from "../fixtures/test";
 import { AUTH_SECRET, TOKENS } from "../helpers/tokens";
 
 const jwtTest = test.extend({

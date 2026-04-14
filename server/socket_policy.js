@@ -105,10 +105,9 @@ function selectTrustedClientIp(chain) {
 function getClientIp(socket) {
   var request = getSocketRequest(socket);
   var headers = getSocketHeaders(socket);
-  var directRemoteAddress =
-    request.socket && request.socket.remoteAddress
-      ? request.socket.remoteAddress
-      : "";
+  var directRemoteAddress = request.socket?.remoteAddress
+    ? request.socket.remoteAddress
+    : "";
   var ipSource = config.IP_SOURCE || "remoteAddress";
   var normalizedIpSource = normalizeHeaderName(ipSource);
 
@@ -118,10 +117,10 @@ function getClientIp(socket) {
   }
 
   switch (normalizedIpSource) {
-    case "x-forwarded-for":
-      var forwardedForHeader = singleHeaderValue(headers["x-forwarded-for"]);
+    case "x-forwarded-for": {
+      const forwardedForHeader = singleHeaderValue(headers["x-forwarded-for"]);
       if (forwardedForHeader) {
-        var xForwardedFor = forwardedForHeader
+        const xForwardedFor = forwardedForHeader
           .split(",")
           .map(function trimHop(/** @type {string} */ hop) {
             return hop.trim();
@@ -137,11 +136,12 @@ function getClientIp(socket) {
       throw new Error(
         "Missing x-forwarded-for header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
       );
+    }
 
-    case "forwarded":
-      var forwardedHeader = singleHeaderValue(headers["forwarded"]);
+    case "forwarded": {
+      const forwardedHeader = singleHeaderValue(headers.forwarded);
       if (forwardedHeader) {
-        var forwardedChain = parseForwardedChain(forwardedHeader);
+        const forwardedChain = parseForwardedChain(forwardedHeader);
         if (config.TRUST_PROXY_HOPS > 0 && directRemoteAddress) {
           forwardedChain.reverse();
           forwardedChain.unshift(directRemoteAddress);
@@ -152,13 +152,15 @@ function getClientIp(socket) {
       throw new Error(
         "Missing Forwarded header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
       );
+    }
 
-    default:
-      var customHeader = singleHeaderValue(headers[normalizedIpSource]);
-      if (customHeader && customHeader.trim()) {
+    default: {
+      const customHeader = singleHeaderValue(headers[normalizedIpSource]);
+      if (customHeader?.trim()) {
         return customHeader.trim();
       }
-      throw new Error("Missing " + ipSource + " header");
+      throw new Error(`Missing ${ipSource} header`);
+    }
   }
 }
 
@@ -174,7 +176,7 @@ var countConstructiveActions = RateLimitCommon.countConstructiveActions;
  * @returns {string}
  */
 function getBoardName(message) {
-  return (message && message.board) || "anonymous";
+  return message?.board || "anonymous";
 }
 
 /**
@@ -217,15 +219,15 @@ function normalizeBroadcastData(message, data) {
           "wbo.socket.event": "broadcast_write",
           "wbo.board": getBoardName(message),
           "wbo.rejection.reason": reason,
-          "wbo.tool": data && data.tool,
-          "wbo.message.type": data && data.type,
+          "wbo.tool": data?.tool,
+          "wbo.message.type": data?.type,
         },
       },
       function recordRejectedBroadcast() {
         logger.warn("socket.message_invalid", {
           board: getBoardName(message),
-          tool: data && data.tool,
-          type: data && data.type,
+          tool: data?.tool,
+          type: data?.type,
           reason: reason,
         });
         metrics.recordRejection("invalid_message", reason);
@@ -240,7 +242,7 @@ function normalizeBroadcastData(message, data) {
  * @returns {string | undefined}
  */
 function getSocketToken(socket) {
-  return socket.handshake.query && socket.handshake.query.token;
+  return socket.handshake.query?.token;
 }
 
 /**

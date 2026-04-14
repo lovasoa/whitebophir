@@ -1,4 +1,4 @@
-(function (root, factory) {
+((root, factory) => {
   /**
    * @typedef {{
    *   DRAW_TOOL_NAMES: string[],
@@ -29,7 +29,7 @@
   var api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
   /** @type {any} */ (root).WBOMessageCommon = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+})(typeof globalThis !== "undefined" ? globalThis : this, () => {
   /**
    * @typedef {{ minX: number, minY: number, maxX: number, maxY: number }} Bounds
    * @typedef {{ x: number, y: number }} Point
@@ -90,13 +90,10 @@
   var isShapeTool =
     MessageToolMetadata && typeof MessageToolMetadata.isShapeTool === "function"
       ? MessageToolMetadata.isShapeTool
-      : function () {
-          return false;
-        };
-  var DRAW_TOOL_NAMES =
-    MessageToolMetadata && MessageToolMetadata.DRAW_TOOL_NAMES
-      ? MessageToolMetadata.DRAW_TOOL_NAMES
-      : ["Pencil", "Straight line", "Rectangle", "Ellipse", "Text"];
+      : () => false;
+  var DRAW_TOOL_NAMES = MessageToolMetadata?.DRAW_TOOL_NAMES
+    ? MessageToolMetadata.DRAW_TOOL_NAMES
+    : ["Pencil", "Straight line", "Rectangle", "Ellipse", "Text"];
 
   /**
    * @param {unknown} value
@@ -123,7 +120,7 @@
    * @returns {number}
    */
   function roundToDecimals(number, decimals) {
-    var factor = Math.pow(10, decimals);
+    var factor = 10 ** decimals;
     return Math.round(number * factor) / factor;
   }
 
@@ -196,10 +193,16 @@
    * @returns {string | null}
    */
   function normalizeId(value, maxLength) {
-    return typeof value === "string" &&
-      value.length > 0 &&
+    if (typeof value !== "string") {
+      return null;
+    }
+    const containsControlOrWhitespace = Array.from(value).some((char) => {
+      const code = char.charCodeAt(0);
+      return code <= 0x1f || code === 0x7f || /\s/.test(char);
+    });
+    return value.length > 0 &&
       value.length <= (maxLength || LIMITS.MAX_ID_LENGTH) &&
-      !/[\u0000-\u001f\u007f\s]/.test(value)
+      !containsControlOrWhitespace
       ? value
       : null;
   }
@@ -338,7 +341,7 @@
     var x = toFiniteNumber(item.x);
     var y = toFiniteNumber(item.y);
     var size = toFiniteNumber(item.size);
-    var len = toFiniteNumber(item.txt && item.txt.length);
+    var len = toFiniteNumber(item.txt?.length);
     if (x === null || y === null || size === null || len === null) return null;
     return {
       minX: x,
@@ -383,12 +386,12 @@
    * @returns {Point | null}
    */
   function applyTransformToPoint(point, transform) {
-    var a = toFiniteNumber(transform && transform.a);
-    var b = toFiniteNumber(transform && transform.b);
-    var c = toFiniteNumber(transform && transform.c);
-    var d = toFiniteNumber(transform && transform.d);
-    var e = toFiniteNumber(transform && transform.e);
-    var f = toFiniteNumber(transform && transform.f);
+    var a = toFiniteNumber(transform?.a);
+    var b = toFiniteNumber(transform?.b);
+    var c = toFiniteNumber(transform?.c);
+    var d = toFiniteNumber(transform?.d);
+    var e = toFiniteNumber(transform?.e);
+    var f = toFiniteNumber(transform?.f);
     if (
       a === null ||
       b === null ||
@@ -420,8 +423,8 @@
       transform.c === 0 &&
       transform.d === 1;
     if (isTranslationOnly) {
-      var translateX = toFiniteNumber(transform.e);
-      var translateY = toFiniteNumber(transform.f);
+      const translateX = toFiniteNumber(transform.e);
+      const translateY = toFiniteNumber(transform.f);
       if (translateX === null || translateY === null) return null;
       return {
         minX: bounds.minX + translateX,
@@ -439,10 +442,10 @@
       { x: bounds.maxX, y: bounds.maxY },
     ];
     var transformed = null;
-    for (var i = 0; i < points.length; i++) {
-      var sourcePoint = points[i];
+    for (let i = 0; i < points.length; i++) {
+      const sourcePoint = points[i];
       if (!sourcePoint) return null;
-      var point = applyTransformToPoint(sourcePoint, transform);
+      const point = applyTransformToPoint(sourcePoint, transform);
       if (point === null) return null;
       transformed = extendBoundsWithPoint(transformed, point.x, point.y);
     }

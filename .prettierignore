@@ -1,6 +1,7 @@
 package.json
 package-lock.json
 node_modules/
+.codex-profiles/
 .DS_Store
 *.html
 Dockerfile

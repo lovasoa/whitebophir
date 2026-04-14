@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const BoardConnection =
   require("../client-data/js/board_transport.js").connection;
 
-test("normalizeSocketIOExtraHeaders keeps only string header values", function () {
+test("normalizeSocketIOExtraHeaders keeps only string header values", () => {
   assert.deepEqual(
     BoardConnection.normalizeSocketIOExtraHeaders({
       authorization: "Bearer abc",
@@ -17,7 +17,7 @@ test("normalizeSocketIOExtraHeaders keeps only string header values", function (
   assert.equal(BoardConnection.normalizeSocketIOExtraHeaders(null), null);
 });
 
-test("buildSocketParams keeps board prefixes and omits empty tokens", function () {
+test("buildSocketParams keeps board prefixes and omits empty tokens", () => {
   assert.deepEqual(
     BoardConnection.buildSocketParams("/prefix/boards/demo", { test: "1" }, ""),
     {
@@ -57,14 +57,14 @@ test("buildSocketParams keeps board prefixes and omits empty tokens", function (
   );
 });
 
-test("closeSocket prefers disconnect over destroy", function () {
+test("closeSocket prefers disconnect over destroy", () => {
   /** @type {string[]} */
   const calls = [];
   BoardConnection.closeSocket({
-    disconnect: function () {
+    disconnect: () => {
       calls.push("disconnect");
     },
-    destroy: function () {
+    destroy: () => {
       calls.push("destroy");
     },
   });

@@ -6,7 +6,7 @@ installTestConsole();
 
 const BoardState = require("../client-data/js/board_page_state.js").state;
 
-test("parseBoardStateText falls back safely on missing or invalid JSON", function () {
+test("parseBoardStateText falls back safely on missing or invalid JSON", () => {
   assert.deepEqual(BoardState.parseBoardStateText(null), {
     readonly: false,
     canWrite: true,
@@ -17,7 +17,7 @@ test("parseBoardStateText falls back safely on missing or invalid JSON", functio
   });
 });
 
-test("resolveBoardName decodes the last path segment", function () {
+test("resolveBoardName decodes the last path segment", () => {
   assert.equal(
     BoardState.resolveBoardName("/boards/demo%20board"),
     "demo board",
@@ -25,7 +25,7 @@ test("resolveBoardName decodes the last path segment", function () {
   assert.equal(BoardState.resolveBoardName("/boards/demo/"), "");
 });
 
-test("updateRecentBoards filters malformed entries and deduplicates the current board", function () {
+test("updateRecentBoards filters malformed entries and deduplicates the current board", () => {
   assert.deepEqual(
     BoardState.updateRecentBoards(["alpha", 42, "", "beta", "alpha"], "beta"),
     ["beta", "alpha"],

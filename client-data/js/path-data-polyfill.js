@@ -10,16 +10,16 @@
 //   Jarosław Foksa
 // @license
 //   MIT License
-(function () {
-  var clonePathData = function (pathData) {
-    return pathData.map(function (seg) {
-      return { type: seg.type, values: Array.prototype.slice.call(seg.values) };
-    });
-  };
+(() => {
+  var clonePathData = (pathData) =>
+    pathData.map((seg) => ({
+      type: seg.type,
+      values: Array.prototype.slice.call(seg.values),
+    }));
 
   // @info
   //   Takes any path data, returns path data that consists only from absolute commands.
-  var absolutizePathData = function (pathData) {
+  var absolutizePathData = (pathData) => {
     var absolutizedPathData = [];
 
     var currentX = null;
@@ -28,7 +28,7 @@
     var subpathX = null;
     var subpathY = null;
 
-    pathData.forEach(function (seg) {
+    pathData.forEach((seg) => {
       var type = seg.type;
 
       if (type === "M") {
@@ -217,7 +217,7 @@
   // @info
   //   Takes path data that consists only from absolute commands, returns path data that consists only from
   //   "M", "L", "C" and "Z" commands.
-  var reducePathData = function (pathData) {
+  var reducePathData = (pathData) => {
     var reducedPathData = [];
     var lastType = null;
 
@@ -230,7 +230,7 @@
     var subpathX = null;
     var subpathY = null;
 
-    pathData.forEach(function (seg) {
+    pathData.forEach((seg) => {
       if (seg.type === "M") {
         var x = seg.values[0];
         var y = seg.values[1];
@@ -375,7 +375,7 @@
               sweepFlag,
             );
 
-            curves.forEach(function (curve) {
+            curves.forEach((curve) => {
               reducedPathData.push({ type: "C", values: curve });
             });
 
@@ -398,7 +398,7 @@
 
   // @info
   //   Get an array of corresponding cubic bezier curve parameters for given arc curve paramters.
-  var arcToCubicCurves = function (
+  var arcToCubicCurves = (
     x1,
     y1,
     x2,
@@ -409,12 +409,10 @@
     largeArcFlag,
     sweepFlag,
     _recursive,
-  ) {
-    var degToRad = function (degrees) {
-      return (Math.PI * degrees) / 180;
-    };
+  ) => {
+    var degToRad = (degrees) => (Math.PI * degrees) / 180;
 
-    var rotate = function (x, y, angleRad) {
+    var rotate = (x, y, angleRad) => {
       var X = x * Math.cos(angleRad) - y * Math.sin(angleRad);
       var Y = x * Math.sin(angleRad) + y * Math.cos(angleRad);
       return { x: X, y: Y };
@@ -570,7 +568,7 @@
       document
         .createElementNS("http://www.w3.org/2000/svg", "path")
         .setPathData([{ type: "M", values: [0, 0] }]);
-    } catch (error) {
+    } catch (_error) {
       isPathDataSupported = false;
     }
   }
@@ -885,7 +883,7 @@
         number *= sign;
 
         if (exponent) {
-          number *= Math.pow(10, expsign * exponent);
+          number *= 10 ** (expsign * exponent);
         }
 
         if (startIndex === this._currentIndex) {
@@ -920,7 +918,7 @@
       },
     };
 
-    var parsePathDataString = function (string) {
+    var parsePathDataString = (string) => {
       if (!string || string.length === 0) return [];
 
       var source = new Source(string);
@@ -985,7 +983,7 @@
       setAttributeNS.call(this, namespace, name, value);
     };
 
-    SVGPathElement.prototype.removeAttribute = function (name, value) {
+    SVGPathElement.prototype.removeAttribute = function (name, _value) {
       if (name === "d") {
         this[$cachedPathData] = null;
         this[$cachedNormalizedPathData] = null;
@@ -1016,7 +1014,7 @@
     };
 
     SVGPathElement.prototype.getPathData = function (options) {
-      if (options && options.normalize) {
+      if (options?.normalize) {
         if (this[$cachedNormalizedPathData]) {
           return clonePathData(this[$cachedNormalizedPathData]);
         } else {
@@ -1065,7 +1063,7 @@
           d += seg.type;
 
           if (seg.values && seg.values.length > 0) {
-            d += " " + seg.values.join(" ");
+            d += ` ${seg.values.join(" ")}`;
           }
         }
 
@@ -1109,11 +1107,9 @@
       ];
 
       // Get rid of redundant "A" segs when either rx or ry is 0
-      pathData = pathData.filter(function (s) {
-        return s.type === "A" && (s.values[0] === 0 || s.values[1] === 0)
-          ? false
-          : true;
-      });
+      pathData = pathData.filter(
+        (s) => !(s.type === "A" && (s.values[0] === 0 || s.values[1] === 0)),
+      );
 
       if (options && options.normalize === true) {
         pathData = reducePathData(pathData);

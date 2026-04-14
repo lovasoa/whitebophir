@@ -1,5 +1,3 @@
-"use strict";
-
 const { execFileSync } = require("node:child_process");
 const path = require("node:path");
 
@@ -15,6 +13,6 @@ try {
     cwd: repoRoot,
     stdio: "ignore",
   });
-} catch (error) {
+} catch (_error) {
   // Ignore non-git installs, such as tarball packaging.
 }

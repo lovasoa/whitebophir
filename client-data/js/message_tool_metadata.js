@@ -1,8 +1,8 @@
-(function (root, factory) {
+((root, factory) => {
   var api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
   /** @type {any} */ (root).WBOMessageToolMetadata = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+})(typeof globalThis !== "undefined" ? globalThis : this, () => {
   /**
    * @typedef {string} ToolName
    * @typedef {{shapeType?: string, updatableFields: string[], draw?: boolean}} ToolMetadata
@@ -13,7 +13,7 @@
 
   /** @type {ToolMetadataMap} */
   var TOOL_METADATA = Object.create(null);
-  TOOL_METADATA["Pencil"] = {
+  TOOL_METADATA.Pencil = {
     updatableFields: [],
     draw: true,
   };
@@ -22,30 +22,30 @@
     updatableFields: ["x2", "y2"],
     draw: true,
   };
-  TOOL_METADATA["Rectangle"] = {
+  TOOL_METADATA.Rectangle = {
     shapeType: "rect",
     updatableFields: ["x", "y", "x2", "y2"],
     draw: true,
   };
-  TOOL_METADATA["Ellipse"] = {
+  TOOL_METADATA.Ellipse = {
     shapeType: "ellipse",
     updatableFields: ["x", "y", "x2", "y2"],
     draw: true,
   };
-  TOOL_METADATA["Text"] = {
+  TOOL_METADATA.Text = {
     updatableFields: ["txt"],
     draw: true,
   };
-  TOOL_METADATA["Hand"] = {
+  TOOL_METADATA.Hand = {
     updatableFields: ["transform"],
   };
-  TOOL_METADATA["Cursor"] = {
+  TOOL_METADATA.Cursor = {
     updatableFields: [],
   };
-  TOOL_METADATA["Eraser"] = {
+  TOOL_METADATA.Eraser = {
     updatableFields: [],
   };
-  TOOL_METADATA["Clear"] = {
+  TOOL_METADATA.Clear = {
     updatableFields: [],
   };
 
@@ -56,7 +56,7 @@
   /** @type {UpdatableFieldMap} */
   var TOOL_UPDATE_FIELDS = Object.create(null);
   for (var toolName in TOOL_METADATA) {
-    var metadata = TOOL_METADATA[toolName];
+    const metadata = TOOL_METADATA[toolName];
     if (metadata === undefined) continue;
     TOOL_UPDATE_FIELDS[toolName] = metadata.updatableFields;
     if (metadata.draw === true) {
@@ -73,7 +73,7 @@
    */
   function getToolMetadata(toolName) {
     if (typeof toolName !== "string") return null;
-    if (Object.prototype.hasOwnProperty.call(TOOL_METADATA, toolName)) {
+    if (Object.hasOwn(TOOL_METADATA, toolName)) {
       const metadata = TOOL_METADATA[toolName];
       return metadata === undefined ? null : metadata;
     }
@@ -128,10 +128,10 @@
     /** @type {{[key: string]: any}} */
     const updatable = {};
     var fields = getUpdatableFieldNames(toolName);
-    for (var index = 0; index < fields.length; index++) {
-      var field = fields[index];
+    for (let index = 0; index < fields.length; index++) {
+      const field = fields[index];
       if (typeof field !== "string") continue;
-      if (Object.prototype.hasOwnProperty.call(data, field)) {
+      if (Object.hasOwn(data, field)) {
         updatable[field] = data[field];
       }
     }
