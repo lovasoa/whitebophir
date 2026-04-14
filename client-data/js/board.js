@@ -28,6 +28,7 @@ import BoardMessageReplay from "./board_message_replay.js";
 import { bootstrap as BoardBootstrap } from "./board_page_state.js";
 import { state as BoardState } from "./board_page_state.js";
 import { tools as BoardTools } from "./board_page_state.js";
+import MessageCommon from "./message_common.js";
 import RateLimitCommon from "./rate_limit_common.js";
 import { connection as BoardConnection } from "./board_transport.js";
 import { messages as BoardMessages } from "./board_transport.js";
@@ -50,7 +51,6 @@ import { turnstile as BoardTurnstile } from "./board_transport.js";
 /** @typedef {{limit?: number, periodMs?: number, anonymousLimit?: number, overrides?: {[boardName: string]: {limit?: number, periodMs?: number}}}} RateLimitDefinition */
 var Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
-var MessageCommon = window.WBOMessageCommon;
 // Add extra slack between the client-side local budget and the server's
 // fixed window so buffered writes do not flush too early on slow runners.
 var RATE_LIMIT_FLUSH_SAFETY_MS = 1000;
