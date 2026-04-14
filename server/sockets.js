@@ -42,6 +42,8 @@ var destructiveRateLimits = new Map();
 var constructiveRateLimits = new Map();
 /** @type {Map<string, Map<string, BoardUser>>} */
 var boardUsers = new Map();
+/** @type {Map<string, AppSocket>} */
+var activeSockets = new Map();
 var connectedUsersTotal = 0;
 /** @type {{
  *   board: string,
@@ -490,6 +492,14 @@ function attachLiveSocketId(data, user) {
  */
 function closeSocket(socket, eventName, infos) {
   socket.disconnect(true);
+}
+
+/**
+ * @param {string} socketId
+ * @returns {AppSocket | undefined}
+ */
+function getActiveSocket(socketId) {
+  return activeSockets.get(socketId);
 }
 
 /**
@@ -1071,6 +1081,8 @@ function getBoard(name) {
  * @param {AppSocket} socket
  */
 function handleSocketConnection(socket) {
+  activeSockets.set(socket.id, socket);
+
   /**
    * Function to call when an user joins a board
    * @param {string} name
@@ -1480,6 +1492,23 @@ function handleSocketConnection(socket) {
             reporter_name: lastUserReportLog.reporter_name,
             reported_name: lastUserReportLog.reported_name,
           });
+
+          var socketsToDisconnect = [socket];
+          var reportedSocket = getActiveSocket(reported.socketId);
+          if (reportedSocket && reportedSocket !== socket) {
+            socketsToDisconnect.push(reportedSocket);
+          }
+
+          socketsToDisconnect.forEach(
+            function disconnectReportedUser(
+              /** @type {AppSocket} */ targetSocket,
+            ) {
+              closeSocket(targetSocket, "report_user", {
+                board: boardName,
+                socket: targetSocket.id,
+              });
+            },
+          );
         },
       );
     }, "report_user"),
@@ -1488,6 +1517,7 @@ function handleSocketConnection(socket) {
   socket.on(
     "disconnecting",
     function onDisconnecting(/** @type {string} */ reason) {
+      activeSockets.delete(socket.id);
       socket.rooms.forEach(
         async function disconnectFrom(/** @type {string} */ room) {
           if (boards.hasOwnProperty(room)) {
@@ -1605,6 +1635,7 @@ if (exports) {
       destructiveRateLimits.clear();
       constructiveRateLimits.clear();
       boardUsers.clear();
+      activeSockets.clear();
       lastUserReportLog = null;
     },
   };
