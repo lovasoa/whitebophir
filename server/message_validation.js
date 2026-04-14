@@ -286,6 +286,36 @@ function makeStoredShapeSchema(toolName) {
   };
 }
 
+/**
+ * @returns {ToolSchemas}
+ */
+function buildLiveShapeSchemas() {
+  /** @type {ToolSchemas} */
+  const shapeSchemas = {};
+  for (const [toolName, typeName] of Object.entries(
+    MessageToolMetadata.SHAPE_TOOL_TYPES,
+  )) {
+    shapeSchemas[toolName] = {
+      /** @type {FieldSchema} */
+      [typeName]: makeLiveShapeCreateSchema(toolName),
+      update: makeLiveShapeUpdateSchema(toolName),
+    };
+  }
+  return shapeSchemas;
+}
+
+/**
+ * @returns {ToolSchemas}
+ */
+function buildStoredShapeSchemas() {
+  /** @type {ToolSchemas} */
+  const shapeSchemas = {};
+  for (const toolName of Object.keys(MessageToolMetadata.SHAPE_TOOL_TYPES)) {
+    shapeSchemas[toolName] = makeStoredShapeSchema(toolName);
+  }
+  return shapeSchemas;
+}
+
 /** @type {ToolSchemas} */
 const LIVE_MESSAGE_SCHEMAS = {
   Pencil: {
@@ -304,18 +334,6 @@ const LIVE_MESSAGE_SCHEMAS = {
       x: required(normalizeCoord),
       y: required(normalizeCoord),
     },
-  },
-  "Straight line": {
-    straight: makeLiveShapeCreateSchema("Straight line"),
-    update: makeLiveShapeUpdateSchema("Straight line"),
-  },
-  Rectangle: {
-    rect: makeLiveShapeCreateSchema("Rectangle"),
-    update: makeLiveShapeUpdateSchema("Rectangle"),
-  },
-  Ellipse: {
-    ellipse: makeLiveShapeCreateSchema("Ellipse"),
-    update: makeLiveShapeUpdateSchema("Ellipse"),
   },
   Text: {
     new: {
@@ -358,6 +376,7 @@ const LIVE_MESSAGE_SCHEMAS = {
       type: required(literal("clear")),
     },
   },
+  ...buildLiveShapeSchemas(),
 };
 
 /** @type {ToolSchemas} */
@@ -391,15 +410,6 @@ const STORED_ITEM_SCHEMAS = {
     transform: optional(normalizeTransform),
     time: optional(normalizeTime),
   },
-  "Straight line": {
-    ...makeStoredShapeSchema("Straight line"),
-  },
-  Rectangle: {
-    ...makeStoredShapeSchema("Rectangle"),
-  },
-  Ellipse: {
-    ...makeStoredShapeSchema("Ellipse"),
-  },
   Text: {
     tool: required(literal("Text")),
     type: optional(literal("new"), { defaultValue: "new" }),
@@ -412,6 +422,7 @@ const STORED_ITEM_SCHEMAS = {
     transform: optional(normalizeTransform),
     time: optional(normalizeTime),
   },
+  ...buildStoredShapeSchemas(),
 };
 
 /**
