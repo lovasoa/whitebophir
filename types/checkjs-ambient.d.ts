@@ -29,7 +29,6 @@ declare global {
       ): Element;
     };
   };
-  const WBOMessageCommon: typeof import("../client-data/js/message_common.js");
   const wboPencilPoint: any;
   var pointInTransformedBBox: (
     point: [number, number],
@@ -41,7 +40,6 @@ declare global {
   ) => boolean;
 
   interface Window {
-    WBOMessageCommon: typeof import("../client-data/js/message_common.js");
     Tools: typeof Tools;
     messageForTool: typeof messageForTool;
     WBOBoardState: typeof import("../client-data/js/board_page_state.js")["state"];
