@@ -5,6 +5,9 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { renderBoard } = require("../server/createSVG.js");
+const {
+  wboPencilPoint,
+} = require("../client-data/tools/pencil/wbo_pencil_point.js");
 
 /**
  * @param {any} storedBoard
@@ -24,6 +27,31 @@ async function renderStoredBoard(storedBoard) {
     },
   });
   return chunks.join("");
+}
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * @param {{x: number, y: number}[]} points
+ * @returns {string}
+ */
+function renderExpectedPencilPath(points) {
+  /** @type {{type: string, values: number[]}[]} */
+  const pathData = [];
+  for (const point of points) {
+    wboPencilPoint(pathData, point.x, point.y);
+  }
+  return pathData
+    .map(function (op) {
+      return op.type + " " + op.values.join(" ");
+    })
+    .join(" ");
 }
 
 test("renderBoard normalizes rectangle bounds for reverse-dragged shapes", async function () {
@@ -47,4 +75,26 @@ test("renderBoard normalizes rectangle bounds for reverse-dragged shapes", async
   assert.match(svg, /<rect[^>]*height="19"/);
   assert.doesNotMatch(svg, /width="-/);
   assert.doesNotMatch(svg, /height="-/);
+});
+
+test("renderBoard keeps pencil path smoothing compatible with the client renderer", async function () {
+  const points = [
+    { x: 1, y: 2 },
+    { x: 10, y: 12 },
+    { x: 18, y: 9 },
+    { x: 25, y: 30 },
+  ];
+  const svg = await renderStoredBoard({
+    line1: {
+      tool: "Pencil",
+      type: "line",
+      id: "line1",
+      color: "#000000",
+      size: 2,
+      _children: points,
+    },
+  });
+
+  const expectedPath = renderExpectedPencilPath(points);
+  assert.match(svg, new RegExp('d="' + escapeRegExp(expectedPath) + '"'));
 });

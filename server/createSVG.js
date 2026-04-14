@@ -1,12 +1,9 @@
 const fsp = require("node:fs/promises"),
   path = require("node:path"),
   parseStoredBoard = require("./boardData.js").parseStoredBoard,
-  logger = require("./observability.js").logger,
-  wboPencilPoint =
-    require("../client-data/tools/pencil/wbo_pencil_point.js").wboPencilPoint;
+  logger = require("./observability.js").logger;
 
 /** @typedef {{x: number, y: number}} Point */
-/** @typedef {{type: string, values: number[]}} PathOperation */
 /** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number}} ElementStyle */
 /** @typedef {ElementStyle & {tool: "Text", x: number, y: number, txt?: string}} TextElement */
 /** @typedef {ElementStyle & {tool: "Pencil", _children?: Point[]}} PencilElement */
@@ -38,6 +35,17 @@ function normalizeRectBounds(x1, y1, x2, y2) {
     width: Math.abs(x2 - x1),
     height: Math.abs(y2 - y1),
   };
+}
+
+/**
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} x2
+ * @param {number} y2
+ * @returns {number}
+ */
+function dist(x1, y1, x2, y2) {
+  return Math.hypot(x2 - x1, y2 - y1);
 }
 
 /**
@@ -100,6 +108,122 @@ function renderPath(el, pathstring) {
   );
 }
 
+/**
+ * @param {number} x
+ * @param {number} y
+ * @returns {string}
+ */
+function renderMoveTo(x, y) {
+  return "M " + x + " " + y;
+}
+
+/**
+ * @param {number} x
+ * @param {number} y
+ * @returns {string}
+ */
+function renderLineTo(x, y) {
+  return "L " + x + " " + y;
+}
+
+/**
+ * @param {number} c1x
+ * @param {number} c1y
+ * @param {number} c2x
+ * @param {number} c2y
+ * @param {number} x
+ * @param {number} y
+ * @returns {string}
+ */
+function renderCurveTo(c1x, c1y, c2x, c2y, x, y) {
+  return "C " + c1x + " " + c1y + " " + c2x + " " + c2y + " " + x + " " + y;
+}
+
+/**
+ * @param {Point[] | undefined} children
+ * @returns {string}
+ */
+function renderPencilPath(children) {
+  if (!children || children.length === 0) return "";
+
+  const firstPoint = children[0];
+  if (!firstPoint) return "";
+
+  /** @type {string[]} */
+  const pathParts = [
+    renderMoveTo(firstPoint.x, firstPoint.y),
+    renderLineTo(firstPoint.x, firstPoint.y),
+  ];
+  let pointCount = 1;
+  let anteX = firstPoint.x;
+  let anteY = firstPoint.y;
+  let prevX = firstPoint.x;
+  let prevY = firstPoint.y;
+  let previousCurveIndex = -1;
+  let previousCurveControlX = firstPoint.x;
+  let previousCurveControlY = firstPoint.y;
+
+  for (let index = 1; index < children.length; index++) {
+    const point = children[index];
+    if (!point) continue;
+
+    const x = point.x;
+    const y = point.y;
+    if (pointCount === 1) {
+      pathParts.push(renderCurveTo(firstPoint.x, firstPoint.y, x, y, x, y));
+      previousCurveIndex = pathParts.length - 1;
+      previousCurveControlX = firstPoint.x;
+      previousCurveControlY = firstPoint.y;
+      anteX = firstPoint.x;
+      anteY = firstPoint.y;
+      prevX = x;
+      prevY = y;
+      pointCount = 2;
+      continue;
+    }
+
+    if ((prevX === x && prevY === y) || (anteX === x && anteY === y)) {
+      continue;
+    }
+
+    const vectorX = x - anteX;
+    const vectorY = y - anteY;
+    const norm = Math.hypot(vectorX, vectorY);
+    if (norm === 0) continue;
+
+    const scaledVectorX = vectorX / 3;
+    const scaledVectorY = vectorY / 3;
+    const dist1 = dist(anteX, anteY, prevX, prevY) / norm;
+    const dist2 = dist(x, y, prevX, prevY) / norm;
+    const control1X = prevX - dist1 * scaledVectorX;
+    const control1Y = prevY - dist1 * scaledVectorY;
+    const control2X = prevX + dist2 * scaledVectorX;
+    const control2Y = prevY + dist2 * scaledVectorY;
+
+    if (previousCurveIndex !== -1) {
+      pathParts[previousCurveIndex] = renderCurveTo(
+        previousCurveControlX,
+        previousCurveControlY,
+        control1X,
+        control1Y,
+        prevX,
+        prevY,
+      );
+    }
+    pathParts.push(renderCurveTo(control2X, control2Y, x, y, x, y));
+    previousCurveIndex = pathParts.length - 1;
+    previousCurveControlX = control2X;
+    previousCurveControlY = control2Y;
+    anteX = prevX;
+    anteY = prevY;
+    prevX = x;
+    prevY = y;
+    pointCount += 1;
+  }
+
+  return pathParts.join(" ");
+}
+
 /** @type {{[tool: string]: ToolRenderer}} */
 const Tools = {
   /**
@@ -141,24 +265,8 @@ const Tools = {
     if (el.tool !== "Pencil") return "";
     /** @type {PencilElement} */
     const pencil = el;
-    if (!pencil._children) return "";
-    /** @type {PathOperation[]} */
-    let pts = pencil._children.reduce(
-      /**
-       * @param {PathOperation[]} pts
-       * @param {Point} point
-       * @returns {PathOperation[]}
-       */
-      function (pts, point) {
-        return wboPencilPoint(pts, point.x, point.y);
-      },
-      /** @type {PathOperation[]} */ ([]),
-    );
-    const pathstring = pts
-      .map(function (op) {
-        return op.type + " " + op.values.join(" ");
-      })
-      .join(" ");
+    const pathstring = renderPencilPath(pencil._children);
+    if (pathstring === "") return "";
     return renderPath(pencil, pathstring);
   },
   /**
@@ -301,17 +409,19 @@ async function toSVG(obj, writeable) {
       "rect {fill:none}" +
       "]]></style></defs>",
   );
-  await Promise.all(
-    elems.map(async function (elem) {
-      await Promise.resolve(); // Do not block the event loop
-      const renderFun = Tools[elem.tool];
-      if (renderFun) writeable.write(renderFun(elem));
-      else
-        logger.warn("svg.renderer_missing", {
-          tool: elem.tool,
-        });
-    }),
-  );
+  for (let index = 0; index < elems.length; index++) {
+    if (index > 0 && index % 128 === 0) {
+      await Promise.resolve();
+    }
+    const elem = elems[index];
+    if (!elem) continue;
+    const renderFun = Tools[elem.tool];
+    if (renderFun) writeable.write(renderFun(elem));
+    else
+      logger.warn("svg.renderer_missing", {
+        tool: elem.tool,
+      });
+  }
   writeable.write("</svg>");
 }
 
