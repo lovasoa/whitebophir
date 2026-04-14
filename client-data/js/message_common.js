@@ -40,6 +40,12 @@
     module.exports &&
     typeof require === "function" &&
     require("./message_tool_metadata.js");
+  var isShapeTool =
+    MessageToolMetadata && typeof MessageToolMetadata.isShapeTool === "function"
+      ? MessageToolMetadata.isShapeTool
+      : function () {
+          return false;
+        };
   var DRAW_TOOL_NAMES =
     MessageToolMetadata && MessageToolMetadata.DRAW_TOOL_NAMES
       ? MessageToolMetadata.DRAW_TOOL_NAMES
@@ -304,10 +310,12 @@
     switch (item.tool) {
       case "Pencil":
         return getPencilBounds(item);
-      case "Straight line":
-      case "Rectangle":
-      case "Ellipse":
-        return getStraightShapeBounds(item);
+      default:
+        if (isShapeTool(item.tool)) {
+          return getStraightShapeBounds(item);
+        }
+    }
+    switch (item.tool) {
       case "Text":
         return getTextBounds(item);
       default:
@@ -315,6 +323,13 @@
     }
   }
 
+  /**
+   * @param {GeometryItem | null | undefined} item
+   * @returns {boolean}
+   */
+  function isGeometryTooLarge(item) {
+    return isBoundsTooLarge(getEffectiveGeometryBounds(item));
+  }
   /**
    * @param {Point} point
    * @param {Transform | null | undefined} transform
@@ -423,14 +438,6 @@
       getBoundsWidth(bounds) > maxShapeSpan ||
       getBoundsHeight(bounds) > maxShapeSpan
     );
-  }
-
-  /**
-   * @param {GeometryItem | null | undefined} item
-   * @returns {boolean}
-   */
-  function isGeometryTooLarge(item) {
-    return isBoundsTooLarge(getEffectiveGeometryBounds(item));
   }
 
   return {
