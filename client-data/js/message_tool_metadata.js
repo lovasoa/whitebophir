@@ -25,24 +25,25 @@
     Ellipse: "ellipse",
   };
   /** @type {UpdatableFieldMap} */
-  var TOOL_UPDATE_FIELDS = {
-    "Straight line": ["x2", "y2"],
-    Rectangle: ["x", "y", "x2", "y2"],
-    Ellipse: ["x", "y", "x2", "y2"],
-    Text: ["txt"],
-    Hand: ["transform"],
-    Pencil: [],
-    Cursor: [],
-    Eraser: [],
-    Clear: [],
-  };
+  var TOOL_UPDATE_FIELDS = Object.create(null);
+  TOOL_UPDATE_FIELDS["Straight line"] = ["x2", "y2"];
+  TOOL_UPDATE_FIELDS["Rectangle"] = ["x", "y", "x2", "y2"];
+  TOOL_UPDATE_FIELDS["Ellipse"] = ["x", "y", "x2", "y2"];
+  TOOL_UPDATE_FIELDS["Text"] = ["txt"];
+  TOOL_UPDATE_FIELDS["Hand"] = ["transform"];
+  TOOL_UPDATE_FIELDS["Pencil"] = [];
+  TOOL_UPDATE_FIELDS["Cursor"] = [];
+  TOOL_UPDATE_FIELDS["Eraser"] = [];
+  TOOL_UPDATE_FIELDS["Clear"] = [];
 
   /**
    * @param {string} toolName
    * @returns {string[]}
    */
   function getUpdatableFieldNames(toolName) {
-    return TOOL_UPDATE_FIELDS[toolName] || [];
+    return Object.prototype.hasOwnProperty.call(TOOL_UPDATE_FIELDS, toolName)
+      ? TOOL_UPDATE_FIELDS[toolName]
+      : [];
   }
 
   /**
@@ -75,7 +76,6 @@
     var fields = getUpdatableFieldNames(toolName);
     for (var index = 0; index < fields.length; index++) {
       var field = fields[index];
-      if (field === undefined) continue;
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         updatable[field] = data[field];
       }
