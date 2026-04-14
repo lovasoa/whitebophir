@@ -175,13 +175,3 @@ if (
     return transformedBBoxIntersects(this.transformedBBox(), bbox);
   };
 }
-
-var root = /** @type {typeof globalThis & {
-  pointInTransformedBBox?: typeof pointInTransformedBBox,
-  transformedBBoxIntersects?: typeof transformedBBoxIntersects
-}} */ (typeof globalThis === "object" ? globalThis : {});
-if (typeof root === "object" && root !== null) {
-  /** @type {any} */ (root).pointInTransformedBBox = pointInTransformedBBox;
-  /** @type {any} */ (root).transformedBBoxIntersects =
-    transformedBBoxIntersects;
-}
