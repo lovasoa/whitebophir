@@ -12,6 +12,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Configure Dokku Docker build args
+        env:
+          SSH_SERVER: ${{ secrets.SSH_SERVER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VCS_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_SERVER" >> ~/.ssh/known_hosts
+          ssh dokku@"$SSH_SERVER" "dokku config:set --no-restart wbo VCS_SOURCE='$VCS_SOURCE'"
+          ssh dokku@"$SSH_SERVER" "dokku docker-options:remove wbo build '--build-arg GIT_REV' || true"
+          ssh dokku@"$SSH_SERVER" "dokku docker-options:remove wbo build '--build-arg VCS_SOURCE' || true"
+          ssh dokku@"$SSH_SERVER" "dokku docker-options:add wbo build '--build-arg GIT_REV'"
+          ssh dokku@"$SSH_SERVER" "dokku docker-options:add wbo build '--build-arg VCS_SOURCE'"
       - name: Dokku
         uses: dokku/github-action@036bf9c07f1b40707a16201bc7a349074c3ec554
         with:
@@ -40,6 +55,12 @@ jobs:
       - name: Push to Docker Hub
         uses: docker/build-push-action@v2
         with:
+          build-args: |
+            VCS_SOURCE=${{ github.server_url }}/${{ github.repository }}
+            GIT_REV=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
           push: true
           tags: lovasoa/wbo:latest,lovasoa/wbo:${{ env.RELEASE_VERSION }}
           platforms: linux/amd64,linux/arm64

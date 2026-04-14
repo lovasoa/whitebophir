@@ -48,8 +48,10 @@ const {
   formatCanonicalLogLine,
   styleTerminalLogLine,
 } = require("./logfmt.js");
+const packageJson = require("../package.json");
 
 const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME;
+const SERVICE_VERSION = packageJson.version;
 const DEFAULT_TRACE_SAMPLE_RATIO = 0.05;
 const DEFAULT_RUNTIME_METRICS_PRECISION_MS = 5000;
 const TEST_TRACE_EXPORTER = /** @type {{__WBO_TEST_TRACE_EXPORTER__?: any}} */ (
@@ -177,6 +179,7 @@ const tracingEnabled = traceSpanProcessors.length > 0;
 const sdk = new NodeSDK({
   resource: resourceFromAttributes({
     [SEMRESATTRS_SERVICE_NAME]: SERVICE_NAME,
+    "service.version": SERVICE_VERSION,
   }),
   instrumentations: [
     new RuntimeNodeInstrumentation({

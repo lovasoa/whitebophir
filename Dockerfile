@@ -1,5 +1,11 @@
 FROM node:24-alpine
 
+ARG VCS_SOURCE=unknown
+ARG GIT_REV=unknown
+
+LABEL org.opencontainers.image.source="${VCS_SOURCE}"
+LABEL org.opencontainers.image.revision="${GIT_REV}"
+
 WORKDIR /opt/app
 
 RUN chown -R 1000:1000 /opt/app

@@ -23,18 +23,10 @@
   async function bootBoardPage() {
     await importInParallel([
       "./path-data-polyfill.js",
-      "./message_tool_metadata.js",
-      "./message_common.js",
-      "./rate_limit_common.js",
-      "./board_page_state.js",
-      "./board_transport.js",
-      "./board_message_replay.js",
-      "./minitpl.js",
-      "./intersect.js",
       "./board.js",
     ]);
 
-    await importInParallel([
+    const toolModules = [
       "../tools/pencil/pencil.js",
       "../tools/cursor/cursor.js",
       "../tools/line/line.js",
@@ -46,7 +38,8 @@
       "../tools/grid/grid.js",
       "../tools/download/download.js",
       "../tools/zoom/zoom.js",
-    ]);
+    ];
+    await importInParallel(toolModules);
 
     const optionalToolModules = [];
     if (document.documentElement.hasAttribute("data-moderator")) {
