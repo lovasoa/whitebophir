@@ -713,7 +713,9 @@ function getMessageFocusPoint(message) {
       : null;
   }
 
-  return getBoundsCenter(MessageCommon.getEffectiveGeometryBounds(message));
+  return getBoundsCenter(
+    MessageCommon.getEffectiveGeometryBounds(/** @type {any} */ (message)),
+  );
 }
 
 /**

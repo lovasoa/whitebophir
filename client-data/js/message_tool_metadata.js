@@ -4,8 +4,8 @@
   /** @type {any} */ (root).WBOMessageToolMetadata = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   /**
-   * @typedef {"Pencil"|"Straight line"|"Rectangle"|"Ellipse"|"Text"} DrawToolName
-   * @typedef {Record<DrawToolName | "Hand", string[]>} UpdatableFieldMap
+   * @typedef {"Pencil"|"Straight line"|"Rectangle"|"Ellipse"|"Text"|"Hand"|"Cursor"|"Eraser"|"Clear"} ToolName
+   * @typedef {Record<ToolName, string[]>} UpdatableFieldMap
 
    * @typedef {Record<string, string>} ShapeTools
    */
@@ -47,6 +47,29 @@
 
   /**
    * @param {string} toolName
+   * @returns {boolean}
+   */
+  function isShapeTool(toolName) {
+    return Object.prototype.hasOwnProperty.call(
+      SHAPE_TOOL_TYPES,
+      toolName,
+    );
+  }
+
+  /**
+   * @returns {string[]}
+   */
+  function getShapeToolNames() {
+    /** @type {string[]} */
+    var names = [];
+    for (var tool in SHAPE_TOOL_TYPES) {
+      names.push(tool);
+    }
+    return names;
+  }
+
+  /**
+   * @param {string} toolName
    * @param {{[key: string]: any}} data
    * @returns {{[key: string]: any}}
    */
@@ -68,6 +91,8 @@
     DRAW_TOOL_NAMES,
     SHAPE_TOOL_TYPES,
     TOOL_UPDATE_FIELDS,
+    isShapeTool,
+    getShapeToolNames,
     getUpdatableFieldNames,
     getUpdatableFields,
   };

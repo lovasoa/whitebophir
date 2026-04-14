@@ -244,9 +244,7 @@ class BoardData {
    */
   shouldDropSeedShapeOnRejectedUpdate(tool, item, id) {
     return (
-      (tool === "Straight line" ||
-        tool === "Rectangle" ||
-        tool === "Ellipse") &&
+      MessageToolMetadata.isShapeTool(tool) &&
       item &&
       item.tool === tool &&
       this.hasZeroLocalExtent(item, id) &&
