@@ -236,13 +236,10 @@ const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
   description: "Duration of socket event handlers.",
   unit: "s",
 });
-const acceptedBoardMessages = meter.createCounter(
-  "wbo.board.message.accepted",
-  {
-    description: "Accepted board messages after validation and authorization.",
-    unit: "{message}",
-  },
-);
+const boardMessages = meter.createCounter("wbo.board.message", {
+  description: "Board messages processed by the server write path.",
+  unit: "{message}",
+});
 const boardOperations = meter.createCounter("wbo.board.operations", {
   description: "Board operation outcomes.",
   unit: "{operation}",
@@ -876,13 +873,17 @@ function recordSocketConnection(event) {
 
 /**
  * @param {{tool?: string, type?: string}} message
+ * @param {string=} errorType
  * @returns {void}
  */
-function recordAcceptedBoardMessage(message) {
-  acceptedBoardMessages.add(1, {
+function recordBoardMessage(message, errorType) {
+  /** @type {{[key: string]: string}} */
+  const attributes = {
     "wbo.tool": message.tool || "unknown",
     "wbo.message.type": message.type || "unknown",
-  });
+  };
+  if (errorType) attributes[ATTR_ERROR_TYPE] = errorType;
+  boardMessages.add(1, attributes);
 }
 
 /**
@@ -1016,7 +1017,7 @@ module.exports = {
   formatReadableLogRecord,
   logger,
   metrics: {
-    recordAcceptedBoardMessage,
+    recordBoardMessage,
     changeHttpActiveRequests,
     recordBoardOperation,
     recordBoardOperationDuration,
