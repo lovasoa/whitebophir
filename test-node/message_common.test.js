@@ -58,6 +58,25 @@ test("DRAW_TOOL_NAMES comes from shared metadata", function () {
   }
 });
 
+test("shape tool bounds use straight-shape geometry consistently", function () {
+  const shapeToolNames = MessageToolMetadata.getShapeToolNames();
+  for (const toolName of shapeToolNames) {
+    const bounds = MessageCommon.getLocalGeometryBounds({
+      tool: toolName,
+      x: 10,
+      y: 40,
+      x2: 5,
+      y2: 50,
+    });
+    assert.deepEqual(bounds, {
+      minX: 5,
+      minY: 40,
+      maxX: 10,
+      maxY: 50,
+    });
+  }
+});
+
 test("getLocalGeometryBounds measures text", function () {
   const bounds = MessageCommon.getLocalGeometryBounds({
     tool: "Text",
