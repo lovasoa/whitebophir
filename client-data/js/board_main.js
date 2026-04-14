@@ -25,7 +25,6 @@
   async function bootBoardPage() {
     await importSequentially([
       "./path-data-polyfill.js",
-      "./shared_module_resolver.js",
       "./message_tool_metadata.js",
       "./message_common.js",
       "./rate_limit_common.js",

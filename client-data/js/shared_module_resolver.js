@@ -1,16 +1,16 @@
+import { createRequire } from "node:module";
+
+const nodeRequire = createRequire(import.meta.url);
+
 /**
  * @param {string} requirePath
  * @param {string} globalName
  * @param {any} [scope]
  * @returns {any}
  */
-function resolveSharedModule(requirePath, globalName, scope) {
-  if (
-    typeof module === "object" &&
-    module.exports &&
-    typeof require === "function"
-  ) {
-    return require(requirePath);
+export function resolveSharedModule(requirePath, globalName, scope) {
+  if (typeof process !== "undefined" && process.versions?.node) {
+    return nodeRequire(requirePath);
   }
   var globalScope =
     scope ||
@@ -18,16 +18,7 @@ function resolveSharedModule(requirePath, globalName, scope) {
   return globalScope[globalName] || null;
 }
 
-var sharedModuleResolver = {
+const sharedModuleResolver = {
   resolveSharedModule: resolveSharedModule,
 };
-
-var root = /** @type {typeof globalThis & {
-    WBOSharedModuleResolver?: typeof sharedModuleResolver,
-  }} */ (typeof globalThis !== "undefined" ? globalThis : this);
-
-root.WBOSharedModuleResolver = sharedModuleResolver;
-
-if (typeof module === "object" && module.exports) {
-  module.exports = sharedModuleResolver;
-}
+export default sharedModuleResolver;

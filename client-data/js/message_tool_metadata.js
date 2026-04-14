@@ -7,7 +7,7 @@
  */
 
 /** @type {ToolMetadataMap} */
-var TOOL_METADATA = Object.create(null);
+export var TOOL_METADATA = Object.create(null);
 TOOL_METADATA.Pencil = {
   updatableFields: [],
   draw: true,
@@ -45,11 +45,11 @@ TOOL_METADATA.Clear = {
 };
 
 /** @type {string[]} */
-var DRAW_TOOL_NAMES = [];
+export var DRAW_TOOL_NAMES = [];
 /** @type {ShapeTools} */
-var SHAPE_TOOL_TYPES = Object.create(null);
+export var SHAPE_TOOL_TYPES = Object.create(null);
 /** @type {UpdatableFieldMap} */
-var TOOL_UPDATE_FIELDS = Object.create(null);
+export var TOOL_UPDATE_FIELDS = Object.create(null);
 for (var toolName in TOOL_METADATA) {
   const metadata = TOOL_METADATA[toolName];
   if (metadata === undefined) continue;
@@ -66,7 +66,7 @@ for (var toolName in TOOL_METADATA) {
  * @param {string | undefined} toolName
  * @returns {ToolMetadata | null}
  */
-function getToolMetadata(toolName) {
+export function getToolMetadata(toolName) {
   if (typeof toolName !== "string") return null;
   if (Object.hasOwn(TOOL_METADATA, toolName)) {
     const metadata = TOOL_METADATA[toolName];
@@ -79,7 +79,7 @@ function getToolMetadata(toolName) {
  * @param {string | undefined} toolName
  * @returns {string | undefined}
  */
-function getShapeToolType(toolName) {
+export function getShapeToolType(toolName) {
   const metadata = getToolMetadata(toolName);
   return metadata ? metadata.shapeType : undefined;
 }
@@ -88,7 +88,7 @@ function getShapeToolType(toolName) {
  * @param {string | undefined} toolName
  * @returns {string[]}
  */
-function getUpdatableFieldNames(toolName) {
+export function getUpdatableFieldNames(toolName) {
   const metadata = getToolMetadata(toolName);
   if (!metadata) return [];
   return metadata.updatableFields.slice();
@@ -98,14 +98,14 @@ function getUpdatableFieldNames(toolName) {
  * @param {string | undefined} toolName
  * @returns {boolean}
  */
-function isShapeTool(toolName) {
+export function isShapeTool(toolName) {
   return getShapeToolType(toolName) !== undefined;
 }
 
 /**
  * @returns {string[]}
  */
-function getShapeToolNames() {
+export function getShapeToolNames() {
   /** @type {string[]} */
   var names = [];
   for (var tool in SHAPE_TOOL_TYPES) {
@@ -119,7 +119,7 @@ function getShapeToolNames() {
  * @param {{[key: string]: any}} data
  * @returns {{[key: string]: any}}
  */
-function getUpdatableFields(toolName, data) {
+export function getUpdatableFields(toolName, data) {
   /** @type {{[key: string]: any}} */
   const updatable = {};
   var fields = getUpdatableFieldNames(toolName);
@@ -133,7 +133,7 @@ function getUpdatableFields(toolName, data) {
   return updatable;
 }
 
-var messageToolMetadata = {
+const messageToolMetadata = {
   getToolMetadata,
   getShapeToolType,
   DRAW_TOOL_NAMES,
@@ -150,7 +150,4 @@ var root = /** @type {typeof globalThis & {
   }} */ (typeof globalThis !== "undefined" ? globalThis : this);
 
 root.WBOMessageToolMetadata = messageToolMetadata;
-
-if (typeof module === "object" && module.exports) {
-  module.exports = messageToolMetadata;
-}
+export default messageToolMetadata;

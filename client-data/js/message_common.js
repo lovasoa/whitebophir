@@ -41,8 +41,11 @@
  *   _children?: Array<ChildPoint | null | undefined>
  * }} GeometryItem
  */
+import { DRAW_TOOL_NAMES, isShapeTool } from "./message_tool_metadata.js";
 
-var LIMITS = {
+export { DRAW_TOOL_NAMES };
+
+export var LIMITS = {
   MIN_SIZE: 1,
   MAX_SIZE: 50,
   MIN_OPACITY: 0.1,
@@ -56,42 +59,12 @@ var LIMITS = {
   DEFAULT_MAX_CHILDREN: 192,
   MAX_ID_LENGTH: 128,
 };
-/** @typedef {{resolveSharedModule: (requirePath: string, globalName: string, scope?: any) => any}} SharedModuleResolverApi */
-/** @typedef {{DRAW_TOOL_NAMES: string[], isShapeTool: (toolName?: string | undefined) => boolean}} MessageToolMetadataApi */
-/** @type {any} */
-var globalScope =
-  typeof globalThis !== "undefined" ? globalThis : /** @type {any} */ ({});
-/** @type {SharedModuleResolverApi | null} */
-var SharedModuleResolver = /** @type {SharedModuleResolverApi | null} */ (
-  typeof module === "object" && module.exports && typeof require === "function"
-    ? require("./shared_module_resolver.js")
-    : globalScope.WBOSharedModuleResolver
-);
-/** @type {MessageToolMetadataApi | null} */
-var MessageToolMetadata =
-  SharedModuleResolver &&
-  typeof SharedModuleResolver.resolveSharedModule === "function"
-    ? /** @type {MessageToolMetadataApi | null} */ (
-        SharedModuleResolver.resolveSharedModule(
-          "./message_tool_metadata.js",
-          "WBOMessageToolMetadata",
-          globalScope,
-        )
-      )
-    : null;
-var isShapeTool =
-  MessageToolMetadata && typeof MessageToolMetadata.isShapeTool === "function"
-    ? MessageToolMetadata.isShapeTool
-    : () => false;
-var DRAW_TOOL_NAMES = MessageToolMetadata?.DRAW_TOOL_NAMES
-  ? MessageToolMetadata.DRAW_TOOL_NAMES
-  : ["Pencil", "Straight line", "Rectangle", "Ellipse", "Text"];
 
 /**
  * @param {unknown} value
  * @returns {number | null}
  */
-function toFiniteNumber(value) {
+export function toFiniteNumber(value) {
   var number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -120,7 +93,7 @@ function roundToDecimals(number, decimals) {
  * @param {unknown} maxBoardSize
  * @returns {number}
  */
-function resolveMaxBoardSize(maxBoardSize) {
+export function resolveMaxBoardSize(maxBoardSize) {
   var resolved = toFiniteNumber(maxBoardSize);
   return resolved === null ? LIMITS.DEFAULT_MAX_BOARD_SIZE : resolved;
 }
@@ -129,7 +102,7 @@ function resolveMaxBoardSize(maxBoardSize) {
  * @param {unknown} value
  * @returns {number}
  */
-function clampSize(value) {
+export function clampSize(value) {
   var size = parseInt(String(value), 10);
   if (!Number.isFinite(size)) size = LIMITS.MIN_SIZE;
   return clamp(size, LIMITS.MIN_SIZE, LIMITS.MAX_SIZE);
@@ -139,7 +112,7 @@ function clampSize(value) {
  * @param {unknown} value
  * @returns {number}
  */
-function clampOpacity(value) {
+export function clampOpacity(value) {
   var opacity = toFiniteNumber(value);
   if (opacity === null) opacity = LIMITS.MAX_OPACITY;
   return clamp(opacity, LIMITS.MIN_OPACITY, LIMITS.MAX_OPACITY);
@@ -150,7 +123,7 @@ function clampOpacity(value) {
  * @param {unknown} maxBoardSize
  * @returns {number}
  */
-function clampCoord(value, maxBoardSize) {
+export function clampCoord(value, maxBoardSize) {
   var coord = toFiniteNumber(value);
   if (coord === null) coord = 0;
   return roundToDecimals(
@@ -163,7 +136,7 @@ function clampCoord(value, maxBoardSize) {
  * @param {unknown} value
  * @returns {string | null}
  */
-function normalizeColor(value) {
+export function normalizeColor(value) {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
     ? value
     : null;
@@ -174,7 +147,7 @@ function normalizeColor(value) {
  * @param {number} [maxLength]
  * @returns {string}
  */
-function truncateText(value, maxLength) {
+export function truncateText(value, maxLength) {
   if (value === undefined || value === null) value = "";
   return String(value).slice(0, maxLength || LIMITS.MAX_TEXT_LENGTH);
 }
@@ -184,7 +157,7 @@ function truncateText(value, maxLength) {
  * @param {number} [maxLength]
  * @returns {string | null}
  */
-function normalizeId(value, maxLength) {
+export function normalizeId(value, maxLength) {
   if (typeof value !== "string") {
     return null;
   }
@@ -203,7 +176,7 @@ function normalizeId(value, maxLength) {
  * @param {unknown} value
  * @returns {number | null}
  */
-function normalizeFiniteNumber(value) {
+export function normalizeFiniteNumber(value) {
   return toFiniteNumber(value);
 }
 
@@ -211,7 +184,7 @@ function normalizeFiniteNumber(value) {
  * @param {unknown} value
  * @returns {boolean}
  */
-function isFiniteTransformNumber(value) {
+export function isFiniteTransformNumber(value) {
   return toFiniteNumber(value) !== null;
 }
 
@@ -220,7 +193,7 @@ function isFiniteTransformNumber(value) {
  * @param {unknown} toolName
  * @returns {boolean}
  */
-function requiresTurnstile(boardName, toolName) {
+export function requiresTurnstile(boardName, toolName) {
   if (boardName !== "anonymous") return false;
   if (!toolName || toolName === "Cursor") return false;
   return true;
@@ -230,7 +203,7 @@ function requiresTurnstile(boardName, toolName) {
  * @param {unknown} toolName
  * @returns {boolean}
  */
-function isDrawTool(toolName) {
+export function isDrawTool(toolName) {
   return (
     typeof toolName === "string" && DRAW_TOOL_NAMES.indexOf(toolName) !== -1
   );
@@ -240,12 +213,12 @@ function isDrawTool(toolName) {
  * @param {unknown} scale
  * @returns {boolean}
  */
-function isDrawToolAllowedAtScale(scale) {
+export function isDrawToolAllowedAtScale(scale) {
   var numericScale = toFiniteNumber(scale);
   return numericScale !== null && numericScale > LIMITS.MIN_DRAW_ZOOM;
 }
 
-function getMaxShapeSpan() {
+export function getMaxShapeSpan() {
   return LIMITS.GIANT_SHAPE_VIEWPORT_WIDTH / LIMITS.MIN_DRAW_ZOOM;
 }
 
@@ -269,7 +242,7 @@ function cloneBounds(bounds) {
  * @param {unknown} y
  * @returns {Bounds | null}
  */
-function extendBoundsWithPoint(bounds, x, y) {
+export function extendBoundsWithPoint(bounds, x, y) {
   var pointX = toFiniteNumber(x);
   var pointY = toFiniteNumber(y);
   if (pointX === null || pointY === null) return cloneBounds(bounds);
@@ -293,7 +266,7 @@ function extendBoundsWithPoint(bounds, x, y) {
  * @param {GeometryItem | null | undefined} item
  * @returns {Bounds | null}
  */
-function getPencilBounds(item) {
+export function getPencilBounds(item) {
   if (!item || !Array.isArray(item._children) || item._children.length === 0)
     return null;
   return item._children.reduce(function extend(
@@ -347,7 +320,7 @@ function getTextBounds(item) {
  * @param {GeometryItem | null | undefined} item
  * @returns {Bounds | null}
  */
-function getLocalGeometryBounds(item) {
+export function getLocalGeometryBounds(item) {
   if (!item || typeof item.tool !== "string") return null;
   switch (item.tool) {
     case "Pencil":
@@ -369,7 +342,7 @@ function getLocalGeometryBounds(item) {
  * @param {GeometryItem | null | undefined} item
  * @returns {boolean}
  */
-function isGeometryTooLarge(item) {
+export function isGeometryTooLarge(item) {
   return isBoundsTooLarge(getEffectiveGeometryBounds(item));
 }
 /**
@@ -377,7 +350,7 @@ function isGeometryTooLarge(item) {
  * @param {Transform | null | undefined} transform
  * @returns {Point | null}
  */
-function applyTransformToPoint(point, transform) {
+export function applyTransformToPoint(point, transform) {
   var a = toFiniteNumber(transform?.a);
   var b = toFiniteNumber(transform?.b);
   var c = toFiniteNumber(transform?.c);
@@ -405,7 +378,7 @@ function applyTransformToPoint(point, transform) {
  * @param {Transform | null | undefined} transform
  * @returns {Bounds | null}
  */
-function applyTransformToBounds(bounds, transform) {
+export function applyTransformToBounds(bounds, transform) {
   if (!bounds) return null;
   if (!transform) return cloneBounds(bounds);
 
@@ -448,7 +421,7 @@ function applyTransformToBounds(bounds, transform) {
  * @param {GeometryItem | null | undefined} item
  * @returns {Bounds | null}
  */
-function getEffectiveGeometryBounds(item) {
+export function getEffectiveGeometryBounds(item) {
   if (!item) return null;
   return applyTransformToBounds(getLocalGeometryBounds(item), item.transform);
 }
@@ -473,7 +446,7 @@ function getBoundsHeight(bounds) {
  * @param {Bounds | null | undefined} bounds
  * @returns {boolean}
  */
-function isBoundsTooLarge(bounds) {
+export function isBoundsTooLarge(bounds) {
   if (!bounds) return false;
   var maxShapeSpan = getMaxShapeSpan();
   return (
@@ -482,7 +455,7 @@ function isBoundsTooLarge(bounds) {
   );
 }
 
-var messageCommon = /** @type {MessageCommonApi} */ ({
+const messageCommon = /** @type {MessageCommonApi} */ ({
   DRAW_TOOL_NAMES: DRAW_TOOL_NAMES,
   LIMITS: LIMITS,
   applyTransformToBounds: applyTransformToBounds,
@@ -514,7 +487,4 @@ var root = /** @type {typeof globalThis & {
 
 root.WBOMessageCommon = messageCommon;
 root.MessageCommon = messageCommon;
-
-if (typeof module === "object" && module.exports) {
-  module.exports = messageCommon;
-}
+export default messageCommon;
