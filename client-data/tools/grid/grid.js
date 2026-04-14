@@ -24,10 +24,11 @@
  * @licend
  */
 
-(function grid() {
-  //Code isolation
-  /** @typedef {"none" | "url(#grid)" | "url(#dots)"} GridFill */
+/** @typedef {"none" | "url(#grid)" | "url(#dots)"} GridFill */
+/** @typedef {{svg: SVGSVGElement | null, drawingArea: Element | null, createSVGElement: (name: string, attrs?: Record<string, string | undefined>) => Element, add: (tool: unknown) => void}} GridToolRegistry */
 
+/** @param {GridToolRegistry} tools */
+export function registerGridTool(tools) {
   var index = 0; //grid off by default
   /** @type {GridFill[]} */
   var states = ["none", "url(#grid)", "url(#dots)"];
@@ -35,20 +36,23 @@
   /** @param {Event} evt */
   function toggleGrid(evt) {
     index = (index + 1) % states.length;
-    gridContainer.setAttributeNS(null, "fill", states[index]);
+    gridContainer.setAttributeNS(null, "fill", states[index] || "none");
   }
 
   /** @returns {SVGDefsElement} */
   function getDefs() {
-    var existingDefs = Tools.svg.getElementById("defs");
+    if (!tools.svg) {
+      throw new Error("Grid: Missing SVG canvas.");
+    }
+    var existingDefs = tools.svg.getElementById("defs");
     if (existingDefs instanceof SVGDefsElement) return existingDefs;
     var defs = /** @type {SVGDefsElement} */ (
-      Tools.createSVGElement("defs", { id: "defs" })
+      tools.createSVGElement("defs", { id: "defs" })
     );
-    if (Tools.svg.firstChild) {
-      Tools.svg.insertBefore(defs, Tools.svg.firstChild);
+    if (tools.svg.firstChild) {
+      tools.svg.insertBefore(defs, tools.svg.firstChild);
     } else {
-      Tools.svg.appendChild(defs);
+      tools.svg.appendChild(defs);
     }
     return defs;
   }
@@ -56,14 +60,14 @@
   function createPatterns() {
     // create patterns
     // small (inner) grid
-    var smallGrid = Tools.createSVGElement("pattern", {
+    var smallGrid = tools.createSVGElement("pattern", {
       id: "smallGrid",
       width: "30",
       height: "30",
       patternUnits: "userSpaceOnUse",
     });
     smallGrid.appendChild(
-      Tools.createSVGElement("path", {
+      tools.createSVGElement("path", {
         d: "M 30 0 L 0 0 0 30",
         fill: "none",
         stroke: "gray",
@@ -71,21 +75,21 @@
       }),
     );
     // (outer) grid
-    var grid = Tools.createSVGElement("pattern", {
+    var grid = tools.createSVGElement("pattern", {
       id: "grid",
       width: "300",
       height: "300",
       patternUnits: "userSpaceOnUse",
     });
     grid.appendChild(
-      Tools.createSVGElement("rect", {
+      tools.createSVGElement("rect", {
         width: "300",
         height: "300",
         fill: "url(#smallGrid)",
       }),
     );
     grid.appendChild(
-      Tools.createSVGElement("path", {
+      tools.createSVGElement("path", {
         d: "M 300 0 L 0 0 0 300",
         fill: "none",
         stroke: "gray",
@@ -93,7 +97,7 @@
       }),
     );
     // dots
-    var dots = Tools.createSVGElement("pattern", {
+    var dots = tools.createSVGElement("pattern", {
       id: "dots",
       width: "30",
       height: "30",
@@ -102,7 +106,7 @@
       patternUnits: "userSpaceOnUse",
     });
     dots.appendChild(
-      Tools.createSVGElement("circle", {
+      tools.createSVGElement("circle", {
         fill: "gray",
         cx: "10",
         cy: "10",
@@ -120,17 +124,23 @@
     // initialize patterns
     createPatterns();
     // create grid container
-    var gridContainer = Tools.createSVGElement("rect", {
+    var gridContainer = tools.createSVGElement("rect", {
       id: "gridContainer",
       width: "100%",
       height: "100%",
-      fill: states[index],
+      fill: states[index] || "none",
     });
-    Tools.svg.insertBefore(gridContainer, Tools.drawingArea);
+    if (!tools.svg) {
+      throw new Error("Grid: Missing SVG canvas.");
+    }
+    if (!tools.drawingArea) {
+      throw new Error("Grid: Missing drawing area.");
+    }
+    tools.svg.insertBefore(gridContainer, tools.drawingArea);
     return gridContainer;
   })();
 
-  Tools.add({
+  tools.add({
     //The new tool
     name: "Grid",
     shortcut: "g",
@@ -140,4 +150,10 @@
     onstart: toggleGrid,
     mouseCursor: "crosshair",
   });
-})(); //End of code isolation
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerGridTool(
+    /** @type {GridToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
+  );
+}
