@@ -50,6 +50,49 @@ test("getClientIp resolves the first proxy hop from forwarding headers", async f
   });
 });
 
+test("getClientIp supports exact trusted proxy depth for forwarded chains", async function () {
+  await withEnv(
+    { WBO_IP_SOURCE: "X-Forwarded-For", WBO_TRUST_PROXY_HOPS: "2" },
+    async function () {
+      const socketPolicy = require(SOCKET_POLICY_PATH);
+      const { socket } = createSocket({
+        remoteAddress: "203.0.113.7",
+        headers: {
+          "x-forwarded-for": "198.51.100.4, 198.51.100.5",
+        },
+      });
+      assert.equal(socketPolicy.getClientIp(socket), "198.51.100.4");
+    },
+  );
+
+  await withEnv(
+    { WBO_IP_SOURCE: "Forwarded", WBO_TRUST_PROXY_HOPS: "2" },
+    async function () {
+      const socketPolicy = require(SOCKET_POLICY_PATH);
+      const { socket } = createSocket({
+        remoteAddress: "203.0.113.7",
+        headers: {
+          forwarded: 'for=198.51.100.9;proto=https, for="198.51.100.10"',
+        },
+      });
+      assert.equal(socketPolicy.getClientIp(socket), "198.51.100.9");
+    },
+  );
+});
+
+test("getClientIp supports custom single-value headers such as CF-Connecting-IP", async function () {
+  await withEnv({ WBO_IP_SOURCE: "CF-Connecting-IP" }, async function () {
+    const socketPolicy = require(SOCKET_POLICY_PATH);
+    const { socket } = createSocket({
+      remoteAddress: "203.0.113.7",
+      headers: {
+        "cf-connecting-ip": "198.51.100.25",
+      },
+    });
+    assert.equal(socketPolicy.getClientIp(socket), "198.51.100.25");
+  });
+});
+
 test("parseForwardedHeader rejects malformed forwarded headers", function () {
   const socketPolicy = require(SOCKET_POLICY_PATH);
   assert.throws(function () {

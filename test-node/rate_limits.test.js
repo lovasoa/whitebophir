@@ -13,6 +13,7 @@ test("configuration provides sane default rate-limit ordering", function () {
     const config = require(CONFIG_PATH);
 
     assert.equal(config.IP_SOURCE, "remoteAddress");
+    assert.equal(config.TRUST_PROXY_HOPS, 0);
     assert.ok(config.MAX_DESTRUCTIVE_ACTIONS_PER_IP > 0);
     assert.ok(config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS > 0);
     assert.ok(config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP > 0);
@@ -37,6 +38,21 @@ test("configuration provides sane default rate-limit ordering", function () {
       "Constructive rate should be higher than destructive rate",
     );
   });
+});
+
+test("configuration rejects trust proxy hops with incompatible ip sources", function () {
+  return assert.rejects(
+    withEnv(
+      {
+        WBO_IP_SOURCE: "CF-Connecting-IP",
+        WBO_TRUST_PROXY_HOPS: "1",
+      },
+      function () {
+        require(CONFIG_PATH);
+      },
+    ),
+    /WBO_TRUST_PROXY_HOPS requires WBO_IP_SOURCE to be X-Forwarded-For or Forwarded/,
+  );
 });
 
 test("general rate limit closes the socket when exceeded", async function () {

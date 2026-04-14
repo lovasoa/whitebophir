@@ -31,8 +31,52 @@ function getSocketHeaders(socket) {
  * @param {string | string[] | undefined} value
  * @returns {string | undefined}
  */
-function firstHeaderValue(value) {
+function singleHeaderValue(value) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * @param {string} headerName
+ * @returns {string}
+ */
+function normalizeHeaderName(headerName) {
+  return headerName.trim().toLowerCase();
+}
+
+/**
+ * @param {string} value
+ * @returns {string[]}
+ */
+function parseForwardedChain(value) {
+  return value
+    .split(",")
+    .map(function parseForwardedEntry(/** @type {string} */ proxyEntry) {
+      var forwardedFor = proxyEntry
+        .split(";")
+        .map(function trimPart(/** @type {string} */ part) {
+          return part.trim();
+        })
+        .find(function isForPart(/** @type {string} */ part) {
+          return /^for=/i.test(part);
+        });
+      if (!forwardedFor) {
+        throw new Error("Missing for= in Forwarded header");
+      }
+
+      var resolved = forwardedFor.replace(/^for=/i, "").trim();
+      if (
+        resolved.startsWith('"') &&
+        resolved.endsWith('"') &&
+        resolved.length >= 2
+      ) {
+        resolved = resolved.slice(1, -1);
+      }
+      if (!resolved) {
+        throw new Error("Invalid Forwarded header");
+      }
+      return resolved;
+    })
+    .filter(Boolean);
 }
 
 /**
@@ -40,31 +84,17 @@ function firstHeaderValue(value) {
  * @returns {string}
  */
 function parseForwardedHeader(value) {
-  var firstProxy = value.split(",")[0] || "";
-  var forwardedFor = firstProxy
-    .split(";")
-    .map(function trimPart(/** @type {string} */ part) {
-      return part.trim();
-    })
-    .find(function isForPart(/** @type {string} */ part) {
-      return /^for=/i.test(part);
-    });
-  if (!forwardedFor) {
-    throw new Error("Missing for= in Forwarded header");
-  }
+  return parseForwardedChain(value)[0] || "";
+}
 
-  var resolved = forwardedFor.replace(/^for=/i, "").trim();
-  if (
-    resolved.startsWith('"') &&
-    resolved.endsWith('"') &&
-    resolved.length >= 2
-  ) {
-    resolved = resolved.slice(1, -1);
-  }
-  if (!resolved) {
-    throw new Error("Invalid Forwarded header");
-  }
-  return resolved;
+/**
+ * @param {string[]} chain
+ * @returns {string}
+ */
+function selectTrustedClientIp(chain) {
+  var trustedHops = Math.max(0, config.TRUST_PROXY_HOPS || 0);
+  var selectedIndex = Math.min(trustedHops, chain.length - 1);
+  return chain[selectedIndex] || "";
 }
 
 /**
@@ -74,32 +104,60 @@ function parseForwardedHeader(value) {
 function getClientIp(socket) {
   var request = getSocketRequest(socket);
   var headers = getSocketHeaders(socket);
+  var directRemoteAddress =
+    request.socket && request.socket.remoteAddress
+      ? request.socket.remoteAddress
+      : "";
+  var ipSource = config.IP_SOURCE || "remoteAddress";
+  var normalizedIpSource = normalizeHeaderName(ipSource);
 
-  switch (config.IP_SOURCE) {
-    case "remoteAddress":
-      if (request.socket && request.socket.remoteAddress) {
-        return request.socket.remoteAddress;
-      }
-      throw new Error("Missing remoteAddress");
+  if (normalizedIpSource === "remoteaddress") {
+    if (directRemoteAddress) return directRemoteAddress;
+    throw new Error("Missing remoteAddress");
+  }
 
-    case "X-Forwarded-For":
-      var forwardedForHeader = firstHeaderValue(headers["x-forwarded-for"]);
+  switch (normalizedIpSource) {
+    case "x-forwarded-for":
+      var forwardedForHeader = singleHeaderValue(headers["x-forwarded-for"]);
       if (forwardedForHeader) {
-        var xForwardedFor = (forwardedForHeader.split(",")[0] || "").trim();
-        if (xForwardedFor) return xForwardedFor;
+        var xForwardedFor = forwardedForHeader
+          .split(",")
+          .map(function trimHop(/** @type {string} */ hop) {
+            return hop.trim();
+          })
+          .filter(Boolean);
+        if (config.TRUST_PROXY_HOPS > 0 && directRemoteAddress) {
+          xForwardedFor.reverse();
+          xForwardedFor.unshift(directRemoteAddress);
+          return selectTrustedClientIp(xForwardedFor);
+        }
+        return xForwardedFor[0] || "";
       }
       throw new Error(
         "Missing x-forwarded-for header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
       );
 
-    case "Forwarded":
-      var forwardedHeader = firstHeaderValue(headers["forwarded"]);
+    case "forwarded":
+      var forwardedHeader = singleHeaderValue(headers["forwarded"]);
       if (forwardedHeader) {
-        return parseForwardedHeader(forwardedHeader);
+        var forwardedChain = parseForwardedChain(forwardedHeader);
+        if (config.TRUST_PROXY_HOPS > 0 && directRemoteAddress) {
+          forwardedChain.reverse();
+          forwardedChain.unshift(directRemoteAddress);
+          return selectTrustedClientIp(forwardedChain);
+        }
+        return forwardedChain[0] || "";
       }
       throw new Error(
         "Missing Forwarded header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
       );
+
+    default:
+      var customHeader = singleHeaderValue(headers[normalizedIpSource]);
+      if (customHeader && customHeader.trim()) {
+        return customHeader.trim();
+      }
+      throw new Error("Missing " + ipSource + " header");
   }
 }
 
@@ -273,5 +331,6 @@ module.exports = {
   countDestructiveActions,
   getClientIp,
   normalizeBroadcastData,
+  parseForwardedChain,
   parseForwardedHeader,
 };

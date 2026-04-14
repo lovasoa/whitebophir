@@ -317,6 +317,10 @@ test("report_user logs reporter and reported user details for active board membe
       const reporter = createSocket({
         id: "socket-reporter",
         remoteAddress: "203.0.113.90",
+        headers: {
+          "user-agent": "ReporterAgent/1.0",
+          "accept-language": "fr-FR,fr;q=0.9",
+        },
         query: {
           userSecret: "reporter-secret",
           tool: "Hand",
@@ -330,6 +334,10 @@ test("report_user logs reporter and reported user details for active board membe
       const reported = createSocket({
         id: "socket-reported",
         remoteAddress: "203.0.113.91",
+        headers: {
+          "user-agent": "ReportedAgent/2.0",
+          "accept-language": "en-US,en;q=0.8",
+        },
         query: {
           userSecret: "reported-secret",
           tool: "Ellipse",
@@ -371,6 +379,94 @@ test("report_user logs reporter and reported user details for active board membe
       assert.match(getRequiredValue(logged[0]), /203\.0\.113\.91/);
       assert.match(getRequiredValue(logged[0]), /socket-reporter/);
       assert.match(getRequiredValue(logged[0]), /socket-reported/);
+      assert.match(getRequiredValue(logged[0]), /ReporterAgent\/1\.0/);
+      assert.match(getRequiredValue(logged[0]), /ReportedAgent\/2\.0/);
+      assert.match(getRequiredValue(logged[0]), /fr-FR,fr;q=0\.9/);
+      assert.match(getRequiredValue(logged[0]), /en-US,en;q=0\.8/);
+    },
+  );
+});
+
+test("report_user respects custom header ip sources for active board members", async function () {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-report-header-"),
+  );
+  await withEnv(
+    {
+      WBO_IP_SOURCE: "CF-Connecting-IP",
+      WBO_HISTORY_DIR: historyDir,
+      WBO_SILENT: "true",
+    },
+    async function () {
+      const sockets = require(SOCKETS_PATH);
+      sockets.__test.resetRateLimitMaps();
+
+      const reporter = createSocket({
+        id: "socket-reporter-header",
+        remoteAddress: "203.0.113.100",
+        headers: {
+          "cf-connecting-ip": "198.51.100.30",
+          "user-agent": "ReporterHeaderAgent/1.0",
+          "accept-language": "de-DE,de;q=0.9",
+        },
+        query: {
+          userSecret: "reporter-secret",
+          tool: "Hand",
+        },
+      });
+      sockets.__test.handleSocketConnection(reporter.socket);
+      await getRequiredHandler(reporter.handlers, "getboard")("board-report");
+
+      const reported = createSocket({
+        id: "socket-reported-header",
+        remoteAddress: "203.0.113.101",
+        headers: {
+          "cf-connecting-ip": "198.51.100.31",
+          "user-agent": "ReportedHeaderAgent/2.0",
+          "accept-language": "es-ES,es;q=0.8",
+        },
+        query: {
+          userSecret: "reported-secret",
+          tool: "Ellipse",
+        },
+      });
+      sockets.__test.handleSocketConnection(reported.socket);
+      await getRequiredHandler(reported.handlers, "getboard")("board-report");
+
+      /** @type {string[]} */
+      const logged = [];
+      withConsole(
+        {
+          log: function (message) {
+            logged.push(String(message));
+          },
+        },
+        function () {
+          var previousSilent = process.env.WBO_SILENT;
+          process.env.WBO_SILENT = "false";
+          try {
+            getRequiredHandler(
+              reporter.handlers,
+              "report_user",
+            )({
+              board: "board-report",
+              socketId: "socket-reported-header",
+            });
+          } finally {
+            process.env.WBO_SILENT = previousSilent;
+          }
+        },
+      );
+
+      assert.equal(logged.length, 1);
+      assert.match(getRequiredValue(logged[0]), /198\.51\.100\.30/);
+      assert.match(getRequiredValue(logged[0]), /198\.51\.100\.31/);
+      assert.match(getRequiredValue(logged[0]), /ReporterHeaderAgent\/1\.0/);
+      assert.match(getRequiredValue(logged[0]), /ReportedHeaderAgent\/2\.0/);
+      assert.match(getRequiredValue(logged[0]), /de-DE,de;q=0\.9/);
+      assert.match(getRequiredValue(logged[0]), /es-ES,es;q=0\.8/);
+      assert.doesNotMatch(getRequiredValue(logged[0]), /203\.0\.113\.100/);
+      assert.doesNotMatch(getRequiredValue(logged[0]), /203\.0\.113\.101/);
     },
   );
 });

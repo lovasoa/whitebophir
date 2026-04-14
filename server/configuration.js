@@ -1,6 +1,24 @@
 const path = require("node:path");
-const { parseEnumEnv, parseIntegerEnv } = require("./configuration_helpers.js");
+const { parseIntegerEnv } = require("./configuration_helpers.js");
 const app_root = path.dirname(__dirname); // Parent of the directory where this file is
+
+const ipSource = (process.env["WBO_IP_SOURCE"] || "remoteAddress").trim();
+const trustProxyHops = parseIntegerEnv("WBO_TRUST_PROXY_HOPS", 0);
+
+if (trustProxyHops < 0) {
+  throw new Error("Invalid WBO_TRUST_PROXY_HOPS: must be >= 0");
+}
+
+const normalizedIpSource = ipSource.toLowerCase();
+if (
+  trustProxyHops > 0 &&
+  normalizedIpSource !== "x-forwarded-for" &&
+  normalizedIpSource !== "forwarded"
+) {
+  throw new Error(
+    "WBO_TRUST_PROXY_HOPS requires WBO_IP_SOURCE to be X-Forwarded-For or Forwarded",
+  );
+}
 
 module.exports = {
   /** Port on which the application will listen */
@@ -64,12 +82,16 @@ module.exports = {
   ),
 
   /** Source used to resolve client IPs for logging and rate limiting.
-      Allowed values: remoteAddress, X-Forwarded-For, Forwarded */
-  IP_SOURCE: parseEnumEnv(
-    "WBO_IP_SOURCE",
-    ["remoteAddress", "X-Forwarded-For", "Forwarded"],
-    "remoteAddress",
-  ),
+      Supports remoteAddress, Forwarded, X-Forwarded-For, or any custom header
+      such as CF-Connecting-IP. Header lookup is case-insensitive. */
+  IP_SOURCE: ipSource,
+
+  /** Number of trusted proxy hops between the app and the client for
+      list-style forwarding headers such as X-Forwarded-For and Forwarded.
+      When set to a positive value, the app mirrors the common Express
+      `trust proxy = <number>` pattern and walks proxy hops from right to left.
+      When left at 0, existing single-hop behavior is preserved. */
+  TRUST_PROXY_HOPS: trustProxyHops,
 
   /** Blocked Tools. A comma-separated list of tools that should not appear on boards. */
   BLOCKED_TOOLS: (process.env["WBO_BLOCKED_TOOLS"] || "").split(","),

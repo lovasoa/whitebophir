@@ -17,7 +17,7 @@ var normalizeBroadcastData = socketPolicy.normalizeBroadcastData;
 var parseForwardedHeader = socketPolicy.parseForwardedHeader;
 
 /** @typedef {{token?: string, userSecret?: string, tool?: string, color?: string, size?: string}} SocketQuery */
-/** @typedef {{socketId: string, userId: string, name: string, ip: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
+/** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {import("../types/server-runtime").AppSocket} AppSocket */
 /** @typedef {import("../types/server-runtime").MessageData} MessageData */
 /** @typedef {import("../types/server-runtime").RateLimitState} RateLimitState */
@@ -235,6 +235,18 @@ function getSocketQueryValue(socket, key) {
 }
 
 /**
+ * @param {AppSocket} socket
+ * @param {string} headerName
+ * @returns {string}
+ */
+function getSocketHeaderValue(socket, headerName) {
+  var headers = getSocketRequest(socket).headers || {};
+  var value = headers[headerName];
+  if (Array.isArray(value)) return value[0] || "";
+  return typeof value === "string" ? value : "";
+}
+
+/**
  * @param {string} userSecret
  * @returns {string}
  */
@@ -277,6 +289,8 @@ function buildBoardUserRecord(socket, boardName, now) {
     userId: buildUserId(userSecret),
     name: buildUserName(ip, userSecret),
     ip: ip,
+    userAgent: getSocketHeaderValue(socket, "user-agent"),
+    language: getSocketHeaderValue(socket, "accept-language"),
     color: color || "#001f3f",
     size: size,
     lastTool: getSocketQueryValue(socket, "tool") || "Hand",
@@ -1013,6 +1027,10 @@ function handleSocketConnection(socket) {
         reported_socket: reported.socketId,
         reporter_ip: reporter.ip,
         reported_ip: reported.ip,
+        reporter_user_agent: reporter.userAgent,
+        reported_user_agent: reported.userAgent,
+        reporter_language: reporter.language,
+        reported_language: reported.language,
         reporter_name: reporter.name,
         reported_name: reported.name,
       });
