@@ -211,30 +211,33 @@ const httpServerActiveRequests = meter.createUpDownCounter(
     unit: "{request}",
   },
 );
-const socketEvents = meter.createCounter("wbo_socket_events_total", {
-  description: "Total handled socket events.",
+const socketEvents = meter.createCounter("wbo.socket.events", {
+  description: "Socket events handled by the server.",
+  unit: "{event}",
 });
-const socketEventDuration = meter.createHistogram(
-  "wbo_socket_event_duration_ms",
-  {
-    description: "Socket event duration in milliseconds.",
-    unit: "ms",
-  },
-);
-const boardOperations = meter.createCounter("wbo_board_operations_total", {
+const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
+  description: "Duration of socket event handlers.",
+  unit: "s",
+});
+const boardOperations = meter.createCounter("wbo.board.operations", {
   description: "Board operation outcomes.",
+  unit: "{operation}",
 });
-const rejections = meter.createCounter("wbo_rejections_total", {
+const rejections = meter.createCounter("wbo.rejections", {
   description: "Rejected operations by kind and reason.",
+  unit: "{rejection}",
 });
-const loadedBoardsGauge = meter.createObservableGauge("wbo_boards_loaded", {
+const loadedBoardsGauge = meter.createObservableGauge("wbo.board.loaded", {
   description: "Boards currently loaded in memory.",
 });
-const connectedUsersGauge = meter.createObservableGauge("wbo_connected_users", {
-  description: "Users currently connected across loaded boards.",
-});
-const heapUsedGauge = meter.createObservableGauge("wbo_heap_used_bytes", {
-  description: "Current V8 heap usage in bytes.",
+const connectedUsersGauge = meter.createObservableGauge(
+  "wbo.board.user.connected",
+  {
+    description: "Active board memberships connected across loaded boards.",
+  },
+);
+const heapUsedGauge = meter.createObservableGauge("wbo.runtime.heap.used", {
+  description: "Current V8 heap memory usage.",
   unit: "By",
 });
 
@@ -808,7 +811,7 @@ function recordSocketEvent(event) {
     "wbo.socket.result": event.result,
   };
   socketEvents.add(1, attributes);
-  socketEventDuration.record(event.durationMs, attributes);
+  socketEventDuration.record(event.durationMs / 1000, attributes);
 }
 
 /**
