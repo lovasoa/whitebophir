@@ -24,11 +24,13 @@
  * @licend
  */
 
-(function () {
-  //Code isolation
-  /** @typedef {{scrollX: number, scrollY: number, x: number, y: number, clientY: number, scale: number, distance: number | null}} ZoomOrigin */
-  /** @typedef {{preventDefault(): void, clientY?: number, pageX?: number, pageY?: number, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, deltaMode?: number, deltaX?: number, deltaY?: number, changedTouches?: TouchList, touches?: TouchList}} ZoomPointerEvent */
-  /** @typedef {(evt: KeyboardEvent) => void} ZoomKeyHandler */
+/** @typedef {{scrollX: number, scrollY: number, x: number, y: number, clientY: number, scale: number, distance: number | null}} ZoomOrigin */
+/** @typedef {{preventDefault(): void, clientY?: number, pageX?: number, pageY?: number, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, deltaMode?: number, deltaX?: number, deltaY?: number, changedTouches?: TouchList, touches?: TouchList}} ZoomPointerEvent */
+/** @typedef {(evt: KeyboardEvent) => void} ZoomKeyHandler */
+/** @typedef {{add: (tool: unknown) => void, board: {addEventListener: (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined) => void}, getScale: () => number, setScale: (scale:number)=>number, setSize: (size:number)=>void, getSize: ()=>number, svg: SVGSVGElement}} ZoomToolRegistry */
+
+/** @param {ZoomToolRegistry} tools */
+export function registerZoomTool(tools) {
   var ZOOM_FACTOR = 0.5;
   /** @type {ZoomOrigin} */
   var origin = {
@@ -49,7 +51,7 @@
    */
   function zoom(origin, scale) {
     var oldScale = origin.scale;
-    var newScale = Tools.setScale(scale);
+    var newScale = tools.setScale(scale);
     window.scrollTo(
       origin.scrollX + origin.x * (newScale - oldScale),
       origin.scrollY + origin.y * (newScale - oldScale),
@@ -78,7 +80,7 @@
     origin.x = x;
     origin.y = y;
     origin.clientY = getClientY(evt, isTouchEvent);
-    origin.scale = Tools.getScale();
+    origin.scale = tools.getScale();
   }
 
   /**
@@ -110,30 +112,31 @@
     }
   }
 
-  /** @param {WheelEvent} evt */
+  /** @param {Event} evt */
   function onwheel(evt) {
+    var wheelEvent = /** @type {WheelEvent} */ (evt);
     evt.preventDefault();
     var multiplier =
-      evt.deltaMode === WheelEvent.DOM_DELTA_LINE
+      wheelEvent.deltaMode === WheelEvent.DOM_DELTA_LINE
         ? 30
-        : evt.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        : wheelEvent.deltaMode === WheelEvent.DOM_DELTA_PAGE
           ? 1000
           : 1;
-    var deltaX = evt.deltaX * multiplier,
-      deltaY = evt.deltaY * multiplier;
-    if (!evt.ctrlKey) {
+    var deltaX = wheelEvent.deltaX * multiplier,
+      deltaY = wheelEvent.deltaY * multiplier;
+    if (!wheelEvent.ctrlKey) {
       // zoom
-      var scale = Tools.getScale();
-      var x = evt.pageX / scale;
-      var y = evt.pageY / scale;
-      setOrigin(x, y, evt, false);
-      animate((1 - deltaY / 800) * Tools.getScale());
-    } else if (evt.altKey) {
+      var scale = tools.getScale();
+      var x = wheelEvent.pageX / scale;
+      var y = wheelEvent.pageY / scale;
+      setOrigin(x, y, wheelEvent, false);
+      animate((1 - deltaY / 800) * tools.getScale());
+    } else if (wheelEvent.altKey) {
       // make finer changes if shift is being held
-      var change = evt.shiftKey ? 1 : 5;
+      var change = wheelEvent.shiftKey ? 1 : 5;
       // change tool size
-      Tools.setSize(Tools.getSize() - (deltaY / 100) * change);
-    } else if (evt.shiftKey) {
+      tools.setSize(tools.getSize() - (deltaY / 100) * change);
+    } else if (wheelEvent.shiftKey) {
       // scroll horizontally
       window.scrollTo(
         document.documentElement.scrollLeft + deltaY,
@@ -147,14 +150,15 @@
       );
     }
   }
-  Tools.board.addEventListener("wheel", onwheel, { passive: false });
+  tools.board.addEventListener("wheel", onwheel, { passive: false });
 
-  Tools.board.addEventListener(
+  tools.board.addEventListener(
     "touchmove",
-    /** @param {TouchEvent} evt */
+    /** @param {Event} evt */
     function ontouchmove(evt) {
+      var touchEvent = /** @type {TouchEvent} */ (evt);
       // 2-finger pan to zoom
-      var touches = evt.touches;
+      var touches = touchEvent.touches;
       if (touches.length === 2) {
         var firstTouch = touches[0];
         var secondTouch = touches[1];
@@ -165,12 +169,12 @@
           y1 = secondTouch.clientY,
           dx = x0 - x1,
           dy = y0 - y1;
-        var x = (firstTouch.pageX + secondTouch.pageX) / 2 / Tools.getScale(),
-          y = (firstTouch.pageY + secondTouch.pageY) / 2 / Tools.getScale();
+        var x = (firstTouch.pageX + secondTouch.pageX) / 2 / tools.getScale(),
+          y = (firstTouch.pageY + secondTouch.pageY) / 2 / tools.getScale();
         var distance = Math.sqrt(dx * dx + dy * dy);
         if (!pressed) {
           pressed = true;
-          setOrigin(x, y, evt, true);
+          setOrigin(x, y, touchEvent, true);
           origin.distance = distance;
         } else {
           var delta = distance - (origin.distance || distance);
@@ -185,8 +189,8 @@
     pressed = false;
     origin.distance = null;
   }
-  Tools.board.addEventListener("touchend", touchend);
-  Tools.board.addEventListener("touchcancel", touchend);
+  tools.board.addEventListener("touchend", touchend);
+  tools.board.addEventListener("touchcancel", touchend);
 
   /**
    * @param {number} x
@@ -197,7 +201,7 @@
   function release(x, y, evt, isTouchEvent) {
     if (pressed && !moved) {
       var delta = evt.shiftKey === true ? -1 : 1;
-      var scale = Tools.getScale() * (1 + delta * ZOOM_FACTOR);
+      var scale = tools.getScale() * (1 + delta * ZOOM_FACTOR);
       zoom(origin, scale);
     }
     pressed = false;
@@ -209,7 +213,7 @@
     /** @type {ZoomKeyHandler} */
     return function (evt) {
       if (evt.key === "Shift") {
-        Tools.svg.style.cursor = "zoom-" + (down ? "out" : "in");
+        tools.svg.style.cursor = "zoom-" + (down ? "out" : "in");
       }
     };
   }
@@ -254,5 +258,11 @@
     helpText: "click_to_zoom",
     showMarker: true,
   };
-  Tools.add(zoomTool);
-})(); //End of code isolation
+  tools.add(zoomTool);
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerZoomTool(
+    /** @type {ZoomToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
+  );
+}
