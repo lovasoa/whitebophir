@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const { installTestConsole } = require("./test_console.js");
+const MessageCommon = require("../client-data/js/message_common.js");
 
 installTestConsole();
 
@@ -401,6 +402,7 @@ function createHarness() {
   };
   globalAny.window.scrollTo = function () {};
   globalAny.window.WBOMessageCommon = {
+    LIMITS: MessageCommon.LIMITS,
     truncateText: function (/** @type {unknown} */ value) {
       return String(value);
     },
@@ -613,6 +615,52 @@ test("Pencil input sends an initial child point without waiting for throttle", f
     x: 100,
     y: 100,
   });
+});
+
+test("Pencil input stops sending points after MAX_CHILDREN", function () {
+  const harness = createHarness();
+  globalAny.Tools.server_config.MAX_CHILDREN = 2;
+  const pencilTool = harness.loadTool("Pencil");
+  const event = { preventDefault: function () {} };
+
+  globalAny.Tools.curTool = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+  harness.clock.now = 101;
+  pencilTool.listeners.move(200, 200, event);
+  harness.clock.now = 202;
+  pencilTool.listeners.move(300, 300, event);
+  harness.clock.now = 303;
+  pencilTool.listeners.move(400, 400, event);
+  harness.clock.now = 404;
+  pencilTool.listeners.release(500, 500, event);
+
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(function (/** @type {any} */ message) {
+      return message.data;
+    }),
+    [
+      {
+        type: "line",
+        id: "l-1",
+        color: "#123456",
+        size: 4,
+        opacity: 1,
+      },
+      {
+        type: "child",
+        parent: "l-1",
+        x: 100,
+        y: 100,
+      },
+      {
+        type: "child",
+        parent: "l-1",
+        x: 200,
+        y: 200,
+      },
+    ],
+  );
 });
 
 test("Straight line replay refreshes endpoints and styling on an existing node", function () {

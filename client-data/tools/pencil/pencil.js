@@ -42,12 +42,24 @@
     (Number(Tools.server_config.MAX_EMIT_COUNT) || 192);
 
   var AUTO_FINGER_WHITEOUT = Tools.server_config.AUTO_FINGER_WHITEOUT === true;
+  var DEFAULT_MAX_PENCIL_CHILDREN =
+    typeof MessageCommon === "object" &&
+    MessageCommon &&
+    MessageCommon.LIMITS &&
+    Number(MessageCommon.LIMITS.DEFAULT_MAX_CHILDREN) > 0
+      ? Number(MessageCommon.LIMITS.DEFAULT_MAX_CHILDREN)
+      : Number.POSITIVE_INFINITY;
+  var MAX_PENCIL_CHILDREN =
+    Number(Tools.server_config.MAX_CHILDREN) > 0
+      ? Number(Tools.server_config.MAX_CHILDREN)
+      : DEFAULT_MAX_PENCIL_CHILDREN;
   var hasUsedStylus = false;
 
   //Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
   var curLineId = "",
     lastTime = performance.now(); //The time at which the last point was drawn
   var hasSentPoint = false;
+  var currentLineChildCount = 0;
 
   //The data of the message that will be sent for every new point
   /**
@@ -114,6 +126,7 @@
 
     curLineId = Tools.generateUID("l"); //"l" for line
     hasSentPoint = false;
+    currentLineChildCount = 0;
 
     var initialData = {
       type: "line",
@@ -136,6 +149,9 @@
    * @param {MouseEvent | TouchEvent | undefined} evt
    */
   function continueLine(x, y, evt) {
+    if (curLineId !== "" && currentLineChildCount >= MAX_PENCIL_CHILDREN) {
+      stopLine();
+    }
     /*Wait 70ms before adding any point to the currently drawing line.
 		This allows the animation to be smother*/
     if (
@@ -143,8 +159,10 @@
       (!hasSentPoint || performance.now() - lastTime > MIN_PENCIL_INTERVAL_MS)
     ) {
       Tools.drawAndSend(new PointMessage(x, y));
+      currentLineChildCount += 1;
       hasSentPoint = true;
       lastTime = performance.now();
+      if (currentLineChildCount >= MAX_PENCIL_CHILDREN) stopLine();
     }
     if (evt) evt.preventDefault();
   }
@@ -162,6 +180,7 @@
   function stopLine() {
     curLineId = "";
     hasSentPoint = false;
+    currentLineChildCount = 0;
   }
 
   /** @type {PencilLine | null} */
