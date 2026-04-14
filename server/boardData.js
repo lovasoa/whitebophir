@@ -27,7 +27,7 @@
 
 var nativeFs = require("node:fs"),
   { readFile, rename, unlink, writeFile } = require("node:fs/promises"),
-  { logger, metrics } = require("./observability.js"),
+  { logger, metrics, tracing } = require("./observability.js"),
   MessageToolMetadata = require("../client-data/js/message_tool_metadata.js"),
   {
     normalizeStoredChildPoint,
@@ -134,6 +134,22 @@ function serializeStoredBoard(board, metadata) {
     storedBoard[BOARD_METADATA_KEY] = { readonly: true };
   }
   return storedBoard;
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} operation
+ * @param {{[key: string]: unknown}=} extras
+ * @returns {{[key: string]: unknown}}
+ */
+function boardTraceAttributes(boardName, operation, extras) {
+  return Object.assign(
+    {
+      "wbo.board": boardName,
+      "wbo.board.operation": operation,
+    },
+    extras,
+  );
 }
 
 /**
@@ -778,47 +794,73 @@ class BoardData {
 
   /** Save the board to disk without preventing multiple simultaneaous saves. Use save() instead */
   async _unsafe_save() {
-    this.lastSaveDate = Date.now();
-    this.clean();
-    var file = this.file;
-    var tmp_file = backupFileName(file);
-    var storedBoard = serializeStoredBoard(this.board, this.metadata);
-    var board_txt = JSON.stringify(storedBoard);
-    if (board_txt === "{}") {
-      // empty board
-      try {
-        await unlink(file);
-        metrics.recordBoardOperation("save", "removed_empty");
-      } catch (err) {
-        if (errorCode(err) !== "ENOENT") {
-          // If the file already wasn't saved, this is not an error
-          logger.error("board.delete_failed", {
-            board: this.name,
-            error: err,
-          });
-          metrics.recordBoardOperation("save", "error");
+    return tracing.withOptionalActiveSpan(
+      "board.save",
+      {
+        attributes: boardTraceAttributes(this.name, "save"),
+      },
+      async () => {
+        this.lastSaveDate = Date.now();
+        this.clean();
+        var file = this.file;
+        var tmp_file = backupFileName(file);
+        var storedBoard = serializeStoredBoard(this.board, this.metadata);
+        var board_txt = JSON.stringify(storedBoard);
+        if (board_txt === "{}") {
+          // empty board
+          try {
+            await unlink(file);
+            tracing.setActiveSpanAttributes(
+              boardTraceAttributes(this.name, "save", {
+                "wbo.board.result": "removed_empty",
+              }),
+            );
+            metrics.recordBoardOperation("save", "removed_empty");
+          } catch (err) {
+            if (errorCode(err) !== "ENOENT") {
+              // If the file already wasn't saved, this is not an error
+              tracing.recordActiveSpanError(err, {
+                "wbo.board.result": "error",
+              });
+              logger.error("board.delete_failed", {
+                board: this.name,
+                error: err,
+              });
+              metrics.recordBoardOperation("save", "error");
+            }
+          }
+        } else {
+          try {
+            await writeFile(tmp_file, board_txt, { flag: "wx" });
+            await rename(tmp_file, file);
+            tracing.setActiveSpanAttributes(
+              boardTraceAttributes(this.name, "save", {
+                "wbo.board.result": "success",
+                "wbo.board.bytes": board_txt.length,
+                "wbo.board.items": Object.keys(this.board).length,
+              }),
+            );
+            logger.info("board.saved", {
+              board: this.name,
+              bytes: board_txt.length,
+              items: Object.keys(this.board).length,
+            });
+            metrics.recordBoardOperation("save", "success");
+          } catch (err) {
+            tracing.recordActiveSpanError(err, {
+              "wbo.board.result": "error",
+            });
+            logger.error("board.save_failed", {
+              board: this.name,
+              error: err,
+              tmp_file: tmp_file,
+            });
+            metrics.recordBoardOperation("save", "error");
+            return;
+          }
         }
-      }
-    } else {
-      try {
-        await writeFile(tmp_file, board_txt, { flag: "wx" });
-        await rename(tmp_file, file);
-        logger.info("board.saved", {
-          board: this.name,
-          bytes: board_txt.length,
-          items: Object.keys(this.board).length,
-        });
-        metrics.recordBoardOperation("save", "success");
-      } catch (err) {
-        logger.error("board.save_failed", {
-          board: this.name,
-          error: err,
-          tmp_file: tmp_file,
-        });
-        metrics.recordBoardOperation("save", "error");
-        return;
-      }
-    }
+      },
+    );
   }
 
   /** Remove old elements from the board */
@@ -868,48 +910,89 @@ class BoardData {
    * @param {string} name - name of the board
    */
   static async load(name) {
-    var boardData = new BoardData(name),
-      data;
-    try {
-      data = await readFile(boardData.file, "utf8");
-      const storedBoard = parseStoredBoard(JSON.parse(data));
-      boardData.board = storedBoard.board;
-      boardData.metadata = storedBoard.metadata;
-      for (const id of Object.keys(boardData.board)) {
-        boardData.normalizeStoredElement(id);
-      }
-      metrics.recordBoardOperation("load", "success");
-    } catch (e) {
-      // If the file doesn't exist, this is not an error
-      if (errorCode(e) === "ENOENT") {
-        metrics.recordBoardOperation("load", "empty");
-      } else {
-        logger.error("board.load_failed", {
-          board: name,
-          error: e,
-        });
-        metrics.recordBoardOperation("load", "error");
-      }
-      boardData.board = {};
-      if (data) {
-        // There was an error loading the board, but some data was still read
-        var backup = backupFileName(boardData.file);
-        logger.warn("board.backup_created", {
-          board: boardData.name,
-          backup_file: backup,
-        });
+    return tracing.withOptionalActiveSpan(
+      "board.load",
+      {
+        attributes: boardTraceAttributes(name, "load"),
+      },
+      async function loadBoardData() {
+        var boardData = new BoardData(name);
+        /** @type {string | undefined} */
+        var data;
         try {
-          await writeFile(backup, data);
-        } catch (err) {
-          logger.error("board.backup_failed", {
-            board: boardData.name,
-            backup_file: backup,
-            error: err,
-          });
+          data = await readFile(boardData.file, "utf8");
+          const storedBoard = parseStoredBoard(JSON.parse(data));
+          boardData.board = storedBoard.board;
+          boardData.metadata = storedBoard.metadata;
+          for (const id of Object.keys(boardData.board)) {
+            boardData.normalizeStoredElement(id);
+          }
+          tracing.setActiveSpanAttributes(
+            boardTraceAttributes(name, "load", {
+              "wbo.board.result": "success",
+              "wbo.board.items": Object.keys(boardData.board).length,
+            }),
+          );
+          metrics.recordBoardOperation("load", "success");
+        } catch (e) {
+          // If the file doesn't exist, this is not an error
+          if (errorCode(e) === "ENOENT") {
+            tracing.setActiveSpanAttributes(
+              boardTraceAttributes(name, "load", {
+                "wbo.board.result": "empty",
+              }),
+            );
+            metrics.recordBoardOperation("load", "empty");
+          } else {
+            tracing.recordActiveSpanError(e, {
+              "wbo.board.result": "error",
+            });
+            logger.error("board.load_failed", {
+              board: name,
+              error: e,
+            });
+            metrics.recordBoardOperation("load", "error");
+          }
+          boardData.board = {};
+          const backupData = data;
+          if (backupData !== undefined) {
+            // There was an error loading the board, but some data was still read
+            var backup = backupFileName(boardData.file);
+            logger.warn("board.backup_created", {
+              board: boardData.name,
+              backup_file: backup,
+            });
+            await tracing.withOptionalActiveSpan(
+              "board.backup_write",
+              {
+                attributes: boardTraceAttributes(
+                  boardData.name,
+                  "backup_write",
+                  {
+                    "wbo.board.result": "backup_created",
+                  },
+                ),
+              },
+              async function writeBoardBackup() {
+                try {
+                  await writeFile(backup, backupData);
+                } catch (err) {
+                  tracing.recordActiveSpanError(err, {
+                    "wbo.board.result": "error",
+                  });
+                  logger.error("board.backup_failed", {
+                    board: boardData.name,
+                    backup_file: backup,
+                    error: err,
+                  });
+                }
+              },
+            );
+          }
         }
-      }
-    }
-    return boardData;
+        return boardData;
+      },
+    );
   }
 
   /**
@@ -917,21 +1000,32 @@ class BoardData {
    * @returns {BoardMetadata}
    */
   static loadMetadataSync(name) {
-    const metadata = defaultBoardMetadata();
-    try {
-      const data = nativeFs.readFileSync(boardFilePath(name), {
-        encoding: "utf8",
-      });
-      return parseStoredBoard(JSON.parse(data)).metadata;
-    } catch (err) {
-      if (errorCode(err) !== "ENOENT") {
-        logger.error("board.metadata_load_failed", {
-          board: name,
-          error: err,
-        });
-      }
-      return metadata;
-    }
+    return tracing.withOptionalActiveSpan(
+      "board.metadata_load",
+      {
+        attributes: boardTraceAttributes(name, "metadata_load"),
+      },
+      function loadBoardMetadata() {
+        const metadata = defaultBoardMetadata();
+        try {
+          const data = nativeFs.readFileSync(boardFilePath(name), {
+            encoding: "utf8",
+          });
+          return parseStoredBoard(JSON.parse(data)).metadata;
+        } catch (err) {
+          if (errorCode(err) !== "ENOENT") {
+            tracing.recordActiveSpanError(err, {
+              "wbo.board.result": "error",
+            });
+            logger.error("board.metadata_load_failed", {
+              board: name,
+              error: err,
+            });
+          }
+          return metadata;
+        }
+      },
+    );
   }
 }
 

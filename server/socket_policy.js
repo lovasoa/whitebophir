@@ -1,4 +1,4 @@
-const { logger, metrics } = require("./observability.js");
+const { logger, metrics, tracing } = require("./observability.js");
 const config = require("./configuration");
 const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 const normalizeIncomingMessage =
@@ -210,14 +210,28 @@ function normalizeBroadcastData(message, data) {
    * @returns {RejectedBroadcast}
    */
   function rejectedBroadcast(reason) {
-    logger.warn("socket.message_invalid", {
-      board: getBoardName(message),
-      tool: data && data.tool,
-      type: data && data.type,
-      reason: reason,
-    });
-    metrics.recordRejection("invalid_message", reason);
-    return { ok: false, reason: reason };
+    return tracing.withDetachedSpan(
+      "socket.message_invalid",
+      {
+        attributes: {
+          "wbo.socket.event": "broadcast_write",
+          "wbo.board": getBoardName(message),
+          "wbo.rejection.reason": reason,
+          "wbo.tool": data && data.tool,
+          "wbo.message.type": data && data.type,
+        },
+      },
+      function recordRejectedBroadcast() {
+        logger.warn("socket.message_invalid", {
+          board: getBoardName(message),
+          tool: data && data.tool,
+          type: data && data.type,
+          reason: reason,
+        });
+        metrics.recordRejection("invalid_message", reason);
+        return { ok: false, reason: reason };
+      },
+    );
   }
 }
 

@@ -10,7 +10,12 @@ const config = require("./configuration.js");
 const createSVG = require("./createSVG.js");
 const jwtauth = require("./jwtauth.js");
 const jwtBoardName = require("./jwtBoardnameAuth.js");
-const { createRequestId, logger, metrics } = require("./observability.js");
+const {
+  createRequestId,
+  logger,
+  metrics,
+  tracing,
+} = require("./observability.js");
 const sockets = require("./sockets.js");
 const templating = require("./templating.js");
 
@@ -91,13 +96,86 @@ function classifyRequestLog(route, statusCode, durationMs) {
 }
 
 /**
+ * @param {string} method
+ * @param {string} route
+ * @returns {string}
+ */
+function requestSpanName(method, route) {
+  const routeTemplate = requestRouteTemplate(route);
+  return routeTemplate ? `${method} ${routeTemplate}` : `${method} request`;
+}
+
+/**
+ * @param {string} route
+ * @returns {string | undefined}
+ */
+function requestRouteTemplate(route) {
+  switch (route) {
+    case "boards_redirect":
+      return "/boards";
+    case "board_page":
+      return "/boards/{board}";
+    case "download_board":
+      return "/download/{board}";
+    case "preview_board":
+      return "/preview/{board}";
+    case "random_board":
+      return "/random";
+    case "index":
+      return "/";
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * @param {number} statusCode
+ * @returns {string}
+ */
+function requestResult(statusCode) {
+  if (statusCode >= 500) return "error";
+  if (statusCode >= 400) return "rejected";
+  return "success";
+}
+
+/**
+ * @param {string} requestUrl
+ * @returns {boolean}
+ */
+function shouldTraceRequest(requestUrl) {
+  const parsedUrl = new URL(requestUrl || "/", "http://wbo/");
+  const fileExt = path.extname(parsedUrl.pathname);
+  return ![".js", ".css", ".svg", ".ico", ".png", ".jpg", ".gif"].includes(
+    fileExt,
+  );
+}
+
+/**
+ * @param {{[key: string]: unknown}} fields
+ * @returns {{[key: string]: unknown}}
+ */
+function requestTraceAttributes(fields) {
+  /** @type {{[key: string]: unknown}} */
+  const attributes = {};
+  if (fields.board !== undefined) {
+    attributes["wbo.board"] = fields.board;
+  }
+  if (fields.render_duration_ms !== undefined) {
+    attributes["wbo.preview.render_duration_ms"] = fields.render_duration_ms;
+  }
+  return attributes;
+}
+
+/**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @returns {{
  *   requestId: string,
+ *   run: (fn: () => void) => void,
  *   setRoute: (route: string) => void,
  *   noteError: (error: unknown) => void,
  *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }}
  */
 function observeRequest(request, response) {
@@ -109,45 +187,81 @@ function observeRequest(request, response) {
   response.setHeader("X-Request-Id", requestId);
 
   const startedAt = Date.now();
+  const method = request.method || "GET";
   let route = "unknown";
   /** @type {unknown} */
   let requestError;
   /** @type {{[key: string]: unknown}} */
   let logFields = {};
+  const parentContext = tracing.extractContext(request.headers);
+  const requestSpan = shouldTraceRequest(request.url || "/")
+    ? tracing.startSpan(`${method} request`, {
+        kind: tracing.SpanKind.SERVER,
+        parentContext: parentContext,
+        attributes: {
+          "http.request.method": method,
+          "server.address": config.HOST,
+          "server.port": config.PORT,
+        },
+      })
+    : null;
   let finalized = false;
 
   function finalize() {
     if (finalized) return;
     finalized = true;
+    tracing.withSpanContext(
+      requestSpan,
+      parentContext,
+      function finalizeRequestContext() {
+        const statusCode = response.statusCode || 200;
+        const durationMs = Date.now() - startedAt;
+        if (requestSpan) {
+          tracing.setSpanAttributes(requestSpan, {
+            "http.response.status_code": statusCode,
+            "wbo.request.result": requestResult(statusCode),
+            "wbo.request.route_kind": route,
+          });
+          if (statusCode >= 500 && !requestError) {
+            requestSpan.setStatus({
+              code: tracing.SpanStatusCode.ERROR,
+            });
+          }
+        }
 
-    const statusCode = response.statusCode || 200;
-    const durationMs = Date.now() - startedAt;
+        metrics.recordHttpRequest({
+          method: method,
+          route: route,
+          statusCode: statusCode,
+          durationMs: durationMs,
+        });
+        const logTarget = classifyRequestLog(route, statusCode, durationMs);
+        if (!logTarget) {
+          if (requestSpan) requestSpan.end();
+          return;
+        }
 
-    metrics.recordHttpRequest({
-      method: request.method || "GET",
-      route: route,
-      statusCode: statusCode,
-      durationMs: durationMs,
-    });
-    const logTarget = classifyRequestLog(route, statusCode, durationMs);
-    if (!logTarget) return;
-
-    const fields = Object.assign(
-      {
-        request_id: requestId,
-        method: request.method || "GET",
-        route: route,
-        status_code: statusCode,
-        duration_ms: durationMs,
-        url: request.url,
+        const fields = Object.assign(
+          {
+            request_id: requestId,
+            method: method,
+            route: route,
+            status_code: statusCode,
+            duration_ms: durationMs,
+            url: request.url,
+          },
+          logFields,
+        );
+        if (statusCode >= 400) {
+          fields.ip = request.socket.remoteAddress;
+        }
+        if (requestError) fields.error = requestError;
+        logger[logTarget.level](logTarget.event, fields);
+        if (requestSpan) {
+          requestSpan.end();
+        }
       },
-      logFields,
     );
-    if (statusCode >= 400) {
-      fields.ip = request.socket.remoteAddress;
-    }
-    if (requestError) fields.error = requestError;
-    logger[logTarget.level](logTarget.event, fields);
   }
 
   response.once("finish", finalize);
@@ -155,14 +269,38 @@ function observeRequest(request, response) {
 
   return {
     requestId: requestId,
+    run: function run(fn) {
+      return tracing.withSpanContext(requestSpan, parentContext, fn);
+    },
     setRoute: function setRoute(nextRoute) {
       route = nextRoute;
+      if (requestSpan) {
+        requestSpan.updateName(requestSpanName(method, nextRoute));
+        tracing.setSpanAttributes(
+          requestSpan,
+          Object.assign(
+            {
+              "wbo.request.route_kind": nextRoute,
+            },
+            requestRouteTemplate(nextRoute)
+              ? { "http.route": requestRouteTemplate(nextRoute) }
+              : {},
+          ),
+        );
+      }
     },
     noteError: function noteError(error) {
       requestError = error;
+      if (requestSpan) {
+        tracing.recordSpanError(requestSpan, error);
+      }
     },
     annotate: function annotate(fields) {
       logFields = Object.assign(logFields, fields);
+    },
+    setTraceAttributes: function setTraceAttributes(fields) {
+      if (!requestSpan) return;
+      tracing.setSpanAttributes(requestSpan, requestTraceAttributes(fields));
     },
   };
 }
@@ -186,13 +324,15 @@ function serveError(request, response, requestContext) {
  */
 function handler(request, response) {
   const requestContext = observeRequest(request, response);
-  try {
-    handleRequest(request, response, requestContext);
-  } catch (err) {
-    requestContext.noteError(err);
-    response.writeHead(500, { "Content-Type": "text/plain" });
-    response.end(errorToString(err));
-  }
+  requestContext.run(function runRequestHandler() {
+    try {
+      handleRequest(request, response, requestContext);
+    } catch (err) {
+      requestContext.noteError(err);
+      response.writeHead(500, { "Content-Type": "text/plain" });
+      response.end(errorToString(err));
+    }
+  });
 }
 
 /**
@@ -222,6 +362,7 @@ function getPathPart(parts, index) {
  *   setRoute: (route: string) => void,
  *   noteError: (error: unknown) => void,
  *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
  * @returns {void}
  */
@@ -254,6 +395,7 @@ function handleRequest(request, response, requestContext) {
       if (parts.length === 1) {
         const boardName = parsedUrl.searchParams.get("board") || "anonymous";
         requestContext.annotate({ board: boardName });
+        requestContext.setTraceAttributes({ board: boardName });
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         const headers = { Location: "boards/" + encodeURIComponent(boardName) };
         response.writeHead(301, headers);
@@ -265,6 +407,7 @@ function handleRequest(request, response, requestContext) {
         }
         const boardName = validateBoardName(boardNamePart);
         requestContext.annotate({ board: boardName });
+        requestContext.setTraceAttributes({ board: boardName });
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         const token = parsedUrl.searchParams.get("token");
         const boardRole = jwtBoardName.roleInBoard(token || "", boardName);
@@ -299,6 +442,7 @@ function handleRequest(request, response, requestContext) {
       }
       const boardName = validateBoardName(boardNamePart);
       requestContext.annotate({ board: boardName });
+      requestContext.setTraceAttributes({ board: boardName });
       let historyFile = path.join(
         config.HISTORY_DIR,
         "board-" + boardName + ".json",
@@ -308,15 +452,30 @@ function handleRequest(request, response, requestContext) {
       if (backupSuffix && /^[0-9A-Za-z.\-]+$/.test(backupSuffix)) {
         historyFile += "." + backupSuffix + ".bak";
       }
-      fs.readFile(historyFile, function (err, data) {
-        if (err) return serveError(request, response, requestContext)(err);
-        response.writeHead(200, {
-          "Content-Type": "application/json",
-          "Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
-          "Content-Length": data.length,
-        });
-        response.end(data);
-      });
+      Promise.resolve(
+        tracing.withActiveSpan(
+          "board.download_read",
+          {
+            attributes: {
+              "wbo.board": boardName,
+              "wbo.board.operation": "download_read",
+            },
+          },
+          function readBoardDownload() {
+            return fs.promises.readFile(historyFile);
+          },
+        ),
+      )
+        .then(function (data) {
+          response.writeHead(200, {
+            "Content-Type": "application/json",
+            "Content-Disposition":
+              'attachment; filename="' + boardName + '.wbo"',
+            "Content-Length": data.length,
+          });
+          response.end(data);
+        })
+        .catch(serveError(request, response, requestContext));
       break;
     }
 
@@ -329,14 +488,27 @@ function handleRequest(request, response, requestContext) {
       }
       const exportBoardName = validateBoardName(boardNamePart);
       requestContext.annotate({ board: exportBoardName });
+      requestContext.setTraceAttributes({ board: exportBoardName });
       const historyFile = path.join(
         config.HISTORY_DIR,
         "board-" + exportBoardName + ".json",
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, exportBoardName);
       const startedAt = Date.now();
-      createSVG
-        .renderBoardToSVG(historyFile)
+      Promise.resolve(
+        tracing.withActiveSpan(
+          "preview.render",
+          {
+            attributes: {
+              "wbo.board": exportBoardName,
+              "wbo.board.operation": "preview_render",
+            },
+          },
+          function renderPreview() {
+            return createSVG.renderBoardToSVG(historyFile);
+          },
+        ),
+      )
         .then(function (svg) {
           response.writeHead(200, {
             "Content-Type": "image/svg+xml",
@@ -348,6 +520,9 @@ function handleRequest(request, response, requestContext) {
         .catch(function (err) {
           requestContext.noteError(err);
           requestContext.annotate({
+            render_duration_ms: Date.now() - startedAt,
+          });
+          requestContext.setTraceAttributes({
             render_duration_ms: Date.now() - startedAt,
           });
           serveError(request, response, requestContext)(err);
@@ -367,6 +542,7 @@ function handleRequest(request, response, requestContext) {
       requestContext.setRoute("index");
       if (config.DEFAULT_BOARD) {
         requestContext.annotate({ board: config.DEFAULT_BOARD });
+        requestContext.setTraceAttributes({ board: config.DEFAULT_BOARD });
         response.writeHead(302, {
           Location: "boards/" + encodeURIComponent(config.DEFAULT_BOARD),
         });

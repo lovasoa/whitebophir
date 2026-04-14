@@ -1,9 +1,20 @@
 "use strict";
 
 const { randomUUID } = require("node:crypto");
-const { metrics } = require("@opentelemetry/api");
+const {
+  context,
+  isSpanContextValid,
+  metrics,
+  propagation,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+} = require("@opentelemetry/api");
 const { logs, SeverityNumber } = require("@opentelemetry/api-logs");
 const { OTLPLogExporter } = require("@opentelemetry/exporter-logs-otlp-http");
+const {
+  OTLPTraceExporter,
+} = require("@opentelemetry/exporter-trace-otlp-http");
 const {
   OTLPMetricExporter,
 } = require("@opentelemetry/exporter-metrics-otlp-http");
@@ -14,6 +25,12 @@ const {
   SimpleLogRecordProcessor,
 } = require("@opentelemetry/sdk-logs");
 const { PeriodicExportingMetricReader } = require("@opentelemetry/sdk-metrics");
+const {
+  BatchSpanProcessor,
+  ParentBasedSampler,
+  SimpleSpanProcessor,
+  TraceIdRatioBasedSampler,
+} = require("@opentelemetry/sdk-trace-base");
 const { NodeSDK } = require("@opentelemetry/sdk-node");
 const {
   SEMRESATTRS_SERVICE_NAME,
@@ -27,9 +44,13 @@ const {
 } = require("./logfmt.js");
 
 const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME;
+const DEFAULT_TRACE_SAMPLE_RATIO = 0.05;
+const TEST_TRACE_EXPORTER = /** @type {{__WBO_TEST_TRACE_EXPORTER__?: any}} */ (
+  globalThis
+).__WBO_TEST_TRACE_EXPORTER__;
 
 /**
- * @param {"logs"|"metrics"} signal
+ * @param {"logs"|"metrics"|"traces"} signal
  * @returns {boolean}
  */
 function hasConfiguredOtlpEndpoint(signal) {
@@ -38,6 +59,9 @@ function hasConfiguredOtlpEndpoint(signal) {
     return true;
   }
   if (signal === "metrics" && process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT) {
+    return true;
+  }
+  if (signal === "traces" && process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT) {
     return true;
   }
   return false;
@@ -111,6 +135,39 @@ class LogfmtLogRecordExporter {
   }
 }
 
+/**
+ * @returns {import("@opentelemetry/sdk-trace-base").SpanProcessor[]}
+ */
+function buildTraceSpanProcessors() {
+  /** @type {import("@opentelemetry/sdk-trace-base").SpanProcessor[]} */
+  const processors = [];
+  if (TEST_TRACE_EXPORTER) {
+    processors.push(new SimpleSpanProcessor(TEST_TRACE_EXPORTER));
+  }
+  if (hasConfiguredOtlpEndpoint("traces")) {
+    processors.push(new BatchSpanProcessor(new OTLPTraceExporter()));
+  }
+  return processors;
+}
+
+/**
+ * @returns {import("@opentelemetry/sdk-trace-base").Sampler | undefined}
+ */
+function buildTracerSampler() {
+  if (
+    process.env.OTEL_TRACES_SAMPLER !== undefined ||
+    process.env.OTEL_TRACES_SAMPLER_ARG !== undefined
+  ) {
+    return undefined;
+  }
+  return new ParentBasedSampler({
+    root: new TraceIdRatioBasedSampler(DEFAULT_TRACE_SAMPLE_RATIO),
+  });
+}
+
+const traceSpanProcessors = buildTraceSpanProcessors();
+const tracingEnabled = traceSpanProcessors.length > 0;
+
 const sdk = new NodeSDK({
   resource: resourceFromAttributes({
     [SEMRESATTRS_SERVICE_NAME]: SERVICE_NAME,
@@ -123,12 +180,15 @@ const sdk = new NodeSDK({
       ]
     : [],
   logRecordProcessors: buildLogRecordProcessors(),
+  sampler: buildTracerSampler(),
+  spanProcessors: traceSpanProcessors,
 });
 
 sdk.start();
 
 const meter = metrics.getMeter(SERVICE_NAME);
 const otelLogger = logs.getLogger(SERVICE_NAME);
+const tracer = trace.getTracer(SERVICE_NAME);
 
 const runtimeState = {
   loadedBoards: 0,
@@ -327,12 +387,337 @@ function normalizeLogAttributes(fields) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {string | number | boolean | (string | number | boolean)[] | undefined}
+ */
+function toSpanAttributeValue(value) {
+  if (value === undefined) return undefined;
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map(function normalizeArrayValue(entry) {
+        if (
+          typeof entry === "string" ||
+          typeof entry === "number" ||
+          typeof entry === "boolean"
+        ) {
+          return entry;
+        }
+        if (entry instanceof Date) return entry.toISOString();
+        return undefined;
+      })
+      .filter(function isDefined(entry) {
+        return entry !== undefined;
+      });
+    return normalized.length === value.length ? normalized : undefined;
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * @param {{[key: string]: unknown}=} fields
+ * @returns {{[key: string]: any}}
+ */
+function normalizeSpanAttributes(fields) {
+  /** @type {{[key: string]: any}} */
+  const attributes = {};
+  if (!fields) return attributes;
+  for (const [key, value] of Object.entries(fields)) {
+    const attributeValue = toSpanAttributeValue(value);
+    if (attributeValue !== undefined) {
+      attributes[key] = attributeValue;
+    }
+  }
+  return attributes;
+}
+
+/**
+ * @returns {import("@opentelemetry/api").Span | undefined}
+ */
+function getActiveSpan() {
+  if (!tracingEnabled) return undefined;
+  return trace.getActiveSpan();
+}
+
+/**
+ * @returns {{trace_id?: string, span_id?: string}}
+ */
+function getActiveTraceFields() {
+  if (!tracingEnabled) return {};
+  const activeSpan = getActiveSpan();
+  if (!activeSpan || !activeSpan.isRecording()) return {};
+  const spanContext = activeSpan.spanContext();
+  if (!isSpanContextValid(spanContext)) return {};
+  return {
+    trace_id: spanContext.traceId,
+    span_id: spanContext.spanId,
+  };
+}
+
+/**
+ * @param {import("@opentelemetry/api").Span} span
+ * @param {{[key: string]: unknown}=} attributes
+ * @returns {void}
+ */
+function setSpanAttributes(span, attributes) {
+  const normalized = normalizeSpanAttributes(attributes);
+  if (Object.keys(normalized).length > 0) {
+    span.setAttributes(/** @type {any} */ (normalized));
+  }
+}
+
+/**
+ * @param {{[key: string]: unknown}=} attributes
+ * @returns {void}
+ */
+function setActiveSpanAttributes(attributes) {
+  const activeSpan = getActiveSpan();
+  if (!activeSpan) return;
+  setSpanAttributes(activeSpan, attributes);
+}
+
+/**
+ * @param {import("@opentelemetry/api").Span} span
+ * @param {string} name
+ * @param {{[key: string]: unknown}=} attributes
+ * @returns {void}
+ */
+function addSpanEvent(span, name, attributes) {
+  span.addEvent(name, /** @type {any} */ (normalizeSpanAttributes(attributes)));
+}
+
+/**
+ * @param {string} name
+ * @param {{[key: string]: unknown}=} attributes
+ * @returns {void}
+ */
+function addActiveSpanEvent(name, attributes) {
+  const activeSpan = getActiveSpan();
+  if (!activeSpan) return;
+  addSpanEvent(activeSpan, name, attributes);
+}
+
+/**
+ * @param {import("@opentelemetry/api").Span} span
+ * @param {unknown} error
+ * @param {{[key: string]: unknown}=} attributes
+ * @returns {void}
+ */
+function recordSpanError(span, error, attributes) {
+  if (error instanceof Error) {
+    span.recordException(error);
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: error.message,
+    });
+    setSpanAttributes(
+      span,
+      Object.assign(
+        {
+          "error.type": error.name || "Error",
+        },
+        attributes,
+      ),
+    );
+    return;
+  }
+  span.recordException({ message: String(error) });
+  span.setStatus({
+    code: SpanStatusCode.ERROR,
+    message: String(error),
+  });
+  setSpanAttributes(
+    span,
+    Object.assign({ "error.type": typeof error }, attributes),
+  );
+}
+
+/**
+ * @param {unknown} error
+ * @param {{[key: string]: unknown}=} attributes
+ * @returns {void}
+ */
+function recordActiveSpanError(error, attributes) {
+  const activeSpan = getActiveSpan();
+  if (!activeSpan) return;
+  recordSpanError(activeSpan, error, attributes);
+}
+
+/**
+ * @param {import("@opentelemetry/api").Context} spanContext
+ * @param {() => any} fn
+ * @returns {any}
+ */
+function withContext(spanContext, fn) {
+  return context.with(spanContext, fn);
+}
+
+/**
+ * @param {{[key: string]: string | string[] | undefined}} carrier
+ * @returns {import("@opentelemetry/api").Context}
+ */
+function extractContext(carrier) {
+  if (!tracingEnabled) return context.active();
+  return propagation.extract(context.active(), carrier);
+}
+
+/**
+ * @param {string} name
+ * @param {{
+ *   parentContext?: import("@opentelemetry/api").Context,
+ *   kind?: number,
+ *   attributes?: {[key: string]: unknown},
+ * } | undefined} options
+ * @returns {import("@opentelemetry/api").Span | null}
+ */
+function startSpan(name, options) {
+  if (!tracingEnabled) return null;
+  return tracer.startSpan(
+    name,
+    {
+      kind: options && options.kind,
+      attributes: /** @type {any} */ (
+        normalizeSpanAttributes(options && options.attributes)
+      ),
+    },
+    (options && options.parentContext) || context.active(),
+  );
+}
+
+/**
+ * @param {import("@opentelemetry/api").Span | null} span
+ * @param {import("@opentelemetry/api").Context | undefined} parentContext
+ * @param {() => any} fn
+ * @returns {any}
+ */
+function withSpanContext(span, parentContext, fn) {
+  if (!span) return fn();
+  return withContext(
+    trace.setSpan(parentContext || context.active(), span),
+    fn,
+  );
+}
+
+/**
+ * @param {string} name
+ * @param {{
+ *   parentContext?: import("@opentelemetry/api").Context,
+ *   kind?: number,
+ *   attributes?: {[key: string]: unknown},
+ * } | undefined} options
+ * @param {(span: import("@opentelemetry/api").Span | undefined) => any} fn
+ * @returns {any}
+ */
+function withActiveSpan(name, options, fn) {
+  if (!tracingEnabled) return fn(undefined);
+  const parentContext = (options && options.parentContext) || context.active();
+  return withContext(parentContext, function runSpan() {
+    return tracer.startActiveSpan(
+      name,
+      {
+        kind: options && options.kind,
+        attributes: /** @type {any} */ (
+          normalizeSpanAttributes(options && options.attributes)
+        ),
+      },
+      function handleSpan(span) {
+        try {
+          const result = fn(span);
+          if (result && typeof result.then === "function") {
+            return Promise.resolve(result)
+              .catch(function recordAsyncSpanError(error) {
+                recordSpanError(span, error);
+                throw error;
+              })
+              .finally(function endAsyncSpan() {
+                span.end();
+              });
+          }
+          span.end();
+          return result;
+        } catch (error) {
+          recordSpanError(span, error);
+          span.end();
+          throw error;
+        }
+      },
+    );
+  });
+}
+
+/**
+ * @param {string} name
+ * @param {{
+ *   kind?: number,
+ *   attributes?: {[key: string]: unknown},
+ * } | undefined} options
+ * @param {() => any} fn
+ * @returns {any}
+ */
+function withOptionalActiveSpan(name, options, fn) {
+  const activeSpan = getActiveSpan();
+  if (!activeSpan) return fn();
+  return withActiveSpan(
+    name,
+    {
+      kind: options && options.kind,
+      attributes: options && options.attributes,
+    },
+    function runOptionalSpan() {
+      return fn();
+    },
+  );
+}
+
+/**
+ * @param {string} name
+ * @param {{
+ *   kind?: number,
+ *   attributes?: {[key: string]: unknown},
+ * } | undefined} options
+ * @param {() => any} fn
+ * @returns {any}
+ */
+function withDetachedSpan(name, options, fn) {
+  const activeSpan = getActiveSpan();
+  if (activeSpan) {
+    setSpanAttributes(activeSpan, options && options.attributes);
+    addSpanEvent(activeSpan, name, options && options.attributes);
+    return fn();
+  }
+  return withActiveSpan(
+    name,
+    {
+      kind: (options && options.kind) || SpanKind.INTERNAL,
+      attributes: options && options.attributes,
+    },
+    function runDetachedSpan() {
+      return fn();
+    },
+  );
+}
+
+/**
  * @param {"debug"|"info"|"warn"|"error"} level
  * @param {string} name
  * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
- * @returns {void}
+ * @returns {{
+ *   eventName: string,
+ *   severityNumber: number,
+ *   severityText: string,
+ *   body: string | undefined,
+ *   attributes: import("@opentelemetry/api-logs").AnyValueMap,
+ *   exception: unknown,
+ * }}
  */
-function emitLog(level, name, fields) {
+function createLogRecord(level, name, fields) {
   const details = Object.assign({}, fields);
   const message =
     typeof details.msg === "string" && details.msg !== "" ? details.msg : null;
@@ -341,16 +726,26 @@ function emitLog(level, name, fields) {
   const error = details.error;
   delete details.error;
 
-  otelLogger.emit({
+  return {
     eventName: name,
     severityNumber: severityNumberForLevel(level),
     severityText: level.toUpperCase(),
     body: message === null ? undefined : message,
     attributes: normalizeLogAttributes(
-      Object.assign(details, flattenError(error)),
+      Object.assign(getActiveTraceFields(), details, flattenError(error)),
     ),
     exception: error,
-  });
+  };
+}
+
+/**
+ * @param {"debug"|"info"|"warn"|"error"} level
+ * @param {string} name
+ * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
+ * @returns {void}
+ */
+function emitLog(level, name, fields) {
+  otelLogger.emit(createLogRecord(level, name, fields));
 }
 
 /**
@@ -478,4 +873,25 @@ module.exports = {
     setLoadedBoards,
   },
   shutdownObservability,
+  tracing: {
+    addActiveSpanEvent,
+    extractContext,
+    recordActiveSpanError,
+    recordSpanError,
+    setSpanAttributes,
+    setActiveSpanAttributes,
+    startSpan,
+    withActiveSpan,
+    withDetachedSpan,
+    withOptionalActiveSpan,
+    withSpanContext,
+    SpanKind,
+    SpanStatusCode,
+  },
+  __test: {
+    createLogRecord,
+    tracingEnabled: function tracingEnabledForTest() {
+      return tracingEnabled;
+    },
+  },
 };
