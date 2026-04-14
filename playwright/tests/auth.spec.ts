@@ -2,12 +2,12 @@ import jsonwebtoken from "jsonwebtoken";
 import { test, expect } from "../fixtures/test";
 import { AUTH_SECRET, TOKENS } from "../helpers/tokens";
 
-const noAuthTest = test.extend({
-  serverOptions: { useJWT: false },
+const jwtTest = test.extend({
+  serverOptions: { useJWT: true },
 });
 
 test.describe("JWT auth and readonly flows", () => {
-  test("readonly board with JWT", async ({ boardPage, server, page }) => {
+  jwtTest("readonly board with JWT", async ({ boardPage, server, page }) => {
     const readonlySelector =
       "rect[x='10'][y='10'][width='20'][height='20'][stroke='#123456']";
     const clearSelector =
@@ -93,7 +93,7 @@ test.describe("JWT auth and readonly flows", () => {
     await expect(page.locator(clearSelector)).toHaveCount(0);
   });
 
-  test("JWT authorization matrix", async ({ boardPage, page }) => {
+  jwtTest("JWT authorization matrix", async ({ boardPage, page }) => {
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.globalModerator,
     });
@@ -144,7 +144,7 @@ test.describe("JWT auth and readonly flows", () => {
 });
 
 test.describe("public authless flows", () => {
-  noAuthTest(
+  test(
     "readonly board without auth",
     async ({ boardPage, server, page }) => {
       const selector =
@@ -176,7 +176,7 @@ test.describe("public authless flows", () => {
     },
   );
 
-  noAuthTest("menu hiding query param", async ({ boardPage }) => {
+  test("menu hiding query param", async ({ boardPage }) => {
     await boardPage.gotoBoard("anonymous", {
       lang: "fr",
       query: { hideMenu: true },

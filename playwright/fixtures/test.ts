@@ -18,7 +18,7 @@ type Options = {
 };
 
 export const test = base.extend<Fixtures, Options>({
-  serverOptions: [{ useJWT: true }, { option: true, scope: "worker" }],
+  serverOptions: [{ useJWT: false }, { option: true, scope: "worker" }],
 
   server: async ({ serverOptions }, use, testInfo) => {
     const server = await startTestServer(serverOptions, testInfo);

@@ -34,7 +34,7 @@ export async function startTestServer(
   testInfo: TestInfo,
 ): Promise<TestServer> {
   const dataPath = await fsp.mkdtemp(path.join(os.tmpdir(), "wbo-test-data-"));
-  const useJWT = options.useJWT ?? true;
+  const useJWT = options.useJWT ?? false;
   const env: Record<string, string | undefined> = {
     ...process.env,
     PORT: "0",

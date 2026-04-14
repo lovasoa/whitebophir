@@ -126,6 +126,14 @@ export class BoardPage {
     });
   }
 
+  async waitForSocketConnected() {
+    await expect
+      .poll(() =>
+        this.page.evaluate(() => (window as any).Tools.socket.connected as boolean),
+      )
+      .toBe(true);
+  }
+
   async waitForBroadcastColor(color: string) {
     await expect
       .poll(() =>
@@ -698,8 +706,8 @@ export class BoardPage {
 
   async scrollPosition() {
     return this.page.evaluate(() => ({
-      left: document.documentElement.scrollLeft,
-      top: document.documentElement.scrollTop,
+      left: window.scrollX || document.documentElement.scrollLeft,
+      top: window.scrollY || document.documentElement.scrollTop,
     }));
   }
 
@@ -715,18 +723,26 @@ export class BoardPage {
         connected: boolean;
         validated: boolean;
       }>((resolve, reject) => {
+        let settled = false;
         const timeout = setTimeout(
           () => reject(new Error("Timed out waiting for reconnect")),
           5_000,
         );
 
-        (window as any).Tools.socket.once("reconnect", () => {
+        const finish = () => {
+          if (settled) return;
+          settled = true;
           clearTimeout(timeout);
-          resolve({
-            connected: (window as any).Tools.socket.connected,
-            validated: (window as any).Tools.isTurnstileValidated(),
-          });
-        });
+          requestAnimationFrame(() =>
+            resolve({
+              connected: (window as any).Tools.socket.connected,
+              validated: (window as any).Tools.isTurnstileValidated(),
+            }),
+          );
+        };
+
+        (window as any).Tools.socket.once("reconnect", finish);
+        (window as any).Tools.socket.once("connect", finish);
 
         (window as any).Tools.socket.io.engine.close();
       });
