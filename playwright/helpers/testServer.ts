@@ -35,16 +35,19 @@ export async function startTestServer(
 ): Promise<TestServer> {
   const dataPath = await fsp.mkdtemp(path.join(os.tmpdir(), "wbo-test-data-"));
   const useJWT = options.useJWT ?? false;
+  // Keep the shared Playwright harness effectively unbounded so incidental
+  // multi-page activity in CI does not trip production-like rate limits.
+  // Specs that exercise rate limiting must override these defaults explicitly.
   const env: Record<string, string | undefined> = {
     ...process.env,
     PORT: "0",
     WBO_HISTORY_DIR: dataPath,
     WBO_SAVE_INTERVAL: "100",
     WBO_MAX_SAVE_DELAY: "100",
-    WBO_MAX_EMIT_COUNT: "1000",
-    WBO_MAX_EMIT_COUNT_PERIOD: "4096",
-    WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:1000/60s anonymous:500/60s",
-    WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:1000/60s anonymous:500/60s",
+    WBO_MAX_EMIT_COUNT: "100000",
+    WBO_MAX_EMIT_COUNT_PERIOD: "60000",
+    WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100000/60s anonymous:100000/60s",
+    WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:100000/60s anonymous:100000/60s",
     WBO_IP_SOURCE: "X-Forwarded-For",
     WBO_SILENT: "true",
     ...(options.env ?? {}),
