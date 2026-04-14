@@ -24,14 +24,18 @@
  * @licend
  */
 
-(function () {
-  //Code isolation
-  /** @typedef {{type: "straight", id: string, x: number, y: number, x2?: number, y2?: number, color?: string, size?: number, opacity?: number}} LineStartData */
-  /** @typedef {{type: "update", id: string, x2: number, y2: number}} LineUpdateData */
-  /** @typedef {LineStartData | LineUpdateData} LineMessage */
-  /** @typedef {{id: string, x: number, y: number, x2?: number, y2?: number, color?: string, size?: number, opacity?: number}} LineShapeData */
-  /** @typedef {SVGLineElement & {id: string}} ExistingLine */
+/** @typedef {{type: "straight", id: string, x: number, y: number, x2?: number, y2?: number, color?: string, size?: number, opacity?: number}} LineStartData */
+/** @typedef {{type: "update", id: string, x2: number, y2: number}} LineUpdateData */
+/** @typedef {LineStartData | LineUpdateData} LineMessage */
+/** @typedef {{id: string, x: number, y: number, x2?: number, y2?: number, color?: string, size?: number, opacity?: number}} LineShapeData */
+/** @typedef {SVGLineElement & {id: string}} ExistingLine */
+/** @typedef {{generateUID:(prefix:string)=>string, getColor:()=>string, getSize:()=>number, getOpacity:()=>number, createSVGElement:(name:string)=>Element, drawingArea: Element | null, svg: SVGSVGElement | null, add:(tool:unknown)=>void, drawAndSend:(message:LineMessage, tool:unknown)=>void}} LineToolRegistry */
 
+/**
+ * @param {LineToolRegistry} tools
+ * @returns {void}
+ */
+export function registerLineTool(tools) {
   /**
    * @param {Element | null} element
    * @returns {element is ExistingLine}
@@ -77,15 +81,15 @@
 
     curLine = {
       type: "straight",
-      id: Tools.generateUID("s"), //"s" for straight line
-      color: Tools.getColor(),
-      size: Tools.getSize(),
-      opacity: Tools.getOpacity(),
+      id: tools.generateUID("s"), //"s" for straight line
+      color: tools.getColor(),
+      size: tools.getSize(),
+      opacity: tools.getOpacity(),
       x: x,
       y: y,
     };
 
-    Tools.drawAndSend(curLine);
+    tools.drawAndSend(curLine, lineTool);
   }
 
   /**
@@ -106,7 +110,7 @@
         y = curLine.y + d * Math.sin(alpha);
       }
       if (performance.now() - lastTime > 70) {
-        Tools.drawAndSend(createUpdateMessage(x, y));
+        tools.drawAndSend(createUpdateMessage(x, y), lineTool);
         lastTime = performance.now();
       } else {
         draw(createUpdateMessage(x, y));
@@ -132,7 +136,10 @@
         createLine(data);
         break;
       case "update":
-        var line = svg.getElementById(data["id"]);
+        if (!tools.svg) {
+          throw new Error("Straight line: Missing SVG canvas.");
+        }
+        var line = tools.svg.getElementById(data["id"]);
         if (!line) {
           console.error(
             "Straight line: Hmmm... I received a point of a line that has not been created (%s).",
@@ -158,17 +165,23 @@
     }
   }
 
-  var svg = Tools.svg;
   /**
    * @param {LineShapeData} lineData
    * @returns {ExistingLine}
    */
   function createLine(lineData) {
+    if (!tools.svg) {
+      throw new Error("Straight line: Missing SVG canvas.");
+    }
+    if (!tools.drawingArea) {
+      throw new Error("Straight line: Missing drawing area.");
+    }
+
     //Creates a new line on the canvas, or update a line that already exists with new information
-    var existingLine = svg.getElementById(lineData.id);
+    var existingLine = tools.svg.getElementById(lineData.id);
     var line = isLineElement(existingLine)
       ? existingLine
-      : /** @type {ExistingLine} */ (Tools.createSVGElement("line"));
+      : /** @type {ExistingLine} */ (tools.createSVGElement("line"));
     line.id = lineData.id;
     line.x1.baseVal.value = lineData["x"];
     line.y1.baseVal.value = lineData["y"];
@@ -181,10 +194,7 @@
       "opacity",
       String(Math.max(0.1, Math.min(1, lineData.opacity || 1))),
     );
-    if (!Tools.drawingArea) {
-      throw new Error("Straight line: Missing drawing area.");
-    }
-    Tools.drawingArea.appendChild(line);
+    tools.drawingArea.appendChild(line);
     return line;
   }
 
@@ -215,5 +225,11 @@
     icon: "tools/line/icon.svg",
     stylesheet: "tools/line/line.css",
   };
-  Tools.add(lineTool);
-})(); //End of code isolation
+  tools.add(lineTool);
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerLineTool(
+    /** @type {LineToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
+  );
+}
