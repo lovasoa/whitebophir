@@ -18,7 +18,7 @@ installTestConsole();
  *   createSVGTransformFromMatrix(matrix: MatrixState): TransformEntry,
  *   appendItem(transform: TransformEntry): TransformEntry,
  * }} TransformList
- * @typedef {{set(id: string, element: any): void, get(id: string): any}} ElementStore
+ * @typedef {{set(id: string, element: any): void, get(id: string): any, delete(id: string): void}} ElementStore
  * @typedef {{elementsById: Map<string, any>, clock: {now: number}, windowListeners: Map<string, Function>, loadTool(toolName: keyof typeof TOOL_PATHS): any}} ReplayHarness
  */
 
@@ -146,6 +146,13 @@ function createElementStore(elementsById) {
     get: function (id) {
       return elementsById.get(id) || null;
     },
+    /**
+     * @param {string} id
+     * @returns {void}
+     */
+    delete: function (id) {
+      elementsById.delete(id);
+    },
   };
 }
 
@@ -187,6 +194,15 @@ function createBaseElement(store, tagName) {
       child.parentElement = this;
       this.children.push(child);
       if (child.id) store.set(child.id, child);
+      return child;
+    },
+    removeChild: function (/** @type {any} */ child) {
+      this.children = this.children.filter(function (candidate) {
+        return candidate !== child;
+      });
+      child.parentNode = null;
+      child.parentElement = null;
+      if (child.id && store.get(child.id) === child) store.delete(child.id);
       return child;
     },
     setAttribute: function (
@@ -660,6 +676,75 @@ test("Pencil input stops sending points after MAX_CHILDREN", function () {
         y: 200,
       },
     ],
+  );
+});
+
+test("Pencil disconnect aborts the active stroke and removes the local line", function () {
+  const harness = createHarness();
+  const pencilTool = harness.loadTool("Pencil");
+  const event = { preventDefault: function () {} };
+
+  globalAny.Tools.curTool = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  assert.equal(harness.elementsById.has("l-1"), true);
+
+  pencilTool.onSocketDisconnect();
+
+  harness.clock.now = 101;
+  pencilTool.listeners.move(200, 200, event);
+
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(function (/** @type {any} */ message) {
+      return message.data.type;
+    }),
+    ["line", "child"],
+  );
+});
+
+test("Pencil delete of the active line aborts the active stroke", function () {
+  const harness = createHarness();
+  const pencilTool = harness.loadTool("Pencil");
+  const event = { preventDefault: function () {} };
+
+  globalAny.Tools.curTool = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  pencilTool.onMessage({ type: "delete", id: "l-1" });
+
+  harness.clock.now = 101;
+  pencilTool.listeners.move(200, 200, event);
+
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(function (/** @type {any} */ message) {
+      return message.data.type;
+    }),
+    ["line", "child"],
+  );
+});
+
+test("Pencil clear aborts the active stroke", function () {
+  const harness = createHarness();
+  const pencilTool = harness.loadTool("Pencil");
+  const event = { preventDefault: function () {} };
+
+  globalAny.Tools.curTool = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  pencilTool.onMessage({ type: "clear" });
+
+  harness.clock.now = 101;
+  pencilTool.listeners.move(200, 200, event);
+
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(function (/** @type {any} */ message) {
+      return message.data.type;
+    }),
+    ["line", "child"],
   );
 });
 

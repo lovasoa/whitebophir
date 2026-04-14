@@ -62,11 +62,13 @@ export type AppTool = {
   shortcut?: string;
   icon: string;
   draw: (message: BoardMessage, isLocal: boolean) => void;
+  onMessage?: (message: BoardMessage) => void;
   iconHTML?: string;
   listeners?: ToolPointerListeners;
   compiledListeners?: CompiledToolListeners;
   onstart?: (oldTool: AppTool | null) => void;
   onquit?: (newTool: AppTool) => void;
+  onSocketDisconnect?: () => void;
   stylesheet?: string;
   oneTouch?: boolean;
   mouseCursor?: string;

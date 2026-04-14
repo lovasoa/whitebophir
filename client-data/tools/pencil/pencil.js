@@ -181,6 +181,22 @@
     curLineId = "";
     hasSentPoint = false;
     currentLineChildCount = 0;
+    renderingLine = null;
+  }
+
+  /**
+   * @param {boolean} removeCurrentLine
+   */
+  function abortLine(removeCurrentLine) {
+    var lineId = curLineId;
+    stopLine();
+    if (!removeCurrentLine || !lineId) return;
+    var line = getLineById(lineId);
+    if (!line || !Tools.drawingArea) return;
+    if (line.parentNode === Tools.drawingArea) {
+      Tools.drawingArea.removeChild(line);
+    }
+    delete pathDataCache[lineId];
   }
 
   /** @type {PencilLine | null} */
@@ -321,6 +337,18 @@
       release: stopLineAt,
     },
     draw: draw,
+    onMessage: function (/** @type {PencilMessage} */ message) {
+      if (message.type === "clear") {
+        abortLine(false);
+        return;
+      }
+      if (message.type === "delete" && message.id && message.id === curLineId) {
+        abortLine(false);
+      }
+    },
+    onSocketDisconnect: function () {
+      abortLine(true);
+    },
     onstart: function () {
       //Reset stylus
       hasUsedStylus = false;

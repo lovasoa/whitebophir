@@ -888,6 +888,13 @@ Tools.connect = function () {
   socket.on("rate-limited", function onRateLimited() {
     Tools.showRateLimitAlert();
   });
+  socket.on("disconnect", function onDisconnect() {
+    Object.values(Tools.list || {}).forEach(function (tool) {
+      if (tool && typeof tool.onSocketDisconnect === "function") {
+        tool.onSocketDisconnect();
+      }
+    });
+  });
 };
 Tools.boardName = Tools.resolveBoardName();
 
@@ -1399,8 +1406,15 @@ function updateUnreadCount(m) {
   }
 }
 
+/** @param {BoardMessage} m */
+function notifyToolsOfMessage(m) {
+  Object.values(Tools.list || {}).forEach(function (tool) {
+    if (tool && typeof tool.onMessage === "function") tool.onMessage(m);
+  });
+}
+
 // List of hook functions that will be applied to messages before sending or drawing them
-Tools.messageHooks = [resizeCanvas, updateUnreadCount];
+Tools.messageHooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
 
 /** @type {ReturnType<typeof setTimeout> | null} */
 var scaleTimeout = null;
@@ -1440,6 +1454,12 @@ Tools.toolHooks = [
     }
     if (typeof tool.onquit !== "function") {
       tool.onquit = function () {};
+    }
+    if (typeof tool.onMessage !== "function") {
+      tool.onMessage = function () {};
+    }
+    if (typeof tool.onSocketDisconnect !== "function") {
+      tool.onSocketDisconnect = function () {};
     }
   },
   /** @param {AppTool} tool */
