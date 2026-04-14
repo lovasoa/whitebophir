@@ -44,11 +44,7 @@ declare global {
     WBOMessageCommon: typeof import("../client-data/js/message_common.js");
     Tools: typeof Tools;
     messageForTool: typeof messageForTool;
-    WBOBoardTransport: typeof import("../client-data/js/board_transport.js");
     WBOBoardState: typeof import("../client-data/js/board_page_state.js")["state"];
-    WBOBoardMessages: typeof import("../client-data/js/board_transport.js")["messages"];
-    WBOBoardConnection: typeof import("../client-data/js/board_transport.js")["connection"];
-    WBOBoardTurnstile: typeof import("../client-data/js/board_transport.js")["turnstile"];
     socketio_extra_headers?: Record<string, string>;
     __downloadCapture?: any;
     __downloadAnchorClicks?: any;

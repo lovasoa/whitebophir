@@ -199,16 +199,4 @@ const boardTransport = {
   messages,
   turnstile,
 };
-
-var root = /** @type {typeof globalThis & {
-    WBOBoardTransport?: typeof boardTransport,
-    WBOBoardConnection?: typeof boardTransport.connection,
-    WBOBoardMessages?: typeof boardTransport.messages,
-    WBOBoardTurnstile?: typeof boardTransport.turnstile,
-  }} */ (typeof globalThis === "object" ? globalThis : window);
-
-root.WBOBoardTransport = boardTransport;
-root.WBOBoardConnection = boardTransport.connection;
-root.WBOBoardMessages = boardTransport.messages;
-root.WBOBoardTurnstile = boardTransport.turnstile;
 export default boardTransport;
