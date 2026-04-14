@@ -14,7 +14,7 @@ const bufferedRateLimitTest = test.extend({
   serverOptions: {
     useJWT: false,
     env: {
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/60s anonymous:1/3s",
+      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/60s anonymous:1/1s",
     },
   },
 });
@@ -329,10 +329,14 @@ test.describe("collaboration and rate limiting", () => {
         .toMatchObject({
           bufferedWrites: 0,
         });
+      await expect(peerPage.locator("rect#buffered-rect-2")).toBeVisible({
+        timeout: 10_000,
+      });
       await server.waitForStoredBoard(
         server.dataPath,
         "anonymous",
         (storedBoard) => storedBoard["buffered-rect-2"] != null,
+        15_000,
       );
 
       await peerPage.close();

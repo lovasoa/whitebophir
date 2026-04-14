@@ -1,6 +1,6 @@
 import * as fsp from "node:fs/promises";
 import path from "node:path";
-import { expect } from "@playwright/test";
+import { setTimeout as delay } from "node:timers/promises";
 
 export type StoredBoard = Record<string, any>;
 
@@ -39,15 +39,20 @@ export async function waitForStoredBoard(
   predicate: (storedBoard: StoredBoard) => boolean | Promise<boolean>,
   timeoutMs = 5_000,
 ) {
-  await expect
-    .poll(
-      async () => {
-        const storedBoard = await readStoredBoard(dataPath, name);
-        return (await predicate(storedBoard)) ? storedBoard : null;
-      },
-      { timeout: timeoutMs },
-    )
-    .not.toBeNull();
+  const deadline = Date.now() + timeoutMs;
+  let lastStoredBoard = await readStoredBoard(dataPath, name);
 
-  return readStoredBoard(dataPath, name);
+  while (!(await predicate(lastStoredBoard))) {
+    if (Date.now() >= deadline) {
+      const keys = Object.keys(lastStoredBoard).sort();
+      const visibleKeys = keys.length > 0 ? keys.join(", ") : "(empty)";
+      throw new Error(
+        `Timed out after ${timeoutMs}ms waiting for stored board "${name}" to satisfy the predicate. Last stored board keys: ${visibleKeys}`,
+      );
+    }
+    await delay(100);
+    lastStoredBoard = await readStoredBoard(dataPath, name);
+  }
+
+  return lastStoredBoard;
 }
