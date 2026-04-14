@@ -31,17 +31,17 @@
     "start": "node ./server/server.js",
     "bench": "node --expose-gc ./scripts/benchmark-server.js",
     "profile": "node ./scripts/profile-benchmark-server.js",
+    "lint": "biome check . --linter-enabled=false --assist-enabled=false",
+    "format": "biome check . --write --linter-enabled=false --assist-enabled=false",
     "test-node": "WBO_SILENT=true node --test test-node/*.test.js",
     "test:pw": "node scripts/check-playwright-tests.js && playwright test",
     "test:pw:headed": "node scripts/check-playwright-tests.js && playwright test --headed",
     "test:pw:ui": "node scripts/check-playwright-tests.js && playwright test --ui",
     "test:pw:debug": "node scripts/check-playwright-tests.js && playwright test --debug",
     "typecheck:pw": "tsc -p tsconfig.playwright.json",
-    "test": "npm run test-node && npm run test:pw && npm run prettier-check",
+    "test": "npm run test-node && npm run test:pw && npm run lint",
     "typecheck": "tsc -p tsconfig.checkjs.json",
-    "format-staged": "node scripts/prettier-staged.js",
-    "prettier": "prettier . --write",
-    "prettier-check": "prettier . --check"
+    "format-staged": "node scripts/biome-staged.js"
   },
   "main": "./server/server.js",
   "repository": {
@@ -52,7 +52,6 @@
     "@biomejs/biome": "^2.4.12",
     "@playwright/test": "^1.59.1",
     "@types/node": "^25.6.0",
-    "prettier": "^3.1.0",
     "typescript": "^6.0.2"
   }
 }

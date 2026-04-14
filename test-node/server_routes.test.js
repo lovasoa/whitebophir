@@ -104,129 +104,117 @@ async function createServerDirs() {
 test("server returns 404 for preview and download routes without a board name", async () => {
   const dirs = await createServerDirs();
 
-  await withEnv(
-    {
-      HOST: "127.0.0.1",
-      PORT: "0",
-      AUTH_SECRET_KEY: "",
-      WBO_HISTORY_DIR: dirs.historyDir,
-      WBO_WEBROOT: dirs.webroot,
-      WBO_SILENT: "true",
-    },
-    async () => {
-      const app = require(SERVER_PATH);
-      await waitForListening(app);
-      try {
-        const preview = await request(app, "/preview");
-        const download = await request(app, "/download");
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = require(SERVER_PATH);
+    await waitForListening(app);
+    try {
+      const preview = await request(app, "/preview");
+      const download = await request(app, "/download");
 
-        assert.equal(preview.statusCode, 404);
-        assert.equal(download.statusCode, 404);
-        assert.equal(typeof preview.headers["x-request-id"], "string");
-        assert.equal(typeof download.headers["x-request-id"], "string");
-        assert.equal(preview.body, "error-page");
-        assert.equal(download.body, "error-page");
-      } finally {
-        await closeServer(app);
-      }
-    },
-    [
-      SERVER_PATH,
-      TEMPLATING_PATH,
-      CREATE_SVG_PATH,
-      CHECK_OUTPUT_DIRECTORY_PATH,
-      CLIENT_CONFIGURATION_PATH,
-      JWTAUTH_PATH,
-    ],
-  );
+      assert.equal(preview.statusCode, 404);
+      assert.equal(download.statusCode, 404);
+      assert.equal(typeof preview.headers["x-request-id"], "string");
+      assert.equal(typeof download.headers["x-request-id"], "string");
+      assert.equal(preview.body, "error-page");
+      assert.equal(download.body, "error-page");
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
 });
 
 test("server returns an error status instead of 200 when preview rendering fails", async () => {
   const dirs = await createServerDirs();
 
-  await withEnv(
-    {
-      HOST: "127.0.0.1",
-      PORT: "0",
-      AUTH_SECRET_KEY: "",
-      WBO_HISTORY_DIR: dirs.historyDir,
-      WBO_WEBROOT: dirs.webroot,
-      WBO_SILENT: "true",
-    },
-    async () => {
-      const app = require(SERVER_PATH);
-      await waitForListening(app);
-      try {
-        const response = await request(app, "/preview/missing-board");
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = require(SERVER_PATH);
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/preview/missing-board");
 
-        assert.equal(response.statusCode, 500);
-        assert.equal(typeof response.headers["x-request-id"], "string");
-        assert.equal(response.body, "error-page");
-      } finally {
-        await closeServer(app);
-      }
-    },
-    [
-      SERVER_PATH,
-      TEMPLATING_PATH,
-      CREATE_SVG_PATH,
-      CHECK_OUTPUT_DIRECTORY_PATH,
-      CLIENT_CONFIGURATION_PATH,
-      JWTAUTH_PATH,
-    ],
-  );
+      assert.equal(response.statusCode, 500);
+      assert.equal(typeof response.headers["x-request-id"], "string");
+      assert.equal(response.body, "error-page");
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
 });
 
 test("server preserves an incoming request id header", async () => {
   const dirs = await createServerDirs();
 
-  await withEnv(
-    {
-      HOST: "127.0.0.1",
-      PORT: "0",
-      AUTH_SECRET_KEY: "",
-      WBO_HISTORY_DIR: dirs.historyDir,
-      WBO_WEBROOT: dirs.webroot,
-      WBO_SILENT: "true",
-    },
-    async () => {
-      const app = require(SERVER_PATH);
-      await waitForListening(app);
-      try {
-        const address = app.address();
-        if (!address || typeof address === "string") {
-          throw new Error("Server is not listening on a TCP port");
-        }
-
-        const response = await new Promise((resolve, reject) => {
-          const req = http.get(
-            {
-              host: "127.0.0.1",
-              port: address.port,
-              path: "/",
-              headers: { "X-Request-Id": "req-123" },
-            },
-            resolve,
-          );
-          req.on("error", reject);
-        });
-
-        response.resume();
-        await new Promise((resolve) => {
-          response.on("end", resolve);
-        });
-        assert.equal(response.headers["x-request-id"], "req-123");
-      } finally {
-        await closeServer(app);
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = require(SERVER_PATH);
+    await waitForListening(app);
+    try {
+      const address = app.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Server is not listening on a TCP port");
       }
-    },
-    [
-      SERVER_PATH,
-      TEMPLATING_PATH,
-      CREATE_SVG_PATH,
-      CHECK_OUTPUT_DIRECTORY_PATH,
-      CLIENT_CONFIGURATION_PATH,
-      JWTAUTH_PATH,
-    ],
-  );
+
+      const response = await new Promise((resolve, reject) => {
+        const req = http.get(
+          {
+            host: "127.0.0.1",
+            port: address.port,
+            path: "/",
+            headers: { "X-Request-Id": "req-123" },
+          },
+          resolve,
+        );
+        req.on("error", reject);
+      });
+
+      response.resume();
+      await new Promise((resolve) => {
+        response.on("end", resolve);
+      });
+      assert.equal(response.headers["x-request-id"], "req-123");
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
 });

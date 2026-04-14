@@ -4,11 +4,11 @@ const { execFileSync } = require("node:child_process");
 const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "..");
-const prettierBin = path.join(
+const biomeBin = path.join(
   repoRoot,
   "node_modules",
   ".bin",
-  process.platform === "win32" ? "prettier.cmd" : "prettier",
+  process.platform === "win32" ? "biome.cmd" : "biome",
 );
 
 function getStagedFiles() {
@@ -29,10 +29,21 @@ if (files.length === 0) {
   process.exit(0);
 }
 
-execFileSync(prettierBin, ["--write", "--ignore-unknown", ...files], {
-  cwd: repoRoot,
-  stdio: "inherit",
-});
+execFileSync(
+  biomeBin,
+  [
+    "check",
+    "--write",
+    "--linter-enabled=false",
+    "--assist-enabled=false",
+    "--files-ignore-unknown=true",
+    ...files,
+  ],
+  {
+    cwd: repoRoot,
+    stdio: "inherit",
+  },
+);
 
 execFileSync("git", ["add", "--", ...files], {
   cwd: repoRoot,
