@@ -241,10 +241,4 @@ var rateLimitCommon = /** @type {RateLimitCommonApi} */ ({
   isConstructiveAction,
   countConstructiveActions,
 });
-
-var root = /** @type {typeof globalThis & {
-    WBORateLimitCommon?: typeof rateLimitCommon,
-  }} */ (typeof globalThis !== "undefined" ? globalThis : this);
-
-root.WBORateLimitCommon = rateLimitCommon;
 export default rateLimitCommon;

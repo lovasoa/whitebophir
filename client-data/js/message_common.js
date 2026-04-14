@@ -479,12 +479,4 @@ const messageCommon = /** @type {MessageCommonApi} */ ({
   truncateText: truncateText,
   requiresTurnstile: requiresTurnstile,
 });
-
-var root = /** @type {typeof globalThis & {
-    WBOMessageCommon?: typeof messageCommon,
-    MessageCommon?: typeof messageCommon,
-  }} */ (typeof globalThis !== "undefined" ? globalThis : this);
-
-root.WBOMessageCommon = messageCommon;
-root.MessageCommon = messageCommon;
 export default messageCommon;
