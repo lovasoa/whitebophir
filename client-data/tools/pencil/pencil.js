@@ -24,6 +24,8 @@
  * @licend
  */
 
+import { LIMITS } from "../js/message_common.js";
+
 (function () {
   //Code isolation
   /** @typedef {{type: "line", id: string, color?: string, size?: number, opacity?: number}} PencilLineData */
@@ -66,11 +68,10 @@
   // than this?
   var AUTO_FINGER_WHITEOUT = Tools.server_config.AUTO_FINGER_WHITEOUT === true;
   var DEFAULT_MAX_PENCIL_CHILDREN =
-    typeof MessageCommon === "object" &&
-    MessageCommon &&
-    MessageCommon.LIMITS &&
-    Number(MessageCommon.LIMITS.DEFAULT_MAX_CHILDREN) > 0
-      ? Number(MessageCommon.LIMITS.DEFAULT_MAX_CHILDREN)
+    typeof LIMITS === "object" &&
+    LIMITS &&
+    Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
+      ? Number(LIMITS.DEFAULT_MAX_CHILDREN)
       : Number.POSITIVE_INFINITY;
   var MAX_PENCIL_CHILDREN =
     Number(Tools.server_config.MAX_CHILDREN) > 0

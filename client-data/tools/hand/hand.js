@@ -24,6 +24,12 @@
  * @licend
  */
 
+import { messages as BoardMessages } from "../js/board_transport.js";
+import {
+  pointInTransformedBBox,
+  transformedBBoxIntersects,
+} from "../js/intersect.js";
+
 (function hand() {
   //Code isolation
   /** @typedef {{ x: number, y: number }} PointSelection */
@@ -49,7 +55,6 @@
   /** @typedef {{ matches(selector: string): boolean }} MatchableTarget */
   /** @typedef {{ name: string, icon: string, active: boolean, switch?: () => void }} ToolSecondaryMode */
   /** @typedef {{ name: string, shortcut?: string, listeners: { press: typeof press, move: typeof move, release: typeof release }, onquit?: () => void, onSocketDisconnect?: () => void, secondary: ToolSecondaryMode | null, draw: typeof draw, icon: string, mouseCursor: string, showMarker: boolean }} HandTool */
-  var BoardMessages = window.WBOBoardMessages;
   var selectorStates = {
     pointing: 0,
     selecting: 1,

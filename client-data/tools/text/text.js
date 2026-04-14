@@ -24,6 +24,8 @@
  * @licend
  */
 
+import { truncateText } from "../js/message_common.js";
+
 (function () {
   //Code isolation
   /** @typedef {{type?: string, id?: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} TextMessage */
@@ -44,8 +46,6 @@
    * @property {ReturnType<typeof setTimeout> | null} timeout
    */
   var board = Tools.board;
-  var MessageCommon = window.WBOMessageCommon;
-
   var input = document.createElement("input");
   input.id = "textToolInput";
   input.type = "text";
@@ -206,7 +206,7 @@
         Tools.drawAndSend({
           type: "update",
           id: curText.id,
-          txt: MessageCommon.truncateText(input.value),
+          txt: truncateText(input.value),
         });
         curText.sentText = input.value;
         curText.lastSending = performance.now();
