@@ -195,6 +195,7 @@ const tracer = trace.getTracer(SERVICE_NAME);
 const runtimeState = {
   loadedBoards: 0,
   connectedUsers: 0,
+  activeSocketConnections: 0,
 };
 
 const httpServerRequestDuration = meter.createHistogram(
@@ -215,10 +216,21 @@ const socketEvents = meter.createCounter("wbo.socket.events", {
   description: "Socket events handled by the server.",
   unit: "{event}",
 });
+const socketConnections = meter.createCounter("wbo.socket.connections", {
+  description: "Socket connections opened and closed.",
+  unit: "{connection}",
+});
 const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
   description: "Duration of socket event handlers.",
   unit: "s",
 });
+const acceptedBoardMessages = meter.createCounter(
+  "wbo.board.message.accepted",
+  {
+    description: "Accepted board messages after validation and authorization.",
+    unit: "{message}",
+  },
+);
 const boardOperations = meter.createCounter("wbo.board.operations", {
   description: "Board operation outcomes.",
   unit: "{operation}",
@@ -227,9 +239,23 @@ const rejections = meter.createCounter("wbo.rejections", {
   description: "Rejected operations by kind and reason.",
   unit: "{rejection}",
 });
+const turnstileVerifications = meter.createCounter(
+  "wbo.turnstile.verifications",
+  {
+    description: "Turnstile verification attempts by outcome.",
+    unit: "{verification}",
+  },
+);
 const loadedBoardsGauge = meter.createObservableGauge("wbo.board.loaded", {
   description: "Boards currently loaded in memory.",
 });
+const activeSocketConnectionsGauge = meter.createObservableGauge(
+  "wbo.socket.connection.active",
+  {
+    description: "Active socket connections.",
+    unit: "{connection}",
+  },
+);
 const connectedUsersGauge = meter.createObservableGauge(
   "wbo.board.user.connected",
   {
@@ -244,6 +270,11 @@ const heapUsedGauge = meter.createObservableGauge("wbo.runtime.heap.used", {
 loadedBoardsGauge.addCallback(function observeLoadedBoards(observer) {
   observer.observe(runtimeState.loadedBoards);
 });
+activeSocketConnectionsGauge.addCallback(
+  function observeSocketConnections(observer) {
+    observer.observe(runtimeState.activeSocketConnections);
+  },
+);
 connectedUsersGauge.addCallback(function observeConnectedUsers(observer) {
   observer.observe(runtimeState.connectedUsers);
 });
@@ -815,6 +846,41 @@ function recordSocketEvent(event) {
 }
 
 /**
+ * @param {"connected"|"disconnected"} event
+ * @returns {void}
+ */
+function recordSocketConnection(event) {
+  socketConnections.add(1, {
+    "wbo.socket.connection.event": event,
+  });
+}
+
+/**
+ * @param {{tool?: string, type?: string}} message
+ * @returns {void}
+ */
+function recordAcceptedBoardMessage(message) {
+  acceptedBoardMessages.add(1, {
+    "wbo.tool": message.tool || "unknown",
+    "wbo.message.type": message.type || "unknown",
+  });
+}
+
+/**
+ * @param {"success"|"rejected"|"error"} result
+ * @param {string=} reason
+ * @returns {void}
+ */
+function recordTurnstileVerification(result, reason) {
+  /** @type {{[key: string]: string}} */
+  const attributes = {
+    "wbo.turnstile.result": result,
+  };
+  if (reason) attributes["wbo.turnstile.reason"] = reason;
+  turnstileVerifications.add(1, attributes);
+}
+
+/**
  * @param {string} operation
  * @param {string} result
  * @returns {void}
@@ -852,6 +918,14 @@ function setLoadedBoards(value) {
  */
 function setConnectedUsers(value) {
   runtimeState.connectedUsers = value;
+}
+
+/**
+ * @param {number} value
+ * @returns {void}
+ */
+function setActiveSocketConnections(value) {
+  runtimeState.activeSocketConnections = value;
 }
 
 function createRequestId() {
@@ -899,11 +973,15 @@ module.exports = {
   formatReadableLogRecord,
   logger,
   metrics: {
+    recordAcceptedBoardMessage,
     changeHttpActiveRequests,
     recordBoardOperation,
     recordHttpRequest,
     recordRejection,
+    recordSocketConnection,
     recordSocketEvent,
+    recordTurnstileVerification,
+    setActiveSocketConnections,
     setConnectedUsers,
     setLoadedBoards,
   },

@@ -197,6 +197,10 @@ function updateLoadedBoardsGauge() {
   metrics.setLoadedBoards(Object.keys(boards).length);
 }
 
+function updateActiveSocketConnectionsGauge() {
+  metrics.setActiveSocketConnections(activeSockets.size);
+}
+
 function updateConnectedUsersGauge() {
   metrics.setConnectedUsers(connectedUsersTotal);
 }
@@ -1077,6 +1081,8 @@ function getBoard(name) {
  */
 function handleSocketConnection(socket) {
   activeSockets.set(socket.id, socket);
+  updateActiveSocketConnectionsGauge();
+  metrics.recordSocketConnection("connected");
 
   /**
    * Function to call when an user joins a board
@@ -1248,12 +1254,17 @@ function handleSocketConnection(socket) {
               tracing.setActiveSpanAttributes({
                 "wbo.turnstile.result": "success",
               });
+              metrics.recordTurnstileVerification("success");
               if (typeof ack === "function") ack(buildTurnstileAck(socket));
             } else {
               tracing.setActiveSpanAttributes({
                 "wbo.turnstile.result": "rejected",
                 "wbo.turnstile.reason": validation.reason,
               });
+              metrics.recordTurnstileVerification(
+                "rejected",
+                validation.reason,
+              );
               logger.warn("turnstile.rejected", {
                 socket: socket.id,
                 "client.address": clientIp,
@@ -1269,6 +1280,7 @@ function handleSocketConnection(socket) {
             tracing.recordActiveSpanError(err, {
               "wbo.turnstile.result": "error",
             });
+            metrics.recordTurnstileVerification("error");
             logger.error("turnstile.error", {
               socket: socket.id,
               error: err,
@@ -1409,6 +1421,7 @@ function handleSocketConnection(socket) {
           "wbo.board.result": "success",
           "user.name": user ? user.name : userName,
         });
+        metrics.recordAcceptedBoardMessage(normalizedData);
 
         //Send data to all other users connected on the same board
         socket.broadcast.to(boardName).emit("broadcast", normalizedData);
@@ -1519,6 +1532,8 @@ function handleSocketConnection(socket) {
     "disconnecting",
     function onDisconnecting(/** @type {string} */ _reason) {
       activeSockets.delete(socket.id);
+      updateActiveSocketConnectionsGauge();
+      metrics.recordSocketConnection("disconnected");
       socket.rooms.forEach(
         async function disconnectFrom(/** @type {string} */ room) {
           if (Object.hasOwn(boards, room)) {
