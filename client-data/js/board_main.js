@@ -14,6 +14,14 @@
     }
   }
 
+  /**
+   * @param {string[]} paths
+   * @returns {Promise<void>}
+   */
+  async function importInParallel(paths) {
+    await Promise.all(paths.map((path) => import(`${path}${versionSuffix}`)));
+  }
+
   async function bootBoardPage() {
     await importSequentially([
       "./path-data-polyfill.js",
@@ -28,7 +36,9 @@
       "./intersect.js",
       "./board.js",
       "../tools/pencil/wbo_pencil_point.js",
-      "../tools/pencil/pencil.js",
+    ]);
+
+    await importInParallel([
       "../tools/cursor/cursor.js",
       "../tools/line/line.js",
       "../tools/rect/rect.js",
@@ -40,6 +50,8 @@
       "../tools/download/download.js",
       "../tools/zoom/zoom.js",
     ]);
+
+    await importSequentially(["../tools/pencil/pencil.js"]);
 
     if (document.documentElement.hasAttribute("data-moderator")) {
       await import(`../tools/clear/clear.js${versionSuffix}`);
