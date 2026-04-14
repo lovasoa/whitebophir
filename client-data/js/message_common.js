@@ -62,21 +62,31 @@
     DEFAULT_MAX_CHILDREN: 192,
     MAX_ID_LENGTH: 128,
   };
+  /** @typedef {{resolveSharedModule: (requirePath: string, globalName: string, scope?: any) => any}} SharedModuleResolverApi */
   /** @typedef {{DRAW_TOOL_NAMES: string[], isShapeTool: (toolName?: string | undefined) => boolean}} MessageToolMetadataApi */
-  /** @type {MessageToolMetadataApi | null} */
   /** @type {any} */
   var globalScope =
     typeof globalThis !== "undefined" ? globalThis : /** @type {any} */ ({});
-  var MessageToolMetadata =
+  /** @type {SharedModuleResolverApi | null} */
+  var SharedModuleResolver = /** @type {SharedModuleResolverApi | null} */ (
     typeof module === "object" &&
     module.exports &&
     typeof require === "function"
-      ? /** @type {MessageToolMetadataApi} */ (
-          require("./message_tool_metadata.js")
+      ? require("./shared_module_resolver.js")
+      : globalScope.WBOSharedModuleResolver
+  );
+  /** @type {MessageToolMetadataApi | null} */
+  var MessageToolMetadata =
+    SharedModuleResolver &&
+    typeof SharedModuleResolver.resolveSharedModule === "function"
+      ? /** @type {MessageToolMetadataApi | null} */ (
+          SharedModuleResolver.resolveSharedModule(
+            "./message_tool_metadata.js",
+            "WBOMessageToolMetadata",
+            globalScope,
+          )
         )
-      : /** @type {MessageToolMetadataApi | null} */ (
-          globalScope.WBOMessageToolMetadata
-        ) || null;
+      : null;
   var isShapeTool =
     MessageToolMetadata && typeof MessageToolMetadata.isShapeTool === "function"
       ? MessageToolMetadata.isShapeTool
