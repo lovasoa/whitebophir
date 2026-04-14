@@ -854,13 +854,14 @@ class BoardData {
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(this.name, "save", {
                 "wbo.board.result": "success",
-                "wbo.board.bytes": board_txt.length,
+                "file.path": file,
+                "file.size": board_txt.length,
                 "wbo.board.items": Object.keys(this.board).length,
               }),
             );
             logger.info("board.saved", {
               board: this.name,
-              bytes: board_txt.length,
+              "file.size": board_txt.length,
               items: Object.keys(this.board).length,
             });
             metrics.recordBoardOperation("save", "success");
@@ -871,7 +872,7 @@ class BoardData {
             logger.error("board.save_failed", {
               board: this.name,
               error: err,
-              tmp_file: tmp_file,
+              "file.path": tmp_file,
             });
             metrics.recordBoardOperation("save", "error");
             return;
@@ -943,6 +944,8 @@ class BoardData {
           tracing.setActiveSpanAttributes(
             boardTraceAttributes(name, "load", {
               "wbo.board.result": "success",
+              "file.path": boardData.file,
+              "file.size": data.length,
               "wbo.board.items": Object.keys(boardData.board).length,
             }),
           );
@@ -973,7 +976,7 @@ class BoardData {
             const backup = backupFileName(boardData.file);
             logger.warn("board.backup_created", {
               board: boardData.name,
-              backup_file: backup,
+              "file.path": backup,
             });
             await tracing.withOptionalActiveSpan(
               "board.backup_write",
@@ -995,7 +998,7 @@ class BoardData {
                   });
                   logger.error("board.backup_failed", {
                     board: boardData.name,
-                    backup_file: backup,
+                    "file.path": backup,
                     error: err,
                   });
                 }

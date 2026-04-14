@@ -309,6 +309,9 @@ test("preview requests continue traceparent and create a child render span", asy
 
         assert.equal(requestSpan.attributes["wbo.board"], "missing-board");
         assert.equal(requestSpan.attributes["http.route"], "/preview/{board}");
+        assert.equal(requestSpan.attributes["url.scheme"], "http");
+        assert.equal(requestSpan.attributes["server.address"], "127.0.0.1");
+        assert.equal(requestSpan.attributes["server.port"], app.address().port);
         assert.equal(requestSpan.attributes["url.path"], undefined);
         assert.equal(
           requestSpan.parentSpanContext.traceId,
@@ -399,6 +402,7 @@ test("getboard traces the root socket event and board load", async () => {
       const loadSpan = getSpanByName(exporter, "board.load");
 
       assert.equal(rootSpan.attributes["wbo.board"], "trace-board");
+      assert.equal(typeof rootSpan.attributes["user.name"], "string");
       assert.equal(
         loadSpan.parentSpanContext.spanId,
         rootSpan.spanContext().spanId,
@@ -452,9 +456,12 @@ test("active traces correlate log records and board.save spans", async () => {
 
       const rootSpan = getSpanByName(exporter, "socket.broadcast_write");
       const saveSpan = getSpanByName(exporter, "board.save");
+      const savedBoard = await fs.readFile(saveSpan.attributes["file.path"]);
 
       assert.equal(record.attributes.trace_id, rootSpan.spanContext().traceId);
       assert.equal(record.attributes.span_id, rootSpan.spanContext().spanId);
+      assert.equal(saveSpan.attributes["file.size"], savedBoard.length);
+      assert.match(saveSpan.attributes["file.path"], /board-trace-save\.json$/);
       assert.equal(
         saveSpan.parentSpanContext.spanId,
         rootSpan.spanContext().spanId,

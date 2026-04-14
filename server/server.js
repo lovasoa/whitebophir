@@ -11,6 +11,16 @@ const createSVG = require("./createSVG.js");
 const jwtauth = require("./jwtauth.js");
 const jwtBoardName = require("./jwtBoardnameAuth.js");
 const {
+  ATTR_CLIENT_ADDRESS,
+  ATTR_HTTP_REQUEST_METHOD,
+  ATTR_HTTP_RESPONSE_STATUS_CODE,
+  ATTR_HTTP_ROUTE,
+  ATTR_SERVER_ADDRESS,
+  ATTR_SERVER_PORT,
+  ATTR_URL_PATH,
+  ATTR_URL_SCHEME,
+} = require("@opentelemetry/semantic-conventions");
+const {
   createRequestId,
   logger,
   metrics,
@@ -32,7 +42,7 @@ sockets.start(app);
 app.listen(config.PORT, config.HOST, () => {
   const actualPort = getAddressPort(app.address());
   logger.info("server.started", {
-    port: actualPort,
+    [ATTR_SERVER_PORT]: actualPort,
   });
   if (process.send) process.send({ type: "server-started", port: actualPort });
 });
@@ -65,6 +75,105 @@ const SLOW_REQUEST_LOG_MS = 1000;
 function getAddressPort(address) {
   if (!address || typeof address === "string") return undefined;
   return address.port;
+}
+
+/**
+ * @param {string | string[] | undefined} value
+ * @returns {string | undefined}
+ */
+function firstHeaderValue(value) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * @param {HttpRequest} request
+ * @returns {string}
+ */
+function requestScheme(request) {
+  const forwardedProto = firstHeaderValue(request.headers["x-forwarded-proto"]);
+  if (typeof forwardedProto === "string" && forwardedProto.trim() !== "") {
+    const protoValue = forwardedProto.split(",")[0];
+    if (protoValue) {
+      return protoValue.trim().toLowerCase();
+    }
+  }
+
+  const forwarded = firstHeaderValue(request.headers.forwarded);
+  if (typeof forwarded === "string" && forwarded.trim() !== "") {
+    const forwardedValue = forwarded.split(",")[0];
+    const protoPart = forwardedValue
+      ? forwardedValue
+          .split(";")
+          .map((part) => part.trim())
+          .find((part) => /^proto=/i.test(part))
+      : undefined;
+    if (protoPart) {
+      return protoPart
+        .replace(/^proto=/i, "")
+        .trim()
+        .toLowerCase();
+    }
+  }
+
+  return "encrypted" in request.socket && request.socket.encrypted
+    ? "https"
+    : "http";
+}
+
+/**
+ * @param {HttpRequest} request
+ * @returns {string | undefined}
+ */
+function requestAuthority(request) {
+  const host =
+    firstHeaderValue(request.headers["x-forwarded-host"]) ||
+    firstHeaderValue(request.headers.host);
+  if (typeof host !== "string" || host.trim() === "") return undefined;
+  const authority = host.split(",")[0];
+  return authority ? authority.trim() : undefined;
+}
+
+/**
+ * @param {HttpRequest} request
+ * @returns {string}
+ */
+function requestServerAddress(request) {
+  const authority = requestAuthority(request);
+  if (authority) {
+    try {
+      return new URL(`${requestScheme(request)}://${authority}`).hostname;
+    } catch {}
+  }
+  return config.HOST || request.socket.localAddress || "localhost";
+}
+
+/**
+ * @param {HttpRequest} request
+ * @returns {number | undefined}
+ */
+function requestServerPort(request) {
+  const authority = requestAuthority(request);
+  const scheme = requestScheme(request);
+  if (authority) {
+    try {
+      const parsed = new URL(`${scheme}://${authority}`);
+      if (parsed.port) return Number(parsed.port);
+      return scheme === "https" ? 443 : 80;
+    } catch {}
+  }
+  if (typeof request.socket.localPort === "number") {
+    return request.socket.localPort;
+  }
+  const configuredPort = Number(config.PORT);
+  return Number.isFinite(configuredPort) ? configuredPort : undefined;
+}
+
+/**
+ * @param {HttpRequest} request
+ * @returns {string}
+ */
+function requestPath(request) {
+  return new URL(request.url || "/", "http://wbo/").pathname;
 }
 
 /**
@@ -129,16 +238,6 @@ function requestRouteTemplate(route) {
 }
 
 /**
- * @param {number} statusCode
- * @returns {string}
- */
-function requestResult(statusCode) {
-  if (statusCode >= 500) return "error";
-  if (statusCode >= 400) return "rejected";
-  return "success";
-}
-
-/**
  * @param {string} requestUrl
  * @returns {boolean}
  */
@@ -188,6 +287,9 @@ function observeRequest(request, response) {
 
   const startedAt = Date.now();
   const method = request.method || "GET";
+  const scheme = requestScheme(request);
+  const serverAddress = requestServerAddress(request);
+  const serverPort = requestServerPort(request);
   let route = "unknown";
   /** @type {unknown} */
   let requestError;
@@ -199,9 +301,10 @@ function observeRequest(request, response) {
         kind: tracing.SpanKind.SERVER,
         parentContext: parentContext,
         attributes: {
-          "http.request.method": method,
-          "server.address": config.HOST,
-          "server.port": config.PORT,
+          [ATTR_HTTP_REQUEST_METHOD]: method,
+          [ATTR_URL_SCHEME]: scheme,
+          [ATTR_SERVER_ADDRESS]: serverAddress,
+          [ATTR_SERVER_PORT]: serverPort,
         },
       })
     : null;
@@ -216,11 +319,10 @@ function observeRequest(request, response) {
       function finalizeRequestContext() {
         const statusCode = response.statusCode || 200;
         const durationMs = Date.now() - startedAt;
+        const routeTemplate = requestRouteTemplate(route);
         if (requestSpan) {
           tracing.setSpanAttributes(requestSpan, {
-            "http.response.status_code": statusCode,
-            "wbo.request.result": requestResult(statusCode),
-            "wbo.request.route_kind": route,
+            [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
           });
           if (statusCode >= 500 && !requestError) {
             requestSpan.setStatus({
@@ -231,7 +333,8 @@ function observeRequest(request, response) {
 
         metrics.recordHttpRequest({
           method: method,
-          route: route,
+          route: routeTemplate,
+          scheme: scheme,
           statusCode: statusCode,
           durationMs: durationMs,
         });
@@ -244,16 +347,16 @@ function observeRequest(request, response) {
         const fields = Object.assign(
           {
             request_id: requestId,
-            method: method,
-            route: route,
-            status_code: statusCode,
+            [ATTR_HTTP_REQUEST_METHOD]: method,
+            [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
             duration_ms: durationMs,
-            url: request.url,
+            [ATTR_URL_PATH]: requestPath(request),
           },
+          routeTemplate ? { [ATTR_HTTP_ROUTE]: routeTemplate } : {},
           logFields,
         );
         if (statusCode >= 400) {
-          fields.ip = request.socket.remoteAddress;
+          fields[ATTR_CLIENT_ADDRESS] = request.socket.remoteAddress;
         }
         if (requestError) fields.error = requestError;
         logger[logTarget.level](logTarget.event, fields);
@@ -276,17 +379,12 @@ function observeRequest(request, response) {
       route = nextRoute;
       if (requestSpan) {
         requestSpan.updateName(requestSpanName(method, nextRoute));
-        tracing.setSpanAttributes(
-          requestSpan,
-          Object.assign(
-            {
-              "wbo.request.route_kind": nextRoute,
-            },
-            requestRouteTemplate(nextRoute)
-              ? { "http.route": requestRouteTemplate(nextRoute) }
-              : {},
-          ),
-        );
+        const routeTemplate = requestRouteTemplate(nextRoute);
+        if (routeTemplate) {
+          tracing.setSpanAttributes(requestSpan, {
+            [ATTR_HTTP_ROUTE]: routeTemplate,
+          });
+        }
       }
     },
     noteError: function noteError(error) {

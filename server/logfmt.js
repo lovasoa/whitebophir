@@ -12,17 +12,21 @@ const LEVEL_COLORS = {
 
 /**
  * @param {unknown} error
- * @returns {{error_type?: string, error_message?: string, error_stack?: string}}
+ * @returns {{
+ *   "exception.type"?: string,
+ *   "exception.message"?: string,
+ *   "exception.stacktrace"?: string,
+ * }}
  */
 function flattenError(error) {
   if (!(error instanceof Error)) {
     if (error === undefined) return {};
-    return { error_message: String(error) };
+    return { "exception.message": String(error) };
   }
   return {
-    error_type: error.name || "Error",
-    error_message: error.message,
-    error_stack: error.stack,
+    "exception.type": error.name || "Error",
+    "exception.message": error.message,
+    "exception.stacktrace": error.stack,
   };
 }
 

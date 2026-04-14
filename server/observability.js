@@ -30,6 +30,10 @@ const {
 } = require("@opentelemetry/sdk-trace-base");
 const { NodeSDK } = require("@opentelemetry/sdk-node");
 const {
+  ATTR_HTTP_REQUEST_METHOD,
+  ATTR_HTTP_RESPONSE_STATUS_CODE,
+  ATTR_HTTP_ROUTE,
+  ATTR_URL_SCHEME,
   SEMRESATTRS_SERVICE_NAME,
 } = require("@opentelemetry/semantic-conventions");
 
@@ -743,17 +747,10 @@ function emitLog(level, name, fields) {
 }
 
 /**
- * @param {number} statusCode
- * @returns {string}
- */
-function statusClass(statusCode) {
-  return `${Math.floor(statusCode / 100)}xx`;
-}
-
-/**
  * @param {{
  *   method: string,
- *   route: string,
+ *   route?: string,
+ *   scheme: string,
  *   statusCode: number,
  *   durationMs: number,
  * }}
@@ -761,11 +758,13 @@ function statusClass(statusCode) {
  * @returns {void}
  */
 function recordHttpRequest(request) {
+  /** @type {{[key: string]: string | number | boolean}} */
   const attributes = {
-    method: request.method,
-    route: request.route,
-    status_class: statusClass(request.statusCode),
+    [ATTR_HTTP_REQUEST_METHOD]: request.method,
+    [ATTR_URL_SCHEME]: request.scheme,
+    [ATTR_HTTP_RESPONSE_STATUS_CODE]: request.statusCode,
   };
+  if (request.route) attributes[ATTR_HTTP_ROUTE] = request.route;
   httpRequests.add(1, attributes);
   httpRequestDuration.record(request.durationMs, attributes);
 }
@@ -775,7 +774,10 @@ function recordHttpRequest(request) {
  * @returns {void}
  */
 function recordSocketEvent(event) {
-  const attributes = { event: event.event, result: event.result };
+  const attributes = {
+    "wbo.socket.event": event.event,
+    "wbo.socket.result": event.result,
+  };
   socketEvents.add(1, attributes);
   socketEventDuration.record(event.durationMs, attributes);
 }
@@ -786,7 +788,10 @@ function recordSocketEvent(event) {
  * @returns {void}
  */
 function recordBoardOperation(operation, result) {
-  boardOperations.add(1, { operation, result });
+  boardOperations.add(1, {
+    "wbo.board.operation": operation,
+    "wbo.board.result": result,
+  });
 }
 
 /**
@@ -795,7 +800,10 @@ function recordBoardOperation(operation, result) {
  * @returns {void}
  */
 function recordRejection(kind, reason) {
-  rejections.add(1, { kind, reason });
+  rejections.add(1, {
+    "wbo.rejection.kind": kind,
+    "wbo.rejection.reason": reason,
+  });
 }
 
 /**

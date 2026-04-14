@@ -20,9 +20,9 @@ test("flattenError extracts stable error fields", () => {
   const error = new TypeError("boom");
   const flattened = flattenError(error);
 
-  assert.equal(flattened.error_type, "TypeError");
-  assert.equal(flattened.error_message, "boom");
-  assert.match(flattened.error_stack || "", /TypeError: boom/);
+  assert.equal(flattened["exception.type"], "TypeError");
+  assert.equal(flattened["exception.message"], "boom");
+  assert.match(flattened["exception.stacktrace"] || "", /TypeError: boom/);
 });
 
 test("formatCanonicalLogLine emits the canonical envelope first", () => {

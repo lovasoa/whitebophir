@@ -159,7 +159,7 @@ function noFail(fn, eventName) {
             .catch(function logError(/** @type {unknown} */ err) {
               resultStatus = "error";
               logger.error("socket.event_failed", {
-                socket_event: eventName,
+                "wbo.socket.event": eventName,
                 error: err,
               });
             })
@@ -177,7 +177,7 @@ function noFail(fn, eventName) {
       } catch (e) {
         resultStatus = "error";
         logger.error("socket.event_failed", {
-          socket_event: eventName,
+          "wbo.socket.event": eventName,
           error: e,
         });
       } finally {
@@ -568,7 +568,7 @@ function socketTraceAttributes(eventName, extras) {
 function boardMutationTraceAttributes(boardName, userName, message) {
   return socketTraceAttributes("broadcast_write", {
     "wbo.board": boardName,
-    "wbo.user": userName,
+    "user.name": userName,
     "wbo.tool": message?.tool,
     "wbo.message.type": message?.type,
   });
@@ -760,7 +760,7 @@ function enforceGeneralRateLimit(
     {
       attributes: socketTraceAttributes("broadcast_write", {
         "wbo.board": boardName,
-        "wbo.user": userName,
+        "user.name": userName,
         "wbo.rate_limit.kind": "general",
         "wbo.rejection.reason": "rate_limit",
       }),
@@ -770,12 +770,12 @@ function enforceGeneralRateLimit(
         kind: "general",
         socket: socket.id,
         board: boardName,
-        ip: clientIp,
+        "client.address": clientIp,
         count: rateLimitState.count,
         limit: generalLimit.limit,
         period_ms: generalLimit.periodMs,
         retry_after_ms: retryAfterMs,
-        user: userName,
+        "user.name": userName,
       });
       metrics.recordRejection("rate_limit", "general");
     },
@@ -842,7 +842,7 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
       {
         attributes: socketTraceAttributes("broadcast_write", {
           "wbo.board": boardName,
-          "wbo.user": userName,
+          "user.name": userName,
           "wbo.rate_limit.kind": "destructive",
           "wbo.rejection.reason": "rate_limit",
           "wbo.destructive_cost": destructiveCost,
@@ -853,8 +853,8 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
           kind: "destructive",
           socket: socket.id,
           board: boardName,
-          ip: clientIp,
-          user: userName,
+          "client.address": clientIp,
+          "user.name": userName,
           count: rateLimitState.count,
           limit: destructiveLimit.limit,
           period_ms: destructiveLimit.periodMs,
@@ -934,7 +934,7 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
       {
         attributes: socketTraceAttributes("broadcast_write", {
           "wbo.board": boardName,
-          "wbo.user": userName,
+          "user.name": userName,
           "wbo.rate_limit.kind": "constructive",
           "wbo.rejection.reason": "rate_limit",
           "wbo.constructive_cost": constructiveCost,
@@ -945,8 +945,8 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
           kind: "constructive",
           socket: socket.id,
           board: boardName,
-          ip: clientIp,
-          user: userName,
+          "client.address": clientIp,
+          "user.name": userName,
           count: rateLimitState.count,
           limit: constructiveLimit.limit,
           period_ms: constructiveLimit.periodMs,
@@ -989,7 +989,7 @@ function ensureSocketCanAccessBoard(socket, boardName, clientIp) {
     {
       attributes: socketTraceAttributes("broadcast_write", {
         "wbo.board": boardName,
-        "wbo.user": clientIp ? getSocketUserName(socket, clientIp) : undefined,
+        "user.name": clientIp ? getSocketUserName(socket, clientIp) : undefined,
         "wbo.rejection.reason": "access_blocked",
       }),
     },
@@ -997,8 +997,8 @@ function ensureSocketCanAccessBoard(socket, boardName, clientIp) {
       logger.warn("board.access_blocked", {
         board: boardName,
         socket: socket.id,
-        ip: clientIp,
-        user: clientIp ? getSocketUserName(socket, clientIp) : undefined,
+        "client.address": clientIp,
+        "user.name": clientIp ? getSocketUserName(socket, clientIp) : undefined,
       });
       metrics.recordRejection("access", "blocked");
     },
@@ -1109,15 +1109,15 @@ function handleSocketConnection(socket) {
       emitBoardUsersToSocket(socket, name);
       emitUserJoinedToBoard(socket, name, user);
       tracing.setActiveSpanAttributes({
-        "wbo.user": user.name,
+        "user.name": user.name,
         "wbo.board.users": board.users.size,
         "wbo.board.result": "success",
       });
       logger.info("board.joined", {
         board: name,
         socket: socket.id,
-        user: user.name,
-        ip: user.ip,
+        "user.name": user.name,
+        "client.address": user.ip,
         users: board.users.size,
       });
     }
@@ -1150,7 +1150,7 @@ function handleSocketConnection(socket) {
           var board = await joinBoard(boardName);
           tracing.setActiveSpanAttributes({
             "wbo.board.result": "success",
-            "wbo.user": getBoardUser(boardName, socket.id)?.name || undefined,
+            "user.name": getBoardUser(boardName, socket.id)?.name || undefined,
           });
           socket.emit("boardstate", {
             readonly: board.isReadOnly(),
@@ -1202,7 +1202,10 @@ function handleSocketConnection(socket) {
           try {
             const clientIp = resolveClientIp(socket, "anonymous");
             const userName = getSocketUserName(socket, clientIp);
-            tracing.setActiveSpanAttributes({ "wbo.user": userName });
+            tracing.setActiveSpanAttributes({
+              "user.name": userName,
+              "client.address": clientIp,
+            });
             const requestBody = new URLSearchParams({
               secret: config.TURNSTILE_SECRET_KEY,
               response: token,
@@ -1253,8 +1256,8 @@ function handleSocketConnection(socket) {
               });
               logger.warn("turnstile.rejected", {
                 socket: socket.id,
-                ip: clientIp,
-                user: userName,
+                "client.address": clientIp,
+                "user.name": userName,
                 error_codes: result["error-codes"],
                 reason: validation.reason,
                 hostname: result.hostname,
@@ -1361,8 +1364,8 @@ function handleSocketConnection(socket) {
           logger.warn("board.write_blocked", {
             socket: socket.id,
             board: board.name,
-            ip: clientIp,
-            user: userName,
+            "client.address": clientIp,
+            "user.name": userName,
             tool: normalizedData.tool,
             type: normalizedData.type,
           });
@@ -1384,8 +1387,8 @@ function handleSocketConnection(socket) {
           logger.warn("board.message_rejected", {
             socket: socket.id,
             board: board.name,
-            ip: clientIp,
-            user: userName,
+            "client.address": clientIp,
+            "user.name": userName,
             tool: normalizedData.tool,
             type: normalizedData.type,
             reason: handleResult.reason,
@@ -1404,7 +1407,7 @@ function handleSocketConnection(socket) {
         normalizedData.revision = handleResult.revision;
         tracing.setActiveSpanAttributes({
           "wbo.board.result": "success",
-          "wbo.user": user ? user.name : userName,
+          "user.name": user ? user.name : userName,
         });
 
         //Send data to all other users connected on the same board
@@ -1474,8 +1477,8 @@ function handleSocketConnection(socket) {
           };
           tracing.setActiveSpanAttributes({
             "wbo.board.result": "reported",
-            "wbo.user": reporter.name,
-            "wbo.reported_user": reported.name,
+            "user.name": reporter.name,
+            "wbo.reported_user.name": reported.name,
           });
           logger.warn("user.reported", {
             board: lastUserReportLog.board,
