@@ -64,6 +64,9 @@
   };
   /** @typedef {{DRAW_TOOL_NAMES: string[], isShapeTool: (toolName?: string | undefined) => boolean}} MessageToolMetadataApi */
   /** @type {MessageToolMetadataApi | null} */
+  /** @type {any} */
+  var globalScope =
+    typeof globalThis !== "undefined" ? globalThis : /** @type {any} */ ({});
   var MessageToolMetadata =
     typeof module === "object" &&
     module.exports &&
@@ -71,7 +74,9 @@
       ? /** @type {MessageToolMetadataApi} */ (
           require("./message_tool_metadata.js")
         )
-      : null;
+      : /** @type {MessageToolMetadataApi | null} */ (
+          globalScope.WBOMessageToolMetadata
+        ) || null;
   var isShapeTool =
     MessageToolMetadata && typeof MessageToolMetadata.isShapeTool === "function"
       ? MessageToolMetadata.isShapeTool
