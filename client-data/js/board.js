@@ -52,7 +52,9 @@ var RateLimitCommon =
 var BoardTurnstile = window.WBOBoardTurnstile;
 var BoardTools = window.WBOBoardTools;
 var BoardBootstrap = window.WBOBoardBootstrap;
-var RATE_LIMIT_FLUSH_SAFETY_MS = 250;
+// Add extra slack between the client-side local budget and the server's
+// fixed window so buffered writes do not flush too early on slow runners.
+var RATE_LIMIT_FLUSH_SAFETY_MS = 1000;
 /** @type {RateLimitKind[]} */
 var RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
 
