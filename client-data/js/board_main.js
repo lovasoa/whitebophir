@@ -5,13 +5,11 @@
     : "";
 
   /**
-   * @param {string[]} paths
-   * @returns {Promise<void>}
+   * @param {string} path
+   * @returns {Promise<unknown>}
    */
-  async function importSequentially(paths) {
-    for (const path of paths) {
-      await import(`${path}${versionSuffix}`);
-    }
+  function importWithVersion(path) {
+    return import(`${path}${versionSuffix}`);
   }
 
   /**
@@ -19,11 +17,11 @@
    * @returns {Promise<void>}
    */
   async function importInParallel(paths) {
-    await Promise.all(paths.map((path) => import(`${path}${versionSuffix}`)));
+    await Promise.all(paths.map(importWithVersion));
   }
 
   async function bootBoardPage() {
-    await importSequentially([
+    await importInParallel([
       "./path-data-polyfill.js",
       "./message_tool_metadata.js",
       "./message_common.js",
@@ -34,10 +32,10 @@
       "./minitpl.js",
       "./intersect.js",
       "./board.js",
-      "../tools/pencil/wbo_pencil_point.js",
     ]);
 
     await importInParallel([
+      "../tools/pencil/pencil.js",
       "../tools/cursor/cursor.js",
       "../tools/line/line.js",
       "../tools/rect/rect.js",
@@ -50,13 +48,13 @@
       "../tools/zoom/zoom.js",
     ]);
 
-    await importSequentially(["../tools/pencil/pencil.js"]);
-
+    const optionalToolModules = [];
     if (document.documentElement.hasAttribute("data-moderator")) {
-      await import(`../tools/clear/clear.js${versionSuffix}`);
+      optionalToolModules.push("../tools/clear/clear.js");
     }
+    optionalToolModules.push("./canvascolor.js");
 
-    await import(`./canvascolor.js${versionSuffix}`);
+    await importInParallel(optionalToolModules);
   }
 
   bootBoardPage().catch((error) => {
