@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const { logger } = require("./observability.js");
 
 const { R_OK, W_OK } = fs.constants;
 
@@ -67,11 +68,13 @@ async function get_error(directory) {
 function check_output_directory(directory) {
   get_error(directory).then(function (error) {
     if (error) {
-      console.error(
-        `The configured history directory in which boards are stored ${error}.` +
-          `\nThe history directory can be configured with the environment variable WBO_HISTORY_DIR. ` +
+      logger.error("history.dir_invalid", {
+        directory: directory,
+        reason:
+          `The configured history directory in which boards are stored ${error}. ` +
+          `The history directory can be configured with the environment variable WBO_HISTORY_DIR. ` +
           `It is currently set to "${directory}".`,
-      );
+      });
       process.exit(1);
     }
   });

@@ -1,6 +1,6 @@
 var crypto = require("node:crypto"),
   { Server, Socket } = require("socket.io"),
-  { log, gauge, monitorFunction } = require("./log.js"),
+  { logger, metrics } = require("./observability.js"),
   BoardData = require("./boardData.js").BoardData,
   config = require("./configuration"),
   jsonwebtoken = require("jsonwebtoken"),
@@ -35,6 +35,22 @@ var destructiveRateLimits = new Map();
 var constructiveRateLimits = new Map();
 /** @type {Map<string, Map<string, BoardUser>>} */
 var boardUsers = new Map();
+var connectedUsersTotal = 0;
+/** @type {{
+ *   board: string,
+ *   reporter_socket: string,
+ *   reported_socket: string,
+ *   reporter_ip: string,
+ *   reported_ip: string,
+ *   reporter_user_agent: string,
+ *   reported_user_agent: string,
+ *   reporter_language: string,
+ *   reported_language: string,
+ *   reporter_name: string,
+ *   reported_name: string,
+ * } | null} */
+var lastUserReportLog = null;
+var invalidIpSourceLogged = false;
 var io;
 var NAME_SYLLABLES = [
   "al",
@@ -117,25 +133,63 @@ var NAME_SYLLABLES = [
  * and logs the error.
  * @template {(...args: any[]) => any} A
  * @param {A} fn
+ * @param {string=} eventName
  * @returns {A}
  */
-function noFail(fn) {
-  const monitored = monitorFunction(fn);
+function noFail(fn, eventName) {
   return /** @type {A} */ (
     function noFailWrapped(...args) {
+      const startedAt = eventName ? Date.now() : 0;
+      let resultStatus = "success";
+      /** @type {any} */
+      let result;
       try {
-        const result = monitored.apply(null, args);
+        result = fn.apply(null, args);
         if (result && typeof result.catch === "function") {
-          return result.catch(function logError(/** @type {unknown} */ err) {
-            console.trace(err);
-          });
+          return result
+            .catch(function logError(/** @type {unknown} */ err) {
+              resultStatus = "error";
+              logger.error("socket.event_failed", {
+                socket_event: eventName,
+                error: err,
+              });
+            })
+            .finally(function recordEventMetric() {
+              if (eventName) {
+                metrics.recordSocketEvent({
+                  event: eventName,
+                  result: resultStatus,
+                  durationMs: Date.now() - startedAt,
+                });
+              }
+            });
         }
         return result;
       } catch (e) {
-        console.trace(e);
+        resultStatus = "error";
+        logger.error("socket.event_failed", {
+          socket_event: eventName,
+          error: e,
+        });
+      } finally {
+        if (eventName && !(result && typeof result.catch === "function")) {
+          metrics.recordSocketEvent({
+            event: eventName,
+            result: resultStatus,
+            durationMs: Date.now() - startedAt,
+          });
+        }
       }
     }
   );
+}
+
+function updateLoadedBoardsGauge() {
+  metrics.setLoadedBoards(Object.keys(boards).length);
+}
+
+function updateConnectedUsersGauge() {
+  metrics.setConnectedUsers(connectedUsersTotal);
 }
 
 /**
@@ -453,7 +507,6 @@ function attachLiveSocketId(data, user) {
  * @returns {void}
  */
 function closeSocket(socket, eventName, infos) {
-  log(eventName, infos);
   socket.disconnect(true);
 }
 
@@ -493,15 +546,22 @@ function getMessageData(message) {
  * @returns {{[key: string]: any}}
  */
 function buildSocketLogInfo(socket, boardName, extras) {
-  var request = getSocketRequest(socket);
   return Object.assign(
     {
       board: boardName,
       socket: socket.id,
-      user_agent: request.headers["user-agent"],
     },
     extras,
   );
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} clientIp
+ * @returns {string}
+ */
+function getSocketUserName(socket, clientIp) {
+  return buildUserName(clientIp, getSocketQueryValue(socket, "userSecret"));
 }
 
 /**
@@ -513,13 +573,15 @@ function resolveClientIp(socket, boardName) {
   try {
     return getClientIp(socket);
   } catch (err) {
-    log(
-      "INVALID_IP_SOURCE",
-      buildSocketLogInfo(socket, boardName, {
-        ip_source: config.IP_SOURCE,
-        error: errorMessage(err),
-      }),
-    );
+    if (!invalidIpSourceLogged) {
+      invalidIpSourceLogged = true;
+      logger.warn(
+        "socket.ip_resolve_failed",
+        buildSocketLogInfo(socket, boardName, {
+          error: err,
+        }),
+      );
+    }
     // Fallback to remoteAddress
     var request = getSocketRequest(socket);
     if (request.socket && request.socket.remoteAddress) {
@@ -621,12 +683,22 @@ function enforceGeneralRateLimit(
   );
   if (emitCount <= config.MAX_EMIT_COUNT) return true;
 
+  logger.warn("socket.rate_limited", {
+    kind: "general",
+    socket: socket.id,
+    board: boardName,
+    ip: clientIp,
+    user: getSocketUserName(socket, clientIp),
+    count: emitCount,
+    limit: config.MAX_EMIT_COUNT,
+    period_ms: config.MAX_EMIT_COUNT_PERIOD,
+  });
+  metrics.recordRejection("rate_limit", "general");
   closeRateLimitedSocket(
     socket,
     "GENERAL_RATE_LIMIT_EXCEEDED",
     buildSocketLogInfo(socket, boardName, {
       ip: clientIp,
-      ip_source: config.IP_SOURCE,
       count: emitCount,
       limit: config.MAX_EMIT_COUNT,
       period_ms: config.MAX_EMIT_COUNT_PERIOD,
@@ -667,12 +739,23 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
     now,
   );
   if (destructiveCount > config.MAX_DESTRUCTIVE_ACTIONS_PER_IP) {
+    logger.warn("socket.rate_limited", {
+      kind: "destructive",
+      socket: socket.id,
+      board: boardName,
+      ip: clientIp,
+      user: getSocketUserName(socket, clientIp),
+      count: destructiveCount,
+      limit: config.MAX_DESTRUCTIVE_ACTIONS_PER_IP,
+      period_ms: config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS,
+      destructive_cost: destructiveCost,
+    });
+    metrics.recordRejection("rate_limit", "destructive");
     closeRateLimitedSocket(
       socket,
       "DESTRUCTIVE_RATE_LIMIT_EXCEEDED",
       buildSocketLogInfo(socket, boardName, {
         ip: clientIp,
-        ip_source: config.IP_SOURCE,
         count: destructiveCount,
         limit: config.MAX_DESTRUCTIVE_ACTIONS_PER_IP,
         period_ms: config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS,
@@ -722,12 +805,23 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
     now,
   );
   if (constructiveCount > config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP) {
+    logger.warn("socket.rate_limited", {
+      kind: "constructive",
+      socket: socket.id,
+      board: boardName,
+      ip: clientIp,
+      user: getSocketUserName(socket, clientIp),
+      count: constructiveCount,
+      limit: config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP,
+      period_ms: config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS,
+      constructive_cost: constructiveCost,
+    });
+    metrics.recordRejection("rate_limit", "constructive");
     closeRateLimitedSocket(
       socket,
       "CONSTRUCTIVE_RATE_LIMIT_EXCEEDED",
       buildSocketLogInfo(socket, boardName, {
         ip: clientIp,
-        ip_source: config.IP_SOURCE,
         count: constructiveCount,
         limit: config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP,
         period_ms: config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS,
@@ -748,11 +842,18 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
 /**
  * @param {AppSocket} socket
  * @param {string} boardName
+ * @param {string} clientIp
  * @returns {boolean}
  */
-function ensureSocketCanAccessBoard(socket, boardName) {
+function ensureSocketCanAccessBoard(socket, boardName, clientIp) {
   if (canAccessBoard(boardName, socket)) return true;
-  log("ACCESS BLOCKED", { board: boardName });
+  logger.warn("board.access_blocked", {
+    board: boardName,
+    socket: socket.id,
+    ip: clientIp,
+    user: clientIp ? getSocketUserName(socket, clientIp) : undefined,
+  });
+  metrics.recordRejection("access", "blocked");
   return false;
 }
 
@@ -802,7 +903,7 @@ function startIO(app) {
       },
     );
   }
-  io.on("connection", noFail(handleSocketConnection));
+  io.on("connection", noFail(handleSocketConnection, "connection"));
   return io;
 }
 
@@ -816,7 +917,7 @@ function getBoard(name) {
   } else {
     var board = BoardData.load(name);
     boards[name] = board;
-    gauge("boards in memory", Object.keys(boards).length);
+    updateLoadedBoardsGauge();
     return board;
   }
 }
@@ -845,19 +946,31 @@ function handleSocketConnection(socket) {
     board.users.add(socket.id);
     if (!wasJoined || !hasBoardUser(socket, name)) {
       var user = ensureBoardUser(socket, name);
+      if (!wasJoined) {
+        connectedUsersTotal += 1;
+        updateConnectedUsersGauge();
+      }
       emitBoardUsersToSocket(socket, name);
       emitUserJoinedToBoard(socket, name, user);
+      logger.info("board.joined", {
+        board: name,
+        socket: socket.id,
+        user: user.name,
+        ip: user.ip,
+        users: board.users.size,
+      });
     }
-    log("board joined", { board: board.name, users: board.users.size });
-    gauge("connected." + name, board.users.size);
     return board;
   }
 
   socket.on(
     "error",
     noFail(function onSocketError(error) {
-      log("ERROR", error);
-    }),
+      logger.error("socket.error", {
+        socket: socket.id,
+        error: error,
+      });
+    }, "error"),
   );
 
   socket.on(
@@ -870,10 +983,10 @@ function handleSocketConnection(socket) {
       });
       //Send all the board's data as soon as it's loaded
       socket.emit("broadcast", { _children: board.getAll() });
-    }),
+    }, "getboard"),
   );
 
-  socket.on("joinboard", noFail(joinBoard));
+  socket.on("joinboard", noFail(joinBoard, "joinboard"));
 
   socket.on(
     "turnstile_token",
@@ -901,19 +1014,26 @@ function handleSocketConnection(socket) {
             Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS;
           if (typeof ack === "function") ack(buildTurnstileAck(socket));
         } else {
-          log("TURNSTILE REJECTED", {
+          logger.warn("turnstile.rejected", {
+            socket: socket.id,
             ip: clientIp,
+            user: getSocketUserName(socket, clientIp),
             error_codes: result["error-codes"],
             reason: validation.reason,
             hostname: result.hostname,
           });
+          metrics.recordRejection("turnstile", validation.reason);
           if (typeof ack === "function") ack({ success: false });
         }
       } catch (err) {
-        log("TURNSTILE ERROR", { error: errorMessage(err) });
+        logger.error("turnstile.error", {
+          socket: socket.id,
+          error: err,
+        });
+        metrics.recordRejection("turnstile", "error");
         if (typeof ack === "function") ack({ success: false });
       }
-    }),
+    }, "turnstile_token"),
   );
 
   var generalRateLimit = createRateLimitState(Date.now());
@@ -930,6 +1050,7 @@ function handleSocketConnection(socket) {
         WBOMessageCommon.requiresTurnstile(boardName, data.tool) &&
         !isTurnstileValidationActive(socket, now)
       ) {
+        metrics.recordRejection("turnstile", "validation_required");
         return;
       }
       if (
@@ -942,7 +1063,7 @@ function handleSocketConnection(socket) {
         )
       )
         return;
-      if (!ensureSocketCanAccessBoard(socket, boardName)) return;
+      if (!ensureSocketCanAccessBoard(socket, boardName, clientIp)) return;
 
       const normalized = normalizeBroadcastData(message, data);
       if (normalized.ok === false) return;
@@ -972,11 +1093,15 @@ function handleSocketConnection(socket) {
 
       var board = await getBoard(boardName);
       if (!canApplyBoardMessage(board, normalizedData, socket)) {
-        log("WRITE BLOCKED", {
+        logger.warn("board.write_blocked", {
+          socket: socket.id,
           board: board.name,
+          ip: clientIp,
+          user: getSocketUserName(socket, clientIp),
           tool: normalizedData.tool,
           type: normalizedData.type,
         });
+        metrics.recordRejection("write", "blocked");
         return;
       }
 
@@ -987,12 +1112,16 @@ function handleSocketConnection(socket) {
         socket,
       );
       if (handleResult.ok === false) {
-        log("BOARD_MESSAGE_REJECTED", {
+        logger.warn("board.message_rejected", {
+          socket: socket.id,
           board: board.name,
+          ip: clientIp,
+          user: getSocketUserName(socket, clientIp),
           tool: normalizedData.tool,
           type: normalizedData.type,
           reason: handleResult.reason,
         });
+        metrics.recordRejection("board_message", handleResult.reason);
         return;
       }
 
@@ -1006,7 +1135,7 @@ function handleSocketConnection(socket) {
 
       //Send data to all other users connected on the same board
       socket.broadcast.to(boardName).emit("broadcast", normalizedData);
-    }),
+    }, "broadcast"),
   );
 
   socket.on(
@@ -1021,7 +1150,7 @@ function handleSocketConnection(socket) {
       var reported = getBoardUser(boardName, targetSocketId);
       if (!reporter || !reported) return;
 
-      log("USER_REPORTED", {
+      lastUserReportLog = {
         board: boardName,
         reporter_socket: reporter.socketId,
         reported_socket: reported.socketId,
@@ -1033,8 +1162,21 @@ function handleSocketConnection(socket) {
         reported_language: reported.language,
         reporter_name: reporter.name,
         reported_name: reported.name,
+      };
+      logger.warn("user.reported", {
+        board: lastUserReportLog.board,
+        reporter_socket: lastUserReportLog.reporter_socket,
+        reported_socket: lastUserReportLog.reported_socket,
+        reporter_ip: lastUserReportLog.reporter_ip,
+        reported_ip: lastUserReportLog.reported_ip,
+        reporter_user_agent: lastUserReportLog.reporter_user_agent,
+        reported_user_agent: lastUserReportLog.reported_user_agent,
+        reporter_language: lastUserReportLog.reporter_language,
+        reported_language: lastUserReportLog.reported_language,
+        reporter_name: lastUserReportLog.reporter_name,
+        reported_name: lastUserReportLog.reported_name,
       });
-    }),
+    }, "report_user"),
   );
 
   socket.on(
@@ -1044,15 +1186,13 @@ function handleSocketConnection(socket) {
         async function disconnectFrom(/** @type {string} */ room) {
           if (boards.hasOwnProperty(room)) {
             var board = await /** @type {Promise<BoardData>} */ (boards[room]);
-            board.users.delete(socket.id);
+            var removed = board.users.delete(socket.id);
             removeBoardUser(socket, room);
             var userCount = board.users.size;
-            log("disconnection", {
-              board: board.name,
-              users: board.users.size,
-              reason,
-            });
-            gauge("connected." + board.name, userCount);
+            if (removed) {
+              connectedUsersTotal = Math.max(0, connectedUsersTotal - 1);
+              updateConnectedUsersGauge();
+            }
             if (userCount === 0) unloadBoard(room);
           }
         },
@@ -1069,9 +1209,9 @@ async function unloadBoard(boardName) {
   if (boards.hasOwnProperty(boardName)) {
     const board = await /** @type {Promise<BoardData>} */ (boards[boardName]);
     await board.save();
-    log("unload board", { board: board.name, users: board.users.size });
+    metrics.recordBoardOperation("unload", "success");
     delete boards[boardName];
-    gauge("boards in memory", Object.keys(boards).length);
+    updateLoadedBoardsGauge();
   }
 }
 
@@ -1096,7 +1236,10 @@ function handleMessage(board, message, socket) {
  */
 function saveHistory(board, message) {
   if (!(message.tool || message.type === "child") && !message._children) {
-    console.error("Received a badly formatted message (no tool). ", message);
+    logger.error("board.history_malformed", {
+      board: board.name,
+      message: message,
+    });
   }
   return board.processMessage(/** @type {any} */ (message));
 }
@@ -1132,10 +1275,14 @@ if (exports) {
     pruneRateLimitMap,
     cleanupBoardUserMap,
     getBoardUserMap,
+    getLastUserReportLog: function getLastUserReportLog() {
+      return lastUserReportLog;
+    },
     resetRateLimitMaps: function resetRateLimitMaps() {
       destructiveRateLimits.clear();
       constructiveRateLimits.clear();
       boardUsers.clear();
+      lastUserReportLog = null;
     },
   };
 }

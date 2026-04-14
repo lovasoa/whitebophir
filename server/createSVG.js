@@ -1,6 +1,7 @@
 const fsp = require("node:fs/promises"),
   path = require("node:path"),
   parseStoredBoard = require("./boardData.js").parseStoredBoard,
+  logger = require("./observability.js").logger,
   wboPencilPoint =
     require("../client-data/tools/pencil/wbo_pencil_point.js").wboPencilPoint;
 
@@ -305,7 +306,10 @@ async function toSVG(obj, writeable) {
       await Promise.resolve(); // Do not block the event loop
       const renderFun = Tools[elem.tool];
       if (renderFun) writeable.write(renderFun(elem));
-      else console.warn("Missing render function for tool", elem.tool);
+      else
+        logger.warn("svg.renderer_missing", {
+          tool: elem.tool,
+        });
     }),
   );
   writeable.write("</svg>");
@@ -346,7 +350,11 @@ if (require.main === module) {
   const HISTORY_FILE =
     process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
 
-  renderBoard(HISTORY_FILE, process.stdout).catch(console.error.bind(console));
+  renderBoard(HISTORY_FILE, process.stdout).catch(function (error) {
+    logger.error("svg.render_failed", {
+      error: error,
+    });
+  });
 } else {
   module.exports = {
     renderBoard: renderBoard,

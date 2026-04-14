@@ -3,7 +3,7 @@ const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(ROOT, "server", "configuration.js");
-const LOG_PATH = path.join(ROOT, "server", "log.js");
+const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.js");
 const SOCKETS_PATH = path.join(ROOT, "server", "sockets.js");
 const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.js");
 const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.js");
@@ -33,7 +33,7 @@ const JWT_BOARDNAME_AUTH_PATH = path.join(
 
 const DEFAULT_CLEARED_MODULES = [
   CONFIG_PATH,
-  LOG_PATH,
+  OBSERVABILITY_PATH,
   SOCKETS_PATH,
   SOCKET_POLICY_PATH,
   BOARD_DATA_PATH,

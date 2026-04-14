@@ -1,4 +1,4 @@
-const { log } = require("./log.js");
+const { logger, metrics } = require("./observability.js");
 const config = require("./configuration");
 const normalizeIncomingMessage =
   require("./message_validation.js").normalizeIncomingMessage;
@@ -247,12 +247,13 @@ function normalizeBroadcastData(message, data) {
    * @returns {RejectedBroadcast}
    */
   function rejectedBroadcast(reason) {
-    log("INVALID MESSAGE", {
+    logger.warn("socket.message_invalid", {
       board: getBoardName(message),
       tool: data && data.tool,
       type: data && data.type,
       reason: reason,
     });
+    metrics.recordRejection("invalid_message", reason);
     return { ok: false, reason: reason };
   }
 }

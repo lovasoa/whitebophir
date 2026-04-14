@@ -10,7 +10,7 @@ const config = require("./configuration.js");
 const createSVG = require("./createSVG.js");
 const jwtauth = require("./jwtauth.js");
 const jwtBoardName = require("./jwtBoardnameAuth.js");
-const { log, monitorFunction } = require("./log.js");
+const { createRequestId, logger, metrics } = require("./observability.js");
 const sockets = require("./sockets.js");
 const templating = require("./templating.js");
 
@@ -26,7 +26,9 @@ sockets.start(app);
 
 app.listen(config.PORT, config.HOST, () => {
   const actualPort = getAddressPort(app.address());
-  log("server started", { port: actualPort });
+  logger.info("server.started", {
+    port: actualPort,
+  });
   if (process.send) process.send({ type: "server-started", port: actualPort });
 });
 
@@ -42,6 +44,15 @@ const fileserver = serveStatic(config.WEBROOT, {
 });
 
 const errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
+
+const boardTemplate = new templating.BoardTemplate(
+  path.join(config.WEBROOT, "board.html"),
+);
+const indexTemplate = new templating.Template(
+  path.join(config.WEBROOT, "index.html"),
+);
+const SLOW_REQUEST_LOG_MS = 1000;
+
 /**
  * @param {ServerAddress} address
  * @returns {number | undefined}
@@ -60,81 +71,129 @@ function errorToString(error) {
 }
 
 /**
- * @param {unknown} error
- * @returns {string | undefined}
+ * @param {string} route
+ * @param {number} statusCode
+ * @param {number} durationMs
+ * @returns {{level: "warn" | "error", event: string} | null}
  */
-function errorStack(error) {
-  return error instanceof Error ? error.stack : undefined;
-}
-
-/**
- * @param {unknown} error
- * @returns {string}
- */
-function errorMessage(error) {
-  return error instanceof Error ? error.message : String(error);
+function classifyRequestLog(route, statusCode, durationMs) {
+  if (statusCode >= 500) {
+    return { level: "error", event: "http.request_failed" };
+  }
+  if (route === "static_file") return null;
+  if (statusCode >= 400) {
+    return { level: "warn", event: "http.request_rejected" };
+  }
+  if (durationMs >= SLOW_REQUEST_LOG_MS) {
+    return { level: "warn", event: "http.request_slow" };
+  }
+  return null;
 }
 
 /**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
+ * @returns {{
+ *   requestId: string,
+ *   setRoute: (route: string) => void,
+ *   noteError: (error: unknown) => void,
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ * }}
+ */
+function observeRequest(request, response) {
+  const forwardedRequestId = request.headers["x-request-id"];
+  const requestId =
+    typeof forwardedRequestId === "string" && forwardedRequestId !== ""
+      ? forwardedRequestId
+      : createRequestId();
+  response.setHeader("X-Request-Id", requestId);
+
+  const startedAt = Date.now();
+  let route = "unknown";
+  /** @type {unknown} */
+  let requestError;
+  /** @type {{[key: string]: unknown}} */
+  let logFields = {};
+  let finalized = false;
+
+  function finalize() {
+    if (finalized) return;
+    finalized = true;
+
+    const statusCode = response.statusCode || 200;
+    const durationMs = Date.now() - startedAt;
+
+    metrics.recordHttpRequest({
+      method: request.method || "GET",
+      route: route,
+      statusCode: statusCode,
+      durationMs: durationMs,
+    });
+    const logTarget = classifyRequestLog(route, statusCode, durationMs);
+    if (!logTarget) return;
+
+    const fields = Object.assign(
+      {
+        request_id: requestId,
+        method: request.method || "GET",
+        route: route,
+        status_code: statusCode,
+        duration_ms: durationMs,
+        url: request.url,
+      },
+      logFields,
+    );
+    if (statusCode >= 400) {
+      fields.ip = request.socket.remoteAddress;
+    }
+    if (requestError) fields.error = requestError;
+    logger[logTarget.level](logTarget.event, fields);
+  }
+
+  response.once("finish", finalize);
+  response.once("close", finalize);
+
+  return {
+    requestId: requestId,
+    setRoute: function setRoute(nextRoute) {
+      route = nextRoute;
+    },
+    noteError: function noteError(error) {
+      requestError = error;
+    },
+    annotate: function annotate(fields) {
+      logFields = Object.assign(logFields, fields);
+    },
+  };
+}
+
+/**
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {{noteError: (error: unknown) => void}} requestContext
  * @returns {(err?: unknown) => void}
  */
-function serveError(request, response) {
+function serveError(request, response, requestContext) {
   return function (err) {
-    log("error", {
-      error: err ? errorToString(err) : undefined,
-      url: request.url,
-    });
+    if (err) requestContext.noteError(err);
     response.writeHead(err ? 500 : 404, { "Content-Length": errorPage.length });
     response.end(errorPage);
   };
 }
 
 /**
- * Write a request to the logs
- * @param {import("http").IncomingMessage} request
- */
-function logRequest(request) {
-  log("connection", {
-    ip: request.socket.remoteAddress,
-    original_ip:
-      request.headers["x-forwarded-for"] || request.headers["forwarded"],
-    user_agent: request.headers["user-agent"],
-    referer: request.headers["referer"],
-    language: request.headers["accept-language"],
-    url: request.url,
-  });
-}
-
-/**
  * @type {import('http').RequestListener}
  */
 function handler(request, response) {
+  const requestContext = observeRequest(request, response);
   try {
-    handleRequestAndLog(request, response);
+    handleRequest(request, response, requestContext);
   } catch (err) {
-    const message = errorMessage(err);
-    if (
-      config.AUTH_SECRET_KEY &&
-      (message.includes("Access Forbidden") ||
-        message.includes("Illegal board name"))
-    ) {
-      log("error", { error: message, url: request.url });
-    } else {
-      console.trace(err);
-    }
+    requestContext.noteError(err);
     response.writeHead(500, { "Content-Type": "text/plain" });
     response.end(errorToString(err));
   }
 }
-
-const boardTemplate = new templating.BoardTemplate(
-  path.join(config.WEBROOT, "board.html"),
-);
-const indexTemplate = new templating.Template(
-  path.join(config.WEBROOT, "index.html"),
-);
 
 /**
  * Throws an error if the given board name is not allowed
@@ -156,9 +215,17 @@ function getPathPart(parts, index) {
 }
 
 /**
- * @type {import('http').RequestListener}
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {{
+ *   requestId: string,
+ *   setRoute: (route: string) => void,
+ *   noteError: (error: unknown) => void,
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @returns {void}
  */
-function handleRequest(request, response) {
+function handleRequest(request, response, requestContext) {
   const requestUrl = request.url || "/";
   const parsedUrl = new URL(requestUrl, "http://wbo/");
   const parts = parsedUrl.pathname.split("/");
@@ -175,25 +242,29 @@ function handleRequest(request, response) {
     ".jpg",
     ".gif",
   ];
-  // If we're not being asked for a file, then we should check permissions.
   if (!staticResources.includes(fileExt)) {
     jwtauth.checkUserPermission(parsedUrl);
   }
 
   switch (parts[0]) {
     case "boards": {
-      // "boards" refers to the root directory
+      requestContext.setRoute(
+        parts.length === 1 ? "boards_redirect" : "board_page",
+      );
       if (parts.length === 1) {
-        // '/boards?board=...' This allows html forms to point to boards
         const boardName = parsedUrl.searchParams.get("board") || "anonymous";
+        requestContext.annotate({ board: boardName });
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         const headers = { Location: "boards/" + encodeURIComponent(boardName) };
         response.writeHead(301, headers);
         response.end();
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
         const boardNamePart = getPathPart(parts, 1);
-        if (boardNamePart === undefined) return serveError(request, response)();
+        if (boardNamePart === undefined) {
+          return serveError(request, response, requestContext)();
+        }
         const boardName = validateBoardName(boardNamePart);
+        requestContext.annotate({ board: boardName });
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
         const token = parsedUrl.searchParams.get("token");
         const boardRole = jwtBoardName.roleInBoard(token || "", boardName);
@@ -208,18 +279,26 @@ function handleRequest(request, response) {
             canWrite,
           },
         });
-        // If there is no dot and no directory, parts[1] is the board name
       } else {
+        requestContext.setRoute("static_file");
         request.url = "/" + parts.slice(1).join("/");
-        fileserver(request, response, serveError(request, response));
+        fileserver(
+          request,
+          response,
+          serveError(request, response, requestContext),
+        );
       }
       break;
     }
 
     case "download": {
+      requestContext.setRoute("download_board");
       const boardNamePart = getPathPart(parts, 1);
-      if (boardNamePart === undefined) return serveError(request, response)();
+      if (boardNamePart === undefined) {
+        return serveError(request, response, requestContext)();
+      }
       const boardName = validateBoardName(boardNamePart);
+      requestContext.annotate({ board: boardName });
       let historyFile = path.join(
         config.HISTORY_DIR,
         "board-" + boardName + ".json",
@@ -229,9 +308,8 @@ function handleRequest(request, response) {
       if (backupSuffix && /^[0-9A-Za-z.\-]+$/.test(backupSuffix)) {
         historyFile += "." + backupSuffix + ".bak";
       }
-      log("download", { file: historyFile });
       fs.readFile(historyFile, function (err, data) {
-        if (err) return serveError(request, response)(err);
+        if (err) return serveError(request, response, requestContext)(err);
         response.writeHead(200, {
           "Content-Type": "application/json",
           "Content-Disposition": 'attachment; filename="' + boardName + '.wbo"',
@@ -244,9 +322,13 @@ function handleRequest(request, response) {
 
     case "export":
     case "preview": {
+      requestContext.setRoute("preview_board");
       const boardNamePart = getPathPart(parts, 1);
-      if (boardNamePart === undefined) return serveError(request, response)();
+      if (boardNamePart === undefined) {
+        return serveError(request, response, requestContext)();
+      }
       const exportBoardName = validateBoardName(boardNamePart);
+      requestContext.annotate({ board: exportBoardName });
       const historyFile = path.join(
         config.HISTORY_DIR,
         "board-" + exportBoardName + ".json",
@@ -261,40 +343,48 @@ function handleRequest(request, response) {
             "Content-Security-Policy": CSP,
             "Cache-Control": "public, max-age=30",
           });
-          log("preview", {
-            board: exportBoardName,
-            time: Date.now() - startedAt,
-          });
           response.end(svg);
         })
         .catch(function (err) {
-          log("error", { error: errorToString(err), stack: errorStack(err) });
-          serveError(request, response)(err);
+          requestContext.noteError(err);
+          requestContext.annotate({
+            render_duration_ms: Date.now() - startedAt,
+          });
+          serveError(request, response, requestContext)(err);
         });
       break;
     }
 
     case "random": {
+      requestContext.setRoute("random_board");
       const name = crypto.randomBytes(24).toString("base64url");
       response.writeHead(307, { Location: "boards/" + name });
       response.end(name);
       break;
     }
 
-    case "": // Index page
-      logRequest(request);
+    case "": {
+      requestContext.setRoute("index");
       if (config.DEFAULT_BOARD) {
+        requestContext.annotate({ board: config.DEFAULT_BOARD });
         response.writeHead(302, {
           Location: "boards/" + encodeURIComponent(config.DEFAULT_BOARD),
         });
         response.end(config.DEFAULT_BOARD);
-      } else indexTemplate.serve(request, response);
+      } else {
+        indexTemplate.serve(request, response);
+      }
       break;
+    }
 
     default:
-      fileserver(request, response, serveError(request, response));
+      requestContext.setRoute("static_file");
+      fileserver(
+        request,
+        response,
+        serveError(request, response, requestContext),
+      );
   }
 }
 
-const handleRequestAndLog = monitorFunction(handleRequest);
 module.exports = app;

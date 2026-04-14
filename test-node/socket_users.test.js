@@ -5,7 +5,6 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { SOCKETS_PATH, createSocket, withEnv } = require("./test_helpers.js");
-const { withConsole } = require("./test_console.js");
 
 /**
  * @param {{[event: string]: ((...args: any[]) => any) | undefined}} handlers
@@ -431,41 +430,24 @@ test("report_user logs reporter and reported user details for active board membe
       sockets.__test.handleSocketConnection(reported.socket);
       await getRequiredHandler(reported.handlers, "getboard")("board-report");
 
-      /** @type {string[]} */
-      const logged = [];
-      withConsole(
-        {
-          log: function (message) {
-            logged.push(String(message));
-          },
-        },
-        function () {
-          var previousSilent = process.env.WBO_SILENT;
-          process.env.WBO_SILENT = "false";
-          try {
-            getRequiredHandler(
-              reporter.handlers,
-              "report_user",
-            )({
-              board: "board-report",
-              socketId: "socket-reported",
-            });
-          } finally {
-            process.env.WBO_SILENT = previousSilent;
-          }
-        },
-      );
+      getRequiredHandler(
+        reporter.handlers,
+        "report_user",
+      )({
+        board: "board-report",
+        socketId: "socket-reported",
+      });
 
-      assert.equal(logged.length, 1);
-      assert.match(getRequiredValue(logged[0]), /USER_REPORTED/);
-      assert.match(getRequiredValue(logged[0]), /203\.0\.113\.90/);
-      assert.match(getRequiredValue(logged[0]), /203\.0\.113\.91/);
-      assert.match(getRequiredValue(logged[0]), /socket-reporter/);
-      assert.match(getRequiredValue(logged[0]), /socket-reported/);
-      assert.match(getRequiredValue(logged[0]), /ReporterAgent\/1\.0/);
-      assert.match(getRequiredValue(logged[0]), /ReportedAgent\/2\.0/);
-      assert.match(getRequiredValue(logged[0]), /fr-FR,fr;q=0\.9/);
-      assert.match(getRequiredValue(logged[0]), /en-US,en;q=0\.8/);
+      const reportedLog = sockets.__test.getLastUserReportLog();
+      assert.ok(reportedLog);
+      assert.equal(reportedLog.reporter_ip, "203.0.113.90");
+      assert.equal(reportedLog.reported_ip, "203.0.113.91");
+      assert.equal(reportedLog.reporter_socket, "socket-reporter");
+      assert.equal(reportedLog.reported_socket, "socket-reported");
+      assert.equal(reportedLog.reporter_user_agent, "ReporterAgent/1.0");
+      assert.equal(reportedLog.reported_user_agent, "ReportedAgent/2.0");
+      assert.equal(reportedLog.reporter_language, "fr-FR,fr;q=0.9");
+      assert.equal(reportedLog.reported_language, "en-US,en;q=0.8");
     },
   );
 });
@@ -516,40 +498,24 @@ test("report_user respects custom header ip sources for active board members", a
       sockets.__test.handleSocketConnection(reported.socket);
       await getRequiredHandler(reported.handlers, "getboard")("board-report");
 
-      /** @type {string[]} */
-      const logged = [];
-      withConsole(
-        {
-          log: function (message) {
-            logged.push(String(message));
-          },
-        },
-        function () {
-          var previousSilent = process.env.WBO_SILENT;
-          process.env.WBO_SILENT = "false";
-          try {
-            getRequiredHandler(
-              reporter.handlers,
-              "report_user",
-            )({
-              board: "board-report",
-              socketId: "socket-reported-header",
-            });
-          } finally {
-            process.env.WBO_SILENT = previousSilent;
-          }
-        },
-      );
+      getRequiredHandler(
+        reporter.handlers,
+        "report_user",
+      )({
+        board: "board-report",
+        socketId: "socket-reported-header",
+      });
 
-      assert.equal(logged.length, 1);
-      assert.match(getRequiredValue(logged[0]), /198\.51\.100\.30/);
-      assert.match(getRequiredValue(logged[0]), /198\.51\.100\.31/);
-      assert.match(getRequiredValue(logged[0]), /ReporterHeaderAgent\/1\.0/);
-      assert.match(getRequiredValue(logged[0]), /ReportedHeaderAgent\/2\.0/);
-      assert.match(getRequiredValue(logged[0]), /de-DE,de;q=0\.9/);
-      assert.match(getRequiredValue(logged[0]), /es-ES,es;q=0\.8/);
-      assert.doesNotMatch(getRequiredValue(logged[0]), /203\.0\.113\.100/);
-      assert.doesNotMatch(getRequiredValue(logged[0]), /203\.0\.113\.101/);
+      const reportedLog = sockets.__test.getLastUserReportLog();
+      assert.ok(reportedLog);
+      assert.equal(reportedLog.reporter_ip, "198.51.100.30");
+      assert.equal(reportedLog.reported_ip, "198.51.100.31");
+      assert.equal(reportedLog.reporter_user_agent, "ReporterHeaderAgent/1.0");
+      assert.equal(reportedLog.reported_user_agent, "ReportedHeaderAgent/2.0");
+      assert.equal(reportedLog.reporter_language, "de-DE,de;q=0.9");
+      assert.equal(reportedLog.reported_language, "es-ES,es;q=0.8");
+      assert.notEqual(reportedLog.reporter_ip, "203.0.113.100");
+      assert.notEqual(reportedLog.reported_ip, "203.0.113.101");
     },
   );
 });

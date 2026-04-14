@@ -191,15 +191,30 @@ If you experience an issue or want to propose a new feature in WBO, please [open
 ## Monitoring
 
 If you are self-hosting a WBO instance, you may want to monitor its load,
-the number of connected users, and various other metrics.
+the number of connected users, request latency, and board lifecycle events.
 
-You can start WBO with the `STATSD_URL` environment variable to send it to a statsd-compatible
-metrics collection agent.
+WBO now uses OpenTelemetry for metrics and logs on the server side.
+Configure a standard OTLP exporter with the usual `OTEL_*` environment variables.
 
-Example: `docker run -e STATSD_URL=udp://127.0.0.1:8125 lovasoa/wbo`.
+Example:
 
-- If you use **prometheus**, you can collect the metrics with [statsd-exporter](https://hub.docker.com/r/prom/statsd-exporter).
-- If you use **datadog**, you can collect the metrics with [dogstatsd](https://docs.datadoghq.com/developers/dogstatsd).
+```sh
+docker run \
+  -e OTEL_SERVICE_NAME=whitebophir-server \
+  -e OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 \
+  lovasoa/wbo
+```
+
+Common settings:
+
+- `OTEL_SERVICE_NAME`
+- `OTEL_RESOURCE_ATTRIBUTES`
+- `OTEL_EXPORTER_OTLP_ENDPOINT`
+- `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`
+- `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`
+- `OTEL_EXPORTER_OTLP_HEADERS`
+
+If no OTLP endpoint is configured, WBO still emits canonical server log lines to stdout/stderr but does not attempt remote export.
 
 ## Download SVG preview
 

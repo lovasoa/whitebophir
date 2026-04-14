@@ -29,9 +29,17 @@ function withConsole(patch, fn) {
   var previousConsole = global.console;
   global.console = Object.assign({}, previousConsole, patch);
   try {
-    return fn();
+    var result = fn();
+    if (result && typeof result.then === "function") {
+      return result.finally(function () {
+        global.console = previousConsole;
+      });
+    }
+    return result;
   } finally {
-    global.console = previousConsole;
+    if (!global.console || global.console === previousConsole) {
+      global.console = previousConsole;
+    }
   }
 }
 

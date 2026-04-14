@@ -27,7 +27,7 @@
 
 var nativeFs = require("node:fs"),
   { readFile, rename, unlink, writeFile } = require("node:fs/promises"),
-  log = require("./log.js").log,
+  { logger, metrics } = require("./observability.js"),
   MessageToolMetadata = require("../client-data/js/message_tool_metadata.js"),
   {
     normalizeStoredChildPoint,
@@ -483,7 +483,10 @@ class BoardData {
       this.board[newid] = validated.value;
       this.cacheLocalBounds(newid, validated.localBounds);
     } else {
-      log("Copied object does not exist in board.", { object: id });
+      logger.warn("board.copy_missing_source", {
+        board: this.name,
+        object: id,
+      });
       return { ok: false, reason: "copied object does not exist" };
     }
     this.delaySave();
@@ -655,7 +658,9 @@ class BoardData {
       default:
         //Add data
         if (id) return this.set(id, message);
-        console.error("Invalid message: ", message);
+        logger.error("board.message_invalid", {
+          message: message,
+        });
         return { ok: false, reason: "invalid message" };
     }
   }
@@ -704,28 +709,34 @@ class BoardData {
       // empty board
       try {
         await unlink(file);
-        log("removed empty board", { board: this.name });
+        metrics.recordBoardOperation("save", "removed_empty");
       } catch (err) {
         if (errorCode(err) !== "ENOENT") {
           // If the file already wasn't saved, this is not an error
-          log("board deletion error", { err: errorToString(err) });
+          logger.error("board.delete_failed", {
+            board: this.name,
+            error: err,
+          });
+          metrics.recordBoardOperation("save", "error");
         }
       }
     } else {
       try {
         await writeFile(tmp_file, board_txt, { flag: "wx" });
         await rename(tmp_file, file);
-        log("saved board", {
+        logger.info("board.saved", {
           board: this.name,
-          size: board_txt.length,
-          delay_ms: Date.now() - this.lastSaveDate,
+          bytes: board_txt.length,
+          items: Object.keys(this.board).length,
         });
+        metrics.recordBoardOperation("save", "success");
       } catch (err) {
-        log("board saving error", {
+        logger.error("board.save_failed", {
           board: this.name,
-          err: errorToString(err),
+          error: err,
           tmp_file: tmp_file,
         });
+        metrics.recordBoardOperation("save", "error");
         return;
       }
     }
@@ -748,7 +759,7 @@ class BoardData {
         const id = toDestroy[i];
         if (id !== undefined) delete board[id];
       }
-      log("cleaned board", { removed: toDestroy.length, board: this.name });
+      metrics.recordBoardOperation("clean", "success");
     }
   }
 
@@ -788,27 +799,34 @@ class BoardData {
       for (const id of Object.keys(boardData.board)) {
         boardData.normalizeStoredElement(id);
       }
-      log("disk load", { board: boardData.name });
+      metrics.recordBoardOperation("load", "success");
     } catch (e) {
       // If the file doesn't exist, this is not an error
       if (errorCode(e) === "ENOENT") {
-        log("empty board creation", { board: boardData.name });
+        metrics.recordBoardOperation("load", "empty");
       } else {
-        log("board load error", {
+        logger.error("board.load_failed", {
           board: name,
-          error: errorToString(e),
-          stack: errorStack(e),
+          error: e,
         });
+        metrics.recordBoardOperation("load", "error");
       }
       boardData.board = {};
       if (data) {
         // There was an error loading the board, but some data was still read
         var backup = backupFileName(boardData.file);
-        log("Writing the corrupted file to " + backup);
+        logger.warn("board.backup_created", {
+          board: boardData.name,
+          backup_file: backup,
+        });
         try {
           await writeFile(backup, data);
         } catch (err) {
-          log("Error writing " + backup + ": " + errorToString(err));
+          logger.error("board.backup_failed", {
+            board: boardData.name,
+            backup_file: backup,
+            error: err,
+          });
         }
       }
     }
@@ -828,9 +846,9 @@ class BoardData {
       return parseStoredBoard(JSON.parse(data)).metadata;
     } catch (err) {
       if (errorCode(err) !== "ENOENT") {
-        log("board metadata load error", {
+        logger.error("board.metadata_load_failed", {
           board: name,
-          error: errorToString(err),
+          error: err,
         });
       }
       return metadata;

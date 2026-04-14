@@ -60,19 +60,19 @@ module.exports = {
   /** Maximum destructive actions per resolved client IP over the WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS */
   MAX_DESTRUCTIVE_ACTIONS_PER_IP: parseIntegerEnv(
     "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
-    30,
+    120,
   ),
 
   /** Duration after which the destructive per-IP count is reset in milliseconds */
   MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS: parseIntegerEnv(
     "WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS",
-    10 * 1000,
+    60 * 1000,
   ),
 
   /** Maximum constructive actions per resolved client IP over the WBO_MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS */
   MAX_CONSTRUCTIVE_ACTIONS_PER_IP: parseIntegerEnv(
     "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
-    50,
+    25,
   ),
 
   /** Duration after which the constructive per-IP count is reset in milliseconds */
@@ -104,12 +104,6 @@ module.exports = {
   /** Automatically switch to White-out on finger touch after drawing
       with Pencil using a stylus. Only supported on iPad with Apple Pencil. */
   AUTO_FINGER_WHITEOUT: process.env["AUTO_FINGER_WHITEOUT"] !== "disabled",
-
-  /** If this variable is set, it should point to a statsd listener that will
-   * receive WBO's monitoring information.
-   * example: udp://127.0.0.1
-   */
-  STATSD_URL: process.env["STATSD_URL"],
 
   /** Secret key for jwt */
   AUTH_SECRET_KEY: process.env["AUTH_SECRET_KEY"] || "",
