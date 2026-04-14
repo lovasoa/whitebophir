@@ -100,10 +100,4 @@ const boardMessageReplay = {
   shouldBufferLiveMessage: shouldBufferLiveMessage,
   shouldReplayChildrenIndividually: shouldReplayChildrenIndividually,
 };
-
-var root = /** @type {typeof globalThis & {
-    WBOBoardMessageReplay?: typeof boardMessageReplay,
-  }} */ (typeof globalThis === "object" ? globalThis : window);
-
-root.WBOBoardMessageReplay = boardMessageReplay;
 export default boardMessageReplay;

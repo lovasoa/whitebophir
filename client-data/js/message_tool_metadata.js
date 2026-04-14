@@ -144,10 +144,4 @@ const messageToolMetadata = {
   getUpdatableFieldNames,
   getUpdatableFields,
 };
-
-var root = /** @type {typeof globalThis & {
-    WBOMessageToolMetadata?: typeof messageToolMetadata,
-  }} */ (typeof globalThis !== "undefined" ? globalThis : this);
-
-root.WBOMessageToolMetadata = messageToolMetadata;
 export default messageToolMetadata;
