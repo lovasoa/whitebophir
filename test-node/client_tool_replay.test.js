@@ -61,10 +61,20 @@ const TOOL_PATHS = {
   Hand: path.join(__dirname, "..", "client-data", "tools", "hand", "hand.js"),
 };
 
-/** @param {string} modulePath */
-function clearModule(modulePath) {
-  delete require.cache[require.resolve(modulePath)];
-}
+const TOOL_REGISTRARS = /** @type {{ [name: string]: string }} */ ({
+  Pencil: "registerPencilTool",
+  "Straight line": "registerLineTool",
+  Rectangle: "registerRectTool",
+  Ellipse: "registerEllipseTool",
+  Text: "registerTextTool",
+  Hand: "registerHandTool",
+  Cursor: "registerCursorTool",
+  Clear: "registerClearTool",
+  Eraser: "registerEraserTool",
+  Grid: "registerGridTool",
+  Download: "registerDownloadTool",
+  Zoom: "registerZoomTool",
+});
 
 /**
  * @param {PathSegment[]} pathData
@@ -507,16 +517,16 @@ function createHarness() {
     loadTool: async function (toolName) {
       const toolPaths = /** @type {{ [name: string]: string }} */ (TOOL_PATHS);
       const toolPath = /** @type {string} */ (toolPaths[toolName]);
-      if (
-        toolPath === TOOL_PATHS.Pencil ||
-        toolPath === TOOL_PATHS.Text ||
-        toolPath === TOOL_PATHS.Hand
-      ) {
-        const toolUrl = `${pathToFileURL(toolPath).href}?cache-bust=${++dynamicLoadSequence}`;
-        await import(toolUrl);
-      } else {
-        clearModule(toolPath);
-        require(toolPath);
+      const toolUrl = `${pathToFileURL(toolPath).href}?cache-bust=${++dynamicLoadSequence}`;
+      const moduleNamespace = await import(toolUrl);
+      const registerName = /** @type {string | undefined} */ (
+        TOOL_REGISTRARS[toolName]
+      );
+      const register = registerName
+        ? /** @type {unknown} */ (moduleNamespace[registerName])
+        : undefined;
+      if (typeof register === "function") {
+        register(globalAny.Tools);
       }
       return tools[toolName];
     },
