@@ -270,12 +270,27 @@ class BoardData {
     const obj = this.board[id];
     if (typeof obj !== "object") return false;
 
-    const candidate = Object.assign({}, obj, updateData);
+    const candidate = this.makeUpdateCandidate(id, obj, updateData);
+    if (!candidate) return false;
+
+    return !this.isCandidateTooLarge(candidate.value, candidate.localBounds);
+  }
+
+  /**
+   * @param {string} id
+   * @param {BoardElem} base
+   * @param {BoardElem} updateData
+   * @returns {{value: BoardElem, localBounds: Bounds | null} | null}
+   */
+  makeUpdateCandidate(id, base, updateData) {
+    if (typeof base !== "object") return null;
+
+    const candidate = Object.assign({}, base, updateData);
     const localBounds =
-      obj.tool === "Pencil" && updateData.transform !== undefined
-        ? this.getLocalBounds(id, obj)
+      base.tool === "Pencil" && updateData.transform !== undefined
+        ? this.getLocalBounds(id, base)
         : MessageCommon.getLocalGeometryBounds(candidate);
-    return !this.isCandidateTooLarge(candidate, localBounds);
+    return { value: candidate, localBounds };
   }
 
   /**
@@ -519,11 +534,14 @@ class BoardData {
           if (typeof current !== "object")
             return { ok: false, reason: "object not found" };
           const updateData = filterUpdatableFields(message.tool, message);
-          const candidate = Object.assign({}, current, updateData);
-          const localBounds =
-            current.tool === "Pencil" && updateData.transform !== undefined
-              ? MessageCommon.getLocalGeometryBounds(current)
-              : MessageCommon.getLocalGeometryBounds(candidate);
+          const candidateData = this.makeUpdateCandidate(
+            id,
+            current,
+            updateData,
+          );
+          if (!candidateData) return { ok: false, reason: "object not found" };
+          const candidate = candidateData.value;
+          const localBounds = candidateData.localBounds;
           if (this.isCandidateTooLarge(candidate, localBounds))
             return { ok: false, reason: "shape too large" };
           shadowItems.set(id, candidate);
