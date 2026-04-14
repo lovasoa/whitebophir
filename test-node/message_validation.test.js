@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { MESSAGE_VALIDATION_PATH, withEnv } = require("./test_helpers.js");
+const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 
 test("normalizeIncomingMessage supports every live tool/type pair", function () {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
@@ -138,6 +139,50 @@ test("normalizeIncomingMessage supports every live tool/type pair", function () 
         assert.equal(normalized.value.tool, "Text");
       }
     }
+  }
+});
+
+test("metadata shape tools are all supported by incoming and stored validation", function () {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const shapeTools = MessageToolMetadata.SHAPE_TOOL_TYPES;
+  const shapeToolNames = Object.keys(shapeTools);
+  for (let index = 0; index < shapeToolNames.length; index++) {
+    const toolName = shapeToolNames[index];
+    const typeName = shapeTools[toolName];
+    const id = "shape-" + index;
+    const normalizedIncoming = messageValidation.normalizeIncomingMessage({
+      tool: toolName,
+      type: typeName,
+      id,
+      color: "#123456",
+      size: 4,
+      x: 1,
+      y: 2,
+    });
+    assert.equal(normalizedIncoming.ok, true);
+
+    const normalizedUpdate = messageValidation.normalizeIncomingMessage({
+      tool: toolName,
+      type: "update",
+      id,
+      x: 3,
+      y: 4,
+      x2: 12,
+      y2: 18,
+    });
+    assert.equal(normalizedUpdate.ok, true);
+
+    const normalizedStored = messageValidation.normalizeStoredItem(
+      {
+        tool: toolName,
+        color: "#123456",
+        size: 4,
+        x: 10,
+        y: 20,
+      },
+      "stored-" + index,
+    );
+    assert.equal(normalizedStored.ok, true);
   }
 });
 
