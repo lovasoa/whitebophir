@@ -24,41 +24,53 @@
  * @licend
  */
 
-(function clear() {
-  //Code isolation
-  /** @typedef {{type: "clear", id: string, token?: string | null}} ClearMessage */
+/** @typedef {{type: "clear", id: string, token?: string | null}} ClearMessage */
+/** @typedef {{list: {[name: string]: any}, drawAndSend: (message: ClearMessage, tool: any) => void, token?: string | null, drawingArea: HTMLElement | null, add: (tool: any) => void}} ClearToolRegistry */
 
-  function clearBoard() {
-    /** @type {ClearMessage} */
-    var msg = {
-      type: "clear",
-      id: "",
-      token: Tools.token,
-    };
-    var clearTool = Tools.list["Clear"];
-    if (!clearTool) {
-      throw new Error("Clear: tool is not registered.");
-    }
-    Tools.drawAndSend(msg, clearTool);
+/** @param {ClearToolRegistry} tools */
+function clearBoard(tools) {
+  /** @type {ClearMessage} */
+  var msg = {
+    type: "clear",
+    id: "",
+    token: tools.token,
+  };
+  var clearTool = tools.list["Clear"];
+  if (!clearTool) {
+    throw new Error("Clear: tool is not registered.");
   }
+  tools.drawAndSend(msg, clearTool);
+}
 
-  /** @param {ClearMessage | {type?: string}} data */
-  function draw(data) {
-    if (!Tools.drawingArea) {
-      throw new Error("Clear: Missing drawing area.");
-    }
-    Tools.drawingArea.innerHTML = "";
+/** @param {ClearToolRegistry} tools */
+function draw(tools) {
+  if (!tools.drawingArea) {
+    throw new Error("Clear: Missing drawing area.");
   }
+  tools.drawingArea.innerHTML = "";
+}
 
-  Tools.add({
+/** @param {ClearToolRegistry} tools */
+export function registerClearTool(tools) {
+  tools.add({
     //The new tool
     name: "Clear",
     shortcut: "c",
     listeners: {},
     icon: "tools/clear/clear.svg",
     oneTouch: true,
-    onstart: clearBoard,
-    draw: draw,
+    onstart: function () {
+      clearBoard(tools);
+    },
+    draw: function () {
+      draw(tools);
+    },
     mouseCursor: "crosshair",
   });
-})(); //End of code isolation
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerClearTool(
+    /** @type {ClearToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
+  );
+}
