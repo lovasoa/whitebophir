@@ -24,11 +24,12 @@
  * @licend
  */
 
-(function eraser() {
-  //Code isolation
-  /** @typedef {{type: "delete", id: string}} EraserMessage */
-  /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
+/** @typedef {{type: "delete", id: string}} EraserMessage */
+/** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
+/** @typedef {{svg: SVGSVGElement | null, drawingArea: Element | null, drawAndSend: (message: EraserMessage) => void, add: (tool: unknown) => void}} EraserToolRegistry */
 
+/** @param {EraserToolRegistry} tools */
+export function registerEraserTool(tools) {
   var erasing = false;
 
   /**
@@ -65,9 +66,9 @@
    */
   function inDrawingArea(elem) {
     return !!(
-      Tools.drawingArea &&
+      tools.drawingArea &&
       isElement(elem) &&
-      Tools.drawingArea.contains(elem)
+      tools.drawingArea.contains(elem)
     );
   }
 
@@ -96,8 +97,9 @@
     var target = resolveTarget(evt);
     if (
       erasing &&
-      target !== Tools.svg &&
-      target !== Tools.drawingArea &&
+      target !== null &&
+      target !== tools.svg &&
+      target !== tools.drawingArea &&
       isErasableElement(target) &&
       inDrawingArea(target)
     ) {
@@ -106,7 +108,7 @@
         type: "delete",
         id: target.id,
       };
-      Tools.drawAndSend(msg);
+      tools.drawAndSend(msg);
     }
   }
 
@@ -124,15 +126,18 @@
           console.error("Eraser: Missing id for delete message.", data);
           break;
         }
-        elem = svg.getElementById(data.id);
-        if (elem === null)
+        if (!tools.svg) {
+          throw new Error("Eraser: Missing SVG canvas.");
+        }
+        elem = tools.svg.getElementById(data.id);
+        if (elem === null) {
           console.error(
             "Eraser: Tried to delete an element that does not exist.",
           );
-        else if (!Tools.drawingArea) {
+        } else if (!tools.drawingArea) {
           throw new Error("Eraser: Missing drawing area.");
         } else {
-          Tools.drawingArea.removeChild(elem);
+          tools.drawingArea.removeChild(elem);
         }
         break;
       default:
@@ -141,9 +146,7 @@
     }
   }
 
-  var svg = Tools.svg;
-
-  Tools.add({
+  tools.add({
     //The new tool
     name: "Eraser",
     shortcut: "e",
@@ -157,4 +160,10 @@
     mouseCursor: "crosshair",
     showMarker: true,
   });
-})(); //End of code isolation
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerEraserTool(
+    /** @type {EraserToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
+  );
+}
