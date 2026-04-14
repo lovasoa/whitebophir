@@ -21,7 +21,12 @@ function disableSaves(board) {
   return board;
 }
 
+/**
+ * @param {{board: { [id: string]: { [key: string]: any } }}} board
+ * @returns {{ [id: string]: { [key: string]: any } }}
+ */
 function normalizeBoardSnapshot(board) {
+  /** @type {{ [id: string]: { [key: string]: any } }} */
   const snapshot = {};
   for (const [id, item] of Object.entries(board.board)) {
     const copy = Object.assign({}, item);

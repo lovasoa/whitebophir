@@ -145,10 +145,13 @@ test("normalizeIncomingMessage supports every live tool/type pair", function () 
 test("metadata shape tools are all supported by incoming and stored validation", function () {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const shapeTools = MessageToolMetadata.SHAPE_TOOL_TYPES;
-  const shapeToolNames = Object.keys(shapeTools);
-  for (let index = 0; index < shapeToolNames.length; index++) {
-    const toolName = shapeToolNames[index];
-    const typeName = shapeTools[toolName];
+  const shapeEntries = Object.entries(shapeTools);
+  for (let index = 0; index < shapeEntries.length; index++) {
+    const entry = shapeEntries[index];
+    if (!entry) continue;
+    const [toolName, typeNameMaybe] = entry;
+    if (typeof typeNameMaybe !== "string") continue;
+    const typeName = typeNameMaybe;
     const id = "shape-" + index;
     const normalizedIncoming = messageValidation.normalizeIncomingMessage({
       tool: toolName,

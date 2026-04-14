@@ -37,21 +37,26 @@
   TOOL_UPDATE_FIELDS["Clear"] = [];
 
   /**
-   * @param {string} toolName
+   * @param {string | undefined} toolName
    * @returns {string[]}
    */
   function getUpdatableFieldNames(toolName) {
-    return Object.prototype.hasOwnProperty.call(TOOL_UPDATE_FIELDS, toolName)
-      ? TOOL_UPDATE_FIELDS[toolName]
-      : [];
+    if (typeof toolName !== "string") return [];
+    if (Object.prototype.hasOwnProperty.call(TOOL_UPDATE_FIELDS, toolName)) {
+      return TOOL_UPDATE_FIELDS[toolName] || [];
+    }
+    return [];
   }
 
   /**
-   * @param {string} toolName
+   * @param {string | undefined} toolName
    * @returns {boolean}
    */
   function isShapeTool(toolName) {
-    return Object.prototype.hasOwnProperty.call(SHAPE_TOOL_TYPES, toolName);
+    return (
+      typeof toolName === "string" &&
+      Object.prototype.hasOwnProperty.call(SHAPE_TOOL_TYPES, toolName)
+    );
   }
 
   /**
@@ -67,15 +72,17 @@
   }
 
   /**
-   * @param {string} toolName
+   * @param {string | undefined} toolName
    * @param {{[key: string]: any}} data
    * @returns {{[key: string]: any}}
    */
   function getUpdatableFields(toolName, data) {
+    /** @type {{[key: string]: any}} */
     const updatable = {};
     var fields = getUpdatableFieldNames(toolName);
     for (var index = 0; index < fields.length; index++) {
       var field = fields[index];
+      if (typeof field !== "string") continue;
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         updatable[field] = data[field];
       }

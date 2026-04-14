@@ -19,7 +19,7 @@ installTestConsole();
  *   appendItem(transform: TransformEntry): TransformEntry,
  * }} TransformList
  * @typedef {{set(id: string, element: any): void, get(id: string): any, delete(id: string): void}} ElementStore
- * @typedef {{elementsById: Map<string, any>, clock: {now: number}, windowListeners: Map<string, Function>, loadTool(toolName: keyof typeof TOOL_PATHS): any}} ReplayHarness
+ * @typedef {{elementsById: Map<string, any>, clock: {now: number}, windowListeners: Map<string, Function>, loadTool(toolName: string): any}} ReplayHarness
  */
 
 const globalAny = /** @type {any} */ (global);
@@ -518,12 +518,14 @@ function createHarness() {
     clock: clock,
     windowListeners: windowListeners,
     loadTool: function (toolName) {
-      clearModule(TOOL_PATHS[toolName]);
+      const toolPaths = /** @type {{ [name: string]: string }} */ (TOOL_PATHS);
+      const toolPath = /** @type {string} */ (toolPaths[toolName]);
+      clearModule(toolPath);
       if (toolName === "Pencil") {
         clearModule(PENCIL_POINT_PATH);
         globalAny.wboPencilPoint = require(PENCIL_POINT_PATH).wboPencilPoint;
       }
-      require(TOOL_PATHS[toolName]);
+      require(toolPath);
       return tools[toolName];
     },
   };

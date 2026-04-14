@@ -1,4 +1,31 @@
 (function (root, factory) {
+  /**
+   * @typedef {{
+   *   DRAW_TOOL_NAMES: string[],
+   *   LIMITS: Record<string, number>,
+   *   applyTransformToBounds: Function,
+   *   clampOpacity: Function,
+   *   clampCoord: Function,
+   *   clampSize: Function,
+   *   extendBoundsWithPoint: Function,
+   *   getEffectiveGeometryBounds: Function,
+   *   getLocalGeometryBounds: Function,
+   *   getMaxShapeSpan: Function,
+   *   getPencilBounds: Function,
+   *   isFiniteTransformNumber: Function,
+   *   isBoundsTooLarge: Function,
+   *   isDrawTool: Function,
+   *   isDrawToolAllowedAtScale: Function,
+   *   isGeometryTooLarge: Function,
+   *   normalizeColor: Function,
+   *   normalizeFiniteNumber: Function,
+   *   normalizeId: Function,
+   *   resolveMaxBoardSize: Function,
+   *   truncateText: Function,
+   *   requiresTurnstile: Function,
+   * }} MessageCommonApi
+   */
+  /** @type {MessageCommonApi} */
   var api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
   /** @type {any} */ (root).WBOMessageCommon = api;
@@ -35,11 +62,16 @@
     DEFAULT_MAX_CHILDREN: 192,
     MAX_ID_LENGTH: 128,
   };
+  /** @typedef {{DRAW_TOOL_NAMES: string[], isShapeTool: (toolName?: string | undefined) => boolean}} MessageToolMetadataApi */
+  /** @type {MessageToolMetadataApi | null} */
   var MessageToolMetadata =
     typeof module === "object" &&
     module.exports &&
-    typeof require === "function" &&
-    require("./message_tool_metadata.js");
+    typeof require === "function"
+      ? /** @type {MessageToolMetadataApi} */ (
+          require("./message_tool_metadata.js")
+        )
+      : null;
   var isShapeTool =
     MessageToolMetadata && typeof MessageToolMetadata.isShapeTool === "function"
       ? MessageToolMetadata.isShapeTool

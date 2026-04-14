@@ -22,7 +22,8 @@ const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js"
  * }} FieldSpec
  */
 /** @typedef {{[key: string]: FieldSpec}} FieldSchema */
-/** @typedef {{[tool: string]: {[type: string]: FieldSchema}}} ToolSchemas */
+/** @typedef {{[tool: string]: {[type: string]: FieldSchema}}} LiveToolSchemas */
+/** @typedef {{[tool: string]: FieldSchema}} StoredToolSchemas */
 
 /** @type {string[]} */
 const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
@@ -223,6 +224,9 @@ function defaultCoordinateFromY(raw, normalized) {
  */
 function makeLiveShapeCreateSchema(toolName) {
   const type = MessageToolMetadata.SHAPE_TOOL_TYPES[toolName];
+  if (type === undefined) {
+    throw new Error("unsupported shape tool");
+  }
   return {
     tool: required(literal(toolName)),
     type: required(literal(type)),
@@ -255,7 +259,9 @@ function makeLiveShapeUpdateSchema(toolName) {
 
   const fields = MessageToolMetadata.getUpdatableFieldNames(toolName);
   for (let i = 0; i < fields.length; i++) {
-    schema[fields[i]] = required(normalizeCoord);
+    const field = fields[i];
+    if (field === undefined) continue;
+    schema[field] = required(normalizeCoord);
   }
 
   return schema;
@@ -267,6 +273,9 @@ function makeLiveShapeUpdateSchema(toolName) {
  */
 function makeStoredShapeSchema(toolName) {
   const type = MessageToolMetadata.SHAPE_TOOL_TYPES[toolName];
+  if (type === undefined) {
+    throw new Error("unsupported shape tool");
+  }
   return {
     tool: required(literal(toolName)),
     type: optional(literal(type), { defaultValue: type }),
@@ -287,14 +296,16 @@ function makeStoredShapeSchema(toolName) {
 }
 
 /**
- * @returns {ToolSchemas}
+ * @returns {LiveToolSchemas}
  */
 function buildLiveShapeSchemas() {
-  /** @type {ToolSchemas} */
+  /** @type {LiveToolSchemas} */
   const shapeSchemas = {};
-  for (const [toolName, typeName] of Object.entries(
+  for (const [toolName, typeNameMaybe] of Object.entries(
     MessageToolMetadata.SHAPE_TOOL_TYPES,
   )) {
+    const typeName = typeNameMaybe;
+    if (typeName === undefined) continue;
     shapeSchemas[toolName] = {
       /** @type {FieldSchema} */
       [typeName]: makeLiveShapeCreateSchema(toolName),
@@ -305,10 +316,10 @@ function buildLiveShapeSchemas() {
 }
 
 /**
- * @returns {ToolSchemas}
+ * @returns {StoredToolSchemas}
  */
 function buildStoredShapeSchemas() {
-  /** @type {ToolSchemas} */
+  /** @type {StoredToolSchemas} */
   const shapeSchemas = {};
   for (const toolName of Object.keys(MessageToolMetadata.SHAPE_TOOL_TYPES)) {
     shapeSchemas[toolName] = makeStoredShapeSchema(toolName);
@@ -316,7 +327,7 @@ function buildStoredShapeSchemas() {
   return shapeSchemas;
 }
 
-/** @type {ToolSchemas} */
+/** @type {LiveToolSchemas} */
 const LIVE_MESSAGE_SCHEMAS = {
   Pencil: {
     line: {
@@ -379,7 +390,7 @@ const LIVE_MESSAGE_SCHEMAS = {
   ...buildLiveShapeSchemas(),
 };
 
-/** @type {ToolSchemas} */
+/** @type {{[tool: string]: {[type: string]: FieldSchema}}} */
 const LIVE_BATCH_CHILD_SCHEMAS = {
   Hand: {
     update: {
@@ -444,6 +455,7 @@ function normalizeIncomingBatch(raw) {
   for (let index = 0; index < raw._children.length; index++) {
     const child = raw._children[index];
     const type = child && child.type;
+    if (typeof type !== "string") return rejected("_children[" + index + "]");
     const schema = childSchemas[type];
     if (!schema) {
       return rejected("_children[" + index + "]: invalid type");
