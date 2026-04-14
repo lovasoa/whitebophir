@@ -803,6 +803,82 @@ test("Straight line update recreates a missing line before applying endpoints", 
   assert.equal(line.y2.baseVal.value, 400);
 });
 
+[
+  {
+    tool: "Straight line",
+    updateMessage: {
+      tool: "Straight line",
+      type: "update",
+      id: "line-1",
+      x2: 300,
+      y2: 400,
+    },
+    assertElement: function (
+      /** @type {{x1: any, y1: any, x2: any, y2: any}} */ element,
+    ) {
+      assert.equal(element.x1.baseVal.value, 300);
+      assert.equal(element.y1.baseVal.value, 400);
+      assert.equal(element.x2.baseVal.value, 300);
+      assert.equal(element.y2.baseVal.value, 400);
+    },
+  },
+  {
+    tool: "Rectangle",
+    updateMessage: {
+      tool: "Rectangle",
+      type: "update",
+      id: "rect-1",
+      x: 60,
+      y: 30,
+      x2: 120,
+      y2: 90,
+    },
+    assertElement: function (
+      /** @type {{x: any, y: any, width: any, height: any}} */ element,
+    ) {
+      assert.equal(element.x.baseVal.value, 60);
+      assert.equal(element.y.baseVal.value, 30);
+      assert.equal(element.width.baseVal.value, 60);
+      assert.equal(element.height.baseVal.value, 60);
+    },
+  },
+  {
+    tool: "Ellipse",
+    updateMessage: {
+      tool: "Ellipse",
+      type: "update",
+      id: "ellipse-1",
+      x: 0,
+      y: 30,
+      x2: 60,
+      y2: 90,
+    },
+    assertElement: function (
+      /** @type {{cx: any, cy: any, rx: any, ry: any}} */ element,
+    ) {
+      assert.equal(element.cx.baseVal.value, 30);
+      assert.equal(element.cy.baseVal.value, 60);
+      assert.equal(element.rx.baseVal.value, 30);
+      assert.equal(element.ry.baseVal.value, 30);
+    },
+  },
+].forEach(function (caseDef) {
+  test(
+    caseDef.tool + " update recreates a missing shape before applying updates",
+    function () {
+      const harness = createHarness();
+      const tool = harness.loadTool(caseDef.tool);
+
+      tool.draw(/** @type {any} */ (caseDef.updateMessage));
+
+      const element = harness.elementsById.get(
+        /** @type {any} */ (caseDef.updateMessage.id),
+      );
+      caseDef.assertElement(element);
+    },
+  );
+});
+
 test("Rectangle replay normalizes reverse-drag bounds on a reused node", function () {
   const harness = createHarness();
   const rectangleTool = harness.loadTool("Rectangle");

@@ -21,6 +21,98 @@ function disableSaves(board) {
   return board;
 }
 
+function normalizeBoardSnapshot(board) {
+  const snapshot = {};
+  for (const [id, item] of Object.entries(board.board)) {
+    const copy = Object.assign({}, item);
+    delete copy.time;
+    snapshot[id] = copy;
+  }
+  return snapshot;
+}
+
+test("BoardData processMessageBatch and per-message processing stay in sync", function () {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const single = disableSaves(new BoardData("process-sequence-single"));
+  const batch = disableSaves(new BoardData("process-sequence-batch"));
+
+  const messages = [
+    {
+      tool: "Pencil",
+      type: "line",
+      id: "p-1",
+      color: "#123456",
+      size: 4,
+    },
+    {
+      tool: "Pencil",
+      type: "child",
+      parent: "p-1",
+      x: 10,
+      y: 20,
+    },
+    {
+      tool: "Rectangle",
+      type: "rect",
+      id: "r-1",
+      color: "#123456",
+      size: 4,
+      x: 2,
+      y: 3,
+      x2: 10,
+      y2: 20,
+    },
+    {
+      tool: "Rectangle",
+      type: "update",
+      id: "r-1",
+      x: 5,
+      y: 6,
+      x2: 12,
+      y2: 18,
+    },
+    {
+      tool: "Hand",
+      type: "update",
+      id: "r-1",
+      transform: { a: 1, b: 0, c: 0, d: 1, e: 10, f: 20 },
+    },
+    {
+      tool: "Hand",
+      type: "copy",
+      id: "r-1",
+      newid: "r-2",
+    },
+    {
+      tool: "Hand",
+      type: "delete",
+      id: "r-2",
+    },
+    {
+      tool: "Hand",
+      type: "update",
+      id: "r-1",
+      transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
+    },
+    {
+      tool: "Eraser",
+      type: "delete",
+      id: "p-1",
+    },
+  ];
+
+  for (const message of messages) {
+    const result = single.processMessage(/** @type {any} */ (message));
+    assert.equal(result.ok, true);
+  }
+  assert.equal(batch.processMessageBatch(messages).ok, true);
+
+  assert.deepEqual(
+    normalizeBoardSnapshot(single),
+    normalizeBoardSnapshot(batch),
+  );
+});
+
 test("BoardData replays batch updates, copies, and deletes consistently", function () {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("replay-board"));
