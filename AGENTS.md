@@ -24,7 +24,7 @@
 Run these before opening a PR:
 
 - Focused Node suite: `node --test test-node/*.test.js`
-- Focused browser suite: `npm run test:pw -- --project=chromium playwright/tests/<file>.spec.ts`
+- Focused browser suite: `npx playwright test playwright/tests/<file>.spec.ts`
 - Server benchmark: `npm run bench`
   Run this before and after a change when you suspect it may have a performance impact.
 - Full local suite: `npm test`: This runs the Node tests, then the Playwright browser tests, then `prettier-check`.
