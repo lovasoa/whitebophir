@@ -101,6 +101,7 @@ export type ServerConfig = {
   TURNSTILE_VALIDATION_WINDOW_MS?: number | string;
   BLOCKED_TOOLS?: string[];
   BLOCKED_SELECTION_BUTTONS?: number[] | string[];
+  MAX_CHILDREN?: number;
   MAX_BOARD_SIZE?: number;
   MAX_EMIT_COUNT?: number;
   MAX_EMIT_COUNT_PERIOD?: number;
