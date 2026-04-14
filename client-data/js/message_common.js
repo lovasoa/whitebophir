@@ -38,7 +38,7 @@
   var MessageToolMetadata =
     typeof module === "object" &&
     module.exports &&
-    module.require &&
+    typeof require === "function" &&
     require("./message_tool_metadata.js");
   var DRAW_TOOL_NAMES =
     MessageToolMetadata && MessageToolMetadata.DRAW_TOOL_NAMES

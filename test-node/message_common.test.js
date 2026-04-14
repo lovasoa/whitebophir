@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const MessageCommon = require("../client-data/js/message_common.js");
+const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 
 test("shared giant-shape policy exposes the draw zoom threshold", function () {
   assert.equal(MessageCommon.getMaxShapeSpan(), 3200);
@@ -40,6 +41,21 @@ test("shared geometry helpers grow pencil bounds incrementally", function () {
     maxX: 100,
     maxY: 25,
   });
+});
+
+test("DRAW_TOOL_NAMES comes from shared metadata", function () {
+  const metadataTools = MessageToolMetadata.DRAW_TOOL_NAMES;
+  const injectedTool = "__metadata_probe_tool__";
+  metadataTools.push(injectedTool);
+
+  try {
+    assert.deepEqual(
+      MessageCommon.DRAW_TOOL_NAMES,
+      MessageToolMetadata.DRAW_TOOL_NAMES,
+    );
+  } finally {
+    metadataTools.pop();
+  }
 });
 
 test("getLocalGeometryBounds measures text", function () {
