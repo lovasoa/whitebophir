@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{language}}">
+<html lang="{{language}}" data-version="{{version}}"{{#moderator}} data-moderator="true"{{/moderator}}>
 
 <head>
 	<meta charset="utf-8" />
@@ -96,31 +96,7 @@
 	<script type="application/json" id="translations">{{{ json translations }}}</script>
 	<script type="application/json" id="configuration">{{{ json configuration }}}</script>
 	<script type="application/json" id="board-state">{{{ json boardState }}}</script>
-	<script src="../js/path-data-polyfill.js"></script>
-	<script src="../js/shared_module_resolver.js?v={{version}}"></script>
-	<script src="../js/message_tool_metadata.js?v={{version}}"></script>
-	<script src="../js/message_common.js?v={{version}}"></script>
-	<script src="../js/rate_limit_common.js?v={{version}}"></script>
-	<script src="../js/board_page_state.js?v={{version}}"></script>
-	<script src="../js/board_transport.js?v={{version}}"></script>
-	<script src="../js/board_message_replay.js?v={{version}}"></script>
-	<script src="../js/minitpl.js"></script>
-	<script src="../js/intersect.js"></script>
-	<script src="../js/board.js?v={{version}}"></script>
-	<script src="../tools/pencil/wbo_pencil_point.js?v={{version}}"></script>
-	<script src="../tools/pencil/pencil.js?v={{version}}"></script>
-	<script src="../tools/cursor/cursor.js?v={{version}}"></script>
-	<script src="../tools/line/line.js?v={{version}}"></script>
-	<script src="../tools/rect/rect.js?v={{version}}"></script>
-	<script src="../tools/ellipse/ellipse.js?v={{version}}"></script>
-	<script src="../tools/text/text.js?v={{version}}"></script>
-	<script src="../tools/eraser/eraser.js?v={{version}}"></script>
-	<script src="../tools/hand/hand.js?v={{version}}"></script>
-	<script src="../tools/grid/grid.js?v={{version}}"></script>
-	<script src="../tools/download/download.js?v={{version}}"></script>
-	<script src="../tools/zoom/zoom.js?v={{version}}"></script>
-	{{#moderator}}<script src="../tools/clear/clear.js?v={{version}}"></script>{{/moderator}}
-	<script src="../js/canvascolor.js?v={{version}}"></script>
+	<script type="module" src="../js/board_main.js?v={{version}}"></script>
 </body>
 
 </html>

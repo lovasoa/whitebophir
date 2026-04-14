@@ -196,4 +196,8 @@ if (
   })();
   var pointInTransformedBBox = transformedBBoxHelpers[0];
   var transformedBBoxIntersects = transformedBBoxHelpers[1];
+  /** @type {any} */ (globalThis).pointInTransformedBBox =
+    pointInTransformedBBox;
+  /** @type {any} */ (globalThis).transformedBBoxIntersects =
+    transformedBBoxIntersects;
 }

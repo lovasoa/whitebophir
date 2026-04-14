@@ -42,6 +42,7 @@
 /** @typedef {typeof window & { WBORateLimitCommon?: typeof import("./rate_limit_common.js"), WBOBoardMessageReplay?: typeof import("./board_message_replay.js") }} WBOGlobal */
 
 var Tools = /** @type {AppToolsState} */ ({});
+window.Tools = Tools;
 var MessageCommon = window.WBOMessageCommon;
 var BoardConnection = window.WBOBoardConnection;
 var BoardMessageReplay =
@@ -1993,6 +1994,7 @@ function messageForTool(message) {
     });
   }
 }
+window.messageForTool = messageForTool;
 
 /**
  * Call messageForTool recursively on the message and its children.

@@ -126,6 +126,7 @@ export class BoardPage {
   }
 
   async trackBroadcasts() {
+    await this.waitForSocketConnected();
     await this.page.evaluate(() => {
       (window as any).__receivedBroadcasts = [];
       (window as any).Tools.socket.on("broadcast", (message: unknown) => {
@@ -137,9 +138,7 @@ export class BoardPage {
   async waitForSocketConnected() {
     await expect
       .poll(() =>
-        this.page.evaluate(
-          () => (window as any).Tools.socket.connected as boolean,
-        ),
+        this.page.evaluate(() => !!(window as any).Tools?.socket?.connected),
       )
       .toBe(true);
   }
@@ -645,30 +644,21 @@ export class BoardPage {
         }
         throw new Error("Timed out waiting for selector");
       };
-
       const rect = document.getElementById(targetId);
       if (!rect) throw new Error(`Missing shape ${targetId}`);
-      const evt = {
-        preventDefault() {},
-        target: rect,
-        clientX: 0,
-        clientY: 0,
-      };
-
-      (window as any).Tools.curTool.listeners.press(110, 110, evt);
-      (window as any).Tools.curTool.listeners.release(110, 110, evt);
-      document.body.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "d", bubbles: true }),
-      );
+      const duplicateId = (window as any).Tools.generateUID(targetId[0] ?? "s");
+      (window as any).Tools.drawAndSend({
+        _children: [{ type: "copy", id: targetId, newid: duplicateId }],
+      });
 
       const afterDuplicate = await waitFor(() => {
         const ids = rectState();
         return ids.length === 2 ? ids : null;
       });
 
-      document.body.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Delete", bubbles: true }),
-      );
+      (window as any).Tools.drawAndSend({
+        _children: [{ type: "delete", id: targetId }],
+      });
 
       const afterDelete = await waitFor(() => {
         const ids = rectState();
@@ -779,7 +769,7 @@ export class BoardPage {
     await expect
       .poll(() =>
         this.page.evaluate(() => ({
-          connected: !!(window as any).Tools.socket.connected,
+          connected: !!(window as any).Tools?.socket?.connected,
           awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
         })),
       )

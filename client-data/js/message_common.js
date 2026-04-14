@@ -29,6 +29,7 @@
   var api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
   /** @type {any} */ (root).WBOMessageCommon = api;
+  /** @type {any} */ (root).MessageCommon = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, () => {
   /**
    * @typedef {{ minX: number, minY: number, maxX: number, maxY: number }} Bounds

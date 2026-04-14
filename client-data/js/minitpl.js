@@ -90,3 +90,5 @@ var Minitpl = (function () {
 
   return Minitpl;
 })();
+
+window.Minitpl = Minitpl;
