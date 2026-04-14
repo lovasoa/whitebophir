@@ -48,6 +48,14 @@ export class BoardPage {
     return this.page.locator("#connectedUsersList .connected-user-row");
   }
 
+  get statusIndicator() {
+    return this.page.locator("#boardStatusIndicator");
+  }
+
+  get statusNotice() {
+    return this.page.locator("#boardStatusNotice");
+  }
+
   buildBoardUrl(boardName: string, options: BoardUrlOptions = {}) {
     const query = new URLSearchParams();
     query.set("lang", options.lang ?? "en");
@@ -750,6 +758,40 @@ export class BoardPage {
       });
 
       return reconnect;
+    });
+  }
+
+  async readWriteStatus() {
+    return this.page.evaluate(() => {
+      const indicator = document.getElementById("boardStatusIndicator");
+      const notice = document.getElementById("boardStatusNotice");
+      return {
+        bufferedWrites: ((window as any).Tools.bufferedWrites ?? []).length,
+        awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
+        connectionState: String((window as any).Tools.connectionState ?? ""),
+        indicatorClass: indicator?.className ?? "",
+        noticeText: notice?.textContent ?? "",
+      };
+    });
+  }
+
+  async waitForAuthoritativeResync() {
+    await expect
+      .poll(() =>
+        this.page.evaluate(() => ({
+          connected: !!(window as any).Tools.socket.connected,
+          awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
+        })),
+      )
+      .toEqual({
+        connected: true,
+        awaitingBoardSnapshot: false,
+      });
+  }
+
+  async forceSocketDisconnect() {
+    await this.page.evaluate(() => {
+      (window as any).Tools.socket.io.engine.close();
     });
   }
 

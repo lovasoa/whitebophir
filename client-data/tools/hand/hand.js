@@ -48,7 +48,7 @@
   /** @typedef {{ key: string, target: EventTarget | null }} ToolKeyEvent */
   /** @typedef {{ matches(selector: string): boolean }} MatchableTarget */
   /** @typedef {{ name: string, icon: string, active: boolean, switch?: () => void }} ToolSecondaryMode */
-  /** @typedef {{ name: string, shortcut?: string, listeners: { press: typeof press, move: typeof move, release: typeof release }, onquit?: () => void, secondary: ToolSecondaryMode | null, draw: typeof draw, icon: string, mouseCursor: string, showMarker: boolean }} HandTool */
+  /** @typedef {{ name: string, shortcut?: string, listeners: { press: typeof press, move: typeof move, release: typeof release }, onquit?: () => void, onSocketDisconnect?: () => void, secondary: ToolSecondaryMode | null, draw: typeof draw, icon: string, mouseCursor: string, showMarker: boolean }} HandTool */
   var BoardMessages = window.WBOBoardMessages;
   var selectorStates = {
     pointing: 0,
@@ -816,6 +816,7 @@
       release: release,
     },
     onquit: onquit,
+    onSocketDisconnect: onquit,
     secondary: Tools.canWrite
       ? {
           name: "Selector",

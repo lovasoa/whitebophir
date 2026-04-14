@@ -21,9 +21,24 @@ export type BoardMessage = {
 };
 
 export type PendingWrite = {
-  data: BoardMessage;
-  toolName: string;
+  message?: { board: string; data: BoardMessage };
+  data?: BoardMessage;
+  toolName?: string;
+  costs?: { general: number; constructive: number; destructive: number };
 };
+
+export type BufferedWrite = {
+  message: { board: string; data: BoardMessage };
+  costs: { general: number; constructive: number; destructive: number };
+};
+
+export type RateLimitWindowState = {
+  windowStart: number;
+  count: number;
+  lastSeen: number;
+};
+
+export type RateLimitKind = "general" | "constructive" | "destructive";
 
 export type PendingMessages = {
   [toolName: string]: BoardMessage[];
@@ -84,6 +99,7 @@ export type ToolRegistry = {
 
 export type AppSocket = {
   id?: string;
+  connected?: boolean;
   on: (eventName: string, handler: (...args: any[]) => void) => void;
   emit: (eventName: string, ...args: any[]) => void;
   disconnect?: () => void;
@@ -99,6 +115,25 @@ export type ColorPreset = {
 };
 
 export type ServerConfig = {
+  RATE_LIMITS?: {
+    general?: { limit?: number; periodMs?: number };
+    constructive?: {
+      limit?: number;
+      anonymousLimit?: number;
+      periodMs?: number;
+      overrides?: {
+        [boardName: string]: { limit?: number; periodMs?: number };
+      };
+    };
+    destructive?: {
+      limit?: number;
+      anonymousLimit?: number;
+      periodMs?: number;
+      overrides?: {
+        [boardName: string]: { limit?: number; periodMs?: number };
+      };
+    };
+  };
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_VALIDATION_WINDOW_MS?: number | string;
   BLOCKED_TOOLS?: string[];
@@ -158,7 +193,16 @@ export type AppToolsState = {
   isIE: boolean;
   socket: AppSocket | null;
   hasConnectedOnce: boolean;
-  rateLimitAlertShown: boolean;
+  bufferedWrites: BufferedWrite[];
+  bufferedWriteTimer: ReturnType<typeof setTimeout> | null;
+  rateLimitedUntil: number;
+  rateLimitNoticeTimer: ReturnType<typeof setTimeout> | null;
+  rateLimitNoticeMessage: string;
+  awaitingBoardSnapshot: boolean;
+  connectionState: string;
+  localRateLimitStates: {
+    [key in RateLimitKind]: RateLimitWindowState;
+  };
   socketIOExtraHeaders: { [name: string]: string } | null;
   boardName: string;
   token: string | null;

@@ -5,7 +5,8 @@ var crypto = require("node:crypto"),
   config = require("./configuration"),
   jsonwebtoken = require("jsonwebtoken"),
   socketPolicy = require("./socket_policy.js"),
-  WBOMessageCommon = require("../client-data/js/message_common.js");
+  WBOMessageCommon = require("../client-data/js/message_common.js"),
+  RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 
 var canAccessBoard = socketPolicy.canAccessBoard;
 var canApplyBoardMessage = socketPolicy.canApplyBoardMessage;
@@ -15,6 +16,12 @@ var countDestructiveActions = socketPolicy.countDestructiveActions;
 var getClientIp = socketPolicy.getClientIp;
 var normalizeBroadcastData = socketPolicy.normalizeBroadcastData;
 var parseForwardedHeader = socketPolicy.parseForwardedHeader;
+var createRateLimitState = RateLimitCommon.createRateLimitState;
+var consumeFixedWindowRateLimit = RateLimitCommon.consumeFixedWindowRateLimit;
+var getRateLimitRemainingMs = RateLimitCommon.getRateLimitRemainingMs;
+var getEffectiveRateLimitDefinition =
+  RateLimitCommon.getEffectiveRateLimitDefinition;
+var isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
 
 /** @typedef {{token?: string, userSecret?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
@@ -193,31 +200,6 @@ function updateConnectedUsersGauge() {
 }
 
 /**
- * @param {number} now
- * @returns {RateLimitState}
- */
-function createRateLimitState(now) {
-  return { windowStart: now, count: 0, lastSeen: now };
-}
-
-/**
- * @param {RateLimitState} state
- * @param {number} cost
- * @param {number} periodMs
- * @param {number} now
- * @returns {number}
- */
-function consumeFixedWindowRateLimit(state, cost, periodMs, now) {
-  if (now - state.windowStart >= periodMs) {
-    state.windowStart = now;
-    state.count = 0;
-  }
-  state.lastSeen = now;
-  state.count += cost;
-  return state.count;
-}
-
-/**
  * @param {Map<string, RateLimitState>} map
  * @param {number} periodMs
  * @param {number} now
@@ -229,7 +211,7 @@ function pruneRateLimitMap(map, periodMs, now) {
       /** @type {RateLimitState} */ state,
       /** @type {string} */ key,
     ) {
-      if (now - state.lastSeen >= 2 * periodMs) {
+      if (isRateLimitStateStale(state, periodMs, now)) {
         map.delete(key);
       }
     },
@@ -519,6 +501,10 @@ function closeSocket(socket, eventName, infos) {
 function closeRateLimitedSocket(socket, eventName, infos) {
   socket.emit("rate-limited", {
     event: eventName,
+    kind: infos.kind,
+    limit: infos.limit,
+    periodMs: infos.period_ms,
+    retryAfterMs: infos.retry_after_ms,
   });
   closeSocket(socket, eventName, infos);
 }
@@ -553,6 +539,31 @@ function buildSocketLogInfo(socket, boardName, extras) {
     },
     extras,
   );
+}
+
+/**
+ * @param {"general" | "constructive" | "destructive"} kind
+ * @param {string} boardName
+ * @returns {{limit: number, periodMs: number}}
+ */
+function getEffectiveRateLimitConfig(kind, boardName) {
+  switch (kind) {
+    case "constructive":
+      return getEffectiveRateLimitDefinition(
+        config.CONSTRUCTIVE_ACTION_RATE_LIMITS,
+        boardName,
+      );
+    case "destructive":
+      return getEffectiveRateLimitDefinition(
+        config.DESTRUCTIVE_ACTION_RATE_LIMITS,
+        boardName,
+      );
+    default:
+      return {
+        limit: config.MAX_EMIT_COUNT,
+        periodMs: config.MAX_EMIT_COUNT_PERIOD,
+      };
+  }
 }
 
 /**
@@ -675,13 +686,22 @@ function enforceGeneralRateLimit(
   rateLimitState,
   now,
 ) {
-  var emitCount = consumeFixedWindowRateLimit(
+  var generalLimit = getEffectiveRateLimitConfig("general", boardName);
+  var nextState = consumeFixedWindowRateLimit(
     rateLimitState,
     1,
-    config.MAX_EMIT_COUNT_PERIOD,
+    generalLimit.periodMs,
     now,
   );
-  if (emitCount <= config.MAX_EMIT_COUNT) return true;
+  rateLimitState.windowStart = nextState.windowStart;
+  rateLimitState.count = nextState.count;
+  rateLimitState.lastSeen = nextState.lastSeen;
+  if (rateLimitState.count <= generalLimit.limit) return true;
+  var retryAfterMs = getRateLimitRemainingMs(
+    rateLimitState,
+    generalLimit.periodMs,
+    now,
+  );
 
   logger.warn("socket.rate_limited", {
     kind: "general",
@@ -689,19 +709,22 @@ function enforceGeneralRateLimit(
     board: boardName,
     ip: clientIp,
     user: getSocketUserName(socket, clientIp),
-    count: emitCount,
-    limit: config.MAX_EMIT_COUNT,
-    period_ms: config.MAX_EMIT_COUNT_PERIOD,
+    count: rateLimitState.count,
+    limit: generalLimit.limit,
+    period_ms: generalLimit.periodMs,
+    retry_after_ms: retryAfterMs,
   });
   metrics.recordRejection("rate_limit", "general");
   closeRateLimitedSocket(
     socket,
     "GENERAL_RATE_LIMIT_EXCEEDED",
     buildSocketLogInfo(socket, boardName, {
+      kind: "general",
       ip: clientIp,
-      count: emitCount,
-      limit: config.MAX_EMIT_COUNT,
-      period_ms: config.MAX_EMIT_COUNT_PERIOD,
+      count: rateLimitState.count,
+      limit: generalLimit.limit,
+      period_ms: generalLimit.periodMs,
+      retry_after_ms: retryAfterMs,
     }),
   );
   return false;
@@ -732,22 +755,32 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
   if (destructiveCost === 0) return true;
 
   var rateLimitState = getDestructiveRateLimitState(clientIp, now);
-  var destructiveCount = consumeFixedWindowRateLimit(
+  var destructiveLimit = getEffectiveRateLimitConfig("destructive", boardName);
+  var nextState = consumeFixedWindowRateLimit(
     rateLimitState,
     destructiveCost,
-    config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS,
+    destructiveLimit.periodMs,
     now,
   );
-  if (destructiveCount > config.MAX_DESTRUCTIVE_ACTIONS_PER_IP) {
+  rateLimitState.windowStart = nextState.windowStart;
+  rateLimitState.count = nextState.count;
+  rateLimitState.lastSeen = nextState.lastSeen;
+  if (rateLimitState.count > destructiveLimit.limit) {
+    var retryAfterMs = getRateLimitRemainingMs(
+      rateLimitState,
+      destructiveLimit.periodMs,
+      now,
+    );
     logger.warn("socket.rate_limited", {
       kind: "destructive",
       socket: socket.id,
       board: boardName,
       ip: clientIp,
       user: getSocketUserName(socket, clientIp),
-      count: destructiveCount,
-      limit: config.MAX_DESTRUCTIVE_ACTIONS_PER_IP,
-      period_ms: config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS,
+      count: rateLimitState.count,
+      limit: destructiveLimit.limit,
+      period_ms: destructiveLimit.periodMs,
+      retry_after_ms: retryAfterMs,
       destructive_cost: destructiveCost,
     });
     metrics.recordRejection("rate_limit", "destructive");
@@ -755,21 +788,19 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
       socket,
       "DESTRUCTIVE_RATE_LIMIT_EXCEEDED",
       buildSocketLogInfo(socket, boardName, {
+        kind: "destructive",
         ip: clientIp,
-        count: destructiveCount,
-        limit: config.MAX_DESTRUCTIVE_ACTIONS_PER_IP,
-        period_ms: config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS,
+        count: rateLimitState.count,
+        limit: destructiveLimit.limit,
+        period_ms: destructiveLimit.periodMs,
+        retry_after_ms: retryAfterMs,
         destructive_cost: destructiveCost,
       }),
     );
     return false;
   }
 
-  pruneRateLimitMap(
-    destructiveRateLimits,
-    config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS,
-    now,
-  );
+  pruneRateLimitMap(destructiveRateLimits, destructiveLimit.periodMs, now);
   return true;
 }
 
@@ -798,22 +829,35 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
   if (constructiveCost === 0) return true;
 
   var rateLimitState = getConstructiveRateLimitState(clientIp, now);
-  var constructiveCount = consumeFixedWindowRateLimit(
+  var constructiveLimit = getEffectiveRateLimitConfig(
+    "constructive",
+    boardName,
+  );
+  var nextState = consumeFixedWindowRateLimit(
     rateLimitState,
     constructiveCost,
-    config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS,
+    constructiveLimit.periodMs,
     now,
   );
-  if (constructiveCount > config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP) {
+  rateLimitState.windowStart = nextState.windowStart;
+  rateLimitState.count = nextState.count;
+  rateLimitState.lastSeen = nextState.lastSeen;
+  if (rateLimitState.count > constructiveLimit.limit) {
+    var retryAfterMs = getRateLimitRemainingMs(
+      rateLimitState,
+      constructiveLimit.periodMs,
+      now,
+    );
     logger.warn("socket.rate_limited", {
       kind: "constructive",
       socket: socket.id,
       board: boardName,
       ip: clientIp,
       user: getSocketUserName(socket, clientIp),
-      count: constructiveCount,
-      limit: config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP,
-      period_ms: config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS,
+      count: rateLimitState.count,
+      limit: constructiveLimit.limit,
+      period_ms: constructiveLimit.periodMs,
+      retry_after_ms: retryAfterMs,
       constructive_cost: constructiveCost,
     });
     metrics.recordRejection("rate_limit", "constructive");
@@ -821,21 +865,19 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
       socket,
       "CONSTRUCTIVE_RATE_LIMIT_EXCEEDED",
       buildSocketLogInfo(socket, boardName, {
+        kind: "constructive",
         ip: clientIp,
-        count: constructiveCount,
-        limit: config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP,
-        period_ms: config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS,
+        count: rateLimitState.count,
+        limit: constructiveLimit.limit,
+        period_ms: constructiveLimit.periodMs,
+        retry_after_ms: retryAfterMs,
         constructive_cost: constructiveCost,
       }),
     );
     return false;
   }
 
-  pruneRateLimitMap(
-    constructiveRateLimits,
-    config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS,
-    now,
-  );
+  pruneRateLimitMap(constructiveRateLimits, constructiveLimit.periodMs, now);
   return true;
 }
 

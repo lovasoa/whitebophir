@@ -5,7 +5,16 @@ const rateLimitTest = test.extend({
   serverOptions: {
     useJWT: false,
     env: {
-      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "100",
+      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s anonymous:50/60s",
+    },
+  },
+});
+
+const bufferedRateLimitTest = test.extend({
+  serverOptions: {
+    useJWT: false,
+    env: {
+      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/60s anonymous:1/3s",
     },
   },
 });
@@ -206,7 +215,7 @@ test.describe("collaboration and rate limiting", () => {
   });
 
   rateLimitTest(
-    "rate limit alert disconnects the socket",
+    "rate limit disconnect uses a non-blocking notice",
     async ({ boardPage, page }) => {
       await boardPage.setSocketHeaders({
         "X-Forwarded-For": "198.51.100.200",
@@ -238,14 +247,160 @@ test.describe("collaboration and rate limiting", () => {
         .poll(() =>
           page.evaluate(() => ({
             alert: (window as any).__lastAlert as string | null,
-            connected: (window as any).Tools.socket.connected as boolean,
+            notice: (
+              document.getElementById("boardStatusNotice")?.textContent ?? ""
+            ).trim(),
+            indicatorClass:
+              document.getElementById("boardStatusIndicator")?.className ?? "",
           })),
         )
         .toMatchObject({
-          alert:
+          alert: null,
+          notice:
             "You're sending changes too quickly, so we paused your connection to protect the board. Please wait a minute and try again.",
-          connected: false,
+          indicatorClass: expect.stringContaining("board-status-paused"),
         });
+    },
+  );
+
+  bufferedRateLimitTest(
+    "client buffers anonymous constructive writes before hitting the server limit",
+    async ({ boardPage, context, server, page }) => {
+      const peerPage = await context.newPage();
+      const peerBoard = createBoardPage(peerPage, server);
+
+      await Promise.all([
+        boardPage.gotoBoard("anonymous"),
+        peerBoard.gotoBoard("anonymous"),
+      ]);
+      await Promise.all([
+        boardPage.waitForSocketConnected(),
+        peerBoard.waitForSocketConnected(),
+      ]);
+      await Promise.all([
+        boardPage.waitForAuthoritativeResync(),
+        peerBoard.waitForAuthoritativeResync(),
+      ]);
+
+      await page.evaluate(() => {
+        const rectangle = (window as any).Tools.list.Rectangle;
+        (window as any).Tools.drawAndSend(
+          {
+            type: "rect",
+            id: "buffered-rect-1",
+            x: 40,
+            y: 40,
+            x2: 90,
+            y2: 90,
+            color: "#aa0000",
+            size: 4,
+            opacity: 1,
+          },
+          rectangle,
+        );
+        (window as any).Tools.drawAndSend(
+          {
+            type: "rect",
+            id: "buffered-rect-2",
+            x: 120,
+            y: 40,
+            x2: 170,
+            y2: 90,
+            color: "#00aa00",
+            size: 4,
+            opacity: 1,
+          },
+          rectangle,
+        );
+      });
+
+      await expect
+        .poll(() => boardPage.readWriteStatus())
+        .toMatchObject({
+          bufferedWrites: 1,
+          indicatorClass: expect.stringContaining("board-status-buffering"),
+        });
+
+      await expect(peerPage.locator("rect#buffered-rect-1")).toBeVisible();
+      await expect(peerPage.locator("rect#buffered-rect-2")).not.toBeVisible();
+
+      await expect
+        .poll(() => boardPage.readWriteStatus(), { timeout: 5_000 })
+        .toMatchObject({
+          bufferedWrites: 0,
+        });
+      await server.waitForStoredBoard(
+        server.dataPath,
+        "anonymous",
+        (storedBoard) => storedBoard["buffered-rect-2"] != null,
+      );
+
+      await peerPage.close();
+    },
+  );
+
+  bufferedRateLimitTest(
+    "disconnect clears unsent optimistic writes and restores server truth",
+    async ({ boardPage, page, server }) => {
+      await boardPage.gotoBoard("anonymous");
+      await boardPage.waitForSocketConnected();
+      await boardPage.waitForAuthoritativeResync();
+
+      await page.evaluate(() => {
+        const rectangle = (window as any).Tools.list.Rectangle;
+        (window as any).Tools.drawAndSend(
+          {
+            type: "rect",
+            id: "persisted-before-disconnect",
+            x: 40,
+            y: 120,
+            x2: 90,
+            y2: 170,
+            color: "#112233",
+            size: 4,
+            opacity: 1,
+          },
+          rectangle,
+        );
+        (window as any).Tools.drawAndSend(
+          {
+            type: "rect",
+            id: "local-only-before-disconnect",
+            x: 120,
+            y: 120,
+            x2: 170,
+            y2: 170,
+            color: "#445566",
+            size: 4,
+            opacity: 1,
+          },
+          rectangle,
+        );
+      });
+
+      await expect(
+        page.locator("rect#local-only-before-disconnect"),
+      ).toBeVisible();
+      await expect
+        .poll(() => boardPage.readWriteStatus())
+        .toMatchObject({
+          bufferedWrites: 1,
+        });
+      await server.waitForStoredBoard(
+        server.dataPath,
+        "anonymous",
+        (storedBoard) => storedBoard["persisted-before-disconnect"] != null,
+      );
+
+      await boardPage.forceSocketDisconnect();
+      await boardPage.waitForAuthoritativeResync();
+
+      await expect(
+        page.locator("rect#persisted-before-disconnect"),
+      ).toBeVisible();
+      await expect(
+        page.locator("rect#local-only-before-disconnect"),
+      ).not.toBeVisible();
     },
   );
 });

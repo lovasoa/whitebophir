@@ -1,5 +1,6 @@
 const { logger, metrics } = require("./observability.js");
 const config = require("./configuration");
+const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 const normalizeIncomingMessage =
   require("./message_validation.js").normalizeIncomingMessage;
 const roleInBoard = require("./jwtBoardnameAuth.js").roleInBoard;
@@ -165,46 +166,8 @@ function getClientIp(socket) {
  * @param {MessageData | null | undefined} data
  * @returns {number}
  */
-function countDestructiveActions(data) {
-  if (!data || typeof data !== "object") return 0;
-  if (Array.isArray(data._children)) {
-    return data._children.reduce(function countDeletes(
-      /** @type {number} */ total,
-      /** @type {MessageData | null | undefined} */ child,
-    ) {
-      return total + (child && child.type === "delete" ? 1 : 0);
-    }, 0);
-  }
-  return data.type === "delete" || data.type === "clear" ? 1 : 0;
-}
-
-/**
- * @param {MessageData | null | undefined} data
- * @returns {boolean}
- */
-function isConstructiveAction(data) {
-  if (!data || !data.id) return false;
-  if (data.type === "delete" || data.type === "clear") return false;
-  if (data.type === "update" || data.type === "child") return false;
-  return true;
-}
-
-/**
- * @param {MessageData | null | undefined} data
- * @returns {number}
- */
-function countConstructiveActions(data) {
-  if (!data || typeof data !== "object") return 0;
-  if (Array.isArray(data._children)) {
-    return data._children.reduce(function countConstructs(
-      /** @type {number} */ total,
-      /** @type {MessageData | null | undefined} */ child,
-    ) {
-      return total + (isConstructiveAction(child) ? 1 : 0);
-    }, 0);
-  }
-  return isConstructiveAction(data) ? 1 : 0;
-}
+var countDestructiveActions = RateLimitCommon.countDestructiveActions;
+var countConstructiveActions = RateLimitCommon.countConstructiveActions;
 
 /**
  * @param {MessageData | null | undefined} message

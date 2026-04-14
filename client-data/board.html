@@ -33,6 +33,8 @@
 	</div>
 
 	<div id="loadingMessage">{{translations.loading}}</div>
+	<div id="boardStatusIndicator" class="board-status-indicator board-status-hidden" aria-hidden="true"></div>
+	<div id="boardStatusNotice" class="board-status-notice board-status-notice-hidden" role="status" aria-live="polite"></div>
 
 	<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>
 		<div id="menuItems">
@@ -98,6 +100,7 @@
 	<script src="../js/shared_module_resolver.js?v={{version}}"></script>
 	<script src="../js/message_tool_metadata.js?v={{version}}"></script>
 	<script src="../js/message_common.js?v={{version}}"></script>
+	<script src="../js/rate_limit_common.js?v={{version}}"></script>
 	<script src="../js/board_page_state.js?v={{version}}"></script>
 	<script src="../js/board_transport.js?v={{version}}"></script>
 	<script src="../js/minitpl.js"></script>

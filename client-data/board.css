@@ -58,6 +58,80 @@ svg {
   content: "...";
 }
 
+.board-status-indicator {
+  position: fixed;
+  top: 14px;
+  left: 54px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  z-index: 30;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+
+.board-status-hidden {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+.board-status-buffering {
+  opacity: 1;
+  transform: scale(1);
+  background: #f59e0b;
+  animation: board-status-pulse 1s ease-in-out infinite;
+}
+
+.board-status-paused {
+  opacity: 1;
+  transform: scale(1);
+  background: #d92d20;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 0 5px rgba(217, 45, 32, 0.15);
+}
+
+@keyframes board-status-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  }
+  50% {
+    transform: scale(1.18);
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.9),
+      0 0 0 8px rgba(245, 158, 11, 0.18);
+  }
+}
+
+.board-status-notice {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 10px 12px;
+  background: rgba(17, 24, 39, 0.92);
+  color: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  z-index: 40;
+  line-height: 1.35;
+  font-size: 14px;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+
+.board-status-notice-hidden {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+}
+
 .connected-users-panel {
   position: fixed;
   top: 10px;

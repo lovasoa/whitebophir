@@ -1,5 +1,9 @@
 const path = require("node:path");
-const { parseIntegerEnv } = require("./configuration_helpers.js");
+const {
+  parseIntegerEnv,
+  parseRateLimitProfileEnv,
+} = require("./configuration_helpers.js");
+const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 const app_root = path.dirname(__dirname); // Parent of the directory where this file is
 
 const ipSource = (process.env["WBO_IP_SOURCE"] || "remoteAddress").trim();
@@ -19,6 +23,34 @@ if (
     "WBO_TRUST_PROXY_HOPS requires WBO_IP_SOURCE to be X-Forwarded-For or Forwarded",
   );
 }
+
+const DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS = parseRateLimitProfileEnv(
+  "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
+  {
+    limit: 40,
+    periodMs: 10 * 1000,
+    overrides: {
+      anonymous: {
+        limit: Math.floor(40 / RateLimitCommon.ANONYMOUS_RATE_LIMIT_DIVISOR),
+        periodMs: 10 * 1000,
+      },
+    },
+  },
+);
+
+const DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS = parseRateLimitProfileEnv(
+  "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
+  {
+    limit: 190,
+    periodMs: 60 * 1000,
+    overrides: {
+      anonymous: {
+        limit: Math.floor(190 / RateLimitCommon.ANONYMOUS_RATE_LIMIT_DIVISOR),
+        periodMs: 60 * 1000,
+      },
+    },
+  },
+);
 
 module.exports = {
   /** Port on which the application will listen */
@@ -51,35 +83,55 @@ module.exports = {
   /** Maximum value for any x or y on the board */
   MAX_BOARD_SIZE: parseIntegerEnv("WBO_MAX_BOARD_SIZE", 65536),
 
-  /** Maximum messages per user over the given time period before banning them  */
+  /** General socket write limit. This uses a fixed window:
+      the first write starts a window, every write in that window increments the counter,
+      and the counter resets completely once WBO_MAX_EMIT_COUNT_PERIOD has elapsed.
+      This is enforced per socket connection and each broadcast event costs exactly 1. */
   MAX_EMIT_COUNT: parseIntegerEnv("WBO_MAX_EMIT_COUNT", 250),
 
-  /** Duration after which the emit count is reset in miliseconds */
+  /** Duration of the fixed general write window in milliseconds. */
   MAX_EMIT_COUNT_PERIOD: parseIntegerEnv("WBO_MAX_EMIT_COUNT_PERIOD", 5000),
 
-  /** Maximum destructive actions per resolved client IP over the WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS */
-  MAX_DESTRUCTIVE_ACTIONS_PER_IP: parseIntegerEnv(
-    "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
-    120,
-  ),
+  /** Destructive per-IP fixed-window limits.
+      Use WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP with compact profiles such as `*:190/60s anonymous:95/60s`.
+      Each profile entry is `board:limit/period`, `*` is the default, and every board keeps one counter per resolved client IP.
+      Destructive cost counts deletes and clears, and batched messages sum their destructive children.
+      This is a fixed window: the first destructive write starts the window, every matching action increments the counter,
+      and the counter resets completely once the configured period elapses. */
+  DESTRUCTIVE_ACTION_RATE_LIMITS: DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS,
 
-  /** Duration after which the destructive per-IP count is reset in milliseconds */
-  MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS: parseIntegerEnv(
-    "WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS",
-    60 * 1000,
-  ),
+  /** Default destructive per-IP limit derived from WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP. */
+  MAX_DESTRUCTIVE_ACTIONS_PER_IP: DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS.limit,
 
-  /** Maximum constructive actions per resolved client IP over the WBO_MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS */
-  MAX_CONSTRUCTIVE_ACTIONS_PER_IP: parseIntegerEnv(
-    "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
-    25,
-  ),
+  /** Default destructive fixed-window duration in milliseconds derived from WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP. */
+  MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS:
+    DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS.periodMs,
 
-  /** Duration after which the constructive per-IP count is reset in milliseconds */
-  MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS: parseIntegerEnv(
-    "WBO_MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS",
-    10 * 1000,
-  ),
+  /** Anonymous-board destructive limit derived from WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP. */
+  ANONYMOUS_MAX_DESTRUCTIVE_ACTIONS_PER_IP:
+    DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous &&
+    DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous.limit,
+
+  /** Constructive per-IP fixed-window limits.
+      Use WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP with compact profiles such as `*:40/10s anonymous:20/10s`.
+      Each profile entry is `board:limit/period`, `*` is the default, and every board keeps one counter per resolved client IP.
+      Constructive cost counts creates and copies with an id, but excludes child points, updates, deletes, and clears.
+      This is a fixed window: the first constructive write starts the window, every matching action increments the counter,
+      and the counter resets completely once the configured period elapses. */
+  CONSTRUCTIVE_ACTION_RATE_LIMITS: DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS,
+
+  /** Default constructive per-IP limit derived from WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP. */
+  MAX_CONSTRUCTIVE_ACTIONS_PER_IP:
+    DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS.limit,
+
+  /** Default constructive fixed-window duration in milliseconds derived from WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP. */
+  MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS:
+    DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS.periodMs,
+
+  /** Anonymous-board constructive limit derived from WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP. */
+  ANONYMOUS_MAX_CONSTRUCTIVE_ACTIONS_PER_IP:
+    DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous &&
+    DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous.limit,
 
   /** Source used to resolve client IPs for logging and rate limiting.
       Supports remoteAddress, Forwarded, X-Forwarded-For, or any custom header

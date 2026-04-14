@@ -27,22 +27,34 @@
 /** @typedef {import("../../types/app-runtime").AppTool} AppTool */
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
+/** @typedef {import("../../types/app-runtime").BufferedWrite} BufferedWrite */
 /** @typedef {import("../../types/app-runtime").ColorPreset} ColorPreset */
 /** @typedef {import("../../types/app-runtime").PendingMessages} PendingMessages */
+/** @typedef {import("../../types/app-runtime").PendingWrite} PendingWrite */
+/** @typedef {import("../../types/app-runtime").RateLimitKind} RateLimitKind */
 /** @typedef {import("../../types/app-runtime").ServerConfig} ServerConfig */
 /** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
 /** @typedef {import("../../types/app-runtime").ToolPalette} ToolPalette */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
 /** @typedef {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastFocusX?: number, lastFocusY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
+/** @typedef {{limit?: number, periodMs?: number, anonymousLimit?: number, overrides?: {[boardName: string]: {limit?: number, periodMs?: number}}}} RateLimitDefinition */
+/** @typedef {typeof window & { WBORateLimitCommon?: typeof import("./rate_limit_common.js") }} WBOGlobal */
 
 var Tools = /** @type {AppToolsState} */ ({});
 var MessageCommon = window.WBOMessageCommon;
 var BoardConnection = window.WBOBoardConnection;
 var BoardMessages = window.WBOBoardMessages;
 var BoardState = window.WBOBoardState;
+var RateLimitCommon =
+  /** @type {NonNullable<WBOGlobal["WBORateLimitCommon"]>} */ (
+    /** @type {WBOGlobal} */ (window).WBORateLimitCommon
+  );
 var BoardTurnstile = window.WBOBoardTurnstile;
 var BoardTools = window.WBOBoardTools;
 var BoardBootstrap = window.WBOBoardBootstrap;
+var RATE_LIMIT_FLUSH_SAFETY_MS = 250;
+/** @type {RateLimitKind[]} */
+var RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
 
 /**
  * @param {string} elementId
@@ -120,11 +132,406 @@ Tools.turnstileWidgetId = null;
 Tools.turnstileRefreshTimeout = null;
 Tools.turnstilePending = false;
 Tools.turnstilePendingWrites = [];
+Tools.bufferedWrites = [];
+Tools.bufferedWriteTimer = null;
+Tools.rateLimitedUntil = 0;
+Tools.rateLimitNoticeTimer = null;
+Tools.rateLimitNoticeMessage = "";
+Tools.awaitingBoardSnapshot = true;
+Tools.connectionState = "connecting";
+Tools.localRateLimitStates = {
+  general: RateLimitCommon.createRateLimitState(Date.now()),
+  constructive: RateLimitCommon.createRateLimitState(Date.now()),
+  destructive: RateLimitCommon.createRateLimitState(Date.now()),
+};
 
 /** @param {BoardMessage} message */
 Tools.cloneMessage = function cloneMessage(message) {
   if (typeof structuredClone === "function") return structuredClone(message);
   return /** @type {BoardMessage} */ (JSON.parse(JSON.stringify(message)));
+};
+
+function getLoadingMessage() {
+  return document.getElementById("loadingMessage");
+}
+
+function getBoardStatusIndicator() {
+  return document.getElementById("boardStatusIndicator");
+}
+
+function getBoardStatusNotice() {
+  return document.getElementById("boardStatusNotice");
+}
+
+/**
+ * @param {unknown} value
+ * @returns {RateLimitDefinition}
+ */
+function toRateLimitDefinition(value) {
+  return value && typeof value === "object"
+    ? /** @type {RateLimitDefinition} */ (value)
+    : {};
+}
+
+Tools.showLoadingMessage = function showLoadingMessage() {
+  var loadingEl = getLoadingMessage();
+  if (loadingEl) loadingEl.classList.remove("hidden");
+};
+
+Tools.hideLoadingMessage = function hideLoadingMessage() {
+  var loadingEl = getLoadingMessage();
+  if (loadingEl) loadingEl.classList.add("hidden");
+};
+
+/**
+ * @param {RateLimitKind} kind
+ * @returns {RateLimitDefinition}
+ */
+Tools.getRateLimitDefinition = function getRateLimitDefinition(kind) {
+  var configured = Tools.server_config.RATE_LIMITS || {};
+  if (configured && configured[kind]) return configured[kind];
+
+  if (kind === "constructive") {
+    return {
+      limit: 0,
+      anonymousLimit: 0,
+      periodMs: 0,
+    };
+  }
+  if (kind === "destructive") {
+    return {
+      limit: 0,
+      anonymousLimit: 0,
+      periodMs: 0,
+    };
+  }
+  return {
+    limit: Number(Tools.server_config.MAX_EMIT_COUNT) || 0,
+    periodMs: Number(Tools.server_config.MAX_EMIT_COUNT_PERIOD) || 0,
+  };
+};
+
+/**
+ * @param {RateLimitKind} kind
+ * @returns {{limit: number, periodMs: number}}
+ */
+Tools.getEffectiveRateLimit = function getEffectiveRateLimit(kind) {
+  return RateLimitCommon.getEffectiveRateLimitDefinition(
+    Tools.getRateLimitDefinition(kind),
+    Tools.boardName,
+  );
+};
+
+/**
+ * @param {{board: string, data: BoardMessage}} message
+ * @returns {{general: number, constructive: number, destructive: number}}
+ */
+Tools.getBufferedWriteCosts = function getBufferedWriteCosts(message) {
+  return {
+    general: 1,
+    constructive: RateLimitCommon.countConstructiveActions(message.data),
+    destructive: RateLimitCommon.countDestructiveActions(message.data),
+  };
+};
+
+Tools.clearBufferedWriteTimer = function clearBufferedWriteTimer() {
+  if (Tools.bufferedWriteTimer) {
+    clearTimeout(Tools.bufferedWriteTimer);
+    Tools.bufferedWriteTimer = null;
+  }
+};
+
+Tools.clearRateLimitNoticeTimer = function clearRateLimitNoticeTimer() {
+  if (Tools.rateLimitNoticeTimer) {
+    clearTimeout(Tools.rateLimitNoticeTimer);
+    Tools.rateLimitNoticeTimer = null;
+  }
+};
+
+/**
+ * @param {number} [now]
+ * @returns {boolean}
+ */
+Tools.isWritePaused = function isWritePaused(now) {
+  return Tools.rateLimitedUntil > (now || Date.now());
+};
+
+Tools.canBufferWrites = function canBufferWrites() {
+  return !!(
+    Tools.socket &&
+    Tools.socket.connected &&
+    !Tools.awaitingBoardSnapshot &&
+    !Tools.isWritePaused()
+  );
+};
+
+/**
+ * @param {string} message
+ * @param {number} retryAfterMs
+ * @returns {void}
+ */
+Tools.showRateLimitNotice = function showRateLimitNotice(
+  message,
+  retryAfterMs,
+) {
+  var notice = getBoardStatusNotice();
+  if (!notice) return;
+  Tools.rateLimitNoticeMessage = message;
+  notice.textContent = message;
+  notice.classList.remove("board-status-notice-hidden");
+  Tools.clearRateLimitNoticeTimer();
+  if (retryAfterMs > 0) {
+    Tools.rateLimitNoticeTimer = setTimeout(function hideRateLimitNotice() {
+      Tools.syncWriteStatusIndicator();
+      Tools.hideRateLimitNotice();
+    }, retryAfterMs);
+  }
+};
+
+Tools.hideRateLimitNotice = function hideRateLimitNotice() {
+  Tools.clearRateLimitNoticeTimer();
+  var notice = getBoardStatusNotice();
+  if (!notice) return;
+  notice.classList.add("board-status-notice-hidden");
+  notice.textContent = "";
+  Tools.syncWriteStatusIndicator();
+};
+
+Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
+  var indicator = getBoardStatusIndicator();
+  if (!indicator) return;
+  var isPaused = Tools.connectionState !== "connected" || Tools.isWritePaused();
+  indicator.classList.remove(
+    "board-status-hidden",
+    "board-status-buffering",
+    "board-status-paused",
+  );
+  if (isPaused) {
+    indicator.classList.add("board-status-paused");
+    return;
+  }
+  if (Tools.bufferedWrites.length > 0) {
+    indicator.classList.add("board-status-buffering");
+    return;
+  }
+  indicator.classList.add("board-status-hidden");
+};
+
+Tools.resetBoardViewport = function resetBoardViewport() {
+  if (Tools.drawingArea) Tools.drawingArea.innerHTML = "";
+  var cursors = Tools.svg.getElementById("cursors");
+  if (cursors) cursors.innerHTML = "";
+};
+
+/**
+ * @param {RateLimitKind} kind
+ * @param {number} [now]
+ * @returns {void}
+ */
+Tools.resetLocalRateLimitState = function resetLocalRateLimitState(kind, now) {
+  Tools.localRateLimitStates[kind] = RateLimitCommon.createRateLimitState(
+    now || Date.now(),
+  );
+};
+
+/** @param {number} [now] */
+Tools.resetAllLocalRateLimitStates = function resetAllLocalRateLimitStates(
+  now,
+) {
+  Tools.resetLocalRateLimitState("general", now);
+  Tools.resetLocalRateLimitState("constructive", now);
+  Tools.resetLocalRateLimitState("destructive", now);
+};
+
+/**
+ * @param {BufferedWrite} bufferedWrite
+ * @param {number} now
+ * @returns {boolean}
+ */
+Tools.canEmitBufferedWrite = function canEmitBufferedWrite(bufferedWrite, now) {
+  return RATE_LIMIT_KINDS.every(function (kind) {
+    var cost = bufferedWrite.costs[kind];
+    if (!(cost > 0)) return true;
+    var definition = Tools.getEffectiveRateLimit(kind);
+    if (!(definition.periodMs > 0) || !(definition.limit >= 0)) return true;
+    return RateLimitCommon.canConsumeFixedWindowRateLimit(
+      Tools.localRateLimitStates[kind],
+      cost,
+      definition.limit,
+      definition.periodMs,
+      now,
+    );
+  });
+};
+
+/**
+ * @param {BufferedWrite} bufferedWrite
+ * @param {number} now
+ * @returns {void}
+ */
+Tools.consumeBufferedWriteBudget = function consumeBufferedWriteBudget(
+  bufferedWrite,
+  now,
+) {
+  RATE_LIMIT_KINDS.forEach(function (kind) {
+    var cost = bufferedWrite.costs[kind];
+    if (!(cost > 0)) return;
+    var definition = Tools.getEffectiveRateLimit(kind);
+    if (!(definition.periodMs > 0)) return;
+    Tools.localRateLimitStates[kind] =
+      RateLimitCommon.consumeFixedWindowRateLimit(
+        Tools.localRateLimitStates[kind],
+        cost,
+        definition.periodMs,
+        now,
+      );
+  });
+};
+
+/**
+ * @param {BufferedWrite} bufferedWrite
+ * @param {number} now
+ * @returns {number}
+ */
+Tools.getBufferedWriteWaitMs = function getBufferedWriteWaitMs(
+  bufferedWrite,
+  now,
+) {
+  return RATE_LIMIT_KINDS.reduce(function (waitMs, kind) {
+    var cost = bufferedWrite.costs[kind];
+    if (!(cost > 0)) return waitMs;
+    var definition = Tools.getEffectiveRateLimit(kind);
+    if (!(definition.periodMs > 0)) return waitMs;
+    if (
+      RateLimitCommon.canConsumeFixedWindowRateLimit(
+        Tools.localRateLimitStates[kind],
+        cost,
+        definition.limit,
+        definition.periodMs,
+        now,
+      )
+    ) {
+      return waitMs;
+    }
+    return Math.max(
+      waitMs,
+      RateLimitCommon.getRateLimitRemainingMs(
+        Tools.localRateLimitStates[kind],
+        definition.periodMs,
+        now,
+      ),
+    );
+  }, 0);
+};
+
+/** @returns {void} */
+Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
+  Tools.clearBufferedWriteTimer();
+  if (!Tools.bufferedWrites.length || !Tools.canBufferWrites()) {
+    Tools.syncWriteStatusIndicator();
+    return;
+  }
+  var nextWrite = Tools.bufferedWrites[0];
+  if (!nextWrite) return;
+  var now = Date.now();
+  var waitMs = Tools.getBufferedWriteWaitMs(nextWrite, now);
+  Tools.bufferedWriteTimer = setTimeout(
+    function flushBufferedWrites() {
+      Tools.flushBufferedWrites();
+    },
+    Math.max(0, waitMs + RATE_LIMIT_FLUSH_SAFETY_MS),
+  );
+  Tools.syncWriteStatusIndicator();
+};
+
+/** @returns {void} */
+Tools.flushBufferedWrites = function flushBufferedWrites() {
+  Tools.clearBufferedWriteTimer();
+  if (!Tools.canBufferWrites()) {
+    Tools.syncWriteStatusIndicator();
+    return;
+  }
+  while (Tools.bufferedWrites.length > 0) {
+    var bufferedWrite = Tools.bufferedWrites[0];
+    if (!bufferedWrite) break;
+    var now = Date.now();
+    if (!Tools.canEmitBufferedWrite(bufferedWrite, now)) {
+      Tools.scheduleBufferedWriteFlush();
+      return;
+    }
+    Tools.bufferedWrites.shift();
+    Tools.consumeBufferedWriteBudget(bufferedWrite, now);
+    Tools.updateCurrentConnectedUserFromActivity(bufferedWrite.message.data);
+    if (Tools.socket) Tools.socket.emit("broadcast", bufferedWrite.message);
+  }
+  Tools.syncWriteStatusIndicator();
+};
+
+/**
+ * @param {{board: string, data: BoardMessage}} message
+ * @returns {void}
+ */
+Tools.enqueueBufferedWrite = function enqueueBufferedWrite(message) {
+  Tools.bufferedWrites.push({
+    message: message,
+    costs: Tools.getBufferedWriteCosts(message),
+  });
+  Tools.scheduleBufferedWriteFlush();
+};
+
+/**
+ * @param {{board: string, data: BoardMessage}} message
+ * @returns {boolean}
+ */
+Tools.sendBufferedWrite = function sendBufferedWrite(message) {
+  /** @type {BufferedWrite} */
+  var bufferedWrite = {
+    message: message,
+    costs: Tools.getBufferedWriteCosts(message),
+  };
+  if (!Tools.canBufferWrites()) {
+    return false;
+  }
+  var now = Date.now();
+  if (
+    Tools.bufferedWrites.length === 0 &&
+    Tools.canEmitBufferedWrite(bufferedWrite, now)
+  ) {
+    Tools.consumeBufferedWriteBudget(bufferedWrite, now);
+    Tools.updateCurrentConnectedUserFromActivity(message.data);
+    if (Tools.socket) Tools.socket.emit("broadcast", message);
+    Tools.syncWriteStatusIndicator();
+    return true;
+  }
+  Tools.bufferedWrites.push(bufferedWrite);
+  Tools.scheduleBufferedWriteFlush();
+  return true;
+};
+
+Tools.discardBufferedWrites = function discardBufferedWrites() {
+  Tools.bufferedWrites = [];
+  Tools.clearBufferedWriteTimer();
+  Tools.syncWriteStatusIndicator();
+};
+
+Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
+  Tools.awaitingBoardSnapshot = true;
+  Tools.discardBufferedWrites();
+  Tools.turnstilePendingWrites = [];
+  Tools.hideTurnstileOverlay();
+  Object.values(Tools.connectedUsers || {}).forEach(function (user) {
+    if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
+  });
+  Tools.connectedUsers = {};
+  Tools.renderConnectedUsers();
+  Tools.resetBoardViewport();
+  Tools.showLoadingMessage();
+  Object.values(Tools.list || {}).forEach(function (tool) {
+    if (tool && typeof tool.onSocketDisconnect === "function") {
+      tool.onSocketDisconnect();
+    }
+  });
+  Tools.syncWriteStatusIndicator();
 };
 
 /**
@@ -143,9 +550,11 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
   var pendingWrites = Tools.turnstilePendingWrites;
   Tools.turnstilePendingWrites = [];
   pendingWrites.forEach(function replayPendingWrite(write) {
-    var tool = Tools.list[write.toolName];
+    var pendingWrite = /** @type {PendingWrite} */ (write);
+    if (!pendingWrite.toolName || !pendingWrite.data) return;
+    var tool = Tools.list[pendingWrite.toolName];
     if (!tool) return;
-    Tools.send(write.data, write.toolName);
+    Tools.send(pendingWrite.data, pendingWrite.toolName);
   });
 };
 
@@ -447,7 +856,6 @@ Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
 Tools.socket = null;
 Tools.hasConnectedOnce = false;
-Tools.rateLimitAlertShown = false;
 Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
   var extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
     window.socketio_extra_headers,
@@ -472,11 +880,6 @@ Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
   }
   return null;
 })();
-Tools.showRateLimitAlert = function showRateLimitAlert() {
-  if (Tools.rateLimitAlertShown) return;
-  Tools.rateLimitAlertShown = true;
-  window.alert(Tools.i18n.t("rate_limit_disconnect_message"));
-};
 
 function generateUserSecret() {
   if (
@@ -995,6 +1398,7 @@ Tools.connect = function () {
 
   //Receive draw instructions from the server
   socket.on("connect", function onConnection() {
+    Tools.connectionState = "connected";
     if (Tools.hasConnectedOnce && Tools.server_config.TURNSTILE_SITE_KEY) {
       Tools.setTurnstileValidation(null);
       BoardTurnstile.resetTurnstileWidget(
@@ -1003,6 +1407,8 @@ Tools.connect = function () {
       );
     }
     Tools.hasConnectedOnce = true;
+    Tools.showLoadingMessage();
+    Tools.syncWriteStatusIndicator();
     if (Tools.socket) Tools.socket.emit("getboard", Tools.boardName);
   });
   socket.on("broadcast", function (/** @type {BoardMessage} */ msg) {
@@ -1011,8 +1417,16 @@ Tools.connect = function () {
         typeof msg.userId === "string" ? msg.userId : undefined,
         msg,
       );
-      var loadingEl = document.getElementById("loadingMessage");
-      if (loadingEl) loadingEl.classList.add("hidden");
+      if (
+        Tools.awaitingBoardSnapshot &&
+        Array.isArray(msg._children) &&
+        !msg.tool
+      ) {
+        Tools.awaitingBoardSnapshot = false;
+        Tools.flushBufferedWrites();
+      }
+      Tools.hideLoadingMessage();
+      Tools.syncWriteStatusIndicator();
     });
   });
   socket.on("boardstate", Tools.setBoardState);
@@ -1029,15 +1443,26 @@ Tools.connect = function () {
       Tools.removeConnectedUser(user.socketId);
     },
   );
-  socket.on("rate-limited", function onRateLimited() {
-    Tools.showRateLimitAlert();
-  });
+  socket.on(
+    "rate-limited",
+    function onRateLimited(
+      /** @type {{retryAfterMs?: number} | null | undefined} */ payload,
+    ) {
+      var retryAfterMs =
+        payload && typeof payload.retryAfterMs === "number"
+          ? payload.retryAfterMs
+          : 60 * 1000;
+      Tools.rateLimitedUntil = Date.now() + Math.max(0, retryAfterMs);
+      Tools.showRateLimitNotice(
+        Tools.i18n.t("rate_limit_disconnect_message"),
+        retryAfterMs,
+      );
+      Tools.syncWriteStatusIndicator();
+    },
+  );
   socket.on("disconnect", function onDisconnect() {
-    Object.values(Tools.list || {}).forEach(function (tool) {
-      if (tool && typeof tool.onSocketDisconnect === "function") {
-        tool.onSocketDisconnect();
-      }
-    });
+    Tools.connectionState = "disconnected";
+    Tools.beginAuthoritativeResync();
   });
 };
 Tools.boardName = Tools.resolveBoardName();
@@ -1358,15 +1783,14 @@ Tools.send = function (data, toolName) {
     if (!Tools.curTool) throw new Error("No current tool selected");
     toolName = Tools.curTool.name;
   }
-  data.tool = toolName;
-  Tools.applyHooks(Tools.messageHooks, data);
+  var outboundData = Tools.cloneMessage(data);
+  outboundData.tool = toolName;
+  Tools.applyHooks(Tools.messageHooks, outboundData);
   var message = {
     board: Tools.boardName,
-    data: data,
+    data: outboundData,
   };
-  if (!Tools.socket) throw new Error("Socket is not connected");
-  Tools.updateCurrentConnectedUserFromActivity(data);
-  Tools.socket.emit("broadcast", message);
+  return Tools.sendBufferedWrite(message);
 };
 
 /**
@@ -1377,6 +1801,14 @@ Tools.drawAndSend = function (data, tool) {
   if (tool == null) tool = Tools.curTool;
   if (!tool) throw new Error("No active tool available");
   if (tool && Tools.shouldDisableTool(tool.name)) return false;
+  if (
+    !Tools.socket ||
+    !Tools.socket.connected ||
+    Tools.awaitingBoardSnapshot ||
+    Tools.isWritePaused()
+  ) {
+    return false;
+  }
 
   // Optimistically render the drawing immediately
   tool.draw(data, true);
@@ -1387,11 +1819,10 @@ Tools.drawAndSend = function (data, tool) {
     !Tools.isTurnstileValidated()
   ) {
     Tools.queueProtectedWrite(data, tool);
-    return;
+    return true;
   }
 
-  Tools.send(data, tool.name);
-  return true;
+  return Tools.send(data, tool.name) !== false;
 };
 
 //Object containing the messages that have been received before the corresponding tool

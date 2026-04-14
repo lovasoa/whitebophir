@@ -18,6 +18,14 @@ test("configuration provides sane default rate-limit ordering", function () {
     assert.ok(config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS > 0);
     assert.ok(config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP > 0);
     assert.ok(config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS > 0);
+    assert.equal(
+      config.ANONYMOUS_MAX_CONSTRUCTIVE_ACTIONS_PER_IP,
+      Math.floor(config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP / 2),
+    );
+    assert.equal(
+      config.ANONYMOUS_MAX_DESTRUCTIVE_ACTIONS_PER_IP,
+      Math.floor(config.MAX_DESTRUCTIVE_ACTIONS_PER_IP / 2),
+    );
     assert.ok(config.MAX_EMIT_COUNT > 0);
     assert.ok(config.MAX_EMIT_COUNT_PERIOD > 0);
 
@@ -55,6 +63,55 @@ test("configuration rejects trust proxy hops with incompatible ip sources", func
   );
 });
 
+test("configuration parses compact rate-limit profiles", function () {
+  return withEnv(
+    {
+      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:240/60s anonymous:120/60s",
+      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:180/2m anonymous:90/45s",
+    },
+    function () {
+      const config = require(CONFIG_PATH);
+
+      assert.deepEqual(config.CONSTRUCTIVE_ACTION_RATE_LIMITS, {
+        limit: 240,
+        periodMs: 60_000,
+        overrides: {
+          anonymous: {
+            limit: 120,
+            periodMs: 60_000,
+          },
+        },
+      });
+      assert.deepEqual(config.DESTRUCTIVE_ACTION_RATE_LIMITS, {
+        limit: 180,
+        periodMs: 120_000,
+        overrides: {
+          anonymous: {
+            limit: 90,
+            periodMs: 45_000,
+          },
+        },
+      });
+    },
+  );
+});
+
+test("compact rate-limit profiles do not invent board overrides", function () {
+  return withEnv(
+    {
+      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:240/60s",
+    },
+    function () {
+      const config = require(CONFIG_PATH);
+      assert.deepEqual(config.CONSTRUCTIVE_ACTION_RATE_LIMITS, {
+        limit: 240,
+        periodMs: 60_000,
+        overrides: {},
+      });
+    },
+  );
+});
+
 test("general rate limit closes the socket when exceeded", async function () {
   await withEnv(
     {
@@ -87,8 +144,7 @@ test("destructive per-IP rate limit closes the socket when exceeded", async func
       WBO_IP_SOURCE: "remoteAddress",
       WBO_MAX_EMIT_COUNT: "10",
       WBO_MAX_EMIT_COUNT_PERIOD: "4096",
-      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "0",
-      WBO_MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS: "10000",
+      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:0/10s",
     },
     async function () {
       const sockets = require(SOCKETS_PATH);
@@ -111,6 +167,10 @@ test("destructive per-IP rate limit closes the socket when exceeded", async func
         event: "rate-limited",
         payload: {
           event: "DESTRUCTIVE_RATE_LIMIT_EXCEEDED",
+          kind: "destructive",
+          limit: 0,
+          periodMs: 10_000,
+          retryAfterMs: 10_000,
         },
       });
     },
@@ -123,8 +183,7 @@ test("constructive per-IP rate limit closes the socket when exceeded", async fun
       WBO_IP_SOURCE: "remoteAddress",
       WBO_MAX_EMIT_COUNT: "10",
       WBO_MAX_EMIT_COUNT_PERIOD: "4096",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "0",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS: "10000",
+      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:0/10s",
     },
     async function () {
       const sockets = require(SOCKETS_PATH);
@@ -153,6 +212,10 @@ test("constructive per-IP rate limit closes the socket when exceeded", async fun
         event: "rate-limited",
         payload: {
           event: "CONSTRUCTIVE_RATE_LIMIT_EXCEEDED",
+          kind: "constructive",
+          limit: 0,
+          periodMs: 10_000,
+          retryAfterMs: 10_000,
         },
       });
     },
@@ -164,7 +227,7 @@ test("missing configured IP source falls back without disconnecting", async func
     {
       WBO_IP_SOURCE: "X-Forwarded-For",
       WBO_MAX_EMIT_COUNT: "10",
-      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "10",
+      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:10/60s anonymous:5/60s",
     },
     async function () {
       const sockets = require(SOCKETS_PATH);
