@@ -30,6 +30,9 @@ const {
 } = require("@opentelemetry/sdk-trace-base");
 const { NodeSDK } = require("@opentelemetry/sdk-node");
 const {
+  RuntimeNodeInstrumentation,
+} = require("@opentelemetry/instrumentation-runtime-node");
+const {
   ATTR_ERROR_TYPE,
   ATTR_HTTP_REQUEST_METHOD,
   ATTR_HTTP_RESPONSE_STATUS_CODE,
@@ -48,6 +51,7 @@ const {
 
 const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME;
 const DEFAULT_TRACE_SAMPLE_RATIO = 0.05;
+const DEFAULT_RUNTIME_METRICS_PRECISION_MS = 5000;
 const TEST_TRACE_EXPORTER = /** @type {{__WBO_TEST_TRACE_EXPORTER__?: any}} */ (
   globalThis
 ).__WBO_TEST_TRACE_EXPORTER__;
@@ -174,6 +178,11 @@ const sdk = new NodeSDK({
   resource: resourceFromAttributes({
     [SEMRESATTRS_SERVICE_NAME]: SERVICE_NAME,
   }),
+  instrumentations: [
+    new RuntimeNodeInstrumentation({
+      monitoringPrecision: DEFAULT_RUNTIME_METRICS_PRECISION_MS,
+    }),
+  ],
   metricReaders: hasConfiguredOtlpEndpoint("metrics")
     ? [
         new PeriodicExportingMetricReader({
@@ -235,6 +244,13 @@ const boardOperations = meter.createCounter("wbo.board.operations", {
   description: "Board operation outcomes.",
   unit: "{operation}",
 });
+const boardOperationDuration = meter.createHistogram(
+  "wbo.board.operation.duration",
+  {
+    description: "Duration of board operations.",
+    unit: "s",
+  },
+);
 const rejections = meter.createCounter("wbo.rejections", {
   description: "Rejected operations by kind and reason.",
   unit: "{rejection}",
@@ -262,10 +278,13 @@ const connectedUsersGauge = meter.createObservableGauge(
     description: "Active board memberships connected across loaded boards.",
   },
 );
-const heapUsedGauge = meter.createObservableGauge("wbo.runtime.heap.used", {
-  description: "Current V8 heap memory usage.",
-  unit: "By",
-});
+const previewRenderDuration = meter.createHistogram(
+  "wbo.preview.render.duration",
+  {
+    description: "Duration of SVG preview rendering.",
+    unit: "s",
+  },
+);
 
 loadedBoardsGauge.addCallback(function observeLoadedBoards(observer) {
   observer.observe(runtimeState.loadedBoards);
@@ -277,9 +296,6 @@ activeSocketConnectionsGauge.addCallback(
 );
 connectedUsersGauge.addCallback(function observeConnectedUsers(observer) {
   observer.observe(runtimeState.connectedUsers);
-});
-heapUsedGauge.addCallback(function observeHeapUsed(observer) {
-  observer.observe(process.memoryUsage().heapUsed);
 });
 
 /**
@@ -893,6 +909,30 @@ function recordBoardOperation(operation, result) {
 }
 
 /**
+ * @param {string} operation
+ * @param {string} result
+ * @param {number} durationSeconds
+ * @returns {void}
+ */
+function recordBoardOperationDuration(operation, result, durationSeconds) {
+  boardOperationDuration.record(durationSeconds, {
+    "wbo.board.operation": operation,
+    "wbo.board.result": result,
+  });
+}
+
+/**
+ * @param {"success"|"error"} result
+ * @param {number} durationSeconds
+ * @returns {void}
+ */
+function recordPreviewRender(result, durationSeconds) {
+  previewRenderDuration.record(durationSeconds, {
+    "wbo.preview.result": result,
+  });
+}
+
+/**
  * @param {string} kind
  * @param {string} reason
  * @returns {void}
@@ -976,7 +1016,9 @@ module.exports = {
     recordAcceptedBoardMessage,
     changeHttpActiveRequests,
     recordBoardOperation,
+    recordBoardOperationDuration,
     recordHttpRequest,
+    recordPreviewRender,
     recordRejection,
     recordSocketConnection,
     recordSocketEvent,
