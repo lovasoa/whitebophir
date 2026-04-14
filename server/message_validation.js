@@ -5,6 +5,8 @@ const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js"
 /** @typedef {{[key: string]: any}} RawRecord */
 /** @typedef {import("../types/app-runtime").Transform} Transform */
 /** @typedef {{x: number, y: number}} ChildPoint */
+/** @typedef {{minX: number, minY: number, maxX: number, maxY: number} | null} Bounds */
+/** @typedef {{value: RawRecord, localBounds: Bounds}} StoredItemWithBounds */
 /**
  * @template T
  * @typedef {{ok: true, value: T}} Accepted
@@ -519,7 +521,7 @@ function normalizeStoredChildPoint(raw) {
  * @param {any} storedId
  * @returns {ValidationResult<RawRecord>}
  */
-function normalizeStoredItem(raw, storedId) {
+function normalizeStoredItemWithBounds(raw, storedId) {
   const normalizedId = MessageCommon.normalizeId(storedId);
   if (normalizedId === null) return rejected("invalid stored id");
   if (!isPlainObject(raw)) return rejected("invalid stored item");
@@ -544,15 +546,35 @@ function normalizeStoredItem(raw, storedId) {
     if (children.length) normalized.value._children = children;
   }
 
-  if (MessageCommon.isGeometryTooLarge(normalized.value)) {
+  const localBounds = MessageCommon.getLocalGeometryBounds(normalized.value);
+  const effectiveBounds = MessageCommon.applyTransformToBounds(
+    localBounds,
+    normalized.value.transform,
+  );
+  if (MessageCommon.isBoundsTooLarge(effectiveBounds)) {
     return rejected("shape too large");
   }
 
-  return normalized;
+  return accepted({
+    value: normalized.value,
+    localBounds: localBounds,
+  });
+}
+
+/**
+ * @param {any} raw
+ * @param {any} storedId
+ * @returns {ValidationResult<RawRecord>}
+ */
+function normalizeStoredItem(raw, storedId) {
+  const normalized = normalizeStoredItemWithBounds(raw, storedId);
+  if (!normalized.ok) return normalized;
+  return accepted(normalized.value.value);
 }
 
 module.exports = {
   normalizeIncomingMessage,
   normalizeStoredChildPoint,
   normalizeStoredItem,
+  normalizeStoredItemWithBounds,
 };

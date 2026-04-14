@@ -31,7 +31,7 @@ var nativeFs = require("node:fs"),
   MessageToolMetadata = require("../client-data/js/message_tool_metadata.js"),
   {
     normalizeStoredChildPoint,
-    normalizeStoredItem,
+    normalizeStoredItemWithBounds,
   } = require("./message_validation.js"),
   MessageCommon = require("../client-data/js/message_common.js"),
   path = require("node:path"),
@@ -220,15 +220,15 @@ class BoardData {
    * @returns {ValidatedStoredCandidate | ValidationFailure}
    */
   validateStoredCandidate(id, data) {
-    const normalized = normalizeStoredItem(data, id);
+    const normalized = normalizeStoredItemWithBounds(data, id);
     if (normalized.ok === false) {
       return { ok: false, reason: normalized.reason };
     }
     /** @type {ValidatedStoredCandidate} */
     return {
       ok: true,
-      value: normalized.value,
-      localBounds: MessageCommon.getLocalGeometryBounds(normalized.value),
+      value: normalized.value.value,
+      localBounds: normalized.value.localBounds,
     };
   }
 
@@ -463,9 +463,24 @@ class BoardData {
     for (var i in updateData) {
       if (updateData[i] !== undefined) obj[i] = updateData[i];
     }
-    this.cacheLocalBounds(id, MessageCommon.getLocalGeometryBounds(obj));
+    const nextLocalBounds =
+      obj.tool === "Pencil" && updateData.transform !== undefined
+        ? this.getLocalBounds(id, obj)
+        : MessageCommon.getLocalGeometryBounds(obj);
+    this.cacheLocalBounds(id, nextLocalBounds);
     this.delaySave();
     return { ok: true };
+  }
+
+  /**
+   * @param {string} id
+   * @param {BoardElem} item
+   * @param {Bounds | null | undefined} localBounds
+   * @returns {void}
+   */
+  replaceItem(id, item, localBounds) {
+    this.board[id] = item;
+    this.cacheLocalBounds(id, localBounds);
   }
 
   /** Copy elements in the board
@@ -530,6 +545,10 @@ class BoardData {
     let boardCleared = false;
     /** @type {Map<string, BoardElem | undefined>} */
     const shadowItems = new Map();
+    /** @type {Map<string, Bounds | null | undefined>} */
+    const shadowLocalBounds = new Map();
+    /** @type {Array<{type: "clear"} | {type: "delete", id: string} | {type: "replace", id: string, item: BoardElem, localBounds: Bounds | null}>} */
+    const actions = [];
     /**
      * @param {string} id
      * @returns {BoardElem | undefined}
@@ -540,6 +559,18 @@ class BoardData {
         : boardCleared
           ? undefined
           : this.board[id];
+    /**
+     * @param {string} id
+     * @param {BoardElem} item
+     * @returns {Bounds | null}
+     */
+    const readShadowLocalBounds = (id, item) => {
+      if (shadowLocalBounds.has(id)) {
+        return this.cloneBounds(shadowLocalBounds.get(id));
+      }
+      if (boardCleared) return null;
+      return this.getLocalBounds(id, item);
+    };
 
     for (const message of messages) {
       const id = message.id;
@@ -547,9 +578,14 @@ class BoardData {
         case "clear":
           boardCleared = true;
           shadowItems.clear();
+          shadowLocalBounds.clear();
+          actions.push({ type: "clear" });
           break;
         case "delete":
-          if (id) shadowItems.set(id, undefined);
+          if (!id) return { ok: false, reason: "missing id" };
+          shadowItems.set(id, undefined);
+          shadowLocalBounds.set(id, undefined);
+          actions.push({ type: "delete", id: id });
           break;
         case "update": {
           if (!id) return { ok: false, reason: "missing id" };
@@ -568,6 +604,13 @@ class BoardData {
           if (this.isCandidateTooLarge(candidate, localBounds))
             return { ok: false, reason: "shape too large" };
           shadowItems.set(id, candidate);
+          shadowLocalBounds.set(id, this.cloneBounds(localBounds));
+          actions.push({
+            type: "replace",
+            id: id,
+            item: candidate,
+            localBounds: localBounds,
+          });
           break;
         }
         case "copy": {
@@ -581,6 +624,16 @@ class BoardData {
           );
           if (!validated.ok) return validated;
           shadowItems.set(message.newid, validated.value);
+          shadowLocalBounds.set(
+            message.newid,
+            this.cloneBounds(validated.localBounds),
+          );
+          actions.push({
+            type: "replace",
+            id: message.newid,
+            item: validated.value,
+            localBounds: validated.localBounds,
+          });
           break;
         }
         case "child": {
@@ -597,34 +650,60 @@ class BoardData {
           if (currentChildren.length >= config.MAX_CHILDREN)
             return { ok: false, reason: "too many children" };
           const nextBounds = MessageCommon.extendBoundsWithPoint(
-            MessageCommon.getLocalGeometryBounds(current),
+            readShadowLocalBounds(message.parent, current),
             normalizedChild.value.x,
             normalizedChild.value.y,
           );
           if (this.isCandidateTooLarge(current, nextBounds))
             return { ok: false, reason: "shape too large" };
           currentChildren.push(normalizedChild.value);
-          shadowItems.set(
-            message.parent,
-            Object.assign({}, current, { _children: currentChildren }),
-          );
+          const candidate = Object.assign({}, current, {
+            _children: currentChildren,
+          });
+          shadowItems.set(message.parent, candidate);
+          shadowLocalBounds.set(message.parent, this.cloneBounds(nextBounds));
+          actions.push({
+            type: "replace",
+            id: message.parent,
+            item: candidate,
+            localBounds: nextBounds,
+          });
           break;
         }
         default: {
           if (!id) return { ok: false, reason: "missing id" };
+          message.time = Date.now();
           const validated = this.validateStoredCandidate(id, message);
           if (!validated.ok) return validated;
           shadowItems.set(id, validated.value);
+          shadowLocalBounds.set(id, this.cloneBounds(validated.localBounds));
+          actions.push({
+            type: "replace",
+            id: id,
+            item: validated.value,
+            localBounds: validated.localBounds,
+          });
           break;
         }
       }
     }
 
-    for (const message of messages) {
-      /** @type {BoardMutationResult | ValidationFailure} */
-      const result = this.processMessage(message);
-      if (!result.ok) return result;
+    for (const action of actions) {
+      switch (action.type) {
+        case "clear":
+          this.board = {};
+          this.localBoundsCache.clear();
+          break;
+        case "delete":
+          delete this.board[action.id];
+          this.localBoundsCache.delete(action.id);
+          break;
+        case "replace":
+          this.replaceItem(action.id, action.item, action.localBounds);
+          break;
+      }
     }
+    if (actions.length > 0) this.delaySave();
     return { ok: true };
   }
 
