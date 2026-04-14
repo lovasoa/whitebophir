@@ -44,14 +44,11 @@ declare global {
     WBOMessageCommon: typeof import("../client-data/js/message_common.js");
     Tools: typeof Tools;
     messageForTool: typeof messageForTool;
-    WBOBoardPageState: typeof import("../client-data/js/board_page_state.js");
     WBOBoardTransport: typeof import("../client-data/js/board_transport.js");
     WBOBoardState: typeof import("../client-data/js/board_page_state.js")["state"];
     WBOBoardMessages: typeof import("../client-data/js/board_transport.js")["messages"];
     WBOBoardConnection: typeof import("../client-data/js/board_transport.js")["connection"];
     WBOBoardTurnstile: typeof import("../client-data/js/board_transport.js")["turnstile"];
-    WBOBoardTools: typeof import("../client-data/js/board_page_state.js")["tools"];
-    WBOBoardBootstrap: typeof import("../client-data/js/board_page_state.js")["bootstrap"];
     socketio_extra_headers?: Record<string, string>;
     __downloadCapture?: any;
     __downloadAnchorClicks?: any;

@@ -161,16 +161,4 @@ const boardPageState = {
   state,
   tools,
 };
-
-var root = /** @type {typeof globalThis & {
-    WBOBoardPageState?: typeof boardPageState,
-    WBOBoardBootstrap?: typeof boardPageState.bootstrap,
-    WBOBoardState?: typeof boardPageState.state,
-    WBOBoardTools?: typeof boardPageState.tools,
-  }} */ (typeof globalThis === "object" ? globalThis : window);
-
-root.WBOBoardPageState = boardPageState;
-root.WBOBoardBootstrap = boardPageState.bootstrap;
-root.WBOBoardState = boardPageState.state;
-root.WBOBoardTools = boardPageState.tools;
 export default boardPageState;
