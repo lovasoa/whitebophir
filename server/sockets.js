@@ -482,7 +482,9 @@ function attachLiveSocketId(data, user) {
  * @param {{[key: string]: any}} infos
  * @returns {void}
  */
-function closeSocket(socket, _eventName, _infos) {
+function closeSocket(socket, eventName, infos) {
+  void eventName;
+  void infos;
   socket.disconnect(true);
 }
 
@@ -577,7 +579,8 @@ function boardMutationTraceAttributes(boardName, userName, message) {
  * @param {string} boardName
  * @returns {string}
  */
-function normalizedBoardName(_socket, boardName) {
+function normalizedBoardName(socket, boardName) {
+  void socket;
   return boardName || "anonymous";
 }
 

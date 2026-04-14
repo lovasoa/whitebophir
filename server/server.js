@@ -311,7 +311,8 @@ function observeRequest(request, response) {
  * @param {{noteError: (error: unknown) => void}} requestContext
  * @returns {(err?: unknown) => void}
  */
-function serveError(_request, response, requestContext) {
+function serveError(request, response, requestContext) {
+  void request;
   return (err) => {
     if (err) requestContext.noteError(err);
     response.writeHead(err ? 500 : 404, { "Content-Length": errorPage.length });

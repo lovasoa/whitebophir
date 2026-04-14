@@ -478,7 +478,8 @@ class BoardData {
    * @param {boolean} [create] - True if the object should be created if it's not currently in the DB.
    * @returns {BoardMutationResult}
    */
-  update(id, data, _create) {
+  update(id, data, create = false) {
+    void create;
     var tool = data.tool;
     var updateData = filterUpdatableFields(tool, data);
 
