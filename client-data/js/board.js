@@ -37,12 +37,17 @@
 /** @typedef {import("../../types/app-runtime").ToolPalette} ToolPalette */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
 /** @typedef {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastFocusX?: number, lastFocusY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
+/** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{limit?: number, periodMs?: number, anonymousLimit?: number, overrides?: {[boardName: string]: {limit?: number, periodMs?: number}}}} RateLimitDefinition */
-/** @typedef {typeof window & { WBORateLimitCommon?: typeof import("./rate_limit_common.js") }} WBOGlobal */
+/** @typedef {typeof window & { WBORateLimitCommon?: typeof import("./rate_limit_common.js"), WBOBoardMessageReplay?: typeof import("./board_message_replay.js") }} WBOGlobal */
 
 var Tools = /** @type {AppToolsState} */ ({});
 var MessageCommon = window.WBOMessageCommon;
 var BoardConnection = window.WBOBoardConnection;
+var BoardMessageReplay =
+  /** @type {NonNullable<WBOGlobal["WBOBoardMessageReplay"]>} */ (
+    /** @type {WBOGlobal} */ (window).WBOBoardMessageReplay
+  );
 var BoardMessages = window.WBOBoardMessages;
 var BoardState = window.WBOBoardState;
 var RateLimitCommon =
@@ -140,6 +145,10 @@ Tools.rateLimitedUntil = 0;
 Tools.rateLimitNoticeTimer = null;
 Tools.rateLimitNoticeMessage = "";
 Tools.awaitingBoardSnapshot = true;
+Tools.snapshotRevision = 0;
+Tools.preSnapshotMessages = [];
+Tools.incomingBroadcastQueue = [];
+Tools.processingIncomingBroadcast = false;
 Tools.connectionState = "connecting";
 Tools.localRateLimitStates = {
   general: RateLimitCommon.createRateLimitState(Date.now()),
@@ -505,6 +514,10 @@ Tools.discardBufferedWrites = function discardBufferedWrites() {
 
 Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.awaitingBoardSnapshot = true;
+  Tools.snapshotRevision = 0;
+  Tools.preSnapshotMessages = [];
+  Tools.incomingBroadcastQueue = [];
+  Tools.processingIncomingBroadcast = false;
   Tools.discardBufferedWrites();
   Tools.turnstilePendingWrites = [];
   Tools.hideTurnstileOverlay();
@@ -546,6 +559,86 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
     Tools.send(pendingWrite.data, pendingWrite.toolName);
   });
 };
+
+/**
+ * @param {BoardMessage} msg
+ * @param {boolean} processed
+ * @returns {void}
+ */
+function finalizeIncomingBroadcast(msg, processed) {
+  if (processed) {
+    Tools.updateConnectedUsersFromActivity(
+      typeof msg.userId === "string" ? msg.userId : undefined,
+      msg,
+    );
+  }
+  if (!Tools.awaitingBoardSnapshot) {
+    Tools.hideLoadingMessage();
+  }
+  Tools.syncWriteStatusIndicator();
+}
+
+/**
+ * @param {BoardMessage} msg
+ * @returns {Promise<boolean>}
+ */
+function processIncomingBroadcast(msg) {
+  if (
+    BoardMessageReplay.shouldBufferLiveMessage(msg, Tools.awaitingBoardSnapshot)
+  ) {
+    Tools.preSnapshotMessages.push(Tools.cloneMessage(msg));
+    return Promise.resolve(false);
+  }
+
+  return handleMessage(msg).then(function afterMessageHandled() {
+    if (
+      Tools.awaitingBoardSnapshot &&
+      BoardMessageReplay.isSnapshotMessage(msg)
+    ) {
+      Tools.snapshotRevision = BoardMessageReplay.normalizeRevision(
+        msg.revision,
+      );
+      Tools.awaitingBoardSnapshot = false;
+      Tools.flushBufferedWrites();
+      Tools.incomingBroadcastQueue =
+        BoardMessageReplay.filterBufferedMessagesAfterSnapshot(
+          Tools.preSnapshotMessages,
+          Tools.snapshotRevision,
+        ).concat(Tools.incomingBroadcastQueue);
+      Tools.preSnapshotMessages = [];
+    }
+    return true;
+  });
+}
+
+function drainIncomingBroadcastQueue() {
+  if (Tools.processingIncomingBroadcast) return;
+  Tools.processingIncomingBroadcast = true;
+
+  function drainNext() {
+    var msg = Tools.incomingBroadcastQueue.shift();
+    if (!msg) {
+      Tools.processingIncomingBroadcast = false;
+      return;
+    }
+    processIncomingBroadcast(msg)
+      .then(function afterProcess(processed) {
+        finalizeIncomingBroadcast(msg, processed);
+      })
+      .finally(drainNext);
+  }
+
+  drainNext();
+}
+
+/**
+ * @param {BoardMessage} msg
+ * @returns {void}
+ */
+function enqueueIncomingBroadcast(msg) {
+  Tools.incomingBroadcastQueue.push(msg);
+  drainIncomingBroadcastQueue();
+}
 
 Tools.scale = 1.0;
 Tools.drawToolsAllowed = null;
@@ -1145,48 +1238,54 @@ function markConnectedUserActivity(user) {
 
 /**
  * @param {ConnectedUser} user
- * @returns {void}
+ * @returns {string}
  */
-function focusConnectedUser(user) {
-  if (!hasConnectedUserFocus(user)) return;
+function getConnectedUserFocusHash(user) {
+  if (!hasConnectedUserFocus(user)) return "";
   var scale = Tools.getScale();
   var x = /** @type {number} */ (user.lastFocusX);
   var y = /** @type {number} */ (user.lastFocusY);
-  window.scrollTo(
-    Math.max(0, x * scale - window.innerWidth / 2),
-    Math.max(0, y * scale - window.innerHeight / 2),
+  return (
+    "#" +
+    Math.max(0, (x - window.innerWidth / (2 * scale)) | 0) +
+    "," +
+    Math.max(0, (y - window.innerHeight / (2 * scale)) | 0) +
+    "," +
+    scale.toFixed(1)
   );
 }
 
-Tools.renderConnectedUsers = function renderConnectedUsers() {
-  var list = getConnectedUsersList();
-  list.textContent = "";
+/**
+ * @param {ConnectedUserRow} row
+ * @param {ConnectedUser} user
+ * @returns {void}
+ */
+function updateConnectedUserRow(row, user) {
+  row.dataset.socketId = user.socketId;
+  row.classList.toggle("connected-user-row-self", isCurrentSocketUser(user));
 
-  var users = Object.values(Tools.connectedUsers).sort(function (left, right) {
-    return left.name.localeCompare(right.name);
-  });
+  var focusHash = getConnectedUserFocusHash(user);
+  row.classList.toggle("connected-user-row-jumpable", focusHash !== "");
 
-  users.forEach(function (user) {
-    var row = document.createElement("li");
-    row.className = "connected-user-row";
-    row.dataset.socketId = user.socketId;
-    row.tabIndex = hasConnectedUserFocus(user) ? 0 : -1;
-    if (isCurrentSocketUser(user)) row.classList.add("connected-user-row-self");
-    if (hasConnectedUserFocus(user)) {
-      row.classList.add("connected-user-row-jumpable");
-      row.addEventListener("click", function () {
-        focusConnectedUser(user);
-      });
-      row.addEventListener("keydown", function (evt) {
-        if (evt.key === "Enter" || evt.key === " ") {
-          evt.preventDefault();
-          focusConnectedUser(user);
-        }
-      });
+  var link = /** @type {HTMLAnchorElement | null} */ (
+    row.querySelector(".connected-user-main-link")
+  );
+  if (link) {
+    if (focusHash) {
+      link.setAttribute("href", focusHash);
+      link.removeAttribute("aria-disabled");
+      link.tabIndex = 0;
+    } else {
+      link.removeAttribute("href");
+      link.setAttribute("aria-disabled", "true");
+      link.tabIndex = -1;
     }
+  }
 
-    var color = document.createElement("span");
-    color.className = "connected-user-color";
+  var color = /** @type {HTMLSpanElement | null} */ (
+    row.querySelector(".connected-user-color")
+  );
+  if (color) {
     color.style.backgroundColor = user.color || "#001f3f";
     var dotSize = getConnectedUserDotSize(user.size);
     color.style.width = dotSize + "px";
@@ -1194,52 +1293,114 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
     if (user.pulseUntil && user.pulseUntil > Date.now()) {
       color.classList.add("active");
       color.style.setProperty("--pulse-ms", (user.pulseMs || 700) + "ms");
+    } else {
+      color.classList.remove("active");
+      color.style.removeProperty("--pulse-ms");
     }
-    row.appendChild(color);
+  }
 
-    var main = document.createElement("div");
-    main.className = "connected-user-main";
+  var name = /** @type {HTMLElement | null} */ (
+    row.querySelector(".connected-user-name")
+  );
+  if (name) name.textContent = user.name;
 
-    var name = document.createElement("div");
-    name.className = "connected-user-name";
-    name.textContent = user.name;
-    main.appendChild(name);
+  var meta = /** @type {HTMLElement | null} */ (
+    row.querySelector(".connected-user-meta")
+  );
+  if (meta) meta.textContent = getConnectedUserToolLabel(user);
 
-    var meta = document.createElement("span");
-    meta.className = "connected-user-meta";
-    meta.textContent = getConnectedUserToolLabel(user);
-    main.appendChild(meta);
+  var report = /** @type {HTMLButtonElement | null} */ (
+    row.querySelector(".connected-user-report")
+  );
+  if (report) {
+    report.hidden = !!(user.reported && !isCurrentSocketUser(user));
+    report.disabled = isCurrentSocketUser(user);
+    report.classList.toggle("connected-user-report-latched", !!user.reported);
+  }
+}
 
-    row.appendChild(main);
+/**
+ * @param {ConnectedUser} user
+ * @returns {ConnectedUserRow}
+ */
+function createConnectedUserRow(user) {
+  var row = /** @type {ConnectedUserRow} */ (document.createElement("li"));
+  row.className = "connected-user-row";
 
-    if (!user.reported || isCurrentSocketUser(user)) {
-      var report = document.createElement("button");
-      report.type = "button";
-      report.className = "connected-user-report";
-      report.textContent = "!";
-      report.title = Tools.i18n.t("report");
-      report.setAttribute("aria-label", Tools.i18n.t("report"));
-      if (isCurrentSocketUser(user)) {
-        report.disabled = true;
-      } else if (user.reported) {
-        report.disabled = true;
-        report.classList.add("connected-user-report-latched");
-      } else {
-        report.addEventListener("click", function (evt) {
-          evt.stopPropagation();
-          if (!Tools.socket) return;
-          user.reported = true;
-          Tools.renderConnectedUsers();
-          Tools.socket.emit("report_user", {
-            board: Tools.boardName,
-            socketId: user.socketId,
-          });
-        });
-      }
-      row.appendChild(report);
+  var color = document.createElement("span");
+  color.className = "connected-user-color";
+  row.appendChild(color);
+
+  var main = document.createElement("a");
+  main.className = "connected-user-main connected-user-main-link";
+
+  var name = document.createElement("div");
+  name.className = "connected-user-name";
+  main.appendChild(name);
+
+  var meta = document.createElement("span");
+  meta.className = "connected-user-meta";
+  main.appendChild(meta);
+
+  row.appendChild(main);
+
+  var report = document.createElement("button");
+  report.type = "button";
+  report.className = "connected-user-report";
+  report.textContent = "!";
+  report.title = Tools.i18n.t("report");
+  report.setAttribute("aria-label", Tools.i18n.t("report"));
+  report.addEventListener("click", function (evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    if (!Tools.socket || !row.dataset.socketId) return;
+    var connectedUser = Tools.connectedUsers[row.dataset.socketId];
+    if (!connectedUser || isCurrentSocketUser(connectedUser)) return;
+    connectedUser.reported = true;
+    updateConnectedUserRow(row, connectedUser);
+    Tools.socket.emit("report_user", {
+      board: Tools.boardName,
+      socketId: connectedUser.socketId,
+    });
+  });
+  row.appendChild(report);
+
+  updateConnectedUserRow(row, user);
+  return row;
+}
+
+Tools.renderConnectedUsers = function renderConnectedUsers() {
+  var list = getConnectedUsersList();
+  /** @type {{[socketId: string]: ConnectedUserRow}} */
+  var rowsBySocketId = {};
+  Array.from(list.children).forEach(function (child) {
+    if (
+      child instanceof HTMLLIElement &&
+      child.dataset.socketId &&
+      child.classList.contains("connected-user-row")
+    ) {
+      rowsBySocketId[child.dataset.socketId] = /** @type {ConnectedUserRow} */ (
+        child
+      );
     }
+  });
 
-    list.appendChild(row);
+  var users = Object.values(Tools.connectedUsers).sort(function (left, right) {
+    return left.name.localeCompare(right.name);
+  });
+
+  users.forEach(function (user, index) {
+    var row = rowsBySocketId[user.socketId] || createConnectedUserRow(user);
+    delete rowsBySocketId[user.socketId];
+    updateConnectedUserRow(row, user);
+    var currentChild = list.children[index];
+    if (currentChild !== row) {
+      list.insertBefore(row, currentChild || null);
+    }
+  });
+
+  Object.values(rowsBySocketId).forEach(function (row) {
+    row.remove();
   });
 };
 
@@ -1401,22 +1562,7 @@ Tools.connect = function () {
     if (Tools.socket) Tools.socket.emit("getboard", Tools.boardName);
   });
   socket.on("broadcast", function (/** @type {BoardMessage} */ msg) {
-    handleMessage(msg).finally(function afterload() {
-      Tools.updateConnectedUsersFromActivity(
-        typeof msg.userId === "string" ? msg.userId : undefined,
-        msg,
-      );
-      if (
-        Tools.awaitingBoardSnapshot &&
-        Array.isArray(msg._children) &&
-        !msg.tool
-      ) {
-        Tools.awaitingBoardSnapshot = false;
-        Tools.flushBufferedWrites();
-      }
-      Tools.hideLoadingMessage();
-      Tools.syncWriteStatusIndicator();
-    });
+    enqueueIncomingBroadcast(msg);
   });
   socket.on("boardstate", Tools.setBoardState);
   socket.on(
@@ -1859,11 +2005,17 @@ function handleMessage(message) {
     console.error("Received a badly formatted message (no tool). ", message);
   }
   if (message.tool) messageForTool(message);
-  if (BoardMessages.hasChildMessages(message))
+  if (
+    BoardMessages.hasChildMessages(message) &&
+    BoardMessageReplay.shouldReplayChildrenIndividually(message)
+  )
     return BoardMessages.batchCall(
       childMessageHandler(message),
       message._children,
     );
+  if (BoardMessages.hasChildMessages(message)) {
+    return Promise.resolve();
+  }
   if (message._children) {
     console.error(
       "Received a badly formatted message (_children must be an array). ",
@@ -1880,9 +2032,14 @@ function handleMessage(message) {
  * @returns {(child: BoardMessage) => Promise<void>}
  */
 function childMessageHandler(parent) {
-  if (!parent.id) return handleMessage;
   return function handleChild(child) {
-    return handleMessage(BoardMessages.normalizeChildMessage(parent, child));
+    return handleMessage(
+      BoardMessageReplay.prepareReplayChild(
+        parent,
+        child,
+        BoardMessages.normalizeChildMessage,
+      ),
+    );
   };
 }
 

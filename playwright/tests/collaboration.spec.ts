@@ -102,7 +102,7 @@ test.describe("collaboration and rate limiting", () => {
 
     await peerBoard.forceScrollTopLeft();
     await peerPage
-      .locator("#connectedUsersList .connected-user-row-jumpable")
+      .locator("#connectedUsersList .connected-user-main-link[href^='#']")
       .click();
     await expect
       .poll(() => peerBoard.scrollPosition())
@@ -210,6 +210,111 @@ test.describe("collaboration and rate limiting", () => {
     expect(parseFloat(self?.dotWidth ?? "0")).toBeGreaterThan(
       parseFloat(remote?.dotWidth ?? "0"),
     );
+
+    await peerPage.close();
+  });
+
+  test("connected user jump rows stay attached while cursor updates stream in", async ({
+    boardPage,
+    server,
+    context,
+    page,
+  }) => {
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await boardPage.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+    await peerBoard.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+
+    await Promise.all([
+      boardPage.gotoBoard("connected-user-jump-links"),
+      peerBoard.gotoBoard("connected-user-jump-links"),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+
+    await boardPage.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeVisible();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    await peerBoard.emitBroadcast({
+      tool: "Cursor",
+      type: "update",
+      x: 1600,
+      y: 1200,
+      color: "#00ff00",
+      size: 5,
+    });
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const row = document.querySelector(
+            "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+          );
+          const link = row?.querySelector(
+            ".connected-user-main-link",
+          ) as HTMLAnchorElement | null;
+          return link?.getAttribute("href") ?? "";
+        }),
+      )
+      .toMatch(/^#/);
+
+    await page.evaluate(() => {
+      const row = document.querySelector(
+        "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+      );
+      (window as any).__trackedConnectedUserRow = row;
+    });
+
+    await peerPage.evaluate(async () => {
+      const nextFrame = () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      for (let index = 0; index < 12; index += 1) {
+        (window as any).Tools.socket.emit("broadcast", {
+          board: (window as any).Tools.boardName,
+          data: {
+            tool: "Cursor",
+            type: "update",
+            x: 1600 + index * 8,
+            y: 1200 + index * 6,
+            color: "#00ff00",
+            size: 5,
+          },
+        });
+        await nextFrame();
+      }
+    });
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const saved = (window as any)
+            .__trackedConnectedUserRow as Element | null;
+          const current = document.querySelector(
+            "#connectedUsersList .connected-user-row:not(.connected-user-row-self)",
+          );
+          const link = current?.querySelector(
+            ".connected-user-main-link",
+          ) as HTMLAnchorElement | null;
+          return {
+            sameNode: saved === current,
+            isConnected: !!saved && (saved as HTMLElement).isConnected,
+            href: link?.getAttribute("href") ?? "",
+          };
+        }),
+      )
+      .toMatchObject({
+        sameNode: true,
+        isConnected: true,
+        href: expect.stringMatching(/^#/),
+      });
 
     await peerPage.close();
   });

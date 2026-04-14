@@ -187,6 +187,11 @@ svg {
   min-width: 0;
 }
 
+.connected-user-main-link {
+  color: inherit;
+  text-decoration: none;
+}
+
 .connected-user-meta {
   font-size: 11px;
   line-height: 1.2;
@@ -215,7 +220,7 @@ svg {
 }
 
 .connected-user-row-jumpable:hover,
-.connected-user-row-jumpable:focus {
+.connected-user-row-jumpable:focus-within {
   background: #eeeeff;
   outline: none;
 }
