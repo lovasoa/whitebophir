@@ -27,3 +27,4 @@ tests_output/
 playwright-report/
 test-results/
 .codex
+.profiles/

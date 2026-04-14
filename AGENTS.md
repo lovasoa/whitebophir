@@ -12,7 +12,7 @@
 - Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.js).
 - Canonical inbound payload normalization: [message schema gate](./server/message_validation.js).
 - In-memory board model + apply rules + disk sync: [board state engine](./server/boardData.js).
-- Page shell that loads runtime bundles: [board document](./client-data/board.html).
+- Page shell that loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js).
 - Client state machine + send/receive plumbing: [board runtime](./client-data/js/board.js).
 - Shared socket transport utilities: [transport helpers](./client-data/js/board_transport.js).
 - Shared geometry/id/color/text clamps: [message primitives](./client-data/js/message_common.js).
@@ -43,6 +43,7 @@
 - Node suite: `node --test test-node/*.test.js`.
 - Browser suite: `npx playwright test playwright/tests/<file>.spec.ts`.
 - Throughput check: `npm run bench` before/after suspected performance changes.
+- CPU + memory profile: `npm run profile` writes `.profiles/benchmark-server.cpuprofile` and `.profiles/benchmark-server.heapprofile`.
 - Full gate: `npm test` (Node tests, Playwright, `lint`).
 - Auto-format: `npm run format`.
 
@@ -51,6 +52,12 @@
 - `npm test` needs Chromium (`npx playwright install chromium` when missing).
 - `npm test` requires local networking and browser process startup.
 - In Playwright specs, assert authoritative socket/app state; avoid sleep-based timing.
+
+## profiling
+
+- Run `npm run profile` to profile `scripts/benchmark-server.js`; `.profiles/` is gitignored and keeps local CPU and heap output together.
+- CPU: open `.profiles/benchmark-server.cpuprofile` in DevTools Performance and look for hot frames with high self time or repeated stacks in `BoardData.load`, `BoardData.save`, `renderBoardToSVG`, `JSON.parse`, and `JSON.stringify`.
+- Memory: open `.profiles/benchmark-server.heapprofile` in DevTools Memory and look for large sampled allocations that survive GC, especially duplicated board objects, large `_children` arrays, and serialization strings.
 
 ## formatting
 
