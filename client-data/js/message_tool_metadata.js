@@ -94,11 +94,9 @@
    * @returns {string[]}
    */
   function getUpdatableFieldNames(toolName) {
-    if (typeof toolName !== "string") return [];
-    if (Object.prototype.hasOwnProperty.call(TOOL_UPDATE_FIELDS, toolName)) {
-      return TOOL_UPDATE_FIELDS[toolName] || [];
-    }
-    return [];
+    const metadata = getToolMetadata(toolName);
+    if (!metadata) return [];
+    return metadata.updatableFields.slice();
   }
 
   /**
