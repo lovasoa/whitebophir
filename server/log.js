@@ -1,5 +1,5 @@
 const config = require("./configuration.js"),
-  SDC = require("statsd-client");
+  StatsdClient = require("./statsd.js");
 
 /** @typedef {{tcp: boolean, host: string, port: number, prefix: string}} StatsdOptions */
 
@@ -24,14 +24,14 @@ function parse_statsd_url(url) {
 
 /**
  * Statsd client to which metrics will be reported
- * @type {SDC | null}
+ * @type {StatsdClient | null}
  * */
 let statsd = null;
 
 if (config.STATSD_URL) {
   const options = parse_statsd_url(config.STATSD_URL);
   console.log("Exposing metrics on statsd server: " + JSON.stringify(options));
-  statsd = new SDC(options);
+  statsd = new StatsdClient(options);
 }
 
 if (statsd) {
