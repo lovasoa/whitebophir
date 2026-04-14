@@ -530,6 +530,9 @@ export class BoardPage {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
+      const originalShouldDisableTool = (window as any).Tools.shouldDisableTool;
+      const originalCanUseTool = (window as any).Tools.canUseTool;
+
       (window as any).Tools.setScale(0.4);
       const initialState = {
         currentTool: (window as any).Tools.curTool?.name,
@@ -562,20 +565,8 @@ export class BoardPage {
         rectPresent: !!document.querySelector("#drawingArea rect"),
       };
 
-      (window as any).Tools.shouldDisableTool = (toolName: string) => {
-        return (
-          (window as any).MessageCommon.isDrawTool(toolName) &&
-          !(window as any).MessageCommon.isDrawToolAllowedAtScale(
-            (window as any).Tools.scale || 1,
-          )
-        );
-      };
-      (window as any).Tools.canUseTool = (toolName: string) => {
-        return (
-          (window as any).Tools.shouldDisplayTool(toolName) &&
-          !(window as any).Tools.shouldDisableTool(toolName)
-        );
-      };
+      (window as any).Tools.shouldDisableTool = originalShouldDisableTool;
+      (window as any).Tools.canUseTool = originalCanUseTool;
 
       const blockedChangeResult = (window as any).Tools.change("Pencil");
       (window as any).Tools.setScale(0.5);
