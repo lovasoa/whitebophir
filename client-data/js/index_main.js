@@ -5,8 +5,10 @@
     : "";
 
   async function bootIndexPage() {
-    await import(`./board_page_state.js${versionSuffix}`);
-    await import(`./index.js${versionSuffix}`);
+    await Promise.all([
+      import(`./board_page_state.js${versionSuffix}`),
+      import(`./index.js${versionSuffix}`),
+    ]);
   }
 
   bootIndexPage().catch((error) => {
