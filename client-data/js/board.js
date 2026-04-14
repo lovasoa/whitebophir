@@ -23,6 +23,7 @@
  *
  * @licend
  */
+import Minitpl from "./minitpl.js";
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
 /** @typedef {import("../../types/app-runtime").AppTool} AppTool */
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */

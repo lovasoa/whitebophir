@@ -91,11 +91,4 @@ Minitpl.prototype.add = function (data) {
   this.parent.appendChild(newElem);
   return newElem;
 };
-
-/** @type {typeof globalThis & {Minitpl?: typeof Minitpl}} */ (
-  typeof globalThis !== "undefined" ? globalThis : window
-).Minitpl = Minitpl;
-
-if (typeof module === "object" && module.exports) {
-  module.exports = Minitpl;
-}
+export default Minitpl;
