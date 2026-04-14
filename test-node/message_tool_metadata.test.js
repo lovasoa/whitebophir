@@ -17,3 +17,22 @@ test('shape-tool metadata helpers remain consistent', function () {
 
   assert.equal(MessageToolMetadata.isShapeTool('Pencil'), false);
 });
+
+test('unknown tool names have no updatable fields', function () {
+  const unknownToolData = { x: 1, y: 2, txt: 'keep' };
+
+  assert.deepEqual(
+    MessageToolMetadata.getUpdatableFieldNames('Unknown tool'),
+    [],
+  );
+
+  assert.deepEqual(
+    MessageToolMetadata.getUpdatableFields('Unknown tool', unknownToolData),
+    {},
+  );
+
+  assert.deepEqual(
+    MessageToolMetadata.getUpdatableFields(undefined, unknownToolData),
+    {},
+  );
+});
