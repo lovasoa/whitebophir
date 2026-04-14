@@ -6,3 +6,5 @@ node_modules/
 Dockerfile
 .dockerignore
 server-data/**/*.json
+playwright-report
+test-results

@@ -11,12 +11,7 @@ try {
   );
   process.exit(1);
 } catch (err) {
-  if (
-    err &&
-    typeof err === "object" &&
-    "status" in err &&
-    err.status === 1
-  ) {
+  if (err && typeof err === "object" && "status" in err && err.status === 1) {
     process.exit(0);
   }
   throw err;

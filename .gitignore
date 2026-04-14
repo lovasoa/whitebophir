@@ -24,4 +24,6 @@ wbo-backup*
 
 # Nightwatch test results
 tests_output/
+playwright-report/
+test-results/
 .codex

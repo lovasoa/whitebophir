@@ -129,7 +129,9 @@ export class BoardPage {
   async waitForSocketConnected() {
     await expect
       .poll(() =>
-        this.page.evaluate(() => (window as any).Tools.socket.connected as boolean),
+        this.page.evaluate(
+          () => (window as any).Tools.socket.connected as boolean,
+        ),
       )
       .toBe(true);
   }

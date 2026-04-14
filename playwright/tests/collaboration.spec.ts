@@ -19,8 +19,12 @@ test.describe("collaboration and rate limiting", () => {
     const peerPage = await context.newPage();
     const peerBoard = createBoardPage(peerPage, server);
 
-    await boardPage.setSocketHeaders({ "X-Forwarded-For": DEFAULT_FORWARDED_IP });
-    await peerBoard.setSocketHeaders({ "X-Forwarded-For": DEFAULT_FORWARDED_IP });
+    await boardPage.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+    await peerBoard.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
 
     await Promise.all([
       boardPage.gotoBoard("collaborative-test"),
@@ -88,7 +92,9 @@ test.describe("collaboration and rate limiting", () => {
     ).toBe(true);
 
     await peerBoard.forceScrollTopLeft();
-    await peerPage.locator("#connectedUsersList .connected-user-row-jumpable").click();
+    await peerPage
+      .locator("#connectedUsersList .connected-user-row-jumpable")
+      .click();
     await expect
       .poll(() => peerBoard.scrollPosition())
       .toMatchObject({
@@ -102,47 +108,47 @@ test.describe("collaboration and rate limiting", () => {
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
   });
 
-  rateLimitTest("rate limit alert disconnects the socket", async ({
-    boardPage,
-    page,
-  }) => {
-    await boardPage.setSocketHeaders({
-      "X-Forwarded-For": "198.51.100.200",
-    });
-    await boardPage.gotoBoard("rate-limit-test");
-    await expect(boardPage.tool("Eraser")).toBeVisible();
-    await boardPage.waitForSocketConnected();
-
-    await page.evaluate(() => {
-      (window as any).__lastAlert = null;
-      window.alert = (message?: string) => {
-        (window as any).__lastAlert = message ?? null;
-      };
-    });
-    await page.evaluate(() => {
-      for (let index = 0; index < 101; index += 1) {
-        (window as any).Tools.socket.emit("broadcast", {
-          board: (window as any).Tools.boardName,
-          data: {
-            tool: "Eraser",
-            type: "delete",
-            id: `rate-limit-${index}`,
-          },
-        });
-      }
-    });
-
-    await expect
-      .poll(() =>
-        page.evaluate(() => ({
-          alert: (window as any).__lastAlert as string | null,
-          connected: (window as any).Tools.socket.connected as boolean,
-        })),
-      )
-      .toMatchObject({
-        alert:
-          "You're sending changes too quickly, so we paused your connection to protect the board. Please wait a minute and try again.",
-        connected: false,
+  rateLimitTest(
+    "rate limit alert disconnects the socket",
+    async ({ boardPage, page }) => {
+      await boardPage.setSocketHeaders({
+        "X-Forwarded-For": "198.51.100.200",
       });
-  });
+      await boardPage.gotoBoard("rate-limit-test");
+      await expect(boardPage.tool("Eraser")).toBeVisible();
+      await boardPage.waitForSocketConnected();
+
+      await page.evaluate(() => {
+        (window as any).__lastAlert = null;
+        window.alert = (message?: string) => {
+          (window as any).__lastAlert = message ?? null;
+        };
+      });
+      await page.evaluate(() => {
+        for (let index = 0; index < 101; index += 1) {
+          (window as any).Tools.socket.emit("broadcast", {
+            board: (window as any).Tools.boardName,
+            data: {
+              tool: "Eraser",
+              type: "delete",
+              id: `rate-limit-${index}`,
+            },
+          });
+        }
+      });
+
+      await expect
+        .poll(() =>
+          page.evaluate(() => ({
+            alert: (window as any).__lastAlert as string | null,
+            connected: (window as any).Tools.socket.connected as boolean,
+          })),
+        )
+        .toMatchObject({
+          alert:
+            "You're sending changes too quickly, so we paused your connection to protect the board. Please wait a minute and try again.",
+          connected: false,
+        });
+    },
+  );
 });

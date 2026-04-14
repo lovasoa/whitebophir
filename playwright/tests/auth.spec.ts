@@ -144,37 +144,34 @@ test.describe("JWT auth and readonly flows", () => {
 });
 
 test.describe("public authless flows", () => {
-  test(
-    "readonly board without auth",
-    async ({ boardPage, server, page }) => {
-      const selector =
-        "rect[x='10'][y='10'][width='20'][height='20'][stroke='#123456']";
+  test("readonly board without auth", async ({ boardPage, server, page }) => {
+    const selector =
+      "rect[x='10'][y='10'][width='20'][height='20'][stroke='#123456']";
 
-      await server.writeBoard(server.dataPath, "readonly-public", {
-        __wbo_meta__: { readonly: true },
-      });
+    await server.writeBoard(server.dataPath, "readonly-public", {
+      __wbo_meta__: { readonly: true },
+    });
 
-      await boardPage.gotoBoard("readonly-public");
-      await expect(boardPage.tool("Hand")).toBeVisible();
-      await expect(boardPage.tool("Pencil")).toHaveCount(0);
-      await expect(boardPage.tool("Line")).toHaveCount(0);
-      await expect(boardPage.settings).toBeHidden();
-      await boardPage.emitBroadcast({
-        type: "rect",
-        id: "readonly-public-rect",
-        tool: "Rectangle",
-        x: 10,
-        y: 10,
-        x2: 30,
-        y2: 30,
-        color: "#123456",
-        size: 4,
-      });
-      await page.reload();
-      await expect(boardPage.tool("Hand")).toBeVisible();
-      await expect(page.locator(selector)).toHaveCount(0);
-    },
-  );
+    await boardPage.gotoBoard("readonly-public");
+    await expect(boardPage.tool("Hand")).toBeVisible();
+    await expect(boardPage.tool("Pencil")).toHaveCount(0);
+    await expect(boardPage.tool("Line")).toHaveCount(0);
+    await expect(boardPage.settings).toBeHidden();
+    await boardPage.emitBroadcast({
+      type: "rect",
+      id: "readonly-public-rect",
+      tool: "Rectangle",
+      x: 10,
+      y: 10,
+      x2: 30,
+      y2: 30,
+      color: "#123456",
+      size: 4,
+    });
+    await page.reload();
+    await expect(boardPage.tool("Hand")).toBeVisible();
+    await expect(page.locator(selector)).toHaveCount(0);
+  });
 
   test("menu hiding query param", async ({ boardPage }) => {
     await boardPage.gotoBoard("anonymous", {

@@ -41,6 +41,7 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run bench
+      - run: npx playwright install --with-deps chromium
       - run: npm test
         env:
           CI: true
@@ -49,4 +50,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: tests-output-${{ matrix.node-version }}
-          path: tests_output/
+          path: |
+            playwright-report/
+            test-results/

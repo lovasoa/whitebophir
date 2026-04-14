@@ -27,7 +27,7 @@
     "test:pw:ui": "node scripts/check-playwright-tests.js && playwright test --ui",
     "test:pw:debug": "node scripts/check-playwright-tests.js && playwright test --debug",
     "typecheck:pw": "tsc -p tsconfig.playwright.json",
-    "test": "npm run test-node && npm run test:nightwatch",
+    "test": "npm run test-node && npm run test:pw && npm run prettier-check",
     "typecheck": "tsc -p tsconfig.checkjs.json",
     "format-staged": "node scripts/prettier-staged.js",
     "prettier": "prettier . --write",

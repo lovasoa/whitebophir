@@ -64,7 +64,9 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
     await boardPage.waitForSocketConnected();
     await boardPage.trackBroadcasts();
 
-    await expect(await boardPage.validateTurnstileToken("validated-before-reconnect")).toEqual({
+    await expect(
+      await boardPage.validateTurnstileToken("validated-before-reconnect"),
+    ).toEqual({
       success: true,
       validated: true,
     });
@@ -123,7 +125,9 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
       "anonymous",
       (storedBoard) => storedBoard["reconnect-turnstile-rect"] != null,
     );
-    await expect(peerPage.locator("rect#reconnect-turnstile-rect")).toBeVisible();
+    await expect(
+      peerPage.locator("rect#reconnect-turnstile-rect"),
+    ).toBeVisible();
 
     await peerPage.close();
   } finally {
