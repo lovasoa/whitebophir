@@ -171,6 +171,90 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
   );
 });
 
+test("snapshot and live broadcasts carry revisions for deterministic client replay", async function () {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-revision-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async function () {
+      const sockets = require(SOCKETS_PATH);
+      sockets.__test.resetRateLimitMaps();
+
+      const created = createSocket({
+        id: "socket-revision",
+        remoteAddress: "203.0.113.70",
+        query: {
+          userSecret: "revision-secret",
+          tool: "Rectangle",
+          color: "#333333",
+          size: "4",
+        },
+      });
+      sockets.__test.handleSocketConnection(created.socket);
+      await getRequiredHandler(created.handlers, "getboard")("board-revision");
+
+      const initialSnapshot = getRequiredValue(
+        created.emitted.find(function (event) {
+          return event.event === "broadcast";
+        }),
+      ).payload;
+      assert.equal(initialSnapshot.revision, 0);
+      assert.deepEqual(initialSnapshot._children, []);
+
+      await getRequiredHandler(
+        created.handlers,
+        "broadcast",
+      )({
+        board: "board-revision",
+        data: {
+          tool: "Rectangle",
+          type: "rect",
+          id: "rect-1",
+          color: "#123456",
+          size: 4,
+          x: 0,
+          y: 0,
+          x2: 20,
+          y2: 20,
+        },
+      });
+
+      const liveBroadcast = getRequiredValue(
+        created.broadcasted.find(function (event) {
+          return event.event === "broadcast";
+        }),
+      ).payload;
+      assert.equal(liveBroadcast.revision, 1);
+
+      const nextSocket = createSocket({
+        id: "socket-revision-2",
+        remoteAddress: "203.0.113.71",
+        query: {
+          userSecret: "revision-secret-2",
+          tool: "Hand",
+          color: "#444444",
+          size: "5",
+        },
+      });
+      sockets.__test.handleSocketConnection(nextSocket.socket);
+      await getRequiredHandler(
+        nextSocket.handlers,
+        "getboard",
+      )("board-revision");
+
+      const replaySnapshot = getRequiredValue(
+        nextSocket.emitted.find(function (event) {
+          return event.event === "broadcast";
+        }),
+      ).payload;
+      assert.equal(replaySnapshot.revision, 1);
+      assert.equal(replaySnapshot._children.length, 1);
+      assert.equal(replaySnapshot._children[0].id, "rect-1");
+    },
+  );
+});
+
 test("disconnecting from a board broadcasts user_left and cleans the board user map", async function () {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-left-"),

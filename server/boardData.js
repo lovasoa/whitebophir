@@ -179,10 +179,26 @@ class BoardData {
     this.users = new Set();
     this.saveMutex = new SerialTaskQueue();
     this.localBoundsCache = new Map();
+    this.revision = 0;
   }
 
   isReadOnly() {
     return this.metadata.readonly === true;
+  }
+
+  /**
+   * @returns {number}
+   */
+  getRevision() {
+    return this.revision;
+  }
+
+  /**
+   * @returns {{ok: true, revision: number}}
+   */
+  commitMutation() {
+    this.revision += 1;
+    return { ok: true, revision: this.revision };
   }
 
   /**
@@ -425,7 +441,7 @@ class BoardData {
     this.board[id] = validated.value;
     this.cacheLocalBounds(id, validated.localBounds);
     this.delaySave();
-    return { ok: true };
+    return this.commitMutation();
   }
 
   /** Adds a child to an element that is already in the board
@@ -453,7 +469,7 @@ class BoardData {
     obj._children.push(normalizedChild.value);
     this.cacheLocalBounds(parentId, nextBounds);
     this.delaySave();
-    return { ok: true };
+    return this.commitMutation();
   }
 
   /** Update the data in the board
@@ -485,7 +501,7 @@ class BoardData {
         : MessageCommon.getLocalGeometryBounds(obj);
     this.cacheLocalBounds(id, nextLocalBounds);
     this.delaySave();
-    return { ok: true };
+    return this.commitMutation();
   }
 
   /**
@@ -521,7 +537,7 @@ class BoardData {
       return { ok: false, reason: "copied object does not exist" };
     }
     this.delaySave();
-    return { ok: true };
+    return this.commitMutation();
   }
 
   /** Clear the board of all data
@@ -531,7 +547,7 @@ class BoardData {
     this.board = {};
     this.localBoundsCache.clear();
     this.delaySave();
-    return { ok: true };
+    return this.commitMutation();
   }
 
   /** Removes data from the board
@@ -543,7 +559,7 @@ class BoardData {
     delete this.board[id];
     this.localBoundsCache.delete(id);
     this.delaySave();
-    return { ok: true };
+    return this.commitMutation();
   }
 
   /** Process a batch of messages
@@ -720,7 +736,7 @@ class BoardData {
       }
     }
     if (actions.length > 0) this.delaySave();
-    return { ok: true };
+    return this.commitMutation();
   }
 
   /** Process a single message

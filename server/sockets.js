@@ -1163,7 +1163,10 @@ function handleSocketConnection(socket) {
             canWrite: canWriteToBoard(board, socket),
           });
           //Send all the board's data as soon as it's loaded
-          socket.emit("broadcast", { _children: board.getAll() });
+          socket.emit("broadcast", {
+            _children: board.getAll(),
+            revision: board.getRevision(),
+          });
         },
       );
     }, "getboard"),
@@ -1404,6 +1407,7 @@ function handleSocketConnection(socket) {
           now,
         );
         attachLiveSocketId(normalizedData, user);
+        normalizedData.revision = handleResult.revision;
         tracing.setActiveSpanAttributes({
           "wbo.board.result": "success",
           "wbo.user": user ? user.name : userName,
@@ -1572,7 +1576,7 @@ async function unloadBoard(boardName) {
  * @param {BoardData} board
  * @param {MessageData} message
  * @param {AppSocket} socket
- * @returns {{ok: true} | {ok: false, reason: string}}
+ * @returns {{ok: true, revision?: number} | {ok: false, reason: string}}
  */
 function handleMessage(board, message, socket) {
   if (message.tool === "Cursor") {
@@ -1585,7 +1589,7 @@ function handleMessage(board, message, socket) {
 /**
  * @param {BoardData} board
  * @param {MessageData} message
- * @returns {{ok: true} | {ok: false, reason: string}}
+ * @returns {{ok: true, revision?: number} | {ok: false, reason: string}}
  */
 function saveHistory(board, message) {
   if (!(message.tool || message.type === "child") && !message._children) {

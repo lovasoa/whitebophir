@@ -13,6 +13,7 @@ export type BoardMessage = {
   type?: string;
   parent?: string;
   newid?: string;
+  revision?: number;
   transform?: Transform | unknown;
   _children?: BoardMessage[];
   x?: number;
