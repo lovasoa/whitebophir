@@ -23,9 +23,7 @@
     "node_modules",
     "server-data",
     "playwright",
-    "**/*.bak",
     "scripts/benchmark-server.js",
-    "client-data/**/*.mjs",
     "client-data/js/path-data-polyfill.js"
   ]
 }

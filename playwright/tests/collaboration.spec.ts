@@ -387,6 +387,10 @@ test.describe("collaboration and rate limiting", () => {
         boardPage.waitForAuthoritativeResync(),
         peerBoard.waitForAuthoritativeResync(),
       ]);
+      await Promise.all([
+        expect(boardPage.tool("Rectangle")).toBeVisible(),
+        expect(peerBoard.tool("Rectangle")).toBeVisible(),
+      ]);
 
       await page.evaluate(() => {
         const rectangle = (window as any).Tools.list.Rectangle;
