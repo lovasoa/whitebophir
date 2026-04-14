@@ -941,7 +941,10 @@ Tools.updateCurrentConnectedUserFromActivity =
     if (!Tools.socket || typeof Tools.socket.id !== "string") return;
     var current = Tools.connectedUsers[Tools.socket.id];
     if (!current) return;
-    Tools.updateConnectedUsersFromActivity(current.userId, message);
+    Tools.updateConnectedUsersFromActivity(
+      current.userId,
+      Object.assign({}, message, { socket: current.socketId }),
+    );
   };
 
 Tools.initConnectedUsersUI = function initConnectedUsersUI() {

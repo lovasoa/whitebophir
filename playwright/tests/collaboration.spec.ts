@@ -108,6 +108,103 @@ test.describe("collaboration and rate limiting", () => {
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
   });
 
+  test("same-session sockets keep separate activity in the user list", async ({
+    boardPage,
+    server,
+    context,
+  }) => {
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await boardPage.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+    await peerBoard.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+
+    await Promise.all([
+      boardPage.gotoBoard("same-session-activity"),
+      peerBoard.gotoBoard("same-session-activity"),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+
+    await boardPage.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeVisible();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    await peerBoard.emitBroadcast({
+      tool: "Cursor",
+      type: "update",
+      x: 250,
+      y: 150,
+      color: "#00ff00",
+      size: 5,
+    });
+
+    await expect
+      .poll(async () => {
+        const rows = await boardPage.readConnectedUsers();
+        const remote = rows.find((row) => !row.isSelf);
+        return {
+          color: remote?.color ?? "",
+          dotWidth: parseFloat(remote?.dotWidth ?? "0"),
+        };
+      })
+      .toMatchObject({
+        color: "rgb(0, 255, 0)",
+        dotWidth: 8,
+      });
+
+    await boardPage.drawRectangle(
+      "#ff0000",
+      { x: 1100, y: 800 },
+      { x: 1300, y: 1000 },
+      11,
+    );
+
+    await expect
+      .poll(async () => {
+        const rows = await boardPage.readConnectedUsers();
+        const self = rows.find((row) => row.isSelf);
+        const remote = rows.find((row) => !row.isSelf);
+        return {
+          self: {
+            color: self?.color ?? "",
+            dotWidth: parseFloat(self?.dotWidth ?? "0"),
+            meta: self?.meta ?? "",
+          },
+          remote: {
+            color: remote?.color ?? "",
+            dotWidth: parseFloat(remote?.dotWidth ?? "0"),
+            meta: remote?.meta ?? "",
+          },
+        };
+      })
+      .toMatchObject({
+        self: {
+          color: "rgb(255, 0, 0)",
+          meta: "Rectangle",
+        },
+        remote: {
+          color: "rgb(0, 255, 0)",
+          meta: "Hand",
+        },
+      });
+
+    const rows = await boardPage.readConnectedUsers();
+    const self = rows.find((row) => row.isSelf);
+    const remote = rows.find((row) => !row.isSelf);
+    expect(parseFloat(self?.dotWidth ?? "0")).toBeGreaterThan(
+      parseFloat(remote?.dotWidth ?? "0"),
+    );
+
+    await peerPage.close();
+  });
+
   rateLimitTest(
     "rate limit alert disconnects the socket",
     async ({ boardPage, page }) => {
