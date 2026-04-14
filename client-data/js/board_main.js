@@ -21,10 +21,7 @@
   }
 
   async function bootBoardPage() {
-    await importInParallel([
-      "./path-data-polyfill.js",
-      "./board.js",
-    ]);
+    await importInParallel(["./path-data-polyfill.js", "./board.js"]);
 
     const toolModules = [
       "../tools/pencil/pencil.js",
