@@ -1,49 +1,68 @@
-# Contributing Guide
+# contributing guide
 
-## Baseline
+## baseline
 
-- [CI workflow](./.github/workflows/CI.yml).
-- this is a classic node project: `npm install`, `npm test`, etc.
+- CI contract: [checks and order](./.github/workflows/CI.yml).
+- Standard flow: `npm install`, `npm test`.
 
-## Where To Look
+## architecture
 
-- Main server entrypoint: [server/server.js](./server/server.js)
-- Main browser entrypoint: [client-data/board.html](./client-data/board.html)
-- Main client runtime: [client-data/js/board.js](./client-data/js/board.js)
-- Server config and env vars: [server/configuration.js](./server/configuration.js)
-- Socket and real-time flow: [server/sockets.js](./server/sockets.js)
-- Board persistence and normalization on load/save: [server/boardData.js](./server/boardData.js)
-- Message validation on the server: [server/message_validation.js](./server/message_validation.js)
-- Shared message normalization helpers: [client-data/js/message_common.js](./client-data/js/message_common.js)
-- Browser integration tests: files under [playwright/tests](./playwright/tests)
-- Node/unit-style tests: [test-node/rate_limits.test.js](./test-node/rate_limits.test.js)
-- Browser test runner config: [playwright.config.ts](./playwright.config.ts)
+- Process boot + routes + socket server: [server startup](./server/server.js).
+- Realtime event handlers + broadcast path: [socket handlers](./server/sockets.js).
+- Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.js).
+- Canonical inbound payload normalization: [message schema gate](./server/message_validation.js).
+- In-memory board model + apply rules + disk sync: [board state engine](./server/boardData.js).
+- Page shell that loads runtime bundles: [board document](./client-data/board.html).
+- Client state machine + send/receive plumbing: [board runtime](./client-data/js/board.js).
+- Shared socket transport utilities: [transport helpers](./client-data/js/board_transport.js).
+- Shared geometry/id/color/text clamps: [message primitives](./client-data/js/message_common.js).
+- Tool implementations that mutate SVG/DOM: [tool modules](./client-data/tools/).
 
-## Test Commands
+## message lifecycle
 
-Run these before opening a PR:
+- A tool builds payload data from pointer/input handlers and calls `Tools.drawAndSend` or `Tools.send` (tool modules + runtime).
+- `Tools.drawAndSend` renders locally first with `tool.draw(data, true)`.
+- `Tools.send` clones payload, stamps `tool`, runs hooks, wraps socket envelope `{ board, data }`.
+- `Tools.sendBufferedWrite` emits immediately with `socket.emit("broadcast", message)` or appends to `Tools.bufferedWrites`; `Tools.scheduleBufferedWriteFlush` and `Tools.flushBufferedWrites` drain later.
+- Server receives `socket.on("broadcast", ...)` and runs board access + rate-limit checks.
+- Server calls `normalizeBroadcastData`, which calls `normalizeIncomingMessage`; rejects include explicit reasons.
+- Accepted payload is cloned for storage, then passed through `handleMessage` / `saveHistory` to `board.processMessage(...)`.
+- Server relays normalized payload to peers with `socket.broadcast.to(boardName).emit("broadcast", normalizedData)`.
+- Client `socket.on("broadcast", msg)` calls `handleMessage(msg)`; child batches use `BoardMessages.hasChildMessages` + `normalizeChildMessage`.
+- `messageForTool` resolves `Tools.list[message.tool]` and calls `tool.draw(message, false)`; tool code mutates SVG/DOM.
 
-- Focused Node suite: `node --test test-node/*.test.js`
-- Focused browser suite: `npx playwright test playwright/tests/<file>.spec.ts`
-- Server benchmark: `npm run bench`
-  Run this before and after a change when you suspect it may have a performance impact.
-- Full local suite: `npm test`: This runs the Node tests, then the Playwright browser tests, then `prettier-check`.
-- Auto-format: `npm run prettier`
-  - Rules live in [.prettierrc](./.prettierrc); ignored paths are in [.prettierignore](./.prettierignore).
+## where to look by concern
 
-Notes:
+- Config/env behavior: [server configuration](./server/configuration.js).
+- Browser integration coverage: [playwright specs](./playwright/tests).
+- Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
+- Browser runner setup: [playwright config](./playwright.config.ts).
 
-- `npm test` expects Playwright Chromium to be installed. Run `npx playwright install chromium` if needed.
-- `npm test` needs an environment that allows local networking and browser/driver startup. Run them unsandboxed.
-- In `playwright/tests`, prefer short deterministic scenarios that assert our actual socket and persistence guarantees, use the shared test server env overrides instead of production defaults when timing matters, and wait on authoritative app state rather than fixed delays or incidental peer DOM timing so tests stay fast and CI-reliable.
+## test commands
 
-## Formatting
+- Node suite: `node --test test-node/*.test.js`.
+- Browser suite: `npx playwright test playwright/tests/<file>.spec.ts`.
+- Throughput check: `npm run bench` before/after suspected performance changes.
+- Full gate: `npm test` (Node tests, Playwright, `prettier-check`).
+- Auto-format: `npm run prettier` (rules: [prettierrc](./.prettierrc), ignores: [prettierignore](./.prettierignore)).
 
-- There is no separate lint step in CI today. Passing `npm run prettier-check` and `npm test` is the expected bar.
-- Keep edits small and consistent with the existing style in server and client files unless you are deliberately refactoring a whole module.
+## notes
 
-## Change Strategy
+- `npm test` needs Chromium (`npx playwright install chromium` when missing).
+- `npm test` requires local networking and browser process startup.
+- In Playwright specs, assert authoritative socket/app state; avoid sleep-based timing.
 
-- If you touch message shapes or drawing payloads, update both [server/message_validation.js](./server/message_validation.js) and [client-data/js/message_common.js](./client-data/js/message_common.js), then rerun the Node suite.
-- If you touch board persistence or replay behavior, read [server/boardData.js](./server/boardData.js) and rerun `node --test test-node/rate_limits.test.js` plus `npm test`.
-- If you touch UI tools, start in the relevant file under [client-data/tools](./client-data/tools/) and verify through the Playwright browser tests.
+## formatting
+
+- CI has no separate linter; `npm run prettier-check` + `npm test` define pass/fail.
+- Keep edits minimal and style-consistent unless doing full-module refactors.
+
+## change strategy
+
+- Message shape changes: update [server schema gate](./server/message_validation.js) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests.
+- Persistence/replay changes: review [board state engine](./server/boardData.js); rerun `node --test test-node/rate_limits.test.js` and `npm test`.
+- Tool UX changes: start in [tool modules](./client-data/tools/); verify with Playwright.
+
+## required upkeep
+
+- **If behavior, paths, protocol shape, test commands, or architecture documented here changes, update this file in the same PR.**
