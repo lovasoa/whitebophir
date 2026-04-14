@@ -15,8 +15,8 @@
  *   countConstructiveActions: (data: {type?: unknown, _children?: unknown} | null | undefined) => number,
  * }} RateLimitCommonApi
  */
-const ANONYMOUS_BOARD_NAME = "anonymous";
-const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;
+export const ANONYMOUS_BOARD_NAME = "anonymous";
+export const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;
 
 /**
  * @param {unknown} value
@@ -31,7 +31,7 @@ function toPositiveInteger(value) {
  * @param {number} now
  * @returns {{windowStart: number, count: number, lastSeen: number}}
  */
-function createRateLimitState(now) {
+export function createRateLimitState(now) {
   return {
     windowStart: now,
     count: 0,
@@ -45,7 +45,7 @@ function createRateLimitState(now) {
  * @param {number} now
  * @returns {{windowStart: number, count: number, lastSeen: number}}
  */
-function normalizeRateLimitState(state, periodMs, now) {
+export function normalizeRateLimitState(state, periodMs, now) {
   const candidate =
     /** @type {{windowStart?: unknown, count?: unknown, lastSeen?: unknown}} */ (
       state
@@ -81,7 +81,7 @@ function normalizeRateLimitState(state, periodMs, now) {
  * @param {number} now
  * @returns {{windowStart: number, count: number, lastSeen: number}}
  */
-function consumeFixedWindowRateLimit(state, cost, periodMs, now) {
+export function consumeFixedWindowRateLimit(state, cost, periodMs, now) {
   const nextState = normalizeRateLimitState(state, periodMs, now);
   return {
     windowStart: nextState.windowStart,
@@ -96,7 +96,7 @@ function consumeFixedWindowRateLimit(state, cost, periodMs, now) {
  * @param {number} now
  * @returns {number}
  */
-function getRateLimitRemainingMs(state, periodMs, now) {
+export function getRateLimitRemainingMs(state, periodMs, now) {
   const normalized = normalizeRateLimitState(state, periodMs, now);
   if (normalized.count === 0) return 0;
   return Math.max(0, normalized.windowStart + periodMs - now);
@@ -110,7 +110,13 @@ function getRateLimitRemainingMs(state, periodMs, now) {
  * @param {number} now
  * @returns {boolean}
  */
-function canConsumeFixedWindowRateLimit(state, cost, limit, periodMs, now) {
+export function canConsumeFixedWindowRateLimit(
+  state,
+  cost,
+  limit,
+  periodMs,
+  now,
+) {
   const numericCost = Math.max(0, Number(cost) || 0);
   if (numericCost === 0) return true;
   const normalized = normalizeRateLimitState(state, periodMs, now);
@@ -123,7 +129,7 @@ function canConsumeFixedWindowRateLimit(state, cost, limit, periodMs, now) {
  * @param {number} now
  * @returns {boolean}
  */
-function isRateLimitStateStale(state, periodMs, now) {
+export function isRateLimitStateStale(state, periodMs, now) {
   const candidate = /** @type {{lastSeen?: unknown} | null | undefined} */ (
     state
   );
@@ -141,7 +147,7 @@ function isRateLimitStateStale(state, periodMs, now) {
  * @param {unknown} boardName
  * @returns {{limit: number, periodMs: number}}
  */
-function getEffectiveRateLimitDefinition(definition, boardName) {
+export function getEffectiveRateLimitDefinition(definition, boardName) {
   if (!definition || typeof definition !== "object")
     return { limit: 0, periodMs: 0 };
   const baseDefinition = {
@@ -173,7 +179,7 @@ function getEffectiveRateLimitDefinition(definition, boardName) {
  * @param {{id?: unknown, type?: unknown} | null | undefined} data
  * @returns {boolean}
  */
-function isConstructiveAction(data) {
+export function isConstructiveAction(data) {
   if (!data?.id) return false;
   if (data.type === "delete" || data.type === "clear") return false;
   if (data.type === "update" || data.type === "child") return false;
@@ -185,7 +191,7 @@ function isConstructiveAction(data) {
  * @param {unknown} boardName
  * @returns {number}
  */
-function getEffectiveRateLimitLimit(definition, boardName) {
+export function getEffectiveRateLimitLimit(definition, boardName) {
   return getEffectiveRateLimitDefinition(definition, boardName).limit;
 }
 
@@ -193,7 +199,7 @@ function getEffectiveRateLimitLimit(definition, boardName) {
  * @param {{type?: unknown, _children?: unknown} | null | undefined} data
  * @returns {number}
  */
-function countDestructiveActions(data) {
+export function countDestructiveActions(data) {
   if (!data || typeof data !== "object") return 0;
   if (Array.isArray(data._children)) {
     return data._children.reduce(function countDeletes(total, child) {
@@ -210,7 +216,7 @@ function countDestructiveActions(data) {
  * @param {{type?: unknown, _children?: unknown} | null | undefined} data
  * @returns {number}
  */
-function countConstructiveActions(data) {
+export function countConstructiveActions(data) {
   if (!data || typeof data !== "object") return 0;
   if (Array.isArray(data._children)) {
     return data._children.reduce(function countCreates(total, child) {
@@ -241,7 +247,4 @@ var root = /** @type {typeof globalThis & {
   }} */ (typeof globalThis !== "undefined" ? globalThis : this);
 
 root.WBORateLimitCommon = rateLimitCommon;
-
-if (typeof module === "object" && module.exports) {
-  module.exports = rateLimitCommon;
-}
+export default rateLimitCommon;

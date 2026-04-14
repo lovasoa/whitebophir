@@ -24,6 +24,14 @@
  * @licend
  */
 import Minitpl from "./minitpl.js";
+import BoardMessageReplay from "./board_message_replay.js";
+import { bootstrap as BoardBootstrap } from "./board_page_state.js";
+import { state as BoardState } from "./board_page_state.js";
+import { tools as BoardTools } from "./board_page_state.js";
+import RateLimitCommon from "./rate_limit_common.js";
+import { connection as BoardConnection } from "./board_transport.js";
+import { messages as BoardMessages } from "./board_transport.js";
+import { turnstile as BoardTurnstile } from "./board_transport.js";
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
 /** @typedef {import("../../types/app-runtime").AppTool} AppTool */
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
@@ -40,25 +48,9 @@ import Minitpl from "./minitpl.js";
 /** @typedef {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastFocusX?: number, lastFocusY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{limit?: number, periodMs?: number, anonymousLimit?: number, overrides?: {[boardName: string]: {limit?: number, periodMs?: number}}}} RateLimitDefinition */
-/** @typedef {typeof window & { WBORateLimitCommon?: typeof import("./rate_limit_common.js"), WBOBoardMessageReplay?: typeof import("./board_message_replay.js") }} WBOGlobal */
-
 var Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
 var MessageCommon = window.WBOMessageCommon;
-var BoardConnection = window.WBOBoardConnection;
-var BoardMessageReplay =
-  /** @type {NonNullable<WBOGlobal["WBOBoardMessageReplay"]>} */ (
-    /** @type {WBOGlobal} */ (window).WBOBoardMessageReplay
-  );
-var BoardMessages = window.WBOBoardMessages;
-var BoardState = window.WBOBoardState;
-var RateLimitCommon =
-  /** @type {NonNullable<WBOGlobal["WBORateLimitCommon"]>} */ (
-    /** @type {WBOGlobal} */ (window).WBORateLimitCommon
-  );
-var BoardTurnstile = window.WBOBoardTurnstile;
-var BoardTools = window.WBOBoardTools;
-var BoardBootstrap = window.WBOBoardBootstrap;
 // Add extra slack between the client-side local budget and the server's
 // fixed window so buffered writes do not flush too early on slow runners.
 var RATE_LIMIT_FLUSH_SAFETY_MS = 1000;

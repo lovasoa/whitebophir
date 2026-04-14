@@ -137,23 +137,29 @@ function drainPendingMessages(pendingMessages, toolName) {
   return pending;
 }
 
-var boardPageState = {
-  bootstrap: {
-    getRequiredElement: getRequiredElement,
-    parseEmbeddedJson: parseEmbeddedJson,
-  },
-  state: {
-    parseBoardStateText: parseBoardStateText,
-    normalizeBoardState: normalizeBoardState,
-    resolveBoardName: resolveBoardName,
-    normalizeRecentBoards: normalizeRecentBoards,
-    updateRecentBoards: updateRecentBoards,
-  },
-  tools: {
-    isBlockedToolName: isBlockedToolName,
-    shouldDisplayTool: shouldDisplayTool,
-    drainPendingMessages: drainPendingMessages,
-  },
+export const bootstrap = {
+  getRequiredElement: getRequiredElement,
+  parseEmbeddedJson: parseEmbeddedJson,
+};
+
+export const state = {
+  parseBoardStateText: parseBoardStateText,
+  normalizeBoardState: normalizeBoardState,
+  resolveBoardName: resolveBoardName,
+  normalizeRecentBoards: normalizeRecentBoards,
+  updateRecentBoards: updateRecentBoards,
+};
+
+export const tools = {
+  isBlockedToolName: isBlockedToolName,
+  shouldDisplayTool: shouldDisplayTool,
+  drainPendingMessages: drainPendingMessages,
+};
+
+const boardPageState = {
+  bootstrap,
+  state,
+  tools,
 };
 
 var root = /** @type {typeof globalThis & {
@@ -167,7 +173,4 @@ root.WBOBoardPageState = boardPageState;
 root.WBOBoardBootstrap = boardPageState.bootstrap;
 root.WBOBoardState = boardPageState.state;
 root.WBOBoardTools = boardPageState.tools;
-
-if ("object" === typeof module && module.exports) {
-  module.exports = boardPageState;
-}
+export default boardPageState;

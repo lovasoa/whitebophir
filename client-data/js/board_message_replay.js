@@ -1,5 +1,5 @@
 /** @type {{[toolName: string]: true}} */
-var TOOL_OWNED_BATCH_TOOLS = {
+export var TOOL_OWNED_BATCH_TOOLS = {
   Hand: true,
 };
 
@@ -7,7 +7,7 @@ var TOOL_OWNED_BATCH_TOOLS = {
  * @param {unknown} value
  * @returns {number}
  */
-function normalizeRevision(value) {
+export function normalizeRevision(value) {
   var revision = Number(value);
   return Number.isSafeInteger(revision) && revision > 0 ? revision : 0;
 }
@@ -24,7 +24,7 @@ function hasArrayChildren(message) {
  * @param {{tool?: unknown, _children?: unknown}} message
  * @returns {boolean}
  */
-function isSnapshotMessage(message) {
+export function isSnapshotMessage(message) {
   return hasArrayChildren(message) && !message.tool;
 }
 
@@ -32,7 +32,7 @@ function isSnapshotMessage(message) {
  * @param {{tool?: unknown, _children?: unknown}} message
  * @returns {boolean}
  */
-function isToolOwnedBatchMessage(message) {
+export function isToolOwnedBatchMessage(message) {
   return !!(
     hasArrayChildren(message) &&
     typeof message.tool === "string" &&
@@ -44,7 +44,7 @@ function isToolOwnedBatchMessage(message) {
  * @param {{tool?: unknown, _children?: unknown}} message
  * @returns {boolean}
  */
-function shouldReplayChildrenIndividually(message) {
+export function shouldReplayChildrenIndividually(message) {
   return hasArrayChildren(message) && !isToolOwnedBatchMessage(message);
 }
 
@@ -55,7 +55,7 @@ function shouldReplayChildrenIndividually(message) {
  * @param {(parent: any, child: T) => T} normalizeChildMessage
  * @returns {T}
  */
-function prepareReplayChild(parent, child, normalizeChildMessage) {
+export function prepareReplayChild(parent, child, normalizeChildMessage) {
   if (parent && typeof parent.id === "string" && parent.id !== "") {
     return normalizeChildMessage(parent, child);
   }
@@ -67,7 +67,7 @@ function prepareReplayChild(parent, child, normalizeChildMessage) {
  * @param {boolean} awaitingBoardSnapshot
  * @returns {boolean}
  */
-function shouldBufferLiveMessage(message, awaitingBoardSnapshot) {
+export function shouldBufferLiveMessage(message, awaitingBoardSnapshot) {
   return awaitingBoardSnapshot === true && !isSnapshotMessage(message || {});
 }
 
@@ -77,7 +77,10 @@ function shouldBufferLiveMessage(message, awaitingBoardSnapshot) {
  * @param {unknown} snapshotRevision
  * @returns {T[]}
  */
-function filterBufferedMessagesAfterSnapshot(messages, snapshotRevision) {
+export function filterBufferedMessagesAfterSnapshot(
+  messages,
+  snapshotRevision,
+) {
   var normalizedSnapshotRevision = normalizeRevision(snapshotRevision);
   return messages.filter(function (message) {
     var messageRevision = normalizeRevision(message && message.revision);
@@ -87,7 +90,7 @@ function filterBufferedMessagesAfterSnapshot(messages, snapshotRevision) {
   });
 }
 
-var boardMessageReplay = {
+const boardMessageReplay = {
   TOOL_OWNED_BATCH_TOOLS: TOOL_OWNED_BATCH_TOOLS,
   filterBufferedMessagesAfterSnapshot: filterBufferedMessagesAfterSnapshot,
   isSnapshotMessage: isSnapshotMessage,
@@ -103,7 +106,4 @@ var root = /** @type {typeof globalThis & {
   }} */ (typeof globalThis === "object" ? globalThis : window);
 
 root.WBOBoardMessageReplay = boardMessageReplay;
-
-if ("object" === typeof module && module.exports) {
-  module.exports = boardMessageReplay;
-}
+export default boardMessageReplay;

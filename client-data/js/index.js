@@ -1,3 +1,5 @@
+import { state as BoardState } from "./board_page_state.js";
+
 function showRecentBoards() {
   var parent = document.getElementById("recent-boards");
   if (!parent) return;
@@ -6,7 +8,7 @@ function showRecentBoards() {
   parent.classList.add("hidden");
 
   var storedBoardsText = localStorage.getItem("recent-boards");
-  var recentBoards = window.WBOBoardState.normalizeRecentBoards(
+  var recentBoards = BoardState.normalizeRecentBoards(
     storedBoardsText ? JSON.parse(storedBoardsText) : [],
   );
   if (recentBoards.length === 0) return;

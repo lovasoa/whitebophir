@@ -175,23 +175,29 @@ function resetTurnstileWidget(api, widgetId) {
   return false;
 }
 
-var boardTransport = {
-  connection: {
-    normalizeSocketIOExtraHeaders: normalizeSocketIOExtraHeaders,
-    buildSocketParams: buildSocketParams,
-    closeSocket: closeSocket,
-  },
-  messages: {
-    batchCall: batchCall,
-    queuePendingMessage: queuePendingMessage,
-    hasChildMessages: hasChildMessages,
-    normalizeChildMessage: normalizeChildMessage,
-  },
-  turnstile: {
-    normalizeTurnstileAck: normalizeTurnstileAck,
-    computeTurnstileValidation: computeTurnstileValidation,
-    resetTurnstileWidget: resetTurnstileWidget,
-  },
+export const connection = {
+  normalizeSocketIOExtraHeaders: normalizeSocketIOExtraHeaders,
+  buildSocketParams: buildSocketParams,
+  closeSocket: closeSocket,
+};
+
+export const messages = {
+  batchCall: batchCall,
+  queuePendingMessage: queuePendingMessage,
+  hasChildMessages: hasChildMessages,
+  normalizeChildMessage: normalizeChildMessage,
+};
+
+export const turnstile = {
+  normalizeTurnstileAck: normalizeTurnstileAck,
+  computeTurnstileValidation: computeTurnstileValidation,
+  resetTurnstileWidget: resetTurnstileWidget,
+};
+
+const boardTransport = {
+  connection,
+  messages,
+  turnstile,
 };
 
 var root = /** @type {typeof globalThis & {
@@ -205,7 +211,4 @@ root.WBOBoardTransport = boardTransport;
 root.WBOBoardConnection = boardTransport.connection;
 root.WBOBoardMessages = boardTransport.messages;
 root.WBOBoardTurnstile = boardTransport.turnstile;
-
-if ("object" === typeof module && module.exports) {
-  module.exports = boardTransport;
-}
+export default boardTransport;
