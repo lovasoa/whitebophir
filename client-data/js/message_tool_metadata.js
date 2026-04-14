@@ -69,6 +69,28 @@
 
   /**
    * @param {string | undefined} toolName
+   * @returns {ToolMetadata | null}
+   */
+  function getToolMetadata(toolName) {
+    if (typeof toolName !== "string") return null;
+    if (Object.prototype.hasOwnProperty.call(TOOL_METADATA, toolName)) {
+      const metadata = TOOL_METADATA[toolName];
+      return metadata === undefined ? null : metadata;
+    }
+    return null;
+  }
+
+  /**
+   * @param {string | undefined} toolName
+   * @returns {string | undefined}
+   */
+  function getShapeToolType(toolName) {
+    const metadata = getToolMetadata(toolName);
+    return metadata ? metadata.shapeType : undefined;
+  }
+
+  /**
+   * @param {string | undefined} toolName
    * @returns {string[]}
    */
   function getUpdatableFieldNames(toolName) {
@@ -84,10 +106,7 @@
    * @returns {boolean}
    */
   function isShapeTool(toolName) {
-    return (
-      typeof toolName === "string" &&
-      Object.prototype.hasOwnProperty.call(SHAPE_TOOL_TYPES, toolName)
-    );
+    return getShapeToolType(toolName) !== undefined;
   }
 
   /**
@@ -122,6 +141,8 @@
   }
 
   return {
+    getToolMetadata,
+    getShapeToolType,
     DRAW_TOOL_NAMES,
     SHAPE_TOOL_TYPES,
     TOOL_UPDATE_FIELDS,
