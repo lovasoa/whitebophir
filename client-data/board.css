@@ -274,6 +274,10 @@ svg {
   white-space: nowrap;
 }
 
+.board-presence-toggle .tool-name.board-presence-badge-hidden {
+  display: none;
+}
+
 .board-presence-toggle .tool-name[data-badge-size="single"] {
   width: 16px;
   padding: 0;

@@ -1182,13 +1182,13 @@ function syncConnectedUsersToggleLabel() {
   toggle.title = accessibleLabel;
   if (!label) return;
   if (userCount <= 1) {
-    label.hidden = true;
+    label.classList.add("board-presence-badge-hidden");
     label.textContent = "";
     delete label.dataset.badgeSize;
     return;
   }
   const badgeText = userCount > 99 ? "99+" : String(userCount);
-  label.hidden = false;
+  label.classList.remove("board-presence-badge-hidden");
   label.textContent = badgeText;
   label.dataset.badgeSize =
     badgeText.length === 1
