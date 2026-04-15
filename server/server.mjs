@@ -23,6 +23,10 @@ import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
 import * as templating from "./templating.mjs";
+import {
+  decodeAndValidateBoardName,
+  isValidBoardName,
+} from "../client-data/js/board_name.js";
 
 const { createRequestId, logger, metrics, tracing } = observability;
 const config = readConfiguration();
@@ -500,13 +504,29 @@ function handler(request, response) {
 }
 
 /**
- * Throws an error if the given board name is not allowed
  * @param {string} boardName
- * @throws {Error}
+ * @returns {string | null}
  */
 function validateBoardName(boardName) {
-  if (/^[\w%\-_~()]*$/.test(boardName)) return boardName;
-  throw new Error(`Illegal board name: ${boardName}`);
+  return isValidBoardName(boardName) ? boardName : null;
+}
+
+/**
+ * @param {string | null} boardName
+ * @returns {string | null}
+ */
+function validateBoardQuery(boardName) {
+  if (boardName === null) return null;
+  return validateBoardName(boardName);
+}
+
+/**
+ * @param {string | undefined} boardName
+ * @returns {string | null}
+ */
+function validateBoardPath(boardName) {
+  if (boardName === undefined) return null;
+  return decodeAndValidateBoardName(boardName);
 }
 
 /**
@@ -570,7 +590,12 @@ function handleRequest(request, response, requestContext) {
         parts.length === 1 ? "boards_redirect" : "board_page",
       );
       if (parts.length === 1) {
-        const boardName = parsedUrl.searchParams.get("board") || "anonymous";
+        const boardName = validateBoardQuery(
+          parsedUrl.searchParams.get("board") || "anonymous",
+        );
+        if (boardName === null) {
+          return serveError(request, response, requestContext)();
+        }
         requestContext.annotate({ board: boardName });
         requestContext.setTraceAttributes({ board: boardName });
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
@@ -578,11 +603,10 @@ function handleRequest(request, response, requestContext) {
         response.writeHead(301, headers);
         response.end();
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
-        const boardNamePart = getPathPart(parts, 1);
-        if (boardNamePart === undefined) {
+        const boardName = validateBoardPath(getPathPart(parts, 1));
+        if (boardName === null) {
           return serveError(request, response, requestContext)();
         }
-        const boardName = validateBoardName(boardNamePart);
         requestContext.annotate({ board: boardName });
         requestContext.setTraceAttributes({ board: boardName });
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
@@ -613,16 +637,15 @@ function handleRequest(request, response, requestContext) {
 
     case "download": {
       requestContext.setRoute("download_board");
-      const boardNamePart = getPathPart(parts, 1);
-      if (boardNamePart === undefined) {
+      const boardName = validateBoardPath(getPathPart(parts, 1));
+      if (boardName === null) {
         return serveError(request, response, requestContext)();
       }
-      const boardName = validateBoardName(boardNamePart);
       requestContext.annotate({ board: boardName });
       requestContext.setTraceAttributes({ board: boardName });
       let historyFile = path.join(
         config.HISTORY_DIR,
-        `board-${boardName}.json`,
+        `board-${encodeURIComponent(boardName)}.json`,
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
       const backupSuffix = getPathPart(parts, 2);
@@ -658,16 +681,15 @@ function handleRequest(request, response, requestContext) {
     case "export":
     case "preview": {
       requestContext.setRoute("preview_board");
-      const boardNamePart = getPathPart(parts, 1);
-      if (boardNamePart === undefined) {
+      const exportBoardName = validateBoardPath(getPathPart(parts, 1));
+      if (exportBoardName === null) {
         return serveError(request, response, requestContext)();
       }
-      const exportBoardName = validateBoardName(boardNamePart);
       requestContext.annotate({ board: exportBoardName });
       requestContext.setTraceAttributes({ board: exportBoardName });
       const historyFile = path.join(
         config.HISTORY_DIR,
-        `board-${exportBoardName}.json`,
+        `board-${encodeURIComponent(exportBoardName)}.json`,
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, exportBoardName);
       const startedAt = Date.now();

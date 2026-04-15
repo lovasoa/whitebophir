@@ -1,3 +1,5 @@
+import { isValidBoardName } from "./board_name.js";
+
 /** @typedef {{readonly: boolean, canWrite: boolean}} BoardState */
 
 /**
@@ -75,7 +77,9 @@ export function resolveBoardName(pathname) {
  */
 export function normalizeRecentBoards(value) {
   if (!Array.isArray(value)) return [];
-  return value.filter((name) => typeof name === "string" && name !== "");
+  return value.filter(
+    (name) => typeof name === "string" && name !== "" && isValidBoardName(name),
+  );
 }
 
 /**

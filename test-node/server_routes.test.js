@@ -190,6 +190,48 @@ test("server returns 404 instead of 500 when preview board data is missing", asy
   ]);
 });
 
+test("server rejects invalid board names without returning 500", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const invalidPaths = [
+        "/boards?board=test:board",
+        "/boards/test:board",
+        "/boards/test%3Aboard",
+        "/preview/test:board",
+        "/download/test%3Aboard",
+      ];
+
+      for (const invalidPath of invalidPaths) {
+        const response = await request(app, invalidPath);
+        assert.equal(response.statusCode, 404, invalidPath);
+        assert.equal(typeof response.headers["x-request-id"], "string");
+        assert.equal(response.body, "error-page");
+      }
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
 test("server preserves an incoming request id header", async () => {
   const dirs = await createServerDirs();
 
