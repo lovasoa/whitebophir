@@ -6,7 +6,7 @@
  */
 function getRequiredElement(elementId) {
   var element = document.getElementById(elementId);
-  if (!element) throw new Error("Missing required element: #" + elementId);
+  if (!element) throw new Error(`Missing required element: #${elementId}`);
   return element;
 }
 
@@ -22,7 +22,7 @@ function parseEmbeddedJson(elementId, fallback) {
   try {
     return /** @type {any} */ (JSON.parse(element.text));
   } catch (error) {
-    console.warn("Invalid embedded JSON in #" + elementId, error);
+    console.warn(`Invalid embedded JSON in #${elementId}`, error);
     return fallback;
   }
 }
@@ -72,9 +72,7 @@ function resolveBoardName(pathname) {
  */
 function normalizeRecentBoards(value) {
   if (!Array.isArray(value)) return [];
-  return value.filter(function (name) {
-    return typeof name === "string" && name !== "";
-  });
+  return value.filter((name) => typeof name === "string" && name !== "");
 }
 
 /**
@@ -87,13 +85,11 @@ function updateRecentBoards(storedBoards, boardName) {
     return normalizeRecentBoards(storedBoards);
   /** @type {{[name: string]: boolean}} */
   var seen = {};
-  var recentBoards = normalizeRecentBoards(storedBoards).filter(
-    function (name) {
-      if (seen[name]) return false;
-      seen[name] = true;
-      return name !== boardName;
-    },
-  );
+  var recentBoards = normalizeRecentBoards(storedBoards).filter((name) => {
+    if (seen[name]) return false;
+    seen[name] = true;
+    return name !== boardName;
+  });
   recentBoards.unshift(boardName);
   return recentBoards.slice(0, 20);
 }

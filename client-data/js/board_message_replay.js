@@ -82,7 +82,7 @@ export function filterBufferedMessagesAfterSnapshot(
   snapshotRevision,
 ) {
   var normalizedSnapshotRevision = normalizeRevision(snapshotRevision);
-  return messages.filter(function (message) {
+  return messages.filter((message) => {
     var messageRevision = normalizeRevision(message && message.revision);
     return (
       messageRevision === 0 || messageRevision > normalizedSnapshotRevision

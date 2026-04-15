@@ -63,7 +63,7 @@ export function registerZoomTool(tools) {
   /** @param {number} scale */
   function animate(scale) {
     if (animation !== null) cancelAnimationFrame(animation);
-    animation = requestAnimationFrame(function () {
+    animation = requestAnimationFrame(() => {
       zoom(origin, scale);
     });
   }
@@ -105,8 +105,8 @@ export function registerZoomTool(tools) {
   function move(x, y, evt, isTouchEvent) {
     if (pressed) {
       evt.preventDefault();
-      var delta = getClientY(evt, isTouchEvent) - origin.clientY;
-      var scale = origin.scale * (1 + (delta * ZOOM_FACTOR) / 100);
+      const delta = getClientY(evt, isTouchEvent) - origin.clientY;
+      const scale = origin.scale * (1 + (delta * ZOOM_FACTOR) / 100);
       if (Math.abs(delta) > 1) moved = true;
       animate(scale);
     }
@@ -126,14 +126,14 @@ export function registerZoomTool(tools) {
       deltaY = wheelEvent.deltaY * multiplier;
     if (!wheelEvent.ctrlKey) {
       // zoom
-      var scale = tools.getScale();
-      var x = wheelEvent.pageX / scale;
-      var y = wheelEvent.pageY / scale;
+      const scale = tools.getScale();
+      const x = wheelEvent.pageX / scale;
+      const y = wheelEvent.pageY / scale;
       setOrigin(x, y, wheelEvent, false);
       animate((1 - deltaY / 800) * tools.getScale());
     } else if (wheelEvent.altKey) {
       // make finer changes if shift is being held
-      var change = wheelEvent.shiftKey ? 1 : 5;
+      const change = wheelEvent.shiftKey ? 1 : 5;
       // change tool size
       tools.setSize(tools.getSize() - (deltaY / 100) * change);
     } else if (wheelEvent.shiftKey) {
@@ -160,25 +160,25 @@ export function registerZoomTool(tools) {
       // 2-finger pan to zoom
       var touches = touchEvent.touches;
       if (touches.length === 2) {
-        var firstTouch = touches[0];
-        var secondTouch = touches[1];
+        const firstTouch = touches[0];
+        const secondTouch = touches[1];
         if (!firstTouch || !secondTouch) return;
-        var x0 = firstTouch.clientX,
+        const x0 = firstTouch.clientX,
           x1 = secondTouch.clientX,
           y0 = firstTouch.clientY,
           y1 = secondTouch.clientY,
           dx = x0 - x1,
           dy = y0 - y1;
-        var x = (firstTouch.pageX + secondTouch.pageX) / 2 / tools.getScale(),
+        const x = (firstTouch.pageX + secondTouch.pageX) / 2 / tools.getScale(),
           y = (firstTouch.pageY + secondTouch.pageY) / 2 / tools.getScale();
-        var distance = Math.sqrt(dx * dx + dy * dy);
+        const distance = Math.sqrt(dx * dx + dy * dy);
         if (!pressed) {
           pressed = true;
           setOrigin(x, y, touchEvent, true);
           origin.distance = distance;
         } else {
-          var delta = distance - (origin.distance || distance);
-          var scale = origin.scale * (1 + (delta * ZOOM_FACTOR) / 100);
+          const delta = distance - (origin.distance || distance);
+          const scale = origin.scale * (1 + (delta * ZOOM_FACTOR) / 100);
           animate(scale);
         }
       }
@@ -200,8 +200,8 @@ export function registerZoomTool(tools) {
    */
   function release(x, y, evt, isTouchEvent) {
     if (pressed && !moved) {
-      var delta = evt.shiftKey === true ? -1 : 1;
-      var scale = tools.getScale() * (1 + delta * ZOOM_FACTOR);
+      const delta = evt.shiftKey === true ? -1 : 1;
+      const scale = tools.getScale() * (1 + delta * ZOOM_FACTOR);
       zoom(origin, scale);
     }
     pressed = false;
@@ -211,9 +211,9 @@ export function registerZoomTool(tools) {
   /** @param {boolean} down */
   function key(down) {
     /** @type {ZoomKeyHandler} */
-    return function (evt) {
+    return (evt) => {
       if (evt.key === "Shift") {
-        tools.svg.style.cursor = "zoom-" + (down ? "out" : "in");
+        tools.svg.style.cursor = `zoom-${down ? "out" : "in"}`;
       }
     };
   }
@@ -225,7 +225,7 @@ export function registerZoomTool(tools) {
    */
   function getClientY(evt, isTouchEvent) {
     if (isTouchEvent) {
-      var touch = evt.changedTouches && evt.changedTouches[0];
+      const touch = evt.changedTouches && evt.changedTouches[0];
       return touch ? touch.clientY : 0;
     }
     return evt.clientY || 0;

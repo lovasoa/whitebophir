@@ -106,7 +106,7 @@ export function registerPencilTool(Tools) {
       touch && "touchType" in touch
         ? /** @type {{touchType?: string}} */ (touch).touchType
         : undefined;
-    if (touchType == "stylus") {
+    if (touchType === "stylus") {
       //When using stylus, switch back to the primary
       if (
         hasUsedStylus &&
@@ -119,7 +119,7 @@ export function registerPencilTool(Tools) {
       //Remember if starting a line with a stylus
       hasUsedStylus = true;
     }
-    if (touchType == "direct") {
+    if (touchType === "direct") {
       //When used stylus and touched with a finger, switch to secondary
       if (
         hasUsedStylus &&
@@ -233,9 +233,9 @@ export function registerPencilTool(Tools) {
       case "line":
         renderingLine = createLine(/** @type {PencilLineData} */ (data));
         break;
-      case "child":
-        var childData = /** @type {PencilChildData} */ (data);
-        var line =
+      case "child": {
+        const childData = /** @type {PencilChildData} */ (data);
+        let line =
           renderingLine && renderingLine.id === childData.parent
             ? renderingLine
             : getLineById(childData.parent);
@@ -251,6 +251,7 @@ export function registerPencilTool(Tools) {
         }
         addPoint(line, childData.x, childData.y);
         break;
+      }
       case "endline":
         //TODO?
         break;
@@ -332,14 +333,14 @@ export function registerPencilTool(Tools) {
 
   function restoreDrawingSize() {
     whiteOutSize = Tools.getSize();
-    if (drawingSize != -1) {
+    if (drawingSize !== -1) {
       Tools.setSize(drawingSize);
     }
   }
 
   function restoreWhiteOutSize() {
     drawingSize = Tools.getSize();
-    if (whiteOutSize != -1) {
+    if (whiteOutSize !== -1) {
       Tools.setSize(whiteOutSize);
     }
   }
@@ -362,7 +363,7 @@ export function registerPencilTool(Tools) {
       release: stopLineAt,
     },
     draw: draw,
-    onMessage: function (/** @type {PencilMessage} */ message) {
+    onMessage: (/** @type {PencilMessage} */ message) => {
       if (message.type === "clear") {
         abortLine(false);
         return;
@@ -371,10 +372,10 @@ export function registerPencilTool(Tools) {
         abortLine(false);
       }
     },
-    onSocketDisconnect: function () {
+    onSocketDisconnect: () => {
       abortLine(true);
     },
-    onstart: function () {
+    onstart: () => {
       //Reset stylus
       hasUsedStylus = false;
 
@@ -387,12 +388,12 @@ export function registerPencilTool(Tools) {
       name: "White-out",
       icon: "tools/pencil/whiteout_tape.svg",
       active: false,
-      switch: function () {
+      switch: () => {
         stopLine();
         toggleSize();
       },
     },
-    onquit: function () {
+    onquit: () => {
       //When switching from white-out to another tool, restore drawing size
       if (pencilTool.secondary.active) {
         restoreDrawingSize();

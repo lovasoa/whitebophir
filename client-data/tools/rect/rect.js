@@ -99,9 +99,9 @@ export function registerRectTool(Tools) {
 		This allows the animation to be smother*/
     if (curId !== "") {
       if (rectangleTool.secondary.active) {
-        var dx = x - curUpdate.x;
-        var dy = y - curUpdate.y;
-        var d = Math.max(Math.abs(dx), Math.abs(dy));
+        const dx = x - curUpdate.x;
+        const dy = y - curUpdate.y;
+        const d = Math.max(Math.abs(dx), Math.abs(dy));
         x = curUpdate.x + (dx > 0 ? d : -d);
         y = curUpdate.y + (dy > 0 ? d : -d);
       }
@@ -136,8 +136,8 @@ export function registerRectTool(Tools) {
       case "rect":
         createShape(data);
         break;
-      case "update":
-        var shape = svg.getElementById(data["id"]);
+      case "update": {
+        let shape = svg.getElementById(data["id"]);
         if (!shape) {
           console.error(
             "Straight shape: Hmmm... I received a point of a rect that has not been created (%s).",
@@ -154,6 +154,7 @@ export function registerRectTool(Tools) {
         }
         updateShape(/** @type {ExistingRect} */ (shape), data);
         break;
+      }
       default:
         console.error(
           "Straight shape: Draw instruction with unknown type. ",

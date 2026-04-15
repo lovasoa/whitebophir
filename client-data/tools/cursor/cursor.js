@@ -84,11 +84,11 @@ export function registerCursorTool(tools) {
   var cursorTool = {
     name: "Cursor",
     listeners: {
-      press: function () {
+      press: () => {
         sending = false;
       },
       move: handleMarker,
-      release: function () {
+      release: () => {
         sending = true;
       },
     },
@@ -174,7 +174,7 @@ export function registerCursorTool(tools) {
     cursor.setAttributeNS(null, "cy", "0");
     cursor.setAttributeNS(null, "r", "10");
     cursorsElem.appendChild(cursor);
-    setTimeout(function () {
+    setTimeout(() => {
       cursorsElem.removeChild(cursor);
     }, CURSOR_DELETE_AFTER_MS);
     return cursor;
@@ -188,14 +188,13 @@ export function registerCursorTool(tools) {
 
   /** @param {CursorMessage} message */
   function draw(message) {
-    var cursor = getCursor("cursor-" + (message.socket || "me"));
-    cursor.style.transform =
-      "translate(" + message.x + "px, " + message.y + "px)";
+    var cursor = getCursor(`cursor-${message.socket || "me"}`);
+    cursor.style.transform = `translate(${message.x}px, ${message.y}px)`;
     if (tools.isIE)
       cursor.setAttributeNS(
         null,
         "transform",
-        "translate(" + message.x + " " + message.y + ")",
+        `translate(${message.x} ${message.y})`,
       );
     cursor.setAttributeNS(null, "fill", message.color);
     cursor.setAttributeNS(null, "r", String(message.size / 2));

@@ -59,10 +59,10 @@ export function registerClearTool(tools) {
     listeners: {},
     icon: "tools/clear/clear.svg",
     oneTouch: true,
-    onstart: function () {
+    onstart: () => {
       clearBoard(tools);
     },
-    draw: function () {
+    draw: () => {
       draw(tools);
     },
     mouseCursor: "crosshair",

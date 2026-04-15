@@ -106,11 +106,11 @@ export function registerEllipseTool(Tools) {
   function doUpdate(force) {
     if (!curUpdate.id) return; // Not currently drawing
     if (drawingCircle()) {
-      var x0 = curUpdate["x"],
+      const x0 = curUpdate["x"],
         y0 = curUpdate["y"];
-      var deltaX = lastPos.x - x0,
+      const deltaX = lastPos.x - x0,
         deltaY = lastPos.y - y0;
-      var diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+      const diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
       curUpdate["x2"] = x0 + (deltaX > 0 ? diameter : -diameter);
       curUpdate["y2"] = y0 + (deltaY > 0 ? diameter : -diameter);
     } else {
@@ -144,8 +144,8 @@ export function registerEllipseTool(Tools) {
       case "ellipse":
         createShape(data);
         break;
-      case "update":
-        var shape = svg.getElementById(data["id"]);
+      case "update": {
+        let shape = svg.getElementById(data["id"]);
         if (!shape) {
           console.error(
             "Ellipse: Hmmm... I received an update for a shape that has not been created (%s).",
@@ -162,6 +162,7 @@ export function registerEllipseTool(Tools) {
         }
         updateShape(/** @type {ExistingEllipse} */ (shape), data);
         break;
+      }
       default:
         console.error("Ellipse: Draw instruction with unknown type. ", data);
         break;
@@ -218,7 +219,7 @@ export function registerEllipseTool(Tools) {
       name: "Circle",
       icon: "tools/ellipse/icon-circle.svg",
       active: false,
-      switch: function () {
+      switch: () => {
         doUpdate();
       },
     },

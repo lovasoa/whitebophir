@@ -1,15 +1,15 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import * as fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { TestInfo } from "@playwright/test";
-import { AUTH_SECRET, TOKENS } from "./tokens";
 import {
-  withToken,
-  writeBoard,
   readStoredBoard,
   waitForStoredBoard,
+  withToken,
+  writeBoard,
 } from "./boardData";
+import { AUTH_SECRET, TOKENS } from "./tokens";
 
 export interface ServerSetupOptions {
   useJWT?: boolean;

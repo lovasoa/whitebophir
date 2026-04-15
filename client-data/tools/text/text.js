@@ -143,9 +143,8 @@ export function registerTextTool(Tools) {
       x = Math.max(60, clientW - 260);
     }
 
-    input.style.left = x + "px";
-    input.style.top =
-      curText.y * Tools.scale - document.documentElement.scrollTop + 20 + "px";
+    input.style.left = `${x}px`;
+    input.style.top = `${curText.y * Tools.scale - document.documentElement.scrollTop + 20}px`;
     input.focus();
     input.addEventListener("input", textChangeHandler);
     input.addEventListener("keyup", textChangeHandler);
@@ -230,12 +229,12 @@ export function registerTextTool(Tools) {
       case "new":
         createTextField(data);
         break;
-      case "update":
+      case "update": {
         if (typeof data.id !== "string") {
           console.error("Text: update is missing an id.", data);
           return false;
         }
-        var textField = document.getElementById(data.id);
+        const textField = document.getElementById(data.id);
         if (textField === null) {
           console.error(
             "Text: Hmmm... I received text that belongs to an unknown text field",
@@ -244,6 +243,7 @@ export function registerTextTool(Tools) {
         }
         updateText(textField, data.txt);
         break;
+      }
       default:
         console.error("Text: Draw instruction with unknown type. ", data);
         break;

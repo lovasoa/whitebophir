@@ -17,7 +17,7 @@ function showRecentBoards() {
 
   recentBoards.forEach(
     /** @param {string} name */
-    function (name) {
+    (name) => {
       var listItem = document.createElement("li");
       var link = document.createElement("a");
       link.setAttribute("href", `/boards/${encodeURIComponent(name)}`);

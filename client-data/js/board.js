@@ -23,16 +23,22 @@
  *
  * @licend
  */
-import Minitpl from "./minitpl.js";
+
 import BoardMessageReplay from "./board_message_replay.js";
-import { bootstrap as BoardBootstrap } from "./board_page_state.js";
-import { state as BoardState } from "./board_page_state.js";
-import { tools as BoardTools } from "./board_page_state.js";
+import {
+  bootstrap as BoardBootstrap,
+  state as BoardState,
+  tools as BoardTools,
+} from "./board_page_state.js";
+import {
+  connection as BoardConnection,
+  messages as BoardMessages,
+  turnstile as BoardTurnstile,
+} from "./board_transport.js";
 import MessageCommon from "./message_common.js";
+import Minitpl from "./minitpl.js";
 import RateLimitCommon from "./rate_limit_common.js";
-import { connection as BoardConnection } from "./board_transport.js";
-import { messages as BoardMessages } from "./board_transport.js";
-import { turnstile as BoardTurnstile } from "./board_transport.js";
+
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
 /** @typedef {import("../../types/app-runtime").AppTool} AppTool */
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
@@ -72,7 +78,7 @@ function getRequiredInput(elementId) {
  * @returns {{button: HTMLElement, primaryIcon: HTMLImageElement, secondaryIcon: HTMLImageElement | null, label: HTMLElement}}
  */
 function getRequiredToolButtonParts(toolName) {
-  var button = BoardBootstrap.getRequiredElement("toolID-" + toolName);
+  var button = BoardBootstrap.getRequiredElement(`toolID-${toolName}`);
   var primaryIcon = /** @type {HTMLImageElement | null} */ (
     button.querySelector(".tool-icon")
   );
@@ -80,7 +86,7 @@ function getRequiredToolButtonParts(toolName) {
     button.querySelector(".tool-name")
   );
   if (!primaryIcon || !label) {
-    throw new Error("Missing required tool button structure for " + toolName);
+    throw new Error(`Missing required tool button structure for ${toolName}`);
   }
   return {
     button: button,
@@ -341,7 +347,7 @@ Tools.resetAllLocalRateLimitStates = function resetAllLocalRateLimitStates(
  * @returns {boolean}
  */
 Tools.canEmitBufferedWrite = function canEmitBufferedWrite(bufferedWrite, now) {
-  return RATE_LIMIT_KINDS.every(function (kind) {
+  return RATE_LIMIT_KINDS.every((kind) => {
     var cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return true;
     var definition = Tools.getEffectiveRateLimit(kind);
@@ -365,7 +371,7 @@ Tools.consumeBufferedWriteBudget = function consumeBufferedWriteBudget(
   bufferedWrite,
   now,
 ) {
-  RATE_LIMIT_KINDS.forEach(function (kind) {
+  RATE_LIMIT_KINDS.forEach((kind) => {
     var cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return;
     var definition = Tools.getEffectiveRateLimit(kind);
@@ -389,7 +395,7 @@ Tools.getBufferedWriteWaitMs = function getBufferedWriteWaitMs(
   bufferedWrite,
   now,
 ) {
-  return RATE_LIMIT_KINDS.reduce(function (waitMs, kind) {
+  return RATE_LIMIT_KINDS.reduce((waitMs, kind) => {
     var cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return waitMs;
     var definition = Tools.getEffectiveRateLimit(kind);
@@ -444,9 +450,9 @@ Tools.flushBufferedWrites = function flushBufferedWrites() {
     return;
   }
   while (Tools.bufferedWrites.length > 0) {
-    var bufferedWrite = Tools.bufferedWrites[0];
+    const bufferedWrite = Tools.bufferedWrites[0];
     if (!bufferedWrite) break;
-    var now = Date.now();
+    const now = Date.now();
     if (!Tools.canEmitBufferedWrite(bufferedWrite, now)) {
       Tools.scheduleBufferedWriteFlush();
       return;
@@ -515,14 +521,14 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.discardBufferedWrites();
   Tools.turnstilePendingWrites = [];
   Tools.hideTurnstileOverlay();
-  Object.values(Tools.connectedUsers || {}).forEach(function (user) {
+  Object.values(Tools.connectedUsers || {}).forEach((user) => {
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
   Tools.connectedUsers = {};
   Tools.renderConnectedUsers();
   Tools.resetBoardViewport();
   Tools.showLoadingMessage();
-  Object.values(Tools.list || {}).forEach(function (tool) {
+  Object.values(Tools.list || {}).forEach((tool) => {
     if (tool && typeof tool.onSocketDisconnect === "function") {
       tool.onSocketDisconnect();
     }
@@ -638,7 +644,7 @@ Tools.scale = 1.0;
 Tools.drawToolsAllowed = null;
 
 if (Tools.server_config.TURNSTILE_SITE_KEY) {
-  var script = document.createElement("script");
+  const script = document.createElement("script");
   script.src =
     "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
   script.async = true;
@@ -727,7 +733,7 @@ Tools.showTurnstileOverlayTimeout = null;
 Tools.showTurnstileOverlay = function showTurnstileOverlay(delay) {
   var elements = Tools.ensureTurnstileElements();
   if (delay > 0) {
-    Tools.showTurnstileOverlayTimeout = setTimeout(function () {
+    Tools.showTurnstileOverlayTimeout = setTimeout(() => {
       elements.overlay.classList.remove("turnstile-overlay-hidden");
     }, delay);
   } else {
@@ -746,7 +752,7 @@ Tools.hideTurnstileOverlay = function hideTurnstileOverlay() {
 
 /** @param {unknown} errorCode */
 function handleTurnstileError(errorCode) {
-  alert("Turnstile verification failed: " + errorCode);
+  alert(`Turnstile verification failed: ${errorCode}`);
   location.reload();
 }
 
@@ -765,12 +771,12 @@ Tools.refreshTurnstile = function refreshTurnstile() {
         theme: "light",
         "refresh-expired": "manual",
         /** @param {string} token */
-        callback: function (token) {
+        callback: (token) => {
           if (!Tools.socket) return;
           Tools.socket.emit(
             "turnstile_token",
             token,
-            function (/** @type {unknown} */ result) {
+            (/** @type {unknown} */ result) => {
               var turnstileResult = Tools.normalizeTurnstileAck(result);
               Tools.turnstilePending = false;
               if (turnstileResult.success) {
@@ -784,24 +790,24 @@ Tools.refreshTurnstile = function refreshTurnstile() {
             },
           );
         },
-        "before-interactive-callback": function () {
+        "before-interactive-callback": () => {
           Tools.showTurnstileOverlay(500);
         },
-        "after-interactive-callback": function () {
+        "after-interactive-callback": () => {
           if (Tools.isTurnstileValidated()) Tools.hideTurnstileOverlay();
         },
-        "error-callback": function (/** @type {unknown} */ err) {
+        "error-callback": (/** @type {unknown} */ err) => {
           Tools.turnstilePending = false;
           Tools.setTurnstileValidation(null);
           console.error("Turnstile error:", err);
           handleTurnstileError(err);
         },
-        "timeout-callback": function () {
+        "timeout-callback": () => {
           Tools.turnstilePending = false;
           Tools.setTurnstileValidation(null);
           Tools.refreshTurnstile();
         },
-        "expired-callback": function () {
+        "expired-callback": () => {
           Tools.turnstilePending = false;
           Tools.refreshTurnstile();
         },
@@ -834,7 +840,7 @@ Tools.canUseTool = function canUseTool(toolName) {
 
 /** @param {string} toolName */
 Tools.syncToolDisabledState = function syncToolDisabledState(toolName) {
-  var toolElem = document.getElementById("toolID-" + toolName);
+  var toolElem = document.getElementById(`toolID-${toolName}`);
   if (!toolElem) return;
   var disabled = Tools.shouldDisableTool(toolName);
   toolElem.classList.toggle("disabledTool", disabled);
@@ -847,7 +853,7 @@ Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
   if (!force && drawToolsAllowed === Tools.drawToolsAllowed) return;
   Tools.drawToolsAllowed = drawToolsAllowed;
 
-  Object.keys(Tools.list || {}).forEach(function (toolName) {
+  Object.keys(Tools.list || {}).forEach((toolName) => {
     Tools.syncToolDisabledState(toolName);
   });
 
@@ -877,8 +883,8 @@ Tools.setBoardState = function setBoardState(state) {
   var settings = document.getElementById("settings");
   if (settings) settings.style.display = hideEditingTools ? "none" : "";
 
-  Object.keys(Tools.list || {}).forEach(function (toolName) {
-    var toolElem = document.getElementById("toolID-" + toolName);
+  Object.keys(Tools.list || {}).forEach((toolName) => {
+    var toolElem = document.getElementById(`toolID-${toolName}`);
     if (!toolElem) return;
     toolElem.style.display = Tools.shouldDisplayTool(toolName) ? "" : "none";
   });
@@ -941,7 +947,7 @@ Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
     return extraHeaders;
   }
   try {
-    var storedHeaders = sessionStorage.getItem("socketio_extra_headers");
+    const storedHeaders = sessionStorage.getItem("socketio_extra_headers");
     if (storedHeaders) {
       extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
         JSON.parse(storedHeaders),
@@ -963,12 +969,10 @@ function generateUserSecret() {
     typeof window.crypto.getRandomValues === "function" &&
     typeof Uint8Array === "function"
   ) {
-    var bytes = new Uint8Array(16);
+    const bytes = new Uint8Array(16);
     window.crypto.getRandomValues(bytes);
     return Array.from(bytes)
-      .map(function (value) {
-        return value.toString(16).padStart(2, "0");
-      })
+      .map((value) => value.toString(16).padStart(2, "0"))
       .join("");
   }
 
@@ -982,9 +986,9 @@ function generateUserSecret() {
 Tools.userSecret = (function resolveUserSecret() {
   var key = "wbo-user-secret-v1";
   try {
-    var existing = localStorage.getItem(key);
+    const existing = localStorage.getItem(key);
     if (existing) return existing;
-    var created = generateUserSecret();
+    const created = generateUserSecret();
     localStorage.setItem(key, created);
     return created;
   } catch (err) {
@@ -1145,7 +1149,7 @@ function getHandChildTargetId(child) {
 function getHandBatchFocusPoint(children) {
   /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
   var bounds = null;
-  children.forEach(function (child) {
+  children.forEach((child) => {
     var targetId = getHandChildTargetId(child);
     if (!targetId) return;
     var element = document.getElementById(targetId);
@@ -1179,8 +1183,8 @@ function getMessageFocusPoint(message) {
   }
 
   if (message.tool === "Cursor" || message.tool === "Pencil") {
-    var pointX = toFiniteCoordinate(message.x);
-    var pointY = toFiniteCoordinate(message.y);
+    const pointX = toFiniteCoordinate(message.x);
+    const pointY = toFiniteCoordinate(message.y);
     if (pointX !== null && pointY !== null) {
       return { x: pointX, y: pointY };
     }
@@ -1208,7 +1212,7 @@ function scheduleConnectedUserPulseEnd(user) {
     return;
   }
   var remainingMs = Math.max(0, user.pulseUntil - Date.now());
-  user.pulseTimeoutId = setTimeout(function () {
+  user.pulseTimeoutId = setTimeout(() => {
     if (user.pulseUntil && user.pulseUntil <= Date.now()) {
       user.pulseUntil = 0;
       user.pulseTimeoutId = null;
@@ -1239,14 +1243,10 @@ function getConnectedUserFocusHash(user) {
   var scale = Tools.getScale();
   var x = /** @type {number} */ (user.lastFocusX);
   var y = /** @type {number} */ (user.lastFocusY);
-  return (
-    "#" +
-    Math.max(0, (x - window.innerWidth / (2 * scale)) | 0) +
-    "," +
-    Math.max(0, (y - window.innerHeight / (2 * scale)) | 0) +
-    "," +
-    scale.toFixed(1)
-  );
+  return `#${Math.max(0, (x - window.innerWidth / (2 * scale)) | 0)},${Math.max(
+    0,
+    (y - window.innerHeight / (2 * scale)) | 0,
+  )},${scale.toFixed(1)}`;
 }
 
 /**
@@ -1281,12 +1281,12 @@ function updateConnectedUserRow(row, user) {
   );
   if (color) {
     color.style.backgroundColor = user.color || "#001f3f";
-    var dotSize = getConnectedUserDotSize(user.size);
-    color.style.width = dotSize + "px";
-    color.style.height = dotSize + "px";
+    const dotSize = getConnectedUserDotSize(user.size);
+    color.style.width = `${dotSize}px`;
+    color.style.height = `${dotSize}px`;
     if (user.pulseUntil && user.pulseUntil > Date.now()) {
       color.classList.add("active");
-      color.style.setProperty("--pulse-ms", (user.pulseMs || 700) + "ms");
+      color.style.setProperty("--pulse-ms", `${user.pulseMs || 700}ms`);
     } else {
       color.classList.remove("active");
       color.style.removeProperty("--pulse-ms");
@@ -1344,7 +1344,7 @@ function createConnectedUserRow(user) {
   report.textContent = "!";
   report.title = Tools.i18n.t("report");
   report.setAttribute("aria-label", Tools.i18n.t("report"));
-  report.addEventListener("click", function (evt) {
+  report.addEventListener("click", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();
     if (!Tools.socket || !row.dataset.socketId) return;
@@ -1367,7 +1367,7 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
   var list = getConnectedUsersList();
   /** @type {{[socketId: string]: ConnectedUserRow}} */
   var rowsBySocketId = {};
-  Array.from(list.children).forEach(function (child) {
+  Array.from(list.children).forEach((child) => {
     if (
       child instanceof HTMLLIElement &&
       child.dataset.socketId &&
@@ -1379,11 +1379,11 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
     }
   });
 
-  var users = Object.values(Tools.connectedUsers).sort(function (left, right) {
-    return left.name.localeCompare(right.name);
-  });
+  var users = Object.values(Tools.connectedUsers).sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
 
-  users.forEach(function (user, index) {
+  users.forEach((user, index) => {
     var row = rowsBySocketId[user.socketId] || createConnectedUserRow(user);
     delete rowsBySocketId[user.socketId];
     updateConnectedUserRow(row, user);
@@ -1393,7 +1393,7 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
     }
   });
 
-  Object.values(rowsBySocketId).forEach(function (row) {
+  Object.values(rowsBySocketId).forEach((row) => {
     row.remove();
   });
 };
@@ -1445,7 +1445,7 @@ Tools.updateConnectedUsersFromActivity =
     var changed = false;
     var focusPoint = getMessageFocusPoint(message);
     var shouldPulse = message.tool !== "Cursor";
-    Object.values(Tools.connectedUsers).forEach(function (user) {
+    Object.values(Tools.connectedUsers).forEach((user) => {
       if (messageSocketId !== null) {
         if (user.socketId !== messageSocketId) return;
       } else if (user.userId !== userId) {
@@ -1502,10 +1502,10 @@ Tools.initConnectedUsersUI = function initConnectedUsersUI() {
   toggle.title = Tools.i18n.t("users");
   toggle.setAttribute("aria-label", Tools.i18n.t("users"));
   if (label) label.textContent = Tools.i18n.t("users");
-  toggle.addEventListener("click", function () {
+  toggle.addEventListener("click", () => {
     Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
   });
-  toggle.addEventListener("keydown", function (evt) {
+  toggle.addEventListener("keydown", (evt) => {
     if (evt.key === "Enter" || evt.key === " ") {
       evt.preventDefault();
       Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
@@ -1516,13 +1516,13 @@ Tools.initConnectedUsersUI = function initConnectedUsersUI() {
 
 Tools.initConnectedUsersUI();
 
-Tools.connect = function () {
+Tools.connect = () => {
   // Destroy socket if one already exists
   if (Tools.socket) {
     BoardConnection.closeSocket(Tools.socket);
     Tools.socket = null;
   }
-  Object.values(Tools.connectedUsers).forEach(function (user) {
+  Object.values(Tools.connectedUsers).forEach((user) => {
     if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
   Tools.connectedUsers = {};
@@ -1555,7 +1555,7 @@ Tools.connect = function () {
     Tools.syncWriteStatusIndicator();
     if (Tools.socket) Tools.socket.emit("getboard", Tools.boardName);
   });
-  socket.on("broadcast", function (/** @type {BoardMessage} */ msg) {
+  socket.on("broadcast", (/** @type {BoardMessage} */ msg) => {
     enqueueIncomingBroadcast(msg);
   });
   socket.on("boardstate", Tools.setBoardState);
@@ -1596,7 +1596,7 @@ Tools.connect = function () {
 };
 Tools.boardName = Tools.resolveBoardName();
 
-Tools.token = (function () {
+Tools.token = (() => {
   var url = new URL(window.location.href);
   var params = new URLSearchParams(url.search);
   return params.get("token");
@@ -1609,7 +1609,7 @@ function saveBoardNametoLocalStorage() {
   var recentBoards,
     key = "recent-boards";
   try {
-    var storedBoards = localStorage.getItem(key);
+    const storedBoards = localStorage.getItem(key);
     recentBoards = storedBoards ? JSON.parse(storedBoards) : [];
   } catch (e) {
     // On localstorage or json error, reset board list
@@ -1625,7 +1625,7 @@ window.addEventListener("pageshow", saveBoardNametoLocalStorage);
 Tools.HTML = /** @type {ToolPalette} */ ({
   template: new Minitpl("#tools > .tool"),
   addShortcut: function addShortcut(key, callback) {
-    window.addEventListener("keydown", function (e) {
+    window.addEventListener("keydown", (e) => {
       if (e.key === key && !isTextEntryTarget(e.target)) {
         callback();
       }
@@ -1638,18 +1638,18 @@ Tools.HTML = /** @type {ToolPalette} */ ({
     toolShortcut,
     oneTouch,
   ) {
-    var callback = function () {
+    var callback = () => {
       if (!Tools.canUseTool(toolName)) return;
       Tools.change(toolName);
     };
-    this.addShortcut(toolShortcut, function () {
+    this.addShortcut(toolShortcut, () => {
       if (!Tools.canUseTool(toolName)) return;
       Tools.change(toolName);
       blurActiveElement();
     });
-    return this.template.add(function (/** @type {HTMLElement} */ elem) {
+    return this.template.add((/** @type {HTMLElement} */ elem) => {
       elem.addEventListener("click", callback);
-      elem.id = "toolID-" + toolName;
+      elem.id = `toolID-${toolName}`;
       var label = /** @type {HTMLElement | undefined} */ (
         elem.getElementsByClassName("tool-name")[0]
       );
@@ -1665,23 +1665,18 @@ Tools.HTML = /** @type {ToolPalette} */ ({
       if (oneTouch) elem.classList.add("oneTouch");
       var tool = Tools.list[toolName];
       if (!tool) {
-        throw new Error("Tool not registered before rendering: " + toolName);
+        throw new Error(`Tool not registered before rendering: ${toolName}`);
       }
       elem.title =
-        Tools.i18n.t(toolName) +
-        " (" +
-        Tools.i18n.t("keyboard shortcut") +
-        ": " +
-        toolShortcut +
-        ")" +
-        (tool.secondary ? " [" + Tools.i18n.t("click_to_toggle") + "]" : "");
+        `${Tools.i18n.t(toolName)} (${Tools.i18n.t("keyboard shortcut")}: ${toolShortcut})` +
+        (tool.secondary ? ` [${Tools.i18n.t("click_to_toggle")}]` : "");
       if (tool.secondary) {
         elem.classList.add("hasSecondary");
-        var secondaryIcon = /** @type {HTMLImageElement | undefined} */ (
+        const secondaryIcon = /** @type {HTMLImageElement | undefined} */ (
           elem.getElementsByClassName("secondaryIcon")[0]
         );
         if (!secondaryIcon) {
-          throw new Error("Missing secondary icon for tool " + toolName);
+          throw new Error(`Missing secondary icon for tool ${toolName}`);
         }
         secondaryIcon.src = tool.secondary.icon;
         toolIconElem.classList.add("primaryIcon");
@@ -1689,9 +1684,9 @@ Tools.HTML = /** @type {ToolPalette} */ ({
       Tools.syncToolDisabledState(toolName);
     });
   },
-  changeTool: function (oldToolName, newToolName) {
-    var oldTool = document.getElementById("toolID-" + oldToolName);
-    var newTool = document.getElementById("toolID-" + newToolName);
+  changeTool: (oldToolName, newToolName) => {
+    var oldTool = document.getElementById(`toolID-${oldToolName}`);
+    var newTool = document.getElementById(`toolID-${newToolName}`);
     if (oldTool) oldTool.classList.remove("curTool");
     if (newTool) newTool.classList.add("curTool");
   },
@@ -1699,7 +1694,7 @@ Tools.HTML = /** @type {ToolPalette} */ ({
     var parts = getRequiredToolButtonParts(toolName);
     var secondaryIcon = parts.secondaryIcon;
     if (!secondaryIcon) {
-      throw new Error("Missing secondary icon for tool " + toolName);
+      throw new Error(`Missing secondary icon for tool ${toolName}`);
     }
 
     var primaryIconSrc = parts.primaryIcon.src;
@@ -1721,16 +1716,14 @@ Tools.HTML = /** @type {ToolPalette} */ ({
   addColorButton: function addColorButton(button) {
     var setColor = Tools.setColor.bind(Tools, button.color);
     if (button.key) this.addShortcut(button.key, setColor);
-    return this.colorPresetTemplate.add(
-      function (/** @type {HTMLElement} */ elem) {
-        elem.addEventListener("click", setColor);
-        elem.id = "color_" + button.color.replace(/^#/, "");
-        elem.style.backgroundColor = button.color;
-        if (button.key) {
-          elem.title = Tools.i18n.t("keyboard shortcut") + ": " + button.key;
-        }
-      },
-    );
+    return this.colorPresetTemplate.add((/** @type {HTMLElement} */ elem) => {
+      elem.addEventListener("click", setColor);
+      elem.id = `color_${button.color.replace(/^#/, "")}`;
+      elem.style.backgroundColor = button.color;
+      if (button.key) {
+        elem.title = `${Tools.i18n.t("keyboard shortcut")}: ${button.key}`;
+      }
+    });
   },
 });
 
@@ -1753,10 +1746,7 @@ Tools.register = function registerTool(newTool) {
 
   if (newTool.name in Tools.list) {
     console.log(
-      "Tools.add: The tool '" +
-        newTool.name +
-        "' is already" +
-        "in the list. Updating it...",
+      `Tools.add: The tool '${newTool.name}' is already in the list. Updating it...`,
     );
   }
 
@@ -1776,7 +1766,7 @@ Tools.register = function registerTool(newTool) {
   );
   if (pending.length > 0) {
     console.log("Drawing pending messages for '%s'.", newTool.name);
-    pending.forEach(function (/** @type {BoardMessage} */ msg) {
+    pending.forEach((/** @type {BoardMessage} */ msg) => {
       //Transmit the message to the tool (precising that it comes from the network)
       newTool.draw(msg, false);
     });
@@ -1787,7 +1777,7 @@ Tools.register = function registerTool(newTool) {
  * Add a new tool to the user interface
  */
 /** @param {AppTool} newTool */
-Tools.add = function (newTool) {
+Tools.add = (newTool) => {
   if (Tools.isBlocked(newTool)) return;
 
   Tools.register(newTool);
@@ -1811,7 +1801,7 @@ Tools.add = function (newTool) {
 };
 
 /** @param {string} toolName */
-Tools.change = function (toolName) {
+Tools.change = (toolName) => {
   var newTool = Tools.list[toolName];
   var oldTool = Tools.curTool;
   if (!newTool)
@@ -1820,7 +1810,7 @@ Tools.change = function (toolName) {
   if (newTool === oldTool) {
     if (newTool.secondary) {
       newTool.secondary.active = !newTool.secondary.active;
-      var props = newTool.secondary.active ? newTool.secondary : newTool;
+      const props = newTool.secondary.active ? newTool.secondary : newTool;
       Tools.HTML.toggle(newTool.name, props.name, props.icon);
       if (newTool.secondary.switch) newTool.secondary.switch();
     }
@@ -1828,11 +1818,11 @@ Tools.change = function (toolName) {
   }
   if (!newTool.oneTouch) {
     //Update the GUI
-    var curToolName = Tools.curTool ? Tools.curTool.name : "";
+    const curToolName = Tools.curTool ? Tools.curTool.name : "";
     try {
       Tools.HTML.changeTool(curToolName, toolName);
     } catch (e) {
-      console.error("Unable to update the GUI with the new tool. " + e);
+      console.error(`Unable to update the GUI with the new tool. ${e}`);
     }
     Tools.svg.style.cursor = newTool.mouseCursor || "auto";
     Tools.board.title = Tools.i18n.t(newTool.helpText || "");
@@ -1863,9 +1853,9 @@ Tools.change = function (toolName) {
 Tools.addToolListeners = function addToolListeners(tool) {
   if (!tool.compiledListeners) return;
   for (var event in tool.compiledListeners) {
-    var listener = tool.compiledListeners[event];
+    const listener = tool.compiledListeners[event];
     if (!listener) continue;
-    var target = listener.target || Tools.board;
+    const target = listener.target || Tools.board;
     target.addEventListener(event, listener, { passive: false });
   }
 };
@@ -1874,16 +1864,16 @@ Tools.addToolListeners = function addToolListeners(tool) {
 Tools.removeToolListeners = function removeToolListeners(tool) {
   if (!tool.compiledListeners) return;
   for (var event in tool.compiledListeners) {
-    var listener = tool.compiledListeners[event];
+    const listener = tool.compiledListeners[event];
     if (!listener) continue;
-    var target = listener.target || Tools.board;
+    const target = listener.target || Tools.board;
     target.removeEventListener(event, listener);
     // also attempt to remove with capture = true in IE
     if (Tools.isIE) target.removeEventListener(event, listener, true);
   }
 };
 
-(function () {
+(() => {
   // Handle secondary tool switch with shift (key code 16)
   /**
    * @param {boolean} active
@@ -1907,7 +1897,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
  * @param {BoardMessage} data
  * @param {string | undefined} toolName
  */
-Tools.send = function (data, toolName) {
+Tools.send = (data, toolName) => {
   if (!toolName) {
     if (!Tools.curTool) throw new Error("No current tool selected");
     toolName = Tools.curTool.name;
@@ -1926,7 +1916,7 @@ Tools.send = function (data, toolName) {
  * @param {BoardMessage} data
  * @param {AppTool | null | undefined} tool
  */
-Tools.drawAndSend = function (data, tool) {
+Tools.drawAndSend = (data, tool) => {
   if (tool == null) tool = Tools.curTool;
   if (!tool) throw new Error("No active tool available");
   if (tool && Tools.shouldDisableTool(tool.name)) return false;
@@ -2039,24 +2029,23 @@ function childMessageHandler(parent) {
 }
 
 Tools.unreadMessagesCount = 0;
-Tools.newUnreadMessage = function () {
+Tools.newUnreadMessage = () => {
   Tools.unreadMessagesCount++;
   updateDocumentTitle();
 };
 
-window.addEventListener("focus", function () {
+window.addEventListener("focus", () => {
   Tools.unreadMessagesCount = 0;
   updateDocumentTitle();
 });
 
 function updateDocumentTitle() {
   document.title =
-    (Tools.unreadMessagesCount ? "(" + Tools.unreadMessagesCount + ") " : "") +
-    Tools.boardName +
-    " | WBO";
+    (Tools.unreadMessagesCount ? `(${Tools.unreadMessagesCount}) ` : "") +
+    `${Tools.boardName} | WBO`;
 }
 
-(function () {
+(() => {
   // Scroll and hash handling
   /** @type {ReturnType<typeof setTimeout> | null} */
   var scrollTimeout = null,
@@ -2069,8 +2058,7 @@ function updateDocumentTitle() {
 
     if (scrollTimeout !== null) clearTimeout(scrollTimeout);
     scrollTimeout = setTimeout(function updateHistory() {
-      var hash =
-        "#" + (x | 0) + "," + (y | 0) + "," + Tools.getScale().toFixed(1);
+      var hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(1)}`;
       if (
         Date.now() - lastStateUpdate > 5000 &&
         hash !== window.location.hash
@@ -2124,7 +2112,7 @@ function updateUnreadCount(m) {
 
 /** @param {BoardMessage} m */
 function notifyToolsOfMessage(m) {
-  Object.values(Tools.list || {}).forEach(function (tool) {
+  Object.values(Tools.list || {}).forEach((tool) => {
     if (tool && typeof tool.onMessage === "function") tool.onMessage(m);
   });
 }
@@ -2141,12 +2129,12 @@ Tools.setScale = function setScale(scale) {
     (Number(Tools.server_config.MAX_BOARD_SIZE) || 65536);
   var minScale = Math.max(0.1, fullScale);
   var maxScale = 10;
-  if (isNaN(scale)) scale = 1;
+  if (Number.isNaN(scale)) scale = 1;
   scale = Math.max(minScale, Math.min(maxScale, scale));
   Tools.svg.style.willChange = "transform";
-  Tools.svg.style.transform = "scale(" + scale + ")";
+  Tools.svg.style.transform = `scale(${scale})`;
   if (scaleTimeout !== null) clearTimeout(scaleTimeout);
-  scaleTimeout = setTimeout(function () {
+  scaleTimeout = setTimeout(() => {
     Tools.svg.style.willChange = "auto";
   }, 1000);
   Tools.scale = scale;
@@ -2166,16 +2154,16 @@ Tools.toolHooks = [
       tool.listeners = {};
     }
     if (typeof tool.onstart !== "function") {
-      tool.onstart = function () {};
+      tool.onstart = () => {};
     }
     if (typeof tool.onquit !== "function") {
-      tool.onquit = function () {};
+      tool.onquit = () => {};
     }
     if (typeof tool.onMessage !== "function") {
-      tool.onMessage = function () {};
+      tool.onMessage = () => {};
     }
     if (typeof tool.onSocketDisconnect !== "function") {
-      tool.onSocketDisconnect = function () {};
+      tool.onSocketDisconnect = () => {};
     }
   },
   /** @param {AppTool} tool */
@@ -2212,9 +2200,9 @@ Tools.toolHooks = [
         //Currently, we don't handle multitouch
         if (touchEvent.changedTouches.length === 1) {
           //evt.preventDefault();
-          var touch = touchEvent.changedTouches[0];
+          const touch = touchEvent.changedTouches[0];
           if (!touch) return true;
-          var x = touch.pageX / Tools.getScale(),
+          const x = touch.pageX / Tools.getScale(),
             y = touch.pageY / Tools.getScale();
           return listener(x, y, touchEvent, true);
         }
@@ -2242,7 +2230,7 @@ Tools.toolHooks = [
       compiled["touchmove"] = compileTouch(listeners.move);
     }
     if (listeners.release) {
-      var release = compile(listeners.release),
+      const release = compile(listeners.release),
         releaseTouch = compileTouch(listeners.release);
       compiled["mouseup"] = release;
       if (!Tools.isIE) compiled["mouseleave"] = release;
@@ -2261,7 +2249,7 @@ Tools.toolHooks = [
  */
 Tools.applyHooks = function applyHooks(hooks, object) {
   //Apply every hooks on the object
-  hooks.forEach(function (hook) {
+  hooks.forEach((hook) => {
     hook(object);
   });
 };
@@ -2290,7 +2278,7 @@ Tools.createSVGElement = function createSVGElement(name, attrs) {
     document.createElementNS(Tools.svg.namespaceURI, name)
   );
   if (!attrs || typeof attrs !== "object") return elem;
-  Object.keys(attrs).forEach(function (key) {
+  Object.keys(attrs).forEach((key) => {
     elem.setAttributeNS(null, key, String(attrs[key]));
   });
   return elem;
@@ -2302,8 +2290,8 @@ Tools.createSVGElement = function createSVGElement(name, attrs) {
  * @param {number} y
  */
 Tools.positionElement = function positionElement(elem, x, y) {
-  elem.style.top = y + "px";
-  elem.style.left = x + "px";
+  elem.style.top = `${y}px`;
+  elem.style.left = `${x}px`;
 };
 
 Tools.colorPresets = [
@@ -2333,9 +2321,7 @@ Tools.getColor = (function color() {
     Tools.colorPresets[0] || { color: "#001f3f" };
   var initial_color = initialPreset.color;
   Tools.setColor(initial_color);
-  return function () {
-    return Tools.color_chooser.value;
-  };
+  return () => Tools.color_chooser.value;
 })();
 
 Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
@@ -2347,7 +2333,7 @@ Tools.setSize = (function size() {
   function update() {
     var size = MessageCommon.clampSize(chooser.value);
     chooser.value = String(size);
-    Tools.sizeChangeHandlers.forEach(function (handler) {
+    Tools.sizeChangeHandlers.forEach((handler) => {
       handler(size);
     });
   }
@@ -2358,18 +2344,16 @@ Tools.setSize = (function size() {
    * @param {number | string | null | undefined} value
    * @returns {number}
    */
-  return function (value) {
+  return (value) => {
     if (value !== null && value !== undefined) {
       chooser.value = String(value);
       update();
     }
-    return parseInt(chooser.value);
+    return parseInt(chooser.value, 10);
   };
 })();
 
-Tools.getSize = function () {
-  return Tools.setSize();
-};
+Tools.getSize = () => Tools.setSize();
 
 Tools.getOpacity = (function opacity() {
   var chooser = getRequiredInput("chooseOpacity");
@@ -2382,9 +2366,7 @@ Tools.getOpacity = (function opacity() {
   update();
 
   chooser.onchange = chooser.oninput = update;
-  return function () {
-    return MessageCommon.clampOpacity(chooser.value);
-  };
+  return () => MessageCommon.clampOpacity(chooser.value);
 })();
 
 //Scale the canvas on load
@@ -2409,7 +2391,7 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 }
 */
 
-(function () {
+(() => {
   var pos = { top: 0, scroll: 0 };
   var menu = BoardBootstrap.getRequiredElement("menu");
   /** @param {MouseEvent} evt */

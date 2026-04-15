@@ -35,8 +35,6 @@
 // ==/ClosureCompiler==
 
 export function registerCanvasColor() {
-  "use strict";
-
   /**
    * @typedef {[number, number, number]} RGBColor
    * @typedef {[number, number]} CanvasCoords
@@ -139,7 +137,7 @@ export function registerCanvasColor() {
       throw new Error("CanvasColor: invalid container template");
     }
     var pickerContainer = container;
-    pickerContainer.style.width = w + "px";
+    pickerContainer.style.width = `${w}px`;
     pickerContainer.style.position = isFixedPosition(elem)
       ? "fixed"
       : "absolute";
@@ -163,8 +161,8 @@ export function registerCanvasColor() {
       throw new Error("CanvasColor: missing history element");
     }
     var historyDiv = prevcolorsDiv;
-    historyDiv.style.width = w + "px";
-    historyDiv.style.maxHeight = h + "px";
+    historyDiv.style.width = `${w}px`;
+    historyDiv.style.maxHeight = `${h}px`;
 
     var previewdiv = createColorDiv(curcolor);
     previewdiv.style.border = "1px solid white";
@@ -183,8 +181,8 @@ export function registerCanvasColor() {
         conttop += document.documentElement.scrollTop;
         contleft += document.documentElement.scrollLeft;
       }
-      pickerContainer.style.top = conttop + "px";
-      pickerContainer.style.left = contleft + "px";
+      pickerContainer.style.top = `${conttop}px`;
+      pickerContainer.style.left = `${contleft}px`;
       pickerContainer.style.display = "block";
     }
     /**
@@ -198,7 +196,7 @@ export function registerCanvasColor() {
     container.addEventListener("mouseleave", hideContainer, false);
     elem.addEventListener(
       "keyup",
-      function () {
+      () => {
         changeColor(elem.value, true);
       },
       true,
@@ -220,7 +218,7 @@ export function registerCanvasColor() {
       function num2hex(c) {
         return (((c * 15) / 255) | 0).toString(16);
       }
-      return "#" + num2hex(rgb[0]) + num2hex(rgb[1]) + num2hex(rgb[2]);
+      return `#${num2hex(rgb[0])}${num2hex(rgb[1])}${num2hex(rgb[2])}`;
     }
 
     /**
@@ -235,10 +233,10 @@ export function registerCanvasColor() {
 
     /** @returns {void} */
     function render() {
-      for (var x = 0; x < w; x++) {
-        for (var y = 0; y < h; y++) {
-          var i = 4 * (x + y * w);
-          var rgb = colorAt([x, y]);
+      for (let x = 0; x < w; x++) {
+        for (let y = 0; y < h; y++) {
+          const i = 4 * (x + y * w);
+          const rgb = colorAt([x, y]);
           idata.data[i] = rgb[0]; //Red
           idata.data[i + 1] = rgb[1]; //Green
           idata.data[i + 2] = rgb[2]; //Blue
@@ -272,19 +270,19 @@ export function registerCanvasColor() {
      */
     function createColorDiv(color) {
       var div = document.createElement("div");
-      div.style.width = w / 3 - 10 + "px";
-      div.style.height = h / 3 - 8 + "px";
+      div.style.width = `${w / 3 - 10}px`;
+      div.style.height = `${h / 3 - 8}px`;
       div.style.backgroundColor = color;
       div.addEventListener(
         "click",
-        function () {
+        () => {
           changeColor(color);
         },
         true,
       );
       if (historyDiv.childElementCount <= 1) historyDiv.appendChild(div);
       else {
-        var secondChild = historyDiv.children[1];
+        const secondChild = historyDiv.children[1];
         historyDiv.insertBefore(div, secondChild || null);
       }
       return div;
@@ -301,7 +299,7 @@ export function registerCanvasColor() {
 
     canvas.addEventListener(
       "mousemove",
-      function (evt) {
+      (evt) => {
         var coords = canvasPos(evt);
         previewdiv.style.backgroundColor = rgb2hex(colorAt(coords));
       },
@@ -310,7 +308,7 @@ export function registerCanvasColor() {
 
     canvas.addEventListener(
       "click",
-      function (evt) {
+      (evt) => {
         var coords = canvasPos(evt);
         var color = rgb2hex(colorAt(coords));
         createColorDiv(color);
@@ -321,7 +319,7 @@ export function registerCanvasColor() {
 
     canvas.addEventListener(
       "mouseleave",
-      function () {
+      () => {
         previewdiv.style.backgroundColor = curcolor;
       },
       true,
@@ -333,8 +331,8 @@ export function registerCanvasColor() {
   var pickers = document.querySelectorAll(
     "input.canvascolor, input[type=color]",
   );
-  for (var i = 0; i < pickers.length; i++) {
-    var input = pickers.item(i);
+  for (let i = 0; i < pickers.length; i++) {
+    const input = pickers.item(i);
     if (!(input instanceof HTMLInputElement)) {
       continue;
     }

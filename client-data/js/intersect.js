@@ -35,8 +35,8 @@
 function getTransformMatrix(elem) {
   /** @type {SVGTransform | null} */
   var transform = null;
-  for (var i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
-    var baseVal = elem.transform.baseVal[i];
+  for (let i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
+    const baseVal = elem.transform.baseVal[i];
     if (!baseVal) {
       continue;
     }
@@ -112,9 +112,7 @@ export function transformedBBoxIntersects(bbox_a, bbox_b) {
       bbox_b.r[1] + bbox_b.a[1] + bbox_b.b[1],
     ],
   ];
-  return corners.every(function (corner) {
-    return pointInTransformedBBox(corner, bbox_a);
-  });
+  return corners.every((corner) => pointInTransformedBBox(corner, bbox_a));
 }
 
 if (

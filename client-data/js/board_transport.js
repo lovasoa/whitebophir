@@ -33,7 +33,7 @@ function normalizeSocketIOExtraHeaders(value) {
 function buildSocketParams(pathname, extraHeaders, token, extraQueryParams) {
   /** @type {SocketParams} */
   var socketParams = {
-    path: pathname.split("/boards/")[0] + "/socket.io",
+    path: `${pathname.split("/boards/")[0]}/socket.io`,
     reconnection: true,
     reconnectionDelay: 100,
     timeout: 1000 * 60 * 20,
@@ -42,7 +42,7 @@ function buildSocketParams(pathname, extraHeaders, token, extraQueryParams) {
   if (extraHeaders) socketParams.extraHeaders = extraHeaders;
   if (typeof token === "string" && token !== "") query.set("token", token);
   if (extraQueryParams) {
-    Object.entries(extraQueryParams).forEach(function ([key, value]) {
+    Object.entries(extraQueryParams).forEach(([key, value]) => {
       if (typeof value === "string" && value !== "") query.set(key, value);
     });
   }
@@ -78,12 +78,8 @@ function batchCall(fn, args, index) {
   if (index >= args.length) return Promise.resolve();
   var batch = args.slice(index, index + BATCH_SIZE);
   return Promise.all(batch.map(fn))
-    .then(function () {
-      return new Promise(requestAnimationFrame);
-    })
-    .then(function () {
-      return batchCall(fn, args, index + BATCH_SIZE);
-    });
+    .then(() => new Promise(requestAnimationFrame))
+    .then(() => batchCall(fn, args, index + BATCH_SIZE));
 }
 
 /**

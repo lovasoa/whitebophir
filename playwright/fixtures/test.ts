@@ -1,12 +1,12 @@
-import { test as base, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { BoardPage } from "../pages/BoardPage";
+import { test as base, expect } from "@playwright/test";
 import {
+  type ServerSetupOptions,
   startTestServer,
   stopTestServer,
-  type ServerSetupOptions,
   type TestServer,
 } from "../helpers/testServer";
+import { BoardPage } from "../pages/BoardPage";
 
 type Fixtures = {
   server: TestServer;

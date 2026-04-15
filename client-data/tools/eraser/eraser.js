@@ -80,7 +80,7 @@ export function registerEraserTool(tools) {
     var target = evt.target;
     if (evt.type === "touchmove" || evt.type === "touchstart") {
       // The target of touchmove events is the initially touched element, not the one currently touched.
-      var touch = evt.touches && evt.touches[0];
+      const touch = evt.touches && evt.touches[0];
       if (touch) {
         target = document.elementFromPoint(touch.clientX, touch.clientY);
       }
@@ -104,7 +104,7 @@ export function registerEraserTool(tools) {
       inDrawingArea(target)
     ) {
       /** @type {EraserMessage} */
-      var msg = {
+      const msg = {
         type: "delete",
         id: target.id,
       };

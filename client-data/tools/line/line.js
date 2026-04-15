@@ -102,9 +102,9 @@ export function registerLineTool(tools) {
 		This allows the animation to be smother*/
     if (curLine !== null) {
       if (lineTool.secondary.active) {
-        var alpha = Math.atan2(y - curLine.y, x - curLine.x);
-        var d = Math.hypot(y - curLine.y, x - curLine.x);
-        var increment = (2 * Math.PI) / 16;
+        let alpha = Math.atan2(y - curLine.y, x - curLine.x);
+        const d = Math.hypot(y - curLine.y, x - curLine.x);
+        const increment = (2 * Math.PI) / 16;
         alpha = Math.round(alpha / increment) * increment;
         x = curLine.x + d * Math.cos(alpha);
         y = curLine.y + d * Math.sin(alpha);
@@ -135,11 +135,11 @@ export function registerLineTool(tools) {
       case "straight":
         createLine(data);
         break;
-      case "update":
+      case "update": {
         if (!tools.svg) {
           throw new Error("Straight line: Missing SVG canvas.");
         }
-        var line = tools.svg.getElementById(data["id"]);
+        let line = tools.svg.getElementById(data["id"]);
         if (!line) {
           console.error(
             "Straight line: Hmmm... I received a point of a line that has not been created (%s).",
@@ -156,6 +156,7 @@ export function registerLineTool(tools) {
         }
         updateLine(/** @type {ExistingLine} */ (line), data);
         break;
+      }
       default:
         console.error(
           "Straight Line: Draw instruction with unknown type. ",

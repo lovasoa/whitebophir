@@ -83,7 +83,7 @@ export function registerHandTool(Tools) {
       24,
       24,
       /** @type {SelectionButtonDraw} */
-      function (me, bbox, s) {
+      (me, bbox, s) => {
         me.width.baseVal.value = me.origWidth / s;
         me.height.baseVal.value = me.origHeight / s;
         me.x.baseVal.value = bbox.r[0];
@@ -99,7 +99,7 @@ export function registerHandTool(Tools) {
       24,
       24,
       /** @type {SelectionButtonDraw} */
-      function (me, bbox, s) {
+      (me, bbox, s) => {
         me.width.baseVal.value = me.origWidth / s;
         me.height.baseVal.value = me.origHeight / s;
         me.x.baseVal.value = bbox.r[0] + (me.origWidth + 2) / s;
@@ -115,7 +115,7 @@ export function registerHandTool(Tools) {
       14,
       14,
       /** @type {SelectionButtonDraw} */
-      function (me, bbox, s) {
+      (me, bbox, s) => {
         me.width.baseVal.value = me.origWidth / s;
         me.height.baseVal.value = me.origHeight / s;
         me.x.baseVal.value = bbox.r[0] + bbox.a[0] - me.origWidth / (2 * s);
@@ -126,7 +126,7 @@ export function registerHandTool(Tools) {
     ),
   ];
 
-  blockedSelectionButtons.forEach(function (/** @type {number} */ buttonIndex) {
+  blockedSelectionButtons.forEach((/** @type {number} */ buttonIndex) => {
     if (typeof buttonIndex === "number") delete selectionButtons[buttonIndex];
   });
 
@@ -176,15 +176,15 @@ export function registerHandTool(Tools) {
     while (a) {
       els.unshift(a);
       /** @type {EventTarget | null} */
-      var parentElement = a.parentElement;
+      const parentElement = a.parentElement;
       a =
         parentElement && isSelectableElement(parentElement)
           ? parentElement
           : null;
     }
-    var parentMathematics = els.find(function (el) {
-      return el.getAttribute("class") === "MathElement";
-    });
+    var parentMathematics = els.find(
+      (el) => el.getAttribute("class") === "MathElement",
+    );
     if (parentMathematics && parentMathematics.tagName === "svg") {
       target = /** @type {SelectableElement} */ (parentMathematics);
     }
@@ -193,12 +193,10 @@ export function registerHandTool(Tools) {
 
   function deleteSelection() {
     /** @type {HandDeleteMessage[]} */
-    var msgs = selected_els.map(function (el) {
-      return {
-        type: "delete",
-        id: el.id,
-      };
-    });
+    var msgs = selected_els.map((el) => ({
+      type: "delete",
+      id: el.id,
+    }));
     /** @type {HandBatchMessage} */
     var data = {
       _children: msgs,
@@ -209,15 +207,18 @@ export function registerHandTool(Tools) {
   }
 
   function duplicateSelection() {
-    if (!(selectorState == selectorStates.pointing) || selected_els.length == 0)
+    if (
+      !(selectorState === selectorStates.pointing) ||
+      selected_els.length === 0
+    )
       return;
     /** @type {HandCopyMessage[]} */
     var msgs = [];
-    for (var i = 0; i < selected_els.length; i++) {
-      var selectedElement = selected_els[i];
+    for (let i = 0; i < selected_els.length; i++) {
+      const selectedElement = selected_els[i];
       if (!selectedElement) continue;
-      var id = selectedElement.id;
-      var newid = Tools.generateUID(id[0]);
+      const id = selectedElement.id;
+      const newid = Tools.generateUID(id[0]);
       msgs[i] = {
         type: "copy",
         id: id,
@@ -263,7 +264,7 @@ export function registerHandTool(Tools) {
     clickCallback,
   ) {
     var shape = Tools.createSVGElement("image", {
-      href: "tools/hand/" + icon + ".svg",
+      href: `tools/hand/${icon}.svg`,
       width: width,
       height: height,
     });
@@ -279,8 +280,8 @@ export function registerHandTool(Tools) {
   function showSelectionButtons() {
     var scale = getScale();
     var selectionBBox = selectionRect.transformedBBox();
-    for (var i = 0; i < selectionButtons.length; i++) {
-      var button = selectionButtons[i];
+    for (let i = 0; i < selectionButtons.length; i++) {
+      const button = selectionButtons[i];
       if (button) {
         button.drawCallback(button, selectionBBox, scale);
       }
@@ -288,8 +289,8 @@ export function registerHandTool(Tools) {
   }
 
   function hideSelectionButtons() {
-    for (var i = 0; i < selectionButtons.length; i++) {
-      var button = selectionButtons[i];
+    for (let i = 0; i < selectionButtons.length; i++) {
+      const button = selectionButtons[i];
       if (button) button.style.display = "none";
     }
   }
@@ -310,10 +311,10 @@ export function registerHandTool(Tools) {
     currentTransform = moveSelection;
     selected = { x: x, y: y };
     // Some of the selected elements could have been deleted
-    selected_els = selected_els.filter(function (el) {
-      return Tools.svg.getElementById(el.id) !== null;
-    });
-    transform_elements = selected_els.map(function (el) {
+    selected_els = selected_els.filter(
+      (el) => Tools.svg.getElementById(el.id) !== null,
+    );
+    transform_elements = selected_els.map((el) => {
       var tmatrix = get_transform_matrix(el);
       return {
         a: tmatrix.a,
@@ -344,7 +345,7 @@ export function registerHandTool(Tools) {
       w: bbox.a[0],
       h: bbox.b[1],
     };
-    transform_elements = selected_els.map(function (el) {
+    transform_elements = selected_els.map((el) => {
       var tmatrix = get_transform_matrix(el);
       return {
         a: tmatrix.a,
@@ -391,8 +392,8 @@ export function registerHandTool(Tools) {
     var elements = Tools.drawingArea.children;
     /** @type {SelectableElement[]} */
     var selected = [];
-    for (var i = 0; i < elements.length; i++) {
-      var element = elements[i];
+    for (let i = 0; i < elements.length; i++) {
+      const element = elements[i];
       if (!element) continue;
       if (
         isSelectableElement(element) &&
@@ -421,7 +422,7 @@ export function registerHandTool(Tools) {
     var dx = x - selected.x;
     var dy = y - selected.y;
     /** @type {HandUpdateMessage[]} */
-    var msgs = selected_els.map(function (el, i) {
+    var msgs = selected_els.map((el, i) => {
       var oldTransform = transform_elements[i];
       if (!oldTransform) {
         throw new Error("Mover: Missing transform state while moving.");
@@ -469,7 +470,7 @@ export function registerHandTool(Tools) {
     var rx = (x - scaleSelectionState.x) / scaleSelectionState.w;
     var ry = (y - scaleSelectionState.y) / scaleSelectionState.h;
     /** @type {HandUpdateMessage[]} */
-    var msgs = selected_els.map(function (el, i) {
+    var msgs = selected_els.map((el, i) => {
       var oldTransform = transform_elements[i];
       if (!oldTransform) {
         throw new Error("Mover: Missing transform state while scaling.");
@@ -563,8 +564,8 @@ export function registerHandTool(Tools) {
   function get_transform_matrix(elem) {
     // Returns the first translate or transform matrix or makes one
     var transform = null;
-    for (var i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
-      var baseVal = elem.transform.baseVal[i];
+    for (let i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
+      const baseVal = elem.transform.baseVal[i];
       // quick tests showed that even if one changes only the fields e and f or uses createSVGTransformFromMatrix
       // the brower may add a SVG_TRANSFORM_MATRIX instead of a SVG_TRANSFORM_TRANSLATE
       if (baseVal && baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
@@ -587,13 +588,13 @@ export function registerHandTool(Tools) {
       BoardMessages.batchCall(draw, data._children);
     } else {
       switch (data.type) {
-        case "update":
-          var elem = Tools.svg.getElementById(data.id);
+        case "update": {
+          const elem = Tools.svg.getElementById(data.id);
           if (!elem)
             throw new Error(
               "Mover: Tried to move an element that does not exist.",
             );
-          var tmatrix = get_transform_matrix(
+          const tmatrix = get_transform_matrix(
             /** @type {SelectableElement} */ (elem),
           );
           tmatrix.a = data.transform.a;
@@ -603,22 +604,24 @@ export function registerHandTool(Tools) {
           tmatrix.e = data.transform.e;
           tmatrix.f = data.transform.f;
           break;
-        case "copy":
+        }
+        case "copy": {
           if (!Tools.drawingArea) {
             throw new Error("Mover: Missing drawing area while copying.");
           }
-          var sourceElement = Tools.svg.getElementById(data.id);
+          const sourceElement = Tools.svg.getElementById(data.id);
           if (!isSelectableElement(sourceElement)) {
             throw new Error(
               "Mover: Tried to copy an element that does not exist.",
             );
           }
-          var newElement = /** @type {SelectableElement} */ (
+          const newElement = /** @type {SelectableElement} */ (
             sourceElement.cloneNode(true)
           );
           newElement.id = data.newid;
           Tools.drawingArea.appendChild(newElement);
           break;
+        }
         case "delete":
           data.tool = "Eraser";
           Tools.messageForTool(data);
@@ -638,8 +641,8 @@ export function registerHandTool(Tools) {
     selectionRect = selectionRect || createSelectorRect();
     /** @type {SelectionButton | undefined} */
     var button;
-    for (var i = 0; i < selectionButtons.length; i++) {
-      var candidate = selectionButtons[i];
+    for (let i = 0; i < selectionButtons.length; i++) {
+      const candidate = selectionButtons[i];
       if (
         candidate &&
         evt.target &&
@@ -661,7 +664,7 @@ export function registerHandTool(Tools) {
       Tools.drawingArea.contains(/** @type {Node} */ (evt.target))
     ) {
       hideSelectionUI();
-      var parent = getParentMathematics(evt.target);
+      const parent = getParentMathematics(evt.target);
       if (!parent) {
         startSelector(x, y, evt);
         return;
@@ -680,13 +683,13 @@ export function registerHandTool(Tools) {
    * @param {ToolPointerEvent} evt
    */
   function releaseSelector(x, y, evt) {
-    if (selectorState == selectorStates.selecting) {
+    if (selectorState === selectorStates.selecting) {
       selected_els = calculateSelection();
-      if (selected_els.length == 0) {
+      if (selected_els.length === 0) {
         hideSelectionUI();
       }
-    } else if (selectorState == selectorStates.transform) resetSelectionRect();
-    if (selected_els.length != 0) showSelectionButtons();
+    } else if (selectorState === selectorStates.transform) resetSelectionRect();
+    if (selected_els.length !== 0) showSelectionButtons();
     transform_elements = [];
     selectorState = selectorStates.pointing;
   }
@@ -698,9 +701,9 @@ export function registerHandTool(Tools) {
    * @param {boolean} force
    */
   function moveSelector(x, y, evt, force) {
-    if (selectorState == selectorStates.selecting) {
+    if (selectorState === selectorStates.selecting) {
       updateRect(x, y, selectionRect);
-    } else if (selectorState == selectorStates.transform && currentTransform) {
+    } else if (selectorState === selectorStates.transform && currentTransform) {
       currentTransform(x, y, force);
     }
   }
@@ -778,7 +781,7 @@ export function registerHandTool(Tools) {
   /** @param {ToolKeyEvent} e */
   function deleteShortcut(e) {
     if (
-      e.key == "Delete" &&
+      e.key === "Delete" &&
       (!isMatchableTarget(e.target) ||
         !e.target.matches("input[type=text], textarea"))
     )
@@ -788,7 +791,7 @@ export function registerHandTool(Tools) {
   /** @param {ToolKeyEvent} e */
   function duplicateShortcut(e) {
     if (
-      e.key == "d" &&
+      e.key === "d" &&
       (!isMatchableTarget(e.target) ||
         !e.target.matches("input[type=text], textarea"))
     )
