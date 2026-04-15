@@ -34,7 +34,7 @@
 
 ## where to look by concern
 
-- Config/env behavior: [server configuration](./server/configuration.js).
+- Config/env behavior: [server configuration](./server/configuration.mjs).
 - Browser integration coverage: [playwright specs](./playwright/tests).
 - Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
 - Browser runner setup: [playwright config](./playwright.config.ts).

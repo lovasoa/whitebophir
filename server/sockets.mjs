@@ -31,7 +31,7 @@ const require = createRequire(
 );
 
 function getConfig() {
-  return require("./configuration.js");
+  return require("./configuration.mjs").readConfiguration();
 }
 
 /** @typedef {{token?: string, userSecret?: string, tool?: string, color?: string, size?: string}} SocketQuery */

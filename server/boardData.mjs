@@ -43,7 +43,7 @@ const require = createRequire(
 );
 
 function getConfig() {
-  return require("./configuration.js");
+  return require("./configuration.mjs").readConfiguration();
 }
 
 class SerialTaskQueue {

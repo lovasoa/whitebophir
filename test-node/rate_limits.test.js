@@ -8,9 +8,13 @@ const {
   withEnv,
 } = require("./test_helpers.js");
 
+function loadConfig() {
+  return require(CONFIG_PATH).readConfiguration();
+}
+
 test("configuration provides sane default rate-limit ordering", () =>
   withEnv({ WBO_IP_SOURCE: undefined }, () => {
-    const config = require(CONFIG_PATH);
+    const config = loadConfig();
 
     assert.equal(config.IP_SOURCE, "remoteAddress");
     assert.equal(config.TRUST_PROXY_HOPS, 0);
@@ -56,7 +60,7 @@ test("configuration rejects trust proxy hops with incompatible ip sources", () =
         WBO_TRUST_PROXY_HOPS: "1",
       },
       () => {
-        require(CONFIG_PATH);
+        loadConfig();
       },
     ),
     /WBO_TRUST_PROXY_HOPS requires WBO_IP_SOURCE to be X-Forwarded-For or Forwarded/,
@@ -70,7 +74,7 @@ test("configuration parses compact rate-limit profiles", () =>
       WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:180/2m anonymous:90/45s",
     },
     () => {
-      const config = require(CONFIG_PATH);
+      const config = loadConfig();
 
       assert.deepEqual(config.GENERAL_RATE_LIMITS, {
         limit: 300,
@@ -112,7 +116,7 @@ test("compact rate-limit profiles do not invent board overrides", () =>
       WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:240/60s",
     },
     () => {
-      const config = require(CONFIG_PATH);
+      const config = loadConfig();
       assert.deepEqual(config.GENERAL_RATE_LIMITS, {
         limit: 300,
         periodMs: 6_000,

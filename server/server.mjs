@@ -24,8 +24,9 @@ import observability from "./observability.mjs";
 
 const require = createRequire(path.join(process.cwd(), "server", "server.mjs"));
 const serveStatic = require("serve-static");
-const config = require("./configuration.js");
+const { readConfiguration } = require("./configuration.mjs");
 const { createRequestId, logger, metrics, tracing } = observability;
+const config = readConfiguration();
 
 /** @typedef {import("http").IncomingMessage} HttpRequest */
 /** @typedef {import("http").ServerResponse} HttpResponse */

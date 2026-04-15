@@ -9,7 +9,7 @@ process.env.WBO_HISTORY_DIR = historyDir;
 process.env.WBO_SILENT = process.env.WBO_SILENT || "true";
 
 const { BoardData } = require("../server/boardData.mjs");
-const config = require("../server/configuration.js");
+const config = require("../server/configuration.mjs").readConfiguration();
 const { renderBoardToSVG } = require("../server/createSVG.mjs");
 
 const DEFAULT_COLOR = "#1f2937";

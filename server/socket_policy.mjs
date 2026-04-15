@@ -12,7 +12,7 @@ const require = createRequire(
 );
 
 function getConfig() {
-  return require("./configuration.js");
+  return require("./configuration.mjs").readConfiguration();
 }
 
 /** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */

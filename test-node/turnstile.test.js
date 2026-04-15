@@ -134,7 +134,7 @@ test("server-side Turnstile token validation binds Siteverify to request context
       TURNSTILE_VALIDATION_WINDOW_MS: "120000",
     },
     async () => {
-      const config = require("../server/configuration.js");
+      const config = require("../server/configuration.mjs").readConfiguration();
       const sockets = await loadSockets();
       const { socket, handlers } = createSocket({
         headers: { host: "board.example" },
@@ -228,7 +228,8 @@ test("server-side Turnstile token validation rejects hostname mismatches", async
       TURNSTILE_SITE_KEY: "test-site-key",
     },
     async () => {
-      const _config = require("../server/configuration.js");
+      const _config =
+        require("../server/configuration.mjs").readConfiguration();
       const sockets = await loadSockets();
       const { socket, handlers } = createSocket({
         headers: { host: "board.example:8080" },

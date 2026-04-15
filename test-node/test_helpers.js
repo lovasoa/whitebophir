@@ -3,7 +3,7 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
 const ROOT = path.resolve(__dirname, "..");
-const CONFIG_PATH = path.join(ROOT, "server", "configuration.js");
+const CONFIG_PATH = path.join(ROOT, "server", "configuration.mjs");
 const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.mjs");
 const SOCKETS_PATH = path.join(ROOT, "server", "sockets.mjs");
 const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.mjs");
