@@ -60,7 +60,7 @@ export async function startTestServer(
     delete env.AUTH_SECRET_KEY;
   }
 
-  const serverPath = path.resolve("server", "server.js");
+  const serverPath = path.resolve("server", "server.mjs");
   const child = spawn("node", [serverPath], {
     env,
     stdio: ["ignore", "pipe", "pipe", "ipc"],
