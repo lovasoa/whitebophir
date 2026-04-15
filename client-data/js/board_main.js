@@ -106,6 +106,8 @@ async function bootBoardPage() {
     ),
   );
 
+  tools.startConnection();
+
   await bootCriticalTools();
   await bootToolNames(
     Array.from(REPLAY_SAFE_TOOL_NAMES).filter(
@@ -115,7 +117,6 @@ async function bootBoardPage() {
   if (!tools.curTool && tools.list.Hand && tools.canUseTool("Hand")) {
     tools.change("Hand");
   }
-  tools.startConnection();
   document.documentElement.dataset.boardReady = "true";
 
   const deferredToolNames = getRenderedToolNames().filter(

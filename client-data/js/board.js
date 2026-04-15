@@ -43,11 +43,11 @@ import {
 import MessageCommon from "./message_common.js";
 import Minitpl from "./minitpl.js";
 import RateLimitCommon from "./rate_limit_common.js";
-import { getToolCatalogEntry } from "./tool_catalog.js";
 import {
   getToolModuleImportPath,
   getToolRuntimeAssetPath,
 } from "./tool_assets.js";
+import { getToolCatalogEntry } from "./tool_catalog.js";
 
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
 /** @typedef {import("../../types/app-runtime").AppTool} AppTool */
@@ -386,6 +386,17 @@ Tools.resetBoardViewport = function resetBoardViewport() {
   Tools.clearBoardCursors();
 };
 
+Tools.restoreLocalCursor = function restoreLocalCursor() {
+  const cursorTool = Tools.list.Cursor;
+  if (!cursorTool || typeof cursorTool.draw !== "function") return;
+  const message =
+    "message" in cursorTool && cursorTool.message
+      ? /** @type {BoardMessage} */ (cursorTool.message)
+      : null;
+  if (!message) return;
+  cursorTool.draw(message, true);
+};
+
 /**
  * @param {RateLimitKind} kind
  * @param {number} [now]
@@ -683,6 +694,7 @@ function processIncomingBroadcast(msg) {
           Tools.snapshotRevision,
         ).concat(Tools.incomingBroadcastQueue);
       Tools.preSnapshotMessages = [];
+      Tools.restoreLocalCursor();
     }
     return true;
   });
