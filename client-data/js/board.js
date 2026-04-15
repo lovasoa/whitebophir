@@ -1973,9 +1973,23 @@ function deriveListeners(tool) {
 
 /**
  * @param {AppTool} tool
+ * @param {"onstart" | "onquit" | "onSocketDisconnect" | "onSizeChange"} key
+ */
+function bindToolMethod(tool, key) {
+  const method = tool[key];
+  if (typeof method !== "function") return;
+  tool[key] = method.bind(tool);
+}
+
+/**
+ * @param {AppTool} tool
  * @returns {AppTool}
  */
 Tools.mountTool = function mountTool(tool) {
+  bindToolMethod(tool, "onstart");
+  bindToolMethod(tool, "onquit");
+  bindToolMethod(tool, "onSocketDisconnect");
+  bindToolMethod(tool, "onSizeChange");
   if (!tool.listeners) {
     tool.listeners = deriveListeners(tool);
   }

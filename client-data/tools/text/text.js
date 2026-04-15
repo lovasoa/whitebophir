@@ -27,64 +27,61 @@
 import { truncateText } from "../../js/message_common.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-/** @param {any} Tools */
-function createTextTool(Tools) {
-  /** @typedef {{type?: string, id?: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} TextMessage */
-  /** @typedef {SVGTextElement & {id: string}} ExistingTextElement */
-  /** @typedef {Event | KeyboardEvent | FocusEvent} TextInputEvent */
+export default class TextTool {
+  static toolName = "Text";
+
   /**
-   * @typedef {object} TextEditState
-   * @property {number} x
-   * @property {number} y
-   * @property {number} size
-   * @property {number} rawSize
-   * @property {number} oldSize
-   * @property {number} opacity
-   * @property {string} color
-   * @property {string | 0} id
-   * @property {string} sentText
-   * @property {number} lastSending
-   * @property {ReturnType<typeof setTimeout> | null} timeout
+   * @param {any} Tools
    */
-  const board = Tools.board;
-  const input = document.createElement("input");
-  input.id = "textToolInput";
-  input.type = "text";
-  input.setAttribute("autocomplete", "off");
+  constructor(Tools) {
+    this.Tools = Tools;
+    this.board = Tools.board;
+    this.name = "Text";
+    this.shortcut = "t";
+    this.stylesheet = "tools/text/text.css";
+    this.icon = "tools/text/icon.svg";
+    this.mouseCursor = "text";
 
-  /** @type {TextEditState} */
-  const curText = {
-    x: 0,
-    y: 0,
-    size: 36,
-    rawSize: 16,
-    oldSize: 0,
-    opacity: 1,
-    color: "#000",
-    id: 0,
-    sentText: "",
-    lastSending: 0,
-    timeout: null,
-  };
+    this.input = document.createElement("input");
+    this.input.id = "textToolInput";
+    this.input.type = "text";
+    this.input.setAttribute("autocomplete", "off");
 
-  let active = false;
+    this.curText = {
+      x: 0,
+      y: 0,
+      size: 36,
+      rawSize: 16,
+      oldSize: 0,
+      opacity: 1,
+      color: "#000",
+      id: 0,
+      sentText: "",
+      lastSending: 0,
+      timeout: null,
+    };
+
+    this.active = false;
+    this.boundTextChangeHandler = this.textChangeHandler.bind(this);
+    this.boundBlur = this.blur.bind(this);
+  }
 
   /**
    * @param {EventTarget | null} target
-   * @returns {target is ExistingTextElement}
+   * @returns {target is SVGTextElement & {id: string}}
    */
-  function isExistingTextElement(target) {
+  isExistingTextElement(target) {
     return target instanceof SVGTextElement;
   }
 
-  function onStart() {
-    curText.oldSize = Tools.getSize();
-    Tools.setSize(curText.rawSize);
+  onstart() {
+    this.curText.oldSize = this.Tools.getSize();
+    this.Tools.setSize(this.curText.rawSize);
   }
 
-  function onQuit() {
-    stopEdit();
-    Tools.setSize(curText.oldSize);
+  onquit() {
+    this.stopEdit();
+    this.Tools.setSize(this.curText.oldSize);
   }
 
   /**
@@ -93,142 +90,145 @@ function createTextTool(Tools) {
    * @param {MouseEvent | TouchEvent} evt
    * @param {boolean} isTouchEvent
    */
-  function clickHandler(x, y, evt, isTouchEvent) {
-    //if(document.querySelector("#menu").offsetWidth>Tools.menu_width+3) return;
-    if (evt.target === input) return;
-    if (isExistingTextElement(evt.target)) {
-      editOldText(evt.target);
+  press(x, y, evt, isTouchEvent) {
+    void isTouchEvent;
+    if (evt.target === this.input) return;
+    if (this.isExistingTextElement(evt.target)) {
+      this.editOldText(evt.target);
       evt.preventDefault();
       return;
     }
-    curText.rawSize = Tools.getSize();
-    curText.size = Math.round(curText.rawSize * 1.5 + 12);
-    curText.opacity = Tools.getOpacity();
-    curText.color = Tools.getColor();
-    curText.x = x;
-    curText.y = y + curText.size / 2;
+    this.curText.rawSize = this.Tools.getSize();
+    this.curText.size = Math.round(this.curText.rawSize * 1.5 + 12);
+    this.curText.opacity = this.Tools.getOpacity();
+    this.curText.color = this.Tools.getColor();
+    this.curText.x = x;
+    this.curText.y = y + this.curText.size / 2;
 
-    stopEdit();
-    startEdit();
+    this.stopEdit();
+    this.startEdit();
     evt.preventDefault();
   }
 
-  /** @param {ExistingTextElement} elem */
-  function editOldText(elem) {
-    curText.id = elem.id;
+  /** @param {SVGTextElement & {id: string}} elem */
+  editOldText(elem) {
+    this.curText.id = elem.id;
     const r = elem.getBoundingClientRect();
-    const x = (r.left + document.documentElement.scrollLeft) / Tools.scale;
+    const x = (r.left + document.documentElement.scrollLeft) / this.Tools.scale;
     const y =
-      (r.top + r.height + document.documentElement.scrollTop) / Tools.scale;
+      (r.top + r.height + document.documentElement.scrollTop) /
+      this.Tools.scale;
 
-    curText.x = x;
-    curText.y = y;
-    curText.sentText = elem.textContent || "";
-    curText.size = Number(elem.getAttribute("font-size")) || curText.size;
-    curText.opacity = Number(elem.getAttribute("opacity")) || 1;
-    curText.color = elem.getAttribute("fill") || "#000";
-    startEdit();
-    input.value = elem.textContent || "";
+    this.curText.x = x;
+    this.curText.y = y;
+    this.curText.sentText = elem.textContent || "";
+    this.curText.size =
+      Number(elem.getAttribute("font-size")) || this.curText.size;
+    this.curText.opacity = Number(elem.getAttribute("opacity")) || 1;
+    this.curText.color = elem.getAttribute("fill") || "#000";
+    this.startEdit();
+    this.input.value = elem.textContent || "";
   }
 
-  function startEdit() {
-    active = true;
-    if (!input.parentNode) board.appendChild(input);
-    input.value = "";
+  startEdit() {
+    this.active = true;
+    if (!this.input.parentNode) this.board.appendChild(this.input);
+    this.input.value = "";
     const clientW = Math.max(
       document.documentElement.clientWidth,
       window.innerWidth ?? 0,
     );
-    let x = curText.x * Tools.scale - document.documentElement.scrollLeft;
+    let x =
+      this.curText.x * this.Tools.scale - document.documentElement.scrollLeft;
     if (x + 250 > clientW) {
       x = Math.max(60, clientW - 260);
     }
 
-    input.style.left = `${x}px`;
-    input.style.top = `${curText.y * Tools.scale - document.documentElement.scrollTop + 20}px`;
-    input.focus();
-    input.addEventListener("input", textChangeHandler);
-    input.addEventListener("keyup", textChangeHandler);
-    input.addEventListener("blur", textChangeHandler);
-    input.addEventListener("blur", blur);
+    this.input.style.left = `${x}px`;
+    this.input.style.top = `${this.curText.y * this.Tools.scale - document.documentElement.scrollTop + 20}px`;
+    this.input.focus();
+    this.input.addEventListener("input", this.boundTextChangeHandler);
+    this.input.addEventListener("keyup", this.boundTextChangeHandler);
+    this.input.addEventListener("blur", this.boundTextChangeHandler);
+    this.input.addEventListener("blur", this.boundBlur);
   }
 
-  function stopEdit() {
-    input.removeEventListener("input", textChangeHandler);
-    input.removeEventListener("keyup", textChangeHandler);
-    input.removeEventListener("blur", textChangeHandler);
-    input.removeEventListener("blur", blur);
-    if (curText.timeout !== null) {
-      clearTimeout(curText.timeout);
-      curText.timeout = null;
+  stopEdit() {
+    this.input.removeEventListener("input", this.boundTextChangeHandler);
+    this.input.removeEventListener("keyup", this.boundTextChangeHandler);
+    this.input.removeEventListener("blur", this.boundTextChangeHandler);
+    this.input.removeEventListener("blur", this.boundBlur);
+    if (this.curText.timeout !== null) {
+      clearTimeout(this.curText.timeout);
+      this.curText.timeout = null;
     }
     try {
-      if (typeof input.blur === "function") input.blur();
+      if (typeof this.input.blur === "function") this.input.blur();
     } catch (e) {
       /* Internet Explorer */
     }
-    active = false;
-    blur();
-    curText.id = 0;
-    curText.sentText = "";
-    input.value = "";
+    this.active = false;
+    this.blur();
+    this.curText.id = 0;
+    this.curText.sentText = "";
+    this.input.value = "";
   }
 
-  function blur() {
-    if (active) return;
-    input.style.top = "-1000px";
+  blur() {
+    if (this.active) return;
+    this.input.style.top = "-1000px";
   }
 
-  /** @param {TextInputEvent} evt */
-  function textChangeHandler(evt) {
+  /** @param {Event | KeyboardEvent | FocusEvent} evt */
+  textChangeHandler(evt) {
     if (evt instanceof KeyboardEvent && evt.key === "Enter") {
-      // enter
-      curText.y += 1.5 * curText.size;
-      stopEdit();
-      startEdit();
+      this.curText.y += 1.5 * this.curText.size;
+      this.stopEdit();
+      this.startEdit();
     } else if (evt instanceof KeyboardEvent && evt.key === "Escape") {
-      // escape
-      stopEdit();
+      this.stopEdit();
     }
-    if (performance.now() - curText.lastSending > 100) {
-      if (curText.sentText !== input.value) {
-        //If the user clicked where there was no text, then create a new text field
-        if (curText.id === 0) {
-          curText.id = Tools.generateUID("t"); //"t" for text
-          Tools.drawAndSend({
+    if (performance.now() - this.curText.lastSending > 100) {
+      if (this.curText.sentText !== this.input.value) {
+        if (this.curText.id === 0) {
+          this.curText.id = this.Tools.generateUID("t");
+          this.Tools.drawAndSend({
             type: "new",
-            id: curText.id,
-            color: curText.color,
-            size: curText.size,
-            opacity: curText.opacity,
-            x: curText.x,
-            y: curText.y,
+            id: this.curText.id,
+            color: this.curText.color,
+            size: this.curText.size,
+            opacity: this.curText.opacity,
+            x: this.curText.x,
+            y: this.curText.y,
           });
         }
-        Tools.drawAndSend({
+        this.Tools.drawAndSend({
           type: "update",
-          id: curText.id,
-          txt: truncateText(input.value),
+          id: this.curText.id,
+          txt: truncateText(this.input.value),
         });
-        curText.sentText = input.value;
-        curText.lastSending = performance.now();
+        this.curText.sentText = this.input.value;
+        this.curText.lastSending = performance.now();
       }
     } else {
-      if (curText.timeout !== null) clearTimeout(curText.timeout);
-      curText.timeout = setTimeout(textChangeHandler, 500, evt);
+      if (this.curText.timeout !== null) clearTimeout(this.curText.timeout);
+      this.curText.timeout = setTimeout(() => {
+        this.textChangeHandler(evt);
+      }, 500);
     }
   }
 
   /**
-   * @param {TextMessage} data
+   * @param {{type?: string, id?: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} data
    * @param {boolean} isLocal
    * @returns {boolean | void}
    */
-  function draw(data, isLocal) {
-    Tools.drawingEvent = true;
+  draw(data, isLocal) {
+    void isLocal;
+    this.Tools.drawingEvent = true;
     switch (data.type) {
       case "new":
-        createTextField(data);
+        this.createTextField(data);
         break;
       case "update": {
         if (typeof data.id !== "string") {
@@ -242,7 +242,7 @@ function createTextTool(Tools) {
           );
           return false;
         }
-        updateText(textField, data.txt);
+        this.updateText(textField, data.txt);
         break;
       }
       default:
@@ -255,16 +255,16 @@ function createTextTool(Tools) {
    * @param {Node & {textContent: string | null}} textField
    * @param {string | undefined} text
    */
-  function updateText(textField, text) {
+  updateText(textField, text) {
     textField.textContent = text ?? "";
   }
 
   /**
-   * @param {TextMessage} fieldData
+   * @param {{type?: string, id?: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} fieldData
    * @returns {SVGElement}
    */
-  function createTextField(fieldData) {
-    const elem = Tools.createSVGElement("text");
+  createTextField(fieldData) {
+    const elem = this.Tools.createSVGElement("text");
     elem.id = typeof fieldData.id === "string" ? fieldData.id : "";
     elem.setAttribute("x", String(fieldData.x || 0));
     elem.setAttribute("y", String(fieldData.y || 0));
@@ -275,45 +275,25 @@ function createTextTool(Tools) {
       String(Math.max(0.1, Math.min(1, Number(fieldData.opacity) || 1))),
     );
     if (fieldData.txt) elem.textContent = fieldData.txt;
-    if (!Tools.drawingArea) {
+    if (!this.Tools.drawingArea) {
       throw new Error("Missing drawing area for text tool");
     }
-    Tools.drawingArea.appendChild(elem);
+    this.Tools.drawingArea.appendChild(elem);
     return elem;
   }
 
-  return {
-    //The new tool
-    name: "Text",
-    shortcut: "t",
-    listeners: {
-      press: clickHandler,
-    },
-    onstart: onStart,
-    onquit: onQuit,
-    draw: draw,
-    stylesheet: "tools/text/text.css",
-    icon: "tools/text/icon.svg",
-    mouseCursor: "text",
-  };
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<TextTool>}
+   */
+  static async boot(ctx) {
+    return new TextTool(ctx.runtime.Tools);
+  }
 }
 
 /** @param {any} Tools */
 export function registerTextTool(Tools) {
-  const tool = createTextTool(Tools);
+  const tool = new TextTool(Tools);
   Tools.add(tool);
   return tool;
-}
-
-// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
-export default class TextTool {
-  static toolName = "Text";
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<any>}
-   */
-  static async boot(ctx) {
-    return createTextTool(ctx.runtime.Tools);
-  }
 }

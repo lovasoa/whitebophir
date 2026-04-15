@@ -26,17 +26,38 @@
 
 /** @typedef {{getEffectiveRateLimit: (name: "general") => {periodMs?: number, limit?: number} | null, server_config: {RATE_LIMITS?: {[kind: string]: {periodMs?: number, limit?: number}}}, register: (tool: unknown) => void, addToolListeners: (tool: unknown) => void, getColor: () => string, getSize: () => number, drawAndSend: (msg: {type: string}, tool: unknown) => void, showMarker: boolean | undefined, showMyCursor: boolean | undefined, isIE: boolean, svg: SVGSVGElement | null, curTool: {showMarker?: boolean} | null}} CursorToolRegistry */
 /** @typedef {{type: "update", x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
-/** @typedef {{name: string, listeners: {press: () => void, move: (x: number, y: number) => void, release: () => void}, onSizeChange: (size: number) => void, draw: (message: CursorMessage) => void, mouseCursor: string, icon: string, showMarker: boolean}} CursorTool */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-/** @param {CursorToolRegistry} tools */
-function createCursorTool(tools) {
+export default class CursorToolClass {
+  static toolName = "Cursor";
+
+  /**
+   * @param {CursorToolRegistry} tools
+   */
+  constructor(tools) {
+    this.tools = tools;
+    this.lastCursorUpdate = 0;
+    this.sending = true;
+    this.name = "Cursor";
+    this.mouseCursor = "crosshair";
+    this.icon = "tools/pencil/icon.svg";
+    this.showMarker = true;
+    this.alwaysOn = true;
+    this.message = {
+      type: "update",
+      x: 0,
+      y: 0,
+      color: tools.getColor(),
+      size: tools.getSize(),
+    };
+  }
+
   /**
    * @param {unknown} value
    * @param {number} fallback
    * @returns {number}
    */
-  function getPositiveNumber(value, fallback) {
+  getPositiveNumber(value, fallback) {
     const number = Number(value);
     return number > 0 ? number : fallback;
   }
@@ -44,14 +65,14 @@ function createCursorTool(tools) {
   /**
    * @returns {number}
    */
-  function getMinCursorUpdateIntervalMs() {
+  getMinCursorUpdateIntervalMs() {
     const generalLimit =
-      (typeof tools.getEffectiveRateLimit === "function"
-        ? tools.getEffectiveRateLimit("general")
-        : tools.server_config?.RATE_LIMITS?.general) ?? {};
+      (typeof this.tools.getEffectiveRateLimit === "function"
+        ? this.tools.getEffectiveRateLimit("general")
+        : this.tools.server_config?.RATE_LIMITS?.general) ?? {};
     return (
-      (getPositiveNumber(generalLimit.periodMs, 4096) /
-        getPositiveNumber(generalLimit.limit, 192)) *
+      (this.getPositiveNumber(generalLimit.periodMs, 4096) /
+        this.getPositiveNumber(generalLimit.limit, 192)) *
       2
     );
   }
@@ -60,7 +81,7 @@ function createCursorTool(tools) {
    * @param {Element | null} element
    * @returns {element is SVGCircleElement}
    */
-  function isCursorElement(element) {
+  isCursorElement(element) {
     return !!(
       element &&
       typeof element === "object" &&
@@ -69,94 +90,71 @@ function createCursorTool(tools) {
     );
   }
 
-  // Allocate half of the maximum server updates to cursor updates
-  const CURSOR_DELETE_AFTER_MS = 1000 * 5;
-
-  let lastCursorUpdate = 0;
-  let sending = true;
-
-  /** @type {CursorTool} */
-  const cursorTool = {
-    name: "Cursor",
-    listeners: {
-      press: () => {
-        sending = false;
-      },
-      move: handleMarker,
-      release: () => {
-        sending = true;
-      },
-    },
-    onSizeChange: onSizeChange,
-    draw: draw,
-    mouseCursor: "crosshair",
-    icon: "tools/pencil/icon.svg",
-    showMarker: true,
-    alwaysOn: true,
-  };
-  /** @type {CursorMessage} */
-  const message = {
-    type: "update",
-    x: 0,
-    y: 0,
-    color: tools.getColor(),
-    size: tools.getSize(),
-  };
+  press() {
+    this.sending = false;
+  }
 
   /**
    * @param {number} x
    * @param {number} y
    */
-  function handleMarker(x, y) {
-    // throttle local cursor updates
-    message.x = x;
-    message.y = y;
-    message.color = tools.getColor();
-    message.size = tools.getSize();
-    updateMarker();
+  move(x, y) {
+    this.message.x = x;
+    this.message.y = y;
+    this.message.color = this.tools.getColor();
+    this.message.size = this.tools.getSize();
+    this.updateMarker();
+  }
+
+  release() {
+    this.sending = true;
   }
 
   /** @param {number} size */
-  function onSizeChange(size) {
-    message.size = size;
-    updateMarker();
+  onSizeChange(size) {
+    this.message.size = size;
+    this.updateMarker();
   }
 
-  function updateMarker() {
+  updateMarker() {
     const activeTool = /** @type {{showMarker?: boolean} | null} */ (
-      tools.curTool
+      this.tools.curTool
     );
-    if (!tools.showMarker || !tools.showMyCursor) return;
+    if (!this.tools.showMarker || !this.tools.showMyCursor) return;
     const curTime = Date.now();
     if (
-      curTime - lastCursorUpdate > getMinCursorUpdateIntervalMs() &&
-      (sending || activeTool?.showMarker === true)
+      curTime - this.lastCursorUpdate > this.getMinCursorUpdateIntervalMs() &&
+      (this.sending || activeTool?.showMarker === true)
     ) {
-      tools.drawAndSend(message, cursorTool);
-      lastCursorUpdate = curTime;
+      const sent = this.tools.drawAndSend(this.message, this);
+      if (sent === false) {
+        this.draw(this.message);
+      } else {
+        this.lastCursorUpdate = curTime;
+      }
     } else {
-      draw(message);
+      this.draw(this.message);
     }
   }
 
-  function getCursorsLayer() {
-    if (!tools.svg) {
+  getCursorsLayer() {
+    if (!this.tools.svg) {
       throw new Error("Cursor: Missing SVG canvas.");
     }
-    const existingLayer = tools.svg.getElementById("cursors");
+    const existingLayer = this.tools.svg.getElementById("cursors");
     if (existingLayer instanceof SVGGElement) return existingLayer;
     const createdLayer = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "g",
     );
     createdLayer.setAttributeNS(null, "id", "cursors");
-    tools.svg.appendChild(createdLayer);
+    this.tools.svg.appendChild(createdLayer);
     return createdLayer;
   }
 
   /** @param {string} id */
-  function createCursor(id) {
-    const cursorsElem = getCursorsLayer();
+  createCursor(id) {
+    const cursorsElem = this.getCursorsLayer();
     const cursor = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "circle",
@@ -169,21 +167,23 @@ function createCursorTool(tools) {
     cursorsElem.appendChild(cursor);
     setTimeout(() => {
       cursorsElem.removeChild(cursor);
-    }, CURSOR_DELETE_AFTER_MS);
+    }, CursorToolClass.CURSOR_DELETE_AFTER_MS);
     return cursor;
   }
 
   /** @param {string} id */
-  function getCursor(id) {
+  getCursor(id) {
     const existingCursor = document.getElementById(id);
-    return isCursorElement(existingCursor) ? existingCursor : createCursor(id);
+    return this.isCursorElement(existingCursor)
+      ? existingCursor
+      : this.createCursor(id);
   }
 
   /** @param {CursorMessage} message */
-  function draw(message) {
-    const cursor = getCursor(`cursor-${message.socket || "me"}`);
+  draw(message) {
+    const cursor = this.getCursor(`cursor-${message.socket || "me"}`);
     cursor.style.transform = `translate(${message.x}px, ${message.y}px)`;
-    if (tools.isIE)
+    if (this.tools.isIE)
       cursor.setAttributeNS(
         null,
         "transform",
@@ -193,26 +193,21 @@ function createCursorTool(tools) {
     cursor.setAttributeNS(null, "r", String(message.size / 2));
   }
 
-  return cursorTool;
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<CursorToolClass>}
+   */
+  static async boot(ctx) {
+    return new CursorToolClass(ctx.runtime.Tools);
+  }
 }
+
+CursorToolClass.CURSOR_DELETE_AFTER_MS = 1000 * 5;
 
 /** @param {CursorToolRegistry} tools */
 export function registerCursorTool(tools) {
-  const tool = createCursorTool(tools);
+  const tool = new CursorToolClass(tools);
   tools.register(tool);
   tools.addToolListeners(tool);
   return tool;
-}
-
-// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
-export default class CursorToolClass {
-  static toolName = "Cursor";
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<any>}
-   */
-  static async boot(ctx) {
-    return createCursorTool(ctx.runtime.Tools);
-  }
 }
