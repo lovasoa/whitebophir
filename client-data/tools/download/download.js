@@ -33,9 +33,9 @@ export function registerDownloadTool(tools) {
     if (!tools.svg) {
       throw new Error("Download: Missing SVG canvas.");
     }
-    var canvasCopy = /** @type {SVGSVGElement} */ (tools.svg.cloneNode(true));
+    const canvasCopy = /** @type {SVGSVGElement} */ (tools.svg.cloneNode(true));
     canvasCopy.removeAttribute("style"); // Remove css transform
-    var styleNode = document.createElement("style");
+    const styleNode = document.createElement("style");
 
     // Copy the stylesheets from the whiteboard to the exported SVG
     styleNode.innerHTML = Array.from(document.styleSheets)
@@ -57,9 +57,9 @@ export function registerDownloadTool(tools) {
       .join("\n");
 
     canvasCopy.appendChild(styleNode);
-    var outerHTML =
+    const outerHTML =
       canvasCopy.outerHTML || new XMLSerializer().serializeToString(canvasCopy);
-    var blob = new Blob([outerHTML], { type: "image/svg+xml;charset=utf-8" });
+    const blob = new Blob([outerHTML], { type: "image/svg+xml;charset=utf-8" });
     downloadContent(blob, `${tools.boardName}.svg`);
   }
 
@@ -69,7 +69,7 @@ export function registerDownloadTool(tools) {
    * @returns {void}
    */
   function downloadContent(blob, filename) {
-    var msSaveBlob = window.navigator.msSaveBlob;
+    const msSaveBlob = window.navigator.msSaveBlob;
     if (typeof msSaveBlob === "function") {
       // Internet Explorer
       msSaveBlob.call(window.navigator, blob, filename);

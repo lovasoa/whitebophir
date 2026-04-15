@@ -47,17 +47,17 @@ export function registerEllipseTool(Tools) {
     );
   }
   /** @type {EllipseUpdateData} */
-  var curUpdate = {
-      //The data of the message that will be sent for every new point
-      type: "update",
-      id: "",
-      x: 0,
-      y: 0,
-      x2: 0,
-      y2: 0,
-    },
-    lastPos = { x: 0, y: 0 },
-    lastTime = performance.now(); //The time at which the last point was drawn
+  const curUpdate = {
+    //The data of the message that will be sent for every new point
+    type: "update",
+    id: "",
+    x: 0,
+    y: 0,
+    x2: 0,
+    y2: 0,
+  };
+  const lastPos = { x: 0, y: 0 };
+  let lastTime = performance.now(); //The time at which the last point was drawn
 
   /**
    * @param {number} x
@@ -106,16 +106,16 @@ export function registerEllipseTool(Tools) {
   function doUpdate(force) {
     if (!curUpdate.id) return; // Not currently drawing
     if (drawingCircle()) {
-      const x0 = curUpdate["x"],
-        y0 = curUpdate["y"];
+      const x0 = curUpdate.x,
+        y0 = curUpdate.y;
       const deltaX = lastPos.x - x0,
         deltaY = lastPos.y - y0;
       const diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
-      curUpdate["x2"] = x0 + (deltaX > 0 ? diameter : -diameter);
-      curUpdate["y2"] = y0 + (deltaY > 0 ? diameter : -diameter);
+      curUpdate.x2 = x0 + (deltaX > 0 ? diameter : -diameter);
+      curUpdate.y2 = y0 + (deltaY > 0 ? diameter : -diameter);
     } else {
-      curUpdate["x2"] = lastPos.x;
-      curUpdate["y2"] = lastPos.y;
+      curUpdate.x2 = lastPos.x;
+      curUpdate.y2 = lastPos.y;
     }
 
     if (performance.now() - lastTime > 70 || force) {
@@ -145,19 +145,19 @@ export function registerEllipseTool(Tools) {
         createShape(data);
         break;
       case "update": {
-        let shape = svg.getElementById(data["id"]);
+        let shape = svg.getElementById(data.id);
         if (!shape) {
           console.error(
             "Ellipse: Hmmm... I received an update for a shape that has not been created (%s).",
-            data["id"],
+            data.id,
           );
           shape = createShape({
             //create a new shape in order not to loose the points
-            id: data["id"],
-            x: data["x2"],
-            y: data["y2"],
-            x2: data["x2"],
-            y2: data["y2"],
+            id: data.id,
+            x: data.x2,
+            y: data.y2,
+            x2: data.x2,
+            y2: data.y2,
           });
         }
         updateShape(/** @type {ExistingEllipse} */ (shape), data);
@@ -169,15 +169,15 @@ export function registerEllipseTool(Tools) {
     }
   }
 
-  var svg = Tools.svg;
+  const svg = Tools.svg;
   /**
    * @param {EllipseShapeData} data
    * @returns {ExistingEllipse}
    */
   function createShape(data) {
     //Creates a new shape on the canvas, or update a shape that already exists with new information
-    var existingShape = svg.getElementById(data.id);
-    var shape = isEllipseElement(existingShape)
+    const existingShape = svg.getElementById(data.id);
+    const shape = isEllipseElement(existingShape)
       ? existingShape
       : /** @type {ExistingEllipse} */ (Tools.createSVGElement("ellipse"));
     updateShape(shape, data);
@@ -201,17 +201,17 @@ export function registerEllipseTool(Tools) {
    * @param {EllipseShapeData} data
    */
   function updateShape(shape, data) {
-    shape.cx.baseVal.value = Math.round((data["x2"] + data["x"]) / 2);
-    shape.cy.baseVal.value = Math.round((data["y2"] + data["y"]) / 2);
-    shape.rx.baseVal.value = Math.abs(data["x2"] - data["x"]) / 2;
-    shape.ry.baseVal.value = Math.abs(data["y2"] - data["y"]) / 2;
+    shape.cx.baseVal.value = Math.round((data.x2 + data.x) / 2);
+    shape.cy.baseVal.value = Math.round((data.y2 + data.y) / 2);
+    shape.rx.baseVal.value = Math.abs(data.x2 - data.x) / 2;
+    shape.ry.baseVal.value = Math.abs(data.y2 - data.y) / 2;
   }
 
   function drawingCircle() {
     return circleTool.secondary.active;
   }
 
-  var circleTool = {
+  const circleTool = {
     //The new tool
     name: "Ellipse",
     icon: "tools/ellipse/icon-ellipse.svg",

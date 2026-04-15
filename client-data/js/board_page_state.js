@@ -5,7 +5,7 @@
  * @returns {HTMLElement}
  */
 function getRequiredElement(elementId) {
-  var element = document.getElementById(elementId);
+  const element = document.getElementById(elementId);
   if (!element) throw new Error(`Missing required element: #${elementId}`);
   return element;
 }
@@ -17,7 +17,7 @@ function getRequiredElement(elementId) {
  * @returns {T}
  */
 function parseEmbeddedJson(elementId, fallback) {
-  var element = document.getElementById(elementId);
+  const element = document.getElementById(elementId);
   if (!element || !element.text) return fallback;
   try {
     return /** @type {any} */ (JSON.parse(element.text));
@@ -49,7 +49,7 @@ function normalizeBoardState(value) {
   if (!value || typeof value !== "object") {
     return { readonly: false, canWrite: true };
   }
-  var state = /** @type {{readonly?: boolean, canWrite?: boolean}} */ (value);
+  const state = /** @type {{readonly?: boolean, canWrite?: boolean}} */ (value);
   return {
     readonly: state.readonly === true,
     canWrite: state.canWrite === true,
@@ -61,8 +61,8 @@ function normalizeBoardState(value) {
  * @returns {string}
  */
 function resolveBoardName(pathname) {
-  var path = pathname.split("/");
-  var encodedName = path[path.length - 1] || "";
+  const path = pathname.split("/");
+  const encodedName = path[path.length - 1] || "";
   return decodeURIComponent(encodedName);
 }
 
@@ -84,8 +84,8 @@ function updateRecentBoards(storedBoards, boardName) {
   if (boardName.toLowerCase() === "anonymous")
     return normalizeRecentBoards(storedBoards);
   /** @type {{[name: string]: boolean}} */
-  var seen = {};
-  var recentBoards = normalizeRecentBoards(storedBoards).filter((name) => {
+  const seen = {};
+  const recentBoards = normalizeRecentBoards(storedBoards).filter((name) => {
     if (seen[name]) return false;
     seen[name] = true;
     return name !== boardName;
@@ -127,7 +127,7 @@ function shouldDisplayTool(toolName, boardState, readOnlyToolNames) {
  * @returns {T[]}
  */
 function drainPendingMessages(pendingMessages, toolName) {
-  var pending = pendingMessages[toolName];
+  const pending = pendingMessages[toolName];
   if (!pending) return [];
   delete pendingMessages[toolName];
   return pending;

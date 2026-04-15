@@ -31,9 +31,9 @@
 
 /** @param {ZoomToolRegistry} tools */
 export function registerZoomTool(tools) {
-  var ZOOM_FACTOR = 0.5;
+  const ZOOM_FACTOR = 0.5;
   /** @type {ZoomOrigin} */
-  var origin = {
+  const origin = {
     scrollX: document.documentElement.scrollLeft,
     scrollY: document.documentElement.scrollTop,
     x: 0.0,
@@ -42,7 +42,7 @@ export function registerZoomTool(tools) {
     scale: 1.0,
     distance: null,
   };
-  var moved = false,
+  let moved = false,
     pressed = false;
 
   /**
@@ -50,8 +50,8 @@ export function registerZoomTool(tools) {
    * @param {number} scale
    */
   function zoom(origin, scale) {
-    var oldScale = origin.scale;
-    var newScale = tools.setScale(scale);
+    const oldScale = origin.scale;
+    const newScale = tools.setScale(scale);
     window.scrollTo(
       origin.scrollX + origin.x * (newScale - oldScale),
       origin.scrollY + origin.y * (newScale - oldScale),
@@ -59,7 +59,7 @@ export function registerZoomTool(tools) {
   }
 
   /** @type {number | null} */
-  var animation = null;
+  let animation = null;
   /** @param {number} scale */
   function animate(scale) {
     if (animation !== null) cancelAnimationFrame(animation);
@@ -114,15 +114,15 @@ export function registerZoomTool(tools) {
 
   /** @param {Event} evt */
   function onwheel(evt) {
-    var wheelEvent = /** @type {WheelEvent} */ (evt);
+    const wheelEvent = /** @type {WheelEvent} */ (evt);
     evt.preventDefault();
-    var multiplier =
+    const multiplier =
       wheelEvent.deltaMode === WheelEvent.DOM_DELTA_LINE
         ? 30
         : wheelEvent.deltaMode === WheelEvent.DOM_DELTA_PAGE
           ? 1000
           : 1;
-    var deltaX = wheelEvent.deltaX * multiplier,
+    const deltaX = wheelEvent.deltaX * multiplier,
       deltaY = wheelEvent.deltaY * multiplier;
     if (!wheelEvent.ctrlKey) {
       // zoom
@@ -156,9 +156,9 @@ export function registerZoomTool(tools) {
     "touchmove",
     /** @param {Event} evt */
     function ontouchmove(evt) {
-      var touchEvent = /** @type {TouchEvent} */ (evt);
+      const touchEvent = /** @type {TouchEvent} */ (evt);
       // 2-finger pan to zoom
-      var touches = touchEvent.touches;
+      const touches = touchEvent.touches;
       if (touches.length === 2) {
         const firstTouch = touches[0];
         const secondTouch = touches[1];
@@ -231,8 +231,8 @@ export function registerZoomTool(tools) {
     return evt.clientY || 0;
   }
 
-  var keydown = key(true);
-  var keyup = key(false);
+  const keydown = key(true);
+  const keyup = key(false);
 
   function onstart() {
     window.addEventListener("keydown", keydown);
@@ -243,7 +243,7 @@ export function registerZoomTool(tools) {
     window.removeEventListener("keyup", keyup);
   }
 
-  var zoomTool = {
+  const zoomTool = {
     name: "Zoom",
     shortcut: "z",
     listeners: {

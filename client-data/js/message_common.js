@@ -45,7 +45,7 @@ import { DRAW_TOOL_NAMES, isShapeTool } from "./message_tool_metadata.js";
 
 export { DRAW_TOOL_NAMES };
 
-export var LIMITS = {
+export const LIMITS = {
   MIN_SIZE: 1,
   MAX_SIZE: 50,
   MIN_OPACITY: 0.1,
@@ -65,7 +65,7 @@ export var LIMITS = {
  * @returns {number | null}
  */
 export function toFiniteNumber(value) {
-  var number = Number(value);
+  const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
@@ -85,7 +85,7 @@ function clamp(number, min, max) {
  * @returns {number}
  */
 function roundToDecimals(number, decimals) {
-  var factor = 10 ** decimals;
+  const factor = 10 ** decimals;
   return Math.round(number * factor) / factor;
 }
 
@@ -94,7 +94,7 @@ function roundToDecimals(number, decimals) {
  * @returns {number}
  */
 export function resolveMaxBoardSize(maxBoardSize) {
-  var resolved = toFiniteNumber(maxBoardSize);
+  const resolved = toFiniteNumber(maxBoardSize);
   return resolved === null ? LIMITS.DEFAULT_MAX_BOARD_SIZE : resolved;
 }
 
@@ -103,7 +103,7 @@ export function resolveMaxBoardSize(maxBoardSize) {
  * @returns {number}
  */
 export function clampSize(value) {
-  var size = parseInt(String(value), 10);
+  let size = parseInt(String(value), 10);
   if (!Number.isFinite(size)) size = LIMITS.MIN_SIZE;
   return clamp(size, LIMITS.MIN_SIZE, LIMITS.MAX_SIZE);
 }
@@ -113,7 +113,7 @@ export function clampSize(value) {
  * @returns {number}
  */
 export function clampOpacity(value) {
-  var opacity = toFiniteNumber(value);
+  let opacity = toFiniteNumber(value);
   if (opacity === null) opacity = LIMITS.MAX_OPACITY;
   return clamp(opacity, LIMITS.MIN_OPACITY, LIMITS.MAX_OPACITY);
 }
@@ -124,7 +124,7 @@ export function clampOpacity(value) {
  * @returns {number}
  */
 export function clampCoord(value, maxBoardSize) {
-  var coord = toFiniteNumber(value);
+  let coord = toFiniteNumber(value);
   if (coord === null) coord = 0;
   return roundToDecimals(
     clamp(coord, 0, resolveMaxBoardSize(maxBoardSize)),
@@ -214,7 +214,7 @@ export function isDrawTool(toolName) {
  * @returns {boolean}
  */
 export function isDrawToolAllowedAtScale(scale) {
-  var numericScale = toFiniteNumber(scale);
+  const numericScale = toFiniteNumber(scale);
   return numericScale !== null && numericScale > LIMITS.MIN_DRAW_ZOOM;
 }
 
@@ -243,8 +243,8 @@ function cloneBounds(bounds) {
  * @returns {Bounds | null}
  */
 export function extendBoundsWithPoint(bounds, x, y) {
-  var pointX = toFiniteNumber(x);
-  var pointY = toFiniteNumber(y);
+  const pointX = toFiniteNumber(x);
+  const pointY = toFiniteNumber(y);
   if (pointX === null || pointY === null) return cloneBounds(bounds);
   if (!bounds) {
     return {
@@ -284,10 +284,10 @@ export function getPencilBounds(item) {
  */
 function getStraightShapeBounds(item) {
   if (!item) return null;
-  var x1 = toFiniteNumber(item.x);
-  var y1 = toFiniteNumber(item.y);
-  var x2 = toFiniteNumber(item.x2);
-  var y2 = toFiniteNumber(item.y2);
+  const x1 = toFiniteNumber(item.x);
+  const y1 = toFiniteNumber(item.y);
+  const x2 = toFiniteNumber(item.x2);
+  const y2 = toFiniteNumber(item.y2);
   if (x1 === null || y1 === null || x2 === null || y2 === null) return null;
   return {
     minX: Math.min(x1, x2),
@@ -303,10 +303,10 @@ function getStraightShapeBounds(item) {
  */
 function getTextBounds(item) {
   if (!item) return null;
-  var x = toFiniteNumber(item.x);
-  var y = toFiniteNumber(item.y);
-  var size = toFiniteNumber(item.size);
-  var len = toFiniteNumber(item.txt?.length);
+  const x = toFiniteNumber(item.x);
+  const y = toFiniteNumber(item.y);
+  const size = toFiniteNumber(item.size);
+  const len = toFiniteNumber(item.txt?.length);
   if (x === null || y === null || size === null || len === null) return null;
   return {
     minX: x,
@@ -351,12 +351,12 @@ export function isGeometryTooLarge(item) {
  * @returns {Point | null}
  */
 export function applyTransformToPoint(point, transform) {
-  var a = toFiniteNumber(transform?.a);
-  var b = toFiniteNumber(transform?.b);
-  var c = toFiniteNumber(transform?.c);
-  var d = toFiniteNumber(transform?.d);
-  var e = toFiniteNumber(transform?.e);
-  var f = toFiniteNumber(transform?.f);
+  const a = toFiniteNumber(transform?.a);
+  const b = toFiniteNumber(transform?.b);
+  const c = toFiniteNumber(transform?.c);
+  const d = toFiniteNumber(transform?.d);
+  const e = toFiniteNumber(transform?.e);
+  const f = toFiniteNumber(transform?.f);
   if (
     a === null ||
     b === null ||
@@ -382,7 +382,7 @@ export function applyTransformToBounds(bounds, transform) {
   if (!bounds) return null;
   if (!transform) return cloneBounds(bounds);
 
-  var isTranslationOnly =
+  const isTranslationOnly =
     transform.a === 1 &&
     transform.b === 0 &&
     transform.c === 0 &&
@@ -400,13 +400,13 @@ export function applyTransformToBounds(bounds, transform) {
   }
 
   /** @type {Point[]} */
-  var points = [
+  const points = [
     { x: bounds.minX, y: bounds.minY },
     { x: bounds.maxX, y: bounds.minY },
     { x: bounds.minX, y: bounds.maxY },
     { x: bounds.maxX, y: bounds.maxY },
   ];
-  var transformed = null;
+  let transformed = null;
   for (let i = 0; i < points.length; i++) {
     const sourcePoint = points[i];
     if (!sourcePoint) return null;
@@ -448,7 +448,7 @@ function getBoundsHeight(bounds) {
  */
 export function isBoundsTooLarge(bounds) {
   if (!bounds) return false;
-  var maxShapeSpan = getMaxShapeSpan();
+  const maxShapeSpan = getMaxShapeSpan();
   return (
     getBoundsWidth(bounds) > maxShapeSpan ||
     getBoundsHeight(bounds) > maxShapeSpan
@@ -456,27 +456,27 @@ export function isBoundsTooLarge(bounds) {
 }
 
 const messageCommon = /** @type {MessageCommonApi} */ ({
-  DRAW_TOOL_NAMES: DRAW_TOOL_NAMES,
-  LIMITS: LIMITS,
-  applyTransformToBounds: applyTransformToBounds,
-  clampOpacity: clampOpacity,
-  clampCoord: clampCoord,
-  clampSize: clampSize,
-  extendBoundsWithPoint: extendBoundsWithPoint,
-  getEffectiveGeometryBounds: getEffectiveGeometryBounds,
-  getLocalGeometryBounds: getLocalGeometryBounds,
-  getMaxShapeSpan: getMaxShapeSpan,
-  getPencilBounds: getPencilBounds,
-  isFiniteTransformNumber: isFiniteTransformNumber,
-  isBoundsTooLarge: isBoundsTooLarge,
-  isDrawTool: isDrawTool,
-  isDrawToolAllowedAtScale: isDrawToolAllowedAtScale,
-  isGeometryTooLarge: isGeometryTooLarge,
-  normalizeColor: normalizeColor,
-  normalizeFiniteNumber: normalizeFiniteNumber,
-  normalizeId: normalizeId,
-  resolveMaxBoardSize: resolveMaxBoardSize,
-  truncateText: truncateText,
-  requiresTurnstile: requiresTurnstile,
+  DRAW_TOOL_NAMES,
+  LIMITS,
+  applyTransformToBounds,
+  clampOpacity,
+  clampCoord,
+  clampSize,
+  extendBoundsWithPoint,
+  getEffectiveGeometryBounds,
+  getLocalGeometryBounds,
+  getMaxShapeSpan,
+  getPencilBounds,
+  isFiniteTransformNumber,
+  isBoundsTooLarge,
+  isDrawTool,
+  isDrawToolAllowedAtScale,
+  isGeometryTooLarge,
+  normalizeColor,
+  normalizeFiniteNumber,
+  normalizeId,
+  resolveMaxBoardSize,
+  truncateText,
+  requiresTurnstile,
 });
 export default messageCommon;

@@ -30,7 +30,7 @@
 
 /** @param {EraserToolRegistry} tools */
 export function registerEraserTool(tools) {
-  var erasing = false;
+  let erasing = false;
 
   /**
    * @param {number} x
@@ -77,7 +77,7 @@ export function registerEraserTool(tools) {
    * @returns {EventTarget | null}
    */
   function resolveTarget(evt) {
-    var target = evt.target;
+    let target = evt.target;
     if (evt.type === "touchmove" || evt.type === "touchstart") {
       // The target of touchmove events is the initially touched element, not the one currently touched.
       const touch = evt.touches && evt.touches[0];
@@ -94,7 +94,7 @@ export function registerEraserTool(tools) {
    * @param {EraserPointerEvent} evt
    */
   function erase(x, y, evt) {
-    var target = resolveTarget(evt);
+    const target = resolveTarget(evt);
     if (
       erasing &&
       target !== null &&
@@ -118,7 +118,7 @@ export function registerEraserTool(tools) {
 
   /** @param {EraserMessage | {type?: string, id?: string}} data */
   function draw(data) {
-    var elem;
+    let elem;
     switch (data.type) {
       //TODO: add the ability to erase only some points in a line
       case "delete":

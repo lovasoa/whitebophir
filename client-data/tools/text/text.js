@@ -45,14 +45,14 @@ export function registerTextTool(Tools) {
    * @property {number} lastSending
    * @property {ReturnType<typeof setTimeout> | null} timeout
    */
-  var board = Tools.board;
-  var input = document.createElement("input");
+  const board = Tools.board;
+  const input = document.createElement("input");
   input.id = "textToolInput";
   input.type = "text";
   input.setAttribute("autocomplete", "off");
 
   /** @type {TextEditState} */
-  var curText = {
+  const curText = {
     x: 0,
     y: 0,
     size: 36,
@@ -66,7 +66,7 @@ export function registerTextTool(Tools) {
     timeout: null,
   };
 
-  var active = false;
+  let active = false;
 
   /**
    * @param {EventTarget | null} target
@@ -115,9 +115,9 @@ export function registerTextTool(Tools) {
   /** @param {ExistingTextElement} elem */
   function editOldText(elem) {
     curText.id = elem.id;
-    var r = elem.getBoundingClientRect();
-    var x = (r.left + document.documentElement.scrollLeft) / Tools.scale;
-    var y =
+    const r = elem.getBoundingClientRect();
+    const x = (r.left + document.documentElement.scrollLeft) / Tools.scale;
+    const y =
       (r.top + r.height + document.documentElement.scrollTop) / Tools.scale;
 
     curText.x = x;
@@ -134,11 +134,11 @@ export function registerTextTool(Tools) {
     active = true;
     if (!input.parentNode) board.appendChild(input);
     input.value = "";
-    var clientW = Math.max(
+    const clientW = Math.max(
       document.documentElement.clientWidth,
       window.innerWidth || 0,
     );
-    var x = curText.x * Tools.scale - document.documentElement.scrollLeft;
+    let x = curText.x * Tools.scale - document.documentElement.scrollLeft;
     if (x + 250 > clientW) {
       x = Math.max(60, clientW - 260);
     }
@@ -263,7 +263,7 @@ export function registerTextTool(Tools) {
    * @returns {SVGElement}
    */
   function createTextField(fieldData) {
-    var elem = Tools.createSVGElement("text");
+    const elem = Tools.createSVGElement("text");
     elem.id = typeof fieldData.id === "string" ? fieldData.id : "";
     elem.setAttribute("x", String(fieldData.x || 0));
     elem.setAttribute("y", String(fieldData.y || 0));

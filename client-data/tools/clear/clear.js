@@ -30,12 +30,12 @@
 /** @param {ClearToolRegistry} tools */
 function clearBoard(tools) {
   /** @type {ClearMessage} */
-  var msg = {
+  const msg = {
     type: "clear",
     id: "",
     token: tools.token,
   };
-  var clearTool = tools.list["Clear"];
+  const clearTool = tools.list.Clear;
   if (!clearTool) {
     throw new Error("Clear: tool is not registered.");
   }

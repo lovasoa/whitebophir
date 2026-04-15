@@ -34,7 +34,7 @@
  */
 function getTransformMatrix(elem) {
   /** @type {SVGTransform | null} */
-  var transform = null;
+  let transform = null;
   for (let i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
     const baseVal = elem.transform.baseVal[i];
     if (!baseVal) {
@@ -47,13 +47,13 @@ function getTransformMatrix(elem) {
       break;
     }
   }
-  if (transform == null) {
+  if (transform === null) {
     transform = elem.transform.baseVal.createSVGTransformFromMatrix(
       Tools.svg.createSVGMatrix(),
     );
     elem.transform.baseVal.appendItem(transform);
   }
-  var matrix = transform.matrix;
+  const matrix = transform.matrix;
   return {
     a: matrix.a,
     b: matrix.b,
@@ -89,10 +89,10 @@ function transformAbsolute(m, t) {
  */
 export function pointInTransformedBBox([x, y], { r, a, b }) {
   /** @type {Point2D} */
-  var d = [x - r[0], y - r[1]];
-  var idet = a[0] * b[1] - a[1] * b[0];
-  var c1 = (d[0] * b[1] - d[1] * b[0]) / idet;
-  var c2 = (d[1] * a[0] - d[0] * a[1]) / idet;
+  const d = [x - r[0], y - r[1]];
+  const idet = a[0] * b[1] - a[1] * b[0];
+  const c1 = (d[0] * b[1] - d[1] * b[0]) / idet;
+  const c2 = (d[1] * a[0] - d[0] * a[1]) / idet;
   return c1 >= 0 && c1 <= 1 && c2 >= 0 && c2 <= 1;
 }
 
@@ -103,7 +103,7 @@ export function pointInTransformedBBox([x, y], { r, a, b }) {
  */
 export function transformedBBoxIntersects(bbox_a, bbox_b) {
   /** @type {Point2D[]} */
-  var corners = [
+  const corners = [
     bbox_b.r,
     [bbox_b.r[0] + bbox_b.a[0], bbox_b.r[1] + bbox_b.a[1]],
     [bbox_b.r[0] + bbox_b.b[0], bbox_b.r[1] + bbox_b.b[1]],
@@ -124,9 +124,9 @@ if (
    * @returns {TransformedBBox}
    */
   SVGGraphicsElement.prototype.transformedBBox = function (scale = 1) {
-    var bbox = this.getBBox();
-    var matrix = getTransformMatrix(this);
-    var scaledMatrix = {
+    const bbox = this.getBBox();
+    const matrix = getTransformMatrix(this);
+    const scaledMatrix = {
       a: matrix.a,
       b: matrix.b,
       c: matrix.c,
@@ -143,14 +143,14 @@ if (
 
   /** @param {number} [scale] @returns {TransformedBBox} */
   SVGSVGElement.prototype.transformedBBox = function (scale = 1) {
-    var bbox = {
+    const bbox = {
       x: this.x.baseVal.value,
       y: this.y.baseVal.value,
       width: this.width.baseVal.value,
       height: this.height.baseVal.value,
     };
-    var matrix = getTransformMatrix(this);
-    var scaledMatrix = {
+    const matrix = getTransformMatrix(this);
+    const scaledMatrix = {
       a: matrix.a,
       b: matrix.b,
       c: matrix.c,

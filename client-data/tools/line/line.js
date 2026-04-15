@@ -53,7 +53,7 @@ export function registerLineTool(tools) {
 
   //Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
   /** @type {LineStartData | null} */
-  var curLine = null,
+  let curLine = null,
     lastTime = performance.now(); //The time at which the last point was drawn
 
   /**
@@ -139,19 +139,19 @@ export function registerLineTool(tools) {
         if (!tools.svg) {
           throw new Error("Straight line: Missing SVG canvas.");
         }
-        let line = tools.svg.getElementById(data["id"]);
+        let line = tools.svg.getElementById(data.id);
         if (!line) {
           console.error(
             "Straight line: Hmmm... I received a point of a line that has not been created (%s).",
-            data["id"],
+            data.id,
           );
           line = createLine({
             //create a new line in order not to loose the points
-            id: data["id"],
-            x: data["x2"],
-            y: data["y2"],
-            x2: data["x2"],
-            y2: data["y2"],
+            id: data.id,
+            x: data.x2,
+            y: data.y2,
+            x2: data.x2,
+            y2: data.y2,
           });
         }
         updateLine(/** @type {ExistingLine} */ (line), data);
@@ -179,15 +179,15 @@ export function registerLineTool(tools) {
     }
 
     //Creates a new line on the canvas, or update a line that already exists with new information
-    var existingLine = tools.svg.getElementById(lineData.id);
-    var line = isLineElement(existingLine)
+    const existingLine = tools.svg.getElementById(lineData.id);
+    const line = isLineElement(existingLine)
       ? existingLine
       : /** @type {ExistingLine} */ (tools.createSVGElement("line"));
     line.id = lineData.id;
-    line.x1.baseVal.value = lineData["x"];
-    line.y1.baseVal.value = lineData["y"];
-    line.x2.baseVal.value = lineData["x2"] || lineData["x"];
-    line.y2.baseVal.value = lineData["y2"] || lineData["y"];
+    line.x1.baseVal.value = lineData.x;
+    line.y1.baseVal.value = lineData.y;
+    line.x2.baseVal.value = lineData.x2 || lineData.x;
+    line.y2.baseVal.value = lineData.y2 || lineData.y;
     //If some data is not provided, choose default value. The line may be updated later
     line.setAttribute("stroke", lineData.color || "black");
     line.setAttribute("stroke-width", String(lineData.size || 10));
@@ -204,11 +204,11 @@ export function registerLineTool(tools) {
    * @param {LineUpdateData} data
    */
   function updateLine(line, data) {
-    line.x2.baseVal.value = data["x2"];
-    line.y2.baseVal.value = data["y2"];
+    line.x2.baseVal.value = data.x2;
+    line.y2.baseVal.value = data.y2;
   }
 
-  var lineTool = {
+  const lineTool = {
     name: "Straight line",
     shortcut: "l",
     listeners: {

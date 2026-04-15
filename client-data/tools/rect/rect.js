@@ -47,7 +47,7 @@ export function registerRectTool(Tools) {
     );
   }
   //Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-  var end = false,
+  let end = false,
     curId = "",
     /** @type {RectangleUpdateData} */
     curUpdate = {
@@ -105,8 +105,8 @@ export function registerRectTool(Tools) {
         x = curUpdate.x + (dx > 0 ? d : -d);
         y = curUpdate.y + (dy > 0 ? d : -d);
       }
-      curUpdate["x2"] = x;
-      curUpdate["y2"] = y;
+      curUpdate.x2 = x;
+      curUpdate.y2 = y;
       if (performance.now() - lastTime > 70 || end) {
         Tools.drawAndSend(curUpdate);
         lastTime = performance.now();
@@ -137,19 +137,19 @@ export function registerRectTool(Tools) {
         createShape(data);
         break;
       case "update": {
-        let shape = svg.getElementById(data["id"]);
+        let shape = svg.getElementById(data.id);
         if (!shape) {
           console.error(
             "Straight shape: Hmmm... I received a point of a rect that has not been created (%s).",
-            data["id"],
+            data.id,
           );
           shape = createShape({
             //create a new shape in order not to loose the points
-            id: data["id"],
-            x: data["x2"],
-            y: data["y2"],
-            x2: data["x2"],
-            y2: data["y2"],
+            id: data.id,
+            x: data.x2,
+            y: data.y2,
+            x2: data.x2,
+            y2: data.y2,
           });
         }
         updateShape(/** @type {ExistingRect} */ (shape), data);
@@ -164,15 +164,15 @@ export function registerRectTool(Tools) {
     }
   }
 
-  var svg = Tools.svg;
+  const svg = Tools.svg;
   /**
    * @param {RectangleShapeData} data
    * @returns {ExistingRect}
    */
   function createShape(data) {
     //Creates a new shape on the canvas, or update a shape that already exists with new information
-    var existingShape = svg.getElementById(data.id);
-    var shape = isRectElement(existingShape)
+    const existingShape = svg.getElementById(data.id);
+    const shape = isRectElement(existingShape)
       ? existingShape
       : /** @type {ExistingRect} */ (Tools.createSVGElement("rect"));
     shape.id = data.id;
@@ -196,13 +196,13 @@ export function registerRectTool(Tools) {
    * @param {RectangleShapeData} data
    */
   function updateShape(shape, data) {
-    shape.x.baseVal.value = Math.min(data["x2"], data["x"]);
-    shape.y.baseVal.value = Math.min(data["y2"], data["y"]);
-    shape.width.baseVal.value = Math.abs(data["x2"] - data["x"]);
-    shape.height.baseVal.value = Math.abs(data["y2"] - data["y"]);
+    shape.x.baseVal.value = Math.min(data.x2, data.x);
+    shape.y.baseVal.value = Math.min(data.y2, data.y);
+    shape.width.baseVal.value = Math.abs(data.x2 - data.x);
+    shape.height.baseVal.value = Math.abs(data.y2 - data.y);
   }
 
-  var rectangleTool = {
+  const rectangleTool = {
     name: "Rectangle",
     shortcut: "r",
     listeners: {

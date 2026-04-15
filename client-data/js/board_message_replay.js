@@ -1,5 +1,5 @@
 /** @type {{[toolName: string]: true}} */
-export var TOOL_OWNED_BATCH_TOOLS = {
+export const TOOL_OWNED_BATCH_TOOLS = {
   Hand: true,
 };
 
@@ -8,7 +8,7 @@ export var TOOL_OWNED_BATCH_TOOLS = {
  * @returns {number}
  */
 export function normalizeRevision(value) {
-  var revision = Number(value);
+  const revision = Number(value);
   return Number.isSafeInteger(revision) && revision > 0 ? revision : 0;
 }
 
@@ -81,9 +81,9 @@ export function filterBufferedMessagesAfterSnapshot(
   messages,
   snapshotRevision,
 ) {
-  var normalizedSnapshotRevision = normalizeRevision(snapshotRevision);
+  const normalizedSnapshotRevision = normalizeRevision(snapshotRevision);
   return messages.filter((message) => {
-    var messageRevision = normalizeRevision(message && message.revision);
+    const messageRevision = normalizeRevision(message && message.revision);
     return (
       messageRevision === 0 || messageRevision > normalizedSnapshotRevision
     );
@@ -91,13 +91,13 @@ export function filterBufferedMessagesAfterSnapshot(
 }
 
 const boardMessageReplay = {
-  TOOL_OWNED_BATCH_TOOLS: TOOL_OWNED_BATCH_TOOLS,
-  filterBufferedMessagesAfterSnapshot: filterBufferedMessagesAfterSnapshot,
-  isSnapshotMessage: isSnapshotMessage,
-  isToolOwnedBatchMessage: isToolOwnedBatchMessage,
-  normalizeRevision: normalizeRevision,
-  prepareReplayChild: prepareReplayChild,
-  shouldBufferLiveMessage: shouldBufferLiveMessage,
-  shouldReplayChildrenIndividually: shouldReplayChildrenIndividually,
+  TOOL_OWNED_BATCH_TOOLS,
+  filterBufferedMessagesAfterSnapshot,
+  isSnapshotMessage,
+  isToolOwnedBatchMessage,
+  normalizeRevision,
+  prepareReplayChild,
+  shouldBufferLiveMessage,
+  shouldReplayChildrenIndividually,
 };
 export default boardMessageReplay;

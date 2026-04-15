@@ -7,7 +7,7 @@
  */
 
 /** @type {ToolMetadataMap} */
-export var TOOL_METADATA = Object.create(null);
+export const TOOL_METADATA = Object.create(null);
 TOOL_METADATA.Pencil = {
   updatableFields: [],
   draw: true,
@@ -45,12 +45,12 @@ TOOL_METADATA.Clear = {
 };
 
 /** @type {string[]} */
-export var DRAW_TOOL_NAMES = [];
+export const DRAW_TOOL_NAMES = [];
 /** @type {ShapeTools} */
-export var SHAPE_TOOL_TYPES = Object.create(null);
+export const SHAPE_TOOL_TYPES = Object.create(null);
 /** @type {UpdatableFieldMap} */
-export var TOOL_UPDATE_FIELDS = Object.create(null);
-for (var toolName in TOOL_METADATA) {
+export const TOOL_UPDATE_FIELDS = Object.create(null);
+for (const toolName in TOOL_METADATA) {
   const metadata = TOOL_METADATA[toolName];
   if (metadata === undefined) continue;
   TOOL_UPDATE_FIELDS[toolName] = metadata.updatableFields;
@@ -107,8 +107,8 @@ export function isShapeTool(toolName) {
  */
 export function getShapeToolNames() {
   /** @type {string[]} */
-  var names = [];
-  for (var tool in SHAPE_TOOL_TYPES) {
+  const names = [];
+  for (const tool in SHAPE_TOOL_TYPES) {
     names.push(tool);
   }
   return names;
@@ -122,7 +122,7 @@ export function getShapeToolNames() {
 export function getUpdatableFields(toolName, data) {
   /** @type {{[key: string]: any}} */
   const updatable = {};
-  var fields = getUpdatableFieldNames(toolName);
+  const fields = getUpdatableFieldNames(toolName);
   for (let index = 0; index < fields.length; index++) {
     const field = fields[index];
     if (typeof field !== "string") continue;

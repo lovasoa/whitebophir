@@ -5,7 +5,7 @@
 /** @typedef {import("../../types/app-runtime").SocketParams} SocketParams */
 /** @typedef {import("../../types/app-runtime").TurnstileAck} TurnstileAck */
 
-var BATCH_SIZE = 1024;
+const BATCH_SIZE = 1024;
 
 /**
  * @param {unknown} value
@@ -16,7 +16,7 @@ function normalizeSocketIOExtraHeaders(value) {
     return null;
   }
   /** @type {SocketHeaders} */
-  var headers = {};
+  const headers = {};
   for (const [key, headerValue] of Object.entries(value)) {
     if (typeof headerValue === "string") headers[key] = headerValue;
   }
@@ -32,13 +32,13 @@ function normalizeSocketIOExtraHeaders(value) {
  */
 function buildSocketParams(pathname, extraHeaders, token, extraQueryParams) {
   /** @type {SocketParams} */
-  var socketParams = {
+  const socketParams = {
     path: `${pathname.split("/boards/")[0]}/socket.io`,
     reconnection: true,
     reconnectionDelay: 100,
     timeout: 1000 * 60 * 20,
   };
-  var query = new URLSearchParams();
+  const query = new URLSearchParams();
   if (extraHeaders) socketParams.extraHeaders = extraHeaders;
   if (typeof token === "string" && token !== "") query.set("token", token);
   if (extraQueryParams) {
@@ -46,7 +46,7 @@ function buildSocketParams(pathname, extraHeaders, token, extraQueryParams) {
       if (typeof value === "string" && value !== "") query.set(key, value);
     });
   }
-  var queryString = query.toString();
+  const queryString = query.toString();
   if (queryString) socketParams.query = queryString;
   return socketParams;
 }
@@ -76,7 +76,7 @@ function closeSocket(socket) {
 function batchCall(fn, args, index) {
   index = (index || 0) | 0;
   if (index >= args.length) return Promise.resolve();
-  var batch = args.slice(index, index + BATCH_SIZE);
+  const batch = args.slice(index, index + BATCH_SIZE);
   return Promise.all(batch.map(fn))
     .then(() => new Promise(requestAnimationFrame))
     .then(() => batchCall(fn, args, index + BATCH_SIZE));
@@ -138,13 +138,13 @@ function normalizeTurnstileAck(result, defaultValidationWindowMs) {
  * @returns {{validatedUntil: number, validationWindowMs: number}}
  */
 function computeTurnstileValidation(result, defaultValidationWindowMs) {
-  var ack = normalizeTurnstileAck(result, defaultValidationWindowMs);
+  const ack = normalizeTurnstileAck(result, defaultValidationWindowMs);
   if (ack.success !== true) {
     return { validatedUntil: 0, validationWindowMs: 0 };
   }
-  var validationWindowMs =
+  const validationWindowMs =
     Number(ack.validationWindowMs) || Number(defaultValidationWindowMs) || 0;
-  var safeWindowMs = Math.max(0, validationWindowMs - 5000);
+  const safeWindowMs = Math.max(0, validationWindowMs - 5000);
   return {
     validatedUntil: safeWindowMs > 0 ? Date.now() + safeWindowMs : 0,
     validationWindowMs: validationWindowMs,
