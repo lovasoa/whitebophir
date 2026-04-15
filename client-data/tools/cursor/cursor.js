@@ -44,16 +44,10 @@ export function registerCursorTool(tools) {
    * @returns {number}
    */
   function getMinCursorUpdateIntervalMs() {
-    let generalLimit =
-      typeof tools.getEffectiveRateLimit === "function"
+    const generalLimit =
+      (typeof tools.getEffectiveRateLimit === "function"
         ? tools.getEffectiveRateLimit("general")
-        : (tools.server_config &&
-            tools.server_config.RATE_LIMITS &&
-            tools.server_config.RATE_LIMITS.general) ||
-          {};
-    if (!generalLimit) {
-      generalLimit = {};
-    }
+        : tools.server_config?.RATE_LIMITS?.general) ?? {};
     return (
       (getPositiveNumber(generalLimit.periodMs, 4096) /
         getPositiveNumber(generalLimit.limit, 192)) *
@@ -137,7 +131,7 @@ export function registerCursorTool(tools) {
     const curTime = Date.now();
     if (
       curTime - lastCursorUpdate > getMinCursorUpdateIntervalMs() &&
-      (sending || (activeTool && activeTool.showMarker === true))
+      (sending || activeTool?.showMarker === true)
     ) {
       tools.drawAndSend(message, cursorTool);
       lastCursorUpdate = curTime;

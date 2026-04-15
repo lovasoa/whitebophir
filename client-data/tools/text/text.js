@@ -136,7 +136,7 @@ export function registerTextTool(Tools) {
     input.value = "";
     const clientW = Math.max(
       document.documentElement.clientWidth,
-      window.innerWidth || 0,
+      window.innerWidth ?? 0,
     );
     let x = curText.x * Tools.scale - document.documentElement.scrollLeft;
     if (x + 250 > clientW) {
@@ -235,7 +235,7 @@ export function registerTextTool(Tools) {
           return false;
         }
         const textField = document.getElementById(data.id);
-        if (textField === null) {
+        if (!(textField instanceof SVGTextElement)) {
           console.error(
             "Text: Hmmm... I received text that belongs to an unknown text field",
           );
@@ -255,7 +255,7 @@ export function registerTextTool(Tools) {
    * @param {string | undefined} text
    */
   function updateText(textField, text) {
-    textField.textContent = text || "";
+    textField.textContent = text ?? "";
   }
 
   /**

@@ -24,46 +24,34 @@
  * @licend
  */
 
-/*jshint bitwise:false*/
-
-// ==ClosureCompiler==
-// @output_file_name canvascolor.js
-// @compilation_level ADVANCED_OPTIMIZATIONS
-// @js_externs var canvascolor;
-// @language ecmascript5_strict
-// @use_types_for_optimization true
-// ==/ClosureCompiler==
-
 export function registerCanvasColor() {
   /**
    * @typedef {[number, number, number]} RGBColor
    * @typedef {[number, number]} CanvasCoords
    */
 
-  (function addCSS() {
-    const styleTag = document.createElement("style");
-    styleTag.innerHTML = [
-      ".canvascolor-container{",
-      "background-color:black;",
-      "border-radius:5px;",
-      "overflow:hidden;",
-      "width:179px;",
-      "padding:2px;",
-      "display:none;",
-      "}",
-      ".canvascolor-container canvas{",
-      "cursor:crosshair;",
-      "}",
-      ".canvascolor-history{",
-      "overflow:auto;",
-      "}",
-      ".canvascolor-history > div{",
-      "margin:2px;",
-      "display:inline-block;",
-      "}",
-    ].join("");
-    document.head.appendChild(styleTag);
-  })();
+  const styleTag = document.createElement("style");
+  styleTag.textContent = [
+    ".canvascolor-container{",
+    "background-color:black;",
+    "border-radius:5px;",
+    "overflow:hidden;",
+    "width:179px;",
+    "padding:2px;",
+    "display:none;",
+    "}",
+    ".canvascolor-container canvas{",
+    "cursor:crosshair;",
+    "}",
+    ".canvascolor-history{",
+    "overflow:auto;",
+    "}",
+    ".canvascolor-history > div{",
+    "margin:2px;",
+    "display:inline-block;",
+    "}",
+  ].join("");
+  document.head.appendChild(styleTag);
 
   /**
    * @param {number} h
@@ -75,7 +63,7 @@ export function registerCanvasColor() {
     if (s === 0) return [v, v, v]; // achromatic (grey)
 
     h /= Math.PI / 6; // sector 0 to 5
-    const i = h | 0;
+    const i = Math.floor(h);
     const f = h - i; // factorial part of h
     const p = v * (1 - s);
     const q = v * (1 - s * f);
@@ -111,17 +99,13 @@ export function registerCanvasColor() {
     return false;
   }
 
-  /** @type {HTMLDivElement} */
-  let containerTemplate;
-  (function createContainer() {
-    containerTemplate = document.createElement("div");
-    containerTemplate.className = "canvascolor-container";
-    const canvas = document.createElement("canvas");
-    const historyDiv = document.createElement("div");
-    historyDiv.className = "canvascolor-history";
-    containerTemplate.appendChild(canvas);
-    containerTemplate.appendChild(historyDiv);
-  })();
+  const containerTemplate = document.createElement("div");
+  containerTemplate.className = "canvascolor-container";
+  const canvas = document.createElement("canvas");
+  const historyDiv = document.createElement("div");
+  historyDiv.className = "canvascolor-history";
+  containerTemplate.appendChild(canvas);
+  containerTemplate.appendChild(historyDiv);
 
   /**
    * @param {HTMLInputElement} elem
@@ -216,7 +200,7 @@ export function registerCanvasColor() {
        * @returns {string}
        */
       function num2hex(c) {
-        return (((c * 15) / 255) | 0).toString(16);
+        return Math.floor((c * 15) / 255).toString(16);
       }
       return `#${num2hex(rgb[0])}${num2hex(rgb[1])}${num2hex(rgb[2])}`;
     }
@@ -331,17 +315,13 @@ export function registerCanvasColor() {
   const pickers = document.querySelectorAll(
     "input.canvascolor, input[type=color]",
   );
-  for (let i = 0; i < pickers.length; i++) {
-    const input = pickers.item(i);
+  for (const input of pickers) {
     if (!(input instanceof HTMLInputElement)) {
       continue;
     }
     //If the browser supports native color picker and the user didn't
     //explicitly added canvascolor to the element, we do not add a custom color picker
-    if (
-      input.type !== "color" ||
-      input.className.split(" ").indexOf("canvascolor") !== -1
-    ) {
+    if (input.type !== "color" || input.classList.contains("canvascolor")) {
       attachCanvasColor(input);
     }
   }
