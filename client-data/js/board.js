@@ -272,7 +272,7 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
   message,
   retryAfterMs,
 ) {
-  var notice = getBoardStatusNotice();
+  const notice = getBoardStatusNotice();
   if (!notice) return;
   Tools.rateLimitNoticeMessage = message;
   notice.textContent = message;
@@ -288,7 +288,7 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
 
 Tools.hideRateLimitNotice = function hideRateLimitNotice() {
   Tools.clearRateLimitNoticeTimer();
-  var notice = getBoardStatusNotice();
+  const notice = getBoardStatusNotice();
   if (!notice) return;
   notice.classList.add("board-status-notice-hidden");
   notice.textContent = "";
@@ -296,9 +296,10 @@ Tools.hideRateLimitNotice = function hideRateLimitNotice() {
 };
 
 Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
-  var indicator = getBoardStatusIndicator();
+  const indicator = getBoardStatusIndicator();
   if (!indicator) return;
-  var isPaused = Tools.connectionState !== "connected" || Tools.isWritePaused();
+  const isPaused =
+    Tools.connectionState !== "connected" || Tools.isWritePaused();
   indicator.classList.remove(
     "board-status-hidden",
     "board-status-buffering",
@@ -317,7 +318,7 @@ Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
 
 Tools.resetBoardViewport = function resetBoardViewport() {
   if (Tools.drawingArea) Tools.drawingArea.innerHTML = "";
-  var cursors = Tools.svg.getElementById("cursors");
+  const cursors = Tools.svg.getElementById("cursors");
   if (cursors) cursors.innerHTML = "";
 };
 
@@ -348,9 +349,9 @@ Tools.resetAllLocalRateLimitStates = function resetAllLocalRateLimitStates(
  */
 Tools.canEmitBufferedWrite = function canEmitBufferedWrite(bufferedWrite, now) {
   return RATE_LIMIT_KINDS.every((kind) => {
-    var cost = bufferedWrite.costs[kind];
+    const cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return true;
-    var definition = Tools.getEffectiveRateLimit(kind);
+    const definition = Tools.getEffectiveRateLimit(kind);
     if (!(definition.periodMs > 0) || !(definition.limit >= 0)) return true;
     return RateLimitCommon.canConsumeFixedWindowRateLimit(
       Tools.localRateLimitStates[kind],
@@ -372,9 +373,9 @@ Tools.consumeBufferedWriteBudget = function consumeBufferedWriteBudget(
   now,
 ) {
   RATE_LIMIT_KINDS.forEach((kind) => {
-    var cost = bufferedWrite.costs[kind];
+    const cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return;
-    var definition = Tools.getEffectiveRateLimit(kind);
+    const definition = Tools.getEffectiveRateLimit(kind);
     if (!(definition.periodMs > 0)) return;
     Tools.localRateLimitStates[kind] =
       RateLimitCommon.consumeFixedWindowRateLimit(
@@ -396,9 +397,9 @@ Tools.getBufferedWriteWaitMs = function getBufferedWriteWaitMs(
   now,
 ) {
   return RATE_LIMIT_KINDS.reduce((waitMs, kind) => {
-    var cost = bufferedWrite.costs[kind];
+    const cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return waitMs;
-    var definition = Tools.getEffectiveRateLimit(kind);
+    const definition = Tools.getEffectiveRateLimit(kind);
     if (!(definition.periodMs > 0)) return waitMs;
     if (
       RateLimitCommon.canConsumeFixedWindowRateLimit(
@@ -429,10 +430,10 @@ Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
     Tools.syncWriteStatusIndicator();
     return;
   }
-  var nextWrite = Tools.bufferedWrites[0];
+  const nextWrite = Tools.bufferedWrites[0];
   if (!nextWrite) return;
-  var now = Date.now();
-  var waitMs = Tools.getBufferedWriteWaitMs(nextWrite, now);
+  const now = Date.now();
+  const waitMs = Tools.getBufferedWriteWaitMs(nextWrite, now);
   Tools.bufferedWriteTimer = setTimeout(
     function flushBufferedWrites() {
       Tools.flushBufferedWrites();
@@ -483,14 +484,14 @@ Tools.enqueueBufferedWrite = function enqueueBufferedWrite(message) {
  */
 Tools.sendBufferedWrite = function sendBufferedWrite(message) {
   /** @type {BufferedWrite} */
-  var bufferedWrite = {
+  const bufferedWrite = {
     message: message,
     costs: Tools.getBufferedWriteCosts(message),
   };
   if (!Tools.canBufferWrites()) {
     return false;
   }
-  var now = Date.now();
+  const now = Date.now();
   if (
     Tools.bufferedWrites.length === 0 &&
     Tools.canEmitBufferedWrite(bufferedWrite, now)
@@ -549,12 +550,12 @@ Tools.queueProtectedWrite = function queueProtectedWrite(data, tool) {
 };
 
 Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
-  var pendingWrites = Tools.turnstilePendingWrites;
+  const pendingWrites = Tools.turnstilePendingWrites;
   Tools.turnstilePendingWrites = [];
   pendingWrites.forEach(function replayPendingWrite(write) {
-    var pendingWrite = /** @type {PendingWrite} */ (write);
+    const pendingWrite = /** @type {PendingWrite} */ (write);
     if (!pendingWrite.toolName || !pendingWrite.data) return;
-    var tool = Tools.list[pendingWrite.toolName];
+    const tool = Tools.list[pendingWrite.toolName];
     if (!tool) return;
     Tools.send(pendingWrite.data, pendingWrite.toolName);
   });
@@ -616,7 +617,7 @@ function drainIncomingBroadcastQueue() {
   Tools.processingIncomingBroadcast = true;
 
   function drainNext() {
-    var msg = Tools.incomingBroadcastQueue.shift();
+    const msg = Tools.incomingBroadcastQueue.shift();
     if (!msg) {
       Tools.processingIncomingBroadcast = false;
       return;
@@ -670,7 +671,7 @@ Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(
   if (!Tools.server_config.TURNSTILE_SITE_KEY || !(validationWindowMs > 0))
     return;
   Tools.clearTurnstileRefreshTimeout();
-  var refreshDelay = Math.floor(validationWindowMs * 0.8);
+  const refreshDelay = Math.floor(validationWindowMs * 0.8);
   if (!(refreshDelay > 0)) return;
   Tools.turnstileRefreshTimeout = setTimeout(function refreshTurnstileToken() {
     Tools.refreshTurnstile();
@@ -680,17 +681,17 @@ Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(
 /** @param {unknown} result */
 Tools.setTurnstileValidation = function setTurnstileValidation(result) {
   Tools.clearTurnstileRefreshTimeout();
-  var ack = Tools.normalizeTurnstileAck(result);
+  const ack = Tools.normalizeTurnstileAck(result);
   if (ack.success !== true) {
     Tools.turnstileValidatedUntil = 0;
     return;
   }
 
-  var validation = BoardTurnstile.computeTurnstileValidation(
+  const validation = BoardTurnstile.computeTurnstileValidation(
     ack,
     Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS),
   );
-  var validationWindowMs = validation.validationWindowMs;
+  const validationWindowMs = validation.validationWindowMs;
   Tools.turnstileValidatedUntil = validation.validatedUntil;
 
   if (validationWindowMs > 0) {
@@ -707,15 +708,15 @@ Tools.normalizeTurnstileAck = function normalizeTurnstileAck(result) {
 };
 
 Tools.ensureTurnstileElements = function ensureTurnstileElements() {
-  var overlay = document.getElementById("turnstile-overlay");
-  var widget = document.getElementById("turnstile-widget");
+  let overlay = document.getElementById("turnstile-overlay");
+  let widget = document.getElementById("turnstile-widget");
   if (overlay && widget) return { overlay: overlay };
 
   overlay = document.createElement("div");
   overlay.id = "turnstile-overlay";
   overlay.classList.add("turnstile-overlay-hidden");
 
-  var modal = document.createElement("div");
+  const modal = document.createElement("div");
   modal.id = "turnstile-modal";
 
   widget = document.createElement("div");
@@ -731,7 +732,7 @@ Tools.showTurnstileOverlayTimeout = null;
 
 /** @param {number} delay */
 Tools.showTurnstileOverlay = function showTurnstileOverlay(delay) {
-  var elements = Tools.ensureTurnstileElements();
+  const elements = Tools.ensureTurnstileElements();
   if (delay > 0) {
     Tools.showTurnstileOverlayTimeout = setTimeout(() => {
       elements.overlay.classList.remove("turnstile-overlay-hidden");
@@ -746,7 +747,7 @@ Tools.hideTurnstileOverlay = function hideTurnstileOverlay() {
     clearTimeout(Tools.showTurnstileOverlayTimeout);
     Tools.showTurnstileOverlayTimeout = null;
   }
-  var overlay = document.getElementById("turnstile-overlay");
+  const overlay = document.getElementById("turnstile-overlay");
   if (overlay) overlay.classList.add("turnstile-overlay-hidden");
 };
 
@@ -777,7 +778,7 @@ Tools.refreshTurnstile = function refreshTurnstile() {
             "turnstile_token",
             token,
             (/** @type {unknown} */ result) => {
-              var turnstileResult = Tools.normalizeTurnstileAck(result);
+              const turnstileResult = Tools.normalizeTurnstileAck(result);
               Tools.turnstilePending = false;
               if (turnstileResult.success) {
                 Tools.setTurnstileValidation(turnstileResult);
@@ -840,16 +841,16 @@ Tools.canUseTool = function canUseTool(toolName) {
 
 /** @param {string} toolName */
 Tools.syncToolDisabledState = function syncToolDisabledState(toolName) {
-  var toolElem = document.getElementById(`toolID-${toolName}`);
+  const toolElem = document.getElementById(`toolID-${toolName}`);
   if (!toolElem) return;
-  var disabled = Tools.shouldDisableTool(toolName);
+  const disabled = Tools.shouldDisableTool(toolName);
   toolElem.classList.toggle("disabledTool", disabled);
   toolElem.setAttribute("aria-disabled", disabled ? "true" : "false");
 };
 
 /** @param {boolean} force */
 Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
-  var drawToolsAllowed = MessageCommon.isDrawToolAllowedAtScale(Tools.scale);
+  const drawToolsAllowed = MessageCommon.isDrawToolAllowedAtScale(Tools.scale);
   if (!force && drawToolsAllowed === Tools.drawToolsAllowed) return;
   Tools.drawToolsAllowed = drawToolsAllowed;
 
