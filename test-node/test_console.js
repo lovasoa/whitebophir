@@ -14,7 +14,7 @@ function installTestConsole() {
     return function restoreConsole() {};
   }
 
-  var previousConsole = global.console;
+  const previousConsole = global.console;
   global.console = createSilentConsole(previousConsole);
   return function restoreConsole() {
     global.console = previousConsole;
@@ -26,7 +26,7 @@ function installTestConsole() {
  * @param {() => any} fn
  */
 function withConsole(patch, fn) {
-  var previousConsole = global.console;
+  const previousConsole = global.console;
   global.console = Object.assign({}, previousConsole, patch);
   try {
     const result = fn();
@@ -43,8 +43,6 @@ function withConsole(patch, fn) {
   }
 }
 
-module.exports = {
-  createSilentConsole: createSilentConsole,
-  installTestConsole: installTestConsole,
-  withConsole: withConsole,
-};
+exports.createSilentConsole = createSilentConsole;
+exports.installTestConsole = installTestConsole;
+exports.withConsole = withConsole;
