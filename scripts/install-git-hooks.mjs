@@ -1,7 +1,9 @@
-const { execFileSync } = require("node:child_process");
-const path = require("node:path");
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const repoRoot = path.resolve(__dirname, "..");
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, "..");
 const hooksPath = ".githooks";
 
 try {

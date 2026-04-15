@@ -1,7 +1,9 @@
-const fs = require("node:fs");
-const path = require("node:path");
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const testDir = path.join(__dirname, "..", "playwright", "tests");
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const testDir = path.join(scriptDir, "..", "playwright", "tests");
 const forbiddenPattern = /waitForTimeout\(|\bsleep\(|\bpause\(/;
 const allowedExtensions = new Set([".js", ".cjs", ".mjs", ".ts"]);
 
