@@ -9,22 +9,8 @@
     "includes": ["**", "!**/*.html", "!client-data/js/path-data-polyfill.js"]
   },
   "formatter": {
-    "enabled": true,
     "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 80,
     "lineEnding": "lf"
-  },
-  "javascript": {
-    "formatter": {
-      "arrowParentheses": "always",
-      "bracketSpacing": true
-    }
-  },
-  "json": {
-    "formatter": {
-      "trailingCommas": "none"
-    }
   },
   "linter": {
     "rules": {
