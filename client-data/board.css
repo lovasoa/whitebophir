@@ -274,7 +274,7 @@ svg {
   white-space: nowrap;
 }
 
-.board-presence-toggle .tool-name.board-presence-badge-hidden {
+.board-presence-toggle .tool-name[hidden] {
   display: none;
 }
 
