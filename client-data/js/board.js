@@ -226,10 +226,6 @@ function getLoadingMessage() {
   return document.getElementById("loadingMessage");
 }
 
-function getBoardHud() {
-  return document.getElementById("boardHud");
-}
-
 function getBoardStatusIndicator() {
   return document.getElementById("boardStatusIndicator");
 }
@@ -398,28 +394,26 @@ Tools.getBoardStatusView = function getBoardStatusView() {
 };
 
 Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
-  const hud = getBoardHud();
   const indicator = getBoardStatusIndicator();
   const title = getBoardStatusTitle();
   const notice = getBoardStatusNotice();
-  if (!hud || !indicator || !title || !notice) return;
+  if (!indicator || !title || !notice) return;
 
   const view = Tools.getBoardStatusView();
-  hud.classList.toggle("board-hud-hidden", view.hidden);
   indicator.classList.remove(
-    "board-status-hidden",
     "board-status-buffering",
     "board-status-paused",
     "board-status-reconnecting",
   );
+  indicator.dataset.state = view.state;
+  if (view.hidden) {
+    indicator.hidden = true;
+    return;
+  }
+  indicator.hidden = false;
   title.textContent = view.title;
   notice.textContent = view.detail;
   notice.classList.toggle("board-status-detail-hidden", !view.detail);
-  indicator.dataset.state = view.state;
-  if (view.hidden) {
-    indicator.classList.add("board-status-hidden");
-    return;
-  }
   indicator.classList.add(`board-status-${view.state}`);
 };
 
@@ -1177,6 +1171,16 @@ function getConnectedUsersList() {
   return getRequiredElement("connectedUsersList");
 }
 
+function syncConnectedUsersToggleLabel() {
+  const toggle = getConnectedUsersToggle();
+  const label = /** @type {HTMLElement | null} */ (
+    toggle.querySelector(".tool-name")
+  );
+  if (!label) return;
+  const userCount = Object.keys(Tools.connectedUsers).length;
+  label.textContent = `${userCount} ${Tools.i18n.t("users")}`;
+}
+
 /**
  * @param {number | undefined} size
  * @returns {number}
@@ -1536,6 +1540,7 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
   Object.values(rowsBySocketId).forEach((row) => {
     row.remove();
   });
+  syncConnectedUsersToggleLabel();
 };
 
 Tools.setConnectedUsersPanelOpen = function setConnectedUsersPanelOpen(
@@ -1546,7 +1551,8 @@ Tools.setConnectedUsersPanelOpen = function setConnectedUsersPanelOpen(
     "connected-users-panel-hidden",
     !open,
   );
-  getConnectedUsersToggle().classList.toggle("curTool", open);
+  getConnectedUsersToggle().classList.toggle("board-presence-toggle-open", open);
+  getConnectedUsersToggle().setAttribute("aria-expanded", open ? "true" : "false");
 };
 
 Tools.upsertConnectedUser = function upsertConnectedUser(
@@ -1645,10 +1651,23 @@ Tools.initConnectedUsersUI = function initConnectedUsersUI() {
   toggle.addEventListener("click", () => {
     Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
   });
-  toggle.addEventListener("keydown", (evt) => {
-    if (evt.key === "Enter" || evt.key === " ") {
+  toggle.addEventListener("blur", () => {
+    window.setTimeout(() => {
+      const panel = getConnectedUsersPanel();
+      if (
+        !panel.matches(":hover") &&
+        !panel.contains(document.activeElement) &&
+        document.activeElement !== toggle
+      ) {
+        Tools.setConnectedUsersPanelOpen(false);
+      }
+    }, 0);
+  });
+  getConnectedUsersPanel().addEventListener("keydown", (evt) => {
+    if (evt.key === "Escape") {
       evt.preventDefault();
-      Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
+      Tools.setConnectedUsersPanelOpen(false);
+      toggle.focus();
     }
   });
   Tools.renderConnectedUsers();

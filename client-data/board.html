@@ -43,12 +43,22 @@
 			</div>
 		</div>
 	</div>
-	<div id="boardHud" class="board-hud board-hud-hidden">
-		<div id="boardStatusIndicator" class="board-status-card board-status-hidden" role="status" aria-live="polite">
+	<div id="boardHud" class="board-hud">
+		<div id="boardStatusIndicator" class="board-status-card" role="status" aria-live="polite" hidden>
 			<span class="board-status-icon" aria-hidden="true"></span>
 			<div class="board-status-copy">
 				<div id="boardStatusTitle" class="board-status-title"></div>
 				<div id="boardStatusNotice" class="board-status-detail board-status-detail-hidden"></div>
+			</div>
+		</div>
+		<div class="board-presence">
+			<button id="connectedUsersToggle" class="board-presence-toggle" type="button" aria-haspopup="true"
+				aria-expanded="false">
+				<img class="board-presence-icon" width="18" height="18" src="users.svg?v={{version}}" alt="" />
+				<span class="tool-name"></span>
+			</button>
+			<div id="connectedUsersPanel" class="connected-users-panel connected-users-panel-hidden">
+				<ul id="connectedUsersList" class="connected-users-list"></ul>
 			</div>
 		</div>
 	</div>
@@ -99,17 +109,9 @@
 							class="rangeChooser" />
 					</label>
 				</li>
-				<li class="tool oneTouch" tabindex="-1" id="connectedUsersToggle">
-					<img class="tool-icon" width="35" height="35" src="users.svg?v={{version}}" alt="" />
-					<span class="tool-name"></span>
-				</li>
-			</ul>
+				</ul>
+			</div>
 		</div>
-	</div>
-
-	<div id="connectedUsersPanel" class="connected-users-panel connected-users-panel-hidden">
-		<ul id="connectedUsersList" class="connected-users-list"></ul>
-	</div>
 
 
 	<script type="application/json" id="translations">{{{ json translations }}}</script>

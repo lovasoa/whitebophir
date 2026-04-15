@@ -92,15 +92,10 @@ svg {
   top: 12px;
   left: 58px;
   z-index: 35;
-  pointer-events: none;
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
-}
-
-.board-hud-hidden {
-  opacity: 0;
-  transform: translateY(-4px);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: calc(100vw - 70px);
 }
 
 .board-status-card {
@@ -120,11 +115,7 @@ svg {
     transform 0.16s ease,
     border-color 0.16s ease,
     box-shadow 0.16s ease;
-}
-
-.board-status-hidden {
-  opacity: 0;
-  transform: translateY(-4px);
+  pointer-events: none;
 }
 
 .board-status-copy {
@@ -188,20 +179,69 @@ svg {
   }
 }
 
-.connected-users-panel {
-  position: fixed;
-  top: 10px;
-  left: 58px;
-  width: min(280px, calc(100vw - 78px));
-  min-height: 36px;
-  max-height: min(320px, calc(100vh - 20px));
-  background: #ffffff;
-  border: 1px solid #eeeeee;
-  border-radius: 0;
+.board-presence {
+  position: relative;
+  pointer-events: auto;
+}
+
+.board-presence-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 8px 11px;
+  border: 1px solid #d9dde3;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.1);
+  color: #111827;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.board-presence-toggle:hover,
+.board-presence-toggle:focus-visible,
+.board-presence-toggle-open {
+  border-color: #abc6c6;
   box-shadow:
-    inset 0 0 3px #8fa2bc,
-    0 0 2px #333333;
-  z-index: 20;
+    0 0 0 1px rgba(171, 198, 198, 0.35),
+    0 6px 16px rgba(16, 24, 40, 0.1);
+}
+
+.board-presence-toggle:focus-visible {
+  outline: none;
+}
+
+.board-presence-icon {
+  display: block;
+  flex: 0 0 auto;
+  opacity: 0.78;
+}
+
+.board-presence-toggle .tool-name {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.connected-users-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(300px, calc(100vw - 24px));
+  min-height: 36px;
+  max-height: min(340px, calc(100vh - 72px));
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #d9dde3;
+  border-radius: 4px;
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.12);
+  z-index: 50;
   overflow: auto;
 }
 
@@ -220,9 +260,13 @@ svg {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
-  border-top: 1px solid #eeeeee;
+  padding: 8px 10px;
+  border-top: 1px solid #e5e7eb;
   cursor: default;
+}
+
+.connected-user-row:first-child {
+  border-top: 0;
 }
 
 .connected-user-name {
@@ -246,6 +290,7 @@ svg {
 .connected-user-main-link {
   color: inherit;
   text-decoration: none;
+  outline: none;
 }
 
 .connected-user-meta {
@@ -277,7 +322,7 @@ svg {
 
 .connected-user-row-jumpable:hover,
 .connected-user-row-jumpable:focus-within {
-  background: #eeeeff;
+  background: #f3f4f6;
   outline: none;
 }
 
@@ -285,8 +330,8 @@ svg {
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid #999999;
-  border-radius: 0;
+  border: 1px solid #d9dde3;
+  border-radius: 2px;
   background: #ffffff;
   color: #111111;
   cursor: pointer;
@@ -303,8 +348,8 @@ svg {
 
 .connected-user-report-latched {
   opacity: 1;
-  background: #dddddd;
-  border-color: #444444;
+  background: #f3f4f6;
+  border-color: #b8c0cc;
   color: #111111;
 }
 
@@ -423,6 +468,24 @@ svg {
 
   #menu:focus-within {
     pointer-events: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .board-hud {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    flex-wrap: wrap;
+  }
+
+  .board-status-card {
+    max-width: min(320px, calc(100vw - 24px));
+  }
+
+  .connected-users-panel {
+    width: min(300px, calc(100vw - 24px));
+    max-height: min(340px, calc(100vh - 88px));
   }
 }
 
