@@ -30,8 +30,8 @@ import {
   transformedBBoxIntersects,
 } from "../../js/intersect.js";
 
-(function hand() {
-  //Code isolation
+/** @param {any} Tools */
+export function registerHandTool(Tools) {
   /** @typedef {{ x: number, y: number }} PointSelection */
   /** @typedef {PointSelection & { w: number, h: number }} ScaleSelection */
   /** @typedef {PointSelection | ScaleSelection | null} SelectionState */
@@ -126,7 +126,7 @@ import {
     ),
   ];
 
-  blockedSelectionButtons.forEach(function (buttonIndex) {
+  blockedSelectionButtons.forEach(function (/** @type {number} */ buttonIndex) {
     if (typeof buttonIndex === "number") delete selectionButtons[buttonIndex];
   });
 
@@ -837,4 +837,8 @@ import {
   };
   Tools.add(handTool);
   Tools.change("Hand"); // Use the hand tool by default
-})(); //End of code isolation
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerHandTool(window.Tools);
+}

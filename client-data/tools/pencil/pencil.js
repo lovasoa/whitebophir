@@ -27,8 +27,8 @@
 import { LIMITS } from "../../js/message_common.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
 
-(function () {
-  //Code isolation
+/** @param {any} Tools */
+export function registerPencilTool(Tools) {
   /** @typedef {{type: "line", id: string, color?: string, size?: number, opacity?: number}} PencilLineData */
   /** @typedef {{type: "child", parent: string, x: number, y: number}} PencilChildData */
   /** @typedef {PencilLineData | PencilChildData | {type: "endline"} | {type?: string, id?: string, color?: string, size?: number, opacity?: number, parent?: string, x?: number, y?: number}} PencilMessage */
@@ -403,4 +403,8 @@ import { wboPencilPoint } from "./wbo_pencil_point.js";
     stylesheet: "tools/pencil/pencil.css",
   };
   Tools.add(pencilTool);
-})(); //End of code isolation
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerPencilTool(window.Tools);
+}

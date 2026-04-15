@@ -24,8 +24,8 @@
  * @licend
  */
 
-(function () {
-  //Code isolation
+/** @param {any} Tools */
+export function registerRectTool(Tools) {
   /** @typedef {{type: "rect", id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} RectangleStartData */
   /** @typedef {{type: "update", id: string, x: number, y: number, x2: number, y2: number}} RectangleUpdateData */
   /** @typedef {RectangleStartData | RectangleUpdateData} RectangleMessage */
@@ -220,4 +220,8 @@
     stylesheet: "tools/rect/rect.css",
   };
   Tools.add(rectangleTool);
-})(); //End of code isolation
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerRectTool(window.Tools);
+}

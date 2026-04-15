@@ -26,11 +26,11 @@
 
 import { truncateText } from "../../js/message_common.js";
 
-(function () {
-  //Code isolation
+/** @param {any} Tools */
+export function registerTextTool(Tools) {
   /** @typedef {{type?: string, id?: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} TextMessage */
   /** @typedef {SVGTextElement & {id: string}} ExistingTextElement */
-  /** @typedef {KeyboardEvent | FocusEvent} TextInputEvent */
+  /** @typedef {Event | KeyboardEvent | FocusEvent} TextInputEvent */
   /**
    * @typedef {object} TextEditState
    * @property {number} x
@@ -147,12 +147,14 @@ import { truncateText } from "../../js/message_common.js";
     input.style.top =
       curText.y * Tools.scale - document.documentElement.scrollTop + 20 + "px";
     input.focus();
+    input.addEventListener("input", textChangeHandler);
     input.addEventListener("keyup", textChangeHandler);
     input.addEventListener("blur", textChangeHandler);
     input.addEventListener("blur", blur);
   }
 
   function stopEdit() {
+    input.removeEventListener("input", textChangeHandler);
     input.removeEventListener("keyup", textChangeHandler);
     input.removeEventListener("blur", textChangeHandler);
     input.removeEventListener("blur", blur);
@@ -293,4 +295,8 @@ import { truncateText } from "../../js/message_common.js";
     icon: "tools/text/icon.svg",
     mouseCursor: "text",
   });
-})(); //End of code isolation
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerTextTool(window.Tools);
+}

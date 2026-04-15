@@ -24,8 +24,8 @@
  * @licend
  */
 
-(function () {
-  //Code isolation
+/** @param {any} Tools */
+export function registerEllipseTool(Tools) {
   /** @typedef {{type: "ellipse", id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} EllipseStartData */
   /** @typedef {{type: "update", id: string, x: number, y: number, x2: number, y2: number}} EllipseUpdateData */
   /** @typedef {EllipseStartData | EllipseUpdateData} EllipseMessage */
@@ -233,4 +233,8 @@
     stylesheet: "tools/ellipse/ellipse.css",
   };
   Tools.add(circleTool);
-})(); //End of code isolation
+}
+
+if (typeof window !== "undefined" && window.Tools) {
+  registerEllipseTool(window.Tools);
+}
