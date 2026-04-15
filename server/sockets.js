@@ -1129,8 +1129,8 @@ function handleSocketConnection(socket) {
     // Join the board
     socket.join(name);
 
-    var board = await getBoard(name);
-    var wasJoined = board.users.has(socket.id);
+    const board = await getBoard(name);
+    const wasJoined = board.users.has(socket.id);
     board.users.add(socket.id);
     if (!wasJoined || !hasBoardUser(socket, name)) {
       const user = ensureBoardUser(socket, name);
@@ -1169,7 +1169,7 @@ function handleSocketConnection(socket) {
   socket.on(
     "getboard",
     noFail(async function onGetBoard(/** @type {string} */ name) {
-      var boardName = normalizedBoardName(socket, name);
+      const boardName = normalizedBoardName(socket, name);
       return tracing.withActiveSpan(
         "socket.getboard",
         {
@@ -1179,7 +1179,7 @@ function handleSocketConnection(socket) {
           }),
         },
         async function traceGetBoard() {
-          var board = await joinBoard(boardName);
+          const board = await joinBoard(boardName);
           tracing.setActiveSpanAttributes({
             "wbo.board.result": "success",
             "user.name": getBoardUser(boardName, socket.id)?.name || undefined,
@@ -1201,7 +1201,7 @@ function handleSocketConnection(socket) {
   socket.on(
     "joinboard",
     noFail(async function onJoinBoard(name) {
-      var boardName = normalizedBoardName(socket, name);
+      const boardName = normalizedBoardName(socket, name);
       return tracing.withActiveSpan(
         "socket.joinboard",
         {
@@ -1258,18 +1258,18 @@ function handleSocketConnection(socket) {
                 },
               },
               async function verifyTurnstileToken() {
-                var response = await fetch(config.TURNSTILE_VERIFY_URL, {
+                const response = await fetch(config.TURNSTILE_VERIFY_URL, {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
                   },
                   body: requestBody,
                 });
-                var result = await response.json();
+                const result = await response.json();
                 tracing.setActiveSpanAttributes({
                   "http.response.status_code": response.status,
                 });
-                return { response: response, result: result };
+                return { response, result };
               },
             );
             const result = verification.result;
@@ -1319,17 +1319,17 @@ function handleSocketConnection(socket) {
     }, "turnstile_token"),
   );
 
-  var generalRateLimit = createRateLimitState(Date.now());
+  const generalRateLimit = createRateLimitState(Date.now());
   socket.on(
     "broadcast",
     noFail(async function onBroadcast(message) {
-      var now = Date.now();
-      var boardName = getBoardName(message);
-      var data = getMessageData(message);
+      const now = Date.now();
+      const boardName = getBoardName(message);
+      const data = getMessageData(message);
 
       async function handleBroadcastWrite() {
-        var clientIp = resolveClientIp(socket, boardName);
-        var userName = getSocketUserName(socket, clientIp);
+        const clientIp = resolveClientIp(socket, boardName);
+        const userName = getSocketUserName(socket, clientIp);
         tracing.setActiveSpanAttributes(
           boardMutationTraceAttributes(boardName, userName, data),
         );
@@ -1398,7 +1398,7 @@ function handleSocketConnection(socket) {
 
         ensureSocketJoinedBoard(socket, boardName);
 
-        var board = await getBoard(boardName);
+        const board = await getBoard(boardName);
         if (!canApplyBoardMessage(board, normalizedData, socket)) {
           tracing.setActiveSpanAttributes({
             "wbo.board.result": "rejected",
@@ -1446,7 +1446,7 @@ function handleSocketConnection(socket) {
           return;
         }
 
-        var user = updateBoardUserFromMessage(
+        const user = updateBoardUserFromMessage(
           socket,
           boardName,
           normalizedData,
@@ -1482,7 +1482,7 @@ function handleSocketConnection(socket) {
   socket.on(
     "report_user",
     noFail(function onReportUser(message) {
-      var boardName = getBoardName(message);
+      const boardName = getBoardName(message);
       return tracing.withActiveSpan(
         "socket.report_user",
         {
@@ -1492,7 +1492,7 @@ function handleSocketConnection(socket) {
           }),
         },
         function traceReportUser() {
-          var targetSocketId =
+          const targetSocketId =
             message && typeof message.socketId === "string"
               ? message.socketId
               : "";
@@ -1503,8 +1503,8 @@ function handleSocketConnection(socket) {
             return;
           }
 
-          var reporter = getBoardUser(boardName, socket.id);
-          var reported = getBoardUser(boardName, targetSocketId);
+          const reporter = getBoardUser(boardName, socket.id);
+          const reported = getBoardUser(boardName, targetSocketId);
           if (!reporter || !reported) {
             tracing.setActiveSpanAttributes({
               "wbo.board.result": "ignored",
@@ -1544,8 +1544,8 @@ function handleSocketConnection(socket) {
             reported_name: lastUserReportLog.reported_name,
           });
 
-          var socketsToDisconnect = [socket];
-          var reportedSocket = getActiveSocket(reported.socketId);
+          const socketsToDisconnect = [socket];
+          const reportedSocket = getActiveSocket(reported.socketId);
           if (reportedSocket && reportedSocket !== socket) {
             socketsToDisconnect.push(reportedSocket);
           }
