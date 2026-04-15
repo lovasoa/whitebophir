@@ -230,7 +230,10 @@ function normalizeBroadcastData(message, data) {
           type: data?.type,
           reason: reason,
         });
-        metrics.recordBoardMessage(data || {}, "invalid_message");
+        metrics.recordBoardMessage(
+          Object.assign({ board: getBoardName(message) }, data || {}),
+          "invalid_message",
+        );
         return { ok: false, reason: reason };
       },
     );
