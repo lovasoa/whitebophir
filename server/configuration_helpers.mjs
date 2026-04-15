@@ -40,7 +40,7 @@ export function parseRateLimitProfileEnv(name, defaultValue) {
     return {
       limit: defaultValue.limit,
       periodMs: defaultValue.periodMs,
-      overrides: Object.assign({}, defaultValue.overrides || {}),
+      overrides: { ...(defaultValue.overrides || {}) },
     };
   }
 

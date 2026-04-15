@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import handlebars from "handlebars";
 import packageJson from "../package.json" with { type: "json" };
 
@@ -13,7 +14,7 @@ import serverConfig from "./configuration.mjs";
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
 
-const __dirname = path.join(process.cwd(), "server");
+const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Associations from language to translation dictionnaries
@@ -21,7 +22,7 @@ const __dirname = path.join(process.cwd(), "server");
  * @type {TranslationMap}
  */
 const TRANSLATIONS = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "translations.json"), "utf8"),
+  fs.readFileSync(path.join(SERVER_DIR, "translations.json"), "utf8"),
 );
 const languages = Object.keys(TRANSLATIONS);
 
@@ -176,18 +177,16 @@ class Template {
     const baseUrl = findBaseUrl(request) + (prefix ? `/${prefix}/` : "");
     const moderator = isModerator;
     const version = packageJson.version;
-    return Object.assign(
-      {
-        baseUrl,
-        languages,
-        language,
-        translations,
-        configuration,
-        moderator,
-        version,
-      },
-      extraParams,
-    );
+    return {
+      baseUrl,
+      languages,
+      language,
+      translations,
+      configuration,
+      moderator,
+      version,
+      ...extraParams,
+    };
   }
 
   /**

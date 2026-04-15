@@ -65,7 +65,7 @@ function isPlainObject(value) {
  * @returns {FieldSpec}
  */
 function required(normalize, options) {
-  return Object.assign({ normalize: normalize, required: true }, options);
+  return { normalize, required: true, ...options };
 }
 
 /**
@@ -74,7 +74,7 @@ function required(normalize, options) {
  * @returns {FieldSpec}
  */
 function optional(normalize, options) {
-  return Object.assign({ normalize: normalize, required: false }, options);
+  return { normalize, required: false, ...options };
 }
 
 /**

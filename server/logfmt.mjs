@@ -61,7 +61,7 @@ function formatLogfmtValue(value) {
  */
 function formatCanonicalLogLine(fields) {
   /** @type {{[key: string]: unknown}} */
-  const normalized = Object.assign({}, fields);
+  const normalized = { ...fields };
   normalized.ts =
     normalized.ts instanceof Date
       ? normalized.ts.toISOString()
@@ -129,8 +129,8 @@ function styleTerminalLogLine(line, level) {
 }
 
 export {
-  DEFAULT_SERVICE_NAME,
   colorizeLevelInLogLine,
+  DEFAULT_SERVICE_NAME,
   dimLogLineKeys,
   flattenError,
   formatCanonicalLogLine,
