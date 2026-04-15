@@ -1,16 +1,18 @@
-const fs = require("node:fs");
-const fsp = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
-const { performance } = require("node:perf_hooks");
+import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
+import { performance } from "node:perf_hooks";
+
+import { BoardData } from "../server/boardData.mjs";
+import { readConfiguration } from "../server/configuration.mjs";
+import { renderBoardToSVG } from "../server/createSVG.mjs";
 
 const historyDir = fs.mkdtempSync(path.join(os.tmpdir(), "wbo-server-bench-"));
 process.env.WBO_HISTORY_DIR = historyDir;
 process.env.WBO_SILENT = process.env.WBO_SILENT || "true";
 
-const { BoardData } = require("../server/boardData.mjs");
-const config = require("../server/configuration.mjs").readConfiguration();
-const { renderBoardToSVG } = require("../server/createSVG.mjs");
+const config = readConfiguration();
 
 const DEFAULT_COLOR = "#1f2937";
 const WARMUP_COUNT = 1;

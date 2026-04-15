@@ -8,7 +8,7 @@ const repoRoot = path.resolve(
   "..",
 );
 const profileDir = path.join(repoRoot, ".profiles");
-const benchmarkScript = path.join(repoRoot, "scripts/benchmark-server.js");
+const benchmarkScript = path.join(repoRoot, "scripts/benchmark-server.mjs");
 const profileFiles = [
   "benchmark-server.cpuprofile",
   "benchmark-server.heapprofile",
