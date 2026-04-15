@@ -9,7 +9,7 @@ const biomeBin = path.join(
   process.platform === "win32" ? "biome.cmd" : "biome",
 );
 
-function getStagedFiles() {
+const getStagedFiles = () => {
   const output = execFileSync(
     "git",
     ["diff", "--cached", "--name-only", "--diff-filter=ACMR"],
@@ -20,7 +20,7 @@ function getStagedFiles() {
     .map((file) => file.trim())
     .filter(Boolean)
     .filter((file) => !file.startsWith(".githooks/"));
-}
+};
 
 const files = getStagedFiles();
 if (files.length === 0) {
@@ -35,6 +35,7 @@ execFileSync(
     "--unsafe",
     "--assist-enabled=false",
     "--files-ignore-unknown=true",
+    "--no-errors-on-unmatched",
     ...files,
   ],
   {
