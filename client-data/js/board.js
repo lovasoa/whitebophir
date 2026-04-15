@@ -133,6 +133,18 @@ Tools.i18n = (function i18n() {
 Tools.server_config = /** @type {ServerConfig} */ (
   BoardBootstrap.parseEmbeddedJson("configuration", {})
 );
+Tools.assetVersion = document.documentElement.dataset.version || "";
+
+/**
+ * @param {string} assetPath
+ * @returns {string}
+ */
+Tools.versionAssetPath = function versionAssetPath(assetPath) {
+  if (!Tools.assetVersion) return assetPath;
+  const separator = assetPath.includes("?") ? "&" : "?";
+  return `${assetPath}${separator}v=${encodeURIComponent(Tools.assetVersion)}`;
+};
+
 Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
 Tools.turnstileValidatedUntil = 0;
 Tools.turnstileWidgetId = null;
@@ -1729,7 +1741,7 @@ Tools.HTML = /** @type {ToolPalette} */ ({
   addStylesheet: function addStylesheet(href) {
     //Adds a css stylesheet to the html or svg document
     const link = document.createElement("link");
-    link.href = href;
+    link.href = Tools.versionAssetPath(href);
     link.rel = "stylesheet";
     link.type = "text/css";
     document.head.appendChild(link);

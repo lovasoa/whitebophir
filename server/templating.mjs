@@ -1,10 +1,10 @@
-import { createRequire } from "node:module";
-
-import handlebars from "handlebars";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
+import handlebars from "handlebars";
 
 import client_config from "./client_configuration.mjs";
+import serverConfig from "./configuration.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
@@ -214,13 +214,20 @@ class Template {
     const headers = {
       "Content-Length": Buffer.byteLength(body),
       "Content-Type": "text/html",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": this.cacheControl(),
     };
     if (!parsedUrl.searchParams.get("lang")) {
       headers.Vary = "Accept-Language";
     }
     response.writeHead(200, headers);
     response.end(body);
+  }
+
+  /**
+   * @returns {string}
+   */
+  cacheControl() {
+    return serverConfig.IS_DEVELOPMENT ? "no-store" : "public, max-age=3600";
   }
 }
 
@@ -247,6 +254,13 @@ class BoardTemplate extends Template {
       parsedUrl.searchParams.get("hideMenu") === "true" || false;
     return params;
   }
+
+  /**
+   * @returns {string}
+   */
+  cacheControl() {
+    return "no-store";
+  }
 }
 
-export { Template, BoardTemplate };
+export { BoardTemplate, Template };

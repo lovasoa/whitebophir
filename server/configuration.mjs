@@ -1,14 +1,15 @@
 import path from "node:path";
 
+import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import {
   parseIntegerEnv,
   parseRateLimitProfileEnv,
 } from "./configuration_helpers.mjs";
-import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 
 const appRoot = process.cwd();
 
 export function readConfiguration() {
+  const isDevelopment = process.env.NODE_ENV !== "production";
   const ipSource = (process.env.WBO_IP_SOURCE || "remoteAddress").trim();
   const trustProxyHops = parseIntegerEnv("WBO_TRUST_PROXY_HOPS", 0);
 
@@ -65,6 +66,9 @@ export function readConfiguration() {
   );
 
   return {
+    /** True when the app is running outside production. */
+    IS_DEVELOPMENT: isDevelopment,
+
     /** Port on which the application will listen */
     PORT: parseIntegerEnv("PORT", 8080),
 

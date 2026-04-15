@@ -3,12 +3,6 @@ import * as fs from "node:fs";
 import { createServer } from "node:http";
 import * as path from "node:path";
 
-import { BoardData } from "./boardData.mjs";
-import check_output_directory from "./check_output_directory.mjs";
-import { readConfiguration } from "./configuration.mjs";
-import * as createSVG from "./createSVG.mjs";
-import * as jwtauth from "./jwtauth.mjs";
-import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import {
   ATTR_CLIENT_ADDRESS,
   ATTR_HTTP_REQUEST_METHOD,
@@ -19,10 +13,16 @@ import {
   ATTR_URL_PATH,
   ATTR_URL_SCHEME,
 } from "@opentelemetry/semantic-conventions";
-import * as templating from "./templating.mjs";
-import observability from "./observability.mjs";
-
 import serveStatic from "serve-static";
+
+import { BoardData } from "./boardData.mjs";
+import check_output_directory from "./check_output_directory.mjs";
+import { readConfiguration } from "./configuration.mjs";
+import * as createSVG from "./createSVG.mjs";
+import * as jwtauth from "./jwtauth.mjs";
+import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
+import observability from "./observability.mjs";
+import * as templating from "./templating.mjs";
 
 const { createRequestId, logger, metrics, tracing } = observability;
 const config = readConfiguration();
@@ -59,11 +59,22 @@ void (async function startServer() {
 const CSP =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
 
+/**
+ * @param {string} cacheValue
+ * @returns {string}
+ */
+function cacheControl(cacheValue) {
+  return config.IS_DEVELOPMENT ? "no-store" : cacheValue;
+}
+
 const fileserver = serveStatic(config.WEBROOT, {
-  maxAge: 2 * 3600 * 1000,
+  maxAge: config.IS_DEVELOPMENT ? 0 : 2 * 3600 * 1000,
   /** @param {HttpResponse} res */
   setHeaders: (res) => {
     res.setHeader("Content-Security-Policy", CSP);
+    if (config.IS_DEVELOPMENT) {
+      res.setHeader("Cache-Control", "no-store");
+    }
   },
 });
 
@@ -640,7 +651,7 @@ function handleRequest(request, response, requestContext) {
           response.writeHead(200, {
             "Content-Type": "image/svg+xml",
             "Content-Security-Policy": CSP,
-            "Cache-Control": "public, max-age=30",
+            "Cache-Control": cacheControl("public, max-age=30"),
           });
           response.end(svg);
         })
