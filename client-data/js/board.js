@@ -357,7 +357,7 @@ Tools.getBoardStatusView = function getBoardStatusView() {
     return {
       hidden: false,
       state: "paused",
-      title: Tools.i18n.t("Edits paused"),
+      title: Tools.i18n.t("slow_down_briefly"),
       detail: Tools.rateLimitNoticeMessage,
     };
   }
@@ -373,15 +373,15 @@ Tools.getBoardStatusView = function getBoardStatusView() {
     return {
       hidden: false,
       state: "reconnecting",
-      title: Tools.i18n.t("Reconnecting…"),
-      detail: Tools.i18n.t("Loading latest board state"),
+      title: Tools.i18n.t("loading"),
+      detail: "",
     };
   }
   if (Tools.bufferedWrites.length > 0) {
     return {
       hidden: false,
       state: "buffering",
-      title: Tools.i18n.t("Syncing…"),
+      title: Tools.i18n.t("loading"),
       detail: "",
     };
   }
