@@ -1,22 +1,26 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
-const {
-  colorizeLevelInLogLine,
-  dimLogLineKeys,
-  flattenError,
-  formatCanonicalLogLine,
-  formatLogfmtValue,
-  styleTerminalLogLine,
-} = require("../server/logfmt.js");
+const LOGFMT_MODULE_URL = pathToFileURL(
+  path.join(__dirname, "..", "server", "logfmt.mjs"),
+).href;
+let loadSequence = 0;
 
-test("formatLogfmtValue quotes whitespace and escapes quotes", () => {
+async function loadLogfmt() {
+  return import(`${LOGFMT_MODULE_URL}?cache-bust=${++loadSequence}`);
+}
+
+test("formatLogfmtValue quotes whitespace and escapes quotes", async () => {
+  const { formatLogfmtValue } = await loadLogfmt();
   assert.equal(formatLogfmtValue("plain"), "plain");
   assert.equal(formatLogfmtValue("two words"), '"two words"');
   assert.equal(formatLogfmtValue('say "hi"'), '"say \\"hi\\""');
 });
 
-test("flattenError extracts stable error fields", () => {
+test("flattenError extracts stable error fields", async () => {
+  const { flattenError } = await loadLogfmt();
   const error = new TypeError("boom");
   const flattened = flattenError(error);
 
@@ -25,7 +29,8 @@ test("flattenError extracts stable error fields", () => {
   assert.match(flattened["exception.stacktrace"] || "", /TypeError: boom/);
 });
 
-test("formatCanonicalLogLine emits the canonical envelope first", () => {
+test("formatCanonicalLogLine emits the canonical envelope first", async () => {
+  const { formatCanonicalLogLine } = await loadLogfmt();
   const line = formatCanonicalLogLine({
     ts: "2026-04-14T12:00:00.000Z",
     level: "info",
@@ -39,7 +44,8 @@ test("formatCanonicalLogLine emits the canonical envelope first", () => {
   );
 });
 
-test("colorizeLevelInLogLine colors only the level value", () => {
+test("colorizeLevelInLogLine colors only the level value", async () => {
+  const { colorizeLevelInLogLine } = await loadLogfmt();
   assert.equal(
     colorizeLevelInLogLine(
       "ts=2026-04-14T12:00:00.000Z level=warn event=board.joined",
@@ -56,7 +62,8 @@ test("colorizeLevelInLogLine colors only the level value", () => {
   );
 });
 
-test("dimLogLineKeys dims only the keys", () => {
+test("dimLogLineKeys dims only the keys", async () => {
+  const { dimLogLineKeys } = await loadLogfmt();
   assert.equal(
     dimLogLineKeys(
       "ts=2026-04-14T12:00:00.000Z level=warn event=board.joined board=demo",
@@ -65,7 +72,8 @@ test("dimLogLineKeys dims only the keys", () => {
   );
 });
 
-test("styleTerminalLogLine combines dim keys with colored level values", () => {
+test("styleTerminalLogLine combines dim keys with colored level values", async () => {
+  const { styleTerminalLogLine } = await loadLogfmt();
   assert.equal(
     styleTerminalLogLine(
       "ts=2026-04-14T12:00:00.000Z level=warn event=board.joined board=demo",
