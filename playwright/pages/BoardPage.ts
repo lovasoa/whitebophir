@@ -148,6 +148,23 @@ export class BoardPage {
       .toBe(true);
   }
 
+  async waitForBoardWritable() {
+    await expect
+      .poll(() =>
+        this.page.evaluate(() => {
+          const tools = (window as any).Tools;
+          return !!(
+            tools &&
+            tools.connectionState === "connected" &&
+            tools.awaitingBoardSnapshot === false &&
+            typeof tools.isWritePaused === "function" &&
+            !tools.isWritePaused()
+          );
+        }),
+      )
+      .toBe(true);
+  }
+
   async waitForBroadcastColor(color: string) {
     await expect
       .poll(() =>
@@ -225,6 +242,7 @@ export class BoardPage {
   }
 
   async drawPencilPaths(paths: PencilPath[]) {
+    await this.waitForBoardWritable();
     await this.page.evaluate(async (inputPaths) => {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -283,6 +301,7 @@ export class BoardPage {
   }
 
   async drawCircle(color: string, center: Point, radius: number) {
+    await this.waitForBoardWritable();
     await this.page.evaluate(
       async ({ drawColor, drawCenter, drawRadius }) => {
         const waitFor = async (predicate: () => boolean, timeoutMs = 2_000) => {
@@ -327,6 +346,7 @@ export class BoardPage {
   }
 
   async createText(x: number, y: number, text: string) {
+    await this.waitForBoardWritable();
     await this.page.evaluate(
       async ({ targetX, targetY, targetText }) => {
         const waitFor = async (predicate: () => boolean, timeoutMs = 2_000) => {
@@ -361,6 +381,7 @@ export class BoardPage {
   }
 
   async drawStraightLine(start: Point, end: Point) {
+    await this.waitForBoardWritable();
     return this.page.evaluate(
       async ({ lineStart, lineEnd }) => {
         const advanceFrames = async (count: number) => {
@@ -415,6 +436,7 @@ export class BoardPage {
   }
 
   async drawSquare(start: Point, end: Point) {
+    await this.waitForBoardWritable();
     return this.page.evaluate(
       async ({ squareStart, squareEnd }) => {
         const waitFor = async <T>(
@@ -466,6 +488,7 @@ export class BoardPage {
   }
 
   async eraseShapeById(id: string) {
+    await this.waitForBoardWritable();
     return this.page.evaluate(async (targetId) => {
       const waitFor = async (predicate: () => boolean, timeoutMs = 2_000) => {
         const deadline = performance.now() + timeoutMs;
@@ -491,6 +514,7 @@ export class BoardPage {
   }
 
   async moveCursor(color: string, x: number, y: number) {
+    await this.waitForBoardWritable();
     await this.page.evaluate(
       async ({ cursorColor, cursorX, cursorY }) => {
         const tools = (window as any).Tools;
@@ -508,6 +532,7 @@ export class BoardPage {
   }
 
   async moveSelection(id: string, from: Point, to: Point) {
+    await this.waitForBoardWritable();
     return this.page.evaluate(
       async ({ targetId, fromPoint, toPoint }) => {
         const readTranslation = (rect: Element) => {
@@ -692,6 +717,7 @@ export class BoardPage {
   }
 
   async duplicateSelectionAndDelete(id: string) {
+    await this.waitForBoardWritable();
     return this.page.evaluate(async (targetId) => {
       const rectState = () =>
         Array.from(document.querySelectorAll("#drawingArea rect")).map(
@@ -737,6 +763,7 @@ export class BoardPage {
   }
 
   async emitBroadcast(message: Record<string, unknown>) {
+    await this.waitForBoardWritable();
     await this.page.evaluate((data) => {
       (window as any).Tools.socket.emit("broadcast", {
         board: (window as any).Tools.boardName,
@@ -746,6 +773,7 @@ export class BoardPage {
   }
 
   async drawRectangle(color: string, start: Point, end: Point, size = 11) {
+    await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ drawColor, drawStart, drawEnd, drawSize }) => {
         (window as any).Tools.setColor(drawColor);
@@ -875,6 +903,7 @@ export class BoardPage {
   }
 
   async queueProtectedRectangle(id: string) {
+    await this.waitForBoardWritable();
     return this.page.evaluate(async (rectId) => {
       const waitFor = async <T>(
         predicate: () => T | null,
