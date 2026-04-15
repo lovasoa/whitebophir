@@ -1,8 +1,8 @@
-import observability from "./observability.mjs";
-import { readConfiguration } from "./configuration.mjs";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
-import { normalizeIncomingMessage } from "./message_validation.mjs";
+import { readConfiguration } from "./configuration.mjs";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
+import { normalizeIncomingMessage } from "./message_validation.mjs";
+import observability from "./observability.mjs";
 
 const { logger, metrics, tracing } = observability;
 
@@ -237,7 +237,7 @@ function normalizeBroadcastData(message, data) {
           reason: reason,
         });
         metrics.recordBoardMessage(
-          Object.assign({ board: getBoardName(message) }, data || {}),
+          { board: getBoardName(message), ...(data || {}) },
           "invalid_message",
         );
         return { ok: false, reason: reason };
