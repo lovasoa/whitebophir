@@ -55,28 +55,28 @@ export function registerHandTool(Tools) {
   /** @typedef {{ matches(selector: string): boolean }} MatchableTarget */
   /** @typedef {{ name: string, icon: string, active: boolean, switch?: () => void }} ToolSecondaryMode */
   /** @typedef {{ name: string, shortcut?: string, listeners: { press: typeof press, move: typeof move, release: typeof release }, onquit?: () => void, onSocketDisconnect?: () => void, secondary: ToolSecondaryMode | null, draw: typeof draw, icon: string, mouseCursor: string, showMarker: boolean }} HandTool */
-  var selectorStates = {
+  const selectorStates = {
     pointing: 0,
     selecting: 1,
     transform: 2,
   };
   /** @type {SelectionState} */
-  var selected = null;
+  let selected = null;
   /** @type {SelectableElement[]} */
-  var selected_els = [];
-  var selectionRect = createSelectorRect();
+  let selected_els = [];
+  let selectionRect = createSelectorRect();
   /** @type {SelectionRectTransformState} */
-  var selectionRectTransform;
+  let selectionRectTransform;
   /** @type {TransformHandler | null} */
-  var currentTransform = null;
+  let currentTransform = null;
   /** @type {MatrixState[]} */
-  var transform_elements = [];
-  var selectorState = selectorStates.pointing;
-  var last_sent = 0;
-  var blockedSelectionButtons =
+  let transform_elements = [];
+  let selectorState = selectorStates.pointing;
+  let last_sent = 0;
+  const blockedSelectionButtons =
     Tools.server_config.BLOCKED_SELECTION_BUTTONS || [];
   /** @type {SelectionButton[]} */
-  var selectionButtons = [
+  const selectionButtons = [
     createButton(
       "delete",
       "delete",
@@ -130,7 +130,7 @@ export function registerHandTool(Tools) {
     if (typeof buttonIndex === "number") delete selectionButtons[buttonIndex];
   });
 
-  var getScale = Tools.getScale;
+  const getScale = Tools.getScale;
 
   /**
    * @param {EventTarget | null} target
@@ -168,11 +168,11 @@ export function registerHandTool(Tools) {
    */
   function getParentMathematics(el) {
     if (!isSelectableElement(el)) return null;
-    var target;
+    let target;
     /** @type {SelectableElement | null} */
-    var a = el;
+    let a = el;
     /** @type {SelectableElement[]} */
-    var els = [];
+    const els = [];
     while (a) {
       els.unshift(a);
       /** @type {EventTarget | null} */
@@ -182,7 +182,7 @@ export function registerHandTool(Tools) {
           ? parentElement
           : null;
     }
-    var parentMathematics = els.find(
+    const parentMathematics = els.find(
       (el) => el.getAttribute("class") === "MathElement",
     );
     if (parentMathematics && parentMathematics.tagName === "svg") {
@@ -193,12 +193,12 @@ export function registerHandTool(Tools) {
 
   function deleteSelection() {
     /** @type {HandDeleteMessage[]} */
-    var msgs = selected_els.map((el) => ({
+    const msgs = selected_els.map((el) => ({
       type: "delete",
       id: el.id,
     }));
     /** @type {HandBatchMessage} */
-    var data = {
+    const data = {
       _children: msgs,
     };
     Tools.drawAndSend(data);
@@ -213,7 +213,7 @@ export function registerHandTool(Tools) {
     )
       return;
     /** @type {HandCopyMessage[]} */
-    var msgs = [];
+    const msgs = [];
     for (let i = 0; i < selected_els.length; i++) {
       const selectedElement = selected_els[i];
       if (!selectedElement) continue;
@@ -230,7 +230,9 @@ export function registerHandTool(Tools) {
 
   /** @returns {SVGRectElement} */
   function createSelectorRect() {
-    var shape = /** @type {SVGRectElement} */ (Tools.createSVGElement("rect"));
+    const shape = /** @type {SVGRectElement} */ (
+      Tools.createSVGElement("rect")
+    );
     shape.id = "selectionRect";
     shape.x.baseVal.value = 0;
     shape.y.baseVal.value = 0;
@@ -263,7 +265,7 @@ export function registerHandTool(Tools) {
     drawCallback,
     clickCallback,
   ) {
-    var shape = Tools.createSVGElement("image", {
+    const shape = Tools.createSVGElement("image", {
       href: `tools/hand/${icon}.svg`,
       width: width,
       height: height,
@@ -278,8 +280,8 @@ export function registerHandTool(Tools) {
   }
 
   function showSelectionButtons() {
-    var scale = getScale();
-    var selectionBBox = selectionRect.transformedBBox();
+    const scale = getScale();
+    const selectionBBox = selectionRect.transformedBBox();
     for (let i = 0; i < selectionButtons.length; i++) {
       const button = selectionButtons[i];
       if (button) {
@@ -315,7 +317,7 @@ export function registerHandTool(Tools) {
       (el) => Tools.svg.getElementById(el.id) !== null,
     );
     transform_elements = selected_els.map((el) => {
-      var tmatrix = get_transform_matrix(el);
+      const tmatrix = get_transform_matrix(el);
       return {
         a: tmatrix.a,
         b: tmatrix.b,
@@ -325,7 +327,7 @@ export function registerHandTool(Tools) {
         f: tmatrix.f,
       };
     });
-    var tmatrix = get_transform_matrix(selectionRect);
+    const tmatrix = get_transform_matrix(selectionRect);
     selectionRectTransform = { x: tmatrix.e, y: tmatrix.f };
   }
 
@@ -338,7 +340,7 @@ export function registerHandTool(Tools) {
     evt.preventDefault();
     hideSelectionButtons();
     selectorState = selectorStates.transform;
-    var bbox = selectionRect.transformedBBox();
+    const bbox = selectionRect.transformedBBox();
     selected = {
       x: bbox.r[0],
       y: bbox.r[1],
@@ -346,7 +348,7 @@ export function registerHandTool(Tools) {
       h: bbox.b[1],
     };
     transform_elements = selected_els.map((el) => {
-      var tmatrix = get_transform_matrix(el);
+      const tmatrix = get_transform_matrix(el);
       return {
         a: tmatrix.a,
         b: tmatrix.b,
@@ -356,7 +358,7 @@ export function registerHandTool(Tools) {
         f: tmatrix.f,
       };
     });
-    var tmatrix = get_transform_matrix(selectionRect);
+    const tmatrix = get_transform_matrix(selectionRect);
     selectionRectTransform = {
       a: tmatrix.a,
       d: tmatrix.d,
@@ -381,17 +383,17 @@ export function registerHandTool(Tools) {
     selectionRect.width.baseVal.value = 0;
     selectionRect.height.baseVal.value = 0;
     selectionRect.style.display = "";
-    var tmatrix = get_transform_matrix(selectionRect);
+    const tmatrix = get_transform_matrix(selectionRect);
     tmatrix.e = 0;
     tmatrix.f = 0;
   }
 
   function calculateSelection() {
-    var selectionTBBox = selectionRect.transformedBBox();
+    const selectionTBBox = selectionRect.transformedBBox();
     if (!Tools.drawingArea) return [];
-    var elements = Tools.drawingArea.children;
+    const elements = Tools.drawingArea.children;
     /** @type {SelectableElement[]} */
-    var selected = [];
+    const selected = [];
     for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
       if (!element) continue;
@@ -417,13 +419,12 @@ export function registerHandTool(Tools) {
     ) {
       return;
     }
-    var pointSelection = selected;
-    var rectTranslation = selectionRectTransform;
-    var dx = x - selected.x;
-    var dy = y - selected.y;
+    const rectTranslation = selectionRectTransform;
+    const dx = x - selected.x;
+    const dy = y - selected.y;
     /** @type {HandUpdateMessage[]} */
-    var msgs = selected_els.map((el, i) => {
-      var oldTransform = transform_elements[i];
+    const msgs = selected_els.map((el, i) => {
+      const oldTransform = transform_elements[i];
       if (!oldTransform) {
         throw new Error("Mover: Missing transform state while moving.");
       }
@@ -441,10 +442,10 @@ export function registerHandTool(Tools) {
       };
     });
     /** @type {HandBatchMessage} */
-    var msg = {
+    const msg = {
       _children: msgs,
     };
-    var tmatrix = get_transform_matrix(selectionRect);
+    const tmatrix = get_transform_matrix(selectionRect);
     tmatrix.e = dx + rectTranslation.x;
     tmatrix.f = dy + rectTranslation.y;
     dispatchTransform(msg, force);
@@ -465,25 +466,25 @@ export function registerHandTool(Tools) {
     ) {
       return;
     }
-    var scaleSelectionState = selected;
-    var rectTransform = selectionRectTransform;
-    var rx = (x - scaleSelectionState.x) / scaleSelectionState.w;
-    var ry = (y - scaleSelectionState.y) / scaleSelectionState.h;
+    const scaleSelectionState = selected;
+    const rectTransform = selectionRectTransform;
+    const rx = (x - scaleSelectionState.x) / scaleSelectionState.w;
+    const ry = (y - scaleSelectionState.y) / scaleSelectionState.h;
     /** @type {HandUpdateMessage[]} */
-    var msgs = selected_els.map((el, i) => {
-      var oldTransform = transform_elements[i];
+    const msgs = selected_els.map((el, i) => {
+      const oldTransform = transform_elements[i];
       if (!oldTransform) {
         throw new Error("Mover: Missing transform state while scaling.");
       }
-      var x = el.transformedBBox().r[0];
-      var y = el.transformedBBox().r[1];
-      var a = oldTransform.a * rx;
-      var d = oldTransform.d * ry;
-      var e =
+      const x = el.transformedBBox().r[0];
+      const y = el.transformedBBox().r[1];
+      const a = oldTransform.a * rx;
+      const d = oldTransform.d * ry;
+      const e =
         scaleSelectionState.x * (1 - rx) -
         x * a +
         (x * oldTransform.a + oldTransform.e) * rx;
-      var f =
+      const f =
         scaleSelectionState.y * (1 - ry) -
         y * d +
         (y * oldTransform.d + oldTransform.f) * ry;
@@ -501,11 +502,11 @@ export function registerHandTool(Tools) {
       };
     });
     /** @type {HandBatchMessage} */
-    var msg = {
+    const msg = {
       _children: msgs,
     };
 
-    var tmatrix = get_transform_matrix(selectionRect);
+    const tmatrix = get_transform_matrix(selectionRect);
     tmatrix.a = rx;
     tmatrix.d = ry;
     tmatrix.e =
@@ -520,7 +521,7 @@ export function registerHandTool(Tools) {
    * @param {boolean} force
    */
   function dispatchTransform(msg, force) {
-    var now = performance.now();
+    const now = performance.now();
     if (force || now - last_sent > 70) {
       last_sent = now;
       Tools.drawAndSend(msg);
@@ -543,8 +544,8 @@ export function registerHandTool(Tools) {
   }
 
   function resetSelectionRect() {
-    var bbox = selectionRect.transformedBBox();
-    var tmatrix = get_transform_matrix(selectionRect);
+    const bbox = selectionRect.transformedBBox();
+    const tmatrix = get_transform_matrix(selectionRect);
     selectionRect.x.baseVal.value = bbox.r[0];
     selectionRect.y.baseVal.value = bbox.r[1];
     selectionRect.width.baseVal.value = bbox.a[0];
@@ -563,7 +564,7 @@ export function registerHandTool(Tools) {
    */
   function get_transform_matrix(elem) {
     // Returns the first translate or transform matrix or makes one
-    var transform = null;
+    let transform = null;
     for (let i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
       const baseVal = elem.transform.baseVal[i];
       // quick tests showed that even if one changes only the fields e and f or uses createSVGTransformFromMatrix
@@ -640,7 +641,7 @@ export function registerHandTool(Tools) {
   function clickSelector(x, y, evt) {
     selectionRect = selectionRect || createSelectorRect();
     /** @type {SelectionButton | undefined} */
-    var button;
+    let button;
     for (let i = 0; i < selectionButtons.length; i++) {
       const candidate = selectionButtons[i];
       if (
@@ -814,7 +815,7 @@ export function registerHandTool(Tools) {
   }
 
   /** @type {HandTool} */
-  var handTool = {
+  const handTool = {
     //The new tool
     name: "Hand",
     shortcut: "h",

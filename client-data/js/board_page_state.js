@@ -18,9 +18,12 @@ function getRequiredElement(elementId) {
  */
 function parseEmbeddedJson(elementId, fallback) {
   const element = document.getElementById(elementId);
-  if (!element || !element.text) return fallback;
+  const text =
+    element?.textContent ??
+    /** @type {{text?: string} | null} */ (element)?.text;
+  if (!text) return fallback;
   try {
-    return /** @type {any} */ (JSON.parse(element.text));
+    return /** @type {any} */ (JSON.parse(text));
   } catch (error) {
     console.warn(`Invalid embedded JSON in #${elementId}`, error);
     return fallback;

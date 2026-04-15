@@ -40,7 +40,7 @@ export function registerPencilTool(Tools) {
    * @returns {number}
    */
   function getPositiveNumber(value, fallback) {
-    var number = Number(value);
+    const number = Number(value);
     return number > 0 ? number : fallback;
   }
 
@@ -48,7 +48,7 @@ export function registerPencilTool(Tools) {
    * @returns {number}
    */
   function getMinPencilIntervalMs() {
-    var generalLimit =
+    const generalLimit =
       typeof Tools.getEffectiveRateLimit === "function"
         ? Tools.getEffectiveRateLimit("general")
         : (Tools.server_config &&
@@ -67,24 +67,25 @@ export function registerPencilTool(Tools) {
   // seems to work, either because writing tends to happen in bursts, or
   // maybe because the messages are sent when the time interval is *greater*
   // than this?
-  var AUTO_FINGER_WHITEOUT = Tools.server_config.AUTO_FINGER_WHITEOUT === true;
-  var DEFAULT_MAX_PENCIL_CHILDREN =
+  const AUTO_FINGER_WHITEOUT =
+    Tools.server_config.AUTO_FINGER_WHITEOUT === true;
+  const DEFAULT_MAX_PENCIL_CHILDREN =
     typeof LIMITS === "object" &&
     LIMITS &&
     Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
       ? Number(LIMITS.DEFAULT_MAX_CHILDREN)
       : Number.POSITIVE_INFINITY;
-  var MAX_PENCIL_CHILDREN =
+  const MAX_PENCIL_CHILDREN =
     Number(Tools.server_config.MAX_CHILDREN) > 0
       ? Number(Tools.server_config.MAX_CHILDREN)
       : DEFAULT_MAX_PENCIL_CHILDREN;
-  var hasUsedStylus = false;
+  let hasUsedStylus = false;
 
   //Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
-  var curLineId = "",
-    lastTime = performance.now(); //The time at which the last point was drawn
-  var hasSentPoint = false;
-  var currentLineChildCount = 0;
+  let curLineId = "";
+  let lastTime = performance.now(); //The time at which the last point was drawn
+  let hasSentPoint = false;
+  let currentLineChildCount = 0;
 
   //The data of the message that will be sent for every new point
   /**
@@ -101,8 +102,8 @@ export function registerPencilTool(Tools) {
 
   /** @param {TouchEvent} evt */
   function handleAutoWhiteOut(evt) {
-    var touch = evt.touches && evt.touches[0];
-    var touchType =
+    const touch = evt.touches && evt.touches[0];
+    const touchType =
       touch && "touchType" in touch
         ? /** @type {{touchType?: string}} */ (touch).touchType
         : undefined;
@@ -153,7 +154,7 @@ export function registerPencilTool(Tools) {
     hasSentPoint = false;
     currentLineChildCount = 0;
 
-    var initialData = {
+    const initialData = {
       type: "line",
       id: curLineId,
       color: pencilTool.secondary.active ? "#ffffff" : Tools.getColor(),
@@ -213,10 +214,10 @@ export function registerPencilTool(Tools) {
    * @param {boolean} removeCurrentLine
    */
   function abortLine(removeCurrentLine) {
-    var lineId = curLineId;
+    const lineId = curLineId;
     stopLine();
     if (!removeCurrentLine || !lineId) return;
-    var line = getLineById(lineId);
+    const line = getLineById(lineId);
     if (!line || !Tools.drawingArea) return;
     if (line.parentNode === Tools.drawingArea) {
       Tools.drawingArea.removeChild(line);
@@ -225,7 +226,7 @@ export function registerPencilTool(Tools) {
   }
 
   /** @type {PencilLine | null} */
-  var renderingLine = null;
+  let renderingLine = null;
   /** @param {PencilMessage} data */
   function draw(data) {
     Tools.drawingEvent = true;
@@ -262,10 +263,10 @@ export function registerPencilTool(Tools) {
   }
 
   /** @type {{[lineId: string]: any[]}} */
-  var pathDataCache = {};
+  const pathDataCache = {};
   /** @param {PencilLine} line */
   function getPathData(line) {
-    var pathData = pathDataCache[line.id];
+    let pathData = pathDataCache[line.id];
     if (!pathData) {
       pathData = line.getPathData();
       pathDataCache[line.id] = pathData;
@@ -273,7 +274,7 @@ export function registerPencilTool(Tools) {
     return pathData;
   }
 
-  var svg = Tools.svg;
+  const svg = Tools.svg;
 
   /**
    * @param {string | undefined} lineId
@@ -281,7 +282,7 @@ export function registerPencilTool(Tools) {
    */
   function getLineById(lineId) {
     if (!lineId) return null;
-    var line = svg.getElementById(lineId);
+    const line = svg.getElementById(lineId);
     return line instanceof SVGPathElement
       ? /** @type {PencilLine} */ (line)
       : null;
@@ -293,8 +294,7 @@ export function registerPencilTool(Tools) {
    * @param {number} y
    */
   function addPoint(line, x, y) {
-    var pts = getPathData(line);
-    pts = wboPencilPoint(pts, x, y);
+    const pts = wboPencilPoint(getPathData(line), x, y);
     line.setPathData(pts);
   }
 
@@ -304,7 +304,7 @@ export function registerPencilTool(Tools) {
    */
   function createLine(lineData) {
     //Creates a new line on the canvas, or update a line that already exists with new information
-    var line = getLineById(lineData.id);
+    let line = getLineById(lineData.id);
     if (line) {
       // Replays can recreate an existing DOM node after reconnect; reset the path before reapplying children.
       line.setPathData([]);
@@ -328,8 +328,8 @@ export function registerPencilTool(Tools) {
   }
 
   //Remember drawing and white-out sizes separately
-  var drawingSize = -1;
-  var whiteOutSize = -1;
+  let drawingSize = -1;
+  let whiteOutSize = -1;
 
   function restoreDrawingSize() {
     whiteOutSize = Tools.getSize();
@@ -354,7 +354,7 @@ export function registerPencilTool(Tools) {
     }
   }
 
-  var pencilTool = {
+  const pencilTool = {
     name: "Pencil",
     shortcut: "p",
     listeners: {
