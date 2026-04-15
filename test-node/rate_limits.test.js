@@ -3,14 +3,18 @@ const assert = require("node:assert/strict");
 
 const {
   CONFIG_PATH,
-  SOCKETS_PATH,
   createSocket,
+  loadSockets,
   withEnv,
 } = require("./test_helpers.js");
 
-test("configuration provides sane default rate-limit ordering", function () {
-  return withEnv({ WBO_IP_SOURCE: undefined }, function () {
-    const config = require(CONFIG_PATH);
+function loadConfig() {
+  return require(CONFIG_PATH).readConfiguration();
+}
+
+test("configuration provides sane default rate-limit ordering", () =>
+  withEnv({ WBO_IP_SOURCE: undefined }, () => {
+    const config = loadConfig();
 
     assert.equal(config.IP_SOURCE, "remoteAddress");
     assert.equal(config.TRUST_PROXY_HOPS, 0);
@@ -46,33 +50,31 @@ test("configuration provides sane default rate-limit ordering", function () {
       constructiveRate > destructiveRate,
       "Constructive rate should be higher than destructive rate",
     );
-  });
-});
+  }));
 
-test("configuration rejects trust proxy hops with incompatible ip sources", function () {
-  return assert.rejects(
+test("configuration rejects trust proxy hops with incompatible ip sources", () =>
+  assert.rejects(
     withEnv(
       {
         WBO_IP_SOURCE: "CF-Connecting-IP",
         WBO_TRUST_PROXY_HOPS: "1",
       },
-      function () {
-        require(CONFIG_PATH);
+      () => {
+        loadConfig();
       },
     ),
     /WBO_TRUST_PROXY_HOPS requires WBO_IP_SOURCE to be X-Forwarded-For or Forwarded/,
-  );
-});
+  ));
 
-test("configuration parses compact rate-limit profiles", function () {
-  return withEnv(
+test("configuration parses compact rate-limit profiles", () =>
+  withEnv(
     {
       WBO_MAX_EMIT_COUNT: "*:300/6s anonymous:150/6s",
       WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:240/60s anonymous:120/60s",
       WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:180/2m anonymous:90/45s",
     },
-    function () {
-      const config = require(CONFIG_PATH);
+    () => {
+      const config = loadConfig();
 
       assert.deepEqual(config.GENERAL_RATE_LIMITS, {
         limit: 300,
@@ -105,17 +107,16 @@ test("configuration parses compact rate-limit profiles", function () {
         },
       });
     },
-  );
-});
+  ));
 
-test("compact rate-limit profiles do not invent board overrides", function () {
-  return withEnv(
+test("compact rate-limit profiles do not invent board overrides", () =>
+  withEnv(
     {
       WBO_MAX_EMIT_COUNT: "*:300/6s",
       WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:240/60s",
     },
-    function () {
-      const config = require(CONFIG_PATH);
+    () => {
+      const config = loadConfig();
       assert.deepEqual(config.GENERAL_RATE_LIMITS, {
         limit: 300,
         periodMs: 6_000,
@@ -127,17 +128,16 @@ test("compact rate-limit profiles do not invent board overrides", function () {
         overrides: {},
       });
     },
-  );
-});
+  ));
 
-test("general rate limit closes the socket when exceeded", async function () {
+test("general rate limit closes the socket when exceeded", async () => {
   await withEnv(
     {
       WBO_IP_SOURCE: "remoteAddress",
       WBO_MAX_EMIT_COUNT: "*:0/4096ms",
     },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.10",
@@ -155,15 +155,15 @@ test("general rate limit closes the socket when exceeded", async function () {
   );
 });
 
-test("destructive per-IP rate limit closes the socket when exceeded", async function () {
+test("destructive per-IP rate limit closes the socket when exceeded", async () => {
   await withEnv(
     {
       WBO_IP_SOURCE: "remoteAddress",
       WBO_MAX_EMIT_COUNT: "*:10/4096ms",
       WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:0/10s",
     },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
@@ -193,15 +193,15 @@ test("destructive per-IP rate limit closes the socket when exceeded", async func
   );
 });
 
-test("constructive per-IP rate limit closes the socket when exceeded", async function () {
+test("constructive per-IP rate limit closes the socket when exceeded", async () => {
   await withEnv(
     {
       WBO_IP_SOURCE: "remoteAddress",
       WBO_MAX_EMIT_COUNT: "*:10/4096ms",
       WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:0/10s",
     },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
@@ -237,15 +237,15 @@ test("constructive per-IP rate limit closes the socket when exceeded", async fun
   );
 });
 
-test("missing configured IP source falls back without disconnecting", async function () {
+test("missing configured IP source falls back without disconnecting", async () => {
   await withEnv(
     {
       WBO_IP_SOURCE: "X-Forwarded-For",
       WBO_MAX_EMIT_COUNT: "*:10/5s",
       WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:10/60s anonymous:5/60s",
     },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       const { socket, handlers } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.12",

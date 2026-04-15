@@ -24,18 +24,26 @@
  * @licend
  */
 
-(function download() {
-  //Code isolation
+/** @typedef {{svg: SVGSVGElement | null, boardName: string, add: (tool: unknown) => void}} DownloadToolRegistry */
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+
+export default class DownloadTool {
+  static toolName = "Download";
 
   /** @returns {void} */
-  function downloadSVGFile() {
-    var canvasCopy = /** @type {SVGSVGElement} */ (Tools.svg.cloneNode(true));
+  downloadSVGFile() {
+    if (!this.tools.svg) {
+      throw new Error("Download: Missing SVG canvas.");
+    }
+    const canvasCopy = /** @type {SVGSVGElement} */ (
+      this.tools.svg.cloneNode(true)
+    );
     canvasCopy.removeAttribute("style"); // Remove css transform
-    var styleNode = document.createElement("style");
+    const styleNode = document.createElement("style");
 
     // Copy the stylesheets from the whiteboard to the exported SVG
     styleNode.innerHTML = Array.from(document.styleSheets)
-      .filter(function (stylesheet) {
+      .filter((stylesheet) => {
         if (
           stylesheet.href &&
           (stylesheet.href.match(/boards\/tools\/.*\.css/) ||
@@ -47,18 +55,16 @@
         // Not a stylesheet of the tool, so we can ignore it for export
         return false;
       })
-      .map(function (stylesheet) {
-        return Array.from(stylesheet.cssRules).map(function (rule) {
-          return rule.cssText;
-        });
-      })
+      .map((stylesheet) =>
+        Array.from(stylesheet.cssRules).map((rule) => rule.cssText),
+      )
       .join("\n");
 
     canvasCopy.appendChild(styleNode);
-    var outerHTML =
+    const outerHTML =
       canvasCopy.outerHTML || new XMLSerializer().serializeToString(canvasCopy);
-    var blob = new Blob([outerHTML], { type: "image/svg+xml;charset=utf-8" });
-    downloadContent(blob, Tools.boardName + ".svg");
+    const blob = new Blob([outerHTML], { type: "image/svg+xml;charset=utf-8" });
+    this.downloadContent(blob, `${this.tools.boardName}.svg`);
   }
 
   /**
@@ -66,14 +72,14 @@
    * @param {string} filename
    * @returns {void}
    */
-  function downloadContent(blob, filename) {
-    var msSaveBlob = window.navigator.msSaveBlob;
+  downloadContent(blob, filename) {
+    const msSaveBlob = window.navigator.msSaveBlob;
     if (typeof msSaveBlob === "function") {
       // Internet Explorer
       msSaveBlob.call(window.navigator, blob, filename);
     } else {
-      var url = URL.createObjectURL(blob);
-      var element = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      const element = document.createElement("a");
       element.setAttribute("href", url);
       element.setAttribute("download", filename);
       element.style.display = "none";
@@ -84,14 +90,27 @@
     }
   }
 
-  Tools.add({
-    //The new tool
-    name: "Download",
-    shortcut: "d",
-    listeners: {},
-    icon: "tools/download/download.svg",
-    oneTouch: true,
-    onstart: downloadSVGFile,
-    mouseCursor: "crosshair",
-  });
-})(); //End of code isolation
+  /**
+   * @param {DownloadToolRegistry} tools
+   */
+  constructor(tools) {
+    this.tools = tools;
+    this.name = "Download";
+    this.shortcut = "d";
+    this.icon = "tools/download/download.svg";
+    this.oneTouch = true;
+    this.mouseCursor = "crosshair";
+  }
+
+  onstart() {
+    this.downloadSVGFile();
+  }
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<DownloadTool>}
+   */
+  static async boot(ctx) {
+    return new DownloadTool(ctx.runtime.Tools);
+  }
+}

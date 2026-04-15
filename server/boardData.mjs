@@ -25,17 +25,23 @@
  * @module boardData
  */
 
-var nativeFs = require("node:fs"),
-  { readFile, rename, unlink, writeFile } = require("node:fs/promises"),
-  { logger, metrics, tracing } = require("./observability.js"),
-  MessageToolMetadata = require("../client-data/js/message_tool_metadata.js"),
-  {
-    normalizeStoredChildPoint,
-    normalizeStoredItemWithBounds,
-  } = require("./message_validation.js"),
-  MessageCommon = require("../client-data/js/message_common.js"),
-  path = require("node:path"),
-  config = require("./configuration.js");
+import nativeFs from "node:fs";
+import { readFile, rename, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
+import MessageCommon from "../client-data/js/message_common.js";
+import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
+import { readConfiguration } from "./configuration.mjs";
+import {
+  normalizeStoredChildPoint,
+  normalizeStoredItemWithBounds,
+} from "./message_validation.mjs";
+import observability from "./observability.mjs";
+
+const { logger, metrics, tracing } = observability;
+
+function getConfig() {
+  return readConfiguration();
+}
 
 class SerialTaskQueue {
   constructor() {
@@ -65,7 +71,7 @@ const BOARD_METADATA_KEY = "__wbo_meta__";
 /** @typedef {{ok: true}} ValidationSuccess */
 /** @typedef {ValidationSuccess | ValidationFailure} BoardMutationResult */
 /** @typedef {{ok: true, value: BoardElem, localBounds: Bounds | null}} ValidatedStoredCandidate */
-/** @typedef {import("../types/app-runtime").BoardMessage} BoardMessage */
+/** @typedef {import("../types/app-runtime.d.ts").BoardMessage} BoardMessage */
 
 /** @returns {BoardMetadata} */
 function defaultBoardMetadata() {
@@ -89,9 +95,10 @@ function normalizeBoardMetadata(metadata) {
  * @returns {string}
  */
 function boardFilePath(name) {
+  const config = getConfig();
   return path.join(
     config.HISTORY_DIR,
-    "board-" + encodeURIComponent(name) + ".json",
+    `board-${encodeURIComponent(name)}.json`,
   );
 }
 
@@ -109,8 +116,8 @@ function parseStoredBoard(storedBoard) {
   }
 
   /** @type {{[name: string]: BoardElem}} */
-  var board = {};
-  var metadata = defaultBoardMetadata();
+  const board = {};
+  let metadata = defaultBoardMetadata();
 
   for (const [key, value] of Object.entries(storedBoard)) {
     if (key === BOARD_METADATA_KEY) {
@@ -129,8 +136,8 @@ function parseStoredBoard(storedBoard) {
  * @returns {{[name: string]: BoardElem | BoardMetadata}}
  */
 function serializeStoredBoard(board, metadata) {
-  var storedBoard = Object.assign({}, board);
-  if (metadata && metadata.readonly) {
+  const storedBoard = { ...board };
+  if (metadata?.readonly) {
     storedBoard[BOARD_METADATA_KEY] = { readonly: true };
   }
   return storedBoard;
@@ -143,13 +150,11 @@ function serializeStoredBoard(board, metadata) {
  * @returns {{[key: string]: unknown}}
  */
 function boardTraceAttributes(boardName, operation, extras) {
-  return Object.assign(
-    {
-      "wbo.board": boardName,
-      "wbo.board.operation": operation,
-    },
-    extras,
-  );
+  return {
+    "wbo.board": boardName,
+    "wbo.board.operation": operation,
+    ...extras,
+  };
 }
 
 /**
@@ -272,7 +277,7 @@ class BoardData {
   isCandidateTooLarge(candidate, localBounds) {
     const effectiveBounds = MessageCommon.applyTransformToBounds(
       localBounds,
-      candidate && candidate.transform,
+      candidate?.transform,
     );
     return MessageCommon.isBoundsTooLarge(effectiveBounds);
   }
@@ -337,7 +342,7 @@ class BoardData {
   makeUpdateCandidate(id, base, updateData) {
     if (typeof base !== "object") return null;
 
-    const candidate = Object.assign({}, base, updateData);
+    const candidate = { ...base, ...updateData };
     const localBounds =
       base.tool === "Pencil" && updateData.transform !== undefined
         ? this.getLocalBounds(id, base)
@@ -361,7 +366,7 @@ class BoardData {
       return this.isCandidateTooLarge(obj, nextBounds);
     }
     if (obj.tool === "Text") {
-      const candidate = Object.assign({}, obj, { txt: updateData.txt });
+      const candidate = { ...obj, txt: updateData.txt };
       const nextBounds = MessageCommon.getLocalGeometryBounds(candidate);
       return this.isCandidateTooLarge(candidate, nextBounds);
     }
@@ -374,6 +379,7 @@ class BoardData {
    * @returns {boolean}
    */
   canAddChild(parentId, child) {
+    const config = getConfig();
     const obj = this.board[parentId];
     if (!obj || obj.tool !== "Pencil") return false;
 
@@ -408,7 +414,7 @@ class BoardData {
    * @returns {boolean}
    */
   canProcessMessage(message) {
-    let id = message.id;
+    const id = message.id;
     switch (message.type) {
       case "delete":
       case "clear":
@@ -450,7 +456,8 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure} - True if the child was added, else false
    */
   addChild(parentId, child) {
-    var obj = this.board[parentId];
+    const config = getConfig();
+    const obj = this.board[parentId];
     if (typeof obj !== "object" || obj.tool !== "Pencil")
       return { ok: false, reason: "invalid parent for child" };
     const normalizedChild = normalizeStoredChildPoint(child);
@@ -478,11 +485,12 @@ class BoardData {
    * @param {boolean} [create] - True if the object should be created if it's not currently in the DB.
    * @returns {BoardMutationResult}
    */
-  update(id, data, create) {
-    var tool = data.tool;
-    var updateData = filterUpdatableFields(tool, data);
+  update(id, data, create = false) {
+    void create;
+    const tool = data.tool;
+    const updateData = filterUpdatableFields(tool, data);
 
-    var obj = this.board[id];
+    const obj = this.board[id];
     if (typeof obj !== "object")
       return { ok: false, reason: "object not found" };
     if (!this.canUpdate(id, updateData)) {
@@ -492,8 +500,8 @@ class BoardData {
       }
       return { ok: false, reason: "update rejected: shape too large" };
     }
-    for (var i in updateData) {
-      if (updateData[i] !== undefined) obj[i] = updateData[i];
+    for (const key in updateData) {
+      if (updateData[key] !== undefined) obj[key] = updateData[key];
     }
     const nextLocalBounds =
       obj.tool === "Pencil" && updateData.transform !== undefined
@@ -521,10 +529,10 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure}
    */
   copy(id, data) {
-    var obj = this.board[id];
-    var newid = data.newid;
+    const obj = this.board[id];
+    const newid = data.newid;
     if (obj) {
-      var newobj = structuredClone(obj);
+      const newobj = structuredClone(obj);
       const validated = this.validateStoredCandidate(newid, newobj);
       if (!validated.ok) return validated;
       this.board[newid] = validated.value;
@@ -568,9 +576,10 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure}
    */
   processMessageBatch(children, parentMessage) {
+    const config = getConfig();
     const messages = children.map((childMessage) =>
       parentMessage && childMessage.tool === undefined
-        ? Object.assign({ tool: parentMessage.tool }, childMessage)
+        ? { tool: parentMessage.tool, ...childMessage }
         : childMessage,
     );
 
@@ -689,9 +698,10 @@ class BoardData {
           if (this.isCandidateTooLarge(current, nextBounds))
             return { ok: false, reason: "shape too large" };
           currentChildren.push(normalizedChild.value);
-          const candidate = Object.assign({}, current, {
+          const candidate = {
+            ...current,
             _children: currentChildren,
-          });
+          };
           shadowItems.set(message.parent, candidate);
           shadowLocalBounds.set(message.parent, this.cloneBounds(nextBounds));
           actions.push({
@@ -746,7 +756,7 @@ class BoardData {
   processMessage(message) {
     if (message._children)
       return this.processMessageBatch(message._children, message);
-    let id = message.id;
+    const id = message.id;
     switch (message.type) {
       case "delete":
         return id ? this.delete(id) : { ok: false, reason: "missing id" };
@@ -758,12 +768,13 @@ class BoardData {
         return id
           ? this.copy(id, message)
           : { ok: false, reason: "missing id" };
-      case "child":
+      case "child": {
         // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
         const { parent, type, tool, ...childData } = message;
         return parent
           ? this.addChild(parent, childData)
           : { ok: false, reason: "invalid parent for child" };
+      }
       case "clear":
         return this.clear();
       default:
@@ -796,6 +807,7 @@ class BoardData {
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
   delaySave() {
+    const config = getConfig();
     if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
     this.saveTimeoutId = setTimeout(this.save.bind(this), config.SAVE_INTERVAL);
     if (Date.now() - this.lastSaveDate > config.MAX_SAVE_DELAY)
@@ -816,13 +828,14 @@ class BoardData {
         attributes: boardTraceAttributes(this.name, "save"),
       },
       async () => {
+        const startedAt = Date.now();
         this.lastSaveDate = Date.now();
         this.clean();
-        var file = this.file;
-        var tmp_file = backupFileName(file);
-        var storedBoard = serializeStoredBoard(this.board, this.metadata);
-        var board_txt = JSON.stringify(storedBoard);
-        if (board_txt === "{}") {
+        const file = this.file;
+        const tmpFile = backupFileName(file);
+        const storedBoard = serializeStoredBoard(this.board, this.metadata);
+        const boardText = JSON.stringify(storedBoard);
+        if (boardText === "{}") {
           // empty board
           try {
             await unlink(file);
@@ -831,7 +844,12 @@ class BoardData {
                 "wbo.board.result": "removed_empty",
               }),
             );
-            metrics.recordBoardOperation("save", "removed_empty");
+            metrics.recordBoardOperationDuration(
+              "save",
+              this.name,
+              (Date.now() - startedAt) / 1000,
+              "removed_empty",
+            );
           } catch (err) {
             if (errorCode(err) !== "ENOENT") {
               // If the file already wasn't saved, this is not an error
@@ -842,26 +860,36 @@ class BoardData {
                 board: this.name,
                 error: err,
               });
-              metrics.recordBoardOperation("save", "error");
+              metrics.recordBoardOperationDuration(
+                "save",
+                this.name,
+                (Date.now() - startedAt) / 1000,
+                err,
+              );
             }
           }
         } else {
           try {
-            await writeFile(tmp_file, board_txt, { flag: "wx" });
-            await rename(tmp_file, file);
+            await writeFile(tmpFile, boardText, { flag: "wx" });
+            await rename(tmpFile, file);
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(this.name, "save", {
                 "wbo.board.result": "success",
-                "wbo.board.bytes": board_txt.length,
+                "file.path": file,
+                "file.size": boardText.length,
                 "wbo.board.items": Object.keys(this.board).length,
               }),
             );
             logger.info("board.saved", {
               board: this.name,
-              bytes: board_txt.length,
+              "file.size": boardText.length,
               items: Object.keys(this.board).length,
             });
-            metrics.recordBoardOperation("save", "success");
+            metrics.recordBoardOperationDuration(
+              "save",
+              this.name,
+              (Date.now() - startedAt) / 1000,
+            );
           } catch (err) {
             tracing.recordActiveSpanError(err, {
               "wbo.board.result": "error",
@@ -869,9 +897,14 @@ class BoardData {
             logger.error("board.save_failed", {
               board: this.name,
               error: err,
-              tmp_file: tmp_file,
+              "file.path": tmpFile,
             });
-            metrics.recordBoardOperation("save", "error");
+            metrics.recordBoardOperationDuration(
+              "save",
+              this.name,
+              (Date.now() - startedAt) / 1000,
+              err,
+            );
             return;
           }
         }
@@ -881,22 +914,17 @@ class BoardData {
 
   /** Remove old elements from the board */
   clean() {
-    var board = this.board;
-    var ids = Object.keys(board);
+    const config = getConfig();
+    const board = this.board;
+    const ids = Object.keys(board);
     if (ids.length > config.MAX_ITEM_COUNT) {
-      var toDestroy = ids
-        .sort(function (x, y) {
-          return (
-            ((board[x] && board[x].time) | 0) -
-            ((board[y] && board[y].time) | 0)
-          );
-        })
+      const toDestroy = ids
+        .sort((x, y) => (board[x]?.time | 0) - (board[y]?.time | 0))
         .slice(0, -config.MAX_ITEM_COUNT);
-      for (var i = 0; i < toDestroy.length; i++) {
+      for (let i = 0; i < toDestroy.length; i++) {
         const id = toDestroy[i];
         if (id !== undefined) delete board[id];
       }
-      metrics.recordBoardOperation("clean", "success");
     }
   }
 
@@ -932,9 +960,10 @@ class BoardData {
         attributes: boardTraceAttributes(name, "load"),
       },
       async function loadBoardData() {
-        var boardData = new BoardData(name);
+        const startedAt = Date.now();
+        const boardData = new BoardData(name);
         /** @type {string | undefined} */
-        var data;
+        let data;
         try {
           data = await readFile(boardData.file, "utf8");
           const storedBoard = parseStoredBoard(JSON.parse(data));
@@ -946,10 +975,16 @@ class BoardData {
           tracing.setActiveSpanAttributes(
             boardTraceAttributes(name, "load", {
               "wbo.board.result": "success",
+              "file.path": boardData.file,
+              "file.size": data.length,
               "wbo.board.items": Object.keys(boardData.board).length,
             }),
           );
-          metrics.recordBoardOperation("load", "success");
+          metrics.recordBoardOperationDuration(
+            "load",
+            name,
+            (Date.now() - startedAt) / 1000,
+          );
         } catch (e) {
           // If the file doesn't exist, this is not an error
           if (errorCode(e) === "ENOENT") {
@@ -958,7 +993,12 @@ class BoardData {
                 "wbo.board.result": "empty",
               }),
             );
-            metrics.recordBoardOperation("load", "empty");
+            metrics.recordBoardOperationDuration(
+              "load",
+              name,
+              (Date.now() - startedAt) / 1000,
+              "empty",
+            );
           } else {
             tracing.recordActiveSpanError(e, {
               "wbo.board.result": "error",
@@ -967,16 +1007,21 @@ class BoardData {
               board: name,
               error: e,
             });
-            metrics.recordBoardOperation("load", "error");
+            metrics.recordBoardOperationDuration(
+              "load",
+              name,
+              (Date.now() - startedAt) / 1000,
+              e,
+            );
           }
           boardData.board = {};
           const backupData = data;
           if (backupData !== undefined) {
             // There was an error loading the board, but some data was still read
-            var backup = backupFileName(boardData.file);
+            const backup = backupFileName(boardData.file);
             logger.warn("board.backup_created", {
               board: boardData.name,
-              backup_file: backup,
+              "file.path": backup,
             });
             await tracing.withOptionalActiveSpan(
               "board.backup_write",
@@ -998,7 +1043,7 @@ class BoardData {
                   });
                   logger.error("board.backup_failed", {
                     board: boardData.name,
-                    backup_file: backup,
+                    "file.path": backup,
                     error: err,
                   });
                 }
@@ -1050,8 +1095,8 @@ class BoardData {
  * @param {string} baseName
  */
 function backupFileName(baseName) {
-  var date = new Date().toISOString().replace(/:/g, "");
-  return baseName + "." + date + ".bak";
+  const date = new Date().toISOString().replace(/:/g, "");
+  return `${baseName}.${date}.bak`;
 }
 
 /**
@@ -1064,25 +1109,4 @@ function errorCode(error) {
   return typeof error.code === "string" ? error.code : undefined;
 }
 
-/**
- * @param {unknown} error
- * @returns {string}
- */
-function errorToString(error) {
-  if (error instanceof Error) return error.toString();
-  return String(error);
-}
-
-/**
- * @param {unknown} error
- * @returns {string | undefined}
- */
-function errorStack(error) {
-  return error instanceof Error ? error.stack : undefined;
-}
-
-module.exports = {
-  BoardData,
-  BOARD_METADATA_KEY,
-  parseStoredBoard,
-};
+export { BOARD_METADATA_KEY, BoardData, parseStoredBoard };

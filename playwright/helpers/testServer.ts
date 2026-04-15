@@ -1,15 +1,15 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import * as fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { TestInfo } from "@playwright/test";
-import { AUTH_SECRET, TOKENS } from "./tokens";
 import {
-  withToken,
-  writeBoard,
   readStoredBoard,
   waitForStoredBoard,
+  withToken,
+  writeBoard,
 } from "./boardData";
+import { AUTH_SECRET, TOKENS } from "./tokens";
 
 export interface ServerSetupOptions {
   useJWT?: boolean;
@@ -60,7 +60,7 @@ export async function startTestServer(
     delete env.AUTH_SECRET_KEY;
   }
 
-  const serverPath = path.resolve("server", "server.js");
+  const serverPath = path.resolve("server", "server.mjs");
   const child = spawn("node", [serverPath], {
     env,
     stdio: ["ignore", "pipe", "pipe", "ipc"],

@@ -24,41 +24,51 @@
  * @licend
  */
 
-(function clear() {
-  //Code isolation
-  /** @typedef {{type: "clear", id: string, token?: string | null}} ClearMessage */
+/** @typedef {{type: "clear", id: string, token?: string | null}} ClearMessage */
+/** @typedef {{list: {[name: string]: any}, drawAndSend: (message: ClearMessage, tool: any) => void, token?: string | null, drawingArea: HTMLElement | null, add: (tool: any) => void}} ClearToolRegistry */
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-  function clearBoard() {
+export default class ClearTool {
+  static toolName = "Clear";
+
+  /**
+   * @param {ClearToolRegistry} tools
+   */
+  constructor(tools) {
+    this.tools = tools;
+    this.name = "Clear";
+    this.shortcut = "c";
+    this.icon = "tools/clear/clear.svg";
+    this.oneTouch = true;
+    this.mouseCursor = "crosshair";
+  }
+
+  onstart() {
     /** @type {ClearMessage} */
-    var msg = {
+    const msg = {
       type: "clear",
       id: "",
-      token: Tools.token,
+      token: this.tools.token,
     };
-    var clearTool = Tools.list["Clear"];
+    const clearTool = this.tools.list.Clear;
     if (!clearTool) {
       throw new Error("Clear: tool is not registered.");
     }
-    Tools.drawAndSend(msg, clearTool);
+    this.tools.drawAndSend(msg, clearTool);
   }
 
-  /** @param {ClearMessage | {type?: string}} data */
-  function draw(data) {
-    if (!Tools.drawingArea) {
+  draw() {
+    if (!this.tools.drawingArea) {
       throw new Error("Clear: Missing drawing area.");
     }
-    Tools.drawingArea.innerHTML = "";
+    this.tools.drawingArea.innerHTML = "";
   }
 
-  Tools.add({
-    //The new tool
-    name: "Clear",
-    shortcut: "c",
-    listeners: {},
-    icon: "tools/clear/clear.svg",
-    oneTouch: true,
-    onstart: clearBoard,
-    draw: draw,
-    mouseCursor: "crosshair",
-  });
-})(); //End of code isolation
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<ClearTool>}
+   */
+  static async boot(ctx) {
+    return new ClearTool(ctx.runtime.Tools);
+  }
+}

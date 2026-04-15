@@ -1,4 +1,6 @@
-import { test, expect, createBoardPage } from "../fixtures/test";
+// biome-ignore-all lint/suspicious/noExplicitAny: Playwright tests frequently access global state on the window object.
+import { setTimeout as delay } from "node:timers/promises";
+import { createBoardPage, expect, test } from "../fixtures/test";
 import { DEFAULT_FORWARDED_IP } from "../helpers/tokens";
 
 const rateLimitTest = test.extend({
@@ -115,6 +117,52 @@ test.describe("collaboration and rate limiting", () => {
 
     await peerPage.close();
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
+  });
+
+  test("reporting a user disconnects both sockets and they automatically reconnect", async ({
+    boardPage,
+    server,
+    context,
+  }) => {
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await Promise.all([
+      boardPage.gotoBoard("report-user-reconnect"),
+      peerBoard.gotoBoard("report-user-reconnect"),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+
+    await boardPage.connectedUsersToggle.click();
+    await peerBoard.connectedUsersToggle.click();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+    await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
+
+    const reporterReconnect = boardPage.waitForDisconnectThenReconnect();
+    const reportedReconnect = peerBoard.waitForDisconnectThenReconnect();
+
+    await boardPage.reportFirstRemoteUser();
+
+    await expect(reporterReconnect).resolves.toMatchObject({
+      initialId: expect.any(String),
+      nextId: expect.any(String),
+    });
+    await expect(reportedReconnect).resolves.toMatchObject({
+      initialId: expect.any(String),
+      nextId: expect.any(String),
+    });
+
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+    await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
+
+    await peerPage.close();
   });
 
   test("same-session sockets keep separate activity in the user list", async ({
@@ -319,6 +367,340 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
   });
 
+  test("disconnect keeps authoritative shapes visible without reopening the loading banner", async ({
+    boardPage,
+    page,
+    server,
+  }) => {
+    await boardPage.gotoBoard("disconnect-visibility");
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    await page.evaluate(() => {
+      const rectangle = (window as any).Tools.list.Rectangle;
+      (window as any).Tools.drawAndSend(
+        {
+          type: "rect",
+          id: "persisted-across-disconnect",
+          x: 40,
+          y: 40,
+          x2: 120,
+          y2: 100,
+          color: "#224466",
+          size: 4,
+          opacity: 1,
+        },
+        rectangle,
+      );
+    });
+
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "disconnect-visibility",
+      (storedBoard) => storedBoard["persisted-across-disconnect"] != null,
+    );
+    await expect(
+      page.locator("rect#persisted-across-disconnect"),
+    ).toBeVisible();
+
+    const disconnectState = await page.evaluate(() => {
+      return new Promise<{
+        awaitingBoardSnapshot: boolean;
+        connectionState: string;
+        loadingHidden: boolean;
+        rectVisible: boolean;
+      }>((resolve) => {
+        (window as any).Tools.socket.once("disconnect", () => {
+          resolve({
+            awaitingBoardSnapshot: !!(window as any).Tools
+              .awaitingBoardSnapshot,
+            connectionState: String(
+              (window as any).Tools.connectionState ?? "",
+            ),
+            loadingHidden: document
+              .getElementById("loadingMessage")
+              ?.classList.contains("hidden"),
+            rectVisible: !!document.getElementById(
+              "persisted-across-disconnect",
+            ),
+          });
+        });
+        (window as any).Tools.socket.io.engine.close();
+      });
+    });
+
+    expect(disconnectState).toEqual({
+      awaitingBoardSnapshot: true,
+      connectionState: "disconnected",
+      loadingHidden: true,
+      rectVisible: true,
+    });
+
+    await boardPage.waitForAuthoritativeResync();
+    await expect(
+      page.locator("rect#persisted-across-disconnect"),
+    ).toBeVisible();
+  });
+
+  test("reconnect snapshot replay does not duplicate pencil path data", async ({
+    boardPage,
+    page,
+    server,
+  }) => {
+    await boardPage.gotoBoard("reconnect-pencil-replay");
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    await page.evaluate(async () => {
+      const nextFrame = () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const lineId = "reconnect-pencil-path";
+      const pencil = (window as any).Tools.list.Pencil;
+      (window as any).Tools.drawAndSend(
+        {
+          type: "line",
+          id: lineId,
+          color: "#8844aa",
+          size: 4,
+          opacity: 1,
+        },
+        pencil,
+      );
+      await nextFrame();
+      for (const point of [
+        { x: 198, y: 658 },
+        { x: 229, y: 663 },
+        { x: 325, y: 697 },
+        { x: 198, y: 658 },
+      ]) {
+        (window as any).Tools.drawAndSend(
+          {
+            type: "child",
+            parent: lineId,
+            x: point.x,
+            y: point.y,
+          },
+          pencil,
+        );
+        await nextFrame();
+      }
+    });
+
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "reconnect-pencil-replay",
+      (storedBoard) => storedBoard["reconnect-pencil-path"] != null,
+    );
+    await expect(page.locator("path#reconnect-pencil-path")).toBeVisible();
+    const initialPathData = await page
+      .locator("path#reconnect-pencil-path")
+      .getAttribute("d");
+    expect(initialPathData).toBeTruthy();
+
+    await boardPage.forceSocketDisconnect();
+    await boardPage.waitForAuthoritativeResync();
+
+    await expect(page.locator("path#reconnect-pencil-path")).toBeVisible();
+    await expect(page.locator("path#reconnect-pencil-path")).toHaveAttribute(
+      "d",
+      initialPathData ?? "",
+    );
+    await expect(page.locator("path#reconnect-pencil-path")).toHaveCount(1);
+  });
+
+  test("slow board boot stabilizes with persisted shapes and an active peer", async ({
+    boardPage,
+    page,
+    server,
+    context,
+  }) => {
+    const boardName = "slow-start-stability";
+    const serverOrigin = new URL(server.serverUrl).origin;
+
+    await server.writeBoard(server.dataPath, boardName, {
+      "slow-pencil": {
+        tool: "Pencil",
+        type: "line",
+        id: "slow-pencil",
+        color: "#8844aa",
+        size: 4,
+        opacity: 1,
+        _children: [
+          { x: 60, y: 80 },
+          { x: 120, y: 130 },
+          { x: 180, y: 100 },
+          { x: 230, y: 170 },
+        ],
+      },
+      "slow-rect": {
+        tool: "Rectangle",
+        type: "rect",
+        id: "slow-rect",
+        x: 100,
+        y: 100,
+        x2: 160,
+        y2: 140,
+        color: "#123456",
+        size: 4,
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
+      },
+      "slow-ellipse": {
+        tool: "Ellipse",
+        type: "ellipse",
+        id: "slow-ellipse",
+        x: 260,
+        y: 120,
+        x2: 320,
+        y2: 180,
+        color: "#228855",
+        size: 5,
+      },
+      "slow-line": {
+        tool: "Straight line",
+        type: "straight",
+        id: "slow-line",
+        x: 440,
+        y: 120,
+        x2: 500,
+        y2: 170,
+        color: "#aa5500",
+        size: 3,
+      },
+      "slow-text": {
+        tool: "Text",
+        type: "new",
+        id: "slow-text",
+        x: 360,
+        y: 180,
+        color: "#111111",
+        size: 18,
+        txt: "Slow sync",
+      },
+    });
+
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await peerBoard.gotoBoard(boardName);
+    await peerBoard.waitForSocketConnected();
+    await peerBoard.waitForAuthoritativeResync();
+
+    await page.route("**/*", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (
+        url.origin === serverOrigin &&
+        ["document", "script", "stylesheet", "image", "fetch", "xhr"].includes(
+          request.resourceType(),
+        )
+      ) {
+        await delay(120);
+      }
+      await route.continue();
+    });
+
+    await boardPage.gotoBoard(boardName);
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    await peerBoard.emitBroadcast({
+      tool: "Cursor",
+      type: "update",
+      x: 640,
+      y: 210,
+      color: "#00ff66",
+      size: 12,
+    });
+
+    await boardPage.connectedUsersToggle.click();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    await expect(page.locator("#slow-pencil")).toHaveCount(1);
+    await expect(page.locator("#slow-rect")).toBeVisible();
+    await expect(page.locator("#slow-ellipse")).toBeVisible();
+    await expect(page.locator("line#slow-line")).toBeVisible();
+    await expect(page.locator("#slow-text")).toHaveText("Slow sync");
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const remoteCursor = document.querySelector(
+            "#cursors .opcursor:not(#cursor-me)",
+          );
+          if (!(remoteCursor instanceof SVGElement)) return null;
+          const style =
+            remoteCursor.style.transform ||
+            window.getComputedStyle(remoteCursor).transform;
+          return {
+            fill: remoteCursor.getAttribute("fill"),
+            transform: style || remoteCursor.getAttribute("transform"),
+          };
+        }),
+      )
+      .toMatchObject({
+        fill: "#00ff66",
+      });
+
+    const finalState = await page.evaluate(() => {
+      const rect = document.getElementById("slow-rect");
+      const transformValues = (
+        rect?.getAttribute("transform")?.match(/matrix\(([^)]+)\)/)?.[1] ?? ""
+      )
+        .split(/[ ,]+/)
+        .filter(Boolean)
+        .map(Number);
+      const drawingIds = Array.from(
+        document.querySelectorAll("#drawingArea [id]"),
+      ).map((element) => element.id);
+      const pencilPath = document.querySelector("#slow-pencil");
+      const loadingMessage = document.getElementById("loadingMessage");
+      const remoteCursor = document.querySelector(
+        "#cursors .opcursor:not(#cursor-me)",
+      );
+
+      return {
+        boardReady: document.documentElement.dataset.boardReady,
+        connectionState: String((window as any).Tools.connectionState ?? ""),
+        awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
+        loadingHidden: loadingMessage?.classList.contains("hidden") ?? false,
+        pencilCount: document.querySelectorAll("#drawingArea path#slow-pencil")
+          .length,
+        pencilPathData:
+          pencilPath instanceof SVGPathElement
+            ? (pencilPath.getAttribute("d") ?? "")
+            : "",
+        rectTransformE: transformValues[4] ?? null,
+        rectTransformF: transformValues[5] ?? null,
+        ellipseCount: document.querySelectorAll(
+          "#drawingArea ellipse#slow-ellipse",
+        ).length,
+        lineCount: document.querySelectorAll("#drawingArea line#slow-line")
+          .length,
+        textContent: document.getElementById("slow-text")?.textContent ?? "",
+        drawingIdsUnique: drawingIds.length === new Set(drawingIds).size,
+        remoteCursorPresent: remoteCursor instanceof SVGElement,
+      };
+    });
+
+    expect(finalState).toMatchObject({
+      boardReady: "true",
+      connectionState: "connected",
+      awaitingBoardSnapshot: false,
+      loadingHidden: true,
+      pencilCount: 1,
+      rectTransformE: 25,
+      rectTransformF: 30,
+      ellipseCount: 1,
+      lineCount: 1,
+      textContent: "Slow sync",
+      drawingIdsUnique: true,
+      remoteCursorPresent: true,
+    });
+    expect(finalState.pencilPathData).toBeTruthy();
+
+    await peerPage.close();
+  });
+
   rateLimitTest(
     "rate limit disconnect uses a non-blocking notice",
     async ({ boardPage, page }) => {
@@ -385,6 +767,10 @@ test.describe("collaboration and rate limiting", () => {
       await Promise.all([
         boardPage.waitForAuthoritativeResync(),
         peerBoard.waitForAuthoritativeResync(),
+      ]);
+      await Promise.all([
+        expect(boardPage.tool("Rectangle")).toBeVisible(),
+        expect(peerBoard.tool("Rectangle")).toBeVisible(),
       ]);
 
       await page.evaluate(() => {

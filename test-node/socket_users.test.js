@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const { SOCKETS_PATH, createSocket, withEnv } = require("./test_helpers.js");
+const { createSocket, loadSockets, withEnv } = require("./test_helpers.js");
 
 /**
  * @param {{[event: string]: ((...args: any[]) => any) | undefined}} handlers
@@ -27,9 +27,9 @@ function getRequiredValue(value) {
   return /** @type {T} */ (value);
 }
 
-test("user id and visible name are deterministic from userSecret and ip", async function () {
-  await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async function () {
-    const sockets = require(SOCKETS_PATH);
+test("user id and visible name are deterministic from userSecret and ip", async () => {
+  await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async () => {
+    const sockets = await loadSockets();
     const { socket } = createSocket({
       remoteAddress: "203.0.113.40",
       query: {
@@ -57,9 +57,9 @@ test("user id and visible name are deterministic from userSecret and ip", async 
   });
 });
 
-test("board user record seeds tool color and size from socket query", async function () {
-  await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async function () {
-    const sockets = require(SOCKETS_PATH);
+test("board user record seeds tool color and size from socket query", async () => {
+  await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async () => {
+    const sockets = await loadSockets();
     const { socket } = createSocket({
       remoteAddress: "203.0.113.41",
       query: {
@@ -80,9 +80,9 @@ test("board user record seeds tool color and size from socket query", async func
   });
 });
 
-test("board user maps are created lazily and cleaned when emptied", async function () {
-  await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async function () {
-    const sockets = require(SOCKETS_PATH);
+test("board user maps are created lazily and cleaned when emptied", async () => {
+  await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async () => {
+    const sockets = await loadSockets();
     sockets.__test.resetRateLimitMaps();
 
     const users = sockets.__test.getBoardUserMap("board-a");
@@ -107,14 +107,14 @@ test("board user maps are created lazily and cleaned when emptied", async functi
   });
 });
 
-test("joining a board replays joined users to the socket and broadcasts newcomer joins", async function () {
+test("joining a board replays joined users to the socket and broadcasts newcomer joins", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-join-"),
   );
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const first = createSocket({
@@ -130,9 +130,9 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
       sockets.__test.handleSocketConnection(first.socket);
       await getRequiredHandler(first.handlers, "getboard")("board-a");
 
-      const firstJoined = first.emitted.filter(function (event) {
-        return event.event === "user_joined";
-      });
+      const firstJoined = first.emitted.filter(
+        (event) => event.event === "user_joined",
+      );
       assert.equal(firstJoined.length, 1);
       assert.equal(
         getRequiredValue(firstJoined[0]).payload.socketId,
@@ -152,14 +152,12 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
       sockets.__test.handleSocketConnection(second.socket);
       await getRequiredHandler(second.handlers, "getboard")("board-a");
 
-      const secondJoined = second.emitted.filter(function (event) {
-        return event.event === "user_joined";
-      });
+      const secondJoined = second.emitted.filter(
+        (event) => event.event === "user_joined",
+      );
       assert.equal(secondJoined.length, 2);
       assert.deepEqual(
-        secondJoined.map(function (event) {
-          return event.payload.socketId;
-        }),
+        secondJoined.map((event) => event.payload.socketId),
         ["socket-1", "socket-2"],
       );
       assert.deepEqual(second.broadcasted[0], {
@@ -171,14 +169,14 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
   );
 });
 
-test("snapshot and live broadcasts carry revisions for deterministic client replay", async function () {
+test("snapshot and live broadcasts carry revisions for deterministic client replay", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-revision-"),
   );
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const created = createSocket({
@@ -195,9 +193,7 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
       await getRequiredHandler(created.handlers, "getboard")("board-revision");
 
       const initialSnapshot = getRequiredValue(
-        created.emitted.find(function (event) {
-          return event.event === "broadcast";
-        }),
+        created.emitted.find((event) => event.event === "broadcast"),
       ).payload;
       assert.equal(initialSnapshot.revision, 0);
       assert.deepEqual(initialSnapshot._children, []);
@@ -221,9 +217,7 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
       });
 
       const liveBroadcast = getRequiredValue(
-        created.broadcasted.find(function (event) {
-          return event.event === "broadcast";
-        }),
+        created.broadcasted.find((event) => event.event === "broadcast"),
       ).payload;
       assert.equal(liveBroadcast.revision, 1);
 
@@ -244,9 +238,7 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
       )("board-revision");
 
       const replaySnapshot = getRequiredValue(
-        nextSocket.emitted.find(function (event) {
-          return event.event === "broadcast";
-        }),
+        nextSocket.emitted.find((event) => event.event === "broadcast"),
       ).payload;
       assert.equal(replaySnapshot.revision, 1);
       assert.equal(replaySnapshot._children.length, 1);
@@ -255,14 +247,14 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
   );
 });
 
-test("disconnecting from a board broadcasts user_left and cleans the board user map", async function () {
+test("disconnecting from a board broadcasts user_left and cleans the board user map", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-left-"),
   );
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const created = createSocket({
@@ -286,9 +278,7 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
       assert.deepEqual(created.broadcasted[0], {
         event: "user_joined",
         payload: getRequiredValue(
-          created.emitted.find(function (event) {
-            return event.event === "user_joined";
-          }),
+          created.emitted.find((event) => event.event === "user_joined"),
         ).payload,
         room: "board-left",
       });
@@ -305,14 +295,14 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
   );
 });
 
-test("live broadcasts attach socket attribution and keep the user's latest non-cursor state", async function () {
+test("live broadcasts attach socket attribution and keep the user's latest non-cursor state", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-live-"),
   );
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const created = createSocket({
@@ -354,7 +344,7 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
         "socket-live",
       );
       assert.equal(
-        Object.prototype.hasOwnProperty.call(
+        Object.hasOwn(
           getRequiredValue(created.broadcasted[1]).payload,
           "userId",
         ),
@@ -390,14 +380,14 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
   );
 });
 
-test("same-session sockets keep a shared userId in presence but live payload attribution stays per socket", async function () {
+test("same-session sockets keep a shared userId in presence but live payload attribution stays per socket", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-session-"),
   );
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const first = createSocket({
@@ -450,23 +440,18 @@ test("same-session sockets keep a shared userId in presence but live payload att
       });
 
       const liveBroadcast = getRequiredValue(
-        first.broadcasted.find(function (event) {
-          return event.event === "broadcast";
-        }),
+        first.broadcasted.find((event) => event.event === "broadcast"),
       );
       const payload = liveBroadcast.payload;
       assert.equal(payload.socket, "socket-a");
-      assert.equal(
-        Object.prototype.hasOwnProperty.call(payload, "userId"),
-        false,
-      );
+      assert.equal(Object.hasOwn(payload, "userId"), false);
       assert.equal(firstUser.lastTool, "Rectangle");
       assert.equal(secondUser.lastTool, "Hand");
     },
   );
 });
 
-test("report_user logs reporter and reported user details for active board members", async function () {
+test("report_user logs reporter and reported user details for active board members", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-report-"),
   );
@@ -476,8 +461,8 @@ test("report_user logs reporter and reported user details for active board membe
       WBO_HISTORY_DIR: historyDir,
       WBO_SILENT: "true",
     },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const reporter = createSocket({
@@ -534,15 +519,17 @@ test("report_user logs reporter and reported user details for active board membe
       assert.equal(reportedLog.reported_user_agent, "ReportedAgent/2.0");
       assert.equal(reportedLog.reporter_language, "fr-FR,fr;q=0.9");
       assert.equal(reportedLog.reported_language, "en-US,en;q=0.8");
-      assert.deepEqual(reporter.socket.disconnectCalls, [true]);
-      assert.deepEqual(reported.socket.disconnectCalls, [true]);
+      assert.equal(reporter.socket.client.conn.closeCalls.length, 1);
+      assert.equal(reported.socket.client.conn.closeCalls.length, 1);
+      assert.deepEqual(reporter.socket.disconnectCalls, []);
+      assert.deepEqual(reported.socket.disconnectCalls, []);
       assert.equal(reporter.emitted.length, reporterEmitCountBeforeReport);
       assert.equal(reported.emitted.length, reportedEmitCountBeforeReport);
     },
   );
 });
 
-test("report_user respects custom header ip sources for active board members", async function () {
+test("report_user respects custom header ip sources for active board members", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-report-header-"),
   );
@@ -552,8 +539,8 @@ test("report_user respects custom header ip sources for active board members", a
       WBO_HISTORY_DIR: historyDir,
       WBO_SILENT: "true",
     },
-    async function () {
-      const sockets = require(SOCKETS_PATH);
+    async () => {
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const reporter = createSocket({

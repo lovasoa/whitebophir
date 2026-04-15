@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 
-test("shape-tool metadata helpers remain consistent", function () {
+test("shape-tool metadata helpers remain consistent", () => {
   const shapeTools = Object.keys(MessageToolMetadata.SHAPE_TOOL_TYPES);
 
   assert.deepEqual(
@@ -18,7 +18,7 @@ test("shape-tool metadata helpers remain consistent", function () {
   assert.equal(MessageToolMetadata.isShapeTool("Pencil"), false);
 });
 
-test("unknown tool names have no updatable fields", function () {
+test("unknown tool names have no updatable fields", () => {
   const unknownToolData = { x: 1, y: 2, txt: "keep" };
 
   assert.deepEqual(

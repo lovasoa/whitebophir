@@ -1,5 +1,7 @@
 FROM node:24-alpine
 
+LABEL org.opencontainers.image.source="https://github.com/lovasoa/whitebophir"
+
 WORKDIR /opt/app
 
 RUN chown -R 1000:1000 /opt/app
@@ -19,4 +21,4 @@ EXPOSE 80
 
 VOLUME /opt/app/server-data
 
-CMD ["/usr/local/bin/node", "server/server.js"]
+CMD ["/usr/local/bin/node", "server/server.mjs"]

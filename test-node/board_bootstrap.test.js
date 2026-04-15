@@ -6,29 +6,31 @@ installTestConsole();
 
 global.document = /** @type {any} */ ({
   /** @param {string} id */
-  getElementById: function (id) {
+  getElementById: (id) => {
     if (id === "good") return { text: '{"ok":true}' };
     if (id === "bad") return { text: "{" };
     return null;
   },
 });
 
-const BoardBootstrap =
-  require("../client-data/js/board_page_state.js").bootstrap;
+const {
+  getRequiredElement,
+  parseEmbeddedJson,
+} = require("../client-data/js/board_page_state.js");
 
-test("parseEmbeddedJson returns fallback for missing or invalid content", function () {
-  assert.deepEqual(BoardBootstrap.parseEmbeddedJson("good", { ok: false }), {
+test("parseEmbeddedJson returns fallback for missing or invalid content", () => {
+  assert.deepEqual(parseEmbeddedJson("good", { ok: false }), {
     ok: true,
   });
-  assert.deepEqual(BoardBootstrap.parseEmbeddedJson("bad", { ok: false }), {
+  assert.deepEqual(parseEmbeddedJson("bad", { ok: false }), {
     ok: false,
   });
-  assert.deepEqual(BoardBootstrap.parseEmbeddedJson("missing", { ok: false }), {
+  assert.deepEqual(parseEmbeddedJson("missing", { ok: false }), {
     ok: false,
   });
 });
 
-test("parseEmbeddedJson reports invalid JSON when silent mode is off", function () {
+test("parseEmbeddedJson reports invalid JSON when silent mode is off", () => {
   const previousSilent = process.env.WBO_SILENT;
   let warned = false;
 
@@ -36,17 +38,14 @@ test("parseEmbeddedJson reports invalid JSON when silent mode is off", function 
   try {
     withConsole(
       {
-        warn: function () {
+        warn: () => {
           warned = true;
         },
       },
-      function () {
-        assert.deepEqual(
-          BoardBootstrap.parseEmbeddedJson("bad", { ok: false }),
-          {
-            ok: false,
-          },
-        );
+      () => {
+        assert.deepEqual(parseEmbeddedJson("bad", { ok: false }), {
+          ok: false,
+        });
       },
     );
     assert.equal(warned, true);
@@ -56,11 +55,11 @@ test("parseEmbeddedJson reports invalid JSON when silent mode is off", function 
   }
 });
 
-test("getRequiredElement throws for missing DOM nodes", function () {
-  assert.deepEqual(BoardBootstrap.getRequiredElement("good"), {
+test("getRequiredElement throws for missing DOM nodes", () => {
+  assert.deepEqual(getRequiredElement("good"), {
     text: '{"ok":true}',
   });
-  assert.throws(function () {
-    BoardBootstrap.getRequiredElement("missing");
+  assert.throws(() => {
+    getRequiredElement("missing");
   }, /Missing required element/);
 });

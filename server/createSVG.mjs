@@ -1,7 +1,10 @@
-const fsp = require("node:fs/promises"),
-  path = require("node:path"),
-  parseStoredBoard = require("./boardData.js").parseStoredBoard,
-  logger = require("./observability.js").logger;
+import fsp from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+import { parseStoredBoard } from "./boardData.mjs";
+import { logger } from "./observability.mjs";
+import config from "./configuration.mjs";
 
 /** @typedef {{x: number, y: number}} Point */
 /** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number}} ElementStyle */
@@ -55,7 +58,7 @@ function dist(x1, y1, x2, y2) {
 function htmlspecialchars(str) {
   if (typeof str !== "string") return "";
 
-  return str.replace(/[<>&"']/g, function (c) {
+  return str.replace(/[<>&"']/g, (c) => {
     switch (c) {
       case "<":
         return "&lt;";
@@ -81,7 +84,7 @@ function renderTranslate(el) {
   const deltax = numberOrZero(el.deltax);
   const deltay = numberOrZero(el.deltay);
   if (deltax === 0 && deltay === 0) return "";
-  return 'transform="translate(' + deltax + "," + deltay + ')"';
+  return `transform="translate(${deltax},${deltay})"`;
 }
 
 /**
@@ -92,11 +95,11 @@ function renderTranslate(el) {
 function renderPath(el, pathstring) {
   return (
     "<path " +
-    (el.id ? 'id="' + htmlspecialchars(el.id) + '" ' : "") +
+    (el.id ? `id="${htmlspecialchars(el.id)}" ` : "") +
     'stroke-width="' +
     (numberOrZero(el.size) | 0) +
     '" ' +
-    (el.opacity ? 'opacity="' + numberOrZero(el.opacity) + '" ' : "") +
+    (el.opacity ? `opacity="${numberOrZero(el.opacity)}" ` : "") +
     'stroke="' +
     htmlspecialchars(el.color) +
     '" ' +
@@ -114,7 +117,7 @@ function renderPath(el, pathstring) {
  * @returns {string}
  */
 function renderMoveTo(x, y) {
-  return "M " + x + " " + y;
+  return `M ${x} ${y}`;
 }
 
 /**
@@ -123,7 +126,7 @@ function renderMoveTo(x, y) {
  * @returns {string}
  */
 function renderLineTo(x, y) {
-  return "L " + x + " " + y;
+  return `L ${x} ${y}`;
 }
 
 /**
@@ -136,7 +139,7 @@ function renderLineTo(x, y) {
  * @returns {string}
  */
 function renderCurveTo(c1x, c1y, c2x, c2y, x, y) {
-  return "C " + c1x + " " + c1y + " " + c2x + " " + c2y + " " + x + " " + y;
+  return `C ${c1x} ${c1y} ${c2x} ${c2y} ${x} ${y}`;
 }
 
 /**
@@ -230,7 +233,7 @@ const Tools = {
    * @param {RenderableElement} el
    * @return {string}
    */
-  Text: function (el) {
+  Text: (el) => {
     if (el.tool !== "Text") return "";
     /** @type {TextElement} */
     const text = el;
@@ -261,7 +264,7 @@ const Tools = {
    * @param {RenderableElement} el
    * @return {string}
    */
-  Pencil: function (el) {
+  Pencil: (el) => {
     if (el.tool !== "Pencil") return "";
     /** @type {PencilElement} */
     const pencil = el;
@@ -273,14 +276,14 @@ const Tools = {
    * @param {RenderableElement} el
    * @return {string}
    */
-  Rectangle: function (el) {
+  Rectangle: (el) => {
     if (el.tool !== "Rectangle") return "";
     /** @type {ShapeElement} */
     const shape = el;
     const bounds = normalizeRectBounds(shape.x, shape.y, shape.x2, shape.y2);
     return (
       "<rect " +
-      (shape.id ? 'id="' + htmlspecialchars(shape.id) + '" ' : "") +
+      (shape.id ? `id="${htmlspecialchars(shape.id)}" ` : "") +
       'x="' +
       bounds.x +
       '" ' +
@@ -307,7 +310,7 @@ const Tools = {
    * @param {RenderableElement} el
    * @return {string}
    */
-  Ellipse: function (el) {
+  Ellipse: (el) => {
     if (el.tool !== "Ellipse") return "";
     /** @type {ShapeElement} */
     const shape = el;
@@ -340,12 +343,11 @@ const Tools = {
    * @param {RenderableElement} el
    * @return {string}
    */
-  "Straight line": function (el) {
+  "Straight line": (el) => {
     if (el.tool !== "Straight line") return "";
     /** @type {ShapeElement} */
     const shape = el;
-    const pathstring =
-      "M" + shape.x + " " + shape.y + "L" + shape.x2 + " " + shape.y2;
+    const pathstring = `M${shape.x} ${shape.y}L${shape.x2} ${shape.y2}`;
     return renderPath(shape, pathstring);
   },
 };
@@ -356,7 +358,7 @@ const Tools = {
  */
 function originPointForBounds(elem) {
   if (elem.tool === "Pencil") {
-    const firstPoint = elem._children && elem._children[0];
+    const firstPoint = elem._children?.[0];
     return firstPoint || null;
   }
   if (elem.tool === "Text") {
@@ -380,7 +382,7 @@ async function toSVG(obj, writeable) {
      * @param {RenderableElement} elem
      * @returns {[number, number]}
      */
-    function (dim, elem) {
+    (dim, elem) => {
       const point = originPointForBounds(elem);
       if (!point) return dim;
       return [
@@ -429,16 +431,16 @@ async function toSVG(obj, writeable) {
  * @param {string} file
  * @returns {Promise<string>}
  */
-async function renderBoardToSVG(file) {
+export async function renderBoardToSVG(file) {
   const data = await fsp.readFile(file, "utf8");
   /** @type {RenderableBoard} */
-  var board = /** @type {RenderableBoard} */ (
+  const board = /** @type {RenderableBoard} */ (
     parseStoredBoard(JSON.parse(data)).board
   );
   /** @type {string[]} */
   const chunks = [];
   await toSVG(board, {
-    write: function (chunk) {
+    write: (chunk) => {
       chunks.push(chunk);
     },
   });
@@ -450,24 +452,23 @@ async function renderBoardToSVG(file) {
  * @param {WritableTarget} stream
  * @returns {Promise<void>}
  */
-async function renderBoard(file, stream) {
+export async function renderBoard(file, stream) {
   const svg = await renderBoardToSVG(file);
   stream.write(svg);
 }
 
-if (require.main === module) {
-  const config = require("./configuration.js");
-  const HISTORY_FILE =
+const isMainModule =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) ===
+    path.join(process.cwd(), "server", "createSVG.mjs");
+
+if (isMainModule) {
+  const historyFile =
     process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
 
-  renderBoard(HISTORY_FILE, process.stdout).catch(function (error) {
+  renderBoard(historyFile, process.stdout).catch((error) => {
     logger.error("svg.render_failed", {
-      error: error,
+      error,
     });
   });
-} else {
-  module.exports = {
-    renderBoard: renderBoard,
-    renderBoardToSVG: renderBoardToSVG,
-  };
 }

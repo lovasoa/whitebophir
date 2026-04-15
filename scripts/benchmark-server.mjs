@@ -1,16 +1,18 @@
-const fs = require("node:fs");
-const fsp = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
-const { performance } = require("node:perf_hooks");
+import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
+import { performance } from "node:perf_hooks";
+
+import { BoardData } from "../server/boardData.mjs";
+import { readConfiguration } from "../server/configuration.mjs";
+import { renderBoardToSVG } from "../server/createSVG.mjs";
 
 const historyDir = fs.mkdtempSync(path.join(os.tmpdir(), "wbo-server-bench-"));
 process.env.WBO_HISTORY_DIR = historyDir;
 process.env.WBO_SILENT = process.env.WBO_SILENT || "true";
 
-const { BoardData } = require("../server/boardData.js");
-const config = require("../server/configuration.js");
-const { renderBoardToSVG } = require("../server/createSVG.js");
+const config = readConfiguration();
 
 const DEFAULT_COLOR = "#1f2937";
 const WARMUP_COUNT = 1;
@@ -24,29 +26,60 @@ const HAND_BATCH_ITEMS = config.MAX_CHILDREN;
 const HAND_BATCH_PASSES = 96;
 const EXPORT_PENCIL_SHAPES = 768;
 
+/** @typedef {{heapUsed: number, rss: number}} MemorySnapshot */
+/** @typedef {{[id: string]: any}} BenchBoard */
+/** @typedef {{file: string, bytes: number}} BenchFixture */
+/** @typedef {{durationMs: number, activeHeapDelta: number, retainedHeapDelta: number, rssDelta: number, details: string}} BenchSample */
+/** @typedef {{name: string, prepare?: () => Promise<void>, setup: () => Promise<any>, run: (context: any) => Promise<string>, teardown?: (context: any) => Promise<void>}} Scenario */
+
+/**
+ * @param {number} bytes
+ * @returns {string}
+ */
 function bytesToMiB(bytes) {
-  return (bytes / (1024 * 1024)).toFixed(1) + " MiB";
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+/**
+ * @param {number} bytes
+ * @returns {string}
+ */
 function formatDelta(bytes) {
   const sign = bytes >= 0 ? "+" : "-";
   return sign + bytesToMiB(Math.abs(bytes));
 }
 
+/**
+ * @param {number} milliseconds
+ * @returns {string}
+ */
 function formatMs(milliseconds) {
-  return milliseconds.toFixed(1) + " ms";
+  return `${milliseconds.toFixed(1)} ms`;
 }
 
+/**
+ * @param {number[]} values
+ * @returns {number}
+ */
 function median(values) {
-  const sorted = values.slice().sort(function (left, right) {
-    return left - right;
-  });
+  const sorted = values.slice().sort((left, right) => left - right);
+  if (sorted.length === 0) {
+    throw new Error("median requires at least one value");
+  }
   const middle = Math.floor(sorted.length / 2);
+  const current = sorted[middle];
+  if (current === undefined) {
+    throw new Error("median could not resolve the middle value");
+  }
   return sorted.length % 2 === 0
-    ? (sorted[middle - 1] + sorted[middle]) / 2
-    : sorted[middle];
+    ? ((sorted[middle - 1] ?? current) + current) / 2
+    : current;
 }
 
+/**
+ * @param {number[]} values
+ * @returns {number}
+ */
 function spreadPercent(values) {
   const min = Math.min.apply(null, values);
   const max = Math.max.apply(null, values);
@@ -61,6 +94,9 @@ function forceGc() {
   }
 }
 
+/**
+ * @returns {MemorySnapshot}
+ */
 function snapshotMemory() {
   const memory = process.memoryUsage();
   return {
@@ -69,10 +105,19 @@ function snapshotMemory() {
   };
 }
 
+/**
+ * @param {string} name
+ * @returns {string}
+ */
 function boardFile(name) {
-  return path.join(historyDir, "board-" + encodeURIComponent(name) + ".json");
+  return path.join(historyDir, `board-${encodeURIComponent(name)}.json`);
 }
 
+/**
+ * @param {string} name
+ * @param {BenchBoard} board
+ * @returns {Promise<BenchFixture>}
+ */
 async function writeBoardFile(name, board) {
   const file = boardFile(name);
   const text = JSON.stringify(board);
@@ -80,6 +125,10 @@ async function writeBoardFile(name, board) {
   return { file, bytes: Buffer.byteLength(text) };
 }
 
+/**
+ * @param {number} index
+ * @returns {any}
+ */
 function rectangleItem(index) {
   const base = index * 3;
   return {
@@ -95,6 +144,10 @@ function rectangleItem(index) {
   };
 }
 
+/**
+ * @param {number} index
+ * @returns {any}
+ */
 function textItem(index) {
   return {
     tool: "Text",
@@ -103,11 +156,15 @@ function textItem(index) {
     size: 18,
     x: (index * 7) % 7000,
     y: (index * 11) % 7000,
-    txt: "bench-" + index + "-payload",
+    txt: `bench-${index}-payload`,
     time: index,
   };
 }
 
+/**
+ * @param {number} index
+ * @returns {any}
+ */
 function lineItem(index) {
   const x = (index * 5) % 6500;
   const y = (index * 9) % 6500;
@@ -124,6 +181,11 @@ function lineItem(index) {
   };
 }
 
+/**
+ * @param {number} pointCount
+ * @param {number} seed
+ * @returns {{x: number, y: number}[]}
+ */
 function pencilPoints(pointCount, seed) {
   const points = [];
   for (let index = 0; index < pointCount; index++) {
@@ -135,6 +197,11 @@ function pencilPoints(pointCount, seed) {
   return points;
 }
 
+/**
+ * @param {number} index
+ * @param {number} pointCount
+ * @returns {any}
+ */
 function pencilItem(index, pointCount) {
   return {
     tool: "Pencil",
@@ -146,10 +213,17 @@ function pencilItem(index, pointCount) {
   };
 }
 
+/**
+ * @param {number} itemCount
+ * @param {number} pencilEvery
+ * @param {number} pencilPointsPerShape
+ * @returns {BenchBoard}
+ */
 function buildMixedBoard(itemCount, pencilEvery, pencilPointsPerShape) {
+  /** @type {BenchBoard} */
   const board = {};
   for (let index = 0; index < itemCount; index++) {
-    const id = "item-" + index;
+    const id = `item-${index}`;
     if (index % pencilEvery === 0) {
       board[id] = pencilItem(index, pencilPointsPerShape);
       continue;
@@ -169,6 +243,10 @@ function buildMixedBoard(itemCount, pencilEvery, pencilPointsPerShape) {
   return board;
 }
 
+/**
+ * @param {BoardData} boardData
+ * @returns {void}
+ */
 function clearPendingSave(boardData) {
   if (boardData.saveTimeoutId !== undefined) {
     clearTimeout(boardData.saveTimeoutId);
@@ -176,6 +254,11 @@ function clearPendingSave(boardData) {
   }
 }
 
+/**
+ * @param {(context: any) => Promise<string>} run
+ * @param {any} context
+ * @returns {Promise<BenchSample>}
+ */
 async function runMeasuredSample(run, context) {
   forceGc();
   const before = snapshotMemory();
@@ -194,6 +277,10 @@ async function runMeasuredSample(run, context) {
   };
 }
 
+/**
+ * @param {Scenario} scenario
+ * @returns {Promise<void>}
+ */
 async function measureScenario(scenario) {
   if (scenario.prepare) {
     await scenario.prepare();
@@ -208,6 +295,7 @@ async function measureScenario(scenario) {
     }
   }
 
+  /** @type {BenchSample[]} */
   const samples = [];
   for (let sample = 0; sample < SAMPLE_COUNT; sample++) {
     const context = await scenario.setup();
@@ -218,19 +306,12 @@ async function measureScenario(scenario) {
     }
   }
 
-  const durations = samples.map(function (sample) {
-    return sample.durationMs;
-  });
-  const activeHeaps = samples.map(function (sample) {
-    return sample.activeHeapDelta;
-  });
-  const retainedHeaps = samples.map(function (sample) {
-    return sample.retainedHeapDelta;
-  });
-  const rssDeltas = samples.map(function (sample) {
-    return sample.rssDelta;
-  });
-  const representative = samples[Math.floor(samples.length / 2)];
+  const durations = samples.map((sample) => sample.durationMs);
+  const activeHeaps = samples.map((sample) => sample.activeHeapDelta);
+  const retainedHeaps = samples.map((sample) => sample.retainedHeapDelta);
+  const rssDeltas = samples.map((sample) => sample.rssDelta);
+  const representative = samples[Math.floor(samples.length / 2)] || samples[0];
+  if (!representative) throw new Error("No benchmark samples recorded");
 
   console.log(scenario.name);
   console.log(
@@ -244,24 +325,24 @@ async function measureScenario(scenario) {
       spreadPercent(durations).toFixed(1) +
       "%)",
   );
-  console.log("  heap active:   " + formatDelta(median(activeHeaps)));
-  console.log("  heap retained: " + formatDelta(median(retainedHeaps)));
-  console.log("  rss delta:     " + formatDelta(median(rssDeltas)));
-  console.log(
-    "  samples:       " + SAMPLE_COUNT + " + " + WARMUP_COUNT + " warmup",
-  );
+  console.log(`  heap active:   ${formatDelta(median(activeHeaps))}`);
+  console.log(`  heap retained: ${formatDelta(median(retainedHeaps))}`);
+  console.log(`  rss delta:     ${formatDelta(median(rssDeltas))}`);
+  console.log(`  samples:       ${SAMPLE_COUNT} + ${WARMUP_COUNT} warmup`);
   if (representative.details) {
-    console.log("  details:       " + representative.details);
+    console.log(`  details:       ${representative.details}`);
   }
 }
 
 async function main() {
+  /** @type {{loadDense?: BenchFixture, snapshot?: BenchFixture, saveDense?: BenchFixture, exportDense?: BenchFixture}} */
   const fixtures = {};
 
+  /** @type {Scenario[]} */
   const scenarios = [
     {
       name: "load dense persisted board",
-      prepare: async function () {
+      prepare: async () => {
         fixtures.loadDense = await writeBoardFile(
           "bench-load-dense-board",
           buildMixedBoard(
@@ -271,10 +352,8 @@ async function main() {
           ),
         );
       },
-      setup: async function () {
-        return fixtures.loadDense;
-      },
-      run: async function (fixture) {
+      setup: async () => fixtures.loadDense,
+      run: async (fixture) => {
         const boardData = await BoardData.load("bench-load-dense-board");
         clearPendingSave(boardData);
         return (
@@ -286,18 +365,18 @@ async function main() {
     },
     {
       name: "materialize initial board snapshot",
-      prepare: async function () {
+      prepare: async () => {
         fixtures.snapshot = await writeBoardFile(
           "bench-initial-board-snapshot",
           buildMixedBoard(SNAPSHOT_BOARD_ITEMS, 8, 64),
         );
       },
-      setup: async function () {
+      setup: async () => {
         const boardData = await BoardData.load("bench-initial-board-snapshot");
         clearPendingSave(boardData);
         return { boardData, fixture: fixtures.snapshot };
       },
-      run: async function (context) {
+      run: async (context) => {
         const payload = { _children: context.boardData.getAll() };
         const snapshot = JSON.stringify(payload);
         return (
@@ -311,7 +390,7 @@ async function main() {
     },
     {
       name: "save dense board to disk",
-      prepare: async function () {
+      prepare: async () => {
         fixtures.saveDense = await writeBoardFile(
           "bench-save-dense-board",
           buildMixedBoard(
@@ -321,12 +400,12 @@ async function main() {
           ),
         );
       },
-      setup: async function () {
+      setup: async () => {
         const boardData = await BoardData.load("bench-save-dense-board");
         clearPendingSave(boardData);
         return { boardData, fixture: fixtures.saveDense };
       },
-      run: async function (context) {
+      run: async (context) => {
         await context.boardData.save();
         clearPendingSave(context.boardData);
         const stat = await fsp.stat(context.boardData.file);
@@ -341,14 +420,14 @@ async function main() {
     },
     {
       name: "clean and save overfull board",
-      setup: async function () {
+      setup: async () => {
         const boardData = new BoardData("bench-clean-overfull-board");
         for (let index = 0; index < OVERFULL_BOARD_ITEMS; index++) {
-          boardData.board["overflow-" + index] = rectangleItem(index);
+          boardData.board[`overflow-${index}`] = rectangleItem(index);
         }
         return { boardData, beforeCount: OVERFULL_BOARD_ITEMS };
       },
-      run: async function (context) {
+      run: async (context) => {
         await context.boardData.save();
         clearPendingSave(context.boardData);
         const afterCount = Object.keys(context.boardData.board).length;
@@ -366,12 +445,12 @@ async function main() {
     },
     {
       name: "apply hand batch transforms to dense pencils",
-      setup: async function () {
+      setup: async () => {
         const boardData = new BoardData("bench-hand-batch-move");
         const batches = [];
         for (let index = 0; index < HAND_BATCH_ITEMS; index++) {
           const result = boardData.set(
-            "pencil-" + index,
+            `pencil-${index}`,
             pencilItem(index, DENSE_PENCIL_POINTS),
           );
           if (!result.ok) throw new Error(result.reason);
@@ -380,29 +459,24 @@ async function main() {
           const delta = pass + 1;
           batches.push({
             tool: "Hand",
-            _children: Array.from(
-              { length: HAND_BATCH_ITEMS },
-              function (_, index) {
-                return {
-                  type: "update",
-                  id: "pencil-" + index,
-                  transform: {
-                    a: 1,
-                    b: 0,
-                    c: 0,
-                    d: 1,
-                    e: delta * 2,
-                    f: delta * 3,
-                  },
-                };
+            _children: Array.from({ length: HAND_BATCH_ITEMS }, (_, index) => ({
+              type: "update",
+              id: `pencil-${index}`,
+              transform: {
+                a: 1,
+                b: 0,
+                c: 0,
+                d: 1,
+                e: delta * 2,
+                f: delta * 3,
               },
-            ),
+            })),
           });
         }
         clearPendingSave(boardData);
         return { boardData, batches };
       },
-      run: async function (context) {
+      run: async (context) => {
         let moved = 0;
         for (const batch of context.batches) {
           const result = context.boardData.processMessage(batch);
@@ -420,16 +494,14 @@ async function main() {
     },
     {
       name: "export large pencil board to svg",
-      prepare: async function () {
+      prepare: async () => {
         fixtures.exportDense = await writeBoardFile(
           "bench-export-large-pencils",
           buildMixedBoard(EXPORT_PENCIL_SHAPES, 1, DENSE_PENCIL_POINTS),
         );
       },
-      setup: async function () {
-        return fixtures.exportDense;
-      },
-      run: async function (fixture) {
+      setup: async () => fixtures.exportDense,
+      run: async (fixture) => {
         const svg = await renderBoardToSVG(fixture.file);
         return (
           EXPORT_PENCIL_SHAPES +
@@ -442,7 +514,7 @@ async function main() {
     },
   ];
 
-  console.log("history dir: " + historyDir);
+  console.log(`history dir: ${historyDir}`);
   if (typeof global.gc !== "function") {
     console.log("note: run with --expose-gc for steadier memory numbers");
   }
@@ -450,15 +522,17 @@ async function main() {
 
   for (let index = 0; index < scenarios.length; index++) {
     if (index > 0) console.log("");
-    await measureScenario(scenarios[index]);
+    const scenario = scenarios[index];
+    if (!scenario) throw new Error("missing benchmark scenario");
+    await measureScenario(scenario);
   }
 }
 
 main()
-  .catch(function (error) {
+  .catch((error) => {
     console.error(error);
     process.exitCode = 1;
   })
-  .finally(async function () {
+  .finally(async () => {
     await fsp.rm(historyDir, { recursive: true, force: true });
   });

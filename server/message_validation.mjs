@@ -1,9 +1,13 @@
-const config = require("./configuration.js");
-const MessageCommon = require("../client-data/js/message_common.js");
-const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
+import MessageCommon from "../client-data/js/message_common.js";
+import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
+import { readConfiguration } from "./configuration.mjs";
+
+function getConfig() {
+  return readConfiguration();
+}
 
 /** @typedef {{[key: string]: any}} RawRecord */
-/** @typedef {import("../types/app-runtime").Transform} Transform */
+/** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
 /** @typedef {{x: number, y: number}} ChildPoint */
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number} | null} Bounds */
 /** @typedef {{value: RawRecord, localBounds: Bounds}} StoredItemWithBounds */
@@ -61,7 +65,7 @@ function isPlainObject(value) {
  * @returns {FieldSpec}
  */
 function required(normalize, options) {
-  return Object.assign({ normalize: normalize, required: true }, options);
+  return { normalize, required: true, ...options };
 }
 
 /**
@@ -70,7 +74,7 @@ function required(normalize, options) {
  * @returns {FieldSpec}
  */
 function optional(normalize, options) {
-  return Object.assign({ normalize: normalize, required: false }, options);
+  return { normalize, required: false, ...options };
 }
 
 /**
@@ -82,7 +86,7 @@ function literal(expected) {
   return function normalizeLiteral(value) {
     return value === expected
       ? accepted(expected)
-      : rejected("expected " + JSON.stringify(expected));
+      : rejected(`expected ${JSON.stringify(expected)}`);
   };
 }
 
@@ -117,7 +121,7 @@ function normalizeOpacity(value) {
  * @returns {Accepted<number>}
  */
 function normalizeCoord(value) {
-  return accepted(MessageCommon.clampCoord(value, config.MAX_BOARD_SIZE));
+  return accepted(MessageCommon.clampCoord(value, getConfig().MAX_BOARD_SIZE));
 }
 
 /**
@@ -158,7 +162,7 @@ function normalizeTransform(value) {
   for (const key of TRANSFORM_KEYS) {
     const number = MessageCommon.normalizeFiniteNumber(value[key]);
     if (number === null) {
-      return rejected("invalid transform." + key);
+      return rejected(`invalid transform.${key}`);
     }
     transform[/** @type {keyof Transform} */ (key)] = number;
   }
@@ -177,25 +181,25 @@ function normalizeObject(raw, fields) {
   /** @type {RawRecord} */
   const normalized = {};
   for (const [key, field] of Object.entries(fields)) {
-    const hasValue = Object.prototype.hasOwnProperty.call(raw, key);
+    const hasValue = Object.hasOwn(raw, key);
     /** @type {any} */
     let value;
 
     if (hasValue) {
       value = raw[key];
-    } else if (Object.prototype.hasOwnProperty.call(field, "defaultValue")) {
+    } else if (Object.hasOwn(field, "defaultValue")) {
       value =
         typeof field.defaultValue === "function"
           ? field.defaultValue(raw, normalized)
           : field.defaultValue;
     } else if (field.required) {
-      return rejected("missing " + key);
+      return rejected(`missing ${key}`);
     } else {
       continue;
     }
 
     const result = field.normalize(value, raw, normalized);
-    if (result.ok === false) return rejected(key + ": " + result.reason);
+    if (result.ok === false) return rejected(`${key}: ${result.reason}`);
     if (result.value !== undefined) normalized[key] = result.value;
   }
 
@@ -450,23 +454,23 @@ function normalizeIncomingBatch(raw) {
   const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[raw.tool];
   if (!childSchemas) return rejected("unsupported batch tool");
   if (!Array.isArray(raw._children)) return rejected("invalid _children");
-  if (raw._children.length > config.MAX_CHILDREN) {
+  if (raw._children.length > getConfig().MAX_CHILDREN) {
     return rejected("too many children");
   }
 
   const children = [];
   for (let index = 0; index < raw._children.length; index++) {
     const child = raw._children[index];
-    const type = child && child.type;
-    if (typeof type !== "string") return rejected("_children[" + index + "]");
+    const type = child?.type;
+    if (typeof type !== "string") return rejected(`_children[${index}]`);
     const schema = childSchemas[type];
     if (!schema) {
-      return rejected("_children[" + index + "]: invalid type");
+      return rejected(`_children[${index}]: invalid type`);
     }
 
     const normalizedChild = normalizeObject(child, schema);
     if (normalizedChild.ok === false) {
-      return rejected("_children[" + index + "]: " + normalizedChild.reason);
+      return rejected(`_children[${index}]: ${normalizedChild.reason}`);
     }
     children.push(normalizedChild.value);
   }
@@ -486,7 +490,7 @@ function normalizeIncomingMessage(raw) {
   if (Array.isArray(raw._children)) return normalizeIncomingBatch(raw);
 
   const toolSchemas = LIVE_MESSAGE_SCHEMAS[raw.tool];
-  const schema = toolSchemas && toolSchemas[raw.type];
+  const schema = toolSchemas?.[raw.type];
   if (!schema) return rejected("invalid tool/type");
 
   const normalized = normalizeObject(raw, schema);
@@ -535,7 +539,7 @@ function normalizeStoredItemWithBounds(raw, storedId) {
   normalized.value.id = normalizedId;
   if (raw.tool === "Pencil") {
     const rawChildren = Array.isArray(raw._children)
-      ? raw._children.slice(0, config.MAX_CHILDREN)
+      ? raw._children.slice(0, getConfig().MAX_CHILDREN)
       : [];
     const children = [];
     for (let index = 0; index < rawChildren.length; index++) {
@@ -572,7 +576,7 @@ function normalizeStoredItem(raw, storedId) {
   return accepted(normalized.value.value);
 }
 
-module.exports = {
+export {
   normalizeIncomingMessage,
   normalizeStoredChildPoint,
   normalizeStoredItem,

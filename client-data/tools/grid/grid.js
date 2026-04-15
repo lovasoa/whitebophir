@@ -24,46 +24,58 @@
  * @licend
  */
 
-(function grid() {
-  //Code isolation
-  /** @typedef {"none" | "url(#grid)" | "url(#dots)"} GridFill */
+/** @typedef {"none" | "url(#grid)" | "url(#dots)"} GridFill */
+/** @typedef {{svg: SVGSVGElement | null, drawingArea: Element | null, createSVGElement: (name: string, attrs?: Record<string, string | undefined>) => Element, add: (tool: unknown) => void}} GridToolRegistry */
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-  var index = 0; //grid off by default
-  /** @type {GridFill[]} */
-  var states = ["none", "url(#grid)", "url(#dots)"];
+export default class GridTool {
+  static toolName = "Grid";
 
-  /** @param {Event} evt */
-  function toggleGrid(evt) {
-    index = (index + 1) % states.length;
-    gridContainer.setAttributeNS(null, "fill", states[index]);
+  /**
+   * @param {GridToolRegistry} tools
+   */
+  constructor(tools) {
+    this.tools = tools;
+    this.name = "Grid";
+    this.shortcut = "g";
+    this.icon = "tools/grid/icon.svg";
+    this.oneTouch = true;
+    this.mouseCursor = "crosshair";
+    this.index = 0;
+    /** @type {GridFill[]} */
+    this.states = ["none", "url(#grid)", "url(#dots)"];
+    this.gridContainer = this.createGridContainer();
   }
 
   /** @returns {SVGDefsElement} */
-  function getDefs() {
-    var existingDefs = Tools.svg.getElementById("defs");
+  getDefs() {
+    if (!this.tools.svg) {
+      throw new Error("Grid: Missing SVG canvas.");
+    }
+    const existingDefs = this.tools.svg.getElementById("defs");
     if (existingDefs instanceof SVGDefsElement) return existingDefs;
-    var defs = /** @type {SVGDefsElement} */ (
-      Tools.createSVGElement("defs", { id: "defs" })
+    const defs = /** @type {SVGDefsElement} */ (
+      this.tools.createSVGElement("defs", { id: "defs" })
     );
-    if (Tools.svg.firstChild) {
-      Tools.svg.insertBefore(defs, Tools.svg.firstChild);
+    if (this.tools.svg.firstChild) {
+      this.tools.svg.insertBefore(defs, this.tools.svg.firstChild);
     } else {
-      Tools.svg.appendChild(defs);
+      this.tools.svg.appendChild(defs);
     }
     return defs;
   }
 
-  function createPatterns() {
+  createPatterns() {
     // create patterns
     // small (inner) grid
-    var smallGrid = Tools.createSVGElement("pattern", {
+    const smallGrid = this.tools.createSVGElement("pattern", {
       id: "smallGrid",
       width: "30",
       height: "30",
       patternUnits: "userSpaceOnUse",
     });
     smallGrid.appendChild(
-      Tools.createSVGElement("path", {
+      this.tools.createSVGElement("path", {
         d: "M 30 0 L 0 0 0 30",
         fill: "none",
         stroke: "gray",
@@ -71,21 +83,21 @@
       }),
     );
     // (outer) grid
-    var grid = Tools.createSVGElement("pattern", {
+    const grid = this.tools.createSVGElement("pattern", {
       id: "grid",
       width: "300",
       height: "300",
       patternUnits: "userSpaceOnUse",
     });
     grid.appendChild(
-      Tools.createSVGElement("rect", {
+      this.tools.createSVGElement("rect", {
         width: "300",
         height: "300",
         fill: "url(#smallGrid)",
       }),
     );
     grid.appendChild(
-      Tools.createSVGElement("path", {
+      this.tools.createSVGElement("path", {
         d: "M 300 0 L 0 0 0 300",
         fill: "none",
         stroke: "gray",
@@ -93,7 +105,7 @@
       }),
     );
     // dots
-    var dots = Tools.createSVGElement("pattern", {
+    const dots = this.tools.createSVGElement("pattern", {
       id: "dots",
       width: "30",
       height: "30",
@@ -102,7 +114,7 @@
       patternUnits: "userSpaceOnUse",
     });
     dots.appendChild(
-      Tools.createSVGElement("circle", {
+      this.tools.createSVGElement("circle", {
         fill: "gray",
         cx: "10",
         cy: "10",
@@ -110,34 +122,47 @@
       }),
     );
 
-    var defs = getDefs();
+    const defs = this.getDefs();
     defs.appendChild(smallGrid);
     defs.appendChild(grid);
     defs.appendChild(dots);
   }
 
-  var gridContainer = (function init() {
+  /** @returns {Element} */
+  createGridContainer() {
     // initialize patterns
-    createPatterns();
+    this.createPatterns();
     // create grid container
-    var gridContainer = Tools.createSVGElement("rect", {
+    const gridContainer = this.tools.createSVGElement("rect", {
       id: "gridContainer",
       width: "100%",
       height: "100%",
-      fill: states[index],
+      fill: this.states[this.index] || "none",
     });
-    Tools.svg.insertBefore(gridContainer, Tools.drawingArea);
+    if (!this.tools.svg) {
+      throw new Error("Grid: Missing SVG canvas.");
+    }
+    if (!this.tools.drawingArea) {
+      throw new Error("Grid: Missing drawing area.");
+    }
+    this.tools.svg.insertBefore(gridContainer, this.tools.drawingArea);
     return gridContainer;
-  })();
+  }
 
-  Tools.add({
-    //The new tool
-    name: "Grid",
-    shortcut: "g",
-    listeners: {},
-    icon: "tools/grid/icon.svg",
-    oneTouch: true,
-    onstart: toggleGrid,
-    mouseCursor: "crosshair",
-  });
-})(); //End of code isolation
+  onstart() {
+    this.index = (this.index + 1) % this.states.length;
+    this.gridContainer.setAttributeNS(
+      null,
+      "fill",
+      this.states[this.index] || "none",
+    );
+  }
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<GridTool>}
+   */
+  static async boot(ctx) {
+    return new GridTool(ctx.runtime.Tools);
+  }
+}

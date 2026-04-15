@@ -1,0 +1,36 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": ["**", "!**/*.html", "!client-data/js/path-data-polyfill.js"]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "lineEnding": "lf"
+  },
+  "linter": {
+    "rules": {
+      "recommended": true,
+      "style": {
+        "noDescendingSpecificity": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "off",
+        "useIterableCallbackReturn": "off"
+      },
+      "correctness": {
+        "noUnusedVariables": "off",
+        "noUnusedFunctionParameters": "off",
+        "noUnusedImports": "off"
+      },
+      "complexity": {
+        "useLiteralKeys": "off",
+        "useOptionalChain": "off"
+      }
+    }
+  }
+}

@@ -1,7 +1,19 @@
-const handlebars = require("handlebars");
-const fs = require("node:fs");
-const path = require("node:path");
-const client_config = require("./client_configuration");
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import handlebars from "handlebars";
+import packageJson from "../package.json" with { type: "json" };
+
+import client_config from "./client_configuration.mjs";
+import serverConfig from "./configuration.mjs";
+import {
+  getToolIconUrl,
+  getToolStylesheetUrl,
+} from "../client-data/js/tool_assets.js";
+import {
+  getVisibleToolCatalogEntries,
+  TOOL_CATALOG,
+} from "../client-data/js/tool_catalog.js";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
@@ -10,13 +22,15 @@ const client_config = require("./client_configuration");
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
 
+const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
+
 /**
  * Associations from language to translation dictionnaries
  * @const
  * @type {TranslationMap}
  */
 const TRANSLATIONS = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "translations.json"), "utf8"),
+  fs.readFileSync(path.join(SERVER_DIR, "translations.json"), "utf8"),
 );
 const languages = Object.keys(TRANSLATIONS);
 
@@ -117,17 +131,15 @@ function pickLanguage(supportedLanguages, acceptedLanguages) {
  * @returns {string}
  */
 function findBaseUrl(req) {
-  var proto =
+  const proto =
     firstHeaderValue(req.headers["x-forwarded-proto"]) ||
     ("encrypted" in req.socket && req.socket.encrypted ? "https" : "http");
-  var host =
+  const host =
     firstHeaderValue(req.headers["x-forwarded-host"]) ||
     firstHeaderValue(req.headers.host) ||
     "localhost";
-  return proto + "://" + host;
+  return `${proto}://${host}`;
 }
-
-const packageJson = require("../package.json");
 
 class Template {
   /**
@@ -170,21 +182,19 @@ class Template {
     const prefix = prefixPart.startsWith("/")
       ? prefixPart.slice(1)
       : prefixPart;
-    const baseUrl = findBaseUrl(request) + (prefix ? "/" + prefix + "/" : "");
+    const baseUrl = findBaseUrl(request) + (prefix ? `/${prefix}/` : "");
     const moderator = isModerator;
     const version = packageJson.version;
-    return Object.assign(
-      {
-        baseUrl,
-        languages,
-        language,
-        translations,
-        configuration,
-        moderator,
-        version,
-      },
-      extraParams,
-    );
+    return {
+      baseUrl,
+      languages,
+      language,
+      translations,
+      configuration,
+      moderator,
+      version,
+      ...extraParams,
+    };
   }
 
   /**
@@ -201,18 +211,25 @@ class Template {
       isModerator === true,
       extraParams,
     );
-    var body = this.template(parameters);
+    const body = this.template(parameters);
     /** @type {{[name: string]: string | number}} */
-    var headers = {
+    const headers = {
       "Content-Length": Buffer.byteLength(body),
       "Content-Type": "text/html",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": this.cacheControl(),
     };
     if (!parsedUrl.searchParams.get("lang")) {
-      headers["Vary"] = "Accept-Language";
+      headers.Vary = "Accept-Language";
     }
     response.writeHead(200, headers);
     response.end(body);
+  }
+
+  /**
+   * @returns {string}
+   */
+  cacheControl() {
+    return serverConfig.IS_DEVELOPMENT ? "no-store" : "public, max-age=3600";
   }
 }
 
@@ -233,12 +250,42 @@ class BoardTemplate extends Template {
     );
     const parts = parsedUrl.pathname.split("boards/", 2);
     const boardUriComponent = parts[1] || "";
-    params["boardUriComponent"] = boardUriComponent;
-    params["board"] = decodeURIComponent(boardUriComponent);
-    params["hideMenu"] =
-      parsedUrl.searchParams.get("hideMenu") == "true" || false;
+    params.boardUriComponent = boardUriComponent;
+    params.board = decodeURIComponent(boardUriComponent);
+    params.hideMenu =
+      parsedUrl.searchParams.get("hideMenu") === "true" || false;
+    const configuration = /** @type {{BLOCKED_TOOLS?: string[]}} */ (
+      params.configuration || {}
+    );
+    const blockedTools = Array.isArray(configuration.BLOCKED_TOOLS)
+      ? configuration.BLOCKED_TOOLS
+      : [];
+    const visibleTools = getVisibleToolCatalogEntries({
+      blockedTools: blockedTools,
+      boardState: params.boardState,
+      moderator: isModerator,
+    });
+    params.tools = visibleTools.map((tool) => ({
+      name: tool.name,
+      label:
+        params.translations[tool.name.toLowerCase().replace(/ /g, "_")] ||
+        tool.name,
+      iconUrl: getToolIconUrl(tool.name, params.version),
+    }));
+    params.toolStylesheets = TOOL_CATALOG.map((tool) =>
+      getToolStylesheetUrl(tool.name, params.version),
+    ).filter((href) => typeof href === "string");
     return params;
+  }
+
+  /**
+   * @returns {string}
+   */
+  cacheControl() {
+    return serverConfig.IS_DEVELOPMENT
+      ? "no-store"
+      : "public, max-age=0, must-revalidate";
   }
 }
 
-module.exports = { Template, BoardTemplate };
+export { BoardTemplate, Template };

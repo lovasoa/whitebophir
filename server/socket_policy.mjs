@@ -1,16 +1,21 @@
-const { logger, metrics, tracing } = require("./observability.js");
-const config = require("./configuration");
-const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
-const normalizeIncomingMessage =
-  require("./message_validation.js").normalizeIncomingMessage;
-const roleInBoard = require("./jwtBoardnameAuth.js").roleInBoard;
+import RateLimitCommon from "../client-data/js/rate_limit_common.js";
+import { readConfiguration } from "./configuration.mjs";
+import { roleInBoard } from "./jwtBoardnameAuth.mjs";
+import { normalizeIncomingMessage } from "./message_validation.mjs";
+import observability from "./observability.mjs";
 
-/** @typedef {import("../types/server-runtime").AppSocket} AppSocket */
-/** @typedef {import("../types/server-runtime").BoardLike} BoardLike */
-/** @typedef {import("../types/server-runtime").BroadcastResult} BroadcastResult */
-/** @typedef {import("../types/server-runtime").MessageData} MessageData */
-/** @typedef {import("../types/server-runtime").RejectedBroadcast} RejectedBroadcast */
-/** @typedef {import("../types/server-runtime").SocketRequest} SocketRequest */
+const { logger, metrics, tracing } = observability;
+
+function getConfig() {
+  return readConfiguration();
+}
+
+/** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
+/** @typedef {import("../types/server-runtime.d.ts").BoardLike} BoardLike */
+/** @typedef {import("../types/server-runtime.d.ts").BroadcastResult} BroadcastResult */
+/** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
+/** @typedef {import("../types/server-runtime.d.ts").RejectedBroadcast} RejectedBroadcast */
+/** @typedef {import("../types/server-runtime.d.ts").SocketRequest} SocketRequest */
 
 /**
  * @param {AppSocket} socket
@@ -52,7 +57,7 @@ function parseForwardedChain(value) {
   return value
     .split(",")
     .map(function parseForwardedEntry(/** @type {string} */ proxyEntry) {
-      var forwardedFor = proxyEntry
+      const forwardedFor = proxyEntry
         .split(";")
         .map(function trimPart(/** @type {string} */ part) {
           return part.trim();
@@ -64,7 +69,7 @@ function parseForwardedChain(value) {
         throw new Error("Missing for= in Forwarded header");
       }
 
-      var resolved = forwardedFor.replace(/^for=/i, "").trim();
+      let resolved = forwardedFor.replace(/^for=/i, "").trim();
       if (
         resolved.startsWith('"') &&
         resolved.endsWith('"') &&
@@ -93,8 +98,8 @@ function parseForwardedHeader(value) {
  * @returns {string}
  */
 function selectTrustedClientIp(chain) {
-  var trustedHops = Math.max(0, config.TRUST_PROXY_HOPS || 0);
-  var selectedIndex = Math.min(trustedHops, chain.length - 1);
+  const trustedHops = Math.max(0, getConfig().TRUST_PROXY_HOPS || 0);
+  const selectedIndex = Math.min(trustedHops, chain.length - 1);
   return chain[selectedIndex] || "";
 }
 
@@ -103,14 +108,14 @@ function selectTrustedClientIp(chain) {
  * @returns {string}
  */
 function getClientIp(socket) {
-  var request = getSocketRequest(socket);
-  var headers = getSocketHeaders(socket);
-  var directRemoteAddress =
-    request.socket && request.socket.remoteAddress
-      ? request.socket.remoteAddress
-      : "";
-  var ipSource = config.IP_SOURCE || "remoteAddress";
-  var normalizedIpSource = normalizeHeaderName(ipSource);
+  const request = getSocketRequest(socket);
+  const headers = getSocketHeaders(socket);
+  const directRemoteAddress = request.socket?.remoteAddress
+    ? request.socket.remoteAddress
+    : "";
+  const config = getConfig();
+  const ipSource = config.IP_SOURCE || "remoteAddress";
+  const normalizedIpSource = normalizeHeaderName(ipSource);
 
   if (normalizedIpSource === "remoteaddress") {
     if (directRemoteAddress) return directRemoteAddress;
@@ -118,10 +123,10 @@ function getClientIp(socket) {
   }
 
   switch (normalizedIpSource) {
-    case "x-forwarded-for":
-      var forwardedForHeader = singleHeaderValue(headers["x-forwarded-for"]);
+    case "x-forwarded-for": {
+      const forwardedForHeader = singleHeaderValue(headers["x-forwarded-for"]);
       if (forwardedForHeader) {
-        var xForwardedFor = forwardedForHeader
+        const xForwardedFor = forwardedForHeader
           .split(",")
           .map(function trimHop(/** @type {string} */ hop) {
             return hop.trim();
@@ -137,11 +142,12 @@ function getClientIp(socket) {
       throw new Error(
         "Missing x-forwarded-for header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
       );
+    }
 
-    case "forwarded":
-      var forwardedHeader = singleHeaderValue(headers["forwarded"]);
+    case "forwarded": {
+      const forwardedHeader = singleHeaderValue(headers.forwarded);
       if (forwardedHeader) {
-        var forwardedChain = parseForwardedChain(forwardedHeader);
+        const forwardedChain = parseForwardedChain(forwardedHeader);
         if (config.TRUST_PROXY_HOPS > 0 && directRemoteAddress) {
           forwardedChain.reverse();
           forwardedChain.unshift(directRemoteAddress);
@@ -152,13 +158,15 @@ function getClientIp(socket) {
       throw new Error(
         "Missing Forwarded header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
       );
+    }
 
-    default:
-      var customHeader = singleHeaderValue(headers[normalizedIpSource]);
-      if (customHeader && customHeader.trim()) {
+    default: {
+      const customHeader = singleHeaderValue(headers[normalizedIpSource]);
+      if (customHeader?.trim()) {
         return customHeader.trim();
       }
-      throw new Error("Missing " + ipSource + " header");
+      throw new Error(`Missing ${ipSource} header`);
+    }
   }
 }
 
@@ -166,15 +174,15 @@ function getClientIp(socket) {
  * @param {MessageData | null | undefined} data
  * @returns {number}
  */
-var countDestructiveActions = RateLimitCommon.countDestructiveActions;
-var countConstructiveActions = RateLimitCommon.countConstructiveActions;
+const countDestructiveActions = RateLimitCommon.countDestructiveActions;
+const countConstructiveActions = RateLimitCommon.countConstructiveActions;
 
 /**
  * @param {MessageData | null | undefined} message
  * @returns {string}
  */
 function getBoardName(message) {
-  return (message && message.board) || "anonymous";
+  return message?.board || "anonymous";
 }
 
 /**
@@ -189,7 +197,7 @@ function normalizeBroadcastData(message, data) {
 
   if (
     typeof data.tool === "string" &&
-    config.BLOCKED_TOOLS.includes(data.tool)
+    getConfig().BLOCKED_TOOLS.includes(data.tool)
   ) {
     return rejectedBroadcast("blocked tool");
   }
@@ -199,7 +207,7 @@ function normalizeBroadcastData(message, data) {
     return rejectedBroadcast(normalized.reason);
   }
 
-  if (config.BLOCKED_TOOLS.includes(normalized.value.tool)) {
+  if (getConfig().BLOCKED_TOOLS.includes(normalized.value.tool)) {
     return rejectedBroadcast("blocked tool");
   }
 
@@ -217,18 +225,21 @@ function normalizeBroadcastData(message, data) {
           "wbo.socket.event": "broadcast_write",
           "wbo.board": getBoardName(message),
           "wbo.rejection.reason": reason,
-          "wbo.tool": data && data.tool,
-          "wbo.message.type": data && data.type,
+          "wbo.tool": data?.tool,
+          "wbo.message.type": data?.type,
         },
       },
       function recordRejectedBroadcast() {
         logger.warn("socket.message_invalid", {
           board: getBoardName(message),
-          tool: data && data.tool,
-          type: data && data.type,
+          tool: data?.tool,
+          type: data?.type,
           reason: reason,
         });
-        metrics.recordRejection("invalid_message", reason);
+        metrics.recordBoardMessage(
+          { board: getBoardName(message), ...(data || {}) },
+          "invalid_message",
+        );
         return { ok: false, reason: reason };
       },
     );
@@ -240,7 +251,7 @@ function normalizeBroadcastData(message, data) {
  * @returns {string | undefined}
  */
 function getSocketToken(socket) {
-  return socket.handshake.query && socket.handshake.query.token;
+  return socket.handshake.query?.token;
 }
 
 /**
@@ -249,7 +260,7 @@ function getSocketToken(socket) {
  * @returns {"editor" | "moderator" | "reader" | "forbidden"}
  */
 function accessRole(boardName, socket) {
-  if (!config.AUTH_SECRET_KEY) return "editor";
+  if (!getConfig().AUTH_SECRET_KEY) return "editor";
   const token = getSocketToken(socket);
   return /** @type {"editor" | "moderator" | "reader" | "forbidden"} */ (
     token ? roleInBoard(token, boardName) : "forbidden"
@@ -271,7 +282,7 @@ function canAccessBoard(boardName, socket) {
  * @returns {"editor" | "moderator" | "forbidden"}
  */
 function writerRole(boardName, socket) {
-  if (!config.AUTH_SECRET_KEY) return "forbidden";
+  if (!getConfig().AUTH_SECRET_KEY) return "forbidden";
   const role = accessRole(boardName, socket);
   return role === "editor" || role === "moderator" ? role : "forbidden";
 }
@@ -301,7 +312,7 @@ function canApplyBoardMessage(board, data, socket) {
   return true;
 }
 
-module.exports = {
+export {
   canAccessBoard,
   canApplyBoardMessage,
   canWriteToBoard,

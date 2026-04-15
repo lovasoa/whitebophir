@@ -24,30 +24,43 @@
  * @licend
  */
 
-(function eraser() {
-  //Code isolation
-  /** @typedef {{type: "delete", id: string}} EraserMessage */
-  /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
+/** @typedef {{type: "delete", id: string}} EraserMessage */
+/** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
+/** @typedef {{svg: SVGSVGElement | null, drawingArea: Element | null, drawAndSend: (message: EraserMessage) => void, add: (tool: unknown) => void}} EraserToolRegistry */
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-  var erasing = false;
+export default class EraserTool {
+  static toolName = "Eraser";
+
+  /**
+   * @param {EraserToolRegistry} tools
+   */
+  constructor(tools) {
+    this.tools = tools;
+    this.erasing = false;
+    this.name = "Eraser";
+    this.shortcut = "e";
+    this.icon = "tools/eraser/icon.svg";
+    this.mouseCursor = "crosshair";
+    this.showMarker = true;
+  }
 
   /**
    * @param {number} x
    * @param {number} y
    * @param {EraserPointerEvent} evt
    */
-  function startErasing(x, y, evt) {
-    //Prevent the press from being interpreted by the browser
+  press(x, y, evt) {
     evt.preventDefault();
-    erasing = true;
-    erase(x, y, evt);
+    this.erasing = true;
+    this.move(x, y, evt);
   }
 
   /**
    * @param {EventTarget | null} elem
    * @returns {elem is Element}
    */
-  function isElement(elem) {
+  isElement(elem) {
     return !!(elem && typeof elem === "object" && "parentNode" in elem);
   }
 
@@ -55,19 +68,23 @@
    * @param {EventTarget | null} elem
    * @returns {elem is Element & {id: string}}
    */
-  function isErasableElement(elem) {
-    return !!(isElement(elem) && typeof elem.id === "string" && elem.id !== "");
+  isErasableElement(elem) {
+    return !!(
+      this.isElement(elem) &&
+      typeof elem.id === "string" &&
+      elem.id !== ""
+    );
   }
 
   /**
    * @param {EventTarget | null} elem
    * @returns {boolean}
    */
-  function inDrawingArea(elem) {
+  inDrawingArea(elem) {
     return !!(
-      Tools.drawingArea &&
-      isElement(elem) &&
-      Tools.drawingArea.contains(elem)
+      this.tools.drawingArea &&
+      this.isElement(elem) &&
+      this.tools.drawingArea.contains(elem)
     );
   }
 
@@ -75,11 +92,10 @@
    * @param {EraserPointerEvent} evt
    * @returns {EventTarget | null}
    */
-  function resolveTarget(evt) {
-    var target = evt.target;
+  resolveTarget(evt) {
+    let target = evt.target;
     if (evt.type === "touchmove" || evt.type === "touchstart") {
-      // The target of touchmove events is the initially touched element, not the one currently touched.
-      var touch = evt.touches && evt.touches[0];
+      const touch = evt.touches && evt.touches[0];
       if (touch) {
         target = document.elementFromPoint(touch.clientX, touch.clientY);
       }
@@ -92,69 +108,61 @@
    * @param {number} y
    * @param {EraserPointerEvent} evt
    */
-  function erase(x, y, evt) {
-    var target = resolveTarget(evt);
+  move(x, y, evt) {
+    const target = this.resolveTarget(evt);
     if (
-      erasing &&
-      target !== Tools.svg &&
-      target !== Tools.drawingArea &&
-      isErasableElement(target) &&
-      inDrawingArea(target)
+      this.erasing &&
+      target !== null &&
+      target !== this.tools.svg &&
+      target !== this.tools.drawingArea &&
+      this.isErasableElement(target) &&
+      this.inDrawingArea(target)
     ) {
-      /** @type {EraserMessage} */
-      var msg = {
+      this.tools.drawAndSend({
         type: "delete",
         id: target.id,
-      };
-      Tools.drawAndSend(msg);
+      });
     }
   }
 
-  function stopErasing() {
-    erasing = false;
+  release() {
+    this.erasing = false;
   }
 
   /** @param {EraserMessage | {type?: string, id?: string}} data */
-  function draw(data) {
-    var elem;
+  draw(data) {
     switch (data.type) {
-      //TODO: add the ability to erase only some points in a line
-      case "delete":
+      case "delete": {
         if (!data.id) {
           console.error("Eraser: Missing id for delete message.", data);
           break;
         }
-        elem = svg.getElementById(data.id);
-        if (elem === null)
+        if (!this.tools.svg) {
+          throw new Error("Eraser: Missing SVG canvas.");
+        }
+        const elem = this.tools.svg.getElementById(data.id);
+        if (elem === null) {
           console.error(
             "Eraser: Tried to delete an element that does not exist.",
           );
-        else if (!Tools.drawingArea) {
+        } else if (!this.tools.drawingArea) {
           throw new Error("Eraser: Missing drawing area.");
         } else {
-          Tools.drawingArea.removeChild(elem);
+          this.tools.drawingArea.removeChild(elem);
         }
         break;
+      }
       default:
         console.error("Eraser: 'delete' instruction with unknown type. ", data);
         break;
     }
   }
 
-  var svg = Tools.svg;
-
-  Tools.add({
-    //The new tool
-    name: "Eraser",
-    shortcut: "e",
-    listeners: {
-      press: startErasing,
-      move: erase,
-      release: stopErasing,
-    },
-    draw: draw,
-    icon: "tools/eraser/icon.svg",
-    mouseCursor: "crosshair",
-    showMarker: true,
-  });
-})(); //End of code isolation
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<EraserTool>}
+   */
+  static async boot(ctx) {
+    return new EraserTool(ctx.runtime.Tools);
+  }
+}

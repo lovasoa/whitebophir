@@ -1,9 +1,9 @@
-"use strict";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const { execFileSync } = require("node:child_process");
-const path = require("node:path");
-
-const repoRoot = path.resolve(__dirname, "..");
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, "..");
 const hooksPath = ".githooks";
 
 try {
@@ -15,6 +15,6 @@ try {
     cwd: repoRoot,
     stdio: "ignore",
   });
-} catch (error) {
+} catch {
   // Ignore non-git installs, such as tarball packaging.
 }

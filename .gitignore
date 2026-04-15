@@ -1,3 +1,4 @@
+.env
 node_modules
 
 lib-cov
@@ -27,3 +28,4 @@ tests_output/
 playwright-report/
 test-results/
 .codex
+.profiles/

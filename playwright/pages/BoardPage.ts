@@ -87,6 +87,11 @@ export class BoardPage {
 
   async gotoBoard(boardName: string, options: BoardUrlOptions = {}) {
     await this.page.goto(this.buildBoardUrl(boardName, options));
+    await this.page.waitForFunction(() => {
+      if (!document.getElementById("board")) return true;
+      const state = document.documentElement.dataset.boardReady;
+      return state === "true" || state === "error";
+    });
   }
 
   async gotoPreview(boardName: string, options: BoardUrlOptions = {}) {
@@ -126,6 +131,7 @@ export class BoardPage {
   }
 
   async trackBroadcasts() {
+    await this.waitForSocketConnected();
     await this.page.evaluate(() => {
       (window as any).__receivedBroadcasts = [];
       (window as any).Tools.socket.on("broadcast", (message: unknown) => {
@@ -137,9 +143,7 @@ export class BoardPage {
   async waitForSocketConnected() {
     await expect
       .poll(() =>
-        this.page.evaluate(
-          () => (window as any).Tools.socket.connected as boolean,
-        ),
+        this.page.evaluate(() => !!(window as any).Tools?.socket?.connected),
       )
       .toBe(true);
   }
@@ -179,34 +183,101 @@ export class BoardPage {
     });
   }
 
+  async reportFirstRemoteUser() {
+    await this.page.evaluate(() => {
+      const report = document.querySelector<HTMLButtonElement>(
+        "#connectedUsersList .connected-user-row:not(.connected-user-row-self) .connected-user-report",
+      );
+      if (!report) throw new Error("Missing remote user report button");
+      report.click();
+    });
+  }
+
+  async waitForDisconnectThenReconnect() {
+    return this.page.evaluate(async () => {
+      const socket = (window as any).Tools.socket;
+      const initialId = socket.id ?? null;
+      return new Promise<{ initialId: string | null; nextId: string | null }>(
+        (resolve, reject) => {
+          let sawDisconnect = false;
+          const timeout = setTimeout(
+            () =>
+              reject(
+                new Error("Timed out waiting for disconnect/reconnect cycle"),
+              ),
+            5_000,
+          );
+
+          socket.once("disconnect", () => {
+            sawDisconnect = true;
+          });
+          socket.once("connect", () => {
+            if (!sawDisconnect) return;
+            clearTimeout(timeout);
+            resolve({
+              initialId,
+              nextId: (window as any).Tools.socket.id ?? null,
+            });
+          });
+        },
+      );
+    });
+  }
+
   async drawPencilPaths(paths: PencilPath[]) {
     await this.page.evaluate(async (inputPaths) => {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const waitFor = async (predicate: () => boolean, timeoutMs = 2_000) => {
+        const deadline = performance.now() + timeoutMs;
+        while (performance.now() < deadline) {
+          if (predicate()) return;
+          await nextFrame();
+        }
+        throw new Error("Timed out waiting for pencil path");
+      };
 
       for (const path of inputPaths) {
         if (path.points.length === 0) continue;
-        (window as any).Tools.setColor(path.color);
-        const lineId = (window as any).Tools.generateUID("l");
-        (window as any).Tools.drawAndSend({
-          type: "line",
-          id: lineId,
-          color: path.color,
-          size: (window as any).Tools.getSize(),
-          opacity: (window as any).Tools.getOpacity(),
-        });
+        const tools = (window as any).Tools;
+        if (typeof tools.ensureToolBooted === "function") {
+          await tools.ensureToolBooted("Pencil");
+        }
+        tools.setColor(path.color);
+        const pencilTool = tools.list.Pencil;
+        if (!pencilTool) throw new Error("Missing Pencil tool");
+        const lineId = tools.generateUID("l");
+        tools.drawAndSend(
+          {
+            type: "line",
+            id: lineId,
+            color: path.color,
+            size: tools.getSize(),
+            opacity: tools.getOpacity(),
+          },
+          pencilTool,
+        );
         await nextFrame();
         for (let index = 0; index < path.points.length; index += 1) {
           const point = path.points[index];
           if (!point) continue;
-          (window as any).Tools.drawAndSend({
-            type: "child",
-            parent: lineId,
-            x: point.x,
-            y: point.y,
-          });
+          tools.drawAndSend(
+            {
+              type: "child",
+              parent: lineId,
+              x: point.x,
+              y: point.y,
+            },
+            pencilTool,
+          );
           await nextFrame();
         }
+        await waitFor(
+          () =>
+            !!document.querySelector(
+              `#drawingArea path[stroke='${path.color}']`,
+            ),
+        );
       }
     }, paths);
   }
@@ -421,12 +492,16 @@ export class BoardPage {
 
   async moveCursor(color: string, x: number, y: number) {
     await this.page.evaluate(
-      ({ cursorColor, cursorX, cursorY }) => {
-        (window as any).Tools.setColor(cursorColor);
+      async ({ cursorColor, cursorX, cursorY }) => {
+        const tools = (window as any).Tools;
+        if (typeof tools.ensureToolBooted === "function") {
+          await tools.ensureToolBooted("Cursor");
+        }
+        tools.setColor(cursorColor);
         const event = new Event("mousemove");
         Object.defineProperty(event, "pageX", { value: cursorX });
         Object.defineProperty(event, "pageY", { value: cursorY });
-        (window as any).Tools.board.dispatchEvent(event);
+        tools.board.dispatchEvent(event);
       },
       { cursorColor: color, cursorX: x, cursorY: y },
     );
@@ -531,6 +606,9 @@ export class BoardPage {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
+      const originalShouldDisableTool = (window as any).Tools.shouldDisableTool;
+      const originalCanUseTool = (window as any).Tools.canUseTool;
+
       (window as any).Tools.setScale(0.4);
       const initialState = {
         currentTool: (window as any).Tools.curTool?.name,
@@ -563,20 +641,8 @@ export class BoardPage {
         rectPresent: !!document.querySelector("#drawingArea rect"),
       };
 
-      (window as any).Tools.shouldDisableTool = (toolName: string) => {
-        return (
-          (window as any).MessageCommon.isDrawTool(toolName) &&
-          !(window as any).MessageCommon.isDrawToolAllowedAtScale(
-            (window as any).Tools.scale || 1,
-          )
-        );
-      };
-      (window as any).Tools.canUseTool = (toolName: string) => {
-        return (
-          (window as any).Tools.shouldDisplayTool(toolName) &&
-          !(window as any).Tools.shouldDisableTool(toolName)
-        );
-      };
+      (window as any).Tools.shouldDisableTool = originalShouldDisableTool;
+      (window as any).Tools.canUseTool = originalCanUseTool;
 
       const blockedChangeResult = (window as any).Tools.change("Pencil");
       (window as any).Tools.setScale(0.5);
@@ -645,30 +711,21 @@ export class BoardPage {
         }
         throw new Error("Timed out waiting for selector");
       };
-
       const rect = document.getElementById(targetId);
       if (!rect) throw new Error(`Missing shape ${targetId}`);
-      const evt = {
-        preventDefault() {},
-        target: rect,
-        clientX: 0,
-        clientY: 0,
-      };
-
-      (window as any).Tools.curTool.listeners.press(110, 110, evt);
-      (window as any).Tools.curTool.listeners.release(110, 110, evt);
-      document.body.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "d", bubbles: true }),
-      );
+      const duplicateId = (window as any).Tools.generateUID(targetId[0] ?? "s");
+      (window as any).Tools.drawAndSend({
+        _children: [{ type: "copy", id: targetId, newid: duplicateId }],
+      });
 
       const afterDuplicate = await waitFor(() => {
         const ids = rectState();
         return ids.length === 2 ? ids : null;
       });
 
-      document.body.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Delete", bubbles: true }),
-      );
+      (window as any).Tools.drawAndSend({
+        _children: [{ type: "delete", id: targetId }],
+      });
 
       const afterDelete = await waitFor(() => {
         const ids = rectState();
@@ -779,7 +836,7 @@ export class BoardPage {
     await expect
       .poll(() =>
         this.page.evaluate(() => ({
-          connected: !!(window as any).Tools.socket.connected,
+          connected: !!(window as any).Tools?.socket?.connected,
           awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
         })),
       )
@@ -909,13 +966,12 @@ export class BoardPage {
   async readCursorAttributes() {
     return this.page.evaluate(() => {
       const cursor = document.getElementById("cursor-me");
+      if (!(cursor instanceof SVGElement)) return null;
       const style =
-        cursor instanceof SVGElement
-          ? cursor.style.transform || window.getComputedStyle(cursor).transform
-          : "";
+        cursor.style.transform || window.getComputedStyle(cursor).transform;
       return {
-        transform: style || cursor?.getAttribute("transform"),
-        fill: cursor?.getAttribute("fill"),
+        transform: style || cursor.getAttribute("transform"),
+        fill: cursor.getAttribute("fill"),
       };
     });
   }

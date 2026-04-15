@@ -17,7 +17,7 @@ const {
  * @returns {T}
  */
 function disableSaves(board) {
-  /** @type {{delaySave: () => void}} */ (board).delaySave = function () {};
+  /** @type {{delaySave: () => void}} */ (board).delaySave = () => {};
   return board;
 }
 
@@ -36,7 +36,7 @@ function normalizeBoardSnapshot(board) {
   return snapshot;
 }
 
-test("BoardData processMessageBatch and per-message processing stay in sync", function () {
+test("BoardData processMessageBatch and per-message processing stay in sync", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const single = disableSaves(new BoardData("process-sequence-single"));
   const batch = disableSaves(new BoardData("process-sequence-batch"));
@@ -118,7 +118,7 @@ test("BoardData processMessageBatch and per-message processing stay in sync", fu
   );
 });
 
-test("BoardData replays batch updates, copies, and deletes consistently", function () {
+test("BoardData replays batch updates, copies, and deletes consistently", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("replay-board"));
 
@@ -171,7 +171,7 @@ test("BoardData replays batch updates, copies, and deletes consistently", functi
   });
 });
 
-test("BoardData applies parent tool metadata to batched Hand updates", function () {
+test("BoardData applies parent tool metadata to batched Hand updates", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("hand-batch-board"));
 
@@ -208,8 +208,8 @@ test("BoardData applies parent tool metadata to batched Hand updates", function 
   });
 });
 
-test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async function () {
-  await withEnv({ WBO_MAX_CHILDREN: "1" }, async function () {
+test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async () => {
+  await withEnv({ WBO_MAX_CHILDREN: "1" }, async () => {
     const BoardData = require(BOARD_DATA_PATH).BoardData;
     const board = disableSaves(new BoardData("child-cap-board"));
 
@@ -227,7 +227,7 @@ test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async functio
   });
 });
 
-test("BoardData rejects the first pencil child that makes a stroke oversized", function () {
+test("BoardData rejects the first pencil child that makes a stroke oversized", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("oversized-pencil-board"));
 
@@ -251,7 +251,7 @@ test("BoardData rejects the first pencil child that makes a stroke oversized", f
   ]);
 });
 
-test("BoardData rejects transform updates that make a stored shape oversized", function () {
+test("BoardData rejects transform updates that make a stored shape oversized", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("oversized-transform-board"));
 
@@ -279,7 +279,7 @@ test("BoardData rejects transform updates that make a stored shape oversized", f
   assert.equal(board.get("rect-1").transform, undefined);
 });
 
-test("BoardData drops zero-size seed shapes after an oversized update is rejected", function () {
+test("BoardData drops zero-size seed shapes after an oversized update is rejected", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("oversized-seed-shape-board"));
 
@@ -313,7 +313,7 @@ test("BoardData drops zero-size seed shapes after an oversized update is rejecte
   assert.equal(board.get("rect-1"), undefined);
 });
 
-test("BoardData rejects hand batches atomically when one transform is oversized", function () {
+test("BoardData rejects hand batches atomically when one transform is oversized", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("atomic-hand-batch-board"));
 
@@ -362,8 +362,8 @@ test("BoardData rejects hand batches atomically when one transform is oversized"
   assert.equal(board.get("rect-2").transform, undefined);
 });
 
-test("BoardData.clean keeps the newest items when trimming history", async function () {
-  await withEnv({ WBO_MAX_ITEM_COUNT: "2" }, async function () {
+test("BoardData.clean keeps the newest items when trimming history", async () => {
+  await withEnv({ WBO_MAX_ITEM_COUNT: "2" }, async () => {
     const BoardData = require(BOARD_DATA_PATH).BoardData;
     const board = disableSaves(new BoardData("cleanup-board"));
 
@@ -379,12 +379,12 @@ test("BoardData.clean keeps the newest items when trimming history", async funct
   });
 });
 
-test("BoardData.load normalizes stored board items from disk", async function () {
+test("BoardData.load normalizes stored board items from disk", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-data-load-"),
   );
 
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async function () {
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     const BoardData = require(BOARD_DATA_PATH).BoardData;
     await writeBoard(historyDir, "normalized-load", {
       bad1: {
@@ -413,12 +413,12 @@ test("BoardData.load normalizes stored board items from disk", async function ()
   });
 });
 
-test("BoardData.loadMetadataSync preserves readonly metadata and falls back safely", async function () {
+test("BoardData.loadMetadataSync preserves readonly metadata and falls back safely", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-metadata-"),
   );
 
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async function () {
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     const boardDataModule = require(BOARD_DATA_PATH);
     const BoardData = boardDataModule.BoardData;
 
@@ -447,14 +447,14 @@ test("BoardData.loadMetadataSync preserves readonly metadata and falls back safe
   });
 });
 
-test("BoardData.save serializes concurrent saves and releases after failure", async function () {
+test("BoardData.save serializes concurrent saves and releases after failure", async () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = new BoardData("serial-save-board");
   /** @type {string[]} */
   const calls = [];
   let shouldFail = true;
 
-  board._unsafe_save = async function () {
+  board._unsafe_save = async () => {
     calls.push("start");
     await new Promise((resolve) => setTimeout(resolve, 0));
     if (shouldFail) {
@@ -466,14 +466,14 @@ test("BoardData.save serializes concurrent saves and releases after failure", as
   };
 
   const firstSave = board.save().then(
-    function () {
+    () => {
       calls.push("first-resolved");
     },
-    function () {
+    () => {
       calls.push("first-rejected");
     },
   );
-  const secondSave = board.save().then(function () {
+  const secondSave = board.save().then(() => {
     calls.push("second-resolved");
   });
 

@@ -1,16 +1,17 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 const ROOT = path.resolve(__dirname, "..");
-const CONFIG_PATH = path.join(ROOT, "server", "configuration.js");
-const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.js");
-const SOCKETS_PATH = path.join(ROOT, "server", "sockets.js");
-const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.js");
-const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.js");
+const CONFIG_PATH = path.join(ROOT, "server", "configuration.mjs");
+const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.mjs");
+const SOCKETS_PATH = path.join(ROOT, "server", "sockets.mjs");
+const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.mjs");
+const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.mjs");
 const MESSAGE_VALIDATION_PATH = path.join(
   ROOT,
   "server",
-  "message_validation.js",
+  "message_validation.mjs",
 );
 const MESSAGE_COMMON_PATH = path.join(
   ROOT,
@@ -21,14 +22,14 @@ const MESSAGE_COMMON_PATH = path.join(
 const JWT_BOARDNAME_AUTH_PATH = path.join(
   ROOT,
   "server",
-  "jwtBoardnameAuth.js",
+  "jwtBoardnameAuth.mjs",
 );
 
 /** @typedef {{[key: string]: any}} Dict */
 /** @typedef {{headers?: {[key: string]: string | string[] | undefined}, remoteAddress?: string, token?: string, query?: {[key: string]: string | undefined}, id?: string}} SocketOptions */
 /** @typedef {{event: string, payload: any, room?: string}} EmittedEvent */
 /** @typedef {{[event: string]: (...args: any[]) => any}} HandlerMap */
-/** @typedef {{id: string, turnstileValidatedUntil?: number, disconnected?: boolean, handshake: {query: {token?: string}}, rooms: Set<string>, client: {request: {headers: {[key: string]: string | string[] | undefined}, socket: {remoteAddress: string}}}, broadcast: {to: (room: string) => {emit: (event: string, payload: any) => void}}, disconnectCalls: boolean[], on: (event: string, handler: (...args: any[]) => any) => void, join: (room: string) => void, emit: (event: string, payload: any) => void, disconnect: (close: boolean) => void}} TestSocket */
+/** @typedef {{id: string, turnstileValidatedUntil?: number, disconnected?: boolean, handshake: {query: {token?: string}}, rooms: Set<string>, client: {request: {headers: {[key: string]: string | string[] | undefined}, socket: {remoteAddress: string}}, conn: {closeCalls: number[], close: () => void}}, broadcast: {to: (room: string) => {emit: (event: string, payload: any) => void}}, disconnectCalls: boolean[], on: (event: string, handler: (...args: any[]) => any) => void, join: (room: string) => void, emit: (event: string, payload: any) => void, disconnect: (close: boolean) => void}} TestSocket */
 /** @typedef {{socket: TestSocket, handlers: HandlerMap, emitted: EmittedEvent[], broadcasted: EmittedEvent[]}} CreatedSocket */
 
 const DEFAULT_CLEARED_MODULES = [
@@ -41,6 +42,7 @@ const DEFAULT_CLEARED_MODULES = [
   MESSAGE_COMMON_PATH,
   JWT_BOARDNAME_AUTH_PATH,
 ];
+let socketsLoadSequence = 0;
 
 /**
  * @param {string} modulePath
@@ -49,6 +51,15 @@ const DEFAULT_CLEARED_MODULES = [
 function clearModuleCache(modulePath) {
   const resolved = require.resolve(modulePath);
   delete require.cache[resolved];
+}
+
+/**
+ * @returns {Promise<any>}
+ */
+async function loadSockets() {
+  return import(
+    `${pathToFileURL(SOCKETS_PATH).href}?cache-bust=${++socketsLoadSequence}`
+  );
 }
 
 /**
@@ -122,24 +133,29 @@ function createSocket(options) {
         headers: settings.headers || {},
         socket: { remoteAddress: settings.remoteAddress || "127.0.0.1" },
       },
-    },
-    broadcast: {
-      to: function (room) {
-        return {
-          emit: function (event, payload) {
-            broadcasted.push({ event, payload, room });
-          },
-        };
+      conn: {
+        closeCalls: [],
+        close: function () {
+          this.closeCalls.push(Date.now());
+          socket.disconnected = true;
+        },
       },
     },
+    broadcast: {
+      to: (room) => ({
+        emit: (event, payload) => {
+          broadcasted.push({ event, payload, room });
+        },
+      }),
+    },
     disconnectCalls: [],
-    on: function (event, handler) {
+    on: (event, handler) => {
       handlers[event] = handler;
     },
     join: function (room) {
       this.rooms.add(room);
     },
-    emit: function (event, payload) {
+    emit: (event, payload) => {
       emitted.push({ event, payload });
     },
     disconnect: function (close) {
@@ -157,7 +173,7 @@ function createSocket(options) {
  * @returns {string}
  */
 function boardFile(historyDir, name) {
-  return path.join(historyDir, "board-" + encodeURIComponent(name) + ".json");
+  return path.join(historyDir, `board-${encodeURIComponent(name)}.json`);
 }
 
 /**
@@ -178,6 +194,7 @@ module.exports = {
   SOCKETS_PATH,
   boardFile,
   createSocket,
+  loadSockets,
   withEnv,
   writeBoard,
 };

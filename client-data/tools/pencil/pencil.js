@@ -24,108 +24,130 @@
  * @licend
  */
 
-(function () {
-  //Code isolation
-  /** @typedef {{type: "line", id: string, color?: string, size?: number, opacity?: number}} PencilLineData */
-  /** @typedef {{type: "child", parent: string, x: number, y: number}} PencilChildData */
-  /** @typedef {PencilLineData | PencilChildData | {type: "endline"} | {type?: string, id?: string, color?: string, size?: number, opacity?: number, parent?: string, x?: number, y?: number}} PencilMessage */
-  /** @typedef {SVGPathElement & {id: string}} PencilLine */
+import { LIMITS } from "../../js/message_common.js";
+import { wboPencilPoint } from "./wbo_pencil_point.js";
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+
+export default class PencilTool {
+  static toolName = "Pencil";
+
+  /**
+   * @param {any} Tools
+   * @param {(assetFile: string) => string} [assetUrl]
+   */
+  constructor(
+    Tools,
+    assetUrl = /** @param {string} assetFile */ (assetFile) =>
+      `tools/pencil/${assetFile}`,
+  ) {
+    this.Tools = Tools;
+    this.assetUrl = assetUrl;
+    this.AUTO_FINGER_WHITEOUT =
+      Tools.server_config.AUTO_FINGER_WHITEOUT === true;
+    const defaultMaxPencilChildren =
+      typeof LIMITS === "object" &&
+      LIMITS &&
+      Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
+        ? Number(LIMITS.DEFAULT_MAX_CHILDREN)
+        : Number.POSITIVE_INFINITY;
+    this.MAX_PENCIL_CHILDREN =
+      Number(Tools.server_config.MAX_CHILDREN) > 0
+        ? Number(Tools.server_config.MAX_CHILDREN)
+        : defaultMaxPencilChildren;
+
+    this.hasUsedStylus = false;
+    this.curLineId = "";
+    this.lastTime = performance.now();
+    this.hasSentPoint = false;
+    this.currentLineChildCount = 0;
+    this.renderingLine = null;
+    this.pathDataCache = {};
+    this.drawingSize = -1;
+    this.whiteOutSize = -1;
+
+    this.name = "Pencil";
+    this.shortcut = "p";
+    this.secondary = {
+      name: "White-out",
+      icon: "tools/pencil/whiteout_tape.svg",
+      active: false,
+      switch: () => {
+        this.stopLine();
+        this.toggleSize();
+      },
+    };
+    this.mouseCursor = `url('${assetUrl("cursor.svg")}'), crosshair`;
+    this.icon = "tools/pencil/icon.svg";
+    this.stylesheet = "tools/pencil/pencil.css";
+  }
 
   /**
    * @param {unknown} value
    * @param {number} fallback
    * @returns {number}
    */
-  function getPositiveNumber(value, fallback) {
-    var number = Number(value);
+  getPositiveNumber(value, fallback) {
+    const number = Number(value);
     return number > 0 ? number : fallback;
   }
 
   /**
    * @returns {number}
    */
-  function getMinPencilIntervalMs() {
-    var generalLimit =
-      typeof Tools.getEffectiveRateLimit === "function"
-        ? Tools.getEffectiveRateLimit("general")
-        : (Tools.server_config &&
-            Tools.server_config.RATE_LIMITS &&
-            Tools.server_config.RATE_LIMITS.general) ||
+  getMinPencilIntervalMs() {
+    const generalLimit =
+      typeof this.Tools.getEffectiveRateLimit === "function"
+        ? this.Tools.getEffectiveRateLimit("general")
+        : (this.Tools.server_config &&
+            this.Tools.server_config.RATE_LIMITS &&
+            this.Tools.server_config.RATE_LIMITS.general) ||
           {};
     return (
-      getPositiveNumber(generalLimit.periodMs, 4096) /
-      getPositiveNumber(generalLimit.limit, 192)
+      this.getPositiveNumber(generalLimit.periodMs, 4096) /
+      this.getPositiveNumber(generalLimit.limit, 192)
     );
   }
 
-  // Allocate the full maximum server update rate to pencil messages.
-  // This feels a bit risky in terms of dropped messages, but any less
-  // gives terrible results with the default parameters.  In practice it
-  // seems to work, either because writing tends to happen in bursts, or
-  // maybe because the messages are sent when the time interval is *greater*
-  // than this?
-  var AUTO_FINGER_WHITEOUT = Tools.server_config.AUTO_FINGER_WHITEOUT === true;
-  var DEFAULT_MAX_PENCIL_CHILDREN =
-    typeof MessageCommon === "object" &&
-    MessageCommon &&
-    MessageCommon.LIMITS &&
-    Number(MessageCommon.LIMITS.DEFAULT_MAX_CHILDREN) > 0
-      ? Number(MessageCommon.LIMITS.DEFAULT_MAX_CHILDREN)
-      : Number.POSITIVE_INFINITY;
-  var MAX_PENCIL_CHILDREN =
-    Number(Tools.server_config.MAX_CHILDREN) > 0
-      ? Number(Tools.server_config.MAX_CHILDREN)
-      : DEFAULT_MAX_PENCIL_CHILDREN;
-  var hasUsedStylus = false;
-
-  //Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
-  var curLineId = "",
-    lastTime = performance.now(); //The time at which the last point was drawn
-  var hasSentPoint = false;
-  var currentLineChildCount = 0;
-
-  //The data of the message that will be sent for every new point
   /**
-   * @constructor
    * @param {number} x
    * @param {number} y
+   * @returns {{type: "child", parent: string, x: number, y: number}}
    */
-  function PointMessage(x, y) {
-    this.type = "child";
-    this.parent = curLineId;
-    this.x = x;
-    this.y = y;
+  createPointMessage(x, y) {
+    return {
+      type: "child",
+      parent: this.curLineId,
+      x: x,
+      y: y,
+    };
   }
 
   /** @param {TouchEvent} evt */
-  function handleAutoWhiteOut(evt) {
-    var touch = evt.touches && evt.touches[0];
-    var touchType =
+  handleAutoWhiteOut(evt) {
+    const touch = evt.touches && evt.touches[0];
+    const touchType =
       touch && "touchType" in touch
         ? /** @type {{touchType?: string}} */ (touch).touchType
         : undefined;
-    if (touchType == "stylus") {
-      //When using stylus, switch back to the primary
+    if (touchType === "stylus") {
       if (
-        hasUsedStylus &&
-        Tools.curTool &&
-        Tools.curTool.secondary &&
-        Tools.curTool.secondary.active
+        this.hasUsedStylus &&
+        this.Tools.curTool &&
+        this.Tools.curTool.secondary &&
+        this.Tools.curTool.secondary.active
       ) {
-        Tools.change("Pencil");
+        this.Tools.change("Pencil");
       }
-      //Remember if starting a line with a stylus
-      hasUsedStylus = true;
+      this.hasUsedStylus = true;
     }
-    if (touchType == "direct") {
-      //When used stylus and touched with a finger, switch to secondary
+    if (touchType === "direct") {
       if (
-        hasUsedStylus &&
-        Tools.curTool &&
-        Tools.curTool.secondary &&
-        !Tools.curTool.secondary.active
+        this.hasUsedStylus &&
+        this.Tools.curTool &&
+        this.Tools.curTool.secondary &&
+        !this.Tools.curTool.secondary.active
       ) {
-        Tools.change("Pencil");
+        this.Tools.change("Pencil");
       }
     }
   }
@@ -135,35 +157,32 @@
    * @param {number} y
    * @param {MouseEvent | TouchEvent} evt
    */
-  function startLine(x, y, evt) {
-    //Prevent the press from being interpreted by the browser
+  press(x, y, evt) {
     evt.preventDefault();
 
     if (
-      AUTO_FINGER_WHITEOUT &&
+      this.AUTO_FINGER_WHITEOUT &&
       typeof TouchEvent !== "undefined" &&
       evt instanceof TouchEvent
     ) {
-      handleAutoWhiteOut(evt);
+      this.handleAutoWhiteOut(evt);
     }
 
-    curLineId = Tools.generateUID("l"); //"l" for line
-    hasSentPoint = false;
-    currentLineChildCount = 0;
+    this.curLineId = this.Tools.generateUID("l");
+    this.hasSentPoint = false;
+    this.currentLineChildCount = 0;
 
-    var initialData = {
+    const initialData = {
       type: "line",
-      id: curLineId,
-      color: pencilTool.secondary.active ? "#ffffff" : Tools.getColor(),
-      size: Tools.getSize(),
-      opacity: pencilTool.secondary.active ? 1 : Tools.getOpacity(),
+      id: this.curLineId,
+      color: this.secondary.active ? "#ffffff" : this.Tools.getColor(),
+      size: this.Tools.getSize(),
+      opacity: this.secondary.active ? 1 : this.Tools.getOpacity(),
     };
 
-    draw(initialData);
-    Tools.drawAndSend(initialData);
-
-    //Immediatly add a point to the line
-    continueLine(x, y, evt);
+    this.draw(initialData);
+    this.Tools.drawAndSend(initialData, this);
+    this.move(x, y, evt);
   }
 
   /**
@@ -171,21 +190,25 @@
    * @param {number} y
    * @param {MouseEvent | TouchEvent | undefined} evt
    */
-  function continueLine(x, y, evt) {
-    if (curLineId !== "" && currentLineChildCount >= MAX_PENCIL_CHILDREN) {
-      stopLine();
-    }
-    /*Wait 70ms before adding any point to the currently drawing line.
-		This allows the animation to be smother*/
+  move(x, y, evt) {
     if (
-      curLineId !== "" &&
-      (!hasSentPoint || performance.now() - lastTime > getMinPencilIntervalMs())
+      this.curLineId !== "" &&
+      this.currentLineChildCount >= this.MAX_PENCIL_CHILDREN
     ) {
-      Tools.drawAndSend(new PointMessage(x, y));
-      currentLineChildCount += 1;
-      hasSentPoint = true;
-      lastTime = performance.now();
-      if (currentLineChildCount >= MAX_PENCIL_CHILDREN) stopLine();
+      this.stopLine();
+    }
+    if (
+      this.curLineId !== "" &&
+      (!this.hasSentPoint ||
+        performance.now() - this.lastTime > this.getMinPencilIntervalMs())
+    ) {
+      this.Tools.drawAndSend(this.createPointMessage(x, y), this);
+      this.currentLineChildCount += 1;
+      this.hasSentPoint = true;
+      this.lastTime = performance.now();
+      if (this.currentLineChildCount >= this.MAX_PENCIL_CHILDREN) {
+        this.stopLine();
+      }
     }
     if (evt) evt.preventDefault();
   }
@@ -194,63 +217,67 @@
    * @param {number} x
    * @param {number} y
    */
-  function stopLineAt(x, y) {
-    //Add a last point to the line
-    continueLine(x, y, undefined);
-    stopLine();
+  release(x, y) {
+    this.move(x, y, undefined);
+    this.stopLine();
   }
 
-  function stopLine() {
-    curLineId = "";
-    hasSentPoint = false;
-    currentLineChildCount = 0;
-    renderingLine = null;
+  stopLine() {
+    this.curLineId = "";
+    this.hasSentPoint = false;
+    this.currentLineChildCount = 0;
+    this.renderingLine = null;
   }
 
   /**
    * @param {boolean} removeCurrentLine
    */
-  function abortLine(removeCurrentLine) {
-    var lineId = curLineId;
-    stopLine();
+  abortLine(removeCurrentLine) {
+    const lineId = this.curLineId;
+    this.stopLine();
     if (!removeCurrentLine || !lineId) return;
-    var line = getLineById(lineId);
-    if (!line || !Tools.drawingArea) return;
-    if (line.parentNode === Tools.drawingArea) {
-      Tools.drawingArea.removeChild(line);
+    const line = this.getLineById(lineId);
+    if (!line || !this.Tools.drawingArea) return;
+    if (line.parentNode === this.Tools.drawingArea) {
+      this.Tools.drawingArea.removeChild(line);
     }
-    delete pathDataCache[lineId];
+    delete this.pathDataCache[lineId];
   }
 
-  /** @type {PencilLine | null} */
-  var renderingLine = null;
-  /** @param {PencilMessage} data */
-  function draw(data) {
-    Tools.drawingEvent = true;
+  /** @param {{type?: string, id?: string, color?: string, size?: number, opacity?: number, parent?: string, x?: number, y?: number}} data */
+  draw(data) {
+    this.Tools.drawingEvent = true;
     switch (data.type) {
       case "line":
-        renderingLine = createLine(/** @type {PencilLineData} */ (data));
+        this.renderingLine = this.createLine(
+          /** @type {{type: "line", id: string, color?: string, size?: number, opacity?: number}} */ (
+            data
+          ),
+        );
         break;
-      case "child":
-        var childData = /** @type {PencilChildData} */ (data);
-        var line =
-          renderingLine && renderingLine.id === childData.parent
-            ? renderingLine
-            : getLineById(childData.parent);
+      case "child": {
+        const childData =
+          /** @type {{type: "child", parent: string, x: number, y: number}} */ (
+            data
+          );
+        let line =
+          this.renderingLine && this.renderingLine.id === childData.parent
+            ? this.renderingLine
+            : this.getLineById(childData.parent);
         if (!line) {
           console.error(
             "Pencil: Hmmm... I received a point of a line that has not been created (%s).",
             childData.parent,
           );
-          line = renderingLine = createLine({
+          line = this.renderingLine = this.createLine({
             type: "line",
             id: childData.parent,
-          }); //create a new line in order not to loose the points
+          });
         }
-        addPoint(line, childData.x, childData.y);
+        this.addPoint(line, childData.x, childData.y);
         break;
+      }
       case "endline":
-        //TODO?
         break;
       default:
         console.error("Pencil: Draw instruction with unknown type. ", data);
@@ -258,147 +285,125 @@
     }
   }
 
-  /** @type {{[lineId: string]: any[]}} */
-  var pathDataCache = {};
-  /** @param {PencilLine} line */
-  function getPathData(line) {
-    var pathData = pathDataCache[line.id];
+  /** @param {SVGPathElement & {id: string}} line */
+  getPathData(line) {
+    let pathData = this.pathDataCache[line.id];
     if (!pathData) {
       pathData = line.getPathData();
-      pathDataCache[line.id] = pathData;
+      this.pathDataCache[line.id] = pathData;
     }
     return pathData;
   }
 
-  var svg = Tools.svg;
-
   /**
    * @param {string | undefined} lineId
-   * @returns {PencilLine | null}
+   * @returns {(SVGPathElement & {id: string}) | null}
    */
-  function getLineById(lineId) {
-    if (!lineId) return null;
-    var line = svg.getElementById(lineId);
+  getLineById(lineId) {
+    if (!lineId || !this.Tools.svg) return null;
+    const line = this.Tools.svg.getElementById(lineId);
     return line instanceof SVGPathElement
-      ? /** @type {PencilLine} */ (line)
+      ? /** @type {SVGPathElement & {id: string}} */ (line)
       : null;
   }
 
   /**
-   * @param {PencilLine} line
+   * @param {SVGPathElement & {id: string}} line
    * @param {number} x
    * @param {number} y
    */
-  function addPoint(line, x, y) {
-    var pts = getPathData(line);
-    pts = wboPencilPoint(pts, x, y);
+  addPoint(line, x, y) {
+    const pts = wboPencilPoint(this.getPathData(line), x, y);
     line.setPathData(pts);
   }
 
   /**
-   * @param {PencilLineData} lineData
-   * @returns {PencilLine}
+   * @param {{type: "line", id: string, color?: string, size?: number, opacity?: number}} lineData
+   * @returns {SVGPathElement & {id: string}}
    */
-  function createLine(lineData) {
-    //Creates a new line on the canvas, or update a line that already exists with new information
-    var line = getLineById(lineData.id);
+  createLine(lineData) {
+    let line = this.getLineById(lineData.id);
+    delete this.pathDataCache[lineData.id];
     if (line) {
-      // Replays can recreate an existing DOM node after reconnect; reset the path before reapplying children.
       line.setPathData([]);
-      delete pathDataCache[lineData.id];
     } else {
-      line = /** @type {PencilLine} */ (Tools.createSVGElement("path"));
+      line = /** @type {SVGPathElement & {id: string}} */ (
+        this.Tools.createSVGElement("path")
+      );
     }
     line.id = lineData.id || "";
-    //If some data is not provided, choose default value. The line may be updated later
     line.setAttribute("stroke", lineData.color || "black");
     line.setAttribute("stroke-width", String(lineData.size || 10));
     line.setAttribute(
       "opacity",
       String(Math.max(0.1, Math.min(1, Number(lineData.opacity) || 1))),
     );
-    if (!Tools.drawingArea) {
+    if (!this.Tools.drawingArea) {
       throw new Error("Missing drawing area for pencil tool");
     }
-    Tools.drawingArea.appendChild(line);
+    this.Tools.drawingArea.appendChild(line);
     return line;
   }
 
-  //Remember drawing and white-out sizes separately
-  var drawingSize = -1;
-  var whiteOutSize = -1;
-
-  function restoreDrawingSize() {
-    whiteOutSize = Tools.getSize();
-    if (drawingSize != -1) {
-      Tools.setSize(drawingSize);
+  restoreDrawingSize() {
+    this.whiteOutSize = this.Tools.getSize();
+    if (this.drawingSize !== -1) {
+      this.Tools.setSize(this.drawingSize);
     }
   }
 
-  function restoreWhiteOutSize() {
-    drawingSize = Tools.getSize();
-    if (whiteOutSize != -1) {
-      Tools.setSize(whiteOutSize);
+  restoreWhiteOutSize() {
+    this.drawingSize = this.Tools.getSize();
+    if (this.whiteOutSize !== -1) {
+      this.Tools.setSize(this.whiteOutSize);
     }
   }
 
-  //Restore remembered size after switch
-  function toggleSize() {
-    if (pencilTool.secondary.active) {
-      restoreWhiteOutSize();
+  toggleSize() {
+    if (this.secondary.active) {
+      this.restoreWhiteOutSize();
     } else {
-      restoreDrawingSize();
+      this.restoreDrawingSize();
     }
   }
 
-  var pencilTool = {
-    name: "Pencil",
-    shortcut: "p",
-    listeners: {
-      press: startLine,
-      move: continueLine,
-      release: stopLineAt,
-    },
-    draw: draw,
-    onMessage: function (/** @type {PencilMessage} */ message) {
-      if (message.type === "clear") {
-        abortLine(false);
-        return;
-      }
-      if (message.type === "delete" && message.id && message.id === curLineId) {
-        abortLine(false);
-      }
-    },
-    onSocketDisconnect: function () {
-      abortLine(true);
-    },
-    onstart: function () {
-      //Reset stylus
-      hasUsedStylus = false;
+  /** @param {{type?: string, id?: string}} message */
+  onMessage(message) {
+    if (message.type === "clear") {
+      this.abortLine(false);
+      return;
+    }
+    if (
+      message.type === "delete" &&
+      message.id &&
+      message.id === this.curLineId
+    ) {
+      this.abortLine(false);
+    }
+  }
 
-      //When switching from another tool to white-out, restore white-out size
-      if (pencilTool.secondary.active) {
-        restoreWhiteOutSize();
-      }
-    },
-    secondary: {
-      name: "White-out",
-      icon: "tools/pencil/whiteout_tape.svg",
-      active: false,
-      switch: function () {
-        stopLine();
-        toggleSize();
-      },
-    },
-    onquit: function () {
-      //When switching from white-out to another tool, restore drawing size
-      if (pencilTool.secondary.active) {
-        restoreDrawingSize();
-      }
-    },
-    mouseCursor: "url('tools/pencil/cursor.svg'), crosshair",
-    icon: "tools/pencil/icon.svg",
-    stylesheet: "tools/pencil/pencil.css",
-  };
-  Tools.add(pencilTool);
-})(); //End of code isolation
+  onSocketDisconnect() {
+    this.abortLine(true);
+  }
+
+  onstart() {
+    this.hasUsedStylus = false;
+    if (this.secondary.active) {
+      this.restoreWhiteOutSize();
+    }
+  }
+
+  onquit() {
+    if (this.secondary.active) {
+      this.restoreDrawingSize();
+    }
+  }
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<PencilTool>}
+   */
+  static async boot(ctx) {
+    return new PencilTool(ctx.runtime.Tools, ctx.assetUrl);
+  }
+}

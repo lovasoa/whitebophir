@@ -1,8 +1,8 @@
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
-import { test, expect } from "@playwright/test";
-import { BoardPage } from "../pages/BoardPage";
+import { expect, test } from "@playwright/test";
 import { startTestServer, stopTestServer } from "../helpers/testServer";
+import { BoardPage } from "../pages/BoardPage";
 
 function startTurnstileVerifyServer() {
   return new Promise<http.Server>((resolve) => {

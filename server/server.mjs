@@ -1,23 +1,31 @@
-const crypto = require("node:crypto");
-const fs = require("node:fs");
-const { createServer } = require("node:http");
-const path = require("node:path");
-const serveStatic = require("serve-static");
+import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import { createServer } from "node:http";
+import * as path from "node:path";
 
-const { BoardData } = require("./boardData.js");
-const check_output_directory = require("./check_output_directory.js");
-const config = require("./configuration.js");
-const createSVG = require("./createSVG.js");
-const jwtauth = require("./jwtauth.js");
-const jwtBoardName = require("./jwtBoardnameAuth.js");
-const {
-  createRequestId,
-  logger,
-  metrics,
-  tracing,
-} = require("./observability.js");
-const sockets = require("./sockets.js");
-const templating = require("./templating.js");
+import {
+  ATTR_CLIENT_ADDRESS,
+  ATTR_HTTP_REQUEST_METHOD,
+  ATTR_HTTP_RESPONSE_STATUS_CODE,
+  ATTR_HTTP_ROUTE,
+  ATTR_SERVER_ADDRESS,
+  ATTR_SERVER_PORT,
+  ATTR_URL_PATH,
+  ATTR_URL_SCHEME,
+} from "@opentelemetry/semantic-conventions";
+import serveStatic from "serve-static";
+
+import { BoardData } from "./boardData.mjs";
+import check_output_directory from "./check_output_directory.mjs";
+import { readConfiguration } from "./configuration.mjs";
+import * as createSVG from "./createSVG.mjs";
+import * as jwtauth from "./jwtauth.mjs";
+import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
+import observability from "./observability.mjs";
+import * as templating from "./templating.mjs";
+
+const { createRequestId, logger, metrics, tracing } = observability;
+const config = readConfiguration();
 
 /** @typedef {import("http").IncomingMessage} HttpRequest */
 /** @typedef {import("http").ServerResponse} HttpResponse */
@@ -27,24 +35,72 @@ const app = createServer(handler);
 
 check_output_directory(config.HISTORY_DIR);
 
-sockets.start(app);
+void (async function startServer() {
+  const sockets = await import(
+    `./sockets.mjs?cache-bust=${crypto.randomUUID()}`
+  );
+  sockets.start(app);
 
-app.listen(config.PORT, config.HOST, () => {
-  const actualPort = getAddressPort(app.address());
-  logger.info("server.started", {
-    port: actualPort,
+  app.listen(config.PORT, config.HOST, () => {
+    const actualPort = getAddressPort(app.address());
+    logger.info("server.started", {
+      [ATTR_SERVER_PORT]: actualPort,
+    });
+    if (process.send)
+      process.send({ type: "server-started", port: actualPort });
   });
-  if (process.send) process.send({ type: "server-started", port: actualPort });
+})().catch((error) => {
+  logger.error("server.start_failed", {
+    error,
+  });
+  process.exit(1);
 });
 
 const CSP =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
 
+/**
+ * @param {string} cacheValue
+ * @returns {string}
+ */
+function cacheControl(cacheValue) {
+  return config.IS_DEVELOPMENT ? "no-store" : cacheValue;
+}
+
+/**
+ * @param {HttpRequest | undefined} request
+ * @returns {boolean}
+ */
+function hasVersionToken(request) {
+  if (!request) return false;
+  return new URL(request.url || "/", "http://wbo/").searchParams.has("v");
+}
+
 const fileserver = serveStatic(config.WEBROOT, {
-  maxAge: 2 * 3600 * 1000,
+  maxAge: 0,
   /** @param {HttpResponse} res */
-  setHeaders: function (res) {
+  setHeaders: (res, /** @type {string} */ filePath) => {
     res.setHeader("Content-Security-Policy", CSP);
+    if (config.IS_DEVELOPMENT) {
+      res.setHeader("Cache-Control", "no-store");
+      return;
+    }
+    const ext = path.extname(filePath || "").toLowerCase();
+    const isStaticAsset = [
+      ".js",
+      ".css",
+      ".svg",
+      ".ico",
+      ".png",
+      ".jpg",
+      ".gif",
+    ].includes(ext);
+    if (!isStaticAsset) return;
+    if (hasVersionToken(res.req)) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return;
+    }
+    res.setHeader("Cache-Control", "public, max-age=7200");
   },
 });
 
@@ -65,6 +121,105 @@ const SLOW_REQUEST_LOG_MS = 1000;
 function getAddressPort(address) {
   if (!address || typeof address === "string") return undefined;
   return address.port;
+}
+
+/**
+ * @param {string | string[] | undefined} value
+ * @returns {string | undefined}
+ */
+function firstHeaderValue(value) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * @param {HttpRequest} request
+ * @returns {string}
+ */
+function requestScheme(request) {
+  const forwardedProto = firstHeaderValue(request.headers["x-forwarded-proto"]);
+  if (typeof forwardedProto === "string" && forwardedProto.trim() !== "") {
+    const protoValue = forwardedProto.split(",")[0];
+    if (protoValue) {
+      return protoValue.trim().toLowerCase();
+    }
+  }
+
+  const forwarded = firstHeaderValue(request.headers.forwarded);
+  if (typeof forwarded === "string" && forwarded.trim() !== "") {
+    const forwardedValue = forwarded.split(",")[0];
+    const protoPart = forwardedValue
+      ? forwardedValue
+          .split(";")
+          .map((part) => part.trim())
+          .find((part) => /^proto=/i.test(part))
+      : undefined;
+    if (protoPart) {
+      return protoPart
+        .replace(/^proto=/i, "")
+        .trim()
+        .toLowerCase();
+    }
+  }
+
+  return "encrypted" in request.socket && request.socket.encrypted
+    ? "https"
+    : "http";
+}
+
+/**
+ * @param {HttpRequest} request
+ * @returns {string | undefined}
+ */
+function requestAuthority(request) {
+  const host =
+    firstHeaderValue(request.headers["x-forwarded-host"]) ||
+    firstHeaderValue(request.headers.host);
+  if (typeof host !== "string" || host.trim() === "") return undefined;
+  const authority = host.split(",")[0];
+  return authority ? authority.trim() : undefined;
+}
+
+/**
+ * @param {HttpRequest} request
+ * @returns {string}
+ */
+function requestServerAddress(request) {
+  const authority = requestAuthority(request);
+  if (authority) {
+    try {
+      return new URL(`${requestScheme(request)}://${authority}`).hostname;
+    } catch {}
+  }
+  return config.HOST || request.socket.localAddress || "localhost";
+}
+
+/**
+ * @param {HttpRequest} request
+ * @returns {number | undefined}
+ */
+function requestServerPort(request) {
+  const authority = requestAuthority(request);
+  const scheme = requestScheme(request);
+  if (authority) {
+    try {
+      const parsed = new URL(`${scheme}://${authority}`);
+      if (parsed.port) return Number(parsed.port);
+      return scheme === "https" ? 443 : 80;
+    } catch {}
+  }
+  if (typeof request.socket.localPort === "number") {
+    return request.socket.localPort;
+  }
+  const configuredPort = Number(config.PORT);
+  return Number.isFinite(configuredPort) ? configuredPort : undefined;
+}
+
+/**
+ * @param {HttpRequest} request
+ * @returns {string}
+ */
+function requestPath(request) {
+  return new URL(request.url || "/", "http://wbo/").pathname;
 }
 
 /**
@@ -129,16 +284,6 @@ function requestRouteTemplate(route) {
 }
 
 /**
- * @param {number} statusCode
- * @returns {string}
- */
-function requestResult(statusCode) {
-  if (statusCode >= 500) return "error";
-  if (statusCode >= 400) return "rejected";
-  return "success";
-}
-
-/**
  * @param {string} requestUrl
  * @returns {boolean}
  */
@@ -188,6 +333,9 @@ function observeRequest(request, response) {
 
   const startedAt = Date.now();
   const method = request.method || "GET";
+  const scheme = requestScheme(request);
+  const serverAddress = requestServerAddress(request);
+  const serverPort = requestServerPort(request);
   let route = "unknown";
   /** @type {unknown} */
   let requestError;
@@ -199,12 +347,19 @@ function observeRequest(request, response) {
         kind: tracing.SpanKind.SERVER,
         parentContext: parentContext,
         attributes: {
-          "http.request.method": method,
-          "server.address": config.HOST,
-          "server.port": config.PORT,
+          [ATTR_HTTP_REQUEST_METHOD]: method,
+          [ATTR_URL_SCHEME]: scheme,
+          [ATTR_SERVER_ADDRESS]: serverAddress,
+          [ATTR_SERVER_PORT]: serverPort,
         },
       })
     : null;
+  metrics.changeHttpActiveRequests({
+    change: 1,
+    method: method,
+    scheme: scheme,
+    serverAddress: serverAddress,
+  });
   let finalized = false;
 
   function finalize() {
@@ -216,11 +371,23 @@ function observeRequest(request, response) {
       function finalizeRequestContext() {
         const statusCode = response.statusCode || 200;
         const durationMs = Date.now() - startedAt;
+        const durationSeconds = durationMs / 1000;
+        const routeTemplate = requestRouteTemplate(route);
+        const errorType =
+          requestError instanceof Error
+            ? requestError.name || "Error"
+            : statusCode >= 500
+              ? String(statusCode)
+              : undefined;
+        metrics.changeHttpActiveRequests({
+          change: -1,
+          method: method,
+          scheme: scheme,
+          serverAddress: serverAddress,
+        });
         if (requestSpan) {
           tracing.setSpanAttributes(requestSpan, {
-            "http.response.status_code": statusCode,
-            "wbo.request.result": requestResult(statusCode),
-            "wbo.request.route_kind": route,
+            [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
           });
           if (statusCode >= 500 && !requestError) {
             requestSpan.setStatus({
@@ -231,9 +398,11 @@ function observeRequest(request, response) {
 
         metrics.recordHttpRequest({
           method: method,
-          route: route,
+          route: routeTemplate,
+          scheme: scheme,
           statusCode: statusCode,
-          durationMs: durationMs,
+          durationSeconds: durationSeconds,
+          errorType: errorType,
         });
         const logTarget = classifyRequestLog(route, statusCode, durationMs);
         if (!logTarget) {
@@ -241,19 +410,18 @@ function observeRequest(request, response) {
           return;
         }
 
-        const fields = Object.assign(
-          {
-            request_id: requestId,
-            method: method,
-            route: route,
-            status_code: statusCode,
-            duration_ms: durationMs,
-            url: request.url,
-          },
-          logFields,
-        );
+        /** @type {{[key: string]: unknown}} */
+        const fields = {
+          request_id: requestId,
+          [ATTR_HTTP_REQUEST_METHOD]: method,
+          [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
+          duration_ms: durationMs,
+          [ATTR_URL_PATH]: requestPath(request),
+          ...(routeTemplate ? { [ATTR_HTTP_ROUTE]: routeTemplate } : {}),
+          ...logFields,
+        };
         if (statusCode >= 400) {
-          fields.ip = request.socket.remoteAddress;
+          fields[ATTR_CLIENT_ADDRESS] = request.socket.remoteAddress;
         }
         if (requestError) fields.error = requestError;
         logger[logTarget.level](logTarget.event, fields);
@@ -276,17 +444,12 @@ function observeRequest(request, response) {
       route = nextRoute;
       if (requestSpan) {
         requestSpan.updateName(requestSpanName(method, nextRoute));
-        tracing.setSpanAttributes(
-          requestSpan,
-          Object.assign(
-            {
-              "wbo.request.route_kind": nextRoute,
-            },
-            requestRouteTemplate(nextRoute)
-              ? { "http.route": requestRouteTemplate(nextRoute) }
-              : {},
-          ),
-        );
+        const routeTemplate = requestRouteTemplate(nextRoute);
+        if (routeTemplate) {
+          tracing.setSpanAttributes(requestSpan, {
+            [ATTR_HTTP_ROUTE]: routeTemplate,
+          });
+        }
       }
     },
     noteError: function noteError(error) {
@@ -296,7 +459,7 @@ function observeRequest(request, response) {
       }
     },
     annotate: function annotate(fields) {
-      logFields = Object.assign(logFields, fields);
+      logFields = { ...logFields, ...fields };
     },
     setTraceAttributes: function setTraceAttributes(fields) {
       if (!requestSpan) return;
@@ -312,7 +475,8 @@ function observeRequest(request, response) {
  * @returns {(err?: unknown) => void}
  */
 function serveError(request, response, requestContext) {
-  return function (err) {
+  void request;
+  return (err) => {
     if (err) requestContext.noteError(err);
     response.writeHead(err ? 500 : 404, { "Content-Length": errorPage.length });
     response.end(errorPage);
@@ -342,7 +506,7 @@ function handler(request, response) {
  */
 function validateBoardName(boardName) {
   if (/^[\w%\-_~()]*$/.test(boardName)) return boardName;
-  throw new Error("Illegal board name: " + boardName);
+  throw new Error(`Illegal board name: ${boardName}`);
 }
 
 /**
@@ -352,6 +516,19 @@ function validateBoardName(boardName) {
  */
 function getPathPart(parts, index) {
   return parts[index];
+}
+
+/**
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isNotFoundError(error) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
 }
 
 /**
@@ -397,7 +574,7 @@ function handleRequest(request, response, requestContext) {
         requestContext.annotate({ board: boardName });
         requestContext.setTraceAttributes({ board: boardName });
         jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-        const headers = { Location: "boards/" + encodeURIComponent(boardName) };
+        const headers = { Location: `boards/${encodeURIComponent(boardName)}` };
         response.writeHead(301, headers);
         response.end();
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
@@ -424,7 +601,7 @@ function handleRequest(request, response, requestContext) {
         });
       } else {
         requestContext.setRoute("static_file");
-        request.url = "/" + parts.slice(1).join("/");
+        request.url = `/${parts.slice(1).join("/")}`;
         fileserver(
           request,
           response,
@@ -445,12 +622,12 @@ function handleRequest(request, response, requestContext) {
       requestContext.setTraceAttributes({ board: boardName });
       let historyFile = path.join(
         config.HISTORY_DIR,
-        "board-" + boardName + ".json",
+        `board-${boardName}.json`,
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
       const backupSuffix = getPathPart(parts, 2);
-      if (backupSuffix && /^[0-9A-Za-z.\-]+$/.test(backupSuffix)) {
-        historyFile += "." + backupSuffix + ".bak";
+      if (backupSuffix && /^[0-9A-Za-z.-]+$/.test(backupSuffix)) {
+        historyFile += `.${backupSuffix}.bak`;
       }
       Promise.resolve(
         tracing.withActiveSpan(
@@ -466,11 +643,10 @@ function handleRequest(request, response, requestContext) {
           },
         ),
       )
-        .then(function (data) {
+        .then((data) => {
           response.writeHead(200, {
             "Content-Type": "application/json",
-            "Content-Disposition":
-              'attachment; filename="' + boardName + '.wbo"',
+            "Content-Disposition": `attachment; filename="${boardName}.wbo"`,
             "Content-Length": data.length,
           });
           response.end(data);
@@ -491,7 +667,7 @@ function handleRequest(request, response, requestContext) {
       requestContext.setTraceAttributes({ board: exportBoardName });
       const historyFile = path.join(
         config.HISTORY_DIR,
-        "board-" + exportBoardName + ".json",
+        `board-${exportBoardName}.json`,
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, exportBoardName);
       const startedAt = Date.now();
@@ -504,20 +680,46 @@ function handleRequest(request, response, requestContext) {
               "wbo.board.operation": "preview_render",
             },
           },
-          function renderPreview() {
-            return createSVG.renderBoardToSVG(historyFile);
+          async function renderPreview() {
+            try {
+              return await createSVG.renderBoardToSVG(historyFile);
+            } catch (err) {
+              if (isNotFoundError(err)) {
+                tracing.setActiveSpanAttributes({
+                  "wbo.board": exportBoardName,
+                  "wbo.board.operation": "preview_render",
+                  "wbo.board.result": "not_found",
+                });
+                return null;
+              }
+              throw err;
+            }
           },
         ),
       )
-        .then(function (svg) {
+        .then((svg) => {
+          const renderDurationMs = Date.now() - startedAt;
+          requestContext.annotate({
+            render_duration_ms: renderDurationMs,
+          });
+          requestContext.setTraceAttributes({
+            render_duration_ms: renderDurationMs,
+          });
+          if (svg === null) {
+            response.writeHead(404, {
+              "Content-Length": errorPage.length,
+            });
+            response.end(errorPage);
+            return;
+          }
           response.writeHead(200, {
             "Content-Type": "image/svg+xml",
             "Content-Security-Policy": CSP,
-            "Cache-Control": "public, max-age=30",
+            "Cache-Control": cacheControl("public, max-age=30"),
           });
           response.end(svg);
         })
-        .catch(function (err) {
+        .catch((err) => {
           requestContext.noteError(err);
           requestContext.annotate({
             render_duration_ms: Date.now() - startedAt,
@@ -533,7 +735,7 @@ function handleRequest(request, response, requestContext) {
     case "random": {
       requestContext.setRoute("random_board");
       const name = crypto.randomBytes(24).toString("base64url");
-      response.writeHead(307, { Location: "boards/" + name });
+      response.writeHead(307, { Location: `boards/${name}` });
       response.end(name);
       break;
     }
@@ -544,7 +746,7 @@ function handleRequest(request, response, requestContext) {
         requestContext.annotate({ board: config.DEFAULT_BOARD });
         requestContext.setTraceAttributes({ board: config.DEFAULT_BOARD });
         response.writeHead(302, {
-          Location: "boards/" + encodeURIComponent(config.DEFAULT_BOARD),
+          Location: `boards/${encodeURIComponent(config.DEFAULT_BOARD)}`,
         });
         response.end(config.DEFAULT_BOARD);
       } else {
@@ -563,4 +765,4 @@ function handleRequest(request, response, requestContext) {
   }
 }
 
-module.exports = app;
+export default app;

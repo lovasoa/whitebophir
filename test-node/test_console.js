@@ -1,11 +1,11 @@
 /** @param {Console} baseConsole */
 function createSilentConsole(baseConsole) {
   return Object.assign({}, baseConsole, {
-    log: function () {},
-    warn: function () {},
-    error: function () {},
-    info: function () {},
-    debug: function () {},
+    log: () => {},
+    warn: () => {},
+    error: () => {},
+    info: () => {},
+    debug: () => {},
   });
 }
 
@@ -14,7 +14,7 @@ function installTestConsole() {
     return function restoreConsole() {};
   }
 
-  var previousConsole = global.console;
+  const previousConsole = global.console;
   global.console = createSilentConsole(previousConsole);
   return function restoreConsole() {
     global.console = previousConsole;
@@ -26,12 +26,12 @@ function installTestConsole() {
  * @param {() => any} fn
  */
 function withConsole(patch, fn) {
-  var previousConsole = global.console;
+  const previousConsole = global.console;
   global.console = Object.assign({}, previousConsole, patch);
   try {
-    var result = fn();
+    const result = fn();
     if (result && typeof result.then === "function") {
-      return result.finally(function () {
+      return result.finally(() => {
         global.console = previousConsole;
       });
     }
@@ -43,8 +43,6 @@ function withConsole(patch, fn) {
   }
 }
 
-module.exports = {
-  createSilentConsole: createSilentConsole,
-  installTestConsole: installTestConsole,
-  withConsole: withConsole,
-};
+exports.createSilentConsole = createSilentConsole;
+exports.installTestConsole = installTestConsole;
+exports.withConsole = withConsole;

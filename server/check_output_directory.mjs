@@ -1,8 +1,9 @@
-const fs = require("node:fs");
-const fsp = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
-const { logger } = require("./observability.js");
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import { logger } from "./observability.mjs";
 
 const { R_OK, W_OK } = fs.constants;
 
@@ -11,27 +12,26 @@ const { R_OK, W_OK } = fs.constants;
  * @param {string} directory
  * @returns {Promise<string | undefined>}
  */
-async function get_error(directory) {
+async function getError(directory) {
   if (!fs.existsSync(directory)) {
     return "does not exist";
   }
   if (!fs.statSync(directory).isDirectory()) {
     return "exists, but is not a directory";
   }
-  const tmpfile = path.join(directory, Math.random() + ".json");
+  const tmpfile = path.join(directory, `${Math.random()}.json`);
   try {
     fs.writeFileSync(tmpfile, "{}");
     fs.unlinkSync(tmpfile);
-  } catch (e) {
-    let err_msg = "does not allow file creation and deletion. ";
+  } catch (_e) {
+    let errorMessage = "does not allow file creation and deletion. ";
     try {
       const { uid, gid } = os.userInfo();
-      err_msg +=
+      errorMessage +=
         "Check the permissions of the directory, and if needed change them so that " +
         `user with UID ${uid} has access to them. This can be achieved by running the command: chown ${uid}:${gid} on the directory`;
-    } finally {
-      return err_msg;
-    }
+    } catch {}
+    return errorMessage;
   }
   const fileChecks = [];
   const files = await fsp.readdir(directory, { withFileTypes: true });
@@ -40,22 +40,14 @@ async function get_error(directory) {
       const elemPath = path.join(directory, elem.name);
       if (!elem.isFile())
         return `contains a board file named "${elemPath}" which is not a normal file`;
-      fileChecks.push(
-        fsp.access(elemPath, R_OK | W_OK).catch(function () {
-          return elemPath;
-        }),
-      );
+      fileChecks.push(fsp.access(elemPath, R_OK | W_OK).catch(() => elemPath));
     }
   }
-  const errs = (await Promise.all(fileChecks)).filter(function (x) {
-    return x;
-  });
+  const errs = (await Promise.all(fileChecks)).filter((x) => x);
   if (errs.length > 0) {
-    return (
-      `contains the following board files that are not readable and writable by the current user: "` +
-      errs.join('", "') +
-      `". Please make all board files accessible with chown 1000:1000`
-    );
+    return `contains the following board files that are not readable and writable by the current user: "${errs.join(
+      '", "',
+    )}". Please make all board files accessible with chown 1000:1000`;
   }
   return undefined;
 }
@@ -66,10 +58,10 @@ async function get_error(directory) {
  * @param {string} directory
  */
 function check_output_directory(directory) {
-  get_error(directory).then(function (error) {
+  getError(directory).then((error) => {
     if (error) {
       logger.error("history.dir_invalid", {
-        directory: directory,
+        directory,
         reason:
           `The configured history directory in which boards are stored ${error}. ` +
           `The history directory can be configured with the environment variable WBO_HISTORY_DIR. ` +
@@ -80,4 +72,4 @@ function check_output_directory(directory) {
   });
 }
 
-module.exports = check_output_directory;
+export default check_output_directory;

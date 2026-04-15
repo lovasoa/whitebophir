@@ -1,29 +1,21 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
-    "target": "ES2023",
     "module": "CommonJS",
-    "moduleResolution": "Node",
-    "lib": ["ES2023", "DOM"],
-    "types": ["node"],
-    "allowJs": true,
-    "checkJs": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "allowUmdGlobalAccess": true,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "useUnknownInCatchVariables": true,
-    "strict": true
+    "moduleResolution": "Node"
   },
+  "include": [
+    "types/**/*.d.ts",
+    "server/**/*.js",
+    "scripts/**/*.js",
+    "test-node/**/*.js"
+  ],
   "exclude": [
     "node_modules",
     "server-data",
     "playwright",
-    "scripts/benchmark-server.js",
-    "client-data/js/path-data-polyfill.js"
+    "client-data/js/path-data-polyfill.js",
+    "test-node/create_svg.test.js",
+    "test-node/templating.test.js"
   ]
 }

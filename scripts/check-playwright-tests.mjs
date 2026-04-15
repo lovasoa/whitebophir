@@ -1,7 +1,9 @@
-const fs = require("node:fs");
-const path = require("node:path");
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const testDir = path.join(__dirname, "..", "playwright", "tests");
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const testDir = path.join(scriptDir, "..", "playwright", "tests");
 const forbiddenPattern = /waitForTimeout\(|\bsleep\(|\bpause\(/;
 const allowedExtensions = new Set([".js", ".cjs", ".mjs", ".ts"]);
 
@@ -35,13 +37,11 @@ function walk(dir) {
 function findMatches(filePath) {
   const lines = fs.readFileSync(filePath, "utf8").split("\n");
   const matches = [];
+  const relativeFilePath = path.relative(process.cwd(), filePath);
 
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index] ?? "";
+  for (const [index, line] of lines.entries()) {
     if (forbiddenPattern.test(line)) {
-      matches.push(
-        `${path.relative(process.cwd(), filePath)}:${index + 1}:${line}`,
-      );
+      matches.push(`${relativeFilePath}:${index + 1}:${line}`);
     }
   }
 

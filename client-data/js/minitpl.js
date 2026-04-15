@@ -24,69 +24,66 @@
  * @licend
  */
 
-var Minitpl = (function () {
-  /**
-   * @typedef {string | ((element: Element) => void)} TemplateValue
-   * @typedef {{[selector: string]: TemplateValue}} TemplateMapping
-   */
+/**
+ * @typedef {string | ((element: Element) => void)} TemplateValue
+ * @typedef {{[selector: string]: TemplateValue}} TemplateMapping
+ */
 
-  /**
-   * @constructor
-   * @param {string | Element} elem
-   */
-  function Minitpl(elem) {
-    this.elem = typeof elem === "string" ? document.querySelector(elem) : elem;
-    if (!this.elem) {
-      throw new Error("Invalid element");
-    }
-    if (!this.elem.parentNode) {
-      throw new Error("Template element has no parent");
-    }
-    this.parent = this.elem.parentNode;
-    this.parent.removeChild(this.elem);
+/**
+ * @constructor
+ * @param {string | Element} elem
+ */
+function Minitpl(elem) {
+  this.elem = typeof elem === "string" ? document.querySelector(elem) : elem;
+  if (!this.elem) {
+    throw new Error("Invalid element");
   }
-
-  /**
-   * @param {Element} element
-   * @param {TemplateValue} transformer
-   */
-  function transform(element, transformer) {
-    if (typeof transformer === "function") {
-      transformer(element);
-    } else {
-      element.textContent = transformer;
-    }
+  if (!this.elem.parentNode) {
+    throw new Error("Template element has no parent");
   }
+  this.parent = this.elem.parentNode;
+  this.parent.removeChild(this.elem);
+}
 
-  /**
-   * @param {TemplateValue | TemplateMapping} data
-   * @returns {Element}
-   */
-  Minitpl.prototype.add = function (data) {
-    var newElem = this.elem.cloneNode(true);
-    if (!(newElem instanceof Element)) {
-      throw new Error("Template clone must be an Element");
-    }
-    if (typeof data === "object") {
-      for (var key in data) {
-        var value = data[key];
-        if (value === undefined) {
-          continue;
-        }
-        var matches = newElem.querySelectorAll(key);
-        for (var i = 0; i < matches.length; i++) {
-          var match = matches[i];
-          if (match) {
-            transform(match, value);
-          }
+/**
+ * @param {Element} element
+ * @param {TemplateValue} transformer
+ */
+function transform(element, transformer) {
+  if (typeof transformer === "function") {
+    transformer(element);
+  } else {
+    element.textContent = transformer;
+  }
+}
+
+/**
+ * @param {TemplateValue | TemplateMapping} data
+ * @returns {Element}
+ */
+Minitpl.prototype.add = function (data) {
+  const newElem = this.elem.cloneNode(true);
+  if (!(newElem instanceof Element)) {
+    throw new Error("Template clone must be an Element");
+  }
+  if (typeof data === "object") {
+    for (const key in data) {
+      const value = data[key];
+      if (value === undefined) {
+        continue;
+      }
+      const matches = newElem.querySelectorAll(key);
+      for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
+        if (match) {
+          transform(match, value);
         }
       }
-    } else {
-      transform(newElem, data);
     }
-    this.parent.appendChild(newElem);
-    return newElem;
-  };
-
-  return Minitpl;
-})();
+  } else {
+    transform(newElem, data);
+  }
+  this.parent.appendChild(newElem);
+  return newElem;
+};
+export default Minitpl;

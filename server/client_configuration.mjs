@@ -1,0 +1,30 @@
+import config from "./configuration.mjs";
+
+const {
+  MAX_BOARD_SIZE,
+  GENERAL_RATE_LIMITS,
+  CONSTRUCTIVE_ACTION_RATE_LIMITS,
+  DESTRUCTIVE_ACTION_RATE_LIMITS,
+  BLOCKED_TOOLS,
+  BLOCKED_SELECTION_BUTTONS,
+  AUTO_FINGER_WHITEOUT,
+  TURNSTILE_SITE_KEY,
+  TURNSTILE_VALIDATION_WINDOW_MS,
+} = config;
+
+/** Settings that should be handed through to the clients */
+const clientConfiguration = {
+  MAX_BOARD_SIZE,
+  RATE_LIMITS: {
+    general: GENERAL_RATE_LIMITS,
+    constructive: CONSTRUCTIVE_ACTION_RATE_LIMITS,
+    destructive: DESTRUCTIVE_ACTION_RATE_LIMITS,
+  },
+  BLOCKED_TOOLS,
+  BLOCKED_SELECTION_BUTTONS,
+  AUTO_FINGER_WHITEOUT,
+  TURNSTILE_SITE_KEY,
+  TURNSTILE_VALIDATION_WINDOW_MS,
+};
+
+export default clientConfiguration;

@@ -1,10 +1,8 @@
-"use strict";
-
 const DEFAULT_SERVICE_NAME = "whitebophir-server";
 const ENVELOPE_KEYS = ["ts", "level", "event", "msg"];
 const ANSI_DIM = "\x1b[2m";
 const ANSI_RESET = "\x1b[0m";
-/** @type {{[level: string]: string}} */
+/** @type {Record<string, string>} */
 const LEVEL_COLORS = {
   debug: "\x1b[36m",
   info: "\x1b[32m",
@@ -14,17 +12,21 @@ const LEVEL_COLORS = {
 
 /**
  * @param {unknown} error
- * @returns {{error_type?: string, error_message?: string, error_stack?: string}}
+ * @returns {{
+ *   "exception.type"?: string,
+ *   "exception.message"?: string,
+ *   "exception.stacktrace"?: string,
+ * }}
  */
 function flattenError(error) {
   if (!(error instanceof Error)) {
     if (error === undefined) return {};
-    return { error_message: String(error) };
+    return { "exception.message": String(error) };
   }
   return {
-    error_type: error.name || "Error",
-    error_message: error.message,
-    error_stack: error.stack,
+    "exception.type": error.name || "Error",
+    "exception.message": error.message,
+    "exception.stacktrace": error.stack,
   };
 }
 
@@ -50,7 +52,12 @@ function formatLogfmtValue(value) {
   const serialized = serializeValue(value);
   if (serialized === "") return '""';
   if (/^[A-Za-z0-9._:/@-]+$/.test(serialized)) return serialized;
-  return `"${serialized.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return `"${serialized
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")
+    .replace(/"/g, '\\"')}"`;
 }
 
 /**
@@ -59,7 +66,7 @@ function formatLogfmtValue(value) {
  */
 function formatCanonicalLogLine(fields) {
   /** @type {{[key: string]: unknown}} */
-  const normalized = Object.assign({}, fields);
+  const normalized = { ...fields };
   normalized.ts =
     normalized.ts instanceof Date
       ? normalized.ts.toISOString()
@@ -126,7 +133,17 @@ function styleTerminalLogLine(line, level) {
   return dimLogLineKeys(colorizeLevelInLogLine(line, level));
 }
 
-module.exports = {
+export {
+  colorizeLevelInLogLine,
+  DEFAULT_SERVICE_NAME,
+  dimLogLineKeys,
+  flattenError,
+  formatCanonicalLogLine,
+  formatLogfmtValue,
+  styleTerminalLogLine,
+};
+
+export default {
   DEFAULT_SERVICE_NAME,
   colorizeLevelInLogLine,
   dimLogLineKeys,

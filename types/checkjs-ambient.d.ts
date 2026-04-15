@@ -1,15 +1,21 @@
+// biome-ignore-all lint/suspicious/noExplicitAny: This file defines global types for untyped external libraries and internal global state.
 export {};
 
 declare global {
   const io: any;
   const turnstile: any;
+  var Tools: import("../types/app-runtime").AppToolsState & {
+    [name: string]: any;
+  };
   type TransformedBBox = {
     r: [number, number];
     a: [number, number];
     b: [number, number];
   };
   var Minitpl: {
-    new (elem: string | Element): {
+    new (
+      elem: string | Element,
+    ): {
       elem: Element;
       parent: ParentNode;
       add(
@@ -20,7 +26,6 @@ declare global {
       ): Element;
     };
   };
-  const WBOMessageCommon: typeof import("../client-data/js/message_common.js");
   const wboPencilPoint: any;
   var pointInTransformedBBox: (
     point: [number, number],
@@ -32,15 +37,8 @@ declare global {
   ) => boolean;
 
   interface Window {
-    WBOMessageCommon: typeof import("../client-data/js/message_common.js");
-    WBOBoardPageState: typeof import("../client-data/js/board_page_state.js");
-    WBOBoardTransport: typeof import("../client-data/js/board_transport.js");
-    WBOBoardState: (typeof import("../client-data/js/board_page_state.js"))["state"];
-    WBOBoardMessages: (typeof import("../client-data/js/board_transport.js"))["messages"];
-    WBOBoardConnection: (typeof import("../client-data/js/board_transport.js"))["connection"];
-    WBOBoardTurnstile: (typeof import("../client-data/js/board_transport.js"))["turnstile"];
-    WBOBoardTools: (typeof import("../client-data/js/board_page_state.js"))["tools"];
-    WBOBoardBootstrap: (typeof import("../client-data/js/board_page_state.js"))["bootstrap"];
+    Tools: typeof Tools;
+    WBOBoardState: typeof import("../client-data/js/board_page_state.js")["state"];
     socketio_extra_headers?: Record<string, string>;
     __downloadCapture?: any;
     __downloadAnchorClicks?: any;

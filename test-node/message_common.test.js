@@ -4,13 +4,13 @@ const assert = require("node:assert/strict");
 const MessageCommon = require("../client-data/js/message_common.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 
-test("shared giant-shape policy exposes the draw zoom threshold", function () {
+test("shared giant-shape policy exposes the draw zoom threshold", () => {
   assert.equal(MessageCommon.getMaxShapeSpan(), 3200);
   assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.4), false);
   assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.41), true);
 });
 
-test("shared geometry helpers apply transforms to bounds", function () {
+test("shared geometry helpers apply transforms to bounds", () => {
   const bounds = MessageCommon.applyTransformToBounds(
     {
       minX: 0,
@@ -29,7 +29,7 @@ test("shared geometry helpers apply transforms to bounds", function () {
   });
 });
 
-test("shared geometry helpers grow pencil bounds incrementally", function () {
+test("shared geometry helpers grow pencil bounds incrementally", () => {
   let bounds = null;
   bounds = MessageCommon.extendBoundsWithPoint(bounds, 10, 20);
   bounds = MessageCommon.extendBoundsWithPoint(bounds, 100, 5);
@@ -43,7 +43,7 @@ test("shared geometry helpers grow pencil bounds incrementally", function () {
   });
 });
 
-test("DRAW_TOOL_NAMES comes from shared metadata", function () {
+test("DRAW_TOOL_NAMES comes from shared metadata", () => {
   const metadataTools = MessageToolMetadata.DRAW_TOOL_NAMES;
   const injectedTool = "__metadata_probe_tool__";
   metadataTools.push(injectedTool);
@@ -58,7 +58,7 @@ test("DRAW_TOOL_NAMES comes from shared metadata", function () {
   }
 });
 
-test("shape tool bounds use straight-shape geometry consistently", function () {
+test("shape tool bounds use straight-shape geometry consistently", () => {
   const shapeToolNames = MessageToolMetadata.getShapeToolNames();
   for (const toolName of shapeToolNames) {
     const bounds = MessageCommon.getLocalGeometryBounds({
@@ -77,7 +77,7 @@ test("shape tool bounds use straight-shape geometry consistently", function () {
   }
 });
 
-test("getLocalGeometryBounds measures text", function () {
+test("getLocalGeometryBounds measures text", () => {
   const bounds = MessageCommon.getLocalGeometryBounds({
     tool: "Text",
     x: 100,

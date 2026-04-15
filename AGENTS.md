@@ -7,16 +7,19 @@
 
 ## architecture
 
-- Process boot + routes + socket server: [server startup](./server/server.js).
-- Realtime event handlers + broadcast path: [socket handlers](./server/sockets.js).
-- Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.js).
-- Canonical inbound payload normalization: [message schema gate](./server/message_validation.js).
-- In-memory board model + apply rules + disk sync: [board state engine](./server/boardData.js).
-- Page shell that loads runtime bundles: [board document](./client-data/board.html).
-- Client state machine + send/receive plumbing: [board runtime](./client-data/js/board.js).
+- Process boot + routes + socket server: [server startup](./server/server.mjs).
+- HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs).
+- Shared toolbar catalog + versioned tool asset helpers: [tool catalog](./client-data/js/tool_catalog.js), [tool assets](./client-data/js/tool_assets.js).
+- Realtime event handlers + broadcast path: [socket handlers](./server/sockets.mjs).
+- Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.mjs).
+- Canonical inbound payload normalization: [message schema gate](./server/message_validation.mjs).
+- In-memory board model + apply rules + disk sync: [board state engine](./server/boardData.mjs).
+- Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js).
+- Client state machine + staged tool boot + send/receive plumbing: [board runtime](./client-data/js/board.js).
 - Shared socket transport utilities: [transport helpers](./client-data/js/board_transport.js).
 - Shared geometry/id/color/text clamps: [message primitives](./client-data/js/message_common.js).
 - Tool implementations that mutate SVG/DOM: [tool modules](./client-data/tools/).
+- Tool modules now default-export a tool class for dynamic `import()` boot, while legacy named `register*Tool` exports may still exist during migration.
 
 ## message lifecycle
 
@@ -33,18 +36,20 @@
 
 ## where to look by concern
 
-- Config/env behavior: [server configuration](./server/configuration.js).
+- Config/env behavior: [server configuration](./server/configuration.mjs).
 - Browser integration coverage: [playwright specs](./playwright/tests).
 - Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
 - Browser runner setup: [playwright config](./playwright.config.ts).
+- Server-rendered toolbar/icon/cache coverage: [server route tests](./test-node/server_routes.test.js).
 
 ## test commands
 
 - Node suite: `node --test test-node/*.test.js`.
 - Browser suite: `npx playwright test playwright/tests/<file>.spec.ts`.
 - Throughput check: `npm run bench` before/after suspected performance changes.
-- Full gate: `npm test` (Node tests, Playwright, `prettier-check`).
-- Auto-format: `npm run prettier` (rules: [prettierrc](./.prettierrc), ignores: [prettierignore](./.prettierignore)).
+- CPU + memory profile: `npm run profile` writes `.profiles/benchmark-server.cpuprofile` and `.profiles/benchmark-server.heapprofile`.
+- Full gate: `npm test` (Node tests, Playwright, Biome `lint` with warnings treated as failures).
+- Auto-format: `npm run format` (Biome `--write --unsafe`).
 
 ## notes
 
@@ -52,15 +57,22 @@
 - `npm test` requires local networking and browser process startup.
 - In Playwright specs, assert authoritative socket/app state; avoid sleep-based timing.
 
+## profiling
+
+- Run `npm run profile` to profile `scripts/benchmark-server.mjs`; `.profiles/` is gitignored and keeps local CPU and heap output together.
+- CPU: open `.profiles/benchmark-server.cpuprofile` in DevTools Performance and look for hot frames with high self time or repeated stacks in `BoardData.load`, `BoardData.save`, `renderBoardToSVG`, `JSON.parse`, and `JSON.stringify`.
+- Memory: open `.profiles/benchmark-server.heapprofile` in DevTools Memory and look for large sampled allocations that survive GC, especially duplicated board objects, large `_children` arrays, and serialization strings.
+
 ## formatting
 
-- CI has no separate linter; `npm run prettier-check` + `npm test` define pass/fail.
+- `npm run lint` runs the full Biome formatter+linter gate and fails on warnings.
+- `npm run format` applies Biome safe and unsafe autofixes.
 - Keep edits minimal and style-consistent unless doing full-module refactors.
 
 ## change strategy
 
-- Message shape changes: update [server schema gate](./server/message_validation.js) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests.
-- Persistence/replay changes: review [board state engine](./server/boardData.js); rerun `node --test test-node/rate_limits.test.js` and `npm test`.
+- Message shape changes: update [server schema gate](./server/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests.
+- Persistence/replay changes: review [board state engine](./server/boardData.mjs); rerun `node --test test-node/rate_limits.test.js` and `npm test`.
 - Tool UX changes: start in [tool modules](./client-data/tools/); verify with Playwright.
 
 ## required upkeep
