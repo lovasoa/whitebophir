@@ -145,6 +145,7 @@ Tools.rateLimitedUntil = 0;
 Tools.rateLimitNoticeTimer = null;
 Tools.rateLimitNoticeMessage = "";
 Tools.awaitingBoardSnapshot = true;
+Tools.hasAuthoritativeBoardSnapshot = false;
 Tools.snapshotRevision = 0;
 Tools.preSnapshotMessages = [];
 Tools.incomingBroadcastQueue = [];
@@ -316,10 +317,14 @@ Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
   indicator.classList.add("board-status-hidden");
 };
 
-Tools.resetBoardViewport = function resetBoardViewport() {
-  if (Tools.drawingArea) Tools.drawingArea.innerHTML = "";
+Tools.clearBoardCursors = function clearBoardCursors() {
   const cursors = Tools.svg.getElementById("cursors");
   if (cursors) cursors.innerHTML = "";
+};
+
+Tools.resetBoardViewport = function resetBoardViewport() {
+  if (Tools.drawingArea) Tools.drawingArea.innerHTML = "";
+  Tools.clearBoardCursors();
 };
 
 /**
@@ -527,8 +532,12 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   });
   Tools.connectedUsers = {};
   Tools.renderConnectedUsers();
-  Tools.resetBoardViewport();
-  Tools.showLoadingMessage();
+  Tools.clearBoardCursors();
+  if (Tools.hasAuthoritativeBoardSnapshot) {
+    Tools.hideLoadingMessage();
+  } else {
+    Tools.showLoadingMessage();
+  }
   Object.values(Tools.list || {}).forEach((tool) => {
     if (tool && typeof tool.onSocketDisconnect === "function") {
       tool.onSocketDisconnect();
@@ -591,11 +600,19 @@ function processIncomingBroadcast(msg) {
     return Promise.resolve(false);
   }
 
+  if (
+    Tools.awaitingBoardSnapshot &&
+    BoardMessageReplay.isSnapshotMessage(msg)
+  ) {
+    Tools.resetBoardViewport();
+  }
+
   return handleMessage(msg).then(function afterMessageHandled() {
     if (
       Tools.awaitingBoardSnapshot &&
       BoardMessageReplay.isSnapshotMessage(msg)
     ) {
+      Tools.hasAuthoritativeBoardSnapshot = true;
       Tools.snapshotRevision = BoardMessageReplay.normalizeRevision(
         msg.revision,
       );
@@ -1552,7 +1569,11 @@ Tools.connect = () => {
       );
     }
     Tools.hasConnectedOnce = true;
-    Tools.showLoadingMessage();
+    if (Tools.hasAuthoritativeBoardSnapshot) {
+      Tools.hideLoadingMessage();
+    } else {
+      Tools.showLoadingMessage();
+    }
     Tools.syncWriteStatusIndicator();
     if (Tools.socket) Tools.socket.emit("getboard", Tools.boardName);
   });

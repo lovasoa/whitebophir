@@ -540,6 +540,21 @@ test("Pencil replay resets an existing path before reapplying children", async (
   assert.deepEqual(line.pathData, expectedTwoPointStroke());
 });
 
+test("Pencil replay drops stale cached path data after the DOM node is replaced", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("Pencil");
+
+  drawReplayStroke(pencilTool);
+  const originalLine = harness.elementsById.get("line-1");
+  originalLine.parentNode.removeChild(originalLine);
+
+  drawReplayStroke(pencilTool);
+
+  const replayedLine = harness.elementsById.get("line-1");
+  assert.notEqual(replayedLine, originalLine);
+  assert.deepEqual(replayedLine.pathData, expectedTwoPointStroke());
+});
+
 test("Pencil child messages build a missing line from scratch", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("Pencil");

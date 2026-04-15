@@ -305,10 +305,10 @@ export function registerPencilTool(Tools) {
   function createLine(lineData) {
     //Creates a new line on the canvas, or update a line that already exists with new information
     let line = getLineById(lineData.id);
+    delete pathDataCache[lineData.id];
     if (line) {
       // Replays can recreate an existing DOM node after reconnect; reset the path before reapplying children.
       line.setPathData([]);
-      delete pathDataCache[lineData.id];
     } else {
       line = /** @type {PencilLine} */ (Tools.createSVGElement("path"));
     }

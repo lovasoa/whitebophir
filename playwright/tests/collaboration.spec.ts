@@ -320,6 +320,147 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
   });
 
+  test("disconnect keeps authoritative shapes visible without reopening the loading banner", async ({
+    boardPage,
+    page,
+    server,
+  }) => {
+    await boardPage.gotoBoard("disconnect-visibility");
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    await page.evaluate(() => {
+      const rectangle = (window as any).Tools.list.Rectangle;
+      (window as any).Tools.drawAndSend(
+        {
+          type: "rect",
+          id: "persisted-across-disconnect",
+          x: 40,
+          y: 40,
+          x2: 120,
+          y2: 100,
+          color: "#224466",
+          size: 4,
+          opacity: 1,
+        },
+        rectangle,
+      );
+    });
+
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "disconnect-visibility",
+      (storedBoard) => storedBoard["persisted-across-disconnect"] != null,
+    );
+    await expect(
+      page.locator("rect#persisted-across-disconnect"),
+    ).toBeVisible();
+
+    const disconnectState = await page.evaluate(() => {
+      return new Promise<{
+        awaitingBoardSnapshot: boolean;
+        connectionState: string;
+        loadingHidden: boolean;
+        rectVisible: boolean;
+      }>((resolve) => {
+        (window as any).Tools.socket.once("disconnect", () => {
+          resolve({
+            awaitingBoardSnapshot: !!(window as any).Tools
+              .awaitingBoardSnapshot,
+            connectionState: String(
+              (window as any).Tools.connectionState ?? "",
+            ),
+            loadingHidden: document
+              .getElementById("loadingMessage")
+              ?.classList.contains("hidden"),
+            rectVisible: !!document.getElementById(
+              "persisted-across-disconnect",
+            ),
+          });
+        });
+        (window as any).Tools.socket.io.engine.close();
+      });
+    });
+
+    expect(disconnectState).toEqual({
+      awaitingBoardSnapshot: true,
+      connectionState: "disconnected",
+      loadingHidden: true,
+      rectVisible: true,
+    });
+
+    await boardPage.waitForAuthoritativeResync();
+    await expect(
+      page.locator("rect#persisted-across-disconnect"),
+    ).toBeVisible();
+  });
+
+  test("reconnect snapshot replay does not duplicate pencil path data", async ({
+    boardPage,
+    page,
+    server,
+  }) => {
+    await boardPage.gotoBoard("reconnect-pencil-replay");
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    await page.evaluate(async () => {
+      const nextFrame = () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const lineId = "reconnect-pencil-path";
+      const pencil = (window as any).Tools.list.Pencil;
+      (window as any).Tools.drawAndSend(
+        {
+          type: "line",
+          id: lineId,
+          color: "#8844aa",
+          size: 4,
+          opacity: 1,
+        },
+        pencil,
+      );
+      await nextFrame();
+      for (const point of [
+        { x: 198, y: 658 },
+        { x: 229, y: 663 },
+        { x: 325, y: 697 },
+        { x: 198, y: 658 },
+      ]) {
+        (window as any).Tools.drawAndSend(
+          {
+            type: "child",
+            parent: lineId,
+            x: point.x,
+            y: point.y,
+          },
+          pencil,
+        );
+        await nextFrame();
+      }
+    });
+
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "reconnect-pencil-replay",
+      (storedBoard) => storedBoard["reconnect-pencil-path"] != null,
+    );
+    await expect(page.locator("path#reconnect-pencil-path")).toBeVisible();
+    const initialPathData = await page
+      .locator("path#reconnect-pencil-path")
+      .getAttribute("d");
+    expect(initialPathData).toBeTruthy();
+
+    await boardPage.forceSocketDisconnect();
+    await boardPage.waitForAuthoritativeResync();
+
+    await expect(page.locator("path#reconnect-pencil-path")).toBeVisible();
+    await expect(page.locator("path#reconnect-pencil-path")).toHaveAttribute(
+      "d",
+      initialPathData ?? "",
+    );
+    await expect(page.locator("path#reconnect-pencil-path")).toHaveCount(1);
+  });
+
   rateLimitTest(
     "rate limit disconnect uses a non-blocking notice",
     async ({ boardPage, page }) => {
