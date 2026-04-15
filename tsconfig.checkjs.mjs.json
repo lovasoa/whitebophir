@@ -1,23 +1,8 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
-    "target": "ES2023",
     "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2023", "DOM"],
-    "types": ["node"],
-    "allowJs": true,
-    "checkJs": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "allowUmdGlobalAccess": true,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "useUnknownInCatchVariables": true,
-    "strict": true
+    "moduleResolution": "NodeNext"
   },
   "include": ["types/**/*.d.ts", "server/**/*.mjs", "scripts/**/*.mjs"],
   "exclude": ["node_modules", "server-data", "playwright"]
