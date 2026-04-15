@@ -228,6 +228,14 @@ export class BoardPage {
     await this.page.evaluate(async (inputPaths) => {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const waitFor = async (predicate: () => boolean, timeoutMs = 2_000) => {
+        const deadline = performance.now() + timeoutMs;
+        while (performance.now() < deadline) {
+          if (predicate()) return;
+          await nextFrame();
+        }
+        throw new Error("Timed out waiting for pencil path");
+      };
 
       for (const path of inputPaths) {
         if (path.points.length === 0) continue;
@@ -252,6 +260,12 @@ export class BoardPage {
           });
           await nextFrame();
         }
+        await waitFor(
+          () =>
+            !!document.querySelector(
+              `#drawingArea path[stroke='${path.color}']`,
+            ),
+        );
       }
     }, paths);
   }
