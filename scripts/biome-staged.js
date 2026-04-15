@@ -1,5 +1,3 @@
-"use strict";
-
 const { execFileSync } = require("node:child_process");
 const path = require("node:path");
 
@@ -34,7 +32,7 @@ execFileSync(
   [
     "check",
     "--write",
-    "--linter-enabled=false",
+    "--unsafe",
     "--assist-enabled=false",
     "--files-ignore-unknown=true",
     ...files,

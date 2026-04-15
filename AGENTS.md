@@ -44,8 +44,8 @@
 - Browser suite: `npx playwright test playwright/tests/<file>.spec.ts`.
 - Throughput check: `npm run bench` before/after suspected performance changes.
 - CPU + memory profile: `npm run profile` writes `.profiles/benchmark-server.cpuprofile` and `.profiles/benchmark-server.heapprofile`.
-- Full gate: `npm test` (Node tests, Playwright, `lint`).
-- Auto-format: `npm run format`.
+- Full gate: `npm test` (Node tests, Playwright, Biome `lint` with warnings treated as failures).
+- Auto-format: `npm run format` (Biome `--write --unsafe`).
 
 ## notes
 
@@ -61,7 +61,8 @@
 
 ## formatting
 
-- CI has no separate lint job; `npm run lint` and `npm test` define pass/fail.
+- `npm run lint` runs the full Biome formatter+linter gate and fails on warnings.
+- `npm run format` applies Biome safe and unsafe autofixes.
 - Keep edits minimal and style-consistent unless doing full-module refactors.
 
 ## change strategy
