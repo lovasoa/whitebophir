@@ -384,17 +384,16 @@ function observeRequest(request, response) {
           return;
         }
 
-        const fields = Object.assign(
-          {
-            request_id: requestId,
-            [ATTR_HTTP_REQUEST_METHOD]: method,
-            [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
-            duration_ms: durationMs,
-            [ATTR_URL_PATH]: requestPath(request),
-          },
-          routeTemplate ? { [ATTR_HTTP_ROUTE]: routeTemplate } : {},
-          logFields,
-        );
+        /** @type {{[key: string]: unknown}} */
+        const fields = {
+          request_id: requestId,
+          [ATTR_HTTP_REQUEST_METHOD]: method,
+          [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
+          duration_ms: durationMs,
+          [ATTR_URL_PATH]: requestPath(request),
+          ...(routeTemplate ? { [ATTR_HTTP_ROUTE]: routeTemplate } : {}),
+          ...logFields,
+        };
         if (statusCode >= 400) {
           fields[ATTR_CLIENT_ADDRESS] = request.socket.remoteAddress;
         }
@@ -434,7 +433,7 @@ function observeRequest(request, response) {
       }
     },
     annotate: function annotate(fields) {
-      logFields = Object.assign(logFields, fields);
+      logFields = { ...logFields, ...fields };
     },
     setTraceAttributes: function setTraceAttributes(fields) {
       if (!requestSpan) return;

@@ -28,14 +28,14 @@
 import nativeFs from "node:fs";
 import { readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import observability from "./observability.mjs";
-import { readConfiguration } from "./configuration.mjs";
+import MessageCommon from "../client-data/js/message_common.js";
 import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
+import { readConfiguration } from "./configuration.mjs";
 import {
   normalizeStoredChildPoint,
   normalizeStoredItemWithBounds,
 } from "./message_validation.mjs";
-import MessageCommon from "../client-data/js/message_common.js";
+import observability from "./observability.mjs";
 
 const { logger, metrics, tracing } = observability;
 
@@ -136,7 +136,7 @@ function parseStoredBoard(storedBoard) {
  * @returns {{[name: string]: BoardElem | BoardMetadata}}
  */
 function serializeStoredBoard(board, metadata) {
-  const storedBoard = Object.assign({}, board);
+  const storedBoard = { ...board };
   if (metadata?.readonly) {
     storedBoard[BOARD_METADATA_KEY] = { readonly: true };
   }
@@ -150,13 +150,11 @@ function serializeStoredBoard(board, metadata) {
  * @returns {{[key: string]: unknown}}
  */
 function boardTraceAttributes(boardName, operation, extras) {
-  return Object.assign(
-    {
-      "wbo.board": boardName,
-      "wbo.board.operation": operation,
-    },
-    extras,
-  );
+  return {
+    "wbo.board": boardName,
+    "wbo.board.operation": operation,
+    ...extras,
+  };
 }
 
 /**
@@ -344,7 +342,7 @@ class BoardData {
   makeUpdateCandidate(id, base, updateData) {
     if (typeof base !== "object") return null;
 
-    const candidate = Object.assign({}, base, updateData);
+    const candidate = { ...base, ...updateData };
     const localBounds =
       base.tool === "Pencil" && updateData.transform !== undefined
         ? this.getLocalBounds(id, base)
@@ -368,7 +366,7 @@ class BoardData {
       return this.isCandidateTooLarge(obj, nextBounds);
     }
     if (obj.tool === "Text") {
-      const candidate = Object.assign({}, obj, { txt: updateData.txt });
+      const candidate = { ...obj, txt: updateData.txt };
       const nextBounds = MessageCommon.getLocalGeometryBounds(candidate);
       return this.isCandidateTooLarge(candidate, nextBounds);
     }
@@ -581,7 +579,7 @@ class BoardData {
     const config = getConfig();
     const messages = children.map((childMessage) =>
       parentMessage && childMessage.tool === undefined
-        ? Object.assign({ tool: parentMessage.tool }, childMessage)
+        ? { tool: parentMessage.tool, ...childMessage }
         : childMessage,
     );
 
@@ -700,9 +698,10 @@ class BoardData {
           if (this.isCandidateTooLarge(current, nextBounds))
             return { ok: false, reason: "shape too large" };
           currentChildren.push(normalizedChild.value);
-          const candidate = Object.assign({}, current, {
+          const candidate = {
+            ...current,
             _children: currentChildren,
-          });
+          };
           shadowItems.set(message.parent, candidate);
           shadowLocalBounds.set(message.parent, this.cloneBounds(nextBounds));
           actions.push({
@@ -1110,4 +1109,4 @@ function errorCode(error) {
   return typeof error.code === "string" ? error.code : undefined;
 }
 
-export { BoardData, BOARD_METADATA_KEY, parseStoredBoard };
+export { BOARD_METADATA_KEY, BoardData, parseStoredBoard };

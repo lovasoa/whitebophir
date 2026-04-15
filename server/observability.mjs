@@ -311,17 +311,13 @@ function formatReadableLogRecord(record, options) {
       : record.body === undefined || record.body === null
         ? undefined
         : String(record.body);
-  const line = formatCanonicalLogLine(
-    Object.assign(
-      {
-        ts: hrTimeToDate(record.hrTime),
-        level: level,
-        event: record.eventName || "log",
-      },
-      body && body !== record.eventName ? { msg: body } : {},
-      record.attributes,
-    ),
-  );
+  const line = formatCanonicalLogLine({
+    ts: hrTimeToDate(record.hrTime),
+    level,
+    event: record.eventName || "log",
+    ...(body && body !== record.eventName ? { msg: body } : {}),
+    ...record.attributes,
+  });
   return options?.colorizeLevel ? styleTerminalLogLine(line, level) : line;
 }
 
@@ -554,15 +550,10 @@ function recordSpanError(span, error, attributes) {
       code: SpanStatusCode.ERROR,
       message: error.message,
     });
-    setSpanAttributes(
-      span,
-      Object.assign(
-        {
-          "error.type": error.name || "Error",
-        },
-        attributes,
-      ),
-    );
+    setSpanAttributes(span, {
+      "error.type": error.name || "Error",
+      ...attributes,
+    });
     return;
   }
   span.recordException({ message: String(error) });
@@ -570,10 +561,7 @@ function recordSpanError(span, error, attributes) {
     code: SpanStatusCode.ERROR,
     message: String(error),
   });
-  setSpanAttributes(
-    span,
-    Object.assign({ "error.type": typeof error }, attributes),
-  );
+  setSpanAttributes(span, { "error.type": typeof error, ...attributes });
 }
 
 /**
@@ -755,7 +743,7 @@ function withDetachedSpan(name, options, fn) {
  * }}
  */
 function createLogRecord(level, name, fields) {
-  const details = Object.assign({}, fields);
+  const details = { ...fields };
   const message =
     typeof details.msg === "string" && details.msg !== "" ? details.msg : null;
   delete details.msg;
@@ -768,9 +756,11 @@ function createLogRecord(level, name, fields) {
     severityNumber: severityNumberForLevel(level),
     severityText: level.toUpperCase(),
     body: message === null ? undefined : message,
-    attributes: normalizeLogAttributes(
-      Object.assign(getActiveTraceFields(), details, flattenError(error)),
-    ),
+    attributes: normalizeLogAttributes({
+      ...getActiveTraceFields(),
+      ...details,
+      ...flattenError(error),
+    }),
     exception: error,
   };
 }
