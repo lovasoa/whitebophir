@@ -26,6 +26,7 @@
 
 import jsonwebtoken from "jsonwebtoken";
 import { readConfiguration } from "./configuration.mjs";
+import { forbidden } from "./boundary_errors.mjs";
 
 function getConfig() {
   return readConfiguration();
@@ -45,7 +46,7 @@ export function checkBoardnameInToken(url, boardNameIn) {
   }
   const token = url.searchParams.get("token");
   if (token === null || roleInBoard(token, boardNameIn) === "forbidden") {
-    throw new Error("Acess Forbidden");
+    throw forbidden("access_forbidden");
   }
 }
 
@@ -76,10 +77,15 @@ export function roleInBoard(token, board = null) {
   }
 
   if (!token) {
-    throw new Error("No token provided");
+    return "forbidden";
   }
 
-  const payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
+  let payload;
+  try {
+    payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
+  } catch {
+    return "forbidden";
+  }
   const roles = payload.roles;
   let oneHasBoardName = false;
   let oneHasModerator = false;

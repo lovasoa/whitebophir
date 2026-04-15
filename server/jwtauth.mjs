@@ -25,6 +25,7 @@
  */
 
 import { readConfiguration } from "./configuration.mjs";
+import { forbidden } from "./boundary_errors.mjs";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
 
 function getConfig() {
@@ -43,8 +44,12 @@ export function checkUserPermission(url) {
 
   const token = url.searchParams.get("token");
   if (!token) {
-    throw new Error("No token provided");
+    throw forbidden("missing_token");
   }
 
-  return roleInBoard(token) === "moderator";
+  const role = roleInBoard(token);
+  if (role === "forbidden") {
+    throw forbidden("invalid_token");
+  }
+  return role === "moderator";
 }

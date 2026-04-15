@@ -135,15 +135,12 @@ test("socket policy counts only mutations that should consume rate-limit budget"
 test("normalizeBroadcastData rejects blocked tools before persistence", async () => {
   await withEnv({ WBO_BLOCKED_TOOLS: "Text" }, async () => {
     const socketPolicy = require(SOCKET_POLICY_PATH);
-    const rejected = socketPolicy.normalizeBroadcastData(
-      { board: "anonymous" },
-      {
-        tool: "Text",
-        type: "update",
-        id: "text-1",
-        txt: "blocked",
-      },
-    );
+    const rejected = socketPolicy.normalizeBroadcastData("anonymous", {
+      tool: "Text",
+      type: "update",
+      id: "text-1",
+      txt: "blocked",
+    });
 
     assert.deepEqual(rejected, { ok: false, reason: "blocked tool" });
   });

@@ -386,7 +386,7 @@ test("static asset requests do not create spans", async () => {
   );
 });
 
-test("getboard traces the root socket event and board load", async () => {
+test("connection bootstrap traces the root socket event and board load", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-trace-socket-"),
   );
@@ -403,6 +403,7 @@ test("getboard traces the root socket event and board load", async () => {
         id: "socket-trace",
         remoteAddress: "203.0.113.10",
         query: {
+          board: "trace-board",
           userSecret: "trace-secret",
           tool: "Hand",
           color: "#111111",
@@ -411,11 +412,10 @@ test("getboard traces the root socket event and board load", async () => {
       });
 
       sockets.__test.resetRateLimitMaps();
-      sockets.__test.handleSocketConnection(created.socket);
-      await getRequiredHandler(created.handlers, "getboard")("trace-board");
-      await waitForSpans(exporter, ["socket.getboard", "board.load"]);
+      await sockets.__test.handleSocketConnection(created.socket);
+      await waitForSpans(exporter, ["socket.connect_board", "board.load"]);
 
-      const rootSpan = getSpanByName(exporter, "socket.getboard");
+      const rootSpan = getSpanByName(exporter, "socket.connect_board");
       const loadSpan = getSpanByName(exporter, "board.load");
 
       assert.equal(rootSpan.attributes["wbo.board"], "trace-board");
@@ -507,38 +507,38 @@ test("successful cursor broadcasts stay untraced, but invalid cursor messages cr
       const created = createSocket({
         id: "socket-cursor",
         remoteAddress: "203.0.113.12",
+        query: { board: "anonymous" },
       });
 
       sockets.__test.resetRateLimitMaps();
-      sockets.__test.handleSocketConnection(created.socket);
+      await sockets.__test.handleSocketConnection(created.socket);
 
       await getRequiredHandler(
         created.handlers,
         "broadcast",
       )({
-        board: "anonymous",
-        data: {
-          tool: "Cursor",
-          type: "update",
-          x: 10,
-          y: 20,
-          color: "#123456",
-          size: 2,
-        },
+        tool: "Cursor",
+        type: "update",
+        x: 10,
+        y: 20,
+        color: "#123456",
+        size: 2,
       });
-      assert.equal(exporter.getFinishedSpans().length, 0);
+      assert.equal(
+        exporter
+          .getFinishedSpans()
+          .some((span) => span.name === "socket.broadcast_write"),
+        false,
+      );
 
       await getRequiredHandler(
         created.handlers,
         "broadcast",
       )({
-        board: "anonymous",
-        data: {
-          tool: "Cursor",
-          type: "update",
-          x: 10,
-          y: 20,
-        },
+        tool: "Cursor",
+        type: "update",
+        x: 10,
+        y: 20,
       });
       await waitForSpans(exporter, ["socket.message_invalid"]);
 

@@ -27,7 +27,12 @@ import {
   decodeAndValidateBoardName,
   isValidBoardName,
 } from "../client-data/js/board_name.js";
-import { parseRequestUrl } from "./request_url.mjs";
+import {
+  badRequest,
+  boundaryReason,
+  boundaryStatusCode,
+} from "./boundary_errors.mjs";
+import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
 
 const { createRequestId, logger, metrics, tracing } = observability;
 const config = readConfiguration();
@@ -37,6 +42,7 @@ const config = readConfiguration();
 /** @typedef {import("node:net").AddressInfo | string | null} ServerAddress */
 
 const app = createServer(handler);
+app.on("clientError", handleClientError);
 
 check_output_directory(config.HISTORY_DIR);
 
@@ -233,6 +239,39 @@ function requestPath(request) {
  */
 function errorToString(error) {
   return error instanceof Error ? error.toString() : String(error);
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string | undefined}
+ */
+function errorCode(error) {
+  if (!error || typeof error !== "object") return undefined;
+  if (!("code" in error)) return undefined;
+  return typeof error.code === "string" ? error.code : undefined;
+}
+
+/**
+ * @param {unknown} error
+ * @returns {number | undefined}
+ */
+function requestErrorStatusCode(error) {
+  const boundaryCode = boundaryStatusCode(error);
+  if (boundaryCode !== undefined) return boundaryCode;
+  const code = errorCode(error);
+  if (code === "ENOENT") return 404;
+  if (code === "ENAMETOOLONG") return 400;
+  return undefined;
+}
+
+/**
+ * @param {HttpResponse} response
+ * @param {number} statusCode
+ * @returns {void}
+ */
+function respondWithErrorPage(response, statusCode) {
+  response.writeHead(statusCode, { "Content-Length": errorPage.length });
+  response.end(errorPage);
 }
 
 /**
@@ -476,15 +515,24 @@ function observeRequest(request, response) {
 /**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
- * @param {{noteError: (error: unknown) => void}} requestContext
+ * @param {{
+ *   noteError: (error: unknown) => void,
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
  * @returns {(err?: unknown) => void}
  */
 function serveError(request, response, requestContext) {
   void request;
   return (err) => {
-    if (err) requestContext.noteError(err);
-    response.writeHead(err ? 500 : 404, { "Content-Length": errorPage.length });
-    response.end(errorPage);
+    const statusCode = err ? requestErrorStatusCode(err) || 500 : 404;
+    if (err && statusCode >= 500) {
+      requestContext.noteError(err);
+    } else if (err) {
+      requestContext.annotate({
+        rejection_reason: boundaryReason(err) || errorCode(err) || "rejected",
+      });
+    }
+    respondWithErrorPage(response, statusCode);
   };
 }
 
@@ -497,11 +545,44 @@ function handler(request, response) {
     try {
       handleRequest(request, response, requestContext);
     } catch (err) {
-      requestContext.noteError(err);
-      response.writeHead(500, { "Content-Type": "text/plain" });
-      response.end(errorToString(err));
+      const statusCode = requestErrorStatusCode(err) || 500;
+      if (statusCode >= 500) {
+        requestContext.noteError(err);
+        logger.error("http.request_unhandled", {
+          request_id: requestContext.requestId,
+          error: err,
+        });
+      } else {
+        requestContext.annotate({
+          rejection_reason: boundaryReason(err) || errorToString(err),
+        });
+      }
+      respondWithErrorPage(response, statusCode);
     }
   });
+}
+
+/**
+ * @param {Error} error
+ * @param {import("node:net").Socket} socket
+ * @returns {void}
+ */
+function handleClientError(error, socket) {
+  const maybeCode =
+    typeof error === "object" && error !== null && "code" in error
+      ? error.code
+      : undefined;
+  logger.warn("http.client_error", {
+    code: typeof maybeCode === "string" ? maybeCode : undefined,
+    message: error.message,
+  });
+  if (!socket.writable) {
+    socket.destroy();
+    return;
+  }
+  socket.end(
+    "HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 11\r\n\r\nBad Request",
+  );
 }
 
 /**
@@ -565,8 +646,11 @@ function isNotFoundError(error) {
  * @returns {void}
  */
 function handleRequest(request, response, requestContext) {
-  const requestUrl = request.url || "/";
-  const parsedUrl = parseRequestUrl(requestUrl);
+  const parsedUrlResult = validateRequestUrl(request.url);
+  if (parsedUrlResult.ok === false) {
+    throw badRequest(parsedUrlResult.reason);
+  }
+  const parsedUrl = parsedUrlResult.value;
   const parts = parsedUrl.pathname.split("/");
 
   if (parts[0] === "") parts.shift();
@@ -581,7 +665,11 @@ function handleRequest(request, response, requestContext) {
     ".jpg",
     ".gif",
   ];
-  if (!staticResources.includes(fileExt)) {
+  const boardScopedRoutes = new Set(["boards", "preview", "download"]);
+  if (
+    !staticResources.includes(fileExt) &&
+    !boardScopedRoutes.has(parts[0] || "")
+  ) {
     jwtauth.checkUserPermission(parsedUrl);
   }
 
@@ -595,7 +683,7 @@ function handleRequest(request, response, requestContext) {
           parsedUrl.searchParams.get("board") || "anonymous",
         );
         if (boardName === null) {
-          return serveError(request, response, requestContext)();
+          throw badRequest("invalid_board_name");
         }
         requestContext.annotate({ board: boardName });
         requestContext.setTraceAttributes({ board: boardName });
@@ -606,7 +694,7 @@ function handleRequest(request, response, requestContext) {
       } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
         const boardName = validateBoardPath(getPathPart(parts, 1));
         if (boardName === null) {
-          return serveError(request, response, requestContext)();
+          throw badRequest("invalid_board_name");
         }
         requestContext.annotate({ board: boardName });
         requestContext.setTraceAttributes({ board: boardName });
@@ -640,7 +728,7 @@ function handleRequest(request, response, requestContext) {
       requestContext.setRoute("download_board");
       const boardName = validateBoardPath(getPathPart(parts, 1));
       if (boardName === null) {
-        return serveError(request, response, requestContext)();
+        throw badRequest("invalid_board_name");
       }
       requestContext.annotate({ board: boardName });
       requestContext.setTraceAttributes({ board: boardName });
@@ -684,7 +772,7 @@ function handleRequest(request, response, requestContext) {
       requestContext.setRoute("preview_board");
       const exportBoardName = validateBoardPath(getPathPart(parts, 1));
       if (exportBoardName === null) {
-        return serveError(request, response, requestContext)();
+        throw badRequest("invalid_board_name");
       }
       requestContext.annotate({ board: exportBoardName });
       requestContext.setTraceAttributes({ board: exportBoardName });

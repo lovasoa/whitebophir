@@ -65,7 +65,7 @@ import { getToolCatalogEntry } from "./tool_catalog.js";
 /** @typedef {import("../../types/app-runtime").ToolClass} ToolClass */
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../types/app-runtime").ToolRuntime} ToolRuntime */
-/** @typedef {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastFocusX?: number, lastFocusY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
+/** @typedef {{socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastFocusX?: number, lastFocusY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{limit?: number, periodMs?: number, anonymousLimit?: number, overrides?: {[boardName: string]: {limit?: number, periodMs?: number}}}} RateLimitDefinition */
 const Tools = /** @type {AppToolsState} */ ({});
@@ -285,14 +285,14 @@ Tools.getEffectiveRateLimit = function getEffectiveRateLimit(kind) {
 };
 
 /**
- * @param {{board: string, data: BoardMessage}} message
+ * @param {BoardMessage} message
  * @returns {{general: number, constructive: number, destructive: number}}
  */
 Tools.getBufferedWriteCosts = function getBufferedWriteCosts(message) {
   return {
     general: 1,
-    constructive: RateLimitCommon.countConstructiveActions(message.data),
-    destructive: RateLimitCommon.countDestructiveActions(message.data),
+    constructive: RateLimitCommon.countConstructiveActions(message),
+    destructive: RateLimitCommon.countDestructiveActions(message),
   };
 };
 
@@ -576,14 +576,14 @@ Tools.flushBufferedWrites = function flushBufferedWrites() {
     }
     Tools.bufferedWrites.shift();
     Tools.consumeBufferedWriteBudget(bufferedWrite, now);
-    Tools.updateCurrentConnectedUserFromActivity(bufferedWrite.message.data);
+    Tools.updateCurrentConnectedUserFromActivity(bufferedWrite.message);
     if (Tools.socket) Tools.socket.emit("broadcast", bufferedWrite.message);
   }
   Tools.syncWriteStatusIndicator();
 };
 
 /**
- * @param {{board: string, data: BoardMessage}} message
+ * @param {BoardMessage} message
  * @returns {void}
  */
 Tools.enqueueBufferedWrite = function enqueueBufferedWrite(message) {
@@ -595,7 +595,7 @@ Tools.enqueueBufferedWrite = function enqueueBufferedWrite(message) {
 };
 
 /**
- * @param {{board: string, data: BoardMessage}} message
+ * @param {BoardMessage} message
  * @returns {boolean}
  */
 Tools.sendBufferedWrite = function sendBufferedWrite(message) {
@@ -613,7 +613,7 @@ Tools.sendBufferedWrite = function sendBufferedWrite(message) {
     Tools.canEmitBufferedWrite(bufferedWrite, now)
   ) {
     Tools.consumeBufferedWriteBudget(bufferedWrite, now);
-    Tools.updateCurrentConnectedUserFromActivity(message.data);
+    Tools.updateCurrentConnectedUserFromActivity(message);
     if (Tools.socket) Tools.socket.emit("broadcast", message);
     Tools.syncWriteStatusIndicator();
     return true;
@@ -1514,7 +1514,6 @@ function createConnectedUserRow(user) {
     connectedUser.reported = true;
     updateConnectedUserRow(row, connectedUser);
     Tools.socket.emit("report_user", {
-      board: Tools.boardName,
       socketId: connectedUser.socketId,
     });
   });
@@ -1712,6 +1711,7 @@ Tools.startConnection = () => {
     window.location.pathname,
     Tools.socketIOExtraHeaders,
     params.get("token"),
+    Tools.boardName,
     Tools.getInitialSocketQuery(),
   );
 
@@ -1735,7 +1735,6 @@ Tools.startConnection = () => {
       Tools.showLoadingMessage();
     }
     Tools.syncWriteStatusIndicator();
-    if (Tools.socket) Tools.socket.emit("getboard", Tools.boardName);
   });
   socket.on("broadcast", (/** @type {BoardMessage} */ msg) => {
     enqueueIncomingBroadcast(msg);
@@ -1775,6 +1774,9 @@ Tools.startConnection = () => {
     Tools.connectionState = "disconnected";
     Tools.beginAuthoritativeResync();
   });
+  if (typeof socket.connect === "function") {
+    socket.connect();
+  }
 };
 Tools.boardName = Tools.resolveBoardName();
 
@@ -2399,11 +2401,7 @@ Tools.send = (data, toolName) => {
   const outboundData = Tools.cloneMessage(data);
   outboundData.tool = toolName;
   Tools.applyHooks(Tools.messageHooks, outboundData);
-  const message = {
-    board: Tools.boardName,
-    data: outboundData,
-  };
-  return Tools.sendBufferedWrite(message);
+  return Tools.sendBufferedWrite(outboundData);
 };
 
 /**

@@ -26,10 +26,10 @@ const JWT_BOARDNAME_AUTH_PATH = path.join(
 );
 
 /** @typedef {{[key: string]: any}} Dict */
-/** @typedef {{headers?: {[key: string]: string | string[] | undefined}, remoteAddress?: string, token?: string, query?: {[key: string]: string | undefined}, id?: string}} SocketOptions */
+/** @typedef {{headers?: {[key: string]: string | string[] | undefined}, remoteAddress?: string, token?: string, query?: {[key: string]: any}, id?: string}} SocketOptions */
 /** @typedef {{event: string, payload: any, room?: string}} EmittedEvent */
 /** @typedef {{[event: string]: (...args: any[]) => any}} HandlerMap */
-/** @typedef {{id: string, turnstileValidatedUntil?: number, disconnected?: boolean, handshake: {query: {token?: string}}, rooms: Set<string>, client: {request: {headers: {[key: string]: string | string[] | undefined}, socket: {remoteAddress: string}}, conn: {closeCalls: number[], close: () => void}}, broadcast: {to: (room: string) => {emit: (event: string, payload: any) => void}}, disconnectCalls: boolean[], on: (event: string, handler: (...args: any[]) => any) => void, join: (room: string) => void, emit: (event: string, payload: any) => void, disconnect: (close: boolean) => void}} TestSocket */
+/** @typedef {{id: string, boardName?: string, turnstileValidatedUntil?: number, disconnected?: boolean, handshake: {query: {board?: string, token?: string, userSecret?: string, tool?: string, color?: string, size?: string}}, rooms: Set<string>, client: {request: {headers: {[key: string]: string | string[] | undefined}, socket: {remoteAddress: string}}, conn: {closeCalls: number[], close: () => void}}, broadcast: {to: (room: string) => {emit: (event: string, payload: any) => void}}, disconnectCalls: boolean[], on: (event: string, handler: (...args: any[]) => any) => void, join: (room: string) => void, emit: (event: string, payload: any) => void, disconnect: (close: boolean) => void}} TestSocket */
 /** @typedef {{socket: TestSocket, handlers: HandlerMap, emitted: EmittedEvent[], broadcasted: EmittedEvent[]}} CreatedSocket */
 
 const DEFAULT_CLEARED_MODULES = [

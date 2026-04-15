@@ -1,4 +1,5 @@
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
+import { isValidBoardName } from "../client-data/js/board_name.js";
 import { readConfiguration } from "./configuration.mjs";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
@@ -178,52 +179,45 @@ const countDestructiveActions = RateLimitCommon.countDestructiveActions;
 const countConstructiveActions = RateLimitCommon.countConstructiveActions;
 
 /**
- * @param {MessageData | null | undefined} message
- * @returns {string}
- */
-function getBoardName(message) {
-  return message?.board || "anonymous";
-}
-
-/**
- * @param {MessageData | null | undefined} message
+ * @param {string} boardName
  * @param {MessageData | null | undefined} data
  * @returns {BroadcastResult}
  */
-function normalizeBroadcastData(message, data) {
+function normalizeBroadcastData(boardName, data) {
   if (!data) {
-    return rejectedBroadcast("missing data");
+    return rejectedBroadcast(boardName, "missing data");
   }
 
   if (
     typeof data.tool === "string" &&
     getConfig().BLOCKED_TOOLS.includes(data.tool)
   ) {
-    return rejectedBroadcast("blocked tool");
+    return rejectedBroadcast(boardName, "blocked tool");
   }
 
   const normalized = normalizeIncomingMessage(data);
   if (normalized.ok === false) {
-    return rejectedBroadcast(normalized.reason);
+    return rejectedBroadcast(boardName, normalized.reason);
   }
 
   if (getConfig().BLOCKED_TOOLS.includes(normalized.value.tool)) {
-    return rejectedBroadcast("blocked tool");
+    return rejectedBroadcast(boardName, "blocked tool");
   }
 
   return normalized;
 
   /**
+   * @param {string} rejectedBoardName
    * @param {string} reason
    * @returns {RejectedBroadcast}
    */
-  function rejectedBroadcast(reason) {
+  function rejectedBroadcast(rejectedBoardName, reason) {
     return tracing.withDetachedSpan(
       "socket.message_invalid",
       {
         attributes: {
           "wbo.socket.event": "broadcast_write",
-          "wbo.board": getBoardName(message),
+          "wbo.board": rejectedBoardName,
           "wbo.rejection.reason": reason,
           "wbo.tool": data?.tool,
           "wbo.message.type": data?.type,
@@ -231,13 +225,13 @@ function normalizeBroadcastData(message, data) {
       },
       function recordRejectedBroadcast() {
         logger.warn("socket.message_invalid", {
-          board: getBoardName(message),
+          board: rejectedBoardName,
           tool: data?.tool,
           type: data?.type,
           reason: reason,
         });
         metrics.recordBoardMessage(
-          { board: getBoardName(message), ...(data || {}) },
+          { board: rejectedBoardName, ...(data || {}) },
           "invalid_message",
         );
         return { ok: false, reason: reason };
@@ -251,7 +245,19 @@ function normalizeBroadcastData(message, data) {
  * @returns {string | undefined}
  */
 function getSocketToken(socket) {
-  return socket.handshake.query?.token;
+  const token = socket.handshake.query?.token;
+  return typeof token === "string" ? token : undefined;
+}
+
+/**
+ * @param {unknown} boardName
+ * @returns {string | null}
+ */
+function normalizeBoardName(boardName) {
+  if (boardName === undefined || boardName === null || boardName === "") {
+    return "anonymous";
+  }
+  return isValidBoardName(boardName) ? boardName : null;
 }
 
 /**
@@ -319,6 +325,7 @@ export {
   countConstructiveActions,
   countDestructiveActions,
   getClientIp,
+  normalizeBoardName,
   normalizeBroadcastData,
   parseForwardedChain,
   parseForwardedHeader,

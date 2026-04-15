@@ -22,14 +22,13 @@ export type BoardMessage = {
 };
 
 export type PendingWrite = {
-  message?: { board: string; data: BoardMessage };
   data?: BoardMessage;
   toolName?: string;
   costs?: { general: number; constructive: number; destructive: number };
 };
 
 export type BufferedWrite = {
-  message: { board: string; data: BoardMessage };
+  message: BoardMessage;
   costs: { general: number; constructive: number; destructive: number };
 };
 
@@ -106,6 +105,7 @@ export type AppSocket = {
   connected?: boolean;
   on: (eventName: string, handler: (...args: any[]) => void) => void;
   emit: (eventName: string, ...args: any[]) => void;
+  connect?: () => void;
   disconnect?: () => void;
   destroy?: () => void;
 };
@@ -265,6 +265,7 @@ export type SocketParams = {
   path: string;
   reconnection: boolean;
   reconnectionDelay: number;
+  autoConnect?: boolean;
   timeout: number;
   extraHeaders?: SocketHeaders;
   query?: string;

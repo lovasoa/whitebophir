@@ -19,29 +19,37 @@ test("normalizeSocketIOExtraHeaders keeps only string header values", () => {
 
 test("buildSocketParams keeps board prefixes and omits empty tokens", () => {
   assert.deepEqual(
-    BoardConnection.buildSocketParams("/prefix/boards/demo", { test: "1" }, ""),
+    BoardConnection.buildSocketParams(
+      "/prefix/boards/demo",
+      { test: "1" },
+      "",
+      "demo",
+    ),
     {
       path: "/prefix/socket.io",
       reconnection: true,
       reconnectionDelay: 100,
+      autoConnect: false,
       timeout: 1000 * 60 * 20,
       extraHeaders: { test: "1" },
+      query: "board=demo",
     },
   );
 
   assert.deepEqual(
-    BoardConnection.buildSocketParams("/boards/demo", null, "abc 123"),
+    BoardConnection.buildSocketParams("/boards/demo", null, "abc 123", "demo"),
     {
       path: "/socket.io",
       reconnection: true,
       reconnectionDelay: 100,
+      autoConnect: false,
       timeout: 1000 * 60 * 20,
-      query: "token=abc+123",
+      query: "board=demo&token=abc+123",
     },
   );
 
   assert.deepEqual(
-    BoardConnection.buildSocketParams("/boards/demo", null, "abc 123", {
+    BoardConnection.buildSocketParams("/boards/demo", null, "abc 123", "demo", {
       userSecret: "secret",
       tool: "Hand",
       color: "#123456",
@@ -51,8 +59,10 @@ test("buildSocketParams keeps board prefixes and omits empty tokens", () => {
       path: "/socket.io",
       reconnection: true,
       reconnectionDelay: 100,
+      autoConnect: false,
       timeout: 1000 * 60 * 20,
-      query: "token=abc+123&userSecret=secret&tool=Hand&color=%23123456&size=4",
+      query:
+        "board=demo&token=abc+123&userSecret=secret&tool=Hand&color=%23123456&size=4",
     },
   );
 });

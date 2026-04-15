@@ -765,10 +765,7 @@ export class BoardPage {
   async emitBroadcast(message: Record<string, unknown>) {
     await this.waitForBoardWritable();
     await this.page.evaluate((data) => {
-      (window as any).Tools.socket.emit("broadcast", {
-        board: (window as any).Tools.boardName,
-        data,
-      });
+      (window as any).Tools.socket.emit("broadcast", data);
     }, message);
   }
 

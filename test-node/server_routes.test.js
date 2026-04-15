@@ -6,6 +6,7 @@ const path = require("node:path");
 const http = require("node:http");
 const net = require("node:net");
 const { pathToFileURL } = require("node:url");
+const jsonwebtoken = require("jsonwebtoken");
 
 const { withEnv } = require("./test_helpers.js");
 
@@ -121,7 +122,7 @@ async function createServerDirs() {
   return { historyDir, webroot };
 }
 
-test("server returns 404 for preview and download routes without a board name", async () => {
+test("server returns 400 for preview and download routes without a board name", async () => {
   const dirs = await createServerDirs();
 
   await withEnv({
@@ -138,8 +139,8 @@ test("server returns 404 for preview and download routes without a board name", 
       const preview = await request(app, "/preview");
       const download = await request(app, "/download");
 
-      assert.equal(preview.statusCode, 404);
-      assert.equal(download.statusCode, 404);
+      assert.equal(preview.statusCode, 400);
+      assert.equal(download.statusCode, 400);
       assert.equal(typeof preview.headers["x-request-id"], "string");
       assert.equal(typeof download.headers["x-request-id"], "string");
       assert.equal(preview.body, "error-page");
@@ -191,7 +192,7 @@ test("server returns 404 instead of 500 when preview board data is missing", asy
   ]);
 });
 
-test("server rejects invalid board names without returning 500", async () => {
+test("server rejects invalid board names with 400 instead of 500", async () => {
   const dirs = await createServerDirs();
 
   await withEnv({
@@ -215,7 +216,7 @@ test("server rejects invalid board names without returning 500", async () => {
 
       for (const invalidPath of invalidPaths) {
         const response = await request(app, invalidPath);
-        assert.equal(response.statusCode, 404, invalidPath);
+        assert.equal(response.statusCode, 400, invalidPath);
         assert.equal(typeof response.headers["x-request-id"], "string");
         assert.equal(response.body, "error-page");
       }
@@ -284,7 +285,7 @@ test("server preserves an incoming request id header", async () => {
   ]);
 });
 
-test("server tolerates malformed double-slash request targets", async () => {
+test("server rejects malformed double-slash request targets with 400", async () => {
   const dirs = await createServerDirs();
 
   await withEnv({
@@ -325,9 +326,64 @@ test("server tolerates malformed double-slash request targets", async () => {
         socket.on("error", reject);
       });
 
-      assert.match(rawResponse, /^HTTP\/1\.1 200 OK/m);
+      assert.match(rawResponse, /^HTTP\/1\.1 400 Bad Request/m);
       assert.match(rawResponse, /^X-Request-Id: .+/m);
-      assert.match(rawResponse, /\r\n\r\nindex-page$/m);
+      assert.match(rawResponse, /\r\n\r\nerror-page$/m);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("server returns 400 for malformed low-level HTTP parser input", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const address = app.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Server is not listening on a TCP port");
+      }
+
+      const rawResponse = await new Promise((resolve, reject) => {
+        const socket = net.createConnection({
+          host: "127.0.0.1",
+          port: address.port,
+        });
+        /** @type {Buffer[]} */
+        const chunks = [];
+
+        socket.on("connect", () => {
+          socket.write("G\0T / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+        });
+        socket.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        socket.on("end", () => {
+          resolve(Buffer.concat(chunks).toString("utf8"));
+        });
+        socket.on("error", reject);
+      });
+
+      assert.match(rawResponse, /^HTTP\/1\.1 400 Bad Request/m);
+      assert.match(rawResponse, /\r\n\r\nBad Request$/m);
     } finally {
       await closeServer(app);
     }
@@ -450,6 +506,56 @@ test("static assets are no-store in development and cache correctly in productio
         immutableResponse.headers["cache-control"],
         "public, max-age=31536000, immutable",
       );
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board-scoped JWTs can access their authorized board pages", async () => {
+  const dirs = await createServerDirs();
+  const authSecret = "test-secret";
+  const boardReaderToken = jsonwebtoken.sign(
+    { sub: "reader", roles: ["reader:readonly-test"] },
+    authSecret,
+  );
+  const boardEditorToken = jsonwebtoken.sign(
+    { sub: "editor", roles: ["editor:testboard"] },
+    authSecret,
+  );
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: authSecret,
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const readonlyResponse = await request(
+        app,
+        `/boards/readonly-test?token=${encodeURIComponent(boardReaderToken)}`,
+      );
+      const editorResponse = await request(
+        app,
+        `/boards/testboard?token=${encodeURIComponent(boardEditorToken)}`,
+      );
+
+      assert.equal(readonlyResponse.statusCode, 200);
+      assert.equal(editorResponse.statusCode, 200);
+      assert.match(readonlyResponse.body, /toolID-Hand/);
+      assert.match(editorResponse.body, /id="menu"/);
     } finally {
       await closeServer(app);
     }

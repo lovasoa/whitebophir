@@ -26,9 +26,10 @@
 
 - A tool builds payload data from pointer/input handlers and calls `Tools.drawAndSend` or `Tools.send` (tool modules + runtime).
 - `Tools.drawAndSend` renders locally first with `tool.draw(data, true)`.
-- `Tools.send` clones payload, stamps `tool`, runs hooks, wraps socket envelope `{ board, data }`.
+- The client opens Socket.IO with handshake query `board=<boardName>` and the server immediately emits `boardstate` plus the authoritative snapshot `broadcast`.
+- `Tools.send` clones payload, stamps `tool`, runs hooks, and sends the plain board message over the already-bound socket.
 - `Tools.sendBufferedWrite` emits immediately with `socket.emit("broadcast", message)` or appends to `Tools.bufferedWrites`; `Tools.scheduleBufferedWriteFlush` and `Tools.flushBufferedWrites` drain later.
-- Server receives `socket.on("broadcast", ...)` and runs board access + rate-limit checks.
+- Server receives `socket.on("broadcast", data)` and runs board access + rate-limit checks against the board already bound to the socket.
 - Server calls `normalizeBroadcastData`, which calls `normalizeIncomingMessage`; rejects include explicit reasons.
 - Accepted payload is cloned for storage, then passed through `handleMessage` / `saveHistory` to `board.processMessage(...)`.
 - Server relays normalized payload to peers with `socket.broadcast.to(boardName).emit("broadcast", normalizedData)`.
@@ -57,6 +58,7 @@
 - `npm test` needs Chromium (`npx playwright install chromium` when missing).
 - `npm test` requires local networking and browser process startup.
 - In Playwright specs, assert authoritative socket/app state; avoid sleep-based timing.
+- Treat HTTP and socket ingress as hostile input surfaces: malformed requests and malformed socket events must be rejected deterministically, never crash the process, and should prefer explicit 4xx-style handling over exception-driven fallthrough.
 
 ## profiling
 

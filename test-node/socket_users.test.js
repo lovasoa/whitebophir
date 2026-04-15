@@ -121,14 +121,14 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
         id: "socket-1",
         remoteAddress: "203.0.113.60",
         query: {
+          board: "board-a",
           userSecret: "first-secret",
           tool: "Hand",
           color: "#111111",
           size: "6",
         },
       });
-      sockets.__test.handleSocketConnection(first.socket);
-      await getRequiredHandler(first.handlers, "getboard")("board-a");
+      await sockets.__test.handleSocketConnection(first.socket);
 
       const firstJoined = first.emitted.filter(
         (event) => event.event === "user_joined",
@@ -143,14 +143,14 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
         id: "socket-2",
         remoteAddress: "203.0.113.61",
         query: {
+          board: "board-a",
           userSecret: "second-secret",
           tool: "Rectangle",
           color: "#222222",
           size: "8",
         },
       });
-      sockets.__test.handleSocketConnection(second.socket);
-      await getRequiredHandler(second.handlers, "getboard")("board-a");
+      await sockets.__test.handleSocketConnection(second.socket);
 
       const secondJoined = second.emitted.filter(
         (event) => event.event === "user_joined",
@@ -183,14 +183,14 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
         id: "socket-revision",
         remoteAddress: "203.0.113.70",
         query: {
+          board: "board-revision",
           userSecret: "revision-secret",
           tool: "Rectangle",
           color: "#333333",
           size: "4",
         },
       });
-      sockets.__test.handleSocketConnection(created.socket);
-      await getRequiredHandler(created.handlers, "getboard")("board-revision");
+      await sockets.__test.handleSocketConnection(created.socket);
 
       const initialSnapshot = getRequiredValue(
         created.emitted.find((event) => event.event === "broadcast"),
@@ -202,18 +202,15 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
         created.handlers,
         "broadcast",
       )({
-        board: "board-revision",
-        data: {
-          tool: "Rectangle",
-          type: "rect",
-          id: "rect-1",
-          color: "#123456",
-          size: 4,
-          x: 0,
-          y: 0,
-          x2: 20,
-          y2: 20,
-        },
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-1",
+        color: "#123456",
+        size: 4,
+        x: 0,
+        y: 0,
+        x2: 20,
+        y2: 20,
       });
 
       const liveBroadcast = getRequiredValue(
@@ -225,17 +222,14 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
         id: "socket-revision-2",
         remoteAddress: "203.0.113.71",
         query: {
+          board: "board-revision",
           userSecret: "revision-secret-2",
           tool: "Hand",
           color: "#444444",
           size: "5",
         },
       });
-      sockets.__test.handleSocketConnection(nextSocket.socket);
-      await getRequiredHandler(
-        nextSocket.handlers,
-        "getboard",
-      )("board-revision");
+      await sockets.__test.handleSocketConnection(nextSocket.socket);
 
       const replaySnapshot = getRequiredValue(
         nextSocket.emitted.find((event) => event.event === "broadcast"),
@@ -261,14 +255,14 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
         id: "socket-9",
         remoteAddress: "203.0.113.69",
         query: {
+          board: "board-left",
           userSecret: "left-secret",
           tool: "Hand",
           color: "#999999",
           size: "5",
         },
       });
-      sockets.__test.handleSocketConnection(created.socket);
-      await getRequiredHandler(created.handlers, "getboard")("board-left");
+      await sockets.__test.handleSocketConnection(created.socket);
 
       await getRequiredHandler(
         created.handlers,
@@ -285,7 +279,6 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
       assert.deepEqual(created.broadcasted[1], {
         event: "user_left",
         payload: {
-          board: "board-left",
           socketId: "socket-9",
         },
         room: "board-left",
@@ -309,31 +302,28 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
         id: "socket-live",
         remoteAddress: "203.0.113.80",
         query: {
+          board: "board-live",
           userSecret: "live-secret",
           tool: "Hand",
           color: "#101010",
           size: "4",
         },
       });
-      sockets.__test.handleSocketConnection(created.socket);
-      await getRequiredHandler(created.handlers, "getboard")("board-live");
+      await sockets.__test.handleSocketConnection(created.socket);
 
       await getRequiredHandler(
         created.handlers,
         "broadcast",
       )({
-        board: "board-live",
-        data: {
-          tool: "Rectangle",
-          type: "rect",
-          id: "shape-1",
-          color: "#123456",
-          size: 9,
-          x: 1,
-          y: 2,
-          x2: 11,
-          y2: 22,
-        },
+        tool: "Rectangle",
+        type: "rect",
+        id: "shape-1",
+        color: "#123456",
+        size: 9,
+        x: 1,
+        y: 2,
+        x2: 11,
+        y2: 22,
       });
 
       const user = getRequiredValue(
@@ -358,15 +348,12 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
         created.handlers,
         "broadcast",
       )({
-        board: "board-live",
-        data: {
-          tool: "Cursor",
-          type: "update",
-          x: 9,
-          y: 10,
-          color: "#abcdef",
-          size: 12,
-        },
+        tool: "Cursor",
+        type: "update",
+        x: 9,
+        y: 10,
+        color: "#abcdef",
+        size: 12,
       });
 
       assert.equal(user.lastTool, "Rectangle");
@@ -394,27 +381,27 @@ test("same-session sockets keep a shared userId in presence but live payload att
         id: "socket-a",
         remoteAddress: "203.0.113.81",
         query: {
+          board: "board-session",
           userSecret: "shared-secret",
           tool: "Hand",
           color: "#111111",
           size: "4",
         },
       });
-      sockets.__test.handleSocketConnection(first.socket);
-      await getRequiredHandler(first.handlers, "getboard")("board-session");
+      await sockets.__test.handleSocketConnection(first.socket);
 
       const second = createSocket({
         id: "socket-b",
         remoteAddress: "203.0.113.81",
         query: {
+          board: "board-session",
           userSecret: "shared-secret",
           tool: "Hand",
           color: "#222222",
           size: "5",
         },
       });
-      sockets.__test.handleSocketConnection(second.socket);
-      await getRequiredHandler(second.handlers, "getboard")("board-session");
+      await sockets.__test.handleSocketConnection(second.socket);
 
       const users = sockets.__test.getBoardUserMap("board-session");
       const firstUser = getRequiredValue(users.get("socket-a"));
@@ -425,18 +412,15 @@ test("same-session sockets keep a shared userId in presence but live payload att
         first.handlers,
         "broadcast",
       )({
-        board: "board-session",
-        data: {
-          tool: "Rectangle",
-          type: "rect",
-          id: "shape-session",
-          color: "#123456",
-          size: 7,
-          x: 10,
-          y: 20,
-          x2: 30,
-          y2: 40,
-        },
+        tool: "Rectangle",
+        type: "rect",
+        id: "shape-session",
+        color: "#123456",
+        size: 7,
+        x: 10,
+        y: 20,
+        x2: 30,
+        y2: 40,
       });
 
       const liveBroadcast = getRequiredValue(
@@ -473,14 +457,14 @@ test("report_user logs reporter and reported user details for active board membe
           "accept-language": "fr-FR,fr;q=0.9",
         },
         query: {
+          board: "board-report",
           userSecret: "reporter-secret",
           tool: "Hand",
           color: "#222222",
           size: "4",
         },
       });
-      sockets.__test.handleSocketConnection(reporter.socket);
-      await getRequiredHandler(reporter.handlers, "getboard")("board-report");
+      await sockets.__test.handleSocketConnection(reporter.socket);
       const reporterEmitCountBeforeReport = reporter.emitted.length;
 
       const reported = createSocket({
@@ -491,21 +475,20 @@ test("report_user logs reporter and reported user details for active board membe
           "accept-language": "en-US,en;q=0.8",
         },
         query: {
+          board: "board-report",
           userSecret: "reported-secret",
           tool: "Ellipse",
           color: "#333333",
           size: "7",
         },
       });
-      sockets.__test.handleSocketConnection(reported.socket);
-      await getRequiredHandler(reported.handlers, "getboard")("board-report");
+      await sockets.__test.handleSocketConnection(reported.socket);
       const reportedEmitCountBeforeReport = reported.emitted.length;
 
       getRequiredHandler(
         reporter.handlers,
         "report_user",
       )({
-        board: "board-report",
         socketId: "socket-reported",
       });
 
@@ -552,12 +535,12 @@ test("report_user respects custom header ip sources for active board members", a
           "accept-language": "de-DE,de;q=0.9",
         },
         query: {
+          board: "board-report",
           userSecret: "reporter-secret",
           tool: "Hand",
         },
       });
-      sockets.__test.handleSocketConnection(reporter.socket);
-      await getRequiredHandler(reporter.handlers, "getboard")("board-report");
+      await sockets.__test.handleSocketConnection(reporter.socket);
 
       const reported = createSocket({
         id: "socket-reported-header",
@@ -568,18 +551,17 @@ test("report_user respects custom header ip sources for active board members", a
           "accept-language": "es-ES,es;q=0.8",
         },
         query: {
+          board: "board-report",
           userSecret: "reported-secret",
           tool: "Ellipse",
         },
       });
-      sockets.__test.handleSocketConnection(reported.socket);
-      await getRequiredHandler(reported.handlers, "getboard")("board-report");
+      await sockets.__test.handleSocketConnection(reported.socket);
 
       getRequiredHandler(
         reporter.handlers,
         "report_user",
       )({
-        board: "board-report",
         socketId: "socket-reported-header",
       });
 

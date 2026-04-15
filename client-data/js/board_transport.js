@@ -27,19 +27,30 @@ function normalizeSocketIOExtraHeaders(value) {
  * @param {string} pathname
  * @param {SocketHeaders | null} extraHeaders
  * @param {string | null} token
+ * @param {string} boardName
  * @param {SocketQueryParams | null} [extraQueryParams]
  * @returns {SocketParams}
  */
-function buildSocketParams(pathname, extraHeaders, token, extraQueryParams) {
+function buildSocketParams(
+  pathname,
+  extraHeaders,
+  token,
+  boardName,
+  extraQueryParams,
+) {
   /** @type {SocketParams} */
   const socketParams = {
     path: `${pathname.split("/boards/")[0]}/socket.io`,
     reconnection: true,
     reconnectionDelay: 100,
+    autoConnect: false,
     timeout: 1000 * 60 * 20,
   };
   const query = new URLSearchParams();
   if (extraHeaders) socketParams.extraHeaders = extraHeaders;
+  if (typeof boardName === "string" && boardName !== "") {
+    query.set("board", boardName);
+  }
   if (typeof token === "string" && token !== "") query.set("token", token);
   if (extraQueryParams) {
     Object.entries(extraQueryParams).forEach(([key, value]) => {

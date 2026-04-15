@@ -44,10 +44,12 @@ test("server-side Turnstile enforcement in broadcast", async () => {
     },
     async () => {
       const sockets = await loadSockets();
-      const { socket, handlers } = createSocket();
+      const { socket, handlers } = createSocket({
+        query: { board: "anonymous" },
+      });
 
       // Initialize socket state by calling handleSocketConnection
-      sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket);
 
       const broadcastHandler = handlers.broadcast;
       assert.ok(broadcastHandler, "broadcast handler should be registered");
@@ -61,14 +63,11 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       });
 
       await broadcastHandler({
-        board: "anonymous",
-        data: {
-          tool: "Pencil",
-          type: "line",
-          id: "l1",
-          color: "#123456",
-          size: 4,
-        },
+        tool: "Pencil",
+        type: "line",
+        id: "l1",
+        color: "#123456",
+        size: 4,
       });
       assert.strictEqual(
         broadcastCalled,
@@ -78,23 +77,17 @@ test("server-side Turnstile enforcement in broadcast", async () => {
 
       // 2. Allowed: Cursor tool, not validated
       // (This verifies the shared logic integration in the socket handler)
-      await broadcastHandler({
-        board: "anonymous",
-        data: { tool: "Cursor", type: "update", x: 10, y: 20 },
-      });
+      await broadcastHandler({ tool: "Cursor", type: "update", x: 10, y: 20 });
 
       // 3. Allowed: Pencil tool, AFTER validation
       socket.turnstileValidatedUntil = 1000;
       await withMockedNow(500, async () => {
         await broadcastHandler({
-          board: "anonymous",
-          data: {
-            tool: "Pencil",
-            type: "line",
-            id: "l2",
-            color: "#123456",
-            size: 4,
-          },
+          tool: "Pencil",
+          type: "line",
+          id: "l2",
+          color: "#123456",
+          size: 4,
         });
       });
       assert.equal(
@@ -107,14 +100,11 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       socket.turnstileValidatedUntil = 1000;
       await withMockedNow(1001, async () => {
         await broadcastHandler({
-          board: "anonymous",
-          data: {
-            tool: "Pencil",
-            type: "line",
-            id: "l3",
-            color: "#123456",
-            size: 4,
-          },
+          tool: "Pencil",
+          type: "line",
+          id: "l3",
+          color: "#123456",
+          size: 4,
         });
       });
       assert.equal(
@@ -139,6 +129,7 @@ test("server-side Turnstile token validation binds Siteverify to request context
       const { socket, handlers } = createSocket({
         headers: { host: "board.example" },
         remoteAddress: "203.0.113.10",
+        query: { board: "anonymous" },
       });
 
       // Mock global fetch
@@ -168,7 +159,7 @@ test("server-side Turnstile token validation binds Siteverify to request context
       );
 
       try {
-        sockets.__test.handleSocketConnection(socket);
+        await sockets.__test.handleSocketConnection(socket);
         const tokenHandler = handlers.turnstile_token;
         assert.ok(tokenHandler, "turnstile_token handler should be registered");
 
@@ -233,11 +224,12 @@ test("server-side Turnstile token validation rejects hostname mismatches", async
       const sockets = await loadSockets();
       const { socket, handlers } = createSocket({
         headers: { host: "board.example:8080" },
+        query: { board: "anonymous" },
       });
 
       const originalFetch = globalThis.fetch;
       try {
-        sockets.__test.handleSocketConnection(socket);
+        await sockets.__test.handleSocketConnection(socket);
         const tokenHandler = handlers.turnstile_token;
         assert.ok(tokenHandler);
 

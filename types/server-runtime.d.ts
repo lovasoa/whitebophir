@@ -10,10 +10,18 @@ export type SocketRequest = {
 };
 
 export type AppSocket = import("socket.io").Socket & {
+  boardName?: string;
   turnstileValidatedUntil?: number;
   client: { request: SocketRequest };
   handshake: {
-    query?: { token?: string };
+    query?: {
+      board?: string;
+      token?: string;
+      userSecret?: string;
+      tool?: string;
+      color?: string;
+      size?: string;
+    };
   };
 };
 

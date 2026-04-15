@@ -326,15 +326,12 @@ test.describe("collaboration and rate limiting", () => {
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       for (let index = 0; index < 12; index += 1) {
         (window as any).Tools.socket.emit("broadcast", {
-          board: (window as any).Tools.boardName,
-          data: {
-            tool: "Cursor",
-            type: "update",
-            x: 1600 + index * 8,
-            y: 1200 + index * 6,
-            color: "#00ff00",
-            size: 5,
-          },
+          tool: "Cursor",
+          type: "update",
+          x: 1600 + index * 8,
+          y: 1200 + index * 6,
+          color: "#00ff00",
+          size: 5,
         });
         await nextFrame();
       }
@@ -720,12 +717,9 @@ test.describe("collaboration and rate limiting", () => {
       await page.evaluate(() => {
         for (let index = 0; index < 101; index += 1) {
           (window as any).Tools.socket.emit("broadcast", {
-            board: (window as any).Tools.boardName,
-            data: {
-              tool: "Eraser",
-              type: "delete",
-              id: `rate-limit-${index}`,
-            },
+            tool: "Eraser",
+            type: "delete",
+            id: `rate-limit-${index}`,
           });
         }
       });

@@ -141,16 +141,20 @@ test("general rate limit closes the socket when exceeded", async () => {
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.10",
+        query: { board: "anonymous" },
       });
-      sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({});
 
       assert.equal(socket.disconnected, true);
       assert.equal(socket.disconnectCalls.length, 1);
-      assert.ok(emitted[0]);
-      assert.equal(emitted[0].event, "rate-limited");
+      const rateLimitedEvent = emitted.find(
+        (event) => event.event === "rate-limited",
+      );
+      assert.ok(rateLimitedEvent);
+      assert.equal(rateLimitedEvent.event, "rate-limited");
     },
   );
 });
@@ -168,27 +172,32 @@ test("destructive per-IP rate limit closes the socket when exceeded", async () =
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.11",
+        query: { board: "anonymous" },
       });
-      sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        board: "anonymous",
-        data: { tool: "Eraser", type: "delete", id: "shape-1" },
+        tool: "Eraser",
+        type: "delete",
+        id: "shape-1",
       });
 
       assert.equal(socket.disconnected, true);
       assert.equal(socket.disconnectCalls.length, 1);
-      assert.deepEqual(emitted[0], {
-        event: "rate-limited",
-        payload: {
-          event: "DESTRUCTIVE_RATE_LIMIT_EXCEEDED",
-          kind: "destructive",
-          limit: 0,
-          periodMs: 10_000,
-          retryAfterMs: 10_000,
+      assert.deepEqual(
+        emitted.find((event) => event.event === "rate-limited"),
+        {
+          event: "rate-limited",
+          payload: {
+            event: "DESTRUCTIVE_RATE_LIMIT_EXCEEDED",
+            kind: "destructive",
+            limit: 0,
+            periodMs: 10_000,
+            retryAfterMs: 10_000,
+          },
         },
-      });
+      );
     },
   );
 });
@@ -206,33 +215,34 @@ test("constructive per-IP rate limit closes the socket when exceeded", async () 
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.13",
+        query: { board: "anonymous" },
       });
-      sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        board: "anonymous",
-        data: {
-          tool: "Pencil",
-          type: "line",
-          id: "line-1",
-          color: "#123456",
-          size: 4,
-        },
+        tool: "Pencil",
+        type: "line",
+        id: "line-1",
+        color: "#123456",
+        size: 4,
       });
 
       assert.equal(socket.disconnected, true);
       assert.equal(socket.disconnectCalls.length, 1);
-      assert.deepEqual(emitted[0], {
-        event: "rate-limited",
-        payload: {
-          event: "CONSTRUCTIVE_RATE_LIMIT_EXCEEDED",
-          kind: "constructive",
-          limit: 0,
-          periodMs: 10_000,
-          retryAfterMs: 10_000,
+      assert.deepEqual(
+        emitted.find((event) => event.event === "rate-limited"),
+        {
+          event: "rate-limited",
+          payload: {
+            event: "CONSTRUCTIVE_RATE_LIMIT_EXCEEDED",
+            kind: "constructive",
+            limit: 0,
+            periodMs: 10_000,
+            retryAfterMs: 10_000,
+          },
         },
-      });
+      );
     },
   );
 });
@@ -249,14 +259,59 @@ test("missing configured IP source falls back without disconnecting", async () =
       const { socket, handlers } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.12",
+        query: { board: "anonymous" },
       });
-      sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({});
 
       assert.notEqual(socket.disconnected, true);
       assert.equal(socket.disconnectCalls.length, 0);
+    },
+  );
+});
+
+test("connection rejects missing handshake board without registering handlers", async () => {
+  await withEnv(
+    {
+      WBO_IP_SOURCE: "remoteAddress",
+      WBO_MAX_EMIT_COUNT: "*:10/5s",
+    },
+    async () => {
+      const sockets = await loadSockets();
+      const { socket, handlers, broadcasted } = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.14",
+      });
+      await sockets.__test.handleSocketConnection(socket);
+
+      assert.equal(socket.disconnected, true);
+      assert.deepEqual(broadcasted, []);
+      assert.equal(socket.rooms.size, 0);
+      assert.equal(handlers.broadcast, undefined);
+    },
+  );
+});
+
+test("connection rejects malformed handshake board names", async () => {
+  await withEnv(
+    {
+      WBO_IP_SOURCE: "remoteAddress",
+    },
+    async () => {
+      const sockets = await loadSockets();
+      sockets.__test.resetRateLimitMaps();
+      const created = createSocket({
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.15",
+        query: { board: /** @type {any} */ ({ bad: true }) },
+      });
+      await sockets.__test.handleSocketConnection(created.socket);
+
+      assert.equal(created.socket.disconnected, true);
+      assert.equal(created.socket.rooms.size, 0);
+      assert.equal(created.handlers.broadcast, undefined);
     },
   );
 });
