@@ -13,6 +13,6 @@ try {
     cwd: repoRoot,
     stdio: "ignore",
   });
-} catch (_error) {
+} catch {
   // Ignore non-git installs, such as tarball packaging.
 }

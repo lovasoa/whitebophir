@@ -2,7 +2,7 @@ const DEFAULT_SERVICE_NAME = "whitebophir-server";
 const ENVELOPE_KEYS = ["ts", "level", "event", "msg"];
 const ANSI_DIM = "\x1b[2m";
 const ANSI_RESET = "\x1b[0m";
-/** @type {{[level: string]: string}} */
+/** @type {Record<string, string>} */
 const LEVEL_COLORS = {
   debug: "\x1b[36m",
   info: "\x1b[32m",
@@ -128,12 +128,10 @@ function styleTerminalLogLine(line, level) {
   return dimLogLineKeys(colorizeLevelInLogLine(line, level));
 }
 
-module.exports = {
-  DEFAULT_SERVICE_NAME,
-  colorizeLevelInLogLine,
-  dimLogLineKeys,
-  flattenError,
-  formatCanonicalLogLine,
-  formatLogfmtValue,
-  styleTerminalLogLine,
-};
+exports.DEFAULT_SERVICE_NAME = DEFAULT_SERVICE_NAME;
+exports.colorizeLevelInLogLine = colorizeLevelInLogLine;
+exports.dimLogLineKeys = dimLogLineKeys;
+exports.flattenError = flattenError;
+exports.formatCanonicalLogLine = formatCanonicalLogLine;
+exports.formatLogfmtValue = formatLogfmtValue;
+exports.styleTerminalLogLine = styleTerminalLogLine;
