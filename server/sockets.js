@@ -4,7 +4,7 @@ const { logger, metrics, tracing } = require("./observability.js");
 const { BoardData } = require("./boardData.js");
 const config = require("./configuration");
 const jsonwebtoken = require("jsonwebtoken");
-const socketPolicy = require("./socket_policy.js");
+const socketPolicy = require("./socket_policy.mjs");
 const WBOMessageCommon = require("../client-data/js/message_common.js");
 const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 

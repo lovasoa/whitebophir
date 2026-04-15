@@ -1,16 +1,26 @@
-const { logger, metrics, tracing } = require("./observability.js");
-const config = require("./configuration");
-const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
-const normalizeIncomingMessage =
-  require("./message_validation.mjs").normalizeIncomingMessage;
-const roleInBoard = require("./jwtBoardnameAuth.mjs").roleInBoard;
+import { createRequire } from "node:module";
+import path from "node:path";
 
-/** @typedef {import("../types/server-runtime").AppSocket} AppSocket */
-/** @typedef {import("../types/server-runtime").BoardLike} BoardLike */
-/** @typedef {import("../types/server-runtime").BroadcastResult} BroadcastResult */
-/** @typedef {import("../types/server-runtime").MessageData} MessageData */
-/** @typedef {import("../types/server-runtime").RejectedBroadcast} RejectedBroadcast */
-/** @typedef {import("../types/server-runtime").SocketRequest} SocketRequest */
+import observability from "./observability.js";
+import RateLimitCommon from "../client-data/js/rate_limit_common.js";
+import { normalizeIncomingMessage } from "./message_validation.mjs";
+import { roleInBoard } from "./jwtBoardnameAuth.mjs";
+
+const { logger, metrics, tracing } = observability;
+const require = createRequire(
+  path.join(process.cwd(), "server", "socket_policy.mjs"),
+);
+
+function getConfig() {
+  return require("./configuration.js");
+}
+
+/** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
+/** @typedef {import("../types/server-runtime.d.ts").BoardLike} BoardLike */
+/** @typedef {import("../types/server-runtime.d.ts").BroadcastResult} BroadcastResult */
+/** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
+/** @typedef {import("../types/server-runtime.d.ts").RejectedBroadcast} RejectedBroadcast */
+/** @typedef {import("../types/server-runtime.d.ts").SocketRequest} SocketRequest */
 
 /**
  * @param {AppSocket} socket
@@ -93,7 +103,7 @@ function parseForwardedHeader(value) {
  * @returns {string}
  */
 function selectTrustedClientIp(chain) {
-  const trustedHops = Math.max(0, config.TRUST_PROXY_HOPS || 0);
+  const trustedHops = Math.max(0, getConfig().TRUST_PROXY_HOPS || 0);
   const selectedIndex = Math.min(trustedHops, chain.length - 1);
   return chain[selectedIndex] || "";
 }
@@ -108,6 +118,7 @@ function getClientIp(socket) {
   const directRemoteAddress = request.socket?.remoteAddress
     ? request.socket.remoteAddress
     : "";
+  const config = getConfig();
   const ipSource = config.IP_SOURCE || "remoteAddress";
   const normalizedIpSource = normalizeHeaderName(ipSource);
 
@@ -191,7 +202,7 @@ function normalizeBroadcastData(message, data) {
 
   if (
     typeof data.tool === "string" &&
-    config.BLOCKED_TOOLS.includes(data.tool)
+    getConfig().BLOCKED_TOOLS.includes(data.tool)
   ) {
     return rejectedBroadcast("blocked tool");
   }
@@ -201,7 +212,7 @@ function normalizeBroadcastData(message, data) {
     return rejectedBroadcast(normalized.reason);
   }
 
-  if (config.BLOCKED_TOOLS.includes(normalized.value.tool)) {
+  if (getConfig().BLOCKED_TOOLS.includes(normalized.value.tool)) {
     return rejectedBroadcast("blocked tool");
   }
 
@@ -254,7 +265,7 @@ function getSocketToken(socket) {
  * @returns {"editor" | "moderator" | "reader" | "forbidden"}
  */
 function accessRole(boardName, socket) {
-  if (!config.AUTH_SECRET_KEY) return "editor";
+  if (!getConfig().AUTH_SECRET_KEY) return "editor";
   const token = getSocketToken(socket);
   return /** @type {"editor" | "moderator" | "reader" | "forbidden"} */ (
     token ? roleInBoard(token, boardName) : "forbidden"
@@ -276,7 +287,7 @@ function canAccessBoard(boardName, socket) {
  * @returns {"editor" | "moderator" | "forbidden"}
  */
 function writerRole(boardName, socket) {
-  if (!config.AUTH_SECRET_KEY) return "forbidden";
+  if (!getConfig().AUTH_SECRET_KEY) return "forbidden";
   const role = accessRole(boardName, socket);
   return role === "editor" || role === "moderator" ? role : "forbidden";
 }
@@ -306,7 +317,7 @@ function canApplyBoardMessage(board, data, socket) {
   return true;
 }
 
-module.exports = {
+export {
   canAccessBoard,
   canApplyBoardMessage,
   canWriteToBoard,
