@@ -17,6 +17,10 @@ test("formatLogfmtValue quotes whitespace and escapes quotes", async () => {
   assert.equal(formatLogfmtValue("plain"), "plain");
   assert.equal(formatLogfmtValue("two words"), '"two words"');
   assert.equal(formatLogfmtValue('say "hi"'), '"say \\"hi\\""');
+  assert.equal(
+    formatLogfmtValue("first line\nsecond line\tindent"),
+    '"first line\\nsecond line\\tindent"',
+  );
 });
 
 test("flattenError extracts stable error fields", async () => {

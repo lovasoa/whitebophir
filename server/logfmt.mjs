@@ -52,7 +52,12 @@ function formatLogfmtValue(value) {
   const serialized = serializeValue(value);
   if (serialized === "") return '""';
   if (/^[A-Za-z0-9._:/@-]+$/.test(serialized)) return serialized;
-  return `"${serialized.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return `"${serialized
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")
+    .replace(/"/g, '\\"')}"`;
 }
 
 /**

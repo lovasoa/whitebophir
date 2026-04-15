@@ -305,7 +305,7 @@ test("preview requests continue traceparent and create a child render span", asy
       const { default: app } = await loadServer();
       await waitForListening(app);
       try {
-        await request(app, "/preview/missing-board", {
+        const response = await request(app, "/preview/missing-board", {
           traceparent:
             "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
         });
@@ -317,10 +317,13 @@ test("preview requests continue traceparent and create a child render span", asy
         const requestSpan = getSpanByName(exporter, "GET /preview/{board}");
         const renderSpan = getSpanByName(exporter, "preview.render");
 
+        assert.equal(response.statusCode, 404);
         assert.equal(requestSpan.attributes["wbo.board"], "missing-board");
         assert.equal(requestSpan.attributes["http.route"], "/preview/{board}");
+        assert.equal(requestSpan.attributes["http.response.status_code"], 404);
         assert.equal(requestSpan.attributes["url.scheme"], "http");
         assert.equal(requestSpan.attributes["server.address"], "127.0.0.1");
+        assert.equal(renderSpan.attributes["wbo.board.result"], "not_found");
         const address = app.address();
         if (!address || typeof address === "string") {
           throw new Error("Expected test server to listen on a TCP port");
@@ -471,9 +474,13 @@ test("active traces correlate log records and board.save spans", async () => {
       const rootSpan = getSpanByName(exporter, "socket.broadcast_write");
       const saveSpan = getSpanByName(exporter, "board.save");
       const savedBoard = await fs.readFile(saveSpan.attributes["file.path"]);
+      const spanContext = trace.getSpanContext(record.context);
 
-      assert.equal(record.attributes.trace_id, rootSpan.spanContext().traceId);
-      assert.equal(record.attributes.span_id, rootSpan.spanContext().spanId);
+      assert.ok(spanContext);
+      assert.equal(spanContext.traceId, rootSpan.spanContext().traceId);
+      assert.equal(spanContext.spanId, rootSpan.spanContext().spanId);
+      assert.equal(record.attributes.trace_id, undefined);
+      assert.equal(record.attributes.span_id, undefined);
       assert.equal(saveSpan.attributes["file.size"], savedBoard.length);
       assert.match(saveSpan.attributes["file.path"], /board-trace-save\.json$/);
       assert.equal(

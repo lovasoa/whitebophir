@@ -157,7 +157,7 @@ test("server returns 404 for preview and download routes without a board name", 
   ]);
 });
 
-test("server returns an error status instead of 200 when preview rendering fails", async () => {
+test("server returns 404 instead of 500 when preview board data is missing", async () => {
   const dirs = await createServerDirs();
 
   await withEnv({
@@ -173,7 +173,7 @@ test("server returns an error status instead of 200 when preview rendering fails
     try {
       const response = await request(app, "/preview/missing-board");
 
-      assert.equal(response.statusCode, 500);
+      assert.equal(response.statusCode, 404);
       assert.equal(typeof response.headers["x-request-id"], "string");
       assert.equal(response.body, "error-page");
     } finally {

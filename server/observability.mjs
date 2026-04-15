@@ -316,6 +316,12 @@ function formatReadableLogRecord(record, options) {
     level,
     event: record.eventName || "log",
     ...(body && body !== record.eventName ? { msg: body } : {}),
+    ...(record.spanContext
+      ? {
+          trace_id: record.spanContext.traceId,
+          span_id: record.spanContext.spanId,
+        }
+      : {}),
     ...record.attributes,
   });
   return options?.colorizeLevel ? styleTerminalLogLine(line, level) : line;
@@ -477,21 +483,6 @@ function normalizeSpanAttributes(fields) {
 function getActiveSpan() {
   if (!tracingEnabled) return undefined;
   return trace.getActiveSpan();
-}
-
-/**
- * @returns {{trace_id?: string, span_id?: string}}
- */
-function getActiveTraceFields() {
-  if (!tracingEnabled) return {};
-  const activeSpan = getActiveSpan();
-  if (!activeSpan?.isRecording()) return {};
-  const spanContext = activeSpan.spanContext();
-  if (!isSpanContextValid(spanContext)) return {};
-  return {
-    trace_id: spanContext.traceId,
-    span_id: spanContext.spanId,
-  };
 }
 
 /**
@@ -734,6 +725,7 @@ function withDetachedSpan(name, options, fn) {
  * @param {string} name
  * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
  * @returns {{
+ *   context: import("@opentelemetry/api").Context,
  *   eventName: string,
  *   severityNumber: number,
  *   severityText: string,
@@ -752,12 +744,12 @@ function createLogRecord(level, name, fields) {
   delete details.error;
 
   return {
+    context: context.active(),
     eventName: name,
     severityNumber: severityNumberForLevel(level),
     severityText: level.toUpperCase(),
     body: message === null ? undefined : message,
     attributes: normalizeLogAttributes({
-      ...getActiveTraceFields(),
       ...details,
       ...flattenError(error),
     }),

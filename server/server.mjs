@@ -519,6 +519,19 @@ function getPathPart(parts, index) {
 }
 
 /**
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isNotFoundError(error) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
+}
+
+/**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @param {{
@@ -667,12 +680,38 @@ function handleRequest(request, response, requestContext) {
               "wbo.board.operation": "preview_render",
             },
           },
-          function renderPreview() {
-            return createSVG.renderBoardToSVG(historyFile);
+          async function renderPreview() {
+            try {
+              return await createSVG.renderBoardToSVG(historyFile);
+            } catch (err) {
+              if (isNotFoundError(err)) {
+                tracing.setActiveSpanAttributes({
+                  "wbo.board": exportBoardName,
+                  "wbo.board.operation": "preview_render",
+                  "wbo.board.result": "not_found",
+                });
+                return null;
+              }
+              throw err;
+            }
           },
         ),
       )
         .then((svg) => {
+          const renderDurationMs = Date.now() - startedAt;
+          requestContext.annotate({
+            render_duration_ms: renderDurationMs,
+          });
+          requestContext.setTraceAttributes({
+            render_duration_ms: renderDurationMs,
+          });
+          if (svg === null) {
+            response.writeHead(404, {
+              "Content-Length": errorPage.length,
+            });
+            response.end(errorPage);
+            return;
+          }
           response.writeHead(200, {
             "Content-Type": "image/svg+xml",
             "Content-Security-Policy": CSP,
