@@ -25,17 +25,17 @@
  * @module boardData
  */
 
-var nativeFs = require("node:fs"),
-  { readFile, rename, unlink, writeFile } = require("node:fs/promises"),
-  { logger, metrics, tracing } = require("./observability.js"),
-  MessageToolMetadata = require("../client-data/js/message_tool_metadata.js"),
-  {
-    normalizeStoredChildPoint,
-    normalizeStoredItemWithBounds,
-  } = require("./message_validation.js"),
-  MessageCommon = require("../client-data/js/message_common.js"),
-  path = require("node:path"),
-  config = require("./configuration.js");
+const nativeFs = require("node:fs");
+const { readFile, rename, unlink, writeFile } = require("node:fs/promises");
+const { logger, metrics, tracing } = require("./observability.js");
+const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
+const {
+  normalizeStoredChildPoint,
+  normalizeStoredItemWithBounds,
+} = require("./message_validation.js");
+const MessageCommon = require("../client-data/js/message_common.js");
+const path = require("node:path");
+const config = require("./configuration.js");
 
 class SerialTaskQueue {
   constructor() {
@@ -109,8 +109,8 @@ function parseStoredBoard(storedBoard) {
   }
 
   /** @type {{[name: string]: BoardElem}} */
-  var board = {};
-  var metadata = defaultBoardMetadata();
+  const board = {};
+  let metadata = defaultBoardMetadata();
 
   for (const [key, value] of Object.entries(storedBoard)) {
     if (key === BOARD_METADATA_KEY) {
@@ -129,7 +129,7 @@ function parseStoredBoard(storedBoard) {
  * @returns {{[name: string]: BoardElem | BoardMetadata}}
  */
 function serializeStoredBoard(board, metadata) {
-  var storedBoard = Object.assign({}, board);
+  const storedBoard = Object.assign({}, board);
   if (metadata?.readonly) {
     storedBoard[BOARD_METADATA_KEY] = { readonly: true };
   }
@@ -450,7 +450,7 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure} - True if the child was added, else false
    */
   addChild(parentId, child) {
-    var obj = this.board[parentId];
+    const obj = this.board[parentId];
     if (typeof obj !== "object" || obj.tool !== "Pencil")
       return { ok: false, reason: "invalid parent for child" };
     const normalizedChild = normalizeStoredChildPoint(child);
@@ -480,10 +480,10 @@ class BoardData {
    */
   update(id, data, create = false) {
     void create;
-    var tool = data.tool;
-    var updateData = filterUpdatableFields(tool, data);
+    const tool = data.tool;
+    const updateData = filterUpdatableFields(tool, data);
 
-    var obj = this.board[id];
+    const obj = this.board[id];
     if (typeof obj !== "object")
       return { ok: false, reason: "object not found" };
     if (!this.canUpdate(id, updateData)) {
@@ -493,8 +493,8 @@ class BoardData {
       }
       return { ok: false, reason: "update rejected: shape too large" };
     }
-    for (var i in updateData) {
-      if (updateData[i] !== undefined) obj[i] = updateData[i];
+    for (const key in updateData) {
+      if (updateData[key] !== undefined) obj[key] = updateData[key];
     }
     const nextLocalBounds =
       obj.tool === "Pencil" && updateData.transform !== undefined
@@ -522,8 +522,8 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure}
    */
   copy(id, data) {
-    var obj = this.board[id];
-    var newid = data.newid;
+    const obj = this.board[id];
+    const newid = data.newid;
     if (obj) {
       const newobj = structuredClone(obj);
       const validated = this.validateStoredCandidate(newid, newobj);
@@ -821,11 +821,11 @@ class BoardData {
         const startedAt = Date.now();
         this.lastSaveDate = Date.now();
         this.clean();
-        var file = this.file;
-        var tmp_file = backupFileName(file);
-        var storedBoard = serializeStoredBoard(this.board, this.metadata);
-        var board_txt = JSON.stringify(storedBoard);
-        if (board_txt === "{}") {
+        const file = this.file;
+        const tmpFile = backupFileName(file);
+        const storedBoard = serializeStoredBoard(this.board, this.metadata);
+        const boardText = JSON.stringify(storedBoard);
+        if (boardText === "{}") {
           // empty board
           try {
             await unlink(file);
@@ -860,19 +860,19 @@ class BoardData {
           }
         } else {
           try {
-            await writeFile(tmp_file, board_txt, { flag: "wx" });
-            await rename(tmp_file, file);
+            await writeFile(tmpFile, boardText, { flag: "wx" });
+            await rename(tmpFile, file);
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(this.name, "save", {
                 "wbo.board.result": "success",
                 "file.path": file,
-                "file.size": board_txt.length,
+                "file.size": boardText.length,
                 "wbo.board.items": Object.keys(this.board).length,
               }),
             );
             logger.info("board.saved", {
               board: this.name,
-              "file.size": board_txt.length,
+              "file.size": boardText.length,
               items: Object.keys(this.board).length,
             });
             metrics.recordBoardOperation("save", "success");
@@ -888,7 +888,7 @@ class BoardData {
             logger.error("board.save_failed", {
               board: this.name,
               error: err,
-              "file.path": tmp_file,
+              "file.path": tmpFile,
             });
             metrics.recordBoardOperation("save", "error");
             metrics.recordBoardOperationDuration(
@@ -905,8 +905,8 @@ class BoardData {
 
   /** Remove old elements from the board */
   clean() {
-    var board = this.board;
-    var ids = Object.keys(board);
+    const board = this.board;
+    const ids = Object.keys(board);
     if (ids.length > config.MAX_ITEM_COUNT) {
       const toDestroy = ids
         .sort((x, y) => (board[x]?.time | 0) - (board[y]?.time | 0))
@@ -952,9 +952,9 @@ class BoardData {
       },
       async function loadBoardData() {
         const startedAt = Date.now();
-        var boardData = new BoardData(name);
+        const boardData = new BoardData(name);
         /** @type {string | undefined} */
-        var data;
+        let data;
         try {
           data = await readFile(boardData.file, "utf8");
           const storedBoard = parseStoredBoard(JSON.parse(data));
@@ -1087,7 +1087,7 @@ class BoardData {
  * @param {string} baseName
  */
 function backupFileName(baseName) {
-  var date = new Date().toISOString().replace(/:/g, "");
+  const date = new Date().toISOString().replace(/:/g, "");
   return `${baseName}.${date}.bak`;
 }
 

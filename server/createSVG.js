@@ -431,7 +431,7 @@ async function toSVG(obj, writeable) {
 async function renderBoardToSVG(file) {
   const data = await fsp.readFile(file, "utf8");
   /** @type {RenderableBoard} */
-  var board = /** @type {RenderableBoard} */ (
+  const board = /** @type {RenderableBoard} */ (
     parseStoredBoard(JSON.parse(data)).board
   );
   /** @type {string[]} */
@@ -466,7 +466,7 @@ if (require.main === module) {
   });
 } else {
   module.exports = {
-    renderBoard: renderBoard,
-    renderBoardToSVG: renderBoardToSVG,
+    renderBoard,
+    renderBoardToSVG,
   };
 }
