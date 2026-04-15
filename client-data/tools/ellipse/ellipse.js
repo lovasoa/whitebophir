@@ -231,10 +231,3 @@ export default class EllipseTool {
     return new EllipseTool(ctx.runtime.Tools);
   }
 }
-
-/** @param {any} Tools */
-export function registerEllipseTool(Tools) {
-  const tool = new EllipseTool(Tools);
-  Tools.add(tool);
-  return tool;
-}

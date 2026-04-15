@@ -186,7 +186,6 @@ Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
 Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
 Tools.toolClasses = {};
 Tools.bootedToolPromises = {};
-Tools.bootedToolNames = new Set();
 Tools.loadToolClassByName = null;
 Tools.turnstileValidatedUntil = 0;
 Tools.turnstileWidgetId = null;
@@ -1981,6 +1980,93 @@ function bindToolMethod(tool, key) {
   tool[key] = method.bind(tool);
 }
 
+/** @param {AppTool} tool */
+function ensureToolDefaults(tool) {
+  if (typeof tool.name !== "string") throw new Error("A tool must have a name");
+  if (typeof tool.listeners !== "object") {
+    tool.listeners = {};
+  }
+  if (typeof tool.onstart !== "function") {
+    tool.onstart = () => {};
+  }
+  if (typeof tool.onquit !== "function") {
+    tool.onquit = () => {};
+  }
+  if (typeof tool.onMessage !== "function") {
+    tool.onMessage = () => {};
+  }
+  if (typeof tool.onSocketDisconnect !== "function") {
+    tool.onSocketDisconnect = () => {};
+  }
+}
+
+/** @param {AppTool} tool */
+function compileToolListeners(tool) {
+  const listeners = tool.listeners || {};
+  const compiled = tool.compiledListeners || {};
+  tool.compiledListeners = compiled;
+
+  /**
+   * @param {ToolPointerListener} listener
+   * @returns {CompiledToolListener}
+   */
+  function compile(listener) {
+    return function listen(evt) {
+      const mouseEvent = /** @type {MouseEvent} */ (evt);
+      const x = mouseEvent.pageX / Tools.getScale();
+      const y = mouseEvent.pageY / Tools.getScale();
+      return listener(x, y, mouseEvent, false);
+    };
+  }
+
+  /**
+   * @param {ToolPointerListener} listener
+   * @returns {CompiledToolListener}
+   */
+  function compileTouch(listener) {
+    return function touchListen(evt) {
+      const touchEvent = /** @type {TouchEvent} */ (evt);
+      if (touchEvent.changedTouches.length === 1) {
+        const touch = touchEvent.changedTouches[0];
+        if (!touch) return true;
+        const x = touch.pageX / Tools.getScale();
+        const y = touch.pageY / Tools.getScale();
+        return listener(x, y, touchEvent, true);
+      }
+      return true;
+    };
+  }
+
+  /**
+   * @param {CompiledToolListener} f
+   * @returns {CompiledToolListener}
+   */
+  function wrapUnsetHover(f) {
+    return function unsetHover(evt) {
+      blurActiveElement();
+      return f(evt);
+    };
+  }
+
+  if (listeners.press) {
+    compiled.mousedown = wrapUnsetHover(compile(listeners.press));
+    compiled.touchstart = wrapUnsetHover(compileTouch(listeners.press));
+  }
+  if (listeners.move) {
+    compiled.mousemove = compile(listeners.move);
+    compiled.touchmove = compileTouch(listeners.move);
+  }
+  if (listeners.release) {
+    const release = compile(listeners.release);
+    const releaseTouch = compileTouch(listeners.release);
+    compiled.mouseup = release;
+    if (!Tools.isIE) compiled.mouseleave = release;
+    compiled.touchleave = releaseTouch;
+    compiled.touchend = releaseTouch;
+    compiled.touchcancel = releaseTouch;
+  }
+}
+
 /**
  * @param {AppTool} tool
  * @returns {AppTool}
@@ -2028,7 +2114,6 @@ Tools.bootTool = async function bootTool(toolName) {
       if (!ToolClass || typeof ToolClass.boot !== "function") return null;
       const bootedTool = await ToolClass.boot(createToolBootContext(toolName));
       if (!bootedTool) return null;
-      Tools.bootedToolNames.add(toolName);
       return Tools.mountTool(bootedTool);
     },
   );
@@ -2077,12 +2162,12 @@ Tools.register = function registerTool(newTool) {
 
   if (newTool.name in Tools.list) {
     console.log(
-      `Tools.add: The tool '${newTool.name}' is already in the list. Updating it...`,
+      `Tools.register: The tool '${newTool.name}' is already in the list. Updating it...`,
     );
   }
 
-  //Format the new tool correctly
-  Tools.applyHooks(Tools.toolHooks, newTool);
+  ensureToolDefaults(newTool);
+  compileToolListeners(newTool);
 
   //Add the tool to the list
   Tools.list[newTool.name] = newTool;
@@ -2102,15 +2187,6 @@ Tools.register = function registerTool(newTool) {
       newTool.draw(msg, false);
     });
   }
-};
-
-/**
- * Add a new tool to the user interface
- */
-/** @param {AppTool} newTool */
-Tools.add = (newTool) => {
-  if (Tools.isBlocked(newTool)) return;
-  Tools.mountTool(newTool);
 };
 
 /** @param {string} toolName */
@@ -2457,102 +2533,6 @@ Tools.setScale = function setScale(scale) {
 Tools.getScale = function getScale() {
   return Tools.scale;
 };
-
-//List of hook functions that will be applied to tools before adding them
-Tools.toolHooks = [
-  /** @param {AppTool} tool */
-  function checkToolAttributes(tool) {
-    if (typeof tool.name !== "string") throw "A tool must have a name";
-    if (typeof tool.listeners !== "object") {
-      tool.listeners = {};
-    }
-    if (typeof tool.onstart !== "function") {
-      tool.onstart = () => {};
-    }
-    if (typeof tool.onquit !== "function") {
-      tool.onquit = () => {};
-    }
-    if (typeof tool.onMessage !== "function") {
-      tool.onMessage = () => {};
-    }
-    if (typeof tool.onSocketDisconnect !== "function") {
-      tool.onSocketDisconnect = () => {};
-    }
-  },
-  /** @param {AppTool} tool */
-  function compileListeners(tool) {
-    //compile listeners into compiledListeners
-    const listeners = tool.listeners || {};
-
-    //A tool may provide precompiled listeners
-    const compiled = tool.compiledListeners || {};
-    tool.compiledListeners = compiled;
-
-    /**
-     * @param {ToolPointerListener} listener
-     * @returns {CompiledToolListener}
-     */
-    function compile(listener) {
-      //closure
-      return function listen(evt) {
-        const mouseEvent = /** @type {MouseEvent} */ (evt);
-        const x = mouseEvent.pageX / Tools.getScale();
-        const y = mouseEvent.pageY / Tools.getScale();
-        return listener(x, y, mouseEvent, false);
-      };
-    }
-
-    /**
-     * @param {ToolPointerListener} listener
-     * @returns {CompiledToolListener}
-     */
-    function compileTouch(listener) {
-      //closure
-      return function touchListen(evt) {
-        const touchEvent = /** @type {TouchEvent} */ (evt);
-        //Currently, we don't handle multitouch
-        if (touchEvent.changedTouches.length === 1) {
-          //evt.preventDefault();
-          const touch = touchEvent.changedTouches[0];
-          if (!touch) return true;
-          const x = touch.pageX / Tools.getScale(),
-            y = touch.pageY / Tools.getScale();
-          return listener(x, y, touchEvent, true);
-        }
-        return true;
-      };
-    }
-
-    /**
-     * @param {CompiledToolListener} f
-     * @returns {CompiledToolListener}
-     */
-    function wrapUnsetHover(f) {
-      return function unsetHover(evt) {
-        blurActiveElement();
-        return f(evt);
-      };
-    }
-
-    if (listeners.press) {
-      compiled["mousedown"] = wrapUnsetHover(compile(listeners.press));
-      compiled["touchstart"] = wrapUnsetHover(compileTouch(listeners.press));
-    }
-    if (listeners.move) {
-      compiled["mousemove"] = compile(listeners.move);
-      compiled["touchmove"] = compileTouch(listeners.move);
-    }
-    if (listeners.release) {
-      const release = compile(listeners.release),
-        releaseTouch = compileTouch(listeners.release);
-      compiled["mouseup"] = release;
-      if (!Tools.isIE) compiled["mouseleave"] = release;
-      compiled["touchleave"] = releaseTouch;
-      compiled["touchend"] = releaseTouch;
-      compiled["touchcancel"] = releaseTouch;
-    }
-  },
-];
 
 /**
  * @template T

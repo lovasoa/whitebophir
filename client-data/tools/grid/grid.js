@@ -166,10 +166,3 @@ export default class GridTool {
     return new GridTool(ctx.runtime.Tools);
   }
 }
-
-/** @param {GridToolRegistry} tools */
-export function registerGridTool(tools) {
-  const tool = new GridTool(tools);
-  tools.add(tool);
-  return tool;
-}

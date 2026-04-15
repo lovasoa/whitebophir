@@ -811,16 +811,3 @@ export default class HandTool {
     return new HandTool(ctx.runtime.Tools, ctx.assetUrl);
   }
 }
-
-/** @param {any} Tools */
-export function registerHandTool(Tools) {
-  const tool = new HandTool(Tools);
-  tool.listeners = {
-    press: tool.press.bind(tool),
-    move: tool.move.bind(tool),
-    release: tool.release.bind(tool),
-  };
-  Tools.add(tool);
-  Tools.change("Hand");
-  return tool;
-}

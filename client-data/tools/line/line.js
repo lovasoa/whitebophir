@@ -223,13 +223,3 @@ export default class StraightLineTool {
     return new StraightLineTool(ctx.runtime.Tools);
   }
 }
-
-/**
- * @param {LineToolRegistry} tools
- * @returns {any}
- */
-export function registerLineTool(tools) {
-  const tool = new StraightLineTool(tools);
-  tools.add(tool);
-  return tool;
-}

@@ -219,10 +219,3 @@ export default class RectangleTool {
     return new RectangleTool(ctx.runtime.Tools);
   }
 }
-
-/** @param {any} Tools */
-export function registerRectTool(Tools) {
-  const tool = new RectangleTool(Tools);
-  Tools.add(tool);
-  return tool;
-}

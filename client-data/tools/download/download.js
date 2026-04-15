@@ -114,10 +114,3 @@ export default class DownloadTool {
     return new DownloadTool(ctx.runtime.Tools);
   }
 }
-
-/** @param {DownloadToolRegistry} tools */
-export function registerDownloadTool(tools) {
-  const tool = new DownloadTool(tools);
-  tools.add(tool);
-  return tool;
-}

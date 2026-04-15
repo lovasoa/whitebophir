@@ -203,11 +203,3 @@ export default class CursorToolClass {
 }
 
 CursorToolClass.CURSOR_DELETE_AFTER_MS = 1000 * 5;
-
-/** @param {CursorToolRegistry} tools */
-export function registerCursorTool(tools) {
-  const tool = new CursorToolClass(tools);
-  tools.register(tool);
-  tools.addToolListeners(tool);
-  return tool;
-}

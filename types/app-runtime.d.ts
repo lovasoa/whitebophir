@@ -111,7 +111,6 @@ export type AppSocket = {
 };
 
 export type MessageHook = (message: BoardMessage) => void;
-export type ToolHook = (tool: AppTool) => void;
 
 export type ColorPreset = {
   color: string;
@@ -240,12 +239,10 @@ export type AppToolsState = {
   list: ToolRegistry;
   toolClasses: { [toolName: string]: ToolClass };
   bootedToolPromises: { [toolName: string]: Promise<AppTool | null> };
-  bootedToolNames: Set<string>;
   loadToolClassByName: ((toolName: string) => Promise<void>) | null;
   pendingMessages: PendingMessages;
   unreadMessagesCount: number;
   messageHooks: MessageHook[];
-  toolHooks: ToolHook[];
   colorPresets: ColorPreset[];
   color_chooser: HTMLInputElement;
   sizeChangeHandlers: ((size: number) => void)[];

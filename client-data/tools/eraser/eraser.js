@@ -166,10 +166,3 @@ export default class EraserTool {
     return new EraserTool(ctx.runtime.Tools);
   }
 }
-
-/** @param {EraserToolRegistry} tools */
-export function registerEraserTool(tools) {
-  const tool = new EraserTool(tools);
-  tools.add(tool);
-  return tool;
-}

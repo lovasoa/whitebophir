@@ -72,10 +72,3 @@ export default class ClearTool {
     return new ClearTool(ctx.runtime.Tools);
   }
 }
-
-/** @param {ClearToolRegistry} tools */
-export function registerClearTool(tools) {
-  const tool = new ClearTool(tools);
-  tools.add(tool);
-  return tool;
-}

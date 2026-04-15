@@ -407,15 +407,3 @@ export default class PencilTool {
     return new PencilTool(ctx.runtime.Tools, ctx.assetUrl);
   }
 }
-
-/** @param {any} Tools */
-export function registerPencilTool(Tools) {
-  const tool = new PencilTool(Tools);
-  tool.listeners = {
-    press: tool.press.bind(tool),
-    move: tool.move.bind(tool),
-    release: tool.release.bind(tool),
-  };
-  Tools.add(tool);
-  return tool;
-}

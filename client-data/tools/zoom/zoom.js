@@ -272,10 +272,3 @@ export default class ZoomTool {
     return new ZoomTool(ctx.runtime.Tools);
   }
 }
-
-/** @param {ZoomToolRegistry} tools */
-export function registerZoomTool(tools) {
-  const tool = new ZoomTool(tools);
-  tools.add(tool);
-  return tool;
-}

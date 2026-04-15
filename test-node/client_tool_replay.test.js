@@ -61,20 +61,13 @@ const TOOL_PATHS = {
   Hand: path.join(__dirname, "..", "client-data", "tools", "hand", "hand.js"),
 };
 
-const TOOL_REGISTRARS = /** @type {{ [name: string]: string }} */ ({
-  Pencil: "registerPencilTool",
-  "Straight line": "registerLineTool",
-  Rectangle: "registerRectTool",
-  Ellipse: "registerEllipseTool",
-  Text: "registerTextTool",
-  Hand: "registerHandTool",
-  Cursor: "registerCursorTool",
-  Clear: "registerClearTool",
-  Eraser: "registerEraserTool",
-  Grid: "registerGridTool",
-  Download: "registerDownloadTool",
-  Zoom: "registerZoomTool",
-});
+/**
+ * @param {string} toolName
+ * @returns {string}
+ */
+function toolStem(toolName) {
+  return toolName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
 
 /**
  * @param {PathSegment[]} pathData
@@ -462,9 +455,6 @@ function createHarness() {
       /** @type {string} */ tagName,
       /** @type {Record<string, string | number>} */ attrs,
     ) => createSVGElement(store, tagName, attrs),
-    add: (/** @type {any} */ tool) => {
-      tools[tool.name] = tool;
-    },
     change: function (/** @type {string} */ toolName) {
       this.curTool = tools[toolName];
       return true;
@@ -490,16 +480,42 @@ function createHarness() {
       const toolPath = /** @type {string} */ (toolPaths[toolName]);
       const toolUrl = `${pathToFileURL(toolPath).href}?cache-bust=${++dynamicLoadSequence}`;
       const moduleNamespace = await import(toolUrl);
-      const registerName = /** @type {string | undefined} */ (
-        TOOL_REGISTRARS[toolName]
-      );
-      const register = registerName
-        ? /** @type {unknown} */ (moduleNamespace[registerName])
-        : undefined;
-      if (typeof register === "function") {
-        register(globalAny.Tools);
+      const ToolClass = moduleNamespace.default;
+      if (typeof ToolClass?.boot !== "function") {
+        throw new Error(`Missing default boot class for ${toolName}`);
       }
-      return tools[toolName];
+      const tool = await ToolClass.boot({
+        toolName,
+        runtime: {
+          Tools: globalAny.Tools,
+          activateTool: async (/** @type {string} */ name) => {
+            globalAny.Tools.change(name);
+            return true;
+          },
+          getButton: () => null,
+          registerShortcut: () => {},
+        },
+        button: null,
+        version: "",
+        assetUrl: (/** @type {string} */ assetFile) =>
+          `tools/${toolStem(toolName)}/${assetFile}`,
+      });
+      if (!tool.listeners) {
+        tool.listeners = {
+          press:
+            typeof tool.press === "function"
+              ? tool.press.bind(tool)
+              : undefined,
+          move:
+            typeof tool.move === "function" ? tool.move.bind(tool) : undefined,
+          release:
+            typeof tool.release === "function"
+              ? tool.release.bind(tool)
+              : undefined,
+        };
+      }
+      tools[tool.name] = tool;
+      return tool;
     },
   };
 }

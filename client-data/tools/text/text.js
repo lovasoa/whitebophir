@@ -290,10 +290,3 @@ export default class TextTool {
     return new TextTool(ctx.runtime.Tools);
   }
 }
-
-/** @param {any} Tools */
-export function registerTextTool(Tools) {
-  const tool = new TextTool(Tools);
-  Tools.add(tool);
-  return tool;
-}
