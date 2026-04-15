@@ -621,7 +621,7 @@ export function registerHandTool(Tools) {
           break;
         case "delete":
           data.tool = "Eraser";
-          messageForTool(data);
+          Tools.messageForTool(data);
           break;
         default:
           throw new Error("Mover: 'move' instruction with unknown type.");

@@ -1987,7 +1987,7 @@ function messageForTool(message) {
     });
   }
 }
-window.messageForTool = messageForTool;
+Tools.messageForTool = messageForTool;
 
 /**
  * Call messageForTool recursively on the message and its children.

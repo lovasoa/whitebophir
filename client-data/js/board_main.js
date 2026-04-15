@@ -79,7 +79,7 @@
     registerModules(toolModules, await importModulesInParallel(toolModules));
 
     const optionalToolModules = /** @type {ModuleDescriptor[]} */ ([
-      { path: "./canvascolor.js" },
+      { path: "./canvascolor.js", register: "registerCanvasColor" },
     ]);
     if (document.documentElement.hasAttribute("data-moderator")) {
       optionalToolModules.unshift({

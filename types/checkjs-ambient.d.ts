@@ -7,9 +7,6 @@ declare global {
   var Tools: import("../types/app-runtime").AppToolsState & {
     [name: string]: any;
   };
-  function messageForTool(
-    message: import("../types/app-runtime").BoardMessage,
-  ): void;
   type TransformedBBox = {
     r: [number, number];
     a: [number, number];
@@ -41,7 +38,6 @@ declare global {
 
   interface Window {
     Tools: typeof Tools;
-    messageForTool: typeof messageForTool;
     WBOBoardState: typeof import("../client-data/js/board_page_state.js")["state"];
     socketio_extra_headers?: Record<string, string>;
     __downloadCapture?: any;

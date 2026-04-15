@@ -34,8 +34,7 @@
 // @use_types_for_optimization true
 // ==/ClosureCompiler==
 
-var canvascolor = (function () {
-  //Code Isolation
+export function registerCanvasColor() {
   "use strict";
 
   /**
@@ -129,7 +128,7 @@ var canvascolor = (function () {
   /**
    * @param {HTMLInputElement} elem
    */
-  function canvascolor(elem) {
+  function attachCanvasColor(elem) {
     var curcolor = elem.value || "#000";
 
     var w = 200,
@@ -345,9 +344,7 @@ var canvascolor = (function () {
       input.type !== "color" ||
       input.className.split(" ").indexOf("canvascolor") !== -1
     ) {
-      canvascolor(input);
+      attachCanvasColor(input);
     }
   }
-
-  return canvascolor;
-})();
+}
