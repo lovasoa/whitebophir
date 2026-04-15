@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
+const net = require("node:net");
 const { pathToFileURL } = require("node:url");
 
 const { withEnv } = require("./test_helpers.js");
@@ -269,6 +270,64 @@ test("server preserves an incoming request id header", async () => {
         response.on("end", resolve);
       });
       assert.equal(response.headers["x-request-id"], "req-123");
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("server tolerates malformed double-slash request targets", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const address = app.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Server is not listening on a TCP port");
+      }
+
+      const rawResponse = await new Promise((resolve, reject) => {
+        const socket = net.createConnection({
+          host: "127.0.0.1",
+          port: address.port,
+        });
+        /** @type {Buffer[]} */
+        const chunks = [];
+
+        socket.on("connect", () => {
+          socket.write(
+            `GET // HTTP/1.1\r\nHost: 127.0.0.1:${address.port}\r\nConnection: close\r\n\r\n`,
+          );
+        });
+        socket.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        socket.on("end", () => {
+          resolve(Buffer.concat(chunks).toString("utf8"));
+        });
+        socket.on("error", reject);
+      });
+
+      assert.match(rawResponse, /^HTTP\/1\.1 200 OK/m);
+      assert.match(rawResponse, /^X-Request-Id: .+/m);
+      assert.match(rawResponse, /\r\n\r\nindex-page$/m);
     } finally {
       await closeServer(app);
     }

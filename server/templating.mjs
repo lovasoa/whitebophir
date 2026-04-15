@@ -14,6 +14,7 @@ import {
   getVisibleToolCatalogEntries,
   TOOL_CATALOG,
 } from "../client-data/js/tool_catalog.js";
+import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
@@ -204,7 +205,7 @@ class Template {
    * @param {object} [extraParams]
    */
   serve(request, response, isModerator, extraParams) {
-    const parsedUrl = new URL(request.url || "/", "http://wbo/");
+    const parsedUrl = parseRequestUrl(request.url);
     const parameters = this.parameters(
       parsedUrl,
       request,

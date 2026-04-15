@@ -27,6 +27,7 @@ import {
   decodeAndValidateBoardName,
   isValidBoardName,
 } from "../client-data/js/board_name.js";
+import { parseRequestUrl } from "./request_url.mjs";
 
 const { createRequestId, logger, metrics, tracing } = observability;
 const config = readConfiguration();
@@ -77,7 +78,7 @@ function cacheControl(cacheValue) {
  */
 function hasVersionToken(request) {
   if (!request) return false;
-  return new URL(request.url || "/", "http://wbo/").searchParams.has("v");
+  return parseRequestUrl(request.url).searchParams.has("v");
 }
 
 const fileserver = serveStatic(config.WEBROOT, {
@@ -223,7 +224,7 @@ function requestServerPort(request) {
  * @returns {string}
  */
 function requestPath(request) {
-  return new URL(request.url || "/", "http://wbo/").pathname;
+  return parseRequestUrl(request.url).pathname;
 }
 
 /**
@@ -292,7 +293,7 @@ function requestRouteTemplate(route) {
  * @returns {boolean}
  */
 function shouldTraceRequest(requestUrl) {
-  const parsedUrl = new URL(requestUrl || "/", "http://wbo/");
+  const parsedUrl = parseRequestUrl(requestUrl);
   const fileExt = path.extname(parsedUrl.pathname);
   return ![".js", ".css", ".svg", ".ico", ".png", ".jpg", ".gif"].includes(
     fileExt,
@@ -565,7 +566,7 @@ function isNotFoundError(error) {
  */
 function handleRequest(request, response, requestContext) {
   const requestUrl = request.url || "/";
-  const parsedUrl = new URL(requestUrl, "http://wbo/");
+  const parsedUrl = parseRequestUrl(requestUrl);
   const parts = parsedUrl.pathname.split("/");
 
   if (parts[0] === "") parts.shift();
