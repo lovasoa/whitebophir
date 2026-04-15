@@ -11,6 +11,12 @@ const { withEnv } = require("./test_helpers.js");
 const SERVER_PATH = path.join(__dirname, "..", "server", "server.mjs");
 const TEMPLATING_PATH = path.join(__dirname, "..", "server", "templating.mjs");
 const CREATE_SVG_PATH = path.join(__dirname, "..", "server", "createSVG.mjs");
+const CONFIGURATION_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "configuration.mjs",
+);
 const CHECK_OUTPUT_DIRECTORY_PATH = path.join(
   __dirname,
   "..",
@@ -23,7 +29,9 @@ const CLIENT_CONFIGURATION_PATH = path.join(
   "server",
   "client_configuration.mjs",
 );
+const CLIENT_WEBROOT = path.join(__dirname, "..", "client-data");
 const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.mjs");
+const PACKAGE_PATH = path.join(__dirname, "..", "package.json");
 let serverLoadSequence = 0;
 
 /**
@@ -141,6 +149,7 @@ test("server returns 404 for preview and download routes without a board name", 
   }, [
     SERVER_PATH,
     TEMPLATING_PATH,
+    CONFIGURATION_PATH,
     CREATE_SVG_PATH,
     CHECK_OUTPUT_DIRECTORY_PATH,
     CLIENT_CONFIGURATION_PATH,
@@ -173,6 +182,7 @@ test("server returns an error status instead of 200 when preview rendering fails
   }, [
     SERVER_PATH,
     TEMPLATING_PATH,
+    CONFIGURATION_PATH,
     CREATE_SVG_PATH,
     CHECK_OUTPUT_DIRECTORY_PATH,
     CLIENT_CONFIGURATION_PATH,
@@ -223,6 +233,112 @@ test("server preserves an incoming request id header", async () => {
   }, [
     SERVER_PATH,
     TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages are no-store and render versioned asset URLs", async () => {
+  const dirs = await createServerDirs();
+  const packageJson = JSON.parse(await fs.readFile(PACKAGE_PATH, "utf8"));
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/cache-test");
+
+      assert.equal(response.statusCode, 200);
+      assert.equal(response.headers["cache-control"], "no-store");
+      assert.match(
+        response.body,
+        new RegExp(`\\.\\./board\\.css\\?v=${packageJson.version}`),
+      );
+      assert.match(
+        response.body,
+        new RegExp(`\\.\\./js/board_main\\.js\\?v=${packageJson.version}`),
+      );
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("static assets are no-store in development and cacheable in production", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/board.css");
+
+      assert.equal(response.statusCode, 200);
+      assert.equal(response.headers["cache-control"], "no-store");
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    NODE_ENV: "production",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/board.css");
+
+      assert.equal(response.statusCode, 200);
+      assert.match(
+        String(response.headers["cache-control"] || ""),
+        /max-age=7200/,
+      );
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
     CREATE_SVG_PATH,
     CHECK_OUTPUT_DIRECTORY_PATH,
     CLIENT_CONFIGURATION_PATH,
