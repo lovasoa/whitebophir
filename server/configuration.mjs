@@ -65,6 +65,20 @@ export function readConfiguration() {
     },
   );
 
+  const defaultTextCreationRateLimits = parseRateLimitProfileEnv(
+    "WBO_MAX_TEXT_CREATIONS_PER_IP",
+    {
+      limit: 2,
+      periodMs: 1 * 1000,
+      overrides: {
+        anonymous: {
+          limit: 30,
+          periodMs: 60 * 1000,
+        },
+      },
+    },
+  );
+
   return {
     /** True when the app is running outside production. */
     IS_DEVELOPMENT: isDevelopment,
@@ -144,6 +158,24 @@ export function readConfiguration() {
     /** Anonymous-board constructive limit derived from WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP. */
     ANONYMOUS_MAX_CONSTRUCTIVE_ACTIONS_PER_IP:
       defaultConstructiveActionRateLimits.overrides.anonymous?.limit,
+
+    /** Text-creation per-IP fixed-window limits.
+        Use WBO_MAX_TEXT_CREATIONS_PER_IP with compact profiles such as `*:2/1s anonymous:30/60s`.
+        Each profile entry is `board:limit/period`, `*` is the default, and every board keeps one counter per resolved client IP.
+        Text cost counts every `Text/new` plus any `Text/update` whose text contains URL-like content.
+        This is a fixed window: the first matching write starts the window, every matching action increments the counter,
+        and the counter resets completely once the configured period elapses. */
+    TEXT_CREATION_RATE_LIMITS: defaultTextCreationRateLimits,
+
+    /** Default text-creation per-IP limit derived from WBO_MAX_TEXT_CREATIONS_PER_IP. */
+    MAX_TEXT_CREATIONS_PER_IP: defaultTextCreationRateLimits.limit,
+
+    /** Default text-creation fixed-window duration in milliseconds derived from WBO_MAX_TEXT_CREATIONS_PER_IP. */
+    MAX_TEXT_CREATIONS_PERIOD_MS: defaultTextCreationRateLimits.periodMs,
+
+    /** Anonymous-board text-creation limit derived from WBO_MAX_TEXT_CREATIONS_PER_IP. */
+    ANONYMOUS_MAX_TEXT_CREATIONS_PER_IP:
+      defaultTextCreationRateLimits.overrides.anonymous?.limit,
 
     /** Source used to resolve client IPs for logging and rate limiting.
         Supports remoteAddress, Forwarded, X-Forwarded-For, or any custom header

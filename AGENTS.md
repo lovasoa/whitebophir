@@ -59,6 +59,7 @@
 - `npm test` requires local networking and browser process startup.
 - In Playwright specs, assert authoritative socket/app state; avoid sleep-based timing.
 - Treat HTTP and socket ingress as hostile input surfaces: malformed requests and malformed socket events must be rejected deterministically, never crash the process, and should prefer explicit 4xx-style handling over exception-driven fallthrough.
+- Socket rate limits now include a text-specific per-IP fixed window via `WBO_MAX_TEXT_CREATIONS_PER_IP`; it charges every `Text/new` plus `Text/update` payloads whose `txt` contains URL-like content.
 
 ## profiling
 
@@ -75,6 +76,7 @@
 ## change strategy
 
 - Message shape changes: update [server schema gate](./server/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests.
+- Rate-limit changes: update [shared rate-limit helpers](./client-data/js/rate_limit_common.js), [socket policy](./server/socket_policy.mjs), and [socket handlers](./server/sockets.mjs); rerun `node --test test-node/rate_limit_common.test.js test-node/socket_policy.test.js test-node/rate_limits.test.js`.
 - Persistence/replay changes: review [board state engine](./server/boardData.mjs); rerun `node --test test-node/rate_limits.test.js` and `npm test`.
 - Tool UX changes: start in [tool modules](./client-data/tools/); verify with Playwright.
 

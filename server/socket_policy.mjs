@@ -177,6 +177,7 @@ function getClientIp(socket) {
  */
 const countDestructiveActions = RateLimitCommon.countDestructiveActions;
 const countConstructiveActions = RateLimitCommon.countConstructiveActions;
+const countTextCreationActions = RateLimitCommon.countTextCreationActions;
 
 /**
  * @param {string} boardName
@@ -324,6 +325,7 @@ export {
   canWriteToBoard,
   countConstructiveActions,
   countDestructiveActions,
+  countTextCreationActions,
   getClientIp,
   normalizeBoardName,
   normalizeBroadcastData,

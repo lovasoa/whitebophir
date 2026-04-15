@@ -130,6 +130,38 @@ test("socket policy counts only mutations that should consume rate-limit budget"
     socketPolicy.countConstructiveActions({ type: "child", id: "c1" }),
     0,
   );
+
+  assert.equal(
+    socketPolicy.countTextCreationActions({
+      tool: "Text",
+      type: "new",
+      id: "text-1",
+    }),
+    1,
+  );
+  assert.equal(
+    socketPolicy.countTextCreationActions({
+      tool: "Text",
+      type: "update",
+      id: "text-1",
+      txt: "plain text",
+    }),
+    0,
+  );
+  assert.equal(
+    socketPolicy.countTextCreationActions({
+      _children: [
+        { tool: "Text", type: "new", id: "text-2" },
+        {
+          tool: "Text",
+          type: "update",
+          id: "text-2",
+          txt: "https://example.com",
+        },
+      ],
+    }),
+    2,
+  );
 });
 
 test("normalizeBroadcastData rejects blocked tools before persistence", async () => {

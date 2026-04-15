@@ -13,10 +13,12 @@
  *   countDestructiveActions: (data: {type?: unknown, _children?: unknown} | null | undefined) => number,
  *   isConstructiveAction: (data: {id?: unknown, type?: unknown} | null | undefined) => boolean,
  *   countConstructiveActions: (data: {type?: unknown, _children?: unknown} | null | undefined) => number,
+ *   countTextCreationActions: (data: {tool?: unknown, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown} | null | undefined) => number,
  * }} RateLimitCommonApi
  */
 export const ANONYMOUS_BOARD_NAME = "anonymous";
 export const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;
+const URL_LIKE_TEXT_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
 
 /**
  * @param {unknown} value
@@ -226,6 +228,31 @@ export function countConstructiveActions(data) {
   return isConstructiveAction(data) ? 1 : 0;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isUrlLikeText(value) {
+  return typeof value === "string" && URL_LIKE_TEXT_PATTERN.test(value);
+}
+
+/**
+ * @param {{tool?: unknown, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown} | null | undefined} data
+ * @returns {number}
+ */
+export function countTextCreationActions(data) {
+  if (!data || typeof data !== "object") return 0;
+  if (Array.isArray(data._children)) {
+    return data._children.reduce(function countTextCreates(total, child) {
+      return total + countTextCreationActions(child);
+    }, 0);
+  }
+  if (data.tool !== "Text") return 0;
+  if (data.type === "new") return 1;
+  if (data.type === "update" && isUrlLikeText(data.txt)) return 1;
+  return 0;
+}
+
 const rateLimitCommon = /** @type {RateLimitCommonApi} */ ({
   ANONYMOUS_BOARD_NAME,
   ANONYMOUS_RATE_LIMIT_DIVISOR,
@@ -240,5 +267,6 @@ const rateLimitCommon = /** @type {RateLimitCommonApi} */ ({
   countDestructiveActions,
   isConstructiveAction,
   countConstructiveActions,
+  countTextCreationActions,
 });
 export default rateLimitCommon;

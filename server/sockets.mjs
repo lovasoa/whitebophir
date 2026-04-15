@@ -11,6 +11,7 @@ import {
   canWriteToBoard,
   countConstructiveActions,
   countDestructiveActions,
+  countTextCreationActions,
   getClientIp,
   normalizeBoardName,
   normalizeBroadcastData,
@@ -47,6 +48,8 @@ const boards = {};
 const destructiveRateLimits = new Map();
 /** @type {Map<string, RateLimitState>} */
 const constructiveRateLimits = new Map();
+/** @type {Map<string, RateLimitState>} */
+const textRateLimits = new Map();
 /** @type {Map<string, Map<string, BoardUser>>} */
 const boardUsers = new Map();
 /** @type {Map<string, AppSocket>} */
@@ -626,7 +629,7 @@ function shouldTraceBroadcast(data) {
 }
 
 /**
- * @param {"general" | "constructive" | "destructive"} kind
+ * @param {"general" | "constructive" | "destructive" | "text"} kind
  * @param {string} boardName
  * @returns {{limit: number, periodMs: number}}
  */
@@ -641,6 +644,11 @@ function getEffectiveRateLimitConfig(kind, boardName) {
     case "destructive":
       return getEffectiveRateLimitDefinition(
         config.DESTRUCTIVE_ACTION_RATE_LIMITS,
+        boardName,
+      );
+    case "text":
+      return getEffectiveRateLimitDefinition(
+        config.TEXT_CREATION_RATE_LIMITS,
         boardName,
       );
     default:
@@ -942,6 +950,18 @@ function getConstructiveRateLimitState(clientIp, now) {
 }
 
 /**
+ * @param {string} clientIp
+ * @param {number} now
+ * @returns {RateLimitState}
+ */
+function getTextRateLimitState(clientIp, now) {
+  const rateLimitState =
+    textRateLimits.get(clientIp) || createRateLimitState(now);
+  textRateLimits.set(clientIp, rateLimitState);
+  return rateLimitState;
+}
+
+/**
  * @param {AppSocket} socket
  * @param {string} boardName
  * @param {MessageData} data
@@ -1021,6 +1041,86 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
   }
 
   pruneRateLimitMap(constructiveRateLimits, constructiveLimit.periodMs, now);
+  return true;
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {MessageData} data
+ * @param {string} clientIp
+ * @param {number} now
+ * @returns {boolean}
+ */
+function enforceTextRateLimit(socket, boardName, data, clientIp, now) {
+  const textCost = countTextCreationActions(data);
+  if (textCost === 0) return true;
+
+  const rateLimitState = getTextRateLimitState(clientIp, now);
+  const textLimit = getEffectiveRateLimitConfig("text", boardName);
+  const nextState = consumeFixedWindowRateLimit(
+    rateLimitState,
+    textCost,
+    textLimit.periodMs,
+    now,
+  );
+  rateLimitState.windowStart = nextState.windowStart;
+  rateLimitState.count = nextState.count;
+  rateLimitState.lastSeen = nextState.lastSeen;
+  if (rateLimitState.count > textLimit.limit) {
+    const retryAfterMs = getRateLimitRemainingMs(
+      rateLimitState,
+      textLimit.periodMs,
+      now,
+    );
+    const userName = getSocketUserName(socket, clientIp);
+    tracing.withDetachedSpan(
+      "socket.rate_limited",
+      {
+        attributes: socketTraceAttributes("broadcast_write", {
+          "wbo.board": boardName,
+          "user.name": userName,
+          "wbo.rate_limit.kind": "text",
+          "wbo.rejection.reason": "rate_limit",
+          "wbo.text_cost": textCost,
+        }),
+      },
+      function logTextRateLimit() {
+        logger.warn("socket.rate_limited", {
+          kind: "text",
+          socket: socket.id,
+          board: boardName,
+          "client.address": clientIp,
+          "user.name": userName,
+          count: rateLimitState.count,
+          limit: textLimit.limit,
+          period_ms: textLimit.periodMs,
+          retry_after_ms: retryAfterMs,
+          text_cost: textCost,
+        });
+        metrics.recordBoardMessage(
+          { board: boardName, ...data },
+          boardMessageErrorType("rate_limit.text"),
+        );
+      },
+    );
+    closeRateLimitedSocket(
+      socket,
+      "TEXT_RATE_LIMIT_EXCEEDED",
+      buildSocketLogInfo(socket, boardName, {
+        kind: "text",
+        ip: clientIp,
+        count: rateLimitState.count,
+        limit: textLimit.limit,
+        period_ms: textLimit.periodMs,
+        retry_after_ms: retryAfterMs,
+        text_cost: textCost,
+      }),
+    );
+    return false;
+  }
+
+  pruneRateLimitMap(textRateLimits, textLimit.periodMs, now);
   return true;
 }
 
@@ -1334,6 +1434,16 @@ async function handleSocketConnection(socket) {
           )
         )
           return;
+        if (
+          !enforceTextRateLimit(
+            socket,
+            normalizedName,
+            normalizedData,
+            clientIp,
+            now,
+          )
+        )
+          return;
 
         ensureSocketJoinedBoard(socket, normalizedName);
 
@@ -1628,6 +1738,7 @@ export const __test = {
   consumeFixedWindowRateLimit,
   countDestructiveActions,
   countConstructiveActions,
+  countTextCreationActions,
   createRateLimitState,
   getClientIp,
   normalizeBroadcastData,
@@ -1641,6 +1752,7 @@ export const __test = {
   resetRateLimitMaps: function resetRateLimitMaps() {
     destructiveRateLimits.clear();
     constructiveRateLimits.clear();
+    textRateLimits.clear();
     boardUsers.clear();
     activeSockets.clear();
     lastUserReportLog = null;
