@@ -247,8 +247,8 @@ svg {
 .board-presence-icon {
   display: block;
   flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   opacity: 0.92;
 }
 
