@@ -3,7 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { parseStoredBoard } from "./boardData.mjs";
-import { logger } from "./observability.js";
+import { logger } from "./observability.mjs";
 import config from "./configuration.mjs";
 
 /** @typedef {{x: number, y: number}} Point */

@@ -29,7 +29,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import nativeFs from "node:fs";
 import { readFile, rename, unlink, writeFile } from "node:fs/promises";
-import observability from "./observability.js";
+import observability from "./observability.mjs";
 import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
 import {
   normalizeStoredChildPoint,

@@ -3,7 +3,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { logger } from "./observability.js";
+import { logger } from "./observability.mjs";
 
 const { R_OK, W_OK } = fs.constants;
 

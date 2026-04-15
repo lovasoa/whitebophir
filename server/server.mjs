@@ -20,16 +20,12 @@ import {
   ATTR_URL_SCHEME,
 } from "@opentelemetry/semantic-conventions";
 import * as templating from "./templating.mjs";
+import observability from "./observability.mjs";
 
 const require = createRequire(path.join(process.cwd(), "server", "server.mjs"));
 const serveStatic = require("serve-static");
-const {
-  createRequestId,
-  logger,
-  metrics,
-  tracing,
-} = require("./observability.js");
 const config = require("./configuration.js");
+const { createRequestId, logger, metrics, tracing } = observability;
 
 /** @typedef {import("http").IncomingMessage} HttpRequest */
 /** @typedef {import("http").ServerResponse} HttpResponse */

@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 
-import observability from "./observability.js";
+import observability from "./observability.mjs";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";

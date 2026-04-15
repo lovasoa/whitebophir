@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import * as socketIO from "socket.io";
-import observability from "./observability.js";
+import observability from "./observability.mjs";
 import { BoardData } from "./boardData.mjs";
 import jsonwebtoken from "jsonwebtoken";
 import {
