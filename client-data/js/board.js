@@ -44,7 +44,10 @@ import MessageCommon from "./message_common.js";
 import Minitpl from "./minitpl.js";
 import RateLimitCommon from "./rate_limit_common.js";
 import { getToolCatalogEntry } from "./tool_catalog.js";
-import { getToolRuntimeAssetPath } from "./tool_assets.js";
+import {
+  getToolModuleImportPath,
+  getToolRuntimeAssetPath,
+} from "./tool_assets.js";
 
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
 /** @typedef {import("../../types/app-runtime").AppTool} AppTool */
@@ -189,7 +192,7 @@ Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
 Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
 Tools.toolClasses = {};
 Tools.bootedToolPromises = {};
-Tools.loadToolClassByName = null;
+Tools.bootedToolNames = new Set();
 Tools.turnstileValidatedUntil = 0;
 Tools.turnstileWidgetId = null;
 Tools.turnstileRefreshTimeout = null;
@@ -1917,10 +1920,21 @@ Tools.registerToolClass = function registerToolClass(ToolClass) {
 Tools.ensureToolClassLoaded = async function ensureToolClassLoaded(toolName) {
   const existing = Tools.toolClasses[toolName];
   if (existing) return existing;
-  if (typeof Tools.loadToolClassByName === "function") {
-    await Tools.loadToolClassByName(toolName);
+
+  const namespace = /** @type {{default?: unknown}} */ (
+    await import(Tools.versionAssetPath(getToolModuleImportPath(toolName)))
+  );
+  const ToolClass = namespace.default;
+  if (typeof ToolClass !== "function") {
+    throw new Error(`Missing default tool class export for ${toolName}.`);
   }
-  return Tools.toolClasses[toolName] || null;
+  if (ToolClass.toolName !== toolName) {
+    throw new Error(
+      `Tool module for ${toolName} exported ${String(ToolClass.toolName)}.`,
+    );
+  }
+  Tools.registerToolClass(/** @type {ToolClass} */ (ToolClass));
+  return ToolClass;
 };
 
 /**

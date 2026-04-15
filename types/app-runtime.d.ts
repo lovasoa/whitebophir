@@ -239,7 +239,7 @@ export type AppToolsState = {
   list: ToolRegistry;
   toolClasses: { [toolName: string]: ToolClass };
   bootedToolPromises: { [toolName: string]: Promise<AppTool | null> };
-  loadToolClassByName: ((toolName: string) => Promise<void>) | null;
+  bootedToolNames: Set<string>;
   pendingMessages: PendingMessages;
   unreadMessagesCount: number;
   messageHooks: MessageHook[];

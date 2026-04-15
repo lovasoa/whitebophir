@@ -1,4 +1,4 @@
-import { getToolModuleImportPath, withVersion } from "./tool_assets.js";
+import { withVersion } from "./tool_assets.js";
 
 const assetVersion = document.documentElement.dataset.version || "";
 document.documentElement.dataset.boardReady = "booting";
@@ -38,35 +38,6 @@ function getRenderedToolNames() {
   return Array.from(document.querySelectorAll("#tools > .tool[data-tool-name]"))
     .map((element) => element.getAttribute("data-tool-name") || "")
     .filter(Boolean);
-}
-
-/**
- * @param {string} toolName
- * @returns {Promise<unknown>}
- */
-async function loadAndRegisterToolClass(toolName) {
-  const namespace = /** @type {{default?: unknown}} */ (
-    await importWithVersion(getToolModuleImportPath(toolName))
-  );
-  const tools = window.Tools;
-  if (!tools) {
-    throw new Error("Board runtime did not initialize window.Tools.");
-  }
-  const ToolClass = namespace.default;
-  if (typeof ToolClass !== "function") {
-    throw new Error(`Missing default tool class export for ${toolName}.`);
-  }
-  tools.registerToolClass(/** @type {any} */ (ToolClass));
-  return ToolClass;
-}
-
-/**
- * @param {string[]} toolNames
- * @returns {Promise<void>}
- */
-async function loadToolClasses(toolNames) {
-  const uniqueToolNames = Array.from(new Set(toolNames));
-  await Promise.all(uniqueToolNames.map(loadAndRegisterToolClass));
 }
 
 /**
@@ -129,11 +100,11 @@ async function bootBoardPage() {
     throw new Error("Board runtime did not initialize window.Tools.");
   }
 
-  tools.loadToolClassByName = async function loadToolClassByName(toolName) {
-    await loadAndRegisterToolClass(toolName);
-  };
-
-  await loadToolClasses(Array.from(REPLAY_SAFE_TOOL_NAMES));
+  await Promise.all(
+    Array.from(REPLAY_SAFE_TOOL_NAMES).map((toolName) =>
+      tools.ensureToolClassLoaded(toolName),
+    ),
+  );
 
   await bootCriticalTools();
   await bootToolNames(
@@ -150,7 +121,9 @@ async function bootBoardPage() {
   const deferredToolNames = getRenderedToolNames().filter(
     (toolName) => !REPLAY_SAFE_TOOL_NAMES.has(toolName),
   );
-  await loadToolClasses(deferredToolNames);
+  await Promise.all(
+    deferredToolNames.map((toolName) => tools.ensureToolClassLoaded(toolName)),
+  );
 
   const canvasColorModule = /** @type {{registerCanvasColor?: () => void}} */ (
     await importWithVersion("./canvascolor.js")
