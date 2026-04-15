@@ -26,27 +26,60 @@ const HAND_BATCH_ITEMS = config.MAX_CHILDREN;
 const HAND_BATCH_PASSES = 96;
 const EXPORT_PENCIL_SHAPES = 768;
 
+/** @typedef {{heapUsed: number, rss: number}} MemorySnapshot */
+/** @typedef {{[id: string]: any}} BenchBoard */
+/** @typedef {{file: string, bytes: number}} BenchFixture */
+/** @typedef {{durationMs: number, activeHeapDelta: number, retainedHeapDelta: number, rssDelta: number, details: string}} BenchSample */
+/** @typedef {{name: string, prepare?: () => Promise<void>, setup: () => Promise<any>, run: (context: any) => Promise<string>, teardown?: (context: any) => Promise<void>}} Scenario */
+
+/**
+ * @param {number} bytes
+ * @returns {string}
+ */
 function bytesToMiB(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+/**
+ * @param {number} bytes
+ * @returns {string}
+ */
 function formatDelta(bytes) {
   const sign = bytes >= 0 ? "+" : "-";
   return sign + bytesToMiB(Math.abs(bytes));
 }
 
+/**
+ * @param {number} milliseconds
+ * @returns {string}
+ */
 function formatMs(milliseconds) {
   return `${milliseconds.toFixed(1)} ms`;
 }
 
+/**
+ * @param {number[]} values
+ * @returns {number}
+ */
 function median(values) {
   const sorted = values.slice().sort((left, right) => left - right);
+  if (sorted.length === 0) {
+    throw new Error("median requires at least one value");
+  }
   const middle = Math.floor(sorted.length / 2);
+  const current = sorted[middle];
+  if (current === undefined) {
+    throw new Error("median could not resolve the middle value");
+  }
   return sorted.length % 2 === 0
-    ? (sorted[middle - 1] + sorted[middle]) / 2
-    : sorted[middle];
+    ? ((sorted[middle - 1] ?? current) + current) / 2
+    : current;
 }
 
+/**
+ * @param {number[]} values
+ * @returns {number}
+ */
 function spreadPercent(values) {
   const min = Math.min.apply(null, values);
   const max = Math.max.apply(null, values);
@@ -61,6 +94,9 @@ function forceGc() {
   }
 }
 
+/**
+ * @returns {MemorySnapshot}
+ */
 function snapshotMemory() {
   const memory = process.memoryUsage();
   return {
@@ -69,10 +105,19 @@ function snapshotMemory() {
   };
 }
 
+/**
+ * @param {string} name
+ * @returns {string}
+ */
 function boardFile(name) {
   return path.join(historyDir, `board-${encodeURIComponent(name)}.json`);
 }
 
+/**
+ * @param {string} name
+ * @param {BenchBoard} board
+ * @returns {Promise<BenchFixture>}
+ */
 async function writeBoardFile(name, board) {
   const file = boardFile(name);
   const text = JSON.stringify(board);
@@ -80,6 +125,10 @@ async function writeBoardFile(name, board) {
   return { file, bytes: Buffer.byteLength(text) };
 }
 
+/**
+ * @param {number} index
+ * @returns {any}
+ */
 function rectangleItem(index) {
   const base = index * 3;
   return {
@@ -95,6 +144,10 @@ function rectangleItem(index) {
   };
 }
 
+/**
+ * @param {number} index
+ * @returns {any}
+ */
 function textItem(index) {
   return {
     tool: "Text",
@@ -108,6 +161,10 @@ function textItem(index) {
   };
 }
 
+/**
+ * @param {number} index
+ * @returns {any}
+ */
 function lineItem(index) {
   const x = (index * 5) % 6500;
   const y = (index * 9) % 6500;
@@ -124,6 +181,11 @@ function lineItem(index) {
   };
 }
 
+/**
+ * @param {number} pointCount
+ * @param {number} seed
+ * @returns {{x: number, y: number}[]}
+ */
 function pencilPoints(pointCount, seed) {
   const points = [];
   for (let index = 0; index < pointCount; index++) {
@@ -135,6 +197,11 @@ function pencilPoints(pointCount, seed) {
   return points;
 }
 
+/**
+ * @param {number} index
+ * @param {number} pointCount
+ * @returns {any}
+ */
 function pencilItem(index, pointCount) {
   return {
     tool: "Pencil",
@@ -146,7 +213,14 @@ function pencilItem(index, pointCount) {
   };
 }
 
+/**
+ * @param {number} itemCount
+ * @param {number} pencilEvery
+ * @param {number} pencilPointsPerShape
+ * @returns {BenchBoard}
+ */
 function buildMixedBoard(itemCount, pencilEvery, pencilPointsPerShape) {
+  /** @type {BenchBoard} */
   const board = {};
   for (let index = 0; index < itemCount; index++) {
     const id = `item-${index}`;
@@ -169,6 +243,10 @@ function buildMixedBoard(itemCount, pencilEvery, pencilPointsPerShape) {
   return board;
 }
 
+/**
+ * @param {BoardData} boardData
+ * @returns {void}
+ */
 function clearPendingSave(boardData) {
   if (boardData.saveTimeoutId !== undefined) {
     clearTimeout(boardData.saveTimeoutId);
@@ -176,6 +254,11 @@ function clearPendingSave(boardData) {
   }
 }
 
+/**
+ * @param {(context: any) => Promise<string>} run
+ * @param {any} context
+ * @returns {Promise<BenchSample>}
+ */
 async function runMeasuredSample(run, context) {
   forceGc();
   const before = snapshotMemory();
@@ -194,6 +277,10 @@ async function runMeasuredSample(run, context) {
   };
 }
 
+/**
+ * @param {Scenario} scenario
+ * @returns {Promise<void>}
+ */
 async function measureScenario(scenario) {
   if (scenario.prepare) {
     await scenario.prepare();
@@ -208,6 +295,7 @@ async function measureScenario(scenario) {
     }
   }
 
+  /** @type {BenchSample[]} */
   const samples = [];
   for (let sample = 0; sample < SAMPLE_COUNT; sample++) {
     const context = await scenario.setup();
@@ -222,7 +310,8 @@ async function measureScenario(scenario) {
   const activeHeaps = samples.map((sample) => sample.activeHeapDelta);
   const retainedHeaps = samples.map((sample) => sample.retainedHeapDelta);
   const rssDeltas = samples.map((sample) => sample.rssDelta);
-  const representative = samples[Math.floor(samples.length / 2)];
+  const representative = samples[Math.floor(samples.length / 2)] || samples[0];
+  if (!representative) throw new Error("No benchmark samples recorded");
 
   console.log(scenario.name);
   console.log(
@@ -246,8 +335,10 @@ async function measureScenario(scenario) {
 }
 
 async function main() {
+  /** @type {{loadDense?: BenchFixture, snapshot?: BenchFixture, saveDense?: BenchFixture, exportDense?: BenchFixture}} */
   const fixtures = {};
 
+  /** @type {Scenario[]} */
   const scenarios = [
     {
       name: "load dense persisted board",
@@ -431,7 +522,9 @@ async function main() {
 
   for (let index = 0; index < scenarios.length; index++) {
     if (index > 0) console.log("");
-    await measureScenario(scenarios[index]);
+    const scenario = scenarios[index];
+    if (!scenario) throw new Error("missing benchmark scenario");
+    await measureScenario(scenario);
   }
 }
 

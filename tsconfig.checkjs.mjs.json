@@ -19,6 +19,6 @@
     "useUnknownInCatchVariables": true,
     "strict": true
   },
-  "include": ["types/**/*.d.ts", "server/**/*.mjs"],
+  "include": ["types/**/*.d.ts", "server/**/*.mjs", "scripts/**/*.mjs"],
   "exclude": ["node_modules", "server-data", "playwright"]
 }
