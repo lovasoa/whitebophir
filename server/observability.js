@@ -224,10 +224,6 @@ const httpServerActiveRequests = meter.createUpDownCounter(
     unit: "{request}",
   },
 );
-const socketEvents = meter.createCounter("wbo.socket.event", {
-  description: "Socket events handled by the server.",
-  unit: "{event}",
-});
 const socketConnections = meter.createCounter("wbo.socket.connection", {
   description: "Socket connections opened and closed.",
   unit: "{connection}",
@@ -239,10 +235,6 @@ const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
 const boardMessages = meter.createCounter("wbo.board.message", {
   description: "Board messages processed by the server write path.",
   unit: "{message}",
-});
-const boardOperations = meter.createCounter("wbo.board.operation", {
-  description: "Board operation outcomes.",
-  unit: "{operation}",
 });
 const boardOperationDuration = meter.createHistogram(
   "wbo.board.operation.duration",
@@ -274,14 +266,6 @@ const connectedUsersGauge = meter.createObservableGauge(
     description: "Active board memberships connected across loaded boards.",
   },
 );
-const previewRenderDuration = meter.createHistogram(
-  "wbo.preview.render.duration",
-  {
-    description: "Duration of SVG preview rendering.",
-    unit: "s",
-  },
-);
-
 loadedBoardsGauge.addCallback(function observeLoadedBoards(observer) {
   observer.observe(runtimeState.loadedBoards);
 });
@@ -875,7 +859,6 @@ function recordSocketEvent(event) {
   };
   const errorType = normalizeMetricErrorType(event.errorType);
   if (errorType) attributes[ATTR_ERROR_TYPE] = errorType;
-  socketEvents.add(1, attributes);
   socketEventDuration.record(event.durationMs / 1000, attributes);
 }
 
@@ -923,23 +906,6 @@ function recordTurnstileVerification(errorType) {
 
 /**
  * @param {string} operation
- * @param {unknown=} errorType
- * @returns {void}
- */
-function recordBoardOperation(operation, errorType) {
-  /** @type {{[key: string]: string}} */
-  const attributes = {
-    "wbo.board.operation": operation,
-  };
-  const normalizedErrorType = normalizeMetricErrorType(errorType);
-  if (normalizedErrorType) {
-    attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
-  }
-  boardOperations.add(1, attributes);
-}
-
-/**
- * @param {string} operation
  * @param {number} durationSeconds
  * @param {unknown=} errorType
  * @returns {void}
@@ -954,21 +920,6 @@ function recordBoardOperationDuration(operation, durationSeconds, errorType) {
     attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
   }
   boardOperationDuration.record(durationSeconds, attributes);
-}
-
-/**
- * @param {number} durationSeconds
- * @param {unknown=} errorType
- * @returns {void}
- */
-function recordPreviewRender(durationSeconds, errorType) {
-  /** @type {{[key: string]: string}} */
-  const attributes = {};
-  const normalizedErrorType = normalizeMetricErrorType(errorType);
-  if (normalizedErrorType) {
-    attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
-  }
-  previewRenderDuration.record(durationSeconds, attributes);
 }
 
 /**
@@ -1042,10 +993,8 @@ module.exports = {
   metrics: {
     recordBoardMessage,
     changeHttpActiveRequests,
-    recordBoardOperation,
     recordBoardOperationDuration,
     recordHttpRequest,
-    recordPreviewRender,
     recordSocketConnection,
     recordSocketEvent,
     recordTurnstileVerification,

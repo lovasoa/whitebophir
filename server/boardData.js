@@ -32,7 +32,7 @@ const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js"
 const {
   normalizeStoredChildPoint,
   normalizeStoredItemWithBounds,
-} = require("./message_validation.js");
+} = require("./message_validation.mjs");
 const MessageCommon = require("../client-data/js/message_common.js");
 const path = require("node:path");
 const config = require("./configuration.js");
@@ -834,7 +834,6 @@ class BoardData {
                 "wbo.board.result": "removed_empty",
               }),
             );
-            metrics.recordBoardOperation("save", "removed_empty");
             metrics.recordBoardOperationDuration(
               "save",
               (Date.now() - startedAt) / 1000,
@@ -850,7 +849,6 @@ class BoardData {
                 board: this.name,
                 error: err,
               });
-              metrics.recordBoardOperation("save", err);
               metrics.recordBoardOperationDuration(
                 "save",
                 (Date.now() - startedAt) / 1000,
@@ -875,7 +873,6 @@ class BoardData {
               "file.size": boardText.length,
               items: Object.keys(this.board).length,
             });
-            metrics.recordBoardOperation("save");
             metrics.recordBoardOperationDuration(
               "save",
               (Date.now() - startedAt) / 1000,
@@ -889,7 +886,6 @@ class BoardData {
               error: err,
               "file.path": tmpFile,
             });
-            metrics.recordBoardOperation("save", err);
             metrics.recordBoardOperationDuration(
               "save",
               (Date.now() - startedAt) / 1000,
@@ -914,7 +910,6 @@ class BoardData {
         const id = toDestroy[i];
         if (id !== undefined) delete board[id];
       }
-      metrics.recordBoardOperation("clean");
     }
   }
 
@@ -970,7 +965,6 @@ class BoardData {
               "wbo.board.items": Object.keys(boardData.board).length,
             }),
           );
-          metrics.recordBoardOperation("load");
           metrics.recordBoardOperationDuration(
             "load",
             (Date.now() - startedAt) / 1000,
@@ -983,7 +977,6 @@ class BoardData {
                 "wbo.board.result": "empty",
               }),
             );
-            metrics.recordBoardOperation("load", "empty");
             metrics.recordBoardOperationDuration(
               "load",
               (Date.now() - startedAt) / 1000,
@@ -997,7 +990,6 @@ class BoardData {
               board: name,
               error: e,
             });
-            metrics.recordBoardOperation("load", e);
             metrics.recordBoardOperationDuration(
               "load",
               (Date.now() - startedAt) / 1000,

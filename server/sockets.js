@@ -1613,7 +1613,6 @@ async function unloadBoard(boardName) {
             "wbo.board": boardName,
             "wbo.board.result": "success",
           });
-          metrics.recordBoardOperation("unload");
           metrics.recordBoardOperationDuration(
             "unload",
             (Date.now() - startedAt) / 1000,
@@ -1625,7 +1624,6 @@ async function unloadBoard(boardName) {
             "wbo.board": boardName,
             "wbo.board.result": "error",
           });
-          metrics.recordBoardOperation("unload", error);
           metrics.recordBoardOperationDuration(
             "unload",
             (Date.now() - startedAt) / 1000,
