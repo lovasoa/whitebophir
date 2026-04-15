@@ -1,8 +1,12 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const { spawnSync } = require("node:child_process");
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const repoRoot = path.resolve(__dirname, "..");
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
 const profileDir = path.join(repoRoot, ".profiles");
 const benchmarkScript = path.join(repoRoot, "scripts/benchmark-server.js");
 const profileFiles = [

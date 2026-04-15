@@ -31,7 +31,7 @@
     "prepare": "node scripts/install-git-hooks.js",
     "start": "node ./server/server.js",
     "bench": "node --expose-gc ./scripts/benchmark-server.js",
-    "profile": "node ./scripts/profile-benchmark-server.js",
+    "profile": "node ./scripts/profile-benchmark-server.mjs",
     "lint": "biome check . --assist-enabled=false --error-on-warnings",
     "format": "biome check . --write --unsafe --assist-enabled=false",
     "test-node": "WBO_SILENT=true node --test test-node/*.test.js",
