@@ -55,13 +55,13 @@ import RateLimitCommon from "./rate_limit_common.js";
 /** @typedef {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastFocusX?: number, lastFocusY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{limit?: number, periodMs?: number, anonymousLimit?: number, overrides?: {[boardName: string]: {limit?: number, periodMs?: number}}}} RateLimitDefinition */
-var Tools = /** @type {AppToolsState} */ ({});
+const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
 // Add extra slack between the client-side local budget and the server's
 // fixed window so buffered writes do not flush too early on slow runners.
-var RATE_LIMIT_FLUSH_SAFETY_MS = 1000;
+const RATE_LIMIT_FLUSH_SAFETY_MS = 1000;
 /** @type {RateLimitKind[]} */
-var RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
+const RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
 
 /**
  * @param {string} elementId
@@ -78,11 +78,11 @@ function getRequiredInput(elementId) {
  * @returns {{button: HTMLElement, primaryIcon: HTMLImageElement, secondaryIcon: HTMLImageElement | null, label: HTMLElement}}
  */
 function getRequiredToolButtonParts(toolName) {
-  var button = BoardBootstrap.getRequiredElement(`toolID-${toolName}`);
-  var primaryIcon = /** @type {HTMLImageElement | null} */ (
+  const button = BoardBootstrap.getRequiredElement(`toolID-${toolName}`);
+  const primaryIcon = /** @type {HTMLImageElement | null} */ (
     button.querySelector(".tool-icon")
   );
-  var label = /** @type {HTMLElement | null} */ (
+  const label = /** @type {HTMLElement | null} */ (
     button.querySelector(".tool-name")
   );
   if (!primaryIcon || !label) {
@@ -118,13 +118,13 @@ function blurActiveElement() {
 }
 
 Tools.i18n = (function i18n() {
-  var translations = /** @type {{[key: string]: string}} */ (
+  const translations = /** @type {{[key: string]: string}} */ (
     BoardBootstrap.parseEmbeddedJson("translations", {})
   );
   return {
     /** @param {string} s */
     t: function translate(s) {
-      var key = s.toLowerCase().replace(/ /g, "_");
+      const key = s.toLowerCase().replace(/ /g, "_");
       return translations[key] || s;
     },
   };
@@ -185,12 +185,12 @@ function toRateLimitDefinition(value) {
 }
 
 Tools.showLoadingMessage = function showLoadingMessage() {
-  var loadingEl = getLoadingMessage();
+  const loadingEl = getLoadingMessage();
   if (loadingEl) loadingEl.classList.remove("hidden");
 };
 
 Tools.hideLoadingMessage = function hideLoadingMessage() {
-  var loadingEl = getLoadingMessage();
+  const loadingEl = getLoadingMessage();
   if (loadingEl) loadingEl.classList.add("hidden");
 };
 
@@ -199,7 +199,7 @@ Tools.hideLoadingMessage = function hideLoadingMessage() {
  * @returns {RateLimitDefinition}
  */
 Tools.getRateLimitDefinition = function getRateLimitDefinition(kind) {
-  var configured = Tools.server_config.RATE_LIMITS || {};
+  const configured = Tools.server_config.RATE_LIMITS || {};
   if (configured && configured[kind]) return configured[kind];
 
   return {
