@@ -149,7 +149,8 @@ function noFail(fn, eventName) {
   return /** @type {A} */ (
     function noFailWrapped(...args) {
       const startedAt = eventName ? Date.now() : 0;
-      let resultStatus = "success";
+      /** @type {unknown} */
+      let eventErrorType;
       /** @type {any} */
       let result;
       try {
@@ -157,7 +158,7 @@ function noFail(fn, eventName) {
         if (result && typeof result.catch === "function") {
           return result
             .catch(function logError(/** @type {unknown} */ err) {
-              resultStatus = "error";
+              eventErrorType = err;
               logger.error("socket.event_failed", {
                 "wbo.socket.event": eventName,
                 error: err,
@@ -167,15 +168,15 @@ function noFail(fn, eventName) {
               if (eventName) {
                 metrics.recordSocketEvent({
                   event: eventName,
-                  result: resultStatus,
                   durationMs: Date.now() - startedAt,
+                  errorType: eventErrorType,
                 });
               }
             });
         }
         return result;
       } catch (e) {
-        resultStatus = "error";
+        eventErrorType = e;
         logger.error("socket.event_failed", {
           "wbo.socket.event": eventName,
           error: e,
@@ -184,8 +185,8 @@ function noFail(fn, eventName) {
         if (eventName && !(result && typeof result.catch === "function")) {
           metrics.recordSocketEvent({
             event: eventName,
-            result: resultStatus,
             durationMs: Date.now() - startedAt,
+            errorType: eventErrorType,
           });
         }
       }
@@ -1280,17 +1281,14 @@ function handleSocketConnection(socket) {
               tracing.setActiveSpanAttributes({
                 "wbo.turnstile.result": "success",
               });
-              metrics.recordTurnstileVerification("success");
+              metrics.recordTurnstileVerification();
               if (typeof ack === "function") ack(buildTurnstileAck(socket));
             } else {
               tracing.setActiveSpanAttributes({
                 "wbo.turnstile.result": "rejected",
                 "wbo.turnstile.reason": validation.reason,
               });
-              metrics.recordTurnstileVerification(
-                "rejected",
-                validation.reason,
-              );
+              metrics.recordTurnstileVerification(validation.reason);
               logger.warn("turnstile.rejected", {
                 socket: socket.id,
                 "client.address": clientIp,
@@ -1299,19 +1297,17 @@ function handleSocketConnection(socket) {
                 reason: validation.reason,
                 hostname: result.hostname,
               });
-              metrics.recordRejection("turnstile", validation.reason);
               if (typeof ack === "function") ack({ success: false });
             }
           } catch (err) {
             tracing.recordActiveSpanError(err, {
               "wbo.turnstile.result": "error",
             });
-            metrics.recordTurnstileVerification("error");
+            metrics.recordTurnstileVerification(err);
             logger.error("turnstile.error", {
               socket: socket.id,
               error: err,
             });
-            metrics.recordRejection("turnstile", "error");
             if (typeof ack === "function") ack({ success: false });
           }
         },
@@ -1617,10 +1613,9 @@ async function unloadBoard(boardName) {
             "wbo.board": boardName,
             "wbo.board.result": "success",
           });
-          metrics.recordBoardOperation("unload", "success");
+          metrics.recordBoardOperation("unload");
           metrics.recordBoardOperationDuration(
             "unload",
-            "success",
             (Date.now() - startedAt) / 1000,
           );
           delete boards[boardName];
@@ -1630,11 +1625,11 @@ async function unloadBoard(boardName) {
             "wbo.board": boardName,
             "wbo.board.result": "error",
           });
-          metrics.recordBoardOperation("unload", "error");
+          metrics.recordBoardOperation("unload", error);
           metrics.recordBoardOperationDuration(
             "unload",
-            "error",
             (Date.now() - startedAt) / 1000,
+            error,
           );
           throw error;
         }

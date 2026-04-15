@@ -224,11 +224,11 @@ const httpServerActiveRequests = meter.createUpDownCounter(
     unit: "{request}",
   },
 );
-const socketEvents = meter.createCounter("wbo.socket.events", {
+const socketEvents = meter.createCounter("wbo.socket.event", {
   description: "Socket events handled by the server.",
   unit: "{event}",
 });
-const socketConnections = meter.createCounter("wbo.socket.connections", {
+const socketConnections = meter.createCounter("wbo.socket.connection", {
   description: "Socket connections opened and closed.",
   unit: "{connection}",
 });
@@ -240,7 +240,7 @@ const boardMessages = meter.createCounter("wbo.board.message", {
   description: "Board messages processed by the server write path.",
   unit: "{message}",
 });
-const boardOperations = meter.createCounter("wbo.board.operations", {
+const boardOperations = meter.createCounter("wbo.board.operation", {
   description: "Board operation outcomes.",
   unit: "{operation}",
 });
@@ -251,14 +251,10 @@ const boardOperationDuration = meter.createHistogram(
     unit: "s",
   },
 );
-const rejections = meter.createCounter("wbo.rejections", {
-  description: "Rejected operations by kind and reason.",
-  unit: "{rejection}",
-});
 const turnstileVerifications = meter.createCounter(
-  "wbo.turnstile.verifications",
+  "wbo.turnstile.verification",
   {
-    description: "Turnstile verification attempts by outcome.",
+    description: "Turnstile verification attempts.",
     unit: "{verification}",
   },
 );
@@ -849,14 +845,36 @@ function recordHttpRequest(request) {
 }
 
 /**
- * @param {{event: string, result: string, durationMs: number}} event
+ * @param {unknown} errorType
+ * @returns {string | undefined}
+ */
+function normalizeMetricErrorType(errorType) {
+  if (errorType === undefined || errorType === null || errorType === "") {
+    return undefined;
+  }
+  if (typeof errorType === "string") return errorType;
+  if (errorType instanceof Error) {
+    const errorCode = /** @type {{code?: unknown}} */ (errorType).code;
+    if (typeof errorCode === "string" && errorCode !== "") {
+      return errorCode;
+    }
+    if (errorType.name) return errorType.name;
+    return "Error";
+  }
+  return typeof errorType;
+}
+
+/**
+ * @param {{event: string, durationMs: number, errorType?: unknown}} event
  * @returns {void}
  */
 function recordSocketEvent(event) {
+  /** @type {{[key: string]: string}} */
   const attributes = {
     "wbo.socket.event": event.event,
-    "wbo.socket.result": event.result,
   };
+  const errorType = normalizeMetricErrorType(event.errorType);
+  if (errorType) attributes[ATTR_ERROR_TYPE] = errorType;
   socketEvents.add(1, attributes);
   socketEventDuration.record(event.durationMs / 1000, attributes);
 }
@@ -882,70 +900,75 @@ function recordBoardMessage(message, errorType) {
     "wbo.tool": message.tool || "unknown",
     "wbo.message.type": message.type || "unknown",
   };
-  if (errorType) attributes[ATTR_ERROR_TYPE] = errorType;
+  const normalizedErrorType = normalizeMetricErrorType(errorType);
+  if (normalizedErrorType) {
+    attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
+  }
   boardMessages.add(1, attributes);
 }
 
 /**
- * @param {"success"|"rejected"|"error"} result
- * @param {string=} reason
+ * @param {unknown=} errorType
  * @returns {void}
  */
-function recordTurnstileVerification(result, reason) {
+function recordTurnstileVerification(errorType) {
   /** @type {{[key: string]: string}} */
-  const attributes = {
-    "wbo.turnstile.result": result,
-  };
-  if (reason) attributes["wbo.turnstile.reason"] = reason;
+  const attributes = {};
+  const normalizedErrorType = normalizeMetricErrorType(errorType);
+  if (normalizedErrorType) {
+    attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
+  }
   turnstileVerifications.add(1, attributes);
 }
 
 /**
  * @param {string} operation
- * @param {string} result
+ * @param {unknown=} errorType
  * @returns {void}
  */
-function recordBoardOperation(operation, result) {
-  boardOperations.add(1, {
+function recordBoardOperation(operation, errorType) {
+  /** @type {{[key: string]: string}} */
+  const attributes = {
     "wbo.board.operation": operation,
-    "wbo.board.result": result,
-  });
+  };
+  const normalizedErrorType = normalizeMetricErrorType(errorType);
+  if (normalizedErrorType) {
+    attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
+  }
+  boardOperations.add(1, attributes);
 }
 
 /**
  * @param {string} operation
- * @param {string} result
  * @param {number} durationSeconds
+ * @param {unknown=} errorType
  * @returns {void}
  */
-function recordBoardOperationDuration(operation, result, durationSeconds) {
-  boardOperationDuration.record(durationSeconds, {
+function recordBoardOperationDuration(operation, durationSeconds, errorType) {
+  /** @type {{[key: string]: string}} */
+  const attributes = {
     "wbo.board.operation": operation,
-    "wbo.board.result": result,
-  });
+  };
+  const normalizedErrorType = normalizeMetricErrorType(errorType);
+  if (normalizedErrorType) {
+    attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
+  }
+  boardOperationDuration.record(durationSeconds, attributes);
 }
 
 /**
- * @param {"success"|"error"} result
  * @param {number} durationSeconds
+ * @param {unknown=} errorType
  * @returns {void}
  */
-function recordPreviewRender(result, durationSeconds) {
-  previewRenderDuration.record(durationSeconds, {
-    "wbo.preview.result": result,
-  });
-}
-
-/**
- * @param {string} kind
- * @param {string} reason
- * @returns {void}
- */
-function recordRejection(kind, reason) {
-  rejections.add(1, {
-    "wbo.rejection.kind": kind,
-    "wbo.rejection.reason": reason,
-  });
+function recordPreviewRender(durationSeconds, errorType) {
+  /** @type {{[key: string]: string}} */
+  const attributes = {};
+  const normalizedErrorType = normalizeMetricErrorType(errorType);
+  if (normalizedErrorType) {
+    attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
+  }
+  previewRenderDuration.record(durationSeconds, attributes);
 }
 
 /**
@@ -1023,7 +1046,6 @@ module.exports = {
     recordBoardOperationDuration,
     recordHttpRequest,
     recordPreviewRender,
-    recordRejection,
     recordSocketConnection,
     recordSocketEvent,
     recordTurnstileVerification,

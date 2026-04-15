@@ -837,8 +837,8 @@ class BoardData {
             metrics.recordBoardOperation("save", "removed_empty");
             metrics.recordBoardOperationDuration(
               "save",
-              "removed_empty",
               (Date.now() - startedAt) / 1000,
+              "removed_empty",
             );
           } catch (err) {
             if (errorCode(err) !== "ENOENT") {
@@ -850,11 +850,11 @@ class BoardData {
                 board: this.name,
                 error: err,
               });
-              metrics.recordBoardOperation("save", "error");
+              metrics.recordBoardOperation("save", err);
               metrics.recordBoardOperationDuration(
                 "save",
-                "error",
                 (Date.now() - startedAt) / 1000,
+                err,
               );
             }
           }
@@ -875,10 +875,9 @@ class BoardData {
               "file.size": boardText.length,
               items: Object.keys(this.board).length,
             });
-            metrics.recordBoardOperation("save", "success");
+            metrics.recordBoardOperation("save");
             metrics.recordBoardOperationDuration(
               "save",
-              "success",
               (Date.now() - startedAt) / 1000,
             );
           } catch (err) {
@@ -890,11 +889,11 @@ class BoardData {
               error: err,
               "file.path": tmpFile,
             });
-            metrics.recordBoardOperation("save", "error");
+            metrics.recordBoardOperation("save", err);
             metrics.recordBoardOperationDuration(
               "save",
-              "error",
               (Date.now() - startedAt) / 1000,
+              err,
             );
             return;
           }
@@ -915,7 +914,7 @@ class BoardData {
         const id = toDestroy[i];
         if (id !== undefined) delete board[id];
       }
-      metrics.recordBoardOperation("clean", "success");
+      metrics.recordBoardOperation("clean");
     }
   }
 
@@ -971,10 +970,9 @@ class BoardData {
               "wbo.board.items": Object.keys(boardData.board).length,
             }),
           );
-          metrics.recordBoardOperation("load", "success");
+          metrics.recordBoardOperation("load");
           metrics.recordBoardOperationDuration(
             "load",
-            "success",
             (Date.now() - startedAt) / 1000,
           );
         } catch (e) {
@@ -988,8 +986,8 @@ class BoardData {
             metrics.recordBoardOperation("load", "empty");
             metrics.recordBoardOperationDuration(
               "load",
-              "empty",
               (Date.now() - startedAt) / 1000,
+              "empty",
             );
           } else {
             tracing.recordActiveSpanError(e, {
@@ -999,11 +997,11 @@ class BoardData {
               board: name,
               error: e,
             });
-            metrics.recordBoardOperation("load", "error");
+            metrics.recordBoardOperation("load", e);
             metrics.recordBoardOperationDuration(
               "load",
-              "error",
               (Date.now() - startedAt) / 1000,
+              e,
             );
           }
           boardData.board = {};
