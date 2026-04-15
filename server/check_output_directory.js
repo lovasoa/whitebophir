@@ -11,7 +11,7 @@ const { R_OK, W_OK } = fs.constants;
  * @param {string} directory
  * @returns {Promise<string | undefined>}
  */
-async function get_error(directory) {
+async function getError(directory) {
   if (!fs.existsSync(directory)) {
     return "does not exist";
   }
@@ -23,14 +23,14 @@ async function get_error(directory) {
     fs.writeFileSync(tmpfile, "{}");
     fs.unlinkSync(tmpfile);
   } catch (_e) {
-    let err_msg = "does not allow file creation and deletion. ";
+    let errorMessage = "does not allow file creation and deletion. ";
     try {
       const { uid, gid } = os.userInfo();
-      err_msg +=
+      errorMessage +=
         "Check the permissions of the directory, and if needed change them so that " +
         `user with UID ${uid} has access to them. This can be achieved by running the command: chown ${uid}:${gid} on the directory`;
     } catch {}
-    return err_msg;
+    return errorMessage;
   }
   const fileChecks = [];
   const files = await fsp.readdir(directory, { withFileTypes: true });
@@ -44,11 +44,9 @@ async function get_error(directory) {
   }
   const errs = (await Promise.all(fileChecks)).filter((x) => x);
   if (errs.length > 0) {
-    return (
-      `contains the following board files that are not readable and writable by the current user: "` +
-      errs.join('", "') +
-      `". Please make all board files accessible with chown 1000:1000`
-    );
+    return `contains the following board files that are not readable and writable by the current user: "${errs.join(
+      '", "',
+    )}". Please make all board files accessible with chown 1000:1000`;
   }
   return undefined;
 }
@@ -59,10 +57,10 @@ async function get_error(directory) {
  * @param {string} directory
  */
 function check_output_directory(directory) {
-  get_error(directory).then((error) => {
+  getError(directory).then((error) => {
     if (error) {
       logger.error("history.dir_invalid", {
-        directory: directory,
+        directory,
         reason:
           `The configured history directory in which boards are stored ${error}. ` +
           `The history directory can be configured with the environment variable WBO_HISTORY_DIR. ` +

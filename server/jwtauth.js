@@ -25,7 +25,7 @@
  */
 
 const config = require("./configuration.js");
-const { roleInBoard } = require("./jwtBoardnameAuth");
+const { roleInBoard } = require("./jwtBoardnameAuth.js");
 /**
  * Validates jwt and returns whether user is a moderator
  * @param {URL} url
