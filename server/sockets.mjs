@@ -497,6 +497,13 @@ function attachLiveSocketId(data, user) {
 function closeSocket(socket, eventName, infos) {
   void eventName;
   void infos;
+  if (eventName === "report_user") {
+    const closeConnection = socket.client?.conn?.close;
+    if (typeof closeConnection === "function") {
+      closeConnection.call(socket.client.conn);
+      return;
+    }
+  }
   socket.disconnect(true);
 }
 

@@ -178,6 +178,47 @@ export class BoardPage {
     });
   }
 
+  async reportFirstRemoteUser() {
+    await this.page.evaluate(() => {
+      const report = document.querySelector<HTMLButtonElement>(
+        "#connectedUsersList .connected-user-row:not(.connected-user-row-self) .connected-user-report",
+      );
+      if (!report) throw new Error("Missing remote user report button");
+      report.click();
+    });
+  }
+
+  async waitForDisconnectThenReconnect() {
+    return this.page.evaluate(async () => {
+      const socket = (window as any).Tools.socket;
+      const initialId = socket.id ?? null;
+      return new Promise<{ initialId: string | null; nextId: string | null }>(
+        (resolve, reject) => {
+          let sawDisconnect = false;
+          const timeout = setTimeout(
+            () =>
+              reject(
+                new Error("Timed out waiting for disconnect/reconnect cycle"),
+              ),
+            5_000,
+          );
+
+          socket.once("disconnect", () => {
+            sawDisconnect = true;
+          });
+          socket.once("connect", () => {
+            if (!sawDisconnect) return;
+            clearTimeout(timeout);
+            resolve({
+              initialId,
+              nextId: (window as any).Tools.socket.id ?? null,
+            });
+          });
+        },
+      );
+    });
+  }
+
   async drawPencilPaths(paths: PencilPath[]) {
     await this.page.evaluate(async (inputPaths) => {
       const nextFrame = () =>

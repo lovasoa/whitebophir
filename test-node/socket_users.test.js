@@ -519,8 +519,10 @@ test("report_user logs reporter and reported user details for active board membe
       assert.equal(reportedLog.reported_user_agent, "ReportedAgent/2.0");
       assert.equal(reportedLog.reporter_language, "fr-FR,fr;q=0.9");
       assert.equal(reportedLog.reported_language, "en-US,en;q=0.8");
-      assert.deepEqual(reporter.socket.disconnectCalls, [true]);
-      assert.deepEqual(reported.socket.disconnectCalls, [true]);
+      assert.equal(reporter.socket.client.conn.closeCalls.length, 1);
+      assert.equal(reported.socket.client.conn.closeCalls.length, 1);
+      assert.deepEqual(reporter.socket.disconnectCalls, []);
+      assert.deepEqual(reported.socket.disconnectCalls, []);
       assert.equal(reporter.emitted.length, reporterEmitCountBeforeReport);
       assert.equal(reported.emitted.length, reportedEmitCountBeforeReport);
     },

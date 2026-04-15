@@ -118,6 +118,52 @@ test.describe("collaboration and rate limiting", () => {
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
   });
 
+  test("reporting a user disconnects both sockets and they automatically reconnect", async ({
+    boardPage,
+    server,
+    context,
+  }) => {
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await Promise.all([
+      boardPage.gotoBoard("report-user-reconnect"),
+      peerBoard.gotoBoard("report-user-reconnect"),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+
+    await boardPage.connectedUsersToggle.click();
+    await peerBoard.connectedUsersToggle.click();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+    await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
+
+    const reporterReconnect = boardPage.waitForDisconnectThenReconnect();
+    const reportedReconnect = peerBoard.waitForDisconnectThenReconnect();
+
+    await boardPage.reportFirstRemoteUser();
+
+    await expect(reporterReconnect).resolves.toMatchObject({
+      initialId: expect.any(String),
+      nextId: expect.any(String),
+    });
+    await expect(reportedReconnect).resolves.toMatchObject({
+      initialId: expect.any(String),
+      nextId: expect.any(String),
+    });
+
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+    await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
+
+    await peerPage.close();
+  });
+
   test("same-session sockets keep separate activity in the user list", async ({
     boardPage,
     server,
