@@ -24,8 +24,17 @@
  * @licend
  */
 
-const config = require("./configuration.js");
-const jsonwebtoken = require("jsonwebtoken");
+import { createRequire } from "node:module";
+import path from "node:path";
+import jsonwebtoken from "jsonwebtoken";
+
+const require = createRequire(
+  path.join(process.cwd(), "server", "jwtBoardnameAuth.mjs"),
+);
+
+function getConfig() {
+  return require("./configuration.js");
+}
 
 /**
  * This function checks if a board name is set in the roles claim.
@@ -35,8 +44,8 @@ const jsonwebtoken = require("jsonwebtoken");
  * @throws {Error} - If no boardname match
  */
 
-function checkBoardnameInToken(url, boardNameIn) {
-  if (config.AUTH_SECRET_KEY === "") {
+export function checkBoardnameInToken(url, boardNameIn) {
+  if (getConfig().AUTH_SECRET_KEY === "") {
     return;
   }
   const token = url.searchParams.get("token");
@@ -65,7 +74,8 @@ function parseRole(role) {
  * @param {string | null} [board]
  * @returns {"moderator" | "editor" | "reader" | "forbidden"}
  */
-function roleInBoard(token, board = null) {
+export function roleInBoard(token, board = null) {
+  const config = getConfig();
   if (config.AUTH_SECRET_KEY === "") {
     return "editor";
   }
@@ -107,5 +117,3 @@ function roleInBoard(token, board = null) {
 
   return "forbidden";
 }
-
-module.exports = { checkBoardnameInToken, roleInBoard };

@@ -8,8 +8,8 @@ const { BoardData } = require("./boardData.js");
 const check_output_directory = require("./check_output_directory.mjs").default;
 const config = require("./configuration.js");
 const createSVG = require("./createSVG.mjs");
-const jwtauth = require("./jwtauth.js");
-const jwtBoardName = require("./jwtBoardnameAuth.js");
+const jwtauth = require("./jwtauth.mjs");
+const jwtBoardName = require("./jwtBoardnameAuth.mjs");
 const {
   ATTR_CLIENT_ADDRESS,
   ATTR_HTTP_REQUEST_METHOD,

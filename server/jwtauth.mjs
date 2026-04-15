@@ -24,16 +24,22 @@
  * @licend
  */
 
-const config = require("./configuration.js");
-const { roleInBoard } = require("./jwtBoardnameAuth.js");
+import { createRequire } from "node:module";
+import { roleInBoard } from "./jwtBoardnameAuth.mjs";
+
+const require = createRequire(import.meta.url);
+
+function getConfig() {
+  return require("./configuration.js");
+}
 /**
  * Validates jwt and returns whether user is a moderator
  * @param {URL} url
  * @returns {boolean} - True if user is a moderator, else false
  * @throws {Error} - If no token is provided when it should be
  */
-function checkUserPermission(url) {
-  if (config.AUTH_SECRET_KEY === "") {
+export function checkUserPermission(url) {
+  if (getConfig().AUTH_SECRET_KEY === "") {
     return false;
   }
 
@@ -44,5 +50,3 @@ function checkUserPermission(url) {
 
   return roleInBoard(token) === "moderator";
 }
-
-module.exports = { checkUserPermission };

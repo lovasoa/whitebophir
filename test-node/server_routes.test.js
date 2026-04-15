@@ -22,7 +22,7 @@ const CLIENT_CONFIGURATION_PATH = path.join(
   "server",
   "client_configuration.mjs",
 );
-const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.js");
+const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.mjs");
 
 /**
  * @param {import("http").Server} server

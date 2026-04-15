@@ -21,7 +21,7 @@ const MESSAGE_COMMON_PATH = path.join(
 const JWT_BOARDNAME_AUTH_PATH = path.join(
   ROOT,
   "server",
-  "jwtBoardnameAuth.js",
+  "jwtBoardnameAuth.mjs",
 );
 
 /** @typedef {{[key: string]: any}} Dict */

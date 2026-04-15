@@ -34,7 +34,7 @@ const CLIENT_CONFIGURATION_PATH = path.join(
   "server",
   "client_configuration.mjs",
 );
-const JWTAUTH_PATH = path.join(ROOT, "server", "jwtauth.js");
+const JWTAUTH_PATH = path.join(ROOT, "server", "jwtauth.mjs");
 const TRACING_MODULES_TO_CLEAR = [
   CONFIG_PATH,
   MESSAGE_VALIDATION_PATH,

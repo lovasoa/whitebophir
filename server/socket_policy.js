@@ -3,7 +3,7 @@ const config = require("./configuration");
 const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 const normalizeIncomingMessage =
   require("./message_validation.mjs").normalizeIncomingMessage;
-const roleInBoard = require("./jwtBoardnameAuth.js").roleInBoard;
+const roleInBoard = require("./jwtBoardnameAuth.mjs").roleInBoard;
 
 /** @typedef {import("../types/server-runtime").AppSocket} AppSocket */
 /** @typedef {import("../types/server-runtime").BoardLike} BoardLike */
