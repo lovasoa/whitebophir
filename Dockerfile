@@ -1,10 +1,6 @@
 FROM node:24-alpine
 
-ARG VCS_SOURCE=unknown
-ARG GIT_REV=unknown
-
-LABEL org.opencontainers.image.source="${VCS_SOURCE}"
-LABEL org.opencontainers.image.revision="${GIT_REV}"
+LABEL org.opencontainers.image.source="https://github.com/lovasoa/whitebophir"
 
 WORKDIR /opt/app
 
