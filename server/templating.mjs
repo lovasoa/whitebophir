@@ -1,7 +1,7 @@
 import fs from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
 import handlebars from "handlebars";
+import packageJson from "../package.json" with { type: "json" };
 
 import client_config from "./client_configuration.mjs";
 import serverConfig from "./configuration.mjs";
@@ -131,11 +131,6 @@ function findBaseUrl(req) {
     "localhost";
   return `${proto}://${host}`;
 }
-
-const require = createRequire(
-  path.join(process.cwd(), "server", "templating.mjs"),
-);
-const packageJson = require("../package.json");
 
 class Template {
   /**

@@ -1,51 +1,32 @@
-import { createRequire } from "node:module";
-import path from "node:path";
-
+import { randomUUID } from "node:crypto";
 import {
-  DEFAULT_SERVICE_NAME,
-  flattenError,
-  formatCanonicalLogLine,
-  styleTerminalLogLine,
-} from "./logfmt.mjs";
-
-const require = createRequire(
-  path.join(process.cwd(), "server", "observability.mjs"),
-);
-const { randomUUID } = require("node:crypto");
-const {
   context,
   isSpanContextValid,
-  metrics: otelMetrics,
+  metrics as otelMetrics,
   propagation,
   SpanKind,
   SpanStatusCode,
   trace,
-} = require("@opentelemetry/api");
-const { logs, SeverityNumber } = require("@opentelemetry/api-logs");
-const { OTLPLogExporter } = require("@opentelemetry/exporter-logs-otlp-http");
-const {
-  OTLPTraceExporter,
-} = require("@opentelemetry/exporter-trace-otlp-http");
-const {
-  OTLPMetricExporter,
-} = require("@opentelemetry/exporter-metrics-otlp-http");
-const { resourceFromAttributes } = require("@opentelemetry/resources");
-const {
+} from "@opentelemetry/api";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
+import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { RuntimeNodeInstrumentation } from "@opentelemetry/instrumentation-runtime-node";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import {
   BatchLogRecordProcessor,
   SimpleLogRecordProcessor,
-} = require("@opentelemetry/sdk-logs");
-const { PeriodicExportingMetricReader } = require("@opentelemetry/sdk-metrics");
-const {
+} from "@opentelemetry/sdk-logs";
+import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import {
   BatchSpanProcessor,
   ParentBasedSampler,
   SimpleSpanProcessor,
   TraceIdRatioBasedSampler,
-} = require("@opentelemetry/sdk-trace-base");
-const { NodeSDK } = require("@opentelemetry/sdk-node");
-const {
-  RuntimeNodeInstrumentation,
-} = require("@opentelemetry/instrumentation-runtime-node");
-const {
+} from "@opentelemetry/sdk-trace-base";
+import {
   ATTR_ERROR_TYPE,
   ATTR_HTTP_REQUEST_METHOD,
   ATTR_HTTP_RESPONSE_STATUS_CODE,
@@ -53,8 +34,15 @@ const {
   ATTR_SERVER_ADDRESS,
   ATTR_URL_SCHEME,
   SEMRESATTRS_SERVICE_NAME,
-} = require("@opentelemetry/semantic-conventions");
-const packageJson = require("../package.json");
+} from "@opentelemetry/semantic-conventions";
+import packageJson from "../package.json" with { type: "json" };
+
+import {
+  DEFAULT_SERVICE_NAME,
+  flattenError,
+  formatCanonicalLogLine,
+  styleTerminalLogLine,
+} from "./logfmt.mjs";
 
 const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME;
 const SERVICE_VERSION = packageJson.version;
@@ -1071,10 +1059,10 @@ const observability = {
 };
 
 export {
-  LogfmtLogRecordExporter,
   __test,
   createRequestId,
   formatReadableLogRecord,
+  LogfmtLogRecordExporter,
   logger,
   observabilityMetrics as metrics,
   shutdownObservability,
