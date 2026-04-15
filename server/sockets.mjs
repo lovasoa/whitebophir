@@ -1,9 +1,8 @@
 import crypto from "node:crypto";
-import { createRequire } from "node:module";
-import path from "node:path";
 import * as socketIO from "socket.io";
 import observability from "./observability.mjs";
 import { BoardData } from "./boardData.mjs";
+import { readConfiguration } from "./configuration.mjs";
 import jsonwebtoken from "jsonwebtoken";
 import {
   canAccessBoard,
@@ -26,12 +25,9 @@ const getEffectiveRateLimitDefinition =
 const isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
-const require = createRequire(
-  path.join(process.cwd(), "server", "sockets.mjs"),
-);
 
 function getConfig() {
-  return require("./configuration.mjs").readConfiguration();
+  return readConfiguration();
 }
 
 /** @typedef {{token?: string, userSecret?: string, tool?: string, color?: string, size?: string}} SocketQuery */

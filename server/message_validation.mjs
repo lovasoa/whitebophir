@@ -1,14 +1,9 @@
-import { createRequire } from "node:module";
-import path from "node:path";
 import MessageCommon from "../client-data/js/message_common.js";
 import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
-
-const require = createRequire(
-  path.join(process.cwd(), "server", "message_validation.mjs"),
-);
+import { readConfiguration } from "./configuration.mjs";
 
 function getConfig() {
-  return require("./configuration.mjs").readConfiguration();
+  return readConfiguration();
 }
 
 /** @typedef {{[key: string]: any}} RawRecord */

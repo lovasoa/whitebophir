@@ -25,11 +25,11 @@
  * @module boardData
  */
 
-import { createRequire } from "node:module";
-import path from "node:path";
 import nativeFs from "node:fs";
 import { readFile, rename, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
 import observability from "./observability.mjs";
+import { readConfiguration } from "./configuration.mjs";
 import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
 import {
   normalizeStoredChildPoint,
@@ -38,12 +38,9 @@ import {
 import MessageCommon from "../client-data/js/message_common.js";
 
 const { logger, metrics, tracing } = observability;
-const require = createRequire(
-  path.join(process.cwd(), "server", "boardData.mjs"),
-);
 
 function getConfig() {
-  return require("./configuration.mjs").readConfiguration();
+  return readConfiguration();
 }
 
 class SerialTaskQueue {

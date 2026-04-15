@@ -24,16 +24,11 @@
  * @licend
  */
 
-import { createRequire } from "node:module";
-import path from "node:path";
+import { readConfiguration } from "./configuration.mjs";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
 
-const require = createRequire(
-  path.join(process.cwd(), "server", "jwtauth.mjs"),
-);
-
 function getConfig() {
-  return require("./configuration.mjs").readConfiguration();
+  return readConfiguration();
 }
 /**
  * Validates jwt and returns whether user is a moderator

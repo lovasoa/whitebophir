@@ -1,18 +1,13 @@
-import { createRequire } from "node:module";
-import path from "node:path";
-
 import observability from "./observability.mjs";
+import { readConfiguration } from "./configuration.mjs";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
 
 const { logger, metrics, tracing } = observability;
-const require = createRequire(
-  path.join(process.cwd(), "server", "socket_policy.mjs"),
-);
 
 function getConfig() {
-  return require("./configuration.mjs").readConfiguration();
+  return readConfiguration();
 }
 
 /** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */

@@ -1,11 +1,11 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import { createServer } from "node:http";
-import { createRequire } from "node:module";
 import * as path from "node:path";
 
 import { BoardData } from "./boardData.mjs";
 import check_output_directory from "./check_output_directory.mjs";
+import { readConfiguration } from "./configuration.mjs";
 import * as createSVG from "./createSVG.mjs";
 import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
@@ -22,9 +22,8 @@ import {
 import * as templating from "./templating.mjs";
 import observability from "./observability.mjs";
 
-const require = createRequire(path.join(process.cwd(), "server", "server.mjs"));
-const serveStatic = require("serve-static");
-const { readConfiguration } = require("./configuration.mjs");
+import serveStatic from "serve-static";
+
 const { createRequestId, logger, metrics, tracing } = observability;
 const config = readConfiguration();
 
