@@ -25,17 +25,26 @@
  * @module boardData
  */
 
-const nativeFs = require("node:fs");
-const { readFile, rename, unlink, writeFile } = require("node:fs/promises");
-const { logger, metrics, tracing } = require("./observability.js");
-const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
-const {
+import { createRequire } from "node:module";
+import path from "node:path";
+import nativeFs from "node:fs";
+import { readFile, rename, unlink, writeFile } from "node:fs/promises";
+import observability from "./observability.js";
+import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
+import {
   normalizeStoredChildPoint,
   normalizeStoredItemWithBounds,
-} = require("./message_validation.mjs");
-const MessageCommon = require("../client-data/js/message_common.js");
-const path = require("node:path");
-const config = require("./configuration.js");
+} from "./message_validation.mjs";
+import MessageCommon from "../client-data/js/message_common.js";
+
+const { logger, metrics, tracing } = observability;
+const require = createRequire(
+  path.join(process.cwd(), "server", "boardData.mjs"),
+);
+
+function getConfig() {
+  return require("./configuration.js");
+}
 
 class SerialTaskQueue {
   constructor() {
@@ -65,7 +74,7 @@ const BOARD_METADATA_KEY = "__wbo_meta__";
 /** @typedef {{ok: true}} ValidationSuccess */
 /** @typedef {ValidationSuccess | ValidationFailure} BoardMutationResult */
 /** @typedef {{ok: true, value: BoardElem, localBounds: Bounds | null}} ValidatedStoredCandidate */
-/** @typedef {import("../types/app-runtime").BoardMessage} BoardMessage */
+/** @typedef {import("../types/app-runtime.d.ts").BoardMessage} BoardMessage */
 
 /** @returns {BoardMetadata} */
 function defaultBoardMetadata() {
@@ -89,6 +98,7 @@ function normalizeBoardMetadata(metadata) {
  * @returns {string}
  */
 function boardFilePath(name) {
+  const config = getConfig();
   return path.join(
     config.HISTORY_DIR,
     `board-${encodeURIComponent(name)}.json`,
@@ -374,6 +384,7 @@ class BoardData {
    * @returns {boolean}
    */
   canAddChild(parentId, child) {
+    const config = getConfig();
     const obj = this.board[parentId];
     if (!obj || obj.tool !== "Pencil") return false;
 
@@ -450,6 +461,7 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure} - True if the child was added, else false
    */
   addChild(parentId, child) {
+    const config = getConfig();
     const obj = this.board[parentId];
     if (typeof obj !== "object" || obj.tool !== "Pencil")
       return { ok: false, reason: "invalid parent for child" };
@@ -569,6 +581,7 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure}
    */
   processMessageBatch(children, parentMessage) {
+    const config = getConfig();
     const messages = children.map((childMessage) =>
       parentMessage && childMessage.tool === undefined
         ? Object.assign({ tool: parentMessage.tool }, childMessage)
@@ -798,6 +811,7 @@ class BoardData {
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
   delaySave() {
+    const config = getConfig();
     if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
     this.saveTimeoutId = setTimeout(this.save.bind(this), config.SAVE_INTERVAL);
     if (Date.now() - this.lastSaveDate > config.MAX_SAVE_DELAY)
@@ -904,6 +918,7 @@ class BoardData {
 
   /** Remove old elements from the board */
   clean() {
+    const config = getConfig();
     const board = this.board;
     const ids = Object.keys(board);
     if (ids.length > config.MAX_ITEM_COUNT) {
@@ -1098,8 +1113,4 @@ function errorCode(error) {
   return typeof error.code === "string" ? error.code : undefined;
 }
 
-module.exports = {
-  BoardData,
-  BOARD_METADATA_KEY,
-  parseStoredBoard,
-};
+export { BoardData, BOARD_METADATA_KEY, parseStoredBoard };

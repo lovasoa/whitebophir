@@ -8,7 +8,7 @@ const historyDir = fs.mkdtempSync(path.join(os.tmpdir(), "wbo-server-bench-"));
 process.env.WBO_HISTORY_DIR = historyDir;
 process.env.WBO_SILENT = process.env.WBO_SILENT || "true";
 
-const { BoardData } = require("../server/boardData.js");
+const { BoardData } = require("../server/boardData.mjs");
 const config = require("../server/configuration.js");
 const { renderBoardToSVG } = require("../server/createSVG.mjs");
 

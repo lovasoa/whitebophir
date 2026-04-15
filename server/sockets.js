@@ -1,7 +1,7 @@
 const crypto = require("node:crypto");
 const { Server } = require("socket.io");
 const { logger, metrics, tracing } = require("./observability.js");
-const { BoardData } = require("./boardData.js");
+const { BoardData } = require("./boardData.mjs");
 const config = require("./configuration");
 const jsonwebtoken = require("jsonwebtoken");
 const socketPolicy = require("./socket_policy.mjs");

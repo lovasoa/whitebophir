@@ -4,7 +4,7 @@ const { createServer } = require("node:http");
 const path = require("node:path");
 const serveStatic = require("serve-static");
 
-const { BoardData } = require("./boardData.js");
+const { BoardData } = require("./boardData.mjs");
 const check_output_directory = require("./check_output_directory.mjs").default;
 const config = require("./configuration.js");
 const createSVG = require("./createSVG.mjs");

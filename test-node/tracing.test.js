@@ -21,7 +21,7 @@ const {
 const ROOT = path.join(__dirname, "..");
 const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.js");
 const SERVER_PATH = path.join(ROOT, "server", "server.js");
-const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.js");
+const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.mjs");
 const TEMPLATING_PATH = path.join(ROOT, "server", "templating.mjs");
 const CREATE_SVG_PATH = path.join(ROOT, "server", "createSVG.mjs");
 const CHECK_OUTPUT_DIRECTORY_PATH = path.join(

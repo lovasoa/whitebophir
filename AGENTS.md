@@ -10,9 +10,9 @@
 - Process boot + routes + socket server: [server startup](./server/server.js).
 - HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs).
 - Realtime event handlers + broadcast path: [socket handlers](./server/sockets.js).
-- Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.js).
-- Canonical inbound payload normalization: [message schema gate](./server/message_validation.js).
-- In-memory board model + apply rules + disk sync: [board state engine](./server/boardData.js).
+- Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.mjs).
+- Canonical inbound payload normalization: [message schema gate](./server/message_validation.mjs).
+- In-memory board model + apply rules + disk sync: [board state engine](./server/boardData.mjs).
 - Page shell that loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js).
 - Client state machine + send/receive plumbing: [board runtime](./client-data/js/board.js).
 - Shared socket transport utilities: [transport helpers](./client-data/js/board_transport.js).
@@ -68,8 +68,8 @@
 
 ## change strategy
 
-- Message shape changes: update [server schema gate](./server/message_validation.js) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests.
-- Persistence/replay changes: review [board state engine](./server/boardData.js); rerun `node --test test-node/rate_limits.test.js` and `npm test`.
+- Message shape changes: update [server schema gate](./server/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests.
+- Persistence/replay changes: review [board state engine](./server/boardData.mjs); rerun `node --test test-node/rate_limits.test.js` and `npm test`.
 - Tool UX changes: start in [tool modules](./client-data/tools/); verify with Playwright.
 
 ## required upkeep

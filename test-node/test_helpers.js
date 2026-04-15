@@ -6,7 +6,7 @@ const CONFIG_PATH = path.join(ROOT, "server", "configuration.js");
 const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.js");
 const SOCKETS_PATH = path.join(ROOT, "server", "sockets.js");
 const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.mjs");
-const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.js");
+const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.mjs");
 const MESSAGE_VALIDATION_PATH = path.join(
   ROOT,
   "server",

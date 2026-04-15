@@ -2,7 +2,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { parseStoredBoard } from "./boardData.js";
+import { parseStoredBoard } from "./boardData.mjs";
 import { logger } from "./observability.js";
 import config from "./configuration.mjs";
 
