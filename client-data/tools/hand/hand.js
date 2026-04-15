@@ -29,9 +29,14 @@ import {
   pointInTransformedBBox,
   transformedBBoxIntersects,
 } from "../../js/intersect.js";
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 /** @param {any} Tools */
-export function registerHandTool(Tools) {
+function createHandTool(
+  Tools,
+  assetUrl = /** @param {string} assetFile */ (assetFile) =>
+    `tools/hand/${assetFile}`,
+) {
   /** @typedef {{ x: number, y: number }} PointSelection */
   /** @typedef {PointSelection & { w: number, h: number }} ScaleSelection */
   /** @typedef {PointSelection | ScaleSelection | null} SelectionState */
@@ -266,7 +271,7 @@ export function registerHandTool(Tools) {
     clickCallback,
   ) {
     const shape = Tools.createSVGElement("image", {
-      href: `tools/hand/${icon}.svg`,
+      href: assetUrl(`${icon}.svg`),
       width: width,
       height: height,
     });
@@ -839,6 +844,26 @@ export function registerHandTool(Tools) {
     mouseCursor: "move",
     showMarker: true,
   };
-  Tools.add(handTool);
+  return handTool;
+}
+
+/** @param {any} Tools */
+export function registerHandTool(Tools) {
+  const tool = createHandTool(Tools);
+  Tools.add(tool);
   Tools.change("Hand"); // Use the hand tool by default
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class HandTool {
+  static toolName = "Hand";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createHandTool(ctx.runtime.Tools, ctx.assetUrl);
+  }
 }

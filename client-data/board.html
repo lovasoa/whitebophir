@@ -10,8 +10,8 @@
 	<meta name="description" content="{{translations.tagline}}" />
 	<meta name="keywords"
 		content="{{translations.collaborative_whiteboard}},online,draw,paint,shared,realtime,wbo,whitebophir" />
-	<link rel="apple-touch-icon" href="../favicon.svg">
-	<link rel="icon" type="image/x-icon" sizes="16x16" href="../favicon.ico">
+	<link rel="apple-touch-icon" href="../favicon.svg?v={{version}}">
+	<link rel="icon" type="image/x-icon" sizes="16x16" href="../favicon.ico?v={{version}}">
 	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0" />
 	<meta property="og:title" content="{{board}} board on WBO" />
 	<meta property="og:url" content="{{baseUrl}}/boards/{{boardUriComponent}}" />
@@ -20,6 +20,9 @@
 	{{#languages}}
 	<link rel="alternate" hreflang="{{.}}" href="{{../boardUriComponent}}?lang={{.}}" />
 	{{/languages}}
+	{{#toolStylesheets}}
+	<link rel="stylesheet" type="text/css" href="{{.}}" />
+	{{/toolStylesheets}}
 </head>
 
 <body>
@@ -39,11 +42,13 @@
 	<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>
 		<div id="menuItems">
 			<ul id="tools" class="tools">
-				<li class="tool" tabindex="-1">
-					<img class="tool-icon" width="35" height="35" src="" alt="icon" />
-					<span class="tool-name"></span>
-					<img class="tool-icon secondaryIcon" width="35" height="35" src="data:," alt="icon" />
+				{{#tools}}
+				<li class="tool" tabindex="-1" id="toolID-{{name}}" data-tool-name="{{name}}">
+					<img class="tool-icon" width="35" height="35" src="{{iconUrl}}" alt="{{label}}" />
+					<span class="tool-name">{{label}}</span>
+					<img class="tool-icon secondaryIcon" width="35" height="35" src="data:," alt="" />
 				</li>
+				{{/tools}}
 			</ul>
 
 			<ul class="tools" id="settings">
@@ -56,7 +61,7 @@
 				</li>
 				<li class="tool" tabindex="-1"
 					title="{{translations.size}} ({{translations.keyboard_shortcut}}: alt + {{translations.mousewheel}})">
-					<img class="tool-icon" width="60" height="60" src="icon-size.svg" alt="size" />
+					<img class="tool-icon" width="60" height="60" src="icon-size.svg?v={{version}}" alt="size" />
 					<label class="tool-name slider" for="chooseSize">
 						<span>{{translations.size}}</span>
 						<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />
@@ -81,7 +86,7 @@
 					</label>
 				</li>
 				<li class="tool oneTouch" tabindex="-1" id="connectedUsersToggle">
-					<img class="tool-icon" width="35" height="35" src="users.svg" alt="" />
+					<img class="tool-icon" width="35" height="35" src="users.svg?v={{version}}" alt="" />
 					<span class="tool-name"></span>
 				</li>
 			</ul>

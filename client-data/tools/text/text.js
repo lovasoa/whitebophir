@@ -25,9 +25,10 @@
  */
 
 import { truncateText } from "../../js/message_common.js";
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 /** @param {any} Tools */
-export function registerTextTool(Tools) {
+function createTextTool(Tools) {
   /** @typedef {{type?: string, id?: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} TextMessage */
   /** @typedef {SVGTextElement & {id: string}} ExistingTextElement */
   /** @typedef {Event | KeyboardEvent | FocusEvent} TextInputEvent */
@@ -281,7 +282,7 @@ export function registerTextTool(Tools) {
     return elem;
   }
 
-  Tools.add({
+  return {
     //The new tool
     name: "Text",
     shortcut: "t",
@@ -294,5 +295,25 @@ export function registerTextTool(Tools) {
     stylesheet: "tools/text/text.css",
     icon: "tools/text/icon.svg",
     mouseCursor: "text",
-  });
+  };
+}
+
+/** @param {any} Tools */
+export function registerTextTool(Tools) {
+  const tool = createTextTool(Tools);
+  Tools.add(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class TextTool {
+  static toolName = "Text";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createTextTool(ctx.runtime.Tools);
+  }
 }

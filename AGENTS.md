@@ -9,15 +9,17 @@
 
 - Process boot + routes + socket server: [server startup](./server/server.mjs).
 - HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs).
+- Shared toolbar catalog + versioned tool asset helpers: [tool catalog](./client-data/js/tool_catalog.js), [tool assets](./client-data/js/tool_assets.js).
 - Realtime event handlers + broadcast path: [socket handlers](./server/sockets.mjs).
 - Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.mjs).
 - Canonical inbound payload normalization: [message schema gate](./server/message_validation.mjs).
 - In-memory board model + apply rules + disk sync: [board state engine](./server/boardData.mjs).
-- Page shell that loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js).
-- Client state machine + send/receive plumbing: [board runtime](./client-data/js/board.js).
+- Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js).
+- Client state machine + staged tool boot + send/receive plumbing: [board runtime](./client-data/js/board.js).
 - Shared socket transport utilities: [transport helpers](./client-data/js/board_transport.js).
 - Shared geometry/id/color/text clamps: [message primitives](./client-data/js/message_common.js).
 - Tool implementations that mutate SVG/DOM: [tool modules](./client-data/tools/).
+- Tool modules now default-export a tool class for dynamic `import()` boot, while legacy named `register*Tool` exports may still exist during migration.
 
 ## message lifecycle
 
@@ -38,6 +40,7 @@
 - Browser integration coverage: [playwright specs](./playwright/tests).
 - Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
 - Browser runner setup: [playwright config](./playwright.config.ts).
+- Server-rendered toolbar/icon/cache coverage: [server route tests](./test-node/server_routes.test.js).
 
 ## test commands
 

@@ -27,9 +27,10 @@
 /** @typedef {{getEffectiveRateLimit: (name: "general") => {periodMs?: number, limit?: number} | null, server_config: {RATE_LIMITS?: {[kind: string]: {periodMs?: number, limit?: number}}}, register: (tool: unknown) => void, addToolListeners: (tool: unknown) => void, getColor: () => string, getSize: () => number, drawAndSend: (msg: {type: string}, tool: unknown) => void, showMarker: boolean | undefined, showMyCursor: boolean | undefined, isIE: boolean, svg: SVGSVGElement | null, curTool: {showMarker?: boolean} | null}} CursorToolRegistry */
 /** @typedef {{type: "update", x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
 /** @typedef {{name: string, listeners: {press: () => void, move: (x: number, y: number) => void, release: () => void}, onSizeChange: (size: number) => void, draw: (message: CursorMessage) => void, mouseCursor: string, icon: string, showMarker: boolean}} CursorTool */
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 /** @param {CursorToolRegistry} tools */
-export function registerCursorTool(tools) {
+function createCursorTool(tools) {
   /**
    * @param {unknown} value
    * @param {number} fallback
@@ -91,10 +92,8 @@ export function registerCursorTool(tools) {
     mouseCursor: "crosshair",
     icon: "tools/pencil/icon.svg",
     showMarker: true,
+    alwaysOn: true,
   };
-  tools.register(cursorTool);
-  tools.addToolListeners(cursorTool);
-
   /** @type {CursorMessage} */
   const message = {
     type: "update",
@@ -192,5 +191,28 @@ export function registerCursorTool(tools) {
       );
     cursor.setAttributeNS(null, "fill", message.color);
     cursor.setAttributeNS(null, "r", String(message.size / 2));
+  }
+
+  return cursorTool;
+}
+
+/** @param {CursorToolRegistry} tools */
+export function registerCursorTool(tools) {
+  const tool = createCursorTool(tools);
+  tools.register(tool);
+  tools.addToolListeners(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class CursorToolClass {
+  static toolName = "Cursor";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createCursorTool(ctx.runtime.Tools);
   }
 }

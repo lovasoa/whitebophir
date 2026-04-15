@@ -241,7 +241,7 @@ test("server preserves an incoming request id header", async () => {
   ]);
 });
 
-test("board pages are no-store and render versioned asset URLs", async () => {
+test("board pages are no-store in development and render versioned asset URLs", async () => {
   const dirs = await createServerDirs();
   const packageJson = JSON.parse(await fs.readFile(PACKAGE_PATH, "utf8"));
 
@@ -268,6 +268,12 @@ test("board pages are no-store and render versioned asset URLs", async () => {
         response.body,
         new RegExp(`\\.\\./js/board_main\\.js\\?v=${packageJson.version}`),
       );
+      assert.match(
+        response.body,
+        new RegExp(
+          `\\.\\./tools/pencil/icon\\.svg\\?v(?:=|&#x3D;)${packageJson.version}`,
+        ),
+      );
     } finally {
       await closeServer(app);
     }
@@ -282,8 +288,9 @@ test("board pages are no-store and render versioned asset URLs", async () => {
   ]);
 });
 
-test("static assets are no-store in development and cacheable in production", async () => {
+test("static assets are no-store in development and cache correctly in production", async () => {
   const dirs = await createServerDirs();
+  const packageJson = JSON.parse(await fs.readFile(PACKAGE_PATH, "utf8"));
 
   await withEnv({
     HOST: "127.0.0.1",
@@ -331,6 +338,16 @@ test("static assets are no-store in development and cacheable in production", as
       assert.match(
         String(response.headers["cache-control"] || ""),
         /max-age=7200/,
+      );
+
+      const immutableResponse = await request(
+        app,
+        `/board.css?v=${encodeURIComponent(packageJson.version)}`,
+      );
+      assert.equal(immutableResponse.statusCode, 200);
+      assert.equal(
+        immutableResponse.headers["cache-control"],
+        "public, max-age=31536000, immutable",
       );
     } finally {
       await closeServer(app);

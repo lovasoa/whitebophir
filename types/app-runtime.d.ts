@@ -78,6 +78,9 @@ export type AppTool = {
   shortcut?: string;
   icon: string;
   draw: (message: BoardMessage, isLocal: boolean) => void;
+  press?: ToolPointerListener;
+  move?: ToolPointerListener;
+  release?: ToolPointerListener;
   onMessage?: (message: BoardMessage) => void;
   iconHTML?: string;
   listeners?: ToolPointerListeners;
@@ -168,6 +171,27 @@ export type ToolPalette = {
   addColorButton: (button: ColorPreset) => unknown;
 };
 
+export type ToolRuntime = {
+  Tools: AppToolsState;
+  activateTool: (toolName: string) => void;
+  getButton: (toolName: string) => HTMLElement | null;
+  registerShortcut: (toolName: string, key: string) => void;
+};
+
+export type ToolBootContext = {
+  toolName: string;
+  runtime: ToolRuntime;
+  button: HTMLElement | null;
+  version: string;
+  assetUrl: (assetFile: string) => string;
+};
+
+export type ToolClass<T extends AppTool = AppTool> = {
+  toolName: string;
+  replaySafe?: boolean;
+  boot: (ctx: ToolBootContext) => Promise<T> | T;
+};
+
 export type AppBoardState = {
   readonly: boolean;
   canWrite: boolean;
@@ -214,6 +238,10 @@ export type AppToolsState = {
   token: string | null;
   HTML: ToolPalette;
   list: ToolRegistry;
+  toolClasses: { [toolName: string]: ToolClass };
+  bootedToolPromises: { [toolName: string]: Promise<AppTool | null> };
+  bootedToolNames: Set<string>;
+  loadToolClassByName: ((toolName: string) => Promise<void>) | null;
   pendingMessages: PendingMessages;
   unreadMessagesCount: number;
   messageHooks: MessageHook[];
@@ -221,6 +249,14 @@ export type AppToolsState = {
   colorPresets: ColorPreset[];
   color_chooser: HTMLInputElement;
   sizeChangeHandlers: ((size: number) => void)[];
+  getToolAssetUrl: (toolName: string, assetFile: string) => string;
+  registerToolClass: (toolClass: ToolClass) => void;
+  ensureToolClassLoaded: (toolName: string) => Promise<ToolClass | null>;
+  mountTool: (tool: AppTool) => AppTool;
+  bootTool: (toolName: string) => Promise<AppTool | null>;
+  ensureToolBooted: (toolName: string) => Promise<AppTool | null>;
+  activateTool: (toolName: string) => Promise<boolean>;
+  startConnection: () => void;
   [name: string]: any;
 };
 

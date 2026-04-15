@@ -26,6 +26,7 @@
 
 /** @typedef {{type: "clear", id: string, token?: string | null}} ClearMessage */
 /** @typedef {{list: {[name: string]: any}, drawAndSend: (message: ClearMessage, tool: any) => void, token?: string | null, drawingArea: HTMLElement | null, add: (tool: any) => void}} ClearToolRegistry */
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 /** @param {ClearToolRegistry} tools */
 function clearBoard(tools) {
@@ -51,8 +52,8 @@ function draw(tools) {
 }
 
 /** @param {ClearToolRegistry} tools */
-export function registerClearTool(tools) {
-  tools.add({
+function createClearTool(tools) {
+  return {
     //The new tool
     name: "Clear",
     shortcut: "c",
@@ -66,5 +67,25 @@ export function registerClearTool(tools) {
       draw(tools);
     },
     mouseCursor: "crosshair",
-  });
+  };
+}
+
+/** @param {ClearToolRegistry} tools */
+export function registerClearTool(tools) {
+  const tool = createClearTool(tools);
+  tools.add(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class ClearTool {
+  static toolName = "Clear";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createClearTool(ctx.runtime.Tools);
+  }
 }

@@ -24,8 +24,10 @@
  * @licend
  */
 
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+
 /** @param {any} Tools */
-export function registerEllipseTool(Tools) {
+function createEllipseTool(Tools) {
   /** @typedef {{type: "ellipse", id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} EllipseStartData */
   /** @typedef {{type: "update", id: string, x: number, y: number, x2: number, y2: number}} EllipseUpdateData */
   /** @typedef {EllipseStartData | EllipseUpdateData} EllipseMessage */
@@ -233,5 +235,25 @@ export function registerEllipseTool(Tools) {
     mouseCursor: "crosshair",
     stylesheet: "tools/ellipse/ellipse.css",
   };
-  Tools.add(circleTool);
+  return circleTool;
+}
+
+/** @param {any} Tools */
+export function registerEllipseTool(Tools) {
+  const tool = createEllipseTool(Tools);
+  Tools.add(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class EllipseTool {
+  static toolName = "Ellipse";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createEllipseTool(ctx.runtime.Tools);
+  }
 }

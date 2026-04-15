@@ -6,6 +6,14 @@ import packageJson from "../package.json" with { type: "json" };
 
 import client_config from "./client_configuration.mjs";
 import serverConfig from "./configuration.mjs";
+import {
+  getToolIconUrl,
+  getToolStylesheetUrl,
+} from "../client-data/js/tool_assets.js";
+import {
+  getVisibleToolCatalogEntries,
+  TOOL_CATALOG,
+} from "../client-data/js/tool_catalog.js";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
@@ -246,6 +254,27 @@ class BoardTemplate extends Template {
     params.board = decodeURIComponent(boardUriComponent);
     params.hideMenu =
       parsedUrl.searchParams.get("hideMenu") === "true" || false;
+    const configuration = /** @type {{BLOCKED_TOOLS?: string[]}} */ (
+      params.configuration || {}
+    );
+    const blockedTools = Array.isArray(configuration.BLOCKED_TOOLS)
+      ? configuration.BLOCKED_TOOLS
+      : [];
+    const visibleTools = getVisibleToolCatalogEntries({
+      blockedTools: blockedTools,
+      boardState: params.boardState,
+      moderator: isModerator,
+    });
+    params.tools = visibleTools.map((tool) => ({
+      name: tool.name,
+      label:
+        params.translations[tool.name.toLowerCase().replace(/ /g, "_")] ||
+        tool.name,
+      iconUrl: getToolIconUrl(tool.name, params.version),
+    }));
+    params.toolStylesheets = TOOL_CATALOG.map((tool) =>
+      getToolStylesheetUrl(tool.name, params.version),
+    ).filter((href) => typeof href === "string");
     return params;
   }
 
@@ -253,7 +282,9 @@ class BoardTemplate extends Template {
    * @returns {string}
    */
   cacheControl() {
-    return "no-store";
+    return serverConfig.IS_DEVELOPMENT
+      ? "no-store"
+      : "public, max-age=0, must-revalidate";
   }
 }
 

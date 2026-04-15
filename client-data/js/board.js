@@ -38,6 +38,8 @@ import {
 import MessageCommon from "./message_common.js";
 import Minitpl from "./minitpl.js";
 import RateLimitCommon from "./rate_limit_common.js";
+import { getToolCatalogEntry } from "./tool_catalog.js";
+import { getToolRuntimeAssetPath } from "./tool_assets.js";
 
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
 /** @typedef {import("../../types/app-runtime").AppTool} AppTool */
@@ -52,6 +54,9 @@ import RateLimitCommon from "./rate_limit_common.js";
 /** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
 /** @typedef {import("../../types/app-runtime").ToolPalette} ToolPalette */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
+/** @typedef {import("../../types/app-runtime").ToolClass} ToolClass */
+/** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @typedef {import("../../types/app-runtime").ToolRuntime} ToolRuntime */
 /** @typedef {{board?: string, socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastFocusX?: number, lastFocusY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{limit?: number, periodMs?: number, anonymousLimit?: number, overrides?: {[boardName: string]: {limit?: number, periodMs?: number}}}} RateLimitDefinition */
@@ -88,6 +93,30 @@ function getRequiredToolButtonParts(toolName) {
   if (!primaryIcon || !label) {
     throw new Error(`Missing required tool button structure for ${toolName}`);
   }
+  return {
+    button: button,
+    primaryIcon: primaryIcon,
+    secondaryIcon: /** @type {HTMLImageElement | null} */ (
+      button.querySelector(".secondaryIcon")
+    ),
+    label: label,
+  };
+}
+
+/**
+ * @param {string} toolName
+ * @returns {{button: HTMLElement, primaryIcon: HTMLImageElement, secondaryIcon: HTMLImageElement | null, label: HTMLElement} | null}
+ */
+function getToolButtonParts(toolName) {
+  const button = document.getElementById(`toolID-${toolName}`);
+  if (!(button instanceof HTMLElement)) return null;
+  const primaryIcon = /** @type {HTMLImageElement | null} */ (
+    button.querySelector(".tool-icon")
+  );
+  const label = /** @type {HTMLElement | null} */ (
+    button.querySelector(".tool-name")
+  );
+  if (!primaryIcon || !label) return null;
   return {
     button: button,
     primaryIcon: primaryIcon,
@@ -145,7 +174,20 @@ Tools.versionAssetPath = function versionAssetPath(assetPath) {
   return `${assetPath}${separator}v=${encodeURIComponent(Tools.assetVersion)}`;
 };
 
+/**
+ * @param {string} toolName
+ * @param {string} assetFile
+ * @returns {string}
+ */
+Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
+  return Tools.versionAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
+};
+
 Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
+Tools.toolClasses = {};
+Tools.bootedToolPromises = {};
+Tools.bootedToolNames = new Set();
+Tools.loadToolClassByName = null;
 Tools.turnstileValidatedUntil = 0;
 Tools.turnstileWidgetId = null;
 Tools.turnstileRefreshTimeout = null;
@@ -162,7 +204,7 @@ Tools.snapshotRevision = 0;
 Tools.preSnapshotMessages = [];
 Tools.incomingBroadcastQueue = [];
 Tools.processingIncomingBroadcast = false;
-Tools.connectionState = "connecting";
+Tools.connectionState = "idle";
 Tools.localRateLimitStates = {
   general: RateLimitCommon.createRateLimitState(Date.now()),
   constructive: RateLimitCommon.createRateLimitState(Date.now()),
@@ -933,6 +975,12 @@ Tools.setBoardState = function setBoardState(state) {
 
 /** @param {string} toolName */
 Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
+  const hasServerRenderedToolbar =
+    document.querySelector("#tools > .tool[data-tool-name]") !== null;
+  if (hasServerRenderedToolbar) {
+    return getToolButton(toolName) !== null;
+  }
+  if (!getToolCatalogEntry(toolName)) return false;
   return BoardTools.shouldDisplayTool(
     toolName,
     Tools.boardState,
@@ -1546,12 +1594,13 @@ Tools.initConnectedUsersUI = function initConnectedUsersUI() {
 
 Tools.initConnectedUsersUI();
 
-Tools.connect = () => {
+Tools.startConnection = () => {
   // Destroy socket if one already exists
   if (Tools.socket) {
     BoardConnection.closeSocket(Tools.socket);
     Tools.socket = null;
   }
+  Tools.connectionState = "connecting";
   Object.values(Tools.connectedUsers).forEach((user) => {
     if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
@@ -1636,8 +1685,6 @@ Tools.token = (() => {
   return params.get("token");
 })();
 
-Tools.connect();
-
 function saveBoardNametoLocalStorage() {
   const boardName = Tools.boardName;
   const key = "recent-boards";
@@ -1656,8 +1703,117 @@ function saveBoardNametoLocalStorage() {
 // Refresh recent boards list on each page show
 window.addEventListener("pageshow", saveBoardNametoLocalStorage);
 
+/**
+ * @param {HTMLElement} button
+ * @param {string} toolName
+ * @returns {void}
+ */
+function bindToolButton(button, toolName) {
+  if (button.dataset.toolBound === "true") return;
+  button.dataset.toolName = toolName;
+  button.dataset.toolBound = "true";
+  button.addEventListener("click", () => {
+    void Tools.activateTool(toolName);
+  });
+  button.addEventListener("keydown", (evt) => {
+    if (evt.key === "Enter" || evt.key === " ") {
+      evt.preventDefault();
+      void Tools.activateTool(toolName);
+    }
+  });
+}
+
+/**
+ * @param {string} toolName
+ * @returns {HTMLElement}
+ */
+function createToolButton(toolName) {
+  const button = document.createElement("li");
+  button.className = "tool";
+  button.tabIndex = -1;
+  button.id = `toolID-${toolName}`;
+
+  const primaryIcon = document.createElement("img");
+  primaryIcon.className = "tool-icon";
+  primaryIcon.width = 35;
+  primaryIcon.height = 35;
+  primaryIcon.alt = "icon";
+  button.appendChild(primaryIcon);
+
+  const label = document.createElement("span");
+  label.className = "tool-name";
+  button.appendChild(label);
+
+  const secondaryIcon = document.createElement("img");
+  secondaryIcon.className = "tool-icon secondaryIcon";
+  secondaryIcon.width = 35;
+  secondaryIcon.height = 35;
+  secondaryIcon.src = "data:,";
+  secondaryIcon.alt = "";
+  button.appendChild(secondaryIcon);
+
+  const toolsList = document.getElementById("tools");
+  if (!toolsList) {
+    throw new Error("Missing tools list.");
+  }
+  toolsList.appendChild(button);
+  bindToolButton(button, toolName);
+  return button;
+}
+
+/**
+ * @param {string} toolName
+ * @returns {HTMLElement | null}
+ */
+function getToolButton(toolName) {
+  const button = document.getElementById(`toolID-${toolName}`);
+  return button instanceof HTMLElement ? button : null;
+}
+
+/**
+ * @param {string} toolName
+ * @param {AppTool} tool
+ * @returns {void}
+ */
+function hydrateToolButton(toolName, tool) {
+  const button =
+    getToolButton(toolName) ||
+    (Tools.shouldDisplayTool(toolName) ? createToolButton(toolName) : null);
+  if (!button) return;
+  bindToolButton(button, toolName);
+  const parts = getRequiredToolButtonParts(toolName);
+  parts.label.textContent = Tools.i18n.t(toolName);
+  parts.primaryIcon.src = Tools.versionAssetPath(tool.icon);
+  parts.primaryIcon.alt = Tools.i18n.t(toolName);
+  button.classList.toggle("oneTouch", tool.oneTouch === true);
+  button.classList.toggle("hasSecondary", !!tool.secondary);
+  parts.primaryIcon.classList.toggle("primaryIcon", !!tool.secondary);
+  button.title = tool.shortcut
+    ? `${Tools.i18n.t(toolName)} (${Tools.i18n.t("keyboard shortcut")}: ${tool.shortcut})`
+    : Tools.i18n.t(toolName);
+  if (tool.secondary && parts.secondaryIcon) {
+    parts.secondaryIcon.src = Tools.versionAssetPath(tool.secondary.icon);
+    parts.secondaryIcon.alt = Tools.i18n.t(tool.secondary.name);
+    button.title += ` [${Tools.i18n.t("click_to_toggle")}]`;
+  } else if (parts.secondaryIcon) {
+    parts.secondaryIcon.src = "data:,";
+    parts.secondaryIcon.alt = "";
+  }
+}
+
+function bindRenderedToolButtons() {
+  document
+    .querySelectorAll("#tools > .tool[data-tool-name]")
+    .forEach((element) => {
+      if (!(element instanceof HTMLElement)) return;
+      const toolName = element.dataset.toolName;
+      if (!toolName) return;
+      bindToolButton(element, toolName);
+    });
+}
+
 Tools.HTML = /** @type {ToolPalette} */ ({
-  template: new Minitpl("#tools > .tool"),
+  template: null,
   addShortcut: function addShortcut(key, callback) {
     window.addEventListener("keydown", (e) => {
       if (e.key === key && !isTextEntryTarget(e.target)) {
@@ -1672,51 +1828,23 @@ Tools.HTML = /** @type {ToolPalette} */ ({
     toolShortcut,
     oneTouch,
   ) {
-    const callback = () => {
-      if (!Tools.canUseTool(toolName)) return;
-      Tools.change(toolName);
-    };
-    this.addShortcut(toolShortcut, () => {
-      if (!Tools.canUseTool(toolName)) return;
-      Tools.change(toolName);
-      blurActiveElement();
-    });
-    return this.template.add((/** @type {HTMLElement} */ elem) => {
-      elem.addEventListener("click", callback);
-      elem.id = `toolID-${toolName}`;
-      const label = /** @type {HTMLElement | undefined} */ (
-        elem.getElementsByClassName("tool-name")[0]
-      );
-      const toolIconElem = /** @type {HTMLImageElement | undefined} */ (
-        elem.getElementsByClassName("tool-icon")[0]
-      );
-      if (!label || !toolIconElem) {
-        throw new Error("Invalid tool template structure");
-      }
-      label.textContent = Tools.i18n.t(toolName);
-      toolIconElem.src = toolIcon;
-      toolIconElem.alt = toolIcon;
-      if (oneTouch) elem.classList.add("oneTouch");
-      const tool = Tools.list[toolName];
-      if (!tool) {
-        throw new Error(`Tool not registered before rendering: ${toolName}`);
-      }
-      elem.title =
-        `${Tools.i18n.t(toolName)} (${Tools.i18n.t("keyboard shortcut")}: ${toolShortcut})` +
-        (tool.secondary ? ` [${Tools.i18n.t("click_to_toggle")}]` : "");
-      if (tool.secondary) {
-        elem.classList.add("hasSecondary");
-        const secondaryIcon = /** @type {HTMLImageElement | undefined} */ (
-          elem.getElementsByClassName("secondaryIcon")[0]
-        );
-        if (!secondaryIcon) {
-          throw new Error(`Missing secondary icon for tool ${toolName}`);
-        }
-        secondaryIcon.src = tool.secondary.icon;
-        toolIconElem.classList.add("primaryIcon");
-      }
-      Tools.syncToolDisabledState(toolName);
-    });
+    const tool = Tools.list[toolName];
+    if (!tool) {
+      throw new Error(`Tool not registered before rendering: ${toolName}`);
+    }
+    if (toolShortcut) {
+      this.addShortcut(toolShortcut, () => {
+        void Tools.activateTool(toolName);
+        blurActiveElement();
+      });
+    }
+    tool.icon = toolIcon;
+    tool.iconHTML = toolIconHTML;
+    tool.shortcut = toolShortcut || tool.shortcut;
+    tool.oneTouch = oneTouch;
+    hydrateToolButton(toolName, tool);
+    Tools.syncToolDisabledState(toolName);
+    return getToolButton(toolName);
   },
   changeTool: (oldToolName, newToolName) => {
     const oldTool = document.getElementById(`toolID-${oldToolName}`);
@@ -1735,16 +1863,21 @@ Tools.HTML = /** @type {ToolPalette} */ ({
     const secondaryIconSrc = secondaryIcon.src;
     parts.primaryIcon.src = secondaryIconSrc;
     secondaryIcon.src = primaryIconSrc;
-    parts.primaryIcon.src = icon;
+    parts.primaryIcon.src = Tools.versionAssetPath(icon);
     parts.label.textContent = Tools.i18n.t(name);
   },
   addStylesheet: function addStylesheet(href) {
-    //Adds a css stylesheet to the html or svg document
+    const versionedHref = Tools.versionAssetPath(href);
+    const existing = Array.from(
+      document.querySelectorAll('link[rel="stylesheet"]'),
+    ).find((link) => link.getAttribute("href") === versionedHref);
+    if (existing) return existing;
     const link = document.createElement("link");
-    link.href = Tools.versionAssetPath(href);
+    link.href = versionedHref;
     link.rel = "stylesheet";
     link.type = "text/css";
     document.head.appendChild(link);
+    return link;
   },
   colorPresetTemplate: new Minitpl("#colorPresetSel .colorPresetButton"),
   addColorButton: function addColorButton(button) {
@@ -1761,7 +1894,157 @@ Tools.HTML = /** @type {ToolPalette} */ ({
   },
 });
 
+bindRenderedToolButtons();
+
 Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
+
+/**
+ * @param {ToolClass} ToolClass
+ * @returns {void}
+ */
+Tools.registerToolClass = function registerToolClass(ToolClass) {
+  const toolName = ToolClass?.toolName;
+  if (typeof toolName !== "string" || toolName === "") {
+    throw new Error("Tool classes must expose a static toolName.");
+  }
+  Tools.toolClasses[toolName] = ToolClass;
+};
+
+/**
+ * @param {string} toolName
+ * @returns {Promise<ToolClass | null>}
+ */
+Tools.ensureToolClassLoaded = async function ensureToolClassLoaded(toolName) {
+  const existing = Tools.toolClasses[toolName];
+  if (existing) return existing;
+  if (typeof Tools.loadToolClassByName === "function") {
+    await Tools.loadToolClassByName(toolName);
+  }
+  return Tools.toolClasses[toolName] || null;
+};
+
+/**
+ * @param {string} toolName
+ * @returns {ToolBootContext}
+ */
+function createToolBootContext(toolName) {
+  /** @type {ToolRuntime} */
+  const runtime = {
+    Tools: Tools,
+    activateTool: (name) => {
+      void Tools.activateTool(name);
+    },
+    getButton: (name) => getToolButton(name),
+    registerShortcut: (name, key) => {
+      Tools.HTML.addShortcut(key, () => {
+        void Tools.activateTool(name);
+      });
+    },
+  };
+  return {
+    toolName: toolName,
+    runtime: runtime,
+    button: getToolButton(toolName),
+    version: Tools.assetVersion,
+    assetUrl: (assetFile) => Tools.getToolAssetUrl(toolName, assetFile),
+  };
+}
+
+/**
+ * @param {AppTool} tool
+ * @returns {ToolPointerListeners}
+ */
+function deriveListeners(tool) {
+  return {
+    press:
+      typeof tool.press === "function"
+        ? tool.press.bind(tool)
+        : tool.listeners?.press,
+    move:
+      typeof tool.move === "function"
+        ? tool.move.bind(tool)
+        : tool.listeners?.move,
+    release:
+      typeof tool.release === "function"
+        ? tool.release.bind(tool)
+        : tool.listeners?.release,
+  };
+}
+
+/**
+ * @param {AppTool} tool
+ * @returns {AppTool}
+ */
+Tools.mountTool = function mountTool(tool) {
+  if (!tool.listeners) {
+    tool.listeners = deriveListeners(tool);
+  }
+  if (tool.stylesheet) {
+    Tools.HTML.addStylesheet(tool.stylesheet);
+  }
+  Tools.register(tool);
+  if (Tools.shouldDisplayTool(tool.name) || getToolButton(tool.name)) {
+    Tools.HTML.addTool(
+      tool.name,
+      tool.icon,
+      tool.iconHTML,
+      tool.shortcut || "",
+      tool.oneTouch,
+    );
+  }
+  Tools.syncToolDisabledState(tool.name);
+  if (tool.alwaysOn === true) {
+    Tools.addToolListeners(tool);
+  }
+  return tool;
+};
+
+/**
+ * @param {string} toolName
+ * @returns {Promise<AppTool | null>}
+ */
+Tools.bootTool = async function bootTool(toolName) {
+  const existingTool = Tools.list[toolName];
+  if (existingTool) return existingTool;
+  const inFlight = Tools.bootedToolPromises[toolName];
+  if (inFlight) return inFlight;
+
+  const promise = Tools.ensureToolClassLoaded(toolName).then(
+    async function onToolClassLoaded(ToolClass) {
+      if (!ToolClass || typeof ToolClass.boot !== "function") return null;
+      const bootedTool = await ToolClass.boot(createToolBootContext(toolName));
+      if (!bootedTool) return null;
+      Tools.bootedToolNames.add(toolName);
+      return Tools.mountTool(bootedTool);
+    },
+  );
+
+  Tools.bootedToolPromises[toolName] = promise;
+  try {
+    return await promise;
+  } finally {
+    delete Tools.bootedToolPromises[toolName];
+  }
+};
+
+/**
+ * @param {string} toolName
+ * @returns {Promise<AppTool | null>}
+ */
+Tools.ensureToolBooted = function ensureToolBooted(toolName) {
+  return Tools.bootTool(toolName);
+};
+
+/**
+ * @param {string} toolName
+ * @returns {Promise<boolean>}
+ */
+Tools.activateTool = async function activateTool(toolName) {
+  if (!Tools.shouldDisplayTool(toolName)) return false;
+  const tool = await Tools.ensureToolBooted(toolName);
+  if (!tool || !Tools.canUseTool(toolName)) return false;
+  return Tools.change(toolName) !== false;
+};
 
 /** @param {AppTool} tool */
 Tools.isBlocked = function toolIsBanned(tool) {
@@ -1813,25 +2096,7 @@ Tools.register = function registerTool(newTool) {
 /** @param {AppTool} newTool */
 Tools.add = (newTool) => {
   if (Tools.isBlocked(newTool)) return;
-
-  Tools.register(newTool);
-
-  if (newTool.stylesheet) {
-    Tools.HTML.addStylesheet(newTool.stylesheet);
-  }
-
-  //Add the tool to the GUI
-  if (Tools.shouldDisplayTool(newTool.name)) {
-    Tools.HTML.addTool(
-      newTool.name,
-      newTool.icon,
-      newTool.iconHTML,
-      newTool.shortcut || "",
-      newTool.oneTouch,
-    );
-  }
-
-  Tools.syncToolDisabledState(newTool.name);
+  Tools.mountTool(newTool);
 };
 
 /** @param {string} toolName */

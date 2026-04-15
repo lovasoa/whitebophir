@@ -25,9 +25,10 @@
  */
 
 /** @typedef {{svg: SVGSVGElement | null, boardName: string, add: (tool: unknown) => void}} DownloadToolRegistry */
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 /** @param {DownloadToolRegistry} tools */
-export function registerDownloadTool(tools) {
+function createDownloadTool(tools) {
   /** @returns {void} */
   function downloadSVGFile() {
     if (!tools.svg) {
@@ -86,7 +87,7 @@ export function registerDownloadTool(tools) {
     }
   }
 
-  tools.add({
+  return {
     //The new tool
     name: "Download",
     shortcut: "d",
@@ -95,5 +96,25 @@ export function registerDownloadTool(tools) {
     oneTouch: true,
     onstart: downloadSVGFile,
     mouseCursor: "crosshair",
-  });
+  };
+}
+
+/** @param {DownloadToolRegistry} tools */
+export function registerDownloadTool(tools) {
+  const tool = createDownloadTool(tools);
+  tools.add(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class DownloadTool {
+  static toolName = "Download";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createDownloadTool(ctx.runtime.Tools);
+  }
 }

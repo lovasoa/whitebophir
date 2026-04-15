@@ -27,9 +27,10 @@
 /** @typedef {{type: "delete", id: string}} EraserMessage */
 /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
 /** @typedef {{svg: SVGSVGElement | null, drawingArea: Element | null, drawAndSend: (message: EraserMessage) => void, add: (tool: unknown) => void}} EraserToolRegistry */
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 /** @param {EraserToolRegistry} tools */
-export function registerEraserTool(tools) {
+function createEraserTool(tools) {
   let erasing = false;
 
   /**
@@ -146,7 +147,7 @@ export function registerEraserTool(tools) {
     }
   }
 
-  tools.add({
+  return {
     //The new tool
     name: "Eraser",
     shortcut: "e",
@@ -159,5 +160,25 @@ export function registerEraserTool(tools) {
     icon: "tools/eraser/icon.svg",
     mouseCursor: "crosshair",
     showMarker: true,
-  });
+  };
+}
+
+/** @param {EraserToolRegistry} tools */
+export function registerEraserTool(tools) {
+  const tool = createEraserTool(tools);
+  tools.add(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class EraserTool {
+  static toolName = "Eraser";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createEraserTool(ctx.runtime.Tools);
+  }
 }

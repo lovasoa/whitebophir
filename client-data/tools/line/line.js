@@ -24,6 +24,7 @@
  * @licend
  */
 
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {{type: "straight", id: string, x: number, y: number, x2?: number, y2?: number, color?: string, size?: number, opacity?: number}} LineStartData */
 /** @typedef {{type: "update", id: string, x2: number, y2: number}} LineUpdateData */
 /** @typedef {LineStartData | LineUpdateData} LineMessage */
@@ -33,9 +34,9 @@
 
 /**
  * @param {LineToolRegistry} tools
- * @returns {void}
+ * @returns {any}
  */
-export function registerLineTool(tools) {
+function createLineTool(tools) {
   /**
    * @param {Element | null} element
    * @returns {element is ExistingLine}
@@ -226,5 +227,28 @@ export function registerLineTool(tools) {
     icon: "tools/line/icon.svg",
     stylesheet: "tools/line/line.css",
   };
-  tools.add(lineTool);
+  return lineTool;
+}
+
+/**
+ * @param {LineToolRegistry} tools
+ * @returns {any}
+ */
+export function registerLineTool(tools) {
+  const tool = createLineTool(tools);
+  tools.add(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class StraightLineTool {
+  static toolName = "Straight line";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createLineTool(ctx.runtime.Tools);
+  }
 }

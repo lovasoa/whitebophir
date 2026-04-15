@@ -67,14 +67,40 @@ function cacheControl(cacheValue) {
   return config.IS_DEVELOPMENT ? "no-store" : cacheValue;
 }
 
+/**
+ * @param {HttpRequest | undefined} request
+ * @returns {boolean}
+ */
+function hasVersionToken(request) {
+  if (!request) return false;
+  return new URL(request.url || "/", "http://wbo/").searchParams.has("v");
+}
+
 const fileserver = serveStatic(config.WEBROOT, {
-  maxAge: config.IS_DEVELOPMENT ? 0 : 2 * 3600 * 1000,
+  maxAge: 0,
   /** @param {HttpResponse} res */
-  setHeaders: (res) => {
+  setHeaders: (res, /** @type {string} */ filePath) => {
     res.setHeader("Content-Security-Policy", CSP);
     if (config.IS_DEVELOPMENT) {
       res.setHeader("Cache-Control", "no-store");
+      return;
     }
+    const ext = path.extname(filePath || "").toLowerCase();
+    const isStaticAsset = [
+      ".js",
+      ".css",
+      ".svg",
+      ".ico",
+      ".png",
+      ".jpg",
+      ".gif",
+    ].includes(ext);
+    if (!isStaticAsset) return;
+    if (hasVersionToken(res.req)) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return;
+    }
+    res.setHeader("Cache-Control", "public, max-age=7200");
   },
 });
 

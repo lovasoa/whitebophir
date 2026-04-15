@@ -24,8 +24,10 @@
  * @licend
  */
 
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+
 /** @param {any} Tools */
-export function registerRectTool(Tools) {
+function createRectTool(Tools) {
   /** @typedef {{type: "rect", id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} RectangleStartData */
   /** @typedef {{type: "update", id: string, x: number, y: number, x2: number, y2: number}} RectangleUpdateData */
   /** @typedef {RectangleStartData | RectangleUpdateData} RectangleMessage */
@@ -220,5 +222,25 @@ export function registerRectTool(Tools) {
     icon: "tools/rect/icon.svg",
     stylesheet: "tools/rect/rect.css",
   };
-  Tools.add(rectangleTool);
+  return rectangleTool;
+}
+
+/** @param {any} Tools */
+export function registerRectTool(Tools) {
+  const tool = createRectTool(Tools);
+  Tools.add(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class RectangleTool {
+  static toolName = "Rectangle";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createRectTool(ctx.runtime.Tools);
+  }
 }

@@ -26,9 +26,10 @@
 
 /** @typedef {"none" | "url(#grid)" | "url(#dots)"} GridFill */
 /** @typedef {{svg: SVGSVGElement | null, drawingArea: Element | null, createSVGElement: (name: string, attrs?: Record<string, string | undefined>) => Element, add: (tool: unknown) => void}} GridToolRegistry */
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 /** @param {GridToolRegistry} tools */
-export function registerGridTool(tools) {
+function createGridTool(tools) {
   let index = 0; //grid off by default
   /** @type {GridFill[]} */
   const states = ["none", "url(#grid)", "url(#dots)"];
@@ -140,7 +141,7 @@ export function registerGridTool(tools) {
     return gridContainer;
   })();
 
-  tools.add({
+  return {
     //The new tool
     name: "Grid",
     shortcut: "g",
@@ -149,5 +150,25 @@ export function registerGridTool(tools) {
     oneTouch: true,
     onstart: toggleGrid,
     mouseCursor: "crosshair",
-  });
+  };
+}
+
+/** @param {GridToolRegistry} tools */
+export function registerGridTool(tools) {
+  const tool = createGridTool(tools);
+  tools.add(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class GridTool {
+  static toolName = "Grid";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createGridTool(ctx.runtime.Tools);
+  }
 }

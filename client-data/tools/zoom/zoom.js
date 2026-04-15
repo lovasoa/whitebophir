@@ -28,9 +28,10 @@
 /** @typedef {{preventDefault(): void, clientY?: number, pageX?: number, pageY?: number, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, deltaMode?: number, deltaX?: number, deltaY?: number, changedTouches?: TouchList, touches?: TouchList}} ZoomPointerEvent */
 /** @typedef {(evt: KeyboardEvent) => void} ZoomKeyHandler */
 /** @typedef {{add: (tool: unknown) => void, board: {addEventListener: (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined) => void}, getScale: () => number, setScale: (scale:number)=>number, setSize: (size:number)=>void, getSize: ()=>number, svg: SVGSVGElement}} ZoomToolRegistry */
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 /** @param {ZoomToolRegistry} tools */
-export function registerZoomTool(tools) {
+function createZoomTool(tools) {
   const ZOOM_FACTOR = 0.5;
   /** @type {ZoomOrigin} */
   const origin = {
@@ -258,5 +259,25 @@ export function registerZoomTool(tools) {
     helpText: "click_to_zoom",
     showMarker: true,
   };
-  tools.add(zoomTool);
+  return zoomTool;
+}
+
+/** @param {ZoomToolRegistry} tools */
+export function registerZoomTool(tools) {
+  const tool = createZoomTool(tools);
+  tools.add(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class ZoomTool {
+  static toolName = "Zoom";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createZoomTool(ctx.runtime.Tools);
+  }
 }

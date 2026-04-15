@@ -26,9 +26,14 @@
 
 import { LIMITS } from "../../js/message_common.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
+/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 /** @param {any} Tools */
-export function registerPencilTool(Tools) {
+function createPencilTool(
+  Tools,
+  assetUrl = /** @param {string} assetFile */ (assetFile) =>
+    `tools/pencil/${assetFile}`,
+) {
   /** @typedef {{type: "line", id: string, color?: string, size?: number, opacity?: number}} PencilLineData */
   /** @typedef {{type: "child", parent: string, x: number, y: number}} PencilChildData */
   /** @typedef {PencilLineData | PencilChildData | {type: "endline"} | {type?: string, id?: string, color?: string, size?: number, opacity?: number, parent?: string, x?: number, y?: number}} PencilMessage */
@@ -399,9 +404,29 @@ export function registerPencilTool(Tools) {
         restoreDrawingSize();
       }
     },
-    mouseCursor: "url('tools/pencil/cursor.svg'), crosshair",
+    mouseCursor: `url('${assetUrl("cursor.svg")}'), crosshair`,
     icon: "tools/pencil/icon.svg",
     stylesheet: "tools/pencil/pencil.css",
   };
-  Tools.add(pencilTool);
+  return pencilTool;
+}
+
+/** @param {any} Tools */
+export function registerPencilTool(Tools) {
+  const tool = createPencilTool(Tools);
+  Tools.add(tool);
+  return tool;
+}
+
+// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
+export default class PencilTool {
+  static toolName = "Pencil";
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<any>}
+   */
+  static async boot(ctx) {
+    return createPencilTool(ctx.runtime.Tools, ctx.assetUrl);
+  }
 }

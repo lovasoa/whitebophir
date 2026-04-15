@@ -87,6 +87,11 @@ export class BoardPage {
 
   async gotoBoard(boardName: string, options: BoardUrlOptions = {}) {
     await this.page.goto(this.buildBoardUrl(boardName, options));
+    await this.page.waitForFunction(() => {
+      if (!document.getElementById("board")) return true;
+      const state = document.documentElement.dataset.boardReady;
+      return state === "true" || state === "error";
+    });
   }
 
   async gotoPreview(boardName: string, options: BoardUrlOptions = {}) {
@@ -931,13 +936,12 @@ export class BoardPage {
   async readCursorAttributes() {
     return this.page.evaluate(() => {
       const cursor = document.getElementById("cursor-me");
+      if (!(cursor instanceof SVGElement)) return null;
       const style =
-        cursor instanceof SVGElement
-          ? cursor.style.transform || window.getComputedStyle(cursor).transform
-          : "";
+        cursor.style.transform || window.getComputedStyle(cursor).transform;
       return {
-        transform: style || cursor?.getAttribute("transform"),
-        fill: cursor?.getAttribute("fill"),
+        transform: style || cursor.getAttribute("transform"),
+        fill: cursor.getAttribute("fill"),
       };
     });
   }
