@@ -201,9 +201,3 @@ export function registerCursorTool(tools) {
     cursor.setAttributeNS(null, "r", String(message.size / 2));
   }
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerCursorTool(
-    /** @type {CursorToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
-  );
-}

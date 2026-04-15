@@ -260,9 +260,3 @@ export function registerZoomTool(tools) {
   };
   tools.add(zoomTool);
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerZoomTool(
-    /** @type {ZoomToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
-  );
-}

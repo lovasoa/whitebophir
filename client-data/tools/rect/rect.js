@@ -221,7 +221,3 @@ export function registerRectTool(Tools) {
   };
   Tools.add(rectangleTool);
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerRectTool(window.Tools);
-}

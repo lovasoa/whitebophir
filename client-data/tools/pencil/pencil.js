@@ -404,7 +404,3 @@ export function registerPencilTool(Tools) {
   };
   Tools.add(pencilTool);
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerPencilTool(window.Tools);
-}

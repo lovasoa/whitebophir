@@ -99,9 +99,3 @@ export function registerDownloadTool(tools) {
     mouseCursor: "crosshair",
   });
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerDownloadTool(
-    /** @type {DownloadToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
-  );
-}

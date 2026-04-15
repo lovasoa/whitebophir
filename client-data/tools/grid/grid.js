@@ -151,9 +151,3 @@ export function registerGridTool(tools) {
     mouseCursor: "crosshair",
   });
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerGridTool(
-    /** @type {GridToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
-  );
-}

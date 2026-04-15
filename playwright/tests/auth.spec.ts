@@ -68,6 +68,11 @@ test.describe("JWT auth and readonly flows", () => {
       color: "#123456",
       size: 4,
     });
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "readonly-test",
+      (storedBoard) => !!storedBoard["readonly-editor-rect"],
+    );
     await page.reload();
     await expect(page.locator(readonlySelector)).toBeVisible();
 

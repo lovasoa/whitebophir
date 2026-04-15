@@ -838,7 +838,3 @@ export function registerHandTool(Tools) {
   Tools.add(handTool);
   Tools.change("Hand"); // Use the hand tool by default
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerHandTool(window.Tools);
-}

@@ -227,9 +227,3 @@ export function registerLineTool(tools) {
   };
   tools.add(lineTool);
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerLineTool(
-    /** @type {LineToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
-  );
-}

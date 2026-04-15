@@ -68,9 +68,3 @@ export function registerClearTool(tools) {
     mouseCursor: "crosshair",
   });
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerClearTool(
-    /** @type {ClearToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
-  );
-}

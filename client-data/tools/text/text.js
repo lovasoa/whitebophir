@@ -296,7 +296,3 @@ export function registerTextTool(Tools) {
     mouseCursor: "text",
   });
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerTextTool(window.Tools);
-}

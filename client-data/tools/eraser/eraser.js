@@ -161,9 +161,3 @@ export function registerEraserTool(tools) {
     showMarker: true,
   });
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerEraserTool(
-    /** @type {EraserToolRegistry} */ (/** @type {unknown} */ (window.Tools)),
-  );
-}

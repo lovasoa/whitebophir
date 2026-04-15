@@ -234,7 +234,3 @@ export function registerEllipseTool(Tools) {
   };
   Tools.add(circleTool);
 }
-
-if (typeof window !== "undefined" && window.Tools) {
-  registerEllipseTool(window.Tools);
-}
