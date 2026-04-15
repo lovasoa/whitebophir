@@ -213,57 +213,66 @@ const runtimeState = {
 const httpServerRequestDuration = meter.createHistogram(
   "http.server.request.duration",
   {
-    description: "Duration of HTTP server requests.",
+    description:
+      "Elapsed time, in seconds, from the start of an HTTP request until its response finishes or closes.",
     unit: "s",
   },
 );
 const httpServerActiveRequests = meter.createUpDownCounter(
   "http.server.active_requests",
   {
-    description: "Number of active HTTP server requests.",
+    description:
+      "Current number of HTTP requests that have started but whose responses have not yet finished or closed.",
     unit: "{request}",
   },
 );
 const socketConnections = meter.createCounter("wbo.socket.connection", {
-  description: "Socket connections opened and closed.",
+  description:
+    "Count of Socket.IO connection lifecycle events observed by the server; wbo.socket.connection.event distinguishes connected from disconnected.",
   unit: "{connection}",
 });
 const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
-  description: "Duration of socket event handlers.",
+  description:
+    "Elapsed time, in seconds, spent handling each top-level Socket.IO event callback; histogram count is the number of handled events.",
   unit: "s",
 });
 const boardMessages = meter.createCounter("wbo.board.message", {
-  description: "Board messages processed by the server write path.",
+  description:
+    "Count of board write-path messages processed by the server after validation and authorization; error.type is set for rejected or failed messages.",
   unit: "{message}",
 });
 const boardOperationDuration = meter.createHistogram(
   "wbo.board.operation.duration",
   {
-    description: "Duration of board operations.",
+    description:
+      "Elapsed time, in seconds, for board persistence operations such as load, save, and unload; histogram count is the number of operations and error.type marks non-success outcomes.",
     unit: "s",
   },
 );
 const turnstileVerifications = meter.createCounter(
   "wbo.turnstile.verification",
   {
-    description: "Turnstile verification attempts.",
+    description:
+      "Count of Turnstile verification attempts performed by the server; error.type is set for rejected or failed verifications.",
     unit: "{verification}",
   },
 );
 const loadedBoardsGauge = meter.createObservableGauge("wbo.board.loaded", {
-  description: "Boards currently loaded in memory.",
+  description: "Current number of board instances loaded in server memory.",
 });
 const activeSocketConnectionsGauge = meter.createObservableGauge(
   "wbo.socket.connection.active",
   {
-    description: "Active socket connections.",
+    description:
+      "Current number of active Socket.IO connections tracked by the server.",
     unit: "{connection}",
   },
 );
 const connectedUsersGauge = meter.createObservableGauge(
   "wbo.board.user.connected",
   {
-    description: "Active board memberships connected across loaded boards.",
+    description:
+      "Current number of active socket-to-board memberships across loaded boards; one socket joined to two boards contributes 2.",
   },
 );
 loadedBoardsGauge.addCallback(function observeLoadedBoards(observer) {
