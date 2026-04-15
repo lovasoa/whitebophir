@@ -836,6 +836,7 @@ class BoardData {
             );
             metrics.recordBoardOperationDuration(
               "save",
+              this.name,
               (Date.now() - startedAt) / 1000,
               "removed_empty",
             );
@@ -851,6 +852,7 @@ class BoardData {
               });
               metrics.recordBoardOperationDuration(
                 "save",
+                this.name,
                 (Date.now() - startedAt) / 1000,
                 err,
               );
@@ -875,6 +877,7 @@ class BoardData {
             });
             metrics.recordBoardOperationDuration(
               "save",
+              this.name,
               (Date.now() - startedAt) / 1000,
             );
           } catch (err) {
@@ -888,6 +891,7 @@ class BoardData {
             });
             metrics.recordBoardOperationDuration(
               "save",
+              this.name,
               (Date.now() - startedAt) / 1000,
               err,
             );
@@ -967,6 +971,7 @@ class BoardData {
           );
           metrics.recordBoardOperationDuration(
             "load",
+            name,
             (Date.now() - startedAt) / 1000,
           );
         } catch (e) {
@@ -979,6 +984,7 @@ class BoardData {
             );
             metrics.recordBoardOperationDuration(
               "load",
+              name,
               (Date.now() - startedAt) / 1000,
               "empty",
             );
@@ -992,6 +998,7 @@ class BoardData {
             });
             metrics.recordBoardOperationDuration(
               "load",
+              name,
               (Date.now() - startedAt) / 1000,
               e,
             );

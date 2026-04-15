@@ -792,7 +792,7 @@ function enforceGeneralRateLimit(
         "user.name": userName,
       });
       metrics.recordBoardMessage(
-        data || {},
+        Object.assign({ board: boardName }, data || {}),
         boardMessageErrorType("rate_limit.general"),
       );
     },
@@ -882,7 +882,7 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
           destructive_cost: destructiveCost,
         });
         metrics.recordBoardMessage(
-          data,
+          Object.assign({ board: boardName }, data),
           boardMessageErrorType("rate_limit.destructive"),
         );
       },
@@ -977,7 +977,7 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
           constructive_cost: constructiveCost,
         });
         metrics.recordBoardMessage(
-          data,
+          Object.assign({ board: boardName }, data),
           boardMessageErrorType("rate_limit.constructive"),
         );
       },
@@ -1031,7 +1031,10 @@ function ensureSocketCanAccessBoard(
         "client.address": clientIp,
         "user.name": clientIp ? getSocketUserName(socket, clientIp) : undefined,
       });
-      metrics.recordBoardMessage(data || {}, boardMessageErrorType("access"));
+      metrics.recordBoardMessage(
+        Object.assign({ board: boardName }, data || {}),
+        boardMessageErrorType("access"),
+      );
     },
   );
   return false;
@@ -1340,7 +1343,7 @@ function handleSocketConnection(socket) {
             "wbo.rejection.reason": "turnstile_validation_required",
           });
           metrics.recordBoardMessage(
-            data,
+            Object.assign({ board: boardName }, data),
             boardMessageErrorType("turnstile.validation_required"),
           );
           return;
@@ -1409,7 +1412,7 @@ function handleSocketConnection(socket) {
             type: normalizedData.type,
           });
           metrics.recordBoardMessage(
-            normalizedData,
+            Object.assign({ board: boardName }, normalizedData),
             boardMessageErrorType("write"),
           );
           return;
@@ -1436,7 +1439,7 @@ function handleSocketConnection(socket) {
             reason: handleResult.reason,
           });
           metrics.recordBoardMessage(
-            normalizedData,
+            Object.assign({ board: boardName }, normalizedData),
             boardMessageErrorType("board_message"),
           );
           return;
@@ -1454,7 +1457,9 @@ function handleSocketConnection(socket) {
           "wbo.board.result": "success",
           "user.name": user ? user.name : userName,
         });
-        metrics.recordBoardMessage(normalizedData);
+        metrics.recordBoardMessage(
+          Object.assign({ board: boardName }, normalizedData),
+        );
 
         //Send data to all other users connected on the same board
         socket.broadcast.to(boardName).emit("broadcast", normalizedData);
@@ -1615,6 +1620,7 @@ async function unloadBoard(boardName) {
           });
           metrics.recordBoardOperationDuration(
             "unload",
+            boardName,
             (Date.now() - startedAt) / 1000,
           );
           delete boards[boardName];
@@ -1626,6 +1632,7 @@ async function unloadBoard(boardName) {
           });
           metrics.recordBoardOperationDuration(
             "unload",
+            boardName,
             (Date.now() - startedAt) / 1000,
             error,
           );

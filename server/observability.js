@@ -849,6 +849,15 @@ function normalizeMetricErrorType(errorType) {
 }
 
 /**
+ * @param {string | undefined} boardName
+ * @returns {boolean | undefined}
+ */
+function metricBoardAnonymous(boardName) {
+  if (typeof boardName !== "string" || boardName === "") return undefined;
+  return boardName === "anonymous";
+}
+
+/**
  * @param {{event: string, durationMs: number, errorType?: unknown}} event
  * @returns {void}
  */
@@ -873,16 +882,20 @@ function recordSocketConnection(event) {
 }
 
 /**
- * @param {{tool?: string, type?: string}} message
+ * @param {{board?: string, tool?: string, type?: string}} message
  * @param {string=} errorType
  * @returns {void}
  */
 function recordBoardMessage(message, errorType) {
-  /** @type {{[key: string]: string}} */
+  /** @type {{[key: string]: string | boolean}} */
   const attributes = {
     "wbo.tool": message.tool || "unknown",
     "wbo.message.type": message.type || "unknown",
   };
+  const boardAnonymous = metricBoardAnonymous(message.board);
+  if (boardAnonymous !== undefined) {
+    attributes["wbo.board.anonymous"] = boardAnonymous;
+  }
   const normalizedErrorType = normalizeMetricErrorType(errorType);
   if (normalizedErrorType) {
     attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
@@ -906,15 +919,25 @@ function recordTurnstileVerification(errorType) {
 
 /**
  * @param {string} operation
+ * @param {string | undefined} boardName
  * @param {number} durationSeconds
  * @param {unknown=} errorType
  * @returns {void}
  */
-function recordBoardOperationDuration(operation, durationSeconds, errorType) {
-  /** @type {{[key: string]: string}} */
+function recordBoardOperationDuration(
+  operation,
+  boardName,
+  durationSeconds,
+  errorType,
+) {
+  /** @type {{[key: string]: string | boolean}} */
   const attributes = {
     "wbo.board.operation": operation,
   };
+  const boardAnonymous = metricBoardAnonymous(boardName);
+  if (boardAnonymous !== undefined) {
+    attributes["wbo.board.anonymous"] = boardAnonymous;
+  }
   const normalizedErrorType = normalizeMetricErrorType(errorType);
   if (normalizedErrorType) {
     attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
