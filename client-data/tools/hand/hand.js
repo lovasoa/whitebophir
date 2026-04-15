@@ -31,117 +31,110 @@ import {
 } from "../../js/intersect.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-/** @param {any} Tools */
-function createHandTool(
-  Tools,
-  assetUrl = /** @param {string} assetFile */ (assetFile) =>
-    `tools/hand/${assetFile}`,
-) {
-  /** @typedef {{ x: number, y: number }} PointSelection */
-  /** @typedef {PointSelection & { w: number, h: number }} ScaleSelection */
-  /** @typedef {PointSelection | ScaleSelection | null} SelectionState */
-  /** @typedef {{ x: number, y: number }} TranslationTransform */
-  /** @typedef {{ a: number, d: number, e: number, f: number }} ScaleRectTransform */
-  /** @typedef {TranslationTransform | ScaleRectTransform | undefined} SelectionRectTransformState */
-  /** @typedef {{ a: number, b: number, c: number, d: number, e: number, f: number }} MatrixState */
-  /** @typedef {{ type: "update", id: string, transform: MatrixState }} HandUpdateMessage */
-  /** @typedef {{ type: "copy", id: string, newid: string }} HandCopyMessage */
-  /** @typedef {{ type: "delete", id: string, tool?: string }} HandDeleteMessage */
-  /** @typedef {{ _children: (HandUpdateMessage | HandCopyMessage | HandDeleteMessage)[] }} HandBatchMessage */
-  /** @typedef {HandUpdateMessage | HandCopyMessage | HandDeleteMessage | HandBatchMessage} HandMessage */
-  /** @typedef {(x: number, y: number, force: boolean) => void} TransformHandler */
-  /** @typedef {SVGGraphicsElement & { id: string }} SelectableElement */
-  /** @typedef {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: SelectionButtonDraw, clickCallback: SelectionButtonClick }} SelectionButton */
-  /** @typedef {{ r: [number, number], a: [number, number], b: [number, number] }} SelectionBBox */
-  /** @typedef {(button: SelectionButton, bbox: SelectionBBox, scale: number) => void} SelectionButtonDraw */
-  /** @typedef {(x: number, y: number, evt: ToolPointerEvent) => void} SelectionButtonClick */
-  /** @typedef {{ preventDefault(): void, target: EventTarget | null, clientX?: number, clientY?: number }} ToolPointerEvent */
-  /** @typedef {{ key: string, target: EventTarget | null }} ToolKeyEvent */
-  /** @typedef {{ matches(selector: string): boolean }} MatchableTarget */
-  /** @typedef {{ name: string, icon: string, active: boolean, switch?: () => void }} ToolSecondaryMode */
-  /** @typedef {{ name: string, shortcut?: string, listeners: { press: typeof press, move: typeof move, release: typeof release }, onquit?: () => void, onSocketDisconnect?: () => void, secondary: ToolSecondaryMode | null, draw: typeof draw, icon: string, mouseCursor: string, showMarker: boolean }} HandTool */
-  const selectorStates = {
-    pointing: 0,
-    selecting: 1,
-    transform: 2,
-  };
-  /** @type {SelectionState} */
-  let selected = null;
-  /** @type {SelectableElement[]} */
-  let selected_els = [];
-  let selectionRect = createSelectorRect();
-  /** @type {SelectionRectTransformState} */
-  let selectionRectTransform;
-  /** @type {TransformHandler | null} */
-  let currentTransform = null;
-  /** @type {MatrixState[]} */
-  let transform_elements = [];
-  let selectorState = selectorStates.pointing;
-  let last_sent = 0;
-  const blockedSelectionButtons =
-    Tools.server_config.BLOCKED_SELECTION_BUTTONS || [];
-  /** @type {SelectionButton[]} */
-  const selectionButtons = [
-    createButton(
-      "delete",
-      "delete",
-      24,
-      24,
-      /** @type {SelectionButtonDraw} */
-      (me, bbox, s) => {
-        me.width.baseVal.value = me.origWidth / s;
-        me.height.baseVal.value = me.origHeight / s;
-        me.x.baseVal.value = bbox.r[0];
-        me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
-        me.style.display = "";
-      },
-      deleteSelection,
-    ),
+export default class HandTool {
+  static toolName = "Hand";
 
-    createButton(
-      "duplicate",
-      "duplicate",
-      24,
-      24,
-      /** @type {SelectionButtonDraw} */
-      (me, bbox, s) => {
-        me.width.baseVal.value = me.origWidth / s;
-        me.height.baseVal.value = me.origHeight / s;
-        me.x.baseVal.value = bbox.r[0] + (me.origWidth + 2) / s;
-        me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
-        me.style.display = "";
-      },
-      duplicateSelection,
-    ),
+  /**
+   * @param {any} Tools
+   * @param {(assetFile: string) => string} [assetUrl]
+   */
+  constructor(
+    Tools,
+    assetUrl = /** @param {string} assetFile */ (assetFile) =>
+      `tools/hand/${assetFile}`,
+  ) {
+    this.Tools = Tools;
+    this.assetUrl = assetUrl;
+    this.selectorStates = {
+      pointing: 0,
+      selecting: 1,
+      transform: 2,
+    };
+    this.selected = null;
+    this.selectedEls = [];
+    this.selectionRect = this.createSelectorRect();
+    this.selectionRectTransform = undefined;
+    this.currentTransform = null;
+    this.transformElements = [];
+    this.selectorState = this.selectorStates.pointing;
+    this.lastSent = 0;
+    this.blockedSelectionButtons =
+      Tools.server_config.BLOCKED_SELECTION_BUTTONS || [];
 
-    createButton(
-      "scaleHandle",
-      "handle",
-      14,
-      14,
-      /** @type {SelectionButtonDraw} */
-      (me, bbox, s) => {
-        me.width.baseVal.value = me.origWidth / s;
-        me.height.baseVal.value = me.origHeight / s;
-        me.x.baseVal.value = bbox.r[0] + bbox.a[0] - me.origWidth / (2 * s);
-        me.y.baseVal.value = bbox.r[1] + bbox.b[1] - me.origHeight / (2 * s);
-        me.style.display = "";
-      },
-      startScalingTransform,
-    ),
-  ];
+    this.selectionButtons = [
+      this.createButton(
+        "delete",
+        "delete",
+        24,
+        24,
+        (me, bbox, s) => {
+          me.width.baseVal.value = me.origWidth / s;
+          me.height.baseVal.value = me.origHeight / s;
+          me.x.baseVal.value = bbox.r[0];
+          me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
+          me.style.display = "";
+        },
+        this.deleteSelection.bind(this),
+      ),
+      this.createButton(
+        "duplicate",
+        "duplicate",
+        24,
+        24,
+        (me, bbox, s) => {
+          me.width.baseVal.value = me.origWidth / s;
+          me.height.baseVal.value = me.origHeight / s;
+          me.x.baseVal.value = bbox.r[0] + (me.origWidth + 2) / s;
+          me.y.baseVal.value = bbox.r[1] - (me.origHeight + 3) / s;
+          me.style.display = "";
+        },
+        this.duplicateSelection.bind(this),
+      ),
+      this.createButton(
+        "scaleHandle",
+        "handle",
+        14,
+        14,
+        (me, bbox, s) => {
+          me.width.baseVal.value = me.origWidth / s;
+          me.height.baseVal.value = me.origHeight / s;
+          me.x.baseVal.value = bbox.r[0] + bbox.a[0] - me.origWidth / (2 * s);
+          me.y.baseVal.value = bbox.r[1] + bbox.b[1] - me.origHeight / (2 * s);
+          me.style.display = "";
+        },
+        this.startScalingTransform.bind(this),
+      ),
+    ];
 
-  blockedSelectionButtons.forEach((/** @type {number} */ buttonIndex) => {
-    if (typeof buttonIndex === "number") delete selectionButtons[buttonIndex];
-  });
+    this.blockedSelectionButtons.forEach((buttonIndex) => {
+      if (typeof buttonIndex === "number") {
+        delete this.selectionButtons[buttonIndex];
+      }
+    });
 
-  const getScale = Tools.getScale;
+    this.name = "Hand";
+    this.shortcut = "h";
+    this.boundDeleteShortcut = this.deleteShortcut.bind(this);
+    this.boundDuplicateShortcut = this.duplicateShortcut.bind(this);
+    this.onSocketDisconnect = this.onquit.bind(this);
+    this.secondary = Tools.canWrite
+      ? {
+          name: "Selector",
+          icon: "tools/hand/selector.svg",
+          active: false,
+          switch: this.switchTool.bind(this),
+        }
+      : null;
+    this.icon = "tools/hand/hand.svg";
+    this.mouseCursor = "move";
+    this.showMarker = true;
+  }
 
   /**
    * @param {EventTarget | null} target
-   * @returns {target is SelectableElement}
+   * @returns {target is SVGGraphicsElement & { id: string }}
    */
-  function isSelectableElement(target) {
+  isSelectableElement(target) {
     return !!(
       target &&
       typeof target === "object" &&
@@ -153,90 +146,86 @@ function createHandTool(
 
   /**
    * @param {EventTarget | null} target
-   * @returns {target is MatchableTarget}
+   * @returns {target is { matches(selector: string): boolean }}
    */
-  function isMatchableTarget(target) {
+  isMatchableTarget(target) {
     return !!(target && typeof target === "object" && "matches" in target);
   }
 
   /**
    * @param {unknown} value
-   * @returns {value is HandBatchMessage}
+   * @returns {value is {_children: any[]}}
    */
-  function isBatchMessage(value) {
+  isBatchMessage(value) {
     return !!(value && typeof value === "object" && "_children" in value);
   }
 
   /**
    * @param {EventTarget | null} el
-   * @returns {SelectableElement | null}
+   * @returns {(SVGGraphicsElement & { id: string }) | null}
    */
-  function getParentMathematics(el) {
-    if (!isSelectableElement(el)) return null;
+  getParentMathematics(el) {
+    if (!this.isSelectableElement(el)) return null;
     let target;
-    /** @type {SelectableElement | null} */
+    /** @type {(SVGGraphicsElement & { id: string }) | null} */
     let a = el;
-    /** @type {SelectableElement[]} */
+    /** @type {(SVGGraphicsElement & { id: string })[]} */
     const els = [];
     while (a) {
       els.unshift(a);
       /** @type {EventTarget | null} */
       const parentElement = a.parentElement;
       a =
-        parentElement && isSelectableElement(parentElement)
+        parentElement && this.isSelectableElement(parentElement)
           ? parentElement
           : null;
     }
     const parentMathematics = els.find(
-      (el) => el.getAttribute("class") === "MathElement",
+      (elem) => elem.getAttribute("class") === "MathElement",
     );
     if (parentMathematics && parentMathematics.tagName === "svg") {
-      target = /** @type {SelectableElement} */ (parentMathematics);
+      target = /** @type {SVGGraphicsElement & { id: string }} */ (
+        parentMathematics
+      );
     }
-    return target || /** @type {SelectableElement} */ (el);
+    return target || /** @type {SVGGraphicsElement & { id: string }} */ (el);
   }
 
-  function deleteSelection() {
-    /** @type {HandDeleteMessage[]} */
-    const msgs = selected_els.map((el) => ({
+  deleteSelection() {
+    const msgs = this.selectedEls.map((el) => ({
       type: "delete",
       id: el.id,
     }));
-    /** @type {HandBatchMessage} */
-    const data = {
-      _children: msgs,
-    };
-    Tools.drawAndSend(data);
-    selected_els = [];
-    hideSelectionUI();
+    this.Tools.drawAndSend({ _children: msgs }, this);
+    this.selectedEls = [];
+    this.hideSelectionUI();
   }
 
-  function duplicateSelection() {
+  duplicateSelection() {
     if (
-      !(selectorState === selectorStates.pointing) ||
-      selected_els.length === 0
-    )
+      this.selectorState !== this.selectorStates.pointing ||
+      this.selectedEls.length === 0
+    ) {
       return;
-    /** @type {HandCopyMessage[]} */
+    }
     const msgs = [];
-    for (let i = 0; i < selected_els.length; i++) {
-      const selectedElement = selected_els[i];
+    for (let i = 0; i < this.selectedEls.length; i++) {
+      const selectedElement = this.selectedEls[i];
       if (!selectedElement) continue;
       const id = selectedElement.id;
-      const newid = Tools.generateUID(id[0]);
       msgs[i] = {
         type: "copy",
         id: id,
-        newid: newid,
+        newid: this.Tools.generateUID(id[0]),
       };
     }
-    Tools.drawAndSend({ _children: msgs });
+    this.Tools.drawAndSend({ _children: msgs }, this);
   }
 
   /** @returns {SVGRectElement} */
-  function createSelectorRect() {
+  createSelectorRect() {
     const shape = /** @type {SVGRectElement} */ (
-      Tools.createSVGElement("rect")
+      this.Tools.createSVGElement("rect")
     );
     shape.id = "selectionRect";
     shape.x.baseVal.value = 0;
@@ -249,7 +238,7 @@ function createHandTool(
     shape.setAttribute("fill", "none");
     shape.setAttribute("stroke-dasharray", "5 5");
     shape.setAttribute("opacity", "1");
-    Tools.svg.appendChild(shape);
+    this.Tools.svg.appendChild(shape);
     return shape;
   }
 
@@ -258,71 +247,65 @@ function createHandTool(
    * @param {string} icon
    * @param {number} width
    * @param {number} height
-   * @param {SelectionButtonDraw} drawCallback
-   * @param {SelectionButtonClick} clickCallback
-   * @returns {SelectionButton}
+   * @param {(button: any, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void} drawCallback
+   * @param {(x:number, y:number, evt:any) => void} clickCallback
+   * @returns {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: typeof drawCallback, clickCallback: typeof clickCallback }}
    */
-  function createButton(
-    name,
-    icon,
-    width,
-    height,
-    drawCallback,
-    clickCallback,
-  ) {
-    const shape = Tools.createSVGElement("image", {
-      href: assetUrl(`${icon}.svg`),
-      width: width,
-      height: height,
-    });
+  createButton(name, icon, width, height, drawCallback, clickCallback) {
+    const shape =
+      /** @type {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: typeof drawCallback, clickCallback: typeof clickCallback }} */ (
+        this.Tools.createSVGElement("image", {
+          href: this.assetUrl(`${icon}.svg`),
+          width: width,
+          height: height,
+        })
+      );
+    shape.id = `selectionButton-${name}`;
     shape.style.display = "none";
     shape.origWidth = width;
     shape.origHeight = height;
     shape.drawCallback = drawCallback;
     shape.clickCallback = clickCallback;
-    Tools.svg.appendChild(shape);
-    return /** @type {SelectionButton} */ (shape);
+    this.Tools.svg.appendChild(shape);
+    return shape;
   }
 
-  function showSelectionButtons() {
-    const scale = getScale();
-    const selectionBBox = selectionRect.transformedBBox();
-    for (let i = 0; i < selectionButtons.length; i++) {
-      const button = selectionButtons[i];
-      if (button) {
-        button.drawCallback(button, selectionBBox, scale);
-      }
+  showSelectionButtons() {
+    const scale = this.Tools.getScale();
+    const selectionBBox = this.selectionRect.transformedBBox();
+    for (let i = 0; i < this.selectionButtons.length; i++) {
+      const button = this.selectionButtons[i];
+      if (button) button.drawCallback(button, selectionBBox, scale);
     }
   }
 
-  function hideSelectionButtons() {
-    for (let i = 0; i < selectionButtons.length; i++) {
-      const button = selectionButtons[i];
+  hideSelectionButtons() {
+    for (let i = 0; i < this.selectionButtons.length; i++) {
+      const button = this.selectionButtons[i];
       if (button) button.style.display = "none";
     }
   }
 
-  function hideSelectionUI() {
-    hideSelectionButtons();
-    selectionRect.style.display = "none";
+  hideSelectionUI() {
+    this.hideSelectionButtons();
+    this.selectionRect.style.display = "none";
   }
 
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {{ preventDefault(): void }} evt
    */
-  function startMovingElements(x, y, evt) {
+  startMovingElements(x, y, evt) {
     evt.preventDefault();
-    selectorState = selectorStates.transform;
-    currentTransform = moveSelection;
-    selected = { x: x, y: y };
-    // Some of the selected elements could have been deleted
-    selected_els = selected_els.filter(
-      (el) => Tools.svg.getElementById(el.id) !== null,
+    this.selectorState = this.selectorStates.transform;
+    this.currentTransform = this.moveSelection.bind(this);
+    this.selected = { x: x, y: y };
+    this.selectedEls = this.selectedEls.filter(
+      (el) => this.Tools.svg.getElementById(el.id) !== null,
     );
-    transform_elements = selected_els.map((el) => {
-      const tmatrix = get_transform_matrix(el);
+    this.transformElements = this.selectedEls.map((el) => {
+      const tmatrix = this.getTransformMatrix(el);
       return {
         a: tmatrix.a,
         b: tmatrix.b,
@@ -332,28 +315,30 @@ function createHandTool(
         f: tmatrix.f,
       };
     });
-    const tmatrix = get_transform_matrix(selectionRect);
-    selectionRectTransform = { x: tmatrix.e, y: tmatrix.f };
+    const tmatrix = this.getTransformMatrix(this.selectionRect);
+    this.selectionRectTransform = { x: tmatrix.e, y: tmatrix.f };
   }
 
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {{ preventDefault(): void }} evt
    */
-  function startScalingTransform(x, y, evt) {
+  startScalingTransform(x, y, evt) {
+    void x;
+    void y;
     evt.preventDefault();
-    hideSelectionButtons();
-    selectorState = selectorStates.transform;
-    const bbox = selectionRect.transformedBBox();
-    selected = {
+    this.hideSelectionButtons();
+    this.selectorState = this.selectorStates.transform;
+    const bbox = this.selectionRect.transformedBBox();
+    this.selected = {
       x: bbox.r[0],
       y: bbox.r[1],
       w: bbox.a[0],
       h: bbox.b[1],
     };
-    transform_elements = selected_els.map((el) => {
-      const tmatrix = get_transform_matrix(el);
+    this.transformElements = this.selectedEls.map((el) => {
+      const tmatrix = this.getTransformMatrix(el);
       return {
         a: tmatrix.a,
         b: tmatrix.b,
@@ -363,50 +348,50 @@ function createHandTool(
         f: tmatrix.f,
       };
     });
-    const tmatrix = get_transform_matrix(selectionRect);
-    selectionRectTransform = {
+    const tmatrix = this.getTransformMatrix(this.selectionRect);
+    this.selectionRectTransform = {
       a: tmatrix.a,
       d: tmatrix.d,
       e: tmatrix.e,
       f: tmatrix.f,
     };
-    currentTransform = scaleSelection;
+    this.currentTransform = this.scaleSelection.bind(this);
   }
 
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {{ preventDefault(): void }} evt
    */
-  function startSelector(x, y, evt) {
+  startSelector(x, y, evt) {
     evt.preventDefault();
-    selected = { x: x, y: y };
-    selected_els = [];
-    selectorState = selectorStates.selecting;
-    selectionRect.x.baseVal.value = x;
-    selectionRect.y.baseVal.value = y;
-    selectionRect.width.baseVal.value = 0;
-    selectionRect.height.baseVal.value = 0;
-    selectionRect.style.display = "";
-    const tmatrix = get_transform_matrix(selectionRect);
+    this.selected = { x: x, y: y };
+    this.selectedEls = [];
+    this.selectorState = this.selectorStates.selecting;
+    this.selectionRect.x.baseVal.value = x;
+    this.selectionRect.y.baseVal.value = y;
+    this.selectionRect.width.baseVal.value = 0;
+    this.selectionRect.height.baseVal.value = 0;
+    this.selectionRect.style.display = "";
+    const tmatrix = this.getTransformMatrix(this.selectionRect);
     tmatrix.e = 0;
     tmatrix.f = 0;
   }
 
-  function calculateSelection() {
-    const selectionTBBox = selectionRect.transformedBBox();
-    if (!Tools.drawingArea) return [];
-    const elements = Tools.drawingArea.children;
-    /** @type {SelectableElement[]} */
+  calculateSelection() {
+    const selectionTBBox = this.selectionRect.transformedBBox();
+    if (!this.Tools.drawingArea) return [];
+    const elements = this.Tools.drawingArea.children;
     const selected = [];
     for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
       if (!element) continue;
       if (
-        isSelectableElement(element) &&
+        this.isSelectableElement(element) &&
         transformedBBoxIntersects(selectionTBBox, element.transformedBBox())
-      )
+      ) {
         selected.push(element);
+      }
     }
     return selected;
   }
@@ -416,20 +401,19 @@ function createHandTool(
    * @param {number} y
    * @param {boolean} force
    */
-  function moveSelection(x, y, force) {
+  moveSelection(x, y, force) {
     if (
-      !selected ||
-      !selectionRectTransform ||
-      !("x" in selectionRectTransform)
+      !this.selected ||
+      !this.selectionRectTransform ||
+      !("x" in this.selectionRectTransform)
     ) {
       return;
     }
-    const rectTranslation = selectionRectTransform;
-    const dx = x - selected.x;
-    const dy = y - selected.y;
-    /** @type {HandUpdateMessage[]} */
-    const msgs = selected_els.map((el, i) => {
-      const oldTransform = transform_elements[i];
+    const rectTranslation = this.selectionRectTransform;
+    const dx = x - this.selected.x;
+    const dy = y - this.selected.y;
+    const msgs = this.selectedEls.map((el, i) => {
+      const oldTransform = this.transformElements[i];
       if (!oldTransform) {
         throw new Error("Mover: Missing transform state while moving.");
       }
@@ -446,14 +430,10 @@ function createHandTool(
         },
       };
     });
-    /** @type {HandBatchMessage} */
-    const msg = {
-      _children: msgs,
-    };
-    const tmatrix = get_transform_matrix(selectionRect);
+    const tmatrix = this.getTransformMatrix(this.selectionRect);
     tmatrix.e = dx + rectTranslation.x;
     tmatrix.f = dy + rectTranslation.y;
-    dispatchTransform(msg, force);
+    this.dispatchTransform({ _children: msgs }, force);
   }
 
   /**
@@ -461,38 +441,37 @@ function createHandTool(
    * @param {number} y
    * @param {boolean} force
    */
-  function scaleSelection(x, y, force) {
+  scaleSelection(x, y, force) {
     if (
-      !selected ||
-      !selectionRectTransform ||
-      !("a" in selectionRectTransform) ||
-      !("w" in selected) ||
-      !("h" in selected)
+      !this.selected ||
+      !this.selectionRectTransform ||
+      !("a" in this.selectionRectTransform) ||
+      !("w" in this.selected) ||
+      !("h" in this.selected)
     ) {
       return;
     }
-    const scaleSelectionState = selected;
-    const rectTransform = selectionRectTransform;
+    const scaleSelectionState = this.selected;
+    const rectTransform = this.selectionRectTransform;
     const rx = (x - scaleSelectionState.x) / scaleSelectionState.w;
     const ry = (y - scaleSelectionState.y) / scaleSelectionState.h;
-    /** @type {HandUpdateMessage[]} */
-    const msgs = selected_els.map((el, i) => {
-      const oldTransform = transform_elements[i];
+    const msgs = this.selectedEls.map((el, i) => {
+      const oldTransform = this.transformElements[i];
       if (!oldTransform) {
         throw new Error("Mover: Missing transform state while scaling.");
       }
-      const x = el.transformedBBox().r[0];
-      const y = el.transformedBBox().r[1];
+      const bboxX = el.transformedBBox().r[0];
+      const bboxY = el.transformedBBox().r[1];
       const a = oldTransform.a * rx;
       const d = oldTransform.d * ry;
       const e =
         scaleSelectionState.x * (1 - rx) -
-        x * a +
-        (x * oldTransform.a + oldTransform.e) * rx;
+        bboxX * a +
+        (bboxX * oldTransform.a + oldTransform.e) * rx;
       const f =
         scaleSelectionState.y * (1 - ry) -
-        y * d +
-        (y * oldTransform.d + oldTransform.f) * ry;
+        bboxY * d +
+        (bboxY * oldTransform.d + oldTransform.f) * ry;
       return {
         type: "update",
         id: el.id,
@@ -506,32 +485,30 @@ function createHandTool(
         },
       };
     });
-    /** @type {HandBatchMessage} */
-    const msg = {
-      _children: msgs,
-    };
 
-    const tmatrix = get_transform_matrix(selectionRect);
+    const tmatrix = this.getTransformMatrix(this.selectionRect);
     tmatrix.a = rx;
     tmatrix.d = ry;
     tmatrix.e =
-      rectTransform.e + selectionRect.x.baseVal.value * (rectTransform.a - rx);
+      rectTransform.e +
+      this.selectionRect.x.baseVal.value * (rectTransform.a - rx);
     tmatrix.f =
-      rectTransform.f + selectionRect.y.baseVal.value * (rectTransform.d - ry);
-    dispatchTransform(msg, force);
+      rectTransform.f +
+      this.selectionRect.y.baseVal.value * (rectTransform.d - ry);
+    this.dispatchTransform({ _children: msgs }, force);
   }
 
   /**
-   * @param {HandBatchMessage} msg
+   * @param {{ _children: any[] }} msg
    * @param {boolean} force
    */
-  function dispatchTransform(msg, force) {
+  dispatchTransform(msg, force) {
     const now = performance.now();
-    if (force || now - last_sent > 70) {
-      last_sent = now;
-      Tools.drawAndSend(msg);
+    if (force || now - this.lastSent > 70) {
+      this.lastSent = now;
+      this.Tools.drawAndSend(msg, this);
     } else {
-      draw(msg);
+      this.draw(msg);
     }
   }
 
@@ -540,21 +517,21 @@ function createHandTool(
    * @param {number} y
    * @param {SVGRectElement} rect
    */
-  function updateRect(x, y, rect) {
-    if (!selected) return;
-    rect.x.baseVal.value = Math.min(x, selected.x);
-    rect.y.baseVal.value = Math.min(y, selected.y);
-    rect.width.baseVal.value = Math.abs(x - selected.x);
-    rect.height.baseVal.value = Math.abs(y - selected.y);
+  updateRect(x, y, rect) {
+    if (!this.selected) return;
+    rect.x.baseVal.value = Math.min(x, this.selected.x);
+    rect.y.baseVal.value = Math.min(y, this.selected.y);
+    rect.width.baseVal.value = Math.abs(x - this.selected.x);
+    rect.height.baseVal.value = Math.abs(y - this.selected.y);
   }
 
-  function resetSelectionRect() {
-    const bbox = selectionRect.transformedBBox();
-    const tmatrix = get_transform_matrix(selectionRect);
-    selectionRect.x.baseVal.value = bbox.r[0];
-    selectionRect.y.baseVal.value = bbox.r[1];
-    selectionRect.width.baseVal.value = bbox.a[0];
-    selectionRect.height.baseVal.value = bbox.b[1];
+  resetSelectionRect() {
+    const bbox = this.selectionRect.transformedBBox();
+    const tmatrix = this.getTransformMatrix(this.selectionRect);
+    this.selectionRect.x.baseVal.value = bbox.r[0];
+    this.selectionRect.y.baseVal.value = bbox.r[1];
+    this.selectionRect.width.baseVal.value = bbox.a[0];
+    this.selectionRect.height.baseVal.value = bbox.b[1];
     tmatrix.a = 1;
     tmatrix.b = 0;
     tmatrix.c = 0;
@@ -564,16 +541,13 @@ function createHandTool(
   }
 
   /**
-   * @param {SelectableElement | SVGRectElement} elem
-   * @returns {MatrixState}
+   * @param {SVGGraphicsElement | SVGRectElement} elem
+   * @returns {{ a:number, b:number, c:number, d:number, e:number, f:number }}
    */
-  function get_transform_matrix(elem) {
-    // Returns the first translate or transform matrix or makes one
+  getTransformMatrix(elem) {
     let transform = null;
     for (let i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
       const baseVal = elem.transform.baseVal[i];
-      // quick tests showed that even if one changes only the fields e and f or uses createSVGTransformFromMatrix
-      // the brower may add a SVG_TRANSFORM_MATRIX instead of a SVG_TRANSFORM_TRANSLATE
       if (baseVal && baseVal.type === SVGTransform.SVG_TRANSFORM_MATRIX) {
         transform = baseVal;
         break;
@@ -581,74 +555,75 @@ function createHandTool(
     }
     if (transform == null) {
       transform = elem.transform.baseVal.createSVGTransformFromMatrix(
-        Tools.svg.createSVGMatrix(),
+        this.Tools.svg.createSVGMatrix(),
       );
       elem.transform.baseVal.appendItem(transform);
     }
     return transform.matrix;
   }
 
-  /** @param {HandMessage} data */
-  function draw(data) {
-    if (isBatchMessage(data)) {
-      BoardMessages.batchCall(draw, data._children);
-    } else {
-      switch (data.type) {
-        case "update": {
-          const elem = Tools.svg.getElementById(data.id);
-          if (!elem)
-            throw new Error(
-              "Mover: Tried to move an element that does not exist.",
-            );
-          const tmatrix = get_transform_matrix(
-            /** @type {SelectableElement} */ (elem),
+  /** @param {{ type?: string, id?: string, transform?: any, newid?: string, tool?: string, _children?: any[] }} data */
+  draw(data) {
+    if (this.isBatchMessage(data)) {
+      BoardMessages.batchCall((msg) => this.draw(msg), data._children);
+      return;
+    }
+
+    switch (data.type) {
+      case "update": {
+        const elem = this.Tools.svg.getElementById(data.id);
+        if (!elem) {
+          throw new Error(
+            "Mover: Tried to move an element that does not exist.",
           );
-          tmatrix.a = data.transform.a;
-          tmatrix.b = data.transform.b;
-          tmatrix.c = data.transform.c;
-          tmatrix.d = data.transform.d;
-          tmatrix.e = data.transform.e;
-          tmatrix.f = data.transform.f;
-          break;
         }
-        case "copy": {
-          if (!Tools.drawingArea) {
-            throw new Error("Mover: Missing drawing area while copying.");
-          }
-          const sourceElement = Tools.svg.getElementById(data.id);
-          if (!isSelectableElement(sourceElement)) {
-            throw new Error(
-              "Mover: Tried to copy an element that does not exist.",
-            );
-          }
-          const newElement = /** @type {SelectableElement} */ (
-            sourceElement.cloneNode(true)
-          );
-          newElement.id = data.newid;
-          Tools.drawingArea.appendChild(newElement);
-          break;
-        }
-        case "delete":
-          data.tool = "Eraser";
-          Tools.messageForTool(data);
-          break;
-        default:
-          throw new Error("Mover: 'move' instruction with unknown type.");
+        const tmatrix = this.getTransformMatrix(
+          /** @type {SVGGraphicsElement & { id: string }} */ (elem),
+        );
+        tmatrix.a = data.transform.a;
+        tmatrix.b = data.transform.b;
+        tmatrix.c = data.transform.c;
+        tmatrix.d = data.transform.d;
+        tmatrix.e = data.transform.e;
+        tmatrix.f = data.transform.f;
+        break;
       }
+      case "copy": {
+        if (!this.Tools.drawingArea) {
+          throw new Error("Mover: Missing drawing area while copying.");
+        }
+        const sourceElement = this.Tools.svg.getElementById(data.id);
+        if (!this.isSelectableElement(sourceElement)) {
+          throw new Error(
+            "Mover: Tried to copy an element that does not exist.",
+          );
+        }
+        const newElement = /** @type {SVGGraphicsElement & { id: string }} */ (
+          sourceElement.cloneNode(true)
+        );
+        newElement.id = data.newid;
+        this.Tools.drawingArea.appendChild(newElement);
+        break;
+      }
+      case "delete":
+        data.tool = "Eraser";
+        this.Tools.messageForTool(data);
+        break;
+      default:
+        throw new Error("Mover: 'move' instruction with unknown type.");
     }
   }
 
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {{ target: EventTarget | null, preventDefault(): void }} evt
    */
-  function clickSelector(x, y, evt) {
-    selectionRect = selectionRect || createSelectorRect();
-    /** @type {SelectionButton | undefined} */
+  clickSelector(x, y, evt) {
+    this.selectionRect = this.selectionRect || this.createSelectorRect();
     let button;
-    for (let i = 0; i < selectionButtons.length; i++) {
-      const candidate = selectionButtons[i];
+    for (let i = 0; i < this.selectionButtons.length; i++) {
+      const candidate = this.selectionButtons[i];
       if (
         candidate &&
         evt.target &&
@@ -660,210 +635,192 @@ function createHandTool(
     if (button) {
       button.clickCallback(x, y, evt);
     } else if (
-      pointInTransformedBBox([x, y], selectionRect.transformedBBox())
+      pointInTransformedBBox([x, y], this.selectionRect.transformedBBox())
     ) {
-      hideSelectionButtons();
-      startMovingElements(x, y, evt);
+      this.hideSelectionButtons();
+      this.startMovingElements(x, y, evt);
     } else if (
-      Tools.drawingArea &&
+      this.Tools.drawingArea &&
       evt.target &&
-      Tools.drawingArea.contains(/** @type {Node} */ (evt.target))
+      this.Tools.drawingArea.contains(/** @type {Node} */ (evt.target))
     ) {
-      hideSelectionUI();
-      const parent = getParentMathematics(evt.target);
+      this.hideSelectionUI();
+      const parent = this.getParentMathematics(evt.target);
       if (!parent) {
-        startSelector(x, y, evt);
+        this.startSelector(x, y, evt);
         return;
       }
-      selected_els = [parent];
-      startMovingElements(x, y, evt);
+      this.selectedEls = [parent];
+      this.startMovingElements(x, y, evt);
     } else {
-      hideSelectionButtons();
-      startSelector(x, y, evt);
+      this.hideSelectionButtons();
+      this.startSelector(x, y, evt);
     }
   }
 
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {{ target: EventTarget | null, preventDefault(): void }} evt
    */
-  function releaseSelector(x, y, evt) {
-    if (selectorState === selectorStates.selecting) {
-      selected_els = calculateSelection();
-      if (selected_els.length === 0) {
-        hideSelectionUI();
-      }
-    } else if (selectorState === selectorStates.transform) resetSelectionRect();
-    if (selected_els.length !== 0) showSelectionButtons();
-    transform_elements = [];
-    selectorState = selectorStates.pointing;
+  releaseSelector(x, y, evt) {
+    if (this.selectorState === this.selectorStates.selecting) {
+      this.selectedEls = this.calculateSelection();
+      if (this.selectedEls.length === 0) this.hideSelectionUI();
+    } else if (this.selectorState === this.selectorStates.transform) {
+      this.resetSelectionRect();
+    }
+    if (this.selectedEls.length !== 0) this.showSelectionButtons();
+    this.transformElements = [];
+    this.selectorState = this.selectorStates.pointing;
   }
 
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {{ target: EventTarget | null, preventDefault(): void }} evt
    * @param {boolean} force
    */
-  function moveSelector(x, y, evt, force) {
-    if (selectorState === selectorStates.selecting) {
-      updateRect(x, y, selectionRect);
-    } else if (selectorState === selectorStates.transform && currentTransform) {
-      currentTransform(x, y, force);
+  moveSelector(x, y, evt, force) {
+    void evt;
+    if (this.selectorState === this.selectorStates.selecting) {
+      this.updateRect(x, y, this.selectionRect);
+    } else if (
+      this.selectorState === this.selectorStates.transform &&
+      this.currentTransform
+    ) {
+      this.currentTransform(x, y, force);
     }
   }
 
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {{ clientX?: number, clientY?: number }} evt
    * @param {boolean} isTouchEvent
    */
-  function startHand(x, y, evt, isTouchEvent) {
+  startHand(x, y, evt, isTouchEvent) {
+    void x;
+    void y;
     if (!isTouchEvent) {
-      selected = {
+      this.selected = {
         x: document.documentElement.scrollLeft + (evt.clientX || 0),
         y: document.documentElement.scrollTop + (evt.clientY || 0),
       };
     }
   }
+
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {{ clientX?: number, clientY?: number }} evt
    * @param {boolean} isTouchEvent
    */
-  function moveHand(x, y, evt, isTouchEvent) {
-    if (selected && !("w" in selected) && !isTouchEvent) {
-      //Let the browser handle touch to scroll
+  moveHand(x, y, evt, isTouchEvent) {
+    void x;
+    void y;
+    if (this.selected && !("w" in this.selected) && !isTouchEvent) {
       window.scrollTo(
-        selected.x - (evt.clientX || 0),
-        selected.y - (evt.clientY || 0),
+        this.selected.x - (evt.clientX || 0),
+        this.selected.y - (evt.clientY || 0),
       );
     }
   }
 
-  /** @returns {boolean} */
-  function isSelectorActive() {
-    return !!(handTool.secondary && handTool.secondary.active);
+  isSelectorActive() {
+    return !!(this.secondary && this.secondary.active);
   }
 
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {any} evt
    * @param {boolean} isTouchEvent
    */
-  function press(x, y, evt, isTouchEvent) {
-    if (!isSelectorActive()) startHand(x, y, evt, isTouchEvent);
-    else clickSelector(x, y, evt);
+  press(x, y, evt, isTouchEvent) {
+    if (!this.isSelectorActive()) this.startHand(x, y, evt, isTouchEvent);
+    else this.clickSelector(x, y, evt);
   }
 
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {any} evt
    * @param {boolean} isTouchEvent
    * @param {boolean} force
    */
-  function move(x, y, evt, isTouchEvent, force) {
-    if (!isSelectorActive()) moveHand(x, y, evt, isTouchEvent);
-    else moveSelector(x, y, evt, force);
+  move(x, y, evt, isTouchEvent, force) {
+    if (!this.isSelectorActive()) this.moveHand(x, y, evt, isTouchEvent);
+    else this.moveSelector(x, y, evt, force);
   }
 
   /**
    * @param {number} x
    * @param {number} y
-   * @param {ToolPointerEvent} evt
+   * @param {any} evt
    * @param {boolean} isTouchEvent
    */
-  function release(x, y, evt, isTouchEvent) {
-    move(x, y, evt, isTouchEvent, true);
-    if (isSelectorActive()) releaseSelector(x, y, evt);
-    selected = null;
+  release(x, y, evt, isTouchEvent) {
+    this.move(x, y, evt, isTouchEvent, true);
+    if (this.isSelectorActive()) this.releaseSelector(x, y, evt);
+    this.selected = null;
   }
 
-  /** @param {ToolKeyEvent} e */
-  function deleteShortcut(e) {
+  /** @param {{ key: string, target: EventTarget | null }} e */
+  deleteShortcut(e) {
     if (
       e.key === "Delete" &&
-      (!isMatchableTarget(e.target) ||
+      (!this.isMatchableTarget(e.target) ||
         !e.target.matches("input[type=text], textarea"))
-    )
-      deleteSelection();
-  }
-
-  /** @param {ToolKeyEvent} e */
-  function duplicateShortcut(e) {
-    if (
-      e.key === "d" &&
-      (!isMatchableTarget(e.target) ||
-        !e.target.matches("input[type=text], textarea"))
-    )
-      duplicateSelection();
-  }
-
-  function switchTool() {
-    onquit();
-    if (isSelectorActive()) {
-      window.addEventListener("keydown", deleteShortcut);
-      window.addEventListener("keydown", duplicateShortcut);
+    ) {
+      this.deleteSelection();
     }
   }
 
-  function onquit() {
-    selected = null;
-    hideSelectionUI();
-    window.removeEventListener("keydown", deleteShortcut);
-    window.removeEventListener("keydown", duplicateShortcut);
+  /** @param {{ key: string, target: EventTarget | null }} e */
+  duplicateShortcut(e) {
+    if (
+      e.key === "d" &&
+      (!this.isMatchableTarget(e.target) ||
+        !e.target.matches("input[type=text], textarea"))
+    ) {
+      this.duplicateSelection();
+    }
   }
 
-  /** @type {HandTool} */
-  const handTool = {
-    //The new tool
-    name: "Hand",
-    shortcut: "h",
-    listeners: {
-      press: press,
-      move: move,
-      release: release,
-    },
-    onquit: onquit,
-    onSocketDisconnect: onquit,
-    secondary: Tools.canWrite
-      ? {
-          name: "Selector",
-          icon: "tools/hand/selector.svg",
-          active: false,
-          switch: switchTool,
-        }
-      : null,
-    draw: draw,
-    icon: "tools/hand/hand.svg",
-    mouseCursor: "move",
-    showMarker: true,
-  };
-  return handTool;
+  switchTool() {
+    this.onquit();
+    if (this.isSelectorActive()) {
+      window.addEventListener("keydown", this.boundDeleteShortcut);
+      window.addEventListener("keydown", this.boundDuplicateShortcut);
+    }
+  }
+
+  onquit() {
+    this.selected = null;
+    this.hideSelectionUI();
+    window.removeEventListener("keydown", this.boundDeleteShortcut);
+    window.removeEventListener("keydown", this.boundDuplicateShortcut);
+  }
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<HandTool>}
+   */
+  static async boot(ctx) {
+    return new HandTool(ctx.runtime.Tools, ctx.assetUrl);
+  }
 }
 
 /** @param {any} Tools */
 export function registerHandTool(Tools) {
-  const tool = createHandTool(Tools);
+  const tool = new HandTool(Tools);
+  tool.listeners = {
+    press: tool.press.bind(tool),
+    move: tool.move.bind(tool),
+    release: tool.release.bind(tool),
+  };
   Tools.add(tool);
-  Tools.change("Hand"); // Use the hand tool by default
+  Tools.change("Hand");
   return tool;
-}
-
-// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
-export default class HandTool {
-  static toolName = "Hand";
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<any>}
-   */
-  static async boot(ctx) {
-    return createHandTool(ctx.runtime.Tools, ctx.assetUrl);
-  }
 }
