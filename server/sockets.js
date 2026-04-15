@@ -1,27 +1,27 @@
-var crypto = require("node:crypto"),
-  { Server } = require("socket.io"),
-  { logger, metrics, tracing } = require("./observability.js"),
-  BoardData = require("./boardData.js").BoardData,
-  config = require("./configuration"),
-  jsonwebtoken = require("jsonwebtoken"),
-  socketPolicy = require("./socket_policy.js"),
-  WBOMessageCommon = require("../client-data/js/message_common.js"),
-  RateLimitCommon = require("../client-data/js/rate_limit_common.js");
+const crypto = require("node:crypto");
+const { Server } = require("socket.io");
+const { logger, metrics, tracing } = require("./observability.js");
+const { BoardData } = require("./boardData.js");
+const config = require("./configuration");
+const jsonwebtoken = require("jsonwebtoken");
+const socketPolicy = require("./socket_policy.js");
+const WBOMessageCommon = require("../client-data/js/message_common.js");
+const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 
-var canAccessBoard = socketPolicy.canAccessBoard;
-var canApplyBoardMessage = socketPolicy.canApplyBoardMessage;
-var canWriteToBoard = socketPolicy.canWriteToBoard;
-var countConstructiveActions = socketPolicy.countConstructiveActions;
-var countDestructiveActions = socketPolicy.countDestructiveActions;
-var getClientIp = socketPolicy.getClientIp;
-var normalizeBroadcastData = socketPolicy.normalizeBroadcastData;
-var parseForwardedHeader = socketPolicy.parseForwardedHeader;
-var createRateLimitState = RateLimitCommon.createRateLimitState;
-var consumeFixedWindowRateLimit = RateLimitCommon.consumeFixedWindowRateLimit;
-var getRateLimitRemainingMs = RateLimitCommon.getRateLimitRemainingMs;
-var getEffectiveRateLimitDefinition =
+const canAccessBoard = socketPolicy.canAccessBoard;
+const canApplyBoardMessage = socketPolicy.canApplyBoardMessage;
+const canWriteToBoard = socketPolicy.canWriteToBoard;
+const countConstructiveActions = socketPolicy.countConstructiveActions;
+const countDestructiveActions = socketPolicy.countDestructiveActions;
+const getClientIp = socketPolicy.getClientIp;
+const normalizeBroadcastData = socketPolicy.normalizeBroadcastData;
+const parseForwardedHeader = socketPolicy.parseForwardedHeader;
+const createRateLimitState = RateLimitCommon.createRateLimitState;
+const consumeFixedWindowRateLimit = RateLimitCommon.consumeFixedWindowRateLimit;
+const getRateLimitRemainingMs = RateLimitCommon.getRateLimitRemainingMs;
+const getEffectiveRateLimitDefinition =
   RateLimitCommon.getEffectiveRateLimitDefinition;
-var isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
+const isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
 
 /** @typedef {{token?: string, userSecret?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
@@ -35,16 +35,16 @@ var isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
 /** Map from name to *promises* of BoardData
   @type {{[boardName: string]: Promise<BoardData>}}
 */
-var boards = {};
+const boards = {};
 /** @type {Map<string, RateLimitState>} */
-var destructiveRateLimits = new Map();
+const destructiveRateLimits = new Map();
 /** @type {Map<string, RateLimitState>} */
-var constructiveRateLimits = new Map();
+const constructiveRateLimits = new Map();
 /** @type {Map<string, Map<string, BoardUser>>} */
-var boardUsers = new Map();
+const boardUsers = new Map();
 /** @type {Map<string, AppSocket>} */
-var activeSockets = new Map();
-var connectedUsersTotal = 0;
+const activeSockets = new Map();
+let connectedUsersTotal = 0;
 /** @type {{
  *   board: string,
  *   reporter_socket: string,
@@ -58,10 +58,10 @@ var connectedUsersTotal = 0;
  *   reporter_name: string,
  *   reported_name: string,
  * } | null} */
-var lastUserReportLog = null;
-var invalidIpSourceLogged = false;
-var io;
-var NAME_SYLLABLES = [
+let lastUserReportLog = null;
+let invalidIpSourceLogged = false;
+let io;
+const NAME_SYLLABLES = [
   "al",
   "an",
   "ar",
@@ -239,12 +239,12 @@ function getSocketRequest(socket) {
  * @returns {string}
  */
 function buildPronounceableName(seed, minParts, maxParts) {
-  var digest = crypto.createHash("sha256").update(seed).digest();
-  var partCount = minParts;
+  const digest = crypto.createHash("sha256").update(seed).digest();
+  let partCount = minParts;
   if (maxParts > minParts) {
     partCount += (digest[0] || 0) % (maxParts - minParts + 1);
   }
-  var word = "";
+  let word = "";
   for (let index = 0; index < partCount; index++) {
     const offset = 1 + index * 2;
     const value = digest.readUInt16BE(offset);
@@ -262,9 +262,9 @@ function buildPronounceableName(seed, minParts, maxParts) {
  * @returns {string}
  */
 function getSocketQueryValue(socket, key) {
-  var query = socket.handshake?.query;
+  const query = socket.handshake?.query;
   if (!query) return "";
-  var value = query[key];
+  const value = query[key];
   return typeof value === "string" ? value : "";
 }
 
@@ -274,8 +274,8 @@ function getSocketQueryValue(socket, key) {
  * @returns {string}
  */
 function getSocketHeaderValue(socket, headerName) {
-  var headers = getSocketRequest(socket).headers || {};
-  var value = headers[headerName];
+  const headers = getSocketRequest(socket).headers || {};
+  const value = headers[headerName];
   if (Array.isArray(value)) return value[0] || "";
   return typeof value === "string" ? value : "";
 }
@@ -312,21 +312,21 @@ function buildUserName(ip, userSecret) {
  * @returns {BoardUser}
  */
 function buildBoardUserRecord(socket, boardName, now) {
-  var userSecret = getSocketQueryValue(socket, "userSecret");
-  var ip = resolveClientIp(socket, boardName);
-  var size = WBOMessageCommon.clampSize(getSocketQueryValue(socket, "size"));
-  var color = WBOMessageCommon.normalizeColor(
+  const userSecret = getSocketQueryValue(socket, "userSecret");
+  const ip = resolveClientIp(socket, boardName);
+  const size = WBOMessageCommon.clampSize(getSocketQueryValue(socket, "size"));
+  const color = WBOMessageCommon.normalizeColor(
     getSocketQueryValue(socket, "color"),
   );
   return {
     socketId: socket.id,
     userId: buildUserId(userSecret),
     name: buildUserName(ip, userSecret),
-    ip: ip,
+    ip,
     userAgent: getSocketHeaderValue(socket, "user-agent"),
     language: getSocketHeaderValue(socket, "accept-language"),
     color: color || "#001f3f",
-    size: size,
+    size,
     lastTool: getSocketQueryValue(socket, "tool") || "Hand",
     lastSeen: now || Date.now(),
   };
@@ -337,7 +337,7 @@ function buildBoardUserRecord(socket, boardName, now) {
  * @returns {Map<string, BoardUser>}
  */
 function getBoardUserMap(boardName) {
-  var users = boardUsers.get(boardName);
+  let users = boardUsers.get(boardName);
   if (users) return users;
   users = new Map();
   boardUsers.set(boardName, users);
@@ -349,7 +349,7 @@ function getBoardUserMap(boardName) {
  * @returns {void}
  */
 function cleanupBoardUserMap(boardName) {
-  var users = boardUsers.get(boardName);
+  const users = boardUsers.get(boardName);
   if (users && users.size === 0) {
     boardUsers.delete(boardName);
   }
@@ -385,11 +385,11 @@ function hasBoardUser(socket, boardName) {
  * @returns {BoardUser}
  */
 function ensureBoardUser(socket, boardName) {
-  var users = getBoardUserMap(boardName);
-  var existing = users.get(socket.id);
+  const users = getBoardUserMap(boardName);
+  const existing = users.get(socket.id);
   if (existing) return existing;
 
-  var user = buildBoardUserRecord(socket, boardName);
+  const user = buildBoardUserRecord(socket, boardName);
   users.set(socket.id, user);
   return user;
 }
@@ -400,7 +400,7 @@ function ensureBoardUser(socket, boardName) {
  * @returns {void}
  */
 function emitBoardUsersToSocket(socket, boardName) {
-  var users = getBoardUserMap(boardName);
+  const users = getBoardUserMap(boardName);
   users.forEach(function emitUserJoined(user) {
     socket.emit(
       "user_joined",
@@ -430,7 +430,7 @@ function emitUserJoinedToBoard(socket, boardName, user) {
  * @returns {void}
  */
 function removeBoardUser(socket, boardName) {
-  var users = getBoardUserMap(boardName);
+  const users = getBoardUserMap(boardName);
   if (!users.delete(socket.id)) return;
 
   socket.broadcast.to(boardName).emit("user_left", {
@@ -457,7 +457,7 @@ function getBoardUser(boardName, socketId) {
  * @returns {BoardUser | undefined}
  */
 function updateBoardUserFromMessage(socket, boardName, data, now) {
-  var user = getBoardUser(boardName, socket.id);
+  const user = getBoardUser(boardName, socket.id);
   if (!user) return undefined;
 
   user.lastSeen = now;
@@ -679,8 +679,8 @@ function normalizeTurnstileHostname(hostname) {
  * @returns {string | null}
  */
 function getExpectedTurnstileHostname(socket) {
-  var headers = getSocketRequest(socket).headers || {};
-  var host = headers["x-forwarded-host"] || headers.host;
+  const headers = getSocketRequest(socket).headers || {};
+  let host = headers["x-forwarded-host"] || headers.host;
   if (Array.isArray(host)) host = host[0];
   if (!host || typeof host !== "string") return null;
   return normalizeTurnstileHostname(host.split(",")[0]);
@@ -720,8 +720,8 @@ function validateTurnstileResult(socket, result) {
     return { ok: false, reason: "siteverify_failed" };
   }
 
-  var expectedHostname = getExpectedTurnstileHostname(socket);
-  var actualHostname = normalizeTurnstileHostname(result.hostname);
+  const expectedHostname = getExpectedTurnstileHostname(socket);
+  const actualHostname = normalizeTurnstileHostname(result.hostname);
   if (
     !actualHostname ||
     (expectedHostname &&
@@ -750,8 +750,8 @@ function enforceGeneralRateLimit(
   rateLimitState,
   now,
 ) {
-  var generalLimit = getEffectiveRateLimitConfig("general", boardName);
-  var nextState = consumeFixedWindowRateLimit(
+  const generalLimit = getEffectiveRateLimitConfig("general", boardName);
+  const nextState = consumeFixedWindowRateLimit(
     rateLimitState,
     1,
     generalLimit.periodMs,
@@ -761,12 +761,12 @@ function enforceGeneralRateLimit(
   rateLimitState.count = nextState.count;
   rateLimitState.lastSeen = nextState.lastSeen;
   if (rateLimitState.count <= generalLimit.limit) return true;
-  var retryAfterMs = getRateLimitRemainingMs(
+  const retryAfterMs = getRateLimitRemainingMs(
     rateLimitState,
     generalLimit.periodMs,
     now,
   );
-  var userName = getSocketUserName(socket, clientIp);
+  const userName = getSocketUserName(socket, clientIp);
 
   tracing.withDetachedSpan(
     "socket.rate_limited",
@@ -817,7 +817,7 @@ function enforceGeneralRateLimit(
  * @returns {RateLimitState}
  */
 function getDestructiveRateLimitState(clientIp, now) {
-  var rateLimitState =
+  const rateLimitState =
     destructiveRateLimits.get(clientIp) || createRateLimitState(now);
   destructiveRateLimits.set(clientIp, rateLimitState);
   return rateLimitState;
@@ -832,12 +832,15 @@ function getDestructiveRateLimitState(clientIp, now) {
  * @returns {boolean}
  */
 function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
-  var destructiveCost = countDestructiveActions(data);
+  const destructiveCost = countDestructiveActions(data);
   if (destructiveCost === 0) return true;
 
-  var rateLimitState = getDestructiveRateLimitState(clientIp, now);
-  var destructiveLimit = getEffectiveRateLimitConfig("destructive", boardName);
-  var nextState = consumeFixedWindowRateLimit(
+  const rateLimitState = getDestructiveRateLimitState(clientIp, now);
+  const destructiveLimit = getEffectiveRateLimitConfig(
+    "destructive",
+    boardName,
+  );
+  const nextState = consumeFixedWindowRateLimit(
     rateLimitState,
     destructiveCost,
     destructiveLimit.periodMs,
@@ -909,7 +912,7 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
  * @returns {RateLimitState}
  */
 function getConstructiveRateLimitState(clientIp, now) {
-  var rateLimitState =
+  const rateLimitState =
     constructiveRateLimits.get(clientIp) || createRateLimitState(now);
   constructiveRateLimits.set(clientIp, rateLimitState);
   return rateLimitState;
@@ -924,15 +927,15 @@ function getConstructiveRateLimitState(clientIp, now) {
  * @returns {boolean}
  */
 function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
-  var constructiveCost = countConstructiveActions(data);
+  const constructiveCost = countConstructiveActions(data);
   if (constructiveCost === 0) return true;
 
-  var rateLimitState = getConstructiveRateLimitState(clientIp, now);
-  var constructiveLimit = getEffectiveRateLimitConfig(
+  const rateLimitState = getConstructiveRateLimitState(clientIp, now);
+  const constructiveLimit = getEffectiveRateLimitConfig(
     "constructive",
     boardName,
   );
-  var nextState = consumeFixedWindowRateLimit(
+  const nextState = consumeFixedWindowRateLimit(
     rateLimitState,
     constructiveCost,
     constructiveLimit.periodMs,
