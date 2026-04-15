@@ -78,18 +78,20 @@
 
 ## design system
 
-- Reference style: technical minimalism built from the existing whiteboard shell, not the softer landing-page gradients or dark toast language.
-- Overall feel: simple, clean, white, utilitarian, compact, and subtly futuristic; UI should read like a precise instrument panel over an infinite canvas.
-- Core surfaces: default to `#ffffff` and near-whites such as `#fcfcfd` / `#f3f4f6`; avoid decorative gradients as a default treatment.
-- Borders first: structure components with thin cool-gray borders (`#d9dde3`, stronger `#b8c0cc`) before adding heavy fills or shadows.
-- Geometry: keep shapes mostly square with very small radii; use `2px` for controls, `4px` for panels, and only slightly softer corners for larger overlays.
-- Shadows: use restrained cool shadows for separation, not beveled or glossy effects; prefer subtle outer shadows over strong inset treatments.
-- Density: use a tight `4px` spacing grid with compact controls, short rows, and economical padding; the interface should feel engineered, not spacious.
-- Typography: prefer neutral sans-serif UI text in compact sizes (`13px` primary, `11px`-`12px` secondary) with medium weights; avoid oversized labels.
-- Accent color: use a green accent inspired by the current frontpage gradient family (`#ccdfdf` -> `#abc6c6`) for active and highlighted states; reserve amber/red/green variants for semantic status, and do not rely on color alone to carry meaning.
+- Reference style: technical minimalism built from the whiteboard shell, not the softer landing-page gradients or dark toast language.
+- Shared shell first: tools, HUD chips, presence controls, and lightweight panels should reuse the same base control styling whenever possible instead of introducing parallel card styles.
+- Reuse before adding: extend shared tokens/selectors first, and delete superseded styling rules in the same change so one visual behavior maps to one CSS path.
+- Grid alignment is mandatory: persistent chrome must snap to the `40px` tool-tile grid and align with the first tool row, even when it lives on the opposite screen edge.
+- Stack spacing belongs to the column, not the first tile: use container gaps or sibling spacing so the first tile defines the alignment row cleanly.
+- Closed-by-default chrome must stay compact: when a control is always visible, prefer icon-first layouts and counts; avoid permanent labels or padding that consume canvas space without adding meaning.
+- One-cell rule for persistent chips: if a control is always on screen, keep it within one tool cell when possible and surface counts as badges or transient expansions rather than widening the base tile.
+- Idle status stays hidden: persistent board-state UI should only appear when there is meaningful state to communicate; do not reserve screen space for decorative status shells.
+- Narrow-screen rule: HUD and presence UI must never overlap the tool column; on small widths, keep auxiliary chrome to the right of the toolbar and stack vertically before expanding horizontally.
+- Core surfaces: default to `#ffffff` and near-whites such as `#f3f4f6`; avoid decorative gradients as a default treatment.
+- Borders first: structure components with thin cool-gray borders (`#d9dde3`, stronger `#b8c0cc`) before adding heavier fills or shadows.
+- Geometry and type: keep shapes mostly square with very small radii (`2px` controls, `4px` panels) and compact UI text (`13px` primary, `11px`-`12px` secondary); avoid oversized labels.
+- Accent color: use a green accent inspired by the current frontpage gradient family (`#ccdfdf` -> `#abc6c6`) for active/highlighted states; semantic warning colors should support meaning, not replace text.
 - Motion: keep transitions quiet and mechanical (`120ms`-`180ms`, fade/slide, gentle spinner); avoid playful bounce or constant pulsing for routine states.
-- Status UI: board state should use the same white utilitarian shell as the rest of the app; avoid splitting meaning across unrelated visual systems.
-- Presence and overlays: floating panels, HUD surfaces, and modal gates should share the same tokens for spacing, borders, shadows, and typography even when their interaction model differs.
 
 ## required upkeep
 

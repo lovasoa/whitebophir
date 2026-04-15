@@ -1176,9 +1176,12 @@ function syncConnectedUsersToggleLabel() {
   const label = /** @type {HTMLElement | null} */ (
     toggle.querySelector(".tool-name")
   );
-  if (!label) return;
   const userCount = Object.keys(Tools.connectedUsers).length;
-  label.textContent = `${userCount} ${Tools.i18n.t("users")}`;
+  const accessibleLabel = `${userCount} ${Tools.i18n.t("users")}`;
+  toggle.setAttribute("aria-label", accessibleLabel);
+  toggle.title = accessibleLabel;
+  if (!label) return;
+  label.textContent = String(userCount);
 }
 
 /**
@@ -1551,8 +1554,14 @@ Tools.setConnectedUsersPanelOpen = function setConnectedUsersPanelOpen(
     "connected-users-panel-hidden",
     !open,
   );
-  getConnectedUsersToggle().classList.toggle("board-presence-toggle-open", open);
-  getConnectedUsersToggle().setAttribute("aria-expanded", open ? "true" : "false");
+  getConnectedUsersToggle().classList.toggle(
+    "board-presence-toggle-open",
+    open,
+  );
+  getConnectedUsersToggle().setAttribute(
+    "aria-expanded",
+    open ? "true" : "false",
+  );
 };
 
 Tools.upsertConnectedUser = function upsertConnectedUser(
@@ -1642,12 +1651,7 @@ Tools.updateCurrentConnectedUserFromActivity =
 
 Tools.initConnectedUsersUI = function initConnectedUsersUI() {
   const toggle = getConnectedUsersToggle();
-  const label = /** @type {HTMLElement | null} */ (
-    toggle.querySelector(".tool-name")
-  );
-  toggle.title = Tools.i18n.t("users");
-  toggle.setAttribute("aria-label", Tools.i18n.t("users"));
-  if (label) label.textContent = Tools.i18n.t("users");
+  syncConnectedUsersToggleLabel();
   toggle.addEventListener("click", () => {
     Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
   });

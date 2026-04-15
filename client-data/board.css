@@ -8,6 +8,24 @@ svg {
     sans-serif;
 }
 
+:root {
+  --board-shell-offset: 10px;
+  --board-control-size: 40px;
+  --board-control-gap: 10px;
+  --board-hud-gap: 6px;
+  --board-hud-max-width: calc(100vw - (var(--board-shell-offset) * 2));
+  --board-control-radius: 2px;
+  --board-control-border: #d9dde3;
+  --board-control-border-strong: #b8c0cc;
+  --board-control-bg: #ffffff;
+  --board-control-bg-active: #f2f7f5;
+  --board-control-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+  --board-control-shadow-active:
+    0 0 0 1px rgba(171, 198, 198, 0.38), 0 2px 6px rgba(16, 24, 40, 0.1);
+  --board-accent: #abc6c6;
+  --board-accent-strong: #8fb4a8;
+}
+
 #turnstile-overlay {
   position: fixed;
   top: 0;
@@ -55,9 +73,9 @@ svg {
   gap: 12px;
   min-width: min(320px, calc(100vw - 48px));
   padding: 18px 20px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid #d9dde3;
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid var(--board-control-border);
+  border-radius: 4px;
   box-shadow: 0 18px 40px rgba(16, 24, 40, 0.12);
   color: #111827;
 }
@@ -68,8 +86,8 @@ svg {
   height: 14px;
   flex: 0 0 auto;
   border-radius: 999px;
-  border: 2px solid #b8c0cc;
-  border-top-color: #abc6c6;
+  border: 2px solid var(--board-control-border-strong);
+  border-top-color: var(--board-accent);
   box-sizing: border-box;
 }
 
@@ -89,49 +107,65 @@ svg {
 
 .board-hud {
   position: fixed;
-  top: 12px;
-  left: 58px;
+  top: var(--board-shell-offset);
+  right: var(--board-shell-offset);
   z-index: 35;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  max-width: calc(100vw - 70px);
+  display: grid;
+  gap: var(--board-hud-gap);
+  justify-items: end;
+  max-width: var(--board-hud-max-width);
+}
+
+.board-hud > * {
+  max-width: 100%;
+}
+
+#menu .tool,
+.board-presence-toggle,
+.board-status-card {
+  border: 1px solid var(--board-control-border);
+  border-radius: var(--board-control-radius);
+  background: var(--board-control-bg);
+  box-shadow: var(--board-control-shadow);
+  color: #111827;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease,
+    opacity 0.16s ease,
+    transform 0.16s ease;
 }
 
 .board-status-card {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  min-height: 34px;
-  max-width: min(320px, calc(100vw - 82px));
-  padding: 9px 11px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid #d9dde3;
-  border-radius: 4px;
-  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.1);
-  color: #111827;
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease,
-    border-color 0.16s ease,
-    box-shadow 0.16s ease;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--board-control-size);
+  width: fit-content;
+  max-width: min(220px, var(--board-hud-max-width));
+  padding: 0 9px;
   pointer-events: none;
+}
+
+.board-status-card[hidden] {
+  display: none;
 }
 
 .board-status-copy {
   min-width: 0;
+  overflow: hidden;
 }
 
 .board-status-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .board-status-detail {
-  margin-top: 3px;
-  font-size: 12px;
-  line-height: 1.35;
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 1.25;
   color: #4b5563;
 }
 
@@ -148,20 +182,17 @@ svg {
 }
 
 .board-status-reconnecting {
-  border-color: #b8c0cc;
-  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.12);
+  border-color: var(--board-control-border-strong);
 }
 
 .board-status-reconnecting .board-status-icon {
   animation: board-status-spin 0.8s linear infinite;
-  border-top-color: #93b3b3;
+  border-top-color: var(--board-accent-strong);
 }
 
 .board-status-paused {
-  border-color: #d4b2a8;
-  box-shadow:
-    0 0 0 1px rgba(194, 59, 34, 0.06),
-    0 8px 18px rgba(16, 24, 40, 0.1);
+  border-color: #d7c2bc;
+  background: #fffaf8;
 }
 
 .board-status-paused .board-status-icon {
@@ -182,34 +213,30 @@ svg {
 .board-presence {
   position: relative;
   pointer-events: auto;
+  width: fit-content;
 }
 
 .board-presence-toggle {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 8px 11px;
-  border: 1px solid #d9dde3;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.1);
-  color: #111827;
+  justify-content: center;
+  width: var(--board-control-size);
+  min-width: var(--board-control-size);
+  min-height: var(--board-control-size);
+  padding: 0;
   font: inherit;
   cursor: pointer;
-  transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease,
-    background-color 0.16s ease;
 }
 
+#menu .tool:active,
+#menu .tool.curTool,
 .board-presence-toggle:hover,
 .board-presence-toggle:focus-visible,
 .board-presence-toggle-open {
-  border-color: #abc6c6;
-  box-shadow:
-    0 0 0 1px rgba(171, 198, 198, 0.35),
-    0 6px 16px rgba(16, 24, 40, 0.1);
+  border-color: var(--board-accent);
+  background: var(--board-control-bg-active);
+  box-shadow: var(--board-control-shadow-active);
 }
 
 .board-presence-toggle:focus-visible {
@@ -219,28 +246,39 @@ svg {
 .board-presence-icon {
   display: block;
   flex: 0 0 auto;
-  opacity: 0.78;
+  opacity: 0.8;
 }
 
 .board-presence-toggle .tool-name {
-  display: inline-block;
-  font-size: 13px;
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border: 1px solid var(--board-control-border-strong);
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 10px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1;
   white-space: nowrap;
 }
 
 .connected-users-panel {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
-  width: min(300px, calc(100vw - 24px));
+  right: 0;
+  width: min(220px, var(--board-hud-max-width));
   min-height: 36px;
-  max-height: min(340px, calc(100vh - 72px));
-  background: rgba(255, 255, 255, 0.97);
-  border: 1px solid #d9dde3;
-  border-radius: 4px;
-  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.12);
+  max-height: min(320px, calc(100vh - 72px));
+  background: #ffffff;
+  border: 1px solid var(--board-control-border);
+  border-radius: var(--board-control-radius);
+  box-shadow: 0 6px 14px rgba(16, 24, 40, 0.12);
   z-index: 50;
   overflow: auto;
 }
@@ -259,8 +297,8 @@ svg {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 7px 8px;
   border-top: 1px solid #e5e7eb;
   cursor: default;
 }
@@ -271,7 +309,7 @@ svg {
 
 .connected-user-name {
   min-width: 0;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.2;
   color: #111111;
   overflow: hidden;
@@ -294,7 +332,7 @@ svg {
 }
 
 .connected-user-meta {
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.2;
   color: #444444;
   overflow: hidden;
@@ -304,8 +342,8 @@ svg {
 
 .connected-user-color {
   --pulse-ms: 0.75s;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
   border: 1px solid #111111;
   box-sizing: border-box;
@@ -322,7 +360,7 @@ svg {
 
 .connected-user-row-jumpable:hover,
 .connected-user-row-jumpable:focus-within {
-  background: #f3f4f6;
+  background: var(--board-control-bg-active);
   outline: none;
 }
 
@@ -330,7 +368,7 @@ svg {
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid #d9dde3;
+  border: 1px solid var(--board-control-border);
   border-radius: 2px;
   background: #ffffff;
   color: #111111;
@@ -349,7 +387,7 @@ svg {
 .connected-user-report-latched {
   opacity: 1;
   background: #f3f4f6;
-  border-color: #b8c0cc;
+  border-color: var(--board-control-border-strong);
   color: #111111;
 }
 
@@ -416,11 +454,12 @@ svg {
 
 #menu .tools {
   list-style-type: none;
+  margin: 0;
   padding: 0;
 }
 
 #settings {
-  margin-bottom: 20px;
+  margin: calc(var(--board-control-gap) * 2) 0 20px;
 }
 
 #menu .tool {
@@ -434,19 +473,18 @@ svg {
   pointer-events: auto;
   white-space: nowrap;
   list-style-position: inside;
-  border: 1px solid #eeeeee;
   text-decoration: none;
   cursor: pointer;
-  background: #ffffff;
-  margin-top: 10px;
-  height: 40px;
-  line-height: 40px;
-  border-radius: 0px;
-  max-width: 40px;
+  height: var(--board-control-size);
+  line-height: var(--board-control-size);
+  max-width: var(--board-control-size);
   transition-duration: 0.2s;
   overflow: hidden;
   width: max-content;
-  box-shadow: inset 0 0 3px #8fa2bc;
+}
+
+#menu .tool + .tool {
+  margin-top: var(--board-control-gap);
 }
 
 #menu .tool:hover {
@@ -455,7 +493,7 @@ svg {
 
 @media (hover: none), (pointer: coarse) {
   #menu .tool:hover {
-    max-width: 40px;
+    max-width: var(--board-control-size);
   }
 
   #menu .tool:focus {
@@ -471,37 +509,17 @@ svg {
   }
 }
 
-@media (max-width: 720px) {
-  .board-hud {
-    left: 12px;
-    right: 12px;
-    max-width: none;
-    flex-wrap: wrap;
-  }
-
-  .board-status-card {
-    max-width: min(320px, calc(100vw - 24px));
-  }
-
-  .connected-users-panel {
-    width: min(300px, calc(100vw - 24px));
-    max-height: min(340px, calc(100vh - 88px));
-  }
-}
-
 #menu .oneTouch:active {
-  border-radius: 3px;
-  background-color: #eeeeff;
+  border-radius: var(--board-control-radius);
+  background-color: var(--board-control-bg-active);
 }
 
 #menu .tool:active {
-  box-shadow: inset 0 0 1px #ddeeff;
-  background-color: #eeeeff;
+  transition-duration: 0.12s;
 }
 
 #menu .tool.curTool {
-  box-shadow: 0 0 5px #0074d9;
-  background: linear-gradient(#96e1ff, #36a2ff);
+  transition-duration: 0.16s;
 }
 
 #menu .tool.disabledTool {
@@ -536,9 +554,9 @@ svg {
 
 #menu .tool-name {
   text-align: center;
-  font-size: 23px;
-  margin-right: 20px;
-  margin-left: 20px;
+  font-size: 15px;
+  margin-right: 12px;
+  margin-left: 12px;
   margin-bottom: 2.5px;
   display: inline-block;
   vertical-align: text-bottom;
@@ -547,7 +565,7 @@ svg {
   display: inline-block;
   width: 150px;
   height: 30px;
-  font-size: 0.9em;
+  font-size: 12px;
   line-height: 15px;
   vertical-align: top;
   padding: 6px;
