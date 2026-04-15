@@ -880,12 +880,12 @@ Tools.setBoardState = function setBoardState(state) {
   Tools.readOnly = Tools.boardState.readonly;
   Tools.canWrite = Tools.boardState.canWrite;
 
-  var hideEditingTools = Tools.readOnly && !Tools.canWrite;
-  var settings = document.getElementById("settings");
+  const hideEditingTools = Tools.readOnly && !Tools.canWrite;
+  const settings = document.getElementById("settings");
   if (settings) settings.style.display = hideEditingTools ? "none" : "";
 
   Object.keys(Tools.list || {}).forEach((toolName) => {
-    var toolElem = document.getElementById(`toolID-${toolName}`);
+    const toolElem = document.getElementById(`toolID-${toolName}`);
     if (!toolElem) return;
     toolElem.style.display = Tools.shouldDisplayTool(toolName) ? "" : "none";
   });
@@ -940,7 +940,7 @@ Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 Tools.socket = null;
 Tools.hasConnectedOnce = false;
 Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
-  var extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+  let extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
     window.socketio_extra_headers,
   );
   if (extraHeaders) {
@@ -985,7 +985,7 @@ function generateUserSecret() {
 }
 
 Tools.userSecret = (function resolveUserSecret() {
-  var key = "wbo-user-secret-v1";
+  const key = "wbo-user-secret-v1";
   try {
     const existing = localStorage.getItem(key);
     if (existing) return existing;
@@ -1022,7 +1022,7 @@ function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
  * @returns {number | null}
  */
 function toFiniteCoordinate(value) {
-  var number = Number(value);
+  const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
@@ -1043,7 +1043,7 @@ function getConnectedUsersList() {
  * @returns {number}
  */
 function getConnectedUserDotSize(size) {
-  var userSize = Number(size);
+  const userSize = Number(size);
   if (!Number.isFinite(userSize) || userSize <= 0) return 8;
   return Math.max(8, Math.min(18, 6 + userSize / 3));
 }
@@ -1087,15 +1087,15 @@ function getBoundsCenter(bounds) {
  */
 function getRenderedElementBounds(element) {
   if (typeof element.transformedBBox !== "function") return null;
-  var box = element.transformedBBox();
+  const box = element.transformedBBox();
   /** @type {[number, number][]} */
-  var points = [
+  const points = [
     box.r,
     [box.r[0] + box.a[0], box.r[1] + box.a[1]],
     [box.r[0] + box.b[0], box.r[1] + box.b[1]],
     [box.r[0] + box.a[0] + box.b[0], box.r[1] + box.a[1] + box.b[1]],
   ];
-  var firstPoint = points[0];
+  const firstPoint = points[0];
   if (!firstPoint) return null;
   return points.reduce(
     /**
@@ -1124,7 +1124,7 @@ function getRenderedElementBounds(element) {
  * @returns {{x: number, y: number} | null}
  */
 function getRenderedElementCenterById(elementId) {
-  var element = document.getElementById(elementId);
+  const element = document.getElementById(elementId);
   if (!(element instanceof SVGGraphicsElement)) return null;
   return getBoundsCenter(getRenderedElementBounds(element));
 }
@@ -1149,13 +1149,13 @@ function getHandChildTargetId(child) {
  */
 function getHandBatchFocusPoint(children) {
   /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
-  var bounds = null;
+  let bounds = null;
   children.forEach((child) => {
-    var targetId = getHandChildTargetId(child);
+    const targetId = getHandChildTargetId(child);
     if (!targetId) return;
-    var element = document.getElementById(targetId);
+    const element = document.getElementById(targetId);
     if (!(element instanceof SVGGraphicsElement)) return;
-    var elementBounds = getRenderedElementBounds(element);
+    const elementBounds = getRenderedElementBounds(element);
     if (!elementBounds) return;
     if (!bounds) {
       bounds = elementBounds;
@@ -1212,7 +1212,7 @@ function scheduleConnectedUserPulseEnd(user) {
     user.pulseTimeoutId = null;
     return;
   }
-  var remainingMs = Math.max(0, user.pulseUntil - Date.now());
+  const remainingMs = Math.max(0, user.pulseUntil - Date.now());
   user.pulseTimeoutId = setTimeout(() => {
     if (user.pulseUntil && user.pulseUntil <= Date.now()) {
       user.pulseUntil = 0;
@@ -1227,8 +1227,8 @@ function scheduleConnectedUserPulseEnd(user) {
  * @returns {void}
  */
 function markConnectedUserActivity(user) {
-  var now = Date.now();
-  var interval = user.lastActivityAt ? now - user.lastActivityAt : 700;
+  const now = Date.now();
+  const interval = user.lastActivityAt ? now - user.lastActivityAt : 700;
   user.lastActivityAt = now;
   user.pulseMs = Math.max(160, Math.min(1200, interval));
   user.pulseUntil = now + user.pulseMs * 2;
@@ -1241,9 +1241,9 @@ function markConnectedUserActivity(user) {
  */
 function getConnectedUserFocusHash(user) {
   if (!hasConnectedUserFocus(user)) return "";
-  var scale = Tools.getScale();
-  var x = /** @type {number} */ (user.lastFocusX);
-  var y = /** @type {number} */ (user.lastFocusY);
+  const scale = Tools.getScale();
+  const x = /** @type {number} */ (user.lastFocusX);
+  const y = /** @type {number} */ (user.lastFocusY);
   return `#${Math.max(0, (x - window.innerWidth / (2 * scale)) | 0)},${Math.max(
     0,
     (y - window.innerHeight / (2 * scale)) | 0,
@@ -1259,10 +1259,10 @@ function updateConnectedUserRow(row, user) {
   row.dataset.socketId = user.socketId;
   row.classList.toggle("connected-user-row-self", isCurrentSocketUser(user));
 
-  var focusHash = getConnectedUserFocusHash(user);
+  const focusHash = getConnectedUserFocusHash(user);
   row.classList.toggle("connected-user-row-jumpable", focusHash !== "");
 
-  var link = /** @type {HTMLAnchorElement | null} */ (
+  const link = /** @type {HTMLAnchorElement | null} */ (
     row.querySelector(".connected-user-main-link")
   );
   if (link) {
@@ -1277,7 +1277,7 @@ function updateConnectedUserRow(row, user) {
     }
   }
 
-  var color = /** @type {HTMLSpanElement | null} */ (
+  const color = /** @type {HTMLSpanElement | null} */ (
     row.querySelector(".connected-user-color")
   );
   if (color) {
@@ -1294,17 +1294,17 @@ function updateConnectedUserRow(row, user) {
     }
   }
 
-  var name = /** @type {HTMLElement | null} */ (
+  const name = /** @type {HTMLElement | null} */ (
     row.querySelector(".connected-user-name")
   );
   if (name) name.textContent = user.name;
 
-  var meta = /** @type {HTMLElement | null} */ (
+  const meta = /** @type {HTMLElement | null} */ (
     row.querySelector(".connected-user-meta")
   );
   if (meta) meta.textContent = getConnectedUserToolLabel(user);
 
-  var report = /** @type {HTMLButtonElement | null} */ (
+  const report = /** @type {HTMLButtonElement | null} */ (
     row.querySelector(".connected-user-report")
   );
   if (report) {
@@ -1319,27 +1319,27 @@ function updateConnectedUserRow(row, user) {
  * @returns {ConnectedUserRow}
  */
 function createConnectedUserRow(user) {
-  var row = /** @type {ConnectedUserRow} */ (document.createElement("li"));
+  const row = /** @type {ConnectedUserRow} */ (document.createElement("li"));
   row.className = "connected-user-row";
 
-  var color = document.createElement("span");
+  const color = document.createElement("span");
   color.className = "connected-user-color";
   row.appendChild(color);
 
-  var main = document.createElement("a");
+  const main = document.createElement("a");
   main.className = "connected-user-main connected-user-main-link";
 
-  var name = document.createElement("div");
+  const name = document.createElement("div");
   name.className = "connected-user-name";
   main.appendChild(name);
 
-  var meta = document.createElement("span");
+  const meta = document.createElement("span");
   meta.className = "connected-user-meta";
   main.appendChild(meta);
 
   row.appendChild(main);
 
-  var report = document.createElement("button");
+  const report = document.createElement("button");
   report.type = "button";
   report.className = "connected-user-report";
   report.textContent = "!";
@@ -1349,7 +1349,7 @@ function createConnectedUserRow(user) {
     evt.preventDefault();
     evt.stopPropagation();
     if (!Tools.socket || !row.dataset.socketId) return;
-    var connectedUser = Tools.connectedUsers[row.dataset.socketId];
+    const connectedUser = Tools.connectedUsers[row.dataset.socketId];
     if (!connectedUser || isCurrentSocketUser(connectedUser)) return;
     connectedUser.reported = true;
     updateConnectedUserRow(row, connectedUser);
@@ -1365,9 +1365,9 @@ function createConnectedUserRow(user) {
 }
 
 Tools.renderConnectedUsers = function renderConnectedUsers() {
-  var list = getConnectedUsersList();
+  const list = getConnectedUsersList();
   /** @type {{[socketId: string]: ConnectedUserRow}} */
-  var rowsBySocketId = {};
+  const rowsBySocketId = {};
   Array.from(list.children).forEach((child) => {
     if (
       child instanceof HTMLLIElement &&
@@ -1380,15 +1380,15 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
     }
   });
 
-  var users = Object.values(Tools.connectedUsers).sort((left, right) =>
+  const users = Object.values(Tools.connectedUsers).sort((left, right) =>
     left.name.localeCompare(right.name),
   );
 
   users.forEach((user, index) => {
-    var row = rowsBySocketId[user.socketId] || createConnectedUserRow(user);
+    const row = rowsBySocketId[user.socketId] || createConnectedUserRow(user);
     delete rowsBySocketId[user.socketId];
     updateConnectedUserRow(row, user);
-    var currentChild = list.children[index];
+    const currentChild = list.children[index];
     if (currentChild !== row) {
       list.insertBefore(row, currentChild || null);
     }
@@ -1424,7 +1424,7 @@ Tools.upsertConnectedUser = function upsertConnectedUser(
 Tools.removeConnectedUser = function removeConnectedUser(
   /** @type {string} */ socketId,
 ) {
-  var user = Tools.connectedUsers[socketId];
+  const user = Tools.connectedUsers[socketId];
   if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   delete Tools.connectedUsers[socketId];
   Tools.renderConnectedUsers();
@@ -1440,12 +1440,12 @@ Tools.updateConnectedUsersFromActivity =
     // - `userId`: derived from the persisted per-browser `userSecret`, so multiple tabs from one browser session can share it.
     // - displayed name: combines an IP-derived word with the `userId`, so it is human-readable but not a stable routing key.
     // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
-    var messageSocketId =
+    const messageSocketId =
       typeof message.socket === "string" ? message.socket : null;
     if (!userId && messageSocketId === null) return;
-    var changed = false;
-    var focusPoint = getMessageFocusPoint(message);
-    var shouldPulse = message.tool !== "Cursor";
+    let changed = false;
+    const focusPoint = getMessageFocusPoint(message);
+    const shouldPulse = message.tool !== "Cursor";
     Object.values(Tools.connectedUsers).forEach((user) => {
       if (messageSocketId !== null) {
         if (user.socketId !== messageSocketId) return;
@@ -1487,7 +1487,7 @@ Tools.updateCurrentConnectedUserFromActivity =
     /** @type {BoardMessage} */ message,
   ) {
     if (!Tools.socket || typeof Tools.socket.id !== "string") return;
-    var current = Tools.connectedUsers[Tools.socket.id];
+    const current = Tools.connectedUsers[Tools.socket.id];
     if (!current) return;
     Tools.updateConnectedUsersFromActivity(
       current.userId,
@@ -1496,8 +1496,8 @@ Tools.updateCurrentConnectedUserFromActivity =
   };
 
 Tools.initConnectedUsersUI = function initConnectedUsersUI() {
-  var toggle = getConnectedUsersToggle();
-  var label = /** @type {HTMLElement | null} */ (
+  const toggle = getConnectedUsersToggle();
+  const label = /** @type {HTMLElement | null} */ (
     toggle.querySelector(".tool-name")
   );
   toggle.title = Tools.i18n.t("users");
@@ -1529,16 +1529,16 @@ Tools.connect = () => {
   Tools.connectedUsers = {};
   Tools.renderConnectedUsers();
 
-  var url = new URL(window.location.href);
-  var params = new URLSearchParams(url.search);
-  var socketParams = BoardConnection.buildSocketParams(
+  const url = new URL(window.location.href);
+  const params = new URLSearchParams(url.search);
+  const socketParams = BoardConnection.buildSocketParams(
     window.location.pathname,
     Tools.socketIOExtraHeaders,
     params.get("token"),
     Tools.getInitialSocketQuery(),
   );
 
-  var socket = io.connect("", socketParams);
+  const socket = io.connect("", socketParams);
   Tools.socket = socket;
 
   //Receive draw instructions from the server
