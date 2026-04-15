@@ -27,14 +27,17 @@
 /** @typedef {{svg: SVGSVGElement | null, boardName: string, add: (tool: unknown) => void}} DownloadToolRegistry */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-/** @param {DownloadToolRegistry} tools */
-function createDownloadTool(tools) {
+export default class DownloadTool {
+  static toolName = "Download";
+
   /** @returns {void} */
-  function downloadSVGFile() {
-    if (!tools.svg) {
+  downloadSVGFile() {
+    if (!this.tools.svg) {
       throw new Error("Download: Missing SVG canvas.");
     }
-    const canvasCopy = /** @type {SVGSVGElement} */ (tools.svg.cloneNode(true));
+    const canvasCopy = /** @type {SVGSVGElement} */ (
+      this.tools.svg.cloneNode(true)
+    );
     canvasCopy.removeAttribute("style"); // Remove css transform
     const styleNode = document.createElement("style");
 
@@ -61,7 +64,7 @@ function createDownloadTool(tools) {
     const outerHTML =
       canvasCopy.outerHTML || new XMLSerializer().serializeToString(canvasCopy);
     const blob = new Blob([outerHTML], { type: "image/svg+xml;charset=utf-8" });
-    downloadContent(blob, `${tools.boardName}.svg`);
+    this.downloadContent(blob, `${this.tools.boardName}.svg`);
   }
 
   /**
@@ -69,7 +72,7 @@ function createDownloadTool(tools) {
    * @param {string} filename
    * @returns {void}
    */
-  function downloadContent(blob, filename) {
+  downloadContent(blob, filename) {
     const msSaveBlob = window.navigator.msSaveBlob;
     if (typeof msSaveBlob === "function") {
       // Internet Explorer
@@ -87,34 +90,34 @@ function createDownloadTool(tools) {
     }
   }
 
-  return {
-    //The new tool
-    name: "Download",
-    shortcut: "d",
-    listeners: {},
-    icon: "tools/download/download.svg",
-    oneTouch: true,
-    onstart: downloadSVGFile,
-    mouseCursor: "crosshair",
-  };
+  /**
+   * @param {DownloadToolRegistry} tools
+   */
+  constructor(tools) {
+    this.tools = tools;
+    this.name = "Download";
+    this.shortcut = "d";
+    this.icon = "tools/download/download.svg";
+    this.oneTouch = true;
+    this.mouseCursor = "crosshair";
+  }
+
+  onstart() {
+    this.downloadSVGFile();
+  }
+
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<DownloadTool>}
+   */
+  static async boot(ctx) {
+    return new DownloadTool(ctx.runtime.Tools);
+  }
 }
 
 /** @param {DownloadToolRegistry} tools */
 export function registerDownloadTool(tools) {
-  const tool = createDownloadTool(tools);
+  const tool = new DownloadTool(tools);
   tools.add(tool);
   return tool;
-}
-
-// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
-export default class DownloadTool {
-  static toolName = "Download";
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<any>}
-   */
-  static async boot(ctx) {
-    return createDownloadTool(ctx.runtime.Tools);
-  }
 }

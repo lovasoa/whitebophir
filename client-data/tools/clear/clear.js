@@ -28,64 +28,54 @@
 /** @typedef {{list: {[name: string]: any}, drawAndSend: (message: ClearMessage, tool: any) => void, token?: string | null, drawingArea: HTMLElement | null, add: (tool: any) => void}} ClearToolRegistry */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-/** @param {ClearToolRegistry} tools */
-function clearBoard(tools) {
-  /** @type {ClearMessage} */
-  const msg = {
-    type: "clear",
-    id: "",
-    token: tools.token,
-  };
-  const clearTool = tools.list.Clear;
-  if (!clearTool) {
-    throw new Error("Clear: tool is not registered.");
-  }
-  tools.drawAndSend(msg, clearTool);
-}
-
-/** @param {ClearToolRegistry} tools */
-function draw(tools) {
-  if (!tools.drawingArea) {
-    throw new Error("Clear: Missing drawing area.");
-  }
-  tools.drawingArea.innerHTML = "";
-}
-
-/** @param {ClearToolRegistry} tools */
-function createClearTool(tools) {
-  return {
-    //The new tool
-    name: "Clear",
-    shortcut: "c",
-    listeners: {},
-    icon: "tools/clear/clear.svg",
-    oneTouch: true,
-    onstart: () => {
-      clearBoard(tools);
-    },
-    draw: () => {
-      draw(tools);
-    },
-    mouseCursor: "crosshair",
-  };
-}
-
-/** @param {ClearToolRegistry} tools */
-export function registerClearTool(tools) {
-  const tool = createClearTool(tools);
-  tools.add(tool);
-  return tool;
-}
-
-// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
 export default class ClearTool {
   static toolName = "Clear";
 
   /**
+   * @param {ClearToolRegistry} tools
+   */
+  constructor(tools) {
+    this.tools = tools;
+    this.name = "Clear";
+    this.shortcut = "c";
+    this.icon = "tools/clear/clear.svg";
+    this.oneTouch = true;
+    this.mouseCursor = "crosshair";
+  }
+
+  onstart() {
+    /** @type {ClearMessage} */
+    const msg = {
+      type: "clear",
+      id: "",
+      token: this.tools.token,
+    };
+    const clearTool = this.tools.list.Clear;
+    if (!clearTool) {
+      throw new Error("Clear: tool is not registered.");
+    }
+    this.tools.drawAndSend(msg, clearTool);
+  }
+
+  draw() {
+    if (!this.tools.drawingArea) {
+      throw new Error("Clear: Missing drawing area.");
+    }
+    this.tools.drawingArea.innerHTML = "";
+  }
+
+  /**
    * @param {ToolBootContext} ctx
-   * @returns {Promise<any>}
+   * @returns {Promise<ClearTool>}
    */
   static async boot(ctx) {
-    return createClearTool(ctx.runtime.Tools);
+    return new ClearTool(ctx.runtime.Tools);
   }
+}
+
+/** @param {ClearToolRegistry} tools */
+export function registerClearTool(tools) {
+  const tool = new ClearTool(tools);
+  tools.add(tool);
+  return tool;
 }

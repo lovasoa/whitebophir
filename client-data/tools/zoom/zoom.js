@@ -30,42 +30,59 @@
 /** @typedef {{add: (tool: unknown) => void, board: {addEventListener: (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined) => void}, getScale: () => number, setScale: (scale:number)=>number, setSize: (size:number)=>void, getSize: ()=>number, svg: SVGSVGElement}} ZoomToolRegistry */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-/** @param {ZoomToolRegistry} tools */
-function createZoomTool(tools) {
-  const ZOOM_FACTOR = 0.5;
-  /** @type {ZoomOrigin} */
-  const origin = {
-    scrollX: document.documentElement.scrollLeft,
-    scrollY: document.documentElement.scrollTop,
-    x: 0.0,
-    y: 0.0,
-    clientY: 0,
-    scale: 1.0,
-    distance: null,
-  };
-  let moved = false,
-    pressed = false;
+export default class ZoomTool {
+  static toolName = "Zoom";
+  static ZOOM_FACTOR = 0.5;
 
   /**
-   * @param {ZoomOrigin} origin
+   * @param {ZoomToolRegistry} tools
+   */
+  constructor(tools) {
+    this.tools = tools;
+    this.name = "Zoom";
+    this.shortcut = "z";
+    this.mouseCursor = "zoom-in";
+    this.icon = "tools/zoom/icon.svg";
+    this.helpText = "click_to_zoom";
+    this.showMarker = true;
+    /** @type {ZoomOrigin} */
+    this.origin = {
+      scrollX: document.documentElement.scrollLeft,
+      scrollY: document.documentElement.scrollTop,
+      x: 0.0,
+      y: 0.0,
+      clientY: 0,
+      scale: 1.0,
+      distance: null,
+    };
+    this.moved = false;
+    this.pressed = false;
+    /** @type {number | null} */
+    this.animation = null;
+    /** @type {ZoomKeyHandler} */
+    this.keydown = this.handleShiftKey.bind(this, true);
+    /** @type {ZoomKeyHandler} */
+    this.keyup = this.handleShiftKey.bind(this, false);
+    this.installBoardListeners();
+  }
+
+  /**
    * @param {number} scale
    */
-  function zoom(origin, scale) {
-    const oldScale = origin.scale;
-    const newScale = tools.setScale(scale);
+  zoom(scale) {
+    const oldScale = this.origin.scale;
+    const newScale = this.tools.setScale(scale);
     window.scrollTo(
-      origin.scrollX + origin.x * (newScale - oldScale),
-      origin.scrollY + origin.y * (newScale - oldScale),
+      this.origin.scrollX + this.origin.x * (newScale - oldScale),
+      this.origin.scrollY + this.origin.y * (newScale - oldScale),
     );
   }
 
-  /** @type {number | null} */
-  let animation = null;
   /** @param {number} scale */
-  function animate(scale) {
-    if (animation !== null) cancelAnimationFrame(animation);
-    animation = requestAnimationFrame(() => {
-      zoom(origin, scale);
+  animate(scale) {
+    if (this.animation !== null) cancelAnimationFrame(this.animation);
+    this.animation = requestAnimationFrame(() => {
+      this.zoom(scale);
     });
   }
 
@@ -75,13 +92,13 @@ function createZoomTool(tools) {
    * @param {ZoomPointerEvent} evt
    * @param {boolean} isTouchEvent
    */
-  function setOrigin(x, y, evt, isTouchEvent) {
-    origin.scrollX = document.documentElement.scrollLeft;
-    origin.scrollY = document.documentElement.scrollTop;
-    origin.x = x;
-    origin.y = y;
-    origin.clientY = getClientY(evt, isTouchEvent);
-    origin.scale = tools.getScale();
+  setOrigin(x, y, evt, isTouchEvent) {
+    this.origin.scrollX = document.documentElement.scrollLeft;
+    this.origin.scrollY = document.documentElement.scrollTop;
+    this.origin.x = x;
+    this.origin.y = y;
+    this.origin.clientY = this.getClientY(evt, isTouchEvent);
+    this.origin.scale = this.tools.getScale();
   }
 
   /**
@@ -90,11 +107,11 @@ function createZoomTool(tools) {
    * @param {ZoomPointerEvent} evt
    * @param {boolean} isTouchEvent
    */
-  function press(x, y, evt, isTouchEvent) {
+  press(x, y, evt, isTouchEvent) {
     evt.preventDefault();
-    setOrigin(x, y, evt, isTouchEvent);
-    moved = false;
-    pressed = true;
+    this.setOrigin(x, y, evt, isTouchEvent);
+    this.moved = false;
+    this.pressed = true;
   }
 
   /**
@@ -103,18 +120,19 @@ function createZoomTool(tools) {
    * @param {ZoomPointerEvent} evt
    * @param {boolean} isTouchEvent
    */
-  function move(x, y, evt, isTouchEvent) {
-    if (pressed) {
+  move(x, y, evt, isTouchEvent) {
+    if (this.pressed) {
       evt.preventDefault();
-      const delta = getClientY(evt, isTouchEvent) - origin.clientY;
-      const scale = origin.scale * (1 + (delta * ZOOM_FACTOR) / 100);
-      if (Math.abs(delta) > 1) moved = true;
-      animate(scale);
+      const delta = this.getClientY(evt, isTouchEvent) - this.origin.clientY;
+      const scale =
+        this.origin.scale * (1 + (delta * ZoomTool.ZOOM_FACTOR) / 100);
+      if (Math.abs(delta) > 1) this.moved = true;
+      this.animate(scale);
     }
   }
 
   /** @param {Event} evt */
-  function onwheel(evt) {
+  onwheel(evt) {
     const wheelEvent = /** @type {WheelEvent} */ (evt);
     evt.preventDefault();
     const multiplier =
@@ -127,16 +145,16 @@ function createZoomTool(tools) {
       deltaY = wheelEvent.deltaY * multiplier;
     if (!wheelEvent.ctrlKey) {
       // zoom
-      const scale = tools.getScale();
+      const scale = this.tools.getScale();
       const x = wheelEvent.pageX / scale;
       const y = wheelEvent.pageY / scale;
-      setOrigin(x, y, wheelEvent, false);
-      animate((1 - deltaY / 800) * tools.getScale());
+      this.setOrigin(x, y, wheelEvent, false);
+      this.animate((1 - deltaY / 800) * this.tools.getScale());
     } else if (wheelEvent.altKey) {
       // make finer changes if shift is being held
       const change = wheelEvent.shiftKey ? 1 : 5;
       // change tool size
-      tools.setSize(tools.getSize() - (deltaY / 100) * change);
+      this.tools.setSize(this.tools.getSize() - (deltaY / 100) * change);
     } else if (wheelEvent.shiftKey) {
       // scroll horizontally
       window.scrollTo(
@@ -151,16 +169,20 @@ function createZoomTool(tools) {
       );
     }
   }
-  tools.board.addEventListener("wheel", onwheel, { passive: false });
 
-  tools.board.addEventListener(
-    "touchmove",
-    /** @param {Event} evt */
-    function ontouchmove(evt) {
-      const touchEvent = /** @type {TouchEvent} */ (evt);
-      // 2-finger pan to zoom
-      const touches = touchEvent.touches;
-      if (touches.length === 2) {
+  installBoardListeners() {
+    this.tools.board.addEventListener("wheel", this.onwheel.bind(this), {
+      passive: false,
+    });
+
+    this.tools.board.addEventListener(
+      "touchmove",
+      /** @param {Event} evt */
+      (evt) => {
+        const touchEvent = /** @type {TouchEvent} */ (evt);
+        // 2-finger pan to zoom
+        const touches = touchEvent.touches;
+        if (touches.length !== 2) return;
         const firstTouch = touches[0];
         const secondTouch = touches[1];
         if (!firstTouch || !secondTouch) return;
@@ -170,28 +192,32 @@ function createZoomTool(tools) {
           y1 = secondTouch.clientY,
           dx = x0 - x1,
           dy = y0 - y1;
-        const x = (firstTouch.pageX + secondTouch.pageX) / 2 / tools.getScale(),
-          y = (firstTouch.pageY + secondTouch.pageY) / 2 / tools.getScale();
+        const x =
+          (firstTouch.pageX + secondTouch.pageX) / 2 / this.tools.getScale();
+        const y =
+          (firstTouch.pageY + secondTouch.pageY) / 2 / this.tools.getScale();
         const distance = Math.sqrt(dx * dx + dy * dy);
-        if (!pressed) {
-          pressed = true;
-          setOrigin(x, y, touchEvent, true);
-          origin.distance = distance;
+        if (!this.pressed) {
+          this.pressed = true;
+          this.setOrigin(x, y, touchEvent, true);
+          this.origin.distance = distance;
         } else {
-          const delta = distance - (origin.distance || distance);
-          const scale = origin.scale * (1 + (delta * ZOOM_FACTOR) / 100);
-          animate(scale);
+          const delta = distance - (this.origin.distance || distance);
+          const scale =
+            this.origin.scale * (1 + (delta * ZoomTool.ZOOM_FACTOR) / 100);
+          this.animate(scale);
         }
-      }
-    },
-    { passive: true },
-  );
-  function touchend() {
-    pressed = false;
-    origin.distance = null;
+      },
+      { passive: true },
+    );
+    this.tools.board.addEventListener("touchend", this.touchend.bind(this));
+    this.tools.board.addEventListener("touchcancel", this.touchend.bind(this));
   }
-  tools.board.addEventListener("touchend", touchend);
-  tools.board.addEventListener("touchcancel", touchend);
+
+  touchend() {
+    this.pressed = false;
+    this.origin.distance = null;
+  }
 
   /**
    * @param {number} x
@@ -199,24 +225,21 @@ function createZoomTool(tools) {
    * @param {ZoomPointerEvent & {shiftKey?: boolean}} evt
    * @param {boolean} isTouchEvent
    */
-  function release(x, y, evt, isTouchEvent) {
-    if (pressed && !moved) {
+  release(x, y, evt, isTouchEvent) {
+    if (this.pressed && !this.moved) {
       const delta = evt.shiftKey === true ? -1 : 1;
-      const scale = tools.getScale() * (1 + delta * ZOOM_FACTOR);
-      zoom(origin, scale);
+      const scale = this.tools.getScale() * (1 + delta * ZoomTool.ZOOM_FACTOR);
+      this.zoom(scale);
     }
-    pressed = false;
-    origin.distance = null;
+    this.pressed = false;
+    this.origin.distance = null;
   }
 
   /** @param {boolean} down */
-  function key(down) {
-    /** @type {ZoomKeyHandler} */
-    return (evt) => {
-      if (evt.key === "Shift") {
-        tools.svg.style.cursor = `zoom-${down ? "out" : "in"}`;
-      }
-    };
+  handleShiftKey(down, evt) {
+    if (evt.key === "Shift") {
+      this.tools.svg.style.cursor = `zoom-${down ? "out" : "in"}`;
+    }
   }
 
   /**
@@ -224,7 +247,7 @@ function createZoomTool(tools) {
    * @param {boolean} isTouchEvent
    * @returns {number}
    */
-  function getClientY(evt, isTouchEvent) {
+  getClientY(evt, isTouchEvent) {
     if (isTouchEvent) {
       const touch = evt.changedTouches && evt.changedTouches[0];
       return touch ? touch.clientY : 0;
@@ -232,52 +255,27 @@ function createZoomTool(tools) {
     return evt.clientY || 0;
   }
 
-  const keydown = key(true);
-  const keyup = key(false);
-
-  function onstart() {
-    window.addEventListener("keydown", keydown);
-    window.addEventListener("keyup", keyup);
+  onstart() {
+    window.addEventListener("keydown", this.keydown);
+    window.addEventListener("keyup", this.keyup);
   }
-  function onquit() {
-    window.removeEventListener("keydown", keydown);
-    window.removeEventListener("keyup", keyup);
+  onquit() {
+    window.removeEventListener("keydown", this.keydown);
+    window.removeEventListener("keyup", this.keyup);
   }
 
-  const zoomTool = {
-    name: "Zoom",
-    shortcut: "z",
-    listeners: {
-      press: press,
-      move: move,
-      release: release,
-    },
-    onstart: onstart,
-    onquit: onquit,
-    mouseCursor: "zoom-in",
-    icon: "tools/zoom/icon.svg",
-    helpText: "click_to_zoom",
-    showMarker: true,
-  };
-  return zoomTool;
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<ZoomTool>}
+   */
+  static async boot(ctx) {
+    return new ZoomTool(ctx.runtime.Tools);
+  }
 }
 
 /** @param {ZoomToolRegistry} tools */
 export function registerZoomTool(tools) {
-  const tool = createZoomTool(tools);
+  const tool = new ZoomTool(tools);
   tools.add(tool);
   return tool;
-}
-
-// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
-export default class ZoomTool {
-  static toolName = "Zoom";
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<any>}
-   */
-  static async boot(ctx) {
-    return createZoomTool(ctx.runtime.Tools);
-  }
 }
