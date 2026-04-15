@@ -78,20 +78,19 @@
 
 ## design system
 
-- Reference style: technical minimalism built from the whiteboard shell, not the softer landing-page gradients or dark toast language.
-- Shared shell first: tools, HUD chips, presence controls, and lightweight panels should reuse the same base control styling whenever possible instead of introducing parallel card styles.
-- Reuse before adding: extend shared tokens/selectors first, and delete superseded styling rules in the same change so one visual behavior maps to one CSS path.
-- Grid alignment is mandatory: persistent chrome must snap to the `40px` tool-tile grid and align with the first tool row, even when it lives on the opposite screen edge.
-- Stack spacing belongs to the column, not the first tile: use container gaps or sibling spacing so the first tile defines the alignment row cleanly.
-- Closed-by-default chrome must stay compact: when a control is always visible, prefer icon-first layouts and counts; avoid permanent labels or padding that consume canvas space without adding meaning.
-- One-cell rule for persistent chips: if a control is always on screen, keep it within one tool cell when possible and surface counts as badges or transient expansions rather than widening the base tile.
-- Idle status stays hidden: persistent board-state UI should only appear when there is meaningful state to communicate; do not reserve screen space for decorative status shells.
-- Narrow-screen rule: HUD and presence UI must never overlap the tool column; on small widths, keep auxiliary chrome to the right of the toolbar and stack vertically before expanding horizontally.
-- Core surfaces: default to `#ffffff` and near-whites such as `#f3f4f6`; avoid decorative gradients as a default treatment.
-- Borders first: structure components with thin cool-gray borders (`#d9dde3`, stronger `#b8c0cc`) before adding heavier fills or shadows.
-- Geometry and type: keep shapes mostly square with very small radii (`2px` controls, `4px` panels) and compact UI text (`13px` primary, `11px`-`12px` secondary); avoid oversized labels.
-- Accent color: use a green accent inspired by the current frontpage gradient family (`#ccdfdf` -> `#abc6c6`) for active/highlighted states; semantic warning colors should support meaning, not replace text.
-- Motion: keep transitions quiet and mechanical (`120ms`-`180ms`, fade/slide, gentle spinner); avoid playful bounce or constant pulsing for routine states.
+- Reference style: technical minimalism for a collaborative whiteboard. The app should feel precise, calm, utilitarian, and slightly futuristic, like instrument-panel chrome around an infinite canvas, not a marketing site, toy, or soft productivity app.
+- Core surfaces: default to white and near-white surfaces such as `#ffffff`, `#fcfcfd`, and `#f3f4f6`. Avoid decorative gradients, tinted cards, glossy treatments, or dark-theme fragments unless the task explicitly asks for them.
+- Borders and depth: define structure with thin cool-gray borders first (`#d9dde3`, stronger `#b8c0cc`), then add very light shadows only when separation is needed. Prefer crisp edges over filled, pillowy panels.
+- Geometry: keep controls mostly square and compact. Use tight radii (`2px` for controls, `4px` for larger panels), avoid bubbly pills, oversized rounding, and inflated padding.
+- Typography and sizing: use compact UI text (`13px` primary, `11px`-`12px` secondary) with restrained hierarchy. Controls should read as dense tools, not spacious cards.
+- Accent and status colors: the default accent is a muted green in the existing family (`#abc6c6`, `#ccdfdf`). Use warning/success/destructive colors sparingly and always with text or icon support.
+- Icons and affordances: prefer simple monochrome or low-color tool icons with clear silhouettes. Keep iconography functional and schematic, not playful, mascot-like, or heavily illustrated.
+- Motion and behavior: transitions should be quiet and mechanical (`120ms`-`180ms`, subtle fade/slide/spinner). Avoid bounce, flourish, or constant pulsing in normal operation.
+- Preserve the existing whiteboard shell. For bug fixes or small UX changes, do not restyle unrelated controls, introduce new visual systems, or rewrite shared CSS unless the task explicitly asks for a broader design pass.
+- Make the smallest working change. Prefer the narrowest selector and the fewest edited rules; do not add tokens, merge components, or move layout anchors unless that is required by the bug.
+- The left tool rail is the primary anchor. HUD, presence, and status UI must adapt around it; they must never cover it, intercept clicks meant for it, or force it to move.
+- Persistent chrome must stay compact and utilitarian: white or near-white surfaces, thin cool-gray borders, subtle shadows, square geometry (`2px`-`4px` radii), compact type (`13px` primary, `11px`-`12px` secondary), and quiet motion.
+- Idle status stays hidden. Only show persistent board-state UI when there is meaningful state to communicate.
 
 ## required upkeep
 
