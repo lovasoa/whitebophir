@@ -2,7 +2,7 @@ const path = require("node:path");
 const {
   parseIntegerEnv,
   parseRateLimitProfileEnv,
-} = require("./configuration_helpers.js");
+} = require("./configuration_helpers.mjs");
 const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 const app_root = path.dirname(__dirname); // Parent of the directory where this file is
 

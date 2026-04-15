@@ -3,7 +3,7 @@
  * @param {number} defaultValue
  * @returns {number}
  */
-function parseIntegerEnv(name, defaultValue) {
+export function parseIntegerEnv(name, defaultValue) {
   const value = process.env[name];
   if (value === undefined || value === "") return defaultValue;
   const parsed = parseInt(value, 10);
@@ -34,7 +34,7 @@ function parseDurationMs(text) {
  * @param {{limit: number, periodMs: number, overrides?: {[boardName: string]: {limit: number, periodMs: number}}}} defaultValue
  * @returns {{limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}}}
  */
-function parseRateLimitProfileEnv(name, defaultValue) {
+export function parseRateLimitProfileEnv(name, defaultValue) {
   const value = process.env[name];
   if (value === undefined || value.trim() === "") {
     return {
@@ -82,7 +82,7 @@ function parseRateLimitProfileEnv(name, defaultValue) {
  * @param {T} defaultValue
  * @returns {T}
  */
-function parseEnumEnv(name, allowedValues, defaultValue) {
+export function parseEnumEnv(name, allowedValues, defaultValue) {
   const value = process.env[name];
   if (value === undefined || value === "") return defaultValue;
 
@@ -98,9 +98,3 @@ function parseEnumEnv(name, allowedValues, defaultValue) {
     `Invalid ${name}: ${value}. Expected one of: ${allowedValues.join(", ")}`,
   );
 }
-
-module.exports = {
-  parseEnumEnv,
-  parseIntegerEnv,
-  parseRateLimitProfileEnv,
-};
