@@ -20,7 +20,7 @@ const {
 } = require("./test_helpers.js");
 
 const ROOT = path.join(__dirname, "..");
-const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.js");
+const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.mjs");
 const SERVER_PATH = path.join(ROOT, "server", "server.mjs");
 const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.mjs");
 const TEMPLATING_PATH = path.join(ROOT, "server", "templating.mjs");

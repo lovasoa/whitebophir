@@ -4,7 +4,7 @@ const { pathToFileURL } = require("node:url");
 
 const ROOT = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(ROOT, "server", "configuration.js");
-const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.js");
+const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.mjs");
 const SOCKETS_PATH = path.join(ROOT, "server", "sockets.mjs");
 const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.mjs");
 const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.mjs");
