@@ -170,55 +170,50 @@ footer a:hover {
 
 .lang-selector ul {
   box-sizing: border-box;
-  height: 100vh;
-  padding: 0;
-  padding-top: 2em;
-  border: 0;
-  position: fixed;
-  top: 0;
+  padding: 4px 0;
+  border: 1px solid #d9dde3;
+  border-radius: 2px;
+  position: absolute;
+  top: 100%;
   right: 0;
-  width: 0;
-  background: transparent;
-  box-shadow: 0 0 50px 0 transparent;
+  width: 160px;
+  max-height: min(320px, calc(100vh - 90px));
+  overflow-y: auto;
+  background: #ffffff;
+  box-shadow: 0 6px 14px rgba(16, 24, 40, 0.12);
   margin: 0;
-  text-align: right;
-  text-transform: uppercase;
   list-style: none;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
   transition:
-    box-shadow 0.3s,
-    width 0.5s,
-    background-color 0.5s ease 0.3s;
+    opacity 0.15s,
+    transform 0.15s;
+  transform: translateY(-4px);
 }
 
 .lang-selector:hover ul,
 .lang-selector:active ul,
 .lang-selector:focus ul {
-  width: 300px;
-  box-shadow: -150px 0 150px 150px black;
-  background: black;
-  transition:
-    width 0.5s,
-    box-shadow 0.3s ease 0.2s,
-    background-color 0.5s;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .lang-selector li a {
   display: block;
-  line-height: 3;
+  padding: 5px 12px;
+  font-size: 12px;
+  line-height: 1.6;
   text-transform: uppercase;
   text-decoration: none;
-  padding-right: 3em;
-  color: white;
-  opacity: 0.6;
-  transition: 0.2s;
+  color: #111827;
+  transition: background 0.12s;
 }
 
-.lang-selector li:hover a {
-  opacity: 1;
-}
-
-.lang-selector li:hover a::before {
-  content: "› ";
+.lang-selector li a:hover,
+.lang-selector li a:focus {
+  background: #f2f7f5;
 }
 
 #recent-boards {
