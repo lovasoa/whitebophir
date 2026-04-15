@@ -1,7 +1,11 @@
-const handlebars = require("handlebars");
-const fs = require("node:fs");
-const path = require("node:path");
-const client_config = require("./client_configuration");
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+
+import handlebars from "handlebars";
+import fs from "node:fs";
+import path from "node:path";
+
+import client_config from "./client_configuration.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
@@ -9,6 +13,9 @@ const client_config = require("./client_configuration");
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Associations from language to translation dictionnaries
@@ -127,6 +134,7 @@ function findBaseUrl(req) {
   return `${proto}://${host}`;
 }
 
+const require = createRequire(import.meta.url);
 const packageJson = require("../package.json");
 
 class Template {
@@ -241,4 +249,4 @@ class BoardTemplate extends Template {
   }
 }
 
-module.exports = { Template, BoardTemplate };
+export { Template, BoardTemplate };

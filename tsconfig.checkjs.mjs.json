@@ -2,8 +2,8 @@
   "compilerOptions": {
     "ignoreDeprecations": "6.0",
     "target": "ES2023",
-    "module": "CommonJS",
-    "moduleResolution": "Node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "lib": ["ES2023", "DOM"],
     "types": ["node"],
     "allowJs": true,
@@ -19,20 +19,6 @@
     "useUnknownInCatchVariables": true,
     "strict": true
   },
-  "include": [
-    "types/**/*.d.ts",
-    "server/**/*.js",
-    "scripts/**/*.js",
-    "test-node/**/*.js"
-  ],
-  "exclude": [
-    "node_modules",
-    "server-data",
-    "playwright",
-    "scripts/benchmark-server.js",
-    "client-data/js/path-data-polyfill.js",
-    "server/server.js",
-    "test-node/create_svg.test.js",
-    "test-node/templating.test.js"
-  ]
+  "include": ["types/**/*.d.ts", "server/**/*.mjs"],
+  "exclude": ["node_modules", "server-data", "playwright"]
 }

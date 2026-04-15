@@ -8,8 +8,8 @@ const http = require("node:http");
 const { withEnv } = require("./test_helpers.js");
 
 const SERVER_PATH = path.join(__dirname, "..", "server", "server.js");
-const TEMPLATING_PATH = path.join(__dirname, "..", "server", "templating.js");
-const CREATE_SVG_PATH = path.join(__dirname, "..", "server", "createSVG.js");
+const TEMPLATING_PATH = path.join(__dirname, "..", "server", "templating.mjs");
+const CREATE_SVG_PATH = path.join(__dirname, "..", "server", "createSVG.mjs");
 const CHECK_OUTPUT_DIRECTORY_PATH = path.join(
   __dirname,
   "..",
@@ -20,7 +20,7 @@ const CLIENT_CONFIGURATION_PATH = path.join(
   __dirname,
   "..",
   "server",
-  "client_configuration.js",
+  "client_configuration.mjs",
 );
 const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.js");
 

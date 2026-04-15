@@ -8,6 +8,7 @@
 ## architecture
 
 - Process boot + routes + socket server: [server startup](./server/server.js).
+- HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs).
 - Realtime event handlers + broadcast path: [socket handlers](./server/sockets.js).
 - Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.js).
 - Canonical inbound payload normalization: [message schema gate](./server/message_validation.js).

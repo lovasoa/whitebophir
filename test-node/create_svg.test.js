@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const { renderBoard } = require("../server/createSVG.js");
+const { renderBoard } = require("../server/createSVG.mjs");
 const {
   wboPencilPoint,
 } = require("../client-data/tools/pencil/wbo_pencil_point.js");

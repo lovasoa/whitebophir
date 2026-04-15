@@ -7,7 +7,7 @@ const serveStatic = require("serve-static");
 const { BoardData } = require("./boardData.js");
 const check_output_directory = require("./check_output_directory.js");
 const config = require("./configuration.js");
-const createSVG = require("./createSVG.js");
+const createSVG = require("./createSVG.mjs");
 const jwtauth = require("./jwtauth.js");
 const jwtBoardName = require("./jwtBoardnameAuth.js");
 const {
@@ -27,7 +27,7 @@ const {
   tracing,
 } = require("./observability.js");
 const sockets = require("./sockets.js");
-const templating = require("./templating.js");
+const templating = require("./templating.mjs");
 
 /** @typedef {import("http").IncomingMessage} HttpRequest */
 /** @typedef {import("http").ServerResponse} HttpResponse */

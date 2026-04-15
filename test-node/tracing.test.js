@@ -22,8 +22,8 @@ const ROOT = path.join(__dirname, "..");
 const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.js");
 const SERVER_PATH = path.join(ROOT, "server", "server.js");
 const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.js");
-const TEMPLATING_PATH = path.join(ROOT, "server", "templating.js");
-const CREATE_SVG_PATH = path.join(ROOT, "server", "createSVG.js");
+const TEMPLATING_PATH = path.join(ROOT, "server", "templating.mjs");
+const CREATE_SVG_PATH = path.join(ROOT, "server", "createSVG.mjs");
 const CHECK_OUTPUT_DIRECTORY_PATH = path.join(
   ROOT,
   "server",
@@ -32,7 +32,7 @@ const CHECK_OUTPUT_DIRECTORY_PATH = path.join(
 const CLIENT_CONFIGURATION_PATH = path.join(
   ROOT,
   "server",
-  "client_configuration.js",
+  "client_configuration.mjs",
 );
 const JWTAUTH_PATH = path.join(ROOT, "server", "jwtauth.js");
 const TRACING_MODULES_TO_CLEAR = [

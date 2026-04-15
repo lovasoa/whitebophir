@@ -1,4 +1,5 @@
-const config = require("./configuration");
+import config from "./configuration.js";
+
 const {
   MAX_BOARD_SIZE,
   GENERAL_RATE_LIMITS,
@@ -11,8 +12,8 @@ const {
   TURNSTILE_VALIDATION_WINDOW_MS,
 } = config;
 
-/** Settings that should be handed through to the clients  */
-module.exports = {
+/** Settings that should be handed through to the clients */
+const clientConfiguration = {
   MAX_BOARD_SIZE,
   RATE_LIMITS: {
     general: GENERAL_RATE_LIMITS,
@@ -25,3 +26,5 @@ module.exports = {
   TURNSTILE_SITE_KEY,
   TURNSTILE_VALIDATION_WINDOW_MS,
 };
+
+export default clientConfiguration;

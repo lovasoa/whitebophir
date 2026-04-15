@@ -41,7 +41,7 @@
     "test:pw:debug": "node scripts/check-playwright-tests.js && playwright test --debug",
     "typecheck:pw": "tsc -p tsconfig.playwright.json",
     "test": "npm run test-node && npm run test:pw && npm run lint",
-    "typecheck": "tsc -p tsconfig.checkjs.json",
+    "typecheck": "tsc -p tsconfig.checkjs.json && tsc -p tsconfig.checkjs.mjs.json",
     "format-staged": "node scripts/biome-staged.js"
   },
   "main": "./server/server.js",

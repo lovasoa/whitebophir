@@ -1,7 +1,10 @@
-const fsp = require("node:fs/promises"),
-  path = require("node:path"),
-  parseStoredBoard = require("./boardData.js").parseStoredBoard,
-  logger = require("./observability.js").logger;
+import fsp from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+import { parseStoredBoard } from "./boardData.js";
+import { logger } from "./observability.js";
+import config from "./configuration.js";
 
 /** @typedef {{x: number, y: number}} Point */
 /** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number}} ElementStyle */
@@ -428,7 +431,7 @@ async function toSVG(obj, writeable) {
  * @param {string} file
  * @returns {Promise<string>}
  */
-async function renderBoardToSVG(file) {
+export async function renderBoardToSVG(file) {
   const data = await fsp.readFile(file, "utf8");
   /** @type {RenderableBoard} */
   const board = /** @type {RenderableBoard} */ (
@@ -449,24 +452,21 @@ async function renderBoardToSVG(file) {
  * @param {WritableTarget} stream
  * @returns {Promise<void>}
  */
-async function renderBoard(file, stream) {
+export async function renderBoard(file, stream) {
   const svg = await renderBoardToSVG(file);
   stream.write(svg);
 }
 
-if (require.main === module) {
-  const config = require("./configuration.js");
-  const HISTORY_FILE =
+const isMainModule =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMainModule) {
+  const historyFile =
     process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
 
-  renderBoard(HISTORY_FILE, process.stdout).catch((error) => {
+  renderBoard(historyFile, process.stdout).catch((error) => {
     logger.error("svg.render_failed", {
-      error: error,
+      error,
     });
   });
-} else {
-  module.exports = {
-    renderBoard,
-    renderBoardToSVG,
-  };
 }

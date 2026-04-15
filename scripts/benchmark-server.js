@@ -10,7 +10,7 @@ process.env.WBO_SILENT = process.env.WBO_SILENT || "true";
 
 const { BoardData } = require("../server/boardData.js");
 const config = require("../server/configuration.js");
-const { renderBoardToSVG } = require("../server/createSVG.js");
+const { renderBoardToSVG } = require("../server/createSVG.mjs");
 
 const DEFAULT_COLOR = "#1f2937";
 const WARMUP_COUNT = 1;
