@@ -1,4 +1,5 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: Playwright tests frequently access global state on the window object.
+import { setTimeout as delay } from "node:timers/promises";
 import { createBoardPage, expect, test } from "../fixtures/test";
 import { DEFAULT_FORWARDED_IP } from "../helpers/tokens";
 
@@ -505,6 +506,199 @@ test.describe("collaboration and rate limiting", () => {
       initialPathData ?? "",
     );
     await expect(page.locator("path#reconnect-pencil-path")).toHaveCount(1);
+  });
+
+  test("slow board boot stabilizes with persisted shapes and an active peer", async ({
+    boardPage,
+    page,
+    server,
+    context,
+  }) => {
+    const boardName = "slow-start-stability";
+    const serverOrigin = new URL(server.serverUrl).origin;
+
+    await server.writeBoard(server.dataPath, boardName, {
+      "slow-pencil": {
+        tool: "Pencil",
+        type: "line",
+        id: "slow-pencil",
+        color: "#8844aa",
+        size: 4,
+        opacity: 1,
+        _children: [
+          { x: 60, y: 80 },
+          { x: 120, y: 130 },
+          { x: 180, y: 100 },
+          { x: 230, y: 170 },
+        ],
+      },
+      "slow-rect": {
+        tool: "Rectangle",
+        type: "rect",
+        id: "slow-rect",
+        x: 100,
+        y: 100,
+        x2: 160,
+        y2: 140,
+        color: "#123456",
+        size: 4,
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
+      },
+      "slow-ellipse": {
+        tool: "Ellipse",
+        type: "ellipse",
+        id: "slow-ellipse",
+        x: 260,
+        y: 120,
+        x2: 320,
+        y2: 180,
+        color: "#228855",
+        size: 5,
+      },
+      "slow-line": {
+        tool: "Straight line",
+        type: "straight",
+        id: "slow-line",
+        x: 440,
+        y: 120,
+        x2: 500,
+        y2: 170,
+        color: "#aa5500",
+        size: 3,
+      },
+      "slow-text": {
+        tool: "Text",
+        type: "new",
+        id: "slow-text",
+        x: 360,
+        y: 180,
+        color: "#111111",
+        size: 18,
+        txt: "Slow sync",
+      },
+    });
+
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await peerBoard.gotoBoard(boardName);
+    await peerBoard.waitForSocketConnected();
+    await peerBoard.waitForAuthoritativeResync();
+
+    await page.route("**/*", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (
+        url.origin === serverOrigin &&
+        ["document", "script", "stylesheet", "image", "fetch", "xhr"].includes(
+          request.resourceType(),
+        )
+      ) {
+        await delay(120);
+      }
+      await route.continue();
+    });
+
+    await boardPage.gotoBoard(boardName);
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    await peerBoard.emitBroadcast({
+      tool: "Cursor",
+      type: "update",
+      x: 640,
+      y: 210,
+      color: "#00ff66",
+      size: 12,
+    });
+
+    await boardPage.connectedUsersToggle.click();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    await expect(page.locator("#slow-pencil")).toHaveCount(1);
+    await expect(page.locator("#slow-rect")).toBeVisible();
+    await expect(page.locator("#slow-ellipse")).toBeVisible();
+    await expect(page.locator("line#slow-line")).toBeVisible();
+    await expect(page.locator("#slow-text")).toHaveText("Slow sync");
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const remoteCursor = document.querySelector(
+            "#cursors .opcursor:not(#cursor-me)",
+          );
+          if (!(remoteCursor instanceof SVGElement)) return null;
+          const style =
+            remoteCursor.style.transform ||
+            window.getComputedStyle(remoteCursor).transform;
+          return {
+            fill: remoteCursor.getAttribute("fill"),
+            transform: style || remoteCursor.getAttribute("transform"),
+          };
+        }),
+      )
+      .toMatchObject({
+        fill: "#00ff66",
+      });
+
+    const finalState = await page.evaluate(() => {
+      const rect = document.getElementById("slow-rect");
+      const transformValues = (
+        rect?.getAttribute("transform")?.match(/matrix\(([^)]+)\)/)?.[1] ?? ""
+      )
+        .split(/[ ,]+/)
+        .filter(Boolean)
+        .map(Number);
+      const drawingIds = Array.from(
+        document.querySelectorAll("#drawingArea [id]"),
+      ).map((element) => element.id);
+      const pencilPath = document.querySelector("#slow-pencil");
+      const loadingMessage = document.getElementById("loadingMessage");
+      const remoteCursor = document.querySelector(
+        "#cursors .opcursor:not(#cursor-me)",
+      );
+
+      return {
+        boardReady: document.documentElement.dataset.boardReady,
+        connectionState: String((window as any).Tools.connectionState ?? ""),
+        awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
+        loadingHidden: loadingMessage?.classList.contains("hidden") ?? false,
+        pencilCount: document.querySelectorAll("#drawingArea path#slow-pencil")
+          .length,
+        pencilPathData:
+          pencilPath instanceof SVGPathElement
+            ? (pencilPath.getAttribute("d") ?? "")
+            : "",
+        rectTransformE: transformValues[4] ?? null,
+        rectTransformF: transformValues[5] ?? null,
+        ellipseCount: document.querySelectorAll(
+          "#drawingArea ellipse#slow-ellipse",
+        ).length,
+        lineCount: document.querySelectorAll("#drawingArea line#slow-line")
+          .length,
+        textContent: document.getElementById("slow-text")?.textContent ?? "",
+        drawingIdsUnique: drawingIds.length === new Set(drawingIds).size,
+        remoteCursorPresent: remoteCursor instanceof SVGElement,
+      };
+    });
+
+    expect(finalState).toMatchObject({
+      boardReady: "true",
+      connectionState: "connected",
+      awaitingBoardSnapshot: false,
+      loadingHidden: true,
+      pencilCount: 1,
+      rectTransformE: 25,
+      rectTransformF: 30,
+      ellipseCount: 1,
+      lineCount: 1,
+      textContent: "Slow sync",
+      drawingIdsUnique: true,
+      remoteCursorPresent: true,
+    });
+    expect(finalState.pencilPathData).toBeTruthy();
+
+    await peerPage.close();
   });
 
   rateLimitTest(
