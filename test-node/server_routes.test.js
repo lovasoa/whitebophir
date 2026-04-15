@@ -4,10 +4,11 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
+const { pathToFileURL } = require("node:url");
 
 const { withEnv } = require("./test_helpers.js");
 
-const SERVER_PATH = path.join(__dirname, "..", "server", "server.js");
+const SERVER_PATH = path.join(__dirname, "..", "server", "server.mjs");
 const TEMPLATING_PATH = path.join(__dirname, "..", "server", "templating.mjs");
 const CREATE_SVG_PATH = path.join(__dirname, "..", "server", "createSVG.mjs");
 const CHECK_OUTPUT_DIRECTORY_PATH = path.join(
@@ -23,6 +24,16 @@ const CLIENT_CONFIGURATION_PATH = path.join(
   "client_configuration.mjs",
 );
 const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.mjs");
+let serverLoadSequence = 0;
+
+/**
+ * @returns {Promise<{default: import("http").Server}>}
+ */
+async function loadServer() {
+  return import(
+    `${pathToFileURL(SERVER_PATH).href}?cache-bust=${++serverLoadSequence}`
+  );
+}
 
 /**
  * @param {import("http").Server} server
@@ -112,7 +123,7 @@ test("server returns 404 for preview and download routes without a board name", 
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const app = require(SERVER_PATH);
+    const { default: app } = await loadServer();
     await waitForListening(app);
     try {
       const preview = await request(app, "/preview");
@@ -148,7 +159,7 @@ test("server returns an error status instead of 200 when preview rendering fails
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const app = require(SERVER_PATH);
+    const { default: app } = await loadServer();
     await waitForListening(app);
     try {
       const response = await request(app, "/preview/missing-board");
@@ -180,7 +191,7 @@ test("server preserves an incoming request id header", async () => {
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const app = require(SERVER_PATH);
+    const { default: app } = await loadServer();
     await waitForListening(app);
     try {
       const address = app.address();

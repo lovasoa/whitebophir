@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { withEnv, createSocket, SOCKETS_PATH } = require("./test_helpers.js");
+const { withEnv, createSocket, loadSockets } = require("./test_helpers.js");
 const WBOMessageCommon = require("../client-data/js/message_common.js");
 
 /**
@@ -43,7 +43,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       TURNSTILE_VALIDATION_WINDOW_MS: "1000",
     },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       const { socket, handlers } = createSocket();
 
       // Initialize socket state by calling handleSocketConnection
@@ -135,7 +135,7 @@ test("server-side Turnstile token validation binds Siteverify to request context
     },
     async () => {
       const config = require("../server/configuration.js");
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       const { socket, handlers } = createSocket({
         headers: { host: "board.example" },
         remoteAddress: "203.0.113.10",
@@ -229,7 +229,7 @@ test("server-side Turnstile token validation rejects hostname mismatches", async
     },
     async () => {
       const _config = require("../server/configuration.js");
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       const { socket, handlers } = createSocket({
         headers: { host: "board.example:8080" },
       });

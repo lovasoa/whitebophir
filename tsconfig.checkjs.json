@@ -31,7 +31,6 @@
     "playwright",
     "scripts/benchmark-server.js",
     "client-data/js/path-data-polyfill.js",
-    "server/server.js",
     "test-node/create_svg.test.js",
     "test-node/templating.test.js"
   ]

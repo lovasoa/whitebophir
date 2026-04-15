@@ -1,10 +1,11 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 const ROOT = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(ROOT, "server", "configuration.js");
 const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.js");
-const SOCKETS_PATH = path.join(ROOT, "server", "sockets.js");
+const SOCKETS_PATH = path.join(ROOT, "server", "sockets.mjs");
 const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.mjs");
 const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.mjs");
 const MESSAGE_VALIDATION_PATH = path.join(
@@ -41,6 +42,7 @@ const DEFAULT_CLEARED_MODULES = [
   MESSAGE_COMMON_PATH,
   JWT_BOARDNAME_AUTH_PATH,
 ];
+let socketsLoadSequence = 0;
 
 /**
  * @param {string} modulePath
@@ -49,6 +51,15 @@ const DEFAULT_CLEARED_MODULES = [
 function clearModuleCache(modulePath) {
   const resolved = require.resolve(modulePath);
   delete require.cache[resolved];
+}
+
+/**
+ * @returns {Promise<any>}
+ */
+async function loadSockets() {
+  return import(
+    `${pathToFileURL(SOCKETS_PATH).href}?cache-bust=${++socketsLoadSequence}`
+  );
 }
 
 /**
@@ -176,6 +187,7 @@ module.exports = {
   SOCKETS_PATH,
   boardFile,
   createSocket,
+  loadSockets,
   withEnv,
   writeBoard,
 };

@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const { SOCKETS_PATH, createSocket, withEnv } = require("./test_helpers.js");
+const { createSocket, loadSockets, withEnv } = require("./test_helpers.js");
 
 /**
  * @param {{[event: string]: ((...args: any[]) => any) | undefined}} handlers
@@ -29,7 +29,7 @@ function getRequiredValue(value) {
 
 test("user id and visible name are deterministic from userSecret and ip", async () => {
   await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async () => {
-    const sockets = require(SOCKETS_PATH);
+    const sockets = await loadSockets();
     const { socket } = createSocket({
       remoteAddress: "203.0.113.40",
       query: {
@@ -59,7 +59,7 @@ test("user id and visible name are deterministic from userSecret and ip", async 
 
 test("board user record seeds tool color and size from socket query", async () => {
   await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async () => {
-    const sockets = require(SOCKETS_PATH);
+    const sockets = await loadSockets();
     const { socket } = createSocket({
       remoteAddress: "203.0.113.41",
       query: {
@@ -82,7 +82,7 @@ test("board user record seeds tool color and size from socket query", async () =
 
 test("board user maps are created lazily and cleaned when emptied", async () => {
   await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async () => {
-    const sockets = require(SOCKETS_PATH);
+    const sockets = await loadSockets();
     sockets.__test.resetRateLimitMaps();
 
     const users = sockets.__test.getBoardUserMap("board-a");
@@ -114,7 +114,7 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const first = createSocket({
@@ -176,7 +176,7 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const created = createSocket({
@@ -254,7 +254,7 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const created = createSocket({
@@ -302,7 +302,7 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const created = createSocket({
@@ -387,7 +387,7 @@ test("same-session sockets keep a shared userId in presence but live payload att
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const first = createSocket({
@@ -462,7 +462,7 @@ test("report_user logs reporter and reported user details for active board membe
       WBO_SILENT: "true",
     },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const reporter = createSocket({
@@ -538,7 +538,7 @@ test("report_user respects custom header ip sources for active board members", a
       WBO_SILENT: "true",
     },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
 
       const reporter = createSocket({

@@ -25,9 +25,12 @@
  */
 
 import { createRequire } from "node:module";
+import path from "node:path";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
 
-const require = createRequire(import.meta.url);
+const require = createRequire(
+  path.join(process.cwd(), "server", "jwtauth.mjs"),
+);
 
 function getConfig() {
   return require("./configuration.js");

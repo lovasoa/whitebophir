@@ -1,36 +1,47 @@
-const crypto = require("node:crypto");
-const { Server } = require("socket.io");
-const { logger, metrics, tracing } = require("./observability.js");
-const { BoardData } = require("./boardData.mjs");
-const config = require("./configuration");
-const jsonwebtoken = require("jsonwebtoken");
-const socketPolicy = require("./socket_policy.mjs");
-const WBOMessageCommon = require("../client-data/js/message_common.js");
-const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
+import crypto from "node:crypto";
+import { createRequire } from "node:module";
+import path from "node:path";
+import * as socketIO from "socket.io";
+import observability from "./observability.js";
+import { BoardData } from "./boardData.mjs";
+import jsonwebtoken from "jsonwebtoken";
+import {
+  canAccessBoard,
+  canApplyBoardMessage,
+  canWriteToBoard,
+  countConstructiveActions,
+  countDestructiveActions,
+  getClientIp,
+  normalizeBroadcastData,
+  parseForwardedHeader,
+} from "./socket_policy.mjs";
+import WBOMessageCommon from "../client-data/js/message_common.js";
+import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 
-const canAccessBoard = socketPolicy.canAccessBoard;
-const canApplyBoardMessage = socketPolicy.canApplyBoardMessage;
-const canWriteToBoard = socketPolicy.canWriteToBoard;
-const countConstructiveActions = socketPolicy.countConstructiveActions;
-const countDestructiveActions = socketPolicy.countDestructiveActions;
-const getClientIp = socketPolicy.getClientIp;
-const normalizeBroadcastData = socketPolicy.normalizeBroadcastData;
-const parseForwardedHeader = socketPolicy.parseForwardedHeader;
 const createRateLimitState = RateLimitCommon.createRateLimitState;
 const consumeFixedWindowRateLimit = RateLimitCommon.consumeFixedWindowRateLimit;
 const getRateLimitRemainingMs = RateLimitCommon.getRateLimitRemainingMs;
 const getEffectiveRateLimitDefinition =
   RateLimitCommon.getEffectiveRateLimitDefinition;
 const isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
+const { Server } = socketIO;
+const { logger, metrics, tracing } = observability;
+const require = createRequire(
+  path.join(process.cwd(), "server", "sockets.mjs"),
+);
+
+function getConfig() {
+  return require("./configuration.js");
+}
 
 /** @typedef {{token?: string, userSecret?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
-/** @typedef {import("../types/server-runtime").AppSocket} AppSocket */
-/** @typedef {import("../types/server-runtime").MessageData} MessageData */
-/** @typedef {import("../types/server-runtime").RateLimitState} RateLimitState */
-/** @typedef {import("../types/server-runtime").SocketRequest} SocketRequest */
-/** @typedef {import("../types/server-runtime").TurnstileAck} TurnstileAck */
-/** @typedef {import("../types/server-runtime").ValidationStatus} ValidationStatus */
+/** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
+/** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
+/** @typedef {import("../types/server-runtime.d.ts").RateLimitState} RateLimitState */
+/** @typedef {import("../types/server-runtime.d.ts").SocketRequest} SocketRequest */
+/** @typedef {import("../types/server-runtime.d.ts").TurnstileAck} TurnstileAck */
+/** @typedef {import("../types/server-runtime.d.ts").ValidationStatus} ValidationStatus */
 
 /** Map from name to *promises* of BoardData
   @type {{[boardName: string]: Promise<BoardData>}}
@@ -611,6 +622,7 @@ function shouldTraceBroadcast(data) {
  * @returns {{limit: number, periodMs: number}}
  */
 function getEffectiveRateLimitConfig(kind, boardName) {
+  const config = getConfig();
   switch (kind) {
     case "constructive":
       return getEffectiveRateLimitDefinition(
@@ -704,6 +716,7 @@ function isTurnstileValidationActive(socket, now) {
  * @returns {TurnstileAck}
  */
 function buildTurnstileAck(socket) {
+  const config = getConfig();
   return {
     success: true,
     validationWindowMs: config.TURNSTILE_VALIDATION_WINDOW_MS,
@@ -1059,9 +1072,10 @@ function cloneMessageForPersistence(data) {
 
 /**
  * @param {any} app
- * @returns {Server}
+ * @returns {import("socket.io").Server}
  */
 function startIO(app) {
+  const config = getConfig();
   io = new Server(app);
   if (config.AUTH_SECRET_KEY) {
     // Middleware to check for valid jwt
@@ -1119,6 +1133,7 @@ function handleSocketConnection(socket) {
    * @param {string} name
    */
   async function joinBoard(/** @type {string} */ name) {
+    const config = getConfig();
     // Default to the public board
     if (!name) name = "anonymous";
     tracing.setActiveSpanAttributes({ "wbo.board": name });
@@ -1231,6 +1246,7 @@ function handleSocketConnection(socket) {
           attributes: socketTraceAttributes("turnstile_token"),
         },
         async function traceTurnstileToken() {
+          const config = getConfig();
           if (!config.TURNSTILE_SECRET_KEY) {
             if (typeof ack === "function") ack(true);
             return;
@@ -1322,6 +1338,7 @@ function handleSocketConnection(socket) {
   socket.on(
     "broadcast",
     noFail(async function onBroadcast(message) {
+      const config = getConfig();
       const now = Date.now();
       const boardName = getBoardName(message);
       const data = getMessageData(message);
@@ -1672,33 +1689,32 @@ function saveHistory(board, message) {
   return board.processMessage(/** @type {any} */ (message));
 }
 
-if (exports) {
-  exports.start = startIO;
-  exports.__test = {
-    buildBoardUserRecord,
-    buildIpWord,
-    buildUserId,
-    buildUserName,
-    handleSocketConnection,
-    consumeFixedWindowRateLimit,
-    countDestructiveActions,
-    countConstructiveActions,
-    createRateLimitState,
-    getClientIp,
-    normalizeBroadcastData,
-    parseForwardedHeader,
-    pruneRateLimitMap,
-    cleanupBoardUserMap,
-    getBoardUserMap,
-    getLastUserReportLog: function getLastUserReportLog() {
-      return lastUserReportLog;
-    },
-    resetRateLimitMaps: function resetRateLimitMaps() {
-      destructiveRateLimits.clear();
-      constructiveRateLimits.clear();
-      boardUsers.clear();
-      activeSockets.clear();
-      lastUserReportLog = null;
-    },
-  };
-}
+export const __test = {
+  buildBoardUserRecord,
+  buildIpWord,
+  buildUserId,
+  buildUserName,
+  handleSocketConnection,
+  consumeFixedWindowRateLimit,
+  countDestructiveActions,
+  countConstructiveActions,
+  createRateLimitState,
+  getClientIp,
+  normalizeBroadcastData,
+  parseForwardedHeader,
+  pruneRateLimitMap,
+  cleanupBoardUserMap,
+  getBoardUserMap,
+  getLastUserReportLog: function getLastUserReportLog() {
+    return lastUserReportLog;
+  },
+  resetRateLimitMaps: function resetRateLimitMaps() {
+    destructiveRateLimits.clear();
+    constructiveRateLimits.clear();
+    boardUsers.clear();
+    activeSockets.clear();
+    lastUserReportLog = null;
+  },
+};
+
+export { startIO as start };

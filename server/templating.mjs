@@ -1,5 +1,4 @@
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
 
 import handlebars from "handlebars";
 import fs from "node:fs";
@@ -14,8 +13,7 @@ import client_config from "./client_configuration.mjs";
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.join(process.cwd(), "server");
 
 /**
  * Associations from language to translation dictionnaries
@@ -134,7 +132,9 @@ function findBaseUrl(req) {
   return `${proto}://${host}`;
 }
 
-const require = createRequire(import.meta.url);
+const require = createRequire(
+  path.join(process.cwd(), "server", "templating.mjs"),
+);
 const packageJson = require("../package.json");
 
 class Template {

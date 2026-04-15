@@ -21,4 +21,4 @@ EXPOSE 80
 
 VOLUME /opt/app/server-data
 
-CMD ["/usr/local/bin/node", "server/server.js"]
+CMD ["/usr/local/bin/node", "server/server.mjs"]

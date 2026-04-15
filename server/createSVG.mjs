@@ -458,7 +458,9 @@ export async function renderBoard(file, stream) {
 }
 
 const isMainModule =
-  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+  process.argv[1] &&
+  path.resolve(process.argv[1]) ===
+    path.join(process.cwd(), "server", "createSVG.mjs");
 
 if (isMainModule) {
   const historyFile =

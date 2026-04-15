@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
+const { pathToFileURL } = require("node:url");
 
 const { context, metrics, propagation, trace } = require("@opentelemetry/api");
 const { logs } = require("@opentelemetry/api-logs");
@@ -13,14 +14,14 @@ const {
   CONFIG_PATH,
   MESSAGE_VALIDATION_PATH,
   SOCKET_POLICY_PATH,
-  SOCKETS_PATH,
+  loadSockets,
   createSocket,
   writeBoard,
 } = require("./test_helpers.js");
 
 const ROOT = path.join(__dirname, "..");
 const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.js");
-const SERVER_PATH = path.join(ROOT, "server", "server.js");
+const SERVER_PATH = path.join(ROOT, "server", "server.mjs");
 const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.mjs");
 const TEMPLATING_PATH = path.join(ROOT, "server", "templating.mjs");
 const CREATE_SVG_PATH = path.join(ROOT, "server", "createSVG.mjs");
@@ -39,7 +40,6 @@ const TRACING_MODULES_TO_CLEAR = [
   CONFIG_PATH,
   MESSAGE_VALIDATION_PATH,
   SOCKET_POLICY_PATH,
-  SOCKETS_PATH,
   SERVER_PATH,
   BOARD_DATA_PATH,
   TEMPLATING_PATH,
@@ -48,6 +48,7 @@ const TRACING_MODULES_TO_CLEAR = [
   CLIENT_CONFIGURATION_PATH,
   JWTAUTH_PATH,
 ];
+let serverLoadSequence = 0;
 /** @type {{shutdownObservability: () => Promise<void>} | null} */
 let sharedObservability = null;
 /** @type {InMemorySpanExporter | null} */
@@ -60,6 +61,15 @@ let sharedExporter = null;
 function clearModuleCache(modulePath) {
   const resolved = require.resolve(modulePath);
   delete require.cache[resolved];
+}
+
+/**
+ * @returns {Promise<{default: import("http").Server}>}
+ */
+async function loadServer() {
+  return import(
+    `${pathToFileURL(SERVER_PATH).href}?cache-bust=${++serverLoadSequence}`
+  );
 }
 
 /**
@@ -292,7 +302,7 @@ test("preview requests continue traceparent and create a child render span", asy
       WBO_WEBROOT: dirs.webroot,
     },
     async ({ exporter }) => {
-      const app = require(SERVER_PATH);
+      const { default: app } = await loadServer();
       await waitForListening(app);
       try {
         await request(app, "/preview/missing-board", {
@@ -311,7 +321,11 @@ test("preview requests continue traceparent and create a child render span", asy
         assert.equal(requestSpan.attributes["http.route"], "/preview/{board}");
         assert.equal(requestSpan.attributes["url.scheme"], "http");
         assert.equal(requestSpan.attributes["server.address"], "127.0.0.1");
-        assert.equal(requestSpan.attributes["server.port"], app.address().port);
+        const address = app.address();
+        if (!address || typeof address === "string") {
+          throw new Error("Expected test server to listen on a TCP port");
+        }
+        assert.equal(requestSpan.attributes["server.port"], address.port);
         assert.equal(requestSpan.attributes["url.path"], undefined);
         assert.equal(
           requestSpan.parentSpanContext.traceId,
@@ -348,7 +362,7 @@ test("static asset requests do not create spans", async () => {
       WBO_WEBROOT: dirs.webroot,
     },
     async ({ exporter }) => {
-      const app = require(SERVER_PATH);
+      const { default: app } = await loadServer();
       await waitForListening(app);
       try {
         const response = await request(app, "/script.js");
@@ -381,7 +395,7 @@ test("getboard traces the root socket event and board load", async () => {
       WBO_HISTORY_DIR: historyDir,
     },
     async ({ exporter }) => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       const created = createSocket({
         id: "socket-trace",
         remoteAddress: "203.0.113.10",
@@ -482,7 +496,7 @@ test("successful cursor broadcasts stay untraced, but invalid cursor messages cr
       WBO_HISTORY_DIR: historyDir,
     },
     async ({ exporter }) => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       const created = createSocket({
         id: "socket-cursor",
         remoteAddress: "203.0.113.12",

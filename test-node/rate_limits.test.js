@@ -3,8 +3,8 @@ const assert = require("node:assert/strict");
 
 const {
   CONFIG_PATH,
-  SOCKETS_PATH,
   createSocket,
+  loadSockets,
   withEnv,
 } = require("./test_helpers.js");
 
@@ -133,7 +133,7 @@ test("general rate limit closes the socket when exceeded", async () => {
       WBO_MAX_EMIT_COUNT: "*:0/4096ms",
     },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.10",
@@ -159,7 +159,7 @@ test("destructive per-IP rate limit closes the socket when exceeded", async () =
       WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:0/10s",
     },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
@@ -197,7 +197,7 @@ test("constructive per-IP rate limit closes the socket when exceeded", async () 
       WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:0/10s",
     },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       sockets.__test.resetRateLimitMaps();
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
@@ -241,7 +241,7 @@ test("missing configured IP source falls back without disconnecting", async () =
       WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:10/60s anonymous:5/60s",
     },
     async () => {
-      const sockets = require(SOCKETS_PATH);
+      const sockets = await loadSockets();
       const { socket, handlers } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.12",

@@ -29,7 +29,7 @@
   },
   "scripts": {
     "prepare": "node scripts/install-git-hooks.js",
-    "start": "node ./server/server.js",
+    "start": "node ./server/server.mjs",
     "bench": "node --expose-gc ./scripts/benchmark-server.js",
     "profile": "node ./scripts/profile-benchmark-server.mjs",
     "lint": "biome check . --assist-enabled=false --error-on-warnings",
@@ -44,7 +44,7 @@
     "typecheck": "tsc -p tsconfig.checkjs.json && tsc -p tsconfig.checkjs.mjs.json",
     "format-staged": "node scripts/biome-staged.js"
   },
-  "main": "./server/server.js",
+  "main": "./server/server.mjs",
   "repository": {
     "type": "git",
     "url": "http://github.com/lovasoa/whitebophir.git"
