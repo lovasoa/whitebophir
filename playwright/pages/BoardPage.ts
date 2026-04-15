@@ -240,24 +240,32 @@ export class BoardPage {
       for (const path of inputPaths) {
         if (path.points.length === 0) continue;
         (window as any).Tools.setColor(path.color);
+        const pencilTool = (window as any).Tools.list.Pencil;
+        if (!pencilTool) throw new Error("Missing Pencil tool");
         const lineId = (window as any).Tools.generateUID("l");
-        (window as any).Tools.drawAndSend({
-          type: "line",
-          id: lineId,
-          color: path.color,
-          size: (window as any).Tools.getSize(),
-          opacity: (window as any).Tools.getOpacity(),
-        });
+        (window as any).Tools.drawAndSend(
+          {
+            type: "line",
+            id: lineId,
+            color: path.color,
+            size: (window as any).Tools.getSize(),
+            opacity: (window as any).Tools.getOpacity(),
+          },
+          pencilTool,
+        );
         await nextFrame();
         for (let index = 0; index < path.points.length; index += 1) {
           const point = path.points[index];
           if (!point) continue;
-          (window as any).Tools.drawAndSend({
-            type: "child",
-            parent: lineId,
-            x: point.x,
-            y: point.y,
-          });
+          (window as any).Tools.drawAndSend(
+            {
+              type: "child",
+              parent: lineId,
+              x: point.x,
+              y: point.y,
+            },
+            pencilTool,
+          );
           await nextFrame();
         }
         await waitFor(
