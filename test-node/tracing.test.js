@@ -27,7 +27,7 @@ const CREATE_SVG_PATH = path.join(ROOT, "server", "createSVG.mjs");
 const CHECK_OUTPUT_DIRECTORY_PATH = path.join(
   ROOT,
   "server",
-  "check_output_directory.js",
+  "check_output_directory.mjs",
 );
 const CLIENT_CONFIGURATION_PATH = path.join(
   ROOT,

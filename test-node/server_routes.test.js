@@ -14,7 +14,7 @@ const CHECK_OUTPUT_DIRECTORY_PATH = path.join(
   __dirname,
   "..",
   "server",
-  "check_output_directory.js",
+  "check_output_directory.mjs",
 );
 const CLIENT_CONFIGURATION_PATH = path.join(
   __dirname,

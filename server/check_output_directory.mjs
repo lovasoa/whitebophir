@@ -1,8 +1,9 @@
-const fs = require("node:fs");
-const fsp = require("node:fs/promises");
-const os = require("node:os");
-const path = require("node:path");
-const { logger } = require("./observability.js");
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import { logger } from "./observability.js";
 
 const { R_OK, W_OK } = fs.constants;
 
@@ -71,4 +72,4 @@ function check_output_directory(directory) {
   });
 }
 
-module.exports = check_output_directory;
+export default check_output_directory;
