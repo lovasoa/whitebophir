@@ -1,20 +1,24 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const BoardTools = require("../client-data/js/board_page_state.js").tools;
+const {
+  drainPendingMessages,
+  isBlockedToolName,
+  shouldDisplayTool,
+} = require("../client-data/js/board_page_state.js");
 
 test("isBlockedToolName rejects invalid tool names and respects the blocked list", () => {
-  assert.equal(BoardTools.isBlockedToolName("Pencil", ["Text"]), false);
-  assert.equal(BoardTools.isBlockedToolName("Pencil", ["Pencil"]), true);
+  assert.equal(isBlockedToolName("Pencil", ["Text"]), false);
+  assert.equal(isBlockedToolName("Pencil", ["Pencil"]), true);
   assert.throws(() => {
-    BoardTools.isBlockedToolName("Bad,Tool", []);
+    isBlockedToolName("Bad,Tool", []);
   }, /must not contain a comma/);
 });
 
 test("shouldDisplayTool respects readonly and writable board states", () => {
   const readOnlyToolNames = new Set(["Hand", "Download"]);
   assert.equal(
-    BoardTools.shouldDisplayTool(
+    shouldDisplayTool(
       "Pencil",
       { readonly: true, canWrite: false },
       readOnlyToolNames,
@@ -22,7 +26,7 @@ test("shouldDisplayTool respects readonly and writable board states", () => {
     false,
   );
   assert.equal(
-    BoardTools.shouldDisplayTool(
+    shouldDisplayTool(
       "Hand",
       { readonly: true, canWrite: false },
       readOnlyToolNames,
@@ -33,7 +37,7 @@ test("shouldDisplayTool respects readonly and writable board states", () => {
 
 test("drainPendingMessages returns and clears the queued tool messages", () => {
   const pending = { Pencil: [{ id: "1" }, { id: "2" }] };
-  assert.deepEqual(BoardTools.drainPendingMessages(pending, "Pencil"), [
+  assert.deepEqual(drainPendingMessages(pending, "Pencil"), [
     { id: "1" },
     { id: "2" },
   ]);

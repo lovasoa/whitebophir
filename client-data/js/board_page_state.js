@@ -4,7 +4,7 @@
  * @param {string} elementId
  * @returns {HTMLElement}
  */
-function getRequiredElement(elementId) {
+export function getRequiredElement(elementId) {
   const element = document.getElementById(elementId);
   if (!element) throw new Error(`Missing required element: #${elementId}`);
   return element;
@@ -16,7 +16,7 @@ function getRequiredElement(elementId) {
  * @param {T} fallback
  * @returns {T}
  */
-function parseEmbeddedJson(elementId, fallback) {
+export function parseEmbeddedJson(elementId, fallback) {
   const element = document.getElementById(elementId);
   const text =
     element?.textContent ??
@@ -34,7 +34,7 @@ function parseEmbeddedJson(elementId, fallback) {
  * @param {string | null | undefined} text
  * @returns {BoardState}
  */
-function parseBoardStateText(text) {
+export function parseBoardStateText(text) {
   if (!text) return { readonly: false, canWrite: true };
   try {
     return normalizeBoardState(JSON.parse(text));
@@ -48,7 +48,7 @@ function parseBoardStateText(text) {
  * @param {unknown} value
  * @returns {BoardState}
  */
-function normalizeBoardState(value) {
+export function normalizeBoardState(value) {
   if (!value || typeof value !== "object") {
     return { readonly: false, canWrite: true };
   }
@@ -63,7 +63,7 @@ function normalizeBoardState(value) {
  * @param {string} pathname
  * @returns {string}
  */
-function resolveBoardName(pathname) {
+export function resolveBoardName(pathname) {
   const path = pathname.split("/");
   const encodedName = path[path.length - 1] || "";
   return decodeURIComponent(encodedName);
@@ -73,7 +73,7 @@ function resolveBoardName(pathname) {
  * @param {unknown} value
  * @returns {string[]}
  */
-function normalizeRecentBoards(value) {
+export function normalizeRecentBoards(value) {
   if (!Array.isArray(value)) return [];
   return value.filter((name) => typeof name === "string" && name !== "");
 }
@@ -83,7 +83,7 @@ function normalizeRecentBoards(value) {
  * @param {string} boardName
  * @returns {string[]}
  */
-function updateRecentBoards(storedBoards, boardName) {
+export function updateRecentBoards(storedBoards, boardName) {
   if (boardName.toLowerCase() === "anonymous")
     return normalizeRecentBoards(storedBoards);
   /** @type {{[name: string]: boolean}} */
@@ -102,7 +102,7 @@ function updateRecentBoards(storedBoards, boardName) {
  * @param {string[]} blockedTools
  * @returns {boolean}
  */
-function isBlockedToolName(toolName, blockedTools) {
+export function isBlockedToolName(toolName, blockedTools) {
   if (toolName.includes(",")) {
     throw new Error("Tool Names must not contain a comma");
   }
@@ -115,7 +115,7 @@ function isBlockedToolName(toolName, blockedTools) {
  * @param {Set<string>} readOnlyToolNames
  * @returns {boolean}
  */
-function shouldDisplayTool(toolName, boardState, readOnlyToolNames) {
+export function shouldDisplayTool(toolName, boardState, readOnlyToolNames) {
   return (
     !boardState.readonly ||
     boardState.canWrite ||
@@ -129,35 +129,9 @@ function shouldDisplayTool(toolName, boardState, readOnlyToolNames) {
  * @param {string} toolName
  * @returns {T[]}
  */
-function drainPendingMessages(pendingMessages, toolName) {
+export function drainPendingMessages(pendingMessages, toolName) {
   const pending = pendingMessages[toolName];
   if (!pending) return [];
   delete pendingMessages[toolName];
   return pending;
 }
-
-export const bootstrap = {
-  getRequiredElement: getRequiredElement,
-  parseEmbeddedJson: parseEmbeddedJson,
-};
-
-export const state = {
-  parseBoardStateText: parseBoardStateText,
-  normalizeBoardState: normalizeBoardState,
-  resolveBoardName: resolveBoardName,
-  normalizeRecentBoards: normalizeRecentBoards,
-  updateRecentBoards: updateRecentBoards,
-};
-
-export const tools = {
-  isBlockedToolName: isBlockedToolName,
-  shouldDisplayTool: shouldDisplayTool,
-  drainPendingMessages: drainPendingMessages,
-};
-
-const boardPageState = {
-  bootstrap,
-  state,
-  tools,
-};
-export default boardPageState;

@@ -13,17 +13,19 @@ global.document = /** @type {any} */ ({
   },
 });
 
-const BoardBootstrap =
-  require("../client-data/js/board_page_state.js").bootstrap;
+const {
+  getRequiredElement,
+  parseEmbeddedJson,
+} = require("../client-data/js/board_page_state.js");
 
 test("parseEmbeddedJson returns fallback for missing or invalid content", () => {
-  assert.deepEqual(BoardBootstrap.parseEmbeddedJson("good", { ok: false }), {
+  assert.deepEqual(parseEmbeddedJson("good", { ok: false }), {
     ok: true,
   });
-  assert.deepEqual(BoardBootstrap.parseEmbeddedJson("bad", { ok: false }), {
+  assert.deepEqual(parseEmbeddedJson("bad", { ok: false }), {
     ok: false,
   });
-  assert.deepEqual(BoardBootstrap.parseEmbeddedJson("missing", { ok: false }), {
+  assert.deepEqual(parseEmbeddedJson("missing", { ok: false }), {
     ok: false,
   });
 });
@@ -41,12 +43,9 @@ test("parseEmbeddedJson reports invalid JSON when silent mode is off", () => {
         },
       },
       () => {
-        assert.deepEqual(
-          BoardBootstrap.parseEmbeddedJson("bad", { ok: false }),
-          {
-            ok: false,
-          },
-        );
+        assert.deepEqual(parseEmbeddedJson("bad", { ok: false }), {
+          ok: false,
+        });
       },
     );
     assert.equal(warned, true);
@@ -57,10 +56,10 @@ test("parseEmbeddedJson reports invalid JSON when silent mode is off", () => {
 });
 
 test("getRequiredElement throws for missing DOM nodes", () => {
-  assert.deepEqual(BoardBootstrap.getRequiredElement("good"), {
+  assert.deepEqual(getRequiredElement("good"), {
     text: '{"ok":true}',
   });
   assert.throws(() => {
-    BoardBootstrap.getRequiredElement("missing");
+    getRequiredElement("missing");
   }, /Missing required element/);
 });

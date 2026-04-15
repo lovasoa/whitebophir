@@ -26,9 +26,14 @@
 
 import BoardMessageReplay from "./board_message_replay.js";
 import {
-  bootstrap as BoardBootstrap,
-  state as BoardState,
-  tools as BoardTools,
+  drainPendingMessages,
+  getRequiredElement,
+  isBlockedToolName,
+  normalizeBoardState,
+  parseEmbeddedJson,
+  resolveBoardName,
+  shouldDisplayTool as shouldDisplayBoardTool,
+  updateRecentBoards,
 } from "./board_page_state.js";
 import {
   connection as BoardConnection,
@@ -73,9 +78,7 @@ const RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
  * @returns {HTMLInputElement}
  */
 function getRequiredInput(elementId) {
-  return /** @type {HTMLInputElement} */ (
-    BoardBootstrap.getRequiredElement(elementId)
-  );
+  return /** @type {HTMLInputElement} */ (getRequiredElement(elementId));
 }
 
 /**
@@ -83,7 +86,7 @@ function getRequiredInput(elementId) {
  * @returns {{button: HTMLElement, primaryIcon: HTMLImageElement, secondaryIcon: HTMLImageElement | null, label: HTMLElement}}
  */
 function getRequiredToolButtonParts(toolName) {
-  const button = BoardBootstrap.getRequiredElement(`toolID-${toolName}`);
+  const button = getRequiredElement(`toolID-${toolName}`);
   const primaryIcon = /** @type {HTMLImageElement | null} */ (
     button.querySelector(".tool-icon")
   );
@@ -148,7 +151,7 @@ function blurActiveElement() {
 
 Tools.i18n = (function i18n() {
   const translations = /** @type {{[key: string]: string}} */ (
-    BoardBootstrap.parseEmbeddedJson("translations", {})
+    parseEmbeddedJson("translations", {})
   );
   return {
     /** @param {string} s */
@@ -160,7 +163,7 @@ Tools.i18n = (function i18n() {
 })();
 
 Tools.server_config = /** @type {ServerConfig} */ (
-  BoardBootstrap.parseEmbeddedJson("configuration", {})
+  parseEmbeddedJson("configuration", {})
 );
 Tools.assetVersion = document.documentElement.dataset.version || "";
 
@@ -944,9 +947,7 @@ Tools.showTurnstileWidget = function showTurnstileWidget() {
 
 /** @param {unknown} state */
 Tools.setBoardState = function setBoardState(state) {
-  Tools.boardState = /** @type {AppBoardState} */ (
-    BoardState.normalizeBoardState(state)
-  );
+  Tools.boardState = /** @type {AppBoardState} */ (normalizeBoardState(state));
   Tools.readOnly = Tools.boardState.readonly;
   Tools.canWrite = Tools.boardState.canWrite;
 
@@ -980,7 +981,7 @@ Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
     return getToolButton(toolName) !== null;
   }
   if (!getToolCatalogEntry(toolName)) return false;
-  return BoardTools.shouldDisplayTool(
+  return shouldDisplayBoardTool(
     toolName,
     Tools.boardState,
     Tools.readOnlyToolNames,
@@ -988,19 +989,19 @@ Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
 };
 
 Tools.setBoardState(
-  BoardBootstrap.parseEmbeddedJson("board-state", {
+  parseEmbeddedJson("board-state", {
     readonly: false,
     canWrite: true,
   }),
 );
 
-Tools.resolveBoardName = function resolveBoardName() {
-  return BoardState.resolveBoardName(window.location.pathname);
+Tools.resolveBoardName = function getBoardNameFromLocation() {
+  return resolveBoardName(window.location.pathname);
 };
 
-Tools.board = BoardBootstrap.getRequiredElement("board");
+Tools.board = getRequiredElement("board");
 Tools.svg = /** @type {SVGSVGElement} */ (
-  /** @type {unknown} */ (BoardBootstrap.getRequiredElement("canvas"))
+  /** @type {unknown} */ (getRequiredElement("canvas"))
 );
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
@@ -1103,15 +1104,15 @@ function toFiniteCoordinate(value) {
 }
 
 function getConnectedUsersToggle() {
-  return BoardBootstrap.getRequiredElement("connectedUsersToggle");
+  return getRequiredElement("connectedUsersToggle");
 }
 
 function getConnectedUsersPanel() {
-  return BoardBootstrap.getRequiredElement("connectedUsersPanel");
+  return getRequiredElement("connectedUsersPanel");
 }
 
 function getConnectedUsersList() {
-  return BoardBootstrap.getRequiredElement("connectedUsersList");
+  return getRequiredElement("connectedUsersList");
 }
 
 /**
@@ -1696,7 +1697,7 @@ function saveBoardNametoLocalStorage() {
     recentBoards = [];
     console.log("Board history loading error", e);
   }
-  recentBoards = BoardState.updateRecentBoards(recentBoards, boardName);
+  recentBoards = updateRecentBoards(recentBoards, boardName);
   localStorage.setItem(key, JSON.stringify(recentBoards));
 }
 // Refresh recent boards list on each page show
@@ -2147,10 +2148,7 @@ Tools.activateTool = async function activateTool(toolName) {
 
 /** @param {AppTool} tool */
 Tools.isBlocked = function toolIsBanned(tool) {
-  return BoardTools.isBlockedToolName(
-    tool.name,
-    Tools.server_config.BLOCKED_TOOLS || [],
-  );
+  return isBlockedToolName(tool.name, Tools.server_config.BLOCKED_TOOLS || []);
 };
 
 /**
@@ -2176,10 +2174,7 @@ Tools.register = function registerTool(newTool) {
   if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
 
   //There may be pending messages for the tool
-  const pending = BoardTools.drainPendingMessages(
-    Tools.pendingMessages,
-    newTool.name,
-  );
+  const pending = drainPendingMessages(Tools.pendingMessages, newTool.name);
   if (pending.length > 0) {
     console.log("Drawing pending messages for '%s'.", newTool.name);
     pending.forEach((/** @type {BoardMessage} */ msg) => {
@@ -2650,8 +2645,7 @@ Tools.getSize = () => Tools.setSize();
 
 Tools.getOpacity = (function opacity() {
   const chooser = getRequiredInput("chooseOpacity");
-  const opacityIndicator =
-    BoardBootstrap.getRequiredElement("opacityIndicator");
+  const opacityIndicator = getRequiredElement("opacityIndicator");
 
   function update() {
     chooser.value = String(MessageCommon.clampOpacity(chooser.value));
@@ -2687,7 +2681,7 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 
 (() => {
   let pos = { top: 0, scroll: 0 };
-  const menu = BoardBootstrap.getRequiredElement("menu");
+  const menu = getRequiredElement("menu");
   /** @param {MouseEvent} evt */
   function menu_mousedown(evt) {
     pos = {

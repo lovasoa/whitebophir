@@ -4,33 +4,32 @@ const { installTestConsole } = require("./test_console.js");
 
 installTestConsole();
 
-const BoardState = require("../client-data/js/board_page_state.js").state;
+const {
+  parseBoardStateText,
+  resolveBoardName,
+  updateRecentBoards,
+} = require("../client-data/js/board_page_state.js");
 
 test("parseBoardStateText falls back safely on missing or invalid JSON", () => {
-  assert.deepEqual(BoardState.parseBoardStateText(null), {
+  assert.deepEqual(parseBoardStateText(null), {
     readonly: false,
     canWrite: true,
   });
-  assert.deepEqual(BoardState.parseBoardStateText("{"), {
+  assert.deepEqual(parseBoardStateText("{"), {
     readonly: false,
     canWrite: true,
   });
 });
 
 test("resolveBoardName decodes the last path segment", () => {
-  assert.equal(
-    BoardState.resolveBoardName("/boards/demo%20board"),
-    "demo board",
-  );
-  assert.equal(BoardState.resolveBoardName("/boards/demo/"), "");
+  assert.equal(resolveBoardName("/boards/demo%20board"), "demo board");
+  assert.equal(resolveBoardName("/boards/demo/"), "");
 });
 
 test("updateRecentBoards filters malformed entries and deduplicates the current board", () => {
   assert.deepEqual(
-    BoardState.updateRecentBoards(["alpha", 42, "", "beta", "alpha"], "beta"),
+    updateRecentBoards(["alpha", 42, "", "beta", "alpha"], "beta"),
     ["beta", "alpha"],
   );
-  assert.deepEqual(BoardState.updateRecentBoards(["alpha"], "anonymous"), [
-    "alpha",
-  ]);
+  assert.deepEqual(updateRecentBoards(["alpha"], "anonymous"), ["alpha"]);
 });

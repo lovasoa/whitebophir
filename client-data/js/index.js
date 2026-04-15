@@ -1,4 +1,4 @@
-import { state as BoardState } from "./board_page_state.js";
+import { normalizeRecentBoards } from "./board_page_state.js";
 
 function showRecentBoards() {
   const parent = document.getElementById("recent-boards");
@@ -8,7 +8,7 @@ function showRecentBoards() {
   parent.classList.add("hidden");
 
   const storedBoardsText = localStorage.getItem("recent-boards");
-  const recentBoards = BoardState.normalizeRecentBoards(
+  const recentBoards = normalizeRecentBoards(
     storedBoardsText ? JSON.parse(storedBoardsText) : [],
   );
   if (recentBoards.length === 0) return;
