@@ -52,7 +52,7 @@ function parseForwardedChain(value) {
   return value
     .split(",")
     .map(function parseForwardedEntry(/** @type {string} */ proxyEntry) {
-      var forwardedFor = proxyEntry
+      const forwardedFor = proxyEntry
         .split(";")
         .map(function trimPart(/** @type {string} */ part) {
           return part.trim();
@@ -64,7 +64,7 @@ function parseForwardedChain(value) {
         throw new Error("Missing for= in Forwarded header");
       }
 
-      var resolved = forwardedFor.replace(/^for=/i, "").trim();
+      let resolved = forwardedFor.replace(/^for=/i, "").trim();
       if (
         resolved.startsWith('"') &&
         resolved.endsWith('"') &&
@@ -93,8 +93,8 @@ function parseForwardedHeader(value) {
  * @returns {string}
  */
 function selectTrustedClientIp(chain) {
-  var trustedHops = Math.max(0, config.TRUST_PROXY_HOPS || 0);
-  var selectedIndex = Math.min(trustedHops, chain.length - 1);
+  const trustedHops = Math.max(0, config.TRUST_PROXY_HOPS || 0);
+  const selectedIndex = Math.min(trustedHops, chain.length - 1);
   return chain[selectedIndex] || "";
 }
 
@@ -103,13 +103,13 @@ function selectTrustedClientIp(chain) {
  * @returns {string}
  */
 function getClientIp(socket) {
-  var request = getSocketRequest(socket);
-  var headers = getSocketHeaders(socket);
-  var directRemoteAddress = request.socket?.remoteAddress
+  const request = getSocketRequest(socket);
+  const headers = getSocketHeaders(socket);
+  const directRemoteAddress = request.socket?.remoteAddress
     ? request.socket.remoteAddress
     : "";
-  var ipSource = config.IP_SOURCE || "remoteAddress";
-  var normalizedIpSource = normalizeHeaderName(ipSource);
+  const ipSource = config.IP_SOURCE || "remoteAddress";
+  const normalizedIpSource = normalizeHeaderName(ipSource);
 
   if (normalizedIpSource === "remoteaddress") {
     if (directRemoteAddress) return directRemoteAddress;
@@ -168,8 +168,8 @@ function getClientIp(socket) {
  * @param {MessageData | null | undefined} data
  * @returns {number}
  */
-var countDestructiveActions = RateLimitCommon.countDestructiveActions;
-var countConstructiveActions = RateLimitCommon.countConstructiveActions;
+const countDestructiveActions = RateLimitCommon.countDestructiveActions;
+const countConstructiveActions = RateLimitCommon.countConstructiveActions;
 
 /**
  * @param {MessageData | null | undefined} message

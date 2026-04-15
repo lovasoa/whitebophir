@@ -117,10 +117,10 @@ function pickLanguage(supportedLanguages, acceptedLanguages) {
  * @returns {string}
  */
 function findBaseUrl(req) {
-  var proto =
+  const proto =
     firstHeaderValue(req.headers["x-forwarded-proto"]) ||
     ("encrypted" in req.socket && req.socket.encrypted ? "https" : "http");
-  var host =
+  const host =
     firstHeaderValue(req.headers["x-forwarded-host"]) ||
     firstHeaderValue(req.headers.host) ||
     "localhost";
@@ -201,9 +201,9 @@ class Template {
       isModerator === true,
       extraParams,
     );
-    var body = this.template(parameters);
+    const body = this.template(parameters);
     /** @type {{[name: string]: string | number}} */
-    var headers = {
+    const headers = {
       "Content-Length": Buffer.byteLength(body),
       "Content-Type": "text/html",
       "Cache-Control": "public, max-age=3600",

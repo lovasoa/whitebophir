@@ -19,9 +19,7 @@ function parseDurationMs(text) {
   const match = /^(\d+)(ms|s|m)$/i.exec(value);
   if (!match) {
     throw new Error(
-      "Invalid rate-limit duration: " +
-        value +
-        ". Expected formats like 500ms, 60s, or 2m.",
+      `Invalid rate-limit duration: ${value}. Expected formats like 500ms, 60s, or 2m.`,
     );
   }
   const amount = parseInt(match[1] || "", 10);
@@ -58,11 +56,7 @@ function parseRateLimitProfileEnv(name, defaultValue) {
     const match = /^([^:\s]+):(\d+)\/(\d+(?:ms|s|m))$/i.exec(entry);
     if (!match) {
       throw new Error(
-        "Invalid " +
-          name +
-          ": " +
-          value +
-          ". Expected entries like *:240/60s anonymous:120/60s.",
+        `Invalid ${name}: ${value}. Expected entries like *:240/60s anonymous:120/60s.`,
       );
     }
     const boardName = match[1] || "";
@@ -101,12 +95,7 @@ function parseEnumEnv(name, allowedValues, defaultValue) {
   if (match) return match;
 
   throw new Error(
-    "Invalid " +
-      name +
-      ": " +
-      value +
-      ". Expected one of: " +
-      allowedValues.join(", "),
+    `Invalid ${name}: ${value}. Expected one of: ${allowedValues.join(", ")}`,
   );
 }
 
