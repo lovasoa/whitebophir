@@ -235,7 +235,7 @@ export function registerTextTool(Tools) {
           return false;
         }
         const textField = document.getElementById(data.id);
-        if (!(textField instanceof SVGTextElement)) {
+        if (!textField || String(textField.tagName).toLowerCase() !== "text") {
           console.error(
             "Text: Hmmm... I received text that belongs to an unknown text field",
           );
