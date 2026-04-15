@@ -26,19 +26,44 @@
 
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-/** @param {any} Tools */
-function createEllipseTool(Tools) {
-  /** @typedef {{type: "ellipse", id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} EllipseStartData */
-  /** @typedef {{type: "update", id: string, x: number, y: number, x2: number, y2: number}} EllipseUpdateData */
-  /** @typedef {EllipseStartData | EllipseUpdateData} EllipseMessage */
-  /** @typedef {{id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} EllipseShapeData */
-  /** @typedef {SVGEllipseElement & {id: string}} ExistingEllipse */
+export default class EllipseTool {
+  static toolName = "Ellipse";
+
+  /**
+   * @param {any} Tools
+   */
+  constructor(Tools) {
+    this.Tools = Tools;
+    this.curUpdate = {
+      type: "update",
+      id: "",
+      x: 0,
+      y: 0,
+      x2: 0,
+      y2: 0,
+    };
+    this.lastPos = { x: 0, y: 0 };
+    this.lastTime = performance.now();
+    this.name = "Ellipse";
+    this.icon = "tools/ellipse/icon-ellipse.svg";
+    this.secondary = {
+      name: "Circle",
+      icon: "tools/ellipse/icon-circle.svg",
+      active: false,
+      switch: () => {
+        this.doUpdate();
+      },
+    };
+    this.shortcut = "c";
+    this.mouseCursor = "crosshair";
+    this.stylesheet = "tools/ellipse/ellipse.css";
+  }
 
   /**
    * @param {Element | null} element
-   * @returns {element is ExistingEllipse}
+   * @returns {element is SVGEllipseElement & {id: string}}
    */
-  function isEllipseElement(element) {
+  isEllipseElement(element) {
     return !!(
       element &&
       typeof element === "object" &&
@@ -48,44 +73,31 @@ function createEllipseTool(Tools) {
       "ry" in element
     );
   }
-  /** @type {EllipseUpdateData} */
-  const curUpdate = {
-    //The data of the message that will be sent for every new point
-    type: "update",
-    id: "",
-    x: 0,
-    y: 0,
-    x2: 0,
-    y2: 0,
-  };
-  const lastPos = { x: 0, y: 0 };
-  let lastTime = performance.now(); //The time at which the last point was drawn
 
   /**
    * @param {number} x
    * @param {number} y
    * @param {MouseEvent | TouchEvent} evt
    */
-  function start(x, y, evt) {
-    //Prevent the press from being interpreted by the browser
+  press(x, y, evt) {
     evt.preventDefault();
 
-    curUpdate.id = Tools.generateUID("e"); //"e" for ellipse
+    this.curUpdate.id = this.Tools.generateUID("e");
 
-    Tools.drawAndSend({
+    this.Tools.drawAndSend({
       type: "ellipse",
-      id: curUpdate.id,
-      color: Tools.getColor(),
-      size: Tools.getSize(),
-      opacity: Tools.getOpacity(),
+      id: this.curUpdate.id,
+      color: this.Tools.getColor(),
+      size: this.Tools.getSize(),
+      opacity: this.Tools.getOpacity(),
       x: x,
       y: y,
       x2: x,
       y2: y,
     });
 
-    curUpdate.x = x;
-    curUpdate.y = y;
+    this.curUpdate.x = x;
+    this.curUpdate.y = y;
   }
 
   /**
@@ -93,38 +105,38 @@ function createEllipseTool(Tools) {
    * @param {number} y
    * @param {(MouseEvent & {shiftKey?: boolean}) | (TouchEvent & {shiftKey?: boolean}) | undefined} evt
    */
-  function move(x, y, evt) {
-    if (!curUpdate.id) return; // Not currently drawing
+  move(x, y, evt) {
+    if (!this.curUpdate.id) return;
     if (evt) {
-      circleTool.secondary.active = circleTool.secondary.active || evt.shiftKey;
+      this.secondary.active = this.secondary.active || evt.shiftKey;
       evt.preventDefault();
     }
-    lastPos.x = x;
-    lastPos.y = y;
-    doUpdate();
+    this.lastPos.x = x;
+    this.lastPos.y = y;
+    this.doUpdate();
   }
 
   /** @param {boolean} [force] */
-  function doUpdate(force) {
-    if (!curUpdate.id) return; // Not currently drawing
-    if (drawingCircle()) {
-      const x0 = curUpdate.x,
-        y0 = curUpdate.y;
-      const deltaX = lastPos.x - x0,
-        deltaY = lastPos.y - y0;
+  doUpdate(force) {
+    if (!this.curUpdate.id) return;
+    if (this.secondary.active) {
+      const x0 = this.curUpdate.x,
+        y0 = this.curUpdate.y;
+      const deltaX = this.lastPos.x - x0,
+        deltaY = this.lastPos.y - y0;
       const diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
-      curUpdate.x2 = x0 + (deltaX > 0 ? diameter : -diameter);
-      curUpdate.y2 = y0 + (deltaY > 0 ? diameter : -diameter);
+      this.curUpdate.x2 = x0 + (deltaX > 0 ? diameter : -diameter);
+      this.curUpdate.y2 = y0 + (deltaY > 0 ? diameter : -diameter);
     } else {
-      curUpdate.x2 = lastPos.x;
-      curUpdate.y2 = lastPos.y;
+      this.curUpdate.x2 = this.lastPos.x;
+      this.curUpdate.y2 = this.lastPos.y;
     }
 
-    if (performance.now() - lastTime > 70 || force) {
-      Tools.drawAndSend(curUpdate);
-      lastTime = performance.now();
+    if (performance.now() - this.lastTime > 70 || force) {
+      this.Tools.drawAndSend(this.curUpdate, this);
+      this.lastTime = performance.now();
     } else {
-      draw(curUpdate);
+      this.draw(this.curUpdate);
     }
   }
 
@@ -132,29 +144,29 @@ function createEllipseTool(Tools) {
    * @param {number} x
    * @param {number} y
    */
-  function stop(x, y) {
-    lastPos.x = x;
-    lastPos.y = y;
-    doUpdate(true);
-    curUpdate.id = "";
+  release(x, y) {
+    this.lastPos.x = x;
+    this.lastPos.y = y;
+    this.doUpdate(true);
+    this.curUpdate.id = "";
   }
 
-  /** @param {EllipseMessage} data */
-  function draw(data) {
-    Tools.drawingEvent = true;
+  /** @param {{type: "ellipse" | "update", id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} data */
+  draw(data) {
+    this.Tools.drawingEvent = true;
     switch (data.type) {
       case "ellipse":
-        createShape(data);
+        this.createShape(data);
         break;
       case "update": {
+        const svg = this.Tools.svg;
         let shape = svg.getElementById(data.id);
         if (!shape) {
           console.error(
             "Ellipse: Hmmm... I received an update for a shape that has not been created (%s).",
             data.id,
           );
-          shape = createShape({
-            //create a new shape in order not to loose the points
+          shape = this.createShape({
             id: data.id,
             x: data.x2,
             y: data.y2,
@@ -162,7 +174,10 @@ function createEllipseTool(Tools) {
             y2: data.y2,
           });
         }
-        updateShape(/** @type {ExistingEllipse} */ (shape), data);
+        this.updateShape(
+          /** @type {SVGEllipseElement & {id: string}} */ (shape),
+          data,
+        );
         break;
       }
       default:
@@ -171,89 +186,55 @@ function createEllipseTool(Tools) {
     }
   }
 
-  const svg = Tools.svg;
   /**
-   * @param {EllipseShapeData} data
-   * @returns {ExistingEllipse}
+   * @param {{id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} data
+   * @returns {SVGEllipseElement & {id: string}}
    */
-  function createShape(data) {
-    //Creates a new shape on the canvas, or update a shape that already exists with new information
-    const existingShape = svg.getElementById(data.id);
-    const shape = isEllipseElement(existingShape)
+  createShape(data) {
+    const existingShape = this.Tools.svg.getElementById(data.id);
+    const shape = this.isEllipseElement(existingShape)
       ? existingShape
-      : /** @type {ExistingEllipse} */ (Tools.createSVGElement("ellipse"));
-    updateShape(shape, data);
+      : /** @type {SVGEllipseElement & {id: string}} */ (
+          this.Tools.createSVGElement("ellipse")
+        );
+    this.updateShape(shape, data);
     shape.id = data.id;
-    //If some data is not provided, choose default value. The shape may be updated later
     shape.setAttribute("stroke", data.color || "black");
     shape.setAttribute("stroke-width", String(data.size || 10));
     shape.setAttribute(
       "opacity",
       String(Math.max(0.1, Math.min(1, data.opacity || 1))),
     );
-    if (!Tools.drawingArea) {
+    if (!this.Tools.drawingArea) {
       throw new Error("Ellipse: Missing drawing area.");
     }
-    Tools.drawingArea.appendChild(shape);
+    this.Tools.drawingArea.appendChild(shape);
     return shape;
   }
 
   /**
-   * @param {ExistingEllipse} shape
-   * @param {EllipseShapeData} data
+   * @param {SVGEllipseElement & {id: string}} shape
+   * @param {{x: number, y: number, x2: number, y2: number}} data
    */
-  function updateShape(shape, data) {
+  updateShape(shape, data) {
     shape.cx.baseVal.value = Math.round((data.x2 + data.x) / 2);
     shape.cy.baseVal.value = Math.round((data.y2 + data.y) / 2);
     shape.rx.baseVal.value = Math.abs(data.x2 - data.x) / 2;
     shape.ry.baseVal.value = Math.abs(data.y2 - data.y) / 2;
   }
 
-  function drawingCircle() {
-    return circleTool.secondary.active;
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<EllipseTool>}
+   */
+  static async boot(ctx) {
+    return new EllipseTool(ctx.runtime.Tools);
   }
-
-  const circleTool = {
-    //The new tool
-    name: "Ellipse",
-    icon: "tools/ellipse/icon-ellipse.svg",
-    secondary: {
-      name: "Circle",
-      icon: "tools/ellipse/icon-circle.svg",
-      active: false,
-      switch: () => {
-        doUpdate();
-      },
-    },
-    shortcut: "c",
-    listeners: {
-      press: start,
-      move: move,
-      release: stop,
-    },
-    draw: draw,
-    mouseCursor: "crosshair",
-    stylesheet: "tools/ellipse/ellipse.css",
-  };
-  return circleTool;
 }
 
 /** @param {any} Tools */
 export function registerEllipseTool(Tools) {
-  const tool = createEllipseTool(Tools);
+  const tool = new EllipseTool(Tools);
   Tools.add(tool);
   return tool;
-}
-
-// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
-export default class EllipseTool {
-  static toolName = "Ellipse";
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<any>}
-   */
-  static async boot(ctx) {
-    return createEllipseTool(ctx.runtime.Tools);
-  }
 }

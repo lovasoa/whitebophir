@@ -32,16 +32,34 @@
 /** @typedef {SVGLineElement & {id: string}} ExistingLine */
 /** @typedef {{generateUID:(prefix:string)=>string, getColor:()=>string, getSize:()=>number, getOpacity:()=>number, createSVGElement:(name:string)=>Element, drawingArea: Element | null, svg: SVGSVGElement | null, add:(tool:unknown)=>void, drawAndSend:(message:LineMessage, tool:unknown)=>void}} LineToolRegistry */
 
-/**
- * @param {LineToolRegistry} tools
- * @returns {any}
- */
-function createLineTool(tools) {
+export default class StraightLineTool {
+  static toolName = "Straight line";
+
+  /**
+   * @param {LineToolRegistry} tools
+   */
+  constructor(tools) {
+    this.tools = tools;
+    /** @type {LineStartData | null} */
+    this.curLine = null;
+    this.lastTime = performance.now();
+    this.name = "Straight line";
+    this.shortcut = "l";
+    this.secondary = {
+      name: "Straight line",
+      icon: "tools/line/icon-straight.svg",
+      active: false,
+    };
+    this.mouseCursor = "crosshair";
+    this.icon = "tools/line/icon.svg";
+    this.stylesheet = "tools/line/line.css";
+  }
+
   /**
    * @param {Element | null} element
    * @returns {element is ExistingLine}
    */
-  function isLineElement(element) {
+  isLineElement(element) {
     return !!(
       element &&
       typeof element === "object" &&
@@ -52,20 +70,15 @@ function createLineTool(tools) {
     );
   }
 
-  //Indicates the id of the line the user is currently drawing or an empty string while the user is not drawing
-  /** @type {LineStartData | null} */
-  let curLine = null,
-    lastTime = performance.now(); //The time at which the last point was drawn
-
   /**
    * @param {number} x
    * @param {number} y
    * @returns {LineUpdateData}
    */
-  function createUpdateMessage(x, y) {
+  createUpdateMessage(x, y) {
     return {
       type: "update",
-      id: curLine ? curLine.id : "",
+      id: this.curLine ? this.curLine.id : "",
       x2: x,
       y2: y,
     };
@@ -76,21 +89,19 @@ function createLineTool(tools) {
    * @param {number} y
    * @param {MouseEvent | TouchEvent} evt
    */
-  function startLine(x, y, evt) {
-    //Prevent the press from being interpreted by the browser
+  press(x, y, evt) {
     evt.preventDefault();
-
-    curLine = {
+    this.curLine = {
       type: "straight",
-      id: tools.generateUID("s"), //"s" for straight line
-      color: tools.getColor(),
-      size: tools.getSize(),
-      opacity: tools.getOpacity(),
+      id: this.tools.generateUID("s"),
+      color: this.tools.getColor(),
+      size: this.tools.getSize(),
+      opacity: this.tools.getOpacity(),
       x: x,
       y: y,
     };
 
-    tools.drawAndSend(curLine, lineTool);
+    this.tools.drawAndSend(this.curLine, this);
   }
 
   /**
@@ -98,23 +109,22 @@ function createLineTool(tools) {
    * @param {number} y
    * @param {MouseEvent | TouchEvent | undefined} evt
    */
-  function continueLine(x, y, evt) {
-    /*Wait 70ms before adding any point to the currently drawing line.
-		This allows the animation to be smother*/
-    if (curLine !== null) {
-      if (lineTool.secondary.active) {
-        let alpha = Math.atan2(y - curLine.y, x - curLine.x);
-        const d = Math.hypot(y - curLine.y, x - curLine.x);
+  move(x, y, evt) {
+    if (this.curLine !== null) {
+      if (this.secondary.active) {
+        let alpha = Math.atan2(y - this.curLine.y, x - this.curLine.x);
+        const d = Math.hypot(y - this.curLine.y, x - this.curLine.x);
         const increment = (2 * Math.PI) / 16;
         alpha = Math.round(alpha / increment) * increment;
-        x = curLine.x + d * Math.cos(alpha);
-        y = curLine.y + d * Math.sin(alpha);
+        x = this.curLine.x + d * Math.cos(alpha);
+        y = this.curLine.y + d * Math.sin(alpha);
       }
-      if (performance.now() - lastTime > 70) {
-        tools.drawAndSend(createUpdateMessage(x, y), lineTool);
-        lastTime = performance.now();
+      const update = this.createUpdateMessage(x, y);
+      if (performance.now() - this.lastTime > 70) {
+        this.tools.drawAndSend(update, this);
+        this.lastTime = performance.now();
       } else {
-        draw(createUpdateMessage(x, y));
+        this.draw(update);
       }
     }
     if (evt) evt.preventDefault();
@@ -124,30 +134,28 @@ function createLineTool(tools) {
    * @param {number} x
    * @param {number} y
    */
-  function stopLine(x, y) {
-    //Add a last point to the line
-    continueLine(x, y, undefined);
-    curLine = null;
+  release(x, y) {
+    this.move(x, y, undefined);
+    this.curLine = null;
   }
 
   /** @param {LineMessage} data */
-  function draw(data) {
+  draw(data) {
     switch (data.type) {
       case "straight":
-        createLine(data);
+        this.createLine(data);
         break;
       case "update": {
-        if (!tools.svg) {
+        if (!this.tools.svg) {
           throw new Error("Straight line: Missing SVG canvas.");
         }
-        let line = tools.svg.getElementById(data.id);
+        let line = this.tools.svg.getElementById(data.id);
         if (!line) {
           console.error(
             "Straight line: Hmmm... I received a point of a line that has not been created (%s).",
             data.id,
           );
-          line = createLine({
-            //create a new line in order not to loose the points
+          line = this.createLine({
             id: data.id,
             x: data.x2,
             y: data.y2,
@@ -155,7 +163,7 @@ function createLineTool(tools) {
             y2: data.y2,
           });
         }
-        updateLine(/** @type {ExistingLine} */ (line), data);
+        this.updateLine(/** @type {ExistingLine} */ (line), data);
         break;
       }
       default:
@@ -171,32 +179,30 @@ function createLineTool(tools) {
    * @param {LineShapeData} lineData
    * @returns {ExistingLine}
    */
-  function createLine(lineData) {
-    if (!tools.svg) {
+  createLine(lineData) {
+    if (!this.tools.svg) {
       throw new Error("Straight line: Missing SVG canvas.");
     }
-    if (!tools.drawingArea) {
+    if (!this.tools.drawingArea) {
       throw new Error("Straight line: Missing drawing area.");
     }
 
-    //Creates a new line on the canvas, or update a line that already exists with new information
-    const existingLine = tools.svg.getElementById(lineData.id);
-    const line = isLineElement(existingLine)
+    const existingLine = this.tools.svg.getElementById(lineData.id);
+    const line = this.isLineElement(existingLine)
       ? existingLine
-      : /** @type {ExistingLine} */ (tools.createSVGElement("line"));
+      : /** @type {ExistingLine} */ (this.tools.createSVGElement("line"));
     line.id = lineData.id;
     line.x1.baseVal.value = lineData.x;
     line.y1.baseVal.value = lineData.y;
     line.x2.baseVal.value = lineData.x2 || lineData.x;
     line.y2.baseVal.value = lineData.y2 || lineData.y;
-    //If some data is not provided, choose default value. The line may be updated later
     line.setAttribute("stroke", lineData.color || "black");
     line.setAttribute("stroke-width", String(lineData.size || 10));
     line.setAttribute(
       "opacity",
       String(Math.max(0.1, Math.min(1, lineData.opacity || 1))),
     );
-    tools.drawingArea.appendChild(line);
+    this.tools.drawingArea.appendChild(line);
     return line;
   }
 
@@ -204,30 +210,18 @@ function createLineTool(tools) {
    * @param {ExistingLine} line
    * @param {LineUpdateData} data
    */
-  function updateLine(line, data) {
+  updateLine(line, data) {
     line.x2.baseVal.value = data.x2;
     line.y2.baseVal.value = data.y2;
   }
 
-  const lineTool = {
-    name: "Straight line",
-    shortcut: "l",
-    listeners: {
-      press: startLine,
-      move: continueLine,
-      release: stopLine,
-    },
-    secondary: {
-      name: "Straight line",
-      icon: "tools/line/icon-straight.svg",
-      active: false,
-    },
-    draw: draw,
-    mouseCursor: "crosshair",
-    icon: "tools/line/icon.svg",
-    stylesheet: "tools/line/line.css",
-  };
-  return lineTool;
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<StraightLineTool>}
+   */
+  static async boot(ctx) {
+    return new StraightLineTool(ctx.runtime.Tools);
+  }
 }
 
 /**
@@ -235,20 +229,7 @@ function createLineTool(tools) {
  * @returns {any}
  */
 export function registerLineTool(tools) {
-  const tool = createLineTool(tools);
+  const tool = new StraightLineTool(tools);
   tools.add(tool);
   return tool;
-}
-
-// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
-export default class StraightLineTool {
-  static toolName = "Straight line";
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<any>}
-   */
-  static async boot(ctx) {
-    return createLineTool(ctx.runtime.Tools);
-  }
 }

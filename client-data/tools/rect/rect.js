@@ -26,19 +26,42 @@
 
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
-/** @param {any} Tools */
-function createRectTool(Tools) {
-  /** @typedef {{type: "rect", id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} RectangleStartData */
-  /** @typedef {{type: "update", id: string, x: number, y: number, x2: number, y2: number}} RectangleUpdateData */
-  /** @typedef {RectangleStartData | RectangleUpdateData} RectangleMessage */
-  /** @typedef {{id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} RectangleShapeData */
-  /** @typedef {SVGRectElement & {id: string}} ExistingRect */
+export default class RectangleTool {
+  static toolName = "Rectangle";
+
+  /**
+   * @param {any} Tools
+   */
+  constructor(Tools) {
+    this.Tools = Tools;
+    this.end = false;
+    this.curId = "";
+    this.curUpdate = {
+      type: "update",
+      id: "",
+      x: 0,
+      y: 0,
+      x2: 0,
+      y2: 0,
+    };
+    this.lastTime = performance.now();
+    this.name = "Rectangle";
+    this.shortcut = "r";
+    this.secondary = {
+      name: "Square",
+      icon: "tools/rect/icon-square.svg",
+      active: false,
+    };
+    this.mouseCursor = "crosshair";
+    this.icon = "tools/rect/icon.svg";
+    this.stylesheet = "tools/rect/rect.css";
+  }
 
   /**
    * @param {Element | null} element
-   * @returns {element is ExistingRect}
+   * @returns {element is SVGRectElement & {id: string}}
    */
-  function isRectElement(element) {
+  isRectElement(element) {
     return !!(
       element &&
       typeof element === "object" &&
@@ -48,47 +71,32 @@ function createRectTool(Tools) {
       "height" in element
     );
   }
-  //Indicates the id of the shape the user is currently drawing or an empty string while the user is not drawing
-  let end = false,
-    curId = "",
-    /** @type {RectangleUpdateData} */
-    curUpdate = {
-      //The data of the message that will be sent for every new point
-      type: "update",
-      id: "",
-      x: 0,
-      y: 0,
-      x2: 0,
-      y2: 0,
-    },
-    lastTime = performance.now(); //The time at which the last point was drawn
 
   /**
    * @param {number} x
    * @param {number} y
    * @param {MouseEvent | TouchEvent} evt
    */
-  function start(x, y, evt) {
-    //Prevent the press from being interpreted by the browser
+  press(x, y, evt) {
     evt.preventDefault();
 
-    curId = Tools.generateUID("r"); //"r" for rectangle
+    this.curId = this.Tools.generateUID("r");
 
-    Tools.drawAndSend({
+    this.Tools.drawAndSend({
       type: "rect",
-      id: curId,
-      color: Tools.getColor(),
-      size: Tools.getSize(),
-      opacity: Tools.getOpacity(),
+      id: this.curId,
+      color: this.Tools.getColor(),
+      size: this.Tools.getSize(),
+      opacity: this.Tools.getOpacity(),
       x: x,
       y: y,
       x2: x,
       y2: y,
     });
 
-    curUpdate.id = curId;
-    curUpdate.x = x;
-    curUpdate.y = y;
+    this.curUpdate.id = this.curId;
+    this.curUpdate.x = x;
+    this.curUpdate.y = y;
   }
 
   /**
@@ -96,24 +104,22 @@ function createRectTool(Tools) {
    * @param {number} y
    * @param {MouseEvent | TouchEvent | undefined} evt
    */
-  function move(x, y, evt) {
-    /*Wait 70ms before adding any point to the currently drawing shape.
-		This allows the animation to be smother*/
-    if (curId !== "") {
-      if (rectangleTool.secondary.active) {
-        const dx = x - curUpdate.x;
-        const dy = y - curUpdate.y;
+  move(x, y, evt) {
+    if (this.curId !== "") {
+      if (this.secondary.active) {
+        const dx = x - this.curUpdate.x;
+        const dy = y - this.curUpdate.y;
         const d = Math.max(Math.abs(dx), Math.abs(dy));
-        x = curUpdate.x + (dx > 0 ? d : -d);
-        y = curUpdate.y + (dy > 0 ? d : -d);
+        x = this.curUpdate.x + (dx > 0 ? d : -d);
+        y = this.curUpdate.y + (dy > 0 ? d : -d);
       }
-      curUpdate.x2 = x;
-      curUpdate.y2 = y;
-      if (performance.now() - lastTime > 70 || end) {
-        Tools.drawAndSend(curUpdate);
-        lastTime = performance.now();
+      this.curUpdate.x2 = x;
+      this.curUpdate.y2 = y;
+      if (performance.now() - this.lastTime > 70 || this.end) {
+        this.Tools.drawAndSend(this.curUpdate, this);
+        this.lastTime = performance.now();
       } else {
-        draw(curUpdate);
+        this.draw(this.curUpdate);
       }
     }
     if (evt) evt.preventDefault();
@@ -123,30 +129,29 @@ function createRectTool(Tools) {
    * @param {number} x
    * @param {number} y
    */
-  function stop(x, y) {
-    //Add a last point to the shape
-    end = true;
-    move(x, y, undefined);
-    end = false;
-    curId = "";
+  release(x, y) {
+    this.end = true;
+    this.move(x, y, undefined);
+    this.end = false;
+    this.curId = "";
   }
 
-  /** @param {RectangleMessage} data */
-  function draw(data) {
-    Tools.drawingEvent = true;
+  /** @param {{type: "rect" | "update", id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} data */
+  draw(data) {
+    this.Tools.drawingEvent = true;
     switch (data.type) {
       case "rect":
-        createShape(data);
+        this.createShape(data);
         break;
       case "update": {
+        const svg = this.Tools.svg;
         let shape = svg.getElementById(data.id);
         if (!shape) {
           console.error(
             "Straight shape: Hmmm... I received a point of a rect that has not been created (%s).",
             data.id,
           );
-          shape = createShape({
-            //create a new shape in order not to loose the points
+          shape = this.createShape({
             id: data.id,
             x: data.x2,
             y: data.y2,
@@ -154,7 +159,10 @@ function createRectTool(Tools) {
             y2: data.y2,
           });
         }
-        updateShape(/** @type {ExistingRect} */ (shape), data);
+        this.updateShape(
+          /** @type {SVGRectElement & {id: string}} */ (shape),
+          data,
+        );
         break;
       }
       default:
@@ -166,81 +174,55 @@ function createRectTool(Tools) {
     }
   }
 
-  const svg = Tools.svg;
   /**
-   * @param {RectangleShapeData} data
-   * @returns {ExistingRect}
+   * @param {{id: string, x: number, y: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} data
+   * @returns {SVGRectElement & {id: string}}
    */
-  function createShape(data) {
-    //Creates a new shape on the canvas, or update a shape that already exists with new information
-    const existingShape = svg.getElementById(data.id);
-    const shape = isRectElement(existingShape)
+  createShape(data) {
+    const existingShape = this.Tools.svg.getElementById(data.id);
+    const shape = this.isRectElement(existingShape)
       ? existingShape
-      : /** @type {ExistingRect} */ (Tools.createSVGElement("rect"));
+      : /** @type {SVGRectElement & {id: string}} */ (
+          this.Tools.createSVGElement("rect")
+        );
     shape.id = data.id;
-    updateShape(shape, data);
-    //If some data is not provided, choose default value. The shape may be updated later
+    this.updateShape(shape, data);
     shape.setAttribute("stroke", data.color || "black");
     shape.setAttribute("stroke-width", String(data.size || 10));
     shape.setAttribute(
       "opacity",
       String(Math.max(0.1, Math.min(1, data.opacity || 1))),
     );
-    if (!Tools.drawingArea) {
+    if (!this.Tools.drawingArea) {
       throw new Error("Rectangle: Missing drawing area.");
     }
-    Tools.drawingArea.appendChild(shape);
+    this.Tools.drawingArea.appendChild(shape);
     return shape;
   }
 
   /**
-   * @param {ExistingRect} shape
-   * @param {RectangleShapeData} data
+   * @param {SVGRectElement & {id: string}} shape
+   * @param {{x: number, y: number, x2: number, y2: number}} data
    */
-  function updateShape(shape, data) {
+  updateShape(shape, data) {
     shape.x.baseVal.value = Math.min(data.x2, data.x);
     shape.y.baseVal.value = Math.min(data.y2, data.y);
     shape.width.baseVal.value = Math.abs(data.x2 - data.x);
     shape.height.baseVal.value = Math.abs(data.y2 - data.y);
   }
 
-  const rectangleTool = {
-    name: "Rectangle",
-    shortcut: "r",
-    listeners: {
-      press: start,
-      move: move,
-      release: stop,
-    },
-    secondary: {
-      name: "Square",
-      icon: "tools/rect/icon-square.svg",
-      active: false,
-    },
-    draw: draw,
-    mouseCursor: "crosshair",
-    icon: "tools/rect/icon.svg",
-    stylesheet: "tools/rect/rect.css",
-  };
-  return rectangleTool;
+  /**
+   * @param {ToolBootContext} ctx
+   * @returns {Promise<RectangleTool>}
+   */
+  static async boot(ctx) {
+    return new RectangleTool(ctx.runtime.Tools);
+  }
 }
 
 /** @param {any} Tools */
 export function registerRectTool(Tools) {
-  const tool = createRectTool(Tools);
+  const tool = new RectangleTool(Tools);
   Tools.add(tool);
   return tool;
-}
-
-// biome-ignore lint/complexity/noStaticOnlyClass: tool modules intentionally expose static boot entrypoints.
-export default class RectangleTool {
-  static toolName = "Rectangle";
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<any>}
-   */
-  static async boot(ctx) {
-    return createRectTool(ctx.runtime.Tools);
-  }
 }
