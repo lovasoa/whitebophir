@@ -32,104 +32,160 @@ svg {
   transform-origin: 0 0;
 }
 
-#loadingMessage {
-  font-size: 1.5em;
-  background: #eee linear-gradient(#eeeeee, #cccccc);
-  padding: 20px;
-  width: 40%;
-  line-height: 50px;
-  text-align: center;
-  border-radius: 10px;
+.board-loading {
   position: fixed;
-  top: 40%;
-  left: 30%;
-  z-index: 1;
-  box-shadow: 0 0 2px #333333;
-  transition: 1s;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 45;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
 }
 
 #loadingMessage.hidden {
-  display: none;
   opacity: 0;
-  z-index: -1;
+  visibility: hidden;
 }
 
-#loadingMessage::after {
-  content: "...";
+.board-loading-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: min(320px, calc(100vw - 48px));
+  padding: 18px 20px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d9dde3;
+  border-radius: 6px;
+  box-shadow: 0 18px 40px rgba(16, 24, 40, 0.12);
+  color: #111827;
 }
 
-.board-status-indicator {
-  position: fixed;
-  top: 14px;
-  left: 54px;
-  width: 12px;
-  height: 12px;
+.board-loading-spinner,
+.board-status-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
   border-radius: 999px;
-  z-index: 30;
+  border: 2px solid #b8c0cc;
+  border-top-color: #abc6c6;
+  box-sizing: border-box;
+}
+
+.board-loading-spinner {
+  animation: board-status-spin 0.8s linear infinite;
+}
+
+.board-loading-copy {
+  min-width: 0;
+}
+
+.board-loading-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.board-hud {
+  position: fixed;
+  top: 12px;
+  left: 58px;
+  z-index: 35;
   pointer-events: none;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
   transition:
-    opacity 0.2s,
-    transform 0.2s;
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.board-hud-hidden {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.board-status-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 34px;
+  max-width: min(320px, calc(100vw - 82px));
+  padding: 9px 11px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #d9dde3;
+  border-radius: 4px;
+  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.1);
+  color: #111827;
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .board-status-hidden {
   opacity: 0;
-  transform: scale(0.5);
+  transform: translateY(-4px);
 }
 
-.board-status-buffering {
-  opacity: 1;
-  transform: scale(1);
-  background: #f59e0b;
-  animation: board-status-pulse 1s ease-in-out infinite;
+.board-status-copy {
+  min-width: 0;
+}
+
+.board-status-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.board-status-detail {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #4b5563;
+}
+
+.board-status-detail-hidden {
+  display: none;
+}
+
+.board-status-buffering .board-status-icon {
+  animation: board-status-spin 0.8s linear infinite;
+}
+
+.board-status-buffering .board-status-title {
+  color: #111827;
+}
+
+.board-status-reconnecting {
+  border-color: #b8c0cc;
+  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.12);
+}
+
+.board-status-reconnecting .board-status-icon {
+  animation: board-status-spin 0.8s linear infinite;
+  border-top-color: #93b3b3;
 }
 
 .board-status-paused {
-  opacity: 1;
-  transform: scale(1);
-  background: #d92d20;
+  border-color: #d4b2a8;
   box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.9),
-    0 0 0 5px rgba(217, 45, 32, 0.15);
+    0 0 0 1px rgba(194, 59, 34, 0.06),
+    0 8px 18px rgba(16, 24, 40, 0.1);
 }
 
-@keyframes board-status-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+.board-status-paused .board-status-icon {
+  border-color: #d7c2bc;
+  border-top-color: #c23b22;
+}
+
+.board-status-paused .board-status-title {
+  color: #7c2d12;
+}
+
+@keyframes board-status-spin {
+  to {
+    transform: rotate(360deg);
   }
-  50% {
-    transform: scale(1.18);
-    box-shadow:
-      0 0 0 2px rgba(255, 255, 255, 0.9),
-      0 0 0 8px rgba(245, 158, 11, 0.18);
-  }
-}
-
-.board-status-notice {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  max-width: min(360px, calc(100vw - 32px));
-  padding: 10px 12px;
-  background: rgba(17, 24, 39, 0.92);
-  color: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  z-index: 40;
-  line-height: 1.35;
-  font-size: 14px;
-  transition:
-    opacity 0.2s,
-    transform 0.2s;
-}
-
-.board-status-notice-hidden {
-  opacity: 0;
-  transform: translateY(12px);
-  pointer-events: none;
 }
 
 .connected-users-panel {

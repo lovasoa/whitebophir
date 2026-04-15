@@ -226,8 +226,16 @@ function getLoadingMessage() {
   return document.getElementById("loadingMessage");
 }
 
+function getBoardHud() {
+  return document.getElementById("boardHud");
+}
+
 function getBoardStatusIndicator() {
   return document.getElementById("boardStatusIndicator");
+}
+
+function getBoardStatusTitle() {
+  return document.getElementById("boardStatusTitle");
 }
 
 function getBoardStatusNotice() {
@@ -332,15 +340,11 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
   message,
   retryAfterMs,
 ) {
-  const notice = getBoardStatusNotice();
-  if (!notice) return;
   Tools.rateLimitNoticeMessage = message;
-  notice.textContent = message;
-  notice.classList.remove("board-status-notice-hidden");
+  Tools.syncWriteStatusIndicator();
   Tools.clearRateLimitNoticeTimer();
   if (retryAfterMs > 0) {
     Tools.rateLimitNoticeTimer = setTimeout(function hideRateLimitNotice() {
-      Tools.syncWriteStatusIndicator();
       Tools.hideRateLimitNotice();
     }, retryAfterMs);
   }
@@ -348,32 +352,75 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
 
 Tools.hideRateLimitNotice = function hideRateLimitNotice() {
   Tools.clearRateLimitNoticeTimer();
-  const notice = getBoardStatusNotice();
-  if (!notice) return;
-  notice.classList.add("board-status-notice-hidden");
-  notice.textContent = "";
+  Tools.rateLimitNoticeMessage = "";
   Tools.syncWriteStatusIndicator();
 };
 
+Tools.getBoardStatusView = function getBoardStatusView() {
+  if (Tools.rateLimitNoticeMessage) {
+    return {
+      hidden: false,
+      state: "paused",
+      title: Tools.i18n.t("Edits paused"),
+      detail: Tools.rateLimitNoticeMessage,
+    };
+  }
+  if (Tools.connectionState !== "connected") {
+    if (!Tools.hasAuthoritativeBoardSnapshot) {
+      return {
+        hidden: true,
+        state: "hidden",
+        title: "",
+        detail: "",
+      };
+    }
+    return {
+      hidden: false,
+      state: "reconnecting",
+      title: Tools.i18n.t("Reconnecting…"),
+      detail: Tools.i18n.t("Loading latest board state"),
+    };
+  }
+  if (Tools.bufferedWrites.length > 0) {
+    return {
+      hidden: false,
+      state: "buffering",
+      title: Tools.i18n.t("Syncing…"),
+      detail: "",
+    };
+  }
+  return {
+    hidden: true,
+    state: "hidden",
+    title: "",
+    detail: "",
+  };
+};
+
 Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
+  const hud = getBoardHud();
   const indicator = getBoardStatusIndicator();
-  if (!indicator) return;
-  const isPaused =
-    Tools.connectionState !== "connected" || Tools.isWritePaused();
+  const title = getBoardStatusTitle();
+  const notice = getBoardStatusNotice();
+  if (!hud || !indicator || !title || !notice) return;
+
+  const view = Tools.getBoardStatusView();
+  hud.classList.toggle("board-hud-hidden", view.hidden);
   indicator.classList.remove(
     "board-status-hidden",
     "board-status-buffering",
     "board-status-paused",
+    "board-status-reconnecting",
   );
-  if (isPaused) {
-    indicator.classList.add("board-status-paused");
+  title.textContent = view.title;
+  notice.textContent = view.detail;
+  notice.classList.toggle("board-status-detail-hidden", !view.detail);
+  indicator.dataset.state = view.state;
+  if (view.hidden) {
+    indicator.classList.add("board-status-hidden");
     return;
   }
-  if (Tools.bufferedWrites.length > 0) {
-    indicator.classList.add("board-status-buffering");
-    return;
-  }
-  indicator.classList.add("board-status-hidden");
+  indicator.classList.add(`board-status-${view.state}`);
 };
 
 Tools.clearBoardCursors = function clearBoardCursors() {

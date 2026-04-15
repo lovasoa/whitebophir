@@ -35,9 +35,23 @@
 		</svg>
 	</div>
 
-	<div id="loadingMessage">{{translations.loading}}</div>
-	<div id="boardStatusIndicator" class="board-status-indicator board-status-hidden" aria-hidden="true"></div>
-	<div id="boardStatusNotice" class="board-status-notice board-status-notice-hidden" role="status" aria-live="polite"></div>
+	<div id="loadingMessage" class="board-loading">
+		<div class="board-loading-card" role="status" aria-live="polite">
+			<span class="board-loading-spinner" aria-hidden="true"></span>
+			<div class="board-loading-copy">
+				<div class="board-loading-title">{{translations.loading}}</div>
+			</div>
+		</div>
+	</div>
+	<div id="boardHud" class="board-hud board-hud-hidden">
+		<div id="boardStatusIndicator" class="board-status-card board-status-hidden" role="status" aria-live="polite">
+			<span class="board-status-icon" aria-hidden="true"></span>
+			<div class="board-status-copy">
+				<div id="boardStatusTitle" class="board-status-title"></div>
+				<div id="boardStatusNotice" class="board-status-detail board-status-detail-hidden"></div>
+			</div>
+		</div>
+	</div>
 
 	<div id="menu" tabindex="0" {{#hideMenu}}style="display:none;"{{/hideMenu}}>
 		<div id="menuItems">
