@@ -1,4 +1,4 @@
-import config from "./configuration.js";
+import config from "./configuration.mjs";
 
 const {
   MAX_BOARD_SIZE,

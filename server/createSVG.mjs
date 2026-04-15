@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 
 import { parseStoredBoard } from "./boardData.js";
 import { logger } from "./observability.js";
-import config from "./configuration.js";
+import config from "./configuration.mjs";
 
 /** @typedef {{x: number, y: number}} Point */
 /** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number}} ElementStyle */
