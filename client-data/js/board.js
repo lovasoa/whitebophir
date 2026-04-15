@@ -1578,7 +1578,7 @@ Tools.connect = () => {
     function onRateLimited(
       /** @type {{retryAfterMs?: number} | null | undefined} */ payload,
     ) {
-      var retryAfterMs =
+      const retryAfterMs =
         payload && typeof payload.retryAfterMs === "number"
           ? payload.retryAfterMs
           : 60 * 1000;
@@ -1598,17 +1598,17 @@ Tools.connect = () => {
 Tools.boardName = Tools.resolveBoardName();
 
 Tools.token = (() => {
-  var url = new URL(window.location.href);
-  var params = new URLSearchParams(url.search);
+  const url = new URL(window.location.href);
+  const params = new URLSearchParams(url.search);
   return params.get("token");
 })();
 
 Tools.connect();
 
 function saveBoardNametoLocalStorage() {
-  var boardName = Tools.boardName;
-  var recentBoards,
-    key = "recent-boards";
+  const boardName = Tools.boardName;
+  const key = "recent-boards";
+  let recentBoards;
   try {
     const storedBoards = localStorage.getItem(key);
     recentBoards = storedBoards ? JSON.parse(storedBoards) : [];
@@ -1639,7 +1639,7 @@ Tools.HTML = /** @type {ToolPalette} */ ({
     toolShortcut,
     oneTouch,
   ) {
-    var callback = () => {
+    const callback = () => {
       if (!Tools.canUseTool(toolName)) return;
       Tools.change(toolName);
     };
@@ -1651,10 +1651,10 @@ Tools.HTML = /** @type {ToolPalette} */ ({
     return this.template.add((/** @type {HTMLElement} */ elem) => {
       elem.addEventListener("click", callback);
       elem.id = `toolID-${toolName}`;
-      var label = /** @type {HTMLElement | undefined} */ (
+      const label = /** @type {HTMLElement | undefined} */ (
         elem.getElementsByClassName("tool-name")[0]
       );
-      var toolIconElem = /** @type {HTMLImageElement | undefined} */ (
+      const toolIconElem = /** @type {HTMLImageElement | undefined} */ (
         elem.getElementsByClassName("tool-icon")[0]
       );
       if (!label || !toolIconElem) {
@@ -1664,7 +1664,7 @@ Tools.HTML = /** @type {ToolPalette} */ ({
       toolIconElem.src = toolIcon;
       toolIconElem.alt = toolIcon;
       if (oneTouch) elem.classList.add("oneTouch");
-      var tool = Tools.list[toolName];
+      const tool = Tools.list[toolName];
       if (!tool) {
         throw new Error(`Tool not registered before rendering: ${toolName}`);
       }
@@ -1686,20 +1686,20 @@ Tools.HTML = /** @type {ToolPalette} */ ({
     });
   },
   changeTool: (oldToolName, newToolName) => {
-    var oldTool = document.getElementById(`toolID-${oldToolName}`);
-    var newTool = document.getElementById(`toolID-${newToolName}`);
+    const oldTool = document.getElementById(`toolID-${oldToolName}`);
+    const newTool = document.getElementById(`toolID-${newToolName}`);
     if (oldTool) oldTool.classList.remove("curTool");
     if (newTool) newTool.classList.add("curTool");
   },
   toggle: function toggle(toolName, name, icon) {
-    var parts = getRequiredToolButtonParts(toolName);
-    var secondaryIcon = parts.secondaryIcon;
+    const parts = getRequiredToolButtonParts(toolName);
+    const secondaryIcon = parts.secondaryIcon;
     if (!secondaryIcon) {
       throw new Error(`Missing secondary icon for tool ${toolName}`);
     }
 
-    var primaryIconSrc = parts.primaryIcon.src;
-    var secondaryIconSrc = secondaryIcon.src;
+    const primaryIconSrc = parts.primaryIcon.src;
+    const secondaryIconSrc = secondaryIcon.src;
     parts.primaryIcon.src = secondaryIconSrc;
     secondaryIcon.src = primaryIconSrc;
     parts.primaryIcon.src = icon;
@@ -1707,7 +1707,7 @@ Tools.HTML = /** @type {ToolPalette} */ ({
   },
   addStylesheet: function addStylesheet(href) {
     //Adds a css stylesheet to the html or svg document
-    var link = document.createElement("link");
+    const link = document.createElement("link");
     link.href = href;
     link.rel = "stylesheet";
     link.type = "text/css";
@@ -1715,7 +1715,7 @@ Tools.HTML = /** @type {ToolPalette} */ ({
   },
   colorPresetTemplate: new Minitpl("#colorPresetSel .colorPresetButton"),
   addColorButton: function addColorButton(button) {
-    var setColor = Tools.setColor.bind(Tools, button.color);
+    const setColor = Tools.setColor.bind(Tools, button.color);
     if (button.key) this.addShortcut(button.key, setColor);
     return this.colorPresetTemplate.add((/** @type {HTMLElement} */ elem) => {
       elem.addEventListener("click", setColor);
@@ -1761,7 +1761,7 @@ Tools.register = function registerTool(newTool) {
   if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
 
   //There may be pending messages for the tool
-  var pending = BoardTools.drainPendingMessages(
+  const pending = BoardTools.drainPendingMessages(
     Tools.pendingMessages,
     newTool.name,
   );
@@ -1803,8 +1803,8 @@ Tools.add = (newTool) => {
 
 /** @param {string} toolName */
 Tools.change = (toolName) => {
-  var newTool = Tools.list[toolName];
-  var oldTool = Tools.curTool;
+  const newTool = Tools.list[toolName];
+  const oldTool = Tools.curTool;
   if (!newTool)
     throw new Error("Trying to select a tool that has never been added!");
   if (Tools.shouldDisableTool(toolName)) return false;
@@ -1853,7 +1853,7 @@ Tools.change = (toolName) => {
 /** @param {AppTool} tool */
 Tools.addToolListeners = function addToolListeners(tool) {
   if (!tool.compiledListeners) return;
-  for (var event in tool.compiledListeners) {
+  for (const event in tool.compiledListeners) {
     const listener = tool.compiledListeners[event];
     if (!listener) continue;
     const target = listener.target || Tools.board;
@@ -1864,7 +1864,7 @@ Tools.addToolListeners = function addToolListeners(tool) {
 /** @param {AppTool} tool */
 Tools.removeToolListeners = function removeToolListeners(tool) {
   if (!tool.compiledListeners) return;
-  for (var event in tool.compiledListeners) {
+  for (const event in tool.compiledListeners) {
     const listener = tool.compiledListeners[event];
     if (!listener) continue;
     const target = listener.target || Tools.board;
@@ -1903,10 +1903,10 @@ Tools.send = (data, toolName) => {
     if (!Tools.curTool) throw new Error("No current tool selected");
     toolName = Tools.curTool.name;
   }
-  var outboundData = Tools.cloneMessage(data);
+  const outboundData = Tools.cloneMessage(data);
   outboundData.tool = toolName;
   Tools.applyHooks(Tools.messageHooks, outboundData);
-  var message = {
+  const message = {
     board: Tools.boardName,
     data: outboundData,
   };
@@ -1955,8 +1955,8 @@ Tools.pendingMessages = {};
  * @returns {void}
  */
 function messageForTool(message) {
-  var name = message.tool,
-    tool = name ? Tools.list[name] : undefined;
+  const name = message.tool;
+  const tool = name ? Tools.list[name] : undefined;
 
   if (tool) {
     Tools.applyHooks(Tools.messageHooks, message);
@@ -2049,17 +2049,17 @@ function updateDocumentTitle() {
 (() => {
   // Scroll and hash handling
   /** @type {ReturnType<typeof setTimeout> | null} */
-  var scrollTimeout = null,
-    lastStateUpdate = Date.now();
+  let scrollTimeout = null;
+  let lastStateUpdate = Date.now();
 
   window.addEventListener("scroll", function onScroll() {
-    var scale = Tools.getScale();
-    var x = document.documentElement.scrollLeft / scale,
-      y = document.documentElement.scrollTop / scale;
+    const scale = Tools.getScale();
+    const x = document.documentElement.scrollLeft / scale;
+    const y = document.documentElement.scrollTop / scale;
 
     if (scrollTimeout !== null) clearTimeout(scrollTimeout);
     scrollTimeout = setTimeout(function updateHistory() {
-      var hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(1)}`;
+      const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(1)}`;
       if (
         Date.now() - lastStateUpdate > 5000 &&
         hash !== window.location.hash
@@ -2073,10 +2073,10 @@ function updateDocumentTitle() {
   });
 
   function setScrollFromHash() {
-    var coords = window.location.hash.slice(1).split(",");
-    var x = Number(coords[0]) || 0;
-    var y = Number(coords[1]) || 0;
-    var scale = Number.parseFloat(coords[2] || "");
+    const coords = window.location.hash.slice(1).split(",");
+    const x = Number(coords[0]) || 0;
+    const y = Number(coords[1]) || 0;
+    const scale = Number.parseFloat(coords[2] || "");
     resizeCanvas({ x: x, y: y });
     Tools.setScale(scale);
     window.scrollTo(x * scale, y * scale);
@@ -2090,9 +2090,9 @@ function updateDocumentTitle() {
 /** @param {BoardMessage} m */
 function resizeCanvas(m) {
   //Enlarge the canvas whenever something is drawn near its border
-  var x = Number(m.x) | 0,
-    y = Number(m.y) | 0;
-  var MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 65536; // Maximum value for any x or y on the board
+  const x = Number(m.x) | 0;
+  const y = Number(m.y) | 0;
+  const MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 65536; // Maximum value for any x or y on the board
   if (x > Tools.svg.width.baseVal.value - 2000) {
     Tools.svg.width.baseVal.value = Math.min(x + 2000, MAX_BOARD_SIZE);
   }
@@ -2122,14 +2122,14 @@ function notifyToolsOfMessage(m) {
 Tools.messageHooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
 
 /** @type {ReturnType<typeof setTimeout> | null} */
-var scaleTimeout = null;
+let scaleTimeout = null;
 /** @param {number} scale */
 Tools.setScale = function setScale(scale) {
-  var fullScale =
+  const fullScale =
     Math.max(window.innerWidth, window.innerHeight) /
     (Number(Tools.server_config.MAX_BOARD_SIZE) || 65536);
-  var minScale = Math.max(0.1, fullScale);
-  var maxScale = 10;
+  const minScale = Math.max(0.1, fullScale);
+  const maxScale = 10;
   if (Number.isNaN(scale)) scale = 1;
   scale = Math.max(minScale, Math.min(maxScale, scale));
   Tools.svg.style.willChange = "transform";
@@ -2170,10 +2170,10 @@ Tools.toolHooks = [
   /** @param {AppTool} tool */
   function compileListeners(tool) {
     //compile listeners into compiledListeners
-    var listeners = tool.listeners || {};
+    const listeners = tool.listeners || {};
 
     //A tool may provide precompiled listeners
-    var compiled = tool.compiledListeners || {};
+    const compiled = tool.compiledListeners || {};
     tool.compiledListeners = compiled;
 
     /**
@@ -2183,9 +2183,9 @@ Tools.toolHooks = [
     function compile(listener) {
       //closure
       return function listen(evt) {
-        var mouseEvent = /** @type {MouseEvent} */ (evt);
-        var x = mouseEvent.pageX / Tools.getScale(),
-          y = mouseEvent.pageY / Tools.getScale();
+        const mouseEvent = /** @type {MouseEvent} */ (evt);
+        const x = mouseEvent.pageX / Tools.getScale();
+        const y = mouseEvent.pageY / Tools.getScale();
         return listener(x, y, mouseEvent, false);
       };
     }
@@ -2197,7 +2197,7 @@ Tools.toolHooks = [
     function compileTouch(listener) {
       //closure
       return function touchListen(evt) {
-        var touchEvent = /** @type {TouchEvent} */ (evt);
+        const touchEvent = /** @type {TouchEvent} */ (evt);
         //Currently, we don't handle multitouch
         if (touchEvent.changedTouches.length === 1) {
           //evt.preventDefault();
@@ -2262,7 +2262,7 @@ Tools.applyHooks = function applyHooks(hooks, object) {
  * @param {string | undefined} suffix
  */
 Tools.generateUID = function generateUID(prefix, suffix) {
-  var uid = Date.now().toString(36); //Create the uids in chronological order
+  let uid = Date.now().toString(36); //Create the uids in chronological order
   uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
   if (prefix) uid = prefix + uid;
   if (suffix) uid = uid + suffix;
@@ -2275,7 +2275,7 @@ Tools.generateUID = function generateUID(prefix, suffix) {
  * @returns {SVGElement}
  */
 Tools.createSVGElement = function createSVGElement(name, attrs) {
-  var elem = /** @type {SVGElement} */ (
+  const elem = /** @type {SVGElement} */ (
     document.createElementNS(Tools.svg.namespaceURI, name)
   );
   if (!attrs || typeof attrs !== "object") return elem;
@@ -2317,11 +2317,11 @@ Tools.setColor = function setColor(color) {
 };
 
 Tools.getColor = (function color() {
-  var color_index = (Math.random() * Tools.colorPresets.length) | 0;
-  var initialPreset = Tools.colorPresets[color_index] ||
+  const colorIndex = (Math.random() * Tools.colorPresets.length) | 0;
+  const initialPreset = Tools.colorPresets[colorIndex] ||
     Tools.colorPresets[0] || { color: "#001f3f" };
-  var initial_color = initialPreset.color;
-  Tools.setColor(initial_color);
+  const initialColor = initialPreset.color;
+  Tools.setColor(initialColor);
   return () => Tools.color_chooser.value;
 })();
 
@@ -2329,10 +2329,10 @@ Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
 
 Tools.sizeChangeHandlers = [];
 Tools.setSize = (function size() {
-  var chooser = getRequiredInput("chooseSize");
+  const chooser = getRequiredInput("chooseSize");
 
   function update() {
-    var size = MessageCommon.clampSize(chooser.value);
+    const size = MessageCommon.clampSize(chooser.value);
     chooser.value = String(size);
     Tools.sizeChangeHandlers.forEach((handler) => {
       handler(size);
@@ -2357,8 +2357,9 @@ Tools.setSize = (function size() {
 Tools.getSize = () => Tools.setSize();
 
 Tools.getOpacity = (function opacity() {
-  var chooser = getRequiredInput("chooseOpacity");
-  var opacityIndicator = BoardBootstrap.getRequiredElement("opacityIndicator");
+  const chooser = getRequiredInput("chooseOpacity");
+  const opacityIndicator =
+    BoardBootstrap.getRequiredElement("opacityIndicator");
 
   function update() {
     chooser.value = String(MessageCommon.clampOpacity(chooser.value));
@@ -2393,8 +2394,8 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
 */
 
 (() => {
-  var pos = { top: 0, scroll: 0 };
-  var menu = BoardBootstrap.getRequiredElement("menu");
+  let pos = { top: 0, scroll: 0 };
+  const menu = BoardBootstrap.getRequiredElement("menu");
   /** @param {MouseEvent} evt */
   function menu_mousedown(evt) {
     pos = {
@@ -2406,7 +2407,7 @@ Tools.svg.height.baseVal.value = document.body.clientHeight;
   }
   /** @param {MouseEvent} evt */
   function menu_mousemove(evt) {
-    var dy = evt.clientY - pos.scroll;
+    const dy = evt.clientY - pos.scroll;
     menu.scrollTop = pos.top - dy;
   }
   /** @param {MouseEvent} evt */
