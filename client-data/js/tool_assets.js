@@ -3,8 +3,6 @@ const DEFAULT_SECONDARY_ICON_FILE = "icon-secondary.svg";
 
 /**
  * @typedef {{
- *   dir?: string,
- *   moduleFile?: string,
  *   iconPath?: string,
  *   iconFile?: string,
  *   secondaryIconPath?: string,
@@ -15,79 +13,42 @@ const DEFAULT_SECONDARY_ICON_FILE = "icon-secondary.svg";
  */
 
 /**
- * Transitional asset overrides while tool files still use legacy directory and
- * filename conventions.
+ * Explicit asset metadata for tools whose icons or stylesheets do not match
+ * the default derived filenames.
  */
 /** @type {Record<string, ToolAssetOverride>} */
-const TOOL_ASSET_OVERRIDES = {
+const TOOL_ASSET_METADATA = {
   Cursor: {
-    dir: "cursor",
-    moduleFile: "cursor.js",
     iconPath: "tools/pencil/icon.svg",
   },
   "Straight line": {
-    dir: "line",
-    moduleFile: "line.js",
-    iconFile: "icon.svg",
     secondaryIconFile: "icon-straight.svg",
-    stylesheetFile: "line.css",
+    stylesheetFile: "straight-line.css",
   },
   Rectangle: {
-    dir: "rect",
-    moduleFile: "rect.js",
-    iconFile: "icon.svg",
     secondaryIconFile: "icon-square.svg",
-    stylesheetFile: "rect.css",
+    stylesheetFile: "rectangle.css",
   },
   Ellipse: {
-    dir: "ellipse",
-    moduleFile: "ellipse.js",
     iconFile: "icon-ellipse.svg",
     secondaryIconFile: "icon-circle.svg",
     stylesheetFile: "ellipse.css",
   },
   Pencil: {
-    dir: "pencil",
-    moduleFile: "pencil.js",
-    iconFile: "icon.svg",
     secondaryIconFile: "whiteout_tape.svg",
     stylesheetFile: "pencil.css",
   },
   Text: {
-    dir: "text",
-    moduleFile: "text.js",
-    iconFile: "icon.svg",
     stylesheetFile: "text.css",
   },
-  Eraser: {
-    dir: "eraser",
-    moduleFile: "eraser.js",
-    iconFile: "icon.svg",
-  },
   Hand: {
-    dir: "hand",
-    moduleFile: "hand.js",
     iconFile: "hand.svg",
     secondaryIconFile: "selector.svg",
   },
-  Grid: {
-    dir: "grid",
-    moduleFile: "grid.js",
-    iconFile: "icon.svg",
-  },
   Download: {
-    dir: "download",
-    moduleFile: "download.js",
     iconFile: "download.svg",
   },
-  Zoom: {
-    dir: "zoom",
-    moduleFile: "zoom.js",
-    iconFile: "icon.svg",
-  },
   Clear: {
-    dir: "clear",
-    moduleFile: "clear.js",
     iconFile: "clear.svg",
   },
 };
@@ -111,21 +72,21 @@ export function toolStem(toolName) {
  * }}
  */
 export function getToolAssetDescriptor(toolName) {
-  const override = TOOL_ASSET_OVERRIDES[toolName] || {};
-  const dir = override.dir || toolStem(toolName);
-  const moduleFile = override.moduleFile || `${dir}.js`;
+  const metadata = TOOL_ASSET_METADATA[toolName] || {};
+  const dir = toolStem(toolName);
+  const moduleFile = `${dir}.js`;
   const iconPath =
-    override.iconPath ||
-    `tools/${dir}/${override.iconFile || DEFAULT_ICON_FILE}`;
-  const secondaryIconPath = override.secondaryIconPath
-    ? override.secondaryIconPath
-    : override.secondaryIconFile
-      ? `tools/${dir}/${override.secondaryIconFile}`
+    metadata.iconPath ||
+    `tools/${dir}/${metadata.iconFile || DEFAULT_ICON_FILE}`;
+  const secondaryIconPath = metadata.secondaryIconPath
+    ? metadata.secondaryIconPath
+    : metadata.secondaryIconFile
+      ? `tools/${dir}/${metadata.secondaryIconFile}`
       : null;
-  const stylesheetPath = override.stylesheetPath
-    ? override.stylesheetPath
-    : override.stylesheetFile
-      ? `tools/${dir}/${override.stylesheetFile}`
+  const stylesheetPath = metadata.stylesheetPath
+    ? metadata.stylesheetPath
+    : metadata.stylesheetFile
+      ? `tools/${dir}/${metadata.stylesheetFile}`
       : null;
   return {
     dir: dir,

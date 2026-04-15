@@ -488,12 +488,16 @@ export class BoardPage {
 
   async moveCursor(color: string, x: number, y: number) {
     await this.page.evaluate(
-      ({ cursorColor, cursorX, cursorY }) => {
-        (window as any).Tools.setColor(cursorColor);
+      async ({ cursorColor, cursorX, cursorY }) => {
+        const tools = (window as any).Tools;
+        if (typeof tools.ensureToolBooted === "function") {
+          await tools.ensureToolBooted("Cursor");
+        }
+        tools.setColor(cursorColor);
         const event = new Event("mousemove");
         Object.defineProperty(event, "pageX", { value: cursorX });
         Object.defineProperty(event, "pageY", { value: cursorY });
-        (window as any).Tools.board.dispatchEvent(event);
+        tools.board.dispatchEvent(event);
       },
       { cursorColor: color, cursorX: x, cursorY: y },
     );

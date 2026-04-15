@@ -49,12 +49,12 @@ export default class RectangleTool {
     this.shortcut = "r";
     this.secondary = {
       name: "Square",
-      icon: "tools/rect/icon-square.svg",
+      icon: "tools/rectangle/icon-square.svg",
       active: false,
     };
     this.mouseCursor = "crosshair";
-    this.icon = "tools/rect/icon.svg";
-    this.stylesheet = "tools/rect/rect.css";
+    this.icon = "tools/rectangle/icon.svg";
+    this.stylesheet = "tools/rectangle/rectangle.css";
   }
 
   /**

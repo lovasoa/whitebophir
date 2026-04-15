@@ -47,12 +47,12 @@ export default class StraightLineTool {
     this.shortcut = "l";
     this.secondary = {
       name: "Straight line",
-      icon: "tools/line/icon-straight.svg",
+      icon: "tools/straight-line/icon-straight.svg",
       active: false,
     };
     this.mouseCursor = "crosshair";
-    this.icon = "tools/line/icon.svg";
-    this.stylesheet = "tools/line/line.css";
+    this.icon = "tools/straight-line/icon.svg";
+    this.stylesheet = "tools/straight-line/straight-line.css";
   }
 
   /**

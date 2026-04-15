@@ -151,7 +151,9 @@ test.describe("single-page interactions", () => {
 
     expect(stylesheets.some((href) => /board\.css\?v=/.test(href))).toBe(true);
     expect(
-      stylesheets.some((href) => /tools\/rect\/rect\.css\?v=/.test(href)),
+      stylesheets.some((href) =>
+        /tools\/rectangle\/rectangle\.css\?v=/.test(href),
+      ),
     ).toBe(true);
   });
 
