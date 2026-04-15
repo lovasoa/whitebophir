@@ -628,10 +628,7 @@ function handleRequest(request, response, requestContext) {
         ),
       )
         .then((svg) => {
-          metrics.recordPreviewRender(
-            "success",
-            (Date.now() - startedAt) / 1000,
-          );
+          metrics.recordPreviewRender((Date.now() - startedAt) / 1000);
           response.writeHead(200, {
             "Content-Type": "image/svg+xml",
             "Content-Security-Policy": CSP,
@@ -640,7 +637,7 @@ function handleRequest(request, response, requestContext) {
           response.end(svg);
         })
         .catch((err) => {
-          metrics.recordPreviewRender("error", (Date.now() - startedAt) / 1000);
+          metrics.recordPreviewRender((Date.now() - startedAt) / 1000, err);
           requestContext.noteError(err);
           requestContext.annotate({
             render_duration_ms: Date.now() - startedAt,
