@@ -1177,11 +1177,18 @@ function syncConnectedUsersToggleLabel() {
     toggle.querySelector(".tool-name")
   );
   const userCount = Object.keys(Tools.connectedUsers).length;
+  const badgeText = userCount > 99 ? "99+" : String(userCount);
   const accessibleLabel = `${userCount} ${Tools.i18n.t("users")}`;
   toggle.setAttribute("aria-label", accessibleLabel);
   toggle.title = accessibleLabel;
   if (!label) return;
-  label.textContent = String(userCount);
+  label.textContent = badgeText;
+  label.dataset.badgeSize =
+    badgeText.length === 1
+      ? "single"
+      : badgeText.length === 2
+        ? "double"
+        : "capped";
 }
 
 /**

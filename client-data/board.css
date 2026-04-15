@@ -225,6 +225,7 @@ svg {
   min-width: var(--board-control-size);
   min-height: var(--board-control-size);
   padding: 0;
+  overflow: visible;
   font: inherit;
   cursor: pointer;
 }
@@ -246,26 +247,45 @@ svg {
 .board-presence-icon {
   display: block;
   flex: 0 0 auto;
-  opacity: 0.8;
+  width: 20px;
+  height: 20px;
+  opacity: 0.92;
 }
 
 .board-presence-toggle .tool-name {
   position: absolute;
-  right: 2px;
-  bottom: 2px;
+  top: -4px;
+  right: -4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
   border: 1px solid var(--board-control-border-strong);
   border-radius: 999px;
   background: #ffffff;
-  font-size: 10px;
-  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.14);
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
   line-height: 1;
   white-space: nowrap;
+}
+
+.board-presence-toggle .tool-name[data-badge-size="single"] {
+  width: 16px;
+  padding: 0;
+  font-size: 10px;
+}
+
+.board-presence-toggle .tool-name[data-badge-size="double"] {
+  min-width: 18px;
+}
+
+.board-presence-toggle .tool-name[data-badge-size="capped"] {
+  min-width: 22px;
 }
 
 .connected-users-panel {
