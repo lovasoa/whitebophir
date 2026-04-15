@@ -10,7 +10,7 @@ const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.js");
 const MESSAGE_VALIDATION_PATH = path.join(
   ROOT,
   "server",
-  "message_validation.js",
+  "message_validation.mjs",
 );
 const MESSAGE_COMMON_PATH = path.join(
   ROOT,

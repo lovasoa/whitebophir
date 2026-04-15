@@ -1,9 +1,18 @@
-const config = require("./configuration.js");
-const MessageCommon = require("../client-data/js/message_common.js");
-const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
+import { createRequire } from "node:module";
+import path from "node:path";
+import MessageCommon from "../client-data/js/message_common.js";
+import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
+
+const require = createRequire(
+  path.join(process.cwd(), "server", "message_validation.mjs"),
+);
+
+function getConfig() {
+  return require("./configuration.js");
+}
 
 /** @typedef {{[key: string]: any}} RawRecord */
-/** @typedef {import("../types/app-runtime").Transform} Transform */
+/** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
 /** @typedef {{x: number, y: number}} ChildPoint */
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number} | null} Bounds */
 /** @typedef {{value: RawRecord, localBounds: Bounds}} StoredItemWithBounds */
@@ -117,7 +126,7 @@ function normalizeOpacity(value) {
  * @returns {Accepted<number>}
  */
 function normalizeCoord(value) {
-  return accepted(MessageCommon.clampCoord(value, config.MAX_BOARD_SIZE));
+  return accepted(MessageCommon.clampCoord(value, getConfig().MAX_BOARD_SIZE));
 }
 
 /**
@@ -450,7 +459,7 @@ function normalizeIncomingBatch(raw) {
   const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[raw.tool];
   if (!childSchemas) return rejected("unsupported batch tool");
   if (!Array.isArray(raw._children)) return rejected("invalid _children");
-  if (raw._children.length > config.MAX_CHILDREN) {
+  if (raw._children.length > getConfig().MAX_CHILDREN) {
     return rejected("too many children");
   }
 
@@ -535,7 +544,7 @@ function normalizeStoredItemWithBounds(raw, storedId) {
   normalized.value.id = normalizedId;
   if (raw.tool === "Pencil") {
     const rawChildren = Array.isArray(raw._children)
-      ? raw._children.slice(0, config.MAX_CHILDREN)
+      ? raw._children.slice(0, getConfig().MAX_CHILDREN)
       : [];
     const children = [];
     for (let index = 0; index < rawChildren.length; index++) {
@@ -572,7 +581,7 @@ function normalizeStoredItem(raw, storedId) {
   return accepted(normalized.value.value);
 }
 
-module.exports = {
+export {
   normalizeIncomingMessage,
   normalizeStoredChildPoint,
   normalizeStoredItem,

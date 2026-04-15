@@ -2,7 +2,7 @@ const { logger, metrics, tracing } = require("./observability.js");
 const config = require("./configuration");
 const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
 const normalizeIncomingMessage =
-  require("./message_validation.js").normalizeIncomingMessage;
+  require("./message_validation.mjs").normalizeIncomingMessage;
 const roleInBoard = require("./jwtBoardnameAuth.js").roleInBoard;
 
 /** @typedef {import("../types/server-runtime").AppSocket} AppSocket */

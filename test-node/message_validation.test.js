@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { pathToFileURL } = require("node:url");
 
 const { MESSAGE_VALIDATION_PATH, withEnv } = require("./test_helpers.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
@@ -416,7 +417,9 @@ test("normalizeStoredItem rejects transformed oversized shapes", () => {
 
 test("normalizeStoredItem sanitizes stored pencil children before replay", async () => {
   await withEnv({ WBO_MAX_CHILDREN: "2" }, async () => {
-    const messageValidation = require(MESSAGE_VALIDATION_PATH);
+    const messageValidation = await import(
+      `${pathToFileURL(MESSAGE_VALIDATION_PATH).href}?max-children=2`
+    );
 
     const malformedChildren = messageValidation.normalizeStoredItem(
       {
