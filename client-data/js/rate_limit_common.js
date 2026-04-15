@@ -226,7 +226,7 @@ export function countConstructiveActions(data) {
   return isConstructiveAction(data) ? 1 : 0;
 }
 
-var rateLimitCommon = /** @type {RateLimitCommonApi} */ ({
+const rateLimitCommon = /** @type {RateLimitCommonApi} */ ({
   ANONYMOUS_BOARD_NAME,
   ANONYMOUS_RATE_LIMIT_DIVISOR,
   createRateLimitState,

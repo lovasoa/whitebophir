@@ -36,7 +36,7 @@ export function registerCursorTool(tools) {
    * @returns {number}
    */
   function getPositiveNumber(value, fallback) {
-    var number = Number(value);
+    const number = Number(value);
     return number > 0 ? number : fallback;
   }
 
@@ -44,7 +44,7 @@ export function registerCursorTool(tools) {
    * @returns {number}
    */
   function getMinCursorUpdateIntervalMs() {
-    var generalLimit =
+    let generalLimit =
       typeof tools.getEffectiveRateLimit === "function"
         ? tools.getEffectiveRateLimit("general")
         : (tools.server_config &&
@@ -75,13 +75,13 @@ export function registerCursorTool(tools) {
   }
 
   // Allocate half of the maximum server updates to cursor updates
-  var CURSOR_DELETE_AFTER_MS = 1000 * 5;
+  const CURSOR_DELETE_AFTER_MS = 1000 * 5;
 
-  var lastCursorUpdate = 0;
-  var sending = true;
+  let lastCursorUpdate = 0;
+  let sending = true;
 
   /** @type {CursorTool} */
-  var cursorTool = {
+  const cursorTool = {
     name: "Cursor",
     listeners: {
       press: () => {
@@ -102,7 +102,7 @@ export function registerCursorTool(tools) {
   tools.addToolListeners(cursorTool);
 
   /** @type {CursorMessage} */
-  var message = {
+  const message = {
     type: "update",
     x: 0,
     y: 0,
@@ -130,17 +130,17 @@ export function registerCursorTool(tools) {
   }
 
   function updateMarker() {
-    var activeTool = /** @type {{showMarker?: boolean} | null} */ (
+    const activeTool = /** @type {{showMarker?: boolean} | null} */ (
       tools.curTool
     );
     if (!tools.showMarker || !tools.showMyCursor) return;
-    var cur_time = Date.now();
+    const curTime = Date.now();
     if (
-      cur_time - lastCursorUpdate > getMinCursorUpdateIntervalMs() &&
+      curTime - lastCursorUpdate > getMinCursorUpdateIntervalMs() &&
       (sending || (activeTool && activeTool.showMarker === true))
     ) {
       tools.drawAndSend(message, cursorTool);
-      lastCursorUpdate = cur_time;
+      lastCursorUpdate = curTime;
     } else {
       draw(message);
     }
@@ -150,9 +150,9 @@ export function registerCursorTool(tools) {
     if (!tools.svg) {
       throw new Error("Cursor: Missing SVG canvas.");
     }
-    var existingLayer = tools.svg.getElementById("cursors");
+    const existingLayer = tools.svg.getElementById("cursors");
     if (existingLayer instanceof SVGGElement) return existingLayer;
-    var createdLayer = document.createElementNS(
+    const createdLayer = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "g",
     );
@@ -163,8 +163,8 @@ export function registerCursorTool(tools) {
 
   /** @param {string} id */
   function createCursor(id) {
-    var cursorsElem = getCursorsLayer();
-    var cursor = document.createElementNS(
+    const cursorsElem = getCursorsLayer();
+    const cursor = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "circle",
     );
@@ -182,13 +182,13 @@ export function registerCursorTool(tools) {
 
   /** @param {string} id */
   function getCursor(id) {
-    var existingCursor = document.getElementById(id);
+    const existingCursor = document.getElementById(id);
     return isCursorElement(existingCursor) ? existingCursor : createCursor(id);
   }
 
   /** @param {CursorMessage} message */
   function draw(message) {
-    var cursor = getCursor(`cursor-${message.socket || "me"}`);
+    const cursor = getCursor(`cursor-${message.socket || "me"}`);
     cursor.style.transform = `translate(${message.x}px, ${message.y}px)`;
     if (tools.isIE)
       cursor.setAttributeNS(

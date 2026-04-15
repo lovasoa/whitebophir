@@ -29,9 +29,9 @@
 
 /** @param {GridToolRegistry} tools */
 export function registerGridTool(tools) {
-  var index = 0; //grid off by default
+  let index = 0; //grid off by default
   /** @type {GridFill[]} */
-  var states = ["none", "url(#grid)", "url(#dots)"];
+  const states = ["none", "url(#grid)", "url(#dots)"];
 
   /** @param {Event} evt */
   function toggleGrid(evt) {
@@ -44,9 +44,9 @@ export function registerGridTool(tools) {
     if (!tools.svg) {
       throw new Error("Grid: Missing SVG canvas.");
     }
-    var existingDefs = tools.svg.getElementById("defs");
+    const existingDefs = tools.svg.getElementById("defs");
     if (existingDefs instanceof SVGDefsElement) return existingDefs;
-    var defs = /** @type {SVGDefsElement} */ (
+    const defs = /** @type {SVGDefsElement} */ (
       tools.createSVGElement("defs", { id: "defs" })
     );
     if (tools.svg.firstChild) {
@@ -60,7 +60,7 @@ export function registerGridTool(tools) {
   function createPatterns() {
     // create patterns
     // small (inner) grid
-    var smallGrid = tools.createSVGElement("pattern", {
+    const smallGrid = tools.createSVGElement("pattern", {
       id: "smallGrid",
       width: "30",
       height: "30",
@@ -75,7 +75,7 @@ export function registerGridTool(tools) {
       }),
     );
     // (outer) grid
-    var grid = tools.createSVGElement("pattern", {
+    const grid = tools.createSVGElement("pattern", {
       id: "grid",
       width: "300",
       height: "300",
@@ -97,7 +97,7 @@ export function registerGridTool(tools) {
       }),
     );
     // dots
-    var dots = tools.createSVGElement("pattern", {
+    const dots = tools.createSVGElement("pattern", {
       id: "dots",
       width: "30",
       height: "30",
@@ -114,17 +114,17 @@ export function registerGridTool(tools) {
       }),
     );
 
-    var defs = getDefs();
+    const defs = getDefs();
     defs.appendChild(smallGrid);
     defs.appendChild(grid);
     defs.appendChild(dots);
   }
 
-  var gridContainer = (function init() {
+  const gridContainer = (function init() {
     // initialize patterns
     createPatterns();
     // create grid container
-    var gridContainer = tools.createSVGElement("rect", {
+    const gridContainer = tools.createSVGElement("rect", {
       id: "gridContainer",
       width: "100%",
       height: "100%",

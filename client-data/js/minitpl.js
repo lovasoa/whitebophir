@@ -62,24 +62,19 @@ function transform(element, transformer) {
  * @returns {Element}
  */
 Minitpl.prototype.add = function (data) {
-  var i;
-  var key;
-  var match;
-  var matches;
-  var value;
-  var newElem = this.elem.cloneNode(true);
+  const newElem = this.elem.cloneNode(true);
   if (!(newElem instanceof Element)) {
     throw new Error("Template clone must be an Element");
   }
   if (typeof data === "object") {
-    for (key in data) {
-      value = data[key];
+    for (const key in data) {
+      const value = data[key];
       if (value === undefined) {
         continue;
       }
-      matches = newElem.querySelectorAll(key);
-      for (i = 0; i < matches.length; i++) {
-        match = matches[i];
+      const matches = newElem.querySelectorAll(key);
+      for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
         if (match) {
           transform(match, value);
         }

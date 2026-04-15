@@ -13,13 +13,13 @@ export function resolveSharedModule(requirePath, globalName, scope) {
   if (typeof process !== "undefined" && process.versions?.node) {
     return nodeRequire(requirePath);
   }
-  var globalScope =
+  const globalScope =
     scope ||
     (typeof globalThis !== "undefined" ? globalThis : /** @type {any} */ ({}));
   return globalScope[globalName] || null;
 }
 
 const sharedModuleResolver = {
-  resolveSharedModule: resolveSharedModule,
+  resolveSharedModule,
 };
 export default sharedModuleResolver;

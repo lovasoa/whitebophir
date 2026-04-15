@@ -41,7 +41,7 @@ export function registerCanvasColor() {
    */
 
   (function addCSS() {
-    var styleTag = document.createElement("style");
+    const styleTag = document.createElement("style");
     styleTag.innerHTML = [
       ".canvascolor-container{",
       "background-color:black;",
@@ -75,11 +75,11 @@ export function registerCanvasColor() {
     if (s === 0) return [v, v, v]; // achromatic (grey)
 
     h /= Math.PI / 6; // sector 0 to 5
-    var i = h | 0,
-      f = h - i, // factorial part of h
-      p = v * (1 - s),
-      q = v * (1 - s * f),
-      t = v * (1 - s * (1 - f));
+    const i = h | 0;
+    const f = h - i; // factorial part of h
+    const p = v * (1 - s);
+    const q = v * (1 - s * f);
+    const t = v * (1 - s * (1 - f));
     switch (i % 6) {
       case 0:
         return [v, t, p];
@@ -103,7 +103,7 @@ export function registerCanvasColor() {
    */
   function isFixedPosition(elem) {
     /** @type {HTMLElement | null} */
-    var current = elem;
+    let current = elem;
     while (current) {
       if (getComputedStyle(current).position === "fixed") return true;
       current = current.parentElement;
@@ -112,12 +112,12 @@ export function registerCanvasColor() {
   }
 
   /** @type {HTMLDivElement} */
-  var containerTemplate;
+  let containerTemplate;
   (function createContainer() {
     containerTemplate = document.createElement("div");
     containerTemplate.className = "canvascolor-container";
-    var canvas = document.createElement("canvas");
-    var historyDiv = document.createElement("div");
+    const canvas = document.createElement("canvas");
+    const historyDiv = document.createElement("div");
     historyDiv.className = "canvascolor-history";
     containerTemplate.appendChild(canvas);
     containerTemplate.appendChild(historyDiv);
@@ -127,44 +127,44 @@ export function registerCanvasColor() {
    * @param {HTMLInputElement} elem
    */
   function attachCanvasColor(elem) {
-    var curcolor = elem.value || "#000";
+    let curcolor = elem.value || "#000";
 
-    var w = 200,
-      h = w / 2;
+    const w = 200;
+    const h = w / 2;
 
-    var container = containerTemplate.cloneNode(true);
+    const container = containerTemplate.cloneNode(true);
     if (!(container instanceof HTMLDivElement)) {
       throw new Error("CanvasColor: invalid container template");
     }
-    var pickerContainer = container;
+    const pickerContainer = container;
     pickerContainer.style.width = `${w}px`;
     pickerContainer.style.position = isFixedPosition(elem)
       ? "fixed"
       : "absolute";
-    var canvasElement = pickerContainer.getElementsByTagName("canvas")[0];
+    const canvasElement = pickerContainer.getElementsByTagName("canvas")[0];
     if (!(canvasElement instanceof HTMLCanvasElement)) {
       throw new Error("CanvasColor: missing canvas element");
     }
-    var context = canvasElement.getContext("2d");
+    const context = canvasElement.getContext("2d");
     if (!context) {
       throw new Error("CanvasColor: 2D context unavailable");
     }
-    var canvas = canvasElement;
-    var ctx = context;
+    const canvas = canvasElement;
+    const ctx = context;
     canvas.width = w;
     canvas.height = h;
 
-    var prevcolorsDiv = pickerContainer.getElementsByClassName(
+    const prevcolorsDiv = pickerContainer.getElementsByClassName(
       "canvascolor-history",
     )[0];
     if (!(prevcolorsDiv instanceof HTMLDivElement)) {
       throw new Error("CanvasColor: missing history element");
     }
-    var historyDiv = prevcolorsDiv;
+    const historyDiv = prevcolorsDiv;
     historyDiv.style.width = `${w}px`;
     historyDiv.style.maxHeight = `${h}px`;
 
-    var previewdiv = createColorDiv(curcolor);
+    const previewdiv = createColorDiv(curcolor);
     previewdiv.style.border = "1px solid white";
     previewdiv.style.borderRadius = "5px";
 
@@ -174,9 +174,9 @@ export function registerCanvasColor() {
      * @returns {void}
      */
     function displayContainer() {
-      var rect = elem.getBoundingClientRect();
-      var conttop = rect.top + rect.height + 3,
-        contleft = rect.left;
+      const rect = elem.getBoundingClientRect();
+      let conttop = rect.top + rect.height + 3;
+      let contleft = rect.left;
       if (pickerContainer.style.position !== "fixed") {
         conttop += document.documentElement.scrollTop;
         contleft += document.documentElement.scrollLeft;
@@ -204,7 +204,7 @@ export function registerCanvasColor() {
 
     changeColor(elem.value, true);
 
-    var idata = ctx.createImageData(w, h);
+    const idata = ctx.createImageData(w, h);
 
     /**
      * @param {RGBColor} rgb
@@ -226,8 +226,8 @@ export function registerCanvasColor() {
      * @returns {RGBColor}
      */
     function colorAt(coords) {
-      var x = coords[0],
-        y = coords[1];
+      const x = coords[0];
+      const y = coords[1];
       return hsv2rgb((x / w) * Math.PI, 1, (1 - y / h) * 255);
     }
 
@@ -269,7 +269,7 @@ export function registerCanvasColor() {
      * @returns {HTMLDivElement}
      */
     function createColorDiv(color) {
-      var div = document.createElement("div");
+      const div = document.createElement("div");
       div.style.width = `${w / 3 - 10}px`;
       div.style.height = `${h / 3 - 8}px`;
       div.style.backgroundColor = color;
@@ -293,14 +293,14 @@ export function registerCanvasColor() {
      * @returns {CanvasCoords}
      */
     function canvasPos(evt) {
-      var canvasrect = canvas.getBoundingClientRect();
+      const canvasrect = canvas.getBoundingClientRect();
       return [evt.clientX - canvasrect.left, evt.clientY - canvasrect.top];
     }
 
     canvas.addEventListener(
       "mousemove",
       (evt) => {
-        var coords = canvasPos(evt);
+        const coords = canvasPos(evt);
         previewdiv.style.backgroundColor = rgb2hex(colorAt(coords));
       },
       true,
@@ -309,8 +309,8 @@ export function registerCanvasColor() {
     canvas.addEventListener(
       "click",
       (evt) => {
-        var coords = canvasPos(evt);
-        var color = rgb2hex(colorAt(coords));
+        const coords = canvasPos(evt);
+        const color = rgb2hex(colorAt(coords));
         createColorDiv(color);
         changeColor(color);
       },
@@ -328,7 +328,7 @@ export function registerCanvasColor() {
 
   //Put a color picker on every input[type=color] if the browser doesn't support this input type
   //and on every input with the class canvascolor
-  var pickers = document.querySelectorAll(
+  const pickers = document.querySelectorAll(
     "input.canvascolor, input[type=color]",
   );
   for (let i = 0; i < pickers.length; i++) {

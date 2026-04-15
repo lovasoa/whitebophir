@@ -42,7 +42,7 @@ function dist(x1, y1, x2, y2) {
  * @returns {{type: string, values: number[]}}
  */
 function createPathDataPoint(type, values) {
-  return { type: type, values: values };
+  return { type, values };
 }
 
 /**
@@ -53,8 +53,8 @@ function createPathDataPoint(type, values) {
  */
 export function wboPencilPoint(pts, x, y) {
   // pts represents the points that are already in the line as a PathData
-  var nbr = pts.length; //The number of points already in the line
-  var npoint;
+  const nbr = pts.length; //The number of points already in the line
+  let npoint;
   switch (nbr) {
     case 0: //The first point in the line
       //If there is no point, we have to start the line with a moveTo statement
@@ -107,41 +107,41 @@ export function wboPencilPoint(pts, x, y) {
  */
 function pencilExtrapolatePoints(pts, x, y) {
   //We add the new point, and smoothen the line
-  var ANGULARITY = 3; //The lower this number, the smoother the line
-  var prev_point = pts[pts.length - 1];
-  var ante_point = pts[pts.length - 2];
-  if (!prev_point || !ante_point) return;
-  var prev_values = prev_point.values; // Previous point
-  var ante_values = ante_point.values; // Point before the previous one
-  var prev_x = prev_values[prev_values.length - 2];
-  var prev_y = prev_values[prev_values.length - 1];
-  var ante_x = ante_values[ante_values.length - 2];
-  var ante_y = ante_values[ante_values.length - 1];
+  const ANGULARITY = 3; //The lower this number, the smoother the line
+  const prevPoint = pts[pts.length - 1];
+  const antePoint = pts[pts.length - 2];
+  if (!prevPoint || !antePoint) return;
+  const prevValues = prevPoint.values; // Previous point
+  const anteValues = antePoint.values; // Point before the previous one
+  const prevX = prevValues[prevValues.length - 2];
+  const prevY = prevValues[prevValues.length - 1];
+  const anteX = anteValues[anteValues.length - 2];
+  const anteY = anteValues[anteValues.length - 1];
   if (
-    prev_x === undefined ||
-    prev_y === undefined ||
-    ante_x === undefined ||
-    ante_y === undefined
+    prevX === undefined ||
+    prevY === undefined ||
+    anteX === undefined ||
+    anteY === undefined
   )
     return;
 
   //We don't want to add the same point twice consecutively
-  if ((prev_x === x && prev_y === y) || (ante_x === x && ante_y === y)) return;
+  if ((prevX === x && prevY === y) || (anteX === x && anteY === y)) return;
 
-  var vectx = x - ante_x,
-    vecty = y - ante_y;
-  var norm = Math.hypot(vectx, vecty);
-  var dist1 = dist(ante_x, ante_y, prev_x, prev_y) / norm,
-    dist2 = dist(x, y, prev_x, prev_y) / norm;
+  let vectx = x - anteX;
+  let vecty = y - anteY;
+  const norm = Math.hypot(vectx, vecty);
+  const dist1 = dist(anteX, anteY, prevX, prevY) / norm;
+  const dist2 = dist(x, y, prevX, prevY) / norm;
   vectx /= ANGULARITY;
   vecty /= ANGULARITY;
   //Create 2 control points around the last point
-  var cx1 = prev_x - dist1 * vectx,
-    cy1 = prev_y - dist1 * vecty, //First control point
-    cx2 = prev_x + dist2 * vectx,
-    cy2 = prev_y + dist2 * vecty; //Second control point
-  prev_values[2] = cx1;
-  prev_values[3] = cy1;
+  const cx1 = prevX - dist1 * vectx;
+  const cy1 = prevY - dist1 * vecty; //First control point
+  const cx2 = prevX + dist2 * vectx;
+  const cy2 = prevY + dist2 * vecty; //Second control point
+  prevValues[2] = cx1;
+  prevValues[3] = cy1;
 
   return createPathDataPoint("C", [cx2, cy2, x, y, x, y]);
 }
