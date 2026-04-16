@@ -6,9 +6,9 @@
         "name": "anonymous board shell responds",
         "path": "/boards/anonymous",
         "content": "<svg id=\"canvas\"",
-        "timeout": 30,
-        "attempts": 5,
-        "wait": 5
+        "timeout": 10,
+        "attempts": 10,
+        "wait": 2
       }
     ]
   }
