@@ -450,40 +450,6 @@ test("BoardData.load normalizes stored board items from disk", async () => {
   });
 });
 
-test("BoardData.loadMetadataSync preserves readonly metadata and falls back safely", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-metadata-"),
-  );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const boardDataModule = require(BOARD_DATA_PATH);
-    const BoardData = boardDataModule.BoardData;
-
-    await writeBoard(historyDir, "readonly-board", {
-      [boardDataModule.BOARD_METADATA_KEY]: { readonly: true },
-      rect: {
-        tool: "Rectangle",
-        type: "rect",
-        color: "#123456",
-        size: 4,
-        x: 0,
-        y: 0,
-        x2: 10,
-        y2: 10,
-      },
-    });
-
-    assert.deepEqual(BoardData.loadMetadataSync("readonly-board"), {
-      readonly: true,
-    });
-
-    await fs.writeFile(boardFile(historyDir, "broken-board"), "{not-json");
-    assert.deepEqual(BoardData.loadMetadataSync("broken-board"), {
-      readonly: false,
-    });
-  });
-});
-
 test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-json-migrate-"),

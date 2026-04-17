@@ -496,6 +496,61 @@ test("board pages inline the authoritative svg baseline before client boot", asy
   ]);
 });
 
+test("board pages fall back to legacy json metadata and inline baseline rendering", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    path.join(dirs.historyDir, "board-legacy-inline.json"),
+    JSON.stringify({
+      __wbo_meta__: { readonly: true },
+      "rect-1": {
+        id: "rect-1",
+        tool: "Rectangle",
+        type: "rect",
+        x: 1,
+        y: 2,
+        x2: 30,
+        y2: 40,
+        color: "#123456",
+        size: 4,
+      },
+    }),
+    "utf8",
+  );
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/legacy-inline");
+
+      assert.equal(response.statusCode, 200);
+      assert.match(response.body, /toolID-Hand/);
+      assert.doesNotMatch(response.body, /toolID-Pencil/);
+      assert.match(
+        response.body,
+        /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-readonly="true"[\s\S]*<rect id="rect-1"/,
+      );
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
 test("canonical board svg endpoint serves the authoritative baseline with short cache headers", async () => {
   const dirs = await createServerDirs();
   await fs.writeFile(

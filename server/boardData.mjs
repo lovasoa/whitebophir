@@ -41,7 +41,6 @@ import { createMutationLog } from "./mutation_log.mjs";
 import observability from "./observability.mjs";
 import {
   boardSvgPath,
-  readBoardMetadataSync,
   readBoardState,
   rewriteStoredSvg,
   writeBoardState,
@@ -1241,36 +1240,6 @@ class BoardData {
           }
         }
         return boardData;
-      },
-    );
-  }
-
-  /**
-   * @param {string} name
-   * @returns {BoardMetadata}
-   */
-  static loadMetadataSync(name) {
-    return tracing.withOptionalActiveSpan(
-      "board.metadata_load",
-      {
-        attributes: boardTraceAttributes(name, "metadata_load"),
-      },
-      function loadBoardMetadata() {
-        const historyDir = readConfiguration().HISTORY_DIR;
-        try {
-          return readBoardMetadataSync(name, { historyDir: historyDir });
-        } catch (err) {
-          if (errorCode(err) !== "ENOENT") {
-            tracing.recordActiveSpanError(err, {
-              "wbo.board.result": "error",
-            });
-            logger.error("board.metadata_load_failed", {
-              board: name,
-              error: err,
-            });
-          }
-          return { readonly: false };
-        }
       },
     );
   }

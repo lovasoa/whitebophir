@@ -8,7 +8,6 @@ import { readConfiguration } from "./configuration.mjs";
 import {
   boardJsonPath,
   parseLegacyStoredBoard,
-  readLegacyBoardMetadataSync,
   readLegacyBoardState,
 } from "./legacy_json_board_source.mjs";
 import { rewriteStoredSvg as rewriteStoredSvgText } from "./stored_svg_rewrite.mjs";
@@ -586,30 +585,6 @@ async function readBoardMetadata(boardName, options) {
 /**
  * @param {string} boardName
  * @param {{historyDir?: string}=} [options]
- * @returns {{readonly: boolean}}
- */
-function readBoardMetadataSync(boardName, options) {
-  const historyDir = options?.historyDir;
-  try {
-    const svg = fs.readFileSync(boardSvgPath(boardName, historyDir), "utf8");
-    return parseStoredSvg(svg).metadata;
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") {
-      // fall through to json fallback
-    }
-  }
-  try {
-    return readLegacyBoardMetadataSync(boardName, {
-      historyDir: historyDir,
-    });
-  } catch {
-    return defaultBoardMetadata();
-  }
-}
-
-/**
- * @param {string} boardName
- * @param {{historyDir?: string}=} [options]
  * @returns {Promise<string>}
  */
 async function readBoardDownload(boardName, options) {
@@ -654,7 +629,6 @@ export {
   parseBoardItems,
   readBoardDownload,
   readBoardMetadata,
-  readBoardMetadataSync,
   readBoardState,
   readServedBaseline,
   renderServedBaselineSvg,
