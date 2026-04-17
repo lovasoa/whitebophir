@@ -710,6 +710,30 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
   );
 });
 
+test("Pencil replay is idempotent for the same persisted stroke", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("Pencil");
+  const replayStroke = [
+    { type: "line", id: "line-1", color: "#123456", size: 4, opacity: 1 },
+    { type: "child", parent: "line-1", x: 10, y: 20 },
+    { type: "child", parent: "line-1", x: 25, y: 35 },
+    { type: "child", parent: "line-1", x: 40, y: 15 },
+  ];
+
+  replayStroke.forEach((message) => {
+    pencilTool.draw(/** @type {any} */ (message));
+  });
+  const line = harness.elementsById.get("line-1");
+  const firstPathData = line.getPathData();
+
+  replayStroke.forEach((message) => {
+    pencilTool.draw(/** @type {any} */ (message));
+  });
+  const secondPathData = line.getPathData();
+
+  assert.deepEqual(secondPathData, firstPathData);
+});
+
 test("Pencil delete of the active line aborts the active stroke", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("Pencil");
@@ -903,6 +927,44 @@ test("Rectangle replay normalizes reverse-drag bounds on a reused node", async (
   assert.equal(rect.y.baseVal.value, 20);
   assert.equal(rect.width.baseVal.value, 120);
   assert.equal(rect.height.baseVal.value, 130);
+});
+
+test("Rectangle press draws the optimistic seed shape before recording the send", async () => {
+  const harness = createHarness();
+  const rectangleTool = await harness.loadTool("Rectangle");
+  /** @type {boolean[]} */
+  const localShapeVisibleAtSend = [];
+  globalAny.Tools.curTool = rectangleTool;
+  globalAny.Tools.drawAndSend = function (
+    /** @type {any} */ data,
+    /** @type {any} */ tool,
+  ) {
+    if (tool == null) tool = this.curTool;
+    if (!tool) throw new Error("No active tool available");
+    tool.draw(data, true);
+    localShapeVisibleAtSend.push(Boolean(this.svg.getElementById(data.id)));
+    this.sentMessages.push({
+      toolName: tool.name,
+      data: JSON.parse(JSON.stringify(data)),
+    });
+    return true;
+  };
+
+  rectangleTool.listeners.press(80, 20, { preventDefault: () => {} });
+
+  assert.deepEqual(localShapeVisibleAtSend, [true]);
+  assert.equal(harness.elementsById.has("r-1"), true);
+  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
+    type: "rect",
+    id: "r-1",
+    color: "#123456",
+    size: 4,
+    opacity: 1,
+    x: 80,
+    y: 20,
+    x2: 80,
+    y2: 20,
+  });
 });
 
 test("Rectangle update recreates a missing shape before applying bounds", async () => {
