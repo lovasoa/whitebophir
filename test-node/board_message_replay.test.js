@@ -37,48 +37,16 @@ test("stored item children keep parent metadata during replay", () => {
   });
 });
 
-test("snapshot-root children are replayed unchanged", () => {
+test("non-parent replay children are replayed unchanged", () => {
   const child = { tool: "Rectangle", type: "rect", id: "rect-1" };
 
   assert.equal(
     BoardMessageReplay.prepareReplayChild(
-      { _children: [child] },
+      /** @type {any} */ ({}),
       child,
       BoardMessages.normalizeChildMessage,
     ),
     child,
-  );
-});
-
-test("buffered live messages already covered by the snapshot revision are dropped", () => {
-  const buffered = [
-    { tool: "Eraser", type: "delete", id: "rect-1", revision: 4 },
-    { tool: "Hand", type: "update", id: "rect-2", revision: 5 },
-    {
-      tool: "Pencil",
-      type: "child",
-      parent: "line-1",
-      x: 10,
-      y: 20,
-      revision: 6,
-    },
-  ];
-
-  assert.deepEqual(
-    BoardMessageReplay.filterBufferedMessagesAfterSnapshot(buffered, 5),
-    [buffered[2]],
-  );
-});
-
-test("buffered live messages without revisions are replayed for compatibility", () => {
-  const buffered = [
-    { tool: "Eraser", type: "delete", id: "rect-1" },
-    { tool: "Hand", type: "update", id: "rect-2", revision: 3 },
-  ];
-
-  assert.deepEqual(
-    BoardMessageReplay.filterBufferedMessagesAfterSnapshot(buffered, 3),
-    [buffered[0]],
   );
 });
 
@@ -174,7 +142,7 @@ test("sync replay control messages are identified by type", () => {
   );
 });
 
-test("seq envelopes and sync control messages bypass the legacy snapshot buffer", () => {
+test("seq envelopes and sync control messages bypass the seq replay buffer", () => {
   assert.equal(
     BoardMessageReplay.shouldBufferLiveMessage(
       {
@@ -201,5 +169,12 @@ test("seq envelopes and sync control messages bypass the legacy snapshot buffer"
       true,
     ),
     true,
+  );
+  assert.equal(
+    BoardMessageReplay.shouldBufferLiveMessage(
+      { tool: "Cursor", type: "update", x: 1, y: 2 },
+      false,
+    ),
+    false,
   );
 });

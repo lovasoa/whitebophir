@@ -15,15 +15,6 @@ export const TOOL_OWNED_BATCH_TOOLS = {
  * @param {unknown} value
  * @returns {number}
  */
-export function normalizeRevision(value) {
-  const revision = Number(value);
-  return Number.isSafeInteger(revision) && revision > 0 ? revision : 0;
-}
-
-/**
- * @param {unknown} value
- * @returns {number}
- */
 export function normalizeSeq(value) {
   const seq = Number(value);
   return Number.isSafeInteger(seq) && seq > 0 ? seq : 0;
@@ -41,14 +32,6 @@ export function classifyPersistentEnvelopeSeq(messageSeq, authoritativeSeq) {
   if (normalizedMessageSeq <= normalizedAuthoritativeSeq) return "stale";
   if (normalizedMessageSeq === normalizedAuthoritativeSeq + 1) return "next";
   return "gap";
-}
-
-/**
- * @param {{tool?: unknown, _children?: unknown}} message
- * @returns {boolean}
- */
-export function isSnapshotMessage(message) {
-  return hasMessageChildren(message) && !message.tool;
 }
 
 /**
@@ -93,7 +76,7 @@ export function shouldBufferLiveMessage(message, awaitingBoardSnapshot) {
   if (awaitingBoardSnapshot !== true) return false;
   if (isSyncReplayControlMessage(message || {})) return false;
   if (isPersistentEnvelope(message || {})) return false;
-  return !isSnapshotMessage(message || {});
+  return true;
 }
 
 /**
@@ -138,25 +121,6 @@ export function unwrapReplayMessage(message) {
 }
 
 /**
- * @template {{revision?: unknown}} T
- * @param {T[]} messages
- * @param {unknown} snapshotRevision
- * @returns {T[]}
- */
-export function filterBufferedMessagesAfterSnapshot(
-  messages,
-  snapshotRevision,
-) {
-  const normalizedSnapshotRevision = normalizeRevision(snapshotRevision);
-  return messages.filter((message) => {
-    const messageRevision = normalizeRevision(message && message.revision);
-    return (
-      messageRevision === 0 || messageRevision > normalizedSnapshotRevision
-    );
-  });
-}
-
-/**
  * @template {{seq?: unknown}} T
  * @param {T[]} messages
  * @param {unknown} replayedToSeq
@@ -174,12 +138,9 @@ const boardMessageReplay = {
   classifyPersistentEnvelopeSeq,
   TOOL_OWNED_BATCH_TOOLS,
   filterBufferedMessagesAfterSeqReplay,
-  filterBufferedMessagesAfterSnapshot,
   isPersistentEnvelope,
-  isSnapshotMessage,
   isSyncReplayControlMessage,
   isToolOwnedBatchMessage,
-  normalizeRevision,
   normalizeSeq,
   prepareReplayChild,
   shouldBufferLiveMessage,

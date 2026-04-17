@@ -236,7 +236,6 @@ Tools.rateLimitNoticeMessage = "";
 Tools.awaitingBoardSnapshot = true;
 Tools.awaitingSyncReplay = false;
 Tools.hasAuthoritativeBoardSnapshot = false;
-Tools.snapshotRevision = 0;
 Tools.authoritativeSeq = 0;
 Tools.authoritativeDrawingMarkup = "";
 Tools.optimisticJournal = OptimisticJournal.createOptimisticJournal();
@@ -897,10 +896,7 @@ Tools.discardBufferedWrites = function discardBufferedWrites() {
 
 Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.awaitingBoardSnapshot = true;
-  Tools.awaitingSyncReplay = Tools.useSeqSyncProtocol === true;
-  if (Tools.useSeqSyncProtocol !== true) {
-    Tools.snapshotRevision = 0;
-  }
+  Tools.awaitingSyncReplay = true;
   Tools.optimisticJournal.reset();
   Tools.optimisticMutationIdsByItemId.clear();
   Tools.preSnapshotMessages = [];
@@ -912,7 +908,6 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   const authoritativeMarkup =
     BoardAuthoritativeView.markupForAuthoritativeResync({
       authoritativeMarkup: Tools.authoritativeDrawingMarkup,
-      useSeqSyncProtocol: Tools.useSeqSyncProtocol,
       hasAuthoritativeBoardSnapshot: Tools.hasAuthoritativeBoardSnapshot,
     });
   if (authoritativeMarkup !== null && Tools.drawingArea) {
@@ -985,7 +980,6 @@ function finalizeIncomingBroadcast(msg, processed) {
  * @returns {Promise<boolean>}
  */
 async function processIncomingBroadcast(msg) {
-  const isSnapshotMessage = BoardMessageReplay.isSnapshotMessage(msg);
   const isPersistentEnvelope = BoardMessageReplay.isPersistentEnvelope(msg);
   if (isPersistentEnvelope) {
     const seqDisposition = BoardMessageReplay.classifyPersistentEnvelopeSeq(
@@ -1010,11 +1004,6 @@ async function processIncomingBroadcast(msg) {
     Tools.preSnapshotMessages.push(Tools.cloneMessage(msg));
     return false;
   }
-
-  if (Tools.awaitingBoardSnapshot && isSnapshotMessage) {
-    Tools.resetBoardViewport();
-  }
-
   const replayMessage = /** @type {BoardMessage} */ (
     BoardMessageReplay.unwrapReplayMessage(msg)
   );
@@ -1041,21 +1030,7 @@ async function processIncomingBroadcast(msg) {
       previousMarkup: Tools.authoritativeDrawingMarkup,
       currentMarkup: Tools.drawingArea?.innerHTML,
       isPersistentEnvelope: isPersistentEnvelope,
-      isSnapshotMessage: isSnapshotMessage,
     });
-  if (Tools.awaitingBoardSnapshot && isSnapshotMessage) {
-    Tools.hasAuthoritativeBoardSnapshot = true;
-    Tools.snapshotRevision = BoardMessageReplay.normalizeRevision(msg.revision);
-    Tools.awaitingBoardSnapshot = false;
-    Tools.flushBufferedWrites();
-    Tools.incomingBroadcastQueue =
-      BoardMessageReplay.filterBufferedMessagesAfterSnapshot(
-        Tools.preSnapshotMessages,
-        Tools.snapshotRevision,
-      ).concat(Tools.incomingBroadcastQueue);
-    Tools.preSnapshotMessages = [];
-    Tools.restoreLocalCursor();
-  }
   return true;
 }
 
@@ -1416,7 +1391,6 @@ Tools.svg = /** @type {SVGSVGElement} */ (
   /** @type {unknown} */ (getRequiredElement("canvas"))
 );
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
-Tools.useSeqSyncProtocol = true;
 Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(
   Tools.svg.getAttribute("data-wbo-seq"),
 );
@@ -2119,25 +2093,20 @@ Tools.startConnection = () => {
     } else {
       Tools.showLoadingMessage();
     }
-    if (Tools.useSeqSyncProtocol) {
-      Tools.awaitingBoardSnapshot = true;
-      Tools.awaitingSyncReplay = true;
-      void (async function startSeqReplay() {
-        if (isReconnect && Tools.hasAuthoritativeBoardSnapshot) {
-          try {
-            await Tools.refreshAuthoritativeBaseline();
-          } catch (error) {
-            console.error(
-              "Failed to refresh authoritative SVG baseline",
-              error,
-            );
-          }
+    Tools.awaitingBoardSnapshot = true;
+    Tools.awaitingSyncReplay = true;
+    void (async function startSeqReplay() {
+      if (isReconnect && Tools.hasAuthoritativeBoardSnapshot) {
+        try {
+          await Tools.refreshAuthoritativeBaseline();
+        } catch (error) {
+          console.error("Failed to refresh authoritative SVG baseline", error);
         }
-        socket.emit("sync_request", {
-          baselineSeq: Tools.authoritativeSeq,
-        });
-      })();
-    }
+      }
+      socket.emit("sync_request", {
+        baselineSeq: Tools.authoritativeSeq,
+      });
+    })();
     Tools.syncWriteStatusIndicator();
   });
   socket.on("broadcast", (/** @type {BoardMessage} */ msg) => {
@@ -2162,7 +2131,6 @@ Tools.startConnection = () => {
     function onSyncReplayEnd(
       /** @type {{toInclusiveSeq?: unknown} | undefined} */ payload,
     ) {
-      if (!Tools.useSeqSyncProtocol) return;
       Tools.hasAuthoritativeBoardSnapshot = true;
       Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(
         payload?.toInclusiveSeq,
