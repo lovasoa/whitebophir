@@ -24,7 +24,7 @@
  * @licend
  */
 
-/** @typedef {{getEffectiveRateLimit: (name: "general") => {periodMs?: number, limit?: number} | null, server_config: {RATE_LIMITS?: {[kind: string]: {periodMs?: number, limit?: number}}}, register: (tool: unknown) => void, addToolListeners: (tool: unknown) => void, getColor: () => string, getSize: () => number, drawAndSend: (msg: {type: string}, tool: unknown) => void, showMarker: boolean | undefined, showMyCursor: boolean | undefined, isIE: boolean, svg: SVGSVGElement | null, curTool: {showMarker?: boolean} | null}} CursorToolRegistry */
+/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {{type: "update", x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
@@ -32,7 +32,7 @@ export default class CursorToolClass {
   static toolName = "Cursor";
 
   /**
-   * @param {CursorToolRegistry} tools
+   * @param {AppToolsState} tools
    */
   constructor(tools) {
     this.tools = tools;
@@ -43,6 +43,7 @@ export default class CursorToolClass {
     this.icon = "tools/pencil/icon.svg";
     this.showMarker = true;
     this.alwaysOn = true;
+    /** @type {CursorMessage} */
     this.message = {
       type: "update",
       x: 0,
@@ -67,9 +68,9 @@ export default class CursorToolClass {
    */
   getMinCursorUpdateIntervalMs() {
     const generalLimit =
-      (typeof this.tools.getEffectiveRateLimit === "function"
-        ? this.tools.getEffectiveRateLimit("general")
-        : this.tools.server_config?.RATE_LIMITS?.general) ?? {};
+      this.tools.getEffectiveRateLimit?.("general") ??
+      this.tools.server_config?.RATE_LIMITS?.general ??
+      {};
     return (
       (this.getPositiveNumber(generalLimit.periodMs, 4096) /
         this.getPositiveNumber(generalLimit.limit, 192)) *
@@ -82,12 +83,7 @@ export default class CursorToolClass {
    * @returns {element is SVGCircleElement}
    */
   isCursorElement(element) {
-    return !!(
-      element &&
-      typeof element === "object" &&
-      "style" in element &&
-      "setAttributeNS" in element
-    );
+    return String(element?.tagName).toLowerCase() === "circle";
   }
 
   press() {
@@ -127,7 +123,7 @@ export default class CursorToolClass {
       (this.sending || activeTool?.showMarker === true)
     ) {
       const sent = this.tools.drawAndSend(this.message, this);
-      if (sent === false) {
+      if (sent !== true) {
         this.draw(this.message);
       } else {
         this.lastCursorUpdate = curTime;
@@ -179,18 +175,23 @@ export default class CursorToolClass {
       : this.createCursor(id);
   }
 
-  /** @param {CursorMessage} message */
-  draw(message) {
-    const cursor = this.getCursor(`cursor-${message.socket || "me"}`);
-    cursor.style.transform = `translate(${message.x}px, ${message.y}px)`;
+  /**
+   * @param {import("../../../types/app-runtime").BoardMessage} message
+   * @param {boolean} [isLocal]
+   */
+  draw(message, isLocal) {
+    void isLocal;
+    const cursorMessage = /** @type {CursorMessage} */ (message);
+    const cursor = this.getCursor(`cursor-${cursorMessage.socket || "me"}`);
+    cursor.style.transform = `translate(${cursorMessage.x}px, ${cursorMessage.y}px)`;
     if (this.tools.isIE)
       cursor.setAttributeNS(
         null,
         "transform",
-        `translate(${message.x} ${message.y})`,
+        `translate(${cursorMessage.x} ${cursorMessage.y})`,
       );
-    cursor.setAttributeNS(null, "fill", message.color);
-    cursor.setAttributeNS(null, "r", String(message.size / 2));
+    cursor.setAttributeNS(null, "fill", cursorMessage.color);
+    cursor.setAttributeNS(null, "r", String(cursorMessage.size / 2));
   }
 
   /**

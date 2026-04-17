@@ -25,13 +25,19 @@
  */
 
 import { truncateText } from "../../js/message_common.js";
+/** @typedef {import("../../../types/app-runtime").BoardMessage} BoardMessage */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
+/** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: ReturnType<typeof setTimeout> | null}} CurrentTextState */
+/** @typedef {{type: "new", id: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} NewTextMessage */
+/** @typedef {{type: "update", id: string, txt?: string}} TextUpdateMessage */
+/** @typedef {NewTextMessage | TextUpdateMessage} TextMessage */
 
 export default class TextTool {
   static toolName = "Text";
 
   /**
-   * @param {any} Tools
+   * @param {AppToolsState} Tools
    */
   constructor(Tools) {
     this.Tools = Tools;
@@ -47,6 +53,7 @@ export default class TextTool {
     this.input.type = "text";
     this.input.setAttribute("autocomplete", "off");
 
+    /** @type {CurrentTextState} */
     this.curText = {
       x: 0,
       y: 0,
@@ -55,7 +62,7 @@ export default class TextTool {
       oldSize: 0,
       opacity: 1,
       color: "#000",
-      id: 0,
+      id: "",
       sentText: "",
       lastSending: 0,
       timeout: null,
@@ -163,13 +170,13 @@ export default class TextTool {
       this.curText.timeout = null;
     }
     try {
-      if (typeof this.input.blur === "function") this.input.blur();
+      this.input.blur();
     } catch (e) {
       /* Internet Explorer */
     }
     this.active = false;
     this.blur();
-    this.curText.id = 0;
+    this.curText.id = "";
     this.curText.sentText = "";
     this.input.value = "";
   }
@@ -190,7 +197,7 @@ export default class TextTool {
     }
     if (performance.now() - this.curText.lastSending > 100) {
       if (this.curText.sentText !== this.input.value) {
-        if (this.curText.id === 0) {
+        if (this.curText.id === "") {
           this.curText.id = this.Tools.generateUID("t");
           this.Tools.drawAndSend({
             type: "new",
@@ -219,34 +226,34 @@ export default class TextTool {
   }
 
   /**
-   * @param {{type?: string, id?: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} data
+   * @param {BoardMessage} data
    * @param {boolean} isLocal
    * @returns {boolean | void}
    */
   draw(data, isLocal) {
     void isLocal;
+    const textMessage = /** @type {TextMessage} */ (data);
     this.Tools.drawingEvent = true;
-    switch (data.type) {
+    switch (textMessage.type) {
       case "new":
-        this.createTextField(data);
+        this.createTextField(textMessage);
         break;
       case "update": {
-        if (typeof data.id !== "string") {
-          console.error("Text: update is missing an id.", data);
-          return false;
-        }
-        const textField = document.getElementById(data.id);
+        const textField = document.getElementById(textMessage.id);
         if (!textField || String(textField.tagName).toLowerCase() !== "text") {
           console.error(
             "Text: Hmmm... I received text that belongs to an unknown text field",
           );
           return false;
         }
-        this.updateText(textField, data.txt);
+        this.updateText(textField, textMessage.txt);
         break;
       }
       default:
-        console.error("Text: Draw instruction with unknown type. ", data);
+        console.error(
+          "Text: Draw instruction with unknown type. ",
+          textMessage,
+        );
         break;
     }
   }
@@ -260,12 +267,12 @@ export default class TextTool {
   }
 
   /**
-   * @param {{type?: string, id?: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} fieldData
+   * @param {NewTextMessage} fieldData
    * @returns {SVGElement}
    */
   createTextField(fieldData) {
     const elem = this.Tools.createSVGElement("text");
-    elem.id = typeof fieldData.id === "string" ? fieldData.id : "";
+    elem.id = fieldData.id;
     elem.setAttribute("x", String(fieldData.x || 0));
     elem.setAttribute("y", String(fieldData.y || 0));
     elem.setAttribute("font-size", String(fieldData.size || 0));

@@ -60,8 +60,10 @@ import { getToolCatalogEntry } from "./tool_catalog.js";
 /** @typedef {import("../../types/app-runtime").RateLimitKind} RateLimitKind */
 /** @typedef {import("../../types/app-runtime").ServerConfig} ServerConfig */
 /** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
+/** @typedef {import("../../types/app-runtime").MountedAppTool} MountedAppTool */
 /** @typedef {import("../../types/app-runtime").ToolPalette} ToolPalette */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
+/** @typedef {import("../../types/app-runtime").ToolPointerListeners} ToolPointerListeners */
 /** @typedef {import("../../types/app-runtime").ToolClass} ToolClass */
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../types/app-runtime").ToolRuntime} ToolRuntime */
@@ -146,10 +148,23 @@ function isTextEntryTarget(target) {
 
 function blurActiveElement() {
   if (document.activeElement instanceof HTMLElement) {
-    if (typeof document.activeElement.blur === "function") {
-      document.activeElement.blur();
-    }
+    document.activeElement.blur();
   }
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is ToolClass}
+ */
+function isToolClass(value) {
+  return !!(
+    value &&
+    typeof value === "function" &&
+    "toolName" in value &&
+    typeof value.toolName === "string" &&
+    "boot" in value &&
+    typeof value.boot === "function"
+  );
 }
 
 Tools.i18n = (function i18n() {
@@ -429,7 +444,7 @@ Tools.resetBoardViewport = function resetBoardViewport() {
 
 Tools.restoreLocalCursor = function restoreLocalCursor() {
   const cursorTool = Tools.list.Cursor;
-  if (!cursorTool || typeof cursorTool.draw !== "function") return;
+  if (!cursorTool) return;
   const message =
     "message" in cursorTool && cursorTool.message
       ? /** @type {BoardMessage} */ (cursorTool.message)
@@ -638,7 +653,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.discardBufferedWrites();
   Tools.turnstilePendingWrites = [];
   Tools.hideTurnstileOverlay();
-  Object.values(Tools.connectedUsers || {}).forEach((user) => {
+  Object.values(getConnectedUsers()).forEach((user) => {
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
   Tools.connectedUsers = {};
@@ -650,9 +665,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
     Tools.showLoadingMessage();
   }
   Object.values(Tools.list || {}).forEach((tool) => {
-    if (tool && typeof tool.onSocketDisconnect === "function") {
-      tool.onSocketDisconnect();
-    }
+    if (tool) tool.onSocketDisconnect();
   });
   Tools.syncWriteStatusIndicator();
 };
@@ -688,10 +701,7 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
  */
 function finalizeIncomingBroadcast(msg, processed) {
   if (processed) {
-    Tools.updateConnectedUsersFromActivity(
-      typeof msg.userId === "string" ? msg.userId : undefined,
-      msg,
-    );
+    Tools.updateConnectedUsersFromActivity(msg.userId, msg);
   }
   if (!Tools.awaitingBoardSnapshot) {
     Tools.hideLoadingMessage();
@@ -1178,11 +1188,7 @@ Tools.connectedUsers = {};
 Tools.connectedUsersPanelOpen = false;
 
 function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
-  return !!(
-    Tools.socket &&
-    typeof Tools.socket.id === "string" &&
-    user.socketId === Tools.socket.id
-  );
+  return !!(Tools.socket?.id && user.socketId === Tools.socket.id);
 }
 
 /**
@@ -1206,12 +1212,21 @@ function getConnectedUsersList() {
   return getRequiredElement("connectedUsersList");
 }
 
+/**
+ * @returns {{[socketId: string]: ConnectedUser}}
+ */
+function getConnectedUsers() {
+  return /** @type {{[socketId: string]: ConnectedUser}} */ (
+    Tools.connectedUsers
+  );
+}
+
 function syncConnectedUsersToggleLabel() {
   const toggle = getConnectedUsersToggle();
   const label = /** @type {HTMLElement | null} */ (
     toggle.querySelector(".tool-name")
   );
-  const userCount = Object.keys(Tools.connectedUsers).length;
+  const userCount = Object.keys(getConnectedUsers()).length;
   const accessibleLabel = `${userCount} ${Tools.i18n.t("users")}`;
   toggle.setAttribute("aria-label", accessibleLabel);
   toggle.title = accessibleLabel;
@@ -1256,12 +1271,7 @@ function getConnectedUserToolLabel(user) {
  * @returns {boolean}
  */
 function hasConnectedUserFocus(user) {
-  return (
-    typeof user.lastFocusX === "number" &&
-    Number.isFinite(user.lastFocusX) &&
-    typeof user.lastFocusY === "number" &&
-    Number.isFinite(user.lastFocusY)
-  );
+  return Number.isFinite(user.lastFocusX) && Number.isFinite(user.lastFocusY);
 }
 
 /**
@@ -1387,9 +1397,7 @@ function getMessageFocusPoint(message) {
   }
 
   if (message.tool === "Text" && message.type === "update") {
-    return typeof message.id === "string"
-      ? getRenderedElementCenterById(message.id)
-      : null;
+    return message.id ? getRenderedElementCenterById(message.id) : null;
   }
 
   return getBoundsCenter(
@@ -1544,7 +1552,7 @@ function createConnectedUserRow(user) {
     evt.preventDefault();
     evt.stopPropagation();
     if (!Tools.socket || !row.dataset.socketId) return;
-    const connectedUser = Tools.connectedUsers[row.dataset.socketId];
+    const connectedUser = getConnectedUsers()[row.dataset.socketId];
     if (!connectedUser || isCurrentSocketUser(connectedUser)) return;
     connectedUser.reported = true;
     updateConnectedUserRow(row, connectedUser);
@@ -1574,7 +1582,7 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
     }
   });
 
-  const users = Object.values(Tools.connectedUsers).sort((left, right) =>
+  const users = Object.values(getConnectedUsers()).sort((left, right) =>
     left.name.localeCompare(right.name),
   );
 
@@ -1615,9 +1623,9 @@ Tools.setConnectedUsersPanelOpen = function setConnectedUsersPanelOpen(
 Tools.upsertConnectedUser = function upsertConnectedUser(
   /** @type {ConnectedUser} */ user,
 ) {
-  Tools.connectedUsers[user.socketId] = Object.assign(
+  getConnectedUsers()[user.socketId] = Object.assign(
     {},
-    Tools.connectedUsers[user.socketId] || {},
+    getConnectedUsers()[user.socketId] || {},
     user,
   );
   Tools.renderConnectedUsers();
@@ -1626,9 +1634,9 @@ Tools.upsertConnectedUser = function upsertConnectedUser(
 Tools.removeConnectedUser = function removeConnectedUser(
   /** @type {string} */ socketId,
 ) {
-  const user = Tools.connectedUsers[socketId];
+  const user = getConnectedUsers()[socketId];
   if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
-  delete Tools.connectedUsers[socketId];
+  delete getConnectedUsers()[socketId];
   Tools.renderConnectedUsers();
 };
 
@@ -1642,13 +1650,12 @@ Tools.updateConnectedUsersFromActivity =
     // - `userId`: derived from the persisted per-browser `userSecret`, so multiple tabs from one browser session can share it.
     // - displayed name: combines an IP-derived word with the `userId`, so it is human-readable but not a stable routing key.
     // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
-    const messageSocketId =
-      typeof message.socket === "string" ? message.socket : null;
+    const messageSocketId = message.socket || null;
     if (!userId && messageSocketId === null) return;
     let changed = false;
     const focusPoint = getMessageFocusPoint(message);
     const shouldPulse = message.tool !== "Cursor";
-    Object.values(Tools.connectedUsers).forEach((user) => {
+    Object.values(getConnectedUsers()).forEach((user) => {
       if (messageSocketId !== null) {
         if (user.socketId !== messageSocketId) return;
       } else if (user.userId !== userId) {
@@ -1658,7 +1665,7 @@ Tools.updateConnectedUsersFromActivity =
         markConnectedUserActivity(user);
         changed = true;
       }
-      if (typeof message.color === "string") {
+      if (message.color !== undefined) {
         user.color = message.color;
         changed = true;
       }
@@ -1666,7 +1673,7 @@ Tools.updateConnectedUsersFromActivity =
         user.size = Number(message.size) || user.size;
         changed = true;
       }
-      if (typeof message.tool === "string" && message.tool !== "Cursor") {
+      if (message.tool && message.tool !== "Cursor") {
         user.lastTool = message.tool;
         changed = true;
       }
@@ -1688,8 +1695,8 @@ Tools.updateCurrentConnectedUserFromActivity =
   function updateCurrentConnectedUserFromActivity(
     /** @type {BoardMessage} */ message,
   ) {
-    if (!Tools.socket || typeof Tools.socket.id !== "string") return;
-    const current = Tools.connectedUsers[Tools.socket.id];
+    if (!Tools.socket?.id) return;
+    const current = getConnectedUsers()[Tools.socket.id];
     if (!current) return;
     Tools.updateConnectedUsersFromActivity(
       current.userId,
@@ -1734,7 +1741,7 @@ Tools.startConnection = () => {
     Tools.socket = null;
   }
   Tools.connectionState = "connecting";
-  Object.values(Tools.connectedUsers).forEach((user) => {
+  Object.values(getConnectedUsers()).forEach((user) => {
     if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
   Tools.connectedUsers = {};
@@ -1784,7 +1791,7 @@ Tools.startConnection = () => {
   socket.on(
     "user_left",
     function onUserLeft(/** @type {{socketId?: string}} */ user) {
-      if (typeof user.socketId !== "string") return;
+      if (!user.socketId) return;
       Tools.removeConnectedUser(user.socketId);
     },
   );
@@ -2039,16 +2046,15 @@ Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
  * @returns {void}
  */
 Tools.registerToolClass = function registerToolClass(ToolClass) {
-  const toolName = ToolClass?.toolName;
-  if (typeof toolName !== "string" || toolName === "") {
+  if (!ToolClass.toolName) {
     throw new Error("Tool classes must expose a static toolName.");
   }
-  Tools.toolClasses[toolName] = ToolClass;
+  Tools.toolClasses[ToolClass.toolName] = ToolClass;
 };
 
 /**
  * @param {string} toolName
- * @returns {Promise<ToolClass | null>}
+ * @returns {Promise<ToolClass>}
  */
 Tools.ensureToolClassLoaded = async function ensureToolClassLoaded(toolName) {
   const existing = Tools.toolClasses[toolName];
@@ -2057,10 +2063,10 @@ Tools.ensureToolClassLoaded = async function ensureToolClassLoaded(toolName) {
   const namespace = /** @type {{default?: unknown}} */ (
     await import(Tools.versionAssetPath(getToolModuleImportPath(toolName)))
   );
-  const ToolClass = namespace.default;
-  if (typeof ToolClass !== "function") {
+  if (!isToolClass(namespace.default)) {
     throw new Error(`Missing default tool class export for ${toolName}.`);
   }
+  const ToolClass = namespace.default;
   if (ToolClass.toolName !== toolName) {
     throw new Error(
       `Tool module for ${toolName} exported ${String(ToolClass.toolName)}.`,
@@ -2103,18 +2109,9 @@ function createToolBootContext(toolName) {
  */
 function deriveListeners(tool) {
   return {
-    press:
-      typeof tool.press === "function"
-        ? tool.press.bind(tool)
-        : tool.listeners?.press,
-    move:
-      typeof tool.move === "function"
-        ? tool.move.bind(tool)
-        : tool.listeners?.move,
-    release:
-      typeof tool.release === "function"
-        ? tool.release.bind(tool)
-        : tool.listeners?.release,
+    press: tool.press ? tool.press.bind(tool) : tool.listeners?.press,
+    move: tool.move ? tool.move.bind(tool) : tool.listeners?.move,
+    release: tool.release ? tool.release.bind(tool) : tool.listeners?.release,
   };
 }
 
@@ -2123,27 +2120,40 @@ function deriveListeners(tool) {
  * @param {"onstart" | "onquit" | "onSocketDisconnect" | "onSizeChange"} key
  */
 function bindToolMethod(tool, key) {
-  const method = tool[key];
-  if (typeof method !== "function") return;
-  tool[key] = method.bind(tool);
+  switch (key) {
+    case "onstart":
+      if (tool.onstart) tool.onstart = tool.onstart.bind(tool);
+      return;
+    case "onquit":
+      if (tool.onquit) tool.onquit = tool.onquit.bind(tool);
+      return;
+    case "onSocketDisconnect":
+      if (tool.onSocketDisconnect) {
+        tool.onSocketDisconnect = tool.onSocketDisconnect.bind(tool);
+      }
+      return;
+    case "onSizeChange":
+      if (tool.onSizeChange) tool.onSizeChange = tool.onSizeChange.bind(tool);
+      return;
+  }
 }
 
 /** @param {AppTool} tool */
 function ensureToolDefaults(tool) {
-  if (typeof tool.name !== "string") throw new Error("A tool must have a name");
-  if (typeof tool.listeners !== "object") {
+  if (!tool.name) throw new Error("A tool must have a name");
+  if (!tool.listeners) {
     tool.listeners = {};
   }
-  if (typeof tool.onstart !== "function") {
+  if (!tool.onstart) {
     tool.onstart = () => {};
   }
-  if (typeof tool.onquit !== "function") {
+  if (!tool.onquit) {
     tool.onquit = () => {};
   }
-  if (typeof tool.onMessage !== "function") {
+  if (!tool.onMessage) {
     tool.onMessage = () => {};
   }
-  if (typeof tool.onSocketDisconnect !== "function") {
+  if (!tool.onSocketDisconnect) {
     tool.onSocketDisconnect = () => {};
   }
 }
@@ -2217,7 +2227,7 @@ function compileToolListeners(tool) {
 
 /**
  * @param {AppTool} tool
- * @returns {AppTool}
+ * @returns {MountedAppTool}
  */
 Tools.mountTool = function mountTool(tool) {
   bindToolMethod(tool, "onstart");
@@ -2244,7 +2254,7 @@ Tools.mountTool = function mountTool(tool) {
   if (tool.alwaysOn === true) {
     Tools.addToolListeners(tool);
   }
-  return tool;
+  return /** @type {MountedAppTool} */ (tool);
 };
 
 /**
@@ -2253,7 +2263,6 @@ Tools.mountTool = function mountTool(tool) {
  */
 async function createBootPromise(toolName) {
   const ToolClass = await Tools.ensureToolClassLoaded(toolName);
-  if (!ToolClass || typeof ToolClass.boot !== "function") return null;
   const bootedTool = await ToolClass.boot(createToolBootContext(toolName));
   if (!bootedTool) return null;
   return Tools.mountTool(bootedTool);
@@ -2319,7 +2328,7 @@ Tools.register = function registerTool(newTool) {
   compileToolListeners(newTool);
 
   //Add the tool to the list
-  Tools.list[newTool.name] = newTool;
+  Tools.list[newTool.name] = /** @type {MountedAppTool} */ (newTool);
 
   // Register the change handlers
   if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
@@ -2633,10 +2642,7 @@ function resizeCanvas(m) {
 
 /** @param {BoardMessage} m */
 function updateUnreadCount(m) {
-  if (
-    document.hidden &&
-    ["child", "update"].indexOf(typeof m.type === "string" ? m.type : "") === -1
-  ) {
+  if (document.hidden && m.type !== "child" && m.type !== "update") {
     Tools.newUnreadMessage();
   }
 }
@@ -2644,7 +2650,7 @@ function updateUnreadCount(m) {
 /** @param {BoardMessage} m */
 function notifyToolsOfMessage(m) {
   Object.values(Tools.list || {}).forEach((tool) => {
-    if (tool && typeof tool.onMessage === "function") tool.onMessage(m);
+    if (tool) tool.onMessage(m);
   });
 }
 
@@ -2705,14 +2711,14 @@ Tools.generateUID = function generateUID(prefix, suffix) {
 
 /**
  * @param {string} name
- * @param {{[key: string]: string | number} | undefined} attrs
+ * @param {{[key: string]: string | number | undefined} | undefined} attrs
  * @returns {SVGElement}
  */
 Tools.createSVGElement = function createSVGElement(name, attrs) {
   const elem = /** @type {SVGElement} */ (
     document.createElementNS(Tools.svg.namespaceURI, name)
   );
-  if (!attrs || typeof attrs !== "object") return elem;
+  if (!attrs) return elem;
   Object.keys(attrs).forEach((key) => {
     elem.setAttributeNS(null, key, String(attrs[key]));
   });
@@ -2788,7 +2794,7 @@ Tools.setSize = (function size() {
   };
 })();
 
-Tools.getSize = () => Tools.setSize();
+Tools.getSize = () => Tools.setSize(undefined);
 
 Tools.getOpacity = (function opacity() {
   const chooser = getRequiredInput("chooseOpacity");

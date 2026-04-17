@@ -25,6 +25,7 @@
  */
 
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @typedef {{type: "update", id: string, x: number, y: number, x2: number, y2: number}} EllipseUpdate */
 
 export default class EllipseTool {
   static toolName = "Ellipse";
@@ -34,6 +35,7 @@ export default class EllipseTool {
    */
   constructor(Tools) {
     this.Tools = Tools;
+    /** @type {EllipseUpdate} */
     this.curUpdate = {
       type: "update",
       id: "",
@@ -64,14 +66,7 @@ export default class EllipseTool {
    * @returns {element is SVGEllipseElement & {id: string}}
    */
   isEllipseElement(element) {
-    return !!(
-      element &&
-      typeof element === "object" &&
-      "cx" in element &&
-      "cy" in element &&
-      "rx" in element &&
-      "ry" in element
-    );
+    return String(element?.tagName).toLowerCase() === "ellipse";
   }
 
   /**

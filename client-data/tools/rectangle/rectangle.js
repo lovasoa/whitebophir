@@ -25,6 +25,7 @@
  */
 
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @typedef {{type: "update", id: string, x: number, y: number, x2: number, y2: number}} RectangleUpdate */
 
 export default class RectangleTool {
   static toolName = "Rectangle";
@@ -36,6 +37,7 @@ export default class RectangleTool {
     this.Tools = Tools;
     this.end = false;
     this.curId = "";
+    /** @type {RectangleUpdate} */
     this.curUpdate = {
       type: "update",
       id: "",
@@ -62,14 +64,7 @@ export default class RectangleTool {
    * @returns {element is SVGRectElement & {id: string}}
    */
   isRectElement(element) {
-    return !!(
-      element &&
-      typeof element === "object" &&
-      "x" in element &&
-      "y" in element &&
-      "width" in element &&
-      "height" in element
-    );
+    return String(element?.tagName).toLowerCase() === "rect";
   }
 
   /**

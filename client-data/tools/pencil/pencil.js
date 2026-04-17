@@ -27,12 +27,13 @@
 import { LIMITS } from "../../js/message_common.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 
 export default class PencilTool {
   static toolName = "Pencil";
 
   /**
-   * @param {any} Tools
+   * @param {AppToolsState} Tools
    * @param {(assetFile: string) => string} [assetUrl]
    */
   constructor(
@@ -45,8 +46,6 @@ export default class PencilTool {
     this.AUTO_FINGER_WHITEOUT =
       Tools.server_config.AUTO_FINGER_WHITEOUT === true;
     const defaultMaxPencilChildren =
-      typeof LIMITS === "object" &&
-      LIMITS &&
       Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
         ? Number(LIMITS.DEFAULT_MAX_CHILDREN)
         : Number.POSITIVE_INFINITY;
@@ -61,6 +60,7 @@ export default class PencilTool {
     this.hasSentPoint = false;
     this.currentLineChildCount = 0;
     this.renderingLine = null;
+    /** @type {{[lineId: string]: any[]}} */
     this.pathDataCache = {};
     this.drawingSize = -1;
     this.whiteOutSize = -1;
@@ -96,12 +96,9 @@ export default class PencilTool {
    */
   getMinPencilIntervalMs() {
     const generalLimit =
-      typeof this.Tools.getEffectiveRateLimit === "function"
-        ? this.Tools.getEffectiveRateLimit("general")
-        : (this.Tools.server_config &&
-            this.Tools.server_config.RATE_LIMITS &&
-            this.Tools.server_config.RATE_LIMITS.general) ||
-          {};
+      this.Tools.getEffectiveRateLimit?.("general") ??
+      this.Tools.server_config?.RATE_LIMITS?.general ??
+      {};
     return (
       this.getPositiveNumber(generalLimit.periodMs, 4096) /
       this.getPositiveNumber(generalLimit.limit, 192)

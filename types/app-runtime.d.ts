@@ -14,6 +14,11 @@ export type BoardMessage = {
   parent?: string;
   newid?: string;
   revision?: number;
+  socket?: string;
+  userId?: string;
+  color?: string;
+  size?: number;
+  txt?: string;
   transform?: Transform | unknown;
   _children?: BoardMessage[];
   x?: number;
@@ -89,6 +94,7 @@ export type AppTool = {
   onSocketDisconnect?: () => void;
   stylesheet?: string;
   oneTouch?: boolean;
+  alwaysOn?: boolean;
   mouseCursor?: string;
   helpText?: string;
   secondary?: ToolSecondaryMode | null;
@@ -100,6 +106,19 @@ export type ToolRegistry = {
   [toolName: string]: AppTool;
 };
 
+export type MountedAppTool = AppTool & {
+  listeners: ToolPointerListeners;
+  compiledListeners: CompiledToolListeners;
+  onstart: (oldTool: AppTool | null) => void;
+  onquit: (newTool: AppTool) => void;
+  onMessage: (message: BoardMessage) => void;
+  onSocketDisconnect: () => void;
+};
+
+export type MountedToolRegistry = {
+  [toolName: string]: MountedAppTool;
+};
+
 export type AppSocket = {
   id?: string;
   connected?: boolean;
@@ -108,6 +127,8 @@ export type AppSocket = {
   connect?: () => void;
   disconnect?: () => void;
   destroy?: () => void;
+  once?: (eventName: string, handler: (...args: any[]) => void) => void;
+  io?: { engine?: { close: () => void } };
 };
 
 export type MessageHook = (message: BoardMessage) => void;
@@ -214,7 +235,7 @@ export type AppToolsState = {
   board: HTMLElement;
   svg: SVGSVGElement;
   drawingArea: Element | null;
-  curTool: AppTool | null;
+  curTool: MountedAppTool | null;
   drawingEvent: boolean;
   showMarker: boolean;
   showOtherCursors: boolean;
@@ -236,11 +257,12 @@ export type AppToolsState = {
   boardName: string;
   token: string | null;
   HTML: ToolPalette;
-  list: ToolRegistry;
+  list: MountedToolRegistry;
   toolClasses: { [toolName: string]: ToolClass };
   bootedToolPromises: { [toolName: string]: Promise<AppTool | null> };
   bootedToolNames: Set<string>;
   pendingMessages: PendingMessages;
+  connectedUsers?: { [socketId: string]: unknown };
   unreadMessagesCount: number;
   messageHooks: MessageHook[];
   colorPresets: ColorPreset[];
@@ -248,12 +270,43 @@ export type AppToolsState = {
   sizeChangeHandlers: ((size: number) => void)[];
   getToolAssetUrl: (toolName: string, assetFile: string) => string;
   registerToolClass: (toolClass: ToolClass) => void;
-  ensureToolClassLoaded: (toolName: string) => Promise<ToolClass | null>;
-  mountTool: (tool: AppTool) => AppTool;
+  ensureToolClassLoaded: (toolName: string) => Promise<ToolClass>;
+  mountTool: (tool: AppTool) => MountedAppTool;
   bootTool: (toolName: string) => Promise<AppTool | null>;
   ensureToolBooted: (toolName: string) => Promise<AppTool | null>;
   activateTool: (toolName: string) => Promise<boolean>;
+  add: (tool: AppTool) => void;
+  register: (tool: AppTool) => void;
+  addToolListeners: (tool: AppTool) => void;
+  removeToolListeners: (tool: AppTool) => void;
+  drawAndSend: (message: BoardMessage, tool?: AppTool) => boolean | undefined;
+  send: (message: BoardMessage, toolName?: string) => boolean | undefined;
+  getColor: () => string;
+  setColor: (color: string) => void;
+  getSize: () => number;
+  setSize: (size?: number | string | null | undefined) => number;
+  getOpacity: () => number;
+  getScale: () => number;
+  setScale: (scale: number) => number;
+  createSVGElement: (
+    name: string,
+    attrs?: { [key: string]: string | number | undefined },
+  ) => SVGElement;
+  generateUID: (prefix?: string, suffix?: string) => string;
+  getEffectiveRateLimit: (kind: RateLimitKind) => {
+    limit: number;
+    periodMs: number;
+    anonymousLimit?: number;
+    overrides?: { [boardName: string]: { limit?: number; periodMs?: number } };
+  };
+  shouldDisplayTool: (toolName: string) => boolean;
+  canUseTool: (toolName: string) => boolean;
+  syncToolDisabledState: (toolName: string) => void;
+  change: (toolName: string) => boolean | undefined;
   startConnection: () => void;
+  versionAssetPath: (assetPath: string) => string;
+  assetVersion: string;
+  userSecret: string;
   [name: string]: any;
 };
 
@@ -271,8 +324,14 @@ export type SocketParams = {
   query?: string;
 };
 
-export type TurnstileAck = {
-  success: boolean;
+export type TurnstileSuccessAck = {
+  success: true;
   validationWindowMs?: unknown;
   validatedUntil?: unknown;
 };
+
+export type TurnstileFailureAck = {
+  success: false;
+};
+
+export type TurnstileAck = TurnstileSuccessAck | TurnstileFailureAck;

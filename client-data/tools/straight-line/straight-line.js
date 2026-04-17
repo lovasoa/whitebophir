@@ -25,18 +25,18 @@
  */
 
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {{type: "straight", id: string, x: number, y: number, x2?: number, y2?: number, color?: string, size?: number, opacity?: number}} LineStartData */
 /** @typedef {{type: "update", id: string, x2: number, y2: number}} LineUpdateData */
 /** @typedef {LineStartData | LineUpdateData} LineMessage */
 /** @typedef {{id: string, x: number, y: number, x2?: number, y2?: number, color?: string, size?: number, opacity?: number}} LineShapeData */
 /** @typedef {SVGLineElement & {id: string}} ExistingLine */
-/** @typedef {{generateUID:(prefix:string)=>string, getColor:()=>string, getSize:()=>number, getOpacity:()=>number, createSVGElement:(name:string)=>Element, drawingArea: Element | null, svg: SVGSVGElement | null, add:(tool:unknown)=>void, drawAndSend:(message:LineMessage, tool:unknown)=>void}} LineToolRegistry */
 
 export default class StraightLineTool {
   static toolName = "Straight line";
 
   /**
-   * @param {LineToolRegistry} tools
+   * @param {AppToolsState} tools
    */
   constructor(tools) {
     this.tools = tools;
@@ -60,14 +60,7 @@ export default class StraightLineTool {
    * @returns {element is ExistingLine}
    */
   isLineElement(element) {
-    return !!(
-      element &&
-      typeof element === "object" &&
-      "x1" in element &&
-      "y1" in element &&
-      "x2" in element &&
-      "y2" in element
-    );
+    return String(element?.tagName).toLowerCase() === "line";
   }
 
   /**
@@ -139,37 +132,42 @@ export default class StraightLineTool {
     this.curLine = null;
   }
 
-  /** @param {LineMessage} data */
-  draw(data) {
-    switch (data.type) {
+  /**
+   * @param {import("../../../types/app-runtime").BoardMessage} data
+   * @param {boolean} [isLocal]
+   */
+  draw(data, isLocal) {
+    void isLocal;
+    const lineMessage = /** @type {LineMessage} */ (data);
+    switch (lineMessage.type) {
       case "straight":
-        this.createLine(data);
+        this.createLine(lineMessage);
         break;
       case "update": {
         if (!this.tools.svg) {
           throw new Error("Straight line: Missing SVG canvas.");
         }
-        let line = this.tools.svg.getElementById(data.id);
+        let line = this.tools.svg.getElementById(lineMessage.id);
         if (!line) {
           console.error(
             "Straight line: Hmmm... I received a point of a line that has not been created (%s).",
-            data.id,
+            lineMessage.id,
           );
           line = this.createLine({
-            id: data.id,
-            x: data.x2,
-            y: data.y2,
-            x2: data.x2,
-            y2: data.y2,
+            id: lineMessage.id,
+            x: lineMessage.x2,
+            y: lineMessage.y2,
+            x2: lineMessage.x2,
+            y2: lineMessage.y2,
           });
         }
-        this.updateLine(/** @type {ExistingLine} */ (line), data);
+        this.updateLine(/** @type {ExistingLine} */ (line), lineMessage);
         break;
       }
       default:
         console.error(
           "Straight Line: Draw instruction with unknown type. ",
-          data,
+          lineMessage,
         );
         break;
     }
