@@ -271,6 +271,32 @@ function parseStoredSvg(svg) {
 }
 
 /**
+ * @param {string} svg
+ * @param {Set<string>} ids
+ * @returns {Map<string, any>}
+ */
+function parseStoredSvgItemsByIds(svg, ids) {
+  if (ids.size === 0) return new Map();
+  const envelope = parseStoredSvgEnvelope(svg);
+  const items = new Map();
+  for (const itemEntry of parseStoredSvgItems(envelope.drawingAreaContent)) {
+    const attributes = itemEntry.attributes;
+    const id = attributes.id;
+    if (!id || !ids.has(id)) continue;
+    const encodedItem = attributes["data-wbo-item"];
+    if (!encodedItem) continue;
+    const item = decodeStoredItem(encodedItem);
+    if (!item.transform) {
+      const parsedTransform = parseTransformAttribute(attributes.transform);
+      if (parsedTransform) item.transform = parsedTransform;
+    }
+    item.id = id;
+    items.set(id, item);
+  }
+  return items;
+}
+
+/**
  * @param {{x: number, y: number}[]} points
  * @returns {string}
  */
@@ -526,6 +552,45 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
 
 /**
  * @param {string} boardName
+ * @param {Set<string>} ids
+ * @param {{historyDir?: string}=} [options]
+ * @returns {Promise<Map<string, any>>}
+ */
+async function parseBoardItems(boardName, ids, options) {
+  if (!(ids instanceof Set) || ids.size === 0) {
+    return new Map();
+  }
+  const historyDir = options?.historyDir;
+  try {
+    const svg = await readFile(boardSvgPath(boardName, historyDir), "utf8");
+    return parseStoredSvgItemsByIds(svg, ids);
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  try {
+    const jsonText = await readFile(
+      boardJsonPath(boardName, historyDir),
+      "utf8",
+    );
+    const parsed = parseLegacyStoredBoard(JSON.parse(jsonText));
+    return new Map(
+      [...ids]
+        .filter((id) => Object.hasOwn(parsed.board, id))
+        .map((id) => [id, parsed.board[id]]),
+    );
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
+  return new Map();
+}
+
+/**
+ * @param {string} boardName
  * @param {{historyDir?: string}=} [options]
  * @returns {Promise<{readonly: boolean}>}
  */
@@ -604,6 +669,7 @@ export {
   normalizeBoardMetadata,
   parseLegacyStoredBoard,
   parseStoredSvg,
+  parseBoardItems,
   readBoardDownload,
   readBoardMetadata,
   readBoardMetadataSync,

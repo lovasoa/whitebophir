@@ -207,6 +207,89 @@ test("readBoardState prefers authoritative svg over stale legacy json", async ()
   });
 });
 
+test("parseBoardItems hydrates only requested stored svg items", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-parse-items-svg-"),
+  );
+  const boardName = "parse-items-svg";
+  const storedSvg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="4" data-wbo-readonly="false">' +
+    '<defs id="defs"></defs>' +
+    '<g id="drawingArea">' +
+    '<g id="rect-1" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22rect-1%22%2C%22tool%22%3A%22Rectangle%22%2C%22x%22%3A1%2C%22y%22%3A2%2C%22x2%22%3A3%2C%22y2%22%3A4%2C%22color%22%3A%22%23123456%22%2C%22size%22%3A4%7D"></g>' +
+    '<g id="text-1" data-wbo-tool="Text" data-wbo-item="%7B%22id%22%3A%22text-1%22%2C%22tool%22%3A%22Text%22%2C%22x%22%3A5%2C%22y%22%3A6%2C%22txt%22%3A%22hello%22%2C%22size%22%3A18%2C%22color%22%3A%22%23654321%22%7D" transform="matrix(1 0 0 1 7 8)"></g>' +
+    "</g>" +
+    '<g id="cursors"></g>' +
+    "</svg>";
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(
+      svgBoardStore.boardSvgPath(boardName),
+      storedSvg,
+      "utf8",
+    );
+
+    const items = await svgBoardStore.parseBoardItems(
+      boardName,
+      new Set(["text-1"]),
+    );
+
+    assert.equal(items.size, 1);
+    assert.deepEqual(items.get("text-1"), {
+      id: "text-1",
+      tool: "Text",
+      x: 5,
+      y: 6,
+      txt: "hello",
+      size: 18,
+      color: "#654321",
+      transform: { a: 1, b: 0, c: 0, d: 1, e: 7, f: 8 },
+    });
+  });
+});
+
+test("parseBoardItems falls back to legacy json and filters ids", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-parse-items-json-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(
+      svgBoardStore.boardJsonPath("parse-items-json"),
+      JSON.stringify({
+        "rect-1": {
+          id: "rect-1",
+          tool: "Rectangle",
+          x: 1,
+          y: 2,
+          x2: 3,
+          y2: 4,
+          color: "#abcdef",
+          size: 5,
+        },
+        "text-1": {
+          id: "text-1",
+          tool: "Text",
+          x: 5,
+          y: 6,
+          txt: "hello",
+          size: 18,
+          color: "#654321",
+        },
+      }),
+      "utf8",
+    );
+
+    const items = await svgBoardStore.parseBoardItems(
+      "parse-items-json",
+      new Set(["rect-1"]),
+    );
+
+    assert.deepEqual([...items.keys()], ["rect-1"]);
+    assert.equal(items.get("rect-1")?.tool, "Rectangle");
+  });
+});
+
 test("writeBoardState removes stale svg and legacy json when board becomes empty", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-empty-delete-"),
