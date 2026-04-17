@@ -269,13 +269,29 @@ export function extendBoundsWithPoint(bounds, x, y) {
 export function getPencilBounds(item) {
   if (!item || !Array.isArray(item._children) || item._children.length === 0)
     return null;
-  return item._children.reduce(function extend(
-    /** @type {Bounds | null} */ bounds,
-    /** @type {ChildPoint | null | undefined} */ child,
-  ) {
-    if (!child) return bounds;
-    return extendBoundsWithPoint(bounds, child.x, child.y);
-  }, null);
+  /** @type {Bounds | null} */
+  let bounds = null;
+  for (let index = 0; index < item._children.length; index++) {
+    const child = item._children[index];
+    if (!child) continue;
+    const x = toFiniteNumber(child.x);
+    const y = toFiniteNumber(child.y);
+    if (x === null || y === null) continue;
+    if (!bounds) {
+      bounds = {
+        minX: x,
+        minY: y,
+        maxX: x,
+        maxY: y,
+      };
+      continue;
+    }
+    if (x < bounds.minX) bounds.minX = x;
+    if (y < bounds.minY) bounds.minY = y;
+    if (x > bounds.maxX) bounds.maxX = x;
+    if (y > bounds.maxY) bounds.maxY = y;
+  }
+  return bounds;
 }
 
 /**
