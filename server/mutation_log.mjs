@@ -26,6 +26,7 @@ function normalizeSeq(value) {
  *   append: (envelope: Omit<MutationEnvelope, "seq">) => MutationEnvelope,
  *   readRange: (fromExclusiveSeq: number, toInclusiveSeq: number) => MutationEnvelope[],
  *   markPersisted: (persistedSeq: number) => void,
+ *   trimPersistedOlderThan: (cutoffMs: number) => void,
  *   trimBefore: (seqInclusiveFloor: number) => void,
  * }}
  */
@@ -66,6 +67,15 @@ function createMutationLog(initialSeq = 0) {
       persistedSeq = Math.max(
         persistedSeq,
         Math.min(latestSeq, normalizeSeq(nextPersistedSeq)),
+      );
+    },
+    trimPersistedOlderThan(cutoffMs) {
+      const normalizedCutoffMs = Number.isFinite(cutoffMs)
+        ? Number(cutoffMs)
+        : Number.POSITIVE_INFINITY;
+      entries = entries.filter(
+        (entry) =>
+          entry.seq > persistedSeq || entry.acceptedAtMs >= normalizedCutoffMs,
       );
     },
     trimBefore(seqInclusiveFloor) {

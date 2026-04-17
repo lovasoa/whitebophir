@@ -536,6 +536,61 @@ test("BoardData records contiguous mutation seq values and persists them into sv
   });
 });
 
+test("BoardData.save trims persisted replay history past the configured retention window", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-replay-retention-"),
+  );
+
+  await withEnv(
+    {
+      WBO_HISTORY_DIR: historyDir,
+      WBO_SEQ_REPLAY_RETENTION_MS: "0",
+    },
+    async () => {
+      const BoardData = require(BOARD_DATA_PATH).BoardData;
+      const board = disableSaves(new BoardData("replay-retention"));
+      const first = {
+        id: "rect-1",
+        tool: "Rectangle",
+        type: "rect",
+        color: "#123456",
+        size: 4,
+        x: 0,
+        y: 0,
+        x2: 10,
+        y2: 10,
+      };
+      const second = {
+        id: "rect-2",
+        tool: "Rectangle",
+        type: "rect",
+        color: "#654321",
+        size: 4,
+        x: 20,
+        y: 20,
+        x2: 30,
+        y2: 30,
+      };
+
+      assert.equal(board.processMessage(first).ok, true);
+      board.recordPersistentMutation(first, 1);
+      assert.equal(board.processMessage(second).ok, true);
+      board.recordPersistentMutation(second, 2);
+
+      await board.save();
+
+      assert.equal(board.getPersistedSeq(), 2);
+      assert.equal(board.minReplayableSeq(), 2);
+      assert.deepEqual(
+        board
+          .readMutationRange(0, 2)
+          .map((/** @type {{seq: number}} */ entry) => entry.seq),
+        [],
+      );
+    },
+  );
+});
+
 test("BoardData.save keeps writing to the board's original history dir after env changes", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-sticky-history-"),

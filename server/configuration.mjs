@@ -112,6 +112,12 @@ export function readConfiguration() {
     /** Periodicity at which the board should be saved when it is being actively used (milliseconds)  */
     MAX_SAVE_DELAY: parseIntegerEnv("WBO_MAX_SAVE_DELAY", 1000 * 60), // Save after 60 seconds even if there is still activity
 
+    /** Minimum wall-clock retention window for persisted replay envelopes after save. */
+    SEQ_REPLAY_RETENTION_MS: parseIntegerEnv(
+      "WBO_SEQ_REPLAY_RETENTION_MS",
+      1000 * 60,
+    ),
+
     /** Maximal number of items to keep in the board. When there are more items, the oldest ones are deleted */
     MAX_ITEM_COUNT: parseIntegerEnv("WBO_MAX_ITEM_COUNT", 32768),
 

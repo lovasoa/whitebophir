@@ -231,6 +231,18 @@ class BoardData {
   }
 
   /**
+   * @param {number} [nowMs]
+   * @returns {void}
+   */
+  trimPersistedMutationLog(nowMs = Date.now()) {
+    const retentionMs = Math.max(
+      0,
+      readConfiguration().SEQ_REPLAY_RETENTION_MS,
+    );
+    this.mutationLog.trimPersistedOlderThan(nowMs - retentionMs);
+  }
+
+  /**
    * @returns {Array<{mutation: any, revision: number}>}
    */
   consumePendingRejectedMutationEffects() {
@@ -977,6 +989,7 @@ class BoardData {
               { historyDir: this.historyDir },
             );
             this.markPersistedSeq(this.getSeq());
+            this.trimPersistedMutationLog(startedAt);
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(this.name, "save", {
                 "wbo.board.result": "removed_empty",
@@ -1050,6 +1063,7 @@ class BoardData {
               );
             }
             this.markPersistedSeq(latestSeq);
+            this.trimPersistedMutationLog(startedAt);
             const savedFile = await stat(file);
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(this.name, "save", {

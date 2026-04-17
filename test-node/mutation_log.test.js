@@ -58,3 +58,31 @@ test("mutation logs track the latest persisted baseline seq", () => {
   log.markPersisted(3);
   assert.equal(log.persistedSeq(), 3);
 });
+
+test("mutation logs trim only persisted entries older than the retention cutoff", () => {
+  const log = createMutationLog(0);
+  log.append({
+    board: "demo",
+    acceptedAtMs: 10,
+    mutation: { tool: "Rectangle", type: "rect", id: "rect-1" },
+  });
+  log.append({
+    board: "demo",
+    acceptedAtMs: 20,
+    mutation: { tool: "Rectangle", type: "rect", id: "rect-2" },
+  });
+  log.append({
+    board: "demo",
+    acceptedAtMs: 30,
+    mutation: { tool: "Rectangle", type: "rect", id: "rect-3" },
+  });
+
+  log.markPersisted(2);
+  log.trimPersistedOlderThan(25);
+
+  assert.equal(log.minReplayableSeq(), 2);
+  assert.deepEqual(
+    log.readRange(0, 3).map((entry) => entry.seq),
+    [3],
+  );
+});
