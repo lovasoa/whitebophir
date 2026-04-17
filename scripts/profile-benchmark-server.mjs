@@ -23,6 +23,7 @@ const spawnArgs = [
   "--heap-prof-name=benchmark-server.heapprofile",
   benchmarkScript,
 ];
+const benchmarkTimeoutMs = process.env.WBO_BENCH_TIMEOUT_MS ?? "600000";
 
 fs.mkdirSync(profileDir, { recursive: true });
 
@@ -32,6 +33,10 @@ for (const fileName of profileFiles) {
 
 const result = spawnSync(process.execPath, spawnArgs, {
   cwd: repoRoot,
+  env: {
+    ...process.env,
+    WBO_BENCH_TIMEOUT_MS: benchmarkTimeoutMs,
+  },
   stdio: "inherit",
 });
 
