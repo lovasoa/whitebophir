@@ -971,12 +971,7 @@ test.describe("collaboration and rate limiting", () => {
           connectionState: "connected",
           noticeText: "",
         });
-      await server.waitForStoredBoard(
-        server.dataPath,
-        "anonymous",
-        (storedBoard) => storedBoard["buffered-rect-2"] != null,
-        15_000,
-      );
+      await expect(peerPage.locator("rect#buffered-rect-2")).toBeVisible();
 
       await peerPage.close();
     },
