@@ -1199,12 +1199,19 @@ function getConnectedUsers() {
   );
 }
 
+/**
+ * @returns {number}
+ */
+function getConnectedUsersCount() {
+  return Object.keys(getConnectedUsers()).length;
+}
+
 function syncConnectedUsersToggleLabel() {
   const toggle = getConnectedUsersToggle();
   const label = /** @type {HTMLElement | null} */ (
     toggle.querySelector(".tool-name")
   );
-  const userCount = Object.keys(getConnectedUsers()).length;
+  const userCount = getConnectedUsersCount();
   const accessibleLabel = `${userCount} ${Tools.i18n.t("users")}`;
   toggle.setAttribute("aria-label", accessibleLabel);
   toggle.title = accessibleLabel;
@@ -1546,6 +1553,7 @@ function createConnectedUserRow(user) {
 
 Tools.renderConnectedUsers = function renderConnectedUsers() {
   const list = getConnectedUsersList();
+  const panel = getConnectedUsersPanel();
   /** @type {{[socketId: string]: ConnectedUserRow}} */
   const rowsBySocketId = {};
   Array.from(list.children).forEach((child) => {
@@ -1577,25 +1585,23 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
   Object.values(rowsBySocketId).forEach((row) => {
     row.remove();
   });
+  panel.dataset.empty = users.length === 0 ? "true" : "false";
+  if (users.length === 0 && Tools.connectedUsersPanelOpen) {
+    Tools.setConnectedUsersPanelOpen(false);
+  }
   syncConnectedUsersToggleLabel();
 };
 
 Tools.setConnectedUsersPanelOpen = function setConnectedUsersPanelOpen(
   /** @type {boolean} */ open,
 ) {
-  Tools.connectedUsersPanelOpen = open;
-  getConnectedUsersPanel().classList.toggle(
-    "connected-users-panel-hidden",
-    !open,
-  );
-  getConnectedUsersToggle().classList.toggle(
-    "board-presence-toggle-open",
-    open,
-  );
-  getConnectedUsersToggle().setAttribute(
-    "aria-expanded",
-    open ? "true" : "false",
-  );
+  const shouldOpen = open && getConnectedUsersCount() > 0;
+  const panel = getConnectedUsersPanel();
+  const toggle = getConnectedUsersToggle();
+  Tools.connectedUsersPanelOpen = shouldOpen;
+  panel.classList.toggle("connected-users-panel-hidden", !shouldOpen);
+  toggle.classList.toggle("board-presence-toggle-open", shouldOpen);
+  toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
 };
 
 Tools.upsertConnectedUser = function upsertConnectedUser(

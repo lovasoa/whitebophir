@@ -165,6 +165,48 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
   });
 
+  test("presence panel closes instead of rendering an empty HUD box", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("presence-empty-guard");
+    await boardPage.waitForSocketConnected();
+
+    await boardPage.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeVisible();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
+
+    const state = await page.evaluate(() => {
+      window.Tools.connectedUsers = {};
+      window.Tools.renderConnectedUsers();
+      return {
+        expanded:
+          document
+            .getElementById("connectedUsersToggle")
+            ?.getAttribute("aria-expanded") ?? "",
+        panelHidden:
+          document
+            .getElementById("connectedUsersPanel")
+            ?.classList.contains("connected-users-panel-hidden") ?? false,
+        panelEmpty:
+          document.getElementById("connectedUsersPanel")?.dataset.empty ?? "",
+        rowCount: document.querySelectorAll(
+          "#connectedUsersList .connected-user-row",
+        ).length,
+      };
+    });
+
+    expect(state).toMatchObject({
+      expanded: "false",
+      panelHidden: true,
+      panelEmpty: "true",
+      rowCount: 0,
+    });
+
+    await boardPage.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeHidden();
+  });
+
   test("same-session sockets keep separate activity in the user list", async ({
     boardPage,
     server,
@@ -747,6 +789,56 @@ test.describe("collaboration and rate limiting", () => {
     expect(finalState.pencilPathData).toBeTruthy();
 
     await peerPage.close();
+  });
+
+  test("presence HUD stays within the toolbar-safe area while loading", async ({
+    boardPage,
+    page,
+  }) => {
+    await page.setViewportSize({ width: 250, height: 700 });
+    await boardPage.gotoBoard("presence-hud-loading");
+    await boardPage.waitForSocketConnected();
+
+    await boardPage.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeVisible();
+
+    const layout = await page.evaluate(() => {
+      window.Tools.connectionState = "reconnecting";
+      window.Tools.hasAuthoritativeBoardSnapshot = true;
+      window.Tools.syncWriteStatusIndicator();
+
+      const rootStyle = getComputedStyle(document.documentElement);
+      const statusRect = document
+        .getElementById("boardStatusIndicator")
+        ?.getBoundingClientRect();
+      const panelRect = document
+        .getElementById("connectedUsersPanel")
+        ?.getBoundingClientRect();
+      const shellOffset = parseFloat(
+        rootStyle.getPropertyValue("--board-shell-offset"),
+      );
+      const controlSize = parseFloat(
+        rootStyle.getPropertyValue("--board-control-size"),
+      );
+      const controlGap = parseFloat(
+        rootStyle.getPropertyValue("--board-control-gap"),
+      );
+
+      return {
+        safeArea: shellOffset + controlSize + controlGap,
+        statusLeft: statusRect?.left ?? 0,
+        panelLeft: panelRect?.left ?? 0,
+        panelRight: panelRect?.right ?? 0,
+        viewportWidth: window.innerWidth,
+        statusTitle:
+          document.getElementById("boardStatusTitle")?.textContent ?? "",
+      };
+    });
+
+    expect(layout.statusTitle).toBe("Loading");
+    expect(layout.statusLeft).toBeGreaterThanOrEqual(layout.safeArea - 1);
+    expect(layout.panelLeft).toBeGreaterThanOrEqual(layout.safeArea - 2);
+    expect(layout.panelRight).toBeLessThanOrEqual(layout.viewportWidth);
   });
 
   rateLimitTest(

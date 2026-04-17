@@ -18,7 +18,11 @@ svg {
     var(--board-control-gap)
   );
   --board-hud-gap: 6px;
-  --board-hud-max-width: calc(100vw - (var(--board-shell-offset) * 2));
+  --board-hud-max-width: calc(
+    100vw -
+    var(--board-toolbar-safe-area) -
+    var(--board-shell-offset)
+  );
   --board-control-radius: 2px;
   --board-control-border: #d9dde3;
   --board-control-border-strong: #b8c0cc;
@@ -183,12 +187,14 @@ svg {
 .board-status-copy {
   min-width: 0;
   overflow: hidden;
+  max-width: 100%;
 }
 
 .board-status-title {
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .board-status-detail {
@@ -196,6 +202,7 @@ svg {
   font-size: 11px;
   line-height: 1.25;
   color: #4b5563;
+  overflow-wrap: anywhere;
 }
 
 .board-status-detail-hidden {
@@ -326,7 +333,6 @@ svg {
   top: calc(100% + 8px);
   right: 0;
   width: min(220px, var(--board-hud-max-width));
-  min-height: 36px;
   max-height: min(320px, calc(100vh - 72px));
   background: #ffffff;
   border: 1px solid var(--board-control-border);
@@ -337,6 +343,10 @@ svg {
 }
 
 .connected-users-panel-hidden {
+  display: none;
+}
+
+.connected-users-panel[data-empty="true"] {
   display: none;
 }
 
