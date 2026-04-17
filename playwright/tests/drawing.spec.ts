@@ -4,6 +4,7 @@ test.describe("drawing and persistence", () => {
   test("pencil persists and renders in preview", async ({
     boardPage,
     page,
+    server,
   }) => {
     await boardPage.gotoBoard("anonymous", { lang: "fr" });
     await expect(boardPage.tool("Pencil")).toBeVisible();
@@ -33,6 +34,23 @@ test.describe("drawing and persistence", () => {
 
     await expect(page.locator(firstPath)).toBeVisible();
     await expect(page.locator(secondPath)).toBeVisible();
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "anonymous",
+      (storedBoard) => {
+        const items = Object.values(storedBoard);
+        return (
+          items.some(
+            (item) =>
+              item && item.tool === "Pencil" && item.color === "#123456",
+          ) &&
+          items.some(
+            (item) =>
+              item && item.tool === "Pencil" && item.color === "#abcdef",
+          )
+        );
+      },
+    );
     await page.reload();
     await expect(page.locator(firstPath)).toBeVisible();
     await expect(page.locator(secondPath)).toBeVisible();
@@ -45,6 +63,7 @@ test.describe("drawing and persistence", () => {
   test("circle persists and keeps localized label", async ({
     boardPage,
     page,
+    server,
   }) => {
     const circleSelector =
       "ellipse[cx='200'][cy='200'][rx='200'][ry='200'][stroke='#112233']";
@@ -54,6 +73,21 @@ test.describe("drawing and persistence", () => {
     await boardPage.selectTool("Ellipse");
     await boardPage.drawCircle("#112233", { x: 200, y: 200 }, 200);
     await expect(page.locator(circleSelector)).toBeVisible();
+    await server.waitForStoredBoard(
+      server.dataPath,
+      "anonymous",
+      (storedBoard) =>
+        Object.values(storedBoard).some(
+          (item) =>
+            item &&
+            item.tool === "Ellipse" &&
+            item.color === "#112233" &&
+            Math.min(item.x, item.x2) === 0 &&
+            Math.max(item.x, item.x2) === 400 &&
+            Math.min(item.y, item.y2) === 0 &&
+            Math.max(item.y, item.y2) === 400,
+        ),
+    );
 
     await page.reload();
     await expect(page.locator(circleSelector)).toBeVisible();
