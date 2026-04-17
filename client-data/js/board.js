@@ -1613,6 +1613,81 @@ Tools.removeConnectedUser = function removeConnectedUser(
   Tools.renderConnectedUsers();
 };
 
+/**
+ * @param {ConnectedUser} user
+ * @param {string | undefined} userId
+ * @param {string | null} messageSocketId
+ * @returns {boolean}
+ */
+function connectedUserMatchesActivity(user, userId, messageSocketId) {
+  if (messageSocketId !== null) {
+    return user.socketId === messageSocketId;
+  }
+  return user.userId === userId;
+}
+
+/**
+ * @param {BoardMessage} message
+ * @param {{x: number, y: number} | null} focusPoint
+ * @param {string | null} messageSocketId
+ * @param {ConnectedUser} user
+ * @returns {boolean}
+ */
+function shouldUpdateConnectedUserFocus(
+  message,
+  focusPoint,
+  messageSocketId,
+  user,
+) {
+  return Boolean(
+    focusPoint &&
+      (message.tool !== "Cursor" ||
+        messageSocketId === null ||
+        messageSocketId === user.socketId),
+  );
+}
+
+/**
+ * @param {ConnectedUser} user
+ * @param {BoardMessage} message
+ * @param {{x: number, y: number} | null} focusPoint
+ * @param {string | null} messageSocketId
+ * @returns {boolean}
+ */
+function applyConnectedUserActivity(
+  user,
+  message,
+  focusPoint,
+  messageSocketId,
+) {
+  let changed = false;
+
+  if (message.tool !== "Cursor") {
+    markConnectedUserActivity(user);
+    changed = true;
+  }
+  if (message.color !== undefined) {
+    user.color = message.color;
+    changed = true;
+  }
+  if (message.size !== undefined) {
+    user.size = Number(message.size) || user.size;
+    changed = true;
+  }
+  if (message.tool && message.tool !== "Cursor") {
+    user.lastTool = message.tool;
+    changed = true;
+  }
+  if (
+    shouldUpdateConnectedUserFocus(message, focusPoint, messageSocketId, user)
+  ) {
+    user.lastFocusX = /** @type {{x: number, y: number}} */ (focusPoint).x;
+    user.lastFocusY = /** @type {{x: number, y: number}} */ (focusPoint).y;
+    changed = true;
+  }
+  return changed;
+}
+
 Tools.updateConnectedUsersFromActivity =
   function updateConnectedUsersFromActivity(
     /** @type {string | undefined} */ userId,
@@ -1627,39 +1702,15 @@ Tools.updateConnectedUsersFromActivity =
     if (!userId && messageSocketId === null) return;
     let changed = false;
     const focusPoint = getMessageFocusPoint(message);
-    const shouldPulse = message.tool !== "Cursor";
     Object.values(getConnectedUsers()).forEach((user) => {
-      if (messageSocketId !== null) {
-        if (user.socketId !== messageSocketId) return;
-      } else if (user.userId !== userId) {
-        return;
-      }
-      if (shouldPulse) {
-        markConnectedUserActivity(user);
-        changed = true;
-      }
-      if (message.color !== undefined) {
-        user.color = message.color;
-        changed = true;
-      }
-      if (message.size !== undefined) {
-        user.size = Number(message.size) || user.size;
-        changed = true;
-      }
-      if (message.tool && message.tool !== "Cursor") {
-        user.lastTool = message.tool;
-        changed = true;
-      }
-      if (
-        focusPoint &&
-        (message.tool !== "Cursor" ||
-          messageSocketId === null ||
-          messageSocketId === user.socketId)
-      ) {
-        user.lastFocusX = focusPoint.x;
-        user.lastFocusY = focusPoint.y;
-        changed = true;
-      }
+      if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
+      changed =
+        applyConnectedUserActivity(
+          user,
+          message,
+          focusPoint,
+          messageSocketId,
+        ) || changed;
     });
     if (changed) Tools.renderConnectedUsers();
   };
@@ -2317,6 +2368,42 @@ Tools.register = function registerTool(newTool) {
   }
 };
 
+/** @param {MountedAppTool} newTool */
+function toggleSecondaryTool(newTool) {
+  if (!newTool.secondary) return;
+  newTool.secondary.active = !newTool.secondary.active;
+  const props = newTool.secondary.active ? newTool.secondary : newTool;
+  Tools.HTML.toggle(newTool.name, props.name, props.icon);
+  if (newTool.secondary.switch) newTool.secondary.switch();
+}
+
+/**
+ * @param {string} toolName
+ * @param {MountedAppTool} newTool
+ * @returns {void}
+ */
+function updateCurrentToolChrome(toolName, newTool) {
+  const curToolName = Tools.curTool ? Tools.curTool.name : "";
+  try {
+    Tools.HTML.changeTool(curToolName, toolName);
+  } catch (e) {
+    console.error(`Unable to update the GUI with the new tool. ${e}`);
+  }
+  Tools.svg.style.cursor = newTool.mouseCursor || "auto";
+  Tools.board.title = Tools.i18n.t(newTool.helpText || "");
+}
+
+/** @param {MountedAppTool} newTool */
+function replaceCurrentTool(newTool) {
+  const currentTool = Tools.curTool;
+  if (currentTool !== null) {
+    Tools.removeToolListeners(currentTool);
+    currentTool.onquit && currentTool.onquit(newTool);
+  }
+  Tools.addToolListeners(newTool);
+  Tools.curTool = newTool;
+}
+
 /** @param {string} toolName */
 Tools.change = (toolName) => {
   const newTool = Tools.list[toolName];
@@ -2325,43 +2412,14 @@ Tools.change = (toolName) => {
     throw new Error("Trying to select a tool that has never been added!");
   if (Tools.shouldDisableTool(toolName)) return false;
   if (newTool === oldTool) {
-    if (newTool.secondary) {
-      newTool.secondary.active = !newTool.secondary.active;
-      const props = newTool.secondary.active ? newTool.secondary : newTool;
-      Tools.HTML.toggle(newTool.name, props.name, props.icon);
-      if (newTool.secondary.switch) newTool.secondary.switch();
-    }
+    toggleSecondaryTool(newTool);
     return;
   }
   if (!newTool.oneTouch) {
-    //Update the GUI
-    const curToolName = Tools.curTool ? Tools.curTool.name : "";
-    try {
-      Tools.HTML.changeTool(curToolName, toolName);
-    } catch (e) {
-      console.error(`Unable to update the GUI with the new tool. ${e}`);
-    }
-    Tools.svg.style.cursor = newTool.mouseCursor || "auto";
-    Tools.board.title = Tools.i18n.t(newTool.helpText || "");
-
-    //There is not necessarily already a curTool
-    if (Tools.curTool !== null) {
-      //It's useless to do anything if the new tool is already selected
-      if (newTool === Tools.curTool) return;
-
-      //Remove the old event listeners
-      Tools.removeToolListeners(Tools.curTool);
-
-      //Call the callbacks of the old tool
-      Tools.curTool.onquit && Tools.curTool.onquit(newTool);
-    }
-
-    //Add the new event listeners
-    Tools.addToolListeners(newTool);
-    Tools.curTool = newTool;
+    updateCurrentToolChrome(toolName, newTool);
+    replaceCurrentTool(newTool);
   }
 
-  //Call the start callback of the new tool
   if (newTool.onstart) newTool.onstart(oldTool);
   return true;
 };

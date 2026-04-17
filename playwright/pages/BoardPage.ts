@@ -254,16 +254,22 @@ export class BoardPage {
         }
         throw new Error("Timed out waiting for pencil path");
       };
-
-      for (const path of inputPaths) {
-        if (path.points.length === 0) continue;
-        const tools = (window as any).Tools;
+      const getTools = () => (window as any).Tools;
+      const ensurePencilTool = async () => {
+        const tools = getTools();
         if (typeof tools.ensureToolBooted === "function") {
           await tools.ensureToolBooted("Pencil");
         }
-        tools.setColor(path.color);
         const pencilTool = tools.list.Pencil;
         if (!pencilTool) throw new Error("Missing Pencil tool");
+        return { tools, pencilTool };
+      };
+      const startPencilPath = (
+        tools: any,
+        pencilTool: any,
+        path: PencilPath,
+      ) => {
+        tools.setColor(path.color);
         const lineId = tools.generateUID("l");
         tools.drawAndSend(
           {
@@ -275,20 +281,35 @@ export class BoardPage {
           },
           pencilTool,
         );
+        return lineId;
+      };
+      const appendPencilPoint = async (
+        tools: any,
+        pencilTool: any,
+        lineId: string,
+        point: Point,
+      ) => {
+        tools.drawAndSend(
+          {
+            type: "child",
+            parent: lineId,
+            x: point.x,
+            y: point.y,
+          },
+          pencilTool,
+        );
+        await nextFrame();
+      };
+
+      for (const path of inputPaths) {
+        if (path.points.length === 0) continue;
+        const { tools, pencilTool } = await ensurePencilTool();
+        const lineId = startPencilPath(tools, pencilTool, path);
         await nextFrame();
         for (let index = 0; index < path.points.length; index += 1) {
           const point = path.points[index];
           if (!point) continue;
-          tools.drawAndSend(
-            {
-              type: "child",
-              parent: lineId,
-              x: point.x,
-              y: point.y,
-            },
-            pencilTool,
-          );
-          await nextFrame();
+          await appendPencilPoint(tools, pencilTool, lineId, point);
         }
         await waitFor(
           () =>
