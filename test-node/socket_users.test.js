@@ -342,6 +342,20 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
       });
       await sockets.__test.handleSocketConnection(writer.socket);
 
+      const livePeer = createSocket({
+        id: "socket-seq-cursor-peer",
+        remoteAddress: "203.0.113.84",
+        headers: withUserSecretCookie("99999999999999999999999999999997"),
+        query: {
+          board: "board-seq-cursor",
+          sync: "seq",
+          tool: "Hand",
+          color: "#777777",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(livePeer.socket);
+
       const broadcast = getRequiredHandler(writer.handlers, "broadcast");
       await broadcast({
         tool: "Rectangle",
@@ -396,6 +410,101 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
       assert.deepEqual(getRequiredValue(replayedEvents[3]).payload, {
         type: "sync_replay_end",
         toInclusiveSeq: 1,
+      });
+    },
+  );
+});
+
+test("seq-sync cursor updates stay ephemeral and are not replayed", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-seq-cursor-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async () => {
+      const sockets = await loadSockets();
+      sockets.__test.resetRateLimitMaps();
+
+      const writer = createSocket({
+        id: "socket-seq-cursor-writer",
+        remoteAddress: "203.0.113.83",
+        headers: withUserSecretCookie("88888888888888888888888888888888"),
+        query: {
+          board: "board-seq-cursor",
+          sync: "seq",
+          tool: "Hand",
+          color: "#666666",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(writer.socket);
+
+      await getRequiredHandler(
+        writer.handlers,
+        "broadcast",
+      )({
+        tool: "Cursor",
+        type: "update",
+        x: 12,
+        y: 34,
+        color: "#00aa11",
+        size: 6,
+      });
+
+      assert.deepEqual(
+        getRequiredValue(
+          writer.broadcasted.find((event) => event.event === "broadcast"),
+        ).payload,
+        {
+          tool: "Cursor",
+          type: "update",
+          x: 12,
+          y: 34,
+          color: "#00aa11",
+          size: 6,
+          socket: "socket-seq-cursor-writer",
+        },
+      );
+      assert.equal(
+        writer.emitted.some((event) => event.event === "broadcast"),
+        false,
+      );
+
+      const reconnect = createSocket({
+        id: "socket-seq-cursor-reconnect",
+        remoteAddress: "203.0.113.84",
+        headers: withUserSecretCookie("99999999999999999999999999999998"),
+        query: {
+          board: "board-seq-cursor",
+          sync: "seq",
+          tool: "Hand",
+          color: "#777777",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(reconnect.socket);
+      await getRequiredHandler(
+        reconnect.handlers,
+        "sync_request",
+      )({
+        baselineSeq: 0,
+      });
+
+      const replayedEvents = reconnect.emitted.filter((event) =>
+        [
+          "boardstate",
+          "sync_replay_start",
+          "broadcast",
+          "sync_replay_end",
+        ].includes(event.event),
+      );
+      assert.deepEqual(
+        replayedEvents.map((event) => event.event),
+        ["boardstate", "sync_replay_start", "sync_replay_end"],
+      );
+      assert.deepEqual(getRequiredValue(replayedEvents[2]).payload, {
+        type: "sync_replay_end",
+        toInclusiveSeq: 0,
       });
     },
   );

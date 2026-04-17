@@ -1510,6 +1510,16 @@ function emitPersistentBoardMutation(
 }
 
 /**
+ * @param {string} boardName
+ * @param {AppSocket} sourceSocket
+ * @param {NormalizedMessageData} livePayload
+ * @returns {void}
+ */
+function emitEphemeralBoardMutation(boardName, sourceSocket, livePayload) {
+  sourceSocket.broadcast.to(boardName).emit("broadcast", livePayload);
+}
+
+/**
  * @param {string} reason
  * @returns {void}
  */
@@ -1691,8 +1701,6 @@ function finishSuccessfulBoardWrite(
 ) {
   const user = updateBoardUserFromMessage(socket, boardName, data, now);
   attachLiveSocketId(data, user);
-  const legacyPayload = { ...data, revision: revision };
-  const envelope = board.recordPersistentMutation(data, now);
   tracing.setActiveSpanAttributes({
     "wbo.board.result": "success",
     "user.name": user ? user.name : userName,
@@ -1701,6 +1709,12 @@ function finishSuccessfulBoardWrite(
     board: boardName,
     ...data,
   });
+  if (data.tool === "Cursor") {
+    emitEphemeralBoardMutation(boardName, socket, data);
+    return;
+  }
+  const legacyPayload = { ...data, revision: revision };
+  const envelope = board.recordPersistentMutation(data, now);
   emitPersistentBoardMutation(
     board,
     boardName,
