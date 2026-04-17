@@ -59,6 +59,14 @@ const TOOL_PATHS = {
   ),
   Text: path.join(__dirname, "..", "client-data", "tools", "text", "text.js"),
   Hand: path.join(__dirname, "..", "client-data", "tools", "hand", "hand.js"),
+  Eraser: path.join(
+    __dirname,
+    "..",
+    "client-data",
+    "tools",
+    "eraser",
+    "eraser.js",
+  ),
 };
 
 /**
@@ -1199,4 +1207,25 @@ test("Hand selector keeps the original element selected after duplicate", async 
       },
     ],
   });
+});
+
+test("Eraser replay removes only the targeted stable id", async () => {
+  const harness = createHarness();
+  const eraserTool = await harness.loadTool("Eraser");
+
+  const rect1 = globalAny.Tools.createSVGElement("rect");
+  rect1.id = "r-1";
+  globalAny.Tools.drawingArea.appendChild(rect1);
+
+  const rect2 = globalAny.Tools.createSVGElement("rect");
+  rect2.id = "r-2";
+  globalAny.Tools.drawingArea.appendChild(rect2);
+
+  eraserTool.draw({
+    type: "delete",
+    id: "r-1",
+  });
+
+  assert.equal(harness.elementsById.get("r-1"), undefined);
+  assert.equal(harness.elementsById.get("r-2"), rect2);
 });
