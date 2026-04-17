@@ -3,8 +3,11 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { parseStoredBoard } from "./boardData.mjs";
-import { logger } from "./observability.mjs";
 import config from "./configuration.mjs";
+import observability from "./observability.mjs";
+
+const { logger, tracing } = observability;
+const STANDALONE_SVG_RENDER_BYTES_THRESHOLD = 1024 * 1024;
 
 /** @typedef {{x: number, y: number}} Point */
 /** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number}} ElementStyle */
@@ -432,19 +435,42 @@ async function toSVG(obj, writeable) {
  * @returns {Promise<string>}
  */
 export async function renderBoardToSVG(file) {
-  const data = await fsp.readFile(file, "utf8");
-  /** @type {RenderableBoard} */
-  const board = /** @type {RenderableBoard} */ (
-    parseStoredBoard(JSON.parse(data)).board
-  );
-  /** @type {string[]} */
-  const chunks = [];
-  await toSVG(board, {
-    write: (chunk) => {
-      chunks.push(chunk);
+  let traceRoot = false;
+  try {
+    traceRoot =
+      (await fsp.stat(file)).size >= STANDALONE_SVG_RENDER_BYTES_THRESHOLD;
+  } catch {}
+  return tracing.withExpensiveActiveSpan(
+    "board.svg_render",
+    {
+      attributes: {
+        "file.path": file,
+        "wbo.board.operation": "svg_render",
+      },
+      traceRoot: traceRoot,
     },
-  });
-  return chunks.join("");
+    async () => {
+      const data = await fsp.readFile(file, "utf8");
+      /** @type {RenderableBoard} */
+      const board = /** @type {RenderableBoard} */ (
+        parseStoredBoard(JSON.parse(data)).board
+      );
+      /** @type {string[]} */
+      const chunks = [];
+      await toSVG(board, {
+        write: (chunk) => {
+          chunks.push(chunk);
+        },
+      });
+      const svg = chunks.join("");
+      tracing.setActiveSpanAttributes({
+        "file.size": data.length,
+        "wbo.board.items": Object.keys(board).length,
+        "wbo.svg.size": svg.length,
+      });
+      return svg;
+    },
+  );
 }
 
 /**

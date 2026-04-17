@@ -4,6 +4,7 @@ import {
   isSpanContextValid,
   metrics as otelMetrics,
   propagation,
+  ROOT_CONTEXT,
   SpanKind,
   SpanStatusCode,
   trace,
@@ -243,6 +244,14 @@ const boardOperationDuration = meter.createHistogram(
     unit: "s",
   },
 );
+const rateLimitWindowUtilization = meter.createHistogram(
+  "wbo.rate_limit.window.utilization",
+  {
+    description:
+      "Fraction of a completed fixed-window rate-limit allowance that was consumed before that window ended. Each histogram sample represents exactly one completed server-side rate-limit window for a single tracked subject: one socket connection for the general limit, or one resolved client IP for the constructive, destructive, and text limits. The recorded value is used_count / configured_limit for that completed window. A value of 0.5 means half of the allowance was used, 1.0 means the allowance was fully consumed, and values greater than 1.0 mean the window exceeded the configured limit before the server closed the socket or later pruned the stale state.",
+    unit: "1",
+  },
+);
 const turnstileVerifications = meter.createCounter(
   "wbo.turnstile.verification",
   {
@@ -305,6 +314,13 @@ function formatReadableLogRecord(record, options) {
     record.severityText,
     record.severityNumber,
   );
+  const spanContext = record.spanContext;
+  /** @type {{trace_id?: string, span_id?: string}} */
+  const spanFields = {};
+  if (spanContext && shouldRenderLogSpanContext(spanContext)) {
+    spanFields.trace_id = spanContext.traceId;
+    spanFields.span_id = spanContext.spanId;
+  }
   const body =
     typeof record.body === "string"
       ? record.body
@@ -316,15 +332,26 @@ function formatReadableLogRecord(record, options) {
     level,
     event: record.eventName || "log",
     ...(body && body !== record.eventName ? { msg: body } : {}),
-    ...(record.spanContext
-      ? {
-          trace_id: record.spanContext.traceId,
-          span_id: record.spanContext.spanId,
-        }
-      : {}),
+    ...spanFields,
     ...record.attributes,
   });
   return options?.colorizeLevel ? styleTerminalLogLine(line, level) : line;
+}
+
+/**
+ * Only render correlation IDs when the attached span context is valid and
+ * sampled, otherwise the log line points at traces that will never exist in
+ * the backend.
+ *
+ * @param {import("@opentelemetry/api").SpanContext | undefined} spanContext
+ * @returns {boolean}
+ */
+function shouldRenderLogSpanContext(spanContext) {
+  return Boolean(
+    spanContext &&
+      isSpanContextValid(spanContext) &&
+      (spanContext.traceFlags & 0x1) === 0x1,
+  );
 }
 
 /**
@@ -693,6 +720,44 @@ function withOptionalActiveSpan(name, options, fn) {
 }
 
 /**
+ * Create a span when the current trace is already recording, or when the
+ * caller explicitly marks the work as large enough to deserve its own root
+ * span.
+ *
+ * @param {string} name
+ * @param {{
+ *   kind?: number,
+ *   attributes?: {[key: string]: unknown},
+ *   traceRoot?: boolean,
+ * } | undefined} options
+ * @param {(span: import("@opentelemetry/api").Span | undefined) => any} fn
+ * @returns {any}
+ */
+function withExpensiveActiveSpan(name, options, fn) {
+  const activeSpan = getActiveSpan();
+  if (activeSpan?.isRecording()) {
+    return withActiveSpan(
+      name,
+      {
+        kind: options?.kind,
+        attributes: options?.attributes,
+      },
+      fn,
+    );
+  }
+  if (!options?.traceRoot) return fn(undefined);
+  return withActiveSpan(
+    name,
+    {
+      parentContext: ROOT_CONTEXT,
+      kind: options?.kind,
+      attributes: options?.attributes,
+    },
+    fn,
+  );
+}
+
+/**
  * @param {string} name
  * @param {{
  *   kind?: number,
@@ -706,18 +771,8 @@ function withDetachedSpan(name, options, fn) {
   if (activeSpan) {
     setSpanAttributes(activeSpan, options?.attributes);
     addSpanEvent(activeSpan, name, options?.attributes);
-    return fn();
   }
-  return withActiveSpan(
-    name,
-    {
-      kind: options?.kind || SpanKind.INTERNAL,
-      attributes: options?.attributes,
-    },
-    function runDetachedSpan() {
-      return fn();
-    },
-  );
+  return fn();
 }
 
 /**
@@ -843,6 +898,15 @@ function metricBoardAnonymous(boardName) {
 }
 
 /**
+ * @param {number} limit
+ * @param {number} periodMs
+ * @returns {string}
+ */
+function formatRateLimitProfile(limit, periodMs) {
+  return `${limit}/${periodMs}ms`;
+}
+
+/**
  * @param {{event: string, durationMs: number, errorType?: unknown}} event
  * @returns {void}
  */
@@ -886,6 +950,38 @@ function recordBoardMessage(message, errorType) {
     attributes[ATTR_ERROR_TYPE] = normalizedErrorType;
   }
   boardMessages.add(1, attributes);
+}
+
+/**
+ * @param {{
+ *   boardAnonymous?: boolean,
+ *   kind: "general" | "constructive" | "destructive" | "text",
+ *   limit: number,
+ *   outcome: "disconnect" | "exceeded" | "expired" | "pruned",
+ *   periodMs: number,
+ *   scope: "ip" | "socket",
+ *   used: number,
+ * }} sample
+ * @returns {void}
+ */
+function recordRateLimitWindowUtilization(sample) {
+  const limit = Number(sample.limit);
+  const used = Number(sample.used);
+  const periodMs = Number(sample.periodMs);
+  if (!(limit > 0) || used < 0 || !(periodMs > 0)) return;
+  /** @type {{[key: string]: string | number | boolean}} */
+  const attributes = {
+    "wbo.rate_limit.kind": sample.kind,
+    "wbo.rate_limit.limit": limit,
+    "wbo.rate_limit.period_ms": periodMs,
+    "wbo.rate_limit.profile": formatRateLimitProfile(limit, periodMs),
+    "wbo.rate_limit.scope": sample.scope,
+    "wbo.rate_limit.window.outcome": sample.outcome,
+  };
+  if (typeof sample.boardAnonymous === "boolean") {
+    attributes["wbo.board.anonymous"] = sample.boardAnonymous;
+  }
+  rateLimitWindowUtilization.record(used / limit, attributes);
 }
 
 /**
@@ -998,6 +1094,7 @@ const observabilityMetrics = {
   changeHttpActiveRequests,
   recordBoardOperationDuration,
   recordHttpRequest,
+  recordRateLimitWindowUtilization,
   recordSocketConnection,
   recordSocketEvent,
   recordTurnstileVerification,
@@ -1016,6 +1113,7 @@ const tracing = {
   startSpan,
   withActiveSpan,
   withDetachedSpan,
+  withExpensiveActiveSpan,
   withOptionalActiveSpan,
   withSpanContext,
   SpanKind,

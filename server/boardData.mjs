@@ -26,7 +26,7 @@
  */
 
 import nativeFs from "node:fs";
-import { readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import MessageCommon from "../client-data/js/message_common.js";
 import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
@@ -65,6 +65,10 @@ class SerialTaskQueue {
 }
 
 const BOARD_METADATA_KEY = "__wbo_meta__";
+const STANDALONE_BOARD_LOAD_BYTES_THRESHOLD = 1024 * 1024;
+const STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD = 2048;
+const STANDALONE_BOARD_SNAPSHOT_ITEM_COUNT_THRESHOLD = 4096;
+const STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD = 64;
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds */
 /** @typedef {{readonly: boolean}} BoardMetadata */
 /** @typedef {{ok: false, reason: string}} ValidationFailure */
@@ -576,177 +580,206 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure}
    */
   processMessageBatch(children, parentMessage) {
-    const config = getConfig();
-    const messages = children.map((childMessage) =>
-      parentMessage && childMessage.tool === undefined
-        ? { tool: parentMessage.tool, ...childMessage }
-        : childMessage,
+    return tracing.withExpensiveActiveSpan(
+      "board.process_message_batch",
+      {
+        attributes: boardTraceAttributes(this.name, "process_message_batch", {
+          "wbo.message.count": children.length,
+          "wbo.message.tool": parentMessage?.tool,
+        }),
+        traceRoot:
+          children.length >= STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD,
+      },
+      () => {
+        const config = getConfig();
+        const messages = children.map((childMessage) =>
+          parentMessage && childMessage.tool === undefined
+            ? { tool: parentMessage.tool, ...childMessage }
+            : childMessage,
+        );
+
+        let boardCleared = false;
+        /** @type {Map<string, BoardElem | undefined>} */
+        const shadowItems = new Map();
+        /** @type {Map<string, Bounds | null | undefined>} */
+        const shadowLocalBounds = new Map();
+        /** @type {Array<{type: "clear"} | {type: "delete", id: string} | {type: "replace", id: string, item: BoardElem, localBounds: Bounds | null}>} */
+        const actions = [];
+        /**
+         * @param {string} id
+         * @returns {BoardElem | undefined}
+         */
+        const readShadowItem = (id) =>
+          shadowItems.has(id)
+            ? shadowItems.get(id)
+            : boardCleared
+              ? undefined
+              : this.board[id];
+        /**
+         * @param {string} id
+         * @param {BoardElem} item
+         * @returns {Bounds | null}
+         */
+        const readShadowLocalBounds = (id, item) => {
+          if (shadowLocalBounds.has(id)) {
+            return this.cloneBounds(shadowLocalBounds.get(id));
+          }
+          if (boardCleared) return null;
+          return this.getLocalBounds(id, item);
+        };
+
+        for (const message of messages) {
+          const id = message.id;
+          switch (message.type) {
+            case "clear":
+              boardCleared = true;
+              shadowItems.clear();
+              shadowLocalBounds.clear();
+              actions.push({ type: "clear" });
+              break;
+            case "delete":
+              if (!id) return { ok: false, reason: "missing id" };
+              shadowItems.set(id, undefined);
+              shadowLocalBounds.set(id, undefined);
+              actions.push({ type: "delete", id: id });
+              break;
+            case "update": {
+              if (!id) return { ok: false, reason: "missing id" };
+              const current = readShadowItem(id);
+              if (typeof current !== "object")
+                return { ok: false, reason: "object not found" };
+              const updateData = filterUpdatableFields(message.tool, message);
+              const candidateData = this.makeUpdateCandidate(
+                id,
+                current,
+                updateData,
+              );
+              if (!candidateData) {
+                return { ok: false, reason: "object not found" };
+              }
+              const candidate = candidateData.value;
+              const localBounds = candidateData.localBounds;
+              if (this.isCandidateTooLarge(candidate, localBounds)) {
+                return { ok: false, reason: "shape too large" };
+              }
+              shadowItems.set(id, candidate);
+              shadowLocalBounds.set(id, this.cloneBounds(localBounds));
+              actions.push({
+                type: "replace",
+                id: id,
+                item: candidate,
+                localBounds: localBounds,
+              });
+              break;
+            }
+            case "copy": {
+              if (!id || !message.newid) {
+                return { ok: false, reason: "missing id" };
+              }
+              const current = readShadowItem(id);
+              if (!current) {
+                return { ok: false, reason: "copied object does not exist" };
+              }
+              const validated = this.validateStoredCandidate(
+                message.newid,
+                structuredClone(current),
+              );
+              if (!validated.ok) return validated;
+              shadowItems.set(message.newid, validated.value);
+              shadowLocalBounds.set(
+                message.newid,
+                this.cloneBounds(validated.localBounds),
+              );
+              actions.push({
+                type: "replace",
+                id: message.newid,
+                item: validated.value,
+                localBounds: validated.localBounds,
+              });
+              break;
+            }
+            case "child": {
+              if (!message.parent) {
+                return { ok: false, reason: "invalid parent for child" };
+              }
+              const current = readShadowItem(message.parent);
+              if (!current || current.tool !== "Pencil") {
+                return { ok: false, reason: "invalid parent for child" };
+              }
+              const normalizedChild = normalizeStoredChildPoint(message);
+              if (!normalizedChild.ok) return normalizedChild;
+              const currentChildren = Array.isArray(current._children)
+                ? current._children.slice()
+                : [];
+              if (currentChildren.length >= config.MAX_CHILDREN) {
+                return { ok: false, reason: "too many children" };
+              }
+              const nextBounds = MessageCommon.extendBoundsWithPoint(
+                readShadowLocalBounds(message.parent, current),
+                normalizedChild.value.x,
+                normalizedChild.value.y,
+              );
+              if (this.isCandidateTooLarge(current, nextBounds)) {
+                return { ok: false, reason: "shape too large" };
+              }
+              currentChildren.push(normalizedChild.value);
+              const candidate = {
+                ...current,
+                _children: currentChildren,
+              };
+              shadowItems.set(message.parent, candidate);
+              shadowLocalBounds.set(
+                message.parent,
+                this.cloneBounds(nextBounds),
+              );
+              actions.push({
+                type: "replace",
+                id: message.parent,
+                item: candidate,
+                localBounds: nextBounds,
+              });
+              break;
+            }
+            default: {
+              if (!id) return { ok: false, reason: "missing id" };
+              message.time = Date.now();
+              const validated = this.validateStoredCandidate(id, message);
+              if (!validated.ok) return validated;
+              shadowItems.set(id, validated.value);
+              shadowLocalBounds.set(
+                id,
+                this.cloneBounds(validated.localBounds),
+              );
+              actions.push({
+                type: "replace",
+                id: id,
+                item: validated.value,
+                localBounds: validated.localBounds,
+              });
+              break;
+            }
+          }
+        }
+
+        for (const action of actions) {
+          switch (action.type) {
+            case "clear":
+              this.board = {};
+              this.localBoundsCache.clear();
+              break;
+            case "delete":
+              delete this.board[action.id];
+              this.localBoundsCache.delete(action.id);
+              break;
+            case "replace":
+              this.replaceItem(action.id, action.item, action.localBounds);
+              break;
+          }
+        }
+        if (actions.length > 0) this.delaySave();
+        return this.commitMutation();
+      },
     );
-
-    let boardCleared = false;
-    /** @type {Map<string, BoardElem | undefined>} */
-    const shadowItems = new Map();
-    /** @type {Map<string, Bounds | null | undefined>} */
-    const shadowLocalBounds = new Map();
-    /** @type {Array<{type: "clear"} | {type: "delete", id: string} | {type: "replace", id: string, item: BoardElem, localBounds: Bounds | null}>} */
-    const actions = [];
-    /**
-     * @param {string} id
-     * @returns {BoardElem | undefined}
-     */
-    const readShadowItem = (id) =>
-      shadowItems.has(id)
-        ? shadowItems.get(id)
-        : boardCleared
-          ? undefined
-          : this.board[id];
-    /**
-     * @param {string} id
-     * @param {BoardElem} item
-     * @returns {Bounds | null}
-     */
-    const readShadowLocalBounds = (id, item) => {
-      if (shadowLocalBounds.has(id)) {
-        return this.cloneBounds(shadowLocalBounds.get(id));
-      }
-      if (boardCleared) return null;
-      return this.getLocalBounds(id, item);
-    };
-
-    for (const message of messages) {
-      const id = message.id;
-      switch (message.type) {
-        case "clear":
-          boardCleared = true;
-          shadowItems.clear();
-          shadowLocalBounds.clear();
-          actions.push({ type: "clear" });
-          break;
-        case "delete":
-          if (!id) return { ok: false, reason: "missing id" };
-          shadowItems.set(id, undefined);
-          shadowLocalBounds.set(id, undefined);
-          actions.push({ type: "delete", id: id });
-          break;
-        case "update": {
-          if (!id) return { ok: false, reason: "missing id" };
-          const current = readShadowItem(id);
-          if (typeof current !== "object")
-            return { ok: false, reason: "object not found" };
-          const updateData = filterUpdatableFields(message.tool, message);
-          const candidateData = this.makeUpdateCandidate(
-            id,
-            current,
-            updateData,
-          );
-          if (!candidateData) return { ok: false, reason: "object not found" };
-          const candidate = candidateData.value;
-          const localBounds = candidateData.localBounds;
-          if (this.isCandidateTooLarge(candidate, localBounds))
-            return { ok: false, reason: "shape too large" };
-          shadowItems.set(id, candidate);
-          shadowLocalBounds.set(id, this.cloneBounds(localBounds));
-          actions.push({
-            type: "replace",
-            id: id,
-            item: candidate,
-            localBounds: localBounds,
-          });
-          break;
-        }
-        case "copy": {
-          if (!id || !message.newid) return { ok: false, reason: "missing id" };
-          const current = readShadowItem(id);
-          if (!current)
-            return { ok: false, reason: "copied object does not exist" };
-          const validated = this.validateStoredCandidate(
-            message.newid,
-            structuredClone(current),
-          );
-          if (!validated.ok) return validated;
-          shadowItems.set(message.newid, validated.value);
-          shadowLocalBounds.set(
-            message.newid,
-            this.cloneBounds(validated.localBounds),
-          );
-          actions.push({
-            type: "replace",
-            id: message.newid,
-            item: validated.value,
-            localBounds: validated.localBounds,
-          });
-          break;
-        }
-        case "child": {
-          if (!message.parent)
-            return { ok: false, reason: "invalid parent for child" };
-          const current = readShadowItem(message.parent);
-          if (!current || current.tool !== "Pencil")
-            return { ok: false, reason: "invalid parent for child" };
-          const normalizedChild = normalizeStoredChildPoint(message);
-          if (!normalizedChild.ok) return normalizedChild;
-          const currentChildren = Array.isArray(current._children)
-            ? current._children.slice()
-            : [];
-          if (currentChildren.length >= config.MAX_CHILDREN)
-            return { ok: false, reason: "too many children" };
-          const nextBounds = MessageCommon.extendBoundsWithPoint(
-            readShadowLocalBounds(message.parent, current),
-            normalizedChild.value.x,
-            normalizedChild.value.y,
-          );
-          if (this.isCandidateTooLarge(current, nextBounds))
-            return { ok: false, reason: "shape too large" };
-          currentChildren.push(normalizedChild.value);
-          const candidate = {
-            ...current,
-            _children: currentChildren,
-          };
-          shadowItems.set(message.parent, candidate);
-          shadowLocalBounds.set(message.parent, this.cloneBounds(nextBounds));
-          actions.push({
-            type: "replace",
-            id: message.parent,
-            item: candidate,
-            localBounds: nextBounds,
-          });
-          break;
-        }
-        default: {
-          if (!id) return { ok: false, reason: "missing id" };
-          message.time = Date.now();
-          const validated = this.validateStoredCandidate(id, message);
-          if (!validated.ok) return validated;
-          shadowItems.set(id, validated.value);
-          shadowLocalBounds.set(id, this.cloneBounds(validated.localBounds));
-          actions.push({
-            type: "replace",
-            id: id,
-            item: validated.value,
-            localBounds: validated.localBounds,
-          });
-          break;
-        }
-      }
-    }
-
-    for (const action of actions) {
-      switch (action.type) {
-        case "clear":
-          this.board = {};
-          this.localBoundsCache.clear();
-          break;
-        case "delete":
-          delete this.board[action.id];
-          this.localBoundsCache.delete(action.id);
-          break;
-        case "replace":
-          this.replaceItem(action.id, action.item, action.localBounds);
-          break;
-      }
-    }
-    if (actions.length > 0) this.delaySave();
-    return this.commitMutation();
   }
 
   /** Process a single message
@@ -800,9 +833,21 @@ class BoardData {
    * @returns {BoardElem[]}
    */
   getAll(id) {
-    return Object.entries(this.board)
-      .filter(([i]) => !id || i > id)
-      .map(([_, elem]) => elem);
+    return tracing.withExpensiveActiveSpan(
+      "board.snapshot_materialize",
+      {
+        attributes: boardTraceAttributes(this.name, "snapshot_materialize", {
+          "wbo.board.items": this.localBoundsCache.size,
+        }),
+        traceRoot:
+          this.localBoundsCache.size >=
+          STANDALONE_BOARD_SNAPSHOT_ITEM_COUNT_THRESHOLD,
+      },
+      () =>
+        Object.entries(this.board)
+          .filter(([i]) => !id || i > id)
+          .map(([_, elem]) => elem),
+    );
   }
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
@@ -822,10 +867,13 @@ class BoardData {
 
   /** Save the board to disk without preventing multiple simultaneaous saves. Use save() instead */
   async _unsafe_save() {
-    return tracing.withOptionalActiveSpan(
+    return tracing.withExpensiveActiveSpan(
       "board.save",
       {
         attributes: boardTraceAttributes(this.name, "save"),
+        traceRoot:
+          this.localBoundsCache.size >=
+          STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD,
       },
       async () => {
         const startedAt = Date.now();
@@ -954,14 +1002,21 @@ class BoardData {
    * @param {string} name - name of the board
    */
   static async load(name) {
-    return tracing.withOptionalActiveSpan(
+    const boardData = new BoardData(name);
+    let traceRoot = false;
+    try {
+      traceRoot =
+        (await stat(boardData.file)).size >=
+        STANDALONE_BOARD_LOAD_BYTES_THRESHOLD;
+    } catch {}
+    return tracing.withExpensiveActiveSpan(
       "board.load",
       {
         attributes: boardTraceAttributes(name, "load"),
+        traceRoot: traceRoot,
       },
       async function loadBoardData() {
         const startedAt = Date.now();
-        const boardData = new BoardData(name);
         /** @type {string | undefined} */
         let data;
         try {

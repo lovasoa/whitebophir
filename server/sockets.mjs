@@ -35,10 +35,21 @@ function getConfig() {
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
 /** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
-/** @typedef {import("../types/server-runtime.d.ts").RateLimitState} RateLimitState */
+/** @typedef {import("../types/server-runtime.d.ts").RateLimitState} BaseRateLimitState */
 /** @typedef {import("../types/server-runtime.d.ts").SocketRequest} SocketRequest */
 /** @typedef {import("../types/server-runtime.d.ts").TurnstileAck} TurnstileAck */
 /** @typedef {import("../types/server-runtime.d.ts").ValidationStatus} ValidationStatus */
+/** @typedef {"general" | "constructive" | "destructive" | "text"} RateLimitKind */
+/** @typedef {"disconnect" | "exceeded" | "expired" | "pruned"} RateLimitWindowOutcome */
+/** @typedef {"ip" | "socket"} RateLimitScope */
+/**
+ * @typedef {BaseRateLimitState & {
+ *   metricBoardAnonymous?: boolean,
+ *   metricLimit?: number,
+ *   metricPeriodMs?: number,
+ *   metricRecordedWindowStart?: number,
+ * }} RateLimitState
+ */
 
 /** Map from name to *promises* of BoardData
   @type {{[boardName: string]: Promise<BoardData>}}
@@ -218,17 +229,19 @@ function updateConnectedUsersGauge() {
 
 /**
  * @param {Map<string, RateLimitState>} map
+ * @param {RateLimitKind} kind
  * @param {number} periodMs
  * @param {number} now
  * @returns {void}
  */
-function pruneRateLimitMap(map, periodMs, now) {
+function pruneRateLimitMap(map, kind, periodMs, now) {
   map.forEach(
     function pruneEntry(
       /** @type {RateLimitState} */ state,
       /** @type {string} */ key,
     ) {
       if (isRateLimitStateStale(state, periodMs, now)) {
+        recordCompletedRateLimitWindow(kind, state, "pruned");
         map.delete(key);
       }
     },
@@ -660,6 +673,67 @@ function getEffectiveRateLimitConfig(kind, boardName) {
 }
 
 /**
+ * @param {RateLimitKind} kind
+ * @returns {RateLimitScope}
+ */
+function getRateLimitScope(kind) {
+  return kind === "general" ? "socket" : "ip";
+}
+
+/**
+ * @param {RateLimitState} state
+ * @param {string} boardName
+ * @param {number} limit
+ * @param {number} periodMs
+ * @returns {void}
+ */
+function updateRateLimitStateMetricMetadata(state, boardName, limit, periodMs) {
+  state.metricBoardAnonymous = boardName === "anonymous";
+  state.metricLimit = limit;
+  state.metricPeriodMs = periodMs;
+}
+
+/**
+ * @param {RateLimitKind} kind
+ * @param {RateLimitState} state
+ * @param {RateLimitWindowOutcome} outcome
+ * @returns {void}
+ */
+function recordCompletedRateLimitWindow(kind, state, outcome) {
+  const limit = Number(state.metricLimit);
+  const periodMs = Number(state.metricPeriodMs);
+  const used = Number(state.count);
+  const windowStart = Number(state.windowStart);
+  if (!(limit > 0) || !(periodMs > 0) || !(used > 0)) return;
+  if (!Number.isFinite(windowStart)) return;
+  if (state.metricRecordedWindowStart === windowStart) return;
+  metrics.recordRateLimitWindowUtilization({
+    boardAnonymous: state.metricBoardAnonymous,
+    kind: kind,
+    limit: limit,
+    outcome: outcome,
+    periodMs: periodMs,
+    scope: getRateLimitScope(kind),
+    used: used,
+  });
+  state.metricRecordedWindowStart = windowStart;
+}
+
+/**
+ * @param {RateLimitKind} kind
+ * @param {RateLimitState} state
+ * @param {number} now
+ * @returns {void}
+ */
+function recordExpiredRateLimitWindowIfNeeded(kind, state, now) {
+  const periodMs = Number(state.metricPeriodMs);
+  if (!(periodMs > 0)) return;
+  if (!(state.count > 0)) return;
+  if (now - state.windowStart < periodMs) return;
+  recordCompletedRateLimitWindow(kind, state, "expired");
+}
+
+/**
  * @param {AppSocket} socket
  * @param {string} clientIp
  * @returns {string}
@@ -781,6 +855,7 @@ function enforceGeneralRateLimit(
   rateLimitState,
   now,
 ) {
+  recordExpiredRateLimitWindowIfNeeded("general", rateLimitState, now);
   const generalLimit = getEffectiveRateLimitConfig("general", boardName);
   const nextState = consumeFixedWindowRateLimit(
     rateLimitState,
@@ -791,7 +866,14 @@ function enforceGeneralRateLimit(
   rateLimitState.windowStart = nextState.windowStart;
   rateLimitState.count = nextState.count;
   rateLimitState.lastSeen = nextState.lastSeen;
+  updateRateLimitStateMetricMetadata(
+    rateLimitState,
+    boardName,
+    generalLimit.limit,
+    generalLimit.periodMs,
+  );
   if (rateLimitState.count <= generalLimit.limit) return true;
+  recordCompletedRateLimitWindow("general", rateLimitState, "exceeded");
   const retryAfterMs = getRateLimitRemainingMs(
     rateLimitState,
     generalLimit.periodMs,
@@ -867,6 +949,7 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
   if (destructiveCost === 0) return true;
 
   const rateLimitState = getDestructiveRateLimitState(clientIp, now);
+  recordExpiredRateLimitWindowIfNeeded("destructive", rateLimitState, now);
   const destructiveLimit = getEffectiveRateLimitConfig(
     "destructive",
     boardName,
@@ -880,7 +963,14 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
   rateLimitState.windowStart = nextState.windowStart;
   rateLimitState.count = nextState.count;
   rateLimitState.lastSeen = nextState.lastSeen;
+  updateRateLimitStateMetricMetadata(
+    rateLimitState,
+    boardName,
+    destructiveLimit.limit,
+    destructiveLimit.periodMs,
+  );
   if (rateLimitState.count > destructiveLimit.limit) {
+    recordCompletedRateLimitWindow("destructive", rateLimitState, "exceeded");
     const retryAfterMs = getRateLimitRemainingMs(
       rateLimitState,
       destructiveLimit.periodMs,
@@ -933,7 +1023,12 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
     return false;
   }
 
-  pruneRateLimitMap(destructiveRateLimits, destructiveLimit.periodMs, now);
+  pruneRateLimitMap(
+    destructiveRateLimits,
+    "destructive",
+    destructiveLimit.periodMs,
+    now,
+  );
   return true;
 }
 
@@ -974,6 +1069,7 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
   if (constructiveCost === 0) return true;
 
   const rateLimitState = getConstructiveRateLimitState(clientIp, now);
+  recordExpiredRateLimitWindowIfNeeded("constructive", rateLimitState, now);
   const constructiveLimit = getEffectiveRateLimitConfig(
     "constructive",
     boardName,
@@ -987,7 +1083,14 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
   rateLimitState.windowStart = nextState.windowStart;
   rateLimitState.count = nextState.count;
   rateLimitState.lastSeen = nextState.lastSeen;
+  updateRateLimitStateMetricMetadata(
+    rateLimitState,
+    boardName,
+    constructiveLimit.limit,
+    constructiveLimit.periodMs,
+  );
   if (rateLimitState.count > constructiveLimit.limit) {
+    recordCompletedRateLimitWindow("constructive", rateLimitState, "exceeded");
     const retryAfterMs = getRateLimitRemainingMs(
       rateLimitState,
       constructiveLimit.periodMs,
@@ -1040,7 +1143,12 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
     return false;
   }
 
-  pruneRateLimitMap(constructiveRateLimits, constructiveLimit.periodMs, now);
+  pruneRateLimitMap(
+    constructiveRateLimits,
+    "constructive",
+    constructiveLimit.periodMs,
+    now,
+  );
   return true;
 }
 
@@ -1057,6 +1165,7 @@ function enforceTextRateLimit(socket, boardName, data, clientIp, now) {
   if (textCost === 0) return true;
 
   const rateLimitState = getTextRateLimitState(clientIp, now);
+  recordExpiredRateLimitWindowIfNeeded("text", rateLimitState, now);
   const textLimit = getEffectiveRateLimitConfig("text", boardName);
   const nextState = consumeFixedWindowRateLimit(
     rateLimitState,
@@ -1067,7 +1176,14 @@ function enforceTextRateLimit(socket, boardName, data, clientIp, now) {
   rateLimitState.windowStart = nextState.windowStart;
   rateLimitState.count = nextState.count;
   rateLimitState.lastSeen = nextState.lastSeen;
+  updateRateLimitStateMetricMetadata(
+    rateLimitState,
+    boardName,
+    textLimit.limit,
+    textLimit.periodMs,
+  );
   if (rateLimitState.count > textLimit.limit) {
+    recordCompletedRateLimitWindow("text", rateLimitState, "exceeded");
     const retryAfterMs = getRateLimitRemainingMs(
       rateLimitState,
       textLimit.periodMs,
@@ -1120,7 +1236,7 @@ function enforceTextRateLimit(socket, boardName, data, clientIp, now) {
     return false;
   }
 
-  pruneRateLimitMap(textRateLimits, textLimit.periodMs, now);
+  pruneRateLimitMap(textRateLimits, "text", textLimit.periodMs, now);
   return true;
 }
 
@@ -1624,6 +1740,7 @@ async function handleSocketConnection(socket) {
   socket.on(
     "disconnecting",
     function onDisconnecting(/** @type {string} */ _reason) {
+      recordCompletedRateLimitWindow("general", generalRateLimit, "disconnect");
       activeSockets.delete(socket.id);
       updateActiveSocketConnectionsGauge();
       metrics.recordSocketConnection("disconnected");

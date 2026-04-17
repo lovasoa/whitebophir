@@ -492,7 +492,105 @@ test("active traces correlate log records and board.save spans", async () => {
   );
 });
 
-test("successful cursor broadcasts stay untraced, but invalid cursor messages create rejection spans", async () => {
+test("withExpensiveActiveSpan only roots explicitly large work", async () => {
+  await withTracing({}, async ({ exporter, observability }) => {
+    await observability.tracing.withExpensiveActiveSpan(
+      "small.work",
+      {
+        traceRoot: false,
+      },
+      async () => {},
+    );
+    assert.equal(exporter.getFinishedSpans().length, 0);
+
+    await observability.tracing.withExpensiveActiveSpan(
+      "large.work",
+      {
+        traceRoot: true,
+      },
+      async () => {},
+    );
+    await waitForSpans(exporter, ["large.work"]);
+  });
+});
+
+test("large standalone board loads create their own root span", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-trace-standalone-load-"),
+  );
+  /** @type {{[id: string]: any}} */
+  const storedBoard = {};
+  for (let index = 0; index < 512; index++) {
+    storedBoard[`shape-${index}`] = {
+      id: `shape-${index}`,
+      tool: "Text",
+      x: index,
+      y: index,
+      txt: "x".repeat(4096),
+      size: 12,
+      color: "#000000",
+      time: index,
+    };
+  }
+  await writeBoard(historyDir, "standalone-load", storedBoard);
+
+  await withTracing(
+    {
+      WBO_HISTORY_DIR: historyDir,
+    },
+    async ({ exporter }) => {
+      const { BoardData } = require(BOARD_DATA_PATH);
+      const board = await BoardData.load("standalone-load");
+
+      clearTimeout(board.saveTimeoutId);
+      await waitForSpans(exporter, ["board.load"]);
+
+      const loadSpan = getSpanByName(exporter, "board.load");
+      assert.equal(loadSpan.parentSpanContext, undefined);
+      assert.equal(loadSpan.attributes["wbo.board"], "standalone-load");
+      assert.ok(loadSpan.attributes["file.size"] > 1024 * 1024);
+    },
+    [BOARD_DATA_PATH],
+  );
+});
+
+test("formatReadableLogRecord only renders sampled span ids", async () => {
+  await withTracing({}, async ({ observability }) => {
+    const sampledLine = observability.formatReadableLogRecord({
+      hrTime: [0, 0],
+      severityText: "INFO",
+      severityNumber: 9,
+      body: "sampled",
+      eventName: "sampled.log",
+      attributes: {},
+      spanContext: {
+        traceId: "0123456789abcdef0123456789abcdef",
+        spanId: "0123456789abcdef",
+        traceFlags: 1,
+      },
+    });
+    const unsampledLine = observability.formatReadableLogRecord({
+      hrTime: [0, 0],
+      severityText: "INFO",
+      severityNumber: 9,
+      body: "unsampled",
+      eventName: "unsampled.log",
+      attributes: {},
+      spanContext: {
+        traceId: "fedcba9876543210fedcba9876543210",
+        spanId: "fedcba9876543210",
+        traceFlags: 0,
+      },
+    });
+
+    assert.match(sampledLine, /trace_id=0123456789abcdef0123456789abcdef/);
+    assert.match(sampledLine, /span_id=0123456789abcdef/);
+    assert.doesNotMatch(unsampledLine, /trace_id=/);
+    assert.doesNotMatch(unsampledLine, /span_id=/);
+  });
+});
+
+test("successful and invalid cursor broadcasts stay untraced without a parent span", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-trace-cursor-"),
   );
@@ -530,6 +628,7 @@ test("successful cursor broadcasts stay untraced, but invalid cursor messages cr
           .some((span) => span.name === "socket.broadcast_write"),
         false,
       );
+      const spanCountBeforeInvalidMessage = exporter.getFinishedSpans().length;
 
       await getRequiredHandler(
         created.handlers,
@@ -540,12 +639,9 @@ test("successful cursor broadcasts stay untraced, but invalid cursor messages cr
         x: 10,
         y: 20,
       });
-      await waitForSpans(exporter, ["socket.message_invalid"]);
-
-      const invalidSpan = getSpanByName(exporter, "socket.message_invalid");
       assert.equal(
-        invalidSpan.attributes["wbo.rejection.reason"],
-        "missing color",
+        exporter.getFinishedSpans().length,
+        spanCountBeforeInvalidMessage,
       );
     },
   );
