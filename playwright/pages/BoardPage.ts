@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { withToken } from "../helpers/boardData";
+import { broadcastMessageColor } from "../helpers/broadcastMessage";
 import type { TestServer } from "../helpers/testServer";
 import type {
   AppToolsState,
@@ -265,13 +266,14 @@ export class BoardPage {
 
   async waitForBroadcastColor(color: string) {
     await expect
-      .poll(() =>
-        this.page.evaluate((targetColor) => {
-          return (window.__receivedBroadcasts ?? []).some(
-            (message) => message?.color === targetColor,
-          );
-        }, color),
-      )
+      .poll(async () => {
+        const receivedBroadcasts = await this.page.evaluate(
+          () => window.__receivedBroadcasts ?? [],
+        );
+        return receivedBroadcasts.some(
+          (message) => broadcastMessageColor(message) === color,
+        );
+      })
       .toBe(true);
   }
 
