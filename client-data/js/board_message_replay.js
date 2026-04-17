@@ -21,6 +21,15 @@ export function normalizeRevision(value) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {number}
+ */
+export function normalizeSeq(value) {
+  const seq = Number(value);
+  return Number.isSafeInteger(seq) && seq > 0 ? seq : 0;
+}
+
+/**
  * @param {{tool?: unknown, _children?: unknown}} message
  * @returns {boolean}
  */
@@ -71,6 +80,47 @@ export function shouldBufferLiveMessage(message, awaitingBoardSnapshot) {
 }
 
 /**
+ * @param {{type?: unknown, [key: string]: unknown} | null | undefined} message
+ * @returns {boolean}
+ */
+export function isSyncReplayControlMessage(message) {
+  return (
+    !!message &&
+    typeof message === "object" &&
+    typeof message.type === "string" &&
+    [
+      "sync_replay_start",
+      "sync_replay_end",
+      "resync_required",
+      "mutation_rejected",
+    ].includes(message.type)
+  );
+}
+
+/**
+ * @param {{seq?: unknown, mutation?: unknown} | null | undefined} message
+ * @returns {boolean}
+ */
+export function isPersistentEnvelope(message) {
+  return (
+    !!message &&
+    typeof message === "object" &&
+    normalizeSeq(message.seq) > 0 &&
+    typeof message.mutation === "object" &&
+    message.mutation !== null
+  );
+}
+
+/**
+ * @param {unknown} message
+ * @returns {unknown}
+ */
+export function unwrapReplayMessage(message) {
+  const replayMessage = /** @type {{mutation?: unknown}} */ (message);
+  return isPersistentEnvelope(replayMessage) ? replayMessage.mutation : message;
+}
+
+/**
  * @template {{revision?: unknown}} T
  * @param {T[]} messages
  * @param {unknown} snapshotRevision
@@ -89,14 +139,33 @@ export function filterBufferedMessagesAfterSnapshot(
   });
 }
 
+/**
+ * @template {{seq?: unknown}} T
+ * @param {T[]} messages
+ * @param {unknown} replayedToSeq
+ * @returns {T[]}
+ */
+export function filterBufferedMessagesAfterSeqReplay(messages, replayedToSeq) {
+  const normalizedReplaySeq = normalizeSeq(replayedToSeq);
+  return messages.filter((message) => {
+    const messageSeq = normalizeSeq(message && message.seq);
+    return messageSeq === 0 || messageSeq > normalizedReplaySeq;
+  });
+}
+
 const boardMessageReplay = {
   TOOL_OWNED_BATCH_TOOLS,
+  filterBufferedMessagesAfterSeqReplay,
   filterBufferedMessagesAfterSnapshot,
+  isPersistentEnvelope,
   isSnapshotMessage,
+  isSyncReplayControlMessage,
   isToolOwnedBatchMessage,
   normalizeRevision,
+  normalizeSeq,
   prepareReplayChild,
   shouldBufferLiveMessage,
   shouldReplayChildrenIndividually,
+  unwrapReplayMessage,
 };
 export default boardMessageReplay;

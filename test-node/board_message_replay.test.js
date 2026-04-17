@@ -81,3 +81,85 @@ test("buffered live messages without revisions are replayed for compatibility", 
     [buffered[0]],
   );
 });
+
+test("seq envelopes are recognized and unwrap to their mutation payload", () => {
+  const envelope = {
+    board: "demo",
+    seq: 7,
+    acceptedAtMs: 123,
+    clientMutationId: "c1",
+    mutation: {
+      tool: "Rectangle",
+      type: "rect",
+      id: "rect-1",
+      x: 1,
+      y: 2,
+      x2: 3,
+      y2: 4,
+    },
+  };
+
+  assert.equal(BoardMessageReplay.isPersistentEnvelope(envelope), true);
+  assert.equal(BoardMessageReplay.normalizeSeq(envelope.seq), 7);
+  assert.equal(
+    BoardMessageReplay.unwrapReplayMessage(envelope),
+    envelope.mutation,
+  );
+});
+
+test("buffered seq envelopes already covered by replay end are dropped", () => {
+  const buffered = [
+    {
+      seq: 4,
+      mutation: { tool: "Eraser", type: "delete", id: "rect-1" },
+    },
+    {
+      seq: 5,
+      mutation: { tool: "Hand", type: "update", id: "rect-2" },
+    },
+    {
+      seq: 6,
+      mutation: { tool: "Pencil", type: "child", parent: "line-1", x: 1, y: 2 },
+    },
+    { tool: "Text", type: "update", id: "text-1", txt: "legacy" },
+  ];
+
+  assert.deepEqual(
+    BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(buffered, 5),
+    [buffered[2], buffered[3]],
+  );
+});
+
+test("sync replay control messages are identified by type", () => {
+  assert.equal(
+    BoardMessageReplay.isSyncReplayControlMessage({
+      type: "sync_replay_start",
+      fromExclusiveSeq: 3,
+      toInclusiveSeq: 8,
+    }),
+    true,
+  );
+  assert.equal(
+    BoardMessageReplay.isSyncReplayControlMessage({
+      type: "sync_replay_end",
+      toInclusiveSeq: 8,
+    }),
+    true,
+  );
+  assert.equal(
+    BoardMessageReplay.isSyncReplayControlMessage({
+      type: "resync_required",
+      latestSeq: 10,
+      minReplayableSeq: 4,
+    }),
+    true,
+  );
+  assert.equal(
+    BoardMessageReplay.isSyncReplayControlMessage({
+      tool: "Rectangle",
+      type: "rect",
+      id: "rect-1",
+    }),
+    false,
+  );
+});
