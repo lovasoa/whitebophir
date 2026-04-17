@@ -30,15 +30,17 @@ import MessageCommon from "../client-data/js/message_common.js";
 import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
 import { readConfiguration } from "./configuration.mjs";
 import {
+  boardJsonPath,
+  parseLegacyStoredBoard,
+} from "./legacy_json_board_source.mjs";
+import {
   normalizeStoredChildPoint,
   normalizeStoredItemWithBounds,
 } from "./message_validation.mjs";
 import { createMutationLog } from "./mutation_log.mjs";
 import observability from "./observability.mjs";
 import {
-  boardJsonPath,
   boardSvgPath,
-  parseLegacyStoredBoard,
   readBoardMetadataSync,
   readBoardState,
   writeBoardState,

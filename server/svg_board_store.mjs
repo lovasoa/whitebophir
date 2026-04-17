@@ -6,6 +6,12 @@ import { Readable } from "node:stream";
 import { wboPencilPoint } from "../client-data/tools/pencil/wbo_pencil_point.js";
 import { readConfiguration } from "./configuration.mjs";
 import {
+  boardJsonPath,
+  parseLegacyStoredBoard,
+  readLegacyBoardMetadataSync,
+  readLegacyBoardState,
+} from "./legacy_json_board_source.mjs";
+import {
   STORED_SVG_FORMAT,
   createDefaultStoredSvgEnvelope,
   parseStoredSvgEnvelope,
@@ -16,7 +22,6 @@ import {
 
 const DEFAULT_SVG_SIZE = 500;
 const SVG_MARGIN = 400;
-const BOARD_METADATA_KEY = "__wbo_meta__";
 
 /** @typedef {{readonly: boolean}} BoardMetadata */
 
@@ -36,28 +41,6 @@ function resolveHistoryDir(historyDir) {
 }
 
 /**
- * @param {any} metadata
- * @returns {BoardMetadata}
- */
-function normalizeBoardMetadata(metadata) {
-  return {
-    readonly: metadata && metadata.readonly === true,
-  };
-}
-
-/**
- * @param {string} name
- * @param {string} [historyDir]
- * @returns {string}
- */
-function boardJsonPath(name, historyDir) {
-  return path.join(
-    resolveHistoryDir(historyDir),
-    `board-${encodeURIComponent(name)}.json`,
-  );
-}
-
-/**
  * @param {string} name
  * @param {string} [historyDir]
  * @returns {string}
@@ -67,34 +50,6 @@ function boardSvgPath(name, historyDir) {
     resolveHistoryDir(historyDir),
     `board-${encodeURIComponent(name)}.svg`,
   );
-}
-
-/**
- * @param {any} storedBoard
- * @returns {{board: {[name: string]: any}, metadata: BoardMetadata}}
- */
-function parseLegacyStoredBoard(storedBoard) {
-  if (
-    !storedBoard ||
-    typeof storedBoard !== "object" ||
-    Array.isArray(storedBoard)
-  ) {
-    throw new Error("Invalid board file format");
-  }
-
-  /** @type {{[name: string]: any}} */
-  const board = {};
-  let metadata = defaultBoardMetadata();
-
-  for (const [key, value] of Object.entries(storedBoard)) {
-    if (key === BOARD_METADATA_KEY) {
-      metadata = normalizeBoardMetadata(value);
-    } else {
-      board[key] = value;
-    }
-  }
-
-  return { board, metadata };
 }
 
 /**
@@ -469,11 +424,9 @@ async function readBoardState(boardName, options) {
   }
 
   try {
-    const jsonText = await readFile(
-      boardJsonPath(boardName, historyDir),
-      "utf8",
-    );
-    const parsed = parseLegacyStoredBoard(JSON.parse(jsonText));
+    const parsed = await readLegacyBoardState(boardName, {
+      historyDir: historyDir,
+    });
     return {
       board: parsed.board,
       metadata: parsed.metadata,
@@ -571,11 +524,9 @@ async function parseBoardItems(boardName, ids, options) {
   }
 
   try {
-    const jsonText = await readFile(
-      boardJsonPath(boardName, historyDir),
-      "utf8",
-    );
-    const parsed = parseLegacyStoredBoard(JSON.parse(jsonText));
+    const parsed = await readLegacyBoardState(boardName, {
+      historyDir: historyDir,
+    });
     return new Map(
       [...ids]
         .filter((id) => Object.hasOwn(parsed.board, id))
@@ -615,11 +566,9 @@ function readBoardMetadataSync(boardName, options) {
     }
   }
   try {
-    const jsonText = fs.readFileSync(
-      boardJsonPath(boardName, historyDir),
-      "utf8",
-    );
-    return parseLegacyStoredBoard(JSON.parse(jsonText)).metadata;
+    return readLegacyBoardMetadataSync(boardName, {
+      historyDir: historyDir,
+    });
   } catch {
     return defaultBoardMetadata();
   }
@@ -666,7 +615,6 @@ export {
   boardJsonPath,
   boardSvgPath,
   defaultBoardMetadata,
-  normalizeBoardMetadata,
   parseLegacyStoredBoard,
   parseStoredSvg,
   parseBoardItems,
