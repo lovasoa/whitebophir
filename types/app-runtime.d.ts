@@ -84,6 +84,20 @@ export type RateLimitWindowState = {
 
 export type RateLimitKind = "general" | "constructive" | "destructive";
 
+export type ConfiguredRateLimitDefinition = {
+  limit?: number;
+  periodMs?: number;
+  anonymousLimit?: number;
+  overrides?: { [boardName: string]: { limit?: number; periodMs?: number } };
+};
+
+export type RateLimitDefinition = {
+  limit: number;
+  periodMs: number;
+  anonymousLimit?: number;
+  overrides?: { [boardName: string]: { limit?: number; periodMs?: number } };
+};
+
 export type PendingMessages = {
   [toolName: string]: BoardMessage[];
 };
@@ -175,6 +189,29 @@ export type MessageHook = (message: BoardMessage) => void;
 export type ColorPreset = {
   color: string;
   key?: string;
+};
+
+export type ConnectedUser = {
+  socketId: string;
+  userId: string;
+  name: string;
+  color: string;
+  size: number;
+  lastTool: string;
+  lastFocusX?: number;
+  lastFocusY?: number;
+  lastActivityAt?: number;
+  pulseMs?: number;
+  pulseUntil?: number;
+  reported?: boolean;
+  pulseTimeoutId?: ReturnType<typeof setTimeout> | null;
+};
+
+export type BoardStatusView = {
+  hidden: boolean;
+  state: "paused" | "hidden" | "reconnecting" | "buffering";
+  title: string;
+  detail: string;
 };
 
 export type ServerConfig = {
@@ -276,6 +313,11 @@ export type AppToolsState = {
   drawingArea: Element | null;
   curTool: MountedAppTool | null;
   drawingEvent: boolean;
+  hasAuthoritativeBoardSnapshot: boolean;
+  snapshotRevision: number;
+  preSnapshotMessages: BoardMessage[];
+  incomingBroadcastQueue: BoardMessage[];
+  processingIncomingBroadcast: boolean;
   showMarker: boolean;
   showOtherCursors: boolean;
   showMyCursor: boolean;
@@ -301,12 +343,52 @@ export type AppToolsState = {
   bootedToolPromises: { [toolName: string]: Promise<AppTool | null> };
   bootedToolNames: Set<string>;
   pendingMessages: PendingMessages;
-  connectedUsers?: { [socketId: string]: unknown };
+  connectedUsers: { [socketId: string]: ConnectedUser };
+  connectedUsersPanelOpen: boolean;
   unreadMessagesCount: number;
   messageHooks: MessageHook[];
   colorPresets: ColorPreset[];
   color_chooser: HTMLInputElement;
   sizeChangeHandlers: ((size: number) => void)[];
+  getInitialSocketQuery: () => { [name: string]: string };
+  cloneMessage: (message: BoardMessage) => BoardMessage;
+  showLoadingMessage: () => void;
+  hideLoadingMessage: () => void;
+  getRateLimitDefinition: (
+    kind: RateLimitKind,
+  ) => ConfiguredRateLimitDefinition;
+  getBufferedWriteCosts: (message: BoardMessage) => {
+    general: number;
+    constructive: number;
+    destructive: number;
+  };
+  clearBufferedWriteTimer: () => void;
+  clearRateLimitNoticeTimer: () => void;
+  isWritePaused: (now?: number) => boolean;
+  canBufferWrites: () => boolean;
+  showRateLimitNotice: (message: string, retryAfterMs: number) => void;
+  hideRateLimitNotice: () => void;
+  getBoardStatusView: () => BoardStatusView;
+  syncWriteStatusIndicator: () => void;
+  clearBoardCursors: () => void;
+  resetBoardViewport: () => void;
+  restoreLocalCursor: () => void;
+  resetLocalRateLimitState: (kind: RateLimitKind, now?: number) => void;
+  resetAllLocalRateLimitStates: (now?: number) => void;
+  canEmitBufferedWrite: (bufferedWrite: BufferedWrite, now: number) => boolean;
+  consumeBufferedWriteBudget: (
+    bufferedWrite: BufferedWrite,
+    now: number,
+  ) => void;
+  getBufferedWriteWaitMs: (bufferedWrite: BufferedWrite, now: number) => number;
+  scheduleBufferedWriteFlush: () => void;
+  flushBufferedWrites: () => void;
+  enqueueBufferedWrite: (message: BoardMessage) => void;
+  sendBufferedWrite: (message: BoardMessage) => boolean;
+  discardBufferedWrites: () => void;
+  beginAuthoritativeResync: () => void;
+  queueProtectedWrite: (data: BoardMessage, tool: AppTool) => void;
+  flushTurnstilePendingWrites: () => void;
   getToolAssetUrl: (toolName: string, assetFile: string) => string;
   registerToolClass: (toolClass: ToolClass) => void;
   ensureToolClassLoaded: (toolName: string) => Promise<ToolClass>;
@@ -332,20 +414,43 @@ export type AppToolsState = {
     attrs?: { [key: string]: string | number | undefined },
   ) => SVGElement;
   generateUID: (prefix?: string, suffix?: string) => string;
-  getEffectiveRateLimit: (kind: RateLimitKind) => {
-    limit: number;
-    periodMs: number;
-    anonymousLimit?: number;
-    overrides?: { [boardName: string]: { limit?: number; periodMs?: number } };
-  };
+  getEffectiveRateLimit: (kind: RateLimitKind) => RateLimitDefinition;
+  isTurnstileValidated: () => boolean;
+  clearTurnstileRefreshTimeout: () => void;
+  scheduleTurnstileRefresh: (validationWindowMs: number) => void;
+  setTurnstileValidation: (result: unknown) => void;
+  normalizeTurnstileAck: (result: unknown) => TurnstileAck;
+  ensureTurnstileElements: () => { overlay: HTMLElement };
+  showTurnstileOverlay: (delay: number) => void;
+  hideTurnstileOverlay: () => void;
+  refreshTurnstile: () => void;
+  showTurnstileWidget: () => void;
+  shouldDisableTool: (toolName: string) => boolean;
   shouldDisplayTool: (toolName: string) => boolean;
   canUseTool: (toolName: string) => boolean;
   syncToolDisabledState: (toolName: string) => void;
+  syncDrawToolAvailability: (force: boolean) => void;
+  setBoardState: (state: unknown) => void;
+  resolveBoardName: () => string;
+  renderConnectedUsers: () => void;
+  setConnectedUsersPanelOpen: (open: boolean) => void;
+  upsertConnectedUser: (user: ConnectedUser) => void;
+  removeConnectedUser: (socketId: string) => void;
+  updateConnectedUsersFromActivity: (
+    userId: string | undefined,
+    message: BoardMessage,
+  ) => void;
+  updateCurrentConnectedUserFromActivity: (message: BoardMessage) => void;
+  initConnectedUsersUI: () => void;
+  isBlocked: (tool: AppTool) => boolean;
+  applyHooks: <T>(hooks: ((value: T) => void)[], object: T) => void;
+  positionElement: (elem: HTMLElement, x: number, y: number) => void;
   change: (toolName: string) => boolean | undefined;
+  messageForTool: (message: BoardMessage) => void;
+  newUnreadMessage: () => void;
   startConnection: () => void;
   versionAssetPath: (assetPath: string) => string;
   assetVersion: string;
-  [name: string]: any;
 };
 
 export type SocketHeaders = {

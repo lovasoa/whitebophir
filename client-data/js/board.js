@@ -59,7 +59,10 @@ import { getToolCatalogEntry } from "./tool_catalog.js";
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
 /** @typedef {import("../../types/app-runtime").BufferedWrite} BufferedWrite */
+/** @typedef {import("../../types/app-runtime").BoardStatusView} BoardStatusView */
 /** @typedef {import("../../types/app-runtime").ColorPreset} ColorPreset */
+/** @typedef {import("../../types/app-runtime").ConfiguredRateLimitDefinition} ConfiguredRateLimitDefinition */
+/** @typedef {import("../../types/app-runtime").ConnectedUser} ConnectedUser */
 /** @typedef {import("../../types/app-runtime").PendingMessages} PendingMessages */
 /** @typedef {import("../../types/app-runtime").PendingWrite} PendingWrite */
 /** @typedef {import("../../types/app-runtime").RateLimitKind} RateLimitKind */
@@ -72,9 +75,7 @@ import { getToolCatalogEntry } from "./tool_catalog.js";
 /** @typedef {import("../../types/app-runtime").ToolClass} ToolClass */
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../types/app-runtime").ToolRuntime} ToolRuntime */
-/** @typedef {{socketId: string, userId: string, name: string, color: string, size: number, lastTool: string, lastFocusX?: number, lastFocusY?: number, lastActivityAt?: number, pulseMs?: number, pulseUntil?: number, reported?: boolean, pulseTimeoutId?: ReturnType<typeof setTimeout> | null}} ConnectedUser */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
-/** @typedef {{limit?: number, periodMs?: number, anonymousLimit?: number, overrides?: {[boardName: string]: {limit?: number, periodMs?: number}}}} RateLimitDefinition */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
 // Add extra slack between the client-side local budget and the server's
@@ -260,11 +261,11 @@ function getBoardStatusNotice() {
 
 /**
  * @param {unknown} value
- * @returns {RateLimitDefinition}
+ * @returns {ConfiguredRateLimitDefinition}
  */
 function toRateLimitDefinition(value) {
   return value && typeof value === "object"
-    ? /** @type {RateLimitDefinition} */ (value)
+    ? /** @type {ConfiguredRateLimitDefinition} */ (value)
     : {};
 }
 
@@ -280,7 +281,7 @@ Tools.hideLoadingMessage = function hideLoadingMessage() {
 
 /**
  * @param {RateLimitKind} kind
- * @returns {RateLimitDefinition}
+ * @returns {ConfiguredRateLimitDefinition}
  */
 Tools.getRateLimitDefinition = function getRateLimitDefinition(kind) {
   const configured = Tools.server_config.RATE_LIMITS || {};
@@ -372,6 +373,7 @@ Tools.hideRateLimitNotice = function hideRateLimitNotice() {
   Tools.syncWriteStatusIndicator();
 };
 
+/** @returns {BoardStatusView} */
 Tools.getBoardStatusView = function getBoardStatusView() {
   if (Tools.rateLimitNoticeMessage) {
     return {
