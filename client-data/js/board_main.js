@@ -77,7 +77,14 @@ async function lazyBootRenderedTools() {
      * @param {(deadline?: IdleDeadline) => void} callback
      */
     ((callback) => {
-      return window.setTimeout(() => callback(), 50);
+      return window.setTimeout(
+        () =>
+          callback({
+            didTimeout: false,
+            timeRemaining: () => 0,
+          }),
+        50,
+      );
     });
   const renderedToolNames = getRenderedToolNames().filter(
     (toolName) => !CRITICAL_BOOT_TOOL_NAMES.includes(toolName),

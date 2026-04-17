@@ -4,9 +4,7 @@ export {};
 declare global {
   const io: any;
   const turnstile: any;
-  var Tools: import("../types/app-runtime").AppToolsState & {
-    [name: string]: any;
-  };
+  var Tools: import("../types/app-runtime").AppToolsState;
   type TransformedBBox = {
     r: [number, number];
     a: [number, number];
@@ -38,7 +36,10 @@ declare global {
 
   interface Window {
     Tools: typeof Tools;
-    WBOBoardState: typeof import("../client-data/js/board_page_state.js")["state"];
+    WBOBoardState: {
+      normalizeBoardState: typeof import("../client-data/js/board_page_state.js")["normalizeBoardState"];
+      parseBoardStateText: typeof import("../client-data/js/board_page_state.js")["parseBoardStateText"];
+    };
     socketio_extra_headers?: Record<string, string>;
     __downloadCapture?: any;
     __downloadAnchorClicks?: any;

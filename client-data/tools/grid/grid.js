@@ -25,14 +25,14 @@
  */
 
 /** @typedef {"none" | "url(#grid)" | "url(#dots)"} GridFill */
-/** @typedef {{svg: SVGSVGElement | null, drawingArea: Element | null, createSVGElement: (name: string, attrs?: Record<string, string | undefined>) => Element, add: (tool: unknown) => void}} GridToolRegistry */
+/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 export default class GridTool {
   static toolName = "Grid";
 
   /**
-   * @param {GridToolRegistry} tools
+   * @param {AppToolsState} tools
    */
   constructor(tools) {
     this.tools = tools;

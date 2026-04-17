@@ -25,14 +25,14 @@
  */
 
 /** @typedef {{type: "clear", id: string, token?: string | null}} ClearMessage */
-/** @typedef {{list: {[name: string]: any}, drawAndSend: (message: ClearMessage, tool: any) => void, token?: string | null, drawingArea: HTMLElement | null, add: (tool: any) => void}} ClearToolRegistry */
+/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 export default class ClearTool {
   static toolName = "Clear";
 
   /**
-   * @param {ClearToolRegistry} tools
+   * @param {AppToolsState} tools
    */
   constructor(tools) {
     this.tools = tools;

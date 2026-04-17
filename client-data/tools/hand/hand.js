@@ -30,6 +30,8 @@ import {
   transformedBBoxIntersects,
 } from "../../js/intersect.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @typedef {{a:number, b:number, c:number, d:number, e:number, f:number}} TransformState */
+/** @typedef {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
 
 export default class HandTool {
   static toolName = "Hand";
@@ -51,10 +53,12 @@ export default class HandTool {
       transform: 2,
     };
     this.selected = null;
+    /** @type {(SVGGraphicsElement & {id: string})[]} */
     this.selectedEls = [];
     this.selectionRect = this.createSelectorRect();
     this.selectionRectTransform = undefined;
     this.currentTransform = null;
+    /** @type {TransformState[]} */
     this.transformElements = [];
     this.selectorState = this.selectorStates.pointing;
     this.lastSent = 0;
@@ -106,11 +110,13 @@ export default class HandTool {
       ),
     ];
 
-    this.blockedSelectionButtons.forEach((buttonIndex) => {
-      if (typeof buttonIndex === "number") {
-        delete this.selectionButtons[buttonIndex];
-      }
-    });
+    this.blockedSelectionButtons.forEach(
+      (/** @type {number | string} */ buttonIndex) => {
+        if (typeof buttonIndex === "number") {
+          delete this.selectionButtons[buttonIndex];
+        }
+      },
+    );
 
     this.name = "Hand";
     this.shortcut = "h";
@@ -247,19 +253,18 @@ export default class HandTool {
    * @param {string} icon
    * @param {number} width
    * @param {number} height
-   * @param {(button: any, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void} drawCallback
-   * @param {(x:number, y:number, evt:any) => void} clickCallback
-   * @returns {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: typeof drawCallback, clickCallback: typeof clickCallback }}
+   * @param {(button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void} drawCallback
+   * @param {(x:number, y:number, evt: { preventDefault(): void }) => void} clickCallback
+   * @returns {SelectionButton}
    */
   createButton(name, icon, width, height, drawCallback, clickCallback) {
-    const shape =
-      /** @type {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: typeof drawCallback, clickCallback: typeof clickCallback }} */ (
-        this.Tools.createSVGElement("image", {
-          href: this.assetUrl(`${icon}.svg`),
-          width: width,
-          height: height,
-        })
-      );
+    const shape = /** @type {SelectionButton} */ (
+      this.Tools.createSVGElement("image", {
+        href: this.assetUrl(`${icon}.svg`),
+        width: width,
+        height: height,
+      })
+    );
     shape.id = `selectionButton-${name}`;
     shape.style.display = "none";
     shape.origWidth = width;
@@ -409,7 +414,9 @@ export default class HandTool {
     ) {
       return;
     }
-    const rectTranslation = this.selectionRectTransform;
+    const rectTranslation = /** @type {{x: number, y: number}} */ (
+      this.selectionRectTransform
+    );
     const dx = x - this.selected.x;
     const dy = y - this.selected.y;
     const msgs = this.selectedEls.map((el, i) => {
@@ -451,8 +458,14 @@ export default class HandTool {
     ) {
       return;
     }
-    const scaleSelectionState = this.selected;
-    const rectTransform = this.selectionRectTransform;
+    const scaleSelectionState =
+      /** @type {{x: number, y: number, w: number, h: number}} */ (
+        this.selected
+      );
+    const rectTransform =
+      /** @type {{a: number, d: number, e: number, f: number}} */ (
+        this.selectionRectTransform
+      );
     const rx = (x - scaleSelectionState.x) / scaleSelectionState.w;
     const ry = (y - scaleSelectionState.y) / scaleSelectionState.h;
     const msgs = this.selectedEls.map((el, i) => {
@@ -601,7 +614,7 @@ export default class HandTool {
         const newElement = /** @type {SVGGraphicsElement & { id: string }} */ (
           sourceElement.cloneNode(true)
         );
-        newElement.id = data.newid;
+        newElement.id = data.newid || "";
         this.Tools.drawingArea.appendChild(newElement);
         break;
       }

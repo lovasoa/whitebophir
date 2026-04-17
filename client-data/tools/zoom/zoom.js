@@ -27,7 +27,7 @@
 /** @typedef {{scrollX: number, scrollY: number, x: number, y: number, clientY: number, scale: number, distance: number | null}} ZoomOrigin */
 /** @typedef {{preventDefault(): void, clientY?: number, pageX?: number, pageY?: number, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, deltaMode?: number, deltaX?: number, deltaY?: number, changedTouches?: TouchList, touches?: TouchList}} ZoomPointerEvent */
 /** @typedef {(evt: KeyboardEvent) => void} ZoomKeyHandler */
-/** @typedef {{add: (tool: unknown) => void, board: {addEventListener: (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined) => void}, getScale: () => number, setScale: (scale:number)=>number, setSize: (size:number)=>void, getSize: ()=>number, svg: SVGSVGElement}} ZoomToolRegistry */
+/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 export default class ZoomTool {
@@ -35,7 +35,7 @@ export default class ZoomTool {
   static ZOOM_FACTOR = 0.5;
 
   /**
-   * @param {ZoomToolRegistry} tools
+   * @param {AppToolsState} tools
    */
   constructor(tools) {
     this.tools = tools;
@@ -235,7 +235,10 @@ export default class ZoomTool {
     this.origin.distance = null;
   }
 
-  /** @param {boolean} down */
+  /**
+   * @param {boolean} down
+   * @param {KeyboardEvent} evt
+   */
   handleShiftKey(down, evt) {
     if (evt.key === "Shift") {
       this.tools.svg.style.cursor = `zoom-${down ? "out" : "in"}`;

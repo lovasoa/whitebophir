@@ -1,13 +1,17 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "module": "CommonJS",
-    "moduleResolution": "Node"
+    "module": "preserve",
+    "moduleResolution": "bundler"
   },
   "include": [
     "types/**/*.d.ts",
+    "client-data/js/**/*.js",
+    "client-data/tools/**/*.js",
     "server/**/*.js",
+    "server/**/*.mjs",
     "scripts/**/*.js",
+    "scripts/**/*.mjs",
     "test-node/**/*.js"
   ],
   "exclude": [

@@ -46,6 +46,7 @@
 
 ## test commands
 
+- Unified JS typecheck: `npm run typecheck` (`tsconfig.checkjs.json` covers server, scripts, Node tests, client runtime, and tool modules).
 - Node suite: `node --test test-node/*.test.js`.
 - Browser suite: `npx playwright test playwright/tests/<file>.spec.ts`.
 - Throughput check: `npm run bench` before/after suspected performance changes.

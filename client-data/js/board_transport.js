@@ -48,13 +48,11 @@ function buildSocketParams(
   };
   const query = new URLSearchParams();
   if (extraHeaders) socketParams.extraHeaders = extraHeaders;
-  if (typeof boardName === "string" && boardName !== "") {
-    query.set("board", boardName);
-  }
-  if (typeof token === "string" && token !== "") query.set("token", token);
+  if (boardName !== "") query.set("board", boardName);
+  if (token) query.set("token", token);
   if (extraQueryParams) {
     Object.entries(extraQueryParams).forEach(([key, value]) => {
-      if (typeof value === "string" && value !== "") query.set(key, value);
+      if (value !== "") query.set(key, value);
     });
   }
   const queryString = query.toString();

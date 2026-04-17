@@ -24,7 +24,7 @@
  * @licend
  */
 
-/** @typedef {{svg: SVGSVGElement | null, boardName: string, add: (tool: unknown) => void}} DownloadToolRegistry */
+/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 export default class DownloadTool {
@@ -91,7 +91,7 @@ export default class DownloadTool {
   }
 
   /**
-   * @param {DownloadToolRegistry} tools
+   * @param {AppToolsState} tools
    */
   constructor(tools) {
     this.tools = tools;
