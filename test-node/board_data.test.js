@@ -392,7 +392,6 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
         type: "delete",
         id: "rect-1",
       },
-      revision: 2,
     },
   ]);
 

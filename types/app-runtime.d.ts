@@ -13,7 +13,6 @@ export type BoardMessage = {
   type?: string;
   parent?: string;
   newid?: string;
-  revision?: number;
   seq?: number;
   socket?: string;
   userId?: string;

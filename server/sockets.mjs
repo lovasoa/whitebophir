@@ -1487,7 +1487,7 @@ function emitPersistentBoardMutation(board, sourceSocket, envelope) {
  * @param {BoardData} board
  * @param {string} boardName
  * @param {AppSocket} sourceSocket
- * @param {Array<{mutation: NormalizedMessageData, revision: number, envelope: any}> | undefined} followup
+ * @param {Array<{mutation: NormalizedMessageData, envelope: any}> | undefined} followup
  * @returns {void}
  */
 function emitPersistentBoardFollowupMutations(

@@ -13,12 +13,10 @@ import {
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {{windowStart: number, count: number, lastSeen: number}} RateLimitState */
 /**
- * @typedef {{name: string, isReadOnly: () => boolean, processMessage: (message: any) => {ok: true, revision?: number} | {ok: false, reason: string}}} BroadcastBoard
+ * @typedef {{name: string, isReadOnly: () => boolean, processMessage: (message: any) => {ok: true} | {ok: false, reason: string}}} BroadcastBoard
  */
 /** @typedef {{general: RateLimitState, constructive: RateLimitState, destructive: RateLimitState, text: RateLimitState}} BroadcastRateLimits */
-/**
- * @typedef {{ok: true, value: NormalizedMessageData, revision?: number}} AcceptedBoardBroadcast
- */
+/** @typedef {{ok: true, value: NormalizedMessageData}} AcceptedBoardBroadcast */
 /**
  * @typedef {{ok: false, reason: string, stage: "normalize" | "policy" | "process" | "rate_limit"}} RejectedBoardBroadcast
  */
@@ -189,7 +187,6 @@ function processNormalizedBoardMessage(board, data, socketId) {
   return {
     ok: true,
     value: data,
-    revision: result.revision,
   };
 }
 

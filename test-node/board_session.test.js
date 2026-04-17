@@ -46,7 +46,7 @@ test("board session serializes persistent mutation acceptance per board", async 
     },
     processMessage(/** @type {any} */ message) {
       steps.push(`process:${message.id}`);
-      return { ok: true, revision: message.id === "first" ? 1 : 2 };
+      return { ok: true };
     },
     recordPersistentMutation(/** @type {any} */ message) {
       seq += 1;
@@ -105,7 +105,7 @@ test("board session records the prepared mutation payload", async () => {
     },
     processMessage(/** @type {any} */ message) {
       processed.push(message);
-      return { ok: true, revision: 3 };
+      return { ok: true };
     },
     recordPersistentMutation(
       /** @type {any} */ message,
@@ -188,7 +188,6 @@ test("board session appends sequenced followups generated during rejection", asy
             type: "delete",
             id: "rect-seed",
           },
-          revision: 4,
         },
       ];
     },
@@ -249,7 +248,6 @@ test("board session appends sequenced followups generated during rejection", asy
           type: "delete",
           id: "rect-seed",
         },
-        revision: 4,
       },
     ],
   });

@@ -152,22 +152,14 @@ class BoardData {
     this.users = new Set();
     this.saveMutex = new SerialTaskQueue();
     this.localBoundsCache = new Map();
-    this.revision = 0;
     this.mutationLog = createMutationLog(0);
-    /** @type {Array<{mutation: any, revision: number}>} */
+    /** @type {Array<{mutation: any}>} */
     this.pendingRejectedMutationEffects = [];
     this.admissionIndex = createAdmissionIndex();
   }
 
   isReadOnly() {
     return this.metadata.readonly === true;
-  }
-
-  /**
-   * @returns {number}
-   */
-  getRevision() {
-    return this.revision;
   }
 
   /**
@@ -248,7 +240,7 @@ class BoardData {
   }
 
   /**
-   * @returns {Array<{mutation: any, revision: number}>}
+   * @returns {Array<{mutation: any}>}
    */
   consumePendingRejectedMutationEffects() {
     const effects = this.pendingRejectedMutationEffects;
@@ -257,11 +249,10 @@ class BoardData {
   }
 
   /**
-   * @returns {{ok: true, revision: number}}
+   * @returns {{ok: true}}
    */
   commitMutation() {
-    this.revision += 1;
-    return { ok: true, revision: this.revision };
+    return { ok: true };
   }
 
   rebuildAdmissionIndex() {
@@ -665,23 +656,18 @@ class BoardData {
     if (!this.canUpdate(id, updateData)) {
       if (this.shouldDropSeedShapeOnRejectedUpdate(obj.tool, obj, id)) {
         const deleteResult = this.delete(id);
-        if (deleteResult.ok && "revision" in deleteResult) {
+        if (deleteResult.ok) {
           this.admissionIndex.applyAccepted({
             tool: "Eraser",
             type: "delete",
             id: id,
           });
-          const deleteRevision =
-            typeof deleteResult.revision === "number"
-              ? deleteResult.revision
-              : this.revision;
           this.pendingRejectedMutationEffects.push({
             mutation: {
               tool: "Eraser",
               type: "delete",
               id: id,
             },
-            revision: deleteRevision,
           });
         }
       }

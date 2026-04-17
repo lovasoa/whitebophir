@@ -133,5 +133,5 @@ test("broadcast processing applies board writes without the socket event wrapper
 
   assert.equal(result.ok, true);
   assert.equal(board.get("text-1").txt, "updated payload");
-  assert.equal(result.revision, 2);
+  assert.equal("revision" in result, false);
 });

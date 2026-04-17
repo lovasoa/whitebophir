@@ -37,7 +37,7 @@ Client state is split into:
 
 Visible board = authoritative + speculative + ephemeral.
 
-Until the `seq` protocol ships, “authoritative” on the client means “acknowledged by the current `revision` model”. After the cutover, it means “applied through contiguous `seq`”.
+“Authoritative” on the client means “applied through contiguous `seq`”.
 
 ### Required invariants
 
@@ -548,7 +548,7 @@ Add client scene layers:
 - speculative
 - ephemeral
 
-At this step, authoritative still means revision-acknowledged.
+During rollout, this step still used the pre-`seq` acknowledgment model.
 
 Migrate tools in order:
 
@@ -560,7 +560,7 @@ Migrate tools in order:
 
 ### 5. Add OptimisticJournal
 
-Track speculative mutations by `clientMutationId`. Still use the current revision snapshot/replay flow.
+Track speculative mutations by `clientMutationId`. During rollout this still used the pre-`seq` snapshot/replay flow.
 
 ### 6. Add BoardSession + MutationLog
 
@@ -577,7 +577,7 @@ Add:
 - inline streamed SVG baseline on `/boards/:name`
 - served rendered baseline on `/boards/:name.svg`
 
-At this step, the server stops emitting the initial `broadcast({_children, revision})` snapshot for connections on the new path. Never deliver both baselines on the same connection.
+At this step, the server stops emitting the initial `broadcast({_children, revision})` snapshot and relies on SVG baseline + replay only.
 
 ### 9. Build AdmissionIndex + SvgBoardStore + PersistenceCoordinator in shadow mode
 
@@ -589,7 +589,7 @@ This is the first step where eager `.json -> .svg` migration happens, because be
 
 ### 11. Remove coexistence paths
 
-Remove old snapshot baseline delivery, `revision` terminology, legacy JSON writes, and shadow-mode assertions once stable.
+Remove old snapshot baseline delivery, `revision` terminology, and shadow-mode assertions once stable. Legacy JSON reads remain behind the isolated adapter as required compatibility.
 
 ## Test plan
 
