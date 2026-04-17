@@ -340,9 +340,11 @@ test("connection bootstrap traces the root socket event and board load", async (
       const created = createSocket({
         id: "socket-trace",
         remoteAddress: "203.0.113.10",
+        headers: {
+          cookie: "wbo-user-secret-v1=abababababababababababababababab",
+        },
         query: {
           board: "trace-board",
-          userSecret: "trace-secret",
           tool: "Hand",
           color: "#111111",
           size: "6",

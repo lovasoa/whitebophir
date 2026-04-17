@@ -9,6 +9,7 @@
 
 - Process boot + routes + socket server: [server startup](./server/server.mjs).
 - HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs).
+- Server-issued user identity cookie parsing + serialization: [user secret cookie helper](./server/user_secret_cookie.mjs).
 - Shared toolbar catalog + versioned tool asset helpers: [tool catalog](./client-data/js/tool_catalog.js), [tool assets](./client-data/js/tool_assets.js).
 - Realtime event handlers + broadcast path: [socket handlers](./server/sockets.mjs).
 - Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.mjs).
@@ -26,7 +27,8 @@
 
 - A tool builds payload data from pointer/input handlers and calls `Tools.drawAndSend` or `Tools.send` (tool modules + runtime).
 - `Tools.drawAndSend` renders locally first with `tool.draw(data, true)`.
-- The client opens Socket.IO with handshake query `board=<boardName>` and the server immediately emits `boardstate` plus the authoritative snapshot `broadcast`.
+- The board page HTTP response ensures the server-issued `wbo-user-secret-v1` cookie exists before the client starts Socket.IO.
+- The client opens Socket.IO with handshake query `board=<boardName>` plus tool/color/size metadata, and the server reads the user secret from the cookie before emitting `boardstate` plus the authoritative snapshot `broadcast`.
 - `Tools.send` clones payload, stamps `tool`, runs hooks, and sends the plain board message over the already-bound socket.
 - `Tools.sendBufferedWrite` emits immediately with `socket.emit("broadcast", message)` or appends to `Tools.bufferedWrites`; `Tools.scheduleBufferedWriteFlush` and `Tools.flushBufferedWrites` drain later.
 - Server receives `socket.on("broadcast", data)` and runs board access + rate-limit checks against the board already bound to the socket.

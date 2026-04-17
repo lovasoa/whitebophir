@@ -50,7 +50,6 @@ test("buildSocketParams keeps board prefixes and omits empty tokens", () => {
 
   assert.deepEqual(
     BoardConnection.buildSocketParams("/boards/demo", null, "abc 123", "demo", {
-      userSecret: "secret",
       tool: "Hand",
       color: "#123456",
       size: "4",
@@ -61,8 +60,7 @@ test("buildSocketParams keeps board prefixes and omits empty tokens", () => {
       reconnectionDelay: 100,
       autoConnect: false,
       timeout: 1000 * 60 * 20,
-      query:
-        "board=demo&token=abc+123&userSecret=secret&tool=Hand&color=%23123456&size=4",
+      query: "board=demo&token=abc+123&tool=Hand&color=%23123456&size=4",
     },
   );
 });

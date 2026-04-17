@@ -65,6 +65,16 @@ async function createServerDirs() {
   return { historyDir, webroot };
 }
 
+/**
+ * @param {import("http").IncomingHttpHeaders} headers
+ * @returns {string}
+ */
+function getSingleSetCookie(headers) {
+  const value = headers["set-cookie"];
+  if (Array.isArray(value)) return value[0] || "";
+  return typeof value === "string" ? value : "";
+}
+
 test("server returns 400 for preview and download routes without a board name", async () => {
   const dirs = await createServerDirs();
 
@@ -163,6 +173,113 @@ test("server rejects invalid board names with 400 instead of 500", async () => {
         assert.equal(typeof response.headers["x-request-id"], "string");
         assert.equal(response.body, "error-page");
       }
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages set an httpOnly user secret cookie when missing", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/demo");
+      const setCookie = getSingleSetCookie(response.headers);
+
+      assert.equal(response.statusCode, 200);
+      assert.match(
+        setCookie,
+        /^wbo-user-secret-v1=[0-9a-f]{32}; Max-Age=31536000; Path=\/; HttpOnly; SameSite=Lax$/,
+      );
+      assert.doesNotMatch(setCookie, /;\s*Secure(?:;|$)/);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages preserve a valid incoming user secret cookie and do not rotate it", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/demo", {
+        cookie: "wbo-user-secret-v1=abababababababababababababababab",
+        "x-forwarded-proto": "https",
+      });
+
+      assert.equal(response.statusCode, 200);
+      assert.equal(response.headers["set-cookie"], undefined);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages mark the user secret cookie secure on https requests", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/demo", {
+        "x-forwarded-proto": "https",
+      });
+      const setCookie = getSingleSetCookie(response.headers);
+
+      assert.equal(response.statusCode, 200);
+      assert.match(setCookie, /;\s*Secure(?:;|$)/);
     } finally {
       await closeServer(app);
     }

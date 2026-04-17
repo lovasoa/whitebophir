@@ -14,25 +14,31 @@ import {
   ATTR_URL_SCHEME,
 } from "@opentelemetry/semantic-conventions";
 import serveStatic from "serve-static";
-
+import {
+  decodeAndValidateBoardName,
+  isValidBoardName,
+} from "../client-data/js/board_name.js";
 import { BoardData } from "./boardData.mjs";
+import {
+  badRequest,
+  boundaryReason,
+  boundaryStatusCode,
+} from "./boundary_errors.mjs";
 import check_output_directory from "./check_output_directory.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import * as createSVG from "./createSVG.mjs";
 import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
+import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
 import * as templating from "./templating.mjs";
 import {
-  decodeAndValidateBoardName,
-  isValidBoardName,
-} from "../client-data/js/board_name.js";
-import {
-  badRequest,
-  boundaryReason,
-  boundaryStatusCode,
-} from "./boundary_errors.mjs";
-import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
+  appendSetCookieHeader,
+  generateUserSecret,
+  getUserSecretCookiePath,
+  getUserSecretFromCookieHeader,
+  serializeUserSecretCookie,
+} from "./user_secret_cookie.mjs";
 
 const { createRequestId, logger, metrics, tracing } = observability;
 const config = readConfiguration();
@@ -230,6 +236,26 @@ function requestServerPort(request) {
  */
 function requestPath(request) {
   return parseRequestUrl(request.url).pathname;
+}
+
+/**
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {URL} parsedUrl
+ * @returns {void}
+ */
+function ensureBoardUserSecretCookie(request, response, parsedUrl) {
+  const existingUserSecret = getUserSecretFromCookieHeader(
+    request.headers.cookie,
+  );
+  if (existingUserSecret !== "") return;
+  appendSetCookieHeader(
+    response,
+    serializeUserSecretCookie(generateUserSecret(), {
+      path: getUserSecretCookiePath(parsedUrl.pathname),
+      secure: requestScheme(request) === "https",
+    }),
+  );
 }
 
 /**
@@ -705,6 +731,7 @@ function handleRequest(request, response, requestContext) {
           !boardMetadata.readonly ||
           (config.AUTH_SECRET_KEY &&
             ["editor", "moderator"].includes(boardRole));
+        ensureBoardUserSecretCookie(request, response, parsedUrl);
         boardTemplate.serve(request, response, boardRole === "moderator", {
           boardState: {
             readonly: boardMetadata.readonly,

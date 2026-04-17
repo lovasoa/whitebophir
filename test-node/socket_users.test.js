@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { createSocket, loadSockets, withEnv } = require("./test_helpers.js");
+const USER_SECRET_COOKIE_NAME = "wbo-user-secret-v1";
 
 /**
  * @param {{[event: string]: ((...args: any[]) => any) | undefined}} handlers
@@ -27,29 +28,40 @@ function getRequiredValue(value) {
   return /** @type {T} */ (value);
 }
 
-test("user id and visible name are deterministic from userSecret and ip", async () => {
+/**
+ * @param {string} userSecret
+ * @param {{[key: string]: string}=} headers
+ * @returns {{[key: string]: string}}
+ */
+function withUserSecretCookie(userSecret, headers) {
+  return {
+    ...(headers || {}),
+    cookie: `${USER_SECRET_COOKIE_NAME}=${userSecret}`,
+  };
+}
+
+test("user id and visible name are deterministic from the cookie-backed user secret and ip", async () => {
   await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async () => {
     const sockets = await loadSockets();
+    const userSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const { socket } = createSocket({
       remoteAddress: "203.0.113.40",
-      query: {
-        userSecret: "alpha-secret",
-      },
+      headers: withUserSecretCookie(userSecret),
     });
 
-    const userId = sockets.__test.buildUserId("alpha-secret");
-    const name = sockets.__test.buildUserName("203.0.113.40", "alpha-secret");
+    const userId = sockets.__test.buildUserId(userSecret);
+    const name = sockets.__test.buildUserName("203.0.113.40", userSecret);
     const record = sockets.__test.buildBoardUserRecord(
       socket,
       "anonymous",
       123,
     );
 
-    assert.equal(userId, sockets.__test.buildUserId("alpha-secret"));
+    assert.equal(userId, sockets.__test.buildUserId(userSecret));
     assert.match(userId, /^[a-z]+$/);
     assert.equal(
       name,
-      sockets.__test.buildUserName("203.0.113.40", "alpha-secret"),
+      sockets.__test.buildUserName("203.0.113.40", userSecret),
     );
     assert.equal(record.userId, userId);
     assert.equal(record.name, name);
@@ -62,8 +74,8 @@ test("board user record seeds tool color and size from socket query", async () =
     const sockets = await loadSockets();
     const { socket } = createSocket({
       remoteAddress: "203.0.113.41",
+      headers: withUserSecretCookie("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
       query: {
-        userSecret: "beta-secret",
         tool: "Rectangle",
         color: "#123456",
         size: "12",
@@ -120,9 +132,9 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
       const first = createSocket({
         id: "socket-1",
         remoteAddress: "203.0.113.60",
+        headers: withUserSecretCookie("11111111111111111111111111111111"),
         query: {
           board: "board-a",
-          userSecret: "first-secret",
           tool: "Hand",
           color: "#111111",
           size: "6",
@@ -142,9 +154,9 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
       const second = createSocket({
         id: "socket-2",
         remoteAddress: "203.0.113.61",
+        headers: withUserSecretCookie("22222222222222222222222222222222"),
         query: {
           board: "board-a",
-          userSecret: "second-secret",
           tool: "Rectangle",
           color: "#222222",
           size: "8",
@@ -182,9 +194,9 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
       const created = createSocket({
         id: "socket-revision",
         remoteAddress: "203.0.113.70",
+        headers: withUserSecretCookie("33333333333333333333333333333333"),
         query: {
           board: "board-revision",
-          userSecret: "revision-secret",
           tool: "Rectangle",
           color: "#333333",
           size: "4",
@@ -221,9 +233,9 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
       const nextSocket = createSocket({
         id: "socket-revision-2",
         remoteAddress: "203.0.113.71",
+        headers: withUserSecretCookie("44444444444444444444444444444444"),
         query: {
           board: "board-revision",
-          userSecret: "revision-secret-2",
           tool: "Hand",
           color: "#444444",
           size: "5",
@@ -254,9 +266,9 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
       const created = createSocket({
         id: "socket-9",
         remoteAddress: "203.0.113.69",
+        headers: withUserSecretCookie("99999999999999999999999999999999"),
         query: {
           board: "board-left",
-          userSecret: "left-secret",
           tool: "Hand",
           color: "#999999",
           size: "5",
@@ -301,9 +313,9 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       const created = createSocket({
         id: "socket-live",
         remoteAddress: "203.0.113.80",
+        headers: withUserSecretCookie("10101010101010101010101010101010"),
         query: {
           board: "board-live",
-          userSecret: "live-secret",
           tool: "Hand",
           color: "#101010",
           size: "4",
@@ -380,9 +392,9 @@ test("same-session sockets keep a shared userId in presence but live payload att
       const first = createSocket({
         id: "socket-a",
         remoteAddress: "203.0.113.81",
+        headers: withUserSecretCookie("abababababababababababababababab"),
         query: {
           board: "board-session",
-          userSecret: "shared-secret",
           tool: "Hand",
           color: "#111111",
           size: "4",
@@ -393,9 +405,9 @@ test("same-session sockets keep a shared userId in presence but live payload att
       const second = createSocket({
         id: "socket-b",
         remoteAddress: "203.0.113.81",
+        headers: withUserSecretCookie("abababababababababababababababab"),
         query: {
           board: "board-session",
-          userSecret: "shared-secret",
           tool: "Hand",
           color: "#222222",
           size: "5",
@@ -452,13 +464,12 @@ test("report_user logs reporter and reported user details for active board membe
       const reporter = createSocket({
         id: "socket-reporter",
         remoteAddress: "203.0.113.90",
-        headers: {
+        headers: withUserSecretCookie("cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", {
           "user-agent": "ReporterAgent/1.0",
           "accept-language": "fr-FR,fr;q=0.9",
-        },
+        }),
         query: {
           board: "board-report",
-          userSecret: "reporter-secret",
           tool: "Hand",
           color: "#222222",
           size: "4",
@@ -470,13 +481,12 @@ test("report_user logs reporter and reported user details for active board membe
       const reported = createSocket({
         id: "socket-reported",
         remoteAddress: "203.0.113.91",
-        headers: {
+        headers: withUserSecretCookie("efefefefefefefefefefefefefefefef", {
           "user-agent": "ReportedAgent/2.0",
           "accept-language": "en-US,en;q=0.8",
-        },
+        }),
         query: {
           board: "board-report",
-          userSecret: "reported-secret",
           tool: "Ellipse",
           color: "#333333",
           size: "7",
@@ -529,14 +539,13 @@ test("report_user respects custom header ip sources for active board members", a
       const reporter = createSocket({
         id: "socket-reporter-header",
         remoteAddress: "203.0.113.100",
-        headers: {
+        headers: withUserSecretCookie("12121212121212121212121212121212", {
           "cf-connecting-ip": "198.51.100.30",
           "user-agent": "ReporterHeaderAgent/1.0",
           "accept-language": "de-DE,de;q=0.9",
-        },
+        }),
         query: {
           board: "board-report",
-          userSecret: "reporter-secret",
           tool: "Hand",
         },
       });
@@ -545,14 +554,13 @@ test("report_user respects custom header ip sources for active board members", a
       const reported = createSocket({
         id: "socket-reported-header",
         remoteAddress: "203.0.113.101",
-        headers: {
+        headers: withUserSecretCookie("34343434343434343434343434343434", {
           "cf-connecting-ip": "198.51.100.31",
           "user-agent": "ReportedHeaderAgent/2.0",
           "accept-language": "es-ES,es;q=0.8",
-        },
+        }),
         query: {
           board: "board-report",
-          userSecret: "reported-secret",
           tool: "Ellipse",
         },
       });

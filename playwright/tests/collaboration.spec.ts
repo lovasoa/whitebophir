@@ -262,6 +262,56 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
   });
 
+  test("same-session pages use the server cookie identity and do not persist the secret in localStorage", async ({
+    boardPage,
+    server,
+    context,
+  }) => {
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await boardPage.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+    await peerBoard.setSocketHeaders({
+      "X-Forwarded-For": DEFAULT_FORWARDED_IP,
+    });
+
+    const boardUrl = boardPage.buildBoardUrl("same-session-cookie-identity");
+    await Promise.all([
+      boardPage.gotoBoard("same-session-cookie-identity"),
+      peerBoard.gotoBoard("same-session-cookie-identity"),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+
+    const localSecret = await boardPage.page.evaluate(() =>
+      window.localStorage.getItem("wbo-user-secret-v1"),
+    );
+    expect(localSecret).toBeNull();
+
+    const cookies = await context.cookies(boardUrl);
+    const userSecretCookie = cookies.find(
+      (cookie) => cookie.name === "wbo-user-secret-v1",
+    );
+    expect(userSecretCookie).toMatchObject({
+      httpOnly: true,
+      sameSite: "Lax",
+      path: "/",
+    });
+
+    await boardPage.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeVisible();
+    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
+
+    const rows = await boardPage.readConnectedUsers();
+    expect(new Set(rows.map((row) => row.name)).size).toBe(1);
+
+    await peerPage.close();
+  });
+
   test("connected user jump rows stay attached while cursor updates stream in", async ({
     boardPage,
     server,
