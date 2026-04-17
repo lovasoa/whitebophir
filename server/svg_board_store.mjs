@@ -132,6 +132,21 @@ function errorCode(error) {
 }
 
 /**
+ * @param {number} expectedSeq
+ * @param {number} actualSeq
+ * @returns {Error & {code: string}}
+ */
+function createStoredSvgSeqMismatchError(expectedSeq, actualSeq) {
+  const error = /** @type {Error & {code: string}} */ (
+    new Error(
+      `Stored SVG seq mismatch: expected ${expectedSeq}, got ${actualSeq}`,
+    )
+  );
+  error.code = "WBO_STORED_SVG_SEQ_MISMATCH";
+  return error;
+}
+
+/**
  * @param {any} transform
  * @returns {string}
  */
@@ -557,11 +572,16 @@ async function rewriteStoredSvg(
   metadata,
   options,
 ) {
-  void fromSeqExclusive;
   const historyDir = options?.historyDir;
   const file = boardSvgPath(boardName, historyDir);
   const tmpFile = `${file}.${Date.now()}.tmp`;
   const existingSvg = await readFile(file, "utf8");
+  const currentSeq = normalizeStoredSeq(
+    parseStoredSvgEnvelope(existingSvg).rootAttributes["data-wbo-seq"],
+  );
+  if (currentSeq !== fromSeqExclusive) {
+    throw createStoredSvgSeqMismatchError(fromSeqExclusive, currentSeq);
+  }
   const rewritten = rewriteStoredSvgText(
     existingSvg,
     metadata,

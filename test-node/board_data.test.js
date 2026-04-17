@@ -656,6 +656,52 @@ test("BoardData.save rewrites existing stored svg from queued mutations", async 
   });
 });
 
+test("BoardData.save falls back to a full authoritative write on stored svg seq mismatch", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-save-rewrite-mismatch-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    const svgPath = path.join(historyDir, "board-rewrite-mismatch.svg");
+    const existingSvg =
+      '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+      '<defs id="defs"><style>.keep-me{}</style><marker id="m1"></marker></defs>' +
+      '<g id="drawingArea">' +
+      '<g id="rect-1" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22rect-1%22%2C%22tool%22%3A%22Rectangle%22%2C%22type%22%3A%22rect%22%2C%22x%22%3A1%2C%22y%22%3A2%2C%22x2%22%3A3%2C%22y2%22%3A4%2C%22color%22%3A%22%23123456%22%2C%22size%22%3A4%7D"></g>' +
+      "</g>" +
+      '<g id="cursors"><path id="cursor-template"></path></g>' +
+      "</svg>";
+    await fs.writeFile(svgPath, existingSvg, "utf8");
+
+    const board = await BoardData.load("rewrite-mismatch");
+    await fs.writeFile(
+      svgPath,
+      existingSvg.replace('data-wbo-seq="1"', 'data-wbo-seq="99"'),
+      "utf8",
+    );
+    const updateRect = {
+      tool: "Rectangle",
+      type: "update",
+      id: "rect-1",
+      x2: 30,
+      y2: 40,
+    };
+
+    assert.equal(board.processMessage(updateRect).ok, true);
+    board.recordPersistentMutation(updateRect, 2);
+
+    await board.save();
+
+    const rewritten = await fs.readFile(svgPath, "utf8");
+    assert.match(rewritten, /data-wbo-seq="2"/);
+    assert.match(
+      rewritten,
+      /data-wbo-item="[^"]*%22x2%22%3A30%2C%22y2%22%3A40/,
+    );
+  });
+});
+
 test("BoardData.save serializes concurrent saves and releases after failure", async () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = new BoardData("serial-save-board");

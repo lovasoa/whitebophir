@@ -432,6 +432,54 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
   });
 });
 
+test("rewriteStoredSvg rejects stored svg base-seq mismatches", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-rewrite-seq-mismatch-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await svgBoardStore.writeBoardState(
+      "rewrite-seq-mismatch",
+      {
+        "rect-1": {
+          id: "rect-1",
+          tool: "Rectangle",
+          type: "rect",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#123456",
+          size: 4,
+        },
+      },
+      { readonly: false },
+      1,
+    );
+
+    await assert.rejects(
+      svgBoardStore.rewriteStoredSvg(
+        "rewrite-seq-mismatch",
+        0,
+        2,
+        [
+          {
+            mutation: {
+              tool: "Rectangle",
+              type: "update",
+              id: "rect-1",
+              x2: 30,
+              y2: 40,
+            },
+          },
+        ],
+        { readonly: false },
+      ),
+      /stored svg seq mismatch/i,
+    );
+  });
+});
+
 test("writeBoardState removes stale svg and legacy json when board becomes empty", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-empty-delete-"),

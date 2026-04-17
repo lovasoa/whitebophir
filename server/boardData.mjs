@@ -1025,7 +1025,11 @@ class BoardData {
                   { historyDir: this.historyDir },
                 );
               } catch (error) {
-                if (errorCode(error) !== "ENOENT") {
+                if (
+                  !["ENOENT", "WBO_STORED_SVG_SEQ_MISMATCH"].includes(
+                    errorCode(error) || "",
+                  )
+                ) {
                   throw error;
                 }
                 await writeBoardState(
