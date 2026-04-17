@@ -158,3 +158,90 @@ test("AdmissionIndex applyAccepted preserves paint-order semantics", () => {
   assert.equal(index.get("rect-1"), undefined);
   assert.equal(index.get("rect-2"), undefined);
 });
+
+test("AdmissionIndex rejects copy when the source summary is missing", () => {
+  const index = createAdmissionIndex();
+
+  assert.deepEqual(
+    index.canApplyLoaded({
+      tool: "Hand",
+      type: "copy",
+      id: "missing-rect",
+      newid: "copy-1",
+    }),
+    { ok: false, reason: "copied object does not exist" },
+  );
+});
+
+test("AdmissionIndex enforces pencil child count limits", () => {
+  const index = createAdmissionIndex();
+  index.seed([
+    {
+      id: "line-1",
+      tool: "Pencil",
+      childCount: 500,
+      points: Array.from({ length: 500 }, (_, index) => ({
+        x: index,
+        y: index,
+      })),
+      localBounds: { minX: 0, minY: 0, maxX: 499, maxY: 499 },
+      paintOrder: 0,
+    },
+  ]);
+
+  assert.deepEqual(
+    index.canApplyLoaded({
+      tool: "Pencil",
+      type: "child",
+      parent: "line-1",
+      x: 501,
+      y: 501,
+    }),
+    { ok: false, reason: "too many children" },
+  );
+});
+
+test("AdmissionIndex rejects Hand batches atomically when one child is invalid", () => {
+  const index = createAdmissionIndex();
+  index.seed([
+    {
+      id: "rect-1",
+      tool: "Rectangle",
+      x: 0,
+      y: 0,
+      x2: 1000,
+      y2: 1000,
+      localBounds: { minX: 0, minY: 0, maxX: 1000, maxY: 1000 },
+      paintOrder: 0,
+    },
+    {
+      id: "rect-2",
+      tool: "Rectangle",
+      x: 0,
+      y: 0,
+      x2: 100,
+      y2: 100,
+      localBounds: { minX: 0, minY: 0, maxX: 100, maxY: 100 },
+      paintOrder: 1,
+    },
+  ]);
+
+  assert.deepEqual(
+    index.canApplyLoaded({
+      tool: "Hand",
+      _children: [
+        {
+          type: "update",
+          id: "rect-1",
+          transform: { a: 4, b: 0, c: 0, d: 4, e: 0, f: 0 },
+        },
+        {
+          type: "delete",
+          id: "rect-2",
+        },
+      ],
+    }),
+    { ok: false, reason: "shape too large" },
+  );
+  assert.equal(index.get("rect-2")?.paintOrder, 1);
+});
