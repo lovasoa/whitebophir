@@ -17,6 +17,18 @@ function createSerialQueue() {
   };
 }
 
+/**
+ * @param {{
+ *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData, revision: number}>,
+ * }} board
+ * @returns {Array<{mutation: NormalizedMessageData, revision: number}>}
+ */
+function consumePendingRejectedMutationEffects(board) {
+  return typeof board.consumePendingRejectedMutationEffects === "function"
+    ? board.consumePendingRejectedMutationEffects()
+    : [];
+}
+
 /** @type {WeakMap<object, ReturnType<typeof createBoardSession>>} */
 const BOARD_SESSIONS = new WeakMap();
 
@@ -25,11 +37,12 @@ const BOARD_SESSIONS = new WeakMap();
  *   name: string,
  *   processMessage: (message: NormalizedMessageData) => {ok: true, revision?: number} | {ok: false, reason: string},
  *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string) => any,
+ *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData, revision: number}>,
  *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string}> | {ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string},
  * }} board
  * @returns {{
  *   board: object,
- *   acceptPersistentMutation: (socketId: string, mutation: NormalizedMessageData, clientMutationId?: string, nowMs?: number) => Promise<{ok: true, value: NormalizedMessageData, revision: number, envelope: any} | {ok: false, reason: string}>
+ *   acceptPersistentMutation: (socketId: string, mutation: NormalizedMessageData, clientMutationId?: string, nowMs?: number) => Promise<{ok: true, value: NormalizedMessageData, revision: number, envelope: any} | {ok: false, reason: string, followup?: Array<{mutation: NormalizedMessageData, revision: number, envelope: any}>}>
  * }}
  */
 export function createBoardSession(board) {
@@ -44,6 +57,7 @@ export function createBoardSession(board) {
     ) {
       return queue.runExclusive(async () => {
         void socketId;
+        consumePendingRejectedMutationEffects(board);
         let acceptedMutation = structuredClone(mutation);
         if (typeof board.preparePersistentMutation === "function") {
           const prepared = await board.preparePersistentMutation(
@@ -58,7 +72,18 @@ export function createBoardSession(board) {
         }
         const result = board.processMessage(structuredClone(acceptedMutation));
         if (result.ok === false) {
-          return result;
+          const followup = consumePendingRejectedMutationEffects(board).map(
+            (effect) => ({
+              mutation: effect.mutation,
+              revision: effect.revision,
+              envelope: board.recordPersistentMutation(
+                effect.mutation,
+                nowMs,
+                undefined,
+              ),
+            }),
+          );
+          return followup.length > 0 ? { ...result, followup } : result;
         }
         return {
           ok: true,
@@ -80,6 +105,7 @@ export function createBoardSession(board) {
  *   name: string,
  *   processMessage: (message: NormalizedMessageData) => {ok: true, revision?: number} | {ok: false, reason: string},
  *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string) => any,
+ *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData, revision: number}>,
  *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string}> | {ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string},
  * }} board
  * @returns {ReturnType<typeof createBoardSession>}

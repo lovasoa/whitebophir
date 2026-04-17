@@ -745,6 +745,86 @@ test("rejected board mutations emit mutation_rejected with the clientMutationId"
   );
 });
 
+test("rejected oversized seed updates emit a sequenced authoritative delete followup", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-rejected-seed-followup-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async () => {
+      const sockets = await loadSockets();
+      sockets.__test.resetRateLimitMaps();
+
+      const writer = createSocket({
+        id: "socket-seq-rejected-seed",
+        remoteAddress: "203.0.113.85",
+        headers: withUserSecretCookie("99999999999999999999999999999995"),
+        query: {
+          board: "board-rejected-seed",
+          sync: "seq",
+          tool: "Rectangle",
+          color: "#333333",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(writer.socket);
+
+      const broadcast = getRequiredHandler(writer.handlers, "broadcast");
+      await broadcast({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-seed",
+        x: 10,
+        y: 10,
+        x2: 10,
+        y2: 10,
+        color: "#333333",
+        size: 4,
+        clientMutationId: "cm-seed-create",
+      });
+      await broadcast({
+        tool: "Rectangle",
+        type: "update",
+        id: "rect-seed",
+        x: 10,
+        y: 10,
+        x2: 5000,
+        y2: 20,
+        clientMutationId: "cm-seed-grow",
+      });
+
+      assert.deepEqual(
+        getRequiredValue(
+          writer.emitted.find((event) => event.event === "mutation_rejected"),
+        ).payload,
+        {
+          type: "mutation_rejected",
+          clientMutationId: "cm-seed-grow",
+          reason: "update rejected: shape too large",
+        },
+      );
+
+      const seqBroadcasts = writer.emitted.filter(
+        (event) => event.event === "broadcast",
+      );
+      assert.deepEqual(
+        seqBroadcasts.map((event) => getRequiredValue(event).payload.seq),
+        [1, 2],
+      );
+      assert.deepEqual(getRequiredValue(seqBroadcasts[1]).payload.mutation, {
+        tool: "Eraser",
+        type: "delete",
+        id: "rect-seed",
+      });
+
+      const loadedBoard = await sockets.__test.getLoadedBoard(
+        "board-rejected-seed",
+      );
+      assert.equal(loadedBoard.get("rect-seed"), undefined);
+    },
+  );
+});
+
 test("disconnecting from a board broadcasts user_left and cleans the board user map", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-left-"),

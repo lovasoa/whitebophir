@@ -170,3 +170,87 @@ test("board session does not append to the mutation log after rejection", async 
   );
   assert.equal(recordCount, 0);
 });
+
+test("board session appends sequenced followups generated during rejection", async () => {
+  const { createBoardSession } = await loadBoardSession();
+  /** @type {any[]} */
+  const recorded = [];
+  const board = {
+    name: "session-rejected-followup",
+    processMessage() {
+      return { ok: false, reason: "update rejected: shape too large" };
+    },
+    consumePendingRejectedMutationEffects() {
+      return [
+        {
+          mutation: {
+            tool: "Eraser",
+            type: "delete",
+            id: "rect-seed",
+          },
+          revision: 4,
+        },
+      ];
+    },
+    recordPersistentMutation(
+      /** @type {any} */ message,
+      /** @type {any} */ acceptedAtMs,
+      /** @type {any} */ clientMutationId,
+    ) {
+      recorded.push({ message, acceptedAtMs, clientMutationId });
+      return {
+        seq: 9,
+        mutation: message,
+      };
+    },
+  };
+
+  const result = await createBoardSession(board).acceptPersistentMutation(
+    "socket-1",
+    {
+      tool: "Rectangle",
+      type: "update",
+      id: "rect-seed",
+      x: 0,
+      y: 0,
+      x2: 5000,
+      y2: 20,
+    },
+    "cm-reject-followup",
+    55,
+  );
+
+  assert.deepEqual(recorded, [
+    {
+      message: {
+        tool: "Eraser",
+        type: "delete",
+        id: "rect-seed",
+      },
+      acceptedAtMs: 55,
+      clientMutationId: undefined,
+    },
+  ]);
+  assert.deepEqual(result, {
+    ok: false,
+    reason: "update rejected: shape too large",
+    followup: [
+      {
+        envelope: {
+          seq: 9,
+          mutation: {
+            tool: "Eraser",
+            type: "delete",
+            id: "rect-seed",
+          },
+        },
+        mutation: {
+          tool: "Eraser",
+          type: "delete",
+          id: "rect-seed",
+        },
+        revision: 4,
+      },
+    ],
+  });
+});

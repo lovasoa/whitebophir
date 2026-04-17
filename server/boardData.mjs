@@ -150,6 +150,8 @@ class BoardData {
     this.localBoundsCache = new Map();
     this.revision = 0;
     this.mutationLog = createMutationLog(0);
+    /** @type {Array<{mutation: any, revision: number}>} */
+    this.pendingRejectedMutationEffects = [];
   }
 
   isReadOnly() {
@@ -226,6 +228,15 @@ class BoardData {
    */
   trimMutationLogBefore(seqInclusiveFloor) {
     this.mutationLog.trimBefore(seqInclusiveFloor);
+  }
+
+  /**
+   * @returns {Array<{mutation: any, revision: number}>}
+   */
+  consumePendingRejectedMutationEffects() {
+    const effects = this.pendingRejectedMutationEffects;
+    this.pendingRejectedMutationEffects = [];
+    return effects;
   }
 
   /**
@@ -557,8 +568,21 @@ class BoardData {
       return { ok: false, reason: "object not found" };
     if (!this.canUpdate(id, updateData)) {
       if (this.shouldDropSeedShapeOnRejectedUpdate(obj.tool, obj, id)) {
-        delete this.board[id];
-        this.localBoundsCache.delete(id);
+        const deleteResult = this.delete(id);
+        if (deleteResult.ok && "revision" in deleteResult) {
+          const deleteRevision =
+            typeof deleteResult.revision === "number"
+              ? deleteResult.revision
+              : this.revision;
+          this.pendingRejectedMutationEffects.push({
+            mutation: {
+              tool: "Eraser",
+              type: "delete",
+              id: id,
+            },
+            revision: deleteRevision,
+          });
+        }
       }
       return { ok: false, reason: "update rejected: shape too large" };
     }
@@ -848,6 +872,7 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure}
    */
   processMessage(message) {
+    this.pendingRejectedMutationEffects = [];
     if (message._children)
       return this.processMessageBatch(message._children, message);
     const id = message.id;
