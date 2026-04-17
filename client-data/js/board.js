@@ -75,6 +75,8 @@ import { getToolCatalogEntry } from "./tool_catalog.js";
 /** @typedef {import("../../types/app-runtime").ToolClass} ToolClass */
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../types/app-runtime").ToolRuntime} ToolRuntime */
+/** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
+/** @typedef {import("../../types/app-runtime").BoardConnectionState} BoardConnectionState */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
@@ -211,8 +213,9 @@ Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
 };
 
 Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
-Tools.toolClasses = {};
-Tools.bootedToolPromises = {};
+Tools.toolClasses = /** @type {AppToolsState["toolClasses"]} */ ({});
+Tools.bootedToolPromises =
+  /** @type {AppToolsState["bootedToolPromises"]} */ ({});
 Tools.bootedToolNames = new Set();
 Tools.turnstileValidatedUntil = 0;
 Tools.turnstileWidgetId = null;
@@ -230,7 +233,7 @@ Tools.snapshotRevision = 0;
 Tools.preSnapshotMessages = [];
 Tools.incomingBroadcastQueue = [];
 Tools.processingIncomingBroadcast = false;
-Tools.connectionState = "idle";
+Tools.connectionState = /** @type {BoardConnectionState} */ ("idle");
 Tools.localRateLimitStates = {
   general: RateLimitCommon.createRateLimitState(Date.now()),
   constructive: RateLimitCommon.createRateLimitState(Date.now()),
@@ -663,7 +666,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
-  Tools.connectedUsers = {};
+  Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
   Tools.renderConnectedUsers();
   Tools.clearBoardCursors();
   if (Tools.hasAuthoritativeBoardSnapshot) {
@@ -1126,6 +1129,7 @@ Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 Tools.socket = null;
 Tools.hasConnectedOnce = false;
 Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
+  /** @type {SocketHeaders | null} */
   let extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
     window.socketio_extra_headers,
   );
@@ -1158,7 +1162,7 @@ Tools.getInitialSocketQuery = function getInitialSocketQuery() {
   };
 };
 
-Tools.connectedUsers = {};
+Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
 Tools.connectedUsersPanelOpen = false;
 
 function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
@@ -1769,7 +1773,7 @@ Tools.startConnection = () => {
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
-  Tools.connectedUsers = {};
+  Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
   Tools.renderConnectedUsers();
 
   const url = new URL(window.location.href);
@@ -2064,7 +2068,7 @@ Tools.HTML = /** @type {ToolPalette} */ ({
 
 bindRenderedToolButtons();
 
-Tools.list = {}; // An array of all known tools. {"toolName" : {toolObject}}
+Tools.list = /** @type {AppToolsState["list"]} */ ({});
 
 /**
  * @param {ToolClass} ToolClass
@@ -2537,7 +2541,7 @@ Tools.drawAndSend = (data, tool) => {
 
 //Object containing the messages that have been received before the corresponding tool
 //is loaded. keys : the name of the tool, values : array of messages for this tool
-Tools.pendingMessages = {};
+Tools.pendingMessages = /** @type {PendingMessages} */ ({});
 
 /**
  * Send a message to the corresponding tool.

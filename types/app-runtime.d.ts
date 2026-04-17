@@ -84,6 +84,12 @@ export type RateLimitWindowState = {
 
 export type RateLimitKind = "general" | "constructive" | "destructive";
 
+export type BoardConnectionState =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "disconnected";
+
 export type ConfiguredRateLimitDefinition = {
   limit?: number;
   periodMs?: number;
@@ -330,7 +336,7 @@ export type AppToolsState = {
   rateLimitNoticeTimer: ReturnType<typeof setTimeout> | null;
   rateLimitNoticeMessage: string;
   awaitingBoardSnapshot: boolean;
-  connectionState: string;
+  connectionState: BoardConnectionState;
   localRateLimitStates: {
     [key in RateLimitKind]: RateLimitWindowState;
   };
