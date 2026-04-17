@@ -344,6 +344,94 @@ test("served svg baselines keep pencil smoothing compatible with the client path
   );
 });
 
+test("stored svg preserves style state needed for authoritative rendering", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-style-state-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await svgBoardStore.writeBoardState(
+      "style-state",
+      {
+        "rect-1": {
+          id: "rect-1",
+          tool: "Rectangle",
+          type: "rect",
+          x: 1,
+          y: 2,
+          x2: 30,
+          y2: 40,
+          color: "#123456",
+          size: 4,
+          opacity: 0.6,
+        },
+        "text-1": {
+          id: "text-1",
+          tool: "Text",
+          type: "new",
+          x: 5,
+          y: 6,
+          txt: "hello",
+          size: 18,
+          color: "#654321",
+          opacity: 0.7,
+        },
+        "line-1": {
+          id: "line-1",
+          tool: "Pencil",
+          type: "line",
+          color: "#abcdef",
+          size: 5,
+          opacity: 0.8,
+          _children: [
+            { x: 1, y: 2 },
+            { x: 3, y: 4 },
+          ],
+        },
+      },
+      { readonly: false },
+      11,
+    );
+
+    const state = await svgBoardStore.readBoardState("style-state");
+    assert.deepEqual(state.board["rect-1"], {
+      id: "rect-1",
+      tool: "Rectangle",
+      type: "rect",
+      x: 1,
+      y: 2,
+      x2: 30,
+      y2: 40,
+      color: "#123456",
+      size: 4,
+      opacity: 0.6,
+    });
+    assert.deepEqual(state.board["text-1"], {
+      id: "text-1",
+      tool: "Text",
+      type: "new",
+      x: 5,
+      y: 6,
+      txt: "hello",
+      size: 18,
+      color: "#654321",
+      opacity: 0.7,
+    });
+    assert.deepEqual(state.board["line-1"], {
+      id: "line-1",
+      tool: "Pencil",
+      type: "line",
+      color: "#abcdef",
+      size: 5,
+      opacity: 0.8,
+      _children: [
+        { x: 1, y: 2 },
+        { x: 3, y: 4 },
+      ],
+    });
+  });
+});
+
 test("writeBoardState removes stale svg and legacy json when board becomes empty", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-empty-delete-"),
