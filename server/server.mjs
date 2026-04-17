@@ -44,9 +44,8 @@ const config = readConfiguration();
 const app = createServer(handler);
 app.on("clientError", handleClientError);
 
-check_output_directory(config.HISTORY_DIR);
-
 void (async function startServer() {
+  await check_output_directory(config.HISTORY_DIR);
   const sockets = await import(
     `./sockets.mjs?cache-bust=${crypto.randomUUID()}`
   );

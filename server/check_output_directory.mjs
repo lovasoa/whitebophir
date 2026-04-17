@@ -57,19 +57,17 @@ async function getError(directory) {
  * and exits the current process with an error otherwise.
  * @param {string} directory
  */
-function check_output_directory(directory) {
-  getError(directory).then((error) => {
-    if (error) {
-      logger.error("history.dir_invalid", {
-        directory,
-        reason:
-          `The configured history directory in which boards are stored ${error}. ` +
-          `The history directory can be configured with the environment variable WBO_HISTORY_DIR. ` +
-          `It is currently set to "${directory}".`,
-      });
-      process.exit(1);
-    }
+async function check_output_directory(directory) {
+  const error = await getError(directory);
+  if (!error) return;
+  logger.error("history.dir_invalid", {
+    directory,
+    reason:
+      `The configured history directory in which boards are stored ${error}. ` +
+      `The history directory can be configured with the environment variable WBO_HISTORY_DIR. ` +
+      `It is currently set to "${directory}".`,
   });
+  process.exit(1);
 }
 
 export default check_output_directory;
