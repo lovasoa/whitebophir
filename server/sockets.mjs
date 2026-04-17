@@ -2388,6 +2388,9 @@ export const __test = {
   pruneRateLimitMap,
   cleanupBoardUserMap,
   getBoardUserMap,
+  getLoadedBoard: function getLoadedBoardForTest(/** @type {string} */ name) {
+    return boards[name];
+  },
   getLastUserReportLog: function getLastUserReportLog() {
     return lastUserReportLog;
   },
