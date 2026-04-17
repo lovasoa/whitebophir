@@ -38,12 +38,16 @@ test.describe("collaboration and rate limiting", () => {
     });
 
     await Promise.all([
-      boardPage.gotoBoard("collaborative-test"),
-      peerBoard.gotoBoard("collaborative-test"),
+      boardPage.gotoBoardShell("collaborative-test"),
+      peerBoard.gotoBoardShell("collaborative-test"),
     ]);
     await Promise.all([
       boardPage.waitForSocketConnected(),
       peerBoard.waitForSocketConnected(),
+      boardPage.waitForToolBooted("Pencil"),
+      boardPage.waitForToolBooted("Rectangle"),
+      peerBoard.waitForToolBooted("Rectangle"),
+      peerBoard.waitForToolBooted("Cursor"),
     ]);
 
     await expect(boardPage.tool("Pencil")).toBeVisible();
@@ -606,6 +610,12 @@ test.describe("collaboration and rate limiting", () => {
   }) => {
     const boardName = "slow-start-stability";
     const serverOrigin = new URL(server.serverUrl).origin;
+    const delayedAssetPaths = new Set([
+      "/js/board_main.js",
+      "/js/board.js",
+      "/js/path-data-polyfill.js",
+      "/socket.io/socket.io.js",
+    ]);
 
     await server.writeBoard(server.dataPath, boardName, {
       "slow-pencil": {
@@ -680,9 +690,8 @@ test.describe("collaboration and rate limiting", () => {
       const url = new URL(request.url());
       if (
         url.origin === serverOrigin &&
-        ["document", "script", "stylesheet", "image", "fetch", "xhr"].includes(
-          request.resourceType(),
-        )
+        (request.resourceType() === "document" ||
+          delayedAssetPaths.has(url.pathname))
       ) {
         await delay(120);
       }
@@ -894,8 +903,8 @@ test.describe("collaboration and rate limiting", () => {
       const peerBoard = createBoardPage(peerPage, server);
 
       await Promise.all([
-        boardPage.gotoBoard("anonymous"),
-        peerBoard.gotoBoard("anonymous"),
+        boardPage.gotoBoardShell("anonymous"),
+        peerBoard.gotoBoardShell("anonymous"),
       ]);
       await Promise.all([
         boardPage.waitForSocketConnected(),
@@ -906,6 +915,8 @@ test.describe("collaboration and rate limiting", () => {
         peerBoard.waitForAuthoritativeResync(),
       ]);
       await Promise.all([
+        boardPage.waitForToolBooted("Rectangle"),
+        peerBoard.waitForToolBooted("Rectangle"),
         expect(boardPage.tool("Rectangle")).toBeVisible(),
         expect(peerBoard.tool("Rectangle")).toBeVisible(),
       ]);
@@ -949,8 +960,8 @@ test.describe("collaboration and rate limiting", () => {
           indicatorClass: expect.stringContaining("board-status-buffering"),
         });
 
-      await expect(peerPage.locator("rect#buffered-rect-1")).toBeVisible();
       await expect(peerPage.locator("rect#buffered-rect-2")).not.toBeVisible();
+      await expect(peerPage.locator("rect#buffered-rect-1")).toBeVisible();
 
       await expect
         .poll(() => boardPage.readWriteStatus(), { timeout: 5_000 })

@@ -80,9 +80,10 @@ import { getToolCatalogEntry } from "./tool_catalog.js";
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
-// Add extra slack between the client-side local budget and the server's
-// fixed window so buffered writes do not flush too early on slow runners.
-const RATE_LIMIT_FLUSH_SAFETY_MS = 1000;
+// Keep a bounded safety margin between the client-side local budget and the
+// server's fixed window to absorb emit/receive skew without a fixed 1s pause.
+const RATE_LIMIT_FLUSH_SAFETY_MIN_MS = 150;
+const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 300;
 /** @type {RateLimitKind[]} */
 const RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
 
@@ -564,6 +565,22 @@ Tools.getBufferedWriteWaitMs = function getBufferedWriteWaitMs(
   }, 0);
 };
 
+/**
+ * @param {number} waitMs
+ * @returns {number}
+ */
+Tools.getBufferedWriteFlushSafetyMs = function getBufferedWriteFlushSafetyMs(
+  waitMs,
+) {
+  return Math.min(
+    RATE_LIMIT_FLUSH_SAFETY_MAX_MS,
+    Math.max(
+      RATE_LIMIT_FLUSH_SAFETY_MIN_MS,
+      Math.ceil(Math.max(0, waitMs) * 0.5),
+    ),
+  );
+};
+
 /** @returns {void} */
 Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
   Tools.clearBufferedWriteTimer();
@@ -579,7 +596,7 @@ Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
     function flushBufferedWrites() {
       Tools.flushBufferedWrites();
     },
-    Math.max(0, waitMs + RATE_LIMIT_FLUSH_SAFETY_MS),
+    Math.max(0, waitMs + Tools.getBufferedWriteFlushSafetyMs(waitMs)),
   );
   Tools.syncWriteStatusIndicator();
 };

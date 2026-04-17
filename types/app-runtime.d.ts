@@ -387,6 +387,7 @@ export type AppToolsState = {
     now: number,
   ) => void;
   getBufferedWriteWaitMs: (bufferedWrite: BufferedWrite, now: number) => number;
+  getBufferedWriteFlushSafetyMs: (waitMs: number) => number;
   scheduleBufferedWriteFlush: () => void;
   flushBufferedWrites: () => void;
   enqueueBufferedWrite: (message: BoardMessage) => void;

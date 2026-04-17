@@ -155,6 +155,19 @@ export class BoardPage {
     });
   }
 
+  async gotoBoardShell(boardName: string, options: BoardUrlOptions = {}) {
+    await this.page.goto(this.buildBoardUrl(boardName, options), {
+      waitUntil: "domcontentloaded",
+    });
+    await this.page.waitForFunction(() => {
+      if (!document.getElementById("board")) return false;
+      return (
+        !!window.Tools ||
+        document.documentElement.dataset.boardReady === "error"
+      );
+    });
+  }
+
   async gotoPreview(boardName: string, options: BoardUrlOptions = {}) {
     await this.page.goto(this.buildPreviewUrl(boardName, options));
   }
@@ -219,6 +232,17 @@ export class BoardPage {
   async waitForSocketConnected() {
     await expect
       .poll(() => this.page.evaluate(() => !!window.Tools?.socket?.connected))
+      .toBe(true);
+  }
+
+  async waitForToolBooted(name: string) {
+    await expect
+      .poll(() =>
+        this.page.evaluate(
+          (targetToolName) => !!window.Tools?.list?.[targetToolName],
+          name,
+        ),
+      )
       .toBe(true);
   }
 
