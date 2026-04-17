@@ -67,10 +67,10 @@
 		<div id="menuItems">
 			<ul id="tools" class="tools">
 				{{#tools}}
-				<li class="tool" tabindex="-1" id="toolID-{{name}}" data-tool-name="{{name}}">
-					<img class="tool-icon" width="35" height="35" src="{{iconUrl}}" alt="{{label}}" />
+				<li class="tool" tabindex="-1" id="toolID-{{name}}" data-tool-name="{{name}}" aria-label="{{label}}">
+					<img class="tool-icon" width="35" height="35" src="{{iconUrl}}" alt="" aria-hidden="true" />
 					<span class="tool-name">{{label}}</span>
-					<img class="tool-icon secondaryIcon" width="35" height="35" src="data:," alt="" />
+					<img class="tool-icon secondaryIcon" width="35" height="35" src="data:," alt="" aria-hidden="true" />
 				</li>
 				{{/tools}}
 			</ul>
@@ -85,7 +85,7 @@
 				</li>
 				<li class="tool" tabindex="-1"
 					title="{{translations.size}} ({{translations.keyboard_shortcut}}: alt + {{translations.mousewheel}})">
-					<img class="tool-icon" width="60" height="60" src="icon-size.svg?v={{version}}" alt="size" />
+					<img class="tool-icon" width="60" height="60" src="icon-size.svg?v={{version}}" alt="" aria-hidden="true" />
 					<label class="tool-name slider" for="chooseSize">
 						<span>{{translations.size}}</span>
 						<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />

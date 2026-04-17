@@ -224,6 +224,42 @@ test("board pages set an httpOnly user secret cookie when missing", async () => 
   ]);
 });
 
+test("board pages render decorative tool icons without visible alt fallback", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/decorative-icons");
+
+      assert.equal(response.statusCode, 200);
+      assert.match(response.body, /id="toolID-Pencil"[^>]*aria-label="Pencil"/);
+      assert.match(
+        response.body,
+        /<img class="tool-icon" width="35" height="35" src="\.\.\/tools\/pencil\/icon\.svg\?v[^"]*" alt="" aria-hidden="true" \/>/,
+      );
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
 test("board pages preserve a valid incoming user secret cookie and do not rotate it", async () => {
   const dirs = await createServerDirs();
 

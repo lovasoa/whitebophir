@@ -1884,6 +1884,7 @@ function bindToolButton(button, toolName) {
   if (button.dataset.toolBound === "true") return;
   button.dataset.toolName = toolName;
   button.dataset.toolBound = "true";
+  button.setAttribute("aria-label", toolName);
   button.addEventListener("click", () => {
     void Tools.activateTool(toolName);
   });
@@ -1909,7 +1910,8 @@ function createToolButton(toolName) {
   primaryIcon.className = "tool-icon";
   primaryIcon.width = 35;
   primaryIcon.height = 35;
-  primaryIcon.alt = "icon";
+  primaryIcon.alt = "";
+  primaryIcon.setAttribute("aria-hidden", "true");
   button.appendChild(primaryIcon);
 
   const label = document.createElement("span");
@@ -1922,6 +1924,7 @@ function createToolButton(toolName) {
   secondaryIcon.height = 35;
   secondaryIcon.src = "data:,";
   secondaryIcon.alt = "";
+  secondaryIcon.setAttribute("aria-hidden", "true");
   button.appendChild(secondaryIcon);
 
   const toolsList = document.getElementById("tools");
@@ -1954,18 +1957,20 @@ function hydrateToolButton(toolName, tool) {
   if (!button) return;
   bindToolButton(button, toolName);
   const parts = getRequiredToolButtonParts(toolName);
-  parts.label.textContent = Tools.i18n.t(toolName);
+  const translatedToolName = Tools.i18n.t(toolName);
+  parts.label.textContent = translatedToolName;
+  button.setAttribute("aria-label", translatedToolName);
   parts.primaryIcon.src = Tools.versionAssetPath(tool.icon);
-  parts.primaryIcon.alt = Tools.i18n.t(toolName);
+  parts.primaryIcon.alt = "";
   button.classList.toggle("oneTouch", tool.oneTouch === true);
   button.classList.toggle("hasSecondary", !!tool.secondary);
   parts.primaryIcon.classList.toggle("primaryIcon", !!tool.secondary);
   button.title = tool.shortcut
-    ? `${Tools.i18n.t(toolName)} (${Tools.i18n.t("keyboard shortcut")}: ${tool.shortcut})`
-    : Tools.i18n.t(toolName);
+    ? `${translatedToolName} (${Tools.i18n.t("keyboard shortcut")}: ${tool.shortcut})`
+    : translatedToolName;
   if (tool.secondary && parts.secondaryIcon) {
     parts.secondaryIcon.src = Tools.versionAssetPath(tool.secondary.icon);
-    parts.secondaryIcon.alt = Tools.i18n.t(tool.secondary.name);
+    parts.secondaryIcon.alt = "";
     button.title += ` [${Tools.i18n.t("click_to_toggle")}]`;
   } else if (parts.secondaryIcon) {
     parts.secondaryIcon.src = "data:,";
