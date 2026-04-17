@@ -1459,14 +1459,6 @@ function ensureSocketJoinedBoard(socket, boardName) {
 }
 
 /**
- * @param {AppSocket} socket
- * @returns {boolean}
- */
-function usesSeqSync(socket) {
-  return socket.handshake?.query?.sync === "seq";
-}
-
-/**
  * @param {unknown} value
  * @returns {number}
  */
@@ -1477,43 +1469,18 @@ function normalizeSeq(value) {
 
 /**
  * @param {BoardData} board
- * @param {string} boardName
  * @param {AppSocket} sourceSocket
- * @param {NormalizedMessageData & {revision?: number}} legacyPayload
  * @param {ReturnType<BoardData["recordPersistentMutation"]>} envelope
  * @returns {void}
  */
-function emitPersistentBoardMutation(
-  board,
-  boardName,
-  sourceSocket,
-  legacyPayload,
-  envelope,
-) {
-  let hasSeqPeer = false;
-  /** @type {AppSocket[]} */
-  const legacyPeers = [];
+function emitPersistentBoardMutation(board, sourceSocket, envelope) {
   for (const socketId of board.users) {
     const targetSocket = getActiveSocket(socketId);
     if (!targetSocket) continue;
     if (targetSocket.id === sourceSocket.id) continue;
-    if (usesSeqSync(targetSocket)) {
-      hasSeqPeer = true;
-      targetSocket.emit("broadcast", envelope);
-      continue;
-    }
-    legacyPeers.push(targetSocket);
+    targetSocket.emit("broadcast", envelope);
   }
-  if (hasSeqPeer) {
-    legacyPeers.forEach((targetSocket) => {
-      targetSocket.emit("broadcast", legacyPayload);
-    });
-  } else if (!usesSeqSync(sourceSocket) || legacyPeers.length > 0) {
-    sourceSocket.broadcast.to(boardName).emit("broadcast", legacyPayload);
-  }
-  if (usesSeqSync(sourceSocket)) {
-    sourceSocket.emit("broadcast", envelope);
-  }
+  sourceSocket.emit("broadcast", envelope);
 }
 
 /**
@@ -1531,13 +1498,7 @@ function emitPersistentBoardFollowupMutations(
 ) {
   if (!Array.isArray(followup) || followup.length === 0) return;
   followup.forEach((entry) => {
-    emitPersistentBoardMutation(
-      board,
-      boardName,
-      sourceSocket,
-      { ...entry.mutation, revision: entry.revision },
-      entry.envelope,
-    );
+    emitPersistentBoardMutation(board, sourceSocket, entry.envelope);
   });
 }
 
@@ -1738,7 +1699,6 @@ function rejectBoardMessageWrite(
  * @param {NormalizedMessageData} data
  * @param {number} now
  * @param {string} userName
- * @param {number} revision
  * @param {any} envelope
  * @returns {void}
  */
@@ -1749,11 +1709,18 @@ function finishSuccessfulBoardWrite(
   data,
   now,
   userName,
-  revision,
   envelope,
 ) {
   const user = updateBoardUserFromMessage(socket, boardName, data, now);
   attachLiveSocketId(data, user);
+  if (
+    envelope &&
+    typeof envelope === "object" &&
+    typeof envelope.mutation === "object" &&
+    envelope.mutation !== null
+  ) {
+    attachLiveSocketId(envelope.mutation, user);
+  }
   tracing.setActiveSpanAttributes({
     "wbo.board.result": "success",
     "user.name": user ? user.name : userName,
@@ -1766,14 +1733,7 @@ function finishSuccessfulBoardWrite(
     emitEphemeralBoardMutation(boardName, socket, data);
     return;
   }
-  const legacyPayload = { ...data, revision: revision };
-  emitPersistentBoardMutation(
-    board,
-    boardName,
-    socket,
-    legacyPayload,
-    envelope,
-  );
+  emitPersistentBoardMutation(board, socket, envelope);
 }
 
 /**
@@ -1802,19 +1762,10 @@ async function persistBoardBroadcast(
     return;
   }
   if (data.tool === "Cursor") {
-    finishSuccessfulBoardWrite(
-      socket,
-      board,
-      boardName,
-      data,
-      now,
-      userName,
-      0,
-      {
-        seq: 0,
-        mutation: data,
-      },
-    );
+    finishSuccessfulBoardWrite(socket, board, boardName, data, now, userName, {
+      seq: 0,
+      mutation: data,
+    });
     return;
   }
 
@@ -1852,7 +1803,6 @@ async function persistBoardBroadcast(
     handleResult.value,
     now,
     userName,
-    handleResult.revision,
     handleResult.envelope,
   );
 }
@@ -2148,12 +2098,6 @@ async function bootstrapSocketBoard(socket, boardName, config) {
         readonly: board.isReadOnly(),
         canWrite: canWriteToBoard(config, board, socket),
       });
-      if (!usesSeqSync(socket)) {
-        socket.emit("broadcast", {
-          _children: board.getAll(),
-          revision: board.getRevision(),
-        });
-      }
     },
   );
 }
@@ -2280,28 +2224,26 @@ async function handleSocketConnection(socket, config) {
     },
   );
 
-  if (usesSeqSync(socket)) {
-    onSocketEvent(
-      socket,
-      "sync_request",
-      async function onSyncRequest(
-        /** @type {{baselineSeq?: unknown} | undefined} */ request,
-      ) {
-        return tracing.withActiveSpan(
-          "socket.sync_request",
-          {
-            kind: tracing.SpanKind.INTERNAL,
-            attributes: socketTraceAttributes("sync_request", {
-              "wbo.board": boardName,
-            }),
-          },
-          async function traceSyncRequest() {
-            return handleSyncRequestMessage(socket, boardName, request);
-          },
-        );
-      },
-    );
-  }
+  onSocketEvent(
+    socket,
+    "sync_request",
+    async function onSyncRequest(
+      /** @type {{baselineSeq?: unknown} | undefined} */ request,
+    ) {
+      return tracing.withActiveSpan(
+        "socket.sync_request",
+        {
+          kind: tracing.SpanKind.INTERNAL,
+          attributes: socketTraceAttributes("sync_request", {
+            "wbo.board": boardName,
+          }),
+        },
+        async function traceSyncRequest() {
+          return handleSyncRequestMessage(socket, boardName, request);
+        },
+      );
+    },
+  );
 
   onSocketEvent(
     socket,

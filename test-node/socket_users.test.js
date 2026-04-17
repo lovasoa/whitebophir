@@ -192,9 +192,9 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
   );
 });
 
-test("snapshot and live broadcasts carry revisions for deterministic client replay", async () => {
+test("sync replay and live broadcasts carry contiguous seq for deterministic client replay", async () => {
   const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-revision-"),
+    path.join(os.tmpdir(), "wbo-users-seq-deterministic-"),
   );
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
@@ -203,11 +203,11 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
       sockets.__test.resetRateLimitMaps();
 
       const created = createSocket({
-        id: "socket-revision",
+        id: "socket-seq-deterministic",
         remoteAddress: "203.0.113.70",
         headers: withUserSecretCookie("33333333333333333333333333333333"),
         query: {
-          board: "board-revision",
+          board: "board-seq-deterministic",
           tool: "Rectangle",
           color: "#333333",
           size: "4",
@@ -215,11 +215,12 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
       });
       await sockets.__test.handleSocketConnection(created.socket);
 
-      const initialSnapshot = getRequiredValue(
-        created.emitted.find((event) => event.event === "broadcast"),
-      ).payload;
-      assert.equal(initialSnapshot.revision, 0);
-      assert.deepEqual(initialSnapshot._children, []);
+      await getRequiredHandler(
+        created.handlers,
+        "sync_request",
+      )({
+        baselineSeq: 0,
+      });
 
       await getRequiredHandler(
         created.handlers,
@@ -237,29 +238,54 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
       });
 
       const liveBroadcast = getRequiredValue(
-        created.broadcasted.find((event) => event.event === "broadcast"),
+        created.emitted.find((event) => event.event === "broadcast"),
       ).payload;
-      assert.equal(liveBroadcast.revision, 1);
+      assert.equal(liveBroadcast.seq, 1);
+      assert.deepEqual(liveBroadcast.mutation, {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-1",
+        color: "#123456",
+        size: 4,
+        x: 0,
+        y: 0,
+        x2: 20,
+        y2: 20,
+        socket: "socket-seq-deterministic",
+      });
 
       const nextSocket = createSocket({
-        id: "socket-revision-2",
+        id: "socket-seq-deterministic-2",
         remoteAddress: "203.0.113.71",
         headers: withUserSecretCookie("44444444444444444444444444444444"),
         query: {
-          board: "board-revision",
+          board: "board-seq-deterministic",
           tool: "Hand",
           color: "#444444",
           size: "5",
         },
       });
       await sockets.__test.handleSocketConnection(nextSocket.socket);
+      await getRequiredHandler(
+        nextSocket.handlers,
+        "sync_request",
+      )({
+        baselineSeq: 0,
+      });
 
-      const replaySnapshot = getRequiredValue(
-        nextSocket.emitted.find((event) => event.event === "broadcast"),
-      ).payload;
-      assert.equal(replaySnapshot.revision, 1);
-      assert.equal(replaySnapshot._children.length, 1);
-      assert.equal(replaySnapshot._children[0].id, "rect-1");
+      const replayEvents = nextSocket.emitted.filter((event) =>
+        ["sync_replay_start", "broadcast", "sync_replay_end"].includes(
+          event.event,
+        ),
+      );
+      assert.deepEqual(
+        replayEvents.map((event) => event.event),
+        ["sync_replay_start", "broadcast", "sync_replay_end"],
+      );
+      assert.deepEqual(
+        getRequiredValue(replayEvents[1]).payload,
+        liveBroadcast,
+      );
     },
   );
 });
@@ -314,6 +340,87 @@ test("seq-sync clients bootstrap without a snapshot and receive an explicit empt
         type: "sync_replay_end",
         toInclusiveSeq: 0,
       });
+    },
+  );
+});
+
+test("board sockets use seq replay and seq envelopes even without a legacy sync flag", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-seq-default-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async () => {
+      const sockets = await loadSockets();
+      sockets.__test.resetRateLimitMaps();
+
+      const created = createSocket({
+        id: "socket-seq-default",
+        remoteAddress: "203.0.113.80",
+        headers: withUserSecretCookie("55555555555555555555555555555550"),
+        query: {
+          board: "board-seq-default",
+          tool: "Rectangle",
+          color: "#333333",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(created.socket);
+
+      assert.equal(
+        created.emitted.some((event) => event.event === "broadcast"),
+        false,
+      );
+
+      const syncRequest = getRequiredHandler(created.handlers, "sync_request");
+      await syncRequest({ baselineSeq: 0 });
+
+      const replayEvents = created.emitted.filter((event) =>
+        ["boardstate", "sync_replay_start", "sync_replay_end"].includes(
+          event.event,
+        ),
+      );
+      assert.deepEqual(
+        replayEvents.map((event) => event.event),
+        ["boardstate", "sync_replay_start", "sync_replay_end"],
+      );
+
+      await getRequiredHandler(
+        created.handlers,
+        "broadcast",
+      )({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-default-seq-1",
+        color: "#123456",
+        size: 4,
+        x: 0,
+        y: 0,
+        x2: 20,
+        y2: 20,
+      });
+
+      const seqBroadcasts = created.emitted.filter(
+        (event) => event.event === "broadcast",
+      );
+      assert.equal(seqBroadcasts.length, 1);
+      assert.equal(getRequiredValue(seqBroadcasts[0]).payload.seq, 1);
+      assert.deepEqual(getRequiredValue(seqBroadcasts[0]).payload.mutation, {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-default-seq-1",
+        color: "#123456",
+        size: 4,
+        x: 0,
+        y: 0,
+        x2: 20,
+        y2: 20,
+        socket: "socket-seq-default",
+      });
+      assert.equal(
+        "revision" in getRequiredValue(seqBroadcasts[0]).payload,
+        false,
+      );
     },
   );
 });
@@ -692,9 +799,9 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
   );
 });
 
-test("mixed seq and legacy peers do not double-deliver persistent writes to seq sockets", async () => {
+test("persistent writes fan out as seq envelopes to every peer", async () => {
   const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-mixed-sync-fanout-"),
+    path.join(os.tmpdir(), "wbo-users-seq-fanout-"),
   );
   await withEnv(
     { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
@@ -708,7 +815,6 @@ test("mixed seq and legacy peers do not double-deliver persistent writes to seq 
         headers: withUserSecretCookie("99999999999999999999999999999989"),
         query: {
           board: "board-mixed-sync",
-          sync: "seq",
           tool: "Rectangle",
           color: "#111111",
           size: "4",
@@ -720,14 +826,13 @@ test("mixed seq and legacy peers do not double-deliver persistent writes to seq 
         headers: withUserSecretCookie("99999999999999999999999999999990"),
         query: {
           board: "board-mixed-sync",
-          sync: "seq",
           tool: "Hand",
           color: "#222222",
           size: "4",
         },
       });
-      const legacyPeer = createSocket({
-        id: "socket-mixed-legacy-peer",
+      const defaultPeer = createSocket({
+        id: "socket-mixed-default-peer",
         remoteAddress: "203.0.113.91",
         headers: withUserSecretCookie("99999999999999999999999999999991"),
         query: {
@@ -740,14 +845,14 @@ test("mixed seq and legacy peers do not double-deliver persistent writes to seq 
 
       await sockets.__test.handleSocketConnection(writer.socket);
       await sockets.__test.handleSocketConnection(seqPeer.socket);
-      await sockets.__test.handleSocketConnection(legacyPeer.socket);
+      await sockets.__test.handleSocketConnection(defaultPeer.socket);
 
       writer.socket.broadcast = {
         to(room) {
           return {
             emit(event, payload) {
               writer.broadcasted.push({ event, payload, room });
-              [seqPeer.socket, legacyPeer.socket]
+              [seqPeer.socket, defaultPeer.socket]
                 .filter((target) => target.rooms.has(room))
                 .forEach((target) => {
                   target.emit(event, payload);
@@ -789,6 +894,7 @@ test("mixed seq and legacy peers do not double-deliver persistent writes to seq 
           y2: 10,
           color: "#111111",
           size: 4,
+          socket: "socket-mixed-writer",
         },
       );
       assert.equal(
@@ -800,17 +906,13 @@ test("mixed seq and legacy peers do not double-deliver persistent writes to seq 
         false,
       );
 
-      const legacyPeerBroadcasts = legacyPeer.emitted.filter(
+      const defaultPeerBroadcasts = defaultPeer.emitted.filter(
         (event) => event.event === "broadcast",
       );
-      assert.equal(legacyPeerBroadcasts.length, 2);
-      assert.equal(
-        getRequiredValue(legacyPeerBroadcasts[1]).payload.revision,
-        1,
-      );
-      assert.equal(
-        "seq" in getRequiredValue(legacyPeerBroadcasts[1]).payload,
-        false,
+      assert.equal(defaultPeerBroadcasts.length, 1);
+      assert.deepEqual(
+        getRequiredValue(defaultPeerBroadcasts[0]).payload,
+        getRequiredValue(seqPeerBroadcasts[0]).payload,
       );
     },
   );
@@ -1133,17 +1235,11 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       const user = getRequiredValue(
         sockets.__test.getBoardUserMap("board-live").get("socket-live"),
       );
-      assert.equal(
-        getRequiredValue(created.broadcasted[1]).payload.socket,
-        "socket-live",
-      );
-      assert.equal(
-        Object.hasOwn(
-          getRequiredValue(created.broadcasted[1]).payload,
-          "userId",
-        ),
-        false,
-      );
+      const persistentEnvelope = getRequiredValue(
+        created.emitted.find((event) => event.event === "broadcast"),
+      ).payload;
+      assert.equal(persistentEnvelope.mutation.socket, "socket-live");
+      assert.equal(Object.hasOwn(persistentEnvelope.mutation, "userId"), false);
       assert.equal(user.lastTool, "Rectangle");
       assert.equal(user.color, "#123456");
       assert.equal(user.size, 9);
@@ -1163,10 +1259,10 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       assert.equal(user.lastTool, "Rectangle");
       assert.equal(user.color, "#abcdef");
       assert.equal(user.size, 12);
-      assert.equal(
-        getRequiredValue(created.broadcasted[2]).payload.socket,
-        user.socketId,
+      const cursorBroadcast = getRequiredValue(
+        created.broadcasted.findLast((event) => event.event === "broadcast"),
       );
+      assert.equal(cursorBroadcast.payload.socket, user.socketId);
     },
   );
 });
@@ -1227,10 +1323,10 @@ test("same-session sockets keep a shared userId in presence but live payload att
         y2: 40,
       });
 
-      const liveBroadcast = getRequiredValue(
-        first.broadcasted.find((event) => event.event === "broadcast"),
+      const liveEnvelope = getRequiredValue(
+        second.emitted.find((event) => event.event === "broadcast"),
       );
-      const payload = liveBroadcast.payload;
+      const payload = liveEnvelope.payload.mutation;
       assert.equal(payload.socket, "socket-a");
       assert.equal(Object.hasOwn(payload, "userId"), false);
       assert.equal(firstUser.lastTool, "Rectangle");
