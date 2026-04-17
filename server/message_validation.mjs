@@ -218,23 +218,19 @@ function normalizeObject(raw, fields) {
 /**
  * @param {RawRecord} raw
  * @param {RawRecord} normalized
- * @returns {number}
+ * @returns {unknown}
  */
 function defaultCoordinateFromX(raw, normalized) {
-  return /** @type {number} */ (
-    normalized.x !== undefined ? normalized.x : raw.x
-  );
+  return normalized.x !== undefined ? normalized.x : raw.x;
 }
 
 /**
  * @param {RawRecord} raw
  * @param {RawRecord} normalized
- * @returns {number}
+ * @returns {unknown}
  */
 function defaultCoordinateFromY(raw, normalized) {
-  return /** @type {number} */ (
-    normalized.y !== undefined ? normalized.y : raw.y
-  );
+  return normalized.y !== undefined ? normalized.y : raw.y;
 }
 
 /**
@@ -523,15 +519,12 @@ function normalizeIncomingMessage(raw) {
  * @returns {ValidationResult<ChildPoint>}
  */
 function normalizeStoredChildPoint(raw) {
-  const normalized = normalizeObject(raw, {
-    x: required(normalizeCoord),
-    y: required(normalizeCoord),
-  });
-  if (normalized.ok === false) return normalized;
-  return accepted({
-    x: /** @type {number} */ (normalized.value.x),
-    y: /** @type {number} */ (normalized.value.y),
-  });
+  if (!isPlainObject(raw)) return rejected("expected object");
+
+  const x = normalizeCoord(raw.x);
+  const y = normalizeCoord(raw.y);
+
+  return accepted({ x: x.value, y: y.value });
 }
 
 /**
@@ -574,12 +567,10 @@ function normalizeStoredItemWithBounds(raw, storedId) {
     return rejected("shape too large");
   }
 
-  return accepted(
-    /** @type {StoredItemWithBounds} */ ({
-      value: normalized.value,
-      localBounds: localBounds,
-    }),
-  );
+  return accepted({
+    value: normalized.value,
+    localBounds: localBounds,
+  });
 }
 
 /**
@@ -590,7 +581,7 @@ function normalizeStoredItemWithBounds(raw, storedId) {
 function normalizeStoredItem(raw, storedId) {
   const normalized = normalizeStoredItemWithBounds(raw, storedId);
   if (!normalized.ok) return normalized;
-  return accepted(/** @type {RawRecord} */ (normalized.value.value));
+  return accepted(normalized.value.value);
 }
 
 export {
