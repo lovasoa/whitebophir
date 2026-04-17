@@ -26,6 +26,7 @@ import {
 
 const DEFAULT_SVG_SIZE = 500;
 const SVG_MARGIN = 400;
+let tempSvgSuffixCounter = 0;
 
 /** @typedef {{readonly: boolean}} BoardMetadata */
 
@@ -81,6 +82,15 @@ function errorCode(error) {
   return error && typeof error === "object" && "code" in error
     ? String(error.code)
     : undefined;
+}
+
+/**
+ * @param {string} file
+ * @returns {string}
+ */
+function createTempSvgPath(file) {
+  tempSvgSuffixCounter = (tempSvgSuffixCounter + 1) % Number.MAX_SAFE_INTEGER;
+  return `${file}.${Date.now()}.${tempSvgSuffixCounter}.tmp`;
 }
 
 /**
@@ -286,7 +296,7 @@ async function readBoardState(boardName, options) {
 async function writeBoardState(boardName, board, metadata, seq, options) {
   const historyDir = options?.historyDir;
   const file = boardSvgPath(boardName, historyDir);
-  const tmpFile = `${file}.${Date.now()}.tmp`;
+  const tmpFile = createTempSvgPath(file);
   if (Object.keys(board).length === 0) {
     for (const emptyPath of [file, boardJsonPath(boardName, historyDir)]) {
       try {
@@ -380,7 +390,7 @@ async function rewriteStoredSvg(
 ) {
   const historyDir = options?.historyDir;
   const file = boardSvgPath(boardName, historyDir);
-  const tmpFile = `${file}.${Date.now()}.tmp`;
+  const tmpFile = createTempSvgPath(file);
   const existingSvg = await readFile(file, "utf8");
   const currentSeq = normalizeStoredSeq(
     parseStoredSvgEnvelope(existingSvg).rootAttributes["data-wbo-seq"],
@@ -448,6 +458,7 @@ export {
   STORED_SVG_FORMAT,
   boardJsonPath,
   boardSvgPath,
+  createTempSvgPath,
   defaultBoardMetadata,
   parseLegacyStoredBoard,
   rewriteStoredSvg,

@@ -514,6 +514,21 @@ test("rewriteStoredSvg rejects stored svg base-seq mismatches", async () => {
   });
 });
 
+test("stored svg temp paths stay unique within the same millisecond", () => {
+  const originalNow = Date.now;
+  Date.now = () => 1234567890;
+  try {
+    const first = svgBoardStore.createTempSvgPath("/tmp/board.svg");
+    const second = svgBoardStore.createTempSvgPath("/tmp/board.svg");
+
+    assert.notEqual(first, second);
+    assert.match(first, /^\/tmp\/board\.svg\.\d+\.\d+\.tmp$/);
+    assert.match(second, /^\/tmp\/board\.svg\.\d+\.\d+\.tmp$/);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test("writeBoardState removes stale svg and legacy json when board becomes empty", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-empty-delete-"),
