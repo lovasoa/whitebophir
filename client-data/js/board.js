@@ -1115,6 +1115,7 @@ Tools.drawingArea = Tools.svg.getElementById("drawingArea");
 
 //Initialization
 Tools.curTool = null;
+document.documentElement.dataset.activeToolSecondary = "false";
 Tools.drawingEvent = true;
 Tools.showMarker = true;
 Tools.showOtherCursors = true;
@@ -2375,6 +2376,7 @@ function toggleSecondaryTool(newTool) {
   const props = newTool.secondary.active ? newTool.secondary : newTool;
   Tools.HTML.toggle(newTool.name, props.name, props.icon);
   if (newTool.secondary.switch) newTool.secondary.switch();
+  syncActiveToolState();
 }
 
 /**
@@ -2402,6 +2404,24 @@ function replaceCurrentTool(newTool) {
   }
   Tools.addToolListeners(newTool);
   Tools.curTool = newTool;
+  syncActiveToolState();
+}
+
+function syncActiveToolState() {
+  const currentTool = Tools.curTool;
+  if (!currentTool) {
+    delete document.documentElement.dataset.activeTool;
+    delete document.documentElement.dataset.activeToolMode;
+    document.documentElement.dataset.activeToolSecondary = "false";
+    return;
+  }
+  document.documentElement.dataset.activeTool = currentTool.name;
+  document.documentElement.dataset.activeToolMode =
+    currentTool.secondary && currentTool.secondary.active
+      ? currentTool.secondary.name
+      : currentTool.name;
+  document.documentElement.dataset.activeToolSecondary =
+    currentTool.secondary && currentTool.secondary.active ? "true" : "false";
 }
 
 /** @param {string} toolName */

@@ -103,8 +103,21 @@ export class BoardPage {
     await this.expectCurrentTool(name);
   }
 
+  async readActiveToolState() {
+    return this.page.evaluate(() => ({
+      tool: document.documentElement.dataset.activeTool ?? "",
+      mode: document.documentElement.dataset.activeToolMode ?? "",
+      secondary:
+        document.documentElement.dataset.activeToolSecondary === "true",
+    }));
+  }
+
   async expectCurrentTool(name: string) {
-    await expect(this.tool(name)).toHaveClass(/curTool/);
+    await expect
+      .poll(() => this.readActiveToolState())
+      .toMatchObject({
+        tool: name,
+      });
   }
 
   async setSocketHeaders(headers: Record<string, string>) {
@@ -247,14 +260,6 @@ export class BoardPage {
     await this.page.evaluate(async (inputPaths) => {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      const waitFor = async (predicate: () => boolean, timeoutMs = 2_000) => {
-        const deadline = performance.now() + timeoutMs;
-        while (performance.now() < deadline) {
-          if (predicate()) return;
-          await nextFrame();
-        }
-        throw new Error("Timed out waiting for pencil path");
-      };
       const getTools = () => (window as any).Tools;
       const ensurePencilTool = async () => {
         const tools = getTools();
@@ -312,31 +317,21 @@ export class BoardPage {
           if (!point) continue;
           await appendPencilPoint(tools, pencilTool, lineId, point);
         }
-        await waitFor(
-          () =>
-            !!document.querySelector(
-              `#drawingArea path[stroke='${path.color}']`,
-            ),
-        );
       }
     }, paths);
+    for (const path of paths) {
+      if (path.points.length === 0) continue;
+      await expect(
+        this.page.locator(`#drawingArea path[stroke='${path.color}']`),
+      ).toBeVisible();
+    }
   }
 
   async drawCircle(color: string, center: Point, radius: number) {
     await this.waitForBoardWritable();
+    const circleSelector = `ellipse[cx='${center.x}'][cy='${center.y}'][rx='${radius}'][ry='${radius}'][stroke='${color}']`;
     await this.page.evaluate(
-      async ({ drawColor, drawCenter, drawRadius }) => {
-        const waitFor = async (predicate: () => boolean, timeoutMs = 2_000) => {
-          const deadline = performance.now() + timeoutMs;
-          while (performance.now() < deadline) {
-            if (predicate()) return;
-            await new Promise<void>((resolve) =>
-              requestAnimationFrame(() => resolve()),
-            );
-          }
-          throw new Error("Timed out waiting for circle");
-        };
-
+      ({ drawColor, drawCenter, drawRadius }) => {
         (window as any).Tools.setColor(drawColor);
         (window as any).Tools.curTool.listeners.press(
           drawCenter.x + drawRadius,
@@ -355,33 +350,16 @@ export class BoardPage {
           drawCenter.y - drawRadius,
           new Event("mouseup"),
         );
-
-        await waitFor(
-          () =>
-            !!document.querySelector(
-              `ellipse[cx='${drawCenter.x}'][cy='${drawCenter.y}'][rx='${drawRadius}'][ry='${drawRadius}']`,
-            ),
-        );
       },
       { drawColor: color, drawCenter: center, drawRadius: radius },
     );
+    await expect(this.page.locator(circleSelector)).toBeVisible();
   }
 
   async createText(x: number, y: number, text: string) {
     await this.waitForBoardWritable();
     await this.page.evaluate(
-      async ({ targetX, targetY, targetText }) => {
-        const waitFor = async (predicate: () => boolean, timeoutMs = 2_000) => {
-          const deadline = performance.now() + timeoutMs;
-          while (performance.now() < deadline) {
-            if (predicate()) return;
-            await new Promise<void>((resolve) =>
-              requestAnimationFrame(() => resolve()),
-            );
-          }
-          throw new Error("Timed out waiting for text");
-        };
-
+      ({ targetX, targetY, targetText }) => {
         (window as any).Tools.curTool.listeners.press(targetX, targetY, {
           target: (window as any).Tools.board,
           preventDefault() {},
@@ -393,18 +371,15 @@ export class BoardPage {
         input.value = targetText;
         input.dispatchEvent(new Event("keyup"));
         input.blur();
-        await waitFor(() => {
-          const node = document.querySelector("#drawingArea text");
-          return node?.textContent === targetText;
-        });
       },
       { targetX: x, targetY: y, targetText: text },
     );
+    await expect(this.page.locator("#drawingArea text")).toHaveText(text);
   }
 
   async drawStraightLine(start: Point, end: Point) {
     await this.waitForBoardWritable();
-    return this.page.evaluate(
+    await this.page.evaluate(
       async ({ lineStart, lineEnd }) => {
         const advanceFrames = async (count: number) => {
           for (let index = 0; index < count; index += 1) {
@@ -413,19 +388,6 @@ export class BoardPage {
             );
           }
         };
-        const waitFor = async <T>(
-          predicate: () => T | null,
-          timeoutMs = 2_000,
-        ) => {
-          const deadline = performance.now() + timeoutMs;
-          while (performance.now() < deadline) {
-            const value = predicate();
-            if (value !== null) return value;
-            await advanceFrames(1);
-          }
-          throw new Error("Timed out waiting for line");
-        };
-
         const evt = { preventDefault() {} };
         (window as any).Tools.curTool.listeners.press(
           lineStart.x,
@@ -440,42 +402,27 @@ export class BoardPage {
           lineEnd.y,
           evt,
         );
-
-        return waitFor(() => {
-          const line = document.querySelector("#drawingArea line");
-          if (!line) return null;
-          return {
-            secondaryActive: (window as any).Tools.curTool.secondary.active,
-            x1: Number(line.getAttribute("x1")),
-            y1: Number(line.getAttribute("y1")),
-            x2: Number(line.getAttribute("x2")),
-            y2: Number(line.getAttribute("y2")),
-          };
-        });
       },
       { lineStart: start, lineEnd: end },
     );
+    await expect(this.page.locator("#drawingArea line")).toHaveCount(1);
+    return this.page.evaluate(() => {
+      const line = document.querySelector("#drawingArea line");
+      if (!line) throw new Error("Missing line after draw");
+      return {
+        secondaryActive: (window as any).Tools.curTool.secondary.active,
+        x1: Number(line.getAttribute("x1")),
+        y1: Number(line.getAttribute("y1")),
+        x2: Number(line.getAttribute("x2")),
+        y2: Number(line.getAttribute("y2")),
+      };
+    });
   }
 
   async drawSquare(start: Point, end: Point) {
     await this.waitForBoardWritable();
-    return this.page.evaluate(
-      async ({ squareStart, squareEnd }) => {
-        const waitFor = async <T>(
-          predicate: () => T | null,
-          timeoutMs = 2_000,
-        ) => {
-          const deadline = performance.now() + timeoutMs;
-          while (performance.now() < deadline) {
-            const value = predicate();
-            if (value !== null) return value;
-            await new Promise<void>((resolve) =>
-              requestAnimationFrame(() => resolve()),
-            );
-          }
-          throw new Error("Timed out waiting for rectangle");
-        };
-
+    await this.page.evaluate(
+      ({ squareStart, squareEnd }) => {
         const evt = { preventDefault() {} };
         (window as any).Tools.curTool.listeners.press(
           squareStart.x,
@@ -492,37 +439,26 @@ export class BoardPage {
           squareEnd.y,
           evt,
         );
-
-        return waitFor(() => {
-          const rect = document.querySelector("#drawingArea rect");
-          if (!rect) return null;
-          return {
-            secondaryActive: (window as any).Tools.curTool.secondary.active,
-            x: Number(rect.getAttribute("x")),
-            y: Number(rect.getAttribute("y")),
-            width: Number(rect.getAttribute("width")),
-            height: Number(rect.getAttribute("height")),
-          };
-        });
       },
       { squareStart: start, squareEnd: end },
     );
+    await expect(this.page.locator("#drawingArea rect")).toBeVisible();
+    return this.page.evaluate(() => {
+      const rect = document.querySelector("#drawingArea rect");
+      if (!rect) throw new Error("Missing rectangle after draw");
+      return {
+        secondaryActive: (window as any).Tools.curTool.secondary.active,
+        x: Number(rect.getAttribute("x")),
+        y: Number(rect.getAttribute("y")),
+        width: Number(rect.getAttribute("width")),
+        height: Number(rect.getAttribute("height")),
+      };
+    });
   }
 
   async eraseShapeById(id: string) {
     await this.waitForBoardWritable();
-    return this.page.evaluate(async (targetId) => {
-      const waitFor = async (predicate: () => boolean, timeoutMs = 2_000) => {
-        const deadline = performance.now() + timeoutMs;
-        while (performance.now() < deadline) {
-          if (predicate()) return;
-          await new Promise<void>((resolve) =>
-            requestAnimationFrame(() => resolve()),
-          );
-        }
-        throw new Error("Timed out waiting for eraser");
-      };
-
+    await this.page.evaluate((targetId) => {
       const rect = document.getElementById(targetId);
       if (!rect) throw new Error(`Missing shape ${targetId}`);
       const evt = {
@@ -531,8 +467,8 @@ export class BoardPage {
       };
       (window as any).Tools.curTool.listeners.press(110, 110, evt);
       (window as any).Tools.curTool.listeners.release(110, 110, evt);
-      await waitFor(() => document.getElementById(targetId) === null);
     }, id);
+    await expect(this.page.locator(`#${id}`)).toHaveCount(0);
   }
 
   async moveCursor(color: string, x: number, y: number) {
@@ -555,35 +491,8 @@ export class BoardPage {
 
   async moveSelection(id: string, from: Point, to: Point) {
     await this.waitForBoardWritable();
-    return this.page.evaluate(
-      async ({ targetId, fromPoint, toPoint }) => {
-        const readTranslation = (rect: Element) => {
-          const transform = rect.getAttribute("transform") ?? "";
-          const values = (transform.match(/matrix\(([^)]+)\)/)?.[1] ?? "")
-            .split(/[ ,]+/)
-            .filter(Boolean)
-            .map(Number);
-          return {
-            transform,
-            e: values[4],
-            f: values[5],
-          };
-        };
-        const waitFor = async <T>(
-          predicate: () => T | null,
-          timeoutMs = 2_000,
-        ) => {
-          const deadline = performance.now() + timeoutMs;
-          while (performance.now() < deadline) {
-            const value = predicate();
-            if (value !== null) return value;
-            await new Promise<void>((resolve) =>
-              requestAnimationFrame(() => resolve()),
-            );
-          }
-          throw new Error("Timed out waiting for selection");
-        };
-
+    await this.page.evaluate(
+      ({ targetId, fromPoint, toPoint }) => {
         const rect = document.getElementById(targetId);
         if (!rect) throw new Error(`Missing shape ${targetId}`);
         const evt = {
@@ -603,41 +512,38 @@ export class BoardPage {
           toPoint.y,
           evt,
         );
-        return waitFor(() => {
-          const translation = readTranslation(rect);
-          if (translation.e === undefined || translation.f === undefined)
-            return null;
-          return {
-            selectorActive: (window as any).Tools.curTool.secondary.active,
-            translation,
-          };
-        });
       },
       { targetId: id, fromPoint: from, toPoint: to },
     );
+    await this.page.waitForFunction((targetId) => {
+      const rect = document.getElementById(targetId);
+      return rect?.getAttribute("transform")?.includes("matrix(") ?? false;
+    }, id);
+    return this.page.evaluate((targetId) => {
+      const rect = document.getElementById(targetId);
+      if (!rect) throw new Error(`Missing shape ${targetId}`);
+      const transform = rect.getAttribute("transform") ?? "";
+      const values = (transform.match(/matrix\(([^)]+)\)/)?.[1] ?? "")
+        .split(/[ ,]+/)
+        .filter(Boolean)
+        .map(Number);
+      return {
+        selectorActive: (window as any).Tools.curTool.secondary.active,
+        translation: {
+          transform,
+          e: values[4],
+          f: values[5],
+        },
+      };
+    }, id);
   }
 
   async zoomClickInAndOut(point: Point) {
-    return this.page.evaluate(async ({ x, y }) => {
-      const nextFrame = () =>
-        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      const waitFor = async <T>(
-        predicate: () => T | null,
-        timeoutMs = 2_000,
-      ) => {
-        const deadline = performance.now() + timeoutMs;
-        while (performance.now() < deadline) {
-          const value = predicate();
-          if (value !== null) return value;
-          await nextFrame();
-        }
-        throw new Error("Timed out waiting for zoom result");
-      };
+    const initialScale = await this.page.evaluate(() => {
+      return (window as any).Tools.getScale();
+    });
+    await this.page.evaluate(({ x, y }) => {
       const tools = (window as any).Tools;
-      const initialScale = tools.getScale();
-
-      await waitFor(() => (tools.curTool?.name === "Zoom" ? true : null));
-
       const zoomInEvent = {
         preventDefault() {},
         clientY: 100,
@@ -645,11 +551,15 @@ export class BoardPage {
       };
       tools.curTool.listeners.press(x, y, zoomInEvent);
       tools.curTool.listeners.release(x, y, zoomInEvent);
-      const scaleAfterZoomIn = await waitFor(() => {
-        const scale = tools.getScale();
-        return scale > initialScale ? scale : null;
-      });
-
+    }, point);
+    await this.page.waitForFunction((previousScale) => {
+      return (window as any).Tools.getScale() > previousScale;
+    }, initialScale);
+    const scaleAfterZoomIn = await this.page.evaluate(() => {
+      return (window as any).Tools.getScale();
+    });
+    await this.page.evaluate(({ x, y }) => {
+      const tools = (window as any).Tools;
       const zoomOutEvent = {
         preventDefault() {},
         clientY: 100,
@@ -657,16 +567,17 @@ export class BoardPage {
       };
       tools.curTool.listeners.press(x, y, zoomOutEvent);
       tools.curTool.listeners.release(x, y, zoomOutEvent);
-      const scaleAfterZoomOut = await waitFor(() => {
-        const scale = tools.getScale();
-        return scale < scaleAfterZoomIn ? scale : null;
-      });
-
-      return {
-        scaleAfterZoomIn,
-        scaleAfterZoomOut,
-      };
     }, point);
+    await this.page.waitForFunction((previousScale) => {
+      return (window as any).Tools.getScale() < previousScale;
+    }, scaleAfterZoomIn);
+    const scaleAfterZoomOut = await this.page.evaluate(() => {
+      return (window as any).Tools.getScale();
+    });
+    return {
+      scaleAfterZoomIn,
+      scaleAfterZoomOut,
+    };
   }
 
   async verifyZoomThresholdBehavior() {
@@ -761,48 +672,32 @@ export class BoardPage {
 
   async duplicateSelectionAndDelete(id: string) {
     await this.waitForBoardWritable();
-    return this.page.evaluate(async (targetId) => {
-      const rectState = () =>
-        Array.from(document.querySelectorAll("#drawingArea rect")).map(
-          (rect) => rect.id,
-        );
-      const waitFor = async <T>(
-        predicate: () => T | null,
-        timeoutMs = 2_000,
-      ) => {
-        const deadline = performance.now() + timeoutMs;
-        while (performance.now() < deadline) {
-          const value = predicate();
-          if (value !== null) return value;
-          await new Promise<void>((resolve) =>
-            requestAnimationFrame(() => resolve()),
-          );
-        }
-        throw new Error("Timed out waiting for selector");
-      };
+    await this.page.evaluate((targetId) => {
       const rect = document.getElementById(targetId);
       if (!rect) throw new Error(`Missing shape ${targetId}`);
       const duplicateId = (window as any).Tools.generateUID(targetId[0] ?? "s");
       (window as any).Tools.drawAndSend({
         _children: [{ type: "copy", id: targetId, newid: duplicateId }],
       });
-
-      const afterDuplicate = await waitFor(() => {
-        const ids = rectState();
-        return ids.length === 2 ? ids : null;
-      });
-
+    }, id);
+    await expect(this.page.locator("#drawingArea rect")).toHaveCount(2);
+    const afterDuplicate = await this.page.evaluate(() => {
+      return Array.from(document.querySelectorAll("#drawingArea rect")).map(
+        (rect) => rect.id,
+      );
+    });
+    await this.page.evaluate((targetId) => {
       (window as any).Tools.drawAndSend({
         _children: [{ type: "delete", id: targetId }],
       });
-
-      const afterDelete = await waitFor(() => {
-        const ids = rectState();
-        return ids.length === 1 ? ids : null;
-      });
-
-      return { afterDuplicate, afterDelete };
     }, id);
+    await expect(this.page.locator("#drawingArea rect")).toHaveCount(1);
+    const afterDelete = await this.page.evaluate(() => {
+      return Array.from(document.querySelectorAll("#drawingArea rect")).map(
+        (rect) => rect.id,
+      );
+    });
+    return { afterDuplicate, afterDelete };
   }
 
   async emitBroadcast(message: Record<string, unknown>) {
@@ -944,22 +839,7 @@ export class BoardPage {
 
   async queueProtectedRectangle(id: string) {
     await this.waitForBoardWritable();
-    return this.page.evaluate(async (rectId) => {
-      const waitFor = async <T>(
-        predicate: () => T | null,
-        timeoutMs = 2_000,
-      ) => {
-        const deadline = performance.now() + timeoutMs;
-        while (performance.now() < deadline) {
-          const value = predicate();
-          if (value !== null) return value;
-          await new Promise<void>((resolve) =>
-            requestAnimationFrame(() => resolve()),
-          );
-        }
-        throw new Error("Timed out waiting for turnstile overlay");
-      };
-
+    await this.page.evaluate((rectId) => {
       (window as any).Tools.drawAndSend(
         {
           type: "rect",
@@ -979,57 +859,33 @@ export class BoardPage {
       if (options?.["before-interactive-callback"]) {
         options["before-interactive-callback"]();
       }
-
-      return waitFor(() => {
-        const overlay = document.getElementById("turnstile-overlay");
-        if (
-          !overlay ||
-          overlay.classList.contains("turnstile-overlay-hidden")
-        ) {
-          return null;
-        }
-        return {
-          overlayPresent: true,
-          pendingWrites: (window as any).Tools.turnstilePendingWrites.length,
-          validated: (window as any).Tools.isTurnstileValidated(),
-        };
-      });
     }, id);
+    await this.page.waitForFunction(() => {
+      const overlay = document.getElementById("turnstile-overlay");
+      return !!(
+        overlay && !overlay.classList.contains("turnstile-overlay-hidden")
+      );
+    });
+    return this.page.evaluate(() => ({
+      overlayPresent: true,
+      pendingWrites: (window as any).Tools.turnstilePendingWrites.length,
+      validated: (window as any).Tools.isTurnstileValidated(),
+    }));
   }
 
   async completeTurnstileChallenge(token: string) {
-    return this.page.evaluate(async (value) => {
-      const waitFor = async <T>(
-        predicate: () => T | null,
-        timeoutMs = 2_000,
-      ) => {
-        const deadline = performance.now() + timeoutMs;
-        while (performance.now() < deadline) {
-          const out = predicate();
-          if (out !== null) return out;
-          await new Promise<void>((resolve) =>
-            requestAnimationFrame(() => resolve()),
-          );
-        }
-        throw new Error("Timed out waiting for challenge recovery");
-      };
-
+    await this.page.evaluate((value) => {
       (window as any).__turnstileOptions.callback(value);
-      return waitFor(() => {
-        const overlay = document.getElementById("turnstile-overlay");
-        if (
-          overlay &&
-          !overlay.classList.contains("turnstile-overlay-hidden")
-        ) {
-          return null;
-        }
-        return {
-          overlayPresent: false,
-          pendingWrites: (window as any).Tools.turnstilePendingWrites.length,
-          validated: (window as any).Tools.isTurnstileValidated(),
-        };
-      });
     }, token);
+    await this.page.waitForFunction(() => {
+      const overlay = document.getElementById("turnstile-overlay");
+      return !overlay || overlay.classList.contains("turnstile-overlay-hidden");
+    });
+    return this.page.evaluate(() => ({
+      overlayPresent: false,
+      pendingWrites: (window as any).Tools.turnstilePendingWrites.length,
+      validated: (window as any).Tools.isTurnstileValidated(),
+    }));
   }
 
   async readCursorAttributes() {
