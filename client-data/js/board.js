@@ -2211,21 +2211,25 @@ Tools.mountTool = function mountTool(tool) {
  * @param {string} toolName
  * @returns {Promise<AppTool | null>}
  */
+async function createBootPromise(toolName) {
+  const ToolClass = await Tools.ensureToolClassLoaded(toolName);
+  if (!ToolClass || typeof ToolClass.boot !== "function") return null;
+  const bootedTool = await ToolClass.boot(createToolBootContext(toolName));
+  if (!bootedTool) return null;
+  return Tools.mountTool(bootedTool);
+}
+
+/**
+ * @param {string} toolName
+ * @returns {Promise<AppTool | null>}
+ */
 Tools.bootTool = async function bootTool(toolName) {
   const existingTool = Tools.list[toolName];
   if (existingTool) return existingTool;
   const inFlight = Tools.bootedToolPromises[toolName];
   if (inFlight) return inFlight;
 
-  const promise = Tools.ensureToolClassLoaded(toolName).then(
-    async function onToolClassLoaded(ToolClass) {
-      if (!ToolClass || typeof ToolClass.boot !== "function") return null;
-      const bootedTool = await ToolClass.boot(createToolBootContext(toolName));
-      if (!bootedTool) return null;
-      return Tools.mountTool(bootedTool);
-    },
-  );
-
+  const promise = createBootPromise(toolName);
   Tools.bootedToolPromises[toolName] = promise;
   try {
     return await promise;
