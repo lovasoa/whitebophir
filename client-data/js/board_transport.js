@@ -78,19 +78,33 @@ function closeSocket(socket) {
 }
 
 /**
+ * @returns {Promise<void>}
+ */
+function nextAnimationFrame() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
+/**
  * @template T
  * @param {(value: T) => void | Promise<void>} fn
  * @param {T[]} args
  * @param {number} [index]
  * @returns {Promise<void>}
  */
-function batchCall(fn, args, index) {
-  index = (index || 0) | 0;
-  if (index >= args.length) return Promise.resolve();
-  const batch = args.slice(index, index + BATCH_SIZE);
-  return Promise.all(batch.map(fn))
-    .then(() => new Promise(requestAnimationFrame))
-    .then(() => batchCall(fn, args, index + BATCH_SIZE));
+async function batchCall(fn, args, index) {
+  for (
+    let offset = (index || 0) | 0;
+    offset < args.length;
+    offset += BATCH_SIZE
+  ) {
+    const batch = args.slice(offset, offset + BATCH_SIZE);
+    await Promise.all(batch.map(fn));
+    if (offset + BATCH_SIZE < args.length) {
+      await nextAnimationFrame();
+    }
+  }
 }
 
 /**
