@@ -100,6 +100,7 @@ export class BoardPage {
 
   async selectTool(name: string) {
     await this.tool(name).click();
+    await this.expectCurrentTool(name);
   }
 
   async expectCurrentTool(name: string) {
@@ -620,29 +621,50 @@ export class BoardPage {
     return this.page.evaluate(async ({ x, y }) => {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const waitFor = async <T>(
+        predicate: () => T | null,
+        timeoutMs = 2_000,
+      ) => {
+        const deadline = performance.now() + timeoutMs;
+        while (performance.now() < deadline) {
+          const value = predicate();
+          if (value !== null) return value;
+          await nextFrame();
+        }
+        throw new Error("Timed out waiting for zoom result");
+      };
+      const tools = (window as any).Tools;
+      const initialScale = tools.getScale();
+
+      await waitFor(() => (tools.curTool?.name === "Zoom" ? true : null));
 
       const zoomInEvent = {
         preventDefault() {},
         clientY: 100,
         shiftKey: false,
       };
-      (window as any).Tools.curTool.listeners.press(x, y, zoomInEvent);
-      (window as any).Tools.curTool.listeners.release(x, y, zoomInEvent);
-      await nextFrame();
-      const scaleAfterZoomIn = (window as any).Tools.getScale();
+      tools.curTool.listeners.press(x, y, zoomInEvent);
+      tools.curTool.listeners.release(x, y, zoomInEvent);
+      const scaleAfterZoomIn = await waitFor(() => {
+        const scale = tools.getScale();
+        return scale > initialScale ? scale : null;
+      });
 
       const zoomOutEvent = {
         preventDefault() {},
         clientY: 100,
         shiftKey: true,
       };
-      (window as any).Tools.curTool.listeners.press(x, y, zoomOutEvent);
-      (window as any).Tools.curTool.listeners.release(x, y, zoomOutEvent);
-      await nextFrame();
+      tools.curTool.listeners.press(x, y, zoomOutEvent);
+      tools.curTool.listeners.release(x, y, zoomOutEvent);
+      const scaleAfterZoomOut = await waitFor(() => {
+        const scale = tools.getScale();
+        return scale < scaleAfterZoomIn ? scale : null;
+      });
 
       return {
         scaleAfterZoomIn,
-        scaleAfterZoomOut: (window as any).Tools.getScale(),
+        scaleAfterZoomOut,
       };
     }, point);
   }
