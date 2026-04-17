@@ -448,9 +448,9 @@ The board HTTP path becomes async when the SVG-backed metadata path ships.
 
 ## Stored SVG contents
 
-Stored SVG must preserve enough machine-readable state for rewrite and hydration, without duplicating Pencil geometry.
+Stored SVG is the source of truth. It must already be the correct renderable board, not a JSON payload re-encoded into SVG attributes.
 
-Stored SVG must also preserve every persisted field needed to reproduce the current authoritative rendering after hydration or served-baseline rendering. Raw geometry alone is insufficient.
+No per-item field may be duplicated in stored SVG. Rewrite and hydration must derive board state from canonical SVG geometry and paint attributes, not from shadow metadata.
 
 Required stored metadata:
 
@@ -458,30 +458,31 @@ Required stored metadata:
   - `data-wbo-format`
   - `data-wbo-seq`
   - `data-wbo-readonly`
-- every persisted item:
+- persisted item identity and paint order:
   - `id`
-  - `data-wbo-tool`
   - paint order by child order inside stored `#drawingArea`
 - shapes:
-  - raw coords
-  - `color`
-  - `size`
-  - `opacity`
-  - transform if present
+  - tag determines the tool:
+    - `<rect>` => Rectangle
+    - `<ellipse>` => Ellipse
+    - `<line>` => Straight line
+  - canonical SVG geometry attributes are the source of truth
+  - `stroke`, `stroke-width`, `opacity`, and `transform` carry persisted style state
 - text:
-  - raw text source
-  - origin and size
-  - `color`
-  - `opacity`
-  - transform if present
+  - `<text>` tag determines the tool
+  - `x`, `y`, `font-size`, node text content, `fill`, `opacity`, and `transform` are the source of truth
 - pencil:
-  - raw points once
-  - `color`
-  - `size`
-  - `opacity`
-  - transform if present
+  - `<path>` tag determines the tool
+  - `d` is the source of truth for pencil geometry
+  - `stroke`, `stroke-width`, `opacity`, and `transform` carry persisted style state
+  - hydration reconstructs in-memory point summaries from `d`; the file does not store raw points separately
 
-The served baseline must satisfy the runtime DOM contract and may render stored Pencil items into visible smoothed paths during streaming.
+Opaque shell rules:
+
+- `defs`, `cursors`, and the surrounding SVG shell are not semantically parsed or regenerated during rewrite
+- persistence treats them as opaque prefix/suffix bytes around stored `#drawingArea` children
+
+The served baseline must satisfy the runtime DOM contract without inventing extra per-item metadata beyond the canonical SVG itself.
 
 ## Paint-order semantics
 

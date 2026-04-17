@@ -539,7 +539,8 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
     assert.equal(board.get("rect").tool, "Rectangle");
     assert.match(svg, /data-wbo-format="whitebophir-svg-v1"/);
     assert.match(svg, /data-wbo-readonly="true"/);
-    assert.match(svg, /data-wbo-item=/);
+    assert.match(svg, /<rect id="rect" x="0" y="0" width="10" height="10"/);
+    assert.doesNotMatch(svg, /data-wbo-item|data-wbo-tool/);
   });
 });
 
@@ -715,8 +716,8 @@ test("BoardData.save rewrites existing stored svg from queued mutations", async 
       '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
       '<defs id="defs"><style>.keep-me{}</style><marker id="m1"></marker></defs>' +
       '<g id="drawingArea">' +
-      '<g id="rect-1" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22rect-1%22%2C%22tool%22%3A%22Rectangle%22%2C%22type%22%3A%22rect%22%2C%22x%22%3A1%2C%22y%22%3A2%2C%22x2%22%3A3%2C%22y2%22%3A4%2C%22color%22%3A%22%23123456%22%2C%22size%22%3A4%7D"></g>' +
-      '<g id="text-1" data-wbo-tool="Text" data-wbo-item="%7B%22id%22%3A%22text-1%22%2C%22tool%22%3A%22Text%22%2C%22type%22%3A%22new%22%2C%22x%22%3A5%2C%22y%22%3A6%2C%22txt%22%3A%22hello%22%2C%22size%22%3A18%2C%22color%22%3A%22%23654321%22%7D"></g>' +
+      '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
+      '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello</text>' +
       "</g>" +
       '<g id="cursors"><path id="cursor-template"></path></g>' +
       "</svg>";
@@ -782,7 +783,7 @@ test("BoardData.save falls back to a full authoritative write on stored svg seq 
       '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
       '<defs id="defs"><style>.keep-me{}</style><marker id="m1"></marker></defs>' +
       '<g id="drawingArea">' +
-      '<g id="rect-1" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22rect-1%22%2C%22tool%22%3A%22Rectangle%22%2C%22type%22%3A%22rect%22%2C%22x%22%3A1%2C%22y%22%3A2%2C%22x2%22%3A3%2C%22y2%22%3A4%2C%22color%22%3A%22%23123456%22%2C%22size%22%3A4%7D"></g>' +
+      '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
       "</g>" +
       '<g id="cursors"><path id="cursor-template"></path></g>' +
       "</svg>";
@@ -811,7 +812,7 @@ test("BoardData.save falls back to a full authoritative write on stored svg seq 
     assert.match(rewritten, /data-wbo-seq="2"/);
     assert.match(
       rewritten,
-      /data-wbo-item="[^"]*%22x2%22%3A30%2C%22y2%22%3A40/,
+      /<rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"><\/rect>/,
     );
   });
 });

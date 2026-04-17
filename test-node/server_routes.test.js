@@ -456,7 +456,7 @@ test("board pages inline the authoritative svg baseline before client boot", asy
   const dirs = await createServerDirs();
   await fs.writeFile(
     boardSvgFile(dirs.historyDir, "inline-baseline"),
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><g id="rect-1" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22rect-1%22%2C%22tool%22%3A%22Rectangle%22%2C%22type%22%3A%22rect%22%2C%22x%22%3A1%2C%22y%22%3A2%2C%22x2%22%3A30%2C%22y2%22%3A40%2C%22color%22%3A%22%23123456%22%2C%22size%22%3A4%7D"></g></g><g id="cursors"></g></svg>',
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>',
     "utf8",
   );
 
@@ -555,7 +555,7 @@ test("canonical board svg endpoint serves the authoritative baseline with short 
   const dirs = await createServerDirs();
   await fs.writeFile(
     boardSvgFile(dirs.historyDir, "canonical-svg"),
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><g id="line-1" data-wbo-tool="Straight line" data-wbo-item="%7B%22id%22%3A%22line-1%22%2C%22tool%22%3A%22Straight%20line%22%2C%22type%22%3A%22line%22%2C%22x%22%3A0%2C%22y%22%3A0%2C%22x2%22%3A10%2C%22y2%22%3A20%2C%22color%22%3A%22%23000000%22%2C%22size%22%3A2%7D"></g></g><g id="cursors"></g></svg>',
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>',
     "utf8",
   );
 
