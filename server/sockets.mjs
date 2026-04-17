@@ -174,41 +174,43 @@ function noFail(fn, eventName) {
       let eventErrorType;
       /** @type {any} */
       let result;
+      const recordEventMetric = () => {
+        if (!eventName) return;
+        metrics.recordSocketEvent({
+          event: eventName,
+          durationMs: Date.now() - startedAt,
+          errorType: eventErrorType,
+        });
+      };
+      /**
+       * @param {unknown} error
+       */
+      const logError = (error) => {
+        eventErrorType = error;
+        logger.error("socket.event_failed", {
+          "wbo.socket.event": eventName,
+          error: error,
+        });
+      };
       try {
         result = fn.apply(null, args);
-        if (result && typeof result.catch === "function") {
-          return result
-            .catch(function logError(/** @type {unknown} */ err) {
-              eventErrorType = err;
-              logger.error("socket.event_failed", {
-                "wbo.socket.event": eventName,
-                error: err,
-              });
-            })
-            .finally(function recordEventMetric() {
-              if (eventName) {
-                metrics.recordSocketEvent({
-                  event: eventName,
-                  durationMs: Date.now() - startedAt,
-                  errorType: eventErrorType,
-                });
-              }
-            });
+        if (result && typeof result.then === "function") {
+          return (async () => {
+            try {
+              return await result;
+            } catch (error) {
+              logError(error);
+            } finally {
+              recordEventMetric();
+            }
+          })();
         }
         return result;
       } catch (e) {
-        eventErrorType = e;
-        logger.error("socket.event_failed", {
-          "wbo.socket.event": eventName,
-          error: e,
-        });
+        logError(e);
       } finally {
-        if (eventName && !(result && typeof result.catch === "function")) {
-          metrics.recordSocketEvent({
-            event: eventName,
-            durationMs: Date.now() - startedAt,
-            errorType: eventErrorType,
-          });
+        if (!(result && typeof result.then === "function")) {
+          recordEventMetric();
         }
       }
     }
