@@ -24,7 +24,9 @@
  * @licend
  */
 
+import BoardAuthoritativeView from "./board_authoritative_view.js";
 import BoardMessageReplay from "./board_message_replay.js";
+import BoardSvgBaseline from "./board_svg_baseline.js";
 import {
   drainPendingMessages,
   getRequiredElement,
@@ -229,8 +231,11 @@ Tools.rateLimitedUntil = 0;
 Tools.rateLimitNoticeTimer = null;
 Tools.rateLimitNoticeMessage = "";
 Tools.awaitingBoardSnapshot = true;
+Tools.awaitingSyncReplay = false;
 Tools.hasAuthoritativeBoardSnapshot = false;
 Tools.snapshotRevision = 0;
+Tools.authoritativeSeq = 0;
+Tools.authoritativeDrawingMarkup = "";
 Tools.preSnapshotMessages = [];
 Tools.incomingBroadcastQueue = [];
 Tools.processingIncomingBroadcast = false;
@@ -464,6 +469,45 @@ Tools.restoreLocalCursor = function restoreLocalCursor() {
   cursorTool.draw(message, true);
 };
 
+Tools.applyAuthoritativeBaseline =
+  /**
+   * @param {import("../../types/app-runtime").AuthoritativeBaseline} baseline
+   */
+  function applyAuthoritativeBaseline(baseline) {
+    Tools.authoritativeSeq = baseline.seq;
+    Tools.authoritativeDrawingMarkup = baseline.drawingAreaMarkup;
+    Tools.svg.setAttribute("data-wbo-seq", String(baseline.seq));
+    Tools.svg.setAttribute(
+      "data-wbo-readonly",
+      baseline.readonly ? "true" : "false",
+    );
+    if (Tools.drawingArea) {
+      Tools.drawingArea.innerHTML = baseline.drawingAreaMarkup;
+    }
+  };
+
+Tools.refreshAuthoritativeBaseline =
+  async function refreshAuthoritativeBaseline() {
+    const response = await fetch(
+      BoardSvgBaseline.buildBoardSvgBaselineUrl(
+        window.location.pathname,
+        window.location.search,
+      ),
+      {
+        credentials: "same-origin",
+        headers: { Accept: "image/svg+xml" },
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Baseline fetch failed with HTTP ${response.status}`);
+    }
+    const baseline = BoardSvgBaseline.parseServedBaselineSvgText(
+      await response.text(),
+      new DOMParser(),
+    );
+    Tools.applyAuthoritativeBaseline(baseline);
+  };
+
 /**
  * @param {RateLimitKind} kind
  * @param {number} [now]
@@ -673,13 +717,25 @@ Tools.discardBufferedWrites = function discardBufferedWrites() {
 
 Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.awaitingBoardSnapshot = true;
-  Tools.snapshotRevision = 0;
+  Tools.awaitingSyncReplay = Tools.useSeqSyncProtocol === true;
+  if (Tools.useSeqSyncProtocol !== true) {
+    Tools.snapshotRevision = 0;
+  }
   Tools.preSnapshotMessages = [];
   Tools.incomingBroadcastQueue = [];
   Tools.processingIncomingBroadcast = false;
   Tools.discardBufferedWrites();
   Tools.turnstilePendingWrites = [];
   Tools.hideTurnstileOverlay();
+  const authoritativeMarkup =
+    BoardAuthoritativeView.markupForAuthoritativeResync({
+      authoritativeMarkup: Tools.authoritativeDrawingMarkup,
+      useSeqSyncProtocol: Tools.useSeqSyncProtocol,
+      hasAuthoritativeBoardSnapshot: Tools.hasAuthoritativeBoardSnapshot,
+    });
+  if (authoritativeMarkup !== null && Tools.drawingArea) {
+    Tools.drawingArea.innerHTML = authoritativeMarkup;
+  }
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
@@ -727,8 +783,14 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
  * @returns {void}
  */
 function finalizeIncomingBroadcast(msg, processed) {
+  const activityMessage = /** @type {BoardMessage} */ (
+    BoardMessageReplay.unwrapReplayMessage(msg)
+  );
   if (processed) {
-    Tools.updateConnectedUsersFromActivity(msg.userId, msg);
+    Tools.updateConnectedUsersFromActivity(
+      activityMessage.userId,
+      activityMessage,
+    );
   }
   if (!Tools.awaitingBoardSnapshot) {
     Tools.hideLoadingMessage();
@@ -741,6 +803,8 @@ function finalizeIncomingBroadcast(msg, processed) {
  * @returns {Promise<boolean>}
  */
 async function processIncomingBroadcast(msg) {
+  const isSnapshotMessage = BoardMessageReplay.isSnapshotMessage(msg);
+  const isPersistentEnvelope = BoardMessageReplay.isPersistentEnvelope(msg);
   if (
     BoardMessageReplay.shouldBufferLiveMessage(msg, Tools.awaitingBoardSnapshot)
   ) {
@@ -748,18 +812,30 @@ async function processIncomingBroadcast(msg) {
     return false;
   }
 
-  if (
-    Tools.awaitingBoardSnapshot &&
-    BoardMessageReplay.isSnapshotMessage(msg)
-  ) {
+  if (Tools.awaitingBoardSnapshot && isSnapshotMessage) {
     Tools.resetBoardViewport();
   }
 
-  await handleMessage(msg);
-  if (
-    Tools.awaitingBoardSnapshot &&
-    BoardMessageReplay.isSnapshotMessage(msg)
-  ) {
+  const replayMessage = /** @type {BoardMessage} */ (
+    BoardMessageReplay.unwrapReplayMessage(msg)
+  );
+  const isOwnSeqEnvelope =
+    BoardMessageReplay.isPersistentEnvelope(msg) &&
+    replayMessage.socket === Tools.socket?.id;
+  if (!isOwnSeqEnvelope) {
+    await handleMessage(replayMessage);
+  }
+  if (isPersistentEnvelope) {
+    Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(msg.seq);
+  }
+  Tools.authoritativeDrawingMarkup =
+    BoardAuthoritativeView.evolveAuthoritativeDrawingMarkup({
+      previousMarkup: Tools.authoritativeDrawingMarkup,
+      currentMarkup: Tools.drawingArea?.innerHTML,
+      isPersistentEnvelope: isPersistentEnvelope,
+      isSnapshotMessage: isSnapshotMessage,
+    });
+  if (Tools.awaitingBoardSnapshot && isSnapshotMessage) {
     Tools.hasAuthoritativeBoardSnapshot = true;
     Tools.snapshotRevision = BoardMessageReplay.normalizeRevision(msg.revision);
     Tools.awaitingBoardSnapshot = false;
@@ -1132,6 +1208,11 @@ Tools.svg = /** @type {SVGSVGElement} */ (
   /** @type {unknown} */ (getRequiredElement("canvas"))
 );
 Tools.drawingArea = Tools.svg.getElementById("drawingArea");
+Tools.useSeqSyncProtocol = true;
+Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(
+  Tools.svg.getAttribute("data-wbo-seq"),
+);
+Tools.authoritativeDrawingMarkup = Tools.drawingArea?.innerHTML || "";
 
 //Initialization
 Tools.curTool = null;
@@ -1173,6 +1254,7 @@ Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
 
 Tools.getInitialSocketQuery = function getInitialSocketQuery() {
   return {
+    sync: "seq",
     tool: "Hand",
     color: getRequiredInput("chooseColor").value,
     size: getRequiredInput("chooseSize").value,
@@ -1814,6 +1896,7 @@ Tools.startConnection = () => {
 
   //Receive draw instructions from the server
   socket.on("connect", function onConnection() {
+    const isReconnect = Tools.hasConnectedOnce;
     Tools.connectionState = "connected";
     if (Tools.hasConnectedOnce && Tools.server_config.TURNSTILE_SITE_KEY) {
       Tools.setTurnstileValidation(null);
@@ -1828,12 +1911,62 @@ Tools.startConnection = () => {
     } else {
       Tools.showLoadingMessage();
     }
+    if (Tools.useSeqSyncProtocol) {
+      Tools.awaitingBoardSnapshot = true;
+      Tools.awaitingSyncReplay = true;
+      void (async function startSeqReplay() {
+        if (isReconnect && Tools.hasAuthoritativeBoardSnapshot) {
+          try {
+            await Tools.refreshAuthoritativeBaseline();
+          } catch (error) {
+            console.error(
+              "Failed to refresh authoritative SVG baseline",
+              error,
+            );
+          }
+        }
+        socket.emit("sync_request", {
+          baselineSeq: Tools.authoritativeSeq,
+        });
+      })();
+    }
     Tools.syncWriteStatusIndicator();
   });
   socket.on("broadcast", (/** @type {BoardMessage} */ msg) => {
     enqueueIncomingBroadcast(msg);
   });
   socket.on("boardstate", Tools.setBoardState);
+  socket.on("sync_replay_start", function onSyncReplayStart() {
+    Tools.awaitingBoardSnapshot = true;
+    Tools.awaitingSyncReplay = true;
+  });
+  socket.on(
+    "sync_replay_end",
+    function onSyncReplayEnd(
+      /** @type {{toInclusiveSeq?: unknown} | undefined} */ payload,
+    ) {
+      if (!Tools.useSeqSyncProtocol) return;
+      Tools.hasAuthoritativeBoardSnapshot = true;
+      Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(
+        payload?.toInclusiveSeq,
+      );
+      Tools.awaitingBoardSnapshot = false;
+      Tools.awaitingSyncReplay = false;
+      Tools.flushBufferedWrites();
+      Tools.incomingBroadcastQueue =
+        BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(
+          Tools.preSnapshotMessages,
+          Tools.authoritativeSeq,
+        ).concat(Tools.incomingBroadcastQueue);
+      Tools.preSnapshotMessages = [];
+      Tools.restoreLocalCursor();
+      Tools.hideLoadingMessage();
+      Tools.syncWriteStatusIndicator();
+    },
+  );
+  socket.on("resync_required", function onResyncRequired() {
+    window.location.reload();
+  });
   socket.on(
     "user_joined",
     function onUserJoined(/** @type {ConnectedUser} */ user) {

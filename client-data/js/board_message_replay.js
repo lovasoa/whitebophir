@@ -71,12 +71,15 @@ export function prepareReplayChild(parent, child, normalizeChildMessage) {
 }
 
 /**
- * @param {{tool?: unknown, _children?: unknown} | null | undefined} message
+ * @param {{tool?: unknown, _children?: unknown, seq?: unknown, mutation?: unknown, type?: unknown, [key: string]: unknown} | null | undefined} message
  * @param {boolean} awaitingBoardSnapshot
  * @returns {boolean}
  */
 export function shouldBufferLiveMessage(message, awaitingBoardSnapshot) {
-  return awaitingBoardSnapshot === true && !isSnapshotMessage(message || {});
+  if (awaitingBoardSnapshot !== true) return false;
+  if (isSyncReplayControlMessage(message || {})) return false;
+  if (isPersistentEnvelope(message || {})) return false;
+  return !isSnapshotMessage(message || {});
 }
 
 /**

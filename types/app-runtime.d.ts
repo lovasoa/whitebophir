@@ -14,11 +14,14 @@ export type BoardMessage = {
   parent?: string;
   newid?: string;
   revision?: number;
+  seq?: number;
   socket?: string;
   userId?: string;
   color?: string;
   size?: number;
   txt?: string;
+  clientMutationId?: string;
+  mutation?: BoardMessage;
   transform?: Transform | unknown;
   _children?: BoardMessage[];
   x?: number;
@@ -220,6 +223,12 @@ export type BoardStatusView = {
   detail: string;
 };
 
+export type AuthoritativeBaseline = {
+  seq: number;
+  readonly: boolean;
+  drawingAreaMarkup: string;
+};
+
 export type ServerConfig = {
   RATE_LIMITS?: {
     general?: {
@@ -321,6 +330,9 @@ export type AppToolsState = {
   drawingEvent: boolean;
   hasAuthoritativeBoardSnapshot: boolean;
   snapshotRevision: number;
+  authoritativeSeq: number;
+  authoritativeDrawingMarkup: string;
+  awaitingSyncReplay: boolean;
   preSnapshotMessages: BoardMessage[];
   incomingBroadcastQueue: BoardMessage[];
   processingIncomingBroadcast: boolean;
@@ -330,6 +342,7 @@ export type AppToolsState = {
   isIE: boolean;
   socket: AppSocket | null;
   hasConnectedOnce: boolean;
+  useSeqSyncProtocol: boolean;
   bufferedWrites: BufferedWrite[];
   bufferedWriteTimer: ReturnType<typeof setTimeout> | null;
   rateLimitedUntil: number;
@@ -379,6 +392,8 @@ export type AppToolsState = {
   clearBoardCursors: () => void;
   resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
+  applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
+  refreshAuthoritativeBaseline: () => Promise<void>;
   resetLocalRateLimitState: (kind: RateLimitKind, now?: number) => void;
   resetAllLocalRateLimitStates: (now?: number) => void;
   canEmitBufferedWrite: (bufferedWrite: BufferedWrite, now: number) => boolean;

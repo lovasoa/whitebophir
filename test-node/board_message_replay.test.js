@@ -163,3 +163,33 @@ test("sync replay control messages are identified by type", () => {
     false,
   );
 });
+
+test("seq envelopes and sync control messages bypass the legacy snapshot buffer", () => {
+  assert.equal(
+    BoardMessageReplay.shouldBufferLiveMessage(
+      {
+        seq: 3,
+        mutation: { tool: "Rectangle", type: "rect", id: "rect-1" },
+      },
+      true,
+    ),
+    false,
+  );
+  assert.equal(
+    BoardMessageReplay.shouldBufferLiveMessage(
+      {
+        type: "sync_replay_end",
+        toInclusiveSeq: 3,
+      },
+      true,
+    ),
+    false,
+  );
+  assert.equal(
+    BoardMessageReplay.shouldBufferLiveMessage(
+      { tool: "Cursor", type: "update", x: 1, y: 2 },
+      true,
+    ),
+    true,
+  );
+});
