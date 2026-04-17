@@ -39,7 +39,7 @@ test("mutation logs read contiguous ranges and trim old replay entries", () => {
 
   log.trimBefore(4);
 
-  assert.equal(log.minReplayableSeq(), 4);
+  assert.equal(log.minReplayableSeq(), 3);
   assert.deepEqual(
     log.readRange(0, 5).map((entry) => entry.seq),
     [4, 5],

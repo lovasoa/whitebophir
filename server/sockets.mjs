@@ -1459,6 +1459,57 @@ function ensureSocketJoinedBoard(socket, boardName) {
 }
 
 /**
+ * @param {AppSocket} socket
+ * @returns {boolean}
+ */
+function usesSeqSync(socket) {
+  return socket.handshake?.query?.sync === "seq";
+}
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+function normalizeSeq(value) {
+  const seq = Number(value);
+  return Number.isSafeInteger(seq) && seq >= 0 ? seq : 0;
+}
+
+/**
+ * @param {BoardData} board
+ * @param {string} boardName
+ * @param {AppSocket} sourceSocket
+ * @param {NormalizedMessageData & {revision?: number}} legacyPayload
+ * @param {ReturnType<BoardData["recordPersistentMutation"]>} envelope
+ * @returns {void}
+ */
+function emitPersistentBoardMutation(
+  board,
+  boardName,
+  sourceSocket,
+  legacyPayload,
+  envelope,
+) {
+  let hasLegacyPeer = false;
+  for (const socketId of board.users) {
+    const targetSocket = getActiveSocket(socketId);
+    if (!targetSocket) continue;
+    if (targetSocket.id === sourceSocket.id) continue;
+    if (usesSeqSync(targetSocket)) {
+      targetSocket.emit("broadcast", envelope);
+      continue;
+    }
+    hasLegacyPeer = true;
+  }
+  if (!usesSeqSync(sourceSocket) || hasLegacyPeer) {
+    sourceSocket.broadcast.to(boardName).emit("broadcast", legacyPayload);
+  }
+  if (usesSeqSync(sourceSocket)) {
+    sourceSocket.emit("broadcast", envelope);
+  }
+}
+
+/**
  * @param {string} reason
  * @returns {void}
  */
@@ -1621,6 +1672,7 @@ function rejectBoardMessageWrite(
 
 /**
  * @param {AppSocket} socket
+ * @param {BoardData} board
  * @param {string} boardName
  * @param {NormalizedMessageData} data
  * @param {number} now
@@ -1630,6 +1682,7 @@ function rejectBoardMessageWrite(
  */
 function finishSuccessfulBoardWrite(
   socket,
+  board,
   boardName,
   data,
   now,
@@ -1638,7 +1691,8 @@ function finishSuccessfulBoardWrite(
 ) {
   const user = updateBoardUserFromMessage(socket, boardName, data, now);
   attachLiveSocketId(data, user);
-  data.revision = revision;
+  const legacyPayload = { ...data, revision: revision };
+  const envelope = board.recordPersistentMutation(data, now);
   tracing.setActiveSpanAttributes({
     "wbo.board.result": "success",
     "user.name": user ? user.name : userName,
@@ -1647,7 +1701,13 @@ function finishSuccessfulBoardWrite(
     board: boardName,
     ...data,
   });
-  socket.broadcast.to(boardName).emit("broadcast", data);
+  emitPersistentBoardMutation(
+    board,
+    boardName,
+    socket,
+    legacyPayload,
+    envelope,
+  );
 }
 
 /**
@@ -1694,6 +1754,7 @@ async function persistBoardBroadcast(
   }
   finishSuccessfulBoardWrite(
     socket,
+    board,
     boardName,
     data,
     now,
@@ -1993,12 +2054,48 @@ async function bootstrapSocketBoard(socket, boardName, config) {
         readonly: board.isReadOnly(),
         canWrite: canWriteToBoard(config, board, socket),
       });
-      socket.emit("broadcast", {
-        _children: board.getAll(),
-        revision: board.getRevision(),
-      });
+      if (!usesSeqSync(socket)) {
+        socket.emit("broadcast", {
+          _children: board.getAll(),
+          revision: board.getRevision(),
+        });
+      }
     },
   );
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {{baselineSeq?: unknown} | undefined} request
+ * @returns {Promise<void>}
+ */
+async function handleSyncRequestMessage(socket, boardName, request) {
+  ensureSocketJoinedBoard(socket, boardName);
+  const board = await getBoard(boardName);
+  const baselineSeq = normalizeSeq(request?.baselineSeq);
+  const latestSeq = board.getSeq();
+  const minReplayableSeq = board.minReplayableSeq();
+  if (baselineSeq > latestSeq || baselineSeq < minReplayableSeq) {
+    socket.emit("resync_required", {
+      type: "resync_required",
+      latestSeq: latestSeq,
+      minReplayableSeq: minReplayableSeq,
+    });
+    return;
+  }
+  socket.emit("sync_replay_start", {
+    type: "sync_replay_start",
+    fromExclusiveSeq: baselineSeq,
+    toInclusiveSeq: latestSeq,
+  });
+  for (const envelope of board.readMutationRange(baselineSeq, latestSeq)) {
+    socket.emit("broadcast", envelope);
+  }
+  socket.emit("sync_replay_end", {
+    type: "sync_replay_end",
+    toInclusiveSeq: latestSeq,
+  });
 }
 
 /**
@@ -2088,6 +2185,29 @@ async function handleSocketConnection(socket, config) {
       );
     },
   );
+
+  if (usesSeqSync(socket)) {
+    onSocketEvent(
+      socket,
+      "sync_request",
+      async function onSyncRequest(
+        /** @type {{baselineSeq?: unknown} | undefined} */ request,
+      ) {
+        return tracing.withActiveSpan(
+          "socket.sync_request",
+          {
+            kind: tracing.SpanKind.INTERNAL,
+            attributes: socketTraceAttributes("sync_request", {
+              "wbo.board": boardName,
+            }),
+          },
+          async function traceSyncRequest() {
+            return handleSyncRequestMessage(socket, boardName, request);
+          },
+        );
+      },
+    );
+  }
 
   onSocketEvent(
     socket,

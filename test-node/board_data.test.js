@@ -550,7 +550,7 @@ test("BoardData records contiguous mutation seq values and persists them into sv
     assert.equal(firstEnvelope.seq, 1);
     assert.equal(secondEnvelope.seq, 2);
     assert.equal(board.getSeq(), 2);
-    assert.equal(board.minReplayableSeq(), 1);
+    assert.equal(board.minReplayableSeq(), 0);
     assert.deepEqual(
       board
         .readMutationRange(0, 2)
@@ -568,6 +568,59 @@ test("BoardData records contiguous mutation seq values and persists them into sv
     );
     assert.match(svg, /data-wbo-seq="2"/);
   });
+});
+
+test("BoardData.save keeps writing to the board's original history dir after env changes", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-sticky-history-"),
+  );
+
+  /** @type {InstanceType<typeof import("../server/boardData.mjs").BoardData> | undefined} */
+  let board;
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    board = new BoardData("sticky-history");
+    const stickyBoard =
+      /** @type {InstanceType<typeof import("../server/boardData.mjs").BoardData>} */ (
+        board
+      );
+    stickyBoard.processMessage({
+      id: "rect-1",
+      tool: "Rectangle",
+      type: "rect",
+      color: "#654321",
+      size: 4,
+      x: 0,
+      y: 0,
+      x2: 10,
+      y2: 10,
+    });
+    stickyBoard.recordPersistentMutation({
+      id: "rect-1",
+      tool: "Rectangle",
+      type: "rect",
+      color: "#654321",
+      size: 4,
+      x: 0,
+      y: 0,
+      x2: 10,
+      y2: 10,
+    });
+    clearTimeout(stickyBoard.saveTimeoutId);
+    stickyBoard.saveTimeoutId = undefined;
+  });
+  assert.ok(board);
+  const stickyBoard = board;
+
+  await withEnv({ WBO_HISTORY_DIR: undefined }, async () => {
+    await stickyBoard.save();
+  });
+
+  const svg = await fs.readFile(
+    path.join(historyDir, "board-sticky-history.svg"),
+    "utf8",
+  );
+  assert.match(svg, /data-wbo-seq="1"/);
 });
 
 test("BoardData.save serializes concurrent saves and releases after failure", async () => {

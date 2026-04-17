@@ -89,10 +89,11 @@ const STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD = 64;
 
 /**
  * @param {string} name
+ * @param {string} [historyDir]
  * @returns {string}
  */
-function boardFilePath(name) {
-  return boardSvgPath(name);
+function boardFilePath(name, historyDir) {
+  return boardSvgPath(name, historyDir);
 }
 
 /**
@@ -139,7 +140,8 @@ class BoardData {
     /** @type {{[name: string]: BoardElem}} */
     this.board = {};
     this.metadata = defaultBoardMetadata();
-    this.file = boardFilePath(name);
+    this.historyDir = readConfiguration().HISTORY_DIR;
+    this.file = boardFilePath(name, this.historyDir);
     this.lastSaveDate = Date.now();
     this.users = new Set();
     this.saveMutex = new SerialTaskQueue();
@@ -938,6 +940,7 @@ class BoardData {
               this.board,
               this.metadata,
               this.getSeq(),
+              { historyDir: this.historyDir },
             );
             this.markPersistedSeq(this.getSeq());
             tracing.setActiveSpanAttributes(
@@ -976,6 +979,7 @@ class BoardData {
               this.board,
               this.metadata,
               this.getSeq(),
+              { historyDir: this.historyDir },
             );
             this.markPersistedSeq(this.getSeq());
             const savedFile = await stat(file);
@@ -1063,7 +1067,10 @@ class BoardData {
   static async load(name) {
     const boardData = new BoardData(name);
     let traceRoot = false;
-    for (const candidateFile of [boardData.file, boardJsonPath(name)]) {
+    for (const candidateFile of [
+      boardData.file,
+      boardJsonPath(name, boardData.historyDir),
+    ]) {
       try {
         traceRoot =
           (await stat(candidateFile)).size >=
@@ -1084,10 +1091,12 @@ class BoardData {
         /** @type {string} */
         let sourceFile = boardData.file;
         try {
-          const storedBoard = await readBoardState(name);
+          const storedBoard = await readBoardState(name, {
+            historyDir: boardData.historyDir,
+          });
           sourceFile =
             storedBoard.source === "json"
-              ? boardJsonPath(name)
+              ? boardJsonPath(name, boardData.historyDir)
               : boardData.file;
           data =
             storedBoard.source === "svg"
@@ -1104,7 +1113,13 @@ class BoardData {
             boardData.normalizeStoredElement(id);
           }
           if (storedBoard.source === "json") {
-            await writeBoardState(name, boardData.board, boardData.metadata, 0);
+            await writeBoardState(
+              name,
+              boardData.board,
+              boardData.metadata,
+              0,
+              { historyDir: boardData.historyDir },
+            );
           }
           tracing.setActiveSpanAttributes(
             boardTraceAttributes(name, "load", {
@@ -1201,8 +1216,9 @@ class BoardData {
         attributes: boardTraceAttributes(name, "metadata_load"),
       },
       function loadBoardMetadata() {
+        const historyDir = readConfiguration().HISTORY_DIR;
         try {
-          return readBoardMetadataSync(name);
+          return readBoardMetadataSync(name, { historyDir: historyDir });
         } catch (err) {
           if (errorCode(err) !== "ENOENT") {
             tracing.recordActiveSpanError(err, {

@@ -264,6 +264,143 @@ test("snapshot and live broadcasts carry revisions for deterministic client repl
   );
 });
 
+test("seq-sync clients bootstrap without a snapshot and receive an explicit empty replay", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-seq-bootstrap-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async () => {
+      const sockets = await loadSockets();
+      sockets.__test.resetRateLimitMaps();
+
+      const created = createSocket({
+        id: "socket-seq-empty",
+        remoteAddress: "203.0.113.80",
+        headers: withUserSecretCookie("55555555555555555555555555555555"),
+        query: {
+          board: "board-seq-empty",
+          sync: "seq",
+          tool: "Rectangle",
+          color: "#333333",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(created.socket);
+
+      assert.equal(
+        created.emitted.some((event) => event.event === "broadcast"),
+        false,
+      );
+
+      const syncRequest = getRequiredHandler(created.handlers, "sync_request");
+      await syncRequest({ baselineSeq: 0 });
+
+      const replayEvents = created.emitted.filter((event) =>
+        ["boardstate", "sync_replay_start", "sync_replay_end"].includes(
+          event.event,
+        ),
+      );
+      assert.deepEqual(
+        replayEvents.map((event) => event.event),
+        ["boardstate", "sync_replay_start", "sync_replay_end"],
+      );
+      assert.deepEqual(getRequiredValue(replayEvents[1]).payload, {
+        type: "sync_replay_start",
+        fromExclusiveSeq: 0,
+        toInclusiveSeq: 0,
+      });
+      assert.deepEqual(getRequiredValue(replayEvents[2]).payload, {
+        type: "sync_replay_end",
+        toInclusiveSeq: 0,
+      });
+    },
+  );
+});
+
+test("seq-sync clients receive contiguous mutation envelopes and can replay them on reconnect", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-seq-replay-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async () => {
+      const sockets = await loadSockets();
+      sockets.__test.resetRateLimitMaps();
+
+      const writer = createSocket({
+        id: "socket-seq-writer",
+        remoteAddress: "203.0.113.81",
+        headers: withUserSecretCookie("66666666666666666666666666666666"),
+        query: {
+          board: "board-seq-live",
+          sync: "seq",
+          tool: "Rectangle",
+          color: "#444444",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(writer.socket);
+
+      const broadcast = getRequiredHandler(writer.handlers, "broadcast");
+      await broadcast({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-1",
+        x: 0,
+        y: 0,
+        x2: 10,
+        y2: 10,
+        color: "#444444",
+        size: 4,
+      });
+
+      const acceptedEnvelope = getRequiredValue(
+        writer.emitted.find((event) => event.event === "broadcast"),
+      ).payload;
+      assert.equal(acceptedEnvelope.seq, 1);
+      assert.equal(acceptedEnvelope.mutation.id, "rect-1");
+
+      const reconnect = createSocket({
+        id: "socket-seq-reconnect",
+        remoteAddress: "203.0.113.82",
+        headers: withUserSecretCookie("77777777777777777777777777777777"),
+        query: {
+          board: "board-seq-live",
+          sync: "seq",
+          tool: "Hand",
+          color: "#555555",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(reconnect.socket);
+      const syncRequest = getRequiredHandler(
+        reconnect.handlers,
+        "sync_request",
+      );
+      await syncRequest({ baselineSeq: 0 });
+
+      const replayedEvents = reconnect.emitted.filter((event) =>
+        [
+          "boardstate",
+          "sync_replay_start",
+          "broadcast",
+          "sync_replay_end",
+        ].includes(event.event),
+      );
+      assert.deepEqual(
+        replayedEvents.map((event) => event.event),
+        ["boardstate", "sync_replay_start", "broadcast", "sync_replay_end"],
+      );
+      assert.equal(getRequiredValue(replayedEvents[2]).payload.seq, 1);
+      assert.deepEqual(getRequiredValue(replayedEvents[3]).payload, {
+        type: "sync_replay_end",
+        toInclusiveSeq: 1,
+      });
+    },
+  );
+});
+
 test("disconnecting from a board broadcasts user_left and cleans the board user map", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-left-"),

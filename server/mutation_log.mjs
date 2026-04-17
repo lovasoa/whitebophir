@@ -40,7 +40,7 @@ function createMutationLog(initialSeq = 0) {
     },
     minReplayableSeq() {
       const firstEntry = entries[0];
-      return firstEntry ? firstEntry.seq : latestSeq;
+      return firstEntry ? Math.max(0, firstEntry.seq - 1) : latestSeq;
     },
     append(envelope) {
       const nextEntry = {

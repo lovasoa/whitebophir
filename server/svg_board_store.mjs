@@ -28,6 +28,14 @@ function defaultBoardMetadata() {
 }
 
 /**
+ * @param {string | undefined} historyDir
+ * @returns {string}
+ */
+function resolveHistoryDir(historyDir) {
+  return historyDir || readConfiguration().HISTORY_DIR;
+}
+
+/**
  * @param {any} metadata
  * @returns {BoardMetadata}
  */
@@ -39,22 +47,24 @@ function normalizeBoardMetadata(metadata) {
 
 /**
  * @param {string} name
+ * @param {string} [historyDir]
  * @returns {string}
  */
-function boardJsonPath(name) {
+function boardJsonPath(name, historyDir) {
   return path.join(
-    readConfiguration().HISTORY_DIR,
+    resolveHistoryDir(historyDir),
     `board-${encodeURIComponent(name)}.json`,
   );
 }
 
 /**
  * @param {string} name
+ * @param {string} [historyDir]
  * @returns {string}
  */
-function boardSvgPath(name) {
+function boardSvgPath(name, historyDir) {
   return path.join(
-    readConfiguration().HISTORY_DIR,
+    resolveHistoryDir(historyDir),
     `board-${encodeURIComponent(name)}.svg`,
   );
 }
@@ -417,11 +427,13 @@ function renderServedBaselineSvg(board, metadata, seq) {
 
 /**
  * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
  * @returns {Promise<{board: {[name: string]: any}, metadata: BoardMetadata, seq: number, source: "svg" | "json" | "empty"}>}
  */
-async function readBoardState(boardName) {
+async function readBoardState(boardName, options) {
+  const historyDir = options?.historyDir;
   try {
-    const svg = await readFile(boardSvgPath(boardName), "utf8");
+    const svg = await readFile(boardSvgPath(boardName, historyDir), "utf8");
     const parsed = parseStoredSvg(svg);
     return { ...parsed, source: "svg" };
   } catch (error) {
@@ -431,7 +443,10 @@ async function readBoardState(boardName) {
   }
 
   try {
-    const jsonText = await readFile(boardJsonPath(boardName), "utf8");
+    const jsonText = await readFile(
+      boardJsonPath(boardName, historyDir),
+      "utf8",
+    );
     const parsed = parseLegacyStoredBoard(JSON.parse(jsonText));
     return {
       board: parsed.board,
@@ -458,13 +473,15 @@ async function readBoardState(boardName) {
  * @param {{[name: string]: any}} board
  * @param {BoardMetadata} metadata
  * @param {number} seq
+ * @param {{historyDir?: string}=} [options]
  * @returns {Promise<void>}
  */
-async function writeBoardState(boardName, board, metadata, seq) {
-  const file = boardSvgPath(boardName);
+async function writeBoardState(boardName, board, metadata, seq, options) {
+  const historyDir = options?.historyDir;
+  const file = boardSvgPath(boardName, historyDir);
   const tmpFile = `${file}.${Date.now()}.tmp`;
   if (Object.keys(board).length === 0) {
-    for (const emptyPath of [file, boardJsonPath(boardName)]) {
+    for (const emptyPath of [file, boardJsonPath(boardName, historyDir)]) {
       try {
         await fs.promises.unlink(emptyPath);
       } catch (error) {
@@ -509,20 +526,23 @@ async function writeBoardState(boardName, board, metadata, seq) {
 
 /**
  * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
  * @returns {Promise<{readonly: boolean}>}
  */
-async function readBoardMetadata(boardName) {
-  const state = await readBoardState(boardName);
+async function readBoardMetadata(boardName, options) {
+  const state = await readBoardState(boardName, options);
   return state.metadata;
 }
 
 /**
  * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
  * @returns {{readonly: boolean}}
  */
-function readBoardMetadataSync(boardName) {
+function readBoardMetadataSync(boardName, options) {
+  const historyDir = options?.historyDir;
   try {
-    const svg = fs.readFileSync(boardSvgPath(boardName), "utf8");
+    const svg = fs.readFileSync(boardSvgPath(boardName, historyDir), "utf8");
     return parseStoredSvg(svg).metadata;
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
@@ -530,7 +550,10 @@ function readBoardMetadataSync(boardName) {
     }
   }
   try {
-    const jsonText = fs.readFileSync(boardJsonPath(boardName), "utf8");
+    const jsonText = fs.readFileSync(
+      boardJsonPath(boardName, historyDir),
+      "utf8",
+    );
     return parseLegacyStoredBoard(JSON.parse(jsonText)).metadata;
   } catch {
     return defaultBoardMetadata();
@@ -539,34 +562,38 @@ function readBoardMetadataSync(boardName) {
 
 /**
  * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
  * @returns {Promise<string>}
  */
-async function readBoardDownload(boardName) {
+async function readBoardDownload(boardName, options) {
+  const historyDir = options?.historyDir;
   try {
-    return await readFile(boardSvgPath(boardName), "utf8");
+    return await readFile(boardSvgPath(boardName, historyDir), "utf8");
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
       throw error;
     }
   }
-  return readFile(boardJsonPath(boardName), "utf8");
+  return readFile(boardJsonPath(boardName, historyDir), "utf8");
 }
 
 /**
  * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
  * @returns {Promise<string>}
  */
-async function readServedBaseline(boardName) {
-  const state = await readBoardState(boardName);
+async function readServedBaseline(boardName, options) {
+  const state = await readBoardState(boardName, options);
   return renderServedBaselineSvg(state.board, state.metadata, state.seq);
 }
 
 /**
  * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
  * @returns {Promise<Readable>}
  */
-async function streamServedBaseline(boardName) {
-  return Readable.from([await readServedBaseline(boardName)]);
+async function streamServedBaseline(boardName, options) {
+  return Readable.from([await readServedBaseline(boardName, options)]);
 }
 
 export {
