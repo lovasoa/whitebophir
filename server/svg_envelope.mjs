@@ -138,20 +138,30 @@ function parseStoredSvgEnvelope(svg) {
   };
 }
 
+const STORED_ITEM_TAG_NAMES = ["rect", "ellipse", "line", "text", "path"];
+
 /**
  * @param {string} drawingAreaContent
- * @returns {Array<{raw: string, attributes: {[name: string]: string}}>}
+ * @returns {Array<{raw: string, tagName: string, content: string, attributes: {[name: string]: string}}>}
  */
 function parseStoredSvgItems(drawingAreaContent) {
-  /** @type {Array<{raw: string, attributes: {[name: string]: string}}>} */
+  /** @type {Array<{raw: string, tagName: string, content: string, attributes: {[name: string]: string}}>} */
   const items = [];
-  const itemPattern = /<g\b([^>]*)><\/g>/g;
+  const itemPattern =
+    /<(rect|ellipse|line|text|path)\b([^>]*)>([\s\S]*?)<\/\1>/g;
   let match = itemPattern.exec(drawingAreaContent);
   while (match) {
     const raw = match[0];
-    const attributes = parseAttributes(match[1] || "");
-    if (attributes["data-wbo-item"]) {
-      items.push({ raw, attributes });
+    const tagName = match[1];
+    const rawAttributes = match[2] || "";
+    const content = match[3] || "";
+    if (tagName && STORED_ITEM_TAG_NAMES.includes(tagName)) {
+      items.push({
+        raw,
+        tagName,
+        content,
+        attributes: parseAttributes(rawAttributes),
+      });
     }
     match = itemPattern.exec(drawingAreaContent);
   }

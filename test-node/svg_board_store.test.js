@@ -40,7 +40,7 @@ test("parseStoredSvgEnvelope keeps non-drawing shell content opaque", () => {
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="3" data-wbo-readonly="false">' +
     '<defs id="defs"><marker id="triangle"></marker></defs>' +
     '<g id="drawingArea">' +
-    '<g id="rect-1" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22rect-1%22%2C%22tool%22%3A%22Rectangle%22%7D"></g>' +
+    '<rect id="rect-1" x="1" y="2" width="3" height="4" stroke="#123456" stroke-width="4" fill="none"></rect>' +
     "</g>" +
     '<g id="cursors"><circle id="ghost"></circle></g>' +
     "</svg>";
@@ -53,12 +53,49 @@ test("parseStoredSvgEnvelope keeps non-drawing shell content opaque", () => {
   );
   assert.equal(
     envelope.drawingAreaContent,
-    '<g id="rect-1" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22rect-1%22%2C%22tool%22%3A%22Rectangle%22%7D"></g>',
+    '<rect id="rect-1" x="1" y="2" width="3" height="4" stroke="#123456" stroke-width="4" fill="none"></rect>',
   );
   assert.match(
     envelope.suffix,
     /^<\/g><g id="cursors"><circle id="ghost"><\/circle><\/g><\/svg>$/,
   );
+});
+
+test("parseStoredSvgItems returns canonical direct children without touching the shell", () => {
+  const items = svgEnvelope.parseStoredSvgItems(
+    '<rect id="rect-1" x="1" y="2" width="3" height="4" stroke="#123456" stroke-width="4" fill="none"></rect>' +
+      '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello &amp; bye</text>',
+  );
+
+  assert.deepEqual(items, [
+    {
+      raw: '<rect id="rect-1" x="1" y="2" width="3" height="4" stroke="#123456" stroke-width="4" fill="none"></rect>',
+      tagName: "rect",
+      content: "",
+      attributes: {
+        id: "rect-1",
+        x: "1",
+        y: "2",
+        width: "3",
+        height: "4",
+        stroke: "#123456",
+        "stroke-width": "4",
+        fill: "none",
+      },
+    },
+    {
+      raw: '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello &amp; bye</text>',
+      tagName: "text",
+      content: "hello &amp; bye",
+      attributes: {
+        id: "text-1",
+        x: "5",
+        y: "6",
+        "font-size": "18",
+        fill: "#654321",
+      },
+    },
+  ]);
 });
 
 test("updateRootMetadata rewrites only root metadata attributes", () => {
@@ -87,7 +124,7 @@ test("writeBoardState preserves opaque shell while rewriting stored items", asyn
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
     '<defs id="defs"><style>.keep-me{}</style><marker id="m1"></marker></defs>' +
     '<g id="drawingArea">' +
-    '<g id="old-item" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22old-item%22%2C%22tool%22%3A%22Rectangle%22%2C%22x%22%3A0%2C%22y%22%3A0%2C%22x2%22%3A10%2C%22y2%22%3A10%2C%22color%22%3A%22%23000000%22%2C%22size%22%3A1%7D"></g>' +
+    '<rect id="old-item" x="0" y="0" width="10" height="10" stroke="#000000" stroke-width="1" fill="none"></rect>' +
     "</g>" +
     '<g id="cursors"><path id="cursor-template"></path></g>' +
     "</svg>";
@@ -242,8 +279,8 @@ test("parseBoardItems hydrates only requested stored svg items", async () => {
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="4" data-wbo-readonly="false">' +
     '<defs id="defs"></defs>' +
     '<g id="drawingArea">' +
-    '<g id="rect-1" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22rect-1%22%2C%22tool%22%3A%22Rectangle%22%2C%22x%22%3A1%2C%22y%22%3A2%2C%22x2%22%3A3%2C%22y2%22%3A4%2C%22color%22%3A%22%23123456%22%2C%22size%22%3A4%7D"></g>' +
-    '<g id="text-1" data-wbo-tool="Text" data-wbo-item="%7B%22id%22%3A%22text-1%22%2C%22tool%22%3A%22Text%22%2C%22x%22%3A5%2C%22y%22%3A6%2C%22txt%22%3A%22hello%22%2C%22size%22%3A18%2C%22color%22%3A%22%23654321%22%7D" transform="matrix(1 0 0 1 7 8)"></g>' +
+    '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
+    '<text id="text-1" x="5" y="6" font-size="18" fill="#654321" transform="matrix(1 0 0 1 7 8)">hello</text>' +
     "</g>" +
     '<g id="cursors"></g>' +
     "</svg>";
@@ -397,7 +434,6 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
     assert.deepEqual(state.board["rect-1"], {
       id: "rect-1",
       tool: "Rectangle",
-      type: "rect",
       x: 1,
       y: 2,
       x2: 30,
@@ -409,7 +445,6 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
     assert.deepEqual(state.board["text-1"], {
       id: "text-1",
       tool: "Text",
-      type: "new",
       x: 5,
       y: 6,
       txt: "hello",
@@ -420,7 +455,6 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
     assert.deepEqual(state.board["line-1"], {
       id: "line-1",
       tool: "Pencil",
-      type: "line",
       color: "#abcdef",
       size: 5,
       opacity: 0.8,

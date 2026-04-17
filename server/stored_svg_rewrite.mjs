@@ -4,92 +4,17 @@ import {
   serializeStoredSvgEnvelope,
   updateRootMetadata,
 } from "./svg_envelope.mjs";
-
-/**
- * @param {string} value
- * @returns {string}
- */
-function escapeHtml(value) {
-  return value.replace(/[<>&"']/g, (char) => {
-    switch (char) {
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case "&":
-        return "&amp;";
-      case '"':
-        return "&quot;";
-      case "'":
-        return "&#39;";
-      default:
-        return char;
-    }
-  });
-}
-
-/**
- * @param {any} item
- * @returns {string}
- */
-function encodeStoredItem(item) {
-  return encodeURIComponent(JSON.stringify(item));
-}
-
-/**
- * @param {string} value
- * @returns {any}
- */
-function decodeStoredItem(value) {
-  return JSON.parse(decodeURIComponent(value));
-}
-
-/**
- * @param {any} transform
- * @returns {string}
- */
-function renderTransformAttribute(transform) {
-  if (
-    !transform ||
-    typeof transform !== "object" ||
-    !["a", "b", "c", "d", "e", "f"].every(
-      (key) => typeof transform[key] === "number",
-    )
-  ) {
-    return "";
-  }
-  return ` transform="matrix(${transform.a} ${transform.b} ${transform.c} ${transform.d} ${transform.e} ${transform.f})"`;
-}
-
-/**
- * @param {string | undefined} transform
- * @returns {{a: number, b: number, c: number, d: number, e: number, f: number} | undefined}
- */
-function parseTransformAttribute(transform) {
-  if (!transform) return undefined;
-  const match = transform.match(
-    /^matrix\(\s*([^\s,)]+)[ ,]([^\s,)]+)[ ,]([^\s,)]+)[ ,]([^\s,)]+)[ ,]([^\s,)]+)[ ,]([^\s,)]+)\s*\)$/,
-  );
-  if (!match) return undefined;
-  /** @type {number[]} */
-  const values = match.slice(1).map(Number);
-  if (values.some((value) => !Number.isFinite(value))) return undefined;
-  const [a = 0, b = 0, c = 0, d = 0, e = 0, f = 0] = values;
-  return { a, b, c, d, e, f };
-}
+import {
+  parseStoredSvgItem,
+  serializeStoredSvgItem,
+} from "./stored_svg_item_codec.mjs";
 
 /**
  * @param {any} item
  * @returns {string}
  */
 function serializeStoredItemTag(item) {
-  const tool = item && typeof item.tool === "string" ? item.tool : "Unknown";
-  const id = item && typeof item.id === "string" ? item.id : "";
-  return (
-    `<g id="${escapeHtml(id)}" data-wbo-tool="${escapeHtml(tool)}"` +
-    ` data-wbo-item="${escapeHtml(encodeStoredItem(item))}"` +
-    `${renderTransformAttribute(item && item.transform)}></g>`
-  );
+  return serializeStoredSvgItem(item);
 }
 
 /**
@@ -102,17 +27,9 @@ function parseStoredSvgState(svg) {
   const order = [];
   const items = new Map();
   for (const itemEntry of parseStoredSvgItems(envelope.drawingAreaContent)) {
-    const id = itemEntry.attributes.id;
-    const encodedItem = itemEntry.attributes["data-wbo-item"];
-    if (!id || !encodedItem) continue;
-    const item = decodeStoredItem(encodedItem);
-    if (!item.transform) {
-      const parsedTransform = parseTransformAttribute(
-        itemEntry.attributes.transform,
-      );
-      if (parsedTransform) item.transform = parsedTransform;
-    }
-    item.id = id;
+    const item = parseStoredSvgItem(itemEntry);
+    const id = item?.id;
+    if (!id) continue;
     order.push(id);
     items.set(id, item);
   }
