@@ -75,6 +75,15 @@ function getSingleSetCookie(headers) {
   return typeof value === "string" ? value : "";
 }
 
+/**
+ * @param {string} historyDir
+ * @param {string} name
+ * @returns {string}
+ */
+function boardSvgFile(historyDir, name) {
+  return path.join(historyDir, `board-${encodeURIComponent(name)}.svg`);
+}
+
 test("server returns 400 for preview and download routes without a board name", async () => {
   const dirs = await createServerDirs();
 
@@ -429,6 +438,91 @@ test("board pages are no-store in development and render versioned asset URLs", 
           `\\.\\./tools/pencil/icon\\.svg\\?v(?:=|&#x3D;)${packageJson.version}`,
         ),
       );
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages inline the authoritative svg baseline before client boot", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "inline-baseline"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><g id="rect-1" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22rect-1%22%2C%22tool%22%3A%22Rectangle%22%2C%22type%22%3A%22rect%22%2C%22x%22%3A1%2C%22y%22%3A2%2C%22x2%22%3A30%2C%22y2%22%3A40%2C%22color%22%3A%22%23123456%22%2C%22size%22%3A4%7D"></g></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/inline-baseline");
+
+      assert.equal(response.statusCode, 200);
+      assert.match(
+        response.body,
+        /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-seq="7"[\s\S]*<rect id="rect-1"/,
+      );
+      assert.doesNotMatch(
+        response.body,
+        /<div id="board">\s*<svg id="canvas" width="500" height="500" version="1\.1" xmlns="http:\/\/www\.w3\.org\/2000\/svg">\s*<defs id="defs"><\/defs>\s*<g id="drawingArea"><\/g>\s*<g id="cursors"><\/g>\s*<\/svg>/,
+      );
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("canonical board svg endpoint serves the authoritative baseline with short cache headers", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "canonical-svg"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><g id="line-1" data-wbo-tool="Straight line" data-wbo-item="%7B%22id%22%3A%22line-1%22%2C%22tool%22%3A%22Straight%20line%22%2C%22type%22%3A%22line%22%2C%22x%22%3A0%2C%22y%22%3A0%2C%22x2%22%3A10%2C%22y2%22%3A20%2C%22color%22%3A%22%23000000%22%2C%22size%22%3A2%7D"></g></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    NODE_ENV: "production",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/canonical-svg.svg");
+
+      assert.equal(response.statusCode, 200);
+      assert.equal(response.headers["content-type"], "image/svg+xml");
+      assert.equal(response.headers["cache-control"], "public, max-age=30");
+      assert.match(response.body, /data-wbo-seq="3"/);
+      assert.match(response.body, /<line id="line-1"/);
     } finally {
       await closeServer(app);
     }

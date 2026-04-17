@@ -26,11 +26,16 @@ import {
 } from "./boundary_errors.mjs";
 import check_output_directory from "./check_output_directory.mjs";
 import { readConfiguration } from "./configuration.mjs";
-import * as createSVG from "./createSVG.mjs";
 import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
 import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
+import {
+  readBoardState,
+  readServedBaseline,
+  renderServedBaselineSvg,
+  streamServedBaseline,
+} from "./svg_board_store.mjs";
 import * as templating from "./templating.mjs";
 import {
   appendSetCookieHeader,
@@ -605,9 +610,9 @@ function serveError(request, response, requestContext) {
  */
 function handler(request, response) {
   const requestContext = observeRequest(request, response);
-  requestContext.run(function runRequestHandler() {
+  requestContext.run(async function runRequestHandler() {
     try {
-      handleRequest(request, response, requestContext);
+      await handleRequest(request, response, requestContext);
     } catch (err) {
       const statusCode = requestErrorStatusCode(err) || 500;
       if (statusCode >= 500) {
@@ -760,19 +765,20 @@ function requireBoardPathName(parts, index = 1) {
 }
 
 /**
- * @param {string} boardName
- * @param {string} [backupSuffix]
+ * @param {string[]} parts
+ * @param {number} [index]
  * @returns {string}
  */
-function buildBoardHistoryFile(boardName, backupSuffix) {
-  let historyFile = path.join(
-    config.HISTORY_DIR,
-    `board-${encodeURIComponent(boardName)}.json`,
-  );
-  if (backupSuffix && /^[0-9A-Za-z.-]+$/.test(backupSuffix)) {
-    historyFile += `.${backupSuffix}.bak`;
+function requireBoardSvgPathName(parts, index = 1) {
+  const boardPath = getPathPart(parts, index);
+  if (!boardPath || !boardPath.endsWith(".svg")) {
+    throw badRequest("invalid_board_name");
   }
-  return historyFile;
+  const boardName = validateBoardPath(boardPath.slice(0, -4));
+  if (boardName === null) {
+    throw badRequest("invalid_board_name");
+  }
+  return boardName;
 }
 
 /**
@@ -822,9 +828,9 @@ function handleBoardRedirectRoute(response, parsedUrl, requestContext) {
  *   annotate: (fields: {[key: string]: unknown}) => void,
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function handleBoardDocumentRoute(
+async function handleBoardDocumentRoute(
   request,
   response,
   parsedUrl,
@@ -836,17 +842,71 @@ function handleBoardDocumentRoute(
   jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
   const token = parsedUrl.searchParams.get("token");
   const boardRole = jwtBoardName.roleInBoard(config, token || "", boardName);
-  const boardMetadata = BoardData.loadMetadataSync(boardName);
+  const boardState = await readBoardState(boardName);
+  const boardMetadata = boardState.metadata;
   const canWrite =
     !boardMetadata.readonly ||
     (config.AUTH_SECRET_KEY && ["editor", "moderator"].includes(boardRole));
   ensureBoardUserSecretCookie(request, response, parsedUrl);
   boardTemplate.serve(request, response, boardRole === "moderator", {
+    inlineBoardSvg: renderServedBaselineSvg(
+      boardState.board,
+      boardState.metadata,
+      boardState.seq,
+    ),
     boardState: {
       readonly: boardMetadata.readonly,
       canWrite,
     },
   });
+}
+
+/**
+ * @param {HttpResponse} response
+ * @param {NodeJS.ReadableStream} svgStream
+ * @returns {void}
+ */
+function respondWithBoardSvgStream(response, svgStream) {
+  response.writeHead(200, {
+    "Content-Type": "image/svg+xml",
+    "Content-Security-Policy": CSP,
+    "Cache-Control": cacheControl("public, max-age=30"),
+  });
+  svgStream.pipe(response);
+}
+
+/**
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {URL} parsedUrl
+ * @param {string[]} parts
+ * @param {{
+ *   noteError: (error: unknown) => void,
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @returns {Promise<void>}
+ */
+async function handleBoardSvgRoute(
+  request,
+  response,
+  parsedUrl,
+  parts,
+  requestContext,
+) {
+  const boardName = requireBoardSvgPathName(parts);
+  annotateBoardRequest(requestContext, boardName);
+  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
+  const svgStream = await streamServedBaseline(boardName);
+  svgStream.on("error", (error) => {
+    requestContext.noteError(error);
+    if (!response.headersSent) {
+      respondWithErrorPage(response, 500);
+    } else {
+      response.destroy(error);
+    }
+  });
+  respondWithBoardSvgStream(response, svgStream);
 }
 
 /**
@@ -860,7 +920,7 @@ function handleBoardDocumentRoute(
  *   annotate: (fields: {[key: string]: unknown}) => void,
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
- * @returns {void}
+ * @returns {void | Promise<void>}
  */
 function handleBoardsRoute(
   request,
@@ -876,15 +936,24 @@ function handleBoardsRoute(
     handleBoardRedirectRoute(response, parsedUrl, requestContext);
     return;
   }
-  if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
-    handleBoardDocumentRoute(
+  if (parts.length === 2 && getPathPart(parts, 1)?.endsWith(".svg")) {
+    requestContext.setRoute("board_svg");
+    return handleBoardSvgRoute(
       request,
       response,
       parsedUrl,
       parts,
       requestContext,
     );
-    return;
+  }
+  if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
+    return handleBoardDocumentRoute(
+      request,
+      response,
+      parsedUrl,
+      parts,
+      requestContext,
+    );
   }
   serveStaticFile(
     request,
@@ -897,10 +966,9 @@ function handleBoardsRoute(
 /**
  * @param {HttpResponse} response
  * @param {string} boardName
- * @param {string} historyFile
  * @returns {Promise<void>}
  */
-async function respondWithBoardDownload(response, boardName, historyFile) {
+async function respondWithBoardDownload(response, boardName) {
   const data = await tracing.withActiveSpan(
     "board.download_read",
     {
@@ -909,13 +977,13 @@ async function respondWithBoardDownload(response, boardName, historyFile) {
         "wbo.board.operation": "download_read",
       },
     },
-    function readBoardDownload() {
-      return fs.promises.readFile(historyFile);
+    function readBoardBaseline() {
+      return readServedBaseline(boardName);
     },
   );
   response.writeHead(200, {
-    "Content-Type": "application/json",
-    "Content-Disposition": `attachment; filename="${boardName}.wbo"`,
+    "Content-Type": "image/svg+xml",
+    "Content-Disposition": `attachment; filename="${boardName}.svg"`,
     "Content-Length": data.length,
   });
   response.end(data);
@@ -945,8 +1013,7 @@ function handleDownloadRoute(
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
   jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
-  const historyFile = buildBoardHistoryFile(boardName, getPathPart(parts, 2));
-  void respondWithBoardDownload(response, boardName, historyFile).catch(
+  void respondWithBoardDownload(response, boardName).catch(
     serveError(request, response, requestContext),
   );
 }
@@ -971,11 +1038,10 @@ function recordPreviewDuration(requestContext, startedAt) {
 }
 
 /**
- * @param {string} historyFile
  * @param {string} boardName
  * @returns {Promise<string | null>}
  */
-async function renderPreviewSvg(historyFile, boardName) {
+async function renderPreviewSvg(boardName) {
   return tracing.withActiveSpan(
     "preview.render",
     {
@@ -986,7 +1052,20 @@ async function renderPreviewSvg(historyFile, boardName) {
     },
     async function renderPreview() {
       try {
-        return await createSVG.renderBoardToSVG(historyFile);
+        const boardState = await readBoardState(boardName);
+        if (boardState.source === "empty") {
+          tracing.setActiveSpanAttributes({
+            "wbo.board": boardName,
+            "wbo.board.operation": "preview_render",
+            "wbo.board.result": "not_found",
+          });
+          return null;
+        }
+        return renderServedBaselineSvg(
+          boardState.board,
+          boardState.metadata,
+          boardState.seq,
+        );
       } catch (err) {
         if (isNotFoundError(err)) {
           tracing.setActiveSpanAttributes({
@@ -1004,7 +1083,6 @@ async function renderPreviewSvg(historyFile, boardName) {
 
 /**
  * @param {HttpResponse} response
- * @param {string} historyFile
  * @param {string} boardName
  * @param {{
  *   annotate: (fields: {[key: string]: unknown}) => void,
@@ -1015,12 +1093,11 @@ async function renderPreviewSvg(historyFile, boardName) {
  */
 async function respondWithBoardPreview(
   response,
-  historyFile,
   boardName,
   requestContext,
   startedAt,
 ) {
-  const svg = await renderPreviewSvg(historyFile, boardName);
+  const svg = await renderPreviewSvg(boardName);
   recordPreviewDuration(requestContext, startedAt);
   if (svg === null) {
     response.writeHead(404, {
@@ -1061,11 +1138,9 @@ function handlePreviewRoute(
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
   jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
-  const historyFile = buildBoardHistoryFile(boardName);
   const startedAt = Date.now();
   void respondWithBoardPreview(
     response,
-    historyFile,
     boardName,
     requestContext,
     startedAt,
@@ -1117,7 +1192,7 @@ function handleIndexRoute(request, response, requestContext) {
  *   annotate: (fields: {[key: string]: unknown}) => void,
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
- * @returns {void}
+ * @returns {void | Promise<void>}
  */
 function handleRequest(request, response, requestContext) {
   const parsedUrlResult = validateRequestUrl(request.url);
@@ -1133,30 +1208,43 @@ function handleRequest(request, response, requestContext) {
 
   switch (parts[0]) {
     case "boards":
-      handleBoardsRoute(request, response, parsedUrl, parts, requestContext);
-      break;
+      return handleBoardsRoute(
+        request,
+        response,
+        parsedUrl,
+        parts,
+        requestContext,
+      );
 
     case "download":
-      handleDownloadRoute(parsedUrl, parts, request, response, requestContext);
-      break;
+      return handleDownloadRoute(
+        parsedUrl,
+        parts,
+        request,
+        response,
+        requestContext,
+      );
 
     case "export":
     case "preview":
-      handlePreviewRoute(parsedUrl, parts, request, response, requestContext);
-      break;
+      return handlePreviewRoute(
+        parsedUrl,
+        parts,
+        request,
+        response,
+        requestContext,
+      );
 
     case "random":
       requestContext.setRoute("random_board");
-      handleRandomRoute(response);
-      break;
+      return handleRandomRoute(response);
 
     case "":
       requestContext.setRoute("index");
-      handleIndexRoute(request, response, requestContext);
-      break;
+      return handleIndexRoute(request, response, requestContext);
 
     default:
-      serveStaticFile(request, response, requestContext);
+      return serveStaticFile(request, response, requestContext);
   }
 }
 

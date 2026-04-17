@@ -460,7 +460,7 @@ test("active traces correlate log records and board.save spans", async () => {
       assert.equal(record.attributes.trace_id, undefined);
       assert.equal(record.attributes.span_id, undefined);
       assert.equal(saveSpan.attributes["file.size"], savedBoard.length);
-      assert.match(saveSpan.attributes["file.path"], /board-trace-save\.json$/);
+      assert.match(saveSpan.attributes["file.path"], /board-trace-save\.svg$/);
       assert.equal(
         saveSpan.parentSpanContext.spanId,
         rootSpan.spanContext().spanId,

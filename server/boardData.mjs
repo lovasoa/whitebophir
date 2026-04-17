@@ -991,11 +991,14 @@ class BoardData {
   static async load(name) {
     const boardData = new BoardData(name);
     let traceRoot = false;
-    try {
-      traceRoot =
-        (await stat(boardData.file)).size >=
-        STANDALONE_BOARD_LOAD_BYTES_THRESHOLD;
-    } catch {}
+    for (const candidateFile of [boardData.file, boardJsonPath(name)]) {
+      try {
+        traceRoot =
+          (await stat(candidateFile)).size >=
+          STANDALONE_BOARD_LOAD_BYTES_THRESHOLD;
+        if (traceRoot) break;
+      } catch {}
+    }
     return tracing.withExpensiveActiveSpan(
       "board.load",
       {
