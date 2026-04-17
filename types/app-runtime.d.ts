@@ -249,6 +249,7 @@ export type OptimisticJournalEntry = {
   clientMutationId: string;
   affectedIds: string[];
   dependsOn: string[];
+  dependencyItemIds: string[];
   rollback: OptimisticRollback;
   message: BoardMessage;
 };
@@ -257,6 +258,9 @@ export type OptimisticJournalState = {
   append: (entry: OptimisticJournalEntry) => OptimisticJournalEntry;
   promote: (clientMutationId: string) => OptimisticJournalEntry[];
   reject: (clientMutationId: string) => OptimisticJournalEntry[];
+  rejectByInvalidatedIds: (
+    invalidatedIds: string[],
+  ) => OptimisticJournalEntry[];
   reset: () => OptimisticJournalEntry[];
   list: () => OptimisticJournalEntry[];
   size: () => number;
@@ -435,8 +439,12 @@ export type AppToolsState = {
     rollback: OptimisticRollback,
   ) => void;
   restoreOptimisticRollback: (rollback: OptimisticRollback) => void;
+  applyRejectedOptimisticEntries: (rejected: OptimisticJournalEntry[]) => void;
   promoteOptimisticMutation: (clientMutationId: string) => void;
   rejectOptimisticMutation: (clientMutationId: string) => void;
+  pruneOptimisticMutationsForAuthoritativeMessage: (
+    message: BoardMessage,
+  ) => void;
   applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
   refreshAuthoritativeBaseline: () => Promise<void>;
   resetLocalRateLimitState: (kind: RateLimitKind, now?: number) => void;

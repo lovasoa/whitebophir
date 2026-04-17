@@ -16,6 +16,7 @@ function cloneEntry(entry) {
     clientMutationId: entry.clientMutationId,
     affectedIds: entry.affectedIds.slice(),
     dependsOn: entry.dependsOn.slice(),
+    dependencyItemIds: entry.dependencyItemIds.slice(),
     rollback: structuredClone(entry.rollback),
     message: structuredClone(entry.message),
   };
@@ -39,6 +40,7 @@ function normalizeEntry(entry) {
     clientMutationId: entry.clientMutationId,
     affectedIds: normalizeStringArray(entry.affectedIds),
     dependsOn: normalizeStringArray(entry.dependsOn),
+    dependencyItemIds: normalizeStringArray(entry.dependencyItemIds),
     rollback: structuredClone(entry.rollback),
     message: structuredClone(entry.message),
   };
@@ -86,6 +88,54 @@ export function createOptimisticJournal() {
     reject(clientMutationId) {
       if (!entries.has(clientMutationId)) return [];
       const rejectedIds = new Set([clientMutationId]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        order.forEach((id) => {
+          const entry = entries.get(id);
+          if (!entry || rejectedIds.has(id)) return;
+          if (
+            entry.dependsOn.some((/** @type {string} */ dependencyId) =>
+              rejectedIds.has(dependencyId),
+            )
+          ) {
+            rejectedIds.add(id);
+            changed = true;
+          }
+        });
+      }
+      const rejectedEntries = order
+        .filter((id) => rejectedIds.has(id))
+        .map((id) => cloneEntry(entries.get(id)));
+      rejectedIds.forEach((id) => {
+        entries.delete(id);
+      });
+      order = order.filter((id) => !rejectedIds.has(id));
+      return rejectedEntries;
+    },
+    /**
+     * @param {string[]} invalidatedIds
+     * @returns {any[]}
+     */
+    rejectByInvalidatedIds(invalidatedIds) {
+      const invalidatedIdSet = new Set(normalizeStringArray(invalidatedIds));
+      if (invalidatedIdSet.size === 0) return [];
+      const rejectedIds = new Set(
+        order.filter((id) => {
+          const entry = entries.get(id);
+          if (!entry) return false;
+          return (
+            entry.affectedIds.some((/** @type {string} */ affectedId) =>
+              invalidatedIdSet.has(affectedId),
+            ) ||
+            entry.dependencyItemIds.some(
+              (/** @type {string} */ dependencyItemId) =>
+                invalidatedIdSet.has(dependencyItemId),
+            )
+          );
+        }),
+      );
+      if (rejectedIds.size === 0) return [];
       let changed = true;
       while (changed) {
         changed = false;

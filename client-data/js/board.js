@@ -542,10 +542,30 @@ Tools.trackOptimisticMutation = function trackOptimisticMutation(
     clientMutationId: message.clientMutationId,
     affectedIds: OptimisticMutation.collectOptimisticAffectedIds(message),
     dependsOn: Tools.collectOptimisticDependencyMutationIds(message),
+    dependencyItemIds:
+      OptimisticMutation.collectOptimisticDependencyIds(message),
     rollback,
     message,
   });
   Tools.rebuildOptimisticMutationIndex();
+};
+
+/**
+ * @param {any[]} rejected
+ * @returns {void}
+ */
+Tools.applyRejectedOptimisticEntries = function applyRejectedOptimisticEntries(
+  rejected,
+) {
+  if (!Array.isArray(rejected) || rejected.length === 0) return;
+  rejected
+    .slice()
+    .reverse()
+    .forEach((entry) => {
+      Tools.restoreOptimisticRollback(entry.rollback);
+    });
+  Tools.rebuildOptimisticMutationIndex();
+  Tools.restoreLocalCursor();
 };
 
 /**
@@ -599,17 +619,29 @@ Tools.promoteOptimisticMutation = function promoteOptimisticMutation(
 Tools.rejectOptimisticMutation = function rejectOptimisticMutation(
   clientMutationId,
 ) {
-  const rejected = Tools.optimisticJournal.reject(clientMutationId);
-  if (rejected.length === 0) return;
-  rejected
-    .slice()
-    .reverse()
-    .forEach((entry) => {
-      Tools.restoreOptimisticRollback(entry.rollback);
-    });
-  Tools.rebuildOptimisticMutationIndex();
-  Tools.restoreLocalCursor();
+  Tools.applyRejectedOptimisticEntries(
+    Tools.optimisticJournal.reject(clientMutationId),
+  );
 };
+
+/**
+ * @param {BoardMessage} message
+ * @returns {void}
+ */
+Tools.pruneOptimisticMutationsForAuthoritativeMessage =
+  function pruneOptimisticMutationsForAuthoritativeMessage(message) {
+    if (!message || typeof message !== "object") return;
+    if (message.type === "clear") {
+      Tools.applyRejectedOptimisticEntries(Tools.optimisticJournal.reset());
+      return;
+    }
+    if (message.type !== "delete" || typeof message.id !== "string") {
+      return;
+    }
+    Tools.applyRejectedOptimisticEntries(
+      Tools.optimisticJournal.rejectByInvalidatedIds([message.id]),
+    );
+  };
 
 Tools.applyAuthoritativeBaseline =
   /**
@@ -990,6 +1022,9 @@ async function processIncomingBroadcast(msg) {
     replayMessage.clientMutationId
   ) {
     Tools.promoteOptimisticMutation(replayMessage.clientMutationId);
+  }
+  if (isPersistentEnvelope && !isOwnSeqEnvelope) {
+    Tools.pruneOptimisticMutationsForAuthoritativeMessage(replayMessage);
   }
   if (!isOwnSeqEnvelope) {
     await handleMessage(replayMessage);

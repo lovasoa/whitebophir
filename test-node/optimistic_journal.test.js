@@ -87,3 +87,42 @@ test("optimistic journal reset clears all pending entries", () => {
   );
   assert.equal(journal.size(), 0);
 });
+
+test("optimistic journal prunes entries invalidated by authoritative deletes", () => {
+  const journal = createOptimisticJournal();
+  journal.append({
+    clientMutationId: "copy-1",
+    affectedIds: ["copy-1"],
+    dependsOn: [],
+    dependencyItemIds: ["seed-1"],
+    rollback: { kind: "items", snapshots: [] },
+    message: { tool: "Hand", type: "copy", id: "seed-1", newid: "copy-1" },
+  });
+  journal.append({
+    clientMutationId: "copy-1-transform",
+    affectedIds: ["copy-1"],
+    dependsOn: ["copy-1"],
+    dependencyItemIds: ["copy-1"],
+    rollback: { kind: "items", snapshots: [] },
+    message: { tool: "Hand", type: "update", id: "copy-1" },
+  });
+  journal.append({
+    clientMutationId: "shape-2-update",
+    affectedIds: ["shape-2"],
+    dependsOn: [],
+    dependencyItemIds: ["shape-2"],
+    rollback: { kind: "items", snapshots: [] },
+    message: { tool: "Rectangle", type: "update", id: "shape-2" },
+  });
+
+  assert.deepEqual(
+    journal
+      .rejectByInvalidatedIds(["seed-1"])
+      .map((entry) => entry.clientMutationId),
+    ["copy-1", "copy-1-transform"],
+  );
+  assert.deepEqual(
+    journal.list().map((entry) => entry.clientMutationId),
+    ["shape-2-update"],
+  );
+});
