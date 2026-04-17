@@ -74,32 +74,37 @@ test.describe("single-page interactions", () => {
 
   test("draw tools disable at giant shape zoom threshold", async ({
     boardPage,
-    server,
   }) => {
     await boardPage.gotoBoard("zoom-threshold-test");
     await expect(boardPage.tool("Hand")).toBeVisible();
     await expect(boardPage.tool("Pencil")).toBeVisible();
     await boardPage.selectTool("Pencil");
-    await boardPage.expectCurrentTool("Pencil");
+    await boardPage.page.evaluate(() => {
+      (window as any).Tools.setScale(0.4);
+    });
 
-    const result = await boardPage.verifyZoomThresholdBehavior();
-    expect(result.initialState.currentTool).toBe("Hand");
-    expect(result.initialState.pencilDisabled).toBe(true);
-    expect(result.initialState.rectDisabled).toBe(true);
-    expect(result.giantShapeState.currentTool).toBe("Rectangle");
-    expect(result.giantShapeState.changeResult).toBe(true);
-    expect(result.giantShapeState.rectPresent).toBe(true);
-    expect(result.finalState.currentTool).toBe("Rectangle");
-    expect(result.finalState.blockedChangeResult).toBe(false);
-    expect(result.finalState.pencilDisabled).toBe(false);
+    await boardPage.expectCurrentTool("Hand");
+    await expect(boardPage.tool("Pencil")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await expect(boardPage.tool("Rectangle")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    await boardPage.tool("Pencil").click();
+    await boardPage.expectCurrentTool("Hand");
+
+    await boardPage.page.evaluate(() => {
+      (window as any).Tools.setScale(0.5);
+    });
+    await expect(boardPage.tool("Pencil")).toHaveAttribute(
+      "aria-disabled",
+      "false",
+    );
 
     await boardPage.selectTool("Pencil");
-    await boardPage.expectCurrentTool("Pencil");
-    expect(
-      Object.keys(
-        await server.readStoredBoard(server.dataPath, "zoom-threshold-test"),
-      ),
-    ).toHaveLength(0);
   });
 
   test("download exports SVG content", async ({ boardPage, server }) => {

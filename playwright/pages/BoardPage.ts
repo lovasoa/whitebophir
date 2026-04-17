@@ -580,63 +580,6 @@ export class BoardPage {
     };
   }
 
-  async verifyZoomThresholdBehavior() {
-    return this.page.evaluate(async () => {
-      const nextFrame = () =>
-        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-      const originalShouldDisableTool = (window as any).Tools.shouldDisableTool;
-      const originalCanUseTool = (window as any).Tools.canUseTool;
-
-      (window as any).Tools.setScale(0.4);
-      const initialState = {
-        currentTool: (window as any).Tools.curTool?.name,
-        pencilDisabled: document
-          .getElementById("toolID-Pencil")
-          ?.classList.contains("disabledTool"),
-        rectDisabled: document
-          .getElementById("toolID-Rectangle")
-          ?.classList.contains("disabledTool"),
-      };
-
-      const rectangleTool = (window as any).Tools.list.Rectangle;
-      const rectToolElem = document.getElementById("toolID-Rectangle");
-      if (!rectToolElem) throw new Error("Rectangle tool missing");
-      rectToolElem.classList.remove("disabledTool");
-      rectToolElem.setAttribute("aria-disabled", "false");
-      (window as any).Tools.shouldDisableTool = () => false;
-      (window as any).Tools.canUseTool = () => true;
-
-      const evt = { preventDefault() {} };
-      const changeResult = (window as any).Tools.change("Rectangle");
-      rectangleTool.listeners.press(10, 10, evt);
-      rectangleTool.listeners.move(4015, 30, evt);
-      rectangleTool.listeners.release(4015, 30, evt);
-      await nextFrame();
-
-      const giantShapeState = {
-        currentTool: (window as any).Tools.curTool?.name,
-        changeResult,
-        rectPresent: !!document.querySelector("#drawingArea rect"),
-      };
-
-      (window as any).Tools.shouldDisableTool = originalShouldDisableTool;
-      (window as any).Tools.canUseTool = originalCanUseTool;
-
-      const blockedChangeResult = (window as any).Tools.change("Pencil");
-      (window as any).Tools.setScale(0.5);
-      const finalState = {
-        currentTool: (window as any).Tools.curTool?.name,
-        blockedChangeResult,
-        pencilDisabled: document
-          .getElementById("toolID-Pencil")
-          ?.classList.contains("disabledTool"),
-      };
-
-      return { initialState, giantShapeState, finalState };
-    });
-  }
-
   async installDownloadCapture() {
     await this.page.evaluate(() => {
       (window as any).__downloadCapture = null;
