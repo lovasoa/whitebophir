@@ -8,6 +8,32 @@ const { withEnv } = require("./test_helpers.js");
 
 const svgEnvelope = require("../server/svg_envelope.mjs");
 const svgBoardStore = require("../server/svg_board_store.mjs");
+const {
+  wboPencilPoint,
+} = require("../client-data/tools/pencil/wbo_pencil_point.js");
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * @param {{x: number, y: number}[]} points
+ * @returns {string}
+ */
+function renderExpectedPencilPath(points) {
+  /** @type {{type: string, values: number[]}[]} */
+  const pathData = [];
+  points.forEach((point) => {
+    wboPencilPoint(pathData, point.x, point.y);
+  });
+  return pathData
+    .map((segment) => `${segment.type} ${segment.values.join(" ")}`)
+    .join(" ");
+}
 
 test("parseStoredSvgEnvelope keeps non-drawing shell content opaque", () => {
   const svg =
@@ -288,6 +314,34 @@ test("parseBoardItems falls back to legacy json and filters ids", async () => {
     assert.deepEqual([...items.keys()], ["rect-1"]);
     assert.equal(items.get("rect-1")?.tool, "Rectangle");
   });
+});
+
+test("served svg baselines keep pencil smoothing compatible with the client path builder", async () => {
+  const points = [
+    { x: 1, y: 2 },
+    { x: 10, y: 12 },
+    { x: 18, y: 9 },
+    { x: 25, y: 30 },
+  ];
+  const svg = svgBoardStore.renderServedBaselineSvg(
+    {
+      "line-1": {
+        id: "line-1",
+        tool: "Pencil",
+        type: "line",
+        color: "#123456",
+        size: 4,
+        _children: points,
+      },
+    },
+    { readonly: false },
+    9,
+  );
+
+  assert.match(
+    svg,
+    new RegExp(`d="${escapeRegExp(renderExpectedPencilPath(points))}"`),
+  );
 });
 
 test("writeBoardState removes stale svg and legacy json when board becomes empty", async () => {
