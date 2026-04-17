@@ -27,6 +27,7 @@
 import BoardAuthoritativeView from "./board_authoritative_view.js";
 import BoardMessageReplay from "./board_message_replay.js";
 import BoardSvgBaseline from "./board_svg_baseline.js";
+import AuthoritativeMutationEffects from "./authoritative_mutation_effects.js";
 import OptimisticJournal from "./optimistic_journal.js";
 import OptimisticMutation from "./optimistic_mutation.js";
 import {
@@ -630,16 +631,19 @@ Tools.rejectOptimisticMutation = function rejectOptimisticMutation(
  */
 Tools.pruneOptimisticMutationsForAuthoritativeMessage =
   function pruneOptimisticMutationsForAuthoritativeMessage(message) {
-    if (!message || typeof message !== "object") return;
-    if (message.type === "clear") {
+    const prunePlan =
+      AuthoritativeMutationEffects.optimisticPrunePlanForAuthoritativeMessage(
+        message,
+      );
+    if (prunePlan.reset) {
       Tools.applyRejectedOptimisticEntries(Tools.optimisticJournal.reset());
       return;
     }
-    if (message.type !== "delete" || typeof message.id !== "string") {
+    if (prunePlan.invalidatedIds.length === 0) {
       return;
     }
     Tools.applyRejectedOptimisticEntries(
-      Tools.optimisticJournal.rejectByInvalidatedIds([message.id]),
+      Tools.optimisticJournal.rejectByInvalidatedIds(prunePlan.invalidatedIds),
     );
   };
 
