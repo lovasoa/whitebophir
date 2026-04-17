@@ -7,7 +7,7 @@ const {
 } = require("../server/stored_svg_rewrite.mjs");
 const { parseStoredSvg } = require("../server/svg_board_store.mjs");
 
-test("stored svg rewrite preserves shell and paint order across update copy and delete", () => {
+test("stored svg rewrite preserves shell and paint order across create update copy and delete", () => {
   const svg =
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
     '<defs id="defs"><marker id="keep"></marker></defs>' +
@@ -19,6 +19,19 @@ test("stored svg rewrite preserves shell and paint order across update copy and 
     "</svg>";
 
   const rewritten = rewriteStoredSvg(svg, { readonly: true }, 5, [
+    {
+      mutation: {
+        tool: "Ellipse",
+        type: "ellipse",
+        id: "ellipse-1",
+        x: 7,
+        y: 8,
+        x2: 11,
+        y2: 12,
+        color: "#abcdef",
+        size: 3,
+      },
+    },
     {
       mutation: {
         tool: "Rectangle",
@@ -54,16 +67,25 @@ test("stored svg rewrite preserves shell and paint order across update copy and 
   assert.match(rewritten, /data-wbo-readonly="true"/);
 
   const rect1Index = rewritten.indexOf('id="rect-1"');
+  const ellipse1Index = rewritten.indexOf('id="ellipse-1"');
   const rect2Index = rewritten.indexOf('id="rect-2"');
   assert.ok(rect1Index !== -1);
+  assert.ok(ellipse1Index !== -1);
   assert.ok(rect2Index !== -1);
   assert.ok(rect1Index < rect2Index);
+  assert.ok(rect1Index < ellipse1Index);
+  assert.ok(ellipse1Index < rect2Index);
   assert.equal(rewritten.includes('id="text-1"'), false);
 
   const parsed = parseStoredSvg(rewritten);
   assert.equal(parsed.board["rect-1"].x2, 30);
+  assert.equal(parsed.board["ellipse-1"].tool, "Ellipse");
   assert.equal(parsed.board["rect-2"].tool, "Rectangle");
-  assert.deepEqual(Object.keys(parsed.board), ["rect-1", "rect-2"]);
+  assert.deepEqual(Object.keys(parsed.board), [
+    "rect-1",
+    "ellipse-1",
+    "rect-2",
+  ]);
 });
 
 test("stored svg rewrite applies hand batches pencil growth and clear", () => {
