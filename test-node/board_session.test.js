@@ -1,0 +1,172 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
+
+const BOARD_SESSION_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "board_session.mjs",
+);
+let boardSessionLoadSequence = 0;
+
+/**
+ * @returns {Promise<any>}
+ */
+async function loadBoardSession() {
+  return import(
+    `${pathToFileURL(BOARD_SESSION_PATH).href}?cache-bust=${++boardSessionLoadSequence}`
+  );
+}
+
+function createGate() {
+  /** @type {(value?: void) => void} */
+  let resolve = () => {};
+  const promise = new Promise((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
+test("board session serializes persistent mutation acceptance per board", async () => {
+  const { createBoardSession } = await loadBoardSession();
+  const gate = createGate();
+  /** @type {string[]} */
+  const steps = [];
+  let seq = 0;
+  const board = {
+    name: "session-serialization",
+    async preparePersistentMutation(/** @type {any} */ message) {
+      steps.push(`prepare:${message.id}`);
+      if (message.id === "first") {
+        await gate.promise;
+      }
+      return { ok: true, mutation: message };
+    },
+    processMessage(/** @type {any} */ message) {
+      steps.push(`process:${message.id}`);
+      return { ok: true, revision: message.id === "first" ? 1 : 2 };
+    },
+    recordPersistentMutation(/** @type {any} */ message) {
+      seq += 1;
+      steps.push(`record:${message.id}`);
+      return { seq, mutation: message };
+    },
+  };
+  const session = createBoardSession(board);
+
+  const first = session.acceptPersistentMutation(
+    "socket-1",
+    { tool: "Rectangle", type: "rect", id: "first" },
+    "cm-1",
+    10,
+  );
+  const second = session.acceptPersistentMutation(
+    "socket-1",
+    { tool: "Rectangle", type: "rect", id: "second" },
+    "cm-2",
+    20,
+  );
+
+  await Promise.resolve();
+  assert.deepEqual(steps, ["prepare:first"]);
+
+  gate.resolve();
+
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+  assert.equal(firstResult.ok, true);
+  assert.equal(secondResult.ok, true);
+  assert.deepEqual(steps, [
+    "prepare:first",
+    "process:first",
+    "record:first",
+    "prepare:second",
+    "process:second",
+    "record:second",
+  ]);
+  assert.equal(firstResult.envelope.seq, 1);
+  assert.equal(secondResult.envelope.seq, 2);
+});
+
+test("board session records the prepared mutation payload", async () => {
+  const { createBoardSession } = await loadBoardSession();
+  /** @type {any[]} */
+  const processed = [];
+  /** @type {any[]} */
+  const recorded = [];
+  const board = {
+    name: "session-prepared-mutation",
+    preparePersistentMutation(/** @type {any} */ message) {
+      return {
+        ok: true,
+        mutation: { ...message, txt: "prepared text" },
+      };
+    },
+    processMessage(/** @type {any} */ message) {
+      processed.push(message);
+      return { ok: true, revision: 3 };
+    },
+    recordPersistentMutation(
+      /** @type {any} */ message,
+      /** @type {any} */ acceptedAtMs,
+      /** @type {any} */ clientMutationId,
+    ) {
+      recorded.push({ message, acceptedAtMs, clientMutationId });
+      return { seq: 5, mutation: message, clientMutationId };
+    },
+  };
+
+  const result = await createBoardSession(board).acceptPersistentMutation(
+    "socket-1",
+    { tool: "Text", type: "update", id: "text-1", txt: "draft" },
+    "cm-9",
+    99,
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(processed, [
+    { tool: "Text", type: "update", id: "text-1", txt: "prepared text" },
+  ]);
+  assert.deepEqual(recorded, [
+    {
+      message: {
+        tool: "Text",
+        type: "update",
+        id: "text-1",
+        txt: "prepared text",
+      },
+      acceptedAtMs: 99,
+      clientMutationId: "cm-9",
+    },
+  ]);
+});
+
+test("board session does not append to the mutation log after rejection", async () => {
+  const { createBoardSession } = await loadBoardSession();
+  let recordCount = 0;
+  const board = {
+    name: "session-rejected-mutation",
+    processMessage() {
+      return { ok: false, reason: "invalid parent for child" };
+    },
+    recordPersistentMutation() {
+      recordCount += 1;
+      return { seq: 1 };
+    },
+  };
+
+  assert.deepEqual(
+    await createBoardSession(board).acceptPersistentMutation(
+      "socket-1",
+      { tool: "Pencil", type: "child", parent: "missing-parent", x: 1, y: 2 },
+      "cm-reject",
+      12,
+    ),
+    {
+      ok: false,
+      reason: "invalid parent for child",
+    },
+  );
+  assert.equal(recordCount, 0);
+});

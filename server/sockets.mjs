@@ -3,7 +3,7 @@ import * as socketIO from "socket.io";
 import WBOMessageCommon from "../client-data/js/message_common.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { BoardData } from "./boardData.mjs";
-import { processNormalizedBoardMessage } from "./broadcast_processing.mjs";
+import { getBoardSession } from "./board_session.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import observability from "./observability.mjs";
 import {
@@ -1707,6 +1707,7 @@ function rejectBoardMessageWrite(
  * @param {number} now
  * @param {string} userName
  * @param {number} revision
+ * @param {any} envelope
  * @returns {void}
  */
 function finishSuccessfulBoardWrite(
@@ -1717,6 +1718,7 @@ function finishSuccessfulBoardWrite(
   now,
   userName,
   revision,
+  envelope,
 ) {
   const user = updateBoardUserFromMessage(socket, boardName, data, now);
   attachLiveSocketId(data, user);
@@ -1733,7 +1735,6 @@ function finishSuccessfulBoardWrite(
     return;
   }
   const legacyPayload = { ...data, revision: revision };
-  const envelope = board.recordPersistentMutation(data, now);
   emitPersistentBoardMutation(
     board,
     boardName,
@@ -1768,8 +1769,29 @@ async function persistBoardBroadcast(
     rejectBlockedBoardWrite(socket, board, boardName, data, clientIp, userName);
     return;
   }
+  if (data.tool === "Cursor") {
+    finishSuccessfulBoardWrite(
+      socket,
+      board,
+      boardName,
+      data,
+      now,
+      userName,
+      0,
+      {
+        seq: 0,
+        mutation: data,
+      },
+    );
+    return;
+  }
 
-  const handleResult = processNormalizedBoardMessage(board, data, socket.id);
+  const handleResult = await getBoardSession(board).acceptPersistentMutation(
+    socket.id,
+    data,
+    data.clientMutationId,
+    now,
+  );
   if (handleResult.ok === false) {
     rejectBoardMessageWrite(
       socket,
@@ -1789,10 +1811,11 @@ async function persistBoardBroadcast(
     socket,
     board,
     boardName,
-    data,
+    handleResult.value,
     now,
     userName,
-    /** @type {number} */ (handleResult.revision),
+    handleResult.revision,
+    handleResult.envelope,
   );
 }
 
