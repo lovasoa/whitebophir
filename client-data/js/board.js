@@ -853,6 +853,7 @@ Tools.ensureTurnstileElements = function ensureTurnstileElements() {
 };
 
 Tools.showTurnstileOverlayTimeout = null;
+const TURNSTILE_ACK_TIMEOUT_MS = 10_000;
 
 /** @param {number} delay */
 Tools.showTurnstileOverlay = function showTurnstileOverlay(delay) {
@@ -881,6 +882,60 @@ function handleTurnstileError(errorCode) {
   location.reload();
 }
 
+/**
+ * @param {string} token
+ * @returns {Promise<unknown>}
+ */
+function emitTurnstileToken(token) {
+  return new Promise((resolve, reject) => {
+    const socket = Tools.socket;
+    if (!socket) {
+      reject(new Error("Socket unavailable while submitting Turnstile token."));
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      reject(new Error("Timed out waiting for Turnstile acknowledgement."));
+    }, TURNSTILE_ACK_TIMEOUT_MS);
+
+    try {
+      socket.emit("turnstile_token", token, (/** @type {unknown} */ result) => {
+        clearTimeout(timeoutId);
+        resolve(result);
+      });
+    } catch (error) {
+      clearTimeout(timeoutId);
+      reject(error);
+    }
+  });
+}
+
+/**
+ * @param {string} token
+ * @returns {Promise<void>}
+ */
+async function submitTurnstileToken(token) {
+  try {
+    const result = await emitTurnstileToken(token);
+    const turnstileResult = Tools.normalizeTurnstileAck(result);
+    Tools.turnstilePending = false;
+    if (turnstileResult.success) {
+      Tools.setTurnstileValidation(turnstileResult);
+      Tools.hideTurnstileOverlay();
+      Tools.flushTurnstilePendingWrites();
+      return;
+    }
+  } catch (error) {
+    Tools.turnstilePending = false;
+    Tools.setTurnstileValidation(null);
+    console.error("Turnstile submission error:", error);
+    Tools.refreshTurnstile();
+    return;
+  }
+
+  Tools.setTurnstileValidation(null);
+  Tools.refreshTurnstile();
+}
+
 Tools.refreshTurnstile = function refreshTurnstile() {
   if (!Tools.server_config.TURNSTILE_SITE_KEY) return;
   Tools.ensureTurnstileElements();
@@ -898,22 +953,7 @@ Tools.refreshTurnstile = function refreshTurnstile() {
         /** @param {string} token */
         callback: (token) => {
           if (!Tools.socket) return;
-          Tools.socket.emit(
-            "turnstile_token",
-            token,
-            (/** @type {unknown} */ result) => {
-              const turnstileResult = Tools.normalizeTurnstileAck(result);
-              Tools.turnstilePending = false;
-              if (turnstileResult.success) {
-                Tools.setTurnstileValidation(turnstileResult);
-                Tools.hideTurnstileOverlay();
-                Tools.flushTurnstilePendingWrites();
-              } else {
-                Tools.setTurnstileValidation(null);
-                Tools.refreshTurnstile();
-              }
-            },
-          );
+          void submitTurnstileToken(token);
         },
         "before-interactive-callback": () => {
           Tools.showTurnstileOverlay(500);
