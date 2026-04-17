@@ -7,7 +7,7 @@ function getConfig() {
   return readConfiguration();
 }
 
-/** @typedef {{[key: string]: any}} RawRecord */
+/** @typedef {{[key: string]: unknown}} RawRecord */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
 /** @typedef {{x: number, y: number}} ChildPoint */
@@ -23,10 +23,15 @@ function getConfig() {
  * @typedef {Accepted<T> | Rejected} ValidationResult
  */
 /**
+ * @template [T=unknown]
+ * @typedef {(value: unknown, raw?: RawRecord, normalized?: RawRecord) => ValidationResult<T>} FieldNormalizer
+ */
+/**
+ * @template [T=unknown]
  * @typedef {{
- *   normalize: (value: any, raw?: RawRecord, normalized?: RawRecord) => ValidationResult<any>,
+ *   normalize: FieldNormalizer<T>,
  *   required: boolean,
- *   defaultValue?: any | ((raw: RawRecord, normalized: RawRecord) => any),
+ *   defaultValue?: unknown | ((raw: RawRecord, normalized: RawRecord) => unknown),
  * }} FieldSpec
  */
 /** @typedef {{[key: string]: FieldSpec}} FieldSchema */
@@ -54,7 +59,7 @@ function rejected(reason) {
 }
 
 /**
- * @param {any} value
+ * @param {unknown} value
  * @returns {value is RawRecord}
  */
 function isPlainObject(value) {
@@ -62,18 +67,20 @@ function isPlainObject(value) {
 }
 
 /**
- * @param {FieldSpec["normalize"]} normalize
- * @param {Partial<FieldSpec>} [options]
- * @returns {FieldSpec}
+ * @template T
+ * @param {FieldNormalizer<T>} normalize
+ * @param {Partial<FieldSpec<T>>} [options]
+ * @returns {FieldSpec<T>}
  */
 function required(normalize, options) {
   return { normalize, required: true, ...options };
 }
 
 /**
- * @param {FieldSpec["normalize"]} normalize
- * @param {Partial<FieldSpec>} [options]
- * @returns {FieldSpec}
+ * @template T
+ * @param {FieldNormalizer<T>} normalize
+ * @param {Partial<FieldSpec<T>>} [options]
+ * @returns {FieldSpec<T>}
  */
 function optional(normalize, options) {
   return { normalize, required: false, ...options };
@@ -82,7 +89,7 @@ function optional(normalize, options) {
 /**
  * @template {string} T
  * @param {T} expected
- * @returns {(value: any) => ValidationResult<T>}
+ * @returns {(value: unknown) => ValidationResult<T>}
  */
 function literal(expected) {
   return function normalizeLiteral(value) {
@@ -93,7 +100,7 @@ function literal(expected) {
 }
 
 /**
- * @param {any} value
+ * @param {unknown} value
  * @returns {ValidationResult<string>}
  */
 function normalizeId(value) {
@@ -102,7 +109,7 @@ function normalizeId(value) {
 }
 
 /**
- * @param {any} value
+ * @param {unknown} value
  * @returns {Accepted<number>}
  */
 function normalizeSize(value) {
@@ -110,7 +117,7 @@ function normalizeSize(value) {
 }
 
 /**
- * @param {any} value
+ * @param {unknown} value
  * @returns {Accepted<number | undefined>}
  */
 function normalizeOpacity(value) {
@@ -119,7 +126,7 @@ function normalizeOpacity(value) {
 }
 
 /**
- * @param {any} value
+ * @param {unknown} value
  * @returns {Accepted<number>}
  */
 function normalizeCoord(value) {
@@ -127,7 +134,7 @@ function normalizeCoord(value) {
 }
 
 /**
- * @param {any} value
+ * @param {unknown} value
  * @returns {ValidationResult<string>}
  */
 function normalizeColor(value) {
@@ -136,7 +143,7 @@ function normalizeColor(value) {
 }
 
 /**
- * @param {any} value
+ * @param {unknown} value
  * @returns {Accepted<string>}
  */
 function normalizeText(value) {
@@ -144,7 +151,7 @@ function normalizeText(value) {
 }
 
 /**
- * @param {any} value
+ * @param {unknown} value
  * @returns {ValidationResult<number>}
  */
 function normalizeTime(value) {
@@ -153,7 +160,7 @@ function normalizeTime(value) {
 }
 
 /**
- * @param {any} value
+ * @param {unknown} value
  * @returns {ValidationResult<Transform>}
  */
 function normalizeTransform(value) {
@@ -173,7 +180,7 @@ function normalizeTransform(value) {
 }
 
 /**
- * @param {any} raw
+ * @param {unknown} raw
  * @param {FieldSchema} fields
  * @returns {ValidationResult<RawRecord>}
  */
@@ -184,7 +191,7 @@ function normalizeObject(raw, fields) {
   const normalized = {};
   for (const [key, field] of Object.entries(fields)) {
     const hasValue = Object.hasOwn(raw, key);
-    /** @type {any} */
+    /** @type {unknown} */
     let value;
 
     if (hasValue) {
@@ -214,7 +221,9 @@ function normalizeObject(raw, fields) {
  * @returns {number}
  */
 function defaultCoordinateFromX(raw, normalized) {
-  return normalized.x !== undefined ? normalized.x : raw.x;
+  return /** @type {number} */ (
+    normalized.x !== undefined ? normalized.x : raw.x
+  );
 }
 
 /**
@@ -223,7 +232,9 @@ function defaultCoordinateFromX(raw, normalized) {
  * @returns {number}
  */
 function defaultCoordinateFromY(raw, normalized) {
-  return normalized.y !== undefined ? normalized.y : raw.y;
+  return /** @type {number} */ (
+    normalized.y !== undefined ? normalized.y : raw.y
+  );
 }
 
 /**
@@ -446,7 +457,7 @@ const STORED_ITEM_SCHEMAS = {
 };
 
 /**
- * @param {any} raw
+ * @param {unknown} raw
  * @returns {ValidationResult<NormalizedMessageData>}
  */
 function normalizeIncomingBatch(raw) {
@@ -484,15 +495,16 @@ function normalizeIncomingBatch(raw) {
 }
 
 /**
- * @param {any} raw
+ * @param {unknown} raw
  * @returns {ValidationResult<NormalizedMessageData>}
  */
 function normalizeIncomingMessage(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
   if (Array.isArray(raw._children)) return normalizeIncomingBatch(raw);
+  if (!hasMessageTool(raw)) return rejected("missing tool");
 
   const toolSchemas = LIVE_MESSAGE_SCHEMAS[raw.tool];
-  const schema = toolSchemas?.[raw.type];
+  const schema = toolSchemas?.[typeof raw.type === "string" ? raw.type : ""];
   if (!schema) return rejected("invalid tool/type");
 
   const normalized = normalizeObject(raw, schema);
@@ -507,7 +519,7 @@ function normalizeIncomingMessage(raw) {
 }
 
 /**
- * @param {any} raw
+ * @param {unknown} raw
  * @returns {ValidationResult<ChildPoint>}
  */
 function normalizeStoredChildPoint(raw) {
@@ -517,20 +529,21 @@ function normalizeStoredChildPoint(raw) {
   });
   if (normalized.ok === false) return normalized;
   return accepted({
-    x: normalized.value.x,
-    y: normalized.value.y,
+    x: /** @type {number} */ (normalized.value.x),
+    y: /** @type {number} */ (normalized.value.y),
   });
 }
 
 /**
- * @param {any} raw
- * @param {any} storedId
- * @returns {ValidationResult<RawRecord>}
+ * @param {unknown} raw
+ * @param {unknown} storedId
+ * @returns {ValidationResult<StoredItemWithBounds>}
  */
 function normalizeStoredItemWithBounds(raw, storedId) {
   const normalizedId = MessageCommon.normalizeId(storedId);
   if (normalizedId === null) return rejected("invalid stored id");
   if (!isPlainObject(raw)) return rejected("invalid stored item");
+  if (!hasMessageTool(raw)) return rejected("unsupported stored tool");
 
   const schema = STORED_ITEM_SCHEMAS[raw.tool];
   if (!schema) return rejected("unsupported stored tool");
@@ -561,21 +574,23 @@ function normalizeStoredItemWithBounds(raw, storedId) {
     return rejected("shape too large");
   }
 
-  return accepted({
-    value: normalized.value,
-    localBounds: localBounds,
-  });
+  return accepted(
+    /** @type {StoredItemWithBounds} */ ({
+      value: normalized.value,
+      localBounds: localBounds,
+    }),
+  );
 }
 
 /**
- * @param {any} raw
- * @param {any} storedId
+ * @param {unknown} raw
+ * @param {unknown} storedId
  * @returns {ValidationResult<RawRecord>}
  */
 function normalizeStoredItem(raw, storedId) {
   const normalized = normalizeStoredItemWithBounds(raw, storedId);
   if (!normalized.ok) return normalized;
-  return accepted(normalized.value.value);
+  return accepted(/** @type {RawRecord} */ (normalized.value.value));
 }
 
 export {
