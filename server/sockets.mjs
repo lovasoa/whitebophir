@@ -3,6 +3,7 @@ import * as socketIO from "socket.io";
 import WBOMessageCommon from "../client-data/js/message_common.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { BoardData } from "./boardData.mjs";
+import { processNormalizedBoardMessage } from "./broadcast_processing.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import observability from "./observability.mjs";
 import {
@@ -1458,14 +1459,6 @@ function ensureSocketJoinedBoard(socket, boardName) {
 }
 
 /**
- * @param {MessageData} data
- * @returns {MessageData}
- */
-function cloneMessageForPersistence(data) {
-  return data.tool === "Cursor" ? data : structuredClone(data);
-}
-
-/**
  * @param {string} reason
  * @returns {void}
  */
@@ -1683,11 +1676,7 @@ async function persistBoardBroadcast(
     return;
   }
 
-  const handleResult = handleMessage(
-    board,
-    cloneMessageForPersistence(data),
-    socket,
-  );
+  const handleResult = processNormalizedBoardMessage(board, data, socket.id);
   if (handleResult.ok === false) {
     rejectBoardMessageWrite(
       socket,
@@ -1699,6 +1688,9 @@ async function persistBoardBroadcast(
       handleResult.reason,
     );
     return;
+  }
+  if (handleResult.value !== data) {
+    Object.assign(data, handleResult.value);
   }
   finishSuccessfulBoardWrite(
     socket,
@@ -2197,35 +2189,6 @@ async function unloadBoard(boardName) {
       },
     );
   }
-}
-
-/**
- * @param {BoardData} board
- * @param {MessageData} message
- * @param {AppSocket} socket
- * @returns {{ok: true, revision?: number} | {ok: false, reason: string}}
- */
-function handleMessage(board, message, socket) {
-  if (message.tool === "Cursor") {
-    message.socket = socket.id;
-    return { ok: true };
-  }
-  return saveHistory(board, message);
-}
-
-/**
- * @param {BoardData} board
- * @param {MessageData} message
- * @returns {{ok: true, revision?: number} | {ok: false, reason: string}}
- */
-function saveHistory(board, message) {
-  if (!(message.tool || message.type === "child") && !message._children) {
-    logger.error("board.history_malformed", {
-      board: board.name,
-      message: message,
-    });
-  }
-  return board.processMessage(/** @type {any} */ (message));
 }
 
 export const __test = {

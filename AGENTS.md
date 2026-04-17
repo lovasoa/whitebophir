@@ -19,6 +19,7 @@ section before making changes there.
 - Shared toolbar catalog + versioned tool asset helpers: [tool catalog](./client-data/js/tool_catalog.js), [tool assets](./client-data/js/tool_assets.js).
 - Realtime event handlers + broadcast path: [socket handlers](./server/sockets.mjs).
 - Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.mjs).
+- Extracted broadcast admission core for isolated testing/benchmarking: [broadcast processing](./server/broadcast_processing.mjs); this covers normalization, rate-limit bookkeeping, board write policy, and board mutation without the Socket.IO wrapper.
 - Canonical inbound payload normalization **[hot]**: [message schema gate](./server/message_validation.mjs); `normalizeCoord` and its neighbors run for every coordinate in every persisted or broadcast item.
 - In-memory board model + apply rules + disk sync **[hot]**: [board state engine](./server/boardData.mjs); `load`, `processMessage`, and the per-item normalization loop dominate CPU during board open and save.
 - Env parsing + rate-limit profile construction must stay cold. Never do unneeded work in the hot path.
@@ -55,7 +56,7 @@ section before making changes there.
 - `Tools.sendBufferedWrite` emits immediately with `socket.emit("broadcast", message)` or appends to `Tools.bufferedWrites`; `Tools.scheduleBufferedWriteFlush` and `Tools.flushBufferedWrites` drain later.
 - Server receives `socket.on("broadcast", data)` and runs board access + rate-limit checks against the board already bound to the socket.
 - Server calls `normalizeBroadcastData`, which calls `normalizeIncomingMessage`; rejects include explicit reasons.
-- Accepted payload is cloned for storage, then passed through `handleMessage` / `saveHistory` to `board.processMessage(...)`.
+- Accepted payload is normalized, rate-limited, and passed through `processNormalizedBoardMessage(...)` before `board.processMessage(...)`.
 - Server relays normalized payload to peers with `socket.broadcast.to(boardName).emit("broadcast", normalizedData)`.
 - Client `socket.on("broadcast", msg)` calls `handleMessage(msg)`; child batches use `BoardMessages.hasChildMessages` + `normalizeChildMessage`.
 - `messageForTool` resolves `Tools.list[message.tool]` and calls `tool.draw(message, false)`; tool code mutates SVG/DOM.
@@ -67,7 +68,7 @@ section before making changes there.
 - Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
 - Browser runner setup: [playwright config](./playwright.config.ts).
 - Server-rendered toolbar/icon/cache coverage: [server route tests](./test-node/server_routes.test.js).
-- Throughput coverage: [benchmark harness](./scripts/benchmark-server.mjs); the `load dense persisted board` scenario is the canonical regression signal for per-coordinate hot-path changes.
+- Throughput coverage: [benchmark harness](./scripts/benchmark-server.mjs); `load dense persisted board` is the canonical regression signal for per-coordinate hot-path changes, and `process heterogeneous socket broadcasts` is the canonical regression signal for live broadcast admission.
 
 ## test commands
 

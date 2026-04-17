@@ -5,6 +5,10 @@ import * as path from "node:path";
 import { performance } from "node:perf_hooks";
 
 import { BoardData } from "../server/boardData.mjs";
+import {
+  createBroadcastRateLimits,
+  processBoardBroadcastMessage,
+} from "../server/broadcast_processing.mjs";
 import { readConfiguration } from "../server/configuration.mjs";
 import { renderBoardToSVG } from "../server/createSVG.mjs";
 
@@ -26,12 +30,26 @@ const OVERFULL_BOARD_ITEMS = config.MAX_ITEM_COUNT + 2048;
 const HAND_BATCH_ITEMS = config.MAX_CHILDREN;
 const HAND_BATCH_PASSES = 96;
 const EXPORT_PENCIL_SHAPES = 768;
+const BROADCAST_BENCH_MESSAGE_COUNT = 1000;
+const BROADCAST_PER_MESSAGE_LIMIT_MS = 0.1;
+const BROADCAST_CURSOR_MESSAGES = 420;
+const BROADCAST_PENCIL_CHILD_MESSAGES = 300;
+const BROADCAST_INVALID_MESSAGES = 80;
+const BROADCAST_HAND_COPY_MESSAGES = 40;
+const BROADCAST_HAND_UPDATE_MESSAGES = 40;
+const BROADCAST_HAND_DELETE_MESSAGES = 20;
+const BROADCAST_TEXT_UPDATE_MESSAGES = 60;
+const BROADCAST_TEXT_NEW_MESSAGES = 20;
+const BROADCAST_SHAPE_MESSAGES = 20;
+const BROADCAST_CHILD_PARENT_COUNT = 100;
+const BROADCAST_CHILDREN_PER_PARENT = config.MAX_CHILDREN - 3;
 
 /** @typedef {{heapUsed: number, rss: number}} MemorySnapshot */
 /** @typedef {{[id: string]: any}} BenchBoard */
 /** @typedef {{file: string, bytes: number}} BenchFixture */
-/** @typedef {{durationMs: number, activeHeapDelta: number, retainedHeapDelta: number, rssDelta: number, details: string}} BenchSample */
-/** @typedef {{name: string, prepare?: () => Promise<void>, setup: () => Promise<any>, run: (context: any) => Promise<string>, teardown?: (context: any) => Promise<void>}} Scenario */
+/** @typedef {{details: string, metrics?: {[name: string]: number}}} BenchRunResult */
+/** @typedef {{durationMs: number, activeHeapDelta: number, retainedHeapDelta: number, rssDelta: number, details: string, metrics: {[name: string]: number}}} BenchSample */
+/** @typedef {{name: string, prepare?: () => Promise<void>, setup: () => Promise<any>, run: (context: any) => Promise<string | BenchRunResult>, teardown?: (context: any) => Promise<void>, assert?: (samples: BenchSample[]) => void}} Scenario */
 
 /**
  * @param {number} bytes
@@ -55,6 +73,12 @@ function formatDelta(bytes) {
  * @returns {string}
  */
 function formatMs(milliseconds) {
+  if (milliseconds < 1) {
+    return `${milliseconds.toFixed(3)} ms`;
+  }
+  if (milliseconds < 10) {
+    return `${milliseconds.toFixed(2)} ms`;
+  }
   return `${milliseconds.toFixed(1)} ms`;
 }
 
@@ -97,6 +121,27 @@ function spreadPercent(values) {
   const max = Math.max.apply(null, values);
   const mid = median(values);
   return mid === 0 ? 0 : ((max - min) / mid) * 100;
+}
+
+/**
+ * @param {number[]} values
+ * @param {number} fraction
+ * @returns {number}
+ */
+function percentile(values, fraction) {
+  if (values.length === 0) {
+    throw new Error("percentile requires at least one value");
+  }
+  const sorted = values.slice().sort((left, right) => left - right);
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.ceil(sorted.length * fraction) - 1),
+  );
+  const value = sorted[index];
+  if (value === undefined) {
+    throw new Error("percentile could not resolve a value");
+  }
+  return value;
 }
 
 function forceGc() {
@@ -241,6 +286,142 @@ function pencilItem(index, pointCount) {
 }
 
 /**
+ * @param {number} index
+ * @returns {any}
+ */
+function cursorMessage(index) {
+  return {
+    tool: "Cursor",
+    type: "update",
+    color: DEFAULT_COLOR,
+    size: 3,
+    x: (index * 17) % 8192,
+    y: (index * 19) % 8192,
+  };
+}
+
+/**
+ * @param {string} parentId
+ * @param {number} index
+ * @returns {any}
+ */
+function pencilChildMessage(parentId, index) {
+  const point = pencilPoints(1, 32_000 + index * 2)[0];
+  if (!point) throw new Error("missing pencil child point");
+  return {
+    tool: "Pencil",
+    type: "child",
+    parent: parentId,
+    x: point.x,
+    y: point.y,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {number} index
+ * @returns {any}
+ */
+function textNewMessage(id, index) {
+  const { time, ...message } = textItem(index);
+  void time;
+  return {
+    ...message,
+    id,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {number} index
+ * @returns {any}
+ */
+function textUpdateMessage(id, index) {
+  return {
+    tool: "Text",
+    type: "update",
+    id,
+    txt: textItem(index).txt,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {number} index
+ * @returns {any}
+ */
+function rectangleMessage(id, index) {
+  const { time, ...message } = rectangleItem(index);
+  void time;
+  return {
+    ...message,
+    id,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {number} index
+ * @returns {any}
+ */
+function straightLineMessage(id, index) {
+  const { time, ...message } = lineItem(index);
+  void time;
+  return {
+    ...message,
+    id,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {string} newId
+ * @returns {any}
+ */
+function handCopyMessage(id, newId) {
+  return {
+    tool: "Hand",
+    _children: [{ type: "copy", id, newid: newId }],
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {number} index
+ * @returns {any}
+ */
+function handTranslateMessage(id, index) {
+  return {
+    tool: "Hand",
+    _children: [
+      {
+        type: "update",
+        id,
+        transform: {
+          a: 1,
+          b: 0,
+          c: 0,
+          d: 1,
+          e: index + 1,
+          f: (index + 1) * 2,
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * @param {string} id
+ * @returns {any}
+ */
+function handDeleteMessage(id) {
+  return {
+    tool: "Hand",
+    _children: [{ type: "delete", id }],
+  };
+}
+
+/**
  * @param {number} itemCount
  * @param {number} pencilEvery
  * @param {number} pencilPointsPerShape
@@ -271,6 +452,165 @@ function buildMixedBoard(itemCount, pencilEvery, pencilPointsPerShape) {
 }
 
 /**
+ * @returns {BenchBoard}
+ */
+function buildBroadcastBenchBoard() {
+  const board = buildMixedBoard(
+    DENSE_BOARD_ITEMS,
+    DENSE_BOARD_PENCIL_EVERY,
+    DENSE_PENCIL_POINTS,
+  );
+
+  for (let index = 0; index < BROADCAST_CHILD_PARENT_COUNT; index++) {
+    board[`bench-pencil-parent-${index}`] = pencilItem(
+      200_000 + index,
+      BROADCAST_CHILDREN_PER_PARENT,
+    );
+  }
+  for (let index = 0; index < BROADCAST_HAND_COPY_MESSAGES; index++) {
+    board[`bench-copy-source-${index}`] = pencilItem(
+      300_000 + index,
+      DENSE_PENCIL_POINTS,
+    );
+  }
+  for (let index = 0; index < BROADCAST_TEXT_UPDATE_MESSAGES; index++) {
+    board[`bench-text-${index}`] = {
+      ...textItem(400_000 + index),
+      txt: `bench-text-${index}`,
+    };
+  }
+  for (let index = 0; index < BROADCAST_HAND_DELETE_MESSAGES; index++) {
+    board[`bench-shape-${index}`] = rectangleItem(500_000 + index);
+  }
+
+  return board;
+}
+
+/**
+ * @param {any[][]} groups
+ * @returns {any[]}
+ */
+function interleaveMessageGroups(groups) {
+  const messages = [];
+  for (
+    let index = 0;
+    messages.length < BROADCAST_BENCH_MESSAGE_COUNT;
+    index++
+  ) {
+    let added = false;
+    for (const group of groups) {
+      const message = group[index];
+      if (message === undefined) continue;
+      messages.push(message);
+      added = true;
+    }
+    if (!added) break;
+  }
+  return messages;
+}
+
+/**
+ * @param {number} limit
+ * @param {number} periodMs
+ * @returns {{limit: number, periodMs: number, overrides: {}}}
+ */
+function makeRateLimitDefinition(limit, periodMs) {
+  return { limit, periodMs, overrides: {} };
+}
+
+/**
+ * @returns {any[]}
+ */
+function buildBroadcastBenchMessages() {
+  const cursorMessages = Array.from(
+    { length: BROADCAST_CURSOR_MESSAGES },
+    (_, index) => cursorMessage(index),
+  );
+  const pencilChildMessages = Array.from(
+    { length: BROADCAST_PENCIL_CHILD_MESSAGES },
+    (_, index) =>
+      pencilChildMessage(
+        `bench-pencil-parent-${index % BROADCAST_CHILD_PARENT_COUNT}`,
+        index,
+      ),
+  );
+  const invalidMessages = [
+    ...Array.from({ length: 20 }, (_, index) => {
+      const { color, size, ...message } = cursorMessage(index);
+      void color;
+      void size;
+      return message;
+    }),
+    ...Array.from(
+      { length: 20 },
+      (_, index) =>
+        /** @type {any} */ ({
+          ...handCopyMessage(
+            `bench-copy-source-${index}`,
+            `invalid-copy-${index}`,
+          ),
+          _children: [{ type: "copy", id: `bench-copy-source-${index}` }],
+        }),
+    ),
+    ...Array.from({ length: 20 }, (_, index) =>
+      pencilChildMessage(`missing-parent-${index}`, index),
+    ),
+    ...Array.from({ length: 20 }, (_, index) =>
+      textUpdateMessage(`missing-text-${index}`, index),
+    ),
+  ];
+  const handCopyMessages = Array.from(
+    { length: BROADCAST_HAND_COPY_MESSAGES },
+    (_, index) =>
+      handCopyMessage(
+        `bench-copy-source-${index}`,
+        `bench-copy-target-${index}`,
+      ),
+  );
+  const handUpdateMessages = Array.from(
+    { length: BROADCAST_HAND_UPDATE_MESSAGES },
+    (_, index) => handTranslateMessage(`bench-copy-source-${index}`, index),
+  );
+  const handDeleteMessages = Array.from(
+    { length: BROADCAST_HAND_DELETE_MESSAGES },
+    (_, index) => handDeleteMessage(`bench-shape-${index}`),
+  );
+  const textUpdateMessages = Array.from(
+    { length: BROADCAST_TEXT_UPDATE_MESSAGES },
+    (_, index) => textUpdateMessage(`bench-text-${index}`, 600_000 + index),
+  );
+  const textNewMessages = Array.from(
+    { length: BROADCAST_TEXT_NEW_MESSAGES },
+    (_, index) => textNewMessage(`bench-text-new-${index}`, 700_000 + index),
+  );
+  const shapeMessages = Array.from(
+    { length: BROADCAST_SHAPE_MESSAGES },
+    (_, index) =>
+      index % 2 === 0
+        ? rectangleMessage(`bench-rect-${index}`, 800_000 + index)
+        : straightLineMessage(`bench-line-${index}`, 900_000 + index),
+  );
+
+  const messages = interleaveMessageGroups([
+    cursorMessages,
+    pencilChildMessages,
+    invalidMessages,
+    handCopyMessages,
+    handUpdateMessages,
+    handDeleteMessages,
+    textUpdateMessages,
+    textNewMessages,
+    shapeMessages,
+  ]);
+  if (messages.length !== BROADCAST_BENCH_MESSAGE_COUNT) {
+    throw new Error(
+      `expected ${BROADCAST_BENCH_MESSAGE_COUNT} benchmark messages, got ${messages.length}`,
+    );
+  }
+  return messages;
+}
+
+/**
  * @param {BoardData} boardData
  * @returns {void}
  */
@@ -282,7 +622,7 @@ function clearPendingSave(boardData) {
 }
 
 /**
- * @param {(context: any) => Promise<string>} run
+ * @param {(context: any) => Promise<string | BenchRunResult>} run
  * @param {any} context
  * @returns {Promise<BenchSample>}
  */
@@ -290,17 +630,20 @@ async function runMeasuredSample(run, context) {
   forceGc();
   const before = snapshotMemory();
   const startedAt = performance.now();
-  const details = await run(context);
+  const result = await run(context);
   const active = snapshotMemory();
   const durationMs = performance.now() - startedAt;
   forceGc();
   const retained = snapshotMemory();
+  const normalizedResult =
+    typeof result === "string" ? { details: result, metrics: {} } : result;
   return {
     durationMs,
     activeHeapDelta: active.heapUsed - before.heapUsed,
     retainedHeapDelta: retained.heapUsed - before.heapUsed,
     rssDelta: active.rss - before.rss,
-    details,
+    details: normalizedResult.details,
+    metrics: normalizedResult.metrics || {},
   };
 }
 
@@ -359,6 +702,7 @@ async function measureScenario(scenario) {
   if (representative.details) {
     console.log(`  details:       ${representative.details}`);
   }
+  scenario.assert?.(samples);
 }
 
 async function main() {
@@ -377,8 +721,33 @@ async function main() {
   timeoutId?.unref?.();
 
   try {
-    /** @type {{loadDense?: BenchFixture, snapshot?: BenchFixture, saveDense?: BenchFixture, exportDense?: BenchFixture}} */
+    /** @type {{loadDense?: BenchFixture, snapshot?: BenchFixture, saveDense?: BenchFixture, exportDense?: BenchFixture, broadcastDense?: BenchFixture}} */
     const fixtures = {};
+    const broadcastBenchMessages = buildBroadcastBenchMessages();
+    const broadcastBenchConfig = {
+      ...config,
+      GENERAL_RATE_LIMITS: makeRateLimitDefinition(
+        2 * BROADCAST_BENCH_MESSAGE_COUNT,
+        10_000,
+      ),
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: makeRateLimitDefinition(
+        2 * BROADCAST_BENCH_MESSAGE_COUNT,
+        10_000,
+      ),
+      DESTRUCTIVE_ACTION_RATE_LIMITS: makeRateLimitDefinition(
+        2 * BROADCAST_BENCH_MESSAGE_COUNT,
+        10_000,
+      ),
+      TEXT_CREATION_RATE_LIMITS: makeRateLimitDefinition(
+        2 * BROADCAST_BENCH_MESSAGE_COUNT,
+        10_000,
+      ),
+    };
+    const broadcastBenchSocket =
+      /** @type {import("../types/server-runtime.d.ts").AppSocket} */ ({
+        id: "bench-broadcast-socket",
+        handshake: { query: {} },
+      });
 
     /** @type {Scenario[]} */
     const scenarios = [
@@ -557,6 +926,118 @@ async function main() {
             " from " +
             bytesToMiB(fixture.bytes)
           );
+        },
+      },
+      {
+        name: "process heterogeneous socket broadcasts",
+        prepare: async () => {
+          fixtures.broadcastDense = await writeBoardFile(
+            "bench-broadcast-processing",
+            buildBroadcastBenchBoard(),
+          );
+        },
+        setup: async () => {
+          const boardData = await BoardData.load("bench-broadcast-processing");
+          clearPendingSave(boardData);
+          return {
+            boardData,
+            messages: broadcastBenchMessages,
+            rateLimits: createBroadcastRateLimits(Date.now()),
+          };
+        },
+        run: async (context) => {
+          const sampleNow = Date.now();
+          let successCount = 0;
+          let invalidCount = 0;
+          let normalizeRejects = 0;
+          let rateLimitRejects = 0;
+          let policyRejects = 0;
+          let processRejects = 0;
+          let overLimitCount = 0;
+          /** @type {number[]} */
+          const perMessageDurations = [];
+
+          for (const [index, message] of context.messages.entries()) {
+            const messageStartedAt = performance.now();
+            const result = processBoardBroadcastMessage(
+              broadcastBenchConfig,
+              context.boardData.name,
+              context.boardData,
+              message,
+              broadcastBenchSocket,
+              {
+                rateLimits: context.rateLimits,
+                now: sampleNow + index,
+              },
+            );
+            const durationMs = performance.now() - messageStartedAt;
+            perMessageDurations.push(durationMs);
+            if (durationMs > BROADCAST_PER_MESSAGE_LIMIT_MS) {
+              overLimitCount += 1;
+            }
+            if (result.ok) {
+              successCount += 1;
+            } else {
+              invalidCount += 1;
+              switch (result.stage) {
+                case "normalize":
+                  normalizeRejects += 1;
+                  break;
+                case "rate_limit":
+                  rateLimitRejects += 1;
+                  break;
+                case "policy":
+                  policyRejects += 1;
+                  break;
+                case "process":
+                  processRejects += 1;
+                  break;
+              }
+            }
+          }
+
+          clearPendingSave(context.boardData);
+          const maxMessageMs = Math.max.apply(null, perMessageDurations);
+          const p95MessageMs = percentile(perMessageDurations, 0.95);
+          const meanMessageMs =
+            perMessageDurations.reduce((sum, value) => sum + value, 0) /
+            perMessageDurations.length;
+          return {
+            details:
+              `${successCount} accepted, ${invalidCount} rejected ` +
+              `(normalize ${normalizeRejects}, rate-limit ${rateLimitRejects}, policy ${policyRejects}, process ${processRejects}); ` +
+              `mean ${formatMs(meanMessageMs)}, p95 ${formatMs(p95MessageMs)}, max ${formatMs(maxMessageMs)}`,
+            metrics: {
+              meanMessageMs,
+              p95MessageMs,
+              maxMessageMs,
+              overLimitCount,
+            },
+          };
+        },
+        teardown: async (context) => {
+          clearPendingSave(context.boardData);
+        },
+        assert: (samples) => {
+          const overLimitCounts = samples.map(
+            (sample) => sample.metrics.overLimitCount || 0,
+          );
+          const maxMessageDurations = samples.map(
+            (sample) => sample.metrics.maxMessageMs || 0,
+          );
+          const medianOverLimitCount = median(overLimitCounts);
+          const medianMaxMessageMs = median(maxMessageDurations);
+          if (
+            medianOverLimitCount > 0 ||
+            medianMaxMessageMs > BROADCAST_PER_MESSAGE_LIMIT_MS
+          ) {
+            throw new Error(
+              "heterogeneous socket broadcast benchmark exceeded limit: " +
+                `${medianOverLimitCount} median over-limit messages, ` +
+                `median max ${formatMs(medianMaxMessageMs)} ` +
+                `> ${formatMs(BROADCAST_PER_MESSAGE_LIMIT_MS)}`,
+            );
+          }
         },
       },
     ];
