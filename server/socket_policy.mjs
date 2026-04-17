@@ -51,6 +51,19 @@ function normalizeHeaderName(headerName) {
 }
 
 /**
+ * @param {string} headerValue
+ * @returns {string[]}
+ */
+function parseHeaderChain(headerValue) {
+  return headerValue
+    .split(",")
+    .map(function trimHop(/** @type {string} */ hop) {
+      return hop.trim();
+    })
+    .filter(Boolean);
+}
+
+/**
  * @param {string} value
  * @returns {string[]}
  */
@@ -105,6 +118,78 @@ function selectTrustedClientIp(chain) {
 }
 
 /**
+ * @param {string[]} chain
+ * @param {string} directRemoteAddress
+ * @returns {string}
+ */
+function resolveClientIpChain(chain, directRemoteAddress) {
+  const config = getConfig();
+  if (config.TRUST_PROXY_HOPS > 0 && directRemoteAddress) {
+    chain.reverse();
+    chain.unshift(directRemoteAddress);
+    return selectTrustedClientIp(chain);
+  }
+  return chain[0] || "";
+}
+
+/**
+ * @param {string | undefined} directRemoteAddress
+ * @returns {string}
+ */
+function resolveRemoteAddressClientIp(directRemoteAddress) {
+  if (directRemoteAddress) return directRemoteAddress;
+  throw new Error("Missing remoteAddress");
+}
+
+/**
+ * @param {{[key: string]: string | string[] | undefined}} headers
+ * @param {string} directRemoteAddress
+ * @returns {string}
+ */
+function resolveForwardedForClientIp(headers, directRemoteAddress) {
+  const forwardedForHeader = singleHeaderValue(headers["x-forwarded-for"]);
+  if (!forwardedForHeader) {
+    throw new Error(
+      "Missing x-forwarded-for header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
+    );
+  }
+  return resolveClientIpChain(
+    parseHeaderChain(forwardedForHeader),
+    directRemoteAddress,
+  );
+}
+
+/**
+ * @param {{[key: string]: string | string[] | undefined}} headers
+ * @param {string} directRemoteAddress
+ * @returns {string}
+ */
+function resolveForwardedHeaderClientIp(headers, directRemoteAddress) {
+  const forwardedHeader = singleHeaderValue(headers.forwarded);
+  if (!forwardedHeader) {
+    throw new Error(
+      "Missing Forwarded header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
+    );
+  }
+  return resolveClientIpChain(
+    parseForwardedChain(forwardedHeader),
+    directRemoteAddress,
+  );
+}
+
+/**
+ * @param {{[key: string]: string | string[] | undefined}} headers
+ * @param {string} normalizedIpSource
+ * @param {string} ipSource
+ * @returns {string}
+ */
+function resolveCustomHeaderClientIp(headers, normalizedIpSource, ipSource) {
+  const customHeader = singleHeaderValue(headers[normalizedIpSource]);
+  if (customHeader?.trim()) return customHeader.trim();
+  throw new Error(`Missing ${ipSource} header`);
+}
+
+/**
  * @param {AppSocket} socket
  * @returns {string}
  */
@@ -118,56 +203,15 @@ function getClientIp(socket) {
   const ipSource = config.IP_SOURCE || "remoteAddress";
   const normalizedIpSource = normalizeHeaderName(ipSource);
 
-  if (normalizedIpSource === "remoteaddress") {
-    if (directRemoteAddress) return directRemoteAddress;
-    throw new Error("Missing remoteAddress");
-  }
-
   switch (normalizedIpSource) {
-    case "x-forwarded-for": {
-      const forwardedForHeader = singleHeaderValue(headers["x-forwarded-for"]);
-      if (forwardedForHeader) {
-        const xForwardedFor = forwardedForHeader
-          .split(",")
-          .map(function trimHop(/** @type {string} */ hop) {
-            return hop.trim();
-          })
-          .filter(Boolean);
-        if (config.TRUST_PROXY_HOPS > 0 && directRemoteAddress) {
-          xForwardedFor.reverse();
-          xForwardedFor.unshift(directRemoteAddress);
-          return selectTrustedClientIp(xForwardedFor);
-        }
-        return xForwardedFor[0] || "";
-      }
-      throw new Error(
-        "Missing x-forwarded-for header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
-      );
-    }
-
-    case "forwarded": {
-      const forwardedHeader = singleHeaderValue(headers.forwarded);
-      if (forwardedHeader) {
-        const forwardedChain = parseForwardedChain(forwardedHeader);
-        if (config.TRUST_PROXY_HOPS > 0 && directRemoteAddress) {
-          forwardedChain.reverse();
-          forwardedChain.unshift(directRemoteAddress);
-          return selectTrustedClientIp(forwardedChain);
-        }
-        return forwardedChain[0] || "";
-      }
-      throw new Error(
-        "Missing Forwarded header. If you are not behind a proxy, set WBO_IP_SOURCE=remoteAddress.",
-      );
-    }
-
-    default: {
-      const customHeader = singleHeaderValue(headers[normalizedIpSource]);
-      if (customHeader?.trim()) {
-        return customHeader.trim();
-      }
-      throw new Error(`Missing ${ipSource} header`);
-    }
+    case "remoteaddress":
+      return resolveRemoteAddressClientIp(directRemoteAddress);
+    case "x-forwarded-for":
+      return resolveForwardedForClientIp(headers, directRemoteAddress);
+    case "forwarded":
+      return resolveForwardedHeaderClientIp(headers, directRemoteAddress);
+    default:
+      return resolveCustomHeaderClientIp(headers, normalizedIpSource, ipSource);
   }
 }
 

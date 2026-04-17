@@ -528,6 +528,49 @@ function normalizeStoredChildPoint(raw) {
 }
 
 /**
+ * @param {unknown[]} rawChildren
+ * @returns {ChildPoint[]}
+ */
+function normalizeStoredPencilChildren(rawChildren) {
+  const children = [];
+  for (let index = 0; index < rawChildren.length; index++) {
+    const child = normalizeStoredChildPoint(rawChildren[index]);
+    if (!child.ok) continue;
+    children.push(child.value);
+  }
+  return children;
+}
+
+/**
+ * @param {RawRecord} item
+ * @returns {ValidationResult<Bounds>}
+ */
+function validateStoredGeometryBounds(item) {
+  const localBounds = MessageCommon.getLocalGeometryBounds(item);
+  const effectiveBounds = MessageCommon.applyTransformToBounds(
+    localBounds,
+    item.transform,
+  );
+  if (MessageCommon.isBoundsTooLarge(effectiveBounds)) {
+    return rejected("shape too large");
+  }
+  return accepted(localBounds);
+}
+
+/**
+ * @param {RawRecord} item
+ * @param {unknown} rawChildren
+ * @returns {void}
+ */
+function assignNormalizedStoredChildren(item, rawChildren) {
+  if (item.tool !== "Pencil" || !Array.isArray(rawChildren)) return;
+  const children = normalizeStoredPencilChildren(
+    rawChildren.slice(0, getConfig().MAX_CHILDREN),
+  );
+  if (children.length) item._children = children;
+}
+
+/**
  * @param {unknown} raw
  * @param {unknown} storedId
  * @returns {ValidationResult<StoredItemWithBounds>}
@@ -545,31 +588,13 @@ function normalizeStoredItemWithBounds(raw, storedId) {
   if (!normalized.ok) return normalized;
 
   normalized.value.id = normalizedId;
-  if (raw.tool === "Pencil") {
-    const rawChildren = Array.isArray(raw._children)
-      ? raw._children.slice(0, getConfig().MAX_CHILDREN)
-      : [];
-    const children = [];
-    for (let index = 0; index < rawChildren.length; index++) {
-      const child = normalizeStoredChildPoint(rawChildren[index]);
-      if (!child.ok) continue;
-      children.push(child.value);
-    }
-    if (children.length) normalized.value._children = children;
-  }
-
-  const localBounds = MessageCommon.getLocalGeometryBounds(normalized.value);
-  const effectiveBounds = MessageCommon.applyTransformToBounds(
-    localBounds,
-    normalized.value.transform,
-  );
-  if (MessageCommon.isBoundsTooLarge(effectiveBounds)) {
-    return rejected("shape too large");
-  }
+  assignNormalizedStoredChildren(normalized.value, raw._children);
+  const localBounds = validateStoredGeometryBounds(normalized.value);
+  if (!localBounds.ok) return localBounds;
 
   return accepted({
     value: normalized.value,
-    localBounds: localBounds,
+    localBounds: localBounds.value,
   });
 }
 

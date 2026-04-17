@@ -62,9 +62,9 @@ function formatLogfmtValue(value) {
 
 /**
  * @param {{ts?: string|number|Date, level?: string, msg?: string, event?: string, [key: string]: unknown}} fields
- * @returns {string}
+ * @returns {{[key: string]: unknown}}
  */
-function formatCanonicalLogLine(fields) {
+function normalizeCanonicalFields(fields) {
   /** @type {{[key: string]: unknown}} */
   const normalized = { ...fields };
   normalized.ts =
@@ -82,20 +82,45 @@ function formatCanonicalLogLine(fields) {
   if (!(typeof normalized.msg === "string" && normalized.msg !== "")) {
     delete normalized.msg;
   }
+  return normalized;
+}
 
-  /** @type {string[]} */
-  const parts = [];
+/**
+ * @param {string[]} parts
+ * @param {{[key: string]: unknown}} normalized
+ * @returns {void}
+ */
+function appendCanonicalEnvelope(parts, normalized) {
   for (const key of ENVELOPE_KEYS) {
     const value = normalized[key];
     if (value !== undefined) {
       parts.push(`${key}=${formatLogfmtValue(value)}`);
     }
   }
+}
 
+/**
+ * @param {string[]} parts
+ * @param {{[key: string]: unknown}} normalized
+ * @returns {void}
+ */
+function appendCanonicalExtras(parts, normalized) {
   for (const [key, value] of Object.entries(normalized)) {
     if (ENVELOPE_KEYS.includes(key) || value === undefined) continue;
     parts.push(`${key}=${formatLogfmtValue(value)}`);
   }
+}
+
+/**
+ * @param {{ts?: string|number|Date, level?: string, msg?: string, event?: string, [key: string]: unknown}} fields
+ * @returns {string}
+ */
+function formatCanonicalLogLine(fields) {
+  const normalized = normalizeCanonicalFields(fields);
+  /** @type {string[]} */
+  const parts = [];
+  appendCanonicalEnvelope(parts, normalized);
+  appendCanonicalExtras(parts, normalized);
   return parts.join(" ");
 }
 

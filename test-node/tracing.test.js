@@ -95,6 +95,71 @@ async function createServerDirs() {
 }
 
 /**
+ * @returns {InMemorySpanExporter}
+ */
+function prepareSharedExporter() {
+  if (!sharedExporter) {
+    sharedExporter = new InMemorySpanExporter();
+  } else {
+    sharedExporter.reset();
+  }
+  return sharedExporter;
+}
+
+/**
+ * @param {{[key: string]: string | undefined}} settings
+ * @returns {{[key: string]: string | undefined}}
+ */
+function applyTracingEnv(settings) {
+  /** @type {{[key: string]: string | undefined}} */
+  const previous = {};
+  for (const key of Object.keys(settings)) {
+    previous[key] = process.env[key];
+    const value = settings[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  return previous;
+}
+
+/**
+ * @param {{[key: string]: string | undefined}} settings
+ * @param {{[key: string]: string | undefined}} previous
+ * @returns {void}
+ */
+function restoreTracingEnv(settings, previous) {
+  for (const key of Object.keys(settings)) {
+    if (previous[key] === undefined) delete process.env[key];
+    else process.env[key] = previous[key];
+  }
+}
+
+/**
+ * @param {string[]} modulePaths
+ * @returns {void}
+ */
+function clearModuleCaches(modulePaths) {
+  for (const modulePath of modulePaths) {
+    clearModuleCache(modulePath);
+  }
+}
+
+/**
+ * @returns {any}
+ */
+function getSharedObservability() {
+  if (sharedObservability) return sharedObservability;
+  logs.disable();
+  metrics.disable();
+  propagation.disable();
+  context.disable();
+  trace.disable();
+  clearModuleCache(OBSERVABILITY_PATH);
+  sharedObservability = require(OBSERVABILITY_PATH);
+  return sharedObservability;
+}
+
+/**
  * @template T
  * @param {{[key: string]: string} | undefined} overrides
  * @param {(ctx: {exporter: InMemorySpanExporter, observability: any}) => Promise<T>} fn
@@ -102,17 +167,11 @@ async function createServerDirs() {
  * @returns {Promise<T>}
  */
 async function withTracing(overrides, fn, extraModules) {
-  if (!sharedExporter) {
-    sharedExporter = new InMemorySpanExporter();
-  } else {
-    sharedExporter.reset();
-  }
+  const exporter = prepareSharedExporter();
   /** @type {{__WBO_TEST_TRACE_EXPORTER__?: InMemorySpanExporter}} */ (
     globalThis
-  ).__WBO_TEST_TRACE_EXPORTER__ = sharedExporter;
+  ).__WBO_TEST_TRACE_EXPORTER__ = exporter;
   const modulesToClear = TRACING_MODULES_TO_CLEAR.concat(extraModules || []);
-  /** @type {{[key: string]: string | undefined}} */
-  const previous = {};
   const settings = Object.assign(
     {
       OTEL_TRACES_SAMPLER: "always_on",
@@ -120,37 +179,16 @@ async function withTracing(overrides, fn, extraModules) {
     },
     overrides || {},
   );
+  const previous = applyTracingEnv(settings);
   try {
-    for (const key of Object.keys(settings)) {
-      previous[key] = process.env[key];
-      const value = settings[key];
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-    for (const modulePath of modulesToClear) {
-      clearModuleCache(modulePath);
-    }
-    if (!sharedObservability) {
-      logs.disable();
-      metrics.disable();
-      propagation.disable();
-      context.disable();
-      trace.disable();
-      clearModuleCache(OBSERVABILITY_PATH);
-      sharedObservability = require(OBSERVABILITY_PATH);
-    }
+    clearModuleCaches(modulesToClear);
     return await fn({
-      exporter: sharedExporter,
-      observability: sharedObservability,
+      exporter,
+      observability: getSharedObservability(),
     });
   } finally {
-    for (const key of Object.keys(settings)) {
-      if (previous[key] === undefined) delete process.env[key];
-      else process.env[key] = previous[key];
-    }
-    for (const modulePath of modulesToClear) {
-      clearModuleCache(modulePath);
-    }
+    restoreTracingEnv(settings, previous);
+    clearModuleCaches(modulesToClear);
     delete (
       /** @type {{__WBO_TEST_TRACE_EXPORTER__?: InMemorySpanExporter}} */ (
         globalThis

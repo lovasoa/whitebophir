@@ -146,6 +146,125 @@ function renderCurveTo(c1x, c1y, c2x, c2y, x, y) {
 }
 
 /**
+ * @param {Point} firstPoint
+ * @returns {{
+ *   pathParts: string[],
+ *   pointCount: number,
+ *   anteX: number,
+ *   anteY: number,
+ *   prevX: number,
+ *   prevY: number,
+ *   previousCurveIndex: number,
+ *   previousCurveControlX: number,
+ *   previousCurveControlY: number,
+ * }}
+ */
+function createPencilPathState(firstPoint) {
+  return {
+    pathParts: [
+      renderMoveTo(firstPoint.x, firstPoint.y),
+      renderLineTo(firstPoint.x, firstPoint.y),
+    ],
+    pointCount: 1,
+    anteX: firstPoint.x,
+    anteY: firstPoint.y,
+    prevX: firstPoint.x,
+    prevY: firstPoint.y,
+    previousCurveIndex: -1,
+    previousCurveControlX: firstPoint.x,
+    previousCurveControlY: firstPoint.y,
+  };
+}
+
+/**
+ * @param {ReturnType<typeof createPencilPathState>} state
+ * @param {Point} firstPoint
+ * @param {number} x
+ * @param {number} y
+ * @returns {void}
+ */
+function appendSecondPencilPoint(state, firstPoint, x, y) {
+  state.pathParts.push(renderCurveTo(firstPoint.x, firstPoint.y, x, y, x, y));
+  state.previousCurveIndex = state.pathParts.length - 1;
+  state.previousCurveControlX = firstPoint.x;
+  state.previousCurveControlY = firstPoint.y;
+  state.anteX = firstPoint.x;
+  state.anteY = firstPoint.y;
+  state.prevX = x;
+  state.prevY = y;
+  state.pointCount = 2;
+}
+
+/**
+ * @param {ReturnType<typeof createPencilPathState>} state
+ * @param {number} x
+ * @param {number} y
+ * @returns {{
+ *   control1X: number,
+ *   control1Y: number,
+ *   control2X: number,
+ *   control2Y: number,
+ * } | null}
+ */
+function getPencilCurveControls(state, x, y) {
+  if (
+    (state.prevX === x && state.prevY === y) ||
+    (state.anteX === x && state.anteY === y)
+  ) {
+    return null;
+  }
+
+  const vectorX = x - state.anteX;
+  const vectorY = y - state.anteY;
+  const norm = Math.hypot(vectorX, vectorY);
+  if (norm === 0) return null;
+
+  const scaledVectorX = vectorX / 3;
+  const scaledVectorY = vectorY / 3;
+  const dist1 = dist(state.anteX, state.anteY, state.prevX, state.prevY) / norm;
+  const dist2 = dist(x, y, state.prevX, state.prevY) / norm;
+  return {
+    control1X: state.prevX - dist1 * scaledVectorX,
+    control1Y: state.prevY - dist1 * scaledVectorY,
+    control2X: state.prevX + dist2 * scaledVectorX,
+    control2Y: state.prevY + dist2 * scaledVectorY,
+  };
+}
+
+/**
+ * @param {ReturnType<typeof createPencilPathState>} state
+ * @param {number} x
+ * @param {number} y
+ * @returns {void}
+ */
+function appendSmoothedPencilPoint(state, x, y) {
+  const controls = getPencilCurveControls(state, x, y);
+  if (!controls) return;
+
+  if (state.previousCurveIndex !== -1) {
+    state.pathParts[state.previousCurveIndex] = renderCurveTo(
+      state.previousCurveControlX,
+      state.previousCurveControlY,
+      controls.control1X,
+      controls.control1Y,
+      state.prevX,
+      state.prevY,
+    );
+  }
+  state.pathParts.push(
+    renderCurveTo(controls.control2X, controls.control2Y, x, y, x, y),
+  );
+  state.previousCurveIndex = state.pathParts.length - 1;
+  state.previousCurveControlX = controls.control2X;
+  state.previousCurveControlY = controls.control2Y;
+  state.anteX = state.prevX;
+  state.anteY = state.prevY;
+  state.prevX = x;
+  state.prevY = y;
+  state.pointCount += 1;
+}
+
+/**
  * @param {Point[] | undefined} children
  * @returns {string}
  */
@@ -155,19 +274,7 @@ function renderPencilPath(children) {
   const firstPoint = children[0];
   if (!firstPoint) return "";
 
-  /** @type {string[]} */
-  const pathParts = [
-    renderMoveTo(firstPoint.x, firstPoint.y),
-    renderLineTo(firstPoint.x, firstPoint.y),
-  ];
-  let pointCount = 1;
-  let anteX = firstPoint.x;
-  let anteY = firstPoint.y;
-  let prevX = firstPoint.x;
-  let prevY = firstPoint.y;
-  let previousCurveIndex = -1;
-  let previousCurveControlX = firstPoint.x;
-  let previousCurveControlY = firstPoint.y;
+  const state = createPencilPathState(firstPoint);
 
   for (let index = 1; index < children.length; index++) {
     const point = children[index];
@@ -175,59 +282,14 @@ function renderPencilPath(children) {
 
     const x = point.x;
     const y = point.y;
-    if (pointCount === 1) {
-      pathParts.push(renderCurveTo(firstPoint.x, firstPoint.y, x, y, x, y));
-      previousCurveIndex = pathParts.length - 1;
-      previousCurveControlX = firstPoint.x;
-      previousCurveControlY = firstPoint.y;
-      anteX = firstPoint.x;
-      anteY = firstPoint.y;
-      prevX = x;
-      prevY = y;
-      pointCount = 2;
+    if (state.pointCount === 1) {
+      appendSecondPencilPoint(state, firstPoint, x, y);
       continue;
     }
-
-    if ((prevX === x && prevY === y) || (anteX === x && anteY === y)) {
-      continue;
-    }
-
-    const vectorX = x - anteX;
-    const vectorY = y - anteY;
-    const norm = Math.hypot(vectorX, vectorY);
-    if (norm === 0) continue;
-
-    const scaledVectorX = vectorX / 3;
-    const scaledVectorY = vectorY / 3;
-    const dist1 = dist(anteX, anteY, prevX, prevY) / norm;
-    const dist2 = dist(x, y, prevX, prevY) / norm;
-    const control1X = prevX - dist1 * scaledVectorX;
-    const control1Y = prevY - dist1 * scaledVectorY;
-    const control2X = prevX + dist2 * scaledVectorX;
-    const control2Y = prevY + dist2 * scaledVectorY;
-
-    if (previousCurveIndex !== -1) {
-      pathParts[previousCurveIndex] = renderCurveTo(
-        previousCurveControlX,
-        previousCurveControlY,
-        control1X,
-        control1Y,
-        prevX,
-        prevY,
-      );
-    }
-    pathParts.push(renderCurveTo(control2X, control2Y, x, y, x, y));
-    previousCurveIndex = pathParts.length - 1;
-    previousCurveControlX = control2X;
-    previousCurveControlY = control2Y;
-    anteX = prevX;
-    anteY = prevY;
-    prevX = x;
-    prevY = y;
-    pointCount += 1;
+    appendSmoothedPencilPoint(state, x, y);
   }
 
-  return pathParts.join(" ");
+  return state.pathParts.join(" ");
 }
 
 /** @type {{[tool: string]: ToolRenderer}} */

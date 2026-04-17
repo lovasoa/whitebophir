@@ -64,6 +64,58 @@ function parseRole(role) {
 }
 
 /**
+ * @param {unknown} roleName
+ * @returns {"moderator" | "editor" | "reader" | "forbidden"}
+ */
+function normalizeGrantedRole(roleName) {
+  return roleName === "moderator" ||
+    roleName === "editor" ||
+    roleName === "reader"
+    ? roleName
+    : "forbidden";
+}
+
+/**
+ * @param {string} token
+ * @param {string} secret
+ * @returns {unknown}
+ */
+function verifyTokenRoles(token, secret) {
+  if (!token) return null;
+  try {
+    return jsonwebtoken.verify(token, secret).roles;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {Iterable<string>} roles
+ * @param {string | null} board
+ * @returns {{
+ *   matchingRole: "moderator" | "editor" | "reader" | "forbidden" | null,
+ *   hasBoardName: boolean,
+ *   hasModerator: boolean,
+ * }}
+ */
+function summarizeBoardRoles(roles, board) {
+  let matchingRole = null;
+  let hasBoardName = false;
+  let hasModerator = false;
+
+  for (const line of roles) {
+    const role = parseRole(line);
+    if (role.boardName !== "") hasBoardName = true;
+    if (role.roleName === "moderator") hasModerator = true;
+    if (role.boardName === board) {
+      matchingRole = normalizeGrantedRole(role.roleName);
+    }
+  }
+
+  return { matchingRole, hasBoardName, hasModerator };
+}
+
+/**
  * This function checks if a board name is set in the roles claim.
  * Returns a role name for the requested board.
  * @param {string} token
@@ -72,49 +124,19 @@ function parseRole(role) {
  */
 export function roleInBoard(token, board = null) {
   const config = getConfig();
-  if (config.AUTH_SECRET_KEY === "") {
-    return "editor";
+  if (config.AUTH_SECRET_KEY === "") return "editor";
+
+  const roles = verifyTokenRoles(token, config.AUTH_SECRET_KEY);
+  if (roles === null) return "forbidden";
+  if (!roles) return "editor";
+
+  const summary = summarizeBoardRoles(
+    /** @type {Iterable<string>} */ (roles),
+    board,
+  );
+  if (summary.matchingRole !== null) return summary.matchingRole;
+  if ((!board && summary.hasModerator) || !summary.hasBoardName) {
+    return summary.hasModerator ? "moderator" : "editor";
   }
-
-  if (!token) {
-    return "forbidden";
-  }
-
-  let payload;
-  try {
-    payload = jsonwebtoken.verify(token, config.AUTH_SECRET_KEY);
-  } catch {
-    return "forbidden";
-  }
-  const roles = payload.roles;
-  let oneHasBoardName = false;
-  let oneHasModerator = false;
-
-  if (!roles) {
-    return "editor";
-  }
-
-  for (const line of roles) {
-    const role = parseRole(line);
-
-    if (role.boardName !== "") {
-      oneHasBoardName = true;
-    }
-    if (role.roleName === "moderator") {
-      oneHasModerator = true;
-    }
-    if (role.boardName === board) {
-      return role.roleName === "moderator" ||
-        role.roleName === "editor" ||
-        role.roleName === "reader"
-        ? role.roleName
-        : "forbidden";
-    }
-  }
-
-  if ((!board && oneHasModerator) || !oneHasBoardName) {
-    return oneHasModerator ? "moderator" : "editor";
-  }
-
   return "forbidden";
 }
