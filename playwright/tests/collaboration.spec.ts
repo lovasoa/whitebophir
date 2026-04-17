@@ -464,9 +464,10 @@ test.describe("collaboration and rate limiting", () => {
             connectionState: String(
               (window as any).Tools.connectionState ?? "",
             ),
-            loadingHidden: document
-              .getElementById("loadingMessage")
-              ?.classList.contains("hidden"),
+            loadingHidden:
+              document
+                .getElementById("loadingMessage")
+                ?.classList.contains("hidden") ?? false,
             rectVisible: !!document.getElementById(
               "persisted-across-disconnect",
             ),

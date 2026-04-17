@@ -3,7 +3,7 @@ export {};
 
 declare global {
   const io: any;
-  const turnstile: any;
+  const turnstile: import("../types/app-runtime").TurnstileGlobal;
   var Tools: import("../types/app-runtime").AppToolsState;
   type TransformedBBox = {
     r: [number, number];
@@ -40,14 +40,16 @@ declare global {
       normalizeBoardState: typeof import("../client-data/js/board_page_state.js")["normalizeBoardState"];
       parseBoardStateText: typeof import("../client-data/js/board_page_state.js")["parseBoardStateText"];
     };
-    socketio_extra_headers?: Record<string, string>;
-    __downloadCapture?: any;
-    __downloadAnchorClicks?: any;
-    __downloadBlob?: any;
+    socketio_extra_headers?: import("../types/app-runtime").SocketHeaders;
+    __downloadCapture?: import("../types/app-runtime").DownloadCapture | null;
+    __downloadAnchorClicks?: number;
+    __downloadBlob?: Blob;
     __lastAlert?: any;
-    __receivedBroadcasts?: any[];
-    __turnstileOptions?: any;
-    turnstile?: any;
+    __receivedBroadcasts?: import("../types/app-runtime").BoardMessage[];
+    __turnstileOptions?:
+      | import("../types/app-runtime").TurnstileRenderOptions
+      | null;
+    turnstile?: import("../types/app-runtime").TurnstileGlobal;
   }
 
   interface Navigator {

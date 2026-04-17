@@ -457,6 +457,23 @@ export type SocketHeaders = {
   [name: string]: string;
 };
 
+export type DownloadCapture = {
+  href: string | null;
+  download: string | null;
+};
+
+export type TurnstileRenderOptions = {
+  callback?: (token: string) => void;
+  "before-interactive-callback"?: () => void;
+  [key: string]: unknown;
+};
+
+export type TurnstileGlobal = {
+  render: (target: unknown, options: TurnstileRenderOptions) => string;
+  remove: (widgetId?: unknown) => void;
+  reset: (widgetId?: unknown) => void;
+};
+
 export type SocketParams = {
   path: string;
   reconnection: boolean;

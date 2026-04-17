@@ -1,9 +1,70 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { withToken } from "../helpers/boardData";
 import type { TestServer } from "../helpers/testServer";
+import type {
+  AppToolsState,
+  BoardMessage,
+  MountedAppTool,
+} from "../../types/app-runtime";
 
 type Point = { x: number; y: number };
 type PencilPath = { color: string; points: Point[] };
+type ActiveToolState = { tool: string; mode: string; secondary: boolean };
+type ConnectedUserState = {
+  name: string;
+  meta: string;
+  isSelf: boolean;
+  reportDisabled: boolean;
+  color: string;
+  dotWidth: string;
+};
+type ShapeDrawState = {
+  secondaryActive: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+type LineDrawState = {
+  secondaryActive: boolean;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+};
+type SelectionMoveState = {
+  selectorActive: boolean;
+  translation: {
+    transform: string;
+    e: number | undefined;
+    f: number | undefined;
+  };
+};
+type DownloadState = {
+  clicks: number;
+  href: string | null | undefined;
+  download: string | null | undefined;
+  hasSvgTag: boolean;
+  hasRect: boolean;
+  hasBoardStyles: boolean;
+};
+type ReconnectState = { connected: boolean; validated: boolean };
+type WriteStatusState = {
+  bufferedWrites: number;
+  awaitingBoardSnapshot: boolean;
+  connectionState: string;
+  indicatorClass: string;
+  noticeText: string;
+};
+type ProtectedWriteState = {
+  overlayPresent: boolean;
+  pendingWrites: number;
+  validated: boolean;
+};
+type CursorState = {
+  transform: string | null;
+  fill: string | null;
+};
 type BoardUrlOptions = {
   lang?: string;
   token?: string;
@@ -103,7 +164,7 @@ export class BoardPage {
     await this.expectCurrentTool(name);
   }
 
-  async readActiveToolState() {
+  async readActiveToolState(): Promise<ActiveToolState> {
     return this.page.evaluate(() => ({
       tool: document.documentElement.dataset.activeTool ?? "",
       mode: document.documentElement.dataset.activeToolMode ?? "",
@@ -122,7 +183,7 @@ export class BoardPage {
 
   async setSocketHeaders(headers: Record<string, string>) {
     await this.page.addInitScript((socketHeaders) => {
-      (window as any).socketio_extra_headers = socketHeaders;
+      window.socketio_extra_headers = socketHeaders;
       window.sessionStorage.setItem(
         "socketio_extra_headers",
         JSON.stringify(socketHeaders),
@@ -132,10 +193,11 @@ export class BoardPage {
 
   async installTurnstileMock() {
     await this.page.context().addInitScript(() => {
-      (window as any).__turnstileOptions = null;
-      (window as any).turnstile = {
+      window.__turnstileOptions = null;
+      window.turnstile = {
         render(_: unknown, options: unknown) {
-          (window as any).__turnstileOptions = options;
+          window.__turnstileOptions =
+            options as typeof window.__turnstileOptions;
           return "test-turnstile-widget";
         },
         remove() {},
@@ -147,18 +209,16 @@ export class BoardPage {
   async trackBroadcasts() {
     await this.waitForSocketConnected();
     await this.page.evaluate(() => {
-      (window as any).__receivedBroadcasts = [];
-      (window as any).Tools.socket.on("broadcast", (message: unknown) => {
-        (window as any).__receivedBroadcasts.push(message);
+      window.__receivedBroadcasts = [];
+      window.Tools.socket?.on("broadcast", (message: BoardMessage) => {
+        window.__receivedBroadcasts?.push(message);
       });
     });
   }
 
   async waitForSocketConnected() {
     await expect
-      .poll(() =>
-        this.page.evaluate(() => !!(window as any).Tools?.socket?.connected),
-      )
+      .poll(() => this.page.evaluate(() => !!window.Tools?.socket?.connected))
       .toBe(true);
   }
 
@@ -166,7 +226,7 @@ export class BoardPage {
     await expect
       .poll(() =>
         this.page.evaluate(() => {
-          const tools = (window as any).Tools;
+          const tools = window.Tools;
           return !!(
             tools &&
             tools.connectionState === "connected" &&
@@ -183,15 +243,15 @@ export class BoardPage {
     await expect
       .poll(() =>
         this.page.evaluate((targetColor) => {
-          return ((window as any).__receivedBroadcasts ?? []).some(
-            (message: { color?: string }) => message?.color === targetColor,
+          return (window.__receivedBroadcasts ?? []).some(
+            (message) => message?.color === targetColor,
           );
         }, color),
       )
       .toBe(true);
   }
 
-  async readConnectedUsers() {
+  async readConnectedUsers(): Promise<ConnectedUserState[]> {
     return this.page.evaluate(() => {
       return Array.from(
         document.querySelectorAll("#connectedUsersList .connected-user-row"),
@@ -226,7 +286,10 @@ export class BoardPage {
 
   async waitForDisconnectThenReconnect() {
     return this.page.evaluate(async () => {
-      const socket = (window as any).Tools.socket;
+      const socket = window.Tools.socket;
+      if (!socket) throw new Error("Missing socket");
+      if (!socket.once) throw new Error("Socket does not support once()");
+      const socketOnce = socket.once.bind(socket);
       const initialId = socket.id ?? null;
       return new Promise<{ initialId: string | null; nextId: string | null }>(
         (resolve, reject) => {
@@ -239,15 +302,15 @@ export class BoardPage {
             5_000,
           );
 
-          socket.once("disconnect", () => {
+          socketOnce("disconnect", () => {
             sawDisconnect = true;
           });
-          socket.once("connect", () => {
+          socketOnce("connect", () => {
             if (!sawDisconnect) return;
             clearTimeout(timeout);
             resolve({
               initialId,
-              nextId: (window as any).Tools.socket.id ?? null,
+              nextId: window.Tools.socket?.id ?? null,
             });
           });
         },
@@ -260,7 +323,7 @@ export class BoardPage {
     await this.page.evaluate(async (inputPaths) => {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      const getTools = () => (window as any).Tools;
+      const getTools = () => window.Tools;
       const ensurePencilTool = async () => {
         const tools = getTools();
         if (typeof tools.ensureToolBooted === "function") {
@@ -271,8 +334,8 @@ export class BoardPage {
         return { tools, pencilTool };
       };
       const startPencilPath = (
-        tools: any,
-        pencilTool: any,
+        tools: AppToolsState,
+        pencilTool: MountedAppTool,
         path: PencilPath,
       ) => {
         tools.setColor(path.color);
@@ -290,8 +353,8 @@ export class BoardPage {
         return lineId;
       };
       const appendPencilPoint = async (
-        tools: any,
-        pencilTool: any,
+        tools: AppToolsState,
+        pencilTool: MountedAppTool,
         lineId: string,
         point: Point,
       ) => {
@@ -332,23 +395,28 @@ export class BoardPage {
     const circleSelector = `ellipse[cx='${center.x}'][cy='${center.y}'][rx='${radius}'][ry='${radius}'][stroke='${color}']`;
     await this.page.evaluate(
       ({ drawColor, drawCenter, drawRadius }) => {
-        (window as any).Tools.setColor(drawColor);
-        (window as any).Tools.curTool.listeners.press(
+        const tool = window.Tools.curTool;
+        if (!tool) throw new Error("Missing current tool");
+        window.Tools.setColor(drawColor);
+        tool.listeners.press?.(
           drawCenter.x + drawRadius,
           drawCenter.y + drawRadius,
-          new Event("mousedown"),
+          new MouseEvent("mousedown"),
+          false,
         );
-        const moveEvent = new Event("mousemove");
+        const moveEvent = new MouseEvent("mousemove");
         Object.defineProperty(moveEvent, "shiftKey", { value: true });
-        (window as any).Tools.curTool.listeners.move(
+        tool.listeners.move?.(
           drawCenter.x - drawRadius,
           drawCenter.y - drawRadius,
           moveEvent,
+          false,
         );
-        (window as any).Tools.curTool.listeners.release(
+        tool.listeners.release?.(
           drawCenter.x - drawRadius,
           drawCenter.y - drawRadius,
-          new Event("mouseup"),
+          new MouseEvent("mouseup"),
+          false,
         );
       },
       { drawColor: color, drawCenter: center, drawRadius: radius },
@@ -360,10 +428,13 @@ export class BoardPage {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ targetX, targetY, targetText }) => {
-        (window as any).Tools.curTool.listeners.press(targetX, targetY, {
-          target: (window as any).Tools.board,
-          preventDefault() {},
+        const tool = window.Tools.curTool;
+        if (!tool) throw new Error("Missing current tool");
+        const pressEvent = new MouseEvent("mousedown");
+        Object.defineProperty(pressEvent, "target", {
+          value: window.Tools.board,
         });
+        tool.listeners.press?.(targetX, targetY, pressEvent, false);
         const input = document.getElementById(
           "textToolInput",
         ) as HTMLInputElement | null;
@@ -388,29 +459,25 @@ export class BoardPage {
             );
           }
         };
-        const evt = { preventDefault() {} };
-        (window as any).Tools.curTool.listeners.press(
-          lineStart.x,
-          lineStart.y,
-          evt,
-        );
+        const tool = window.Tools.curTool;
+        if (!tool) throw new Error("Missing current tool");
+        const evt = new MouseEvent("mousemove");
+        tool.listeners.press?.(lineStart.x, lineStart.y, evt, false);
         await advanceFrames(6);
-        (window as any).Tools.curTool.listeners.move(lineEnd.x, lineEnd.y, evt);
+        tool.listeners.move?.(lineEnd.x, lineEnd.y, evt, false);
         await advanceFrames(1);
-        (window as any).Tools.curTool.listeners.release(
-          lineEnd.x,
-          lineEnd.y,
-          evt,
-        );
+        tool.listeners.release?.(lineEnd.x, lineEnd.y, evt, false);
       },
       { lineStart: start, lineEnd: end },
     );
     await expect(this.page.locator("#drawingArea line")).toHaveCount(1);
-    return this.page.evaluate(() => {
+    return this.page.evaluate<LineDrawState>(() => {
       const line = document.querySelector("#drawingArea line");
       if (!line) throw new Error("Missing line after draw");
+      const currentTool = window.Tools.curTool;
+      if (!currentTool) throw new Error("Missing current tool");
       return {
-        secondaryActive: (window as any).Tools.curTool.secondary.active,
+        secondaryActive: currentTool.secondary?.active === true,
         x1: Number(line.getAttribute("x1")),
         y1: Number(line.getAttribute("y1")),
         x2: Number(line.getAttribute("x2")),
@@ -423,31 +490,23 @@ export class BoardPage {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ squareStart, squareEnd }) => {
-        const evt = { preventDefault() {} };
-        (window as any).Tools.curTool.listeners.press(
-          squareStart.x,
-          squareStart.y,
-          evt,
-        );
-        (window as any).Tools.curTool.listeners.move(
-          squareEnd.x,
-          squareEnd.y,
-          evt,
-        );
-        (window as any).Tools.curTool.listeners.release(
-          squareEnd.x,
-          squareEnd.y,
-          evt,
-        );
+        const tool = window.Tools.curTool;
+        if (!tool) throw new Error("Missing current tool");
+        const evt = new MouseEvent("mousemove");
+        tool.listeners.press?.(squareStart.x, squareStart.y, evt, false);
+        tool.listeners.move?.(squareEnd.x, squareEnd.y, evt, false);
+        tool.listeners.release?.(squareEnd.x, squareEnd.y, evt, false);
       },
       { squareStart: start, squareEnd: end },
     );
     await expect(this.page.locator("#drawingArea rect")).toBeVisible();
-    return this.page.evaluate(() => {
+    return this.page.evaluate<ShapeDrawState>(() => {
       const rect = document.querySelector("#drawingArea rect");
       if (!rect) throw new Error("Missing rectangle after draw");
+      const currentTool = window.Tools.curTool;
+      if (!currentTool) throw new Error("Missing current tool");
       return {
-        secondaryActive: (window as any).Tools.curTool.secondary.active,
+        secondaryActive: currentTool.secondary?.active === true,
         x: Number(rect.getAttribute("x")),
         y: Number(rect.getAttribute("y")),
         width: Number(rect.getAttribute("width")),
@@ -461,12 +520,12 @@ export class BoardPage {
     await this.page.evaluate((targetId) => {
       const rect = document.getElementById(targetId);
       if (!rect) throw new Error(`Missing shape ${targetId}`);
-      const evt = {
-        preventDefault() {},
-        target: rect,
-      };
-      (window as any).Tools.curTool.listeners.press(110, 110, evt);
-      (window as any).Tools.curTool.listeners.release(110, 110, evt);
+      const tool = window.Tools.curTool;
+      if (!tool) throw new Error("Missing current tool");
+      const evt = new MouseEvent("mousedown");
+      Object.defineProperty(evt, "target", { value: rect });
+      tool.listeners.press?.(110, 110, evt, false);
+      tool.listeners.release?.(110, 110, evt, false);
     }, id);
     await expect(this.page.locator(`#${id}`)).toHaveCount(0);
   }
@@ -475,7 +534,7 @@ export class BoardPage {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       async ({ cursorColor, cursorX, cursorY }) => {
-        const tools = (window as any).Tools;
+        const tools = window.Tools;
         if (typeof tools.ensureToolBooted === "function") {
           await tools.ensureToolBooted("Cursor");
         }
@@ -495,23 +554,16 @@ export class BoardPage {
       ({ targetId, fromPoint, toPoint }) => {
         const rect = document.getElementById(targetId);
         if (!rect) throw new Error(`Missing shape ${targetId}`);
-        const evt = {
-          preventDefault() {},
-          target: rect,
+        const tool = window.Tools.curTool;
+        if (!tool) throw new Error("Missing current tool");
+        const evt = new MouseEvent("mousemove", {
           clientX: 0,
           clientY: 0,
-        };
-        (window as any).Tools.curTool.listeners.press(
-          fromPoint.x,
-          fromPoint.y,
-          evt,
-        );
-        (window as any).Tools.curTool.listeners.move(toPoint.x, toPoint.y, evt);
-        (window as any).Tools.curTool.listeners.release(
-          toPoint.x,
-          toPoint.y,
-          evt,
-        );
+        });
+        Object.defineProperty(evt, "target", { value: rect });
+        tool.listeners.press?.(fromPoint.x, fromPoint.y, evt, false);
+        tool.listeners.move?.(toPoint.x, toPoint.y, evt, false);
+        tool.listeners.release?.(toPoint.x, toPoint.y, evt, false);
       },
       { targetId: id, fromPoint: from, toPoint: to },
     );
@@ -519,7 +571,7 @@ export class BoardPage {
       const rect = document.getElementById(targetId);
       return rect?.getAttribute("transform")?.includes("matrix(") ?? false;
     }, id);
-    return this.page.evaluate((targetId) => {
+    return this.page.evaluate<SelectionMoveState, string>((targetId) => {
       const rect = document.getElementById(targetId);
       if (!rect) throw new Error(`Missing shape ${targetId}`);
       const transform = rect.getAttribute("transform") ?? "";
@@ -527,8 +579,10 @@ export class BoardPage {
         .split(/[ ,]+/)
         .filter(Boolean)
         .map(Number);
+      const currentTool = window.Tools.curTool;
+      if (!currentTool) throw new Error("Missing current tool");
       return {
-        selectorActive: (window as any).Tools.curTool.secondary.active,
+        selectorActive: currentTool.secondary?.active === true,
         translation: {
           transform,
           e: values[4],
@@ -540,39 +594,58 @@ export class BoardPage {
 
   async zoomClickInAndOut(point: Point) {
     const initialScale = await this.page.evaluate(() => {
-      return (window as any).Tools.getScale();
+      return window.Tools.getScale();
     });
     await this.page.evaluate(({ x, y }) => {
-      const tools = (window as any).Tools;
+      const tools = window.Tools;
+      const tool = tools.curTool;
+      if (!tool) throw new Error("Missing current tool");
       const zoomInEvent = {
         preventDefault() {},
         clientY: 100,
         shiftKey: false,
       };
-      tools.curTool.listeners.press(x, y, zoomInEvent);
-      tools.curTool.listeners.release(x, y, zoomInEvent);
+      tool.listeners.press?.(x, y, zoomInEvent as unknown as MouseEvent, false);
+      tool.listeners.release?.(
+        x,
+        y,
+        zoomInEvent as unknown as MouseEvent,
+        false,
+      );
     }, point);
     await this.page.waitForFunction((previousScale) => {
-      return (window as any).Tools.getScale() > previousScale;
+      return window.Tools.getScale() > previousScale;
     }, initialScale);
     const scaleAfterZoomIn = await this.page.evaluate(() => {
-      return (window as any).Tools.getScale();
+      return window.Tools.getScale();
     });
     await this.page.evaluate(({ x, y }) => {
-      const tools = (window as any).Tools;
+      const tools = window.Tools;
+      const tool = tools.curTool;
+      if (!tool) throw new Error("Missing current tool");
       const zoomOutEvent = {
         preventDefault() {},
         clientY: 100,
         shiftKey: true,
       };
-      tools.curTool.listeners.press(x, y, zoomOutEvent);
-      tools.curTool.listeners.release(x, y, zoomOutEvent);
+      tool.listeners.press?.(
+        x,
+        y,
+        zoomOutEvent as unknown as MouseEvent,
+        false,
+      );
+      tool.listeners.release?.(
+        x,
+        y,
+        zoomOutEvent as unknown as MouseEvent,
+        false,
+      );
     }, point);
     await this.page.waitForFunction((previousScale) => {
-      return (window as any).Tools.getScale() < previousScale;
+      return window.Tools.getScale() < previousScale;
     }, scaleAfterZoomIn);
     const scaleAfterZoomOut = await this.page.evaluate(() => {
-      return (window as any).Tools.getScale();
+      return window.Tools.getScale();
     });
     return {
       scaleAfterZoomIn,
@@ -582,16 +655,17 @@ export class BoardPage {
 
   async installDownloadCapture() {
     await this.page.evaluate(() => {
-      (window as any).__downloadCapture = null;
-      (window as any).__downloadAnchorClicks = 0;
-      (window as any).URL.createObjectURL = (blob: Blob) => {
-        (window as any).__downloadBlob = blob;
+      window.__downloadCapture = null;
+      window.__downloadAnchorClicks = 0;
+      window.URL.createObjectURL = (blob: Blob) => {
+        window.__downloadBlob = blob;
         return "blob:test-download";
       };
-      (window as any).URL.revokeObjectURL = () => {};
+      window.URL.revokeObjectURL = () => {};
       HTMLAnchorElement.prototype.click = function click() {
-        (window as any).__downloadAnchorClicks += 1;
-        (window as any).__downloadCapture = {
+        window.__downloadAnchorClicks =
+          (window.__downloadAnchorClicks ?? 0) + 1;
+        window.__downloadCapture = {
           href: this.getAttribute("href"),
           download: this.getAttribute("download"),
         };
@@ -599,13 +673,15 @@ export class BoardPage {
     });
   }
 
-  async readDownloadCapture() {
+  async readDownloadCapture(): Promise<DownloadState> {
     return this.page.evaluate(async () => {
-      const text = await (window as any).__downloadBlob.text();
+      const blob = window.__downloadBlob;
+      if (!blob) throw new Error("Missing captured download blob");
+      const text = await blob.text();
       return {
-        clicks: (window as any).__downloadAnchorClicks,
-        href: (window as any).__downloadCapture?.href,
-        download: (window as any).__downloadCapture?.download,
+        clicks: window.__downloadAnchorClicks ?? 0,
+        href: window.__downloadCapture?.href,
+        download: window.__downloadCapture?.download,
         hasSvgTag: text.includes("<svg"),
         hasRect: text.includes('id="download-rect"'),
         hasBoardStyles: text.includes("#drawingArea"),
@@ -618,8 +694,8 @@ export class BoardPage {
     await this.page.evaluate((targetId) => {
       const rect = document.getElementById(targetId);
       if (!rect) throw new Error(`Missing shape ${targetId}`);
-      const duplicateId = (window as any).Tools.generateUID(targetId[0] ?? "s");
-      (window as any).Tools.drawAndSend({
+      const duplicateId = window.Tools.generateUID(targetId[0] ?? "s");
+      window.Tools.drawAndSend({
         _children: [{ type: "copy", id: targetId, newid: duplicateId }],
       });
     }, id);
@@ -630,7 +706,7 @@ export class BoardPage {
       );
     });
     await this.page.evaluate((targetId) => {
-      (window as any).Tools.drawAndSend({
+      window.Tools.drawAndSend({
         _children: [{ type: "delete", id: targetId }],
       });
     }, id);
@@ -646,7 +722,7 @@ export class BoardPage {
   async emitBroadcast(message: Record<string, unknown>) {
     await this.waitForBoardWritable();
     await this.page.evaluate((data) => {
-      (window as any).Tools.socket.emit("broadcast", data);
+      window.Tools.socket?.emit("broadcast", data);
     }, message);
   }
 
@@ -654,23 +730,28 @@ export class BoardPage {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ drawColor, drawStart, drawEnd, drawSize }) => {
-        (window as any).Tools.setColor(drawColor);
-        (window as any).Tools.setSize(drawSize);
-        (window as any).Tools.change("Rectangle");
-        (window as any).Tools.curTool.listeners.press(
+        window.Tools.setColor(drawColor);
+        window.Tools.setSize(drawSize);
+        window.Tools.change("Rectangle");
+        const tool = window.Tools.curTool;
+        if (!tool) throw new Error("Missing current tool");
+        tool.listeners.press?.(
           drawStart.x,
           drawStart.y,
-          new Event("mousedown"),
+          new MouseEvent("mousedown"),
+          false,
         );
-        (window as any).Tools.curTool.listeners.move(
+        tool.listeners.move?.(
           drawEnd.x,
           drawEnd.y,
-          new Event("mousemove"),
+          new MouseEvent("mousemove"),
+          false,
         );
-        (window as any).Tools.curTool.listeners.release(
+        tool.listeners.release?.(
           drawEnd.x,
           drawEnd.y,
-          new Event("mouseup"),
+          new MouseEvent("mouseup"),
+          false,
         );
       },
       { drawColor: color, drawStart: start, drawEnd: end, drawSize: size },
@@ -690,7 +771,7 @@ export class BoardPage {
     });
   }
 
-  async reconnectAndReadState() {
+  async reconnectAndReadState(): Promise<ReconnectState> {
     return this.page.evaluate(async () => {
       const reconnect = await new Promise<{
         connected: boolean;
@@ -708,30 +789,30 @@ export class BoardPage {
           clearTimeout(timeout);
           requestAnimationFrame(() =>
             resolve({
-              connected: (window as any).Tools.socket.connected,
-              validated: (window as any).Tools.isTurnstileValidated(),
+              connected: window.Tools.socket?.connected === true,
+              validated: window.Tools.isTurnstileValidated(),
             }),
           );
         };
 
-        (window as any).Tools.socket.once("reconnect", finish);
-        (window as any).Tools.socket.once("connect", finish);
+        window.Tools.socket?.once?.("reconnect", finish);
+        window.Tools.socket?.once?.("connect", finish);
 
-        (window as any).Tools.socket.io.engine.close();
+        window.Tools.socket?.io?.engine?.close();
       });
 
       return reconnect;
     });
   }
 
-  async readWriteStatus() {
+  async readWriteStatus(): Promise<WriteStatusState> {
     return this.page.evaluate(() => {
       const indicator = document.getElementById("boardStatusIndicator");
       const notice = document.getElementById("boardStatusNotice");
       return {
-        bufferedWrites: ((window as any).Tools.bufferedWrites ?? []).length,
-        awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
-        connectionState: String((window as any).Tools.connectionState ?? ""),
+        bufferedWrites: window.Tools.bufferedWrites.length,
+        awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
+        connectionState: String(window.Tools.connectionState ?? ""),
         indicatorClass: indicator?.className ?? "",
         noticeText: notice?.textContent ?? "",
       };
@@ -742,8 +823,8 @@ export class BoardPage {
     await expect
       .poll(() =>
         this.page.evaluate(() => ({
-          connected: !!(window as any).Tools?.socket?.connected,
-          awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
+          connected: !!window.Tools?.socket?.connected,
+          awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
         })),
       )
       .toEqual({
@@ -754,7 +835,7 @@ export class BoardPage {
 
   async forceSocketDisconnect() {
     await this.page.evaluate(() => {
-      (window as any).Tools.socket.io.engine.close();
+      window.Tools.socket?.io?.engine?.close();
     });
   }
 
@@ -762,16 +843,15 @@ export class BoardPage {
     return this.page.evaluate((value) => {
       return new Promise<{ success: boolean; validated: boolean }>(
         (resolve) => {
-          (window as any).Tools.socket.emit(
+          window.Tools.socket?.emit(
             "turnstile_token",
             value,
             (result: unknown) => {
-              const ack = (window as any).Tools.normalizeTurnstileAck(result);
-              if (ack.success)
-                (window as any).Tools.setTurnstileValidation(ack);
+              const ack = window.Tools.normalizeTurnstileAck(result);
+              if (ack.success) window.Tools.setTurnstileValidation(ack);
               resolve({
                 success: ack.success === true,
-                validated: (window as any).Tools.isTurnstileValidated(),
+                validated: window.Tools.isTurnstileValidated(),
               });
             },
           );
@@ -783,7 +863,7 @@ export class BoardPage {
   async queueProtectedRectangle(id: string) {
     await this.waitForBoardWritable();
     await this.page.evaluate((rectId) => {
-      (window as any).Tools.drawAndSend(
+      window.Tools.drawAndSend(
         {
           type: "rect",
           id: rectId,
@@ -795,10 +875,10 @@ export class BoardPage {
           size: 4,
           opacity: 1,
         },
-        (window as any).Tools.list.Rectangle,
+        window.Tools.list.Rectangle,
       );
 
-      const options = (window as any).__turnstileOptions;
+      const options = window.__turnstileOptions;
       if (options?.["before-interactive-callback"]) {
         options["before-interactive-callback"]();
       }
@@ -809,30 +889,32 @@ export class BoardPage {
         overlay && !overlay.classList.contains("turnstile-overlay-hidden")
       );
     });
-    return this.page.evaluate(() => ({
+    return this.page.evaluate<ProtectedWriteState>(() => ({
       overlayPresent: true,
-      pendingWrites: (window as any).Tools.turnstilePendingWrites.length,
-      validated: (window as any).Tools.isTurnstileValidated(),
+      pendingWrites: window.Tools.turnstilePendingWrites.length,
+      validated: window.Tools.isTurnstileValidated(),
     }));
   }
 
-  async completeTurnstileChallenge(token: string) {
+  async completeTurnstileChallenge(
+    token: string,
+  ): Promise<ProtectedWriteState> {
     await this.page.evaluate((value) => {
-      (window as any).__turnstileOptions.callback(value);
+      window.__turnstileOptions?.callback?.(value);
     }, token);
     await this.page.waitForFunction(() => {
       const overlay = document.getElementById("turnstile-overlay");
       return !overlay || overlay.classList.contains("turnstile-overlay-hidden");
     });
-    return this.page.evaluate(() => ({
+    return this.page.evaluate<ProtectedWriteState>(() => ({
       overlayPresent: false,
-      pendingWrites: (window as any).Tools.turnstilePendingWrites.length,
-      validated: (window as any).Tools.isTurnstileValidated(),
+      pendingWrites: window.Tools.turnstilePendingWrites.length,
+      validated: window.Tools.isTurnstileValidated(),
     }));
   }
 
-  async readCursorAttributes() {
-    return this.page.evaluate(() => {
+  async readCursorAttributes(): Promise<CursorState | null> {
+    return this.page.evaluate<CursorState | null>(() => {
       const cursor = document.getElementById("cursor-me");
       if (!(cursor instanceof SVGElement)) return null;
       const style =
