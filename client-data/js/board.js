@@ -703,12 +703,12 @@ function finalizeIncomingBroadcast(msg, processed) {
  * @param {BoardMessage} msg
  * @returns {Promise<boolean>}
  */
-function processIncomingBroadcast(msg) {
+async function processIncomingBroadcast(msg) {
   if (
     BoardMessageReplay.shouldBufferLiveMessage(msg, Tools.awaitingBoardSnapshot)
   ) {
     Tools.preSnapshotMessages.push(Tools.cloneMessage(msg));
-    return Promise.resolve(false);
+    return false;
   }
 
   if (
@@ -718,47 +718,42 @@ function processIncomingBroadcast(msg) {
     Tools.resetBoardViewport();
   }
 
-  return handleMessage(msg).then(function afterMessageHandled() {
-    if (
-      Tools.awaitingBoardSnapshot &&
-      BoardMessageReplay.isSnapshotMessage(msg)
-    ) {
-      Tools.hasAuthoritativeBoardSnapshot = true;
-      Tools.snapshotRevision = BoardMessageReplay.normalizeRevision(
-        msg.revision,
-      );
-      Tools.awaitingBoardSnapshot = false;
-      Tools.flushBufferedWrites();
-      Tools.incomingBroadcastQueue =
-        BoardMessageReplay.filterBufferedMessagesAfterSnapshot(
-          Tools.preSnapshotMessages,
-          Tools.snapshotRevision,
-        ).concat(Tools.incomingBroadcastQueue);
-      Tools.preSnapshotMessages = [];
-      Tools.restoreLocalCursor();
-    }
-    return true;
-  });
+  await handleMessage(msg);
+  if (
+    Tools.awaitingBoardSnapshot &&
+    BoardMessageReplay.isSnapshotMessage(msg)
+  ) {
+    Tools.hasAuthoritativeBoardSnapshot = true;
+    Tools.snapshotRevision = BoardMessageReplay.normalizeRevision(msg.revision);
+    Tools.awaitingBoardSnapshot = false;
+    Tools.flushBufferedWrites();
+    Tools.incomingBroadcastQueue =
+      BoardMessageReplay.filterBufferedMessagesAfterSnapshot(
+        Tools.preSnapshotMessages,
+        Tools.snapshotRevision,
+      ).concat(Tools.incomingBroadcastQueue);
+    Tools.preSnapshotMessages = [];
+    Tools.restoreLocalCursor();
+  }
+  return true;
 }
 
-function drainIncomingBroadcastQueue() {
+async function drainIncomingBroadcastQueue() {
   if (Tools.processingIncomingBroadcast) return;
   Tools.processingIncomingBroadcast = true;
-
-  function drainNext() {
-    const msg = Tools.incomingBroadcastQueue.shift();
-    if (!msg) {
-      Tools.processingIncomingBroadcast = false;
-      return;
+  try {
+    while (true) {
+      const msg = Tools.incomingBroadcastQueue.shift();
+      if (!msg) return;
+      const processed = await processIncomingBroadcast(msg);
+      finalizeIncomingBroadcast(msg, processed);
     }
-    processIncomingBroadcast(msg)
-      .then(function afterProcess(processed) {
-        finalizeIncomingBroadcast(msg, processed);
-      })
-      .finally(drainNext);
+  } finally {
+    Tools.processingIncomingBroadcast = false;
+    if (Tools.incomingBroadcastQueue.length > 0) {
+      void drainIncomingBroadcastQueue();
+    }
   }
-
-  drainNext();
 }
 
 /**
@@ -767,7 +762,7 @@ function drainIncomingBroadcastQueue() {
  */
 function enqueueIncomingBroadcast(msg) {
   Tools.incomingBroadcastQueue.push(msg);
-  drainIncomingBroadcastQueue();
+  void drainIncomingBroadcastQueue();
 }
 
 Tools.scale = 1.0;
