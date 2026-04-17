@@ -29,6 +29,93 @@ export interface TestServer {
   waitForStoredBoard: typeof waitForStoredBoard;
 }
 
+function parseServerStartedPort(line: string): number | null {
+  if (!line.includes("server started")) return null;
+  const match = line.match(/server started\s+({.*})/);
+  if (!match) return null;
+  const config = JSON.parse(match[1] ?? "{}") as { port?: number };
+  return typeof config.port === "number" ? config.port : null;
+}
+
+function collectChildStderr(child: ChildProcess, stderr: string[]) {
+  const handleStderr = (data: Buffer) => {
+    stderr.push(data.toString());
+  };
+  child.stderr?.on("data", handleStderr);
+  return () => {
+    child.stderr?.off("data", handleStderr);
+  };
+}
+
+function waitForServerStarted(
+  child: ChildProcess,
+  getStdoutBuffer: () => string,
+  appendStdout: (chunk: string) => void,
+) {
+  return new Promise<string>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      child.kill();
+      reject(
+        new Error(
+          `Server failed to start within 10s. Output: ${getStdoutBuffer()}`,
+        ),
+      );
+    }, 10_000);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      child.off("message", handleMessage);
+      child.off("error", handleError);
+      child.off("exit", handleExit);
+      child.stdout?.off("data", handleStdout);
+    };
+
+    const resolveWithPort = (port: number | undefined) => {
+      if (!port) return;
+      cleanup();
+      resolve(`http://localhost:${port}`);
+    };
+
+    const handleMessage = (msg: { type?: string; port?: number }) => {
+      if (msg.type === "server-started") resolveWithPort(msg.port);
+    };
+
+    const handleStdout = (data: Buffer) => {
+      const line = data.toString();
+      appendStdout(line);
+      resolveWithPort(parseServerStartedPort(line) ?? undefined);
+    };
+
+    const handleError = (err: Error) => {
+      cleanup();
+      reject(err);
+    };
+
+    const handleExit = (code: number | null, signal: NodeJS.Signals | null) => {
+      cleanup();
+      reject(
+        new Error(
+          `Server exited before startup (code=${code}, signal=${signal}). Output: ${getStdoutBuffer()}`,
+        ),
+      );
+    };
+
+    child.on("message", handleMessage);
+    child.on("error", handleError);
+    child.on("exit", handleExit);
+    child.stdout?.on("data", handleStdout);
+  });
+}
+
+function waitForChildExit(child: ChildProcess) {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    child.once("exit", () => resolve());
+  });
+}
+
 export async function startTestServer(
   options: ServerSetupOptions,
   testInfo: TestInfo,
@@ -68,56 +155,16 @@ export async function startTestServer(
 
   const stderr: string[] = [];
   let stdoutBuffer = "";
+  const stopCollectingStderr = collectChildStderr(child, stderr);
 
   try {
-    const serverUrl = await new Promise<string>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        child.kill();
-        reject(
-          new Error(
-            `Server failed to start within 10s. Output: ${stdoutBuffer}`,
-          ),
-        );
-      }, 10_000);
-
-      const onServerStarted = (port: number | undefined) => {
-        if (!port) return;
-        clearTimeout(timeout);
-        resolve(`http://localhost:${port}`);
-      };
-
-      child.on("message", (msg: { type?: string; port?: number }) => {
-        if (msg.type === "server-started") onServerStarted(msg.port);
-      });
-
-      child.stdout?.on("data", (data: Buffer) => {
-        const line = data.toString();
-        stdoutBuffer += line;
-        if (!line.includes("server started")) return;
-        const match = line.match(/server started\s+({.*})/);
-        if (!match) return;
-        const config = JSON.parse(match[1] ?? "{}") as { port?: number };
-        onServerStarted(config.port);
-      });
-
-      child.stderr?.on("data", (data: Buffer) => {
-        stderr.push(data.toString());
-      });
-
-      child.on("error", (err) => {
-        clearTimeout(timeout);
-        reject(err);
-      });
-
-      child.on("exit", (code, signal) => {
-        clearTimeout(timeout);
-        reject(
-          new Error(
-            `Server exited before startup (code=${code}, signal=${signal}). Output: ${stdoutBuffer}`,
-          ),
-        );
-      });
-    });
+    const serverUrl = await waitForServerStarted(
+      child,
+      () => stdoutBuffer,
+      (chunk) => {
+        stdoutBuffer += chunk;
+      },
+    );
 
     return {
       child,
@@ -131,6 +178,7 @@ export async function startTestServer(
       waitForStoredBoard,
     };
   } catch (err) {
+    stopCollectingStderr();
     await stopTestServer(
       {
         child,
@@ -157,14 +205,11 @@ export async function stopTestServer(server: TestServer, testInfo: TestInfo) {
     });
   }
 
-  await new Promise<void>((resolve) => {
-    if (!server.child || server.child.killed) {
-      resolve();
-      return;
-    }
-    server.child.once("exit", () => resolve());
+  if (server.child && !server.child.killed) {
+    const exitPromise = waitForChildExit(server.child);
     server.child.kill();
-  });
+    await exitPromise;
+  }
 
   await fsp.rm(server.dataPath, { recursive: true, force: true });
 }
