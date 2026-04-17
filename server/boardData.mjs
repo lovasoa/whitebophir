@@ -404,7 +404,41 @@ class BoardData {
   canCopy(id, data) {
     const obj = this.board[id];
     if (!obj) return false;
-    return this.validateStoredCandidate(data.newid, structuredClone(obj)).ok;
+    return this.makeCopyCandidate(data.newid, obj, this.getLocalBounds(id, obj))
+      .ok;
+  }
+
+  /**
+   * Copies a stored item to a new id without re-running full stored-item
+   * normalization. Board state is already normalized, so only the new id and
+   * mutable containers need isolation.
+   *
+   * @param {string} newId
+   * @param {BoardElem} item
+   * @param {Bounds | null} localBounds
+   * @returns {ValidatedStoredCandidate | ValidationFailure}
+   */
+  makeCopyCandidate(newId, item, localBounds) {
+    const normalizedId = MessageCommon.normalizeId(newId);
+    if (normalizedId === null) return { ok: false, reason: "invalid id" };
+    if (typeof item !== "object") {
+      return { ok: false, reason: "copied object does not exist" };
+    }
+
+    /** @type {BoardElem} */
+    const copied = { ...item, id: normalizedId };
+    if (Array.isArray(item._children)) {
+      copied._children = item._children.slice();
+    }
+    if (item.transform && typeof item.transform === "object") {
+      copied.transform = { ...item.transform };
+    }
+
+    return {
+      ok: true,
+      value: copied,
+      localBounds: this.cloneBounds(localBounds),
+    };
   }
 
   /**
@@ -529,8 +563,11 @@ class BoardData {
     const obj = this.board[id];
     const newid = data.newid;
     if (obj) {
-      const newobj = structuredClone(obj);
-      const validated = this.validateStoredCandidate(newid, newobj);
+      const validated = this.makeCopyCandidate(
+        newid,
+        obj,
+        this.getLocalBounds(id, obj),
+      );
       if (!validated.ok) return validated;
       this.board[newid] = validated.value;
       this.cacheLocalBounds(newid, validated.localBounds);
@@ -672,9 +709,10 @@ class BoardData {
               if (!current) {
                 return { ok: false, reason: "copied object does not exist" };
               }
-              const validated = this.validateStoredCandidate(
+              const validated = this.makeCopyCandidate(
                 message.newid,
-                structuredClone(current),
+                current,
+                readShadowLocalBounds(id, current),
               );
               if (!validated.ok) return validated;
               shadowItems.set(message.newid, validated.value);

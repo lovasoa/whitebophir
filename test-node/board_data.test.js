@@ -208,6 +208,43 @@ test("BoardData applies parent tool metadata to batched Hand updates", () => {
   });
 });
 
+test("BoardData copy keeps pencil child arrays isolated", () => {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const board = disableSaves(new BoardData("copy-pencil-isolation"));
+
+  board.processMessage({
+    tool: "Pencil",
+    type: "line",
+    id: "p-1",
+    color: "#123456",
+    size: 4,
+  });
+  board.processMessage({
+    tool: "Pencil",
+    type: "child",
+    parent: "p-1",
+    x: 10,
+    y: 20,
+  });
+  board.processMessage({
+    tool: "Hand",
+    type: "copy",
+    id: "p-1",
+    newid: "p-2",
+  });
+  board.processMessage({
+    tool: "Pencil",
+    type: "child",
+    parent: "p-1",
+    x: 30,
+    y: 40,
+  });
+
+  assert.equal(board.get("p-1")._children.length, 2);
+  assert.equal(board.get("p-2")._children.length, 1);
+  assert.notStrictEqual(board.get("p-1")._children, board.get("p-2")._children);
+});
+
 test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async () => {
   await withEnv({ WBO_MAX_CHILDREN: "1" }, async () => {
     const BoardData = require(BOARD_DATA_PATH).BoardData;
