@@ -7,10 +7,6 @@ import observability from "./observability.mjs";
 
 const { logger, metrics, tracing } = observability;
 
-function getConfig() {
-  return readConfiguration();
-}
-
 /** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
 /** @typedef {import("../types/server-runtime.d.ts").BoardLike} BoardLike */
 /** @typedef {import("../types/server-runtime.d.ts").BroadcastResult} BroadcastResult */
@@ -112,7 +108,8 @@ function parseForwardedHeader(value) {
  * @returns {string}
  */
 function selectTrustedClientIp(chain) {
-  const trustedHops = Math.max(0, getConfig().TRUST_PROXY_HOPS || 0);
+  const { TRUST_PROXY_HOPS } = readConfiguration();
+  const trustedHops = Math.max(0, TRUST_PROXY_HOPS || 0);
   const selectedIndex = Math.min(trustedHops, chain.length - 1);
   return chain[selectedIndex] || "";
 }
@@ -123,8 +120,8 @@ function selectTrustedClientIp(chain) {
  * @returns {string}
  */
 function resolveClientIpChain(chain, directRemoteAddress) {
-  const config = getConfig();
-  if (config.TRUST_PROXY_HOPS > 0 && directRemoteAddress) {
+  const { TRUST_PROXY_HOPS } = readConfiguration();
+  if (TRUST_PROXY_HOPS > 0 && directRemoteAddress) {
     chain.reverse();
     chain.unshift(directRemoteAddress);
     return selectTrustedClientIp(chain);
@@ -194,13 +191,13 @@ function resolveCustomHeaderClientIp(headers, normalizedIpSource, ipSource) {
  * @returns {string}
  */
 function getClientIp(socket) {
+  const { IP_SOURCE } = readConfiguration();
   const request = getSocketRequest(socket);
   const headers = getSocketHeaders(socket);
   const directRemoteAddress = request.socket?.remoteAddress
     ? request.socket.remoteAddress
     : "";
-  const config = getConfig();
-  const ipSource = config.IP_SOURCE || "remoteAddress";
+  const ipSource = IP_SOURCE || "remoteAddress";
   const normalizedIpSource = normalizeHeaderName(ipSource);
 
   switch (normalizedIpSource) {
@@ -233,10 +230,8 @@ function normalizeBroadcastData(boardName, data) {
     return rejectedBroadcast(boardName, "missing data");
   }
 
-  if (
-    typeof data.tool === "string" &&
-    getConfig().BLOCKED_TOOLS.includes(data.tool)
-  ) {
+  const { BLOCKED_TOOLS } = readConfiguration();
+  if (typeof data.tool === "string" && BLOCKED_TOOLS.includes(data.tool)) {
     return rejectedBroadcast(boardName, "blocked tool");
   }
 
@@ -245,7 +240,7 @@ function normalizeBroadcastData(boardName, data) {
     return rejectedBroadcast(boardName, normalized.reason);
   }
 
-  if (getConfig().BLOCKED_TOOLS.includes(normalized.value.tool)) {
+  if (BLOCKED_TOOLS.includes(normalized.value.tool)) {
     return rejectedBroadcast(boardName, "blocked tool");
   }
 
@@ -311,7 +306,8 @@ function normalizeBoardName(boardName) {
  * @returns {"editor" | "moderator" | "reader" | "forbidden"}
  */
 function accessRole(boardName, socket) {
-  if (!getConfig().AUTH_SECRET_KEY) return "editor";
+  const { AUTH_SECRET_KEY } = readConfiguration();
+  if (!AUTH_SECRET_KEY) return "editor";
   const token = getSocketToken(socket);
   return /** @type {"editor" | "moderator" | "reader" | "forbidden"} */ (
     token ? roleInBoard(token, boardName) : "forbidden"
@@ -333,7 +329,8 @@ function canAccessBoard(boardName, socket) {
  * @returns {"editor" | "moderator" | "forbidden"}
  */
 function writerRole(boardName, socket) {
-  if (!getConfig().AUTH_SECRET_KEY) return "forbidden";
+  const { AUTH_SECRET_KEY } = readConfiguration();
+  if (!AUTH_SECRET_KEY) return "forbidden";
   const role = accessRole(boardName, socket);
   return role === "editor" || role === "moderator" ? role : "forbidden";
 }

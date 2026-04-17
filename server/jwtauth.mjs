@@ -28,9 +28,6 @@ import { readConfiguration } from "./configuration.mjs";
 import { forbidden } from "./boundary_errors.mjs";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
 
-function getConfig() {
-  return readConfiguration();
-}
 /**
  * Validates jwt and returns whether user is a moderator
  * @param {URL} url
@@ -38,7 +35,8 @@ function getConfig() {
  * @throws {Error} - If no token is provided when it should be
  */
 export function checkUserPermission(url) {
-  if (getConfig().AUTH_SECRET_KEY === "") {
+  const { AUTH_SECRET_KEY } = readConfiguration();
+  if (AUTH_SECRET_KEY === "") {
     return false;
   }
 

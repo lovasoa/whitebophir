@@ -39,10 +39,6 @@ import observability from "./observability.mjs";
 
 const { logger, metrics, tracing } = observability;
 
-function getConfig() {
-  return readConfiguration();
-}
-
 class SerialTaskQueue {
   constructor() {
     this.lastTask = Promise.resolve();
@@ -99,9 +95,8 @@ function normalizeBoardMetadata(metadata) {
  * @returns {string}
  */
 function boardFilePath(name) {
-  const config = getConfig();
   return path.join(
-    config.HISTORY_DIR,
+    readConfiguration().HISTORY_DIR,
     `board-${encodeURIComponent(name)}.json`,
   );
 }
@@ -383,7 +378,6 @@ class BoardData {
    * @returns {boolean}
    */
   canAddChild(parentId, child) {
-    const config = getConfig();
     const obj = this.board[parentId];
     if (!obj || obj.tool !== "Pencil") return false;
 
@@ -391,7 +385,7 @@ class BoardData {
     if (!normalizedChild.ok) return false;
     if (
       Array.isArray(obj._children) &&
-      obj._children.length >= config.MAX_CHILDREN
+      obj._children.length >= readConfiguration().MAX_CHILDREN
     )
       return false;
 
@@ -460,14 +454,13 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure} - True if the child was added, else false
    */
   addChild(parentId, child) {
-    const config = getConfig();
     const obj = this.board[parentId];
     if (typeof obj !== "object" || obj.tool !== "Pencil")
       return { ok: false, reason: "invalid parent for child" };
     const normalizedChild = normalizeStoredChildPoint(child);
     if (!normalizedChild.ok) return normalizedChild;
     const children = Array.isArray(obj._children) ? obj._children : [];
-    if (children.length >= config.MAX_CHILDREN)
+    if (children.length >= readConfiguration().MAX_CHILDREN)
       return { ok: false, reason: "too many children" };
     const nextBounds = MessageCommon.extendBoundsWithPoint(
       this.getLocalBounds(parentId, obj),
@@ -591,7 +584,6 @@ class BoardData {
           children.length >= STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD,
       },
       () => {
-        const config = getConfig();
         const messages = children.map((childMessage) =>
           parentMessage && childMessage.tool === undefined
             ? { tool: parentMessage.tool, ...childMessage }
@@ -711,7 +703,7 @@ class BoardData {
               const currentChildren = Array.isArray(current._children)
                 ? current._children.slice()
                 : [];
-              if (currentChildren.length >= config.MAX_CHILDREN) {
+              if (currentChildren.length >= readConfiguration().MAX_CHILDREN) {
                 return { ok: false, reason: "too many children" };
               }
               const nextBounds = MessageCommon.extendBoundsWithPoint(
@@ -852,7 +844,7 @@ class BoardData {
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
   delaySave() {
-    const config = getConfig();
+    const config = readConfiguration();
     if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
     this.saveTimeoutId = setTimeout(this.save.bind(this), config.SAVE_INTERVAL);
     if (Date.now() - this.lastSaveDate > config.MAX_SAVE_DELAY)
@@ -962,13 +954,13 @@ class BoardData {
 
   /** Remove old elements from the board */
   clean() {
-    const config = getConfig();
+    const { MAX_ITEM_COUNT } = readConfiguration();
     const board = this.board;
     const ids = Object.keys(board);
-    if (ids.length > config.MAX_ITEM_COUNT) {
+    if (ids.length > MAX_ITEM_COUNT) {
       const toDestroy = ids
         .sort((x, y) => (board[x]?.time | 0) - (board[y]?.time | 0))
-        .slice(0, -config.MAX_ITEM_COUNT);
+        .slice(0, -MAX_ITEM_COUNT);
       for (let i = 0; i < toDestroy.length; i++) {
         const id = toDestroy[i];
         if (id !== undefined) delete board[id];

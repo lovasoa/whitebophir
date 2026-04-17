@@ -8,6 +8,14 @@ import {
 
 const appRoot = process.cwd();
 
+/**
+ * Read the current environment and return a fully resolved configuration
+ * object. This function is pure with respect to `process.env`: it performs
+ * no caching of its own and allocates fresh rate-limit profile objects on
+ * every call. Hot-path callers (per-item normalization, per-coordinate
+ * clamping) must capture the return value **once** at module scope and
+ * reuse that reference; never invoke `readConfiguration()` inside a loop.
+ */
 export function readConfiguration() {
   const isDevelopment = process.env.NODE_ENV !== "production";
   const ipSource = (process.env.WBO_IP_SOURCE || "remoteAddress").trim();
@@ -226,6 +234,13 @@ export function readConfiguration() {
   };
 }
 
+/**
+ * Snapshot of {@link readConfiguration} captured at module load. Consumers
+ * that destructure the default export do so at their own module-load time,
+ * which occurs after all `import` statements resolve; they must ensure that
+ * any `process.env` overrides they care about are in place before the
+ * configuration module graph is first imported.
+ */
 const configuration = readConfiguration();
 
 export default configuration;

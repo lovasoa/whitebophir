@@ -3,9 +3,13 @@ import { hasMessageTool } from "../client-data/js/message_shape.js";
 import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
 import { readConfiguration } from "./configuration.mjs";
 
-function getConfig() {
-  return readConfiguration();
-}
+// Capture config once at module load. The hot paths below (per-coordinate
+// clamping via `normalizeCoord`, per-child length checks) run thousands of
+// times per large-board load, so re-invoking `readConfiguration()` here
+// would dominate CPU. Tests that need to exercise alternate env must
+// re-import this module with a fresh URL (see `?cache-bust=` pattern in
+// test-node/message_validation.test.js).
+const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
 
 /** @typedef {{[key: string]: unknown}} RawRecord */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
@@ -130,7 +134,7 @@ function normalizeOpacity(value) {
  * @returns {Accepted<number>}
  */
 function normalizeCoord(value) {
-  return accepted(MessageCommon.clampCoord(value, getConfig().MAX_BOARD_SIZE));
+  return accepted(MessageCommon.clampCoord(value, MAX_BOARD_SIZE));
 }
 
 /**
@@ -463,7 +467,7 @@ function normalizeIncomingBatch(raw) {
   const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[raw.tool];
   if (!childSchemas) return rejected("unsupported batch tool");
   if (!Array.isArray(raw._children)) return rejected("invalid _children");
-  if (raw._children.length > getConfig().MAX_CHILDREN) {
+  if (raw._children.length > MAX_CHILDREN) {
     return rejected("too many children");
   }
 
@@ -565,7 +569,7 @@ function validateStoredGeometryBounds(item) {
 function assignNormalizedStoredChildren(item, rawChildren) {
   if (item.tool !== "Pencil" || !Array.isArray(rawChildren)) return;
   const children = normalizeStoredPencilChildren(
-    rawChildren.slice(0, getConfig().MAX_CHILDREN),
+    rawChildren.slice(0, MAX_CHILDREN),
   );
   if (children.length) item._children = children;
 }

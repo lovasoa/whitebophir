@@ -28,10 +28,6 @@ const isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
-function getConfig() {
-  return readConfiguration();
-}
-
 /** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {{
@@ -663,7 +659,7 @@ function shouldTraceBroadcast(data) {
  * @returns {{limit: number, periodMs: number}}
  */
 function getEffectiveRateLimitConfig(kind, boardName) {
-  const config = getConfig();
+  const config = readConfiguration();
   switch (kind) {
     case "constructive":
       return getEffectiveRateLimitDefinition(
@@ -823,10 +819,9 @@ function isTurnstileValidationActive(socket, now) {
  * @returns {TurnstileAck}
  */
 function buildTurnstileAck(socket) {
-  const config = getConfig();
   return {
     success: true,
-    validationWindowMs: config.TURNSTILE_VALIDATION_WINDOW_MS,
+    validationWindowMs: readConfiguration().TURNSTILE_VALIDATION_WINDOW_MS,
     validatedUntil: socket.turnstileValidatedUntil,
   };
 }
@@ -972,7 +967,7 @@ function failTurnstileVerification(socket, err, ack) {
  * @returns {Promise<void>}
  */
 async function handleTurnstileTokenMessage(socket, boardName, token, ack) {
-  const config = getConfig();
+  const config = readConfiguration();
   if (!config.TURNSTILE_SECRET_KEY) {
     sendTurnstileAck(ack, true);
     return;
@@ -1672,14 +1667,13 @@ async function handleBroadcastWriteMessage(
   generalRateLimit,
   now,
 ) {
-  const config = getConfig();
   const clientIp = resolveClientIp(socket, boardName);
   const userName = getSocketUserName(socket, clientIp);
   tracing.setActiveSpanAttributes(
     boardMutationTraceAttributes(boardName, userName, data),
   );
   if (
-    config.TURNSTILE_SECRET_KEY &&
+    readConfiguration().TURNSTILE_SECRET_KEY &&
     data &&
     WBOMessageCommon.requiresTurnstile(boardName, data.tool) &&
     !isTurnstileValidationActive(socket, now)

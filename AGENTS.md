@@ -7,21 +7,43 @@
 
 ## architecture
 
+Modules tagged **[hot]** sit on the per-item or per-coordinate path for
+board load, snapshot materialization, or broadcast fan-out. Every caller
+added to a hot module runs thousands to millions of times per board open,
+so read the [performance-critical paths](#performance-critical-paths)
+section before making changes there.
+
 - Process boot + routes + socket server: [server startup](./server/server.mjs).
 - HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs).
 - Server-issued user identity cookie parsing + serialization: [user secret cookie helper](./server/user_secret_cookie.mjs).
 - Shared toolbar catalog + versioned tool asset helpers: [tool catalog](./client-data/js/tool_catalog.js), [tool assets](./client-data/js/tool_assets.js).
 - Realtime event handlers + broadcast path: [socket handlers](./server/sockets.mjs).
 - Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.mjs).
-- Canonical inbound payload normalization: [message schema gate](./server/message_validation.mjs).
-- In-memory board model + apply rules + disk sync: [board state engine](./server/boardData.mjs).
+- Canonical inbound payload normalization **[hot]**: [message schema gate](./server/message_validation.mjs); `normalizeCoord` and its neighbors run for every coordinate in every persisted or broadcast item.
+- In-memory board model + apply rules + disk sync **[hot]**: [board state engine](./server/boardData.mjs); `load`, `processMessage`, and the per-item normalization loop dominate CPU during board open and save.
+- Env parsing + rate-limit profile construction must stay cold. Never do unneeded work in the hot path.
+- Shared geometry/id/color/text clamps **[hot]**: [message primitives](./client-data/js/message_common.js); `clampCoord`, `clampColor`, and friends are invoked from every coordinate/field normalizer on the server.
 - Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js).
 - Client state machine + staged tool boot + send/receive plumbing: [board runtime](./client-data/js/board.js).
 - Shared socket transport utilities: [transport helpers](./client-data/js/board_transport.js).
 - Shared board-name allowlist + sanitization for landing-page inputs and server routes: [board name helpers](./client-data/js/board_name.js).
-- Shared geometry/id/color/text clamps: [message primitives](./client-data/js/message_common.js).
 - Tool implementations that mutate SVG/DOM: [tool modules](./client-data/tools/).
 - Tool modules now default-export a tool class for dynamic `import()` boot, while legacy named `register*Tool` exports may still exist during migration.
+
+## performance-critical paths
+
+- Board load, snapshot materialization, and broadcast fan-out call `normalizeIncomingMessage` and coordinate/field clampers once per item and often once per child point. An 18k-item board translates to ~9× that many normalizer calls per load. Any per-call allocation, env parse, or config recompute at that depth is multiplied accordingly.
+- Treat the following as the performance budget for a single 18k-item dense board open (see [benchmark scenarios](./scripts/benchmark-server.mjs), `load dense persisted board`): target median well under 1 s. A measured regression past 1 s almost always means a non-O(1) call was added per item or per coordinate.
+- `readConfiguration()` is a **pure** function: every call re-parses `process.env`. This is intentional — it keeps tests env-aware without any module-internal cache or reset escape hatch. The cost is per-call, not per-process, so anything on the hot path must not invoke it per item or per coordinate.
+- Hot-path capture contract:
+  - Modules whose exports run on per-item, per-child, or per-coordinate code paths (currently [message schema gate](./server/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js)) **must capture the config fields they need at module scope**, e.g. `const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();`. The capture happens once at ESM evaluation time.
+  - Every other server module (socket handlers, auth, persistence ops, rate-limit config lookups) is cold-path and **must call `readConfiguration()` per request / per operation**. Do not hoist those calls to module scope — doing so makes them invisible to env-based tests because ESM relative imports do not propagate transitive cache-busts (see next bullet).
+  - Tests that mutate env for a hot-path module must re-import that module with a cache-bust query, e.g. `await import(\`${pathToFileURL(MODULE).href}?cache-bust=${seq}\`)`. See [message_validation.test.js](./test-node/message_validation.test.js) for the canonical pattern. Transitive imports from the busted module reuse their own plain-URL cache entries, which is exactly why cold-path modules must not capture config at module scope.
+- When touching the hot path, do **not**:
+  - Call `readConfiguration()` (or the default config export) inside per-item, per-child, or per-coordinate loops. Capture the needed fields at module scope, or read them once above the loop and close over them.
+  - Allocate new objects, arrays, or regexes inside per-coordinate normalizers. Module-scope constants are preferred over per-call literals.
+  - Start a span with `withActiveSpan` per item. Prefer `withOptionalActiveSpan` (no-op when no parent span exists) or lift the span one level to the whole batch. `withExpensiveActiveSpan` short-circuits to `fn(undefined)` when tracing is not recording, which is the correct default for per-item work.
+- Before/after every change that might touch a hot path, run `npm run bench` and compare the median of the relevant scenario. If a scenario moves by more than ~10% without an intentional cause, profile with `npm run profile` and inspect the `.cpuprofile` top self-time frames before landing the change.
 
 ## message lifecycle
 
@@ -40,11 +62,12 @@
 
 ## where to look by concern
 
-- Config/env behavior: [server configuration](./server/configuration.mjs).
+- Config/env behavior: [server configuration](./server/configuration.mjs). `readConfiguration` is a pure function (no memoization, no reset hook); it re-parses `process.env` on every call. `withEnv` in [test helpers](./test-node/test_helpers.js) swaps env vars for the scope of a test. Hot-path consumers capture the fields they need at module scope and rely on ESM cache-bust query strings to re-evaluate under a different env; see [performance-critical paths](#performance-critical-paths) for the full contract.
 - Browser integration coverage: [playwright specs](./playwright/tests).
 - Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
 - Browser runner setup: [playwright config](./playwright.config.ts).
 - Server-rendered toolbar/icon/cache coverage: [server route tests](./test-node/server_routes.test.js).
+- Throughput coverage: [benchmark harness](./scripts/benchmark-server.mjs); the `load dense persisted board` scenario is the canonical regression signal for per-coordinate hot-path changes.
 
 ## test commands
 
@@ -80,9 +103,10 @@
 
 ## change strategy
 
-- Message shape changes: update [server schema gate](./server/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests.
+- Message shape changes: update [server schema gate](./server/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests; if a normalizer is modified, also run `npm run bench` since both modules are on the hot path.
 - Rate-limit changes: update [shared rate-limit helpers](./client-data/js/rate_limit_common.js), [socket policy](./server/socket_policy.mjs), and [socket handlers](./server/sockets.mjs); rerun `node --test test-node/rate_limit_common.test.js test-node/socket_policy.test.js test-node/rate_limits.test.js`.
-- Persistence/replay changes: review [board state engine](./server/boardData.mjs); rerun `node --test test-node/rate_limits.test.js` and `npm test`.
+- Persistence/replay changes: review [board state engine](./server/boardData.mjs); rerun `node --test test-node/rate_limits.test.js`, `npm test`, and `npm run bench`.
+- Config/env changes: update [server configuration](./server/configuration.mjs); keep `readConfiguration` pure — do **not** reintroduce module-internal memoization or a reset hook. New config fields consumed on the per-item/per-coordinate hot path must be captured at module scope in [message schema gate](./server/message_validation.mjs) or [shared message primitives](./client-data/js/message_common.js); fields consumed in cold paths must be read per-invocation. Rerun [rate-limit tests](./test-node/rate_limits.test.js) and `npm run bench`.
 - Tool UX changes: start in [tool modules](./client-data/tools/); verify with Playwright.
 
 ## design system
