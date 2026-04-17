@@ -1,4 +1,5 @@
 import MessageCommon from "../client-data/js/message_common.js";
+import { hasMessageTool } from "../client-data/js/message_shape.js";
 import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
 import { readConfiguration } from "./configuration.mjs";
 
@@ -7,6 +8,7 @@ function getConfig() {
 }
 
 /** @typedef {{[key: string]: any}} RawRecord */
+/** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
 /** @typedef {{x: number, y: number}} ChildPoint */
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number} | null} Bounds */
@@ -445,11 +447,11 @@ const STORED_ITEM_SCHEMAS = {
 
 /**
  * @param {any} raw
- * @returns {ValidationResult<RawRecord>}
+ * @returns {ValidationResult<NormalizedMessageData>}
  */
 function normalizeIncomingBatch(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
-  if (typeof raw.tool !== "string") return rejected("missing tool");
+  if (!hasMessageTool(raw)) return rejected("missing tool");
 
   const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[raw.tool];
   if (!childSchemas) return rejected("unsupported batch tool");
@@ -483,7 +485,7 @@ function normalizeIncomingBatch(raw) {
 
 /**
  * @param {any} raw
- * @returns {ValidationResult<RawRecord>}
+ * @returns {ValidationResult<NormalizedMessageData>}
  */
 function normalizeIncomingMessage(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
@@ -501,7 +503,7 @@ function normalizeIncomingMessage(raw) {
   ) {
     return rejected("shape too large");
   }
-  return normalized;
+  return accepted(/** @type {NormalizedMessageData} */ (normalized.value));
 }
 
 /**

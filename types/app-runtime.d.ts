@@ -26,6 +26,45 @@ export type BoardMessage = {
   [key: string]: unknown;
 };
 
+export type ToolNamedBoardMessage = BoardMessage & {
+  tool: string;
+};
+
+export type IdentifiedBoardMessage = BoardMessage & {
+  id: string;
+};
+
+export type CopiedBoardMessage = BoardMessage & {
+  newid: string;
+};
+
+export type HandChildUpdateMessage = BoardMessage & {
+  type: "update";
+  id: string;
+};
+
+export type HandChildCopyMessage = BoardMessage & {
+  type: "copy";
+  newid: string;
+};
+
+export type HandChildMessage = HandChildUpdateMessage | HandChildCopyMessage;
+
+export type BatchBoardMessage = ToolNamedBoardMessage & {
+  _children: BoardMessage[];
+};
+
+export type ToolOwnedBatchMessage = BatchBoardMessage & {
+  tool: "Hand";
+};
+
+export type TextUpdateBoardMessage = ToolNamedBoardMessage & {
+  tool: "Text";
+  type: "update";
+  id: string;
+  txt?: string;
+};
+
 export type PendingWrite = {
   data?: BoardMessage;
   toolName?: string;
@@ -306,7 +345,6 @@ export type AppToolsState = {
   startConnection: () => void;
   versionAssetPath: (assetPath: string) => string;
   assetVersion: string;
-  userSecret: string;
   [name: string]: any;
 };
 

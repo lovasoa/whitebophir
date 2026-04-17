@@ -41,6 +41,11 @@ import {
   turnstile as BoardTurnstile,
 } from "./board_transport.js";
 import MessageCommon from "./message_common.js";
+import {
+  hasMessageId,
+  hasMessageNewId,
+  isTextUpdateMessage,
+} from "./message_shape.js";
 import Minitpl from "./minitpl.js";
 import RateLimitCommon from "./rate_limit_common.js";
 import {
@@ -1142,42 +1147,8 @@ Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
   return null;
 })();
 
-function generateUserSecret() {
-  if (
-    window.crypto &&
-    typeof window.crypto.getRandomValues === "function" &&
-    typeof Uint8Array === "function"
-  ) {
-    const bytes = new Uint8Array(16);
-    window.crypto.getRandomValues(bytes);
-    return Array.from(bytes)
-      .map((value) => value.toString(16).padStart(2, "0"))
-      .join("");
-  }
-
-  return (
-    Date.now().toString(16) +
-    Math.random().toString(16).slice(2) +
-    Math.random().toString(16).slice(2)
-  );
-}
-
-Tools.userSecret = (function resolveUserSecret() {
-  const key = "wbo-user-secret-v1";
-  try {
-    const existing = localStorage.getItem(key);
-    if (existing) return existing;
-    const created = generateUserSecret();
-    localStorage.setItem(key, created);
-    return created;
-  } catch (err) {
-    return generateUserSecret();
-  }
-})();
-
 Tools.getInitialSocketQuery = function getInitialSocketQuery() {
   return {
-    userSecret: Tools.userSecret,
     tool: "Hand",
     color: getRequiredInput("chooseColor").value,
     size: getRequiredInput("chooseSize").value,
@@ -1339,11 +1310,11 @@ function getRenderedElementCenterById(elementId) {
  * @returns {string | null}
  */
 function getHandChildTargetId(child) {
-  if (child.type === "update") {
-    return typeof child.id === "string" ? child.id : null;
+  if (child.type === "update" && hasMessageId(child)) {
+    return child.id;
   }
-  if (child.type === "copy") {
-    return typeof child.newid === "string" ? child.newid : null;
+  if (child.type === "copy" && hasMessageNewId(child)) {
+    return child.newid;
   }
   return null;
 }
@@ -1396,8 +1367,8 @@ function getMessageFocusPoint(message) {
     }
   }
 
-  if (message.tool === "Text" && message.type === "update") {
-    return message.id ? getRenderedElementCenterById(message.id) : null;
+  if (isTextUpdateMessage(message)) {
+    return getRenderedElementCenterById(message.id);
   }
 
   return getBoundsCenter(
@@ -1647,7 +1618,7 @@ Tools.updateConnectedUsersFromActivity =
   ) {
     // Presence has three layers:
     // - `socketId`: one live browser tab/socket connection. This is the most precise activity target.
-    // - `userId`: derived from the persisted per-browser `userSecret`, so multiple tabs from one browser session can share it.
+    // - `userId`: derived server-side from the shared user-secret cookie, so multiple tabs from one browser profile can share it.
     // - displayed name: combines an IP-derived word with the `userId`, so it is human-readable but not a stable routing key.
     // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
     const messageSocketId = message.socket || null;

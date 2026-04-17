@@ -1,3 +1,11 @@
+/** @typedef {import("../../types/app-runtime").IdentifiedBoardMessage} IdentifiedBoardMessage */
+/** @typedef {import("../../types/app-runtime").ToolOwnedBatchMessage} ToolOwnedBatchMessage */
+import {
+  hasMessageChildren,
+  hasMessageId,
+  hasMessageTool,
+} from "./message_shape.js";
+
 /** @type {{[toolName: string]: true}} */
 export const TOOL_OWNED_BATCH_TOOLS = {
   Hand: true,
@@ -13,29 +21,20 @@ export function normalizeRevision(value) {
 }
 
 /**
- * @param {{_children?: unknown}} message
- * @returns {boolean}
- */
-function hasArrayChildren(message) {
-  return !!(message && Array.isArray(message._children));
-}
-
-/**
  * @param {{tool?: unknown, _children?: unknown}} message
  * @returns {boolean}
  */
 export function isSnapshotMessage(message) {
-  return hasArrayChildren(message) && !message.tool;
+  return hasMessageChildren(message) && !message.tool;
 }
 
 /**
  * @param {{tool?: unknown, _children?: unknown}} message
- * @returns {boolean}
+ * @returns {message is ToolOwnedBatchMessage}
  */
 export function isToolOwnedBatchMessage(message) {
-  return !!(
-    hasArrayChildren(message) &&
-    typeof message.tool === "string" &&
+  return (
+    !!(hasMessageChildren(message) && hasMessageTool(message)) &&
     TOOL_OWNED_BATCH_TOOLS[message.tool] === true
   );
 }
@@ -45,18 +44,18 @@ export function isToolOwnedBatchMessage(message) {
  * @returns {boolean}
  */
 export function shouldReplayChildrenIndividually(message) {
-  return hasArrayChildren(message) && !isToolOwnedBatchMessage(message);
+  return hasMessageChildren(message) && !isToolOwnedBatchMessage(message);
 }
 
 /**
  * @template T
  * @param {{id?: unknown, tool?: unknown, _children?: unknown}} parent
  * @param {T} child
- * @param {(parent: any, child: T) => T} normalizeChildMessage
+ * @param {(parent: IdentifiedBoardMessage, child: T) => T} normalizeChildMessage
  * @returns {T}
  */
 export function prepareReplayChild(parent, child, normalizeChildMessage) {
-  if (parent && typeof parent.id === "string" && parent.id !== "") {
+  if (parent && hasMessageId(parent)) {
     return normalizeChildMessage(parent, child);
   }
   return child;

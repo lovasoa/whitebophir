@@ -17,6 +17,7 @@ import {
   normalizeBroadcastData,
   parseForwardedHeader,
 } from "./socket_policy.mjs";
+import { getUserSecretFromCookieHeader } from "./user_secret_cookie.mjs";
 
 const createRateLimitState = RateLimitCommon.createRateLimitState;
 const consumeFixedWindowRateLimit = RateLimitCommon.consumeFixedWindowRateLimit;
@@ -31,10 +32,11 @@ function getConfig() {
   return readConfiguration();
 }
 
-/** @typedef {{board?: string, token?: string, userSecret?: string, tool?: string, color?: string, size?: string}} SocketQuery */
+/** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
 /** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
+/** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {import("../types/server-runtime.d.ts").RateLimitState} BaseRateLimitState */
 /** @typedef {import("../types/server-runtime.d.ts").SocketRequest} SocketRequest */
 /** @typedef {import("../types/server-runtime.d.ts").TurnstileAck} TurnstileAck */
@@ -307,6 +309,14 @@ function getSocketHeaderValue(socket, headerName) {
 }
 
 /**
+ * @param {AppSocket} socket
+ * @returns {string}
+ */
+function getSocketUserSecret(socket) {
+  return getUserSecretFromCookieHeader(getSocketHeaderValue(socket, "cookie"));
+}
+
+/**
  * @param {string} userSecret
  * @returns {string}
  */
@@ -338,7 +348,7 @@ function buildUserName(ip, userSecret) {
  * @returns {BoardUser}
  */
 function buildBoardUserRecord(socket, boardName, now) {
-  const userSecret = getSocketQueryValue(socket, "userSecret");
+  const userSecret = getSocketUserSecret(socket);
   const ip = resolveClientIp(socket, boardName);
   const size = WBOMessageCommon.clampSize(getSocketQueryValue(socket, "size"));
   const color = WBOMessageCommon.normalizeColor(
@@ -469,7 +479,7 @@ function getBoardUser(boardName, socketId) {
 /**
  * @param {AppSocket} socket
  * @param {string} boardName
- * @param {MessageData} data
+ * @param {NormalizedMessageData} data
  * @param {number} now
  * @returns {BoardUser | undefined}
  */
@@ -478,18 +488,18 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
   if (!user) return undefined;
 
   user.lastSeen = now;
-  if (typeof data.color === "string") user.color = data.color;
+  if (data.color !== undefined) user.color = data.color;
   if (data.size !== undefined) user.size = Number(data.size) || user.size;
-  if (typeof data.tool === "string" && data.tool !== "Cursor") {
+  if (data.tool !== "Cursor") {
     user.lastTool = data.tool;
   }
   return user;
 }
 
 /**
- * @param {MessageData} data
+ * @param {NormalizedMessageData} data
  * @param {BoardUser | undefined} user
- * @returns {MessageData}
+ * @returns {NormalizedMessageData}
  */
 function attachLiveSocketId(data, user) {
   if (!user) return data;
@@ -741,7 +751,7 @@ function recordExpiredRateLimitWindowIfNeeded(kind, state, now) {
  * @returns {string}
  */
 function getSocketUserName(socket, clientIp) {
-  return buildUserName(clientIp, getSocketQueryValue(socket, "userSecret"));
+  return buildUserName(clientIp, getSocketUserSecret(socket));
 }
 
 /**

@@ -1,6 +1,10 @@
-import type { BoardMessage } from "./app-runtime";
+import type { BoardMessage, ToolNamedBoardMessage } from "./app-runtime";
 
 export type MessageData = BoardMessage & {
+  [key: string]: any;
+};
+
+export type NormalizedMessageData = ToolNamedBoardMessage & {
   [key: string]: any;
 };
 
@@ -17,7 +21,6 @@ export type AppSocket = import("socket.io").Socket & {
     query?: {
       board?: string;
       token?: string;
-      userSecret?: string;
       tool?: string;
       color?: string;
       size?: string;
@@ -47,7 +50,7 @@ export type RejectedBroadcast = {
 export type BroadcastResult =
   | {
       ok: true;
-      value: MessageData;
+      value: NormalizedMessageData;
     }
   | RejectedBroadcast;
 
