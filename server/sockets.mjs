@@ -34,6 +34,19 @@ function getConfig() {
 
 /** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
+/** @typedef {{
+ *   board: string,
+ *   reporter_socket: string,
+ *   reported_socket: string,
+ *   reporter_ip: string,
+ *   reported_ip: string,
+ *   reporter_user_agent: string,
+ *   reported_user_agent: string,
+ *   reporter_language: string,
+ *   reported_language: string,
+ *   reporter_name: string,
+ *   reported_name: string,
+ * }} UserReportLog */
 /** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
 /** @typedef {import("../types/server-runtime.d.ts").ConnectedUserPayload} ConnectedUserPayload */
 /** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
@@ -69,19 +82,7 @@ const boardUsers = new Map();
 /** @type {Map<string, AppSocket>} */
 const activeSockets = new Map();
 let connectedUsersTotal = 0;
-/** @type {{
- *   board: string,
- *   reporter_socket: string,
- *   reported_socket: string,
- *   reporter_ip: string,
- *   reported_ip: string,
- *   reporter_user_agent: string,
- *   reported_user_agent: string,
- *   reporter_language: string,
- *   reported_language: string,
- *   reporter_name: string,
- *   reported_name: string,
- * } | null} */
+/** @type {UserReportLog | null} */
 let lastUserReportLog = null;
 let invalidIpSourceLogged = false;
 let io;
@@ -850,6 +851,160 @@ function validateTurnstileResult(socket, result) {
 }
 
 /**
+ * @param {((ack: TurnstileAck | boolean | {success: false}) => void) | undefined} ack
+ * @param {TurnstileAck | boolean | {success: false}} payload
+ * @returns {void}
+ */
+function sendTurnstileAck(ack, payload) {
+  if (typeof ack === "function") ack(payload);
+}
+
+/**
+ * @param {string} verifyUrlString
+ * @param {string} secret
+ * @param {string} token
+ * @param {string} clientIp
+ * @returns {Promise<any>}
+ */
+async function verifyTurnstileToken(verifyUrlString, secret, token, clientIp) {
+  const requestBody = new URLSearchParams({
+    secret,
+    response: token,
+  });
+  requestBody.set("remoteip", clientIp);
+  const verifyUrl = new URL(verifyUrlString);
+  const verification = await tracing.withActiveSpan(
+    "turnstile.verify",
+    {
+      kind: tracing.SpanKind.CLIENT,
+      attributes: {
+        "http.request.method": "POST",
+        "server.address": verifyUrl.hostname,
+        "server.port": verifyUrl.port ? Number(verifyUrl.port) : undefined,
+        "url.scheme": verifyUrl.protocol.replace(":", ""),
+      },
+    },
+    async function fetchTurnstileVerification() {
+      const response = await fetch(verifyUrlString, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: requestBody,
+      });
+      const result = await response.json();
+      tracing.setActiveSpanAttributes({
+        "http.response.status_code": response.status,
+      });
+      return { response, result };
+    },
+  );
+  return verification.result;
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} clientIp
+ * @param {string} userName
+ * @param {any} result
+ * @param {string} reason
+ * @param {((ack: TurnstileAck | boolean | {success: false}) => void) | undefined} ack
+ * @returns {void}
+ */
+function rejectTurnstileVerification(
+  socket,
+  clientIp,
+  userName,
+  result,
+  reason,
+  ack,
+) {
+  tracing.setActiveSpanAttributes({
+    "wbo.turnstile.result": "rejected",
+    "wbo.turnstile.reason": reason,
+  });
+  metrics.recordTurnstileVerification(reason);
+  logger.warn("turnstile.rejected", {
+    socket: socket.id,
+    "client.address": clientIp,
+    "user.name": userName,
+    error_codes: result["error-codes"],
+    reason,
+    hostname: result.hostname,
+  });
+  sendTurnstileAck(ack, { success: false });
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {unknown} err
+ * @param {((ack: TurnstileAck | boolean | {success: false}) => void) | undefined} ack
+ * @returns {void}
+ */
+function failTurnstileVerification(socket, err, ack) {
+  tracing.recordActiveSpanError(err, {
+    "wbo.turnstile.result": "error",
+  });
+  metrics.recordTurnstileVerification(err);
+  logger.error("turnstile.error", {
+    socket: socket.id,
+    error: err,
+  });
+  sendTurnstileAck(ack, { success: false });
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {string} token
+ * @param {((ack: TurnstileAck | boolean | {success: false}) => void) | undefined} ack
+ * @returns {Promise<void>}
+ */
+async function handleTurnstileTokenMessage(socket, boardName, token, ack) {
+  const config = getConfig();
+  if (!config.TURNSTILE_SECRET_KEY) {
+    sendTurnstileAck(ack, true);
+    return;
+  }
+
+  try {
+    const clientIp = resolveClientIp(socket, boardName);
+    const userName = getSocketUserName(socket, clientIp);
+    tracing.setActiveSpanAttributes({
+      "user.name": userName,
+      "client.address": clientIp,
+    });
+    const result = await verifyTurnstileToken(
+      config.TURNSTILE_VERIFY_URL,
+      config.TURNSTILE_SECRET_KEY,
+      token,
+      clientIp,
+    );
+    const validation = validateTurnstileResult(socket, result);
+    if (validation.ok === true) {
+      socket.turnstileValidatedUntil =
+        Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS;
+      tracing.setActiveSpanAttributes({
+        "wbo.turnstile.result": "success",
+      });
+      metrics.recordTurnstileVerification();
+      sendTurnstileAck(ack, buildTurnstileAck(socket));
+      return;
+    }
+    rejectTurnstileVerification(
+      socket,
+      clientIp,
+      userName,
+      result,
+      validation.reason,
+      ack,
+    );
+  } catch (err) {
+    failTurnstileVerification(socket, err, ack);
+  }
+}
+
+/**
  * @param {AppSocket} socket
  * @param {string} boardName
  * @param {string} clientIp
@@ -1268,6 +1423,432 @@ function cloneMessageForPersistence(data) {
 }
 
 /**
+ * @param {string} reason
+ * @returns {void}
+ */
+function rejectActiveBoardMutation(reason) {
+  tracing.setActiveSpanAttributes({
+    "wbo.board.result": "rejected",
+    "wbo.rejection.reason": reason,
+  });
+}
+
+/**
+ * @param {string} boardName
+ * @param {MessageData | undefined} data
+ * @returns {void}
+ */
+function rejectTurnstileRequired(boardName, data) {
+  rejectActiveBoardMutation("turnstile_validation_required");
+  metrics.recordBoardMessage(
+    { board: boardName, ...(data || {}) },
+    boardMessageErrorType("turnstile.validation_required"),
+  );
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {MessageData | undefined} data
+ * @param {string} clientIp
+ * @param {RateLimitState} generalRateLimit
+ * @param {number} now
+ * @returns {boolean}
+ */
+function enforceBroadcastPreNormalization(
+  socket,
+  boardName,
+  data,
+  clientIp,
+  generalRateLimit,
+  now,
+) {
+  return enforceGeneralRateLimit(
+    socket,
+    boardName,
+    data,
+    clientIp,
+    generalRateLimit,
+    now,
+  );
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {NormalizedMessageData} data
+ * @param {string} clientIp
+ * @param {number} now
+ * @returns {boolean}
+ */
+function enforceBroadcastPostNormalization(
+  socket,
+  boardName,
+  data,
+  clientIp,
+  now,
+) {
+  return (
+    enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) &&
+    enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) &&
+    enforceTextRateLimit(socket, boardName, data, clientIp, now)
+  );
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {BoardData} board
+ * @param {string} boardName
+ * @param {NormalizedMessageData} data
+ * @param {string} clientIp
+ * @param {string} userName
+ * @returns {boolean}
+ */
+function rejectBlockedBoardWrite(
+  socket,
+  board,
+  boardName,
+  data,
+  clientIp,
+  userName,
+) {
+  rejectActiveBoardMutation("write_blocked");
+  logger.warn("board.write_blocked", {
+    socket: socket.id,
+    board: board.name,
+    "client.address": clientIp,
+    "user.name": userName,
+    tool: data.tool,
+    type: data.type,
+  });
+  metrics.recordBoardMessage(
+    { board: boardName, ...data },
+    boardMessageErrorType("write"),
+  );
+  return false;
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {BoardData} board
+ * @param {string} boardName
+ * @param {NormalizedMessageData} data
+ * @param {string} clientIp
+ * @param {string} userName
+ * @param {string} reason
+ * @returns {boolean}
+ */
+function rejectBoardMessageWrite(
+  socket,
+  board,
+  boardName,
+  data,
+  clientIp,
+  userName,
+  reason,
+) {
+  rejectActiveBoardMutation(reason);
+  logger.warn("board.message_rejected", {
+    socket: socket.id,
+    board: board.name,
+    "client.address": clientIp,
+    "user.name": userName,
+    tool: data.tool,
+    type: data.type,
+    reason,
+  });
+  metrics.recordBoardMessage(
+    { board: boardName, ...data },
+    boardMessageErrorType("board_message"),
+  );
+  return false;
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {NormalizedMessageData} data
+ * @param {number} now
+ * @param {string} userName
+ * @param {number} revision
+ * @returns {void}
+ */
+function finishSuccessfulBoardWrite(
+  socket,
+  boardName,
+  data,
+  now,
+  userName,
+  revision,
+) {
+  const user = updateBoardUserFromMessage(socket, boardName, data, now);
+  attachLiveSocketId(data, user);
+  data.revision = revision;
+  tracing.setActiveSpanAttributes({
+    "wbo.board.result": "success",
+    "user.name": user ? user.name : userName,
+  });
+  metrics.recordBoardMessage({
+    board: boardName,
+    ...data,
+  });
+  socket.broadcast.to(boardName).emit("broadcast", data);
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {NormalizedMessageData} data
+ * @param {string} clientIp
+ * @param {string} userName
+ * @param {number} now
+ * @returns {Promise<void>}
+ */
+async function persistBoardBroadcast(
+  socket,
+  boardName,
+  data,
+  clientIp,
+  userName,
+  now,
+) {
+  ensureSocketJoinedBoard(socket, boardName);
+  const board = await getBoard(boardName);
+  if (!canApplyBoardMessage(board, data, socket)) {
+    rejectBlockedBoardWrite(socket, board, boardName, data, clientIp, userName);
+    return;
+  }
+
+  const handleResult = handleMessage(
+    board,
+    cloneMessageForPersistence(data),
+    socket,
+  );
+  if (handleResult.ok === false) {
+    rejectBoardMessageWrite(
+      socket,
+      board,
+      boardName,
+      data,
+      clientIp,
+      userName,
+      handleResult.reason,
+    );
+    return;
+  }
+  finishSuccessfulBoardWrite(
+    socket,
+    boardName,
+    data,
+    now,
+    userName,
+    /** @type {number} */ (handleResult.revision),
+  );
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {MessageData | undefined} data
+ * @param {RateLimitState} generalRateLimit
+ * @param {number} now
+ * @returns {Promise<void>}
+ */
+async function handleBroadcastWriteMessage(
+  socket,
+  boardName,
+  data,
+  generalRateLimit,
+  now,
+) {
+  const config = getConfig();
+  const clientIp = resolveClientIp(socket, boardName);
+  const userName = getSocketUserName(socket, clientIp);
+  tracing.setActiveSpanAttributes(
+    boardMutationTraceAttributes(boardName, userName, data),
+  );
+  if (
+    config.TURNSTILE_SECRET_KEY &&
+    data &&
+    WBOMessageCommon.requiresTurnstile(boardName, data.tool) &&
+    !isTurnstileValidationActive(socket, now)
+  ) {
+    rejectTurnstileRequired(boardName, data);
+    return;
+  }
+  if (
+    !enforceBroadcastPreNormalization(
+      socket,
+      boardName,
+      data,
+      clientIp,
+      generalRateLimit,
+      now,
+    )
+  ) {
+    return;
+  }
+
+  const normalized = normalizeBroadcastData(boardName, data);
+  if (normalized.ok === false) {
+    rejectActiveBoardMutation(normalized.reason);
+    return;
+  }
+  const normalizedData = normalized.value;
+  tracing.setActiveSpanAttributes(
+    boardMutationTraceAttributes(boardName, userName, normalizedData),
+  );
+  if (
+    !enforceBroadcastPostNormalization(
+      socket,
+      boardName,
+      normalizedData,
+      clientIp,
+      now,
+    )
+  ) {
+    return;
+  }
+  await persistBoardBroadcast(
+    socket,
+    boardName,
+    normalizedData,
+    clientIp,
+    userName,
+    now,
+  );
+}
+
+/**
+ * @param {unknown} message
+ * @returns {string}
+ */
+function getReportedSocketId(message) {
+  return typeof message === "object" &&
+    message !== null &&
+    "socketId" in message &&
+    typeof message.socketId === "string"
+    ? message.socketId
+    : "";
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} reporterSocketId
+ * @param {string} reportedSocketId
+ * @returns {{reporter: BoardUser, reported: BoardUser} | null}
+ */
+function resolveReportedUsers(boardName, reporterSocketId, reportedSocketId) {
+  const reporter = getBoardUser(boardName, reporterSocketId);
+  const reported = getBoardUser(boardName, reportedSocketId);
+  if (!reporter || !reported) return null;
+  return { reporter, reported };
+}
+
+/**
+ * @returns {void}
+ */
+function ignoreReportedUser() {
+  tracing.setActiveSpanAttributes({
+    "wbo.board.result": "ignored",
+  });
+}
+
+/**
+ * @param {string} boardName
+ * @param {BoardUser} reporter
+ * @param {BoardUser} reported
+ * @returns {UserReportLog}
+ */
+function buildUserReportLog(boardName, reporter, reported) {
+  return {
+    board: boardName,
+    reporter_socket: reporter.socketId,
+    reported_socket: reported.socketId,
+    reporter_ip: reporter.ip,
+    reported_ip: reported.ip,
+    reporter_user_agent: reporter.userAgent,
+    reported_user_agent: reported.userAgent,
+    reporter_language: reporter.language,
+    reported_language: reported.language,
+    reporter_name: reporter.name,
+    reported_name: reported.name,
+  };
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {BoardUser} reported
+ * @returns {void}
+ */
+function disconnectReportedSockets(socket, boardName, reported) {
+  const socketsToDisconnect = [socket];
+  const reportedSocket = getActiveSocket(reported.socketId);
+  if (reportedSocket && reportedSocket !== socket) {
+    socketsToDisconnect.push(reportedSocket);
+  }
+  socketsToDisconnect.forEach(
+    function disconnectReportedUser(/** @type {AppSocket} */ targetSocket) {
+      closeSocket(targetSocket, "report_user", {
+        board: boardName,
+        socket: targetSocket.id,
+      });
+    },
+  );
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {unknown} message
+ * @returns {void}
+ */
+function handleReportUserMessage(socket, boardName, message) {
+  const targetSocketId = getReportedSocketId(message);
+  if (!targetSocketId || !socket.rooms.has(boardName)) {
+    ignoreReportedUser();
+    return;
+  }
+
+  const resolvedUsers = resolveReportedUsers(
+    boardName,
+    socket.id,
+    targetSocketId,
+  );
+  if (!resolvedUsers) {
+    ignoreReportedUser();
+    return;
+  }
+
+  const reportLog = buildUserReportLog(
+    boardName,
+    resolvedUsers.reporter,
+    resolvedUsers.reported,
+  );
+  lastUserReportLog = reportLog;
+  tracing.setActiveSpanAttributes({
+    "wbo.board.result": "reported",
+    "user.name": resolvedUsers.reporter.name,
+    "wbo.reported_user.name": resolvedUsers.reported.name,
+  });
+  logger.warn("user.reported", {
+    board: reportLog.board,
+    reporter_socket: reportLog.reporter_socket,
+    reported_socket: reportLog.reported_socket,
+    reporter_ip: reportLog.reporter_ip,
+    reported_ip: reportLog.reported_ip,
+    reporter_user_agent: reportLog.reporter_user_agent,
+    reported_user_agent: reportLog.reported_user_agent,
+    reporter_language: reportLog.reporter_language,
+    reported_language: reportLog.reported_language,
+    reporter_name: reportLog.reporter_name,
+    reported_name: reportLog.reported_name,
+  });
+  disconnectReportedSockets(socket, boardName, resolvedUsers.reported);
+}
+
+/**
  * @param {any} app
  * @returns {import("socket.io").Server}
  */
@@ -1395,89 +1976,7 @@ async function handleSocketConnection(socket) {
           attributes: socketTraceAttributes("turnstile_token"),
         },
         async function traceTurnstileToken() {
-          const config = getConfig();
-          if (!config.TURNSTILE_SECRET_KEY) {
-            if (typeof ack === "function") ack(true);
-            return;
-          }
-          try {
-            const clientIp = resolveClientIp(socket, boardName);
-            const userName = getSocketUserName(socket, clientIp);
-            tracing.setActiveSpanAttributes({
-              "user.name": userName,
-              "client.address": clientIp,
-            });
-            const requestBody = new URLSearchParams({
-              secret: config.TURNSTILE_SECRET_KEY,
-              response: token,
-            });
-            requestBody.set("remoteip", clientIp);
-            const verifyUrl = new URL(config.TURNSTILE_VERIFY_URL);
-            const verification = await tracing.withActiveSpan(
-              "turnstile.verify",
-              {
-                kind: tracing.SpanKind.CLIENT,
-                attributes: {
-                  "http.request.method": "POST",
-                  "server.address": verifyUrl.hostname,
-                  "server.port": verifyUrl.port
-                    ? Number(verifyUrl.port)
-                    : undefined,
-                  "url.scheme": verifyUrl.protocol.replace(":", ""),
-                },
-              },
-              async function verifyTurnstileToken() {
-                const response = await fetch(config.TURNSTILE_VERIFY_URL, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                  },
-                  body: requestBody,
-                });
-                const result = await response.json();
-                tracing.setActiveSpanAttributes({
-                  "http.response.status_code": response.status,
-                });
-                return { response, result };
-              },
-            );
-            const result = verification.result;
-            const validation = validateTurnstileResult(socket, result);
-            if (validation.ok === true) {
-              socket.turnstileValidatedUntil =
-                Date.now() + config.TURNSTILE_VALIDATION_WINDOW_MS;
-              tracing.setActiveSpanAttributes({
-                "wbo.turnstile.result": "success",
-              });
-              metrics.recordTurnstileVerification();
-              if (typeof ack === "function") ack(buildTurnstileAck(socket));
-            } else {
-              tracing.setActiveSpanAttributes({
-                "wbo.turnstile.result": "rejected",
-                "wbo.turnstile.reason": validation.reason,
-              });
-              metrics.recordTurnstileVerification(validation.reason);
-              logger.warn("turnstile.rejected", {
-                socket: socket.id,
-                "client.address": clientIp,
-                "user.name": userName,
-                error_codes: result["error-codes"],
-                reason: validation.reason,
-                hostname: result.hostname,
-              });
-              if (typeof ack === "function") ack({ success: false });
-            }
-          } catch (err) {
-            tracing.recordActiveSpanError(err, {
-              "wbo.turnstile.result": "error",
-            });
-            metrics.recordTurnstileVerification(err);
-            logger.error("turnstile.error", {
-              socket: socket.id,
-              error: err,
-            });
-            if (typeof ack === "function") ack({ success: false });
-          }
+          return handleTurnstileTokenMessage(socket, boardName, token, ack);
         },
       );
     },
@@ -1485,156 +1984,17 @@ async function handleSocketConnection(socket) {
 
   const generalRateLimit = createRateLimitState(Date.now());
   onSocketEvent(socket, "broadcast", async function onBroadcast(data) {
-    const config = getConfig();
     const now = Date.now();
     const normalizedName = boardName;
 
     async function handleBroadcastWrite() {
-      const clientIp = resolveClientIp(socket, normalizedName);
-      const userName = getSocketUserName(socket, clientIp);
-      tracing.setActiveSpanAttributes(
-        boardMutationTraceAttributes(normalizedName, userName, data),
-      );
-      if (
-        config.TURNSTILE_SECRET_KEY &&
-        data &&
-        WBOMessageCommon.requiresTurnstile(normalizedName, data.tool) &&
-        !isTurnstileValidationActive(socket, now)
-      ) {
-        tracing.setActiveSpanAttributes({
-          "wbo.board.result": "rejected",
-          "wbo.rejection.reason": "turnstile_validation_required",
-        });
-        metrics.recordBoardMessage(
-          { board: normalizedName, ...data },
-          boardMessageErrorType("turnstile.validation_required"),
-        );
-        return;
-      }
-      if (
-        !enforceGeneralRateLimit(
-          socket,
-          normalizedName,
-          data,
-          clientIp,
-          generalRateLimit,
-          now,
-        )
-      )
-        return;
-
-      const normalized = normalizeBroadcastData(normalizedName, data);
-      if (normalized.ok === false) {
-        tracing.setActiveSpanAttributes({
-          "wbo.board.result": "rejected",
-          "wbo.rejection.reason": normalized.reason,
-        });
-        return;
-      }
-      const normalizedData = normalized.value;
-      tracing.setActiveSpanAttributes(
-        boardMutationTraceAttributes(normalizedName, userName, normalizedData),
-      );
-      if (
-        !enforceDestructiveRateLimit(
-          socket,
-          normalizedName,
-          normalizedData,
-          clientIp,
-          now,
-        )
-      )
-        return;
-      if (
-        !enforceConstructiveRateLimit(
-          socket,
-          normalizedName,
-          normalizedData,
-          clientIp,
-          now,
-        )
-      )
-        return;
-      if (
-        !enforceTextRateLimit(
-          socket,
-          normalizedName,
-          normalizedData,
-          clientIp,
-          now,
-        )
-      )
-        return;
-
-      ensureSocketJoinedBoard(socket, normalizedName);
-
-      const board = await getBoard(normalizedName);
-      if (!canApplyBoardMessage(board, normalizedData, socket)) {
-        tracing.setActiveSpanAttributes({
-          "wbo.board.result": "rejected",
-          "wbo.rejection.reason": "write_blocked",
-        });
-        logger.warn("board.write_blocked", {
-          socket: socket.id,
-          board: board.name,
-          "client.address": clientIp,
-          "user.name": userName,
-          tool: normalizedData.tool,
-          type: normalizedData.type,
-        });
-        metrics.recordBoardMessage(
-          { board: normalizedName, ...normalizedData },
-          boardMessageErrorType("write"),
-        );
-        return;
-      }
-
-      // Save the message in the board
-      const handleResult = handleMessage(
-        board,
-        cloneMessageForPersistence(normalizedData),
-        socket,
-      );
-      if (handleResult.ok === false) {
-        tracing.setActiveSpanAttributes({
-          "wbo.board.result": "rejected",
-          "wbo.rejection.reason": handleResult.reason,
-        });
-        logger.warn("board.message_rejected", {
-          socket: socket.id,
-          board: board.name,
-          "client.address": clientIp,
-          "user.name": userName,
-          tool: normalizedData.tool,
-          type: normalizedData.type,
-          reason: handleResult.reason,
-        });
-        metrics.recordBoardMessage(
-          { board: normalizedName, ...normalizedData },
-          boardMessageErrorType("board_message"),
-        );
-        return;
-      }
-
-      const user = updateBoardUserFromMessage(
+      return handleBroadcastWriteMessage(
         socket,
         normalizedName,
-        normalizedData,
+        data,
+        generalRateLimit,
         now,
       );
-      attachLiveSocketId(normalizedData, user);
-      normalizedData.revision = handleResult.revision;
-      tracing.setActiveSpanAttributes({
-        "wbo.board.result": "success",
-        "user.name": user ? user.name : userName,
-      });
-      metrics.recordBoardMessage({
-        board: normalizedName,
-        ...normalizedData,
-      });
-
-      //Send data to all other users connected on the same board
-      socket.broadcast.to(normalizedName).emit("broadcast", normalizedData);
     }
 
     if (!shouldTraceBroadcast(data)) {
@@ -1666,74 +2026,7 @@ async function handleSocketConnection(socket) {
         }),
       },
       function traceReportUser() {
-        const targetSocketId =
-          message && typeof message.socketId === "string"
-            ? message.socketId
-            : "";
-        if (!targetSocketId || !socket.rooms.has(normalizedName)) {
-          tracing.setActiveSpanAttributes({
-            "wbo.board.result": "ignored",
-          });
-          return;
-        }
-
-        const reporter = getBoardUser(normalizedName, socket.id);
-        const reported = getBoardUser(normalizedName, targetSocketId);
-        if (!reporter || !reported) {
-          tracing.setActiveSpanAttributes({
-            "wbo.board.result": "ignored",
-          });
-          return;
-        }
-
-        lastUserReportLog = {
-          board: normalizedName,
-          reporter_socket: reporter.socketId,
-          reported_socket: reported.socketId,
-          reporter_ip: reporter.ip,
-          reported_ip: reported.ip,
-          reporter_user_agent: reporter.userAgent,
-          reported_user_agent: reported.userAgent,
-          reporter_language: reporter.language,
-          reported_language: reported.language,
-          reporter_name: reporter.name,
-          reported_name: reported.name,
-        };
-        tracing.setActiveSpanAttributes({
-          "wbo.board.result": "reported",
-          "user.name": reporter.name,
-          "wbo.reported_user.name": reported.name,
-        });
-        logger.warn("user.reported", {
-          board: lastUserReportLog.board,
-          reporter_socket: lastUserReportLog.reporter_socket,
-          reported_socket: lastUserReportLog.reported_socket,
-          reporter_ip: lastUserReportLog.reporter_ip,
-          reported_ip: lastUserReportLog.reported_ip,
-          reporter_user_agent: lastUserReportLog.reporter_user_agent,
-          reported_user_agent: lastUserReportLog.reported_user_agent,
-          reporter_language: lastUserReportLog.reporter_language,
-          reported_language: lastUserReportLog.reported_language,
-          reporter_name: lastUserReportLog.reporter_name,
-          reported_name: lastUserReportLog.reported_name,
-        });
-
-        const socketsToDisconnect = [socket];
-        const reportedSocket = getActiveSocket(reported.socketId);
-        if (reportedSocket && reportedSocket !== socket) {
-          socketsToDisconnect.push(reportedSocket);
-        }
-
-        socketsToDisconnect.forEach(
-          function disconnectReportedUser(
-            /** @type {AppSocket} */ targetSocket,
-          ) {
-            closeSocket(targetSocket, "report_user", {
-              board: normalizedName,
-              socket: targetSocket.id,
-            });
-          },
-        );
+        handleReportUserMessage(socket, normalizedName, message);
       },
     );
   });
