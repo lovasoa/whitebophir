@@ -318,6 +318,23 @@ test("normalizeIncomingMessage rejects malformed hand batches atomically", () =>
   assert.match(normalized.reason, /_children\[1\]/);
 });
 
+test("normalizeIncomingMessage rejects messages without a tool", () => {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const normalized = messageValidation.normalizeIncomingMessage({
+    type: "rect",
+    id: "rect-1",
+    color: "#123456",
+    size: 4,
+    x: 1,
+    y: 42,
+  });
+
+  assert.deepEqual(normalized, {
+    ok: false,
+    reason: "missing tool",
+  });
+});
+
 test("normalizeIncomingMessage rejects oversized live shapes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
@@ -335,6 +352,24 @@ test("normalizeIncomingMessage rejects oversized live shapes", () => {
   assert.deepEqual(normalized, {
     ok: false,
     reason: "shape too large",
+  });
+});
+
+test("normalizeStoredItem rejects stored items without a supported tool", () => {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const normalized = messageValidation.normalizeStoredItem(
+    {
+      color: "#123456",
+      size: 4,
+      x: 10,
+      y: 20,
+    },
+    "stored-missing-tool",
+  );
+
+  assert.deepEqual(normalized, {
+    ok: false,
+    reason: "unsupported stored tool",
   });
 });
 
