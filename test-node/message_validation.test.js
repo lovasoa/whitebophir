@@ -387,6 +387,52 @@ test("normalizeIncomingMessage allows text updates but truncates long text", () 
   assert.equal(normalized.value.txt.length, 280); // MAX_TEXT_LENGTH
 });
 
+test("normalizeIncomingMessage preserves clientMutationId for persistent messages", () => {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const normalized = messageValidation.normalizeIncomingMessage({
+    tool: "Rectangle",
+    type: "rect",
+    id: "rect-1",
+    x: 1,
+    y: 2,
+    x2: 3,
+    y2: 4,
+    color: "#123456",
+    size: 4,
+    clientMutationId: "cm-1",
+  });
+
+  assert.equal(normalized.ok, true);
+  assert.equal(normalized.value.clientMutationId, "cm-1");
+});
+
+test("normalizeIncomingMessage rejects invalid clientMutationId and strips it from cursor updates", () => {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const rejected = messageValidation.normalizeIncomingMessage({
+    tool: "Text",
+    type: "update",
+    id: "text-1",
+    txt: "hello",
+    clientMutationId: "",
+  });
+  assert.deepEqual(rejected, {
+    ok: false,
+    reason: "invalid clientMutationId",
+  });
+
+  const cursor = messageValidation.normalizeIncomingMessage({
+    tool: "Cursor",
+    type: "update",
+    x: 10,
+    y: 20,
+    color: "#123456",
+    size: 4,
+    clientMutationId: "cursor-cm",
+  });
+  assert.equal(cursor.ok, true);
+  assert.equal(Object.hasOwn(cursor.value, "clientMutationId"), false);
+});
+
 test("normalizeStoredItem rejects oversized stored text", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeStoredItem(

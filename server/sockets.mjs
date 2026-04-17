@@ -1531,6 +1531,23 @@ function rejectActiveBoardMutation(reason) {
 }
 
 /**
+ * @param {AppSocket} socket
+ * @param {{clientMutationId?: unknown} | null | undefined} data
+ * @param {string} reason
+ * @returns {void}
+ */
+function emitMutationRejected(socket, data, reason) {
+  if (typeof data?.clientMutationId !== "string" || !data.clientMutationId) {
+    return;
+  }
+  socket.emit("mutation_rejected", {
+    type: "mutation_rejected",
+    clientMutationId: data.clientMutationId,
+    reason,
+  });
+}
+
+/**
  * @param {string} boardName
  * @param {MessageData | undefined} data
  * @returns {void}
@@ -1641,6 +1658,7 @@ function rejectBlockedBoardWrite(
     { board: boardName, ...data },
     boardMessageErrorType("write"),
   );
+  emitMutationRejected(socket, data, "write_blocked");
   return false;
 }
 
@@ -1677,6 +1695,7 @@ function rejectBoardMessageWrite(
     { board: boardName, ...data },
     boardMessageErrorType("board_message"),
   );
+  emitMutationRejected(socket, data, reason);
   return false;
 }
 

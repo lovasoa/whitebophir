@@ -178,6 +178,45 @@ test.describe("public authless flows", () => {
     await expect(page.locator(selector)).toHaveCount(0);
   });
 
+  test("readonly board rejection removes optimistic local draw", async ({
+    boardPage,
+    server,
+    page,
+  }) => {
+    await server.writeBoard(server.dataPath, "readonly-optimistic-public", {
+      __wbo_meta__: { readonly: true },
+    });
+
+    await boardPage.gotoBoard("readonly-optimistic-public");
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    const hadOptimisticRect = await page.evaluate(() => {
+      const rectangle = (window as any).Tools.list.Rectangle;
+      if (!rectangle) throw new Error("Rectangle tool is unavailable");
+      (window as any).Tools.drawAndSend(
+        {
+          type: "rect",
+          id: "readonly-public-optimistic-rect",
+          x: 10,
+          y: 10,
+          x2: 40,
+          y2: 40,
+          color: "#123456",
+          size: 4,
+          opacity: 1,
+        },
+        rectangle,
+      );
+      return !!document.getElementById("readonly-public-optimistic-rect");
+    });
+
+    expect(hadOptimisticRect).toBe(true);
+    await expect(
+      page.locator("rect#readonly-public-optimistic-rect"),
+    ).toHaveCount(0);
+  });
+
   test("menu hiding query param", async ({ boardPage }) => {
     await boardPage.gotoBoard("anonymous", {
       lang: "fr",

@@ -229,6 +229,39 @@ export type AuthoritativeBaseline = {
   drawingAreaMarkup: string;
 };
 
+export type OptimisticItemSnapshot = {
+  id: string;
+  outerHTML: string | null;
+  nextSiblingId: string | null;
+};
+
+export type OptimisticRollback =
+  | {
+      kind: "drawing-area";
+      markup: string;
+    }
+  | {
+      kind: "items";
+      snapshots: OptimisticItemSnapshot[];
+    };
+
+export type OptimisticJournalEntry = {
+  clientMutationId: string;
+  affectedIds: string[];
+  dependsOn: string[];
+  rollback: OptimisticRollback;
+  message: BoardMessage;
+};
+
+export type OptimisticJournalState = {
+  append: (entry: OptimisticJournalEntry) => OptimisticJournalEntry;
+  promote: (clientMutationId: string) => OptimisticJournalEntry[];
+  reject: (clientMutationId: string) => OptimisticJournalEntry[];
+  reset: () => OptimisticJournalEntry[];
+  list: () => OptimisticJournalEntry[];
+  size: () => number;
+};
+
 export type ServerConfig = {
   RATE_LIMITS?: {
     general?: {
@@ -332,6 +365,8 @@ export type AppToolsState = {
   snapshotRevision: number;
   authoritativeSeq: number;
   authoritativeDrawingMarkup: string;
+  optimisticJournal: OptimisticJournalState;
+  optimisticMutationIdsByItemId: Map<string, string>;
   awaitingSyncReplay: boolean;
   preSnapshotMessages: BoardMessage[];
   incomingBroadcastQueue: BoardMessage[];
@@ -392,6 +427,16 @@ export type AppToolsState = {
   clearBoardCursors: () => void;
   resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
+  rebuildOptimisticMutationIndex: () => void;
+  captureOptimisticRollback: (message: BoardMessage) => OptimisticRollback;
+  collectOptimisticDependencyMutationIds: (message: BoardMessage) => string[];
+  trackOptimisticMutation: (
+    message: BoardMessage,
+    rollback: OptimisticRollback,
+  ) => void;
+  restoreOptimisticRollback: (rollback: OptimisticRollback) => void;
+  promoteOptimisticMutation: (clientMutationId: string) => void;
+  rejectOptimisticMutation: (clientMutationId: string) => void;
   applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
   refreshAuthoritativeBaseline: () => Promise<void>;
   resetLocalRateLimitState: (kind: RateLimitKind, now?: number) => void;

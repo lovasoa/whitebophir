@@ -156,6 +156,20 @@ function normalizeText(value) {
 
 /**
  * @param {unknown} value
+ * @returns {ValidationResult<string>}
+ */
+function normalizeClientMutationId(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return rejected("invalid clientMutationId");
+  }
+  if (value.length > 128) {
+    return rejected("clientMutationId too long");
+  }
+  return accepted(value);
+}
+
+/**
+ * @param {unknown} value
  * @returns {ValidationResult<number>}
  */
 function normalizeTime(value) {
@@ -490,10 +504,17 @@ function normalizeIncomingBatch(raw) {
     children.push(normalizedChild.value);
   }
 
-  return accepted({
+  /** @type {NormalizedMessageData} */
+  const normalized = {
     tool: raw.tool,
     _children: children,
-  });
+  };
+  if (Object.hasOwn(raw, "clientMutationId")) {
+    const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
+    if (!clientMutationId.ok) return clientMutationId;
+    normalized.clientMutationId = clientMutationId.value;
+  }
+  return accepted(normalized);
 }
 
 /**
@@ -516,6 +537,11 @@ function normalizeIncomingMessage(raw) {
     MessageCommon.isGeometryTooLarge(normalized.value)
   ) {
     return rejected("shape too large");
+  }
+  if (raw.tool !== "Cursor" && Object.hasOwn(raw, "clientMutationId")) {
+    const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
+    if (!clientMutationId.ok) return clientMutationId;
+    normalized.value.clientMutationId = clientMutationId.value;
   }
   return accepted(/** @type {NormalizedMessageData} */ (normalized.value));
 }

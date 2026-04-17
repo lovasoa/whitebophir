@@ -510,6 +510,60 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
   );
 });
 
+test("rejected board mutations emit mutation_rejected with the clientMutationId", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-mutation-rejected-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async () => {
+      const sockets = await loadSockets();
+      sockets.__test.resetRateLimitMaps();
+
+      const writer = createSocket({
+        id: "socket-seq-rejected",
+        remoteAddress: "203.0.113.86",
+        headers: withUserSecretCookie("99999999999999999999999999999996"),
+        query: {
+          board: "board-rejected",
+          sync: "seq",
+          tool: "Hand",
+          color: "#888888",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(writer.socket);
+
+      await getRequiredHandler(
+        writer.handlers,
+        "broadcast",
+      )({
+        tool: "Pencil",
+        type: "child",
+        parent: "missing-line",
+        x: 10,
+        y: 20,
+        clientMutationId: "cm-reject-1",
+      });
+
+      assert.deepEqual(
+        getRequiredValue(
+          writer.emitted.find((event) => event.event === "mutation_rejected"),
+        ).payload,
+        {
+          type: "mutation_rejected",
+          clientMutationId: "cm-reject-1",
+          reason: "invalid parent for child",
+        },
+      );
+      assert.equal(
+        writer.emitted.some((event) => event.event === "broadcast"),
+        false,
+      );
+    },
+  );
+});
+
 test("disconnecting from a board broadcasts user_left and cleans the board user map", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-left-"),
