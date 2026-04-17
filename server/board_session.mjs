@@ -38,7 +38,7 @@ const BOARD_SESSIONS = new WeakMap();
  *   processMessage: (message: NormalizedMessageData) => {ok: true, revision?: number} | {ok: false, reason: string},
  *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string) => any,
  *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData, revision: number}>,
- *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string}> | {ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string},
+ *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: any} | {ok: false, reason: string}> | {ok: true, mutation?: any} | {ok: false, reason: string},
  * }} board
  * @returns {{
  *   board: object,
@@ -106,7 +106,7 @@ export function createBoardSession(board) {
  *   processMessage: (message: NormalizedMessageData) => {ok: true, revision?: number} | {ok: false, reason: string},
  *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string) => any,
  *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData, revision: number}>,
- *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string}> | {ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string},
+ *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: any} | {ok: false, reason: string}> | {ok: true, mutation?: any} | {ok: false, reason: string},
  * }} board
  * @returns {ReturnType<typeof createBoardSession>}
  */

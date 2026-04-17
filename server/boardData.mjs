@@ -28,6 +28,10 @@
 import { readFile, stat, writeFile } from "node:fs/promises";
 import MessageCommon from "../client-data/js/message_common.js";
 import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
+import {
+  createAdmissionIndex,
+  summarizeBoardItem,
+} from "./admission_index.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import {
   boardJsonPath,
@@ -152,6 +156,7 @@ class BoardData {
     this.mutationLog = createMutationLog(0);
     /** @type {Array<{mutation: any, revision: number}>} */
     this.pendingRejectedMutationEffects = [];
+    this.admissionIndex = createAdmissionIndex();
   }
 
   isReadOnly() {
@@ -259,6 +264,15 @@ class BoardData {
     return { ok: true, revision: this.revision };
   }
 
+  rebuildAdmissionIndex() {
+    this.admissionIndex = createAdmissionIndex();
+    this.admissionIndex.seed(
+      Object.values(this.board)
+        .map((item, paintOrder) => summarizeBoardItem(item, paintOrder))
+        .filter((summary) => summary !== null),
+    );
+  }
+
   /**
    * @param {Bounds | null | undefined} bounds
    * @returns {Bounds | null}
@@ -347,6 +361,19 @@ class BoardData {
   }
 
   /**
+   * @param {any} summary
+   * @returns {boolean}
+   */
+  hasZeroSummaryExtent(summary) {
+    const bounds = summary?.localBounds;
+    return !!(
+      bounds &&
+      bounds.minX === bounds.maxX &&
+      bounds.minY === bounds.maxY
+    );
+  }
+
+  /**
    * @param {string | undefined} tool
    * @param {BoardElem} item
    * @param {string} id
@@ -360,6 +387,63 @@ class BoardData {
       this.hasZeroLocalExtent(item, id) &&
       item.transform === undefined
     );
+  }
+
+  /**
+   * @param {BoardMessage} message
+   * @returns {boolean}
+   */
+  shouldDeferSeedDropRejectionToMutationEngine(message) {
+    if (message?.type !== "update" || !message.id) return false;
+    const summary = this.admissionIndex.get(message.id);
+    return (
+      MessageToolMetadata.isShapeTool(message.tool) &&
+      summary?.tool === message.tool &&
+      this.hasZeroSummaryExtent(summary) &&
+      summary.transform === undefined
+    );
+  }
+
+  /**
+   * @param {BoardMessage} message
+   * @returns {Set<string>}
+   */
+  collectReferencedMutationIds(message) {
+    const ids = new Set();
+    if (!message || typeof message !== "object") return ids;
+    if (Array.isArray(message._children)) {
+      message._children.forEach((child) => {
+        this.collectReferencedMutationIds({
+          ...child,
+          tool: message.tool,
+        }).forEach((id) => ids.add(id));
+      });
+      return ids;
+    }
+    if (typeof message.id === "string") {
+      ids.add(message.id);
+    }
+    if (typeof message.parent === "string") {
+      ids.add(message.parent);
+    }
+    return ids;
+  }
+
+  /**
+   * @param {BoardMessage} message
+   * @returns {Promise<{ok: true, mutation: BoardMessage} | {ok: false, reason: string}>}
+   */
+  async preparePersistentMutation(message) {
+    await this.admissionIndex.ensureLoaded(
+      this.collectReferencedMutationIds(message),
+    );
+    const prepared = this.admissionIndex.canApplyLoaded(message);
+    if (prepared.ok === false) {
+      return this.shouldDeferSeedDropRejectionToMutationEngine(message)
+        ? { ok: true, mutation: message }
+        : prepared;
+    }
+    return { ok: true, mutation: message };
   }
 
   /**
@@ -582,6 +666,11 @@ class BoardData {
       if (this.shouldDropSeedShapeOnRejectedUpdate(obj.tool, obj, id)) {
         const deleteResult = this.delete(id);
         if (deleteResult.ok && "revision" in deleteResult) {
+          this.admissionIndex.applyAccepted({
+            tool: "Eraser",
+            type: "delete",
+            id: id,
+          });
           const deleteRevision =
             typeof deleteResult.revision === "number"
               ? deleteResult.revision
@@ -885,37 +974,56 @@ class BoardData {
    */
   processMessage(message) {
     this.pendingRejectedMutationEffects = [];
-    if (message._children)
-      return this.processMessageBatch(message._children, message);
-    const id = message.id;
-    switch (message.type) {
-      case "delete":
-        return id ? this.delete(id) : { ok: false, reason: "missing id" };
-      case "update":
-        return id
-          ? this.update(id, message)
-          : { ok: false, reason: "missing id" };
-      case "copy":
-        return id
-          ? this.copy(id, message)
-          : { ok: false, reason: "missing id" };
-      case "child": {
-        // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
-        const { parent, type, tool, ...childData } = message;
-        return parent
-          ? this.addChild(parent, childData)
-          : { ok: false, reason: "invalid parent for child" };
+    /** @type {BoardMutationResult | ValidationFailure} */
+    let result;
+    if (message._children) {
+      result = this.processMessageBatch(message._children, message);
+    } else {
+      const id = message.id;
+      switch (message.type) {
+        case "delete":
+          result = id ? this.delete(id) : { ok: false, reason: "missing id" };
+          break;
+        case "update":
+          result = id
+            ? this.update(id, message)
+            : { ok: false, reason: "missing id" };
+          break;
+        case "copy":
+          result = id
+            ? this.copy(id, message)
+            : { ok: false, reason: "missing id" };
+          break;
+        case "child": {
+          // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
+          const { parent, type, tool, ...childData } = message;
+          void type;
+          void tool;
+          result = parent
+            ? this.addChild(parent, childData)
+            : { ok: false, reason: "invalid parent for child" };
+          break;
+        }
+        case "clear":
+          result = this.clear();
+          break;
+        default:
+          //Add data
+          if (id) {
+            result = this.set(id, message);
+            break;
+          }
+          logger.error("board.message_invalid", {
+            message: message,
+          });
+          result = { ok: false, reason: "invalid message" };
+          break;
       }
-      case "clear":
-        return this.clear();
-      default:
-        //Add data
-        if (id) return this.set(id, message);
-        logger.error("board.message_invalid", {
-          message: message,
-        });
-        return { ok: false, reason: "invalid message" };
     }
+    if (result.ok) {
+      this.admissionIndex.applyAccepted(message);
+    }
+    return result;
   }
 
   /** Reads data from the board
@@ -1111,13 +1219,18 @@ class BoardData {
     const board = this.board;
     const ids = Object.keys(board);
     if (ids.length > MAX_ITEM_COUNT) {
+      let removed = false;
       const toDestroy = ids
         .sort((x, y) => (board[x]?.time | 0) - (board[y]?.time | 0))
         .slice(0, -MAX_ITEM_COUNT);
       for (let i = 0; i < toDestroy.length; i++) {
         const id = toDestroy[i];
-        if (id !== undefined) delete board[id];
+        if (id !== undefined) {
+          delete board[id];
+          removed = true;
+        }
       }
+      if (removed) this.rebuildAdmissionIndex();
     }
   }
 
@@ -1194,6 +1307,7 @@ class BoardData {
           for (const id of Object.keys(boardData.board)) {
             boardData.normalizeStoredElement(id);
           }
+          boardData.rebuildAdmissionIndex();
           if (storedBoard.source === "json") {
             await writeBoardState(
               name,
@@ -1246,6 +1360,7 @@ class BoardData {
             );
           }
           boardData.board = {};
+          boardData.rebuildAdmissionIndex();
           const backupData = data;
           if (backupData !== undefined) {
             // There was an error loading the board, but some data was still read

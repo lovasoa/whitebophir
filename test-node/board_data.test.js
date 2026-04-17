@@ -350,6 +350,66 @@ test("BoardData drops zero-size seed shapes after an oversized update is rejecte
   assert.equal(board.get("rect-1"), undefined);
 });
 
+test("BoardData.preparePersistentMutation preserves seed-drop followups and stays in sync after them", async () => {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const board = disableSaves(new BoardData("prepare-seed-followup-board"));
+
+  assert.equal(
+    board.processMessage({
+      tool: "Rectangle",
+      type: "rect",
+      id: "rect-1",
+      color: "#112233",
+      size: 4,
+      x: 10,
+      y: 10,
+      x2: 10,
+      y2: 10,
+    }).ok,
+    true,
+  );
+
+  const oversizedUpdate = {
+    tool: "Rectangle",
+    type: "update",
+    id: "rect-1",
+    x: 10,
+    y: 10,
+    x2: 4015,
+    y2: 30,
+  };
+
+  assert.deepEqual(await board.preparePersistentMutation(oversizedUpdate), {
+    ok: true,
+    mutation: oversizedUpdate,
+  });
+  assert.equal(board.processMessage(oversizedUpdate).ok, false);
+  assert.equal(board.get("rect-1"), undefined);
+  assert.deepEqual(board.consumePendingRejectedMutationEffects(), [
+    {
+      mutation: {
+        tool: "Eraser",
+        type: "delete",
+        id: "rect-1",
+      },
+      revision: 2,
+    },
+  ]);
+
+  assert.deepEqual(
+    await board.preparePersistentMutation({
+      tool: "Hand",
+      type: "copy",
+      id: "rect-1",
+      newid: "rect-2",
+    }),
+    {
+      ok: false,
+      reason: "copied object does not exist",
+    },
+  );
+});
+
 test("BoardData rejects hand batches atomically when one transform is oversized", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("atomic-hand-batch-board"));

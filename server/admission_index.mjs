@@ -182,6 +182,47 @@ function summarizeCreateMutation(mutation, paintOrder) {
 }
 
 /**
+ * @param {any} item
+ * @param {number} paintOrder
+ * @returns {any | null}
+ */
+function summarizeBoardItem(item, paintOrder) {
+  if (!item || typeof item !== "object") return null;
+  switch (item.tool) {
+    case "Rectangle":
+    case "Ellipse":
+    case "Straight line":
+      return summarizeCreateMutation(item, paintOrder);
+    case "Text":
+      return summarizeCreateMutation(
+        {
+          ...item,
+          tool: "Text",
+          type: "new",
+        },
+        paintOrder,
+      );
+    case "Pencil":
+      return {
+        id: item.id,
+        tool: "Pencil",
+        childCount: Array.isArray(item._children) ? item._children.length : 0,
+        points: clonePoints(item._children),
+        paintOrder,
+        transform: cloneTransform(item.transform),
+        localBounds: computeLocalBounds({
+          id: item.id,
+          tool: "Pencil",
+          _children: clonePoints(item._children),
+          transform: cloneTransform(item.transform),
+        }),
+      };
+    default:
+      return null;
+  }
+}
+
+/**
  * @param {any} summary
  * @param {any} mutation
  * @returns {{summary: any, localBounds: any} | null}
@@ -483,4 +524,4 @@ function createAdmissionIndex(options) {
   };
 }
 
-export { createAdmissionIndex };
+export { createAdmissionIndex, summarizeBoardItem };
