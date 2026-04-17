@@ -740,8 +740,8 @@ function handleRequest(request, response, requestContext) {
       if (backupSuffix && /^[0-9A-Za-z.-]+$/.test(backupSuffix)) {
         historyFile += `.${backupSuffix}.bak`;
       }
-      Promise.resolve(
-        tracing.withActiveSpan(
+      async function handleDownloadBoard() {
+        const data = await tracing.withActiveSpan(
           "board.download_read",
           {
             attributes: {
@@ -752,17 +752,17 @@ function handleRequest(request, response, requestContext) {
           function readBoardDownload() {
             return fs.promises.readFile(historyFile);
           },
-        ),
-      )
-        .then((data) => {
-          response.writeHead(200, {
-            "Content-Type": "application/json",
-            "Content-Disposition": `attachment; filename="${boardName}.wbo"`,
-            "Content-Length": data.length,
-          });
-          response.end(data);
-        })
-        .catch(serveError(request, response, requestContext));
+        );
+        response.writeHead(200, {
+          "Content-Type": "application/json",
+          "Content-Disposition": `attachment; filename="${boardName}.wbo"`,
+          "Content-Length": data.length,
+        });
+        response.end(data);
+      }
+      void handleDownloadBoard().catch(
+        serveError(request, response, requestContext),
+      );
       break;
     }
 
@@ -781,8 +781,8 @@ function handleRequest(request, response, requestContext) {
       );
       jwtBoardName.checkBoardnameInToken(parsedUrl, exportBoardName);
       const startedAt = Date.now();
-      Promise.resolve(
-        tracing.withActiveSpan(
+      async function handlePreviewBoard() {
+        const svg = await tracing.withActiveSpan(
           "preview.render",
           {
             attributes: {
@@ -805,40 +805,39 @@ function handleRequest(request, response, requestContext) {
               throw err;
             }
           },
-        ),
-      )
-        .then((svg) => {
-          const renderDurationMs = Date.now() - startedAt;
-          requestContext.annotate({
-            render_duration_ms: renderDurationMs,
-          });
-          requestContext.setTraceAttributes({
-            render_duration_ms: renderDurationMs,
-          });
-          if (svg === null) {
-            response.writeHead(404, {
-              "Content-Length": errorPage.length,
-            });
-            response.end(errorPage);
-            return;
-          }
-          response.writeHead(200, {
-            "Content-Type": "image/svg+xml",
-            "Content-Security-Policy": CSP,
-            "Cache-Control": cacheControl("public, max-age=30"),
-          });
-          response.end(svg);
-        })
-        .catch((err) => {
-          requestContext.noteError(err);
-          requestContext.annotate({
-            render_duration_ms: Date.now() - startedAt,
-          });
-          requestContext.setTraceAttributes({
-            render_duration_ms: Date.now() - startedAt,
-          });
-          serveError(request, response, requestContext)(err);
+        );
+        const renderDurationMs = Date.now() - startedAt;
+        requestContext.annotate({
+          render_duration_ms: renderDurationMs,
         });
+        requestContext.setTraceAttributes({
+          render_duration_ms: renderDurationMs,
+        });
+        if (svg === null) {
+          response.writeHead(404, {
+            "Content-Length": errorPage.length,
+          });
+          response.end(errorPage);
+          return;
+        }
+        response.writeHead(200, {
+          "Content-Type": "image/svg+xml",
+          "Content-Security-Policy": CSP,
+          "Cache-Control": cacheControl("public, max-age=30"),
+        });
+        response.end(svg);
+      }
+      void handlePreviewBoard().catch((err) => {
+        const renderDurationMs = Date.now() - startedAt;
+        requestContext.noteError(err);
+        requestContext.annotate({
+          render_duration_ms: renderDurationMs,
+        });
+        requestContext.setTraceAttributes({
+          render_duration_ms: renderDurationMs,
+        });
+        serveError(request, response, requestContext)(err);
+      });
       break;
     }
 
