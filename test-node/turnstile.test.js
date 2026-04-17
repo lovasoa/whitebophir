@@ -1,22 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { withEnv, createSocket, loadSockets } = require("./test_helpers.js");
+const {
+  withEnv,
+  createSocket,
+  loadSockets,
+  withMockedNow,
+} = require("./test_helpers.js");
 const WBOMessageCommon = require("../client-data/js/message_common.js");
-
-/**
- * @param {number} value
- * @param {() => any | Promise<any>} fn
- * @returns {Promise<any>}
- */
-function withMockedNow(value, fn) {
-  const originalNow = Date.now;
-  Date.now = () => value;
-  return Promise.resolve()
-    .then(fn)
-    .finally(() => {
-      Date.now = originalNow;
-    });
-}
 
 test("requiresTurnstile shared utility logic", () => {
   assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "Pencil"), true);

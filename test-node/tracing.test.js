@@ -3,7 +3,6 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const http = require("node:http");
 const { pathToFileURL } = require("node:url");
 
 const { context, metrics, propagation, trace } = require("@opentelemetry/api");
@@ -13,7 +12,10 @@ const { InMemorySpanExporter } = require("@opentelemetry/sdk-trace-base");
 const {
   CONFIG_PATH,
   MESSAGE_VALIDATION_PATH,
+  closeServer,
   SOCKET_POLICY_PATH,
+  request,
+  waitForListening,
   loadSockets,
   createSocket,
   writeBoard,
@@ -70,70 +72,6 @@ async function loadServer() {
   return import(
     `${pathToFileURL(SERVER_PATH).href}?cache-bust=${++serverLoadSequence}`
   );
-}
-
-/**
- * @param {import("http").Server} server
- * @returns {Promise<void>}
- */
-function waitForListening(server) {
-  return new Promise((resolve) => {
-    if (server.listening) resolve();
-    else server.once("listening", resolve);
-  });
-}
-
-/**
- * @param {import("http").Server} server
- * @returns {Promise<void>}
- */
-function closeServer(server) {
-  return new Promise((resolve, reject) => {
-    server.close((error) => {
-      if (error) reject(error);
-      else resolve();
-    });
-  });
-}
-
-/**
- * @param {import("http").Server} server
- * @param {string} requestPath
- * @param {{[key: string]: string}=} headers
- * @returns {Promise<{statusCode: number, headers: http.IncomingHttpHeaders, body: string}>}
- */
-function request(server, requestPath, headers) {
-  return new Promise((resolve, reject) => {
-    const address = server.address();
-    if (!address || typeof address === "string") {
-      reject(new Error("Server is not listening on a TCP port"));
-      return;
-    }
-    const req = http.get(
-      {
-        host: "127.0.0.1",
-        port: address.port,
-        path: requestPath,
-        headers: headers,
-      },
-      (response) => {
-        /** @type {string[]} */
-        const chunks = [];
-        response.setEncoding("utf8");
-        response.on("data", (chunk) => {
-          chunks.push(chunk);
-        });
-        response.on("end", () => {
-          resolve({
-            statusCode: response.statusCode || 0,
-            headers: response.headers,
-            body: chunks.join(""),
-          });
-        });
-      },
-    );
-    req.on("error", reject);
-  });
 }
 
 /**

@@ -1,3 +1,5 @@
+const http = require("node:http");
+const net = require("node:net");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -186,6 +188,133 @@ async function writeBoard(historyDir, name, storedBoard) {
   await fs.writeFile(boardFile(historyDir, name), JSON.stringify(storedBoard));
 }
 
+/**
+ * @param {import("http").Server} server
+ * @returns {Promise<void>}
+ */
+function waitForListening(server) {
+  return new Promise((resolve) => {
+    if (server.listening) resolve();
+    else server.once("listening", resolve);
+  });
+}
+
+/**
+ * @param {import("http").Server} server
+ * @returns {Promise<void>}
+ */
+function closeServer(server) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+/**
+ * @param {import("http").Server} server
+ * @returns {import("node:net").AddressInfo}
+ */
+function getTcpAddress(server) {
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Server is not listening on a TCP port");
+  }
+  return address;
+}
+
+/**
+ * @param {import("http").IncomingMessage} response
+ * @returns {Promise<{statusCode: number, headers: import("http").IncomingHttpHeaders, body: string}>}
+ */
+function collectIncomingMessage(response) {
+  return new Promise((resolve, reject) => {
+    /** @type {string[]} */
+    const chunks = [];
+    response.setEncoding("utf8");
+    response.on("data", (chunk) => {
+      chunks.push(chunk);
+    });
+    response.on("end", () => {
+      resolve({
+        statusCode: response.statusCode || 0,
+        headers: response.headers,
+        body: chunks.join(""),
+      });
+    });
+    response.on("error", reject);
+  });
+}
+
+/**
+ * @param {import("http").Server} server
+ * @param {string} requestPath
+ * @param {{[key: string]: string}=} headers
+ * @returns {Promise<{statusCode: number, headers: import("http").IncomingHttpHeaders, body: string}>}
+ */
+function request(server, requestPath, headers) {
+  return new Promise((resolve, reject) => {
+    const address = getTcpAddress(server);
+    const req = http.get(
+      {
+        host: "127.0.0.1",
+        port: address.port,
+        path: requestPath,
+        headers: headers,
+      },
+      (response) => {
+        resolve(collectIncomingMessage(response));
+      },
+    );
+    req.on("error", reject);
+  });
+}
+
+/**
+ * @param {import("http").Server} server
+ * @param {string} rawRequest
+ * @returns {Promise<string>}
+ */
+function requestRaw(server, rawRequest) {
+  return new Promise((resolve, reject) => {
+    const address = getTcpAddress(server);
+    const socket = net.createConnection({
+      host: "127.0.0.1",
+      port: address.port,
+    });
+    /** @type {Buffer[]} */
+    const chunks = [];
+
+    socket.on("connect", () => {
+      socket.write(rawRequest);
+    });
+    socket.on("data", (chunk) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    socket.on("end", () => {
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    });
+    socket.on("error", reject);
+  });
+}
+
+/**
+ * @template T
+ * @param {number} value
+ * @param {() => T | Promise<T>} fn
+ * @returns {Promise<T>}
+ */
+async function withMockedNow(value, fn) {
+  const originalNow = Date.now;
+  Date.now = () => value;
+  try {
+    return await fn();
+  } finally {
+    Date.now = originalNow;
+  }
+}
+
 module.exports = {
   BOARD_DATA_PATH,
   CONFIG_PATH,
@@ -193,8 +322,15 @@ module.exports = {
   SOCKET_POLICY_PATH,
   SOCKETS_PATH,
   boardFile,
+  closeServer,
+  collectIncomingMessage,
   createSocket,
+  getTcpAddress,
   loadSockets,
+  request,
+  requestRaw,
+  waitForListening,
+  withMockedNow,
   withEnv,
   writeBoard,
 };

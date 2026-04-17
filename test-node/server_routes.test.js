@@ -3,12 +3,17 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const http = require("node:http");
-const net = require("node:net");
 const { pathToFileURL } = require("node:url");
 const jsonwebtoken = require("jsonwebtoken");
 
-const { withEnv } = require("./test_helpers.js");
+const {
+  closeServer,
+  getTcpAddress,
+  request,
+  requestRaw,
+  waitForListening,
+  withEnv,
+} = require("./test_helpers.js");
 
 const SERVER_PATH = path.join(__dirname, "..", "server", "server.mjs");
 const TEMPLATING_PATH = path.join(__dirname, "..", "server", "templating.mjs");
@@ -43,68 +48,6 @@ async function loadServer() {
   return import(
     `${pathToFileURL(SERVER_PATH).href}?cache-bust=${++serverLoadSequence}`
   );
-}
-
-/**
- * @param {import("http").Server} server
- * @returns {Promise<void>}
- */
-function waitForListening(server) {
-  return new Promise((resolve) => {
-    if (server.listening) resolve();
-    else server.once("listening", resolve);
-  });
-}
-
-/**
- * @param {import("http").Server} server
- * @returns {Promise<void>}
- */
-function closeServer(server) {
-  return new Promise((resolve, reject) => {
-    server.close((error) => {
-      if (error) reject(error);
-      else resolve();
-    });
-  });
-}
-
-/**
- * @param {import("http").Server} server
- * @param {string} requestPath
- * @returns {Promise<{statusCode: number, headers: http.IncomingHttpHeaders, body: string}>}
- */
-function request(server, requestPath) {
-  return new Promise((resolve, reject) => {
-    const address = server.address();
-    if (!address || typeof address === "string") {
-      reject(new Error("Server is not listening on a TCP port"));
-      return;
-    }
-    const req = http.get(
-      {
-        host: "127.0.0.1",
-        port: address.port,
-        path: requestPath,
-      },
-      (response) => {
-        /** @type {string[]} */
-        const chunks = [];
-        response.setEncoding("utf8");
-        response.on("data", (chunk) => {
-          chunks.push(chunk);
-        });
-        response.on("end", () => {
-          resolve({
-            statusCode: response.statusCode || 0,
-            headers: response.headers,
-            body: chunks.join(""),
-          });
-        });
-      },
-    );
-    req.on("error", reject);
-  });
 }
 
 /**
@@ -248,28 +191,7 @@ test("server preserves an incoming request id header", async () => {
     const { default: app } = await loadServer();
     await waitForListening(app);
     try {
-      const address = app.address();
-      if (!address || typeof address === "string") {
-        throw new Error("Server is not listening on a TCP port");
-      }
-
-      const response = await new Promise((resolve, reject) => {
-        const req = http.get(
-          {
-            host: "127.0.0.1",
-            port: address.port,
-            path: "/",
-            headers: { "X-Request-Id": "req-123" },
-          },
-          resolve,
-        );
-        req.on("error", reject);
-      });
-
-      response.resume();
-      await new Promise((resolve) => {
-        response.on("end", resolve);
-      });
+      const response = await request(app, "/", { "X-Request-Id": "req-123" });
       assert.equal(response.headers["x-request-id"], "req-123");
     } finally {
       await closeServer(app);
@@ -299,32 +221,11 @@ test("server rejects malformed double-slash request targets with 400", async () 
     const { default: app } = await loadServer();
     await waitForListening(app);
     try {
-      const address = app.address();
-      if (!address || typeof address === "string") {
-        throw new Error("Server is not listening on a TCP port");
-      }
-
-      const rawResponse = await new Promise((resolve, reject) => {
-        const socket = net.createConnection({
-          host: "127.0.0.1",
-          port: address.port,
-        });
-        /** @type {Buffer[]} */
-        const chunks = [];
-
-        socket.on("connect", () => {
-          socket.write(
-            `GET // HTTP/1.1\r\nHost: 127.0.0.1:${address.port}\r\nConnection: close\r\n\r\n`,
-          );
-        });
-        socket.on("data", (chunk) => {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-        });
-        socket.on("end", () => {
-          resolve(Buffer.concat(chunks).toString("utf8"));
-        });
-        socket.on("error", reject);
-      });
+      const { port } = getTcpAddress(app);
+      const rawResponse = await requestRaw(
+        app,
+        `GET // HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: close\r\n\r\n`,
+      );
 
       assert.match(rawResponse, /^HTTP\/1\.1 400 Bad Request/m);
       assert.match(rawResponse, /^X-Request-Id: .+/m);
@@ -357,30 +258,10 @@ test("server returns 400 for malformed low-level HTTP parser input", async () =>
     const { default: app } = await loadServer();
     await waitForListening(app);
     try {
-      const address = app.address();
-      if (!address || typeof address === "string") {
-        throw new Error("Server is not listening on a TCP port");
-      }
-
-      const rawResponse = await new Promise((resolve, reject) => {
-        const socket = net.createConnection({
-          host: "127.0.0.1",
-          port: address.port,
-        });
-        /** @type {Buffer[]} */
-        const chunks = [];
-
-        socket.on("connect", () => {
-          socket.write("G\0T / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
-        });
-        socket.on("data", (chunk) => {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-        });
-        socket.on("end", () => {
-          resolve(Buffer.concat(chunks).toString("utf8"));
-        });
-        socket.on("error", reject);
-      });
+      const rawResponse = await requestRaw(
+        app,
+        "G\0T / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+      );
 
       assert.match(rawResponse, /^HTTP\/1\.1 400 Bad Request/m);
       assert.match(rawResponse, /\r\n\r\nBad Request$/m);
