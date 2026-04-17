@@ -74,6 +74,7 @@ section before making changes there.
 - Unified JS typecheck: `npm run typecheck` (`tsconfig.checkjs.json` covers server, scripts, Node tests, client runtime, and tool modules).
 - Node suite: `node --test test-node/*.test.js`.
 - Browser suite: `npx playwright test playwright/tests/<file>.spec.ts`.
+  - When investigating flaky or failing browser tests, always try to fix the issue in the application and never write workarounds for application bugs in the tests. Browser tests should read like prose and the application must gracefully handle edge cases like fast sequences of network messages or user actions.
 - Throughput check: `npm run bench` before/after suspected performance changes.
 - Bench timeout: `npm run bench` enforces a hard wall-clock timeout via `WBO_BENCH_TIMEOUT_MS` (default `150000`).
 - CPU + memory profile: `npm run profile` writes `.profiles/benchmark-server.cpuprofile` and `.profiles/benchmark-server.heapprofile`.
