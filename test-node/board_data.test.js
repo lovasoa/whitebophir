@@ -484,6 +484,40 @@ test("BoardData.loadMetadataSync preserves readonly metadata and falls back safe
   });
 });
 
+test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-json-migrate-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    await writeBoard(historyDir, "legacy-migrate", {
+      __wbo_meta__: { readonly: true },
+      rect: {
+        id: "rect",
+        tool: "Rectangle",
+        type: "rect",
+        color: "#123456",
+        size: 4,
+        x: 0,
+        y: 0,
+        x2: 10,
+        y2: 10,
+      },
+    });
+
+    const board = await BoardData.load("legacy-migrate");
+    const svgPath = path.join(historyDir, "board-legacy-migrate.svg");
+    const svg = await fs.readFile(svgPath, "utf8");
+
+    assert.equal(board.metadata.readonly, true);
+    assert.equal(board.get("rect").tool, "Rectangle");
+    assert.match(svg, /data-wbo-format="whitebophir-svg-v1"/);
+    assert.match(svg, /data-wbo-readonly="true"/);
+    assert.match(svg, /data-wbo-item=/);
+  });
+});
+
 test("BoardData.save serializes concurrent saves and releases after failure", async () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = new BoardData("serial-save-board");

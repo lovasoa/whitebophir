@@ -25,9 +25,7 @@
  * @module boardData
  */
 
-import nativeFs from "node:fs";
-import { readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import MessageCommon from "../client-data/js/message_common.js";
 import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
 import { readConfiguration } from "./configuration.mjs";
@@ -36,8 +34,24 @@ import {
   normalizeStoredItemWithBounds,
 } from "./message_validation.mjs";
 import observability from "./observability.mjs";
+import {
+  boardJsonPath,
+  boardSvgPath,
+  parseLegacyStoredBoard,
+  readBoardMetadataSync,
+  readBoardState,
+  writeBoardState,
+} from "./svg_board_store.mjs";
 
 const { logger, metrics, tracing } = observability;
+const BOARD_METADATA_KEY = "__wbo_meta__";
+
+/** @returns {BoardMetadata} */
+function defaultBoardMetadata() {
+  return {
+    readonly: false,
+  };
+}
 
 class SerialTaskQueue {
   constructor() {
@@ -60,7 +74,6 @@ class SerialTaskQueue {
   }
 }
 
-const BOARD_METADATA_KEY = "__wbo_meta__";
 const STANDALONE_BOARD_LOAD_BYTES_THRESHOLD = 1024 * 1024;
 const STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD = 2048;
 const STANDALONE_BOARD_SNAPSHOT_ITEM_COUNT_THRESHOLD = 4096;
@@ -73,32 +86,12 @@ const STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD = 64;
 /** @typedef {{ok: true, value: BoardElem, localBounds: Bounds | null}} ValidatedStoredCandidate */
 /** @typedef {import("../types/app-runtime.d.ts").BoardMessage} BoardMessage */
 
-/** @returns {BoardMetadata} */
-function defaultBoardMetadata() {
-  return {
-    readonly: false,
-  };
-}
-
-/**
- * @param {any} metadata
- * @returns {BoardMetadata}
- */
-function normalizeBoardMetadata(metadata) {
-  return {
-    readonly: metadata && metadata.readonly === true,
-  };
-}
-
 /**
  * @param {string} name
  * @returns {string}
  */
 function boardFilePath(name) {
-  return path.join(
-    readConfiguration().HISTORY_DIR,
-    `board-${encodeURIComponent(name)}.json`,
-  );
+  return boardSvgPath(name);
 }
 
 /**
@@ -106,40 +99,7 @@ function boardFilePath(name) {
  * @returns {{board: {[name: string]: BoardElem}, metadata: BoardMetadata}}
  */
 function parseStoredBoard(storedBoard) {
-  if (
-    !storedBoard ||
-    typeof storedBoard !== "object" ||
-    Array.isArray(storedBoard)
-  ) {
-    throw new Error("Invalid board file format");
-  }
-
-  /** @type {{[name: string]: BoardElem}} */
-  const board = {};
-  let metadata = defaultBoardMetadata();
-
-  for (const [key, value] of Object.entries(storedBoard)) {
-    if (key === BOARD_METADATA_KEY) {
-      metadata = normalizeBoardMetadata(value);
-    } else {
-      board[key] = value;
-    }
-  }
-
-  return { board, metadata };
-}
-
-/**
- * @param {{[name: string]: BoardElem}} board
- * @param {BoardMetadata} metadata
- * @returns {{[name: string]: BoardElem | BoardMetadata}}
- */
-function serializeStoredBoard(board, metadata) {
-  const storedBoard = { ...board };
-  if (metadata?.readonly) {
-    storedBoard[BOARD_METADATA_KEY] = { readonly: true };
-  }
-  return storedBoard;
+  return parseLegacyStoredBoard(storedBoard);
 }
 
 /**
@@ -910,13 +870,10 @@ class BoardData {
         this.lastSaveDate = Date.now();
         this.clean();
         const file = this.file;
-        const tmpFile = backupFileName(file);
-        const storedBoard = serializeStoredBoard(this.board, this.metadata);
-        const boardText = JSON.stringify(storedBoard);
-        if (boardText === "{}") {
+        if (Object.keys(this.board).length === 0) {
           // empty board
           try {
-            await unlink(file);
+            await writeBoardState(this.name, this.board, this.metadata, 0);
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(this.name, "save", {
                 "wbo.board.result": "removed_empty",
@@ -948,19 +905,19 @@ class BoardData {
           }
         } else {
           try {
-            await writeFile(tmpFile, boardText, { flag: "wx" });
-            await rename(tmpFile, file);
+            await writeBoardState(this.name, this.board, this.metadata, 0);
+            const savedFile = await stat(file);
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(this.name, "save", {
                 "wbo.board.result": "success",
                 "file.path": file,
-                "file.size": boardText.length,
+                "file.size": savedFile.size,
                 "wbo.board.items": Object.keys(this.board).length,
               }),
             );
             logger.info("board.saved", {
               board: this.name,
-              "file.size": boardText.length,
+              "file.size": savedFile.size,
               items: Object.keys(this.board).length,
             });
             metrics.recordBoardOperationDuration(
@@ -975,7 +932,7 @@ class BoardData {
             logger.error("board.save_failed", {
               board: this.name,
               error: err,
-              "file.path": tmpFile,
+              "file.path": file,
             });
             metrics.recordBoardOperationDuration(
               "save",
@@ -1049,19 +1006,35 @@ class BoardData {
         const startedAt = Date.now();
         /** @type {string | undefined} */
         let data;
+        /** @type {string} */
+        let sourceFile = boardData.file;
         try {
-          data = await readFile(boardData.file, "utf8");
-          const storedBoard = parseStoredBoard(JSON.parse(data));
-          boardData.board = storedBoard.board;
+          const storedBoard = await readBoardState(name);
+          sourceFile =
+            storedBoard.source === "json"
+              ? boardJsonPath(name)
+              : boardData.file;
+          data =
+            storedBoard.source === "svg"
+              ? await readFile(boardData.file, "utf8")
+              : storedBoard.source === "json"
+                ? await readFile(sourceFile, "utf8")
+                : undefined;
+          boardData.board = /** @type {{[name: string]: BoardElem}} */ (
+            storedBoard.board
+          );
           boardData.metadata = storedBoard.metadata;
           for (const id of Object.keys(boardData.board)) {
             boardData.normalizeStoredElement(id);
           }
+          if (storedBoard.source === "json") {
+            await writeBoardState(name, boardData.board, boardData.metadata, 0);
+          }
           tracing.setActiveSpanAttributes(
             boardTraceAttributes(name, "load", {
               "wbo.board.result": "success",
-              "file.path": boardData.file,
-              "file.size": data.length,
+              "file.path": sourceFile,
+              "file.size": data?.length || 0,
               "wbo.board.items": Object.keys(boardData.board).length,
             }),
           );
@@ -1103,7 +1076,7 @@ class BoardData {
           const backupData = data;
           if (backupData !== undefined) {
             // There was an error loading the board, but some data was still read
-            const backup = backupFileName(boardData.file);
+            const backup = backupFileName(sourceFile);
             logger.warn("board.backup_created", {
               board: boardData.name,
               "file.path": backup,
@@ -1152,12 +1125,8 @@ class BoardData {
         attributes: boardTraceAttributes(name, "metadata_load"),
       },
       function loadBoardMetadata() {
-        const metadata = defaultBoardMetadata();
         try {
-          const data = nativeFs.readFileSync(boardFilePath(name), {
-            encoding: "utf8",
-          });
-          return parseStoredBoard(JSON.parse(data)).metadata;
+          return readBoardMetadataSync(name);
         } catch (err) {
           if (errorCode(err) !== "ENOENT") {
             tracing.recordActiveSpanError(err, {
@@ -1168,7 +1137,7 @@ class BoardData {
               error: err,
             });
           }
-          return metadata;
+          return { readonly: false };
         }
       },
     );
