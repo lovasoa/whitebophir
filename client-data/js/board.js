@@ -951,6 +951,23 @@ function finalizeIncomingBroadcast(msg, processed) {
 async function processIncomingBroadcast(msg) {
   const isSnapshotMessage = BoardMessageReplay.isSnapshotMessage(msg);
   const isPersistentEnvelope = BoardMessageReplay.isPersistentEnvelope(msg);
+  if (isPersistentEnvelope) {
+    const seqDisposition = BoardMessageReplay.classifyPersistentEnvelopeSeq(
+      msg.seq,
+      Tools.authoritativeSeq,
+    );
+    if (seqDisposition === "stale") {
+      return false;
+    }
+    if (seqDisposition !== "next") {
+      console.warn("Persistent replay gap detected", {
+        authoritativeSeq: Tools.authoritativeSeq,
+        incomingSeq: msg.seq,
+      });
+      window.location.reload();
+      return false;
+    }
+  }
   if (
     BoardMessageReplay.shouldBufferLiveMessage(msg, Tools.awaitingBoardSnapshot)
   ) {

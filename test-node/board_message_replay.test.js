@@ -130,6 +130,16 @@ test("buffered seq envelopes already covered by replay end are dropped", () => {
   );
 });
 
+test("persistent seq envelopes classify stale next and gap cases", () => {
+  assert.equal(
+    BoardMessageReplay.classifyPersistentEnvelopeSeq(0, 4),
+    "invalid",
+  );
+  assert.equal(BoardMessageReplay.classifyPersistentEnvelopeSeq(4, 4), "stale");
+  assert.equal(BoardMessageReplay.classifyPersistentEnvelopeSeq(5, 4), "next");
+  assert.equal(BoardMessageReplay.classifyPersistentEnvelopeSeq(7, 4), "gap");
+});
+
 test("sync replay control messages are identified by type", () => {
   assert.equal(
     BoardMessageReplay.isSyncReplayControlMessage({

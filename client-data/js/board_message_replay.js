@@ -30,6 +30,20 @@ export function normalizeSeq(value) {
 }
 
 /**
+ * @param {unknown} messageSeq
+ * @param {unknown} authoritativeSeq
+ * @returns {"invalid" | "stale" | "next" | "gap"}
+ */
+export function classifyPersistentEnvelopeSeq(messageSeq, authoritativeSeq) {
+  const normalizedMessageSeq = normalizeSeq(messageSeq);
+  const normalizedAuthoritativeSeq = normalizeSeq(authoritativeSeq);
+  if (normalizedMessageSeq === 0) return "invalid";
+  if (normalizedMessageSeq <= normalizedAuthoritativeSeq) return "stale";
+  if (normalizedMessageSeq === normalizedAuthoritativeSeq + 1) return "next";
+  return "gap";
+}
+
+/**
  * @param {{tool?: unknown, _children?: unknown}} message
  * @returns {boolean}
  */
@@ -157,6 +171,7 @@ export function filterBufferedMessagesAfterSeqReplay(messages, replayedToSeq) {
 }
 
 const boardMessageReplay = {
+  classifyPersistentEnvelopeSeq,
   TOOL_OWNED_BATCH_TOOLS,
   filterBufferedMessagesAfterSeqReplay,
   filterBufferedMessagesAfterSnapshot,
