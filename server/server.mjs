@@ -129,6 +129,16 @@ const indexTemplate = new templating.Template(
   path.join(config.WEBROOT, "index.html"),
 );
 const SLOW_REQUEST_LOG_MS = 1000;
+const STATIC_RESOURCE_EXTENSIONS = [
+  ".js",
+  ".css",
+  ".svg",
+  ".ico",
+  ".png",
+  ".jpg",
+  ".gif",
+];
+const BOARD_SCOPED_ROUTES = new Set(["boards", "preview", "download"]);
 
 /**
  * @param {ServerAddress} address
@@ -359,9 +369,7 @@ function requestRouteTemplate(route) {
 function shouldTraceRequest(requestUrl) {
   const parsedUrl = parseRequestUrl(requestUrl);
   const fileExt = path.extname(parsedUrl.pathname);
-  return ![".js", ".css", ".svg", ".ico", ".png", ".jpg", ".gif"].includes(
-    fileExt,
-  );
+  return !STATIC_RESOURCE_EXTENSIONS.includes(fileExt);
 }
 
 /**
@@ -378,6 +386,82 @@ function requestTraceAttributes(fields) {
     attributes["wbo.preview.render_duration_ms"] = fields.render_duration_ms;
   }
   return attributes;
+}
+
+/**
+ * @param {{
+ *   request: HttpRequest,
+ *   response: HttpResponse,
+ *   requestId: string,
+ *   method: string,
+ *   scheme: string,
+ *   serverAddress: string,
+ *   route: string,
+ *   startedAt: number,
+ *   requestError: unknown,
+ *   requestSpan: import("@opentelemetry/api").Span | null,
+ *   logFields: {[key: string]: unknown},
+ * }} state
+ * @returns {void}
+ */
+function finalizeObservedRequest(state) {
+  const statusCode = state.response.statusCode || 200;
+  const durationMs = Date.now() - state.startedAt;
+  const durationSeconds = durationMs / 1000;
+  const routeTemplate = requestRouteTemplate(state.route);
+  const errorType =
+    state.requestError instanceof Error
+      ? state.requestError.name || "Error"
+      : statusCode >= 500
+        ? String(statusCode)
+        : undefined;
+
+  metrics.changeHttpActiveRequests({
+    change: -1,
+    method: state.method,
+    scheme: state.scheme,
+    serverAddress: state.serverAddress,
+  });
+  if (state.requestSpan) {
+    tracing.setSpanAttributes(state.requestSpan, {
+      [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
+    });
+    if (statusCode >= 500 && !state.requestError) {
+      state.requestSpan.setStatus({
+        code: tracing.SpanStatusCode.ERROR,
+      });
+    }
+  }
+
+  metrics.recordHttpRequest({
+    method: state.method,
+    route: routeTemplate,
+    scheme: state.scheme,
+    statusCode: statusCode,
+    durationSeconds: durationSeconds,
+    errorType: errorType,
+  });
+  const logTarget = classifyRequestLog(state.route, statusCode, durationMs);
+  if (logTarget) {
+    /** @type {{[key: string]: unknown}} */
+    const fields = {
+      request_id: state.requestId,
+      [ATTR_HTTP_REQUEST_METHOD]: state.method,
+      [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
+      duration_ms: durationMs,
+      [ATTR_URL_PATH]: requestPath(state.request),
+      ...(routeTemplate ? { [ATTR_HTTP_ROUTE]: routeTemplate } : {}),
+      ...state.logFields,
+    };
+    if (statusCode >= 400) {
+      fields[ATTR_CLIENT_ADDRESS] = state.request.socket.remoteAddress;
+    }
+    if (state.requestError) fields.error = state.requestError;
+    logger[logTarget.level](logTarget.event, fields);
+  }
+  if (state.requestSpan) {
+    state.requestSpan.end();
+  }
 }
 
 /**
@@ -438,65 +522,19 @@ function observeRequest(request, response) {
       requestSpan,
       parentContext,
       function finalizeRequestContext() {
-        const statusCode = response.statusCode || 200;
-        const durationMs = Date.now() - startedAt;
-        const durationSeconds = durationMs / 1000;
-        const routeTemplate = requestRouteTemplate(route);
-        const errorType =
-          requestError instanceof Error
-            ? requestError.name || "Error"
-            : statusCode >= 500
-              ? String(statusCode)
-              : undefined;
-        metrics.changeHttpActiveRequests({
-          change: -1,
-          method: method,
-          scheme: scheme,
-          serverAddress: serverAddress,
+        finalizeObservedRequest({
+          request,
+          response,
+          requestId,
+          method,
+          scheme,
+          serverAddress,
+          route,
+          startedAt,
+          requestError,
+          requestSpan,
+          logFields,
         });
-        if (requestSpan) {
-          tracing.setSpanAttributes(requestSpan, {
-            [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
-          });
-          if (statusCode >= 500 && !requestError) {
-            requestSpan.setStatus({
-              code: tracing.SpanStatusCode.ERROR,
-            });
-          }
-        }
-
-        metrics.recordHttpRequest({
-          method: method,
-          route: routeTemplate,
-          scheme: scheme,
-          statusCode: statusCode,
-          durationSeconds: durationSeconds,
-          errorType: errorType,
-        });
-        const logTarget = classifyRequestLog(route, statusCode, durationMs);
-        if (!logTarget) {
-          if (requestSpan) requestSpan.end();
-          return;
-        }
-
-        /** @type {{[key: string]: unknown}} */
-        const fields = {
-          request_id: requestId,
-          [ATTR_HTTP_REQUEST_METHOD]: method,
-          [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
-          duration_ms: durationMs,
-          [ATTR_URL_PATH]: requestPath(request),
-          ...(routeTemplate ? { [ATTR_HTTP_ROUTE]: routeTemplate } : {}),
-          ...logFields,
-        };
-        if (statusCode >= 400) {
-          fields[ATTR_CLIENT_ADDRESS] = request.socket.remoteAddress;
-        }
-        if (requestError) fields.error = requestError;
-        logger[logTarget.level](logTarget.event, fields);
-        if (requestSpan) {
-          requestSpan.end();
-        }
       },
     );
   }
@@ -541,6 +579,7 @@ function observeRequest(request, response) {
  * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @param {{
+ *   setRoute: (route: string) => void,
  *   noteError: (error: unknown) => void,
  *   annotate: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
@@ -659,6 +698,416 @@ function isNotFoundError(error) {
 }
 
 /**
+ * @param {string[]} parts
+ * @returns {string[]}
+ */
+function normalizePathParts(parts) {
+  if (parts[0] === "") parts.shift();
+  return parts;
+}
+
+/**
+ * @param {URL} parsedUrl
+ * @param {string[]} parts
+ * @returns {boolean}
+ */
+function shouldCheckUserPermissions(parsedUrl, parts) {
+  const fileExt = path.extname(parsedUrl.pathname);
+  return (
+    !STATIC_RESOURCE_EXTENSIONS.includes(fileExt) &&
+    !BOARD_SCOPED_ROUTES.has(parts[0] || "")
+  );
+}
+
+/**
+ * @param {{
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @param {string} boardName
+ * @returns {void}
+ */
+function annotateBoardRequest(requestContext, boardName) {
+  requestContext.annotate({ board: boardName });
+  requestContext.setTraceAttributes({ board: boardName });
+}
+
+/**
+ * @param {URL} parsedUrl
+ * @returns {string}
+ */
+function requireBoardQueryName(parsedUrl) {
+  const boardName = validateBoardQuery(
+    parsedUrl.searchParams.get("board") || "anonymous",
+  );
+  if (boardName === null) {
+    throw badRequest("invalid_board_name");
+  }
+  return boardName;
+}
+
+/**
+ * @param {string[]} parts
+ * @param {number} [index]
+ * @returns {string}
+ */
+function requireBoardPathName(parts, index = 1) {
+  const boardName = validateBoardPath(getPathPart(parts, index));
+  if (boardName === null) {
+    throw badRequest("invalid_board_name");
+  }
+  return boardName;
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} [backupSuffix]
+ * @returns {string}
+ */
+function buildBoardHistoryFile(boardName, backupSuffix) {
+  let historyFile = path.join(
+    config.HISTORY_DIR,
+    `board-${encodeURIComponent(boardName)}.json`,
+  );
+  if (backupSuffix && /^[0-9A-Za-z.-]+$/.test(backupSuffix)) {
+    historyFile += `.${backupSuffix}.bak`;
+  }
+  return historyFile;
+}
+
+/**
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {{
+ *   setRoute: (route: string) => void,
+ *   noteError: (error: unknown) => void,
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @param {string=} nextUrl
+ * @returns {void}
+ */
+function serveStaticFile(request, response, requestContext, nextUrl) {
+  requestContext.setRoute("static_file");
+  if (nextUrl !== undefined) {
+    request.url = nextUrl;
+  }
+  fileserver(request, response, serveError(request, response, requestContext));
+}
+
+/**
+ * @param {HttpResponse} response
+ * @param {URL} parsedUrl
+ * @param {{
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @returns {void}
+ */
+function handleBoardRedirectRoute(response, parsedUrl, requestContext) {
+  const boardName = requireBoardQueryName(parsedUrl);
+  annotateBoardRequest(requestContext, boardName);
+  jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+  response.writeHead(301, {
+    Location: `boards/${encodeURIComponent(boardName)}`,
+  });
+  response.end();
+}
+
+/**
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {URL} parsedUrl
+ * @param {string[]} parts
+ * @param {{
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @returns {void}
+ */
+function handleBoardDocumentRoute(
+  request,
+  response,
+  parsedUrl,
+  parts,
+  requestContext,
+) {
+  const boardName = requireBoardPathName(parts);
+  annotateBoardRequest(requestContext, boardName);
+  jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+  const token = parsedUrl.searchParams.get("token");
+  const boardRole = jwtBoardName.roleInBoard(token || "", boardName);
+  const boardMetadata = BoardData.loadMetadataSync(boardName);
+  const canWrite =
+    !boardMetadata.readonly ||
+    (config.AUTH_SECRET_KEY && ["editor", "moderator"].includes(boardRole));
+  ensureBoardUserSecretCookie(request, response, parsedUrl);
+  boardTemplate.serve(request, response, boardRole === "moderator", {
+    boardState: {
+      readonly: boardMetadata.readonly,
+      canWrite,
+    },
+  });
+}
+
+/**
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {URL} parsedUrl
+ * @param {string[]} parts
+ * @param {{
+ *   setRoute: (route: string) => void,
+ *   noteError: (error: unknown) => void,
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @returns {void}
+ */
+function handleBoardsRoute(
+  request,
+  response,
+  parsedUrl,
+  parts,
+  requestContext,
+) {
+  requestContext.setRoute(
+    parts.length === 1 ? "boards_redirect" : "board_page",
+  );
+  if (parts.length === 1) {
+    handleBoardRedirectRoute(response, parsedUrl, requestContext);
+    return;
+  }
+  if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
+    handleBoardDocumentRoute(
+      request,
+      response,
+      parsedUrl,
+      parts,
+      requestContext,
+    );
+    return;
+  }
+  serveStaticFile(
+    request,
+    response,
+    requestContext,
+    `/${parts.slice(1).join("/")}`,
+  );
+}
+
+/**
+ * @param {HttpResponse} response
+ * @param {string} boardName
+ * @param {string} historyFile
+ * @returns {Promise<void>}
+ */
+async function respondWithBoardDownload(response, boardName, historyFile) {
+  const data = await tracing.withActiveSpan(
+    "board.download_read",
+    {
+      attributes: {
+        "wbo.board": boardName,
+        "wbo.board.operation": "download_read",
+      },
+    },
+    function readBoardDownload() {
+      return fs.promises.readFile(historyFile);
+    },
+  );
+  response.writeHead(200, {
+    "Content-Type": "application/json",
+    "Content-Disposition": `attachment; filename="${boardName}.wbo"`,
+    "Content-Length": data.length,
+  });
+  response.end(data);
+}
+
+/**
+ * @param {URL} parsedUrl
+ * @param {string[]} parts
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {{
+ *   setRoute: (route: string) => void,
+ *   noteError: (error: unknown) => void,
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @returns {void}
+ */
+function handleDownloadRoute(
+  parsedUrl,
+  parts,
+  request,
+  response,
+  requestContext,
+) {
+  requestContext.setRoute("download_board");
+  const boardName = requireBoardPathName(parts);
+  annotateBoardRequest(requestContext, boardName);
+  jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+  const historyFile = buildBoardHistoryFile(boardName, getPathPart(parts, 2));
+  void respondWithBoardDownload(response, boardName, historyFile).catch(
+    serveError(request, response, requestContext),
+  );
+}
+
+/**
+ * @param {{
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @param {number} startedAt
+ * @returns {number}
+ */
+function recordPreviewDuration(requestContext, startedAt) {
+  const renderDurationMs = Date.now() - startedAt;
+  requestContext.annotate({
+    render_duration_ms: renderDurationMs,
+  });
+  requestContext.setTraceAttributes({
+    render_duration_ms: renderDurationMs,
+  });
+  return renderDurationMs;
+}
+
+/**
+ * @param {string} historyFile
+ * @param {string} boardName
+ * @returns {Promise<string | null>}
+ */
+async function renderPreviewSvg(historyFile, boardName) {
+  return tracing.withActiveSpan(
+    "preview.render",
+    {
+      attributes: {
+        "wbo.board": boardName,
+        "wbo.board.operation": "preview_render",
+      },
+    },
+    async function renderPreview() {
+      try {
+        return await createSVG.renderBoardToSVG(historyFile);
+      } catch (err) {
+        if (isNotFoundError(err)) {
+          tracing.setActiveSpanAttributes({
+            "wbo.board": boardName,
+            "wbo.board.operation": "preview_render",
+            "wbo.board.result": "not_found",
+          });
+          return null;
+        }
+        throw err;
+      }
+    },
+  );
+}
+
+/**
+ * @param {HttpResponse} response
+ * @param {string} historyFile
+ * @param {string} boardName
+ * @param {{
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @param {number} startedAt
+ * @returns {Promise<void>}
+ */
+async function respondWithBoardPreview(
+  response,
+  historyFile,
+  boardName,
+  requestContext,
+  startedAt,
+) {
+  const svg = await renderPreviewSvg(historyFile, boardName);
+  recordPreviewDuration(requestContext, startedAt);
+  if (svg === null) {
+    response.writeHead(404, {
+      "Content-Length": errorPage.length,
+    });
+    response.end(errorPage);
+    return;
+  }
+  response.writeHead(200, {
+    "Content-Type": "image/svg+xml",
+    "Content-Security-Policy": CSP,
+    "Cache-Control": cacheControl("public, max-age=30"),
+  });
+  response.end(svg);
+}
+
+/**
+ * @param {URL} parsedUrl
+ * @param {string[]} parts
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {{
+ *   setRoute: (route: string) => void,
+ *   noteError: (error: unknown) => void,
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @returns {void}
+ */
+function handlePreviewRoute(
+  parsedUrl,
+  parts,
+  request,
+  response,
+  requestContext,
+) {
+  requestContext.setRoute("preview_board");
+  const boardName = requireBoardPathName(parts);
+  annotateBoardRequest(requestContext, boardName);
+  jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+  const historyFile = buildBoardHistoryFile(boardName);
+  const startedAt = Date.now();
+  void respondWithBoardPreview(
+    response,
+    historyFile,
+    boardName,
+    requestContext,
+    startedAt,
+  ).catch((err) => {
+    recordPreviewDuration(requestContext, startedAt);
+    requestContext.noteError(err);
+    serveError(request, response, requestContext)(err);
+  });
+}
+
+/**
+ * @param {HttpResponse} response
+ * @returns {void}
+ */
+function handleRandomRoute(response) {
+  const name = crypto.randomBytes(24).toString("base64url");
+  response.writeHead(307, { Location: `boards/${name}` });
+  response.end(name);
+}
+
+/**
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {{
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @returns {void}
+ */
+function handleIndexRoute(request, response, requestContext) {
+  if (config.DEFAULT_BOARD) {
+    annotateBoardRequest(requestContext, config.DEFAULT_BOARD);
+    response.writeHead(302, {
+      Location: `boards/${encodeURIComponent(config.DEFAULT_BOARD)}`,
+    });
+    response.end(config.DEFAULT_BOARD);
+    return;
+  }
+  indexTemplate.serve(request, response);
+}
+
+/**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @param {{
@@ -676,228 +1125,38 @@ function handleRequest(request, response, requestContext) {
     throw badRequest(parsedUrlResult.reason);
   }
   const parsedUrl = parsedUrlResult.value;
-  const parts = parsedUrl.pathname.split("/");
+  const parts = normalizePathParts(parsedUrl.pathname.split("/"));
 
-  if (parts[0] === "") parts.shift();
-
-  const fileExt = path.extname(parsedUrl.pathname);
-  const staticResources = [
-    ".js",
-    ".css",
-    ".svg",
-    ".ico",
-    ".png",
-    ".jpg",
-    ".gif",
-  ];
-  const boardScopedRoutes = new Set(["boards", "preview", "download"]);
-  if (
-    !staticResources.includes(fileExt) &&
-    !boardScopedRoutes.has(parts[0] || "")
-  ) {
+  if (shouldCheckUserPermissions(parsedUrl, parts)) {
     jwtauth.checkUserPermission(parsedUrl);
   }
 
   switch (parts[0]) {
-    case "boards": {
-      requestContext.setRoute(
-        parts.length === 1 ? "boards_redirect" : "board_page",
-      );
-      if (parts.length === 1) {
-        const boardName = validateBoardQuery(
-          parsedUrl.searchParams.get("board") || "anonymous",
-        );
-        if (boardName === null) {
-          throw badRequest("invalid_board_name");
-        }
-        requestContext.annotate({ board: boardName });
-        requestContext.setTraceAttributes({ board: boardName });
-        jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-        const headers = { Location: `boards/${encodeURIComponent(boardName)}` };
-        response.writeHead(301, headers);
-        response.end();
-      } else if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
-        const boardName = validateBoardPath(getPathPart(parts, 1));
-        if (boardName === null) {
-          throw badRequest("invalid_board_name");
-        }
-        requestContext.annotate({ board: boardName });
-        requestContext.setTraceAttributes({ board: boardName });
-        jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-        const token = parsedUrl.searchParams.get("token");
-        const boardRole = jwtBoardName.roleInBoard(token || "", boardName);
-        const boardMetadata = BoardData.loadMetadataSync(boardName);
-        const canWrite =
-          !boardMetadata.readonly ||
-          (config.AUTH_SECRET_KEY &&
-            ["editor", "moderator"].includes(boardRole));
-        ensureBoardUserSecretCookie(request, response, parsedUrl);
-        boardTemplate.serve(request, response, boardRole === "moderator", {
-          boardState: {
-            readonly: boardMetadata.readonly,
-            canWrite,
-          },
-        });
-      } else {
-        requestContext.setRoute("static_file");
-        request.url = `/${parts.slice(1).join("/")}`;
-        fileserver(
-          request,
-          response,
-          serveError(request, response, requestContext),
-        );
-      }
+    case "boards":
+      handleBoardsRoute(request, response, parsedUrl, parts, requestContext);
       break;
-    }
 
-    case "download": {
-      requestContext.setRoute("download_board");
-      const boardName = validateBoardPath(getPathPart(parts, 1));
-      if (boardName === null) {
-        throw badRequest("invalid_board_name");
-      }
-      requestContext.annotate({ board: boardName });
-      requestContext.setTraceAttributes({ board: boardName });
-      let historyFile = path.join(
-        config.HISTORY_DIR,
-        `board-${encodeURIComponent(boardName)}.json`,
-      );
-      jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
-      const backupSuffix = getPathPart(parts, 2);
-      if (backupSuffix && /^[0-9A-Za-z.-]+$/.test(backupSuffix)) {
-        historyFile += `.${backupSuffix}.bak`;
-      }
-      async function handleDownloadBoard() {
-        const data = await tracing.withActiveSpan(
-          "board.download_read",
-          {
-            attributes: {
-              "wbo.board": boardName,
-              "wbo.board.operation": "download_read",
-            },
-          },
-          function readBoardDownload() {
-            return fs.promises.readFile(historyFile);
-          },
-        );
-        response.writeHead(200, {
-          "Content-Type": "application/json",
-          "Content-Disposition": `attachment; filename="${boardName}.wbo"`,
-          "Content-Length": data.length,
-        });
-        response.end(data);
-      }
-      void handleDownloadBoard().catch(
-        serveError(request, response, requestContext),
-      );
+    case "download":
+      handleDownloadRoute(parsedUrl, parts, request, response, requestContext);
       break;
-    }
 
     case "export":
-    case "preview": {
-      requestContext.setRoute("preview_board");
-      const exportBoardName = validateBoardPath(getPathPart(parts, 1));
-      if (exportBoardName === null) {
-        throw badRequest("invalid_board_name");
-      }
-      requestContext.annotate({ board: exportBoardName });
-      requestContext.setTraceAttributes({ board: exportBoardName });
-      const historyFile = path.join(
-        config.HISTORY_DIR,
-        `board-${encodeURIComponent(exportBoardName)}.json`,
-      );
-      jwtBoardName.checkBoardnameInToken(parsedUrl, exportBoardName);
-      const startedAt = Date.now();
-      async function handlePreviewBoard() {
-        const svg = await tracing.withActiveSpan(
-          "preview.render",
-          {
-            attributes: {
-              "wbo.board": exportBoardName,
-              "wbo.board.operation": "preview_render",
-            },
-          },
-          async function renderPreview() {
-            try {
-              return await createSVG.renderBoardToSVG(historyFile);
-            } catch (err) {
-              if (isNotFoundError(err)) {
-                tracing.setActiveSpanAttributes({
-                  "wbo.board": exportBoardName,
-                  "wbo.board.operation": "preview_render",
-                  "wbo.board.result": "not_found",
-                });
-                return null;
-              }
-              throw err;
-            }
-          },
-        );
-        const renderDurationMs = Date.now() - startedAt;
-        requestContext.annotate({
-          render_duration_ms: renderDurationMs,
-        });
-        requestContext.setTraceAttributes({
-          render_duration_ms: renderDurationMs,
-        });
-        if (svg === null) {
-          response.writeHead(404, {
-            "Content-Length": errorPage.length,
-          });
-          response.end(errorPage);
-          return;
-        }
-        response.writeHead(200, {
-          "Content-Type": "image/svg+xml",
-          "Content-Security-Policy": CSP,
-          "Cache-Control": cacheControl("public, max-age=30"),
-        });
-        response.end(svg);
-      }
-      void handlePreviewBoard().catch((err) => {
-        const renderDurationMs = Date.now() - startedAt;
-        requestContext.noteError(err);
-        requestContext.annotate({
-          render_duration_ms: renderDurationMs,
-        });
-        requestContext.setTraceAttributes({
-          render_duration_ms: renderDurationMs,
-        });
-        serveError(request, response, requestContext)(err);
-      });
+    case "preview":
+      handlePreviewRoute(parsedUrl, parts, request, response, requestContext);
       break;
-    }
 
-    case "random": {
+    case "random":
       requestContext.setRoute("random_board");
-      const name = crypto.randomBytes(24).toString("base64url");
-      response.writeHead(307, { Location: `boards/${name}` });
-      response.end(name);
+      handleRandomRoute(response);
       break;
-    }
 
-    case "": {
+    case "":
       requestContext.setRoute("index");
-      if (config.DEFAULT_BOARD) {
-        requestContext.annotate({ board: config.DEFAULT_BOARD });
-        requestContext.setTraceAttributes({ board: config.DEFAULT_BOARD });
-        response.writeHead(302, {
-          Location: `boards/${encodeURIComponent(config.DEFAULT_BOARD)}`,
-        });
-        response.end(config.DEFAULT_BOARD);
-      } else {
-        indexTemplate.serve(request, response);
-      }
+      handleIndexRoute(request, response, requestContext);
       break;
-    }
 
     default:
-      requestContext.setRoute("static_file");
-      fileserver(
-        request,
-        response,
-        serveError(request, response, requestContext),
-      );
+      serveStaticFile(request, response, requestContext);
   }
 }
 
