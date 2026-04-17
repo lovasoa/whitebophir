@@ -508,6 +508,102 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
   );
 });
 
+test("seq-sync replay stays correct when persistence finishes between baseline fetch and replay start", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-seq-persist-race-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async () => {
+      const sockets = await loadSockets();
+      sockets.__test.resetRateLimitMaps();
+
+      const writer = createSocket({
+        id: "socket-seq-race-writer",
+        remoteAddress: "203.0.113.92",
+        headers: withUserSecretCookie("99999999999999999999999999999992"),
+        query: {
+          board: "board-seq-race",
+          sync: "seq",
+          tool: "Rectangle",
+          color: "#444444",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(writer.socket);
+      const broadcast = getRequiredHandler(writer.handlers, "broadcast");
+      await broadcast({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-1",
+        x: 0,
+        y: 0,
+        x2: 10,
+        y2: 10,
+        color: "#444444",
+        size: 4,
+      });
+      await broadcast({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-2",
+        x: 20,
+        y: 20,
+        x2: 30,
+        y2: 30,
+        color: "#555555",
+        size: 4,
+      });
+
+      const loadedBoard = await sockets.__test.getLoadedBoard("board-seq-race");
+      await loadedBoard.save();
+
+      const reconnect = createSocket({
+        id: "socket-seq-race-reconnect",
+        remoteAddress: "203.0.113.93",
+        headers: withUserSecretCookie("99999999999999999999999999999993"),
+        query: {
+          board: "board-seq-race",
+          sync: "seq",
+          tool: "Hand",
+          color: "#555555",
+          size: "4",
+        },
+      });
+      await sockets.__test.handleSocketConnection(reconnect.socket);
+      await getRequiredHandler(
+        reconnect.handlers,
+        "sync_request",
+      )({
+        baselineSeq: 1,
+      });
+
+      const replayedEvents = reconnect.emitted.filter((event) =>
+        [
+          "boardstate",
+          "sync_replay_start",
+          "broadcast",
+          "sync_replay_end",
+        ].includes(event.event),
+      );
+      assert.deepEqual(
+        replayedEvents.map((event) => event.event),
+        ["boardstate", "sync_replay_start", "broadcast", "sync_replay_end"],
+      );
+      assert.deepEqual(getRequiredValue(replayedEvents[1]).payload, {
+        type: "sync_replay_start",
+        fromExclusiveSeq: 1,
+        toInclusiveSeq: 2,
+      });
+      assert.equal(getRequiredValue(replayedEvents[2]).payload.seq, 2);
+      assert.equal(
+        getRequiredValue(replayedEvents[2]).payload.mutation.id,
+        "rect-2",
+      );
+    },
+  );
+});
+
 test("seq-sync replay gaps force resync_required when the requested baseline is no longer replayable", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-seq-gap-resync-"),
