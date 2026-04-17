@@ -623,6 +623,73 @@ test("BoardData.save keeps writing to the board's original history dir after env
   assert.match(svg, /data-wbo-seq="1"/);
 });
 
+test("BoardData.save rewrites existing stored svg from queued mutations", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-save-rewrite-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    const svgPath = path.join(historyDir, "board-rewrite-save.svg");
+    const existingSvg =
+      '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+      '<defs id="defs"><style>.keep-me{}</style><marker id="m1"></marker></defs>' +
+      '<g id="drawingArea">' +
+      '<g id="rect-1" data-wbo-tool="Rectangle" data-wbo-item="%7B%22id%22%3A%22rect-1%22%2C%22tool%22%3A%22Rectangle%22%2C%22type%22%3A%22rect%22%2C%22x%22%3A1%2C%22y%22%3A2%2C%22x2%22%3A3%2C%22y2%22%3A4%2C%22color%22%3A%22%23123456%22%2C%22size%22%3A4%7D"></g>' +
+      '<g id="text-1" data-wbo-tool="Text" data-wbo-item="%7B%22id%22%3A%22text-1%22%2C%22tool%22%3A%22Text%22%2C%22type%22%3A%22new%22%2C%22x%22%3A5%2C%22y%22%3A6%2C%22txt%22%3A%22hello%22%2C%22size%22%3A18%2C%22color%22%3A%22%23654321%22%7D"></g>' +
+      "</g>" +
+      '<g id="cursors"><path id="cursor-template"></path></g>' +
+      "</svg>";
+    await fs.writeFile(svgPath, existingSvg, "utf8");
+
+    const board = await BoardData.load("rewrite-save");
+    const updateRect = {
+      tool: "Rectangle",
+      type: "update",
+      id: "rect-1",
+      x2: 30,
+      y2: 40,
+    };
+    const copyRect = {
+      tool: "Hand",
+      type: "copy",
+      id: "rect-1",
+      newid: "rect-2",
+    };
+    const deleteText = {
+      tool: "Eraser",
+      type: "delete",
+      id: "text-1",
+    };
+
+    assert.equal(board.processMessage(updateRect).ok, true);
+    board.recordPersistentMutation(updateRect, 2);
+    assert.equal(board.processMessage(copyRect).ok, true);
+    board.recordPersistentMutation(copyRect, 3);
+    assert.equal(board.processMessage(deleteText).ok, true);
+    board.recordPersistentMutation(deleteText, 4);
+
+    await board.save();
+
+    const rewritten = await fs.readFile(svgPath, "utf8");
+    assert.match(
+      rewritten,
+      /<style>\.keep-me\{\}<\/style><marker id="m1"><\/marker><\/defs>/,
+    );
+    assert.match(
+      rewritten,
+      /<g id="cursors"><path id="cursor-template"><\/path><\/g>/,
+    );
+    assert.match(rewritten, /data-wbo-seq="4"/);
+    const rect1Index = rewritten.indexOf('id="rect-1"');
+    const rect2Index = rewritten.indexOf('id="rect-2"');
+    assert.ok(rect1Index !== -1);
+    assert.ok(rect2Index !== -1);
+    assert.ok(rect1Index < rect2Index);
+    assert.equal(rewritten.includes('id="text-1"'), false);
+  });
+});
+
 test("BoardData.save serializes concurrent saves and releases after failure", async () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = new BoardData("serial-save-board");

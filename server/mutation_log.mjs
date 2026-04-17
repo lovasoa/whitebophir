@@ -21,6 +21,7 @@ function normalizeSeq(value) {
  * @param {number} initialSeq
  * @returns {{
  *   latestSeq: () => number,
+ *   persistedSeq: () => number,
  *   minReplayableSeq: () => number,
  *   append: (envelope: Omit<MutationEnvelope, "seq">) => MutationEnvelope,
  *   readRange: (fromExclusiveSeq: number, toInclusiveSeq: number) => MutationEnvelope[],
@@ -37,6 +38,9 @@ function createMutationLog(initialSeq = 0) {
   return {
     latestSeq() {
       return latestSeq;
+    },
+    persistedSeq() {
+      return persistedSeq;
     },
     minReplayableSeq() {
       const firstEntry = entries[0];

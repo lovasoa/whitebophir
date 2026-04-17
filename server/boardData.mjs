@@ -43,6 +43,7 @@ import {
   boardSvgPath,
   readBoardMetadataSync,
   readBoardState,
+  rewriteStoredSvg,
   writeBoardState,
 } from "./svg_board_store.mjs";
 
@@ -168,6 +169,13 @@ class BoardData {
    */
   getSeq() {
     return this.mutationLog.latestSeq();
+  }
+
+  /**
+   * @returns {number}
+   */
+  getPersistedSeq() {
+    return this.mutationLog.persistedSeq();
   }
 
   /**
@@ -976,14 +984,44 @@ class BoardData {
           }
         } else {
           try {
-            await writeBoardState(
-              this.name,
-              this.board,
-              this.metadata,
-              this.getSeq(),
-              { historyDir: this.historyDir },
+            const persistedSeq = this.getPersistedSeq();
+            const latestSeq = this.getSeq();
+            const pendingMutations = this.readMutationRange(
+              persistedSeq,
+              latestSeq,
             );
-            this.markPersistedSeq(this.getSeq());
+            if (pendingMutations.length > 0) {
+              try {
+                await rewriteStoredSvg(
+                  this.name,
+                  persistedSeq,
+                  latestSeq,
+                  pendingMutations,
+                  this.metadata,
+                  { historyDir: this.historyDir },
+                );
+              } catch (error) {
+                if (errorCode(error) !== "ENOENT") {
+                  throw error;
+                }
+                await writeBoardState(
+                  this.name,
+                  this.board,
+                  this.metadata,
+                  latestSeq,
+                  { historyDir: this.historyDir },
+                );
+              }
+            } else {
+              await writeBoardState(
+                this.name,
+                this.board,
+                this.metadata,
+                latestSeq,
+                { historyDir: this.historyDir },
+              );
+            }
+            this.markPersistedSeq(latestSeq);
             const savedFile = await stat(file);
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(this.name, "save", {

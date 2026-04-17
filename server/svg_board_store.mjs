@@ -11,6 +11,7 @@ import {
   readLegacyBoardMetadataSync,
   readLegacyBoardState,
 } from "./legacy_json_board_source.mjs";
+import { rewriteStoredSvg as rewriteStoredSvgText } from "./stored_svg_rewrite.mjs";
 import {
   STORED_SVG_FORMAT,
   createDefaultStoredSvgEnvelope,
@@ -542,6 +543,38 @@ async function parseBoardItems(boardName, ids, options) {
 
 /**
  * @param {string} boardName
+ * @param {number} fromSeqExclusive
+ * @param {number} toSeqInclusive
+ * @param {Array<{mutation: any}>} mutations
+ * @param {{readonly: boolean}} metadata
+ * @param {{historyDir?: string}=} [options]
+ * @returns {Promise<void>}
+ */
+async function rewriteStoredSvg(
+  boardName,
+  fromSeqExclusive,
+  toSeqInclusive,
+  mutations,
+  metadata,
+  options,
+) {
+  void fromSeqExclusive;
+  const historyDir = options?.historyDir;
+  const file = boardSvgPath(boardName, historyDir);
+  const tmpFile = `${file}.${Date.now()}.tmp`;
+  const existingSvg = await readFile(file, "utf8");
+  const rewritten = rewriteStoredSvgText(
+    existingSvg,
+    metadata,
+    toSeqInclusive,
+    mutations,
+  );
+  await writeFile(tmpFile, rewritten, { flag: "wx" });
+  await rename(tmpFile, file);
+}
+
+/**
+ * @param {string} boardName
  * @param {{historyDir?: string}=} [options]
  * @returns {Promise<{readonly: boolean}>}
  */
@@ -616,6 +649,7 @@ export {
   boardSvgPath,
   defaultBoardMetadata,
   parseLegacyStoredBoard,
+  rewriteStoredSvg,
   parseStoredSvg,
   parseBoardItems,
   readBoardDownload,

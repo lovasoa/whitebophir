@@ -45,3 +45,16 @@ test("mutation logs read contiguous ranges and trim old replay entries", () => {
     [4, 5],
   );
 });
+
+test("mutation logs track the latest persisted baseline seq", () => {
+  const log = createMutationLog(2);
+  log.append({
+    board: "demo",
+    acceptedAtMs: 3,
+    mutation: { tool: "Rectangle", type: "rect", id: "rect-1" },
+  });
+
+  assert.equal(log.persistedSeq(), 2);
+  log.markPersisted(3);
+  assert.equal(log.persistedSeq(), 3);
+});
