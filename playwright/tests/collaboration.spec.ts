@@ -899,26 +899,12 @@ test.describe("collaboration and rate limiting", () => {
   bufferedRateLimitTest(
     "client buffers anonymous constructive writes before hitting the server limit",
     async ({ boardPage, context, server, page }) => {
-      const peerPage = await context.newPage();
-      const peerBoard = createBoardPage(peerPage, server);
-
-      await Promise.all([
-        boardPage.gotoBoardShell("anonymous"),
-        peerBoard.gotoBoardShell("anonymous"),
-      ]);
-      await Promise.all([
-        boardPage.waitForSocketConnected(),
-        peerBoard.waitForSocketConnected(),
-      ]);
-      await Promise.all([
-        boardPage.waitForAuthoritativeResync(),
-        peerBoard.waitForAuthoritativeResync(),
-      ]);
+      await boardPage.gotoBoardShell("anonymous");
+      await boardPage.waitForSocketConnected();
+      await boardPage.waitForAuthoritativeResync();
       await Promise.all([
         boardPage.waitForToolBooted("Rectangle"),
-        peerBoard.waitForToolBooted("Rectangle"),
         expect(boardPage.tool("Rectangle")).toBeVisible(),
-        expect(peerBoard.tool("Rectangle")).toBeVisible(),
       ]);
 
       await page.evaluate(() => {
@@ -960,9 +946,29 @@ test.describe("collaboration and rate limiting", () => {
           indicatorClass: expect.stringContaining("board-status-buffering"),
         });
 
-      await expect(peerPage.locator("rect#buffered-rect-2")).not.toBeVisible();
-      await expect(peerPage.locator("rect#buffered-rect-1")).toBeVisible();
-
+      await page.bringToFront();
+      await server.waitForStoredBoard(
+        server.dataPath,
+        "anonymous",
+        (storedBoard) =>
+          storedBoard["buffered-rect-1"] != null &&
+          storedBoard["buffered-rect-2"] == null,
+        5_000,
+      );
+      await server.waitForStoredBoard(
+        server.dataPath,
+        "anonymous",
+        (storedBoard) => storedBoard["buffered-rect-2"] != null,
+        10_000,
+      );
+      await boardPage.waitForSocketConnected();
+      await boardPage.waitForAuthoritativeResync();
+      await expect
+        .poll(() => boardPage.readWriteStatus(), { timeout: 5_000 })
+        .toMatchObject({
+          bufferedWrites: 0,
+          connectionState: "connected",
+        });
       await expect
         .poll(() => boardPage.readWriteStatus(), { timeout: 5_000 })
         .toMatchObject({
@@ -971,8 +977,14 @@ test.describe("collaboration and rate limiting", () => {
           connectionState: "connected",
           noticeText: "",
         });
-      await expect(peerPage.locator("rect#buffered-rect-2")).toBeVisible();
 
+      const peerPage = await context.newPage();
+      const peerBoard = createBoardPage(peerPage, server);
+      await peerBoard.gotoBoardShell("anonymous");
+      await peerBoard.waitForSocketConnected();
+      await peerBoard.waitForAuthoritativeResync();
+      await expect(peerPage.locator("rect#buffered-rect-1")).toBeVisible();
+      await expect(peerPage.locator("rect#buffered-rect-2")).toBeVisible();
       await peerPage.close();
     },
   );

@@ -83,7 +83,7 @@ window.Tools = Tools;
 // Keep a bounded safety margin between the client-side local budget and the
 // server's fixed window to absorb emit/receive skew without a fixed 1s pause.
 const RATE_LIMIT_FLUSH_SAFETY_MIN_MS = 150;
-const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 300;
+const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 750;
 /** @type {RateLimitKind[]} */
 const RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
 
