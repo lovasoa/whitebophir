@@ -52,8 +52,13 @@ function getConfig() {
 /** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {import("../types/server-runtime.d.ts").RateLimitState} BaseRateLimitState */
+/** @typedef {import("../types/server-runtime.d.ts").ReportUserPayload} ReportUserPayload */
 /** @typedef {import("../types/server-runtime.d.ts").SocketRequest} SocketRequest */
 /** @typedef {import("../types/server-runtime.d.ts").TurnstileAck} TurnstileAck */
+/** @typedef {import("../types/server-runtime.d.ts").TurnstileAckCallback} TurnstileAckCallback */
+/** @typedef {import("../types/server-runtime.d.ts").TurnstileEventAck} TurnstileEventAck */
+/** @typedef {import("../types/server-runtime.d.ts").TurnstileRejectedAck} TurnstileRejectedAck */
+/** @typedef {import("../types/server-runtime.d.ts").TurnstileSiteverifyResult} TurnstileSiteverifyResult */
 /** @typedef {import("../types/server-runtime.d.ts").ValidationStatus} ValidationStatus */
 /** @typedef {"general" | "constructive" | "destructive" | "text"} RateLimitKind */
 /** @typedef {"disconnect" | "exceeded" | "expired" | "pruned"} RateLimitWindowOutcome */
@@ -828,7 +833,7 @@ function buildTurnstileAck(socket) {
 
 /**
  * @param {AppSocket} socket
- * @param {any} result
+ * @param {TurnstileSiteverifyResult} result
  * @returns {ValidationStatus}
  */
 function validateTurnstileResult(socket, result) {
@@ -851,8 +856,8 @@ function validateTurnstileResult(socket, result) {
 }
 
 /**
- * @param {((ack: TurnstileAck | boolean | {success: false}) => void) | undefined} ack
- * @param {TurnstileAck | boolean | {success: false}} payload
+ * @param {TurnstileAckCallback | undefined} ack
+ * @param {TurnstileEventAck} payload
  * @returns {void}
  */
 function sendTurnstileAck(ack, payload) {
@@ -864,7 +869,7 @@ function sendTurnstileAck(ack, payload) {
  * @param {string} secret
  * @param {string} token
  * @param {string} clientIp
- * @returns {Promise<any>}
+ * @returns {Promise<TurnstileSiteverifyResult>}
  */
 async function verifyTurnstileToken(verifyUrlString, secret, token, clientIp) {
   const requestBody = new URLSearchParams({
@@ -906,9 +911,9 @@ async function verifyTurnstileToken(verifyUrlString, secret, token, clientIp) {
  * @param {AppSocket} socket
  * @param {string} clientIp
  * @param {string} userName
- * @param {any} result
+ * @param {TurnstileSiteverifyResult} result
  * @param {string} reason
- * @param {((ack: TurnstileAck | boolean | {success: false}) => void) | undefined} ack
+ * @param {TurnstileAckCallback | undefined} ack
  * @returns {void}
  */
 function rejectTurnstileVerification(
@@ -932,13 +937,16 @@ function rejectTurnstileVerification(
     reason,
     hostname: result.hostname,
   });
-  sendTurnstileAck(ack, { success: false });
+  sendTurnstileAck(
+    ack,
+    /** @type {TurnstileRejectedAck} */ ({ success: false }),
+  );
 }
 
 /**
  * @param {AppSocket} socket
  * @param {unknown} err
- * @param {((ack: TurnstileAck | boolean | {success: false}) => void) | undefined} ack
+ * @param {TurnstileAckCallback | undefined} ack
  * @returns {void}
  */
 function failTurnstileVerification(socket, err, ack) {
@@ -950,14 +958,17 @@ function failTurnstileVerification(socket, err, ack) {
     socket: socket.id,
     error: err,
   });
-  sendTurnstileAck(ack, { success: false });
+  sendTurnstileAck(
+    ack,
+    /** @type {TurnstileRejectedAck} */ ({ success: false }),
+  );
 }
 
 /**
  * @param {AppSocket} socket
  * @param {string} boardName
  * @param {string} token
- * @param {((ack: TurnstileAck | boolean | {success: false}) => void) | undefined} ack
+ * @param {TurnstileAckCallback | undefined} ack
  * @returns {Promise<void>}
  */
 async function handleTurnstileTokenMessage(socket, boardName, token, ack) {
@@ -1720,16 +1731,11 @@ async function handleBroadcastWriteMessage(
 }
 
 /**
- * @param {unknown} message
+ * @param {ReportUserPayload | undefined} message
  * @returns {string}
  */
 function getReportedSocketId(message) {
-  return typeof message === "object" &&
-    message !== null &&
-    "socketId" in message &&
-    typeof message.socketId === "string"
-    ? message.socketId
-    : "";
+  return typeof message?.socketId === "string" ? message.socketId : "";
 }
 
 /**
@@ -1801,7 +1807,7 @@ function disconnectReportedSockets(socket, boardName, reported) {
 /**
  * @param {AppSocket} socket
  * @param {string} boardName
- * @param {unknown} message
+ * @param {ReportUserPayload | undefined} message
  * @returns {void}
  */
 function handleReportUserMessage(socket, boardName, message) {
@@ -1968,7 +1974,10 @@ async function handleSocketConnection(socket) {
   onSocketEvent(
     socket,
     "turnstile_token",
-    async function onTurnstileToken(token, ack) {
+    async function onTurnstileToken(
+      /** @type {string} */ token,
+      /** @type {TurnstileAckCallback | undefined} */ ack,
+    ) {
       return tracing.withActiveSpan(
         "socket.turnstile_token",
         {
@@ -1983,53 +1992,63 @@ async function handleSocketConnection(socket) {
   );
 
   const generalRateLimit = createRateLimitState(Date.now());
-  onSocketEvent(socket, "broadcast", async function onBroadcast(data) {
-    const now = Date.now();
-    const normalizedName = boardName;
+  onSocketEvent(
+    socket,
+    "broadcast",
+    async function onBroadcast(/** @type {MessageData | undefined} */ data) {
+      const now = Date.now();
+      const normalizedName = boardName;
 
-    async function handleBroadcastWrite() {
-      return handleBroadcastWriteMessage(
-        socket,
-        normalizedName,
-        data,
-        generalRateLimit,
-        now,
-      );
-    }
-
-    if (!shouldTraceBroadcast(data)) {
-      return handleBroadcastWrite();
-    }
-
-    return tracing.withActiveSpan(
-      "socket.broadcast_write",
-      {
-        kind: tracing.SpanKind.INTERNAL,
-        attributes: boardMutationTraceAttributes(
+      async function handleBroadcastWrite() {
+        return handleBroadcastWriteMessage(
+          socket,
           normalizedName,
-          undefined,
           data,
-        ),
-      },
-      handleBroadcastWrite,
-    );
-  });
+          generalRateLimit,
+          now,
+        );
+      }
 
-  onSocketEvent(socket, "report_user", function onReportUser(message) {
-    const normalizedName = boardName;
-    return tracing.withActiveSpan(
-      "socket.report_user",
-      {
-        kind: tracing.SpanKind.INTERNAL,
-        attributes: socketTraceAttributes("report_user", {
-          "wbo.board": normalizedName,
-        }),
-      },
-      function traceReportUser() {
-        handleReportUserMessage(socket, normalizedName, message);
-      },
-    );
-  });
+      if (!shouldTraceBroadcast(data)) {
+        return handleBroadcastWrite();
+      }
+
+      return tracing.withActiveSpan(
+        "socket.broadcast_write",
+        {
+          kind: tracing.SpanKind.INTERNAL,
+          attributes: boardMutationTraceAttributes(
+            normalizedName,
+            undefined,
+            data,
+          ),
+        },
+        handleBroadcastWrite,
+      );
+    },
+  );
+
+  onSocketEvent(
+    socket,
+    "report_user",
+    function onReportUser(
+      /** @type {ReportUserPayload | undefined} */ message,
+    ) {
+      const normalizedName = boardName;
+      return tracing.withActiveSpan(
+        "socket.report_user",
+        {
+          kind: tracing.SpanKind.INTERNAL,
+          attributes: socketTraceAttributes("report_user", {
+            "wbo.board": normalizedName,
+          }),
+        },
+        function traceReportUser() {
+          handleReportUserMessage(socket, normalizedName, message);
+        },
+      );
+    },
+  );
 
   socket.on(
     "disconnecting",

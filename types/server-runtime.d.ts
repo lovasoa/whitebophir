@@ -44,6 +44,25 @@ export type TurnstileAck = {
   validatedUntil: number | undefined;
 };
 
+export type TurnstileRejectedAck = {
+  success: false;
+};
+
+export type TurnstileEventAck = TurnstileAck | TurnstileRejectedAck | true;
+
+export type TurnstileAckCallback = (ack: TurnstileEventAck) => void;
+
+export type TurnstileSiteverifyResult = {
+  success?: boolean;
+  hostname?: unknown;
+  "error-codes"?: unknown;
+  [key: string]: unknown;
+};
+
+export type ReportUserPayload = {
+  socketId?: string;
+};
+
 export type ValidationStatus = { ok: true } | { ok: false; reason: string };
 
 export type RejectedBroadcast = {
