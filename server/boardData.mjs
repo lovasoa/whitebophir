@@ -33,6 +33,7 @@ import {
   normalizeStoredChildPoint,
   normalizeStoredItemWithBounds,
 } from "./message_validation.mjs";
+import { createMutationLog } from "./mutation_log.mjs";
 import observability from "./observability.mjs";
 import {
   boardJsonPath,
@@ -144,6 +145,7 @@ class BoardData {
     this.saveMutex = new SerialTaskQueue();
     this.localBoundsCache = new Map();
     this.revision = 0;
+    this.mutationLog = createMutationLog(0);
   }
 
   isReadOnly() {
@@ -155,6 +157,64 @@ class BoardData {
    */
   getRevision() {
     return this.revision;
+  }
+
+  /**
+   * @returns {number}
+   */
+  getSeq() {
+    return this.mutationLog.latestSeq();
+  }
+
+  /**
+   * @returns {number}
+   */
+  minReplayableSeq() {
+    return this.mutationLog.minReplayableSeq();
+  }
+
+  /**
+   * @param {number} fromExclusiveSeq
+   * @param {number} toInclusiveSeq
+   * @returns {ReturnType<ReturnType<typeof createMutationLog>["readRange"]>}
+   */
+  readMutationRange(fromExclusiveSeq, toInclusiveSeq) {
+    return this.mutationLog.readRange(fromExclusiveSeq, toInclusiveSeq);
+  }
+
+  /**
+   * @param {BoardMessage} mutation
+   * @param {number} [acceptedAtMs]
+   * @param {string | undefined} [clientMutationId]
+   * @returns {ReturnType<ReturnType<typeof createMutationLog>["append"]>}
+   */
+  recordPersistentMutation(
+    mutation,
+    acceptedAtMs = Date.now(),
+    clientMutationId,
+  ) {
+    return this.mutationLog.append({
+      board: this.name,
+      acceptedAtMs,
+      mutation: structuredClone(mutation),
+      clientMutationId,
+    });
+  }
+
+  /**
+   * @param {number} persistedSeq
+   * @returns {void}
+   */
+  markPersistedSeq(persistedSeq) {
+    this.mutationLog.markPersisted(persistedSeq);
+  }
+
+  /**
+   * @param {number} seqInclusiveFloor
+   * @returns {void}
+   */
+  trimMutationLogBefore(seqInclusiveFloor) {
+    this.mutationLog.trimBefore(seqInclusiveFloor);
   }
 
   /**
@@ -873,7 +933,13 @@ class BoardData {
         if (Object.keys(this.board).length === 0) {
           // empty board
           try {
-            await writeBoardState(this.name, this.board, this.metadata, 0);
+            await writeBoardState(
+              this.name,
+              this.board,
+              this.metadata,
+              this.getSeq(),
+            );
+            this.markPersistedSeq(this.getSeq());
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(this.name, "save", {
                 "wbo.board.result": "removed_empty",
@@ -905,7 +971,13 @@ class BoardData {
           }
         } else {
           try {
-            await writeBoardState(this.name, this.board, this.metadata, 0);
+            await writeBoardState(
+              this.name,
+              this.board,
+              this.metadata,
+              this.getSeq(),
+            );
+            this.markPersistedSeq(this.getSeq());
             const savedFile = await stat(file);
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(this.name, "save", {
@@ -1027,6 +1099,7 @@ class BoardData {
             storedBoard.board
           );
           boardData.metadata = storedBoard.metadata;
+          boardData.mutationLog = createMutationLog(storedBoard.seq);
           for (const id of Object.keys(boardData.board)) {
             boardData.normalizeStoredElement(id);
           }

@@ -518,6 +518,58 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
   });
 });
 
+test("BoardData records contiguous mutation seq values and persists them into svg baselines", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-seq-save-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    const board = new BoardData("seq-save");
+
+    const message = {
+      id: "rect-1",
+      tool: "Rectangle",
+      type: "rect",
+      color: "#123456",
+      size: 4,
+      x: 0,
+      y: 0,
+      x2: 10,
+      y2: 10,
+    };
+
+    assert.equal(board.processMessage({ ...message }).ok, true);
+    const firstEnvelope = board.recordPersistentMutation(message, 100, "c1");
+    const secondEnvelope = board.recordPersistentMutation(
+      { tool: "Eraser", type: "delete", id: "rect-1" },
+      200,
+      "c2",
+    );
+
+    assert.equal(firstEnvelope.seq, 1);
+    assert.equal(secondEnvelope.seq, 2);
+    assert.equal(board.getSeq(), 2);
+    assert.equal(board.minReplayableSeq(), 1);
+    assert.deepEqual(
+      board
+        .readMutationRange(0, 2)
+        .map((/** @type {{seq: number}} */ entry) => entry.seq),
+      [1, 2],
+    );
+
+    clearTimeout(board.saveTimeoutId);
+    board.saveTimeoutId = undefined;
+    await board.save();
+
+    const svg = await fs.readFile(
+      path.join(historyDir, "board-seq-save.svg"),
+      "utf8",
+    );
+    assert.match(svg, /data-wbo-seq="2"/);
+  });
+});
+
 test("BoardData.save serializes concurrent saves and releases after failure", async () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = new BoardData("serial-save-board");
