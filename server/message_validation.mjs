@@ -193,7 +193,9 @@ function normalizeObject(raw, fields) {
 
   /** @type {RawRecord} */
   const normalized = {};
-  for (const [key, field] of Object.entries(fields)) {
+  for (const key in fields) {
+    const field = fields[key];
+    if (!field) continue;
     const hasValue = Object.hasOwn(raw, key);
     /** @type {unknown} */
     let value;
