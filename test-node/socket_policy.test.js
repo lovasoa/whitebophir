@@ -4,93 +4,113 @@ const jsonwebtoken = require("jsonwebtoken");
 
 const {
   SOCKET_POLICY_PATH,
+  configFromEnv,
   createSocket,
   withEnv,
 } = require("./test_helpers.js");
 
-test("getClientIp resolves the first proxy hop from forwarding headers", async () => {
-  await withEnv({ WBO_IP_SOURCE: "X-Forwarded-For" }, async () => {
-    const socketPolicy = require(SOCKET_POLICY_PATH);
-    const { socket } = createSocket({
-      headers: {
-        "x-forwarded-for": "198.51.100.4, 203.0.113.7",
-      },
-    });
-    assert.equal(socketPolicy.getClientIp(socket), "198.51.100.4");
-  });
+test("getClientIp resolves the first proxy hop from forwarding headers", () => {
+  const socketPolicy = require(SOCKET_POLICY_PATH);
 
-  await withEnv({ WBO_IP_SOURCE: "Forwarded" }, async () => {
-    const socketPolicy = require(SOCKET_POLICY_PATH);
-    const { socket } = createSocket({
-      headers: {
-        forwarded: 'for="198.51.100.9";proto=https, for=203.0.113.7',
-      },
-    });
-    assert.equal(socketPolicy.getClientIp(socket), "198.51.100.9");
-  });
+  assert.equal(
+    socketPolicy.getClientIp(
+      configFromEnv({ WBO_IP_SOURCE: "X-Forwarded-For" }),
+      createSocket({
+        headers: {
+          "x-forwarded-for": "198.51.100.4, 203.0.113.7",
+        },
+      }).socket,
+    ),
+    "198.51.100.4",
+  );
 
-  await withEnv({ WBO_IP_SOURCE: "X-Forwarded-For" }, async () => {
-    const socketPolicy = require(SOCKET_POLICY_PATH);
-    const { socket } = createSocket({
-      headers: {
-        "x-forwarded-for": ["198.51.100.11, 203.0.113.7"],
-      },
-    });
-    assert.equal(socketPolicy.getClientIp(socket), "198.51.100.11");
-  });
+  assert.equal(
+    socketPolicy.getClientIp(
+      configFromEnv({ WBO_IP_SOURCE: "Forwarded" }),
+      createSocket({
+        headers: {
+          forwarded: 'for="198.51.100.9";proto=https, for=203.0.113.7',
+        },
+      }).socket,
+    ),
+    "198.51.100.9",
+  );
 
-  await withEnv({ WBO_IP_SOURCE: "Forwarded" }, async () => {
-    const socketPolicy = require(SOCKET_POLICY_PATH);
-    const { socket } = createSocket({
-      headers: {
-        forwarded: ['for="198.51.100.12";proto=https, for=203.0.113.7'],
-      },
-    });
-    assert.equal(socketPolicy.getClientIp(socket), "198.51.100.12");
-  });
+  assert.equal(
+    socketPolicy.getClientIp(
+      configFromEnv({ WBO_IP_SOURCE: "X-Forwarded-For" }),
+      createSocket({
+        headers: {
+          "x-forwarded-for": ["198.51.100.11, 203.0.113.7"],
+        },
+      }).socket,
+    ),
+    "198.51.100.11",
+  );
+
+  assert.equal(
+    socketPolicy.getClientIp(
+      configFromEnv({ WBO_IP_SOURCE: "Forwarded" }),
+      createSocket({
+        headers: {
+          forwarded: ['for="198.51.100.12";proto=https, for=203.0.113.7'],
+        },
+      }).socket,
+    ),
+    "198.51.100.12",
+  );
 });
 
-test("getClientIp supports exact trusted proxy depth for forwarded chains", async () => {
-  await withEnv(
-    { WBO_IP_SOURCE: "X-Forwarded-For", WBO_TRUST_PROXY_HOPS: "2" },
-    async () => {
-      const socketPolicy = require(SOCKET_POLICY_PATH);
-      const { socket } = createSocket({
+test("getClientIp supports exact trusted proxy depth for forwarded chains", () => {
+  const socketPolicy = require(SOCKET_POLICY_PATH);
+
+  assert.equal(
+    socketPolicy.getClientIp(
+      configFromEnv({
+        WBO_IP_SOURCE: "X-Forwarded-For",
+        WBO_TRUST_PROXY_HOPS: "2",
+      }),
+      createSocket({
         remoteAddress: "203.0.113.7",
         headers: {
           "x-forwarded-for": "198.51.100.4, 198.51.100.5",
         },
-      });
-      assert.equal(socketPolicy.getClientIp(socket), "198.51.100.4");
-    },
+      }).socket,
+    ),
+    "198.51.100.4",
   );
 
-  await withEnv(
-    { WBO_IP_SOURCE: "Forwarded", WBO_TRUST_PROXY_HOPS: "2" },
-    async () => {
-      const socketPolicy = require(SOCKET_POLICY_PATH);
-      const { socket } = createSocket({
+  assert.equal(
+    socketPolicy.getClientIp(
+      configFromEnv({
+        WBO_IP_SOURCE: "Forwarded",
+        WBO_TRUST_PROXY_HOPS: "2",
+      }),
+      createSocket({
         remoteAddress: "203.0.113.7",
         headers: {
           forwarded: 'for=198.51.100.9;proto=https, for="198.51.100.10"',
         },
-      });
-      assert.equal(socketPolicy.getClientIp(socket), "198.51.100.9");
-    },
+      }).socket,
+    ),
+    "198.51.100.9",
   );
 });
 
-test("getClientIp supports custom single-value headers such as CF-Connecting-IP", async () => {
-  await withEnv({ WBO_IP_SOURCE: "CF-Connecting-IP" }, async () => {
-    const socketPolicy = require(SOCKET_POLICY_PATH);
-    const { socket } = createSocket({
-      remoteAddress: "203.0.113.7",
-      headers: {
-        "cf-connecting-ip": "198.51.100.25",
-      },
-    });
-    assert.equal(socketPolicy.getClientIp(socket), "198.51.100.25");
-  });
+test("getClientIp supports custom single-value headers such as CF-Connecting-IP", () => {
+  const socketPolicy = require(SOCKET_POLICY_PATH);
+  assert.equal(
+    socketPolicy.getClientIp(
+      configFromEnv({ WBO_IP_SOURCE: "CF-Connecting-IP" }),
+      createSocket({
+        remoteAddress: "203.0.113.7",
+        headers: {
+          "cf-connecting-ip": "198.51.100.25",
+        },
+      }).socket,
+    ),
+    "198.51.100.25",
+  );
 });
 
 test("parseForwardedHeader rejects malformed forwarded headers", () => {
@@ -164,18 +184,20 @@ test("socket policy counts only mutations that should consume rate-limit budget"
   );
 });
 
-test("normalizeBroadcastData rejects blocked tools before persistence", async () => {
-  await withEnv({ WBO_BLOCKED_TOOLS: "Text" }, async () => {
-    const socketPolicy = require(SOCKET_POLICY_PATH);
-    const rejected = socketPolicy.normalizeBroadcastData("anonymous", {
+test("normalizeBroadcastData rejects blocked tools before persistence", () => {
+  const socketPolicy = require(SOCKET_POLICY_PATH);
+  const rejected = socketPolicy.normalizeBroadcastData(
+    configFromEnv({ WBO_BLOCKED_TOOLS: "Text" }),
+    "anonymous",
+    {
       tool: "Text",
       type: "update",
       id: "text-1",
       txt: "blocked",
-    });
+    },
+  );
 
-    assert.deepEqual(rejected, { ok: false, reason: "blocked tool" });
-  });
+  assert.deepEqual(rejected, { ok: false, reason: "blocked tool" });
 });
 
 test("readonly board policy allows cursor updates but reserves clear for moderators", async () => {
@@ -190,6 +212,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
 
     assert.equal(
       socketPolicy.canApplyBoardMessage(
+        configFromEnv({ AUTH_SECRET_KEY: undefined }),
         readonlyBoard,
         {
           tool: "Cursor",
@@ -218,6 +241,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
 
     assert.equal(
       socketPolicy.canApplyBoardMessage(
+        configFromEnv({ AUTH_SECRET_KEY: "test-secret" }),
         readonlyBoard,
         { tool: "Clear", type: "clear" },
         createSocket({ token: editorToken }).socket,
@@ -226,6 +250,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
     );
     assert.equal(
       socketPolicy.canApplyBoardMessage(
+        configFromEnv({ AUTH_SECRET_KEY: "test-secret" }),
         readonlyBoard,
         { tool: "Clear", type: "clear" },
         createSocket({ token: moderatorToken }).socket,

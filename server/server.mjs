@@ -806,7 +806,7 @@ function serveStaticFile(request, response, requestContext, nextUrl) {
 function handleBoardRedirectRoute(response, parsedUrl, requestContext) {
   const boardName = requireBoardQueryName(parsedUrl);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
   response.writeHead(301, {
     Location: `boards/${encodeURIComponent(boardName)}`,
   });
@@ -833,9 +833,9 @@ function handleBoardDocumentRoute(
 ) {
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
   const token = parsedUrl.searchParams.get("token");
-  const boardRole = jwtBoardName.roleInBoard(token || "", boardName);
+  const boardRole = jwtBoardName.roleInBoard(config, token || "", boardName);
   const boardMetadata = BoardData.loadMetadataSync(boardName);
   const canWrite =
     !boardMetadata.readonly ||
@@ -944,7 +944,7 @@ function handleDownloadRoute(
   requestContext.setRoute("download_board");
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
   const historyFile = buildBoardHistoryFile(boardName, getPathPart(parts, 2));
   void respondWithBoardDownload(response, boardName, historyFile).catch(
     serveError(request, response, requestContext),
@@ -1060,7 +1060,7 @@ function handlePreviewRoute(
   requestContext.setRoute("preview_board");
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
   const historyFile = buildBoardHistoryFile(boardName);
   const startedAt = Date.now();
   void respondWithBoardPreview(
@@ -1128,7 +1128,7 @@ function handleRequest(request, response, requestContext) {
   const parts = normalizePathParts(parsedUrl.pathname.split("/"));
 
   if (shouldCheckUserPermissions(parsedUrl, parts)) {
-    jwtauth.checkUserPermission(parsedUrl);
+    jwtauth.checkUserPermission(parsedUrl, config);
   }
 
   switch (parts[0]) {

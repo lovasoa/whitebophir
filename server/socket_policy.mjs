@@ -1,6 +1,5 @@
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { isValidBoardName } from "../client-data/js/board_name.js";
-import { readConfiguration } from "./configuration.mjs";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
 import observability from "./observability.mjs";
@@ -13,6 +12,14 @@ const { logger, metrics, tracing } = observability;
 /** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
 /** @typedef {import("../types/server-runtime.d.ts").RejectedBroadcast} RejectedBroadcast */
 /** @typedef {import("../types/server-runtime.d.ts").SocketRequest} SocketRequest */
+/**
+ * @typedef {{
+ *   AUTH_SECRET_KEY: string,
+ *   BLOCKED_TOOLS: string[],
+ *   IP_SOURCE: string,
+ *   TRUST_PROXY_HOPS: number,
+ * }} SocketPolicyConfig
+ */
 
 /**
  * @param {AppSocket} socket
@@ -105,11 +112,11 @@ function parseForwardedHeader(value) {
 
 /**
  * @param {string[]} chain
+ * @param {number} trustProxyHops
  * @returns {string}
  */
-function selectTrustedClientIp(chain) {
-  const { TRUST_PROXY_HOPS } = readConfiguration();
-  const trustedHops = Math.max(0, TRUST_PROXY_HOPS || 0);
+function selectTrustedClientIp(chain, trustProxyHops) {
+  const trustedHops = Math.max(0, trustProxyHops || 0);
   const selectedIndex = Math.min(trustedHops, chain.length - 1);
   return chain[selectedIndex] || "";
 }
@@ -117,14 +124,14 @@ function selectTrustedClientIp(chain) {
 /**
  * @param {string[]} chain
  * @param {string} directRemoteAddress
+ * @param {number} trustProxyHops
  * @returns {string}
  */
-function resolveClientIpChain(chain, directRemoteAddress) {
-  const { TRUST_PROXY_HOPS } = readConfiguration();
-  if (TRUST_PROXY_HOPS > 0 && directRemoteAddress) {
+function resolveClientIpChain(chain, directRemoteAddress, trustProxyHops) {
+  if (trustProxyHops > 0 && directRemoteAddress) {
     chain.reverse();
     chain.unshift(directRemoteAddress);
-    return selectTrustedClientIp(chain);
+    return selectTrustedClientIp(chain, trustProxyHops);
   }
   return chain[0] || "";
 }
@@ -141,9 +148,14 @@ function resolveRemoteAddressClientIp(directRemoteAddress) {
 /**
  * @param {{[key: string]: string | string[] | undefined}} headers
  * @param {string} directRemoteAddress
+ * @param {number} trustProxyHops
  * @returns {string}
  */
-function resolveForwardedForClientIp(headers, directRemoteAddress) {
+function resolveForwardedForClientIp(
+  headers,
+  directRemoteAddress,
+  trustProxyHops,
+) {
   const forwardedForHeader = singleHeaderValue(headers["x-forwarded-for"]);
   if (!forwardedForHeader) {
     throw new Error(
@@ -153,15 +165,21 @@ function resolveForwardedForClientIp(headers, directRemoteAddress) {
   return resolveClientIpChain(
     parseHeaderChain(forwardedForHeader),
     directRemoteAddress,
+    trustProxyHops,
   );
 }
 
 /**
  * @param {{[key: string]: string | string[] | undefined}} headers
  * @param {string} directRemoteAddress
+ * @param {number} trustProxyHops
  * @returns {string}
  */
-function resolveForwardedHeaderClientIp(headers, directRemoteAddress) {
+function resolveForwardedHeaderClientIp(
+  headers,
+  directRemoteAddress,
+  trustProxyHops,
+) {
   const forwardedHeader = singleHeaderValue(headers.forwarded);
   if (!forwardedHeader) {
     throw new Error(
@@ -171,6 +189,7 @@ function resolveForwardedHeaderClientIp(headers, directRemoteAddress) {
   return resolveClientIpChain(
     parseForwardedChain(forwardedHeader),
     directRemoteAddress,
+    trustProxyHops,
   );
 }
 
@@ -187,26 +206,35 @@ function resolveCustomHeaderClientIp(headers, normalizedIpSource, ipSource) {
 }
 
 /**
+ * @param {SocketPolicyConfig} config
  * @param {AppSocket} socket
  * @returns {string}
  */
-function getClientIp(socket) {
-  const { IP_SOURCE } = readConfiguration();
+function getClientIp(config, socket) {
   const request = getSocketRequest(socket);
   const headers = getSocketHeaders(socket);
   const directRemoteAddress = request.socket?.remoteAddress
     ? request.socket.remoteAddress
     : "";
-  const ipSource = IP_SOURCE || "remoteAddress";
+  const ipSource = config.IP_SOURCE || "remoteAddress";
   const normalizedIpSource = normalizeHeaderName(ipSource);
+  const trustProxyHops = config.TRUST_PROXY_HOPS;
 
   switch (normalizedIpSource) {
     case "remoteaddress":
       return resolveRemoteAddressClientIp(directRemoteAddress);
     case "x-forwarded-for":
-      return resolveForwardedForClientIp(headers, directRemoteAddress);
+      return resolveForwardedForClientIp(
+        headers,
+        directRemoteAddress,
+        trustProxyHops,
+      );
     case "forwarded":
-      return resolveForwardedHeaderClientIp(headers, directRemoteAddress);
+      return resolveForwardedHeaderClientIp(
+        headers,
+        directRemoteAddress,
+        trustProxyHops,
+      );
     default:
       return resolveCustomHeaderClientIp(headers, normalizedIpSource, ipSource);
   }
@@ -221,17 +249,18 @@ const countConstructiveActions = RateLimitCommon.countConstructiveActions;
 const countTextCreationActions = RateLimitCommon.countTextCreationActions;
 
 /**
+ * @param {SocketPolicyConfig} config
  * @param {string} boardName
  * @param {MessageData | null | undefined} data
  * @returns {BroadcastResult}
  */
-function normalizeBroadcastData(boardName, data) {
+function normalizeBroadcastData(config, boardName, data) {
   if (!data) {
     return rejectedBroadcast(boardName, "missing data");
   }
 
-  const { BLOCKED_TOOLS } = readConfiguration();
-  if (typeof data.tool === "string" && BLOCKED_TOOLS.includes(data.tool)) {
+  const blockedTools = config.BLOCKED_TOOLS;
+  if (typeof data.tool === "string" && blockedTools.includes(data.tool)) {
     return rejectedBroadcast(boardName, "blocked tool");
   }
 
@@ -240,7 +269,7 @@ function normalizeBroadcastData(boardName, data) {
     return rejectedBroadcast(boardName, normalized.reason);
   }
 
-  if (BLOCKED_TOOLS.includes(normalized.value.tool)) {
+  if (blockedTools.includes(normalized.value.tool)) {
     return rejectedBroadcast(boardName, "blocked tool");
   }
 
@@ -301,60 +330,66 @@ function normalizeBoardName(boardName) {
 }
 
 /**
+ * @param {SocketPolicyConfig} config
  * @param {string} boardName
  * @param {AppSocket} socket
  * @returns {"editor" | "moderator" | "reader" | "forbidden"}
  */
-function accessRole(boardName, socket) {
-  const { AUTH_SECRET_KEY } = readConfiguration();
-  if (!AUTH_SECRET_KEY) return "editor";
+function accessRole(config, boardName, socket) {
+  if (!config.AUTH_SECRET_KEY) return "editor";
   const token = getSocketToken(socket);
   return /** @type {"editor" | "moderator" | "reader" | "forbidden"} */ (
-    token ? roleInBoard(token, boardName) : "forbidden"
+    token ? roleInBoard(config, token, boardName) : "forbidden"
   );
 }
 
 /**
+ * @param {SocketPolicyConfig} config
  * @param {string} boardName
  * @param {AppSocket} socket
  * @returns {boolean}
  */
-function canAccessBoard(boardName, socket) {
-  return accessRole(boardName, socket) !== "forbidden";
+function canAccessBoard(config, boardName, socket) {
+  return accessRole(config, boardName, socket) !== "forbidden";
 }
 
 /**
+ * @param {SocketPolicyConfig} config
  * @param {string} boardName
  * @param {AppSocket} socket
  * @returns {"editor" | "moderator" | "forbidden"}
  */
-function writerRole(boardName, socket) {
-  const { AUTH_SECRET_KEY } = readConfiguration();
-  if (!AUTH_SECRET_KEY) return "forbidden";
-  const role = accessRole(boardName, socket);
+function writerRole(config, boardName, socket) {
+  if (!config.AUTH_SECRET_KEY) return "forbidden";
+  const role = accessRole(config, boardName, socket);
   return role === "editor" || role === "moderator" ? role : "forbidden";
 }
 
 /**
+ * @param {SocketPolicyConfig} config
  * @param {BoardLike} board
  * @param {AppSocket} socket
  * @returns {boolean}
  */
-function canWriteToBoard(board, socket) {
+function canWriteToBoard(config, board, socket) {
   if (!board.isReadOnly()) return true;
-  return writerRole(board.name, socket) !== "forbidden";
+  return writerRole(config, board.name, socket) !== "forbidden";
 }
 
 /**
+ * @param {SocketPolicyConfig} config
  * @param {BoardLike} board
  * @param {MessageData} data
  * @param {AppSocket} socket
  * @returns {boolean}
  */
-function canApplyBoardMessage(board, data, socket) {
+function canApplyBoardMessage(config, board, data, socket) {
   if (data.tool === "Cursor") return true;
-  if (!canWriteToBoard(board, socket)) return false;
-  if (data.type === "clear" && writerRole(board.name, socket) !== "moderator") {
+  if (!canWriteToBoard(config, board, socket)) return false;
+  if (
+    data.type === "clear" &&
+    writerRole(config, board.name, socket) !== "moderator"
+  ) {
     return false;
   }
   return true;

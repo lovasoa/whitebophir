@@ -28,6 +28,7 @@ const isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
+/** @typedef {ReturnType<typeof readConfiguration>} ServerConfig */
 /** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {{
@@ -340,12 +341,13 @@ function buildUserName(ip, userSecret) {
 /**
  * @param {AppSocket} socket
  * @param {string} boardName
+ * @param {ServerConfig} config
  * @param {number} [now]
  * @returns {BoardUser}
  */
-function buildBoardUserRecord(socket, boardName, now) {
+function buildBoardUserRecord(socket, boardName, config, now) {
   const userSecret = getSocketUserSecret(socket);
-  const ip = resolveClientIp(socket, boardName);
+  const ip = resolveClientIp(socket, boardName, config);
   const size = WBOMessageCommon.clampSize(getSocketQueryValue(socket, "size"));
   const color = WBOMessageCommon.normalizeColor(
     getSocketQueryValue(socket, "color"),
@@ -414,14 +416,15 @@ function hasBoardUser(socket, boardName) {
 /**
  * @param {AppSocket} socket
  * @param {string} boardName
+ * @param {ServerConfig} config
  * @returns {BoardUser}
  */
-function ensureBoardUser(socket, boardName) {
+function ensureBoardUser(socket, boardName, config) {
   const users = getBoardUserMap(boardName);
   const existing = users.get(socket.id);
   if (existing) return existing;
 
-  const user = buildBoardUserRecord(socket, boardName);
+  const user = buildBoardUserRecord(socket, boardName, config);
   users.set(socket.id, user);
   return user;
 }
@@ -602,9 +605,10 @@ function boardMessageErrorType(value) {
 
 /**
  * @param {AppSocket} socket
+ * @param {ServerConfig} config
  * @returns {{ok: true, boardName: string} | {ok: false, reason: string}}
  */
-function bindSocketBoard(socket) {
+function bindSocketBoard(socket, config) {
   const rawBoardName =
     typeof socket.boardName === "string"
       ? socket.boardName
@@ -617,7 +621,7 @@ function bindSocketBoard(socket) {
   if (boardName === null) {
     return { ok: false, reason: "invalid_board_name" };
   }
-  if (!canAccessBoard(boardName, socket)) {
+  if (!canAccessBoard(config, boardName, socket)) {
     return { ok: false, reason: "access_forbidden" };
   }
 
@@ -656,10 +660,10 @@ function shouldTraceBroadcast(data) {
 /**
  * @param {"general" | "constructive" | "destructive" | "text"} kind
  * @param {string} boardName
+ * @param {ServerConfig} config
  * @returns {{limit: number, periodMs: number}}
  */
-function getEffectiveRateLimitConfig(kind, boardName) {
-  const config = readConfiguration();
+function getEffectiveRateLimitConfig(kind, boardName, config) {
   switch (kind) {
     case "constructive":
       return getEffectiveRateLimitDefinition(
@@ -757,11 +761,12 @@ function getSocketUserName(socket, clientIp) {
 /**
  * @param {AppSocket} socket
  * @param {string} boardName
+ * @param {ServerConfig} config
  * @returns {string}
  */
-function resolveClientIp(socket, boardName) {
+function resolveClientIp(socket, boardName, config) {
   try {
-    return getClientIp(socket);
+    return getClientIp(config, socket);
   } catch (err) {
     if (!invalidIpSourceLogged) {
       invalidIpSourceLogged = true;
@@ -816,12 +821,13 @@ function isTurnstileValidationActive(socket, now) {
 
 /**
  * @param {AppSocket} socket
+ * @param {ServerConfig} config
  * @returns {TurnstileAck}
  */
-function buildTurnstileAck(socket) {
+function buildTurnstileAck(socket, config) {
   return {
     success: true,
-    validationWindowMs: readConfiguration().TURNSTILE_VALIDATION_WINDOW_MS,
+    validationWindowMs: config.TURNSTILE_VALIDATION_WINDOW_MS,
     validatedUntil: socket.turnstileValidatedUntil,
   };
 }
@@ -964,17 +970,23 @@ function failTurnstileVerification(socket, err, ack) {
  * @param {string} boardName
  * @param {string} token
  * @param {TurnstileAckCallback | undefined} ack
+ * @param {ServerConfig} config
  * @returns {Promise<void>}
  */
-async function handleTurnstileTokenMessage(socket, boardName, token, ack) {
-  const config = readConfiguration();
+async function handleTurnstileTokenMessage(
+  socket,
+  boardName,
+  token,
+  ack,
+  config,
+) {
   if (!config.TURNSTILE_SECRET_KEY) {
     sendTurnstileAck(ack, true);
     return;
   }
 
   try {
-    const clientIp = resolveClientIp(socket, boardName);
+    const clientIp = resolveClientIp(socket, boardName, config);
     const userName = getSocketUserName(socket, clientIp);
     tracing.setActiveSpanAttributes({
       "user.name": userName,
@@ -994,7 +1006,7 @@ async function handleTurnstileTokenMessage(socket, boardName, token, ack) {
         "wbo.turnstile.result": "success",
       });
       metrics.recordTurnstileVerification();
-      sendTurnstileAck(ack, buildTurnstileAck(socket));
+      sendTurnstileAck(ack, buildTurnstileAck(socket, config));
       return;
     }
     rejectTurnstileVerification(
@@ -1016,6 +1028,7 @@ async function handleTurnstileTokenMessage(socket, boardName, token, ack) {
  * @param {string} clientIp
  * @param {RateLimitState} rateLimitState
  * @param {number} now
+ * @param {ServerConfig} config
  * @returns {boolean}
  */
 function enforceGeneralRateLimit(
@@ -1025,9 +1038,14 @@ function enforceGeneralRateLimit(
   clientIp,
   rateLimitState,
   now,
+  config,
 ) {
   recordExpiredRateLimitWindowIfNeeded("general", rateLimitState, now);
-  const generalLimit = getEffectiveRateLimitConfig("general", boardName);
+  const generalLimit = getEffectiveRateLimitConfig(
+    "general",
+    boardName,
+    config,
+  );
   const nextState = consumeFixedWindowRateLimit(
     rateLimitState,
     1,
@@ -1113,9 +1131,17 @@ function getDestructiveRateLimitState(clientIp, now) {
  * @param {MessageData} data
  * @param {string} clientIp
  * @param {number} now
+ * @param {ServerConfig} config
  * @returns {boolean}
  */
-function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
+function enforceDestructiveRateLimit(
+  socket,
+  boardName,
+  data,
+  clientIp,
+  now,
+  config,
+) {
   const destructiveCost = countDestructiveActions(data);
   if (destructiveCost === 0) return true;
 
@@ -1124,6 +1150,7 @@ function enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) {
   const destructiveLimit = getEffectiveRateLimitConfig(
     "destructive",
     boardName,
+    config,
   );
   const nextState = consumeFixedWindowRateLimit(
     rateLimitState,
@@ -1233,9 +1260,17 @@ function getTextRateLimitState(clientIp, now) {
  * @param {MessageData} data
  * @param {string} clientIp
  * @param {number} now
+ * @param {ServerConfig} config
  * @returns {boolean}
  */
-function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
+function enforceConstructiveRateLimit(
+  socket,
+  boardName,
+  data,
+  clientIp,
+  now,
+  config,
+) {
   const constructiveCost = countConstructiveActions(data);
   if (constructiveCost === 0) return true;
 
@@ -1244,6 +1279,7 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
   const constructiveLimit = getEffectiveRateLimitConfig(
     "constructive",
     boardName,
+    config,
   );
   const nextState = consumeFixedWindowRateLimit(
     rateLimitState,
@@ -1329,15 +1365,16 @@ function enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) {
  * @param {MessageData} data
  * @param {string} clientIp
  * @param {number} now
+ * @param {ServerConfig} config
  * @returns {boolean}
  */
-function enforceTextRateLimit(socket, boardName, data, clientIp, now) {
+function enforceTextRateLimit(socket, boardName, data, clientIp, now, config) {
   const textCost = countTextCreationActions(data);
   if (textCost === 0) return true;
 
   const rateLimitState = getTextRateLimitState(clientIp, now);
   recordExpiredRateLimitWindowIfNeeded("text", rateLimitState, now);
-  const textLimit = getEffectiveRateLimitConfig("text", boardName);
+  const textLimit = getEffectiveRateLimitConfig("text", boardName, config);
   const nextState = consumeFixedWindowRateLimit(
     rateLimitState,
     textCost,
@@ -1459,6 +1496,7 @@ function rejectTurnstileRequired(boardName, data) {
  * @param {string} clientIp
  * @param {RateLimitState} generalRateLimit
  * @param {number} now
+ * @param {ServerConfig} config
  * @returns {boolean}
  */
 function enforceBroadcastPreNormalization(
@@ -1468,6 +1506,7 @@ function enforceBroadcastPreNormalization(
   clientIp,
   generalRateLimit,
   now,
+  config,
 ) {
   return enforceGeneralRateLimit(
     socket,
@@ -1476,6 +1515,7 @@ function enforceBroadcastPreNormalization(
     clientIp,
     generalRateLimit,
     now,
+    config,
   );
 }
 
@@ -1485,6 +1525,7 @@ function enforceBroadcastPreNormalization(
  * @param {NormalizedMessageData} data
  * @param {string} clientIp
  * @param {number} now
+ * @param {ServerConfig} config
  * @returns {boolean}
  */
 function enforceBroadcastPostNormalization(
@@ -1493,11 +1534,26 @@ function enforceBroadcastPostNormalization(
   data,
   clientIp,
   now,
+  config,
 ) {
   return (
-    enforceDestructiveRateLimit(socket, boardName, data, clientIp, now) &&
-    enforceConstructiveRateLimit(socket, boardName, data, clientIp, now) &&
-    enforceTextRateLimit(socket, boardName, data, clientIp, now)
+    enforceDestructiveRateLimit(
+      socket,
+      boardName,
+      data,
+      clientIp,
+      now,
+      config,
+    ) &&
+    enforceConstructiveRateLimit(
+      socket,
+      boardName,
+      data,
+      clientIp,
+      now,
+      config,
+    ) &&
+    enforceTextRateLimit(socket, boardName, data, clientIp, now, config)
   );
 }
 
@@ -1608,6 +1664,7 @@ function finishSuccessfulBoardWrite(
  * @param {string} clientIp
  * @param {string} userName
  * @param {number} now
+ * @param {ServerConfig} config
  * @returns {Promise<void>}
  */
 async function persistBoardBroadcast(
@@ -1617,10 +1674,11 @@ async function persistBoardBroadcast(
   clientIp,
   userName,
   now,
+  config,
 ) {
   ensureSocketJoinedBoard(socket, boardName);
   const board = await getBoard(boardName);
-  if (!canApplyBoardMessage(board, data, socket)) {
+  if (!canApplyBoardMessage(config, board, data, socket)) {
     rejectBlockedBoardWrite(socket, board, boardName, data, clientIp, userName);
     return;
   }
@@ -1658,6 +1716,7 @@ async function persistBoardBroadcast(
  * @param {MessageData | undefined} data
  * @param {RateLimitState} generalRateLimit
  * @param {number} now
+ * @param {ServerConfig} config
  * @returns {Promise<void>}
  */
 async function handleBroadcastWriteMessage(
@@ -1666,14 +1725,15 @@ async function handleBroadcastWriteMessage(
   data,
   generalRateLimit,
   now,
+  config,
 ) {
-  const clientIp = resolveClientIp(socket, boardName);
+  const clientIp = resolveClientIp(socket, boardName, config);
   const userName = getSocketUserName(socket, clientIp);
   tracing.setActiveSpanAttributes(
     boardMutationTraceAttributes(boardName, userName, data),
   );
   if (
-    readConfiguration().TURNSTILE_SECRET_KEY &&
+    config.TURNSTILE_SECRET_KEY &&
     data &&
     WBOMessageCommon.requiresTurnstile(boardName, data.tool) &&
     !isTurnstileValidationActive(socket, now)
@@ -1689,12 +1749,13 @@ async function handleBroadcastWriteMessage(
       clientIp,
       generalRateLimit,
       now,
+      config,
     )
   ) {
     return;
   }
 
-  const normalized = normalizeBroadcastData(boardName, data);
+  const normalized = normalizeBroadcastData(config, boardName, data);
   if (normalized.ok === false) {
     rejectActiveBoardMutation(normalized.reason);
     return;
@@ -1710,6 +1771,7 @@ async function handleBroadcastWriteMessage(
       normalizedData,
       clientIp,
       now,
+      config,
     )
   ) {
     return;
@@ -1721,6 +1783,7 @@ async function handleBroadcastWriteMessage(
     clientIp,
     userName,
     now,
+    config,
   );
 }
 
@@ -1853,13 +1916,14 @@ function handleReportUserMessage(socket, boardName, message) {
  * @returns {import("socket.io").Server}
  */
 function startIO(app) {
+  const config = readConfiguration();
   io = new Server(app);
   io.use(
     (
       /** @type {AppSocket} */ socket,
       /** @type {(error?: Error) => void} */ next,
     ) => {
-      const bound = bindSocketBoard(socket);
+      const bound = bindSocketBoard(socket, config);
       if (bound.ok === true) {
         next();
         return;
@@ -1869,7 +1933,9 @@ function startIO(app) {
   );
   io.on(
     "connection",
-    wrapSocketEventHandler(handleSocketConnection, "connection"),
+    wrapSocketEventHandler(function onConnection(socket) {
+      return handleSocketConnection(socket, config);
+    }, "connection"),
   );
   return io;
 }
@@ -1893,9 +1959,10 @@ function getBoard(name) {
  * Executes on every new connection
  * @param {AppSocket} socket
  * @param {string} boardName
+ * @param {ServerConfig} config
  * @returns {Promise<void>}
  */
-async function bootstrapSocketBoard(socket, boardName) {
+async function bootstrapSocketBoard(socket, boardName, config) {
   return tracing.withActiveSpan(
     "socket.connect_board",
     {
@@ -1910,7 +1977,7 @@ async function bootstrapSocketBoard(socket, boardName) {
       const wasJoined = board.users.has(socket.id);
       board.users.add(socket.id);
       if (!wasJoined || !hasBoardUser(socket, boardName)) {
-        const user = ensureBoardUser(socket, boardName);
+        const user = ensureBoardUser(socket, boardName, config);
         if (!wasJoined) {
           connectedUsersTotal += 1;
           updateConnectedUsersGauge();
@@ -1932,7 +1999,7 @@ async function bootstrapSocketBoard(socket, boardName) {
       }
       socket.emit("boardstate", {
         readonly: board.isReadOnly(),
-        canWrite: canWriteToBoard(board, socket),
+        canWrite: canWriteToBoard(config, board, socket),
       });
       socket.emit("broadcast", {
         _children: board.getAll(),
@@ -1945,9 +2012,10 @@ async function bootstrapSocketBoard(socket, boardName) {
 /**
  * Executes on every new connection
  * @param {AppSocket} socket
+ * @param {ServerConfig} config
  */
-async function handleSocketConnection(socket) {
-  const bound = bindSocketBoard(socket);
+async function handleSocketConnection(socket, config) {
+  const bound = bindSocketBoard(socket, config);
   if (bound.ok === false) {
     rejectSocketRequest(socket, "connection", bound.reason);
     closeSocket(socket, "connection", { reason: bound.reason });
@@ -1979,7 +2047,13 @@ async function handleSocketConnection(socket) {
           attributes: socketTraceAttributes("turnstile_token"),
         },
         async function traceTurnstileToken() {
-          return handleTurnstileTokenMessage(socket, boardName, token, ack);
+          return handleTurnstileTokenMessage(
+            socket,
+            boardName,
+            token,
+            ack,
+            config,
+          );
         },
       );
     },
@@ -2000,6 +2074,7 @@ async function handleSocketConnection(socket) {
           data,
           generalRateLimit,
           now,
+          config,
         );
       }
 
@@ -2071,7 +2146,7 @@ async function handleSocketConnection(socket) {
     },
   );
 
-  await bootstrapSocketBoard(socket, boardName);
+  await bootstrapSocketBoard(socket, boardName, config);
 }
 
 /**
@@ -2158,7 +2233,11 @@ export const __test = {
   buildIpWord,
   buildUserId,
   buildUserName,
-  handleSocketConnection,
+  handleSocketConnection: function handleSocketConnectionForTest(
+    /** @type {AppSocket} */ socket,
+  ) {
+    return handleSocketConnection(socket, readConfiguration());
+  },
   consumeFixedWindowRateLimit,
   countDestructiveActions,
   countConstructiveActions,

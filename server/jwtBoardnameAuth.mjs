@@ -25,24 +25,28 @@
  */
 
 import jsonwebtoken from "jsonwebtoken";
-import { readConfiguration } from "./configuration.mjs";
 import { forbidden } from "./boundary_errors.mjs";
 
+/** @typedef {{ AUTH_SECRET_KEY: string }} JwtAuthConfig */
+
 /**
- * This function checks if a board name is set in the roles claim.
- * Returns true if the board name is set in the JWT and the board name matches the board name in the URL.
+ * Checks that the request's JWT grants access to the requested board name.
+ * Pure with respect to `config`; does not read `process.env`.
+ * @param {JwtAuthConfig} config
  * @param {URL} url
  * @param {string} boardNameIn
  * @throws {Error} - If no boardname match
  */
 
-export function checkBoardnameInToken(url, boardNameIn) {
-  const { AUTH_SECRET_KEY } = readConfiguration();
-  if (AUTH_SECRET_KEY === "") {
+export function checkBoardnameInToken(config, url, boardNameIn) {
+  if (config.AUTH_SECRET_KEY === "") {
     return;
   }
   const token = url.searchParams.get("token");
-  if (token === null || roleInBoard(token, boardNameIn) === "forbidden") {
+  if (
+    token === null ||
+    roleInBoard(config, token, boardNameIn) === "forbidden"
+  ) {
     throw forbidden("access_forbidden");
   }
 }
@@ -115,15 +119,16 @@ function summarizeBoardRoles(roles, board) {
 /**
  * This function checks if a board name is set in the roles claim.
  * Returns a role name for the requested board.
+ * Pure with respect to `config`; does not read `process.env`.
+ * @param {JwtAuthConfig} config
  * @param {string} token
- * @param {string | null} [board]
+ * @param {string | null} board
  * @returns {"moderator" | "editor" | "reader" | "forbidden"}
  */
-export function roleInBoard(token, board = null) {
-  const { AUTH_SECRET_KEY } = readConfiguration();
-  if (AUTH_SECRET_KEY === "") return "editor";
+export function roleInBoard(config, token, board) {
+  if (config.AUTH_SECRET_KEY === "") return "editor";
 
-  const roles = verifyTokenRoles(token, AUTH_SECRET_KEY);
+  const roles = verifyTokenRoles(token, config.AUTH_SECRET_KEY);
   if (roles === null) return "forbidden";
   if (!roles) return "editor";
 

@@ -4,7 +4,12 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const { createSocket, loadSockets, withEnv } = require("./test_helpers.js");
+const {
+  configFromEnv,
+  createSocket,
+  loadSockets,
+  withEnv,
+} = require("./test_helpers.js");
 const USER_SECRET_COOKIE_NAME = "wbo-user-secret-v1";
 
 /**
@@ -54,6 +59,7 @@ test("user id and visible name are deterministic from the cookie-backed user sec
     const record = sockets.__test.buildBoardUserRecord(
       socket,
       "anonymous",
+      configFromEnv({ WBO_IP_SOURCE: "remoteAddress" }),
       123,
     );
 
@@ -82,7 +88,12 @@ test("board user record seeds tool color and size from socket query", async () =
       },
     });
 
-    const record = sockets.__test.buildBoardUserRecord(socket, "board-a", 456);
+    const record = sockets.__test.buildBoardUserRecord(
+      socket,
+      "board-a",
+      configFromEnv({ WBO_IP_SOURCE: "remoteAddress" }),
+      456,
+    );
     assert.equal(record.socketId, "socket-1");
     assert.equal(record.ip, "203.0.113.41");
     assert.equal(record.lastTool, "Rectangle");

@@ -106,6 +106,39 @@ async function withEnv(overrides, fn, extraModules) {
 }
 
 /**
+ * @param {Dict} overrides
+ * @returns {any}
+ */
+function configFromEnv(overrides) {
+  /** @type {Dict} */
+  const saved = {};
+
+  for (const key of Object.keys(overrides)) {
+    saved[key] = process.env[key];
+    const value = overrides[key];
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  clearModuleCache(CONFIG_PATH);
+  try {
+    return require(CONFIG_PATH).readConfiguration();
+  } finally {
+    for (const key of Object.keys(overrides)) {
+      if (saved[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = saved[key];
+      }
+    }
+    clearModuleCache(CONFIG_PATH);
+  }
+}
+
+/**
  * @param {SocketOptions} [options]
  * @returns {CreatedSocket}
  */
@@ -324,6 +357,7 @@ module.exports = {
   boardFile,
   closeServer,
   collectIncomingMessage,
+  configFromEnv,
   createSocket,
   getTcpAddress,
   loadSockets,

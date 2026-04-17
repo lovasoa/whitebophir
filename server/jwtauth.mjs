@@ -24,19 +24,21 @@
  * @licend
  */
 
-import { readConfiguration } from "./configuration.mjs";
 import { forbidden } from "./boundary_errors.mjs";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
 
+/** @typedef {import("./jwtBoardnameAuth.mjs").JwtAuthConfig} JwtAuthConfig */
+
 /**
- * Validates jwt and returns whether user is a moderator
+ * Validates jwt and returns whether user is a moderator.
+ * Pure with respect to `config`; does not read `process.env`.
  * @param {URL} url
+ * @param {JwtAuthConfig} config
  * @returns {boolean} - True if user is a moderator, else false
  * @throws {Error} - If no token is provided when it should be
  */
-export function checkUserPermission(url) {
-  const { AUTH_SECRET_KEY } = readConfiguration();
-  if (AUTH_SECRET_KEY === "") {
+export function checkUserPermission(url, config) {
+  if (config.AUTH_SECRET_KEY === "") {
     return false;
   }
 
@@ -45,7 +47,7 @@ export function checkUserPermission(url) {
     throw forbidden("missing_token");
   }
 
-  const role = roleInBoard(token);
+  const role = roleInBoard(config, token, null);
   if (role === "forbidden") {
     throw forbidden("invalid_token");
   }
