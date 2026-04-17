@@ -35,6 +35,7 @@ function getConfig() {
 /** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
+/** @typedef {import("../types/server-runtime.d.ts").ConnectedUserPayload} ConnectedUserPayload */
 /** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {import("../types/server-runtime.d.ts").RateLimitState} BaseRateLimitState */
@@ -386,7 +387,7 @@ function cleanupBoardUserMap(boardName) {
 
 /**
  * @param {BoardUser} user
- * @returns {{socketId: string, userId: string, name: string, color: string, size: number, lastTool: string}}
+ * @returns {ConnectedUserPayload}
  */
 function serializeBoardUser(user) {
   return {
@@ -454,8 +455,12 @@ function removeBoardUser(socket, boardName) {
   const users = getBoardUserMap(boardName);
   if (!users.delete(socket.id)) return;
 
-  socket.broadcast.to(boardName).emit("user_left", {
+  /** @type {import("../types/server-runtime.d.ts").UserLeftPayload} */
+  const payload = {
     socketId: socket.id,
+  };
+  socket.broadcast.to(boardName).emit("user_left", {
+    socketId: payload.socketId,
   });
   cleanupBoardUserMap(boardName);
 }

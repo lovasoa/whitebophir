@@ -1,4 +1,8 @@
-import type { BoardMessage, ToolNamedBoardMessage } from "./app-runtime";
+import type {
+  BoardMessage,
+  ConnectedUser,
+  ToolNamedBoardMessage,
+} from "./app-runtime";
 
 export type MessageData = BoardMessage & {
   [key: string]: any;
@@ -53,6 +57,12 @@ export type BroadcastResult =
       value: NormalizedMessageData;
     }
   | RejectedBroadcast;
+
+export type ConnectedUserPayload = ConnectedUser;
+
+export type UserLeftPayload = {
+  socketId: string;
+};
 
 export type BoardLike = {
   name: string;
