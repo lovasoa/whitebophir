@@ -72,6 +72,34 @@ test.describe("single-page interactions", () => {
     expect(Math.abs(result.scaleAfterZoomOut - 0.75)).toBeLessThan(0.01);
   });
 
+  test("reload applies the viewport encoded in the URL hash", async ({
+    boardPage,
+    page,
+  }) => {
+    const left = 1600;
+    const top = 1200;
+    const url = `${boardPage.buildBoardUrl("hash-reload-test")}#${left},${top},1.0`;
+
+    await page.goto(url);
+    await page.waitForFunction(() => {
+      const state = document.documentElement.dataset.boardReady;
+      return state === "true" || state === "error";
+    });
+
+    await page.reload();
+    await page.waitForFunction(() => {
+      const state = document.documentElement.dataset.boardReady;
+      return state === "true" || state === "error";
+    });
+
+    await expect
+      .poll(() => boardPage.scrollPosition())
+      .toMatchObject({
+        left,
+        top,
+      });
+  });
+
   test("draw tools disable at giant shape zoom threshold", async ({
     boardPage,
   }) => {

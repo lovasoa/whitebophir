@@ -2678,7 +2678,11 @@ function updateDocumentTitle() {
 
   window.addEventListener("hashchange", setScrollFromHash, false);
   window.addEventListener("popstate", setScrollFromHash, false);
-  window.addEventListener("DOMContentLoaded", setScrollFromHash, false);
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", setScrollFromHash, false);
+  } else {
+    queueMicrotask(setScrollFromHash);
+  }
 })();
 
 /** @param {BoardMessage} m */
@@ -2865,9 +2869,15 @@ Tools.getOpacity = (function opacity() {
   return () => MessageCommon.clampOpacity(chooser.value);
 })();
 
-//Scale the canvas on load
-Tools.svg.width.baseVal.value = document.body.clientWidth;
-Tools.svg.height.baseVal.value = document.body.clientHeight;
+// Initialize the canvas to cover the viewport without shrinking a hash-expanded board.
+Tools.svg.width.baseVal.value = Math.max(
+  Tools.svg.width.baseVal.value,
+  document.body.clientWidth,
+);
+Tools.svg.height.baseVal.value = Math.max(
+  Tools.svg.height.baseVal.value,
+  document.body.clientHeight,
+);
 
 /**
  What does a "tool" object look like?
