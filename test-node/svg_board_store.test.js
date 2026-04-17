@@ -157,6 +157,56 @@ test("readBoardState falls back to legacy json when svg is absent", async () => 
   });
 });
 
+test("readBoardState prefers authoritative svg over stale legacy json", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-svg-preferred-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(
+      svgBoardStore.boardJsonPath("svg-preferred"),
+      JSON.stringify({
+        "rect-json": {
+          id: "rect-json",
+          tool: "Rectangle",
+          x: 0,
+          y: 0,
+          x2: 1,
+          y2: 1,
+          color: "#000000",
+          size: 1,
+        },
+      }),
+      "utf8",
+    );
+    await svgBoardStore.writeBoardState(
+      "svg-preferred",
+      {
+        "rect-svg": {
+          id: "rect-svg",
+          tool: "Rectangle",
+          type: "rect",
+          x: 10,
+          y: 20,
+          x2: 30,
+          y2: 40,
+          color: "#123456",
+          size: 4,
+        },
+      },
+      { readonly: true },
+      7,
+    );
+
+    const state = await svgBoardStore.readBoardState("svg-preferred");
+
+    assert.equal(state.source, "svg");
+    assert.equal(state.metadata.readonly, true);
+    assert.equal(state.seq, 7);
+    assert.deepEqual(Object.keys(state.board), ["rect-svg"]);
+  });
+});
+
 test("writeBoardState removes stale svg and legacy json when board becomes empty", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-empty-delete-"),

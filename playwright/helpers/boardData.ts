@@ -2,6 +2,8 @@ import * as fsp from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
+import { readBoardState } from "../../server/svg_board_store.mjs";
+
 export type StoredBoard = Record<string, any>;
 
 export function withToken(url: string, token?: string, tokenQuery?: string) {
@@ -23,14 +25,8 @@ export async function writeBoard(
 }
 
 export async function readStoredBoard(dataPath: string, name: string) {
-  try {
-    const content = await fsp.readFile(boardFile(dataPath, name), "utf8");
-    return JSON.parse(content) as StoredBoard;
-  } catch (err) {
-    const error = err as NodeJS.ErrnoException;
-    if (error.code === "ENOENT") return {};
-    throw err;
-  }
+  const state = await readBoardState(name, { historyDir: dataPath });
+  return state.board as StoredBoard;
 }
 
 export async function waitForStoredBoard(
