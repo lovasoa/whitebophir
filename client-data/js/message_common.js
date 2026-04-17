@@ -89,6 +89,8 @@ function roundToDecimals(number, decimals) {
   return Math.round(number * factor) / factor;
 }
 
+const COORDINATE_FACTOR = 10 ** LIMITS.COORDINATE_DECIMALS;
+
 /**
  * @param {unknown} maxBoardSize
  * @returns {number}
@@ -126,10 +128,12 @@ export function clampOpacity(value) {
 export function clampCoord(value, maxBoardSize) {
   let coord = toFiniteNumber(value);
   if (coord === null) coord = 0;
-  return roundToDecimals(
-    clamp(coord, 0, resolveMaxBoardSize(maxBoardSize)),
-    LIMITS.COORDINATE_DECIMALS,
-  );
+  const resolvedMaxBoardSize =
+    typeof maxBoardSize === "number"
+      ? maxBoardSize
+      : resolveMaxBoardSize(maxBoardSize);
+  const clamped = clamp(coord, 0, resolvedMaxBoardSize);
+  return Math.round(clamped * COORDINATE_FACTOR) / COORDINATE_FACTOR;
 }
 
 /**
