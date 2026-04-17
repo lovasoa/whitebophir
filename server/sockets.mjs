@@ -1490,18 +1490,25 @@ function emitPersistentBoardMutation(
   legacyPayload,
   envelope,
 ) {
-  let hasLegacyPeer = false;
+  let hasSeqPeer = false;
+  /** @type {AppSocket[]} */
+  const legacyPeers = [];
   for (const socketId of board.users) {
     const targetSocket = getActiveSocket(socketId);
     if (!targetSocket) continue;
     if (targetSocket.id === sourceSocket.id) continue;
     if (usesSeqSync(targetSocket)) {
+      hasSeqPeer = true;
       targetSocket.emit("broadcast", envelope);
       continue;
     }
-    hasLegacyPeer = true;
+    legacyPeers.push(targetSocket);
   }
-  if (!usesSeqSync(sourceSocket) || hasLegacyPeer) {
+  if (hasSeqPeer) {
+    legacyPeers.forEach((targetSocket) => {
+      targetSocket.emit("broadcast", legacyPayload);
+    });
+  } else if (!usesSeqSync(sourceSocket) || legacyPeers.length > 0) {
     sourceSocket.broadcast.to(boardName).emit("broadcast", legacyPayload);
   }
   if (usesSeqSync(sourceSocket)) {

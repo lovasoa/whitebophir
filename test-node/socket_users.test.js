@@ -596,6 +596,130 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
   );
 });
 
+test("mixed seq and legacy peers do not double-deliver persistent writes to seq sockets", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-mixed-sync-fanout-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async () => {
+      const sockets = await loadSockets();
+      sockets.__test.resetRateLimitMaps();
+
+      const writer = createSocket({
+        id: "socket-mixed-writer",
+        remoteAddress: "203.0.113.89",
+        headers: withUserSecretCookie("99999999999999999999999999999989"),
+        query: {
+          board: "board-mixed-sync",
+          sync: "seq",
+          tool: "Rectangle",
+          color: "#111111",
+          size: "4",
+        },
+      });
+      const seqPeer = createSocket({
+        id: "socket-mixed-seq-peer",
+        remoteAddress: "203.0.113.90",
+        headers: withUserSecretCookie("99999999999999999999999999999990"),
+        query: {
+          board: "board-mixed-sync",
+          sync: "seq",
+          tool: "Hand",
+          color: "#222222",
+          size: "4",
+        },
+      });
+      const legacyPeer = createSocket({
+        id: "socket-mixed-legacy-peer",
+        remoteAddress: "203.0.113.91",
+        headers: withUserSecretCookie("99999999999999999999999999999991"),
+        query: {
+          board: "board-mixed-sync",
+          tool: "Hand",
+          color: "#333333",
+          size: "4",
+        },
+      });
+
+      await sockets.__test.handleSocketConnection(writer.socket);
+      await sockets.__test.handleSocketConnection(seqPeer.socket);
+      await sockets.__test.handleSocketConnection(legacyPeer.socket);
+
+      writer.socket.broadcast = {
+        to(room) {
+          return {
+            emit(event, payload) {
+              writer.broadcasted.push({ event, payload, room });
+              [seqPeer.socket, legacyPeer.socket]
+                .filter((target) => target.rooms.has(room))
+                .forEach((target) => {
+                  target.emit(event, payload);
+                });
+            },
+          };
+        },
+      };
+
+      await getRequiredHandler(
+        writer.handlers,
+        "broadcast",
+      )({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-mixed-1",
+        x: 0,
+        y: 0,
+        x2: 10,
+        y2: 10,
+        color: "#111111",
+        size: 4,
+      });
+
+      const seqPeerBroadcasts = seqPeer.emitted.filter(
+        (event) => event.event === "broadcast",
+      );
+      assert.equal(seqPeerBroadcasts.length, 1);
+      assert.equal(getRequiredValue(seqPeerBroadcasts[0]).payload.seq, 1);
+      assert.deepEqual(
+        getRequiredValue(seqPeerBroadcasts[0]).payload.mutation,
+        {
+          tool: "Rectangle",
+          type: "rect",
+          id: "rect-mixed-1",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#111111",
+          size: 4,
+        },
+      );
+      assert.equal(
+        typeof getRequiredValue(seqPeerBroadcasts[0]).payload.acceptedAtMs,
+        "number",
+      );
+      assert.equal(
+        "revision" in getRequiredValue(seqPeerBroadcasts[0]).payload,
+        false,
+      );
+
+      const legacyPeerBroadcasts = legacyPeer.emitted.filter(
+        (event) => event.event === "broadcast",
+      );
+      assert.equal(legacyPeerBroadcasts.length, 2);
+      assert.equal(
+        getRequiredValue(legacyPeerBroadcasts[1]).payload.revision,
+        1,
+      );
+      assert.equal(
+        "seq" in getRequiredValue(legacyPeerBroadcasts[1]).payload,
+        false,
+      );
+    },
+  );
+});
+
 test("seq-sync cursor updates stay ephemeral and are not replayed", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-seq-cursor-"),
