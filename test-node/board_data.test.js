@@ -44,6 +44,21 @@ async function applyPersistentMutation(board, mutation, acceptedAtMs) {
   board.recordPersistentMutation(mutation, acceptedAtMs);
 }
 
+/**
+ * @param {() => boolean | Promise<boolean>} predicate
+ * @param {number} [timeoutMs]
+ * @returns {Promise<void>}
+ */
+async function waitFor(predicate, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await predicate())) {
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out after ${timeoutMs}ms waiting for predicate`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
 test("BoardData processMessageBatch and per-message processing stay in sync", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const single = disableSaves(new BoardData("process-sequence-single"));
@@ -124,6 +139,235 @@ test("BoardData processMessageBatch and per-message processing stay in sync", ()
     normalizeBoardSnapshot(single),
     normalizeBoardSnapshot(batch),
   );
+});
+
+test("computeSaveDelayMs accelerates the first svg baseline save only", () => {
+  const { computeSaveDelayMs } = require(BOARD_DATA_PATH);
+
+  assert.equal(
+    computeSaveDelayMs({
+      saveIntervalMs: 2000,
+      hasPersistedBaseline: false,
+    }),
+    50,
+  );
+  assert.equal(
+    computeSaveDelayMs({
+      saveIntervalMs: 100,
+      hasPersistedBaseline: false,
+    }),
+    50,
+  );
+  assert.equal(
+    computeSaveDelayMs({
+      saveIntervalMs: 2000,
+      hasPersistedBaseline: true,
+    }),
+    2000,
+  );
+  assert.equal(
+    computeSaveDelayMs({
+      saveIntervalMs: 2000,
+      hasPersistedBaseline: true,
+      hasDirtyCreatedItems: true,
+    }),
+    50,
+  );
+});
+
+test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const board = disableSaves(new BoardData("finalize-persisted-snapshot"));
+
+  assert.equal(
+    board.processMessage({
+      tool: "Text",
+      type: "new",
+      id: "text-1",
+      x: 120,
+      y: 140,
+      color: "#111111",
+      size: 18,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    board.processMessage({
+      tool: "Text",
+      type: "update",
+      id: "text-1",
+      txt: "before save",
+    }).ok,
+    true,
+  );
+
+  const persistedSnapshot = new Map(board.itemsById);
+
+  assert.equal(
+    board.processMessage({
+      tool: "Text",
+      type: "update",
+      id: "text-1",
+      txt: "after save started",
+    }).ok,
+    true,
+  );
+
+  board.finalizePersistedItems(persistedSnapshot);
+
+  assert.deepEqual(board.get("text-1"), {
+    id: "text-1",
+    tool: "Text",
+    type: "new",
+    color: "#111111",
+    size: 18,
+    x: 120,
+    y: 140,
+    txt: "after save started",
+    textLength: 18,
+    time: board.get("text-1").time,
+  });
+  assert.equal(board.itemsById.get("text-1")?.dirty, true);
+});
+
+test("finalizePersistedItems folds newly persisted pencil children into the baseline", () => {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const board = disableSaves(new BoardData("finalize-persisted-children"));
+
+  assert.equal(
+    board.processMessage({
+      tool: "Pencil",
+      type: "line",
+      id: "line-1",
+      color: "#111111",
+      size: 4,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    board.processMessage({
+      tool: "Pencil",
+      type: "child",
+      parent: "line-1",
+      x: 10,
+      y: 20,
+    }).ok,
+    true,
+  );
+
+  const persistedSnapshot = new Map(board.itemsById);
+
+  assert.equal(
+    board.processMessage({
+      tool: "Pencil",
+      type: "child",
+      parent: "line-1",
+      x: 25,
+      y: 35,
+    }).ok,
+    true,
+  );
+
+  board.finalizePersistedItems(persistedSnapshot);
+
+  const line = board.itemsById.get("line-1");
+  assert.equal(line?.createdAfterPersistedSeq, false);
+  assert.equal(line?.payload?.persistedChildCount, 1);
+  assert.deepEqual(line?.payload?.appendedChildren, [{ x: 25, y: 35 }]);
+  assert.equal(line?.dirty, true);
+});
+
+test("save schedules a fast follow-up when newer created items remain dirty", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-save-follow-up-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    const board = new BoardData("follow-up-save-board");
+
+    assert.equal(
+      board.processMessage({
+        tool: "Pencil",
+        type: "line",
+        id: "pencil-1",
+        color: "#123456",
+        size: 4,
+      }).ok,
+      true,
+    );
+    assert.equal(
+      board.processMessage({
+        tool: "Pencil",
+        type: "child",
+        parent: "pencil-1",
+        x: 100,
+        y: 200,
+      }).ok,
+      true,
+    );
+    assert.equal(
+      board.processMessage({
+        tool: "Pencil",
+        type: "child",
+        parent: "pencil-1",
+        x: 300,
+        y: 400,
+      }).ok,
+      true,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    assert.equal(
+      board.processMessage({
+        tool: "Pencil",
+        type: "line",
+        id: "pencil-2",
+        color: "#abcdef",
+        size: 4,
+      }).ok,
+      true,
+    );
+    assert.equal(
+      board.processMessage({
+        tool: "Pencil",
+        type: "child",
+        parent: "pencil-2",
+        x: 0,
+        y: 0,
+      }).ok,
+      true,
+    );
+    assert.equal(
+      board.processMessage({
+        tool: "Pencil",
+        type: "child",
+        parent: "pencil-2",
+        x: 90,
+        y: 120,
+      }).ok,
+      true,
+    );
+    assert.equal(
+      board.processMessage({
+        tool: "Pencil",
+        type: "child",
+        parent: "pencil-2",
+        x: 180,
+        y: 0,
+      }).ok,
+      true,
+    );
+
+    await waitFor(async () => {
+      const saved = await fs.readFile(
+        path.join(historyDir, "board-follow-up-save-board.svg"),
+        "utf8",
+      );
+      return saved.includes("#123456") && saved.includes("#abcdef");
+    }, 1000);
+  });
 });
 
 test("BoardData replays batch updates, copies, and deletes consistently", () => {
@@ -576,6 +820,30 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
         x2: 10,
         y2: 10,
       },
+      pencil: {
+        id: "pencil",
+        tool: "Pencil",
+        type: "line",
+        color: "#8844aa",
+        size: 4,
+        opacity: 1,
+        _children: [
+          { x: 60, y: 80 },
+          { x: 120, y: 130 },
+          { x: 180, y: 100 },
+          { x: 230, y: 170 },
+        ],
+      },
+      text: {
+        id: "text",
+        tool: "Text",
+        type: "new",
+        x: 360,
+        y: 180,
+        color: "#111111",
+        size: 18,
+        txt: "Slow sync",
+      },
     });
 
     const board = await BoardData.load("legacy-migrate");
@@ -584,14 +852,18 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
 
     assert.equal(board.metadata.readonly, true);
     assert.equal(board.get("rect").tool, "Rectangle");
+    assert.equal(board.get("pencil").tool, "Pencil");
+    assert.equal(board.get("text").tool, "Text");
     assert.match(svg, /data-wbo-format="whitebophir-svg-v1"/);
     assert.match(svg, /data-wbo-readonly="true"/);
     assert.match(svg, /<rect id="rect" x="0" y="0" width="10" height="10"/);
+    assert.match(svg, /<path id="pencil" d="M 60 80/);
+    assert.match(svg, />Slow sync<\/text>/);
     assert.doesNotMatch(svg, /data-wbo-item|data-wbo-tool/);
   });
 });
 
-test("BoardData lazily hydrates persisted svg items before applying updates", async () => {
+test("BoardData eagerly loads canonical persisted svg items before applying updates", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-lazy-hydrate-"),
   );
@@ -605,7 +877,16 @@ test("BoardData lazily hydrates persisted svg items before applying updates", as
     );
 
     const board = await BoardData.load("lazy-hydrate");
-    assert.equal(board.get("rect-1"), undefined);
+    assert.deepEqual(board.get("rect-1"), {
+      id: "rect-1",
+      tool: "Rectangle",
+      x: 1,
+      y: 2,
+      x2: 3,
+      y2: 4,
+      color: "#123456",
+      size: 4,
+    });
 
     const updateRect = {
       tool: "Rectangle",
@@ -619,17 +900,23 @@ test("BoardData lazily hydrates persisted svg items before applying updates", as
       mutation: updateRect,
     });
     assert.equal(board.processMessage(updateRect).ok, true);
-    assert.deepEqual(board.get("rect-1"), {
-      id: "rect-1",
-      tool: "Rectangle",
-      type: "rect",
-      x: 1,
-      y: 2,
-      x2: 30,
-      y2: 40,
-      color: "#123456",
-      size: 4,
-    });
+    assert.deepEqual(
+      {
+        ...board.get("rect-1"),
+        time: undefined,
+      },
+      {
+        id: "rect-1",
+        tool: "Rectangle",
+        x: 1,
+        y: 2,
+        x2: 30,
+        y2: 40,
+        color: "#123456",
+        size: 4,
+        time: undefined,
+      },
+    );
   });
 });
 
@@ -893,14 +1180,14 @@ test("BoardData.save preserves cold-loaded stored svg when there are no pending 
 
     const board = await BoardData.load("cold-noop");
 
-    assert.equal(Object.keys(board.board).length, 0);
+    assert.deepEqual(Object.keys(board.board).sort(), ["line-1", "rect-1"]);
     await board.save();
 
     assert.equal(await fs.readFile(svgPath, "utf8"), existingSvg);
   });
 });
 
-test("BoardData.save persists direct in-memory board items even before the admission index is rebuilt", async () => {
+test("BoardData.save persists canonical test-injected board items through the board setter", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-save-direct-memory-"),
   );
@@ -908,14 +1195,16 @@ test("BoardData.save persists direct in-memory board items even before the admis
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     const BoardData = require(BOARD_DATA_PATH).BoardData;
     const board = new BoardData("direct-memory-save");
-    board.board["text-1"] = {
-      id: "text-1",
-      tool: "Text",
-      x: 1,
-      y: 2,
-      txt: "hi",
-      size: 12,
-      color: "#000000",
+    board.board = {
+      "text-1": {
+        id: "text-1",
+        tool: "Text",
+        x: 1,
+        y: 2,
+        txt: "hi",
+        size: 12,
+        color: "#000000",
+      },
     };
 
     await board.save();
@@ -928,7 +1217,7 @@ test("BoardData.save persists direct in-memory board items even before the admis
   });
 });
 
-test("BoardData.save keeps streamed svg updates sparse in memory", async () => {
+test("BoardData.save keeps eagerly loaded canonical items and applies streamed svg updates", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-save-streaming-sparse-"),
   );
@@ -997,7 +1286,13 @@ test("BoardData.save keeps streamed svg updates sparse in memory", async () => {
     );
 
     const board = await BoardData.load(boardName);
-    assert.deepEqual(Object.keys(board.board), []);
+    assert.deepEqual(Object.keys(board.board).sort(), [
+      "item-0",
+      "item-1",
+      "item-2",
+      "item-3",
+      "item-4",
+    ]);
 
     await applyPersistentMutation(
       board,
@@ -1059,9 +1354,11 @@ test("BoardData.save keeps streamed svg updates sparse in memory", async () => {
 
     assert.deepEqual(Object.keys(board.board).sort(), [
       "item-0",
+      "item-1",
       "item-2",
       "item-3",
       "item-3-copy",
+      "item-4",
       "item-new",
     ]);
 
@@ -1069,9 +1366,11 @@ test("BoardData.save keeps streamed svg updates sparse in memory", async () => {
 
     assert.deepEqual(Object.keys(board.board).sort(), [
       "item-0",
+      "item-1",
       "item-2",
       "item-3",
       "item-3-copy",
+      "item-4",
       "item-new",
     ]);
     assert.equal(board.authoritativeItemCount(), 7);
@@ -1086,7 +1385,7 @@ test("BoardData.save keeps streamed svg updates sparse in memory", async () => {
   });
 });
 
-test("BoardData.save falls back to a full authoritative write on stored svg seq mismatch", async () => {
+test("BoardData.save leaves the stored svg unchanged on seq mismatch", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-save-rewrite-mismatch-"),
   );
@@ -1128,10 +1427,10 @@ test("BoardData.save falls back to a full authoritative write on stored svg seq 
     await board.save();
 
     const rewritten = await fs.readFile(svgPath, "utf8");
-    assert.match(rewritten, /data-wbo-seq="2"/);
+    assert.match(rewritten, /data-wbo-seq="99"/);
     assert.match(
       rewritten,
-      /<rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"><\/rect>/,
+      /<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"><\/rect>/,
     );
   });
 });
