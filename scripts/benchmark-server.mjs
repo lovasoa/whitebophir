@@ -3,6 +3,7 @@ import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { performance } from "node:perf_hooks";
+import { once } from "node:events";
 
 import { BoardData } from "../server/boardData.mjs";
 import {
@@ -11,6 +12,8 @@ import {
 } from "../server/broadcast_processing.mjs";
 import { readConfiguration } from "../server/configuration.mjs";
 import { renderBoardToSVG } from "../server/createSVG.mjs";
+import { writeBoardState } from "../server/svg_board_store.mjs";
+import { streamingUpdate } from "../server/streaming_stored_svg_update.mjs";
 
 const historyDir = fs.mkdtempSync(path.join(os.tmpdir(), "wbo-server-bench-"));
 process.env.WBO_HISTORY_DIR = historyDir;
@@ -212,9 +215,15 @@ async function writeBoardFile(name, board) {
  * @returns {Promise<BenchFixture>}
  */
 async function writeMigratedSvgFixture(name, board) {
-  await writeBoardFile(name, board);
-  const boardData = await BoardData.load(name);
-  clearPendingSave(boardData);
+  await writeBoardState(
+    name,
+    Object.fromEntries(
+      Object.entries(board).map(([id, item]) => [id, { id, ...item }]),
+    ),
+    { readonly: false },
+    0,
+    { historyDir },
+  );
   const file = boardSvgFile(name);
   const stat = await fsp.stat(file);
   return { file, bytes: stat.size };
@@ -542,17 +551,25 @@ function makeRateLimitDefinition(limit, periodMs) {
 }
 
 /**
- * @param {BoardData} boardData
- * @param {any} mutation
- * @param {number} acceptedAtMs
+ * @param {AsyncIterable<string>} input
+ * @param {string} file
  * @returns {Promise<void>}
  */
-async function applyPersistentBenchMutation(boardData, mutation, acceptedAtMs) {
-  const prepared = await boardData.preparePersistentMutation(mutation);
-  if (!prepared.ok) throw new Error(prepared.reason);
-  const processed = boardData.processMessage(mutation);
-  if (!processed.ok) throw new Error(processed.reason);
-  boardData.recordPersistentMutation(mutation, acceptedAtMs);
+async function writeAsyncTextToFile(input, file) {
+  const stream = fs.createWriteStream(file, { encoding: "utf8" });
+  try {
+    for await (const chunk of input) {
+      if (!stream.write(chunk)) {
+        await once(stream, "drain");
+      }
+    }
+    stream.end();
+    await once(stream, "finish");
+  } finally {
+    if (!stream.closed) {
+      stream.destroy();
+    }
+  }
 }
 
 /**
@@ -881,8 +898,6 @@ async function main() {
           );
         },
         setup: async () => {
-          const boardData = await BoardData.load("bench-stream-update-board");
-          clearPendingSave(boardData);
           const nextPencilPoint = pencilPoints(
             STREAM_UPDATE_PENCIL_POINTS + 1,
             0,
@@ -891,8 +906,8 @@ async function main() {
             throw new Error("missing streaming benchmark pencil point");
           }
           return {
-            boardData,
             fixture: fixtures.streamUpdate,
+            outputFile: boardSvgFile("bench-stream-update-output"),
             mutations: [
               {
                 tool: "Rectangle",
@@ -935,54 +950,46 @@ async function main() {
           };
         },
         run: async (context) => {
-          for (const [index, mutation] of context.mutations.entries()) {
-            await applyPersistentBenchMutation(
-              context.boardData,
-              mutation,
-              index + 1,
-            );
-          }
-          await context.boardData.save();
-          clearPendingSave(context.boardData);
-          const stat = await fsp.stat(context.boardData.file);
-          const hydratedItems = Object.keys(context.boardData.board).length;
-          const authoritativeItems = context.boardData.authoritativeItemCount();
+          /** @type {{parsedExistingItems?: number}} */
+          const stats = {};
+          await writeAsyncTextToFile(
+            streamingUpdate(
+              fs.createReadStream(context.fixture.file, { encoding: "utf8" }),
+              context.mutations,
+              {
+                metadata: { readonly: false },
+                toSeqInclusive: context.mutations.length,
+                stats,
+              },
+            ),
+            context.outputFile,
+          );
+          const stat = await fsp.stat(context.outputFile);
+          const parsedExistingItems = stats.parsedExistingItems || 0;
           return {
             details:
               context.mutations.length +
-              " queued mutations rewrote " +
+              " queued mutations streamed " +
               bytesToMiB(stat.size) +
               " from " +
               bytesToMiB(context.fixture.bytes) +
               " with " +
-              hydratedItems +
-              " hydrated items out of " +
-              authoritativeItems +
-              " authoritative",
+              parsedExistingItems +
+              " parsed existing items",
             metrics: {
-              hydratedItems,
-              authoritativeItems,
+              parsedExistingItems,
             },
           };
         },
         assert: (samples) => {
           for (const sample of samples) {
-            const hydratedItems = sample.metrics.hydratedItems;
-            const authoritativeItems = sample.metrics.authoritativeItems;
-            if (
-              typeof hydratedItems !== "number" ||
-              typeof authoritativeItems !== "number"
-            ) {
+            const parsedExistingItems = sample.metrics.parsedExistingItems;
+            if (typeof parsedExistingItems !== "number") {
               throw new Error("streaming update benchmark metrics missing");
             }
-            if (!(hydratedItems > 0 && hydratedItems <= 8)) {
+            if (!(parsedExistingItems > 0 && parsedExistingItems <= 3)) {
               throw new Error(
-                `streaming update benchmark hydrated ${hydratedItems} items; expected <= 8`,
-              );
-            }
-            if (!(authoritativeItems >= DENSE_BOARD_ITEMS + 2)) {
-              throw new Error(
-                `streaming update benchmark authoritative count ${authoritativeItems} is too small`,
+                `streaming update benchmark parsed ${parsedExistingItems} existing items; expected <= 3`,
               );
             }
           }
