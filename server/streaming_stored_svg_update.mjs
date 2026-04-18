@@ -62,53 +62,73 @@ function appendById(map, id, mutation) {
 
 /**
  * @param {any[]} mutations
- * @returns {{opsById: Map<string, any[]>, appendOrder: Array<{kind: "create" | "copy", id: string}>, appendCreatesById: Map<string, any>} | null}
+ * @returns {{
+ *   clearExisting: boolean,
+ *   opsById: Map<string, any[]>,
+ *   appendOrder: string[],
+ *   appendSourcesById: Map<string, {kind: "create", item: any} | {kind: "copy", sourceId: string}>,
+ * } | null}
  */
 function planStreamingMutations(mutations) {
+  let clearExisting = false;
   const opsById = new Map();
-  /** @type {Array<{kind: "create" | "copy", id: string}>} */
-  const appendOrder = [];
-  const appendCreatesById = new Map();
-  const appendedIds = new Set();
+  /** @type {string[]} */
+  let appendOrder = [];
+  /** @type {Map<string, {kind: "create", item: any} | {kind: "copy", sourceId: string}>} */
+  let appendSourcesById = new Map();
 
   for (const mutation of flattenMutations(mutations)) {
     if (!mutation || typeof mutation !== "object") return null;
-    if (mutation.type === "clear") return null;
+    if (mutation.type === "clear") {
+      clearExisting = true;
+      opsById.clear();
+      appendOrder = [];
+      appendSourcesById = new Map();
+      continue;
+    }
 
     if (isCreateMutation(mutation)) {
-      if (appendedIds.has(mutation.id)) return null;
-      appendedIds.add(mutation.id);
-      appendCreatesById.set(mutation.id, structuredClone(mutation));
-      appendOrder.push({ kind: "create", id: mutation.id });
+      if (typeof mutation.id !== "string") return null;
+      appendSourcesById.set(mutation.id, {
+        kind: "create",
+        item: structuredClone(mutation),
+      });
+      if (!appendOrder.includes(mutation.id)) {
+        appendOrder.push(mutation.id);
+      }
       continue;
     }
 
     if (mutation.type === "copy") {
       if (
         typeof mutation.id !== "string" ||
-        typeof mutation.newid !== "string" ||
-        appendedIds.has(mutation.id) ||
-        appendedIds.has(mutation.newid)
+        typeof mutation.newid !== "string"
       ) {
         return null;
       }
-      appendedIds.add(mutation.newid);
-      appendOrder.push({ kind: "copy", id: mutation.newid });
+      appendSourcesById.set(mutation.newid, {
+        kind: "copy",
+        sourceId: mutation.id,
+      });
+      if (!appendOrder.includes(mutation.newid)) {
+        appendOrder.push(mutation.newid);
+      }
       appendById(opsById, mutation.id, mutation);
       continue;
     }
 
     const id = mutation.type === "child" ? mutation.parent : mutation.id;
-    if (typeof id !== "string" || appendedIds.has(id)) {
+    if (typeof id !== "string") {
       return null;
     }
     appendById(opsById, id, mutation);
   }
 
   return {
+    clearExisting,
     opsById,
     appendOrder,
-    appendCreatesById,
+    appendSourcesById,
   };
 }
 
@@ -196,15 +216,17 @@ function tryExtractItemOrSuffix(buffer) {
   }
   const leadingText = buffer.slice(0, offset);
   if (offset === buffer.length) return null;
-  if (buffer.startsWith("</g>", offset)) {
-    return {
-      type: "suffix",
-      leadingText,
-      suffix: buffer.slice(offset),
-      consumed: buffer.length,
-    };
-  }
   if (buffer[offset + 1] === "/") {
+    const closeTagEnd = buffer.indexOf(">", offset + 2);
+    if (closeTagEnd === -1) return null;
+    if (buffer.slice(offset, closeTagEnd + 1) === "</g>") {
+      return {
+        type: "suffix",
+        leadingText,
+        suffix: buffer.slice(offset),
+        consumed: buffer.length,
+      };
+    }
     throw new Error("Unexpected closing tag inside drawingArea");
   }
 
@@ -254,9 +276,13 @@ async function* streamingUpdate(input, mutations, options) {
   }
 
   const stats = options?.stats;
+  if (stats && stats.parsedExistingItems === undefined) {
+    stats.parsedExistingItems = 0;
+  }
   let buffer = "";
   let prefixDone = false;
   const resolvedCopies = new Map();
+  const appendedItems = new Map();
   const iterator = input[Symbol.asyncIterator]();
 
   while (true) {
@@ -285,14 +311,29 @@ async function* streamingUpdate(input, mutations, options) {
       buffer = buffer.slice(extracted.consumed);
 
       if (extracted.type === "suffix") {
-        for (const entry of plan.appendOrder) {
-          if (entry.kind === "create") {
-            const created = plan.appendCreatesById.get(entry.id);
-            if (created) yield serializeStoredSvgItem(created);
-            continue;
+        for (const id of plan.appendOrder) {
+          const source = plan.appendSourcesById.get(id);
+          if (!source) continue;
+
+          /** @type {any | undefined} */
+          let baseItem;
+          if (source.kind === "create") {
+            baseItem = structuredClone(source.item);
+          } else if (appendedItems.has(source.sourceId)) {
+            baseItem = structuredClone(appendedItems.get(source.sourceId));
+            baseItem.id = id;
+          } else if (resolvedCopies.has(id)) {
+            baseItem = structuredClone(resolvedCopies.get(id));
           }
-          const copied = resolvedCopies.get(entry.id);
-          if (copied) yield serializeStoredSvgItem(copied);
+          if (!baseItem) continue;
+
+          const applied = applyOpsToItem(baseItem, plan.opsById.get(id) || []);
+          for (const [copyId, copied] of applied.copies.entries()) {
+            resolvedCopies.set(copyId, copied);
+          }
+          if (!applied.item) continue;
+          appendedItems.set(id, applied.item);
+          yield serializeStoredSvgItem(applied.item);
         }
         yield extracted.leadingText + extracted.suffix;
         while (true) {
@@ -304,6 +345,9 @@ async function* streamingUpdate(input, mutations, options) {
 
       const id = extracted.entry.attributes.id;
       const ops = typeof id === "string" ? plan.opsById.get(id) : undefined;
+      if (plan.clearExisting) {
+        continue;
+      }
       if (!ops || ops.length === 0) {
         yield extracted.leadingText + extracted.entry.raw;
         continue;

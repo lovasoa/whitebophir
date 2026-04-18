@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { once } from "node:events";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -10,7 +11,7 @@ import {
   parseLegacyStoredBoard,
   readLegacyBoardState,
 } from "./legacy_json_board_source.mjs";
-import { rewriteStoredSvg as rewriteStoredSvgText } from "./stored_svg_rewrite.mjs";
+import { streamingUpdate } from "./streaming_stored_svg_update.mjs";
 import {
   STORED_SVG_FORMAT,
   createDefaultStoredSvgEnvelope,
@@ -492,20 +493,42 @@ async function rewriteStoredSvg(
   const historyDir = options?.historyDir;
   const file = boardSvgPath(boardName, historyDir);
   const tmpFile = createTempSvgPath(file);
-  const existingSvg = await readFile(file, "utf8");
+  const envelope = parseStoredSvgEnvelope(await readFile(file, "utf8"));
   const currentSeq = normalizeStoredSeq(
-    parseStoredSvgEnvelope(existingSvg).rootAttributes["data-wbo-seq"],
+    envelope.rootAttributes["data-wbo-seq"],
   );
   if (currentSeq !== fromSeqExclusive) {
     throw createStoredSvgSeqMismatchError(fromSeqExclusive, currentSeq);
   }
-  const rewritten = rewriteStoredSvgText(
-    existingSvg,
-    metadata,
-    toSeqInclusive,
-    mutations,
-  );
-  await writeFile(tmpFile, rewritten, { flag: "wx" });
+  const input = fs.createReadStream(file, { encoding: "utf8" });
+  const output = fs.createWriteStream(tmpFile, {
+    encoding: "utf8",
+    flags: "wx",
+  });
+  const closeOutput = () =>
+    new Promise((resolve, reject) => {
+      output.on("error", reject);
+      output.end(resolve);
+    });
+
+  try {
+    for await (const chunk of streamingUpdate(
+      input,
+      mutations.map((entry) => entry.mutation),
+      { metadata, toSeqInclusive },
+    )) {
+      if (!output.write(chunk)) {
+        await once(output, "drain");
+      }
+    }
+    await closeOutput();
+  } catch (error) {
+    input.destroy();
+    output.destroy();
+    await fs.promises.rm(tmpFile, { force: true });
+    throw error;
+  }
+
   await rename(tmpFile, file);
 }
 
