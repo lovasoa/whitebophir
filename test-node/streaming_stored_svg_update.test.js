@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { rewriteStoredSvg } = require("../server/stored_svg_rewrite.mjs");
 const { parseStoredSvg } = require("../server/svg_board_store.mjs");
 const {
   streamingUpdate,
@@ -28,6 +27,32 @@ async function collect(input) {
     output += chunk;
   }
   return output;
+}
+
+/**
+ * @param {string} svg
+ * @param {any[]} mutations
+ * @param {{readonly: boolean}} metadata
+ * @param {number} toSeqInclusive
+ * @param {number} chunkSize
+ * @param {{parsedExistingItems?: number}=} [stats]
+ * @returns {Promise<string>}
+ */
+function rewriteViaStreaming(
+  svg,
+  mutations,
+  metadata,
+  toSeqInclusive,
+  chunkSize,
+  stats,
+) {
+  return collect(
+    streamingUpdate(
+      chunkString(svg, chunkSize),
+      mutations.map((entry) => entry.mutation),
+      { metadata, toSeqInclusive, stats },
+    ),
+  );
 }
 
 test("streaming stored svg update rewrites touched items and appends creates without full-text parsing", async () => {
@@ -92,18 +117,31 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     },
   ];
 
-  const expected = rewriteStoredSvg(svg, { readonly: false }, 5, mutations);
   /** @type {{parsedExistingItems?: number}} */
   const stats = {};
-  const actual = await collect(
-    streamingUpdate(
-      chunkString(svg, 17),
-      mutations.map((entry) => entry.mutation),
-      { metadata: { readonly: false }, toSeqInclusive: 5, stats },
-    ),
+  const actual = await rewriteViaStreaming(
+    svg,
+    mutations,
+    { readonly: false },
+    5,
+    17,
+    stats,
   );
+  const parsed = parseStoredSvg(actual);
 
-  assert.deepEqual(parseStoredSvg(actual), parseStoredSvg(expected));
+  assert.equal(parsed.board["item-3"].x2, 15);
+  assert.equal(parsed.board["item-2"].txt, "hello streaming");
+  assert.equal(parsed.board["item-0"]._children.length, 3);
+  assert.equal(parsed.board["item-3-copy"].tool, "Rectangle");
+  assert.equal(parsed.board["item-new"].tool, "Rectangle");
+  assert.deepEqual(Object.keys(parsed.board), [
+    "item-0",
+    "item-2",
+    "item-3",
+    "item-4",
+    "item-3-copy",
+    "item-new",
+  ]);
   assert.equal(stats.parsedExistingItems, 3);
   assert.equal(actual.includes('id="item-4"'), true);
 });
@@ -166,20 +204,149 @@ test("streaming stored svg update matches clear and same-batch followup semantic
     },
   ];
 
-  const expected = rewriteStoredSvg(svg, { readonly: false }, 6, mutations);
   /** @type {{parsedExistingItems?: number}} */
   const stats = {};
-  const actual = await collect(
-    streamingUpdate(
-      chunkString(svg, 11),
-      mutations.map((entry) => entry.mutation),
-      { metadata: { readonly: false }, toSeqInclusive: 6, stats },
-    ),
+  const actual = await rewriteViaStreaming(
+    svg,
+    mutations,
+    { readonly: false },
+    6,
+    11,
+    stats,
   );
+  const parsed = parseStoredSvg(actual);
 
-  assert.deepEqual(parseStoredSvg(actual), parseStoredSvg(expected));
+  assert.deepEqual(Object.keys(parsed.board), ["rect-new"]);
+  assert.equal(parsed.board["rect-new"].x2, 28);
+  assert.equal(parsed.board["rect-new"].y2, 29);
   assert.equal(stats.parsedExistingItems, 0);
   assert.equal(actual.includes('id="rect-old"'), false);
   assert.equal(actual.includes('id="line-2"'), false);
   assert.equal(actual.includes('id="rect-new"'), true);
+});
+
+test("streaming stored svg update preserves shell and paint order across create update copy and delete", async () => {
+  const svg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+    '<defs id="defs"><marker id="keep"></marker></defs>' +
+    '<g id="drawingArea">' +
+    '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
+    '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello</text>' +
+    "</g>" +
+    '<g id="cursors"><path id="cursor-template"></path></g>' +
+    "</svg>";
+  const actual = await rewriteViaStreaming(
+    svg,
+    [
+      {
+        mutation: {
+          tool: "Ellipse",
+          type: "ellipse",
+          id: "ellipse-1",
+          x: 7,
+          y: 8,
+          x2: 11,
+          y2: 12,
+          color: "#abcdef",
+          size: 3,
+        },
+      },
+      {
+        mutation: {
+          tool: "Rectangle",
+          type: "update",
+          id: "rect-1",
+          x2: 30,
+          y2: 40,
+        },
+      },
+      {
+        mutation: {
+          tool: "Hand",
+          type: "copy",
+          id: "rect-1",
+          newid: "rect-2",
+        },
+      },
+      {
+        mutation: {
+          tool: "Eraser",
+          type: "delete",
+          id: "text-1",
+        },
+      },
+    ],
+    { readonly: true },
+    5,
+    13,
+  );
+  const parsed = parseStoredSvg(actual);
+
+  assert.match(actual, /<marker id="keep"><\/marker><\/defs>/);
+  assert.match(
+    actual,
+    /<g id="cursors"><path id="cursor-template"><\/path><\/g>/,
+  );
+  assert.match(actual, /data-wbo-seq="5"/);
+  assert.match(actual, /data-wbo-readonly="true"/);
+  assert.equal(parsed.board["rect-1"].x2, 30);
+  assert.equal(parsed.board["ellipse-1"].tool, "Ellipse");
+  assert.equal(parsed.board["rect-2"].tool, "Rectangle");
+  assert.deepEqual(Object.keys(parsed.board), [
+    "rect-1",
+    "ellipse-1",
+    "rect-2",
+  ]);
+});
+
+test("streaming stored svg update preserves untouched bytes and the opaque prefix of touched pencil paths", async () => {
+  const untouchedPath =
+    '<path id="line-1" d="M 1 2 L 1 2 C 1 2 3 4 3 4" stroke="#123456" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>';
+  const untouchedEllipse =
+    '<ellipse id="ellipse-1" cx="12" cy="22" rx="2" ry="2" stroke="#123456" stroke-width="2" fill="none"></ellipse>';
+  const svg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+    '<defs id="defs"></defs>' +
+    '<g id="drawingArea">' +
+    '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
+    untouchedPath +
+    untouchedEllipse +
+    "</g>" +
+    '<g id="cursors"></g>' +
+    "</svg>";
+  const actual = await rewriteViaStreaming(
+    svg,
+    [
+      {
+        mutation: {
+          tool: "Rectangle",
+          type: "update",
+          id: "rect-1",
+          x2: 30,
+          y2: 40,
+        },
+      },
+      {
+        mutation: {
+          tool: "Pencil",
+          type: "child",
+          parent: "line-1",
+          x: 9,
+          y: 10,
+        },
+      },
+    ],
+    { readonly: false },
+    2,
+    19,
+  );
+  const parsed = parseStoredSvg(actual);
+
+  assert.match(
+    actual,
+    /<rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"><\/rect>/,
+  );
+  assert.match(actual, /d="M 1 2 L 1 2 /);
+  assert.equal(actual.includes(untouchedEllipse), true);
+  assert.equal(parsed.board["line-1"]._children.length, 3);
 });
