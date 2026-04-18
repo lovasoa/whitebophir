@@ -768,7 +768,7 @@ async function main() {
           const boardData = await BoardData.load("bench-load-dense-board");
           clearPendingSave(boardData);
           return (
-            Object.keys(boardData.board).length +
+            boardData.authoritativeItemCount() +
             " items normalized from " +
             bytesToMiB(fixture.bytes)
           );
@@ -823,7 +823,7 @@ async function main() {
           clearPendingSave(context.boardData);
           const stat = await fsp.stat(context.boardData.file);
           return (
-            Object.keys(context.boardData.board).length +
+            context.boardData.authoritativeItemCount() +
             " items stringified and written as " +
             bytesToMiB(stat.size) +
             " from " +

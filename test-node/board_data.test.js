@@ -825,6 +825,34 @@ test("BoardData.save rewrites existing stored svg from queued mutations", async 
   });
 });
 
+test("BoardData.save preserves cold-loaded stored svg when there are no pending mutations", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-save-cold-noop-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    const svgPath = path.join(historyDir, "board-cold-noop.svg");
+    const existingSvg =
+      '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="7" data-wbo-readonly="false">' +
+      '<defs id="defs"><marker id="m1"></marker></defs>' +
+      '<g id="drawingArea">' +
+      '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
+      '<path id="line-1" d="M 1 2 L 1 2 C 1 2 3 4 3 4" stroke="#654321" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>' +
+      "</g>" +
+      '<g id="cursors"><path id="cursor-template"></path></g>' +
+      "</svg>";
+    await fs.writeFile(svgPath, existingSvg, "utf8");
+
+    const board = await BoardData.load("cold-noop");
+
+    assert.equal(Object.keys(board.board).length, 0);
+    await board.save();
+
+    assert.equal(await fs.readFile(svgPath, "utf8"), existingSvg);
+  });
+});
+
 test("BoardData.save falls back to a full authoritative write on stored svg seq mismatch", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-save-rewrite-mismatch-"),

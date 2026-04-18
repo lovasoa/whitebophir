@@ -504,6 +504,7 @@ function applyMutation(state, mutation) {
  * @param {{loadItems?: (ids: Set<string>) => Promise<Map<string, any>>}=} options
  * @returns {{
  *   get: (id: string) => any,
+ *   size: () => number,
  *   seed: (summaries: any[]) => void,
  *   ensureLoaded: (ids: Set<string>) => Promise<void>,
  *   canApplyLoaded: (mutation: any) => {ok: true} | {ok: false, reason: string},
@@ -522,6 +523,9 @@ function createAdmissionIndex(options) {
     get(id) {
       const summary = state.summaries.get(id);
       return summary ? cloneSummary(summary) : undefined;
+    },
+    size() {
+      return state.summaries.size;
     },
     seed(summaries) {
       (summaries || []).forEach((summary) => {

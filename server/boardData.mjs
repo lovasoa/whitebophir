@@ -150,6 +150,7 @@ class BoardData {
     this.metadata = defaultBoardMetadata();
     this.historyDir = readConfiguration().HISTORY_DIR;
     this.file = boardFilePath(name, this.historyDir);
+    this.hasPersistedBaseline = false;
     this.lastSaveDate = Date.now();
     this.users = new Set();
     this.saveMutex = new SerialTaskQueue();
@@ -264,6 +265,13 @@ class BoardData {
         .map((item, paintOrder) => summarizeBoardItem(item, paintOrder))
         .filter((summary) => summary !== null),
     );
+  }
+
+  /**
+   * @returns {number}
+   */
+  authoritativeItemCount() {
+    return this.admissionIndex.size();
   }
 
   /**
@@ -1130,7 +1138,8 @@ class BoardData {
         this.lastSaveDate = Date.now();
         this.clean();
         const file = this.file;
-        if (Object.keys(this.board).length === 0) {
+        const authoritativeItemCount = this.authoritativeItemCount();
+        if (authoritativeItemCount === 0) {
           // empty board
           try {
             await writeBoardState(
@@ -1140,6 +1149,7 @@ class BoardData {
               this.getSeq(),
               { historyDir: this.historyDir },
             );
+            this.hasPersistedBaseline = false;
             this.markPersistedSeq(this.getSeq());
             this.trimPersistedMutationLog(startedAt);
             tracing.setActiveSpanAttributes(
@@ -1205,7 +1215,10 @@ class BoardData {
                   { historyDir: this.historyDir },
                 );
               }
-            } else {
+            } else if (
+              !this.hasPersistedBaseline ||
+              Object.keys(this.board).length > 0
+            ) {
               await writeBoardState(
                 this.name,
                 this.board,
@@ -1214,6 +1227,7 @@ class BoardData {
                 { historyDir: this.historyDir },
               );
             }
+            this.hasPersistedBaseline = true;
             this.markPersistedSeq(latestSeq);
             this.trimPersistedMutationLog(startedAt);
             const savedFile = await stat(file);
@@ -1222,13 +1236,13 @@ class BoardData {
                 "wbo.board.result": "success",
                 "file.path": file,
                 "file.size": savedFile.size,
-                "wbo.board.items": Object.keys(this.board).length,
+                "wbo.board.items": authoritativeItemCount,
               }),
             );
             logger.info("board.saved", {
               board: this.name,
               "file.size": savedFile.size,
-              items: Object.keys(this.board).length,
+              items: authoritativeItemCount,
             });
             metrics.recordBoardOperationDuration(
               "save",
@@ -1347,6 +1361,7 @@ class BoardData {
             storedBoard.source === "json"
               ? /** @type {{[name: string]: BoardElem}} */ (storedBoard.board)
               : {};
+          boardData.hasPersistedBaseline = storedBoard.source !== "empty";
           boardData.metadata = storedBoard.metadata;
           boardData.mutationLog = createMutationLog(storedBoard.seq);
           if (storedBoard.source === "json") {
