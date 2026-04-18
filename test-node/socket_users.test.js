@@ -711,6 +711,96 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
   );
 });
 
+test("seq-sync sockets do not receive live persistent broadcasts before replay catch-up completes", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-users-seq-live-gated-"),
+  );
+  await withEnv(
+    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
+    async () => {
+      const sockets = await loadSockets();
+      sockets.__test.resetRateLimitMaps();
+
+      const writer = createSocket({
+        id: "socket-seq-gated-writer",
+        remoteAddress: "203.0.113.185",
+        headers: withUserSecretCookie("99999999999999999999999999999185"),
+        query: {
+          board: "board-seq-live-gated",
+          sync: "seq",
+          tool: "Rectangle",
+          color: "#444444",
+          size: "4",
+        },
+      });
+      const peer = createSocket({
+        id: "socket-seq-gated-peer",
+        remoteAddress: "203.0.113.186",
+        headers: withUserSecretCookie("99999999999999999999999999999186"),
+        query: {
+          board: "board-seq-live-gated",
+          sync: "seq",
+          tool: "Hand",
+          color: "#555555",
+          size: "4",
+        },
+      });
+
+      await sockets.__test.handleSocketConnection(writer.socket);
+      await sockets.__test.handleSocketConnection(peer.socket);
+
+      const broadcast = getRequiredHandler(writer.handlers, "broadcast");
+      await broadcast({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-before-sync",
+        x: 0,
+        y: 0,
+        x2: 10,
+        y2: 10,
+        color: "#444444",
+        size: 4,
+      });
+
+      assert.equal(
+        peer.emitted.filter((event) => event.event === "broadcast").length,
+        0,
+      );
+
+      await getRequiredHandler(
+        peer.handlers,
+        "sync_request",
+      )({
+        baselineSeq: 0,
+      });
+
+      const replayedBroadcasts = peer.emitted.filter(
+        (event) => event.event === "broadcast",
+      );
+      assert.equal(replayedBroadcasts.length, 1);
+      assert.equal(getRequiredValue(replayedBroadcasts[0]).payload.seq, 1);
+
+      await broadcast({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-after-sync",
+        x: 20,
+        y: 20,
+        x2: 30,
+        y2: 30,
+        color: "#555555",
+        size: 4,
+      });
+
+      const liveBroadcasts = peer.emitted.filter(
+        (event) => event.event === "broadcast",
+      );
+      assert.equal(liveBroadcasts.length, 2);
+      assert.equal(getRequiredValue(liveBroadcasts[1]).payload.seq, 2);
+    },
+  );
+});
+
 test("seq-sync replay gaps force resync_required when the requested baseline is no longer replayable", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-users-seq-gap-resync-"),

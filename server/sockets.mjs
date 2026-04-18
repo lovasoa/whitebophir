@@ -84,6 +84,8 @@ const textRateLimits = new Map();
 const boardUsers = new Map();
 /** @type {Map<string, AppSocket>} */
 const activeSockets = new Map();
+/** @type {Set<string>} */
+const syncedPersistentSockets = new Set();
 let connectedUsersTotal = 0;
 /** @type {UserReportLog | null} */
 let lastUserReportLog = null;
@@ -1459,6 +1461,22 @@ function ensureSocketJoinedBoard(socket, boardName) {
 }
 
 /**
+ * @param {AppSocket} socket
+ * @returns {boolean}
+ */
+function requiresSeqCatchup(socket) {
+  return getSocketQueryValue(socket, "sync") === "seq";
+}
+
+/**
+ * @param {AppSocket} socket
+ * @returns {boolean}
+ */
+function canReceiveLivePersistentBroadcasts(socket) {
+  return !requiresSeqCatchup(socket) || syncedPersistentSockets.has(socket.id);
+}
+
+/**
  * @param {unknown} value
  * @returns {number}
  */
@@ -1478,6 +1496,7 @@ function emitPersistentBoardMutation(board, sourceSocket, envelope) {
     const targetSocket = getActiveSocket(socketId);
     if (!targetSocket) continue;
     if (targetSocket.id === sourceSocket.id) continue;
+    if (!canReceiveLivePersistentBroadcasts(targetSocket)) continue;
     targetSocket.emit("broadcast", envelope);
   }
   sourceSocket.emit("broadcast", envelope);
@@ -2087,6 +2106,8 @@ async function bootstrapSocketBoard(socket, boardName, config) {
         readonly: board.isReadOnly(),
         canWrite: canWriteToBoard(config, board, socket),
       });
+      if (requiresSeqCatchup(socket)) syncedPersistentSockets.delete(socket.id);
+      else syncedPersistentSockets.add(socket.id);
     },
   );
 }
@@ -2119,6 +2140,7 @@ async function handleSyncRequestMessage(socket, boardName, request) {
   for (const envelope of board.readMutationRange(baselineSeq, latestSeq)) {
     socket.emit("broadcast", envelope);
   }
+  syncedPersistentSockets.add(socket.id);
   socket.emit("sync_replay_end", {
     type: "sync_replay_end",
     toInclusiveSeq: latestSeq,
@@ -2261,6 +2283,7 @@ async function handleSocketConnection(socket, config) {
     function onDisconnecting(/** @type {string} */ _reason) {
       recordCompletedRateLimitWindow("general", generalRateLimit, "disconnect");
       activeSockets.delete(socket.id);
+      syncedPersistentSockets.delete(socket.id);
       updateActiveSocketConnectionsGauge();
       metrics.recordSocketConnection("disconnected");
       socket.rooms.forEach(
@@ -2369,6 +2392,7 @@ export const __test = {
     textRateLimits.clear();
     boardUsers.clear();
     activeSockets.clear();
+    syncedPersistentSockets.clear();
     lastUserReportLog = null;
   },
 };
