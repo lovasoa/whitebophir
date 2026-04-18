@@ -130,3 +130,63 @@ test("stored svg rewrite applies hand batches pencil growth and clear", () => {
   assert.deepEqual(parsedCleared.order, []);
   assert.equal(parsedCleared.items.size, 0);
 });
+
+test("stored svg rewrite preserves untouched item bytes verbatim", () => {
+  const untouchedPath =
+    '<path id="line-1" d="M 1 2 L 1 2 C 1 2 3 4 3 4" stroke="#123456" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>';
+  const svg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+    '<defs id="defs"></defs>' +
+    '<g id="drawingArea">' +
+    '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
+    untouchedPath +
+    "</g>" +
+    '<g id="cursors"></g>' +
+    "</svg>";
+
+  const rewritten = rewriteStoredSvg(svg, { readonly: false }, 2, [
+    {
+      mutation: {
+        tool: "Rectangle",
+        type: "update",
+        id: "rect-1",
+        x2: 30,
+        y2: 40,
+      },
+    },
+  ]);
+
+  assert.match(
+    rewritten,
+    /<rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"><\/rect>/,
+  );
+  assert.equal(rewritten.includes(untouchedPath), true);
+});
+
+test("stored svg rewrite preserves the opaque prefix of touched pencil paths", () => {
+  const originalPathData = "M 1 2 L 1 2 C 1 2 3 4 3 4";
+  const svg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+    '<defs id="defs"></defs>' +
+    '<g id="drawingArea">' +
+    `<path id="line-1" d="${originalPathData}" stroke="#123456" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>` +
+    "</g>" +
+    '<g id="cursors"></g>' +
+    "</svg>";
+
+  const rewritten = rewriteStoredSvg(svg, { readonly: false }, 2, [
+    {
+      mutation: {
+        tool: "Pencil",
+        type: "child",
+        parent: "line-1",
+        x: 9,
+        y: 10,
+      },
+    },
+  ]);
+
+  assert.match(rewritten, /d="M 1 2 L 1 2 /);
+  const parsed = parseStoredSvg(rewritten);
+  assert.equal(parsed.board["line-1"]._children.length, 3);
+});
