@@ -2989,6 +2989,15 @@ Tools.newUnreadMessage = () => {
 window.addEventListener("focus", () => {
   Tools.unreadMessagesCount = 0;
   updateDocumentTitle();
+  if (Tools.bufferedWrites.length > 0) {
+    Tools.flushBufferedWrites();
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && Tools.bufferedWrites.length > 0) {
+    Tools.flushBufferedWrites();
+  }
 });
 
 function updateDocumentTitle() {

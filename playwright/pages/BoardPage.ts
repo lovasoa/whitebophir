@@ -1,6 +1,11 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { withToken } from "../helpers/boardData";
 import { broadcastMessageColor } from "../helpers/broadcastMessage";
+import {
+  hasStableActiveToolState,
+  isAuthoritativeResyncComplete,
+  isBufferedWriteDrainComplete,
+} from "../helpers/runtime_state.mjs";
 import type { TestServer } from "../helpers/testServer";
 import type {
   AppToolsState,
@@ -10,7 +15,12 @@ import type {
 
 type Point = { x: number; y: number };
 type PencilPath = { color: string; points: Point[] };
-type ActiveToolState = { tool: string; mode: string; secondary: boolean };
+type ActiveToolState = {
+  tool: string;
+  mode: string;
+  secondary: boolean;
+  currentTool: string;
+};
 type ConnectedUserState = {
   name: string;
   meta: string;
@@ -51,8 +61,11 @@ type DownloadState = {
 };
 type ReconnectState = { connected: boolean; validated: boolean };
 type WriteStatusState = {
+  connected: boolean;
   bufferedWrites: number;
   awaitingBoardSnapshot: boolean;
+  awaitingSyncReplay: boolean;
+  hasAuthoritativeBoardSnapshot: boolean;
   connectionState: string;
   indicatorClass: string;
   noticeText: string;
@@ -174,6 +187,8 @@ export class BoardPage {
   }
 
   async selectTool(name: string) {
+    await this.waitForToolBooted(name);
+    await expect(this.tool(name)).toBeVisible();
     await this.tool(name).click();
     await this.expectCurrentTool(name);
   }
@@ -184,15 +199,16 @@ export class BoardPage {
       mode: document.documentElement.dataset.activeToolMode ?? "",
       secondary:
         document.documentElement.dataset.activeToolSecondary === "true",
+      currentTool: window.Tools?.curTool?.name ?? "",
     }));
   }
 
   async expectCurrentTool(name: string) {
     await expect
-      .poll(() => this.readActiveToolState())
-      .toMatchObject({
-        tool: name,
-      });
+      .poll(async () =>
+        hasStableActiveToolState(await this.readActiveToolState(), name),
+      )
+      .toBe(true);
   }
 
   async setSocketHeaders(headers: Record<string, string>) {
@@ -836,8 +852,12 @@ export class BoardPage {
       const indicator = document.getElementById("boardStatusIndicator");
       const notice = document.getElementById("boardStatusNotice");
       return {
+        connected: !!window.Tools?.socket?.connected,
         bufferedWrites: window.Tools.bufferedWrites.length,
         awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
+        awaitingSyncReplay: !!window.Tools.awaitingSyncReplay,
+        hasAuthoritativeBoardSnapshot:
+          !!window.Tools.hasAuthoritativeBoardSnapshot,
         connectionState: String(window.Tools.connectionState ?? ""),
         indicatorClass: indicator?.className ?? "",
         noticeText: notice?.textContent ?? "",
@@ -845,18 +865,20 @@ export class BoardPage {
     });
   }
 
+  async waitForBufferedWritesDrained() {
+    await expect
+      .poll(async () =>
+        isBufferedWriteDrainComplete(await this.readWriteStatus()),
+      )
+      .toBe(true);
+  }
+
   async waitForAuthoritativeResync() {
     await expect
-      .poll(() =>
-        this.page.evaluate(() => ({
-          connected: !!window.Tools?.socket?.connected,
-          awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
-        })),
+      .poll(async () =>
+        isAuthoritativeResyncComplete(await this.readWriteStatus()),
       )
-      .toEqual({
-        connected: true,
-        awaitingBoardSnapshot: false,
-      });
+      .toBe(true);
   }
 
   async forceSocketDisconnect() {

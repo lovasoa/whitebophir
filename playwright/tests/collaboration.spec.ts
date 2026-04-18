@@ -955,11 +955,11 @@ test.describe("collaboration and rate limiting", () => {
           storedBoard["buffered-rect-2"] == null,
         5_000,
       );
+      await boardPage.waitForBufferedWritesDrained();
       await server.waitForStoredBoard(
         server.dataPath,
         "anonymous",
         (storedBoard) => storedBoard["buffered-rect-2"] != null,
-        10_000,
       );
       await boardPage.waitForSocketConnected();
       await boardPage.waitForAuthoritativeResync();

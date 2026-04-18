@@ -84,6 +84,57 @@ test("effective rate-limit definitions honor board overrides", () => {
   );
 });
 
+test("anonymous fixed-window limits reopen exactly after the remaining wait", () => {
+  const definition = {
+    limit: 10,
+    anonymousLimit: 1,
+    periodMs: 1_000,
+  };
+  const effective = RateLimitCommon.getEffectiveRateLimitDefinition(
+    definition,
+    "anonymous",
+  );
+  const consumed = RateLimitCommon.consumeFixedWindowRateLimit(
+    RateLimitCommon.createRateLimitState(1_000),
+    1,
+    effective.periodMs,
+    1_000,
+  );
+
+  assert.deepEqual(effective, {
+    limit: 1,
+    periodMs: 1_000,
+  });
+  assert.equal(
+    RateLimitCommon.canConsumeFixedWindowRateLimit(
+      consumed,
+      1,
+      effective.limit,
+      effective.periodMs,
+      1_500,
+    ),
+    false,
+  );
+  assert.equal(
+    RateLimitCommon.getRateLimitRemainingMs(
+      consumed,
+      effective.periodMs,
+      1_500,
+    ),
+    500,
+  );
+  assert.equal(
+    RateLimitCommon.canConsumeFixedWindowRateLimit(
+      consumed,
+      1,
+      effective.limit,
+      effective.periodMs,
+      2_000,
+    ),
+    true,
+  );
+});
+
 test("action counters classify constructive and destructive batch costs", () => {
   const batch = {
     _children: [
