@@ -25,6 +25,7 @@ import {
   serializeStoredSvgItem,
   summarizeStoredSvgItem,
 } from "./stored_svg_item_codec.mjs";
+import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
 
 const DEFAULT_SVG_SIZE = 500;
 const SVG_MARGIN = 400;
@@ -191,24 +192,6 @@ function summarizeStoredSvg(svg) {
     },
     seq: normalizeStoredSeq(rootAttributes["data-wbo-seq"]),
   };
-}
-
-/**
- * @param {string} svg
- * @param {Set<string>} ids
- * @returns {Map<string, any>}
- */
-function parseStoredSvgItemsByIds(svg, ids) {
-  if (ids.size === 0) return new Map();
-  const envelope = parseStoredSvgEnvelope(svg);
-  const items = new Map();
-  for (const itemEntry of parseStoredSvgItems(envelope.drawingAreaContent)) {
-    const id = itemEntry.attributes.id;
-    if (!id || !ids.has(id)) continue;
-    const item = parseStoredSvgItem(itemEntry);
-    if (item) items.set(id, item);
-  }
-  return items;
 }
 
 /**
@@ -448,8 +431,22 @@ async function parseBoardItems(boardName, ids, options) {
   }
   const historyDir = options?.historyDir;
   try {
-    const svg = await readFile(boardSvgPath(boardName, historyDir), "utf8");
-    return parseStoredSvgItemsByIds(svg, ids);
+    const stream = fs.createReadStream(boardSvgPath(boardName, historyDir), {
+      encoding: "utf8",
+    });
+    const items = new Map();
+    for await (const event of streamStoredSvgStructure(stream)) {
+      if (event.type !== "item") continue;
+      const id = event.entry.attributes.id;
+      if (!id || !ids.has(id)) continue;
+      const item = parseStoredSvgItem(event.entry);
+      if (item) items.set(id, item);
+      if (items.size === ids.size) {
+        stream.destroy();
+        break;
+      }
+    }
+    return items;
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
       throw error;
