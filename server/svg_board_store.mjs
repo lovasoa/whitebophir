@@ -332,14 +332,14 @@ async function readBoardState(boardName, options) {
 /**
  * @param {string} boardName
  * @param {{historyDir?: string}=} [options]
- * @returns {Promise<{board?: {[name: string]: any}, summaries: Map<string, any>, metadata: BoardMetadata, seq: number, source: "svg" | "json" | "empty"}>}
+ * @returns {Promise<{board?: {[name: string]: any}, summaries: Map<string, any>, metadata: BoardMetadata, seq: number, source: "svg" | "json" | "empty", byteLength: number}>}
  */
 async function readBoardLoadState(boardName, options) {
   const historyDir = options?.historyDir;
   try {
     const svg = await readFile(boardSvgPath(boardName, historyDir), "utf8");
     const parsed = summarizeStoredSvg(svg);
-    return { ...parsed, source: "svg" };
+    return { ...parsed, source: "svg", byteLength: svg.length };
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
       throw error;
@@ -356,6 +356,7 @@ async function readBoardLoadState(boardName, options) {
       metadata: parsed.metadata,
       seq: 0,
       source: "json",
+      byteLength: 0,
     };
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
@@ -368,6 +369,7 @@ async function readBoardLoadState(boardName, options) {
     metadata: defaultBoardMetadata(),
     seq: 0,
     source: "empty",
+    byteLength: 0,
   };
 }
 

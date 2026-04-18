@@ -1352,11 +1352,9 @@ class BoardData {
               ? boardJsonPath(name, boardData.historyDir)
               : boardData.file;
           data =
-            storedBoard.source === "svg"
-              ? await readFile(boardData.file, "utf8")
-              : storedBoard.source === "json"
-                ? await readFile(sourceFile, "utf8")
-                : undefined;
+            storedBoard.source === "json"
+              ? await readFile(sourceFile, "utf8")
+              : undefined;
           boardData.board =
             storedBoard.source === "json"
               ? /** @type {{[name: string]: BoardElem}} */ (storedBoard.board)
@@ -1385,7 +1383,7 @@ class BoardData {
             boardTraceAttributes(name, "load", {
               "wbo.board.result": "success",
               "file.path": sourceFile,
-              "file.size": data?.length || 0,
+              "file.size": data?.length || storedBoard.byteLength || 0,
               "wbo.board.items":
                 storedBoard.source === "svg"
                   ? storedBoard.summaries.size
