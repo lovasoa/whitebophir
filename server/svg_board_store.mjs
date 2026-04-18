@@ -587,38 +587,6 @@ async function rewriteStoredSvg(
 /**
  * @param {string} boardName
  * @param {{historyDir?: string}=} [options]
- * @returns {Promise<{readonly: boolean}>}
- */
-async function readBoardMetadata(boardName, options) {
-  const historyDir = options?.historyDir;
-  try {
-    const svg = await readFile(boardSvgPath(boardName, historyDir), "utf8");
-    return {
-      readonly:
-        parseStoredSvgEnvelope(svg).rootAttributes["data-wbo-readonly"] ===
-        "true",
-    };
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") {
-      throw error;
-    }
-  }
-  try {
-    const parsed = await readLegacyBoardState(boardName, {
-      historyDir: historyDir,
-    });
-    return parsed.metadata;
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") {
-      throw error;
-    }
-  }
-  return defaultBoardMetadata();
-}
-
-/**
- * @param {string} boardName
- * @param {{historyDir?: string}=} [options]
  * @returns {Promise<{metadata: {readonly: boolean}, inlineBoardSvg: string}>}
  */
 async function readBoardDocumentState(boardName, options) {
@@ -742,7 +710,6 @@ export {
   readBoardLoadState,
   readBoardDocumentState,
   readBoardDownload,
-  readBoardMetadata,
   readBoardState,
   readServedBaseline,
   renderServedBaselineSvg,

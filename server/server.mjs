@@ -33,7 +33,6 @@ import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
 import {
   boardExists,
   readBoardDocumentState,
-  readBoardMetadata,
   readServedBaseline,
   streamServedBaseline,
 } from "./svg_board_store.mjs";

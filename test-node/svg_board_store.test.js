@@ -359,6 +359,39 @@ test("readBoardDocumentState returns metadata and inline svg from one stored svg
   });
 });
 
+test("readBoardDocumentState falls back to legacy json metadata and inline rendering", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-document-state-json-"),
+  );
+  const boardName = "document-state-json";
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(
+      svgBoardStore.boardJsonPath(boardName),
+      JSON.stringify({
+        __wbo_meta__: { readonly: true },
+        "rect-1": {
+          id: "rect-1",
+          tool: "Rectangle",
+          x: 1,
+          y: 2,
+          x2: 30,
+          y2: 40,
+          color: "#123456",
+          size: 4,
+        },
+      }),
+      "utf8",
+    );
+
+    const state = await svgBoardStore.readBoardDocumentState(boardName);
+
+    assert.deepEqual(state.metadata, { readonly: true });
+    assert.match(state.inlineBoardSvg, /data-wbo-readonly="true"/);
+    assert.match(state.inlineBoardSvg, /id="rect-1"/);
+  });
+});
+
 test("parseBoardItems hydrates only requested stored svg items", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-parse-items-svg-"),
