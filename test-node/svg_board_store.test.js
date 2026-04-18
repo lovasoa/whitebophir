@@ -270,6 +270,25 @@ test("readBoardState prefers authoritative svg over stale legacy json", async ()
   });
 });
 
+test("readServedBaseline returns stored svg bytes unchanged when svg exists", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-served-opaque-"),
+  );
+  const boardName = "served-opaque";
+  const storedSvg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"><marker id="keep"></marker></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"><path id="cursor-template"></path></g></svg>';
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(
+      svgBoardStore.boardSvgPath(boardName),
+      storedSvg,
+      "utf8",
+    );
+
+    assert.equal(await svgBoardStore.readServedBaseline(boardName), storedSvg);
+  });
+});
+
 test("parseBoardItems hydrates only requested stored svg items", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-parse-items-svg-"),

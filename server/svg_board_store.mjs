@@ -95,6 +95,22 @@ function createTempSvgPath(file) {
 }
 
 /**
+ * @param {string} file
+ * @returns {Promise<boolean>}
+ */
+async function fileExists(file) {
+  try {
+    await fs.promises.access(file);
+    return true;
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
  * @param {number} expectedSeq
  * @param {number} actualSeq
  * @returns {Error & {code: string}}
@@ -357,6 +373,19 @@ async function readBoardLoadState(boardName, options) {
 
 /**
  * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
+ * @returns {Promise<boolean>}
+ */
+async function boardExists(boardName, options) {
+  const historyDir = options?.historyDir;
+  return (
+    (await fileExists(boardSvgPath(boardName, historyDir))) ||
+    (await fileExists(boardJsonPath(boardName, historyDir)))
+  );
+}
+
+/**
+ * @param {string} boardName
  * @param {{[name: string]: any}} board
  * @param {BoardMetadata} metadata
  * @param {number} seq
@@ -484,8 +513,30 @@ async function rewriteStoredSvg(
  * @returns {Promise<{readonly: boolean}>}
  */
 async function readBoardMetadata(boardName, options) {
-  const state = await readBoardState(boardName, options);
-  return state.metadata;
+  const historyDir = options?.historyDir;
+  try {
+    const svg = await readFile(boardSvgPath(boardName, historyDir), "utf8");
+    return {
+      readonly:
+        parseStoredSvgEnvelope(svg).rootAttributes["data-wbo-readonly"] ===
+        "true",
+    };
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
+  try {
+    const parsed = await readLegacyBoardState(boardName, {
+      historyDir: historyDir,
+    });
+    return parsed.metadata;
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
+  return defaultBoardMetadata();
 }
 
 /**
@@ -511,8 +562,26 @@ async function readBoardDownload(boardName, options) {
  * @returns {Promise<string>}
  */
 async function readServedBaseline(boardName, options) {
-  const state = await readBoardState(boardName, options);
-  return renderServedBaselineSvg(state.board, state.metadata, state.seq);
+  const historyDir = options?.historyDir;
+  try {
+    return await readFile(boardSvgPath(boardName, historyDir), "utf8");
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  try {
+    const parsed = await readLegacyBoardState(boardName, {
+      historyDir: historyDir,
+    });
+    return renderServedBaselineSvg(parsed.board, parsed.metadata, 0);
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
+  return renderServedBaselineSvg({}, defaultBoardMetadata(), 0);
 }
 
 /**
@@ -521,12 +590,23 @@ async function readServedBaseline(boardName, options) {
  * @returns {Promise<Readable>}
  */
 async function streamServedBaseline(boardName, options) {
+  const historyDir = options?.historyDir;
+  try {
+    const file = boardSvgPath(boardName, historyDir);
+    await fs.promises.access(file);
+    return fs.createReadStream(file, "utf8");
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
   return Readable.from([await readServedBaseline(boardName, options)]);
 }
 
 export {
   STORED_SVG_FORMAT,
   boardJsonPath,
+  boardExists,
   boardSvgPath,
   createTempSvgPath,
   defaultBoardMetadata,

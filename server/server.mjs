@@ -31,9 +31,9 @@ import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
 import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
 import {
-  readBoardState,
+  boardExists,
+  readBoardMetadata,
   readServedBaseline,
-  renderServedBaselineSvg,
   streamServedBaseline,
 } from "./svg_board_store.mjs";
 import * as templating from "./templating.mjs";
@@ -842,18 +842,16 @@ async function handleBoardDocumentRoute(
   jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
   const token = parsedUrl.searchParams.get("token");
   const boardRole = jwtBoardName.roleInBoard(config, token || "", boardName);
-  const boardState = await readBoardState(boardName);
-  const boardMetadata = boardState.metadata;
+  const [boardMetadata, inlineBoardSvg] = await Promise.all([
+    readBoardMetadata(boardName),
+    readServedBaseline(boardName),
+  ]);
   const canWrite =
     !boardMetadata.readonly ||
     (config.AUTH_SECRET_KEY && ["editor", "moderator"].includes(boardRole));
   ensureBoardUserSecretCookie(request, response, parsedUrl);
   boardTemplate.serve(request, response, boardRole === "moderator", {
-    inlineBoardSvg: renderServedBaselineSvg(
-      boardState.board,
-      boardState.metadata,
-      boardState.seq,
-    ),
+    inlineBoardSvg,
     boardState: {
       readonly: boardMetadata.readonly,
       canWrite,
@@ -1052,8 +1050,7 @@ async function renderPreviewSvg(boardName) {
     },
     async function renderPreview() {
       try {
-        const boardState = await readBoardState(boardName);
-        if (boardState.source === "empty") {
+        if (!(await boardExists(boardName))) {
           tracing.setActiveSpanAttributes({
             "wbo.board": boardName,
             "wbo.board.operation": "preview_render",
@@ -1061,11 +1058,7 @@ async function renderPreviewSvg(boardName) {
           });
           return null;
         }
-        return renderServedBaselineSvg(
-          boardState.board,
-          boardState.metadata,
-          boardState.seq,
-        );
+        return await readServedBaseline(boardName);
       } catch (err) {
         if (isNotFoundError(err)) {
           tracing.setActiveSpanAttributes({
