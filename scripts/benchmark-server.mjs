@@ -25,6 +25,7 @@ const DEFAULT_BENCH_TIMEOUT_MS = 150_000;
 const DENSE_BOARD_ITEMS = 18000;
 const DENSE_BOARD_PENCIL_EVERY = 6;
 const DENSE_PENCIL_POINTS = config.MAX_CHILDREN;
+const STREAM_UPDATE_PENCIL_POINTS = Math.max(8, config.MAX_CHILDREN - 4);
 const SNAPSHOT_BOARD_ITEMS = 24000;
 const OVERFULL_BOARD_ITEMS = config.MAX_ITEM_COUNT + 2048;
 const HAND_BATCH_ITEMS = config.MAX_CHILDREN;
@@ -187,6 +188,14 @@ function boardFile(name) {
 
 /**
  * @param {string} name
+ * @returns {string}
+ */
+function boardSvgFile(name) {
+  return path.join(historyDir, `board-${encodeURIComponent(name)}.svg`);
+}
+
+/**
+ * @param {string} name
  * @param {BenchBoard} board
  * @returns {Promise<BenchFixture>}
  */
@@ -195,6 +204,20 @@ async function writeBoardFile(name, board) {
   const text = JSON.stringify(board);
   await fsp.writeFile(file, text);
   return { file, bytes: Buffer.byteLength(text) };
+}
+
+/**
+ * @param {string} name
+ * @param {BenchBoard} board
+ * @returns {Promise<BenchFixture>}
+ */
+async function writeMigratedSvgFixture(name, board) {
+  await writeBoardFile(name, board);
+  const boardData = await BoardData.load(name);
+  clearPendingSave(boardData);
+  const file = boardSvgFile(name);
+  const stat = await fsp.stat(file);
+  return { file, bytes: stat.size };
 }
 
 /**
@@ -519,6 +542,20 @@ function makeRateLimitDefinition(limit, periodMs) {
 }
 
 /**
+ * @param {BoardData} boardData
+ * @param {any} mutation
+ * @param {number} acceptedAtMs
+ * @returns {Promise<void>}
+ */
+async function applyPersistentBenchMutation(boardData, mutation, acceptedAtMs) {
+  const prepared = await boardData.preparePersistentMutation(mutation);
+  if (!prepared.ok) throw new Error(prepared.reason);
+  const processed = boardData.processMessage(mutation);
+  if (!processed.ok) throw new Error(processed.reason);
+  boardData.recordPersistentMutation(mutation, acceptedAtMs);
+}
+
+/**
  * @returns {any[]}
  */
 function buildBroadcastBenchMessages() {
@@ -721,7 +758,7 @@ async function main() {
   timeoutId?.unref?.();
 
   try {
-    /** @type {{loadDense?: BenchFixture, snapshot?: BenchFixture, saveDense?: BenchFixture, exportDense?: BenchFixture, broadcastDense?: BenchFixture}} */
+    /** @type {{loadDense?: BenchFixture, snapshot?: BenchFixture, saveDense?: BenchFixture, streamUpdate?: BenchFixture, exportDense?: BenchFixture, broadcastDense?: BenchFixture}} */
     const fixtures = {};
     const broadcastBenchMessages = buildBroadcastBenchMessages();
     const broadcastBenchConfig = {
@@ -829,6 +866,126 @@ async function main() {
             " from " +
             bytesToMiB(context.fixture.bytes)
           );
+        },
+      },
+      {
+        name: "stream persisted board updates through svg rewrite",
+        prepare: async () => {
+          fixtures.streamUpdate = await writeMigratedSvgFixture(
+            "bench-stream-update-board",
+            buildMixedBoard(
+              DENSE_BOARD_ITEMS,
+              DENSE_BOARD_PENCIL_EVERY,
+              STREAM_UPDATE_PENCIL_POINTS,
+            ),
+          );
+        },
+        setup: async () => {
+          const boardData = await BoardData.load("bench-stream-update-board");
+          clearPendingSave(boardData);
+          const nextPencilPoint = pencilPoints(
+            STREAM_UPDATE_PENCIL_POINTS + 1,
+            0,
+          )[STREAM_UPDATE_PENCIL_POINTS];
+          if (!nextPencilPoint) {
+            throw new Error("missing streaming benchmark pencil point");
+          }
+          return {
+            boardData,
+            fixture: fixtures.streamUpdate,
+            mutations: [
+              {
+                tool: "Rectangle",
+                type: "update",
+                id: "item-3",
+                x2: 64,
+                y2: 72,
+              },
+              {
+                tool: "Text",
+                type: "update",
+                id: "item-2",
+                txt: "bench-streaming-update",
+              },
+              {
+                tool: "Pencil",
+                type: "child",
+                parent: "item-0",
+                x: nextPencilPoint.x,
+                y: nextPencilPoint.y,
+              },
+              {
+                tool: "Hand",
+                type: "copy",
+                id: "item-3",
+                newid: "stream-copy-rect",
+              },
+              {
+                tool: "Rectangle",
+                type: "rect",
+                id: "stream-new-rect",
+                color: DEFAULT_COLOR,
+                size: 2,
+                x: 700,
+                y: 710,
+                x2: 740,
+                y2: 760,
+              },
+            ],
+          };
+        },
+        run: async (context) => {
+          for (const [index, mutation] of context.mutations.entries()) {
+            await applyPersistentBenchMutation(
+              context.boardData,
+              mutation,
+              index + 1,
+            );
+          }
+          await context.boardData.save();
+          clearPendingSave(context.boardData);
+          const stat = await fsp.stat(context.boardData.file);
+          const hydratedItems = Object.keys(context.boardData.board).length;
+          const authoritativeItems = context.boardData.authoritativeItemCount();
+          return {
+            details:
+              context.mutations.length +
+              " queued mutations rewrote " +
+              bytesToMiB(stat.size) +
+              " from " +
+              bytesToMiB(context.fixture.bytes) +
+              " with " +
+              hydratedItems +
+              " hydrated items out of " +
+              authoritativeItems +
+              " authoritative",
+            metrics: {
+              hydratedItems,
+              authoritativeItems,
+            },
+          };
+        },
+        assert: (samples) => {
+          for (const sample of samples) {
+            const hydratedItems = sample.metrics.hydratedItems;
+            const authoritativeItems = sample.metrics.authoritativeItems;
+            if (
+              typeof hydratedItems !== "number" ||
+              typeof authoritativeItems !== "number"
+            ) {
+              throw new Error("streaming update benchmark metrics missing");
+            }
+            if (!(hydratedItems > 0 && hydratedItems <= 8)) {
+              throw new Error(
+                `streaming update benchmark hydrated ${hydratedItems} items; expected <= 8`,
+              );
+            }
+            if (!(authoritativeItems >= DENSE_BOARD_ITEMS + 2)) {
+              throw new Error(
+                `streaming update benchmark authoritative count ${authoritativeItems} is too small`,
+              );
+            }
+          }
         },
       },
       {

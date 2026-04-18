@@ -36,6 +36,19 @@ function normalizeBoardSnapshot(board) {
   return snapshot;
 }
 
+/**
+ * @param {any} board
+ * @param {any} mutation
+ * @param {number} acceptedAtMs
+ * @returns {Promise<void>}
+ */
+async function applyPersistentMutation(board, mutation, acceptedAtMs) {
+  const prepared = await board.preparePersistentMutation(mutation);
+  assert.deepEqual(prepared, { ok: true, mutation });
+  assert.equal(board.processMessage(mutation).ok, true);
+  board.recordPersistentMutation(mutation, acceptedAtMs);
+}
+
 test("BoardData processMessageBatch and per-message processing stay in sync", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const single = disableSaves(new BoardData("process-sequence-single"));
@@ -878,6 +891,164 @@ test("BoardData.save persists direct in-memory board items even before the admis
       "utf8",
     );
     assert.match(svg, /id="text-1"/);
+  });
+});
+
+test("BoardData.save keeps streamed svg updates sparse in memory", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-save-streaming-sparse-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    const svgBoardStore = require("../server/svg_board_store.mjs");
+    const boardName = "streaming-sparse";
+
+    await svgBoardStore.writeBoardState(
+      boardName,
+      {
+        "item-0": {
+          id: "item-0",
+          tool: "Pencil",
+          color: "#123456",
+          size: 2,
+          _children: [
+            { x: 0, y: 0 },
+            { x: 2, y: 1 },
+          ],
+        },
+        "item-1": {
+          id: "item-1",
+          tool: "Straight line",
+          color: "#123456",
+          size: 2,
+          x: 1,
+          y: 2,
+          x2: 5,
+          y2: 6,
+        },
+        "item-2": {
+          id: "item-2",
+          tool: "Text",
+          x: 3,
+          y: 4,
+          txt: "hello",
+          size: 18,
+          color: "#654321",
+        },
+        "item-3": {
+          id: "item-3",
+          tool: "Rectangle",
+          color: "#123456",
+          size: 2,
+          x: 5,
+          y: 6,
+          x2: 9,
+          y2: 12,
+        },
+        "item-4": {
+          id: "item-4",
+          tool: "Ellipse",
+          color: "#123456",
+          size: 2,
+          x: 10,
+          y: 20,
+          x2: 14,
+          y2: 24,
+        },
+      },
+      { readonly: false },
+      0,
+      { historyDir },
+    );
+
+    const board = await BoardData.load(boardName);
+    assert.deepEqual(Object.keys(board.board), []);
+
+    await applyPersistentMutation(
+      board,
+      {
+        tool: "Rectangle",
+        type: "update",
+        id: "item-3",
+        x2: 15,
+        y2: 18,
+      },
+      1,
+    );
+    await applyPersistentMutation(
+      board,
+      {
+        tool: "Text",
+        type: "update",
+        id: "item-2",
+        txt: "hello streaming",
+      },
+      2,
+    );
+    await applyPersistentMutation(
+      board,
+      {
+        tool: "Pencil",
+        type: "child",
+        parent: "item-0",
+        x: 4,
+        y: 2,
+      },
+      3,
+    );
+    await applyPersistentMutation(
+      board,
+      {
+        tool: "Hand",
+        type: "copy",
+        id: "item-3",
+        newid: "item-3-copy",
+      },
+      4,
+    );
+    await applyPersistentMutation(
+      board,
+      {
+        tool: "Rectangle",
+        type: "rect",
+        id: "item-new",
+        color: "#abcdef",
+        size: 3,
+        x: 20,
+        y: 21,
+        x2: 28,
+        y2: 29,
+      },
+      5,
+    );
+
+    assert.deepEqual(Object.keys(board.board).sort(), [
+      "item-0",
+      "item-2",
+      "item-3",
+      "item-3-copy",
+      "item-new",
+    ]);
+
+    await board.save();
+
+    assert.deepEqual(Object.keys(board.board).sort(), [
+      "item-0",
+      "item-2",
+      "item-3",
+      "item-3-copy",
+      "item-new",
+    ]);
+    assert.equal(board.authoritativeItemCount(), 7);
+
+    const rewritten = await fs.readFile(
+      path.join(historyDir, "board-streaming-sparse.svg"),
+      "utf8",
+    );
+    assert.match(rewritten, /id="item-3-copy"/);
+    assert.match(rewritten, /id="item-new"/);
+    assert.match(rewritten, /hello streaming/);
   });
 });
 
