@@ -579,6 +579,22 @@ test("Pencil replay drops stale cached path data after the DOM node is replaced"
   assert.deepEqual(replayedLine.pathData, expectedTwoPointStroke());
 });
 
+test("Pencil replay reuses baseline paths found via document lookup when svg lookup misses", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("Pencil");
+
+  drawReplayStroke(pencilTool);
+  const originalLine = harness.elementsById.get("line-1");
+  harness.elementsById.delete("line-1");
+  harness.elementsById.set("line-1", originalLine);
+  globalAny.Tools.svg.getElementById = () => null;
+
+  drawReplayStroke(pencilTool);
+
+  assert.equal(harness.elementsById.get("line-1"), originalLine);
+  assert.deepEqual(originalLine.pathData, expectedTwoPointStroke());
+});
+
 test("Pencil child messages build a missing line from scratch", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("Pencil");

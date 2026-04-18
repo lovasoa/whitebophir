@@ -9,7 +9,11 @@ import {
   boardJsonPath,
   readLegacyBoardState,
 } from "./legacy_json_board_source.mjs";
-import { streamingUpdate } from "./streaming_stored_svg_update.mjs";
+import {
+  canonicalItemFromStoredSvgEntry,
+  currentText,
+  materializeItemForSave,
+} from "./canonical_board_items.mjs";
 import {
   STORED_SVG_FORMAT,
   createDefaultStoredSvgEnvelope,
@@ -21,7 +25,6 @@ import {
 import {
   parseStoredSvgItem,
   serializeStoredSvgItem,
-  summarizeStoredSvgItem,
 } from "./stored_svg_item_codec.mjs";
 import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
 
@@ -140,57 +143,6 @@ function serializeStoredSvg(board, metadata, seq) {
 }
 
 /**
- * @param {string} prefix
- * @returns {{[name: string]: string}}
- */
-function parseRootAttributesFromPrefix(prefix) {
-  const svgStart = prefix.indexOf("<svg");
-  if (svgStart === -1) throw new Error("Missing <svg> root");
-  const openTagEnd = prefix.indexOf(">", svgStart);
-  if (openTagEnd === -1) throw new Error("Unterminated <svg> root");
-  return parseAttributes(prefix.slice(svgStart + 4, openTagEnd));
-}
-
-/**
- * @param {string} file
- * @returns {Promise<{summaries: Map<string, any>, metadata: BoardMetadata, seq: number}>}
- */
-async function summarizeStoredSvgFile(file) {
-  const stream = fs.createReadStream(file, { encoding: "utf8" });
-  /** @type {{[name: string]: string} | null} */
-  let rootAttributes = null;
-  const summaries = new Map();
-  let paintOrder = 0;
-
-  for await (const event of streamStoredSvgStructure(stream)) {
-    if (event.type === "prefix") {
-      rootAttributes = parseRootAttributesFromPrefix(event.prefix);
-      if (rootAttributes["data-wbo-format"] !== STORED_SVG_FORMAT) {
-        throw new Error("Unsupported stored SVG format");
-      }
-      continue;
-    }
-    if (event.type !== "item") continue;
-    const summary = summarizeStoredSvgItem(event.entry, paintOrder);
-    if (!summary?.id) continue;
-    summaries.set(summary.id, summary);
-    paintOrder += 1;
-  }
-
-  if (!rootAttributes) {
-    throw new Error("Missing <svg> root");
-  }
-
-  return {
-    summaries,
-    metadata: {
-      readonly: rootAttributes["data-wbo-readonly"] === "true",
-    },
-    seq: normalizeStoredSeq(rootAttributes["data-wbo-seq"]),
-  };
-}
-
-/**
  * @param {{[name: string]: any}} board
  * @returns {{width: number, height: number}}
  */
@@ -271,17 +223,55 @@ function renderServedBaselineSvg(board, metadata, seq) {
 /**
  * @param {string} boardName
  * @param {{historyDir?: string}=} [options]
- * @returns {Promise<{board?: {[name: string]: any}, summaries: Map<string, any>, metadata: BoardMetadata, seq: number, source: "svg" | "json" | "empty", byteLength: number}>}
+ * @returns {Promise<{
+ *   itemsById: Map<string, any>,
+ *   paintOrder: string[],
+ *   metadata: BoardMetadata,
+ *   seq: number,
+ *   source: "svg" | "empty",
+ *   byteLength: number,
+ * }>}
  */
-async function readBoardLoadState(boardName, options) {
+async function readCanonicalBoardState(boardName, options) {
   const historyDir = options?.historyDir;
+  const itemsById = new Map();
+  /** @type {string[]} */
+  const paintOrder = [];
   try {
     const file = boardSvgPath(boardName, historyDir);
-    const [fileStat, parsed] = await Promise.all([
-      stat(file),
-      summarizeStoredSvgFile(file),
-    ]);
-    return { ...parsed, source: "svg", byteLength: fileStat.size };
+    const fileStat = await stat(file);
+    const stream = fs.createReadStream(file, { encoding: "utf8" });
+    /** @type {BoardMetadata} */
+    let metadata = defaultBoardMetadata();
+    let seq = 0;
+    let index = 0;
+    for await (const event of streamStoredSvgStructure(stream)) {
+      if (event.type === "prefix") {
+        const openTagEnd = event.prefix.indexOf(">");
+        const rootAttributes = parseAttributes(
+          event.prefix.slice(event.prefix.indexOf("<svg") + 4, openTagEnd),
+        );
+        metadata = {
+          readonly: rootAttributes["data-wbo-readonly"] === "true",
+        };
+        seq = normalizeStoredSeq(rootAttributes["data-wbo-seq"]);
+        continue;
+      }
+      if (event.type !== "item") continue;
+      const item = canonicalItemFromStoredSvgEntry(event.entry, index);
+      if (!item) continue;
+      itemsById.set(item.id, item);
+      paintOrder.push(item.id);
+      index += 1;
+    }
+    return {
+      itemsById,
+      paintOrder,
+      metadata,
+      seq,
+      source: "svg",
+      byteLength: fileStat.size,
+    };
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
       throw error;
@@ -292,14 +282,8 @@ async function readBoardLoadState(boardName, options) {
     const parsed = await readLegacyBoardState(boardName, {
       historyDir: historyDir,
     });
-    return {
-      board: parsed.board,
-      summaries: new Map(),
-      metadata: parsed.metadata,
-      seq: 0,
-      source: "json",
-      byteLength: 0,
-    };
+    await migrateLegacyJsonBoardToSvg(boardName, parsed, options);
+    return readCanonicalBoardState(boardName, options);
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
       throw error;
@@ -307,7 +291,8 @@ async function readBoardLoadState(boardName, options) {
   }
 
   return {
-    summaries: new Map(),
+    itemsById,
+    paintOrder,
     metadata: defaultBoardMetadata(),
     seq: 0,
     source: "empty",
@@ -379,87 +364,130 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
 
 /**
  * @param {string} boardName
- * @param {Set<string>} ids
+ * @param {{board: {[name: string]: any}, metadata: BoardMetadata}} parsed
  * @param {{historyDir?: string}=} [options]
- * @returns {Promise<Map<string, any>>}
+ * @returns {Promise<void>}
  */
-async function parseBoardItems(boardName, ids, options) {
-  if (!(ids instanceof Set) || ids.size === 0) {
-    return new Map();
-  }
+async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
   const historyDir = options?.historyDir;
-  try {
-    const stream = fs.createReadStream(boardSvgPath(boardName, historyDir), {
-      encoding: "utf8",
+  const file = boardSvgPath(boardName, historyDir);
+  const tmpFile = createTempSvgPath(file);
+  if (Object.keys(parsed.board).length === 0) {
+    await writeFile(tmpFile, serializeStoredSvg({}, parsed.metadata, 0), {
+      flag: "wx",
     });
-    const items = new Map();
-    for await (const event of streamStoredSvgStructure(stream)) {
-      if (event.type !== "item") continue;
-      const id = event.entry.attributes.id;
-      if (!id || !ids.has(id)) continue;
-      const item = parseStoredSvgItem(event.entry);
-      if (item) items.set(id, item);
-      if (items.size === ids.size) {
-        stream.destroy();
-        break;
-      }
-    }
-    return items;
+    await rename(tmpFile, file);
+  } else {
+    await writeBoardState(boardName, parsed.board, parsed.metadata, 0, options);
+  }
+  try {
+    await fs.promises.unlink(boardJsonPath(boardName, historyDir));
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
       throw error;
     }
   }
+}
 
-  try {
-    const parsed = await readLegacyBoardState(boardName, {
-      historyDir: historyDir,
-    });
-    return new Map(
-      [...ids]
-        .filter((id) => Object.hasOwn(parsed.board, id))
-        .map((id) => [id, parsed.board[id]]),
-    );
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") {
-      throw error;
-    }
-  }
-  return new Map();
+/**
+ * @param {Map<string, any>} itemsById
+ * @param {string[]} paintOrder
+ * @returns {any[]}
+ */
+function collectPersistedCanonicalItems(itemsById, paintOrder) {
+  return paintOrder
+    .map((id) => itemsById.get(id))
+    .filter((item) => item && item.deleted !== true);
 }
 
 /**
  * @param {string} boardName
- * @param {number} fromSeqExclusive
- * @param {number} toSeqInclusive
- * @param {Array<{mutation: any}>} mutations
- * @param {{readonly: boolean}} metadata
+ * @param {Map<string, any>} itemsById
+ * @param {string[]} paintOrder
+ * @param {BoardMetadata} metadata
+ * @param {number} seq
  * @param {{historyDir?: string}=} [options]
  * @returns {Promise<void>}
  */
-async function rewriteStoredSvg(
+async function writeCanonicalBoardState(
   boardName,
-  fromSeqExclusive,
-  toSeqInclusive,
-  mutations,
+  itemsById,
+  paintOrder,
   metadata,
+  seq,
+  options,
+) {
+  const fullBoard = Object.fromEntries(
+    collectPersistedCanonicalItems(itemsById, paintOrder).map((item) => [
+      item.id,
+      materializeItemForSave(item),
+    ]),
+  );
+  await writeBoardState(boardName, fullBoard, metadata, seq, options);
+}
+
+/**
+ * @param {any} record
+ * @returns {boolean}
+ */
+function needsSourcePayload(record) {
+  return !!(
+    record &&
+    record.deleted !== true &&
+    ((record.payload?.kind === "children" &&
+      (record.payload.appendedChildren?.length || 0) > 0) ||
+      (record.payload?.kind === "text" && currentText(record) === undefined))
+  );
+}
+
+/**
+ * @param {Map<string, any>} itemsById
+ * @returns {Map<string, string[]>}
+ */
+function collectCopyTargetsBySourceId(itemsById) {
+  const targetsBySourceId = new Map();
+  for (const item of itemsById.values()) {
+    const sourceId = item?.copySource?.sourceId;
+    if (typeof sourceId !== "string" || item.deleted === true) continue;
+    const existing = targetsBySourceId.get(sourceId);
+    if (existing) {
+      existing.push(item.id);
+    } else {
+      targetsBySourceId.set(sourceId, [item.id]);
+    }
+  }
+  return targetsBySourceId;
+}
+
+/**
+ * @param {string} boardName
+ * @param {Map<string, any>} itemsById
+ * @param {string[]} paintOrder
+ * @param {BoardMetadata} metadata
+ * @param {number} persistedSeq
+ * @param {number} latestSeq
+ * @param {{historyDir?: string}=} [options]
+ * @returns {Promise<void>}
+ */
+async function rewriteStoredSvgFromCanonical(
+  boardName,
+  itemsById,
+  paintOrder,
+  metadata,
+  persistedSeq,
+  latestSeq,
   options,
 ) {
   const historyDir = options?.historyDir;
   const file = boardSvgPath(boardName, historyDir);
   const tmpFile = createTempSvgPath(file);
-  const envelope = parseStoredSvgEnvelope(await readFile(file, "utf8"));
-  const currentSeq = normalizeStoredSeq(
-    envelope.rootAttributes["data-wbo-seq"],
-  );
-  if (currentSeq !== fromSeqExclusive) {
-    throw createStoredSvgSeqMismatchError(fromSeqExclusive, currentSeq);
-  }
   const input = fs.createReadStream(file, { encoding: "utf8" });
   const output = fs.createWriteStream(tmpFile, {
     encoding: "utf8",
     flags: "wx",
   });
+  const copyTargetsBySourceId = collectCopyTargetsBySourceId(itemsById);
+  const bufferedPayloads = new Map();
   const closeOutput = () =>
     new Promise((resolve, reject) => {
       output.on("error", reject);
@@ -467,12 +495,103 @@ async function rewriteStoredSvg(
     });
 
   try {
-    for await (const chunk of streamingUpdate(
-      input,
-      mutations.map((entry) => entry.mutation),
-      { metadata, toSeqInclusive },
-    )) {
-      if (!output.write(chunk)) {
+    for await (const event of streamStoredSvgStructure(input)) {
+      if (event.type === "prefix") {
+        const openTagEnd = event.prefix.indexOf(">");
+        const rootAttributes = parseAttributes(
+          event.prefix.slice(event.prefix.indexOf("<svg") + 4, openTagEnd),
+        );
+        const currentSeq = normalizeStoredSeq(rootAttributes["data-wbo-seq"]);
+        if (currentSeq !== persistedSeq) {
+          throw createStoredSvgSeqMismatchError(persistedSeq, currentSeq);
+        }
+        if (
+          !output.write(updateRootMetadata(event.prefix, metadata, latestSeq))
+        ) {
+          await once(output, "drain");
+        }
+        continue;
+      }
+
+      if (event.type === "tail") {
+        if (!output.write(event.chunk)) {
+          await once(output, "drain");
+        }
+        continue;
+      }
+
+      if (event.type === "suffix") {
+        for (const id of paintOrder) {
+          const item = itemsById.get(id);
+          if (
+            !item ||
+            item.deleted === true ||
+            item.createdAfterPersistedSeq !== true
+          ) {
+            continue;
+          }
+          const sourcePayload = item.copySource
+            ? bufferedPayloads.get(item.copySource.sourceId)
+            : undefined;
+          const tag = serializeStoredSvgItem(
+            materializeItemForSave(item, sourcePayload),
+          );
+          if (!output.write(tag)) {
+            await once(output, "drain");
+          }
+        }
+        if (!output.write(event.leadingText + event.suffix)) {
+          await once(output, "drain");
+        }
+        continue;
+      }
+
+      const id = event.entry.attributes.id;
+      if (typeof id !== "string") {
+        if (!output.write(event.leadingText + event.entry.raw)) {
+          await once(output, "drain");
+        }
+        continue;
+      }
+
+      const item = itemsById.get(id);
+      if (!item || item.deleted === true) {
+        continue;
+      }
+
+      if (copyTargetsBySourceId.has(id)) {
+        const sourceItem = parseStoredSvgItem(event.entry);
+        if (sourceItem?.tool === "Text") {
+          bufferedPayloads.set(id, { txt: sourceItem.txt });
+        } else if (sourceItem?.tool === "Pencil") {
+          bufferedPayloads.set(id, { _children: sourceItem._children || [] });
+        }
+      }
+
+      if (item.dirty !== true || item.createdAfterPersistedSeq === true) {
+        if (!output.write(event.leadingText + event.entry.raw)) {
+          await once(output, "drain");
+        }
+        continue;
+      }
+
+      const sourcePayload = needsSourcePayload(item)
+        ? bufferedPayloads.get(id) ||
+          (() => {
+            const sourceItem = parseStoredSvgItem(event.entry);
+            if (sourceItem?.tool === "Text") {
+              return { txt: sourceItem.txt };
+            }
+            if (sourceItem?.tool === "Pencil") {
+              return { _children: sourceItem._children || [] };
+            }
+            return undefined;
+          })()
+        : undefined;
+      const rewrittenTag = serializeStoredSvgItem(
+        materializeItemForSave(item, sourcePayload),
+      );
+      if (!output.write(event.leadingText + rewrittenTag)) {
         await once(output, "drain");
       }
     }
@@ -587,11 +706,11 @@ export {
   boardJsonPath,
   boardExists,
   boardSvgPath,
-  rewriteStoredSvg,
-  parseBoardItems,
-  readBoardLoadState,
+  readCanonicalBoardState,
   readBoardDocumentState,
   readServedBaseline,
+  rewriteStoredSvgFromCanonical,
   streamServedBaseline,
+  writeCanonicalBoardState,
   writeBoardState,
 };

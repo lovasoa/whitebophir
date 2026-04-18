@@ -388,7 +388,7 @@ test("local persisted-board helper prefers authoritative svg over stale legacy j
   });
 });
 
-test("readBoardLoadState reports svg byte length without a second board parse", async () => {
+test("readCanonicalBoardState reports svg byte length and canonical items", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-load-state-"),
   );
@@ -403,15 +403,16 @@ test("readBoardLoadState reports svg byte length without a second board parse", 
       "utf8",
     );
 
-    const state = await svgBoardStore.readBoardLoadState(boardName);
+    const state = await svgBoardStore.readCanonicalBoardState(boardName);
 
     assert.equal(state.source, "svg");
     assert.equal(state.byteLength, storedSvg.length);
-    assert.equal(state.summaries.get("rect-1")?.tool, "Rectangle");
+    assert.deepEqual(state.paintOrder, ["rect-1"]);
+    assert.equal(state.itemsById.get("rect-1")?.tool, "Rectangle");
   });
 });
 
-test("readBoardLoadState streams root metadata for empty drawing areas", async () => {
+test("readCanonicalBoardState streams root metadata for empty drawing areas", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-load-state-empty-"),
   );
@@ -426,13 +427,13 @@ test("readBoardLoadState streams root metadata for empty drawing areas", async (
       "utf8",
     );
 
-    const state = await svgBoardStore.readBoardLoadState(boardName);
+    const state = await svgBoardStore.readCanonicalBoardState(boardName);
 
     assert.equal(state.source, "svg");
     assert.equal(state.byteLength, storedSvg.length);
     assert.equal(state.seq, 9);
     assert.equal(state.metadata.readonly, true);
-    assert.equal(state.summaries.size, 0);
+    assert.equal(state.itemsById.size, 0);
   });
 });
 
@@ -510,7 +511,7 @@ test("readBoardDocumentState falls back to legacy json metadata and inline rende
   });
 });
 
-test("parseBoardItems hydrates only requested stored svg items", async () => {
+test("readCanonicalBoardState eagerly loads canonical stored svg items", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-parse-items-svg-"),
   );
@@ -532,22 +533,21 @@ test("parseBoardItems hydrates only requested stored svg items", async () => {
       "utf8",
     );
 
-    const items = await svgBoardStore.parseBoardItems(
-      boardName,
-      new Set(["text-1"]),
-    );
+    const state = await svgBoardStore.readCanonicalBoardState(boardName);
 
-    assert.equal(items.size, 1);
-    assert.deepEqual(items.get("text-1"), {
-      id: "text-1",
-      tool: "Text",
+    assert.deepEqual(state.paintOrder, ["rect-1", "text-1"]);
+    const item = state.itemsById.get("text-1");
+    assert.equal(item?.tool, "Text");
+    assert.deepEqual(item?.attrs, {
       x: 5,
       y: 6,
-      txt: "hello",
       size: 18,
       color: "#654321",
       transform: { a: 1, b: 0, c: 0, d: 1, e: 7, f: 8 },
     });
+    assert.deepEqual(item?.transform, { a: 1, b: 0, c: 0, d: 1, e: 7, f: 8 });
+    assert.equal(item?.textLength, 5);
+    assert.deepEqual(item?.payload, { kind: "text" });
   });
 });
 
@@ -590,7 +590,7 @@ test("local stored-svg summary helper derives minimal pencil summaries", () => {
   });
 });
 
-test("parseBoardItems falls back to legacy json and filters ids", async () => {
+test("readCanonicalBoardState migrates legacy json to svg before canonical load", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-parse-items-json-"),
   );
@@ -622,13 +622,16 @@ test("parseBoardItems falls back to legacy json and filters ids", async () => {
       "utf8",
     );
 
-    const items = await svgBoardStore.parseBoardItems(
-      "parse-items-json",
-      new Set(["rect-1"]),
-    );
+    const state =
+      await svgBoardStore.readCanonicalBoardState("parse-items-json");
 
-    assert.deepEqual([...items.keys()], ["rect-1"]);
-    assert.equal(items.get("rect-1")?.tool, "Rectangle");
+    assert.equal(state.source, "svg");
+    assert.deepEqual(state.paintOrder, ["rect-1", "text-1"]);
+    assert.equal(state.itemsById.get("rect-1")?.tool, "Rectangle");
+    assert.deepEqual(state.itemsById.get("text-1")?.payload, { kind: "text" });
+    await assert.doesNotReject(() =>
+      fs.access(svgBoardStore.boardSvgPath("parse-items-json")),
+    );
   });
 });
 
@@ -777,23 +780,18 @@ test("rewriteStoredSvg rejects stored svg base-seq mismatches", async () => {
       1,
     );
 
+    const state = await svgBoardStore.readCanonicalBoardState(
+      "rewrite-seq-mismatch",
+    );
+
     await assert.rejects(
-      svgBoardStore.rewriteStoredSvg(
+      svgBoardStore.rewriteStoredSvgFromCanonical(
         "rewrite-seq-mismatch",
+        state.itemsById,
+        state.paintOrder,
+        state.metadata,
         0,
         2,
-        [
-          {
-            mutation: {
-              tool: "Rectangle",
-              type: "update",
-              id: "rect-1",
-              x2: 30,
-              y2: 40,
-            },
-          },
-        ],
-        { readonly: false },
       ),
       /stored svg seq mismatch/i,
     );

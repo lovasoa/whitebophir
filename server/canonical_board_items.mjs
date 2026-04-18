@@ -290,6 +290,9 @@ function publicItemFromCanonicalItem(item) {
       item.payload.appendedChildren || [],
     );
     view.childCount = effectiveChildCount(item);
+    if ((item.payload.persistedChildCount || 0) === 0) {
+      view._children = structuredClone(item.payload.appendedChildren || []);
+    }
   }
   if (item.copySource) {
     view.copySource = structuredClone(item.copySource);
