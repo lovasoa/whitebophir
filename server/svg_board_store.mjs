@@ -619,6 +619,54 @@ async function readBoardMetadata(boardName, options) {
 /**
  * @param {string} boardName
  * @param {{historyDir?: string}=} [options]
+ * @returns {Promise<{metadata: {readonly: boolean}, inlineBoardSvg: string}>}
+ */
+async function readBoardDocumentState(boardName, options) {
+  const historyDir = options?.historyDir;
+  try {
+    const inlineBoardSvg = await readFile(
+      boardSvgPath(boardName, historyDir),
+      "utf8",
+    );
+    return {
+      metadata: {
+        readonly:
+          parseStoredSvgEnvelope(inlineBoardSvg).rootAttributes[
+            "data-wbo-readonly"
+          ] === "true",
+      },
+      inlineBoardSvg,
+    };
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  try {
+    const parsed = await readLegacyBoardState(boardName, {
+      historyDir: historyDir,
+    });
+    return {
+      metadata: parsed.metadata,
+      inlineBoardSvg: renderServedBaselineSvg(parsed.board, parsed.metadata, 0),
+    };
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  const metadata = defaultBoardMetadata();
+  return {
+    metadata,
+    inlineBoardSvg: renderServedBaselineSvg({}, metadata, 0),
+  };
+}
+
+/**
+ * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
  * @returns {Promise<string>}
  */
 async function readBoardDownload(boardName, options) {
@@ -692,6 +740,7 @@ export {
   parseStoredSvg,
   parseBoardItems,
   readBoardLoadState,
+  readBoardDocumentState,
   readBoardDownload,
   readBoardMetadata,
   readBoardState,

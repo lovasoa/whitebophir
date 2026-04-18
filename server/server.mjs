@@ -32,6 +32,7 @@ import observability from "./observability.mjs";
 import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
 import {
   boardExists,
+  readBoardDocumentState,
   readBoardMetadata,
   readServedBaseline,
   streamServedBaseline,
@@ -842,10 +843,8 @@ async function handleBoardDocumentRoute(
   jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
   const token = parsedUrl.searchParams.get("token");
   const boardRole = jwtBoardName.roleInBoard(config, token || "", boardName);
-  const [boardMetadata, inlineBoardSvg] = await Promise.all([
-    readBoardMetadata(boardName),
-    readServedBaseline(boardName),
-  ]);
+  const { metadata: boardMetadata, inlineBoardSvg } =
+    await readBoardDocumentState(boardName);
   const canWrite =
     !boardMetadata.readonly ||
     (config.AUTH_SECRET_KEY && ["editor", "moderator"].includes(boardRole));
