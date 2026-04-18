@@ -271,7 +271,7 @@ class BoardData {
    * @returns {number}
    */
   authoritativeItemCount() {
-    return this.admissionIndex.size();
+    return Math.max(this.admissionIndex.size(), Object.keys(this.board).length);
   }
 
   /**

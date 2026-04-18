@@ -853,6 +853,34 @@ test("BoardData.save preserves cold-loaded stored svg when there are no pending 
   });
 });
 
+test("BoardData.save persists direct in-memory board items even before the admission index is rebuilt", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-save-direct-memory-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    const board = new BoardData("direct-memory-save");
+    board.board["text-1"] = {
+      id: "text-1",
+      tool: "Text",
+      x: 1,
+      y: 2,
+      txt: "hi",
+      size: 12,
+      color: "#000000",
+    };
+
+    await board.save();
+
+    const svg = await fs.readFile(
+      path.join(historyDir, "board-direct-memory-save.svg"),
+      "utf8",
+    );
+    assert.match(svg, /id="text-1"/);
+  });
+});
+
 test("BoardData.save falls back to a full authoritative write on stored svg seq mismatch", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-save-rewrite-mismatch-"),
