@@ -27,13 +27,13 @@ function cloneTransform(transform) {
 }
 
 /**
- * @param {any[]} points
- * @returns {any[]}
+ * @param {any} item
+ * @returns {Array<{x: number, y: number}>}
  */
-function clonePoints(points) {
-  return Array.isArray(points)
-    ? points.map((point) => ({ x: point.x, y: point.y }))
-    : [];
+function readPencilPoints(item) {
+  if (Array.isArray(item?._children)) return item._children;
+  if (Array.isArray(item?.points)) return item.points;
+  return [];
 }
 
 /**
@@ -42,19 +42,51 @@ function clonePoints(points) {
  */
 function cloneSummary(summary) {
   if (!summary || typeof summary !== "object") return summary;
-  if (summary.tool === "Pencil") {
-    return {
-      ...summary,
-      points: clonePoints(summary.points),
-      transform: cloneTransform(summary.transform),
-      localBounds: cloneBounds(summary.localBounds),
-    };
-  }
-  return {
+  /** @type {any} */
+  const cloned = {
     ...summary,
-    transform: cloneTransform(summary.transform),
     localBounds: cloneBounds(summary.localBounds),
   };
+  if (summary.transform !== undefined) {
+    cloned.transform = cloneTransform(summary.transform);
+  } else {
+    delete cloned.transform;
+  }
+  if (summary.tool === "Pencil") {
+    delete cloned.points;
+    delete cloned._children;
+  }
+  return cloned;
+}
+
+/**
+ * @param {any} summaryOrItem
+ * @param {number} fallbackPaintOrder
+ * @returns {any}
+ */
+function normalizeSeedSummary(summaryOrItem, fallbackPaintOrder) {
+  if (!summaryOrItem || typeof summaryOrItem !== "object") return null;
+  const paintOrder =
+    typeof summaryOrItem.paintOrder === "number"
+      ? summaryOrItem.paintOrder
+      : fallbackPaintOrder;
+  const summarized =
+    summaryOrItem.localBounds === undefined ||
+    (summaryOrItem.tool === "Pencil" &&
+      (Array.isArray(summaryOrItem.points) ||
+        Array.isArray(summaryOrItem._children)))
+      ? summarizeBoardItem(summaryOrItem, paintOrder)
+      : cloneSummary(summaryOrItem);
+  if (!summarized) return null;
+  if (typeof summarized.paintOrder !== "number") {
+    summarized.paintOrder = paintOrder;
+  }
+  if (summarized.localBounds === undefined) {
+    summarized.localBounds = computeLocalBounds(summaryToItem(summarized));
+  } else {
+    summarized.localBounds = cloneBounds(summarized.localBounds);
+  }
+  return summarized;
 }
 
 /**
@@ -90,8 +122,9 @@ function summaryToItem(summary) {
       return {
         id: summary.id,
         tool: "Pencil",
-        _children: clonePoints(summary.points),
-        transform: cloneTransform(summary.transform),
+        ...(summary.transform !== undefined
+          ? { transform: cloneTransform(summary.transform) }
+          : {}),
       };
     default:
       return null;
@@ -164,15 +197,18 @@ function summarizeCreateMutation(mutation, paintOrder) {
         id: mutation.id,
         tool: "Pencil",
         _children: [],
-        transform: cloneTransform(mutation.transform),
+        ...(mutation.transform !== undefined
+          ? { transform: cloneTransform(mutation.transform) }
+          : {}),
       };
       return {
         id: mutation.id,
         tool: "Pencil",
         childCount: 0,
-        points: [],
         paintOrder,
-        transform: cloneTransform(mutation.transform),
+        ...(mutation.transform !== undefined
+          ? { transform: cloneTransform(mutation.transform) }
+          : {}),
         localBounds: computeLocalBounds(item),
       };
     }
@@ -206,15 +242,18 @@ function summarizeBoardItem(item, paintOrder) {
       return {
         id: item.id,
         tool: "Pencil",
-        childCount: Array.isArray(item._children) ? item._children.length : 0,
-        points: clonePoints(item._children),
+        childCount: readPencilPoints(item).length,
         paintOrder,
-        transform: cloneTransform(item.transform),
+        ...(item.transform !== undefined
+          ? { transform: cloneTransform(item.transform) }
+          : {}),
         localBounds: computeLocalBounds({
           id: item.id,
           tool: "Pencil",
-          _children: clonePoints(item._children),
-          transform: cloneTransform(item.transform),
+          _children: readPencilPoints(item),
+          ...(item.transform !== undefined
+            ? { transform: cloneTransform(item.transform) }
+            : {}),
         }),
       };
     default:
@@ -325,7 +364,6 @@ function buildChildSummary(summary, mutation, maxChildren) {
     summary: {
       ...summary,
       childCount: summary.childCount + 1,
-      points: summary.points.concat([normalizedChild.value]),
       localBounds: cloneBounds(nextBounds),
     },
     localBounds: nextBounds,
@@ -487,19 +525,12 @@ function createAdmissionIndex(options) {
     },
     seed(summaries) {
       (summaries || []).forEach((summary) => {
-        const cloned = cloneSummary(summary);
-        if (typeof cloned.paintOrder !== "number") {
-          cloned.paintOrder = state.nextPaintOrder;
-        }
-        if (cloned.localBounds === undefined) {
-          cloned.localBounds = computeLocalBounds(summaryToItem(cloned));
-        } else {
-          cloned.localBounds = cloneBounds(cloned.localBounds);
-        }
-        state.summaries.set(cloned.id, cloned);
+        const normalized = normalizeSeedSummary(summary, state.nextPaintOrder);
+        if (!normalized?.id) return;
+        state.summaries.set(normalized.id, normalized);
         state.nextPaintOrder = Math.max(
           state.nextPaintOrder,
-          cloned.paintOrder + 1,
+          normalized.paintOrder + 1,
         );
       });
     },

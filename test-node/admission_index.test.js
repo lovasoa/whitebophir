@@ -106,6 +106,57 @@ test("AdmissionIndex rejects pencil growth after an oversized transform", () => 
   );
 });
 
+test("AdmissionIndex stores only minimal pencil summaries after seed and load", async () => {
+  const index = createAdmissionIndex({
+    loadItems: async () =>
+      new Map([
+        [
+          "line-loaded",
+          {
+            id: "line-loaded",
+            tool: "Pencil",
+            _children: [
+              { x: 1, y: 2 },
+              { x: 3, y: 4 },
+            ],
+            localBounds: { minX: 1, minY: 2, maxX: 3, maxY: 4 },
+            paintOrder: 3,
+          },
+        ],
+      ]),
+  });
+
+  index.seed([
+    {
+      id: "line-seeded",
+      tool: "Pencil",
+      childCount: 2,
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 10 },
+      ],
+      localBounds: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
+      paintOrder: 0,
+    },
+  ]);
+  await index.ensureLoaded(new Set(["line-loaded"]));
+
+  assert.deepEqual(index.get("line-seeded"), {
+    id: "line-seeded",
+    tool: "Pencil",
+    childCount: 2,
+    localBounds: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
+    paintOrder: 0,
+  });
+  assert.deepEqual(index.get("line-loaded"), {
+    id: "line-loaded",
+    tool: "Pencil",
+    childCount: 2,
+    localBounds: { minX: 1, minY: 2, maxX: 3, maxY: 4 },
+    paintOrder: 3,
+  });
+});
+
 test("AdmissionIndex applyAccepted preserves paint-order semantics", () => {
   const index = createAdmissionIndex();
   index.seed([
