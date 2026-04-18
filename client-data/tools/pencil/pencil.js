@@ -297,8 +297,10 @@ export default class PencilTool {
    * @returns {(SVGPathElement & {id: string}) | null}
    */
   getLineById(lineId) {
-    if (!lineId || !this.Tools.svg) return null;
-    const line = this.Tools.svg.getElementById(lineId);
+    if (!lineId) return null;
+    const line =
+      document.getElementById(lineId) ||
+      (this.Tools.svg ? this.Tools.svg.getElementById(lineId) : null);
     return line instanceof SVGPathElement
       ? /** @type {SVGPathElement & {id: string}} */ (line)
       : null;
