@@ -45,6 +45,8 @@ import { createMutationLog } from "./mutation_log.mjs";
 import observability from "./observability.mjs";
 import {
   boardSvgPath,
+  parseBoardItems,
+  readBoardLoadState,
   readBoardState,
   rewriteStoredSvg,
   writeBoardState,
@@ -422,6 +424,61 @@ class BoardData {
 
   /**
    * @param {BoardMessage} message
+   * @returns {Set<string>}
+   */
+  collectHydrationIds(message) {
+    const ids = new Set();
+    if (!message || typeof message !== "object") return ids;
+    if (Array.isArray(message._children)) {
+      message._children.forEach((child) => {
+        this.collectHydrationIds({
+          ...child,
+          tool: message.tool,
+        }).forEach((id) => ids.add(id));
+      });
+      return ids;
+    }
+    switch (message.type) {
+      case "update":
+      case "copy":
+        if (typeof message.id === "string") ids.add(message.id);
+        break;
+      case "child":
+        if (typeof message.parent === "string") ids.add(message.parent);
+        break;
+    }
+    return ids;
+  }
+
+  /**
+   * @param {Set<string>} ids
+   * @returns {Promise<void>}
+   */
+  async ensureBoardItemsLoaded(ids) {
+    if (!(ids instanceof Set) || ids.size === 0) return;
+    const missing = new Set(
+      [...ids].filter(
+        (id) =>
+          typeof id === "string" &&
+          !Object.hasOwn(this.board, id) &&
+          this.admissionIndex.get(id) !== undefined,
+      ),
+    );
+    if (missing.size === 0) return;
+    const loaded = await parseBoardItems(this.name, missing, {
+      historyDir: this.historyDir,
+    });
+    for (const [id, item] of loaded.entries()) {
+      if (Object.hasOwn(this.board, id)) continue;
+      const validated = this.validateStoredCandidate(id, item);
+      if (!validated.ok) continue;
+      this.board[id] = validated.value;
+      this.cacheLocalBounds(id, validated.localBounds);
+    }
+  }
+
+  /**
+   * @param {BoardMessage} message
    * @returns {Promise<{ok: true, mutation: BoardMessage} | {ok: false, reason: string}>}
    */
   async preparePersistentMutation(message) {
@@ -434,6 +491,7 @@ class BoardData {
         ? { ok: true, mutation: message }
         : prepared;
     }
+    await this.ensureBoardItemsLoaded(this.collectHydrationIds(message));
     return { ok: true, mutation: message };
   }
 
@@ -1272,7 +1330,7 @@ class BoardData {
         /** @type {string} */
         let sourceFile = boardData.file;
         try {
-          const storedBoard = await readBoardState(name, {
+          const storedBoard = await readBoardLoadState(name, {
             historyDir: boardData.historyDir,
           });
           sourceFile =
@@ -1285,15 +1343,20 @@ class BoardData {
               : storedBoard.source === "json"
                 ? await readFile(sourceFile, "utf8")
                 : undefined;
-          boardData.board = /** @type {{[name: string]: BoardElem}} */ (
-            storedBoard.board
-          );
+          boardData.board =
+            storedBoard.source === "json"
+              ? /** @type {{[name: string]: BoardElem}} */ (storedBoard.board)
+              : {};
           boardData.metadata = storedBoard.metadata;
           boardData.mutationLog = createMutationLog(storedBoard.seq);
-          for (const id of Object.keys(boardData.board)) {
-            boardData.normalizeStoredElement(id);
+          if (storedBoard.source === "json") {
+            for (const id of Object.keys(boardData.board)) {
+              boardData.normalizeStoredElement(id);
+            }
+            boardData.rebuildAdmissionIndex();
+          } else {
+            boardData.admissionIndex.seed([...storedBoard.summaries.values()]);
           }
-          boardData.rebuildAdmissionIndex();
           if (storedBoard.source === "json") {
             await writeBoardState(
               name,
@@ -1308,7 +1371,10 @@ class BoardData {
               "wbo.board.result": "success",
               "file.path": sourceFile,
               "file.size": data?.length || 0,
-              "wbo.board.items": Object.keys(boardData.board).length,
+              "wbo.board.items":
+                storedBoard.source === "svg"
+                  ? storedBoard.summaries.size
+                  : Object.keys(boardData.board).length,
             }),
           );
           metrics.recordBoardOperationDuration(

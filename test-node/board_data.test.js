@@ -544,6 +544,48 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
   });
 });
 
+test("BoardData lazily hydrates persisted svg items before applying updates", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-lazy-hydrate-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    await fs.writeFile(
+      path.join(historyDir, "board-lazy-hydrate.svg"),
+      '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>',
+      "utf8",
+    );
+
+    const board = await BoardData.load("lazy-hydrate");
+    assert.equal(board.get("rect-1"), undefined);
+
+    const updateRect = {
+      tool: "Rectangle",
+      type: "update",
+      id: "rect-1",
+      x2: 30,
+      y2: 40,
+    };
+    assert.deepEqual(await board.preparePersistentMutation(updateRect), {
+      ok: true,
+      mutation: updateRect,
+    });
+    assert.equal(board.processMessage(updateRect).ok, true);
+    assert.deepEqual(board.get("rect-1"), {
+      id: "rect-1",
+      tool: "Rectangle",
+      type: "rect",
+      x: 1,
+      y: 2,
+      x2: 30,
+      y2: 40,
+      color: "#123456",
+      size: 4,
+    });
+  });
+});
+
 test("BoardData records contiguous mutation seq values and persists them into svg baselines", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-seq-save-"),
@@ -743,10 +785,22 @@ test("BoardData.save rewrites existing stored svg from queued mutations", async 
       id: "text-1",
     };
 
+    assert.deepEqual(await board.preparePersistentMutation(updateRect), {
+      ok: true,
+      mutation: updateRect,
+    });
     assert.equal(board.processMessage(updateRect).ok, true);
     board.recordPersistentMutation(updateRect, 2);
+    assert.deepEqual(await board.preparePersistentMutation(copyRect), {
+      ok: true,
+      mutation: copyRect,
+    });
     assert.equal(board.processMessage(copyRect).ok, true);
     board.recordPersistentMutation(copyRect, 3);
+    assert.deepEqual(await board.preparePersistentMutation(deleteText), {
+      ok: true,
+      mutation: deleteText,
+    });
     assert.equal(board.processMessage(deleteText).ok, true);
     board.recordPersistentMutation(deleteText, 4);
 
@@ -803,6 +857,10 @@ test("BoardData.save falls back to a full authoritative write on stored svg seq 
       y2: 40,
     };
 
+    assert.deepEqual(await board.preparePersistentMutation(updateRect), {
+      ok: true,
+      mutation: updateRect,
+    });
     assert.equal(board.processMessage(updateRect).ok, true);
     board.recordPersistentMutation(updateRect, 2);
 

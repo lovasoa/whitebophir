@@ -1,3 +1,4 @@
+import MessageCommon from "../client-data/js/message_common.js";
 import { wboPencilPoint } from "../client-data/tools/pencil/wbo_pencil_point.js";
 
 /**
@@ -130,6 +131,104 @@ function parsePathData(d) {
     match = pattern.exec(d);
   }
   return segments;
+}
+
+/**
+ * @param {string | undefined} d
+ * @returns {{childCount: number, localBounds: {minX: number, minY: number, maxX: number, maxY: number} | null}}
+ */
+function scanPathSummary(d) {
+  if (typeof d !== "string" || d.trim() === "") {
+    return { childCount: 0, localBounds: null };
+  }
+  let index = 0;
+  let command = "";
+  let valuesPerSegment = 0;
+  let valuesRead = 0;
+  /** @type {number[]} */
+  let segmentValues = [];
+  let childCount = 0;
+  /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
+  let localBounds = null;
+  /** @type {number | undefined} */
+  let previousX;
+  /** @type {number | undefined} */
+  let previousY;
+
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @returns {void}
+   */
+  function pushPoint(x, y) {
+    if (previousX === x && previousY === y) return;
+    previousX = x;
+    previousY = y;
+    childCount += 1;
+    if (localBounds) {
+      localBounds.minX = Math.min(localBounds.minX, x);
+      localBounds.minY = Math.min(localBounds.minY, y);
+      localBounds.maxX = Math.max(localBounds.maxX, x);
+      localBounds.maxY = Math.max(localBounds.maxY, y);
+      return;
+    }
+    localBounds = {
+      minX: x,
+      minY: y,
+      maxX: x,
+      maxY: y,
+    };
+  }
+
+  while (index < d.length) {
+    const char = d[index];
+    if (char === "M" || char === "L" || char === "C") {
+      command = char;
+      valuesPerSegment = command === "C" ? 6 : 2;
+      valuesRead = 0;
+      segmentValues = [];
+      index += 1;
+      continue;
+    }
+    if (char === " " || char === "," || char === "\n" || char === "\t") {
+      index += 1;
+      continue;
+    }
+    const start = index;
+    index += 1;
+    while (index < d.length) {
+      const next = d[index];
+      if (
+        next === " " ||
+        next === "," ||
+        next === "\n" ||
+        next === "\t" ||
+        next === "M" ||
+        next === "L" ||
+        next === "C"
+      ) {
+        break;
+      }
+      index += 1;
+    }
+    const value = Number(d.slice(start, index));
+    if (!Number.isFinite(value) || valuesPerSegment === 0) {
+      continue;
+    }
+    segmentValues.push(value);
+    valuesRead += 1;
+    if (valuesRead === valuesPerSegment) {
+      const x = segmentValues[valuesPerSegment - 2];
+      const y = segmentValues[valuesPerSegment - 1];
+      if (x !== undefined && y !== undefined) {
+        pushPoint(x, y);
+      }
+      valuesRead = 0;
+      segmentValues = [];
+    }
+  }
+
+  return { childCount, localBounds };
 }
 
 /**
@@ -289,6 +388,153 @@ function parseStoredSvgItem(entry) {
 }
 
 /**
+ * @param {{tagName: string, attributes: {[name: string]: string}, content?: string}} entry
+ * @param {number} paintOrder
+ * @returns {any | null}
+ */
+function summarizeStoredSvgItem(entry, paintOrder) {
+  if (!entry || typeof entry.tagName !== "string") return null;
+  const attributes = entry.attributes || {};
+  const id = typeof attributes.id === "string" ? attributes.id : undefined;
+  if (!id) return null;
+  const transform = parseTransformAttribute(attributes.transform);
+  switch (entry.tagName) {
+    case "rect": {
+      const x = parseNumber(attributes.x);
+      const y = parseNumber(attributes.y);
+      const width = parseNumber(attributes.width);
+      const height = parseNumber(attributes.height);
+      if (
+        x === undefined ||
+        y === undefined ||
+        width === undefined ||
+        height === undefined
+      ) {
+        return null;
+      }
+      return {
+        id,
+        tool: "Rectangle",
+        x,
+        y,
+        x2: x + width,
+        y2: y + height,
+        paintOrder,
+        localBounds: {
+          minX: x,
+          minY: y,
+          maxX: x + width,
+          maxY: y + height,
+        },
+        ...(transform !== undefined ? { transform } : {}),
+      };
+    }
+    case "ellipse": {
+      const cx = parseNumber(attributes.cx);
+      const cy = parseNumber(attributes.cy);
+      const rx = parseNumber(attributes.rx);
+      const ry = parseNumber(attributes.ry);
+      if (
+        cx === undefined ||
+        cy === undefined ||
+        rx === undefined ||
+        ry === undefined
+      ) {
+        return null;
+      }
+      return {
+        id,
+        tool: "Ellipse",
+        x: cx - rx,
+        y: cy - ry,
+        x2: cx + rx,
+        y2: cy + ry,
+        paintOrder,
+        localBounds: {
+          minX: cx - rx,
+          minY: cy - ry,
+          maxX: cx + rx,
+          maxY: cy + ry,
+        },
+        ...(transform !== undefined ? { transform } : {}),
+      };
+    }
+    case "line": {
+      const x1 = parseNumber(attributes.x1);
+      const y1 = parseNumber(attributes.y1);
+      const x2 = parseNumber(attributes.x2);
+      const y2 = parseNumber(attributes.y2);
+      if (
+        x1 === undefined ||
+        y1 === undefined ||
+        x2 === undefined ||
+        y2 === undefined
+      ) {
+        return null;
+      }
+      return {
+        id,
+        tool: "Straight line",
+        x: x1,
+        y: y1,
+        x2,
+        y2,
+        paintOrder,
+        localBounds: {
+          minX: Math.min(x1, x2),
+          minY: Math.min(y1, y2),
+          maxX: Math.max(x1, x2),
+          maxY: Math.max(y1, y2),
+        },
+        ...(transform !== undefined ? { transform } : {}),
+      };
+    }
+    case "text": {
+      const x = parseNumber(attributes.x);
+      const y = parseNumber(attributes.y);
+      const size = parseNumber(attributes["font-size"]);
+      if (x === undefined || y === undefined || size === undefined) {
+        return null;
+      }
+      const item = {
+        id,
+        tool: "Text",
+        x,
+        y,
+        size,
+        txt: unescapeHtml(entry.content || ""),
+        ...(transform !== undefined ? { transform } : {}),
+      };
+      return {
+        id,
+        tool: "Text",
+        x,
+        y,
+        size,
+        txt: item.txt,
+        paintOrder,
+        localBounds: MessageCommon.getLocalGeometryBounds(item),
+        ...(transform !== undefined ? { transform } : {}),
+      };
+    }
+    case "path": {
+      const scanned = scanPathSummary(attributes.d);
+      if (scanned.childCount === 0) return null;
+      return {
+        id,
+        tool: "Pencil",
+        childCount: scanned.childCount,
+        paintOrder,
+        localBounds: scanned.localBounds,
+        ...(transform !== undefined ? { transform } : {}),
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+/**
  * @param {any} item
  * @returns {string}
  */
@@ -353,9 +599,11 @@ function serializeStoredSvgItem(item) {
 export {
   parsePathData,
   parseStoredSvgItem,
+  scanPathSummary,
   parseTransformAttribute,
   pointsFromPathData,
   renderPencilPath,
   renderTransformAttribute,
   serializeStoredSvgItem,
+  summarizeStoredSvgItem,
 };

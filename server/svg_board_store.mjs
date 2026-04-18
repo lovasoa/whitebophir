@@ -22,6 +22,7 @@ import {
 import {
   parseStoredSvgItem,
   serializeStoredSvgItem,
+  summarizeStoredSvgItem,
 } from "./stored_svg_item_codec.mjs";
 
 const DEFAULT_SVG_SIZE = 500;
@@ -141,6 +142,33 @@ function parseStoredSvg(svg) {
   }
   return {
     board,
+    metadata: {
+      readonly: rootAttributes["data-wbo-readonly"] === "true",
+    },
+    seq: normalizeStoredSeq(rootAttributes["data-wbo-seq"]),
+  };
+}
+
+/**
+ * @param {string} svg
+ * @returns {{summaries: Map<string, any>, metadata: BoardMetadata, seq: number}}
+ */
+function summarizeStoredSvg(svg) {
+  const envelope = parseStoredSvgEnvelope(svg);
+  const rootAttributes = envelope.rootAttributes;
+  if (rootAttributes["data-wbo-format"] !== STORED_SVG_FORMAT) {
+    throw new Error("Unsupported stored SVG format");
+  }
+  const summaries = new Map();
+  let paintOrder = 0;
+  for (const itemEntry of parseStoredSvgItems(envelope.drawingAreaContent)) {
+    const summary = summarizeStoredSvgItem(itemEntry, paintOrder);
+    if (!summary?.id) continue;
+    summaries.set(summary.id, summary);
+    paintOrder += 1;
+  }
+  return {
+    summaries,
     metadata: {
       readonly: rootAttributes["data-wbo-readonly"] === "true",
     },
@@ -279,6 +307,48 @@ async function readBoardState(boardName, options) {
 
   return {
     board: {},
+    metadata: defaultBoardMetadata(),
+    seq: 0,
+    source: "empty",
+  };
+}
+
+/**
+ * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
+ * @returns {Promise<{board?: {[name: string]: any}, summaries: Map<string, any>, metadata: BoardMetadata, seq: number, source: "svg" | "json" | "empty"}>}
+ */
+async function readBoardLoadState(boardName, options) {
+  const historyDir = options?.historyDir;
+  try {
+    const svg = await readFile(boardSvgPath(boardName, historyDir), "utf8");
+    const parsed = summarizeStoredSvg(svg);
+    return { ...parsed, source: "svg" };
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  try {
+    const parsed = await readLegacyBoardState(boardName, {
+      historyDir: historyDir,
+    });
+    return {
+      board: parsed.board,
+      summaries: new Map(),
+      metadata: parsed.metadata,
+      seq: 0,
+      source: "json",
+    };
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  return {
+    summaries: new Map(),
     metadata: defaultBoardMetadata(),
     seq: 0,
     source: "empty",
@@ -464,12 +534,14 @@ export {
   rewriteStoredSvg,
   parseStoredSvg,
   parseBoardItems,
+  readBoardLoadState,
   readBoardDownload,
   readBoardMetadata,
   readBoardState,
   readServedBaseline,
   renderServedBaselineSvg,
   serializeStoredSvg,
+  summarizeStoredSvg,
   streamServedBaseline,
   writeBoardState,
 };

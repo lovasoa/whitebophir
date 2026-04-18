@@ -311,6 +311,45 @@ test("parseBoardItems hydrates only requested stored svg items", async () => {
   });
 });
 
+test("summarizeStoredSvg derives minimal pencil summaries for cold loads", () => {
+  const summary = svgBoardStore.summarizeStoredSvg(
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="4" data-wbo-readonly="false">' +
+      '<defs id="defs"></defs>' +
+      '<g id="drawingArea">' +
+      '<path id="line-1" d="M 1 2 L 3 4 C 3 4 8 9 8 9" stroke="#123456" stroke-width="4" fill="none" transform="matrix(1 0 0 1 7 8)"></path>' +
+      '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello</text>' +
+      "</g>" +
+      '<g id="cursors"></g>' +
+      "</svg>",
+  );
+
+  assert.equal(summary.seq, 4);
+  assert.equal(summary.metadata.readonly, false);
+  assert.deepEqual(summary.summaries.get("line-1"), {
+    id: "line-1",
+    tool: "Pencil",
+    childCount: 3,
+    localBounds: { minX: 1, minY: 2, maxX: 8, maxY: 9 },
+    paintOrder: 0,
+    transform: { a: 1, b: 0, c: 0, d: 1, e: 7, f: 8 },
+  });
+  assert.deepEqual(summary.summaries.get("text-1"), {
+    id: "text-1",
+    tool: "Text",
+    x: 5,
+    y: 6,
+    size: 18,
+    txt: "hello",
+    localBounds: {
+      minX: 5,
+      minY: -12,
+      maxX: 95,
+      maxY: 6,
+    },
+    paintOrder: 1,
+  });
+});
+
 test("parseBoardItems falls back to legacy json and filters ids", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-parse-items-json-"),
