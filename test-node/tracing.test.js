@@ -433,15 +433,17 @@ test("active traces correlate log records and board.save spans", async () => {
             { board: "trace-save" },
           );
           const board = new BoardData("trace-save");
-          board.board["shape-1"] = {
-            id: "shape-1",
-            tool: "Text",
-            x: 1,
-            y: 2,
-            text: "hi",
-            size: 12,
-            color: "#000000",
-            time: 1,
+          board.board = {
+            "shape-1": {
+              id: "shape-1",
+              tool: "Text",
+              x: 1,
+              y: 2,
+              txt: "hi",
+              size: 12,
+              color: "#000000",
+              time: 1,
+            },
           };
           await board.save();
           return correlated;
