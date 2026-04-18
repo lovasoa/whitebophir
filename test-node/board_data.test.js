@@ -423,6 +423,57 @@ test("BoardData replays batch updates, copies, and deletes consistently", () => 
   });
 });
 
+test("BoardData keeps paint order stable when updating existing items", () => {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const board = disableSaves(new BoardData("paint-order-stability"));
+
+  assert.equal(
+    board.processMessage({
+      tool: "Rectangle",
+      type: "rect",
+      id: "rect-1",
+      color: "#112233",
+      size: 4,
+      x: 0,
+      y: 0,
+      x2: 10,
+      y2: 10,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    board.processMessage({
+      tool: "Rectangle",
+      type: "rect",
+      id: "rect-2",
+      color: "#445566",
+      size: 4,
+      x: 20,
+      y: 20,
+      x2: 30,
+      y2: 30,
+    }).ok,
+    true,
+  );
+
+  const beforeOrder = [...board.paintOrder];
+
+  for (let index = 0; index < 20; index += 1) {
+    assert.equal(
+      board.processMessage({
+        tool: "Hand",
+        type: "update",
+        id: "rect-1",
+        transform: { a: 1, b: 0, c: 0, d: 1, e: index, f: index * 2 },
+      }).ok,
+      true,
+    );
+  }
+
+  assert.deepEqual(board.paintOrder, beforeOrder);
+  assert.equal(board.paintOrder.length, 2);
+});
+
 test("BoardData applies parent tool metadata to batched Hand updates", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("hand-batch-board"));

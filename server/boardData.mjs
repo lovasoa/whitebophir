@@ -325,8 +325,9 @@ class BoardData {
    */
   upsertCanonicalItem(item) {
     if (!item || typeof item.id !== "string") return;
+    const hadItem = this.itemsById.has(item.id);
     this.itemsById.set(item.id, item);
-    if (!this.paintOrder.includes(item.id)) {
+    if (!hadItem) {
       this.paintOrder.push(item.id);
     }
     this.nextPaintOrder = Math.max(this.nextPaintOrder, item.paintOrder + 1);
