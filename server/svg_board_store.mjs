@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { once } from "node:events";
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
@@ -15,6 +15,7 @@ import { streamingUpdate } from "./streaming_stored_svg_update.mjs";
 import {
   STORED_SVG_FORMAT,
   createDefaultStoredSvgEnvelope,
+  parseAttributes,
   parseStoredSvgEnvelope,
   parseStoredSvgItems,
   serializeStoredSvgEnvelope,
@@ -195,6 +196,57 @@ function summarizeStoredSvg(svg) {
 }
 
 /**
+ * @param {string} prefix
+ * @returns {{[name: string]: string}}
+ */
+function parseRootAttributesFromPrefix(prefix) {
+  const svgStart = prefix.indexOf("<svg");
+  if (svgStart === -1) throw new Error("Missing <svg> root");
+  const openTagEnd = prefix.indexOf(">", svgStart);
+  if (openTagEnd === -1) throw new Error("Unterminated <svg> root");
+  return parseAttributes(prefix.slice(svgStart + 4, openTagEnd));
+}
+
+/**
+ * @param {string} file
+ * @returns {Promise<{summaries: Map<string, any>, metadata: BoardMetadata, seq: number}>}
+ */
+async function summarizeStoredSvgFile(file) {
+  const stream = fs.createReadStream(file, { encoding: "utf8" });
+  /** @type {{[name: string]: string} | null} */
+  let rootAttributes = null;
+  const summaries = new Map();
+  let paintOrder = 0;
+
+  for await (const event of streamStoredSvgStructure(stream)) {
+    if (event.type === "prefix") {
+      rootAttributes = parseRootAttributesFromPrefix(event.prefix);
+      if (rootAttributes["data-wbo-format"] !== STORED_SVG_FORMAT) {
+        throw new Error("Unsupported stored SVG format");
+      }
+      continue;
+    }
+    if (event.type !== "item") continue;
+    const summary = summarizeStoredSvgItem(event.entry, paintOrder);
+    if (!summary?.id) continue;
+    summaries.set(summary.id, summary);
+    paintOrder += 1;
+  }
+
+  if (!rootAttributes) {
+    throw new Error("Missing <svg> root");
+  }
+
+  return {
+    summaries,
+    metadata: {
+      readonly: rootAttributes["data-wbo-readonly"] === "true",
+    },
+    seq: normalizeStoredSeq(rootAttributes["data-wbo-seq"]),
+  };
+}
+
+/**
  * @param {{[name: string]: any}} board
  * @returns {{width: number, height: number}}
  */
@@ -321,9 +373,12 @@ async function readBoardState(boardName, options) {
 async function readBoardLoadState(boardName, options) {
   const historyDir = options?.historyDir;
   try {
-    const svg = await readFile(boardSvgPath(boardName, historyDir), "utf8");
-    const parsed = summarizeStoredSvg(svg);
-    return { ...parsed, source: "svg", byteLength: svg.length };
+    const file = boardSvgPath(boardName, historyDir);
+    const [fileStat, parsed] = await Promise.all([
+      stat(file),
+      summarizeStoredSvgFile(file),
+    ]);
+    return { ...parsed, source: "svg", byteLength: fileStat.size };
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
       throw error;

@@ -293,6 +293,31 @@ test("readBoardLoadState reports svg byte length without a second board parse", 
   });
 });
 
+test("readBoardLoadState streams root metadata for empty drawing areas", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-load-state-empty-"),
+  );
+  const boardName = "load-state-empty-svg";
+  const storedSvg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="9" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"></g><g id="cursors"></g></svg>';
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(
+      svgBoardStore.boardSvgPath(boardName),
+      storedSvg,
+      "utf8",
+    );
+
+    const state = await svgBoardStore.readBoardLoadState(boardName);
+
+    assert.equal(state.source, "svg");
+    assert.equal(state.byteLength, storedSvg.length);
+    assert.equal(state.seq, 9);
+    assert.equal(state.metadata.readonly, true);
+    assert.equal(state.summaries.size, 0);
+  });
+});
+
 test("readServedBaseline returns stored svg bytes unchanged when svg exists", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-served-opaque-"),
