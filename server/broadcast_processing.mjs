@@ -95,18 +95,11 @@ function consumeRateLimit(state, cost, definition, now) {
 /**
  * @param {ServerConfig} config
  * @param {string} boardName
- * @param {MessageData | null | undefined} data
  * @param {BroadcastRateLimits | undefined} rateLimits
  * @param {number | undefined} now
  * @returns {boolean}
  */
-function consumePreNormalizationRateLimits(
-  config,
-  boardName,
-  data,
-  rateLimits,
-  now,
-) {
+function consumePreNormalizationRateLimits(config, boardName, rateLimits, now) {
   if (!rateLimits || now === undefined) return true;
   return consumeRateLimit(
     rateLimits.general,
@@ -215,7 +208,6 @@ function processBoardBroadcastMessage(
     !consumePreNormalizationRateLimits(
       config,
       boardName,
-      data,
       options?.rateLimits,
       options?.now,
     )

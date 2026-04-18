@@ -5,10 +5,23 @@ const { installTestConsole } = require("./test_console.js");
 installTestConsole();
 
 const {
-  parseBoardStateText,
+  normalizeBoardState,
   resolveBoardName,
   updateRecentBoards,
 } = require("../client-data/js/board_page_state.js");
+
+/**
+ * @param {string | null | undefined} text
+ * @returns {{readonly: boolean, canWrite: boolean}}
+ */
+function parseBoardStateText(text) {
+  if (!text) return { readonly: false, canWrite: true };
+  try {
+    return normalizeBoardState(JSON.parse(text));
+  } catch {
+    return { readonly: false, canWrite: true };
+  }
+}
 
 test("parseBoardStateText falls back safely on missing or invalid JSON", () => {
   assert.deepEqual(parseBoardStateText(null), {

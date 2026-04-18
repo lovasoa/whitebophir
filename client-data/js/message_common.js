@@ -79,16 +79,6 @@ function clamp(number, min, max) {
   return Math.min(Math.max(number, min), max);
 }
 
-/**
- * @param {number} number
- * @param {number} decimals
- * @returns {number}
- */
-function roundToDecimals(number, decimals) {
-  const factor = 10 ** decimals;
-  return Math.round(number * factor) / factor;
-}
-
 const COORDINATE_FACTOR = 10 ** LIMITS.COORDINATE_DECIMALS;
 
 /**

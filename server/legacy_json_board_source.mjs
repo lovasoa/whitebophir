@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -82,24 +81,4 @@ async function readLegacyBoardState(boardName, options) {
   };
 }
 
-/**
- * @param {string} boardName
- * @param {{historyDir?: string}=} [options]
- * @returns {{readonly: boolean}}
- */
-function readLegacyBoardMetadataSync(boardName, options) {
-  const jsonText = fs.readFileSync(
-    boardJsonPath(boardName, options?.historyDir),
-    "utf8",
-  );
-  return parseLegacyStoredBoard(JSON.parse(jsonText)).metadata;
-}
-
-export {
-  BOARD_METADATA_KEY,
-  boardJsonPath,
-  normalizeLegacyBoardMetadata,
-  parseLegacyStoredBoard,
-  readLegacyBoardMetadataSync,
-  readLegacyBoardState,
-};
+export { boardJsonPath, parseLegacyStoredBoard, readLegacyBoardState };

@@ -28,7 +28,7 @@ export function buildBoardSvgBaselineUrl(pathname, search) {
  * }} doc
  * @returns {{seq: number, readonly: boolean, drawingAreaMarkup: string}}
  */
-export function parseServedBaselineSvgDocument(doc) {
+function parseServedBaselineSvgDocument(doc) {
   const root = doc?.documentElement;
   if (!root || typeof root.getAttribute !== "function") {
     throw new Error("Missing SVG root");
@@ -62,6 +62,5 @@ export function parseServedBaselineSvgText(svgMarkup, domParser) {
 
 export default {
   buildBoardSvgBaselineUrl,
-  parseServedBaselineSvgDocument,
   parseServedBaselineSvgText,
 };

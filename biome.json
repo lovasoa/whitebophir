@@ -23,9 +23,9 @@
         "useIterableCallbackReturn": "off"
       },
       "correctness": {
-        "noUnusedVariables": "off",
-        "noUnusedFunctionParameters": "off",
-        "noUnusedImports": "off"
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error",
+        "noUnusedImports": "error"
       },
       "complexity": {
         "useLiteralKeys": "off",

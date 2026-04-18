@@ -4,12 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const {
-  BOARD_DATA_PATH,
-  boardFile,
-  withEnv,
-  writeBoard,
-} = require("./test_helpers.js");
+const { BOARD_DATA_PATH, withEnv, writeBoard } = require("./test_helpers.js");
 
 /**
  * @template T

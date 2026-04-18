@@ -104,11 +104,11 @@ export default class EraserTool {
   }
 
   /**
-   * @param {number} x
-   * @param {number} y
+   * @param {number} _x
+   * @param {number} _y
    * @param {EraserPointerEvent} evt
    */
-  move(x, y, evt) {
+  move(_x, _y, evt) {
     const target = this.resolveTarget(evt);
     if (
       this.erasing &&

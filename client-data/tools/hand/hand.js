@@ -672,11 +672,11 @@ export default class HandTool {
   }
 
   /**
-   * @param {number} x
-   * @param {number} y
-   * @param {{ target: EventTarget | null, preventDefault(): void }} evt
+   * @param {number} _x
+   * @param {number} _y
+   * @param {{ target: EventTarget | null, preventDefault(): void }} _evt
    */
-  releaseSelector(x, y, evt) {
+  releaseSelector(_x, _y, _evt) {
     if (this.selectorState === this.selectorStates.selecting) {
       this.selectedEls = this.calculateSelection();
       if (this.selectedEls.length === 0) this.hideSelectionUI();

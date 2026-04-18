@@ -1,5 +1,4 @@
 const DEFAULT_ICON_FILE = "icon.svg";
-const DEFAULT_SECONDARY_ICON_FILE = "icon-secondary.svg";
 
 /**
  * @typedef {{
@@ -57,7 +56,7 @@ const TOOL_ASSET_METADATA = {
  * @param {string} toolName
  * @returns {string}
  */
-export function toolStem(toolName) {
+function toolStem(toolName) {
   return toolName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
@@ -71,7 +70,7 @@ export function toolStem(toolName) {
  *   stylesheetPath: string | null,
  * }}
  */
-export function getToolAssetDescriptor(toolName) {
+function getToolAssetDescriptor(toolName) {
   const metadata = TOOL_ASSET_METADATA[toolName] || {};
   const dir = toolStem(toolName);
   const moduleFile = `${dir}.js`;
@@ -110,7 +109,7 @@ export function getToolModuleImportPath(toolName) {
  * @param {string} toolName
  * @returns {string}
  */
-export function getToolIconPath(toolName) {
+function getToolIconPath(toolName) {
   return getToolAssetDescriptor(toolName).iconPath;
 }
 
@@ -118,15 +117,7 @@ export function getToolIconPath(toolName) {
  * @param {string} toolName
  * @returns {string | null}
  */
-export function getToolSecondaryIconPath(toolName) {
-  return getToolAssetDescriptor(toolName).secondaryIconPath;
-}
-
-/**
- * @param {string} toolName
- * @returns {string | null}
- */
-export function getToolStylesheetPath(toolName) {
+function getToolStylesheetPath(toolName) {
   return getToolAssetDescriptor(toolName).stylesheetPath;
 }
 
@@ -155,7 +146,7 @@ export function withVersion(assetPath, version) {
  * @param {string} assetPath
  * @returns {string}
  */
-export function toBoardPageAssetPath(assetPath) {
+function toBoardPageAssetPath(assetPath) {
   return `../${assetPath}`;
 }
 

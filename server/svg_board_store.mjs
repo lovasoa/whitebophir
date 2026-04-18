@@ -4,11 +4,9 @@ import { readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
-import { wboPencilPoint } from "../client-data/tools/pencil/wbo_pencil_point.js";
 import { readConfiguration } from "./configuration.mjs";
 import {
   boardJsonPath,
-  parseLegacyStoredBoard,
   readLegacyBoardState,
 } from "./legacy_json_board_source.mjs";
 import { streamingUpdate } from "./streaming_stored_svg_update.mjs";
@@ -17,7 +15,6 @@ import {
   createDefaultStoredSvgEnvelope,
   parseAttributes,
   parseStoredSvgEnvelope,
-  parseStoredSvgItems,
   serializeStoredSvgEnvelope,
   updateRootMetadata,
 } from "./svg_envelope.mjs";
@@ -140,59 +137,6 @@ function serializeStoredSvg(board, metadata, seq) {
   );
   const envelope = createDefaultStoredSvgEnvelope(metadata, seq);
   return serializeStoredSvgEnvelope(envelope.prefix, items, envelope.suffix);
-}
-
-/**
- * @param {string} svg
- * @returns {{board: {[name: string]: any}, metadata: BoardMetadata, seq: number}}
- */
-function parseStoredSvg(svg) {
-  const envelope = parseStoredSvgEnvelope(svg);
-  const rootAttributes = envelope.rootAttributes;
-  if (rootAttributes["data-wbo-format"] !== STORED_SVG_FORMAT) {
-    throw new Error("Unsupported stored SVG format");
-  }
-  /** @type {{[name: string]: any}} */
-  const board = {};
-  for (const itemEntry of parseStoredSvgItems(envelope.drawingAreaContent)) {
-    const item = parseStoredSvgItem(itemEntry);
-    const id = item?.id;
-    if (id) board[id] = item;
-  }
-  return {
-    board,
-    metadata: {
-      readonly: rootAttributes["data-wbo-readonly"] === "true",
-    },
-    seq: normalizeStoredSeq(rootAttributes["data-wbo-seq"]),
-  };
-}
-
-/**
- * @param {string} svg
- * @returns {{summaries: Map<string, any>, metadata: BoardMetadata, seq: number}}
- */
-function summarizeStoredSvg(svg) {
-  const envelope = parseStoredSvgEnvelope(svg);
-  const rootAttributes = envelope.rootAttributes;
-  if (rootAttributes["data-wbo-format"] !== STORED_SVG_FORMAT) {
-    throw new Error("Unsupported stored SVG format");
-  }
-  const summaries = new Map();
-  let paintOrder = 0;
-  for (const itemEntry of parseStoredSvgItems(envelope.drawingAreaContent)) {
-    const summary = summarizeStoredSvgItem(itemEntry, paintOrder);
-    if (!summary?.id) continue;
-    summaries.set(summary.id, summary);
-    paintOrder += 1;
-  }
-  return {
-    summaries,
-    metadata: {
-      readonly: rootAttributes["data-wbo-readonly"] === "true",
-    },
-    seq: normalizeStoredSeq(rootAttributes["data-wbo-seq"]),
-  };
 }
 
 /**
@@ -322,47 +266,6 @@ function renderServedBaselineSvg(board, metadata, seq) {
     `<g id="cursors"></g>` +
     `</svg>`
   );
-}
-
-/**
- * @param {string} boardName
- * @param {{historyDir?: string}=} [options]
- * @returns {Promise<{board: {[name: string]: any}, metadata: BoardMetadata, seq: number, source: "svg" | "json" | "empty"}>}
- */
-async function readBoardState(boardName, options) {
-  const historyDir = options?.historyDir;
-  try {
-    const svg = await readFile(boardSvgPath(boardName, historyDir), "utf8");
-    const parsed = parseStoredSvg(svg);
-    return { ...parsed, source: "svg" };
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") {
-      throw error;
-    }
-  }
-
-  try {
-    const parsed = await readLegacyBoardState(boardName, {
-      historyDir: historyDir,
-    });
-    return {
-      board: parsed.board,
-      metadata: parsed.metadata,
-      seq: 0,
-      source: "json",
-    };
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") {
-      throw error;
-    }
-  }
-
-  return {
-    board: {},
-    metadata: defaultBoardMetadata(),
-    seq: 0,
-    source: "empty",
-  };
 }
 
 /**
@@ -637,23 +540,6 @@ async function readBoardDocumentState(boardName, options) {
  * @param {{historyDir?: string}=} [options]
  * @returns {Promise<string>}
  */
-async function readBoardDownload(boardName, options) {
-  const historyDir = options?.historyDir;
-  try {
-    return await readFile(boardSvgPath(boardName, historyDir), "utf8");
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") {
-      throw error;
-    }
-  }
-  return readFile(boardJsonPath(boardName, historyDir), "utf8");
-}
-
-/**
- * @param {string} boardName
- * @param {{historyDir?: string}=} [options]
- * @returns {Promise<string>}
- */
 async function readServedBaseline(boardName, options) {
   const historyDir = options?.historyDir;
   try {
@@ -701,20 +587,11 @@ export {
   boardJsonPath,
   boardExists,
   boardSvgPath,
-  createTempSvgPath,
-  defaultBoardMetadata,
-  parseLegacyStoredBoard,
   rewriteStoredSvg,
-  parseStoredSvg,
   parseBoardItems,
   readBoardLoadState,
   readBoardDocumentState,
-  readBoardDownload,
-  readBoardState,
   readServedBaseline,
-  renderServedBaselineSvg,
-  serializeStoredSvg,
-  summarizeStoredSvg,
   streamServedBaseline,
   writeBoardState,
 };

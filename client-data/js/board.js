@@ -126,30 +126,6 @@ function getRequiredToolButtonParts(toolName) {
 }
 
 /**
- * @param {string} toolName
- * @returns {{button: HTMLElement, primaryIcon: HTMLImageElement, secondaryIcon: HTMLImageElement | null, label: HTMLElement} | null}
- */
-function getToolButtonParts(toolName) {
-  const button = document.getElementById(`toolID-${toolName}`);
-  if (!(button instanceof HTMLElement)) return null;
-  const primaryIcon = /** @type {HTMLImageElement | null} */ (
-    button.querySelector(".tool-icon")
-  );
-  const label = /** @type {HTMLElement | null} */ (
-    button.querySelector(".tool-name")
-  );
-  if (!primaryIcon || !label) return null;
-  return {
-    button: button,
-    primaryIcon: primaryIcon,
-    secondaryIcon: /** @type {HTMLImageElement | null} */ (
-      button.querySelector(".secondaryIcon")
-    ),
-    label: label,
-  };
-}
-
-/**
  * @param {EventTarget | null} target
  * @returns {target is HTMLInputElement | HTMLTextAreaElement}
  */
@@ -270,16 +246,6 @@ function getBoardStatusTitle() {
 
 function getBoardStatusNotice() {
   return document.getElementById("boardStatusNotice");
-}
-
-/**
- * @param {unknown} value
- * @returns {ConfiguredRateLimitDefinition}
- */
-function toRateLimitDefinition(value) {
-  return value && typeof value === "object"
-    ? /** @type {ConfiguredRateLimitDefinition} */ (value)
-    : {};
 }
 
 Tools.showLoadingMessage = function showLoadingMessage() {
@@ -3280,8 +3246,7 @@ Tools.svg.height.baseVal.value = Math.max(
     const dy = evt.clientY - pos.scroll;
     menu.scrollTop = pos.top - dy;
   }
-  /** @param {MouseEvent} evt */
-  function menu_mouseup(evt) {
+  function menu_mouseup() {
     menu.removeEventListener("mousemove", menu_mousemove);
     document.removeEventListener("mouseup", menu_mouseup);
   }

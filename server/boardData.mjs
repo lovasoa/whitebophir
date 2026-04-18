@@ -33,10 +33,7 @@ import {
   summarizeBoardItem,
 } from "./admission_index.mjs";
 import { readConfiguration } from "./configuration.mjs";
-import {
-  boardJsonPath,
-  parseLegacyStoredBoard,
-} from "./legacy_json_board_source.mjs";
+import { boardJsonPath } from "./legacy_json_board_source.mjs";
 import {
   normalizeStoredChildPoint,
   normalizeStoredItemWithBounds,
@@ -47,14 +44,11 @@ import {
   boardSvgPath,
   parseBoardItems,
   readBoardLoadState,
-  readBoardState,
   rewriteStoredSvg,
   writeBoardState,
 } from "./svg_board_store.mjs";
 
 const { logger, metrics, tracing } = observability;
-const BOARD_METADATA_KEY = "__wbo_meta__";
-
 /** @returns {BoardMetadata} */
 function defaultBoardMetadata() {
   return {
@@ -101,14 +95,6 @@ const STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD = 64;
  */
 function boardFilePath(name, historyDir) {
   return boardSvgPath(name, historyDir);
-}
-
-/**
- * @param {any} storedBoard
- * @returns {{board: {[name: string]: BoardElem}, metadata: BoardMetadata}}
- */
-function parseStoredBoard(storedBoard) {
-  return parseLegacyStoredBoard(storedBoard);
 }
 
 /**
@@ -1464,4 +1450,4 @@ function errorCode(error) {
   return typeof error.code === "string" ? error.code : undefined;
 }
 
-export { BOARD_METADATA_KEY, BoardData, parseStoredBoard };
+export { BoardData };

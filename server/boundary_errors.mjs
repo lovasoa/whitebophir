@@ -72,12 +72,3 @@ export function boundaryReason(error) {
   }
   return undefined;
 }
-
-/**
- * @param {unknown} error
- * @returns {boolean}
- */
-export function isBoundaryError(error) {
-  const statusCode = boundaryStatusCode(error);
-  return statusCode !== undefined && statusCode >= 400 && statusCode < 500;
-}

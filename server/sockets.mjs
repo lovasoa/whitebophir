@@ -1485,17 +1485,11 @@ function emitPersistentBoardMutation(board, sourceSocket, envelope) {
 
 /**
  * @param {BoardData} board
- * @param {string} boardName
  * @param {AppSocket} sourceSocket
  * @param {Array<{mutation: NormalizedMessageData, envelope: any}> | undefined} followup
  * @returns {void}
  */
-function emitPersistentBoardFollowupMutations(
-  board,
-  boardName,
-  sourceSocket,
-  followup,
-) {
+function emitPersistentBoardFollowupMutations(board, sourceSocket, followup) {
   if (!Array.isArray(followup) || followup.length === 0) return;
   followup.forEach((entry) => {
     emitPersistentBoardMutation(board, sourceSocket, entry.envelope);
@@ -1785,12 +1779,7 @@ async function persistBoardBroadcast(
       userName,
       handleResult.reason,
     );
-    emitPersistentBoardFollowupMutations(
-      board,
-      boardName,
-      socket,
-      handleResult.followup,
-    );
+    emitPersistentBoardFollowupMutations(board, socket, handleResult.followup);
     return;
   }
   if (handleResult.value !== data) {

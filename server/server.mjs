@@ -18,7 +18,6 @@ import {
   decodeAndValidateBoardName,
   isValidBoardName,
 } from "../client-data/js/board_name.js";
-import { BoardData } from "./boardData.mjs";
 import {
   badRequest,
   boundaryReason,
@@ -872,7 +871,6 @@ function respondWithBoardSvgStream(response, svgStream) {
 }
 
 /**
- * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @param {URL} parsedUrl
  * @param {string[]} parts
@@ -883,13 +881,7 @@ function respondWithBoardSvgStream(response, svgStream) {
  * }} requestContext
  * @returns {Promise<void>}
  */
-async function handleBoardSvgRoute(
-  request,
-  response,
-  parsedUrl,
-  parts,
-  requestContext,
-) {
+async function handleBoardSvgRoute(response, parsedUrl, parts, requestContext) {
   const boardName = requireBoardSvgPathName(parts);
   annotateBoardRequest(requestContext, boardName);
   jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
@@ -934,13 +926,7 @@ function handleBoardsRoute(
   }
   if (parts.length === 2 && getPathPart(parts, 1)?.endsWith(".svg")) {
     requestContext.setRoute("board_svg");
-    return handleBoardSvgRoute(
-      request,
-      response,
-      parsedUrl,
-      parts,
-      requestContext,
-    );
+    return handleBoardSvgRoute(response, parsedUrl, parts, requestContext);
   }
   if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
     return handleBoardDocumentRoute(

@@ -61,11 +61,5 @@ test("legacy json board source reads board state and metadata from disk", async 
         source: "json",
       },
     );
-    assert.deepEqual(
-      legacyJsonBoardSource.readLegacyBoardMetadataSync("legacy-source"),
-      {
-        readonly: true,
-      },
-    );
   });
 });

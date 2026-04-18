@@ -1,9 +1,8 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 
-import { parseStoredBoard } from "./boardData.mjs";
 import config from "./configuration.mjs";
+import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
 import observability from "./observability.mjs";
 
 const { logger, tracing } = observability;
@@ -515,7 +514,7 @@ export async function renderBoardToSVG(file) {
       const data = await fsp.readFile(file, "utf8");
       /** @type {RenderableBoard} */
       const board = /** @type {RenderableBoard} */ (
-        parseStoredBoard(JSON.parse(data)).board
+        parseLegacyStoredBoard(JSON.parse(data)).board
       );
       /** @type {string[]} */
       const chunks = [];

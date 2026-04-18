@@ -171,7 +171,7 @@ export default class TextTool {
     }
     try {
       this.input.blur();
-    } catch (e) {
+    } catch {
       /* Internet Explorer */
     }
     this.active = false;

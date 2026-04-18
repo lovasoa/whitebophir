@@ -14,20 +14,25 @@ test("buildBoardSvgBaselineUrl preserves the current query string", () => {
   );
 });
 
-test("parseServedBaselineSvgDocument extracts seq, readonly, and drawing area markup", () => {
-  const parsed = BoardSvgBaseline.parseServedBaselineSvgDocument({
+test("parseServedBaselineSvgText extracts seq, readonly, and drawing area markup", () => {
+  const expectedDoc = {
     documentElement: {
-      getAttribute(name) {
+      getAttribute(/** @type {string} */ name) {
         if (name === "data-wbo-seq") return "12";
         if (name === "data-wbo-readonly") return "true";
         return null;
       },
-      querySelector(selector) {
+      querySelector(/** @type {string} */ selector) {
         if (selector === "#drawingArea") {
           return { innerHTML: '<rect id="persisted"></rect>' };
         }
         return null;
       },
+    },
+  };
+  const parsed = BoardSvgBaseline.parseServedBaselineSvgText("<svg />", {
+    parseFromString() {
+      return expectedDoc;
     },
   });
 

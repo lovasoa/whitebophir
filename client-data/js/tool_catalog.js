@@ -32,7 +32,7 @@ export function getToolCatalogEntry(toolName) {
  * @param {ToolCatalogEntry} entry
  * @returns {boolean}
  */
-export function shouldDisplayCatalogTool(boardState, entry) {
+function shouldDisplayCatalogTool(boardState, entry) {
   const readonly = boardState?.readonly === true;
   const canWrite = boardState?.canWrite === true;
   return !readonly || canWrite || entry.visibleWhenReadOnly;
@@ -55,5 +55,3 @@ export function getVisibleToolCatalogEntries(options) {
     return shouldDisplayCatalogTool(options.boardState, entry);
   });
 }
-
-export default TOOL_CATALOG;

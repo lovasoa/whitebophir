@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { withToken } from "../helpers/boardData";
 import { broadcastMessageColor } from "../helpers/broadcastMessage";
 import {

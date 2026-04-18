@@ -1,10 +1,37 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { parseStoredSvg } = require("../server/svg_board_store.mjs");
+const { parseStoredSvgItem } = require("../server/stored_svg_item_codec.mjs");
 const {
   streamingUpdate,
 } = require("../server/streaming_stored_svg_update.mjs");
+const {
+  parseStoredSvgEnvelope,
+  parseStoredSvgItems,
+} = require("../server/svg_envelope.mjs");
+
+/**
+ * @param {string} svg
+ * @returns {{board: {[name: string]: any}, metadata: {readonly: boolean}, seq: number}}
+ */
+function parseStoredSvg(svg) {
+  const envelope = parseStoredSvgEnvelope(svg);
+  /** @type {{[name: string]: any}} */
+  const board = {};
+  for (const itemEntry of parseStoredSvgItems(envelope.drawingAreaContent)) {
+    const item = parseStoredSvgItem(itemEntry);
+    if (item?.id) {
+      board[item.id] = item;
+    }
+  }
+  return {
+    board,
+    metadata: {
+      readonly: envelope.rootAttributes["data-wbo-readonly"] === "true",
+    },
+    seq: Number(envelope.rootAttributes["data-wbo-seq"]) || 0,
+  };
+}
 
 /**
  * @param {string} value

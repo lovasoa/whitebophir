@@ -8,6 +8,8 @@ const { withEnv } = require("./test_helpers.js");
 
 const svgEnvelope = require("../server/svg_envelope.mjs");
 const svgBoardStore = require("../server/svg_board_store.mjs");
+const legacyJsonBoardSource = require("../server/legacy_json_board_source.mjs");
+const storedSvgItemCodec = require("../server/stored_svg_item_codec.mjs");
 const {
   wboPencilPoint,
 } = require("../client-data/tools/pencil/wbo_pencil_point.js");
@@ -33,6 +35,122 @@ function renderExpectedPencilPath(points) {
   return pathData
     .map((segment) => `${segment.type} ${segment.values.join(" ")}`)
     .join(" ");
+}
+
+/**
+ * @param {{[name: string]: string}} rootAttributes
+ * @returns {number}
+ */
+function normalizeStoredSeq(rootAttributes) {
+  const seq = Number(rootAttributes["data-wbo-seq"]);
+  return Number.isSafeInteger(seq) && seq >= 0 ? seq : 0;
+}
+
+/**
+ * @param {string} svg
+ * @returns {{board: {[name: string]: any}, metadata: {readonly: boolean}, seq: number}}
+ */
+function parseStoredSvg(svg) {
+  const envelope = svgEnvelope.parseStoredSvgEnvelope(svg);
+  /** @type {{[name: string]: any}} */
+  const board = {};
+  for (const itemEntry of svgEnvelope.parseStoredSvgItems(
+    envelope.drawingAreaContent,
+  )) {
+    const item = storedSvgItemCodec.parseStoredSvgItem(itemEntry);
+    if (item?.id) board[item.id] = item;
+  }
+  return {
+    board,
+    metadata: {
+      readonly: envelope.rootAttributes["data-wbo-readonly"] === "true",
+    },
+    seq: normalizeStoredSeq(envelope.rootAttributes),
+  };
+}
+
+/**
+ * @param {string} svg
+ * @returns {{summaries: Map<string, any>, metadata: {readonly: boolean}, seq: number}}
+ */
+function summarizeStoredSvg(svg) {
+  const envelope = svgEnvelope.parseStoredSvgEnvelope(svg);
+  const summaries = new Map();
+  let paintOrder = 0;
+  for (const itemEntry of svgEnvelope.parseStoredSvgItems(
+    envelope.drawingAreaContent,
+  )) {
+    const summary = storedSvgItemCodec.summarizeStoredSvgItem(
+      itemEntry,
+      paintOrder,
+    );
+    if (!summary?.id) continue;
+    summaries.set(summary.id, summary);
+    paintOrder += 1;
+  }
+  return {
+    summaries,
+    metadata: {
+      readonly: envelope.rootAttributes["data-wbo-readonly"] === "true",
+    },
+    seq: normalizeStoredSeq(envelope.rootAttributes),
+  };
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} historyDir
+ * @returns {Promise<{board: {[name: string]: any}, metadata: {readonly: boolean}, seq: number, source: "svg" | "json" | "empty"}>}
+ */
+async function readPersistedBoardState(boardName, historyDir) {
+  try {
+    return {
+      ...parseStoredSvg(
+        await fs.readFile(
+          svgBoardStore.boardSvgPath(boardName, historyDir),
+          "utf8",
+        ),
+      ),
+      source: "svg",
+    };
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code !== "ENOENT"
+    ) {
+      throw error;
+    }
+  }
+
+  try {
+    const parsed = await legacyJsonBoardSource.readLegacyBoardState(boardName, {
+      historyDir,
+    });
+    return {
+      board: parsed.board,
+      metadata: parsed.metadata,
+      seq: 0,
+      source: "json",
+    };
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code !== "ENOENT"
+    ) {
+      throw error;
+    }
+  }
+
+  return {
+    board: {},
+    metadata: { readonly: false },
+    seq: 0,
+    source: "empty",
+  };
 }
 
 test("parseStoredSvgEnvelope keeps non-drawing shell content opaque", () => {
@@ -186,7 +304,7 @@ test("writeBoardState preserves opaque shell while rewriting stored items", asyn
   });
 });
 
-test("readBoardState falls back to legacy json when svg is absent", async () => {
+test("local persisted-board helper falls back to legacy json when svg is absent", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-json-fallback-"),
   );
@@ -211,7 +329,7 @@ test("readBoardState falls back to legacy json when svg is absent", async () => 
       "utf8",
     );
 
-    const state = await svgBoardStore.readBoardState("legacy-board");
+    const state = await readPersistedBoardState("legacy-board", historyDir);
 
     assert.equal(state.source, "json");
     assert.equal(state.metadata.readonly, true);
@@ -220,7 +338,7 @@ test("readBoardState falls back to legacy json when svg is absent", async () => 
   });
 });
 
-test("readBoardState prefers authoritative svg over stale legacy json", async () => {
+test("local persisted-board helper prefers authoritative svg over stale legacy json", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-svg-preferred-"),
   );
@@ -261,7 +379,7 @@ test("readBoardState prefers authoritative svg over stale legacy json", async ()
       7,
     );
 
-    const state = await svgBoardStore.readBoardState("svg-preferred");
+    const state = await readPersistedBoardState("svg-preferred", historyDir);
 
     assert.equal(state.source, "svg");
     assert.equal(state.metadata.readonly, true);
@@ -433,8 +551,8 @@ test("parseBoardItems hydrates only requested stored svg items", async () => {
   });
 });
 
-test("summarizeStoredSvg derives minimal pencil summaries for cold loads", () => {
-  const summary = svgBoardStore.summarizeStoredSvg(
+test("local stored-svg summary helper derives minimal pencil summaries", () => {
+  const summary = summarizeStoredSvg(
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="4" data-wbo-readonly="false">' +
       '<defs id="defs"></defs>' +
       '<g id="drawingArea">' +
@@ -521,25 +639,32 @@ test("served svg baselines keep pencil smoothing compatible with the client path
     { x: 18, y: 9 },
     { x: 25, y: 30 },
   ];
-  const svg = svgBoardStore.renderServedBaselineSvg(
-    {
-      "line-1": {
-        id: "line-1",
-        tool: "Pencil",
-        type: "line",
-        color: "#123456",
-        size: 4,
-        _children: points,
-      },
-    },
-    { readonly: false },
-    9,
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-served-pencil-json-"),
   );
 
-  assert.match(
-    svg,
-    new RegExp(`d="${escapeRegExp(renderExpectedPencilPath(points))}"`),
-  );
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(
+      legacyJsonBoardSource.boardJsonPath("served-pencil-json"),
+      JSON.stringify({
+        "line-1": {
+          id: "line-1",
+          tool: "Pencil",
+          type: "line",
+          color: "#123456",
+          size: 4,
+          _children: points,
+        },
+      }),
+      "utf8",
+    );
+
+    const svg = await svgBoardStore.readServedBaseline("served-pencil-json");
+    assert.match(
+      svg,
+      new RegExp(`d="${escapeRegExp(renderExpectedPencilPath(points))}"`),
+    );
+  });
 });
 
 test("stored svg preserves style state needed for authoritative rendering", async () => {
@@ -591,7 +716,7 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
       11,
     );
 
-    const state = await svgBoardStore.readBoardState("style-state");
+    const state = await readPersistedBoardState("style-state", historyDir);
     assert.deepEqual(state.board["rect-1"], {
       id: "rect-1",
       tool: "Rectangle",
@@ -673,21 +798,6 @@ test("rewriteStoredSvg rejects stored svg base-seq mismatches", async () => {
       /stored svg seq mismatch/i,
     );
   });
-});
-
-test("stored svg temp paths stay unique within the same millisecond", () => {
-  const originalNow = Date.now;
-  Date.now = () => 1234567890;
-  try {
-    const first = svgBoardStore.createTempSvgPath("/tmp/board.svg");
-    const second = svgBoardStore.createTempSvgPath("/tmp/board.svg");
-
-    assert.notEqual(first, second);
-    assert.match(first, /^\/tmp\/board\.svg\.\d+\.\d+\.tmp$/);
-    assert.match(second, /^\/tmp\/board\.svg\.\d+\.\d+\.tmp$/);
-  } finally {
-    Date.now = originalNow;
-  }
 });
 
 test("writeBoardState removes stale svg and legacy json when board becomes empty", async () => {
