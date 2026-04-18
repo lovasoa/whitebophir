@@ -221,6 +221,45 @@ test("BoardData applies parent tool metadata to batched Hand updates", () => {
   });
 });
 
+test("BoardData authoritativeItemCount drops to zero after clear", () => {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const board = disableSaves(new BoardData("authoritative-count-clear"));
+
+  board.processMessage({
+    tool: "Rectangle",
+    type: "rect",
+    id: "rect-1",
+    color: "#112233",
+    size: 4,
+    x: 0,
+    y: 0,
+    x2: 10,
+    y2: 10,
+  });
+  board.processMessage({
+    tool: "Rectangle",
+    type: "rect",
+    id: "rect-2",
+    color: "#445566",
+    size: 4,
+    x: 20,
+    y: 20,
+    x2: 30,
+    y2: 30,
+  });
+
+  assert.equal(board.authoritativeItemCount(), 2);
+
+  board.processMessage({
+    tool: "Clear",
+    type: "clear",
+  });
+
+  assert.equal(board.authoritativeItemCount(), 0);
+  assert.equal(board.get("rect-1"), undefined);
+  assert.equal(board.get("rect-2"), undefined);
+});
+
 test("BoardData copy keeps pencil child arrays isolated", () => {
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("copy-pencil-isolation"));

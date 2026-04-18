@@ -29,7 +29,6 @@ const DENSE_BOARD_ITEMS = 18000;
 const DENSE_BOARD_PENCIL_EVERY = 6;
 const DENSE_PENCIL_POINTS = config.MAX_CHILDREN;
 const STREAM_UPDATE_PENCIL_POINTS = Math.max(8, config.MAX_CHILDREN - 4);
-const SNAPSHOT_BOARD_ITEMS = 24000;
 const OVERFULL_BOARD_ITEMS = config.MAX_ITEM_COUNT + 2048;
 const HAND_BATCH_ITEMS = config.MAX_CHILDREN;
 const HAND_BATCH_PASSES = 96;
@@ -825,33 +824,6 @@ async function main() {
             boardData.authoritativeItemCount() +
             " items normalized from " +
             bytesToMiB(fixture.bytes)
-          );
-        },
-      },
-      {
-        name: "materialize initial board snapshot",
-        prepare: async () => {
-          fixtures.snapshot = await writeBoardFile(
-            "bench-initial-board-snapshot",
-            buildMixedBoard(SNAPSHOT_BOARD_ITEMS, 8, 64),
-          );
-        },
-        setup: async () => {
-          const boardData = await BoardData.load(
-            "bench-initial-board-snapshot",
-          );
-          clearPendingSave(boardData);
-          return { boardData, fixture: fixtures.snapshot };
-        },
-        run: async (context) => {
-          const payload = { _children: context.boardData.getAll() };
-          const snapshot = JSON.stringify(payload);
-          return (
-            payload._children.length +
-            " items materialized and serialized to " +
-            bytesToMiB(Buffer.byteLength(snapshot)) +
-            " from " +
-            bytesToMiB(context.fixture.bytes)
           );
         },
       },

@@ -85,7 +85,6 @@ class SerialTaskQueue {
 
 const STANDALONE_BOARD_LOAD_BYTES_THRESHOLD = 1024 * 1024;
 const STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD = 2048;
-const STANDALONE_BOARD_SNAPSHOT_ITEM_COUNT_THRESHOLD = 4096;
 const STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD = 64;
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds */
 /** @typedef {{readonly: boolean}} BoardMetadata */
@@ -1084,28 +1083,6 @@ class BoardData {
    */
   get(id) {
     return this.board[id];
-  }
-
-  /** Reads data from the board
-   * @param {string} [id] - Identifier of the first element to get.
-   * @returns {BoardElem[]}
-   */
-  getAll(id) {
-    return tracing.withExpensiveActiveSpan(
-      "board.snapshot_materialize",
-      {
-        attributes: boardTraceAttributes(this.name, "snapshot_materialize", {
-          "wbo.board.items": this.localBoundsCache.size,
-        }),
-        traceRoot:
-          this.localBoundsCache.size >=
-          STANDALONE_BOARD_SNAPSHOT_ITEM_COUNT_THRESHOLD,
-      },
-      () =>
-        Object.entries(this.board)
-          .filter(([i]) => !id || i > id)
-          .map(([_, elem]) => elem),
-    );
   }
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
