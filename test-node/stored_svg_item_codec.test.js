@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   parseStoredSvgItem,
+  scanPathSummary,
   serializeStoredSvgItem,
 } = require("../server/stored_svg_item_codec.mjs");
 
@@ -83,6 +84,25 @@ test("stored svg item codec derives pencil points from the canonical d attribute
       ],
     },
   );
+});
+
+test("stored svg item codec scans path summaries without hydrating points", () => {
+  assert.deepEqual(
+    scanPathSummary("M 1 2 L 1 2 C 1 2 10 12 10 12 C 11 13 18 9 18 9"),
+    {
+      childCount: 3,
+      localBounds: {
+        minX: 1,
+        minY: 2,
+        maxX: 18,
+        maxY: 12,
+      },
+    },
+  );
+  assert.deepEqual(scanPathSummary(""), {
+    childCount: 0,
+    localBounds: null,
+  });
 });
 
 test("stored svg item codec serializes canonical visible svg without duplicated state", () => {

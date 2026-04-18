@@ -142,11 +142,12 @@ function scanPathSummary(d) {
     return { childCount: 0, localBounds: null };
   }
   let index = 0;
-  let command = "";
   let valuesPerSegment = 0;
   let valuesRead = 0;
-  /** @type {number[]} */
-  let segmentValues = [];
+  /** @type {number | undefined} */
+  let endpointX;
+  /** @type {number | undefined} */
+  let endpointY;
   let childCount = 0;
   /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
   let localBounds = null;
@@ -183,10 +184,10 @@ function scanPathSummary(d) {
   while (index < d.length) {
     const char = d[index];
     if (char === "M" || char === "L" || char === "C") {
-      command = char;
-      valuesPerSegment = command === "C" ? 6 : 2;
+      valuesPerSegment = char === "C" ? 6 : 2;
       valuesRead = 0;
-      segmentValues = [];
+      endpointX = undefined;
+      endpointY = undefined;
       index += 1;
       continue;
     }
@@ -215,16 +216,19 @@ function scanPathSummary(d) {
     if (!Number.isFinite(value) || valuesPerSegment === 0) {
       continue;
     }
-    segmentValues.push(value);
+    if (valuesRead === valuesPerSegment - 2) {
+      endpointX = value;
+    } else if (valuesRead === valuesPerSegment - 1) {
+      endpointY = value;
+    }
     valuesRead += 1;
     if (valuesRead === valuesPerSegment) {
-      const x = segmentValues[valuesPerSegment - 2];
-      const y = segmentValues[valuesPerSegment - 1];
-      if (x !== undefined && y !== undefined) {
-        pushPoint(x, y);
+      if (endpointX !== undefined && endpointY !== undefined) {
+        pushPoint(endpointX, endpointY);
       }
       valuesRead = 0;
-      segmentValues = [];
+      endpointX = undefined;
+      endpointY = undefined;
     }
   }
 
