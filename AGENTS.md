@@ -24,7 +24,7 @@ section before making changes there.
 - In-memory board model + apply rules + disk sync **[hot]**: [board state engine](./server/boardData.mjs); loaded boards now keep one canonical per-id item index plus paint order, with text and pencil payload compressed after persistence. `load`, `processMessage`, and save-time item materialization dominate CPU during board open and save.
 - Env parsing + rate-limit profile construction must stay cold. Never do unneeded work in the hot path.
 - Shared geometry/id/color/text clamps **[hot]**: [message primitives](./client-data/js/message_common.js); `clampCoord`, `clampColor`, and friends are invoked from every coordinate/field normalizer on the server.
-- Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js).
+- Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js). Board boot now publishes explicit DOM phases on `document.documentElement.dataset.boardPhase` and dispatches `wbo:board-phase` events; initial URL-hash viewport restore happens before socket connection startup.
 - Client state machine + staged tool boot + send/receive plumbing: [board runtime](./client-data/js/board.js).
 - Shared socket transport utilities: [transport helpers](./client-data/js/board_transport.js).
 - Shared board-name allowlist + sanitization for landing-page inputs and server routes: [board name helpers](./client-data/js/board_name.js).

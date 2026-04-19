@@ -483,6 +483,8 @@ export type AppToolsState = {
   getOpacity: () => number;
   getScale: () => number;
   setScale: (scale: number) => number;
+  applyViewportFromHash: () => void;
+  installViewportHashObservers: () => void;
   createSVGElement: (
     name: string,
     attrs?: { [key: string]: string | number | undefined },

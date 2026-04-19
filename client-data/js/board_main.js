@@ -1,6 +1,7 @@
 import { withVersion } from "./tool_assets.js";
 
 const assetVersion = document.documentElement.dataset.version || "";
+const documentElement = document.documentElement;
 document.documentElement.dataset.boardReady = "booting";
 
 const CRITICAL_BOOT_TOOL_NAMES = ["Hand", "Pencil"];
@@ -14,6 +15,26 @@ const REPLAY_SAFE_TOOL_NAMES = new Set([
   "Eraser",
   "Hand",
 ]);
+
+/**
+ * @typedef {"booting" | "runtime-initialized" | "viewport-restored" | "connecting" | "ready" | "error"} BoardBootPhase
+ */
+
+/**
+ * @param {BoardBootPhase} phase
+ * @returns {void}
+ */
+function setBoardBootPhase(phase) {
+  if (documentElement.dataset.boardPhase === phase) return;
+  documentElement.dataset.boardPhase = phase;
+  document.dispatchEvent(
+    new CustomEvent("wbo:board-phase", {
+      detail: { phase: phase },
+    }),
+  );
+}
+
+setBoardBootPhase("booting");
 
 /**
  * @param {string} path
@@ -107,12 +128,18 @@ async function bootBoardPage() {
     throw new Error("Board runtime did not initialize window.Tools.");
   }
 
+  setBoardBootPhase("runtime-initialized");
+  tools.installViewportHashObservers();
+  tools.applyViewportFromHash();
+  setBoardBootPhase("viewport-restored");
+
   await Promise.all(
     Array.from(REPLAY_SAFE_TOOL_NAMES).map((toolName) =>
       tools.ensureToolClassLoaded(toolName),
     ),
   );
 
+  setBoardBootPhase("connecting");
   tools.startConnection();
 
   await bootCriticalTools();
@@ -124,7 +151,8 @@ async function bootBoardPage() {
   if (!tools.curTool && tools.list.Hand && tools.canUseTool("Hand")) {
     tools.change("Hand");
   }
-  document.documentElement.dataset.boardReady = "true";
+  documentElement.dataset.boardReady = "true";
+  setBoardBootPhase("ready");
 
   const deferredToolNames = getRenderedToolNames().filter(
     (toolName) => !REPLAY_SAFE_TOOL_NAMES.has(toolName),
@@ -144,6 +172,7 @@ async function bootBoardPage() {
 }
 
 void bootBoardPage().catch((error) => {
-  document.documentElement.dataset.boardReady = "error";
+  documentElement.dataset.boardReady = "error";
+  setBoardBootPhase("error");
   console.error("Failed to boot board page:", error);
 });

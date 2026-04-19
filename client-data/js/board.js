@@ -2972,50 +2972,50 @@ function updateDocumentTitle() {
     `${Tools.boardName} | WBO`;
 }
 
-(() => {
-  // Scroll and hash handling
-  /** @type {ReturnType<typeof setTimeout> | null} */
-  let scrollTimeout = null;
-  let lastStateUpdate = Date.now();
+/** @type {ReturnType<typeof setTimeout> | null} */
+let viewportHashScrollTimeout = null;
+let lastViewportHashStateUpdate = Date.now();
+let viewportHashObserversInstalled = false;
 
-  window.addEventListener("scroll", function onScroll() {
-    const scale = Tools.getScale();
-    const x = document.documentElement.scrollLeft / scale;
-    const y = document.documentElement.scrollTop / scale;
+function syncViewportHashFromScroll() {
+  const scale = Tools.getScale();
+  const x = document.documentElement.scrollLeft / scale;
+  const y = document.documentElement.scrollTop / scale;
 
-    if (scrollTimeout !== null) clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(function updateHistory() {
-      const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(1)}`;
-      if (
-        Date.now() - lastStateUpdate > 5000 &&
-        hash !== window.location.hash
-      ) {
-        window.history.pushState({}, "", hash);
-        lastStateUpdate = Date.now();
-      } else {
-        window.history.replaceState({}, "", hash);
-      }
-    }, 100);
-  });
-
-  function setScrollFromHash() {
-    const coords = window.location.hash.slice(1).split(",");
-    const x = Number(coords[0]) || 0;
-    const y = Number(coords[1]) || 0;
-    const scale = Number.parseFloat(coords[2] || "");
-    resizeCanvas({ x: x, y: y });
-    Tools.setScale(scale);
-    window.scrollTo(x * scale, y * scale);
+  if (viewportHashScrollTimeout !== null) {
+    clearTimeout(viewportHashScrollTimeout);
   }
+  viewportHashScrollTimeout = setTimeout(function updateViewportHistory() {
+    const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(1)}`;
+    if (
+      Date.now() - lastViewportHashStateUpdate > 5000 &&
+      hash !== window.location.hash
+    ) {
+      window.history.pushState({}, "", hash);
+      lastViewportHashStateUpdate = Date.now();
+    } else {
+      window.history.replaceState({}, "", hash);
+    }
+  }, 100);
+}
 
-  window.addEventListener("hashchange", setScrollFromHash, false);
-  window.addEventListener("popstate", setScrollFromHash, false);
-  if (document.readyState === "loading") {
-    window.addEventListener("DOMContentLoaded", setScrollFromHash, false);
-  } else {
-    queueMicrotask(setScrollFromHash);
-  }
-})();
+Tools.applyViewportFromHash = function applyViewportFromHash() {
+  const coords = window.location.hash.slice(1).split(",");
+  const x = Number(coords[0]) || 0;
+  const y = Number(coords[1]) || 0;
+  const scale = Number.parseFloat(coords[2] || "");
+  resizeCanvas({ x: x, y: y });
+  const appliedScale = Tools.setScale(scale);
+  window.scrollTo(x * appliedScale, y * appliedScale);
+};
+
+Tools.installViewportHashObservers = function installViewportHashObservers() {
+  if (viewportHashObserversInstalled) return;
+  viewportHashObserversInstalled = true;
+  window.addEventListener("scroll", syncViewportHashFromScroll);
+  window.addEventListener("hashchange", Tools.applyViewportFromHash, false);
+  window.addEventListener("popstate", Tools.applyViewportFromHash, false);
+};
 
 /** @param {BoardMessage} m */
 function resizeCanvas(m) {

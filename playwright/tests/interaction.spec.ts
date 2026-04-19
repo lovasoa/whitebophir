@@ -1,4 +1,80 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "../fixtures/test";
+
+type BootPhaseSnapshot = {
+  phase: string;
+  left: number;
+  top: number;
+  boardPhase: string;
+  boardReady: string;
+};
+
+async function installBootPhaseRecorder(page: Page) {
+  await page.addInitScript(() => {
+    (window as any).__bootPhaseSnapshots = [];
+    document.addEventListener("wbo:board-phase", (event) => {
+      const detail =
+        event instanceof CustomEvent && event.detail
+          ? (event.detail as { phase?: unknown })
+          : null;
+      const phase = typeof detail?.phase === "string" ? detail.phase : "";
+      (window as any).__bootPhaseSnapshots.push({
+        phase,
+        left: window.scrollX || document.documentElement.scrollLeft,
+        top: window.scrollY || document.documentElement.scrollTop,
+        boardPhase: document.documentElement.dataset.boardPhase ?? "",
+        boardReady: document.documentElement.dataset.boardReady ?? "",
+      });
+    });
+  });
+}
+
+async function readBootPhaseSnapshots(
+  page: Page,
+): Promise<BootPhaseSnapshot[]> {
+  return page.evaluate(
+    () =>
+      ((window as any).__bootPhaseSnapshots as
+        | BootPhaseSnapshot[]
+        | undefined) ?? [],
+  );
+}
+
+async function waitForRecordedPhase(page: Page, phase: string) {
+  await page.waitForFunction(
+    (targetPhase) =>
+      Array.isArray((window as any).__bootPhaseSnapshots) &&
+      (window as any).__bootPhaseSnapshots.some(
+        (entry: { phase?: unknown } | undefined) =>
+          entry?.phase === targetPhase,
+      ),
+    phase,
+  );
+}
+
+async function expectViewportRestoreBeforeConnect(
+  page: Page,
+  left: number,
+  top: number,
+) {
+  await waitForRecordedPhase(page, "connecting");
+  const phases = await readBootPhaseSnapshots(page);
+  const viewportRestoredIndex = phases.findIndex(
+    (entry) => entry.phase === "viewport-restored",
+  );
+  const connectingIndex = phases.findIndex(
+    (entry) => entry.phase === "connecting",
+  );
+  expect(viewportRestoredIndex).toBeGreaterThanOrEqual(0);
+  expect(connectingIndex).toBeGreaterThan(viewportRestoredIndex);
+  expect(phases[viewportRestoredIndex]).toMatchObject({
+    phase: "viewport-restored",
+    left,
+    top,
+    boardPhase: "viewport-restored",
+    boardReady: "booting",
+  });
+}
 
 test.describe("single-page interactions", () => {
   test("selector moves existing rectangle", async ({
@@ -80,13 +156,17 @@ test.describe("single-page interactions", () => {
     const top = 1200;
     const url = `${boardPage.buildBoardUrl("hash-reload-test")}#${left},${top},1.0`;
 
+    await installBootPhaseRecorder(page);
+
     await page.goto(url);
+    await expectViewportRestoreBeforeConnect(page, left, top);
     await page.waitForFunction(() => {
       const state = document.documentElement.dataset.boardReady;
       return state === "true" || state === "error";
     });
 
     await page.reload();
+    await expectViewportRestoreBeforeConnect(page, left, top);
     await page.waitForFunction(() => {
       const state = document.documentElement.dataset.boardReady;
       return state === "true" || state === "error";
