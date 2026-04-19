@@ -438,6 +438,14 @@ test("board pages are no-store in development and render versioned asset URLs", 
           `\\.\\./tools/pencil/icon\\.svg\\?v(?:=|&#x3D;)${packageJson.version}`,
         ),
       );
+      assert.match(
+        response.body,
+        new RegExp(`\\.\\./users\\.svg\\?v=${packageJson.version}`),
+      );
+      assert.match(
+        response.body,
+        new RegExp(`\\.\\./icon-size\\.svg\\?v=${packageJson.version}`),
+      );
     } finally {
       await closeServer(app);
     }

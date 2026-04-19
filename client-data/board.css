@@ -615,6 +615,11 @@ svg {
   margin: auto;
 }
 
+#menu span.tool-icon > svg {
+  width: 100%;
+  height: 100%;
+}
+
 #menu .tool-name {
   text-align: center;
   font-size: 15px;

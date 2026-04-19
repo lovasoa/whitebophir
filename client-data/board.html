@@ -43,7 +43,7 @@
 		<div class="board-presence">
 			<button id="connectedUsersToggle" class="board-presence-toggle" type="button" aria-haspopup="true"
 				aria-expanded="false">
-				<img class="board-presence-icon" width="18" height="18" src="users.svg?v={{version}}" alt="" />
+				<img class="board-presence-icon" width="18" height="18" src="../users.svg?v={{version}}" alt="" />
 				<span class="tool-name" hidden></span>
 			</button>
 			<div id="connectedUsersPanel" class="connected-users-panel connected-users-panel-hidden">
@@ -81,7 +81,7 @@
 				</li>
 				<li class="tool" tabindex="-1"
 					title="{{translations.size}} ({{translations.keyboard_shortcut}}: alt + {{translations.mousewheel}})">
-					<img class="tool-icon" width="60" height="60" src="icon-size.svg?v={{version}}" alt="" aria-hidden="true" />
+					<img class="tool-icon" width="60" height="60" src="../icon-size.svg?v={{version}}" alt="" aria-hidden="true" />
 					<label class="tool-name slider" for="chooseSize">
 						<span>{{translations.size}}</span>
 						<input type="range" id="chooseSize" value="4" min="1" max="50" step="1" class="rangeChooser" />
@@ -89,7 +89,7 @@
 				</li>
 				<li class="tool" tabindex="-1">
 					<span class="tool-icon">
-						<svg viewBox="0 0 8 8">
+						<svg viewBox="0 0 8 8" aria-hidden="true" focusable="false">
 							<pattern id="opacityPattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
 								<rect x=0 y=0 width=2 height=2 fill=black></rect>
 								<rect x=2 y=2 width=2 height=2 fill=black></rect>
