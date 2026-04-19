@@ -87,7 +87,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="1" data-wbo-readonly="false">' +
     '<defs id="defs"><marker id="keep"></marker></defs>' +
     '<g id="drawingArea">' +
-    '<path id="item-0" d="M 1 2 L 1 2 C 1 2 3 4 3 4" stroke="#123456" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>' +
+    '<path id="item-0" d="M 1 2 l 0 0 l 2 2" stroke="#123456" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>' +
     '<text id="item-2" x="3" y="4" font-size="18" fill="#654321">hello</text>' +
     '<rect id="item-3" x="5" y="6" width="4" height="6" stroke="#123456" stroke-width="2" fill="none"></rect>' +
     '<ellipse id="item-4" cx="12" cy="22" rx="2" ry="2" stroke="#123456" stroke-width="2" fill="none"></ellipse>' +
@@ -328,7 +328,7 @@ test("streaming stored svg update preserves shell and paint order across create 
 
 test("streaming stored svg update preserves untouched bytes and the opaque prefix of touched pencil paths", async () => {
   const untouchedPath =
-    '<path id="line-1" d="M 1 2 L 1 2 C 1 2 3 4 3 4" stroke="#123456" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>';
+    '<path id="line-1" d="M 1 2 l 0 0 l 2 2" stroke="#123456" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>';
   const untouchedEllipse =
     '<ellipse id="ellipse-1" cx="12" cy="22" rx="2" ry="2" stroke="#123456" stroke-width="2" fill="none"></ellipse>';
   const svg =
@@ -373,7 +373,7 @@ test("streaming stored svg update preserves untouched bytes and the opaque prefi
     actual,
     /<rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"><\/rect>/,
   );
-  assert.match(actual, /d="M 1 2 L 1 2 /);
+  assert.match(actual, /d="M 1 2/);
   assert.equal(actual.includes(untouchedEllipse), true);
   assert.equal(parsed.board["line-1"]._children.length, 3);
 });

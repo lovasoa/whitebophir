@@ -42,7 +42,7 @@ function makeStoredPencilEntry(overrides) {
     tagName: "path",
     attributes: {
       id: options.id || "line-1",
-      d: options.d || "M 1 2 L 1 2 C 1 2 10 12 10 12 C 11 13 18 9 18 9",
+      d: options.d || "M 1 2 l 0 0 l 9 10 l 8 -3",
       stroke: options.stroke || "#000000",
       "stroke-width": options.strokeWidth || "3",
       ...(options.transform ? { transform: options.transform } : {}),

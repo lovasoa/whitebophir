@@ -10,10 +10,6 @@ const svgEnvelope = require("../server/svg_envelope.mjs");
 const svgBoardStore = require("../server/svg_board_store.mjs");
 const legacyJsonBoardSource = require("../server/legacy_json_board_source.mjs");
 const storedSvgItemCodec = require("../server/stored_svg_item_codec.mjs");
-const {
-  wboPencilPoint,
-} = require("../client-data/tools/pencil/wbo_pencil_point.js");
-
 /**
  * @param {string} value
  * @returns {string}
@@ -27,14 +23,17 @@ function escapeRegExp(value) {
  * @returns {string}
  */
 function renderExpectedPencilPath(points) {
-  /** @type {{type: string, values: number[]}[]} */
-  const pathData = [];
-  points.forEach((point) => {
-    wboPencilPoint(pathData, point.x, point.y);
-  });
-  return pathData
-    .map((segment) => `${segment.type} ${segment.values.join(" ")}`)
-    .join(" ");
+  if (!points.length) return "";
+  const firstPoint = points[0];
+  if (!firstPoint) return "";
+  let path = `M ${firstPoint.x} ${firstPoint.y}`;
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const point = points[i];
+    if (!prev || !point) continue;
+    path += ` l ${point.x - prev.x} ${point.y - prev.y}`;
+  }
+  return path;
 }
 
 /**
@@ -595,7 +594,7 @@ test("local stored-svg summary helper derives minimal pencil summaries", () => {
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="4" data-wbo-readonly="false">' +
       '<defs id="defs"></defs>' +
       '<g id="drawingArea">' +
-      '<path id="line-1" d="M 1 2 L 3 4 C 3 4 8 9 8 9" stroke="#123456" stroke-width="4" fill="none" transform="matrix(1 0 0 1 7 8)"></path>' +
+      '<path id="line-1" d="M 1 2 l 2 2 l 5 5" stroke="#123456" stroke-width="4" fill="none" transform="matrix(1 0 0 1 7 8)"></path>' +
       '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello</text>' +
       "</g>" +
       '<g id="cursors"></g>' +
@@ -681,7 +680,7 @@ test("readCanonicalBoardState migrates legacy json to svg before canonical load"
   });
 });
 
-test("served svg baselines keep pencil smoothing compatible with the client path builder", async () => {
+test("served svg baselines keep raw pencil paths for client-side smoothing", async () => {
   const points = [
     { x: 1, y: 2 },
     { x: 10, y: 12 },

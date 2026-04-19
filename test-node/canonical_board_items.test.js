@@ -27,7 +27,7 @@ test("canonicalItemFromStoredSvgEntry derives canonical compressed payloads dire
   );
   const pencil = canonicalItemFromStoredSvgEntry(
     makeStoredPencilEntry({
-      d: "M 1 2 L 1 2 C 1 2 3 4 3 4",
+      d: "M 1 2 l 0 0 l 2 2",
       stroke: "#654321",
       strokeWidth: "5",
     }),

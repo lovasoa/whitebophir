@@ -1354,7 +1354,7 @@ test("BoardData.save preserves cold-loaded stored svg when there are no pending 
         defs: '<marker id="m1"></marker>',
         drawingArea:
           '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
-          '<path id="line-1" d="M 1 2 L 1 2 C 1 2 3 4 3 4" stroke="#654321" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>',
+          '<path id="line-1" d="M 1 2 l 0 0 l 2 2" stroke="#654321" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>',
         cursors: '<path id="cursor-template"></path>',
       });
       const { board, svgPath } = await withLoadedBoard({

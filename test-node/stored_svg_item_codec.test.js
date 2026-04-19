@@ -67,18 +67,15 @@ test("stored svg item codec derives pencil points from the canonical d attribute
 });
 
 test("stored svg item codec scans path summaries without hydrating points", () => {
-  assert.deepEqual(
-    scanPathSummary("M 1 2 L 1 2 C 1 2 10 12 10 12 C 11 13 18 9 18 9"),
-    {
-      childCount: 3,
-      localBounds: {
-        minX: 1,
-        minY: 2,
-        maxX: 18,
-        maxY: 12,
-      },
+  assert.deepEqual(scanPathSummary("M 1 2 l 0 0 l 9 10 l 8 -3"), {
+    childCount: 3,
+    localBounds: {
+      minX: 1,
+      minY: 2,
+      maxX: 18,
+      maxY: 12,
     },
-  );
+  });
   assert.deepEqual(scanPathSummary(""), {
     childCount: 0,
     localBounds: null,
@@ -164,7 +161,7 @@ test("stored svg item codec serializes canonical visible svg without duplicated 
   });
   assert.match(
     pencil,
-    /^<path id="line-1" d="M 1 2 L 1 2 C [^"]+" stroke="#000000" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><\/path>$/,
+    /^<path id="line-1" d="M 1 2 l 0 0 l 9 10 l 8 -3" stroke="#000000" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><\/path>$/,
   );
   assert.doesNotMatch(pencil, /data-wbo-item|data-wbo-tool|_children/);
 });
