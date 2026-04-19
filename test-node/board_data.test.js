@@ -321,6 +321,44 @@ test("computeSaveDelayMs accelerates the first svg baseline save only", () => {
   );
 });
 
+test("computeScheduledSaveDelayMs respects idle and max-delay deadlines", () => {
+  const { computeScheduledSaveDelayMs } = require(BOARD_DATA_PATH);
+
+  assert.equal(
+    computeScheduledSaveDelayMs({
+      nowMs: 1_000,
+      lastActivityAtMs: 1_000,
+      lastSaveAtMs: 0,
+      saveIntervalMs: 2_000,
+      maxSaveDelayMs: 60_000,
+      hasPersistedBaseline: true,
+    }),
+    2_000,
+  );
+  assert.equal(
+    computeScheduledSaveDelayMs({
+      nowMs: 59_000,
+      lastActivityAtMs: 59_000,
+      lastSaveAtMs: 0,
+      saveIntervalMs: 2_000,
+      maxSaveDelayMs: 60_000,
+      hasPersistedBaseline: true,
+    }),
+    1_000,
+  );
+  assert.equal(
+    computeScheduledSaveDelayMs({
+      nowMs: 61_950,
+      lastActivityAtMs: 61_940,
+      lastSaveAtMs: 60_000,
+      saveIntervalMs: 2_000,
+      maxSaveDelayMs: 60_000,
+      hasPersistedBaseline: true,
+    }),
+    1_990,
+  );
+});
+
 test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
   const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("finalize-persisted-snapshot"));
@@ -473,6 +511,52 @@ test("save schedules a fast follow-up when newer created items remain dirty", as
       }
     }, 1000);
   });
+});
+
+test("BoardData.save skips redundant clean saves once persisted state is current", async () => {
+  await withBoardHistoryDir("wbo-save-skip-clean-", async ({ historyDir }) => {
+    const BoardData = getBoardDataClass();
+    const board = new BoardData("skip-clean-save");
+    const svgPath = path.join(historyDir, "board-skip-clean-save.svg");
+
+    board.board = {
+      "text-1": {
+        id: "text-1",
+        tool: "Text",
+        x: 1,
+        y: 2,
+        txt: "hi",
+        size: 12,
+        color: "#000000",
+      },
+    };
+
+    await board.save();
+    const firstStat = await fs.stat(svgPath);
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    await board.save();
+
+    const secondStat = await fs.stat(svgPath);
+    assert.equal(secondStat.mtimeMs, firstStat.mtimeMs);
+  });
+});
+
+test("scheduleSaveTimeout does not queue an autosave while a save is in progress", async () => {
+  const BoardData = getBoardDataClass();
+  const board = new BoardData("skip-timer-during-save");
+  let saveCalls = 0;
+
+  board.saveInProgress = true;
+  board.save = async () => {
+    saveCalls += 1;
+  };
+
+  board.scheduleSaveTimeout(0);
+  await new Promise((resolve) => setTimeout(resolve, 25));
+
+  assert.equal(saveCalls, 0);
+  assert.equal(board.saveTimeoutId, undefined);
 });
 
 test("BoardData replays batch updates, copies, and deletes consistently", () => {

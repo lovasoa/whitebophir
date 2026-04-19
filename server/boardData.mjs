@@ -161,6 +161,28 @@ function boardDebugFields(board, extras) {
 }
 
 /**
+ * @param {BoardData} board
+ * @param {{[key: string]: unknown}=} extras
+ * @returns {{[key: string]: unknown}}
+ */
+function boardLifecycleLogFields(board, extras) {
+  return {
+    board: board.name,
+    "wbo.board.instance": board.instanceId,
+    "wbo.board.seq": board.getSeq(),
+    "wbo.board.persisted_seq": board.getPersistedSeq(),
+    "wbo.board.has_persisted_baseline": board.hasPersistedBaseline,
+    "wbo.board.items": board.authoritativeItemCount(),
+    "wbo.board.dirty_items": countDirtyItems(board),
+    "wbo.board.dirty_created_items": board.dirtyCreatedIds.size,
+    "wbo.board.users": board.users.size,
+    "wbo.board.readonly": board.metadata.readonly,
+    "file.path": board.file,
+    ...(extras || {}),
+  };
+}
+
+/**
  * @param {string | undefined} tool
  * @param {BoardElem} data
  * @returns {BoardElem}
@@ -182,6 +204,33 @@ function computeSaveDelayMs(options) {
     return normalizedSaveInterval;
   }
   return Math.min(normalizedSaveInterval, INITIAL_BASELINE_SAVE_DELAY_MS);
+}
+
+/**
+ * @param {{
+ *   nowMs: number,
+ *   lastActivityAtMs: number,
+ *   lastSaveAtMs: number,
+ *   saveIntervalMs: number,
+ *   maxSaveDelayMs: number,
+ *   hasPersistedBaseline: boolean,
+ *   hasDirtyCreatedItems?: boolean,
+ * }} options
+ * @returns {number}
+ */
+function computeScheduledSaveDelayMs(options) {
+  const saveDelayMs = computeSaveDelayMs({
+    saveIntervalMs: options.saveIntervalMs,
+    hasPersistedBaseline: options.hasPersistedBaseline,
+    hasDirtyCreatedItems: options.hasDirtyCreatedItems,
+  });
+  const idleDeadlineMs = options.lastActivityAtMs + saveDelayMs;
+  const maxDelayDeadlineMs =
+    options.lastSaveAtMs + Math.max(0, Number(options.maxSaveDelayMs) || 0);
+  return Math.max(
+    0,
+    Math.min(idleDeadlineMs, maxDelayDeadlineMs) - options.nowMs,
+  );
 }
 
 /**
@@ -236,6 +285,8 @@ class BoardData {
     this.file = boardFilePath(name, this.historyDir);
     this.hasPersistedBaseline = false;
     this.lastSaveDate = Date.now();
+    this.lastActivityDate = this.lastSaveDate;
+    this.saveInProgress = false;
     this.users = new Set();
     this.saveMutex = new SerialTaskQueue();
     this.mutationLog = createMutationLog(0);
@@ -1194,8 +1245,14 @@ class BoardData {
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
   delaySave() {
     const config = readConfiguration();
-    const delayMs = computeSaveDelayMs({
+    const nowMs = Date.now();
+    this.lastActivityDate = nowMs;
+    const delayMs = computeScheduledSaveDelayMs({
+      nowMs,
+      lastActivityAtMs: this.lastActivityDate,
+      lastSaveAtMs: this.lastSaveDate,
       saveIntervalMs: config.SAVE_INTERVAL,
+      maxSaveDelayMs: config.MAX_SAVE_DELAY,
       hasPersistedBaseline: this.hasPersistedBaseline,
       hasDirtyCreatedItems: this.dirtyCreatedIds.size > 0,
     });
@@ -1209,8 +1266,6 @@ class BoardData {
       );
     }
     this.scheduleSaveTimeout(delayMs);
-    if (Date.now() - this.lastSaveDate > config.MAX_SAVE_DELAY)
-      this.scheduleSaveTimeout(0);
   }
 
   /**
@@ -1234,6 +1289,15 @@ class BoardData {
         if (this.disposed) return;
         if (logger.isEnabled("debug")) {
           logger.debug("board.save_timer_fired", boardDebugFields(this));
+        }
+        if (this.saveInProgress) {
+          if (logger.isEnabled("debug")) {
+            logger.debug(
+              "board.save_timer_skipped_while_saving",
+              boardDebugFields(this),
+            );
+          }
+          return;
         }
         void this.save();
       },
@@ -1283,262 +1347,179 @@ class BoardData {
           this.itemsById.size >= STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD,
       },
       async () => {
-        if (this.disposed) return;
-        const startedAt = Date.now();
-        this.lastSaveDate = Date.now();
-        if (logger.isEnabled("debug")) {
-          logger.debug("board.save_started", boardDebugFields(this));
-        }
-        this.clean();
-        let savedItemsById = new Map(this.itemsById);
-        let savedPaintOrder = [...this.paintOrder];
-        const file = this.file;
-        let authoritativeItemCount = savedPaintOrder.filter(
-          (id) => savedItemsById.get(id)?.deleted !== true,
-        ).length;
-        if (authoritativeItemCount === 0) {
-          // empty board
-          try {
-            await writeCanonicalBoardState(
-              this.name,
-              savedItemsById,
-              savedPaintOrder,
-              this.metadata,
-              this.getSeq(),
-              { historyDir: this.historyDir },
-            );
-            this.hasPersistedBaseline = false;
-            this.markPersistedSeq(this.getSeq());
-            this.trimPersistedMutationLog(startedAt);
-            tracing.setActiveSpanAttributes(
-              boardTraceAttributes(this.name, "save", {
-                "wbo.board.result": "removed_empty",
-              }),
-            );
-            metrics.recordBoardOperationDuration(
-              "save",
-              this.name,
-              (Date.now() - startedAt) / 1000,
-              "removed_empty",
-            );
-          } catch (err) {
-            if (errorCode(err) !== "ENOENT") {
-              // If the file already wasn't saved, this is not an error
-              tracing.recordActiveSpanError(err, {
-                "wbo.board.result": "error",
-              });
-              logger.error("board.delete_failed", {
-                board: this.name,
-                error: err,
-              });
-              metrics.recordBoardOperationDuration(
-                "save",
-                this.name,
-                (Date.now() - startedAt) / 1000,
-                err,
-              );
+        this.saveInProgress = true;
+        try {
+          if (this.disposed) return;
+          if (
+            this.hasDirtyItems() !== true &&
+            this.getSeq() === this.getPersistedSeq()
+          ) {
+            if (logger.isEnabled("debug")) {
+              logger.debug("board.save_skipped", boardDebugFields(this));
             }
+            return;
           }
-        } else {
-          try {
-            let latestSeq = this.getSeq();
-            if (this.hasPersistedBaseline) {
-              if (
-                this.hasDirtyItems() ||
-                latestSeq !== this.getPersistedSeq()
-              ) {
-                let persistedIds;
-                try {
-                  if (logger.isEnabled("debug")) {
-                    logger.debug(
-                      "board.save_rewrite_started",
-                      boardDebugFields(this, {
-                        "wbo.board.save_target_seq": latestSeq,
-                      }),
-                    );
-                  }
-                  persistedIds = await rewriteStoredSvgFromCanonical(
-                    this.name,
-                    savedItemsById,
-                    savedPaintOrder,
-                    this.metadata,
-                    this.getPersistedSeq(),
-                    latestSeq,
-                    { historyDir: this.historyDir },
-                  );
-                  this.hasPersistedBaseline = true;
-                } catch (error) {
-                  if (errorCode(error) !== "ENOENT") {
-                    throw error;
-                  }
-                  logger.warn("board.save_missing_baseline", {
-                    board: this.name,
-                    "file.path": file,
-                  });
-                  const replayFromSeq =
-                    this.loadSource === "empty"
-                      ? this.minReplayableSeq()
-                      : this.getPersistedSeq();
-                  let recoveredBoard;
-                  while (true) {
-                    recoveredBoard = replayRecoverableMutations(
-                      this,
-                      replayFromSeq,
-                      latestSeq,
-                    );
-                    const currentSeq = this.getSeq();
-                    if (currentSeq === latestSeq) break;
-                    latestSeq = currentSeq;
-                  }
-                  replaceBoardState(this, recoveredBoard);
-                  if (logger.isEnabled("debug")) {
-                    logger.debug(
-                      "board.save_recovered_from_mutations",
-                      boardDebugFields(this, {
-                        "wbo.board.save_target_seq": latestSeq,
-                        "wbo.board.replay_from_seq": replayFromSeq,
-                      }),
-                    );
-                  }
-                  this.hasPersistedBaseline = false;
-                  latestSeq = this.getSeq();
-                  savedItemsById = new Map(this.itemsById);
-                  savedPaintOrder = [...this.paintOrder];
-                  authoritativeItemCount = savedPaintOrder.filter(
-                    (id) => savedItemsById.get(id)?.deleted !== true,
-                  ).length;
-                }
-                if (this.hasPersistedBaseline) {
-                  this.markPersistedSeq(latestSeq);
-                  this.finalizePersistedItems(savedItemsById, persistedIds);
-                } else {
-                  const initialPersist = await writeCanonicalBoardState(
-                    this.name,
-                    savedItemsById,
-                    savedPaintOrder,
-                    this.metadata,
-                    latestSeq,
-                    { historyDir: this.historyDir },
-                  );
-                  this.hasPersistedBaseline = initialPersist.hasBaseline;
-                  if (logger.isEnabled("debug")) {
-                    logger.debug(
-                      "board.save_initial_persist_finished",
-                      boardDebugFields(this, {
-                        "wbo.board.persisted_ids": [
-                          ...initialPersist.persistedIds,
-                        ],
-                      }),
-                    );
-                  }
-                  if (initialPersist.hasBaseline) {
-                    this.markPersistedSeq(latestSeq);
-                    this.finalizePersistedItems(
-                      savedItemsById,
-                      initialPersist.persistedIds,
-                    );
-                  }
-                }
-              } else {
-                this.hasPersistedBaseline = true;
-                this.markPersistedSeq(latestSeq);
-                this.finalizePersistedItems(savedItemsById);
-              }
-            } else {
-              const initialPersist = await writeCanonicalBoardState(
+          const startedAt = Date.now();
+          this.lastSaveDate = startedAt;
+          if (logger.isEnabled("debug")) {
+            logger.debug("board.save_started", boardDebugFields(this));
+          }
+          this.clean();
+          let savedItemsById = new Map(this.itemsById);
+          let savedPaintOrder = [...this.paintOrder];
+          const file = this.file;
+          let authoritativeItemCount = savedPaintOrder.filter(
+            (id) => savedItemsById.get(id)?.deleted !== true,
+          ).length;
+          if (authoritativeItemCount === 0) {
+            // empty board
+            try {
+              await writeCanonicalBoardState(
                 this.name,
                 savedItemsById,
                 savedPaintOrder,
                 this.metadata,
-                latestSeq,
+                this.getSeq(),
                 { historyDir: this.historyDir },
               );
-              this.hasPersistedBaseline = initialPersist.hasBaseline;
-              if (logger.isEnabled("debug")) {
-                logger.debug(
-                  "board.save_initial_persist_finished",
-                  boardDebugFields(this, {
-                    "wbo.board.persisted_ids": [...initialPersist.persistedIds],
-                  }),
-                );
-              }
-              if (initialPersist.hasBaseline) {
-                this.markPersistedSeq(latestSeq);
-                this.finalizePersistedItems(
-                  savedItemsById,
-                  initialPersist.persistedIds,
-                );
-              }
-            }
-            if (this.hasPersistedBaseline && this.getSeq() !== latestSeq) {
-              this.scheduleSaveTimeout(0);
-            }
-            this.trimPersistedMutationLog(startedAt);
-            if (!this.hasPersistedBaseline) {
-              if (logger.isEnabled("debug")) {
-                logger.debug(
-                  "board.save_without_baseline",
-                  boardDebugFields(this),
-                );
-              }
+              this.hasPersistedBaseline = false;
+              this.markPersistedSeq(this.getSeq());
+              this.trimPersistedMutationLog(startedAt);
               tracing.setActiveSpanAttributes(
                 boardTraceAttributes(this.name, "save", {
-                  "wbo.board.result": "warning",
-                  "wbo.board.items": authoritativeItemCount,
+                  "wbo.board.result": "removed_empty",
                 }),
               );
               metrics.recordBoardOperationDuration(
                 "save",
                 this.name,
                 (Date.now() - startedAt) / 1000,
-                "warning",
+                "removed_empty",
               );
-              return;
-            }
-            let savedFile;
-            try {
-              savedFile = await stat(file);
-            } catch (error) {
-              if (errorCode(error) !== "ENOENT") {
-                throw error;
-              }
-              try {
-                savedFile = await stat(
-                  boardSvgBackupPath(this.name, this.historyDir),
-                );
-              } catch (backupError) {
-                if (
-                  errorCode(backupError) !== "ENOENT" ||
-                  authoritativeItemCount === 0
-                ) {
-                  throw backupError;
-                }
-                logger.warn("board.save_missing_baseline", {
-                  board: this.name,
-                  "file.path": file,
+            } catch (err) {
+              if (errorCode(err) !== "ENOENT") {
+                // If the file already wasn't saved, this is not an error
+                tracing.recordActiveSpanError(err, {
+                  "wbo.board.result": "error",
                 });
-                if (this.loadSource === "empty") {
-                  const recoveredBoard = replayRecoverableMutations(
-                    this,
-                    this.minReplayableSeq(),
-                    latestSeq,
-                  );
-                  replaceBoardState(this, recoveredBoard);
-                  savedItemsById = new Map(this.itemsById);
-                  savedPaintOrder = [...this.paintOrder];
-                  authoritativeItemCount = savedPaintOrder.filter(
-                    (id) => savedItemsById.get(id)?.deleted !== true,
-                  ).length;
-                  if (logger.isEnabled("debug")) {
-                    logger.debug(
-                      "board.save_recovered_from_mutations",
-                      boardDebugFields(this, {
-                        "wbo.board.save_target_seq": latestSeq,
-                        "wbo.board.replay_from_seq": this.minReplayableSeq(),
-                      }),
+                logger.error("board.delete_failed", {
+                  board: this.name,
+                  error: err,
+                });
+                metrics.recordBoardOperationDuration(
+                  "save",
+                  this.name,
+                  (Date.now() - startedAt) / 1000,
+                  err,
+                );
+              }
+            }
+          } else {
+            try {
+              let latestSeq = this.getSeq();
+              if (this.hasPersistedBaseline) {
+                if (
+                  this.hasDirtyItems() ||
+                  latestSeq !== this.getPersistedSeq()
+                ) {
+                  let persistedIds;
+                  try {
+                    if (logger.isEnabled("debug")) {
+                      logger.debug(
+                        "board.save_rewrite_started",
+                        boardDebugFields(this, {
+                          "wbo.board.save_target_seq": latestSeq,
+                        }),
+                      );
+                    }
+                    persistedIds = await rewriteStoredSvgFromCanonical(
+                      this.name,
+                      savedItemsById,
+                      savedPaintOrder,
+                      this.metadata,
+                      this.getPersistedSeq(),
+                      latestSeq,
+                      { historyDir: this.historyDir },
                     );
+                    this.hasPersistedBaseline = true;
+                  } catch (error) {
+                    if (errorCode(error) !== "ENOENT") {
+                      throw error;
+                    }
+                    logger.warn("board.save_missing_baseline", {
+                      board: this.name,
+                      "file.path": file,
+                    });
+                    const replayFromSeq =
+                      this.loadSource === "empty"
+                        ? this.minReplayableSeq()
+                        : this.getPersistedSeq();
+                    let recoveredBoard;
+                    while (true) {
+                      recoveredBoard = replayRecoverableMutations(
+                        this,
+                        replayFromSeq,
+                        latestSeq,
+                      );
+                      const currentSeq = this.getSeq();
+                      if (currentSeq === latestSeq) break;
+                      latestSeq = currentSeq;
+                    }
+                    replaceBoardState(this, recoveredBoard);
+                    if (logger.isEnabled("debug")) {
+                      logger.debug(
+                        "board.save_recovered_from_mutations",
+                        boardDebugFields(this, {
+                          "wbo.board.save_target_seq": latestSeq,
+                          "wbo.board.replay_from_seq": replayFromSeq,
+                        }),
+                      );
+                    }
+                    this.hasPersistedBaseline = false;
+                    latestSeq = this.getSeq();
+                    savedItemsById = new Map(this.itemsById);
+                    savedPaintOrder = [...this.paintOrder];
+                    authoritativeItemCount = savedPaintOrder.filter(
+                      (id) => savedItemsById.get(id)?.deleted !== true,
+                    ).length;
                   }
+                  if (this.hasPersistedBaseline) {
+                    this.markPersistedSeq(latestSeq);
+                    this.finalizePersistedItems(savedItemsById, persistedIds);
+                  } else {
+                    const initialPersist = await writeCanonicalBoardState(
+                      this.name,
+                      savedItemsById,
+                      savedPaintOrder,
+                      this.metadata,
+                      latestSeq,
+                      { historyDir: this.historyDir },
+                    );
+                    this.hasPersistedBaseline = initialPersist.hasBaseline;
+                    if (logger.isEnabled("debug")) {
+                      logger.debug(
+                        "board.save_initial_persist_finished",
+                        boardDebugFields(this, {
+                          "wbo.board.persisted_ids": [
+                            ...initialPersist.persistedIds,
+                          ],
+                        }),
+                      );
+                    }
+                    if (initialPersist.hasBaseline) {
+                      this.markPersistedSeq(latestSeq);
+                      this.finalizePersistedItems(
+                        savedItemsById,
+                        initialPersist.persistedIds,
+                      );
+                    }
+                  }
+                } else {
+                  this.hasPersistedBaseline = true;
+                  this.markPersistedSeq(latestSeq);
+                  this.finalizePersistedItems(savedItemsById);
                 }
+              } else {
                 const initialPersist = await writeCanonicalBoardState(
                   this.name,
                   savedItemsById,
@@ -1548,75 +1529,110 @@ class BoardData {
                   { historyDir: this.historyDir },
                 );
                 this.hasPersistedBaseline = initialPersist.hasBaseline;
-                if (!initialPersist.hasBaseline) {
-                  if (logger.isEnabled("debug")) {
-                    logger.debug(
-                      "board.save_without_baseline",
-                      boardDebugFields(this),
-                    );
-                  }
-                  tracing.setActiveSpanAttributes(
-                    boardTraceAttributes(this.name, "save", {
-                      "wbo.board.result": "warning",
-                      "wbo.board.items": authoritativeItemCount,
+                if (logger.isEnabled("debug")) {
+                  logger.debug(
+                    "board.save_initial_persist_finished",
+                    boardDebugFields(this, {
+                      "wbo.board.persisted_ids": [
+                        ...initialPersist.persistedIds,
+                      ],
                     }),
                   );
-                  metrics.recordBoardOperationDuration(
-                    "save",
-                    this.name,
-                    (Date.now() - startedAt) / 1000,
-                    "warning",
-                  );
-                  return;
                 }
-                this.markPersistedSeq(latestSeq);
-                this.finalizePersistedItems(
-                  savedItemsById,
-                  initialPersist.persistedIds,
-                );
-                savedFile = await stat(file).catch(async (persistError) => {
-                  if (errorCode(persistError) !== "ENOENT") {
-                    throw persistError;
-                  }
-                  return stat(boardSvgBackupPath(this.name, this.historyDir));
-                });
+                if (initialPersist.hasBaseline) {
+                  this.markPersistedSeq(latestSeq);
+                  this.finalizePersistedItems(
+                    savedItemsById,
+                    initialPersist.persistedIds,
+                  );
+                }
               }
+              if (this.getSeq() !== latestSeq) {
+                const config = readConfiguration();
+                const delayMs = computeScheduledSaveDelayMs({
+                  nowMs: Date.now(),
+                  lastActivityAtMs: this.lastActivityDate,
+                  lastSaveAtMs: this.lastSaveDate,
+                  saveIntervalMs: config.SAVE_INTERVAL,
+                  maxSaveDelayMs: config.MAX_SAVE_DELAY,
+                  hasPersistedBaseline: this.hasPersistedBaseline,
+                  hasDirtyCreatedItems: this.dirtyCreatedIds.size > 0,
+                });
+                this.scheduleSaveTimeout(delayMs);
+              }
+              this.trimPersistedMutationLog(startedAt);
+              if (!this.hasPersistedBaseline) {
+                if (logger.isEnabled("debug")) {
+                  logger.debug(
+                    "board.save_without_baseline",
+                    boardDebugFields(this),
+                  );
+                }
+                tracing.setActiveSpanAttributes(
+                  boardTraceAttributes(this.name, "save", {
+                    "wbo.board.result": "warning",
+                    "wbo.board.items": authoritativeItemCount,
+                  }),
+                );
+                metrics.recordBoardOperationDuration(
+                  "save",
+                  this.name,
+                  (Date.now() - startedAt) / 1000,
+                  "warning",
+                );
+                return;
+              }
+              const savedFile = await stat(file).catch(async (error) => {
+                if (errorCode(error) !== "ENOENT") {
+                  throw error;
+                }
+                return stat(boardSvgBackupPath(this.name, this.historyDir));
+              });
+              tracing.setActiveSpanAttributes(
+                boardTraceAttributes(this.name, "save", {
+                  "wbo.board.result": "success",
+                  "file.path": file,
+                  "file.size": savedFile.size,
+                  "wbo.board.items": authoritativeItemCount,
+                }),
+              );
+              const durationMs = Date.now() - startedAt;
+              logger.info(
+                "board.saved",
+                boardLifecycleLogFields(this, {
+                  duration_ms: durationMs,
+                  "file.size": savedFile.size,
+                  items: authoritativeItemCount,
+                }),
+              );
+              metrics.recordBoardOperationDuration(
+                "save",
+                this.name,
+                durationMs / 1000,
+              );
+            } catch (err) {
+              const durationMs = Date.now() - startedAt;
+              tracing.recordActiveSpanError(err, {
+                "wbo.board.result": "error",
+              });
+              logger.error(
+                "board.save_failed",
+                boardLifecycleLogFields(this, {
+                  duration_ms: durationMs,
+                  error: err,
+                }),
+              );
+              metrics.recordBoardOperationDuration(
+                "save",
+                this.name,
+                durationMs / 1000,
+                err,
+              );
+              return;
             }
-            tracing.setActiveSpanAttributes(
-              boardTraceAttributes(this.name, "save", {
-                "wbo.board.result": "success",
-                "file.path": file,
-                "file.size": savedFile.size,
-                "wbo.board.items": authoritativeItemCount,
-              }),
-            );
-            logger.info("board.saved", {
-              board: this.name,
-              "file.size": savedFile.size,
-              items: authoritativeItemCount,
-            });
-            metrics.recordBoardOperationDuration(
-              "save",
-              this.name,
-              (Date.now() - startedAt) / 1000,
-            );
-          } catch (err) {
-            tracing.recordActiveSpanError(err, {
-              "wbo.board.result": "error",
-            });
-            logger.error("board.save_failed", {
-              board: this.name,
-              error: err,
-              "file.path": file,
-            });
-            metrics.recordBoardOperationDuration(
-              "save",
-              this.name,
-              (Date.now() - startedAt) / 1000,
-              err,
-            );
-            return;
           }
+        } finally {
+          this.saveInProgress = false;
         }
       },
     );
@@ -1686,8 +1702,6 @@ class BoardData {
       },
       async function loadBoardData() {
         const startedAt = Date.now();
-        /** @type {string} */
-        const sourceFile = boardData.file;
         try {
           if (logger.isEnabled("debug")) {
             logger.debug("board.load_started", boardDebugFields(boardData));
@@ -1718,19 +1732,26 @@ class BoardData {
               }),
             );
           }
+          const durationMs = Date.now() - startedAt;
+          logger.info(
+            "board.loaded",
+            boardLifecycleLogFields(boardData, {
+              duration_ms: durationMs,
+              "wbo.board.load_source": storedBoard.source,
+              "wbo.board.paint_order_entries": boardData.paintOrder.length,
+              "file.size": storedBoard.byteLength || 0,
+              items: boardData.authoritativeItemCount(),
+            }),
+          );
           tracing.setActiveSpanAttributes(
             boardTraceAttributes(name, "load", {
               "wbo.board.result": "success",
-              "file.path": sourceFile,
+              "file.path": boardData.file,
               "file.size": storedBoard.byteLength || 0,
               "wbo.board.items": boardData.authoritativeItemCount(),
             }),
           );
-          metrics.recordBoardOperationDuration(
-            "load",
-            name,
-            (Date.now() - startedAt) / 1000,
-          );
+          metrics.recordBoardOperationDuration("load", name, durationMs / 1000);
         } catch (e) {
           // If the file doesn't exist, this is not an error
           if (errorCode(e) === "ENOENT") {
@@ -1742,6 +1763,16 @@ class BoardData {
                 }),
               );
             }
+            const durationMs = Date.now() - startedAt;
+            logger.info(
+              "board.loaded",
+              boardLifecycleLogFields(boardData, {
+                duration_ms: durationMs,
+                "wbo.board.load_source": "empty",
+                "wbo.board.result": "empty",
+                items: 0,
+              }),
+            );
             tracing.setActiveSpanAttributes(
               boardTraceAttributes(name, "load", {
                 "wbo.board.result": "empty",
@@ -1750,21 +1781,25 @@ class BoardData {
             metrics.recordBoardOperationDuration(
               "load",
               name,
-              (Date.now() - startedAt) / 1000,
+              durationMs / 1000,
               "empty",
             );
           } else {
+            const durationMs = Date.now() - startedAt;
             tracing.recordActiveSpanError(e, {
               "wbo.board.result": "error",
             });
-            logger.error("board.load_failed", {
-              board: name,
-              error: e,
-            });
+            logger.error(
+              "board.load_failed",
+              boardLifecycleLogFields(boardData, {
+                duration_ms: durationMs,
+                error: e,
+              }),
+            );
             metrics.recordBoardOperationDuration(
               "load",
               name,
-              (Date.now() - startedAt) / 1000,
+              durationMs / 1000,
               e,
             );
           }
@@ -1790,3 +1825,4 @@ function errorCode(error) {
 
 export { BoardData };
 export { computeSaveDelayMs };
+export { computeScheduledSaveDelayMs };
