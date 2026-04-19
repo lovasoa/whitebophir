@@ -90,13 +90,18 @@
 				<li class="tool" tabindex="-1">
 					<span class="tool-icon">
 						<svg viewBox="0 0 8 8" aria-hidden="true" focusable="false">
-							<pattern id="opacityPattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
-								<rect x=0 y=0 width=2 height=2 fill=black></rect>
-								<rect x=2 y=2 width=2 height=2 fill=black></rect>
-								<rect x=2 y=0 width=2 height=2 fill=#eeeeee></rect>
-								<rect x=0 y=2 width=2 height=2 fill=#eeeeee></rect>
-							</pattern>
-							<circle cx=4 cy=4 id="opacityIndicator" r=3.5 fill="url(#opacityPattern)"></circle>
+							<defs>
+								<clipPath id="opacityIndicatorClip">
+									<circle cx="4" cy="4" r="3.5"></circle>
+								</clipPath>
+							</defs>
+							<g id="opacityIndicatorFill" clip-path="url(#opacityIndicatorClip)">
+								<rect x="0" y="0" width="4" height="4" fill="#111111"></rect>
+								<rect x="4" y="0" width="4" height="4" fill="#eeeeee"></rect>
+								<rect x="0" y="4" width="4" height="4" fill="#eeeeee"></rect>
+								<rect x="4" y="4" width="4" height="4" fill="#111111"></rect>
+							</g>
+							<circle cx="4" cy="4" id="opacityIndicator" r="3.5" fill="none" stroke="#333333" stroke-width="0.3"></circle>
 						</svg>
 					</span>
 					<label class="tool-name slider" for="chooseOpacity">

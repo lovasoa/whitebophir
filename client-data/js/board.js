@@ -3189,10 +3189,12 @@ Tools.getSize = () => Tools.setSize(undefined);
 Tools.getOpacity = (function opacity() {
   const chooser = getRequiredInput("chooseOpacity");
   const opacityIndicator = getRequiredElement("opacityIndicator");
+  const opacityIndicatorFill =
+    document.getElementById("opacityIndicatorFill") || opacityIndicator;
 
   function update() {
     chooser.value = String(MessageCommon.clampOpacity(chooser.value));
-    opacityIndicator.setAttribute("opacity", chooser.value);
+    opacityIndicatorFill.setAttribute("opacity", chooser.value);
   }
   update();
 
