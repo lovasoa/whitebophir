@@ -208,7 +208,7 @@ Tools.turnstilePending = false;
 Tools.turnstilePendingWrites = [];
 Tools.bufferedWrites = [];
 Tools.bufferedWriteTimer = null;
-Tools.writeReadyWaiters = [];
+Tools.writeReadyWaiters = /** @type {Array<(value: undefined) => void>} */ ([]);
 Tools.rateLimitedUntil = 0;
 Tools.rateLimitNoticeTimer = null;
 Tools.rateLimitNoticeMessage = "";
@@ -331,7 +331,7 @@ Tools.canBufferWrites = function canBufferWrites() {
 
 Tools.whenBoardWritable = function whenBoardWritable() {
   if (Tools.canBufferWrites()) return Promise.resolve();
-  return new Promise((resolve) => {
+  return new Promise((/** @type {(value: undefined) => void} */ resolve) => {
     Tools.writeReadyWaiters.push(resolve);
   });
 };
