@@ -86,9 +86,11 @@ import { getToolCatalogEntry } from "./tool_catalog.js";
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
 // Keep a bounded safety margin between the client-side local budget and the
-// server's fixed window to absorb emit/receive skew without a fixed 1s pause.
-const RATE_LIMIT_FLUSH_SAFETY_MIN_MS = 150;
-const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 750;
+// server's fixed window to absorb emit/receive skew. The buffer must be large
+// enough that a queued write does not reconnect-loop under load by landing just
+// before the server window resets.
+const RATE_LIMIT_FLUSH_SAFETY_MIN_MS = 250;
+const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 1500;
 /** @type {RateLimitKind[]} */
 const RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
 
@@ -763,10 +765,7 @@ Tools.getBufferedWriteFlushSafetyMs = function getBufferedWriteFlushSafetyMs(
 ) {
   return Math.min(
     RATE_LIMIT_FLUSH_SAFETY_MAX_MS,
-    Math.max(
-      RATE_LIMIT_FLUSH_SAFETY_MIN_MS,
-      Math.ceil(Math.max(0, waitMs) * 0.5),
-    ),
+    Math.max(RATE_LIMIT_FLUSH_SAFETY_MIN_MS, Math.ceil(Math.max(0, waitMs))),
   );
 };
 
