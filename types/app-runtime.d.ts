@@ -143,6 +143,8 @@ export type AppTool = {
   shortcut?: string;
   icon: string;
   draw: (message: BoardMessage, isLocal: boolean) => void;
+  normalizeServerRenderedElement?: (element: SVGElement) => void;
+  serverRenderedElementSelector?: string;
   press?: ToolPointerListener;
   move?: ToolPointerListener;
   release?: ToolPointerListener;

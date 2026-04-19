@@ -646,8 +646,32 @@ Tools.applyAuthoritativeBaseline =
     );
     if (Tools.drawingArea) {
       Tools.drawingArea.innerHTML = baseline.drawingAreaMarkup;
+      normalizeServerRenderedElements();
     }
   };
+
+/**
+ * @param {AppTool} tool
+ * @returns {void}
+ */
+function normalizeServerRenderedElementsForTool(tool) {
+  if (!Tools.drawingArea) return;
+  const selector = tool.serverRenderedElementSelector;
+  const normalizeElement = tool.normalizeServerRenderedElement;
+  if (!selector || typeof normalizeElement !== "function") return;
+
+  Tools.drawingArea.querySelectorAll(selector).forEach((element) => {
+    if (element instanceof SVGElement) {
+      normalizeElement.call(tool, element);
+    }
+  });
+}
+
+function normalizeServerRenderedElements() {
+  Object.values(Tools.list).forEach((tool) => {
+    normalizeServerRenderedElementsForTool(tool);
+  });
+}
 
 Tools.refreshAuthoritativeBaseline =
   async function refreshAuthoritativeBaseline() {
@@ -892,6 +916,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
     });
   if (authoritativeMarkup !== null && Tools.drawingArea) {
     Tools.drawingArea.innerHTML = authoritativeMarkup;
+    normalizeServerRenderedElements();
   }
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
@@ -2611,6 +2636,7 @@ Tools.mountTool = function mountTool(tool) {
   if (tool.alwaysOn === true) {
     Tools.addToolListeners(tool);
   }
+  normalizeServerRenderedElementsForTool(tool);
   return /** @type {MountedAppTool} */ (tool);
 };
 

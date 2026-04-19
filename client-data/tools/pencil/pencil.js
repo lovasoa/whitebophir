@@ -78,6 +78,7 @@ export default class PencilTool {
     };
     this.mouseCursor = `url('${assetUrl("cursor.svg")}'), crosshair`;
     this.icon = "tools/pencil/icon.svg";
+    this.serverRenderedElementSelector = "path";
     this.stylesheet = "tools/pencil/pencil.css";
   }
 
@@ -314,6 +315,82 @@ export default class PencilTool {
   addPoint(line, x, y) {
     const pts = wboPencilPoint(this.getPathData(line), x, y);
     line.setPathData(pts);
+  }
+
+  /**
+   * @param {SVGElement} line
+   */
+  normalizeServerRenderedElement(line) {
+    if (!(line instanceof SVGPathElement)) return;
+    const normalizedPathData = this.normalizeServerRenderedPathData(
+      this.getPathData(line),
+    );
+    if (!normalizedPathData || normalizedPathData.length === 0) {
+      console.error(
+        "Pencil: unable to normalize server-rendered path '%s'; dropping segment.",
+        line.id ?? "",
+      );
+      line.setPathData([]);
+      delete this.pathDataCache[line.id];
+      return;
+    }
+    line.setPathData(normalizedPathData);
+    this.pathDataCache[line.id] = normalizedPathData;
+  }
+
+  /**
+   * @param {{type: string, values: number[]}[]} pathData
+   * @returns {{type: string, values: number[]}[] | null}
+   */
+  normalizeServerRenderedPathData(pathData) {
+    if (!pathData || !pathData.length) return null;
+    /** @type {{type: string, values: number[]}[]} */
+    const smoothedPathData = [];
+    let cursorX = 0;
+    let cursorY = 0;
+    let hasPoint = false;
+
+    for (const segment of pathData) {
+      if (
+        !segment ||
+        !Array.isArray(segment.values) ||
+        segment.values.length < 2
+      ) {
+        return null;
+      }
+      const x = segment.values[segment.values.length - 2];
+      const y = segment.values[segment.values.length - 1];
+      if (typeof x !== "number" || typeof y !== "number") {
+        return null;
+      }
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return null;
+      }
+
+      if (segment.type === "M") {
+        cursorX = x;
+        cursorY = y;
+        hasPoint = true;
+      } else if (segment.type === "L") {
+        if (!hasPoint) return null;
+        cursorX = x;
+        cursorY = y;
+      } else if (segment.type === "m") {
+        cursorX += x;
+        cursorY += y;
+        hasPoint = true;
+      } else if (segment.type === "l") {
+        if (!hasPoint) return null;
+        cursorX += x;
+        cursorY += y;
+      } else {
+        return null;
+      }
+
+      wboPencilPoint(smoothedPathData, cursorX, cursorY);
+    }
+
+    return smoothedPathData;
   }
 
   /**
