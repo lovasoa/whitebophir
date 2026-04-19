@@ -125,7 +125,7 @@ function renderMoveTo(x, y) {
  * @returns {string}
  */
 function renderLineTo(x, y) {
-  return `l ${roundPathValue(x)} ${roundPathValue(y)}`;
+  return ` l ${roundPathValue(x)} ${roundPathValue(y)}`;
 }
 
 /**

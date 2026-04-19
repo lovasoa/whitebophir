@@ -322,6 +322,7 @@ export default class PencilTool {
    */
   normalizeServerRenderedElement(line) {
     if (!(line instanceof SVGPathElement)) return;
+    delete this.pathDataCache[line.id];
     const normalizedPathData = this.normalizeServerRenderedPathData(
       this.getPathData(line),
     );
@@ -330,8 +331,12 @@ export default class PencilTool {
         "Pencil: unable to normalize server-rendered path '%s'; dropping segment.",
         line.id ?? "",
       );
-      line.setPathData([]);
-      delete this.pathDataCache[line.id];
+      const cachedPathData = this.getPathData(line);
+      if (cachedPathData && cachedPathData.length > 0) {
+        this.pathDataCache[line.id] = cachedPathData;
+      } else {
+        delete this.pathDataCache[line.id];
+      }
       return;
     }
     line.setPathData(normalizedPathData);
@@ -358,11 +363,8 @@ export default class PencilTool {
       ) {
         return null;
       }
-      const x = segment.values[segment.values.length - 2];
-      const y = segment.values[segment.values.length - 1];
-      if (typeof x !== "number" || typeof y !== "number") {
-        return null;
-      }
+      const x = Number(segment.values[segment.values.length - 2]);
+      const y = Number(segment.values[segment.values.length - 1]);
       if (!Number.isFinite(x) || !Number.isFinite(y)) {
         return null;
       }

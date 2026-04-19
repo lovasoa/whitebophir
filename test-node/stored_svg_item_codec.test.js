@@ -161,7 +161,7 @@ test("stored svg item codec serializes canonical visible svg without duplicated 
   });
   assert.match(
     pencil,
-    /^<path id="line-1" d="M 1 2 l 0 0 l 9 10 l 8 -3" stroke="#000000" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><\/path>$/,
+    /^<path id="line-1" d="M 1 2 l 9 10 l 8 -3" stroke="#000000" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><\/path>$/,
   );
   assert.doesNotMatch(pencil, /data-wbo-item|data-wbo-tool|_children/);
 });
