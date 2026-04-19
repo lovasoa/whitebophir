@@ -9,7 +9,7 @@ const {
   publicItemFromCanonicalItem,
 } = require("../server/canonical_board_items.mjs");
 
-test("canonicalItemFromStoredSvgEntry compresses persisted pencil and text payloads", () => {
+test("canonicalItemFromStoredSvgEntry derives canonical compressed payloads directly from svg entries", () => {
   const text = canonicalItemFromStoredSvgEntry(
     {
       tagName: "text",
@@ -20,7 +20,7 @@ test("canonicalItemFromStoredSvgEntry compresses persisted pencil and text paylo
         "font-size": "18",
         fill: "#123456",
       },
-      content: "hello",
+      content: "hello &amp; bye",
     },
     0,
   );
@@ -38,8 +38,24 @@ test("canonicalItemFromStoredSvgEntry compresses persisted pencil and text paylo
     1,
   );
 
+  assert.deepEqual(text.attrs, {
+    x: 10,
+    y: 20,
+    size: 18,
+    color: "#123456",
+  });
   assert.deepEqual(text.payload, { kind: "text" });
-  assert.equal(text.textLength, 5);
+  assert.equal(text.textLength, 11);
+  assert.deepEqual(text.bounds, {
+    minX: 10,
+    minY: 2,
+    maxX: 208,
+    maxY: 20,
+  });
+  assert.deepEqual(pencil.attrs, {
+    color: "#654321",
+    size: 5,
+  });
   assert.deepEqual(pencil.payload, {
     kind: "children",
     persistedChildCount: 2,

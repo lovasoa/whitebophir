@@ -22,6 +22,7 @@ section before making changes there.
 - Extracted broadcast admission core for isolated testing/benchmarking: [broadcast processing](./server/broadcast_processing.mjs); this covers normalization, rate-limit bookkeeping, board write policy, and board mutation without the Socket.IO wrapper.
 - Canonical inbound payload normalization **[hot]**: [message schema gate](./server/message_validation.mjs); `normalizeCoord` and its neighbors run for every coordinate in every persisted or broadcast item.
 - In-memory board model + apply rules + disk sync **[hot]**: [board state engine](./server/boardData.mjs); loaded boards now keep one canonical per-id item index plus paint order, with text and pencil payload compressed after persistence. `load`, `processMessage`, and save-time item materialization dominate CPU during board open and save.
+- Stored SVG structure scan + summary/full decode split: [svg board store](./server/svg_board_store.mjs), [stored SVG item codec](./server/stored_svg_item_codec.mjs), [streaming stored SVG scan](./server/streaming_stored_svg_scan.mjs). Cold board load and canonical indexing must stay on summary-only decode; full payload materialization is reserved for rewrite cases that actually need text bodies or Pencil points.
 - Env parsing + rate-limit profile construction must stay cold. Never do unneeded work in the hot path.
 - Shared geometry/id/color/text clamps **[hot]**: [message primitives](./client-data/js/message_common.js); `clampCoord`, `clampColor`, and friends are invoked from every coordinate/field normalizer on the server.
 - Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js). Board boot now publishes explicit DOM phases on `document.documentElement.dataset.boardPhase` and dispatches `wbo:board-phase` events; initial URL-hash viewport restore happens before socket connection startup.
@@ -46,6 +47,11 @@ section before making changes there.
   - Start a span with `withActiveSpan` per item. Prefer `withOptionalActiveSpan` (no-op when no parent span exists) or lift the span one level to the whole batch. `withExpensiveActiveSpan` short-circuits to `fn(undefined)` when tracing is not recording, which is the correct default for per-item work.
 - Before/after every change that might touch a hot path, run `npm run bench` and compare the median of the relevant scenario. If a scenario moves by more than ~10% without an intentional cause, profile with `npm run profile` and inspect the `.cpuprofile` top self-time frames before landing the change.
 - `BoardData` no longer lazily hydrates full persisted items from SVG during live writes. If you find yourself reading SVG from a socket-message path, that is almost certainly a design bug. The source SVG may be read during board load and during streaming persistence only.
+- Stored SVG parsing is intentionally tiered:
+  - Structural scan locates root metadata, `#drawingArea`, and raw item boundaries.
+  - Summary decode extracts only the fields needed for canonical indexing and validation. For Pencil this means bounds plus `childCount`, not `_children`.
+  - Full materialization is for rewrite cases that must read full payloads, such as text content or Pencil point lists.
+- Do not route cold-load or canonical-index code through full stored-SVG item materialization. Hydrating Pencil points on board open is a regression.
 - Legacy `.json` boards are a migration edge path, not part of steady-state board logic. When a JSON board is encountered, convert it to SVG first, then continue through the normal SVG-backed load path.
 
 ## message lifecycle

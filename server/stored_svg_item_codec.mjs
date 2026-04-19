@@ -1,4 +1,3 @@
-import MessageCommon from "../client-data/js/message_common.js";
 import { wboPencilPoint } from "../client-data/tools/pencil/wbo_pencil_point.js";
 
 /**
@@ -35,6 +34,46 @@ function unescapeHtml(value) {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&amp;/g, "&");
+}
+
+/**
+ * @param {string | undefined} value
+ * @returns {number}
+ */
+function decodedTextLength(value) {
+  if (typeof value !== "string" || value.length === 0) return 0;
+  let index = 0;
+  let length = 0;
+  while (index < value.length) {
+    if (value[index] !== "&") {
+      length += 1;
+      index += 1;
+      continue;
+    }
+    if (value.startsWith("&lt;", index) || value.startsWith("&gt;", index)) {
+      length += 1;
+      index += 4;
+      continue;
+    }
+    if (value.startsWith("&amp;", index)) {
+      length += 1;
+      index += 5;
+      continue;
+    }
+    if (value.startsWith("&quot;", index)) {
+      length += 1;
+      index += 6;
+      continue;
+    }
+    if (value.startsWith("&#39;", index)) {
+      length += 1;
+      index += 5;
+      continue;
+    }
+    length += 1;
+    index += 1;
+  }
+  return length;
 }
 
 /**
@@ -86,6 +125,60 @@ function parseTransformAttribute(transform) {
   if (values.some((value) => !Number.isFinite(value))) return undefined;
   const [a = 0, b = 0, c = 0, d = 0, e = 0, f = 0] = values;
   return { a, b, c, d, e, f };
+}
+
+/**
+ * @param {{a: number, b: number, c: number, d: number, e: number, f: number} | undefined} transform
+ * @returns {{a: number, b: number, c: number, d: number, e: number, f: number} | undefined}
+ */
+function cloneTransform(transform) {
+  return transform ? { ...transform } : undefined;
+}
+
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {number} size
+ * @param {number} textLength
+ * @returns {{minX: number, minY: number, maxX: number, maxY: number}}
+ */
+function textBoundsFromLength(x, y, size, textLength) {
+  return {
+    minX: x,
+    minY: y - size,
+    maxX: x + size * textLength,
+    maxY: y,
+  };
+}
+
+/**
+ * @param {{attributes?: {[name: string]: string}}} entry
+ * @returns {{attributes: {[name: string]: string}, id: string | undefined, opacity: number | undefined, transform: {a: number, b: number, c: number, d: number, e: number, f: number} | undefined}}
+ */
+function readStoredSvgBase(entry) {
+  const attributes = entry?.attributes || {};
+  return {
+    attributes,
+    id: typeof attributes.id === "string" ? attributes.id : undefined,
+    opacity: parseNumber(attributes.opacity),
+    transform: parseTransformAttribute(attributes.transform),
+  };
+}
+
+/**
+ * @param {object} data
+ * @param {number | undefined} opacity
+ * @param {{a: number, b: number, c: number, d: number, e: number, f: number} | undefined} transform
+ * @returns {object}
+ */
+function decorateStoredItemData(data, opacity, transform) {
+  return {
+    ...data,
+    ...(opacity !== undefined ? { opacity } : {}),
+    ...(transform !== undefined
+      ? { transform: cloneTransform(transform) }
+      : {}),
+  };
 }
 
 /**
@@ -260,12 +353,44 @@ function pointsFromPathData(pathData) {
  * @returns {any | null}
  */
 function parseStoredSvgItem(entry) {
+  const summary = summarizeStoredSvgItem(entry);
+  if (!summary) return null;
+  switch (summary.tool) {
+    case "Text":
+      return {
+        id: summary.id,
+        tool: "Text",
+        ...summary.data,
+        txt: unescapeHtml(entry.content || ""),
+      };
+    case "Pencil": {
+      const points = pointsFromPathData(parsePathData(entry.attributes?.d));
+      if (points.length === 0) return null;
+      return {
+        id: summary.id,
+        tool: "Pencil",
+        ...summary.data,
+        _children: points,
+      };
+    }
+    default:
+      return {
+        id: summary.id,
+        tool: summary.tool,
+        ...summary.data,
+      };
+  }
+}
+
+/**
+ * @param {{tagName: string, attributes: {[name: string]: string}, content?: string}} entry
+ * @param {number} [paintOrder]
+ * @returns {any | null}
+ */
+function summarizeStoredSvgItem(entry, paintOrder) {
   if (!entry || typeof entry.tagName !== "string") return null;
-  const attributes = entry.attributes || {};
-  const id = typeof attributes.id === "string" ? attributes.id : undefined;
+  const { attributes, id, opacity, transform } = readStoredSvgBase(entry);
   if (!id) return null;
-  const opacity = parseNumber(attributes.opacity);
-  const transform = parseTransformAttribute(attributes.transform);
   switch (entry.tagName) {
     case "rect": {
       const x = parseNumber(attributes.x);
@@ -285,14 +410,25 @@ function parseStoredSvgItem(entry) {
       return {
         id,
         tool: "Rectangle",
-        x,
-        y,
-        x2: x + width,
-        y2: y + height,
-        color: attributes.stroke || "#000000",
-        size,
-        ...(opacity !== undefined ? { opacity } : {}),
-        ...(transform ? { transform } : {}),
+        paintOrder,
+        data: decorateStoredItemData(
+          {
+            x,
+            y,
+            x2: x + width,
+            y2: y + height,
+            color: attributes.stroke || "#000000",
+            size,
+          },
+          opacity,
+          transform,
+        ),
+        localBounds: {
+          minX: x,
+          minY: y,
+          maxX: x + width,
+          maxY: y + height,
+        },
       };
     }
     case "ellipse": {
@@ -313,14 +449,25 @@ function parseStoredSvgItem(entry) {
       return {
         id,
         tool: "Ellipse",
-        x: cx - rx,
-        y: cy - ry,
-        x2: cx + rx,
-        y2: cy + ry,
-        color: attributes.stroke || "#000000",
-        size,
-        ...(opacity !== undefined ? { opacity } : {}),
-        ...(transform ? { transform } : {}),
+        paintOrder,
+        data: decorateStoredItemData(
+          {
+            x: cx - rx,
+            y: cy - ry,
+            x2: cx + rx,
+            y2: cy + ry,
+            color: attributes.stroke || "#000000",
+            size,
+          },
+          opacity,
+          transform,
+        ),
+        localBounds: {
+          minX: cx - rx,
+          minY: cy - ry,
+          maxX: cx + rx,
+          maxY: cy + ry,
+        },
       };
     }
     case "line": {
@@ -341,156 +488,25 @@ function parseStoredSvgItem(entry) {
       return {
         id,
         tool: "Straight line",
-        x: x1,
-        y: y1,
-        x2,
-        y2,
-        color: attributes.stroke || "#000000",
-        size,
-        ...(opacity !== undefined ? { opacity } : {}),
-        ...(transform ? { transform } : {}),
-      };
-    }
-    case "text": {
-      const x = parseNumber(attributes.x);
-      const y = parseNumber(attributes.y);
-      const size = parseNumber(attributes["font-size"]);
-      if (x === undefined || y === undefined || size === undefined) {
-        return null;
-      }
-      return {
-        id,
-        tool: "Text",
-        x,
-        y,
-        color: attributes.fill || "#000000",
-        size,
-        txt: unescapeHtml(entry.content || ""),
-        ...(opacity !== undefined ? { opacity } : {}),
-        ...(transform ? { transform } : {}),
-      };
-    }
-    case "path": {
-      const size = parseNumber(attributes["stroke-width"]);
-      const points = pointsFromPathData(parsePathData(attributes.d));
-      if (size === undefined || points.length === 0) {
-        return null;
-      }
-      return {
-        id,
-        tool: "Pencil",
-        color: attributes.stroke || "#000000",
-        size,
-        _children: points,
-        ...(opacity !== undefined ? { opacity } : {}),
-        ...(transform ? { transform } : {}),
-      };
-    }
-    default:
-      return null;
-  }
-}
-
-/**
- * @param {{tagName: string, attributes: {[name: string]: string}, content?: string}} entry
- * @param {number} paintOrder
- * @returns {any | null}
- */
-function summarizeStoredSvgItem(entry, paintOrder) {
-  if (!entry || typeof entry.tagName !== "string") return null;
-  const attributes = entry.attributes || {};
-  const id = typeof attributes.id === "string" ? attributes.id : undefined;
-  if (!id) return null;
-  const transform = parseTransformAttribute(attributes.transform);
-  switch (entry.tagName) {
-    case "rect": {
-      const x = parseNumber(attributes.x);
-      const y = parseNumber(attributes.y);
-      const width = parseNumber(attributes.width);
-      const height = parseNumber(attributes.height);
-      if (
-        x === undefined ||
-        y === undefined ||
-        width === undefined ||
-        height === undefined
-      ) {
-        return null;
-      }
-      return {
-        id,
-        tool: "Rectangle",
-        x,
-        y,
-        x2: x + width,
-        y2: y + height,
         paintOrder,
-        localBounds: {
-          minX: x,
-          minY: y,
-          maxX: x + width,
-          maxY: y + height,
-        },
-        ...(transform !== undefined ? { transform } : {}),
-      };
-    }
-    case "ellipse": {
-      const cx = parseNumber(attributes.cx);
-      const cy = parseNumber(attributes.cy);
-      const rx = parseNumber(attributes.rx);
-      const ry = parseNumber(attributes.ry);
-      if (
-        cx === undefined ||
-        cy === undefined ||
-        rx === undefined ||
-        ry === undefined
-      ) {
-        return null;
-      }
-      return {
-        id,
-        tool: "Ellipse",
-        x: cx - rx,
-        y: cy - ry,
-        x2: cx + rx,
-        y2: cy + ry,
-        paintOrder,
-        localBounds: {
-          minX: cx - rx,
-          minY: cy - ry,
-          maxX: cx + rx,
-          maxY: cy + ry,
-        },
-        ...(transform !== undefined ? { transform } : {}),
-      };
-    }
-    case "line": {
-      const x1 = parseNumber(attributes.x1);
-      const y1 = parseNumber(attributes.y1);
-      const x2 = parseNumber(attributes.x2);
-      const y2 = parseNumber(attributes.y2);
-      if (
-        x1 === undefined ||
-        y1 === undefined ||
-        x2 === undefined ||
-        y2 === undefined
-      ) {
-        return null;
-      }
-      return {
-        id,
-        tool: "Straight line",
-        x: x1,
-        y: y1,
-        x2,
-        y2,
-        paintOrder,
+        data: decorateStoredItemData(
+          {
+            x: x1,
+            y: y1,
+            x2,
+            y2,
+            color: attributes.stroke || "#000000",
+            size,
+          },
+          opacity,
+          transform,
+        ),
         localBounds: {
           minX: Math.min(x1, x2),
           minY: Math.min(y1, y2),
           maxX: Math.max(x1, x2),
           maxY: Math.max(y1, y2),
         },
-        ...(transform !== undefined ? { transform } : {}),
       };
     }
     case "text": {
@@ -500,37 +516,43 @@ function summarizeStoredSvgItem(entry, paintOrder) {
       if (x === undefined || y === undefined || size === undefined) {
         return null;
       }
-      const item = {
-        id,
-        tool: "Text",
-        x,
-        y,
-        size,
-        txt: unescapeHtml(entry.content || ""),
-        ...(transform !== undefined ? { transform } : {}),
-      };
+      const textLength = decodedTextLength(entry.content || "");
       return {
         id,
         tool: "Text",
-        x,
-        y,
-        size,
-        txt: item.txt,
         paintOrder,
-        localBounds: MessageCommon.getLocalGeometryBounds(item),
-        ...(transform !== undefined ? { transform } : {}),
+        data: decorateStoredItemData(
+          {
+            x,
+            y,
+            size,
+            color: attributes.fill || "#000000",
+          },
+          opacity,
+          transform,
+        ),
+        textLength,
+        localBounds: textBoundsFromLength(x, y, size, textLength),
       };
     }
     case "path": {
+      const size = parseNumber(attributes["stroke-width"]);
       const scanned = scanPathSummary(attributes.d);
-      if (scanned.childCount === 0) return null;
+      if (size === undefined || scanned.childCount === 0) return null;
       return {
         id,
         tool: "Pencil",
+        data: decorateStoredItemData(
+          {
+            color: attributes.stroke || "#000000",
+            size,
+          },
+          opacity,
+          transform,
+        ),
         childCount: scanned.childCount,
         paintOrder,
         localBounds: scanned.localBounds,
-        ...(transform !== undefined ? { transform } : {}),
       };
     }
     default:

@@ -1235,16 +1235,37 @@ class BoardData {
                 this.hasDirtyItems() ||
                 latestSeq !== this.getPersistedSeq()
               ) {
-                const persistedIds = await rewriteStoredSvgFromCanonical(
-                  this.name,
-                  savedItemsById,
-                  savedPaintOrder,
-                  this.metadata,
-                  this.getPersistedSeq(),
-                  latestSeq,
-                  { historyDir: this.historyDir },
-                );
-                this.hasPersistedBaseline = true;
+                let persistedIds;
+                try {
+                  persistedIds = await rewriteStoredSvgFromCanonical(
+                    this.name,
+                    savedItemsById,
+                    savedPaintOrder,
+                    this.metadata,
+                    this.getPersistedSeq(),
+                    latestSeq,
+                    { historyDir: this.historyDir },
+                  );
+                  this.hasPersistedBaseline = true;
+                } catch (error) {
+                  if (errorCode(error) !== "ENOENT") {
+                    throw error;
+                  }
+                  logger.warn("board.save_missing_baseline", {
+                    board: this.name,
+                    "file.path": file,
+                  });
+                  const initialPersist = await writeCanonicalBoardState(
+                    this.name,
+                    savedItemsById,
+                    savedPaintOrder,
+                    this.metadata,
+                    latestSeq,
+                    { historyDir: this.historyDir },
+                  );
+                  this.hasPersistedBaseline = initialPersist.hasBaseline;
+                  persistedIds = initialPersist.persistedIds;
+                }
                 this.markPersistedSeq(latestSeq);
                 this.finalizePersistedItems(savedItemsById, persistedIds);
               } else {

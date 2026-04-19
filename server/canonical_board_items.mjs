@@ -1,5 +1,5 @@
 import MessageCommon from "../client-data/js/message_common.js";
-import { parseStoredSvgItem } from "./stored_svg_item_codec.mjs";
+import { summarizeStoredSvgItem } from "./stored_svg_item_codec.mjs";
 
 /**
  * @param {any} bounds
@@ -148,9 +148,46 @@ function canonicalItemFromItem(
  * @returns {any}
  */
 function canonicalItemFromStoredSvgEntry(entry, paintOrder) {
-  const item = parseStoredSvgItem(entry);
-  if (!item) return null;
-  return canonicalItemFromItem(item, paintOrder, { persisted: true });
+  const summary = summarizeStoredSvgItem(entry, paintOrder);
+  if (!summary) return null;
+  const attrs = structuredClone(summary.data);
+  const transform = cloneTransform(summary.data.transform);
+  const base = {
+    id: summary.id,
+    tool: summary.tool,
+    paintOrder,
+    deleted: false,
+    attrs,
+    bounds: cloneBounds(summary.localBounds),
+    ...(transform !== undefined ? { transform } : {}),
+    dirty: false,
+    createdAfterPersistedSeq: false,
+    time: attrs.time,
+  };
+
+  if (summary.tool === "Text") {
+    return {
+      ...base,
+      textLength: summary.textLength || 0,
+      payload: { kind: "text" },
+    };
+  }
+
+  if (summary.tool === "Pencil") {
+    return {
+      ...base,
+      payload: {
+        kind: "children",
+        persistedChildCount: summary.childCount || 0,
+        appendedChildren: [],
+      },
+    };
+  }
+
+  return {
+    ...base,
+    payload: { kind: "inline" },
+  };
 }
 
 /**

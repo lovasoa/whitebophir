@@ -568,18 +568,25 @@ test("local stored-svg summary helper derives minimal pencil summaries", () => {
   assert.deepEqual(summary.summaries.get("line-1"), {
     id: "line-1",
     tool: "Pencil",
+    data: {
+      color: "#123456",
+      size: 4,
+      transform: { a: 1, b: 0, c: 0, d: 1, e: 7, f: 8 },
+    },
     childCount: 3,
     localBounds: { minX: 1, minY: 2, maxX: 8, maxY: 9 },
     paintOrder: 0,
-    transform: { a: 1, b: 0, c: 0, d: 1, e: 7, f: 8 },
   });
   assert.deepEqual(summary.summaries.get("text-1"), {
     id: "text-1",
     tool: "Text",
-    x: 5,
-    y: 6,
-    size: 18,
-    txt: "hello",
+    data: {
+      x: 5,
+      y: 6,
+      size: 18,
+      color: "#654321",
+    },
+    textLength: 5,
     localBounds: {
       minX: 5,
       minY: -12,

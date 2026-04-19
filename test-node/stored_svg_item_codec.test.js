@@ -5,6 +5,7 @@ const {
   parseStoredSvgItem,
   scanPathSummary,
   serializeStoredSvgItem,
+  summarizeStoredSvgItem,
 } = require("../server/stored_svg_item_codec.mjs");
 
 test("stored svg item codec parses canonical shape and text tags without shadow json", () => {
@@ -103,6 +104,77 @@ test("stored svg item codec scans path summaries without hydrating points", () =
     childCount: 0,
     localBounds: null,
   });
+});
+
+test("stored svg item summaries stay payload-light for cold loads", () => {
+  assert.deepEqual(
+    summarizeStoredSvgItem(
+      {
+        tagName: "text",
+        attributes: {
+          id: "text-1",
+          x: "9",
+          y: "10",
+          fill: "#654321",
+          "font-size": "18",
+          transform: "matrix(1 0 0 1 7 8)",
+        },
+        content: "hello &amp; bye",
+      },
+      2,
+    ),
+    {
+      id: "text-1",
+      tool: "Text",
+      paintOrder: 2,
+      data: {
+        x: 9,
+        y: 10,
+        size: 18,
+        color: "#654321",
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 7, f: 8 },
+      },
+      textLength: 11,
+      localBounds: {
+        minX: 9,
+        minY: -8,
+        maxX: 207,
+        maxY: 10,
+      },
+    },
+  );
+
+  assert.deepEqual(
+    summarizeStoredSvgItem(
+      {
+        tagName: "path",
+        attributes: {
+          id: "line-1",
+          d: "M 1 2 L 1 2 C 1 2 10 12 10 12 C 11 13 18 9 18 9",
+          stroke: "#000000",
+          "stroke-width": "3",
+        },
+        content: "",
+      },
+      3,
+    ),
+    {
+      id: "line-1",
+      tool: "Pencil",
+      paintOrder: 3,
+      data: {
+        color: "#000000",
+        size: 3,
+      },
+      childCount: 3,
+      localBounds: {
+        minX: 1,
+        minY: 2,
+        maxX: 18,
+        maxY: 12,
+      },
+    },
+  );
 });
 
 test("stored svg item codec serializes canonical visible svg without duplicated state", () => {

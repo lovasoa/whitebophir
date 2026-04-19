@@ -1258,6 +1258,51 @@ test("BoardData.save rewrites existing stored svg from queued mutations", async 
   });
 });
 
+test("BoardData.save recreates a missing stored svg from canonical state", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-board-save-missing-baseline-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    const svgPath = path.join(historyDir, "board-missing-baseline.svg");
+    const existingSvg =
+      '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+      '<defs id="defs"><style>.keep-me{}</style></defs>' +
+      '<g id="drawingArea">' +
+      '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
+      "</g>" +
+      '<g id="cursors"></g>' +
+      "</svg>";
+    await fs.writeFile(svgPath, existingSvg, "utf8");
+
+    const board = await BoardData.load("missing-baseline");
+    await fs.unlink(svgPath);
+    await applyPersistentMutation(
+      board,
+      {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-2",
+        color: "#654321",
+        size: 5,
+        x: 10,
+        y: 20,
+        x2: 30,
+        y2: 40,
+      },
+      2,
+    );
+
+    await board.save();
+
+    const recreated = await fs.readFile(svgPath, "utf8");
+    assert.match(recreated, /data-wbo-seq="2"/);
+    assert.match(recreated, /id="rect-1"/);
+    assert.match(recreated, /id="rect-2"/);
+  });
+});
+
 test("BoardData.save preserves cold-loaded stored svg when there are no pending mutations", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-board-save-cold-noop-"),
