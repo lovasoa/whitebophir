@@ -35,6 +35,15 @@ import {
   effectiveChildCount,
   publicItemFromCanonicalItem,
 } from "./canonical_board_items.mjs";
+import {
+  authoritativeItemCount,
+  cloneBounds,
+  finalizePersistedCanonicalItems,
+  getCanonicalItem,
+  rebuildDirtyCreatedItems,
+  removeCanonicalItem,
+  upsertCanonicalItem,
+} from "./board_canonical_index.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import { boardJsonPath } from "./legacy_json_board_source.mjs";
 import {
@@ -185,7 +194,7 @@ class BoardData {
         persisted: false,
       });
       if (!canonical) continue;
-      this.upsertCanonicalItem(canonical);
+      upsertCanonicalItem(this, canonical);
       paintOrder += 1;
     }
   }
@@ -291,92 +300,7 @@ class BoardData {
    * @returns {number}
    */
   authoritativeItemCount() {
-    return [...this.itemsById.values()].filter((item) => item.deleted !== true)
-      .length;
-  }
-
-  /**
-   * @param {Bounds | null | undefined} bounds
-   * @returns {Bounds | null}
-   */
-  cloneBounds(bounds) {
-    return bounds
-      ? {
-          minX: bounds.minX,
-          minY: bounds.minY,
-          maxX: bounds.maxX,
-          maxY: bounds.maxY,
-        }
-      : null;
-  }
-
-  /**
-   * @param {string} id
-   * @returns {any}
-   */
-  getCanonicalItem(id) {
-    const item = this.itemsById.get(id);
-    return item && item.deleted !== true ? item : undefined;
-  }
-
-  /**
-   * @param {any} item
-   * @returns {void}
-   */
-  upsertCanonicalItem(item) {
-    if (!item || typeof item.id !== "string") return;
-    const hadItem = this.itemsById.has(item.id);
-    this.itemsById.set(item.id, item);
-    if (!hadItem) {
-      this.paintOrder.push(item.id);
-    }
-    this.nextPaintOrder = Math.max(this.nextPaintOrder, item.paintOrder + 1);
-    this.syncDirtyCreatedItem(item.id, item);
-  }
-
-  /**
-   * @param {string} id
-   * @returns {void}
-   */
-  removeCanonicalItem(id) {
-    const existing = this.itemsById.get(id);
-    if (existing) {
-      const next = {
-        ...existing,
-        deleted: true,
-        dirty: true,
-      };
-      this.itemsById.set(id, next);
-      this.syncDirtyCreatedItem(id, next);
-    }
-  }
-
-  /**
-   * @param {string} id
-   * @param {any} item
-   * @returns {void}
-   */
-  syncDirtyCreatedItem(id, item) {
-    if (
-      item &&
-      item.deleted !== true &&
-      item.dirty === true &&
-      item.createdAfterPersistedSeq === true
-    ) {
-      this.dirtyCreatedIds.add(id);
-    } else {
-      this.dirtyCreatedIds.delete(id);
-    }
-  }
-
-  /**
-   * @returns {void}
-   */
-  rebuildDirtyCreatedItems() {
-    this.dirtyCreatedIds = new Set();
-    for (const [id, item] of this.itemsById.entries()) {
-      this.syncDirtyCreatedItem(id, item);
-    }
+    return authoritativeItemCount(this);
   }
 
   /**
@@ -385,8 +309,8 @@ class BoardData {
    * @returns {Bounds | null}
    */
   getLocalBounds(id, item) {
-    const target = item || this.getCanonicalItem(id);
-    return this.cloneBounds(target?.bounds);
+    const target = item || getCanonicalItem(this, id);
+    return cloneBounds(target?.bounds);
   }
 
   /**
@@ -466,7 +390,7 @@ class BoardData {
    */
   shouldDeferSeedDropRejectionToMutationEngine(message) {
     if (message?.type !== "update" || !message.id) return false;
-    const summary = this.getCanonicalItem(message.id);
+    const summary = getCanonicalItem(this, message.id);
     return (
       MessageToolMetadata.isShapeTool(message.tool) &&
       summary?.tool === message.tool &&
@@ -538,19 +462,19 @@ class BoardData {
     }
     switch (message?.type) {
       case "copy":
-        if (!message.id || !this.getCanonicalItem(message.id)) {
+        if (!message.id || !getCanonicalItem(this, message.id)) {
           return { ok: false, reason: "copied object does not exist" };
         }
         return { ok: true, mutation: message };
       case "child":
-        if (!message.parent || !this.getCanonicalItem(message.parent)) {
+        if (!message.parent || !getCanonicalItem(this, message.parent)) {
           return { ok: false, reason: "invalid parent for child" };
         }
         return this.canAddChild(message.parent, message)
           ? { ok: true, mutation: message }
           : { ok: false, reason: "shape too large" };
       case "update":
-        if (!message.id || !this.getCanonicalItem(message.id)) {
+        if (!message.id || !getCanonicalItem(this, message.id)) {
           return { ok: false, reason: "object not found" };
         }
         if (
@@ -585,7 +509,7 @@ class BoardData {
    * @returns {boolean}
    */
   canUpdate(id, updateData) {
-    const obj = this.getCanonicalItem(id);
+    const obj = getCanonicalItem(this, id);
     if (typeof obj !== "object") return false;
 
     const candidate = this.makeUpdateCandidate(id, obj, updateData);
@@ -648,7 +572,7 @@ class BoardData {
           attrs: {
             ...item.attrs,
           },
-          bounds: this.cloneBounds(localBounds),
+          bounds: cloneBounds(localBounds),
         }
       : cloneCanonicalItem(item);
     for (const key in updateData) {
@@ -665,7 +589,7 @@ class BoardData {
       next.payload.modifiedText = updateData.txt;
       next.textLength = updateData.txt.length;
     }
-    next.bounds = this.cloneBounds(
+    next.bounds = cloneBounds(
       this.isTransformOnlyUpdate(updateData)
         ? localBounds
         : MessageCommon.getLocalGeometryBounds({
@@ -714,7 +638,7 @@ class BoardData {
    * @returns {boolean}
    */
   canAddChild(parentId, child) {
-    const obj = this.getCanonicalItem(parentId);
+    const obj = getCanonicalItem(this, parentId);
     if (!obj || obj.tool !== "Pencil") return false;
 
     const normalizedChild = normalizeStoredChildPoint(child);
@@ -735,7 +659,7 @@ class BoardData {
    * @returns {boolean}
    */
   canCopy(id, data) {
-    const obj = this.getCanonicalItem(id);
+    const obj = getCanonicalItem(this, id);
     if (!obj) return false;
     return this.makeCopyCandidate(data.newid, obj).ok;
   }
@@ -764,7 +688,7 @@ class BoardData {
     return {
       ok: true,
       value: copied,
-      localBounds: this.cloneBounds(copied.bounds),
+      localBounds: cloneBounds(copied.bounds),
     };
   }
 
@@ -817,7 +741,7 @@ class BoardData {
     if (existing && existing.createdAfterPersistedSeq !== true) {
       canonical.createdAfterPersistedSeq = false;
     }
-    this.upsertCanonicalItem(canonical);
+    upsertCanonicalItem(this, canonical);
     this.delaySave();
     return this.commitMutation();
   }
@@ -828,7 +752,7 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure} - True if the child was added, else false
    */
   addChild(parentId, child) {
-    const obj = this.getCanonicalItem(parentId);
+    const obj = getCanonicalItem(this, parentId);
     if (typeof obj !== "object" || obj.tool !== "Pencil")
       return { ok: false, reason: "invalid parent for child" };
     const normalizedChild = normalizeStoredChildPoint(child);
@@ -846,11 +770,11 @@ class BoardData {
     next.payload.appendedChildren = (
       next.payload.appendedChildren || []
     ).concat(normalizedChild.value);
-    next.bounds = this.cloneBounds(nextBounds);
+    next.bounds = cloneBounds(nextBounds);
     next.dirty = true;
     next.time = Date.now();
     next.attrs.time = next.time;
-    this.upsertCanonicalItem(next);
+    upsertCanonicalItem(this, next);
     this.delaySave();
     return this.commitMutation();
   }
@@ -866,7 +790,7 @@ class BoardData {
     const tool = data.tool;
     const updateData = filterUpdatableFields(tool, data);
 
-    const obj = this.getCanonicalItem(id);
+    const obj = getCanonicalItem(this, id);
     if (typeof obj !== "object")
       return { ok: false, reason: "object not found" };
     if (!this.canUpdate(id, updateData)) {
@@ -888,7 +812,7 @@ class BoardData {
       updateData,
       this.makeUpdateCandidate(id, obj, updateData)?.localBounds,
     );
-    this.upsertCanonicalItem(next);
+    upsertCanonicalItem(this, next);
     this.delaySave();
     return this.commitMutation();
   }
@@ -902,8 +826,8 @@ class BoardData {
   replaceItem(id, item, localBounds) {
     const next = cloneCanonicalItem(item);
     next.id = id;
-    next.bounds = this.cloneBounds(localBounds);
-    this.upsertCanonicalItem(next);
+    next.bounds = cloneBounds(localBounds);
+    upsertCanonicalItem(this, next);
   }
 
   /** Copy elements in the board
@@ -912,12 +836,12 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure}
    */
   copy(id, data) {
-    const obj = this.getCanonicalItem(id);
+    const obj = getCanonicalItem(this, id);
     const newid = data.newid;
     if (obj) {
       const validated = this.makeCopyCandidate(newid, obj);
       if (!validated.ok) return validated;
-      this.upsertCanonicalItem(validated.value);
+      upsertCanonicalItem(this, validated.value);
     } else {
       logger.warn("board.copy_missing_source", {
         board: this.name,
@@ -950,7 +874,7 @@ class BoardData {
    */
   delete(id) {
     //KISS
-    this.removeCanonicalItem(id);
+    removeCanonicalItem(this, id);
     this.delaySave();
     return this.commitMutation();
   }
@@ -988,7 +912,7 @@ class BoardData {
         const readItem = (id) => {
           if (overlay.has(id)) return overlay.get(id);
           if (clearAll) return undefined;
-          return this.getCanonicalItem(id);
+          return getCanonicalItem(this, id);
         };
 
         for (const message of messages) {
@@ -1071,7 +995,7 @@ class BoardData {
               next.payload.appendedChildren = (
                 next.payload.appendedChildren || []
               ).concat(normalizedChild.value);
-              next.bounds = this.cloneBounds(nextBounds);
+              next.bounds = cloneBounds(nextBounds);
               next.dirty = true;
               next.time = Date.now();
               next.attrs.time = next.time;
@@ -1118,9 +1042,9 @@ class BoardData {
         }
         for (const [id, item] of overlay.entries()) {
           if (item === undefined) {
-            this.removeCanonicalItem(id);
+            removeCanonicalItem(this, id);
           } else {
-            this.upsertCanonicalItem(item);
+            upsertCanonicalItem(this, item);
           }
         }
         if (clearAll || overlay.size > 0) this.delaySave();
@@ -1189,7 +1113,7 @@ class BoardData {
    * @returns {BoardElem | undefined} The element with the given id, or undefined if no element has this id
    */
   get(id) {
-    return publicItemFromCanonicalItem(this.getCanonicalItem(id));
+    return publicItemFromCanonicalItem(getCanonicalItem(this, id));
   }
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
@@ -1232,52 +1156,7 @@ class BoardData {
     persistedSnapshot = this.itemsById,
     persistedIds = new Set(persistedSnapshot.keys()),
   ) {
-    for (const [id, item] of this.itemsById.entries()) {
-      const persistedItem = persistedSnapshot.get(id);
-      if (!persistedItem) continue;
-      if (persistedItem !== item) {
-        if (persistedItem.deleted === true) continue;
-        if (!persistedIds.has(id)) continue;
-        item.createdAfterPersistedSeq = false;
-        delete item.copySource;
-        if (
-          item.payload?.kind === "children" &&
-          persistedItem.payload?.kind === "children"
-        ) {
-          item.payload.persistedChildCount = effectiveChildCount(persistedItem);
-          item.payload.appendedChildren = (
-            item.payload.appendedChildren || []
-          ).slice((persistedItem.payload.appendedChildren || []).length);
-        }
-        this.itemsById.set(id, item);
-        continue;
-      }
-      if (item.deleted === true) {
-        this.itemsById.delete(id);
-        continue;
-      }
-      if (!persistedIds.has(id)) continue;
-      const next = cloneCanonicalItem(item);
-      next.dirty = false;
-      next.createdAfterPersistedSeq = false;
-      if (next.payload?.kind === "children") {
-        next.payload.persistedChildCount = effectiveChildCount(next);
-        next.payload.appendedChildren = [];
-      } else if (next.payload?.kind === "text") {
-        delete next.payload.modifiedText;
-        delete next.copySource;
-      }
-      if (next.copySource && next.payload?.kind !== "text") {
-        delete next.copySource;
-      }
-      this.itemsById.set(id, next);
-    }
-    this.paintOrder = this.paintOrder.filter((id) => this.itemsById.has(id));
-    this.nextPaintOrder = this.paintOrder.reduce((max, id) => {
-      const item = this.itemsById.get(id);
-      return item ? Math.max(max, item.paintOrder + 1) : max;
-    }, 0);
-    this.rebuildDirtyCreatedItems();
+    finalizePersistedCanonicalItems(this, persistedSnapshot, persistedIds);
   }
 
   /** Saves the data in the board to a file. */
@@ -1462,7 +1341,7 @@ class BoardData {
         this.paintOrder = this.paintOrder.filter((id) =>
           this.itemsById.has(id),
         );
-        this.rebuildDirtyCreatedItems();
+        rebuildDirtyCreatedItems(this);
       }
     }
   }
@@ -1515,7 +1394,7 @@ class BoardData {
             },
             0,
           );
-          boardData.rebuildDirtyCreatedItems();
+          rebuildDirtyCreatedItems(boardData);
           boardData.hasPersistedBaseline = storedBoard.source !== "empty";
           boardData.metadata = storedBoard.metadata;
           boardData.mutationLog = createMutationLog(storedBoard.seq);
