@@ -255,6 +255,7 @@ export type OptimisticJournalEntry = {
 
 export type OptimisticJournalState = {
   append: (entry: OptimisticJournalEntry) => OptimisticJournalEntry;
+  dependencyMutationIdsForItemIds: (itemIds: string[]) => string[];
   promote: (clientMutationId: string) => OptimisticJournalEntry[];
   reject: (clientMutationId: string) => OptimisticJournalEntry[];
   rejectByInvalidatedIds: (

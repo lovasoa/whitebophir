@@ -34,6 +34,37 @@ test("optimistic journal appends and promotes entries in order", () => {
     journal.list().map((entry) => entry.clientMutationId),
     ["c2"],
   );
+  assert.deepEqual(journal.dependencyMutationIdsForItemIds(["shape-1"]), []);
+});
+
+test("optimistic journal tracks the latest pending mutation per affected item", () => {
+  const journal = createOptimisticJournal();
+  journal.append({
+    clientMutationId: "c1",
+    affectedIds: ["shape-1"],
+    dependsOn: [],
+    rollback: { kind: "items", snapshots: [] },
+    message: { tool: "Rectangle", id: "shape-1" },
+  });
+  journal.append({
+    clientMutationId: "c2",
+    affectedIds: ["shape-1", "shape-2"],
+    dependsOn: ["c1"],
+    rollback: { kind: "items", snapshots: [] },
+    message: { tool: "Rectangle", id: "shape-1", type: "update" },
+  });
+
+  assert.deepEqual(
+    journal.dependencyMutationIdsForItemIds(["shape-1", "shape-2"]),
+    ["c2"],
+  );
+
+  journal.promote("c2");
+
+  assert.deepEqual(
+    journal.dependencyMutationIdsForItemIds(["shape-1", "shape-2"]),
+    ["c1"],
+  );
 });
 
 test("optimistic journal rejects dependent descendants together", () => {

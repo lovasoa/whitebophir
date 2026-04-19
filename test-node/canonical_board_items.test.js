@@ -8,33 +8,29 @@ const {
   materializeItemForSave,
   publicItemFromCanonicalItem,
 } = require("../server/canonical_board_items.mjs");
+const {
+  makeCanonicalPencilItem,
+  makeCanonicalTextItem,
+  makeStoredPencilEntry,
+  makeStoredTextEntry,
+} = require("./svg_persistence_fixtures.js");
 
 test("canonicalItemFromStoredSvgEntry derives canonical compressed payloads directly from svg entries", () => {
   const text = canonicalItemFromStoredSvgEntry(
-    {
-      tagName: "text",
-      attributes: {
-        id: "text-1",
-        x: "10",
-        y: "20",
-        "font-size": "18",
-        fill: "#123456",
-      },
+    makeStoredTextEntry({
+      x: "10",
+      y: "20",
+      fill: "#123456",
       content: "hello &amp; bye",
-    },
+    }),
     0,
   );
   const pencil = canonicalItemFromStoredSvgEntry(
-    {
-      tagName: "path",
-      attributes: {
-        id: "line-1",
-        d: "M 1 2 L 1 2 C 1 2 3 4 3 4",
-        stroke: "#654321",
-        "stroke-width": "5",
-      },
-      content: "",
-    },
+    makeStoredPencilEntry({
+      d: "M 1 2 L 1 2 C 1 2 3 4 3 4",
+      stroke: "#654321",
+      strokeWidth: "5",
+    }),
     1,
   );
 
@@ -64,19 +60,9 @@ test("canonicalItemFromStoredSvgEntry derives canonical compressed payloads dire
 });
 
 test("copyCanonicalItem snapshots compressed payload state at copy time", () => {
-  const persistedText = canonicalItemFromItem(
-    {
-      id: "text-1",
-      tool: "Text",
-      x: 10,
-      y: 20,
-      size: 18,
-      color: "#123456",
-      txt: "hello",
-    },
-    0,
-    { persisted: true },
-  );
+  const persistedText = canonicalItemFromItem(makeCanonicalTextItem(), 0, {
+    persisted: true,
+  });
   const textCopy = copyCanonicalItem(persistedText, "text-2", 1, 123);
 
   assert.deepEqual(textCopy.copySource, {
@@ -85,20 +71,9 @@ test("copyCanonicalItem snapshots compressed payload state at copy time", () => 
   });
   assert.equal(textCopy.payload.modifiedText, undefined);
 
-  const createdPencil = canonicalItemFromItem(
-    {
-      id: "line-1",
-      tool: "Pencil",
-      color: "#123456",
-      size: 4,
-      _children: [
-        { x: 1, y: 2 },
-        { x: 3, y: 4 },
-      ],
-    },
-    0,
-    { persisted: false },
-  );
+  const createdPencil = canonicalItemFromItem(makeCanonicalPencilItem(), 0, {
+    persisted: false,
+  });
   const pencilCopy = copyCanonicalItem(createdPencil, "line-2", 1, 456);
 
   assert.equal(pencilCopy.copySource, undefined);
@@ -115,33 +90,12 @@ test("copyCanonicalItem snapshots compressed payload state at copy time", () => 
 });
 
 test("materializeItemForSave reconstructs compressed payloads from source payload only during save", () => {
-  const persistedText = canonicalItemFromItem(
-    {
-      id: "text-1",
-      tool: "Text",
-      x: 10,
-      y: 20,
-      size: 18,
-      color: "#123456",
-      txt: "hello",
-    },
-    0,
-    { persisted: true },
-  );
-  const persistedPencil = canonicalItemFromItem(
-    {
-      id: "line-1",
-      tool: "Pencil",
-      color: "#123456",
-      size: 4,
-      _children: [
-        { x: 1, y: 2 },
-        { x: 3, y: 4 },
-      ],
-    },
-    1,
-    { persisted: true },
-  );
+  const persistedText = canonicalItemFromItem(makeCanonicalTextItem(), 0, {
+    persisted: true,
+  });
+  const persistedPencil = canonicalItemFromItem(makeCanonicalPencilItem(), 1, {
+    persisted: true,
+  });
   persistedPencil.payload.appendedChildren.push({ x: 5, y: 6 });
 
   assert.deepEqual(materializeItemForSave(persistedText, { txt: "hello" }), {
@@ -175,19 +129,9 @@ test("materializeItemForSave reconstructs compressed payloads from source payloa
 });
 
 test("publicItemFromCanonicalItem exposes canonical compressed state instead of pretending the full payload is loaded", () => {
-  const item = canonicalItemFromItem(
-    {
-      id: "text-1",
-      tool: "Text",
-      x: 10,
-      y: 20,
-      size: 18,
-      color: "#123456",
-      txt: "hello",
-    },
-    0,
-    { persisted: true },
-  );
+  const item = canonicalItemFromItem(makeCanonicalTextItem(), 0, {
+    persisted: true,
+  });
 
   assert.deepEqual(publicItemFromCanonicalItem(item), {
     id: "text-1",

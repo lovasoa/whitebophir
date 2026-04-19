@@ -7,6 +7,10 @@ const {
   serializeStoredSvgItem,
   summarizeStoredSvgItem,
 } = require("../server/stored_svg_item_codec.mjs");
+const {
+  makeStoredPencilEntry,
+  makeStoredTextEntry,
+} = require("./svg_persistence_fixtures.js");
 
 test("stored svg item codec parses canonical shape and text tags without shadow json", () => {
   assert.deepEqual(
@@ -37,54 +41,29 @@ test("stored svg item codec parses canonical shape and text tags without shadow 
     },
   );
 
-  assert.deepEqual(
-    parseStoredSvgItem({
-      tagName: "text",
-      attributes: {
-        id: "text-1",
-        x: "9",
-        y: "10",
-        fill: "#654321",
-        "font-size": "18",
-      },
-      content: "hello &amp; bye",
-    }),
-    {
-      id: "text-1",
-      tool: "Text",
-      x: 9,
-      y: 10,
-      color: "#654321",
-      size: 18,
-      txt: "hello & bye",
-    },
-  );
+  assert.deepEqual(parseStoredSvgItem(makeStoredTextEntry()), {
+    id: "text-1",
+    tool: "Text",
+    x: 9,
+    y: 10,
+    color: "#654321",
+    size: 18,
+    txt: "hello & bye",
+  });
 });
 
 test("stored svg item codec derives pencil points from the canonical d attribute", () => {
-  assert.deepEqual(
-    parseStoredSvgItem({
-      tagName: "path",
-      attributes: {
-        id: "line-1",
-        d: "M 1 2 L 1 2 C 1 2 10 12 10 12 C 11 13 18 9 18 9",
-        stroke: "#000000",
-        "stroke-width": "3",
-      },
-      content: "",
-    }),
-    {
-      id: "line-1",
-      tool: "Pencil",
-      color: "#000000",
-      size: 3,
-      _children: [
-        { x: 1, y: 2 },
-        { x: 10, y: 12 },
-        { x: 18, y: 9 },
-      ],
-    },
-  );
+  assert.deepEqual(parseStoredSvgItem(makeStoredPencilEntry()), {
+    id: "line-1",
+    tool: "Pencil",
+    color: "#000000",
+    size: 3,
+    _children: [
+      { x: 1, y: 2 },
+      { x: 10, y: 12 },
+      { x: 18, y: 9 },
+    ],
+  });
 });
 
 test("stored svg item codec scans path summaries without hydrating points", () => {
@@ -109,18 +88,7 @@ test("stored svg item codec scans path summaries without hydrating points", () =
 test("stored svg item summaries stay payload-light for cold loads", () => {
   assert.deepEqual(
     summarizeStoredSvgItem(
-      {
-        tagName: "text",
-        attributes: {
-          id: "text-1",
-          x: "9",
-          y: "10",
-          fill: "#654321",
-          "font-size": "18",
-          transform: "matrix(1 0 0 1 7 8)",
-        },
-        content: "hello &amp; bye",
-      },
+      makeStoredTextEntry({ transform: "matrix(1 0 0 1 7 8)" }),
       2,
     ),
     {
@@ -144,37 +112,22 @@ test("stored svg item summaries stay payload-light for cold loads", () => {
     },
   );
 
-  assert.deepEqual(
-    summarizeStoredSvgItem(
-      {
-        tagName: "path",
-        attributes: {
-          id: "line-1",
-          d: "M 1 2 L 1 2 C 1 2 10 12 10 12 C 11 13 18 9 18 9",
-          stroke: "#000000",
-          "stroke-width": "3",
-        },
-        content: "",
-      },
-      3,
-    ),
-    {
-      id: "line-1",
-      tool: "Pencil",
-      paintOrder: 3,
-      data: {
-        color: "#000000",
-        size: 3,
-      },
-      childCount: 3,
-      localBounds: {
-        minX: 1,
-        minY: 2,
-        maxX: 18,
-        maxY: 12,
-      },
+  assert.deepEqual(summarizeStoredSvgItem(makeStoredPencilEntry(), 3), {
+    id: "line-1",
+    tool: "Pencil",
+    paintOrder: 3,
+    data: {
+      color: "#000000",
+      size: 3,
     },
-  );
+    childCount: 3,
+    localBounds: {
+      minX: 1,
+      minY: 2,
+      maxX: 18,
+      maxY: 12,
+    },
+  });
 });
 
 test("stored svg item codec serializes canonical visible svg without duplicated state", () => {

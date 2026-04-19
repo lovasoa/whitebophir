@@ -1,27 +1,14 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
-const os = require("node:os");
 const path = require("node:path");
 
 const {
   configFromEnv,
+  createSocketScenario,
   createSocket,
-  loadSockets,
-  withEnv,
 } = require("./test_helpers.js");
 const USER_SECRET_COOKIE_NAME = "wbo-user-secret-v1";
-
-/**
- * @param {{[event: string]: ((...args: any[]) => any) | undefined}} handlers
- * @param {string} eventName
- * @returns {(...args: any[]) => any}
- */
-function getRequiredHandler(handlers, eventName) {
-  var handler = handlers[eventName];
-  assert.equal(typeof handler, "function");
-  return /** @type {(...args: any[]) => any} */ (handler);
-}
 
 /**
  * @template T
@@ -46,69 +33,70 @@ function withUserSecretCookie(userSecret, headers) {
 }
 
 test("user id and visible name are deterministic from the cookie-backed user secret and ip", async () => {
-  await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async () => {
-    const sockets = await loadSockets();
-    const userSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const { socket } = createSocket({
-      remoteAddress: "203.0.113.40",
-      headers: withUserSecretCookie(userSecret),
-    });
+  await createSocketScenario(
+    { historyDirPrefix: false },
+    async ({ sockets }) => {
+      const userSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      const { socket } = createSocket({
+        remoteAddress: "203.0.113.40",
+        headers: withUserSecretCookie(userSecret),
+      });
 
-    const userId = sockets.__test.buildUserId(userSecret);
-    const name = sockets.__test.buildUserName("203.0.113.40", userSecret);
-    const record = sockets.__test.buildBoardUserRecord(
-      socket,
-      "anonymous",
-      configFromEnv({ WBO_IP_SOURCE: "remoteAddress" }),
-      123,
-    );
+      const userId = sockets.__test.buildUserId(userSecret);
+      const name = sockets.__test.buildUserName("203.0.113.40", userSecret);
+      const record = sockets.__test.buildBoardUserRecord(
+        socket,
+        "anonymous",
+        configFromEnv({ WBO_IP_SOURCE: "remoteAddress" }),
+        123,
+      );
 
-    assert.equal(userId, sockets.__test.buildUserId(userSecret));
-    assert.match(userId, /^[a-z]+$/);
-    assert.equal(
-      name,
-      sockets.__test.buildUserName("203.0.113.40", userSecret),
-    );
-    assert.equal(record.userId, userId);
-    assert.equal(record.name, name);
-    assert.equal(record.lastSeen, 123);
-  });
+      assert.equal(userId, sockets.__test.buildUserId(userSecret));
+      assert.match(userId, /^[a-z]+$/);
+      assert.equal(
+        name,
+        sockets.__test.buildUserName("203.0.113.40", userSecret),
+      );
+      assert.equal(record.userId, userId);
+      assert.equal(record.name, name);
+      assert.equal(record.lastSeen, 123);
+    },
+  );
 });
 
 test("board user record seeds tool color and size from socket query", async () => {
-  await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async () => {
-    const sockets = await loadSockets();
-    const { socket } = createSocket({
-      remoteAddress: "203.0.113.41",
-      headers: withUserSecretCookie("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
-      query: {
-        tool: "Rectangle",
-        color: "#123456",
-        size: "12",
-      },
-    });
+  await createSocketScenario(
+    { historyDirPrefix: false },
+    async ({ sockets }) => {
+      const { socket } = createSocket({
+        remoteAddress: "203.0.113.41",
+        headers: withUserSecretCookie("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+        query: {
+          tool: "Rectangle",
+          color: "#123456",
+          size: "12",
+        },
+      });
 
-    const record = sockets.__test.buildBoardUserRecord(
-      socket,
-      "board-a",
-      configFromEnv({ WBO_IP_SOURCE: "remoteAddress" }),
-      456,
-    );
-    assert.equal(record.socketId, "socket-1");
-    assert.equal(record.ip, "203.0.113.41");
-    assert.equal(record.lastTool, "Rectangle");
-    assert.equal(record.color, "#123456");
-    assert.equal(record.size, 12);
-    assert.equal(record.lastSeen, 456);
-  });
+      const record = sockets.__test.buildBoardUserRecord(
+        socket,
+        "board-a",
+        configFromEnv({ WBO_IP_SOURCE: "remoteAddress" }),
+        456,
+      );
+      assert.equal(record.socketId, "socket-1");
+      assert.equal(record.ip, "203.0.113.41");
+      assert.equal(record.lastTool, "Rectangle");
+      assert.equal(record.color, "#123456");
+      assert.equal(record.size, 12);
+      assert.equal(record.lastSeen, 456);
+    },
+  );
 });
 
 test("board user maps are created lazily and cleaned when emptied", async () => {
-  await withEnv({ WBO_IP_SOURCE: "remoteAddress" }, async () => {
-    const sockets = await loadSockets();
-    sockets.__test.resetRateLimitMaps();
-
-    const users = sockets.__test.getBoardUserMap("board-a");
+  await createSocketScenario({ historyDirPrefix: false }, async ({ test }) => {
+    const users = test.getBoardUserMap("board-a");
     users.set("socket-1", {
       socketId: "socket-1",
       userId: "sample",
@@ -119,28 +107,22 @@ test("board user maps are created lazily and cleaned when emptied", async () => 
       lastTool: "Hand",
       lastSeen: 1,
     });
-    assert.equal(sockets.__test.getBoardUserMap("board-a").size, 1);
+    assert.equal(test.getBoardUserMap("board-a").size, 1);
 
     users.delete("socket-1");
-    sockets.__test.cleanupBoardUserMap("board-a");
+    test.cleanupBoardUserMap("board-a");
 
-    const freshUsers = sockets.__test.getBoardUserMap("board-a");
+    const freshUsers = test.getBoardUserMap("board-a");
     assert.equal(freshUsers.size, 0);
     assert.notEqual(freshUsers, users);
   });
 });
 
 test("joining a board replays joined users to the socket and broadcasts newcomer joins", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-join-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const first = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-join-" },
+    async ({ connect }) => {
+      const first = await connect({
         id: "socket-1",
         remoteAddress: "203.0.113.60",
         headers: withUserSecretCookie("11111111111111111111111111111111"),
@@ -151,7 +133,6 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
           size: "6",
         },
       });
-      await sockets.__test.handleSocketConnection(first.socket);
 
       const firstJoined = first.emitted.filter(
         (event) => event.event === "user_joined",
@@ -162,7 +143,7 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
         "socket-1",
       );
 
-      const second = createSocket({
+      const second = await connect({
         id: "socket-2",
         remoteAddress: "203.0.113.61",
         headers: withUserSecretCookie("22222222222222222222222222222222"),
@@ -173,7 +154,6 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
           size: "8",
         },
       });
-      await sockets.__test.handleSocketConnection(second.socket);
 
       const secondJoined = second.emitted.filter(
         (event) => event.event === "user_joined",
@@ -193,16 +173,10 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
 });
 
 test("sync replay and live broadcasts carry contiguous seq for deterministic client replay", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-seq-deterministic-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const created = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-deterministic-" },
+    async ({ connect, invoke }) => {
+      const created = await connect({
         id: "socket-seq-deterministic",
         remoteAddress: "203.0.113.70",
         headers: withUserSecretCookie("33333333333333333333333333333333"),
@@ -213,19 +187,11 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(created.socket);
-
-      await getRequiredHandler(
-        created.handlers,
-        "sync_request",
-      )({
+      await invoke(created, "sync_request", {
         baselineSeq: 0,
       });
 
-      await getRequiredHandler(
-        created.handlers,
-        "broadcast",
-      )({
+      await invoke(created, "broadcast", {
         tool: "Rectangle",
         type: "rect",
         id: "rect-1",
@@ -254,7 +220,7 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
         socket: "socket-seq-deterministic",
       });
 
-      const nextSocket = createSocket({
+      const nextSocket = await connect({
         id: "socket-seq-deterministic-2",
         remoteAddress: "203.0.113.71",
         headers: withUserSecretCookie("44444444444444444444444444444444"),
@@ -265,11 +231,7 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
           size: "5",
         },
       });
-      await sockets.__test.handleSocketConnection(nextSocket.socket);
-      await getRequiredHandler(
-        nextSocket.handlers,
-        "sync_request",
-      )({
+      await invoke(nextSocket, "sync_request", {
         baselineSeq: 0,
       });
 
@@ -291,16 +253,10 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
 });
 
 test("seq-sync clients bootstrap without a snapshot and receive an explicit empty replay", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-seq-bootstrap-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const created = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-bootstrap-" },
+    async ({ connect, handler }) => {
+      const created = await connect({
         id: "socket-seq-empty",
         remoteAddress: "203.0.113.80",
         headers: withUserSecretCookie("55555555555555555555555555555555"),
@@ -312,14 +268,13 @@ test("seq-sync clients bootstrap without a snapshot and receive an explicit empt
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(created.socket);
 
       assert.equal(
         created.emitted.some((event) => event.event === "broadcast"),
         false,
       );
 
-      const syncRequest = getRequiredHandler(created.handlers, "sync_request");
+      const syncRequest = handler(created, "sync_request");
       await syncRequest({ baselineSeq: 0 });
 
       const replayEvents = created.emitted.filter((event) =>
@@ -345,16 +300,10 @@ test("seq-sync clients bootstrap without a snapshot and receive an explicit empt
 });
 
 test("board sockets use seq replay and seq envelopes even without a legacy sync flag", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-seq-default-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const created = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-default-" },
+    async ({ connect, handler, invoke }) => {
+      const created = await connect({
         id: "socket-seq-default",
         remoteAddress: "203.0.113.80",
         headers: withUserSecretCookie("55555555555555555555555555555550"),
@@ -365,14 +314,13 @@ test("board sockets use seq replay and seq envelopes even without a legacy sync 
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(created.socket);
 
       assert.equal(
         created.emitted.some((event) => event.event === "broadcast"),
         false,
       );
 
-      const syncRequest = getRequiredHandler(created.handlers, "sync_request");
+      const syncRequest = handler(created, "sync_request");
       await syncRequest({ baselineSeq: 0 });
 
       const replayEvents = created.emitted.filter((event) =>
@@ -385,10 +333,7 @@ test("board sockets use seq replay and seq envelopes even without a legacy sync 
         ["boardstate", "sync_replay_start", "sync_replay_end"],
       );
 
-      await getRequiredHandler(
-        created.handlers,
-        "broadcast",
-      )({
+      await invoke(created, "broadcast", {
         tool: "Rectangle",
         type: "rect",
         id: "rect-default-seq-1",
@@ -426,16 +371,10 @@ test("board sockets use seq replay and seq envelopes even without a legacy sync 
 });
 
 test("seq-sync clients receive contiguous mutation envelopes and can replay them on reconnect", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-seq-replay-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const writer = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-replay-" },
+    async ({ connect, handler }) => {
+      const writer = await connect({
         id: "socket-seq-writer",
         remoteAddress: "203.0.113.81",
         headers: withUserSecretCookie("66666666666666666666666666666666"),
@@ -447,9 +386,8 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(writer.socket);
 
-      const livePeer = createSocket({
+      const _livePeer = await connect({
         id: "socket-seq-cursor-peer",
         remoteAddress: "203.0.113.84",
         headers: withUserSecretCookie("99999999999999999999999999999997"),
@@ -461,9 +399,8 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(livePeer.socket);
 
-      const broadcast = getRequiredHandler(writer.handlers, "broadcast");
+      const broadcast = handler(writer, "broadcast");
       await broadcast({
         tool: "Rectangle",
         type: "rect",
@@ -482,7 +419,7 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
       assert.equal(acceptedEnvelope.seq, 1);
       assert.equal(acceptedEnvelope.mutation.id, "rect-1");
 
-      const reconnect = createSocket({
+      const reconnect = await connect({
         id: "socket-seq-reconnect",
         remoteAddress: "203.0.113.82",
         headers: withUserSecretCookie("77777777777777777777777777777777"),
@@ -494,11 +431,7 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(reconnect.socket);
-      const syncRequest = getRequiredHandler(
-        reconnect.handlers,
-        "sync_request",
-      );
+      const syncRequest = handler(reconnect, "sync_request");
       await syncRequest({ baselineSeq: 0 });
 
       const replayedEvents = reconnect.emitted.filter((event) =>
@@ -523,16 +456,10 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
 });
 
 test("seq-sync clients with a stale cached baseline replay only newer contiguous envelopes", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-seq-stale-baseline-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const writer = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-stale-baseline-" },
+    async ({ connect, handler, invoke }) => {
+      const writer = await connect({
         id: "socket-seq-stale-writer",
         remoteAddress: "203.0.113.85",
         headers: withUserSecretCookie("99999999999999999999999999999995"),
@@ -544,8 +471,7 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(writer.socket);
-      const broadcast = getRequiredHandler(writer.handlers, "broadcast");
+      const broadcast = handler(writer, "broadcast");
       await broadcast({
         tool: "Rectangle",
         type: "rect",
@@ -569,7 +495,7 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
         size: 4,
       });
 
-      const reconnect = createSocket({
+      const reconnect = await connect({
         id: "socket-seq-stale-reconnect",
         remoteAddress: "203.0.113.86",
         headers: withUserSecretCookie("99999999999999999999999999999994"),
@@ -581,11 +507,7 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(reconnect.socket);
-      await getRequiredHandler(
-        reconnect.handlers,
-        "sync_request",
-      )({
+      await invoke(reconnect, "sync_request", {
         baselineSeq: 1,
       });
 
@@ -616,16 +538,10 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
 });
 
 test("seq-sync replay stays correct when persistence finishes between baseline fetch and replay start", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-seq-persist-race-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const writer = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-persist-race-" },
+    async ({ connect, handler, getLoadedBoard, invoke }) => {
+      const writer = await connect({
         id: "socket-seq-race-writer",
         remoteAddress: "203.0.113.92",
         headers: withUserSecretCookie("99999999999999999999999999999992"),
@@ -637,8 +553,7 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(writer.socket);
-      const broadcast = getRequiredHandler(writer.handlers, "broadcast");
+      const broadcast = handler(writer, "broadcast");
       await broadcast({
         tool: "Rectangle",
         type: "rect",
@@ -662,10 +577,10 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
         size: 4,
       });
 
-      const loadedBoard = await sockets.__test.getLoadedBoard("board-seq-race");
+      const loadedBoard = await getLoadedBoard("board-seq-race");
       await loadedBoard.save();
 
-      const reconnect = createSocket({
+      const reconnect = await connect({
         id: "socket-seq-race-reconnect",
         remoteAddress: "203.0.113.93",
         headers: withUserSecretCookie("99999999999999999999999999999993"),
@@ -677,11 +592,7 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(reconnect.socket);
-      await getRequiredHandler(
-        reconnect.handlers,
-        "sync_request",
-      )({
+      await invoke(reconnect, "sync_request", {
         baselineSeq: 1,
       });
 
@@ -712,16 +623,10 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
 });
 
 test("seq-sync sockets do not receive live persistent broadcasts before replay catch-up completes", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-seq-live-gated-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const writer = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-live-gated-" },
+    async ({ connect, handler, invoke }) => {
+      const writer = await connect({
         id: "socket-seq-gated-writer",
         remoteAddress: "203.0.113.185",
         headers: withUserSecretCookie("99999999999999999999999999999185"),
@@ -733,7 +638,7 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
           size: "4",
         },
       });
-      const peer = createSocket({
+      const peer = await connect({
         id: "socket-seq-gated-peer",
         remoteAddress: "203.0.113.186",
         headers: withUserSecretCookie("99999999999999999999999999999186"),
@@ -746,10 +651,7 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
         },
       });
 
-      await sockets.__test.handleSocketConnection(writer.socket);
-      await sockets.__test.handleSocketConnection(peer.socket);
-
-      const broadcast = getRequiredHandler(writer.handlers, "broadcast");
+      const broadcast = handler(writer, "broadcast");
       await broadcast({
         tool: "Rectangle",
         type: "rect",
@@ -767,10 +669,7 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
         0,
       );
 
-      await getRequiredHandler(
-        peer.handlers,
-        "sync_request",
-      )({
+      await invoke(peer, "sync_request", {
         baselineSeq: 0,
       });
 
@@ -802,16 +701,10 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
 });
 
 test("seq-sync replay gaps force resync_required when the requested baseline is no longer replayable", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-seq-gap-resync-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const writer = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-gap-resync-" },
+    async ({ connect, getLoadedBoard, handler, invoke }) => {
+      const writer = await connect({
         id: "socket-seq-gap-writer",
         remoteAddress: "203.0.113.87",
         headers: withUserSecretCookie("99999999999999999999999999999993"),
@@ -823,8 +716,7 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(writer.socket);
-      const broadcast = getRequiredHandler(writer.handlers, "broadcast");
+      const broadcast = handler(writer, "broadcast");
       await broadcast({
         tool: "Rectangle",
         type: "rect",
@@ -848,10 +740,10 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
         size: 4,
       });
 
-      const loadedBoard = await sockets.__test.getLoadedBoard("board-seq-gap");
+      const loadedBoard = await getLoadedBoard("board-seq-gap");
       loadedBoard.trimMutationLogBefore(2);
 
-      const reconnect = createSocket({
+      const reconnect = await connect({
         id: "socket-seq-gap-reconnect",
         remoteAddress: "203.0.113.88",
         headers: withUserSecretCookie("99999999999999999999999999999992"),
@@ -863,11 +755,7 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(reconnect.socket);
-      await getRequiredHandler(
-        reconnect.handlers,
-        "sync_request",
-      )({
+      await invoke(reconnect, "sync_request", {
         baselineSeq: 0,
       });
 
@@ -890,16 +778,10 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
 });
 
 test("persistent writes fan out as seq envelopes to every peer", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-seq-fanout-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const writer = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-fanout-" },
+    async ({ connect, invoke }) => {
+      const writer = await connect({
         id: "socket-mixed-writer",
         remoteAddress: "203.0.113.89",
         headers: withUserSecretCookie("99999999999999999999999999999989"),
@@ -910,7 +792,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
           size: "4",
         },
       });
-      const seqPeer = createSocket({
+      const seqPeer = await connect({
         id: "socket-mixed-seq-peer",
         remoteAddress: "203.0.113.90",
         headers: withUserSecretCookie("99999999999999999999999999999990"),
@@ -921,7 +803,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
           size: "4",
         },
       });
-      const defaultPeer = createSocket({
+      const defaultPeer = await connect({
         id: "socket-mixed-default-peer",
         remoteAddress: "203.0.113.91",
         headers: withUserSecretCookie("99999999999999999999999999999991"),
@@ -932,10 +814,6 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
           size: "4",
         },
       });
-
-      await sockets.__test.handleSocketConnection(writer.socket);
-      await sockets.__test.handleSocketConnection(seqPeer.socket);
-      await sockets.__test.handleSocketConnection(defaultPeer.socket);
 
       writer.socket.broadcast = {
         to(room) {
@@ -952,10 +830,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
         },
       };
 
-      await getRequiredHandler(
-        writer.handlers,
-        "broadcast",
-      )({
+      await invoke(writer, "broadcast", {
         tool: "Rectangle",
         type: "rect",
         id: "rect-mixed-1",
@@ -1009,16 +884,10 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
 });
 
 test("seq-sync cursor updates stay ephemeral and are not replayed", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-seq-cursor-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const writer = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-cursor-" },
+    async ({ connect, invoke }) => {
+      const writer = await connect({
         id: "socket-seq-cursor-writer",
         remoteAddress: "203.0.113.83",
         headers: withUserSecretCookie("88888888888888888888888888888888"),
@@ -1030,12 +899,7 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(writer.socket);
-
-      await getRequiredHandler(
-        writer.handlers,
-        "broadcast",
-      )({
+      await invoke(writer, "broadcast", {
         tool: "Cursor",
         type: "update",
         x: 12,
@@ -1063,7 +927,7 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
         false,
       );
 
-      const reconnect = createSocket({
+      const reconnect = await connect({
         id: "socket-seq-cursor-reconnect",
         remoteAddress: "203.0.113.84",
         headers: withUserSecretCookie("99999999999999999999999999999998"),
@@ -1075,11 +939,7 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(reconnect.socket);
-      await getRequiredHandler(
-        reconnect.handlers,
-        "sync_request",
-      )({
+      await invoke(reconnect, "sync_request", {
         baselineSeq: 0,
       });
 
@@ -1104,16 +964,10 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
 });
 
 test("rejected board mutations emit mutation_rejected with the clientMutationId", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-mutation-rejected-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const writer = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-mutation-rejected-" },
+    async ({ connect, invoke }) => {
+      const writer = await connect({
         id: "socket-seq-rejected",
         remoteAddress: "203.0.113.86",
         headers: withUserSecretCookie("99999999999999999999999999999996"),
@@ -1125,12 +979,7 @@ test("rejected board mutations emit mutation_rejected with the clientMutationId"
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(writer.socket);
-
-      await getRequiredHandler(
-        writer.handlers,
-        "broadcast",
-      )({
+      await invoke(writer, "broadcast", {
         tool: "Pencil",
         type: "child",
         parent: "missing-line",
@@ -1158,16 +1007,10 @@ test("rejected board mutations emit mutation_rejected with the clientMutationId"
 });
 
 test("rejected oversized seed updates emit a sequenced authoritative delete followup", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-rejected-seed-followup-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const writer = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-rejected-seed-followup-" },
+    async ({ connect, getLoadedBoard, handler }) => {
+      const writer = await connect({
         id: "socket-seq-rejected-seed",
         remoteAddress: "203.0.113.85",
         headers: withUserSecretCookie("99999999999999999999999999999995"),
@@ -1179,9 +1022,7 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(writer.socket);
-
-      const broadcast = getRequiredHandler(writer.handlers, "broadcast");
+      const broadcast = handler(writer, "broadcast");
       await broadcast({
         tool: "Rectangle",
         type: "rect",
@@ -1229,25 +1070,17 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         id: "rect-seed",
       });
 
-      const loadedBoard = await sockets.__test.getLoadedBoard(
-        "board-rejected-seed",
-      );
+      const loadedBoard = await getLoadedBoard("board-rejected-seed");
       assert.equal(loadedBoard.get("rect-seed"), undefined);
     },
   );
 });
 
 test("disconnecting from a board broadcasts user_left and cleans the board user map", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-left-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const created = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-left-" },
+    async ({ connect, invoke, test }) => {
+      const created = await connect({
         id: "socket-9",
         remoteAddress: "203.0.113.69",
         headers: withUserSecretCookie("99999999999999999999999999999999"),
@@ -1258,12 +1091,7 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
           size: "5",
         },
       });
-      await sockets.__test.handleSocketConnection(created.socket);
-
-      await getRequiredHandler(
-        created.handlers,
-        "disconnecting",
-      )("transport close");
+      await invoke(created, "disconnecting", "transport close");
 
       assert.deepEqual(created.broadcasted[0], {
         event: "user_joined",
@@ -1279,22 +1107,16 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
         },
         room: "board-left",
       });
-      assert.equal(sockets.__test.getBoardUserMap("board-left").size, 0);
+      assert.equal(test.getBoardUserMap("board-left").size, 0);
     },
   );
 });
 
 test("live broadcasts attach socket attribution and keep the user's latest non-cursor state", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-live-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const created = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-live-" },
+    async ({ connect, invoke, test }) => {
+      const created = await connect({
         id: "socket-live",
         remoteAddress: "203.0.113.80",
         headers: withUserSecretCookie("10101010101010101010101010101010"),
@@ -1305,12 +1127,7 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(created.socket);
-
-      await getRequiredHandler(
-        created.handlers,
-        "broadcast",
-      )({
+      await invoke(created, "broadcast", {
         tool: "Rectangle",
         type: "rect",
         id: "shape-1",
@@ -1323,7 +1140,7 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       });
 
       const user = getRequiredValue(
-        sockets.__test.getBoardUserMap("board-live").get("socket-live"),
+        test.getBoardUserMap("board-live").get("socket-live"),
       );
       const persistentEnvelope = getRequiredValue(
         created.emitted.find((event) => event.event === "broadcast"),
@@ -1334,10 +1151,7 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       assert.equal(user.color, "#123456");
       assert.equal(user.size, 9);
 
-      await getRequiredHandler(
-        created.handlers,
-        "broadcast",
-      )({
+      await invoke(created, "broadcast", {
         tool: "Cursor",
         type: "update",
         x: 9,
@@ -1358,16 +1172,10 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
 });
 
 test("same-session sockets keep a shared userId in presence but live payload attribution stays per socket", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-session-"),
-  );
-  await withEnv(
-    { WBO_IP_SOURCE: "remoteAddress", WBO_HISTORY_DIR: historyDir },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const first = createSocket({
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-session-" },
+    async ({ connect, invoke, test }) => {
+      const first = await connect({
         id: "socket-a",
         remoteAddress: "203.0.113.81",
         headers: withUserSecretCookie("abababababababababababababababab"),
@@ -1378,9 +1186,7 @@ test("same-session sockets keep a shared userId in presence but live payload att
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(first.socket);
-
-      const second = createSocket({
+      const second = await connect({
         id: "socket-b",
         remoteAddress: "203.0.113.81",
         headers: withUserSecretCookie("abababababababababababababababab"),
@@ -1391,17 +1197,13 @@ test("same-session sockets keep a shared userId in presence but live payload att
           size: "5",
         },
       });
-      await sockets.__test.handleSocketConnection(second.socket);
 
-      const users = sockets.__test.getBoardUserMap("board-session");
+      const users = test.getBoardUserMap("board-session");
       const firstUser = getRequiredValue(users.get("socket-a"));
       const secondUser = getRequiredValue(users.get("socket-b"));
       assert.equal(firstUser.userId, secondUser.userId);
 
-      await getRequiredHandler(
-        first.handlers,
-        "broadcast",
-      )({
+      await invoke(first, "broadcast", {
         tool: "Rectangle",
         type: "rect",
         id: "shape-session",
@@ -1426,20 +1228,13 @@ test("same-session sockets keep a shared userId in presence but live payload att
 });
 
 test("report_user logs reporter and reported user details for active board members", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-report-"),
-  );
-  await withEnv(
+  await createSocketScenario(
     {
-      WBO_IP_SOURCE: "remoteAddress",
-      WBO_HISTORY_DIR: historyDir,
-      WBO_SILENT: "true",
+      historyDirPrefix: "wbo-users-report-",
+      env: { WBO_SILENT: "true" },
     },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const reporter = createSocket({
+    async ({ connect, handler, test }) => {
+      const reporter = await connect({
         id: "socket-reporter",
         remoteAddress: "203.0.113.90",
         headers: withUserSecretCookie("cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", {
@@ -1453,10 +1248,9 @@ test("report_user logs reporter and reported user details for active board membe
           size: "4",
         },
       });
-      await sockets.__test.handleSocketConnection(reporter.socket);
       const reporterEmitCountBeforeReport = reporter.emitted.length;
 
-      const reported = createSocket({
+      const reported = await connect({
         id: "socket-reported",
         remoteAddress: "203.0.113.91",
         headers: withUserSecretCookie("efefefefefefefefefefefefefefefef", {
@@ -1470,17 +1264,16 @@ test("report_user logs reporter and reported user details for active board membe
           size: "7",
         },
       });
-      await sockets.__test.handleSocketConnection(reported.socket);
       const reportedEmitCountBeforeReport = reported.emitted.length;
 
-      getRequiredHandler(
-        reporter.handlers,
+      handler(
+        reporter,
         "report_user",
       )({
         socketId: "socket-reported",
       });
 
-      const reportedLog = sockets.__test.getLastUserReportLog();
+      const reportedLog = test.getLastUserReportLog();
       assert.ok(reportedLog);
       assert.equal(reportedLog.reporter_ip, "203.0.113.90");
       assert.equal(reportedLog.reported_ip, "203.0.113.91");
@@ -1501,20 +1294,16 @@ test("report_user logs reporter and reported user details for active board membe
 });
 
 test("report_user respects custom header ip sources for active board members", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-users-report-header-"),
-  );
-  await withEnv(
+  await createSocketScenario(
     {
-      WBO_IP_SOURCE: "CF-Connecting-IP",
-      WBO_HISTORY_DIR: historyDir,
-      WBO_SILENT: "true",
+      historyDirPrefix: "wbo-users-report-header-",
+      env: {
+        WBO_IP_SOURCE: "CF-Connecting-IP",
+        WBO_SILENT: "true",
+      },
     },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-
-      const reporter = createSocket({
+    async ({ connect, handler, test }) => {
+      const reporter = await connect({
         id: "socket-reporter-header",
         remoteAddress: "203.0.113.100",
         headers: withUserSecretCookie("12121212121212121212121212121212", {
@@ -1527,9 +1316,8 @@ test("report_user respects custom header ip sources for active board members", a
           tool: "Hand",
         },
       });
-      await sockets.__test.handleSocketConnection(reporter.socket);
 
-      const reported = createSocket({
+      const _reported = await connect({
         id: "socket-reported-header",
         remoteAddress: "203.0.113.101",
         headers: withUserSecretCookie("34343434343434343434343434343434", {
@@ -1542,16 +1330,15 @@ test("report_user respects custom header ip sources for active board members", a
           tool: "Ellipse",
         },
       });
-      await sockets.__test.handleSocketConnection(reported.socket);
 
-      getRequiredHandler(
-        reporter.handlers,
+      handler(
+        reporter,
         "report_user",
       )({
         socketId: "socket-reported-header",
       });
 
-      const reportedLog = sockets.__test.getLastUserReportLog();
+      const reportedLog = test.getLastUserReportLog();
       assert.ok(reportedLog);
       assert.equal(reportedLog.reporter_ip, "198.51.100.30");
       assert.equal(reportedLog.reported_ip, "198.51.100.31");
@@ -1561,6 +1348,97 @@ test("report_user respects custom header ip sources for active board members", a
       assert.equal(reportedLog.reported_language, "es-ES,es;q=0.8");
       assert.notEqual(reportedLog.reporter_ip, "203.0.113.100");
       assert.notEqual(reportedLog.reported_ip, "203.0.113.101");
+    },
+  );
+});
+
+test("reconnect during missing-baseline recovery keeps newer recoverable creations", async () => {
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-missing-baseline-race-",
+      boardName: "missing-baseline-race",
+    },
+    async ({ historyDir, connect, invoke, handler, getLoadedBoard }) => {
+      const first = await connect({
+        id: "socket-first",
+        query: { board: "missing-baseline-race" },
+      });
+      const second = await connect({
+        id: "socket-second",
+        query: { board: "missing-baseline-race" },
+      });
+
+      await invoke(first, "broadcast", {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-1",
+        color: "#111111",
+        size: 2,
+        x: 1,
+        y: 2,
+        x2: 3,
+        y2: 4,
+      });
+
+      const board = await getLoadedBoard("missing-baseline-race");
+      await board.save();
+
+      const svgPath = path.join(
+        /** @type {string} */ (historyDir),
+        "board-missing-baseline-race.svg",
+      );
+      await fs.unlink(svgPath);
+
+      await invoke(first, "broadcast", {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-2",
+        color: "#222222",
+        size: 2,
+        x: 5,
+        y: 6,
+        x2: 7,
+        y2: 8,
+      });
+
+      handler(first, "disconnecting")("transport close");
+      handler(second, "disconnecting")("transport close");
+
+      const reconnect = await connect({
+        id: "socket-reconnect",
+        query: { board: "missing-baseline-race" },
+      });
+      await connect({
+        id: "socket-peer",
+        query: { board: "missing-baseline-race" },
+      });
+
+      await invoke(reconnect, "broadcast", {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-3",
+        color: "#333333",
+        size: 2,
+        x: 9,
+        y: 10,
+        x2: 11,
+        y2: 12,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      assert.deepEqual(Object.keys(board.board).sort(), [
+        "rect-1",
+        "rect-2",
+        "rect-3",
+      ]);
+
+      await board.save();
+
+      const savedSvg = await fs.readFile(svgPath, "utf8");
+      assert.match(savedSvg, /id="rect-1"/);
+      assert.match(savedSvg, /id="rect-2"/);
+      assert.match(savedSvg, /id="rect-3"/);
     },
   );
 });

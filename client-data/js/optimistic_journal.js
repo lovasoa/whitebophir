@@ -49,8 +49,41 @@ function normalizeEntry(entry) {
 export function createOptimisticJournal() {
   /** @type {Map<string, any>} */
   const entries = new Map();
+  /** @type {Map<string, string[]>} */
+  const latestMutationIdsByItemId = new Map();
   /** @type {string[]} */
   let order = [];
+
+  /**
+   * @param {any} entry
+   * @returns {void}
+   */
+  function addEntryToIndexes(entry) {
+    entry.affectedIds.forEach((/** @type {string} */ itemId) => {
+      const mutationIds = latestMutationIdsByItemId.get(itemId) || [];
+      mutationIds.push(entry.clientMutationId);
+      latestMutationIdsByItemId.set(itemId, mutationIds);
+    });
+  }
+
+  /**
+   * @param {any} entry
+   * @returns {void}
+   */
+  function removeEntryFromIndexes(entry) {
+    entry.affectedIds.forEach((/** @type {string} */ itemId) => {
+      const mutationIds = latestMutationIdsByItemId.get(itemId);
+      if (!mutationIds) return;
+      const nextMutationIds = mutationIds.filter(
+        (clientMutationId) => clientMutationId !== entry.clientMutationId,
+      );
+      if (nextMutationIds.length === 0) {
+        latestMutationIdsByItemId.delete(itemId);
+        return;
+      }
+      latestMutationIdsByItemId.set(itemId, nextMutationIds);
+    });
+  }
 
   function list() {
     return order.map((clientMutationId) =>
@@ -65,9 +98,14 @@ export function createOptimisticJournal() {
      */
     append(entry) {
       const normalized = normalizeEntry(entry);
+      const existing = entries.get(normalized.clientMutationId);
+      if (existing) {
+        removeEntryFromIndexes(existing);
+      }
       entries.set(normalized.clientMutationId, normalized);
       order = order.filter((id) => id !== normalized.clientMutationId);
       order.push(normalized.clientMutationId);
+      addEntryToIndexes(normalized);
       return cloneEntry(normalized);
     },
     /**
@@ -77,6 +115,7 @@ export function createOptimisticJournal() {
     promote(clientMutationId) {
       if (!entries.has(clientMutationId)) return [];
       const promoted = cloneEntry(entries.get(clientMutationId));
+      removeEntryFromIndexes(entries.get(clientMutationId));
       entries.delete(clientMutationId);
       order = order.filter((id) => id !== clientMutationId);
       return [promoted];
@@ -108,6 +147,8 @@ export function createOptimisticJournal() {
         .filter((id) => rejectedIds.has(id))
         .map((id) => cloneEntry(entries.get(id)));
       rejectedIds.forEach((id) => {
+        const entry = entries.get(id);
+        if (entry) removeEntryFromIndexes(entry);
         entries.delete(id);
       });
       order = order.filter((id) => !rejectedIds.has(id));
@@ -156,14 +197,30 @@ export function createOptimisticJournal() {
         .filter((id) => rejectedIds.has(id))
         .map((id) => cloneEntry(entries.get(id)));
       rejectedIds.forEach((id) => {
+        const entry = entries.get(id);
+        if (entry) removeEntryFromIndexes(entry);
         entries.delete(id);
       });
       order = order.filter((id) => !rejectedIds.has(id));
       return rejectedEntries;
     },
+    /**
+     * @param {string[]} itemIds
+     * @returns {string[]}
+     */
+    dependencyMutationIdsForItemIds(itemIds) {
+      return [
+        ...new Set(
+          normalizeStringArray(itemIds)
+            .map((itemId) => latestMutationIdsByItemId.get(itemId)?.at(-1))
+            .filter((clientMutationId) => typeof clientMutationId === "string"),
+        ),
+      ];
+    },
     reset() {
       const pending = list();
       entries.clear();
+      latestMutationIdsByItemId.clear();
       order = [];
       return pending;
     },

@@ -449,6 +449,21 @@ function needsSourcePayload(record) {
 }
 
 /**
+ * @param {{tagName: string, attributes: {[name: string]: string}, content: string, raw: string}} entry
+ * @returns {{txt: string} | {_children: any[]} | undefined}
+ */
+function readStoredSourcePayload(entry) {
+  const sourceItem = parseStoredSvgItem(entry);
+  if (sourceItem?.tool === "Text") {
+    return { txt: sourceItem.txt };
+  }
+  if (sourceItem?.tool === "Pencil") {
+    return { _children: sourceItem._children || [] };
+  }
+  return undefined;
+}
+
+/**
  * @param {Map<string, any>} itemsById
  * @returns {Map<string, string[]>}
  */
@@ -571,11 +586,9 @@ async function rewriteStoredSvgFromCanonical(
       }
 
       if (copyTargetsBySourceId.has(id)) {
-        const sourceItem = parseStoredSvgItem(event.entry);
-        if (sourceItem?.tool === "Text") {
-          bufferedPayloads.set(id, { txt: sourceItem.txt });
-        } else if (sourceItem?.tool === "Pencil") {
-          bufferedPayloads.set(id, { _children: sourceItem._children || [] });
+        const sourcePayload = readStoredSourcePayload(event.entry);
+        if (sourcePayload) {
+          bufferedPayloads.set(id, sourcePayload);
         }
       }
 
@@ -587,17 +600,7 @@ async function rewriteStoredSvgFromCanonical(
       }
 
       const sourcePayload = needsSourcePayload(item)
-        ? bufferedPayloads.get(id) ||
-          (() => {
-            const sourceItem = parseStoredSvgItem(event.entry);
-            if (sourceItem?.tool === "Text") {
-              return { txt: sourceItem.txt };
-            }
-            if (sourceItem?.tool === "Pencil") {
-              return { _children: sourceItem._children || [] };
-            }
-            return undefined;
-          })()
+        ? bufferedPayloads.get(id) || readStoredSourcePayload(event.entry)
         : undefined;
       const rewrittenTag = serializeStoredSvgItem(
         materializeItemForSave(item, sourcePayload),

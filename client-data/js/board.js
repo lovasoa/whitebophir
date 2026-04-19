@@ -217,7 +217,6 @@ Tools.hasAuthoritativeBoardSnapshot = false;
 Tools.authoritativeSeq = 0;
 Tools.authoritativeDrawingMarkup = "";
 Tools.optimisticJournal = OptimisticJournal.createOptimisticJournal();
-Tools.optimisticMutationIdsByItemId = new Map();
 Tools.preSnapshotMessages = [];
 Tools.incomingBroadcastQueue = [];
 Tools.processingIncomingBroadcast = false;
@@ -441,16 +440,6 @@ Tools.restoreLocalCursor = function restoreLocalCursor() {
   cursorTool.draw(message, true);
 };
 
-Tools.rebuildOptimisticMutationIndex =
-  function rebuildOptimisticMutationIndex() {
-    Tools.optimisticMutationIdsByItemId.clear();
-    Tools.optimisticJournal.list().forEach((entry) => {
-      entry.affectedIds.forEach((itemId) => {
-        Tools.optimisticMutationIdsByItemId.set(itemId, entry.clientMutationId);
-      });
-    });
-  };
-
 /**
  * @param {BoardMessage} message
  * @returns {{kind: "drawing-area", markup: string} | {kind: "items", snapshots: Array<{id: string, outerHTML: string | null, nextSiblingId: string | null}>}}
@@ -486,13 +475,9 @@ Tools.captureOptimisticRollback = function captureOptimisticRollback(message) {
  */
 Tools.collectOptimisticDependencyMutationIds =
   function collectOptimisticDependencyMutationIds(message) {
-    return [
-      ...new Set(
-        OptimisticMutation.collectOptimisticDependencyIds(message)
-          .map((itemId) => Tools.optimisticMutationIdsByItemId.get(itemId))
-          .filter((clientMutationId) => typeof clientMutationId === "string"),
-      ),
-    ];
+    return Tools.optimisticJournal.dependencyMutationIdsForItemIds(
+      OptimisticMutation.collectOptimisticDependencyIds(message),
+    );
   };
 
 /**
@@ -515,7 +500,6 @@ Tools.trackOptimisticMutation = function trackOptimisticMutation(
     rollback,
     message,
   });
-  Tools.rebuildOptimisticMutationIndex();
 };
 
 /**
@@ -532,7 +516,6 @@ Tools.applyRejectedOptimisticEntries = function applyRejectedOptimisticEntries(
     .forEach((entry) => {
       Tools.restoreOptimisticRollback(entry.rollback);
     });
-  Tools.rebuildOptimisticMutationIndex();
   Tools.restoreLocalCursor();
 };
 
@@ -577,7 +560,6 @@ Tools.promoteOptimisticMutation = function promoteOptimisticMutation(
   clientMutationId,
 ) {
   if (Tools.optimisticJournal.promote(clientMutationId).length === 0) return;
-  Tools.rebuildOptimisticMutationIndex();
 };
 
 /**
@@ -622,7 +604,6 @@ Tools.applyAuthoritativeBaseline =
     Tools.authoritativeSeq = baseline.seq;
     Tools.authoritativeDrawingMarkup = baseline.drawingAreaMarkup;
     Tools.optimisticJournal.reset();
-    Tools.optimisticMutationIdsByItemId.clear();
     Tools.svg.setAttribute("data-wbo-seq", String(baseline.seq));
     Tools.svg.setAttribute(
       "data-wbo-readonly",
@@ -863,7 +844,6 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.awaitingBoardSnapshot = true;
   Tools.awaitingSyncReplay = true;
   Tools.optimisticJournal.reset();
-  Tools.optimisticMutationIdsByItemId.clear();
   Tools.preSnapshotMessages = [];
   Tools.incomingBroadcastQueue = [];
   Tools.processingIncomingBroadcast = false;

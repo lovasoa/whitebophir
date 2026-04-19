@@ -1,10 +1,19 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
-const os = require("node:os");
 const path = require("node:path");
 
-const { BOARD_DATA_PATH, withEnv, writeBoard } = require("./test_helpers.js");
+const {
+  BOARD_DATA_PATH,
+  loadBoardData,
+  withBoardHistoryDir,
+  withEnv,
+  writeBoard,
+} = require("./test_helpers.js");
+
+function getBoardDataClass() {
+  return loadBoardData();
+}
 
 /**
  * @template T
@@ -45,6 +54,152 @@ async function applyPersistentMutation(board, mutation, acceptedAtMs) {
 }
 
 /**
+ * @param {any} board
+ * @param {any[]} mutations
+ * @param {number} [firstAcceptedAtMs]
+ * @returns {Promise<void>}
+ */
+async function applyPersistentMutations(
+  board,
+  mutations,
+  firstAcceptedAtMs = 1,
+) {
+  let acceptedAtMs = firstAcceptedAtMs;
+  for (const mutation of mutations) {
+    await applyPersistentMutation(board, mutation, acceptedAtMs);
+    acceptedAtMs += 1;
+  }
+}
+
+/**
+ * @param {any} board
+ * @param {any[]} messages
+ * @returns {void}
+ */
+function assertMessagesAccepted(board, messages) {
+  for (const message of messages) {
+    assert.equal(board.processMessage(message).ok, true);
+  }
+}
+
+/**
+ * @param {string} id
+ * @param {string} color
+ * @param {number} size
+ * @param {any} x
+ * @param {any} y
+ * @param {any} x2
+ * @param {any} y2
+ * @returns {any}
+ */
+function rectangleMessage(id, color, size, x, y, x2, y2) {
+  return {
+    tool: "Rectangle",
+    type: "rect",
+    id,
+    color,
+    size,
+    x,
+    y,
+    x2,
+    y2,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {{ [key: string]: any }} changes
+ * @returns {any}
+ */
+function rectangleUpdate(id, changes) {
+  return { tool: "Rectangle", type: "update", id, ...changes };
+}
+
+/**
+ * @param {{
+ *   historyDir: string,
+ *   boardName: string,
+ *   storedBoard?: any,
+ *   storedSvg?: string,
+ * }} options
+ * @returns {Promise<{
+ *   BoardData: ReturnType<typeof loadBoardData>,
+ *   board: any,
+ *   svgPath: string,
+ * }>}
+ */
+async function withLoadedBoard(options) {
+  const { historyDir, boardName, storedBoard, storedSvg } = options;
+  const BoardData = getBoardDataClass();
+  const svgPath = path.join(
+    historyDir,
+    `board-${encodeURIComponent(boardName)}.svg`,
+  );
+  if (storedBoard !== undefined) {
+    await writeBoard(historyDir, boardName, storedBoard);
+  }
+  if (storedSvg !== undefined) {
+    await fs.writeFile(svgPath, storedSvg, "utf8");
+  }
+  return {
+    BoardData,
+    board: await BoardData.load(boardName),
+    svgPath,
+  };
+}
+
+/**
+ * @param {{
+ *   seq?: number,
+ *   readonly?: boolean,
+ *   width?: number,
+ *   height?: number,
+ *   defs?: string,
+ *   drawingArea?: string,
+ *   cursors?: string,
+ * }} [options]
+ * @returns {string}
+ */
+function buildStoredSvg(options = {}) {
+  const {
+    seq = 1,
+    readonly = false,
+    width = 777,
+    height = 888,
+    defs = "",
+    drawingArea = "",
+    cursors = "",
+  } = options;
+  return `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="${width}" height="${height}" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="${seq}" data-wbo-readonly="${readonly}"><defs id="defs">${defs}</defs><g id="drawingArea">${drawingArea}</g><g id="cursors">${cursors}</g></svg>`;
+}
+
+/**
+ * @param {string} id
+ * @param {string} color
+ * @param {number} size
+ * @param {{x: number, y: number}[]} [points]
+ * @returns {any[]}
+ */
+function buildPencilStrokeMutations(id, color, size, points = []) {
+  return [
+    {
+      tool: "Pencil",
+      type: "line",
+      id,
+      color,
+      size,
+    },
+    ...points.map(({ x, y }) => ({
+      tool: "Pencil",
+      type: "child",
+      parent: id,
+      x,
+      y,
+    })),
+  ];
+}
+
+/**
  * @param {() => boolean | Promise<boolean>} predicate
  * @param {number} [timeoutMs]
  * @returns {Promise<void>}
@@ -60,7 +215,7 @@ async function waitFor(predicate, timeoutMs = 2000) {
 }
 
 test("BoardData processMessageBatch and per-message processing stay in sync", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const single = disableSaves(new BoardData("process-sequence-single"));
   const batch = disableSaves(new BoardData("process-sequence-batch"));
 
@@ -80,24 +235,15 @@ test("BoardData processMessageBatch and per-message processing stay in sync", ()
       y: 20,
     },
     {
-      tool: "Rectangle",
-      type: "rect",
-      id: "r-1",
-      color: "#123456",
-      size: 4,
-      x: 2,
-      y: 3,
-      x2: 10,
-      y2: 20,
+      ...rectangleMessage("r-1", "#123456", 4, 2, 3, 10, 20),
     },
     {
-      tool: "Rectangle",
-      type: "update",
-      id: "r-1",
-      x: 5,
-      y: 6,
-      x2: 12,
-      y2: 18,
+      ...rectangleUpdate("r-1", {
+        x: 5,
+        y: 6,
+        x2: 12,
+        y2: 18,
+      }),
     },
     {
       tool: "Hand",
@@ -176,7 +322,7 @@ test("computeSaveDelayMs accelerates the first svg baseline save only", () => {
 });
 
 test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("finalize-persisted-snapshot"));
 
   assert.equal(
@@ -231,41 +377,21 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
 });
 
 test("finalizePersistedItems folds newly persisted pencil children into the baseline", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("finalize-persisted-children"));
 
-  assert.equal(
-    board.processMessage({
-      tool: "Pencil",
-      type: "line",
-      id: "line-1",
-      color: "#111111",
-      size: 4,
-    }).ok,
-    true,
-  );
-  assert.equal(
-    board.processMessage({
-      tool: "Pencil",
-      type: "child",
-      parent: "line-1",
-      x: 10,
-      y: 20,
-    }).ok,
-    true,
+  assertMessagesAccepted(
+    board,
+    buildPencilStrokeMutations("line-1", "#111111", 4, [{ x: 10, y: 20 }]),
   );
 
   const persistedSnapshot = new Map(board.itemsById);
 
-  assert.equal(
-    board.processMessage({
-      tool: "Pencil",
-      type: "child",
-      parent: "line-1",
-      x: 25,
-      y: 35,
-    }).ok,
-    true,
+  assertMessagesAccepted(
+    board,
+    buildPencilStrokeMutations("line-1", "#111111", 4, [
+      { x: 25, y: 35 },
+    ]).slice(1),
   );
 
   board.finalizePersistedItems(persistedSnapshot);
@@ -278,31 +404,21 @@ test("finalizePersistedItems folds newly persisted pencil children into the base
 });
 
 test("finalizePersistedItems keeps omitted pencil creates dirty until they serialize", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("finalize-omitted-pencil"));
 
-  assert.equal(
-    board.processMessage({
-      tool: "Pencil",
-      type: "line",
-      id: "line-1",
-      color: "#111111",
-      size: 4,
-    }).ok,
-    true,
+  assertMessagesAccepted(
+    board,
+    buildPencilStrokeMutations("line-1", "#111111", 4),
   );
 
   const persistedSnapshot = new Map(board.itemsById);
 
-  assert.equal(
-    board.processMessage({
-      tool: "Pencil",
-      type: "child",
-      parent: "line-1",
-      x: 10,
-      y: 20,
-    }).ok,
-    true,
+  assertMessagesAccepted(
+    board,
+    buildPencilStrokeMutations("line-1", "#111111", 4, [
+      { x: 10, y: 20 },
+    ]).slice(1),
   );
 
   board.finalizePersistedItems(persistedSnapshot, new Set());
@@ -315,86 +431,27 @@ test("finalizePersistedItems keeps omitted pencil creates dirty until they seria
 });
 
 test("save schedules a fast follow-up when newer created items remain dirty", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-save-follow-up-"),
-  );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
+  await withBoardHistoryDir("wbo-save-follow-up-", async ({ historyDir }) => {
+    const BoardData = getBoardDataClass();
     const board = new BoardData("follow-up-save-board");
 
-    assert.equal(
-      board.processMessage({
-        tool: "Pencil",
-        type: "line",
-        id: "pencil-1",
-        color: "#123456",
-        size: 4,
-      }).ok,
-      true,
-    );
-    assert.equal(
-      board.processMessage({
-        tool: "Pencil",
-        type: "child",
-        parent: "pencil-1",
-        x: 100,
-        y: 200,
-      }).ok,
-      true,
-    );
-    assert.equal(
-      board.processMessage({
-        tool: "Pencil",
-        type: "child",
-        parent: "pencil-1",
-        x: 300,
-        y: 400,
-      }).ok,
-      true,
+    assertMessagesAccepted(
+      board,
+      buildPencilStrokeMutations("pencil-1", "#123456", 4, [
+        { x: 100, y: 200 },
+        { x: 300, y: 400 },
+      ]),
     );
 
     await new Promise((resolve) => setTimeout(resolve, 60));
 
-    assert.equal(
-      board.processMessage({
-        tool: "Pencil",
-        type: "line",
-        id: "pencil-2",
-        color: "#abcdef",
-        size: 4,
-      }).ok,
-      true,
-    );
-    assert.equal(
-      board.processMessage({
-        tool: "Pencil",
-        type: "child",
-        parent: "pencil-2",
-        x: 0,
-        y: 0,
-      }).ok,
-      true,
-    );
-    assert.equal(
-      board.processMessage({
-        tool: "Pencil",
-        type: "child",
-        parent: "pencil-2",
-        x: 90,
-        y: 120,
-      }).ok,
-      true,
-    );
-    assert.equal(
-      board.processMessage({
-        tool: "Pencil",
-        type: "child",
-        parent: "pencil-2",
-        x: 180,
-        y: 0,
-      }).ok,
-      true,
+    assertMessagesAccepted(
+      board,
+      buildPencilStrokeMutations("pencil-2", "#abcdef", 4, [
+        { x: 0, y: 0 },
+        { x: 90, y: 120 },
+        { x: 180, y: 0 },
+      ]),
     );
 
     await waitFor(async () => {
@@ -419,22 +476,12 @@ test("save schedules a fast follow-up when newer created items remain dirty", as
 });
 
 test("BoardData replays batch updates, copies, and deletes consistently", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("replay-board"));
 
   board.processMessage({
     _children: [
-      {
-        tool: "Rectangle",
-        type: "rect",
-        id: "rect-1",
-        color: "#112233",
-        size: 4,
-        x: 0,
-        y: 0,
-        x2: 10,
-        y2: 10,
-      },
+      rectangleMessage("rect-1", "#112233", 4, 0, 0, 10, 10),
       {
         tool: "Hand",
         type: "update",
@@ -472,37 +519,13 @@ test("BoardData replays batch updates, copies, and deletes consistently", () => 
 });
 
 test("BoardData keeps paint order stable when updating existing items", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("paint-order-stability"));
 
-  assert.equal(
-    board.processMessage({
-      tool: "Rectangle",
-      type: "rect",
-      id: "rect-1",
-      color: "#112233",
-      size: 4,
-      x: 0,
-      y: 0,
-      x2: 10,
-      y2: 10,
-    }).ok,
-    true,
-  );
-  assert.equal(
-    board.processMessage({
-      tool: "Rectangle",
-      type: "rect",
-      id: "rect-2",
-      color: "#445566",
-      size: 4,
-      x: 20,
-      y: 20,
-      x2: 30,
-      y2: 30,
-    }).ok,
-    true,
-  );
+  assertMessagesAccepted(board, [
+    rectangleMessage("rect-1", "#112233", 4, 0, 0, 10, 10),
+    rectangleMessage("rect-2", "#445566", 4, 20, 20, 30, 30),
+  ]);
 
   const beforeOrder = [...board.paintOrder];
 
@@ -523,31 +546,22 @@ test("BoardData keeps paint order stable when updating existing items", () => {
 });
 
 test("BoardData applies parent tool metadata to batched Hand updates", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("hand-batch-board"));
 
-  board.processMessage({
-    tool: "Rectangle",
-    type: "rect",
-    id: "rect-1",
-    color: "#112233",
-    size: 4,
-    x: 0,
-    y: 0,
-    x2: 10,
-    y2: 10,
-  });
-
-  board.processMessage({
-    tool: "Hand",
-    _children: [
-      {
-        type: "update",
-        id: "rect-1",
-        transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
-      },
-    ],
-  });
+  assertMessagesAccepted(board, [
+    rectangleMessage("rect-1", "#112233", 4, 0, 0, 10, 10),
+    {
+      tool: "Hand",
+      _children: [
+        {
+          type: "update",
+          id: "rect-1",
+          transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
+        },
+      ],
+    },
+  ]);
 
   assert.deepEqual(board.get("rect-1").transform, {
     a: 1,
@@ -560,38 +574,17 @@ test("BoardData applies parent tool metadata to batched Hand updates", () => {
 });
 
 test("BoardData authoritativeItemCount drops to zero after clear", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("authoritative-count-clear"));
 
-  board.processMessage({
-    tool: "Rectangle",
-    type: "rect",
-    id: "rect-1",
-    color: "#112233",
-    size: 4,
-    x: 0,
-    y: 0,
-    x2: 10,
-    y2: 10,
-  });
-  board.processMessage({
-    tool: "Rectangle",
-    type: "rect",
-    id: "rect-2",
-    color: "#445566",
-    size: 4,
-    x: 20,
-    y: 20,
-    x2: 30,
-    y2: 30,
-  });
+  assertMessagesAccepted(board, [
+    rectangleMessage("rect-1", "#112233", 4, 0, 0, 10, 10),
+    rectangleMessage("rect-2", "#445566", 4, 20, 20, 30, 30),
+  ]);
 
   assert.equal(board.authoritativeItemCount(), 2);
 
-  board.processMessage({
-    tool: "Clear",
-    type: "clear",
-  });
+  assertMessagesAccepted(board, [{ tool: "Clear", type: "clear" }]);
 
   assert.equal(board.authoritativeItemCount(), 0);
   assert.equal(board.get("rect-1"), undefined);
@@ -599,36 +592,21 @@ test("BoardData authoritativeItemCount drops to zero after clear", () => {
 });
 
 test("BoardData copy keeps pencil child arrays isolated", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("copy-pencil-isolation"));
 
-  board.processMessage({
-    tool: "Pencil",
-    type: "line",
-    id: "p-1",
-    color: "#123456",
-    size: 4,
-  });
-  board.processMessage({
-    tool: "Pencil",
-    type: "child",
-    parent: "p-1",
-    x: 10,
-    y: 20,
-  });
-  board.processMessage({
-    tool: "Hand",
-    type: "copy",
-    id: "p-1",
-    newid: "p-2",
-  });
-  board.processMessage({
-    tool: "Pencil",
-    type: "child",
-    parent: "p-1",
-    x: 30,
-    y: 40,
-  });
+  assertMessagesAccepted(board, [
+    ...buildPencilStrokeMutations("p-1", "#123456", 4, [{ x: 10, y: 20 }]),
+    {
+      tool: "Hand",
+      type: "copy",
+      id: "p-1",
+      newid: "p-2",
+    },
+    ...buildPencilStrokeMutations("p-1", "#123456", 4, [
+      { x: 30, y: 40 },
+    ]).slice(1),
+  ]);
 
   assert.equal(board.get("p-1")._children.length, 2);
   assert.equal(board.get("p-2")._children.length, 1);
@@ -637,7 +615,7 @@ test("BoardData copy keeps pencil child arrays isolated", () => {
 
 test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async () => {
   await withEnv({ WBO_MAX_CHILDREN: "1" }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    const BoardData = getBoardDataClass();
     const board = disableSaves(new BoardData("child-cap-board"));
 
     board.set("line-1", {
@@ -655,7 +633,7 @@ test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async () => {
 });
 
 test("BoardData rejects the first pencil child that makes a stroke oversized", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("oversized-pencil-board"));
 
   assert.equal(
@@ -679,20 +657,12 @@ test("BoardData rejects the first pencil child that makes a stroke oversized", (
 });
 
 test("BoardData rejects transform updates that make a stored shape oversized", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("oversized-transform-board"));
 
-  board.processMessage({
-    tool: "Rectangle",
-    type: "rect",
-    id: "rect-1",
-    color: "#112233",
-    size: 4,
-    x: 0,
-    y: 0,
-    x2: 1000,
-    y2: 1000,
-  });
+  assertMessagesAccepted(board, [
+    rectangleMessage("rect-1", "#112233", 4, 0, 0, 1000, 1000),
+  ]);
 
   assert.equal(
     board.processMessage({
@@ -707,67 +677,41 @@ test("BoardData rejects transform updates that make a stored shape oversized", (
 });
 
 test("BoardData drops zero-size seed shapes after an oversized update is rejected", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("oversized-seed-shape-board"));
 
-  assert.equal(
-    board.processMessage({
-      tool: "Rectangle",
-      type: "rect",
-      id: "rect-1",
-      color: "#112233",
-      size: 4,
-      x: 10,
-      y: 10,
-      x2: 10,
-      y2: 10,
-    }).ok,
-    true,
-  );
+  assertMessagesAccepted(board, [
+    rectangleMessage("rect-1", "#112233", 4, 10, 10, 10, 10),
+  ]);
 
   assert.equal(
-    board.processMessage({
-      tool: "Rectangle",
-      type: "update",
-      id: "rect-1",
-      x: 10,
-      y: 10,
-      x2: 4015,
-      y2: 30,
-    }).ok,
+    board.processMessage(
+      rectangleUpdate("rect-1", {
+        x: 10,
+        y: 10,
+        x2: 4015,
+        y2: 30,
+      }),
+    ).ok,
     false,
   );
   assert.equal(board.get("rect-1"), undefined);
 });
 
 test("BoardData.preparePersistentMutation preserves seed-drop followups and stays in sync after them", async () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("prepare-seed-followup-board"));
 
-  assert.equal(
-    board.processMessage({
-      tool: "Rectangle",
-      type: "rect",
-      id: "rect-1",
-      color: "#112233",
-      size: 4,
-      x: 10,
-      y: 10,
-      x2: 10,
-      y2: 10,
-    }).ok,
-    true,
-  );
+  assertMessagesAccepted(board, [
+    rectangleMessage("rect-1", "#112233", 4, 10, 10, 10, 10),
+  ]);
 
-  const oversizedUpdate = {
-    tool: "Rectangle",
-    type: "update",
-    id: "rect-1",
+  const oversizedUpdate = rectangleUpdate("rect-1", {
     x: 10,
     y: 10,
     x2: 4015,
     y2: 30,
-  };
+  });
 
   assert.deepEqual(await board.preparePersistentMutation(oversizedUpdate), {
     ok: true,
@@ -800,31 +744,13 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
 });
 
 test("BoardData rejects hand batches atomically when one transform is oversized", () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = disableSaves(new BoardData("atomic-hand-batch-board"));
 
-  board.processMessage({
-    tool: "Rectangle",
-    type: "rect",
-    id: "rect-1",
-    color: "#112233",
-    size: 4,
-    x: 0,
-    y: 0,
-    x2: 1000,
-    y2: 1000,
-  });
-  board.processMessage({
-    tool: "Rectangle",
-    type: "rect",
-    id: "rect-2",
-    color: "#112233",
-    size: 4,
-    x: 0,
-    y: 0,
-    x2: 100,
-    y2: 100,
-  });
+  assertMessagesAccepted(board, [
+    rectangleMessage("rect-1", "#112233", 4, 0, 0, 1000, 1000),
+    rectangleMessage("rect-2", "#112233", 4, 0, 0, 100, 100),
+  ]);
 
   assert.equal(
     board.processMessage({
@@ -850,7 +776,7 @@ test("BoardData rejects hand batches atomically when one transform is oversized"
 
 test("BoardData.clean keeps the newest items when trimming history", async () => {
   await withEnv({ WBO_MAX_ITEM_COUNT: "2" }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
+    const BoardData = getBoardDataClass();
     const board = disableSaves(new BoardData("cleanup-board"));
 
     board.board = {
@@ -866,24 +792,20 @@ test("BoardData.clean keeps the newest items when trimming history", async () =>
 });
 
 test("BoardData.load normalizes stored board items from disk", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-data-load-"),
-  );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
+  await withBoardHistoryDir("wbo-board-data-load-", async ({ historyDir }) => {
+    const BoardData = getBoardDataClass();
     await writeBoard(historyDir, "normalized-load", {
       bad1: {
-        tool: "Rectangle",
-        type: "rect",
-        id: "wrong-id",
-        color: "#abcdef",
-        size: 200,
+        ...rectangleMessage(
+          "wrong-id",
+          "#abcdef",
+          200,
+          -100,
+          "20.333",
+          "70000",
+          40,
+        ),
         opacity: 3,
-        x: -100,
-        y: "20.333",
-        x2: "70000",
-        y2: 40,
         ignored: true,
       },
       bad2: {
@@ -900,132 +822,108 @@ test("BoardData.load normalizes stored board items from disk", async () => {
 });
 
 test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-json-migrate-"),
+  await withBoardHistoryDir(
+    "wbo-board-json-migrate-",
+    async ({ historyDir }) => {
+      const BoardData = getBoardDataClass();
+      await writeBoard(historyDir, "legacy-migrate", {
+        __wbo_meta__: { readonly: true },
+        rect: rectangleMessage("rect", "#123456", 4, 0, 0, 10, 10),
+        pencil: {
+          id: "pencil",
+          tool: "Pencil",
+          type: "line",
+          color: "#8844aa",
+          size: 4,
+          opacity: 1,
+          _children: [
+            { x: 60, y: 80 },
+            { x: 120, y: 130 },
+            { x: 180, y: 100 },
+            { x: 230, y: 170 },
+          ],
+        },
+        text: {
+          id: "text",
+          tool: "Text",
+          type: "new",
+          x: 360,
+          y: 180,
+          color: "#111111",
+          size: 18,
+          txt: "Slow sync",
+        },
+      });
+
+      const board = await BoardData.load("legacy-migrate");
+      const svgPath = path.join(historyDir, "board-legacy-migrate.svg");
+      const svg = await fs.readFile(svgPath, "utf8");
+
+      assert.equal(board.metadata.readonly, true);
+      assert.equal(board.get("rect").tool, "Rectangle");
+      assert.equal(board.get("pencil").tool, "Pencil");
+      assert.equal(board.get("text").tool, "Text");
+      assert.match(svg, /data-wbo-format="whitebophir-svg-v1"/);
+      assert.match(svg, /data-wbo-readonly="true"/);
+      assert.match(svg, /<rect id="rect" x="0" y="0" width="10" height="10"/);
+      assert.match(svg, /<path id="pencil" d="M 60 80/);
+      assert.match(svg, />Slow sync<\/text>/);
+      assert.doesNotMatch(svg, /data-wbo-item|data-wbo-tool/);
+    },
   );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
-    await writeBoard(historyDir, "legacy-migrate", {
-      __wbo_meta__: { readonly: true },
-      rect: {
-        id: "rect",
-        tool: "Rectangle",
-        type: "rect",
-        color: "#123456",
-        size: 4,
-        x: 0,
-        y: 0,
-        x2: 10,
-        y2: 10,
-      },
-      pencil: {
-        id: "pencil",
-        tool: "Pencil",
-        type: "line",
-        color: "#8844aa",
-        size: 4,
-        opacity: 1,
-        _children: [
-          { x: 60, y: 80 },
-          { x: 120, y: 130 },
-          { x: 180, y: 100 },
-          { x: 230, y: 170 },
-        ],
-      },
-      text: {
-        id: "text",
-        tool: "Text",
-        type: "new",
-        x: 360,
-        y: 180,
-        color: "#111111",
-        size: 18,
-        txt: "Slow sync",
-      },
-    });
-
-    const board = await BoardData.load("legacy-migrate");
-    const svgPath = path.join(historyDir, "board-legacy-migrate.svg");
-    const svg = await fs.readFile(svgPath, "utf8");
-
-    assert.equal(board.metadata.readonly, true);
-    assert.equal(board.get("rect").tool, "Rectangle");
-    assert.equal(board.get("pencil").tool, "Pencil");
-    assert.equal(board.get("text").tool, "Text");
-    assert.match(svg, /data-wbo-format="whitebophir-svg-v1"/);
-    assert.match(svg, /data-wbo-readonly="true"/);
-    assert.match(svg, /<rect id="rect" x="0" y="0" width="10" height="10"/);
-    assert.match(svg, /<path id="pencil" d="M 60 80/);
-    assert.match(svg, />Slow sync<\/text>/);
-    assert.doesNotMatch(svg, /data-wbo-item|data-wbo-tool/);
-  });
 });
 
 test("BoardData eagerly loads canonical persisted svg items before applying updates", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-lazy-hydrate-"),
-  );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
-    await fs.writeFile(
-      path.join(historyDir, "board-lazy-hydrate.svg"),
-      '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>',
-      "utf8",
-    );
-
-    const board = await BoardData.load("lazy-hydrate");
-    assert.deepEqual(board.get("rect-1"), {
-      id: "rect-1",
-      tool: "Rectangle",
-      x: 1,
-      y: 2,
-      x2: 3,
-      y2: 4,
-      color: "#123456",
-      size: 4,
-    });
-
-    const updateRect = {
-      tool: "Rectangle",
-      type: "update",
-      id: "rect-1",
-      x2: 30,
-      y2: 40,
-    };
-    assert.deepEqual(await board.preparePersistentMutation(updateRect), {
-      ok: true,
-      mutation: updateRect,
-    });
-    assert.equal(board.processMessage(updateRect).ok, true);
-    assert.deepEqual(
-      {
-        ...board.get("rect-1"),
-        time: undefined,
-      },
-      {
+  await withBoardHistoryDir(
+    "wbo-board-lazy-hydrate-",
+    async ({ historyDir }) => {
+      const { board } = await withLoadedBoard({
+        historyDir,
+        boardName: "lazy-hydrate",
+        storedSvg: buildStoredSvg({
+          width: 500,
+          height: 500,
+          drawingArea:
+            '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>',
+        }),
+      });
+      assert.deepEqual(board.get("rect-1"), {
         id: "rect-1",
         tool: "Rectangle",
         x: 1,
         y: 2,
-        x2: 30,
-        y2: 40,
+        x2: 3,
+        y2: 4,
         color: "#123456",
         size: 4,
-        time: undefined,
-      },
-    );
-  });
+      });
+
+      const updateRect = rectangleUpdate("rect-1", { x2: 30, y2: 40 });
+      await applyPersistentMutation(board, updateRect, 1);
+      assert.deepEqual(
+        {
+          ...board.get("rect-1"),
+          time: undefined,
+        },
+        {
+          id: "rect-1",
+          tool: "Rectangle",
+          x: 1,
+          y: 2,
+          x2: 30,
+          y2: 40,
+          color: "#123456",
+          size: 4,
+          time: undefined,
+        },
+      );
+    },
+  );
 });
 
 test("BoardData records contiguous mutation seq values and persists them into svg baselines", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-seq-save-"),
-  );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
+  await withBoardHistoryDir("wbo-board-seq-save-", async ({ historyDir }) => {
+    const BoardData = getBoardDataClass();
     const board = new BoardData("seq-save");
 
     const message = {
@@ -1072,44 +970,16 @@ test("BoardData records contiguous mutation seq values and persists them into sv
 });
 
 test("BoardData.save trims persisted replay history past the configured retention window", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-replay-retention-"),
-  );
-
-  await withEnv(
-    {
-      WBO_HISTORY_DIR: historyDir,
-      WBO_SEQ_REPLAY_RETENTION_MS: "0",
-    },
+  await withBoardHistoryDir(
+    "wbo-board-replay-retention-",
     async () => {
-      const BoardData = require(BOARD_DATA_PATH).BoardData;
+      const BoardData = getBoardDataClass();
       const board = disableSaves(new BoardData("replay-retention"));
-      const first = {
-        id: "rect-1",
-        tool: "Rectangle",
-        type: "rect",
-        color: "#123456",
-        size: 4,
-        x: 0,
-        y: 0,
-        x2: 10,
-        y2: 10,
-      };
-      const second = {
-        id: "rect-2",
-        tool: "Rectangle",
-        type: "rect",
-        color: "#654321",
-        size: 4,
-        x: 20,
-        y: 20,
-        x2: 30,
-        y2: 30,
-      };
+      const first = rectangleMessage("rect-1", "#123456", 4, 0, 0, 10, 10);
+      const second = rectangleMessage("rect-2", "#654321", 4, 20, 20, 30, 30);
 
-      assert.equal(board.processMessage(first).ok, true);
+      assertMessagesAccepted(board, [first, second]);
       board.recordPersistentMutation(first, 1);
-      assert.equal(board.processMessage(second).ok, true);
       board.recordPersistentMutation(second, 2);
 
       await board.save();
@@ -1123,49 +993,30 @@ test("BoardData.save trims persisted replay history past the configured retentio
         [],
       );
     },
+    { WBO_SEQ_REPLAY_RETENTION_MS: "0" },
   );
 });
 
 test("BoardData.save keeps writing to the board's original history dir after env changes", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-sticky-history-"),
-  );
-
   /** @type {InstanceType<typeof import("../server/boardData.mjs").BoardData> | undefined} */
   let board;
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
+  let historyDir;
+  await withBoardHistoryDir("wbo-board-sticky-history-", async (context) => {
+    historyDir = context.historyDir;
+    const BoardData = getBoardDataClass();
     board = new BoardData("sticky-history");
     const stickyBoard =
       /** @type {InstanceType<typeof import("../server/boardData.mjs").BoardData>} */ (
         board
       );
-    stickyBoard.processMessage({
-      id: "rect-1",
-      tool: "Rectangle",
-      type: "rect",
-      color: "#654321",
-      size: 4,
-      x: 0,
-      y: 0,
-      x2: 10,
-      y2: 10,
-    });
-    stickyBoard.recordPersistentMutation({
-      id: "rect-1",
-      tool: "Rectangle",
-      type: "rect",
-      color: "#654321",
-      size: 4,
-      x: 0,
-      y: 0,
-      x2: 10,
-      y2: 10,
-    });
+    const rect = rectangleMessage("rect-1", "#654321", 4, 0, 0, 10, 10);
+    stickyBoard.processMessage(rect);
+    stickyBoard.recordPersistentMutation(rect);
     clearTimeout(stickyBoard.saveTimeoutId);
     stickyBoard.saveTimeoutId = undefined;
   });
   assert.ok(board);
+  assert.ok(historyDir);
   const stickyBoard = board;
 
   await withEnv({ WBO_HISTORY_DIR: undefined }, async () => {
@@ -1180,407 +1031,446 @@ test("BoardData.save keeps writing to the board's original history dir after env
 });
 
 test("BoardData.save rewrites existing stored svg from queued mutations", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-save-rewrite-"),
+  await withBoardHistoryDir(
+    "wbo-board-save-rewrite-",
+    async ({ historyDir }) => {
+      const existingSvg = buildStoredSvg({
+        defs: '<style>.keep-me{}</style><marker id="m1"></marker>',
+        drawingArea:
+          '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
+          '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello</text>',
+        cursors: '<path id="cursor-template"></path>',
+      });
+      const { board, svgPath } = await withLoadedBoard({
+        historyDir,
+        boardName: "rewrite-save",
+        storedSvg: existingSvg,
+      });
+      const updateRect = rectangleUpdate("rect-1", { x2: 30, y2: 40 });
+      const copyRect = {
+        tool: "Hand",
+        type: "copy",
+        id: "rect-1",
+        newid: "rect-2",
+      };
+      const deleteText = {
+        tool: "Eraser",
+        type: "delete",
+        id: "text-1",
+      };
+      await applyPersistentMutations(
+        board,
+        [updateRect, copyRect, deleteText],
+        2,
+      );
+
+      await board.save();
+
+      const rewritten = await fs.readFile(svgPath, "utf8");
+      assert.match(
+        rewritten,
+        /<style>\.keep-me\{\}<\/style><marker id="m1"><\/marker><\/defs>/,
+      );
+      assert.match(
+        rewritten,
+        /<g id="cursors"><path id="cursor-template"><\/path><\/g>/,
+      );
+      assert.match(rewritten, /data-wbo-seq="4"/);
+      const rect1Index = rewritten.indexOf('id="rect-1"');
+      const rect2Index = rewritten.indexOf('id="rect-2"');
+      assert.ok(rect1Index !== -1);
+      assert.ok(rect2Index !== -1);
+      assert.ok(rect1Index < rect2Index);
+      assert.equal(rewritten.includes('id="text-1"'), false);
+    },
   );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
-    const svgPath = path.join(historyDir, "board-rewrite-save.svg");
-    const existingSvg =
-      '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
-      '<defs id="defs"><style>.keep-me{}</style><marker id="m1"></marker></defs>' +
-      '<g id="drawingArea">' +
-      '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
-      '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello</text>' +
-      "</g>" +
-      '<g id="cursors"><path id="cursor-template"></path></g>' +
-      "</svg>";
-    await fs.writeFile(svgPath, existingSvg, "utf8");
-
-    const board = await BoardData.load("rewrite-save");
-    const updateRect = {
-      tool: "Rectangle",
-      type: "update",
-      id: "rect-1",
-      x2: 30,
-      y2: 40,
-    };
-    const copyRect = {
-      tool: "Hand",
-      type: "copy",
-      id: "rect-1",
-      newid: "rect-2",
-    };
-    const deleteText = {
-      tool: "Eraser",
-      type: "delete",
-      id: "text-1",
-    };
-
-    assert.deepEqual(await board.preparePersistentMutation(updateRect), {
-      ok: true,
-      mutation: updateRect,
-    });
-    assert.equal(board.processMessage(updateRect).ok, true);
-    board.recordPersistentMutation(updateRect, 2);
-    assert.deepEqual(await board.preparePersistentMutation(copyRect), {
-      ok: true,
-      mutation: copyRect,
-    });
-    assert.equal(board.processMessage(copyRect).ok, true);
-    board.recordPersistentMutation(copyRect, 3);
-    assert.deepEqual(await board.preparePersistentMutation(deleteText), {
-      ok: true,
-      mutation: deleteText,
-    });
-    assert.equal(board.processMessage(deleteText).ok, true);
-    board.recordPersistentMutation(deleteText, 4);
-
-    await board.save();
-
-    const rewritten = await fs.readFile(svgPath, "utf8");
-    assert.match(
-      rewritten,
-      /<style>\.keep-me\{\}<\/style><marker id="m1"><\/marker><\/defs>/,
-    );
-    assert.match(
-      rewritten,
-      /<g id="cursors"><path id="cursor-template"><\/path><\/g>/,
-    );
-    assert.match(rewritten, /data-wbo-seq="4"/);
-    const rect1Index = rewritten.indexOf('id="rect-1"');
-    const rect2Index = rewritten.indexOf('id="rect-2"');
-    assert.ok(rect1Index !== -1);
-    assert.ok(rect2Index !== -1);
-    assert.ok(rect1Index < rect2Index);
-    assert.equal(rewritten.includes('id="text-1"'), false);
-  });
 });
 
-test("BoardData.save recreates a missing stored svg from canonical state", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-save-missing-baseline-"),
+test("BoardData.save replays recoverable mutations when the stored svg is missing", async () => {
+  await withBoardHistoryDir(
+    "wbo-board-save-missing-baseline-",
+    async ({ historyDir }) => {
+      const existingSvg = buildStoredSvg({
+        defs: "<style>.keep-me{}</style>",
+        drawingArea:
+          '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello</text>',
+      });
+      const { BoardData, board, svgPath } = await withLoadedBoard({
+        historyDir,
+        boardName: "missing-baseline",
+        storedSvg: existingSvg,
+      });
+      await fs.unlink(svgPath);
+      await applyPersistentMutation(
+        board,
+        rectangleMessage("rect-2", "#654321", 5, 10, 20, 30, 40),
+        2,
+      );
+
+      await board.save();
+
+      const recreated = await fs.readFile(svgPath, "utf8");
+      assert.match(recreated, /data-wbo-seq="2"/);
+      assert.match(recreated, /id="rect-2"/);
+      assert.equal(recreated.includes('id="text-1"'), false);
+
+      const reloaded = await BoardData.load("missing-baseline");
+      assert.deepEqual(Object.keys(reloaded.board), ["rect-2"]);
+    },
   );
+});
 
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
-    const svgPath = path.join(historyDir, "board-missing-baseline.svg");
-    const existingSvg =
-      '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
-      '<defs id="defs"><style>.keep-me{}</style></defs>' +
-      '<g id="drawingArea">' +
-      '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
-      "</g>" +
-      '<g id="cursors"></g>' +
-      "</svg>";
-    await fs.writeFile(svgPath, existingSvg, "utf8");
+test("BoardData.save tolerates a missing file while only unreconstructible items remain", async () => {
+  await withBoardHistoryDir(
+    "wbo-board-save-missing-pencil-baseline-",
+    async ({ historyDir }) => {
+      const BoardData = getBoardDataClass();
+      const svgPath = path.join(
+        historyDir,
+        "board-missing-pencil-baseline.svg",
+      );
+      const board = await BoardData.load("missing-pencil-baseline");
 
-    const board = await BoardData.load("missing-baseline");
-    await fs.unlink(svgPath);
-    await applyPersistentMutation(
-      board,
-      {
-        tool: "Rectangle",
-        type: "rect",
-        id: "rect-2",
-        color: "#654321",
-        size: 5,
-        x: 10,
-        y: 20,
-        x2: 30,
-        y2: 40,
-      },
-      2,
-    );
+      await applyPersistentMutation(
+        board,
+        buildPencilStrokeMutations("pencil-1", "#123456", 3)[0],
+        1,
+      );
 
-    await board.save();
+      await board.save();
+      await assert.rejects(fs.stat(svgPath), { code: "ENOENT" });
 
-    const recreated = await fs.readFile(svgPath, "utf8");
-    assert.match(recreated, /data-wbo-seq="2"/);
-    assert.match(recreated, /id="rect-1"/);
-    assert.match(recreated, /id="rect-2"/);
-  });
+      await applyPersistentMutations(
+        board,
+        buildPencilStrokeMutations("pencil-1", "#123456", 3, [
+          { x: 10, y: 20 },
+          { x: 15, y: 25 },
+        ]).slice(1),
+        2,
+      );
+
+      await board.save();
+
+      const savedSvg = await fs.readFile(svgPath, "utf8");
+      assert.match(savedSvg, /id="pencil-1"/);
+    },
+  );
+});
+
+test("BoardData.save recovers from a deleted baseline before a new pencil stroke is complete", async () => {
+  await withBoardHistoryDir(
+    "wbo-board-save-missing-baseline-seed-",
+    async ({ historyDir }) => {
+      const BoardData = getBoardDataClass();
+      const svgPath = path.join(historyDir, "board-missing-baseline-seed.svg");
+      const board = new BoardData("missing-baseline-seed");
+
+      await applyPersistentMutations(
+        board,
+        buildPencilStrokeMutations("pencil-1", "#123456", 3, [
+          { x: 10, y: 20 },
+          { x: 15, y: 25 },
+        ]),
+        1,
+      );
+
+      await board.save();
+      await fs.unlink(svgPath);
+
+      await applyPersistentMutation(
+        board,
+        buildPencilStrokeMutations("pencil-2", "#654321", 2)[0],
+        4,
+      );
+
+      await board.save();
+
+      assert.equal(board.hasPersistedBaseline, false);
+      await assert.rejects(fs.stat(svgPath), { code: "ENOENT" });
+      assert.deepEqual(Object.keys(board.board), ["pencil-2"]);
+
+      await applyPersistentMutations(
+        board,
+        buildPencilStrokeMutations("pencil-2", "#654321", 2, [
+          { x: 5, y: 6 },
+          { x: 7, y: 8 },
+        ]).slice(1),
+        5,
+      );
+
+      await board.save();
+
+      const savedSvg = await fs.readFile(svgPath, "utf8");
+      assert.match(savedSvg, /id="pencil-2"/);
+      assert.equal(savedSvg.includes('id="pencil-1"'), false);
+    },
+  );
+});
+
+test("BoardData.dispose prevents queued autosaves from a stale board instance", async () => {
+  await withBoardHistoryDir(
+    "wbo-board-dispose-stale-save-",
+    async ({ historyDir }) => {
+      const BoardData = getBoardDataClass();
+      const svgPath = path.join(historyDir, "board-anonymous.svg");
+      const staleBoard = new BoardData("anonymous");
+
+      await applyPersistentMutations(
+        staleBoard,
+        buildPencilStrokeMutations("pencil-1", "#123456", 3, [
+          { x: 10, y: 20 },
+          { x: 15, y: 25 },
+        ]),
+        1,
+      );
+      await staleBoard.save();
+      await fs.unlink(svgPath);
+
+      await applyPersistentMutation(
+        staleBoard,
+        buildPencilStrokeMutations("pencil-2", "#654321", 2)[0],
+        4,
+      );
+      staleBoard.dispose();
+
+      const currentBoard = await BoardData.load("anonymous");
+      await applyPersistentMutation(
+        currentBoard,
+        rectangleMessage("rect-1", "#222222", 2, 1, 2, 3, 4),
+        5,
+      );
+      await currentBoard.save();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const savedSvg = await fs.readFile(svgPath, "utf8");
+      assert.match(savedSvg, /id="rect-1"/);
+      assert.equal(savedSvg.includes('id="pencil-2"'), false);
+    },
+  );
 });
 
 test("BoardData.save preserves cold-loaded stored svg when there are no pending mutations", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-save-cold-noop-"),
+  await withBoardHistoryDir(
+    "wbo-board-save-cold-noop-",
+    async ({ historyDir }) => {
+      const existingSvg = buildStoredSvg({
+        seq: 7,
+        defs: '<marker id="m1"></marker>',
+        drawingArea:
+          '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
+          '<path id="line-1" d="M 1 2 L 1 2 C 1 2 3 4 3 4" stroke="#654321" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>',
+        cursors: '<path id="cursor-template"></path>',
+      });
+      const { board, svgPath } = await withLoadedBoard({
+        historyDir,
+        boardName: "cold-noop",
+        storedSvg: existingSvg,
+      });
+
+      assert.deepEqual(Object.keys(board.board).sort(), ["line-1", "rect-1"]);
+      await board.save();
+
+      assert.equal(await fs.readFile(svgPath, "utf8"), existingSvg);
+    },
   );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
-    const svgPath = path.join(historyDir, "board-cold-noop.svg");
-    const existingSvg =
-      '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="7" data-wbo-readonly="false">' +
-      '<defs id="defs"><marker id="m1"></marker></defs>' +
-      '<g id="drawingArea">' +
-      '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
-      '<path id="line-1" d="M 1 2 L 1 2 C 1 2 3 4 3 4" stroke="#654321" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>' +
-      "</g>" +
-      '<g id="cursors"><path id="cursor-template"></path></g>' +
-      "</svg>";
-    await fs.writeFile(svgPath, existingSvg, "utf8");
-
-    const board = await BoardData.load("cold-noop");
-
-    assert.deepEqual(Object.keys(board.board).sort(), ["line-1", "rect-1"]);
-    await board.save();
-
-    assert.equal(await fs.readFile(svgPath, "utf8"), existingSvg);
-  });
 });
 
 test("BoardData.save persists canonical test-injected board items through the board setter", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-save-direct-memory-"),
+  await withBoardHistoryDir(
+    "wbo-board-save-direct-memory-",
+    async ({ historyDir }) => {
+      const BoardData = getBoardDataClass();
+      const board = new BoardData("direct-memory-save");
+      board.board = {
+        "text-1": {
+          id: "text-1",
+          tool: "Text",
+          x: 1,
+          y: 2,
+          txt: "hi",
+          size: 12,
+          color: "#000000",
+        },
+      };
+
+      await board.save();
+
+      const svg = await fs.readFile(
+        path.join(historyDir, "board-direct-memory-save.svg"),
+        "utf8",
+      );
+      assert.match(svg, /id="text-1"/);
+    },
   );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
-    const board = new BoardData("direct-memory-save");
-    board.board = {
-      "text-1": {
-        id: "text-1",
-        tool: "Text",
-        x: 1,
-        y: 2,
-        txt: "hi",
-        size: 12,
-        color: "#000000",
-      },
-    };
-
-    await board.save();
-
-    const svg = await fs.readFile(
-      path.join(historyDir, "board-direct-memory-save.svg"),
-      "utf8",
-    );
-    assert.match(svg, /id="text-1"/);
-  });
 });
 
 test("BoardData.save keeps eagerly loaded canonical items and applies streamed svg updates", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-save-streaming-sparse-"),
+  await withBoardHistoryDir(
+    "wbo-board-save-streaming-sparse-",
+    async ({ historyDir }) => {
+      const BoardData = getBoardDataClass();
+      const svgBoardStore = require("../server/svg_board_store.mjs");
+      const boardName = "streaming-sparse";
+
+      await svgBoardStore.writeBoardState(
+        boardName,
+        {
+          "item-0": {
+            id: "item-0",
+            tool: "Pencil",
+            color: "#123456",
+            size: 2,
+            _children: [
+              { x: 0, y: 0 },
+              { x: 2, y: 1 },
+            ],
+          },
+          "item-1": {
+            id: "item-1",
+            tool: "Straight line",
+            color: "#123456",
+            size: 2,
+            x: 1,
+            y: 2,
+            x2: 5,
+            y2: 6,
+          },
+          "item-2": {
+            id: "item-2",
+            tool: "Text",
+            x: 3,
+            y: 4,
+            txt: "hello",
+            size: 18,
+            color: "#654321",
+          },
+          "item-3": {
+            ...rectangleMessage("item-3", "#123456", 2, 5, 6, 9, 12),
+          },
+          "item-4": {
+            id: "item-4",
+            tool: "Ellipse",
+            color: "#123456",
+            size: 2,
+            x: 10,
+            y: 20,
+            x2: 14,
+            y2: 24,
+          },
+        },
+        { readonly: false },
+        0,
+        { historyDir },
+      );
+
+      const board = await BoardData.load(boardName);
+      assert.deepEqual(Object.keys(board.board).sort(), [
+        "item-0",
+        "item-1",
+        "item-2",
+        "item-3",
+        "item-4",
+      ]);
+
+      await applyPersistentMutations(
+        board,
+        [
+          rectangleUpdate("item-3", { x2: 15, y2: 18 }),
+          {
+            tool: "Text",
+            type: "update",
+            id: "item-2",
+            txt: "hello streaming",
+          },
+          {
+            tool: "Pencil",
+            type: "child",
+            parent: "item-0",
+            x: 4,
+            y: 2,
+          },
+          {
+            tool: "Hand",
+            type: "copy",
+            id: "item-3",
+            newid: "item-3-copy",
+          },
+          rectangleMessage("item-new", "#abcdef", 3, 20, 21, 28, 29),
+        ],
+        1,
+      );
+
+      assert.deepEqual(Object.keys(board.board).sort(), [
+        "item-0",
+        "item-1",
+        "item-2",
+        "item-3",
+        "item-3-copy",
+        "item-4",
+        "item-new",
+      ]);
+
+      await board.save();
+
+      assert.deepEqual(Object.keys(board.board).sort(), [
+        "item-0",
+        "item-1",
+        "item-2",
+        "item-3",
+        "item-3-copy",
+        "item-4",
+        "item-new",
+      ]);
+      assert.equal(board.authoritativeItemCount(), 7);
+
+      const rewritten = await fs.readFile(
+        path.join(historyDir, "board-streaming-sparse.svg"),
+        "utf8",
+      );
+      assert.match(rewritten, /id="item-3-copy"/);
+      assert.match(rewritten, /id="item-new"/);
+      assert.match(rewritten, /hello streaming/);
+    },
   );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
-    const svgBoardStore = require("../server/svg_board_store.mjs");
-    const boardName = "streaming-sparse";
-
-    await svgBoardStore.writeBoardState(
-      boardName,
-      {
-        "item-0": {
-          id: "item-0",
-          tool: "Pencil",
-          color: "#123456",
-          size: 2,
-          _children: [
-            { x: 0, y: 0 },
-            { x: 2, y: 1 },
-          ],
-        },
-        "item-1": {
-          id: "item-1",
-          tool: "Straight line",
-          color: "#123456",
-          size: 2,
-          x: 1,
-          y: 2,
-          x2: 5,
-          y2: 6,
-        },
-        "item-2": {
-          id: "item-2",
-          tool: "Text",
-          x: 3,
-          y: 4,
-          txt: "hello",
-          size: 18,
-          color: "#654321",
-        },
-        "item-3": {
-          id: "item-3",
-          tool: "Rectangle",
-          color: "#123456",
-          size: 2,
-          x: 5,
-          y: 6,
-          x2: 9,
-          y2: 12,
-        },
-        "item-4": {
-          id: "item-4",
-          tool: "Ellipse",
-          color: "#123456",
-          size: 2,
-          x: 10,
-          y: 20,
-          x2: 14,
-          y2: 24,
-        },
-      },
-      { readonly: false },
-      0,
-      { historyDir },
-    );
-
-    const board = await BoardData.load(boardName);
-    assert.deepEqual(Object.keys(board.board).sort(), [
-      "item-0",
-      "item-1",
-      "item-2",
-      "item-3",
-      "item-4",
-    ]);
-
-    await applyPersistentMutation(
-      board,
-      {
-        tool: "Rectangle",
-        type: "update",
-        id: "item-3",
-        x2: 15,
-        y2: 18,
-      },
-      1,
-    );
-    await applyPersistentMutation(
-      board,
-      {
-        tool: "Text",
-        type: "update",
-        id: "item-2",
-        txt: "hello streaming",
-      },
-      2,
-    );
-    await applyPersistentMutation(
-      board,
-      {
-        tool: "Pencil",
-        type: "child",
-        parent: "item-0",
-        x: 4,
-        y: 2,
-      },
-      3,
-    );
-    await applyPersistentMutation(
-      board,
-      {
-        tool: "Hand",
-        type: "copy",
-        id: "item-3",
-        newid: "item-3-copy",
-      },
-      4,
-    );
-    await applyPersistentMutation(
-      board,
-      {
-        tool: "Rectangle",
-        type: "rect",
-        id: "item-new",
-        color: "#abcdef",
-        size: 3,
-        x: 20,
-        y: 21,
-        x2: 28,
-        y2: 29,
-      },
-      5,
-    );
-
-    assert.deepEqual(Object.keys(board.board).sort(), [
-      "item-0",
-      "item-1",
-      "item-2",
-      "item-3",
-      "item-3-copy",
-      "item-4",
-      "item-new",
-    ]);
-
-    await board.save();
-
-    assert.deepEqual(Object.keys(board.board).sort(), [
-      "item-0",
-      "item-1",
-      "item-2",
-      "item-3",
-      "item-3-copy",
-      "item-4",
-      "item-new",
-    ]);
-    assert.equal(board.authoritativeItemCount(), 7);
-
-    const rewritten = await fs.readFile(
-      path.join(historyDir, "board-streaming-sparse.svg"),
-      "utf8",
-    );
-    assert.match(rewritten, /id="item-3-copy"/);
-    assert.match(rewritten, /id="item-new"/);
-    assert.match(rewritten, /hello streaming/);
-  });
 });
 
 test("BoardData.save leaves the stored svg unchanged on seq mismatch", async () => {
-  const historyDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "wbo-board-save-rewrite-mismatch-"),
+  await withBoardHistoryDir(
+    "wbo-board-save-rewrite-mismatch-",
+    async ({ historyDir }) => {
+      const existingSvg = buildStoredSvg({
+        defs: '<style>.keep-me{}</style><marker id="m1"></marker>',
+        drawingArea:
+          '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>',
+        cursors: '<path id="cursor-template"></path>',
+      });
+      const { board, svgPath } = await withLoadedBoard({
+        historyDir,
+        boardName: "rewrite-mismatch",
+        storedSvg: existingSvg,
+      });
+      await fs.writeFile(
+        svgPath,
+        existingSvg.replace('data-wbo-seq="1"', 'data-wbo-seq="99"'),
+        "utf8",
+      );
+      const updateRect = rectangleUpdate("rect-1", { x2: 30, y2: 40 });
+      await applyPersistentMutation(board, updateRect, 2);
+
+      await board.save();
+
+      const rewritten = await fs.readFile(svgPath, "utf8");
+      assert.match(rewritten, /data-wbo-seq="99"/);
+      assert.match(
+        rewritten,
+        /<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"><\/rect>/,
+      );
+    },
   );
-
-  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    const BoardData = require(BOARD_DATA_PATH).BoardData;
-    const svgPath = path.join(historyDir, "board-rewrite-mismatch.svg");
-    const existingSvg =
-      '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
-      '<defs id="defs"><style>.keep-me{}</style><marker id="m1"></marker></defs>' +
-      '<g id="drawingArea">' +
-      '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
-      "</g>" +
-      '<g id="cursors"><path id="cursor-template"></path></g>' +
-      "</svg>";
-    await fs.writeFile(svgPath, existingSvg, "utf8");
-
-    const board = await BoardData.load("rewrite-mismatch");
-    await fs.writeFile(
-      svgPath,
-      existingSvg.replace('data-wbo-seq="1"', 'data-wbo-seq="99"'),
-      "utf8",
-    );
-    const updateRect = {
-      tool: "Rectangle",
-      type: "update",
-      id: "rect-1",
-      x2: 30,
-      y2: 40,
-    };
-
-    assert.deepEqual(await board.preparePersistentMutation(updateRect), {
-      ok: true,
-      mutation: updateRect,
-    });
-    assert.equal(board.processMessage(updateRect).ok, true);
-    board.recordPersistentMutation(updateRect, 2);
-
-    await board.save();
-
-    const rewritten = await fs.readFile(svgPath, "utf8");
-    assert.match(rewritten, /data-wbo-seq="99"/);
-    assert.match(
-      rewritten,
-      /<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"><\/rect>/,
-    );
-  });
 });
 
 test("BoardData.save serializes concurrent saves and releases after failure", async () => {
-  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const BoardData = getBoardDataClass();
   const board = new BoardData("serial-save-board");
   /** @type {string[]} */
   const calls = [];
