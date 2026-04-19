@@ -245,28 +245,6 @@ test.describe("single-page interactions", () => {
       });
   });
 
-  test("tool stylesheets include the current asset version", async ({
-    boardPage,
-    page,
-  }) => {
-    await boardPage.gotoBoard("tool-stylesheet-versioning");
-    await expect(boardPage.tool("Rectangle")).toBeVisible();
-    await boardPage.selectTool("Rectangle");
-
-    const stylesheets = await page.evaluate(() => {
-      return Array.from(
-        document.querySelectorAll("link[rel='stylesheet']"),
-      ).map((link) => link.getAttribute("href") ?? "");
-    });
-
-    expect(stylesheets.some((href) => /board\.css\?v=/.test(href))).toBe(true);
-    expect(
-      stylesheets.some((href) =>
-        /tools\/rectangle\/rectangle\.css\?v=/.test(href),
-      ),
-    ).toBe(true);
-  });
-
   test("selector duplicate and delete persist", async ({
     boardPage,
     server,

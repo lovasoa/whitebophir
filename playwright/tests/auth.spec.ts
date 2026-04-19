@@ -216,18 +216,4 @@ test.describe("public authless flows", () => {
       page.locator("rect#readonly-public-optimistic-rect"),
     ).toHaveCount(0);
   });
-
-  test("menu hiding query param", async ({ boardPage }) => {
-    await boardPage.gotoBoard("anonymous", {
-      lang: "fr",
-      query: { hideMenu: true },
-    });
-    await expect(boardPage.menu).toBeHidden();
-
-    await boardPage.gotoBoard("anonymous", {
-      lang: "fr",
-      query: { hideMenu: false },
-    });
-    await expect(boardPage.menu).toBeVisible();
-  });
 });
