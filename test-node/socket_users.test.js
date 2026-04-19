@@ -212,7 +212,7 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
         type: "rect",
         id: "rect-1",
         color: "#123456",
-        size: 4,
+        size: 10,
         x: 0,
         y: 0,
         x2: 20,
@@ -355,7 +355,7 @@ test("board sockets use seq replay and seq envelopes even without a legacy sync 
         type: "rect",
         id: "rect-default-seq-1",
         color: "#123456",
-        size: 4,
+        size: 10,
         x: 0,
         y: 0,
         x2: 20,
@@ -858,7 +858,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
           x2: 10,
           y2: 10,
           color: "#111111",
-          size: 4,
+          size: 10,
           socket: "socket-mixed-writer",
         },
       );
@@ -918,7 +918,7 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
           x: 12,
           y: 34,
           color: "#00aa11",
-          size: 6,
+          size: 10,
           socket: "socket-seq-cursor-writer",
         },
       );
@@ -1041,7 +1041,7 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         id: "rect-seed",
         x: 10,
         y: 10,
-        x2: 5000,
+        x2: 40015,
         y2: 20,
         clientMutationId: "cm-seed-grow",
       });
@@ -1068,6 +1068,19 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         tool: "Eraser",
         type: "delete",
         id: "rect-seed",
+      });
+      assert.deepEqual(getRequiredValue(seqBroadcasts[0]).payload.mutation, {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-seed",
+        clientMutationId: "cm-seed-create",
+        x: 10,
+        y: 10,
+        x2: 10,
+        y2: 10,
+        color: "#333333",
+        size: 10,
+        socket: "socket-seq-rejected-seed",
       });
 
       const loadedBoard = await getLoadedBoard("board-rejected-seed");
@@ -1112,6 +1125,49 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
   );
 });
 
+test("socket shutdown persists and unloads boards even when users are still connected", async () => {
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-shutdown-" },
+    async ({ historyDir, connect, invoke, getLoadedBoard, sockets }) => {
+      const svgBoardStore = require("../server/svg_board_store.mjs");
+      const created = await connect({
+        id: "socket-shutdown",
+        remoteAddress: "203.0.113.170",
+        headers: withUserSecretCookie("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"),
+        query: {
+          board: "board-shutdown",
+          tool: "Rectangle",
+          color: "#333333",
+          size: "4",
+        },
+      });
+
+      await invoke(created, "broadcast", {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-shutdown",
+        color: "#123456",
+        size: 4,
+        x: 1,
+        y: 2,
+        x2: 20,
+        y2: 30,
+      });
+
+      await sockets.shutdown();
+
+      assert.equal(await getLoadedBoard("board-shutdown"), undefined);
+      const savedSvg = await svgBoardStore.readServedBaseline(
+        "board-shutdown",
+        {
+          historyDir,
+        },
+      );
+      assert.match(savedSvg, /id="rect-shutdown"/);
+    },
+  );
+});
+
 test("live broadcasts attach socket attribution and keep the user's latest non-cursor state", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-live-" },
@@ -1149,7 +1205,7 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       assert.equal(Object.hasOwn(persistentEnvelope.mutation, "userId"), false);
       assert.equal(user.lastTool, "Rectangle");
       assert.equal(user.color, "#123456");
-      assert.equal(user.size, 9);
+      assert.equal(user.size, 10);
 
       await invoke(created, "broadcast", {
         tool: "Cursor",

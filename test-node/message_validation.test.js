@@ -271,10 +271,10 @@ test("normalizeIncomingMessage defaults shape end coordinates from the starting 
       type: "straight",
       id: "line-1",
       color: "#123456",
-      size: 4,
-      x: 10.3,
+      size: 10,
+      x: 10,
       y: 20,
-      x2: 10.3,
+      x2: 10,
       y2: 20,
     },
   });
@@ -345,7 +345,7 @@ test("normalizeIncomingMessage rejects oversized live shapes", () => {
     size: 4,
     x: 0,
     y: 0,
-    x2: 4000,
+    x2: 40000,
     y2: 20,
   });
 
@@ -439,10 +439,10 @@ test("normalizeStoredItem rejects oversized stored text", () => {
     {
       tool: "Text",
       color: "#000000",
-      size: 50,
+      size: 500,
       x: 0,
       y: 0,
-      txt: "A".repeat(100), // Width = 50 * 100 = 5000 > 3200 limit
+      txt: "A".repeat(100), // Width = 500 * 100 = 50000 > 32000 limit
     },
     "text-big",
   );
@@ -462,7 +462,7 @@ test("normalizeStoredItem rejects oversized stored pencil", () => {
       size: 4,
       _children: [
         { x: 0, y: 0 },
-        { x: 4000, y: 4000 },
+        { x: 40000, y: 40000 },
       ],
     },
     "pencil-big",
@@ -483,8 +483,8 @@ test("normalizeStoredItem rejects transformed oversized shapes", () => {
       size: 4,
       x: 0,
       y: 0,
-      x2: 1000,
-      y2: 1000,
+      x2: 10000,
+      y2: 10000,
       transform: { a: 4, b: 0, c: 0, d: 4, e: 0, f: 0 },
     },
     "rect-scaled",
@@ -518,7 +518,7 @@ test("normalizeStoredItem sanitizes stored pencil children before replay", async
         type: "line",
         id: "line-drop",
         color: "#123456",
-        size: 4,
+        size: 10,
         _children: [{ x: 1, y: 2 }],
       },
     });
@@ -543,7 +543,7 @@ test("normalizeStoredItem sanitizes stored pencil children before replay", async
         type: "line",
         id: "line-cap",
         color: "#123456",
-        size: 4,
+        size: 10,
         _children: [
           { x: 1, y: 2 },
           { x: 3, y: 4 },

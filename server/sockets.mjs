@@ -92,6 +92,7 @@ let lastUserReportLog = null;
 let invalidIpSourceLogged = false;
 /** @type {import("socket.io").Server | undefined} */
 let io;
+let shuttingDown = false;
 const NAME_SYLLABLES = [
   "al",
   "an",
@@ -2385,7 +2386,7 @@ async function handleSocketConnection(socket, config) {
                 }),
               );
             }
-            if (userCount === 0) unloadBoard(room);
+            if (userCount === 0 && !shuttingDown) unloadBoard(room);
           }
         },
       );
@@ -2463,14 +2464,20 @@ async function unloadBoard(boardName) {
  * @returns {Promise<void>}
  */
 async function shutdownBoards() {
-  const loadedBoards = Object.keys(boards);
-  await Promise.allSettled(
-    loadedBoards.map((boardName) => unloadBoard(boardName)),
-  );
   const currentIo = io;
+  shuttingDown = true;
+  io = undefined;
   if (currentIo) {
     await new Promise((resolve) => currentIo.close(() => resolve(undefined)));
   }
+  const loadedBoards = Object.keys(boards);
+  await Promise.all(
+    loadedBoards.map(async (boardName) => {
+      const board = await /** @type {Promise<BoardData>} */ (boards[boardName]);
+      board.users.clear();
+      return unloadBoard(boardName);
+    }),
+  );
 }
 
 export const __test = {

@@ -46,16 +46,15 @@ import { DRAW_TOOL_NAMES, isShapeTool } from "./message_tool_metadata.js";
 export { DRAW_TOOL_NAMES };
 
 export const LIMITS = {
-  MIN_SIZE: 1,
-  MAX_SIZE: 50,
+  MIN_SIZE: 10,
+  MAX_SIZE: 500,
   MIN_OPACITY: 0.1,
   MAX_OPACITY: 1,
-  MIN_DRAW_ZOOM: 0.4,
+  MIN_DRAW_ZOOM: 0.04,
   GIANT_SHAPE_VIEWPORT_WIDTH: 1280,
   GIANT_SHAPE_VIEWPORT_HEIGHT: 720,
-  DEFAULT_MAX_BOARD_SIZE: 65536,
+  DEFAULT_MAX_BOARD_SIZE: 655360,
   MAX_TEXT_LENGTH: 280,
-  COORDINATE_DECIMALS: 1,
   DEFAULT_MAX_CHILDREN: 192,
   MAX_ID_LENGTH: 128,
 };
@@ -78,8 +77,6 @@ export function toFiniteNumber(value) {
 function clamp(number, min, max) {
   return Math.min(Math.max(number, min), max);
 }
-
-const COORDINATE_FACTOR = 10 ** LIMITS.COORDINATE_DECIMALS;
 
 /**
  * @param {unknown} maxBoardSize
@@ -123,7 +120,7 @@ export function clampCoord(value, maxBoardSize) {
       ? maxBoardSize
       : resolveMaxBoardSize(maxBoardSize);
   const clamped = clamp(coord, 0, resolvedMaxBoardSize);
-  return Math.round(clamped * COORDINATE_FACTOR) / COORDINATE_FACTOR;
+  return Math.round(clamped);
 }
 
 /**

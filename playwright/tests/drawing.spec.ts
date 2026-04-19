@@ -247,7 +247,7 @@ test.describe("drawing and persistence", () => {
     if (!state) throw new Error("Cursor state missing after move");
     expect(state.fill).toBe("#456123");
     expect(state.transform ?? "").toMatch(
-      /(translate\(150px,\s*200px\)|matrix\(1,\s*0,\s*0,\s*1,\s*150,\s*200\))/,
+      /(translate\(1500px,\s*2000px\)|matrix\(1,\s*0,\s*0,\s*1,\s*1500,\s*2000\))/,
     );
   });
 });

@@ -84,7 +84,7 @@ function rewriteViaStreaming(
 
 test("streaming stored svg update rewrites touched items and appends creates without full-text parsing", async () => {
   const svg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="1" data-wbo-readonly="false">' +
     '<defs id="defs"><marker id="keep"></marker></defs>' +
     '<g id="drawingArea">' +
     '<path id="item-0" d="M 1 2 L 1 2 C 1 2 3 4 3 4" stroke="#123456" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>' +
@@ -175,7 +175,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
 
 test("streaming stored svg update matches clear and same-batch followup semantics", async () => {
   const svg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="1" data-wbo-readonly="false">' +
     '<defs id="defs"></defs>' +
     '<g id="drawingArea">' +
     '<path id="line-1" d="M 1 2" stroke="#123456" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>' +
@@ -254,7 +254,7 @@ test("streaming stored svg update matches clear and same-batch followup semantic
 
 test("streaming stored svg update preserves shell and paint order across create update copy and delete", async () => {
   const svg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="1" data-wbo-readonly="false">' +
     '<defs id="defs"><marker id="keep"></marker></defs>' +
     '<g id="drawingArea">' +
     '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
@@ -332,7 +332,7 @@ test("streaming stored svg update preserves untouched bytes and the opaque prefi
   const untouchedEllipse =
     '<ellipse id="ellipse-1" cx="12" cy="22" rx="2" ry="2" stroke="#123456" stroke-width="2" fill="none"></ellipse>';
   const svg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="1" data-wbo-readonly="false">' +
     '<defs id="defs"></defs>' +
     '<g id="drawingArea">' +
     '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +

@@ -57,8 +57,8 @@ export default class TextTool {
     this.curText = {
       x: 0,
       y: 0,
-      size: 36,
-      rawSize: 16,
+      size: 360,
+      rawSize: 160,
       oldSize: 0,
       opacity: 1,
       color: "#000",
@@ -106,7 +106,7 @@ export default class TextTool {
       return;
     }
     this.curText.rawSize = this.Tools.getSize();
-    this.curText.size = Math.round(this.curText.rawSize * 1.5 + 12);
+    this.curText.size = Math.round(this.curText.rawSize * 1.5 + 120);
     this.curText.opacity = this.Tools.getOpacity();
     this.curText.color = this.Tools.getColor();
     this.curText.x = x;
@@ -121,10 +121,12 @@ export default class TextTool {
   editOldText(elem) {
     this.curText.id = elem.id;
     const r = elem.getBoundingClientRect();
-    const x = (r.left + document.documentElement.scrollLeft) / this.Tools.scale;
-    const y =
-      (r.top + r.height + document.documentElement.scrollTop) /
-      this.Tools.scale;
+    const x = this.Tools.pageCoordinateToBoard(
+      r.left + document.documentElement.scrollLeft,
+    );
+    const y = this.Tools.pageCoordinateToBoard(
+      r.top + r.height + document.documentElement.scrollTop,
+    );
 
     this.curText.x = x;
     this.curText.y = y;

@@ -93,6 +93,11 @@ const RATE_LIMIT_FLUSH_SAFETY_MIN_MS = 250;
 const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 1500;
 /** @type {RateLimitKind[]} */
 const RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
+const DEFAULT_BOARD_SCALE = 0.1;
+const MIN_BOARD_SCALE = 0.01;
+const MAX_BOARD_SCALE = 1;
+const VIEWPORT_HASH_SCALE_DECIMALS = 2;
+const RESIZE_CANVAS_MARGIN = 20000;
 
 /**
  * @param {string} elementId
@@ -176,6 +181,24 @@ Tools.server_config = /** @type {ServerConfig} */ (
   parseEmbeddedJson("configuration", {})
 );
 Tools.assetVersion = document.documentElement.dataset.version || "";
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+Tools.toBoardCoordinate = function toBoardCoordinate(value) {
+  return MessageCommon.clampCoord(value, Tools.server_config.MAX_BOARD_SIZE);
+};
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+Tools.pageCoordinateToBoard = function pageCoordinateToBoard(value) {
+  const screenCoordinate = Number(value);
+  if (!Number.isFinite(screenCoordinate)) return 0;
+  return Tools.toBoardCoordinate(screenCoordinate / Tools.getScale());
+};
 
 /**
  * @param {string} assetPath
@@ -1018,7 +1041,7 @@ function enqueueIncomingBroadcast(msg) {
   void drainIncomingBroadcastQueue();
 }
 
-Tools.scale = 1.0;
+Tools.scale = DEFAULT_BOARD_SCALE;
 Tools.drawToolsAllowed = null;
 
 if (Tools.server_config.TURNSTILE_SITE_KEY) {
@@ -1245,7 +1268,7 @@ Tools.refreshTurnstile = function refreshTurnstile() {
 Tools.shouldDisableTool = function shouldDisableTool(toolName) {
   return (
     MessageCommon.isDrawTool(toolName) &&
-    !MessageCommon.isDrawToolAllowedAtScale(Tools.scale || 1)
+    !MessageCommon.isDrawToolAllowedAtScale(Tools.scale || DEFAULT_BOARD_SCALE)
   );
 };
 
@@ -1478,7 +1501,7 @@ function syncConnectedUsersToggleLabel() {
 function getConnectedUserDotSize(size) {
   const userSize = Number(size);
   if (!Number.isFinite(userSize) || userSize <= 0) return 8;
-  return Math.max(8, Math.min(18, 6 + userSize / 3));
+  return Math.max(8, Math.min(18, 6 + userSize / 30));
 }
 
 /**
@@ -1673,7 +1696,7 @@ function getConnectedUserFocusHash(user) {
   return `#${Math.max(0, (x - window.innerWidth / (2 * scale)) | 0)},${Math.max(
     0,
     (y - window.innerHeight / (2 * scale)) | 0,
-  )},${scale.toFixed(1)}`;
+  )},${scale.toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
 }
 
 /**
@@ -2505,8 +2528,8 @@ function compileToolListeners(tool) {
   function compile(listener) {
     return function listen(evt) {
       const mouseEvent = /** @type {MouseEvent} */ (evt);
-      const x = mouseEvent.pageX / Tools.getScale();
-      const y = mouseEvent.pageY / Tools.getScale();
+      const x = Tools.pageCoordinateToBoard(mouseEvent.pageX);
+      const y = Tools.pageCoordinateToBoard(mouseEvent.pageY);
       return listener(x, y, mouseEvent, false);
     };
   }
@@ -2521,8 +2544,8 @@ function compileToolListeners(tool) {
       if (touchEvent.changedTouches.length === 1) {
         const touch = touchEvent.changedTouches[0];
         if (!touch) return true;
-        const x = touch.pageX / Tools.getScale();
-        const y = touch.pageY / Tools.getScale();
+        const x = Tools.pageCoordinateToBoard(touch.pageX);
+        const y = Tools.pageCoordinateToBoard(touch.pageY);
         return listener(x, y, touchEvent, true);
       }
       return true;
@@ -2983,7 +3006,7 @@ function syncViewportHashFromScroll() {
     clearTimeout(viewportHashScrollTimeout);
   }
   viewportHashScrollTimeout = setTimeout(function updateViewportHistory() {
-    const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(1)}`;
+    const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
     if (
       Date.now() - lastViewportHashStateUpdate > 5000 &&
       hash !== window.location.hash
@@ -2998,8 +3021,8 @@ function syncViewportHashFromScroll() {
 
 Tools.applyViewportFromHash = function applyViewportFromHash() {
   const coords = window.location.hash.slice(1).split(",");
-  const x = Number(coords[0]) || 0;
-  const y = Number(coords[1]) || 0;
+  const x = Tools.toBoardCoordinate(coords[0]);
+  const y = Tools.toBoardCoordinate(coords[1]);
   const scale = Number.parseFloat(coords[2] || "");
   resizeCanvas({ x: x, y: y });
   const appliedScale = Tools.setScale(scale);
@@ -3019,12 +3042,18 @@ function resizeCanvas(m) {
   //Enlarge the canvas whenever something is drawn near its border
   const x = Number(m.x) | 0;
   const y = Number(m.y) | 0;
-  const MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 65536; // Maximum value for any x or y on the board
-  if (x > Tools.svg.width.baseVal.value - 2000) {
-    Tools.svg.width.baseVal.value = Math.min(x + 2000, MAX_BOARD_SIZE);
+  const MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 655360; // Maximum value for any x or y on the board
+  if (x > Tools.svg.width.baseVal.value - RESIZE_CANVAS_MARGIN) {
+    Tools.svg.width.baseVal.value = Math.min(
+      x + RESIZE_CANVAS_MARGIN,
+      MAX_BOARD_SIZE,
+    );
   }
-  if (y > Tools.svg.height.baseVal.value - 2000) {
-    Tools.svg.height.baseVal.value = Math.min(y + 2000, MAX_BOARD_SIZE);
+  if (y > Tools.svg.height.baseVal.value - RESIZE_CANVAS_MARGIN) {
+    Tools.svg.height.baseVal.value = Math.min(
+      y + RESIZE_CANVAS_MARGIN,
+      MAX_BOARD_SIZE,
+    );
   }
 }
 
@@ -3051,10 +3080,10 @@ let scaleTimeout = null;
 Tools.setScale = function setScale(scale) {
   const fullScale =
     Math.max(window.innerWidth, window.innerHeight) /
-    (Number(Tools.server_config.MAX_BOARD_SIZE) || 65536);
-  const minScale = Math.max(0.1, fullScale);
-  const maxScale = 10;
-  if (Number.isNaN(scale)) scale = 1;
+    (Number(Tools.server_config.MAX_BOARD_SIZE) || 655360);
+  const minScale = Math.max(MIN_BOARD_SCALE, fullScale);
+  const maxScale = MAX_BOARD_SCALE;
+  if (Number.isNaN(scale)) scale = DEFAULT_BOARD_SCALE;
   scale = Math.max(minScale, Math.min(maxScale, scale));
   Tools.svg.style.willChange = "transform";
   Tools.svg.style.transform = `scale(${scale})`;

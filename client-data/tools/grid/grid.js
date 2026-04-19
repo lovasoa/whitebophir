@@ -70,55 +70,55 @@ export default class GridTool {
     // small (inner) grid
     const smallGrid = this.tools.createSVGElement("pattern", {
       id: "smallGrid",
-      width: "30",
-      height: "30",
+      width: "300",
+      height: "300",
       patternUnits: "userSpaceOnUse",
     });
     smallGrid.appendChild(
       this.tools.createSVGElement("path", {
-        d: "M 30 0 L 0 0 0 30",
+        d: "M 300 0 L 0 0 0 300",
         fill: "none",
         stroke: "gray",
-        "stroke-width": "0.5",
+        "stroke-width": "5",
       }),
     );
     // (outer) grid
     const grid = this.tools.createSVGElement("pattern", {
       id: "grid",
-      width: "300",
-      height: "300",
+      width: "3000",
+      height: "3000",
       patternUnits: "userSpaceOnUse",
     });
     grid.appendChild(
       this.tools.createSVGElement("rect", {
-        width: "300",
-        height: "300",
+        width: "3000",
+        height: "3000",
         fill: "url(#smallGrid)",
       }),
     );
     grid.appendChild(
       this.tools.createSVGElement("path", {
-        d: "M 300 0 L 0 0 0 300",
+        d: "M 3000 0 L 0 0 0 3000",
         fill: "none",
         stroke: "gray",
-        "stroke-width": "1",
+        "stroke-width": "10",
       }),
     );
     // dots
     const dots = this.tools.createSVGElement("pattern", {
       id: "dots",
-      width: "30",
-      height: "30",
-      x: "-10",
-      y: "-10",
+      width: "300",
+      height: "300",
+      x: "-100",
+      y: "-100",
       patternUnits: "userSpaceOnUse",
     });
     dots.appendChild(
       this.tools.createSVGElement("circle", {
         fill: "gray",
-        cx: "10",
-        cy: "10",
-        r: "2",
+        cx: "100",
+        cy: "100",
+        r: "20",
       }),
     );
 

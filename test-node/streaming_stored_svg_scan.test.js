@@ -18,7 +18,7 @@ async function* chunkString(value, chunkSize) {
 
 test("streamStoredSvgStructure tolerates chunked closing tags around the drawing area suffix", async () => {
   const svg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="1" data-wbo-readonly="false">' +
     '<defs id="defs"></defs>' +
     '<g id="drawingArea">' +
     '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +

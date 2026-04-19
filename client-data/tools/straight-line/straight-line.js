@@ -109,8 +109,8 @@ export default class StraightLineTool {
         const d = Math.hypot(y - this.curLine.y, x - this.curLine.x);
         const increment = (2 * Math.PI) / 16;
         alpha = Math.round(alpha / increment) * increment;
-        x = this.curLine.x + d * Math.cos(alpha);
-        y = this.curLine.y + d * Math.sin(alpha);
+        x = this.tools.toBoardCoordinate(this.curLine.x + d * Math.cos(alpha));
+        y = this.tools.toBoardCoordinate(this.curLine.y + d * Math.sin(alpha));
       }
       const update = this.createUpdateMessage(x, y);
       if (performance.now() - this.lastTime > 70) {

@@ -37,12 +37,20 @@ function dist(x1, y1, x2, y2) {
 }
 
 /**
+ * @param {number} value
+ * @returns {number}
+ */
+function roundPathValue(value) {
+  return Math.round(value);
+}
+
+/**
  * @param {string} type
  * @param {number[]} values
  * @returns {{type: string, values: number[]}}
  */
 function createPathDataPoint(type, values) {
-  return { type, values };
+  return { type, values: values.map(roundPathValue) };
 }
 
 /**
@@ -140,8 +148,8 @@ function pencilExtrapolatePoints(pts, x, y) {
   const cy1 = prevY - dist1 * vecty; //First control point
   const cx2 = prevX + dist2 * vectx;
   const cy2 = prevY + dist2 * vecty; //Second control point
-  prevValues[2] = cx1;
-  prevValues[3] = cy1;
+  prevValues[2] = roundPathValue(cx1);
+  prevValues[3] = roundPathValue(cy1);
 
   return createPathDataPoint("C", [cx2, cy2, x, y, x, y]);
 }

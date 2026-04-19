@@ -141,8 +141,8 @@ test.describe("single-page interactions", () => {
     await boardPage.selectTool("Zoom");
 
     const result = await boardPage.zoomClickInAndOut({ x: 200, y: 200 });
-    expect(Math.abs(result.scaleAfterZoomIn - 1.5)).toBeLessThan(0.01);
-    expect(Math.abs(result.scaleAfterZoomOut - 0.75)).toBeLessThan(0.01);
+    expect(Math.abs(result.scaleAfterZoomIn - 0.15)).toBeLessThan(0.01);
+    expect(Math.abs(result.scaleAfterZoomOut - 0.075)).toBeLessThan(0.01);
   });
 
   test("reload applies the viewport encoded in the URL hash", async ({
@@ -185,7 +185,7 @@ test.describe("single-page interactions", () => {
     await expect(boardPage.tool("Pencil")).toBeVisible();
     await boardPage.selectTool("Pencil");
     await boardPage.page.evaluate(() => {
-      (window as any).Tools.setScale(0.4);
+      (window as any).Tools.setScale(0.04);
     });
 
     await boardPage.expectCurrentTool("Hand");
@@ -202,7 +202,7 @@ test.describe("single-page interactions", () => {
     await boardPage.expectCurrentTool("Hand");
 
     await boardPage.page.evaluate(() => {
-      (window as any).Tools.setScale(0.5);
+      (window as any).Tools.setScale(0.05);
     });
     await expect(boardPage.tool("Pencil")).toHaveAttribute(
       "aria-disabled",

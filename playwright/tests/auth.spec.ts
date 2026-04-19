@@ -11,7 +11,7 @@ test.describe("JWT auth and readonly flows", () => {
     const readonlySelector =
       "rect[x='10'][y='10'][width='20'][height='20'][stroke='#123456']";
     const clearSelector =
-      "rect[x='10'][y='10'][width='20'][height='20'][stroke='#ff00ff']";
+      "rect[x='100'][y='100'][width='200'][height='200'][stroke='#ff00ff']";
 
     await server.writeBoard(server.dataPath, "readonly-test", {
       __wbo_meta__: { readonly: true },

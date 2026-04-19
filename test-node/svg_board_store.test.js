@@ -155,7 +155,7 @@ async function readPersistedBoardState(boardName, historyDir) {
 
 test("parseStoredSvgEnvelope keeps non-drawing shell content opaque", () => {
   const svg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="3" data-wbo-readonly="false">' +
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false">' +
     '<defs id="defs"><marker id="triangle"></marker></defs>' +
     '<g id="drawingArea">' +
     '<rect id="rect-1" x="1" y="2" width="3" height="4" stroke="#123456" stroke-width="4" fill="none"></rect>' +
@@ -218,7 +218,7 @@ test("parseStoredSvgItems returns canonical direct children without touching the
 
 test("updateRootMetadata rewrites only root metadata attributes", () => {
   const prefix =
-    '<svg id="canvas" width="800" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="2" data-wbo-readonly="false">' +
+    '<svg id="canvas" width="800" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="2" data-wbo-readonly="false">' +
     '<defs id="defs"><marker id="keep"></marker></defs>' +
     '<g id="drawingArea">';
 
@@ -239,7 +239,7 @@ test("writeBoardState preserves opaque shell while rewriting stored items", asyn
   );
   const boardName = "opaque-shell";
   const existingSvg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false">' +
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="1" data-wbo-readonly="false">' +
     '<defs id="defs"><style>.keep-me{}</style><marker id="m1"></marker></defs>' +
     '<g id="drawingArea">' +
     '<rect id="old-item" x="0" y="0" width="10" height="10" stroke="#000000" stroke-width="1" fill="none"></rect>' +
@@ -394,7 +394,7 @@ test("readCanonicalBoardState reports svg byte length and canonical items", asyn
   );
   const boardName = "load-state-svg";
   const storedSvg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>';
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>';
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
@@ -418,7 +418,7 @@ test("readCanonicalBoardState streams root metadata for empty drawing areas", as
   );
   const boardName = "load-state-empty-svg";
   const storedSvg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="9" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"></g><g id="cursors"></g></svg>';
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="9" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"></g><g id="cursors"></g></svg>';
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
@@ -479,7 +479,7 @@ test("readServedBaseline returns stored svg bytes unchanged when svg exists", as
   );
   const boardName = "served-opaque";
   const storedSvg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"><marker id="keep"></marker></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"><path id="cursor-template"></path></g></svg>';
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"><marker id="keep"></marker></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"><path id="cursor-template"></path></g></svg>';
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
@@ -498,7 +498,7 @@ test("readBoardDocumentState returns metadata and streaming source details for s
   );
   const boardName = "document-state-svg";
   const storedSvg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"><marker id="keep"></marker></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"><path id="cursor-template"></path></g></svg>';
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"><marker id="keep"></marker></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"><path id="cursor-template"></path></g></svg>';
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
@@ -556,7 +556,7 @@ test("readCanonicalBoardState eagerly loads canonical stored svg items", async (
   );
   const boardName = "parse-items-svg";
   const storedSvg =
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="4" data-wbo-readonly="false">' +
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="4" data-wbo-readonly="false">' +
     '<defs id="defs"></defs>' +
     '<g id="drawingArea">' +
     '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>' +
@@ -592,7 +592,7 @@ test("readCanonicalBoardState eagerly loads canonical stored svg items", async (
 
 test("local stored-svg summary helper derives minimal pencil summaries", () => {
   const summary = summarizeStoredSvg(
-    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="500" height="500" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="4" data-wbo-readonly="false">' +
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="4" data-wbo-readonly="false">' +
       '<defs id="defs"></defs>' +
       '<g id="drawingArea">' +
       '<path id="line-1" d="M 1 2 L 3 4 C 3 4 8 9 8 9" stroke="#123456" stroke-width="4" fill="none" transform="matrix(1 0 0 1 7 8)"></path>' +
@@ -688,6 +688,10 @@ test("served svg baselines keep pencil smoothing compatible with the client path
     { x: 18, y: 9 },
     { x: 25, y: 30 },
   ];
+  const legacyPoints = points.map((point) => ({
+    x: point.x * 10,
+    y: point.y * 10,
+  }));
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-served-pencil-json-"),
   );
@@ -711,7 +715,7 @@ test("served svg baselines keep pencil smoothing compatible with the client path
     const svg = await svgBoardStore.readServedBaseline("served-pencil-json");
     assert.match(
       svg,
-      new RegExp(`d="${escapeRegExp(renderExpectedPencilPath(points))}"`),
+      new RegExp(`d="${escapeRegExp(renderExpectedPencilPath(legacyPoints))}"`),
     );
   });
 });
@@ -852,7 +856,7 @@ test("writeBoardState removes stale svg and legacy json when board becomes empty
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
       svgBoardStore.boardSvgPath("empty-board"),
-      '<svg id="canvas" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="1" data-wbo-readonly="false"><g id="drawingArea"></g></svg>',
+      '<svg id="canvas" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="1" data-wbo-readonly="false"><g id="drawingArea"></g></svg>',
       "utf8",
     );
     await fs.writeFile(

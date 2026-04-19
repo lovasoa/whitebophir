@@ -148,7 +148,7 @@ export function readConfiguration() {
     MAX_CHILDREN: parseIntegerEnv("WBO_MAX_CHILDREN", 500),
 
     /** Maximum value for any x or y on the board */
-    MAX_BOARD_SIZE: parseIntegerEnv("WBO_MAX_BOARD_SIZE", 65536),
+    MAX_BOARD_SIZE: parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360),
 
     /** General socket write limits.
         Use WBO_MAX_EMIT_COUNT with compact profiles such as `*:250/5s anonymous:125/5s`.

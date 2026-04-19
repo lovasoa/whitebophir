@@ -65,10 +65,10 @@ test("renderBoard normalizes rectangle bounds for reverse-dragged shapes", async
     },
   });
 
-  assert.match(svg, /<rect[^>]*x="5"/);
-  assert.match(svg, /<rect[^>]*y="1"/);
-  assert.match(svg, /<rect[^>]*width="5"/);
-  assert.match(svg, /<rect[^>]*height="19"/);
+  assert.match(svg, /<rect[^>]*x="50"/);
+  assert.match(svg, /<rect[^>]*y="10"/);
+  assert.match(svg, /<rect[^>]*width="50"/);
+  assert.match(svg, /<rect[^>]*height="190"/);
   assert.doesNotMatch(svg, /width="-/);
   assert.doesNotMatch(svg, /height="-/);
 });
@@ -91,6 +91,8 @@ test("renderBoard keeps pencil path smoothing compatible with the client rendere
     },
   });
 
-  const expectedPath = renderExpectedPencilPath(points);
+  const expectedPath = renderExpectedPencilPath(
+    points.map((point) => ({ x: point.x * 10, y: point.y * 10 })),
+  );
   assert.match(svg, new RegExp(`d="${escapeRegExp(expectedPath)}"`));
 });

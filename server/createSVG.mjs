@@ -27,6 +27,14 @@ function numberOrZero(value) {
 }
 
 /**
+ * @param {number} value
+ * @returns {number}
+ */
+function roundPathValue(value) {
+  return Math.round(value);
+}
+
+/**
  * @param {number} x1
  * @param {number} y1
  * @param {number} x2
@@ -119,7 +127,7 @@ function renderPath(el, pathstring) {
  * @returns {string}
  */
 function renderMoveTo(x, y) {
-  return `M ${x} ${y}`;
+  return `M ${roundPathValue(x)} ${roundPathValue(y)}`;
 }
 
 /**
@@ -128,7 +136,7 @@ function renderMoveTo(x, y) {
  * @returns {string}
  */
 function renderLineTo(x, y) {
-  return `L ${x} ${y}`;
+  return `L ${roundPathValue(x)} ${roundPathValue(y)}`;
 }
 
 /**
@@ -141,7 +149,7 @@ function renderLineTo(x, y) {
  * @returns {string}
  */
 function renderCurveTo(c1x, c1y, c2x, c2y, x, y) {
-  return `C ${c1x} ${c1y} ${c2x} ${c2y} ${x} ${y}`;
+  return `C ${roundPathValue(c1x)} ${roundPathValue(c1y)} ${roundPathValue(c2x)} ${roundPathValue(c2y)} ${roundPathValue(x)} ${roundPathValue(y)}`;
 }
 
 /**
@@ -438,7 +446,7 @@ function originPointForBounds(elem) {
  * @returns {Promise<void>}
  */
 async function toSVG(obj, writeable) {
-  const margin = 400;
+  const margin = 4000;
   const elems = Object.values(obj);
   const dim = elems.reduce(
     /**

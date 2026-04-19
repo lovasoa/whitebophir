@@ -5,9 +5,9 @@ const MessageCommon = require("../client-data/js/message_common.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 
 test("shared giant-shape policy exposes the draw zoom threshold", () => {
-  assert.equal(MessageCommon.getMaxShapeSpan(), 3200);
-  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.4), false);
-  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.41), true);
+  assert.equal(MessageCommon.getMaxShapeSpan(), 32000);
+  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.04), false);
+  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.041), true);
 });
 
 test("shared geometry helpers apply transforms to bounds", () => {

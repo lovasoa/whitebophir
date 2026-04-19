@@ -145,9 +145,8 @@ export default class ZoomTool {
       deltaY = wheelEvent.deltaY * multiplier;
     if (!wheelEvent.ctrlKey) {
       // zoom
-      const scale = this.tools.getScale();
-      const x = wheelEvent.pageX / scale;
-      const y = wheelEvent.pageY / scale;
+      const x = this.tools.pageCoordinateToBoard(wheelEvent.pageX);
+      const y = this.tools.pageCoordinateToBoard(wheelEvent.pageY);
       this.setOrigin(x, y, wheelEvent, false);
       this.animate((1 - deltaY / 800) * this.tools.getScale());
     } else if (wheelEvent.altKey) {
@@ -192,10 +191,12 @@ export default class ZoomTool {
           y1 = secondTouch.clientY,
           dx = x0 - x1,
           dy = y0 - y1;
-        const x =
-          (firstTouch.pageX + secondTouch.pageX) / 2 / this.tools.getScale();
-        const y =
-          (firstTouch.pageY + secondTouch.pageY) / 2 / this.tools.getScale();
+        const x = this.tools.pageCoordinateToBoard(
+          (firstTouch.pageX + secondTouch.pageX) / 2,
+        );
+        const y = this.tools.pageCoordinateToBoard(
+          (firstTouch.pageY + secondTouch.pageY) / 2,
+        );
         const distance = Math.sqrt(dx * dx + dy * dy);
         if (!this.pressed) {
           this.pressed = true;

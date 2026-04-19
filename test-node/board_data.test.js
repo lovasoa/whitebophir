@@ -170,7 +170,7 @@ function buildStoredSvg(options = {}) {
     drawingArea = "",
     cursors = "",
   } = options;
-  return `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="${width}" height="${height}" data-wbo-format="whitebophir-svg-v1" data-wbo-seq="${seq}" data-wbo-readonly="${readonly}"><defs id="defs">${defs}</defs><g id="drawingArea">${drawingArea}</g><g id="cursors">${cursors}</g></svg>`;
+  return `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="${width}" height="${height}" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="${seq}" data-wbo-readonly="${readonly}"><defs id="defs">${defs}</defs><g id="drawingArea">${drawingArea}</g><g id="cursors">${cursors}</g></svg>`;
 }
 
 /**
@@ -592,7 +592,7 @@ test("BoardData replays batch updates, copies, and deletes consistently", () => 
     type: "rect",
     id: "rect-2",
     color: "#112233",
-    size: 4,
+    size: 10,
     x: 0,
     y: 0,
     x2: 10,
@@ -732,11 +732,11 @@ test("BoardData rejects the first pencil child that makes a stroke oversized", (
   );
 
   assert.equal(board.addChild("line-1", { x: 0, y: 0 }).ok, true);
-  assert.equal(board.addChild("line-1", { x: 3199, y: 0 }).ok, true);
-  assert.equal(board.addChild("line-1", { x: 3201, y: 0 }).ok, false);
+  assert.equal(board.addChild("line-1", { x: 31999, y: 0 }).ok, true);
+  assert.equal(board.addChild("line-1", { x: 32001, y: 0 }).ok, false);
   assert.deepEqual(board.get("line-1")._children, [
     { x: 0, y: 0 },
-    { x: 3199, y: 0 },
+    { x: 31999, y: 0 },
   ]);
 });
 
@@ -745,7 +745,7 @@ test("BoardData rejects transform updates that make a stored shape oversized", (
   const board = disableSaves(new BoardData("oversized-transform-board"));
 
   assertMessagesAccepted(board, [
-    rectangleMessage("rect-1", "#112233", 4, 0, 0, 1000, 1000),
+    rectangleMessage("rect-1", "#112233", 4, 0, 0, 10000, 10000),
   ]);
 
   assert.equal(
@@ -773,7 +773,7 @@ test("BoardData drops zero-size seed shapes after an oversized update is rejecte
       rectangleUpdate("rect-1", {
         x: 10,
         y: 10,
-        x2: 4015,
+        x2: 40015,
         y2: 30,
       }),
     ).ok,
@@ -793,7 +793,7 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
   const oversizedUpdate = rectangleUpdate("rect-1", {
     x: 10,
     y: 10,
-    x2: 4015,
+    x2: 40015,
     y2: 30,
   });
 
@@ -832,7 +832,7 @@ test("BoardData rejects hand batches atomically when one transform is oversized"
   const board = disableSaves(new BoardData("atomic-hand-batch-board"));
 
   assertMessagesAccepted(board, [
-    rectangleMessage("rect-1", "#112233", 4, 0, 0, 1000, 1000),
+    rectangleMessage("rect-1", "#112233", 4, 0, 0, 10000, 10000),
     rectangleMessage("rect-2", "#112233", 4, 0, 0, 100, 100),
   ]);
 
@@ -947,10 +947,10 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
       assert.equal(board.get("rect").tool, "Rectangle");
       assert.equal(board.get("pencil").tool, "Pencil");
       assert.equal(board.get("text").tool, "Text");
-      assert.match(svg, /data-wbo-format="whitebophir-svg-v1"/);
+      assert.match(svg, /data-wbo-format="whitebophir-svg-v2"/);
       assert.match(svg, /data-wbo-readonly="true"/);
-      assert.match(svg, /<rect id="rect" x="0" y="0" width="10" height="10"/);
-      assert.match(svg, /<path id="pencil" d="M 60 80/);
+      assert.match(svg, /<rect id="rect" x="0" y="0" width="100" height="100"/);
+      assert.match(svg, /<path id="pencil" d="M 600 800/);
       assert.match(svg, />Slow sync<\/text>/);
       assert.doesNotMatch(svg, /data-wbo-item|data-wbo-tool/);
     },
@@ -965,8 +965,8 @@ test("BoardData eagerly loads canonical persisted svg items before applying upda
         historyDir,
         boardName: "lazy-hydrate",
         storedSvg: buildStoredSvg({
-          width: 500,
-          height: 500,
+          width: 5000,
+          height: 5000,
           drawingArea:
             '<rect id="rect-1" x="1" y="2" width="2" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>',
         }),

@@ -29,8 +29,8 @@ import {
 } from "./stored_svg_item_codec.mjs";
 import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
 
-const DEFAULT_SVG_SIZE = 500;
-const SVG_MARGIN = 400;
+const DEFAULT_SVG_SIZE = 5000;
+const SVG_MARGIN = 4000;
 let tempSvgSuffixCounter = 0;
 const { logger } = observability;
 

@@ -483,6 +483,7 @@ svg {
   border-radius: 0;
   overflow-y: scroll;
   position: fixed;
+  z-index: 60;
   margin-bottom: 30px;
   left: 0;
   top: 0;

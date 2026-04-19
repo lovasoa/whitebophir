@@ -1,4 +1,4 @@
-const STORED_SVG_FORMAT = "whitebophir-svg-v1";
+const STORED_SVG_FORMAT = "whitebophir-svg-v2";
 
 /**
  * @param {string} value
@@ -222,7 +222,7 @@ function createDefaultStoredSvgEnvelope(metadata, seq) {
   return {
     prefix:
       `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" ` +
-      `width="500" height="500" data-wbo-format="${STORED_SVG_FORMAT}" ` +
+      `width="5000" height="5000" data-wbo-format="${STORED_SVG_FORMAT}" ` +
       `data-wbo-seq="${seq}" data-wbo-readonly="${metadata.readonly ? "true" : "false"}">` +
       `<defs id="defs"></defs><g id="drawingArea">`,
     suffix: `</g><g id="cursors"></g></svg>`,

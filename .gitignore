@@ -29,3 +29,5 @@ playwright-report/
 test-results/
 .codex
 .profiles/
+
+server-data/*.svg
