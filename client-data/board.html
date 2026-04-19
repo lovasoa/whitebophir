@@ -6,6 +6,9 @@
 	<title>{{board}} | WBO | {{translations.collaborative_whiteboard}}</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" type="text/css" href="../board.css?v={{version}}" />
+	<link rel="modulepreload" href="../js/board_main.js?v={{version}}" />
+	<link rel="modulepreload" href="../js/board.js?v={{version}}" />
+	<link rel="modulepreload" href="../js/path-data-polyfill.js?v={{version}}" />
 	<script src="../socket.io/socket.io.js"></script>
 	<meta name="description" content="{{translations.tagline}}" />
 	<meta name="keywords"

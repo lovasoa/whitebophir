@@ -881,6 +881,7 @@ function handleBoardRedirectRoute(response, parsedUrl, requestContext) {
  * @param {string[]} parts
  * @param {{
  *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   noteError: (error: unknown) => void,
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
  * @returns {Promise<void>}
@@ -897,14 +898,41 @@ async function handleBoardDocumentRoute(
   jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
   const token = parsedUrl.searchParams.get("token");
   const boardRole = jwtBoardName.roleInBoard(config, token || "", boardName);
-  const { metadata: boardMetadata, inlineBoardSvg } =
-    await readBoardDocumentState(boardName);
+  const {
+    metadata: boardMetadata,
+    inlineBoardSvg,
+    source,
+  } = await readBoardDocumentState(boardName);
   const canWrite =
     !boardMetadata.readonly ||
     (config.AUTH_SECRET_KEY && ["editor", "moderator"].includes(boardRole));
   ensureBoardUserSecretCookie(request, response, parsedUrl);
+  if (source === "svg" || source === "svg_backup") {
+    const svgStream = await streamServedBaseline(boardName);
+    svgStream.on("error", (error) => {
+      requestContext.noteError(error);
+      if (!response.headersSent) {
+        respondWithErrorPage(response, 500);
+      } else {
+        response.destroy(error);
+      }
+    });
+    boardTemplate.serveStream(
+      request,
+      response,
+      svgStream,
+      boardRole === "moderator",
+      {
+        boardState: {
+          readonly: boardMetadata.readonly,
+          canWrite,
+        },
+      },
+    );
+    return;
+  }
   boardTemplate.serve(request, response, boardRole === "moderator", {
-    inlineBoardSvg,
+    inlineBoardSvg: inlineBoardSvg || "",
     boardState: {
       readonly: boardMetadata.readonly,
       canWrite,

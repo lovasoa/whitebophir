@@ -116,6 +116,12 @@ function waitForChildExit(child: ChildProcess) {
   });
 }
 
+function waitForTimeout(timeoutMs: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, timeoutMs);
+  });
+}
+
 export async function startTestServer(
   options: ServerSetupOptions,
   testInfo: TestInfo,
@@ -208,7 +214,11 @@ export async function stopTestServer(server: TestServer, testInfo: TestInfo) {
   if (server.child && !server.child.killed) {
     const exitPromise = waitForChildExit(server.child);
     server.child.kill();
-    await exitPromise;
+    await Promise.race([exitPromise, waitForTimeout(5_000)]);
+    if (server.child.exitCode === null && server.child.signalCode === null) {
+      server.child.kill("SIGKILL");
+      await exitPromise;
+    }
   }
 
   await fsp.rm(server.dataPath, { recursive: true, force: true });

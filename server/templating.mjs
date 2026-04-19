@@ -236,6 +236,25 @@ class Template {
 
 class BoardTemplate extends Template {
   /**
+   * @param {string} path
+   */
+  constructor(path) {
+    super(path);
+    const contents = fs.readFileSync(path, { encoding: "utf8" });
+    const marker = "{{{inlineBoardSvg}}}";
+    const markerIndex = contents.indexOf(marker);
+    if (markerIndex === -1) {
+      this.prefixTemplate = null;
+      this.suffixTemplate = null;
+      return;
+    }
+    this.prefixTemplate = handlebars.compile(contents.slice(0, markerIndex));
+    this.suffixTemplate = handlebars.compile(
+      contents.slice(markerIndex + marker.length),
+    );
+  }
+
+  /**
    * @param {URL} parsedUrl
    * @param {TemplateRequest} request
    * @param {boolean} isModerator
@@ -277,6 +296,49 @@ class BoardTemplate extends Template {
       getToolStylesheetUrl(tool.name, params.version),
     ).filter((href) => typeof href === "string");
     return params;
+  }
+
+  /**
+   * @param {TemplateRequest} request
+   * @param {TemplateResponse} response
+   * @param {NodeJS.ReadableStream} inlineBoardSvgStream
+   * @param {boolean} [isModerator]
+   * @param {object} [extraParams]
+   * @returns {void}
+   */
+  serveStream(
+    request,
+    response,
+    inlineBoardSvgStream,
+    isModerator,
+    extraParams,
+  ) {
+    if (!this.prefixTemplate || !this.suffixTemplate) {
+      throw new Error("Board template is not configured for streaming SVG.");
+    }
+    const parsedUrl = parseRequestUrl(request.url);
+    const parameters = this.parameters(
+      parsedUrl,
+      request,
+      isModerator === true,
+      extraParams,
+    );
+    const prefix = this.prefixTemplate(parameters);
+    const suffix = this.suffixTemplate(parameters);
+    /** @type {{[name: string]: string | number}} */
+    const headers = {
+      "Content-Type": "text/html",
+      "Cache-Control": this.cacheControl(),
+    };
+    if (!parsedUrl.searchParams.get("lang")) {
+      headers.Vary = "Accept-Language";
+    }
+    response.writeHead(200, headers);
+    response.write(prefix);
+    inlineBoardSvgStream.pipe(response, { end: false });
+    inlineBoardSvgStream.on("end", () => {
+      response.end(suffix);
+    });
   }
 
   /**

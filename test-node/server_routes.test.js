@@ -435,6 +435,18 @@ test("board pages are no-store in development and render versioned asset URLs", 
       assert.match(
         response.body,
         new RegExp(
+          `rel="modulepreload" href="\\.\\./js/board\\.js\\?v=${packageJson.version}"`,
+        ),
+      );
+      assert.match(
+        response.body,
+        new RegExp(
+          `rel="modulepreload" href="\\.\\./js/path-data-polyfill\\.js\\?v=${packageJson.version}"`,
+        ),
+      );
+      assert.match(
+        response.body,
+        new RegExp(
           `\\.\\./tools/pencil/icon\\.svg\\?v(?:=|&#x3D;)${packageJson.version}`,
         ),
       );
@@ -482,6 +494,7 @@ test("board pages inline the authoritative svg baseline before client boot", asy
       const response = await request(app, "/boards/inline-baseline");
 
       assert.equal(response.statusCode, 200);
+      assert.equal(response.headers["content-length"], undefined);
       assert.match(
         response.body,
         /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-seq="7"[\s\S]*<rect id="rect-1"/,

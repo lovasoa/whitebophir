@@ -492,7 +492,7 @@ test("readServedBaseline returns stored svg bytes unchanged when svg exists", as
   });
 });
 
-test("readBoardDocumentState returns metadata and inline svg from one stored svg source", async () => {
+test("readBoardDocumentState returns metadata and streaming source details for stored svg boards", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-document-state-"),
   );
@@ -510,11 +510,12 @@ test("readBoardDocumentState returns metadata and inline svg from one stored svg
     const state = await svgBoardStore.readBoardDocumentState(boardName);
 
     assert.deepEqual(state.metadata, { readonly: true });
-    assert.equal(state.inlineBoardSvg, storedSvg);
+    assert.equal(state.source, "svg");
+    assert.equal(state.inlineBoardSvg, null);
   });
 });
 
-test("readBoardDocumentState falls back to legacy json metadata and inline rendering", async () => {
+test("readBoardDocumentState falls back to legacy json metadata and generated inline rendering", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-document-state-json-"),
   );
@@ -542,6 +543,8 @@ test("readBoardDocumentState falls back to legacy json metadata and inline rende
     const state = await svgBoardStore.readBoardDocumentState(boardName);
 
     assert.deepEqual(state.metadata, { readonly: true });
+    assert.equal(state.source, "generated");
+    assert.ok(state.inlineBoardSvg);
     assert.match(state.inlineBoardSvg, /data-wbo-readonly="true"/);
     assert.match(state.inlineBoardSvg, /id="rect-1"/);
   });

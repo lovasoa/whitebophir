@@ -208,6 +208,7 @@ Tools.turnstilePending = false;
 Tools.turnstilePendingWrites = [];
 Tools.bufferedWrites = [];
 Tools.bufferedWriteTimer = null;
+Tools.writeReadyWaiters = [];
 Tools.rateLimitedUntil = 0;
 Tools.rateLimitNoticeTimer = null;
 Tools.rateLimitNoticeMessage = "";
@@ -328,6 +329,13 @@ Tools.canBufferWrites = function canBufferWrites() {
   );
 };
 
+Tools.whenBoardWritable = function whenBoardWritable() {
+  if (Tools.canBufferWrites()) return Promise.resolve();
+  return new Promise((resolve) => {
+    Tools.writeReadyWaiters.push(resolve);
+  });
+};
+
 /**
  * @param {string} message
  * @param {number} retryAfterMs
@@ -396,6 +404,10 @@ Tools.getBoardStatusView = function getBoardStatusView() {
 };
 
 Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
+  if (Tools.canBufferWrites() && Tools.writeReadyWaiters.length > 0) {
+    const waiters = Tools.writeReadyWaiters.splice(0);
+    waiters.forEach((resolve) => resolve(undefined));
+  }
   const indicator = getBoardStatusIndicator();
   const title = getBoardStatusTitle();
   const notice = getBoardStatusNotice();
@@ -2023,7 +2035,6 @@ Tools.startConnection = () => {
 
   //Receive draw instructions from the server
   socket.on("connect", function onConnection() {
-    const isReconnect = Tools.hasConnectedOnce;
     Tools.connectionState = "connected";
     if (Tools.hasConnectedOnce && Tools.server_config.TURNSTILE_SITE_KEY) {
       Tools.setTurnstileValidation(null);
@@ -2041,12 +2052,10 @@ Tools.startConnection = () => {
     Tools.awaitingBoardSnapshot = true;
     Tools.awaitingSyncReplay = true;
     void (async function startSeqReplay() {
-      if (isReconnect && Tools.hasAuthoritativeBoardSnapshot) {
-        try {
-          await Tools.refreshAuthoritativeBaseline();
-        } catch (error) {
-          console.error("Failed to refresh authoritative SVG baseline", error);
-        }
+      try {
+        await Tools.refreshAuthoritativeBaseline();
+      } catch (error) {
+        console.error("Failed to refresh authoritative SVG baseline", error);
       }
       socket.emit("sync_request", {
         baselineSeq: Tools.authoritativeSeq,
@@ -2623,6 +2632,10 @@ Tools.activateTool = async function activateTool(toolName) {
   if (!Tools.shouldDisplayTool(toolName)) return false;
   const tool = await Tools.ensureToolBooted(toolName);
   if (!tool || !Tools.canUseTool(toolName)) return false;
+  if (tool.requiresWritableBoard === true && !Tools.canBufferWrites()) {
+    await Tools.whenBoardWritable();
+    if (!Tools.canUseTool(toolName)) return false;
+  }
   return Tools.change(toolName) !== false;
 };
 

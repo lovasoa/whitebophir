@@ -161,6 +161,7 @@ export type AppTool = {
   secondary?: ToolSecondaryMode | null;
   onSizeChange?: (size: number) => void;
   showMarker?: boolean;
+  requiresWritableBoard?: boolean;
 };
 
 export type ToolRegistry = {
@@ -384,6 +385,7 @@ export type AppToolsState = {
   useSeqSyncProtocol: boolean;
   bufferedWrites: BufferedWrite[];
   bufferedWriteTimer: ReturnType<typeof setTimeout> | null;
+  writeReadyWaiters: Array<(value: undefined) => void>;
   rateLimitedUntil: number;
   rateLimitNoticeTimer: ReturnType<typeof setTimeout> | null;
   rateLimitNoticeMessage: string;
@@ -425,6 +427,7 @@ export type AppToolsState = {
   clearRateLimitNoticeTimer: () => void;
   isWritePaused: (now?: number) => boolean;
   canBufferWrites: () => boolean;
+  whenBoardWritable: () => Promise<void>;
   showRateLimitNotice: (message: string, retryAfterMs: number) => void;
   hideRateLimitNotice: () => void;
   getBoardStatusView: () => BoardStatusView;

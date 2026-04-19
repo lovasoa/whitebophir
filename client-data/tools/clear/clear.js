@@ -40,6 +40,7 @@ export default class ClearTool {
     this.shortcut = "c";
     this.icon = "tools/clear/clear.svg";
     this.oneTouch = true;
+    this.requiresWritableBoard = true;
     this.mouseCursor = "crosshair";
   }
 

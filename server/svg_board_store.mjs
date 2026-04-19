@@ -704,21 +704,34 @@ async function rewriteStoredSvgFromCanonical(
 /**
  * @param {string} boardName
  * @param {{historyDir?: string}=} [options]
- * @returns {Promise<{metadata: {readonly: boolean}, inlineBoardSvg: string}>}
+ * @returns {Promise<{metadata: {readonly: boolean}, inlineBoardSvg: string | null, source: "svg" | "svg_backup" | "generated"}>}
  */
 async function readBoardDocumentState(boardName, options) {
   const historyDir = options?.historyDir;
   const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
   if (readableSvg) {
-    const inlineBoardSvg = await readFile(readableSvg.file, "utf8");
+    const stream = fs.createReadStream(readableSvg.file, { encoding: "utf8" });
+    /** @type {BoardMetadata} */
+    let metadata = defaultBoardMetadata();
+    try {
+      for await (const event of streamStoredSvgStructure(stream)) {
+        if (event.type !== "prefix") continue;
+        const openTagEnd = event.prefix.indexOf(">");
+        const rootAttributes = parseAttributes(
+          event.prefix.slice(event.prefix.indexOf("<svg") + 4, openTagEnd),
+        );
+        metadata = {
+          readonly: rootAttributes["data-wbo-readonly"] === "true",
+        };
+        break;
+      }
+    } finally {
+      stream.destroy();
+    }
     return {
-      metadata: {
-        readonly:
-          parseStoredSvgEnvelope(inlineBoardSvg).rootAttributes[
-            "data-wbo-readonly"
-          ] === "true",
-      },
-      inlineBoardSvg,
+      metadata,
+      inlineBoardSvg: null,
+      source: readableSvg.source,
     };
   }
 
@@ -729,6 +742,7 @@ async function readBoardDocumentState(boardName, options) {
     return {
       metadata: parsed.metadata,
       inlineBoardSvg: renderServedBaselineSvg(parsed.board, parsed.metadata, 0),
+      source: "generated",
     };
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
@@ -740,6 +754,7 @@ async function readBoardDocumentState(boardName, options) {
   return {
     metadata,
     inlineBoardSvg: renderServedBaselineSvg({}, metadata, 0),
+    source: "generated",
   };
 }
 
