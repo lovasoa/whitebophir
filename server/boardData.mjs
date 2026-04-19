@@ -1228,12 +1228,16 @@ class BoardData {
     return false;
   }
 
-  finalizePersistedItems(persistedSnapshot = this.itemsById) {
+  finalizePersistedItems(
+    persistedSnapshot = this.itemsById,
+    persistedIds = new Set(persistedSnapshot.keys()),
+  ) {
     for (const [id, item] of this.itemsById.entries()) {
       const persistedItem = persistedSnapshot.get(id);
       if (!persistedItem) continue;
       if (persistedItem !== item) {
         if (persistedItem.deleted === true) continue;
+        if (!persistedIds.has(id)) continue;
         item.createdAfterPersistedSeq = false;
         delete item.copySource;
         if (
@@ -1252,6 +1256,7 @@ class BoardData {
         this.itemsById.delete(id);
         continue;
       }
+      if (!persistedIds.has(id)) continue;
       const next = cloneCanonicalItem(item);
       next.dirty = false;
       next.createdAfterPersistedSeq = false;
@@ -1351,7 +1356,7 @@ class BoardData {
                 this.hasDirtyItems() ||
                 latestSeq !== this.getPersistedSeq()
               ) {
-                await rewriteStoredSvgFromCanonical(
+                const persistedIds = await rewriteStoredSvgFromCanonical(
                   this.name,
                   savedItemsById,
                   savedPaintOrder,
@@ -1360,9 +1365,16 @@ class BoardData {
                   latestSeq,
                   { historyDir: this.historyDir },
                 );
+                this.hasPersistedBaseline = true;
+                this.markPersistedSeq(latestSeq);
+                this.finalizePersistedItems(savedItemsById, persistedIds);
+              } else {
+                this.hasPersistedBaseline = true;
+                this.markPersistedSeq(latestSeq);
+                this.finalizePersistedItems(savedItemsById);
               }
             } else {
-              await writeCanonicalBoardState(
+              const initialPersist = await writeCanonicalBoardState(
                 this.name,
                 savedItemsById,
                 savedPaintOrder,
@@ -1370,10 +1382,15 @@ class BoardData {
                 latestSeq,
                 { historyDir: this.historyDir },
               );
+              this.hasPersistedBaseline = initialPersist.hasBaseline;
+              if (initialPersist.hasBaseline) {
+                this.markPersistedSeq(latestSeq);
+                this.finalizePersistedItems(
+                  savedItemsById,
+                  initialPersist.persistedIds,
+                );
+              }
             }
-            this.hasPersistedBaseline = true;
-            this.markPersistedSeq(latestSeq);
-            this.finalizePersistedItems(savedItemsById);
             if (this.hasDirtyItems()) {
               this.scheduleSaveTimeout(0);
             }

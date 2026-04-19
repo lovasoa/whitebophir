@@ -407,7 +407,7 @@ function collectPersistedCanonicalItems(itemsById, paintOrder) {
  * @param {BoardMetadata} metadata
  * @param {number} seq
  * @param {{historyDir?: string}=} [options]
- * @returns {Promise<void>}
+ * @returns {Promise<{persistedIds: Set<string>, hasBaseline: boolean}>}
  */
 async function writeCanonicalBoardState(
   boardName,
@@ -417,13 +417,21 @@ async function writeCanonicalBoardState(
   seq,
   options,
 ) {
-  const fullBoard = Object.fromEntries(
-    collectPersistedCanonicalItems(itemsById, paintOrder).map((item) => [
-      item.id,
-      materializeItemForSave(item),
-    ]),
-  );
+  const persistedIds = new Set();
+  /** @type {{[name: string]: any}} */
+  const fullBoard = {};
+  for (const item of collectPersistedCanonicalItems(itemsById, paintOrder)) {
+    const materialized = materializeItemForSave(item);
+    const serialized = serializeStoredSvgItem(materialized);
+    if (!serialized) continue;
+    persistedIds.add(item.id);
+    fullBoard[item.id] = materialized;
+  }
   await writeBoardState(boardName, fullBoard, metadata, seq, options);
+  return {
+    persistedIds,
+    hasBaseline: persistedIds.size > 0,
+  };
 }
 
 /**
@@ -467,7 +475,7 @@ function collectCopyTargetsBySourceId(itemsById) {
  * @param {number} persistedSeq
  * @param {number} latestSeq
  * @param {{historyDir?: string}=} [options]
- * @returns {Promise<void>}
+ * @returns {Promise<Set<string>>}
  */
 async function rewriteStoredSvgFromCanonical(
   boardName,
@@ -488,6 +496,7 @@ async function rewriteStoredSvgFromCanonical(
   });
   const copyTargetsBySourceId = collectCopyTargetsBySourceId(itemsById);
   const bufferedPayloads = new Map();
+  const persistedIds = new Set();
   const closeOutput = () =>
     new Promise((resolve, reject) => {
       output.on("error", reject);
@@ -536,6 +545,8 @@ async function rewriteStoredSvgFromCanonical(
           const tag = serializeStoredSvgItem(
             materializeItemForSave(item, sourcePayload),
           );
+          if (!tag) continue;
+          persistedIds.add(item.id);
           if (!output.write(tag)) {
             await once(output, "drain");
           }
@@ -591,6 +602,10 @@ async function rewriteStoredSvgFromCanonical(
       const rewrittenTag = serializeStoredSvgItem(
         materializeItemForSave(item, sourcePayload),
       );
+      if (!rewrittenTag) {
+        continue;
+      }
+      persistedIds.add(id);
       if (!output.write(event.leadingText + rewrittenTag)) {
         await once(output, "drain");
       }
@@ -604,6 +619,7 @@ async function rewriteStoredSvgFromCanonical(
   }
 
   await rename(tmpFile, file);
+  return persistedIds;
 }
 
 /**

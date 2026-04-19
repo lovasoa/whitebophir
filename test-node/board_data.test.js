@@ -277,6 +277,43 @@ test("finalizePersistedItems folds newly persisted pencil children into the base
   assert.equal(line?.dirty, true);
 });
 
+test("finalizePersistedItems keeps omitted pencil creates dirty until they serialize", () => {
+  const BoardData = require(BOARD_DATA_PATH).BoardData;
+  const board = disableSaves(new BoardData("finalize-omitted-pencil"));
+
+  assert.equal(
+    board.processMessage({
+      tool: "Pencil",
+      type: "line",
+      id: "line-1",
+      color: "#111111",
+      size: 4,
+    }).ok,
+    true,
+  );
+
+  const persistedSnapshot = new Map(board.itemsById);
+
+  assert.equal(
+    board.processMessage({
+      tool: "Pencil",
+      type: "child",
+      parent: "line-1",
+      x: 10,
+      y: 20,
+    }).ok,
+    true,
+  );
+
+  board.finalizePersistedItems(persistedSnapshot, new Set());
+
+  const line = board.itemsById.get("line-1");
+  assert.equal(line?.createdAfterPersistedSeq, true);
+  assert.equal(line?.dirty, true);
+  assert.equal(line?.payload?.persistedChildCount, 0);
+  assert.deepEqual(line?.payload?.appendedChildren, [{ x: 10, y: 20 }]);
+});
+
 test("save schedules a fast follow-up when newer created items remain dirty", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-save-follow-up-"),
