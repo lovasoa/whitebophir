@@ -40,10 +40,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
       - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - name: Run benchmark
         timeout-minutes: 4
         run: npm run bench
-      - run: npx playwright install --with-deps chromium
       - run: npm test
         env:
           CI: true
