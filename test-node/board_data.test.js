@@ -361,11 +361,22 @@ test("save schedules a fast follow-up when newer created items remain dirty", as
     );
 
     await waitFor(async () => {
-      const saved = await fs.readFile(
-        path.join(historyDir, "board-follow-up-save-board.svg"),
-        "utf8",
-      );
-      return saved.includes("#123456") && saved.includes("#abcdef");
+      try {
+        const saved = await fs.readFile(
+          path.join(historyDir, "board-follow-up-save-board.svg"),
+          "utf8",
+        );
+        return saved.includes("#123456") && saved.includes("#abcdef");
+      } catch (error) {
+        const code =
+          error && typeof error === "object" && "code" in error
+            ? error.code
+            : undefined;
+        if (code === "ENOENT") {
+          return false;
+        }
+        throw error;
+      }
     }, 1000);
   });
 });
