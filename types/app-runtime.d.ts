@@ -406,6 +406,7 @@ export type AppToolsState = {
   messageHooks: MessageHook[];
   colorPresets: ColorPreset[];
   color_chooser: HTMLInputElement;
+  colorChangeHandlers: ((color: string) => void)[];
   sizeChangeHandlers: ((size: number) => void)[];
   getInitialSocketQuery: () => { [name: string]: string };
   cloneMessage: (message: BoardMessage) => BoardMessage;

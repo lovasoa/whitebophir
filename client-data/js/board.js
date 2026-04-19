@@ -3140,10 +3140,15 @@ Tools.colorPresets = [
 ];
 
 Tools.color_chooser = getRequiredInput("chooseColor");
+Tools.colorChangeHandlers =
+  /** @type {AppToolsState["colorChangeHandlers"]} */ ([]);
 
 /** @param {string} color */
 Tools.setColor = function setColor(color) {
   Tools.color_chooser.value = color;
+  Tools.colorChangeHandlers.forEach((handler) => {
+    handler(color);
+  });
 };
 
 Tools.getColor = (function color() {
@@ -3151,6 +3156,9 @@ Tools.getColor = (function color() {
   const initialPreset = Tools.colorPresets[colorIndex] ||
     Tools.colorPresets[0] || { color: "#001f3f" };
   const initialColor = initialPreset.color;
+  Tools.color_chooser.onchange = Tools.color_chooser.oninput = () => {
+    Tools.setColor(Tools.color_chooser.value);
+  };
   Tools.setColor(initialColor);
   return () => Tools.color_chooser.value;
 })();
@@ -3196,6 +3204,11 @@ Tools.getOpacity = (function opacity() {
     chooser.value = String(MessageCommon.clampOpacity(chooser.value));
     opacityIndicatorFill.setAttribute("opacity", chooser.value);
   }
+  Tools.colorChangeHandlers.push(
+    /** @param {string} color */ (color) => {
+      opacityIndicatorFill.setAttribute("fill", color);
+    },
+  );
   update();
 
   chooser.onchange = chooser.oninput = update;
