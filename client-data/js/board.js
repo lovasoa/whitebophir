@@ -1979,29 +1979,34 @@ Tools.updateCurrentConnectedUserFromActivity =
 
 Tools.initConnectedUsersUI = function initConnectedUsersUI() {
   const toggle = getConnectedUsersToggle();
+  const panel = getConnectedUsersPanel();
+  Tools.connectedUsersPanelOpen =
+    toggle.getAttribute("aria-expanded") === "true";
   syncConnectedUsersToggleLabel();
-  toggle.addEventListener("click", () => {
-    Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
-  });
-  toggle.addEventListener("blur", () => {
-    window.setTimeout(() => {
-      const panel = getConnectedUsersPanel();
-      if (
-        !panel.matches(":hover") &&
-        !panel.contains(document.activeElement) &&
-        document.activeElement !== toggle
-      ) {
+  if (toggle.dataset.connectedUsersUiBound !== "true") {
+    toggle.dataset.connectedUsersUiBound = "true";
+    toggle.addEventListener("click", () => {
+      Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
+    });
+    toggle.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (
+          !panel.matches(":hover") &&
+          !panel.contains(document.activeElement) &&
+          document.activeElement !== toggle
+        ) {
+          Tools.setConnectedUsersPanelOpen(false);
+        }
+      }, 0);
+    });
+    panel.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape") {
+        evt.preventDefault();
         Tools.setConnectedUsersPanelOpen(false);
+        toggle.focus();
       }
-    }, 0);
-  });
-  getConnectedUsersPanel().addEventListener("keydown", (evt) => {
-    if (evt.key === "Escape") {
-      evt.preventDefault();
-      Tools.setConnectedUsersPanelOpen(false);
-      toggle.focus();
-    }
-  });
+    });
+  }
   Tools.renderConnectedUsers();
 };
 

@@ -495,6 +495,18 @@ test("board pages inline the authoritative svg baseline before client boot", asy
 
       assert.equal(response.statusCode, 200);
       assert.equal(response.headers["content-length"], undefined);
+      assert.ok(
+        response.body.indexOf('id="loadingMessage"') <
+          response.body.indexOf('<div id="board">'),
+      );
+      assert.ok(
+        response.body.indexOf('id="menu"') <
+          response.body.indexOf('<div id="board">'),
+      );
+      assert.ok(
+        response.body.indexOf("window.__wboEarlyChrome") <
+          response.body.indexOf('<div id="board">'),
+      );
       assert.match(
         response.body,
         /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-seq="7"[\s\S]*<rect id="rect-1"/,

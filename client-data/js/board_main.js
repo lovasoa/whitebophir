@@ -147,6 +147,10 @@ async function bootBoardPage() {
       (toolName) => !CRITICAL_BOOT_TOOL_NAMES.includes(toolName),
     ),
   );
+  const pendingToolName = documentElement.dataset.pendingTool || "";
+  if (pendingToolName) {
+    await tools.activateTool(pendingToolName);
+  }
   if (!tools.curTool && tools.list.Hand && tools.canUseTool("Hand")) {
     tools.change("Hand");
   }

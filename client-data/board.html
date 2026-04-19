@@ -29,11 +29,6 @@
 </head>
 
 <body>
-
-	<div id="board">
-		{{{inlineBoardSvg}}}
-	</div>
-
 	<div id="loadingMessage" class="board-loading">
 		<div class="board-loading-card" role="status" aria-live="polite">
 			<span class="board-loading-spinner" aria-hidden="true"></span>
@@ -118,11 +113,118 @@
 			</div>
 		</div>
 
-
 	<script type="application/json" id="translations">{{{ json translations }}}</script>
 	<script type="application/json" id="configuration">{{{ json configuration }}}</script>
 	<script type="application/json" id="board-state">{{{ json boardState }}}</script>
+	<script>
+		(() => {
+			const root = document.documentElement;
+			const earlyChrome =
+				window.__wboEarlyChrome ||
+				(window.__wboEarlyChrome = {
+					pendingToolName: null,
+					connectedUsersPanelOpen: false,
+				});
+			const toolButtons = Array.from(
+				document.querySelectorAll("#tools > .tool[data-tool-name]"),
+			).filter((element) => element instanceof HTMLElement);
+
+			function updatePendingToolUi(toolName) {
+				toolButtons.forEach((button) => {
+					button.classList.toggle("curTool", button.dataset.toolName === toolName);
+				});
+			}
+
+			function requestTool(toolName) {
+				earlyChrome.pendingToolName = toolName;
+				root.dataset.pendingTool = toolName;
+				updatePendingToolUi(toolName);
+				const tools = window.Tools;
+				if (tools && typeof tools.activateTool === "function") {
+					void tools.activateTool(toolName);
+				}
+			}
+
+			toolButtons.forEach((button) => {
+				if (button.dataset.toolBound === "true") return;
+				const toolName = button.dataset.toolName;
+				if (!toolName) return;
+				button.dataset.toolBound = "true";
+				button.addEventListener("click", () => {
+					requestTool(toolName);
+				});
+				button.addEventListener("keydown", (evt) => {
+					if (evt.key === "Enter" || evt.key === " ") {
+						evt.preventDefault();
+						requestTool(toolName);
+					}
+				});
+			});
+
+			if (!root.dataset.pendingTool) {
+				const defaultButton =
+					toolButtons.find((button) => button.dataset.toolName === "Hand") ||
+					toolButtons[0];
+				const toolName = defaultButton?.dataset.toolName;
+				if (toolName) {
+					earlyChrome.pendingToolName = toolName;
+					root.dataset.pendingTool = toolName;
+				}
+			}
+			if (root.dataset.pendingTool) {
+				updatePendingToolUi(root.dataset.pendingTool);
+			}
+
+			const toggle = document.getElementById("connectedUsersToggle");
+			const panel = document.getElementById("connectedUsersPanel");
+			if (!(toggle instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
+				return;
+			}
+
+			function setConnectedUsersPanelOpen(open) {
+				earlyChrome.connectedUsersPanelOpen = open;
+				panel.classList.toggle("connected-users-panel-hidden", !open);
+				toggle.classList.toggle("board-presence-toggle-open", open);
+				toggle.setAttribute("aria-expanded", open ? "true" : "false");
+			}
+
+			if (toggle.dataset.connectedUsersUiBound !== "true") {
+				toggle.dataset.connectedUsersUiBound = "true";
+				toggle.addEventListener("click", () => {
+					const tools = window.Tools;
+					if (tools && typeof tools.setConnectedUsersPanelOpen === "function") {
+						tools.setConnectedUsersPanelOpen(!tools.connectedUsersPanelOpen);
+						return;
+					}
+					setConnectedUsersPanelOpen(toggle.getAttribute("aria-expanded") !== "true");
+				});
+				toggle.addEventListener("blur", () => {
+					window.setTimeout(() => {
+						if (
+							!panel.matches(":hover") &&
+							!panel.contains(document.activeElement) &&
+							document.activeElement !== toggle
+						) {
+							setConnectedUsersPanelOpen(false);
+						}
+					}, 0);
+				});
+				panel.addEventListener("keydown", (evt) => {
+					if (evt.key === "Escape") {
+						evt.preventDefault();
+						setConnectedUsersPanelOpen(false);
+						toggle.focus();
+					}
+				});
+			}
+			setConnectedUsersPanelOpen(earlyChrome.connectedUsersPanelOpen === true);
+		})();
+	</script>
 	<script type="module" src="../js/board_main.js?v={{version}}"></script>
+
+	<div id="board">
+		{{{inlineBoardSvg}}}
+	</div>
 </body>
 
 </html>
