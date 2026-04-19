@@ -758,7 +758,7 @@ test.describe("collaboration and rate limiting", () => {
       );
 
       return {
-        boardReady: document.documentElement.dataset.boardReady,
+        boardPhase: document.documentElement.dataset.boardPhase,
         connectionState: String((window as any).Tools.connectionState ?? ""),
         awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
         loadingHidden: loadingMessage?.classList.contains("hidden") ?? false,
@@ -782,7 +782,7 @@ test.describe("collaboration and rate limiting", () => {
     });
 
     expect(finalState).toMatchObject({
-      boardReady: "true",
+      boardPhase: "ready",
       connectionState: "connected",
       awaitingBoardSnapshot: false,
       loadingHidden: true,

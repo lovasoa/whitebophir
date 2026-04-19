@@ -164,8 +164,8 @@ export class BoardPage {
     await this.page.goto(this.buildBoardUrl(boardName, options));
     await this.page.waitForFunction(() => {
       if (!document.getElementById("board")) return true;
-      const state = document.documentElement.dataset.boardReady;
-      return state === "true" || state === "error";
+      const phase = document.documentElement.dataset.boardPhase;
+      return phase === "ready" || phase === "error";
     });
   }
 
@@ -177,7 +177,7 @@ export class BoardPage {
       if (!document.getElementById("board")) return false;
       return (
         !!window.Tools ||
-        document.documentElement.dataset.boardReady === "error"
+        document.documentElement.dataset.boardPhase === "error"
       );
     });
   }

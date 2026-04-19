@@ -6,7 +6,6 @@ type BootPhaseSnapshot = {
   left: number;
   top: number;
   boardPhase: string;
-  boardReady: string;
 };
 
 async function installBootPhaseRecorder(page: Page) {
@@ -23,7 +22,6 @@ async function installBootPhaseRecorder(page: Page) {
         left: window.scrollX || document.documentElement.scrollLeft,
         top: window.scrollY || document.documentElement.scrollTop,
         boardPhase: document.documentElement.dataset.boardPhase ?? "",
-        boardReady: document.documentElement.dataset.boardReady ?? "",
       });
     });
   });
@@ -72,7 +70,6 @@ async function expectViewportRestoreBeforeConnect(
     left,
     top,
     boardPhase: "viewport-restored",
-    boardReady: "booting",
   });
 }
 
@@ -161,15 +158,15 @@ test.describe("single-page interactions", () => {
     await page.goto(url);
     await expectViewportRestoreBeforeConnect(page, left, top);
     await page.waitForFunction(() => {
-      const state = document.documentElement.dataset.boardReady;
-      return state === "true" || state === "error";
+      const phase = document.documentElement.dataset.boardPhase;
+      return phase === "ready" || phase === "error";
     });
 
     await page.reload();
     await expectViewportRestoreBeforeConnect(page, left, top);
     await page.waitForFunction(() => {
-      const state = document.documentElement.dataset.boardReady;
-      return state === "true" || state === "error";
+      const phase = document.documentElement.dataset.boardPhase;
+      return phase === "ready" || phase === "error";
     });
 
     await expect

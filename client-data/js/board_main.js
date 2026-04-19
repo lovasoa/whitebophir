@@ -2,7 +2,6 @@ import { withVersion } from "./tool_assets.js";
 
 const assetVersion = document.documentElement.dataset.version || "";
 const documentElement = document.documentElement;
-document.documentElement.dataset.boardReady = "booting";
 
 const CRITICAL_BOOT_TOOL_NAMES = ["Hand", "Pencil"];
 const REPLAY_SAFE_TOOL_NAMES = new Set([
@@ -151,7 +150,6 @@ async function bootBoardPage() {
   if (!tools.curTool && tools.list.Hand && tools.canUseTool("Hand")) {
     tools.change("Hand");
   }
-  documentElement.dataset.boardReady = "true";
   setBoardBootPhase("ready");
 
   const deferredToolNames = getRenderedToolNames().filter(
@@ -172,7 +170,6 @@ async function bootBoardPage() {
 }
 
 void bootBoardPage().catch((error) => {
-  documentElement.dataset.boardReady = "error";
   setBoardBootPhase("error");
   console.error("Failed to boot board page:", error);
 });
