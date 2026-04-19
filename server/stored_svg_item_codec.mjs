@@ -1,5 +1,3 @@
-import { wboPencilPoint } from "../client-data/tools/pencil/wbo_pencil_point.js";
-
 /**
  * @param {string} value
  * @returns {string}
@@ -136,6 +134,14 @@ function cloneTransform(transform) {
 }
 
 /**
+ * @param {number} value
+ * @returns {number}
+ */
+function roundPathValue(value) {
+  return Math.round(value);
+}
+
+/**
  * @param {number} x
  * @param {number} y
  * @param {number} size
@@ -186,14 +192,36 @@ function decorateStoredItemData(data, opacity, transform) {
  * @returns {string}
  */
 function renderPencilPath(points) {
-  /** @type {{type: string, values: number[]}[]} */
-  const pathData = [];
-  points.forEach((point) => {
-    wboPencilPoint(pathData, point.x, point.y);
-  });
-  return pathData
-    .map((segment) => `${segment.type} ${segment.values.join(" ")}`)
-    .join(" ");
+  if (!Array.isArray(points) || points.length === 0) return "";
+  const firstPoint = points[0];
+  if (
+    !firstPoint ||
+    !Number.isFinite(firstPoint.x) ||
+    !Number.isFinite(firstPoint.y)
+  ) {
+    return "";
+  }
+  let lastX = roundPathValue(firstPoint.x);
+  let lastY = roundPathValue(firstPoint.y);
+  let pathData = `M ${lastX} ${lastY}`;
+
+  if (points.length === 1) {
+    return `${pathData} l 0 0`;
+  }
+
+  for (let index = 1; index < points.length; index += 1) {
+    const point = points[index];
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      continue;
+    }
+    const x = roundPathValue(point.x);
+    const y = roundPathValue(point.y);
+    pathData += ` l ${x - lastX} ${y - lastY}`;
+    lastX = x;
+    lastY = y;
+  }
+
+  return pathData;
 }
 
 /**
@@ -204,25 +232,71 @@ function parsePathData(d) {
   if (typeof d !== "string" || d.trim() === "") return [];
   /** @type {{type: string, values: number[]}[]} */
   const segments = [];
-  const pattern = /([MLC])([^MLC]*)/g;
-  let match = pattern.exec(d);
-  while (match) {
-    const type = match[1];
-    const values = (match[2] || "")
-      .trim()
-      .split(/[\s,]+/)
-      .filter(Boolean)
-      .map(Number);
-    if (
-      type &&
-      ["M", "L", "C"].includes(type) &&
-      values.length > 0 &&
-      values.every((value) => Number.isFinite(value))
-    ) {
-      segments.push({ type, values });
+  let index = 0;
+  /** @type {"M" | "l" | null} */
+  let command = null;
+  /** @type {number[]} */
+  let values = [];
+  let valuesRead = 0;
+  let _currentX = 0;
+  let _currentY = 0;
+
+  while (index < d.length) {
+    const char = d[index];
+    if (char === undefined) break;
+    if (char === " " || char === "," || char === "\n" || char === "\t") {
+      index += 1;
+      continue;
     }
-    match = pattern.exec(d);
+    if (char === "M" || char === "l") {
+      if (valuesRead !== 0) return [];
+      command = char;
+      valuesRead = 0;
+      values = [];
+      index += 1;
+      continue;
+    }
+    if (/[A-Za-z]/.test(char)) return [];
+    if (!command) return [];
+    const start = index;
+    index += 1;
+    while (index < d.length) {
+      const next = d[index];
+      if (next === undefined) break;
+      if (
+        next === " " ||
+        next === "," ||
+        next === "\n" ||
+        next === "\t" ||
+        next === "M" ||
+        next === "l"
+      ) {
+        break;
+      }
+      index += 1;
+      if (/[A-Za-z]/.test(next)) return [];
+    }
+    const value = Number(d.slice(start, index));
+    if (!Number.isFinite(value)) return [];
+    values.push(value);
+    valuesRead += 1;
+    if (valuesRead === 2) {
+      const [dx, dy] = values;
+      if (typeof dx !== "number" || typeof dy !== "number") return [];
+      if (command === "M") {
+        _currentX = dx;
+        _currentY = dy;
+        segments.push({ type: "M", values: [dx, dy] });
+      } else {
+        _currentX += dx;
+        _currentY += dy;
+        segments.push({ type: "l", values: [dx, dy] });
+      }
+      values = [];
+      valuesRead = 0;
+    }
   }
+  if (valuesRead !== 0) return [];
   return segments;
 }
 
@@ -235,12 +309,13 @@ function scanPathSummary(d) {
     return { childCount: 0, localBounds: null };
   }
   let index = 0;
-  let valuesPerSegment = 0;
+  /** @type {"M" | "l" | null} */
+  let command = null;
+  /** @type {number[]} */
+  let values = [];
   let valuesRead = 0;
-  /** @type {number | undefined} */
-  let endpointX;
-  /** @type {number | undefined} */
-  let endpointY;
+  let currentX = 0;
+  let currentY = 0;
   let childCount = 0;
   /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
   let localBounds = null;
@@ -276,54 +351,65 @@ function scanPathSummary(d) {
 
   while (index < d.length) {
     const char = d[index];
-    if (char === "M" || char === "L" || char === "C") {
-      valuesPerSegment = char === "C" ? 6 : 2;
-      valuesRead = 0;
-      endpointX = undefined;
-      endpointY = undefined;
-      index += 1;
-      continue;
-    }
+    if (char === undefined) break;
     if (char === " " || char === "," || char === "\n" || char === "\t") {
       index += 1;
       continue;
     }
+    if (char === "M" || char === "l") {
+      if (valuesRead !== 0) return { childCount: 0, localBounds: null };
+      command = char;
+      valuesRead = 0;
+      values = [];
+      index += 1;
+      continue;
+    }
+    if (/[A-Za-z]/.test(char)) {
+      return { childCount: 0, localBounds: null };
+    }
+    if (!command) return { childCount: 0, localBounds: null };
     const start = index;
     index += 1;
     while (index < d.length) {
       const next = d[index];
+      if (next === undefined) break;
       if (
         next === " " ||
         next === "," ||
         next === "\n" ||
         next === "\t" ||
         next === "M" ||
-        next === "L" ||
-        next === "C"
+        next === "l"
       ) {
         break;
       }
       index += 1;
+      if (/[A-Za-z]/.test(next)) {
+        return { childCount: 0, localBounds: null };
+      }
     }
     const value = Number(d.slice(start, index));
-    if (!Number.isFinite(value) || valuesPerSegment === 0) {
-      continue;
-    }
-    if (valuesRead === valuesPerSegment - 2) {
-      endpointX = value;
-    } else if (valuesRead === valuesPerSegment - 1) {
-      endpointY = value;
-    }
+    if (!Number.isFinite(value)) return { childCount: 0, localBounds: null };
+    values.push(value);
     valuesRead += 1;
-    if (valuesRead === valuesPerSegment) {
-      if (endpointX !== undefined && endpointY !== undefined) {
-        pushPoint(endpointX, endpointY);
+    if (valuesRead === 2) {
+      const [dx, dy] = values;
+      if (typeof dx !== "number" || typeof dy !== "number") {
+        return { childCount: 0, localBounds: null };
       }
+      if (command === "M") {
+        currentX = dx;
+        currentY = dy;
+      } else if (command === "l") {
+        currentX += dx;
+        currentY += dy;
+      }
+      pushPoint(currentX, currentY);
+      values = [];
       valuesRead = 0;
-      endpointX = undefined;
-      endpointY = undefined;
     }
   }
+  if (valuesRead !== 0) return { childCount: 0, localBounds: null };
 
   return { childCount, localBounds };
 }
@@ -335,15 +421,28 @@ function scanPathSummary(d) {
 function pointsFromPathData(pathData) {
   /** @type {{x: number, y: number}[]} */
   const points = [];
+  let currentX = 0;
+  let currentY = 0;
   pathData.forEach((segment) => {
     if (!segment || !Array.isArray(segment.values)) return;
+    if (segment.values.length < 2) return;
     const x = segment.values[segment.values.length - 2];
     const y = segment.values[segment.values.length - 1];
+    if (typeof x !== "number" || typeof y !== "number") return;
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+    const pointX = segment.type === "l" ? currentX + x : x;
+    const pointY = segment.type === "l" ? currentY + y : y;
+
     const previous = points[points.length - 1];
-    const point = /** @type {{x: number, y: number}} */ ({ x, y });
+    const point = /** @type {{x: number, y: number}} */ ({
+      x: pointX,
+      y: pointY,
+    });
     if (previous && previous.x === point.x && previous.y === point.y) return;
     points.push(point);
+    currentX = pointX;
+    currentY = pointY;
   });
   return points;
 }

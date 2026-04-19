@@ -51,17 +51,6 @@ function normalizeRectBounds(x1, y1, x2, y2) {
 }
 
 /**
- * @param {number} x1
- * @param {number} y1
- * @param {number} x2
- * @param {number} y2
- * @returns {number}
- */
-function dist(x1, y1, x2, y2) {
-  return Math.hypot(x2 - x1, y2 - y1);
-}
-
-/**
  * @param {unknown} str
  * @returns {string}
  */
@@ -136,139 +125,7 @@ function renderMoveTo(x, y) {
  * @returns {string}
  */
 function renderLineTo(x, y) {
-  return `L ${roundPathValue(x)} ${roundPathValue(y)}`;
-}
-
-/**
- * @param {number} c1x
- * @param {number} c1y
- * @param {number} c2x
- * @param {number} c2y
- * @param {number} x
- * @param {number} y
- * @returns {string}
- */
-function renderCurveTo(c1x, c1y, c2x, c2y, x, y) {
-  return `C ${roundPathValue(c1x)} ${roundPathValue(c1y)} ${roundPathValue(c2x)} ${roundPathValue(c2y)} ${roundPathValue(x)} ${roundPathValue(y)}`;
-}
-
-/**
- * @param {Point} firstPoint
- * @returns {{
- *   pathParts: string[],
- *   pointCount: number,
- *   anteX: number,
- *   anteY: number,
- *   prevX: number,
- *   prevY: number,
- *   previousCurveIndex: number,
- *   previousCurveControlX: number,
- *   previousCurveControlY: number,
- * }}
- */
-function createPencilPathState(firstPoint) {
-  return {
-    pathParts: [
-      renderMoveTo(firstPoint.x, firstPoint.y),
-      renderLineTo(firstPoint.x, firstPoint.y),
-    ],
-    pointCount: 1,
-    anteX: firstPoint.x,
-    anteY: firstPoint.y,
-    prevX: firstPoint.x,
-    prevY: firstPoint.y,
-    previousCurveIndex: -1,
-    previousCurveControlX: firstPoint.x,
-    previousCurveControlY: firstPoint.y,
-  };
-}
-
-/**
- * @param {ReturnType<typeof createPencilPathState>} state
- * @param {Point} firstPoint
- * @param {number} x
- * @param {number} y
- * @returns {void}
- */
-function appendSecondPencilPoint(state, firstPoint, x, y) {
-  state.pathParts.push(renderCurveTo(firstPoint.x, firstPoint.y, x, y, x, y));
-  state.previousCurveIndex = state.pathParts.length - 1;
-  state.previousCurveControlX = firstPoint.x;
-  state.previousCurveControlY = firstPoint.y;
-  state.anteX = firstPoint.x;
-  state.anteY = firstPoint.y;
-  state.prevX = x;
-  state.prevY = y;
-  state.pointCount = 2;
-}
-
-/**
- * @param {ReturnType<typeof createPencilPathState>} state
- * @param {number} x
- * @param {number} y
- * @returns {{
- *   control1X: number,
- *   control1Y: number,
- *   control2X: number,
- *   control2Y: number,
- * } | null}
- */
-function getPencilCurveControls(state, x, y) {
-  if (
-    (state.prevX === x && state.prevY === y) ||
-    (state.anteX === x && state.anteY === y)
-  ) {
-    return null;
-  }
-
-  const vectorX = x - state.anteX;
-  const vectorY = y - state.anteY;
-  const norm = Math.hypot(vectorX, vectorY);
-  if (norm === 0) return null;
-
-  const scaledVectorX = vectorX / 3;
-  const scaledVectorY = vectorY / 3;
-  const dist1 = dist(state.anteX, state.anteY, state.prevX, state.prevY) / norm;
-  const dist2 = dist(x, y, state.prevX, state.prevY) / norm;
-  return {
-    control1X: state.prevX - dist1 * scaledVectorX,
-    control1Y: state.prevY - dist1 * scaledVectorY,
-    control2X: state.prevX + dist2 * scaledVectorX,
-    control2Y: state.prevY + dist2 * scaledVectorY,
-  };
-}
-
-/**
- * @param {ReturnType<typeof createPencilPathState>} state
- * @param {number} x
- * @param {number} y
- * @returns {void}
- */
-function appendSmoothedPencilPoint(state, x, y) {
-  const controls = getPencilCurveControls(state, x, y);
-  if (!controls) return;
-
-  if (state.previousCurveIndex !== -1) {
-    state.pathParts[state.previousCurveIndex] = renderCurveTo(
-      state.previousCurveControlX,
-      state.previousCurveControlY,
-      controls.control1X,
-      controls.control1Y,
-      state.prevX,
-      state.prevY,
-    );
-  }
-  state.pathParts.push(
-    renderCurveTo(controls.control2X, controls.control2Y, x, y, x, y),
-  );
-  state.previousCurveIndex = state.pathParts.length - 1;
-  state.previousCurveControlX = controls.control2X;
-  state.previousCurveControlY = controls.control2Y;
-  state.anteX = state.prevX;
-  state.anteY = state.prevY;
-  state.prevX = x;
-  state.prevY = y;
-  state.pointCount += 1;
+  return `l ${roundPathValue(x)} ${roundPathValue(y)}`;
 }
 
 /**
@@ -281,22 +138,19 @@ function renderPencilPath(children) {
   const firstPoint = children[0];
   if (!firstPoint) return "";
 
-  const state = createPencilPathState(firstPoint);
+  let path = renderMoveTo(firstPoint.x, firstPoint.y);
+  let previousX = firstPoint.x;
+  let previousY = firstPoint.y;
 
-  for (let index = 1; index < children.length; index++) {
+  for (let index = 1; index < children.length; index += 1) {
     const point = children[index];
     if (!point) continue;
-
-    const x = point.x;
-    const y = point.y;
-    if (state.pointCount === 1) {
-      appendSecondPencilPoint(state, firstPoint, x, y);
-      continue;
-    }
-    appendSmoothedPencilPoint(state, x, y);
+    path += renderLineTo(point.x - previousX, point.y - previousY);
+    previousX = point.x;
+    previousY = point.y;
   }
 
-  return state.pathParts.join(" ");
+  return path;
 }
 
 /** @type {{[tool: string]: ToolRenderer}} */
