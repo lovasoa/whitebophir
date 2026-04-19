@@ -21,7 +21,7 @@ section before making changes there.
 - Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.mjs).
 - Extracted broadcast admission core for isolated testing/benchmarking: [broadcast processing](./server/broadcast_processing.mjs); this covers normalization, rate-limit bookkeeping, board write policy, and board mutation without the Socket.IO wrapper.
 - Canonical inbound payload normalization **[hot]**: [message schema gate](./server/message_validation.mjs); `normalizeCoord` and its neighbors run for every coordinate in every persisted or broadcast item.
-- In-memory board model + apply rules + disk sync **[hot]**: [board state engine](./server/boardData.mjs); `load`, `processMessage`, and the per-item normalization loop dominate CPU during board open and save.
+- In-memory board model + apply rules + disk sync **[hot]**: [board state engine](./server/boardData.mjs); loaded boards now keep one canonical per-id item index plus paint order, with text and pencil payload compressed after persistence. `load`, `processMessage`, and save-time item materialization dominate CPU during board open and save.
 - Env parsing + rate-limit profile construction must stay cold. Never do unneeded work in the hot path.
 - Shared geometry/id/color/text clamps **[hot]**: [message primitives](./client-data/js/message_common.js); `clampCoord`, `clampColor`, and friends are invoked from every coordinate/field normalizer on the server.
 - Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js).
@@ -33,8 +33,8 @@ section before making changes there.
 
 ## performance-critical paths
 
-- Board load, snapshot materialization, and broadcast fan-out call `normalizeIncomingMessage` and coordinate/field clampers once per item and often once per child point. An 18k-item board translates to ~9× that many normalizer calls per load. Any per-call allocation, env parse, or config recompute at that depth is multiplied accordingly.
-- Treat the following as the performance budget for a single 18k-item dense board open (see [benchmark scenarios](./scripts/benchmark-server.mjs), `load dense persisted board`): target median well under 1 s. A measured regression past 1 s almost always means a non-O(1) call was added per item or per coordinate.
+- Board load, canonical item materialization, and broadcast fan-out call `normalizeIncomingMessage` and coordinate/field clampers once per item and often once per child point. An 18k-item board translates to ~9× that many normalizer calls per load. Any per-call allocation, env parse, config recompute, or payload cloning at that depth is multiplied accordingly.
+- Treat the following as the performance budget for a single 18k-item dense board open (see [benchmark scenarios](./scripts/benchmark-server.mjs), `load large board`): target median around or below 1 s. A measured regression materially past that almost always means a non-O(1) call was added per item or per coordinate.
 - `readConfiguration()` is a **pure** function: every call re-parses `process.env`. This is intentional — it keeps tests env-aware without any module-internal cache or reset escape hatch. The cost is per-call, not per-process, so anything on the hot path must not invoke it per item or per coordinate.
 - Hot-path capture contract:
   - Modules whose exports run on per-item, per-child, or per-coordinate code paths (currently [message schema gate](./server/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js)) **must capture the config fields they need at module scope**, e.g. `const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();`. The capture happens once at ESM evaluation time.
@@ -45,6 +45,8 @@ section before making changes there.
   - Allocate new objects, arrays, or regexes inside per-coordinate normalizers. Module-scope constants are preferred over per-call literals.
   - Start a span with `withActiveSpan` per item. Prefer `withOptionalActiveSpan` (no-op when no parent span exists) or lift the span one level to the whole batch. `withExpensiveActiveSpan` short-circuits to `fn(undefined)` when tracing is not recording, which is the correct default for per-item work.
 - Before/after every change that might touch a hot path, run `npm run bench` and compare the median of the relevant scenario. If a scenario moves by more than ~10% without an intentional cause, profile with `npm run profile` and inspect the `.cpuprofile` top self-time frames before landing the change.
+- `BoardData` no longer lazily hydrates full persisted items from SVG during live writes. If you find yourself reading SVG from a socket-message path, that is almost certainly a design bug. The source SVG may be read during board load and during streaming persistence only.
+- Legacy `.json` boards are a migration edge path, not part of steady-state board logic. When a JSON board is encountered, convert it to SVG first, then continue through the normal SVG-backed load path.
 
 ## message lifecycle
 
@@ -68,7 +70,7 @@ section before making changes there.
 - Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
 - Browser runner setup: [playwright config](./playwright.config.ts).
 - Server-rendered toolbar/icon/cache coverage: [server route tests](./test-node/server_routes.test.js).
-- Throughput coverage: [benchmark harness](./scripts/benchmark-server.mjs); `load dense persisted board` is the canonical regression signal for per-coordinate hot-path changes, and `process heterogeneous socket broadcasts` is the canonical regression signal for live broadcast admission.
+- Throughput coverage: [benchmark harness](./scripts/benchmark-server.mjs); `load large board` is the canonical regression signal for cold-load hot-path changes, `persist modifications to large board` is the canonical regression signal for save/rewrite work, `server broadcast throughput` is the canonical regression signal for live broadcast admission, and `open large board to peer-visible erase` tracks end-to-end browser-visible latency.
 
 ## test commands
 
@@ -94,8 +96,8 @@ section before making changes there.
 
 - Run `npm run profile` to profile `scripts/benchmark-server.mjs`; `.profiles/` is gitignored and keeps local CPU and heap output together.
 - `npm run profile` raises `WBO_BENCH_TIMEOUT_MS` to `600000` unless you already set it, so profiling still has a strict but roomier budget.
-- CPU: open `.profiles/benchmark-server.cpuprofile` in DevTools Performance and look for hot frames with high self time or repeated stacks in `BoardData.load`, `BoardData.save`, `renderBoardToSVG`, `JSON.parse`, and `JSON.stringify`.
-- Memory: open `.profiles/benchmark-server.heapprofile` in DevTools Memory and look for large sampled allocations that survive GC, especially duplicated board objects, large `_children` arrays, and serialization strings.
+- CPU: open `.profiles/benchmark-server.cpuprofile` in DevTools Performance and look for hot frames with high self time or repeated stacks in `BoardData.load`, `BoardData.save`, `renderBoardToSVG`, canonical update helpers, and SVG path parsing/materialization.
+- Memory: open `.profiles/benchmark-server.heapprofile` in DevTools Memory and look for large sampled allocations that survive GC, especially duplicated canonical items, accidental cloning of large `appendedChildren` arrays, and serialization strings.
 
 ## formatting
 
@@ -107,7 +109,7 @@ section before making changes there.
 
 - Message shape changes: update [server schema gate](./server/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests; if a normalizer is modified, also run `npm run bench` since both modules are on the hot path.
 - Rate-limit changes: update [shared rate-limit helpers](./client-data/js/rate_limit_common.js), [socket policy](./server/socket_policy.mjs), and [socket handlers](./server/sockets.mjs); rerun `node --test test-node/rate_limit_common.test.js test-node/socket_policy.test.js test-node/rate_limits.test.js`.
-- Persistence/replay changes: review [board state engine](./server/boardData.mjs); rerun `node --test test-node/rate_limits.test.js`, `npm test`, and `npm run bench`.
+- Persistence/replay changes: review [board state engine](./server/boardData.mjs) and [svg board store](./server/svg_board_store.mjs); rerun `node --test test-node/rate_limits.test.js`, `npm test`, and `npm run bench`.
 - Config/env changes: update [server configuration](./server/configuration.mjs); keep `readConfiguration` pure — do **not** reintroduce module-internal memoization or a reset hook. New config fields consumed on the per-item/per-coordinate hot path must be captured at module scope in [message schema gate](./server/message_validation.mjs) or [shared message primitives](./client-data/js/message_common.js); fields consumed in cold paths must be read per-invocation. Rerun [rate-limit tests](./test-node/rate_limits.test.js) and `npm run bench`.
 - Tool UX changes: start in [tool modules](./client-data/tools/); verify with Playwright.
 
