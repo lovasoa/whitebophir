@@ -570,6 +570,43 @@ test("formatReadableLogRecord only renders sampled span ids", async () => {
   });
 });
 
+test("LOG_LEVEL filters lower-severity logs", async () => {
+  const previous = applyTracingEnv({
+    OTEL_TRACES_SAMPLER: "always_on",
+    WBO_SILENT: "true",
+    LOG_LEVEL: "warn",
+  });
+  try {
+    if (sharedObservability) {
+      await sharedObservability.shutdownObservability();
+      sharedObservability = null;
+    }
+    logs.disable();
+    metrics.disable();
+    propagation.disable();
+    context.disable();
+    trace.disable();
+    clearModuleCache(CONFIG_PATH);
+    const observability = await import(
+      `${pathToFileURL(OBSERVABILITY_PATH).href}?cache-bust=${Date.now()}`
+    );
+    assert.equal(observability.__test.shouldEmitLog("debug"), false);
+    assert.equal(observability.__test.shouldEmitLog("info"), false);
+    assert.equal(observability.__test.shouldEmitLog("warn"), true);
+    assert.equal(observability.__test.shouldEmitLog("error"), true);
+    await observability.shutdownObservability();
+  } finally {
+    restoreTracingEnv(
+      {
+        OTEL_TRACES_SAMPLER: "always_on",
+        WBO_SILENT: "true",
+        LOG_LEVEL: "warn",
+      },
+      previous,
+    );
+  }
+});
+
 test("successful and invalid cursor broadcasts stay untraced without a parent span", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-trace-cursor-"),

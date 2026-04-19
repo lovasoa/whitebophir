@@ -1359,6 +1359,7 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
       boardName: "missing-baseline-race",
     },
     async ({ historyDir, connect, invoke, handler, getLoadedBoard }) => {
+      const svgBoardStore = require("../server/svg_board_store.mjs");
       const first = await connect({
         id: "socket-first",
         query: { board: "missing-baseline-race" },
@@ -1408,7 +1409,7 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
         id: "socket-reconnect",
         query: { board: "missing-baseline-race" },
       });
-      await connect({
+      const peer = await connect({
         id: "socket-peer",
         query: { board: "missing-baseline-race" },
       });
@@ -1433,9 +1434,14 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
         "rect-3",
       ]);
 
-      await board.save();
+      handler(reconnect, "disconnecting")("transport close");
+      handler(peer, "disconnecting")("transport close");
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
-      const savedSvg = await fs.readFile(svgPath, "utf8");
+      const savedSvg = await svgBoardStore.readServedBaseline(
+        "missing-baseline-race",
+        { historyDir },
+      );
       assert.match(savedSvg, /id="rect-1"/);
       assert.match(savedSvg, /id="rect-2"/);
       assert.match(savedSvg, /id="rect-3"/);

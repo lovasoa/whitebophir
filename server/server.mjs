@@ -53,6 +53,7 @@ const config = readConfiguration();
 
 const app = createServer(handler);
 app.on("clientError", handleClientError);
+let shutdownRequested = false;
 
 void (async function startServer() {
   await check_output_directory(config.HISTORY_DIR);
@@ -60,11 +61,13 @@ void (async function startServer() {
     `./sockets.mjs?cache-bust=${crypto.randomUUID()}`
   );
   sockets.start(app);
+  installShutdownHandlers(app, sockets);
 
   app.listen(config.PORT, config.HOST, () => {
     const actualPort = getAddressPort(app.address());
     logger.info("server.started", {
       [ATTR_SERVER_PORT]: actualPort,
+      "log.level": config.LOG_LEVEL,
     });
     if (process.send)
       process.send({ type: "server-started", port: actualPort });
@@ -143,6 +146,59 @@ const STATIC_RESOURCE_EXTENSIONS = [
   ".gif",
 ];
 const BOARD_SCOPED_ROUTES = new Set(["boards", "preview", "download"]);
+
+/**
+ * @param {import("http").Server} server
+ * @param {{shutdown?: () => Promise<void>}} sockets
+ * @returns {void}
+ */
+function installShutdownHandlers(server, sockets) {
+  /**
+   * @param {NodeJS.Signals} signal
+   * @returns {Promise<void>}
+   */
+  async function shutdown(signal) {
+    if (shutdownRequested) return;
+    shutdownRequested = true;
+    logger.info("server.shutdown_started", { signal });
+    try {
+      await sockets.shutdown?.();
+      await new Promise((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            if (
+              typeof error === "object" &&
+              error &&
+              "code" in error &&
+              error.code === "ERR_SERVER_NOT_RUNNING"
+            ) {
+              resolve(undefined);
+              return;
+            }
+            reject(error);
+          } else {
+            resolve(undefined);
+          }
+        });
+      });
+      logger.info("server.shutdown_completed", { signal });
+      process.exit(0);
+    } catch (error) {
+      logger.error("server.shutdown_failed", {
+        signal,
+        error,
+      });
+      process.exit(1);
+    }
+  }
+
+  process.on("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
+  process.on("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
+}
 
 /**
  * @param {ServerAddress} address

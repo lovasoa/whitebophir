@@ -7,6 +7,26 @@ import {
 } from "./configuration_helpers.mjs";
 
 const appRoot = process.cwd();
+const VALID_LOG_LEVELS = new Set(["debug", "info", "warn", "error"]);
+
+/**
+ * @param {string | undefined} value
+ * @returns {"debug" | "info" | "warn" | "error"}
+ */
+function parseLogLevel(value) {
+  const normalized = (value || "info").trim().toLowerCase();
+  if (
+    normalized === "debug" ||
+    normalized === "info" ||
+    normalized === "warn" ||
+    normalized === "error"
+  ) {
+    return normalized;
+  }
+  throw new Error(
+    `Invalid LOG_LEVEL: expected one of ${[...VALID_LOG_LEVELS].join(", ")}`,
+  );
+}
 
 /**
  * Read the current environment and return a fully resolved configuration
@@ -102,6 +122,9 @@ export function readConfiguration() {
     /** Path to the directory where boards will be saved by default */
     HISTORY_DIR:
       process.env.WBO_HISTORY_DIR || path.join(appRoot, "server-data"),
+
+    /** Minimum server log level. Valid values: debug, info, warn, error. */
+    LOG_LEVEL: parseLogLevel(process.env.LOG_LEVEL),
 
     /** Folder from which static files will be served */
     WEBROOT: process.env.WBO_WEBROOT || path.join(appRoot, "client-data"),

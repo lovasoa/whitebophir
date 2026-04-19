@@ -90,6 +90,7 @@ let connectedUsersTotal = 0;
 /** @type {UserReportLog | null} */
 let lastUserReportLog = null;
 let invalidIpSourceLogged = false;
+/** @type {import("socket.io").Server | undefined} */
 let io;
 const NAME_SYLLABLES = [
   "al",
@@ -166,6 +167,25 @@ const NAME_SYLLABLES = [
   "ze",
   "zi",
 ];
+
+/**
+ * @param {BoardData} board
+ * @param {{[key: string]: unknown}=} extras
+ * @returns {{[key: string]: unknown}}
+ */
+function boardDebugFields(board, extras) {
+  return {
+    board: board.name,
+    "wbo.board.instance": board.instanceId,
+    "wbo.board.seq": board.getSeq(),
+    "wbo.board.persisted_seq": board.getPersistedSeq(),
+    "wbo.board.min_replayable_seq": board.minReplayableSeq(),
+    "wbo.board.has_persisted_baseline": board.hasPersistedBaseline,
+    "wbo.board.users": board.users.size,
+    "file.path": board.file,
+    ...(extras || {}),
+  };
+}
 /**
  * Wraps a socket event handler with standard error logging and metrics.
  * @template {any[]} Args
@@ -2051,11 +2071,21 @@ function startIO(app) {
  */
 function getBoard(name) {
   if (Object.hasOwn(boards, name)) {
+    if (logger.isEnabled("debug")) {
+      logger.debug("board.cache_hit", {
+        board: name,
+      });
+    }
     return /** @type {Promise<BoardData>} */ (boards[name]);
   } else {
     const board = BoardData.load(name);
     boards[name] = board;
     updateLoadedBoardsGauge();
+    if (logger.isEnabled("debug")) {
+      logger.debug("board.cache_miss", {
+        board: name,
+      });
+    }
     return board;
   }
 }
@@ -2079,6 +2109,15 @@ async function bootstrapSocketBoard(socket, boardName, config) {
     async function traceConnectBoard() {
       ensureSocketJoinedBoard(socket, boardName);
       const board = await getBoard(boardName);
+      if (logger.isEnabled("debug")) {
+        logger.debug(
+          "socket.board_bootstrap",
+          boardDebugFields(board, {
+            socket: socket.id,
+            "wbo.socket.requires_seq_catchup": requiresSeqCatchup(socket),
+          }),
+        );
+      }
       const wasJoined = board.users.has(socket.id);
       board.users.add(socket.id);
       if (!wasJoined || !hasBoardUser(socket, boardName)) {
@@ -2124,7 +2163,27 @@ async function handleSyncRequestMessage(socket, boardName, request) {
   const baselineSeq = normalizeSeq(request?.baselineSeq);
   const latestSeq = board.getSeq();
   const minReplayableSeq = board.minReplayableSeq();
+  if (logger.isEnabled("debug")) {
+    logger.debug(
+      "socket.sync_request_received",
+      boardDebugFields(board, {
+        socket: socket.id,
+        "wbo.socket.baseline_seq": baselineSeq,
+        "wbo.socket.latest_seq": latestSeq,
+      }),
+    );
+  }
   if (baselineSeq > latestSeq || baselineSeq < minReplayableSeq) {
+    if (logger.isEnabled("debug")) {
+      logger.debug(
+        "socket.sync_request_resync_required",
+        boardDebugFields(board, {
+          socket: socket.id,
+          "wbo.socket.baseline_seq": baselineSeq,
+          "wbo.socket.latest_seq": latestSeq,
+        }),
+      );
+    }
     socket.emit("resync_required", {
       type: "resync_required",
       latestSeq: latestSeq,
@@ -2141,6 +2200,16 @@ async function handleSyncRequestMessage(socket, boardName, request) {
     socket.emit("broadcast", envelope);
   }
   syncedPersistentSockets.add(socket.id);
+  if (logger.isEnabled("debug")) {
+    logger.debug(
+      "socket.sync_request_completed",
+      boardDebugFields(board, {
+        socket: socket.id,
+        "wbo.socket.baseline_seq": baselineSeq,
+        "wbo.socket.latest_seq": latestSeq,
+      }),
+    );
+  }
   socket.emit("sync_replay_end", {
     type: "sync_replay_end",
     toInclusiveSeq: latestSeq,
@@ -2292,12 +2361,29 @@ async function handleSocketConnection(socket, config) {
             const board = await /** @type {Promise<BoardData>} */ (
               boards[room]
             );
+            if (logger.isEnabled("debug")) {
+              logger.debug(
+                "socket.board_disconnecting",
+                boardDebugFields(board, {
+                  socket: socket.id,
+                }),
+              );
+            }
             const removed = board.users.delete(socket.id);
             removeBoardUser(socket, room);
             const userCount = board.users.size;
             if (removed) {
               connectedUsersTotal = Math.max(0, connectedUsersTotal - 1);
               updateConnectedUsersGauge();
+            }
+            if (logger.isEnabled("debug")) {
+              logger.debug(
+                "socket.board_disconnected",
+                boardDebugFields(board, {
+                  socket: socket.id,
+                  "wbo.board.user_removed": removed,
+                }),
+              );
             }
             if (userCount === 0) unloadBoard(room);
           }
@@ -2328,8 +2414,21 @@ async function unloadBoard(boardName) {
         const board = await /** @type {Promise<BoardData>} */ (
           boards[boardName]
         );
+        if (logger.isEnabled("debug")) {
+          logger.debug("board.unload_started", boardDebugFields(board));
+        }
         try {
           await board.save();
+          if (board.users.size > 0) {
+            if (logger.isEnabled("debug")) {
+              logger.debug("board.unload_aborted", boardDebugFields(board));
+            }
+            return;
+          }
+          board.dispose();
+          if (logger.isEnabled("debug")) {
+            logger.debug("board.unload_completed", boardDebugFields(board));
+          }
           tracing.setActiveSpanAttributes({
             "wbo.board": boardName,
             "wbo.board.result": "success",
@@ -2356,6 +2455,21 @@ async function unloadBoard(boardName) {
         }
       },
     );
+  }
+}
+
+/**
+ * Persist and unload every loaded board.
+ * @returns {Promise<void>}
+ */
+async function shutdownBoards() {
+  const loadedBoards = Object.keys(boards);
+  await Promise.allSettled(
+    loadedBoards.map((boardName) => unloadBoard(boardName)),
+  );
+  const currentIo = io;
+  if (currentIo) {
+    await new Promise((resolve) => currentIo.close(() => resolve(undefined)));
   }
 }
 
@@ -2397,4 +2511,4 @@ export const __test = {
   },
 };
 
-export { startIO as start };
+export { shutdownBoards as shutdown, startIO as start };

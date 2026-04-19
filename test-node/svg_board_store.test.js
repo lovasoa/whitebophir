@@ -437,6 +437,42 @@ test("readCanonicalBoardState streams root metadata for empty drawing areas", as
   });
 });
 
+test("readCanonicalBoardState falls back to the backup svg when the primary file is missing", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-load-backup-"),
+  );
+  const boardName = "load-state-backup-svg";
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await svgBoardStore.writeBoardState(
+      boardName,
+      {
+        "rect-1": {
+          id: "rect-1",
+          tool: "Rectangle",
+          x: 1,
+          y: 2,
+          x2: 30,
+          y2: 40,
+          color: "#123456",
+          size: 4,
+        },
+      },
+      { readonly: true },
+      7,
+    );
+    await fs.unlink(svgBoardStore.boardSvgPath(boardName));
+
+    const state = await svgBoardStore.readCanonicalBoardState(boardName);
+    const servedBaseline = await svgBoardStore.readServedBaseline(boardName);
+
+    assert.equal(state.source, "svg_backup");
+    assert.deepEqual(state.paintOrder, ["rect-1"]);
+    assert.equal(state.itemsById.get("rect-1")?.tool, "Rectangle");
+    assert.match(servedBaseline, /id="rect-1"/);
+  });
+});
+
 test("readServedBaseline returns stored svg bytes unchanged when svg exists", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-served-opaque-"),

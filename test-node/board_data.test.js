@@ -1162,6 +1162,7 @@ test("BoardData.save recovers from a deleted baseline before a new pencil stroke
     "wbo-board-save-missing-baseline-seed-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
+      const svgBoardStore = require("../server/svg_board_store.mjs");
       const svgPath = path.join(historyDir, "board-missing-baseline-seed.svg");
       const board = new BoardData("missing-baseline-seed");
 
@@ -1185,9 +1186,17 @@ test("BoardData.save recovers from a deleted baseline before a new pencil stroke
 
       await board.save();
 
-      assert.equal(board.hasPersistedBaseline, false);
-      await assert.rejects(fs.stat(svgPath), { code: "ENOENT" });
-      assert.deepEqual(Object.keys(board.board), ["pencil-2"]);
+      assert.equal(board.hasPersistedBaseline, true);
+      assert.deepEqual(Object.keys(board.board).sort(), [
+        "pencil-1",
+        "pencil-2",
+      ]);
+      const savedAfterSeed = await svgBoardStore.readServedBaseline(
+        "missing-baseline-seed",
+        { historyDir },
+      );
+      assert.match(savedAfterSeed, /id="pencil-1"/);
+      assert.equal(savedAfterSeed.includes('id="pencil-2"'), false);
 
       await applyPersistentMutations(
         board,
@@ -1200,9 +1209,12 @@ test("BoardData.save recovers from a deleted baseline before a new pencil stroke
 
       await board.save();
 
-      const savedSvg = await fs.readFile(svgPath, "utf8");
+      const savedSvg = await svgBoardStore.readServedBaseline(
+        "missing-baseline-seed",
+        { historyDir },
+      );
+      assert.match(savedSvg, /id="pencil-1"/);
       assert.match(savedSvg, /id="pencil-2"/);
-      assert.equal(savedSvg.includes('id="pencil-1"'), false);
     },
   );
 });
@@ -1271,6 +1283,48 @@ test("BoardData.save preserves cold-loaded stored svg when there are no pending 
       await board.save();
 
       assert.equal(await fs.readFile(svgPath, "utf8"), existingSvg);
+    },
+  );
+});
+
+test("BoardData.save preserves cold-loaded state when only the backup svg remains", async () => {
+  await withBoardHistoryDir(
+    "wbo-board-save-cold-backup-",
+    async ({ historyDir }) => {
+      const BoardData = getBoardDataClass();
+      const svgBoardStore = require("../server/svg_board_store.mjs");
+      const boardName = "cold-backup";
+      const svgPath = path.join(historyDir, "board-cold-backup.svg");
+
+      await svgBoardStore.writeBoardState(
+        boardName,
+        {
+          "line-1": {
+            id: "line-1",
+            tool: "Pencil",
+            color: "#654321",
+            size: 5,
+            _children: [
+              { x: 1, y: 2 },
+              { x: 3, y: 4 },
+            ],
+          },
+        },
+        { readonly: false },
+        7,
+        { historyDir },
+      );
+      await fs.unlink(svgPath);
+
+      const board = await BoardData.load(boardName);
+      assert.equal(board.loadSource, "svg_backup");
+      assert.deepEqual(Object.keys(board.board), ["line-1"]);
+
+      await board.save();
+
+      const reloaded = await BoardData.load(boardName);
+      assert.equal(reloaded.loadSource, "svg_backup");
+      assert.deepEqual(Object.keys(reloaded.board), ["line-1"]);
     },
   );
 });

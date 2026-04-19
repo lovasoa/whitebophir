@@ -38,6 +38,7 @@ import {
 } from "@opentelemetry/semantic-conventions";
 import packageJson from "../package.json" with { type: "json" };
 
+import { readConfiguration } from "./configuration.mjs";
 import {
   DEFAULT_SERVICE_NAME,
   flattenError,
@@ -49,6 +50,13 @@ const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME;
 const SERVICE_VERSION = packageJson.version;
 const DEFAULT_TRACE_SAMPLE_RATIO = 0.05;
 const DEFAULT_RUNTIME_METRICS_PRECISION_MS = 5000;
+const LOG_LEVEL_RANK = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+};
+const MIN_LOG_LEVEL = readConfiguration().LOG_LEVEL;
 const TEST_TRACE_EXPORTER = /** @type {{__WBO_TEST_TRACE_EXPORTER__?: any}} */ (
   globalThis
 ).__WBO_TEST_TRACE_EXPORTER__;
@@ -819,7 +827,16 @@ function createLogRecord(level, name, fields) {
  * @returns {void}
  */
 function emitLog(level, name, fields) {
+  if (!shouldEmitLog(level)) return;
   otelLogger.emit(createLogRecord(level, name, fields));
+}
+
+/**
+ * @param {"debug"|"info"|"warn"|"error"} level
+ * @returns {boolean}
+ */
+function shouldEmitLog(level) {
+  return LOG_LEVEL_RANK[level] >= LOG_LEVEL_RANK[MIN_LOG_LEVEL];
 }
 
 /**
@@ -1060,6 +1077,13 @@ function shutdownObservability() {
 
 const logger = {
   /**
+   * @param {"debug"|"info"|"warn"|"error"} level
+   * @returns {boolean}
+   */
+  isEnabled: function isEnabled(level) {
+    return shouldEmitLog(level);
+  },
+  /**
    * @param {string} name
    * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
    */
@@ -1122,6 +1146,7 @@ const tracing = {
 
 const __test = {
   createLogRecord,
+  shouldEmitLog,
   tracingEnabled: function tracingEnabledForTest() {
     return tracingEnabled;
   },

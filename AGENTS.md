@@ -17,12 +17,12 @@ section before making changes there.
 - HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs).
 - Server-issued user identity cookie parsing + serialization: [user secret cookie helper](./server/user_secret_cookie.mjs).
 - Shared toolbar catalog + versioned tool asset helpers: [tool catalog](./client-data/js/tool_catalog.js), [tool assets](./client-data/js/tool_assets.js).
-- Realtime event handlers + broadcast path: [socket handlers](./server/sockets.mjs).
+- Realtime event handlers + broadcast/unload path: [socket handlers](./server/sockets.mjs); socket join/leave drives board lifetime, final save, and dispose timing.
 - Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.mjs).
 - Extracted broadcast admission core for isolated testing/benchmarking: [broadcast processing](./server/broadcast_processing.mjs); this covers normalization, rate-limit bookkeeping, board write policy, and board mutation without the Socket.IO wrapper.
 - Canonical inbound payload normalization **[hot]**: [message schema gate](./server/message_validation.mjs); `normalizeCoord` and its neighbors run for every coordinate in every persisted or broadcast item.
-- In-memory board model + apply rules + disk sync **[hot]**: [board state engine](./server/boardData.mjs); loaded boards now keep one canonical per-id item index plus paint order, with text and pencil payload compressed after persistence. `load`, `processMessage`, and save-time item materialization dominate CPU during board open and save.
-- Stored SVG structure scan + summary/full decode split: [svg board store](./server/svg_board_store.mjs), [stored SVG item codec](./server/stored_svg_item_codec.mjs), [streaming stored SVG scan](./server/streaming_stored_svg_scan.mjs). Cold board load and canonical indexing must stay on summary-only decode; full payload materialization is reserved for rewrite cases that actually need text bodies or Pencil points.
+- In-memory board model + apply rules **[hot]**: [board state engine](./server/boardData.mjs); loaded boards keep one canonical per-id item index plus paint order, with text and pencil payload compressed after persistence. `load`, `processMessage`, and save-time item materialization dominate CPU during board open and save.
+- Disk persistence + stored-SVG rewrite/load path: [svg board store](./server/svg_board_store.mjs), [stored SVG item codec](./server/stored_svg_item_codec.mjs), [streaming stored SVG scan](./server/streaming_stored_svg_scan.mjs). This layer owns primary-vs-`.svg.bak` fallback, streaming rewrites, and summary/full decode split; cold board load and canonical indexing must stay on summary-only decode.
 - Env parsing + rate-limit profile construction must stay cold. Never do unneeded work in the hot path.
 - Shared geometry/id/color/text clamps **[hot]**: [message primitives](./client-data/js/message_common.js); `clampCoord`, `clampColor`, and friends are invoked from every coordinate/field normalizer on the server.
 - Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js). Board boot now publishes explicit DOM phases on `document.documentElement.dataset.boardPhase` and dispatches `wbo:board-phase` events; initial URL-hash viewport restore happens before socket connection startup.
@@ -71,7 +71,7 @@ section before making changes there.
 
 ## where to look by concern
 
-- Config/env behavior: [server configuration](./server/configuration.mjs). `readConfiguration` is a pure function (no memoization, no reset hook); it re-parses `process.env` on every call. `withEnv` in [test helpers](./test-node/test_helpers.js) swaps env vars for the scope of a test. Hot-path consumers capture the fields they need at module scope and rely on ESM cache-bust query strings to re-evaluate under a different env; see [performance-critical paths](#performance-critical-paths) for the full contract.
+- Config/env behavior: [server configuration](./server/configuration.mjs). `readConfiguration` is a pure function (no memoization, no reset hook); it re-parses `process.env` on every call. `LOG_LEVEL` controls the minimum emitted server log severity (`debug`, `info`, `warn`, `error`). `withEnv` in [test helpers](./test-node/test_helpers.js) swaps env vars for the scope of a test. Hot-path consumers capture the fields they need at module scope and rely on ESM cache-bust query strings to re-evaluate under a different env; see [performance-critical paths](#performance-critical-paths) for the full contract.
 - Browser integration coverage: [playwright specs](./playwright/tests).
 - Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
 - Browser runner setup: [playwright config](./playwright.config.ts).
