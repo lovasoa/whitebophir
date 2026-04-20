@@ -5,11 +5,12 @@ import handlebars from "handlebars";
 import packageJson from "../package.json" with { type: "json" };
 
 import client_config from "./client_configuration.mjs";
-import serverConfig from "./configuration.mjs";
+import { readConfiguration } from "./configuration.mjs";
 import {
   getToolIconUrl,
   getToolStylesheetUrl,
 } from "../client-data/js/tool_assets.js";
+import { applyCompressionForResponse } from "./http_compression.mjs";
 import {
   getVisibleToolCatalogEntries,
   TOOL_CATALOG,
@@ -24,6 +25,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 /** @typedef {string | string[] | undefined} HeaderValue */
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
+const BOARD_PAGE_CACHE_HEADROOM_SECONDS = 5;
 
 /**
  * Associations from language to translation dictionnaries
@@ -225,15 +227,22 @@ class Template {
     if (!parsedUrl.searchParams.get("lang")) {
       headers.Vary = "Accept-Language";
     }
+    const { stream } = applyCompressionForResponse(
+      response,
+      request.headers["accept-encoding"],
+      headers,
+    );
     response.writeHead(200, headers);
-    response.end(body);
+    stream.end(body);
   }
 
   /**
    * @returns {string}
    */
   cacheControl() {
-    return serverConfig.IS_DEVELOPMENT ? "no-store" : "public, max-age=3600";
+    return readConfiguration().IS_DEVELOPMENT
+      ? "no-store"
+      : "public, max-age=3600";
   }
 }
 
@@ -339,11 +348,16 @@ class BoardTemplate extends Template {
     if (!parsedUrl.searchParams.get("lang")) {
       headers.Vary = "Accept-Language";
     }
+    const { stream } = applyCompressionForResponse(
+      response,
+      request.headers["accept-encoding"],
+      headers,
+    );
     response.writeHead(200, headers);
-    response.write(prefix);
-    inlineBoardSvgStream.pipe(response, { end: false });
+    stream.write(prefix);
+    inlineBoardSvgStream.pipe(stream, { end: false });
     inlineBoardSvgStream.on("end", () => {
-      response.end(suffix);
+      stream.end(suffix);
     });
   }
 
@@ -351,9 +365,16 @@ class BoardTemplate extends Template {
    * @returns {string}
    */
   cacheControl() {
-    return serverConfig.IS_DEVELOPMENT
-      ? "no-store"
-      : "public, max-age=0, must-revalidate";
+    const serverConfig = readConfiguration();
+    if (serverConfig.IS_DEVELOPMENT) {
+      return "no-store";
+    }
+    const maxAgeSeconds = Math.max(
+      0,
+      Math.floor(serverConfig.MAX_SAVE_DELAY / 1000) -
+        BOARD_PAGE_CACHE_HEADROOM_SECONDS,
+    );
+    return `public, max-age=${maxAgeSeconds}, must-revalidate`;
   }
 }
 

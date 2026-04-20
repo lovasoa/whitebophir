@@ -36,6 +36,12 @@ const CLIENT_CONFIGURATION_PATH = path.join(
   "server",
   "client_configuration.mjs",
 );
+const COMPRESSION_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "http_compression.mjs",
+);
 const CLIENT_WEBROOT = path.join(__dirname, "..", "client-data");
 const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.mjs");
 const PACKAGE_PATH = path.join(__dirname, "..", "package.json");
@@ -663,6 +669,81 @@ test("canonical board svg endpoint serves the authoritative baseline with short 
       assert.equal(response.headers["cache-control"], "public, max-age=30");
       assert.match(response.body, /data-wbo-seq="3"/);
       assert.match(response.body, /<line id="line-1"/);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board html svg and preview routes negotiate compression when requested", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "compressed-board"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="6" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+  const compressionModule = await import(
+    `${pathToFileURL(COMPRESSION_PATH).href}?cache-bust=${++serverLoadSequence}`
+  );
+  const expectedEncoding =
+    compressionModule.selectCompressionEncoding("zstd, br, gzip");
+  if (compressionModule.selectCompressionEncoding("zstd") === "zstd") {
+    assert.equal(expectedEncoding, "zstd");
+  }
+  const wildcardEncoding = compressionModule.selectCompressionEncoding("*");
+  if (expectedEncoding) {
+    assert.equal(wildcardEncoding, expectedEncoding);
+  }
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    NODE_ENV: "production",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const plainResponse = await request(app, "/boards/compressed-board");
+      assert.equal(plainResponse.statusCode, 200);
+      assert.equal(plainResponse.headers["content-encoding"], undefined);
+      assert.match(String(plainResponse.headers.vary || ""), /Accept-Encoding/);
+
+      const htmlResponse = await request(app, "/boards/compressed-board", {
+        "Accept-Encoding": "zstd, br, gzip",
+      });
+      assert.equal(htmlResponse.statusCode, 200);
+
+      const svgResponse = await request(app, "/boards/compressed-board.svg", {
+        "Accept-Encoding": "zstd, br, gzip",
+      });
+      assert.equal(svgResponse.statusCode, 200);
+
+      const previewResponse = await request(app, "/preview/compressed-board", {
+        "Accept-Encoding": "zstd, br, gzip",
+      });
+      assert.equal(previewResponse.statusCode, 200);
+
+      for (const response of [htmlResponse, svgResponse, previewResponse]) {
+        if (expectedEncoding === undefined) {
+          assert.equal(response.headers["content-encoding"], undefined);
+        } else {
+          assert.equal(response.headers["content-encoding"], expectedEncoding);
+          assert.equal(response.headers["content-length"], undefined);
+        }
+        assert.match(String(response.headers.vary || ""), /Accept-Encoding/);
+      }
     } finally {
       await closeServer(app);
     }

@@ -29,6 +29,7 @@ import { readConfiguration } from "./configuration.mjs";
 import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
+import { applyCompressionForResponse } from "./http_compression.mjs";
 import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
 import {
   boardExists,
@@ -1038,19 +1039,27 @@ async function handleBoardDocumentRoute(
 /**
  * @param {HttpResponse} response
  * @param {NodeJS.ReadableStream} svgStream
+ * @param {string | string[] | undefined} acceptEncoding
  * @returns {void}
  */
-function respondWithBoardSvgStream(response, svgStream) {
+function respondWithBoardSvgStream(response, svgStream, acceptEncoding) {
   /** @type {{ [name: string]: string | number }} */
-  response.writeHead(200, {
+  const headers = {
     "Content-Type": "image/svg+xml",
     "Content-Security-Policy": CSP,
     "Cache-Control": cacheControl("public, max-age=30"),
-  });
-  svgStream.pipe(response);
+  };
+  const { stream } = applyCompressionForResponse(
+    response,
+    acceptEncoding,
+    headers,
+  );
+  response.writeHead(200, headers);
+  svgStream.pipe(stream);
 }
 
 /**
+ * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @param {URL} parsedUrl
  * @param {string[]} parts
@@ -1061,7 +1070,13 @@ function respondWithBoardSvgStream(response, svgStream) {
  * }} requestContext
  * @returns {Promise<void>}
  */
-async function handleBoardSvgRoute(response, parsedUrl, parts, requestContext) {
+async function handleBoardSvgRoute(
+  request,
+  response,
+  parsedUrl,
+  parts,
+  requestContext,
+) {
   const boardName = requireBoardSvgPathName(parts);
   annotateBoardRequest(requestContext, boardName);
   jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
@@ -1074,7 +1089,11 @@ async function handleBoardSvgRoute(response, parsedUrl, parts, requestContext) {
       response.destroy(error);
     }
   });
-  respondWithBoardSvgStream(response, svgStream);
+  respondWithBoardSvgStream(
+    response,
+    svgStream,
+    request.headers["accept-encoding"],
+  );
 }
 
 /**
@@ -1106,7 +1125,13 @@ function handleBoardsRoute(
   }
   if (parts.length === 2 && getPathPart(parts, 1)?.endsWith(".svg")) {
     requestContext.setRoute("board_svg");
-    return handleBoardSvgRoute(response, parsedUrl, parts, requestContext);
+    return handleBoardSvgRoute(
+      request,
+      response,
+      parsedUrl,
+      parts,
+      requestContext,
+    );
   }
   if (parts.length === 2 && parsedUrl.pathname.indexOf(".") === -1) {
     return handleBoardDocumentRoute(
@@ -1246,6 +1271,7 @@ async function renderPreviewSvg(boardName) {
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
  * @param {number} startedAt
+ * @param {string | string[] | undefined} acceptEncoding
  * @returns {Promise<void>}
  */
 async function respondWithBoardPreview(
@@ -1253,6 +1279,7 @@ async function respondWithBoardPreview(
   boardName,
   requestContext,
   startedAt,
+  acceptEncoding,
 ) {
   const svg = await renderPreviewSvg(boardName);
   recordPreviewDuration(requestContext, startedAt);
@@ -1263,12 +1290,19 @@ async function respondWithBoardPreview(
     response.end(errorPage);
     return;
   }
-  response.writeHead(200, {
+  /** @type {{ [name: string]: string | number }} */
+  const headers = {
     "Content-Type": "image/svg+xml",
     "Content-Security-Policy": CSP,
     "Cache-Control": cacheControl("public, max-age=30"),
-  });
-  response.end(svg);
+  };
+  const { stream } = applyCompressionForResponse(
+    response,
+    acceptEncoding,
+    headers,
+  );
+  response.writeHead(200, headers);
+  stream.end(svg);
 }
 
 /**
@@ -1301,6 +1335,7 @@ function handlePreviewRoute(
     boardName,
     requestContext,
     startedAt,
+    request.headers["accept-encoding"],
   ).catch((err) => {
     recordPreviewDuration(requestContext, startedAt);
     requestContext.noteError(err);
