@@ -90,6 +90,38 @@ function boardSvgFile(historyDir, name) {
   return path.join(historyDir, `board-${encodeURIComponent(name)}.svg`);
 }
 
+test("in-process server imports do not register process signal handlers", async () => {
+  const dirs = await createServerDirs();
+  const sigintBefore = process.listenerCount("SIGINT");
+  const sigtermBefore = process.listenerCount("SIGTERM");
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      assert.equal(process.listenerCount("SIGINT"), sigintBefore);
+      assert.equal(process.listenerCount("SIGTERM"), sigtermBefore);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
 test("server returns 400 for preview and download routes without a board name", async () => {
   const dirs = await createServerDirs();
 

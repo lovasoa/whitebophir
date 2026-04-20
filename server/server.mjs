@@ -2,6 +2,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import { createServer } from "node:http";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   ATTR_CLIENT_ADDRESS,
@@ -18,18 +19,18 @@ import {
   decodeAndValidateBoardName,
   isValidBoardName,
 } from "../client-data/js/board_name.js";
+import { getLoadedBoard, pinReplayBaseline } from "./board_registry.mjs";
 import {
   badRequest,
   boundaryReason,
   boundaryStatusCode,
 } from "./boundary_errors.mjs";
 import check_output_directory from "./check_output_directory.mjs";
-import { getLoadedBoard, pinReplayBaseline } from "./board_registry.mjs";
 import { readConfiguration } from "./configuration.mjs";
+import { applyCompressionForResponse } from "./http_compression.mjs";
 import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
-import { applyCompressionForResponse } from "./http_compression.mjs";
 import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
 import {
   boardExists,
@@ -63,7 +64,9 @@ void (async function startServer() {
     `./sockets.mjs?cache-bust=${crypto.randomUUID()}`
   );
   sockets.start(app);
-  installShutdownHandlers(app, sockets);
+  if (isProcessEntrypoint()) {
+    installShutdownHandlers(app, sockets);
+  }
 
   app.listen(config.PORT, config.HOST, () => {
     const actualPort = getAddressPort(app.address());
@@ -200,6 +203,19 @@ function installShutdownHandlers(server, sockets) {
   process.on("SIGTERM", () => {
     void shutdown("SIGTERM");
   });
+}
+
+/**
+ * Only the standalone server process should own process-global signal handlers.
+ * In-process test imports close the server explicitly and must not accumulate
+ * SIGINT/SIGTERM listeners across cache-busted module reloads.
+ *
+ * @returns {boolean}
+ */
+function isProcessEntrypoint() {
+  const entryArg = process.argv[1];
+  if (!entryArg) return false;
+  return path.resolve(entryArg) === fileURLToPath(import.meta.url);
 }
 
 /**
