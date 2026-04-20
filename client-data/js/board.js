@@ -261,6 +261,23 @@ function getLoadingMessage() {
   return document.getElementById("loadingMessage");
 }
 
+/**
+ * Force a fresh board document request instead of reusing a cached HTML
+ * baseline that already proved too old to reconcile over the socket.
+ *
+ * @param {string} reason
+ * @param {{[key: string]: unknown}=} [details]
+ */
+function forceFreshBoardReload(reason, details) {
+  console.warn("Reloading board page", {
+    reason,
+    ...(details || {}),
+  });
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set("_wbo_reload", String(Date.now()));
+  window.location.replace(nextUrl.toString());
+}
+
 function getBoardStatusIndicator() {
   return document.getElementById("boardStatusIndicator");
 }
@@ -999,7 +1016,10 @@ async function processIncomingBroadcast(msg) {
         authoritativeSeq: Tools.authoritativeSeq,
         incomingSeq: msg.seq,
       });
-      window.location.reload();
+      forceFreshBoardReload("persistent_replay_gap", {
+        authoritativeSeq: Tools.authoritativeSeq,
+        incomingSeq: msg.seq,
+      });
       return false;
     }
   }
@@ -2156,9 +2176,20 @@ Tools.startConnection = () => {
       Tools.syncWriteStatusIndicator();
     },
   );
-  socket.on("resync_required", function onResyncRequired() {
-    window.location.reload();
-  });
+  socket.on(
+    "resync_required",
+    function onResyncRequired(
+      /** @type {{latestSeq?: unknown, minReplayableSeq?: unknown} | undefined} */ payload,
+    ) {
+      forceFreshBoardReload("resync_required", {
+        authoritativeSeq: Tools.authoritativeSeq,
+        latestSeq: BoardMessageReplay.normalizeSeq(payload?.latestSeq),
+        minReplayableSeq: BoardMessageReplay.normalizeSeq(
+          payload?.minReplayableSeq,
+        ),
+      });
+    },
+  );
   socket.on(
     "user_joined",
     function onUserJoined(/** @type {ConnectedUser} */ user) {

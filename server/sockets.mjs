@@ -2182,16 +2182,14 @@ async function handleSyncRequestMessage(socket, boardName, request) {
     );
   }
   if (baselineSeq > latestSeq || baselineSeq < minReplayableSeq) {
-    if (logger.isEnabled("debug")) {
-      logger.debug(
-        "socket.sync_request_resync_required",
-        boardDebugFields(board, {
-          socket: socket.id,
-          "wbo.socket.baseline_seq": baselineSeq,
-          "wbo.socket.latest_seq": latestSeq,
-        }),
-      );
-    }
+    logger.warn(
+      "socket.sync_request_resync_required",
+      boardDebugFields(board, {
+        socket: socket.id,
+        "wbo.socket.baseline_seq": baselineSeq,
+        "wbo.socket.latest_seq": latestSeq,
+      }),
+    );
     socket.emit("resync_required", {
       type: "resync_required",
       latestSeq: latestSeq,
