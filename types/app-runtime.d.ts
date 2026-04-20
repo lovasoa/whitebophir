@@ -149,7 +149,6 @@ export type AppTool = {
   move?: ToolPointerListener;
   release?: ToolPointerListener;
   onMessage?: (message: BoardMessage) => void;
-  iconHTML?: string;
   listeners?: ToolPointerListeners;
   compiledListeners?: CompiledToolListeners;
   onstart?: (oldTool: AppTool | null) => void;
@@ -311,7 +310,6 @@ export type ToolPalette = {
   addTool: (
     toolName: string,
     toolIcon: string,
-    toolIconHTML: string | undefined,
     toolShortcut: string,
     oneTouch: boolean | undefined,
   ) => unknown;
@@ -482,11 +480,9 @@ export type AppToolsState = {
   queueProtectedWrite: (data: BoardMessage, tool: AppTool) => void;
   flushTurnstilePendingWrites: () => void;
   getToolAssetUrl: (toolName: string, assetFile: string) => string;
-  registerToolClass: (toolClass: ToolClass) => void;
   ensureToolClassLoaded: (toolName: string) => Promise<ToolClass>;
   mountTool: (tool: AppTool) => MountedAppTool;
   bootTool: (toolName: string) => Promise<AppTool | null>;
-  ensureToolBooted: (toolName: string) => Promise<AppTool | null>;
   activateTool: (toolName: string) => Promise<boolean>;
   add: (tool: AppTool) => void;
   register: (tool: AppTool) => void;

@@ -68,7 +68,7 @@ async function lazyBootRenderedTools() {
   );
   renderedToolNames.forEach((toolName) => {
     schedule(() => {
-      void tools.ensureToolBooted(toolName);
+      void tools.bootTool(toolName);
     });
   });
 }

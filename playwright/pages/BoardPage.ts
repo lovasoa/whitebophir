@@ -368,8 +368,8 @@ export class BoardPage {
       const getTools = () => window.Tools;
       const ensurePencilTool = async () => {
         const tools = getTools();
-        if (typeof tools.ensureToolBooted === "function") {
-          await tools.ensureToolBooted("Pencil");
+        if (typeof tools.bootTool === "function") {
+          await tools.bootTool("Pencil");
         }
         const pencilTool = tools.list.Pencil;
         if (!pencilTool) throw new Error("Missing Pencil tool");
@@ -577,8 +577,8 @@ export class BoardPage {
     await this.page.evaluate(
       async ({ cursorColor, cursorX, cursorY }) => {
         const tools = window.Tools;
-        if (typeof tools.ensureToolBooted === "function") {
-          await tools.ensureToolBooted("Cursor");
+        if (typeof tools.bootTool === "function") {
+          await tools.bootTool("Cursor");
         }
         tools.setColor(cursorColor);
         const event = new Event("mousemove");

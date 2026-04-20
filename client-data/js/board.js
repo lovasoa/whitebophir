@@ -2382,46 +2382,6 @@ function bindToolButton(button, toolName) {
 
 /**
  * @param {string} toolName
- * @returns {HTMLElement}
- */
-function createToolButton(toolName) {
-  const button = document.createElement("li");
-  button.className = "tool";
-  button.tabIndex = -1;
-  button.id = `toolID-${toolName}`;
-
-  const primaryIcon = document.createElement("img");
-  primaryIcon.className = "tool-icon";
-  primaryIcon.width = 35;
-  primaryIcon.height = 35;
-  primaryIcon.alt = "";
-  primaryIcon.setAttribute("aria-hidden", "true");
-  button.appendChild(primaryIcon);
-
-  const label = document.createElement("span");
-  label.className = "tool-name";
-  button.appendChild(label);
-
-  const secondaryIcon = document.createElement("img");
-  secondaryIcon.className = "tool-icon secondaryIcon";
-  secondaryIcon.width = 35;
-  secondaryIcon.height = 35;
-  secondaryIcon.src = "data:,";
-  secondaryIcon.alt = "";
-  secondaryIcon.setAttribute("aria-hidden", "true");
-  button.appendChild(secondaryIcon);
-
-  const toolsList = document.getElementById("tools");
-  if (!toolsList) {
-    throw new Error("Missing tools list.");
-  }
-  toolsList.appendChild(button);
-  bindToolButton(button, toolName);
-  return button;
-}
-
-/**
- * @param {string} toolName
  * @returns {HTMLElement | null}
  */
 function getToolButton(toolName) {
@@ -2431,13 +2391,11 @@ function getToolButton(toolName) {
 
 /**
  * @param {string} toolName
- * @param {AppTool} tool
+ * @param {MountedAppTool} tool
  * @returns {void}
  */
-function hydrateToolButton(toolName, tool) {
-  const button =
-    getToolButton(toolName) ||
-    (Tools.shouldDisplayTool(toolName) ? createToolButton(toolName) : null);
+function syncToolButton(toolName, tool) {
+  const button = getToolButton(toolName);
   if (!button) return;
   bindToolButton(button, toolName);
   const parts = getRequiredToolButtonParts(toolName);
@@ -2482,13 +2440,7 @@ Tools.HTML = /** @type {ToolPalette} */ ({
       }
     });
   },
-  addTool: function addTool(
-    toolName,
-    toolIcon,
-    toolIconHTML,
-    toolShortcut,
-    oneTouch,
-  ) {
+  addTool: function addTool(toolName, toolIcon, toolShortcut, oneTouch) {
     const tool = Tools.list[toolName];
     if (!tool) {
       throw new Error(`Tool not registered before rendering: ${toolName}`);
@@ -2500,10 +2452,9 @@ Tools.HTML = /** @type {ToolPalette} */ ({
       });
     }
     tool.icon = toolIcon;
-    tool.iconHTML = toolIconHTML;
     tool.shortcut = toolShortcut || tool.shortcut;
     tool.oneTouch = oneTouch;
-    hydrateToolButton(toolName, tool);
+    syncToolButton(toolName, tool);
     Tools.syncToolDisabledState(toolName);
     return getToolButton(toolName);
   },
@@ -2560,17 +2511,6 @@ bindRenderedToolButtons();
 Tools.list = /** @type {AppToolsState["list"]} */ ({});
 
 /**
- * @param {ToolClass} ToolClass
- * @returns {void}
- */
-Tools.registerToolClass = function registerToolClass(ToolClass) {
-  if (!ToolClass.toolName) {
-    throw new Error("Tool classes must expose a static toolName.");
-  }
-  Tools.toolClasses[ToolClass.toolName] = ToolClass;
-};
-
-/**
  * @param {string} toolName
  * @returns {Promise<ToolClass>}
  */
@@ -2590,7 +2530,7 @@ Tools.ensureToolClassLoaded = async function ensureToolClassLoaded(toolName) {
       `Tool module for ${toolName} exported ${String(ToolClass.toolName)}.`,
     );
   }
-  Tools.registerToolClass(/** @type {ToolClass} */ (ToolClass));
+  Tools.toolClasses[toolName] = ToolClass;
   return ToolClass;
 };
 
@@ -2763,7 +2703,6 @@ Tools.mountTool = function mountTool(tool) {
     Tools.HTML.addTool(
       tool.name,
       tool.icon,
-      tool.iconHTML,
       tool.shortcut || "",
       tool.oneTouch,
     );
@@ -2780,7 +2719,7 @@ Tools.mountTool = function mountTool(tool) {
  * @param {string} toolName
  * @returns {Promise<AppTool | null>}
  */
-async function createBootPromise(toolName) {
+async function bootToolPromise(toolName) {
   const ToolClass = await Tools.ensureToolClassLoaded(toolName);
   const bootedTool = await ToolClass.boot(createToolBootContext(toolName));
   if (!bootedTool) return null;
@@ -2797,7 +2736,7 @@ Tools.bootTool = async function bootTool(toolName) {
   const inFlight = Tools.bootedToolPromises[toolName];
   if (inFlight) return inFlight;
 
-  const promise = createBootPromise(toolName);
+  const promise = bootToolPromise(toolName);
   Tools.bootedToolPromises[toolName] = promise;
   try {
     return await promise;
@@ -2808,19 +2747,11 @@ Tools.bootTool = async function bootTool(toolName) {
 
 /**
  * @param {string} toolName
- * @returns {Promise<AppTool | null>}
- */
-Tools.ensureToolBooted = function ensureToolBooted(toolName) {
-  return Tools.bootTool(toolName);
-};
-
-/**
- * @param {string} toolName
  * @returns {Promise<boolean>}
  */
 Tools.activateTool = async function activateTool(toolName) {
   if (!Tools.shouldDisplayTool(toolName)) return false;
-  const tool = await Tools.ensureToolBooted(toolName);
+  const tool = await Tools.bootTool(toolName);
   if (!tool || !Tools.canUseTool(toolName)) return false;
   if (tool.requiresWritableBoard === true && !Tools.canBufferWrites()) {
     await Tools.whenBoardWritable();
