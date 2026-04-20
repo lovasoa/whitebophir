@@ -1557,10 +1557,6 @@ Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
 Tools.socket = null;
 Tools.hasConnectedOnce = false;
-Tools.socketIOExtraHeaders = null;
-Tools.token = null;
-Tools.boardName = "";
-Tools.pendingReplaySync = false;
 
 Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
 Tools.connectedUsersPanelOpen = false;
@@ -3350,12 +3346,9 @@ Tools.colorPresets = [
   { color: "#E65194" },
 ];
 Tools.color_chooser = null;
-Tools.currentColor = "#001f3f";
 Tools.colorChangeHandlers =
   /** @type {AppToolsState["colorChangeHandlers"]} */ ([]);
 Tools.sizeChangeHandlers = [];
-Tools.currentSize = DEFAULT_INITIAL_SIZE;
-Tools.currentOpacity = DEFAULT_INITIAL_OPACITY;
 
 /** @param {string} color */
 Tools.setColor = function setColor(color) {
@@ -3425,6 +3418,7 @@ Tools.server_config = /** @type {ServerConfig} */ (
 Tools.boardName = resolveBoardName(window.location.pathname);
 Tools.token = new URL(window.location.href).searchParams.get("token");
 Tools.socketIOExtraHeaders = socketIOExtraHeaders;
+Tools.pendingReplaySync = false;
 Tools.initialPrefs = {
   tool: "Hand",
   color: initialPreset?.color || "#001f3f",
