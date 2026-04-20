@@ -19,6 +19,8 @@ function createState() {
     paintOrder: [],
     nextPaintOrder: 0,
     dirtyCreatedIds: new Set(),
+    liveItemCount: 0,
+    trimPaintOrderIndex: 0,
   };
 }
 

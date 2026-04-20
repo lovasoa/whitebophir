@@ -267,6 +267,8 @@ function replaceBoardState(board, snapshot) {
   board.paintOrder = [...snapshot.paintOrder];
   board.nextPaintOrder = snapshot.nextPaintOrder;
   board.dirtyCreatedIds = new Set(snapshot.dirtyCreatedIds);
+  board.liveItemCount = snapshot.liveItemCount;
+  board.trimPaintOrderIndex = snapshot.trimPaintOrderIndex;
 }
 
 /**
@@ -293,12 +295,16 @@ class BoardData {
     this.mutationLog = createMutationLog(0);
     /** @type {Array<{mutation: any}>} */
     this.pendingRejectedMutationEffects = [];
+    /** @type {Array<{mutation: any}>} */
+    this.pendingAcceptedMutationEffects = [];
     /** @type {Map<string, any>} */
     this.itemsById = new Map();
     /** @type {string[]} */
     this.paintOrder = [];
     this.nextPaintOrder = 0;
     this.dirtyCreatedIds = new Set();
+    this.liveItemCount = 0;
+    this.trimPaintOrderIndex = 0;
     this.disposed = false;
   }
 
@@ -315,6 +321,8 @@ class BoardData {
     this.paintOrder = [];
     this.nextPaintOrder = 0;
     this.dirtyCreatedIds = new Set();
+    this.liveItemCount = 0;
+    this.trimPaintOrderIndex = 0;
     let paintOrder = 0;
     for (const [id, item] of Object.entries(value || {})) {
       const canonical = canonicalItemFromItem({ ...item, id }, paintOrder, {
@@ -421,9 +429,19 @@ class BoardData {
   }
 
   /**
+   * @returns {Array<{mutation: any}>}
+   */
+  consumePendingAcceptedMutationEffects() {
+    const effects = this.pendingAcceptedMutationEffects;
+    this.pendingAcceptedMutationEffects = [];
+    return effects;
+  }
+
+  /**
    * @returns {{ok: true}}
    */
   commitMutation() {
+    this.pendingAcceptedMutationEffects.push(...this.trimOverflowItems());
     return { ok: true };
   }
 
@@ -432,6 +450,34 @@ class BoardData {
    */
   authoritativeItemCount() {
     return authoritativeItemCount(this);
+  }
+
+  /**
+   * @returns {Array<{mutation: BoardMessage}>}
+   */
+  trimOverflowItems() {
+    const { MAX_ITEM_COUNT } = readConfiguration();
+    /** @type {Array<{mutation: BoardMessage}>} */
+    const followup = [];
+    while (
+      this.liveItemCount > MAX_ITEM_COUNT &&
+      this.trimPaintOrderIndex < this.paintOrder.length
+    ) {
+      const id = this.paintOrder[this.trimPaintOrderIndex];
+      this.trimPaintOrderIndex += 1;
+      if (id === undefined) continue;
+      const item = this.itemsById.get(id);
+      if (!item || item.deleted === true) continue;
+      removeCanonicalItem(this, id);
+      followup.push({
+        mutation: {
+          tool: "Eraser",
+          type: "delete",
+          id,
+        },
+      });
+    }
+    return followup;
   }
 
   /**
@@ -996,6 +1042,8 @@ class BoardData {
         dirty: true,
       });
     }
+    this.liveItemCount = 0;
+    this.trimPaintOrderIndex = this.paintOrder.length;
     this.delaySave();
     return this.commitMutation();
   }
@@ -1170,6 +1218,8 @@ class BoardData {
               dirty: true,
             });
           }
+          this.liveItemCount = 0;
+          this.trimPaintOrderIndex = this.paintOrder.length;
         }
         for (const [id, item] of overlay.entries()) {
           if (item === undefined) {
@@ -1190,6 +1240,7 @@ class BoardData {
    */
   processMessage(message) {
     this.pendingRejectedMutationEffects = [];
+    this.pendingAcceptedMutationEffects = [];
     /** @type {BoardMutationResult | ValidationFailure} */
     let result;
     if (message._children) {
@@ -1646,29 +1697,26 @@ class BoardData {
   /** Remove old elements from the board */
   clean() {
     const { MAX_ITEM_COUNT } = readConfiguration();
-    const ids = this.paintOrder.filter(
-      (id) => this.itemsById.get(id)?.deleted !== true,
-    );
-    if (ids.length > MAX_ITEM_COUNT) {
+    if (this.liveItemCount > MAX_ITEM_COUNT) {
       let removed = false;
-      const toDestroy = ids
-        .sort(
-          (x, y) =>
-            (this.itemsById.get(x)?.time || 0) -
-            (this.itemsById.get(y)?.time || 0),
-        )
-        .slice(0, -MAX_ITEM_COUNT);
-      for (let i = 0; i < toDestroy.length; i++) {
-        const id = toDestroy[i];
-        if (id !== undefined) {
-          this.itemsById.delete(id);
-          removed = true;
-        }
+      while (
+        this.liveItemCount > MAX_ITEM_COUNT &&
+        this.trimPaintOrderIndex < this.paintOrder.length
+      ) {
+        const id = this.paintOrder[this.trimPaintOrderIndex];
+        this.trimPaintOrderIndex += 1;
+        if (id === undefined) continue;
+        const item = this.itemsById.get(id);
+        if (!item || item.deleted === true) continue;
+        this.itemsById.delete(id);
+        this.liveItemCount -= 1;
+        removed = true;
       }
       if (removed) {
         this.paintOrder = this.paintOrder.filter((id) =>
           this.itemsById.has(id),
         );
+        this.trimPaintOrderIndex = 0;
         rebuildDirtyCreatedItems(this);
       }
     }
@@ -1724,6 +1772,7 @@ class BoardData {
             0,
           );
           rebuildDirtyCreatedItems(boardData);
+          boardData.trimPaintOrderIndex = 0;
           boardData.hasPersistedBaseline = storedBoard.source !== "empty";
           boardData.loadSource = storedBoard.source;
           boardData.metadata = storedBoard.metadata;
@@ -1811,6 +1860,8 @@ class BoardData {
           boardData.itemsById = new Map();
           boardData.paintOrder = [];
           boardData.nextPaintOrder = 0;
+          boardData.liveItemCount = 0;
+          boardData.trimPaintOrderIndex = 0;
         }
         return boardData;
       },

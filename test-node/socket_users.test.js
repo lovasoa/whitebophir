@@ -1089,6 +1089,99 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
   );
 });
 
+test("accepted creates that overflow the item cap emit a sequenced live trim delete followup", async () => {
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-live-item-trim-",
+      env: { WBO_MAX_ITEM_COUNT: "2" },
+    },
+    async ({ connect, getLoadedBoard, handler }) => {
+      const writer = await connect({
+        id: "socket-live-item-trim",
+        remoteAddress: "203.0.113.86",
+        headers: withUserSecretCookie("99999999999999999999999999999994"),
+        query: {
+          board: "board-live-item-trim",
+          sync: "seq",
+          tool: "Rectangle",
+          color: "#333333",
+          size: "4",
+        },
+      });
+      const broadcast = handler(writer, "broadcast");
+      await broadcast({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-1",
+        x: 10,
+        y: 10,
+        x2: 20,
+        y2: 20,
+        color: "#111111",
+        size: 4,
+        clientMutationId: "cm-rect-1",
+      });
+      await broadcast({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-2",
+        x: 20,
+        y: 20,
+        x2: 30,
+        y2: 30,
+        color: "#222222",
+        size: 4,
+        clientMutationId: "cm-rect-2",
+      });
+      await broadcast({
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-3",
+        x: 30,
+        y: 30,
+        x2: 40,
+        y2: 40,
+        color: "#333333",
+        size: 4,
+        clientMutationId: "cm-rect-3",
+      });
+
+      const seqBroadcasts = writer.emitted.filter(
+        (event) => event.event === "broadcast",
+      );
+      assert.deepEqual(
+        seqBroadcasts.map((event) => getRequiredValue(event).payload.seq),
+        [1, 2, 3, 4],
+      );
+      assert.deepEqual(getRequiredValue(seqBroadcasts[2]).payload.mutation, {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-3",
+        clientMutationId: "cm-rect-3",
+        x: 30,
+        y: 30,
+        x2: 40,
+        y2: 40,
+        color: "#333333",
+        size: 10,
+        socket: "socket-live-item-trim",
+      });
+      assert.deepEqual(getRequiredValue(seqBroadcasts[3]).payload.mutation, {
+        tool: "Eraser",
+        type: "delete",
+        id: "rect-1",
+      });
+
+      const loadedBoard = await getLoadedBoard("board-live-item-trim");
+      assert.equal(loadedBoard.get("rect-1"), undefined);
+      assert.deepEqual(Object.keys(loadedBoard.board).sort(), [
+        "rect-2",
+        "rect-3",
+      ]);
+    },
+  );
+});
+
 test("disconnecting from a board broadcasts user_left and cleans the board user map", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-left-" },

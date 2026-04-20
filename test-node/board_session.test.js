@@ -305,3 +305,126 @@ test("board session appends sequenced followups generated during rejection", asy
     ],
   });
 });
+
+test("board session appends sequenced followups generated during successful acceptance", async () => {
+  const { createBoardSession } = await loadBoardSession();
+  /** @type {any[]} */
+  const recorded = [];
+  const board = {
+    name: "session-accepted-followup",
+    processMessage() {
+      return { ok: true };
+    },
+    consumePendingAcceptedMutationEffects() {
+      return [
+        {
+          mutation: {
+            tool: "Eraser",
+            type: "delete",
+            id: "rect-1",
+          },
+        },
+      ];
+    },
+    recordPersistentMutation(
+      /** @type {any} */ message,
+      /** @type {any} */ acceptedAtMs,
+      /** @type {any} */ clientMutationId,
+    ) {
+      recorded.push({ message, acceptedAtMs, clientMutationId });
+      return {
+        seq: recorded.length,
+        mutation: message,
+      };
+    },
+  };
+
+  const result = await createBoardSession(board).acceptPersistentMutation(
+    "socket-1",
+    {
+      tool: "Rectangle",
+      type: "rect",
+      id: "rect-2",
+      color: "#123456",
+      size: 4,
+      x: 0,
+      y: 0,
+      x2: 10,
+      y2: 10,
+    },
+    "cm-ok-followup",
+    33,
+  );
+
+  assert.deepEqual(recorded, [
+    {
+      message: {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-2",
+        color: "#123456",
+        size: 4,
+        x: 0,
+        y: 0,
+        x2: 10,
+        y2: 10,
+      },
+      acceptedAtMs: 33,
+      clientMutationId: "cm-ok-followup",
+    },
+    {
+      message: {
+        tool: "Eraser",
+        type: "delete",
+        id: "rect-1",
+      },
+      acceptedAtMs: 33,
+      clientMutationId: undefined,
+    },
+  ]);
+  assert.deepEqual(result, {
+    ok: true,
+    value: {
+      tool: "Rectangle",
+      type: "rect",
+      id: "rect-2",
+      color: "#123456",
+      size: 4,
+      x: 0,
+      y: 0,
+      x2: 10,
+      y2: 10,
+    },
+    envelope: {
+      seq: 1,
+      mutation: {
+        tool: "Rectangle",
+        type: "rect",
+        id: "rect-2",
+        color: "#123456",
+        size: 4,
+        x: 0,
+        y: 0,
+        x2: 10,
+        y2: 10,
+      },
+    },
+    followup: [
+      {
+        envelope: {
+          seq: 2,
+          mutation: {
+            tool: "Eraser",
+            type: "delete",
+            id: "rect-1",
+          },
+        },
+        mutation: {
+          tool: "Eraser",
+          type: "delete",
+          id: "rect-1",
+        },
+      },
+    ],
+  });
+});

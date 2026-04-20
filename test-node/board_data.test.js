@@ -862,20 +862,68 @@ test("BoardData rejects hand batches atomically when one transform is oversized"
   assert.equal(board.get("rect-2").transform, undefined);
 });
 
-test("BoardData.clean keeps the newest items when trimming history", async () => {
+test("BoardData trims overflow by paint order instead of recency", async () => {
   await withEnv({ WBO_MAX_ITEM_COUNT: "2" }, async () => {
     const BoardData = getBoardDataClass();
     const board = disableSaves(new BoardData("cleanup-board"));
 
-    board.board = {
-      oldest: { id: "oldest", tool: "Text", type: "new", time: 1 },
-      middle: { id: "middle", tool: "Text", type: "new", time: 2 },
-      newest: { id: "newest", tool: "Text", type: "new", time: 3 },
-    };
+    assert.equal(
+      board.processMessage({
+        tool: "Text",
+        type: "new",
+        id: "first",
+        x: 10,
+        y: 10,
+        color: "#111111",
+        size: 18,
+        txt: "first",
+      }).ok,
+      true,
+    );
+    assert.equal(
+      board.processMessage({
+        tool: "Text",
+        type: "new",
+        id: "second",
+        x: 20,
+        y: 20,
+        color: "#222222",
+        size: 18,
+        txt: "second",
+      }).ok,
+      true,
+    );
+    assert.equal(
+      board.processMessage({
+        tool: "Text",
+        type: "update",
+        id: "first",
+        txt: "first updated",
+      }).ok,
+      true,
+    );
+    assert.equal(
+      board.processMessage({
+        tool: "Text",
+        type: "new",
+        id: "third",
+        x: 30,
+        y: 30,
+        color: "#333333",
+        size: 18,
+        txt: "third",
+      }).ok,
+      true,
+    );
 
-    board.clean();
-
-    assert.deepEqual(Object.keys(board.board).sort(), ["middle", "newest"]);
+    assert.equal(board.get("first"), undefined);
+    assert.deepEqual(Object.keys(board.board).sort(), ["second", "third"]);
+    assert.deepEqual(
+      board
+        .consumePendingAcceptedMutationEffects()
+        .map((/** @type {{mutation: any}} */ entry) => entry.mutation),
+      [{ tool: "Eraser", type: "delete", id: "first" }],
+    );
   });
 });
 

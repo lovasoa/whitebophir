@@ -1740,6 +1740,7 @@ function rejectBoardMessageWrite(
  * @param {number} now
  * @param {string} userName
  * @param {any} envelope
+ * @param {Array<{mutation: NormalizedMessageData, envelope: any}> | undefined} followup
  * @returns {void}
  */
 function finishSuccessfulBoardWrite(
@@ -1750,6 +1751,7 @@ function finishSuccessfulBoardWrite(
   now,
   userName,
   envelope,
+  followup,
 ) {
   const user = updateBoardUserFromMessage(socket, boardName, data, now);
   attachLiveSocketId(data, user);
@@ -1774,6 +1776,7 @@ function finishSuccessfulBoardWrite(
     return;
   }
   emitPersistentBoardMutation(board, socket, envelope);
+  emitPersistentBoardFollowupMutations(board, socket, followup);
 }
 
 /**
@@ -1802,10 +1805,19 @@ async function persistBoardBroadcast(
     return;
   }
   if (data.tool === "Cursor") {
-    finishSuccessfulBoardWrite(socket, board, boardName, data, now, userName, {
-      seq: 0,
-      mutation: data,
-    });
+    finishSuccessfulBoardWrite(
+      socket,
+      board,
+      boardName,
+      data,
+      now,
+      userName,
+      {
+        seq: 0,
+        mutation: data,
+      },
+      undefined,
+    );
     return;
   }
 
@@ -1839,6 +1851,7 @@ async function persistBoardBroadcast(
     now,
     userName,
     handleResult.envelope,
+    handleResult.followup,
   );
 }
 

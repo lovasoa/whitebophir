@@ -29,6 +29,18 @@ function consumePendingRejectedMutationEffects(board) {
     : [];
 }
 
+/**
+ * @param {{
+ *   consumePendingAcceptedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
+ * }} board
+ * @returns {Array<{mutation: NormalizedMessageData}>}
+ */
+function consumePendingAcceptedMutationEffects(board) {
+  return typeof board.consumePendingAcceptedMutationEffects === "function"
+    ? board.consumePendingAcceptedMutationEffects()
+    : [];
+}
+
 /** @type {WeakMap<object, ReturnType<typeof createBoardSession>>} */
 const BOARD_SESSIONS = new WeakMap();
 
@@ -38,11 +50,12 @@ const BOARD_SESSIONS = new WeakMap();
  *   processMessage: (message: NormalizedMessageData) => {ok: true} | {ok: false, reason: string},
  *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string) => any,
  *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
+ *   consumePendingAcceptedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
  *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: any} | {ok: false, reason: string}> | {ok: true, mutation?: any} | {ok: false, reason: string},
  * }} board
  * @returns {{
  *   board: object,
- *   acceptPersistentMutation: (socketId: string, mutation: NormalizedMessageData, clientMutationId?: string, nowMs?: number) => Promise<{ok: true, value: NormalizedMessageData, envelope: any} | {ok: false, reason: string, followup?: Array<{mutation: NormalizedMessageData, envelope: any}>}>
+ *   acceptPersistentMutation: (socketId: string, mutation: NormalizedMessageData, clientMutationId?: string, nowMs?: number) => Promise<{ok: true, value: NormalizedMessageData, envelope: any, followup?: Array<{mutation: NormalizedMessageData, envelope: any}>} | {ok: false, reason: string, followup?: Array<{mutation: NormalizedMessageData, envelope: any}>}>
  * }}
  */
 export function createBoardSession(board) {
@@ -58,6 +71,7 @@ export function createBoardSession(board) {
       return queue.runExclusive(async () => {
         void socketId;
         consumePendingRejectedMutationEffects(board);
+        consumePendingAcceptedMutationEffects(board);
         let acceptedMutation = mutation;
         if (typeof board.preparePersistentMutation === "function") {
           const prepared =
@@ -83,14 +97,26 @@ export function createBoardSession(board) {
           );
           return followup.length > 0 ? { ...result, followup } : result;
         }
+        const envelope = board.recordPersistentMutation(
+          acceptedMutation,
+          nowMs,
+          clientMutationId,
+        );
+        const followup = consumePendingAcceptedMutationEffects(board).map(
+          (effect) => ({
+            mutation: effect.mutation,
+            envelope: board.recordPersistentMutation(
+              effect.mutation,
+              nowMs,
+              undefined,
+            ),
+          }),
+        );
         return {
           ok: true,
           value: acceptedMutation,
-          envelope: board.recordPersistentMutation(
-            acceptedMutation,
-            nowMs,
-            clientMutationId,
-          ),
+          envelope,
+          ...(followup.length > 0 ? { followup } : {}),
         };
       });
     },
@@ -103,6 +129,7 @@ export function createBoardSession(board) {
  *   processMessage: (message: NormalizedMessageData) => {ok: true} | {ok: false, reason: string},
  *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string) => any,
  *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
+ *   consumePendingAcceptedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
  *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: any} | {ok: false, reason: string}> | {ok: true, mutation?: any} | {ok: false, reason: string},
  * }} board
  * @returns {ReturnType<typeof createBoardSession>}

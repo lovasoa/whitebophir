@@ -48,23 +48,25 @@ function syncDirtyCreatedItem(state, id, item) {
 }
 
 /**
- * @param {{itemsById: Map<string, any>, dirtyCreatedIds: Set<string>}} state
+ * @param {{itemsById: Map<string, any>, dirtyCreatedIds: Set<string>, liveItemCount: number}} state
  * @returns {void}
  */
 function rebuildDirtyCreatedItems(state) {
   state.dirtyCreatedIds = new Set();
+  let liveItemCount = 0;
   for (const [id, item] of state.itemsById.entries()) {
     syncDirtyCreatedItem(state, id, item);
+    if (item?.deleted !== true) liveItemCount += 1;
   }
+  state.liveItemCount = liveItemCount;
 }
 
 /**
- * @param {{itemsById: Map<string, any>}} state
+ * @param {{liveItemCount: number}} state
  * @returns {number}
  */
 function authoritativeItemCount(state) {
-  return [...state.itemsById.values()].filter((item) => item.deleted !== true)
-    .length;
+  return state.liveItemCount;
 }
 
 /**
@@ -73,35 +75,42 @@ function authoritativeItemCount(state) {
  *   paintOrder: string[],
  *   dirtyCreatedIds: Set<string>,
  *   nextPaintOrder: number,
+ *   liveItemCount: number,
  * }} state
  * @param {any} item
  * @returns {void}
  */
 function upsertCanonicalItem(state, item) {
   if (!item || typeof item.id !== "string") return;
-  const hadItem = state.itemsById.has(item.id);
+  const existing = state.itemsById.get(item.id);
+  const hadItem = existing !== undefined;
   state.itemsById.set(item.id, item);
   if (!hadItem) {
     state.paintOrder.push(item.id);
   }
+  const hadLiveItem = existing !== undefined && existing.deleted !== true;
+  const hasLiveItem = item.deleted !== true;
+  if (!hadLiveItem && hasLiveItem) state.liveItemCount += 1;
+  if (hadLiveItem && !hasLiveItem) state.liveItemCount -= 1;
   syncDirtyCreatedItem(state, item.id, item);
   state.nextPaintOrder = Math.max(state.nextPaintOrder, item.paintOrder + 1);
 }
 
 /**
- * @param {{itemsById: Map<string, any>, dirtyCreatedIds: Set<string>}} state
+ * @param {{itemsById: Map<string, any>, dirtyCreatedIds: Set<string>, liveItemCount: number}} state
  * @param {string} id
  * @returns {void}
  */
 function removeCanonicalItem(state, id) {
   const existing = state.itemsById.get(id);
-  if (!existing) return;
+  if (!existing || existing.deleted === true) return;
   const next = {
     ...existing,
     deleted: true,
     dirty: true,
   };
   state.itemsById.set(id, next);
+  state.liveItemCount -= 1;
   syncDirtyCreatedItem(state, id, next);
 }
 
@@ -111,6 +120,8 @@ function removeCanonicalItem(state, id) {
  *   paintOrder: string[],
  *   nextPaintOrder: number,
  *   dirtyCreatedIds: Set<string>,
+ *   liveItemCount: number,
+ *   trimPaintOrderIndex: number,
  * }} state
  * @param {Map<string, any>} [persistedSnapshot]
  * @param {Set<string>} [persistedIds]
@@ -169,6 +180,7 @@ function finalizePersistedCanonicalItems(
   state.paintOrder = paintOrder;
   state.nextPaintOrder = nextPaintOrder;
   rebuildDirtyCreatedItems(state);
+  state.trimPaintOrderIndex = 0;
   return {
     paintOrder: state.paintOrder,
     nextPaintOrder: state.nextPaintOrder,

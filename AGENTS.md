@@ -21,7 +21,7 @@ section before making changes there.
 - HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs).
 - Server-issued user identity cookie parsing + serialization: [user secret cookie helper](./server/user_secret_cookie.mjs).
 - Shared toolbar catalog + versioned tool asset helpers: [tool catalog](./client-data/js/tool_catalog.js), [tool assets](./client-data/js/tool_assets.js).
-- Realtime event handlers + broadcast/unload path: [socket handlers](./server/sockets.mjs); socket join/leave drives board lifetime, final save, and dispose timing.
+- Realtime event handlers + broadcast/unload path: [socket handlers](./server/sockets.mjs); socket join/leave drives board lifetime, final save, and dispose timing. `WBO_MAX_ITEM_COUNT` is enforced as sequenced live follow-up deletes on accepted persistent writes, evicting the oldest surviving `paintOrder` entries immediately so connected clients observe trims in real time; save still performs final hard pruning as a fallback.
 - Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.mjs).
 - Extracted broadcast admission core for isolated testing/benchmarking: [broadcast processing](./server/broadcast_processing.mjs); this covers normalization, rate-limit bookkeeping, board write policy, and board mutation without the Socket.IO wrapper.
 - Canonical inbound payload normalization **[hot]**: [message schema gate](./server/message_validation.mjs); `normalizeCoord` and its neighbors run for every coordinate in every persisted or broadcast item.
