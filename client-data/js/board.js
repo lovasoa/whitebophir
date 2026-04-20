@@ -71,6 +71,7 @@ import {
 /** @typedef {import("../../types/app-runtime").RateLimitKind} RateLimitKind */
 /** @typedef {import("../../types/app-runtime").ServerConfig} ServerConfig */
 /** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
+/** @typedef {import("../../types/app-runtime").CompiledToolListeners} CompiledToolListeners */
 /** @typedef {import("../../types/app-runtime").MountedAppTool} MountedAppTool */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
 /** @typedef {import("../../types/app-runtime").ToolPointerListeners} ToolPointerListeners */
@@ -2583,124 +2584,88 @@ function createToolBootContext(toolName) {
 
 /**
  * @param {AppTool} tool
- * @returns {ToolPointerListeners}
+ * @returns {MountedAppTool}
  */
-function deriveListeners(tool) {
-  return {
+function prepareMountedTool(tool) {
+  if (!tool.name) throw new Error("A tool must have a name");
+  tool.listeners = {
     press: tool.press ? tool.press.bind(tool) : tool.listeners?.press,
     move: tool.move ? tool.move.bind(tool) : tool.listeners?.move,
     release: tool.release ? tool.release.bind(tool) : tool.listeners?.release,
   };
-}
-
-/**
- * @param {AppTool} tool
- * @param {"onstart" | "onquit" | "onSocketDisconnect" | "onSizeChange"} key
- */
-function bindToolMethod(tool, key) {
-  switch (key) {
-    case "onstart":
-      if (tool.onstart) tool.onstart = tool.onstart.bind(tool);
-      return;
-    case "onquit":
-      if (tool.onquit) tool.onquit = tool.onquit.bind(tool);
-      return;
-    case "onSocketDisconnect":
-      if (tool.onSocketDisconnect) {
-        tool.onSocketDisconnect = tool.onSocketDisconnect.bind(tool);
-      }
-      return;
-    case "onSizeChange":
-      if (tool.onSizeChange) tool.onSizeChange = tool.onSizeChange.bind(tool);
-      return;
-  }
-}
-
-/** @param {AppTool} tool */
-function ensureToolDefaults(tool) {
-  if (!tool.name) throw new Error("A tool must have a name");
-  if (!tool.listeners) {
-    tool.listeners = {};
-  }
-  if (!tool.onstart) {
-    tool.onstart = () => {};
-  }
-  if (!tool.onquit) {
-    tool.onquit = () => {};
-  }
-  if (!tool.onMessage) {
-    tool.onMessage = () => {};
-  }
-  if (!tool.onSocketDisconnect) {
-    tool.onSocketDisconnect = () => {};
-  }
-}
-
-/** @param {AppTool} tool */
-function compileToolListeners(tool) {
-  const listeners = tool.listeners || {};
-  const compiled = tool.compiledListeners || {};
-  tool.compiledListeners = compiled;
-
-  /**
-   * @param {ToolPointerListener} listener
-   * @returns {CompiledToolListener}
-   */
-  function compile(listener) {
-    return function listen(evt) {
-      const mouseEvent = /** @type {MouseEvent} */ (evt);
-      const x = Tools.pageCoordinateToBoard(mouseEvent.pageX);
-      const y = Tools.pageCoordinateToBoard(mouseEvent.pageY);
-      return listener(x, y, mouseEvent, false);
-    };
+  tool.onstart = tool.onstart ? tool.onstart.bind(tool) : () => {};
+  tool.onquit = tool.onquit ? tool.onquit.bind(tool) : () => {};
+  tool.onMessage = tool.onMessage || (() => {});
+  tool.onSocketDisconnect = tool.onSocketDisconnect
+    ? tool.onSocketDisconnect.bind(tool)
+    : () => {};
+  if (tool.onSizeChange) {
+    tool.onSizeChange = tool.onSizeChange.bind(tool);
   }
 
   /**
    * @param {ToolPointerListener} listener
+   * @param {boolean} isTouchEvent
    * @returns {CompiledToolListener}
    */
-  function compileTouch(listener) {
-    return function touchListen(evt) {
-      const touchEvent = /** @type {TouchEvent} */ (evt);
-      if (touchEvent.changedTouches.length === 1) {
+  function compilePointerListener(listener, isTouchEvent) {
+    return function handlePointer(evt) {
+      if (isTouchEvent) {
+        const touchEvent = /** @type {TouchEvent} */ (evt);
+        if (touchEvent.changedTouches.length !== 1) return true;
         const touch = touchEvent.changedTouches[0];
         if (!touch) return true;
-        const x = Tools.pageCoordinateToBoard(touch.pageX);
-        const y = Tools.pageCoordinateToBoard(touch.pageY);
-        return listener(x, y, touchEvent, true);
+        return listener(
+          Tools.pageCoordinateToBoard(touch.pageX),
+          Tools.pageCoordinateToBoard(touch.pageY),
+          touchEvent,
+          true,
+        );
       }
-      return true;
+      const mouseEvent = /** @type {MouseEvent} */ (evt);
+      return listener(
+        Tools.pageCoordinateToBoard(mouseEvent.pageX),
+        Tools.pageCoordinateToBoard(mouseEvent.pageY),
+        mouseEvent,
+        false,
+      );
     };
   }
 
   /**
-   * @param {CompiledToolListener} f
+   * @param {CompiledToolListener} listener
    * @returns {CompiledToolListener}
    */
-  function wrapUnsetHover(f) {
+  function wrapUnsetHover(listener) {
     return function unsetHover(evt) {
       blurActiveElement();
-      return f(evt);
+      return listener(evt);
     };
   }
 
-  if (listeners.press) {
-    compiled.mousedown = wrapUnsetHover(compile(listeners.press));
-    compiled.touchstart = wrapUnsetHover(compileTouch(listeners.press));
+  const compiled = /** @type {CompiledToolListeners} */ ({});
+  if (tool.listeners.press) {
+    compiled.mousedown = wrapUnsetHover(
+      compilePointerListener(tool.listeners.press, false),
+    );
+    compiled.touchstart = wrapUnsetHover(
+      compilePointerListener(tool.listeners.press, true),
+    );
   }
-  if (listeners.move) {
-    compiled.mousemove = compile(listeners.move);
-    compiled.touchmove = compileTouch(listeners.move);
+  if (tool.listeners.move) {
+    compiled.mousemove = compilePointerListener(tool.listeners.move, false);
+    compiled.touchmove = compilePointerListener(tool.listeners.move, true);
   }
-  if (listeners.release) {
-    const release = compile(listeners.release);
-    const releaseTouch = compileTouch(listeners.release);
-    compiled.mouseup = release;
-    if (!Tools.isIE) compiled.mouseleave = release;
-    compiled.touchleave = releaseTouch;
-    compiled.touchend = releaseTouch;
-    compiled.touchcancel = releaseTouch;
+  if (tool.listeners.release) {
+    compiled.mouseup = compilePointerListener(tool.listeners.release, false);
+    if (!Tools.isIE) compiled.mouseleave = compiled.mouseup;
+    const touchRelease = compilePointerListener(tool.listeners.release, true);
+    compiled.touchleave = touchRelease;
+    compiled.touchend = touchRelease;
+    compiled.touchcancel = touchRelease;
   }
+  tool.compiledListeners = compiled;
+  return /** @type {MountedAppTool} */ (tool);
 }
 
 /**
@@ -2708,15 +2673,7 @@ function compileToolListeners(tool) {
  * @returns {MountedAppTool | null}
  */
 Tools.mountTool = function mountTool(tool) {
-  ensureToolDefaults(tool);
-  compileToolListeners(tool);
-  bindToolMethod(tool, "onstart");
-  bindToolMethod(tool, "onquit");
-  bindToolMethod(tool, "onSocketDisconnect");
-  bindToolMethod(tool, "onSizeChange");
-  if (!tool.listeners) {
-    tool.listeners = deriveListeners(tool);
-  }
+  const mountedTool = prepareMountedTool(tool);
   if (tool.stylesheet) {
     addToolStylesheet(tool.stylesheet);
   }
@@ -2728,15 +2685,17 @@ Tools.mountTool = function mountTool(tool) {
     );
   }
 
-  Tools.list[tool.name] = /** @type {MountedAppTool} */ (tool);
+  Tools.list[tool.name] = mountedTool;
 
-  if (tool.onSizeChange) Tools.sizeChangeHandlers.push(tool.onSizeChange);
+  if (mountedTool.onSizeChange) {
+    Tools.sizeChangeHandlers.push(mountedTool.onSizeChange);
+  }
 
   const pending = drainPendingMessages(Tools.pendingMessages, tool.name);
   if (pending.length > 0) {
     console.log("Drawing pending messages for '%s'.", tool.name);
     pending.forEach((/** @type {BoardMessage} */ msg) => {
-      tool.draw(msg, false);
+      mountedTool.draw(msg, false);
     });
   }
   if (Tools.shouldDisplayTool(tool.name)) {
@@ -2748,11 +2707,11 @@ Tools.mountTool = function mountTool(tool) {
     );
   }
   Tools.syncToolDisabledState(tool.name);
-  if (tool.alwaysOn === true) {
-    Tools.addToolListeners(tool);
+  if (mountedTool.alwaysOn === true) {
+    Tools.addToolListeners(mountedTool);
   }
-  normalizeServerRenderedElementsForTool(tool);
-  return /** @type {MountedAppTool} */ (tool);
+  normalizeServerRenderedElementsForTool(mountedTool);
+  return mountedTool;
 };
 
 /**
