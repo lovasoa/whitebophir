@@ -304,22 +304,6 @@ export type ServerConfig = {
   AUTO_FINGER_WHITEOUT?: boolean;
 };
 
-export type ToolPalette = {
-  template: any;
-  addShortcut: (key: string, callback: () => void) => void;
-  addTool: (
-    toolName: string,
-    toolIcon: string,
-    toolShortcut: string,
-    oneTouch: boolean | undefined,
-  ) => unknown;
-  changeTool: (oldToolName: string, newToolName: string) => void;
-  toggle: (toolName: string, name: string, icon: string) => void;
-  addStylesheet: (href: string) => void;
-  colorPresetTemplate: any;
-  addColorButton: (button: ColorPreset) => unknown;
-};
-
 export type ToolRuntime = {
   Tools: AppToolsState;
   activateTool: (toolName: string) => void;
@@ -398,7 +382,6 @@ export type AppToolsState = {
   boardName: string;
   token: string | null;
   pendingReplaySync: false | "refresh" | "ready";
-  HTML: ToolPalette;
   list: MountedToolRegistry;
   toolClasses: { [toolName: string]: ToolClass };
   bootedToolPromises: { [toolName: string]: Promise<AppTool | null> };

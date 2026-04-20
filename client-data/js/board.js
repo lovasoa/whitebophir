@@ -74,7 +74,6 @@ import { getToolCatalogEntry } from "./tool_catalog.js";
 /** @typedef {import("../../types/app-runtime").ServerConfig} ServerConfig */
 /** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
 /** @typedef {import("../../types/app-runtime").MountedAppTool} MountedAppTool */
-/** @typedef {import("../../types/app-runtime").ToolPalette} ToolPalette */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
 /** @typedef {import("../../types/app-runtime").ToolPointerListeners} ToolPointerListeners */
 /** @typedef {import("../../types/app-runtime").ToolClass} ToolClass */
@@ -386,7 +385,7 @@ function initializeShellControls() {
 
   if (!Tools.colorButtonsInitialized) {
     Tools.colorButtonsInitialized = true;
-    Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
+    Tools.colorPresets.forEach(addColorButton);
   }
   Tools.setColor(Tools.currentColor);
   Tools.setSize(Tools.currentSize);
@@ -2431,80 +2430,113 @@ function bindRenderedToolButtons() {
     });
 }
 
-Tools.HTML = /** @type {ToolPalette} */ ({
-  template: null,
-  addShortcut: function addShortcut(key, callback) {
-    window.addEventListener("keydown", (e) => {
-      if (e.key === key && !isTextEntryTarget(e.target)) {
-        callback();
-      }
-    });
-  },
-  addTool: function addTool(toolName, toolIcon, toolShortcut, oneTouch) {
-    const tool = Tools.list[toolName];
-    if (!tool) {
-      throw new Error(`Tool not registered before rendering: ${toolName}`);
+/**
+ * @param {string} key
+ * @param {() => void} callback
+ * @returns {void}
+ */
+function addToolShortcut(key, callback) {
+  window.addEventListener("keydown", (e) => {
+    if (e.key === key && !isTextEntryTarget(e.target)) {
+      callback();
     }
-    if (toolShortcut) {
-      this.addShortcut(toolShortcut, () => {
-        void Tools.activateTool(toolName);
-        blurActiveElement();
-      });
-    }
-    tool.icon = toolIcon;
-    tool.shortcut = toolShortcut || tool.shortcut;
-    tool.oneTouch = oneTouch;
-    syncToolButton(toolName, tool);
-    Tools.syncToolDisabledState(toolName);
-    return getToolButton(toolName);
-  },
-  changeTool: (oldToolName, newToolName) => {
-    const oldTool = document.getElementById(`toolID-${oldToolName}`);
-    const newTool = document.getElementById(`toolID-${newToolName}`);
-    if (oldTool) oldTool.classList.remove("curTool");
-    if (newTool) newTool.classList.add("curTool");
-  },
-  toggle: function toggle(toolName, name, icon) {
-    const parts = getRequiredToolButtonParts(toolName);
-    const secondaryIcon = parts.secondaryIcon;
-    if (!secondaryIcon) {
-      throw new Error(`Missing secondary icon for tool ${toolName}`);
-    }
+  });
+}
 
-    const primaryIconSrc = parts.primaryIcon.src;
-    const secondaryIconSrc = secondaryIcon.src;
-    parts.primaryIcon.src = secondaryIconSrc;
-    secondaryIcon.src = primaryIconSrc;
-    parts.primaryIcon.src = Tools.versionAssetPath(icon);
-    parts.label.textContent = Tools.i18n.t(name);
-  },
-  addStylesheet: function addStylesheet(href) {
-    const versionedHref = Tools.versionAssetPath(href);
-    const existing = Array.from(
-      document.querySelectorAll('link[rel="stylesheet"]'),
-    ).find((link) => link.getAttribute("href") === versionedHref);
-    if (existing) return existing;
-    const link = document.createElement("link");
-    link.href = versionedHref;
-    link.rel = "stylesheet";
-    link.type = "text/css";
-    document.head.appendChild(link);
-    return link;
-  },
-  colorPresetTemplate: new Minitpl("#colorPresetSel .colorPresetButton"),
-  addColorButton: function addColorButton(button) {
-    const setColor = Tools.setColor.bind(Tools, button.color);
-    if (button.key) this.addShortcut(button.key, setColor);
-    return this.colorPresetTemplate.add((/** @type {HTMLElement} */ elem) => {
-      elem.addEventListener("click", setColor);
-      elem.id = `color_${button.color.replace(/^#/, "")}`;
-      elem.style.backgroundColor = button.color;
-      if (button.key) {
-        elem.title = `${Tools.i18n.t("keyboard shortcut")}: ${button.key}`;
-      }
+/**
+ * @param {string} toolName
+ * @param {string} toolIcon
+ * @param {string} toolShortcut
+ * @param {boolean | undefined} oneTouch
+ * @returns {HTMLElement | null}
+ */
+function syncMountedToolButton(toolName, toolIcon, toolShortcut, oneTouch) {
+  const tool = Tools.list[toolName];
+  if (!tool) {
+    throw new Error(`Tool not registered before rendering: ${toolName}`);
+  }
+  if (toolShortcut) {
+    addToolShortcut(toolShortcut, () => {
+      void Tools.activateTool(toolName);
+      blurActiveElement();
     });
-  },
-});
+  }
+  tool.icon = toolIcon;
+  tool.shortcut = toolShortcut || tool.shortcut;
+  tool.oneTouch = oneTouch;
+  syncToolButton(toolName, tool);
+  Tools.syncToolDisabledState(toolName);
+  return getToolButton(toolName);
+}
+
+/**
+ * @param {string} oldToolName
+ * @param {string} newToolName
+ * @returns {void}
+ */
+function changeActiveToolButton(oldToolName, newToolName) {
+  const oldTool = document.getElementById(`toolID-${oldToolName}`);
+  const newTool = document.getElementById(`toolID-${newToolName}`);
+  if (oldTool) oldTool.classList.remove("curTool");
+  if (newTool) newTool.classList.add("curTool");
+}
+
+/**
+ * @param {string} toolName
+ * @param {string} name
+ * @param {string} icon
+ * @returns {void}
+ */
+function toggleToolButtonMode(toolName, name, icon) {
+  const parts = getRequiredToolButtonParts(toolName);
+  const secondaryIcon = parts.secondaryIcon;
+  if (!secondaryIcon) {
+    throw new Error(`Missing secondary icon for tool ${toolName}`);
+  }
+  const primaryIconSrc = parts.primaryIcon.src;
+  parts.primaryIcon.src = secondaryIcon.src;
+  secondaryIcon.src = primaryIconSrc;
+  parts.primaryIcon.src = Tools.versionAssetPath(icon);
+  parts.label.textContent = Tools.i18n.t(name);
+}
+
+/**
+ * @param {string} href
+ * @returns {HTMLLinkElement}
+ */
+function addToolStylesheet(href) {
+  const versionedHref = Tools.versionAssetPath(href);
+  const existing = Array.from(
+    document.querySelectorAll('link[rel="stylesheet"]'),
+  ).find((link) => link.getAttribute("href") === versionedHref);
+  if (existing instanceof HTMLLinkElement) return existing;
+  const link = document.createElement("link");
+  link.href = versionedHref;
+  link.rel = "stylesheet";
+  link.type = "text/css";
+  document.head.appendChild(link);
+  return link;
+}
+
+const colorPresetTemplate = new Minitpl("#colorPresetSel .colorPresetButton");
+
+/**
+ * @param {ColorPreset} button
+ * @returns {unknown}
+ */
+function addColorButton(button) {
+  const setColor = Tools.setColor.bind(Tools, button.color);
+  if (button.key) addToolShortcut(button.key, setColor);
+  return colorPresetTemplate.add((elem) => {
+    if (!(elem instanceof HTMLElement)) return;
+    elem.addEventListener("click", setColor);
+    elem.id = `color_${button.color.replace(/^#/, "")}`;
+    elem.style.backgroundColor = button.color;
+    if (button.key) {
+      elem.title = `${Tools.i18n.t("keyboard shortcut")}: ${button.key}`;
+    }
+  });
+}
 
 bindRenderedToolButtons();
 
@@ -2547,7 +2579,7 @@ function createToolBootContext(toolName) {
     },
     getButton: (name) => getToolButton(name),
     registerShortcut: (name, key) => {
-      Tools.HTML.addShortcut(key, () => {
+      addToolShortcut(key, () => {
         void Tools.activateTool(name);
       });
     },
@@ -2696,11 +2728,11 @@ Tools.mountTool = function mountTool(tool) {
     tool.listeners = deriveListeners(tool);
   }
   if (tool.stylesheet) {
-    Tools.HTML.addStylesheet(tool.stylesheet);
+    addToolStylesheet(tool.stylesheet);
   }
   Tools.register(tool);
   if (Tools.shouldDisplayTool(tool.name) || getToolButton(tool.name)) {
-    Tools.HTML.addTool(
+    syncMountedToolButton(
       tool.name,
       tool.icon,
       tool.shortcut || "",
@@ -2803,7 +2835,7 @@ function toggleSecondaryTool(newTool) {
   if (!newTool.secondary) return;
   newTool.secondary.active = !newTool.secondary.active;
   const props = newTool.secondary.active ? newTool.secondary : newTool;
-  Tools.HTML.toggle(newTool.name, props.name, props.icon);
+  toggleToolButtonMode(newTool.name, props.name, props.icon);
   if (newTool.secondary.switch) newTool.secondary.switch();
   syncActiveToolState();
 }
@@ -2819,7 +2851,7 @@ function updateCurrentToolChrome(toolName, newTool) {
   if (!svg || !board) return;
   const curToolName = Tools.curTool ? Tools.curTool.name : "";
   try {
-    Tools.HTML.changeTool(curToolName, toolName);
+    changeActiveToolButton(curToolName, toolName);
   } catch (e) {
     console.error(`Unable to update the GUI with the new tool. ${e}`);
   }
