@@ -158,6 +158,79 @@ function textBoundsFromLength(x, y, size, textLength) {
 }
 
 /**
+ * @param {{minX: number, minY: number, maxX: number, maxY: number} | null} bounds
+ * @returns {string}
+ */
+function renderSummaryBoundsAttributes(bounds) {
+  if (!bounds) return "";
+  return (
+    ` data-wbo-min-x="${bounds.minX}"` +
+    ` data-wbo-min-y="${bounds.minY}"` +
+    ` data-wbo-max-x="${bounds.maxX}"` +
+    ` data-wbo-max-y="${bounds.maxY}"`
+  );
+}
+
+/**
+ * @param {{[name: string]: string}} attributes
+ * @returns {{minX: number, minY: number, maxX: number, maxY: number} | null}
+ */
+function readPersistedSummaryBounds(attributes) {
+  const minX = parseNumber(attributes["data-wbo-min-x"]);
+  const minY = parseNumber(attributes["data-wbo-min-y"]);
+  const maxX = parseNumber(attributes["data-wbo-max-x"]);
+  const maxY = parseNumber(attributes["data-wbo-max-y"]);
+  if (
+    minX === undefined ||
+    minY === undefined ||
+    maxX === undefined ||
+    maxY === undefined
+  ) {
+    return null;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+/**
+ * @param {Array<{x: number, y: number}>} points
+ * @returns {{childCount: number, localBounds: {minX: number, minY: number, maxX: number, maxY: number} | null}}
+ */
+function summarizePencilPoints(points) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return { childCount: 0, localBounds: null };
+  }
+  let childCount = 0;
+  /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
+  let localBounds = null;
+  /** @type {number | undefined} */
+  let previousX;
+  /** @type {number | undefined} */
+  let previousY;
+
+  for (const point of points) {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      continue;
+    }
+    const x = roundPathValue(point.x);
+    const y = roundPathValue(point.y);
+    if (previousX === x && previousY === y) continue;
+    previousX = x;
+    previousY = y;
+    childCount += 1;
+    if (!localBounds) {
+      localBounds = { minX: x, minY: y, maxX: x, maxY: y };
+      continue;
+    }
+    localBounds.minX = Math.min(localBounds.minX, x);
+    localBounds.minY = Math.min(localBounds.minY, y);
+    localBounds.maxX = Math.max(localBounds.maxX, x);
+    localBounds.maxY = Math.max(localBounds.maxY, y);
+  }
+
+  return { childCount, localBounds };
+}
+
+/**
  * @param {{attributes?: {[name: string]: string}}} entry
  * @returns {{attributes: {[name: string]: string}, id: string | undefined, opacity: number | undefined, transform: {a: number, b: number, c: number, d: number, e: number, f: number} | undefined}}
  */
@@ -615,7 +688,9 @@ function summarizeStoredSvgItem(entry, paintOrder) {
       if (x === undefined || y === undefined || size === undefined) {
         return null;
       }
-      const textLength = decodedTextLength(entry.content || "");
+      const textLength =
+        parseNumber(attributes["data-wbo-text-length"]) ??
+        decodedTextLength(entry.content || "");
       return {
         id,
         tool: "Text",
@@ -636,7 +711,17 @@ function summarizeStoredSvgItem(entry, paintOrder) {
     }
     case "path": {
       const size = parseNumber(attributes["stroke-width"]);
-      const scanned = scanPathSummary(attributes.d);
+      const persistedBounds = readPersistedSummaryBounds(attributes);
+      const persistedChildCount = parseNumber(attributes["data-wbo-points"]);
+      const scanned =
+        persistedBounds &&
+        persistedChildCount !== undefined &&
+        persistedChildCount > 0
+          ? {
+              childCount: persistedChildCount,
+              localBounds: persistedBounds,
+            }
+          : scanPathSummary(attributes.d);
       if (size === undefined || scanned.childCount === 0) return null;
       return {
         id,
@@ -700,20 +785,27 @@ function serializeStoredSvgItem(item) {
         ` x2="${numberOrZero(item.x2)}" y2="${numberOrZero(item.y2)}"` +
         ` stroke="${color}" stroke-width="${size}" fill="none"${opacity}${transform}></line>`
       );
-    case "Text":
+    case "Text": {
+      const textValue = String(item.txt || "");
+      const textSummary = ` data-wbo-text-length="${textValue.length}"`;
       return (
         `<text id="${id}" x="${numberOrZero(item.x)}" y="${numberOrZero(item.y)}"` +
-        ` font-size="${numberOrZero(item.size) | 0}" fill="${color}"${opacity}${transform}>` +
-        `${escapeHtml(String(item.txt || ""))}</text>`
+        ` font-size="${numberOrZero(item.size) | 0}" fill="${color}"${opacity}${transform}${textSummary}>` +
+        `${escapeHtml(textValue)}</text>`
       );
+    }
     case "Pencil": {
       const points = Array.isArray(item._children) ? item._children : [];
       const pathData = renderPencilPath(points);
       if (!pathData) return "";
+      const summary = summarizePencilPoints(points);
+      const summaryAttributes =
+        ` data-wbo-points="${summary.childCount}"` +
+        renderSummaryBoundsAttributes(summary.localBounds);
       return (
         `<path id="${id}" d="${escapeHtml(pathData)}" stroke="${color}"` +
         ` stroke-width="${size}" fill="none" stroke-linecap="round" stroke-linejoin="round"` +
-        `${opacity}${transform}></path>`
+        `${opacity}${transform}${summaryAttributes}></path>`
       );
     }
     default:

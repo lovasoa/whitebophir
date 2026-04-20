@@ -161,7 +161,19 @@ test("stored svg item codec serializes canonical visible svg without duplicated 
   });
   assert.match(
     pencil,
-    /^<path id="line-1" d="M 1 2 l 9 10 l 8 -3" stroke="#000000" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><\/path>$/,
+    /^<path id="line-1" d="M 1 2 l 9 10 l 8 -3" stroke="#000000" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" data-wbo-points="3" data-wbo-min-x="1" data-wbo-min-y="2" data-wbo-max-x="18" data-wbo-max-y="12"><\/path>$/,
   );
   assert.doesNotMatch(pencil, /data-wbo-item|data-wbo-tool|_children/);
+  assert.match(
+    serializeStoredSvgItem({
+      id: "text-1",
+      tool: "Text",
+      x: 5,
+      y: 6,
+      size: 18,
+      color: "#654321",
+      txt: "hello",
+    }),
+    /^<text id="text-1" x="5" y="6" font-size="18" fill="#654321" data-wbo-text-length="5">hello<\/text>$/,
+  );
 });
