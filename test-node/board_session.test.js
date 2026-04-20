@@ -142,6 +142,59 @@ test("board session records the prepared mutation payload", async () => {
   ]);
 });
 
+test("board session does not mutate or replace the accepted mutation when preparation is a pass-through", async () => {
+  const { createBoardSession } = await loadBoardSession();
+  /** @type {any[]} */
+  const processed = [];
+  const mutation = {
+    tool: "Rectangle",
+    type: "rect",
+    id: "rect-1",
+    color: "#123456",
+    size: 4,
+    x: 0,
+    y: 0,
+    x2: 10,
+    y2: 10,
+  };
+  const board = {
+    name: "session-pass-through-mutation",
+    preparePersistentMutation(/** @type {any} */ message) {
+      assert.strictEqual(message, mutation);
+      return { ok: true, mutation: message };
+    },
+    processMessage(/** @type {any} */ message) {
+      processed.push(message);
+      return { ok: true };
+    },
+    recordPersistentMutation(/** @type {any} */ message) {
+      return { seq: 1, mutation: message };
+    },
+  };
+
+  const result = await createBoardSession(board).acceptPersistentMutation(
+    "socket-1",
+    mutation,
+    "cm-1",
+    1,
+  );
+
+  assert.equal(result.ok, true);
+  assert.strictEqual(processed[0], mutation);
+  assert.strictEqual(result.value, mutation);
+  assert.deepEqual(mutation, {
+    tool: "Rectangle",
+    type: "rect",
+    id: "rect-1",
+    color: "#123456",
+    size: 4,
+    x: 0,
+    y: 0,
+    x2: 10,
+    y2: 10,
+  });
+});
+
 test("board session does not append to the mutation log after rejection", async () => {
   const { createBoardSession } = await loadBoardSession();
   let recordCount = 0;

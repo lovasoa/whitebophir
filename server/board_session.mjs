@@ -58,11 +58,10 @@ export function createBoardSession(board) {
       return queue.runExclusive(async () => {
         void socketId;
         consumePendingRejectedMutationEffects(board);
-        let acceptedMutation = structuredClone(mutation);
+        let acceptedMutation = mutation;
         if (typeof board.preparePersistentMutation === "function") {
-          const prepared = await board.preparePersistentMutation(
-            structuredClone(acceptedMutation),
-          );
+          const prepared =
+            await board.preparePersistentMutation(acceptedMutation);
           if (prepared.ok === false) {
             return prepared;
           }
@@ -70,7 +69,7 @@ export function createBoardSession(board) {
             acceptedMutation = prepared.mutation;
           }
         }
-        const result = board.processMessage(structuredClone(acceptedMutation));
+        const result = board.processMessage(acceptedMutation);
         if (result.ok === false) {
           const followup = consumePendingRejectedMutationEffects(board).map(
             (effect) => ({

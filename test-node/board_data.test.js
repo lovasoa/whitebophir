@@ -1057,6 +1057,17 @@ test("BoardData records contiguous mutation seq values and persists them into sv
   });
 });
 
+test("BoardData does not mutate create messages while accepting them", async () => {
+  const BoardData = getBoardDataClass();
+  const board = disableSaves(new BoardData("message-immutability"));
+  const message = rectangleMessage("rect-1", "#123456", 4, 0, 0, 10, 10);
+
+  assert.equal(board.processMessage(message).ok, true);
+  assert.equal(message.time, undefined);
+  assert.equal(board.get("rect-1")?.id, "rect-1");
+  assert.equal(board.get("rect-1")?.time !== undefined, true);
+});
+
 test("BoardData.save trims persisted replay history past the configured retention window", async () => {
   await withBoardHistoryDir(
     "wbo-board-replay-retention-",

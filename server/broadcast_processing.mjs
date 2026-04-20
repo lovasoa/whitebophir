@@ -148,14 +148,6 @@ function consumePostNormalizationRateLimits(
 }
 
 /**
- * @param {NormalizedMessageData} data
- * @returns {NormalizedMessageData}
- */
-function cloneMessageForPersistence(data) {
-  return data.tool === "Cursor" ? data : structuredClone(data);
-}
-
-/**
  * Runs the normalized part of the broadcast write path without tracing,
  * metrics, or socket emission side effects so it can be tested directly.
  *
@@ -172,7 +164,7 @@ function processNormalizedBoardMessage(board, data, socketId) {
     };
   }
 
-  const result = board.processMessage(cloneMessageForPersistence(data));
+  const result = board.processMessage(data);
   if (result.ok === false) {
     return { ok: false, reason: result.reason, stage: "process" };
   }

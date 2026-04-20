@@ -854,9 +854,10 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure}
    */
   set(id, data) {
-    //KISS
-    data.time = Date.now();
-    const validated = this.validateStoredCandidate(id, data);
+    const validated = this.validateStoredCandidate(id, {
+      ...data,
+      time: Date.now(),
+    });
     if (!validated.ok) return validated;
     const existing = this.itemsById.get(id);
     const canonical = canonicalItemFromItem(
