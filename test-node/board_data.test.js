@@ -10,6 +10,10 @@ const {
   withEnv,
   writeBoard,
 } = require("./test_helpers.js");
+const {
+  pinReplayBaseline,
+  resetBoardRegistry,
+} = require("../server/board_registry.mjs");
 
 function getBoardDataClass() {
   return loadBoardData();
@@ -1076,6 +1080,40 @@ test("BoardData.save trims persisted replay history past the configured retentio
           .map((/** @type {{seq: number}} */ entry) => entry.seq),
         [],
       );
+    },
+    { WBO_SEQ_REPLAY_RETENTION_MS: "0" },
+  );
+});
+
+test("BoardData.save keeps persisted replay history needed by pinned baselines", async () => {
+  await withBoardHistoryDir(
+    "wbo-board-pinned-replay-retention-",
+    async () => {
+      resetBoardRegistry();
+      try {
+        const BoardData = getBoardDataClass();
+        const board = disableSaves(new BoardData("pinned-replay-retention"));
+        const first = rectangleMessage("rect-1", "#123456", 4, 0, 0, 10, 10);
+        const second = rectangleMessage("rect-2", "#654321", 4, 20, 20, 30, 30);
+
+        assertMessagesAccepted(board, [first, second]);
+        board.recordPersistentMutation(first, 1);
+        board.recordPersistentMutation(second, 2);
+        pinReplayBaseline(board.name, 0, Number.MAX_SAFE_INTEGER);
+
+        await board.save();
+
+        assert.equal(board.getPersistedSeq(), 2);
+        assert.equal(board.minReplayableSeq(), 0);
+        assert.deepEqual(
+          board
+            .readMutationRange(0, 2)
+            .map((/** @type {{seq: number}} */ entry) => entry.seq),
+          [1, 2],
+        );
+      } finally {
+        resetBoardRegistry();
+      }
     },
     { WBO_SEQ_REPLAY_RETENTION_MS: "0" },
   );

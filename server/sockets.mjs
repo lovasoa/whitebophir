@@ -3,6 +3,16 @@ import * as socketIO from "socket.io";
 import WBOMessageCommon from "../client-data/js/message_common.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { BoardData } from "./boardData.mjs";
+import {
+  deleteLoadedBoard,
+  discardPinnedReplayBaselinesBefore,
+  getLoadedBoard,
+  getMinPinnedReplayBaselineSeq,
+  getNextReplayPinExpiry,
+  listLoadedBoards,
+  resetBoardRegistry,
+  setLoadedBoard,
+} from "./board_registry.mjs";
 import { getBoardSession } from "./board_session.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import observability from "./observability.mjs";
@@ -70,10 +80,6 @@ const { logger, metrics, tracing } = observability;
  * }} RateLimitState
  */
 
-/** Map from name to *promises* of BoardData
-  @type {{[boardName: string]: Promise<BoardData>}}
-*/
-const boards = {};
 /** @type {Map<string, RateLimitState>} */
 const destructiveRateLimits = new Map();
 /** @type {Map<string, RateLimitState>} */
@@ -241,7 +247,7 @@ function onSocketEvent(socket, eventName, handler) {
 }
 
 function updateLoadedBoardsGauge() {
-  metrics.setLoadedBoards(Object.keys(boards).length);
+  metrics.setLoadedBoards(listLoadedBoards().length);
 }
 
 function updateActiveSocketConnectionsGauge() {
@@ -2071,16 +2077,17 @@ function startIO(app) {
  * @returns {Promise<BoardData>}
  */
 function getBoard(name) {
-  if (Object.hasOwn(boards, name)) {
+  const loadedBoard = getLoadedBoard(name);
+  if (loadedBoard) {
     if (logger.isEnabled("debug")) {
       logger.debug("board.cache_hit", {
         board: name,
       });
     }
-    return /** @type {Promise<BoardData>} */ (boards[name]);
+    return loadedBoard;
   } else {
     const board = BoardData.load(name);
-    boards[name] = board;
+    setLoadedBoard(name, board);
     updateLoadedBoardsGauge();
     if (logger.isEnabled("debug")) {
       logger.debug("board.cache_miss", {
@@ -2358,10 +2365,9 @@ async function handleSocketConnection(socket, config) {
       metrics.recordSocketConnection("disconnected");
       socket.rooms.forEach(
         async function disconnectFrom(/** @type {string} */ room) {
-          if (Object.hasOwn(boards, room)) {
-            const board = await /** @type {Promise<BoardData>} */ (
-              boards[room]
-            );
+          const boardPromise = getLoadedBoard(room);
+          if (boardPromise) {
+            const board = await boardPromise;
             if (logger.isEnabled("debug")) {
               logger.debug(
                 "socket.board_disconnecting",
@@ -2401,7 +2407,8 @@ async function handleSocketConnection(socket, config) {
  * @param {string} boardName
  **/
 async function unloadBoard(boardName) {
-  if (Object.hasOwn(boards, boardName)) {
+  const loadedBoard = getLoadedBoard(boardName);
+  if (loadedBoard) {
     return tracing.withOptionalActiveSpan(
       "board.unload",
       {
@@ -2412,9 +2419,7 @@ async function unloadBoard(boardName) {
       },
       async function traceBoardUnload() {
         const startedAt = Date.now();
-        const board = await /** @type {Promise<BoardData>} */ (
-          boards[boardName]
-        );
+        const board = await loadedBoard;
         if (logger.isEnabled("debug")) {
           logger.debug("board.unload_started", boardDebugFields(board));
         }
@@ -2426,6 +2431,42 @@ async function unloadBoard(boardName) {
             }
             return;
           }
+          const minPinnedBaselineSeq = getMinPinnedReplayBaselineSeq(
+            boardName,
+            Date.now(),
+          );
+          if (
+            minPinnedBaselineSeq !== null &&
+            minPinnedBaselineSeq < board.getPersistedSeq()
+          ) {
+            const nextReplayPinExpiry = getNextReplayPinExpiry(
+              boardName,
+              Date.now(),
+            );
+            if (nextReplayPinExpiry !== null) {
+              const retryDelayMs = Math.max(
+                1,
+                nextReplayPinExpiry - Date.now(),
+              );
+              setTimeout(() => {
+                void unloadBoard(boardName);
+              }, retryDelayMs);
+            }
+            if (logger.isEnabled("debug")) {
+              logger.debug(
+                "board.unload_delayed_for_replay_pins",
+                boardDebugFields(board, {
+                  "wbo.board.min_pinned_baseline_seq": minPinnedBaselineSeq,
+                }),
+              );
+            }
+            return;
+          }
+          discardPinnedReplayBaselinesBefore(
+            boardName,
+            board.getPersistedSeq(),
+            Date.now(),
+          );
           board.dispose();
           if (logger.isEnabled("debug")) {
             logger.debug("board.unload_completed", boardDebugFields(board));
@@ -2439,7 +2480,7 @@ async function unloadBoard(boardName) {
             boardName,
             (Date.now() - startedAt) / 1000,
           );
-          delete boards[boardName];
+          deleteLoadedBoard(boardName);
           updateLoadedBoardsGauge();
         } catch (error) {
           tracing.recordActiveSpanError(error, {
@@ -2470,14 +2511,17 @@ async function shutdownBoards() {
   if (currentIo) {
     await new Promise((resolve) => currentIo.close(() => resolve(undefined)));
   }
-  const loadedBoards = Object.keys(boards);
+  const loadedBoards = listLoadedBoards();
   await Promise.all(
     loadedBoards.map(async (boardName) => {
-      const board = await /** @type {Promise<BoardData>} */ (boards[boardName]);
+      const board = await /** @type {Promise<BoardData>} */ (
+        getLoadedBoard(boardName)
+      );
       board.users.clear();
       return unloadBoard(boardName);
     }),
   );
+  resetBoardRegistry();
 }
 
 export const __test = {
@@ -2502,7 +2546,7 @@ export const __test = {
   cleanupBoardUserMap,
   getBoardUserMap,
   getLoadedBoard: function getLoadedBoardForTest(/** @type {string} */ name) {
-    return boards[name];
+    return getLoadedBoard(name);
   },
   getLastUserReportLog: function getLastUserReportLog() {
     return lastUserReportLog;
@@ -2515,6 +2559,7 @@ export const __test = {
     activeSockets.clear();
     syncedPersistentSockets.clear();
     lastUserReportLog = null;
+    resetBoardRegistry();
   },
 };
 

@@ -24,6 +24,7 @@ import {
   boundaryStatusCode,
 } from "./boundary_errors.mjs";
 import check_output_directory from "./check_output_directory.mjs";
+import { getLoadedBoard, pinReplayBaseline } from "./board_registry.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
@@ -247,6 +248,38 @@ function matchesIfNoneMatch(ifNoneMatch, etag) {
  */
 function boardPageETag(seq) {
   return `W/"wbo-seq-${Number(seq) || 0}"`;
+}
+
+/**
+ * @param {string} value
+ * @returns {number | null}
+ */
+function parseBoardPageETag(value) {
+  const match =
+    /^W\/"wbo-seq-(\d+)"$/.exec(value) || /^"wbo-seq-(\d+)"$/.exec(value);
+  if (!match?.[1]) return null;
+  const seq = Number(match[1]);
+  return Number.isSafeInteger(seq) && seq >= 0 ? seq : null;
+}
+
+/**
+ * @param {string | string[] | undefined} ifNoneMatch
+ * @returns {number[]}
+ */
+function parseBoardPageETagCandidates(ifNoneMatch) {
+  return parseIfNoneMatch(ifNoneMatch)
+    .map(parseBoardPageETag)
+    .filter((seq) => seq !== null);
+}
+
+/**
+ * @param {string} boardName
+ * @param {number} baselineSeq
+ * @returns {void}
+ */
+function pinServedBoardBaseline(boardName, baselineSeq) {
+  const expiresAtMs = Date.now() + Math.max(0, config.MAX_SAVE_DELAY);
+  pinReplayBaseline(boardName, baselineSeq, expiresAtMs);
 }
 
 /**
@@ -930,6 +963,23 @@ async function handleBoardDocumentRoute(
   jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
   const token = parsedUrl.searchParams.get("token");
   const boardRole = jwtBoardName.roleInBoard(config, token || "", boardName);
+  const cachedSeqs = parseBoardPageETagCandidates(
+    request.headers["if-none-match"],
+  );
+  const loadedBoardPromise = getLoadedBoard(boardName);
+  if (loadedBoardPromise && cachedSeqs.length > 0) {
+    const loadedBoard = await loadedBoardPromise;
+    const persistedSeq = loadedBoard.getPersistedSeq();
+    if (cachedSeqs.includes(persistedSeq)) {
+      pinServedBoardBaseline(boardName, persistedSeq);
+      response.writeHead(304, {
+        "Cache-Control": boardTemplate.cacheControl(),
+        ETag: boardPageETag(persistedSeq),
+      });
+      response.end();
+      return;
+    }
+  }
   const {
     metadata: boardMetadata,
     inlineBoardSvg,
@@ -940,6 +990,7 @@ async function handleBoardDocumentRoute(
     (config.AUTH_SECRET_KEY && ["editor", "moderator"].includes(boardRole));
   const etag = boardPageETag(boardMetadata.seq || 0);
   if (matchesIfNoneMatch(request.headers["if-none-match"], etag)) {
+    pinServedBoardBaseline(boardName, boardMetadata.seq || 0);
     response.writeHead(304, {
       "Cache-Control": boardTemplate.cacheControl(),
       ETag: etag,
@@ -947,6 +998,7 @@ async function handleBoardDocumentRoute(
     response.end();
     return;
   }
+  pinServedBoardBaseline(boardName, boardMetadata.seq || 0);
   ensureBoardUserSecretCookie(request, response, parsedUrl);
   if (source === "svg" || source === "svg_backup") {
     const svgStream = await streamServedBaseline(boardName);

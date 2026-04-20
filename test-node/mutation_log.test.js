@@ -86,3 +86,31 @@ test("mutation logs trim only persisted entries older than the retention cutoff"
     [3],
   );
 });
+
+test("mutation logs keep pinned replay history even after persisted retention expires", () => {
+  const log = createMutationLog(0);
+  log.append({
+    board: "demo",
+    acceptedAtMs: 10,
+    mutation: { tool: "Rectangle", type: "rect", id: "rect-1" },
+  });
+  log.append({
+    board: "demo",
+    acceptedAtMs: 20,
+    mutation: { tool: "Rectangle", type: "rect", id: "rect-2" },
+  });
+  log.append({
+    board: "demo",
+    acceptedAtMs: 30,
+    mutation: { tool: "Rectangle", type: "rect", id: "rect-3" },
+  });
+
+  log.markPersisted(3);
+  log.trimPersistedOlderThan(100, 1);
+
+  assert.equal(log.minReplayableSeq(), 1);
+  assert.deepEqual(
+    log.readRange(0, 3).map((entry) => entry.seq),
+    [2, 3],
+  );
+});

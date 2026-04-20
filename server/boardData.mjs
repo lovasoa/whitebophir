@@ -44,6 +44,7 @@ import {
   removeCanonicalItem,
   upsertCanonicalItem,
 } from "./board_canonical_index.mjs";
+import { getMinPinnedReplayBaselineSeq } from "./board_registry.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import { boardJsonPath } from "./legacy_json_board_source.mjs";
 import {
@@ -403,7 +404,11 @@ class BoardData {
       0,
       readConfiguration().SEQ_REPLAY_RETENTION_MS,
     );
-    this.mutationLog.trimPersistedOlderThan(nowMs - retentionMs);
+    const pinnedBaselineSeq = getMinPinnedReplayBaselineSeq(this.name, nowMs);
+    this.mutationLog.trimPersistedOlderThan(
+      nowMs - retentionMs,
+      pinnedBaselineSeq,
+    );
   }
 
   /**
