@@ -109,11 +109,6 @@ async function bootBoardPage() {
 
   const renderedToolNames = getRenderedToolNames();
   const visibleToolNames = new Set(renderedToolNames);
-  const renderedToolClassLoad = Promise.all(
-    renderedToolNames
-      .filter((toolName) => !CRITICAL_BOOT_TOOL_NAMES.includes(toolName))
-      .map((toolName) => tools.ensureToolClassLoaded(toolName)),
-  );
 
   for (const toolName of CRITICAL_BOOT_TOOL_NAMES) {
     if (!visibleToolNames.has(toolName)) continue;
@@ -134,8 +129,6 @@ async function bootBoardPage() {
     tools.change("Hand");
   }
   setBoardBootPhase("ready");
-
-  await renderedToolClassLoad;
 
   const canvasColorModule = /** @type {{registerCanvasColor?: () => void}} */ (
     await import(withVersion("./canvascolor.js", assetVersion))

@@ -8,7 +8,9 @@ import client_config from "./client_configuration.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import {
   getToolIconUrl,
+  getToolModuleImportPath,
   getToolStylesheetUrl,
+  withVersion,
 } from "../client-data/js/tool_assets.js";
 import { applyCompressionForResponse } from "./http_compression.mjs";
 import {
@@ -304,6 +306,11 @@ class BoardTemplate extends Template {
         tool.name,
       iconUrl: getToolIconUrl(tool.name, params.version),
     }));
+    params.toolModulePreloads = Array.from(
+      new Set(visibleTools.map((tool) => tool.name).concat("Cursor")),
+    ).map((toolName) =>
+      withVersion(getToolModuleImportPath(toolName), params.version),
+    );
     params.toolStylesheets = TOOL_CATALOG.map((tool) =>
       getToolStylesheetUrl(tool.name, params.version),
     ).filter((href) => typeof href === "string");

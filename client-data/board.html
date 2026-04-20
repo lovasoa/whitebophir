@@ -9,6 +9,9 @@
 	<link rel="modulepreload" href="../js/board_main.js?v={{version}}" />
 	<link rel="modulepreload" href="../js/board.js?v={{version}}" />
 	<link rel="modulepreload" href="../js/path-data-polyfill.js?v={{version}}" />
+	{{#toolModulePreloads}}
+	<link rel="modulepreload" href="{{.}}" />
+	{{/toolModulePreloads}}
 	<script src="../socket.io/socket.io.js"></script>
 	<meta name="description" content="{{translations.tagline}}" />
 	<meta name="keywords"
