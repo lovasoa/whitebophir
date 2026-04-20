@@ -2717,9 +2717,11 @@ function compileToolListeners(tool) {
 
 /**
  * @param {AppTool} tool
- * @returns {MountedAppTool}
+ * @returns {MountedAppTool | null}
  */
 Tools.mountTool = function mountTool(tool) {
+  ensureToolDefaults(tool);
+  compileToolListeners(tool);
   bindToolMethod(tool, "onstart");
   bindToolMethod(tool, "onquit");
   bindToolMethod(tool, "onSocketDisconnect");
@@ -2730,7 +2732,25 @@ Tools.mountTool = function mountTool(tool) {
   if (tool.stylesheet) {
     addToolStylesheet(tool.stylesheet);
   }
-  Tools.register(tool);
+  if (Tools.isBlocked(tool)) return null;
+
+  if (tool.name in Tools.list) {
+    console.log(
+      `Tools.mountTool: The tool '${tool.name}' is already in the list. Updating it...`,
+    );
+  }
+
+  Tools.list[tool.name] = /** @type {MountedAppTool} */ (tool);
+
+  if (tool.onSizeChange) Tools.sizeChangeHandlers.push(tool.onSizeChange);
+
+  const pending = drainPendingMessages(Tools.pendingMessages, tool.name);
+  if (pending.length > 0) {
+    console.log("Drawing pending messages for '%s'.", tool.name);
+    pending.forEach((/** @type {BoardMessage} */ msg) => {
+      tool.draw(msg, false);
+    });
+  }
   if (Tools.shouldDisplayTool(tool.name) || getToolButton(tool.name)) {
     syncMountedToolButton(
       tool.name,
@@ -2795,39 +2815,6 @@ Tools.activateTool = async function activateTool(toolName) {
 /** @param {AppTool} tool */
 Tools.isBlocked = function toolIsBanned(tool) {
   return isBlockedToolName(tool.name, Tools.server_config.BLOCKED_TOOLS || []);
-};
-
-/**
- * Register a new tool, without touching the User Interface
- */
-/** @param {AppTool} newTool */
-Tools.register = function registerTool(newTool) {
-  if (Tools.isBlocked(newTool)) return;
-
-  if (newTool.name in Tools.list) {
-    console.log(
-      `Tools.register: The tool '${newTool.name}' is already in the list. Updating it...`,
-    );
-  }
-
-  ensureToolDefaults(newTool);
-  compileToolListeners(newTool);
-
-  //Add the tool to the list
-  Tools.list[newTool.name] = /** @type {MountedAppTool} */ (newTool);
-
-  // Register the change handlers
-  if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
-
-  //There may be pending messages for the tool
-  const pending = drainPendingMessages(Tools.pendingMessages, newTool.name);
-  if (pending.length > 0) {
-    console.log("Drawing pending messages for '%s'.", newTool.name);
-    pending.forEach((/** @type {BoardMessage} */ msg) => {
-      //Transmit the message to the tool (precising that it comes from the network)
-      newTool.draw(msg, false);
-    });
-  }
 };
 
 /** @param {MountedAppTool} newTool */
