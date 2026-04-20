@@ -454,17 +454,15 @@ test.describe("collaboration and rate limiting", () => {
       return new Promise<{
         awaitingBoardSnapshot: boolean;
         connectionState: string;
-        loadingHidden: boolean;
+        statusVisible: boolean;
         rectVisible: boolean;
       }>((resolve) => {
         window.Tools.socket.once("disconnect", () => {
           resolve({
             awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
             connectionState: String(window.Tools.connectionState ?? ""),
-            loadingHidden:
-              document
-                .getElementById("loadingMessage")
-                ?.classList.contains("hidden") ?? false,
+            statusVisible:
+              !document.getElementById("boardStatusIndicator")?.hidden ?? false,
             rectVisible: !!document.getElementById(
               "persisted-across-disconnect",
             ),
@@ -477,7 +475,7 @@ test.describe("collaboration and rate limiting", () => {
     expect(disconnectState).toEqual({
       awaitingBoardSnapshot: true,
       connectionState: "disconnected",
-      loadingHidden: true,
+      statusVisible: true,
       rectVisible: true,
     });
 
@@ -703,7 +701,7 @@ test.describe("collaboration and rate limiting", () => {
         document.querySelectorAll("#drawingArea [id]"),
       ).map((element) => element.id);
       const pencilPath = document.querySelector("#slow-pencil");
-      const loadingMessage = document.getElementById("loadingMessage");
+      const statusIndicator = document.getElementById("boardStatusIndicator");
       const remoteCursor = document.querySelector(
         "#cursors .opcursor:not(#cursor-me)",
       );
@@ -712,7 +710,7 @@ test.describe("collaboration and rate limiting", () => {
         boardPhase: document.documentElement.dataset.boardPhase,
         connectionState: String(window.Tools.connectionState ?? ""),
         awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
-        loadingHidden: loadingMessage?.classList.contains("hidden") ?? false,
+        statusHidden: statusIndicator?.hidden ?? true,
         pencilCount: document.querySelectorAll("#drawingArea path#slow-pencil")
           .length,
         pencilPathData:
@@ -736,7 +734,7 @@ test.describe("collaboration and rate limiting", () => {
       boardPhase: "ready",
       connectionState: "connected",
       awaitingBoardSnapshot: false,
-      loadingHidden: true,
+      statusHidden: true,
       pencilCount: 1,
       rectTransformE: 250,
       rectTransformF: 300,

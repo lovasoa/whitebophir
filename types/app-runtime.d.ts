@@ -405,8 +405,6 @@ export type AppToolsState = {
   colorChangeHandlers: ((color: string) => void)[];
   sizeChangeHandlers: ((size: number) => void)[];
   cloneMessage: (message: BoardMessage) => BoardMessage;
-  showLoadingMessage: () => void;
-  hideLoadingMessage: () => void;
   getRateLimitDefinition: (
     kind: RateLimitKind,
   ) => ConfiguredRateLimitDefinition;

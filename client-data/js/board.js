@@ -341,10 +341,6 @@ Tools.cloneMessage = function cloneMessage(message) {
   return /** @type {BoardMessage} */ (JSON.parse(JSON.stringify(message)));
 };
 
-function getLoadingMessage() {
-  return document.getElementById("loadingMessage");
-}
-
 function initializeShellControls() {
   const colorChooser = getRequiredInput("chooseColor");
   const sizeChooser = getRequiredInput("chooseSize");
@@ -414,16 +410,6 @@ function getBoardStatusTitle() {
 function getBoardStatusNotice() {
   return document.getElementById("boardStatusNotice");
 }
-
-Tools.showLoadingMessage = function showLoadingMessage() {
-  const loadingEl = getLoadingMessage();
-  if (loadingEl) loadingEl.classList.remove("hidden");
-};
-
-Tools.hideLoadingMessage = function hideLoadingMessage() {
-  const loadingEl = getLoadingMessage();
-  if (loadingEl) loadingEl.classList.add("hidden");
-};
 
 /**
  * @param {RateLimitKind} kind
@@ -537,14 +523,14 @@ Tools.getBoardStatusView = function getBoardStatusView() {
     };
   }
   if (Tools.connectionState !== "connected") {
-    if (!Tools.hasAuthoritativeBoardSnapshot) {
-      return {
-        hidden: true,
-        state: "hidden",
-        title: "",
-        detail: "",
-      };
-    }
+    return {
+      hidden: false,
+      state: "reconnecting",
+      title: Tools.i18n.t("loading"),
+      detail: "",
+    };
+  }
+  if (Tools.awaitingBoardSnapshot) {
     return {
       hidden: false,
       state: "reconnecting",
@@ -1067,9 +1053,6 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
   Tools.renderConnectedUsers();
   Tools.clearBoardCursors();
-  if (!Tools.hasConnectedOnce) {
-    Tools.showLoadingMessage();
-  }
   Object.values(Tools.list || {}).forEach((tool) => {
     if (tool) tool.onSocketDisconnect();
   });
@@ -1114,9 +1097,6 @@ function finalizeIncomingBroadcast(msg, processed) {
       activityMessage.userId,
       activityMessage,
     );
-  }
-  if (!Tools.awaitingBoardSnapshot) {
-    Tools.hideLoadingMessage();
   }
   Tools.syncWriteStatusIndicator();
 }
@@ -2205,9 +2185,6 @@ Tools.startConnection = () => {
       );
     }
     Tools.hasConnectedOnce = true;
-    if (!hadConnectedBefore) {
-      Tools.showLoadingMessage();
-    }
     Tools.awaitingBoardSnapshot = true;
     Tools.awaitingSyncReplay = true;
     Tools.pendingReplaySync = hadConnectedBefore ? "refresh" : "ready";
@@ -2250,7 +2227,6 @@ Tools.startConnection = () => {
         ).concat(Tools.incomingBroadcastQueue);
       Tools.preSnapshotMessages = [];
       Tools.restoreLocalCursor();
-      Tools.hideLoadingMessage();
       Tools.syncWriteStatusIndicator();
     },
   );
