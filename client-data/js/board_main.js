@@ -16,7 +16,7 @@ const REPLAY_SAFE_TOOL_NAMES = new Set([
 ]);
 
 /**
- * @typedef {"booting" | "runtime-initialized" | "viewport-restored" | "connecting" | "ready" | "error"} BoardBootPhase
+ * @typedef {"viewport-restored" | "connecting" | "ready" | "error"} BoardBootPhase
  */
 
 /**
@@ -32,8 +32,6 @@ function setBoardBootPhase(phase) {
     }),
   );
 }
-
-setBoardBootPhase("booting");
 
 /**
  * @returns {string[]}
@@ -83,7 +81,6 @@ async function bootBoardPage() {
     throw new Error("Board runtime did not initialize the board app.");
   }
 
-  setBoardBootPhase("runtime-initialized");
   setBoardBootPhase("connecting");
   tools.startConnection();
 
