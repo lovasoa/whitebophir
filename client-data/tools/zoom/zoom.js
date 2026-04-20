@@ -170,11 +170,13 @@ export default class ZoomTool {
   }
 
   installBoardListeners() {
-    this.tools.board.addEventListener("wheel", this.onwheel.bind(this), {
+    const board = this.tools.board;
+    if (!board) return;
+    board.addEventListener("wheel", this.onwheel.bind(this), {
       passive: false,
     });
 
-    this.tools.board.addEventListener(
+    board.addEventListener(
       "touchmove",
       /** @param {Event} evt */
       (evt) => {
@@ -211,8 +213,8 @@ export default class ZoomTool {
       },
       { passive: true },
     );
-    this.tools.board.addEventListener("touchend", this.touchend.bind(this));
-    this.tools.board.addEventListener("touchcancel", this.touchend.bind(this));
+    board.addEventListener("touchend", this.touchend.bind(this));
+    board.addEventListener("touchcancel", this.touchend.bind(this));
   }
 
   touchend() {
@@ -242,7 +244,9 @@ export default class ZoomTool {
    */
   handleShiftKey(down, evt) {
     if (evt.key === "Shift") {
-      this.tools.svg.style.cursor = `zoom-${down ? "out" : "in"}`;
+      if (this.tools.svg) {
+        this.tools.svg.style.cursor = `zoom-${down ? "out" : "in"}`;
+      }
     }
   }
 

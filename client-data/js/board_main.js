@@ -47,21 +47,6 @@ function getRenderedToolNames() {
 /**
  * @returns {Promise<void>}
  */
-function waitForBoardCanvas() {
-  if (document.getElementById("canvas")) return Promise.resolve();
-  return new Promise((resolve) => {
-    const observer = new MutationObserver(() => {
-      if (!document.getElementById("canvas")) return;
-      observer.disconnect();
-      resolve();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  });
-}
-
-/**
- * @returns {Promise<void>}
- */
 async function lazyBootRenderedTools() {
   const tools = window.Tools;
   if (!tools) return;
@@ -91,23 +76,21 @@ async function lazyBootRenderedTools() {
 }
 
 async function bootBoardPage() {
-  await waitForBoardCanvas();
-  await Promise.all([
-    import(withVersion("./path-data-polyfill.js", assetVersion)),
-    import(withVersion("./board.js", assetVersion)),
-  ]);
-
+  const boardModule = await import(withVersion("./board.js", assetVersion));
+  await import(withVersion("./path-data-polyfill.js", assetVersion));
   const tools = window.Tools;
   if (!tools) {
-    throw new Error("Board runtime did not initialize window.Tools.");
+    throw new Error("Board runtime did not initialize the board app.");
   }
 
   setBoardBootPhase("runtime-initialized");
+  setBoardBootPhase("connecting");
+  tools.startConnection();
+
+  await boardModule.attachBoardDom(document);
   tools.installViewportHashObservers();
   tools.applyViewportFromHash();
   setBoardBootPhase("viewport-restored");
-  setBoardBootPhase("connecting");
-  tools.startConnection();
 
   const renderedToolNames = getRenderedToolNames();
   const visibleToolNames = new Set(renderedToolNames);

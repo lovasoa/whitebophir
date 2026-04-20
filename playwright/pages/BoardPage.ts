@@ -1,4 +1,9 @@
 import { expect, type Page } from "@playwright/test";
+import type {
+  AppToolsState,
+  BoardMessage,
+  MountedAppTool,
+} from "../../types/app-runtime";
 import { withToken } from "../helpers/boardData";
 import { broadcastMessageColor } from "../helpers/broadcastMessage";
 import {
@@ -7,11 +12,6 @@ import {
   isBufferedWriteDrainComplete,
 } from "../helpers/runtime_state.mjs";
 import type { TestServer } from "../helpers/testServer";
-import type {
-  AppToolsState,
-  BoardMessage,
-  MountedAppTool,
-} from "../../types/app-runtime";
 
 type Point = { x: number; y: number };
 type PencilPath = { color: string; points: Point[] };

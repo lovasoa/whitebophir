@@ -192,9 +192,9 @@ test.describe("public authless flows", () => {
     await boardPage.waitForAuthoritativeResync();
 
     const hadOptimisticRect = await page.evaluate(() => {
-      const rectangle = (window as any).Tools.list.Rectangle;
+      const rectangle = window.Tools.list.Rectangle;
       if (!rectangle) throw new Error("Rectangle tool is unavailable");
-      (window as any).Tools.drawAndSend(
+      window.Tools.drawAndSend(
         {
           type: "rect",
           id: "readonly-public-optimistic-rect",

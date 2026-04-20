@@ -46,7 +46,7 @@ export default class DownloadTool {
       .filter((stylesheet) => {
         if (
           stylesheet.href &&
-          (stylesheet.href.match(/boards\/tools\/.*\.css/) ||
+          (stylesheet.href.match(/\/tools\/.*\.css/) ||
             stylesheet.href.match(/board\.css/))
         ) {
           // This is a Stylesheet from a Tool or the Board itself, so we should include it

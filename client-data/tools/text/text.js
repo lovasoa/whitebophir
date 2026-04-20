@@ -141,7 +141,8 @@ export default class TextTool {
 
   startEdit() {
     this.active = true;
-    if (!this.input.parentNode) this.board.appendChild(this.input);
+    if (!this.input.parentNode && this.board)
+      this.board.appendChild(this.input);
     this.input.value = "";
     const clientW = Math.max(
       document.documentElement.clientWidth,

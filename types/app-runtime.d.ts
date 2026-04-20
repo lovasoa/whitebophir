@@ -363,8 +363,8 @@ export type AppToolsState = {
   boardState: AppBoardState;
   readOnly: boolean;
   canWrite: boolean;
-  board: HTMLElement;
-  svg: SVGSVGElement;
+  board: HTMLElement | null;
+  svg: SVGSVGElement | null;
   drawingArea: Element | null;
   curTool: MountedAppTool | null;
   drawingEvent: boolean;
@@ -399,6 +399,7 @@ export type AppToolsState = {
   socketIOExtraHeaders: { [name: string]: string } | null;
   boardName: string;
   token: string | null;
+  pendingReplaySync: false | "refresh" | "ready";
   HTML: ToolPalette;
   list: MountedToolRegistry;
   toolClasses: { [toolName: string]: ToolClass };
@@ -410,10 +411,19 @@ export type AppToolsState = {
   unreadMessagesCount: number;
   messageHooks: MessageHook[];
   colorPresets: ColorPreset[];
-  color_chooser: HTMLInputElement;
+  color_chooser: HTMLInputElement | null;
+  colorButtonsInitialized?: boolean;
+  currentColor: string;
+  currentSize: number;
+  currentOpacity: number;
+  initialPrefs?: {
+    tool: string;
+    color: string;
+    size: number;
+    opacity: number;
+  };
   colorChangeHandlers: ((color: string) => void)[];
   sizeChangeHandlers: ((size: number) => void)[];
-  getInitialSocketQuery: () => { [name: string]: string };
   cloneMessage: (message: BoardMessage) => BoardMessage;
   showLoadingMessage: () => void;
   hideLoadingMessage: () => void;
@@ -453,6 +463,7 @@ export type AppToolsState = {
   ) => void;
   applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
   refreshAuthoritativeBaseline: () => Promise<void>;
+  tryStartReplaySync: () => void;
   resetLocalRateLimitState: (kind: RateLimitKind, now?: number) => void;
   resetAllLocalRateLimitStates: (now?: number) => void;
   canEmitBufferedWrite: (bufferedWrite: BufferedWrite, now: number) => boolean;
@@ -516,7 +527,6 @@ export type AppToolsState = {
   setBoardState: (state: unknown) => void;
   toBoardCoordinate: (value: unknown) => number;
   pageCoordinateToBoard: (value: unknown) => number;
-  resolveBoardName: () => string;
   renderConnectedUsers: () => void;
   setConnectedUsersPanelOpen: (open: boolean) => void;
   upsertConnectedUser: (user: ConnectedUser) => void;

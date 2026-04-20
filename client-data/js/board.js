@@ -24,12 +24,9 @@
  * @licend
  */
 
+import AuthoritativeMutationEffects from "./authoritative_mutation_effects.js";
 import BoardAuthoritativeView from "./board_authoritative_view.js";
 import BoardMessageReplay from "./board_message_replay.js";
-import BoardSvgBaseline from "./board_svg_baseline.js";
-import AuthoritativeMutationEffects from "./authoritative_mutation_effects.js";
-import OptimisticJournal from "./optimistic_journal.js";
-import OptimisticMutation from "./optimistic_mutation.js";
 import {
   drainPendingMessages,
   getRequiredElement,
@@ -40,6 +37,7 @@ import {
   shouldDisplayTool as shouldDisplayBoardTool,
   updateRecentBoards,
 } from "./board_page_state.js";
+import BoardSvgBaseline from "./board_svg_baseline.js";
 import {
   connection as BoardConnection,
   messages as BoardMessages,
@@ -52,6 +50,8 @@ import {
   isTextUpdateMessage,
 } from "./message_shape.js";
 import Minitpl from "./minitpl.js";
+import OptimisticJournal from "./optimistic_journal.js";
+import OptimisticMutation from "./optimistic_mutation.js";
 import RateLimitCommon from "./rate_limit_common.js";
 import {
   getToolModuleImportPath,
@@ -98,6 +98,8 @@ const MIN_BOARD_SCALE = 0.01;
 const MAX_BOARD_SCALE = 1;
 const VIEWPORT_HASH_SCALE_DECIMALS = 2;
 const RESIZE_CANVAS_MARGIN = 20000;
+const DEFAULT_INITIAL_SIZE = 40;
+const DEFAULT_INITIAL_OPACITY = 1;
 
 /**
  * @param {string} elementId
@@ -150,6 +152,77 @@ function blurActiveElement() {
 }
 
 /**
+ * @param {SVGSVGElement} svg
+ * @returns {{authoritativeSeq: number, authoritativeDrawingMarkup: string, drawingArea: SVGGElement}}
+ */
+function readInlineBaseline(svg) {
+  const drawingArea = svg.getElementById("drawingArea");
+  if (!(drawingArea instanceof SVGGElement)) {
+    throw new Error("Missing required element: #drawingArea");
+  }
+  return {
+    authoritativeSeq: BoardMessageReplay.normalizeSeq(
+      svg.getAttribute("data-wbo-seq"),
+    ),
+    authoritativeDrawingMarkup: drawingArea.innerHTML || "",
+    drawingArea: drawingArea,
+  };
+}
+
+/**
+ * @param {Document} document
+ * @returns {Promise<void>}
+ */
+export async function attachBoardDom(document) {
+  /**
+   * @param {string} elementId
+   * @returns {Promise<Element>}
+   */
+  const waitForElement = (elementId) => {
+    const existing = document.getElementById(elementId);
+    if (existing) return Promise.resolve(existing);
+    return new Promise((resolve) => {
+      const observer = new MutationObserver(() => {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+        observer.disconnect();
+        resolve(element);
+      });
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+    });
+  };
+  const [boardElement, canvasElement] = await Promise.all([
+    waitForElement("board"),
+    waitForElement("canvas"),
+  ]);
+  if (!(boardElement instanceof HTMLElement)) {
+    throw new Error("Missing required element: #board");
+  }
+  if (!(canvasElement instanceof SVGSVGElement)) {
+    throw new Error("Missing required element: #canvas");
+  }
+  const baseline = readInlineBaseline(canvasElement);
+  Tools.board = boardElement;
+  Tools.svg = canvasElement;
+  Tools.drawingArea = baseline.drawingArea;
+  Tools.authoritativeSeq = baseline.authoritativeSeq;
+  Tools.authoritativeDrawingMarkup = baseline.authoritativeDrawingMarkup;
+  Tools.svg.width.baseVal.value = Math.max(
+    Tools.svg.width.baseVal.value,
+    document.body.clientWidth,
+  );
+  Tools.svg.height.baseVal.value = Math.max(
+    Tools.svg.height.baseVal.value,
+    document.body.clientHeight,
+  );
+  normalizeServerRenderedElements();
+  Tools.tryStartReplaySync();
+}
+
+/**
  * @param {unknown} value
  * @returns {value is ToolClass}
  */
@@ -177,9 +250,7 @@ Tools.i18n = (function i18n() {
   };
 })();
 
-Tools.server_config = /** @type {ServerConfig} */ (
-  parseEmbeddedJson("configuration", {})
-);
+Tools.server_config = /** @type {ServerConfig} */ ({});
 Tools.assetVersion = document.documentElement.dataset.version || "";
 
 /**
@@ -278,6 +349,47 @@ Tools.cloneMessage = function cloneMessage(message) {
 
 function getLoadingMessage() {
   return document.getElementById("loadingMessage");
+}
+
+function initializeShellControls() {
+  const colorChooser = getRequiredInput("chooseColor");
+  const sizeChooser = getRequiredInput("chooseSize");
+  const opacityChooser = getRequiredInput("chooseOpacity");
+  const opacityIndicator = getRequiredElement("opacityIndicator");
+  const opacityIndicatorFill =
+    document.getElementById("opacityIndicatorFill") || opacityIndicator;
+
+  Tools.color_chooser = colorChooser;
+  colorChooser.value = Tools.currentColor;
+  colorChooser.onchange = colorChooser.oninput = () => {
+    Tools.setColor(colorChooser.value);
+  };
+
+  sizeChooser.value = String(Tools.currentSize);
+  sizeChooser.onchange = sizeChooser.oninput = () => {
+    Tools.setSize(sizeChooser.value);
+  };
+
+  const updateOpacity = () => {
+    Tools.currentOpacity = MessageCommon.clampOpacity(opacityChooser.value);
+    opacityChooser.value = String(Tools.currentOpacity);
+    opacityIndicatorFill.setAttribute("opacity", String(Tools.currentOpacity));
+  };
+  Tools.colorChangeHandlers.push(
+    /** @param {string} color */ (color) => {
+      opacityIndicatorFill.setAttribute("fill", color);
+    },
+  );
+  opacityChooser.value = String(Tools.currentOpacity);
+  updateOpacity();
+  opacityChooser.onchange = opacityChooser.oninput = updateOpacity;
+
+  if (!Tools.colorButtonsInitialized) {
+    Tools.colorButtonsInitialized = true;
+    Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
+  }
+  Tools.setColor(Tools.currentColor);
+  Tools.setSize(Tools.currentSize);
 }
 
 /**
@@ -491,6 +603,7 @@ Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
 };
 
 Tools.clearBoardCursors = function clearBoardCursors() {
+  if (!Tools.svg) return;
   const cursors = Tools.svg.getElementById("cursors");
   if (cursors) cursors.innerHTML = "";
 };
@@ -526,7 +639,15 @@ Tools.captureOptimisticRollback = function captureOptimisticRollback(message) {
     kind: "items",
     snapshots: OptimisticMutation.collectOptimisticAffectedIds(message).map(
       (itemId) => {
-        const current = Tools.svg.getElementById(itemId);
+        const svg = Tools.svg;
+        if (!svg) {
+          return {
+            id: itemId,
+            outerHTML: null,
+            nextSiblingId: null,
+          };
+        }
+        const current = svg.getElementById(itemId);
         return {
           id: itemId,
           outerHTML: current ? current.outerHTML : null,
@@ -601,7 +722,9 @@ Tools.restoreOptimisticRollback = function restoreOptimisticRollback(rollback) {
     return;
   }
   rollback.snapshots.forEach((snapshot) => {
-    const current = Tools.svg.getElementById(snapshot.id);
+    const svg = Tools.svg;
+    if (!svg) return;
+    const current = svg.getElementById(snapshot.id);
     if (snapshot.outerHTML === null) {
       current?.remove();
       return;
@@ -611,7 +734,7 @@ Tools.restoreOptimisticRollback = function restoreOptimisticRollback(rollback) {
       return;
     }
     const nextSibling = snapshot.nextSiblingId
-      ? Tools.svg.getElementById(snapshot.nextSiblingId)
+      ? svg.getElementById(snapshot.nextSiblingId)
       : null;
     if (nextSibling?.parentElement === Tools.drawingArea) {
       nextSibling.insertAdjacentHTML("beforebegin", snapshot.outerHTML);
@@ -672,14 +795,13 @@ Tools.applyAuthoritativeBaseline =
    * @param {import("../../types/app-runtime").AuthoritativeBaseline} baseline
    */
   function applyAuthoritativeBaseline(baseline) {
+    const svg = Tools.svg;
+    if (!svg) return;
     Tools.authoritativeSeq = baseline.seq;
     Tools.authoritativeDrawingMarkup = baseline.drawingAreaMarkup;
     Tools.optimisticJournal.reset();
-    Tools.svg.setAttribute("data-wbo-seq", String(baseline.seq));
-    Tools.svg.setAttribute(
-      "data-wbo-readonly",
-      baseline.readonly ? "true" : "false",
-    );
+    svg.setAttribute("data-wbo-seq", String(baseline.seq));
+    svg.setAttribute("data-wbo-readonly", baseline.readonly ? "true" : "false");
     if (Tools.drawingArea) {
       Tools.drawingArea.innerHTML = baseline.drawingAreaMarkup;
       normalizeServerRenderedElements();
@@ -1419,26 +1541,9 @@ Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
   );
 };
 
-Tools.setBoardState(
-  parseEmbeddedJson("board-state", {
-    readonly: false,
-    canWrite: true,
-  }),
-);
-
-Tools.resolveBoardName = function getBoardNameFromLocation() {
-  return resolveBoardName(window.location.pathname);
-};
-
-Tools.board = getRequiredElement("board");
-Tools.svg = /** @type {SVGSVGElement} */ (
-  /** @type {unknown} */ (getRequiredElement("canvas"))
-);
-Tools.drawingArea = Tools.svg.getElementById("drawingArea");
-Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(
-  Tools.svg.getAttribute("data-wbo-seq"),
-);
-Tools.authoritativeDrawingMarkup = Tools.drawingArea?.innerHTML || "";
+Tools.board = null;
+Tools.svg = null;
+Tools.drawingArea = null;
 
 //Initialization
 Tools.curTool = null;
@@ -1452,40 +1557,10 @@ Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
 Tools.socket = null;
 Tools.hasConnectedOnce = false;
-Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
-  /** @type {SocketHeaders | null} */
-  let extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
-    window.socketio_extra_headers,
-  );
-  if (extraHeaders) {
-    window.socketio_extra_headers = extraHeaders;
-    return extraHeaders;
-  }
-  try {
-    const storedHeaders = sessionStorage.getItem("socketio_extra_headers");
-    if (storedHeaders) {
-      extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
-        JSON.parse(storedHeaders),
-      );
-      if (extraHeaders) {
-        window.socketio_extra_headers = extraHeaders;
-        return extraHeaders;
-      }
-    }
-  } catch (err) {
-    console.warn("Unable to load Socket.IO extra headers", err);
-  }
-  return null;
-})();
-
-Tools.getInitialSocketQuery = function getInitialSocketQuery() {
-  return {
-    sync: "seq",
-    tool: "Hand",
-    color: getRequiredInput("chooseColor").value,
-    size: getRequiredInput("chooseSize").value,
-  };
-};
+Tools.socketIOExtraHeaders = null;
+Tools.token = null;
+Tools.boardName = "";
+Tools.pendingReplaySync = false;
 
 Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
 Tools.connectedUsersPanelOpen = false;
@@ -2065,8 +2140,11 @@ Tools.updateCurrentConnectedUserFromActivity =
   };
 
 Tools.initConnectedUsersUI = function initConnectedUsersUI() {
-  const toggle = getConnectedUsersToggle();
-  const panel = getConnectedUsersPanel();
+  const toggle = document.getElementById("connectedUsersToggle");
+  const panel = document.getElementById("connectedUsersPanel");
+  if (!(toggle instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
+    return;
+  }
   Tools.connectedUsersPanelOpen =
     toggle.getAttribute("aria-expanded") === "true";
   syncConnectedUsersToggleLabel();
@@ -2097,7 +2175,31 @@ Tools.initConnectedUsersUI = function initConnectedUsersUI() {
   Tools.renderConnectedUsers();
 };
 
-Tools.initConnectedUsersUI();
+Tools.tryStartReplaySync = function tryStartReplaySync() {
+  if (
+    !Tools.pendingReplaySync ||
+    !Tools.socket?.connected ||
+    !Tools.board ||
+    !Tools.svg ||
+    !Tools.drawingArea
+  ) {
+    return;
+  }
+  const refreshBaseline = Tools.pendingReplaySync === "refresh";
+  Tools.pendingReplaySync = false;
+  void (async function startSeqReplay() {
+    if (refreshBaseline) {
+      try {
+        await Tools.refreshAuthoritativeBaseline();
+      } catch (error) {
+        console.error("Failed to refresh authoritative SVG baseline", error);
+      }
+    }
+    Tools.socket?.emit("sync_request", {
+      baselineSeq: Tools.authoritativeSeq,
+    });
+  })();
+};
 
 Tools.startConnection = () => {
   // Destroy socket if one already exists
@@ -2112,14 +2214,17 @@ Tools.startConnection = () => {
   Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
   Tools.renderConnectedUsers();
 
-  const url = new URL(window.location.href);
-  const params = new URLSearchParams(url.search);
   const socketParams = BoardConnection.buildSocketParams(
     window.location.pathname,
     Tools.socketIOExtraHeaders,
-    params.get("token"),
+    Tools.token,
     Tools.boardName,
-    Tools.getInitialSocketQuery(),
+    {
+      sync: "seq",
+      tool: Tools.initialPrefs?.tool || "Hand",
+      color: Tools.getColor(),
+      size: String(Tools.getSize()),
+    },
   );
 
   const socket = io.connect("", socketParams);
@@ -2144,18 +2249,8 @@ Tools.startConnection = () => {
     }
     Tools.awaitingBoardSnapshot = true;
     Tools.awaitingSyncReplay = true;
-    void (async function startSeqReplay() {
-      if (hadConnectedBefore) {
-        try {
-          await Tools.refreshAuthoritativeBaseline();
-        } catch (error) {
-          console.error("Failed to refresh authoritative SVG baseline", error);
-        }
-      }
-      socket.emit("sync_request", {
-        baselineSeq: Tools.authoritativeSeq,
-      });
-    })();
+    Tools.pendingReplaySync = hadConnectedBefore ? "refresh" : "ready";
+    Tools.tryStartReplaySync();
     Tools.syncWriteStatusIndicator();
   });
   socket.on("broadcast", (/** @type {BoardMessage} */ msg) => {
@@ -2250,14 +2345,6 @@ Tools.startConnection = () => {
     socket.connect();
   }
 };
-Tools.boardName = Tools.resolveBoardName();
-
-Tools.token = (() => {
-  const url = new URL(window.location.href);
-  const params = new URLSearchParams(url.search);
-  return params.get("token");
-})();
-
 function saveBoardNametoLocalStorage() {
   const boardName = Tools.boardName;
   const key = "recent-boards";
@@ -2800,14 +2887,17 @@ function toggleSecondaryTool(newTool) {
  * @returns {void}
  */
 function updateCurrentToolChrome(toolName, newTool) {
+  const svg = Tools.svg;
+  const board = Tools.board;
+  if (!svg || !board) return;
   const curToolName = Tools.curTool ? Tools.curTool.name : "";
   try {
     Tools.HTML.changeTool(curToolName, toolName);
   } catch (e) {
     console.error(`Unable to update the GUI with the new tool. ${e}`);
   }
-  Tools.svg.style.cursor = newTool.mouseCursor || "auto";
-  Tools.board.title = Tools.i18n.t(newTool.helpText || "");
+  svg.style.cursor = newTool.mouseCursor || "auto";
+  board.title = Tools.i18n.t(newTool.helpText || "");
 }
 
 /** @param {MountedAppTool} newTool */
@@ -2866,6 +2956,7 @@ Tools.addToolListeners = function addToolListeners(tool) {
     const listener = tool.compiledListeners[event];
     if (!listener) continue;
     const target = listener.target || Tools.board;
+    if (!target) continue;
     target.addEventListener(event, listener, { passive: false });
   }
 };
@@ -2877,6 +2968,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
     const listener = tool.compiledListeners[event];
     if (!listener) continue;
     const target = listener.target || Tools.board;
+    if (!target) continue;
     target.removeEventListener(event, listener);
     // also attempt to remove with capture = true in IE
     if (Tools.isIE) target.removeEventListener(event, listener, true);
@@ -3118,6 +3210,7 @@ Tools.installViewportHashObservers = function installViewportHashObservers() {
 
 /** @param {BoardMessage} m */
 function resizeCanvas(m) {
+  if (!Tools.svg) return;
   //Enlarge the canvas whenever something is drawn near its border
   const x = Number(m.x) | 0;
   const y = Number(m.y) | 0;
@@ -3157,6 +3250,10 @@ Tools.messageHooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
 let scaleTimeout = null;
 /** @param {number} scale */
 Tools.setScale = function setScale(scale) {
+  if (!Tools.svg) {
+    Tools.scale = scale;
+    return scale;
+  }
   const fullScale =
     Math.max(window.innerWidth, window.innerHeight) /
     (Number(Tools.server_config.MAX_BOARD_SIZE) || 655360);
@@ -3164,11 +3261,16 @@ Tools.setScale = function setScale(scale) {
   const maxScale = MAX_BOARD_SCALE;
   if (Number.isNaN(scale)) scale = DEFAULT_BOARD_SCALE;
   scale = Math.max(minScale, Math.min(maxScale, scale));
-  Tools.svg.style.willChange = "transform";
-  Tools.svg.style.transform = `scale(${scale})`;
+  const svg = Tools.svg;
+  if (!svg) {
+    Tools.scale = scale;
+    return scale;
+  }
+  svg.style.willChange = "transform";
+  svg.style.transform = `scale(${scale})`;
   if (scaleTimeout !== null) clearTimeout(scaleTimeout);
   scaleTimeout = setTimeout(() => {
-    Tools.svg.style.willChange = "auto";
+    if (Tools.svg) Tools.svg.style.willChange = "auto";
   }, 1000);
   Tools.scale = scale;
   Tools.syncDrawToolAvailability(false);
@@ -3211,6 +3313,9 @@ Tools.generateUID = function generateUID(prefix, suffix) {
  * @returns {SVGElement}
  */
 Tools.createSVGElement = function createSVGElement(name, attrs) {
+  if (!Tools.svg) {
+    throw new Error("Board SVG is not attached.");
+  }
   const elem = /** @type {SVGElement} */ (
     document.createElementNS(Tools.svg.namespaceURI, name)
   );
@@ -3244,92 +3349,99 @@ Tools.colorPresets = [
   { color: "#AAAAAA", key: "0" },
   { color: "#E65194" },
 ];
-
-Tools.color_chooser = getRequiredInput("chooseColor");
+Tools.color_chooser = null;
+Tools.currentColor = "#001f3f";
 Tools.colorChangeHandlers =
   /** @type {AppToolsState["colorChangeHandlers"]} */ ([]);
+Tools.sizeChangeHandlers = [];
+Tools.currentSize = DEFAULT_INITIAL_SIZE;
+Tools.currentOpacity = DEFAULT_INITIAL_OPACITY;
 
 /** @param {string} color */
 Tools.setColor = function setColor(color) {
-  Tools.color_chooser.value = color;
+  Tools.currentColor = color;
+  if (Tools.color_chooser) {
+    Tools.color_chooser.value = color;
+  }
   Tools.colorChangeHandlers.forEach((handler) => {
     handler(color);
   });
 };
 
-Tools.getColor = (function color() {
-  const colorIndex = (Math.random() * Tools.colorPresets.length) | 0;
-  const initialPreset = Tools.colorPresets[colorIndex] ||
-    Tools.colorPresets[0] || { color: "#001f3f" };
-  const initialColor = initialPreset.color;
-  Tools.color_chooser.onchange = Tools.color_chooser.oninput = () => {
-    Tools.setColor(Tools.color_chooser.value);
-  };
-  Tools.setColor(initialColor);
-  return () => Tools.color_chooser.value;
-})();
+Tools.getColor = function getColor() {
+  return Tools.currentColor;
+};
 
-Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
-
-Tools.sizeChangeHandlers = [];
-Tools.setSize = (function size() {
-  const chooser = getRequiredInput("chooseSize");
-
-  function update() {
-    const size = MessageCommon.clampSize(chooser.value);
-    chooser.value = String(size);
-    Tools.sizeChangeHandlers.forEach((handler) => {
-      handler(size);
-    });
+/**
+ * @param {number | string | null | undefined} value
+ * @returns {number}
+ */
+Tools.setSize = function setSize(value) {
+  if (value !== null && value !== undefined) {
+    Tools.currentSize = MessageCommon.clampSize(value);
   }
-  update();
+  const chooser = document.getElementById("chooseSize");
+  if (chooser instanceof HTMLInputElement) {
+    chooser.value = String(Tools.currentSize);
+  }
+  Tools.sizeChangeHandlers.forEach((handler) => {
+    handler(Tools.currentSize);
+  });
+  return Tools.currentSize;
+};
 
-  chooser.onchange = chooser.oninput = update;
-  /**
-   * @param {number | string | null | undefined} value
-   * @returns {number}
-   */
-  return (value) => {
-    if (value !== null && value !== undefined) {
-      chooser.value = String(value);
-      update();
+Tools.getSize = function getSize() {
+  return Tools.currentSize;
+};
+
+Tools.getOpacity = function getOpacity() {
+  return Tools.currentOpacity;
+};
+
+/** @type {SocketHeaders | null} */
+let socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+  window.socketio_extra_headers,
+);
+if (!socketIOExtraHeaders) {
+  try {
+    const storedHeaders = sessionStorage.getItem("socketio_extra_headers");
+    if (storedHeaders) {
+      socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+        JSON.parse(storedHeaders),
+      );
     }
-    return parseInt(chooser.value, 10);
-  };
-})();
-
-Tools.getSize = () => Tools.setSize(undefined);
-
-Tools.getOpacity = (function opacity() {
-  const chooser = getRequiredInput("chooseOpacity");
-  const opacityIndicator = getRequiredElement("opacityIndicator");
-  const opacityIndicatorFill =
-    document.getElementById("opacityIndicatorFill") || opacityIndicator;
-
-  function update() {
-    chooser.value = String(MessageCommon.clampOpacity(chooser.value));
-    opacityIndicatorFill.setAttribute("opacity", chooser.value);
+  } catch (err) {
+    console.warn("Unable to load Socket.IO extra headers", err);
   }
-  Tools.colorChangeHandlers.push(
-    /** @param {string} color */ (color) => {
-      opacityIndicatorFill.setAttribute("fill", color);
-    },
-  );
-  update();
-
-  chooser.onchange = chooser.oninput = update;
-  return () => MessageCommon.clampOpacity(chooser.value);
-})();
-
-// Initialize the canvas to cover the viewport without shrinking a hash-expanded board.
-Tools.svg.width.baseVal.value = Math.max(
-  Tools.svg.width.baseVal.value,
-  document.body.clientWidth,
+}
+if (socketIOExtraHeaders) {
+  window.socketio_extra_headers = socketIOExtraHeaders;
+}
+const colorIndex = (Math.random() * Tools.colorPresets.length) | 0;
+const initialPreset = Tools.colorPresets[colorIndex] || Tools.colorPresets[0];
+Tools.server_config = /** @type {ServerConfig} */ (
+  parseEmbeddedJson("configuration", {})
 );
-Tools.svg.height.baseVal.value = Math.max(
-  Tools.svg.height.baseVal.value,
-  document.body.clientHeight,
+Tools.boardName = resolveBoardName(window.location.pathname);
+Tools.token = new URL(window.location.href).searchParams.get("token");
+Tools.socketIOExtraHeaders = socketIOExtraHeaders;
+Tools.initialPrefs = {
+  tool: "Hand",
+  color: initialPreset?.color || "#001f3f",
+  size: DEFAULT_INITIAL_SIZE,
+  opacity: DEFAULT_INITIAL_OPACITY,
+};
+Tools.currentColor = Tools.initialPrefs.color;
+Tools.currentSize = MessageCommon.clampSize(Tools.initialPrefs.size);
+Tools.currentOpacity = MessageCommon.clampOpacity(Tools.initialPrefs.opacity);
+Tools.setBoardState(
+  parseEmbeddedJson("board-state", {
+    readonly: false,
+    canWrite: true,
+  }),
 );
+Tools.initConnectedUsersUI();
+initializeShellControls();
 
 /**
  What does a "tool" object look like?

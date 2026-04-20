@@ -375,7 +375,7 @@ test.describe("collaboration and rate limiting", () => {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       for (let index = 0; index < 12; index += 1) {
-        (window as any).Tools.socket.emit("broadcast", {
+        window.Tools.socket.emit("broadcast", {
           tool: "Cursor",
           type: "update",
           x: 1600 + index * 8,
@@ -424,8 +424,8 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.waitForAuthoritativeResync();
 
     await page.evaluate(() => {
-      const rectangle = (window as any).Tools.list.Rectangle;
-      (window as any).Tools.drawAndSend(
+      const rectangle = window.Tools.list.Rectangle;
+      window.Tools.drawAndSend(
         {
           type: "rect",
           id: "persisted-across-disconnect",
@@ -457,13 +457,10 @@ test.describe("collaboration and rate limiting", () => {
         loadingHidden: boolean;
         rectVisible: boolean;
       }>((resolve) => {
-        (window as any).Tools.socket.once("disconnect", () => {
+        window.Tools.socket.once("disconnect", () => {
           resolve({
-            awaitingBoardSnapshot: !!(window as any).Tools
-              .awaitingBoardSnapshot,
-            connectionState: String(
-              (window as any).Tools.connectionState ?? "",
-            ),
+            awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
+            connectionState: String(window.Tools.connectionState ?? ""),
             loadingHidden:
               document
                 .getElementById("loadingMessage")
@@ -473,7 +470,7 @@ test.describe("collaboration and rate limiting", () => {
             ),
           });
         });
-        (window as any).Tools.socket.io.engine.close();
+        window.Tools.socket.io.engine.close();
       });
     });
 
@@ -503,8 +500,8 @@ test.describe("collaboration and rate limiting", () => {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       const lineId = "reconnect-pencil-path";
-      const pencil = (window as any).Tools.list.Pencil;
-      (window as any).Tools.drawAndSend(
+      const pencil = window.Tools.list.Pencil;
+      window.Tools.drawAndSend(
         {
           type: "line",
           id: lineId,
@@ -521,7 +518,7 @@ test.describe("collaboration and rate limiting", () => {
         { x: 325, y: 697 },
         { x: 198, y: 658 },
       ]) {
-        (window as any).Tools.drawAndSend(
+        window.Tools.drawAndSend(
           {
             type: "child",
             parent: lineId,
@@ -713,8 +710,8 @@ test.describe("collaboration and rate limiting", () => {
 
       return {
         boardPhase: document.documentElement.dataset.boardPhase,
-        connectionState: String((window as any).Tools.connectionState ?? ""),
-        awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
+        connectionState: String(window.Tools.connectionState ?? ""),
+        awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
         loadingHidden: loadingMessage?.classList.contains("hidden") ?? false,
         pencilCount: document.querySelectorAll("#drawingArea path#slow-pencil")
           .length,
@@ -772,7 +769,7 @@ test.describe("collaboration and rate limiting", () => {
       });
       await page.evaluate(() => {
         for (let index = 0; index < 101; index += 1) {
-          (window as any).Tools.socket.emit("broadcast", {
+          window.Tools.socket.emit("broadcast", {
             tool: "Eraser",
             type: "delete",
             id: `rate-limit-${index}`,
@@ -812,8 +809,8 @@ test.describe("collaboration and rate limiting", () => {
       ]);
 
       await page.evaluate(() => {
-        const rectangle = (window as any).Tools.list.Rectangle;
-        (window as any).Tools.drawAndSend(
+        const rectangle = window.Tools.list.Rectangle;
+        window.Tools.drawAndSend(
           {
             type: "rect",
             id: "buffered-rect-1",
@@ -827,7 +824,7 @@ test.describe("collaboration and rate limiting", () => {
           },
           rectangle,
         );
-        (window as any).Tools.drawAndSend(
+        window.Tools.drawAndSend(
           {
             type: "rect",
             id: "buffered-rect-2",
@@ -901,8 +898,8 @@ test.describe("collaboration and rate limiting", () => {
       await boardPage.waitForAuthoritativeResync();
 
       await page.evaluate(() => {
-        const rectangle = (window as any).Tools.list.Rectangle;
-        (window as any).Tools.drawAndSend(
+        const rectangle = window.Tools.list.Rectangle;
+        window.Tools.drawAndSend(
           {
             type: "rect",
             id: "persisted-before-disconnect",
@@ -916,7 +913,7 @@ test.describe("collaboration and rate limiting", () => {
           },
           rectangle,
         );
-        (window as any).Tools.drawAndSend(
+        window.Tools.drawAndSend(
           {
             type: "rect",
             id: "local-only-before-disconnect",

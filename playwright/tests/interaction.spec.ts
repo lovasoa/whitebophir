@@ -50,12 +50,12 @@ async function waitForRecordedPhase(page: Page, phase: string) {
   );
 }
 
-async function expectViewportRestoreBeforeConnect(
+async function expectViewportRestoreAfterConnect(
   page: Page,
   left: number,
   top: number,
 ) {
-  await waitForRecordedPhase(page, "connecting");
+  await waitForRecordedPhase(page, "viewport-restored");
   const phases = await readBootPhaseSnapshots(page);
   const viewportRestoredIndex = phases.findIndex(
     (entry) => entry.phase === "viewport-restored",
@@ -64,7 +64,8 @@ async function expectViewportRestoreBeforeConnect(
     (entry) => entry.phase === "connecting",
   );
   expect(viewportRestoredIndex).toBeGreaterThanOrEqual(0);
-  expect(connectingIndex).toBeGreaterThan(viewportRestoredIndex);
+  expect(connectingIndex).toBeGreaterThanOrEqual(0);
+  expect(viewportRestoredIndex).toBeGreaterThan(connectingIndex);
   expect(phases[viewportRestoredIndex]).toMatchObject({
     phase: "viewport-restored",
     left,
@@ -156,14 +157,14 @@ test.describe("single-page interactions", () => {
     await installBootPhaseRecorder(page);
 
     await page.goto(url);
-    await expectViewportRestoreBeforeConnect(page, left, top);
+    await expectViewportRestoreAfterConnect(page, left, top);
     await page.waitForFunction(() => {
       const phase = document.documentElement.dataset.boardPhase;
       return phase === "ready" || phase === "error";
     });
 
     await page.reload();
-    await expectViewportRestoreBeforeConnect(page, left, top);
+    await expectViewportRestoreAfterConnect(page, left, top);
     await page.waitForFunction(() => {
       const phase = document.documentElement.dataset.boardPhase;
       return phase === "ready" || phase === "error";
@@ -185,7 +186,7 @@ test.describe("single-page interactions", () => {
     await expect(boardPage.tool("Pencil")).toBeVisible();
     await boardPage.selectTool("Pencil");
     await boardPage.page.evaluate(() => {
-      (window as any).Tools.setScale(0.04);
+      window.Tools.setScale(0.04);
     });
 
     await boardPage.expectCurrentTool("Hand");
@@ -202,7 +203,7 @@ test.describe("single-page interactions", () => {
     await boardPage.expectCurrentTool("Hand");
 
     await boardPage.page.evaluate(() => {
-      (window as any).Tools.setScale(0.05);
+      window.Tools.setScale(0.05);
     });
     await expect(boardPage.tool("Pencil")).toHaveAttribute(
       "aria-disabled",
