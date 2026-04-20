@@ -106,6 +106,8 @@ async function bootBoardPage() {
   tools.installViewportHashObservers();
   tools.applyViewportFromHash();
   setBoardBootPhase("viewport-restored");
+  setBoardBootPhase("connecting");
+  tools.startConnection();
 
   const renderedToolNames = getRenderedToolNames();
   const visibleToolNames = new Set(renderedToolNames);
@@ -114,9 +116,6 @@ async function bootBoardPage() {
     if (!visibleToolNames.has(toolName)) continue;
     await tools.bootTool(toolName);
   }
-
-  setBoardBootPhase("connecting");
-  tools.startConnection();
   for (const toolName of REPLAY_SAFE_TOOL_NAMES) {
     if (CRITICAL_BOOT_TOOL_NAMES.includes(toolName)) continue;
     await tools.bootTool(toolName);
