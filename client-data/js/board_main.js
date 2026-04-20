@@ -1,5 +1,3 @@
-import "./path-data-polyfill.js";
-import "./board.js";
 import { withVersion } from "./tool_assets.js";
 
 const assetVersion = document.documentElement.dataset.version || "";
@@ -38,22 +36,6 @@ function setBoardBootPhase(phase) {
 setBoardBootPhase("booting");
 
 /**
- * @param {string} path
- * @returns {string}
- */
-function withAssetVersion(path) {
-  return withVersion(path, assetVersion);
-}
-
-/**
- * @param {string} path
- * @returns {Promise<unknown>}
- */
-function importWithVersion(path) {
-  return import(withAssetVersion(path));
-}
-
-/**
  * @returns {string[]}
  */
 function getRenderedToolNames() {
@@ -65,26 +47,16 @@ function getRenderedToolNames() {
 /**
  * @returns {Promise<void>}
  */
-async function bootCriticalTools() {
-  const tools = window.Tools;
-  if (!tools) return;
-  const visibleTools = new Set(getRenderedToolNames());
-  for (const toolName of CRITICAL_BOOT_TOOL_NAMES) {
-    if (!visibleTools.has(toolName)) continue;
-    await tools.bootTool(toolName);
-  }
-}
-
-/**
- * @param {string[]} toolNames
- * @returns {Promise<void>}
- */
-async function bootToolNames(toolNames) {
-  const tools = window.Tools;
-  if (!tools) return;
-  for (const toolName of toolNames) {
-    await tools.bootTool(toolName);
-  }
+function waitForBoardCanvas() {
+  if (document.getElementById("canvas")) return Promise.resolve();
+  return new Promise((resolve) => {
+    const observer = new MutationObserver(() => {
+      if (!document.getElementById("canvas")) return;
+      observer.disconnect();
+      resolve();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
 }
 
 /**
@@ -109,7 +81,7 @@ async function lazyBootRenderedTools() {
       );
     });
   const renderedToolNames = getRenderedToolNames().filter(
-    (toolName) => !CRITICAL_BOOT_TOOL_NAMES.includes(toolName),
+    (toolName) => !REPLAY_SAFE_TOOL_NAMES.has(toolName),
   );
   renderedToolNames.forEach((toolName) => {
     schedule(() => {
@@ -119,6 +91,12 @@ async function lazyBootRenderedTools() {
 }
 
 async function bootBoardPage() {
+  await waitForBoardCanvas();
+  await Promise.all([
+    import(withVersion("./path-data-polyfill.js", assetVersion)),
+    import(withVersion("./board.js", assetVersion)),
+  ]);
+
   const tools = window.Tools;
   if (!tools) {
     throw new Error("Board runtime did not initialize window.Tools.");
@@ -129,14 +107,25 @@ async function bootBoardPage() {
   tools.applyViewportFromHash();
   setBoardBootPhase("viewport-restored");
 
-  await bootCriticalTools();
+  const renderedToolNames = getRenderedToolNames();
+  const visibleToolNames = new Set(renderedToolNames);
+  const renderedToolClassLoad = Promise.all(
+    renderedToolNames
+      .filter((toolName) => !CRITICAL_BOOT_TOOL_NAMES.includes(toolName))
+      .map((toolName) => tools.ensureToolClassLoaded(toolName)),
+  );
+
+  for (const toolName of CRITICAL_BOOT_TOOL_NAMES) {
+    if (!visibleToolNames.has(toolName)) continue;
+    await tools.bootTool(toolName);
+  }
+
   setBoardBootPhase("connecting");
   tools.startConnection();
-  await bootToolNames(
-    Array.from(REPLAY_SAFE_TOOL_NAMES).filter(
-      (toolName) => !CRITICAL_BOOT_TOOL_NAMES.includes(toolName),
-    ),
-  );
+  for (const toolName of REPLAY_SAFE_TOOL_NAMES) {
+    if (CRITICAL_BOOT_TOOL_NAMES.includes(toolName)) continue;
+    await tools.bootTool(toolName);
+  }
   const pendingToolName = documentElement.dataset.pendingTool || "";
   if (pendingToolName) {
     await tools.activateTool(pendingToolName);
@@ -146,15 +135,10 @@ async function bootBoardPage() {
   }
   setBoardBootPhase("ready");
 
-  const deferredToolNames = getRenderedToolNames().filter(
-    (toolName) => !REPLAY_SAFE_TOOL_NAMES.has(toolName),
-  );
-  await Promise.all(
-    deferredToolNames.map((toolName) => tools.ensureToolClassLoaded(toolName)),
-  );
+  await renderedToolClassLoad;
 
   const canvasColorModule = /** @type {{registerCanvasColor?: () => void}} */ (
-    await importWithVersion("./canvascolor.js")
+    await import(withVersion("./canvascolor.js", assetVersion))
   );
   if (typeof canvasColorModule.registerCanvasColor === "function") {
     canvasColorModule.registerCanvasColor();

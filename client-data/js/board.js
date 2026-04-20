@@ -2108,8 +2108,9 @@ Tools.startConnection = () => {
 
   //Receive draw instructions from the server
   socket.on("connect", function onConnection() {
+    const hadConnectedBefore = Tools.hasConnectedOnce;
     Tools.connectionState = "connected";
-    if (Tools.hasConnectedOnce && Tools.server_config.TURNSTILE_SITE_KEY) {
+    if (hadConnectedBefore && Tools.server_config.TURNSTILE_SITE_KEY) {
       Tools.setTurnstileValidation(null);
       BoardTurnstile.resetTurnstileWidget(
         typeof turnstile !== "undefined" ? turnstile : undefined,
@@ -2125,10 +2126,12 @@ Tools.startConnection = () => {
     Tools.awaitingBoardSnapshot = true;
     Tools.awaitingSyncReplay = true;
     void (async function startSeqReplay() {
-      try {
-        await Tools.refreshAuthoritativeBaseline();
-      } catch (error) {
-        console.error("Failed to refresh authoritative SVG baseline", error);
+      if (hadConnectedBefore) {
+        try {
+          await Tools.refreshAuthoritativeBaseline();
+        } catch (error) {
+          console.error("Failed to refresh authoritative SVG baseline", error);
+        }
       }
       socket.emit("sync_request", {
         baselineSeq: Tools.authoritativeSeq,
