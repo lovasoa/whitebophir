@@ -1,40 +1,6 @@
+import { escapeHtml, unescapeHtml } from "./xml_escape.mjs";
+
 const STORED_SVG_FORMAT = "whitebophir-svg-v2";
-
-/**
- * @param {string} value
- * @returns {string}
- */
-function escapeHtml(value) {
-  return value.replace(/[<>&"']/g, (char) => {
-    switch (char) {
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case "&":
-        return "&amp;";
-      case '"':
-        return "&quot;";
-      case "'":
-        return "&#39;";
-      default:
-        return char;
-    }
-  });
-}
-
-/**
- * @param {string} value
- * @returns {string}
- */
-function unescapeHtml(value) {
-  return value
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&");
-}
 
 /**
  * @param {string | undefined} rawAttributes
