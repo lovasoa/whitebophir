@@ -227,7 +227,7 @@ function canonicalItemFromItem(
 }
 
 /**
- * @param {{tagName: string, attributes: {[name: string]: string}, content?: string}} entry
+ * @param {{tagName: string, attributes?: {[name: string]: string}, rawAttributes?: string, content?: string, id?: string}} entry
  * @param {number} paintOrder
  * @returns {any}
  */

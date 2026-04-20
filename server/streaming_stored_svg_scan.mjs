@@ -1,4 +1,4 @@
-import { parseAttributes } from "./svg_envelope.mjs";
+import { readRawAttribute } from "./svg_envelope.mjs";
 
 const STORED_ITEM_TAG_NAMES = new Set([
   "rect",
@@ -19,8 +19,9 @@ function tryExtractPrefix(buffer) {
     if (start === -1) return null;
     const end = buffer.indexOf(">", start);
     if (end === -1) return null;
-    const attributes = parseAttributes(buffer.slice(start + 2, end));
-    if (attributes.id === "drawingArea") {
+    if (
+      readRawAttribute(buffer.slice(start + 2, end), "id") === "drawingArea"
+    ) {
       return {
         prefix: buffer.slice(0, end + 1),
         rest: buffer.slice(end + 1),
@@ -32,7 +33,7 @@ function tryExtractPrefix(buffer) {
 
 /**
  * @param {string} buffer
- * @returns {{type: "suffix", leadingText: string, suffix: string, consumed: number} | {type: "item", leadingText: string, entry: {raw: string, tagName: string, content: string, attributes: {[name: string]: string}}, consumed: number} | null}
+ * @returns {{type: "suffix", leadingText: string, suffix: string, consumed: number} | {type: "item", leadingText: string, entry: {raw: string, tagName: string, rawAttributes: string, id: string | undefined, content: string}, consumed: number} | null}
  */
 function tryExtractItemOrSuffix(buffer) {
   let offset = 0;
@@ -78,10 +79,12 @@ function tryExtractItemOrSuffix(buffer) {
     entry: {
       raw: buffer.slice(offset, closeTagEnd),
       tagName,
-      content: buffer.slice(openTagEnd + 1, closeTagStart),
-      attributes: parseAttributes(
+      rawAttributes: buffer.slice(offset + 1 + tagName.length, openTagEnd),
+      id: readRawAttribute(
         buffer.slice(offset + 1 + tagName.length, openTagEnd),
+        "id",
       ),
+      content: buffer.slice(openTagEnd + 1, closeTagStart),
     },
     consumed: closeTagEnd,
   };
@@ -91,7 +94,7 @@ function tryExtractItemOrSuffix(buffer) {
  * @param {AsyncIterable<string | Buffer>} input
  * @returns {AsyncIterable<
  *   | {type: "prefix", prefix: string}
- *   | {type: "item", leadingText: string, entry: {raw: string, tagName: string, content: string, attributes: {[name: string]: string}}}
+ *   | {type: "item", leadingText: string, entry: {raw: string, tagName: string, rawAttributes: string, id: string | undefined, content: string}}
  *   | {type: "suffix", leadingText: string, suffix: string}
  *   | {type: "tail", chunk: string}
  * >}

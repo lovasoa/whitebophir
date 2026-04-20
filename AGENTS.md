@@ -55,7 +55,7 @@ section before making changes there.
 - `BoardData` no longer lazily hydrates full persisted items from SVG during live writes. If you find yourself reading SVG from a socket-message path, that is almost certainly a design bug. The source SVG may be read during board load and during streaming persistence only.
 - Stored SVG parsing is intentionally tiered:
   - Structural scan locates root metadata, `#drawingArea`, and raw item boundaries.
-  - Summary decode extracts only the fields needed for canonical indexing and validation. Writer-owned boards persist summary attrs (`data-wbo-points`, `data-wbo-min/max-*`, `data-wbo-text-length`) so cold load can trust them directly; legacy boards may fall back to deriving the same data from payloads. For Pencil this means bounds plus `childCount`, not `_children`.
+  - Summary decode extracts only the fields needed for canonical indexing and validation from the existing writer-owned attrs and payloads. Do not duplicate summary state into extra persisted attrs. For Pencil this means bounds plus `childCount`, not `_children`.
   - Full materialization is for rewrite cases that must read full payloads, such as text content or Pencil point lists.
 - Do not route cold-load or canonical-index code through full stored-SVG item materialization. Hydrating Pencil points on board open is a regression.
 - Legacy `.json` boards are a migration edge path, not part of steady-state board logic. When a JSON board is encountered, convert it to SVG first, then continue through the normal SVG-backed load path.

@@ -18,8 +18,8 @@ import {
 import {
   STORED_SVG_FORMAT,
   createDefaultStoredSvgEnvelope,
-  parseAttributes,
   parseStoredSvgEnvelope,
+  readRawAttribute,
   serializeStoredSvgEnvelope,
   updateRootMetadata,
 } from "./svg_envelope.mjs";
@@ -41,6 +41,23 @@ function defaultBoardMetadata() {
   return {
     readonly: false,
     seq: 0,
+  };
+}
+
+/**
+ * @param {string} prefix
+ * @returns {{readonly: boolean, seq: number}}
+ */
+function readStoredSvgRootMetadata(prefix) {
+  const openTagStart = prefix.indexOf("<svg");
+  const openTagEnd = prefix.indexOf(">", openTagStart);
+  const rawAttributes =
+    openTagStart === -1 || openTagEnd === -1
+      ? ""
+      : prefix.slice(openTagStart + 4, openTagEnd);
+  return {
+    readonly: readRawAttribute(rawAttributes, "data-wbo-readonly") === "true",
+    seq: normalizeStoredSeq(readRawAttribute(rawAttributes, "data-wbo-seq")),
   };
 }
 
@@ -295,14 +312,11 @@ async function readCanonicalBoardState(boardName, options) {
     let index = 0;
     for await (const event of streamStoredSvgStructure(stream)) {
       if (event.type === "prefix") {
-        const openTagEnd = event.prefix.indexOf(">");
-        const rootAttributes = parseAttributes(
-          event.prefix.slice(event.prefix.indexOf("<svg") + 4, openTagEnd),
-        );
+        const rootMetadata = readStoredSvgRootMetadata(event.prefix);
         metadata = {
-          readonly: rootAttributes["data-wbo-readonly"] === "true",
+          readonly: rootMetadata.readonly,
         };
-        seq = normalizeStoredSeq(rootAttributes["data-wbo-seq"]);
+        seq = rootMetadata.seq;
         continue;
       }
       if (event.type !== "item") continue;
@@ -522,7 +536,7 @@ function needsSourcePayload(record) {
 }
 
 /**
- * @param {{tagName: string, attributes: {[name: string]: string}, content: string, raw: string}} entry
+ * @param {{tagName: string, attributes?: {[name: string]: string}, rawAttributes?: string, content: string, raw: string, id?: string}} entry
  * @returns {{txt: string} | {_children: any[]} | undefined}
  */
 function readStoredSourcePayload(entry) {
@@ -597,11 +611,7 @@ async function rewriteStoredSvgFromCanonical(
   try {
     for await (const event of streamStoredSvgStructure(input)) {
       if (event.type === "prefix") {
-        const openTagEnd = event.prefix.indexOf(">");
-        const rootAttributes = parseAttributes(
-          event.prefix.slice(event.prefix.indexOf("<svg") + 4, openTagEnd),
-        );
-        const currentSeq = normalizeStoredSeq(rootAttributes["data-wbo-seq"]);
+        const currentSeq = readStoredSvgRootMetadata(event.prefix).seq;
         if (currentSeq !== persistedSeq) {
           throw createStoredSvgSeqMismatchError(persistedSeq, currentSeq);
         }
@@ -648,7 +658,7 @@ async function rewriteStoredSvgFromCanonical(
         continue;
       }
 
-      const id = event.entry.attributes.id;
+      const id = event.entry.id;
       if (typeof id !== "string") {
         if (!output.write(event.leadingText + event.entry.raw)) {
           await once(output, "drain");
@@ -717,14 +727,7 @@ async function readBoardDocumentState(boardName, options) {
     try {
       for await (const event of streamStoredSvgStructure(stream)) {
         if (event.type !== "prefix") continue;
-        const openTagEnd = event.prefix.indexOf(">");
-        const rootAttributes = parseAttributes(
-          event.prefix.slice(event.prefix.indexOf("<svg") + 4, openTagEnd),
-        );
-        metadata = {
-          readonly: rootAttributes["data-wbo-readonly"] === "true",
-          seq: normalizeStoredSeq(rootAttributes["data-wbo-seq"]),
-        };
+        metadata = readStoredSvgRootMetadata(event.prefix);
         break;
       }
     } finally {

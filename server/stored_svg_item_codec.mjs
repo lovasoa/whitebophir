@@ -1,3 +1,5 @@
+import { readRawAttribute } from "./svg_envelope.mjs";
+
 /**
  * @param {string} value
  * @returns {string}
@@ -158,89 +160,31 @@ function textBoundsFromLength(x, y, size, textLength) {
 }
 
 /**
- * @param {{minX: number, minY: number, maxX: number, maxY: number} | null} bounds
- * @returns {string}
+ * @param {{attributes?: {[name: string]: string}, rawAttributes?: string}} entry
+ * @param {string} name
+ * @returns {string | undefined}
  */
-function renderSummaryBoundsAttributes(bounds) {
-  if (!bounds) return "";
-  return (
-    ` data-wbo-min-x="${bounds.minX}"` +
-    ` data-wbo-min-y="${bounds.minY}"` +
-    ` data-wbo-max-x="${bounds.maxX}"` +
-    ` data-wbo-max-y="${bounds.maxY}"`
-  );
+function readStoredSvgAttribute(entry, name) {
+  const value = entry?.attributes?.[name];
+  if (typeof value === "string") return value;
+  return readRawAttribute(entry?.rawAttributes, name);
 }
 
 /**
- * @param {{[name: string]: string}} attributes
- * @returns {{minX: number, minY: number, maxX: number, maxY: number} | null}
- */
-function readPersistedSummaryBounds(attributes) {
-  const minX = parseNumber(attributes["data-wbo-min-x"]);
-  const minY = parseNumber(attributes["data-wbo-min-y"]);
-  const maxX = parseNumber(attributes["data-wbo-max-x"]);
-  const maxY = parseNumber(attributes["data-wbo-max-y"]);
-  if (
-    minX === undefined ||
-    minY === undefined ||
-    maxX === undefined ||
-    maxY === undefined
-  ) {
-    return null;
-  }
-  return { minX, minY, maxX, maxY };
-}
-
-/**
- * @param {Array<{x: number, y: number}>} points
- * @returns {{childCount: number, localBounds: {minX: number, minY: number, maxX: number, maxY: number} | null}}
- */
-function summarizePencilPoints(points) {
-  if (!Array.isArray(points) || points.length === 0) {
-    return { childCount: 0, localBounds: null };
-  }
-  let childCount = 0;
-  /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
-  let localBounds = null;
-  /** @type {number | undefined} */
-  let previousX;
-  /** @type {number | undefined} */
-  let previousY;
-
-  for (const point of points) {
-    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
-      continue;
-    }
-    const x = roundPathValue(point.x);
-    const y = roundPathValue(point.y);
-    if (previousX === x && previousY === y) continue;
-    previousX = x;
-    previousY = y;
-    childCount += 1;
-    if (!localBounds) {
-      localBounds = { minX: x, minY: y, maxX: x, maxY: y };
-      continue;
-    }
-    localBounds.minX = Math.min(localBounds.minX, x);
-    localBounds.minY = Math.min(localBounds.minY, y);
-    localBounds.maxX = Math.max(localBounds.maxX, x);
-    localBounds.maxY = Math.max(localBounds.maxY, y);
-  }
-
-  return { childCount, localBounds };
-}
-
-/**
- * @param {{attributes?: {[name: string]: string}}} entry
- * @returns {{attributes: {[name: string]: string}, id: string | undefined, opacity: number | undefined, transform: {a: number, b: number, c: number, d: number, e: number, f: number} | undefined}}
+ * @param {{attributes?: {[name: string]: string}, rawAttributes?: string, id?: string}} entry
+ * @returns {{id: string | undefined, opacity: number | undefined, transform: {a: number, b: number, c: number, d: number, e: number, f: number} | undefined}}
  */
 function readStoredSvgBase(entry) {
-  const attributes = entry?.attributes || {};
+  const id =
+    typeof entry?.id === "string"
+      ? entry.id
+      : readStoredSvgAttribute(entry, "id");
   return {
-    attributes,
-    id: typeof attributes.id === "string" ? attributes.id : undefined,
-    opacity: parseNumber(attributes.opacity),
-    transform: parseTransformAttribute(attributes.transform),
+    id,
+    opacity: parseNumber(readStoredSvgAttribute(entry, "opacity")),
+    transform: parseTransformAttribute(
+      readStoredSvgAttribute(entry, "transform"),
+    ),
   };
 }
 
@@ -521,7 +465,7 @@ function pointsFromPathData(pathData) {
 }
 
 /**
- * @param {{tagName: string, attributes: {[name: string]: string}, content?: string}} entry
+ * @param {{tagName: string, attributes?: {[name: string]: string}, rawAttributes?: string, content?: string, id?: string}} entry
  * @returns {any | null}
  */
 function parseStoredSvgItem(entry) {
@@ -536,7 +480,9 @@ function parseStoredSvgItem(entry) {
         txt: unescapeHtml(entry.content || ""),
       };
     case "Pencil": {
-      const points = pointsFromPathData(parsePathData(entry.attributes?.d));
+      const points = pointsFromPathData(
+        parsePathData(readStoredSvgAttribute(entry, "d")),
+      );
       if (points.length === 0) return null;
       return {
         id: summary.id,
@@ -555,21 +501,21 @@ function parseStoredSvgItem(entry) {
 }
 
 /**
- * @param {{tagName: string, attributes: {[name: string]: string}, content?: string}} entry
+ * @param {{tagName: string, attributes?: {[name: string]: string}, rawAttributes?: string, content?: string, id?: string}} entry
  * @param {number} [paintOrder]
  * @returns {any | null}
  */
 function summarizeStoredSvgItem(entry, paintOrder) {
   if (!entry || typeof entry.tagName !== "string") return null;
-  const { attributes, id, opacity, transform } = readStoredSvgBase(entry);
+  const { id, opacity, transform } = readStoredSvgBase(entry);
   if (!id) return null;
   switch (entry.tagName) {
     case "rect": {
-      const x = parseNumber(attributes.x);
-      const y = parseNumber(attributes.y);
-      const width = parseNumber(attributes.width);
-      const height = parseNumber(attributes.height);
-      const size = parseNumber(attributes["stroke-width"]);
+      const x = parseNumber(readStoredSvgAttribute(entry, "x"));
+      const y = parseNumber(readStoredSvgAttribute(entry, "y"));
+      const width = parseNumber(readStoredSvgAttribute(entry, "width"));
+      const height = parseNumber(readStoredSvgAttribute(entry, "height"));
+      const size = parseNumber(readStoredSvgAttribute(entry, "stroke-width"));
       if (
         x === undefined ||
         y === undefined ||
@@ -589,7 +535,7 @@ function summarizeStoredSvgItem(entry, paintOrder) {
             y,
             x2: x + width,
             y2: y + height,
-            color: attributes.stroke || "#000000",
+            color: readStoredSvgAttribute(entry, "stroke") || "#000000",
             size,
           },
           opacity,
@@ -604,11 +550,11 @@ function summarizeStoredSvgItem(entry, paintOrder) {
       };
     }
     case "ellipse": {
-      const cx = parseNumber(attributes.cx);
-      const cy = parseNumber(attributes.cy);
-      const rx = parseNumber(attributes.rx);
-      const ry = parseNumber(attributes.ry);
-      const size = parseNumber(attributes["stroke-width"]);
+      const cx = parseNumber(readStoredSvgAttribute(entry, "cx"));
+      const cy = parseNumber(readStoredSvgAttribute(entry, "cy"));
+      const rx = parseNumber(readStoredSvgAttribute(entry, "rx"));
+      const ry = parseNumber(readStoredSvgAttribute(entry, "ry"));
+      const size = parseNumber(readStoredSvgAttribute(entry, "stroke-width"));
       if (
         cx === undefined ||
         cy === undefined ||
@@ -628,7 +574,7 @@ function summarizeStoredSvgItem(entry, paintOrder) {
             y: cy - ry,
             x2: cx + rx,
             y2: cy + ry,
-            color: attributes.stroke || "#000000",
+            color: readStoredSvgAttribute(entry, "stroke") || "#000000",
             size,
           },
           opacity,
@@ -643,11 +589,11 @@ function summarizeStoredSvgItem(entry, paintOrder) {
       };
     }
     case "line": {
-      const x1 = parseNumber(attributes.x1);
-      const y1 = parseNumber(attributes.y1);
-      const x2 = parseNumber(attributes.x2);
-      const y2 = parseNumber(attributes.y2);
-      const size = parseNumber(attributes["stroke-width"]);
+      const x1 = parseNumber(readStoredSvgAttribute(entry, "x1"));
+      const y1 = parseNumber(readStoredSvgAttribute(entry, "y1"));
+      const x2 = parseNumber(readStoredSvgAttribute(entry, "x2"));
+      const y2 = parseNumber(readStoredSvgAttribute(entry, "y2"));
+      const size = parseNumber(readStoredSvgAttribute(entry, "stroke-width"));
       if (
         x1 === undefined ||
         y1 === undefined ||
@@ -667,7 +613,7 @@ function summarizeStoredSvgItem(entry, paintOrder) {
             y: y1,
             x2,
             y2,
-            color: attributes.stroke || "#000000",
+            color: readStoredSvgAttribute(entry, "stroke") || "#000000",
             size,
           },
           opacity,
@@ -682,15 +628,13 @@ function summarizeStoredSvgItem(entry, paintOrder) {
       };
     }
     case "text": {
-      const x = parseNumber(attributes.x);
-      const y = parseNumber(attributes.y);
-      const size = parseNumber(attributes["font-size"]);
+      const x = parseNumber(readStoredSvgAttribute(entry, "x"));
+      const y = parseNumber(readStoredSvgAttribute(entry, "y"));
+      const size = parseNumber(readStoredSvgAttribute(entry, "font-size"));
       if (x === undefined || y === undefined || size === undefined) {
         return null;
       }
-      const textLength =
-        parseNumber(attributes["data-wbo-text-length"]) ??
-        decodedTextLength(entry.content || "");
+      const textLength = decodedTextLength(entry.content || "");
       return {
         id,
         tool: "Text",
@@ -700,7 +644,7 @@ function summarizeStoredSvgItem(entry, paintOrder) {
             x,
             y,
             size,
-            color: attributes.fill || "#000000",
+            color: readStoredSvgAttribute(entry, "fill") || "#000000",
           },
           opacity,
           transform,
@@ -710,25 +654,15 @@ function summarizeStoredSvgItem(entry, paintOrder) {
       };
     }
     case "path": {
-      const size = parseNumber(attributes["stroke-width"]);
-      const persistedBounds = readPersistedSummaryBounds(attributes);
-      const persistedChildCount = parseNumber(attributes["data-wbo-points"]);
-      const scanned =
-        persistedBounds &&
-        persistedChildCount !== undefined &&
-        persistedChildCount > 0
-          ? {
-              childCount: persistedChildCount,
-              localBounds: persistedBounds,
-            }
-          : scanPathSummary(attributes.d);
+      const size = parseNumber(readStoredSvgAttribute(entry, "stroke-width"));
+      const scanned = scanPathSummary(readStoredSvgAttribute(entry, "d"));
       if (size === undefined || scanned.childCount === 0) return null;
       return {
         id,
         tool: "Pencil",
         data: decorateStoredItemData(
           {
-            color: attributes.stroke || "#000000",
+            color: readStoredSvgAttribute(entry, "stroke") || "#000000",
             size,
           },
           opacity,
@@ -787,10 +721,9 @@ function serializeStoredSvgItem(item) {
       );
     case "Text": {
       const textValue = String(item.txt || "");
-      const textSummary = ` data-wbo-text-length="${textValue.length}"`;
       return (
         `<text id="${id}" x="${numberOrZero(item.x)}" y="${numberOrZero(item.y)}"` +
-        ` font-size="${numberOrZero(item.size) | 0}" fill="${color}"${opacity}${transform}${textSummary}>` +
+        ` font-size="${numberOrZero(item.size) | 0}" fill="${color}"${opacity}${transform}>` +
         `${escapeHtml(textValue)}</text>`
       );
     }
@@ -798,14 +731,10 @@ function serializeStoredSvgItem(item) {
       const points = Array.isArray(item._children) ? item._children : [];
       const pathData = renderPencilPath(points);
       if (!pathData) return "";
-      const summary = summarizePencilPoints(points);
-      const summaryAttributes =
-        ` data-wbo-points="${summary.childCount}"` +
-        renderSummaryBoundsAttributes(summary.localBounds);
       return (
         `<path id="${id}" d="${escapeHtml(pathData)}" stroke="${color}"` +
         ` stroke-width="${size}" fill="none" stroke-linecap="round" stroke-linejoin="round"` +
-        `${opacity}${transform}${summaryAttributes}></path>`
+        `${opacity}${transform}></path>`
       );
     }
     default:

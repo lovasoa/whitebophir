@@ -37,6 +37,36 @@ function unescapeHtml(value) {
 }
 
 /**
+ * @param {string | undefined} rawAttributes
+ * @param {string} name
+ * @returns {string | undefined}
+ */
+function readRawAttribute(rawAttributes, name) {
+  if (typeof rawAttributes !== "string" || rawAttributes.length === 0) {
+    return undefined;
+  }
+  const token = `${name}="`;
+  let start = rawAttributes.indexOf(token);
+  while (start !== -1) {
+    const previous = rawAttributes[start - 1];
+    if (
+      start === 0 ||
+      previous === " " ||
+      previous === "\n" ||
+      previous === "\t"
+    ) {
+      const valueStart = start + token.length;
+      const valueEnd = rawAttributes.indexOf('"', valueStart);
+      if (valueEnd === -1) return undefined;
+      const value = rawAttributes.slice(valueStart, valueEnd);
+      return value.includes("&") ? unescapeHtml(value) : value;
+    }
+    start = rawAttributes.indexOf(token, start + token.length);
+  }
+  return undefined;
+}
+
+/**
  * @param {string} rawAttributes
  * @returns {{[name: string]: string}}
  */
@@ -235,6 +265,7 @@ export {
   parseAttributes,
   parseStoredSvgEnvelope,
   parseStoredSvgItems,
+  readRawAttribute,
   serializeStoredSvgEnvelope,
   updateRootMetadata,
 };

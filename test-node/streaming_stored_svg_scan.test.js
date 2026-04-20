@@ -37,7 +37,7 @@ test("streamStoredSvgStructure tolerates chunked closing tags around the drawing
     ["prefix", "item", "suffix"],
   );
   assert.ok(events.slice(3).every((event) => event.type === "tail"));
-  assert.equal(events[1]?.entry?.attributes?.id, "rect-1");
+  assert.equal(events[1]?.entry?.id, "rect-1");
 
   const rebuilt = events
     .map((event) => {

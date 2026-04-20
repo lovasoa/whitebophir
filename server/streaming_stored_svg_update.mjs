@@ -241,7 +241,7 @@ async function* streamingUpdate(input, mutations, options) {
       continue;
     }
 
-    const id = event.entry.attributes.id;
+    const id = event.entry.id;
     const ops = typeof id === "string" ? plan.opsById.get(id) : undefined;
     if (plan.clearExisting) {
       continue;
