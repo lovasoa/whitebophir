@@ -1,4 +1,8 @@
-# contributing guide
+# wbo online whiteboard
+
+This is an online collaborative drawing app.
+All code must be clean simple and minimal. Code duplication anywhere is forbidden, always check if similar logic exists before writing new code, and refactor when possible.
+Respect the single responsibility principle. Tool-specific logic should live inside each drawing tool code.
 
 ## baseline
 
