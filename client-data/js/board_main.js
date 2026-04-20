@@ -1,3 +1,5 @@
+import "./path-data-polyfill.js";
+import "./board.js";
 import { withVersion } from "./tool_assets.js";
 
 const assetVersion = document.documentElement.dataset.version || "";
@@ -117,11 +119,6 @@ async function lazyBootRenderedTools() {
 }
 
 async function bootBoardPage() {
-  await Promise.all([
-    importWithVersion("./path-data-polyfill.js"),
-    importWithVersion("./board.js"),
-  ]);
-
   const tools = window.Tools;
   if (!tools) {
     throw new Error("Board runtime did not initialize window.Tools.");
@@ -132,16 +129,9 @@ async function bootBoardPage() {
   tools.applyViewportFromHash();
   setBoardBootPhase("viewport-restored");
 
-  await Promise.all(
-    Array.from(REPLAY_SAFE_TOOL_NAMES).map((toolName) =>
-      tools.ensureToolClassLoaded(toolName),
-    ),
-  );
-
+  await bootCriticalTools();
   setBoardBootPhase("connecting");
   tools.startConnection();
-
-  await bootCriticalTools();
   await bootToolNames(
     Array.from(REPLAY_SAFE_TOOL_NAMES).filter(
       (toolName) => !CRITICAL_BOOT_TOOL_NAMES.includes(toolName),
