@@ -21,6 +21,7 @@ test("canonicalItemFromStoredSvgEntry derives canonical compressed payloads dire
       x: "10",
       y: "20",
       fill: "#123456",
+      transform: "matrix(1 0 0 1 7 8)",
       content: "hello &amp; bye",
     }),
     0,
@@ -40,6 +41,7 @@ test("canonicalItemFromStoredSvgEntry derives canonical compressed payloads dire
     size: 18,
     color: "#123456",
   });
+  assert.deepEqual(text.transform, { a: 1, b: 0, c: 0, d: 1, e: 7, f: 8 });
   assert.deepEqual(text.payload, { kind: "text" });
   assert.equal(text.textLength, 11);
   assert.deepEqual(text.bounds, {

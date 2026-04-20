@@ -710,7 +710,6 @@ class BoardData {
       if (updateData[key] !== undefined) {
         if (key === "transform") {
           next.transform = structuredClone(updateData[key]);
-          next.attrs.transform = structuredClone(updateData[key]);
         } else {
           next.attrs[key] = updateData[key];
         }
