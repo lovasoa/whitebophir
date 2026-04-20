@@ -200,7 +200,9 @@ export default class StraightLineTool {
       "opacity",
       String(Math.max(0.1, Math.min(1, lineData.opacity || 1))),
     );
-    this.tools.drawingArea.appendChild(line);
+    if (line.parentNode !== this.tools.drawingArea) {
+      this.tools.drawingArea.appendChild(line);
+    }
     return line;
   }
 

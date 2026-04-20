@@ -663,6 +663,24 @@ test("Pencil input sends an initial child point without waiting for throttle", a
   });
 });
 
+test("Pencil marks only the active local line as non-interactive while drawing", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("Pencil");
+  const event = { preventDefault: () => {} };
+
+  globalAny.Tools.curTool = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  const activeLine = harness.elementsById.get("l-1");
+  assert.equal(activeLine.getAttribute("class"), "wbo-pencil-drawing");
+
+  harness.clock.now = 2;
+  pencilTool.listeners.release(200, 200, event);
+
+  assert.equal(activeLine.getAttribute("class"), "");
+});
+
 test("Pencil input stops sending points after MAX_CHILDREN", async () => {
   const harness = createHarness();
   globalAny.Tools.server_config.MAX_CHILDREN = 2;

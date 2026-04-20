@@ -31,6 +31,7 @@ import { wboPencilPoint } from "./wbo_pencil_point.js";
 
 export default class PencilTool {
   static toolName = "Pencil";
+  static ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
 
   /**
    * @param {AppToolsState} Tools
@@ -53,6 +54,7 @@ export default class PencilTool {
       Number(Tools.server_config.MAX_CHILDREN) > 0
         ? Number(Tools.server_config.MAX_CHILDREN)
         : defaultMaxPencilChildren;
+    this.minPencilIntervalMs = this.computeMinPencilIntervalMs();
 
     this.hasUsedStylus = false;
     this.curLineId = "";
@@ -95,7 +97,7 @@ export default class PencilTool {
   /**
    * @returns {number}
    */
-  getMinPencilIntervalMs() {
+  computeMinPencilIntervalMs() {
     const generalLimit =
       this.Tools.getEffectiveRateLimit?.("general") ??
       this.Tools.server_config?.RATE_LIMITS?.general ??
@@ -104,6 +106,13 @@ export default class PencilTool {
       this.getPositiveNumber(generalLimit.periodMs, 4096) /
       this.getPositiveNumber(generalLimit.limit, 192)
     );
+  }
+
+  /**
+   * @returns {number}
+   */
+  getMinPencilIntervalMs() {
+    return this.minPencilIntervalMs;
   }
 
   /**
@@ -178,7 +187,6 @@ export default class PencilTool {
       opacity: this.secondary.active ? 1 : this.Tools.getOpacity(),
     };
 
-    this.draw(initialData);
     this.Tools.drawAndSend(initialData, this);
     this.move(x, y, evt);
   }
@@ -221,6 +229,7 @@ export default class PencilTool {
   }
 
   stopLine() {
+    this.updateActiveDrawingClass(this.renderingLine, false);
     this.curLineId = "";
     this.hasSentPoint = false;
     this.currentLineChildCount = 0;
@@ -315,6 +324,26 @@ export default class PencilTool {
   addPoint(line, x, y) {
     const pts = wboPencilPoint(this.getPathData(line), x, y);
     line.setPathData(pts);
+  }
+
+  /**
+   * @param {SVGPathElement & {id: string} | null} line
+   * @param {boolean} active
+   * @returns {void}
+   */
+  updateActiveDrawingClass(line, active) {
+    if (!line) return;
+    const className = PencilTool.ACTIVE_DRAWING_CLASS;
+    const current = String(line.getAttribute("class") || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((name) => name !== className);
+    if (active) current.push(className);
+    if (current.length > 0) {
+      line.setAttribute("class", current.join(" "));
+      return;
+    }
+    line.setAttribute("class", "");
   }
 
   /**
@@ -419,7 +448,10 @@ export default class PencilTool {
     if (!this.Tools.drawingArea) {
       throw new Error("Missing drawing area for pencil tool");
     }
-    this.Tools.drawingArea.appendChild(line);
+    if (line.parentNode !== this.Tools.drawingArea) {
+      this.Tools.drawingArea.appendChild(line);
+    }
+    this.updateActiveDrawingClass(line, line.id === this.curLineId);
     return line;
   }
 

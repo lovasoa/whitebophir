@@ -191,7 +191,9 @@ export default class RectangleTool {
     if (!this.Tools.drawingArea) {
       throw new Error("Rectangle: Missing drawing area.");
     }
-    this.Tools.drawingArea.appendChild(shape);
+    if (shape.parentNode !== this.Tools.drawingArea) {
+      this.Tools.drawingArea.appendChild(shape);
+    }
     return shape;
   }
 

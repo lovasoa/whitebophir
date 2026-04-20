@@ -51,6 +51,7 @@ export default class CursorToolClass {
       color: tools.getColor(),
       size: tools.getSize(),
     };
+    this.minCursorUpdateIntervalMs = this.computeMinCursorUpdateIntervalMs();
   }
 
   /**
@@ -66,7 +67,7 @@ export default class CursorToolClass {
   /**
    * @returns {number}
    */
-  getMinCursorUpdateIntervalMs() {
+  computeMinCursorUpdateIntervalMs() {
     const generalLimit =
       this.tools.getEffectiveRateLimit?.("general") ??
       this.tools.server_config?.RATE_LIMITS?.general ??
@@ -76,6 +77,13 @@ export default class CursorToolClass {
         this.getPositiveNumber(generalLimit.limit, 192)) *
       2
     );
+  }
+
+  /**
+   * @returns {number}
+   */
+  getMinCursorUpdateIntervalMs() {
+    return this.minCursorUpdateIntervalMs;
   }
 
   /**
