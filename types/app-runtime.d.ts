@@ -353,7 +353,6 @@ export type AppToolsState = {
   hasAuthoritativeBoardSnapshot: boolean;
   snapshotRevision: number;
   authoritativeSeq: number;
-  authoritativeDrawingMarkup: string;
   optimisticJournal: OptimisticJournalState;
   optimisticMutationIdsByItemId: Map<string, string>;
   awaitingSyncReplay: boolean;

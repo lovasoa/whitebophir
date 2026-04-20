@@ -25,7 +25,6 @@
  */
 
 import AuthoritativeMutationEffects from "./authoritative_mutation_effects.js";
-import BoardAuthoritativeView from "./board_authoritative_view.js";
 import BoardMessageReplay from "./board_message_replay.js";
 import {
   drainPendingMessages,
@@ -151,7 +150,7 @@ function blurActiveElement() {
 
 /**
  * @param {SVGSVGElement} svg
- * @returns {{authoritativeSeq: number, authoritativeDrawingMarkup: string, drawingArea: SVGGElement}}
+ * @returns {{authoritativeSeq: number, drawingArea: SVGGElement}}
  */
 function readInlineBaseline(svg) {
   const drawingArea = svg.getElementById("drawingArea");
@@ -162,7 +161,6 @@ function readInlineBaseline(svg) {
     authoritativeSeq: BoardMessageReplay.normalizeSeq(
       svg.getAttribute("data-wbo-seq"),
     ),
-    authoritativeDrawingMarkup: drawingArea.innerHTML || "",
     drawingArea: drawingArea,
   };
 }
@@ -207,7 +205,6 @@ export async function attachBoardDom(document) {
   Tools.svg = canvasElement;
   Tools.drawingArea = baseline.drawingArea;
   Tools.authoritativeSeq = baseline.authoritativeSeq;
-  Tools.authoritativeDrawingMarkup = baseline.authoritativeDrawingMarkup;
   Tools.svg.width.baseVal.value = Math.max(
     Tools.svg.width.baseVal.value,
     document.body.clientWidth,
@@ -327,7 +324,6 @@ Tools.awaitingBoardSnapshot = true;
 Tools.awaitingSyncReplay = false;
 Tools.hasAuthoritativeBoardSnapshot = false;
 Tools.authoritativeSeq = 0;
-Tools.authoritativeDrawingMarkup = "";
 Tools.optimisticJournal = OptimisticJournal.createOptimisticJournal();
 Tools.preSnapshotMessages = [];
 Tools.incomingBroadcastQueue = [];
@@ -795,8 +791,8 @@ Tools.applyAuthoritativeBaseline =
   function applyAuthoritativeBaseline(baseline) {
     const svg = Tools.svg;
     if (!svg) return;
+    Tools.hasAuthoritativeBoardSnapshot = true;
     Tools.authoritativeSeq = baseline.seq;
-    Tools.authoritativeDrawingMarkup = baseline.drawingAreaMarkup;
     Tools.optimisticJournal.reset();
     svg.setAttribute("data-wbo-seq", String(baseline.seq));
     svg.setAttribute("data-wbo-readonly", baseline.readonly ? "true" : "false");
@@ -1065,26 +1061,13 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.discardBufferedWrites();
   Tools.turnstilePendingWrites = [];
   Tools.hideTurnstileOverlay();
-  const authoritativeMarkup =
-    BoardAuthoritativeView.markupForAuthoritativeResync({
-      authoritativeMarkup: Tools.authoritativeDrawingMarkup,
-      hasAuthoritativeBoardSnapshot: Tools.hasAuthoritativeBoardSnapshot,
-    });
-  if (authoritativeMarkup !== null && Tools.drawingArea) {
-    Tools.drawingArea.innerHTML = authoritativeMarkup;
-    normalizeServerRenderedElements();
-  }
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
   Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
   Tools.renderConnectedUsers();
   Tools.clearBoardCursors();
-  if (Tools.hasAuthoritativeBoardSnapshot) {
-    Tools.hideLoadingMessage();
-  } else {
-    Tools.showLoadingMessage();
-  }
+  Tools.showLoadingMessage();
   Object.values(Tools.list || {}).forEach((tool) => {
     if (tool) tool.onSocketDisconnect();
   });
@@ -1189,12 +1172,6 @@ async function processIncomingBroadcast(msg) {
   if (isPersistentEnvelope) {
     Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(msg.seq);
   }
-  Tools.authoritativeDrawingMarkup =
-    BoardAuthoritativeView.evolveAuthoritativeDrawingMarkup({
-      previousMarkup: Tools.authoritativeDrawingMarkup,
-      currentMarkup: Tools.drawingArea?.innerHTML,
-      isPersistentEnvelope: isPersistentEnvelope,
-    });
   return true;
 }
 
@@ -2226,11 +2203,7 @@ Tools.startConnection = () => {
       );
     }
     Tools.hasConnectedOnce = true;
-    if (Tools.hasAuthoritativeBoardSnapshot) {
-      Tools.hideLoadingMessage();
-    } else {
-      Tools.showLoadingMessage();
-    }
+    Tools.showLoadingMessage();
     Tools.awaitingBoardSnapshot = true;
     Tools.awaitingSyncReplay = true;
     Tools.pendingReplaySync = hadConnectedBefore ? "refresh" : "ready";
