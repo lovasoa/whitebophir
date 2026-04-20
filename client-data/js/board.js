@@ -1067,7 +1067,9 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
   Tools.renderConnectedUsers();
   Tools.clearBoardCursors();
-  Tools.showLoadingMessage();
+  if (!Tools.hasConnectedOnce) {
+    Tools.showLoadingMessage();
+  }
   Object.values(Tools.list || {}).forEach((tool) => {
     if (tool) tool.onSocketDisconnect();
   });
@@ -2203,7 +2205,9 @@ Tools.startConnection = () => {
       );
     }
     Tools.hasConnectedOnce = true;
-    Tools.showLoadingMessage();
+    if (!hadConnectedBefore) {
+      Tools.showLoadingMessage();
+    }
     Tools.awaitingBoardSnapshot = true;
     Tools.awaitingSyncReplay = true;
     Tools.pendingReplaySync = hadConnectedBefore ? "refresh" : "ready";
@@ -2294,9 +2298,13 @@ Tools.startConnection = () => {
       Tools.syncWriteStatusIndicator();
     },
   );
-  socket.on("disconnect", function onDisconnect() {
+  socket.on("disconnect", function onDisconnect(/** @type {string} */ reason) {
+    if (socket !== Tools.socket) return;
     Tools.connectionState = "disconnected";
     Tools.beginAuthoritativeResync();
+    if (reason === "io server disconnect") {
+      socket.connect();
+    }
   });
   if (typeof socket.connect === "function") {
     socket.connect();

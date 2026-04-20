@@ -414,7 +414,7 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
   });
 
-  test("disconnect keeps authoritative shapes visible while showing reconnect loading", async ({
+  test("disconnect keeps authoritative shapes visible while showing reconnect status", async ({
     boardPage,
     page,
     server,
@@ -477,7 +477,7 @@ test.describe("collaboration and rate limiting", () => {
     expect(disconnectState).toEqual({
       awaitingBoardSnapshot: true,
       connectionState: "disconnected",
-      loadingHidden: false,
+      loadingHidden: true,
       rectVisible: true,
     });
 
