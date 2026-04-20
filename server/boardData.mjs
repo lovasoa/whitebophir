@@ -773,8 +773,8 @@ class BoardData {
 
     const normalizedChild = normalizeStoredChildPoint(child);
     if (!normalizedChild.ok) return false;
-    if (effectiveChildCount(obj) >= readConfiguration().MAX_CHILDREN)
-      return false;
+    const { MAX_CHILDREN } = readConfiguration();
+    if (effectiveChildCount(obj) >= MAX_CHILDREN) return false;
 
     return !this.isIncrementalUpdateTooLarge(
       parentId,
@@ -888,7 +888,8 @@ class BoardData {
       return { ok: false, reason: "invalid parent for child" };
     const normalizedChild = normalizeStoredChildPoint(child);
     if (!normalizedChild.ok) return normalizedChild;
-    if (effectiveChildCount(obj) >= readConfiguration().MAX_CHILDREN)
+    const { MAX_CHILDREN } = readConfiguration();
+    if (effectiveChildCount(obj) >= MAX_CHILDREN)
       return { ok: false, reason: "too many children" };
     const nextBounds = MessageCommon.extendBoundsWithPoint(
       this.getLocalBounds(parentId, obj),
@@ -1109,9 +1110,8 @@ class BoardData {
               }
               const normalizedChild = normalizeStoredChildPoint(message);
               if (!normalizedChild.ok) return normalizedChild;
-              if (
-                effectiveChildCount(current) >= readConfiguration().MAX_CHILDREN
-              ) {
+              const { MAX_CHILDREN } = readConfiguration();
+              if (effectiveChildCount(current) >= MAX_CHILDREN) {
                 return { ok: false, reason: "too many children" };
               }
               const nextBounds = MessageCommon.extendBoundsWithPoint(

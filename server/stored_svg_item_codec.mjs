@@ -242,79 +242,82 @@ function renderPencilPath(points) {
 }
 
 /**
+ * @param {number} code
+ * @returns {boolean}
+ */
+function isPathWhitespace(code) {
+  return code === 9 || code === 10 || code === 13 || code === 32 || code === 44;
+}
+
+/**
+ * @param {number} code
+ * @returns {boolean}
+ */
+function isAsciiLetter(code) {
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+/**
+ * @param {string | undefined} d
+ * @param {(command: "M" | "l", x: number, y: number) => void} visit
+ * @returns {boolean}
+ */
+function forEachPathPair(d, visit) {
+  if (typeof d !== "string" || d.trim() === "") return true;
+  let index = 0;
+  /** @type {"M" | "l" | null} */
+  let command = null;
+  /** @type {number | undefined} */
+  let pendingX;
+
+  while (index < d.length) {
+    const code = d.charCodeAt(index);
+    if (Number.isNaN(code)) break;
+    if (isPathWhitespace(code)) {
+      index += 1;
+      continue;
+    }
+    if (code === 77 || code === 108) {
+      if (pendingX !== undefined) return false;
+      command = code === 77 ? "M" : "l";
+      index += 1;
+      continue;
+    }
+    if (isAsciiLetter(code) || !command) return false;
+    const start = index;
+    index += 1;
+    while (index < d.length) {
+      const nextCode = d.charCodeAt(index);
+      if (Number.isNaN(nextCode)) break;
+      if (isPathWhitespace(nextCode) || nextCode === 77 || nextCode === 108) {
+        break;
+      }
+      index += 1;
+      if (isAsciiLetter(nextCode)) return false;
+    }
+    const value = Number(d.slice(start, index));
+    if (!Number.isFinite(value)) return false;
+    if (pendingX === undefined) {
+      pendingX = value;
+      continue;
+    }
+    visit(command, pendingX, value);
+    pendingX = undefined;
+  }
+  return pendingX === undefined;
+}
+
+/**
  * @param {string | undefined} d
  * @returns {{type: string, values: number[]}[]}
  */
 function parsePathData(d) {
-  if (typeof d !== "string" || d.trim() === "") return [];
   /** @type {{type: string, values: number[]}[]} */
   const segments = [];
-  let index = 0;
-  /** @type {"M" | "l" | null} */
-  let command = null;
-  /** @type {number[]} */
-  let values = [];
-  let valuesRead = 0;
-  let _currentX = 0;
-  let _currentY = 0;
-
-  while (index < d.length) {
-    const char = d[index];
-    if (char === undefined) break;
-    if (char === " " || char === "," || char === "\n" || char === "\t") {
-      index += 1;
-      continue;
-    }
-    if (char === "M" || char === "l") {
-      if (valuesRead !== 0) return [];
-      command = char;
-      valuesRead = 0;
-      values = [];
-      index += 1;
-      continue;
-    }
-    if (/[A-Za-z]/.test(char)) return [];
-    if (!command) return [];
-    const start = index;
-    index += 1;
-    while (index < d.length) {
-      const next = d[index];
-      if (next === undefined) break;
-      if (
-        next === " " ||
-        next === "," ||
-        next === "\n" ||
-        next === "\t" ||
-        next === "M" ||
-        next === "l"
-      ) {
-        break;
-      }
-      index += 1;
-      if (/[A-Za-z]/.test(next)) return [];
-    }
-    const value = Number(d.slice(start, index));
-    if (!Number.isFinite(value)) return [];
-    values.push(value);
-    valuesRead += 1;
-    if (valuesRead === 2) {
-      const [dx, dy] = values;
-      if (typeof dx !== "number" || typeof dy !== "number") return [];
-      if (command === "M") {
-        _currentX = dx;
-        _currentY = dy;
-        segments.push({ type: "M", values: [dx, dy] });
-      } else {
-        _currentX += dx;
-        _currentY += dy;
-        segments.push({ type: "l", values: [dx, dy] });
-      }
-      values = [];
-      valuesRead = 0;
-    }
-  }
-  if (valuesRead !== 0) return [];
-  return segments;
+  const ok = forEachPathPair(d, (command, x, y) => {
+    segments.push({ type: command, values: [x, y] });
+  });
+  return ok ? segments : [];
 }
 
 /**
@@ -322,15 +325,6 @@ function parsePathData(d) {
  * @returns {{childCount: number, localBounds: {minX: number, minY: number, maxX: number, maxY: number} | null}}
  */
 function scanPathSummary(d) {
-  if (typeof d !== "string" || d.trim() === "") {
-    return { childCount: 0, localBounds: null };
-  }
-  let index = 0;
-  /** @type {"M" | "l" | null} */
-  let command = null;
-  /** @type {number[]} */
-  let values = [];
-  let valuesRead = 0;
   let currentX = 0;
   let currentY = 0;
   let childCount = 0;
@@ -340,94 +334,33 @@ function scanPathSummary(d) {
   let previousX;
   /** @type {number | undefined} */
   let previousY;
-
-  /**
-   * @param {number} x
-   * @param {number} y
-   * @returns {void}
-   */
-  function pushPoint(x, y) {
-    if (previousX === x && previousY === y) return;
-    previousX = x;
-    previousY = y;
+  const ok = forEachPathPair(d, (command, x, y) => {
+    if (command === "M") {
+      currentX = x;
+      currentY = y;
+    } else {
+      currentX += x;
+      currentY += y;
+    }
+    if (previousX === currentX && previousY === currentY) return;
+    previousX = currentX;
+    previousY = currentY;
     childCount += 1;
-    if (localBounds) {
-      localBounds.minX = Math.min(localBounds.minX, x);
-      localBounds.minY = Math.min(localBounds.minY, y);
-      localBounds.maxX = Math.max(localBounds.maxX, x);
-      localBounds.maxY = Math.max(localBounds.maxY, y);
+    if (!localBounds) {
+      localBounds = {
+        minX: currentX,
+        minY: currentY,
+        maxX: currentX,
+        maxY: currentY,
+      };
       return;
     }
-    localBounds = {
-      minX: x,
-      minY: y,
-      maxX: x,
-      maxY: y,
-    };
-  }
-
-  while (index < d.length) {
-    const char = d[index];
-    if (char === undefined) break;
-    if (char === " " || char === "," || char === "\n" || char === "\t") {
-      index += 1;
-      continue;
-    }
-    if (char === "M" || char === "l") {
-      if (valuesRead !== 0) return { childCount: 0, localBounds: null };
-      command = char;
-      valuesRead = 0;
-      values = [];
-      index += 1;
-      continue;
-    }
-    if (/[A-Za-z]/.test(char)) {
-      return { childCount: 0, localBounds: null };
-    }
-    if (!command) return { childCount: 0, localBounds: null };
-    const start = index;
-    index += 1;
-    while (index < d.length) {
-      const next = d[index];
-      if (next === undefined) break;
-      if (
-        next === " " ||
-        next === "," ||
-        next === "\n" ||
-        next === "\t" ||
-        next === "M" ||
-        next === "l"
-      ) {
-        break;
-      }
-      index += 1;
-      if (/[A-Za-z]/.test(next)) {
-        return { childCount: 0, localBounds: null };
-      }
-    }
-    const value = Number(d.slice(start, index));
-    if (!Number.isFinite(value)) return { childCount: 0, localBounds: null };
-    values.push(value);
-    valuesRead += 1;
-    if (valuesRead === 2) {
-      const [dx, dy] = values;
-      if (typeof dx !== "number" || typeof dy !== "number") {
-        return { childCount: 0, localBounds: null };
-      }
-      if (command === "M") {
-        currentX = dx;
-        currentY = dy;
-      } else if (command === "l") {
-        currentX += dx;
-        currentY += dy;
-      }
-      pushPoint(currentX, currentY);
-      values = [];
-      valuesRead = 0;
-    }
-  }
-  if (valuesRead !== 0) return { childCount: 0, localBounds: null };
-
+    localBounds.minX = Math.min(localBounds.minX, currentX);
+    localBounds.minY = Math.min(localBounds.minY, currentY);
+    localBounds.maxX = Math.max(localBounds.maxX, currentX);
+    localBounds.maxY = Math.max(localBounds.maxY, currentY);
+  });
+  if (!ok) return { childCount: 0, localBounds: null };
   return { childCount, localBounds };
 }
 
