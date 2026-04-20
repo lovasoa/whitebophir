@@ -508,7 +508,7 @@ test("readBoardDocumentState returns metadata and streaming source details for s
 
     const state = await svgBoardStore.readBoardDocumentState(boardName);
 
-    assert.deepEqual(state.metadata, { readonly: true });
+    assert.deepEqual(state.metadata, { readonly: true, seq: 7 });
     assert.equal(state.source, "svg");
     assert.equal(state.inlineBoardSvg, null);
   });
@@ -541,7 +541,7 @@ test("readBoardDocumentState falls back to legacy json metadata and generated in
 
     const state = await svgBoardStore.readBoardDocumentState(boardName);
 
-    assert.deepEqual(state.metadata, { readonly: true });
+    assert.deepEqual(state.metadata, { readonly: true, seq: 0 });
     assert.equal(state.source, "generated");
     assert.ok(state.inlineBoardSvg);
     assert.match(state.inlineBoardSvg, /data-wbo-readonly="true"/);

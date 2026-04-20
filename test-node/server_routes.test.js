@@ -472,6 +472,58 @@ test("board pages are no-store in development and render versioned asset URLs", 
   ]);
 });
 
+test("board pages use seq-based etag and return 304 on cache hit", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "etag-board"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    NODE_ENV: "production",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const firstResponse = await request(app, "/boards/etag-board");
+
+      assert.equal(firstResponse.statusCode, 200);
+      assert.equal(firstResponse.headers.etag, 'W/"wbo-seq-3"');
+
+      const cachedResponse = await request(app, "/boards/etag-board", {
+        "If-None-Match": firstResponse.headers.etag,
+      });
+
+      assert.equal(cachedResponse.statusCode, 304);
+      assert.equal(cachedResponse.headers.etag, firstResponse.headers.etag);
+
+      const staleResponse = await request(app, "/boards/etag-board", {
+        "If-None-Match": 'W/"wbo-seq-2"',
+      });
+
+      assert.equal(staleResponse.statusCode, 200);
+      assert.equal(staleResponse.headers.etag, 'W/"wbo-seq-3"');
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
 test("board pages inline the authoritative svg baseline before client boot", async () => {
   const dirs = await createServerDirs();
   await fs.writeFile(

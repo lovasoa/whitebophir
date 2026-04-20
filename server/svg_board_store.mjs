@@ -34,12 +34,13 @@ const SVG_MARGIN = 4000;
 let tempSvgSuffixCounter = 0;
 const { logger } = observability;
 
-/** @typedef {{readonly: boolean}} BoardMetadata */
+/** @typedef {{readonly: boolean, seq?: number}} BoardMetadata */
 
 /** @returns {BoardMetadata} */
 function defaultBoardMetadata() {
   return {
     readonly: false,
+    seq: 0,
   };
 }
 
@@ -704,7 +705,7 @@ async function rewriteStoredSvgFromCanonical(
 /**
  * @param {string} boardName
  * @param {{historyDir?: string}=} [options]
- * @returns {Promise<{metadata: {readonly: boolean}, inlineBoardSvg: string | null, source: "svg" | "svg_backup" | "generated"}>}
+ * @returns {Promise<{metadata: {readonly: boolean, seq?: number}, inlineBoardSvg: string | null, source: "svg" | "svg_backup" | "generated"}>}
  */
 async function readBoardDocumentState(boardName, options) {
   const historyDir = options?.historyDir;
@@ -722,6 +723,7 @@ async function readBoardDocumentState(boardName, options) {
         );
         metadata = {
           readonly: rootAttributes["data-wbo-readonly"] === "true",
+          seq: normalizeStoredSeq(rootAttributes["data-wbo-seq"]),
         };
         break;
       }
@@ -739,9 +741,16 @@ async function readBoardDocumentState(boardName, options) {
     const parsed = await readLegacyBoardState(boardName, {
       historyDir: historyDir,
     });
+    const parsedMetadata = /** @type {{readonly: boolean, seq?: unknown}} */ (
+      parsed.metadata
+    );
+    const metadata = {
+      readonly: parsedMetadata.readonly,
+      seq: normalizeStoredSeq(parsedMetadata.seq),
+    };
     return {
-      metadata: parsed.metadata,
-      inlineBoardSvg: renderServedBaselineSvg(parsed.board, parsed.metadata, 0),
+      metadata,
+      inlineBoardSvg: renderServedBaselineSvg(parsed.board, metadata, 0),
       source: "generated",
     };
   } catch (error) {

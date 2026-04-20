@@ -219,6 +219,9 @@ class Template {
       "Content-Type": "text/html",
       "Cache-Control": this.cacheControl(),
     };
+    if (typeof parameters.etag === "string") {
+      headers.ETag = parameters.etag;
+    }
     if (!parsedUrl.searchParams.get("lang")) {
       headers.Vary = "Accept-Language";
     }
@@ -330,6 +333,9 @@ class BoardTemplate extends Template {
       "Content-Type": "text/html",
       "Cache-Control": this.cacheControl(),
     };
+    if (typeof parameters.etag === "string") {
+      headers.ETag = parameters.etag;
+    }
     if (!parsedUrl.searchParams.get("lang")) {
       headers.Vary = "Accept-Language";
     }

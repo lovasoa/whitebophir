@@ -218,6 +218,38 @@ function firstHeaderValue(value) {
 }
 
 /**
+ * @param {string | string[] | undefined} value
+ * @returns {string[]}
+ */
+function parseIfNoneMatch(value) {
+  if (!value) return [];
+  const values = Array.isArray(value) ? value : [value];
+  return values
+    .flatMap((item) => String(item).split(","))
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/**
+ * @param {string | string[] | undefined} ifNoneMatch
+ * @param {string} etag
+ * @returns {boolean}
+ */
+function matchesIfNoneMatch(ifNoneMatch, etag) {
+  if (ifNoneMatch === undefined) return false;
+  const values = parseIfNoneMatch(ifNoneMatch);
+  return values.includes("*") || values.includes(etag);
+}
+
+/**
+ * @param {number | string} seq
+ * @returns {string}
+ */
+function boardPageETag(seq) {
+  return `W/"wbo-seq-${Number(seq) || 0}"`;
+}
+
+/**
  * @param {HttpRequest} request
  * @returns {string}
  */
@@ -906,6 +938,15 @@ async function handleBoardDocumentRoute(
   const canWrite =
     !boardMetadata.readonly ||
     (config.AUTH_SECRET_KEY && ["editor", "moderator"].includes(boardRole));
+  const etag = boardPageETag(boardMetadata.seq || 0);
+  if (matchesIfNoneMatch(request.headers["if-none-match"], etag)) {
+    response.writeHead(304, {
+      "Cache-Control": boardTemplate.cacheControl(),
+      ETag: etag,
+    });
+    response.end();
+    return;
+  }
   ensureBoardUserSecretCookie(request, response, parsedUrl);
   if (source === "svg" || source === "svg_backup") {
     const svgStream = await streamServedBaseline(boardName);
@@ -923,6 +964,7 @@ async function handleBoardDocumentRoute(
       svgStream,
       boardRole === "moderator",
       {
+        etag,
         boardState: {
           readonly: boardMetadata.readonly,
           canWrite,
@@ -932,6 +974,7 @@ async function handleBoardDocumentRoute(
     return;
   }
   boardTemplate.serve(request, response, boardRole === "moderator", {
+    etag,
     inlineBoardSvg: inlineBoardSvg || "",
     boardState: {
       readonly: boardMetadata.readonly,
@@ -946,6 +989,7 @@ async function handleBoardDocumentRoute(
  * @returns {void}
  */
 function respondWithBoardSvgStream(response, svgStream) {
+  /** @type {{ [name: string]: string | number }} */
   response.writeHead(200, {
     "Content-Type": "image/svg+xml",
     "Content-Security-Policy": CSP,
