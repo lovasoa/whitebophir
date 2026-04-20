@@ -2507,7 +2507,8 @@ async function shutdownBoards() {
   shuttingDown = true;
   io = undefined;
   if (currentIo) {
-    await new Promise((resolve) => currentIo.close(() => resolve(undefined)));
+    currentIo.disconnectSockets(true);
+    currentIo.engine.close();
   }
   const loadedBoards = listLoadedBoards();
   await Promise.all(

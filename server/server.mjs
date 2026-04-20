@@ -185,6 +185,7 @@ function installShutdownHandlers(server, sockets) {
             resolve(undefined);
           }
         });
+        server.closeAllConnections?.();
       });
       logger.info("server.shutdown_completed", { signal });
       process.exit(0);
