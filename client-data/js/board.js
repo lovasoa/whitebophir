@@ -34,7 +34,6 @@ import {
   normalizeBoardState,
   parseEmbeddedJson,
   resolveBoardName,
-  shouldDisplayTool as shouldDisplayBoardTool,
   updateRecentBoards,
 } from "./board_page_state.js";
 import BoardSvgBaseline from "./board_svg_baseline.js";
@@ -57,7 +56,6 @@ import {
   getToolModuleImportPath,
   getToolRuntimeAssetPath,
 } from "./tool_assets.js";
-import { getToolCatalogEntry } from "./tool_catalog.js";
 
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
 /** @typedef {import("../../types/app-runtime").AppTool} AppTool */
@@ -1527,17 +1525,7 @@ Tools.setBoardState = function setBoardState(state) {
 
 /** @param {string} toolName */
 Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
-  const hasServerRenderedToolbar =
-    document.querySelector("#tools > .tool[data-tool-name]") !== null;
-  if (hasServerRenderedToolbar) {
-    return getToolButton(toolName) !== null;
-  }
-  if (!getToolCatalogEntry(toolName)) return false;
-  return shouldDisplayBoardTool(
-    toolName,
-    Tools.boardState,
-    Tools.readOnlyToolNames,
-  );
+  return getToolButton(toolName) !== null;
 };
 
 Tools.board = null;
@@ -2751,7 +2739,7 @@ Tools.mountTool = function mountTool(tool) {
       tool.draw(msg, false);
     });
   }
-  if (Tools.shouldDisplayTool(tool.name) || getToolButton(tool.name)) {
+  if (Tools.shouldDisplayTool(tool.name)) {
     syncMountedToolButton(
       tool.name,
       tool.icon,
