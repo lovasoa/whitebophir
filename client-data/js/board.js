@@ -204,10 +204,29 @@ Tools.pageCoordinateToBoard = function pageCoordinateToBoard(value) {
  * @param {string} assetPath
  * @returns {string}
  */
+function normalizeBoardAssetPath(assetPath) {
+  if (
+    assetPath.startsWith("./") ||
+    assetPath.startsWith("../") ||
+    assetPath.startsWith("/") ||
+    assetPath.startsWith("data:") ||
+    assetPath.startsWith("http://") ||
+    assetPath.startsWith("https://")
+  ) {
+    return assetPath;
+  }
+  return `../${assetPath}`;
+}
+
+/**
+ * @param {string} assetPath
+ * @returns {string}
+ */
 Tools.versionAssetPath = function versionAssetPath(assetPath) {
-  if (!Tools.assetVersion) return assetPath;
-  const separator = assetPath.includes("?") ? "&" : "?";
-  return `${assetPath}${separator}v=${encodeURIComponent(Tools.assetVersion)}`;
+  const normalizedPath = normalizeBoardAssetPath(assetPath);
+  if (!Tools.assetVersion) return normalizedPath;
+  const separator = normalizedPath.includes("?") ? "&" : "?";
+  return `${normalizedPath}${separator}v=${encodeURIComponent(Tools.assetVersion)}`;
 };
 
 /**
