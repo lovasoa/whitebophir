@@ -162,7 +162,9 @@ export default class CursorToolClass {
     cursor.setAttributeNS(null, "r", "10");
     cursorsElem.appendChild(cursor);
     setTimeout(() => {
-      cursorsElem.removeChild(cursor);
+      if (cursor.parentNode === cursorsElem) {
+        cursorsElem.removeChild(cursor);
+      }
     }, CursorToolClass.CURSOR_DELETE_AFTER_MS);
     return cursor;
   }
