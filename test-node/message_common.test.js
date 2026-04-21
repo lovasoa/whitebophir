@@ -43,21 +43,6 @@ test("shared geometry helpers grow pencil bounds incrementally", () => {
   });
 });
 
-test("DRAW_TOOL_NAMES comes from shared metadata", () => {
-  const metadataTools = MessageToolMetadata.DRAW_TOOL_NAMES;
-  const injectedTool = "__metadata_probe_tool__";
-  metadataTools.push(injectedTool);
-
-  try {
-    assert.deepEqual(
-      MessageCommon.DRAW_TOOL_NAMES,
-      MessageToolMetadata.DRAW_TOOL_NAMES,
-    );
-  } finally {
-    metadataTools.pop();
-  }
-});
-
 test("shape tool bounds use straight-shape geometry consistently", () => {
   const shapeToolNames = Object.keys(MessageToolMetadata.SHAPE_TOOL_TYPES);
   for (const toolName of shapeToolNames) {

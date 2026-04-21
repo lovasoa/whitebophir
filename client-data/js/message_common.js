@@ -1,6 +1,5 @@
 /**
  * @typedef {{
- *   DRAW_TOOL_NAMES: string[],
  *   LIMITS: Record<string, number>,
  *   applyTransformToBounds: Function,
  *   clampOpacity: Function,
@@ -42,8 +41,6 @@
  * }} GeometryItem
  */
 import { DRAW_TOOL_IDS } from "../tools/tool-order.js";
-
-export const DRAW_TOOL_NAMES = DRAW_TOOL_IDS;
 
 export const LIMITS = {
   MIN_SIZE: 10,
@@ -195,7 +192,7 @@ export function requiresTurnstile(boardName, toolId) {
  * @returns {boolean}
  */
 export function isDrawTool(toolId) {
-  return typeof toolId === "string" && DRAW_TOOL_NAMES.indexOf(toolId) !== -1;
+  return typeof toolId === "string" && DRAW_TOOL_IDS.indexOf(toolId) !== -1;
 }
 
 /**
@@ -452,7 +449,6 @@ export function isBoundsTooLarge(bounds) {
 }
 
 const messageCommon = /** @type {MessageCommonApi} */ ({
-  DRAW_TOOL_NAMES,
   LIMITS,
   applyTransformToBounds,
   clampOpacity,

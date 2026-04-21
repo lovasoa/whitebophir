@@ -1,10 +1,9 @@
 import { getMutationTypeCode, MutationType } from "./mutation_type.js";
 import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
-import { DRAW_TOOL_IDS, TOOL_IDS } from "../tools/tool-order.js";
+import { TOOL_IDS } from "../tools/tool-order.js";
 
 export { getMutationTypeCode, MutationType };
 
-export const DRAW_TOOL_NAMES = DRAW_TOOL_IDS;
 /** @type {{[toolId: string]: string}} */
 export const SHAPE_TOOL_TYPES = /** @type {{[toolId: string]: string}} */ (
   Object.fromEntries(
