@@ -13,12 +13,6 @@ import { decodedTextLength, escapeHtml, unescapeHtml } from "./xml_escape.mjs";
 
 /** @typedef {import("../client-data/tools/shape_contract.js").ToolContract} StoredSvgContract */
 
-/** @type {Record<string, StoredSvgContract>} */
-const STORED_SVG_CONTRACTS_BY_TAG = TOOL_CONTRACTS_BY_TAG;
-
-/** @type {Record<string, StoredSvgContract>} */
-const STORED_SVG_CONTRACTS_BY_TOOL = TOOL_CONTRACTS_BY_NAME;
-
 /**
  * @param {unknown} value
  * @returns {number}
@@ -130,7 +124,7 @@ function decorateStoredItemData(data, opacity, transform) {
 function parseStoredSvgItem(entry) {
   const summary = summarizeStoredSvgItem(entry);
   if (!summary) return null;
-  const contract = STORED_SVG_CONTRACTS_BY_TOOL[summary.tool];
+  const contract = TOOL_CONTRACTS_BY_NAME[summary.tool];
   if (contract && typeof contract.parseStoredSvgItem === "function") {
     return contract.parseStoredSvgItem(summary, entry, {
       readStoredSvgAttribute,
@@ -153,7 +147,7 @@ function summarizeStoredSvgItem(entry, paintOrder) {
   if (!entry || typeof entry.tagName !== "string") return null;
   const { id, opacity, transform } = readStoredSvgBase(entry);
   if (!id) return null;
-  const contract = STORED_SVG_CONTRACTS_BY_TAG[entry.tagName];
+  const contract = TOOL_CONTRACTS_BY_TAG[entry.tagName];
   if (contract) {
     return contract.summarizeStoredSvgItem(entry, paintOrder, {
       id,
@@ -176,7 +170,7 @@ function serializeStoredSvgItem(item) {
   if (!item || typeof item !== "object" || typeof item.tool !== "string") {
     return "";
   }
-  const contract = STORED_SVG_CONTRACTS_BY_TOOL[item.tool];
+  const contract = TOOL_CONTRACTS_BY_NAME[item.tool];
   if (contract) {
     return contract.serializeStoredSvgItem(item, {
       escapeHtml,

@@ -2,7 +2,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 
 import MessageCommon from "../client-data/js/message_common.js";
-import { TOOL_CONTRACTS } from "../client-data/tools/tool_contracts.js";
+import { TOOL_CONTRACTS_BY_NAME } from "../client-data/tools/tool_contracts.js";
 import config from "./configuration.mjs";
 import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
 import observability from "./observability.mjs";
@@ -14,8 +14,6 @@ const STANDALONE_SVG_RENDER_BYTES_THRESHOLD = 1024 * 1024;
 /** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number, txt?: string, _children?: Point[], x?: number, y?: number, x2?: number, y2?: number}} RenderableElement */
 /** @typedef {{[name: string]: RenderableElement}} RenderableBoard */
 /** @typedef {{write: (chunk: string) => void}} WritableTarget */
-/** @typedef {(element: RenderableElement) => string} ToolRenderer */
-/** @typedef {import("../client-data/tools/shape_contract.js").ToolContract & {renderBoardSvg: (element: any, helpers: any) => string}} RenderToolContract */
 
 /**
  * @param {number | undefined} value
@@ -85,30 +83,6 @@ function renderPath(el, pathstring) {
   );
 }
 
-/** @type {Record<string, ToolRenderer>} */
-const Tools = Object.fromEntries(
-  TOOL_CONTRACTS.filter(
-    /**
-     * @param {import("../client-data/tools/shape_contract.js").ToolContract} contract
-     * @returns {contract is RenderToolContract}
-     */
-    (contract) => typeof contract.renderBoardSvg === "function",
-  ).map((contract) => [
-    contract.toolName,
-    /**
-     * @param {RenderableElement} el
-     * @returns {string}
-     */
-    (el) =>
-      contract.renderBoardSvg(el, {
-        htmlspecialchars,
-        numberOrZero,
-        renderPath,
-        renderTranslate,
-      }),
-  ]),
-);
-
 /**
  * Writes the given board as an svg to the given writeable stream
  * @param {RenderableBoard} obj
@@ -159,12 +133,21 @@ async function toSVG(obj, writeable) {
     }
     const elem = elems[index];
     if (!elem) continue;
-    const renderFun = Tools[elem.tool];
-    if (renderFun) writeable.write(renderFun(elem));
-    else
+    const contract = TOOL_CONTRACTS_BY_NAME[elem.tool];
+    if (typeof contract?.renderBoardSvg === "function") {
+      writeable.write(
+        contract.renderBoardSvg(elem, {
+          htmlspecialchars,
+          numberOrZero,
+          renderPath,
+          renderTranslate,
+        }),
+      );
+    } else {
       logger.warn("svg.renderer_missing", {
         tool: elem.tool,
       });
+    }
   }
   writeable.write("</svg>");
 }
