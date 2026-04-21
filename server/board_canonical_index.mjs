@@ -1,22 +1,8 @@
 import {
+  cloneBounds,
   cloneCanonicalItem,
   effectiveChildCount,
 } from "./canonical_board_items.mjs";
-
-/**
- * @param {any} bounds
- * @returns {any}
- */
-function cloneBounds(bounds) {
-  return bounds
-    ? {
-        minX: bounds.minX,
-        minY: bounds.minY,
-        maxX: bounds.maxX,
-        maxY: bounds.maxY,
-      }
-    : null;
-}
 
 /**
  * @param {{itemsById: Map<string, any>}} state

@@ -433,6 +433,7 @@ function materializeItemForSave(item, sourcePayload = {}) {
 export {
   canonicalItemFromItem,
   canonicalItemFromStoredSvgEntry,
+  cloneBounds,
   cloneCanonicalItem,
   copyCanonicalItem,
   currentText,
