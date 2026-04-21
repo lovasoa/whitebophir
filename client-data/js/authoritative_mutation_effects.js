@@ -20,7 +20,3 @@ export function optimisticPrunePlanForAuthoritativeMessage(message) {
   }
   return { reset: false, invalidatedIds: [] };
 }
-
-export default {
-  optimisticPrunePlanForAuthoritativeMessage,
-};

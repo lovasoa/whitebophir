@@ -153,5 +153,3 @@ function pencilExtrapolatePoints(pts, x, y) {
 
   return createPathDataPoint("C", [cx2, cy2, x, y, x, y]);
 }
-
-export default wboPencilPoint;

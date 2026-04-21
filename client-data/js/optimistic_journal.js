@@ -222,7 +222,3 @@ export function createOptimisticJournal() {
     },
   };
 }
-
-export default {
-  createOptimisticJournal,
-};

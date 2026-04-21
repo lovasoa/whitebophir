@@ -24,7 +24,7 @@
  * @licend
  */
 
-import AuthoritativeMutationEffects from "./authoritative_mutation_effects.js";
+import { optimisticPrunePlanForAuthoritativeMessage } from "./authoritative_mutation_effects.js";
 import BoardMessageReplay from "./board_message_replay.js";
 import {
   drainPendingMessages,
@@ -35,7 +35,10 @@ import {
   resolveBoardName,
   updateRecentBoards,
 } from "./board_page_state.js";
-import BoardSvgBaseline from "./board_svg_baseline.js";
+import {
+  buildBoardSvgBaselineUrl,
+  parseServedBaselineSvgText,
+} from "./board_svg_baseline.js";
 import {
   connection as BoardConnection,
   messages as BoardMessages,
@@ -48,7 +51,7 @@ import {
   isTextUpdateMessage,
 } from "./message_shape.js";
 import Minitpl from "./minitpl.js";
-import OptimisticJournal from "./optimistic_journal.js";
+import { createOptimisticJournal } from "./optimistic_journal.js";
 import OptimisticMutation from "./optimistic_mutation.js";
 import RateLimitCommon from "./rate_limit_common.js";
 import {
@@ -325,7 +328,7 @@ Tools.awaitingBoardSnapshot = true;
 Tools.awaitingSyncReplay = false;
 Tools.hasAuthoritativeBoardSnapshot = false;
 Tools.authoritativeSeq = 0;
-Tools.optimisticJournal = OptimisticJournal.createOptimisticJournal();
+Tools.optimisticJournal = createOptimisticJournal();
 Tools.preSnapshotMessages = [];
 Tools.incomingBroadcastQueue = [];
 Tools.processingIncomingBroadcast = false;
@@ -728,10 +731,7 @@ Tools.rejectOptimisticMutation = function rejectOptimisticMutation(
  */
 Tools.pruneOptimisticMutationsForAuthoritativeMessage =
   function pruneOptimisticMutationsForAuthoritativeMessage(message) {
-    const prunePlan =
-      AuthoritativeMutationEffects.optimisticPrunePlanForAuthoritativeMessage(
-        message,
-      );
+    const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
     if (prunePlan.reset) {
       Tools.applyRejectedOptimisticEntries(Tools.optimisticJournal.reset());
       return;
@@ -788,7 +788,7 @@ function normalizeServerRenderedElements() {
 Tools.refreshAuthoritativeBaseline =
   async function refreshAuthoritativeBaseline() {
     const response = await fetch(
-      BoardSvgBaseline.buildBoardSvgBaselineUrl(
+      buildBoardSvgBaselineUrl(
         window.location.pathname,
         window.location.search,
       ),
@@ -801,7 +801,7 @@ Tools.refreshAuthoritativeBaseline =
     if (!response.ok) {
       throw new Error(`Baseline fetch failed with HTTP ${response.status}`);
     }
-    const baseline = BoardSvgBaseline.parseServedBaselineSvgText(
+    const baseline = parseServedBaselineSvgText(
       await response.text(),
       new DOMParser(),
     );

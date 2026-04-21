@@ -59,8 +59,3 @@ export function parseServedBaselineSvgText(svgMarkup, domParser) {
   const doc = domParser.parseFromString(svgMarkup, "image/svg+xml");
   return parseServedBaselineSvgDocument(doc);
 }
-
-export default {
-  buildBoardSvgBaselineUrl,
-  parseServedBaselineSvgText,
-};
