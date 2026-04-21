@@ -397,7 +397,7 @@ export type AppToolsState = {
   token: string | null;
   pendingReplaySync: false | "refresh" | "ready";
   list: MountedToolRegistry;
-  bootedToolPromises: { [toolName: string]: Promise<AppTool | null> };
+  bootedToolPromises: { [toolName: string]: Promise<MountedAppTool | null> };
   bootedToolNames: Set<string>;
   pendingMessages: PendingMessages;
   connectedUsers: { [socketId: string]: ConnectedUser };
@@ -474,8 +474,12 @@ export type AppToolsState = {
   queueProtectedWrite: (data: BoardMessage, tool: AppTool) => void;
   flushTurnstilePendingWrites: () => void;
   getToolAssetUrl: (toolName: string, assetFile: string) => string;
-  mountTool: (tool: AppTool) => MountedAppTool | null;
-  bootTool: (toolName: string) => Promise<AppTool | null>;
+  mountTool: (
+    toolModule: ToolModule,
+    toolState: unknown,
+    toolName: string,
+  ) => MountedAppTool | null;
+  bootTool: (toolName: string) => Promise<MountedAppTool | null>;
   activateTool: (toolName: string) => Promise<boolean>;
   addToolListeners: (tool: AppTool) => void;
   removeToolListeners: (tool: AppTool) => void;

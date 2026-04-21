@@ -2455,16 +2455,12 @@ function createToolBootContext(toolName) {
  * @param {ToolModule} toolModule
  * @param {unknown} toolState
  * @param {string} toolName
- * @returns {AppTool}
+ * @returns {MountedAppTool}
  */
-function createToolFromModule(toolModule, toolState, toolName) {
+function createMountedTool(toolModule, toolState, toolName) {
   if (typeof toolModule.draw !== "function") {
     throw new Error(`Missing draw export for ${toolName}.`);
   }
-  const toolStateObject =
-    /** @type {{mouseCursor?: string, secondary?: import("../../types/app-runtime").ToolSecondaryMode | null} | null} */ (
-      toolState && typeof toolState === "object" ? toolState : null
-    );
   const draw = toolModule.draw;
   const normalizeServerRenderedElement =
     toolModule.normalizeServerRenderedElement;
@@ -2476,7 +2472,13 @@ function createToolFromModule(toolModule, toolState, toolName) {
   const onquit = toolModule.onquit;
   const onSocketDisconnect = toolModule.onSocketDisconnect;
   const onSizeChange = toolModule.onSizeChange;
-  return {
+  const toolStateObject =
+    /** @type {{mouseCursor?: string, secondary?: import("../../types/app-runtime").ToolSecondaryMode | null} | null} */ (
+      toolState && typeof toolState === "object" ? toolState : null
+    );
+  const toolDefinition = TOOL_BY_ID[toolName];
+  /** @type {MountedAppTool} */
+  const tool = {
     name: toolName,
     shortcut: toolModule.shortcut,
     icon: "",
@@ -2502,19 +2504,22 @@ function createToolFromModule(toolModule, toolState, toolName) {
     onMessage:
       typeof onMessage === "function"
         ? (message) => onMessage(toolState, message)
-        : undefined,
+        : () => {},
+    listeners: {},
+    compiledListeners: {},
     onstart:
       typeof onstart === "function"
         ? (oldTool) => onstart(toolState, oldTool)
-        : undefined,
+        : () => {},
     onquit:
       typeof onquit === "function"
         ? (newTool) => onquit(toolState, newTool)
-        : undefined,
+        : () => {},
     onSocketDisconnect:
       typeof onSocketDisconnect === "function"
         ? () => onSocketDisconnect(toolState)
-        : undefined,
+        : () => {},
+    stylesheet: undefined,
     oneTouch: toolModule.oneTouch,
     alwaysOn: toolModule.alwaysOn,
     mouseCursor: toolModule.mouseCursor ?? toolStateObject?.mouseCursor,
@@ -2527,15 +2532,6 @@ function createToolFromModule(toolModule, toolState, toolName) {
     showMarker: toolModule.showMarker,
     requiresWritableBoard: toolModule.requiresWritableBoard,
   };
-}
-
-/**
- * @param {AppTool} tool
- * @returns {MountedAppTool}
- */
-function prepareMountedTool(tool) {
-  if (!tool.name) throw new Error("A tool must have a name");
-  const toolDefinition = TOOL_BY_ID[tool.name];
   if (toolDefinition) {
     tool.icon ||= getToolIconPath(toolDefinition.toolId);
     tool.stylesheet ||=
@@ -2545,19 +2541,10 @@ function prepareMountedTool(tool) {
       ) || undefined;
   }
   tool.listeners = {
-    press: tool.press ? tool.press.bind(tool) : tool.listeners?.press,
-    move: tool.move ? tool.move.bind(tool) : tool.listeners?.move,
-    release: tool.release ? tool.release.bind(tool) : tool.listeners?.release,
+    press: tool.press,
+    move: tool.move,
+    release: tool.release,
   };
-  tool.onstart = tool.onstart ? tool.onstart.bind(tool) : () => {};
-  tool.onquit = tool.onquit ? tool.onquit.bind(tool) : () => {};
-  tool.onMessage = tool.onMessage || (() => {});
-  tool.onSocketDisconnect = tool.onSocketDisconnect
-    ? tool.onSocketDisconnect.bind(tool)
-    : () => {};
-  if (tool.onSizeChange) {
-    tool.onSizeChange = tool.onSizeChange.bind(tool);
-  }
 
   /**
    * @param {ToolPointerListener} listener
@@ -2621,43 +2608,45 @@ function prepareMountedTool(tool) {
     compiled.touchcancel = touchRelease;
   }
   tool.compiledListeners = compiled;
-  return /** @type {MountedAppTool} */ (tool);
+  return tool;
 }
 
 /**
- * @param {AppTool} tool
+ * @param {ToolModule} toolModule
+ * @param {unknown} toolState
+ * @param {string} toolName
  * @returns {MountedAppTool | null}
  */
-Tools.mountTool = function mountTool(tool) {
-  const mountedTool = prepareMountedTool(tool);
-  if (tool.stylesheet) {
-    addToolStylesheet(tool.stylesheet);
+Tools.mountTool = function mountTool(toolModule, toolState, toolName) {
+  const mountedTool = createMountedTool(toolModule, toolState, toolName);
+  if (mountedTool.stylesheet) {
+    addToolStylesheet(mountedTool.stylesheet);
   }
-  if (Tools.isBlocked(tool)) return null;
+  if (Tools.isBlocked(mountedTool)) return null;
 
-  if (tool.name in Tools.list) {
+  if (toolName in Tools.list) {
     console.log(
-      `Tools.mountTool: The tool '${tool.name}' is already in the list. Updating it...`,
+      `Tools.mountTool: The tool '${toolName}' is already in the list. Updating it...`,
     );
   }
 
-  Tools.list[tool.name] = mountedTool;
+  Tools.list[toolName] = mountedTool;
 
   if (mountedTool.onSizeChange) {
     Tools.sizeChangeHandlers.push(mountedTool.onSizeChange);
   }
 
-  const pending = drainPendingMessages(Tools.pendingMessages, tool.name);
+  const pending = drainPendingMessages(Tools.pendingMessages, toolName);
   if (pending.length > 0) {
-    console.log("Drawing pending messages for '%s'.", tool.name);
+    console.log("Drawing pending messages for '%s'.", toolName);
     pending.forEach((/** @type {BoardMessage} */ msg) => {
       mountedTool.draw(msg, false);
     });
   }
-  if (Tools.shouldDisplayTool(tool.name)) {
-    syncMountedToolButton(tool.name);
+  if (Tools.shouldDisplayTool(toolName)) {
+    syncMountedToolButton(toolName);
   }
-  Tools.syncToolDisabledState(tool.name);
+  Tools.syncToolDisabledState(toolName);
   if (mountedTool.alwaysOn === true) {
     Tools.addToolListeners(mountedTool);
   }
@@ -2667,18 +2656,18 @@ Tools.mountTool = function mountTool(tool) {
 
 /**
  * @param {string} toolName
- * @returns {Promise<AppTool | null>}
+ * @returns {Promise<MountedAppTool | null>}
  */
 async function bootToolPromise(toolName) {
   const toolModule = await loadToolModule(toolName);
   const toolState = await toolModule.boot(createToolBootContext(toolName));
   if (toolState === null) return null;
-  return Tools.mountTool(createToolFromModule(toolModule, toolState, toolName));
+  return Tools.mountTool(toolModule, toolState, toolName);
 }
 
 /**
  * @param {string} toolName
- * @returns {Promise<AppTool | null>}
+ * @returns {Promise<MountedAppTool | null>}
  */
 Tools.bootTool = async function bootTool(toolName) {
   const existingTool = Tools.list[toolName];
