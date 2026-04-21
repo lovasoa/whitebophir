@@ -17,5 +17,3 @@ export class SerialTaskQueue {
     return run;
   }
 }
-
-export default SerialTaskQueue;

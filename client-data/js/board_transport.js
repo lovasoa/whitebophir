@@ -97,11 +97,8 @@ async function batchCall(fn, args, index) {
     offset < args.length;
     offset += BATCH_SIZE
   ) {
-    const batch = args.slice(offset, offset + BATCH_SIZE);
-    await Promise.all(batch.map(fn));
-    if (offset + BATCH_SIZE < args.length) {
-      await nextAnimationFrame();
-    }
+    await Promise.all(args.slice(offset, offset + BATCH_SIZE).map(fn));
+    if (offset + BATCH_SIZE < args.length) await nextAnimationFrame();
   }
 }
 
@@ -112,8 +109,9 @@ async function batchCall(fn, args, index) {
  * @returns {void}
  */
 function queuePendingMessage(pendingMessages, toolName, message) {
-  if (!pendingMessages[toolName]) pendingMessages[toolName] = [message];
-  else pendingMessages[toolName].push(message);
+  const toolMessages = pendingMessages[toolName];
+  if (toolMessages) toolMessages.push(message);
+  else pendingMessages[toolName] = [message];
 }
 
 /**
@@ -212,10 +210,3 @@ export const turnstile = {
   computeTurnstileValidation: computeTurnstileValidation,
   resetTurnstileWidget: resetTurnstileWidget,
 };
-
-const boardTransport = {
-  connection,
-  messages,
-  turnstile,
-};
-export default boardTransport;

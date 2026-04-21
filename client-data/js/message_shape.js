@@ -48,13 +48,3 @@ export function isTextUpdateMessage(message) {
     hasMessageId(message)
   );
 }
-
-const messageShape = {
-  hasMessageChildren,
-  hasMessageId,
-  hasMessageNewId,
-  hasMessageTool,
-  isTextUpdateMessage,
-};
-
-export default messageShape;
