@@ -28,11 +28,12 @@ import { truncateText } from "../../js/message_common.js";
 import { MutationType } from "../../js/mutation_type.js";
 /** @typedef {import("../../../types/app-runtime").BoardMessage} BoardMessage */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
-/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
+/** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: ReturnType<typeof setTimeout> | null}} CurrentTextState */
 /** @typedef {{type: "new", id: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} NewTextMessage */
 /** @typedef {{type: number | "update", id: string, txt?: string}} TextUpdateMessage */
 /** @typedef {NewTextMessage | TextUpdateMessage} TextMessage */
+/** @typedef {{Tools: MountedAppToolsState, board: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
 
 /**
  * @param {number} x
@@ -161,27 +162,171 @@ const contract = {
 };
 
 export { contract };
+export const shortcut = "t";
 
-class TextTool {
-  static toolId = contract.toolId;
+/**
+ * @param {EventTarget | null} target
+ * @returns {target is SVGTextElement & {id: string}}
+ */
+function isExistingTextElement(target) {
+  return target instanceof SVGTextElement;
+}
 
-  /**
-   * @param {AppToolsState} Tools
-   */
-  constructor(Tools) {
-    this.Tools = Tools;
-    this.board = Tools.board;
-    this.name = contract.toolId;
-    this.shortcut = "t";
-    this.mouseCursor = mouseCursor;
+/** @param {TextState} state */
+function blurEditor(state) {
+  if (state.active) return;
+  state.input.style.top = "-1000px";
+}
 
-    this.input = document.createElement("input");
-    this.input.id = "textToolInput";
-    this.input.type = "text";
-    this.input.setAttribute("autocomplete", "off");
+/** @param {TextState} state */
+function stopEdit(state) {
+  state.input.removeEventListener("input", state.boundTextChangeHandler);
+  state.input.removeEventListener("keyup", state.boundTextChangeHandler);
+  state.input.removeEventListener("blur", state.boundTextChangeHandler);
+  state.input.removeEventListener("blur", state.boundBlur);
+  if (state.curText.timeout !== null) {
+    clearTimeout(state.curText.timeout);
+    state.curText.timeout = null;
+  }
+  try {
+    state.input.blur();
+  } catch {
+    /* Internet Explorer */
+  }
+  state.active = false;
+  blurEditor(state);
+  state.curText.id = "";
+  state.curText.sentText = "";
+  state.input.value = "";
+}
 
-    /** @type {CurrentTextState} */
-    this.curText = {
+/** @param {TextState} state */
+function startEdit(state) {
+  state.active = true;
+  if (!state.input.parentNode) state.board.appendChild(state.input);
+  state.input.value = "";
+  const clientW = Math.max(
+    document.documentElement.clientWidth,
+    window.innerWidth ?? 0,
+  );
+  let x =
+    state.curText.x * state.Tools.scale - document.documentElement.scrollLeft;
+  if (x + 250 > clientW) x = Math.max(60, clientW - 260);
+  state.input.style.left = `${x}px`;
+  state.input.style.top = `${state.curText.y * state.Tools.scale - document.documentElement.scrollTop + 20}px`;
+  state.input.focus();
+  state.input.addEventListener("input", state.boundTextChangeHandler);
+  state.input.addEventListener("keyup", state.boundTextChangeHandler);
+  state.input.addEventListener("blur", state.boundTextChangeHandler);
+  state.input.addEventListener("blur", state.boundBlur);
+}
+
+/**
+ * @param {TextState} state
+ * @param {SVGTextElement & {id: string}} elem
+ */
+function editOldText(state, elem) {
+  state.curText.id = elem.id;
+  const r = elem.getBoundingClientRect();
+  state.curText.x = state.Tools.pageCoordinateToBoard(
+    r.left + document.documentElement.scrollLeft,
+  );
+  state.curText.y = state.Tools.pageCoordinateToBoard(
+    r.top + r.height + document.documentElement.scrollTop,
+  );
+  state.curText.sentText = elem.textContent || "";
+  state.curText.size =
+    Number(elem.getAttribute("font-size")) || state.curText.size;
+  state.curText.opacity = Number(elem.getAttribute("opacity")) || 1;
+  state.curText.color = elem.getAttribute("fill") || "#000";
+  startEdit(state);
+  state.input.value = elem.textContent || "";
+}
+
+/**
+ * @param {TextState} state
+ * @param {Event | KeyboardEvent | FocusEvent} evt
+ */
+function textChangeHandler(state, evt) {
+  if (evt instanceof KeyboardEvent && evt.key === "Enter") {
+    state.curText.y += 1.5 * state.curText.size;
+    stopEdit(state);
+    startEdit(state);
+  } else if (evt instanceof KeyboardEvent && evt.key === "Escape") {
+    stopEdit(state);
+  }
+  if (performance.now() - state.curText.lastSending <= 100) {
+    if (state.curText.timeout !== null) clearTimeout(state.curText.timeout);
+    state.curText.timeout = setTimeout(() => {
+      textChangeHandler(state, evt);
+    }, 500);
+    return;
+  }
+  if (state.curText.sentText === state.input.value) return;
+  if (state.curText.id === "") {
+    state.curText.id = state.Tools.generateUID("t");
+    state.Tools.drawAndSend({
+      type: contract.liveCreateType,
+      id: state.curText.id,
+      color: state.curText.color,
+      size: state.curText.size,
+      opacity: state.curText.opacity,
+      x: state.curText.x,
+      y: state.curText.y,
+    });
+  }
+  state.Tools.drawAndSend({
+    type: MutationType.UPDATE,
+    id: state.curText.id,
+    txt: truncateText(state.input.value),
+  });
+  state.curText.sentText = state.input.value;
+  state.curText.lastSending = performance.now();
+}
+
+/**
+ * @param {TextState} state
+ * @param {Node & {textContent: string | null}} textField
+ * @param {string | undefined} text
+ */
+function updateText(state, textField, text) {
+  void state;
+  textField.textContent = text ?? "";
+}
+
+/**
+ * @param {TextState} state
+ * @param {NewTextMessage} fieldData
+ * @returns {SVGElement}
+ */
+function createTextField(state, fieldData) {
+  const elem = state.Tools.createSVGElement("text");
+  elem.id = fieldData.id;
+  elem.setAttribute("x", String(fieldData.x || 0));
+  elem.setAttribute("y", String(fieldData.y || 0));
+  elem.setAttribute("font-size", String(fieldData.size || 0));
+  elem.setAttribute("fill", fieldData.color || "#000");
+  elem.setAttribute(
+    "opacity",
+    String(Math.max(0.1, Math.min(1, Number(fieldData.opacity) || 1))),
+  );
+  if (fieldData.txt) elem.textContent = fieldData.txt;
+  state.Tools.drawingArea.appendChild(elem);
+  return elem;
+}
+
+/** @param {ToolBootContext} ctx */
+export function boot(ctx) {
+  const input = document.createElement("input");
+  input.id = "textToolInput";
+  input.type = "text";
+  input.setAttribute("autocomplete", "off");
+  /** @type {TextState} */
+  const state = {
+    Tools: ctx.runtime.Tools,
+    board: ctx.runtime.Tools.board,
+    input,
+    curText: {
       x: 0,
       y: 0,
       size: 360,
@@ -193,266 +338,78 @@ class TextTool {
       sentText: "",
       lastSending: 0,
       timeout: null,
-    };
-
-    this.active = false;
-    this.boundTextChangeHandler = this.textChangeHandler.bind(this);
-    this.boundBlur = this.blur.bind(this);
-  }
-
-  /**
-   * @param {EventTarget | null} target
-   * @returns {target is SVGTextElement & {id: string}}
-   */
-  isExistingTextElement(target) {
-    return target instanceof SVGTextElement;
-  }
-
-  onstart() {
-    this.curText.oldSize = this.Tools.getSize();
-    this.Tools.setSize(this.curText.rawSize);
-  }
-
-  onquit() {
-    this.stopEdit();
-    this.Tools.setSize(this.curText.oldSize);
-  }
-
-  /**
-   * @param {number} x
-   * @param {number} y
-   * @param {MouseEvent | TouchEvent} evt
-   * @param {boolean} isTouchEvent
-   */
-  press(x, y, evt, isTouchEvent) {
-    void isTouchEvent;
-    if (evt.target === this.input) return;
-    if (this.isExistingTextElement(evt.target)) {
-      this.editOldText(evt.target);
-      evt.preventDefault();
-      return;
-    }
-    this.curText.rawSize = this.Tools.getSize();
-    this.curText.size = Math.round(this.curText.rawSize * 1.5 + 120);
-    this.curText.opacity = this.Tools.getOpacity();
-    this.curText.color = this.Tools.getColor();
-    this.curText.x = x;
-    this.curText.y = y + this.curText.size / 2;
-
-    this.stopEdit();
-    this.startEdit();
-    evt.preventDefault();
-  }
-
-  /** @param {SVGTextElement & {id: string}} elem */
-  editOldText(elem) {
-    this.curText.id = elem.id;
-    const r = elem.getBoundingClientRect();
-    const x = this.Tools.pageCoordinateToBoard(
-      r.left + document.documentElement.scrollLeft,
-    );
-    const y = this.Tools.pageCoordinateToBoard(
-      r.top + r.height + document.documentElement.scrollTop,
-    );
-
-    this.curText.x = x;
-    this.curText.y = y;
-    this.curText.sentText = elem.textContent || "";
-    this.curText.size =
-      Number(elem.getAttribute("font-size")) || this.curText.size;
-    this.curText.opacity = Number(elem.getAttribute("opacity")) || 1;
-    this.curText.color = elem.getAttribute("fill") || "#000";
-    this.startEdit();
-    this.input.value = elem.textContent || "";
-  }
-
-  startEdit() {
-    this.active = true;
-    if (!this.input.parentNode && this.board)
-      this.board.appendChild(this.input);
-    this.input.value = "";
-    const clientW = Math.max(
-      document.documentElement.clientWidth,
-      window.innerWidth ?? 0,
-    );
-    let x =
-      this.curText.x * this.Tools.scale - document.documentElement.scrollLeft;
-    if (x + 250 > clientW) {
-      x = Math.max(60, clientW - 260);
-    }
-
-    this.input.style.left = `${x}px`;
-    this.input.style.top = `${this.curText.y * this.Tools.scale - document.documentElement.scrollTop + 20}px`;
-    this.input.focus();
-    this.input.addEventListener("input", this.boundTextChangeHandler);
-    this.input.addEventListener("keyup", this.boundTextChangeHandler);
-    this.input.addEventListener("blur", this.boundTextChangeHandler);
-    this.input.addEventListener("blur", this.boundBlur);
-  }
-
-  stopEdit() {
-    this.input.removeEventListener("input", this.boundTextChangeHandler);
-    this.input.removeEventListener("keyup", this.boundTextChangeHandler);
-    this.input.removeEventListener("blur", this.boundTextChangeHandler);
-    this.input.removeEventListener("blur", this.boundBlur);
-    if (this.curText.timeout !== null) {
-      clearTimeout(this.curText.timeout);
-      this.curText.timeout = null;
-    }
-    try {
-      this.input.blur();
-    } catch {
-      /* Internet Explorer */
-    }
-    this.active = false;
-    this.blur();
-    this.curText.id = "";
-    this.curText.sentText = "";
-    this.input.value = "";
-  }
-
-  blur() {
-    if (this.active) return;
-    this.input.style.top = "-1000px";
-  }
-
-  /** @param {Event | KeyboardEvent | FocusEvent} evt */
-  textChangeHandler(evt) {
-    if (evt instanceof KeyboardEvent && evt.key === "Enter") {
-      this.curText.y += 1.5 * this.curText.size;
-      this.stopEdit();
-      this.startEdit();
-    } else if (evt instanceof KeyboardEvent && evt.key === "Escape") {
-      this.stopEdit();
-    }
-    if (performance.now() - this.curText.lastSending > 100) {
-      if (this.curText.sentText !== this.input.value) {
-        if (this.curText.id === "") {
-          this.curText.id = this.Tools.generateUID("t");
-          this.Tools.drawAndSend({
-            type: contract.liveCreateType,
-            id: this.curText.id,
-            color: this.curText.color,
-            size: this.curText.size,
-            opacity: this.curText.opacity,
-            x: this.curText.x,
-            y: this.curText.y,
-          });
-        }
-        this.Tools.drawAndSend({
-          type: MutationType.UPDATE,
-          id: this.curText.id,
-          txt: truncateText(this.input.value),
-        });
-        this.curText.sentText = this.input.value;
-        this.curText.lastSending = performance.now();
-      }
-    } else {
-      if (this.curText.timeout !== null) clearTimeout(this.curText.timeout);
-      this.curText.timeout = setTimeout(() => {
-        this.textChangeHandler(evt);
-      }, 500);
-    }
-  }
-
-  /**
-   * @param {BoardMessage} data
-   * @param {boolean} isLocal
-   * @returns {boolean | void}
-   */
-  draw(data, isLocal) {
-    void isLocal;
-    const textMessage = /** @type {TextMessage} */ (data);
-    this.Tools.drawingEvent = true;
-    if (textMessage.type === contract.liveCreateType) {
-      this.createTextField(/** @type {NewTextMessage} */ (textMessage));
-      return;
-    }
-    if (textMessage.type === MutationType.UPDATE) {
-      const textField = document.getElementById(textMessage.id);
-      if (!textField || String(textField.tagName).toLowerCase() !== "text") {
-        console.error(
-          "Text: Hmmm... I received text that belongs to an unknown text field",
-        );
-        return false;
-      }
-      this.updateText(textField, textMessage.txt);
-      return;
-    }
-    console.error("Text: Draw instruction with unknown type. ", textMessage);
-  }
-
-  /**
-   * @param {Node & {textContent: string | null}} textField
-   * @param {string | undefined} text
-   */
-  updateText(textField, text) {
-    textField.textContent = text ?? "";
-  }
-
-  /**
-   * @param {NewTextMessage} fieldData
-   * @returns {SVGElement}
-   */
-  createTextField(fieldData) {
-    const elem = this.Tools.createSVGElement("text");
-    elem.id = fieldData.id;
-    elem.setAttribute("x", String(fieldData.x || 0));
-    elem.setAttribute("y", String(fieldData.y || 0));
-    elem.setAttribute("font-size", String(fieldData.size || 0));
-    elem.setAttribute("fill", fieldData.color || "#000");
-    elem.setAttribute(
-      "opacity",
-      String(Math.max(0.1, Math.min(1, Number(fieldData.opacity) || 1))),
-    );
-    if (fieldData.txt) elem.textContent = fieldData.txt;
-    if (!this.Tools.drawingArea) {
-      throw new Error("Missing drawing area for text tool");
-    }
-    this.Tools.drawingArea.appendChild(elem);
-    return elem;
-  }
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<TextTool>}
-   */
-  static async boot(ctx) {
-    return new TextTool(ctx.runtime.Tools);
-  }
-}
-
-/** @param {ToolBootContext} ctx */
-export function boot(ctx) {
-  return TextTool.boot(ctx);
+    },
+    active: false,
+    boundTextChangeHandler: () => {},
+    boundBlur: () => {},
+  };
+  state.boundTextChangeHandler = (evt) => textChangeHandler(state, evt);
+  state.boundBlur = () => blurEditor(state);
+  return state;
 }
 
 /**
- * @param {TextTool} state
+ * @param {TextState} state
  * @param {TextMessage} data
  * @param {boolean} isLocal
  */
 export function draw(state, data, isLocal) {
-  return state.draw(data, isLocal);
+  void isLocal;
+  const textMessage = /** @type {TextMessage} */ (data);
+  state.Tools.drawingEvent = true;
+  if (textMessage.type === contract.liveCreateType) {
+    createTextField(state, /** @type {NewTextMessage} */ (textMessage));
+    return;
+  }
+  if (textMessage.type === MutationType.UPDATE) {
+    const textField = document.getElementById(textMessage.id);
+    if (!textField || String(textField.tagName).toLowerCase() !== "text") {
+      console.error(
+        "Text: Hmmm... I received text that belongs to an unknown text field",
+      );
+      return false;
+    }
+    updateText(state, textField, textMessage.txt);
+    return;
+  }
+  console.error("Text: Draw instruction with unknown type. ", textMessage);
+  return;
 }
 
 /**
- * @param {TextTool} state
+ * @param {TextState} state
  * @param {number} x
  * @param {number} y
  * @param {MouseEvent | TouchEvent} evt
  * @param {boolean} isTouchEvent
  */
 export function press(state, x, y, evt, isTouchEvent) {
-  return state.press(x, y, evt, isTouchEvent);
+  void isTouchEvent;
+  if (evt.target === state.input) return;
+  if (isExistingTextElement(evt.target)) {
+    editOldText(state, evt.target);
+    evt.preventDefault();
+    return;
+  }
+  state.curText.rawSize = state.Tools.getSize();
+  state.curText.size = Math.round(state.curText.rawSize * 1.5 + 120);
+  state.curText.opacity = state.Tools.getOpacity();
+  state.curText.color = state.Tools.getColor();
+  state.curText.x = x;
+  state.curText.y = y + state.curText.size / 2;
+  stopEdit(state);
+  startEdit(state);
+  evt.preventDefault();
 }
 
-/** @param {TextTool} state */
+/** @param {TextState} state */
 export function onstart(state) {
-  return state.onstart();
+  state.curText.oldSize = state.Tools.getSize();
+  state.Tools.setSize(state.curText.rawSize);
 }
 
-/** @param {TextTool} state */
+/** @param {TextState} state */
 export function onquit(state) {
-  return state.onquit();
+  stopEdit(state);
+  state.Tools.setSize(state.curText.oldSize);
 }
