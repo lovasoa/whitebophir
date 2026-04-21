@@ -28,7 +28,7 @@ import { LIMITS } from "../../js/message_common.js";
 import { MutationType } from "../../js/mutation_type.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
-/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
+/** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 
 /**
  * @param {number} value
@@ -316,560 +316,438 @@ const contract = {
 };
 
 export { contract };
+export const shortcut = "p";
+const ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
+/** @typedef {{Tools: MountedAppToolsState, AUTO_FINGER_WHITEOUT: boolean, MAX_PENCIL_CHILDREN: number, minPencilIntervalMs: number, hasUsedStylus: boolean, curLineId: string, lastTime: number, hasSentPoint: boolean, currentLineChildCount: number, renderingLine: SVGPathElement | null, pathDataCache: {[lineId: string]: any[]}, drawingSize: number, whiteOutSize: number, secondary: {name: string, icon: string, active: boolean, switch?: () => void}, mouseCursor: string, serverRenderedElementSelector: string}} PencilState */
 
-class PencilTool {
-  static toolId = contract.toolId;
-  static ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
+/**
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+function getPositiveNumber(value, fallback) {
+  const number = Number(value);
+  return number > 0 ? number : fallback;
+}
 
-  /**
-   * @param {AppToolsState} Tools
-   * @param {(assetFile: string) => string} [assetUrl]
-   */
-  constructor(
-    Tools,
-    assetUrl = /** @param {string} assetFile */ (assetFile) =>
-      `tools/pencil/${assetFile}`,
-  ) {
-    this.Tools = Tools;
-    this.assetUrl = assetUrl;
-    this.AUTO_FINGER_WHITEOUT =
-      Tools.server_config.AUTO_FINGER_WHITEOUT === true;
-    const defaultMaxPencilChildren =
-      Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
-        ? Number(LIMITS.DEFAULT_MAX_CHILDREN)
-        : Number.POSITIVE_INFINITY;
-    this.MAX_PENCIL_CHILDREN =
-      Number(Tools.server_config.MAX_CHILDREN) > 0
-        ? Number(Tools.server_config.MAX_CHILDREN)
-        : defaultMaxPencilChildren;
-    this.minPencilIntervalMs = this.computeMinPencilIntervalMs();
+/** @param {MountedAppToolsState} Tools */
+function computeMinPencilIntervalMs(Tools) {
+  const generalLimit =
+    Tools.getEffectiveRateLimit?.("general") ??
+    Tools.server_config?.RATE_LIMITS?.general ??
+    {};
+  return (
+    getPositiveNumber(generalLimit.periodMs, 4096) /
+    getPositiveNumber(generalLimit.limit, 192)
+  );
+}
 
-    this.hasUsedStylus = false;
-    this.curLineId = "";
-    this.lastTime = performance.now();
-    this.hasSentPoint = false;
-    this.currentLineChildCount = 0;
-    this.renderingLine = null;
-    /** @type {{[lineId: string]: any[]}} */
-    this.pathDataCache = {};
-    this.drawingSize = -1;
-    this.whiteOutSize = -1;
+/**
+ * @param {PencilState} state
+ * @param {number} x
+ * @param {number} y
+ * @returns {{type: "child", parent: string, x: number, y: number}}
+ */
+function createPointMessage(state, x, y) {
+  return { type: "child", parent: state.curLineId, x, y };
+}
 
-    this.name = contract.toolId;
-    this.shortcut = "p";
-    this.secondary = {
-      name: "White-out",
-      icon: "tools/pencil/whiteout_tape.svg",
-      active: false,
-      switch: () => {
-        this.stopLine();
-        this.toggleSize();
-      },
-    };
-    this.mouseCursor = `url('${assetUrl("cursor.svg")}'), crosshair`;
-    this.serverRenderedElementSelector = "path";
+/**
+ * @param {PencilState} state
+ * @param {SVGPathElement & {id: string}} line
+ */
+function getPathData(state, line) {
+  let pathData = state.pathDataCache[line.id];
+  if (!pathData) {
+    pathData = line.getPathData();
+    state.pathDataCache[line.id] = pathData;
   }
+  return pathData;
+}
 
-  /**
-   * @param {unknown} value
-   * @param {number} fallback
-   * @returns {number}
-   */
-  getPositiveNumber(value, fallback) {
-    const number = Number(value);
-    return number > 0 ? number : fallback;
-  }
+/**
+ * @param {PencilState} state
+ * @param {string | undefined} lineId
+ * @returns {(SVGPathElement & {id: string}) | null}
+ */
+function getLineById(state, lineId) {
+  if (!lineId) return null;
+  const line =
+    document.getElementById(lineId) ||
+    (state.Tools.svg ? state.Tools.svg.getElementById(lineId) : null);
+  return line instanceof SVGPathElement
+    ? /** @type {SVGPathElement & {id: string}} */ (line)
+    : null;
+}
 
-  /**
-   * @returns {number}
-   */
-  computeMinPencilIntervalMs() {
-    const generalLimit =
-      this.Tools.getEffectiveRateLimit?.("general") ??
-      this.Tools.server_config?.RATE_LIMITS?.general ??
-      {};
-    return (
-      this.getPositiveNumber(generalLimit.periodMs, 4096) /
-      this.getPositiveNumber(generalLimit.limit, 192)
-    );
-  }
+/**
+ * @param {SVGPathElement & {id: string} | null} line
+ * @param {boolean} active
+ */
+function updateActiveDrawingClass(line, active) {
+  if (!line) return;
+  const current = String(line.getAttribute("class") || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((name) => name !== ACTIVE_DRAWING_CLASS);
+  if (active) current.push(ACTIVE_DRAWING_CLASS);
+  line.setAttribute("class", current.join(" "));
+}
 
-  /**
-   * @returns {number}
-   */
-  getMinPencilIntervalMs() {
-    return this.minPencilIntervalMs;
-  }
+/** @param {PencilState} state */
+function stopLine(state) {
+  updateActiveDrawingClass(state.renderingLine, false);
+  state.curLineId = "";
+  state.hasSentPoint = false;
+  state.currentLineChildCount = 0;
+  state.renderingLine = null;
+}
 
-  /**
-   * @param {number} x
-   * @param {number} y
-   * @returns {{type: "child", parent: string, x: number, y: number}}
-   */
-  createPointMessage(x, y) {
-    return {
-      type: "child",
-      parent: this.curLineId,
-      x: x,
-      y: y,
-    };
-  }
+/**
+ * @param {PencilState} state
+ * @param {boolean} removeCurrentLine
+ */
+function abortLine(state, removeCurrentLine) {
+  const lineId = state.curLineId;
+  stopLine(state);
+  if (!removeCurrentLine || !lineId) return;
+  const line = getLineById(state, lineId);
+  if (!line || line.parentNode !== state.Tools.drawingArea) return;
+  state.Tools.drawingArea.removeChild(line);
+  delete state.pathDataCache[lineId];
+}
 
-  /** @param {TouchEvent} evt */
-  handleAutoWhiteOut(evt) {
-    const touch = evt.touches && evt.touches[0];
-    const touchType =
-      touch && "touchType" in touch
-        ? /** @type {{touchType?: string}} */ (touch).touchType
-        : undefined;
-    if (touchType === "stylus") {
-      if (
-        this.hasUsedStylus &&
-        this.Tools.curTool &&
-        this.Tools.curTool.secondary &&
-        this.Tools.curTool.secondary.active
-      ) {
-        this.Tools.change(toolId);
-      }
-      this.hasUsedStylus = true;
-    }
-    if (touchType === "direct") {
-      if (
-        this.hasUsedStylus &&
-        this.Tools.curTool &&
-        this.Tools.curTool.secondary &&
-        !this.Tools.curTool.secondary.active
-      ) {
-        this.Tools.change(toolId);
-      }
-    }
-  }
-
-  /**
-   * @param {number} x
-   * @param {number} y
-   * @param {MouseEvent | TouchEvent} evt
-   */
-  press(x, y, evt) {
-    evt.preventDefault();
-
+/**
+ * @param {PencilState} state
+ * @param {{type: string, values: number[]}[]} pathData
+ * @returns {{type: string, values: number[]}[] | null}
+ */
+function normalizeServerRenderedPathData(state, pathData) {
+  if (!pathData || !pathData.length) return null;
+  /** @type {{type: string, values: number[]}[]} */
+  const smoothedPathData = [];
+  let cursorX = 0;
+  let cursorY = 0;
+  let hasPoint = false;
+  for (const segment of pathData) {
     if (
-      this.AUTO_FINGER_WHITEOUT &&
-      typeof TouchEvent !== "undefined" &&
-      evt instanceof TouchEvent
+      !segment ||
+      !Array.isArray(segment.values) ||
+      segment.values.length < 2
     ) {
-      this.handleAutoWhiteOut(evt);
+      return null;
     }
-
-    this.curLineId = this.Tools.generateUID("l");
-    this.hasSentPoint = false;
-    this.currentLineChildCount = 0;
-
-    const initialData = {
-      type: contract.liveCreateType,
-      id: this.curLineId,
-      color: this.secondary.active ? "#ffffff" : this.Tools.getColor(),
-      size: this.Tools.getSize(),
-      opacity: this.secondary.active ? 1 : this.Tools.getOpacity(),
-    };
-
-    this.Tools.drawAndSend(initialData, toolId);
-    this.move(x, y, evt);
-  }
-
-  /**
-   * @param {number} x
-   * @param {number} y
-   * @param {MouseEvent | TouchEvent | undefined} evt
-   */
-  move(x, y, evt) {
-    if (
-      this.curLineId !== "" &&
-      this.currentLineChildCount >= this.MAX_PENCIL_CHILDREN
-    ) {
-      this.stopLine();
-    }
-    if (
-      this.curLineId !== "" &&
-      (!this.hasSentPoint ||
-        performance.now() - this.lastTime > this.getMinPencilIntervalMs())
-    ) {
-      this.Tools.drawAndSend(this.createPointMessage(x, y), toolId);
-      this.currentLineChildCount += 1;
-      this.hasSentPoint = true;
-      this.lastTime = performance.now();
-      if (this.currentLineChildCount >= this.MAX_PENCIL_CHILDREN) {
-        this.stopLine();
-      }
-    }
-    if (evt) evt.preventDefault();
-  }
-
-  /**
-   * @param {number} x
-   * @param {number} y
-   */
-  release(x, y) {
-    this.move(x, y, undefined);
-    this.stopLine();
-  }
-
-  stopLine() {
-    this.updateActiveDrawingClass(this.renderingLine, false);
-    this.curLineId = "";
-    this.hasSentPoint = false;
-    this.currentLineChildCount = 0;
-    this.renderingLine = null;
-  }
-
-  /**
-   * @param {boolean} removeCurrentLine
-   */
-  abortLine(removeCurrentLine) {
-    const lineId = this.curLineId;
-    this.stopLine();
-    if (!removeCurrentLine || !lineId) return;
-    const line = this.getLineById(lineId);
-    if (!line || !this.Tools.drawingArea) return;
-    if (line.parentNode === this.Tools.drawingArea) {
-      this.Tools.drawingArea.removeChild(line);
-    }
-    delete this.pathDataCache[lineId];
-  }
-
-  /** @param {{type?: string | number, id?: string, color?: string, size?: number, opacity?: number, parent?: string, x?: number, y?: number}} data */
-  draw(data) {
-    this.Tools.drawingEvent = true;
-    switch (data.type) {
-      case "line":
-        this.renderingLine = this.createLine(
-          /** @type {{type: "line", id: string, color?: string, size?: number, opacity?: number}} */ (
-            data
-          ),
-        );
-        break;
-      case "child": {
-        const childData =
-          /** @type {{type: "child", parent: string, x: number, y: number}} */ (
-            data
-          );
-        let line =
-          this.renderingLine && this.renderingLine.id === childData.parent
-            ? this.renderingLine
-            : this.getLineById(childData.parent);
-        if (!line) {
-          console.error(
-            "Pencil: Hmmm... I received a point of a line that has not been created (%s).",
-            childData.parent,
-          );
-          line = this.renderingLine = this.createLine({
-            type: "line",
-            id: childData.parent,
-          });
-        }
-        this.addPoint(line, childData.x, childData.y);
-        break;
-      }
-      case "endline":
-        break;
-      default:
-        console.error("Pencil: Draw instruction with unknown type. ", data);
-        break;
-    }
-  }
-
-  /** @param {SVGPathElement & {id: string}} line */
-  getPathData(line) {
-    let pathData = this.pathDataCache[line.id];
-    if (!pathData) {
-      pathData = line.getPathData();
-      this.pathDataCache[line.id] = pathData;
-    }
-    return pathData;
-  }
-
-  /**
-   * @param {string | undefined} lineId
-   * @returns {(SVGPathElement & {id: string}) | null}
-   */
-  getLineById(lineId) {
-    if (!lineId) return null;
-    const line =
-      document.getElementById(lineId) ||
-      (this.Tools.svg ? this.Tools.svg.getElementById(lineId) : null);
-    return line instanceof SVGPathElement
-      ? /** @type {SVGPathElement & {id: string}} */ (line)
-      : null;
-  }
-
-  /**
-   * @param {SVGPathElement & {id: string}} line
-   * @param {number} x
-   * @param {number} y
-   */
-  addPoint(line, x, y) {
-    const pts = wboPencilPoint(this.getPathData(line), x, y);
-    line.setPathData(pts);
-  }
-
-  /**
-   * @param {SVGPathElement & {id: string} | null} line
-   * @param {boolean} active
-   * @returns {void}
-   */
-  updateActiveDrawingClass(line, active) {
-    if (!line) return;
-    const className = PencilTool.ACTIVE_DRAWING_CLASS;
-    const current = String(line.getAttribute("class") || "")
-      .split(/\s+/)
-      .filter(Boolean)
-      .filter((name) => name !== className);
-    if (active) current.push(className);
-    if (current.length > 0) {
-      line.setAttribute("class", current.join(" "));
-      return;
-    }
-    line.setAttribute("class", "");
-  }
-
-  /**
-   * @param {SVGElement} line
-   */
-  normalizeServerRenderedElement(line) {
-    if (!(line instanceof SVGPathElement)) return;
-    delete this.pathDataCache[line.id];
-    const normalizedPathData = this.normalizeServerRenderedPathData(
-      this.getPathData(line),
-    );
-    if (!normalizedPathData || normalizedPathData.length === 0) {
-      console.error(
-        "Pencil: unable to normalize server-rendered path '%s'; dropping segment.",
-        line.id ?? "",
-      );
-      const cachedPathData = this.getPathData(line);
-      if (cachedPathData && cachedPathData.length > 0) {
-        this.pathDataCache[line.id] = cachedPathData;
-      } else {
-        delete this.pathDataCache[line.id];
-      }
-      return;
-    }
-    line.setPathData(normalizedPathData);
-    this.pathDataCache[line.id] = normalizedPathData;
-  }
-
-  /**
-   * @param {{type: string, values: number[]}[]} pathData
-   * @returns {{type: string, values: number[]}[] | null}
-   */
-  normalizeServerRenderedPathData(pathData) {
-    if (!pathData || !pathData.length) return null;
-    /** @type {{type: string, values: number[]}[]} */
-    const smoothedPathData = [];
-    let cursorX = 0;
-    let cursorY = 0;
-    let hasPoint = false;
-
-    for (const segment of pathData) {
-      if (
-        !segment ||
-        !Array.isArray(segment.values) ||
-        segment.values.length < 2
-      ) {
-        return null;
-      }
-      const x = Number(segment.values[segment.values.length - 2]);
-      const y = Number(segment.values[segment.values.length - 1]);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) {
-        return null;
-      }
-
-      if (segment.type === "M") {
-        cursorX = x;
-        cursorY = y;
-        hasPoint = true;
-      } else if (segment.type === "L") {
-        if (!hasPoint) return null;
-        cursorX = x;
-        cursorY = y;
-      } else if (segment.type === "m") {
-        cursorX += x;
-        cursorY += y;
-        hasPoint = true;
-      } else if (segment.type === "l") {
-        if (!hasPoint) return null;
-        cursorX += x;
-        cursorY += y;
-      } else {
-        return null;
-      }
-
-      wboPencilPoint(smoothedPathData, cursorX, cursorY);
-    }
-
-    return smoothedPathData;
-  }
-
-  /**
-   * @param {{type: "line", id: string, color?: string, size?: number, opacity?: number}} lineData
-   * @returns {SVGPathElement & {id: string}}
-   */
-  createLine(lineData) {
-    let line = this.getLineById(lineData.id);
-    delete this.pathDataCache[lineData.id];
-    if (line) {
-      line.setPathData([]);
+    const x = Number(segment.values[segment.values.length - 2]);
+    const y = Number(segment.values[segment.values.length - 1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    if (segment.type === "M") {
+      cursorX = x;
+      cursorY = y;
+      hasPoint = true;
+    } else if (segment.type === "L") {
+      if (!hasPoint) return null;
+      cursorX = x;
+      cursorY = y;
+    } else if (segment.type === "m") {
+      cursorX += x;
+      cursorY += y;
+      hasPoint = true;
+    } else if (segment.type === "l") {
+      if (!hasPoint) return null;
+      cursorX += x;
+      cursorY += y;
     } else {
-      line = /** @type {SVGPathElement & {id: string}} */ (
-        this.Tools.createSVGElement("path")
-      );
+      return null;
     }
-    line.id = lineData.id || "";
-    line.setAttribute("stroke", lineData.color || "black");
-    line.setAttribute("stroke-width", String(lineData.size || 10));
-    line.setAttribute(
-      "opacity",
-      String(Math.max(0.1, Math.min(1, Number(lineData.opacity) || 1))),
+    wboPencilPoint(smoothedPathData, cursorX, cursorY);
+  }
+  void state;
+  return smoothedPathData;
+}
+
+/**
+ * @param {PencilState} state
+ * @param {{type: "line", id: string, color?: string, size?: number, opacity?: number}} lineData
+ * @returns {SVGPathElement & {id: string}}
+ */
+function createLine(state, lineData) {
+  let line = getLineById(state, lineData.id);
+  delete state.pathDataCache[lineData.id];
+  if (line) line.setPathData([]);
+  else {
+    line = /** @type {SVGPathElement & {id: string}} */ (
+      state.Tools.createSVGElement("path")
     );
-    if (!this.Tools.drawingArea) {
-      throw new Error("Missing drawing area for pencil tool");
-    }
-    if (line.parentNode !== this.Tools.drawingArea) {
-      this.Tools.drawingArea.appendChild(line);
-    }
-    this.updateActiveDrawingClass(line, line.id === this.curLineId);
-    return line;
   }
-
-  restoreDrawingSize() {
-    this.whiteOutSize = this.Tools.getSize();
-    if (this.drawingSize !== -1) {
-      this.Tools.setSize(this.drawingSize);
-    }
+  line.id = lineData.id || "";
+  line.setAttribute("stroke", lineData.color || "black");
+  line.setAttribute("stroke-width", String(lineData.size || 10));
+  line.setAttribute(
+    "opacity",
+    String(Math.max(0.1, Math.min(1, Number(lineData.opacity) || 1))),
+  );
+  if (line.parentNode !== state.Tools.drawingArea) {
+    state.Tools.drawingArea.appendChild(line);
   }
+  updateActiveDrawingClass(line, line.id === state.curLineId);
+  return line;
+}
 
-  restoreWhiteOutSize() {
-    this.drawingSize = this.Tools.getSize();
-    if (this.whiteOutSize !== -1) {
-      this.Tools.setSize(this.whiteOutSize);
+/** @param {PencilState} state */
+function restoreDrawingSize(state) {
+  state.whiteOutSize = state.Tools.getSize();
+  if (state.drawingSize !== -1) state.Tools.setSize(state.drawingSize);
+}
+
+/** @param {PencilState} state */
+function restoreWhiteOutSize(state) {
+  state.drawingSize = state.Tools.getSize();
+  if (state.whiteOutSize !== -1) state.Tools.setSize(state.whiteOutSize);
+}
+
+/** @param {PencilState} state */
+function toggleSize(state) {
+  if (state.secondary.active) restoreWhiteOutSize(state);
+  else restoreDrawingSize(state);
+}
+
+/**
+ * @param {PencilState} state
+ * @param {TouchEvent} evt
+ */
+function handleAutoWhiteOut(state, evt) {
+  const touch = evt.touches && evt.touches[0];
+  const touchType =
+    touch && "touchType" in touch
+      ? /** @type {{touchType?: string}} */ (touch).touchType
+      : undefined;
+  if (touchType === "stylus") {
+    if (state.hasUsedStylus && state.Tools.curTool?.secondary?.active) {
+      state.Tools.change(toolId);
     }
+    state.hasUsedStylus = true;
   }
-
-  toggleSize() {
-    if (this.secondary.active) {
-      this.restoreWhiteOutSize();
-    } else {
-      this.restoreDrawingSize();
+  if (touchType === "direct") {
+    if (
+      state.hasUsedStylus &&
+      state.Tools.curTool?.secondary &&
+      !state.Tools.curTool.secondary.active
+    ) {
+      state.Tools.change(toolId);
     }
-  }
-
-  /** @param {{type?: string | number, id?: string}} message */
-  onMessage(message) {
-    const mutationType = message.type;
-    if (mutationType === MutationType.CLEAR) {
-      this.abortLine(false);
-      return;
-    }
-    if (mutationType === MutationType.DELETE && message.id === this.curLineId) {
-      this.abortLine(false);
-    }
-  }
-
-  onSocketDisconnect() {
-    this.abortLine(true);
-  }
-
-  onstart() {
-    this.hasUsedStylus = false;
-    if (this.secondary.active) {
-      this.restoreWhiteOutSize();
-    }
-  }
-
-  onquit() {
-    if (this.secondary.active) {
-      this.restoreDrawingSize();
-    }
-  }
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<PencilTool>}
-   */
-  static async boot(ctx) {
-    return new PencilTool(ctx.runtime.Tools, ctx.assetUrl);
   }
 }
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  return PencilTool.boot(ctx);
+  const Tools = ctx.runtime.Tools;
+  const defaultMaxPencilChildren =
+    Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
+      ? Number(LIMITS.DEFAULT_MAX_CHILDREN)
+      : Number.POSITIVE_INFINITY;
+  /** @type {PencilState} */
+  const state = {
+    Tools,
+    AUTO_FINGER_WHITEOUT: Tools.server_config.AUTO_FINGER_WHITEOUT === true,
+    MAX_PENCIL_CHILDREN:
+      Number(Tools.server_config.MAX_CHILDREN) > 0
+        ? Number(Tools.server_config.MAX_CHILDREN)
+        : defaultMaxPencilChildren,
+    minPencilIntervalMs: computeMinPencilIntervalMs(Tools),
+    hasUsedStylus: false,
+    curLineId: "",
+    lastTime: performance.now(),
+    hasSentPoint: false,
+    currentLineChildCount: 0,
+    renderingLine: null,
+    pathDataCache: {},
+    drawingSize: -1,
+    whiteOutSize: -1,
+    secondary: {
+      name: "White-out",
+      icon: "tools/pencil/whiteout_tape.svg",
+      active: false,
+    },
+    mouseCursor: `url('${ctx.assetUrl("cursor.svg")}'), crosshair`,
+    serverRenderedElementSelector: "path",
+  };
+  state.secondary.switch = () => {
+    stopLine(state);
+    toggleSize(state);
+  };
+  return state;
 }
 
 /**
- * @param {PencilTool} state
+ * @param {PencilState} state
  * @param {any} data
  */
 export function draw(state, data) {
-  return state.draw(data);
+  state.Tools.drawingEvent = true;
+  switch (data.type) {
+    case "line":
+      state.renderingLine = createLine(
+        state,
+        /** @type {{type: "line", id: string, color?: string, size?: number, opacity?: number}} */ (
+          data
+        ),
+      );
+      return;
+    case "child": {
+      const childData =
+        /** @type {{type: "child", parent: string, x: number, y: number}} */ (
+          data
+        );
+      let line =
+        state.renderingLine && state.renderingLine.id === childData.parent
+          ? state.renderingLine
+          : getLineById(state, childData.parent);
+      if (!line) {
+        console.error(
+          "Pencil: Hmmm... I received a point of a line that has not been created (%s).",
+          childData.parent,
+        );
+        line = state.renderingLine = createLine(state, {
+          type: "line",
+          id: childData.parent,
+        });
+      }
+      line.setPathData(
+        wboPencilPoint(getPathData(state, line), childData.x, childData.y),
+      );
+      return;
+    }
+    case "endline":
+      return;
+    default:
+      console.error("Pencil: Draw instruction with unknown type. ", data);
+  }
 }
 
 /**
- * @param {PencilTool} state
+ * @param {PencilState} state
  * @param {number} x
  * @param {number} y
  * @param {MouseEvent | TouchEvent} evt
  */
 export function press(state, x, y, evt) {
-  return state.press(x, y, evt);
+  evt.preventDefault();
+  if (
+    state.AUTO_FINGER_WHITEOUT &&
+    typeof TouchEvent !== "undefined" &&
+    evt instanceof TouchEvent
+  ) {
+    handleAutoWhiteOut(state, evt);
+  }
+  state.curLineId = state.Tools.generateUID("l");
+  state.hasSentPoint = false;
+  state.currentLineChildCount = 0;
+  state.Tools.drawAndSend(
+    {
+      type: contract.liveCreateType,
+      id: state.curLineId,
+      color: state.secondary.active ? "#ffffff" : state.Tools.getColor(),
+      size: state.Tools.getSize(),
+      opacity: state.secondary.active ? 1 : state.Tools.getOpacity(),
+    },
+    toolId,
+  );
+  move(state, x, y, evt);
 }
 
 /**
- * @param {PencilTool} state
+ * @param {PencilState} state
  * @param {number} x
  * @param {number} y
  * @param {MouseEvent | TouchEvent | undefined} evt
  */
 export function move(state, x, y, evt) {
-  return state.move(x, y, evt);
+  if (
+    state.curLineId !== "" &&
+    state.currentLineChildCount >= state.MAX_PENCIL_CHILDREN
+  ) {
+    stopLine(state);
+  }
+  if (
+    state.curLineId !== "" &&
+    (!state.hasSentPoint ||
+      performance.now() - state.lastTime > state.minPencilIntervalMs)
+  ) {
+    state.Tools.drawAndSend(createPointMessage(state, x, y), toolId);
+    state.currentLineChildCount += 1;
+    state.hasSentPoint = true;
+    state.lastTime = performance.now();
+    if (state.currentLineChildCount >= state.MAX_PENCIL_CHILDREN) {
+      stopLine(state);
+    }
+  }
+  if (evt) evt.preventDefault();
 }
 
 /**
- * @param {PencilTool} state
+ * @param {PencilState} state
  * @param {number} x
  * @param {number} y
  */
 export function release(state, x, y) {
-  return state.release(x, y);
+  move(state, x, y, undefined);
+  stopLine(state);
 }
 
 /**
- * @param {PencilTool} state
+ * @param {PencilState} state
  * @param {SVGElement} line
  */
 export function normalizeServerRenderedElement(state, line) {
-  return state.normalizeServerRenderedElement(line);
+  if (!(line instanceof SVGPathElement)) return;
+  delete state.pathDataCache[line.id];
+  const normalizedPathData = normalizeServerRenderedPathData(
+    state,
+    getPathData(state, line),
+  );
+  if (!normalizedPathData || normalizedPathData.length === 0) {
+    console.error(
+      "Pencil: unable to normalize server-rendered path '%s'; dropping segment.",
+      line.id ?? "",
+    );
+    const cachedPathData = getPathData(state, line);
+    if (cachedPathData && cachedPathData.length > 0) {
+      state.pathDataCache[line.id] = cachedPathData;
+    } else {
+      delete state.pathDataCache[line.id];
+    }
+    return;
+  }
+  line.setPathData(normalizedPathData);
+  state.pathDataCache[line.id] = normalizedPathData;
 }
 
 /**
- * @param {PencilTool} state
+ * @param {PencilState} state
  * @param {{type?: string | number, id?: string}} message
  */
 export function onMessage(state, message) {
-  return state.onMessage(message);
+  if (message.type === MutationType.CLEAR) {
+    abortLine(state, false);
+    return;
+  }
+  if (message.type === MutationType.DELETE && message.id === state.curLineId) {
+    abortLine(state, false);
+  }
 }
 
-/** @param {PencilTool} state */
+/** @param {PencilState} state */
 export function onSocketDisconnect(state) {
-  return state.onSocketDisconnect();
+  abortLine(state, true);
 }
 
-/** @param {PencilTool} state */
+/** @param {PencilState} state */
 export function onstart(state) {
-  return state.onstart();
+  state.hasUsedStylus = false;
+  if (state.secondary.active) restoreWhiteOutSize(state);
 }
 
-/** @param {PencilTool} state */
+/** @param {PencilState} state */
 export function onquit(state) {
-  return state.onquit();
+  if (state.secondary.active) restoreDrawingSize(state);
 }
