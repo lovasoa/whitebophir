@@ -168,25 +168,22 @@ function installShutdownHandlers(server, sockets) {
     logger.info("server.shutdown_started", { signal });
     try {
       await sockets.shutdown?.();
-      await new Promise((resolve, reject) => {
-        server.close((error) => {
-          if (error) {
-            if (
-              typeof error === "object" &&
-              error &&
-              "code" in error &&
-              error.code === "ERR_SERVER_NOT_RUNNING"
-            ) {
-              resolve(undefined);
+      await new Promise(
+        /**
+         * @param {(value?: void | PromiseLike<void>) => void} resolve
+         * @param {(reason?: unknown) => void} reject
+         */
+        (resolve, reject) => {
+          server.close((error) => {
+            if (!error || errorCode(error) === "ERR_SERVER_NOT_RUNNING") {
+              resolve();
               return;
             }
             reject(error);
-          } else {
-            resolve(undefined);
-          }
-        });
-        server.closeAllConnections?.();
-      });
+          });
+          server.closeAllConnections?.();
+        },
+      );
       logger.info("server.shutdown_completed", { signal });
       process.exit(0);
     } catch (error) {
