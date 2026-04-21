@@ -1,21 +1,5 @@
+import { SerialTaskQueue } from "./serial_task_queue.mjs";
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
-
-/**
- * @returns {{runExclusive: <T>(task: () => Promise<T> | T) => Promise<T>}}
- */
-function createSerialQueue() {
-  let pending = Promise.resolve();
-  return {
-    runExclusive(task) {
-      const run = pending.then(task, task);
-      pending = run.then(
-        () => undefined,
-        () => undefined,
-      );
-      return run;
-    },
-  };
-}
 
 /**
  * @param {{
@@ -59,7 +43,7 @@ const BOARD_SESSIONS = new WeakMap();
  * }}
  */
 export function createBoardSession(board) {
-  const queue = createSerialQueue();
+  const queue = new SerialTaskQueue();
   return {
     board,
     async acceptPersistentMutation(

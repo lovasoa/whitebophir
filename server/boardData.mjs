@@ -53,6 +53,7 @@ import {
 } from "./message_validation.mjs";
 import { createMutationLog } from "./mutation_log.mjs";
 import observability from "./observability.mjs";
+import { SerialTaskQueue } from "./serial_task_queue.mjs";
 import {
   boardSvgBackupPath,
   boardSvgPath,
@@ -67,27 +68,6 @@ function defaultBoardMetadata() {
   return {
     readonly: false,
   };
-}
-
-class SerialTaskQueue {
-  constructor() {
-    this.lastTask = Promise.resolve();
-  }
-
-  /**
-   * @template T
-   * @param {() => Promise<T>} task
-   * @returns {Promise<T>}
-   */
-  runExclusive(task) {
-    const runTask = () => task();
-    const result = this.lastTask.then(runTask, runTask);
-    this.lastTask = result.then(
-      function clearTask() {},
-      function swallowTaskError() {},
-    );
-    return result;
-  }
 }
 
 const STANDALONE_BOARD_LOAD_BYTES_THRESHOLD = 1024 * 1024;
