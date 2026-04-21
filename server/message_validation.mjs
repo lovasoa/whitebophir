@@ -1,5 +1,8 @@
 import MessageCommon from "../client-data/js/message_common.js";
-import { TOOL_CATALOG } from "../client-data/js/tool_catalog.js";
+import {
+  TOOL_CATALOG,
+  TOOL_CATALOG_BY_NAME,
+} from "../client-data/js/tool_catalog.js";
 import { hasMessageTool } from "../client-data/js/message_shape.js";
 import {
   getMutationType,
@@ -52,9 +55,8 @@ const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
 
 /** @type {string[]} */
 const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
-/** @type {ToolContract[]} */
-const SHAPE_CONTRACTS = Object.values(TOOL_CONTRACTS_BY_NAME).filter(
-  (contract) => contract.shapeType !== undefined,
+const SHAPE_TOOLS = TOOL_CATALOG.filter(
+  (entry) => entry.shapeType !== undefined,
 );
 const SHAPE_CREATE_FIELDS = {
   id: "id",
@@ -397,21 +399,13 @@ function buildPerTypeSchemas(fieldsByType, build) {
 }
 
 const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
-  SHAPE_CONTRACTS.map((contract) => {
-    const liveType = contract.shapeType;
-    const createType =
-      typeof liveType === "string"
-        ? liveType
-        : contract.liveCreateType || contract.storedTagName;
+  SHAPE_TOOLS.map((entry) => {
+    const createType = entry.shapeType || entry.liveCreateType || "";
     return [
-      contract.toolName,
+      entry.name,
       {
         [createType]: {
-          ...buildLiveSchema(
-            contract.toolName,
-            createType,
-            SHAPE_CREATE_FIELDS,
-          ),
+          ...buildLiveSchema(entry.name, createType, SHAPE_CREATE_FIELDS),
           x2: optional(normalizeCoord, {
             defaultValue: defaultCoordinateFromX,
           }),
@@ -419,10 +413,10 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
             defaultValue: defaultCoordinateFromY,
           }),
         },
-        update: buildLiveSchema(contract.toolName, "update", {
+        update: buildLiveSchema(entry.name, "update", {
           id: "id",
           ...Object.fromEntries(
-            (contract.updatableFields || []).map((field) => [field, "coord"]),
+            (entry.updatableFields || []).map((field) => [field, "coord"]),
           ),
         }),
       },
@@ -432,10 +426,10 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
 
 /** @type {StoredToolSchemas} */
 const STORED_SHAPE_SCHEMAS = Object.fromEntries(
-  SHAPE_CONTRACTS.map((contract) => {
+  SHAPE_TOOLS.map((entry) => {
     const schema = buildStoredSchema(
-      contract.toolName,
-      contract.storedTagName,
+      entry.name,
+      entry.storedTagName || "",
       SHAPE_STORED_FIELDS,
     );
     schema.x2 = optional(normalizeCoord, {
@@ -444,7 +438,7 @@ const STORED_SHAPE_SCHEMAS = Object.fromEntries(
     schema.y2 = optional(normalizeCoord, {
       defaultValue: defaultCoordinateFromY,
     });
-    return [contract.toolName, schema];
+    return [entry.name, schema];
   }),
 );
 
@@ -468,7 +462,9 @@ const CONTRACT_STORED_ITEM_SCHEMAS = Object.fromEntries(
       contract.toolName,
       buildStoredSchema(
         contract.toolName,
-        contract.storedItemType || contract.storedTagName,
+        TOOL_CATALOG_BY_NAME[contract.toolName]?.liveCreateType ||
+          TOOL_CATALOG_BY_NAME[contract.toolName]?.storedTagName ||
+          "",
         contract.storedFields,
       ),
     ]),

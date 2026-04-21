@@ -1,17 +1,12 @@
+import { TOOL_CATALOG_BY_NAME } from "../js/tool_catalog.js";
 /**
  * @typedef {{attributes?: {[name: string]: string}, rawAttributes?: string, id?: string, content?: string}} StoredSvgEntry
  * @typedef {{a: number, b: number, c: number, d: number, e: number, f: number}} SvgTransform
  * @typedef {{minX: number, minY: number, maxX: number, maxY: number}} LocalBounds
  * @typedef {{id: string, tool: string, paintOrder?: number, data: object, localBounds: LocalBounds}} StoredShapeSummary
- * @typedef {{id: string, opacity: number | undefined, transform: SvgTransform | undefined, decorateStoredItemData: (data: object, opacity: number | undefined, transform: SvgTransform | undefined) => object, parseNumber: (value: unknown) => number | undefined, readStoredSvgAttribute: (entry: StoredSvgEntry, name: string) => string | undefined}} StoredShapeHelpers
  * @typedef {{id?: string, color?: string, size?: number, opacity?: number, transform?: SvgTransform, x?: number, y?: number, x2?: number, y2?: number}} StoredShapeItem
  * @typedef {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: SvgTransform | undefined) => string}} StoredShapeSerializeHelpers
- * @typedef {{tool: "Rectangle" | "Ellipse" | "Straight line", id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number, x: number, y: number, x2: number, y2: number}} RenderableShape
- * @typedef {{htmlspecialchars: (value: unknown) => string, numberOrZero: (value: number | undefined) => number, renderTranslate: (shape: RenderableShape) => string}} RectangleRenderHelpers
- * @typedef {{renderPath: (shape: RenderableShape, path: string) => string}} PathRenderHelpers
- * @typedef {{toolName: string, storedTagName: string, liveCreateType?: string, storedItemType?: string, updatableFields?: string[], drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", shapeType?: string, liveMessageFields?: {[type: string]: {[field: string]: string}}, storedFields?: {[field: string]: string}, normalizeStoredItemData?: (item: any, raw: any, helpers: any) => void, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: any) => any, serializeStoredSvgItem: (item: any, helpers: any) => string, parseStoredSvgItem?: (summary: any, entry: StoredSvgEntry, helpers: any) => any, renderBoardSvg?: (shape: any, helpers: any) => string}} ToolContract
- * @typedef {ToolContract} StoredShapeContract
- * @typedef {ToolContract} ShapeContract
+ * @typedef {{toolName: string, storedTagName?: string, liveCreateType?: string, updatableFields?: string[], drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", shapeType?: string, liveMessageFields?: {[type: string]: {[field: string]: string}}, storedFields?: {[field: string]: string}, normalizeStoredItemData?: (item: any, raw: any, helpers: any) => void, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: any) => any, serializeStoredSvgItem: (item: any, helpers: any) => string, parseStoredSvgItem?: (summary: any, entry: StoredSvgEntry, helpers: any) => any, renderBoardSvg?: (shape: any, helpers: any) => string}} ToolContract
  */
 
 /**
@@ -71,4 +66,19 @@ export function serializeStoredShapeTag(tagName, attrs, item, helpers) {
     ` stroke="${color}" stroke-width="${size}" fill="none"` +
     `${opacity}${transform}></${tagName}>`
   );
+}
+
+/**
+ * @param {string} toolName
+ * @param {Omit<ToolContract, "toolName" | "storedTagName" | "liveCreateType">} contract
+ * @returns {ToolContract & {storedTagName: string, liveCreateType?: string}}
+ */
+export function defineShapeContract(toolName, contract) {
+  const entry = TOOL_CATALOG_BY_NAME[toolName];
+  return {
+    toolName,
+    storedTagName: entry?.storedTagName || "",
+    liveCreateType: entry?.liveCreateType,
+    ...contract,
+  };
 }

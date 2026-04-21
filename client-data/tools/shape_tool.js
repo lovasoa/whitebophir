@@ -4,7 +4,7 @@ import { getMutationType, MutationType } from "../js/message_tool_metadata.js";
 
 /**
  * @param {{
- *   contract: {toolName: string, liveCreateType?: string, storedTagName: string},
+ *   contract: import("./shape_contract.js").ToolContract & {liveCreateType?: string, storedTagName: string},
  *   shortcut: string,
  *   icon: string,
  *   stylesheet: string,
@@ -21,6 +21,7 @@ import { getMutationType, MutationType } from "../js/message_tool_metadata.js";
 export function createShapeToolClass(options) {
   return class ShapeTool {
     static toolName = options.contract.toolName;
+    static contract = options.contract;
 
     /**
      * @param {any} Tools

@@ -1,4 +1,6 @@
-const toolName = "Pencil";
+import { TOOL_CATALOG_BY_NAME } from "../../js/tool_catalog.js";
+
+const toolName = /** @type {string} */ (TOOL_CATALOG_BY_NAME.Pencil?.name);
 
 /**
  * @param {number} value
@@ -197,12 +199,6 @@ export { parsePathData, pointsFromPathData, renderPencilPath, scanPathSummary };
 /** @type {import("../shape_contract.js").ToolContract} */
 const pencilContract = {
   toolName,
-  storedTagName: "path",
-  liveCreateType: "line",
-  storedItemType: "line",
-  payloadKind: "children",
-  updatableFields: [],
-  drawsOnBoard: true,
   liveMessageFields: {
     line: {
       id: "id",

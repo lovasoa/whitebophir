@@ -1,4 +1,6 @@
-const toolName = "Text";
+import { TOOL_CATALOG_BY_NAME } from "../../js/tool_catalog.js";
+
+const toolName = /** @type {string} */ (TOOL_CATALOG_BY_NAME.Text?.name);
 
 /**
  * @param {number} x
@@ -19,12 +21,6 @@ function textBoundsFromLength(x, y, size, textLength) {
 /** @type {import("../shape_contract.js").ToolContract} */
 const textContract = {
   toolName,
-  storedTagName: "text",
-  liveCreateType: "new",
-  storedItemType: "new",
-  payloadKind: "text",
-  updatableFields: ["txt"],
-  drawsOnBoard: true,
   liveMessageFields: {
     new: {
       id: "id",

@@ -1,6 +1,4 @@
 /**
- * Minimal tool catalog shared between the server-rendered toolbar and the
- * client boot sequence.
  * @typedef {{
  *   name: string,
  *   visibleWhenReadOnly: boolean,
@@ -8,13 +6,18 @@
  *   updatableFields?: string[],
  *   liveMessageFields?: {[type: string]: {[field: string]: string}},
  *   batchMessageFields?: {[type: string]: {[field: string]: string}},
+ *   drawsOnBoard?: boolean,
+ *   payloadKind?: "inline" | "text" | "children",
+ *   shapeType?: string,
+ *   liveCreateType?: string,
+ *   storedTagName?: string,
  *   iconFile?: string,
  *   secondaryIconFile?: string,
  *   stylesheetFile?: string,
  * }} ToolCatalogEntry
  */
 
-/** @param {string} name @param {Partial<ToolCatalogEntry>} [options] @returns {ToolCatalogEntry} */
+/** @param {string} name @param {Partial<ToolCatalogEntry>} [options] */
 function tool(name, options = {}) {
   return {
     name,
@@ -24,26 +27,57 @@ function tool(name, options = {}) {
   };
 }
 
+/** @param {string} name @param {Partial<ToolCatalogEntry>} [options] */
+function drawingTool(name, options = {}) {
+  return tool(name, { drawsOnBoard: true, ...options });
+}
+
+/** @param {string} name @param {Partial<ToolCatalogEntry>} [options] */
+function inlineShapeTool(name, options = {}) {
+  return drawingTool(name, { payloadKind: "inline", ...options });
+}
+
 /** @type {ToolCatalogEntry[]} */
 export const TOOL_CATALOG = [
-  tool("Pencil", {
+  drawingTool("Pencil", {
+    payloadKind: "children",
+    liveCreateType: "line",
+    storedTagName: "path",
     secondaryIconFile: "whiteout_tape.svg",
     stylesheetFile: "pencil.css",
   }),
-  tool("Straight line", {
+  inlineShapeTool("Straight line", {
+    shapeType: "straight",
+    liveCreateType: "straight",
+    storedTagName: "line",
+    updatableFields: ["x2", "y2"],
     secondaryIconFile: "icon-straight.svg",
     stylesheetFile: "straight-line.css",
   }),
-  tool("Rectangle", {
+  inlineShapeTool("Rectangle", {
+    shapeType: "rect",
+    liveCreateType: "rect",
+    storedTagName: "rect",
+    updatableFields: ["x", "y", "x2", "y2"],
     secondaryIconFile: "icon-square.svg",
     stylesheetFile: "rectangle.css",
   }),
-  tool("Ellipse", {
+  inlineShapeTool("Ellipse", {
+    shapeType: "ellipse",
+    liveCreateType: "ellipse",
+    storedTagName: "ellipse",
+    updatableFields: ["x", "y", "x2", "y2"],
     iconFile: "icon-ellipse.svg",
     secondaryIconFile: "icon-circle.svg",
     stylesheetFile: "ellipse.css",
   }),
-  tool("Text", { stylesheetFile: "text.css" }),
+  drawingTool("Text", {
+    payloadKind: "text",
+    liveCreateType: "new",
+    storedTagName: "text",
+    updatableFields: ["txt"],
+    stylesheetFile: "text.css",
+  }),
   tool("Eraser", { liveMessageFields: { delete: { id: "id" } } }),
   tool("Hand", {
     visibleWhenReadOnly: true,
