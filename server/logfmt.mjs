@@ -167,13 +167,3 @@ export {
   formatLogfmtValue,
   styleTerminalLogLine,
 };
-
-export default {
-  DEFAULT_SERVICE_NAME,
-  colorizeLevelInLogLine,
-  dimLogLineKeys,
-  flattenError,
-  formatCanonicalLogLine,
-  formatLogfmtValue,
-  styleTerminalLogLine,
-};
