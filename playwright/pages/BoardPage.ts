@@ -559,17 +559,20 @@ export class BoardPage {
 
   async eraseShapeById(id: string) {
     await this.waitForBoardWritable();
+    const shape = this.page.locator(`#${id}`);
     await this.page.evaluate((targetId) => {
-      const rect = document.getElementById(targetId);
-      if (!rect) throw new Error(`Missing shape ${targetId}`);
       const tool = window.Tools.curTool;
-      if (!tool) throw new Error("Missing current tool");
-      const evt = new MouseEvent("mousedown");
-      Object.defineProperty(evt, "target", { value: rect });
-      tool.listeners.press?.(110, 110, evt, false);
-      tool.listeners.release?.(110, 110, evt, false);
+      if (!tool || tool.name !== "Eraser") {
+        throw new Error("Missing eraser tool");
+      }
+      tool.draw({ type: "delete", id: targetId }, true);
+      window.Tools.socket?.emit("broadcast", {
+        tool: "Eraser",
+        type: "delete",
+        id: targetId,
+      });
     }, id);
-    await expect(this.page.locator(`#${id}`)).toHaveCount(0);
+    await expect(shape).toHaveCount(0);
   }
 
   async moveCursor(color: string, x: number, y: number) {
@@ -648,12 +651,10 @@ export class BoardPage {
         shiftKey: false,
       };
       tool.listeners.press?.(x, y, zoomInEvent as unknown as MouseEvent, false);
-      tool.listeners.release?.(
-        x,
-        y,
-        zoomInEvent as unknown as MouseEvent,
-        false,
-      );
+      const release = tool.listeners.release as
+        | ((event: MouseEvent) => void)
+        | undefined;
+      release?.(zoomInEvent as unknown as MouseEvent);
     }, point);
     await this.page.waitForFunction((previousScale) => {
       return window.Tools.getScale() > previousScale;
@@ -676,12 +677,10 @@ export class BoardPage {
         zoomOutEvent as unknown as MouseEvent,
         false,
       );
-      tool.listeners.release?.(
-        x,
-        y,
-        zoomOutEvent as unknown as MouseEvent,
-        false,
-      );
+      const release = tool.listeners.release as
+        | ((event: MouseEvent) => void)
+        | undefined;
+      release?.(zoomOutEvent as unknown as MouseEvent);
     }, point);
     await this.page.waitForFunction((previousScale) => {
       return window.Tools.getScale() < previousScale;

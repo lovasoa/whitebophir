@@ -213,10 +213,10 @@ test.describe("drawing and persistence", () => {
         type: "rect",
         id: "erase-rect",
         tool: "Rectangle",
-        x: 100,
-        y: 100,
-        x2: 160,
-        y2: 140,
+        x: 260,
+        y: 180,
+        x2: 340,
+        y2: 240,
         color: "#123456",
         size: 4,
       },
@@ -227,12 +227,14 @@ test.describe("drawing and persistence", () => {
     await expect(page.locator("#erase-rect")).toBeVisible();
     await boardPage.selectTool("Eraser");
     await boardPage.eraseShapeById("erase-rect");
+    await boardPage.waitForBufferedWritesDrained();
+    await page.goto("about:blank");
     await server.waitForStoredBoard(
       server.dataPath,
       "eraser-test",
       (storedBoard) => !Object.hasOwn(storedBoard, "erase-rect"),
     );
-    await page.reload();
+    await boardPage.gotoBoard("eraser-test");
     await expect(boardPage.tool("Eraser")).toBeVisible();
     await expect(page.locator("#erase-rect")).toHaveCount(0);
   });
