@@ -93,6 +93,7 @@ section before making changes there.
 - Throughput check: `npm run bench` before/after suspected performance changes.
 - Bench timeout: `npm run bench` enforces a hard wall-clock timeout via `WBO_BENCH_TIMEOUT_MS` (default `150000`).
 - CPU + memory profile: `npm run profile` writes `.profiles/benchmark-server.cpuprofile` and `.profiles/benchmark-server.heapprofile`.
+- Ad hoc browser load: `npm run generateload -- --help`; defaults to the anonymous board and can open multiple tabs on a specific board URL.
 - Full gate: `npm test` (Node tests, Playwright, Biome `lint` with warnings treated as failures).
 - Auto-format: `npm run format` (Biome `--write --unsafe`).
 
