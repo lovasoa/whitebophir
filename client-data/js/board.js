@@ -506,15 +506,7 @@ Tools.getBoardStatusView = function getBoardStatusView() {
       detail: Tools.rateLimitNoticeMessage,
     };
   }
-  if (Tools.connectionState !== "connected") {
-    return {
-      hidden: false,
-      state: "reconnecting",
-      title: Tools.i18n.t("loading"),
-      detail: "",
-    };
-  }
-  if (Tools.awaitingBoardSnapshot) {
+  if (Tools.connectionState !== "connected" || Tools.awaitingBoardSnapshot) {
     return {
       hidden: false,
       state: "reconnecting",
