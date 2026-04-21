@@ -133,18 +133,3 @@ export function filterBufferedMessagesAfterSeqReplay(messages, replayedToSeq) {
     return messageSeq === 0 || messageSeq > normalizedReplaySeq;
   });
 }
-
-const boardMessageReplay = {
-  classifyPersistentEnvelopeSeq,
-  TOOL_OWNED_BATCH_TOOLS,
-  filterBufferedMessagesAfterSeqReplay,
-  isPersistentEnvelope,
-  isSyncReplayControlMessage,
-  isToolOwnedBatchMessage,
-  normalizeSeq,
-  prepareReplayChild,
-  shouldBufferLiveMessage,
-  shouldReplayChildrenIndividually,
-  unwrapReplayMessage,
-};
-export default boardMessageReplay;

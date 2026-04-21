@@ -25,7 +25,7 @@
  */
 
 import { optimisticPrunePlanForAuthoritativeMessage } from "./authoritative_mutation_effects.js";
-import BoardMessageReplay from "./board_message_replay.js";
+import * as BoardMessageReplay from "./board_message_replay.js";
 import {
   drainPendingMessages,
   getRequiredElement,
