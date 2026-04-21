@@ -193,7 +193,7 @@ function installBoardListeners(state) {
 export function boot(ctx) {
   /** @type {ZoomState} */
   const state = {
-    tools: ctx.runtime.Tools,
+    tools: ctx.Tools,
     origin: {
       scrollX: document.documentElement.scrollLeft,
       scrollY: document.documentElement.scrollTop,

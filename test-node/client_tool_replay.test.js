@@ -452,18 +452,7 @@ function createHarness() {
         throw new Error(`Missing boot export for ${toolName}`);
       }
       const toolState = await moduleNamespace.boot({
-        toolName,
-        runtime: {
-          Tools: globalAny.Tools,
-          activateTool: async (/** @type {string} */ name) => {
-            globalAny.Tools.change(name);
-            return true;
-          },
-          getButton: () => null,
-          registerShortcut: () => {},
-        },
-        button: null,
-        version: "",
+        Tools: globalAny.Tools,
         assetUrl: (/** @type {string} */ assetFile) =>
           getToolRuntimeAssetPath(toolName, assetFile),
       });

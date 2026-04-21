@@ -8,6 +8,7 @@ const {
   createSocketScenario,
   createSocket,
 } = require("./test_helpers.js");
+const { MutationType } = require("../client-data/js/mutation_type.js");
 const USER_SECRET_COOKIE_NAME = "wbo-user-secret-v1";
 
 /**
@@ -72,7 +73,7 @@ test("board user record seeds tool color and size from socket query", async () =
         remoteAddress: "203.0.113.41",
         headers: withUserSecretCookie("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
         query: {
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#123456",
           size: "12",
         },
@@ -86,7 +87,7 @@ test("board user record seeds tool color and size from socket query", async () =
       );
       assert.equal(record.socketId, "socket-1");
       assert.equal(record.ip, "203.0.113.41");
-      assert.equal(record.lastTool, "Rectangle");
+      assert.equal(record.lastTool, "rectangle");
       assert.equal(record.color, "#123456");
       assert.equal(record.size, 12);
       assert.equal(record.lastSeen, 456);
@@ -104,7 +105,7 @@ test("board user maps are created lazily and cleaned when emptied", async () => 
       ip: "203.0.113.50",
       color: "#001f3f",
       size: 4,
-      lastTool: "Hand",
+      lastTool: "hand",
       lastSeen: 1,
     });
     assert.equal(test.getBoardUserMap("board-a").size, 1);
@@ -128,7 +129,7 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
         headers: withUserSecretCookie("11111111111111111111111111111111"),
         query: {
           board: "board-a",
-          tool: "Hand",
+          tool: "hand",
           color: "#111111",
           size: "6",
         },
@@ -149,7 +150,7 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
         headers: withUserSecretCookie("22222222222222222222222222222222"),
         query: {
           board: "board-a",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#222222",
           size: "8",
         },
@@ -182,7 +183,7 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
         headers: withUserSecretCookie("33333333333333333333333333333333"),
         query: {
           board: "board-seq-deterministic",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#333333",
           size: "4",
         },
@@ -192,7 +193,7 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
       });
 
       await invoke(created, "broadcast", {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-1",
         color: "#123456",
@@ -208,7 +209,7 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
       ).payload;
       assert.equal(liveBroadcast.seq, 1);
       assert.deepEqual(liveBroadcast.mutation, {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-1",
         color: "#123456",
@@ -226,7 +227,7 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
         headers: withUserSecretCookie("44444444444444444444444444444444"),
         query: {
           board: "board-seq-deterministic",
-          tool: "Hand",
+          tool: "hand",
           color: "#444444",
           size: "5",
         },
@@ -263,7 +264,7 @@ test("seq-sync clients bootstrap without a snapshot and receive an explicit empt
         query: {
           board: "board-seq-empty",
           sync: "seq",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#333333",
           size: "4",
         },
@@ -309,7 +310,7 @@ test("board sockets use seq replay and seq envelopes even without a legacy sync 
         headers: withUserSecretCookie("55555555555555555555555555555550"),
         query: {
           board: "board-seq-default",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#333333",
           size: "4",
         },
@@ -334,7 +335,7 @@ test("board sockets use seq replay and seq envelopes even without a legacy sync 
       );
 
       await invoke(created, "broadcast", {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-default-seq-1",
         color: "#123456",
@@ -351,7 +352,7 @@ test("board sockets use seq replay and seq envelopes even without a legacy sync 
       assert.equal(seqBroadcasts.length, 1);
       assert.equal(getRequiredValue(seqBroadcasts[0]).payload.seq, 1);
       assert.deepEqual(getRequiredValue(seqBroadcasts[0]).payload.mutation, {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-default-seq-1",
         color: "#123456",
@@ -381,7 +382,7 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
         query: {
           board: "board-seq-live",
           sync: "seq",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#444444",
           size: "4",
         },
@@ -394,7 +395,7 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
         query: {
           board: "board-seq-cursor",
           sync: "seq",
-          tool: "Hand",
+          tool: "hand",
           color: "#777777",
           size: "4",
         },
@@ -402,7 +403,7 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
 
       const broadcast = handler(writer, "broadcast");
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-1",
         x: 0,
@@ -426,7 +427,7 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
         query: {
           board: "board-seq-live",
           sync: "seq",
-          tool: "Hand",
+          tool: "hand",
           color: "#555555",
           size: "4",
         },
@@ -466,14 +467,14 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
         query: {
           board: "board-seq-stale",
           sync: "seq",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#444444",
           size: "4",
         },
       });
       const broadcast = handler(writer, "broadcast");
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-1",
         x: 0,
@@ -484,7 +485,7 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
         size: 4,
       });
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-2",
         x: 20,
@@ -502,7 +503,7 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
         query: {
           board: "board-seq-stale",
           sync: "seq",
-          tool: "Hand",
+          tool: "hand",
           color: "#555555",
           size: "4",
         },
@@ -548,14 +549,14 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
         query: {
           board: "board-seq-race",
           sync: "seq",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#444444",
           size: "4",
         },
       });
       const broadcast = handler(writer, "broadcast");
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-1",
         x: 0,
@@ -566,7 +567,7 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
         size: 4,
       });
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-2",
         x: 20,
@@ -587,7 +588,7 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
         query: {
           board: "board-seq-race",
           sync: "seq",
-          tool: "Hand",
+          tool: "hand",
           color: "#555555",
           size: "4",
         },
@@ -633,7 +634,7 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
         query: {
           board: "board-seq-live-gated",
           sync: "seq",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#444444",
           size: "4",
         },
@@ -645,7 +646,7 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
         query: {
           board: "board-seq-live-gated",
           sync: "seq",
-          tool: "Hand",
+          tool: "hand",
           color: "#555555",
           size: "4",
         },
@@ -653,7 +654,7 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
 
       const broadcast = handler(writer, "broadcast");
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-before-sync",
         x: 0,
@@ -680,7 +681,7 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
       assert.equal(getRequiredValue(replayedBroadcasts[0]).payload.seq, 1);
 
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-after-sync",
         x: 20,
@@ -711,14 +712,14 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
         query: {
           board: "board-seq-gap",
           sync: "seq",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#666666",
           size: "4",
         },
       });
       const broadcast = handler(writer, "broadcast");
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-1",
         x: 0,
@@ -729,7 +730,7 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
         size: 4,
       });
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-2",
         x: 20,
@@ -750,7 +751,7 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
         query: {
           board: "board-seq-gap",
           sync: "seq",
-          tool: "Hand",
+          tool: "hand",
           color: "#777777",
           size: "4",
         },
@@ -787,7 +788,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
         headers: withUserSecretCookie("99999999999999999999999999999989"),
         query: {
           board: "board-mixed-sync",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#111111",
           size: "4",
         },
@@ -798,7 +799,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
         headers: withUserSecretCookie("99999999999999999999999999999990"),
         query: {
           board: "board-mixed-sync",
-          tool: "Hand",
+          tool: "hand",
           color: "#222222",
           size: "4",
         },
@@ -809,7 +810,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
         headers: withUserSecretCookie("99999999999999999999999999999991"),
         query: {
           board: "board-mixed-sync",
-          tool: "Hand",
+          tool: "hand",
           color: "#333333",
           size: "4",
         },
@@ -831,7 +832,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
       };
 
       await invoke(writer, "broadcast", {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-mixed-1",
         x: 0,
@@ -850,7 +851,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
       assert.deepEqual(
         getRequiredValue(seqPeerBroadcasts[0]).payload.mutation,
         {
-          tool: "Rectangle",
+          tool: "rectangle",
           type: "rect",
           id: "rect-mixed-1",
           x: 0,
@@ -894,13 +895,13 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
         query: {
           board: "board-seq-cursor",
           sync: "seq",
-          tool: "Hand",
+          tool: "hand",
           color: "#666666",
           size: "4",
         },
       });
       await invoke(writer, "broadcast", {
-        tool: "Cursor",
+        tool: "cursor",
         type: "update",
         x: 12,
         y: 34,
@@ -913,8 +914,8 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
           writer.broadcasted.find((event) => event.event === "broadcast"),
         ).payload,
         {
-          tool: "Cursor",
-          type: "update",
+          tool: "cursor",
+          type: MutationType.UPDATE,
           x: 12,
           y: 34,
           color: "#00aa11",
@@ -934,7 +935,7 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
         query: {
           board: "board-seq-cursor",
           sync: "seq",
-          tool: "Hand",
+          tool: "hand",
           color: "#777777",
           size: "4",
         },
@@ -974,13 +975,13 @@ test("rejected board mutations emit mutation_rejected with the clientMutationId"
         query: {
           board: "board-rejected",
           sync: "seq",
-          tool: "Hand",
+          tool: "hand",
           color: "#888888",
           size: "4",
         },
       });
       await invoke(writer, "broadcast", {
-        tool: "Pencil",
+        tool: "pencil",
         type: "child",
         parent: "missing-line",
         x: 10,
@@ -1017,14 +1018,14 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         query: {
           board: "board-rejected-seed",
           sync: "seq",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#333333",
           size: "4",
         },
       });
       const broadcast = handler(writer, "broadcast");
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-seed",
         x: 10,
@@ -1036,7 +1037,7 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         clientMutationId: "cm-seed-create",
       });
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "update",
         id: "rect-seed",
         x: 10,
@@ -1065,12 +1066,12 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         [1, 2],
       );
       assert.deepEqual(getRequiredValue(seqBroadcasts[1]).payload.mutation, {
-        tool: "Eraser",
-        type: "delete",
+        tool: "eraser",
+        type: MutationType.DELETE,
         id: "rect-seed",
       });
       assert.deepEqual(getRequiredValue(seqBroadcasts[0]).payload.mutation, {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-seed",
         clientMutationId: "cm-seed-create",
@@ -1103,14 +1104,14 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         query: {
           board: "board-live-item-trim",
           sync: "seq",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#333333",
           size: "4",
         },
       });
       const broadcast = handler(writer, "broadcast");
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-1",
         x: 10,
@@ -1122,7 +1123,7 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         clientMutationId: "cm-rect-1",
       });
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-2",
         x: 20,
@@ -1134,7 +1135,7 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         clientMutationId: "cm-rect-2",
       });
       await broadcast({
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-3",
         x: 30,
@@ -1154,7 +1155,7 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         [1, 2, 3, 4],
       );
       assert.deepEqual(getRequiredValue(seqBroadcasts[2]).payload.mutation, {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-3",
         clientMutationId: "cm-rect-3",
@@ -1167,8 +1168,8 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         socket: "socket-live-item-trim",
       });
       assert.deepEqual(getRequiredValue(seqBroadcasts[3]).payload.mutation, {
-        tool: "Eraser",
-        type: "delete",
+        tool: "eraser",
+        type: MutationType.DELETE,
         id: "rect-1",
       });
 
@@ -1192,7 +1193,7 @@ test("disconnecting from a board broadcasts user_left and cleans the board user 
         headers: withUserSecretCookie("99999999999999999999999999999999"),
         query: {
           board: "board-left",
-          tool: "Hand",
+          tool: "hand",
           color: "#999999",
           size: "5",
         },
@@ -1229,14 +1230,14 @@ test("socket shutdown persists and unloads boards even when users are still conn
         headers: withUserSecretCookie("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"),
         query: {
           board: "board-shutdown",
-          tool: "Rectangle",
+          tool: "rectangle",
           color: "#333333",
           size: "4",
         },
       });
 
       await invoke(created, "broadcast", {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-shutdown",
         color: "#123456",
@@ -1271,13 +1272,13 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
         headers: withUserSecretCookie("10101010101010101010101010101010"),
         query: {
           board: "board-live",
-          tool: "Hand",
+          tool: "hand",
           color: "#101010",
           size: "4",
         },
       });
       await invoke(created, "broadcast", {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "shape-1",
         color: "#123456",
@@ -1296,12 +1297,12 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       ).payload;
       assert.equal(persistentEnvelope.mutation.socket, "socket-live");
       assert.equal(Object.hasOwn(persistentEnvelope.mutation, "userId"), false);
-      assert.equal(user.lastTool, "Rectangle");
+      assert.equal(user.lastTool, "rectangle");
       assert.equal(user.color, "#123456");
       assert.equal(user.size, 10);
 
       await invoke(created, "broadcast", {
-        tool: "Cursor",
+        tool: "cursor",
         type: "update",
         x: 9,
         y: 10,
@@ -1309,7 +1310,7 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
         size: 12,
       });
 
-      assert.equal(user.lastTool, "Rectangle");
+      assert.equal(user.lastTool, "rectangle");
       assert.equal(user.color, "#abcdef");
       assert.equal(user.size, 12);
       const cursorBroadcast = getRequiredValue(
@@ -1330,7 +1331,7 @@ test("same-session sockets keep a shared userId in presence but live payload att
         headers: withUserSecretCookie("abababababababababababababababab"),
         query: {
           board: "board-session",
-          tool: "Hand",
+          tool: "hand",
           color: "#111111",
           size: "4",
         },
@@ -1341,7 +1342,7 @@ test("same-session sockets keep a shared userId in presence but live payload att
         headers: withUserSecretCookie("abababababababababababababababab"),
         query: {
           board: "board-session",
-          tool: "Hand",
+          tool: "hand",
           color: "#222222",
           size: "5",
         },
@@ -1353,7 +1354,7 @@ test("same-session sockets keep a shared userId in presence but live payload att
       assert.equal(firstUser.userId, secondUser.userId);
 
       await invoke(first, "broadcast", {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "shape-session",
         color: "#123456",
@@ -1370,8 +1371,8 @@ test("same-session sockets keep a shared userId in presence but live payload att
       const payload = liveEnvelope.payload.mutation;
       assert.equal(payload.socket, "socket-a");
       assert.equal(Object.hasOwn(payload, "userId"), false);
-      assert.equal(firstUser.lastTool, "Rectangle");
-      assert.equal(secondUser.lastTool, "Hand");
+      assert.equal(firstUser.lastTool, "rectangle");
+      assert.equal(secondUser.lastTool, "hand");
     },
   );
 });
@@ -1392,7 +1393,7 @@ test("report_user logs reporter and reported user details for active board membe
         }),
         query: {
           board: "board-report",
-          tool: "Hand",
+          tool: "hand",
           color: "#222222",
           size: "4",
         },
@@ -1408,7 +1409,7 @@ test("report_user logs reporter and reported user details for active board membe
         }),
         query: {
           board: "board-report",
-          tool: "Ellipse",
+          tool: "ellipse",
           color: "#333333",
           size: "7",
         },
@@ -1462,7 +1463,7 @@ test("report_user respects custom header ip sources for active board members", a
         }),
         query: {
           board: "board-report",
-          tool: "Hand",
+          tool: "hand",
         },
       });
 
@@ -1476,7 +1477,7 @@ test("report_user respects custom header ip sources for active board members", a
         }),
         query: {
           board: "board-report",
-          tool: "Ellipse",
+          tool: "ellipse",
         },
       });
 
@@ -1519,7 +1520,7 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
       });
 
       await invoke(first, "broadcast", {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-1",
         color: "#111111",
@@ -1540,7 +1541,7 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
       await fs.unlink(svgPath);
 
       await invoke(first, "broadcast", {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-2",
         color: "#222222",
@@ -1564,7 +1565,7 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
       });
 
       await invoke(reconnect, "broadcast", {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-3",
         color: "#333333",

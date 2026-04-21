@@ -57,5 +57,5 @@ export function draw(state) {
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  return { tools: ctx.runtime.Tools };
+  return { tools: ctx.Tools };
 }

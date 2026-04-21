@@ -13,14 +13,14 @@ test("legacy json board source parses board payload and metadata", () => {
       __wbo_meta__: { readonly: true },
       "rect-1": {
         id: "rect-1",
-        tool: "Rectangle",
+        tool: "rectangle",
       },
     }),
     {
       board: {
         "rect-1": {
           id: "rect-1",
-          tool: "Rectangle",
+          tool: "rectangle",
         },
       },
       metadata: { readonly: true },
@@ -40,7 +40,7 @@ test("legacy json board source reads board state and metadata from disk", async 
         __wbo_meta__: { readonly: true },
         "text-1": {
           id: "text-1",
-          tool: "Text",
+          tool: "text",
           txt: "hello",
         },
       }),
@@ -53,7 +53,7 @@ test("legacy json board source reads board state and metadata from disk", async 
         board: {
           "text-1": {
             id: "text-1",
-            tool: "Text",
+            tool: "text",
             txt: "hello",
           },
         },

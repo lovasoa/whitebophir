@@ -6,11 +6,12 @@ test.describe("drawing and persistence", () => {
     page,
     server,
   }) => {
-    await boardPage.gotoBoard("anonymous", { lang: "fr" });
-    await expect(boardPage.tool("Pencil")).toBeVisible();
+    const boardName = "drawing-pencil-persist";
+    await boardPage.gotoBoard(boardName, { lang: "fr" });
+    await expect(boardPage.tool("pencil")).toBeVisible();
     await expect(page).toHaveTitle(/WBO/);
-    await boardPage.selectTool("Pencil");
-    await boardPage.expectCurrentTool("Pencil");
+    await boardPage.selectTool("pencil");
+    await boardPage.expectCurrentTool("pencil");
     await boardPage.drawPencilPaths([
       {
         color: "#123456",
@@ -36,17 +37,17 @@ test.describe("drawing and persistence", () => {
     await expect(page.locator(secondPath)).toBeVisible();
     await server.waitForStoredBoard(
       server.dataPath,
-      "anonymous",
+      boardName,
       (storedBoard) => {
         const items = Object.values(storedBoard);
         return (
           items.some(
             (item) =>
-              item && item.tool === "Pencil" && item.color === "#123456",
+              item && item.tool === "pencil" && item.color === "#123456",
           ) &&
           items.some(
             (item) =>
-              item && item.tool === "Pencil" && item.color === "#abcdef",
+              item && item.tool === "pencil" && item.color === "#abcdef",
           )
         );
       },
@@ -55,7 +56,7 @@ test.describe("drawing and persistence", () => {
     await expect(page.locator(firstPath)).toBeVisible();
     await expect(page.locator(secondPath)).toBeVisible();
 
-    await boardPage.gotoPreview("anonymous");
+    await boardPage.gotoPreview(boardName);
     await expect(page.locator(firstPath)).toBeVisible();
     await expect(page.locator(secondPath)).toBeVisible();
   });
@@ -65,36 +66,34 @@ test.describe("drawing and persistence", () => {
     page,
     server,
   }) => {
+    const boardName = "drawing-circle-persist";
     const circleSelector =
       "ellipse[cx='200'][cy='200'][rx='200'][ry='200'][stroke='#112233']";
 
-    await boardPage.gotoBoard("anonymous", { lang: "fr" });
-    await expect(boardPage.tool("Pencil")).toBeVisible();
-    await boardPage.selectTool("Ellipse");
+    await boardPage.gotoBoard(boardName, { lang: "fr" });
+    await expect(boardPage.tool("pencil")).toBeVisible();
+    await boardPage.selectTool("ellipse");
     await boardPage.drawCircle("#112233", { x: 200, y: 200 }, 200);
     await expect(page.locator(circleSelector)).toBeVisible();
-    await server.waitForStoredBoard(
-      server.dataPath,
-      "anonymous",
-      (storedBoard) =>
-        Object.values(storedBoard).some(
-          (item) =>
-            item &&
-            item.tool === "Ellipse" &&
-            item.color === "#112233" &&
-            Math.min(item.x, item.x2) === 0 &&
-            Math.max(item.x, item.x2) === 400 &&
-            Math.min(item.y, item.y2) === 0 &&
-            Math.max(item.y, item.y2) === 400,
-        ),
+    await server.waitForStoredBoard(server.dataPath, boardName, (storedBoard) =>
+      Object.values(storedBoard).some(
+        (item) =>
+          item &&
+          item.tool === "ellipse" &&
+          item.color === "#112233" &&
+          Math.min(item.x, item.x2) === 0 &&
+          Math.max(item.x, item.x2) === 400 &&
+          Math.min(item.y, item.y2) === 0 &&
+          Math.max(item.y, item.y2) === 400,
+      ),
     );
 
     await page.reload();
     await expect(page.locator(circleSelector)).toBeVisible();
 
-    await boardPage.selectTool("Ellipse");
-    await boardPage.selectTool("Ellipse");
-    await expect(boardPage.tool("Ellipse")).toContainText("Cercle");
+    await boardPage.selectTool("ellipse");
+    await boardPage.selectTool("ellipse");
+    await expect(boardPage.tool("ellipse")).toContainText("Cercle");
   });
 
   test("text tool creates persistent text", async ({
@@ -103,8 +102,8 @@ test.describe("drawing and persistence", () => {
     page,
   }) => {
     await boardPage.gotoBoard("text-test");
-    await expect(boardPage.tool("Text")).toBeVisible();
-    await boardPage.selectTool("Text");
+    await expect(boardPage.tool("text")).toBeVisible();
+    await boardPage.selectTool("text");
     await boardPage.createText(120, 140, "Hello text");
 
     await server.waitForStoredBoard(
@@ -112,7 +111,7 @@ test.describe("drawing and persistence", () => {
       "text-test",
       (storedBoard) =>
         Object.values(storedBoard).some(
-          (item) => item && item.tool === "Text" && item.txt === "Hello text",
+          (item) => item && item.tool === "text" && item.txt === "Hello text",
         ),
     );
     await page.reload();
@@ -121,9 +120,9 @@ test.describe("drawing and persistence", () => {
 
   test("straight line snap persists", async ({ boardPage, server, page }) => {
     await boardPage.gotoBoard("line-test");
-    await expect(boardPage.tool("Straight line")).toBeVisible();
-    await boardPage.selectTool("Straight line");
-    await boardPage.selectTool("Straight line");
+    await expect(boardPage.tool("straight-line")).toBeVisible();
+    await boardPage.selectTool("straight-line");
+    await boardPage.selectTool("straight-line");
 
     const result = await boardPage.drawStraightLine(
       { x: 100, y: 100 },
@@ -142,7 +141,7 @@ test.describe("drawing and persistence", () => {
         Object.values(storedBoard).some(
           (item) =>
             item &&
-            item.tool === "Straight line" &&
+            item.tool === "straight-line" &&
             Math.abs(item.x2 - 100) < 0.5 &&
             Math.abs(item.y2 - 160) < 0.5,
         ),
@@ -171,9 +170,9 @@ test.describe("drawing and persistence", () => {
 
   test("square mode persists", async ({ boardPage, server, page }) => {
     await boardPage.gotoBoard("rectangle-test");
-    await expect(boardPage.tool("Rectangle")).toBeVisible();
-    await boardPage.selectTool("Rectangle");
-    await boardPage.selectTool("Rectangle");
+    await expect(boardPage.tool("rectangle")).toBeVisible();
+    await boardPage.selectTool("rectangle");
+    await boardPage.selectTool("rectangle");
 
     const result = await boardPage.drawSquare(
       { x: 100, y: 100 },
@@ -192,7 +191,7 @@ test.describe("drawing and persistence", () => {
         Object.values(storedBoard).some(
           (item) =>
             item &&
-            item.tool === "Rectangle" &&
+            item.tool === "rectangle" &&
             item.x === 100 &&
             item.y === 100 &&
             item.x2 === 160 &&
@@ -212,7 +211,7 @@ test.describe("drawing and persistence", () => {
       "erase-rect": {
         type: "rect",
         id: "erase-rect",
-        tool: "Rectangle",
+        tool: "rectangle",
         x: 260,
         y: 180,
         x2: 340,
@@ -223,9 +222,9 @@ test.describe("drawing and persistence", () => {
     });
 
     await boardPage.gotoBoard("eraser-test");
-    await expect(boardPage.tool("Eraser")).toBeVisible();
+    await expect(boardPage.tool("eraser")).toBeVisible();
     await expect(page.locator("#erase-rect")).toBeVisible();
-    await boardPage.selectTool("Eraser");
+    await boardPage.selectTool("eraser");
     await boardPage.eraseShapeById("erase-rect");
     await boardPage.waitForBufferedWritesDrained();
     await page.goto("about:blank");
@@ -235,13 +234,13 @@ test.describe("drawing and persistence", () => {
       (storedBoard) => !Object.hasOwn(storedBoard, "erase-rect"),
     );
     await boardPage.gotoBoard("eraser-test");
-    await expect(boardPage.tool("Eraser")).toBeVisible();
+    await expect(boardPage.tool("eraser")).toBeVisible();
     await expect(page.locator("#erase-rect")).toHaveCount(0);
   });
 
   test("cursor updates self cursor", async ({ boardPage }) => {
     await boardPage.gotoBoard("anonymous", { lang: "fr" });
-    await expect(boardPage.tool("Pencil")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
     await boardPage.moveCursor("#456123", 150, 200);
 
     await expect.poll(() => boardPage.readCursorAttributes()).not.toBeNull();

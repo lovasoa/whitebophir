@@ -24,7 +24,7 @@ import { MutationType } from "../js/mutation_type.js";
 export function bootShapeTool(config, ctx) {
   /** @type {any} */
   const state = {
-    Tools: /** @type {MountedAppToolsState} */ (ctx.runtime.Tools),
+    Tools: /** @type {MountedAppToolsState} */ (ctx.Tools),
     currentShape: null,
     lastTime: performance.now(),
     secondary: null,

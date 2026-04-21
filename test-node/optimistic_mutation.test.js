@@ -9,7 +9,7 @@ const {
 test("optimistic mutation helpers classify creates, updates, and pencil children", () => {
   assert.deepEqual(
     collectOptimisticAffectedIds({
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       id: "shape-1",
     }),
@@ -17,7 +17,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
   );
   assert.deepEqual(
     collectOptimisticDependencyIds({
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       id: "shape-1",
     }),
@@ -25,7 +25,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
   );
   assert.deepEqual(
     collectOptimisticAffectedIds({
-      tool: "Pencil",
+      tool: "pencil",
       type: "child",
       parent: "line-1",
     }),
@@ -33,7 +33,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
   );
   assert.deepEqual(
     collectOptimisticDependencyIds({
-      tool: "Pencil",
+      tool: "pencil",
       type: "child",
       parent: "line-1",
     }),
@@ -43,7 +43,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
 
 test("optimistic mutation helpers flatten hand batches and copy semantics", () => {
   const batch = {
-    tool: "Hand",
+    tool: "hand",
     _children: [
       { type: "update", id: "shape-1" },
       { type: "copy", id: "shape-1", newid: "shape-2" },

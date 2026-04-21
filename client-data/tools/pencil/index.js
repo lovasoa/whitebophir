@@ -541,7 +541,7 @@ function handleAutoWhiteOut(state, evt) {
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  const Tools = ctx.runtime.Tools;
+  const Tools = ctx.Tools;
   const defaultMaxPencilChildren =
     Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
       ? Number(LIMITS.DEFAULT_MAX_CHILDREN)

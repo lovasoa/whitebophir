@@ -198,7 +198,7 @@ test("destructive per-IP rate limit closes the socket when exceeded", async () =
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        tool: "Eraser",
+        tool: "eraser",
         type: "delete",
         id: "shape-1",
       });
@@ -241,7 +241,7 @@ test("constructive per-IP rate limit closes the socket when exceeded", async () 
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        tool: "Pencil",
+        tool: "pencil",
         type: "line",
         id: "line-1",
         color: "#123456",
@@ -287,7 +287,7 @@ test("text per-IP rate limit closes the socket when text creation is exceeded", 
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        tool: "Text",
+        tool: "text",
         type: "new",
         id: "text-1",
         color: "#123456",
@@ -335,7 +335,7 @@ test("url-like text updates consume text rate-limit budget", async () => {
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        tool: "Text",
+        tool: "text",
         type: "new",
         id: "text-2",
         color: "#123456",
@@ -346,7 +346,7 @@ test("url-like text updates consume text rate-limit budget", async () => {
       assert.notEqual(socket.disconnected, true);
 
       await handlers.broadcast({
-        tool: "Text",
+        tool: "text",
         type: "update",
         id: "text-2",
         txt: "https://example.com/demo",
@@ -392,7 +392,7 @@ test("plain text updates do not consume text rate-limit budget", async () => {
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        tool: "Text",
+        tool: "text",
         type: "new",
         id: "text-3",
         color: "#123456",
@@ -401,7 +401,7 @@ test("plain text updates do not consume text rate-limit budget", async () => {
         y: 20,
       });
       await handlers.broadcast({
-        tool: "Text",
+        tool: "text",
         type: "update",
         id: "text-3",
         txt: "plain text only",
@@ -433,7 +433,7 @@ test("resetRateLimitMaps clears text rate-limit state", async () => {
       await sockets.__test.handleSocketConnection(first.socket);
       assert.ok(first.handlers.broadcast);
       await first.handlers.broadcast({
-        tool: "Text",
+        tool: "text",
         type: "new",
         id: "text-4",
         color: "#123456",
@@ -454,7 +454,7 @@ test("resetRateLimitMaps clears text rate-limit state", async () => {
       await sockets.__test.handleSocketConnection(second.socket);
       assert.ok(second.handlers.broadcast);
       await second.handlers.broadcast({
-        tool: "Text",
+        tool: "text",
         type: "new",
         id: "text-5",
         color: "#123456",

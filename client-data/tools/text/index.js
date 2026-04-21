@@ -323,8 +323,8 @@ export function boot(ctx) {
   input.setAttribute("autocomplete", "off");
   /** @type {TextState} */
   const state = {
-    Tools: ctx.runtime.Tools,
-    board: ctx.runtime.Tools.board,
+    Tools: ctx.Tools,
+    board: ctx.Tools.board,
     input,
     curText: {
       x: 0,

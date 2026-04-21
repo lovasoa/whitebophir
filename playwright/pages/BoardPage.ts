@@ -369,10 +369,10 @@ export class BoardPage {
       const ensurePencilTool = async () => {
         const tools = getTools();
         if (typeof tools.bootTool === "function") {
-          await tools.bootTool("Pencil");
+          await tools.bootTool("pencil");
         }
-        const pencilTool = tools.list.Pencil;
-        if (!pencilTool) throw new Error("Missing Pencil tool");
+        const pencilTool = tools.list.pencil;
+        if (!pencilTool) throw new Error("Missing pencil tool");
         return { tools, pencilTool };
       };
       const startPencilPath = (
@@ -424,6 +424,7 @@ export class BoardPage {
         }
       }
     }, paths);
+    await this.waitForBufferedWritesDrained();
     for (const path of paths) {
       if (path.points.length === 0) continue;
       await expect(
@@ -512,7 +513,13 @@ export class BoardPage {
       },
       { lineStart: start, lineEnd: end },
     );
-    await expect(this.page.locator("#drawingArea line")).toHaveCount(1);
+    await expect
+      .poll(() =>
+        this.page.evaluate(
+          () => document.querySelectorAll("#drawingArea line").length,
+        ),
+      )
+      .toBe(1);
     return this.page.evaluate<LineDrawState>(() => {
       const line = document.querySelector("#drawingArea line");
       if (!line) throw new Error("Missing line after draw");
@@ -562,12 +569,12 @@ export class BoardPage {
     const shape = this.page.locator(`#${id}`);
     await this.page.evaluate((targetId) => {
       const tool = window.Tools.curTool;
-      if (!tool || tool.name !== "Eraser") {
+      if (!tool || tool.name !== "eraser") {
         throw new Error("Missing eraser tool");
       }
       tool.draw({ type: "delete", id: targetId }, true);
       window.Tools.socket?.emit("broadcast", {
-        tool: "Eraser",
+        tool: "eraser",
         type: "delete",
         id: targetId,
       });
@@ -581,7 +588,7 @@ export class BoardPage {
       async ({ cursorColor, cursorX, cursorY }) => {
         const tools = window.Tools;
         if (typeof tools.bootTool === "function") {
-          await tools.bootTool("Cursor");
+          await tools.bootTool("cursor");
         }
         tools.setColor(cursorColor);
         const event = new Event("mousemove");
@@ -652,9 +659,14 @@ export class BoardPage {
       };
       tool.listeners.press?.(x, y, zoomInEvent as unknown as MouseEvent, false);
       const release = tool.listeners.release as
-        | ((event: MouseEvent) => void)
+        | ((
+            x: number,
+            y: number,
+            evt: MouseEvent,
+            isTouchEvent: boolean,
+          ) => void)
         | undefined;
-      release?.(zoomInEvent as unknown as MouseEvent);
+      release?.(x, y, zoomInEvent as unknown as MouseEvent, false);
     }, point);
     await this.page.waitForFunction((previousScale) => {
       return window.Tools.getScale() > previousScale;
@@ -678,9 +690,14 @@ export class BoardPage {
         false,
       );
       const release = tool.listeners.release as
-        | ((event: MouseEvent) => void)
+        | ((
+            x: number,
+            y: number,
+            evt: MouseEvent,
+            isTouchEvent: boolean,
+          ) => void)
         | undefined;
-      release?.(zoomOutEvent as unknown as MouseEvent);
+      release?.(x, y, zoomOutEvent as unknown as MouseEvent, false);
     }, point);
     await this.page.waitForFunction((previousScale) => {
       return window.Tools.getScale() < previousScale;
@@ -773,7 +790,7 @@ export class BoardPage {
       ({ drawColor, drawStart, drawEnd, drawSize }) => {
         window.Tools.setColor(drawColor);
         window.Tools.setSize(drawSize);
-        window.Tools.change("Rectangle");
+        window.Tools.change("rectangle");
         const tool = window.Tools.curTool;
         if (!tool) throw new Error("Missing current tool");
         tool.listeners.press?.(
@@ -922,7 +939,7 @@ export class BoardPage {
           size: 4,
           opacity: 1,
         },
-        window.Tools.list.Rectangle,
+        window.Tools.list.rectangle,
       );
 
       const options = window.__turnstileOptions;

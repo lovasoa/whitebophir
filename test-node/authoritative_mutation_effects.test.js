@@ -8,7 +8,7 @@ const {
 test("authoritative delete invalidates only the targeted stable id", () => {
   assert.deepEqual(
     optimisticPrunePlanForAuthoritativeMessage({
-      tool: "Eraser",
+      tool: "eraser",
       type: "delete",
       id: "rect-1",
     }),
@@ -22,7 +22,7 @@ test("authoritative delete invalidates only the targeted stable id", () => {
 test("authoritative clear resets all speculative state", () => {
   assert.deepEqual(
     optimisticPrunePlanForAuthoritativeMessage({
-      tool: "Clear",
+      tool: "clear",
       type: "clear",
     }),
     {
@@ -35,7 +35,7 @@ test("authoritative clear resets all speculative state", () => {
 test("non-destructive authoritative messages do not trigger optimistic pruning", () => {
   assert.deepEqual(
     optimisticPrunePlanForAuthoritativeMessage({
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "update",
       id: "rect-1",
       x2: 25,

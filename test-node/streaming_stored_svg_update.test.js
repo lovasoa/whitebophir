@@ -97,7 +97,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
   const mutations = [
     {
       mutation: {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "update",
         id: "item-3",
         x2: 15,
@@ -106,7 +106,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     },
     {
       mutation: {
-        tool: "Text",
+        tool: "text",
         type: "update",
         id: "item-2",
         txt: "hello streaming",
@@ -114,7 +114,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     },
     {
       mutation: {
-        tool: "Pencil",
+        tool: "pencil",
         type: "child",
         parent: "item-0",
         x: 4,
@@ -123,7 +123,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     },
     {
       mutation: {
-        tool: "Hand",
+        tool: "hand",
         type: "copy",
         id: "item-3",
         newid: "item-3-copy",
@@ -131,7 +131,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     },
     {
       mutation: {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "item-new",
         color: "#abcdef",
@@ -159,8 +159,8 @@ test("streaming stored svg update rewrites touched items and appends creates wit
   assert.equal(parsed.board["item-3"].x2, 15);
   assert.equal(parsed.board["item-2"].txt, "hello streaming");
   assert.equal(parsed.board["item-0"]._children.length, 3);
-  assert.equal(parsed.board["item-3-copy"].tool, "Rectangle");
-  assert.equal(parsed.board["item-new"].tool, "Rectangle");
+  assert.equal(parsed.board["item-3-copy"].tool, "rectangle");
+  assert.equal(parsed.board["item-new"].tool, "rectangle");
   assert.deepEqual(Object.keys(parsed.board), [
     "item-0",
     "item-2",
@@ -186,7 +186,7 @@ test("streaming stored svg update matches clear and same-batch followup semantic
   const mutations = [
     {
       mutation: {
-        tool: "Hand",
+        tool: "hand",
         type: "copy",
         id: "line-1",
         newid: "line-2",
@@ -194,7 +194,7 @@ test("streaming stored svg update matches clear and same-batch followup semantic
     },
     {
       mutation: {
-        tool: "Pencil",
+        tool: "pencil",
         type: "child",
         parent: "line-2",
         x: 9,
@@ -203,13 +203,13 @@ test("streaming stored svg update matches clear and same-batch followup semantic
     },
     {
       mutation: {
-        tool: "Clear",
+        tool: "clear",
         type: "clear",
       },
     },
     {
       mutation: {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-new",
         color: "#abcdef",
@@ -222,7 +222,7 @@ test("streaming stored svg update matches clear and same-batch followup semantic
     },
     {
       mutation: {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "update",
         id: "rect-new",
         x2: 28,
@@ -267,7 +267,7 @@ test("streaming stored svg update preserves shell and paint order across create 
     [
       {
         mutation: {
-          tool: "Ellipse",
+          tool: "ellipse",
           type: "ellipse",
           id: "ellipse-1",
           x: 7,
@@ -280,7 +280,7 @@ test("streaming stored svg update preserves shell and paint order across create 
       },
       {
         mutation: {
-          tool: "Rectangle",
+          tool: "rectangle",
           type: "update",
           id: "rect-1",
           x2: 30,
@@ -289,7 +289,7 @@ test("streaming stored svg update preserves shell and paint order across create 
       },
       {
         mutation: {
-          tool: "Hand",
+          tool: "hand",
           type: "copy",
           id: "rect-1",
           newid: "rect-2",
@@ -297,7 +297,7 @@ test("streaming stored svg update preserves shell and paint order across create 
       },
       {
         mutation: {
-          tool: "Eraser",
+          tool: "eraser",
           type: "delete",
           id: "text-1",
         },
@@ -317,8 +317,8 @@ test("streaming stored svg update preserves shell and paint order across create 
   assert.match(actual, /data-wbo-seq="5"/);
   assert.match(actual, /data-wbo-readonly="true"/);
   assert.equal(parsed.board["rect-1"].x2, 30);
-  assert.equal(parsed.board["ellipse-1"].tool, "Ellipse");
-  assert.equal(parsed.board["rect-2"].tool, "Rectangle");
+  assert.equal(parsed.board["ellipse-1"].tool, "ellipse");
+  assert.equal(parsed.board["rect-2"].tool, "rectangle");
   assert.deepEqual(Object.keys(parsed.board), [
     "rect-1",
     "ellipse-1",
@@ -346,7 +346,7 @@ test("streaming stored svg update preserves untouched bytes and the opaque prefi
     [
       {
         mutation: {
-          tool: "Rectangle",
+          tool: "rectangle",
           type: "update",
           id: "rect-1",
           x2: 30,
@@ -355,7 +355,7 @@ test("streaming stored svg update preserves untouched bytes and the opaque prefi
       },
       {
         mutation: {
-          tool: "Pencil",
+          tool: "pencil",
           type: "child",
           parent: "line-1",
           x: 9,

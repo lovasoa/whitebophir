@@ -166,28 +166,28 @@ test("action counters classify constructive and destructive batch costs", () => 
 test("text creation counters charge creates and url-like text updates", () => {
   const batch = {
     _children: [
-      { tool: "Text", type: "new", id: "text-1" },
-      { tool: "Text", type: "update", id: "text-1", txt: "hello" },
+      { tool: "text", type: "new", id: "text-1" },
+      { tool: "text", type: "update", id: "text-1", txt: "hello" },
       {
-        tool: "Text",
+        tool: "text",
         type: "update",
         id: "text-1",
         txt: "https://example.com/demo",
       },
       {
-        tool: "Text",
+        tool: "text",
         type: "update",
         id: "text-2",
         txt: "www.example.com/demo",
       },
-      { tool: "Pencil", type: "line", id: "line-1" },
+      { tool: "pencil", type: "line", id: "line-1" },
     ],
   };
 
   assert.equal(RateLimitCommon.countTextCreationActions(batch), 3);
   assert.equal(
     RateLimitCommon.countTextCreationActions({
-      tool: "Text",
+      tool: "text",
       type: "new",
       id: "text-3",
     }),
@@ -195,7 +195,7 @@ test("text creation counters charge creates and url-like text updates", () => {
   );
   assert.equal(
     RateLimitCommon.countTextCreationActions({
-      tool: "Text",
+      tool: "text",
       type: "update",
       id: "text-3",
       txt: "plain text",
@@ -204,7 +204,7 @@ test("text creation counters charge creates and url-like text updates", () => {
   );
   assert.equal(
     RateLimitCommon.countTextCreationActions({
-      tool: "Text",
+      tool: "text",
       type: "update",
       id: "text-3",
       txt: "http://example.com",

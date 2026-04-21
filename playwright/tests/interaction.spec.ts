@@ -84,7 +84,7 @@ test.describe("single-page interactions", () => {
       "seed-rect": {
         type: "rect",
         id: "seed-rect",
-        tool: "Rectangle",
+        tool: "rectangle",
         x: 100,
         y: 100,
         x2: 160,
@@ -95,9 +95,9 @@ test.describe("single-page interactions", () => {
     });
 
     await boardPage.gotoBoard("selector-test");
-    await expect(boardPage.tool("Hand")).toBeVisible();
+    await expect(boardPage.tool("hand")).toBeVisible();
     await expect(page.locator("#seed-rect")).toBeVisible();
-    await boardPage.selectTool("Hand");
+    await boardPage.selectTool("hand");
 
     const result = await boardPage.moveSelection(
       "seed-rect",
@@ -138,8 +138,8 @@ test.describe("single-page interactions", () => {
 
   test("zoom clicks in and out", async ({ boardPage }) => {
     await boardPage.gotoBoard("zoom-test");
-    await expect(boardPage.tool("Zoom")).toBeVisible();
-    await boardPage.selectTool("Zoom");
+    await expect(boardPage.tool("zoom")).toBeVisible();
+    await boardPage.selectTool("zoom");
 
     const result = await boardPage.zoomClickInAndOut({ x: 200, y: 200 });
     expect(Math.abs(result.scaleAfterZoomIn - 0.15)).toBeLessThan(0.01);
@@ -182,35 +182,35 @@ test.describe("single-page interactions", () => {
     boardPage,
   }) => {
     await boardPage.gotoBoard("zoom-threshold-test");
-    await expect(boardPage.tool("Hand")).toBeVisible();
-    await expect(boardPage.tool("Pencil")).toBeVisible();
-    await boardPage.selectTool("Pencil");
+    await expect(boardPage.tool("hand")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
+    await boardPage.selectTool("pencil");
     await boardPage.page.evaluate(() => {
       window.Tools.setScale(0.04);
     });
 
-    await boardPage.expectCurrentTool("Hand");
-    await expect(boardPage.tool("Pencil")).toHaveAttribute(
+    await boardPage.expectCurrentTool("hand");
+    await expect(boardPage.tool("pencil")).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-    await expect(boardPage.tool("Rectangle")).toHaveAttribute(
+    await expect(boardPage.tool("rectangle")).toHaveAttribute(
       "aria-disabled",
       "true",
     );
 
-    await boardPage.tool("Pencil").click();
-    await boardPage.expectCurrentTool("Hand");
+    await boardPage.tool("pencil").click();
+    await boardPage.expectCurrentTool("hand");
 
     await boardPage.page.evaluate(() => {
       window.Tools.setScale(0.05);
     });
-    await expect(boardPage.tool("Pencil")).toHaveAttribute(
+    await expect(boardPage.tool("pencil")).toHaveAttribute(
       "aria-disabled",
       "false",
     );
 
-    await boardPage.selectTool("Pencil");
+    await boardPage.selectTool("pencil");
   });
 
   test("download exports SVG content", async ({ boardPage, server }) => {
@@ -218,7 +218,7 @@ test.describe("single-page interactions", () => {
       "download-rect": {
         type: "rect",
         id: "download-rect",
-        tool: "Rectangle",
+        tool: "rectangle",
         x: 100,
         y: 100,
         x2: 160,
@@ -229,10 +229,10 @@ test.describe("single-page interactions", () => {
     });
 
     await boardPage.gotoBoard("download-test");
-    await expect(boardPage.tool("Download")).toBeVisible();
+    await expect(boardPage.tool("download")).toBeVisible();
     await expect(boardPage.page.locator("#download-rect")).toBeVisible();
     await boardPage.installDownloadCapture();
-    await boardPage.tool("Download").click();
+    await boardPage.tool("download").click();
 
     await expect
       .poll(() => boardPage.readDownloadCapture())
@@ -255,7 +255,7 @@ test.describe("single-page interactions", () => {
       "seed-rect": {
         type: "rect",
         id: "seed-rect",
-        tool: "Rectangle",
+        tool: "rectangle",
         x: 100,
         y: 100,
         x2: 160,
@@ -266,9 +266,9 @@ test.describe("single-page interactions", () => {
     });
 
     await boardPage.gotoBoard("selector-advanced-test");
-    await expect(boardPage.tool("Hand")).toBeVisible();
+    await expect(boardPage.tool("hand")).toBeVisible();
     await expect(page.locator("#seed-rect")).toBeVisible();
-    await boardPage.selectTool("Hand");
+    await boardPage.selectTool("hand");
 
     const result = await boardPage.duplicateSelectionAndDelete("seed-rect");
     expect(result.afterDuplicate).toHaveLength(2);

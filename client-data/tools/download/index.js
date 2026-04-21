@@ -86,7 +86,7 @@ function downloadSvgFile(state) {
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  return { tools: ctx.runtime.Tools };
+  return { tools: ctx.Tools };
 }
 
 /** @param {DownloadState} state */

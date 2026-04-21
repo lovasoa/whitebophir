@@ -83,7 +83,6 @@ import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
 /** @typedef {import("../../types/app-runtime").ToolPointerListeners} ToolPointerListeners */
 /** @typedef {import("../../types/app-runtime").ToolModule} ToolModule */
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
-/** @typedef {import("../../types/app-runtime").ToolRuntime} ToolRuntime */
 /** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
 /** @typedef {import("../../types/app-runtime").BoardConnectionState} BoardConnectionState */
 /** @typedef {import("../../types/app-runtime").OptimisticJournalEntry} OptimisticJournalEntry */
@@ -2446,12 +2445,8 @@ function createToolBootContext(toolName) {
     }
     return /** @type {MountedAppToolsState} */ (Tools);
   })();
-  /** @type {ToolRuntime} */
-  const runtime = {
-    Tools: mountedTools,
-  };
   return {
-    runtime: runtime,
+    Tools: mountedTools,
     assetUrl: (assetFile) => Tools.getToolAssetUrl(toolName, assetFile),
   };
 }
@@ -2524,7 +2519,7 @@ function createToolFromModule(toolModule, toolState, toolName) {
     alwaysOn: toolModule.alwaysOn,
     mouseCursor: toolModule.mouseCursor ?? toolStateObject?.mouseCursor,
     helpText: toolModule.helpText,
-    secondary: toolModule.secondary ?? toolStateObject?.secondary ?? null,
+    secondary: toolStateObject?.secondary ?? toolModule.secondary ?? null,
     onSizeChange:
       typeof onSizeChange === "function"
         ? (size) => onSizeChange(toolState, size)

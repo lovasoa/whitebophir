@@ -257,7 +257,7 @@ test("writeBoardState preserves opaque shell while rewriting stored items", asyn
       {
         "line-1": {
           id: "line-1",
-          tool: "Straight line",
+          tool: "straight-line",
           x: 10,
           y: 20,
           x2: 40,
@@ -268,7 +268,7 @@ test("writeBoardState preserves opaque shell while rewriting stored items", asyn
         },
         "text-1": {
           id: "text-1",
-          tool: "Text",
+          tool: "text",
           x: 5,
           y: 7,
           size: 20,
@@ -315,7 +315,7 @@ test("local persisted-board helper falls back to legacy json when svg is absent"
         __wbo_meta__: { readonly: true },
         "rect-1": {
           id: "rect-1",
-          tool: "Rectangle",
+          tool: "rectangle",
           type: "rect",
           x: 1,
           y: 2,
@@ -333,7 +333,7 @@ test("local persisted-board helper falls back to legacy json when svg is absent"
     assert.equal(state.source, "json");
     assert.equal(state.metadata.readonly, true);
     assert.equal(state.seq, 0);
-    assert.equal(state.board["rect-1"].tool, "Rectangle");
+    assert.equal(state.board["rect-1"].tool, "rectangle");
   });
 });
 
@@ -348,7 +348,7 @@ test("local persisted-board helper prefers authoritative svg over stale legacy j
       JSON.stringify({
         "rect-json": {
           id: "rect-json",
-          tool: "Rectangle",
+          tool: "rectangle",
           x: 0,
           y: 0,
           x2: 1,
@@ -364,7 +364,7 @@ test("local persisted-board helper prefers authoritative svg over stale legacy j
       {
         "rect-svg": {
           id: "rect-svg",
-          tool: "Rectangle",
+          tool: "rectangle",
           type: "rect",
           x: 10,
           y: 20,
@@ -407,7 +407,7 @@ test("readCanonicalBoardState reports svg byte length and canonical items", asyn
     assert.equal(state.source, "svg");
     assert.equal(state.byteLength, storedSvg.length);
     assert.deepEqual(state.paintOrder, ["rect-1"]);
-    assert.equal(state.itemsById.get("rect-1")?.tool, "Rectangle");
+    assert.equal(state.itemsById.get("rect-1")?.tool, "rectangle");
   });
 });
 
@@ -448,7 +448,7 @@ test("readCanonicalBoardState falls back to the backup svg when the primary file
       {
         "rect-1": {
           id: "rect-1",
-          tool: "Rectangle",
+          tool: "rectangle",
           x: 1,
           y: 2,
           x2: 30,
@@ -467,7 +467,7 @@ test("readCanonicalBoardState falls back to the backup svg when the primary file
 
     assert.equal(state.source, "svg_backup");
     assert.deepEqual(state.paintOrder, ["rect-1"]);
-    assert.equal(state.itemsById.get("rect-1")?.tool, "Rectangle");
+    assert.equal(state.itemsById.get("rect-1")?.tool, "rectangle");
     assert.match(servedBaseline, /id="rect-1"/);
   });
 });
@@ -527,7 +527,7 @@ test("readBoardDocumentState falls back to legacy json metadata and generated in
         __wbo_meta__: { readonly: true },
         "rect-1": {
           id: "rect-1",
-          tool: "Rectangle",
+          tool: "rectangle",
           x: 1,
           y: 2,
           x2: 30,
@@ -575,7 +575,7 @@ test("readCanonicalBoardState eagerly loads canonical stored svg items", async (
 
     assert.deepEqual(state.paintOrder, ["rect-1", "text-1"]);
     const item = state.itemsById.get("text-1");
-    assert.equal(item?.tool, "Text");
+    assert.equal(item?.tool, "text");
     assert.deepEqual(item?.attrs, {
       x: 5,
       y: 6,
@@ -604,7 +604,7 @@ test("local stored-svg summary helper derives minimal pencil summaries", () => {
   assert.equal(summary.metadata.readonly, false);
   assert.deepEqual(summary.summaries.get("line-1"), {
     id: "line-1",
-    tool: "Pencil",
+    tool: "pencil",
     data: {
       color: "#123456",
       size: 4,
@@ -616,7 +616,7 @@ test("local stored-svg summary helper derives minimal pencil summaries", () => {
   });
   assert.deepEqual(summary.summaries.get("text-1"), {
     id: "text-1",
-    tool: "Text",
+    tool: "text",
     data: {
       x: 5,
       y: 6,
@@ -645,7 +645,7 @@ test("readCanonicalBoardState migrates legacy json to svg before canonical load"
       JSON.stringify({
         "rect-1": {
           id: "rect-1",
-          tool: "Rectangle",
+          tool: "rectangle",
           x: 1,
           y: 2,
           x2: 3,
@@ -655,7 +655,7 @@ test("readCanonicalBoardState migrates legacy json to svg before canonical load"
         },
         "text-1": {
           id: "text-1",
-          tool: "Text",
+          tool: "text",
           x: 5,
           y: 6,
           txt: "hello",
@@ -671,7 +671,7 @@ test("readCanonicalBoardState migrates legacy json to svg before canonical load"
 
     assert.equal(state.source, "svg");
     assert.deepEqual(state.paintOrder, ["rect-1", "text-1"]);
-    assert.equal(state.itemsById.get("rect-1")?.tool, "Rectangle");
+    assert.equal(state.itemsById.get("rect-1")?.tool, "rectangle");
     assert.deepEqual(state.itemsById.get("text-1")?.payload, { kind: "text" });
     await assert.doesNotReject(() =>
       fs.access(svgBoardStore.boardSvgPath("parse-items-json")),
@@ -700,7 +700,7 @@ test("served svg baselines keep raw pencil paths for client-side smoothing", asy
       JSON.stringify({
         "line-1": {
           id: "line-1",
-          tool: "Pencil",
+          tool: "pencil",
           type: "line",
           color: "#123456",
           size: 4,
@@ -729,7 +729,7 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
       {
         "rect-1": {
           id: "rect-1",
-          tool: "Rectangle",
+          tool: "rectangle",
           type: "rect",
           x: 1,
           y: 2,
@@ -741,7 +741,7 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
         },
         "text-1": {
           id: "text-1",
-          tool: "Text",
+          tool: "text",
           type: "new",
           x: 5,
           y: 6,
@@ -752,7 +752,7 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
         },
         "line-1": {
           id: "line-1",
-          tool: "Pencil",
+          tool: "pencil",
           type: "line",
           color: "#abcdef",
           size: 5,
@@ -770,7 +770,7 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
     const state = await readPersistedBoardState("style-state", historyDir);
     assert.deepEqual(state.board["rect-1"], {
       id: "rect-1",
-      tool: "Rectangle",
+      tool: "rectangle",
       x: 1,
       y: 2,
       x2: 30,
@@ -781,7 +781,7 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
     });
     assert.deepEqual(state.board["text-1"], {
       id: "text-1",
-      tool: "Text",
+      tool: "text",
       x: 5,
       y: 6,
       txt: "hello",
@@ -791,7 +791,7 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
     });
     assert.deepEqual(state.board["line-1"], {
       id: "line-1",
-      tool: "Pencil",
+      tool: "pencil",
       color: "#abcdef",
       size: 5,
       opacity: 0.8,
@@ -814,7 +814,7 @@ test("rewriteStoredSvg rejects stored svg base-seq mismatches", async () => {
       {
         "rect-1": {
           id: "rect-1",
-          tool: "Rectangle",
+          tool: "rectangle",
           type: "rect",
           x: 0,
           y: 0,
@@ -862,7 +862,7 @@ test("writeBoardState removes stale svg and legacy json when board becomes empty
       JSON.stringify({
         "rect-1": {
           id: "rect-1",
-          tool: "Rectangle",
+          tool: "rectangle",
           x: 0,
           y: 0,
           x2: 1,

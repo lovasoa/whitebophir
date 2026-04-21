@@ -153,7 +153,7 @@ test("socket policy counts only mutations that should consume rate-limit budget"
 
   assert.equal(
     socketPolicy.countTextCreationActions({
-      tool: "Text",
+      tool: "text",
       type: "new",
       id: "text-1",
     }),
@@ -161,7 +161,7 @@ test("socket policy counts only mutations that should consume rate-limit budget"
   );
   assert.equal(
     socketPolicy.countTextCreationActions({
-      tool: "Text",
+      tool: "text",
       type: "update",
       id: "text-1",
       txt: "plain text",
@@ -171,9 +171,9 @@ test("socket policy counts only mutations that should consume rate-limit budget"
   assert.equal(
     socketPolicy.countTextCreationActions({
       _children: [
-        { tool: "Text", type: "new", id: "text-2" },
+        { tool: "text", type: "new", id: "text-2" },
         {
-          tool: "Text",
+          tool: "text",
           type: "update",
           id: "text-2",
           txt: "https://example.com",
@@ -187,10 +187,10 @@ test("socket policy counts only mutations that should consume rate-limit budget"
 test("normalizeBroadcastData rejects blocked tools before persistence", () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
   const rejected = socketPolicy.normalizeBroadcastData(
-    configFromEnv({ WBO_BLOCKED_TOOLS: "Text" }),
+    configFromEnv({ WBO_BLOCKED_TOOLS: "text" }),
     "anonymous",
     {
-      tool: "Text",
+      tool: "text",
       type: "update",
       id: "text-1",
       txt: "blocked",
@@ -215,7 +215,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
         configFromEnv({ AUTH_SECRET_KEY: undefined }),
         readonlyBoard,
         {
-          tool: "Cursor",
+          tool: "cursor",
           type: "update",
           color: "#123456",
           size: 4,
@@ -243,7 +243,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
       socketPolicy.canApplyBoardMessage(
         configFromEnv({ AUTH_SECRET_KEY: "test-secret" }),
         readonlyBoard,
-        { tool: "Clear", type: "clear" },
+        { tool: "clear", type: "clear" },
         createSocket({ token: editorToken }).socket,
       ),
       false,
@@ -252,7 +252,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
       socketPolicy.canApplyBoardMessage(
         configFromEnv({ AUTH_SECRET_KEY: "test-secret" }),
         readonlyBoard,
-        { tool: "Clear", type: "clear" },
+        { tool: "clear", type: "clear" },
         createSocket({ token: moderatorToken }).socket,
       ),
       true,

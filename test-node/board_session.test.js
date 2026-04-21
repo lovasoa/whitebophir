@@ -58,13 +58,13 @@ test("board session serializes persistent mutation acceptance per board", async 
 
   const first = session.acceptPersistentMutation(
     "socket-1",
-    { tool: "Rectangle", type: "rect", id: "first" },
+    { tool: "rectangle", type: "rect", id: "first" },
     "cm-1",
     10,
   );
   const second = session.acceptPersistentMutation(
     "socket-1",
-    { tool: "Rectangle", type: "rect", id: "second" },
+    { tool: "rectangle", type: "rect", id: "second" },
     "cm-2",
     20,
   );
@@ -120,19 +120,19 @@ test("board session records the prepared mutation payload", async () => {
 
   const result = await createBoardSession(board).acceptPersistentMutation(
     "socket-1",
-    { tool: "Text", type: "update", id: "text-1", txt: "draft" },
+    { tool: "text", type: "update", id: "text-1", txt: "draft" },
     "cm-9",
     99,
   );
 
   assert.equal(result.ok, true);
   assert.deepEqual(processed, [
-    { tool: "Text", type: "update", id: "text-1", txt: "prepared text" },
+    { tool: "text", type: "update", id: "text-1", txt: "prepared text" },
   ]);
   assert.deepEqual(recorded, [
     {
       message: {
-        tool: "Text",
+        tool: "text",
         type: "update",
         id: "text-1",
         txt: "prepared text",
@@ -149,7 +149,7 @@ test("board session does not mutate or replace the accepted mutation when prepar
   /** @type {any[]} */
   const processed = [];
   const mutation = {
-    tool: "Rectangle",
+    tool: "rectangle",
     type: "rect",
     id: "rect-1",
     color: "#123456",
@@ -185,7 +185,7 @@ test("board session does not mutate or replace the accepted mutation when prepar
   assert.strictEqual(processed[0], mutation);
   assert.strictEqual(result.value, mutation);
   assert.deepEqual(mutation, {
-    tool: "Rectangle",
+    tool: "rectangle",
     type: "rect",
     id: "rect-1",
     color: "#123456",
@@ -214,7 +214,7 @@ test("board session does not append to the mutation log after rejection", async 
   assert.deepEqual(
     await createBoardSession(board).acceptPersistentMutation(
       "socket-1",
-      { tool: "Pencil", type: "child", parent: "missing-parent", x: 1, y: 2 },
+      { tool: "pencil", type: "child", parent: "missing-parent", x: 1, y: 2 },
       "cm-reject",
       12,
     ),
@@ -239,7 +239,7 @@ test("board session appends sequenced followups generated during rejection", asy
       return [
         {
           mutation: {
-            tool: "Eraser",
+            tool: "eraser",
             type: "delete",
             id: "rect-seed",
           },
@@ -262,7 +262,7 @@ test("board session appends sequenced followups generated during rejection", asy
   const result = await createBoardSession(board).acceptPersistentMutation(
     "socket-1",
     {
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "update",
       id: "rect-seed",
       x: 0,
@@ -277,7 +277,7 @@ test("board session appends sequenced followups generated during rejection", asy
   assert.deepEqual(recorded, [
     {
       message: {
-        tool: "Eraser",
+        tool: "eraser",
         type: "delete",
         id: "rect-seed",
       },
@@ -293,13 +293,13 @@ test("board session appends sequenced followups generated during rejection", asy
         envelope: {
           seq: 9,
           mutation: {
-            tool: "Eraser",
+            tool: "eraser",
             type: "delete",
             id: "rect-seed",
           },
         },
         mutation: {
-          tool: "Eraser",
+          tool: "eraser",
           type: "delete",
           id: "rect-seed",
         },
@@ -321,7 +321,7 @@ test("board session appends sequenced followups generated during successful acce
       return [
         {
           mutation: {
-            tool: "Eraser",
+            tool: "eraser",
             type: "delete",
             id: "rect-1",
           },
@@ -344,7 +344,7 @@ test("board session appends sequenced followups generated during successful acce
   const result = await createBoardSession(board).acceptPersistentMutation(
     "socket-1",
     {
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       id: "rect-2",
       color: "#123456",
@@ -361,7 +361,7 @@ test("board session appends sequenced followups generated during successful acce
   assert.deepEqual(recorded, [
     {
       message: {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-2",
         color: "#123456",
@@ -376,7 +376,7 @@ test("board session appends sequenced followups generated during successful acce
     },
     {
       message: {
-        tool: "Eraser",
+        tool: "eraser",
         type: "delete",
         id: "rect-1",
       },
@@ -387,7 +387,7 @@ test("board session appends sequenced followups generated during successful acce
   assert.deepEqual(result, {
     ok: true,
     value: {
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       id: "rect-2",
       color: "#123456",
@@ -400,7 +400,7 @@ test("board session appends sequenced followups generated during successful acce
     envelope: {
       seq: 1,
       mutation: {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "rect-2",
         color: "#123456",
@@ -416,13 +416,13 @@ test("board session appends sequenced followups generated during successful acce
         envelope: {
           seq: 2,
           mutation: {
-            tool: "Eraser",
+            tool: "eraser",
             type: "delete",
             id: "rect-1",
           },
         },
         mutation: {
-          tool: "Eraser",
+          tool: "eraser",
           type: "delete",
           id: "rect-1",
         },

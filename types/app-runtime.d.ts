@@ -45,7 +45,7 @@ export type BatchBoardMessage = ToolNamedBoardMessage & {
 };
 
 export type ToolOwnedBatchMessage = BatchBoardMessage & {
-  tool: "Hand";
+  tool: "hand";
 };
 
 export type PendingWrite = {
@@ -292,12 +292,8 @@ export type ServerConfig = {
   AUTO_FINGER_WHITEOUT?: boolean;
 };
 
-export type ToolRuntime = {
-  Tools: MountedAppToolsState;
-};
-
 export type ToolBootContext = {
-  runtime: ToolRuntime;
+  Tools: MountedAppToolsState;
   assetUrl: (assetFile: string) => string;
 };
 

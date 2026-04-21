@@ -134,6 +134,22 @@ function literal(expected) {
 }
 
 /**
+ * @param {string} primary
+ * @param {string | undefined} secondary
+ * @returns {(value: unknown) => ValidationResult<string | number>}
+ */
+function literalAlias(primary, secondary) {
+  const normalizePrimary = literal(primary);
+  const normalizeSecondary =
+    secondary && secondary !== primary ? literal(secondary) : null;
+  return function normalizeLiteralAlias(value) {
+    const primaryResult = normalizePrimary(value);
+    if (primaryResult.ok || !normalizeSecondary) return primaryResult;
+    return normalizeSecondary(value);
+  };
+}
+
+/**
  * @param {unknown} value
  * @returns {ValidationResult<string>}
  */
@@ -421,10 +437,13 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
 /** @type {StoredToolSchemas} */
 const STORED_SHAPE_SCHEMAS = Object.fromEntries(
   SHAPE_CONTRACTS.map((contract) => {
-    const schema = buildStoredSchema(
-      contract.toolId,
-      contract.storedTagName || "",
-      SHAPE_STORED_FIELDS,
+    const schema = buildStoredSchema(contract.toolId, "", SHAPE_STORED_FIELDS);
+    schema.type = optional(
+      literalAlias(
+        contract.storedTagName || "",
+        contract.shapeType || contract.liveCreateType,
+      ),
+      { defaultValue: contract.storedTagName || "" },
     );
     schema.x2 = optional(normalizeCoord, {
       defaultValue: defaultCoordinateFromX,

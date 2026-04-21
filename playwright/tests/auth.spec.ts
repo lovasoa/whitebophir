@@ -21,7 +21,7 @@ test.describe("JWT auth and readonly flows", () => {
       "readonly-clear-rect": {
         type: "rect",
         id: "readonly-clear-rect",
-        tool: "Rectangle",
+        tool: "rectangle",
         x: 10,
         y: 10,
         x2: 30,
@@ -34,13 +34,13 @@ test.describe("JWT auth and readonly flows", () => {
     await boardPage.gotoBoard("readonly-test", {
       token: TOKENS.readOnlyViewer,
     });
-    await expect(boardPage.tool("Hand")).toBeVisible();
-    await expect(boardPage.tool("Pencil")).toHaveCount(0);
+    await expect(boardPage.tool("hand")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toHaveCount(0);
     await expect(boardPage.settings).toBeHidden();
     await boardPage.emitBroadcast({
       type: "rect",
       id: "readonly-viewer-rect",
-      tool: "Rectangle",
+      tool: "rectangle",
       x: 10,
       y: 10,
       x2: 30,
@@ -49,18 +49,18 @@ test.describe("JWT auth and readonly flows", () => {
       size: 4,
     });
     await page.reload();
-    await expect(boardPage.tool("Hand")).toBeVisible();
+    await expect(boardPage.tool("hand")).toBeVisible();
     await expect(page.locator(readonlySelector)).toHaveCount(0);
 
     await boardPage.gotoBoard("readonly-test", {
       token: TOKENS.readOnlyGlobalEditor,
     });
-    await expect(boardPage.tool("Pencil")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
     await expect(boardPage.settings).toBeVisible();
     await boardPage.emitBroadcast({
       type: "rect",
       id: "readonly-editor-rect",
-      tool: "Rectangle",
+      tool: "rectangle",
       x: 10,
       y: 10,
       x2: 30,
@@ -80,21 +80,21 @@ test.describe("JWT auth and readonly flows", () => {
       token: TOKENS.readOnlyBoardEditor,
     });
     await expect(page.locator(readonlySelector)).toBeVisible();
-    await expect(boardPage.tool("Pencil")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
 
     await boardPage.gotoBoard("readonly-clear", {
       token: TOKENS.readOnlyGlobalModerator,
     });
-    await expect(boardPage.tool("Clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toBeVisible();
     await expect(page.locator(clearSelector)).toBeVisible();
-    await boardPage.tool("Clear").click();
+    await boardPage.tool("clear").click();
     await server.waitForStoredBoard(
       server.dataPath,
       "readonly-clear",
       (storedBoard) => !storedBoard["readonly-clear-rect"],
     );
     await page.reload();
-    await expect(boardPage.tool("Clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toBeVisible();
     await expect(page.locator(clearSelector)).toHaveCount(0);
   });
 
@@ -102,17 +102,17 @@ test.describe("JWT auth and readonly flows", () => {
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.globalModerator,
     });
-    await expect(boardPage.tool("Clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toBeVisible();
 
     await boardPage.gotoBoard("testboard123", {
       token: TOKENS.globalModerator,
     });
-    await expect(boardPage.tool("Clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toBeVisible();
 
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.boardModeratorTestboard,
     });
-    await expect(boardPage.tool("Clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toBeVisible();
 
     await boardPage.gotoBoard("testboard123", {
       token: TOKENS.boardModeratorTestboard,
@@ -122,14 +122,14 @@ test.describe("JWT auth and readonly flows", () => {
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.globalEditor,
     });
-    await expect(boardPage.tool("Clear")).toHaveCount(0);
+    await expect(boardPage.tool("clear")).toHaveCount(0);
     await expect(boardPage.menu).toBeVisible();
 
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.boardEditorTestboard,
     });
     await expect(boardPage.menu).toBeVisible();
-    await expect(boardPage.tool("Clear")).toHaveCount(0);
+    await expect(boardPage.tool("clear")).toHaveCount(0);
 
     await boardPage.gotoBoard("testboard123", {
       token: TOKENS.boardEditorTestboard,
@@ -158,14 +158,14 @@ test.describe("public authless flows", () => {
     });
 
     await boardPage.gotoBoard("readonly-public");
-    await expect(boardPage.tool("Hand")).toBeVisible();
-    await expect(boardPage.tool("Pencil")).toHaveCount(0);
-    await expect(boardPage.tool("Line")).toHaveCount(0);
+    await expect(boardPage.tool("hand")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toHaveCount(0);
+    await expect(boardPage.tool("straight-line")).toHaveCount(0);
     await expect(boardPage.settings).toBeHidden();
     await boardPage.emitBroadcast({
       type: "rect",
       id: "readonly-public-rect",
-      tool: "Rectangle",
+      tool: "rectangle",
       x: 10,
       y: 10,
       x2: 30,
@@ -174,7 +174,7 @@ test.describe("public authless flows", () => {
       size: 4,
     });
     await page.reload();
-    await expect(boardPage.tool("Hand")).toBeVisible();
+    await expect(boardPage.tool("hand")).toBeVisible();
     await expect(page.locator(selector)).toHaveCount(0);
   });
 
@@ -192,8 +192,8 @@ test.describe("public authless flows", () => {
     await boardPage.waitForAuthoritativeResync();
 
     const hadOptimisticRect = await page.evaluate(() => {
-      const rectangle = window.Tools.list.Rectangle;
-      if (!rectangle) throw new Error("Rectangle tool is unavailable");
+      const rectangle = window.Tools.list.rectangle;
+      if (!rectangle) throw new Error("rectangle tool is unavailable");
       window.Tools.drawAndSend(
         {
           type: "rect",

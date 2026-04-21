@@ -860,7 +860,7 @@ export async function boot(ctx) {
   ({ pointInTransformedBBox, transformedBBoxIntersects } = await import(
     "../../js/intersect.js"
   ));
-  return createState(ctx.runtime.Tools, ctx.assetUrl);
+  return createState(ctx.Tools, ctx.assetUrl);
 }
 
 /** @param {HandState} state */

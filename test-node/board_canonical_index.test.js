@@ -29,7 +29,7 @@ test("canonical index tracks paint order and dirty created ids through upsert/re
   const created = canonicalItemFromItem(
     {
       id: "rect-1",
-      tool: "Rectangle",
+      tool: "rectangle",
       color: "#123456",
       size: 2,
       x: 1,
@@ -60,7 +60,7 @@ test("finalizePersistedCanonicalItems clears persisted dirtiness and folds child
   const persistedPencil = canonicalItemFromItem(
     {
       id: "line-1",
-      tool: "Pencil",
+      tool: "pencil",
       color: "#123456",
       size: 4,
       _children: [
@@ -92,7 +92,7 @@ test("finalizePersistedCanonicalItems preserves source-independent text copies",
   const source = canonicalItemFromItem(
     {
       id: "text-1",
-      tool: "Text",
+      tool: "text",
       x: 10,
       y: 20,
       size: 18,

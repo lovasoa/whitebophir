@@ -383,7 +383,7 @@ test("connection bootstrap traces the root socket event and board load", async (
         },
         query: {
           board: "trace-board",
-          tool: "Hand",
+          tool: "hand",
           color: "#111111",
           size: "6",
         },
@@ -436,7 +436,7 @@ test("active traces correlate log records and board.save spans", async () => {
           board.board = {
             "shape-1": {
               id: "shape-1",
-              tool: "Text",
+              tool: "text",
               x: 1,
               y: 2,
               txt: "hi",
@@ -503,7 +503,7 @@ test("large standalone board loads create their own root span", async () => {
   for (let index = 0; index < 512; index++) {
     storedBoard[`shape-${index}`] = {
       id: `shape-${index}`,
-      tool: "Text",
+      tool: "text",
       x: index,
       y: index,
       txt: "x".repeat(4096),
@@ -632,7 +632,7 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
         created.handlers,
         "broadcast",
       )({
-        tool: "Cursor",
+        tool: "cursor",
         type: "update",
         x: 10,
         y: 20,
@@ -651,7 +651,7 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
         created.handlers,
         "broadcast",
       )({
-        tool: "Cursor",
+        tool: "cursor",
         type: "update",
         x: 10,
         y: 20,

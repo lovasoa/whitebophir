@@ -27,14 +27,14 @@ function disableSaves(board) {
 }
 
 test("requiresTurnstile shared utility logic", () => {
-  assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "Pencil"), true);
-  assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "Clear"), true);
+  assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "pencil"), true);
+  assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "clear"), true);
   assert.equal(
-    WBOMessageCommon.requiresTurnstile("anonymous", "Cursor"),
+    WBOMessageCommon.requiresTurnstile("anonymous", "cursor"),
     false,
   );
   assert.equal(
-    WBOMessageCommon.requiresTurnstile("named-board", "Pencil"),
+    WBOMessageCommon.requiresTurnstile("named-board", "pencil"),
     false,
   );
   assert.equal(
@@ -74,7 +74,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       });
 
       await broadcastHandler({
-        tool: "Pencil",
+        tool: "pencil",
         type: "line",
         id: "l1",
         color: "#123456",
@@ -88,13 +88,13 @@ test("server-side Turnstile enforcement in broadcast", async () => {
 
       // 2. Allowed: Cursor tool, not validated
       // (This verifies the shared logic integration in the socket handler)
-      await broadcastHandler({ tool: "Cursor", type: "update", x: 10, y: 20 });
+      await broadcastHandler({ tool: "cursor", type: "update", x: 10, y: 20 });
 
       // 3. Allowed: Pencil tool, AFTER validation
       socket.turnstileValidatedUntil = 1000;
       await withMockedNow(500, async () => {
         await broadcastHandler({
-          tool: "Pencil",
+          tool: "pencil",
           type: "line",
           id: "l2",
           color: "#123456",
@@ -111,7 +111,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       socket.turnstileValidatedUntil = 1000;
       await withMockedNow(1001, async () => {
         await broadcastHandler({
-          tool: "Pencil",
+          tool: "pencil",
           type: "line",
           id: "l3",
           color: "#123456",

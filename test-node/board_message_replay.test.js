@@ -7,14 +7,14 @@ const BoardMessages = require("../client-data/js/board_transport.js").messages;
 test("tool-owned Hand batches are applied at the batch level only", () => {
   assert.equal(
     BoardMessageReplay.isToolOwnedBatchMessage({
-      tool: "Hand",
+      tool: "hand",
       _children: [{ type: "update", id: "rect-1" }],
     }),
     true,
   );
   assert.equal(
     BoardMessageReplay.shouldReplayChildrenIndividually({
-      tool: "Hand",
+      tool: "hand",
       _children: [{ type: "update", id: "rect-1" }],
     }),
     false,
@@ -23,14 +23,14 @@ test("tool-owned Hand batches are applied at the batch level only", () => {
 
 test("stored item children keep parent metadata during replay", () => {
   const replayChild = BoardMessageReplay.prepareReplayChild(
-    { id: "line-1", tool: "Pencil" },
+    { id: "line-1", tool: "pencil" },
     { x: 10, y: 20 },
     BoardMessages.normalizeChildMessage,
   );
 
   assert.deepEqual(replayChild, {
     parent: "line-1",
-    tool: "Pencil",
+    tool: "pencil",
     type: "child",
     x: 10,
     y: 20,
@@ -38,7 +38,7 @@ test("stored item children keep parent metadata during replay", () => {
 });
 
 test("non-parent replay children are replayed unchanged", () => {
-  const child = { tool: "Rectangle", type: "rect", id: "rect-1" };
+  const child = { tool: "rectangle", type: "rect", id: "rect-1" };
 
   assert.equal(
     BoardMessageReplay.prepareReplayChild(
@@ -57,7 +57,7 @@ test("seq envelopes are recognized and unwrap to their mutation payload", () => 
     acceptedAtMs: 123,
     clientMutationId: "c1",
     mutation: {
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       id: "rect-1",
       x: 1,
@@ -79,17 +79,17 @@ test("buffered seq envelopes already covered by replay end are dropped", () => {
   const buffered = [
     {
       seq: 4,
-      mutation: { tool: "Eraser", type: "delete", id: "rect-1" },
+      mutation: { tool: "eraser", type: "delete", id: "rect-1" },
     },
     {
       seq: 5,
-      mutation: { tool: "Hand", type: "update", id: "rect-2" },
+      mutation: { tool: "hand", type: "update", id: "rect-2" },
     },
     {
       seq: 6,
-      mutation: { tool: "Pencil", type: "child", parent: "line-1", x: 1, y: 2 },
+      mutation: { tool: "pencil", type: "child", parent: "line-1", x: 1, y: 2 },
     },
-    { tool: "Text", type: "update", id: "text-1", txt: "legacy" },
+    { tool: "text", type: "update", id: "text-1", txt: "legacy" },
   ];
 
   assert.deepEqual(
@@ -134,7 +134,7 @@ test("sync replay control messages are identified by type", () => {
   );
   assert.equal(
     BoardMessageReplay.isSyncReplayControlMessage({
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       id: "rect-1",
     }),
@@ -147,7 +147,7 @@ test("seq envelopes and sync control messages bypass the seq replay buffer", () 
     BoardMessageReplay.shouldBufferLiveMessage(
       {
         seq: 3,
-        mutation: { tool: "Rectangle", type: "rect", id: "rect-1" },
+        mutation: { tool: "rectangle", type: "rect", id: "rect-1" },
       },
       true,
     ),
@@ -165,14 +165,14 @@ test("seq envelopes and sync control messages bypass the seq replay buffer", () 
   );
   assert.equal(
     BoardMessageReplay.shouldBufferLiveMessage(
-      { tool: "Cursor", type: "update", x: 1, y: 2 },
+      { tool: "cursor", type: "update", x: 1, y: 2 },
       true,
     ),
     true,
   );
   assert.equal(
     BoardMessageReplay.shouldBufferLiveMessage(
-      { tool: "Cursor", type: "update", x: 1, y: 2 },
+      { tool: "cursor", type: "update", x: 1, y: 2 },
       false,
     ),
     false,

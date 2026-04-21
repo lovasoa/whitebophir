@@ -9,12 +9,12 @@ test("mutation logs append contiguous seq values from the initial baseline", () 
   const first = log.append({
     board: "demo",
     acceptedAtMs: 100,
-    mutation: { tool: "Rectangle", type: "rect", id: "rect-1" },
+    mutation: { tool: "rectangle", type: "rect", id: "rect-1" },
   });
   const second = log.append({
     board: "demo",
     acceptedAtMs: 200,
-    mutation: { tool: "Eraser", type: "delete", id: "rect-1" },
+    mutation: { tool: "eraser", type: "delete", id: "rect-1" },
   });
 
   assert.equal(first.seq, 5);
@@ -28,7 +28,7 @@ test("mutation logs read contiguous ranges and trim old replay entries", () => {
     log.append({
       board: "demo",
       acceptedAtMs: index,
-      mutation: { tool: "Text", type: "update", id: `text-${index}` },
+      mutation: { tool: "text", type: "update", id: `text-${index}` },
     });
   }
 
@@ -51,7 +51,7 @@ test("mutation logs track the latest persisted baseline seq", () => {
   log.append({
     board: "demo",
     acceptedAtMs: 3,
-    mutation: { tool: "Rectangle", type: "rect", id: "rect-1" },
+    mutation: { tool: "rectangle", type: "rect", id: "rect-1" },
   });
 
   assert.equal(log.persistedSeq(), 2);
@@ -64,17 +64,17 @@ test("mutation logs trim only persisted entries older than the retention cutoff"
   log.append({
     board: "demo",
     acceptedAtMs: 10,
-    mutation: { tool: "Rectangle", type: "rect", id: "rect-1" },
+    mutation: { tool: "rectangle", type: "rect", id: "rect-1" },
   });
   log.append({
     board: "demo",
     acceptedAtMs: 20,
-    mutation: { tool: "Rectangle", type: "rect", id: "rect-2" },
+    mutation: { tool: "rectangle", type: "rect", id: "rect-2" },
   });
   log.append({
     board: "demo",
     acceptedAtMs: 30,
-    mutation: { tool: "Rectangle", type: "rect", id: "rect-3" },
+    mutation: { tool: "rectangle", type: "rect", id: "rect-3" },
   });
 
   log.markPersisted(2);
@@ -92,17 +92,17 @@ test("mutation logs keep pinned replay history even after persisted retention ex
   log.append({
     board: "demo",
     acceptedAtMs: 10,
-    mutation: { tool: "Rectangle", type: "rect", id: "rect-1" },
+    mutation: { tool: "rectangle", type: "rect", id: "rect-1" },
   });
   log.append({
     board: "demo",
     acceptedAtMs: 20,
-    mutation: { tool: "Rectangle", type: "rect", id: "rect-2" },
+    mutation: { tool: "rectangle", type: "rect", id: "rect-2" },
   });
   log.append({
     board: "demo",
     acceptedAtMs: 30,
-    mutation: { tool: "Rectangle", type: "rect", id: "rect-3" },
+    mutation: { tool: "rectangle", type: "rect", id: "rect-3" },
   });
 
   log.markPersisted(3);

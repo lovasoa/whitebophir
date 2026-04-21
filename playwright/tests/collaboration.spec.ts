@@ -44,16 +44,16 @@ test.describe("collaboration and rate limiting", () => {
     await Promise.all([
       boardPage.waitForSocketConnected(),
       peerBoard.waitForSocketConnected(),
-      boardPage.waitForToolBooted("Pencil"),
-      boardPage.waitForToolBooted("Rectangle"),
-      peerBoard.waitForToolBooted("Rectangle"),
-      peerBoard.waitForToolBooted("Cursor"),
+      boardPage.waitForToolBooted("pencil"),
+      boardPage.waitForToolBooted("rectangle"),
+      peerBoard.waitForToolBooted("rectangle"),
+      peerBoard.waitForToolBooted("cursor"),
     ]);
 
-    await expect(boardPage.tool("Pencil")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
     await expect(boardPage.connectedUsersToggle).toBeVisible();
-    await boardPage.selectTool("Pencil");
-    await boardPage.expectCurrentTool("Pencil");
+    await boardPage.selectTool("pencil");
+    await boardPage.expectCurrentTool("pencil");
 
     await boardPage.connectedUsersToggle.click();
     await expect(boardPage.connectedUsersPanel).toBeVisible();
@@ -72,7 +72,7 @@ test.describe("collaboration and rate limiting", () => {
       peerPage.locator("rect[x='1100'][y='800'][stroke='#ff0000']"),
     ).toBeVisible();
     await boardPage.emitBroadcast({
-      tool: "Cursor",
+      tool: "cursor",
       type: "update",
       x: 1100,
       y: 800,
@@ -194,7 +194,7 @@ test.describe("collaboration and rate limiting", () => {
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
 
     await peerBoard.emitBroadcast({
-      tool: "Cursor",
+      tool: "cursor",
       type: "update",
       x: 250,
       y: 150,
@@ -342,7 +342,7 @@ test.describe("collaboration and rate limiting", () => {
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
 
     await peerBoard.emitBroadcast({
-      tool: "Cursor",
+      tool: "cursor",
       type: "update",
       x: 1600,
       y: 1200,
@@ -376,7 +376,7 @@ test.describe("collaboration and rate limiting", () => {
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       for (let index = 0; index < 12; index += 1) {
         window.Tools.socket.emit("broadcast", {
-          tool: "Cursor",
+          tool: "cursor",
           type: "update",
           x: 1600 + index * 8,
           y: 1200 + index * 6,
@@ -424,7 +424,7 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.waitForAuthoritativeResync();
 
     await page.evaluate(() => {
-      const rectangle = window.Tools.list.Rectangle;
+      const rectangle = window.Tools.list.rectangle;
       window.Tools.drawAndSend(
         {
           type: "rect",
@@ -498,7 +498,7 @@ test.describe("collaboration and rate limiting", () => {
       const nextFrame = () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       const lineId = "reconnect-pencil-path";
-      const pencil = window.Tools.list.Pencil;
+      const pencil = window.Tools.list.pencil;
       window.Tools.drawAndSend(
         {
           type: "line",
@@ -568,7 +568,7 @@ test.describe("collaboration and rate limiting", () => {
 
     await server.writeBoard(server.dataPath, boardName, {
       "slow-pencil": {
-        tool: "Pencil",
+        tool: "pencil",
         type: "line",
         id: "slow-pencil",
         color: "#8844aa",
@@ -582,7 +582,7 @@ test.describe("collaboration and rate limiting", () => {
         ],
       },
       "slow-rect": {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "slow-rect",
         x: 100,
@@ -594,7 +594,7 @@ test.describe("collaboration and rate limiting", () => {
         transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
       },
       "slow-ellipse": {
-        tool: "Ellipse",
+        tool: "ellipse",
         type: "ellipse",
         id: "slow-ellipse",
         x: 260,
@@ -605,7 +605,7 @@ test.describe("collaboration and rate limiting", () => {
         size: 5,
       },
       "slow-line": {
-        tool: "Straight line",
+        tool: "straight-line",
         type: "straight",
         id: "slow-line",
         x: 440,
@@ -616,7 +616,7 @@ test.describe("collaboration and rate limiting", () => {
         size: 3,
       },
       "slow-text": {
-        tool: "Text",
+        tool: "text",
         type: "new",
         id: "slow-text",
         x: 360,
@@ -652,7 +652,7 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.waitForAuthoritativeResync();
 
     await peerBoard.emitBroadcast({
-      tool: "Cursor",
+      tool: "cursor",
       type: "update",
       x: 640,
       y: 210,
@@ -756,7 +756,7 @@ test.describe("collaboration and rate limiting", () => {
         "X-Forwarded-For": "198.51.100.200",
       });
       await boardPage.gotoBoard("rate-limit-test");
-      await expect(boardPage.tool("Eraser")).toBeVisible();
+      await expect(boardPage.tool("eraser")).toBeVisible();
       await boardPage.waitForSocketConnected();
 
       await page.evaluate(() => {
@@ -768,7 +768,7 @@ test.describe("collaboration and rate limiting", () => {
       await page.evaluate(() => {
         for (let index = 0; index < 101; index += 1) {
           window.Tools.socket.emit("broadcast", {
-            tool: "Eraser",
+            tool: "eraser",
             type: "delete",
             id: `rate-limit-${index}`,
           });
@@ -802,12 +802,12 @@ test.describe("collaboration and rate limiting", () => {
       await boardPage.waitForSocketConnected();
       await boardPage.waitForAuthoritativeResync();
       await Promise.all([
-        boardPage.waitForToolBooted("Rectangle"),
-        expect(boardPage.tool("Rectangle")).toBeVisible(),
+        boardPage.waitForToolBooted("rectangle"),
+        expect(boardPage.tool("rectangle")).toBeVisible(),
       ]);
 
       await page.evaluate(() => {
-        const rectangle = window.Tools.list.Rectangle;
+        const rectangle = window.Tools.list.rectangle;
         window.Tools.drawAndSend(
           {
             type: "rect",
@@ -896,7 +896,7 @@ test.describe("collaboration and rate limiting", () => {
       await boardPage.waitForAuthoritativeResync();
 
       await page.evaluate(() => {
-        const rectangle = window.Tools.list.Rectangle;
+        const rectangle = window.Tools.list.rectangle;
         window.Tools.drawAndSend(
           {
             type: "rect",

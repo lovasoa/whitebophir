@@ -60,7 +60,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
     const boardPage = new BoardPage(page, server);
     await boardPage.installTurnstileMock();
     await boardPage.gotoBoard("anonymous", { lang: "fr", tokenQuery: "" });
-    await expect(boardPage.tool("Pencil")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
     await boardPage.waitForSocketConnected();
     await boardPage.trackBroadcasts();
 
@@ -74,7 +74,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
     const peerPage = await context.newPage();
     const peerBoard = new BoardPage(peerPage, server);
     await peerBoard.gotoBoard("anonymous", { lang: "fr", tokenQuery: "" });
-    await expect(peerBoard.tool("Pencil")).toBeVisible();
+    await expect(peerBoard.tool("pencil")).toBeVisible();
     await peerBoard.waitForSocketConnected();
     await peerBoard.trackBroadcasts();
 
@@ -84,7 +84,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
     });
 
     await peerBoard.emitBroadcast({
-      tool: "Cursor",
+      tool: "cursor",
       type: "update",
       x: 210,
       y: 220,
@@ -94,7 +94,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
     await boardPage.waitForBroadcastColor("#00aa11");
 
     await boardPage.emitBroadcast({
-      tool: "Cursor",
+      tool: "cursor",
       type: "update",
       x: 260,
       y: 280,

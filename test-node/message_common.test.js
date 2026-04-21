@@ -64,7 +64,7 @@ test("shape tool bounds use straight-shape geometry consistently", () => {
 
 test("getLocalGeometryBounds measures text", () => {
   const bounds = MessageCommon.getLocalGeometryBounds({
-    tool: "Text",
+    tool: "text",
     x: 100,
     y: 200,
     txt: "0123456789",
