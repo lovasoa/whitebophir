@@ -24,7 +24,9 @@
  * @licend
  */
 
-/** @typedef {{type: "clear", id: string, token?: string | null}} ClearMessage */
+import { MutationType } from "../../js/message_tool_metadata.js";
+
+/** @typedef {{type: number, id: string, token?: string | null}} ClearMessage */
 /** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
@@ -47,7 +49,7 @@ export default class ClearTool {
   onstart() {
     /** @type {ClearMessage} */
     const msg = {
-      type: "clear",
+      type: MutationType.CLEAR,
       id: "",
       token: this.tools.token,
     };

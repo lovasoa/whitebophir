@@ -660,7 +660,7 @@ function socketTraceAttributes(eventName, extras) {
 /**
  * @param {string} boardName
  * @param {string | undefined} userName
- * @param {{tool?: string, type?: string}=} message
+ * @param {{tool?: string, type?: string | number}=} message
  * @returns {{[key: string]: unknown}}
  */
 function boardMutationTraceAttributes(boardName, userName, message) {

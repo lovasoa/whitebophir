@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { installTestConsole } = require("./test_console.js");
+const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 installTestConsole();
 
 /**
@@ -1140,7 +1141,7 @@ test("Hand selector sends a final transform on quick release", async () => {
   assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
     _children: [
       {
-        type: "update",
+        type: MessageToolMetadata.MutationType.UPDATE,
         id: "seed-rect",
         transform: {
           a: 1,
@@ -1207,7 +1208,13 @@ test("Hand selector keeps the original element selected after duplicate", async 
 
   assert.equal(globalAny.Tools.sentMessages.length, 1);
   assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
-    _children: [{ type: "copy", id: "r-1", newid: "r-2" }],
+    _children: [
+      {
+        type: MessageToolMetadata.MutationType.COPY,
+        id: "r-1",
+        newid: "r-2",
+      },
+    ],
   });
 
   const originalRect = harness.elementsById.get("r-1");
@@ -1228,7 +1235,7 @@ test("Hand selector keeps the original element selected after duplicate", async 
   assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
     _children: [
       {
-        type: "update",
+        type: MessageToolMetadata.MutationType.UPDATE,
         id: "r-1",
         transform: {
           a: 1,

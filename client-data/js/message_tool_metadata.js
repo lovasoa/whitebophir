@@ -13,6 +13,31 @@ export const MutationType = Object.freeze({
   COPY: 7,
 });
 
+/**
+ * @param {unknown} type
+ * @returns {number | undefined}
+ */
+export function getMutationTypeCode(type) {
+  if (typeof type === "number") {
+    return type >= MutationType.CREATE && type <= MutationType.COPY
+      ? type
+      : undefined;
+  }
+  switch (type) {
+    case "update":
+      return MutationType.UPDATE;
+    case "delete":
+      return MutationType.DELETE;
+    case "clear":
+      return MutationType.CLEAR;
+    case "copy":
+      return MutationType.COPY;
+    case "child":
+      return MutationType.APPEND;
+  }
+  return undefined;
+}
+
 /** @type {{[toolName: string]: ToolMetadata}} */
 const TOOL_METADATA = {
   Hand: { updatableFields: ["transform"] },
@@ -73,18 +98,8 @@ export function getUpdatableFields(toolName, data) {
 export function getMutationType(message) {
   if (!message || typeof message !== "object") return undefined;
   if (Array.isArray(message._children)) return MutationType.BATCH;
-  switch (message.type) {
-    case "update":
-      return MutationType.UPDATE;
-    case "delete":
-      return MutationType.DELETE;
-    case "clear":
-      return MutationType.CLEAR;
-    case "copy":
-      return MutationType.COPY;
-    case "child":
-      return MutationType.APPEND;
-  }
+  const mutationType = getMutationTypeCode(message.type);
+  if (mutationType !== undefined) return mutationType;
   const toolName = /** @type {{tool?: string | undefined}} */ (message).tool;
   return getToolCode(toolName) !== undefined && typeof message.id === "string"
     ? MutationType.CREATE

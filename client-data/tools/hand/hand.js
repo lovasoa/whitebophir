@@ -26,6 +26,10 @@
 
 import { messages as BoardMessages } from "../../js/board_transport.js";
 import {
+  getMutationType,
+  MutationType,
+} from "../../js/message_tool_metadata.js";
+import {
   pointInTransformedBBox,
   transformedBBoxIntersects,
 } from "../../js/intersect.js";
@@ -199,7 +203,7 @@ export default class HandTool {
 
   deleteSelection() {
     const msgs = this.selectedEls.map((el) => ({
-      type: "delete",
+      type: MutationType.DELETE,
       id: el.id,
     }));
     this.Tools.drawAndSend({ _children: msgs }, this);
@@ -220,7 +224,7 @@ export default class HandTool {
       if (!selectedElement) continue;
       const id = selectedElement.id;
       msgs[i] = {
-        type: "copy",
+        type: MutationType.COPY,
         id: id,
         newid: this.Tools.generateUID(id[0]),
       };
@@ -425,7 +429,7 @@ export default class HandTool {
         throw new Error("Mover: Missing transform state while moving.");
       }
       return {
-        type: "update",
+        type: MutationType.UPDATE,
         id: el.id,
         transform: {
           a: oldTransform.a,
@@ -486,7 +490,7 @@ export default class HandTool {
         bboxY * d +
         (bboxY * oldTransform.d + oldTransform.f) * ry;
       return {
-        type: "update",
+        type: MutationType.UPDATE,
         id: el.id,
         transform: {
           a: a,
@@ -575,15 +579,15 @@ export default class HandTool {
     return transform.matrix;
   }
 
-  /** @param {{ type?: string, id?: string, transform?: any, newid?: string, tool?: string, _children?: any[] }} data */
+  /** @param {{ type?: string | number, id?: string, transform?: any, newid?: string, tool?: string, _children?: any[] }} data */
   draw(data) {
     if (this.isBatchMessage(data)) {
       BoardMessages.batchCall((msg) => this.draw(msg), data._children);
       return;
     }
 
-    switch (data.type) {
-      case "update": {
+    switch (getMutationType(data)) {
+      case MutationType.UPDATE: {
         const elem = this.Tools.svg.getElementById(data.id);
         if (!elem) {
           throw new Error(
@@ -601,7 +605,7 @@ export default class HandTool {
         tmatrix.f = data.transform.f;
         break;
       }
-      case "copy": {
+      case MutationType.COPY: {
         if (!this.Tools.drawingArea) {
           throw new Error("Mover: Missing drawing area while copying.");
         }
@@ -618,7 +622,7 @@ export default class HandTool {
         this.Tools.drawingArea.appendChild(newElement);
         break;
       }
-      case "delete":
+      case MutationType.DELETE:
         data.tool = "Eraser";
         this.Tools.messageForTool(data);
         break;

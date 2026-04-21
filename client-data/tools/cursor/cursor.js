@@ -24,8 +24,10 @@
  * @licend
  */
 
+import { MutationType } from "../../js/message_tool_metadata.js";
+
 /** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
-/** @typedef {{type: "update", x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
+/** @typedef {{type: number, x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 export default class CursorToolClass {
@@ -45,7 +47,7 @@ export default class CursorToolClass {
     this.alwaysOn = true;
     /** @type {CursorMessage} */
     this.message = {
-      type: "update",
+      type: MutationType.UPDATE,
       x: 0,
       y: 0,
       color: tools.getColor(),

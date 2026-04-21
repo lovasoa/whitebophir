@@ -2,6 +2,7 @@ import MessageCommon from "../client-data/js/message_common.js";
 import { hasMessageTool } from "../client-data/js/message_shape.js";
 import {
   getMutationType,
+  getMutationTypeCode,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
 import {
@@ -123,12 +124,13 @@ function optional(normalize, options) {
 /**
  * @template {string} T
  * @param {T} expected
- * @returns {(value: unknown) => ValidationResult<T>}
+ * @returns {(value: unknown) => ValidationResult<T | number>}
  */
 function literal(expected) {
+  const expectedCode = getMutationTypeCode(expected);
   return function normalizeLiteral(value) {
-    return value === expected
-      ? accepted(expected)
+    return value === expected || value === expectedCode
+      ? accepted(/** @type {T | number} */ (value))
       : rejected(`expected ${JSON.stringify(expected)}`);
   };
 }
@@ -364,6 +366,20 @@ function buildStoredSchema(toolName, type, fields) {
   };
 }
 
+/**
+ * @param {{[type: string]: FieldSchema}} schemas
+ * @returns {{[type: string]: FieldSchema}}
+ */
+function withMutationTypeAliases(schemas) {
+  /** @type {{[type: string]: FieldSchema}} */
+  const aliased = { ...schemas };
+  for (const [type, schema] of Object.entries(schemas)) {
+    const code = getMutationTypeCode(type);
+    if (code !== undefined) aliased[String(code)] = schema;
+  }
+  return aliased;
+}
+
 const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
   SHAPE_CONTRACTS.map((contract) => {
     const liveType = contract.shapeType;
@@ -446,7 +462,7 @@ const CONTRACT_STORED_ITEM_SCHEMAS = Object.fromEntries(
 );
 
 /** @type {LiveToolSchemas} */
-const LIVE_MESSAGE_SCHEMAS = {
+const BASE_LIVE_MESSAGE_SCHEMAS = {
   Cursor: {
     update: buildLiveSchema("Cursor", "update", {
       color: "color",
@@ -461,9 +477,17 @@ const LIVE_MESSAGE_SCHEMAS = {
   ...LIVE_SHAPE_SCHEMAS,
 };
 
+/** @type {LiveToolSchemas} */
+const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
+  Object.entries(BASE_LIVE_MESSAGE_SCHEMAS).map(([tool, schemas]) => [
+    tool,
+    withMutationTypeAliases(schemas),
+  ]),
+);
+
 /** @type {{[tool: string]: {[type: string]: FieldSchema}}} */
 const LIVE_BATCH_CHILD_SCHEMAS = {
-  Hand: {
+  Hand: withMutationTypeAliases({
     update: {
       type: required(literal("update")),
       ...buildSchemaFields({ id: "id", transform: "transform" }),
@@ -476,7 +500,7 @@ const LIVE_BATCH_CHILD_SCHEMAS = {
       type: required(literal("copy")),
       ...buildSchemaFields({ id: "id", newid: "id" }),
     },
-  },
+  }),
 };
 
 /** @type {{[tool: string]: FieldSchema}} */
@@ -503,9 +527,11 @@ function normalizeIncomingBatch(raw) {
   const children = [];
   for (let index = 0; index < raw._children.length; index++) {
     const child = raw._children[index];
-    const type = child?.type;
-    if (typeof type !== "string") return rejected(`_children[${index}]`);
-    const schema = childSchemas[type];
+    const schema =
+      child &&
+      (typeof child.type === "string" || typeof child.type === "number")
+        ? childSchemas[String(child.type)]
+        : undefined;
     if (!schema) {
       return rejected(`_children[${index}]: invalid type`);
     }
@@ -540,7 +566,10 @@ function normalizeIncomingMessage(raw) {
   if (!hasMessageTool(raw)) return rejected("missing tool");
 
   const toolSchemas = LIVE_MESSAGE_SCHEMAS[raw.tool];
-  const schema = toolSchemas?.[typeof raw.type === "string" ? raw.type : ""];
+  const schema =
+    typeof raw.type === "string" || typeof raw.type === "number"
+      ? toolSchemas?.[String(raw.type)]
+      : undefined;
   if (!schema) return rejected("invalid tool/type");
 
   const normalized = normalizeObject(raw, schema);

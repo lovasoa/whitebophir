@@ -10,7 +10,7 @@ export type Transform = {
 export type BoardMessage = {
   tool?: string;
   id?: string;
-  type?: string;
+  type?: string | number;
   parent?: string;
   newid?: string;
   seq?: number;
@@ -40,31 +40,12 @@ export type CopiedBoardMessage = BoardMessage & {
   newid: string;
 };
 
-export type HandChildUpdateMessage = BoardMessage & {
-  type: "update";
-  id: string;
-};
-
-export type HandChildCopyMessage = BoardMessage & {
-  type: "copy";
-  newid: string;
-};
-
-export type HandChildMessage = HandChildUpdateMessage | HandChildCopyMessage;
-
 export type BatchBoardMessage = ToolNamedBoardMessage & {
   _children: BoardMessage[];
 };
 
 export type ToolOwnedBatchMessage = BatchBoardMessage & {
   tool: "Hand";
-};
-
-export type TextUpdateBoardMessage = ToolNamedBoardMessage & {
-  tool: "Text";
-  type: "update";
-  id: string;
-  txt?: string;
 };
 
 export type PendingWrite = {

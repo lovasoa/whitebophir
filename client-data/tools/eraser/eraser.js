@@ -24,7 +24,12 @@
  * @licend
  */
 
-/** @typedef {{type: "delete", id: string}} EraserMessage */
+import {
+  getMutationType,
+  MutationType,
+} from "../../js/message_tool_metadata.js";
+
+/** @typedef {{type: number, id: string}} EraserMessage */
 /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
 /** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
@@ -111,7 +116,7 @@ export default class EraserTool {
       this.inDrawingArea(target)
     ) {
       this.tools.drawAndSend({
-        type: "delete",
+        type: MutationType.DELETE,
         id: target.id,
       });
     }
@@ -121,32 +126,26 @@ export default class EraserTool {
     this.erasing = false;
   }
 
-  /** @param {EraserMessage | {type?: string, id?: string}} data */
+  /** @param {EraserMessage | {type?: string | number, id?: string}} data */
   draw(data) {
-    switch (data.type) {
-      case "delete": {
-        if (!data.id) {
-          console.error("Eraser: Missing id for delete message.", data);
-          break;
-        }
-        if (!this.tools.svg) {
-          throw new Error("Eraser: Missing SVG canvas.");
-        }
-        const elem = this.tools.svg.getElementById(data.id);
-        if (elem === null) {
-          console.error(
-            "Eraser: Tried to delete an element that does not exist.",
-          );
-        } else if (!this.tools.drawingArea) {
-          throw new Error("Eraser: Missing drawing area.");
-        } else {
-          this.tools.drawingArea.removeChild(elem);
-        }
-        break;
-      }
-      default:
-        console.error("Eraser: 'delete' instruction with unknown type. ", data);
-        break;
+    if (getMutationType(data) !== MutationType.DELETE) {
+      console.error("Eraser: 'delete' instruction with unknown type. ", data);
+      return;
+    }
+    if (!data.id) {
+      console.error("Eraser: Missing id for delete message.", data);
+      return;
+    }
+    if (!this.tools.svg) {
+      throw new Error("Eraser: Missing SVG canvas.");
+    }
+    const elem = this.tools.svg.getElementById(data.id);
+    if (elem === null) {
+      console.error("Eraser: Tried to delete an element that does not exist.");
+    } else if (!this.tools.drawingArea) {
+      throw new Error("Eraser: Missing drawing area.");
+    } else {
+      this.tools.drawingArea.removeChild(elem);
     }
   }
 

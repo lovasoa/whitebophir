@@ -251,7 +251,7 @@ export default class PencilTool {
     delete this.pathDataCache[lineId];
   }
 
-  /** @param {{type?: string, id?: string, color?: string, size?: number, opacity?: number, parent?: string, x?: number, y?: number}} data */
+  /** @param {{type?: string | number, id?: string, color?: string, size?: number, opacity?: number, parent?: string, x?: number, y?: number}} data */
   draw(data) {
     this.Tools.drawingEvent = true;
     switch (data.type) {
@@ -477,7 +477,7 @@ export default class PencilTool {
     }
   }
 
-  /** @param {{type?: string, id?: string}} message */
+  /** @param {{type?: string | number, id?: string}} message */
   onMessage(message) {
     if (message.type === "clear") {
       this.abortLine(false);
