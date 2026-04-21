@@ -1,56 +1,6 @@
+import { TOOL_CATALOG_BY_NAME } from "./tool_catalog.js";
+
 const DEFAULT_ICON_FILE = "icon.svg";
-
-/**
- * @typedef {{
- *   iconPath?: string,
- *   iconFile?: string,
- *   secondaryIconPath?: string,
- *   secondaryIconFile?: string,
- *   stylesheetPath?: string,
- *   stylesheetFile?: string,
- * }} ToolAssetOverride
- */
-
-/**
- * Explicit asset metadata for tools whose icons or stylesheets do not match
- * the default derived filenames.
- */
-/** @type {Record<string, ToolAssetOverride>} */
-const TOOL_ASSET_METADATA = {
-  Cursor: {
-    iconPath: "tools/pencil/icon.svg",
-  },
-  "Straight line": {
-    secondaryIconFile: "icon-straight.svg",
-    stylesheetFile: "straight-line.css",
-  },
-  Rectangle: {
-    secondaryIconFile: "icon-square.svg",
-    stylesheetFile: "rectangle.css",
-  },
-  Ellipse: {
-    iconFile: "icon-ellipse.svg",
-    secondaryIconFile: "icon-circle.svg",
-    stylesheetFile: "ellipse.css",
-  },
-  Pencil: {
-    secondaryIconFile: "whiteout_tape.svg",
-    stylesheetFile: "pencil.css",
-  },
-  Text: {
-    stylesheetFile: "text.css",
-  },
-  Hand: {
-    iconFile: "hand.svg",
-    secondaryIconFile: "selector.svg",
-  },
-  Download: {
-    iconFile: "download.svg",
-  },
-  Clear: {
-    iconFile: "clear.svg",
-  },
-};
 
 /**
  * @param {string} toolName
@@ -71,29 +21,36 @@ function toolStem(toolName) {
  * }}
  */
 function getToolAssetDescriptor(toolName) {
-  const metadata = TOOL_ASSET_METADATA[toolName] || {};
+  const metadata = /** @type {any} */ (
+    (toolName === "Cursor"
+      ? { iconPath: "tools/pencil/icon.svg" }
+      : TOOL_CATALOG_BY_NAME[toolName]) || {}
+  );
+  const {
+    iconFile = DEFAULT_ICON_FILE,
+    iconPath,
+    secondaryIconFile,
+    secondaryIconPath,
+    stylesheetFile,
+    stylesheetPath,
+  } = metadata;
   const dir = toolStem(toolName);
-  const moduleFile = `${dir}.js`;
-  const iconPath =
-    metadata.iconPath ||
-    `tools/${dir}/${metadata.iconFile || DEFAULT_ICON_FILE}`;
-  const secondaryIconPath = metadata.secondaryIconPath
-    ? metadata.secondaryIconPath
-    : metadata.secondaryIconFile
-      ? `tools/${dir}/${metadata.secondaryIconFile}`
-      : null;
-  const stylesheetPath = metadata.stylesheetPath
-    ? metadata.stylesheetPath
-    : metadata.stylesheetFile
-      ? `tools/${dir}/${metadata.stylesheetFile}`
-      : null;
   return {
     dir: dir,
-    moduleFile: moduleFile,
-    iconPath: iconPath,
-    secondaryIconPath: secondaryIconPath,
-    stylesheetPath: stylesheetPath,
+    moduleFile: `${dir}.js`,
+    iconPath: iconPath || `tools/${dir}/${iconFile}`,
+    secondaryIconPath: secondaryIconPath || withToolDir(dir, secondaryIconFile),
+    stylesheetPath: stylesheetPath || withToolDir(dir, stylesheetFile),
   };
+}
+
+/**
+ * @param {string} dir
+ * @param {string | undefined} file
+ * @returns {string | null}
+ */
+function withToolDir(dir, file) {
+  return file ? `tools/${dir}/${file}` : null;
 }
 
 /**

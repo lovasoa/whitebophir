@@ -25,12 +25,16 @@
  */
 
 import { truncateText } from "../../js/message_common.js";
+import {
+  getMutationType,
+  MutationType,
+} from "../../js/message_tool_metadata.js";
 /** @typedef {import("../../../types/app-runtime").BoardMessage} BoardMessage */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: ReturnType<typeof setTimeout> | null}} CurrentTextState */
 /** @typedef {{type: "new", id: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} NewTextMessage */
-/** @typedef {{type: "update", id: string, txt?: string}} TextUpdateMessage */
+/** @typedef {{type: number | "update", id: string, txt?: string}} TextUpdateMessage */
 /** @typedef {NewTextMessage | TextUpdateMessage} TextMessage */
 
 export default class TextTool {
@@ -213,7 +217,7 @@ export default class TextTool {
           });
         }
         this.Tools.drawAndSend({
-          type: "update",
+          type: MutationType.UPDATE,
           id: this.curText.id,
           txt: truncateText(this.input.value),
         });
@@ -237,28 +241,22 @@ export default class TextTool {
     void isLocal;
     const textMessage = /** @type {TextMessage} */ (data);
     this.Tools.drawingEvent = true;
-    switch (textMessage.type) {
-      case "new":
-        this.createTextField(textMessage);
-        break;
-      case "update": {
-        const textField = document.getElementById(textMessage.id);
-        if (!textField || String(textField.tagName).toLowerCase() !== "text") {
-          console.error(
-            "Text: Hmmm... I received text that belongs to an unknown text field",
-          );
-          return false;
-        }
-        this.updateText(textField, textMessage.txt);
-        break;
-      }
-      default:
-        console.error(
-          "Text: Draw instruction with unknown type. ",
-          textMessage,
-        );
-        break;
+    if (textMessage.type === "new") {
+      this.createTextField(textMessage);
+      return;
     }
+    if (getMutationType(textMessage) === MutationType.UPDATE) {
+      const textField = document.getElementById(textMessage.id);
+      if (!textField || String(textField.tagName).toLowerCase() !== "text") {
+        console.error(
+          "Text: Hmmm... I received text that belongs to an unknown text field",
+        );
+        return false;
+      }
+      this.updateText(textField, textMessage.txt);
+      return;
+    }
+    console.error("Text: Draw instruction with unknown type. ", textMessage);
   }
 
   /**

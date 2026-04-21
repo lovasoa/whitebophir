@@ -2873,7 +2873,7 @@ function messageForTool(message) {
     //this message has special info for the mover
     messageForTool({
       tool: "Hand",
-      type: "update",
+      type: MutationType.UPDATE,
       transform: message.transform,
       id: message.id,
     });

@@ -1,4 +1,5 @@
 import { createShapeToolClass } from "../shape_tool.js";
+import { MutationType } from "../../js/message_tool_metadata.js";
 
 export default createShapeToolClass({
   toolName: "Ellipse",
@@ -49,7 +50,7 @@ export default createShapeToolClass({
       y = start.y + (deltaY > 0 ? diameter : -diameter);
     }
     return {
-      type: "update",
+      type: MutationType.UPDATE,
       id: start.id,
       x: start.x,
       y: start.y,

@@ -1,4 +1,5 @@
 import { createShapeToolClass } from "../shape_tool.js";
+import { MutationType } from "../../js/message_tool_metadata.js";
 
 export default createShapeToolClass({
   toolName: "Rectangle",
@@ -37,7 +38,7 @@ export default createShapeToolClass({
       y = start.y + (dy > 0 ? d : -d);
     }
     return {
-      type: "update",
+      type: MutationType.UPDATE,
       id: start.id,
       x: start.x,
       y: start.y,

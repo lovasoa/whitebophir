@@ -1,3 +1,5 @@
+import { getMutationType, MutationType } from "../js/message_tool_metadata.js";
+
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 /**
@@ -89,26 +91,23 @@ export function createShapeToolClass(options) {
      */
     draw(data) {
       this.Tools.drawingEvent = true;
-      switch (data.type) {
-        case options.createType:
-          this.createShape(data);
-          break;
-        case "update": {
-          const svg = this.Tools.svg;
-          let shape = svg.getElementById(data.id);
-          if (!options.isShapeElement(shape)) {
-            shape = this.createShape(options.makeFallbackShape(data));
-          }
-          options.applyShapeGeometry(shape, data);
-          break;
-        }
-        default:
-          console.error(
-            `${options.toolName}: Draw instruction with unknown type. `,
-            data,
-          );
-          break;
+      if (data.type === options.createType) {
+        this.createShape(data);
+        return;
       }
+      if (getMutationType(data) === MutationType.UPDATE) {
+        const svg = this.Tools.svg;
+        let shape = svg.getElementById(data.id);
+        if (!options.isShapeElement(shape)) {
+          shape = this.createShape(options.makeFallbackShape(data));
+        }
+        options.applyShapeGeometry(shape, data);
+        return;
+      }
+      console.error(
+        `${options.toolName}: Draw instruction with unknown type. `,
+        data,
+      );
     }
 
     /**

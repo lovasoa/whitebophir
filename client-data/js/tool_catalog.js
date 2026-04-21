@@ -1,31 +1,75 @@
 /**
  * Minimal tool catalog shared between the server-rendered toolbar and the
  * client boot sequence.
- * @typedef {{name: string, visibleWhenReadOnly: boolean, moderatorOnly: boolean}} ToolCatalogEntry
+ * @typedef {{
+ *   name: string,
+ *   visibleWhenReadOnly: boolean,
+ *   moderatorOnly: boolean,
+ *   updatableFields?: string[],
+ *   liveMessageFields?: {[type: string]: {[field: string]: string}},
+ *   batchMessageFields?: {[type: string]: {[field: string]: string}},
+ *   iconFile?: string,
+ *   secondaryIconFile?: string,
+ *   stylesheetFile?: string,
+ * }} ToolCatalogEntry
  */
+
+/** @param {string} name @param {Partial<ToolCatalogEntry>} [options] @returns {ToolCatalogEntry} */
+function tool(name, options = {}) {
+  return {
+    name,
+    visibleWhenReadOnly: false,
+    moderatorOnly: false,
+    ...options,
+  };
+}
 
 /** @type {ToolCatalogEntry[]} */
 export const TOOL_CATALOG = [
-  { name: "Pencil", visibleWhenReadOnly: false, moderatorOnly: false },
-  { name: "Straight line", visibleWhenReadOnly: false, moderatorOnly: false },
-  { name: "Rectangle", visibleWhenReadOnly: false, moderatorOnly: false },
-  { name: "Ellipse", visibleWhenReadOnly: false, moderatorOnly: false },
-  { name: "Text", visibleWhenReadOnly: false, moderatorOnly: false },
-  { name: "Eraser", visibleWhenReadOnly: false, moderatorOnly: false },
-  { name: "Hand", visibleWhenReadOnly: true, moderatorOnly: false },
-  { name: "Grid", visibleWhenReadOnly: true, moderatorOnly: false },
-  { name: "Download", visibleWhenReadOnly: true, moderatorOnly: false },
-  { name: "Zoom", visibleWhenReadOnly: true, moderatorOnly: false },
-  { name: "Clear", visibleWhenReadOnly: false, moderatorOnly: true },
+  tool("Pencil", {
+    secondaryIconFile: "whiteout_tape.svg",
+    stylesheetFile: "pencil.css",
+  }),
+  tool("Straight line", {
+    secondaryIconFile: "icon-straight.svg",
+    stylesheetFile: "straight-line.css",
+  }),
+  tool("Rectangle", {
+    secondaryIconFile: "icon-square.svg",
+    stylesheetFile: "rectangle.css",
+  }),
+  tool("Ellipse", {
+    iconFile: "icon-ellipse.svg",
+    secondaryIconFile: "icon-circle.svg",
+    stylesheetFile: "ellipse.css",
+  }),
+  tool("Text", { stylesheetFile: "text.css" }),
+  tool("Eraser", { liveMessageFields: { delete: { id: "id" } } }),
+  tool("Hand", {
+    visibleWhenReadOnly: true,
+    updatableFields: ["transform"],
+    iconFile: "hand.svg",
+    secondaryIconFile: "selector.svg",
+    batchMessageFields: {
+      update: { id: "id", transform: "transform" },
+      delete: { id: "id" },
+      copy: { id: "id", newid: "id" },
+    },
+  }),
+  tool("Grid", { visibleWhenReadOnly: true }),
+  tool("Download", { visibleWhenReadOnly: true, iconFile: "download.svg" }),
+  tool("Zoom", { visibleWhenReadOnly: true }),
+  tool("Clear", {
+    moderatorOnly: true,
+    iconFile: "clear.svg",
+    liveMessageFields: { clear: {} },
+  }),
 ];
 
-/**
- * @param {string} toolName
- * @returns {ToolCatalogEntry | null}
- */
-export function getToolCatalogEntry(toolName) {
-  return TOOL_CATALOG.find((entry) => entry.name === toolName) || null;
-}
+/** @type {{[toolName: string]: ToolCatalogEntry}} */
+export const TOOL_CATALOG_BY_NAME = Object.fromEntries(
+  TOOL_CATALOG.map((entry) => [entry.name, entry]),
+);
 
 /**
  * @param {{readonly?: boolean, canWrite?: boolean} | null | undefined} boardState

@@ -1,4 +1,5 @@
 import { createShapeToolClass } from "../shape_tool.js";
+import { MutationType } from "../../js/message_tool_metadata.js";
 
 export default createShapeToolClass({
   toolName: "Straight line",
@@ -36,7 +37,7 @@ export default createShapeToolClass({
       y = tool.Tools.toBoardCoordinate(start.y + d * Math.sin(alpha));
     }
     return {
-      type: "update",
+      type: MutationType.UPDATE,
       id: start.id,
       x2: x,
       y2: y,

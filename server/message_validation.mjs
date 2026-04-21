@@ -1,14 +1,12 @@
 import MessageCommon from "../client-data/js/message_common.js";
+import { TOOL_CATALOG } from "../client-data/js/tool_catalog.js";
 import { hasMessageTool } from "../client-data/js/message_shape.js";
 import {
   getMutationType,
   getMutationTypeCode,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
-import {
-  TOOL_CONTRACTS,
-  TOOL_CONTRACTS_BY_NAME,
-} from "../client-data/tools/tool_contracts.js";
+import { TOOL_CONTRACTS_BY_NAME } from "../client-data/tools/tool_contracts.js";
 import { readConfiguration } from "./configuration.mjs";
 
 // Capture config once at module load. The hot paths below (per-coordinate
@@ -55,7 +53,7 @@ const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
 /** @type {string[]} */
 const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
 /** @type {ToolContract[]} */
-const SHAPE_CONTRACTS = TOOL_CONTRACTS.filter(
+const SHAPE_CONTRACTS = Object.values(TOOL_CONTRACTS_BY_NAME).filter(
   (contract) => contract.shapeType !== undefined,
 );
 const SHAPE_CREATE_FIELDS = {
@@ -130,7 +128,11 @@ function literal(expected) {
   const expectedCode = getMutationTypeCode(expected);
   return function normalizeLiteral(value) {
     return value === expected || value === expectedCode
-      ? accepted(/** @type {T | number} */ (value))
+      ? accepted(
+          /** @type {T | number} */ (
+            expectedCode !== undefined ? expectedCode : value
+          ),
+        )
       : rejected(`expected ${JSON.stringify(expected)}`);
   };
 }
@@ -380,6 +382,20 @@ function withMutationTypeAliases(schemas) {
   return aliased;
 }
 
+/**
+ * @param {{[type: string]: {[field: string]: string}} | undefined} fieldsByType
+ * @param {(type: string, fields: {[field: string]: string}) => FieldSchema} build
+ * @returns {{[type: string]: FieldSchema}}
+ */
+function buildPerTypeSchemas(fieldsByType, build) {
+  return Object.fromEntries(
+    Object.entries(fieldsByType || {}).map(([type, fields]) => [
+      type,
+      build(type, fields),
+    ]),
+  );
+}
+
 const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
   SHAPE_CONTRACTS.map((contract) => {
     const liveType = contract.shapeType;
@@ -434,74 +450,65 @@ const STORED_SHAPE_SCHEMAS = Object.fromEntries(
 
 /** @type {LiveToolSchemas} */
 const CONTRACT_LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
-  TOOL_CONTRACTS.filter((contract) => contract.liveMessageFields).map(
-    (contract) => [
+  Object.values(TOOL_CONTRACTS_BY_NAME)
+    .filter((contract) => contract.liveMessageFields)
+    .map((contract) => [
       contract.toolName,
-      Object.fromEntries(
-        Object.entries(contract.liveMessageFields || {}).map(
-          ([type, fields]) => [
-            type,
-            buildLiveSchema(contract.toolName, type, fields),
-          ],
-        ),
+      buildPerTypeSchemas(contract.liveMessageFields, (type, fields) =>
+        buildLiveSchema(contract.toolName, type, fields),
       ),
-    ],
-  ),
+    ]),
 );
 
 /** @type {StoredToolSchemas} */
 const CONTRACT_STORED_ITEM_SCHEMAS = Object.fromEntries(
-  TOOL_CONTRACTS.filter((contract) => contract.storedFields).map((contract) => [
-    contract.toolName,
-    buildStoredSchema(
+  Object.values(TOOL_CONTRACTS_BY_NAME)
+    .filter((contract) => contract.storedFields)
+    .map((contract) => [
       contract.toolName,
-      contract.storedItemType || contract.storedTagName,
-      contract.storedFields,
-    ),
-  ]),
+      buildStoredSchema(
+        contract.toolName,
+        contract.storedItemType || contract.storedTagName,
+        contract.storedFields,
+      ),
+    ]),
 );
-
-/** @type {LiveToolSchemas} */
-const BASE_LIVE_MESSAGE_SCHEMAS = {
-  Cursor: {
-    update: buildLiveSchema("Cursor", "update", {
-      color: "color",
-      size: "size",
-      x: "coord",
-      y: "coord",
-    }),
-  },
-  Eraser: { delete: buildLiveSchema("Eraser", "delete", { id: "id" }) },
-  Clear: { clear: buildLiveSchema("Clear", "clear", {}) },
-  ...CONTRACT_LIVE_MESSAGE_SCHEMAS,
-  ...LIVE_SHAPE_SCHEMAS,
-};
 
 /** @type {LiveToolSchemas} */
 const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
-  Object.entries(BASE_LIVE_MESSAGE_SCHEMAS).map(([tool, schemas]) => [
-    tool,
-    withMutationTypeAliases(schemas),
-  ]),
+  Object.entries({
+    Cursor: {
+      update: buildLiveSchema("Cursor", "update", {
+        color: "color",
+        size: "size",
+        x: "coord",
+        y: "coord",
+      }),
+    },
+    ...Object.fromEntries(
+      TOOL_CATALOG.filter((entry) => entry.liveMessageFields).map((entry) => [
+        entry.name,
+        buildPerTypeSchemas(entry.liveMessageFields, (type, fields) =>
+          buildLiveSchema(entry.name, type, fields),
+        ),
+      ]),
+    ),
+    ...CONTRACT_LIVE_MESSAGE_SCHEMAS,
+    ...LIVE_SHAPE_SCHEMAS,
+  }).map(([tool, schemas]) => [tool, withMutationTypeAliases(schemas)]),
 );
 
-/** @type {{[tool: string]: {[type: string]: FieldSchema}}} */
-const LIVE_BATCH_CHILD_SCHEMAS = {
-  Hand: withMutationTypeAliases({
-    update: {
-      type: required(literal("update")),
-      ...buildSchemaFields({ id: "id", transform: "transform" }),
-    },
-    delete: {
-      type: required(literal("delete")),
-      ...buildSchemaFields({ id: "id" }),
-    },
-    copy: {
-      type: required(literal("copy")),
-      ...buildSchemaFields({ id: "id", newid: "id" }),
-    },
-  }),
-};
+const LIVE_BATCH_CHILD_SCHEMAS = Object.fromEntries(
+  TOOL_CATALOG.filter((entry) => entry.batchMessageFields).map((entry) => [
+    entry.name,
+    withMutationTypeAliases(
+      buildPerTypeSchemas(entry.batchMessageFields, (type, fields) => ({
+        type: required(literal(type)),
+        ...buildSchemaFields(fields),
+      })),
+    ),
+  ]),
+);
 
 /** @type {{[tool: string]: FieldSchema}} */
 const STORED_ITEM_SCHEMAS = {
