@@ -301,7 +301,6 @@ Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
 Tools.readOnlyToolNames = new Set(
   TOOLS.filter((tool) => tool.visibleWhenReadOnly).map((tool) => tool.toolId),
 );
-Tools.toolClasses = /** @type {AppToolsState["toolClasses"]} */ ({});
 Tools.bootedToolPromises =
   /** @type {AppToolsState["bootedToolPromises"]} */ ({});
 Tools.bootedToolNames = new Set();
@@ -2421,10 +2420,7 @@ Tools.list = /** @type {AppToolsState["list"]} */ ({});
  * @param {string} toolName
  * @returns {Promise<ToolModule>}
  */
-Tools.ensureToolClassLoaded = async function ensureToolClassLoaded(toolName) {
-  const existing = Tools.toolClasses[toolName];
-  if (existing) return existing;
-
+async function loadToolModule(toolName) {
   const namespace = /** @type {ToolModule} */ (
     await import(Tools.versionAssetPath(getToolModuleImportPath(toolName)))
   );
@@ -2436,9 +2432,8 @@ Tools.ensureToolClassLoaded = async function ensureToolClassLoaded(toolName) {
       `Tool module for ${toolName} exported ${String(namespace.toolId)}.`,
     );
   }
-  Tools.toolClasses[toolName] = namespace;
   return namespace;
-};
+}
 
 /**
  * @param {string} toolName
@@ -2681,7 +2676,7 @@ Tools.mountTool = function mountTool(tool) {
  * @returns {Promise<AppTool | null>}
  */
 async function bootToolPromise(toolName) {
-  const toolModule = await Tools.ensureToolClassLoaded(toolName);
+  const toolModule = await loadToolModule(toolName);
   const toolState = await toolModule.boot(createToolBootContext(toolName));
   if (toolState === null) return null;
   return Tools.mountTool(createToolFromModule(toolModule, toolState, toolName));

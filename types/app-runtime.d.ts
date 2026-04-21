@@ -404,7 +404,6 @@ export type AppToolsState = {
   token: string | null;
   pendingReplaySync: false | "refresh" | "ready";
   list: MountedToolRegistry;
-  toolClasses: { [toolName: string]: ToolModule };
   bootedToolPromises: { [toolName: string]: Promise<AppTool | null> };
   bootedToolNames: Set<string>;
   pendingMessages: PendingMessages;
@@ -482,7 +481,6 @@ export type AppToolsState = {
   queueProtectedWrite: (data: BoardMessage, tool: AppTool) => void;
   flushTurnstilePendingWrites: () => void;
   getToolAssetUrl: (toolName: string, assetFile: string) => string;
-  ensureToolClassLoaded: (toolName: string) => Promise<ToolModule>;
   mountTool: (tool: AppTool) => MountedAppTool | null;
   bootTool: (toolName: string) => Promise<AppTool | null>;
   activateTool: (toolName: string) => Promise<boolean>;
