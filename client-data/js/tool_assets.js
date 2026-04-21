@@ -14,7 +14,6 @@ function toolStem(toolName) {
  * @param {string} toolName
  * @returns {{
  *   dir: string,
- *   moduleFile: string,
  *   iconPath: string,
  *   secondaryIconPath: string | null,
  *   stylesheetPath: string | null,
@@ -33,14 +32,19 @@ function getToolAssetDescriptor(toolName) {
     secondaryIconPath,
     stylesheetFile,
     stylesheetPath,
+    drawsOnBoard,
   } = metadata;
   const dir = toolStem(toolName);
   return {
-    dir: dir,
-    moduleFile: `${dir}.js`,
+    dir,
     iconPath: iconPath || `tools/${dir}/${iconFile}`,
     secondaryIconPath: secondaryIconPath || withToolDir(dir, secondaryIconFile),
-    stylesheetPath: stylesheetPath || withToolDir(dir, stylesheetFile),
+    stylesheetPath:
+      stylesheetPath ||
+      withToolDir(
+        dir,
+        stylesheetFile || (drawsOnBoard ? `${dir}.css` : undefined),
+      ),
   };
 }
 
@@ -59,7 +63,7 @@ function withToolDir(dir, file) {
  */
 export function getToolModuleImportPath(toolName) {
   const descriptor = getToolAssetDescriptor(toolName);
-  return `../tools/${descriptor.dir}/${descriptor.moduleFile}`;
+  return `../tools/${descriptor.dir}/${descriptor.dir}.js`;
 }
 
 /**

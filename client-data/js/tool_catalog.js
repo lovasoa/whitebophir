@@ -32,24 +32,18 @@ function drawingTool(name, options = {}) {
 export const TOOL_CATALOG = [
   drawingTool("Pencil", {
     secondaryIconFile: "whiteout_tape.svg",
-    stylesheetFile: "pencil.css",
   }),
   drawingTool("Straight line", {
     secondaryIconFile: "icon-straight.svg",
-    stylesheetFile: "straight-line.css",
   }),
   drawingTool("Rectangle", {
     secondaryIconFile: "icon-square.svg",
-    stylesheetFile: "rectangle.css",
   }),
   drawingTool("Ellipse", {
     iconFile: "icon-ellipse.svg",
     secondaryIconFile: "icon-circle.svg",
-    stylesheetFile: "ellipse.css",
   }),
-  drawingTool("Text", {
-    stylesheetFile: "text.css",
-  }),
+  drawingTool("Text"),
   tool("Eraser", { liveMessageFields: { delete: { id: "id" } } }),
   tool("Hand", {
     visibleWhenReadOnly: true,

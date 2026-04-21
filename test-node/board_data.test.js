@@ -122,6 +122,96 @@ function rectangleUpdate(id, changes) {
 
 /**
  * @param {{
+ *   id: string,
+ *   x: number,
+ *   y: number,
+ *   color: string,
+ *   size: number,
+ *   txt?: string,
+ * }} fields
+ * @returns {any}
+ */
+function textCreate(fields) {
+  return {
+    tool: "Text",
+    type: "new",
+    ...fields,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {string} txt
+ * @returns {any}
+ */
+function textUpdate(id, txt) {
+  return {
+    tool: "Text",
+    type: "update",
+    id,
+    txt,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {{a: number, b: number, c: number, d: number, e: number, f: number}} transform
+ * @returns {any}
+ */
+function handUpdate(id, transform) {
+  return {
+    tool: "Hand",
+    type: "update",
+    id,
+    transform,
+  };
+}
+
+/**
+ * @param {string} id
+ * @returns {any}
+ */
+function handDelete(id) {
+  return {
+    tool: "Hand",
+    type: "delete",
+    id,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {string} newid
+ * @returns {any}
+ */
+function handCopy(id, newid) {
+  return {
+    tool: "Hand",
+    type: "copy",
+    id,
+    newid,
+  };
+}
+
+/**
+ * @param {string} id
+ * @returns {any}
+ */
+function eraserDelete(id) {
+  return {
+    tool: "Eraser",
+    type: "delete",
+    id,
+  };
+}
+
+/** @returns {any} */
+function clearMessage() {
+  return { tool: "Clear", type: "clear" };
+}
+
+/**
+ * @param {{
  *   historyDir: string,
  *   boardName: string,
  *   storedBoard?: any,
@@ -250,34 +340,11 @@ test("BoardData processMessageBatch and per-message processing stay in sync", ()
         y2: 18,
       }),
     },
-    {
-      tool: "Hand",
-      type: "update",
-      id: "r-1",
-      transform: { a: 1, b: 0, c: 0, d: 1, e: 10, f: 20 },
-    },
-    {
-      tool: "Hand",
-      type: "copy",
-      id: "r-1",
-      newid: "r-2",
-    },
-    {
-      tool: "Hand",
-      type: "delete",
-      id: "r-2",
-    },
-    {
-      tool: "Hand",
-      type: "update",
-      id: "r-1",
-      transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
-    },
-    {
-      tool: "Eraser",
-      type: "delete",
-      id: "p-1",
-    },
+    handUpdate("r-1", { a: 1, b: 0, c: 0, d: 1, e: 10, f: 20 }),
+    handCopy("r-1", "r-2"),
+    handDelete("r-2"),
+    handUpdate("r-1", { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 }),
+    eraserDelete("p-1"),
   ];
 
   for (const message of messages) {
@@ -369,36 +436,26 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
   const board = disableSaves(new BoardData("finalize-persisted-snapshot"));
 
   assert.equal(
-    board.processMessage({
-      tool: "Text",
-      type: "new",
-      id: "text-1",
-      x: 120,
-      y: 140,
-      color: "#111111",
-      size: 18,
-    }).ok,
+    board.processMessage(
+      textCreate({
+        id: "text-1",
+        x: 120,
+        y: 140,
+        color: "#111111",
+        size: 18,
+      }),
+    ).ok,
     true,
   );
   assert.equal(
-    board.processMessage({
-      tool: "Text",
-      type: "update",
-      id: "text-1",
-      txt: "before save",
-    }).ok,
+    board.processMessage(textUpdate("text-1", "before save")).ok,
     true,
   );
 
   const persistedSnapshot = new Map(board.itemsById);
 
   assert.equal(
-    board.processMessage({
-      tool: "Text",
-      type: "update",
-      id: "text-1",
-      txt: "after save started",
-    }).ok,
+    board.processMessage(textUpdate("text-1", "after save started")).ok,
     true,
   );
 
@@ -571,23 +628,9 @@ test("BoardData replays batch updates, copies, and deletes consistently", () => 
   board.processMessage({
     _children: [
       rectangleMessage("rect-1", "#112233", 4, 0, 0, 10, 10),
-      {
-        tool: "Hand",
-        type: "update",
-        id: "rect-1",
-        transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
-      },
-      {
-        tool: "Hand",
-        type: "copy",
-        id: "rect-1",
-        newid: "rect-2",
-      },
-      {
-        tool: "Eraser",
-        type: "delete",
-        id: "rect-1",
-      },
+      handUpdate("rect-1", { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 }),
+      handCopy("rect-1", "rect-2"),
+      eraserDelete("rect-1"),
     ],
   });
 
@@ -620,12 +663,16 @@ test("BoardData keeps paint order stable when updating existing items", () => {
 
   for (let index = 0; index < 20; index += 1) {
     assert.equal(
-      board.processMessage({
-        tool: "Hand",
-        type: "update",
-        id: "rect-1",
-        transform: { a: 1, b: 0, c: 0, d: 1, e: index, f: index * 2 },
-      }).ok,
+      board.processMessage(
+        handUpdate("rect-1", {
+          a: 1,
+          b: 0,
+          c: 0,
+          d: 1,
+          e: index,
+          f: index * 2,
+        }),
+      ).ok,
       true,
     );
   }
@@ -643,11 +690,7 @@ test("BoardData applies parent tool metadata to batched Hand updates", () => {
     {
       tool: "Hand",
       _children: [
-        {
-          type: "update",
-          id: "rect-1",
-          transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
-        },
+        handUpdate("rect-1", { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 }),
       ],
     },
   ]);
@@ -673,7 +716,7 @@ test("BoardData authoritativeItemCount drops to zero after clear", () => {
 
   assert.equal(board.authoritativeItemCount(), 2);
 
-  assertMessagesAccepted(board, [{ tool: "Clear", type: "clear" }]);
+  assertMessagesAccepted(board, [clearMessage()]);
 
   assert.equal(board.authoritativeItemCount(), 0);
   assert.equal(board.get("rect-1"), undefined);
@@ -686,12 +729,7 @@ test("BoardData copy keeps pencil child arrays isolated", () => {
 
   assertMessagesAccepted(board, [
     ...buildPencilStrokeMutations("p-1", "#123456", 4, [{ x: 10, y: 20 }]),
-    {
-      tool: "Hand",
-      type: "copy",
-      id: "p-1",
-      newid: "p-2",
-    },
+    handCopy("p-1", "p-2"),
     ...buildPencilStrokeMutations("p-1", "#123456", 4, [
       { x: 30, y: 40 },
     ]).slice(1),
@@ -754,12 +792,9 @@ test("BoardData rejects transform updates that make a stored shape oversized", (
   ]);
 
   assert.equal(
-    board.processMessage({
-      tool: "Hand",
-      type: "update",
-      id: "rect-1",
-      transform: { a: 4, b: 0, c: 0, d: 4, e: 0, f: 0 },
-    }).ok,
+    board.processMessage(
+      handUpdate("rect-1", { a: 4, b: 0, c: 0, d: 4, e: 0, f: 0 }),
+    ).ok,
     false,
   );
   assert.equal(board.get("rect-1").transform, undefined);
@@ -819,12 +854,7 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
   ]);
 
   assert.deepEqual(
-    await board.preparePersistentMutation({
-      tool: "Hand",
-      type: "copy",
-      id: "rect-1",
-      newid: "rect-2",
-    }),
+    await board.preparePersistentMutation(handCopy("rect-1", "rect-2")),
     {
       ok: false,
       reason: "copied object does not exist",
@@ -845,16 +875,8 @@ test("BoardData rejects hand batches atomically when one transform is oversized"
     board.processMessage({
       tool: "Hand",
       _children: [
-        {
-          type: "update",
-          id: "rect-1",
-          transform: { a: 4, b: 0, c: 0, d: 4, e: 0, f: 0 },
-        },
-        {
-          type: "update",
-          id: "rect-2",
-          transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
-        },
+        handUpdate("rect-1", { a: 4, b: 0, c: 0, d: 4, e: 0, f: 0 }),
+        handUpdate("rect-2", { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 }),
       ],
     }).ok,
     false,
@@ -869,51 +891,46 @@ test("BoardData trims overflow by paint order instead of recency", async () => {
     const board = disableSaves(new BoardData("cleanup-board"));
 
     assert.equal(
-      board.processMessage({
-        tool: "Text",
-        type: "new",
-        id: "first",
-        x: 10,
-        y: 10,
-        color: "#111111",
-        size: 18,
-        txt: "first",
-      }).ok,
+      board.processMessage(
+        textCreate({
+          id: "first",
+          x: 10,
+          y: 10,
+          color: "#111111",
+          size: 18,
+          txt: "first",
+        }),
+      ).ok,
       true,
     );
     assert.equal(
-      board.processMessage({
-        tool: "Text",
-        type: "new",
-        id: "second",
-        x: 20,
-        y: 20,
-        color: "#222222",
-        size: 18,
-        txt: "second",
-      }).ok,
+      board.processMessage(
+        textCreate({
+          id: "second",
+          x: 20,
+          y: 20,
+          color: "#222222",
+          size: 18,
+          txt: "second",
+        }),
+      ).ok,
       true,
     );
     assert.equal(
-      board.processMessage({
-        tool: "Text",
-        type: "update",
-        id: "first",
-        txt: "first updated",
-      }).ok,
+      board.processMessage(textUpdate("first", "first updated")).ok,
       true,
     );
     assert.equal(
-      board.processMessage({
-        tool: "Text",
-        type: "new",
-        id: "third",
-        x: 30,
-        y: 30,
-        color: "#333333",
-        size: 18,
-        txt: "third",
-      }).ok,
+      board.processMessage(
+        textCreate({
+          id: "third",
+          x: 30,
+          y: 30,
+          color: "#333333",
+          size: 18,
+          txt: "third",
+        }),
+      ).ok,
       true,
     );
 
@@ -1084,7 +1101,7 @@ test("BoardData records contiguous mutation seq values and persists them into sv
     assert.equal(board.processMessage({ ...message }).ok, true);
     const firstEnvelope = board.recordPersistentMutation(message, 100, "c1");
     const secondEnvelope = board.recordPersistentMutation(
-      { tool: "Eraser", type: "delete", id: "rect-1" },
+      eraserDelete("rect-1"),
       200,
       "c2",
     );
@@ -1235,17 +1252,8 @@ test("BoardData.save rewrites existing stored svg from queued mutations", async 
         storedSvg: existingSvg,
       });
       const updateRect = rectangleUpdate("rect-1", { x2: 30, y2: 40 });
-      const copyRect = {
-        tool: "Hand",
-        type: "copy",
-        id: "rect-1",
-        newid: "rect-2",
-      };
-      const deleteText = {
-        tool: "Eraser",
-        type: "delete",
-        id: "text-1",
-      };
+      const copyRect = handCopy("rect-1", "rect-2");
+      const deleteText = eraserDelete("text-1");
       await applyPersistentMutations(
         board,
         [updateRect, copyRect, deleteText],
@@ -1618,12 +1626,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
         board,
         [
           rectangleUpdate("item-3", { x2: 15, y2: 18 }),
-          {
-            tool: "Text",
-            type: "update",
-            id: "item-2",
-            txt: "hello streaming",
-          },
+          textUpdate("item-2", "hello streaming"),
           {
             tool: "Pencil",
             type: "child",
@@ -1631,12 +1634,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
             x: 4,
             y: 2,
           },
-          {
-            tool: "Hand",
-            type: "copy",
-            id: "item-3",
-            newid: "item-3-copy",
-          },
+          handCopy("item-3", "item-3-copy"),
           rectangleMessage("item-new", "#abcdef", 3, 20, 21, 28, 29),
         ],
         1,
