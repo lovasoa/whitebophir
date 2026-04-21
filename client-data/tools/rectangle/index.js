@@ -1,9 +1,9 @@
-import {
-  bootShapeTool,
-  drawShapeTool,
-  moveShapeTool,
-  pressShapeTool,
-  releaseShapeTool,
+import { createShapeToolBoot } from "../shape_tool.js";
+export {
+  drawShapeTool as draw,
+  moveShapeTool as move,
+  pressShapeTool as press,
+  releaseShapeTool as release,
 } from "../shape_tool.js";
 import { MutationType } from "../../js/mutation_type.js";
 import {
@@ -157,44 +157,4 @@ const config = {
   },
 };
 
-/** @param {import("../../../types/app-runtime").ToolBootContext} ctx */
-export function boot(ctx) {
-  return bootShapeTool(config, ctx);
-}
-
-/**
- * @param {any} state
- * @param {any} data
- */
-export function draw(state, data) {
-  return drawShapeTool(state, data);
-}
-
-/**
- * @param {any} state
- * @param {number} x
- * @param {number} y
- * @param {MouseEvent | TouchEvent} evt
- */
-export function press(state, x, y, evt) {
-  return pressShapeTool(state, x, y, evt);
-}
-
-/**
- * @param {any} state
- * @param {number} x
- * @param {number} y
- * @param {MouseEvent | TouchEvent | undefined} evt
- */
-export function move(state, x, y, evt) {
-  return moveShapeTool(state, x, y, evt);
-}
-
-/**
- * @param {any} state
- * @param {number} x
- * @param {number} y
- */
-export function release(state, x, y) {
-  return releaseShapeTool(state, x, y);
-}
+export const boot = createShapeToolBoot(config);

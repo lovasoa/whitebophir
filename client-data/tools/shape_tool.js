@@ -42,6 +42,14 @@ export function bootShapeTool(config, ctx) {
 }
 
 /**
+ * @param {ShapeToolConfig} config
+ * @returns {(ctx: ToolBootContext) => any}
+ */
+export function createShapeToolBoot(config) {
+  return (ctx) => bootShapeTool(config, ctx);
+}
+
+/**
  * @param {any} state
  * @param {any} data
  * @returns {SVGElement}
