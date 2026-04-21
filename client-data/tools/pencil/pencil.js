@@ -25,6 +25,10 @@
  */
 
 import { LIMITS } from "../../js/message_common.js";
+import {
+  getMutationType,
+  MutationType,
+} from "../../js/message_tool_metadata.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
@@ -479,15 +483,12 @@ export default class PencilTool {
 
   /** @param {{type?: string | number, id?: string}} message */
   onMessage(message) {
-    if (message.type === "clear") {
+    const mutationType = getMutationType(message);
+    if (mutationType === MutationType.CLEAR) {
       this.abortLine(false);
       return;
     }
-    if (
-      message.type === "delete" &&
-      message.id &&
-      message.id === this.curLineId
-    ) {
+    if (mutationType === MutationType.DELETE && message.id === this.curLineId) {
       this.abortLine(false);
     }
   }

@@ -4,16 +4,14 @@ import { getMutationType, MutationType } from "../js/message_tool_metadata.js";
 
 /**
  * @param {{
- *   toolName: string,
+ *   contract: {toolName: string, liveCreateType?: string, storedTagName: string},
  *   shortcut: string,
  *   icon: string,
  *   stylesheet: string,
  *   mouseCursor?: string,
  *   secondary?: {name: string, icon: string, active: boolean, switch?: () => void},
  *   uidPrefix: string,
- *   createType: string,
  *   isShapeElement: (element: Element | null) => boolean,
- *   createElementName: string,
  *   makeCreateMessage: (tool: any, id: string, x: number, y: number) => any,
  *   makeUpdateMessage: (tool: any, x: number, y: number, evt: any) => any,
  *   makeFallbackShape: (update: any) => any,
@@ -22,7 +20,7 @@ import { getMutationType, MutationType } from "../js/message_tool_metadata.js";
  */
 export function createShapeToolClass(options) {
   return class ShapeTool {
-    static toolName = options.toolName;
+    static toolName = options.contract.toolName;
 
     /**
      * @param {any} Tools
@@ -31,7 +29,7 @@ export function createShapeToolClass(options) {
       this.Tools = Tools;
       this.currentShape = null;
       this.lastTime = performance.now();
-      this.name = options.toolName;
+      this.name = options.contract.toolName;
       this.shortcut = options.shortcut;
       this.secondary = options.secondary || null;
       if (this.secondary?.switch) {
@@ -91,7 +89,7 @@ export function createShapeToolClass(options) {
      */
     draw(data) {
       this.Tools.drawingEvent = true;
-      if (data.type === options.createType) {
+      if (data.type === options.contract.liveCreateType) {
         this.createShape(data);
         return;
       }
@@ -105,7 +103,7 @@ export function createShapeToolClass(options) {
         return;
       }
       console.error(
-        `${options.toolName}: Draw instruction with unknown type. `,
+        `${options.contract.toolName}: Draw instruction with unknown type. `,
         data,
       );
     }
@@ -118,7 +116,7 @@ export function createShapeToolClass(options) {
       const existingShape = this.Tools.svg.getElementById(data.id);
       const shape = options.isShapeElement(existingShape)
         ? existingShape
-        : this.Tools.createSVGElement(options.createElementName);
+        : this.Tools.createSVGElement(options.contract.storedTagName);
       shape.id = data.id;
       options.applyShapeGeometry(shape, data);
       shape.setAttribute("stroke", data.color || "black");
@@ -128,7 +126,7 @@ export function createShapeToolClass(options) {
         String(Math.max(0.1, Math.min(1, data.opacity || 1))),
       );
       if (!this.Tools.drawingArea) {
-        throw new Error(`${options.toolName}: Missing drawing area.`);
+        throw new Error(`${options.contract.toolName}: Missing drawing area.`);
       }
       if (shape.parentNode !== this.Tools.drawingArea) {
         this.Tools.drawingArea.appendChild(shape);

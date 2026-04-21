@@ -1,8 +1,9 @@
 import { createShapeToolClass } from "../shape_tool.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
+import contract from "./contract.js";
 
 export default createShapeToolClass({
-  toolName: "Straight line",
+  contract,
   shortcut: "l",
   icon: "tools/straight-line/icon.svg",
   stylesheet: "tools/straight-line/straight-line.css",
@@ -12,12 +13,10 @@ export default createShapeToolClass({
     active: false,
   },
   uidPrefix: "s",
-  createType: "straight",
-  createElementName: "line",
   isShapeElement: (element) =>
-    String(element?.tagName).toLowerCase() === "line",
+    String(element?.tagName).toLowerCase() === contract.storedTagName,
   makeCreateMessage: (tool, id, x, y) => ({
-    type: "straight",
+    type: contract.liveCreateType,
     id,
     color: tool.Tools.getColor(),
     size: tool.Tools.getSize(),

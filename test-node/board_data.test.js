@@ -14,6 +14,7 @@ const {
   pinReplayBaseline,
   resetBoardRegistry,
 } = require("../server/board_registry.mjs");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 
 function getBoardDataClass() {
   return loadBoardData();
@@ -811,7 +812,7 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
     {
       mutation: {
         tool: "Eraser",
-        type: "delete",
+        type: MutationType.DELETE,
         id: "rect-1",
       },
     },
@@ -922,7 +923,13 @@ test("BoardData trims overflow by paint order instead of recency", async () => {
       board
         .consumePendingAcceptedMutationEffects()
         .map((/** @type {{mutation: any}} */ entry) => entry.mutation),
-      [{ tool: "Eraser", type: "delete", id: "first" }],
+      [
+        {
+          tool: "Eraser",
+          type: MutationType.DELETE,
+          id: "first",
+        },
+      ],
     );
   });
 });

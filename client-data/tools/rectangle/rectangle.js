@@ -1,8 +1,9 @@
 import { createShapeToolClass } from "../shape_tool.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
+import contract from "./contract.js";
 
 export default createShapeToolClass({
-  toolName: "Rectangle",
+  contract,
   shortcut: "r",
   icon: "tools/rectangle/icon.svg",
   stylesheet: "tools/rectangle/rectangle.css",
@@ -12,12 +13,10 @@ export default createShapeToolClass({
     active: false,
   },
   uidPrefix: "r",
-  createType: "rect",
-  createElementName: "rect",
   isShapeElement: (element) =>
-    String(element?.tagName).toLowerCase() === "rect",
+    String(element?.tagName).toLowerCase() === contract.storedTagName,
   makeCreateMessage: (tool, id, x, y) => ({
-    type: "rect",
+    type: contract.liveCreateType,
     id,
     color: tool.Tools.getColor(),
     size: tool.Tools.getSize(),

@@ -1,8 +1,9 @@
 import { createShapeToolClass } from "../shape_tool.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
+import contract from "./contract.js";
 
 export default createShapeToolClass({
-  toolName: "Ellipse",
+  contract,
   shortcut: "c",
   icon: "tools/ellipse/icon-ellipse.svg",
   stylesheet: "tools/ellipse/ellipse.css",
@@ -17,14 +18,12 @@ export default createShapeToolClass({
     },
   },
   uidPrefix: "e",
-  createType: "ellipse",
-  createElementName: "ellipse",
   isShapeElement: (element) =>
-    String(element?.tagName).toLowerCase() === "ellipse",
+    String(element?.tagName).toLowerCase() === contract.storedTagName,
   makeCreateMessage: (tool, id, x, y) => {
     tool.lastPos = { x, y };
     return {
-      type: "ellipse",
+      type: contract.liveCreateType,
       id,
       color: tool.Tools.getColor(),
       size: tool.Tools.getSize(),

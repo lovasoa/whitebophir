@@ -189,6 +189,11 @@ function computeScheduledSaveDelayMs(options) {
   );
 }
 
+/** @param {string} id */
+function eraserDeleteMutation(id) {
+  return { tool: "Eraser", type: MutationType.DELETE, id };
+}
+
 /**
  * @param {BoardData} board
  * @param {number} fromExclusiveSeq
@@ -430,11 +435,7 @@ class BoardData {
       if (!item || item.deleted === true) continue;
       removeCanonicalItem(this, id);
       followup.push({
-        mutation: {
-          tool: "Eraser",
-          type: "delete",
-          id,
-        },
+        mutation: eraserDeleteMutation(id),
       });
     }
     return followup;
@@ -908,11 +909,7 @@ class BoardData {
         const deleteResult = this.delete(id);
         if (deleteResult.ok)
           this.pendingRejectedMutationEffects.push({
-            mutation: {
-              tool: "Eraser",
-              type: "delete",
-              id: id,
-            },
+            mutation: eraserDeleteMutation(id),
           });
       }
       return { ok: false, reason: "update rejected: shape too large" };
