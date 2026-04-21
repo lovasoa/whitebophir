@@ -48,6 +48,9 @@ function getMessageMutationType(message) {
 }
 
 export const toolId = "hand";
+export const shortcut = "h";
+export const mouseCursor = "move";
+export const showMarker = true;
 export const visibleWhenReadOnly = true;
 export const updatableFields = ["transform"];
 export const batchMessageFields = {
@@ -57,8 +60,6 @@ export const batchMessageFields = {
 };
 
 class HandTool {
-  static toolId = toolId;
-
   /**
    * @param {any} Tools
    * @param {(assetFile: string) => string} [assetUrl]
@@ -140,12 +141,8 @@ class HandTool {
         }
       },
     );
-
-    this.name = toolId;
-    this.shortcut = "h";
     this.boundDeleteShortcut = this.deleteShortcut.bind(this);
     this.boundDuplicateShortcut = this.duplicateShortcut.bind(this);
-    this.onSocketDisconnect = this.onquit.bind(this);
     this.secondary = Tools.canWrite
       ? {
           name: "Selector",
@@ -154,8 +151,6 @@ class HandTool {
           switch: this.switchTool.bind(this),
         }
       : null;
-    this.mouseCursor = "move";
-    this.showMarker = true;
   }
 
   /**
@@ -832,22 +827,14 @@ class HandTool {
     window.removeEventListener("keydown", this.boundDeleteShortcut);
     window.removeEventListener("keydown", this.boundDuplicateShortcut);
   }
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<HandTool>}
-   */
-  static async boot(ctx) {
-    ({ pointInTransformedBBox, transformedBBoxIntersects } = await import(
-      "../../js/intersect.js"
-    ));
-    return new HandTool(ctx.runtime.Tools, ctx.assetUrl);
-  }
 }
 
 /** @param {ToolBootContext} ctx */
-export function boot(ctx) {
-  return HandTool.boot(ctx);
+export async function boot(ctx) {
+  ({ pointInTransformedBBox, transformedBBoxIntersects } = await import(
+    "../../js/intersect.js"
+  ));
+  return new HandTool(ctx.runtime.Tools, ctx.assetUrl);
 }
 
 /**
@@ -898,5 +885,5 @@ export function onquit(state) {
 
 /** @param {HandTool} state */
 export function onSocketDisconnect(state) {
-  return state.onSocketDisconnect();
+  return state.onquit();
 }
