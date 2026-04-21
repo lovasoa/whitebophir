@@ -294,16 +294,10 @@ export type ServerConfig = {
 
 export type ToolRuntime = {
   Tools: MountedAppToolsState;
-  activateTool: (toolName: string) => void;
-  getButton: (toolName: string) => HTMLElement | null;
-  registerShortcut: (toolName: string, key: string) => void;
 };
 
 export type ToolBootContext = {
-  toolName: string;
   runtime: ToolRuntime;
-  button: HTMLElement | null;
-  version: string;
   assetUrl: (assetFile: string) => string;
 };
 

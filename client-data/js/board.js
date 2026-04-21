@@ -2326,25 +2326,19 @@ function addToolShortcut(key, callback) {
 
 /**
  * @param {string} toolName
- * @param {string} toolIcon
- * @param {string} toolShortcut
- * @param {boolean | undefined} oneTouch
  * @returns {HTMLElement | null}
  */
-function syncMountedToolButton(toolName, toolIcon, toolShortcut, oneTouch) {
+function syncMountedToolButton(toolName) {
   const tool = Tools.list[toolName];
   if (!tool) {
     throw new Error(`Tool not registered before rendering: ${toolName}`);
   }
-  if (toolShortcut) {
-    addToolShortcut(toolShortcut, () => {
+  if (tool.shortcut) {
+    addToolShortcut(tool.shortcut, () => {
       void Tools.activateTool(toolName);
       blurActiveElement();
     });
   }
-  tool.icon = toolIcon;
-  tool.shortcut = toolShortcut || tool.shortcut;
-  tool.oneTouch = oneTouch;
   syncToolButton(toolName, tool);
   Tools.syncToolDisabledState(toolName);
   return getToolButton(toolName);
@@ -2461,21 +2455,9 @@ function createToolBootContext(toolName) {
   /** @type {ToolRuntime} */
   const runtime = {
     Tools: mountedTools,
-    activateTool: (name) => {
-      void Tools.activateTool(name);
-    },
-    getButton: (name) => getToolButton(name),
-    registerShortcut: (name, key) => {
-      addToolShortcut(key, () => {
-        void Tools.activateTool(name);
-      });
-    },
   };
   return {
-    toolName: toolName,
     runtime: runtime,
-    button: getToolButton(toolName),
-    version: Tools.assetVersion,
     assetUrl: (assetFile) => Tools.getToolAssetUrl(toolName, assetFile),
   };
 }
@@ -2684,12 +2666,7 @@ Tools.mountTool = function mountTool(tool) {
     });
   }
   if (Tools.shouldDisplayTool(tool.name)) {
-    syncMountedToolButton(
-      tool.name,
-      tool.icon,
-      tool.shortcut || "",
-      tool.oneTouch,
-    );
+    syncMountedToolButton(tool.name);
   }
   Tools.syncToolDisabledState(tool.name);
   if (mountedTool.alwaysOn === true) {
