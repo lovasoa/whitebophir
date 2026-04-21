@@ -62,13 +62,9 @@ export const batchMessageFields = {
 class HandTool {
   /**
    * @param {any} Tools
-   * @param {(assetFile: string) => string} [assetUrl]
+   * @param {(assetFile: string) => string} assetUrl
    */
-  constructor(
-    Tools,
-    assetUrl = /** @param {string} assetFile */ (assetFile) =>
-      `tools/hand/${assetFile}`,
-  ) {
+  constructor(Tools, assetUrl) {
     this.Tools = Tools;
     this.assetUrl = assetUrl;
     this.selectorStates = {
@@ -402,7 +398,6 @@ class HandTool {
 
   calculateSelection() {
     const selectionTBBox = this.selectionRect.transformedBBox();
-    if (!this.Tools.drawingArea) return [];
     const elements = this.Tools.drawingArea.children;
     const selected = [];
     for (let i = 0; i < elements.length; i++) {
@@ -619,9 +614,6 @@ class HandTool {
         break;
       }
       case MutationType.COPY: {
-        if (!this.Tools.drawingArea) {
-          throw new Error("Mover: Missing drawing area while copying.");
-        }
         const sourceElement = this.Tools.svg.getElementById(data.id);
         if (!this.isSelectableElement(sourceElement)) {
           throw new Error(
@@ -650,7 +642,6 @@ class HandTool {
    * @param {{ target: EventTarget | null, preventDefault(): void }} evt
    */
   clickSelector(x, y, evt) {
-    this.selectionRect = this.selectionRect || this.createSelectorRect();
     let button;
     for (let i = 0; i < this.selectionButtons.length; i++) {
       const candidate = this.selectionButtons[i];
@@ -670,7 +661,6 @@ class HandTool {
       this.hideSelectionButtons();
       this.startMovingElements(x, y, evt);
     } else if (
-      this.Tools.drawingArea &&
       evt.target &&
       this.Tools.drawingArea.contains(/** @type {Node} */ (evt.target))
     ) {

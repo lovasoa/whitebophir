@@ -82,7 +82,6 @@ import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
 /** @typedef {import("../../types/app-runtime").ToolPointerListeners} ToolPointerListeners */
 /** @typedef {import("../../types/app-runtime").ToolModule} ToolModule */
-/** @typedef {import("../../types/app-runtime").ToolStateMetadata} ToolStateMetadata */
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../types/app-runtime").ToolRuntime} ToolRuntime */
 /** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
@@ -2467,9 +2466,10 @@ function createToolFromModule(toolModule, toolState, toolName) {
   if (typeof toolModule.draw !== "function") {
     throw new Error(`Missing draw export for ${toolName}.`);
   }
-  const stateMetadata = /** @type {ToolStateMetadata} */ (
-    toolState && typeof toolState === "object" ? toolState : {}
-  );
+  const toolStateObject =
+    /** @type {{mouseCursor?: string, secondary?: import("../../types/app-runtime").ToolSecondaryMode | null} | null} */ (
+      toolState && typeof toolState === "object" ? toolState : null
+    );
   const draw = toolModule.draw;
   const normalizeServerRenderedElement =
     toolModule.normalizeServerRenderedElement;
@@ -2483,7 +2483,7 @@ function createToolFromModule(toolModule, toolState, toolName) {
   const onSizeChange = toolModule.onSizeChange;
   return {
     name: toolName,
-    shortcut: toolModule.shortcut ?? stateMetadata.shortcut,
+    shortcut: toolModule.shortcut,
     icon: "",
     draw: (message, isLocal) => draw(toolState, message, isLocal),
     normalizeServerRenderedElement:
@@ -2520,18 +2520,17 @@ function createToolFromModule(toolModule, toolState, toolName) {
       typeof onSocketDisconnect === "function"
         ? () => onSocketDisconnect(toolState)
         : undefined,
-    oneTouch: toolModule.oneTouch ?? stateMetadata.oneTouch,
-    alwaysOn: toolModule.alwaysOn ?? stateMetadata.alwaysOn,
-    mouseCursor: toolModule.mouseCursor ?? stateMetadata.mouseCursor,
-    helpText: toolModule.helpText ?? stateMetadata.helpText,
-    secondary: toolModule.secondary ?? stateMetadata.secondary ?? null,
+    oneTouch: toolModule.oneTouch,
+    alwaysOn: toolModule.alwaysOn,
+    mouseCursor: toolModule.mouseCursor ?? toolStateObject?.mouseCursor,
+    helpText: toolModule.helpText,
+    secondary: toolModule.secondary ?? toolStateObject?.secondary ?? null,
     onSizeChange:
       typeof onSizeChange === "function"
         ? (size) => onSizeChange(toolState, size)
         : undefined,
-    showMarker: toolModule.showMarker ?? stateMetadata.showMarker,
-    requiresWritableBoard:
-      toolModule.requiresWritableBoard ?? stateMetadata.requiresWritableBoard,
+    showMarker: toolModule.showMarker,
+    requiresWritableBoard: toolModule.requiresWritableBoard,
   };
 }
 
