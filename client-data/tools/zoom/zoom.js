@@ -115,12 +115,10 @@ export default class ZoomTool {
   }
 
   /**
-   * @param {number} _x
-   * @param {number} _y
    * @param {ZoomPointerEvent} evt
    * @param {boolean} isTouchEvent
    */
-  move(_x, _y, evt, isTouchEvent) {
+  move(evt, isTouchEvent) {
     if (this.pressed) {
       evt.preventDefault();
       const delta = this.getClientY(evt, isTouchEvent) - this.origin.clientY;
@@ -222,13 +220,8 @@ export default class ZoomTool {
     this.origin.distance = null;
   }
 
-  /**
-   * @param {number} _x
-   * @param {number} _y
-   * @param {ZoomPointerEvent & {shiftKey?: boolean}} evt
-   * @param {boolean} _isTouchEvent
-   */
-  release(_x, _y, evt, _isTouchEvent) {
+  /** @param {ZoomPointerEvent & {shiftKey?: boolean}} evt */
+  release(evt) {
     if (this.pressed && !this.moved) {
       const delta = evt.shiftKey === true ? -1 : 1;
       const scale = this.tools.getScale() * (1 + delta * ZoomTool.ZOOM_FACTOR);

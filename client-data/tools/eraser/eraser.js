@@ -45,15 +45,11 @@ export default class EraserTool {
     this.showMarker = true;
   }
 
-  /**
-   * @param {number} x
-   * @param {number} y
-   * @param {EraserPointerEvent} evt
-   */
-  press(x, y, evt) {
+  /** @param {EraserPointerEvent} evt */
+  press(evt) {
     evt.preventDefault();
     this.erasing = true;
-    this.move(x, y, evt);
+    this.move(evt);
   }
 
   /**
@@ -103,12 +99,8 @@ export default class EraserTool {
     return target;
   }
 
-  /**
-   * @param {number} _x
-   * @param {number} _y
-   * @param {EraserPointerEvent} evt
-   */
-  move(_x, _y, evt) {
+  /** @param {EraserPointerEvent} evt */
+  move(evt) {
     const target = this.resolveTarget(evt);
     if (
       this.erasing &&
