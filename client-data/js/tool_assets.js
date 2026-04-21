@@ -1,4 +1,4 @@
-import { TOOL_CATALOG_BY_NAME } from "./tool_catalog.js";
+import { getToolCatalogEntry } from "./tool_catalog.js";
 
 const DEFAULT_ICON_FILE = "icon.svg";
 
@@ -23,7 +23,7 @@ function getToolAssetDescriptor(toolName) {
   const metadata = /** @type {any} */ (
     (toolName === "Cursor"
       ? { iconPath: "tools/pencil/icon.svg" }
-      : TOOL_CATALOG_BY_NAME[toolName]) || {}
+      : getToolCatalogEntry(toolName)) || {}
   );
   const {
     iconFile = DEFAULT_ICON_FILE,

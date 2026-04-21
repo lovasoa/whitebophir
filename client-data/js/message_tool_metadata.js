@@ -1,7 +1,7 @@
 import {
   DRAW_TOOL_NAMES,
   TOOL_CATALOG,
-  TOOL_CATALOG_BY_NAME,
+  getToolCatalogEntry,
 } from "./tool_catalog.js";
 import { getMutationTypeCode, MutationType } from "./mutation_type.js";
 import { TOOL_CONTRACTS_BY_NAME } from "../tools/tool_contracts.js";
@@ -45,7 +45,7 @@ export function getUpdatableFields(toolName, data) {
   if (typeof toolName !== "string") return updatable;
   const fields =
     TOOL_CONTRACTS_BY_NAME[toolName]?.updatableFields ||
-    TOOL_CATALOG_BY_NAME[toolName]?.updatableFields ||
+    getToolCatalogEntry(toolName)?.updatableFields ||
     [];
   for (const field of fields) {
     if (Object.hasOwn(data, field)) updatable[field] = data[field];
@@ -69,6 +69,6 @@ export function getMutationType(message) {
 export function isToolOwnedBatchTool(toolName) {
   return (
     typeof toolName === "string" &&
-    TOOL_CATALOG_BY_NAME[toolName]?.batchMessageFields !== undefined
+    getToolCatalogEntry(toolName)?.batchMessageFields !== undefined
   );
 }

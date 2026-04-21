@@ -66,14 +66,13 @@ export const TOOL_CATALOG = [
   }),
 ];
 
-/** @type {{[toolName: string]: ToolCatalogEntry}} */
-export const TOOL_CATALOG_BY_NAME = Object.fromEntries(
-  TOOL_CATALOG.map((entry) => [entry.name, entry]),
-);
-
 export const DRAW_TOOL_NAMES = TOOL_CATALOG.filter(
   ({ drawsOnBoard }) => drawsOnBoard === true,
 ).map(({ name }) => name);
+
+/** @param {string | undefined} toolName */
+export const getToolCatalogEntry = (toolName) =>
+  TOOL_CATALOG.find((entry) => entry.name === toolName);
 
 /**
  * @param {{readonly?: boolean, canWrite?: boolean} | null | undefined} boardState
