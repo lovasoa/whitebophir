@@ -2,27 +2,11 @@ import { SerialTaskQueue } from "./serial_task_queue.mjs";
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 
 /**
- * @param {{
- *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
- * }} board
+ * @param {(() => Array<{mutation: NormalizedMessageData}>) | undefined} consumeEffects
  * @returns {Array<{mutation: NormalizedMessageData}>}
  */
-function consumePendingRejectedMutationEffects(board) {
-  return typeof board.consumePendingRejectedMutationEffects === "function"
-    ? board.consumePendingRejectedMutationEffects()
-    : [];
-}
-
-/**
- * @param {{
- *   consumePendingAcceptedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
- * }} board
- * @returns {Array<{mutation: NormalizedMessageData}>}
- */
-function consumePendingAcceptedMutationEffects(board) {
-  return typeof board.consumePendingAcceptedMutationEffects === "function"
-    ? board.consumePendingAcceptedMutationEffects()
-    : [];
+function consumePendingMutationEffects(consumeEffects) {
+  return typeof consumeEffects === "function" ? consumeEffects() : [];
 }
 
 /** @type {WeakMap<object, ReturnType<typeof createBoardSession>>} */
@@ -53,8 +37,12 @@ export function createBoardSession(board) {
       nowMs = Date.now(),
     ) {
       return queue.runExclusive(async () => {
-        consumePendingRejectedMutationEffects(board);
-        consumePendingAcceptedMutationEffects(board);
+        consumePendingMutationEffects(
+          board.consumePendingRejectedMutationEffects,
+        );
+        consumePendingMutationEffects(
+          board.consumePendingAcceptedMutationEffects,
+        );
         let acceptedMutation = mutation;
         if (typeof board.preparePersistentMutation === "function") {
           const prepared =
@@ -68,17 +56,17 @@ export function createBoardSession(board) {
         }
         const result = board.processMessage(acceptedMutation);
         if (result.ok === false) {
-          const followup = consumePendingRejectedMutationEffects(board).map(
-            (effect) => ({
-              mutation: effect.mutation,
-              envelope: board.recordPersistentMutation(
-                effect.mutation,
-                nowMs,
-                undefined,
-                socketId,
-              ),
-            }),
-          );
+          const followup = consumePendingMutationEffects(
+            board.consumePendingRejectedMutationEffects,
+          ).map((effect) => ({
+            mutation: effect.mutation,
+            envelope: board.recordPersistentMutation(
+              effect.mutation,
+              nowMs,
+              undefined,
+              socketId,
+            ),
+          }));
           return followup.length > 0 ? { ...result, followup } : result;
         }
         const envelope = board.recordPersistentMutation(
@@ -87,17 +75,17 @@ export function createBoardSession(board) {
           clientMutationId,
           socketId,
         );
-        const followup = consumePendingAcceptedMutationEffects(board).map(
-          (effect) => ({
-            mutation: effect.mutation,
-            envelope: board.recordPersistentMutation(
-              effect.mutation,
-              nowMs,
-              undefined,
-              socketId,
-            ),
-          }),
-        );
+        const followup = consumePendingMutationEffects(
+          board.consumePendingAcceptedMutationEffects,
+        ).map((effect) => ({
+          mutation: effect.mutation,
+          envelope: board.recordPersistentMutation(
+            effect.mutation,
+            nowMs,
+            undefined,
+            socketId,
+          ),
+        }));
         return {
           ok: true,
           value: acceptedMutation,
