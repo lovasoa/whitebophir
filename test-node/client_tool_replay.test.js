@@ -4,6 +4,10 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { installTestConsole } = require("./test_console.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
+const {
+  getToolModuleImportPath,
+  getToolRuntimeAssetPath,
+} = require("../client-data/js/tool_assets.js");
 installTestConsole();
 const { MutationType } = MessageToolMetadata;
 
@@ -25,59 +29,6 @@ const { MutationType } = MessageToolMetadata;
 
 const globalAny = /** @type {any} */ (global);
 let dynamicLoadSequence = 0;
-
-const TOOL_PATHS = {
-  Pencil: path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "pencil",
-    "pencil.js",
-  ),
-  "Straight line": path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "straight-line",
-    "straight-line.js",
-  ),
-  Rectangle: path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "rectangle",
-    "rectangle.js",
-  ),
-  Ellipse: path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "ellipse",
-    "ellipse.js",
-  ),
-  Text: path.join(__dirname, "..", "client-data", "tools", "text", "text.js"),
-  Hand: path.join(__dirname, "..", "client-data", "tools", "hand", "hand.js"),
-  Eraser: path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "eraser",
-    "eraser.js",
-  ),
-};
-
-/**
- * @param {string} toolName
- * @returns {string}
- */
-function toolStem(toolName) {
-  return toolName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-}
 
 /**
  * @param {PathSegment[]} pathData
@@ -486,8 +437,13 @@ function createHarness() {
     clock: clock,
     windowListeners: windowListeners,
     loadTool: async (toolName) => {
-      const toolPaths = /** @type {{ [name: string]: string }} */ (TOOL_PATHS);
-      const toolPath = /** @type {string} */ (toolPaths[toolName]);
+      const toolPath = path.resolve(
+        __dirname,
+        "..",
+        "client-data",
+        "js",
+        getToolModuleImportPath(toolName),
+      );
       const toolUrl = `${pathToFileURL(toolPath).href}?cache-bust=${++dynamicLoadSequence}`;
       const moduleNamespace = await import(toolUrl);
       const ToolClass = moduleNamespace.default;
@@ -508,7 +464,7 @@ function createHarness() {
         button: null,
         version: "",
         assetUrl: (/** @type {string} */ assetFile) =>
-          `tools/${toolStem(toolName)}/${assetFile}`,
+          getToolRuntimeAssetPath(toolName, assetFile),
       });
       if (!tool.listeners) {
         tool.listeners = {
