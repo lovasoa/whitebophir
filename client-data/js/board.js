@@ -52,7 +52,10 @@ import {
 } from "./message_shape.js";
 import Minitpl from "./minitpl.js";
 import { createOptimisticJournal } from "./optimistic_journal.js";
-import OptimisticMutation from "./optimistic_mutation.js";
+import {
+  collectOptimisticAffectedIds,
+  collectOptimisticDependencyIds,
+} from "./optimistic_mutation.js";
 import RateLimitCommon from "./rate_limit_common.js";
 import {
   getToolModuleImportPath,
@@ -594,27 +597,25 @@ Tools.captureOptimisticRollback = function captureOptimisticRollback(message) {
   }
   return {
     kind: "items",
-    snapshots: OptimisticMutation.collectOptimisticAffectedIds(message).map(
-      (itemId) => {
-        const svg = Tools.svg;
-        if (!svg) {
-          return {
-            id: itemId,
-            outerHTML: null,
-            nextSiblingId: null,
-          };
-        }
-        const current = svg.getElementById(itemId);
+    snapshots: collectOptimisticAffectedIds(message).map((itemId) => {
+      const svg = Tools.svg;
+      if (!svg) {
         return {
           id: itemId,
-          outerHTML: current ? current.outerHTML : null,
-          nextSiblingId:
-            current && current.nextElementSibling
-              ? current.nextElementSibling.id || null
-              : null,
+          outerHTML: null,
+          nextSiblingId: null,
         };
-      },
-    ),
+      }
+      const current = svg.getElementById(itemId);
+      return {
+        id: itemId,
+        outerHTML: current ? current.outerHTML : null,
+        nextSiblingId:
+          current && current.nextElementSibling
+            ? current.nextElementSibling.id || null
+            : null,
+      };
+    }),
   };
 };
 
@@ -625,7 +626,7 @@ Tools.captureOptimisticRollback = function captureOptimisticRollback(message) {
 Tools.collectOptimisticDependencyMutationIds =
   function collectOptimisticDependencyMutationIds(message) {
     return Tools.optimisticJournal.dependencyMutationIdsForItemIds(
-      OptimisticMutation.collectOptimisticDependencyIds(message),
+      collectOptimisticDependencyIds(message),
     );
   };
 
@@ -642,10 +643,9 @@ Tools.trackOptimisticMutation = function trackOptimisticMutation(
     return;
   Tools.optimisticJournal.append({
     clientMutationId: message.clientMutationId,
-    affectedIds: OptimisticMutation.collectOptimisticAffectedIds(message),
+    affectedIds: collectOptimisticAffectedIds(message),
     dependsOn: Tools.collectOptimisticDependencyMutationIds(message),
-    dependencyItemIds:
-      OptimisticMutation.collectOptimisticDependencyIds(message),
+    dependencyItemIds: collectOptimisticDependencyIds(message),
     rollback,
     message,
   });

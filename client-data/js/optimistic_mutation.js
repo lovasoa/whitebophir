@@ -62,8 +62,3 @@ export function collectOptimisticDependencyIds(message) {
       return [];
   }
 }
-
-export default {
-  collectOptimisticAffectedIds,
-  collectOptimisticDependencyIds,
-};

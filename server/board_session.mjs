@@ -120,8 +120,3 @@ export function getBoardSession(board) {
   BOARD_SESSIONS.set(board, created);
   return created;
 }
-
-export default {
-  createBoardSession,
-  getBoardSession,
-};

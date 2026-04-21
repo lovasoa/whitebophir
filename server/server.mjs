@@ -25,7 +25,7 @@ import {
   boundaryReason,
   boundaryStatusCode,
 } from "./boundary_errors.mjs";
-import check_output_directory from "./check_output_directory.mjs";
+import { check_output_directory } from "./check_output_directory.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import { applyCompressionForResponse } from "./http_compression.mjs";
 import * as jwtauth from "./jwtauth.mjs";
