@@ -27,7 +27,12 @@
 
 import { stat } from "node:fs/promises";
 import MessageCommon from "../client-data/js/message_common.js";
-import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
+import {
+  getUpdatableFields,
+  getMutationType,
+  isShapeTool,
+  MutationType,
+} from "../client-data/js/message_tool_metadata.js";
 import {
   canonicalItemFromItem,
   cloneCanonicalItem,
@@ -147,7 +152,7 @@ function boardLogFields(board, extras) {
  * @returns {BoardElem}
  */
 function filterUpdatableFields(tool, data) {
-  return MessageToolMetadata.getUpdatableFields(tool, data);
+  return getUpdatableFields(tool, data);
 }
 
 /**
@@ -516,7 +521,7 @@ class BoardData {
    */
   shouldDropSeedShapeOnRejectedUpdate(tool, item, id) {
     return (
-      MessageToolMetadata.isShapeTool(tool) &&
+      isShapeTool(tool) &&
       item &&
       item.tool === tool &&
       this.hasZeroLocalExtent(item, id) &&
@@ -529,10 +534,12 @@ class BoardData {
    * @returns {boolean}
    */
   shouldDeferSeedDropRejectionToMutationEngine(message) {
-    if (message?.type !== "update" || !message.id) return false;
+    if (getMutationType(message) !== MutationType.UPDATE || !message.id) {
+      return false;
+    }
     const summary = getCanonicalItem(this, message.id);
     return (
-      MessageToolMetadata.isShapeTool(message.tool) &&
+      isShapeTool(message.tool) &&
       summary?.tool === message.tool &&
       this.hasZeroSummaryExtent(summary) &&
       summary.transform === undefined
@@ -580,12 +587,12 @@ class BoardData {
       });
       return ids;
     }
-    switch (message.type) {
-      case "update":
-      case "copy":
+    switch (getMutationType(message)) {
+      case MutationType.UPDATE:
+      case MutationType.COPY:
         if (typeof message.id === "string") ids.add(message.id);
         break;
-      case "child":
+      case MutationType.APPEND:
         if (typeof message.parent === "string") ids.add(message.parent);
         break;
     }
@@ -600,20 +607,20 @@ class BoardData {
     if (Array.isArray(message?._children)) {
       return { ok: true, mutation: message };
     }
-    switch (message?.type) {
-      case "copy":
+    switch (getMutationType(message)) {
+      case MutationType.COPY:
         if (!message.id || !getCanonicalItem(this, message.id)) {
           return { ok: false, reason: "copied object does not exist" };
         }
         return { ok: true, mutation: message };
-      case "child":
+      case MutationType.APPEND:
         if (!message.parent || !getCanonicalItem(this, message.parent)) {
           return { ok: false, reason: "invalid parent for child" };
         }
         return this.canAddChild(message.parent, message)
           ? { ok: true, mutation: message }
           : { ok: false, reason: "shape too large" };
-      case "update":
+      case MutationType.UPDATE:
         if (!message.id || !getCanonicalItem(this, message.id)) {
           return { ok: false, reason: "object not found" };
         }
@@ -803,17 +810,17 @@ class BoardData {
    */
   canProcessMessage(message) {
     const id = message.id;
-    switch (message.type) {
-      case "delete":
-      case "clear":
+    switch (getMutationType(message)) {
+      case MutationType.DELETE:
+      case MutationType.CLEAR:
         return true;
-      case "update":
+      case MutationType.UPDATE:
         return id
           ? this.canUpdate(id, filterUpdatableFields(message.tool, message))
           : false;
-      case "copy":
+      case MutationType.COPY:
         return id ? this.canCopy(id, message) : false;
-      case "child":
+      case MutationType.APPEND:
         return message.parent
           ? this.canAddChild(message.parent, message)
           : false;
@@ -1043,16 +1050,16 @@ class BoardData {
 
         for (const message of messages) {
           const id = message.id;
-          switch (message.type) {
-            case "clear":
+          switch (getMutationType(message)) {
+            case MutationType.CLEAR:
               clearAll = true;
               overlay.clear();
               break;
-            case "delete":
+            case MutationType.DELETE:
               if (!id) return { ok: false, reason: "missing id" };
               overlay.set(id, undefined);
               break;
-            case "update": {
+            case MutationType.UPDATE: {
               if (!id) return { ok: false, reason: "missing id" };
               const current = readItem(id);
               if (!current) return { ok: false, reason: "object not found" };
@@ -1078,7 +1085,7 @@ class BoardData {
               overlay.set(id, next);
               break;
             }
-            case "copy": {
+            case MutationType.COPY: {
               if (!id || !message.newid) {
                 return { ok: false, reason: "missing id" };
               }
@@ -1094,7 +1101,7 @@ class BoardData {
               overlay.set(message.newid, validated.value);
               break;
             }
-            case "child": {
+            case MutationType.APPEND: {
               if (!message.parent) {
                 return { ok: false, reason: "invalid parent for child" };
               }
@@ -1173,21 +1180,21 @@ class BoardData {
       result = this.processMessageBatch(message._children, message);
     } else {
       const id = message.id;
-      switch (message.type) {
-        case "delete":
+      switch (getMutationType(message)) {
+        case MutationType.DELETE:
           result = id ? this.delete(id) : { ok: false, reason: "missing id" };
           break;
-        case "update":
+        case MutationType.UPDATE:
           result = id
             ? this.update(id, message)
             : { ok: false, reason: "missing id" };
           break;
-        case "copy":
+        case MutationType.COPY:
           result = id
             ? this.copy(id, message)
             : { ok: false, reason: "missing id" };
           break;
-        case "child": {
+        case MutationType.APPEND: {
           // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
           const { parent, type, tool, ...childData } = message;
           void type;
@@ -1197,7 +1204,7 @@ class BoardData {
             : { ok: false, reason: "invalid parent for child" };
           break;
         }
-        case "clear":
+        case MutationType.CLEAR:
           result = this.clear();
           break;
         default:

@@ -1,6 +1,11 @@
 import MessageCommon from "../client-data/js/message_common.js";
 import { hasMessageTool } from "../client-data/js/message_shape.js";
-import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
+import {
+  getMutationType,
+  MutationType,
+  SHAPE_TOOL_TYPES,
+  TOOL_METADATA,
+} from "../client-data/js/message_tool_metadata.js";
 import { readConfiguration } from "./configuration.mjs";
 
 // Capture config once at module load. The hot paths below (per-coordinate
@@ -258,7 +263,7 @@ function defaultCoordinateFromY(raw, normalized) {
  * @returns {FieldSchema}
  */
 function makeLiveShapeCreateSchema(toolName) {
-  const type = MessageToolMetadata.getShapeToolType(toolName);
+  const type = SHAPE_TOOL_TYPES[toolName];
   if (type === undefined) {
     throw new Error("unsupported shape tool");
   }
@@ -292,7 +297,7 @@ function makeLiveShapeUpdateSchema(toolName) {
     id: required(normalizeId),
   };
 
-  const fields = MessageToolMetadata.getUpdatableFieldNames(toolName);
+  const fields = TOOL_METADATA[toolName]?.updatableFields || [];
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i];
     if (field === undefined) continue;
@@ -307,7 +312,7 @@ function makeLiveShapeUpdateSchema(toolName) {
  * @returns {FieldSchema}
  */
 function makeStoredShapeSchema(toolName) {
-  const type = MessageToolMetadata.getShapeToolType(toolName);
+  const type = SHAPE_TOOL_TYPES[toolName];
   if (type === undefined) {
     throw new Error("unsupported shape tool");
   }
@@ -336,11 +341,11 @@ function makeStoredShapeSchema(toolName) {
 function buildLiveShapeSchemas() {
   /** @type {LiveToolSchemas} */
   const shapeSchemas = {};
-  const shapeTools = MessageToolMetadata.getShapeToolNames();
+  const shapeTools = Object.keys(SHAPE_TOOL_TYPES);
   for (let index = 0; index < shapeTools.length; index++) {
     const toolName = shapeTools[index];
     if (typeof toolName !== "string") continue;
-    const typeName = MessageToolMetadata.getShapeToolType(toolName);
+    const typeName = SHAPE_TOOL_TYPES[toolName];
     if (typeName === undefined) continue;
     shapeSchemas[toolName] = {
       /** @type {FieldSchema} */
@@ -357,7 +362,7 @@ function buildLiveShapeSchemas() {
 function buildStoredShapeSchemas() {
   /** @type {StoredToolSchemas} */
   const shapeSchemas = {};
-  for (const toolName of MessageToolMetadata.getShapeToolNames()) {
+  for (const toolName of Object.keys(SHAPE_TOOL_TYPES)) {
     shapeSchemas[toolName] = makeStoredShapeSchema(toolName);
   }
   return shapeSchemas;
@@ -533,7 +538,7 @@ function normalizeIncomingMessage(raw) {
   const normalized = normalizeObject(raw, schema);
   if (!normalized.ok) return normalized;
   if (
-    normalized.value.type !== "update" &&
+    getMutationType(normalized.value) !== MutationType.UPDATE &&
     MessageCommon.isGeometryTooLarge(normalized.value)
   ) {
     return rejected("shape too large");

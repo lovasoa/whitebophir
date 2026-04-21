@@ -1,3 +1,5 @@
+import { getMutationType, MutationType } from "./message_tool_metadata.js";
+
 /**
  * @param {unknown} value
  * @returns {string[]}
@@ -23,12 +25,12 @@ export function collectOptimisticAffectedIds(message) {
       ),
     );
   }
-  switch (message.type) {
-    case "copy":
+  switch (getMutationType(message)) {
+    case MutationType.COPY:
       return uniqueIds([message.newid]);
-    case "child":
+    case MutationType.APPEND:
       return uniqueIds([message.parent]);
-    case "clear":
+    case MutationType.CLEAR:
       return [];
     default:
       return uniqueIds([message.id]);
@@ -51,12 +53,12 @@ export function collectOptimisticDependencyIds(message) {
       ),
     );
   }
-  switch (message.type) {
-    case "copy":
-    case "delete":
-    case "update":
+  switch (getMutationType(message)) {
+    case MutationType.COPY:
+    case MutationType.DELETE:
+    case MutationType.UPDATE:
       return uniqueIds([message.id]);
-    case "child":
+    case MutationType.APPEND:
       return uniqueIds([message.parent]);
     default:
       return [];

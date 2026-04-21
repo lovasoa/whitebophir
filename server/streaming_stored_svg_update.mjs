@@ -1,4 +1,8 @@
 import {
+  getMutationType,
+  MutationType,
+} from "../client-data/js/message_tool_metadata.js";
+import {
   parseStoredSvgItem,
   serializeStoredSvgItem,
 } from "./stored_svg_item_codec.mjs";
@@ -23,19 +27,6 @@ function flattenMutations(mutations) {
     flat.push(mutation);
   }
   return flat;
-}
-
-/**
- * @param {any} mutation
- * @returns {boolean}
- */
-function isCreateMutation(mutation) {
-  return !!(
-    mutation &&
-    typeof mutation === "object" &&
-    typeof mutation.id === "string" &&
-    !["update", "child", "copy", "delete", "clear"].includes(mutation.type)
-  );
 }
 
 /**
@@ -72,7 +63,8 @@ function planStreamingMutations(mutations) {
 
   for (const mutation of flattenMutations(mutations)) {
     if (!mutation || typeof mutation !== "object") return null;
-    if (mutation.type === "clear") {
+    const mutationType = getMutationType(mutation);
+    if (mutationType === MutationType.CLEAR) {
       clearExisting = true;
       opsById.clear();
       appendOrder = [];
@@ -80,7 +72,7 @@ function planStreamingMutations(mutations) {
       continue;
     }
 
-    if (isCreateMutation(mutation)) {
+    if (mutationType === MutationType.CREATE) {
       if (typeof mutation.id !== "string") return null;
       appendSourcesById.set(mutation.id, {
         kind: "create",
@@ -92,7 +84,7 @@ function planStreamingMutations(mutations) {
       continue;
     }
 
-    if (mutation.type === "copy") {
+    if (mutationType === MutationType.COPY) {
       if (
         typeof mutation.id !== "string" ||
         typeof mutation.newid !== "string"
@@ -110,7 +102,8 @@ function planStreamingMutations(mutations) {
       continue;
     }
 
-    const id = mutation.type === "child" ? mutation.parent : mutation.id;
+    const id =
+      mutationType === MutationType.APPEND ? mutation.parent : mutation.id;
     if (typeof id !== "string") {
       return null;
     }
@@ -137,8 +130,8 @@ function applyOpsToItem(item, ops) {
 
   for (const op of ops || []) {
     if (deleted || !current) break;
-    switch (op.type) {
-      case "update": {
+    switch (getMutationType(op)) {
+      case MutationType.UPDATE: {
         const patch = { ...op };
         delete patch.tool;
         delete patch.type;
@@ -146,7 +139,7 @@ function applyOpsToItem(item, ops) {
         current = { ...current, ...patch };
         break;
       }
-      case "child": {
+      case MutationType.APPEND: {
         if (current.tool !== "Pencil") break;
         const nextChildren = Array.isArray(current._children)
           ? current._children.slice()
@@ -155,13 +148,13 @@ function applyOpsToItem(item, ops) {
         current = { ...current, _children: nextChildren };
         break;
       }
-      case "copy": {
+      case MutationType.COPY: {
         const copied = structuredClone(current);
         copied.id = op.newid;
         copies.set(op.newid, copied);
         break;
       }
-      case "delete":
+      case MutationType.DELETE:
         deleted = true;
         current = null;
         break;

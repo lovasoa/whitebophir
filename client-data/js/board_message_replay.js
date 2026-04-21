@@ -1,15 +1,11 @@
 /** @typedef {import("../../types/app-runtime").IdentifiedBoardMessage} IdentifiedBoardMessage */
 /** @typedef {import("../../types/app-runtime").ToolOwnedBatchMessage} ToolOwnedBatchMessage */
+import { isToolOwnedBatchTool } from "./message_tool_metadata.js";
 import {
   hasMessageChildren,
   hasMessageId,
   hasMessageTool,
 } from "./message_shape.js";
-
-/** @type {{[toolName: string]: true}} */
-export const TOOL_OWNED_BATCH_TOOLS = {
-  Hand: true,
-};
 
 /**
  * @param {unknown} value
@@ -41,7 +37,7 @@ export function classifyPersistentEnvelopeSeq(messageSeq, authoritativeSeq) {
 export function isToolOwnedBatchMessage(message) {
   return (
     !!(hasMessageChildren(message) && hasMessageTool(message)) &&
-    TOOL_OWNED_BATCH_TOOLS[message.tool] === true
+    isToolOwnedBatchTool(message.tool)
   );
 }
 
@@ -84,16 +80,13 @@ export function shouldBufferLiveMessage(message, awaitingBoardSnapshot) {
  * @returns {boolean}
  */
 export function isSyncReplayControlMessage(message) {
-  return (
-    !!message &&
+  return !!(
+    message &&
     typeof message === "object" &&
-    typeof message.type === "string" &&
-    [
-      "sync_replay_start",
-      "sync_replay_end",
-      "resync_required",
-      "mutation_rejected",
-    ].includes(message.type)
+    (message.type === "sync_replay_start" ||
+      message.type === "sync_replay_end" ||
+      message.type === "resync_required" ||
+      message.type === "mutation_rejected")
   );
 }
 

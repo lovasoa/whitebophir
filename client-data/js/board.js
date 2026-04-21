@@ -45,6 +45,7 @@ import {
   turnstile as BoardTurnstile,
 } from "./board_transport.js";
 import MessageCommon from "./message_common.js";
+import { getMutationType, MutationType } from "./message_tool_metadata.js";
 import {
   hasMessageId,
   hasMessageNewId,
@@ -589,7 +590,7 @@ Tools.restoreLocalCursor = function restoreLocalCursor() {
  * @returns {{kind: "drawing-area", markup: string} | {kind: "items", snapshots: Array<{id: string, outerHTML: string | null, nextSiblingId: string | null}>}}
  */
 Tools.captureOptimisticRollback = function captureOptimisticRollback(message) {
-  if (message.tool === "Clear" || message.type === "clear") {
+  if (getMutationType(message) === MutationType.CLEAR) {
     return {
       kind: "drawing-area",
       markup: Tools.drawingArea?.innerHTML || "",
@@ -1640,13 +1641,14 @@ function getRenderedElementCenterById(elementId) {
  * @returns {string | null}
  */
 function getHandChildTargetId(child) {
-  if (child.type === "update" && hasMessageId(child)) {
-    return child.id;
+  switch (getMutationType(child)) {
+    case MutationType.UPDATE:
+      return hasMessageId(child) ? child.id : null;
+    case MutationType.COPY:
+      return hasMessageNewId(child) ? child.newid : null;
+    default:
+      return null;
   }
-  if (child.type === "copy" && hasMessageNewId(child)) {
-    return child.newid;
-  }
-  return null;
 }
 
 /**
@@ -3056,7 +3058,12 @@ function resizeCanvas(m) {
 
 /** @param {BoardMessage} m */
 function updateUnreadCount(m) {
-  if (document.hidden && m.type !== "child" && m.type !== "update") {
+  const mutationType = getMutationType(m);
+  if (
+    document.hidden &&
+    mutationType !== MutationType.APPEND &&
+    mutationType !== MutationType.UPDATE
+  ) {
     Tools.newUnreadMessage();
   }
 }

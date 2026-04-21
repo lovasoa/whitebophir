@@ -59,7 +59,7 @@ test("DRAW_TOOL_NAMES comes from shared metadata", () => {
 });
 
 test("shape tool bounds use straight-shape geometry consistently", () => {
-  const shapeToolNames = MessageToolMetadata.getShapeToolNames();
+  const shapeToolNames = Object.keys(MessageToolMetadata.SHAPE_TOOL_TYPES);
   for (const toolName of shapeToolNames) {
     const bounds = MessageCommon.getLocalGeometryBounds({
       tool: toolName,

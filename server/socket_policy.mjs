@@ -1,3 +1,7 @@
+import {
+  getMutationType,
+  MutationType,
+} from "../client-data/js/message_tool_metadata.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { isValidBoardName } from "../client-data/js/board_name.js";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
@@ -387,7 +391,7 @@ function canApplyBoardMessage(config, board, data, socket) {
   if (data.tool === "Cursor") return true;
   if (!canWriteToBoard(config, board, socket)) return false;
   if (
-    data.type === "clear" &&
+    getMutationType(data) === MutationType.CLEAR &&
     writerRole(config, board.name, socket) !== "moderator"
   ) {
     return false;

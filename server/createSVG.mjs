@@ -160,9 +160,7 @@ const Tools = {
    * @return {string}
    */
   Text: (el) => {
-    if (el.tool !== "Text") return "";
-    /** @type {TextElement} */
-    const text = el;
+    const text = /** @type {TextElement} */ (el);
     return (
       "<text " +
       'id="' +
@@ -191,9 +189,7 @@ const Tools = {
    * @return {string}
    */
   Pencil: (el) => {
-    if (el.tool !== "Pencil") return "";
-    /** @type {PencilElement} */
-    const pencil = el;
+    const pencil = /** @type {PencilElement} */ (el);
     const pathstring = renderPencilPath(pencil._children);
     if (pathstring === "") return "";
     return renderPath(pencil, pathstring);
@@ -203,9 +199,7 @@ const Tools = {
    * @return {string}
    */
   Rectangle: (el) => {
-    if (el.tool !== "Rectangle") return "";
-    /** @type {ShapeElement} */
-    const shape = el;
+    const shape = /** @type {ShapeElement} */ (el);
     const bounds = normalizeRectBounds(shape.x, shape.y, shape.x2, shape.y2);
     return (
       "<rect " +
@@ -237,9 +231,7 @@ const Tools = {
    * @return {string}
    */
   Ellipse: (el) => {
-    if (el.tool !== "Ellipse") return "";
-    /** @type {ShapeElement} */
-    const shape = el;
+    const shape = /** @type {ShapeElement} */ (el);
     const cx = Math.round((shape.x2 + shape.x) / 2);
     const cy = Math.round((shape.y2 + shape.y) / 2);
     const rx = Math.abs(shape.x2 - shape.x) / 2;
@@ -270,9 +262,7 @@ const Tools = {
    * @return {string}
    */
   "Straight line": (el) => {
-    if (el.tool !== "Straight line") return "";
-    /** @type {ShapeElement} */
-    const shape = el;
+    const shape = /** @type {ShapeElement} */ (el);
     const pathstring = `M${shape.x} ${shape.y}L${shape.x2} ${shape.y2}`;
     return renderPath(shape, pathstring);
   },
@@ -286,9 +276,6 @@ function originPointForBounds(elem) {
   if (elem.tool === "Pencil") {
     const firstPoint = elem._children?.[0];
     return firstPoint || null;
-  }
-  if (elem.tool === "Text") {
-    return { x: elem.x, y: elem.y };
   }
   return { x: elem.x, y: elem.y };
 }

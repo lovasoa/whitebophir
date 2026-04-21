@@ -1,24 +1,13 @@
-/**
- * @typedef {{
- *   ANONYMOUS_BOARD_NAME: string,
- *   ANONYMOUS_RATE_LIMIT_DIVISOR: number,
- *   createRateLimitState: (now: number) => {windowStart: number, count: number, lastSeen: number},
- *   normalizeRateLimitState: (state: unknown, periodMs: number, now: number) => {windowStart: number, count: number, lastSeen: number},
- *   consumeFixedWindowRateLimit: (state: unknown, cost: number, periodMs: number, now: number) => {windowStart: number, count: number, lastSeen: number},
- *   getRateLimitRemainingMs: (state: unknown, periodMs: number, now: number) => number,
- *   canConsumeFixedWindowRateLimit: (state: unknown, cost: number, limit: number, periodMs: number, now: number) => boolean,
- *   isRateLimitStateStale: (state: unknown, periodMs: number, now: number) => boolean,
- *   getEffectiveRateLimitDefinition: (definition: {limit?: unknown, periodMs?: unknown, anonymousLimit?: unknown, overrides?: {[boardName: string]: {limit?: unknown, periodMs?: unknown}}} | null | undefined, boardName: unknown) => {limit: number, periodMs: number},
- *   getEffectiveRateLimitLimit: (definition: {limit?: unknown, periodMs?: unknown, anonymousLimit?: unknown, overrides?: {[boardName: string]: {limit?: unknown, periodMs?: unknown}}} | null | undefined, boardName: unknown) => number,
- *   countDestructiveActions: (data: {type?: unknown, _children?: unknown} | null | undefined) => number,
- *   isConstructiveAction: (data: {id?: unknown, type?: unknown} | null | undefined) => boolean,
- *   countConstructiveActions: (data: {type?: unknown, _children?: unknown} | null | undefined) => number,
- *   countTextCreationActions: (data: {tool?: unknown, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown} | null | undefined) => number,
- * }} RateLimitCommonApi
- */
+import {
+  getMutationType,
+  getToolCode,
+  MutationType,
+} from "./message_tool_metadata.js";
+
 export const ANONYMOUS_BOARD_NAME = "anonymous";
 export const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;
 const URL_LIKE_TEXT_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
+const TEXT_TOOL_CODE = getToolCode("Text");
 
 /**
  * @param {unknown} value
@@ -183,9 +172,12 @@ export function getEffectiveRateLimitDefinition(definition, boardName) {
  */
 export function isConstructiveAction(data) {
   if (!data?.id) return false;
-  if (data.type === "delete" || data.type === "clear") return false;
-  if (data.type === "update" || data.type === "child") return false;
-  return true;
+  const mutationType = getMutationType(data);
+  return (
+    mutationType === undefined ||
+    mutationType === MutationType.CREATE ||
+    mutationType === MutationType.COPY
+  );
 }
 
 /**
@@ -205,13 +197,21 @@ export function countDestructiveActions(data) {
   if (!data || typeof data !== "object") return 0;
   if (Array.isArray(data._children)) {
     return data._children.reduce(function countDeletes(total, child) {
+      const mutationType = getMutationType(child);
       return (
         total +
-        (child && (child.type === "delete" || child.type === "clear") ? 1 : 0)
+        (mutationType === MutationType.DELETE ||
+        mutationType === MutationType.CLEAR
+          ? 1
+          : 0)
       );
     }, 0);
   }
-  return data.type === "delete" || data.type === "clear" ? 1 : 0;
+  const mutationType = getMutationType(data);
+  return mutationType === MutationType.DELETE ||
+    mutationType === MutationType.CLEAR
+    ? 1
+    : 0;
 }
 
 /**
@@ -247,13 +247,19 @@ export function countTextCreationActions(data) {
       return total + countTextCreationActions(child);
     }, 0);
   }
-  if (data.tool !== "Text") return 0;
-  if (data.type === "new") return 1;
-  if (data.type === "update" && isUrlLikeText(data.txt)) return 1;
+  if (
+    getToolCode(/** @type {{tool?: string | undefined}} */ (data).tool) !==
+    TEXT_TOOL_CODE
+  ) {
+    return 0;
+  }
+  const mutationType = getMutationType(data);
+  if (mutationType === MutationType.CREATE) return 1;
+  if (mutationType === MutationType.UPDATE && isUrlLikeText(data.txt)) return 1;
   return 0;
 }
 
-const rateLimitCommon = /** @type {RateLimitCommonApi} */ ({
+const rateLimitCommon = {
   ANONYMOUS_BOARD_NAME,
   ANONYMOUS_RATE_LIMIT_DIVISOR,
   createRateLimitState,
@@ -268,5 +274,5 @@ const rateLimitCommon = /** @type {RateLimitCommonApi} */ ({
   isConstructiveAction,
   countConstructiveActions,
   countTextCreationActions,
-});
+};
 export default rateLimitCommon;
