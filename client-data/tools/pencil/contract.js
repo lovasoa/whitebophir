@@ -198,6 +198,37 @@ export { parsePathData, pointsFromPathData, renderPencilPath, scanPathSummary };
 const pencilContract = {
   toolName,
   storedTagName: "path",
+  liveCreateType: "line",
+  storedItemType: "line",
+  updatableFields: [],
+  drawsOnBoard: true,
+  liveMessageFields: {
+    line: {
+      id: "id",
+      color: "color",
+      size: "size",
+      opacity: "opacity?",
+    },
+    child: {
+      parent: "id",
+      x: "coord",
+      y: "coord",
+    },
+  },
+  storedFields: {
+    color: "color",
+    size: "size",
+    opacity: "opacity?",
+    transform: "transform?",
+    time: "time?",
+  },
+  normalizeStoredItemData(item, raw, helpers) {
+    if (!Array.isArray(raw?._children)) return;
+    const children = helpers.normalizeStoredChildren(
+      raw._children.slice(0, helpers.maxChildren),
+    );
+    if (children.length) item._children = children;
+  },
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const size = helpers.parseNumber(
       helpers.readStoredSvgAttribute(entry, "stroke-width"),

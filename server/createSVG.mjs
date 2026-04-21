@@ -1,6 +1,7 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
 
+import MessageCommon from "../client-data/js/message_common.js";
 import { TOOL_CONTRACTS } from "../client-data/tools/tool_contracts.js";
 import config from "./configuration.mjs";
 import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
@@ -10,11 +11,7 @@ const { logger, tracing } = observability;
 const STANDALONE_SVG_RENDER_BYTES_THRESHOLD = 1024 * 1024;
 
 /** @typedef {{x: number, y: number}} Point */
-/** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number}} ElementStyle */
-/** @typedef {ElementStyle & {tool: "Text", x: number, y: number, txt?: string}} TextElement */
-/** @typedef {ElementStyle & {tool: "Pencil", _children?: Point[]}} PencilElement */
-/** @typedef {ElementStyle & {tool: "Rectangle" | "Ellipse" | "Straight line", x: number, y: number, x2: number, y2: number}} ShapeElement */
-/** @typedef {TextElement | PencilElement | ShapeElement} RenderableElement */
+/** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number, txt?: string, _children?: Point[], x?: number, y?: number, x2?: number, y2?: number}} RenderableElement */
 /** @typedef {{[name: string]: RenderableElement}} RenderableBoard */
 /** @typedef {{write: (chunk: string) => void}} WritableTarget */
 /** @typedef {(element: RenderableElement) => string} ToolRenderer */
@@ -54,7 +51,7 @@ function htmlspecialchars(str) {
 }
 
 /**
- * @param {ElementStyle} el
+ * @param {RenderableElement} el
  * @returns {string}
  */
 function renderTranslate(el) {
@@ -65,7 +62,7 @@ function renderTranslate(el) {
 }
 
 /**
- * @param {ElementStyle} el
+ * @param {RenderableElement} el
  * @param {string} pathstring
  * @returns {string}
  */
@@ -113,18 +110,6 @@ const Tools = Object.fromEntries(
 );
 
 /**
- * @param {RenderableElement} elem
- * @returns {Point | null}
- */
-function originPointForBounds(elem) {
-  if (elem.tool === "Pencil") {
-    const firstPoint = elem._children?.[0];
-    return firstPoint || null;
-  }
-  return { x: elem.x, y: elem.y };
-}
-
-/**
  * Writes the given board as an svg to the given writeable stream
  * @param {RenderableBoard} obj
  * @param {WritableTarget} writeable
@@ -140,15 +125,15 @@ async function toSVG(obj, writeable) {
      * @returns {[number, number]}
      */
     (dim, elem) => {
-      const point = originPointForBounds(elem);
-      if (!point) return dim;
+      const bounds = MessageCommon.getLocalGeometryBounds(elem);
+      if (!bounds) return dim;
       return [
         Math.max(
-          (point.x + margin + (numberOrZero(elem.deltax) | 0)) | 0,
+          (bounds.maxX + margin + (numberOrZero(elem.deltax) | 0)) | 0,
           dim[0],
         ),
         Math.max(
-          (point.y + margin + (numberOrZero(elem.deltay) | 0)) | 0,
+          (bounds.maxY + margin + (numberOrZero(elem.deltay) | 0)) | 0,
           dim[1],
         ),
       ];

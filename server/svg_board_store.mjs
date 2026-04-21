@@ -4,6 +4,7 @@ import { copyFile, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
+import MessageCommon from "../client-data/js/message_common.js";
 import { readConfiguration } from "./configuration.mjs";
 import observability from "./observability.mjs";
 import {
@@ -88,14 +89,6 @@ function boardSvgPath(name, historyDir) {
  */
 function boardSvgBackupPath(name, historyDir) {
   return `${boardSvgPath(name, historyDir)}.bak`;
-}
-
-/**
- * @param {unknown} value
- * @returns {number}
- */
-function numberOrZero(value) {
-  return typeof value === "number" ? value : 0;
 }
 
 /**
@@ -213,40 +206,14 @@ function serializeStoredSvg(board, metadata, seq) {
  * @returns {{width: number, height: number}}
  */
 function computeBoardDimensions(board) {
-  const values = Object.values(board);
-  const maxPoint = values.reduce(
+  const maxPoint = Object.values(board).reduce(
     (current, item) => {
-      if (!item || typeof item !== "object") return current;
-      switch (item.tool) {
-        case "Rectangle":
-        case "Ellipse":
-        case "Straight line":
-          return {
-            x: Math.max(current.x, numberOrZero(item.x), numberOrZero(item.x2)),
-            y: Math.max(current.y, numberOrZero(item.y), numberOrZero(item.y2)),
-          };
-        case "Text":
-          return {
-            x: Math.max(current.x, numberOrZero(item.x)),
-            y: Math.max(current.y, numberOrZero(item.y)),
-          };
-        case "Pencil": {
-          /** @type {Array<{x?: unknown, y?: unknown}>} */
-          const points = Array.isArray(item._children) ? item._children : [];
-          return points.reduce(
-            (
-              /** @type {{x: number, y: number}} */ pointCurrent,
-              /** @type {{x?: unknown, y?: unknown}} */ point,
-            ) => ({
-              x: Math.max(pointCurrent.x, numberOrZero(point?.x)),
-              y: Math.max(pointCurrent.y, numberOrZero(point?.y)),
-            }),
-            current,
-          );
-        }
-        default:
-          return current;
-      }
+      const bounds = MessageCommon.getLocalGeometryBounds(item);
+      if (!bounds) return current;
+      return {
+        x: Math.max(current.x, bounds.maxX),
+        y: Math.max(current.y, bounds.maxY),
+      };
     },
     { x: DEFAULT_SVG_SIZE - SVG_MARGIN, y: DEFAULT_SVG_SIZE - SVG_MARGIN },
   );

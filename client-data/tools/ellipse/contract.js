@@ -8,6 +8,10 @@ const toolName = "Ellipse";
 const ellipseContract = {
   toolName,
   storedTagName: "ellipse",
+  liveCreateType: "ellipse",
+  updatableFields: ["x", "y", "x2", "y2"],
+  drawsOnBoard: true,
+  shapeType: "ellipse",
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const cx = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "cx"));
     const cy = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "cy"));

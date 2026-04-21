@@ -1,6 +1,7 @@
 import { TOOL_CATALOG } from "./tool_catalog.js";
+import { TOOL_CONTRACTS_BY_NAME } from "../tools/tool_contracts.js";
 
-/** @typedef {{updatableFields: string[], draw?: boolean, shapeType?: string}} ToolMetadata */
+/** @typedef {{updatableFields: string[]}} ToolMetadata */
 
 export const MutationType = Object.freeze({
   CREATE: 1,
@@ -13,24 +14,7 @@ export const MutationType = Object.freeze({
 });
 
 /** @type {{[toolName: string]: ToolMetadata}} */
-export const TOOL_METADATA = {
-  Pencil: { updatableFields: [], draw: true },
-  "Straight line": {
-    shapeType: "straight",
-    updatableFields: ["x2", "y2"],
-    draw: true,
-  },
-  Rectangle: {
-    shapeType: "rect",
-    updatableFields: ["x", "y", "x2", "y2"],
-    draw: true,
-  },
-  Ellipse: {
-    shapeType: "ellipse",
-    updatableFields: ["x", "y", "x2", "y2"],
-    draw: true,
-  },
-  Text: { updatableFields: ["txt"], draw: true },
+const TOOL_METADATA = {
   Hand: { updatableFields: ["transform"] },
   Cursor: { updatableFields: [] },
   Eraser: { updatableFields: [] },
@@ -41,13 +25,14 @@ const TOOL_NAMES = TOOL_CATALOG.map((entry) => entry.name);
 TOOL_NAMES.push("Cursor");
 
 /** @type {string[]} */
-export const DRAW_TOOL_NAMES = [];
+export const DRAW_TOOL_NAMES = TOOL_CATALOG.filter(
+  ({ name }) => TOOL_CONTRACTS_BY_NAME[name]?.drawsOnBoard === true,
+).map(({ name }) => name);
 /** @type {{[toolName: string]: string}} */
-export const SHAPE_TOOL_TYPES = Object.create(null);
-for (const [toolName, metadata] of Object.entries(TOOL_METADATA)) {
-  if (metadata.draw === true) DRAW_TOOL_NAMES.push(toolName);
-  if (metadata.shapeType !== undefined) {
-    SHAPE_TOOL_TYPES[toolName] = metadata.shapeType;
+export const SHAPE_TOOL_TYPES = {};
+for (const contract of Object.values(TOOL_CONTRACTS_BY_NAME)) {
+  if (typeof contract.shapeType === "string") {
+    SHAPE_TOOL_TYPES[contract.toolName] = contract.shapeType;
   }
 }
 
@@ -61,7 +46,8 @@ export function getToolCode(toolName) {
 /** @param {string | undefined} toolName */
 export function isShapeTool(toolName) {
   return (
-    typeof toolName === "string" && SHAPE_TOOL_TYPES[toolName] !== undefined
+    typeof toolName === "string" &&
+    TOOL_CONTRACTS_BY_NAME[toolName]?.shapeType !== undefined
   );
 }
 
@@ -74,7 +60,9 @@ export function getUpdatableFields(toolName, data) {
   /** @type {{[key: string]: unknown}} */
   const updatable = {};
   const metadata =
-    typeof toolName === "string" ? TOOL_METADATA[toolName] : undefined;
+    typeof toolName === "string"
+      ? TOOL_METADATA[toolName] || TOOL_CONTRACTS_BY_NAME[toolName]
+      : undefined;
   for (const field of metadata?.updatableFields || []) {
     if (Object.hasOwn(data, field)) updatable[field] = data[field];
   }
@@ -98,9 +86,7 @@ export function getMutationType(message) {
       return MutationType.APPEND;
   }
   const toolName = /** @type {{tool?: string | undefined}} */ (message).tool;
-  return typeof toolName === "string" &&
-    TOOL_METADATA[toolName] &&
-    typeof message.id === "string"
+  return getToolCode(toolName) !== undefined && typeof message.id === "string"
     ? MutationType.CREATE
     : undefined;
 }

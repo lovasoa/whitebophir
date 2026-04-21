@@ -9,6 +9,10 @@ const toolName = "Rectangle";
 const rectangleContract = {
   toolName,
   storedTagName: "rect",
+  liveCreateType: "rect",
+  updatableFields: ["x", "y", "x2", "y2"],
+  drawsOnBoard: true,
+  shapeType: "rect",
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
     const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));

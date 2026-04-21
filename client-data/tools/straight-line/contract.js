@@ -8,6 +8,10 @@ const toolName = "Straight line";
 const straightLineContract = {
   toolName,
   storedTagName: "line",
+  liveCreateType: "straight",
+  updatableFields: ["x2", "y2"],
+  drawsOnBoard: true,
+  shapeType: "straight",
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x1 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x1"));
     const y1 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y1"));

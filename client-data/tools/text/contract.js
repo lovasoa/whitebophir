@@ -20,6 +20,34 @@ function textBoundsFromLength(x, y, size, textLength) {
 const textContract = {
   toolName,
   storedTagName: "text",
+  liveCreateType: "new",
+  storedItemType: "new",
+  updatableFields: ["txt"],
+  drawsOnBoard: true,
+  liveMessageFields: {
+    new: {
+      id: "id",
+      color: "color",
+      size: "size",
+      opacity: "opacity?",
+      x: "coord",
+      y: "coord",
+    },
+    update: {
+      id: "id",
+      txt: "text",
+    },
+  },
+  storedFields: {
+    color: "color",
+    size: "size",
+    opacity: "opacity?",
+    x: "coord",
+    y: "coord",
+    txt: "text?",
+    transform: "transform?",
+    time: "time?",
+  },
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
     const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));

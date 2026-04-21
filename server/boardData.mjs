@@ -37,6 +37,7 @@ import {
   canonicalItemFromItem,
   cloneCanonicalItem,
   copyCanonicalItem,
+  currentText,
   effectiveChildCount,
   publicItemFromCanonicalItem,
 } from "./canonical_board_items.mjs";
@@ -144,15 +145,6 @@ function boardLogFields(board, extras) {
     "file.path": board.file,
     ...(extras || {}),
   };
-}
-
-/**
- * @param {string | undefined} tool
- * @param {BoardElem} data
- * @returns {BoardElem}
- */
-function filterUpdatableFields(tool, data) {
-  return getUpdatableFields(tool, data);
 }
 
 /**
@@ -625,10 +617,7 @@ class BoardData {
           return { ok: false, reason: "object not found" };
         }
         if (
-          this.canUpdate(
-            message.id,
-            filterUpdatableFields(message.tool, message),
-          )
+          this.canUpdate(message.id, getUpdatableFields(message.tool, message))
         ) {
           return { ok: true, mutation: message };
         }
@@ -687,8 +676,8 @@ class BoardData {
     if (!candidate) return null;
     Object.assign(candidate, updateData);
     const localBounds =
-      base.tool === "Pencil" && updateData.transform !== undefined
-        ? this.getLocalBounds(id, base)
+      base.payload?.kind === "children" && updateData.transform !== undefined
+        ? cloneBounds(base.bounds)
         : MessageCommon.getLocalGeometryBounds(candidate);
     return { value: candidate, localBounds };
   }
@@ -735,16 +724,13 @@ class BoardData {
       next.payload.modifiedText = updateData.txt;
       next.textLength = updateData.txt.length;
     }
+    const boundsItem = publicItemFromCanonicalItem(next);
+    const text = currentText(next);
+    if (boundsItem && text !== undefined) boundsItem.txt = text;
     next.bounds = cloneBounds(
       this.isTransformOnlyUpdate(updateData)
         ? localBounds
-        : MessageCommon.getLocalGeometryBounds({
-            ...publicItemFromCanonicalItem(next),
-            ...(next.payload?.kind === "text" &&
-            typeof next.payload.modifiedText === "string"
-              ? { txt: next.payload.modifiedText }
-              : {}),
-          }),
+        : MessageCommon.getLocalGeometryBounds(boundsItem),
     );
     next.dirty = true;
     next.time = Date.now();
@@ -758,11 +744,7 @@ class BoardData {
    * @returns {boolean}
    */
   canAddChild(parentId, child) {
-    return this.makePencilChildCandidate(
-      parentId,
-      getCanonicalItem(this, parentId),
-      child,
-    ).ok;
+    return this.makeAppendCandidate(parentId, child).ok;
   }
 
   /**
@@ -816,7 +798,7 @@ class BoardData {
         return true;
       case MutationType.UPDATE:
         return id
-          ? this.canUpdate(id, filterUpdatableFields(message.tool, message))
+          ? this.canUpdate(id, getUpdatableFields(message.tool, message))
           : false;
       case MutationType.COPY:
         return id ? this.canCopy(id, message) : false;
@@ -865,11 +847,7 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure} - True if the child was added, else false
    */
   addChild(parentId, child) {
-    const next = this.makePencilChildCandidate(
-      parentId,
-      getCanonicalItem(this, parentId),
-      child,
-    );
+    const next = this.makeAppendCandidate(parentId, child);
     if (!next.ok) return next;
     upsertCanonicalItem(this, next.value);
     this.delaySave();
@@ -878,12 +856,13 @@ class BoardData {
 
   /**
    * @param {string} parentId
-   * @param {any} current
    * @param {BoardElem} child
+   * @param {any} [item]
    * @returns {{ok: true, value: any} | ValidationFailure}
    */
-  makePencilChildCandidate(parentId, current, child) {
-    if (typeof current !== "object" || current.tool !== "Pencil") {
+  makeAppendCandidate(parentId, child, item) {
+    const current = item || getCanonicalItem(this, parentId);
+    if (typeof current !== "object" || current.payload?.kind !== "children") {
       return { ok: false, reason: "invalid parent for child" };
     }
     const normalizedChild = normalizeStoredChildPoint(child);
@@ -892,7 +871,7 @@ class BoardData {
       return { ok: false, reason: "too many children" };
     }
     const nextBounds = MessageCommon.extendBoundsWithPoint(
-      this.getLocalBounds(parentId, current),
+      current.bounds,
       normalizedChild.value.x,
       normalizedChild.value.y,
     );
@@ -919,7 +898,7 @@ class BoardData {
   update(id, data, create = false) {
     void create;
     const tool = data.tool;
-    const updateData = filterUpdatableFields(tool, data);
+    const updateData = getUpdatableFields(tool, data);
 
     const obj = getCanonicalItem(this, id);
     if (typeof obj !== "object")
@@ -1063,7 +1042,7 @@ class BoardData {
               if (!id) return { ok: false, reason: "missing id" };
               const current = readItem(id);
               if (!current) return { ok: false, reason: "object not found" };
-              const updateData = filterUpdatableFields(message.tool, message);
+              const updateData = getUpdatableFields(message.tool, message);
               const candidate = this.makeUpdateCandidate(
                 id,
                 current,
@@ -1105,10 +1084,10 @@ class BoardData {
               if (!message.parent) {
                 return { ok: false, reason: "invalid parent for child" };
               }
-              const next = this.makePencilChildCandidate(
+              const next = this.makeAppendCandidate(
                 message.parent,
-                readItem(message.parent),
                 message,
+                readItem(message.parent),
               );
               if (!next.ok) return next;
               overlay.set(message.parent, next.value);

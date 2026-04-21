@@ -46,11 +46,7 @@ import {
 } from "./board_transport.js";
 import MessageCommon from "./message_common.js";
 import { getMutationType, MutationType } from "./message_tool_metadata.js";
-import {
-  hasMessageId,
-  hasMessageNewId,
-  isTextUpdateMessage,
-} from "./message_shape.js";
+import { hasMessageId, hasMessageNewId } from "./message_shape.js";
 import Minitpl from "./minitpl.js";
 import { createOptimisticJournal } from "./optimistic_journal.js";
 import {
@@ -1627,39 +1623,23 @@ function getRenderedElementBounds(element) {
 }
 
 /**
- * @param {string} elementId
- * @returns {{x: number, y: number} | null}
- */
-function getRenderedElementCenterById(elementId) {
-  const element = document.getElementById(elementId);
-  if (!(element instanceof SVGGraphicsElement)) return null;
-  return getBoundsCenter(getRenderedElementBounds(element));
-}
-
-/**
- * @param {BoardMessage} child
- * @returns {string | null}
- */
-function getHandChildTargetId(child) {
-  switch (getMutationType(child)) {
-    case MutationType.UPDATE:
-      return hasMessageId(child) ? child.id : null;
-    case MutationType.COPY:
-      return hasMessageNewId(child) ? child.newid : null;
-    default:
-      return null;
-  }
-}
-
-/**
  * @param {BoardMessage[]} children
  * @returns {{x: number, y: number} | null}
  */
-function getHandBatchFocusPoint(children) {
+function getBatchFocusPoint(children) {
   /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
   let bounds = null;
   children.forEach((child) => {
-    const targetId = getHandChildTargetId(child);
+    const targetId =
+      getMutationType(child) === MutationType.UPDATE
+        ? hasMessageId(child)
+          ? child.id
+          : null
+        : getMutationType(child) === MutationType.COPY
+          ? hasMessageNewId(child)
+            ? child.newid
+            : null
+          : null;
     if (!targetId) return;
     const element = document.getElementById(targetId);
     if (!(element instanceof SVGGraphicsElement)) return;
@@ -1685,22 +1665,26 @@ function getHandBatchFocusPoint(children) {
  */
 function getMessageFocusPoint(message) {
   if (BoardMessages.hasChildMessages(message)) {
-    if (message.tool === "Hand" && Array.isArray(message._children)) {
-      return getHandBatchFocusPoint(message._children);
+    if (Array.isArray(message._children)) {
+      return getBatchFocusPoint(message._children);
     }
     return null;
   }
 
-  if (message.tool === "Cursor" || message.tool === "Pencil") {
-    const pointX = toFiniteCoordinate(message.x);
-    const pointY = toFiniteCoordinate(message.y);
-    if (pointX !== null && pointY !== null) {
-      return { x: pointX, y: pointY };
-    }
+  const pointX = toFiniteCoordinate(message.x);
+  const pointY = toFiniteCoordinate(message.y);
+  if (pointX !== null && pointY !== null) {
+    return { x: pointX, y: pointY };
   }
 
-  if (isTextUpdateMessage(message)) {
-    return getRenderedElementCenterById(message.id);
+  if (
+    getMutationType(message) === MutationType.UPDATE &&
+    hasMessageId(message)
+  ) {
+    const element = document.getElementById(message.id);
+    return element instanceof SVGGraphicsElement
+      ? getBoundsCenter(getRenderedElementBounds(element))
+      : null;
   }
 
   return getBoundsCenter(
@@ -1956,27 +1940,6 @@ function connectedUserMatchesActivity(user, userId, messageSocketId) {
 }
 
 /**
- * @param {BoardMessage} message
- * @param {{x: number, y: number} | null} focusPoint
- * @param {string | null} messageSocketId
- * @param {ConnectedUser} user
- * @returns {boolean}
- */
-function shouldUpdateConnectedUserFocus(
-  message,
-  focusPoint,
-  messageSocketId,
-  user,
-) {
-  return Boolean(
-    focusPoint &&
-      (message.tool !== "Cursor" ||
-        messageSocketId === null ||
-        messageSocketId === user.socketId),
-  );
-}
-
-/**
  * @param {ConnectedUser} user
  * @param {BoardMessage} message
  * @param {{x: number, y: number} | null} focusPoint
@@ -2008,7 +1971,10 @@ function applyConnectedUserActivity(
     changed = true;
   }
   if (
-    shouldUpdateConnectedUserFocus(message, focusPoint, messageSocketId, user)
+    focusPoint &&
+    (message.tool !== "Cursor" ||
+      messageSocketId === null ||
+      messageSocketId === user.socketId)
   ) {
     user.lastFocusX = /** @type {{x: number, y: number}} */ (focusPoint).x;
     user.lastFocusY = /** @type {{x: number, y: number}} */ (focusPoint).y;
@@ -2931,7 +2897,14 @@ function handleMessage(message) {
     BoardMessageReplay.shouldReplayChildrenIndividually(message)
   )
     return BoardMessages.batchCall(
-      childMessageHandler(message),
+      (child) =>
+        handleMessage(
+          BoardMessageReplay.prepareReplayChild(
+            message,
+            child,
+            BoardMessages.normalizeChildMessage,
+          ),
+        ),
       message._children,
     );
   if (BoardMessages.hasChildMessages(message)) {
@@ -2945,23 +2918,6 @@ function handleMessage(message) {
     return Promise.resolve();
   }
   return Promise.resolve();
-}
-
-/**
- * Takes a parent message, and returns a function that will handle a single child message.
- * @param {BoardMessage} parent
- * @returns {(child: BoardMessage) => Promise<void>}
- */
-function childMessageHandler(parent) {
-  return function handleChild(child) {
-    return handleMessage(
-      BoardMessageReplay.prepareReplayChild(
-        parent,
-        child,
-        BoardMessages.normalizeChildMessage,
-      ),
-    );
-  };
 }
 
 Tools.unreadMessagesCount = 0;
