@@ -140,7 +140,7 @@ function applyOpsToItem(item, ops) {
         break;
       }
       case MutationType.APPEND: {
-        if (current.tool !== "Pencil") break;
+        if (!Array.isArray(current._children)) break;
         const nextChildren = Array.isArray(current._children)
           ? current._children.slice()
           : [];

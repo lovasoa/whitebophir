@@ -22,6 +22,7 @@ const textContract = {
   storedTagName: "text",
   liveCreateType: "new",
   storedItemType: "new",
+  payloadKind: "text",
   updatableFields: ["txt"],
   drawsOnBoard: true,
   liveMessageFields: {

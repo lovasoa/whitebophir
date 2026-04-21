@@ -200,6 +200,7 @@ const pencilContract = {
   storedTagName: "path",
   liveCreateType: "line",
   storedItemType: "line",
+  payloadKind: "children",
   updatableFields: [],
   drawsOnBoard: true,
   liveMessageFields: {

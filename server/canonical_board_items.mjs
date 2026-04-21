@@ -1,4 +1,5 @@
 import MessageCommon from "../client-data/js/message_common.js";
+import { TOOL_CONTRACTS_BY_NAME } from "../client-data/tools/tool_contracts.js";
 import { summarizeStoredSvgItem } from "./stored_svg_item_codec.mjs";
 
 /**
@@ -75,6 +76,16 @@ function clonePayload(payload) {
     default:
       return { kind: "inline" };
   }
+}
+
+/**
+ * @param {string | undefined} tool
+ * @returns {"inline" | "text" | "children"}
+ */
+function payloadKindForTool(tool) {
+  return typeof tool === "string"
+    ? TOOL_CONTRACTS_BY_NAME[tool]?.payloadKind || "inline"
+    : "inline";
 }
 
 /**
@@ -155,43 +166,43 @@ function canonicalItemFromItem(
     time: attrs.time,
   };
 
-  if (item.tool === "Pencil") {
-    const children = Array.isArray(item._children) ? item._children : [];
-    return {
-      ...base,
-      payload: {
-        kind: "children",
-        persistedChildCount: persisted ? children.length : 0,
-        appendedChildren: persisted ? [] : structuredClone(children),
-      },
-    };
+  switch (payloadKindForTool(item.tool)) {
+    case "children": {
+      const children = Array.isArray(item._children) ? item._children : [];
+      return {
+        ...base,
+        payload: {
+          kind: "children",
+          persistedChildCount: persisted ? children.length : 0,
+          appendedChildren: persisted ? [] : structuredClone(children),
+        },
+      };
+    }
+    case "text":
+      return {
+        ...base,
+        textLength: typeof item.txt === "string" ? item.txt.length : 0,
+        payload: {
+          kind: "text",
+          ...(persisted
+            ? {}
+            : { modifiedText: typeof item.txt === "string" ? item.txt : "" }),
+        },
+        ...(persisted && options.baselineSourceId
+          ? {
+              copySource: {
+                sourceId: options.baselineSourceId,
+                sourcePayloadKind: "text",
+              },
+            }
+          : {}),
+      };
+    default:
+      return {
+        ...base,
+        payload: { kind: "inline" },
+      };
   }
-
-  if (item.tool === "Text") {
-    return {
-      ...base,
-      textLength: typeof item.txt === "string" ? item.txt.length : 0,
-      payload: {
-        kind: "text",
-        ...(persisted
-          ? {}
-          : { modifiedText: typeof item.txt === "string" ? item.txt : "" }),
-      },
-      ...(persisted && options.baselineSourceId
-        ? {
-            copySource: {
-              sourceId: options.baselineSourceId,
-              sourcePayloadKind: "text",
-            },
-          }
-        : {}),
-    };
-  }
-
-  return {
-    ...base,
-    payload: { kind: "inline" },
-  };
 }
 
 /**
@@ -216,29 +227,28 @@ function canonicalItemFromStoredSvgEntry(entry, paintOrder) {
     time: attrs.time,
   };
 
-  if (summary.tool === "Text") {
-    return {
-      ...base,
-      textLength: summary.textLength || 0,
-      payload: { kind: "text" },
-    };
+  switch (payloadKindForTool(summary.tool)) {
+    case "text":
+      return {
+        ...base,
+        textLength: summary.textLength || 0,
+        payload: { kind: "text" },
+      };
+    case "children":
+      return {
+        ...base,
+        payload: {
+          kind: "children",
+          persistedChildCount: summary.childCount || 0,
+          appendedChildren: [],
+        },
+      };
+    default:
+      return {
+        ...base,
+        payload: { kind: "inline" },
+      };
   }
-
-  if (summary.tool === "Pencil") {
-    return {
-      ...base,
-      payload: {
-        kind: "children",
-        persistedChildCount: summary.childCount || 0,
-        appendedChildren: [],
-      },
-    };
-  }
-
-  return {
-    ...base,
-    payload: { kind: "inline" },
-  };
 }
 
 /**
