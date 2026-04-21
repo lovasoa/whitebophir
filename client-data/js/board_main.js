@@ -1,16 +1,13 @@
+import { DRAW_TOOL_NAMES } from "./message_tool_metadata.js";
 import { withVersion } from "./tool_assets.js";
 
 const assetVersion = document.documentElement.dataset.version || "";
 const documentElement = document.documentElement;
 
-const CRITICAL_BOOT_TOOL_NAMES = ["Hand", "Pencil"];
+const CRITICAL_BOOT_TOOL_NAMES = ["Hand", DRAW_TOOL_NAMES[0] || ""];
 const REPLAY_SAFE_TOOL_NAMES = new Set([
-  "Pencil",
+  ...DRAW_TOOL_NAMES,
   "Cursor",
-  "Straight line",
-  "Rectangle",
-  "Ellipse",
-  "Text",
   "Eraser",
   "Hand",
 ]);

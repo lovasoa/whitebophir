@@ -58,6 +58,7 @@ import {
   getToolModuleImportPath,
   getToolRuntimeAssetPath,
 } from "./tool_assets.js";
+import { TOOL_CATALOG } from "./tool_catalog.js";
 
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
 /** @typedef {import("../../types/app-runtime").AppTool} AppTool */
@@ -308,7 +309,11 @@ Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
   return Tools.versionAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
 };
 
-Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
+Tools.readOnlyToolNames = new Set(
+  TOOL_CATALOG.filter((tool) => tool.visibleWhenReadOnly).map(
+    (tool) => tool.name,
+  ),
+);
 Tools.toolClasses = /** @type {AppToolsState["toolClasses"]} */ ({});
 Tools.bootedToolPromises =
   /** @type {AppToolsState["bootedToolPromises"]} */ ({});

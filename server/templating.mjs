@@ -13,10 +13,7 @@ import {
   withVersion,
 } from "../client-data/js/tool_assets.js";
 import { applyCompressionForResponse } from "./http_compression.mjs";
-import {
-  getVisibleToolCatalogEntries,
-  TOOL_CATALOG,
-} from "../client-data/js/tool_catalog.js";
+import { getVisibleToolCatalogEntries } from "../client-data/js/tool_catalog.js";
 import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
@@ -311,9 +308,9 @@ class BoardTemplate extends Template {
     ).map((toolName) =>
       withVersion(getToolModuleImportPath(toolName), params.version),
     );
-    params.toolStylesheets = TOOL_CATALOG.map((tool) =>
-      getToolStylesheetUrl(tool.name, params.version),
-    ).filter((href) => typeof href === "string");
+    params.toolStylesheets = visibleTools
+      .map((tool) => getToolStylesheetUrl(tool.name, params.version))
+      .filter((href) => typeof href === "string");
     return params;
   }
 
