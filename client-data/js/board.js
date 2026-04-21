@@ -383,16 +383,12 @@ function initializeShellControls() {
   Tools.setSize(Tools.currentSize);
 }
 
-function getBoardStatusIndicator() {
-  return document.getElementById("boardStatusIndicator");
-}
-
-function getBoardStatusTitle() {
-  return document.getElementById("boardStatusTitle");
-}
-
-function getBoardStatusNotice() {
-  return document.getElementById("boardStatusNotice");
+function getBoardStatusElements() {
+  return {
+    indicator: document.getElementById("boardStatusIndicator"),
+    title: document.getElementById("boardStatusTitle"),
+    notice: document.getElementById("boardStatusNotice"),
+  };
 }
 
 /**
@@ -547,9 +543,7 @@ Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
     const waiters = Tools.writeReadyWaiters.splice(0);
     waiters.forEach((resolve) => resolve());
   }
-  const indicator = getBoardStatusIndicator();
-  const title = getBoardStatusTitle();
-  const notice = getBoardStatusNotice();
+  const { indicator, title, notice } = getBoardStatusElements();
   if (!indicator || !title || !notice) return;
 
   const view = Tools.getBoardStatusView();
