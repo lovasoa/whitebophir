@@ -111,9 +111,10 @@ test("board session records the prepared mutation payload", async () => {
       /** @type {any} */ message,
       /** @type {any} */ acceptedAtMs,
       /** @type {any} */ clientMutationId,
+      /** @type {any} */ socketId,
     ) {
-      recorded.push({ message, acceptedAtMs, clientMutationId });
-      return { seq: 5, mutation: message, clientMutationId };
+      recorded.push({ message, acceptedAtMs, clientMutationId, socketId });
+      return { seq: 5, mutation: message, clientMutationId, socketId };
     },
   };
 
@@ -138,6 +139,7 @@ test("board session records the prepared mutation payload", async () => {
       },
       acceptedAtMs: 99,
       clientMutationId: "cm-9",
+      socketId: "socket-1",
     },
   ]);
 });

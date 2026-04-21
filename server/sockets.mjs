@@ -534,10 +534,57 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
  * @param {BoardUser | undefined} user
  * @returns {NormalizedMessageData}
  */
-function attachLiveSocketId(data, user) {
+function withLiveSocketId(data, user) {
   if (!user) return data;
-  data.socket = user.socketId;
-  return data;
+  return { ...data, socket: user.socketId };
+}
+
+/**
+ * @param {ReturnType<BoardData["recordPersistentMutation"]>} envelope
+ * @returns {ReturnType<BoardData["recordPersistentMutation"]>}
+ */
+function clonePersistentEnvelope(envelope) {
+  const { socketId, ...nextEnvelope } = envelope || {};
+  void socketId;
+  return {
+    ...nextEnvelope,
+    mutation:
+      typeof envelope?.mutation === "object" && envelope.mutation !== null
+        ? { ...envelope.mutation }
+        : envelope.mutation,
+  };
+}
+
+/**
+ * @param {ReturnType<BoardData["recordPersistentMutation"]>} envelope
+ * @param {string | undefined} socketId
+ * @returns {ReturnType<BoardData["recordPersistentMutation"]>}
+ */
+function withPersistentEnvelopeSocketId(envelope, socketId) {
+  const internalSocketId =
+    typeof envelope?.socketId === "string" ? envelope.socketId : undefined;
+  const liveSocketId = socketId || internalSocketId;
+  if (
+    !liveSocketId ||
+    typeof envelope !== "object" ||
+    envelope === null ||
+    typeof envelope.mutation !== "object" ||
+    envelope.mutation === null
+  ) {
+    return internalSocketId ? clonePersistentEnvelope(envelope) : envelope;
+  }
+  const liveEnvelope = clonePersistentEnvelope(envelope);
+  liveEnvelope.mutation.socket = liveSocketId;
+  return liveEnvelope;
+}
+
+/**
+ * @param {ReturnType<BoardData["recordPersistentMutation"]>} envelope
+ * @param {BoardUser | undefined} user
+ * @returns {ReturnType<BoardData["recordPersistentMutation"]>}
+ */
+function withLivePersistentEnvelope(envelope, user) {
+  return withPersistentEnvelopeSocketId(envelope, user?.socketId);
 }
 
 /**
@@ -1754,28 +1801,21 @@ function finishSuccessfulBoardWrite(
   followup,
 ) {
   const user = updateBoardUserFromMessage(socket, boardName, data, now);
-  attachLiveSocketId(data, user);
-  if (
-    envelope &&
-    typeof envelope === "object" &&
-    typeof envelope.mutation === "object" &&
-    envelope.mutation !== null
-  ) {
-    attachLiveSocketId(envelope.mutation, user);
-  }
+  const liveData = withLiveSocketId(data, user);
+  const liveEnvelope = withLivePersistentEnvelope(envelope, user);
   tracing.setActiveSpanAttributes({
     "wbo.board.result": "success",
     "user.name": user ? user.name : userName,
   });
   metrics.recordBoardMessage({
     board: boardName,
-    ...data,
+    ...liveData,
   });
-  if (data.tool === "Cursor") {
-    emitEphemeralBoardMutation(boardName, socket, data);
+  if (liveData.tool === "Cursor") {
+    emitEphemeralBoardMutation(boardName, socket, liveData);
     return;
   }
-  emitPersistentBoardMutation(board, socket, envelope);
+  emitPersistentBoardMutation(board, socket, liveEnvelope);
   emitPersistentBoardFollowupMutations(board, socket, followup);
 }
 
@@ -2216,7 +2256,10 @@ async function handleSyncRequestMessage(socket, boardName, request) {
     toInclusiveSeq: latestSeq,
   });
   for (const envelope of board.readMutationRange(baselineSeq, latestSeq)) {
-    socket.emit("broadcast", envelope);
+    socket.emit(
+      "broadcast",
+      withPersistentEnvelopeSocketId(envelope, envelope.socketId),
+    );
   }
   syncedPersistentSockets.add(socket.id);
   if (logger.isEnabled("debug")) {

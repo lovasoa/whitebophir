@@ -4,6 +4,7 @@
  *   acceptedAtMs: number,
  *   mutation: {[key: string]: unknown},
  *   clientMutationId?: string,
+ *   socketId?: string,
  *   seq: number,
  * }} MutationEnvelope
  */

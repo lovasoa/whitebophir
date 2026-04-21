@@ -143,35 +143,13 @@ function countDirtyItems(board) {
  * @param {{[key: string]: unknown}=} extras
  * @returns {{[key: string]: unknown}}
  */
-function boardDebugFields(board, extras) {
+function boardLogFields(board, extras) {
   return {
     board: board.name,
     "wbo.board.instance": board.instanceId,
     "wbo.board.seq": board.getSeq(),
     "wbo.board.persisted_seq": board.getPersistedSeq(),
     "wbo.board.min_replayable_seq": board.minReplayableSeq(),
-    "wbo.board.has_persisted_baseline": board.hasPersistedBaseline,
-    "wbo.board.items": board.authoritativeItemCount(),
-    "wbo.board.dirty_items": countDirtyItems(board),
-    "wbo.board.dirty_created_items": board.dirtyCreatedIds.size,
-    "wbo.board.users": board.users.size,
-    "file.path": board.file,
-    "wbo.board.item_ids": [...board.paintOrder],
-    ...(extras || {}),
-  };
-}
-
-/**
- * @param {BoardData} board
- * @param {{[key: string]: unknown}=} extras
- * @returns {{[key: string]: unknown}}
- */
-function boardLifecycleLogFields(board, extras) {
-  return {
-    board: board.name,
-    "wbo.board.instance": board.instanceId,
-    "wbo.board.seq": board.getSeq(),
-    "wbo.board.persisted_seq": board.getPersistedSeq(),
     "wbo.board.has_persisted_baseline": board.hasPersistedBaseline,
     "wbo.board.items": board.authoritativeItemCount(),
     "wbo.board.dirty_items": countDirtyItems(board),
@@ -284,7 +262,10 @@ class BoardData {
     this.instanceId = ++boardInstanceSequence;
     this.loadSource = "empty";
     this.metadata = defaultBoardMetadata();
-    this.historyDir = readConfiguration().HISTORY_DIR;
+    const config = readConfiguration();
+    this.historyDir = config.HISTORY_DIR;
+    this.maxChildren = config.MAX_CHILDREN;
+    this.maxItemCount = config.MAX_ITEM_COUNT;
     this.file = boardFilePath(name, this.historyDir);
     this.hasPersistedBaseline = false;
     this.lastSaveDate = Date.now();
@@ -372,18 +353,21 @@ class BoardData {
    * @param {BoardMessage} mutation
    * @param {number} [acceptedAtMs]
    * @param {string | undefined} [clientMutationId]
+   * @param {string | undefined} [socketId]
    * @returns {ReturnType<ReturnType<typeof createMutationLog>["append"]>}
    */
   recordPersistentMutation(
     mutation,
     acceptedAtMs = Date.now(),
     clientMutationId,
+    socketId = undefined,
   ) {
     return this.mutationLog.append({
       board: this.name,
       acceptedAtMs,
-      mutation: structuredClone(mutation),
+      mutation,
       clientMutationId,
+      socketId,
     });
   }
 
@@ -456,11 +440,10 @@ class BoardData {
    * @returns {Array<{mutation: BoardMessage}>}
    */
   trimOverflowItems() {
-    const { MAX_ITEM_COUNT } = readConfiguration();
     /** @type {Array<{mutation: BoardMessage}>} */
     const followup = [];
     while (
-      this.liveItemCount > MAX_ITEM_COUNT &&
+      this.liveItemCount > this.maxItemCount &&
       this.trimPaintOrderIndex < this.paintOrder.length
     ) {
       const id = this.paintOrder[this.trimPaintOrderIndex];
@@ -783,50 +766,16 @@ class BoardData {
   }
 
   /**
-   * @param {string} id
-   * @param {BoardElem} obj
-   * @param {BoardElem} updateData
-   * @returns {boolean}
-   */
-  isIncrementalUpdateTooLarge(id, obj, updateData) {
-    if (obj.tool === "Pencil") {
-      const nextBounds = MessageCommon.extendBoundsWithPoint(
-        this.getLocalBounds(id, obj),
-        updateData.x,
-        updateData.y,
-      );
-      return this.isCandidateTooLarge(obj, nextBounds);
-    }
-    if (obj.tool === "Text") {
-      const candidate = {
-        ...publicItemFromCanonicalItem(obj),
-        txt: updateData.txt,
-      };
-      const nextBounds = MessageCommon.getLocalGeometryBounds(candidate);
-      return this.isCandidateTooLarge(candidate, nextBounds);
-    }
-    return false;
-  }
-
-  /**
    * @param {string} parentId
    * @param {BoardElem} child
    * @returns {boolean}
    */
   canAddChild(parentId, child) {
-    const obj = getCanonicalItem(this, parentId);
-    if (!obj || obj.tool !== "Pencil") return false;
-
-    const normalizedChild = normalizeStoredChildPoint(child);
-    if (!normalizedChild.ok) return false;
-    const { MAX_CHILDREN } = readConfiguration();
-    if (effectiveChildCount(obj) >= MAX_CHILDREN) return false;
-
-    return !this.isIncrementalUpdateTooLarge(
+    return this.makePencilChildCandidate(
       parentId,
-      obj,
-      normalizedChild.value,
-    );
+      getCanonicalItem(this, parentId),
+      child,
+    ).ok;
   }
 
   /**
@@ -929,22 +878,41 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure} - True if the child was added, else false
    */
   addChild(parentId, child) {
-    const obj = getCanonicalItem(this, parentId);
-    if (typeof obj !== "object" || obj.tool !== "Pencil")
+    const next = this.makePencilChildCandidate(
+      parentId,
+      getCanonicalItem(this, parentId),
+      child,
+    );
+    if (!next.ok) return next;
+    upsertCanonicalItem(this, next.value);
+    this.delaySave();
+    return this.commitMutation();
+  }
+
+  /**
+   * @param {string} parentId
+   * @param {any} current
+   * @param {BoardElem} child
+   * @returns {{ok: true, value: any} | ValidationFailure}
+   */
+  makePencilChildCandidate(parentId, current, child) {
+    if (typeof current !== "object" || current.tool !== "Pencil") {
       return { ok: false, reason: "invalid parent for child" };
+    }
     const normalizedChild = normalizeStoredChildPoint(child);
     if (!normalizedChild.ok) return normalizedChild;
-    const { MAX_CHILDREN } = readConfiguration();
-    if (effectiveChildCount(obj) >= MAX_CHILDREN)
+    if (effectiveChildCount(current) >= this.maxChildren) {
       return { ok: false, reason: "too many children" };
+    }
     const nextBounds = MessageCommon.extendBoundsWithPoint(
-      this.getLocalBounds(parentId, obj),
+      this.getLocalBounds(parentId, current),
       normalizedChild.value.x,
       normalizedChild.value.y,
     );
-    if (this.isCandidateTooLarge(obj, nextBounds))
+    if (this.isCandidateTooLarge(current, nextBounds)) {
       return { ok: false, reason: "shape too large" };
-    const next = cloneCanonicalItem(obj);
+    }
+    const next = cloneCanonicalItem(current);
     next.payload.appendedChildren = (
       next.payload.appendedChildren || []
     ).concat(normalizedChild.value);
@@ -952,9 +920,7 @@ class BoardData {
     next.dirty = true;
     next.time = Date.now();
     next.attrs.time = next.time;
-    upsertCanonicalItem(this, next);
-    this.delaySave();
-    return this.commitMutation();
+    return { ok: true, value: next };
   }
 
   /** Update the data in the board
@@ -1152,33 +1118,13 @@ class BoardData {
               if (!message.parent) {
                 return { ok: false, reason: "invalid parent for child" };
               }
-              const current = readItem(message.parent);
-              if (!current || current.tool !== "Pencil") {
-                return { ok: false, reason: "invalid parent for child" };
-              }
-              const normalizedChild = normalizeStoredChildPoint(message);
-              if (!normalizedChild.ok) return normalizedChild;
-              const { MAX_CHILDREN } = readConfiguration();
-              if (effectiveChildCount(current) >= MAX_CHILDREN) {
-                return { ok: false, reason: "too many children" };
-              }
-              const nextBounds = MessageCommon.extendBoundsWithPoint(
-                this.getLocalBounds(message.parent, current),
-                normalizedChild.value.x,
-                normalizedChild.value.y,
+              const next = this.makePencilChildCandidate(
+                message.parent,
+                readItem(message.parent),
+                message,
               );
-              if (this.isCandidateTooLarge(current, nextBounds)) {
-                return { ok: false, reason: "shape too large" };
-              }
-              const next = cloneCanonicalItem(current);
-              next.payload.appendedChildren = (
-                next.payload.appendedChildren || []
-              ).concat(normalizedChild.value);
-              next.bounds = cloneBounds(nextBounds);
-              next.dirty = true;
-              next.time = Date.now();
-              next.attrs.time = next.time;
-              overlay.set(message.parent, next);
+              if (!next.ok) return next;
+              overlay.set(message.parent, next.value);
               break;
             }
             default: {
@@ -1315,7 +1261,7 @@ class BoardData {
     if (logger.isEnabled("debug")) {
       logger.debug(
         "board.save_scheduled",
-        boardDebugFields(this, {
+        boardLogFields(this, {
           "wbo.board.delay_ms": delayMs,
           "wbo.board.max_save_delay_ms": config.MAX_SAVE_DELAY,
         }),
@@ -1334,7 +1280,7 @@ class BoardData {
     if (logger.isEnabled("debug")) {
       logger.debug(
         "board.save_timer_set",
-        boardDebugFields(this, {
+        boardLogFields(this, {
           "wbo.board.delay_ms": Math.max(0, delayMs),
         }),
       );
@@ -1344,13 +1290,13 @@ class BoardData {
         this.saveTimeoutId = undefined;
         if (this.disposed) return;
         if (logger.isEnabled("debug")) {
-          logger.debug("board.save_timer_fired", boardDebugFields(this));
+          logger.debug("board.save_timer_fired", boardLogFields(this));
         }
         if (this.saveInProgress) {
           if (logger.isEnabled("debug")) {
             logger.debug(
               "board.save_timer_skipped_while_saving",
-              boardDebugFields(this),
+              boardLogFields(this),
             );
           }
           return;
@@ -1363,7 +1309,7 @@ class BoardData {
 
   dispose() {
     if (logger.isEnabled("debug")) {
-      logger.debug("board.disposed", boardDebugFields(this));
+      logger.debug("board.disposed", boardLogFields(this));
     }
     this.disposed = true;
     if (this.saveTimeoutId !== undefined) {
@@ -1411,14 +1357,14 @@ class BoardData {
             this.getSeq() === this.getPersistedSeq()
           ) {
             if (logger.isEnabled("debug")) {
-              logger.debug("board.save_skipped", boardDebugFields(this));
+              logger.debug("board.save_skipped", boardLogFields(this));
             }
             return;
           }
           const startedAt = Date.now();
           this.lastSaveDate = startedAt;
           if (logger.isEnabled("debug")) {
-            logger.debug("board.save_started", boardDebugFields(this));
+            logger.debug("board.save_started", boardLogFields(this));
           }
           this.clean();
           let savedItemsById = new Map(this.itemsById);
@@ -1483,7 +1429,7 @@ class BoardData {
                     if (logger.isEnabled("debug")) {
                       logger.debug(
                         "board.save_rewrite_started",
-                        boardDebugFields(this, {
+                        boardLogFields(this, {
                           "wbo.board.save_target_seq": latestSeq,
                         }),
                       );
@@ -1525,7 +1471,7 @@ class BoardData {
                     if (logger.isEnabled("debug")) {
                       logger.debug(
                         "board.save_recovered_from_mutations",
-                        boardDebugFields(this, {
+                        boardLogFields(this, {
                           "wbo.board.save_target_seq": latestSeq,
                           "wbo.board.replay_from_seq": replayFromSeq,
                         }),
@@ -1555,7 +1501,7 @@ class BoardData {
                     if (logger.isEnabled("debug")) {
                       logger.debug(
                         "board.save_initial_persist_finished",
-                        boardDebugFields(this, {
+                        boardLogFields(this, {
                           "wbo.board.persisted_ids": [
                             ...initialPersist.persistedIds,
                           ],
@@ -1588,7 +1534,7 @@ class BoardData {
                 if (logger.isEnabled("debug")) {
                   logger.debug(
                     "board.save_initial_persist_finished",
-                    boardDebugFields(this, {
+                    boardLogFields(this, {
                       "wbo.board.persisted_ids": [
                         ...initialPersist.persistedIds,
                       ],
@@ -1621,7 +1567,7 @@ class BoardData {
                 if (logger.isEnabled("debug")) {
                   logger.debug(
                     "board.save_without_baseline",
-                    boardDebugFields(this),
+                    boardLogFields(this),
                   );
                 }
                 tracing.setActiveSpanAttributes(
@@ -1655,7 +1601,7 @@ class BoardData {
               const durationMs = Date.now() - startedAt;
               logger.info(
                 "board.saved",
-                boardLifecycleLogFields(this, {
+                boardLogFields(this, {
                   duration_ms: durationMs,
                   "file.size": savedFile.size,
                   items: authoritativeItemCount,
@@ -1673,7 +1619,7 @@ class BoardData {
               });
               logger.error(
                 "board.save_failed",
-                boardLifecycleLogFields(this, {
+                boardLogFields(this, {
                   duration_ms: durationMs,
                   error: err,
                 }),
@@ -1696,11 +1642,10 @@ class BoardData {
 
   /** Remove old elements from the board */
   clean() {
-    const { MAX_ITEM_COUNT } = readConfiguration();
-    if (this.liveItemCount > MAX_ITEM_COUNT) {
+    if (this.liveItemCount > this.maxItemCount) {
       let removed = false;
       while (
-        this.liveItemCount > MAX_ITEM_COUNT &&
+        this.liveItemCount > this.maxItemCount &&
         this.trimPaintOrderIndex < this.paintOrder.length
       ) {
         const id = this.paintOrder[this.trimPaintOrderIndex];
@@ -1757,7 +1702,7 @@ class BoardData {
         const startedAt = Date.now();
         try {
           if (logger.isEnabled("debug")) {
-            logger.debug("board.load_started", boardDebugFields(boardData));
+            logger.debug("board.load_started", boardLogFields(boardData));
           }
           const storedBoard = await readCanonicalBoardState(name, {
             historyDir: boardData.historyDir,
@@ -1780,7 +1725,7 @@ class BoardData {
           if (logger.isEnabled("debug")) {
             logger.debug(
               "board.load_completed",
-              boardDebugFields(boardData, {
+              boardLogFields(boardData, {
                 "wbo.board.load_source": storedBoard.source,
                 "file.size": storedBoard.byteLength || 0,
               }),
@@ -1789,7 +1734,7 @@ class BoardData {
           const durationMs = Date.now() - startedAt;
           logger.info(
             "board.loaded",
-            boardLifecycleLogFields(boardData, {
+            boardLogFields(boardData, {
               duration_ms: durationMs,
               "wbo.board.load_source": storedBoard.source,
               "wbo.board.paint_order_entries": boardData.paintOrder.length,
@@ -1812,7 +1757,7 @@ class BoardData {
             if (logger.isEnabled("debug")) {
               logger.debug(
                 "board.load_empty",
-                boardDebugFields(boardData, {
+                boardLogFields(boardData, {
                   "wbo.board.load_source": "empty",
                 }),
               );
@@ -1820,7 +1765,7 @@ class BoardData {
             const durationMs = Date.now() - startedAt;
             logger.info(
               "board.loaded",
-              boardLifecycleLogFields(boardData, {
+              boardLogFields(boardData, {
                 duration_ms: durationMs,
                 "wbo.board.load_source": "empty",
                 "wbo.board.result": "empty",
@@ -1845,7 +1790,7 @@ class BoardData {
             });
             logger.error(
               "board.load_failed",
-              boardLifecycleLogFields(boardData, {
+              boardLogFields(boardData, {
                 duration_ms: durationMs,
                 error: e,
               }),

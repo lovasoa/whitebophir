@@ -48,7 +48,7 @@ const BOARD_SESSIONS = new WeakMap();
  * @param {{
  *   name: string,
  *   processMessage: (message: NormalizedMessageData) => {ok: true} | {ok: false, reason: string},
- *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string) => any,
+ *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string, socketId?: string) => any,
  *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
  *   consumePendingAcceptedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
  *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: any} | {ok: false, reason: string}> | {ok: true, mutation?: any} | {ok: false, reason: string},
@@ -69,7 +69,6 @@ export function createBoardSession(board) {
       nowMs = Date.now(),
     ) {
       return queue.runExclusive(async () => {
-        void socketId;
         consumePendingRejectedMutationEffects(board);
         consumePendingAcceptedMutationEffects(board);
         let acceptedMutation = mutation;
@@ -92,6 +91,7 @@ export function createBoardSession(board) {
                 effect.mutation,
                 nowMs,
                 undefined,
+                socketId,
               ),
             }),
           );
@@ -101,6 +101,7 @@ export function createBoardSession(board) {
           acceptedMutation,
           nowMs,
           clientMutationId,
+          socketId,
         );
         const followup = consumePendingAcceptedMutationEffects(board).map(
           (effect) => ({
@@ -109,6 +110,7 @@ export function createBoardSession(board) {
               effect.mutation,
               nowMs,
               undefined,
+              socketId,
             ),
           }),
         );
@@ -127,7 +129,7 @@ export function createBoardSession(board) {
  * @param {{
  *   name: string,
  *   processMessage: (message: NormalizedMessageData) => {ok: true} | {ok: false, reason: string},
- *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string) => any,
+ *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string, socketId?: string) => any,
  *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
  *   consumePendingAcceptedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
  *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: any} | {ok: false, reason: string}> | {ok: true, mutation?: any} | {ok: false, reason: string},
