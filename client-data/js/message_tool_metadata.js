@@ -52,7 +52,7 @@ export const SHAPE_TOOL_TYPES = Object.create(null);
 export const TOOL_UPDATE_FIELDS = Object.create(null);
 for (const toolName in TOOL_METADATA) {
   const metadata = TOOL_METADATA[toolName];
-  if (metadata === undefined) continue;
+  if (!metadata) continue;
   TOOL_UPDATE_FIELDS[toolName] = metadata.updatableFields;
   if (metadata.draw === true) {
     DRAW_TOOL_NAMES.push(toolName);
@@ -67,12 +67,9 @@ for (const toolName in TOOL_METADATA) {
  * @returns {ToolMetadata | null}
  */
 export function getToolMetadata(toolName) {
-  if (typeof toolName !== "string") return null;
-  if (Object.hasOwn(TOOL_METADATA, toolName)) {
-    const metadata = TOOL_METADATA[toolName];
-    return metadata === undefined ? null : metadata;
-  }
-  return null;
+  return typeof toolName === "string" && Object.hasOwn(TOOL_METADATA, toolName)
+    ? (TOOL_METADATA[toolName] ?? null)
+    : null;
 }
 
 /**
@@ -80,8 +77,7 @@ export function getToolMetadata(toolName) {
  * @returns {string | undefined}
  */
 export function getShapeToolType(toolName) {
-  const metadata = getToolMetadata(toolName);
-  return metadata ? metadata.shapeType : undefined;
+  return typeof toolName === "string" ? SHAPE_TOOL_TYPES[toolName] : undefined;
 }
 
 /**
@@ -89,9 +85,9 @@ export function getShapeToolType(toolName) {
  * @returns {string[]}
  */
 export function getUpdatableFieldNames(toolName) {
-  const metadata = getToolMetadata(toolName);
-  if (!metadata) return [];
-  return metadata.updatableFields.slice();
+  return typeof toolName === "string"
+    ? (TOOL_UPDATE_FIELDS[toolName] || []).slice()
+    : [];
 }
 
 /**
@@ -106,26 +102,18 @@ export function isShapeTool(toolName) {
  * @returns {string[]}
  */
 export function getShapeToolNames() {
-  /** @type {string[]} */
-  const names = [];
-  for (const tool in SHAPE_TOOL_TYPES) {
-    names.push(tool);
-  }
-  return names;
+  return Object.keys(SHAPE_TOOL_TYPES);
 }
 
 /**
  * @param {string | undefined} toolName
- * @param {{[key: string]: any}} data
- * @returns {{[key: string]: any}}
+ * @param {{[key: string]: unknown}} data
+ * @returns {{[key: string]: unknown}}
  */
 export function getUpdatableFields(toolName, data) {
-  /** @type {{[key: string]: any}} */
+  /** @type {{[key: string]: unknown}} */
   const updatable = {};
-  const fields = getUpdatableFieldNames(toolName);
-  for (let index = 0; index < fields.length; index++) {
-    const field = fields[index];
-    if (typeof field !== "string") continue;
+  for (const field of getUpdatableFieldNames(toolName)) {
     if (Object.hasOwn(data, field)) {
       updatable[field] = data[field];
     }
