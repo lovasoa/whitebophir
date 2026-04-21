@@ -317,8 +317,9 @@ const contract = {
 
 export { contract };
 export const shortcut = "p";
+export const serverRenderedElementSelector = "path";
 const ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
-/** @typedef {{Tools: MountedAppToolsState, AUTO_FINGER_WHITEOUT: boolean, MAX_PENCIL_CHILDREN: number, minPencilIntervalMs: number, hasUsedStylus: boolean, curLineId: string, lastTime: number, hasSentPoint: boolean, currentLineChildCount: number, renderingLine: SVGPathElement | null, pathDataCache: {[lineId: string]: any[]}, drawingSize: number, whiteOutSize: number, secondary: {name: string, icon: string, active: boolean, switch?: () => void}, mouseCursor: string, serverRenderedElementSelector: string}} PencilState */
+/** @typedef {{Tools: MountedAppToolsState, AUTO_FINGER_WHITEOUT: boolean, MAX_PENCIL_CHILDREN: number, minPencilIntervalMs: number, hasUsedStylus: boolean, curLineId: string, lastTime: number, hasSentPoint: boolean, currentLineChildCount: number, renderingLine: SVGPathElement | null, pathDataCache: {[lineId: string]: any[]}, drawingSize: number, whiteOutSize: number, secondary: {name: string, icon: string, active: boolean, switch?: () => void}, mouseCursor: string}} PencilState */
 
 /**
  * @param {unknown} value
@@ -569,7 +570,6 @@ export function boot(ctx) {
       active: false,
     },
     mouseCursor: `url('${ctx.assetUrl("cursor.svg")}'), crosshair`,
-    serverRenderedElementSelector: "path",
   };
   state.secondary.switch = () => {
     stopLine(state);

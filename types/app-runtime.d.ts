@@ -301,7 +301,9 @@ export type ToolBootContext = {
   assetUrl: (assetFile: string) => string;
 };
 
-export type ToolStateMetadata = {
+export type ToolModule<T = unknown> = {
+  toolId: string;
+  replaySafe?: boolean;
   shortcut?: string;
   oneTouch?: boolean;
   alwaysOn?: boolean;
@@ -310,11 +312,6 @@ export type ToolStateMetadata = {
   secondary?: ToolSecondaryMode | null;
   showMarker?: boolean;
   requiresWritableBoard?: boolean;
-};
-
-export type ToolModule<T = unknown> = ToolStateMetadata & {
-  toolId: string;
-  replaySafe?: boolean;
   serverRenderedElementSelector?: string;
   boot: (ctx: ToolBootContext) => Promise<T> | T;
   draw?: (state: T, message: BoardMessage, isLocal: boolean) => void;
