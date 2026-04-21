@@ -541,10 +541,10 @@ function needsSourcePayload(record) {
  */
 function readStoredSourcePayload(entry) {
   const sourceItem = parseStoredSvgItem(entry);
-  if (sourceItem?.tool === "Text") {
+  if (typeof sourceItem?.txt === "string") {
     return { txt: sourceItem.txt };
   }
-  if (sourceItem?.tool === "Pencil") {
+  if (Array.isArray(sourceItem?._children)) {
     return { _children: sourceItem._children || [] };
   }
   return undefined;

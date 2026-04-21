@@ -155,10 +155,6 @@ function renderPencilPath(children) {
 
 /** @type {{[tool: string]: ToolRenderer}} */
 const Tools = {
-  /**
-   * @param {RenderableElement} el
-   * @return {string}
-   */
   Text: (el) => {
     const text = /** @type {TextElement} */ (el);
     return (
@@ -184,20 +180,12 @@ const Tools = {
       "</text>"
     );
   },
-  /**
-   * @param {RenderableElement} el
-   * @return {string}
-   */
   Pencil: (el) => {
     const pencil = /** @type {PencilElement} */ (el);
     const pathstring = renderPencilPath(pencil._children);
     if (pathstring === "") return "";
     return renderPath(pencil, pathstring);
   },
-  /**
-   * @param {RenderableElement} el
-   * @return {string}
-   */
   Rectangle: (el) => {
     const shape = /** @type {ShapeElement} */ (el);
     const bounds = normalizeRectBounds(shape.x, shape.y, shape.x2, shape.y2);
@@ -226,10 +214,6 @@ const Tools = {
       "/>"
     );
   },
-  /**
-   * @param {RenderableElement} el
-   * @return {string}
-   */
   Ellipse: (el) => {
     const shape = /** @type {ShapeElement} */ (el);
     const cx = Math.round((shape.x2 + shape.x) / 2);
@@ -257,10 +241,6 @@ const Tools = {
       ",0";
     return renderPath(shape, pathstring);
   },
-  /**
-   * @param {RenderableElement} el
-   * @return {string}
-   */
   "Straight line": (el) => {
     const shape = /** @type {ShapeElement} */ (el);
     const pathstring = `M${shape.x} ${shape.y}L${shape.x2} ${shape.y2}`;
