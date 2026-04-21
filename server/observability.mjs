@@ -270,6 +270,7 @@ const turnstileVerifications = meter.createCounter(
 );
 const loadedBoardsGauge = meter.createObservableGauge("wbo.board.loaded", {
   description: "Current number of board instances loaded in server memory.",
+  unit: "{board}",
 });
 const activeSocketConnectionsGauge = meter.createObservableGauge(
   "wbo.socket.connection.active",
@@ -284,6 +285,7 @@ const connectedUsersGauge = meter.createObservableGauge(
   {
     description:
       "Current number of active socket-to-board memberships across loaded boards; one socket joined to two boards contributes 2.",
+    unit: "{user}",
   },
 );
 loadedBoardsGauge.addCallback(function observeLoadedBoards(observer) {
