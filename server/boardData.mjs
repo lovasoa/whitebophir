@@ -191,7 +191,7 @@ function computeScheduledSaveDelayMs(options) {
 
 /** @param {string} id */
 function eraserDeleteMutation(id) {
-  return { tool: "Eraser", type: MutationType.DELETE, id };
+  return { tool: "eraser", type: MutationType.DELETE, id };
 }
 
 /**

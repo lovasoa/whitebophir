@@ -30,7 +30,7 @@ test("stored svg item codec parses canonical shape and text tags without shadow 
     }),
     {
       id: "rect-1",
-      tool: "Rectangle",
+      tool: "rectangle",
       x: 5,
       y: 7,
       x2: 16,
@@ -43,7 +43,7 @@ test("stored svg item codec parses canonical shape and text tags without shadow 
 
   assert.deepEqual(parseStoredSvgItem(makeStoredTextEntry()), {
     id: "text-1",
-    tool: "Text",
+    tool: "text",
     x: 9,
     y: 10,
     color: "#654321",
@@ -55,7 +55,7 @@ test("stored svg item codec parses canonical shape and text tags without shadow 
 test("stored svg item codec derives pencil points from the canonical d attribute", () => {
   assert.deepEqual(parseStoredSvgItem(makeStoredPencilEntry()), {
     id: "line-1",
-    tool: "Pencil",
+    tool: "pencil",
     color: "#000000",
     size: 3,
     _children: [
@@ -90,7 +90,7 @@ test("stored svg item summaries stay payload-light for cold loads", () => {
     ),
     {
       id: "text-1",
-      tool: "Text",
+      tool: "text",
       paintOrder: 2,
       data: {
         x: 9,
@@ -111,7 +111,7 @@ test("stored svg item summaries stay payload-light for cold loads", () => {
 
   assert.deepEqual(summarizeStoredSvgItem(makeStoredPencilEntry(), 3), {
     id: "line-1",
-    tool: "Pencil",
+    tool: "pencil",
     paintOrder: 3,
     data: {
       color: "#000000",
@@ -130,7 +130,7 @@ test("stored svg item summaries stay payload-light for cold loads", () => {
 test("stored svg item codec serializes canonical visible svg without duplicated state", () => {
   const rect = serializeStoredSvgItem({
     id: "rect-1",
-    tool: "Rectangle",
+    tool: "rectangle",
     x: 5,
     y: 7,
     x2: 16,
@@ -150,7 +150,7 @@ test("stored svg item codec serializes canonical visible svg without duplicated 
 
   const pencil = serializeStoredSvgItem({
     id: "line-1",
-    tool: "Pencil",
+    tool: "pencil",
     color: "#000000",
     size: 2,
     _children: [
@@ -167,7 +167,7 @@ test("stored svg item codec serializes canonical visible svg without duplicated 
   assert.match(
     serializeStoredSvgItem({
       id: "text-1",
-      tool: "Text",
+      tool: "text",
       x: 5,
       y: 6,
       size: 18,

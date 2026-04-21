@@ -293,7 +293,7 @@ export type ServerConfig = {
 };
 
 export type ToolRuntime = {
-  Tools: AppToolsState;
+  Tools: MountedAppToolsState;
   activateTool: (toolName: string) => void;
   getButton: (toolName: string) => HTMLElement | null;
   registerShortcut: (toolName: string, key: string) => void;
@@ -307,10 +307,50 @@ export type ToolBootContext = {
   assetUrl: (assetFile: string) => string;
 };
 
-export type ToolClass<T extends AppTool = AppTool> = {
-  toolName: string;
+export type ToolStateMetadata = {
+  shortcut?: string;
+  oneTouch?: boolean;
+  alwaysOn?: boolean;
+  mouseCursor?: string;
+  helpText?: string;
+  secondary?: ToolSecondaryMode | null;
+  showMarker?: boolean;
+  requiresWritableBoard?: boolean;
+};
+
+export type ToolModule<T = unknown> = ToolStateMetadata & {
+  toolId: string;
   replaySafe?: boolean;
+  serverRenderedElementSelector?: string;
   boot: (ctx: ToolBootContext) => Promise<T> | T;
+  draw?: (state: T, message: BoardMessage, isLocal: boolean) => void;
+  normalizeServerRenderedElement?: (state: T, element: SVGElement) => void;
+  press?: (
+    state: T,
+    x: number,
+    y: number,
+    evt: MouseEvent | TouchEvent,
+    isTouchEvent: boolean,
+  ) => unknown;
+  move?: (
+    state: T,
+    x: number,
+    y: number,
+    evt: MouseEvent | TouchEvent,
+    isTouchEvent: boolean,
+  ) => unknown;
+  release?: (
+    state: T,
+    x: number,
+    y: number,
+    evt: MouseEvent | TouchEvent,
+    isTouchEvent: boolean,
+  ) => unknown;
+  onMessage?: (state: T, message: BoardMessage) => void;
+  onstart?: (state: T, oldTool: AppTool | null) => void;
+  onquit?: (state: T, newTool: AppTool) => void;
+  onSocketDisconnect?: (state: T) => void;
+  onSizeChange?: (state: T, size: number) => void;
 };
 
 export type AppBoardState = {
@@ -370,7 +410,7 @@ export type AppToolsState = {
   token: string | null;
   pendingReplaySync: false | "refresh" | "ready";
   list: MountedToolRegistry;
-  toolClasses: { [toolName: string]: ToolClass };
+  toolClasses: { [toolName: string]: ToolModule };
   bootedToolPromises: { [toolName: string]: Promise<AppTool | null> };
   bootedToolNames: Set<string>;
   pendingMessages: PendingMessages;
@@ -448,13 +488,16 @@ export type AppToolsState = {
   queueProtectedWrite: (data: BoardMessage, tool: AppTool) => void;
   flushTurnstilePendingWrites: () => void;
   getToolAssetUrl: (toolName: string, assetFile: string) => string;
-  ensureToolClassLoaded: (toolName: string) => Promise<ToolClass>;
+  ensureToolClassLoaded: (toolName: string) => Promise<ToolModule>;
   mountTool: (tool: AppTool) => MountedAppTool | null;
   bootTool: (toolName: string) => Promise<AppTool | null>;
   activateTool: (toolName: string) => Promise<boolean>;
   addToolListeners: (tool: AppTool) => void;
   removeToolListeners: (tool: AppTool) => void;
-  drawAndSend: (message: BoardMessage, tool?: AppTool) => boolean | undefined;
+  drawAndSend: (
+    message: BoardMessage,
+    tool?: AppTool | string,
+  ) => boolean | undefined;
   send: (message: BoardMessage, toolName?: string) => boolean | undefined;
   getColor: () => string;
   setColor: (color: string) => void;
@@ -508,6 +551,12 @@ export type AppToolsState = {
   startConnection: () => void;
   versionAssetPath: (assetPath: string) => string;
   assetVersion: string;
+};
+
+export type MountedAppToolsState = AppToolsState & {
+  board: HTMLElement;
+  svg: SVGSVGElement;
+  drawingArea: Element;
 };
 
 export type SocketHeaders = {

@@ -6,8 +6,12 @@ import {
   summarizeStoredShape,
 } from "../shape_contract.js";
 
+export const toolId = "straight-line";
+export const drawsOnBoard = true;
+export const mouseCursor = "crosshair";
+
 const contract = defineShapeContract({
-  toolName: "Straight line",
+  toolId,
   payloadKind: "inline",
   shapeType: "straight",
   liveCreateType: "straight",
@@ -33,7 +37,7 @@ const contract = defineShapeContract({
     return summarizeStoredShape(
       {
         id: helpers.id,
-        tool: "Straight line",
+        tool: toolId,
         paintOrder,
         data: {
           x: x1,
@@ -71,8 +75,9 @@ const contract = defineShapeContract({
     );
   },
 });
+export { contract };
 
-export default createShapeToolClass({
+const StraightLineTool = createShapeToolClass({
   contract,
   shortcut: "l",
   icon: "tools/straight-line/icon.svg",
@@ -129,3 +134,45 @@ export default createShapeToolClass({
     line.y2.baseVal.value = data.y2 ?? data.y;
   },
 });
+
+/** @param {import("../../../types/app-runtime").ToolBootContext} ctx */
+export function boot(ctx) {
+  return StraightLineTool.boot(ctx);
+}
+
+/**
+ * @param {any} state
+ * @param {any} data
+ */
+export function draw(state, data) {
+  return state.draw(data);
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ */
+export function press(state, x, y, evt) {
+  return state.press(x, y, evt);
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent | undefined} evt
+ */
+export function move(state, x, y, evt) {
+  return state.move(x, y, evt);
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
+ */
+export function release(state, x, y) {
+  return state.release(x, y);
+}

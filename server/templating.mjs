@@ -6,14 +6,8 @@ import packageJson from "../package.json" with { type: "json" };
 
 import client_config from "./client_configuration.mjs";
 import { readConfiguration } from "./configuration.mjs";
-import {
-  getToolIconUrl,
-  getToolModuleImportPath,
-  getToolStylesheetUrl,
-  withVersion,
-} from "../client-data/js/tool_assets.js";
+import { TOOLBAR_TOOLS, TOOL_BY_ID } from "../client-data/tools/index.js";
 import { applyCompressionForResponse } from "./http_compression.mjs";
-import { getVisibleToolCatalogEntries } from "../client-data/js/tool_catalog.js";
 import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
@@ -22,6 +16,8 @@ import { parseRequestUrl } from "./request_url.mjs";
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
+/** @typedef {{blockedTools?: string[] | null, boardState?: {readonly?: boolean, canWrite?: boolean} | null, moderator?: boolean}} VisibleToolOptions */
+/** @typedef {NonNullable<typeof TOOLBAR_TOOLS[number]>} ToolbarTool */
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 const BOARD_PAGE_CACHE_HEADROOM_SECONDS = 5;
@@ -39,6 +35,30 @@ const languages = Object.keys(TRANSLATIONS);
 handlebars.registerHelper({
   json: JSON.stringify.bind(JSON),
 });
+
+/**
+ * @param {ToolbarTool | undefined} tool
+ * @returns {tool is ToolbarTool}
+ */
+function isToolbarTool(tool) {
+  return tool !== undefined;
+}
+
+/**
+ * @param {VisibleToolOptions} options
+ * @returns {typeof TOOLBAR_TOOLS}
+ */
+function getVisibleTools(options) {
+  const blockedTools = new Set(options.blockedTools || []);
+  const readonly = options.boardState?.readonly === true;
+  const canWrite = options.boardState?.canWrite === true;
+  const moderator = options.moderator === true;
+  return TOOLBAR_TOOLS.filter(isToolbarTool).filter((tool) => {
+    if (blockedTools.has(tool.toolId)) return false;
+    if (tool.moderatorOnly && !moderator) return false;
+    return !readonly || canWrite || tool.visibleWhenReadOnly;
+  });
+}
 
 /**
  * @param {HeaderValue} value
@@ -291,25 +311,26 @@ class BoardTemplate extends Template {
     const blockedTools = Array.isArray(configuration.BLOCKED_TOOLS)
       ? configuration.BLOCKED_TOOLS
       : [];
-    const visibleTools = getVisibleToolCatalogEntries({
-      blockedTools: blockedTools,
-      boardState: params.boardState,
-      moderator: isModerator,
-    });
+    const visibleTools = /** @type {ToolbarTool[]} */ (
+      getVisibleTools({
+        blockedTools: blockedTools,
+        boardState: params.boardState,
+        moderator: isModerator,
+      })
+    );
     params.tools = visibleTools.map((tool) => ({
-      name: tool.name,
-      label:
-        params.translations[tool.name.toLowerCase().replace(/ /g, "_")] ||
-        tool.name,
-      iconUrl: getToolIconUrl(tool.name, params.version),
+      id: tool.toolId,
+      label: params.translations[tool.translationKey] || tool.label,
+      iconUrl: tool.getIconUrl(params.version),
     }));
     params.toolModulePreloads = Array.from(
-      new Set(visibleTools.map((tool) => tool.name).concat("Cursor")),
-    ).map((toolName) =>
-      withVersion(getToolModuleImportPath(toolName), params.version),
-    );
+      new Set(visibleTools.map((tool) => tool.toolId).concat("cursor")),
+    )
+      .map((toolId) => TOOL_BY_ID[toolId])
+      .filter(isToolbarTool)
+      .map((tool) => tool.getModuleImportPath(params.version));
     params.toolStylesheets = visibleTools
-      .map((tool) => getToolStylesheetUrl(tool.name, params.version))
+      .map((tool) => tool.getStylesheetUrl(params.version))
       .filter((href) => typeof href === "string");
     return params;
   }

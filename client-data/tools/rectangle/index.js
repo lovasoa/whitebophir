@@ -7,8 +7,12 @@ import {
   summarizeStoredShape,
 } from "../shape_contract.js";
 
+export const toolId = "rectangle";
+export const drawsOnBoard = true;
+export const mouseCursor = "crosshair";
+
 const contract = defineShapeContract({
-  toolName: "Rectangle",
+  toolId,
   payloadKind: "inline",
   shapeType: "rect",
   liveCreateType: "rect",
@@ -38,7 +42,7 @@ const contract = defineShapeContract({
     return summarizeStoredShape(
       {
         id: helpers.id,
-        tool: "Rectangle",
+        tool: toolId,
         paintOrder,
         data: {
           x,
@@ -86,8 +90,9 @@ const contract = defineShapeContract({
     );
   },
 });
+export { contract };
 
-export default createShapeToolClass({
+const RectangleTool = createShapeToolClass({
   contract,
   shortcut: "r",
   icon: "tools/rectangle/icon.svg",
@@ -145,3 +150,45 @@ export default createShapeToolClass({
     rect.height.baseVal.value = Math.abs(data.y2 - data.y);
   },
 });
+
+/** @param {import("../../../types/app-runtime").ToolBootContext} ctx */
+export function boot(ctx) {
+  return RectangleTool.boot(ctx);
+}
+
+/**
+ * @param {any} state
+ * @param {any} data
+ */
+export function draw(state, data) {
+  return state.draw(data);
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ */
+export function press(state, x, y, evt) {
+  return state.press(x, y, evt);
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent | undefined} evt
+ */
+export function move(state, x, y, evt) {
+  return state.move(x, y, evt);
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
+ */
+export function release(state, x, y) {
+  return state.release(x, y);
+}

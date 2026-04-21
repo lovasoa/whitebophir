@@ -1,52 +1,42 @@
-import {
-  DRAW_TOOL_NAMES,
-  TOOL_CATALOG,
-  getToolCatalogEntry,
-} from "./tool_catalog.js";
 import { getMutationTypeCode, MutationType } from "./mutation_type.js";
-import { TOOL_CONTRACTS_BY_NAME } from "../tools/tool_contracts.js";
+import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
+import { DRAW_TOOL_IDS, TOOL_IDS } from "../tools/tool-order.js";
 
 export { getMutationTypeCode, MutationType };
 
-const TOOL_NAMES = [...TOOL_CATALOG.map((entry) => entry.name), "Cursor"];
-export { DRAW_TOOL_NAMES };
-/** @type {{[toolName: string]: string}} */
-export const SHAPE_TOOL_TYPES = /** @type {{[toolName: string]: string}} */ (
+export const DRAW_TOOL_NAMES = DRAW_TOOL_IDS;
+/** @type {{[toolId: string]: string}} */
+export const SHAPE_TOOL_TYPES = /** @type {{[toolId: string]: string}} */ (
   Object.fromEntries(
-    Object.values(TOOL_CONTRACTS_BY_NAME)
-      .filter((contract) => typeof contract.shapeType === "string")
-      .map((contract) => [contract.toolName, contract.shapeType]),
+    TOOLS.filter((tool) => typeof tool.shapeType === "string").map((tool) => [
+      tool.toolId,
+      tool.shapeType,
+    ]),
   )
 );
 
-/** @param {string | undefined} toolName */
-export function getToolCode(toolName) {
-  if (typeof toolName !== "string") return undefined;
-  const index = TOOL_NAMES.indexOf(toolName);
+/** @param {string | undefined} toolId */
+export function getToolCode(toolId) {
+  if (typeof toolId !== "string") return undefined;
+  const index = TOOL_IDS.indexOf(toolId);
   return index === -1 ? undefined : index + 1;
 }
 
-/** @param {string | undefined} toolName */
-export function isShapeTool(toolName) {
-  return (
-    typeof toolName === "string" &&
-    !!TOOL_CONTRACTS_BY_NAME[toolName]?.shapeType
-  );
+/** @param {string | undefined} toolId */
+export function isShapeTool(toolId) {
+  return typeof toolId === "string" && !!TOOL_BY_ID[toolId]?.shapeType;
 }
 
 /**
- * @param {string | undefined} toolName
+ * @param {string | undefined} toolId
  * @param {{[key: string]: unknown}} data
  * @returns {{[key: string]: unknown}}
  */
-export function getUpdatableFields(toolName, data) {
+export function getUpdatableFields(toolId, data) {
   /** @type {{[key: string]: unknown}} */
   const updatable = {};
-  if (typeof toolName !== "string") return updatable;
-  const fields =
-    TOOL_CONTRACTS_BY_NAME[toolName]?.updatableFields ||
-    getToolCatalogEntry(toolName)?.updatableFields ||
-    [];
+  if (typeof toolId !== "string") return updatable;
+  const fields = TOOL_BY_ID[toolId]?.updatableFields || [];
   for (const field of fields) {
     if (Object.hasOwn(data, field)) updatable[field] = data[field];
   }
@@ -59,16 +49,13 @@ export function getMutationType(message) {
   if (Array.isArray(message._children)) return MutationType.BATCH;
   const mutationType = getMutationTypeCode(message.type);
   if (mutationType !== undefined) return mutationType;
-  const toolName = /** @type {{tool?: string | undefined}} */ (message).tool;
-  return getToolCode(toolName) !== undefined && typeof message.id === "string"
+  const toolId = /** @type {{tool?: string | undefined}} */ (message).tool;
+  return getToolCode(toolId) !== undefined && typeof message.id === "string"
     ? MutationType.CREATE
     : undefined;
 }
 
-/** @param {string | undefined} toolName */
-export function isToolOwnedBatchTool(toolName) {
-  return (
-    typeof toolName === "string" &&
-    getToolCatalogEntry(toolName)?.batchMessageFields !== undefined
-  );
+/** @param {string | undefined} toolId */
+export function isToolOwnedBatchTool(toolId) {
+  return typeof toolId === "string" && !!TOOL_BY_ID[toolId]?.batchMessageFields;
 }

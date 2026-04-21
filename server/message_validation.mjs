@@ -1,12 +1,11 @@
 import MessageCommon from "../client-data/js/message_common.js";
-import { TOOL_CATALOG } from "../client-data/js/tool_catalog.js";
 import { hasMessageTool } from "../client-data/js/message_shape.js";
 import {
   getMutationType,
   getMutationTypeCode,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
-import { TOOL_CONTRACTS_BY_NAME } from "../client-data/tools/tool_contracts.js";
+import { TOOL_BY_ID, TOOLS } from "../client-data/tools/index.js";
 import { readConfiguration } from "./configuration.mjs";
 
 // Capture config once at module load. The hot paths below (per-coordinate
@@ -52,9 +51,7 @@ const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
 
 /** @type {string[]} */
 const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
-const SHAPE_CONTRACTS = Object.values(TOOL_CONTRACTS_BY_NAME).filter(
-  (contract) => contract.shapeType !== undefined,
-);
+const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeType !== undefined);
 const SHAPE_CREATE_FIELDS = {
   id: "id",
   color: "color",
@@ -340,28 +337,28 @@ function buildSchemaFields(fields) {
 }
 
 /**
- * @param {string} toolName
+ * @param {string} toolId
  * @param {string} type
  * @param {{[field: string]: string}} fields
  * @returns {FieldSchema}
  */
-function buildLiveSchema(toolName, type, fields) {
+function buildLiveSchema(toolId, type, fields) {
   return {
-    tool: required(literal(toolName)),
+    tool: required(literal(toolId)),
     type: required(literal(type)),
     ...buildSchemaFields(fields),
   };
 }
 
 /**
- * @param {string} toolName
+ * @param {string} toolId
  * @param {string} type
  * @param {{[field: string]: string} | undefined} fields
  * @returns {FieldSchema}
  */
-function buildStoredSchema(toolName, type, fields) {
+function buildStoredSchema(toolId, type, fields) {
   return {
-    tool: required(literal(toolName)),
+    tool: required(literal(toolId)),
     type: optional(literal(type), { defaultValue: type }),
     ...buildSchemaFields(fields),
   };
@@ -399,14 +396,10 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
   SHAPE_CONTRACTS.map((contract) => {
     const createType = contract.shapeType || contract.liveCreateType || "";
     return [
-      contract.toolName,
+      contract.toolId,
       {
         [createType]: {
-          ...buildLiveSchema(
-            contract.toolName,
-            createType,
-            SHAPE_CREATE_FIELDS,
-          ),
+          ...buildLiveSchema(contract.toolId, createType, SHAPE_CREATE_FIELDS),
           x2: optional(normalizeCoord, {
             defaultValue: defaultCoordinateFromX,
           }),
@@ -414,7 +407,7 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
             defaultValue: defaultCoordinateFromY,
           }),
         },
-        update: buildLiveSchema(contract.toolName, "update", {
+        update: buildLiveSchema(contract.toolId, "update", {
           id: "id",
           ...Object.fromEntries(
             (contract.updatableFields || []).map((field) => [field, "coord"]),
@@ -429,7 +422,7 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
 const STORED_SHAPE_SCHEMAS = Object.fromEntries(
   SHAPE_CONTRACTS.map((contract) => {
     const schema = buildStoredSchema(
-      contract.toolName,
+      contract.toolId,
       contract.storedTagName || "",
       SHAPE_STORED_FIELDS,
     );
@@ -439,65 +432,53 @@ const STORED_SHAPE_SCHEMAS = Object.fromEntries(
     schema.y2 = optional(normalizeCoord, {
       defaultValue: defaultCoordinateFromY,
     });
-    return [contract.toolName, schema];
+    return [contract.toolId, schema];
   }),
 );
 
 /** @type {LiveToolSchemas} */
 const CONTRACT_LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
-  Object.values(TOOL_CONTRACTS_BY_NAME)
-    .filter((contract) => contract.liveMessageFields)
-    .map((contract) => [
-      contract.toolName,
-      buildPerTypeSchemas(contract.liveMessageFields, (type, fields) =>
-        buildLiveSchema(contract.toolName, type, fields),
-      ),
-    ]),
+  TOOLS.filter((tool) => tool.liveMessageFields).map((tool) => [
+    tool.toolId,
+    buildPerTypeSchemas(tool.liveMessageFields, (type, fields) =>
+      buildLiveSchema(tool.toolId, type, fields),
+    ),
+  ]),
 );
 
 /** @type {StoredToolSchemas} */
 const CONTRACT_STORED_ITEM_SCHEMAS = Object.fromEntries(
-  Object.values(TOOL_CONTRACTS_BY_NAME)
-    .filter((contract) => contract.storedFields)
-    .map((contract) => [
-      contract.toolName,
-      buildStoredSchema(
-        contract.toolName,
-        contract.liveCreateType || contract.storedTagName || "",
-        contract.storedFields,
-      ),
-    ]),
+  TOOLS.filter((tool) => tool.storedFields).map((tool) => [
+    tool.toolId,
+    buildStoredSchema(
+      tool.toolId,
+      tool.liveCreateType || tool.storedTagName || "",
+      tool.storedFields,
+    ),
+  ]),
 );
 
 /** @type {LiveToolSchemas} */
 const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
   Object.entries({
-    Cursor: {
-      update: buildLiveSchema("Cursor", "update", {
+    cursor: {
+      update: buildLiveSchema("cursor", "update", {
         color: "color",
         size: "size",
         x: "coord",
         y: "coord",
       }),
     },
-    ...Object.fromEntries(
-      TOOL_CATALOG.filter((entry) => entry.liveMessageFields).map((entry) => [
-        entry.name,
-        buildPerTypeSchemas(entry.liveMessageFields, (type, fields) =>
-          buildLiveSchema(entry.name, type, fields),
-        ),
-      ]),
-    ),
     ...CONTRACT_LIVE_MESSAGE_SCHEMAS,
     ...LIVE_SHAPE_SCHEMAS,
   }).map(([tool, schemas]) => [tool, withMutationTypeAliases(schemas)]),
 );
 
 const LIVE_BATCH_CHILD_SCHEMAS = Object.fromEntries(
-  TOOL_CATALOG.filter((entry) => entry.batchMessageFields).map((entry) => [
-    entry.name,
+  TOOLS.filter((tool) => tool.batchMessageFields).map((tool) => [
+    tool.toolId,
     withMutationTypeAliases(
-      buildPerTypeSchemas(entry.batchMessageFields, (type, fields) => ({
+      buildPerTypeSchemas(tool.batchMessageFields, (type, fields) => ({
         type: required(literal(type)),
         ...buildSchemaFields(fields),
       })),
@@ -582,7 +563,7 @@ function normalizeIncomingMessage(raw) {
   ) {
     return rejected("shape too large");
   }
-  if (raw.tool !== "Cursor" && Object.hasOwn(raw, "clientMutationId")) {
+  if (raw.tool !== "cursor" && Object.hasOwn(raw, "clientMutationId")) {
     const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
     if (!clientMutationId.ok) return clientMutationId;
     normalized.value.clientMutationId = clientMutationId.value;
@@ -640,9 +621,7 @@ function validateStoredGeometryBounds(item) {
  */
 function assignNormalizedStoredChildren(item, rawChildren) {
   const contract =
-    typeof item.tool === "string"
-      ? TOOL_CONTRACTS_BY_NAME[item.tool]
-      : undefined;
+    typeof item.tool === "string" ? TOOL_BY_ID[item.tool] : undefined;
   contract?.normalizeStoredItemData?.(
     item,
     { _children: rawChildren },

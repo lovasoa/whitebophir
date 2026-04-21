@@ -25,20 +25,39 @@
  */
 
 import { messages as BoardMessages } from "../../js/board_transport.js";
-import {
-  getMutationType,
-  MutationType,
-} from "../../js/message_tool_metadata.js";
-import {
-  pointInTransformedBBox,
-  transformedBBoxIntersects,
-} from "../../js/intersect.js";
+import { MutationType, getMutationTypeCode } from "../../js/mutation_type.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {{a:number, b:number, c:number, d:number, e:number, f:number}} TransformState */
 /** @typedef {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
+/** @typedef {import("../../js/intersect.js").Point2D} Point2D */
+/** @typedef {import("../../js/intersect.js").TransformedBBox} TransformedBBox */
 
-export default class HandTool {
-  static toolName = "Hand";
+/** @type {(point: Point2D, box: TransformedBBox) => boolean} */
+let pointInTransformedBBox = () => false;
+/** @type {(bboxA: TransformedBBox, bboxB: TransformedBBox) => boolean} */
+let transformedBBoxIntersects = () => false;
+
+/**
+ * @param {{type?: string | number, _children?: unknown} | null | undefined} message
+ * @returns {number | undefined}
+ */
+function getMessageMutationType(message) {
+  if (!message || typeof message !== "object") return undefined;
+  if (Array.isArray(message._children)) return MutationType.BATCH;
+  return getMutationTypeCode(message.type);
+}
+
+export const toolId = "hand";
+export const visibleWhenReadOnly = true;
+export const updatableFields = ["transform"];
+export const batchMessageFields = {
+  update: { id: "id", transform: "transform" },
+  delete: { id: "id" },
+  copy: { id: "id", newid: "id" },
+};
+
+class HandTool {
+  static toolId = toolId;
 
   /**
    * @param {any} Tools
@@ -122,7 +141,7 @@ export default class HandTool {
       },
     );
 
-    this.name = "Hand";
+    this.name = toolId;
     this.shortcut = "h";
     this.boundDeleteShortcut = this.deleteShortcut.bind(this);
     this.boundDuplicateShortcut = this.duplicateShortcut.bind(this);
@@ -135,7 +154,6 @@ export default class HandTool {
           switch: this.switchTool.bind(this),
         }
       : null;
-    this.icon = "tools/hand/hand.svg";
     this.mouseCursor = "move";
     this.showMarker = true;
   }
@@ -206,7 +224,7 @@ export default class HandTool {
       type: MutationType.DELETE,
       id: el.id,
     }));
-    this.Tools.drawAndSend({ _children: msgs }, this);
+    this.Tools.drawAndSend({ _children: msgs }, toolId);
     this.selectedEls = [];
     this.hideSelectionUI();
   }
@@ -229,7 +247,7 @@ export default class HandTool {
         newid: this.Tools.generateUID(id[0]),
       };
     }
-    this.Tools.drawAndSend({ _children: msgs }, this);
+    this.Tools.drawAndSend({ _children: msgs }, toolId);
   }
 
   /** @returns {SVGRectElement} */
@@ -523,7 +541,7 @@ export default class HandTool {
     const now = performance.now();
     if (force || now - this.lastSent > 70) {
       this.lastSent = now;
-      this.Tools.drawAndSend(msg, this);
+      this.Tools.drawAndSend(msg, toolId);
     } else {
       this.draw(msg);
     }
@@ -586,7 +604,7 @@ export default class HandTool {
       return;
     }
 
-    switch (getMutationType(data)) {
+    switch (getMessageMutationType(data)) {
       case MutationType.UPDATE: {
         const elem = this.Tools.svg.getElementById(data.id);
         if (!elem) {
@@ -623,7 +641,7 @@ export default class HandTool {
         break;
       }
       case MutationType.DELETE:
-        data.tool = "Eraser";
+        data.tool = "eraser";
         this.Tools.messageForTool(data);
         break;
       default:
@@ -820,6 +838,65 @@ export default class HandTool {
    * @returns {Promise<HandTool>}
    */
   static async boot(ctx) {
+    ({ pointInTransformedBBox, transformedBBoxIntersects } = await import(
+      "../../js/intersect.js"
+    ));
     return new HandTool(ctx.runtime.Tools, ctx.assetUrl);
   }
+}
+
+/** @param {ToolBootContext} ctx */
+export function boot(ctx) {
+  return HandTool.boot(ctx);
+}
+
+/**
+ * @param {HandTool} state
+ * @param {any} data
+ */
+export function draw(state, data) {
+  return state.draw(data);
+}
+
+/**
+ * @param {HandTool} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ * @param {boolean} isTouchEvent
+ */
+export function press(state, x, y, evt, isTouchEvent) {
+  return state.press(x, y, evt, isTouchEvent);
+}
+
+/**
+ * @param {HandTool} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ * @param {boolean} isTouchEvent
+ */
+export function move(state, x, y, evt, isTouchEvent) {
+  return state.move(x, y, evt, isTouchEvent, false);
+}
+
+/**
+ * @param {HandTool} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ * @param {boolean} isTouchEvent
+ */
+export function release(state, x, y, evt, isTouchEvent) {
+  return state.release(x, y, evt, isTouchEvent);
+}
+
+/** @param {HandTool} state */
+export function onquit(state) {
+  return state.onquit();
+}
+
+/** @param {HandTool} state */
+export function onSocketDisconnect(state) {
+  return state.onSocketDisconnect();
 }

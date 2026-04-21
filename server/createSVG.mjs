@@ -2,7 +2,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 
 import MessageCommon from "../client-data/js/message_common.js";
-import { TOOL_CONTRACTS_BY_NAME } from "../client-data/tools/tool_contracts.js";
+import { TOOL_BY_ID } from "../client-data/tools/index.js";
 import config from "./configuration.mjs";
 import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
 import observability from "./observability.mjs";
@@ -133,7 +133,7 @@ async function toSVG(obj, writeable) {
     }
     const elem = elems[index];
     if (!elem) continue;
-    const contract = TOOL_CONTRACTS_BY_NAME[elem.tool];
+    const contract = TOOL_BY_ID[elem.tool];
     if (typeof contract?.renderBoardSvg === "function") {
       writeable.write(
         contract.renderBoardSvg(elem, {

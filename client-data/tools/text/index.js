@@ -50,9 +50,13 @@ function textBoundsFromLength(x, y, size, textLength) {
   };
 }
 
+export const toolId = "text";
+export const drawsOnBoard = true;
+export const mouseCursor = "text";
+
 /** @type {import("../shape_contract.js").ToolContract} */
 const contract = {
-  toolName: "Text",
+  toolId,
   payloadKind: "text",
   liveCreateType: "new",
   storedTagName: "text",
@@ -93,7 +97,7 @@ const contract = {
     const textLength = helpers.decodedTextLength(entry.content || "");
     return {
       id: helpers.id,
-      tool: contract.toolName,
+      tool: contract.toolId,
       paintOrder,
       data: helpers.decorateStoredItemData(
         {
@@ -112,7 +116,7 @@ const contract = {
   parseStoredSvgItem(summary, entry, helpers) {
     return {
       id: summary.id,
-      tool: contract.toolName,
+      tool: contract.toolId,
       ...summary.data,
       txt: helpers.unescapeHtml(entry.content || ""),
     };
@@ -156,9 +160,10 @@ const contract = {
   },
 };
 
-export default class TextTool {
-  static toolName = contract.toolName;
-  static contract = contract;
+export { contract };
+
+class TextTool {
+  static toolId = contract.toolId;
 
   /**
    * @param {AppToolsState} Tools
@@ -166,11 +171,9 @@ export default class TextTool {
   constructor(Tools) {
     this.Tools = Tools;
     this.board = Tools.board;
-    this.name = contract.toolName;
+    this.name = contract.toolId;
     this.shortcut = "t";
-    this.stylesheet = "tools/text/text.css";
-    this.icon = "tools/text/icon.svg";
-    this.mouseCursor = "text";
+    this.mouseCursor = mouseCursor;
 
     this.input = document.createElement("input");
     this.input.id = "textToolInput";
@@ -417,4 +420,39 @@ export default class TextTool {
   static async boot(ctx) {
     return new TextTool(ctx.runtime.Tools);
   }
+}
+
+/** @param {ToolBootContext} ctx */
+export function boot(ctx) {
+  return TextTool.boot(ctx);
+}
+
+/**
+ * @param {TextTool} state
+ * @param {TextMessage} data
+ * @param {boolean} isLocal
+ */
+export function draw(state, data, isLocal) {
+  return state.draw(data, isLocal);
+}
+
+/**
+ * @param {TextTool} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ * @param {boolean} isTouchEvent
+ */
+export function press(state, x, y, evt, isTouchEvent) {
+  return state.press(x, y, evt, isTouchEvent);
+}
+
+/** @param {TextTool} state */
+export function onstart(state) {
+  return state.onstart();
+}
+
+/** @param {TextTool} state */
+export function onquit(state) {
+  return state.onquit();
 }

@@ -99,7 +99,7 @@ function assertMessagesAccepted(board, messages) {
  */
 function rectangleMessage(id, color, size, x, y, x2, y2) {
   return {
-    tool: "Rectangle",
+    tool: "rectangle",
     type: "rect",
     id,
     color,
@@ -117,7 +117,7 @@ function rectangleMessage(id, color, size, x, y, x2, y2) {
  * @returns {any}
  */
 function rectangleUpdate(id, changes) {
-  return { tool: "Rectangle", type: "update", id, ...changes };
+  return { tool: "rectangle", type: "update", id, ...changes };
 }
 
 /**
@@ -133,7 +133,7 @@ function rectangleUpdate(id, changes) {
  */
 function textCreate(fields) {
   return {
-    tool: "Text",
+    tool: "text",
     type: "new",
     ...fields,
   };
@@ -146,7 +146,7 @@ function textCreate(fields) {
  */
 function textUpdate(id, txt) {
   return {
-    tool: "Text",
+    tool: "text",
     type: "update",
     id,
     txt,
@@ -160,7 +160,7 @@ function textUpdate(id, txt) {
  */
 function handUpdate(id, transform) {
   return {
-    tool: "Hand",
+    tool: "hand",
     type: "update",
     id,
     transform,
@@ -173,7 +173,7 @@ function handUpdate(id, transform) {
  */
 function handDelete(id) {
   return {
-    tool: "Hand",
+    tool: "hand",
     type: "delete",
     id,
   };
@@ -186,7 +186,7 @@ function handDelete(id) {
  */
 function handCopy(id, newid) {
   return {
-    tool: "Hand",
+    tool: "hand",
     type: "copy",
     id,
     newid,
@@ -199,7 +199,7 @@ function handCopy(id, newid) {
  */
 function eraserDelete(id) {
   return {
-    tool: "Eraser",
+    tool: "eraser",
     type: "delete",
     id,
   };
@@ -207,7 +207,7 @@ function eraserDelete(id) {
 
 /** @returns {any} */
 function clearMessage() {
-  return { tool: "Clear", type: "clear" };
+  return { tool: "clear", type: "clear" };
 }
 
 /**
@@ -278,14 +278,14 @@ function buildStoredSvg(options = {}) {
 function buildPencilStrokeMutations(id, color, size, points = []) {
   return [
     {
-      tool: "Pencil",
+      tool: "pencil",
       type: "line",
       id,
       color,
       size,
     },
     ...points.map(({ x, y }) => ({
-      tool: "Pencil",
+      tool: "pencil",
       type: "child",
       parent: id,
       x,
@@ -316,14 +316,14 @@ test("BoardData processMessageBatch and per-message processing stay in sync", ()
 
   const messages = [
     {
-      tool: "Pencil",
+      tool: "pencil",
       type: "line",
       id: "p-1",
       color: "#123456",
       size: 4,
     },
     {
-      tool: "Pencil",
+      tool: "pencil",
       type: "child",
       parent: "p-1",
       x: 10,
@@ -463,7 +463,7 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
 
   assert.deepEqual(board.get("text-1"), {
     id: "text-1",
-    tool: "Text",
+    tool: "text",
     type: "new",
     color: "#111111",
     size: 18,
@@ -584,7 +584,7 @@ test("BoardData.save skips redundant clean saves once persisted state is current
     board.board = {
       "text-1": {
         id: "text-1",
-        tool: "Text",
+        tool: "text",
         x: 1,
         y: 2,
         txt: "hi",
@@ -636,7 +636,7 @@ test("BoardData replays batch updates, copies, and deletes consistently", () => 
 
   assert.equal(board.get("rect-1"), undefined);
   assert.deepEqual(board.get("rect-2"), {
-    tool: "Rectangle",
+    tool: "rectangle",
     type: "rect",
     id: "rect-2",
     color: "#112233",
@@ -688,7 +688,7 @@ test("BoardData applies parent tool metadata to batched Hand updates", () => {
   assertMessagesAccepted(board, [
     rectangleMessage("rect-1", "#112233", 4, 0, 0, 10, 10),
     {
-      tool: "Hand",
+      tool: "hand",
       _children: [
         handUpdate("rect-1", { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 }),
       ],
@@ -746,7 +746,7 @@ test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async () => {
     const board = disableSaves(new BoardData("child-cap-board"));
 
     board.set("line-1", {
-      tool: "Pencil",
+      tool: "pencil",
       type: "line",
       id: "line-1",
       color: "#123456",
@@ -765,7 +765,7 @@ test("BoardData rejects the first pencil child that makes a stroke oversized", (
 
   assert.equal(
     board.set("line-1", {
-      tool: "Pencil",
+      tool: "pencil",
       type: "line",
       id: "line-1",
       color: "#123456",
@@ -846,7 +846,7 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
   assert.deepEqual(board.consumePendingRejectedMutationEffects(), [
     {
       mutation: {
-        tool: "Eraser",
+        tool: "eraser",
         type: MutationType.DELETE,
         id: "rect-1",
       },
@@ -873,7 +873,7 @@ test("BoardData rejects hand batches atomically when one transform is oversized"
 
   assert.equal(
     board.processMessage({
-      tool: "Hand",
+      tool: "hand",
       _children: [
         handUpdate("rect-1", { a: 4, b: 0, c: 0, d: 4, e: 0, f: 0 }),
         handUpdate("rect-2", { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 }),
@@ -942,7 +942,7 @@ test("BoardData trims overflow by paint order instead of recency", async () => {
         .map((/** @type {{mutation: any}} */ entry) => entry.mutation),
       [
         {
-          tool: "Eraser",
+          tool: "eraser",
           type: MutationType.DELETE,
           id: "first",
         },
@@ -991,7 +991,7 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
         rect: rectangleMessage("rect", "#123456", 4, 0, 0, 10, 10),
         pencil: {
           id: "pencil",
-          tool: "Pencil",
+          tool: "pencil",
           type: "line",
           color: "#8844aa",
           size: 4,
@@ -1005,7 +1005,7 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
         },
         text: {
           id: "text",
-          tool: "Text",
+          tool: "text",
           type: "new",
           x: 360,
           y: 180,
@@ -1020,9 +1020,9 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
       const svg = await fs.readFile(svgPath, "utf8");
 
       assert.equal(board.metadata.readonly, true);
-      assert.equal(board.get("rect").tool, "Rectangle");
-      assert.equal(board.get("pencil").tool, "Pencil");
-      assert.equal(board.get("text").tool, "Text");
+      assert.equal(board.get("rect").tool, "rectangle");
+      assert.equal(board.get("pencil").tool, "pencil");
+      assert.equal(board.get("text").tool, "text");
       assert.match(svg, /data-wbo-format="whitebophir-svg-v2"/);
       assert.match(svg, /data-wbo-readonly="true"/);
       assert.match(svg, /<rect id="rect" x="0" y="0" width="100" height="100"/);
@@ -1049,7 +1049,7 @@ test("BoardData eagerly loads canonical persisted svg items before applying upda
       });
       assert.deepEqual(board.get("rect-1"), {
         id: "rect-1",
-        tool: "Rectangle",
+        tool: "rectangle",
         x: 1,
         y: 2,
         x2: 3,
@@ -1067,7 +1067,7 @@ test("BoardData eagerly loads canonical persisted svg items before applying upda
         },
         {
           id: "rect-1",
-          tool: "Rectangle",
+          tool: "rectangle",
           x: 1,
           y: 2,
           x2: 30,
@@ -1088,7 +1088,7 @@ test("BoardData records contiguous mutation seq values and persists them into sv
 
     const message = {
       id: "rect-1",
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       color: "#123456",
       size: 4,
@@ -1497,7 +1497,7 @@ test("BoardData.save preserves cold-loaded state when only the backup svg remain
         {
           "line-1": {
             id: "line-1",
-            tool: "Pencil",
+            tool: "pencil",
             color: "#654321",
             size: 5,
             _children: [
@@ -1534,7 +1534,7 @@ test("BoardData.save persists canonical test-injected board items through the bo
       board.board = {
         "text-1": {
           id: "text-1",
-          tool: "Text",
+          tool: "text",
           x: 1,
           y: 2,
           txt: "hi",
@@ -1567,7 +1567,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
         {
           "item-0": {
             id: "item-0",
-            tool: "Pencil",
+            tool: "pencil",
             color: "#123456",
             size: 2,
             _children: [
@@ -1577,7 +1577,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
           },
           "item-1": {
             id: "item-1",
-            tool: "Straight line",
+            tool: "straight-line",
             color: "#123456",
             size: 2,
             x: 1,
@@ -1587,7 +1587,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
           },
           "item-2": {
             id: "item-2",
-            tool: "Text",
+            tool: "text",
             x: 3,
             y: 4,
             txt: "hello",
@@ -1599,7 +1599,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
           },
           "item-4": {
             id: "item-4",
-            tool: "Ellipse",
+            tool: "ellipse",
             color: "#123456",
             size: 2,
             x: 10,
@@ -1628,7 +1628,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
           rectangleUpdate("item-3", { x2: 15, y2: 18 }),
           textUpdate("item-2", "hello streaming"),
           {
-            tool: "Pencil",
+            tool: "pencil",
             type: "child",
             parent: "item-0",
             x: 4,

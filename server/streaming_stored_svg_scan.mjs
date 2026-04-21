@@ -1,7 +1,7 @@
-import { TOOL_CONTRACTS_BY_TAG } from "../client-data/tools/tool_contracts.js";
+import { TOOL_BY_STORED_TAG_NAME } from "../client-data/tools/index.js";
 import { readRawAttribute } from "./svg_envelope.mjs";
 
-const STORED_ITEM_TAG_PATTERN = Object.keys(TOOL_CONTRACTS_BY_TAG).join("|");
+const STORED_ITEM_TAG_PATTERN = Object.keys(TOOL_BY_STORED_TAG_NAME).join("|");
 const STORED_ITEM_TAG_REGEX = new RegExp(`^<(${STORED_ITEM_TAG_PATTERN})\\b`);
 
 /**
@@ -62,7 +62,7 @@ function tryExtractItemOrSuffix(buffer) {
     );
   }
   const tagName = tagNameMatch[1];
-  if (!tagName || !TOOL_CONTRACTS_BY_TAG[tagName]) {
+  if (!tagName || !TOOL_BY_STORED_TAG_NAME[tagName]) {
     throw new Error(`Unexpected direct child <${tagName}> inside drawingArea`);
   }
   const closeToken = `</${tagName}>`;

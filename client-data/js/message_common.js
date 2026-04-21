@@ -41,9 +41,9 @@
  *   _children?: Array<ChildPoint | null | undefined>
  * }} GeometryItem
  */
-import { DRAW_TOOL_NAMES } from "./tool_catalog.js";
+import { DRAW_TOOL_IDS } from "../tools/tool-order.js";
 
-export { DRAW_TOOL_NAMES };
+export const DRAW_TOOL_NAMES = DRAW_TOOL_IDS;
 
 export const LIMITS = {
   MIN_SIZE: 10,
@@ -181,23 +181,21 @@ export function isFiniteTransformNumber(value) {
 
 /**
  * @param {unknown} boardName
- * @param {unknown} toolName
+ * @param {unknown} toolId
  * @returns {boolean}
  */
-export function requiresTurnstile(boardName, toolName) {
+export function requiresTurnstile(boardName, toolId) {
   if (boardName !== "anonymous") return false;
-  if (!toolName || toolName === "Cursor") return false;
+  if (!toolId || toolId === "cursor") return false;
   return true;
 }
 
 /**
- * @param {unknown} toolName
+ * @param {unknown} toolId
  * @returns {boolean}
  */
-export function isDrawTool(toolName) {
-  return (
-    typeof toolName === "string" && DRAW_TOOL_NAMES.indexOf(toolName) !== -1
-  );
+export function isDrawTool(toolId) {
+  return typeof toolId === "string" && DRAW_TOOL_NAMES.indexOf(toolId) !== -1;
 }
 
 /**

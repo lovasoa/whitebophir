@@ -388,7 +388,7 @@ function canWriteToBoard(config, board, socket) {
  * @returns {boolean}
  */
 function canApplyBoardMessage(config, board, data, socket) {
-  if (data.tool === "Cursor") return true;
+  if (data.tool === "cursor") return true;
   if (!canWriteToBoard(config, board, socket)) return false;
   if (
     getMutationType(data) === MutationType.CLEAR &&

@@ -55,14 +55,17 @@ import {
 } from "./optimistic_mutation.js";
 import RateLimitCommon from "./rate_limit_common.js";
 import {
+  getToolIconPath,
   getToolModuleImportPath,
   getToolRuntimeAssetPath,
-} from "./tool_assets.js";
-import { TOOL_CATALOG } from "./tool_catalog.js";
+  getToolStylesheetPath,
+} from "../tools/tool-defaults.js";
+import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
 
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
 /** @typedef {import("../../types/app-runtime").AppTool} AppTool */
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
+/** @typedef {import("../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
 /** @typedef {import("../../types/app-runtime").BufferedWrite} BufferedWrite */
 /** @typedef {import("../../types/app-runtime").BoardStatusView} BoardStatusView */
@@ -78,7 +81,8 @@ import { TOOL_CATALOG } from "./tool_catalog.js";
 /** @typedef {import("../../types/app-runtime").MountedAppTool} MountedAppTool */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
 /** @typedef {import("../../types/app-runtime").ToolPointerListeners} ToolPointerListeners */
-/** @typedef {import("../../types/app-runtime").ToolClass} ToolClass */
+/** @typedef {import("../../types/app-runtime").ToolModule} ToolModule */
+/** @typedef {import("../../types/app-runtime").ToolStateMetadata} ToolStateMetadata */
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../types/app-runtime").ToolRuntime} ToolRuntime */
 /** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
@@ -222,21 +226,6 @@ export async function attachBoardDom(document) {
   Tools.tryStartReplaySync();
 }
 
-/**
- * @param {unknown} value
- * @returns {value is ToolClass}
- */
-function isToolClass(value) {
-  return !!(
-    value &&
-    typeof value === "function" &&
-    "toolName" in value &&
-    typeof value.toolName === "string" &&
-    "boot" in value &&
-    typeof value.boot === "function"
-  );
-}
-
 Tools.i18n = (function i18n() {
   const translations = /** @type {{[key: string]: string}} */ (
     parseEmbeddedJson("translations", {})
@@ -310,9 +299,7 @@ Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
 };
 
 Tools.readOnlyToolNames = new Set(
-  TOOL_CATALOG.filter((tool) => tool.visibleWhenReadOnly).map(
-    (tool) => tool.name,
-  ),
+  TOOLS.filter((tool) => tool.visibleWhenReadOnly).map((tool) => tool.toolId),
 );
 Tools.toolClasses = /** @type {AppToolsState["toolClasses"]} */ ({});
 Tools.bootedToolPromises =
@@ -576,7 +563,7 @@ Tools.resetBoardViewport = function resetBoardViewport() {
 };
 
 Tools.restoreLocalCursor = function restoreLocalCursor() {
-  const cursorTool = Tools.list.Cursor;
+  const cursorTool = Tools.list.cursor;
   if (!cursorTool) return;
   const message =
     "message" in cursorTool && cursorTool.message
@@ -1420,9 +1407,9 @@ Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
     !drawToolsAllowed &&
     Tools.curTool &&
     MessageCommon.isDrawTool(Tools.curTool.name) &&
-    Tools.list.Hand
+    Tools.list.hand
   ) {
-    Tools.change("Hand");
+    Tools.change("hand");
   }
 };
 
@@ -1452,9 +1439,9 @@ Tools.setBoardState = function setBoardState(state) {
     hideEditingTools &&
     Tools.curTool &&
     !Tools.shouldDisplayTool(Tools.curTool.name) &&
-    Tools.list.Hand
+    Tools.list.hand
   ) {
-    Tools.change("Hand");
+    Tools.change("hand");
   }
 };
 
@@ -1566,7 +1553,7 @@ function getConnectedUserDotSize(size) {
  * @returns {string}
  */
 function getConnectedUserToolLabel(user) {
-  return Tools.i18n.t(user.lastTool || "Hand");
+  return Tools.i18n.t(user.lastTool || "hand");
 }
 
 /**
@@ -1959,7 +1946,7 @@ function applyConnectedUserActivity(
 ) {
   let changed = false;
 
-  if (message.tool !== "Cursor") {
+  if (message.tool !== "cursor") {
     markConnectedUserActivity(user);
     changed = true;
   }
@@ -1971,13 +1958,13 @@ function applyConnectedUserActivity(
     user.size = Number(message.size) || user.size;
     changed = true;
   }
-  if (message.tool && message.tool !== "Cursor") {
+  if (message.tool && message.tool !== "cursor") {
     user.lastTool = message.tool;
     changed = true;
   }
   if (
     focusPoint &&
-    (message.tool !== "Cursor" ||
+    (message.tool !== "cursor" ||
       messageSocketId === null ||
       messageSocketId === user.socketId)
   ) {
@@ -2110,7 +2097,7 @@ Tools.startConnection = () => {
     Tools.boardName,
     {
       sync: "seq",
-      tool: Tools.initialPrefs?.tool || "Hand",
+      tool: Tools.initialPrefs?.tool || "hand",
       color: Tools.getColor(),
       size: String(Tools.getSize()),
     },
@@ -2259,7 +2246,7 @@ window.addEventListener("pageshow", saveBoardNametoLocalStorage);
  */
 function bindToolButton(button, toolName) {
   if (button.dataset.toolBound === "true") return;
-  button.dataset.toolName = toolName;
+  button.dataset.toolId = toolName;
   button.dataset.toolBound = "true";
   button.setAttribute("aria-label", toolName);
   button.addEventListener("click", () => {
@@ -2315,10 +2302,10 @@ function syncToolButton(toolName, tool) {
 
 function bindRenderedToolButtons() {
   document
-    .querySelectorAll("#tools > .tool[data-tool-name]")
+    .querySelectorAll("#tools > .tool[data-tool-id]")
     .forEach((element) => {
       if (!(element instanceof HTMLElement)) return;
-      const toolName = element.dataset.toolName;
+      const toolName = element.dataset.toolId;
       if (!toolName) return;
       bindToolButton(element, toolName);
     });
@@ -2438,26 +2425,25 @@ Tools.list = /** @type {AppToolsState["list"]} */ ({});
 
 /**
  * @param {string} toolName
- * @returns {Promise<ToolClass>}
+ * @returns {Promise<ToolModule>}
  */
 Tools.ensureToolClassLoaded = async function ensureToolClassLoaded(toolName) {
   const existing = Tools.toolClasses[toolName];
   if (existing) return existing;
 
-  const namespace = /** @type {{default?: unknown}} */ (
+  const namespace = /** @type {ToolModule} */ (
     await import(Tools.versionAssetPath(getToolModuleImportPath(toolName)))
   );
-  if (!isToolClass(namespace.default)) {
-    throw new Error(`Missing default tool class export for ${toolName}.`);
+  if (typeof namespace.boot !== "function") {
+    throw new Error(`Missing boot export for ${toolName}.`);
   }
-  const ToolClass = namespace.default;
-  if (ToolClass.toolName !== toolName) {
+  if (namespace.toolId !== toolName) {
     throw new Error(
-      `Tool module for ${toolName} exported ${String(ToolClass.toolName)}.`,
+      `Tool module for ${toolName} exported ${String(namespace.toolId)}.`,
     );
   }
-  Tools.toolClasses[toolName] = ToolClass;
-  return ToolClass;
+  Tools.toolClasses[toolName] = namespace;
+  return namespace;
 };
 
 /**
@@ -2465,9 +2451,16 @@ Tools.ensureToolClassLoaded = async function ensureToolClassLoaded(toolName) {
  * @returns {ToolBootContext}
  */
 function createToolBootContext(toolName) {
+  /** @type {MountedAppToolsState} */
+  const mountedTools = (() => {
+    if (!Tools.board || !Tools.svg || !Tools.drawingArea) {
+      throw new Error("Tool boot requires board, svg, and drawing area.");
+    }
+    return /** @type {MountedAppToolsState} */ (Tools);
+  })();
   /** @type {ToolRuntime} */
   const runtime = {
-    Tools: Tools,
+    Tools: mountedTools,
     activateTool: (name) => {
       void Tools.activateTool(name);
     },
@@ -2488,11 +2481,98 @@ function createToolBootContext(toolName) {
 }
 
 /**
+ * @param {ToolModule} toolModule
+ * @param {unknown} toolState
+ * @param {string} toolName
+ * @returns {AppTool}
+ */
+function createToolFromModule(toolModule, toolState, toolName) {
+  if (typeof toolModule.draw !== "function") {
+    throw new Error(`Missing draw export for ${toolName}.`);
+  }
+  const stateMetadata = /** @type {ToolStateMetadata} */ (
+    toolState && typeof toolState === "object" ? toolState : {}
+  );
+  const draw = toolModule.draw;
+  const normalizeServerRenderedElement =
+    toolModule.normalizeServerRenderedElement;
+  const press = toolModule.press;
+  const move = toolModule.move;
+  const release = toolModule.release;
+  const onMessage = toolModule.onMessage;
+  const onstart = toolModule.onstart;
+  const onquit = toolModule.onquit;
+  const onSocketDisconnect = toolModule.onSocketDisconnect;
+  const onSizeChange = toolModule.onSizeChange;
+  return {
+    name: toolName,
+    shortcut: toolModule.shortcut ?? stateMetadata.shortcut,
+    icon: "",
+    draw: (message, isLocal) => draw(toolState, message, isLocal),
+    normalizeServerRenderedElement:
+      typeof normalizeServerRenderedElement === "function"
+        ? (element) => normalizeServerRenderedElement(toolState, element)
+        : undefined,
+    serverRenderedElementSelector: toolModule.serverRenderedElementSelector,
+    press:
+      typeof press === "function"
+        ? (x, y, evt, isTouchEvent) => press(toolState, x, y, evt, isTouchEvent)
+        : undefined,
+    move:
+      typeof move === "function"
+        ? (x, y, evt, isTouchEvent) => move(toolState, x, y, evt, isTouchEvent)
+        : undefined,
+    release:
+      typeof release === "function"
+        ? (x, y, evt, isTouchEvent) =>
+            release(toolState, x, y, evt, isTouchEvent)
+        : undefined,
+    onMessage:
+      typeof onMessage === "function"
+        ? (message) => onMessage(toolState, message)
+        : undefined,
+    onstart:
+      typeof onstart === "function"
+        ? (oldTool) => onstart(toolState, oldTool)
+        : undefined,
+    onquit:
+      typeof onquit === "function"
+        ? (newTool) => onquit(toolState, newTool)
+        : undefined,
+    onSocketDisconnect:
+      typeof onSocketDisconnect === "function"
+        ? () => onSocketDisconnect(toolState)
+        : undefined,
+    oneTouch: toolModule.oneTouch ?? stateMetadata.oneTouch,
+    alwaysOn: toolModule.alwaysOn ?? stateMetadata.alwaysOn,
+    mouseCursor: toolModule.mouseCursor ?? stateMetadata.mouseCursor,
+    helpText: toolModule.helpText ?? stateMetadata.helpText,
+    secondary: toolModule.secondary ?? stateMetadata.secondary ?? null,
+    onSizeChange:
+      typeof onSizeChange === "function"
+        ? (size) => onSizeChange(toolState, size)
+        : undefined,
+    showMarker: toolModule.showMarker ?? stateMetadata.showMarker,
+    requiresWritableBoard:
+      toolModule.requiresWritableBoard ?? stateMetadata.requiresWritableBoard,
+  };
+}
+
+/**
  * @param {AppTool} tool
  * @returns {MountedAppTool}
  */
 function prepareMountedTool(tool) {
   if (!tool.name) throw new Error("A tool must have a name");
+  const toolDefinition = TOOL_BY_ID[tool.name];
+  if (toolDefinition) {
+    tool.icon ||= getToolIconPath(toolDefinition.toolId);
+    tool.stylesheet ||=
+      getToolStylesheetPath(
+        toolDefinition.toolId,
+        toolDefinition.drawsOnBoard,
+      ) || undefined;
+  }
   tool.listeners = {
     press: tool.press ? tool.press.bind(tool) : tool.listeners?.press,
     move: tool.move ? tool.move.bind(tool) : tool.listeners?.move,
@@ -2624,10 +2704,10 @@ Tools.mountTool = function mountTool(tool) {
  * @returns {Promise<AppTool | null>}
  */
 async function bootToolPromise(toolName) {
-  const ToolClass = await Tools.ensureToolClassLoaded(toolName);
-  const bootedTool = await ToolClass.boot(createToolBootContext(toolName));
-  if (!bootedTool) return null;
-  return Tools.mountTool(bootedTool);
+  const toolModule = await Tools.ensureToolClassLoaded(toolName);
+  const toolState = await toolModule.boot(createToolBootContext(toolName));
+  if (toolState === null) return null;
+  return Tools.mountTool(createToolFromModule(toolModule, toolState, toolName));
 }
 
 /**
@@ -2810,12 +2890,15 @@ Tools.send = (data, toolName) => {
 
 /**
  * @param {BoardMessage} data
- * @param {AppTool | null | undefined} tool
+ * @param {AppTool | string | null | undefined} tool
  */
 Tools.drawAndSend = (data, tool) => {
   if (tool == null) tool = Tools.curTool;
   if (!tool) throw new Error("No active tool available");
-  if (tool && Tools.shouldDisableTool(tool.name)) return false;
+  const mountedTool = typeof tool === "string" ? Tools.list[tool] : tool;
+  if (!mountedTool) throw new Error(`Missing mounted tool '${tool}'.`);
+  const toolName = typeof tool === "string" ? tool : tool.name;
+  if (Tools.shouldDisableTool(toolName)) return false;
   if (
     !Tools.socket ||
     !Tools.socket.connected ||
@@ -2826,25 +2909,25 @@ Tools.drawAndSend = (data, tool) => {
   }
 
   const outboundData = Tools.cloneMessage(data);
-  if (tool.name !== "Cursor") {
+  if (toolName !== "cursor") {
     outboundData.clientMutationId = Tools.generateUID("cm-");
   }
   const rollback = Tools.captureOptimisticRollback(outboundData);
 
   // Optimistically render the drawing immediately
-  tool.draw(outboundData, true);
+  mountedTool.draw(outboundData, true);
 
   if (
-    MessageCommon.requiresTurnstile(Tools.boardName, tool.name) &&
+    MessageCommon.requiresTurnstile(Tools.boardName, toolName) &&
     Tools.server_config.TURNSTILE_SITE_KEY &&
     !Tools.isTurnstileValidated()
   ) {
     Tools.trackOptimisticMutation(outboundData, rollback);
-    Tools.queueProtectedWrite(outboundData, tool);
+    Tools.queueProtectedWrite(outboundData, mountedTool);
     return true;
   }
 
-  const sent = Tools.send(outboundData, tool.name) !== false;
+  const sent = Tools.send(outboundData, toolName) !== false;
   if (sent) {
     Tools.trackOptimisticMutation(outboundData, rollback);
   }
@@ -2874,10 +2957,10 @@ function messageForTool(message) {
       BoardMessages.queuePendingMessage(Tools.pendingMessages, name, message);
   }
 
-  if (message.tool !== "Hand" && message.transform != null) {
+  if (message.tool !== "hand" && message.transform != null) {
     //this message has special info for the mover
     messageForTool({
-      tool: "Hand",
+      tool: "hand",
       type: MutationType.UPDATE,
       transform: message.transform,
       id: message.id,
@@ -3217,7 +3300,7 @@ Tools.token = new URL(window.location.href).searchParams.get("token");
 Tools.socketIOExtraHeaders = socketIOExtraHeaders;
 Tools.pendingReplaySync = false;
 Tools.initialPrefs = {
-  tool: "Hand",
+  tool: "hand",
   color: initialPreset?.color || "#001f3f",
   size: DEFAULT_INITIAL_SIZE,
   opacity: DEFAULT_INITIAL_OPACITY,

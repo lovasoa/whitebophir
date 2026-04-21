@@ -27,51 +27,35 @@
 import { MutationType } from "../../js/mutation_type.js";
 
 /** @typedef {{type: number, id: string, token?: string | null}} ClearMessage */
-/** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
+/** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @typedef {{tools: MountedAppToolsState}} ClearState */
 
-export default class ClearTool {
-  static toolName = "Clear";
+export const toolId = "clear";
+export const shortcut = "c";
+export const oneTouch = true;
+export const requiresWritableBoard = true;
+export const mouseCursor = "crosshair";
+export const moderatorOnly = true;
+export const liveMessageFields = { clear: {} };
 
-  /**
-   * @param {AppToolsState} tools
-   */
-  constructor(tools) {
-    this.tools = tools;
-    this.name = "Clear";
-    this.shortcut = "c";
-    this.icon = "tools/clear/clear.svg";
-    this.oneTouch = true;
-    this.requiresWritableBoard = true;
-    this.mouseCursor = "crosshair";
-  }
+/** @param {ClearState} state */
+export function onstart(state) {
+  /** @type {ClearMessage} */
+  const msg = {
+    type: MutationType.CLEAR,
+    id: "",
+    token: state.tools.token,
+  };
+  state.tools.drawAndSend(msg, toolId);
+}
 
-  onstart() {
-    /** @type {ClearMessage} */
-    const msg = {
-      type: MutationType.CLEAR,
-      id: "",
-      token: this.tools.token,
-    };
-    const clearTool = this.tools.list.Clear;
-    if (!clearTool) {
-      throw new Error("Clear: tool is not registered.");
-    }
-    this.tools.drawAndSend(msg, clearTool);
-  }
+/** @param {ClearState} state */
+export function draw(state) {
+  state.tools.drawingArea.innerHTML = "";
+}
 
-  draw() {
-    if (!this.tools.drawingArea) {
-      throw new Error("Clear: Missing drawing area.");
-    }
-    this.tools.drawingArea.innerHTML = "";
-  }
-
-  /**
-   * @param {ToolBootContext} ctx
-   * @returns {Promise<ClearTool>}
-   */
-  static async boot(ctx) {
-    return new ClearTool(ctx.runtime.Tools);
-  }
+/** @param {ToolBootContext} ctx */
+export function boot(ctx) {
+  return { tools: ctx.runtime.Tools };
 }

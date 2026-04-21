@@ -1,15 +1,15 @@
-import { DRAW_TOOL_NAMES } from "./message_tool_metadata.js";
-import { withVersion } from "./tool_assets.js";
+import { DRAW_TOOL_IDS } from "../tools/tool-order.js";
+import { withVersion } from "../tools/tool-defaults.js";
 
 const assetVersion = document.documentElement.dataset.version || "";
 const documentElement = document.documentElement;
 
-const CRITICAL_BOOT_TOOL_NAMES = ["Hand", DRAW_TOOL_NAMES[0] || ""];
+const CRITICAL_BOOT_TOOL_NAMES = ["hand", DRAW_TOOL_IDS[0] || ""];
 const REPLAY_SAFE_TOOL_NAMES = new Set([
-  ...DRAW_TOOL_NAMES,
-  "Cursor",
-  "Eraser",
-  "Hand",
+  ...DRAW_TOOL_IDS,
+  "cursor",
+  "eraser",
+  "hand",
 ]);
 
 /**
@@ -34,8 +34,8 @@ function setBoardBootPhase(phase) {
  * @returns {string[]}
  */
 function getRenderedToolNames() {
-  return Array.from(document.querySelectorAll("#tools > .tool[data-tool-name]"))
-    .map((element) => element.getAttribute("data-tool-name") || "")
+  return Array.from(document.querySelectorAll("#tools > .tool[data-tool-id]"))
+    .map((element) => element.getAttribute("data-tool-id") || "")
     .filter(Boolean);
 }
 
@@ -101,8 +101,8 @@ async function bootBoardPage() {
   if (pendingToolName) {
     await tools.activateTool(pendingToolName);
   }
-  if (!tools.curTool && tools.list.Hand && tools.canUseTool("Hand")) {
-    tools.change("Hand");
+  if (!tools.curTool && tools.list.hand && tools.canUseTool("hand")) {
+    tools.change("hand");
   }
   setBoardBootPhase("ready");
 

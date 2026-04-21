@@ -52,7 +52,7 @@ function renderExpectedPencilPath(points) {
 test("renderBoard normalizes rectangle bounds for reverse-dragged shapes", async () => {
   const svg = await renderStoredBoard({
     rect1: {
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       id: "rect1",
       color: "#000000",
@@ -81,7 +81,7 @@ test("renderBoard stores raw pencil path points for client-side smoothing", asyn
   ];
   const svg = await renderStoredBoard({
     line1: {
-      tool: "Pencil",
+      tool: "pencil",
       type: "line",
       id: "line1",
       color: "#000000",

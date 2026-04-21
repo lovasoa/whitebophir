@@ -391,7 +391,7 @@ function buildBoardUserRecord(socket, boardName, config, now) {
     language: getSocketHeaderValue(socket, "accept-language"),
     color: color || "#001f3f",
     size,
-    lastTool: getSocketQueryValue(socket, "tool") || "Hand",
+    lastTool: getSocketQueryValue(socket, "tool") || "hand",
     lastSeen: now || Date.now(),
   };
 }
@@ -523,7 +523,7 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
   user.lastSeen = now;
   if (data.color !== undefined) user.color = data.color;
   if (data.size !== undefined) user.size = Number(data.size) || user.size;
-  if (data.tool !== "Cursor") {
+  if (data.tool !== "cursor") {
     user.lastTool = data.tool;
   }
   return user;
@@ -731,7 +731,7 @@ function rejectSocketRequest(socket, eventName, reason, extras) {
  * @returns {boolean}
  */
 function shouldTraceBroadcast(data) {
-  return !data || data.tool !== "Cursor";
+  return !data || data.tool !== "cursor";
 }
 
 /**
@@ -1811,7 +1811,7 @@ function finishSuccessfulBoardWrite(
     board: boardName,
     ...liveData,
   });
-  if (liveData.tool === "Cursor") {
+  if (liveData.tool === "cursor") {
     emitEphemeralBoardMutation(boardName, socket, liveData);
     return;
   }
@@ -1844,7 +1844,7 @@ async function persistBoardBroadcast(
     rejectBlockedBoardWrite(socket, board, boardName, data, clientIp, userName);
     return;
   }
-  if (data.tool === "Cursor") {
+  if (data.tool === "cursor") {
     finishSuccessfulBoardWrite(
       socket,
       board,

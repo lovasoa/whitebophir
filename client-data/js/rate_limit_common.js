@@ -7,7 +7,7 @@ import {
 export const ANONYMOUS_BOARD_NAME = "anonymous";
 export const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;
 const URL_LIKE_TEXT_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
-const TEXT_TOOL_CODE = getToolCode("Text");
+const TEXT_TOOL_CODE = getToolCode("text");
 
 /**
  * @param {unknown} value

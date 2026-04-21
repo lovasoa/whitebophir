@@ -4,10 +4,7 @@ const { pathToFileURL } = require("node:url");
 
 const { MESSAGE_VALIDATION_PATH, withEnv } = require("./test_helpers.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
-const { TOOL_CATALOG } = require("../client-data/js/tool_catalog.js");
-const {
-  TOOL_CONTRACTS_BY_NAME,
-} = require("../client-data/tools/tool_contracts.js");
+const { TOOLS, TOOL_BY_ID } = require("../client-data/tools/index.js");
 
 const SHAPE_CREATE_FIELDS = {
   id: "id",
@@ -80,10 +77,10 @@ function liveValidationSamples() {
   /** @type {Array<{tool: string, type: string, sample: any}>} */
   const samples = [
     {
-      tool: "Cursor",
+      tool: "cursor",
       type: "update",
       sample: {
-        tool: "Cursor",
+        tool: "cursor",
         type: "update",
         ...sampleFields({
           color: "color",
@@ -94,62 +91,45 @@ function liveValidationSamples() {
       },
     },
   ];
-  for (const contract of Object.values(TOOL_CONTRACTS_BY_NAME)) {
-    for (const [type, fields] of Object.entries(
-      contract.liveMessageFields || {},
-    )) {
+  for (const tool of TOOLS) {
+    for (const [type, fields] of Object.entries(tool.liveMessageFields || {})) {
       samples.push({
-        tool: contract.toolName,
+        tool: tool.toolId,
         type,
         sample: {
-          tool: contract.toolName,
+          tool: tool.toolId,
           type,
           ...sampleFields(fields),
         },
       });
     }
-    if (contract.shapeType) {
-      if (typeof contract.liveCreateType !== "string") continue;
+    if (tool.shapeType) {
+      if (typeof tool.liveCreateType !== "string") continue;
       samples.push({
-        tool: contract.toolName,
-        type: contract.liveCreateType,
+        tool: tool.toolId,
+        type: tool.liveCreateType,
         sample: {
-          tool: contract.toolName,
-          type: contract.liveCreateType,
+          tool: tool.toolId,
+          type: tool.liveCreateType,
           ...sampleFields(SHAPE_CREATE_FIELDS),
         },
       });
       /** @type {{[field: string]: any}} */
       const updateSample = {
-        tool: contract.toolName,
+        tool: tool.toolId,
         type: "update",
         id: "shape-1",
       };
       Object.assign(
         updateSample,
         Object.fromEntries(
-          (contract.updatableFields || []).map((field) => [field, 10]),
+          (tool.updatableFields || []).map((field) => [field, 10]),
         ),
       );
       samples.push({
-        tool: contract.toolName,
+        tool: tool.toolId,
         type: "update",
         sample: updateSample,
-      });
-    }
-  }
-  for (const entry of TOOL_CATALOG) {
-    for (const [type, fields] of Object.entries(
-      entry.liveMessageFields || {},
-    )) {
-      samples.push({
-        tool: entry.name,
-        type,
-        sample: {
-          tool: entry.name,
-          type,
-          ...sampleFields(fields),
-        },
       });
     }
   }
@@ -161,20 +141,20 @@ function liveValidationSamples() {
  */
 function storedValidationSamples() {
   const samples = [];
-  for (const contract of Object.values(TOOL_CONTRACTS_BY_NAME)) {
-    if (contract.shapeType) {
+  for (const tool of TOOLS) {
+    if (tool.shapeType) {
       samples.push({
-        tool: contract.toolName,
-        sample: { tool: contract.toolName, ...SHAPE_STORED_SAMPLE },
+        tool: tool.toolId,
+        sample: { tool: tool.toolId, ...SHAPE_STORED_SAMPLE },
       });
       continue;
     }
-    if (contract.storedFields) {
+    if (tool.storedFields) {
       samples.push({
-        tool: contract.toolName,
+        tool: tool.toolId,
         sample: {
-          tool: contract.toolName,
-          ...sampleFields(contract.storedFields),
+          tool: tool.toolId,
+          ...sampleFields(tool.storedFields),
         },
       });
     }
@@ -191,8 +171,8 @@ test("normalizeIncomingMessage supports every live tool/type pair", () => {
       true,
       `expected valid ${tool}/${type} to normalize`,
     );
-    if (tool === "Text") {
-      assert.equal(normalized.value.tool, "Text");
+    if (tool === "text") {
+      assert.equal(normalized.value.tool, "text");
     }
   }
 });
@@ -203,7 +183,7 @@ test("metadata shape tools are all supported by incoming and stored validation",
   for (let index = 0; index < shapeEntries.length; index += 1) {
     const [toolName, typeName] = shapeEntries[index] || [];
     if (typeof toolName !== "string" || typeof typeName !== "string") continue;
-    const contract = TOOL_CONTRACTS_BY_NAME[toolName];
+    const contract = TOOL_BY_ID[toolName];
     const id = `shape-${index}`;
     const normalizedIncoming = messageValidation.normalizeIncomingMessage({
       tool: toolName,
@@ -245,7 +225,7 @@ test("normalizeStoredItem supports every stored tool", () => {
 test("normalizeIncomingMessage defaults shape end coordinates from the starting point", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "Straight line",
+    tool: "straight-line",
     type: "straight",
     id: "line-1",
     color: "#123456",
@@ -257,7 +237,7 @@ test("normalizeIncomingMessage defaults shape end coordinates from the starting 
   assert.deepEqual(normalized, {
     ok: true,
     value: {
-      tool: "Straight line",
+      tool: "straight-line",
       type: "straight",
       id: "line-1",
       color: "#123456",
@@ -273,7 +253,7 @@ test("normalizeIncomingMessage defaults shape end coordinates from the starting 
 test("normalizeIncomingMessage defaults x2 and y2 from distinct axes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "Rectangle",
+    tool: "rectangle",
     type: "rect",
     id: "rect-1",
     color: "#123456",
@@ -289,7 +269,7 @@ test("normalizeIncomingMessage defaults x2 and y2 from distinct axes", () => {
 test("normalizeIncomingMessage rejects malformed hand batches atomically", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "Hand",
+    tool: "hand",
     _children: [
       {
         type: "update",
@@ -328,7 +308,7 @@ test("normalizeIncomingMessage rejects messages without a tool", () => {
 test("normalizeIncomingMessage rejects oversized live shapes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "Rectangle",
+    tool: "rectangle",
     type: "rect",
     id: "rect-big",
     color: "#123456",
@@ -367,7 +347,7 @@ test("normalizeIncomingMessage allows text updates but truncates long text", () 
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const longText = "A".repeat(500);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "Text",
+    tool: "text",
     type: "update",
     id: "text-1",
     txt: longText,
@@ -380,7 +360,7 @@ test("normalizeIncomingMessage allows text updates but truncates long text", () 
 test("normalizeIncomingMessage preserves clientMutationId for persistent messages", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "Rectangle",
+    tool: "rectangle",
     type: "rect",
     id: "rect-1",
     x: 1,
@@ -399,7 +379,7 @@ test("normalizeIncomingMessage preserves clientMutationId for persistent message
 test("normalizeIncomingMessage rejects invalid clientMutationId and strips it from cursor updates", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const rejected = messageValidation.normalizeIncomingMessage({
-    tool: "Text",
+    tool: "text",
     type: "update",
     id: "text-1",
     txt: "hello",
@@ -411,7 +391,7 @@ test("normalizeIncomingMessage rejects invalid clientMutationId and strips it fr
   });
 
   const cursor = messageValidation.normalizeIncomingMessage({
-    tool: "Cursor",
+    tool: "cursor",
     type: "update",
     x: 10,
     y: 20,
@@ -427,7 +407,7 @@ test("normalizeStoredItem rejects oversized stored text", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeStoredItem(
     {
-      tool: "Text",
+      tool: "text",
       color: "#000000",
       size: 500,
       x: 0,
@@ -447,7 +427,7 @@ test("normalizeStoredItem rejects oversized stored pencil", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeStoredItem(
     {
-      tool: "Pencil",
+      tool: "pencil",
       color: "#000000",
       size: 4,
       _children: [
@@ -468,7 +448,7 @@ test("normalizeStoredItem rejects transformed oversized shapes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeStoredItem(
     {
-      tool: "Rectangle",
+      tool: "rectangle",
       color: "#123456",
       size: 4,
       x: 0,
@@ -494,7 +474,7 @@ test("normalizeStoredItem sanitizes stored pencil children before replay", async
 
     const malformedChildren = messageValidation.normalizeStoredItem(
       {
-        tool: "Pencil",
+        tool: "pencil",
         color: "#123456",
         size: 4,
         _children: [{ x: 1, y: 2 }, null, { x: 4, y: 5 }],
@@ -504,7 +484,7 @@ test("normalizeStoredItem sanitizes stored pencil children before replay", async
     assert.deepEqual(malformedChildren, {
       ok: true,
       value: {
-        tool: "Pencil",
+        tool: "pencil",
         type: "line",
         id: "line-drop",
         color: "#123456",
@@ -515,7 +495,7 @@ test("normalizeStoredItem sanitizes stored pencil children before replay", async
 
     const truncatedChildren = messageValidation.normalizeStoredItem(
       {
-        tool: "Pencil",
+        tool: "pencil",
         color: "#123456",
         size: 4,
         _children: [
@@ -529,7 +509,7 @@ test("normalizeStoredItem sanitizes stored pencil children before replay", async
     assert.deepEqual(truncatedChildren, {
       ok: true,
       value: {
-        tool: "Pencil",
+        tool: "pencil",
         type: "line",
         id: "line-cap",
         color: "#123456",

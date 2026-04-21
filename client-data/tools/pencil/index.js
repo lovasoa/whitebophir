@@ -224,9 +224,12 @@ function renderPencilPath(points) {
 
 export { parsePathData, pointsFromPathData, renderPencilPath, scanPathSummary };
 
+export const toolId = "pencil";
+export const drawsOnBoard = true;
+
 /** @type {import("../shape_contract.js").ToolContract} */
 const contract = {
-  toolName: "Pencil",
+  toolId,
   payloadKind: "children",
   liveCreateType: "line",
   storedTagName: "path",
@@ -265,7 +268,7 @@ const contract = {
     if (size === undefined || scanned.childCount === 0) return null;
     return {
       id: helpers.id,
-      tool: contract.toolName,
+      tool: contract.toolId,
       data: helpers.decorateStoredItemData(
         {
           color: helpers.readStoredSvgAttribute(entry, "stroke") || "#000000",
@@ -286,7 +289,7 @@ const contract = {
     if (points.length === 0) return null;
     return {
       id: summary.id,
-      tool: contract.toolName,
+      tool: contract.toolId,
       ...summary.data,
       _children: points,
     };
@@ -312,9 +315,10 @@ const contract = {
   },
 };
 
-export default class PencilTool {
-  static toolName = contract.toolName;
-  static contract = contract;
+export { contract };
+
+class PencilTool {
+  static toolId = contract.toolId;
   static ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
 
   /**
@@ -351,7 +355,7 @@ export default class PencilTool {
     this.drawingSize = -1;
     this.whiteOutSize = -1;
 
-    this.name = contract.toolName;
+    this.name = contract.toolId;
     this.shortcut = "p";
     this.secondary = {
       name: "White-out",
@@ -363,9 +367,7 @@ export default class PencilTool {
       },
     };
     this.mouseCursor = `url('${assetUrl("cursor.svg")}'), crosshair`;
-    this.icon = "tools/pencil/icon.svg";
     this.serverRenderedElementSelector = "path";
-    this.stylesheet = "tools/pencil/pencil.css";
   }
 
   /**
@@ -427,7 +429,7 @@ export default class PencilTool {
         this.Tools.curTool.secondary &&
         this.Tools.curTool.secondary.active
       ) {
-        this.Tools.change("Pencil");
+        this.Tools.change(toolId);
       }
       this.hasUsedStylus = true;
     }
@@ -438,7 +440,7 @@ export default class PencilTool {
         this.Tools.curTool.secondary &&
         !this.Tools.curTool.secondary.active
       ) {
-        this.Tools.change("Pencil");
+        this.Tools.change(toolId);
       }
     }
   }
@@ -471,7 +473,7 @@ export default class PencilTool {
       opacity: this.secondary.active ? 1 : this.Tools.getOpacity(),
     };
 
-    this.Tools.drawAndSend(initialData, this);
+    this.Tools.drawAndSend(initialData, toolId);
     this.move(x, y, evt);
   }
 
@@ -492,7 +494,7 @@ export default class PencilTool {
       (!this.hasSentPoint ||
         performance.now() - this.lastTime > this.getMinPencilIntervalMs())
     ) {
-      this.Tools.drawAndSend(this.createPointMessage(x, y), this);
+      this.Tools.drawAndSend(this.createPointMessage(x, y), toolId);
       this.currentLineChildCount += 1;
       this.hasSentPoint = true;
       this.lastTime = performance.now();
@@ -797,4 +799,77 @@ export default class PencilTool {
   static async boot(ctx) {
     return new PencilTool(ctx.runtime.Tools, ctx.assetUrl);
   }
+}
+
+/** @param {ToolBootContext} ctx */
+export function boot(ctx) {
+  return PencilTool.boot(ctx);
+}
+
+/**
+ * @param {PencilTool} state
+ * @param {any} data
+ */
+export function draw(state, data) {
+  return state.draw(data);
+}
+
+/**
+ * @param {PencilTool} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ */
+export function press(state, x, y, evt) {
+  return state.press(x, y, evt);
+}
+
+/**
+ * @param {PencilTool} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent | undefined} evt
+ */
+export function move(state, x, y, evt) {
+  return state.move(x, y, evt);
+}
+
+/**
+ * @param {PencilTool} state
+ * @param {number} x
+ * @param {number} y
+ */
+export function release(state, x, y) {
+  return state.release(x, y);
+}
+
+/**
+ * @param {PencilTool} state
+ * @param {SVGElement} line
+ */
+export function normalizeServerRenderedElement(state, line) {
+  return state.normalizeServerRenderedElement(line);
+}
+
+/**
+ * @param {PencilTool} state
+ * @param {{type?: string | number, id?: string}} message
+ */
+export function onMessage(state, message) {
+  return state.onMessage(message);
+}
+
+/** @param {PencilTool} state */
+export function onSocketDisconnect(state) {
+  return state.onSocketDisconnect();
+}
+
+/** @param {PencilTool} state */
+export function onstart(state) {
+  return state.onstart();
+}
+
+/** @param {PencilTool} state */
+export function onquit(state) {
+  return state.onquit();
 }

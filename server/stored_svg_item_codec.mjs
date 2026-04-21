@@ -3,11 +3,11 @@ import {
   pointsFromPathData,
   renderPencilPath,
   scanPathSummary,
-} from "../client-data/tools/pencil/pencil.js";
+} from "../client-data/tools/pencil/index.js";
 import {
-  TOOL_CONTRACTS_BY_NAME,
-  TOOL_CONTRACTS_BY_TAG,
-} from "../client-data/tools/tool_contracts.js";
+  TOOL_BY_ID,
+  TOOL_BY_STORED_TAG_NAME,
+} from "../client-data/tools/index.js";
 import { readRawAttribute } from "./svg_envelope.mjs";
 import { decodedTextLength, escapeHtml, unescapeHtml } from "./xml_escape.mjs";
 
@@ -124,7 +124,7 @@ function decorateStoredItemData(data, opacity, transform) {
 function parseStoredSvgItem(entry) {
   const summary = summarizeStoredSvgItem(entry);
   if (!summary) return null;
-  const contract = TOOL_CONTRACTS_BY_NAME[summary.tool];
+  const contract = TOOL_BY_ID[summary.tool];
   if (contract && typeof contract.parseStoredSvgItem === "function") {
     return contract.parseStoredSvgItem(summary, entry, {
       readStoredSvgAttribute,
@@ -147,7 +147,7 @@ function summarizeStoredSvgItem(entry, paintOrder) {
   if (!entry || typeof entry.tagName !== "string") return null;
   const { id, opacity, transform } = readStoredSvgBase(entry);
   if (!id) return null;
-  const contract = TOOL_CONTRACTS_BY_TAG[entry.tagName];
+  const contract = TOOL_BY_STORED_TAG_NAME[entry.tagName];
   if (contract) {
     return contract.summarizeStoredSvgItem(entry, paintOrder, {
       id,
@@ -170,8 +170,8 @@ function serializeStoredSvgItem(item) {
   if (!item || typeof item !== "object" || typeof item.tool !== "string") {
     return "";
   }
-  const contract = TOOL_CONTRACTS_BY_NAME[item.tool];
-  if (contract) {
+  const contract = TOOL_BY_ID[item.tool];
+  if (contract && typeof contract.serializeStoredSvgItem === "function") {
     return contract.serializeStoredSvgItem(item, {
       escapeHtml,
       numberOrZero,

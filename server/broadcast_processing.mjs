@@ -157,7 +157,7 @@ function consumePostNormalizationRateLimits(
  * @returns {BroadcastProcessingResult}
  */
 function processNormalizedBoardMessage(board, data, socketId) {
-  if (data.tool === "Cursor") {
+  if (data.tool === "cursor") {
     return {
       ok: true,
       value: { ...data, socket: socketId },

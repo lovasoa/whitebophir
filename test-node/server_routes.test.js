@@ -627,7 +627,7 @@ test("board pages fall back to legacy json metadata and inline baseline renderin
       __wbo_meta__: { readonly: true },
       "rect-1": {
         id: "rect-1",
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         x: 1,
         y: 2,
@@ -654,8 +654,8 @@ test("board pages fall back to legacy json metadata and inline baseline renderin
       const response = await request(app, "/boards/legacy-inline");
 
       assert.equal(response.statusCode, 200);
-      assert.match(response.body, /toolID-Hand/);
-      assert.doesNotMatch(response.body, /toolID-Pencil/);
+      assert.match(response.body, /toolID-hand/);
+      assert.doesNotMatch(response.body, /toolID-pencil/);
       assert.match(
         response.body,
         /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-readonly="true"[\s\S]*<rect id="rect-1"/,
@@ -899,7 +899,7 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
 
       assert.equal(readonlyResponse.statusCode, 200);
       assert.equal(editorResponse.statusCode, 200);
-      assert.match(readonlyResponse.body, /toolID-Hand/);
+      assert.match(readonlyResponse.body, /toolID-hand/);
       assert.match(editorResponse.body, /id="menu"/);
     } finally {
       await closeServer(app);

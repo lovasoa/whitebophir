@@ -54,7 +54,7 @@ function makeStoredPencilEntry(overrides) {
 function makeCanonicalTextItem() {
   return {
     id: "text-1",
-    tool: "Text",
+    tool: "text",
     x: 10,
     y: 20,
     size: 18,
@@ -66,7 +66,7 @@ function makeCanonicalTextItem() {
 function makeCanonicalPencilItem() {
   return {
     id: "line-1",
-    tool: "Pencil",
+    tool: "pencil",
     color: "#123456",
     size: 4,
     _children: [

@@ -102,7 +102,7 @@ test("materializeItemForSave reconstructs compressed payloads from source payloa
 
   assert.deepEqual(materializeItemForSave(persistedText, { txt: "hello" }), {
     id: "text-1",
-    tool: "Text",
+    tool: "text",
     x: 10,
     y: 20,
     size: 18,
@@ -118,7 +118,7 @@ test("materializeItemForSave reconstructs compressed payloads from source payloa
     }),
     {
       id: "line-1",
-      tool: "Pencil",
+      tool: "pencil",
       color: "#123456",
       size: 4,
       _children: [
@@ -137,7 +137,7 @@ test("publicItemFromCanonicalItem exposes canonical compressed state instead of 
 
   assert.deepEqual(publicItemFromCanonicalItem(item), {
     id: "text-1",
-    tool: "Text",
+    tool: "text",
     x: 10,
     y: 20,
     size: 18,

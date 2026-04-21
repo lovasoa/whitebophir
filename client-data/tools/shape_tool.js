@@ -1,6 +1,7 @@
 import { MutationType } from "../js/mutation_type.js";
 
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @typedef {import("../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 
 /**
  * @param {{
@@ -20,17 +21,17 @@ import { MutationType } from "../js/mutation_type.js";
  */
 export function createShapeToolClass(options) {
   return class ShapeTool {
-    static toolName = options.contract.toolName;
+    static toolId = options.contract.toolId;
     static contract = options.contract;
 
     /**
-     * @param {any} Tools
+     * @param {MountedAppToolsState} Tools
      */
     constructor(Tools) {
       this.Tools = Tools;
       this.currentShape = null;
       this.lastTime = performance.now();
-      this.name = options.contract.toolName;
+      this.name = options.contract.toolId;
       this.shortcut = options.shortcut;
       this.secondary = options.secondary || null;
       if (this.secondary?.switch) {
@@ -38,8 +39,6 @@ export function createShapeToolClass(options) {
         this.secondary.switch = () => switchShape.call(this);
       }
       this.mouseCursor = options.mouseCursor || "crosshair";
-      this.icon = options.icon;
-      this.stylesheet = options.stylesheet;
     }
 
     /**
@@ -51,7 +50,7 @@ export function createShapeToolClass(options) {
       evt.preventDefault();
       const id = this.Tools.generateUID(options.uidPrefix);
       this.currentShape = options.makeCreateMessage(this, id, x, y);
-      this.Tools.drawAndSend(this.currentShape, this);
+      this.Tools.drawAndSend(this.currentShape, options.contract.toolId);
     }
 
     /**
@@ -68,7 +67,7 @@ export function createShapeToolClass(options) {
       const update = options.makeUpdateMessage(this, x, y, evt);
       if (!update) return;
       if (performance.now() - this.lastTime > 70 || force) {
-        this.Tools.drawAndSend(update, this);
+        this.Tools.drawAndSend(update, options.contract.toolId);
         this.lastTime = performance.now();
       } else {
         this.draw(update);
@@ -96,15 +95,17 @@ export function createShapeToolClass(options) {
       }
       if (data.type === MutationType.UPDATE) {
         const svg = this.Tools.svg;
-        let shape = svg.getElementById(data.id);
-        if (!options.isShapeElement(shape)) {
-          shape = this.createShape(options.makeFallbackShape(data));
-        }
+        const existingShape = svg.getElementById(data.id);
+        const shape = /** @type {SVGElement} */ (
+          options.isShapeElement(existingShape)
+            ? existingShape
+            : this.createShape(options.makeFallbackShape(data))
+        );
         options.applyShapeGeometry(shape, data);
         return;
       }
       console.error(
-        `${options.contract.toolName}: Draw instruction with unknown type. `,
+        `${options.contract.toolId}: Draw instruction with unknown type. `,
         data,
       );
     }
@@ -115,9 +116,11 @@ export function createShapeToolClass(options) {
      */
     createShape(data) {
       const existingShape = this.Tools.svg.getElementById(data.id);
-      const shape = options.isShapeElement(existingShape)
-        ? existingShape
-        : this.Tools.createSVGElement(options.contract.storedTagName);
+      const shape = /** @type {SVGElement} */ (
+        options.isShapeElement(existingShape)
+          ? existingShape
+          : this.Tools.createSVGElement(options.contract.storedTagName)
+      );
       shape.id = data.id;
       options.applyShapeGeometry(shape, data);
       shape.setAttribute("stroke", data.color || "black");
@@ -126,9 +129,6 @@ export function createShapeToolClass(options) {
         "opacity",
         String(Math.max(0.1, Math.min(1, data.opacity || 1))),
       );
-      if (!this.Tools.drawingArea) {
-        throw new Error(`${options.contract.toolName}: Missing drawing area.`);
-      }
       if (shape.parentNode !== this.Tools.drawingArea) {
         this.Tools.drawingArea.appendChild(shape);
       }
