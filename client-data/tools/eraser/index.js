@@ -24,23 +24,16 @@
  * @licend
  */
 
-import { MutationType, getMutationTypeCode } from "../../js/mutation_type.js";
+import {
+  getMutationType,
+  MutationType,
+} from "../../js/message_tool_metadata.js";
 
 /** @typedef {{type: number, id: string}} EraserMessage */
 /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
 /** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {{tools: MountedAppToolsState, erasing: boolean}} EraserState */
-
-/**
- * @param {{type?: string | number, _children?: unknown} | null | undefined} message
- * @returns {number | undefined}
- */
-function getMessageMutationType(message) {
-  if (!message || typeof message !== "object") return undefined;
-  if (Array.isArray(message._children)) return MutationType.BATCH;
-  return getMutationTypeCode(message.type);
-}
 
 export const toolId = "eraser";
 export const shortcut = "e";
@@ -140,7 +133,7 @@ export function release(state) {
  * @param {EraserMessage | {type?: string | number, id?: string}} data
  */
 export function draw(state, data) {
-  if (getMessageMutationType(data) !== MutationType.DELETE) {
+  if (getMutationType(data) !== MutationType.DELETE) {
     console.error("Eraser: 'delete' instruction with unknown type. ", data);
     return;
   }
