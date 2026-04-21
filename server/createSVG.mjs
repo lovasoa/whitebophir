@@ -1,6 +1,7 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
 
+import { TOOL_CONTRACTS } from "../client-data/tools/tool_contracts.js";
 import config from "./configuration.mjs";
 import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
 import observability from "./observability.mjs";
@@ -17,6 +18,7 @@ const STANDALONE_SVG_RENDER_BYTES_THRESHOLD = 1024 * 1024;
 /** @typedef {{[name: string]: RenderableElement}} RenderableBoard */
 /** @typedef {{write: (chunk: string) => void}} WritableTarget */
 /** @typedef {(element: RenderableElement) => string} ToolRenderer */
+/** @typedef {import("../client-data/tools/shape_contract.js").ToolContract & {renderBoardSvg: (element: any, helpers: any) => string}} RenderToolContract */
 
 /**
  * @param {number | undefined} value
@@ -24,30 +26,6 @@ const STANDALONE_SVG_RENDER_BYTES_THRESHOLD = 1024 * 1024;
  */
 function numberOrZero(value) {
   return typeof value === "number" ? value : 0;
-}
-
-/**
- * @param {number} value
- * @returns {number}
- */
-function roundPathValue(value) {
-  return Math.round(value);
-}
-
-/**
- * @param {number} x1
- * @param {number} y1
- * @param {number} x2
- * @param {number} y2
- * @returns {{x: number, y: number, width: number, height: number}}
- */
-function normalizeRectBounds(x1, y1, x2, y2) {
-  return {
-    x: Math.min(x1, x2),
-    y: Math.min(y1, y2),
-    width: Math.abs(x2 - x1),
-    height: Math.abs(y2 - y1),
-  };
 }
 
 /**
@@ -110,143 +88,29 @@ function renderPath(el, pathstring) {
   );
 }
 
-/**
- * @param {number} x
- * @param {number} y
- * @returns {string}
- */
-function renderMoveTo(x, y) {
-  return `M ${roundPathValue(x)} ${roundPathValue(y)}`;
-}
-
-/**
- * @param {number} x
- * @param {number} y
- * @returns {string}
- */
-function renderLineTo(x, y) {
-  return ` l ${roundPathValue(x)} ${roundPathValue(y)}`;
-}
-
-/**
- * @param {Point[] | undefined} children
- * @returns {string}
- */
-function renderPencilPath(children) {
-  if (!children || children.length === 0) return "";
-
-  const firstPoint = children[0];
-  if (!firstPoint) return "";
-
-  let path = renderMoveTo(firstPoint.x, firstPoint.y);
-  let previousX = firstPoint.x;
-  let previousY = firstPoint.y;
-
-  for (let index = 1; index < children.length; index += 1) {
-    const point = children[index];
-    if (!point) continue;
-    path += renderLineTo(point.x - previousX, point.y - previousY);
-    previousX = point.x;
-    previousY = point.y;
-  }
-
-  return path;
-}
-
-/** @type {{[tool: string]: ToolRenderer}} */
-const Tools = {
-  Text: (el) => {
-    const text = /** @type {TextElement} */ (el);
-    return (
-      "<text " +
-      'id="' +
-      htmlspecialchars(text.id || "t") +
-      '" ' +
-      'x="' +
-      (text.x | 0) +
-      '" ' +
-      'y="' +
-      (text.y | 0) +
-      '" ' +
-      'font-size="' +
-      (numberOrZero(text.size) | 0) +
-      '" ' +
-      'fill="' +
-      htmlspecialchars(text.color || "#000") +
-      '" ' +
-      renderTranslate(text) +
-      ">" +
-      htmlspecialchars(text.txt || "") +
-      "</text>"
-    );
-  },
-  Pencil: (el) => {
-    const pencil = /** @type {PencilElement} */ (el);
-    const pathstring = renderPencilPath(pencil._children);
-    if (pathstring === "") return "";
-    return renderPath(pencil, pathstring);
-  },
-  Rectangle: (el) => {
-    const shape = /** @type {ShapeElement} */ (el);
-    const bounds = normalizeRectBounds(shape.x, shape.y, shape.x2, shape.y2);
-    return (
-      "<rect " +
-      (shape.id ? `id="${htmlspecialchars(shape.id)}" ` : "") +
-      'x="' +
-      bounds.x +
-      '" ' +
-      'y="' +
-      bounds.y +
-      '" ' +
-      'width="' +
-      bounds.width +
-      '" ' +
-      'height="' +
-      bounds.height +
-      '" ' +
-      'stroke="' +
-      htmlspecialchars(shape.color) +
-      '" ' +
-      'stroke-width="' +
-      (numberOrZero(shape.size) | 0) +
-      '" ' +
-      renderTranslate(shape) +
-      "/>"
-    );
-  },
-  Ellipse: (el) => {
-    const shape = /** @type {ShapeElement} */ (el);
-    const cx = Math.round((shape.x2 + shape.x) / 2);
-    const cy = Math.round((shape.y2 + shape.y) / 2);
-    const rx = Math.abs(shape.x2 - shape.x) / 2;
-    const ry = Math.abs(shape.y2 - shape.y) / 2;
-    const pathstring =
-      "M" +
-      (cx - rx) +
-      " " +
-      cy +
-      "a" +
-      rx +
-      "," +
-      ry +
-      " 0 1,0 " +
-      rx * 2 +
-      ",0" +
-      "a" +
-      rx +
-      "," +
-      ry +
-      " 0 1,0 " +
-      rx * -2 +
-      ",0";
-    return renderPath(shape, pathstring);
-  },
-  "Straight line": (el) => {
-    const shape = /** @type {ShapeElement} */ (el);
-    const pathstring = `M${shape.x} ${shape.y}L${shape.x2} ${shape.y2}`;
-    return renderPath(shape, pathstring);
-  },
-};
+/** @type {Record<string, ToolRenderer>} */
+const Tools = Object.fromEntries(
+  TOOL_CONTRACTS.filter(
+    /**
+     * @param {import("../client-data/tools/shape_contract.js").ToolContract} contract
+     * @returns {contract is RenderToolContract}
+     */
+    (contract) => typeof contract.renderBoardSvg === "function",
+  ).map((contract) => [
+    contract.toolName,
+    /**
+     * @param {RenderableElement} el
+     * @returns {string}
+     */
+    (el) =>
+      contract.renderBoardSvg(el, {
+        htmlspecialchars,
+        numberOrZero,
+        renderPath,
+        renderTranslate,
+      }),
+  ]),
+);
 
 /**
  * @param {RenderableElement} elem
