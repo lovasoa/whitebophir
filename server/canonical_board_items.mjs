@@ -108,22 +108,6 @@ function publicBaseFromCanonicalItem(item) {
 }
 
 /**
- * @param {any} value
- * @returns {boolean}
- */
-function isPencilItem(value) {
-  return !!(value && typeof value === "object" && value.tool === "Pencil");
-}
-
-/**
- * @param {any} value
- * @returns {boolean}
- */
-function isTextItem(value) {
-  return !!(value && typeof value === "object" && value.tool === "Text");
-}
-
-/**
  * @param {any} item
  * @returns {{[key: string]: any}}
  */
@@ -137,22 +121,6 @@ function readInlineAttrs(item) {
     attrs[key] = value;
   }
   return attrs;
-}
-
-/**
- * @param {any} item
- * @returns {number}
- */
-function readTextLength(item) {
-  return typeof item?.txt === "string" ? item.txt.length : 0;
-}
-
-/**
- * @param {any} item
- * @returns {Array<{x: number, y: number}>}
- */
-function readChildren(item) {
-  return Array.isArray(item?._children) ? item._children : [];
 }
 
 /**
@@ -187,8 +155,8 @@ function canonicalItemFromItem(
     time: attrs.time,
   };
 
-  if (isPencilItem(item)) {
-    const children = readChildren(item);
+  if (item.tool === "Pencil") {
+    const children = Array.isArray(item._children) ? item._children : [];
     return {
       ...base,
       payload: {
@@ -199,10 +167,10 @@ function canonicalItemFromItem(
     };
   }
 
-  if (isTextItem(item)) {
+  if (item.tool === "Text") {
     return {
       ...base,
-      textLength: readTextLength(item),
+      textLength: typeof item.txt === "string" ? item.txt.length : 0,
       payload: {
         kind: "text",
         ...(persisted
