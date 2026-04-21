@@ -63,7 +63,6 @@ import {
 import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
 
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
-/** @typedef {import("../../types/app-runtime").AppTool} AppTool */
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {import("../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
@@ -749,7 +748,7 @@ Tools.applyAuthoritativeBaseline =
   };
 
 /**
- * @param {AppTool} tool
+ * @param {MountedAppTool} tool
  * @returns {void}
  */
 function normalizeServerRenderedElementsForTool(tool) {
@@ -1022,7 +1021,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
 
 /**
  * @param {BoardMessage} data
- * @param {AppTool} tool
+ * @param {MountedAppTool} tool
  */
 Tools.queueProtectedWrite = function queueProtectedWrite(data, tool) {
   Tools.turnstilePendingWrites.push({
@@ -2699,7 +2698,7 @@ Tools.activateTool = async function activateTool(toolName) {
   return Tools.change(toolName) !== false;
 };
 
-/** @param {AppTool} tool */
+/** @param {MountedAppTool} tool */
 Tools.isBlocked = function toolIsBanned(tool) {
   return isBlockedToolName(tool.name, Tools.server_config.BLOCKED_TOOLS || []);
 };
@@ -2782,7 +2781,7 @@ Tools.change = (toolName) => {
   return true;
 };
 
-/** @param {AppTool} tool */
+/** @param {MountedAppTool} tool */
 Tools.addToolListeners = function addToolListeners(tool) {
   if (!tool.compiledListeners) return;
   for (const event in tool.compiledListeners) {
@@ -2794,7 +2793,7 @@ Tools.addToolListeners = function addToolListeners(tool) {
   }
 };
 
-/** @param {AppTool} tool */
+/** @param {MountedAppTool} tool */
 Tools.removeToolListeners = function removeToolListeners(tool) {
   if (!tool.compiledListeners) return;
   for (const event in tool.compiledListeners) {
@@ -2845,7 +2844,7 @@ Tools.send = (data, toolName) => {
 
 /**
  * @param {BoardMessage} data
- * @param {AppTool | string | null | undefined} tool
+ * @param {MountedAppTool | string | null | undefined} tool
  */
 Tools.drawAndSend = (data, tool) => {
   if (tool == null) tool = Tools.curTool;
@@ -3070,7 +3069,7 @@ function updateUnreadCount(m) {
 /** @param {BoardMessage} m */
 function notifyToolsOfMessage(m) {
   Object.values(Tools.list || {}).forEach((tool) => {
-    if (tool) tool.onMessage(m);
+    tool?.onMessage?.(m);
   });
 }
 

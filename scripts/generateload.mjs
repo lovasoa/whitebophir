@@ -87,7 +87,7 @@ async function startDrawer(page, userIndex) {
     async ({ colorSeed, pointsPerLine, childIntervalMs }) => {
       /** @type {any} */
       const tools = window.Tools;
-      await tools.bootTool?.("Pencil");
+      await tools.bootTool?.("pencil");
       const pencil = tools.list?.Pencil;
       if (!pencil) throw new Error("Missing Pencil tool");
 
@@ -136,7 +136,7 @@ async function startDrawer(page, userIndex) {
 
           tools.drawAndSend(
             {
-              tool: "Pencil",
+              tool: "pencil",
               type: "line",
               id,
               color,
@@ -150,7 +150,7 @@ async function startDrawer(page, userIndex) {
             point = randomPoint(point.x, point.y);
             tools.drawAndSend(
               {
-                tool: "Pencil",
+                tool: "pencil",
                 type: "child",
                 parent: id,
                 x: point.x,

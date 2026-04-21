@@ -119,7 +119,7 @@ export type ToolSecondaryMode = {
   switch?: () => void;
 };
 
-export type AppTool = {
+export type MountedAppTool = {
   name: string;
   shortcut?: string;
   icon: string;
@@ -130,11 +130,11 @@ export type AppTool = {
   move?: ToolPointerListener;
   release?: ToolPointerListener;
   onMessage?: (message: BoardMessage) => void;
-  listeners?: ToolPointerListeners;
-  compiledListeners?: CompiledToolListeners;
-  onstart?: (oldTool: AppTool | null) => void;
-  onquit?: (newTool: AppTool) => void;
-  onSocketDisconnect?: () => void;
+  listeners: ToolPointerListeners;
+  compiledListeners: CompiledToolListeners;
+  onstart: (oldTool: MountedAppTool | null) => void;
+  onquit: (newTool: MountedAppTool) => void;
+  onSocketDisconnect: () => void;
   stylesheet?: string;
   oneTouch?: boolean;
   alwaysOn?: boolean;
@@ -144,19 +144,6 @@ export type AppTool = {
   onSizeChange?: (size: number) => void;
   showMarker?: boolean;
   requiresWritableBoard?: boolean;
-};
-
-export type ToolRegistry = {
-  [toolName: string]: AppTool;
-};
-
-export type MountedAppTool = AppTool & {
-  listeners: ToolPointerListeners;
-  compiledListeners: CompiledToolListeners;
-  onstart: (oldTool: AppTool | null) => void;
-  onquit: (newTool: AppTool) => void;
-  onMessage: (message: BoardMessage) => void;
-  onSocketDisconnect: () => void;
 };
 
 export type MountedToolRegistry = {
@@ -334,8 +321,8 @@ export type ToolModule<T = unknown> = {
     isTouchEvent: boolean,
   ) => unknown;
   onMessage?: (state: T, message: BoardMessage) => void;
-  onstart?: (state: T, oldTool: AppTool | null) => void;
-  onquit?: (state: T, newTool: AppTool) => void;
+  onstart?: (state: T, oldTool: MountedAppTool | null) => void;
+  onquit?: (state: T, newTool: MountedAppTool) => void;
   onSocketDisconnect?: (state: T) => void;
   onSizeChange?: (state: T, size: number) => void;
 };
@@ -471,7 +458,7 @@ export type AppToolsState = {
   sendBufferedWrite: (message: BoardMessage) => boolean;
   discardBufferedWrites: () => void;
   beginAuthoritativeResync: () => void;
-  queueProtectedWrite: (data: BoardMessage, tool: AppTool) => void;
+  queueProtectedWrite: (data: BoardMessage, tool: MountedAppTool) => void;
   flushTurnstilePendingWrites: () => void;
   getToolAssetUrl: (toolName: string, assetFile: string) => string;
   mountTool: (
@@ -481,11 +468,11 @@ export type AppToolsState = {
   ) => MountedAppTool | null;
   bootTool: (toolName: string) => Promise<MountedAppTool | null>;
   activateTool: (toolName: string) => Promise<boolean>;
-  addToolListeners: (tool: AppTool) => void;
-  removeToolListeners: (tool: AppTool) => void;
+  addToolListeners: (tool: MountedAppTool) => void;
+  removeToolListeners: (tool: MountedAppTool) => void;
   drawAndSend: (
     message: BoardMessage,
-    tool?: AppTool | string,
+    tool?: MountedAppTool | string,
   ) => boolean | undefined;
   send: (message: BoardMessage, toolName?: string) => boolean | undefined;
   getColor: () => string;
@@ -531,7 +518,7 @@ export type AppToolsState = {
   ) => void;
   updateCurrentConnectedUserFromActivity: (message: BoardMessage) => void;
   initConnectedUsersUI: () => void;
-  isBlocked: (tool: AppTool) => boolean;
+  isBlocked: (tool: MountedAppTool) => boolean;
   applyHooks: <T>(hooks: ((value: T) => void)[], object: T) => void;
   positionElement: (elem: HTMLElement, x: number, y: number) => void;
   change: (toolName: string) => boolean | undefined;

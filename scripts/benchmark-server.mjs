@@ -136,7 +136,7 @@ function buildBoard(itemCount, pencilEvery, pencilPoints) {
       const id = `pencil-${index}`;
       board[id] = {
         id,
-        tool: "Pencil",
+        tool: "pencil",
         type: "line",
         color: DEFAULT_COLOR,
         size: 4,
@@ -155,7 +155,7 @@ function buildBoard(itemCount, pencilEvery, pencilPoints) {
       const id = `rect-${index}`;
       board[id] = {
         id,
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         color: DEFAULT_COLOR,
         size: 2,
@@ -173,7 +173,7 @@ function buildBoard(itemCount, pencilEvery, pencilPoints) {
       const id = `line-${index}`;
       board[id] = {
         id,
-        tool: "Straight line",
+        tool: "straight-line",
         type: "line",
         color: DEFAULT_COLOR,
         size: 2,
@@ -190,7 +190,7 @@ function buildBoard(itemCount, pencilEvery, pencilPoints) {
     const id = `text-${index}`;
     board[id] = {
       id,
-      tool: "Text",
+      tool: "text",
       type: "new",
       color: DEFAULT_COLOR,
       size: 18,
@@ -404,7 +404,7 @@ function createBroadcastMessages() {
   return Array.from({ length: BROADCAST_MESSAGE_COUNT }, (_, index) => {
     if (index % 4 === 0) {
       return {
-        tool: "Pencil",
+        tool: "pencil",
         type: "child",
         parent: `pencil-${index % 100}`,
         x: index % 2000,
@@ -413,7 +413,7 @@ function createBroadcastMessages() {
     }
     if (index % 4 === 1) {
       return {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "update",
         id: `rect-${index % 500}`,
         x: index % 3000,
@@ -424,14 +424,14 @@ function createBroadcastMessages() {
     }
     if (index % 4 === 2) {
       return {
-        tool: "Text",
+        tool: "text",
         type: "update",
         id: `text-${index % 500}`,
         txt: `bench-${index}`,
       };
     }
     return {
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       id: `shape-${index}`,
       color: DEFAULT_COLOR,
@@ -450,7 +450,7 @@ function createBroadcastContext() {
   for (let index = 0; index < 500; index += 1) {
     board.set(`rect-${index}`, {
       id: `rect-${index}`,
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       color: DEFAULT_COLOR,
       size: 2,
@@ -461,7 +461,7 @@ function createBroadcastContext() {
     });
     board.set(`text-${index}`, {
       id: `text-${index}`,
-      tool: "Text",
+      tool: "text",
       type: "new",
       color: DEFAULT_COLOR,
       size: 18,
@@ -473,7 +473,7 @@ function createBroadcastContext() {
   for (let index = 0; index < 100; index += 1) {
     board.set(`pencil-${index}`, {
       id: `pencil-${index}`,
-      tool: "Pencil",
+      tool: "pencil",
       type: "line",
       color: DEFAULT_COLOR,
       size: 4,
@@ -550,7 +550,7 @@ async function runEndToEndEraseBenchmark() {
         id: targetId,
         clientMutationId: window.Tools.generateUID("cm-"),
       },
-      "Eraser",
+      "eraser",
     );
   }, fixture.lastPencilId);
   if (eraseSent !== true) {
@@ -659,7 +659,7 @@ async function runPersistBenchmark() {
   for (const id of fixture.pencilIds.slice(0, PERSIST_PENCIL_UPDATES)) {
     const bounds = board.itemsById.get(id)?.bounds;
     const result = board.processMessage({
-      tool: "Pencil",
+      tool: "pencil",
       type: "child",
       parent: id,
       x: (bounds?.maxX ?? 0) + 1,
@@ -670,7 +670,7 @@ async function runPersistBenchmark() {
 
   for (const id of fixture.shapeIds.slice(0, PERSIST_SHAPE_UPDATES)) {
     const result = board.processMessage({
-      tool: "Hand",
+      tool: "hand",
       type: "update",
       id,
       transform: { a: 1, b: 0, c: 0, d: 1, e: 12, f: 18 },
