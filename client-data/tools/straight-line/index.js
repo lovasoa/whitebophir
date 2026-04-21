@@ -1,4 +1,10 @@
-import { createShapeToolClass } from "../shape_tool.js";
+import {
+  bootShapeTool,
+  drawShapeTool,
+  moveShapeTool,
+  pressShapeTool,
+  releaseShapeTool,
+} from "../shape_tool.js";
 import { MutationType } from "../../js/mutation_type.js";
 import {
   defineShapeContract,
@@ -76,39 +82,39 @@ const contract = defineShapeContract({
   },
 });
 export { contract };
+export const shortcut = "l";
+export const secondary = {
+  name: "Straight line",
+  icon: "tools/straight-line/icon-straight.svg",
+  active: false,
+};
 
-const StraightLineTool = createShapeToolClass({
+/** @type {import("../shape_tool.js").ShapeToolConfig} */
+const config = {
   contract,
-  shortcut: "l",
-  icon: "tools/straight-line/icon.svg",
-  stylesheet: "tools/straight-line/straight-line.css",
-  secondary: {
-    name: "Straight line",
-    icon: "tools/straight-line/icon-straight.svg",
-    active: false,
-  },
+  secondary,
   uidPrefix: "s",
   isShapeElement: (element) =>
     String(element?.tagName).toLowerCase() === contract.storedTagName,
-  makeCreateMessage: (tool, id, x, y) => ({
+  makeCreateMessage: (state, id, x, y) => ({
     type: contract.liveCreateType,
     id,
-    color: tool.Tools.getColor(),
-    size: tool.Tools.getSize(),
-    opacity: tool.Tools.getOpacity(),
+    color: state.Tools.getColor(),
+    size: state.Tools.getSize(),
+    opacity: state.Tools.getOpacity(),
     x,
     y,
   }),
-  makeUpdateMessage: (tool, x, y) => {
-    const start = tool.currentShape;
+  makeUpdateMessage: (state, x, y) => {
+    const start = state.currentShape;
     if (!start) return null;
-    if (tool.secondary?.active) {
+    if (state.secondary?.active) {
       let alpha = Math.atan2(y - start.y, x - start.x);
       const d = Math.hypot(y - start.y, x - start.x);
       const increment = (2 * Math.PI) / 16;
       alpha = Math.round(alpha / increment) * increment;
-      x = tool.Tools.toBoardCoordinate(start.x + d * Math.cos(alpha));
-      y = tool.Tools.toBoardCoordinate(start.y + d * Math.sin(alpha));
+      x = state.Tools.toBoardCoordinate(start.x + d * Math.cos(alpha));
+      y = state.Tools.toBoardCoordinate(start.y + d * Math.sin(alpha));
     }
     return {
       type: MutationType.UPDATE,
@@ -133,11 +139,11 @@ const StraightLineTool = createShapeToolClass({
     line.x2.baseVal.value = data.x2 ?? data.x;
     line.y2.baseVal.value = data.y2 ?? data.y;
   },
-});
+};
 
 /** @param {import("../../../types/app-runtime").ToolBootContext} ctx */
 export function boot(ctx) {
-  return StraightLineTool.boot(ctx);
+  return bootShapeTool(config, ctx);
 }
 
 /**
@@ -145,7 +151,7 @@ export function boot(ctx) {
  * @param {any} data
  */
 export function draw(state, data) {
-  return state.draw(data);
+  return drawShapeTool(state, data);
 }
 
 /**
@@ -155,7 +161,7 @@ export function draw(state, data) {
  * @param {MouseEvent | TouchEvent} evt
  */
 export function press(state, x, y, evt) {
-  return state.press(x, y, evt);
+  return pressShapeTool(state, x, y, evt);
 }
 
 /**
@@ -165,7 +171,7 @@ export function press(state, x, y, evt) {
  * @param {MouseEvent | TouchEvent | undefined} evt
  */
 export function move(state, x, y, evt) {
-  return state.move(x, y, evt);
+  return moveShapeTool(state, x, y, evt);
 }
 
 /**
@@ -174,5 +180,5 @@ export function move(state, x, y, evt) {
  * @param {number} y
  */
 export function release(state, x, y) {
-  return state.release(x, y);
+  return releaseShapeTool(state, x, y);
 }

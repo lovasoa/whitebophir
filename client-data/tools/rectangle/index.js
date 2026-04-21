@@ -1,4 +1,10 @@
-import { createShapeToolClass } from "../shape_tool.js";
+import {
+  bootShapeTool,
+  drawShapeTool,
+  moveShapeTool,
+  pressShapeTool,
+  releaseShapeTool,
+} from "../shape_tool.js";
 import { MutationType } from "../../js/mutation_type.js";
 import {
   defineShapeContract,
@@ -91,35 +97,35 @@ const contract = defineShapeContract({
   },
 });
 export { contract };
+export const shortcut = "r";
+export const secondary = {
+  name: "Square",
+  icon: "tools/rectangle/icon-square.svg",
+  active: false,
+};
 
-const RectangleTool = createShapeToolClass({
+/** @type {import("../shape_tool.js").ShapeToolConfig} */
+const config = {
   contract,
-  shortcut: "r",
-  icon: "tools/rectangle/icon.svg",
-  stylesheet: "tools/rectangle/rectangle.css",
-  secondary: {
-    name: "Square",
-    icon: "tools/rectangle/icon-square.svg",
-    active: false,
-  },
+  secondary,
   uidPrefix: "r",
   isShapeElement: (element) =>
     String(element?.tagName).toLowerCase() === contract.storedTagName,
-  makeCreateMessage: (tool, id, x, y) => ({
+  makeCreateMessage: (state, id, x, y) => ({
     type: contract.liveCreateType,
     id,
-    color: tool.Tools.getColor(),
-    size: tool.Tools.getSize(),
-    opacity: tool.Tools.getOpacity(),
+    color: state.Tools.getColor(),
+    size: state.Tools.getSize(),
+    opacity: state.Tools.getOpacity(),
     x,
     y,
     x2: x,
     y2: y,
   }),
-  makeUpdateMessage: (tool, x, y) => {
-    const start = tool.currentShape;
+  makeUpdateMessage: (state, x, y) => {
+    const start = state.currentShape;
     if (!start) return null;
-    if (tool.secondary?.active) {
+    if (state.secondary?.active) {
       const dx = x - start.x;
       const dy = y - start.y;
       const d = Math.max(Math.abs(dx), Math.abs(dy));
@@ -149,11 +155,11 @@ const RectangleTool = createShapeToolClass({
     rect.width.baseVal.value = Math.abs(data.x2 - data.x);
     rect.height.baseVal.value = Math.abs(data.y2 - data.y);
   },
-});
+};
 
 /** @param {import("../../../types/app-runtime").ToolBootContext} ctx */
 export function boot(ctx) {
-  return RectangleTool.boot(ctx);
+  return bootShapeTool(config, ctx);
 }
 
 /**
@@ -161,7 +167,7 @@ export function boot(ctx) {
  * @param {any} data
  */
 export function draw(state, data) {
-  return state.draw(data);
+  return drawShapeTool(state, data);
 }
 
 /**
@@ -171,7 +177,7 @@ export function draw(state, data) {
  * @param {MouseEvent | TouchEvent} evt
  */
 export function press(state, x, y, evt) {
-  return state.press(x, y, evt);
+  return pressShapeTool(state, x, y, evt);
 }
 
 /**
@@ -181,7 +187,7 @@ export function press(state, x, y, evt) {
  * @param {MouseEvent | TouchEvent | undefined} evt
  */
 export function move(state, x, y, evt) {
-  return state.move(x, y, evt);
+  return moveShapeTool(state, x, y, evt);
 }
 
 /**
@@ -190,5 +196,5 @@ export function move(state, x, y, evt) {
  * @param {number} y
  */
 export function release(state, x, y) {
-  return state.release(x, y);
+  return releaseShapeTool(state, x, y);
 }

@@ -1,4 +1,10 @@
-import { createShapeToolClass } from "../shape_tool.js";
+import {
+  bootShapeTool,
+  drawShapeTool,
+  moveShapeTool,
+  pressShapeTool,
+  releaseShapeTool,
+} from "../shape_tool.js";
 import { MutationType } from "../../js/mutation_type.js";
 import {
   defineShapeContract,
@@ -83,47 +89,45 @@ const contract = defineShapeContract({
   },
 });
 export { contract };
+export const shortcut = "c";
 
-const EllipseTool = createShapeToolClass({
+/** @type {import("../shape_tool.js").ShapeToolConfig} */
+const config = {
   contract,
-  shortcut: "c",
-  icon: "tools/ellipse/icon.svg",
-  stylesheet: "tools/ellipse/ellipse.css",
   secondary: {
     name: "Circle",
     icon: "tools/ellipse/icon-circle.svg",
     active: false,
-    /** @this {any} */
-    switch() {
-      if (!this.currentShape) return;
-      this.move(this.lastPos.x, this.lastPos.y, undefined, false);
+    switch: (state) => {
+      if (!state.currentShape) return;
+      moveShapeTool(state, state.lastPos.x, state.lastPos.y, undefined);
     },
   },
   uidPrefix: "e",
   isShapeElement: (element) =>
     String(element?.tagName).toLowerCase() === contract.storedTagName,
-  makeCreateMessage: (tool, id, x, y) => {
-    tool.lastPos = { x, y };
+  makeCreateMessage: (state, id, x, y) => {
+    state.lastPos = { x, y };
     return {
       type: contract.liveCreateType,
       id,
-      color: tool.Tools.getColor(),
-      size: tool.Tools.getSize(),
-      opacity: tool.Tools.getOpacity(),
+      color: state.Tools.getColor(),
+      size: state.Tools.getSize(),
+      opacity: state.Tools.getOpacity(),
       x,
       y,
       x2: x,
       y2: y,
     };
   },
-  makeUpdateMessage: (tool, x, y, evt) => {
-    const start = tool.currentShape;
+  makeUpdateMessage: (state, x, y, evt) => {
+    const start = state.currentShape;
     if (!start) return null;
     if (evt) {
-      tool.secondary.active = tool.secondary.active || evt.shiftKey;
+      state.secondary.active = state.secondary.active || evt.shiftKey;
     }
-    tool.lastPos = { x, y };
-    if (tool.secondary?.active) {
+    state.lastPos = { x, y };
+    if (state.secondary?.active) {
       const deltaX = x - start.x;
       const deltaY = y - start.y;
       const diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
@@ -153,11 +157,12 @@ const EllipseTool = createShapeToolClass({
     ellipse.rx.baseVal.value = Math.abs(data.x2 - data.x) / 2;
     ellipse.ry.baseVal.value = Math.abs(data.y2 - data.y) / 2;
   },
-});
+};
+export const secondary = config.secondary;
 
 /** @param {import("../../../types/app-runtime").ToolBootContext} ctx */
 export function boot(ctx) {
-  return EllipseTool.boot(ctx);
+  return bootShapeTool(config, ctx);
 }
 
 /**
@@ -165,7 +170,7 @@ export function boot(ctx) {
  * @param {any} data
  */
 export function draw(state, data) {
-  return state.draw(data);
+  return drawShapeTool(state, data);
 }
 
 /**
@@ -175,7 +180,7 @@ export function draw(state, data) {
  * @param {MouseEvent | TouchEvent} evt
  */
 export function press(state, x, y, evt) {
-  return state.press(x, y, evt);
+  return pressShapeTool(state, x, y, evt);
 }
 
 /**
@@ -185,7 +190,7 @@ export function press(state, x, y, evt) {
  * @param {MouseEvent | TouchEvent | undefined} evt
  */
 export function move(state, x, y, evt) {
-  return state.move(x, y, evt);
+  return moveShapeTool(state, x, y, evt);
 }
 
 /**
@@ -194,5 +199,5 @@ export function move(state, x, y, evt) {
  * @param {number} y
  */
 export function release(state, x, y) {
-  return state.release(x, y);
+  return releaseShapeTool(state, x, y);
 }

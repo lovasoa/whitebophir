@@ -4,143 +4,139 @@ import { MutationType } from "../js/mutation_type.js";
 /** @typedef {import("../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 
 /**
- * @param {{
+ * @typedef {{
  *   contract: import("./shape_contract.js").ToolContract & {liveCreateType?: string, storedTagName: string},
- *   shortcut: string,
- *   icon: string,
- *   stylesheet: string,
- *   mouseCursor?: string,
- *   secondary?: {name: string, icon: string, active: boolean, switch?: () => void},
+ *   secondary?: {name: string, icon: string, active: boolean, switch?: (state: any) => void},
  *   uidPrefix: string,
  *   isShapeElement: (element: Element | null) => boolean,
- *   makeCreateMessage: (tool: any, id: string, x: number, y: number) => any,
- *   makeUpdateMessage: (tool: any, x: number, y: number, evt: any) => any,
+ *   makeCreateMessage: (state: any, id: string, x: number, y: number) => any,
+ *   makeUpdateMessage: (state: any, x: number, y: number, evt: any) => any,
  *   makeFallbackShape: (update: any) => any,
  *   applyShapeGeometry: (shape: SVGElement, data: any) => void,
- * }} options
+ * }} ShapeToolConfig
  */
-export function createShapeToolClass(options) {
-  return class ShapeTool {
-    static toolId = options.contract.toolId;
-    static contract = options.contract;
 
-    /**
-     * @param {MountedAppToolsState} Tools
-     */
-    constructor(Tools) {
-      this.Tools = Tools;
-      this.currentShape = null;
-      this.lastTime = performance.now();
-      this.name = options.contract.toolId;
-      this.shortcut = options.shortcut;
-      this.secondary = options.secondary || null;
-      if (this.secondary?.switch) {
-        const switchShape = this.secondary.switch;
-        this.secondary.switch = () => switchShape.call(this);
-      }
-      this.mouseCursor = options.mouseCursor || "crosshair";
-    }
-
-    /**
-     * @param {number} x
-     * @param {number} y
-     * @param {MouseEvent | TouchEvent} evt
-     */
-    press(x, y, evt) {
-      evt.preventDefault();
-      const id = this.Tools.generateUID(options.uidPrefix);
-      this.currentShape = options.makeCreateMessage(this, id, x, y);
-      this.Tools.drawAndSend(this.currentShape, options.contract.toolId);
-    }
-
-    /**
-     * @param {number} x
-     * @param {number} y
-     * @param {MouseEvent | TouchEvent | undefined} evt
-     * @param {boolean} [force]
-     */
-    move(x, y, evt, force = false) {
-      if (!this.currentShape) {
-        if (evt) evt.preventDefault();
-        return;
-      }
-      const update = options.makeUpdateMessage(this, x, y, evt);
-      if (!update) return;
-      if (performance.now() - this.lastTime > 70 || force) {
-        this.Tools.drawAndSend(update, options.contract.toolId);
-        this.lastTime = performance.now();
-      } else {
-        this.draw(update);
-      }
-      if (evt) evt.preventDefault();
-    }
-
-    /**
-     * @param {number} x
-     * @param {number} y
-     */
-    release(x, y) {
-      this.move(x, y, undefined, true);
-      this.currentShape = null;
-    }
-
-    /**
-     * @param {any} data
-     */
-    draw(data) {
-      this.Tools.drawingEvent = true;
-      if (data.type === options.contract.liveCreateType) {
-        this.createShape(data);
-        return;
-      }
-      if (data.type === MutationType.UPDATE) {
-        const svg = this.Tools.svg;
-        const existingShape = svg.getElementById(data.id);
-        const shape = /** @type {SVGElement} */ (
-          options.isShapeElement(existingShape)
-            ? existingShape
-            : this.createShape(options.makeFallbackShape(data))
-        );
-        options.applyShapeGeometry(shape, data);
-        return;
-      }
-      console.error(
-        `${options.contract.toolId}: Draw instruction with unknown type. `,
-        data,
-      );
-    }
-
-    /**
-     * @param {any} data
-     * @returns {SVGElement}
-     */
-    createShape(data) {
-      const existingShape = this.Tools.svg.getElementById(data.id);
-      const shape = /** @type {SVGElement} */ (
-        options.isShapeElement(existingShape)
-          ? existingShape
-          : this.Tools.createSVGElement(options.contract.storedTagName)
-      );
-      shape.id = data.id;
-      options.applyShapeGeometry(shape, data);
-      shape.setAttribute("stroke", data.color || "black");
-      shape.setAttribute("stroke-width", String(data.size || 10));
-      shape.setAttribute(
-        "opacity",
-        String(Math.max(0.1, Math.min(1, data.opacity || 1))),
-      );
-      if (shape.parentNode !== this.Tools.drawingArea) {
-        this.Tools.drawingArea.appendChild(shape);
-      }
-      return shape;
-    }
-
-    /**
-     * @param {ToolBootContext} ctx
-     * @returns {Promise<any>}
-     */
-    static async boot(ctx) {
-      return new ShapeTool(ctx.runtime.Tools);
-    }
+/**
+ * @param {ShapeToolConfig} config
+ * @param {ToolBootContext} ctx
+ * @returns {any}
+ */
+export function bootShapeTool(config, ctx) {
+  /** @type {any} */
+  const state = {
+    Tools: /** @type {MountedAppToolsState} */ (ctx.runtime.Tools),
+    currentShape: null,
+    lastTime: performance.now(),
+    secondary: null,
+    config,
   };
+  if (config.secondary) {
+    const secondary = config.secondary;
+    state.secondary = { ...secondary };
+    const switchSecondary = secondary.switch;
+    if (typeof switchSecondary === "function") {
+      state.secondary.switch = () => switchSecondary(state);
+    }
+  }
+  return state;
+}
+
+/**
+ * @param {any} state
+ * @param {any} data
+ * @returns {SVGElement}
+ */
+function createShape(state, data) {
+  const { Tools, config } = state;
+  const existingShape = Tools.svg.getElementById(data.id);
+  const shape = /** @type {SVGElement} */ (
+    config.isShapeElement(existingShape)
+      ? existingShape
+      : Tools.createSVGElement(config.contract.storedTagName)
+  );
+  shape.id = data.id;
+  config.applyShapeGeometry(shape, data);
+  shape.setAttribute("stroke", data.color || "black");
+  shape.setAttribute("stroke-width", String(data.size || 10));
+  shape.setAttribute(
+    "opacity",
+    String(Math.max(0.1, Math.min(1, data.opacity || 1))),
+  );
+  if (shape.parentNode !== Tools.drawingArea) {
+    Tools.drawingArea.appendChild(shape);
+  }
+  return shape;
+}
+
+/**
+ * @param {any} state
+ * @param {any} data
+ */
+export function drawShapeTool(state, data) {
+  const { Tools, config } = state;
+  Tools.drawingEvent = true;
+  if (data.type === config.contract.liveCreateType) {
+    createShape(state, data);
+    return;
+  }
+  if (data.type === MutationType.UPDATE) {
+    const existingShape = Tools.svg.getElementById(data.id);
+    const shape = /** @type {SVGElement} */ (
+      config.isShapeElement(existingShape)
+        ? existingShape
+        : createShape(state, config.makeFallbackShape(data))
+    );
+    config.applyShapeGeometry(shape, data);
+    return;
+  }
+  console.error(
+    `${config.contract.toolId}: Draw instruction with unknown type. `,
+    data,
+  );
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent} evt
+ */
+export function pressShapeTool(state, x, y, evt) {
+  evt.preventDefault();
+  const id = state.Tools.generateUID(state.config.uidPrefix);
+  state.currentShape = state.config.makeCreateMessage(state, id, x, y);
+  state.Tools.drawAndSend(state.currentShape, state.config.contract.toolId);
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent | undefined} evt
+ * @param {boolean} [force]
+ */
+export function moveShapeTool(state, x, y, evt, force = false) {
+  if (!state.currentShape) {
+    if (evt) evt.preventDefault();
+    return;
+  }
+  const update = state.config.makeUpdateMessage(state, x, y, evt);
+  if (!update) return;
+  if (performance.now() - state.lastTime > 70 || force) {
+    state.Tools.drawAndSend(update, state.config.contract.toolId);
+    state.lastTime = performance.now();
+  } else {
+    drawShapeTool(state, update);
+  }
+  if (evt) evt.preventDefault();
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
+ */
+export function releaseShapeTool(state, x, y) {
+  moveShapeTool(state, x, y, undefined, true);
+  state.currentShape = null;
 }
