@@ -1,3 +1,6 @@
+/** @typedef {import("../../types/app-runtime").OptimisticJournalEntry} OptimisticJournalEntry */
+/** @typedef {import("../../types/app-runtime").OptimisticJournalEntryInput} OptimisticJournalEntryInput */
+
 /**
  * @param {unknown} value
  * @returns {string[]}
@@ -8,8 +11,8 @@ function normalizeStringArray(value) {
 }
 
 /**
- * @param {any} entry
- * @returns {any}
+ * @param {OptimisticJournalEntry} entry
+ * @returns {OptimisticJournalEntry}
  */
 function cloneEntry(entry) {
   return {
@@ -23,10 +26,10 @@ function cloneEntry(entry) {
 }
 
 /**
- * @param {any} entry
- * @returns {any}
+ * @param {OptimisticJournalEntryInput} entry
+ * @returns {OptimisticJournalEntry}
  */
-function normalizeEntry(entry) {
+function createEntry(entry) {
   if (!entry || typeof entry !== "object") {
     throw new Error("Optimistic journal entry must be an object");
   }
@@ -47,7 +50,7 @@ function normalizeEntry(entry) {
 }
 
 export function createOptimisticJournal() {
-  /** @type {Map<string, any>} */
+  /** @type {Map<string, OptimisticJournalEntry>} */
   const entries = new Map();
   /** @type {Map<string, string[]>} */
   const latestMutationIdsByItemId = new Map();
@@ -55,11 +58,11 @@ export function createOptimisticJournal() {
   let order = [];
 
   /**
-   * @param {any} entry
+   * @param {OptimisticJournalEntry} entry
    * @returns {void}
    */
   function addEntryToIndexes(entry) {
-    entry.affectedIds.forEach((/** @type {string} */ itemId) => {
+    entry.affectedIds.forEach((itemId) => {
       const mutationIds = latestMutationIdsByItemId.get(itemId) || [];
       mutationIds.push(entry.clientMutationId);
       latestMutationIdsByItemId.set(itemId, mutationIds);
@@ -67,11 +70,11 @@ export function createOptimisticJournal() {
   }
 
   /**
-   * @param {any} entry
+   * @param {OptimisticJournalEntry} entry
    * @returns {void}
    */
   function removeEntryFromIndexes(entry) {
-    entry.affectedIds.forEach((/** @type {string} */ itemId) => {
+    entry.affectedIds.forEach((itemId) => {
       const mutationIds = latestMutationIdsByItemId.get(itemId);
       if (!mutationIds) return;
       const nextMutationIds = mutationIds.filter(
@@ -85,78 +88,93 @@ export function createOptimisticJournal() {
     });
   }
 
+  /**
+   * @param {Set<string>} rejectedIds
+   * @returns {void}
+   */
+  function expandRejectedIds(rejectedIds) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const id of order) {
+        const entry = entries.get(id);
+        if (!entry || rejectedIds.has(id)) continue;
+        if (
+          entry.dependsOn.some((dependencyId) => rejectedIds.has(dependencyId))
+        ) {
+          rejectedIds.add(id);
+          changed = true;
+        }
+      }
+    }
+  }
+
+  /**
+   * @param {Set<string>} entryIds
+   * @returns {OptimisticJournalEntry[]}
+   */
+  function removeEntries(entryIds) {
+    if (entryIds.size === 0) return [];
+    /** @type {OptimisticJournalEntry[]} */
+    const removedEntries = [];
+    order = order.filter((id) => {
+      if (!entryIds.has(id)) return true;
+      const entry = entries.get(id);
+      if (entry) {
+        removedEntries.push(cloneEntry(entry));
+        removeEntryFromIndexes(entry);
+      }
+      entries.delete(id);
+      return false;
+    });
+    return removedEntries;
+  }
+
+  /** @returns {OptimisticJournalEntry[]} */
   function list() {
-    return order.map((clientMutationId) =>
-      cloneEntry(entries.get(clientMutationId)),
-    );
+    return order.flatMap((clientMutationId) => {
+      const entry = entries.get(clientMutationId);
+      return entry ? [cloneEntry(entry)] : [];
+    });
   }
 
   return {
     /**
-     * @param {any} entry
-     * @returns {any}
+     * @param {OptimisticJournalEntryInput} entry
+     * @returns {OptimisticJournalEntry}
      */
     append(entry) {
-      const normalized = normalizeEntry(entry);
-      const existing = entries.get(normalized.clientMutationId);
-      if (existing) {
-        removeEntryFromIndexes(existing);
-      }
-      entries.set(normalized.clientMutationId, normalized);
-      order = order.filter((id) => id !== normalized.clientMutationId);
-      order.push(normalized.clientMutationId);
-      addEntryToIndexes(normalized);
-      return cloneEntry(normalized);
+      const nextEntry = createEntry(entry);
+      const existing = entries.get(nextEntry.clientMutationId);
+      if (existing) removeEntryFromIndexes(existing);
+      entries.set(nextEntry.clientMutationId, nextEntry);
+      order = order.filter((id) => id !== nextEntry.clientMutationId);
+      order.push(nextEntry.clientMutationId);
+      addEntryToIndexes(nextEntry);
+      return cloneEntry(nextEntry);
     },
     /**
      * @param {string} clientMutationId
-     * @returns {any[]}
+     * @returns {OptimisticJournalEntry[]}
      */
     promote(clientMutationId) {
-      if (!entries.has(clientMutationId)) return [];
-      const promoted = cloneEntry(entries.get(clientMutationId));
-      removeEntryFromIndexes(entries.get(clientMutationId));
-      entries.delete(clientMutationId);
-      order = order.filter((id) => id !== clientMutationId);
-      return [promoted];
+      return entries.has(clientMutationId)
+        ? removeEntries(new Set([clientMutationId]))
+        : [];
     },
     /**
      * @param {string} clientMutationId
-     * @returns {any[]}
+     * @returns {OptimisticJournalEntry[]}
      */
     reject(clientMutationId) {
       if (!entries.has(clientMutationId)) return [];
       const rejectedIds = new Set([clientMutationId]);
-      let changed = true;
-      while (changed) {
-        changed = false;
-        order.forEach((id) => {
-          const entry = entries.get(id);
-          if (!entry || rejectedIds.has(id)) return;
-          if (
-            entry.dependsOn.some((/** @type {string} */ dependencyId) =>
-              rejectedIds.has(dependencyId),
-            )
-          ) {
-            rejectedIds.add(id);
-            changed = true;
-          }
-        });
-      }
-      const rejectedEntries = order
-        .filter((id) => rejectedIds.has(id))
-        .map((id) => cloneEntry(entries.get(id)));
-      rejectedIds.forEach((id) => {
-        const entry = entries.get(id);
-        if (entry) removeEntryFromIndexes(entry);
-        entries.delete(id);
-      });
-      order = order.filter((id) => !rejectedIds.has(id));
-      return rejectedEntries;
+      expandRejectedIds(rejectedIds);
+      return removeEntries(rejectedIds);
     },
     /**
      * @param {string[]} invalidatedIds
-     * @returns {any[]}
+     * @returns {OptimisticJournalEntry[]}
      */
     rejectByInvalidatedIds(invalidatedIds) {
       const invalidatedIdSet = new Set(normalizeStringArray(invalidatedIds));
@@ -164,45 +182,19 @@ export function createOptimisticJournal() {
       const rejectedIds = new Set(
         order.filter((id) => {
           const entry = entries.get(id);
-          if (!entry) return false;
-          return (
-            entry.affectedIds.some((/** @type {string} */ affectedId) =>
+          return !!(
+            entry &&
+            (entry.affectedIds.some((affectedId) =>
               invalidatedIdSet.has(affectedId),
             ) ||
-            entry.dependencyItemIds.some(
-              (/** @type {string} */ dependencyItemId) =>
+              entry.dependencyItemIds.some((dependencyItemId) =>
                 invalidatedIdSet.has(dependencyItemId),
-            )
+              ))
           );
         }),
       );
-      if (rejectedIds.size === 0) return [];
-      let changed = true;
-      while (changed) {
-        changed = false;
-        order.forEach((id) => {
-          const entry = entries.get(id);
-          if (!entry || rejectedIds.has(id)) return;
-          if (
-            entry.dependsOn.some((/** @type {string} */ dependencyId) =>
-              rejectedIds.has(dependencyId),
-            )
-          ) {
-            rejectedIds.add(id);
-            changed = true;
-          }
-        });
-      }
-      const rejectedEntries = order
-        .filter((id) => rejectedIds.has(id))
-        .map((id) => cloneEntry(entries.get(id)));
-      rejectedIds.forEach((id) => {
-        const entry = entries.get(id);
-        if (entry) removeEntryFromIndexes(entry);
-        entries.delete(id);
-      });
-      order = order.filter((id) => !rejectedIds.has(id));
-      return rejectedEntries;
+      expandRejectedIds(rejectedIds);
+      return removeEntries(rejectedIds);
     },
     /**
      * @param {string[]} itemIds

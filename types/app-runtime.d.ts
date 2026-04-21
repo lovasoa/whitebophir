@@ -255,8 +255,15 @@ export type OptimisticJournalEntry = {
   message: BoardMessage;
 };
 
+export type OptimisticJournalEntryInput = Omit<
+  OptimisticJournalEntry,
+  "dependencyItemIds"
+> & {
+  dependencyItemIds?: string[];
+};
+
 export type OptimisticJournalState = {
-  append: (entry: OptimisticJournalEntry) => OptimisticJournalEntry;
+  append: (entry: OptimisticJournalEntryInput) => OptimisticJournalEntry;
   dependencyMutationIdsForItemIds: (itemIds: string[]) => string[];
   promote: (clientMutationId: string) => OptimisticJournalEntry[];
   reject: (clientMutationId: string) => OptimisticJournalEntry[];
@@ -368,7 +375,7 @@ export type AppToolsState = {
   useSeqSyncProtocol: boolean;
   bufferedWrites: BufferedWrite[];
   bufferedWriteTimer: ReturnType<typeof setTimeout> | null;
-  writeReadyWaiters: Array<(value: undefined) => void>;
+  writeReadyWaiters: Array<() => void>;
   rateLimitedUntil: number;
   rateLimitNoticeTimer: ReturnType<typeof setTimeout> | null;
   rateLimitNoticeMessage: string;

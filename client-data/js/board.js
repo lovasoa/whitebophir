@@ -79,6 +79,7 @@ import {
 /** @typedef {import("../../types/app-runtime").ToolRuntime} ToolRuntime */
 /** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
 /** @typedef {import("../../types/app-runtime").BoardConnectionState} BoardConnectionState */
+/** @typedef {import("../../types/app-runtime").OptimisticJournalEntry} OptimisticJournalEntry */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
@@ -316,7 +317,7 @@ Tools.turnstilePending = false;
 Tools.turnstilePendingWrites = [];
 Tools.bufferedWrites = [];
 Tools.bufferedWriteTimer = null;
-Tools.writeReadyWaiters = /** @type {Array<(value: undefined) => void>} */ ([]);
+Tools.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
 Tools.rateLimitedUntil = 0;
 Tools.rateLimitNoticeTimer = null;
 Tools.rateLimitNoticeMessage = "";
@@ -380,23 +381,6 @@ function initializeShellControls() {
   }
   Tools.setColor(Tools.currentColor);
   Tools.setSize(Tools.currentSize);
-}
-
-/**
- * Force a fresh board document request instead of reusing a cached HTML
- * baseline that already proved too old to reconcile over the socket.
- *
- * @param {string} reason
- * @param {{[key: string]: unknown}=} [details]
- */
-function forceFreshBoardReload(reason, details) {
-  console.warn("Reloading board page", {
-    reason,
-    ...(details || {}),
-  });
-  const nextUrl = new URL(window.location.href);
-  nextUrl.searchParams.set("_wbo_reload", String(Date.now()));
-  window.location.replace(nextUrl.toString());
 }
 
 function getBoardStatusIndicator() {
@@ -482,9 +466,13 @@ Tools.canBufferWrites = function canBufferWrites() {
 
 Tools.whenBoardWritable = function whenBoardWritable() {
   if (Tools.canBufferWrites()) return Promise.resolve();
-  return new Promise((/** @type {(value: undefined) => void} */ resolve) => {
-    Tools.writeReadyWaiters.push(resolve);
-  });
+  return new Promise(
+    /** @param {(value?: void | PromiseLike<void>) => void} resolve */ (
+      resolve,
+    ) => {
+      Tools.writeReadyWaiters.push(() => resolve());
+    },
+  );
 };
 
 /**
@@ -557,7 +545,7 @@ Tools.getBoardStatusView = function getBoardStatusView() {
 Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
   if (Tools.canBufferWrites() && Tools.writeReadyWaiters.length > 0) {
     const waiters = Tools.writeReadyWaiters.splice(0);
-    waiters.forEach((resolve) => resolve(undefined));
+    waiters.forEach((resolve) => resolve());
   }
   const indicator = getBoardStatusIndicator();
   const title = getBoardStatusTitle();
@@ -675,7 +663,7 @@ Tools.trackOptimisticMutation = function trackOptimisticMutation(
 };
 
 /**
- * @param {any[]} rejected
+ * @param {OptimisticJournalEntry[]} rejected
  * @returns {void}
  */
 Tools.applyRejectedOptimisticEntries = function applyRejectedOptimisticEntries(
@@ -819,6 +807,7 @@ Tools.refreshAuthoritativeBaseline =
         window.location.search,
       ),
       {
+        cache: "no-store",
         credentials: "same-origin",
         headers: { Accept: "image/svg+xml" },
       },
@@ -1120,10 +1109,8 @@ async function processIncomingBroadcast(msg) {
         authoritativeSeq: Tools.authoritativeSeq,
         incomingSeq: msg.seq,
       });
-      forceFreshBoardReload("persistent_replay_gap", {
-        authoritativeSeq: Tools.authoritativeSeq,
-        incomingSeq: msg.seq,
-      });
+      Tools.beginAuthoritativeResync();
+      Tools.startConnection();
       return false;
     }
   }
@@ -2235,13 +2222,15 @@ Tools.startConnection = () => {
     function onResyncRequired(
       /** @type {{latestSeq?: unknown, minReplayableSeq?: unknown} | undefined} */ payload,
     ) {
-      forceFreshBoardReload("resync_required", {
+      console.warn("Server requested authoritative resync", {
         authoritativeSeq: Tools.authoritativeSeq,
         latestSeq: BoardMessageReplay.normalizeSeq(payload?.latestSeq),
         minReplayableSeq: BoardMessageReplay.normalizeSeq(
           payload?.minReplayableSeq,
         ),
       });
+      Tools.beginAuthoritativeResync();
+      Tools.startConnection();
     },
   );
   socket.on(
