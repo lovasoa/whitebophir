@@ -1,51 +1,21 @@
-import { TOOL_CATALOG, TOOL_CATALOG_BY_NAME } from "./tool_catalog.js";
+import {
+  DRAW_TOOL_NAMES,
+  TOOL_CATALOG,
+  TOOL_CATALOG_BY_NAME,
+} from "./tool_catalog.js";
+import { getMutationTypeCode, MutationType } from "./mutation_type.js";
+import { TOOL_CONTRACTS_BY_NAME } from "../tools/tool_contracts.js";
 
-export const MutationType = Object.freeze({
-  CREATE: 1,
-  UPDATE: 2,
-  DELETE: 3,
-  APPEND: 4,
-  BATCH: 5,
-  CLEAR: 6,
-  COPY: 7,
-});
-
-/**
- * @param {unknown} type
- * @returns {number | undefined}
- */
-export function getMutationTypeCode(type) {
-  if (typeof type === "number") {
-    return type >= MutationType.CREATE && type <= MutationType.COPY
-      ? type
-      : undefined;
-  }
-  switch (type) {
-    case "update":
-      return MutationType.UPDATE;
-    case "delete":
-      return MutationType.DELETE;
-    case "clear":
-      return MutationType.CLEAR;
-    case "copy":
-      return MutationType.COPY;
-    case "child":
-      return MutationType.APPEND;
-  }
-  return undefined;
-}
+export { getMutationTypeCode, MutationType };
 
 const TOOL_NAMES = [...TOOL_CATALOG.map((entry) => entry.name), "Cursor"];
-
-export const DRAW_TOOL_NAMES = TOOL_CATALOG.filter(
-  ({ drawsOnBoard }) => drawsOnBoard === true,
-).map(({ name }) => name);
+export { DRAW_TOOL_NAMES };
 /** @type {{[toolName: string]: string}} */
 export const SHAPE_TOOL_TYPES = /** @type {{[toolName: string]: string}} */ (
   Object.fromEntries(
-    TOOL_CATALOG.filter((entry) => typeof entry.shapeType === "string").map(
-      (entry) => [entry.name, entry.shapeType],
-    ),
+    Object.values(TOOL_CONTRACTS_BY_NAME)
+      .filter((contract) => typeof contract.shapeType === "string")
+      .map((contract) => [contract.toolName, contract.shapeType]),
   )
 );
 
@@ -60,7 +30,7 @@ export function getToolCode(toolName) {
 export function isShapeTool(toolName) {
   return (
     typeof toolName === "string" &&
-    TOOL_CATALOG_BY_NAME[toolName]?.shapeType !== undefined
+    !!TOOL_CONTRACTS_BY_NAME[toolName]?.shapeType
   );
 }
 
@@ -73,7 +43,11 @@ export function getUpdatableFields(toolName, data) {
   /** @type {{[key: string]: unknown}} */
   const updatable = {};
   if (typeof toolName !== "string") return updatable;
-  for (const field of TOOL_CATALOG_BY_NAME[toolName]?.updatableFields || []) {
+  const fields =
+    TOOL_CONTRACTS_BY_NAME[toolName]?.updatableFields ||
+    TOOL_CATALOG_BY_NAME[toolName]?.updatableFields ||
+    [];
+  for (const field of fields) {
     if (Object.hasOwn(data, field)) updatable[field] = data[field];
   }
   return updatable;

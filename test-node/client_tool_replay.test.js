@@ -5,6 +5,7 @@ const { pathToFileURL } = require("node:url");
 const { installTestConsole } = require("./test_console.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 installTestConsole();
+const { MutationType } = MessageToolMetadata;
 
 /**
  * @typedef {{type: string, values: number[]}} PathSegment
@@ -786,7 +787,7 @@ test("Pencil delete of the active line aborts the active stroke", async () => {
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
-  pencilTool.onMessage({ type: "delete", id: "l-1" });
+  pencilTool.onMessage({ type: MutationType.DELETE, id: "l-1" });
 
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
@@ -808,7 +809,7 @@ test("Pencil clear aborts the active stroke", async () => {
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
-  pencilTool.onMessage({ type: "clear" });
+  pencilTool.onMessage({ type: MutationType.CLEAR });
 
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
@@ -863,7 +864,7 @@ test("Straight line update recreates a missing line before applying endpoints", 
   const lineTool = await harness.loadTool("Straight line");
 
   lineTool.draw({
-    type: "update",
+    type: MutationType.UPDATE,
     id: "line-1",
     x2: 300,
     y2: 400,
@@ -881,7 +882,7 @@ test("Straight line update recreates a missing line before applying endpoints", 
     tool: "Straight line",
     updateMessage: {
       tool: "Straight line",
-      type: "update",
+      type: MutationType.UPDATE,
       id: "line-1",
       x2: 300,
       y2: 400,
@@ -899,7 +900,7 @@ test("Straight line update recreates a missing line before applying endpoints", 
     tool: "Rectangle",
     updateMessage: {
       tool: "Rectangle",
-      type: "update",
+      type: MutationType.UPDATE,
       id: "rect-1",
       x: 60,
       y: 30,
@@ -919,7 +920,7 @@ test("Straight line update recreates a missing line before applying endpoints", 
     tool: "Ellipse",
     updateMessage: {
       tool: "Ellipse",
-      type: "update",
+      type: MutationType.UPDATE,
       id: "ellipse-1",
       x: 0,
       y: 30,
@@ -1015,7 +1016,7 @@ test("Rectangle update recreates a missing shape before applying bounds", async 
   const rectangleTool = await harness.loadTool("Rectangle");
 
   rectangleTool.draw({
-    type: "update",
+    type: MutationType.UPDATE,
     id: "rect-1",
     x: 60,
     y: 90,
@@ -1046,7 +1047,7 @@ test("Ellipse replay updates center and radii on a reused node", async () => {
     y2: 220,
   });
   ellipseTool.draw({
-    type: "update",
+    type: MutationType.UPDATE,
     id: "ellipse-1",
     x: 0,
     y: 30,
@@ -1066,7 +1067,7 @@ test("Ellipse update recreates a missing shape before applying radii", async () 
   const ellipseTool = await harness.loadTool("Ellipse");
 
   ellipseTool.draw({
-    type: "update",
+    type: MutationType.UPDATE,
     id: "ellipse-1",
     x: 0,
     y: 30,
@@ -1095,7 +1096,7 @@ test("Text replay creates and then updates the same text field", async () => {
     y: 120,
   });
   textTool.draw({
-    type: "update",
+    type: MutationType.UPDATE,
     id: "text-1",
     txt: "hello replay",
   });

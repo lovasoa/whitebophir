@@ -35,8 +35,8 @@ section before making changes there.
 - Client state machine + staged tool boot + send/receive plumbing: [board runtime](./client-data/js/board.js).
 - Shared socket transport utilities: [transport helpers](./client-data/js/board_transport.js).
 - Shared board-name allowlist + sanitization for landing-page inputs and server routes: [board name helpers](./client-data/js/board_name.js).
-- Tool implementations that mutate SVG/DOM: [tool modules](./client-data/tools/). Shape DOM tools share [shape helper](./client-data/tools/shape_tool.js) for pointer/update/create scaffolding, while server-owned SVG summary/full parse, serialize, and render now live in sibling `contract.js` modules discovered through [tool contract registry](./client-data/tools/tool_contracts.js).
-- Tool modules now default-export a tool class for dynamic `import()` boot, while legacy named `register*Tool` exports may still exist during migration.
+- Tool implementations that mutate SVG/DOM: [tool modules](./client-data/tools/). Shape DOM tools share [shape helper](./client-data/tools/shape_tool.js) for pointer/update/create scaffolding. Persistent-tool SVG summary/full parse, serialize, and render live on each tool module's static `contract`, and the server discovers them through [tool contract registry](./client-data/tools/tool_contracts.js).
+- Tool modules default-export a tool class for dynamic `import()` boot. When a tool has shared server/runtime behavior, that tool class is also the authoritative owner of the static `contract` metadata used by validation, SVG codec, and render paths.
 
 ## performance-critical paths
 

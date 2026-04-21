@@ -1,5 +1,5 @@
 import { createShapeToolClass } from "../shape_tool.js";
-import { MutationType } from "../../js/message_tool_metadata.js";
+import { MutationType } from "../../js/mutation_type.js";
 import {
   defineShapeContract,
   normalizeRectBounds,
@@ -7,7 +7,13 @@ import {
   summarizeStoredShape,
 } from "../shape_contract.js";
 
-const contract = defineShapeContract("Rectangle", {
+const contract = defineShapeContract({
+  toolName: "Rectangle",
+  payloadKind: "inline",
+  shapeType: "rect",
+  liveCreateType: "rect",
+  storedTagName: "rect",
+  updatableFields: ["x", "y", "x2", "y2"],
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
     const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));

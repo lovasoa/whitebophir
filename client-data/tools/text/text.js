@@ -25,10 +25,7 @@
  */
 
 import { truncateText } from "../../js/message_common.js";
-import {
-  getMutationType,
-  MutationType,
-} from "../../js/message_tool_metadata.js";
+import { MutationType } from "../../js/mutation_type.js";
 /** @typedef {import("../../../types/app-runtime").BoardMessage} BoardMessage */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
@@ -37,8 +34,131 @@ import {
 /** @typedef {{type: number | "update", id: string, txt?: string}} TextUpdateMessage */
 /** @typedef {NewTextMessage | TextUpdateMessage} TextMessage */
 
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {number} size
+ * @param {number} textLength
+ * @returns {{minX: number, minY: number, maxX: number, maxY: number}}
+ */
+function textBoundsFromLength(x, y, size, textLength) {
+  return {
+    minX: x,
+    minY: y - size,
+    maxX: x + size * textLength,
+    maxY: y,
+  };
+}
+
+/** @type {import("../shape_contract.js").ToolContract} */
+const contract = {
+  toolName: "Text",
+  payloadKind: "text",
+  liveCreateType: "new",
+  storedTagName: "text",
+  updatableFields: ["txt"],
+  liveMessageFields: {
+    new: {
+      id: "id",
+      color: "color",
+      size: "size",
+      opacity: "opacity?",
+      x: "coord",
+      y: "coord",
+    },
+    update: {
+      id: "id",
+      txt: "text",
+    },
+  },
+  storedFields: {
+    color: "color",
+    size: "size",
+    opacity: "opacity?",
+    x: "coord",
+    y: "coord",
+    txt: "text?",
+    transform: "transform?",
+    time: "time?",
+  },
+  summarizeStoredSvgItem(entry, paintOrder, helpers) {
+    const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
+    const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));
+    const size = helpers.parseNumber(
+      helpers.readStoredSvgAttribute(entry, "font-size"),
+    );
+    if (x === undefined || y === undefined || size === undefined) {
+      return null;
+    }
+    const textLength = helpers.decodedTextLength(entry.content || "");
+    return {
+      id: helpers.id,
+      tool: contract.toolName,
+      paintOrder,
+      data: helpers.decorateStoredItemData(
+        {
+          x,
+          y,
+          size,
+          color: helpers.readStoredSvgAttribute(entry, "fill") || "#000000",
+        },
+        helpers.opacity,
+        helpers.transform,
+      ),
+      textLength,
+      localBounds: textBoundsFromLength(x, y, size, textLength),
+    };
+  },
+  parseStoredSvgItem(summary, entry, helpers) {
+    return {
+      id: summary.id,
+      tool: contract.toolName,
+      ...summary.data,
+      txt: helpers.unescapeHtml(entry.content || ""),
+    };
+  },
+  serializeStoredSvgItem(item, helpers) {
+    const transform = helpers.renderTransformAttribute(item.transform);
+    const id = typeof item.id === "string" ? helpers.escapeHtml(item.id) : "";
+    const color = helpers.escapeHtml(item.color || "#000000");
+    const opacity =
+      typeof item.opacity === "number" ? ` opacity="${item.opacity}"` : "";
+    const textValue = String(item.txt || "");
+    return (
+      `<text id="${id}" x="${helpers.numberOrZero(item.x)}" y="${helpers.numberOrZero(item.y)}"` +
+      ` font-size="${helpers.numberOrZero(item.size) | 0}" fill="${color}"${opacity}${transform}>` +
+      `${helpers.escapeHtml(textValue)}</text>`
+    );
+  },
+  renderBoardSvg(text, helpers) {
+    return (
+      "<text " +
+      'id="' +
+      helpers.htmlspecialchars(text.id || "t") +
+      '" ' +
+      'x="' +
+      (text.x | 0) +
+      '" ' +
+      'y="' +
+      (text.y | 0) +
+      '" ' +
+      'font-size="' +
+      (helpers.numberOrZero(text.size) | 0) +
+      '" ' +
+      'fill="' +
+      helpers.htmlspecialchars(text.color || "#000") +
+      '" ' +
+      helpers.renderTranslate(text) +
+      ">" +
+      helpers.htmlspecialchars(text.txt || "") +
+      "</text>"
+    );
+  },
+};
+
 export default class TextTool {
-  static toolName = "Text";
+  static toolName = contract.toolName;
+  static contract = contract;
 
   /**
    * @param {AppToolsState} Tools
@@ -46,7 +166,7 @@ export default class TextTool {
   constructor(Tools) {
     this.Tools = Tools;
     this.board = Tools.board;
-    this.name = "Text";
+    this.name = contract.toolName;
     this.shortcut = "t";
     this.stylesheet = "tools/text/text.css";
     this.icon = "tools/text/icon.svg";
@@ -207,7 +327,7 @@ export default class TextTool {
         if (this.curText.id === "") {
           this.curText.id = this.Tools.generateUID("t");
           this.Tools.drawAndSend({
-            type: "new",
+            type: contract.liveCreateType,
             id: this.curText.id,
             color: this.curText.color,
             size: this.curText.size,
@@ -241,11 +361,11 @@ export default class TextTool {
     void isLocal;
     const textMessage = /** @type {TextMessage} */ (data);
     this.Tools.drawingEvent = true;
-    if (textMessage.type === "new") {
-      this.createTextField(textMessage);
+    if (textMessage.type === contract.liveCreateType) {
+      this.createTextField(/** @type {NewTextMessage} */ (textMessage));
       return;
     }
-    if (getMutationType(textMessage) === MutationType.UPDATE) {
+    if (textMessage.type === MutationType.UPDATE) {
       const textField = document.getElementById(textMessage.id);
       if (!textField || String(textField.tagName).toLowerCase() !== "text") {
         console.error(

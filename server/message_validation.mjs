@@ -1,8 +1,5 @@
 import MessageCommon from "../client-data/js/message_common.js";
-import {
-  TOOL_CATALOG,
-  TOOL_CATALOG_BY_NAME,
-} from "../client-data/js/tool_catalog.js";
+import { TOOL_CATALOG } from "../client-data/js/tool_catalog.js";
 import { hasMessageTool } from "../client-data/js/message_shape.js";
 import {
   getMutationType,
@@ -55,8 +52,8 @@ const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
 
 /** @type {string[]} */
 const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
-const SHAPE_TOOLS = TOOL_CATALOG.filter(
-  (entry) => entry.shapeType !== undefined,
+const SHAPE_CONTRACTS = Object.values(TOOL_CONTRACTS_BY_NAME).filter(
+  (contract) => contract.shapeType !== undefined,
 );
 const SHAPE_CREATE_FIELDS = {
   id: "id",
@@ -399,13 +396,17 @@ function buildPerTypeSchemas(fieldsByType, build) {
 }
 
 const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
-  SHAPE_TOOLS.map((entry) => {
-    const createType = entry.shapeType || entry.liveCreateType || "";
+  SHAPE_CONTRACTS.map((contract) => {
+    const createType = contract.shapeType || contract.liveCreateType || "";
     return [
-      entry.name,
+      contract.toolName,
       {
         [createType]: {
-          ...buildLiveSchema(entry.name, createType, SHAPE_CREATE_FIELDS),
+          ...buildLiveSchema(
+            contract.toolName,
+            createType,
+            SHAPE_CREATE_FIELDS,
+          ),
           x2: optional(normalizeCoord, {
             defaultValue: defaultCoordinateFromX,
           }),
@@ -413,10 +414,10 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
             defaultValue: defaultCoordinateFromY,
           }),
         },
-        update: buildLiveSchema(entry.name, "update", {
+        update: buildLiveSchema(contract.toolName, "update", {
           id: "id",
           ...Object.fromEntries(
-            (entry.updatableFields || []).map((field) => [field, "coord"]),
+            (contract.updatableFields || []).map((field) => [field, "coord"]),
           ),
         }),
       },
@@ -426,10 +427,10 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
 
 /** @type {StoredToolSchemas} */
 const STORED_SHAPE_SCHEMAS = Object.fromEntries(
-  SHAPE_TOOLS.map((entry) => {
+  SHAPE_CONTRACTS.map((contract) => {
     const schema = buildStoredSchema(
-      entry.name,
-      entry.storedTagName || "",
+      contract.toolName,
+      contract.storedTagName || "",
       SHAPE_STORED_FIELDS,
     );
     schema.x2 = optional(normalizeCoord, {
@@ -438,7 +439,7 @@ const STORED_SHAPE_SCHEMAS = Object.fromEntries(
     schema.y2 = optional(normalizeCoord, {
       defaultValue: defaultCoordinateFromY,
     });
-    return [entry.name, schema];
+    return [contract.toolName, schema];
   }),
 );
 
@@ -462,9 +463,7 @@ const CONTRACT_STORED_ITEM_SCHEMAS = Object.fromEntries(
       contract.toolName,
       buildStoredSchema(
         contract.toolName,
-        TOOL_CATALOG_BY_NAME[contract.toolName]?.liveCreateType ||
-          TOOL_CATALOG_BY_NAME[contract.toolName]?.storedTagName ||
-          "",
+        contract.liveCreateType || contract.storedTagName || "",
         contract.storedFields,
       ),
     ]),

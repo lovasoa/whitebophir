@@ -3,7 +3,7 @@ import {
   pointsFromPathData,
   renderPencilPath,
   scanPathSummary,
-} from "../client-data/tools/pencil/contract.js";
+} from "../client-data/tools/pencil/pencil.js";
 import {
   TOOL_CONTRACTS_BY_NAME,
   TOOL_CONTRACTS_BY_TAG,

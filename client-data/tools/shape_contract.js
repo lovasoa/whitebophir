@@ -1,4 +1,3 @@
-import { TOOL_CATALOG_BY_NAME } from "../js/tool_catalog.js";
 /**
  * @typedef {{attributes?: {[name: string]: string}, rawAttributes?: string, id?: string, content?: string}} StoredSvgEntry
  * @typedef {{a: number, b: number, c: number, d: number, e: number, f: number}} SvgTransform
@@ -69,16 +68,9 @@ export function serializeStoredShapeTag(tagName, attrs, item, helpers) {
 }
 
 /**
- * @param {string} toolName
- * @param {Omit<ToolContract, "toolName" | "storedTagName" | "liveCreateType">} contract
+ * @param {ToolContract & {storedTagName: string, liveCreateType?: string}} contract
  * @returns {ToolContract & {storedTagName: string, liveCreateType?: string}}
  */
-export function defineShapeContract(toolName, contract) {
-  const entry = TOOL_CATALOG_BY_NAME[toolName];
-  return {
-    toolName,
-    storedTagName: entry?.storedTagName || "",
-    liveCreateType: entry?.liveCreateType,
-    ...contract,
-  };
+export function defineShapeContract(contract) {
+  return contract;
 }

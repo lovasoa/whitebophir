@@ -41,7 +41,7 @@
  *   _children?: Array<ChildPoint | null | undefined>
  * }} GeometryItem
  */
-import { DRAW_TOOL_NAMES, isShapeTool } from "./message_tool_metadata.js";
+import { DRAW_TOOL_NAMES } from "./tool_catalog.js";
 
 export { DRAW_TOOL_NAMES };
 
@@ -330,7 +330,9 @@ function getTextBounds(item) {
 export function getLocalGeometryBounds(item) {
   if (!item || typeof item.tool !== "string") return null;
   if (Array.isArray(item._children)) return getPencilBounds(item);
-  if (isShapeTool(item.tool)) return getStraightShapeBounds(item);
+  if (item.x2 !== undefined || item.y2 !== undefined) {
+    return getStraightShapeBounds(item);
+  }
   return getTextBounds(item);
 }
 

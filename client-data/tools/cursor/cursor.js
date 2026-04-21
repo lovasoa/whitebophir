@@ -24,7 +24,7 @@
  * @licend
  */
 
-import { MutationType } from "../../js/message_tool_metadata.js";
+import { MutationType } from "../../js/mutation_type.js";
 
 /** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {{type: number, x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */

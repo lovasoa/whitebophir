@@ -1,12 +1,18 @@
 import { createShapeToolClass } from "../shape_tool.js";
-import { MutationType } from "../../js/message_tool_metadata.js";
+import { MutationType } from "../../js/mutation_type.js";
 import {
   defineShapeContract,
   serializeStoredShapeTag,
   summarizeStoredShape,
 } from "../shape_contract.js";
 
-const contract = defineShapeContract("Ellipse", {
+const contract = defineShapeContract({
+  toolName: "Ellipse",
+  payloadKind: "inline",
+  shapeType: "ellipse",
+  liveCreateType: "ellipse",
+  storedTagName: "ellipse",
+  updatableFields: ["x", "y", "x2", "y2"],
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const cx = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "cx"));
     const cy = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "cy"));

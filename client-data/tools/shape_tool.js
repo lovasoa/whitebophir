@@ -1,4 +1,4 @@
-import { getMutationType, MutationType } from "../js/message_tool_metadata.js";
+import { MutationType } from "../js/mutation_type.js";
 
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 
@@ -94,7 +94,7 @@ export function createShapeToolClass(options) {
         this.createShape(data);
         return;
       }
-      if (getMutationType(data) === MutationType.UPDATE) {
+      if (data.type === MutationType.UPDATE) {
         const svg = this.Tools.svg;
         let shape = svg.getElementById(data.id);
         if (!options.isShapeElement(shape)) {

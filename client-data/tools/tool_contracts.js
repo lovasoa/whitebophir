@@ -1,17 +1,16 @@
 import EllipseTool from "./ellipse/ellipse.js";
-import { TOOL_CATALOG } from "../js/tool_catalog.js";
-import pencilContract from "./pencil/contract.js";
+import PencilTool from "./pencil/pencil.js";
 import RectangleTool from "./rectangle/rectangle.js";
 import StraightLineTool from "./straight-line/straight-line.js";
-import textContract from "./text/contract.js";
+import TextTool from "./text/text.js";
 /** @typedef {import("./shape_contract.js").ToolContract} ToolContract */
 
 const TOOL_CONTRACTS = [
-  pencilContract,
+  /** @type {ToolContract} */ (PencilTool.contract),
   /** @type {ToolContract} */ (StraightLineTool.contract),
   /** @type {ToolContract} */ (RectangleTool.contract),
   /** @type {ToolContract} */ (EllipseTool.contract),
-  textContract,
+  /** @type {ToolContract} */ (TextTool.contract),
 ];
 
 /** @type {Record<string, ToolContract>} */
@@ -21,8 +20,8 @@ const TOOL_CONTRACTS_BY_NAME = Object.fromEntries(
 
 /** @type {Record<string, ToolContract>} */
 const TOOL_CONTRACTS_BY_TAG = Object.fromEntries(
-  TOOL_CATALOG.filter((entry) => typeof entry.storedTagName === "string").map(
-    (entry) => [entry.storedTagName, TOOL_CONTRACTS_BY_NAME[entry.name]],
-  ),
+  TOOL_CONTRACTS.filter(
+    (contract) => typeof contract.storedTagName === "string",
+  ).map((contract) => [contract.storedTagName, contract]),
 );
 export { TOOL_CONTRACTS_BY_NAME, TOOL_CONTRACTS_BY_TAG };

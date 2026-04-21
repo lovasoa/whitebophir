@@ -1,12 +1,18 @@
 import { createShapeToolClass } from "../shape_tool.js";
-import { MutationType } from "../../js/message_tool_metadata.js";
+import { MutationType } from "../../js/mutation_type.js";
 import {
   defineShapeContract,
   serializeStoredShapeTag,
   summarizeStoredShape,
 } from "../shape_contract.js";
 
-const contract = defineShapeContract("Straight line", {
+const contract = defineShapeContract({
+  toolName: "Straight line",
+  payloadKind: "inline",
+  shapeType: "straight",
+  liveCreateType: "straight",
+  storedTagName: "line",
+  updatableFields: ["x2", "y2"],
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x1 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x1"));
     const y1 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y1"));

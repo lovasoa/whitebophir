@@ -7,10 +7,6 @@
  *   liveMessageFields?: {[type: string]: {[field: string]: string}},
  *   batchMessageFields?: {[type: string]: {[field: string]: string}},
  *   drawsOnBoard?: boolean,
- *   payloadKind?: "inline" | "text" | "children",
- *   shapeType?: string,
- *   liveCreateType?: string,
- *   storedTagName?: string,
  *   iconFile?: string,
  *   secondaryIconFile?: string,
  *   stylesheetFile?: string,
@@ -32,50 +28,26 @@ function drawingTool(name, options = {}) {
   return tool(name, { drawsOnBoard: true, ...options });
 }
 
-/** @param {string} name @param {Partial<ToolCatalogEntry>} [options] */
-function inlineShapeTool(name, options = {}) {
-  return drawingTool(name, { payloadKind: "inline", ...options });
-}
-
 /** @type {ToolCatalogEntry[]} */
 export const TOOL_CATALOG = [
   drawingTool("Pencil", {
-    payloadKind: "children",
-    liveCreateType: "line",
-    storedTagName: "path",
     secondaryIconFile: "whiteout_tape.svg",
     stylesheetFile: "pencil.css",
   }),
-  inlineShapeTool("Straight line", {
-    shapeType: "straight",
-    liveCreateType: "straight",
-    storedTagName: "line",
-    updatableFields: ["x2", "y2"],
+  drawingTool("Straight line", {
     secondaryIconFile: "icon-straight.svg",
     stylesheetFile: "straight-line.css",
   }),
-  inlineShapeTool("Rectangle", {
-    shapeType: "rect",
-    liveCreateType: "rect",
-    storedTagName: "rect",
-    updatableFields: ["x", "y", "x2", "y2"],
+  drawingTool("Rectangle", {
     secondaryIconFile: "icon-square.svg",
     stylesheetFile: "rectangle.css",
   }),
-  inlineShapeTool("Ellipse", {
-    shapeType: "ellipse",
-    liveCreateType: "ellipse",
-    storedTagName: "ellipse",
-    updatableFields: ["x", "y", "x2", "y2"],
+  drawingTool("Ellipse", {
     iconFile: "icon-ellipse.svg",
     secondaryIconFile: "icon-circle.svg",
     stylesheetFile: "ellipse.css",
   }),
   drawingTool("Text", {
-    payloadKind: "text",
-    liveCreateType: "new",
-    storedTagName: "text",
-    updatableFields: ["txt"],
     stylesheetFile: "text.css",
   }),
   tool("Eraser", { liveMessageFields: { delete: { id: "id" } } }),
@@ -104,6 +76,10 @@ export const TOOL_CATALOG = [
 export const TOOL_CATALOG_BY_NAME = Object.fromEntries(
   TOOL_CATALOG.map((entry) => [entry.name, entry]),
 );
+
+export const DRAW_TOOL_NAMES = TOOL_CATALOG.filter(
+  ({ drawsOnBoard }) => drawsOnBoard === true,
+).map(({ name }) => name);
 
 /**
  * @param {{readonly?: boolean, canWrite?: boolean} | null | undefined} boardState

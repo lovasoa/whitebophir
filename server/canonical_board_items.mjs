@@ -1,5 +1,5 @@
 import MessageCommon from "../client-data/js/message_common.js";
-import { TOOL_CATALOG_BY_NAME } from "../client-data/js/tool_catalog.js";
+import { TOOL_CONTRACTS_BY_NAME } from "../client-data/tools/tool_contracts.js";
 import { summarizeStoredSvgItem } from "./stored_svg_item_codec.mjs";
 
 /**
@@ -84,7 +84,7 @@ function clonePayload(payload) {
  */
 function payloadKindForTool(tool) {
   return typeof tool === "string"
-    ? TOOL_CATALOG_BY_NAME[tool]?.payloadKind || "inline"
+    ? TOOL_CONTRACTS_BY_NAME[tool]?.payloadKind || "inline"
     : "inline";
 }
 

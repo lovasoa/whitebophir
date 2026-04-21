@@ -24,7 +24,7 @@
  * @licend
  */
 
-import { MutationType } from "../../js/message_tool_metadata.js";
+import { MutationType } from "../../js/mutation_type.js";
 
 /** @typedef {{type: number, id: string, token?: string | null}} ClearMessage */
 /** @typedef {import("../../../types/app-runtime").AppToolsState} AppToolsState */
