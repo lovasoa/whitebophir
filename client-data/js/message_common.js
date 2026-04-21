@@ -329,20 +329,9 @@ function getTextBounds(item) {
  */
 export function getLocalGeometryBounds(item) {
   if (!item || typeof item.tool !== "string") return null;
-  switch (item.tool) {
-    case "Pencil":
-      return getPencilBounds(item);
-    default:
-      if (isShapeTool(item.tool)) {
-        return getStraightShapeBounds(item);
-      }
-  }
-  switch (item.tool) {
-    case "Text":
-      return getTextBounds(item);
-    default:
-      return null;
-  }
+  if (Array.isArray(item._children)) return getPencilBounds(item);
+  if (isShapeTool(item.tool)) return getStraightShapeBounds(item);
+  return getTextBounds(item);
 }
 
 /**
