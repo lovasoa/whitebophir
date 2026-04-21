@@ -2,11 +2,12 @@ import { SerialTaskQueue } from "./serial_task_queue.mjs";
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 
 /**
+ * @param {object} board
  * @param {(() => Array<{mutation: NormalizedMessageData}>) | undefined} consumeEffects
  * @returns {Array<{mutation: NormalizedMessageData}>}
  */
-function consumePendingMutationEffects(consumeEffects) {
-  return typeof consumeEffects === "function" ? consumeEffects() : [];
+function consumePendingMutationEffects(board, consumeEffects) {
+  return typeof consumeEffects === "function" ? consumeEffects.call(board) : [];
 }
 
 /** @type {WeakMap<object, ReturnType<typeof createBoardSession>>} */
@@ -38,9 +39,11 @@ export function createBoardSession(board) {
     ) {
       return queue.runExclusive(async () => {
         consumePendingMutationEffects(
+          board,
           board.consumePendingRejectedMutationEffects,
         );
         consumePendingMutationEffects(
+          board,
           board.consumePendingAcceptedMutationEffects,
         );
         let acceptedMutation = mutation;
@@ -57,6 +60,7 @@ export function createBoardSession(board) {
         const result = board.processMessage(acceptedMutation);
         if (result.ok === false) {
           const followup = consumePendingMutationEffects(
+            board,
             board.consumePendingRejectedMutationEffects,
           ).map((effect) => ({
             mutation: effect.mutation,
@@ -76,6 +80,7 @@ export function createBoardSession(board) {
           socketId,
         );
         const followup = consumePendingMutationEffects(
+          board,
           board.consumePendingAcceptedMutationEffects,
         ).map((effect) => ({
           mutation: effect.mutation,
