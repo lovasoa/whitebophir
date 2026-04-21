@@ -7,41 +7,28 @@
  */
 
 /** @type {ToolMetadataMap} */
-export const TOOL_METADATA = Object.create(null);
-TOOL_METADATA.Pencil = {
-  updatableFields: [],
-  draw: true,
-};
-TOOL_METADATA["Straight line"] = {
-  shapeType: "straight",
-  updatableFields: ["x2", "y2"],
-  draw: true,
-};
-TOOL_METADATA.Rectangle = {
-  shapeType: "rect",
-  updatableFields: ["x", "y", "x2", "y2"],
-  draw: true,
-};
-TOOL_METADATA.Ellipse = {
-  shapeType: "ellipse",
-  updatableFields: ["x", "y", "x2", "y2"],
-  draw: true,
-};
-TOOL_METADATA.Text = {
-  updatableFields: ["txt"],
-  draw: true,
-};
-TOOL_METADATA.Hand = {
-  updatableFields: ["transform"],
-};
-TOOL_METADATA.Cursor = {
-  updatableFields: [],
-};
-TOOL_METADATA.Eraser = {
-  updatableFields: [],
-};
-TOOL_METADATA.Clear = {
-  updatableFields: [],
+export const TOOL_METADATA = {
+  Pencil: { updatableFields: [], draw: true },
+  "Straight line": {
+    shapeType: "straight",
+    updatableFields: ["x2", "y2"],
+    draw: true,
+  },
+  Rectangle: {
+    shapeType: "rect",
+    updatableFields: ["x", "y", "x2", "y2"],
+    draw: true,
+  },
+  Ellipse: {
+    shapeType: "ellipse",
+    updatableFields: ["x", "y", "x2", "y2"],
+    draw: true,
+  },
+  Text: { updatableFields: ["txt"], draw: true },
+  Hand: { updatableFields: ["transform"] },
+  Cursor: { updatableFields: [] },
+  Eraser: { updatableFields: [] },
+  Clear: { updatableFields: [] },
 };
 
 /** @type {string[]} */
@@ -50,9 +37,7 @@ export const DRAW_TOOL_NAMES = [];
 export const SHAPE_TOOL_TYPES = Object.create(null);
 /** @type {UpdatableFieldMap} */
 export const TOOL_UPDATE_FIELDS = Object.create(null);
-for (const toolName in TOOL_METADATA) {
-  const metadata = TOOL_METADATA[toolName];
-  if (!metadata) continue;
+for (const [toolName, metadata] of Object.entries(TOOL_METADATA)) {
   TOOL_UPDATE_FIELDS[toolName] = metadata.updatableFields;
   if (metadata.draw === true) {
     DRAW_TOOL_NAMES.push(toolName);
