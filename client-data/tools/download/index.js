@@ -26,7 +26,6 @@
 
 /** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
-/** @typedef {{tools: MountedAppToolsState}} DownloadState */
 
 export const toolId = "download";
 export const shortcut = "d";
@@ -55,11 +54,9 @@ function downloadContent(blob, filename) {
   window.URL.revokeObjectURL(url);
 }
 
-/** @param {DownloadState} state */
-function downloadSvgFile(state) {
-  const canvasCopy = /** @type {SVGSVGElement} */ (
-    state.tools.svg.cloneNode(true)
-  );
+/** @param {MountedAppToolsState} tools */
+function downloadSvgFile(tools) {
+  const canvasCopy = /** @type {SVGSVGElement} */ (tools.svg.cloneNode(true));
   canvasCopy.removeAttribute("style");
   const styleNode = document.createElement("style");
   styleNode.innerHTML = Array.from(document.styleSheets)
@@ -80,18 +77,18 @@ function downloadSvgFile(state) {
     canvasCopy.outerHTML || new XMLSerializer().serializeToString(canvasCopy);
   downloadContent(
     new Blob([outerHTML], { type: "image/svg+xml;charset=utf-8" }),
-    `${state.tools.boardName}.svg`,
+    `${tools.boardName}.svg`,
   );
 }
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  return { tools: ctx.Tools };
+  return ctx.Tools;
 }
 
-/** @param {DownloadState} state */
-export function onstart(state) {
-  downloadSvgFile(state);
+/** @param {MountedAppToolsState} tools */
+export function onstart(tools) {
+  downloadSvgFile(tools);
 }
 
 export function draw() {}

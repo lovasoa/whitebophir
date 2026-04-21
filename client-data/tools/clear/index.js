@@ -29,7 +29,6 @@ import { MutationType } from "../../js/mutation_type.js";
 /** @typedef {{type: number, id: string, token?: string | null}} ClearMessage */
 /** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
-/** @typedef {{tools: MountedAppToolsState}} ClearState */
 
 export const toolId = "clear";
 export const shortcut = "c";
@@ -39,23 +38,23 @@ export const mouseCursor = "crosshair";
 export const moderatorOnly = true;
 export const liveMessageFields = { clear: {} };
 
-/** @param {ClearState} state */
-export function onstart(state) {
+/** @param {MountedAppToolsState} tools */
+export function onstart(tools) {
   /** @type {ClearMessage} */
   const msg = {
     type: MutationType.CLEAR,
     id: "",
-    token: state.tools.token,
+    token: tools.token,
   };
-  state.tools.drawAndSend(msg, toolId);
+  tools.drawAndSend(msg, toolId);
 }
 
-/** @param {ClearState} state */
-export function draw(state) {
-  state.tools.drawingArea.innerHTML = "";
+/** @param {MountedAppToolsState} tools */
+export function draw(tools) {
+  tools.drawingArea.innerHTML = "";
 }
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  return { tools: ctx.Tools };
+  return ctx.Tools;
 }
