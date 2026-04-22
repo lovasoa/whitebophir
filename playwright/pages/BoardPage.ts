@@ -1008,6 +1008,24 @@ export class BoardPage {
     }));
   }
 
+  async failTurnstileChallenge(
+    errorCode: string,
+  ): Promise<ProtectedWriteState> {
+    await this.page.evaluate((value) => {
+      window.__turnstileOptions?.["error-callback"]?.(value);
+    }, errorCode);
+    return this.page.evaluate<ProtectedWriteState>(() => {
+      const overlay = document.getElementById("turnstile-overlay");
+      return {
+        overlayPresent: !!(
+          overlay && !overlay.classList.contains("turnstile-overlay-hidden")
+        ),
+        pendingWrites: window.Tools.turnstilePendingWrites.length,
+        validated: window.Tools.isTurnstileValidated(),
+      };
+    });
+  }
+
   async readCursorAttributes(): Promise<CursorState | null> {
     return this.page.evaluate<CursorState | null>(() => {
       const cursor = document.getElementById("cursor-me");

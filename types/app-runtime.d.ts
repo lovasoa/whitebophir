@@ -356,6 +356,7 @@ export type AppToolsState = {
   turnstileValidatedUntil: number;
   turnstileWidgetId: unknown | null;
   turnstileRefreshTimeout: ReturnType<typeof setTimeout> | null;
+  turnstileRetryTimeout: ReturnType<typeof setTimeout> | null;
   turnstilePending: boolean;
   turnstilePendingWrites: PendingWrite[];
   showTurnstileOverlayTimeout: ReturnType<typeof setTimeout> | null;
@@ -510,12 +511,15 @@ export type AppToolsState = {
   getEffectiveRateLimit: (kind: RateLimitKind) => RateLimitDefinition;
   isTurnstileValidated: () => boolean;
   clearTurnstileRefreshTimeout: () => void;
+  clearTurnstileRetryTimeout: () => void;
   scheduleTurnstileRefresh: (validationWindowMs: number) => void;
+  scheduleTurnstileRetry: (reason: string, delayMs?: number) => void;
   setTurnstileValidation: (result: unknown) => void;
   normalizeTurnstileAck: (result: unknown) => TurnstileAck;
   ensureTurnstileElements: () => { overlay: HTMLElement };
   showTurnstileOverlay: (delay: number) => void;
   hideTurnstileOverlay: () => void;
+  showTurnstileStatus: (detail: string) => void;
   refreshTurnstile: () => void;
   showTurnstileWidget: () => void;
   shouldDisableTool: (toolName: string) => boolean;
