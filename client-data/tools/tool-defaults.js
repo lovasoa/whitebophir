@@ -54,14 +54,3 @@ export function getToolRuntimeAssetPath(toolId, assetFile) {
 export function getToolModuleImportPath(toolId) {
   return `../tools/${toolId}/index.js`;
 }
-
-/**
- * @param {string} assetPath
- * @param {string} version
- * @returns {string}
- */
-export function withVersion(assetPath, version) {
-  if (!version) return assetPath;
-  const separator = assetPath.includes("?") ? "&" : "?";
-  return `${assetPath}${separator}v=${encodeURIComponent(version)}`;
-}

@@ -95,14 +95,15 @@ function cacheControl(cacheValue) {
   return config.IS_DEVELOPMENT ? "no-store" : cacheValue;
 }
 
-/**
- * @param {HttpRequest | undefined} request
- * @returns {boolean}
- */
-function hasVersionToken(request) {
-  if (!request) return false;
-  return parseRequestUrl(request.url).searchParams.has("v");
-}
+const STATIC_RESOURCE_EXTENSIONS = [
+  ".js",
+  ".css",
+  ".svg",
+  ".ico",
+  ".png",
+  ".jpg",
+  ".gif",
+];
 
 const fileserver = serveStatic(config.WEBROOT, {
   maxAge: 0,
@@ -114,21 +115,9 @@ const fileserver = serveStatic(config.WEBROOT, {
       return;
     }
     const ext = path.extname(filePath || "").toLowerCase();
-    const isStaticAsset = [
-      ".js",
-      ".css",
-      ".svg",
-      ".ico",
-      ".png",
-      ".jpg",
-      ".gif",
-    ].includes(ext);
+    const isStaticAsset = STATIC_RESOURCE_EXTENSIONS.includes(ext);
     if (!isStaticAsset) return;
-    if (hasVersionToken(res.req)) {
-      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-      return;
-    }
-    res.setHeader("Cache-Control", "public, max-age=7200");
+    res.setHeader("Cache-Control", "public, max-age=60, must-revalidate");
   },
 });
 
@@ -141,15 +130,6 @@ const indexTemplate = new templating.Template(
   path.join(config.WEBROOT, "index.html"),
 );
 const SLOW_REQUEST_LOG_MS = 1000;
-const STATIC_RESOURCE_EXTENSIONS = [
-  ".js",
-  ".css",
-  ".svg",
-  ".ico",
-  ".png",
-  ".jpg",
-  ".gif",
-];
 const BOARD_SCOPED_ROUTES = new Set(["boards", "preview", "download"]);
 
 /**

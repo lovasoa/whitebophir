@@ -17,7 +17,6 @@ import {
   getToolModuleImportPath,
   getToolStylesheetPath,
   getToolTranslationKey,
-  withVersion,
 } from "./tool-defaults.js";
 /** @typedef {import("../../types/app-runtime").ToolCode} ToolCode */
 
@@ -52,9 +51,9 @@ import {
  *   visibleWhenReadOnly: boolean,
  *   moderatorOnly: boolean,
  *   drawsOnBoard: boolean,
- *   getIconUrl: (version: string) => string,
- *   getStylesheetUrl: (version: string) => string | null,
- *   getModuleImportPath: (version?: string) => string,
+ *   getIconUrl: () => string,
+ *   getStylesheetUrl: () => string | null,
+ *   getModuleImportPath: () => string,
  *   translationKey: string,
  *   label: string,
  * }}
@@ -75,20 +74,18 @@ function defineTool(tool, toolCode) {
     drawsOnBoard: definition.drawsOnBoard === true,
     translationKey,
     label: getDefaultToolLabel(definition.toolId),
-    getIconUrl(version) {
-      return withVersion(`../${getToolIconPath(definition.toolId)}`, version);
+    getIconUrl() {
+      return `../${getToolIconPath(definition.toolId)}`;
     },
-    getStylesheetUrl(version) {
+    getStylesheetUrl() {
       const stylesheetPath = getToolStylesheetPath(
         definition.toolId,
         definition.drawsOnBoard === true,
       );
-      return stylesheetPath
-        ? withVersion(`../${stylesheetPath}`, version)
-        : null;
+      return stylesheetPath ? `../${stylesheetPath}` : null;
     },
-    getModuleImportPath(version = "") {
-      return withVersion(getToolModuleImportPath(definition.toolId), version);
+    getModuleImportPath() {
+      return getToolModuleImportPath(definition.toolId);
     },
   };
 }

@@ -259,7 +259,6 @@ Tools.i18n = (function i18n() {
 })();
 
 Tools.server_config = /** @type {ServerConfig} */ ({});
-Tools.assetVersion = document.documentElement.dataset.version || "";
 
 /**
  * @param {unknown} value
@@ -301,11 +300,8 @@ function normalizeBoardAssetPath(assetPath) {
  * @param {string} assetPath
  * @returns {string}
  */
-Tools.versionAssetPath = function versionAssetPath(assetPath) {
-  const normalizedPath = normalizeBoardAssetPath(assetPath);
-  if (!Tools.assetVersion) return normalizedPath;
-  const separator = normalizedPath.includes("?") ? "&" : "?";
-  return `${normalizedPath}${separator}v=${encodeURIComponent(Tools.assetVersion)}`;
+Tools.resolveAssetPath = function resolveAssetPath(assetPath) {
+  return normalizeBoardAssetPath(assetPath);
 };
 
 /**
@@ -314,7 +310,7 @@ Tools.versionAssetPath = function versionAssetPath(assetPath) {
  * @returns {string}
  */
 Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
-  return Tools.versionAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
+  return Tools.resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
 };
 
 Tools.readOnlyToolNames = new Set(
@@ -2301,7 +2297,7 @@ function syncToolButton(toolName, tool) {
   const translatedToolName = Tools.i18n.t(toolName);
   parts.label.textContent = translatedToolName;
   button.setAttribute("aria-label", translatedToolName);
-  parts.primaryIcon.src = Tools.versionAssetPath(tool.icon);
+  parts.primaryIcon.src = Tools.resolveAssetPath(tool.icon);
   parts.primaryIcon.alt = "";
   button.classList.toggle("oneTouch", tool.oneTouch === true);
   button.classList.toggle("hasSecondary", !!tool.secondary);
@@ -2310,7 +2306,7 @@ function syncToolButton(toolName, tool) {
     ? `${translatedToolName} (${Tools.i18n.t("keyboard shortcut")}: ${tool.shortcut})`
     : translatedToolName;
   if (tool.secondary && parts.secondaryIcon) {
-    parts.secondaryIcon.src = Tools.versionAssetPath(tool.secondary.icon);
+    parts.secondaryIcon.src = Tools.resolveAssetPath(tool.secondary.icon);
     parts.secondaryIcon.alt = "";
     button.title += ` [${Tools.i18n.t("click_to_toggle")}]`;
   } else if (parts.secondaryIcon) {
@@ -2390,7 +2386,7 @@ function toggleToolButtonMode(toolName, name, icon) {
   const primaryIconSrc = parts.primaryIcon.src;
   parts.primaryIcon.src = secondaryIcon.src;
   secondaryIcon.src = primaryIconSrc;
-  parts.primaryIcon.src = Tools.versionAssetPath(icon);
+  parts.primaryIcon.src = Tools.resolveAssetPath(icon);
   parts.label.textContent = Tools.i18n.t(name);
 }
 
@@ -2399,13 +2395,13 @@ function toggleToolButtonMode(toolName, name, icon) {
  * @returns {HTMLLinkElement}
  */
 function addToolStylesheet(href) {
-  const versionedHref = Tools.versionAssetPath(href);
+  const resolvedHref = Tools.resolveAssetPath(href);
   const existing = Array.from(
     document.querySelectorAll('link[rel="stylesheet"]'),
-  ).find((link) => link.getAttribute("href") === versionedHref);
+  ).find((link) => link.getAttribute("href") === resolvedHref);
   if (existing instanceof HTMLLinkElement) return existing;
   const link = document.createElement("link");
-  link.href = versionedHref;
+  link.href = resolvedHref;
   link.rel = "stylesheet";
   link.type = "text/css";
   document.head.appendChild(link);
@@ -2442,7 +2438,7 @@ Tools.list = /** @type {AppToolsState["list"]} */ ({});
  */
 async function loadToolModule(toolName) {
   const namespace = /** @type {ToolModule} */ (
-    await import(Tools.versionAssetPath(getToolModuleImportPath(toolName)))
+    await import(Tools.resolveAssetPath(getToolModuleImportPath(toolName)))
   );
   if (typeof namespace.boot !== "function") {
     throw new Error(`Missing boot export for ${toolName}.`);

@@ -44,7 +44,6 @@ const COMPRESSION_PATH = path.join(
 );
 const CLIENT_WEBROOT = path.join(__dirname, "..", "client-data");
 const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.mjs");
-const PACKAGE_PATH = path.join(__dirname, "..", "package.json");
 let serverLoadSequence = 0;
 
 /**
@@ -443,9 +442,8 @@ test("server returns 400 for malformed low-level HTTP parser input", async () =>
   ]);
 });
 
-test("board pages are no-store in development and render versioned asset URLs", async () => {
+test("board pages are no-store in development and render plain asset URLs", async () => {
   const dirs = await createServerDirs();
-  const packageJson = JSON.parse(await fs.readFile(PACKAGE_PATH, "utf8"));
 
   await withEnv({
     HOST: "127.0.0.1",
@@ -462,40 +460,20 @@ test("board pages are no-store in development and render versioned asset URLs", 
 
       assert.equal(response.statusCode, 200);
       assert.equal(response.headers["cache-control"], "no-store");
+      assert.match(response.body, /\.\.\/board\.css(?:["'])/);
+      assert.match(response.body, /\.\.\/js\/board_main\.js(?:["'])/);
       assert.match(
         response.body,
-        new RegExp(`\\.\\./board\\.css\\?v=${packageJson.version}`),
+        /rel="modulepreload" href="\.\.\/js\/board\.js"/,
       );
       assert.match(
         response.body,
-        new RegExp(`\\.\\./js/board_main\\.js\\?v=${packageJson.version}`),
+        /rel="modulepreload" href="\.\.\/js\/path-data-polyfill\.js"/,
       );
-      assert.match(
-        response.body,
-        new RegExp(
-          `rel="modulepreload" href="\\.\\./js/board\\.js\\?v=${packageJson.version}"`,
-        ),
-      );
-      assert.match(
-        response.body,
-        new RegExp(
-          `rel="modulepreload" href="\\.\\./js/path-data-polyfill\\.js\\?v=${packageJson.version}"`,
-        ),
-      );
-      assert.match(
-        response.body,
-        new RegExp(
-          `\\.\\./tools/pencil/icon\\.svg\\?v(?:=|&#x3D;)${packageJson.version}`,
-        ),
-      );
-      assert.match(
-        response.body,
-        new RegExp(`\\.\\./users\\.svg\\?v=${packageJson.version}`),
-      );
-      assert.match(
-        response.body,
-        new RegExp(`\\.\\./icon-size\\.svg\\?v=${packageJson.version}`),
-      );
+      assert.match(response.body, /\.\.\/tools\/pencil\/icon\.svg(?:["'])/);
+      assert.match(response.body, /\.\.\/users\.svg(?:["'])/);
+      assert.match(response.body, /\.\.\/icon-size\.svg(?:["'])/);
+      assert.doesNotMatch(response.body, /\?v=/);
     } finally {
       await closeServer(app);
     }
@@ -790,9 +768,8 @@ test("board html svg and preview routes negotiate compression when requested", a
   ]);
 });
 
-test("static assets are no-store in development and cache correctly in production", async () => {
+test("static assets are no-store in development and revalidate in production", async () => {
   const dirs = await createServerDirs();
-  const packageJson = JSON.parse(await fs.readFile(PACKAGE_PATH, "utf8"));
 
   await withEnv({
     HOST: "127.0.0.1",
@@ -837,20 +814,21 @@ test("static assets are no-store in development and cache correctly in productio
       const response = await request(app, "/board.css");
 
       assert.equal(response.statusCode, 200);
-      assert.match(
-        String(response.headers["cache-control"] || ""),
-        /max-age=7200/,
-      );
-
-      const immutableResponse = await request(
-        app,
-        `/board.css?v=${encodeURIComponent(packageJson.version)}`,
-      );
-      assert.equal(immutableResponse.statusCode, 200);
       assert.equal(
-        immutableResponse.headers["cache-control"],
-        "public, max-age=31536000, immutable",
+        response.headers["cache-control"],
+        "public, max-age=60, must-revalidate",
       );
+      assert.ok(response.headers.etag);
+
+      const cachedResponse = await request(app, "/board.css", {
+        "If-None-Match": String(response.headers.etag),
+      });
+      assert.equal(cachedResponse.statusCode, 304);
+      assert.equal(
+        cachedResponse.headers["cache-control"],
+        "public, max-age=60, must-revalidate",
+      );
+      assert.equal(cachedResponse.headers.etag, response.headers.etag);
     } finally {
       await closeServer(app);
     }

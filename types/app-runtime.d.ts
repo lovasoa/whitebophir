@@ -528,8 +528,7 @@ export type AppToolsState = {
   messageForTool: (message: BoardMessage) => void;
   newUnreadMessage: () => void;
   startConnection: () => void;
-  versionAssetPath: (assetPath: string) => string;
-  assetVersion: string;
+  resolveAssetPath: (assetPath: string) => string;
 };
 
 export type MountedAppToolsState = AppToolsState & {

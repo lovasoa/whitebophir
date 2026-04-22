@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import handlebars from "handlebars";
-import packageJson from "../package.json" with { type: "json" };
 
 import client_config from "./client_configuration.mjs";
 import { readConfiguration } from "./configuration.mjs";
@@ -12,7 +11,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
-/** @typedef {{baseUrl: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, version: string, [name: string]: any}} TemplateParameters */
+/** @typedef {{baseUrl: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, [name: string]: any}} TemplateParameters */
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
@@ -206,7 +205,6 @@ class Template {
       : prefixPart;
     const baseUrl = findBaseUrl(request) + (prefix ? `/${prefix}/` : "");
     const moderator = isModerator;
-    const version = packageJson.version;
     return {
       baseUrl,
       languages,
@@ -214,7 +212,6 @@ class Template {
       translations,
       configuration,
       moderator,
-      version,
       ...extraParams,
     };
   }
@@ -321,16 +318,16 @@ class BoardTemplate extends Template {
     params.tools = visibleTools.map((tool) => ({
       id: tool.toolId,
       label: params.translations[tool.translationKey] || tool.label,
-      iconUrl: tool.getIconUrl(params.version),
+      iconUrl: tool.getIconUrl(),
     }));
     params.toolModulePreloads = Array.from(
       new Set(visibleTools.map((tool) => tool.toolId).concat("cursor")),
     )
       .map((toolId) => TOOL_BY_ID[toolId])
       .filter(isToolbarTool)
-      .map((tool) => tool.getModuleImportPath(params.version));
+      .map((tool) => tool.getModuleImportPath());
     params.toolStylesheets = visibleTools
-      .map((tool) => tool.getStylesheetUrl(params.version))
+      .map((tool) => tool.getStylesheetUrl())
       .filter((href) => typeof href === "string");
     return params;
   }

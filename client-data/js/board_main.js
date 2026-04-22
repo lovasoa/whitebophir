@@ -1,8 +1,7 @@
 import { DRAW_TOOL_IDS } from "../tools/tool-order.js";
-import { withVersion } from "../tools/tool-defaults.js";
-
-const assetVersion = document.documentElement.dataset.version || "";
 const documentElement = document.documentElement;
+/** @type {string} */
+const PATH_DATA_POLYFILL_MODULE = "./path-data-polyfill.js";
 
 const CRITICAL_BOOT_TOOL_NAMES = ["hand", DRAW_TOOL_IDS[0] || ""];
 const REPLAY_SAFE_TOOL_NAMES = new Set([
@@ -71,8 +70,8 @@ async function lazyBootRenderedTools() {
 }
 
 async function bootBoardPage() {
-  const boardModule = await import(withVersion("./board.js", assetVersion));
-  await import(withVersion("./path-data-polyfill.js", assetVersion));
+  const boardModule = await import("./board.js");
+  await import(PATH_DATA_POLYFILL_MODULE);
   const tools = window.Tools;
   if (!tools) {
     throw new Error("Board runtime did not initialize the board app.");
@@ -107,7 +106,7 @@ async function bootBoardPage() {
   setBoardBootPhase("ready");
 
   const canvasColorModule = /** @type {{registerCanvasColor?: () => void}} */ (
-    await import(withVersion("./canvascolor.js", assetVersion))
+    await import("./canvascolor.js")
   );
   if (typeof canvasColorModule.registerCanvasColor === "function") {
     canvasColorModule.registerCanvasColor();
