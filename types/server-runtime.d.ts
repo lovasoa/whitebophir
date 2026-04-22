@@ -1,6 +1,11 @@
-import type { BoardMessage, ConnectedUser, ToolCode } from "./app-runtime";
+import type {
+  BoardMessage,
+  ConnectedUser,
+  PersistentMutationEnvelope,
+  ToolCode,
+} from "./app-runtime";
 
-export type MessageData = BoardMessage & {
+export type MessageData = Partial<BoardMessage> & {
   [key: string]: any;
 };
 
@@ -83,4 +88,8 @@ export type UserLeftPayload = {
 export type BoardLike = {
   name: string;
   isReadOnly: () => boolean;
+};
+
+export type MutationEnvelope = PersistentMutationEnvelope & {
+  mutation: NormalizedMessageData;
 };

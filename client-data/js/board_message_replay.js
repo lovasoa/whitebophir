@@ -1,4 +1,7 @@
 /** @typedef {import("../../types/app-runtime").IdentifiedBoardMessage} IdentifiedBoardMessage */
+/** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
+/** @typedef {import("../../types/app-runtime").IncomingBroadcast} IncomingBroadcast */
+/** @typedef {import("../../types/app-runtime").PersistentMutationEnvelope} PersistentMutationEnvelope */
 /** @typedef {import("../../types/app-runtime").ToolOwnedBatchMessage} ToolOwnedBatchMessage */
 import { isToolOwnedBatchTool } from "./message_tool_metadata.js";
 import {
@@ -64,35 +67,19 @@ export function prepareReplayChild(parent, child, normalizeChildMessage) {
 }
 
 /**
- * @param {{tool?: unknown, _children?: unknown, seq?: unknown, mutation?: unknown, type?: unknown, [key: string]: unknown} | null | undefined} message
+ * @param {IncomingBroadcast | null | undefined} message
  * @param {boolean} awaitingBoardSnapshot
  * @returns {boolean}
  */
 export function shouldBufferLiveMessage(message, awaitingBoardSnapshot) {
   if (awaitingBoardSnapshot !== true) return false;
-  if (isSyncReplayControlMessage(message || {})) return false;
   if (isPersistentEnvelope(message || {})) return false;
   return true;
 }
 
 /**
- * @param {{type?: unknown, [key: string]: unknown} | null | undefined} message
- * @returns {boolean}
- */
-export function isSyncReplayControlMessage(message) {
-  return !!(
-    message &&
-    typeof message === "object" &&
-    (message.type === "sync_replay_start" ||
-      message.type === "sync_replay_end" ||
-      message.type === "resync_required" ||
-      message.type === "mutation_rejected")
-  );
-}
-
-/**
  * @param {{seq?: unknown, mutation?: unknown} | null | undefined} message
- * @returns {boolean}
+ * @returns {message is PersistentMutationEnvelope}
  */
 export function isPersistentEnvelope(message) {
   return (
@@ -105,12 +92,11 @@ export function isPersistentEnvelope(message) {
 }
 
 /**
- * @param {unknown} message
- * @returns {unknown}
+ * @param {IncomingBroadcast} message
+ * @returns {BoardMessage}
  */
 export function unwrapReplayMessage(message) {
-  const replayMessage = /** @type {{mutation?: unknown}} */ (message);
-  return isPersistentEnvelope(replayMessage) ? replayMessage.mutation : message;
+  return isPersistentEnvelope(message) ? message.mutation : message;
 }
 
 /**

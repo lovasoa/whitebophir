@@ -36,7 +36,10 @@ import {
   ATTR_URL_SCHEME,
   SEMRESATTRS_SERVICE_NAME,
 } from "@opentelemetry/semantic-conventions";
-import { getToolId } from "../client-data/js/message_tool_metadata.js";
+import {
+  formatMessageTypeTag,
+  getToolId,
+} from "../client-data/js/message_tool_metadata.js";
 import packageJson from "../package.json" with { type: "json" };
 
 import {
@@ -1011,7 +1014,7 @@ function recordBoardMessage(message, errorType) {
   /** @type {{[key: string]: string | boolean}} */
   const attributes = {
     "wbo.tool": getToolId(message.tool) || "unknown",
-    "wbo.message.type": String(message.type || "unknown"),
+    "wbo.message.type": formatMessageTypeTag(message.type) || "unknown",
   };
   const boardAnonymous = metricBoardAnonymous(message.board);
   if (boardAnonymous !== undefined) {

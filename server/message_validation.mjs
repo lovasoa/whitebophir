@@ -524,7 +524,7 @@ function normalizeIncomingBatch(raw) {
   /** @type {NormalizedMessageData} */
   const normalized = {
     tool: toolCode.value,
-    _children: children,
+    _children: /** @type {NormalizedMessageData["_children"]} */ (children),
   };
   if (Object.hasOwn(raw, "clientMutationId")) {
     const clientMutationId = normalizeClientMutationId(raw.clientMutationId);

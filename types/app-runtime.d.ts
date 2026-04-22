@@ -8,12 +8,18 @@ export type Transform = {
 };
 
 export type ToolCode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
-export type MutationCode = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type MessageType =
+  typeof import("../client-data/js/mutation_type.js").MutationType[keyof typeof import("../client-data/js/mutation_type.js").MutationType];
+export type MutationCode = MessageType;
+export type SocketEventName =
+  typeof import("../client-data/js/socket_events.js").SocketEvents[keyof typeof import("../client-data/js/socket_events.js").SocketEvents];
+
+export type ToolRef = string | ToolCode;
 
 export type BoardMessage = {
-  tool?: string | ToolCode;
+  tool?: ToolRef;
+  type?: MessageType;
   id?: string;
-  type?: string | MutationCode;
   parent?: string;
   newid?: string;
   seq?: number;
@@ -23,7 +29,6 @@ export type BoardMessage = {
   size?: number;
   txt?: string;
   clientMutationId?: string;
-  mutation?: BoardMessage;
   transform?: Transform | unknown;
   _children?: BoardMessage[];
   x?: number;
@@ -32,7 +37,7 @@ export type BoardMessage = {
 };
 
 export type ToolNamedBoardMessage = BoardMessage & {
-  tool: string | ToolCode;
+  tool: ToolRef;
 };
 
 export type IdentifiedBoardMessage = BoardMessage & {
@@ -48,8 +53,19 @@ export type BatchBoardMessage = ToolNamedBoardMessage & {
 };
 
 export type ToolOwnedBatchMessage = BatchBoardMessage & {
-  tool: string | ToolCode;
+  tool: ToolRef;
 };
+
+export type PersistentMutationEnvelope = {
+  board: string;
+  acceptedAtMs: number;
+  mutation: BoardMessage;
+  clientMutationId?: string;
+  socketId?: string;
+  seq: number;
+};
+
+export type IncomingBroadcast = BoardMessage | PersistentMutationEnvelope;
 
 export type PendingWrite = {
   data?: BoardMessage;
@@ -157,23 +173,28 @@ export type MountedToolRegistry = {
   [toolName: string]: MountedAppTool;
 };
 
-export type AppSocket = {
-  id?: string;
-  connected?: boolean;
-  on: (eventName: string, handler: (...args: any[]) => void) => void;
-  emit: (eventName: string, ...args: any[]) => void;
-  connect?: () => void;
-  disconnect?: () => void;
-  destroy?: () => void;
-  once?: (eventName: string, handler: (...args: any[]) => void) => void;
-  io?: { engine?: { close: () => void } };
+export type AppBoardState = {
+  readonly: boolean;
+  canWrite: boolean;
 };
 
-export type MessageHook = (message: BoardMessage) => void;
+export type MutationRejectedPayload = {
+  clientMutationId: string;
+  reason: string;
+};
 
-export type ColorPreset = {
-  color: string;
-  key?: string;
+export type SyncReplayStartPayload = {
+  fromExclusiveSeq: number;
+  toInclusiveSeq: number;
+};
+
+export type SyncReplayEndPayload = {
+  toInclusiveSeq: number;
+};
+
+export type ResyncRequiredPayload = {
+  latestSeq: number;
+  minReplayableSeq: number;
 };
 
 export type ConnectedUser = {
@@ -190,6 +211,100 @@ export type ConnectedUser = {
   pulseUntil?: number;
   reported?: boolean;
   pulseTimeoutId?: ReturnType<typeof setTimeout> | null;
+};
+
+export type UserLeftPayload = {
+  socketId: string;
+};
+
+export type ClientSocketIncomingEventMap = {
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .BOARDSTATE]: AppBoardState;
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .BROADCAST]: IncomingBroadcast;
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .CONNECT]: undefined;
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .DISCONNECT]: string;
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .ERROR]: unknown;
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .MUTATION_REJECTED]: MutationRejectedPayload;
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .RATE_LIMITED]: {
+    retryAfterMs?: number;
+    reason?: string;
+  };
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .RESYNC_REQUIRED]: ResyncRequiredPayload;
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .SYNC_REPLAY_END]: SyncReplayEndPayload;
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .SYNC_REPLAY_START]: SyncReplayStartPayload;
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .USER_JOINED]: ConnectedUser;
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .USER_LEFT]: UserLeftPayload;
+};
+
+export type ReportUserPayload = {
+  socketId?: string;
+};
+
+export type TurnstileSuccessAck = {
+  success: true;
+  validationWindowMs?: unknown;
+  validatedUntil?: unknown;
+};
+
+export type TurnstileFailureAck = {
+  success: false;
+};
+
+export type TurnstileAck = TurnstileSuccessAck | TurnstileFailureAck;
+
+export type ClientSocketOutgoingEventArgs = {
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .BROADCAST]: [message: BoardMessage];
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .REPORT_USER]: [payload: ReportUserPayload];
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .SYNC_REQUEST]: [payload: { baselineSeq?: number }];
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .TURNSTILE_TOKEN]: [token: string, ack?: (result: unknown) => void];
+};
+
+export type AppSocket = {
+  id?: string;
+  connected?: boolean;
+  on: {
+    <K extends keyof ClientSocketIncomingEventMap>(
+      eventName: K,
+      handler: ClientSocketIncomingEventMap[K] extends undefined
+        ? () => void
+        : (payload: ClientSocketIncomingEventMap[K]) => void,
+    ): void;
+    (eventName: string, handler: (...args: any[]) => void): void;
+  };
+  emit: {
+    <K extends keyof ClientSocketOutgoingEventArgs>(
+      eventName: K,
+      ...args: ClientSocketOutgoingEventArgs[K]
+    ): void;
+    (eventName: string, ...args: any[]): void;
+  };
+  connect?: () => void;
+  disconnect?: () => void;
+  destroy?: () => void;
+  once?: (eventName: string, handler: (...args: any[]) => void) => void;
+  io?: { engine?: { close: () => void } };
+};
+
+export type MessageHook = (message: BoardMessage) => void;
+
+export type ColorPreset = {
+  color: string;
+  key?: string;
 };
 
 export type BoardStatusView = {
@@ -344,11 +459,6 @@ export type ToolModule<T = unknown> = {
   onSizeChange?: (state: T, size: number) => void;
 };
 
-export type AppBoardState = {
-  readonly: boolean;
-  canWrite: boolean;
-};
-
 export type AppToolsState = {
   i18n: { t: (s: string) => string };
   server_config: ServerConfig;
@@ -376,8 +486,8 @@ export type AppToolsState = {
   optimisticJournal: OptimisticJournalState;
   optimisticMutationIdsByItemId: Map<string, string>;
   awaitingSyncReplay: boolean;
-  preSnapshotMessages: BoardMessage[];
-  incomingBroadcastQueue: BoardMessage[];
+  preSnapshotMessages: IncomingBroadcast[];
+  incomingBroadcastQueue: IncomingBroadcast[];
   processingIncomingBroadcast: boolean;
   showMarker: boolean;
   showOtherCursors: boolean;
@@ -425,7 +535,7 @@ export type AppToolsState = {
   };
   colorChangeHandlers: ((color: string) => void)[];
   sizeChangeHandlers: ((size: number) => void)[];
-  cloneMessage: (message: BoardMessage) => BoardMessage;
+  cloneMessage: <T extends IncomingBroadcast>(message: T) => T;
   getRateLimitDefinition: (
     kind: RateLimitKind,
   ) => ConfiguredRateLimitDefinition;
@@ -586,15 +696,3 @@ export type SocketParams = {
   extraHeaders?: SocketHeaders;
   query?: string;
 };
-
-export type TurnstileSuccessAck = {
-  success: true;
-  validationWindowMs?: unknown;
-  validatedUntil?: unknown;
-};
-
-export type TurnstileFailureAck = {
-  success: false;
-};
-
-export type TurnstileAck = TurnstileSuccessAck | TurnstileFailureAck;

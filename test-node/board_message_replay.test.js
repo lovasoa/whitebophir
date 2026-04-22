@@ -140,60 +140,18 @@ test("persistent seq envelopes classify stale next and gap cases", () => {
   assert.equal(BoardMessageReplay.classifyPersistentEnvelopeSeq(7, 4), "gap");
 });
 
-test("sync replay control messages are identified by type", () => {
-  assert.equal(
-    BoardMessageReplay.isSyncReplayControlMessage({
-      type: "sync_replay_start",
-      fromExclusiveSeq: 3,
-      toInclusiveSeq: 8,
-    }),
-    true,
-  );
-  assert.equal(
-    BoardMessageReplay.isSyncReplayControlMessage({
-      type: "sync_replay_end",
-      toInclusiveSeq: 8,
-    }),
-    true,
-  );
-  assert.equal(
-    BoardMessageReplay.isSyncReplayControlMessage({
-      type: "resync_required",
-      latestSeq: 10,
-      minReplayableSeq: 4,
-    }),
-    true,
-  );
-  assert.equal(
-    BoardMessageReplay.isSyncReplayControlMessage({
-      tool: Rectangle.id,
-      type: MutationType.CREATE,
-      id: "rect-1",
-    }),
-    false,
-  );
-});
-
-test("seq envelopes and sync control messages bypass the seq replay buffer", () => {
+test("seq envelopes bypass the seq replay buffer while live broadcasts queue", () => {
   assert.equal(
     BoardMessageReplay.shouldBufferLiveMessage(
       {
+        board: "demo",
+        acceptedAtMs: 100,
         seq: 3,
         mutation: {
           tool: Rectangle.id,
           type: MutationType.CREATE,
           id: "rect-1",
         },
-      },
-      true,
-    ),
-    false,
-  );
-  assert.equal(
-    BoardMessageReplay.shouldBufferLiveMessage(
-      {
-        type: "sync_replay_end",
-        toInclusiveSeq: 3,
       },
       true,
     ),

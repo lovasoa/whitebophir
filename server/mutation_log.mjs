@@ -1,13 +1,4 @@
-/**
- * @typedef {{
- *   board: string,
- *   acceptedAtMs: number,
- *   mutation: {[key: string]: unknown},
- *   clientMutationId?: string,
- *   socketId?: string,
- *   seq: number,
- * }} MutationEnvelope
- */
+/** @typedef {import("../types/server-runtime.d.ts").MutationEnvelope} MutationEnvelope */
 
 /**
  * @param {unknown} value

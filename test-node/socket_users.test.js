@@ -344,12 +344,10 @@ test("seq-sync clients bootstrap without a snapshot and receive an explicit empt
         ["boardstate", "sync_replay_start", "sync_replay_end"],
       );
       assert.deepEqual(getRequiredValue(replayEvents[1]).payload, {
-        type: "sync_replay_start",
         fromExclusiveSeq: 0,
         toInclusiveSeq: 0,
       });
       assert.deepEqual(getRequiredValue(replayEvents[2]).payload, {
-        type: "sync_replay_end",
         toInclusiveSeq: 0,
       });
     },
@@ -507,7 +505,6 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
       );
       assert.equal(getRequiredValue(replayedEvents[2]).payload.seq, 1);
       assert.deepEqual(getRequiredValue(replayedEvents[3]).payload, {
-        type: "sync_replay_end",
         toInclusiveSeq: 1,
       });
     },
@@ -583,7 +580,6 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
         ["boardstate", "sync_replay_start", "broadcast", "sync_replay_end"],
       );
       assert.deepEqual(getRequiredValue(replayedEvents[1]).payload, {
-        type: "sync_replay_start",
         fromExclusiveSeq: 1,
         toInclusiveSeq: 2,
       });
@@ -668,7 +664,6 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
         ["boardstate", "sync_replay_start", "broadcast", "sync_replay_end"],
       );
       assert.deepEqual(getRequiredValue(replayedEvents[1]).payload, {
-        type: "sync_replay_start",
         fromExclusiveSeq: 1,
         toInclusiveSeq: 2,
       });
@@ -828,7 +823,6 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
         ["boardstate", "resync_required"],
       );
       assert.deepEqual(getRequiredValue(replayedEvents[1]).payload, {
-        type: "resync_required",
         latestSeq: 2,
         minReplayableSeq: 1,
       });
@@ -1019,7 +1013,6 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
         ["boardstate", "sync_replay_start", "sync_replay_end"],
       );
       assert.deepEqual(getRequiredValue(replayedEvents[2]).payload, {
-        type: "sync_replay_end",
         toInclusiveSeq: 0,
       });
     },
@@ -1058,7 +1051,6 @@ test("rejected board mutations emit mutation_rejected with the clientMutationId"
           writer.emitted.find((event) => event.event === "mutation_rejected"),
         ).payload,
         {
-          type: "mutation_rejected",
           clientMutationId: "cm-reject-1",
           reason: "invalid parent for child",
         },
@@ -1116,7 +1108,6 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
           writer.emitted.find((event) => event.event === "mutation_rejected"),
         ).payload,
         {
-          type: "mutation_rejected",
           clientMutationId: "cm-seed-grow",
           reason: "update rejected: shape too large",
         },

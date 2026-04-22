@@ -126,7 +126,7 @@ function hasChildMessages(message) {
 
 /**
  * @param {BoardMessage} parent
- * @param {BoardMessage} child
+ * @param {{[key: string]: unknown}} child
  * @returns {BoardMessage}
  */
 function normalizeChildMessage(parent, child) {

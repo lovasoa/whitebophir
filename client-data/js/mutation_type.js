@@ -1,6 +1,4 @@
-/** @typedef {import("../../types/app-runtime").MutationCode} MutationCode */
-
-/** @type {{CREATE: MutationCode, UPDATE: MutationCode, DELETE: MutationCode, APPEND: MutationCode, BATCH: MutationCode, CLEAR: MutationCode, COPY: MutationCode}} */
+/** @type {{CREATE: number, UPDATE: number, DELETE: number, APPEND: number, BATCH: number, CLEAR: number, COPY: number}} */
 export const MutationType = Object.freeze({
   CREATE: 1,
   UPDATE: 2,
@@ -13,12 +11,12 @@ export const MutationType = Object.freeze({
 
 /**
  * @param {unknown} type
- * @returns {MutationCode | undefined}
+ * @returns {number | undefined}
  */
 export function getMutationTypeCode(type) {
   return typeof type === "number" &&
     type >= MutationType.CREATE &&
     type <= MutationType.COPY
-    ? /** @type {MutationCode} */ (type)
+    ? type
     : undefined;
 }

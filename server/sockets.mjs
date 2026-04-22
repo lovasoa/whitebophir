@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
 import * as socketIO from "socket.io";
 import WBOMessageCommon from "../client-data/js/message_common.js";
-import { getToolId } from "../client-data/js/message_tool_metadata.js";
+import {
+  formatMessageTypeTag,
+  getToolId,
+} from "../client-data/js/message_tool_metadata.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
+import { SocketEvents } from "../client-data/js/socket_events.js";
 import { Cursor } from "../client-data/tools/index.js";
 import { BoardData } from "./boardData.mjs";
 import {
@@ -472,7 +476,7 @@ function ensureBoardUser(socket, boardName, config) {
 function emitBoardUsersToSocket(socket, boardName) {
   const users = getBoardUserMap(boardName);
   users.forEach(function emitUserJoined(user) {
-    socket.emit("user_joined", serializeBoardUser(user));
+    socket.emit(SocketEvents.USER_JOINED, serializeBoardUser(user));
   });
 }
 
@@ -483,7 +487,9 @@ function emitBoardUsersToSocket(socket, boardName) {
  * @returns {void}
  */
 function emitUserJoinedToBoard(socket, boardName, user) {
-  socket.broadcast.to(boardName).emit("user_joined", serializeBoardUser(user));
+  socket.broadcast
+    .to(boardName)
+    .emit(SocketEvents.USER_JOINED, serializeBoardUser(user));
 }
 
 /**
@@ -499,7 +505,7 @@ function removeBoardUser(socket, boardName) {
   const payload = {
     socketId: socket.id,
   };
-  socket.broadcast.to(boardName).emit("user_left", {
+  socket.broadcast.to(boardName).emit(SocketEvents.USER_LEFT, {
     socketId: payload.socketId,
   });
   cleanupBoardUserMap(boardName);
@@ -627,7 +633,7 @@ function getActiveSocket(socketId) {
  * @returns {void}
  */
 function closeRateLimitedSocket(socket, eventName, infos) {
-  socket.emit("rate-limited", {
+  socket.emit(SocketEvents.RATE_LIMITED, {
     event: eventName,
     kind: infos.kind,
     limit: infos.limit,
@@ -674,7 +680,7 @@ function boardMutationTraceAttributes(boardName, userName, message) {
     "wbo.board": boardName,
     "user.name": userName,
     "wbo.tool": getToolId(message?.tool),
-    "wbo.message.type": message?.type,
+    "wbo.message.type": formatMessageTypeTag(message?.type),
   });
 }
 
@@ -1561,9 +1567,9 @@ function emitPersistentBoardMutation(board, sourceSocket, envelope) {
     if (!targetSocket) continue;
     if (targetSocket.id === sourceSocket.id) continue;
     if (!canReceiveLivePersistentBroadcasts(targetSocket)) continue;
-    targetSocket.emit("broadcast", envelope);
+    targetSocket.emit(SocketEvents.BROADCAST, envelope);
   }
-  sourceSocket.emit("broadcast", envelope);
+  sourceSocket.emit(SocketEvents.BROADCAST, envelope);
 }
 
 /**
@@ -1586,7 +1592,9 @@ function emitPersistentBoardFollowupMutations(board, sourceSocket, followup) {
  * @returns {void}
  */
 function emitEphemeralBoardMutation(boardName, sourceSocket, livePayload) {
-  sourceSocket.broadcast.to(boardName).emit("broadcast", livePayload);
+  sourceSocket.broadcast
+    .to(boardName)
+    .emit(SocketEvents.BROADCAST, livePayload);
 }
 
 /**
@@ -1610,8 +1618,7 @@ function emitMutationRejected(socket, data, reason) {
   if (typeof data?.clientMutationId !== "string" || !data.clientMutationId) {
     return;
   }
-  socket.emit("mutation_rejected", {
-    type: "mutation_rejected",
+  socket.emit(SocketEvents.MUTATION_REJECTED, {
     clientMutationId: data.clientMutationId,
     reason,
   });
@@ -2193,7 +2200,7 @@ async function bootstrapSocketBoard(socket, boardName, config) {
           users: board.users.size,
         });
       }
-      socket.emit("boardstate", {
+      socket.emit(SocketEvents.BOARDSTATE, {
         readonly: board.isReadOnly(),
         canWrite: canWriteToBoard(config, board, socket),
       });
@@ -2235,21 +2242,19 @@ async function handleSyncRequestMessage(socket, boardName, request, config) {
         "wbo.socket.latest_seq": latestSeq,
       }),
     );
-    socket.emit("resync_required", {
-      type: "resync_required",
+    socket.emit(SocketEvents.RESYNC_REQUIRED, {
       latestSeq: latestSeq,
       minReplayableSeq: minReplayableSeq,
     });
     return;
   }
-  socket.emit("sync_replay_start", {
-    type: "sync_replay_start",
+  socket.emit(SocketEvents.SYNC_REPLAY_START, {
     fromExclusiveSeq: baselineSeq,
     toInclusiveSeq: latestSeq,
   });
   for (const envelope of board.readMutationRange(baselineSeq, latestSeq)) {
     socket.emit(
-      "broadcast",
+      SocketEvents.BROADCAST,
       withPersistentEnvelopeSocketId(envelope, envelope.socketId),
     );
   }
@@ -2264,8 +2269,7 @@ async function handleSyncRequestMessage(socket, boardName, request, config) {
       }),
     );
   }
-  socket.emit("sync_replay_end", {
-    type: "sync_replay_end",
+  socket.emit(SocketEvents.SYNC_REPLAY_END, {
     toInclusiveSeq: latestSeq,
   });
 }

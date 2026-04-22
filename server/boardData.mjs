@@ -368,7 +368,7 @@ class BoardData {
   }
 
   /**
-   * @param {BoardMessage} mutation
+   * @param {NormalizedMessageData} mutation
    * @param {number} [acceptedAtMs]
    * @param {string | undefined} [clientMutationId]
    * @param {string | undefined} [socketId]
@@ -1061,7 +1061,7 @@ class BoardData {
       () => {
         const messages = children.map((childMessage) =>
           parentMessage && childMessage.tool === undefined
-            ? { tool: parentMessage.tool, ...childMessage }
+            ? { ...childMessage, tool: parentMessage.tool }
             : childMessage,
         );
         /** @type {Map<string, any | undefined>} */

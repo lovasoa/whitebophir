@@ -59,6 +59,7 @@ import {
   collectOptimisticDependencyIds,
 } from "./optimistic_mutation.js";
 import RateLimitCommon from "./rate_limit_common.js";
+import { SocketEvents } from "./socket_events.js";
 import {
   getToolIconPath,
   getToolModuleImportPath,
@@ -82,9 +83,13 @@ import { Hand, TOOL_BY_ID, TOOLS } from "../tools/index.js";
 /** @typedef {import("../../types/app-runtime").ServerConfig} ServerConfig */
 /** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
 /** @typedef {import("../../types/app-runtime").CompiledToolListeners} CompiledToolListeners */
+/** @typedef {import("../../types/app-runtime").IncomingBroadcast} IncomingBroadcast */
 /** @typedef {import("../../types/app-runtime").MountedAppTool} MountedAppTool */
+/** @typedef {import("../../types/app-runtime").MutationRejectedPayload} MutationRejectedPayload */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
 /** @typedef {import("../../types/app-runtime").ToolPointerListeners} ToolPointerListeners */
+/** @typedef {import("../../types/app-runtime").ResyncRequiredPayload} ResyncRequiredPayload */
+/** @typedef {import("../../types/app-runtime").SyncReplayEndPayload} SyncReplayEndPayload */
 /** @typedef {import("../../types/app-runtime").ToolModule} ToolModule */
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
@@ -352,10 +357,14 @@ Tools.localRateLimitStates = {
   text: RateLimitCommon.createRateLimitState(Date.now()),
 };
 
-/** @param {BoardMessage} message */
+/**
+ * @template {IncomingBroadcast} T
+ * @param {T} message
+ * @returns {T}
+ */
 Tools.cloneMessage = function cloneMessage(message) {
   if (typeof structuredClone === "function") return structuredClone(message);
-  return /** @type {BoardMessage} */ (JSON.parse(JSON.stringify(message)));
+  return /** @type {T} */ (JSON.parse(JSON.stringify(message)));
 };
 
 function initializeShellControls() {
@@ -1034,7 +1043,9 @@ Tools.flushBufferedWrites = function flushBufferedWrites() {
     Tools.bufferedWrites.shift();
     Tools.consumeBufferedWriteBudget(bufferedWrite, now);
     Tools.updateCurrentConnectedUserFromActivity(bufferedWrite.message);
-    if (Tools.socket) Tools.socket.emit("broadcast", bufferedWrite.message);
+    if (Tools.socket) {
+      Tools.socket.emit(SocketEvents.BROADCAST, bufferedWrite.message);
+    }
   }
   Tools.syncWriteStatusIndicator();
 };
@@ -1071,7 +1082,7 @@ Tools.sendBufferedWrite = function sendBufferedWrite(message) {
   ) {
     Tools.consumeBufferedWriteBudget(bufferedWrite, now);
     Tools.updateCurrentConnectedUserFromActivity(message);
-    if (Tools.socket) Tools.socket.emit("broadcast", message);
+    if (Tools.socket) Tools.socket.emit(SocketEvents.BROADCAST, message);
     Tools.syncWriteStatusIndicator();
     return true;
   }
@@ -1145,14 +1156,12 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
 };
 
 /**
- * @param {BoardMessage} msg
+ * @param {IncomingBroadcast} msg
  * @param {boolean} processed
  * @returns {void}
  */
 function finalizeIncomingBroadcast(msg, processed) {
-  const activityMessage = /** @type {BoardMessage} */ (
-    BoardMessageReplay.unwrapReplayMessage(msg)
-  );
+  const activityMessage = BoardMessageReplay.unwrapReplayMessage(msg);
   if (processed) {
     Tools.updateConnectedUsersFromActivity(
       activityMessage.userId,
@@ -1163,7 +1172,7 @@ function finalizeIncomingBroadcast(msg, processed) {
 }
 
 /**
- * @param {BoardMessage} msg
+ * @param {IncomingBroadcast} msg
  * @returns {Promise<boolean>}
  */
 async function processIncomingBroadcast(msg) {
@@ -1192,9 +1201,7 @@ async function processIncomingBroadcast(msg) {
     Tools.preSnapshotMessages.push(Tools.cloneMessage(msg));
     return false;
   }
-  const replayMessage = /** @type {BoardMessage} */ (
-    BoardMessageReplay.unwrapReplayMessage(msg)
-  );
+  const replayMessage = BoardMessageReplay.unwrapReplayMessage(msg);
   const isOwnSeqEnvelope =
     isPersistentEnvelope && replayMessage.socket === Tools.socket?.id;
   if (
@@ -1235,7 +1242,7 @@ async function drainIncomingBroadcastQueue() {
 }
 
 /**
- * @param {BoardMessage} msg
+ * @param {IncomingBroadcast} msg
  * @returns {void}
  */
 function enqueueIncomingBroadcast(msg) {
@@ -1426,10 +1433,14 @@ function emitTurnstileToken(token) {
     }, TURNSTILE_ACK_TIMEOUT_MS);
 
     try {
-      socket.emit("turnstile_token", token, (/** @type {unknown} */ result) => {
-        clearTimeout(timeoutId);
-        resolve(result);
-      });
+      socket.emit(
+        SocketEvents.TURNSTILE_TOKEN,
+        token,
+        (/** @type {unknown} */ result) => {
+          clearTimeout(timeoutId);
+          resolve(result);
+        },
+      );
     } catch (error) {
       clearTimeout(timeoutId);
       reject(error);
@@ -2036,7 +2047,7 @@ function createConnectedUserRow(user) {
     if (!connectedUser || isCurrentSocketUser(connectedUser)) return;
     connectedUser.reported = true;
     updateConnectedUserRow(row, connectedUser);
-    Tools.socket.emit("report_user", {
+    Tools.socket.emit(SocketEvents.REPORT_USER, {
       socketId: connectedUser.socketId,
     });
   });
@@ -2275,7 +2286,7 @@ Tools.tryStartReplaySync = function tryStartReplaySync() {
         });
       }
     }
-    Tools.socket?.emit("sync_request", {
+    Tools.socket?.emit(SocketEvents.SYNC_REQUEST, {
       baselineSeq: Tools.authoritativeSeq,
     });
   })();
@@ -2311,7 +2322,7 @@ Tools.startConnection = () => {
   Tools.socket = socket;
 
   //Receive draw instructions from the server
-  socket.on("connect", function onConnection() {
+  socket.on(SocketEvents.CONNECT, function onConnection() {
     const hadConnectedBefore = Tools.hasConnectedOnce;
     Tools.connectionState = "connected";
     logBoardEvent(
@@ -2332,31 +2343,28 @@ Tools.startConnection = () => {
     Tools.tryStartReplaySync();
     Tools.syncWriteStatusIndicator();
   });
-  socket.on("broadcast", (/** @type {BoardMessage} */ msg) => {
+  socket.on(SocketEvents.BROADCAST, (/** @type {IncomingBroadcast} */ msg) => {
     enqueueIncomingBroadcast(msg);
   });
-  socket.on("boardstate", Tools.setBoardState);
+  socket.on(SocketEvents.BOARDSTATE, Tools.setBoardState);
   socket.on(
-    "mutation_rejected",
+    SocketEvents.MUTATION_REJECTED,
     function onMutationRejected(
-      /** @type {{clientMutationId?: unknown} | undefined} */ payload,
+      /** @type {MutationRejectedPayload} */ payload,
     ) {
-      if (typeof payload?.clientMutationId !== "string") return;
       Tools.rejectOptimisticMutation(payload.clientMutationId);
     },
   );
-  socket.on("sync_replay_start", function onSyncReplayStart() {
+  socket.on(SocketEvents.SYNC_REPLAY_START, function onSyncReplayStart() {
     Tools.awaitingBoardSnapshot = true;
     Tools.awaitingSyncReplay = true;
   });
   socket.on(
-    "sync_replay_end",
-    function onSyncReplayEnd(
-      /** @type {{toInclusiveSeq?: unknown} | undefined} */ payload,
-    ) {
+    SocketEvents.SYNC_REPLAY_END,
+    function onSyncReplayEnd(/** @type {SyncReplayEndPayload} */ payload) {
       Tools.hasAuthoritativeBoardSnapshot = true;
       Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(
-        payload?.toInclusiveSeq,
+        payload.toInclusiveSeq,
       );
       Tools.awaitingBoardSnapshot = false;
       Tools.awaitingSyncReplay = false;
@@ -2372,15 +2380,13 @@ Tools.startConnection = () => {
     },
   );
   socket.on(
-    "resync_required",
-    function onResyncRequired(
-      /** @type {{latestSeq?: unknown, minReplayableSeq?: unknown} | undefined} */ payload,
-    ) {
+    SocketEvents.RESYNC_REQUIRED,
+    function onResyncRequired(/** @type {ResyncRequiredPayload} */ payload) {
       logBoardEvent("warn", "sync.resync_required", {
         authoritativeSeq: Tools.authoritativeSeq,
-        latestSeq: BoardMessageReplay.normalizeSeq(payload?.latestSeq),
+        latestSeq: BoardMessageReplay.normalizeSeq(payload.latestSeq),
         minReplayableSeq: BoardMessageReplay.normalizeSeq(
-          payload?.minReplayableSeq,
+          payload.minReplayableSeq,
         ),
       });
       Tools.beginAuthoritativeResync();
@@ -2388,20 +2394,21 @@ Tools.startConnection = () => {
     },
   );
   socket.on(
-    "user_joined",
+    SocketEvents.USER_JOINED,
     function onUserJoined(/** @type {ConnectedUser} */ user) {
       Tools.upsertConnectedUser(user);
     },
   );
   socket.on(
-    "user_left",
-    function onUserLeft(/** @type {{socketId?: string}} */ user) {
-      if (!user.socketId) return;
+    SocketEvents.USER_LEFT,
+    function onUserLeft(
+      /** @type {import("../../types/app-runtime").UserLeftPayload} */ user,
+    ) {
       Tools.removeConnectedUser(user.socketId);
     },
   );
   socket.on(
-    "rate-limited",
+    SocketEvents.RATE_LIMITED,
     function onRateLimited(
       /** @type {{retryAfterMs?: number} | null | undefined} */ payload,
     ) {
@@ -2417,15 +2424,18 @@ Tools.startConnection = () => {
       Tools.syncWriteStatusIndicator();
     },
   );
-  socket.on("disconnect", function onDisconnect(/** @type {string} */ reason) {
-    if (socket !== Tools.socket) return;
-    Tools.connectionState = "disconnected";
-    logBoardEvent("warn", "socket.disconnected", { reason });
-    Tools.beginAuthoritativeResync();
-    if (reason === "io server disconnect") {
-      socket.connect();
-    }
-  });
+  socket.on(
+    SocketEvents.DISCONNECT,
+    function onDisconnect(/** @type {string} */ reason) {
+      if (socket !== Tools.socket) return;
+      Tools.connectionState = "disconnected";
+      logBoardEvent("warn", "socket.disconnected", { reason });
+      Tools.beginAuthoritativeResync();
+      if (reason === "io server disconnect") {
+        socket.connect();
+      }
+    },
+  );
   if (typeof socket.connect === "function") {
     socket.connect();
   }
@@ -3255,7 +3265,7 @@ Tools.installViewportHashObservers = function installViewportHashObservers() {
   window.addEventListener("popstate", Tools.applyViewportFromHash, false);
 };
 
-/** @param {BoardMessage} m */
+/** @param {{x?: unknown, y?: unknown}} m */
 function resizeCanvas(m) {
   if (!Tools.svg) return;
   //Enlarge the canvas whenever something is drawn near its border

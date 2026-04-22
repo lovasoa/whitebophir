@@ -1,4 +1,5 @@
 import {
+  formatMessageTypeTag,
   getMutationType,
   getToolId,
   MutationType,
@@ -297,7 +298,7 @@ function normalizeBroadcastData(config, boardName, data) {
           "wbo.board": rejectedBoardName,
           "wbo.rejection.reason": reason,
           "wbo.tool": getToolId(data?.tool),
-          "wbo.message.type": data?.type,
+          "wbo.message.type": formatMessageTypeTag(data?.type),
         },
       },
       function recordRejectedBroadcast() {

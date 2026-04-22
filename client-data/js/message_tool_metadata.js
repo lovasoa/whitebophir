@@ -5,6 +5,16 @@ import { TOOL_IDS } from "../tools/tool-order.js";
 
 export { getMutationTypeCode, MutationType };
 
+const MUTATION_TYPE_NAME_BY_CODE = Object.freeze({
+  [MutationType.CREATE]: "create",
+  [MutationType.UPDATE]: "update",
+  [MutationType.DELETE]: "delete",
+  [MutationType.APPEND]: "append",
+  [MutationType.BATCH]: "batch",
+  [MutationType.CLEAR]: "clear",
+  [MutationType.COPY]: "copy",
+});
+
 /**
  * @param {unknown} tool
  * @returns {ToolCode | undefined}
@@ -64,4 +74,16 @@ export function getMutationType(message) {
 /** @param {unknown} tool */
 export function isToolOwnedBatchTool(tool) {
   return !!getTool(tool)?.batchMessageFields;
+}
+
+/**
+ * @param {unknown} type
+ * @returns {string | undefined}
+ */
+export function formatMessageTypeTag(type) {
+  if (typeof type === "string" && type) return type;
+  const mutationType = getMutationTypeCode(type);
+  return mutationType === undefined
+    ? undefined
+    : MUTATION_TYPE_NAME_BY_CODE[mutationType];
 }
