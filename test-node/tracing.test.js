@@ -15,9 +15,9 @@ const {
   CONFIG_PATH,
   MESSAGE_VALIDATION_PATH,
   closeServer,
+  configFromEnv,
   SOCKET_POLICY_PATH,
   request,
-  waitForListening,
   loadSockets,
   createSocket,
   writeBoard,
@@ -68,12 +68,22 @@ function clearModuleCache(modulePath) {
 }
 
 /**
- * @returns {Promise<{default: import("http").Server}>}
+ * @returns {Promise<{createServerApp: (config: any, options?: any) => Promise<import("http").Server>}>}
  */
 async function loadServer() {
   return import(
     `${pathToFileURL(SERVER_PATH).href}?cache-bust=${++serverLoadSequence}`
   );
+}
+
+/**
+ * @returns {Promise<import("http").Server>}
+ */
+async function createTestServer() {
+  const { createServerApp } = await loadServer();
+  return createServerApp(await configFromEnv({}), {
+    logStarted: false,
+  });
 }
 
 /**
@@ -280,8 +290,7 @@ test("preview requests continue traceparent and create a child render span", asy
       WBO_WEBROOT: dirs.webroot,
     },
     async ({ exporter }) => {
-      const { default: app } = await loadServer();
-      await waitForListening(app);
+      const app = await createTestServer();
       try {
         const response = await request(app, "/preview/missing-board", {
           traceparent:
@@ -343,8 +352,7 @@ test("static asset requests do not create spans", async () => {
       WBO_WEBROOT: dirs.webroot,
     },
     async ({ exporter }) => {
-      const { default: app } = await loadServer();
-      await waitForListening(app);
+      const app = await createTestServer();
       try {
         const response = await request(app, "/script.js");
         assert.equal(response.statusCode, 200);

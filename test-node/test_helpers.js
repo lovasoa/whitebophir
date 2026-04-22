@@ -365,6 +365,13 @@ function waitForListening(server) {
  * @returns {Promise<void>}
  */
 function closeServer(server) {
+  const shutdown =
+    /** @type {import("http").Server & {shutdown?: () => Promise<void>}} */ (
+      server
+    ).shutdown;
+  if (typeof shutdown === "function") {
+    return shutdown();
+  }
   return new Promise((resolve, reject) => {
     server.close((error) => {
       if (error) reject(error);

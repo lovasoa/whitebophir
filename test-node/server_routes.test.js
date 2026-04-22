@@ -8,10 +8,10 @@ const jsonwebtoken = require("jsonwebtoken");
 
 const {
   closeServer,
+  configFromEnv,
   getTcpAddress,
   request,
   requestRaw,
-  waitForListening,
   withEnv,
 } = require("./test_helpers.js");
 
@@ -47,12 +47,22 @@ const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.mjs");
 let serverLoadSequence = 0;
 
 /**
- * @returns {Promise<{default: import("http").Server}>}
+ * @returns {Promise<{createServerApp: (config: any, options?: any) => Promise<import("http").Server>}>}
  */
 async function loadServer() {
   return import(
     `${pathToFileURL(SERVER_PATH).href}?cache-bust=${++serverLoadSequence}`
   );
+}
+
+/**
+ * @returns {Promise<import("http").Server>}
+ */
+async function createTestServer() {
+  const { createServerApp } = await loadServer();
+  return createServerApp(await configFromEnv({}), {
+    logStarted: false,
+  });
 }
 
 /**
@@ -102,8 +112,7 @@ test("in-process server imports do not register process signal handlers", async 
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       assert.equal(process.listenerCount("SIGINT"), sigintBefore);
       assert.equal(process.listenerCount("SIGTERM"), sigtermBefore);
@@ -132,8 +141,7 @@ test("server returns 400 for preview and download routes without a board name", 
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const preview = await request(app, "/preview");
       const download = await request(app, "/download");
@@ -169,8 +177,7 @@ test("server returns 404 instead of 500 when preview board data is missing", asy
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/preview/missing-board");
 
@@ -202,8 +209,7 @@ test("server rejects invalid board names with 400 instead of 500", async () => {
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const invalidPaths = [
         "/boards?board=test:board",
@@ -244,8 +250,7 @@ test("board pages set an httpOnly user secret cookie when missing", async () => 
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/boards/demo");
       const setCookie = getSingleSetCookie(response.headers);
@@ -281,8 +286,7 @@ test("board pages preserve a valid incoming user secret cookie and do not rotate
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/boards/demo", {
         cookie: "wbo-user-secret-v1=abababababababababababababababab",
@@ -316,8 +320,7 @@ test("board pages mark the user secret cookie secure on https requests", async (
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/boards/demo", {
         "x-forwarded-proto": "https",
@@ -351,8 +354,7 @@ test("server preserves an incoming request id header", async () => {
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/", { "X-Request-Id": "req-123" });
       assert.equal(response.headers["x-request-id"], "req-123");
@@ -381,8 +383,7 @@ test("server rejects malformed double-slash request targets with 400", async () 
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const { port } = getTcpAddress(app);
       const rawResponse = await requestRaw(
@@ -418,8 +419,7 @@ test("server returns 400 for malformed low-level HTTP parser input", async () =>
     WBO_WEBROOT: dirs.webroot,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const rawResponse = await requestRaw(
         app,
@@ -453,8 +453,7 @@ test("board pages are no-store in development and render plain asset URLs", asyn
     WBO_WEBROOT: CLIENT_WEBROOT,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/boards/cache-test");
 
@@ -505,8 +504,7 @@ test("board pages use seq-based etag and return 304 on cache hit", async () => {
     WBO_WEBROOT: CLIENT_WEBROOT,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const firstResponse = await request(app, "/boards/etag-board");
 
@@ -556,8 +554,7 @@ test("board pages inline the authoritative svg baseline before client boot", asy
     WBO_WEBROOT: CLIENT_WEBROOT,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/boards/inline-baseline");
 
@@ -626,8 +623,7 @@ test("board pages fall back to legacy json metadata and inline baseline renderin
     WBO_WEBROOT: CLIENT_WEBROOT,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/boards/legacy-inline");
 
@@ -669,8 +665,7 @@ test("canonical board svg endpoint serves the authoritative baseline with short 
     WBO_WEBROOT: CLIENT_WEBROOT,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/boards/canonical-svg.svg");
 
@@ -722,8 +717,7 @@ test("board html svg and preview routes negotiate compression when requested", a
     WBO_WEBROOT: CLIENT_WEBROOT,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const plainResponse = await request(app, "/boards/compressed-board");
       assert.equal(plainResponse.statusCode, 200);
@@ -779,8 +773,7 @@ test("static assets are no-store in development and revalidate in production", a
     WBO_WEBROOT: CLIENT_WEBROOT,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/board.css");
 
@@ -808,8 +801,7 @@ test("static assets are no-store in development and revalidate in production", a
     WBO_WEBROOT: CLIENT_WEBROOT,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const response = await request(app, "/board.css");
 
@@ -863,8 +855,7 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
     WBO_WEBROOT: CLIENT_WEBROOT,
     WBO_SILENT: "true",
   }, async () => {
-    const { default: app } = await loadServer();
-    await waitForListening(app);
+    const app = await createTestServer();
     try {
       const readonlyResponse = await request(
         app,

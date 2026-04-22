@@ -2,7 +2,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import { createServer } from "node:http";
 import * as path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 import {
   ATTR_CLIENT_ADDRESS,
@@ -26,6 +26,7 @@ import {
   boundaryStatusCode,
 } from "./boundary_errors.mjs";
 import { check_output_directory } from "./check_output_directory.mjs";
+import * as productionConfig from "./configuration.mjs";
 import { startCompressedResponse } from "./http_compression.mjs";
 import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
@@ -53,8 +54,6 @@ const { createRequestId, logger, metrics, tracing } = observability;
 /** @typedef {import("node:net").AddressInfo | string | null} ServerAddress */
 /** @typedef {typeof import("./configuration.mjs")} ServerConfig */
 
-const app = createServer(handler);
-app.on("clientError", handleClientError);
 let shutdownRequested = false;
 /** @type {ServerConfig} */
 let serverConfig = /** @type {ServerConfig} */ ({});
@@ -66,34 +65,6 @@ let errorPage;
 let boardTemplate;
 /** @type {templating.Template | undefined} */
 let indexTemplate;
-
-void (async function startServer() {
-  serverConfig = await loadConfig();
-  initializeServerResources(serverConfig);
-  await check_output_directory(serverConfig.HISTORY_DIR);
-  const sockets = await import(
-    `./sockets.mjs?cache-bust=${crypto.randomUUID()}`
-  );
-  await sockets.start(app, serverConfig);
-  if (isProcessEntrypoint()) {
-    installShutdownHandlers(app, sockets);
-  }
-
-  app.listen(serverConfig.PORT, serverConfig.HOST, () => {
-    const actualPort = getAddressPort(app.address());
-    logger.info("server.started", {
-      [ATTR_SERVER_PORT]: actualPort,
-      "log.level": serverConfig.LOG_LEVEL,
-    });
-    if (process.send)
-      process.send({ type: "server-started", port: actualPort });
-  });
-})().catch((error) => {
-  logger.error("server.start_failed", {
-    error,
-  });
-  process.exit(1);
-});
 
 const CSP =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
@@ -200,13 +171,6 @@ function initializeServerResources(serverConfig) {
   );
 }
 
-/** @returns {Promise<ServerConfig>} */
-function loadConfig() {
-  return import(
-    `${pathToFileURL(new URL("./configuration.mjs", import.meta.url).pathname).href}?cache-bust=${crypto.randomUUID()}`
-  );
-}
-
 /**
  * @param {import("http").Server} server
  * @param {{shutdown?: () => Promise<void>}} sockets
@@ -278,6 +242,75 @@ function isProcessEntrypoint() {
 function getAddressPort(address) {
   if (!address || typeof address === "string") return undefined;
   return address.port;
+}
+
+/**
+ * @param {ServerConfig} config
+ * @param {{
+ *   installShutdownHandlers?: boolean,
+ *   logStarted?: boolean,
+ *   socketsModule?: {
+ *     start: (app: import("http").Server, config: ServerConfig) => Promise<void>,
+ *     shutdown?: () => Promise<void>,
+ *   },
+ * }} [options]
+ * @returns {Promise<import("http").Server & {shutdown?: () => Promise<void>}>}
+ */
+async function createServerApp(config, options = {}) {
+  shutdownRequested = false;
+  serverConfig = config;
+  initializeServerResources(serverConfig);
+  await check_output_directory(serverConfig.HISTORY_DIR);
+  const sockets =
+    options.socketsModule ||
+    (await import(`./sockets.mjs?cache-bust=${crypto.randomUUID()}`));
+  const app =
+    /** @type {import("http").Server & {shutdown?: () => Promise<void>}} */ (
+      createServer(handler)
+    );
+  app.on("clientError", handleClientError);
+  await sockets.start(app, serverConfig);
+  if (options.installShutdownHandlers === true) {
+    installShutdownHandlers(app, sockets);
+  }
+  await new Promise(
+    /**
+     * @param {(value: void | PromiseLike<void>) => void} resolve
+     */
+    (resolve) => {
+      app.listen(serverConfig.PORT, serverConfig.HOST, resolve);
+    },
+  );
+  if (options.logStarted !== false) {
+    const actualPort = getAddressPort(app.address());
+    logger.info("server.started", {
+      [ATTR_SERVER_PORT]: actualPort,
+      "log.level": serverConfig.LOG_LEVEL,
+    });
+    if (process.send) {
+      process.send({ type: "server-started", port: actualPort });
+    }
+  }
+  app.shutdown = async () => {
+    await sockets.shutdown?.();
+    await new Promise(
+      /**
+       * @param {(value: void | PromiseLike<void>) => void} resolve
+       * @param {(reason?: unknown) => void} reject
+       */
+      (resolve, reject) => {
+        app.close((error) => {
+          if (!error || errorCode(error) === "ERR_SERVER_NOT_RUNNING") {
+            resolve();
+            return;
+          }
+          reject(error);
+        });
+        app.closeAllConnections?.();
+      },
+    );
+  };
+  return app;
 }
 
 /**
@@ -1501,4 +1534,15 @@ function handleRequest(request, response, requestContext) {
   }
 }
 
-export default app;
+if (isProcessEntrypoint()) {
+  void createServerApp(productionConfig, {
+    installShutdownHandlers: true,
+  }).catch((error) => {
+    logger.error("server.start_failed", {
+      error,
+    });
+    process.exit(1);
+  });
+}
+
+export { createServerApp };
