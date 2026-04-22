@@ -6,7 +6,7 @@ import handlebars from "handlebars";
 import client_config from "./client_configuration.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import { TOOLBAR_TOOLS, TOOL_BY_ID } from "../client-data/tools/index.js";
-import { applyCompressionForResponse } from "./http_compression.mjs";
+import { startCompressedResponse } from "./http_compression.mjs";
 import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
@@ -162,6 +162,32 @@ function findBaseUrl(req) {
   return `${proto}://${host}`;
 }
 
+const cacheControl =
+  /** @type {(prodValue: string) => string} */
+  (prodValue) => (readConfiguration().IS_DEVELOPMENT ? "no-store" : prodValue);
+
+const startHtmlResponse =
+  /** @type {(response: TemplateResponse, request: TemplateRequest, parsedUrl: URL, parameters: TemplateParameters, cacheControlValue: string, contentLength?: number) => import("stream").Writable} */
+  (
+    response,
+    request,
+    parsedUrl,
+    parameters,
+    cacheControlValue,
+    contentLength,
+  ) =>
+    startCompressedResponse(response, request.headers["accept-encoding"], {
+      ...(contentLength === undefined
+        ? {}
+        : { "Content-Length": contentLength }),
+      "Content-Type": "text/html",
+      "Cache-Control": cacheControlValue,
+      ...(typeof parameters.etag === "string" ? { ETag: parameters.etag } : {}),
+      ...(!parsedUrl.searchParams.get("lang")
+        ? { Vary: "Accept-Language" }
+        : {}),
+    }).stream;
+
 class Template {
   /**
    * @param {string} path
@@ -231,34 +257,21 @@ class Template {
       extraParams,
     );
     const body = this.template(parameters);
-    /** @type {{[name: string]: string | number}} */
-    const headers = {
-      "Content-Length": Buffer.byteLength(body),
-      "Content-Type": "text/html",
-      "Cache-Control": this.cacheControl(),
-    };
-    if (typeof parameters.etag === "string") {
-      headers.ETag = parameters.etag;
-    }
-    if (!parsedUrl.searchParams.get("lang")) {
-      headers.Vary = "Accept-Language";
-    }
-    const { stream } = applyCompressionForResponse(
+    startHtmlResponse(
       response,
-      request.headers["accept-encoding"],
-      headers,
-    );
-    response.writeHead(200, headers);
-    stream.end(body);
+      request,
+      parsedUrl,
+      parameters,
+      this.cacheControl(),
+      Buffer.byteLength(body),
+    ).end(body);
   }
 
   /**
    * @returns {string}
    */
   cacheControl() {
-    return readConfiguration().IS_DEVELOPMENT
-      ? "no-store"
-      : "public, max-age=3600";
+    return cacheControl("public, max-age=3600");
   }
 }
 
@@ -359,23 +372,13 @@ class BoardTemplate extends Template {
     );
     const prefix = this.prefixTemplate(parameters);
     const suffix = this.suffixTemplate(parameters);
-    /** @type {{[name: string]: string | number}} */
-    const headers = {
-      "Content-Type": "text/html",
-      "Cache-Control": this.cacheControl(),
-    };
-    if (typeof parameters.etag === "string") {
-      headers.ETag = parameters.etag;
-    }
-    if (!parsedUrl.searchParams.get("lang")) {
-      headers.Vary = "Accept-Language";
-    }
-    const { stream } = applyCompressionForResponse(
+    const stream = startHtmlResponse(
       response,
-      request.headers["accept-encoding"],
-      headers,
+      request,
+      parsedUrl,
+      parameters,
+      this.cacheControl(),
     );
-    response.writeHead(200, headers);
     stream.write(prefix);
     inlineBoardSvgStream.pipe(stream, { end: false });
     inlineBoardSvgStream.on("end", () => {
@@ -388,15 +391,12 @@ class BoardTemplate extends Template {
    */
   cacheControl() {
     const serverConfig = readConfiguration();
-    if (serverConfig.IS_DEVELOPMENT) {
-      return "no-store";
-    }
     const maxAgeSeconds = Math.max(
       0,
       Math.floor(serverConfig.MAX_SAVE_DELAY / 1000) -
         BOARD_PAGE_CACHE_HEADROOM_SECONDS,
     );
-    return `public, max-age=${maxAgeSeconds}, must-revalidate`;
+    return cacheControl(`public, max-age=${maxAgeSeconds}, must-revalidate`);
   }
 }
 

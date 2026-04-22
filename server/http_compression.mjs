@@ -168,4 +168,16 @@ export function applyCompressionForResponse(response, acceptEncoding, headers) {
   return { stream, encoding };
 }
 
+/**
+ * @param {import("http").ServerResponse} response
+ * @param {string | string[] | undefined} acceptEncoding
+ * @param {{ [name: string]: string | number }} headers
+ * @returns {{ stream: import("stream").Writable, encoding: CompressionEncoding | undefined }}
+ */
+export function startCompressedResponse(response, acceptEncoding, headers) {
+  const result = applyCompressionForResponse(response, acceptEncoding, headers);
+  response.writeHead(200, headers);
+  return result;
+}
+
 export { selectCompressionEncoding };

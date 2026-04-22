@@ -27,7 +27,7 @@ import {
 } from "./boundary_errors.mjs";
 import { check_output_directory } from "./check_output_directory.mjs";
 import { readConfiguration } from "./configuration.mjs";
-import { applyCompressionForResponse } from "./http_compression.mjs";
+import { startCompressedResponse } from "./http_compression.mjs";
 import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
@@ -87,14 +87,6 @@ void (async function startServer() {
 const CSP =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
 
-/**
- * @param {string} cacheValue
- * @returns {string}
- */
-function cacheControl(cacheValue) {
-  return config.IS_DEVELOPMENT ? "no-store" : cacheValue;
-}
-
 const STATIC_RESOURCE_EXTENSIONS = [
   ".js",
   ".css",
@@ -104,20 +96,40 @@ const STATIC_RESOURCE_EXTENSIONS = [
   ".jpg",
   ".gif",
 ];
+const STATIC_ASSET_CACHE_CONTROL = "public, max-age=60, must-revalidate";
+const BOARD_SVG_CACHE_CONTROL = config.IS_DEVELOPMENT
+  ? "no-store"
+  : "public, max-age=30";
+
+const staticFileCacheControl =
+  /** @type {(filePath: string) => string | undefined} */
+  (filePath) => {
+    if (config.IS_DEVELOPMENT) return "no-store";
+    return STATIC_RESOURCE_EXTENSIONS.includes(
+      path.extname(filePath).toLowerCase(),
+    )
+      ? STATIC_ASSET_CACHE_CONTROL
+      : undefined;
+  };
+
+const startBoardSvgResponse =
+  /** @type {(response: HttpResponse, acceptEncoding: string | string[] | undefined) => import("stream").Writable} */
+  (response, acceptEncoding) =>
+    startCompressedResponse(response, acceptEncoding, {
+      "Content-Type": "image/svg+xml",
+      "Content-Security-Policy": CSP,
+      "Cache-Control": BOARD_SVG_CACHE_CONTROL,
+    }).stream;
 
 const fileserver = serveStatic(config.WEBROOT, {
   maxAge: 0,
   /** @param {HttpResponse} res */
   setHeaders: (res, /** @type {string} */ filePath) => {
     res.setHeader("Content-Security-Policy", CSP);
-    if (config.IS_DEVELOPMENT) {
-      res.setHeader("Cache-Control", "no-store");
-      return;
+    const cacheValue = staticFileCacheControl(filePath || "");
+    if (cacheValue !== undefined) {
+      res.setHeader("Cache-Control", cacheValue);
     }
-    const ext = path.extname(filePath || "").toLowerCase();
-    const isStaticAsset = STATIC_RESOURCE_EXTENSIONS.includes(ext);
-    if (!isStaticAsset) return;
-    res.setHeader("Cache-Control", "public, max-age=60, must-revalidate");
   },
 });
 
@@ -276,6 +288,16 @@ function pinServedBoardBaseline(boardName, baselineSeq) {
   const expiresAtMs = Date.now() + Math.max(0, config.MAX_SAVE_DELAY);
   pinReplayBaseline(boardName, baselineSeq, expiresAtMs);
 }
+
+const respondNotModified =
+  /** @type {(response: HttpResponse, etag: string) => void} */
+  (response, etag) => {
+    response.writeHead(304, {
+      "Cache-Control": boardTemplate.cacheControl(),
+      ETag: etag,
+    });
+    response.end();
+  };
 
 /**
  * @param {HttpRequest} request
@@ -967,11 +989,7 @@ async function handleBoardDocumentRoute(
     const persistedSeq = loadedBoard.getPersistedSeq();
     if (cachedSeqs.includes(persistedSeq)) {
       pinServedBoardBaseline(boardName, persistedSeq);
-      response.writeHead(304, {
-        "Cache-Control": boardTemplate.cacheControl(),
-        ETag: boardPageETag(persistedSeq),
-      });
-      response.end();
+      respondNotModified(response, boardPageETag(persistedSeq));
       return;
     }
   }
@@ -986,11 +1004,7 @@ async function handleBoardDocumentRoute(
   const etag = boardPageETag(boardMetadata.seq || 0);
   if (matchesIfNoneMatch(request.headers["if-none-match"], etag)) {
     pinServedBoardBaseline(boardName, boardMetadata.seq || 0);
-    response.writeHead(304, {
-      "Cache-Control": boardTemplate.cacheControl(),
-      ETag: etag,
-    });
-    response.end();
+    respondNotModified(response, etag);
     return;
   }
   pinServedBoardBaseline(boardName, boardMetadata.seq || 0);
@@ -1031,28 +1045,6 @@ async function handleBoardDocumentRoute(
 }
 
 /**
- * @param {HttpResponse} response
- * @param {NodeJS.ReadableStream} svgStream
- * @param {string | string[] | undefined} acceptEncoding
- * @returns {void}
- */
-function respondWithBoardSvgStream(response, svgStream, acceptEncoding) {
-  /** @type {{ [name: string]: string | number }} */
-  const headers = {
-    "Content-Type": "image/svg+xml",
-    "Content-Security-Policy": CSP,
-    "Cache-Control": cacheControl("public, max-age=30"),
-  };
-  const { stream } = applyCompressionForResponse(
-    response,
-    acceptEncoding,
-    headers,
-  );
-  response.writeHead(200, headers);
-  svgStream.pipe(stream);
-}
-
-/**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @param {URL} parsedUrl
@@ -1083,10 +1075,8 @@ async function handleBoardSvgRoute(
       response.destroy(error);
     }
   });
-  respondWithBoardSvgStream(
-    response,
-    svgStream,
-    request.headers["accept-encoding"],
+  svgStream.pipe(
+    startBoardSvgResponse(response, request.headers["accept-encoding"]),
   );
 }
 
@@ -1284,19 +1274,7 @@ async function respondWithBoardPreview(
     response.end(errorPage);
     return;
   }
-  /** @type {{ [name: string]: string | number }} */
-  const headers = {
-    "Content-Type": "image/svg+xml",
-    "Content-Security-Policy": CSP,
-    "Cache-Control": cacheControl("public, max-age=30"),
-  };
-  const { stream } = applyCompressionForResponse(
-    response,
-    acceptEncoding,
-    headers,
-  );
-  response.writeHead(200, headers);
-  stream.end(svg);
+  startBoardSvgResponse(response, acceptEncoding).end(svg);
 }
 
 /**
