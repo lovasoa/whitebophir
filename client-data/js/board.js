@@ -329,7 +329,8 @@ Tools.bufferedWriteTimer = null;
 Tools.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
 Tools.rateLimitedUntil = 0;
 Tools.rateLimitNoticeTimer = null;
-Tools.rateLimitNoticeMessage = "";
+Tools.boardStatusTimer = null;
+Tools.explicitBoardStatus = null;
 Tools.awaitingBoardSnapshot = true;
 Tools.awaitingSyncReplay = false;
 Tools.hasAuthoritativeBoardSnapshot = false;
@@ -452,6 +453,13 @@ Tools.clearRateLimitNoticeTimer = function clearRateLimitNoticeTimer() {
   }
 };
 
+Tools.clearBoardStatusTimer = function clearBoardStatusTimer() {
+  if (Tools.boardStatusTimer) {
+    clearTimeout(Tools.boardStatusTimer);
+    Tools.boardStatusTimer = null;
+  }
+};
+
 /**
  * @param {number} [now]
  * @returns {boolean}
@@ -489,9 +497,13 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
   message,
   retryAfterMs,
 ) {
-  Tools.rateLimitNoticeMessage = message;
-  Tools.syncWriteStatusIndicator();
   Tools.clearRateLimitNoticeTimer();
+  Tools.showBoardStatus({
+    hidden: false,
+    state: "paused",
+    title: Tools.i18n.t("slow_down_briefly"),
+    detail: message,
+  });
   if (retryAfterMs > 0) {
     Tools.rateLimitNoticeTimer = setTimeout(function hideRateLimitNotice() {
       Tools.hideRateLimitNotice();
@@ -501,20 +513,33 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
 
 Tools.hideRateLimitNotice = function hideRateLimitNotice() {
   Tools.clearRateLimitNoticeTimer();
-  Tools.rateLimitNoticeMessage = "";
+  Tools.clearBoardStatus();
+};
+
+/**
+ * @param {BoardStatusView} view
+ * @param {number} [durationMs]
+ */
+Tools.showBoardStatus = function showBoardStatus(view, durationMs) {
+  Tools.clearBoardStatusTimer();
+  Tools.explicitBoardStatus = view;
+  Tools.syncWriteStatusIndicator();
+  if (durationMs && durationMs > 0) {
+    Tools.boardStatusTimer = setTimeout(() => {
+      Tools.clearBoardStatus();
+    }, durationMs);
+  }
+};
+
+Tools.clearBoardStatus = function clearBoardStatus() {
+  Tools.clearBoardStatusTimer();
+  Tools.explicitBoardStatus = null;
   Tools.syncWriteStatusIndicator();
 };
 
 /** @returns {BoardStatusView} */
 Tools.getBoardStatusView = function getBoardStatusView() {
-  if (Tools.rateLimitNoticeMessage) {
-    return {
-      hidden: false,
-      state: "paused",
-      title: Tools.i18n.t("slow_down_briefly"),
-      detail: Tools.rateLimitNoticeMessage,
-    };
-  }
+  if (Tools.explicitBoardStatus) return Tools.explicitBoardStatus;
   if (Tools.connectionState !== "connected" || Tools.awaitingBoardSnapshot) {
     return {
       hidden: false,
@@ -1249,6 +1274,7 @@ Tools.ensureTurnstileElements = function ensureTurnstileElements() {
 
 Tools.showTurnstileOverlayTimeout = null;
 const TURNSTILE_ACK_TIMEOUT_MS = 10_000;
+const TURNSTILE_ERROR_RELOAD_DELAY_MS = 2_000;
 
 /** @param {number} delay */
 Tools.showTurnstileOverlay = function showTurnstileOverlay(delay) {
@@ -1273,8 +1299,19 @@ Tools.hideTurnstileOverlay = function hideTurnstileOverlay() {
 
 /** @param {unknown} errorCode */
 function handleTurnstileError(errorCode) {
-  alert(`Turnstile verification failed: ${errorCode}`);
-  location.reload();
+  const detail =
+    typeof errorCode === "string" && errorCode
+      ? `Please reload the board if this keeps happening. Error code: ${errorCode}.`
+      : "Please reload the board if this keeps happening.";
+  Tools.showBoardStatus({
+    hidden: false,
+    state: "paused",
+    title: "Security check failed",
+    detail: `${detail} Refreshing now...`,
+  });
+  setTimeout(() => {
+    location.reload();
+  }, TURNSTILE_ERROR_RELOAD_DELAY_MS);
 }
 
 /**

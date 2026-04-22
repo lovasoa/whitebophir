@@ -195,6 +195,8 @@ export type BoardStatusView = {
   detail: string;
 };
 
+export type ExplicitBoardStatus = BoardStatusView | null;
+
 export type AuthoritativeBaseline = {
   seq: number;
   readonly: boolean;
@@ -376,7 +378,8 @@ export type AppToolsState = {
   writeReadyWaiters: Array<() => void>;
   rateLimitedUntil: number;
   rateLimitNoticeTimer: ReturnType<typeof setTimeout> | null;
-  rateLimitNoticeMessage: string;
+  boardStatusTimer: ReturnType<typeof setTimeout> | null;
+  explicitBoardStatus: ExplicitBoardStatus;
   awaitingBoardSnapshot: boolean;
   connectionState: BoardConnectionState;
   localRateLimitStates: {
@@ -419,11 +422,14 @@ export type AppToolsState = {
   };
   clearBufferedWriteTimer: () => void;
   clearRateLimitNoticeTimer: () => void;
+  clearBoardStatusTimer: () => void;
   isWritePaused: (now?: number) => boolean;
   canBufferWrites: () => boolean;
   whenBoardWritable: () => Promise<void>;
   showRateLimitNotice: (message: string, retryAfterMs: number) => void;
   hideRateLimitNotice: () => void;
+  showBoardStatus: (view: BoardStatusView, durationMs?: number) => void;
+  clearBoardStatus: () => void;
   getBoardStatusView: () => BoardStatusView;
   syncWriteStatusIndicator: () => void;
   clearBoardCursors: () => void;
