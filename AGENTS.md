@@ -94,7 +94,7 @@ section before making changes there.
   - When investigating flaky or failing browser tests, always try to fix the issue in the application and never write workarounds for application bugs in the tests. Browser tests should read like prose and the application must gracefully handle edge cases like fast sequences of network messages or user actions.
 - Throughput check: `npm run bench` before/after suspected performance changes. Use `npm run bench -- <e2e|load|persist|broadcast>` or the shortcuts `npm run bench:e2e`, `npm run bench:load`, `npm run bench:persist`, `npm run bench:broadcast` when you only need one scenario.
 - Bench timeout: `npm run bench` enforces a hard wall-clock timeout via `WBO_BENCH_TIMEOUT_MS` (default `150000`).
-- CPU + memory profile: `npm run profile` writes `.profiles/benchmark-server.cpuprofile` and `.profiles/benchmark-server.heapprofile`. Use `npm run profile -- <e2e|load|persist|broadcast>` to isolate one scenario.
+- CPU + memory profile: `npm run profile -- <e2e|load|persist|broadcast>` writes `.profiles/benchmark-server.cpuprofile` and `.profiles/benchmark-server.heapprofile` for that single scenario, with profiling started only around the measured benchmark work. Running `npm run profile` with no scenario writes per-scenario files such as `.profiles/benchmark-server-load.cpuprofile`.
 - Ad hoc browser load: `npm run generateload -- --help`; defaults to the anonymous board and can open multiple tabs on a specific board URL.
 - Full gate: `npm test` (Node tests, Playwright, Biome `lint` with warnings treated as failures).
 - Auto-format: `npm run format` (Biome `--write --unsafe`).
@@ -111,8 +111,10 @@ section before making changes there.
 
 - Run `npm run profile` to profile `scripts/benchmark-server.mjs`; `.profiles/` is gitignored and keeps local CPU and heap output together.
 - `npm run profile` raises `WBO_BENCH_TIMEOUT_MS` to `600000` unless you already set it, so profiling still has a strict but roomier budget.
-- CPU: open `.profiles/benchmark-server.cpuprofile` in DevTools Performance and look for hot frames with high self time or repeated stacks in `BoardData.load`, `BoardData.save`, broadcast admission, SVG streaming scan, and persisted path parsing/materialization.
-- Memory: open `.profiles/benchmark-server.heapprofile` in DevTools Memory and look for large sampled allocations that survive GC, especially duplicated canonical items, accidental cloning of large `appendedChildren` arrays, and serialization strings.
+- CPU: use `jq` to rank app frames by sampled hit count, for example:
+  `jq -r '.nodes[] | select((.callFrame.url // "") | test("whitebophir")) | [(.hitCount // 0), (.callFrame.functionName // "(anonymous)"), ((.callFrame.url // "") + ":" + ((.callFrame.lineNumber + 1) | tostring))] | @tsv' .profiles/benchmark-server.cpuprofile | sort -nr | head -12`
+- Memory: use `jq` to rank sampled heap sites by retained self size, for example:
+  `jq -r '.head | recurse(.children[]?) | select(.selfSize > 0 and ((.callFrame.url // "") | test("whitebophir"))) | [(.selfSize // 0), (.callFrame.functionName // "(anonymous)"), ((.callFrame.url // "") + ":" + ((.callFrame.lineNumber + 1) | tostring))] | @tsv' .profiles/benchmark-server.heapprofile | sort -nr | head -12`
 
 ## formatting
 
