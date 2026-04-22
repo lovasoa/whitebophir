@@ -112,9 +112,9 @@ section before making changes there.
 - Run `npm run profile` to profile `scripts/benchmark-server.mjs`; `.profiles/` is gitignored and keeps local CPU and heap output together.
 - `npm run profile` raises `WBO_BENCH_TIMEOUT_MS` to `600000` unless you already set it, so profiling still has a strict but roomier budget.
 - CPU: use `jq` to rank app frames by sampled hit count, for example:
-  `jq -r '.nodes[] | select((.callFrame.url // "") | test("whitebophir")) | [(.hitCount // 0), (.callFrame.functionName // "(anonymous)"), ((.callFrame.url // "") + ":" + ((.callFrame.lineNumber + 1) | tostring))] | @tsv' .profiles/benchmark-server.cpuprofile | sort -nr | head -12`
+  `jq -c '[.nodes[] | select(.callFrame.url | test("/(server|client-data|scripts)/")) | {hits: (.hitCount // 0), fn: .callFrame.functionName, loc: (.callFrame.url + ":" + ((.callFrame.lineNumber + 1) | tostring))}] | sort_by(-.hits) | .[:12][]' .profiles/benchmark-server.cpuprofile`
 - Memory: use `jq` to rank sampled heap sites by retained self size, for example:
-  `jq -r '.head | recurse(.children[]?) | select(.selfSize > 0 and ((.callFrame.url // "") | test("whitebophir"))) | [(.selfSize // 0), (.callFrame.functionName // "(anonymous)"), ((.callFrame.url // "") + ":" + ((.callFrame.lineNumber + 1) | tostring))] | @tsv' .profiles/benchmark-server.heapprofile | sort -nr | head -12`
+  `jq -c '[.head | recurse(.children[]?) | select(.selfSize > 0 and (.callFrame.url | test("/(server|client-data|scripts)/"))) | {bytes: .selfSize, fn: .callFrame.functionName, loc: (.callFrame.url + ":" + ((.callFrame.lineNumber + 1) | tostring))}] | sort_by(-.bytes) | .[:12][]' .profiles/benchmark-server.heapprofile`
 
 ## formatting
 
