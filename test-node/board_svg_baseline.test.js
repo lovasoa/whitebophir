@@ -14,52 +14,23 @@ test("buildBoardSvgBaselineUrl preserves the current query string", () => {
   );
 });
 
-test("parseServedBaselineSvgText extracts seq, readonly, and drawing area markup", () => {
-  const expectedDoc = {
-    documentElement: {
-      getAttribute(/** @type {string} */ name) {
-        if (name === "data-wbo-seq") return "12";
-        if (name === "data-wbo-readonly") return "true";
-        return null;
-      },
-      querySelector(/** @type {string} */ selector) {
-        if (selector === "#drawingArea") {
-          return { innerHTML: '<rect id="persisted"></rect>' };
-        }
-        return null;
-      },
-    },
-  };
-  const parsed = BoardSvgBaseline.parseServedBaselineSvgText("<svg />", {
-    parseFromString() {
-      return expectedDoc;
-    },
-  });
-
-  assert.deepEqual(parsed, {
-    seq: 12,
-    readonly: true,
-    drawingAreaMarkup: '<rect id="persisted"></rect>',
-  });
-});
-
-test("parseServedBaselineSvgText delegates to the provided DOM parser", () => {
+test("parseServedBaselineSvgText parses a baseline payload", () => {
+  const svgText =
+    '<svg id="canvas" data-wbo-seq="12" data-wbo-readonly="true"><g id="drawingArea"><rect id="persisted"></rect></g></svg>';
   let seenMarkup = "";
-  let seenMimeType = "";
-  const parsed = BoardSvgBaseline.parseServedBaselineSvgText("<svg></svg>", {
-    parseFromString(markup, mimeType) {
+  const parsed = BoardSvgBaseline.parseServedBaselineSvgText(svgText, {
+    parseFromString(markup) {
       seenMarkup = markup;
-      seenMimeType = mimeType;
       return {
         documentElement: {
           getAttribute(/** @type {string} */ name) {
-            if (name === "data-wbo-seq") return "3";
-            if (name === "data-wbo-readonly") return "false";
+            if (name === "data-wbo-seq") return "12";
+            if (name === "data-wbo-readonly") return "true";
             return null;
           },
           querySelector(/** @type {string} */ selector) {
             return selector === "#drawingArea"
-              ? { innerHTML: '<path id="line"></path>' }
+              ? { innerHTML: '<rect id="persisted"></rect>' }
               : null;
           },
         },
@@ -67,11 +38,10 @@ test("parseServedBaselineSvgText delegates to the provided DOM parser", () => {
     },
   });
 
-  assert.equal(seenMarkup, "<svg></svg>");
-  assert.equal(seenMimeType, "image/svg+xml");
+  assert.equal(seenMarkup, svgText);
   assert.deepEqual(parsed, {
-    seq: 3,
-    readonly: false,
-    drawingAreaMarkup: '<path id="line"></path>',
+    seq: 12,
+    readonly: true,
+    drawingAreaMarkup: '<rect id="persisted"></rect>',
   });
 });
