@@ -57,7 +57,9 @@ const LOG_LEVEL_RANK = {
   warn: 30,
   error: 40,
 };
-const MIN_LOG_LEVEL = readConfiguration().LOG_LEVEL;
+const MIN_LOG_LEVEL = /** @type {"debug"|"info"|"warn"|"error"} */ (
+  readConfiguration().LOG_LEVEL
+);
 const TEST_TRACE_EXPORTER = /** @type {{__WBO_TEST_TRACE_EXPORTER__?: any}} */ (
   globalThis
 ).__WBO_TEST_TRACE_EXPORTER__;

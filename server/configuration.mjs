@@ -2,274 +2,215 @@ import path from "node:path";
 
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import {
+  parseCommaSeparatedEnv,
+  parseDisabledFlagEnv,
+  parseEnumEnv,
   parseIntegerEnv,
+  parseIpConfigurationEnv,
   parseRateLimitProfileEnv,
+  parseStringEnv,
 } from "./configuration_helpers.mjs";
 
-const appRoot = process.cwd();
-const VALID_LOG_LEVELS = new Set(["debug", "info", "warn", "error"]);
+const APP_ROOT = process.cwd();
+const LOG_LEVELS = ["debug", "info", "warn", "error"];
+const ANONYMOUS_RATE_LIMIT_DIVISOR =
+  RateLimitCommon.ANONYMOUS_RATE_LIMIT_DIVISOR;
+const DEFAULT_HISTORY_DIR = path.join(APP_ROOT, "server-data");
+const DEFAULT_WEBROOT = path.join(APP_ROOT, "client-data");
+const DEFAULT_TURNSTILE_VERIFY_URL =
+  "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS = {
+  limit: 40,
+  periodMs: 10 * 1000,
+  overrides: {
+    anonymous: {
+      limit: Math.floor(40 / ANONYMOUS_RATE_LIMIT_DIVISOR),
+      periodMs: 10 * 1000,
+    },
+  },
+};
+const DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS = {
+  limit: 190,
+  periodMs: 60 * 1000,
+  overrides: {
+    anonymous: {
+      limit: Math.floor(190 / ANONYMOUS_RATE_LIMIT_DIVISOR),
+      periodMs: 60 * 1000,
+    },
+  },
+};
+const DEFAULT_GENERAL_RATE_LIMITS = {
+  limit: 250,
+  periodMs: 5 * 1000,
+  overrides: {},
+};
+const DEFAULT_TEXT_CREATION_RATE_LIMITS = {
+  limit: 2,
+  periodMs: 1 * 1000,
+  overrides: {
+    anonymous: {
+      limit: 30,
+      periodMs: 60 * 1000,
+    },
+  },
+};
 
-/**
- * @param {string | undefined} value
- * @returns {"debug" | "info" | "warn" | "error"}
- */
-function parseLogLevel(value) {
-  const normalized = (value || "info").trim().toLowerCase();
-  if (
-    normalized === "debug" ||
-    normalized === "info" ||
-    normalized === "warn" ||
-    normalized === "error"
-  ) {
-    return normalized;
-  }
-  throw new Error(
-    `Invalid LOG_LEVEL: expected one of ${[...VALID_LOG_LEVELS].join(", ")}`,
+/** True outside production. */
+export const IS_DEVELOPMENT = () => process.env.NODE_ENV !== "production";
+
+/** Application listen port. */
+export const PORT = () => parseIntegerEnv("PORT", 8080);
+
+/** Application listen host. Empty means all interfaces. */
+export const HOST = () => parseStringEnv("HOST", undefined);
+
+/** Board persistence directory. */
+export const HISTORY_DIR = () =>
+  parseStringEnv("WBO_HISTORY_DIR", DEFAULT_HISTORY_DIR);
+
+/** Minimum emitted server log level: debug, info, warn, or error. */
+export const LOG_LEVEL = () => parseEnumEnv("LOG_LEVEL", LOG_LEVELS, "info");
+
+/** Static asset root. */
+export const WEBROOT = () => parseStringEnv("WBO_WEBROOT", DEFAULT_WEBROOT);
+
+/** Inactivity delay before saving a board. */
+export const SAVE_INTERVAL = () => parseIntegerEnv("WBO_SAVE_INTERVAL", 2000);
+
+/** Maximum active-use delay between saves. */
+export const MAX_SAVE_DELAY = () =>
+  parseIntegerEnv("WBO_MAX_SAVE_DELAY", 60 * 1000);
+
+/** Replay retention window after save. */
+export const SEQ_REPLAY_RETENTION_MS = () =>
+  parseIntegerEnv("WBO_SEQ_REPLAY_RETENTION_MS", 60 * 1000);
+
+/** Maximum persisted item count per board. */
+export const MAX_ITEM_COUNT = () =>
+  parseIntegerEnv("WBO_MAX_ITEM_COUNT", 32768);
+
+/** Maximum child count inside one item payload. */
+export const MAX_CHILDREN = () => parseIntegerEnv("WBO_MAX_CHILDREN", 500);
+
+/** Maximum absolute board coordinate. */
+export const MAX_BOARD_SIZE = () =>
+  parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360);
+
+/** Per-socket general write rate limits. Example: `*:250/5s anonymous:125/5s`. */
+export const GENERAL_RATE_LIMITS = () =>
+  parseRateLimitProfileEnv("WBO_MAX_EMIT_COUNT", DEFAULT_GENERAL_RATE_LIMITS);
+
+/** Per-IP constructive write rate limits. Example: `*:40/10s anonymous:20/10s`. */
+export const CONSTRUCTIVE_ACTION_RATE_LIMITS = () =>
+  parseRateLimitProfileEnv(
+    "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
+    DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS,
   );
-}
+
+/** Per-IP destructive write rate limits. Example: `*:190/60s anonymous:95/60s`. */
+export const DESTRUCTIVE_ACTION_RATE_LIMITS = () =>
+  parseRateLimitProfileEnv(
+    "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
+    DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS,
+  );
+
+/** Per-IP text creation rate limits. Example: `*:2/1s anonymous:30/60s`. */
+export const TEXT_CREATION_RATE_LIMITS = () =>
+  parseRateLimitProfileEnv(
+    "WBO_MAX_TEXT_CREATIONS_PER_IP",
+    DEFAULT_TEXT_CREATION_RATE_LIMITS,
+  );
+
+/** IP resolution source: remoteAddress, Forwarded, X-Forwarded-For, or a header name. */
+export const IP_CONFIGURATION = () => parseIpConfigurationEnv();
+
+/** Comma-separated blocked tool ids. */
+export const BLOCKED_TOOLS = () => parseCommaSeparatedEnv("WBO_BLOCKED_TOOLS");
+
+/** Comma-separated blocked selection button ids. */
+export const BLOCKED_SELECTION_BUTTONS = () =>
+  parseCommaSeparatedEnv("WBO_BLOCKED_SELECTION_BUTTONS");
+
+/** Enables stylus-then-finger whiteout unless set to `disabled`. */
+export const AUTO_FINGER_WHITEOUT = () =>
+  parseDisabledFlagEnv("AUTO_FINGER_WHITEOUT");
+
+/** JWT secret key. */
+export const AUTH_SECRET_KEY = () => parseStringEnv("AUTH_SECRET_KEY", "");
+
+/** Cloudflare Turnstile secret key. */
+export const TURNSTILE_SECRET_KEY = () =>
+  parseStringEnv("TURNSTILE_SECRET_KEY", undefined);
+
+/** Cloudflare Turnstile site key. */
+export const TURNSTILE_SITE_KEY = () =>
+  parseStringEnv("TURNSTILE_SITE_KEY", undefined);
+
+/** Turnstile verification endpoint override. */
+export const TURNSTILE_VERIFY_URL = () =>
+  parseStringEnv("TURNSTILE_VERIFY_URL", DEFAULT_TURNSTILE_VERIFY_URL);
+
+/** Successful Turnstile validation lifetime. */
+export const TURNSTILE_VALIDATION_WINDOW_MS = () =>
+  parseIntegerEnv("TURNSTILE_VALIDATION_WINDOW_MS", 4 * 60 * 1000);
+
+/** Root-route board redirect target. */
+export const DEFAULT_BOARD = () =>
+  parseStringEnv("WBO_DEFAULT_BOARD", undefined);
 
 /**
- * Read the current environment and return a fully resolved configuration
- * object. This function is pure with respect to `process.env`: it performs
- * no caching of its own and allocates fresh rate-limit profile objects on
- * every call. Hot-path callers (per-item normalization, per-coordinate
- * clamping) must capture the return value **once** at module scope and
- * reuse that reference; never invoke `readConfiguration()` inside a loop.
+ * Pure `process.env` reader. Every call reparses env and returns fresh rate-limit objects.
  */
 export function readConfiguration() {
-  const isDevelopment = process.env.NODE_ENV !== "production";
-  const ipSource = (process.env.WBO_IP_SOURCE || "remoteAddress").trim();
-  const trustProxyHops = parseIntegerEnv("WBO_TRUST_PROXY_HOPS", 0);
-
-  if (trustProxyHops < 0) {
-    throw new Error("Invalid WBO_TRUST_PROXY_HOPS: must be >= 0");
-  }
-
-  const normalizedIpSource = ipSource.toLowerCase();
-  if (
-    trustProxyHops > 0 &&
-    normalizedIpSource !== "x-forwarded-for" &&
-    normalizedIpSource !== "forwarded"
-  ) {
-    throw new Error(
-      "WBO_TRUST_PROXY_HOPS requires WBO_IP_SOURCE to be X-Forwarded-For or Forwarded",
-    );
-  }
-
-  const defaultConstructiveActionRateLimits = parseRateLimitProfileEnv(
-    "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
-    {
-      limit: 40,
-      periodMs: 10 * 1000,
-      overrides: {
-        anonymous: {
-          limit: Math.floor(40 / RateLimitCommon.ANONYMOUS_RATE_LIMIT_DIVISOR),
-          periodMs: 10 * 1000,
-        },
-      },
-    },
-  );
-
-  const defaultDestructiveActionRateLimits = parseRateLimitProfileEnv(
-    "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
-    {
-      limit: 190,
-      periodMs: 60 * 1000,
-      overrides: {
-        anonymous: {
-          limit: Math.floor(190 / RateLimitCommon.ANONYMOUS_RATE_LIMIT_DIVISOR),
-          periodMs: 60 * 1000,
-        },
-      },
-    },
-  );
-
-  const defaultGeneralRateLimits = parseRateLimitProfileEnv(
-    "WBO_MAX_EMIT_COUNT",
-    {
-      limit: 250,
-      periodMs: 5 * 1000,
-      overrides: {},
-    },
-  );
-
-  const defaultTextCreationRateLimits = parseRateLimitProfileEnv(
-    "WBO_MAX_TEXT_CREATIONS_PER_IP",
-    {
-      limit: 2,
-      periodMs: 1 * 1000,
-      overrides: {
-        anonymous: {
-          limit: 30,
-          periodMs: 60 * 1000,
-        },
-      },
-    },
-  );
+  const { IP_SOURCE, TRUST_PROXY_HOPS } = IP_CONFIGURATION();
+  const generalRateLimits = GENERAL_RATE_LIMITS();
+  const destructiveActionRateLimits = DESTRUCTIVE_ACTION_RATE_LIMITS();
+  const constructiveActionRateLimits = CONSTRUCTIVE_ACTION_RATE_LIMITS();
+  const textCreationRateLimits = TEXT_CREATION_RATE_LIMITS();
 
   return {
-    /** True when the app is running outside production. */
-    IS_DEVELOPMENT: isDevelopment,
-
-    /** Port on which the application will listen */
-    PORT: parseIntegerEnv("PORT", 8080),
-
-    /** Host on which the application will listen (defaults to undefined,
-          hence listen on all interfaces on all IP addresses, but could also be
-          '127.0.0.1' **/
-    HOST: process.env.HOST || undefined,
-
-    /** Path to the directory where boards will be saved by default */
-    HISTORY_DIR:
-      process.env.WBO_HISTORY_DIR || path.join(appRoot, "server-data"),
-
-    /** Minimum server log level. Valid values: debug, info, warn, error. */
-    LOG_LEVEL: parseLogLevel(process.env.LOG_LEVEL),
-
-    /** Folder from which static files will be served */
-    WEBROOT: process.env.WBO_WEBROOT || path.join(appRoot, "client-data"),
-
-    /** Number of milliseconds of inactivity after which the board should be saved to a file */
-    SAVE_INTERVAL: parseIntegerEnv("WBO_SAVE_INTERVAL", 1000 * 2), // Save after 2 seconds of inactivity
-
-    /** Periodicity at which the board should be saved when it is being actively used (milliseconds)  */
-    MAX_SAVE_DELAY: parseIntegerEnv("WBO_MAX_SAVE_DELAY", 1000 * 60), // Save after 60 seconds even if there is still activity
-
-    /** Minimum wall-clock retention window for persisted replay envelopes after save. */
-    SEQ_REPLAY_RETENTION_MS: parseIntegerEnv(
-      "WBO_SEQ_REPLAY_RETENTION_MS",
-      1000 * 60,
-    ),
-
-    /** Maximal number of items to keep in the board. When there are more items, the oldest ones are deleted */
-    MAX_ITEM_COUNT: parseIntegerEnv("WBO_MAX_ITEM_COUNT", 32768),
-
-    /** Max number of sub-items in an item. This prevents flooding */
-    MAX_CHILDREN: parseIntegerEnv("WBO_MAX_CHILDREN", 500),
-
-    /** Maximum value for any x or y on the board */
-    MAX_BOARD_SIZE: parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360),
-
-    /** General socket write limits.
-        Use WBO_MAX_EMIT_COUNT with compact profiles such as `*:250/5s anonymous:125/5s`.
-        Each profile entry is `board:limit/period`, `*` is the default, and every board keeps one counter per socket connection.
-        Every broadcast event costs exactly 1 regardless of tool.
-        This is a fixed window: the first write starts the window, every write increments the counter,
-        and the counter resets completely once the configured period elapses. */
-    GENERAL_RATE_LIMITS: defaultGeneralRateLimits,
-
-    /** Destructive per-IP fixed-window limits.
-        Use WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP with compact profiles such as `*:190/60s anonymous:95/60s`.
-        Each profile entry is `board:limit/period`, `*` is the default, and every board keeps one counter per resolved client IP.
-        Destructive cost counts deletes and clears, and batched messages sum their destructive children.
-        This is a fixed window: the first destructive write starts the window, every matching action increments the counter,
-        and the counter resets completely once the configured period elapses. */
-    DESTRUCTIVE_ACTION_RATE_LIMITS: defaultDestructiveActionRateLimits,
-
-    /** Default destructive per-IP limit derived from WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP. */
-    MAX_DESTRUCTIVE_ACTIONS_PER_IP: defaultDestructiveActionRateLimits.limit,
-
-    /** Default destructive fixed-window duration in milliseconds derived from WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP. */
-    MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS:
-      defaultDestructiveActionRateLimits.periodMs,
-
-    /** Anonymous-board destructive limit derived from WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP. */
+    IS_DEVELOPMENT: IS_DEVELOPMENT(),
+    PORT: PORT(),
+    HOST: HOST(),
+    HISTORY_DIR: HISTORY_DIR(),
+    LOG_LEVEL: LOG_LEVEL(),
+    WEBROOT: WEBROOT(),
+    SAVE_INTERVAL: SAVE_INTERVAL(),
+    MAX_SAVE_DELAY: MAX_SAVE_DELAY(),
+    SEQ_REPLAY_RETENTION_MS: SEQ_REPLAY_RETENTION_MS(),
+    MAX_ITEM_COUNT: MAX_ITEM_COUNT(),
+    MAX_CHILDREN: MAX_CHILDREN(),
+    MAX_BOARD_SIZE: MAX_BOARD_SIZE(),
+    GENERAL_RATE_LIMITS: generalRateLimits,
+    DESTRUCTIVE_ACTION_RATE_LIMITS: destructiveActionRateLimits,
+    MAX_DESTRUCTIVE_ACTIONS_PER_IP: destructiveActionRateLimits.limit,
+    MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS: destructiveActionRateLimits.periodMs,
     ANONYMOUS_MAX_DESTRUCTIVE_ACTIONS_PER_IP:
-      defaultDestructiveActionRateLimits.overrides.anonymous?.limit,
-
-    /** Constructive per-IP fixed-window limits.
-        Use WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP with compact profiles such as `*:40/10s anonymous:20/10s`.
-        Each profile entry is `board:limit/period`, `*` is the default, and every board keeps one counter per resolved client IP.
-        Constructive cost counts creates and copies with an id, but excludes child points, updates, deletes, and clears.
-        This is a fixed window: the first constructive write starts the window, every matching action increments the counter,
-        and the counter resets completely once the configured period elapses. */
-    CONSTRUCTIVE_ACTION_RATE_LIMITS: defaultConstructiveActionRateLimits,
-
-    /** Default constructive per-IP limit derived from WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP. */
-    MAX_CONSTRUCTIVE_ACTIONS_PER_IP: defaultConstructiveActionRateLimits.limit,
-
-    /** Default constructive fixed-window duration in milliseconds derived from WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP. */
-    MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS:
-      defaultConstructiveActionRateLimits.periodMs,
-
-    /** Anonymous-board constructive limit derived from WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP. */
+      destructiveActionRateLimits.overrides.anonymous?.limit,
+    CONSTRUCTIVE_ACTION_RATE_LIMITS: constructiveActionRateLimits,
+    MAX_CONSTRUCTIVE_ACTIONS_PER_IP: constructiveActionRateLimits.limit,
+    MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS: constructiveActionRateLimits.periodMs,
     ANONYMOUS_MAX_CONSTRUCTIVE_ACTIONS_PER_IP:
-      defaultConstructiveActionRateLimits.overrides.anonymous?.limit,
-
-    /** Text-creation per-IP fixed-window limits.
-        Use WBO_MAX_TEXT_CREATIONS_PER_IP with compact profiles such as `*:2/1s anonymous:30/60s`.
-        Each profile entry is `board:limit/period`, `*` is the default, and every board keeps one counter per resolved client IP.
-        Text cost counts every `Text/new` plus any `Text/update` whose text contains URL-like content.
-        This is a fixed window: the first matching write starts the window, every matching action increments the counter,
-        and the counter resets completely once the configured period elapses. */
-    TEXT_CREATION_RATE_LIMITS: defaultTextCreationRateLimits,
-
-    /** Default text-creation per-IP limit derived from WBO_MAX_TEXT_CREATIONS_PER_IP. */
-    MAX_TEXT_CREATIONS_PER_IP: defaultTextCreationRateLimits.limit,
-
-    /** Default text-creation fixed-window duration in milliseconds derived from WBO_MAX_TEXT_CREATIONS_PER_IP. */
-    MAX_TEXT_CREATIONS_PERIOD_MS: defaultTextCreationRateLimits.periodMs,
-
-    /** Anonymous-board text-creation limit derived from WBO_MAX_TEXT_CREATIONS_PER_IP. */
+      constructiveActionRateLimits.overrides.anonymous?.limit,
+    TEXT_CREATION_RATE_LIMITS: textCreationRateLimits,
+    MAX_TEXT_CREATIONS_PER_IP: textCreationRateLimits.limit,
+    MAX_TEXT_CREATIONS_PERIOD_MS: textCreationRateLimits.periodMs,
     ANONYMOUS_MAX_TEXT_CREATIONS_PER_IP:
-      defaultTextCreationRateLimits.overrides.anonymous?.limit,
-
-    /** Source used to resolve client IPs for logging and rate limiting.
-        Supports remoteAddress, Forwarded, X-Forwarded-For, or any custom header
-        such as CF-Connecting-IP. Header lookup is case-insensitive. */
-    IP_SOURCE: ipSource,
-
-    /** Number of trusted proxy hops between the app and the client for
-        list-style forwarding headers such as X-Forwarded-For and Forwarded.
-        When set to a positive value, the app mirrors the common Express
-        `trust proxy = <number>` pattern and walks proxy hops from right to left.
-        When left at 0, existing single-hop behavior is preserved. */
-    TRUST_PROXY_HOPS: trustProxyHops,
-
-    /** Blocked Tools. A comma-separated list of tools that should not appear on boards. */
-    BLOCKED_TOOLS: (process.env.WBO_BLOCKED_TOOLS || "").split(","),
-
-    /** Selection Buttons. A comma-separated list of selection buttons that should not be available. */
-    BLOCKED_SELECTION_BUTTONS: (
-      process.env.WBO_BLOCKED_SELECTION_BUTTONS || ""
-    ).split(","),
-
-    /** Automatically switch to White-out on finger touch after drawing
-        with Pencil using a stylus. Only supported on iPad with Apple Pencil. */
-    AUTO_FINGER_WHITEOUT: process.env.AUTO_FINGER_WHITEOUT !== "disabled",
-
-    /** Secret key for jwt */
-    AUTH_SECRET_KEY: process.env.AUTH_SECRET_KEY || "",
-
-    /** Cloudflare Turnstile secret key */
-    TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
-
-    /** Cloudflare Turnstile site key */
-    TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY,
-
-    /** Override Turnstile verification endpoint, primarily for tests */
-    TURNSTILE_VERIFY_URL:
-      process.env.TURNSTILE_VERIFY_URL ||
-      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-
-    /** Duration for which a successful Turnstile validation authorizes protected writes */
-    TURNSTILE_VALIDATION_WINDOW_MS: parseIntegerEnv(
-      "TURNSTILE_VALIDATION_WINDOW_MS",
-      1000 * 60 * 4,
-    ),
-
-    /** If this variable is set, automatically redirect to this board from the root of the application. */
-    DEFAULT_BOARD: process.env.WBO_DEFAULT_BOARD,
+      textCreationRateLimits.overrides.anonymous?.limit,
+    IP_SOURCE,
+    TRUST_PROXY_HOPS,
+    BLOCKED_TOOLS: BLOCKED_TOOLS(),
+    BLOCKED_SELECTION_BUTTONS: BLOCKED_SELECTION_BUTTONS(),
+    AUTO_FINGER_WHITEOUT: AUTO_FINGER_WHITEOUT(),
+    AUTH_SECRET_KEY: AUTH_SECRET_KEY(),
+    TURNSTILE_SECRET_KEY: TURNSTILE_SECRET_KEY(),
+    TURNSTILE_SITE_KEY: TURNSTILE_SITE_KEY(),
+    TURNSTILE_VERIFY_URL: TURNSTILE_VERIFY_URL(),
+    TURNSTILE_VALIDATION_WINDOW_MS: TURNSTILE_VALIDATION_WINDOW_MS(),
+    DEFAULT_BOARD: DEFAULT_BOARD(),
   };
 }
 
-/**
- * Snapshot of {@link readConfiguration} captured at module load. Consumers
- * that destructure the default export do so at their own module-load time,
- * which occurs after all `import` statements resolve; they must ensure that
- * any `process.env` overrides they care about are in place before the
- * configuration module graph is first imported.
- */
 const configuration = readConfiguration();
 
 export default configuration;
