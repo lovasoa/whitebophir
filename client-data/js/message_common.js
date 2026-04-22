@@ -40,7 +40,24 @@
  *   _children?: Array<ChildPoint | null | undefined>
  * }} GeometryItem
  */
-import { DRAW_TOOL_IDS } from "../tools/tool-order.js";
+import { DRAW_TOOL_IDS, TOOL_IDS } from "../tools/tool-order.js";
+
+/**
+ * @param {unknown} tool
+ * @returns {string | undefined}
+ */
+function normalizeToolId(tool) {
+  if (typeof tool === "string") return tool;
+  if (
+    typeof tool === "number" &&
+    Number.isSafeInteger(tool) &&
+    tool >= 1 &&
+    tool <= TOOL_IDS.length
+  ) {
+    return TOOL_IDS[tool - 1];
+  }
+  return undefined;
+}
 
 export const LIMITS = {
   MIN_SIZE: 10,
@@ -183,7 +200,8 @@ export function isFiniteTransformNumber(value) {
  */
 export function requiresTurnstile(boardName, toolId) {
   if (boardName !== "anonymous") return false;
-  if (!toolId || toolId === "cursor") return false;
+  const normalizedToolId = normalizeToolId(toolId);
+  if (!normalizedToolId || normalizedToolId === "cursor") return false;
   return true;
 }
 
@@ -192,7 +210,11 @@ export function requiresTurnstile(boardName, toolId) {
  * @returns {boolean}
  */
 export function isDrawTool(toolId) {
-  return typeof toolId === "string" && DRAW_TOOL_IDS.indexOf(toolId) !== -1;
+  const normalizedToolId = normalizeToolId(toolId);
+  return (
+    typeof normalizedToolId === "string" &&
+    DRAW_TOOL_IDS.indexOf(normalizedToolId) !== -1
+  );
 }
 
 /**
@@ -323,7 +345,7 @@ function getTextBounds(item) {
  * @returns {Bounds | null}
  */
 export function getLocalGeometryBounds(item) {
-  if (!item || typeof item.tool !== "string") return null;
+  if (!item || !normalizeToolId(item.tool)) return null;
   if (Array.isArray(item._children)) return getPencilBounds(item);
   if (item.x2 !== undefined || item.y2 !== undefined) {
     return getStraightShapeBounds(item);

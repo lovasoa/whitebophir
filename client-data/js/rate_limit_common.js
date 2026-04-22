@@ -248,8 +248,9 @@ export function countTextCreationActions(data) {
     }, 0);
   }
   if (
-    getToolCode(/** @type {{tool?: string | undefined}} */ (data).tool) !==
-    TEXT_TOOL_CODE
+    getToolCode(
+      /** @type {{tool?: string | number | undefined}} */ (data).tool,
+    ) !== TEXT_TOOL_CODE
   ) {
     return 0;
   }

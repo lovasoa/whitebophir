@@ -27,6 +27,7 @@
 import { messages as BoardMessages } from "../../js/board_transport.js";
 import {
   getMutationType,
+  getToolCode,
   MutationType,
 } from "../../js/message_tool_metadata.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
@@ -610,7 +611,7 @@ function getTransformMatrix(state, elem) {
 
 /**
  * @param {HandState} state
- * @param {{ type?: string | number, id?: string, transform?: any, newid?: string, tool?: string, _children?: any[] }} data
+ * @param {{ type?: string | number, id?: string, transform?: any, newid?: string, tool?: string | number, _children?: any[] }} data
  */
 export function draw(state, data) {
   if (isBatchMessage(data)) {
@@ -649,7 +650,7 @@ export function draw(state, data) {
       break;
     }
     case MutationType.DELETE:
-      data.tool = "eraser";
+      data.tool = getToolCode("eraser");
       state.Tools.messageForTool(data);
       break;
     default:

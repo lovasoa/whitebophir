@@ -8,8 +8,12 @@ const {
   createSocketScenario,
   createSocket,
 } = require("./test_helpers.js");
+const { getToolCode } = require("../client-data/js/message_tool_metadata.js");
 const { MutationType } = require("../client-data/js/mutation_type.js");
 const USER_SECRET_COOKIE_NAME = "wbo-user-secret-v1";
+const CURSOR_TOOL_CODE = getToolCode("cursor");
+const ERASER_TOOL_CODE = getToolCode("eraser");
+const RECTANGLE_TOOL_CODE = getToolCode("rectangle");
 
 /**
  * @template T
@@ -209,7 +213,7 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
       ).payload;
       assert.equal(liveBroadcast.seq, 1);
       assert.deepEqual(liveBroadcast.mutation, {
-        tool: "rectangle",
+        tool: RECTANGLE_TOOL_CODE,
         type: MutationType.CREATE,
         id: "rect-1",
         color: "#123456",
@@ -352,7 +356,7 @@ test("board sockets use seq replay and seq envelopes even without a legacy sync 
       assert.equal(seqBroadcasts.length, 1);
       assert.equal(getRequiredValue(seqBroadcasts[0]).payload.seq, 1);
       assert.deepEqual(getRequiredValue(seqBroadcasts[0]).payload.mutation, {
-        tool: "rectangle",
+        tool: RECTANGLE_TOOL_CODE,
         type: MutationType.CREATE,
         id: "rect-default-seq-1",
         color: "#123456",
@@ -851,7 +855,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
       assert.deepEqual(
         getRequiredValue(seqPeerBroadcasts[0]).payload.mutation,
         {
-          tool: "rectangle",
+          tool: RECTANGLE_TOOL_CODE,
           type: MutationType.CREATE,
           id: "rect-mixed-1",
           x: 0,
@@ -914,7 +918,7 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
           writer.broadcasted.find((event) => event.event === "broadcast"),
         ).payload,
         {
-          tool: "cursor",
+          tool: CURSOR_TOOL_CODE,
           type: MutationType.UPDATE,
           x: 12,
           y: 34,
@@ -1066,12 +1070,12 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         [1, 2],
       );
       assert.deepEqual(getRequiredValue(seqBroadcasts[1]).payload.mutation, {
-        tool: "eraser",
+        tool: ERASER_TOOL_CODE,
         type: MutationType.DELETE,
         id: "rect-seed",
       });
       assert.deepEqual(getRequiredValue(seqBroadcasts[0]).payload.mutation, {
-        tool: "rectangle",
+        tool: RECTANGLE_TOOL_CODE,
         type: MutationType.CREATE,
         id: "rect-seed",
         clientMutationId: "cm-seed-create",
@@ -1155,7 +1159,7 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         [1, 2, 3, 4],
       );
       assert.deepEqual(getRequiredValue(seqBroadcasts[2]).payload.mutation, {
-        tool: "rectangle",
+        tool: RECTANGLE_TOOL_CODE,
         type: MutationType.CREATE,
         id: "rect-3",
         clientMutationId: "cm-rect-3",
@@ -1168,7 +1172,7 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         socket: "socket-live-item-trim",
       });
       assert.deepEqual(getRequiredValue(seqBroadcasts[3]).payload.mutation, {
-        tool: "eraser",
+        tool: ERASER_TOOL_CODE,
         type: MutationType.DELETE,
         id: "rect-1",
       });

@@ -4,28 +4,47 @@ import { TOOL_IDS } from "../tools/tool-order.js";
 
 export { getMutationTypeCode, MutationType };
 
-/** @param {string | undefined} toolId */
-export function getToolCode(toolId) {
-  if (typeof toolId !== "string") return undefined;
-  const index = TOOL_IDS.indexOf(toolId);
+/** @param {unknown} tool */
+export function getToolCode(tool) {
+  if (typeof tool === "number") {
+    return Number.isSafeInteger(tool) && tool >= 1 && tool <= TOOL_IDS.length
+      ? tool
+      : undefined;
+  }
+  if (typeof tool !== "string") return undefined;
+  const index = TOOL_IDS.indexOf(tool);
   return index === -1 ? undefined : index + 1;
 }
 
-/** @param {string | undefined} toolId */
-export function isShapeTool(toolId) {
-  return typeof toolId === "string" && TOOL_BY_ID[toolId]?.shapeTool === true;
+/** @param {unknown} tool */
+export function getToolId(tool) {
+  if (typeof tool === "string") {
+    return TOOL_BY_ID[tool] ? tool : undefined;
+  }
+  const toolCode = getToolCode(tool);
+  return toolCode === undefined ? undefined : TOOL_IDS[toolCode - 1];
+}
+
+/** @param {unknown} tool */
+export function getTool(tool) {
+  const toolId = getToolId(tool);
+  return toolId === undefined ? undefined : TOOL_BY_ID[toolId];
+}
+
+/** @param {unknown} tool */
+export function isShapeTool(tool) {
+  return getTool(tool)?.shapeTool === true;
 }
 
 /**
- * @param {string | undefined} toolId
+ * @param {unknown} tool
  * @param {{[key: string]: unknown}} data
  * @returns {{[key: string]: unknown}}
  */
-export function getUpdatableFields(toolId, data) {
+export function getUpdatableFields(tool, data) {
   /** @type {{[key: string]: unknown}} */
   const updatable = {};
-  if (typeof toolId !== "string") return updatable;
-  const fields = TOOL_BY_ID[toolId]?.updatableFields || [];
+  const fields = getTool(tool)?.updatableFields || [];
   for (const field of fields) {
     if (Object.hasOwn(data, field)) updatable[field] = data[field];
   }
@@ -39,7 +58,7 @@ export function getMutationType(message) {
   return getMutationTypeCode(message.type);
 }
 
-/** @param {string | undefined} toolId */
-export function isToolOwnedBatchTool(toolId) {
-  return typeof toolId === "string" && !!TOOL_BY_ID[toolId]?.batchMessageFields;
+/** @param {unknown} tool */
+export function isToolOwnedBatchTool(tool) {
+  return !!getTool(tool)?.batchMessageFields;
 }

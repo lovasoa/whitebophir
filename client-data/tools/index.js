@@ -23,6 +23,7 @@ import {
 /**
  * @typedef {{
  *   toolId: string,
+ *   toolCode?: number,
  *   visibleWhenReadOnly?: boolean,
  *   moderatorOnly?: boolean,
  *   drawsOnBoard?: boolean,
@@ -44,7 +45,9 @@ import {
 /**
  * @template {ToolModuleLike} T
  * @param {T} tool
+ * @param {number} toolCode
  * @returns {T & {
+ *   toolCode: number,
  *   visibleWhenReadOnly: boolean,
  *   moderatorOnly: boolean,
  *   drawsOnBoard: boolean,
@@ -55,7 +58,7 @@ import {
  *   label: string,
  * }}
  */
-function defineTool(tool) {
+function defineTool(tool, toolCode) {
   const contract =
     tool && typeof tool === "object" && "contract" in tool ? tool.contract : {};
   const definition = /** @type {T & Partial<ToolModuleLike>} */ ({
@@ -65,6 +68,7 @@ function defineTool(tool) {
   const translationKey = getToolTranslationKey(definition.toolId);
   return {
     ...definition,
+    toolCode,
     visibleWhenReadOnly: definition.visibleWhenReadOnly === true,
     moderatorOnly: definition.moderatorOnly === true,
     drawsOnBoard: definition.drawsOnBoard === true,
@@ -106,8 +110,11 @@ const TOOL_MODULES_BY_ID = {
 /** @type {{[toolId: string]: ToolModuleLike}} */
 const TOOL_MODULES_BY_ID_LOOKUP = TOOL_MODULES_BY_ID;
 
-export const TOOLS = TOOL_IDS.map((toolId) =>
-  defineTool(/** @type {ToolModuleLike} */ (TOOL_MODULES_BY_ID_LOOKUP[toolId])),
+export const TOOLS = TOOL_IDS.map((toolId, index) =>
+  defineTool(
+    /** @type {ToolModuleLike} */ (TOOL_MODULES_BY_ID_LOOKUP[toolId]),
+    index + 1,
+  ),
 );
 
 export const DRAW_TOOLS = TOOLS.filter((tool) => tool.drawsOnBoard === true);

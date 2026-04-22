@@ -16,7 +16,12 @@ export function hasMessageChildren(message) {
  * @returns {message is ToolNamedBoardMessage}
  */
 export function hasMessageTool(message) {
-  return typeof message?.tool === "string" && message.tool !== "";
+  return (
+    (typeof message?.tool === "string" && message.tool !== "") ||
+    (typeof message?.tool === "number" &&
+      Number.isSafeInteger(message.tool) &&
+      message.tool > 0)
+  );
 }
 
 /**

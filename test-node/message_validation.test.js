@@ -5,7 +5,7 @@ const { pathToFileURL } = require("node:url");
 const { MESSAGE_VALIDATION_PATH, withEnv } = require("./test_helpers.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 const { TOOLS } = require("../client-data/tools/index.js");
-const { MutationType } = MessageToolMetadata;
+const { getToolCode, MutationType } = MessageToolMetadata;
 
 const SHAPE_CREATE_FIELDS = {
   id: "id",
@@ -172,9 +172,7 @@ test("normalizeIncomingMessage supports every live tool/type pair", () => {
       true,
       `expected valid ${tool}/${type} to normalize`,
     );
-    if (tool === "text") {
-      assert.equal(normalized.value.tool, "text");
-    }
+    assert.equal(normalized.value.tool, getToolCode(tool));
   }
 });
 
@@ -238,7 +236,7 @@ test("normalizeIncomingMessage defaults shape end coordinates from the starting 
   assert.deepEqual(normalized, {
     ok: true,
     value: {
-      tool: "straight-line",
+      tool: getToolCode("straight-line"),
       type: MutationType.CREATE,
       id: "line-1",
       color: "#123456",

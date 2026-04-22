@@ -45,7 +45,12 @@ import {
   turnstile as BoardTurnstile,
 } from "./board_transport.js";
 import MessageCommon from "./message_common.js";
-import { getMutationType, MutationType } from "./message_tool_metadata.js";
+import {
+  getMutationType,
+  getToolCode,
+  getToolId,
+  MutationType,
+} from "./message_tool_metadata.js";
 import { hasMessageId, hasMessageNewId } from "./message_shape.js";
 import Minitpl from "./minitpl.js";
 import { createOptimisticJournal } from "./optimistic_journal.js";
@@ -88,6 +93,27 @@ import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
+const HAND_TOOL_CODE = getToolCode("hand");
+
+/**
+ * @param {unknown} tool
+ * @returns {string | undefined}
+ */
+function getRuntimeToolId(tool) {
+  return getToolId(/** @type {string | number | undefined} */ (tool));
+}
+
+/**
+ * @param {unknown} tool
+ * @param {string} expectedToolId
+ * @returns {boolean}
+ */
+function isRuntimeTool(tool, expectedToolId) {
+  return (
+    getToolCode(/** @type {string | number | undefined} */ (tool)) ===
+    getToolCode(expectedToolId)
+  );
+}
 // Keep a bounded safety margin between the client-side local budget and the
 // server's fixed window to absorb emit/receive skew. The buffer must be large
 // enough that a queued write does not reconnect-loop under load by landing just
@@ -1941,8 +1967,9 @@ function applyConnectedUserActivity(
   messageSocketId,
 ) {
   let changed = false;
+  const runtimeToolId = getRuntimeToolId(message.tool);
 
-  if (message.tool !== "cursor") {
+  if (!isRuntimeTool(message.tool, "cursor")) {
     markConnectedUserActivity(user);
     changed = true;
   }
@@ -1954,13 +1981,13 @@ function applyConnectedUserActivity(
     user.size = Number(message.size) || user.size;
     changed = true;
   }
-  if (message.tool && message.tool !== "cursor") {
-    user.lastTool = message.tool;
+  if (runtimeToolId && runtimeToolId !== "cursor") {
+    user.lastTool = runtimeToolId;
     changed = true;
   }
   if (
     focusPoint &&
-    (message.tool !== "cursor" ||
+    (!isRuntimeTool(message.tool, "cursor") ||
       messageSocketId === null ||
       messageSocketId === user.socketId)
   ) {
@@ -2836,8 +2863,12 @@ Tools.send = (data, toolName) => {
     if (!Tools.curTool) throw new Error("No current tool selected");
     toolName = Tools.curTool.name;
   }
+  const toolCode = getToolCode(toolName);
+  if (toolCode === undefined) {
+    throw new Error(`Unknown tool '${toolName}'.`);
+  }
   const outboundData = Tools.cloneMessage(data);
-  outboundData.tool = toolName;
+  outboundData.tool = toolCode;
   Tools.applyHooks(Tools.messageHooks, outboundData);
   return Tools.sendBufferedWrite(outboundData);
 };
@@ -2898,7 +2929,7 @@ Tools.pendingMessages = /** @type {PendingMessages} */ ({});
  * @returns {void}
  */
 function messageForTool(message) {
-  const name = message.tool;
+  const name = getRuntimeToolId(message.tool);
   const tool = name ? Tools.list[name] : undefined;
 
   if (tool) {
@@ -2911,10 +2942,10 @@ function messageForTool(message) {
       BoardMessages.queuePendingMessage(Tools.pendingMessages, name, message);
   }
 
-  if (message.tool !== "hand" && message.transform != null) {
+  if (!isRuntimeTool(message.tool, "hand") && message.transform != null) {
     //this message has special info for the mover
     messageForTool({
-      tool: "hand",
+      tool: HAND_TOOL_CODE,
       type: MutationType.UPDATE,
       transform: message.transform,
       id: message.id,

@@ -14,7 +14,11 @@ const {
   pinReplayBaseline,
   resetBoardRegistry,
 } = require("../server/board_registry.mjs");
-const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const {
+  getToolCode,
+  MutationType,
+} = require("../client-data/js/message_tool_metadata.js");
+const ERASER_TOOL_CODE = getToolCode("eraser");
 
 function getBoardDataClass() {
   return loadBoardData();
@@ -846,7 +850,7 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
   assert.deepEqual(board.consumePendingRejectedMutationEffects(), [
     {
       mutation: {
-        tool: "eraser",
+        tool: ERASER_TOOL_CODE,
         type: MutationType.DELETE,
         id: "rect-1",
       },
@@ -942,7 +946,7 @@ test("BoardData trims overflow by paint order instead of recency", async () => {
         .map((/** @type {{mutation: any}} */ entry) => entry.mutation),
       [
         {
-          tool: "eraser",
+          tool: ERASER_TOOL_CODE,
           type: MutationType.DELETE,
           id: "first",
         },

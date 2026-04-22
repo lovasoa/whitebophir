@@ -28,12 +28,13 @@
 import { stat } from "node:fs/promises";
 import MessageCommon from "../client-data/js/message_common.js";
 import {
+  getTool,
+  getToolCode,
   getUpdatableFields,
   getMutationType,
   isShapeTool,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
-import { TOOL_BY_ID } from "../client-data/tools/index.js";
 import {
   canonicalItemFromItem,
   cloneCanonicalItem,
@@ -81,6 +82,7 @@ const STANDALONE_BOARD_LOAD_BYTES_THRESHOLD = 1024 * 1024;
 const STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD = 2048;
 const STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD = 64;
 const INITIAL_BASELINE_SAVE_DELAY_MS = 50;
+const ERASER_TOOL_CODE = getToolCode("eraser");
 let boardInstanceSequence = 0;
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds */
 /** @typedef {{readonly: boolean}} BoardMetadata */
@@ -192,7 +194,7 @@ function computeScheduledSaveDelayMs(options) {
 
 /** @param {string} id */
 function eraserDeleteMutation(id) {
-  return { tool: "eraser", type: MutationType.DELETE, id };
+  return { tool: ERASER_TOOL_CODE, type: MutationType.DELETE, id };
 }
 
 /**
@@ -482,11 +484,11 @@ class BoardData {
    */
   asStoredCandidateInput(data) {
     if (getMutationType(data) !== MutationType.CREATE) return data;
-    const contract =
-      typeof data?.tool === "string" ? TOOL_BY_ID[data.tool] : undefined;
+    const contract = getTool(data?.tool);
     if (!contract?.storedTagName) return data;
     return {
       ...data,
+      tool: contract.toolId,
       type: contract.storedTagName,
     };
   }
@@ -538,7 +540,7 @@ class BoardData {
     return (
       isShapeTool(tool) &&
       item &&
-      item.tool === tool &&
+      getToolCode(item.tool) === getToolCode(tool) &&
       this.hasZeroLocalExtent(item, id) &&
       item.transform === undefined
     );
@@ -555,7 +557,7 @@ class BoardData {
     const summary = getCanonicalItem(this, message.id);
     return (
       isShapeTool(message.tool) &&
-      summary?.tool === message.tool &&
+      getToolCode(summary?.tool) === getToolCode(message.tool) &&
       this.hasZeroSummaryExtent(summary) &&
       summary.transform === undefined
     );

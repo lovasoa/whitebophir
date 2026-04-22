@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 import * as socketIO from "socket.io";
 import WBOMessageCommon from "../client-data/js/message_common.js";
+import {
+  getToolCode,
+  getToolId,
+} from "../client-data/js/message_tool_metadata.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { BoardData } from "./boardData.mjs";
 import {
@@ -36,6 +40,7 @@ const getRateLimitRemainingMs = RateLimitCommon.getRateLimitRemainingMs;
 const getEffectiveRateLimitDefinition =
   RateLimitCommon.getEffectiveRateLimitDefinition;
 const isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
+const CURSOR_TOOL_CODE = getToolCode("cursor");
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
@@ -523,8 +528,9 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
   user.lastSeen = now;
   if (data.color !== undefined) user.color = data.color;
   if (data.size !== undefined) user.size = Number(data.size) || user.size;
-  if (data.tool !== "cursor") {
-    user.lastTool = data.tool;
+  const toolId = getToolId(data.tool);
+  if (data.tool !== CURSOR_TOOL_CODE && toolId) {
+    user.lastTool = toolId;
   }
   return user;
 }
@@ -660,14 +666,14 @@ function socketTraceAttributes(eventName, extras) {
 /**
  * @param {string} boardName
  * @param {string | undefined} userName
- * @param {{tool?: string, type?: string | number}=} message
+ * @param {{tool?: string | number, type?: string | number}=} message
  * @returns {{[key: string]: unknown}}
  */
 function boardMutationTraceAttributes(boardName, userName, message) {
   return socketTraceAttributes("broadcast_write", {
     "wbo.board": boardName,
     "user.name": userName,
-    "wbo.tool": message?.tool,
+    "wbo.tool": getToolId(message?.tool),
     "wbo.message.type": message?.type,
   });
 }
@@ -731,7 +737,7 @@ function rejectSocketRequest(socket, eventName, reason, extras) {
  * @returns {boolean}
  */
 function shouldTraceBroadcast(data) {
-  return !data || data.tool !== "cursor";
+  return !data || getToolCode(data.tool) !== CURSOR_TOOL_CODE;
 }
 
 /**
@@ -1731,7 +1737,7 @@ function rejectBlockedBoardWrite(
     board: board.name,
     "client.address": clientIp,
     "user.name": userName,
-    tool: data.tool,
+    tool: getToolId(data.tool),
     type: data.type,
   });
   metrics.recordBoardMessage(
@@ -1767,7 +1773,7 @@ function rejectBoardMessageWrite(
     board: board.name,
     "client.address": clientIp,
     "user.name": userName,
-    tool: data.tool,
+    tool: getToolId(data.tool),
     type: data.type,
     reason,
   });
@@ -1811,7 +1817,7 @@ function finishSuccessfulBoardWrite(
     board: boardName,
     ...liveData,
   });
-  if (liveData.tool === "cursor") {
+  if (liveData.tool === CURSOR_TOOL_CODE) {
     emitEphemeralBoardMutation(boardName, socket, liveData);
     return;
   }
@@ -1844,7 +1850,7 @@ async function persistBoardBroadcast(
     rejectBlockedBoardWrite(socket, board, boardName, data, clientIp, userName);
     return;
   }
-  if (data.tool === "cursor") {
+  if (data.tool === CURSOR_TOOL_CODE) {
     finishSuccessfulBoardWrite(
       socket,
       board,

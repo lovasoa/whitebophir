@@ -8,7 +8,7 @@ export type Transform = {
 };
 
 export type BoardMessage = {
-  tool?: string;
+  tool?: string | number;
   id?: string;
   type?: string | number;
   parent?: string;
@@ -29,7 +29,7 @@ export type BoardMessage = {
 };
 
 export type ToolNamedBoardMessage = BoardMessage & {
-  tool: string;
+  tool: string | number;
 };
 
 export type IdentifiedBoardMessage = BoardMessage & {
@@ -45,7 +45,7 @@ export type BatchBoardMessage = ToolNamedBoardMessage & {
 };
 
 export type ToolOwnedBatchMessage = BatchBoardMessage & {
-  tool: "hand";
+  tool: string | number;
 };
 
 export type PendingWrite = {

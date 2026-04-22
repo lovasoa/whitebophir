@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getToolId } from "../client-data/js/message_tool_metadata.js";
 import {
   context,
   isSpanContextValid,
@@ -950,14 +951,14 @@ function recordSocketConnection(event) {
 }
 
 /**
- * @param {{board?: string, tool?: string, type?: string | number}} message
+ * @param {{board?: string, tool?: string | number, type?: string | number}} message
  * @param {string=} errorType
  * @returns {void}
  */
 function recordBoardMessage(message, errorType) {
   /** @type {{[key: string]: string | boolean}} */
   const attributes = {
-    "wbo.tool": message.tool || "unknown",
+    "wbo.tool": getToolId(message.tool) || "unknown",
     "wbo.message.type": String(message.type || "unknown"),
   };
   const boardAnonymous = metricBoardAnonymous(message.board);
