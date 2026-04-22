@@ -2,7 +2,13 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
-const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const {
+  getToolCode,
+  MutationType,
+} = require("../client-data/js/message_tool_metadata.js");
+
+const PENCIL_TOOL_CODE = getToolCode("pencil");
+const TEXT_TOOL_CODE = getToolCode("text");
 
 test("fixed-window helpers are stateless and reset after the period", () => {
   const initial = RateLimitCommon.createRateLimitState(1_000);
@@ -167,28 +173,33 @@ test("action counters classify constructive and destructive batch costs", () => 
 test("text creation counters charge creates and url-like text updates", () => {
   const batch = {
     _children: [
-      { tool: "text", type: MutationType.CREATE, id: "text-1" },
-      { tool: "text", type: MutationType.UPDATE, id: "text-1", txt: "hello" },
+      { tool: TEXT_TOOL_CODE, type: MutationType.CREATE, id: "text-1" },
       {
-        tool: "text",
+        tool: TEXT_TOOL_CODE,
+        type: MutationType.UPDATE,
+        id: "text-1",
+        txt: "hello",
+      },
+      {
+        tool: TEXT_TOOL_CODE,
         type: MutationType.UPDATE,
         id: "text-1",
         txt: "https://example.com/demo",
       },
       {
-        tool: "text",
+        tool: TEXT_TOOL_CODE,
         type: MutationType.UPDATE,
         id: "text-2",
         txt: "www.example.com/demo",
       },
-      { tool: "pencil", type: MutationType.CREATE, id: "line-1" },
+      { tool: PENCIL_TOOL_CODE, type: MutationType.CREATE, id: "line-1" },
     ],
   };
 
   assert.equal(RateLimitCommon.countTextCreationActions(batch), 3);
   assert.equal(
     RateLimitCommon.countTextCreationActions({
-      tool: "text",
+      tool: TEXT_TOOL_CODE,
       type: MutationType.CREATE,
       id: "text-3",
     }),
@@ -196,7 +207,7 @@ test("text creation counters charge creates and url-like text updates", () => {
   );
   assert.equal(
     RateLimitCommon.countTextCreationActions({
-      tool: "text",
+      tool: TEXT_TOOL_CODE,
       type: MutationType.UPDATE,
       id: "text-3",
       txt: "plain text",
@@ -205,7 +216,7 @@ test("text creation counters charge creates and url-like text updates", () => {
   );
   assert.equal(
     RateLimitCommon.countTextCreationActions({
-      tool: "text",
+      tool: TEXT_TOOL_CODE,
       type: MutationType.UPDATE,
       id: "text-3",
       txt: "http://example.com",

@@ -1,6 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const {
+  getToolCode,
+  MutationType,
+} = require("../client-data/js/message_tool_metadata.js");
 
 const {
   CONFIG_PATH,
@@ -8,6 +11,10 @@ const {
   loadSockets,
   withEnv,
 } = require("./test_helpers.js");
+
+const ERASER_TOOL_CODE = getToolCode("eraser");
+const PENCIL_TOOL_CODE = getToolCode("pencil");
+const TEXT_TOOL_CODE = getToolCode("text");
 
 function loadConfig() {
   return require(CONFIG_PATH).readConfiguration();
@@ -199,7 +206,7 @@ test("destructive per-IP rate limit closes the socket when exceeded", async () =
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        tool: "eraser",
+        tool: ERASER_TOOL_CODE,
         type: MutationType.DELETE,
         id: "shape-1",
       });
@@ -242,7 +249,7 @@ test("constructive per-IP rate limit closes the socket when exceeded", async () 
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        tool: "pencil",
+        tool: PENCIL_TOOL_CODE,
         type: MutationType.CREATE,
         id: "line-1",
         color: "#123456",
@@ -288,7 +295,7 @@ test("text per-IP rate limit closes the socket when text creation is exceeded", 
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        tool: "text",
+        tool: TEXT_TOOL_CODE,
         type: MutationType.CREATE,
         id: "text-1",
         color: "#123456",
@@ -336,7 +343,7 @@ test("url-like text updates consume text rate-limit budget", async () => {
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        tool: "text",
+        tool: TEXT_TOOL_CODE,
         type: MutationType.CREATE,
         id: "text-2",
         color: "#123456",
@@ -347,7 +354,7 @@ test("url-like text updates consume text rate-limit budget", async () => {
       assert.notEqual(socket.disconnected, true);
 
       await handlers.broadcast({
-        tool: "text",
+        tool: TEXT_TOOL_CODE,
         type: MutationType.UPDATE,
         id: "text-2",
         txt: "https://example.com/demo",
@@ -393,7 +400,7 @@ test("plain text updates do not consume text rate-limit budget", async () => {
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
-        tool: "text",
+        tool: TEXT_TOOL_CODE,
         type: MutationType.CREATE,
         id: "text-3",
         color: "#123456",
@@ -402,7 +409,7 @@ test("plain text updates do not consume text rate-limit budget", async () => {
         y: 20,
       });
       await handlers.broadcast({
-        tool: "text",
+        tool: TEXT_TOOL_CODE,
         type: MutationType.UPDATE,
         id: "text-3",
         txt: "plain text only",
@@ -434,7 +441,7 @@ test("resetRateLimitMaps clears text rate-limit state", async () => {
       await sockets.__test.handleSocketConnection(first.socket);
       assert.ok(first.handlers.broadcast);
       await first.handlers.broadcast({
-        tool: "text",
+        tool: TEXT_TOOL_CODE,
         type: MutationType.CREATE,
         id: "text-4",
         color: "#123456",
@@ -455,7 +462,7 @@ test("resetRateLimitMaps clears text rate-limit state", async () => {
       await sockets.__test.handleSocketConnection(second.socket);
       assert.ok(second.handlers.broadcast);
       await second.handlers.broadcast({
-        tool: "text",
+        tool: TEXT_TOOL_CODE,
         type: MutationType.CREATE,
         id: "text-5",
         color: "#123456",

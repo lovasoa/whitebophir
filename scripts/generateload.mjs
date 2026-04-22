@@ -2,11 +2,13 @@ import process from "node:process";
 
 import { chromium } from "playwright";
 import { MutationType } from "../client-data/js/mutation_type.js";
+import { getToolCode } from "../client-data/js/message_tool_metadata.js";
 
 const DEFAULT_URL = "http://127.0.0.1:8080/boards/anonymous";
 const DEFAULT_USERS = 1;
 const POINTS_PER_LINE = 50;
 const CHILD_INTERVAL_MS = 20;
+const PENCIL_TOOL_CODE = getToolCode("pencil");
 
 function printHelp() {
   console.log(`Usage: npm run generateload -- [options]
@@ -143,7 +145,7 @@ async function startDrawer(page, userIndex) {
 
           tools.drawAndSend(
             {
-              tool: "pencil",
+              tool: PENCIL_TOOL_CODE,
               type: createType,
               id,
               color,
@@ -157,7 +159,7 @@ async function startDrawer(page, userIndex) {
             point = randomPoint(point.x, point.y);
             tools.drawAndSend(
               {
-                tool: "pencil",
+                tool: PENCIL_TOOL_CODE,
                 type: appendType,
                 parent: id,
                 x: point.x,

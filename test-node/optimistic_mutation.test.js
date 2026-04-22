@@ -5,12 +5,19 @@ const {
   collectOptimisticAffectedIds,
   collectOptimisticDependencyIds,
 } = require("../client-data/js/optimistic_mutation.js");
-const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const {
+  getToolCode,
+  MutationType,
+} = require("../client-data/js/message_tool_metadata.js");
+
+const HAND_TOOL_CODE = getToolCode("hand");
+const PENCIL_TOOL_CODE = getToolCode("pencil");
+const RECTANGLE_TOOL_CODE = getToolCode("rectangle");
 
 test("optimistic mutation helpers classify creates, updates, and pencil children", () => {
   assert.deepEqual(
     collectOptimisticAffectedIds({
-      tool: "rectangle",
+      tool: RECTANGLE_TOOL_CODE,
       type: MutationType.CREATE,
       id: "shape-1",
     }),
@@ -18,7 +25,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
   );
   assert.deepEqual(
     collectOptimisticDependencyIds({
-      tool: "rectangle",
+      tool: RECTANGLE_TOOL_CODE,
       type: MutationType.CREATE,
       id: "shape-1",
     }),
@@ -26,7 +33,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
   );
   assert.deepEqual(
     collectOptimisticAffectedIds({
-      tool: "pencil",
+      tool: PENCIL_TOOL_CODE,
       type: MutationType.APPEND,
       parent: "line-1",
     }),
@@ -34,7 +41,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
   );
   assert.deepEqual(
     collectOptimisticDependencyIds({
-      tool: "pencil",
+      tool: PENCIL_TOOL_CODE,
       type: MutationType.APPEND,
       parent: "line-1",
     }),
@@ -44,7 +51,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
 
 test("optimistic mutation helpers flatten hand batches and copy semantics", () => {
   const batch = {
-    tool: "hand",
+    tool: HAND_TOOL_CODE,
     _children: [
       { type: MutationType.UPDATE, id: "shape-1" },
       { type: MutationType.COPY, id: "shape-1", newid: "shape-2" },

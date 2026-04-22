@@ -10,7 +10,13 @@ const {
   withMockedNow,
 } = require("./test_helpers.js");
 const WBOMessageCommon = require("../client-data/js/message_common.js");
-const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const {
+  getToolCode,
+  MutationType,
+} = require("../client-data/js/message_tool_metadata.js");
+
+const CURSOR_TOOL_CODE = getToolCode("cursor");
+const PENCIL_TOOL_CODE = getToolCode("pencil");
 
 /**
  * @returns {Promise<string>}
@@ -75,7 +81,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       });
 
       await broadcastHandler({
-        tool: "pencil",
+        tool: PENCIL_TOOL_CODE,
         type: MutationType.CREATE,
         id: "l1",
         color: "#123456",
@@ -90,7 +96,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       // 2. Allowed: Cursor tool, not validated
       // (This verifies the shared logic integration in the socket handler)
       await broadcastHandler({
-        tool: "cursor",
+        tool: CURSOR_TOOL_CODE,
         type: MutationType.UPDATE,
         x: 10,
         y: 20,
@@ -100,7 +106,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       socket.turnstileValidatedUntil = 1000;
       await withMockedNow(500, async () => {
         await broadcastHandler({
-          tool: "pencil",
+          tool: PENCIL_TOOL_CODE,
           type: MutationType.CREATE,
           id: "l2",
           color: "#123456",
@@ -117,7 +123,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       socket.turnstileValidatedUntil = 1000;
       await withMockedNow(1001, async () => {
         await broadcastHandler({
-          tool: "pencil",
+          tool: PENCIL_TOOL_CODE,
           type: MutationType.CREATE,
           id: "l3",
           color: "#123456",

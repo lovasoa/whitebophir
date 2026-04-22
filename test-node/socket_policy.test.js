@@ -8,7 +8,14 @@ const {
   createSocket,
   withEnv,
 } = require("./test_helpers.js");
-const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const {
+  getToolCode,
+  MutationType,
+} = require("../client-data/js/message_tool_metadata.js");
+
+const CLEAR_TOOL_CODE = getToolCode("clear");
+const CURSOR_TOOL_CODE = getToolCode("cursor");
+const TEXT_TOOL_CODE = getToolCode("text");
 
 test("getClientIp resolves the first proxy hop from forwarding headers", () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
@@ -170,7 +177,7 @@ test("socket policy counts only mutations that should consume rate-limit budget"
 
   assert.equal(
     socketPolicy.countTextCreationActions({
-      tool: "text",
+      tool: TEXT_TOOL_CODE,
       type: MutationType.CREATE,
       id: "text-1",
     }),
@@ -178,7 +185,7 @@ test("socket policy counts only mutations that should consume rate-limit budget"
   );
   assert.equal(
     socketPolicy.countTextCreationActions({
-      tool: "text",
+      tool: TEXT_TOOL_CODE,
       type: MutationType.UPDATE,
       id: "text-1",
       txt: "plain text",
@@ -188,9 +195,9 @@ test("socket policy counts only mutations that should consume rate-limit budget"
   assert.equal(
     socketPolicy.countTextCreationActions({
       _children: [
-        { tool: "text", type: MutationType.CREATE, id: "text-2" },
+        { tool: TEXT_TOOL_CODE, type: MutationType.CREATE, id: "text-2" },
         {
-          tool: "text",
+          tool: TEXT_TOOL_CODE,
           type: MutationType.UPDATE,
           id: "text-2",
           txt: "https://example.com",
@@ -207,7 +214,7 @@ test("normalizeBroadcastData rejects blocked tools before persistence", () => {
     configFromEnv({ WBO_BLOCKED_TOOLS: "text" }),
     "anonymous",
     {
-      tool: "text",
+      tool: TEXT_TOOL_CODE,
       type: MutationType.UPDATE,
       id: "text-1",
       txt: "blocked",
@@ -232,7 +239,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
         configFromEnv({ AUTH_SECRET_KEY: undefined }),
         readonlyBoard,
         {
-          tool: "cursor",
+          tool: CURSOR_TOOL_CODE,
           type: MutationType.UPDATE,
           color: "#123456",
           size: 4,
@@ -260,7 +267,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
       socketPolicy.canApplyBoardMessage(
         configFromEnv({ AUTH_SECRET_KEY: "test-secret" }),
         readonlyBoard,
-        { tool: "clear", type: MutationType.CLEAR },
+        { tool: CLEAR_TOOL_CODE, type: MutationType.CLEAR },
         createSocket({ token: editorToken }).socket,
       ),
       false,
@@ -269,7 +276,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
       socketPolicy.canApplyBoardMessage(
         configFromEnv({ AUTH_SECRET_KEY: "test-secret" }),
         readonlyBoard,
-        { tool: "clear", type: MutationType.CLEAR },
+        { tool: CLEAR_TOOL_CODE, type: MutationType.CLEAR },
         createSocket({ token: moderatorToken }).socket,
       ),
       true,

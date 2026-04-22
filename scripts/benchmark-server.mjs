@@ -22,6 +22,9 @@ const { processBoardBroadcastMessage } = await import(
   "../server/broadcast_processing.mjs"
 );
 const { MutationType } = await import("../client-data/js/mutation_type.js");
+const { getToolCode } = await import(
+  "../client-data/js/message_tool_metadata.js"
+);
 const { readConfiguration } = await import("../server/configuration.mjs");
 const { writeBoardState } = await import("../server/svg_board_store.mjs");
 
@@ -40,6 +43,10 @@ const BROWSER_PENCIL_POINTS = Math.min(120, config.MAX_CHILDREN);
 const BROADCAST_MESSAGE_COUNT = 20_000;
 const PERSIST_PENCIL_UPDATES = 128;
 const PERSIST_SHAPE_UPDATES = 128;
+const HAND_TOOL_CODE = getToolCode("hand");
+const PENCIL_TOOL_CODE = getToolCode("pencil");
+const RECTANGLE_TOOL_CODE = getToolCode("rectangle");
+const TEXT_TOOL_CODE = getToolCode("text");
 
 /**
  * @typedef {{heapUsed: number, rss: number}} MemorySnapshot
@@ -405,7 +412,7 @@ function createBroadcastMessages() {
   return Array.from({ length: BROADCAST_MESSAGE_COUNT }, (_, index) => {
     if (index % 4 === 0) {
       return {
-        tool: "pencil",
+        tool: PENCIL_TOOL_CODE,
         type: MutationType.APPEND,
         parent: `pencil-${index % 100}`,
         x: index % 2000,
@@ -414,7 +421,7 @@ function createBroadcastMessages() {
     }
     if (index % 4 === 1) {
       return {
-        tool: "rectangle",
+        tool: RECTANGLE_TOOL_CODE,
         type: MutationType.UPDATE,
         id: `rect-${index % 500}`,
         x: index % 3000,
@@ -425,14 +432,14 @@ function createBroadcastMessages() {
     }
     if (index % 4 === 2) {
       return {
-        tool: "text",
+        tool: TEXT_TOOL_CODE,
         type: MutationType.UPDATE,
         id: `text-${index % 500}`,
         txt: `bench-${index}`,
       };
     }
     return {
-      tool: "rectangle",
+      tool: RECTANGLE_TOOL_CODE,
       type: MutationType.CREATE,
       id: `shape-${index}`,
       color: DEFAULT_COLOR,
@@ -663,7 +670,7 @@ async function runPersistBenchmark() {
   for (const id of fixture.pencilIds.slice(0, PERSIST_PENCIL_UPDATES)) {
     const bounds = board.itemsById.get(id)?.bounds;
     const result = board.processMessage({
-      tool: "pencil",
+      tool: PENCIL_TOOL_CODE,
       type: MutationType.APPEND,
       parent: id,
       x: (bounds?.maxX ?? 0) + 1,
@@ -674,7 +681,7 @@ async function runPersistBenchmark() {
 
   for (const id of fixture.shapeIds.slice(0, PERSIST_SHAPE_UPDATES)) {
     const result = board.processMessage({
-      tool: "hand",
+      tool: HAND_TOOL_CODE,
       type: MutationType.UPDATE,
       id,
       transform: { a: 1, b: 0, c: 0, d: 1, e: 12, f: 18 },

@@ -8,7 +8,13 @@ const {
   configFromEnv,
   createSocket,
 } = require("./test_helpers.js");
-const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const {
+  getToolCode,
+  MutationType,
+} = require("../client-data/js/message_tool_metadata.js");
+
+const CURSOR_TOOL_CODE = getToolCode("cursor");
+const TEXT_TOOL_CODE = getToolCode("text");
 
 const BROADCAST_PROCESSING_PATH = path.join(
   __dirname,
@@ -61,7 +67,7 @@ test("broadcast processing includes general rate-limit bookkeeping in isolation"
     board.name,
     board,
     {
-      tool: "cursor",
+      tool: CURSOR_TOOL_CODE,
       type: MutationType.UPDATE,
       color: "#123456",
       size: 4,
@@ -79,7 +85,7 @@ test("broadcast processing includes general rate-limit bookkeeping in isolation"
     board.name,
     board,
     {
-      tool: "cursor",
+      tool: CURSOR_TOOL_CODE,
       type: MutationType.UPDATE,
       color: "#123456",
       size: 4,
@@ -102,7 +108,7 @@ test("broadcast processing applies board writes without the socket event wrapper
   const BoardData = require(BOARD_DATA_PATH).BoardData;
   const board = disableSaves(new BoardData("broadcast-board-write"));
   board.processMessage({
-    tool: "text",
+    tool: TEXT_TOOL_CODE,
     type: MutationType.CREATE,
     id: "text-1",
     color: "#123456",
@@ -123,7 +129,7 @@ test("broadcast processing applies board writes without the socket event wrapper
     board.name,
     board,
     {
-      tool: "text",
+      tool: TEXT_TOOL_CODE,
       type: MutationType.UPDATE,
       id: "text-1",
       txt: "updated payload",
