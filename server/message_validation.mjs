@@ -4,7 +4,7 @@ import {
   getMutationType,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
-import { TOOL_BY_ID, TOOLS } from "../client-data/tools/index.js";
+import { Cursor, TOOL_BY_ID, TOOLS } from "../client-data/tools/index.js";
 import { readConfiguration } from "./configuration.mjs";
 
 // Capture config once at module load. The hot paths below (per-coordinate
@@ -17,6 +17,7 @@ const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
 
 /** @typedef {{[key: string]: unknown}} RawRecord */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
+/** @typedef {import("../types/app-runtime.d.ts").ToolCode} ToolCode */
 /** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
 /** @typedef {{x: number, y: number}} ChildPoint */
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number} | null} Bounds */
@@ -51,7 +52,6 @@ const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
 /** @type {string[]} */
 const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
 const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeTool === true);
-const CURSOR_TOOL_CODE = /** @type {number} */ (getToolCode("cursor"));
 const SHAPE_CREATE_FIELDS = {
   id: "id",
   color: "color",
@@ -130,26 +130,12 @@ function literal(expected) {
 
 /**
  * @param {unknown} value
- * @returns {ValidationResult<number>}
+ * @returns {ValidationResult<ToolCode>}
  */
 function normalizeLiveToolCode(value) {
+  if (typeof value !== "number") return rejected("invalid tool");
   const toolCode = getToolCode(value);
   return toolCode === undefined ? rejected("invalid tool") : accepted(toolCode);
-}
-
-/**
- * @param {string} toolId
- * @returns {FieldNormalizer<number>}
- */
-function liveToolLiteral(toolId) {
-  const expectedToolCode = getToolCode(toolId);
-  return function normalizeTool(value) {
-    const normalized = normalizeLiveToolCode(value);
-    if (normalized.ok === false) return normalized;
-    return normalized.value === expectedToolCode
-      ? accepted(normalized.value)
-      : rejected(`expected ${JSON.stringify(expectedToolCode)}`);
-  };
 }
 
 /**
@@ -356,14 +342,14 @@ function buildSchemaFields(fields) {
 }
 
 /**
- * @param {string} toolId
+ * @param {number} toolCode
  * @param {number} type
  * @param {{[field: string]: string}} fields
  * @returns {FieldSchema}
  */
-function buildLiveSchema(toolId, type, fields) {
+function buildLiveSchema(toolCode, type, fields) {
   return {
-    tool: required(liveToolLiteral(toolId)),
+    tool: required(literal(toolCode)),
     type: required(literal(type)),
     ...buildSchemaFields(fields),
   };
@@ -400,11 +386,11 @@ function buildPerTypeSchemas(fieldsByType, build) {
 const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
   SHAPE_CONTRACTS.map((contract) => {
     return [
-      contract.toolCode,
+      contract.id,
       {
         [MutationType.CREATE]: {
           ...buildLiveSchema(
-            contract.toolId,
+            contract.id,
             MutationType.CREATE,
             SHAPE_CREATE_FIELDS,
           ),
@@ -416,7 +402,7 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
           }),
         },
         [MutationType.UPDATE]: buildLiveSchema(
-          contract.toolId,
+          contract.id,
           MutationType.UPDATE,
           {
             id: "id",
@@ -451,9 +437,9 @@ const STORED_SHAPE_SCHEMAS = Object.fromEntries(
 /** @type {LiveToolSchemas} */
 const CONTRACT_LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
   TOOLS.filter((tool) => tool.liveMessageFields).map((tool) => [
-    tool.toolCode,
+    tool.id,
     buildPerTypeSchemas(tool.liveMessageFields, (type, fields) =>
-      buildLiveSchema(tool.toolId, type, fields),
+      buildLiveSchema(tool.id, type, fields),
     ),
   ]),
 );
@@ -469,8 +455,8 @@ const CONTRACT_STORED_ITEM_SCHEMAS = Object.fromEntries(
 /** @type {LiveToolSchemas} */
 const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
   Object.entries({
-    [CURSOR_TOOL_CODE]: {
-      [MutationType.UPDATE]: buildLiveSchema("cursor", MutationType.UPDATE, {
+    [Cursor.id]: {
+      [MutationType.UPDATE]: buildLiveSchema(Cursor.id, MutationType.UPDATE, {
         color: "color",
         size: "size",
         x: "coord",
@@ -484,7 +470,7 @@ const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
 
 const LIVE_BATCH_CHILD_SCHEMAS = Object.fromEntries(
   TOOLS.filter((tool) => tool.batchMessageFields).map((tool) => [
-    tool.toolCode,
+    tool.id,
     buildPerTypeSchemas(tool.batchMessageFields, (type, fields) => ({
       type: required(literal(type)),
       ...buildSchemaFields(fields),
@@ -504,10 +490,11 @@ const STORED_ITEM_SCHEMAS = {
  */
 function normalizeIncomingBatch(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
-  const toolCode = getToolCode(raw.tool);
-  if (toolCode === undefined) return rejected("missing tool");
+  if (!Object.hasOwn(raw, "tool")) return rejected("missing tool");
+  const toolCode = normalizeLiveToolCode(raw.tool);
+  if (toolCode.ok === false) return toolCode;
 
-  const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[toolCode];
+  const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[toolCode.value];
   if (!childSchemas) return rejected("unsupported batch tool");
   if (!Array.isArray(raw._children)) return rejected("invalid _children");
   if (raw._children.length > MAX_CHILDREN) {
@@ -534,7 +521,7 @@ function normalizeIncomingBatch(raw) {
 
   /** @type {NormalizedMessageData} */
   const normalized = {
-    tool: toolCode,
+    tool: toolCode.value,
     _children: children,
   };
   if (Object.hasOwn(raw, "clientMutationId")) {
@@ -552,10 +539,11 @@ function normalizeIncomingBatch(raw) {
 function normalizeIncomingMessage(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
   if (Array.isArray(raw._children)) return normalizeIncomingBatch(raw);
-  const toolCode = getToolCode(raw.tool);
-  if (toolCode === undefined) return rejected("missing tool");
+  if (!Object.hasOwn(raw, "tool")) return rejected("missing tool");
+  const toolCode = normalizeLiveToolCode(raw.tool);
+  if (toolCode.ok === false) return toolCode;
 
-  const toolSchemas = LIVE_MESSAGE_SCHEMAS[toolCode];
+  const toolSchemas = LIVE_MESSAGE_SCHEMAS[toolCode.value];
   const schema =
     typeof raw.type === "number" ? toolSchemas?.[raw.type] : undefined;
   if (!schema) return rejected("invalid tool/type");
@@ -568,7 +556,7 @@ function normalizeIncomingMessage(raw) {
   ) {
     return rejected("shape too large");
   }
-  if (toolCode !== CURSOR_TOOL_CODE && Object.hasOwn(raw, "clientMutationId")) {
+  if (toolCode.value !== Cursor.id && Object.hasOwn(raw, "clientMutationId")) {
     const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
     if (!clientMutationId.ok) return clientMutationId;
     normalized.value.clientMutationId = clientMutationId.value;

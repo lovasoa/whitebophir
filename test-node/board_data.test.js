@@ -14,11 +14,15 @@ const {
   pinReplayBaseline,
   resetBoardRegistry,
 } = require("../server/board_registry.mjs");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const {
-  getToolCode,
-  MutationType,
-} = require("../client-data/js/message_tool_metadata.js");
-const ERASER_TOOL_CODE = getToolCode("eraser");
+  Clear,
+  Eraser,
+  Hand,
+  Pencil,
+  Rectangle,
+  Text,
+} = require("../client-data/tools/index.js");
 
 function getBoardDataClass() {
   return loadBoardData();
@@ -103,7 +107,7 @@ function assertMessagesAccepted(board, messages) {
  */
 function rectangleMessage(id, color, size, x, y, x2, y2) {
   return {
-    tool: "rectangle",
+    tool: Rectangle.id,
     type: MutationType.CREATE,
     id,
     color,
@@ -121,7 +125,7 @@ function rectangleMessage(id, color, size, x, y, x2, y2) {
  * @returns {any}
  */
 function rectangleUpdate(id, changes) {
-  return { tool: "rectangle", type: MutationType.UPDATE, id, ...changes };
+  return { tool: Rectangle.id, type: MutationType.UPDATE, id, ...changes };
 }
 
 /**
@@ -136,11 +140,7 @@ function rectangleUpdate(id, changes) {
  * @returns {any}
  */
 function textCreate(fields) {
-  return {
-    tool: "text",
-    type: MutationType.CREATE,
-    ...fields,
-  };
+  return { tool: Text.id, type: MutationType.CREATE, ...fields };
 }
 
 /**
@@ -149,12 +149,7 @@ function textCreate(fields) {
  * @returns {any}
  */
 function textUpdate(id, txt) {
-  return {
-    tool: "text",
-    type: MutationType.UPDATE,
-    id,
-    txt,
-  };
+  return { tool: Text.id, type: MutationType.UPDATE, id, txt };
 }
 
 /**
@@ -163,12 +158,7 @@ function textUpdate(id, txt) {
  * @returns {any}
  */
 function handUpdate(id, transform) {
-  return {
-    tool: "hand",
-    type: MutationType.UPDATE,
-    id,
-    transform,
-  };
+  return { tool: Hand.id, type: MutationType.UPDATE, id, transform };
 }
 
 /**
@@ -176,11 +166,7 @@ function handUpdate(id, transform) {
  * @returns {any}
  */
 function handDelete(id) {
-  return {
-    tool: "hand",
-    type: MutationType.DELETE,
-    id,
-  };
+  return { tool: Hand.id, type: MutationType.DELETE, id };
 }
 
 /**
@@ -189,12 +175,7 @@ function handDelete(id) {
  * @returns {any}
  */
 function handCopy(id, newid) {
-  return {
-    tool: "hand",
-    type: MutationType.COPY,
-    id,
-    newid,
-  };
+  return { tool: Hand.id, type: MutationType.COPY, id, newid };
 }
 
 /**
@@ -203,7 +184,7 @@ function handCopy(id, newid) {
  */
 function eraserDelete(id) {
   return {
-    tool: "eraser",
+    tool: Eraser.id,
     type: MutationType.DELETE,
     id,
   };
@@ -211,7 +192,7 @@ function eraserDelete(id) {
 
 /** @returns {any} */
 function clearMessage() {
-  return { tool: "clear", type: MutationType.CLEAR };
+  return { tool: Clear.id, type: MutationType.CLEAR };
 }
 
 /**
@@ -282,14 +263,14 @@ function buildStoredSvg(options = {}) {
 function buildPencilStrokeMutations(id, color, size, points = []) {
   return [
     {
-      tool: "pencil",
+      tool: Pencil.id,
       type: MutationType.CREATE,
       id,
       color,
       size,
     },
     ...points.map(({ x, y }) => ({
-      tool: "pencil",
+      tool: Pencil.id,
       type: MutationType.APPEND,
       parent: id,
       x,
@@ -320,14 +301,14 @@ test("BoardData processMessageBatch and per-message processing stay in sync", ()
 
   const messages = [
     {
-      tool: "pencil",
+      tool: Pencil.id,
       type: MutationType.CREATE,
       id: "p-1",
       color: "#123456",
       size: 4,
     },
     {
-      tool: "pencil",
+      tool: Pencil.id,
       type: MutationType.APPEND,
       parent: "p-1",
       x: 10,
@@ -692,7 +673,7 @@ test("BoardData applies parent tool metadata to batched Hand updates", () => {
   assertMessagesAccepted(board, [
     rectangleMessage("rect-1", "#112233", 4, 0, 0, 10, 10),
     {
-      tool: "hand",
+      tool: Hand.id,
       _children: [
         handUpdate("rect-1", { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 }),
       ],
@@ -850,7 +831,7 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
   assert.deepEqual(board.consumePendingRejectedMutationEffects(), [
     {
       mutation: {
-        tool: ERASER_TOOL_CODE,
+        tool: Eraser.id,
         type: MutationType.DELETE,
         id: "rect-1",
       },
@@ -877,7 +858,7 @@ test("BoardData rejects hand batches atomically when one transform is oversized"
 
   assert.equal(
     board.processMessage({
-      tool: "hand",
+      tool: Hand.id,
       _children: [
         handUpdate("rect-1", { a: 4, b: 0, c: 0, d: 4, e: 0, f: 0 }),
         handUpdate("rect-2", { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 }),
@@ -946,7 +927,7 @@ test("BoardData trims overflow by paint order instead of recency", async () => {
         .map((/** @type {{mutation: any}} */ entry) => entry.mutation),
       [
         {
-          tool: ERASER_TOOL_CODE,
+          tool: Eraser.id,
           type: MutationType.DELETE,
           id: "first",
         },
@@ -969,6 +950,8 @@ test("BoardData.load normalizes stored board items from disk", async () => {
           "70000",
           40,
         ),
+        tool: "rectangle",
+        type: "rect",
         opacity: 3,
         ignored: true,
       },
@@ -992,7 +975,11 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
       const BoardData = getBoardDataClass();
       await writeBoard(historyDir, "legacy-migrate", {
         __wbo_meta__: { readonly: true },
-        rect: rectangleMessage("rect", "#123456", 4, 0, 0, 10, 10),
+        rect: {
+          ...rectangleMessage("rect", "#123456", 4, 0, 0, 10, 10),
+          tool: "rectangle",
+          type: "rect",
+        },
         pencil: {
           id: "pencil",
           tool: "pencil",
@@ -1092,7 +1079,7 @@ test("BoardData records contiguous mutation seq values and persists them into sv
 
     const message = {
       id: "rect-1",
-      tool: "rectangle",
+      tool: Rectangle.id,
       type: MutationType.CREATE,
       color: "#123456",
       size: 4,
@@ -1600,6 +1587,8 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
           },
           "item-3": {
             ...rectangleMessage("item-3", "#123456", 2, 5, 6, 9, 12),
+            tool: "rectangle",
+            type: "rect",
           },
           "item-4": {
             id: "item-4",
@@ -1632,7 +1621,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
           rectangleUpdate("item-3", { x2: 15, y2: 18 }),
           textUpdate("item-2", "hello streaming"),
           {
-            tool: "pencil",
+            tool: Pencil.id,
             type: MutationType.APPEND,
             parent: "item-0",
             x: 4,

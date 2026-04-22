@@ -4,8 +4,15 @@ const { pathToFileURL } = require("node:url");
 
 const { MESSAGE_VALIDATION_PATH, withEnv } = require("./test_helpers.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
-const { TOOLS } = require("../client-data/tools/index.js");
-const { getToolCode, MutationType } = MessageToolMetadata;
+const {
+  Cursor,
+  Hand,
+  Rectangle,
+  StraightLine,
+  Text,
+  TOOLS,
+} = require("../client-data/tools/index.js");
+const { MutationType } = MessageToolMetadata;
 
 const SHAPE_CREATE_FIELDS = {
   id: "id",
@@ -81,7 +88,7 @@ function liveValidationSamples() {
       tool: "cursor",
       type: MutationType.UPDATE,
       sample: {
-        tool: "cursor",
+        tool: Cursor.id,
         type: MutationType.UPDATE,
         ...sampleFields({
           color: "color",
@@ -99,7 +106,7 @@ function liveValidationSamples() {
         tool: tool.toolId,
         type: mutationType,
         sample: {
-          tool: tool.toolId,
+          tool: tool.id,
           type: mutationType,
           ...sampleFields(fields),
         },
@@ -110,14 +117,14 @@ function liveValidationSamples() {
         tool: tool.toolId,
         type: MutationType.CREATE,
         sample: {
-          tool: tool.toolId,
+          tool: tool.id,
           type: MutationType.CREATE,
           ...sampleFields(SHAPE_CREATE_FIELDS),
         },
       });
       /** @type {{[field: string]: any}} */
       const updateSample = {
-        tool: tool.toolId,
+        tool: tool.id,
         type: MutationType.UPDATE,
         id: "shape-1",
       };
@@ -172,7 +179,10 @@ test("normalizeIncomingMessage supports every live tool/type pair", () => {
       true,
       `expected valid ${tool}/${type} to normalize`,
     );
-    assert.equal(normalized.value.tool, getToolCode(tool));
+    assert.equal(
+      normalized.value.tool,
+      TOOLS.find((candidate) => candidate.toolId === tool)?.id,
+    );
   }
 });
 
@@ -182,10 +192,11 @@ test("metadata shape tools are all supported by incoming and stored validation",
   for (let index = 0; index < shapeTools.length; index += 1) {
     const contract = shapeTools[index];
     const toolName = contract?.toolId;
-    if (typeof toolName !== "string") continue;
+    const toolCode = contract?.id;
+    if (typeof toolName !== "string" || typeof toolCode !== "number") continue;
     const id = `shape-${index}`;
     const normalizedIncoming = messageValidation.normalizeIncomingMessage({
-      tool: toolName,
+      tool: toolCode,
       type: MutationType.CREATE,
       id,
       ...sampleFields(SHAPE_CREATE_FIELDS),
@@ -193,7 +204,7 @@ test("metadata shape tools are all supported by incoming and stored validation",
     assert.equal(normalizedIncoming.ok, true);
 
     const normalizedUpdate = messageValidation.normalizeIncomingMessage({
-      tool: toolName,
+      tool: toolCode,
       type: MutationType.UPDATE,
       id,
       ...Object.fromEntries(
@@ -224,7 +235,7 @@ test("normalizeStoredItem supports every stored tool", () => {
 test("normalizeIncomingMessage defaults shape end coordinates from the starting point", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "straight-line",
+    tool: StraightLine.id,
     type: MutationType.CREATE,
     id: "line-1",
     color: "#123456",
@@ -236,7 +247,7 @@ test("normalizeIncomingMessage defaults shape end coordinates from the starting 
   assert.deepEqual(normalized, {
     ok: true,
     value: {
-      tool: getToolCode("straight-line"),
+      tool: StraightLine.id,
       type: MutationType.CREATE,
       id: "line-1",
       color: "#123456",
@@ -252,7 +263,7 @@ test("normalizeIncomingMessage defaults shape end coordinates from the starting 
 test("normalizeIncomingMessage defaults x2 and y2 from distinct axes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "rectangle",
+    tool: Rectangle.id,
     type: MutationType.CREATE,
     id: "rect-1",
     color: "#123456",
@@ -268,7 +279,7 @@ test("normalizeIncomingMessage defaults x2 and y2 from distinct axes", () => {
 test("normalizeIncomingMessage rejects malformed hand batches atomically", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "hand",
+    tool: Hand.id,
     _children: [
       {
         type: MutationType.UPDATE,
@@ -307,7 +318,7 @@ test("normalizeIncomingMessage rejects messages without a tool", () => {
 test("normalizeIncomingMessage rejects oversized live shapes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "rectangle",
+    tool: Rectangle.id,
     type: MutationType.CREATE,
     id: "rect-big",
     color: "#123456",
@@ -346,7 +357,7 @@ test("normalizeIncomingMessage allows text updates but truncates long text", () 
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const longText = "A".repeat(500);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "text",
+    tool: Text.id,
     type: MutationType.UPDATE,
     id: "text-1",
     txt: longText,
@@ -359,7 +370,7 @@ test("normalizeIncomingMessage allows text updates but truncates long text", () 
 test("normalizeIncomingMessage preserves clientMutationId for persistent messages", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    tool: "rectangle",
+    tool: Rectangle.id,
     type: MutationType.CREATE,
     id: "rect-1",
     x: 1,
@@ -378,7 +389,7 @@ test("normalizeIncomingMessage preserves clientMutationId for persistent message
 test("normalizeIncomingMessage rejects invalid clientMutationId and strips it from cursor updates", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const rejected = messageValidation.normalizeIncomingMessage({
-    tool: "text",
+    tool: Text.id,
     type: MutationType.UPDATE,
     id: "text-1",
     txt: "hello",
@@ -390,7 +401,7 @@ test("normalizeIncomingMessage rejects invalid clientMutationId and strips it fr
   });
 
   const cursor = messageValidation.normalizeIncomingMessage({
-    tool: "cursor",
+    tool: Cursor.id,
     type: MutationType.UPDATE,
     x: 10,
     y: 20,

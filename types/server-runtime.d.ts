@@ -1,11 +1,11 @@
-import type { BoardMessage, ConnectedUser } from "./app-runtime";
+import type { BoardMessage, ConnectedUser, ToolCode } from "./app-runtime";
 
 export type MessageData = BoardMessage & {
   [key: string]: any;
 };
 
 export type NormalizedMessageData = BoardMessage & {
-  tool: number;
+  tool: ToolCode;
   [key: string]: any;
 };
 

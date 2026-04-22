@@ -29,6 +29,7 @@ import { MutationType } from "../../js/mutation_type.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
+/** @typedef {import("../../../types/app-runtime").MutationCode} MutationCode */
 
 /**
  * @param {number} value
@@ -346,7 +347,7 @@ function computeMinPencilIntervalMs(Tools) {
  * @param {PencilState} state
  * @param {number} x
  * @param {number} y
- * @returns {{type: number, parent: string, x: number, y: number}}
+ * @returns {{type: MutationCode, parent: string, x: number, y: number}}
  */
 function createPointMessage(state, x, y) {
   return { type: MutationType.APPEND, parent: state.curLineId, x, y };
@@ -467,7 +468,7 @@ function normalizeServerRenderedPathData(state, pathData) {
 
 /**
  * @param {PencilState} state
- * @param {{type: number, id: string, color?: string, size?: number, opacity?: number}} lineData
+ * @param {{type: MutationCode, id: string, color?: string, size?: number, opacity?: number}} lineData
  * @returns {SVGPathElement & {id: string}}
  */
 function createLine(state, lineData) {
@@ -587,14 +588,14 @@ export function draw(state, data) {
     case MutationType.CREATE:
       state.renderingLine = createLine(
         state,
-        /** @type {{type: number, id: string, color?: string, size?: number, opacity?: number}} */ (
+        /** @type {{type: MutationCode, id: string, color?: string, size?: number, opacity?: number}} */ (
           data
         ),
       );
       return;
     case MutationType.APPEND: {
       const childData =
-        /** @type {{type: number, parent: string, x: number, y: number}} */ (
+        /** @type {{type: MutationCode, parent: string, x: number, y: number}} */ (
           data
         );
       let line =

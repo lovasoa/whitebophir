@@ -1,5 +1,5 @@
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
-import { getToolCode } from "../client-data/js/message_tool_metadata.js";
+import { Cursor } from "../client-data/tools/index.js";
 import {
   canApplyBoardMessage,
   countConstructiveActions,
@@ -27,7 +27,6 @@ const createRateLimitState = RateLimitCommon.createRateLimitState;
 const consumeFixedWindowRateLimit = RateLimitCommon.consumeFixedWindowRateLimit;
 const getEffectiveRateLimitDefinition =
   RateLimitCommon.getEffectiveRateLimitDefinition;
-const CURSOR_TOOL_CODE = getToolCode("cursor");
 
 /**
  * @param {number} now
@@ -159,7 +158,7 @@ function consumePostNormalizationRateLimits(
  * @returns {BroadcastProcessingResult}
  */
 function processNormalizedBoardMessage(board, data, socketId) {
-  if (data.tool === CURSOR_TOOL_CODE) {
+  if (data.tool === Cursor.id) {
     return {
       ok: true,
       value: { ...data, socket: socketId },

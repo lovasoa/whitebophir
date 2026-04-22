@@ -5,19 +5,13 @@ const {
   collectOptimisticAffectedIds,
   collectOptimisticDependencyIds,
 } = require("../client-data/js/optimistic_mutation.js");
-const {
-  getToolCode,
-  MutationType,
-} = require("../client-data/js/message_tool_metadata.js");
-
-const HAND_TOOL_CODE = getToolCode("hand");
-const PENCIL_TOOL_CODE = getToolCode("pencil");
-const RECTANGLE_TOOL_CODE = getToolCode("rectangle");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const { Hand, Pencil, Rectangle } = require("../client-data/tools/index.js");
 
 test("optimistic mutation helpers classify creates, updates, and pencil children", () => {
   assert.deepEqual(
     collectOptimisticAffectedIds({
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       type: MutationType.CREATE,
       id: "shape-1",
     }),
@@ -25,7 +19,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
   );
   assert.deepEqual(
     collectOptimisticDependencyIds({
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       type: MutationType.CREATE,
       id: "shape-1",
     }),
@@ -33,7 +27,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
   );
   assert.deepEqual(
     collectOptimisticAffectedIds({
-      tool: PENCIL_TOOL_CODE,
+      tool: Pencil.id,
       type: MutationType.APPEND,
       parent: "line-1",
     }),
@@ -41,7 +35,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
   );
   assert.deepEqual(
     collectOptimisticDependencyIds({
-      tool: PENCIL_TOOL_CODE,
+      tool: Pencil.id,
       type: MutationType.APPEND,
       parent: "line-1",
     }),
@@ -51,7 +45,7 @@ test("optimistic mutation helpers classify creates, updates, and pencil children
 
 test("optimistic mutation helpers flatten hand batches and copy semantics", () => {
   const batch = {
-    tool: HAND_TOOL_CODE,
+    tool: Hand.id,
     _children: [
       { type: MutationType.UPDATE, id: "shape-1" },
       { type: MutationType.COPY, id: "shape-1", newid: "shape-2" },

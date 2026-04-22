@@ -1,19 +1,20 @@
 import { getMutationTypeCode, MutationType } from "./mutation_type.js";
-import { TOOL_BY_ID } from "../tools/index.js";
-import { TOOL_IDS } from "../tools/tool-order.js";
+import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
+/** @typedef {import("../../types/app-runtime").ToolCode} ToolCode */
 
 export { getMutationTypeCode, MutationType };
 
-/** @param {unknown} tool */
+/**
+ * @param {unknown} tool
+ * @returns {ToolCode | undefined}
+ */
 export function getToolCode(tool) {
-  if (typeof tool === "number") {
-    return Number.isSafeInteger(tool) && tool >= 1 && tool <= TOOL_IDS.length
-      ? tool
-      : undefined;
-  }
-  if (typeof tool !== "string") return undefined;
-  const index = TOOL_IDS.indexOf(tool);
-  return index === -1 ? undefined : index + 1;
+  return typeof tool === "number" &&
+    Number.isSafeInteger(tool) &&
+    tool >= 1 &&
+    tool <= TOOLS.length
+    ? /** @type {ToolCode} */ (tool)
+    : undefined;
 }
 
 /** @param {unknown} tool */
@@ -22,7 +23,7 @@ export function getToolId(tool) {
     return TOOL_BY_ID[tool] ? tool : undefined;
   }
   const toolCode = getToolCode(tool);
-  return toolCode === undefined ? undefined : TOOL_IDS[toolCode - 1];
+  return toolCode === undefined ? undefined : TOOLS[toolCode - 1]?.toolId;
 }
 
 /** @param {unknown} tool */

@@ -27,9 +27,9 @@
 import { messages as BoardMessages } from "../../js/board_transport.js";
 import {
   getMutationType,
-  getToolCode,
   MutationType,
 } from "../../js/message_tool_metadata.js";
+import { Eraser } from "../index.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {{a:number, b:number, c:number, d:number, e:number, f:number}} TransformState */
 /** @typedef {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
@@ -650,7 +650,7 @@ export function draw(state, data) {
       break;
     }
     case MutationType.DELETE:
-      data.tool = getToolCode("eraser");
+      data.tool = Eraser.id;
       state.Tools.messageForTool(data);
       break;
     default:

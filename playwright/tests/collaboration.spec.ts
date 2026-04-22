@@ -1,6 +1,7 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: Playwright tests frequently access global state on the window object.
 import { setTimeout as delay } from "node:timers/promises";
 import { MutationType } from "../../client-data/js/mutation_type.js";
+import { Cursor, Eraser } from "../../client-data/tools/index.js";
 import { createBoardPage, expect, test } from "../fixtures/test";
 import { DEFAULT_FORWARDED_IP } from "../helpers/tokens";
 
@@ -73,7 +74,7 @@ test.describe("collaboration and rate limiting", () => {
       peerPage.locator("rect[x='1100'][y='800'][stroke='#ff0000']"),
     ).toBeVisible();
     await boardPage.emitBroadcast({
-      tool: "cursor",
+      tool: Cursor.id,
       type: MutationType.UPDATE,
       x: 1100,
       y: 800,
@@ -195,7 +196,7 @@ test.describe("collaboration and rate limiting", () => {
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
 
     await peerBoard.emitBroadcast({
-      tool: "cursor",
+      tool: Cursor.id,
       type: MutationType.UPDATE,
       x: 250,
       y: 150,
@@ -343,7 +344,7 @@ test.describe("collaboration and rate limiting", () => {
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
 
     await peerBoard.emitBroadcast({
-      tool: "cursor",
+      tool: Cursor.id,
       type: MutationType.UPDATE,
       x: 1600,
       y: 1200,
@@ -372,21 +373,26 @@ test.describe("collaboration and rate limiting", () => {
       (window as any).__trackedConnectedUserRow = row;
     });
 
-    await peerPage.evaluate(async (updateType) => {
-      const nextFrame = () =>
-        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      for (let index = 0; index < 12; index += 1) {
-        window.Tools.socket.emit("broadcast", {
-          tool: "cursor",
-          type: updateType,
-          x: 1600 + index * 8,
-          y: 1200 + index * 6,
-          color: "#00ff00",
-          size: 5,
-        });
-        await nextFrame();
-      }
-    }, MutationType.UPDATE);
+    await peerPage.evaluate(
+      async ({ tool, updateType }) => {
+        const nextFrame = () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+        for (let index = 0; index < 12; index += 1) {
+          window.Tools.socket.emit("broadcast", {
+            tool,
+            type: updateType,
+            x: 1600 + index * 8,
+            y: 1200 + index * 6,
+            color: "#00ff00",
+            size: 5,
+          });
+          await nextFrame();
+        }
+      },
+      { tool: Cursor.id, updateType: MutationType.UPDATE },
+    );
 
     await expect
       .poll(() =>
@@ -661,7 +667,7 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.waitForAuthoritativeResync();
 
     await peerBoard.emitBroadcast({
-      tool: "cursor",
+      tool: Cursor.id,
       type: MutationType.UPDATE,
       x: 640,
       y: 210,
@@ -774,15 +780,18 @@ test.describe("collaboration and rate limiting", () => {
           (window as any).__lastAlert = message ?? null;
         };
       });
-      await page.evaluate((deleteType) => {
-        for (let index = 0; index < 101; index += 1) {
-          window.Tools.socket.emit("broadcast", {
-            tool: "eraser",
-            type: deleteType,
-            id: `rate-limit-${index}`,
-          });
-        }
-      }, MutationType.DELETE);
+      await page.evaluate(
+        ({ deleteType, tool }) => {
+          for (let index = 0; index < 101; index += 1) {
+            window.Tools.socket.emit("broadcast", {
+              tool,
+              type: deleteType,
+              id: `rate-limit-${index}`,
+            });
+          }
+        },
+        { deleteType: MutationType.DELETE, tool: Eraser.id },
+      );
 
       await expect
         .poll(() =>

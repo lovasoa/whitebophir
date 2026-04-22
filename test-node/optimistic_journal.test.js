@@ -1,16 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const {
-  getToolCode,
-  MutationType,
-} = require("../client-data/js/message_tool_metadata.js");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const { Hand, Rectangle } = require("../client-data/tools/index.js");
 const {
   createOptimisticJournal,
 } = require("../client-data/js/optimistic_journal.js");
-
-const HAND_TOOL_CODE = getToolCode("hand");
-const RECTANGLE_TOOL_CODE = getToolCode("rectangle");
 
 test("optimistic journal appends and promotes entries in order", () => {
   const journal = createOptimisticJournal();
@@ -20,7 +15,7 @@ test("optimistic journal appends and promotes entries in order", () => {
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
     message: {
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       id: "shape-1",
       type: MutationType.CREATE,
     },
@@ -31,7 +26,7 @@ test("optimistic journal appends and promotes entries in order", () => {
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
     message: {
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       id: "shape-2",
       type: MutationType.CREATE,
     },
@@ -60,7 +55,7 @@ test("optimistic journal tracks the latest pending mutation per affected item", 
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
     message: {
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       id: "shape-1",
       type: MutationType.CREATE,
     },
@@ -71,7 +66,7 @@ test("optimistic journal tracks the latest pending mutation per affected item", 
     dependsOn: ["c1"],
     rollback: { kind: "items", snapshots: [] },
     message: {
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       id: "shape-1",
       type: MutationType.UPDATE,
     },
@@ -98,7 +93,7 @@ test("optimistic journal rejects dependent descendants together", () => {
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
     message: {
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       id: "shape-1",
       type: MutationType.CREATE,
     },
@@ -109,7 +104,7 @@ test("optimistic journal rejects dependent descendants together", () => {
     dependsOn: ["c1"],
     rollback: { kind: "items", snapshots: [] },
     message: {
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       id: "shape-1",
       type: MutationType.UPDATE,
     },
@@ -120,7 +115,7 @@ test("optimistic journal rejects dependent descendants together", () => {
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
     message: {
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       id: "shape-2",
       type: MutationType.CREATE,
     },
@@ -144,7 +139,7 @@ test("optimistic journal reset clears all pending entries", () => {
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
     message: {
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       id: "shape-1",
       type: MutationType.CREATE,
     },
@@ -167,7 +162,7 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
     dependencyItemIds: ["seed-1"],
     rollback: { kind: "items", snapshots: [] },
     message: {
-      tool: HAND_TOOL_CODE,
+      tool: Hand.id,
       type: MutationType.COPY,
       id: "seed-1",
       newid: "copy-1",
@@ -179,7 +174,7 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
     dependsOn: ["copy-1"],
     dependencyItemIds: ["copy-1"],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: HAND_TOOL_CODE, type: MutationType.UPDATE, id: "copy-1" },
+    message: { tool: Hand.id, type: MutationType.UPDATE, id: "copy-1" },
   });
   journal.append({
     clientMutationId: "shape-2-update",
@@ -188,7 +183,7 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
     dependencyItemIds: ["shape-2"],
     rollback: { kind: "items", snapshots: [] },
     message: {
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       type: MutationType.UPDATE,
       id: "shape-2",
     },

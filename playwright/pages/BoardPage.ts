@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { MutationType } from "../../client-data/js/mutation_type.js";
+import { Eraser } from "../../client-data/tools/index.js";
 import type {
   AppToolsState,
   BoardMessage,
@@ -586,19 +587,19 @@ export class BoardPage {
     await this.waitForBoardWritable();
     const shape = this.page.locator(`#${id}`);
     await this.page.evaluate(
-      ({ targetId, deleteType }) => {
+      ({ targetId, deleteType, toolId }) => {
         const tool = window.Tools.curTool;
         if (!tool || tool.name !== "eraser") {
           throw new Error("Missing eraser tool");
         }
         tool.draw({ type: deleteType, id: targetId }, true);
         window.Tools.socket?.emit("broadcast", {
-          tool: "eraser",
+          tool: toolId,
           type: deleteType,
           id: targetId,
         });
       },
-      { targetId: id, deleteType: MutationType.DELETE },
+      { targetId: id, deleteType: MutationType.DELETE, toolId: Eraser.id },
     );
     await expect(shape).toHaveCount(0);
   }

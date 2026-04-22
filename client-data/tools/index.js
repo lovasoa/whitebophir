@@ -1,15 +1,15 @@
-import * as Clear from "./clear/index.js";
-import * as Cursor from "./cursor/index.js";
-import * as Download from "./download/index.js";
-import * as Ellipse from "./ellipse/index.js";
-import * as Eraser from "./eraser/index.js";
-import * as Grid from "./grid/index.js";
-import * as Hand from "./hand/index.js";
-import * as Pencil from "./pencil/index.js";
-import * as Rectangle from "./rectangle/index.js";
-import * as StraightLine from "./straight-line/index.js";
-import * as Text from "./text/index.js";
-import * as Zoom from "./zoom/index.js";
+import * as ClearModule from "./clear/index.js";
+import * as CursorModule from "./cursor/index.js";
+import * as DownloadModule from "./download/index.js";
+import * as EllipseModule from "./ellipse/index.js";
+import * as EraserModule from "./eraser/index.js";
+import * as GridModule from "./grid/index.js";
+import * as HandModule from "./hand/index.js";
+import * as PencilModule from "./pencil/index.js";
+import * as RectangleModule from "./rectangle/index.js";
+import * as StraightLineModule from "./straight-line/index.js";
+import * as TextModule from "./text/index.js";
+import * as ZoomModule from "./zoom/index.js";
 import { TOOLBAR_TOOL_IDS, TOOL_IDS } from "./tool-order.js";
 import {
   getDefaultToolLabel,
@@ -19,11 +19,12 @@ import {
   getToolTranslationKey,
   withVersion,
 } from "./tool-defaults.js";
+/** @typedef {import("../../types/app-runtime").ToolCode} ToolCode */
 
 /**
  * @typedef {{
  *   toolId: string,
- *   toolCode?: number,
+ *   id?: ToolCode,
  *   visibleWhenReadOnly?: boolean,
  *   moderatorOnly?: boolean,
  *   drawsOnBoard?: boolean,
@@ -45,9 +46,9 @@ import {
 /**
  * @template {ToolModuleLike} T
  * @param {T} tool
- * @param {number} toolCode
+ * @param {ToolCode} toolCode
  * @returns {T & {
- *   toolCode: number,
+ *   id: ToolCode,
  *   visibleWhenReadOnly: boolean,
  *   moderatorOnly: boolean,
  *   drawsOnBoard: boolean,
@@ -68,7 +69,7 @@ function defineTool(tool, toolCode) {
   const translationKey = getToolTranslationKey(definition.toolId);
   return {
     ...definition,
-    toolCode,
+    id: toolCode,
     visibleWhenReadOnly: definition.visibleWhenReadOnly === true,
     moderatorOnly: definition.moderatorOnly === true,
     drawsOnBoard: definition.drawsOnBoard === true,
@@ -92,38 +93,60 @@ function defineTool(tool, toolCode) {
   };
 }
 
-const TOOL_MODULES_BY_ID = {
-  pencil: Pencil,
-  "straight-line": StraightLine,
-  rectangle: Rectangle,
-  ellipse: Ellipse,
-  text: Text,
-  eraser: Eraser,
-  hand: Hand,
-  grid: Grid,
-  download: Download,
-  zoom: Zoom,
-  clear: Clear,
-  cursor: Cursor,
-};
-
-/** @type {{[toolId: string]: ToolModuleLike}} */
-const TOOL_MODULES_BY_ID_LOOKUP = TOOL_MODULES_BY_ID;
+const TOOL_MODULES_BY_ID =
+  /** @type {{[toolId: string]: ToolModuleLike | undefined}} */ (
+    /** @type {unknown} */ ({
+      pencil: PencilModule,
+      "straight-line": StraightLineModule,
+      rectangle: RectangleModule,
+      ellipse: EllipseModule,
+      text: TextModule,
+      eraser: EraserModule,
+      hand: HandModule,
+      grid: GridModule,
+      download: DownloadModule,
+      zoom: ZoomModule,
+      clear: ClearModule,
+      cursor: CursorModule,
+    })
+  );
 
 export const TOOLS = TOOL_IDS.map((toolId, index) =>
   defineTool(
-    /** @type {ToolModuleLike} */ (TOOL_MODULES_BY_ID_LOOKUP[toolId]),
-    index + 1,
+    /** @type {ToolModuleLike} */ (TOOL_MODULES_BY_ID[toolId]),
+    /** @type {ToolCode} */ (index + 1),
   ),
 );
 
 export const DRAW_TOOLS = TOOLS.filter((tool) => tool.drawsOnBoard === true);
-export const TOOL_BY_ID = Object.fromEntries(
-  TOOLS.map((tool) => [tool.toolId, tool]),
+export const TOOL_BY_ID =
+  /** @type {{[toolId: string]: (typeof TOOLS)[number] | undefined}} */ (
+    Object.fromEntries(TOOLS.map((tool) => [tool.toolId, tool]))
+  );
+
+/**
+ * @param {string} toolId
+ * @returns {(typeof TOOLS)[number]}
+ */
+function getRequiredTool(toolId) {
+  return /** @type {(typeof TOOLS)[number]} */ (TOOL_BY_ID[toolId]);
+}
+
+export const Pencil = getRequiredTool("pencil");
+export const StraightLine = getRequiredTool("straight-line");
+export const Rectangle = getRequiredTool("rectangle");
+export const Ellipse = getRequiredTool("ellipse");
+export const Text = getRequiredTool("text");
+export const Eraser = getRequiredTool("eraser");
+export const Hand = getRequiredTool("hand");
+export const Grid = getRequiredTool("grid");
+export const Download = getRequiredTool("download");
+export const Zoom = getRequiredTool("zoom");
+export const Clear = getRequiredTool("clear");
+export const Cursor = getRequiredTool("cursor");
+export const TOOLBAR_TOOLS = TOOLBAR_TOOL_IDS.map((toolId) =>
+  getRequiredTool(toolId),
 );
-export const TOOLBAR_TOOLS = TOOLBAR_TOOL_IDS.map(
-  (toolId) => TOOL_BY_ID[toolId],
-).filter((tool) => tool);
 export const TOOL_BY_STORED_TAG_NAME = Object.fromEntries(
   TOOLS.filter((tool) => typeof tool.storedTagName === "string").map((tool) => [
     tool.storedTagName,

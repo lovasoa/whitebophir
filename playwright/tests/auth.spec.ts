@@ -1,5 +1,6 @@
 import jsonwebtoken from "jsonwebtoken";
 import { MutationType } from "../../client-data/js/mutation_type.js";
+import { Rectangle } from "../../client-data/tools/index.js";
 import { expect, test } from "../fixtures/test";
 import { AUTH_SECRET, TOKENS } from "../helpers/tokens";
 
@@ -41,7 +42,7 @@ test.describe("JWT auth and readonly flows", () => {
     await boardPage.emitBroadcast({
       type: MutationType.CREATE,
       id: "readonly-viewer-rect",
-      tool: "rectangle",
+      tool: Rectangle.id,
       x: 10,
       y: 10,
       x2: 30,
@@ -61,7 +62,7 @@ test.describe("JWT auth and readonly flows", () => {
     await boardPage.emitBroadcast({
       type: MutationType.CREATE,
       id: "readonly-editor-rect",
-      tool: "rectangle",
+      tool: Rectangle.id,
       x: 10,
       y: 10,
       x2: 30,
@@ -166,7 +167,7 @@ test.describe("public authless flows", () => {
     await boardPage.emitBroadcast({
       type: MutationType.CREATE,
       id: "readonly-public-rect",
-      tool: "rectangle",
+      tool: Rectangle.id,
       x: 10,
       y: 10,
       x2: 30,

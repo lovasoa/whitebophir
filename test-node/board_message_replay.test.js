@@ -3,29 +3,27 @@ const assert = require("node:assert/strict");
 
 const BoardMessageReplay = require("../client-data/js/board_message_replay.js");
 const BoardMessages = require("../client-data/js/board_transport.js").messages;
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const {
-  getToolCode,
-  MutationType,
-} = require("../client-data/js/message_tool_metadata.js");
-
-const CURSOR_TOOL_CODE = getToolCode("cursor");
-const ERASER_TOOL_CODE = getToolCode("eraser");
-const HAND_TOOL_CODE = getToolCode("hand");
-const PENCIL_TOOL_CODE = getToolCode("pencil");
-const RECTANGLE_TOOL_CODE = getToolCode("rectangle");
-const TEXT_TOOL_CODE = getToolCode("text");
+  Cursor,
+  Eraser,
+  Hand,
+  Pencil,
+  Rectangle,
+  Text,
+} = require("../client-data/tools/index.js");
 
 test("tool-owned Hand batches are applied at the batch level only", () => {
   assert.equal(
     BoardMessageReplay.isToolOwnedBatchMessage({
-      tool: HAND_TOOL_CODE,
+      tool: Hand.id,
       _children: [{ type: MutationType.UPDATE, id: "rect-1" }],
     }),
     true,
   );
   assert.equal(
     BoardMessageReplay.shouldReplayChildrenIndividually({
-      tool: HAND_TOOL_CODE,
+      tool: Hand.id,
       _children: [{ type: MutationType.UPDATE, id: "rect-1" }],
     }),
     false,
@@ -50,7 +48,7 @@ test("stored item children keep parent metadata during replay", () => {
 
 test("non-parent replay children are replayed unchanged", () => {
   const child = {
-    tool: RECTANGLE_TOOL_CODE,
+    tool: Rectangle.id,
     type: MutationType.CREATE,
     id: "rect-1",
   };
@@ -72,7 +70,7 @@ test("seq envelopes are recognized and unwrap to their mutation payload", () => 
     acceptedAtMs: 123,
     clientMutationId: "c1",
     mutation: {
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       type: MutationType.CREATE,
       id: "rect-1",
       x: 1,
@@ -95,7 +93,7 @@ test("buffered seq envelopes already covered by replay end are dropped", () => {
     {
       seq: 4,
       mutation: {
-        tool: ERASER_TOOL_CODE,
+        tool: Eraser.id,
         type: MutationType.DELETE,
         id: "rect-1",
       },
@@ -103,7 +101,7 @@ test("buffered seq envelopes already covered by replay end are dropped", () => {
     {
       seq: 5,
       mutation: {
-        tool: HAND_TOOL_CODE,
+        tool: Hand.id,
         type: MutationType.UPDATE,
         id: "rect-2",
       },
@@ -111,7 +109,7 @@ test("buffered seq envelopes already covered by replay end are dropped", () => {
     {
       seq: 6,
       mutation: {
-        tool: PENCIL_TOOL_CODE,
+        tool: Pencil.id,
         type: MutationType.APPEND,
         parent: "line-1",
         x: 1,
@@ -119,7 +117,7 @@ test("buffered seq envelopes already covered by replay end are dropped", () => {
       },
     },
     {
-      tool: TEXT_TOOL_CODE,
+      tool: Text.id,
       type: MutationType.UPDATE,
       id: "text-1",
       txt: "legacy",
@@ -168,7 +166,7 @@ test("sync replay control messages are identified by type", () => {
   );
   assert.equal(
     BoardMessageReplay.isSyncReplayControlMessage({
-      tool: RECTANGLE_TOOL_CODE,
+      tool: Rectangle.id,
       type: MutationType.CREATE,
       id: "rect-1",
     }),
@@ -182,7 +180,7 @@ test("seq envelopes and sync control messages bypass the seq replay buffer", () 
       {
         seq: 3,
         mutation: {
-          tool: RECTANGLE_TOOL_CODE,
+          tool: Rectangle.id,
           type: MutationType.CREATE,
           id: "rect-1",
         },
@@ -203,14 +201,14 @@ test("seq envelopes and sync control messages bypass the seq replay buffer", () 
   );
   assert.equal(
     BoardMessageReplay.shouldBufferLiveMessage(
-      { tool: CURSOR_TOOL_CODE, type: MutationType.UPDATE, x: 1, y: 2 },
+      { tool: Cursor.id, type: MutationType.UPDATE, x: 1, y: 2 },
       true,
     ),
     true,
   );
   assert.equal(
     BoardMessageReplay.shouldBufferLiveMessage(
-      { tool: CURSOR_TOOL_CODE, type: MutationType.UPDATE, x: 1, y: 2 },
+      { tool: Cursor.id, type: MutationType.UPDATE, x: 1, y: 2 },
       false,
     ),
     false,

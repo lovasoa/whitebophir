@@ -26,7 +26,8 @@
 
 import { MutationType } from "../../js/mutation_type.js";
 
-/** @typedef {{type: number, id: string, token?: string | null}} ClearMessage */
+/** @typedef {import("../../../types/app-runtime").MutationCode} MutationCode */
+/** @typedef {{type: MutationCode, id: string, token?: string | null}} ClearMessage */
 /** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 

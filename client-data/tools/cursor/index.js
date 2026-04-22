@@ -26,9 +26,10 @@
 
 import { MutationType } from "../../js/mutation_type.js";
 
+/** @typedef {import("../../../types/app-runtime").MutationCode} MutationCode */
 /** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
-/** @typedef {{type: number, x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
+/** @typedef {{type: MutationCode, x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
 /** @typedef {{tools: MountedAppToolsState, lastCursorUpdate: number, sending: boolean, message: CursorMessage, minCursorUpdateIntervalMs: number}} CursorState */
 
 export const toolId = "cursor";

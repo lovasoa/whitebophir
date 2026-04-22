@@ -27,11 +27,12 @@
 import { truncateText } from "../../js/message_common.js";
 import { MutationType } from "../../js/mutation_type.js";
 /** @typedef {import("../../../types/app-runtime").BoardMessage} BoardMessage */
+/** @typedef {import("../../../types/app-runtime").MutationCode} MutationCode */
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: ReturnType<typeof setTimeout> | null}} CurrentTextState */
-/** @typedef {{type: number, id: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} NewTextMessage */
-/** @typedef {{type: number, id: string, txt?: string}} TextUpdateMessage */
+/** @typedef {{type: MutationCode, id: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} NewTextMessage */
+/** @typedef {{type: MutationCode, id: string, txt?: string}} TextUpdateMessage */
 /** @typedef {NewTextMessage | TextUpdateMessage} TextMessage */
 /** @typedef {{Tools: MountedAppToolsState, board: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
 

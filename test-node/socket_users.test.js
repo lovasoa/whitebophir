@@ -8,12 +8,14 @@ const {
   createSocketScenario,
   createSocket,
 } = require("./test_helpers.js");
-const { getToolCode } = require("../client-data/js/message_tool_metadata.js");
 const { MutationType } = require("../client-data/js/mutation_type.js");
+const {
+  Cursor,
+  Eraser,
+  Pencil,
+  Rectangle,
+} = require("../client-data/tools/index.js");
 const USER_SECRET_COOKIE_NAME = "wbo-user-secret-v1";
-const CURSOR_TOOL_CODE = getToolCode("cursor");
-const ERASER_TOOL_CODE = getToolCode("eraser");
-const RECTANGLE_TOOL_CODE = getToolCode("rectangle");
 
 /**
  * @template T
@@ -34,6 +36,54 @@ function withUserSecretCookie(userSecret, headers) {
   return {
     ...(headers || {}),
     cookie: `${USER_SECRET_COOKIE_NAME}=${userSecret}`,
+  };
+}
+
+/**
+ * @param {{[key: string]: any}} fields
+ * @returns {{[key: string]: any}}
+ */
+function rectangleCreate(fields) {
+  return {
+    tool: Rectangle.id,
+    type: MutationType.CREATE,
+    ...fields,
+  };
+}
+
+/**
+ * @param {{[key: string]: any}} fields
+ * @returns {{[key: string]: any}}
+ */
+function rectangleUpdate(fields) {
+  return {
+    tool: Rectangle.id,
+    type: MutationType.UPDATE,
+    ...fields,
+  };
+}
+
+/**
+ * @param {{[key: string]: any}} fields
+ * @returns {{[key: string]: any}}
+ */
+function cursorUpdate(fields) {
+  return {
+    tool: Cursor.id,
+    type: MutationType.UPDATE,
+    ...fields,
+  };
+}
+
+/**
+ * @param {{[key: string]: any}} fields
+ * @returns {{[key: string]: any}}
+ */
+function pencilAppend(fields) {
+  return {
+    tool: Pencil.id,
+    type: MutationType.APPEND,
+    ...fields,
   };
 }
 
@@ -196,24 +246,26 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
         baselineSeq: 0,
       });
 
-      await invoke(created, "broadcast", {
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-1",
-        color: "#123456",
-        size: 4,
-        x: 0,
-        y: 0,
-        x2: 20,
-        y2: 20,
-      });
+      await invoke(
+        created,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-1",
+          color: "#123456",
+          size: 4,
+          x: 0,
+          y: 0,
+          x2: 20,
+          y2: 20,
+        }),
+      );
 
       const liveBroadcast = getRequiredValue(
         created.emitted.find((event) => event.event === "broadcast"),
       ).payload;
       assert.equal(liveBroadcast.seq, 1);
       assert.deepEqual(liveBroadcast.mutation, {
-        tool: RECTANGLE_TOOL_CODE,
+        tool: Rectangle.id,
         type: MutationType.CREATE,
         id: "rect-1",
         color: "#123456",
@@ -338,17 +390,19 @@ test("board sockets use seq replay and seq envelopes even without a legacy sync 
         ["boardstate", "sync_replay_start", "sync_replay_end"],
       );
 
-      await invoke(created, "broadcast", {
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-default-seq-1",
-        color: "#123456",
-        size: 4,
-        x: 0,
-        y: 0,
-        x2: 20,
-        y2: 20,
-      });
+      await invoke(
+        created,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-default-seq-1",
+          color: "#123456",
+          size: 4,
+          x: 0,
+          y: 0,
+          x2: 20,
+          y2: 20,
+        }),
+      );
 
       const seqBroadcasts = created.emitted.filter(
         (event) => event.event === "broadcast",
@@ -356,7 +410,7 @@ test("board sockets use seq replay and seq envelopes even without a legacy sync 
       assert.equal(seqBroadcasts.length, 1);
       assert.equal(getRequiredValue(seqBroadcasts[0]).payload.seq, 1);
       assert.deepEqual(getRequiredValue(seqBroadcasts[0]).payload.mutation, {
-        tool: RECTANGLE_TOOL_CODE,
+        tool: Rectangle.id,
         type: MutationType.CREATE,
         id: "rect-default-seq-1",
         color: "#123456",
@@ -406,17 +460,17 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
       });
 
       const broadcast = handler(writer, "broadcast");
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-1",
-        x: 0,
-        y: 0,
-        x2: 10,
-        y2: 10,
-        color: "#444444",
-        size: 4,
-      });
+      await broadcast(
+        rectangleCreate({
+          id: "rect-1",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 4,
+        }),
+      );
 
       const acceptedEnvelope = getRequiredValue(
         writer.emitted.find((event) => event.event === "broadcast"),
@@ -477,28 +531,28 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
         },
       });
       const broadcast = handler(writer, "broadcast");
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-1",
-        x: 0,
-        y: 0,
-        x2: 10,
-        y2: 10,
-        color: "#444444",
-        size: 4,
-      });
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-2",
-        x: 20,
-        y: 20,
-        x2: 30,
-        y2: 30,
-        color: "#555555",
-        size: 4,
-      });
+      await broadcast(
+        rectangleCreate({
+          id: "rect-1",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 4,
+        }),
+      );
+      await broadcast(
+        rectangleCreate({
+          id: "rect-2",
+          x: 20,
+          y: 20,
+          x2: 30,
+          y2: 30,
+          color: "#555555",
+          size: 4,
+        }),
+      );
 
       const reconnect = await connect({
         id: "socket-seq-stale-reconnect",
@@ -559,28 +613,28 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
         },
       });
       const broadcast = handler(writer, "broadcast");
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-1",
-        x: 0,
-        y: 0,
-        x2: 10,
-        y2: 10,
-        color: "#444444",
-        size: 4,
-      });
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-2",
-        x: 20,
-        y: 20,
-        x2: 30,
-        y2: 30,
-        color: "#555555",
-        size: 4,
-      });
+      await broadcast(
+        rectangleCreate({
+          id: "rect-1",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 4,
+        }),
+      );
+      await broadcast(
+        rectangleCreate({
+          id: "rect-2",
+          x: 20,
+          y: 20,
+          x2: 30,
+          y2: 30,
+          color: "#555555",
+          size: 4,
+        }),
+      );
 
       const loadedBoard = await getLoadedBoard("board-seq-race");
       await loadedBoard.save();
@@ -657,17 +711,17 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
       });
 
       const broadcast = handler(writer, "broadcast");
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-before-sync",
-        x: 0,
-        y: 0,
-        x2: 10,
-        y2: 10,
-        color: "#444444",
-        size: 4,
-      });
+      await broadcast(
+        rectangleCreate({
+          id: "rect-before-sync",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 4,
+        }),
+      );
 
       assert.equal(
         peer.emitted.filter((event) => event.event === "broadcast").length,
@@ -684,17 +738,17 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
       assert.equal(replayedBroadcasts.length, 1);
       assert.equal(getRequiredValue(replayedBroadcasts[0]).payload.seq, 1);
 
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-after-sync",
-        x: 20,
-        y: 20,
-        x2: 30,
-        y2: 30,
-        color: "#555555",
-        size: 4,
-      });
+      await broadcast(
+        rectangleCreate({
+          id: "rect-after-sync",
+          x: 20,
+          y: 20,
+          x2: 30,
+          y2: 30,
+          color: "#555555",
+          size: 4,
+        }),
+      );
 
       const liveBroadcasts = peer.emitted.filter(
         (event) => event.event === "broadcast",
@@ -722,28 +776,28 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
         },
       });
       const broadcast = handler(writer, "broadcast");
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-1",
-        x: 0,
-        y: 0,
-        x2: 10,
-        y2: 10,
-        color: "#666666",
-        size: 4,
-      });
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-2",
-        x: 20,
-        y: 20,
-        x2: 30,
-        y2: 30,
-        color: "#777777",
-        size: 4,
-      });
+      await broadcast(
+        rectangleCreate({
+          id: "rect-1",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#666666",
+          size: 4,
+        }),
+      );
+      await broadcast(
+        rectangleCreate({
+          id: "rect-2",
+          x: 20,
+          y: 20,
+          x2: 30,
+          y2: 30,
+          color: "#777777",
+          size: 4,
+        }),
+      );
 
       const loadedBoard = await getLoadedBoard("board-seq-gap");
       loadedBoard.trimMutationLogBefore(2);
@@ -835,17 +889,19 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
         },
       };
 
-      await invoke(writer, "broadcast", {
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-mixed-1",
-        x: 0,
-        y: 0,
-        x2: 10,
-        y2: 10,
-        color: "#111111",
-        size: 4,
-      });
+      await invoke(
+        writer,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-mixed-1",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#111111",
+          size: 4,
+        }),
+      );
 
       const seqPeerBroadcasts = seqPeer.emitted.filter(
         (event) => event.event === "broadcast",
@@ -855,7 +911,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
       assert.deepEqual(
         getRequiredValue(seqPeerBroadcasts[0]).payload.mutation,
         {
-          tool: RECTANGLE_TOOL_CODE,
+          tool: Rectangle.id,
           type: MutationType.CREATE,
           id: "rect-mixed-1",
           x: 0,
@@ -904,21 +960,23 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
           size: "4",
         },
       });
-      await invoke(writer, "broadcast", {
-        tool: "cursor",
-        type: MutationType.UPDATE,
-        x: 12,
-        y: 34,
-        color: "#00aa11",
-        size: 6,
-      });
+      await invoke(
+        writer,
+        "broadcast",
+        cursorUpdate({
+          x: 12,
+          y: 34,
+          color: "#00aa11",
+          size: 6,
+        }),
+      );
 
       assert.deepEqual(
         getRequiredValue(
           writer.broadcasted.find((event) => event.event === "broadcast"),
         ).payload,
         {
-          tool: CURSOR_TOOL_CODE,
+          tool: Cursor.id,
           type: MutationType.UPDATE,
           x: 12,
           y: 34,
@@ -984,14 +1042,16 @@ test("rejected board mutations emit mutation_rejected with the clientMutationId"
           size: "4",
         },
       });
-      await invoke(writer, "broadcast", {
-        tool: "pencil",
-        type: MutationType.APPEND,
-        parent: "missing-line",
-        x: 10,
-        y: 20,
-        clientMutationId: "cm-reject-1",
-      });
+      await invoke(
+        writer,
+        "broadcast",
+        pencilAppend({
+          parent: "missing-line",
+          x: 10,
+          y: 20,
+          clientMutationId: "cm-reject-1",
+        }),
+      );
 
       assert.deepEqual(
         getRequiredValue(
@@ -1028,28 +1088,28 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         },
       });
       const broadcast = handler(writer, "broadcast");
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-seed",
-        x: 10,
-        y: 10,
-        x2: 10,
-        y2: 10,
-        color: "#333333",
-        size: 4,
-        clientMutationId: "cm-seed-create",
-      });
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.UPDATE,
-        id: "rect-seed",
-        x: 10,
-        y: 10,
-        x2: 40015,
-        y2: 20,
-        clientMutationId: "cm-seed-grow",
-      });
+      await broadcast(
+        rectangleCreate({
+          id: "rect-seed",
+          x: 10,
+          y: 10,
+          x2: 10,
+          y2: 10,
+          color: "#333333",
+          size: 4,
+          clientMutationId: "cm-seed-create",
+        }),
+      );
+      await broadcast(
+        rectangleUpdate({
+          id: "rect-seed",
+          x: 10,
+          y: 10,
+          x2: 40015,
+          y2: 20,
+          clientMutationId: "cm-seed-grow",
+        }),
+      );
 
       assert.deepEqual(
         getRequiredValue(
@@ -1070,12 +1130,12 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         [1, 2],
       );
       assert.deepEqual(getRequiredValue(seqBroadcasts[1]).payload.mutation, {
-        tool: ERASER_TOOL_CODE,
+        tool: Eraser.id,
         type: MutationType.DELETE,
         id: "rect-seed",
       });
       assert.deepEqual(getRequiredValue(seqBroadcasts[0]).payload.mutation, {
-        tool: RECTANGLE_TOOL_CODE,
+        tool: Rectangle.id,
         type: MutationType.CREATE,
         id: "rect-seed",
         clientMutationId: "cm-seed-create",
@@ -1114,42 +1174,42 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         },
       });
       const broadcast = handler(writer, "broadcast");
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-1",
-        x: 10,
-        y: 10,
-        x2: 20,
-        y2: 20,
-        color: "#111111",
-        size: 4,
-        clientMutationId: "cm-rect-1",
-      });
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-2",
-        x: 20,
-        y: 20,
-        x2: 30,
-        y2: 30,
-        color: "#222222",
-        size: 4,
-        clientMutationId: "cm-rect-2",
-      });
-      await broadcast({
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-3",
-        x: 30,
-        y: 30,
-        x2: 40,
-        y2: 40,
-        color: "#333333",
-        size: 4,
-        clientMutationId: "cm-rect-3",
-      });
+      await broadcast(
+        rectangleCreate({
+          id: "rect-1",
+          x: 10,
+          y: 10,
+          x2: 20,
+          y2: 20,
+          color: "#111111",
+          size: 4,
+          clientMutationId: "cm-rect-1",
+        }),
+      );
+      await broadcast(
+        rectangleCreate({
+          id: "rect-2",
+          x: 20,
+          y: 20,
+          x2: 30,
+          y2: 30,
+          color: "#222222",
+          size: 4,
+          clientMutationId: "cm-rect-2",
+        }),
+      );
+      await broadcast(
+        rectangleCreate({
+          id: "rect-3",
+          x: 30,
+          y: 30,
+          x2: 40,
+          y2: 40,
+          color: "#333333",
+          size: 4,
+          clientMutationId: "cm-rect-3",
+        }),
+      );
 
       const seqBroadcasts = writer.emitted.filter(
         (event) => event.event === "broadcast",
@@ -1159,7 +1219,7 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         [1, 2, 3, 4],
       );
       assert.deepEqual(getRequiredValue(seqBroadcasts[2]).payload.mutation, {
-        tool: RECTANGLE_TOOL_CODE,
+        tool: Rectangle.id,
         type: MutationType.CREATE,
         id: "rect-3",
         clientMutationId: "cm-rect-3",
@@ -1172,7 +1232,7 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         socket: "socket-live-item-trim",
       });
       assert.deepEqual(getRequiredValue(seqBroadcasts[3]).payload.mutation, {
-        tool: ERASER_TOOL_CODE,
+        tool: Eraser.id,
         type: MutationType.DELETE,
         id: "rect-1",
       });
@@ -1240,17 +1300,19 @@ test("socket shutdown persists and unloads boards even when users are still conn
         },
       });
 
-      await invoke(created, "broadcast", {
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-shutdown",
-        color: "#123456",
-        size: 4,
-        x: 1,
-        y: 2,
-        x2: 20,
-        y2: 30,
-      });
+      await invoke(
+        created,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-shutdown",
+          color: "#123456",
+          size: 4,
+          x: 1,
+          y: 2,
+          x2: 20,
+          y2: 30,
+        }),
+      );
 
       await sockets.shutdown();
 
@@ -1281,17 +1343,19 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
           size: "4",
         },
       });
-      await invoke(created, "broadcast", {
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "shape-1",
-        color: "#123456",
-        size: 9,
-        x: 1,
-        y: 2,
-        x2: 11,
-        y2: 22,
-      });
+      await invoke(
+        created,
+        "broadcast",
+        rectangleCreate({
+          id: "shape-1",
+          color: "#123456",
+          size: 9,
+          x: 1,
+          y: 2,
+          x2: 11,
+          y2: 22,
+        }),
+      );
 
       const user = getRequiredValue(
         test.getBoardUserMap("board-live").get("socket-live"),
@@ -1305,14 +1369,16 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       assert.equal(user.color, "#123456");
       assert.equal(user.size, 10);
 
-      await invoke(created, "broadcast", {
-        tool: "cursor",
-        type: MutationType.UPDATE,
-        x: 9,
-        y: 10,
-        color: "#abcdef",
-        size: 12,
-      });
+      await invoke(
+        created,
+        "broadcast",
+        cursorUpdate({
+          x: 9,
+          y: 10,
+          color: "#abcdef",
+          size: 12,
+        }),
+      );
 
       assert.equal(user.lastTool, "rectangle");
       assert.equal(user.color, "#abcdef");
@@ -1357,17 +1423,19 @@ test("same-session sockets keep a shared userId in presence but live payload att
       const secondUser = getRequiredValue(users.get("socket-b"));
       assert.equal(firstUser.userId, secondUser.userId);
 
-      await invoke(first, "broadcast", {
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "shape-session",
-        color: "#123456",
-        size: 7,
-        x: 10,
-        y: 20,
-        x2: 30,
-        y2: 40,
-      });
+      await invoke(
+        first,
+        "broadcast",
+        rectangleCreate({
+          id: "shape-session",
+          color: "#123456",
+          size: 7,
+          x: 10,
+          y: 20,
+          x2: 30,
+          y2: 40,
+        }),
+      );
 
       const liveEnvelope = getRequiredValue(
         second.emitted.find((event) => event.event === "broadcast"),
@@ -1523,17 +1591,19 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
         query: { board: "missing-baseline-race" },
       });
 
-      await invoke(first, "broadcast", {
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-1",
-        color: "#111111",
-        size: 2,
-        x: 1,
-        y: 2,
-        x2: 3,
-        y2: 4,
-      });
+      await invoke(
+        first,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-1",
+          color: "#111111",
+          size: 2,
+          x: 1,
+          y: 2,
+          x2: 3,
+          y2: 4,
+        }),
+      );
 
       const board = await getLoadedBoard("missing-baseline-race");
       await board.save();
@@ -1544,17 +1614,19 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
       );
       await fs.unlink(svgPath);
 
-      await invoke(first, "broadcast", {
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-2",
-        color: "#222222",
-        size: 2,
-        x: 5,
-        y: 6,
-        x2: 7,
-        y2: 8,
-      });
+      await invoke(
+        first,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-2",
+          color: "#222222",
+          size: 2,
+          x: 5,
+          y: 6,
+          x2: 7,
+          y2: 8,
+        }),
+      );
 
       handler(first, "disconnecting")("transport close");
       handler(second, "disconnecting")("transport close");
@@ -1568,17 +1640,19 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
         query: { board: "missing-baseline-race" },
       });
 
-      await invoke(reconnect, "broadcast", {
-        tool: "rectangle",
-        type: MutationType.CREATE,
-        id: "rect-3",
-        color: "#333333",
-        size: 2,
-        x: 9,
-        y: 10,
-        x2: 11,
-        y2: 12,
-      });
+      await invoke(
+        reconnect,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-3",
+          color: "#333333",
+          size: 2,
+          x: 9,
+          y: 10,
+          x2: 11,
+          y2: 12,
+        }),
+      );
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 

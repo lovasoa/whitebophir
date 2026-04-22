@@ -1,13 +1,9 @@
-import {
-  getMutationType,
-  getToolCode,
-  MutationType,
-} from "./message_tool_metadata.js";
+import { getMutationType, MutationType } from "./message_tool_metadata.js";
+import { Text } from "../tools/index.js";
 
 export const ANONYMOUS_BOARD_NAME = "anonymous";
 export const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;
 const URL_LIKE_TEXT_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
-const TEXT_TOOL_CODE = getToolCode("text");
 
 /**
  * @param {unknown} value
@@ -247,11 +243,7 @@ export function countTextCreationActions(data) {
       return total + countTextCreationActions(child);
     }, 0);
   }
-  if (
-    getToolCode(
-      /** @type {{tool?: string | number | undefined}} */ (data).tool,
-    ) !== TEXT_TOOL_CODE
-  ) {
+  if (data.tool !== Text.id) {
     return 0;
   }
   const mutationType = getMutationType(data);

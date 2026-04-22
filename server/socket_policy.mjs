@@ -1,17 +1,16 @@
 import {
   getMutationType,
-  getToolCode,
   getToolId,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { isValidBoardName } from "../client-data/js/board_name.js";
+import { Cursor } from "../client-data/tools/index.js";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
 import observability from "./observability.mjs";
 
 const { logger, metrics, tracing } = observability;
-const CURSOR_TOOL_CODE = getToolCode("cursor");
 
 /** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
 /** @typedef {import("../types/server-runtime.d.ts").BoardLike} BoardLike */
@@ -388,12 +387,12 @@ function canWriteToBoard(config, board, socket) {
 /**
  * @param {SocketPolicyConfig} config
  * @param {BoardLike} board
- * @param {MessageData} data
+ * @param {import("../types/server-runtime.d.ts").NormalizedMessageData} data
  * @param {AppSocket} socket
  * @returns {boolean}
  */
 function canApplyBoardMessage(config, board, data, socket) {
-  if (getToolCode(data.tool) === CURSOR_TOOL_CODE) return true;
+  if (data.tool === Cursor.id) return true;
   if (!canWriteToBoard(config, board, socket)) return false;
   if (
     getMutationType(data) === MutationType.CLEAR &&

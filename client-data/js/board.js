@@ -46,8 +46,8 @@ import {
 } from "./board_transport.js";
 import MessageCommon from "./message_common.js";
 import {
+  getTool,
   getMutationType,
-  getToolCode,
   getToolId,
   MutationType,
 } from "./message_tool_metadata.js";
@@ -65,7 +65,7 @@ import {
   getToolRuntimeAssetPath,
   getToolStylesheetPath,
 } from "../tools/tool-defaults.js";
-import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
+import { Hand, TOOL_BY_ID, TOOLS } from "../tools/index.js";
 
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
@@ -93,7 +93,6 @@ import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
-const HAND_TOOL_CODE = getToolCode("hand");
 
 /**
  * @param {unknown} tool
@@ -109,10 +108,7 @@ function getRuntimeToolId(tool) {
  * @returns {boolean}
  */
 function isRuntimeTool(tool, expectedToolId) {
-  return (
-    getToolCode(/** @type {string | number | undefined} */ (tool)) ===
-    getToolCode(expectedToolId)
-  );
+  return getTool(tool)?.id === TOOL_BY_ID[expectedToolId]?.id;
 }
 // Keep a bounded safety margin between the client-side local budget and the
 // server's fixed window to absorb emit/receive skew. The buffer must be large
@@ -2863,7 +2859,7 @@ Tools.send = (data, toolName) => {
     if (!Tools.curTool) throw new Error("No current tool selected");
     toolName = Tools.curTool.name;
   }
-  const toolCode = getToolCode(toolName);
+  const toolCode = TOOL_BY_ID[toolName]?.id;
   if (toolCode === undefined) {
     throw new Error(`Unknown tool '${toolName}'.`);
   }
@@ -2945,7 +2941,7 @@ function messageForTool(message) {
   if (!isRuntimeTool(message.tool, "hand") && message.transform != null) {
     //this message has special info for the mover
     messageForTool({
-      tool: HAND_TOOL_CODE,
+      tool: Hand.id,
       type: MutationType.UPDATE,
       transform: message.transform,
       id: message.id,
