@@ -137,9 +137,11 @@ const errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
 
 const boardTemplate = new templating.BoardTemplate(
   path.join(config.WEBROOT, "board.html"),
+  config,
 );
 const indexTemplate = new templating.Template(
   path.join(config.WEBROOT, "index.html"),
+  config,
 );
 const SLOW_REQUEST_LOG_MS = 1000;
 const BOARD_SCOPED_ROUTES = new Set(["boards", "preview", "download"]);

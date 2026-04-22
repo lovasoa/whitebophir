@@ -3,7 +3,7 @@ import path from "node:path";
 
 import MessageCommon from "../client-data/js/message_common.js";
 import { TOOL_BY_ID } from "../client-data/tools/index.js";
-import config from "./configuration.mjs";
+import { readConfiguration } from "./configuration.mjs";
 import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
 import observability from "./observability.mjs";
 
@@ -211,8 +211,9 @@ const isMainModule =
     path.join(process.cwd(), "server", "createSVG.mjs");
 
 if (isMainModule) {
+  const { HISTORY_DIR } = readConfiguration();
   const historyFile =
-    process.argv[2] || path.join(config.HISTORY_DIR, "board-anonymous.json");
+    process.argv[2] || path.join(HISTORY_DIR, "board-anonymous.json");
 
   renderBoard(historyFile, process.stdout).catch((error) => {
     logger.error("svg.render_failed", {

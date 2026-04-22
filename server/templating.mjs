@@ -3,9 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import handlebars from "handlebars";
 
-import client_config from "./client_configuration.mjs";
-import { readConfiguration } from "./configuration.mjs";
-import { TOOLBAR_TOOLS, TOOL_BY_ID } from "../client-data/tools/index.js";
+import { TOOL_BY_ID, TOOLBAR_TOOLS } from "../client-data/tools/index.js";
+import { createClientConfiguration } from "./client_configuration.mjs";
 import { startCompressedResponse } from "./http_compression.mjs";
 import { parseRequestUrl } from "./request_url.mjs";
 
@@ -17,6 +16,8 @@ import { parseRequestUrl } from "./request_url.mjs";
 /** @typedef {string | string[] | undefined} HeaderValue */
 /** @typedef {{blockedTools?: string[] | null, boardState?: {readonly?: boolean, canWrite?: boolean} | null, moderator?: boolean}} VisibleToolOptions */
 /** @typedef {NonNullable<typeof TOOLBAR_TOOLS[number]>} ToolbarTool */
+/** @typedef {ReturnType<import("./configuration.mjs").readConfiguration>} ServerConfig */
+/** @typedef {ReturnType<typeof createClientConfiguration>} ClientConfig */
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 const BOARD_PAGE_CACHE_HEADROOM_SECONDS = 5;
@@ -162,9 +163,14 @@ function findBaseUrl(req) {
   return `${proto}://${host}`;
 }
 
-const cacheControl =
-  /** @type {(prodValue: string) => string} */
-  (prodValue) => (readConfiguration().IS_DEVELOPMENT ? "no-store" : prodValue);
+/**
+ * @param {boolean} isDevelopment
+ * @param {string} prodValue
+ * @returns {string}
+ */
+function cacheControl(isDevelopment, prodValue) {
+  return isDevelopment ? "no-store" : prodValue;
+}
 
 const startHtmlResponse =
   /** @type {(response: TemplateResponse, request: TemplateRequest, parsedUrl: URL, parameters: TemplateParameters, cacheControlValue: string, contentLength?: number) => import("stream").Writable} */
@@ -189,12 +195,21 @@ const startHtmlResponse =
     }).stream;
 
 class Template {
+  /** @type {ServerConfig} */
+  serverConfig;
+
+  /** @type {ClientConfig} */
+  clientConfig;
+
   /**
    * @param {string} path
+   * @param {ServerConfig} serverConfig
    */
-  constructor(path) {
+  constructor(path, serverConfig) {
     const contents = fs.readFileSync(path, { encoding: "utf8" });
     this.template = handlebars.compile(contents);
+    this.serverConfig = serverConfig;
+    this.clientConfig = createClientConfiguration(serverConfig);
   }
 
   /**
@@ -223,7 +238,7 @@ class Template {
       }
     }
     const translations = TRANSLATIONS[language] || {};
-    const configuration = client_config || {};
+    const configuration = this.clientConfig;
     const requestUrl = request.url || "/";
     const prefixPart = requestUrl.split("/boards/", 1)[0] || "";
     const prefix = prefixPart.startsWith("/")
@@ -271,16 +286,20 @@ class Template {
    * @returns {string}
    */
   cacheControl() {
-    return cacheControl("public, max-age=3600");
+    return cacheControl(
+      this.serverConfig.IS_DEVELOPMENT,
+      "public, max-age=3600",
+    );
   }
 }
 
 class BoardTemplate extends Template {
   /**
    * @param {string} path
+   * @param {ServerConfig} serverConfig
    */
-  constructor(path) {
-    super(path);
+  constructor(path, serverConfig) {
+    super(path, serverConfig);
     const contents = fs.readFileSync(path, { encoding: "utf8" });
     const marker = "{{{inlineBoardSvg}}}";
     const markerIndex = contents.indexOf(marker);
@@ -390,13 +409,15 @@ class BoardTemplate extends Template {
    * @returns {string}
    */
   cacheControl() {
-    const serverConfig = readConfiguration();
     const maxAgeSeconds = Math.max(
       0,
-      Math.floor(serverConfig.MAX_SAVE_DELAY / 1000) -
+      Math.floor(this.serverConfig.MAX_SAVE_DELAY / 1000) -
         BOARD_PAGE_CACHE_HEADROOM_SECONDS,
     );
-    return cacheControl(`public, max-age=${maxAgeSeconds}, must-revalidate`);
+    return cacheControl(
+      this.serverConfig.IS_DEVELOPMENT,
+      `public, max-age=${maxAgeSeconds}, must-revalidate`,
+    );
   }
 }
 

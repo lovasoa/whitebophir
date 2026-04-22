@@ -60,24 +60,15 @@ function parseDurationMs(text) {
 
 /**
  * @param {string} name
- * @param {{limit: number, periodMs: number, overrides?: {[boardName: string]: {limit: number, periodMs: number}}}} defaultValue
+ * @param {string} value
  * @returns {{limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}}}
  */
-export function parseRateLimitProfileEnv(name, defaultValue) {
-  const value = process.env[name];
-  if (value === undefined || value.trim() === "") {
-    return {
-      limit: defaultValue.limit,
-      periodMs: defaultValue.periodMs,
-      overrides: { ...(defaultValue.overrides || {}) },
-    };
-  }
-
+function parseRateLimitProfile(name, value) {
   const entries = value.trim().split(/\s+/);
   /** @type {{limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}}} */
   const parsed = {
-    limit: defaultValue.limit,
-    periodMs: defaultValue.periodMs,
+    limit: 0,
+    periodMs: 0,
     overrides: {},
   };
 
@@ -102,6 +93,19 @@ export function parseRateLimitProfileEnv(name, defaultValue) {
   });
 
   return parsed;
+}
+
+/**
+ * @param {string} name
+ * @param {string} defaultValue
+ * @returns {{limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}}}
+ */
+export function parseRateLimitProfileEnv(name, defaultValue) {
+  const value = process.env[name];
+  return parseRateLimitProfile(
+    name,
+    value === undefined || value.trim() === "" ? defaultValue : value,
+  );
 }
 
 /**

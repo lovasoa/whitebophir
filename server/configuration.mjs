@@ -1,6 +1,5 @@
 import path from "node:path";
 
-import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import {
   parseCommaSeparatedEnv,
   parseDisabledFlagEnv,
@@ -13,47 +12,10 @@ import {
 
 const APP_ROOT = process.cwd();
 const LOG_LEVELS = ["debug", "info", "warn", "error"];
-const ANONYMOUS_RATE_LIMIT_DIVISOR =
-  RateLimitCommon.ANONYMOUS_RATE_LIMIT_DIVISOR;
 const DEFAULT_HISTORY_DIR = path.join(APP_ROOT, "server-data");
 const DEFAULT_WEBROOT = path.join(APP_ROOT, "client-data");
 const DEFAULT_TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-const DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS = {
-  limit: 40,
-  periodMs: 10 * 1000,
-  overrides: {
-    anonymous: {
-      limit: Math.floor(40 / ANONYMOUS_RATE_LIMIT_DIVISOR),
-      periodMs: 10 * 1000,
-    },
-  },
-};
-const DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS = {
-  limit: 190,
-  periodMs: 60 * 1000,
-  overrides: {
-    anonymous: {
-      limit: Math.floor(190 / ANONYMOUS_RATE_LIMIT_DIVISOR),
-      periodMs: 60 * 1000,
-    },
-  },
-};
-const DEFAULT_GENERAL_RATE_LIMITS = {
-  limit: 250,
-  periodMs: 5 * 1000,
-  overrides: {},
-};
-const DEFAULT_TEXT_CREATION_RATE_LIMITS = {
-  limit: 2,
-  periodMs: 1 * 1000,
-  overrides: {
-    anonymous: {
-      limit: 30,
-      periodMs: 60 * 1000,
-    },
-  },
-};
 
 /** True outside production. */
 export const IS_DEVELOPMENT = () => process.env.NODE_ENV !== "production";
@@ -98,27 +60,27 @@ export const MAX_BOARD_SIZE = () =>
 
 /** Per-socket general write rate limits. Example: `*:250/5s anonymous:125/5s`. */
 export const GENERAL_RATE_LIMITS = () =>
-  parseRateLimitProfileEnv("WBO_MAX_EMIT_COUNT", DEFAULT_GENERAL_RATE_LIMITS);
+  parseRateLimitProfileEnv("WBO_MAX_EMIT_COUNT", "*:250/5s");
 
 /** Per-IP constructive write rate limits. Example: `*:40/10s anonymous:20/10s`. */
 export const CONSTRUCTIVE_ACTION_RATE_LIMITS = () =>
   parseRateLimitProfileEnv(
     "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
-    DEFAULT_CONSTRUCTIVE_ACTION_RATE_LIMITS,
+    "*:40/10s anonymous:20/10s",
   );
 
 /** Per-IP destructive write rate limits. Example: `*:190/60s anonymous:95/60s`. */
 export const DESTRUCTIVE_ACTION_RATE_LIMITS = () =>
   parseRateLimitProfileEnv(
     "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
-    DEFAULT_DESTRUCTIVE_ACTION_RATE_LIMITS,
+    "*:190/60s anonymous:95/60s",
   );
 
 /** Per-IP text creation rate limits. Example: `*:2/1s anonymous:30/60s`. */
 export const TEXT_CREATION_RATE_LIMITS = () =>
   parseRateLimitProfileEnv(
     "WBO_MAX_TEXT_CREATIONS_PER_IP",
-    DEFAULT_TEXT_CREATION_RATE_LIMITS,
+    "*:2/1s anonymous:30/60s",
   );
 
 /** IP resolution source: remoteAddress, Forwarded, X-Forwarded-For, or a header name. */
@@ -210,7 +172,3 @@ export function readConfiguration() {
     DEFAULT_BOARD: DEFAULT_BOARD(),
   };
 }
-
-const configuration = readConfiguration();
-
-export default configuration;
