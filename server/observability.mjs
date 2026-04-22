@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { getToolId } from "../client-data/js/message_tool_metadata.js";
 import {
   context,
   isSpanContextValid,
@@ -37,6 +36,7 @@ import {
   ATTR_URL_SCHEME,
   SEMRESATTRS_SERVICE_NAME,
 } from "@opentelemetry/semantic-conventions";
+import { getToolId } from "../client-data/js/message_tool_metadata.js";
 import packageJson from "../package.json" with { type: "json" };
 
 import {
@@ -45,9 +45,7 @@ import {
   formatCanonicalLogLine,
   styleTerminalLogLine,
 } from "./logfmt.mjs";
-import { parseEnumEnv } from "./configuration_helpers.mjs";
 
-const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME;
 const SERVICE_VERSION = packageJson.version;
 const DEFAULT_TRACE_SAMPLE_RATIO = 0.05;
 const DEFAULT_RUNTIME_METRICS_PRECISION_MS = 5000;
@@ -58,26 +56,70 @@ const LOG_LEVEL_RANK = {
   warn: 30,
   error: 40,
 };
-const MIN_LOG_LEVEL = /** @type {"debug"|"info"|"warn"|"error"} */ (
-  parseEnumEnv("LOG_LEVEL", LOG_LEVELS, "info")
-);
-const TEST_TRACE_EXPORTER = /** @type {{__WBO_TEST_TRACE_EXPORTER__?: any}} */ (
-  globalThis
-).__WBO_TEST_TRACE_EXPORTER__;
+/**
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{
+ *   serviceName: string,
+ *   minLogLevel: "debug"|"info"|"warn"|"error",
+ *   otlpEndpoint: string,
+ *   otlpLogsEndpoint: string,
+ *   otlpMetricsEndpoint: string,
+ *   otlpTracesEndpoint: string,
+ *   tracesSamplerConfigured: boolean,
+ *   silent: boolean,
+ *   forceColor: string,
+ *   noColor: boolean,
+ *   term: string,
+ *   testTraceExporter?: any,
+ * }}
+ */
+function parseObservabilityOptions(env = process.env) {
+  /**
+   * @param {unknown} value
+   * @returns {string}
+   */
+  const parseString = (value) => (typeof value === "string" ? value : "");
+  const logLevel = parseString(env.LOG_LEVEL);
+  return {
+    serviceName: parseString(env.OTEL_SERVICE_NAME) || DEFAULT_SERVICE_NAME,
+    minLogLevel: /** @type {"debug"|"info"|"warn"|"error"} */ (
+      LOG_LEVELS.includes(logLevel) ? logLevel : "info"
+    ),
+    otlpEndpoint: parseString(env.OTEL_EXPORTER_OTLP_ENDPOINT),
+    otlpLogsEndpoint: parseString(env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT),
+    otlpMetricsEndpoint: parseString(env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT),
+    otlpTracesEndpoint: parseString(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT),
+    tracesSamplerConfigured:
+      env.OTEL_TRACES_SAMPLER !== undefined ||
+      env.OTEL_TRACES_SAMPLER_ARG !== undefined,
+    silent: env.WBO_SILENT === "true",
+    forceColor: parseString(env.FORCE_COLOR),
+    noColor: env.NO_COLOR !== undefined,
+    term: parseString(env.TERM),
+    testTraceExporter: /** @type {{__WBO_TEST_TRACE_EXPORTER__?: any}} */ (
+      globalThis
+    ).__WBO_TEST_TRACE_EXPORTER__,
+  };
+}
+
+const OBSERVABILITY_OPTIONS = parseObservabilityOptions();
+const SERVICE_NAME = OBSERVABILITY_OPTIONS.serviceName;
+const MIN_LOG_LEVEL = OBSERVABILITY_OPTIONS.minLogLevel;
+const TEST_TRACE_EXPORTER = OBSERVABILITY_OPTIONS.testTraceExporter;
 
 /**
  * @param {"logs"|"metrics"|"traces"} signal
  * @returns {boolean}
  */
 function hasConfiguredOtlpEndpoint(signal) {
-  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) return true;
-  if (signal === "logs" && process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT) {
+  if (OBSERVABILITY_OPTIONS.otlpEndpoint) return true;
+  if (signal === "logs" && OBSERVABILITY_OPTIONS.otlpLogsEndpoint) {
     return true;
   }
-  if (signal === "metrics" && process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT) {
+  if (signal === "metrics" && OBSERVABILITY_OPTIONS.otlpMetricsEndpoint) {
     return true;
   }
-  if (signal === "traces" && process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT) {
+  if (signal === "traces" && OBSERVABILITY_OPTIONS.otlpTracesEndpoint) {
     return true;
   }
   return false;
@@ -118,7 +160,7 @@ class LogfmtLogRecordExporter {
    * @param {(result: {code: number}) => void} resultCallback
    */
   export(records, resultCallback) {
-    if (process.env.WBO_SILENT === "true") {
+    if (OBSERVABILITY_OPTIONS.silent) {
       resultCallback({ code: 0 });
       return;
     }
@@ -173,10 +215,7 @@ function buildTraceSpanProcessors() {
  * @returns {import("@opentelemetry/sdk-trace-base").Sampler | undefined}
  */
 function buildTracerSampler() {
-  if (
-    process.env.OTEL_TRACES_SAMPLER !== undefined ||
-    process.env.OTEL_TRACES_SAMPLER_ARG !== undefined
-  ) {
+  if (OBSERVABILITY_OPTIONS.tracesSamplerConfigured) {
     return undefined;
   }
   return new ParentBasedSampler({
@@ -377,21 +416,18 @@ function shouldRenderLogSpanContext(spanContext) {
  * @returns {boolean}
  */
 function streamSupportsColor(stream) {
-  if (process.env.FORCE_COLOR === "0") return false;
-  if (
-    typeof process.env.FORCE_COLOR === "string" &&
-    process.env.FORCE_COLOR !== ""
-  ) {
+  if (OBSERVABILITY_OPTIONS.forceColor === "0") return false;
+  if (OBSERVABILITY_OPTIONS.forceColor !== "") {
     return true;
   }
-  if (process.env.NO_COLOR !== undefined) return false;
+  if (OBSERVABILITY_OPTIONS.noColor) return false;
   if (!stream || stream.isTTY !== true) return false;
   if (typeof stream.hasColors === "function") {
     try {
       if (stream.hasColors()) return true;
     } catch {}
   }
-  return process.env.TERM !== "dumb";
+  return OBSERVABILITY_OPTIONS.term !== "dumb";
 }
 
 /**
@@ -850,6 +886,15 @@ function shouldEmitLog(level) {
 }
 
 /**
+ * @param {"debug"|"info"|"warn"|"error"} level
+ * @param {"debug"|"info"|"warn"|"error"} minLogLevel
+ * @returns {boolean}
+ */
+function shouldEmitLogAtLevel(level, minLogLevel) {
+  return LOG_LEVEL_RANK[level] >= LOG_LEVEL_RANK[minLogLevel];
+}
+
+/**
  * @param {{
  *   change: 1 | -1,
  *   method: string,
@@ -1156,7 +1201,9 @@ const tracing = {
 
 const __test = {
   createLogRecord,
+  parseObservabilityOptions,
   shouldEmitLog,
+  shouldEmitLogAtLevel,
   tracingEnabled: function tracingEnabledForTest() {
     return tracingEnabled;
   },
@@ -1180,6 +1227,7 @@ export {
   LogfmtLogRecordExporter,
   logger,
   observabilityMetrics as metrics,
+  parseObservabilityOptions,
   shutdownObservability,
   tracing,
 };

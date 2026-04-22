@@ -445,9 +445,7 @@ test("active traces correlate log records and board.save spans", async () => {
             "board.saved",
             { board: "trace-save" },
           );
-          const config = await import(
-            `${pathToFileURL(CONFIG_PATH).href}?cache-bust=${Date.now()}`
-          );
+          const config = await configFromEnv({});
           const board = new BoardData("trace-save", config);
           board.board = {
             "shape-1": {
@@ -536,9 +534,7 @@ test("large standalone board loads create their own root span", async () => {
     },
     async ({ exporter }) => {
       const { BoardData } = require(BOARD_DATA_PATH);
-      const config = await import(
-        `${pathToFileURL(CONFIG_PATH).href}?cache-bust=${Date.now()}`
-      );
+      const config = await configFromEnv({});
       const board = await BoardData.load("standalone-load", config);
 
       clearTimeout(board.saveTimeoutId);
@@ -590,40 +586,20 @@ test("formatReadableLogRecord only renders sampled span ids", async () => {
 });
 
 test("LOG_LEVEL filters lower-severity logs", async () => {
-  const previous = applyTracingEnv({
-    OTEL_TRACES_SAMPLER: "always_on",
-    WBO_SILENT: "true",
-    LOG_LEVEL: "warn",
-  });
-  try {
-    if (sharedObservability) {
-      await sharedObservability.shutdownObservability();
-      sharedObservability = null;
-    }
-    logs.disable();
-    metrics.disable();
-    propagation.disable();
-    context.disable();
-    trace.disable();
-    clearModuleCache(CONFIG_PATH);
-    const observability = await import(
-      `${pathToFileURL(OBSERVABILITY_PATH).href}?cache-bust=${Date.now()}`
-    );
-    assert.equal(observability.__test.shouldEmitLog("debug"), false);
-    assert.equal(observability.__test.shouldEmitLog("info"), false);
-    assert.equal(observability.__test.shouldEmitLog("warn"), true);
-    assert.equal(observability.__test.shouldEmitLog("error"), true);
-    await observability.shutdownObservability();
-  } finally {
-    restoreTracingEnv(
-      {
-        OTEL_TRACES_SAMPLER: "always_on",
-        WBO_SILENT: "true",
-        LOG_LEVEL: "warn",
-      },
-      previous,
-    );
-  }
+  const observability = getSharedObservability();
+  assert.equal(
+    observability.__test.shouldEmitLogAtLevel("debug", "warn"),
+    false,
+  );
+  assert.equal(
+    observability.__test.shouldEmitLogAtLevel("info", "warn"),
+    false,
+  );
+  assert.equal(observability.__test.shouldEmitLogAtLevel("warn", "warn"), true);
+  assert.equal(
+    observability.__test.shouldEmitLogAtLevel("error", "warn"),
+    true,
+  );
 });
 
 test("successful and invalid cursor broadcasts stay untraced without a parent span", async () => {

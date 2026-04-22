@@ -3,9 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { pathToFileURL } = require("node:url");
 const {
-  CONFIG_PATH,
   withEnv,
   createSocket,
   loadSockets,
@@ -146,10 +144,8 @@ test("server-side Turnstile token validation binds Siteverify to request context
       WBO_HISTORY_DIR: historyDir,
     },
     async () => {
-      const config = await import(
-        `${pathToFileURL(CONFIG_PATH).href}?cache-bust=${Date.now()}`
-      );
       const sockets = await loadSockets();
+      const config = sockets.__config;
       const { socket, handlers } = createSocket({
         headers: { host: "board.example" },
         remoteAddress: "203.0.113.10",
@@ -245,7 +241,6 @@ test("server-side Turnstile token validation rejects hostname mismatches", async
       WBO_HISTORY_DIR: historyDir,
     },
     async () => {
-      const _config = require("../server/configuration.mjs");
       const sockets = await loadSockets();
       const { socket, handlers } = createSocket({
         headers: { host: "board.example:8080" },
