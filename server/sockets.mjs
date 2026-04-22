@@ -1615,13 +1615,16 @@ function rejectActiveBoardMutation(reason) {
  * @returns {void}
  */
 function emitMutationRejected(socket, data, reason) {
-  if (typeof data?.clientMutationId !== "string" || !data.clientMutationId) {
-    return;
+  const clientMutationId =
+    typeof data?.clientMutationId === "string" && data.clientMutationId
+      ? data.clientMutationId
+      : undefined;
+  /** @type {{reason: string, clientMutationId?: string}} */
+  const payload = { reason };
+  if (clientMutationId) {
+    payload.clientMutationId = clientMutationId;
   }
-  socket.emit(SocketEvents.MUTATION_REJECTED, {
-    clientMutationId: data.clientMutationId,
-    reason,
-  });
+  socket.emit(SocketEvents.MUTATION_REJECTED, payload);
 }
 
 /**
@@ -1940,6 +1943,7 @@ async function handleBroadcastWriteMessage(
   const normalized = normalizeBroadcastData(config, boardName, data);
   if (normalized.ok === false) {
     rejectActiveBoardMutation(normalized.reason);
+    emitMutationRejected(socket, data, normalized.reason);
     return;
   }
   const normalizedData = normalized.value;

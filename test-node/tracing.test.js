@@ -439,7 +439,7 @@ test("active traces correlate log records and board.save spans", async () => {
             "board.saved",
             { board: "trace-save" },
           );
-          const config = createConfig();
+          const config = createConfig({ HISTORY_DIR: historyDir });
           const board = new BoardData("trace-save", config);
           board.board = {
             "shape-1": {
@@ -528,7 +528,7 @@ test("large standalone board loads create their own root span", async () => {
     },
     async ({ exporter }) => {
       const { BoardData } = require(BOARD_DATA_PATH);
-      const config = createConfig();
+      const config = createConfig({ HISTORY_DIR: historyDir });
       const board = await BoardData.load("standalone-load", config);
 
       clearTimeout(board.saveTimeoutId);

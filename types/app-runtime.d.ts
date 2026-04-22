@@ -179,7 +179,7 @@ export type AppBoardState = {
 };
 
 export type MutationRejectedPayload = {
-  clientMutationId: string;
+  clientMutationId?: string;
   reason: string;
 };
 

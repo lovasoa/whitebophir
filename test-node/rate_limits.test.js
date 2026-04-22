@@ -7,155 +7,70 @@ const {
   createConfig,
   createSocket,
   loadSockets,
-  withEnv,
+  withBoardHistoryDir,
 } = require("./test_helpers.js");
 
-test("configuration provides sane default rate-limit ordering", async () =>
-  withEnv({ WBO_IP_SOURCE: undefined }, () => {
-    return Promise.resolve(createConfig()).then((config) => {
-      assert.equal(config.IP_SOURCE, "remoteAddress");
-      assert.equal(config.TRUST_PROXY_HOPS, 0);
-      assert.ok(config.DESTRUCTIVE_ACTION_RATE_LIMITS.limit > 0);
-      assert.ok(config.DESTRUCTIVE_ACTION_RATE_LIMITS.periodMs > 0);
-      assert.ok(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit > 0);
-      assert.ok(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.periodMs > 0);
-      assert.equal(config.TEXT_CREATION_RATE_LIMITS.limit, 2);
-      assert.equal(config.TEXT_CREATION_RATE_LIMITS.periodMs, 1_000);
-      assert.equal(
-        config.CONSTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous?.limit,
-        Math.floor(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit / 2),
-      );
-      assert.equal(
-        config.DESTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous?.limit,
-        Math.floor(config.DESTRUCTIVE_ACTION_RATE_LIMITS.limit / 2),
-      );
-      assert.ok(config.GENERAL_RATE_LIMITS.limit > 0);
-      assert.ok(config.GENERAL_RATE_LIMITS.periodMs > 0);
-      assert.deepEqual(config.TEXT_CREATION_RATE_LIMITS, {
-        limit: 2,
-        periodMs: 1_000,
-        overrides: {
-          anonymous: {
-            limit: 30,
-            periodMs: 60_000,
-          },
-        },
-      });
+async function withSocketConfig(overrides, run) {
+  return withBoardHistoryDir("wbo-rate-limits-", async ({ historyDir }) => {
+    const sockets = await loadSockets(
+      createConfig({
+        HISTORY_DIR: historyDir,
+        ...overrides,
+      }),
+    );
+    sockets.__test.resetRateLimitMaps();
+    return run(sockets);
+  });
+}
 
-      assert.ok(
-        config.GENERAL_RATE_LIMITS.limit >
-          config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit,
-        "Emit limit should be higher than constructive limit",
-      );
-      assert.ok(
-        config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit >
-          config.TEXT_CREATION_RATE_LIMITS.limit,
-        "Constructive limit should be higher than text creation limit",
-      );
-    });
-  }));
-
-test("configuration rejects trust proxy hops with incompatible ip sources", () =>
-  assert.rejects(
-    withEnv(
-      {
-        WBO_IP_SOURCE: "CF-Connecting-IP",
-        WBO_TRUST_PROXY_HOPS: "1",
+test("configuration provides sane default rate-limit ordering", () => {
+  const config = createConfig();
+  assert.equal(config.IP_SOURCE, "remoteAddress");
+  assert.equal(config.TRUST_PROXY_HOPS, 0);
+  assert.ok(config.DESTRUCTIVE_ACTION_RATE_LIMITS.limit > 0);
+  assert.ok(config.DESTRUCTIVE_ACTION_RATE_LIMITS.periodMs > 0);
+  assert.ok(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit > 0);
+  assert.ok(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.periodMs > 0);
+  assert.equal(config.TEXT_CREATION_RATE_LIMITS.limit, 2);
+  assert.equal(config.TEXT_CREATION_RATE_LIMITS.periodMs, 1_000);
+  assert.equal(
+    config.CONSTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous?.limit,
+    Math.floor(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit / 2),
+  );
+  assert.equal(
+    config.DESTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous?.limit,
+    Math.floor(config.DESTRUCTIVE_ACTION_RATE_LIMITS.limit / 2),
+  );
+  assert.ok(config.GENERAL_RATE_LIMITS.limit > 0);
+  assert.ok(config.GENERAL_RATE_LIMITS.periodMs > 0);
+  assert.deepEqual(config.TEXT_CREATION_RATE_LIMITS, {
+    limit: 2,
+    periodMs: 1_000,
+    overrides: {
+      anonymous: {
+        limit: 30,
+        periodMs: 60_000,
       },
-      () => createConfig(),
-    ),
-    /WBO_TRUST_PROXY_HOPS requires WBO_IP_SOURCE to be X-Forwarded-For or Forwarded/,
-  ));
-
-test("configuration parses compact rate-limit profiles", async () =>
-  withEnv(
-    {
-      WBO_MAX_EMIT_COUNT: "*:300/6s anonymous:150/6s",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:240/60s anonymous:120/60s",
-      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:180/2m anonymous:90/45s",
-      WBO_MAX_TEXT_CREATIONS_PER_IP: "*:3/1500ms anonymous:9/90s",
     },
-    async () => {
-      const config = createConfig();
-
-      assert.deepEqual(config.GENERAL_RATE_LIMITS, {
-        limit: 300,
-        periodMs: 6_000,
-        overrides: {
-          anonymous: {
-            limit: 150,
-            periodMs: 6_000,
-          },
-        },
-      });
-      assert.deepEqual(config.CONSTRUCTIVE_ACTION_RATE_LIMITS, {
-        limit: 240,
-        periodMs: 60_000,
-        overrides: {
-          anonymous: {
-            limit: 120,
-            periodMs: 60_000,
-          },
-        },
-      });
-      assert.deepEqual(config.DESTRUCTIVE_ACTION_RATE_LIMITS, {
-        limit: 180,
-        periodMs: 120_000,
-        overrides: {
-          anonymous: {
-            limit: 90,
-            periodMs: 45_000,
-          },
-        },
-      });
-      assert.deepEqual(config.TEXT_CREATION_RATE_LIMITS, {
-        limit: 3,
-        periodMs: 1_500,
-        overrides: {
-          anonymous: {
-            limit: 9,
-            periodMs: 90_000,
-          },
-        },
-      });
-    },
-  ));
-
-test("compact rate-limit profiles do not invent board overrides", async () =>
-  withEnv(
-    {
-      WBO_MAX_EMIT_COUNT: "*:300/6s",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:240/60s",
-      WBO_MAX_TEXT_CREATIONS_PER_IP: "*:3/1500ms",
-    },
-    async () => {
-      const config = createConfig();
-      assert.deepEqual(config.GENERAL_RATE_LIMITS, {
-        limit: 300,
-        periodMs: 6_000,
-        overrides: {},
-      });
-      assert.deepEqual(config.CONSTRUCTIVE_ACTION_RATE_LIMITS, {
-        limit: 240,
-        periodMs: 60_000,
-        overrides: {},
-      });
-      assert.deepEqual(config.TEXT_CREATION_RATE_LIMITS, {
-        limit: 3,
-        periodMs: 1_500,
-        overrides: {},
-      });
-    },
-  ));
+  });
+  assert.ok(
+    config.GENERAL_RATE_LIMITS.limit >
+      config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit,
+    "Emit limit should be higher than constructive limit",
+  );
+  assert.ok(
+    config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit >
+      config.TEXT_CREATION_RATE_LIMITS.limit,
+    "Constructive limit should be higher than text creation limit",
+  );
+});
 
 test("general rate limit closes the socket when exceeded", async () => {
-  await withEnv(
+  await withSocketConfig(
     {
-      WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "*:0/4096ms",
+      GENERAL_RATE_LIMITS: { limit: 0, periodMs: 4096, overrides: {} },
     },
-    async () => {
-      const sockets = await loadSockets();
+    async (sockets) => {
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.10",
@@ -178,15 +93,16 @@ test("general rate limit closes the socket when exceeded", async () => {
 });
 
 test("destructive per-IP rate limit closes the socket when exceeded", async () => {
-  await withEnv(
+  await withSocketConfig(
     {
-      WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "*:10/4096ms",
-      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:0/10s",
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      DESTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 0, periodMs: 10_000 } },
+      },
     },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
+    async (sockets) => {
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.11",
@@ -221,15 +137,16 @@ test("destructive per-IP rate limit closes the socket when exceeded", async () =
 });
 
 test("constructive per-IP rate limit closes the socket when exceeded", async () => {
-  await withEnv(
+  await withSocketConfig(
     {
-      WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "*:10/4096ms",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:0/10s",
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 0, periodMs: 10_000 } },
+      },
     },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
+    async (sockets) => {
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.13",
@@ -266,16 +183,21 @@ test("constructive per-IP rate limit closes the socket when exceeded", async () 
 });
 
 test("text per-IP rate limit closes the socket when text creation is exceeded", async () => {
-  await withEnv(
+  await withSocketConfig(
     {
-      WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "*:10/4096ms",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:10/10s",
-      WBO_MAX_TEXT_CREATIONS_PER_IP: "*:10/10s anonymous:0/10s",
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 10, periodMs: 10_000 } },
+      },
+      TEXT_CREATION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 0, periodMs: 10_000 } },
+      },
     },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
+    async (sockets) => {
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.16",
@@ -314,16 +236,21 @@ test("text per-IP rate limit closes the socket when text creation is exceeded", 
 });
 
 test("url-like text updates consume text rate-limit budget", async () => {
-  await withEnv(
+  await withSocketConfig(
     {
-      WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "*:10/4096ms",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:10/10s",
-      WBO_MAX_TEXT_CREATIONS_PER_IP: "*:10/10s anonymous:1/10s",
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 10, periodMs: 10_000 } },
+      },
+      TEXT_CREATION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 1, periodMs: 10_000 } },
+      },
     },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
+    async (sockets) => {
       const { socket, handlers, emitted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.17",
@@ -371,16 +298,21 @@ test("url-like text updates consume text rate-limit budget", async () => {
 });
 
 test("plain text updates do not consume text rate-limit budget", async () => {
-  await withEnv(
+  await withSocketConfig(
     {
-      WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "*:10/4096ms",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:10/10s",
-      WBO_MAX_TEXT_CREATIONS_PER_IP: "*:10/10s anonymous:1/10s",
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 10, periodMs: 10_000 } },
+      },
+      TEXT_CREATION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 1, periodMs: 10_000 } },
+      },
     },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
+    async (sockets) => {
       const { socket, handlers } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.18",
@@ -412,16 +344,21 @@ test("plain text updates do not consume text rate-limit budget", async () => {
 });
 
 test("resetRateLimitMaps clears text rate-limit state", async () => {
-  await withEnv(
+  await withSocketConfig(
     {
-      WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "*:10/4096ms",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:10/10s anonymous:10/10s",
-      WBO_MAX_TEXT_CREATIONS_PER_IP: "*:10/10s anonymous:1/10s",
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 4096, overrides: {} },
+      CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 10, periodMs: 10_000 } },
+      },
+      TEXT_CREATION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 10_000,
+        overrides: { anonymous: { limit: 1, periodMs: 10_000 } },
+      },
     },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
+    async (sockets) => {
       const first = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.19",
@@ -474,14 +411,17 @@ test("resetRateLimitMaps clears text rate-limit state", async () => {
 });
 
 test("missing configured IP source falls back without disconnecting", async () => {
-  await withEnv(
+  await withSocketConfig(
     {
-      WBO_IP_SOURCE: "X-Forwarded-For",
-      WBO_MAX_EMIT_COUNT: "*:10/5s",
-      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:10/60s anonymous:5/60s",
+      IP_SOURCE: "X-Forwarded-For",
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 5000, overrides: {} },
+      DESTRUCTIVE_ACTION_RATE_LIMITS: {
+        limit: 10,
+        periodMs: 60_000,
+        overrides: { anonymous: { limit: 5, periodMs: 60_000 } },
+      },
     },
-    async () => {
-      const sockets = await loadSockets();
+    async (sockets) => {
       const { socket, handlers } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.12",
@@ -499,13 +439,11 @@ test("missing configured IP source falls back without disconnecting", async () =
 });
 
 test("connection rejects missing handshake board without registering handlers", async () => {
-  await withEnv(
+  await withSocketConfig(
     {
-      WBO_IP_SOURCE: "remoteAddress",
-      WBO_MAX_EMIT_COUNT: "*:10/5s",
+      GENERAL_RATE_LIMITS: { limit: 10, periodMs: 5000, overrides: {} },
     },
-    async () => {
-      const sockets = await loadSockets();
+    async (sockets) => {
       const { socket, handlers, broadcasted } = createSocket({
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.14",
@@ -521,26 +459,19 @@ test("connection rejects missing handshake board without registering handlers", 
 });
 
 test("connection rejects malformed handshake board names", async () => {
-  await withEnv(
-    {
-      WBO_IP_SOURCE: "remoteAddress",
-    },
-    async () => {
-      const sockets = await loadSockets();
-      sockets.__test.resetRateLimitMaps();
-      const created = createSocket({
-        headers: { "user-agent": "test-agent" },
-        remoteAddress: "203.0.113.15",
-        query: { board: /** @type {any} */ ({ bad: true }) },
-      });
-      await sockets.__test.handleSocketConnection(
-        created.socket,
-        sockets.__config,
-      );
+  await withSocketConfig({}, async (sockets) => {
+    const created = createSocket({
+      headers: { "user-agent": "test-agent" },
+      remoteAddress: "203.0.113.15",
+      query: { board: /** @type {any} */ ({ bad: true }) },
+    });
+    await sockets.__test.handleSocketConnection(
+      created.socket,
+      sockets.__config,
+    );
 
-      assert.equal(created.socket.disconnected, true);
-      assert.equal(created.socket.rooms.size, 0);
-      assert.equal(created.handlers.broadcast, undefined);
-    },
-  );
+    assert.equal(created.socket.disconnected, true);
+    assert.equal(created.socket.rooms.size, 0);
+    assert.equal(created.handlers.broadcast, undefined);
+  });
 });

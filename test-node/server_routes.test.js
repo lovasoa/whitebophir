@@ -52,11 +52,27 @@ async function loadServer() {
 }
 
 /**
+ * @param {{historyDir: string, webroot?: string}} dirs
+ * @param {{[key: string]: any}=} overrides
+ * @returns {any}
+ */
+function createServerConfig(dirs, overrides = {}) {
+  return createConfig({
+    HOST: "127.0.0.1",
+    PORT: 0,
+    AUTH_SECRET_KEY: "",
+    HISTORY_DIR: dirs.historyDir,
+    WEBROOT: dirs.webroot,
+    ...overrides,
+  });
+}
+
+/**
  * @returns {Promise<import("http").Server>}
  */
-async function createTestServer() {
+async function createTestServer(configOverrides) {
   const { createServerApp } = await loadServer();
-  return createServerApp(createConfig(), {
+  return createServerApp(createConfig(configOverrides), {
     logStarted: false,
   });
 }
@@ -440,47 +456,31 @@ test("server returns 400 for malformed low-level HTTP parser input", async () =>
 
 test("board pages are no-store in development and render plain asset URLs", async () => {
   const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT, IS_DEVELOPMENT: true }),
+  );
+  try {
+    const response = await request(app, "/boards/cache-test");
 
-  await withEnv({
-    HOST: "127.0.0.1",
-    PORT: "0",
-    AUTH_SECRET_KEY: "",
-    WBO_HISTORY_DIR: dirs.historyDir,
-    WBO_WEBROOT: CLIENT_WEBROOT,
-    WBO_SILENT: "true",
-  }, async () => {
-    const app = await createTestServer();
-    try {
-      const response = await request(app, "/boards/cache-test");
-
-      assert.equal(response.statusCode, 200);
-      assert.equal(response.headers["cache-control"], "no-store");
-      assert.match(response.body, /\.\.\/board\.css(?:["'])/);
-      assert.match(response.body, /\.\.\/js\/board_main\.js(?:["'])/);
-      assert.match(
-        response.body,
-        /rel="modulepreload" href="\.\.\/js\/board\.js"/,
-      );
-      assert.match(
-        response.body,
-        /rel="modulepreload" href="\.\.\/js\/path-data-polyfill\.js"/,
-      );
-      assert.match(response.body, /\.\.\/tools\/pencil\/icon\.svg(?:["'])/);
-      assert.match(response.body, /\.\.\/users\.svg(?:["'])/);
-      assert.match(response.body, /\.\.\/icon-size\.svg(?:["'])/);
-      assert.doesNotMatch(response.body, /\?v=/);
-    } finally {
-      await closeServer(app);
-    }
-  }, [
-    SERVER_PATH,
-    TEMPLATING_PATH,
-    CONFIGURATION_PATH,
-    CREATE_SVG_PATH,
-    CHECK_OUTPUT_DIRECTORY_PATH,
-    CLIENT_CONFIGURATION_PATH,
-    JWTAUTH_PATH,
-  ]);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["cache-control"], "no-store");
+    assert.match(response.body, /\.\.\/board\.css(?:["'])/);
+    assert.match(response.body, /\.\.\/js\/board_main\.js(?:["'])/);
+    assert.match(
+      response.body,
+      /rel="modulepreload" href="\.\.\/js\/board\.js"/,
+    );
+    assert.match(
+      response.body,
+      /rel="modulepreload" href="\.\.\/js\/path-data-polyfill\.js"/,
+    );
+    assert.match(response.body, /\.\.\/tools\/pencil\/icon\.svg(?:["'])/);
+    assert.match(response.body, /\.\.\/users\.svg(?:["'])/);
+    assert.match(response.body, /\.\.\/icon-size\.svg(?:["'])/);
+    assert.doesNotMatch(response.body, /\?v=/);
+  } finally {
+    await closeServer(app);
+  }
 });
 
 test("board pages use seq-based etag and return 304 on cache hit", async () => {
@@ -491,47 +491,34 @@ test("board pages use seq-based etag and return 304 on cache hit", async () => {
     "utf8",
   );
 
-  await withEnv({
-    HOST: "127.0.0.1",
-    PORT: "0",
-    NODE_ENV: "production",
-    AUTH_SECRET_KEY: "",
-    WBO_HISTORY_DIR: dirs.historyDir,
-    WBO_WEBROOT: CLIENT_WEBROOT,
-    WBO_SILENT: "true",
-  }, async () => {
-    const app = await createTestServer();
-    try {
-      const firstResponse = await request(app, "/boards/etag-board");
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: false,
+    }),
+  );
+  try {
+    const firstResponse = await request(app, "/boards/etag-board");
 
-      assert.equal(firstResponse.statusCode, 200);
-      assert.equal(firstResponse.headers.etag, 'W/"wbo-seq-3"');
+    assert.equal(firstResponse.statusCode, 200);
+    assert.equal(firstResponse.headers.etag, 'W/"wbo-seq-3"');
 
-      const cachedResponse = await request(app, "/boards/etag-board", {
-        "If-None-Match": firstResponse.headers.etag,
-      });
+    const cachedResponse = await request(app, "/boards/etag-board", {
+      "If-None-Match": firstResponse.headers.etag,
+    });
 
-      assert.equal(cachedResponse.statusCode, 304);
-      assert.equal(cachedResponse.headers.etag, firstResponse.headers.etag);
+    assert.equal(cachedResponse.statusCode, 304);
+    assert.equal(cachedResponse.headers.etag, firstResponse.headers.etag);
 
-      const staleResponse = await request(app, "/boards/etag-board", {
-        "If-None-Match": 'W/"wbo-seq-2"',
-      });
+    const staleResponse = await request(app, "/boards/etag-board", {
+      "If-None-Match": 'W/"wbo-seq-2"',
+    });
 
-      assert.equal(staleResponse.statusCode, 200);
-      assert.equal(staleResponse.headers.etag, 'W/"wbo-seq-3"');
-    } finally {
-      await closeServer(app);
-    }
-  }, [
-    SERVER_PATH,
-    TEMPLATING_PATH,
-    CONFIGURATION_PATH,
-    CREATE_SVG_PATH,
-    CHECK_OUTPUT_DIRECTORY_PATH,
-    CLIENT_CONFIGURATION_PATH,
-    JWTAUTH_PATH,
-  ]);
+    assert.equal(staleResponse.statusCode, 200);
+    assert.equal(staleResponse.headers.etag, 'W/"wbo-seq-3"');
+  } finally {
+    await closeServer(app);
+  }
 });
 
 test("board pages inline the authoritative svg baseline before client boot", async () => {
@@ -542,52 +529,37 @@ test("board pages inline the authoritative svg baseline before client boot", asy
     "utf8",
   );
 
-  await withEnv({
-    HOST: "127.0.0.1",
-    PORT: "0",
-    AUTH_SECRET_KEY: "",
-    WBO_HISTORY_DIR: dirs.historyDir,
-    WBO_WEBROOT: CLIENT_WEBROOT,
-    WBO_SILENT: "true",
-  }, async () => {
-    const app = await createTestServer();
-    try {
-      const response = await request(app, "/boards/inline-baseline");
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const response = await request(app, "/boards/inline-baseline");
 
-      assert.equal(response.statusCode, 200);
-      assert.equal(response.headers["content-length"], undefined);
-      assert.ok(
-        response.body.indexOf('id="loadingMessage"') <
-          response.body.indexOf('<div id="board">'),
-      );
-      assert.ok(
-        response.body.indexOf('id="menu"') <
-          response.body.indexOf('<div id="board">'),
-      );
-      assert.ok(
-        response.body.indexOf("window.__wboEarlyChrome") <
-          response.body.indexOf('<div id="board">'),
-      );
-      assert.match(
-        response.body,
-        /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-seq="7"[\s\S]*<rect id="rect-1"/,
-      );
-      assert.doesNotMatch(
-        response.body,
-        /<div id="board">\s*<svg id="canvas" width="4000" height="4000" version="1\.1" xmlns="http:\/\/www\.w3\.org\/2000\/svg">\s*<defs id="defs"><\/defs>\s*<g id="drawingArea"><\/g>\s*<g id="cursors"><\/g>\s*<\/svg>/,
-      );
-    } finally {
-      await closeServer(app);
-    }
-  }, [
-    SERVER_PATH,
-    TEMPLATING_PATH,
-    CONFIGURATION_PATH,
-    CREATE_SVG_PATH,
-    CHECK_OUTPUT_DIRECTORY_PATH,
-    CLIENT_CONFIGURATION_PATH,
-    JWTAUTH_PATH,
-  ]);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-length"], undefined);
+    assert.ok(
+      response.body.indexOf('id="loadingMessage"') <
+        response.body.indexOf('<div id="board">'),
+    );
+    assert.ok(
+      response.body.indexOf('id="menu"') <
+        response.body.indexOf('<div id="board">'),
+    );
+    assert.ok(
+      response.body.indexOf("window.__wboEarlyChrome") <
+        response.body.indexOf('<div id="board">'),
+    );
+    assert.match(
+      response.body,
+      /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-seq="7"[\s\S]*<rect id="rect-1"/,
+    );
+    assert.doesNotMatch(
+      response.body,
+      /<div id="board">\s*<svg id="canvas" width="4000" height="4000" version="1\.1" xmlns="http:\/\/www\.w3\.org\/2000\/svg">\s*<defs id="defs"><\/defs>\s*<g id="drawingArea"><\/g>\s*<g id="cursors"><\/g>\s*<\/svg>/,
+    );
+  } finally {
+    await closeServer(app);
+  }
 });
 
 test("board pages fall back to legacy json metadata and inline baseline rendering", async () => {
@@ -611,37 +583,22 @@ test("board pages fall back to legacy json metadata and inline baseline renderin
     "utf8",
   );
 
-  await withEnv({
-    HOST: "127.0.0.1",
-    PORT: "0",
-    AUTH_SECRET_KEY: "",
-    WBO_HISTORY_DIR: dirs.historyDir,
-    WBO_WEBROOT: CLIENT_WEBROOT,
-    WBO_SILENT: "true",
-  }, async () => {
-    const app = await createTestServer();
-    try {
-      const response = await request(app, "/boards/legacy-inline");
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const response = await request(app, "/boards/legacy-inline");
 
-      assert.equal(response.statusCode, 200);
-      assert.match(response.body, /toolID-hand/);
-      assert.doesNotMatch(response.body, /toolID-pencil/);
-      assert.match(
-        response.body,
-        /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-readonly="true"[\s\S]*<rect id="rect-1"/,
-      );
-    } finally {
-      await closeServer(app);
-    }
-  }, [
-    SERVER_PATH,
-    TEMPLATING_PATH,
-    CONFIGURATION_PATH,
-    CREATE_SVG_PATH,
-    CHECK_OUTPUT_DIRECTORY_PATH,
-    CLIENT_CONFIGURATION_PATH,
-    JWTAUTH_PATH,
-  ]);
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /toolID-hand/);
+    assert.doesNotMatch(response.body, /toolID-pencil/);
+    assert.match(
+      response.body,
+      /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-readonly="true"[\s\S]*<rect id="rect-1"/,
+    );
+  } finally {
+    await closeServer(app);
+  }
 });
 
 test("canonical board svg endpoint serves the authoritative baseline with short cache headers", async () => {
@@ -652,36 +609,23 @@ test("canonical board svg endpoint serves the authoritative baseline with short 
     "utf8",
   );
 
-  await withEnv({
-    HOST: "127.0.0.1",
-    PORT: "0",
-    NODE_ENV: "production",
-    AUTH_SECRET_KEY: "",
-    WBO_HISTORY_DIR: dirs.historyDir,
-    WBO_WEBROOT: CLIENT_WEBROOT,
-    WBO_SILENT: "true",
-  }, async () => {
-    const app = await createTestServer();
-    try {
-      const response = await request(app, "/boards/canonical-svg.svg");
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: false,
+    }),
+  );
+  try {
+    const response = await request(app, "/boards/canonical-svg.svg");
 
-      assert.equal(response.statusCode, 200);
-      assert.equal(response.headers["content-type"], "image/svg+xml");
-      assert.equal(response.headers["cache-control"], "public, max-age=30");
-      assert.match(response.body, /data-wbo-seq="3"/);
-      assert.match(response.body, /<line id="line-1"/);
-    } finally {
-      await closeServer(app);
-    }
-  }, [
-    SERVER_PATH,
-    TEMPLATING_PATH,
-    CONFIGURATION_PATH,
-    CREATE_SVG_PATH,
-    CHECK_OUTPUT_DIRECTORY_PATH,
-    CLIENT_CONFIGURATION_PATH,
-    JWTAUTH_PATH,
-  ]);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-type"], "image/svg+xml");
+    assert.equal(response.headers["cache-control"], "public, max-age=30");
+    assert.match(response.body, /data-wbo-seq="3"/);
+    assert.match(response.body, /<line id="line-1"/);
+  } finally {
+    await closeServer(app);
+  }
 });
 
 test("board html svg and preview routes negotiate compression when requested", async () => {
@@ -702,131 +646,90 @@ test("board html svg and preview routes negotiate compression when requested", a
     assert.equal(wildcardEncoding, expectedEncoding);
   }
 
-  await withEnv({
-    HOST: "127.0.0.1",
-    PORT: "0",
-    NODE_ENV: "production",
-    AUTH_SECRET_KEY: "",
-    WBO_HISTORY_DIR: dirs.historyDir,
-    WBO_WEBROOT: CLIENT_WEBROOT,
-    WBO_SILENT: "true",
-  }, async () => {
-    const app = await createTestServer();
-    try {
-      const plainResponse = await request(app, "/boards/compressed-board");
-      assert.equal(plainResponse.statusCode, 200);
-      assert.equal(plainResponse.headers["content-encoding"], undefined);
-      assert.match(String(plainResponse.headers.vary || ""), /Accept-Encoding/);
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: false,
+    }),
+  );
+  try {
+    const plainResponse = await request(app, "/boards/compressed-board");
+    assert.equal(plainResponse.statusCode, 200);
+    assert.equal(plainResponse.headers["content-encoding"], undefined);
+    assert.match(String(plainResponse.headers.vary || ""), /Accept-Encoding/);
 
-      const htmlResponse = await request(app, "/boards/compressed-board", {
-        "Accept-Encoding": "zstd, br, gzip",
-      });
-      assert.equal(htmlResponse.statusCode, 200);
+    const htmlResponse = await request(app, "/boards/compressed-board", {
+      "Accept-Encoding": "zstd, br, gzip",
+    });
+    assert.equal(htmlResponse.statusCode, 200);
 
-      const svgResponse = await request(app, "/boards/compressed-board.svg", {
-        "Accept-Encoding": "zstd, br, gzip",
-      });
-      assert.equal(svgResponse.statusCode, 200);
+    const svgResponse = await request(app, "/boards/compressed-board.svg", {
+      "Accept-Encoding": "zstd, br, gzip",
+    });
+    assert.equal(svgResponse.statusCode, 200);
 
-      const previewResponse = await request(app, "/preview/compressed-board", {
-        "Accept-Encoding": "zstd, br, gzip",
-      });
-      assert.equal(previewResponse.statusCode, 200);
+    const previewResponse = await request(app, "/preview/compressed-board", {
+      "Accept-Encoding": "zstd, br, gzip",
+    });
+    assert.equal(previewResponse.statusCode, 200);
 
-      for (const response of [htmlResponse, svgResponse, previewResponse]) {
-        if (expectedEncoding === undefined) {
-          assert.equal(response.headers["content-encoding"], undefined);
-        } else {
-          assert.equal(response.headers["content-encoding"], expectedEncoding);
-          assert.equal(response.headers["content-length"], undefined);
-        }
-        assert.match(String(response.headers.vary || ""), /Accept-Encoding/);
+    for (const response of [htmlResponse, svgResponse, previewResponse]) {
+      if (expectedEncoding === undefined) {
+        assert.equal(response.headers["content-encoding"], undefined);
+      } else {
+        assert.equal(response.headers["content-encoding"], expectedEncoding);
+        assert.equal(response.headers["content-length"], undefined);
       }
-    } finally {
-      await closeServer(app);
+      assert.match(String(response.headers.vary || ""), /Accept-Encoding/);
     }
-  }, [
-    SERVER_PATH,
-    TEMPLATING_PATH,
-    CONFIGURATION_PATH,
-    CREATE_SVG_PATH,
-    CHECK_OUTPUT_DIRECTORY_PATH,
-    CLIENT_CONFIGURATION_PATH,
-    JWTAUTH_PATH,
-  ]);
+  } finally {
+    await closeServer(app);
+  }
 });
 
 test("static assets are no-store in development and revalidate in production", async () => {
   const dirs = await createServerDirs();
 
-  await withEnv({
-    HOST: "127.0.0.1",
-    PORT: "0",
-    AUTH_SECRET_KEY: "",
-    WBO_HISTORY_DIR: dirs.historyDir,
-    WBO_WEBROOT: CLIENT_WEBROOT,
-    WBO_SILENT: "true",
-  }, async () => {
-    const app = await createTestServer();
-    try {
-      const response = await request(app, "/board.css");
+  const developmentApp = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT, IS_DEVELOPMENT: true }),
+  );
+  try {
+    const response = await request(developmentApp, "/board.css");
 
-      assert.equal(response.statusCode, 200);
-      assert.equal(response.headers["cache-control"], "no-store");
-    } finally {
-      await closeServer(app);
-    }
-  }, [
-    SERVER_PATH,
-    TEMPLATING_PATH,
-    CONFIGURATION_PATH,
-    CREATE_SVG_PATH,
-    CHECK_OUTPUT_DIRECTORY_PATH,
-    CLIENT_CONFIGURATION_PATH,
-    JWTAUTH_PATH,
-  ]);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["cache-control"], "no-store");
+  } finally {
+    await closeServer(developmentApp);
+  }
 
-  await withEnv({
-    HOST: "127.0.0.1",
-    PORT: "0",
-    NODE_ENV: "production",
-    AUTH_SECRET_KEY: "",
-    WBO_HISTORY_DIR: dirs.historyDir,
-    WBO_WEBROOT: CLIENT_WEBROOT,
-    WBO_SILENT: "true",
-  }, async () => {
-    const app = await createTestServer();
-    try {
-      const response = await request(app, "/board.css");
+  const productionApp = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: false,
+    }),
+  );
+  try {
+    const response = await request(productionApp, "/board.css");
 
-      assert.equal(response.statusCode, 200);
-      assert.equal(
-        response.headers["cache-control"],
-        "public, max-age=60, must-revalidate",
-      );
-      assert.ok(response.headers.etag);
+    assert.equal(response.statusCode, 200);
+    assert.equal(
+      response.headers["cache-control"],
+      "public, max-age=60, must-revalidate",
+    );
+    assert.ok(response.headers.etag);
 
-      const cachedResponse = await request(app, "/board.css", {
-        "If-None-Match": String(response.headers.etag),
-      });
-      assert.equal(cachedResponse.statusCode, 304);
-      assert.equal(
-        cachedResponse.headers["cache-control"],
-        "public, max-age=60, must-revalidate",
-      );
-      assert.equal(cachedResponse.headers.etag, response.headers.etag);
-    } finally {
-      await closeServer(app);
-    }
-  }, [
-    SERVER_PATH,
-    TEMPLATING_PATH,
-    CONFIGURATION_PATH,
-    CREATE_SVG_PATH,
-    CHECK_OUTPUT_DIRECTORY_PATH,
-    CLIENT_CONFIGURATION_PATH,
-    JWTAUTH_PATH,
-  ]);
+    const cachedResponse = await request(productionApp, "/board.css", {
+      "If-None-Match": String(response.headers.etag),
+    });
+    assert.equal(cachedResponse.statusCode, 304);
+    assert.equal(
+      cachedResponse.headers["cache-control"],
+      "public, max-age=60, must-revalidate",
+    );
+    assert.equal(cachedResponse.headers.etag, response.headers.etag);
+  } finally {
+    await closeServer(productionApp);
+  }
 });
 
 test("board-scoped JWTs can access their authorized board pages", async () => {
@@ -841,39 +744,27 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
     authSecret,
   );
 
-  await withEnv({
-    HOST: "127.0.0.1",
-    PORT: "0",
-    AUTH_SECRET_KEY: authSecret,
-    WBO_HISTORY_DIR: dirs.historyDir,
-    WBO_WEBROOT: CLIENT_WEBROOT,
-    WBO_SILENT: "true",
-  }, async () => {
-    const app = await createTestServer();
-    try {
-      const readonlyResponse = await request(
-        app,
-        `/boards/readonly-test?token=${encodeURIComponent(boardReaderToken)}`,
-      );
-      const editorResponse = await request(
-        app,
-        `/boards/testboard?token=${encodeURIComponent(boardEditorToken)}`,
-      );
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      AUTH_SECRET_KEY: authSecret,
+    }),
+  );
+  try {
+    const readonlyResponse = await request(
+      app,
+      `/boards/readonly-test?token=${encodeURIComponent(boardReaderToken)}`,
+    );
+    const editorResponse = await request(
+      app,
+      `/boards/testboard?token=${encodeURIComponent(boardEditorToken)}`,
+    );
 
-      assert.equal(readonlyResponse.statusCode, 200);
-      assert.equal(editorResponse.statusCode, 200);
-      assert.match(readonlyResponse.body, /toolID-hand/);
-      assert.match(editorResponse.body, /id="menu"/);
-    } finally {
-      await closeServer(app);
-    }
-  }, [
-    SERVER_PATH,
-    TEMPLATING_PATH,
-    CONFIGURATION_PATH,
-    CREATE_SVG_PATH,
-    CHECK_OUTPUT_DIRECTORY_PATH,
-    CLIENT_CONFIGURATION_PATH,
-    JWTAUTH_PATH,
-  ]);
+    assert.equal(readonlyResponse.statusCode, 200);
+    assert.equal(editorResponse.statusCode, 200);
+    assert.match(readonlyResponse.body, /toolID-hand/);
+    assert.match(editorResponse.body, /id="menu"/);
+  } finally {
+    await closeServer(app);
+  }
 });
