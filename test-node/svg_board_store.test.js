@@ -777,6 +777,42 @@ test("readCanonicalBoardState keeps legacy json when migration cannot serialize 
   });
 });
 
+test("readCanonicalBoardState ignores childless legacy pencils during migration", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-childless-pencil-json-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(
+      jsonPath("childless-pencil-json", historyDir),
+      JSON.stringify({
+        "pencil-1": {
+          id: "pencil-1",
+          tool: "Pencil",
+          color: "#123456",
+          size: 6,
+        },
+      }),
+      "utf8",
+    );
+
+    const state = await readCanonicalBoardState(
+      "childless-pencil-json",
+      historyDir,
+    );
+
+    assert.equal(state.source, "svg");
+    assert.deepEqual(state.paintOrder, []);
+    assert.equal(state.itemsById.size, 0);
+    await assert.doesNotReject(() =>
+      fs.access(svgPath("childless-pencil-json", historyDir)),
+    );
+    await assert.doesNotReject(() =>
+      fs.access(jsonPath("childless-pencil-json", historyDir)),
+    );
+  });
+});
+
 test("served svg baselines keep raw pencil paths for client-side smoothing", async () => {
   const points = [
     { x: 1, y: 2 },

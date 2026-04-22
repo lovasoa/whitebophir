@@ -221,7 +221,7 @@ function serializeStoredSvg(board, metadata, seq) {
 /**
  * @param {{[name: string]: any}} board
  * @param {{normalizeLegacyTools?: boolean}=} [options]
- * @returns {{itemTags: string[], sourceItemCount: number, serializedItemCount: number}}
+ * @returns {{itemTags: string[], sourceItemCount: number, serializedItemCount: number, ignoredChildlessPencilCount: number}}
  */
 function collectSerializedSvgItems(board, options = {}) {
   const sourceBoard =
@@ -231,14 +231,28 @@ function collectSerializedSvgItems(board, options = {}) {
   const itemTags = [];
   let sourceItemCount = 0;
   let serializedItemCount = 0;
+  let ignoredChildlessPencilCount = 0;
   for (const item of Object.values(sourceBoard)) {
     sourceItemCount += 1;
     const serialized = serializeStoredSvgItem(item);
-    if (!serialized) continue;
+    if (!serialized) {
+      if (
+        item?.tool === "pencil" &&
+        (!Array.isArray(item._children) || item._children.length === 0)
+      ) {
+        ignoredChildlessPencilCount += 1;
+      }
+      continue;
+    }
     itemTags.push(serialized);
     serializedItemCount += 1;
   }
-  return { itemTags, sourceItemCount, serializedItemCount };
+  return {
+    itemTags,
+    sourceItemCount,
+    serializedItemCount,
+    ignoredChildlessPencilCount,
+  };
 }
 
 /**
@@ -468,17 +482,23 @@ async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
   const file = boardSvgPath(boardName, historyDir);
   const backupFile = boardSvgBackupPath(boardName, historyDir);
   const tmpFile = createTempSvgPath(file);
-  const { itemTags, sourceItemCount, serializedItemCount } =
-    collectSerializedSvgItems(parsed.board, {
-      normalizeLegacyTools: true,
-    });
+  const {
+    itemTags,
+    sourceItemCount,
+    serializedItemCount,
+    ignoredChildlessPencilCount,
+  } = collectSerializedSvgItems(parsed.board, {
+    normalizeLegacyTools: true,
+  });
+  const requiredSerializedItemCount =
+    sourceItemCount - ignoredChildlessPencilCount;
   logSvgStoreInfo("svg.migration_started", {
     board: boardName,
     "file.path": file,
     "wbo.legacy.item_count": sourceItemCount,
     "wbo.svg.item_count": serializedItemCount,
   });
-  if (sourceItemCount > 0 && serializedItemCount === 0) {
+  if (requiredSerializedItemCount > 0 && serializedItemCount === 0) {
     logger.error("svg.migration_failed", {
       board: boardName,
       "file.path": file,
@@ -490,7 +510,7 @@ async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
       `Legacy board migration produced no SVG items for "${boardName}"`,
     );
   }
-  if (sourceItemCount > serializedItemCount) {
+  if (requiredSerializedItemCount > serializedItemCount) {
     logger.warn("svg.migration_partial", {
       board: boardName,
       "file.path": file,
