@@ -54,12 +54,12 @@ export type ToolOwnedBatchMessage = BatchBoardMessage & {
 export type PendingWrite = {
   data?: BoardMessage;
   toolName?: string;
-  costs?: { general: number; constructive: number; destructive: number };
+  costs?: RateLimitCosts;
 };
 
 export type BufferedWrite = {
   message: BoardMessage;
-  costs: { general: number; constructive: number; destructive: number };
+  costs: RateLimitCosts;
 };
 
 export type RateLimitWindowState = {
@@ -68,7 +68,11 @@ export type RateLimitWindowState = {
   lastSeen: number;
 };
 
-export type RateLimitKind = "general" | "constructive" | "destructive";
+export type RateLimitKind = "general" | "constructive" | "destructive" | "text";
+
+export type RateLimitCosts = {
+  [key in RateLimitKind]: number;
+};
 
 export type BoardConnectionState =
   | "idle"
@@ -274,6 +278,14 @@ export type ServerConfig = {
         [boardName: string]: { limit?: number; periodMs?: number };
       };
     };
+    text?: {
+      limit?: number;
+      anonymousLimit?: number;
+      periodMs?: number;
+      overrides?: {
+        [boardName: string]: { limit?: number; periodMs?: number };
+      };
+    };
   };
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_VALIDATION_WINDOW_MS?: number | string;
@@ -377,6 +389,7 @@ export type AppToolsState = {
   bufferedWriteTimer: ReturnType<typeof setTimeout> | null;
   writeReadyWaiters: Array<() => void>;
   rateLimitedUntil: number;
+  localRateLimitedUntil: number;
   rateLimitNoticeTimer: ReturnType<typeof setTimeout> | null;
   boardStatusTimer: ReturnType<typeof setTimeout> | null;
   explicitBoardStatus: ExplicitBoardStatus;
@@ -415,11 +428,7 @@ export type AppToolsState = {
   getRateLimitDefinition: (
     kind: RateLimitKind,
   ) => ConfiguredRateLimitDefinition;
-  getBufferedWriteCosts: (message: BoardMessage) => {
-    general: number;
-    constructive: number;
-    destructive: number;
-  };
+  getBufferedWriteCosts: (message: BoardMessage) => RateLimitCosts;
   clearBufferedWriteTimer: () => void;
   clearRateLimitNoticeTimer: () => void;
   clearBoardStatusTimer: () => void;

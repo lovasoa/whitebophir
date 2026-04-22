@@ -116,8 +116,9 @@ function isRuntimeTool(tool, expectedToolId) {
 // before the server window resets.
 const RATE_LIMIT_FLUSH_SAFETY_MIN_MS = 250;
 const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 1500;
-/** @type {RateLimitKind[]} */
-const RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
+const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
+  RateLimitCommon.RATE_LIMIT_KINDS
+);
 const DEFAULT_BOARD_SCALE = 0.1;
 const MIN_BOARD_SCALE = 0.01;
 const MAX_BOARD_SCALE = 1;
@@ -328,6 +329,7 @@ Tools.bufferedWrites = [];
 Tools.bufferedWriteTimer = null;
 Tools.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
 Tools.rateLimitedUntil = 0;
+Tools.localRateLimitedUntil = 0;
 Tools.rateLimitNoticeTimer = null;
 Tools.boardStatusTimer = null;
 Tools.explicitBoardStatus = null;
@@ -344,6 +346,7 @@ Tools.localRateLimitStates = {
   general: RateLimitCommon.createRateLimitState(Date.now()),
   constructive: RateLimitCommon.createRateLimitState(Date.now()),
   destructive: RateLimitCommon.createRateLimitState(Date.now()),
+  text: RateLimitCommon.createRateLimitState(Date.now()),
 };
 
 /** @param {BoardMessage} message */
@@ -429,14 +432,16 @@ Tools.getEffectiveRateLimit = function getEffectiveRateLimit(kind) {
 
 /**
  * @param {BoardMessage} message
- * @returns {{general: number, constructive: number, destructive: number}}
+ * @returns {import("../../types/app-runtime").RateLimitCosts}
  */
 Tools.getBufferedWriteCosts = function getBufferedWriteCosts(message) {
-  return {
-    general: 1,
-    constructive: RateLimitCommon.countConstructiveActions(message),
-    destructive: RateLimitCommon.countDestructiveActions(message),
-  };
+  return RATE_LIMIT_KINDS.reduce(
+    (costs, kind) => {
+      costs[kind] = RateLimitCommon.getRateLimitCost(kind, message);
+      return costs;
+    },
+    /** @type {import("../../types/app-runtime").RateLimitCosts} */ ({}),
+  );
 };
 
 Tools.clearBufferedWriteTimer = function clearBufferedWriteTimer() {
@@ -545,6 +550,14 @@ Tools.getBoardStatusView = function getBoardStatusView() {
       hidden: false,
       state: "reconnecting",
       title: Tools.i18n.t("loading"),
+      detail: "",
+    };
+  }
+  if (Tools.localRateLimitedUntil > Date.now()) {
+    return {
+      hidden: false,
+      state: "paused",
+      title: Tools.i18n.t("slow_down_briefly"),
       detail: "",
     };
   }
@@ -854,6 +867,7 @@ Tools.resetAllLocalRateLimitStates = function resetAllLocalRateLimitStates(
   Tools.resetLocalRateLimitState("general", now);
   Tools.resetLocalRateLimitState("constructive", now);
   Tools.resetLocalRateLimitState("destructive", now);
+  Tools.resetLocalRateLimitState("text", now);
 };
 
 /**
@@ -961,6 +975,7 @@ Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
   if (!nextWrite) return;
   const now = Date.now();
   const waitMs = Tools.getBufferedWriteWaitMs(nextWrite, now);
+  Tools.localRateLimitedUntil = waitMs > 0 ? now + waitMs : 0;
   Tools.bufferedWriteTimer = setTimeout(
     function flushBufferedWrites() {
       Tools.flushBufferedWrites();
@@ -973,6 +988,7 @@ Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
 /** @returns {void} */
 Tools.flushBufferedWrites = function flushBufferedWrites() {
   Tools.clearBufferedWriteTimer();
+  Tools.localRateLimitedUntil = 0;
   if (!Tools.canBufferWrites()) {
     Tools.syncWriteStatusIndicator();
     return;

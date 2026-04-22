@@ -2,9 +2,6 @@ import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { Cursor } from "../client-data/tools/index.js";
 import {
   canApplyBoardMessage,
-  countConstructiveActions,
-  countDestructiveActions,
-  countTextCreationActions,
   normalizeBroadcastData,
 } from "./socket_policy.mjs";
 
@@ -27,18 +24,28 @@ const createRateLimitState = RateLimitCommon.createRateLimitState;
 const consumeFixedWindowRateLimit = RateLimitCommon.consumeFixedWindowRateLimit;
 const getEffectiveRateLimitDefinition =
   RateLimitCommon.getEffectiveRateLimitDefinition;
+const getRateLimitCost = RateLimitCommon.getRateLimitCost;
+const RATE_LIMIT_KINDS =
+  /** @type {Array<"general" | "constructive" | "destructive" | "text">} */ (
+    RateLimitCommon.RATE_LIMIT_KINDS
+  );
+const SERVER_RATE_LIMIT_CONFIG_FIELDS =
+  /** @type {{[key in "general" | "constructive" | "destructive" | "text"]: keyof ServerConfig}} */ (
+    RateLimitCommon.SERVER_RATE_LIMIT_CONFIG_FIELDS
+  );
 
 /**
  * @param {number} now
  * @returns {BroadcastRateLimits}
  */
 function createBroadcastRateLimits(now) {
-  return {
-    general: createRateLimitState(now),
-    constructive: createRateLimitState(now),
-    destructive: createRateLimitState(now),
-    text: createRateLimitState(now),
-  };
+  return RATE_LIMIT_KINDS.reduce(
+    (rateLimits, kind) => {
+      rateLimits[kind] = createRateLimitState(now);
+      return rateLimits;
+    },
+    /** @type {BroadcastRateLimits} */ ({}),
+  );
 }
 
 /**
@@ -48,28 +55,12 @@ function createBroadcastRateLimits(now) {
  * @returns {{limit: number, periodMs: number}}
  */
 function getEffectiveRateLimitConfig(kind, boardName, config) {
-  switch (kind) {
-    case "constructive":
-      return getEffectiveRateLimitDefinition(
-        config.CONSTRUCTIVE_ACTION_RATE_LIMITS,
-        boardName,
-      );
-    case "destructive":
-      return getEffectiveRateLimitDefinition(
-        config.DESTRUCTIVE_ACTION_RATE_LIMITS,
-        boardName,
-      );
-    case "text":
-      return getEffectiveRateLimitDefinition(
-        config.TEXT_CREATION_RATE_LIMITS,
-        boardName,
-      );
-    default:
-      return getEffectiveRateLimitDefinition(
-        config.GENERAL_RATE_LIMITS,
-        boardName,
-      );
-  }
+  return getEffectiveRateLimitDefinition(
+    /** @type {import("../types/app-runtime.d.ts").ConfiguredRateLimitDefinition | undefined} */ (
+      config[SERVER_RATE_LIMIT_CONFIG_FIELDS[kind]]
+    ),
+    boardName,
+  );
 }
 
 /**
@@ -126,26 +117,15 @@ function consumePostNormalizationRateLimits(
   now,
 ) {
   if (!rateLimits || now === undefined) return true;
-  return (
-    consumeRateLimit(
-      rateLimits.destructive,
-      countDestructiveActions(data),
-      getEffectiveRateLimitConfig("destructive", boardName, config),
+  return RATE_LIMIT_KINDS.every((kind) => {
+    if (kind === "general") return true;
+    return consumeRateLimit(
+      rateLimits[kind],
+      getRateLimitCost(kind, data),
+      getEffectiveRateLimitConfig(kind, boardName, config),
       now,
-    ) &&
-    consumeRateLimit(
-      rateLimits.constructive,
-      countConstructiveActions(data),
-      getEffectiveRateLimitConfig("constructive", boardName, config),
-      now,
-    ) &&
-    consumeRateLimit(
-      rateLimits.text,
-      countTextCreationActions(data),
-      getEffectiveRateLimitConfig("text", boardName, config),
-      now,
-    )
-  );
+    );
+  });
 }
 
 /**

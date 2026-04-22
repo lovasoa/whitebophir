@@ -3,6 +3,18 @@ import { Text } from "../tools/index.js";
 
 export const ANONYMOUS_BOARD_NAME = "anonymous";
 export const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;
+export const RATE_LIMIT_KINDS = [
+  "general",
+  "constructive",
+  "destructive",
+  "text",
+];
+export const SERVER_RATE_LIMIT_CONFIG_FIELDS = {
+  general: "GENERAL_RATE_LIMITS",
+  constructive: "CONSTRUCTIVE_ACTION_RATE_LIMITS",
+  destructive: "DESTRUCTIVE_ACTION_RATE_LIMITS",
+  text: "TEXT_CREATION_RATE_LIMITS",
+};
 const URL_LIKE_TEXT_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
 
 /**
@@ -252,9 +264,29 @@ export function countTextCreationActions(data) {
   return 0;
 }
 
+/**
+ * @param {"general" | "constructive" | "destructive" | "text"} kind
+ * @param {{tool?: unknown, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown} | null | undefined} data
+ * @returns {number}
+ */
+export function getRateLimitCost(kind, data) {
+  switch (kind) {
+    case "constructive":
+      return countConstructiveActions(data);
+    case "destructive":
+      return countDestructiveActions(data);
+    case "text":
+      return countTextCreationActions(data);
+    default:
+      return 1;
+  }
+}
+
 const rateLimitCommon = {
   ANONYMOUS_BOARD_NAME,
   ANONYMOUS_RATE_LIMIT_DIVISOR,
+  RATE_LIMIT_KINDS,
+  SERVER_RATE_LIMIT_CONFIG_FIELDS,
   createRateLimitState,
   normalizeRateLimitState,
   consumeFixedWindowRateLimit,
@@ -267,5 +299,6 @@ const rateLimitCommon = {
   isConstructiveAction,
   countConstructiveActions,
   countTextCreationActions,
+  getRateLimitCost,
 };
 export default rateLimitCommon;

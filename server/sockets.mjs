@@ -38,6 +38,10 @@ const getRateLimitRemainingMs = RateLimitCommon.getRateLimitRemainingMs;
 const getEffectiveRateLimitDefinition =
   RateLimitCommon.getEffectiveRateLimitDefinition;
 const isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
+const SERVER_RATE_LIMIT_CONFIG_FIELDS =
+  /** @type {{[key in RateLimitKind]: keyof ServerConfig}} */ (
+    RateLimitCommon.SERVER_RATE_LIMIT_CONFIG_FIELDS
+  );
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
@@ -744,28 +748,12 @@ function shouldTraceBroadcast(data) {
  * @returns {{limit: number, periodMs: number}}
  */
 function getEffectiveRateLimitConfig(kind, boardName, config) {
-  switch (kind) {
-    case "constructive":
-      return getEffectiveRateLimitDefinition(
-        config.CONSTRUCTIVE_ACTION_RATE_LIMITS,
-        boardName,
-      );
-    case "destructive":
-      return getEffectiveRateLimitDefinition(
-        config.DESTRUCTIVE_ACTION_RATE_LIMITS,
-        boardName,
-      );
-    case "text":
-      return getEffectiveRateLimitDefinition(
-        config.TEXT_CREATION_RATE_LIMITS,
-        boardName,
-      );
-    default:
-      return getEffectiveRateLimitDefinition(
-        config.GENERAL_RATE_LIMITS,
-        boardName,
-      );
-  }
+  return getEffectiveRateLimitDefinition(
+    /** @type {import("../types/app-runtime.d.ts").ConfiguredRateLimitDefinition | undefined} */ (
+      config[SERVER_RATE_LIMIT_CONFIG_FIELDS[kind]]
+    ),
+    boardName,
+  );
 }
 
 /**
