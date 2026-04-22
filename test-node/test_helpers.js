@@ -1,6 +1,7 @@
 const http = require("node:http");
 const net = require("node:net");
 const fs = require("node:fs/promises");
+const os = require("node:os");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
@@ -64,6 +65,10 @@ async function loadSockets() {
   );
 }
 
+function loadBoardData() {
+  return require(BOARD_DATA_PATH).BoardData;
+}
+
 /**
  * @param {Dict} overrides
  * @param {() => any | Promise<any>} fn
@@ -103,6 +108,26 @@ async function withEnv(overrides, fn, extraModules) {
       clearModuleCache(modulePath);
     }
   }
+}
+
+/**
+ * @template T
+ * @param {string} prefix
+ * @param {(context: {historyDir: string}) => T | Promise<T>} fn
+ * @param {Dict} [envOverrides]
+ * @param {string[]} [extraModules]
+ * @returns {Promise<T>}
+ */
+async function withBoardHistoryDir(prefix, fn, envOverrides, extraModules) {
+  const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  return withEnv(
+    {
+      ...(envOverrides || {}),
+      WBO_HISTORY_DIR: historyDir,
+    },
+    () => fn({ historyDir }),
+    extraModules,
+  );
 }
 
 /**
@@ -200,6 +225,94 @@ function createSocket(options) {
   };
   /** @type {CreatedSocket} */
   return { socket, handlers, emitted, broadcasted };
+}
+
+/**
+ * @param {{[event: string]: ((...args: any[]) => any) | undefined}} handlers
+ * @param {string} eventName
+ * @returns {(...args: any[]) => any}
+ */
+function getRequiredHandler(handlers, eventName) {
+  const handler = handlers[eventName];
+  if (typeof handler !== "function") {
+    throw new Error(`Missing required socket handler: ${eventName}`);
+  }
+  return /** @type {(...args: any[]) => any} */ (handler);
+}
+
+/**
+ * @template T
+ * @param {{
+ *   env?: Dict,
+ *   historyDirPrefix?: string | false,
+ *   boardName?: string,
+ *   resetRateLimitMaps?: boolean,
+ * }} options
+ * @param {(scenario: {
+ *   historyDir?: string,
+ *   sockets: any,
+ *   test: any,
+ *   connect: (socketOptions?: SocketOptions) => Promise<CreatedSocket>,
+ *   handler: (created: CreatedSocket, eventName: string) => (...args: any[]) => any,
+ *   invoke: (created: CreatedSocket, eventName: string, ...args: any[]) => Promise<any>,
+ *   getLoadedBoard: (boardName: string) => Promise<any>,
+ * }) => T | Promise<T>} fn
+ * @returns {Promise<T>}
+ */
+async function createSocketScenario(options = {}, fn) {
+  const settings = options;
+  const env = {
+    WBO_IP_SOURCE: "remoteAddress",
+    ...(settings.env || {}),
+  };
+  /**
+   * @param {string | undefined} historyDir
+   * @returns {Promise<T>}
+   */
+  const run = async (historyDir) => {
+    const sockets = await loadSockets();
+    if (settings.resetRateLimitMaps !== false) {
+      sockets.__test.resetRateLimitMaps();
+    }
+
+    return fn({
+      historyDir,
+      sockets,
+      test: sockets.__test,
+      async connect(socketOptions) {
+        /** @type {SocketOptions} */
+        const resolvedOptions = socketOptions || {};
+        const created = createSocket({
+          ...resolvedOptions,
+          query: {
+            ...(settings.boardName ? { board: settings.boardName } : {}),
+            ...(resolvedOptions.query || {}),
+          },
+        });
+        await sockets.__test.handleSocketConnection(created.socket);
+        return created;
+      },
+      handler(created, eventName) {
+        return getRequiredHandler(created.handlers, eventName);
+      },
+      async invoke(created, eventName, ...args) {
+        return getRequiredHandler(created.handlers, eventName)(...args);
+      },
+      getLoadedBoard(boardName) {
+        return sockets.__test.getLoadedBoard(boardName);
+      },
+    });
+  };
+
+  if (settings.historyDirPrefix === false) {
+    return withEnv(env, () => run(undefined));
+  }
+
+  return withBoardHistoryDir(
+    settings.historyDirPrefix || "wbo-socket-scenario-",
+    ({ historyDir }) => run(historyDir),
+    env,
+  );
 }
 
 /**
@@ -358,12 +471,16 @@ module.exports = {
   closeServer,
   collectIncomingMessage,
   configFromEnv,
+  createSocketScenario,
   createSocket,
+  getRequiredHandler,
   getTcpAddress,
+  loadBoardData,
   loadSockets,
   request,
   requestRaw,
   waitForListening,
+  withBoardHistoryDir,
   withMockedNow,
   withEnv,
   writeBoard,

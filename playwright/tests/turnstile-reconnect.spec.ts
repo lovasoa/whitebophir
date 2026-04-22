@@ -1,6 +1,8 @@
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test } from "@playwright/test";
+import { MutationType } from "../../client-data/js/mutation_type.js";
+import { Cursor } from "../../client-data/tools/index.js";
 import { startTestServer, stopTestServer } from "../helpers/testServer";
 import { BoardPage } from "../pages/BoardPage";
 
@@ -60,7 +62,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
     const boardPage = new BoardPage(page, server);
     await boardPage.installTurnstileMock();
     await boardPage.gotoBoard("anonymous", { lang: "fr", tokenQuery: "" });
-    await expect(boardPage.tool("Pencil")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
     await boardPage.waitForSocketConnected();
     await boardPage.trackBroadcasts();
 
@@ -74,7 +76,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
     const peerPage = await context.newPage();
     const peerBoard = new BoardPage(peerPage, server);
     await peerBoard.gotoBoard("anonymous", { lang: "fr", tokenQuery: "" });
-    await expect(peerBoard.tool("Pencil")).toBeVisible();
+    await expect(peerBoard.tool("pencil")).toBeVisible();
     await peerBoard.waitForSocketConnected();
     await peerBoard.trackBroadcasts();
 
@@ -84,8 +86,8 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
     });
 
     await peerBoard.emitBroadcast({
-      tool: "Cursor",
-      type: "update",
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
       x: 210,
       y: 220,
       color: "#00aa11",
@@ -94,8 +96,8 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
     await boardPage.waitForBroadcastColor("#00aa11");
 
     await boardPage.emitBroadcast({
-      tool: "Cursor",
-      type: "update",
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
       x: 260,
       y: 280,
       color: "#123abc",

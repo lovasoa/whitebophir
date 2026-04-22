@@ -8,6 +8,8 @@ const { pathToFileURL } = require("node:url");
 const { context, metrics, propagation, trace } = require("@opentelemetry/api");
 const { logs } = require("@opentelemetry/api-logs");
 const { InMemorySpanExporter } = require("@opentelemetry/sdk-trace-base");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const { Cursor } = require("../client-data/tools/index.js");
 
 const {
   CONFIG_PATH,
@@ -383,7 +385,7 @@ test("connection bootstrap traces the root socket event and board load", async (
         },
         query: {
           board: "trace-board",
-          tool: "Hand",
+          tool: "hand",
           color: "#111111",
           size: "6",
         },
@@ -433,15 +435,17 @@ test("active traces correlate log records and board.save spans", async () => {
             { board: "trace-save" },
           );
           const board = new BoardData("trace-save");
-          board.board["shape-1"] = {
-            id: "shape-1",
-            tool: "Text",
-            x: 1,
-            y: 2,
-            text: "hi",
-            size: 12,
-            color: "#000000",
-            time: 1,
+          board.board = {
+            "shape-1": {
+              id: "shape-1",
+              tool: "text",
+              x: 1,
+              y: 2,
+              txt: "hi",
+              size: 12,
+              color: "#000000",
+              time: 1,
+            },
           };
           await board.save();
           return correlated;
@@ -460,7 +464,7 @@ test("active traces correlate log records and board.save spans", async () => {
       assert.equal(record.attributes.trace_id, undefined);
       assert.equal(record.attributes.span_id, undefined);
       assert.equal(saveSpan.attributes["file.size"], savedBoard.length);
-      assert.match(saveSpan.attributes["file.path"], /board-trace-save\.json$/);
+      assert.match(saveSpan.attributes["file.path"], /board-trace-save\.svg$/);
       assert.equal(
         saveSpan.parentSpanContext.spanId,
         rootSpan.spanContext().spanId,
@@ -501,7 +505,7 @@ test("large standalone board loads create their own root span", async () => {
   for (let index = 0; index < 512; index++) {
     storedBoard[`shape-${index}`] = {
       id: `shape-${index}`,
-      tool: "Text",
+      tool: "text",
       x: index,
       y: index,
       txt: "x".repeat(4096),
@@ -568,6 +572,43 @@ test("formatReadableLogRecord only renders sampled span ids", async () => {
   });
 });
 
+test("LOG_LEVEL filters lower-severity logs", async () => {
+  const previous = applyTracingEnv({
+    OTEL_TRACES_SAMPLER: "always_on",
+    WBO_SILENT: "true",
+    LOG_LEVEL: "warn",
+  });
+  try {
+    if (sharedObservability) {
+      await sharedObservability.shutdownObservability();
+      sharedObservability = null;
+    }
+    logs.disable();
+    metrics.disable();
+    propagation.disable();
+    context.disable();
+    trace.disable();
+    clearModuleCache(CONFIG_PATH);
+    const observability = await import(
+      `${pathToFileURL(OBSERVABILITY_PATH).href}?cache-bust=${Date.now()}`
+    );
+    assert.equal(observability.__test.shouldEmitLog("debug"), false);
+    assert.equal(observability.__test.shouldEmitLog("info"), false);
+    assert.equal(observability.__test.shouldEmitLog("warn"), true);
+    assert.equal(observability.__test.shouldEmitLog("error"), true);
+    await observability.shutdownObservability();
+  } finally {
+    restoreTracingEnv(
+      {
+        OTEL_TRACES_SAMPLER: "always_on",
+        WBO_SILENT: "true",
+        LOG_LEVEL: "warn",
+      },
+      previous,
+    );
+  }
+});
+
 test("successful and invalid cursor broadcasts stay untraced without a parent span", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-trace-cursor-"),
@@ -593,8 +634,8 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
         created.handlers,
         "broadcast",
       )({
-        tool: "Cursor",
-        type: "update",
+        tool: Cursor.id,
+        type: MutationType.UPDATE,
         x: 10,
         y: 20,
         color: "#123456",
@@ -612,8 +653,8 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
         created.handlers,
         "broadcast",
       )({
-        tool: "Cursor",
-        type: "update",
+        tool: Cursor.id,
+        type: MutationType.UPDATE,
         x: 10,
         y: 20,
       });

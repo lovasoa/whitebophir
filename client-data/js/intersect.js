@@ -33,6 +33,10 @@
  * @returns {MatrixState}
  */
 function getTransformMatrix(elem) {
+  const svg = window.Tools?.svg;
+  if (!svg) {
+    throw new Error("Missing SVG canvas.");
+  }
   /** @type {SVGTransform | null} */
   let transform = null;
   for (let i = 0; i < elem.transform.baseVal.numberOfItems; ++i) {
@@ -49,7 +53,7 @@ function getTransformMatrix(elem) {
   }
   if (transform === null) {
     transform = elem.transform.baseVal.createSVGTransformFromMatrix(
-      Tools.svg.createSVGMatrix(),
+      svg.createSVGMatrix(),
     );
     elem.transform.baseVal.appendItem(transform);
   }

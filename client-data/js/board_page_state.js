@@ -33,20 +33,6 @@ export function parseEmbeddedJson(elementId, fallback) {
 }
 
 /**
- * @param {string | null | undefined} text
- * @returns {BoardState}
- */
-export function parseBoardStateText(text) {
-  if (!text) return { readonly: false, canWrite: true };
-  try {
-    return normalizeBoardState(JSON.parse(text));
-  } catch (error) {
-    console.warn("Invalid embedded board state", error);
-    return { readonly: false, canWrite: true };
-  }
-}
-
-/**
  * @param {unknown} value
  * @returns {BoardState}
  */

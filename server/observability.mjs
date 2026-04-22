@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getToolId } from "../client-data/js/message_tool_metadata.js";
 import {
   context,
   isSpanContextValid,
@@ -38,6 +39,7 @@ import {
 } from "@opentelemetry/semantic-conventions";
 import packageJson from "../package.json" with { type: "json" };
 
+import { readConfiguration } from "./configuration.mjs";
 import {
   DEFAULT_SERVICE_NAME,
   flattenError,
@@ -49,6 +51,13 @@ const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME;
 const SERVICE_VERSION = packageJson.version;
 const DEFAULT_TRACE_SAMPLE_RATIO = 0.05;
 const DEFAULT_RUNTIME_METRICS_PRECISION_MS = 5000;
+const LOG_LEVEL_RANK = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+};
+const MIN_LOG_LEVEL = readConfiguration().LOG_LEVEL;
 const TEST_TRACE_EXPORTER = /** @type {{__WBO_TEST_TRACE_EXPORTER__?: any}} */ (
   globalThis
 ).__WBO_TEST_TRACE_EXPORTER__;
@@ -266,6 +275,7 @@ const turnstileVerifications = meter.createCounter(
 );
 const loadedBoardsGauge = meter.createObservableGauge("wbo.board.loaded", {
   description: "Current number of board instances loaded in server memory.",
+  unit: "{board}",
 });
 const activeSocketConnectionsGauge = meter.createObservableGauge(
   "wbo.socket.connection.active",
@@ -280,6 +290,7 @@ const connectedUsersGauge = meter.createObservableGauge(
   {
     description:
       "Current number of active socket-to-board memberships across loaded boards; one socket joined to two boards contributes 2.",
+    unit: "{user}",
   },
 );
 loadedBoardsGauge.addCallback(function observeLoadedBoards(observer) {
@@ -823,7 +834,16 @@ function createLogRecord(level, name, fields) {
  * @returns {void}
  */
 function emitLog(level, name, fields) {
+  if (!shouldEmitLog(level)) return;
   otelLogger.emit(createLogRecord(level, name, fields));
+}
+
+/**
+ * @param {"debug"|"info"|"warn"|"error"} level
+ * @returns {boolean}
+ */
+function shouldEmitLog(level) {
+  return LOG_LEVEL_RANK[level] >= LOG_LEVEL_RANK[MIN_LOG_LEVEL];
 }
 
 /**
@@ -935,15 +955,15 @@ function recordSocketConnection(event) {
 }
 
 /**
- * @param {{board?: string, tool?: string, type?: string}} message
+ * @param {{board?: string, tool?: string | number, type?: string | number}} message
  * @param {string=} errorType
  * @returns {void}
  */
 function recordBoardMessage(message, errorType) {
   /** @type {{[key: string]: string | boolean}} */
   const attributes = {
-    "wbo.tool": message.tool || "unknown",
-    "wbo.message.type": message.type || "unknown",
+    "wbo.tool": getToolId(message.tool) || "unknown",
+    "wbo.message.type": String(message.type || "unknown"),
   };
   const boardAnonymous = metricBoardAnonymous(message.board);
   if (boardAnonymous !== undefined) {
@@ -1064,6 +1084,13 @@ function shutdownObservability() {
 
 const logger = {
   /**
+   * @param {"debug"|"info"|"warn"|"error"} level
+   * @returns {boolean}
+   */
+  isEnabled: function isEnabled(level) {
+    return shouldEmitLog(level);
+  },
+  /**
    * @param {string} name
    * @param {{msg?: string, error?: unknown, [key: string]: unknown}=} fields
    */
@@ -1126,6 +1153,7 @@ const tracing = {
 
 const __test = {
   createLogRecord,
+  shouldEmitLog,
   tracingEnabled: function tracingEnabledForTest() {
     return tracingEnabled;
   },

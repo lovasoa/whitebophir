@@ -7,6 +7,26 @@ import {
 } from "./configuration_helpers.mjs";
 
 const appRoot = process.cwd();
+const VALID_LOG_LEVELS = new Set(["debug", "info", "warn", "error"]);
+
+/**
+ * @param {string | undefined} value
+ * @returns {"debug" | "info" | "warn" | "error"}
+ */
+function parseLogLevel(value) {
+  const normalized = (value || "info").trim().toLowerCase();
+  if (
+    normalized === "debug" ||
+    normalized === "info" ||
+    normalized === "warn" ||
+    normalized === "error"
+  ) {
+    return normalized;
+  }
+  throw new Error(
+    `Invalid LOG_LEVEL: expected one of ${[...VALID_LOG_LEVELS].join(", ")}`,
+  );
+}
 
 /**
  * Read the current environment and return a fully resolved configuration
@@ -103,6 +123,9 @@ export function readConfiguration() {
     HISTORY_DIR:
       process.env.WBO_HISTORY_DIR || path.join(appRoot, "server-data"),
 
+    /** Minimum server log level. Valid values: debug, info, warn, error. */
+    LOG_LEVEL: parseLogLevel(process.env.LOG_LEVEL),
+
     /** Folder from which static files will be served */
     WEBROOT: process.env.WBO_WEBROOT || path.join(appRoot, "client-data"),
 
@@ -112,6 +135,12 @@ export function readConfiguration() {
     /** Periodicity at which the board should be saved when it is being actively used (milliseconds)  */
     MAX_SAVE_DELAY: parseIntegerEnv("WBO_MAX_SAVE_DELAY", 1000 * 60), // Save after 60 seconds even if there is still activity
 
+    /** Minimum wall-clock retention window for persisted replay envelopes after save. */
+    SEQ_REPLAY_RETENTION_MS: parseIntegerEnv(
+      "WBO_SEQ_REPLAY_RETENTION_MS",
+      1000 * 60,
+    ),
+
     /** Maximal number of items to keep in the board. When there are more items, the oldest ones are deleted */
     MAX_ITEM_COUNT: parseIntegerEnv("WBO_MAX_ITEM_COUNT", 32768),
 
@@ -119,7 +148,7 @@ export function readConfiguration() {
     MAX_CHILDREN: parseIntegerEnv("WBO_MAX_CHILDREN", 500),
 
     /** Maximum value for any x or y on the board */
-    MAX_BOARD_SIZE: parseIntegerEnv("WBO_MAX_BOARD_SIZE", 65536),
+    MAX_BOARD_SIZE: parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360),
 
     /** General socket write limits.
         Use WBO_MAX_EMIT_COUNT with compact profiles such as `*:250/5s anonymous:125/5s`.

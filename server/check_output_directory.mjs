@@ -57,7 +57,7 @@ async function getError(directory) {
  * and exits the current process with an error otherwise.
  * @param {string} directory
  */
-async function check_output_directory(directory) {
+export async function check_output_directory(directory) {
   const error = await getError(directory);
   if (!error) return;
   logger.error("history.dir_invalid", {
@@ -69,5 +69,3 @@ async function check_output_directory(directory) {
   });
   process.exit(1);
 }
-
-export default check_output_directory;

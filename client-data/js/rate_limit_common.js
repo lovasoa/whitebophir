@@ -1,23 +1,20 @@
-/**
- * @typedef {{
- *   ANONYMOUS_BOARD_NAME: string,
- *   ANONYMOUS_RATE_LIMIT_DIVISOR: number,
- *   createRateLimitState: (now: number) => {windowStart: number, count: number, lastSeen: number},
- *   normalizeRateLimitState: (state: unknown, periodMs: number, now: number) => {windowStart: number, count: number, lastSeen: number},
- *   consumeFixedWindowRateLimit: (state: unknown, cost: number, periodMs: number, now: number) => {windowStart: number, count: number, lastSeen: number},
- *   getRateLimitRemainingMs: (state: unknown, periodMs: number, now: number) => number,
- *   canConsumeFixedWindowRateLimit: (state: unknown, cost: number, limit: number, periodMs: number, now: number) => boolean,
- *   isRateLimitStateStale: (state: unknown, periodMs: number, now: number) => boolean,
- *   getEffectiveRateLimitDefinition: (definition: {limit?: unknown, periodMs?: unknown, anonymousLimit?: unknown, overrides?: {[boardName: string]: {limit?: unknown, periodMs?: unknown}}} | null | undefined, boardName: unknown) => {limit: number, periodMs: number},
- *   getEffectiveRateLimitLimit: (definition: {limit?: unknown, periodMs?: unknown, anonymousLimit?: unknown, overrides?: {[boardName: string]: {limit?: unknown, periodMs?: unknown}}} | null | undefined, boardName: unknown) => number,
- *   countDestructiveActions: (data: {type?: unknown, _children?: unknown} | null | undefined) => number,
- *   isConstructiveAction: (data: {id?: unknown, type?: unknown} | null | undefined) => boolean,
- *   countConstructiveActions: (data: {type?: unknown, _children?: unknown} | null | undefined) => number,
- *   countTextCreationActions: (data: {tool?: unknown, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown} | null | undefined) => number,
- * }} RateLimitCommonApi
- */
+import { getMutationType, MutationType } from "./message_tool_metadata.js";
+import { Text } from "../tools/index.js";
+
 export const ANONYMOUS_BOARD_NAME = "anonymous";
 export const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;
+export const RATE_LIMIT_KINDS = [
+  "general",
+  "constructive",
+  "destructive",
+  "text",
+];
+export const SERVER_RATE_LIMIT_CONFIG_FIELDS = {
+  general: "GENERAL_RATE_LIMITS",
+  constructive: "CONSTRUCTIVE_ACTION_RATE_LIMITS",
+  destructive: "DESTRUCTIVE_ACTION_RATE_LIMITS",
+  text: "TEXT_CREATION_RATE_LIMITS",
+};
 const URL_LIKE_TEXT_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
 
 /**
@@ -183,9 +180,12 @@ export function getEffectiveRateLimitDefinition(definition, boardName) {
  */
 export function isConstructiveAction(data) {
   if (!data?.id) return false;
-  if (data.type === "delete" || data.type === "clear") return false;
-  if (data.type === "update" || data.type === "child") return false;
-  return true;
+  const mutationType = getMutationType(data);
+  return (
+    mutationType === undefined ||
+    mutationType === MutationType.CREATE ||
+    mutationType === MutationType.COPY
+  );
 }
 
 /**
@@ -205,13 +205,21 @@ export function countDestructiveActions(data) {
   if (!data || typeof data !== "object") return 0;
   if (Array.isArray(data._children)) {
     return data._children.reduce(function countDeletes(total, child) {
+      const mutationType = getMutationType(child);
       return (
         total +
-        (child && (child.type === "delete" || child.type === "clear") ? 1 : 0)
+        (mutationType === MutationType.DELETE ||
+        mutationType === MutationType.CLEAR
+          ? 1
+          : 0)
       );
     }, 0);
   }
-  return data.type === "delete" || data.type === "clear" ? 1 : 0;
+  const mutationType = getMutationType(data);
+  return mutationType === MutationType.DELETE ||
+    mutationType === MutationType.CLEAR
+    ? 1
+    : 0;
 }
 
 /**
@@ -247,15 +255,38 @@ export function countTextCreationActions(data) {
       return total + countTextCreationActions(child);
     }, 0);
   }
-  if (data.tool !== "Text") return 0;
-  if (data.type === "new") return 1;
-  if (data.type === "update" && isUrlLikeText(data.txt)) return 1;
+  if (data.tool !== Text.id) {
+    return 0;
+  }
+  const mutationType = getMutationType(data);
+  if (mutationType === MutationType.CREATE) return 1;
+  if (mutationType === MutationType.UPDATE && isUrlLikeText(data.txt)) return 1;
   return 0;
 }
 
-const rateLimitCommon = /** @type {RateLimitCommonApi} */ ({
+/**
+ * @param {"general" | "constructive" | "destructive" | "text"} kind
+ * @param {{tool?: unknown, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown} | null | undefined} data
+ * @returns {number}
+ */
+export function getRateLimitCost(kind, data) {
+  switch (kind) {
+    case "constructive":
+      return countConstructiveActions(data);
+    case "destructive":
+      return countDestructiveActions(data);
+    case "text":
+      return countTextCreationActions(data);
+    default:
+      return 1;
+  }
+}
+
+const rateLimitCommon = {
   ANONYMOUS_BOARD_NAME,
   ANONYMOUS_RATE_LIMIT_DIVISOR,
+  RATE_LIMIT_KINDS,
+  SERVER_RATE_LIMIT_CONFIG_FIELDS,
   createRateLimitState,
   normalizeRateLimitState,
   consumeFixedWindowRateLimit,
@@ -268,5 +299,6 @@ const rateLimitCommon = /** @type {RateLimitCommonApi} */ ({
   isConstructiveAction,
   countConstructiveActions,
   countTextCreationActions,
-});
+  getRateLimitCost,
+};
 export default rateLimitCommon;

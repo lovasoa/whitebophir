@@ -1,6 +1,19 @@
 import * as fsp from "node:fs/promises";
-import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+
+import {
+  boardJsonPath,
+  parseLegacyStoredBoard,
+} from "../../server/legacy_json_board_source.mjs";
+import {
+  parseStoredSvgItem,
+  summarizeStoredSvgItem,
+} from "../../server/stored_svg_item_codec.mjs";
+import { boardSvgPath } from "../../server/svg_board_store.mjs";
+import {
+  parseStoredSvgEnvelope,
+  parseStoredSvgItems,
+} from "../../server/svg_envelope.mjs";
 
 export type StoredBoard = Record<string, any>;
 
@@ -10,8 +23,29 @@ export function withToken(url: string, token?: string, tokenQuery?: string) {
   return `${url}${url.includes("?") ? "&" : "?"}${query}`;
 }
 
-export function boardFile(dataPath: string, name: string) {
-  return path.join(dataPath, `board-${encodeURIComponent(name)}.json`);
+function parseStoredSvgBoard(svg: string): StoredBoard {
+  const envelope = parseStoredSvgEnvelope(svg);
+  const board: StoredBoard = {};
+  for (const itemEntry of parseStoredSvgItems(envelope.drawingAreaContent)) {
+    const summary = summarizeStoredSvgItem(itemEntry);
+    if (!summary?.id) continue;
+    if (summary.tool === "pencil") {
+      board[summary.id] = {
+        id: summary.id,
+        tool: summary.tool,
+        ...summary.data,
+        d: itemEntry.attributes?.d,
+        childCount: summary.childCount,
+        localBounds: summary.localBounds,
+      };
+      continue;
+    }
+    const item = parseStoredSvgItem(itemEntry);
+    if (item?.id) {
+      board[item.id] = item;
+    }
+  }
+  return board;
 }
 
 export async function writeBoard(
@@ -19,18 +53,30 @@ export async function writeBoard(
   name: string,
   storedBoard: StoredBoard,
 ) {
-  await fsp.writeFile(boardFile(dataPath, name), JSON.stringify(storedBoard));
+  await fsp.writeFile(
+    boardJsonPath(name, dataPath),
+    JSON.stringify(storedBoard),
+  );
 }
 
 export async function readStoredBoard(dataPath: string, name: string) {
   try {
-    const content = await fsp.readFile(boardFile(dataPath, name), "utf8");
-    return JSON.parse(content) as StoredBoard;
-  } catch (err) {
-    const error = err as NodeJS.ErrnoException;
-    if (error.code === "ENOENT") return {};
-    throw err;
+    return parseStoredSvgBoard(
+      await fsp.readFile(boardSvgPath(name, dataPath), "utf8"),
+    );
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") throw error;
   }
+
+  try {
+    return parseLegacyStoredBoard(
+      JSON.parse(await fsp.readFile(boardJsonPath(name, dataPath), "utf8")),
+    ).board as StoredBoard;
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+
+  return {};
 }
 
 export async function waitForStoredBoard(

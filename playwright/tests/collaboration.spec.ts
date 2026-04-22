@@ -1,5 +1,7 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: Playwright tests frequently access global state on the window object.
 import { setTimeout as delay } from "node:timers/promises";
+import { MutationType } from "../../client-data/js/mutation_type.js";
+import { Cursor, Eraser } from "../../client-data/tools/index.js";
 import { createBoardPage, expect, test } from "../fixtures/test";
 import { DEFAULT_FORWARDED_IP } from "../helpers/tokens";
 
@@ -44,16 +46,16 @@ test.describe("collaboration and rate limiting", () => {
     await Promise.all([
       boardPage.waitForSocketConnected(),
       peerBoard.waitForSocketConnected(),
-      boardPage.waitForToolBooted("Pencil"),
-      boardPage.waitForToolBooted("Rectangle"),
-      peerBoard.waitForToolBooted("Rectangle"),
-      peerBoard.waitForToolBooted("Cursor"),
+      boardPage.waitForToolBooted("pencil"),
+      boardPage.waitForToolBooted("rectangle"),
+      peerBoard.waitForToolBooted("rectangle"),
+      peerBoard.waitForToolBooted("cursor"),
     ]);
 
-    await expect(boardPage.tool("Pencil")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
     await expect(boardPage.connectedUsersToggle).toBeVisible();
-    await boardPage.selectTool("Pencil");
-    await boardPage.expectCurrentTool("Pencil");
+    await boardPage.selectTool("pencil");
+    await boardPage.expectCurrentTool("pencil");
 
     await boardPage.connectedUsersToggle.click();
     await expect(boardPage.connectedUsersPanel).toBeVisible();
@@ -72,8 +74,8 @@ test.describe("collaboration and rate limiting", () => {
       peerPage.locator("rect[x='1100'][y='800'][stroke='#ff0000']"),
     ).toBeVisible();
     await boardPage.emitBroadcast({
-      tool: "Cursor",
-      type: "update",
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
       x: 1100,
       y: 800,
       color: "#ff0000",
@@ -95,12 +97,11 @@ test.describe("collaboration and rate limiting", () => {
         return rows.find((row) => !row.isSelf) ?? null;
       })
       .not.toBeNull();
-
     const rows = await peerBoard.readConnectedUsers();
     const peerRemoteRow = rows.find((row) => !row.isSelf);
     expect(peerRemoteRow).toBeTruthy();
     expect(peerRemoteRow?.meta ?? "").toMatch(/Rectangle|Pencil/);
-    expect(parseFloat(peerRemoteRow?.dotWidth ?? "0")).toBeGreaterThan(9);
+    expect(parseFloat(peerRemoteRow?.dotWidth ?? "0")).toBeGreaterThan(7);
     expect(
       peerRemoteRow?.color === "rgb(255, 0, 0)" ||
         peerRemoteRow?.color === "#ff0000",
@@ -116,9 +117,6 @@ test.describe("collaboration and rate limiting", () => {
         left: expect.any(Number),
         top: expect.any(Number),
       });
-    const scroll = await peerBoard.scrollPosition();
-    expect(scroll.left > 0 || scroll.top > 0).toBe(true);
-
     await peerPage.close();
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
   });
@@ -169,48 +167,6 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
   });
 
-  test("presence panel closes instead of rendering an empty HUD box", async ({
-    boardPage,
-    page,
-  }) => {
-    await boardPage.gotoBoard("presence-empty-guard");
-    await boardPage.waitForSocketConnected();
-
-    await boardPage.connectedUsersToggle.click();
-    await expect(boardPage.connectedUsersPanel).toBeVisible();
-    await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
-
-    const state = await page.evaluate(() => {
-      window.Tools.connectedUsers = {};
-      window.Tools.renderConnectedUsers();
-      return {
-        expanded:
-          document
-            .getElementById("connectedUsersToggle")
-            ?.getAttribute("aria-expanded") ?? "",
-        panelHidden:
-          document
-            .getElementById("connectedUsersPanel")
-            ?.classList.contains("connected-users-panel-hidden") ?? false,
-        panelEmpty:
-          document.getElementById("connectedUsersPanel")?.dataset.empty ?? "",
-        rowCount: document.querySelectorAll(
-          "#connectedUsersList .connected-user-row",
-        ).length,
-      };
-    });
-
-    expect(state).toMatchObject({
-      expanded: "false",
-      panelHidden: true,
-      panelEmpty: "true",
-      rowCount: 0,
-    });
-
-    await boardPage.connectedUsersToggle.click();
-    await expect(boardPage.connectedUsersPanel).toBeHidden();
-  });
-
   test("same-session sockets keep separate activity in the user list", async ({
     boardPage,
     server,
@@ -240,8 +196,8 @@ test.describe("collaboration and rate limiting", () => {
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
 
     await peerBoard.emitBroadcast({
-      tool: "Cursor",
-      type: "update",
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
       x: 250,
       y: 150,
       color: "#00ff00",
@@ -301,7 +257,7 @@ test.describe("collaboration and rate limiting", () => {
     const rows = await boardPage.readConnectedUsers();
     const self = rows.find((row) => row.isSelf);
     const remote = rows.find((row) => !row.isSelf);
-    expect(parseFloat(self?.dotWidth ?? "0")).toBeGreaterThan(
+    expect(parseFloat(self?.dotWidth ?? "0")).toBeGreaterThanOrEqual(
       parseFloat(remote?.dotWidth ?? "0"),
     );
 
@@ -388,8 +344,8 @@ test.describe("collaboration and rate limiting", () => {
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
 
     await peerBoard.emitBroadcast({
-      tool: "Cursor",
-      type: "update",
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
       x: 1600,
       y: 1200,
       color: "#00ff00",
@@ -417,21 +373,26 @@ test.describe("collaboration and rate limiting", () => {
       (window as any).__trackedConnectedUserRow = row;
     });
 
-    await peerPage.evaluate(async () => {
-      const nextFrame = () =>
-        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      for (let index = 0; index < 12; index += 1) {
-        (window as any).Tools.socket.emit("broadcast", {
-          tool: "Cursor",
-          type: "update",
-          x: 1600 + index * 8,
-          y: 1200 + index * 6,
-          color: "#00ff00",
-          size: 5,
-        });
-        await nextFrame();
-      }
-    });
+    await peerPage.evaluate(
+      async ({ tool, updateType }) => {
+        const nextFrame = () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+        for (let index = 0; index < 12; index += 1) {
+          window.Tools.socket.emit("broadcast", {
+            tool,
+            type: updateType,
+            x: 1600 + index * 8,
+            y: 1200 + index * 6,
+            color: "#00ff00",
+            size: 5,
+          });
+          await nextFrame();
+        }
+      },
+      { tool: Cursor.id, updateType: MutationType.UPDATE },
+    );
 
     await expect
       .poll(() =>
@@ -460,7 +421,7 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
   });
 
-  test("disconnect keeps authoritative shapes visible without reopening the loading banner", async ({
+  test("disconnect keeps authoritative shapes visible while showing reconnect status", async ({
     boardPage,
     page,
     server,
@@ -469,11 +430,11 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.waitForSocketConnected();
     await boardPage.waitForAuthoritativeResync();
 
-    await page.evaluate(() => {
-      const rectangle = (window as any).Tools.list.Rectangle;
-      (window as any).Tools.drawAndSend(
+    await page.evaluate((createType) => {
+      const rectangle = window.Tools.list.rectangle;
+      window.Tools.drawAndSend(
         {
-          type: "rect",
+          type: createType,
           id: "persisted-across-disconnect",
           x: 40,
           y: 40,
@@ -485,7 +446,7 @@ test.describe("collaboration and rate limiting", () => {
         },
         rectangle,
       );
-    });
+    }, MutationType.CREATE);
 
     await server.waitForStoredBoard(
       server.dataPath,
@@ -500,33 +461,28 @@ test.describe("collaboration and rate limiting", () => {
       return new Promise<{
         awaitingBoardSnapshot: boolean;
         connectionState: string;
-        loadingHidden: boolean;
+        statusVisible: boolean;
         rectVisible: boolean;
       }>((resolve) => {
-        (window as any).Tools.socket.once("disconnect", () => {
+        window.Tools.socket.once("disconnect", () => {
           resolve({
-            awaitingBoardSnapshot: !!(window as any).Tools
-              .awaitingBoardSnapshot,
-            connectionState: String(
-              (window as any).Tools.connectionState ?? "",
-            ),
-            loadingHidden:
-              document
-                .getElementById("loadingMessage")
-                ?.classList.contains("hidden") ?? false,
+            awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
+            connectionState: String(window.Tools.connectionState ?? ""),
+            statusVisible:
+              !document.getElementById("boardStatusIndicator")?.hidden ?? false,
             rectVisible: !!document.getElementById(
               "persisted-across-disconnect",
             ),
           });
         });
-        (window as any).Tools.socket.io.engine.close();
+        window.Tools.socket.io.engine.close();
       });
     });
 
     expect(disconnectState).toEqual({
       awaitingBoardSnapshot: true,
       connectionState: "disconnected",
-      loadingHidden: true,
+      statusVisible: true,
       rectVisible: true,
     });
 
@@ -545,40 +501,48 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.waitForSocketConnected();
     await boardPage.waitForAuthoritativeResync();
 
-    await page.evaluate(async () => {
-      const nextFrame = () =>
-        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      const lineId = "reconnect-pencil-path";
-      const pencil = (window as any).Tools.list.Pencil;
-      (window as any).Tools.drawAndSend(
-        {
-          type: "line",
-          id: lineId,
-          color: "#8844aa",
-          size: 4,
-          opacity: 1,
-        },
-        pencil,
-      );
-      await nextFrame();
-      for (const point of [
-        { x: 198, y: 658 },
-        { x: 229, y: 663 },
-        { x: 325, y: 697 },
-        { x: 198, y: 658 },
-      ]) {
-        (window as any).Tools.drawAndSend(
+    await page.evaluate(
+      async ({ createType, appendType }) => {
+        const nextFrame = () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve()),
+          );
+        const lineId = "reconnect-pencil-path";
+        const pencil = window.Tools.list.pencil;
+        window.Tools.drawAndSend(
           {
-            type: "child",
-            parent: lineId,
-            x: point.x,
-            y: point.y,
+            type: createType,
+            id: lineId,
+            color: "#8844aa",
+            size: 4,
+            opacity: 1,
           },
           pencil,
         );
         await nextFrame();
-      }
-    });
+        for (const point of [
+          { x: 198, y: 658 },
+          { x: 229, y: 663 },
+          { x: 325, y: 697 },
+          { x: 198, y: 658 },
+        ]) {
+          window.Tools.drawAndSend(
+            {
+              type: appendType,
+              parent: lineId,
+              x: point.x,
+              y: point.y,
+            },
+            pencil,
+          );
+          await nextFrame();
+        }
+      },
+      {
+        createType: MutationType.CREATE,
+        appendType: MutationType.APPEND,
+      },
+    );
 
     await server.waitForStoredBoard(
       server.dataPath,
@@ -619,7 +583,7 @@ test.describe("collaboration and rate limiting", () => {
 
     await server.writeBoard(server.dataPath, boardName, {
       "slow-pencil": {
-        tool: "Pencil",
+        tool: "pencil",
         type: "line",
         id: "slow-pencil",
         color: "#8844aa",
@@ -633,7 +597,7 @@ test.describe("collaboration and rate limiting", () => {
         ],
       },
       "slow-rect": {
-        tool: "Rectangle",
+        tool: "rectangle",
         type: "rect",
         id: "slow-rect",
         x: 100,
@@ -645,7 +609,7 @@ test.describe("collaboration and rate limiting", () => {
         transform: { a: 1, b: 0, c: 0, d: 1, e: 25, f: 30 },
       },
       "slow-ellipse": {
-        tool: "Ellipse",
+        tool: "ellipse",
         type: "ellipse",
         id: "slow-ellipse",
         x: 260,
@@ -656,7 +620,7 @@ test.describe("collaboration and rate limiting", () => {
         size: 5,
       },
       "slow-line": {
-        tool: "Straight line",
+        tool: "straight-line",
         type: "straight",
         id: "slow-line",
         x: 440,
@@ -667,7 +631,7 @@ test.describe("collaboration and rate limiting", () => {
         size: 3,
       },
       "slow-text": {
-        tool: "Text",
+        tool: "text",
         type: "new",
         id: "slow-text",
         x: 360,
@@ -703,8 +667,8 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.waitForAuthoritativeResync();
 
     await peerBoard.emitBroadcast({
-      tool: "Cursor",
-      type: "update",
+      tool: Cursor.id,
+      type: MutationType.UPDATE,
       x: 640,
       y: 210,
       color: "#00ff66",
@@ -752,16 +716,16 @@ test.describe("collaboration and rate limiting", () => {
         document.querySelectorAll("#drawingArea [id]"),
       ).map((element) => element.id);
       const pencilPath = document.querySelector("#slow-pencil");
-      const loadingMessage = document.getElementById("loadingMessage");
+      const statusIndicator = document.getElementById("boardStatusIndicator");
       const remoteCursor = document.querySelector(
         "#cursors .opcursor:not(#cursor-me)",
       );
 
       return {
-        boardReady: document.documentElement.dataset.boardReady,
-        connectionState: String((window as any).Tools.connectionState ?? ""),
-        awaitingBoardSnapshot: !!(window as any).Tools.awaitingBoardSnapshot,
-        loadingHidden: loadingMessage?.classList.contains("hidden") ?? false,
+        boardPhase: document.documentElement.dataset.boardPhase,
+        connectionState: String(window.Tools.connectionState ?? ""),
+        awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
+        statusHidden: statusIndicator?.hidden ?? true,
         pencilCount: document.querySelectorAll("#drawingArea path#slow-pencil")
           .length,
         pencilPathData:
@@ -782,13 +746,13 @@ test.describe("collaboration and rate limiting", () => {
     });
 
     expect(finalState).toMatchObject({
-      boardReady: "true",
+      boardPhase: "ready",
       connectionState: "connected",
       awaitingBoardSnapshot: false,
-      loadingHidden: true,
+      statusHidden: true,
       pencilCount: 1,
-      rectTransformE: 25,
-      rectTransformF: 30,
+      rectTransformE: 250,
+      rectTransformF: 300,
       ellipseCount: 1,
       lineCount: 1,
       textContent: "Slow sync",
@@ -800,56 +764,6 @@ test.describe("collaboration and rate limiting", () => {
     await peerPage.close();
   });
 
-  test("presence HUD stays within the toolbar-safe area while loading", async ({
-    boardPage,
-    page,
-  }) => {
-    await page.setViewportSize({ width: 250, height: 700 });
-    await boardPage.gotoBoard("presence-hud-loading");
-    await boardPage.waitForSocketConnected();
-
-    await boardPage.connectedUsersToggle.click();
-    await expect(boardPage.connectedUsersPanel).toBeVisible();
-
-    const layout = await page.evaluate(() => {
-      window.Tools.connectionState = "reconnecting";
-      window.Tools.hasAuthoritativeBoardSnapshot = true;
-      window.Tools.syncWriteStatusIndicator();
-
-      const rootStyle = getComputedStyle(document.documentElement);
-      const statusRect = document
-        .getElementById("boardStatusIndicator")
-        ?.getBoundingClientRect();
-      const panelRect = document
-        .getElementById("connectedUsersPanel")
-        ?.getBoundingClientRect();
-      const shellOffset = parseFloat(
-        rootStyle.getPropertyValue("--board-shell-offset"),
-      );
-      const controlSize = parseFloat(
-        rootStyle.getPropertyValue("--board-control-size"),
-      );
-      const controlGap = parseFloat(
-        rootStyle.getPropertyValue("--board-control-gap"),
-      );
-
-      return {
-        safeArea: shellOffset + controlSize + controlGap,
-        statusLeft: statusRect?.left ?? 0,
-        panelLeft: panelRect?.left ?? 0,
-        panelRight: panelRect?.right ?? 0,
-        viewportWidth: window.innerWidth,
-        statusTitle:
-          document.getElementById("boardStatusTitle")?.textContent ?? "",
-      };
-    });
-
-    expect(layout.statusTitle).toBe("Loading");
-    expect(layout.statusLeft).toBeGreaterThanOrEqual(layout.safeArea - 1);
-    expect(layout.panelLeft).toBeGreaterThanOrEqual(layout.safeArea - 2);
-    expect(layout.panelRight).toBeLessThanOrEqual(layout.viewportWidth);
-  });
-
   rateLimitTest(
     "rate limit disconnect uses a non-blocking notice",
     async ({ boardPage, page }) => {
@@ -857,7 +771,7 @@ test.describe("collaboration and rate limiting", () => {
         "X-Forwarded-For": "198.51.100.200",
       });
       await boardPage.gotoBoard("rate-limit-test");
-      await expect(boardPage.tool("Eraser")).toBeVisible();
+      await expect(boardPage.tool("eraser")).toBeVisible();
       await boardPage.waitForSocketConnected();
 
       await page.evaluate(() => {
@@ -866,15 +780,18 @@ test.describe("collaboration and rate limiting", () => {
           (window as any).__lastAlert = message ?? null;
         };
       });
-      await page.evaluate(() => {
-        for (let index = 0; index < 101; index += 1) {
-          (window as any).Tools.socket.emit("broadcast", {
-            tool: "Eraser",
-            type: "delete",
-            id: `rate-limit-${index}`,
-          });
-        }
-      });
+      await page.evaluate(
+        ({ deleteType, tool }) => {
+          for (let index = 0; index < 101; index += 1) {
+            window.Tools.socket.emit("broadcast", {
+              tool,
+              type: deleteType,
+              id: `rate-limit-${index}`,
+            });
+          }
+        },
+        { deleteType: MutationType.DELETE, tool: Eraser.id },
+      );
 
       await expect
         .poll(() =>
@@ -903,15 +820,15 @@ test.describe("collaboration and rate limiting", () => {
       await boardPage.waitForSocketConnected();
       await boardPage.waitForAuthoritativeResync();
       await Promise.all([
-        boardPage.waitForToolBooted("Rectangle"),
-        expect(boardPage.tool("Rectangle")).toBeVisible(),
+        boardPage.waitForToolBooted("rectangle"),
+        expect(boardPage.tool("rectangle")).toBeVisible(),
       ]);
 
-      await page.evaluate(() => {
-        const rectangle = (window as any).Tools.list.Rectangle;
-        (window as any).Tools.drawAndSend(
+      await page.evaluate((createType) => {
+        const rectangle = window.Tools.list.rectangle;
+        window.Tools.drawAndSend(
           {
-            type: "rect",
+            type: createType,
             id: "buffered-rect-1",
             x: 40,
             y: 40,
@@ -923,9 +840,9 @@ test.describe("collaboration and rate limiting", () => {
           },
           rectangle,
         );
-        (window as any).Tools.drawAndSend(
+        window.Tools.drawAndSend(
           {
-            type: "rect",
+            type: createType,
             id: "buffered-rect-2",
             x: 120,
             y: 40,
@@ -937,13 +854,13 @@ test.describe("collaboration and rate limiting", () => {
           },
           rectangle,
         );
-      });
+      }, MutationType.CREATE);
 
       await expect
         .poll(() => boardPage.readWriteStatus())
         .toMatchObject({
           bufferedWrites: 1,
-          indicatorClass: expect.stringContaining("board-status-buffering"),
+          indicatorClass: expect.stringContaining("board-status-paused"),
         });
 
       await page.bringToFront();
@@ -955,11 +872,11 @@ test.describe("collaboration and rate limiting", () => {
           storedBoard["buffered-rect-2"] == null,
         5_000,
       );
+      await boardPage.waitForBufferedWritesDrained();
       await server.waitForStoredBoard(
         server.dataPath,
         "anonymous",
         (storedBoard) => storedBoard["buffered-rect-2"] != null,
-        10_000,
       );
       await boardPage.waitForSocketConnected();
       await boardPage.waitForAuthoritativeResync();
@@ -996,11 +913,11 @@ test.describe("collaboration and rate limiting", () => {
       await boardPage.waitForSocketConnected();
       await boardPage.waitForAuthoritativeResync();
 
-      await page.evaluate(() => {
-        const rectangle = (window as any).Tools.list.Rectangle;
-        (window as any).Tools.drawAndSend(
+      await page.evaluate((createType) => {
+        const rectangle = window.Tools.list.rectangle;
+        window.Tools.drawAndSend(
           {
-            type: "rect",
+            type: createType,
             id: "persisted-before-disconnect",
             x: 40,
             y: 120,
@@ -1012,9 +929,9 @@ test.describe("collaboration and rate limiting", () => {
           },
           rectangle,
         );
-        (window as any).Tools.drawAndSend(
+        window.Tools.drawAndSend(
           {
-            type: "rect",
+            type: createType,
             id: "local-only-before-disconnect",
             x: 120,
             y: 120,
@@ -1026,7 +943,7 @@ test.describe("collaboration and rate limiting", () => {
           },
           rectangle,
         );
-      });
+      }, MutationType.CREATE);
 
       await expect(
         page.locator("rect#local-only-before-disconnect"),

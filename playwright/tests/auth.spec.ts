@@ -1,4 +1,6 @@
 import jsonwebtoken from "jsonwebtoken";
+import { MutationType } from "../../client-data/js/mutation_type.js";
+import { Rectangle } from "../../client-data/tools/index.js";
 import { expect, test } from "../fixtures/test";
 import { AUTH_SECRET, TOKENS } from "../helpers/tokens";
 
@@ -11,7 +13,7 @@ test.describe("JWT auth and readonly flows", () => {
     const readonlySelector =
       "rect[x='10'][y='10'][width='20'][height='20'][stroke='#123456']";
     const clearSelector =
-      "rect[x='10'][y='10'][width='20'][height='20'][stroke='#ff00ff']";
+      "rect[x='100'][y='100'][width='200'][height='200'][stroke='#ff00ff']";
 
     await server.writeBoard(server.dataPath, "readonly-test", {
       __wbo_meta__: { readonly: true },
@@ -21,7 +23,7 @@ test.describe("JWT auth and readonly flows", () => {
       "readonly-clear-rect": {
         type: "rect",
         id: "readonly-clear-rect",
-        tool: "Rectangle",
+        tool: "rectangle",
         x: 10,
         y: 10,
         x2: 30,
@@ -34,13 +36,13 @@ test.describe("JWT auth and readonly flows", () => {
     await boardPage.gotoBoard("readonly-test", {
       token: TOKENS.readOnlyViewer,
     });
-    await expect(boardPage.tool("Hand")).toBeVisible();
-    await expect(boardPage.tool("Pencil")).toHaveCount(0);
+    await expect(boardPage.tool("hand")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toHaveCount(0);
     await expect(boardPage.settings).toBeHidden();
     await boardPage.emitBroadcast({
-      type: "rect",
+      type: MutationType.CREATE,
       id: "readonly-viewer-rect",
-      tool: "Rectangle",
+      tool: Rectangle.id,
       x: 10,
       y: 10,
       x2: 30,
@@ -49,18 +51,18 @@ test.describe("JWT auth and readonly flows", () => {
       size: 4,
     });
     await page.reload();
-    await expect(boardPage.tool("Hand")).toBeVisible();
+    await expect(boardPage.tool("hand")).toBeVisible();
     await expect(page.locator(readonlySelector)).toHaveCount(0);
 
     await boardPage.gotoBoard("readonly-test", {
       token: TOKENS.readOnlyGlobalEditor,
     });
-    await expect(boardPage.tool("Pencil")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
     await expect(boardPage.settings).toBeVisible();
     await boardPage.emitBroadcast({
-      type: "rect",
+      type: MutationType.CREATE,
       id: "readonly-editor-rect",
-      tool: "Rectangle",
+      tool: Rectangle.id,
       x: 10,
       y: 10,
       x2: 30,
@@ -80,21 +82,21 @@ test.describe("JWT auth and readonly flows", () => {
       token: TOKENS.readOnlyBoardEditor,
     });
     await expect(page.locator(readonlySelector)).toBeVisible();
-    await expect(boardPage.tool("Pencil")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
 
     await boardPage.gotoBoard("readonly-clear", {
       token: TOKENS.readOnlyGlobalModerator,
     });
-    await expect(boardPage.tool("Clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toBeVisible();
     await expect(page.locator(clearSelector)).toBeVisible();
-    await boardPage.tool("Clear").click();
+    await boardPage.tool("clear").click();
     await server.waitForStoredBoard(
       server.dataPath,
       "readonly-clear",
       (storedBoard) => !storedBoard["readonly-clear-rect"],
     );
     await page.reload();
-    await expect(boardPage.tool("Clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toBeVisible();
     await expect(page.locator(clearSelector)).toHaveCount(0);
   });
 
@@ -102,17 +104,17 @@ test.describe("JWT auth and readonly flows", () => {
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.globalModerator,
     });
-    await expect(boardPage.tool("Clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toBeVisible();
 
     await boardPage.gotoBoard("testboard123", {
       token: TOKENS.globalModerator,
     });
-    await expect(boardPage.tool("Clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toBeVisible();
 
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.boardModeratorTestboard,
     });
-    await expect(boardPage.tool("Clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toBeVisible();
 
     await boardPage.gotoBoard("testboard123", {
       token: TOKENS.boardModeratorTestboard,
@@ -122,14 +124,14 @@ test.describe("JWT auth and readonly flows", () => {
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.globalEditor,
     });
-    await expect(boardPage.tool("Clear")).toHaveCount(0);
+    await expect(boardPage.tool("clear")).toHaveCount(0);
     await expect(boardPage.menu).toBeVisible();
 
     await boardPage.gotoBoard("testboard", {
       token: TOKENS.boardEditorTestboard,
     });
     await expect(boardPage.menu).toBeVisible();
-    await expect(boardPage.tool("Clear")).toHaveCount(0);
+    await expect(boardPage.tool("clear")).toHaveCount(0);
 
     await boardPage.gotoBoard("testboard123", {
       token: TOKENS.boardEditorTestboard,
@@ -158,14 +160,14 @@ test.describe("public authless flows", () => {
     });
 
     await boardPage.gotoBoard("readonly-public");
-    await expect(boardPage.tool("Hand")).toBeVisible();
-    await expect(boardPage.tool("Pencil")).toHaveCount(0);
-    await expect(boardPage.tool("Line")).toHaveCount(0);
+    await expect(boardPage.tool("hand")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toHaveCount(0);
+    await expect(boardPage.tool("straight-line")).toHaveCount(0);
     await expect(boardPage.settings).toBeHidden();
     await boardPage.emitBroadcast({
-      type: "rect",
+      type: MutationType.CREATE,
       id: "readonly-public-rect",
-      tool: "Rectangle",
+      tool: Rectangle.id,
       x: 10,
       y: 10,
       x2: 30,
@@ -174,21 +176,46 @@ test.describe("public authless flows", () => {
       size: 4,
     });
     await page.reload();
-    await expect(boardPage.tool("Hand")).toBeVisible();
+    await expect(boardPage.tool("hand")).toBeVisible();
     await expect(page.locator(selector)).toHaveCount(0);
   });
 
-  test("menu hiding query param", async ({ boardPage }) => {
-    await boardPage.gotoBoard("anonymous", {
-      lang: "fr",
-      query: { hideMenu: true },
+  test("readonly board rejection removes optimistic local draw", async ({
+    boardPage,
+    server,
+    page,
+  }) => {
+    await server.writeBoard(server.dataPath, "readonly-optimistic-public", {
+      __wbo_meta__: { readonly: true },
     });
-    await expect(boardPage.menu).toBeHidden();
 
-    await boardPage.gotoBoard("anonymous", {
-      lang: "fr",
-      query: { hideMenu: false },
-    });
-    await expect(boardPage.menu).toBeVisible();
+    await boardPage.gotoBoard("readonly-optimistic-public");
+    await boardPage.waitForSocketConnected();
+    await boardPage.waitForAuthoritativeResync();
+
+    const hadOptimisticRect = await page.evaluate((createType) => {
+      const rectangle = window.Tools.list.rectangle;
+      if (!rectangle) throw new Error("rectangle tool is unavailable");
+      window.Tools.drawAndSend(
+        {
+          type: createType,
+          id: "readonly-public-optimistic-rect",
+          x: 10,
+          y: 10,
+          x2: 40,
+          y2: 40,
+          color: "#123456",
+          size: 4,
+          opacity: 1,
+        },
+        rectangle,
+      );
+      return !!document.getElementById("readonly-public-optimistic-rect");
+    }, MutationType.CREATE);
+
+    expect(hadOptimisticRect).toBe(true);
+    await expect(
+      page.locator("rect#readonly-public-optimistic-rect"),
+    ).toHaveCount(0);
   });
 });

@@ -1,23 +1,19 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 
-import { parseStoredBoard } from "./boardData.mjs";
+import MessageCommon from "../client-data/js/message_common.js";
+import { TOOL_BY_ID } from "../client-data/tools/index.js";
 import config from "./configuration.mjs";
+import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
 import observability from "./observability.mjs";
 
 const { logger, tracing } = observability;
 const STANDALONE_SVG_RENDER_BYTES_THRESHOLD = 1024 * 1024;
 
 /** @typedef {{x: number, y: number}} Point */
-/** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number}} ElementStyle */
-/** @typedef {ElementStyle & {tool: "Text", x: number, y: number, txt?: string}} TextElement */
-/** @typedef {ElementStyle & {tool: "Pencil", _children?: Point[]}} PencilElement */
-/** @typedef {ElementStyle & {tool: "Rectangle" | "Ellipse" | "Straight line", x: number, y: number, x2: number, y2: number}} ShapeElement */
-/** @typedef {TextElement | PencilElement | ShapeElement} RenderableElement */
+/** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number, txt?: string, _children?: Point[], x?: number, y?: number, x2?: number, y2?: number}} RenderableElement */
 /** @typedef {{[name: string]: RenderableElement}} RenderableBoard */
 /** @typedef {{write: (chunk: string) => void}} WritableTarget */
-/** @typedef {(element: RenderableElement) => string} ToolRenderer */
 
 /**
  * @param {number | undefined} value
@@ -25,33 +21,6 @@ const STANDALONE_SVG_RENDER_BYTES_THRESHOLD = 1024 * 1024;
  */
 function numberOrZero(value) {
   return typeof value === "number" ? value : 0;
-}
-
-/**
- * @param {number} x1
- * @param {number} y1
- * @param {number} x2
- * @param {number} y2
- * @returns {{x: number, y: number, width: number, height: number}}
- */
-function normalizeRectBounds(x1, y1, x2, y2) {
-  return {
-    x: Math.min(x1, x2),
-    y: Math.min(y1, y2),
-    width: Math.abs(x2 - x1),
-    height: Math.abs(y2 - y1),
-  };
-}
-
-/**
- * @param {number} x1
- * @param {number} y1
- * @param {number} x2
- * @param {number} y2
- * @returns {number}
- */
-function dist(x1, y1, x2, y2) {
-  return Math.hypot(x2 - x1, y2 - y1);
 }
 
 /**
@@ -80,7 +49,7 @@ function htmlspecialchars(str) {
 }
 
 /**
- * @param {ElementStyle} el
+ * @param {RenderableElement} el
  * @returns {string}
  */
 function renderTranslate(el) {
@@ -91,7 +60,7 @@ function renderTranslate(el) {
 }
 
 /**
- * @param {ElementStyle} el
+ * @param {RenderableElement} el
  * @param {string} pathstring
  * @returns {string}
  */
@@ -115,331 +84,13 @@ function renderPath(el, pathstring) {
 }
 
 /**
- * @param {number} x
- * @param {number} y
- * @returns {string}
- */
-function renderMoveTo(x, y) {
-  return `M ${x} ${y}`;
-}
-
-/**
- * @param {number} x
- * @param {number} y
- * @returns {string}
- */
-function renderLineTo(x, y) {
-  return `L ${x} ${y}`;
-}
-
-/**
- * @param {number} c1x
- * @param {number} c1y
- * @param {number} c2x
- * @param {number} c2y
- * @param {number} x
- * @param {number} y
- * @returns {string}
- */
-function renderCurveTo(c1x, c1y, c2x, c2y, x, y) {
-  return `C ${c1x} ${c1y} ${c2x} ${c2y} ${x} ${y}`;
-}
-
-/**
- * @param {Point} firstPoint
- * @returns {{
- *   pathParts: string[],
- *   pointCount: number,
- *   anteX: number,
- *   anteY: number,
- *   prevX: number,
- *   prevY: number,
- *   previousCurveIndex: number,
- *   previousCurveControlX: number,
- *   previousCurveControlY: number,
- * }}
- */
-function createPencilPathState(firstPoint) {
-  return {
-    pathParts: [
-      renderMoveTo(firstPoint.x, firstPoint.y),
-      renderLineTo(firstPoint.x, firstPoint.y),
-    ],
-    pointCount: 1,
-    anteX: firstPoint.x,
-    anteY: firstPoint.y,
-    prevX: firstPoint.x,
-    prevY: firstPoint.y,
-    previousCurveIndex: -1,
-    previousCurveControlX: firstPoint.x,
-    previousCurveControlY: firstPoint.y,
-  };
-}
-
-/**
- * @param {ReturnType<typeof createPencilPathState>} state
- * @param {Point} firstPoint
- * @param {number} x
- * @param {number} y
- * @returns {void}
- */
-function appendSecondPencilPoint(state, firstPoint, x, y) {
-  state.pathParts.push(renderCurveTo(firstPoint.x, firstPoint.y, x, y, x, y));
-  state.previousCurveIndex = state.pathParts.length - 1;
-  state.previousCurveControlX = firstPoint.x;
-  state.previousCurveControlY = firstPoint.y;
-  state.anteX = firstPoint.x;
-  state.anteY = firstPoint.y;
-  state.prevX = x;
-  state.prevY = y;
-  state.pointCount = 2;
-}
-
-/**
- * @param {ReturnType<typeof createPencilPathState>} state
- * @param {number} x
- * @param {number} y
- * @returns {{
- *   control1X: number,
- *   control1Y: number,
- *   control2X: number,
- *   control2Y: number,
- * } | null}
- */
-function getPencilCurveControls(state, x, y) {
-  if (
-    (state.prevX === x && state.prevY === y) ||
-    (state.anteX === x && state.anteY === y)
-  ) {
-    return null;
-  }
-
-  const vectorX = x - state.anteX;
-  const vectorY = y - state.anteY;
-  const norm = Math.hypot(vectorX, vectorY);
-  if (norm === 0) return null;
-
-  const scaledVectorX = vectorX / 3;
-  const scaledVectorY = vectorY / 3;
-  const dist1 = dist(state.anteX, state.anteY, state.prevX, state.prevY) / norm;
-  const dist2 = dist(x, y, state.prevX, state.prevY) / norm;
-  return {
-    control1X: state.prevX - dist1 * scaledVectorX,
-    control1Y: state.prevY - dist1 * scaledVectorY,
-    control2X: state.prevX + dist2 * scaledVectorX,
-    control2Y: state.prevY + dist2 * scaledVectorY,
-  };
-}
-
-/**
- * @param {ReturnType<typeof createPencilPathState>} state
- * @param {number} x
- * @param {number} y
- * @returns {void}
- */
-function appendSmoothedPencilPoint(state, x, y) {
-  const controls = getPencilCurveControls(state, x, y);
-  if (!controls) return;
-
-  if (state.previousCurveIndex !== -1) {
-    state.pathParts[state.previousCurveIndex] = renderCurveTo(
-      state.previousCurveControlX,
-      state.previousCurveControlY,
-      controls.control1X,
-      controls.control1Y,
-      state.prevX,
-      state.prevY,
-    );
-  }
-  state.pathParts.push(
-    renderCurveTo(controls.control2X, controls.control2Y, x, y, x, y),
-  );
-  state.previousCurveIndex = state.pathParts.length - 1;
-  state.previousCurveControlX = controls.control2X;
-  state.previousCurveControlY = controls.control2Y;
-  state.anteX = state.prevX;
-  state.anteY = state.prevY;
-  state.prevX = x;
-  state.prevY = y;
-  state.pointCount += 1;
-}
-
-/**
- * @param {Point[] | undefined} children
- * @returns {string}
- */
-function renderPencilPath(children) {
-  if (!children || children.length === 0) return "";
-
-  const firstPoint = children[0];
-  if (!firstPoint) return "";
-
-  const state = createPencilPathState(firstPoint);
-
-  for (let index = 1; index < children.length; index++) {
-    const point = children[index];
-    if (!point) continue;
-
-    const x = point.x;
-    const y = point.y;
-    if (state.pointCount === 1) {
-      appendSecondPencilPoint(state, firstPoint, x, y);
-      continue;
-    }
-    appendSmoothedPencilPoint(state, x, y);
-  }
-
-  return state.pathParts.join(" ");
-}
-
-/** @type {{[tool: string]: ToolRenderer}} */
-const Tools = {
-  /**
-   * @param {RenderableElement} el
-   * @return {string}
-   */
-  Text: (el) => {
-    if (el.tool !== "Text") return "";
-    /** @type {TextElement} */
-    const text = el;
-    return (
-      "<text " +
-      'id="' +
-      htmlspecialchars(text.id || "t") +
-      '" ' +
-      'x="' +
-      (text.x | 0) +
-      '" ' +
-      'y="' +
-      (text.y | 0) +
-      '" ' +
-      'font-size="' +
-      (numberOrZero(text.size) | 0) +
-      '" ' +
-      'fill="' +
-      htmlspecialchars(text.color || "#000") +
-      '" ' +
-      renderTranslate(text) +
-      ">" +
-      htmlspecialchars(text.txt || "") +
-      "</text>"
-    );
-  },
-  /**
-   * @param {RenderableElement} el
-   * @return {string}
-   */
-  Pencil: (el) => {
-    if (el.tool !== "Pencil") return "";
-    /** @type {PencilElement} */
-    const pencil = el;
-    const pathstring = renderPencilPath(pencil._children);
-    if (pathstring === "") return "";
-    return renderPath(pencil, pathstring);
-  },
-  /**
-   * @param {RenderableElement} el
-   * @return {string}
-   */
-  Rectangle: (el) => {
-    if (el.tool !== "Rectangle") return "";
-    /** @type {ShapeElement} */
-    const shape = el;
-    const bounds = normalizeRectBounds(shape.x, shape.y, shape.x2, shape.y2);
-    return (
-      "<rect " +
-      (shape.id ? `id="${htmlspecialchars(shape.id)}" ` : "") +
-      'x="' +
-      bounds.x +
-      '" ' +
-      'y="' +
-      bounds.y +
-      '" ' +
-      'width="' +
-      bounds.width +
-      '" ' +
-      'height="' +
-      bounds.height +
-      '" ' +
-      'stroke="' +
-      htmlspecialchars(shape.color) +
-      '" ' +
-      'stroke-width="' +
-      (numberOrZero(shape.size) | 0) +
-      '" ' +
-      renderTranslate(shape) +
-      "/>"
-    );
-  },
-  /**
-   * @param {RenderableElement} el
-   * @return {string}
-   */
-  Ellipse: (el) => {
-    if (el.tool !== "Ellipse") return "";
-    /** @type {ShapeElement} */
-    const shape = el;
-    const cx = Math.round((shape.x2 + shape.x) / 2);
-    const cy = Math.round((shape.y2 + shape.y) / 2);
-    const rx = Math.abs(shape.x2 - shape.x) / 2;
-    const ry = Math.abs(shape.y2 - shape.y) / 2;
-    const pathstring =
-      "M" +
-      (cx - rx) +
-      " " +
-      cy +
-      "a" +
-      rx +
-      "," +
-      ry +
-      " 0 1,0 " +
-      rx * 2 +
-      ",0" +
-      "a" +
-      rx +
-      "," +
-      ry +
-      " 0 1,0 " +
-      rx * -2 +
-      ",0";
-    return renderPath(shape, pathstring);
-  },
-  /**
-   * @param {RenderableElement} el
-   * @return {string}
-   */
-  "Straight line": (el) => {
-    if (el.tool !== "Straight line") return "";
-    /** @type {ShapeElement} */
-    const shape = el;
-    const pathstring = `M${shape.x} ${shape.y}L${shape.x2} ${shape.y2}`;
-    return renderPath(shape, pathstring);
-  },
-};
-
-/**
- * @param {RenderableElement} elem
- * @returns {Point | null}
- */
-function originPointForBounds(elem) {
-  if (elem.tool === "Pencil") {
-    const firstPoint = elem._children?.[0];
-    return firstPoint || null;
-  }
-  if (elem.tool === "Text") {
-    return { x: elem.x, y: elem.y };
-  }
-  return { x: elem.x, y: elem.y };
-}
-
-/**
  * Writes the given board as an svg to the given writeable stream
  * @param {RenderableBoard} obj
  * @param {WritableTarget} writeable
  * @returns {Promise<void>}
  */
 async function toSVG(obj, writeable) {
-  const margin = 400;
+  const margin = 4000;
   const elems = Object.values(obj);
   const dim = elems.reduce(
     /**
@@ -448,15 +99,15 @@ async function toSVG(obj, writeable) {
      * @returns {[number, number]}
      */
     (dim, elem) => {
-      const point = originPointForBounds(elem);
-      if (!point) return dim;
+      const bounds = MessageCommon.getLocalGeometryBounds(elem);
+      if (!bounds) return dim;
       return [
         Math.max(
-          (point.x + margin + (numberOrZero(elem.deltax) | 0)) | 0,
+          (bounds.maxX + margin + (numberOrZero(elem.deltax) | 0)) | 0,
           dim[0],
         ),
         Math.max(
-          (point.y + margin + (numberOrZero(elem.deltay) | 0)) | 0,
+          (bounds.maxY + margin + (numberOrZero(elem.deltay) | 0)) | 0,
           dim[1],
         ),
       ];
@@ -482,12 +133,21 @@ async function toSVG(obj, writeable) {
     }
     const elem = elems[index];
     if (!elem) continue;
-    const renderFun = Tools[elem.tool];
-    if (renderFun) writeable.write(renderFun(elem));
-    else
+    const contract = TOOL_BY_ID[elem.tool];
+    if (typeof contract?.renderBoardSvg === "function") {
+      writeable.write(
+        contract.renderBoardSvg(elem, {
+          htmlspecialchars,
+          numberOrZero,
+          renderPath,
+          renderTranslate,
+        }),
+      );
+    } else {
       logger.warn("svg.renderer_missing", {
         tool: elem.tool,
       });
+    }
   }
   writeable.write("</svg>");
 }
@@ -515,7 +175,7 @@ export async function renderBoardToSVG(file) {
       const data = await fsp.readFile(file, "utf8");
       /** @type {RenderableBoard} */
       const board = /** @type {RenderableBoard} */ (
-        parseStoredBoard(JSON.parse(data)).board
+        parseLegacyStoredBoard(JSON.parse(data)).board
       );
       /** @type {string[]} */
       const chunks = [];

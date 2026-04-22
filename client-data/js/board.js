@@ -24,7 +24,8 @@
  * @licend
  */
 
-import BoardMessageReplay from "./board_message_replay.js";
+import { optimisticPrunePlanForAuthoritativeMessage } from "./authoritative_mutation_effects.js";
+import * as BoardMessageReplay from "./board_message_replay.js";
 import {
   drainPendingMessages,
   getRequiredElement,
@@ -32,9 +33,12 @@ import {
   normalizeBoardState,
   parseEmbeddedJson,
   resolveBoardName,
-  shouldDisplayTool as shouldDisplayBoardTool,
   updateRecentBoards,
 } from "./board_page_state.js";
+import {
+  buildBoardSvgBaselineUrl,
+  parseServedBaselineSvgText,
+} from "./board_svg_baseline.js";
 import {
   connection as BoardConnection,
   messages as BoardMessages,
@@ -42,21 +46,30 @@ import {
 } from "./board_transport.js";
 import MessageCommon from "./message_common.js";
 import {
-  hasMessageId,
-  hasMessageNewId,
-  isTextUpdateMessage,
-} from "./message_shape.js";
+  getTool,
+  getMutationType,
+  getToolId,
+  MutationType,
+} from "./message_tool_metadata.js";
+import { hasMessageId, hasMessageNewId } from "./message_shape.js";
 import Minitpl from "./minitpl.js";
+import { createOptimisticJournal } from "./optimistic_journal.js";
+import {
+  collectOptimisticAffectedIds,
+  collectOptimisticDependencyIds,
+} from "./optimistic_mutation.js";
 import RateLimitCommon from "./rate_limit_common.js";
 import {
+  getToolIconPath,
   getToolModuleImportPath,
   getToolRuntimeAssetPath,
-} from "./tool_assets.js";
-import { getToolCatalogEntry } from "./tool_catalog.js";
+  getToolStylesheetPath,
+} from "../tools/tool-defaults.js";
+import { Hand, TOOL_BY_ID, TOOLS } from "../tools/index.js";
 
 /** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
-/** @typedef {import("../../types/app-runtime").AppTool} AppTool */
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
+/** @typedef {import("../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
 /** @typedef {import("../../types/app-runtime").BufferedWrite} BufferedWrite */
 /** @typedef {import("../../types/app-runtime").BoardStatusView} BoardStatusView */
@@ -68,24 +81,51 @@ import { getToolCatalogEntry } from "./tool_catalog.js";
 /** @typedef {import("../../types/app-runtime").RateLimitKind} RateLimitKind */
 /** @typedef {import("../../types/app-runtime").ServerConfig} ServerConfig */
 /** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
+/** @typedef {import("../../types/app-runtime").CompiledToolListeners} CompiledToolListeners */
 /** @typedef {import("../../types/app-runtime").MountedAppTool} MountedAppTool */
-/** @typedef {import("../../types/app-runtime").ToolPalette} ToolPalette */
 /** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
 /** @typedef {import("../../types/app-runtime").ToolPointerListeners} ToolPointerListeners */
-/** @typedef {import("../../types/app-runtime").ToolClass} ToolClass */
+/** @typedef {import("../../types/app-runtime").ToolModule} ToolModule */
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
-/** @typedef {import("../../types/app-runtime").ToolRuntime} ToolRuntime */
 /** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
 /** @typedef {import("../../types/app-runtime").BoardConnectionState} BoardConnectionState */
+/** @typedef {import("../../types/app-runtime").OptimisticJournalEntry} OptimisticJournalEntry */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
+
+/**
+ * @param {unknown} tool
+ * @returns {string | undefined}
+ */
+function getRuntimeToolId(tool) {
+  return getToolId(/** @type {string | number | undefined} */ (tool));
+}
+
+/**
+ * @param {unknown} tool
+ * @param {string} expectedToolId
+ * @returns {boolean}
+ */
+function isRuntimeTool(tool, expectedToolId) {
+  return getTool(tool)?.id === TOOL_BY_ID[expectedToolId]?.id;
+}
 // Keep a bounded safety margin between the client-side local budget and the
-// server's fixed window to absorb emit/receive skew without a fixed 1s pause.
-const RATE_LIMIT_FLUSH_SAFETY_MIN_MS = 150;
-const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 750;
-/** @type {RateLimitKind[]} */
-const RATE_LIMIT_KINDS = ["general", "constructive", "destructive"];
+// server's fixed window to absorb emit/receive skew. The buffer must be large
+// enough that a queued write does not reconnect-loop under load by landing just
+// before the server window resets.
+const RATE_LIMIT_FLUSH_SAFETY_MIN_MS = 250;
+const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 1500;
+const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
+  RateLimitCommon.RATE_LIMIT_KINDS
+);
+const DEFAULT_BOARD_SCALE = 0.1;
+const MIN_BOARD_SCALE = 0.01;
+const MAX_BOARD_SCALE = 1;
+const VIEWPORT_HASH_SCALE_DECIMALS = 3;
+const RESIZE_CANVAS_MARGIN = 20000;
+const DEFAULT_INITIAL_SIZE = 40;
+const DEFAULT_INITIAL_OPACITY = 1;
 
 /**
  * @param {string} elementId
@@ -121,30 +161,6 @@ function getRequiredToolButtonParts(toolName) {
 }
 
 /**
- * @param {string} toolName
- * @returns {{button: HTMLElement, primaryIcon: HTMLImageElement, secondaryIcon: HTMLImageElement | null, label: HTMLElement} | null}
- */
-function getToolButtonParts(toolName) {
-  const button = document.getElementById(`toolID-${toolName}`);
-  if (!(button instanceof HTMLElement)) return null;
-  const primaryIcon = /** @type {HTMLImageElement | null} */ (
-    button.querySelector(".tool-icon")
-  );
-  const label = /** @type {HTMLElement | null} */ (
-    button.querySelector(".tool-name")
-  );
-  if (!primaryIcon || !label) return null;
-  return {
-    button: button,
-    primaryIcon: primaryIcon,
-    secondaryIcon: /** @type {HTMLImageElement | null} */ (
-      button.querySelector(".secondaryIcon")
-    ),
-    label: label,
-  };
-}
-
-/**
  * @param {EventTarget | null} target
  * @returns {target is HTMLInputElement | HTMLTextAreaElement}
  */
@@ -162,18 +178,72 @@ function blurActiveElement() {
 }
 
 /**
- * @param {unknown} value
- * @returns {value is ToolClass}
+ * @param {SVGSVGElement} svg
+ * @returns {{authoritativeSeq: number, drawingArea: SVGGElement}}
  */
-function isToolClass(value) {
-  return !!(
-    value &&
-    typeof value === "function" &&
-    "toolName" in value &&
-    typeof value.toolName === "string" &&
-    "boot" in value &&
-    typeof value.boot === "function"
+function readInlineBaseline(svg) {
+  const drawingArea = svg.getElementById("drawingArea");
+  if (!(drawingArea instanceof SVGGElement)) {
+    throw new Error("Missing required element: #drawingArea");
+  }
+  return {
+    authoritativeSeq: BoardMessageReplay.normalizeSeq(
+      svg.getAttribute("data-wbo-seq"),
+    ),
+    drawingArea: drawingArea,
+  };
+}
+
+/**
+ * @param {Document} document
+ * @returns {Promise<void>}
+ */
+export async function attachBoardDom(document) {
+  /**
+   * @param {string} elementId
+   * @returns {Promise<Element>}
+   */
+  const waitForElement = (elementId) => {
+    const existing = document.getElementById(elementId);
+    if (existing) return Promise.resolve(existing);
+    return new Promise((resolve) => {
+      const observer = new MutationObserver(() => {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+        observer.disconnect();
+        resolve(element);
+      });
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+    });
+  };
+  const [boardElement, canvasElement] = await Promise.all([
+    waitForElement("board"),
+    waitForElement("canvas"),
+  ]);
+  if (!(boardElement instanceof HTMLElement)) {
+    throw new Error("Missing required element: #board");
+  }
+  if (!(canvasElement instanceof SVGSVGElement)) {
+    throw new Error("Missing required element: #canvas");
+  }
+  const baseline = readInlineBaseline(canvasElement);
+  Tools.board = boardElement;
+  Tools.svg = canvasElement;
+  Tools.drawingArea = baseline.drawingArea;
+  Tools.authoritativeSeq = baseline.authoritativeSeq;
+  Tools.svg.width.baseVal.value = Math.max(
+    Tools.svg.width.baseVal.value,
+    document.body.clientWidth,
   );
+  Tools.svg.height.baseVal.value = Math.max(
+    Tools.svg.height.baseVal.value,
+    document.body.clientHeight,
+  );
+  normalizeServerRenderedElements();
+  Tools.tryStartReplaySync();
 }
 
 Tools.i18n = (function i18n() {
@@ -189,19 +259,50 @@ Tools.i18n = (function i18n() {
   };
 })();
 
-Tools.server_config = /** @type {ServerConfig} */ (
-  parseEmbeddedJson("configuration", {})
-);
-Tools.assetVersion = document.documentElement.dataset.version || "";
+Tools.server_config = /** @type {ServerConfig} */ ({});
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+Tools.toBoardCoordinate = function toBoardCoordinate(value) {
+  return MessageCommon.clampCoord(value, Tools.server_config.MAX_BOARD_SIZE);
+};
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+Tools.pageCoordinateToBoard = function pageCoordinateToBoard(value) {
+  const screenCoordinate = Number(value);
+  if (!Number.isFinite(screenCoordinate)) return 0;
+  return Tools.toBoardCoordinate(screenCoordinate / Tools.getScale());
+};
 
 /**
  * @param {string} assetPath
  * @returns {string}
  */
-Tools.versionAssetPath = function versionAssetPath(assetPath) {
-  if (!Tools.assetVersion) return assetPath;
-  const separator = assetPath.includes("?") ? "&" : "?";
-  return `${assetPath}${separator}v=${encodeURIComponent(Tools.assetVersion)}`;
+function normalizeBoardAssetPath(assetPath) {
+  if (
+    assetPath.startsWith("./") ||
+    assetPath.startsWith("../") ||
+    assetPath.startsWith("/") ||
+    assetPath.startsWith("data:") ||
+    assetPath.startsWith("http://") ||
+    assetPath.startsWith("https://")
+  ) {
+    return assetPath;
+  }
+  return `../${assetPath}`;
+}
+
+/**
+ * @param {string} assetPath
+ * @returns {string}
+ */
+Tools.resolveAssetPath = function resolveAssetPath(assetPath) {
+  return normalizeBoardAssetPath(assetPath);
 };
 
 /**
@@ -210,11 +311,12 @@ Tools.versionAssetPath = function versionAssetPath(assetPath) {
  * @returns {string}
  */
 Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
-  return Tools.versionAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
+  return Tools.resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
 };
 
-Tools.readOnlyToolNames = new Set(["Hand", "Grid", "Download", "Zoom"]);
-Tools.toolClasses = /** @type {AppToolsState["toolClasses"]} */ ({});
+Tools.readOnlyToolNames = new Set(
+  TOOLS.filter((tool) => tool.visibleWhenReadOnly).map((tool) => tool.toolId),
+);
 Tools.bootedToolPromises =
   /** @type {AppToolsState["bootedToolPromises"]} */ ({});
 Tools.bootedToolNames = new Set();
@@ -225,12 +327,17 @@ Tools.turnstilePending = false;
 Tools.turnstilePendingWrites = [];
 Tools.bufferedWrites = [];
 Tools.bufferedWriteTimer = null;
+Tools.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
 Tools.rateLimitedUntil = 0;
+Tools.localRateLimitedUntil = 0;
 Tools.rateLimitNoticeTimer = null;
-Tools.rateLimitNoticeMessage = "";
+Tools.boardStatusTimer = null;
+Tools.explicitBoardStatus = null;
 Tools.awaitingBoardSnapshot = true;
+Tools.awaitingSyncReplay = false;
 Tools.hasAuthoritativeBoardSnapshot = false;
-Tools.snapshotRevision = 0;
+Tools.authoritativeSeq = 0;
+Tools.optimisticJournal = createOptimisticJournal();
 Tools.preSnapshotMessages = [];
 Tools.incomingBroadcastQueue = [];
 Tools.processingIncomingBroadcast = false;
@@ -239,6 +346,7 @@ Tools.localRateLimitStates = {
   general: RateLimitCommon.createRateLimitState(Date.now()),
   constructive: RateLimitCommon.createRateLimitState(Date.now()),
   destructive: RateLimitCommon.createRateLimitState(Date.now()),
+  text: RateLimitCommon.createRateLimitState(Date.now()),
 };
 
 /** @param {BoardMessage} message */
@@ -247,41 +355,54 @@ Tools.cloneMessage = function cloneMessage(message) {
   return /** @type {BoardMessage} */ (JSON.parse(JSON.stringify(message)));
 };
 
-function getLoadingMessage() {
-  return document.getElementById("loadingMessage");
+function initializeShellControls() {
+  const colorChooser = getRequiredInput("chooseColor");
+  const sizeChooser = getRequiredInput("chooseSize");
+  const opacityChooser = getRequiredInput("chooseOpacity");
+  const opacityIndicator = getRequiredElement("opacityIndicator");
+  const opacityIndicatorFill =
+    document.getElementById("opacityIndicatorFill") || opacityIndicator;
+
+  Tools.color_chooser = colorChooser;
+  colorChooser.value = Tools.currentColor;
+  colorChooser.onchange = colorChooser.oninput = () => {
+    Tools.setColor(colorChooser.value);
+  };
+
+  sizeChooser.value = String(Tools.currentSize);
+  sizeChooser.onchange = sizeChooser.oninput = () => {
+    Tools.setSize(sizeChooser.value);
+  };
+
+  const updateOpacity = () => {
+    Tools.currentOpacity = MessageCommon.clampOpacity(opacityChooser.value);
+    opacityChooser.value = String(Tools.currentOpacity);
+    opacityIndicatorFill.setAttribute("opacity", String(Tools.currentOpacity));
+  };
+  Tools.colorChangeHandlers.push(
+    /** @param {string} color */ (color) => {
+      opacityIndicatorFill.setAttribute("fill", color);
+    },
+  );
+  opacityChooser.value = String(Tools.currentOpacity);
+  updateOpacity();
+  opacityChooser.onchange = opacityChooser.oninput = updateOpacity;
+
+  if (!Tools.colorButtonsInitialized) {
+    Tools.colorButtonsInitialized = true;
+    Tools.colorPresets.forEach(addColorButton);
+  }
+  Tools.setColor(Tools.currentColor);
+  Tools.setSize(Tools.currentSize);
 }
 
-function getBoardStatusIndicator() {
-  return document.getElementById("boardStatusIndicator");
+function getBoardStatusElements() {
+  return {
+    indicator: document.getElementById("boardStatusIndicator"),
+    title: document.getElementById("boardStatusTitle"),
+    notice: document.getElementById("boardStatusNotice"),
+  };
 }
-
-function getBoardStatusTitle() {
-  return document.getElementById("boardStatusTitle");
-}
-
-function getBoardStatusNotice() {
-  return document.getElementById("boardStatusNotice");
-}
-
-/**
- * @param {unknown} value
- * @returns {ConfiguredRateLimitDefinition}
- */
-function toRateLimitDefinition(value) {
-  return value && typeof value === "object"
-    ? /** @type {ConfiguredRateLimitDefinition} */ (value)
-    : {};
-}
-
-Tools.showLoadingMessage = function showLoadingMessage() {
-  const loadingEl = getLoadingMessage();
-  if (loadingEl) loadingEl.classList.remove("hidden");
-};
-
-Tools.hideLoadingMessage = function hideLoadingMessage() {
-  const loadingEl = getLoadingMessage();
-  if (loadingEl) loadingEl.classList.add("hidden");
-};
 
 /**
  * @param {RateLimitKind} kind
@@ -311,14 +432,16 @@ Tools.getEffectiveRateLimit = function getEffectiveRateLimit(kind) {
 
 /**
  * @param {BoardMessage} message
- * @returns {{general: number, constructive: number, destructive: number}}
+ * @returns {import("../../types/app-runtime").RateLimitCosts}
  */
 Tools.getBufferedWriteCosts = function getBufferedWriteCosts(message) {
-  return {
-    general: 1,
-    constructive: RateLimitCommon.countConstructiveActions(message),
-    destructive: RateLimitCommon.countDestructiveActions(message),
-  };
+  return RATE_LIMIT_KINDS.reduce(
+    (costs, kind) => {
+      costs[kind] = RateLimitCommon.getRateLimitCost(kind, message);
+      return costs;
+    },
+    /** @type {import("../../types/app-runtime").RateLimitCosts} */ ({}),
+  );
 };
 
 Tools.clearBufferedWriteTimer = function clearBufferedWriteTimer() {
@@ -332,6 +455,13 @@ Tools.clearRateLimitNoticeTimer = function clearRateLimitNoticeTimer() {
   if (Tools.rateLimitNoticeTimer) {
     clearTimeout(Tools.rateLimitNoticeTimer);
     Tools.rateLimitNoticeTimer = null;
+  }
+};
+
+Tools.clearBoardStatusTimer = function clearBoardStatusTimer() {
+  if (Tools.boardStatusTimer) {
+    clearTimeout(Tools.boardStatusTimer);
+    Tools.boardStatusTimer = null;
   }
 };
 
@@ -352,6 +482,17 @@ Tools.canBufferWrites = function canBufferWrites() {
   );
 };
 
+Tools.whenBoardWritable = function whenBoardWritable() {
+  if (Tools.canBufferWrites()) return Promise.resolve();
+  return new Promise(
+    /** @param {(value?: void | PromiseLike<void>) => void} resolve */ (
+      resolve,
+    ) => {
+      Tools.writeReadyWaiters.push(() => resolve());
+    },
+  );
+};
+
 /**
  * @param {string} message
  * @param {number} retryAfterMs
@@ -361,9 +502,13 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
   message,
   retryAfterMs,
 ) {
-  Tools.rateLimitNoticeMessage = message;
-  Tools.syncWriteStatusIndicator();
   Tools.clearRateLimitNoticeTimer();
+  Tools.showBoardStatus({
+    hidden: false,
+    state: "paused",
+    title: Tools.i18n.t("slow_down_briefly"),
+    detail: message,
+  });
   if (retryAfterMs > 0) {
     Tools.rateLimitNoticeTimer = setTimeout(function hideRateLimitNotice() {
       Tools.hideRateLimitNotice();
@@ -373,33 +518,46 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
 
 Tools.hideRateLimitNotice = function hideRateLimitNotice() {
   Tools.clearRateLimitNoticeTimer();
-  Tools.rateLimitNoticeMessage = "";
+  Tools.clearBoardStatus();
+};
+
+/**
+ * @param {BoardStatusView} view
+ * @param {number} [durationMs]
+ */
+Tools.showBoardStatus = function showBoardStatus(view, durationMs) {
+  Tools.clearBoardStatusTimer();
+  Tools.explicitBoardStatus = view;
+  Tools.syncWriteStatusIndicator();
+  if (durationMs && durationMs > 0) {
+    Tools.boardStatusTimer = setTimeout(() => {
+      Tools.clearBoardStatus();
+    }, durationMs);
+  }
+};
+
+Tools.clearBoardStatus = function clearBoardStatus() {
+  Tools.clearBoardStatusTimer();
+  Tools.explicitBoardStatus = null;
   Tools.syncWriteStatusIndicator();
 };
 
 /** @returns {BoardStatusView} */
 Tools.getBoardStatusView = function getBoardStatusView() {
-  if (Tools.rateLimitNoticeMessage) {
-    return {
-      hidden: false,
-      state: "paused",
-      title: Tools.i18n.t("slow_down_briefly"),
-      detail: Tools.rateLimitNoticeMessage,
-    };
-  }
-  if (Tools.connectionState !== "connected") {
-    if (!Tools.hasAuthoritativeBoardSnapshot) {
-      return {
-        hidden: true,
-        state: "hidden",
-        title: "",
-        detail: "",
-      };
-    }
+  if (Tools.explicitBoardStatus) return Tools.explicitBoardStatus;
+  if (Tools.connectionState !== "connected" || Tools.awaitingBoardSnapshot) {
     return {
       hidden: false,
       state: "reconnecting",
       title: Tools.i18n.t("loading"),
+      detail: "",
+    };
+  }
+  if (Tools.localRateLimitedUntil > Date.now()) {
+    return {
+      hidden: false,
+      state: "paused",
+      title: Tools.i18n.t("slow_down_briefly"),
       detail: "",
     };
   }
@@ -420,9 +578,11 @@ Tools.getBoardStatusView = function getBoardStatusView() {
 };
 
 Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
-  const indicator = getBoardStatusIndicator();
-  const title = getBoardStatusTitle();
-  const notice = getBoardStatusNotice();
+  if (Tools.canBufferWrites() && Tools.writeReadyWaiters.length > 0) {
+    const waiters = Tools.writeReadyWaiters.splice(0);
+    waiters.forEach((resolve) => resolve());
+  }
+  const { indicator, title, notice } = getBoardStatusElements();
   if (!indicator || !title || !notice) return;
 
   const view = Tools.getBoardStatusView();
@@ -444,6 +604,7 @@ Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
 };
 
 Tools.clearBoardCursors = function clearBoardCursors() {
+  if (!Tools.svg) return;
   const cursors = Tools.svg.getElementById("cursors");
   if (cursors) cursors.innerHTML = "";
 };
@@ -454,7 +615,7 @@ Tools.resetBoardViewport = function resetBoardViewport() {
 };
 
 Tools.restoreLocalCursor = function restoreLocalCursor() {
-  const cursorTool = Tools.list.Cursor;
+  const cursorTool = Tools.list.cursor;
   if (!cursorTool) return;
   const message =
     "message" in cursorTool && cursorTool.message
@@ -463,6 +624,230 @@ Tools.restoreLocalCursor = function restoreLocalCursor() {
   if (!message) return;
   cursorTool.draw(message, true);
 };
+
+/**
+ * @param {BoardMessage} message
+ * @returns {{kind: "drawing-area", markup: string} | {kind: "items", snapshots: Array<{id: string, outerHTML: string | null, nextSiblingId: string | null}>}}
+ */
+Tools.captureOptimisticRollback = function captureOptimisticRollback(message) {
+  if (getMutationType(message) === MutationType.CLEAR) {
+    return {
+      kind: "drawing-area",
+      markup: Tools.drawingArea?.innerHTML || "",
+    };
+  }
+  return {
+    kind: "items",
+    snapshots: collectOptimisticAffectedIds(message).map((itemId) => {
+      const svg = Tools.svg;
+      if (!svg) {
+        return {
+          id: itemId,
+          outerHTML: null,
+          nextSiblingId: null,
+        };
+      }
+      const current = svg.getElementById(itemId);
+      return {
+        id: itemId,
+        outerHTML: current ? current.outerHTML : null,
+        nextSiblingId:
+          current && current.nextElementSibling
+            ? current.nextElementSibling.id || null
+            : null,
+      };
+    }),
+  };
+};
+
+/**
+ * @param {BoardMessage} message
+ * @returns {string[]}
+ */
+Tools.collectOptimisticDependencyMutationIds =
+  function collectOptimisticDependencyMutationIds(message) {
+    return Tools.optimisticJournal.dependencyMutationIdsForItemIds(
+      collectOptimisticDependencyIds(message),
+    );
+  };
+
+/**
+ * @param {BoardMessage} message
+ * @param {{kind: "drawing-area", markup: string} | {kind: "items", snapshots: Array<{id: string, outerHTML: string | null, nextSiblingId: string | null}>}} rollback
+ * @returns {void}
+ */
+Tools.trackOptimisticMutation = function trackOptimisticMutation(
+  message,
+  rollback,
+) {
+  if (typeof message.clientMutationId !== "string" || !message.clientMutationId)
+    return;
+  Tools.optimisticJournal.append({
+    clientMutationId: message.clientMutationId,
+    affectedIds: collectOptimisticAffectedIds(message),
+    dependsOn: Tools.collectOptimisticDependencyMutationIds(message),
+    dependencyItemIds: collectOptimisticDependencyIds(message),
+    rollback,
+    message,
+  });
+};
+
+/**
+ * @param {OptimisticJournalEntry[]} rejected
+ * @returns {void}
+ */
+Tools.applyRejectedOptimisticEntries = function applyRejectedOptimisticEntries(
+  rejected,
+) {
+  if (!Array.isArray(rejected) || rejected.length === 0) return;
+  rejected
+    .slice()
+    .reverse()
+    .forEach((entry) => {
+      Tools.restoreOptimisticRollback(entry.rollback);
+    });
+  Tools.restoreLocalCursor();
+};
+
+/**
+ * @param {{kind: "drawing-area", markup: string} | {kind: "items", snapshots: Array<{id: string, outerHTML: string | null, nextSiblingId: string | null}>}} rollback
+ * @returns {void}
+ */
+Tools.restoreOptimisticRollback = function restoreOptimisticRollback(rollback) {
+  if (!Tools.drawingArea) return;
+  if (rollback.kind === "drawing-area") {
+    Tools.drawingArea.innerHTML = rollback.markup;
+    return;
+  }
+  rollback.snapshots.forEach((snapshot) => {
+    const svg = Tools.svg;
+    if (!svg) return;
+    const current = svg.getElementById(snapshot.id);
+    if (snapshot.outerHTML === null) {
+      current?.remove();
+      return;
+    }
+    if (current) {
+      current.outerHTML = snapshot.outerHTML;
+      return;
+    }
+    const nextSibling = snapshot.nextSiblingId
+      ? svg.getElementById(snapshot.nextSiblingId)
+      : null;
+    if (nextSibling?.parentElement === Tools.drawingArea) {
+      nextSibling.insertAdjacentHTML("beforebegin", snapshot.outerHTML);
+    } else {
+      const drawingArea = Tools.drawingArea;
+      if (!drawingArea) return;
+      drawingArea.insertAdjacentHTML("beforeend", snapshot.outerHTML);
+    }
+  });
+};
+
+/**
+ * @param {string} clientMutationId
+ * @returns {void}
+ */
+Tools.promoteOptimisticMutation = function promoteOptimisticMutation(
+  clientMutationId,
+) {
+  if (Tools.optimisticJournal.promote(clientMutationId).length === 0) return;
+};
+
+/**
+ * @param {string} clientMutationId
+ * @returns {void}
+ */
+Tools.rejectOptimisticMutation = function rejectOptimisticMutation(
+  clientMutationId,
+) {
+  Tools.applyRejectedOptimisticEntries(
+    Tools.optimisticJournal.reject(clientMutationId),
+  );
+};
+
+/**
+ * @param {BoardMessage} message
+ * @returns {void}
+ */
+Tools.pruneOptimisticMutationsForAuthoritativeMessage =
+  function pruneOptimisticMutationsForAuthoritativeMessage(message) {
+    const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
+    if (prunePlan.reset) {
+      Tools.applyRejectedOptimisticEntries(Tools.optimisticJournal.reset());
+      return;
+    }
+    if (prunePlan.invalidatedIds.length === 0) {
+      return;
+    }
+    Tools.applyRejectedOptimisticEntries(
+      Tools.optimisticJournal.rejectByInvalidatedIds(prunePlan.invalidatedIds),
+    );
+  };
+
+Tools.applyAuthoritativeBaseline =
+  /**
+   * @param {import("../../types/app-runtime").AuthoritativeBaseline} baseline
+   */
+  function applyAuthoritativeBaseline(baseline) {
+    const svg = Tools.svg;
+    if (!svg) return;
+    Tools.hasAuthoritativeBoardSnapshot = true;
+    Tools.authoritativeSeq = baseline.seq;
+    Tools.optimisticJournal.reset();
+    svg.setAttribute("data-wbo-seq", String(baseline.seq));
+    svg.setAttribute("data-wbo-readonly", baseline.readonly ? "true" : "false");
+    if (Tools.drawingArea) {
+      Tools.drawingArea.innerHTML = baseline.drawingAreaMarkup;
+      normalizeServerRenderedElements();
+    }
+  };
+
+/**
+ * @param {MountedAppTool} tool
+ * @returns {void}
+ */
+function normalizeServerRenderedElementsForTool(tool) {
+  if (!Tools.drawingArea) return;
+  const selector = tool.serverRenderedElementSelector;
+  const normalizeElement = tool.normalizeServerRenderedElement;
+  if (!selector || typeof normalizeElement !== "function") return;
+
+  Tools.drawingArea.querySelectorAll(selector).forEach((element) => {
+    if (element instanceof SVGElement) {
+      normalizeElement.call(tool, element);
+    }
+  });
+}
+
+function normalizeServerRenderedElements() {
+  Object.values(Tools.list).forEach((tool) => {
+    normalizeServerRenderedElementsForTool(tool);
+  });
+}
+
+Tools.refreshAuthoritativeBaseline =
+  async function refreshAuthoritativeBaseline() {
+    const response = await fetch(
+      buildBoardSvgBaselineUrl(
+        window.location.pathname,
+        window.location.search,
+      ),
+      {
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { Accept: "image/svg+xml" },
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Baseline fetch failed with HTTP ${response.status}`);
+    }
+    const baseline = parseServedBaselineSvgText(
+      await response.text(),
+      new DOMParser(),
+    );
+    Tools.applyAuthoritativeBaseline(baseline);
+  };
 
 /**
  * @param {RateLimitKind} kind
@@ -482,6 +867,7 @@ Tools.resetAllLocalRateLimitStates = function resetAllLocalRateLimitStates(
   Tools.resetLocalRateLimitState("general", now);
   Tools.resetLocalRateLimitState("constructive", now);
   Tools.resetLocalRateLimitState("destructive", now);
+  Tools.resetLocalRateLimitState("text", now);
 };
 
 /**
@@ -574,10 +960,7 @@ Tools.getBufferedWriteFlushSafetyMs = function getBufferedWriteFlushSafetyMs(
 ) {
   return Math.min(
     RATE_LIMIT_FLUSH_SAFETY_MAX_MS,
-    Math.max(
-      RATE_LIMIT_FLUSH_SAFETY_MIN_MS,
-      Math.ceil(Math.max(0, waitMs) * 0.5),
-    ),
+    Math.max(RATE_LIMIT_FLUSH_SAFETY_MIN_MS, Math.ceil(Math.max(0, waitMs))),
   );
 };
 
@@ -592,6 +975,7 @@ Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
   if (!nextWrite) return;
   const now = Date.now();
   const waitMs = Tools.getBufferedWriteWaitMs(nextWrite, now);
+  Tools.localRateLimitedUntil = waitMs > 0 ? now + waitMs : 0;
   Tools.bufferedWriteTimer = setTimeout(
     function flushBufferedWrites() {
       Tools.flushBufferedWrites();
@@ -604,6 +988,7 @@ Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
 /** @returns {void} */
 Tools.flushBufferedWrites = function flushBufferedWrites() {
   Tools.clearBufferedWriteTimer();
+  Tools.localRateLimitedUntil = 0;
   if (!Tools.canBufferWrites()) {
     Tools.syncWriteStatusIndicator();
     return;
@@ -673,7 +1058,8 @@ Tools.discardBufferedWrites = function discardBufferedWrites() {
 
 Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.awaitingBoardSnapshot = true;
-  Tools.snapshotRevision = 0;
+  Tools.awaitingSyncReplay = true;
+  Tools.optimisticJournal.reset();
   Tools.preSnapshotMessages = [];
   Tools.incomingBroadcastQueue = [];
   Tools.processingIncomingBroadcast = false;
@@ -686,11 +1072,6 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
   Tools.renderConnectedUsers();
   Tools.clearBoardCursors();
-  if (Tools.hasAuthoritativeBoardSnapshot) {
-    Tools.hideLoadingMessage();
-  } else {
-    Tools.showLoadingMessage();
-  }
   Object.values(Tools.list || {}).forEach((tool) => {
     if (tool) tool.onSocketDisconnect();
   });
@@ -699,7 +1080,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
 
 /**
  * @param {BoardMessage} data
- * @param {AppTool} tool
+ * @param {MountedAppTool} tool
  */
 Tools.queueProtectedWrite = function queueProtectedWrite(data, tool) {
   Tools.turnstilePendingWrites.push({
@@ -727,11 +1108,14 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
  * @returns {void}
  */
 function finalizeIncomingBroadcast(msg, processed) {
+  const activityMessage = /** @type {BoardMessage} */ (
+    BoardMessageReplay.unwrapReplayMessage(msg)
+  );
   if (processed) {
-    Tools.updateConnectedUsersFromActivity(msg.userId, msg);
-  }
-  if (!Tools.awaitingBoardSnapshot) {
-    Tools.hideLoadingMessage();
+    Tools.updateConnectedUsersFromActivity(
+      activityMessage.userId,
+      activityMessage,
+    );
   }
   Tools.syncWriteStatusIndicator();
 }
@@ -741,36 +1125,51 @@ function finalizeIncomingBroadcast(msg, processed) {
  * @returns {Promise<boolean>}
  */
 async function processIncomingBroadcast(msg) {
+  const isPersistentEnvelope = BoardMessageReplay.isPersistentEnvelope(msg);
+  if (isPersistentEnvelope) {
+    const seqDisposition = BoardMessageReplay.classifyPersistentEnvelopeSeq(
+      msg.seq,
+      Tools.authoritativeSeq,
+    );
+    if (seqDisposition === "stale") {
+      return false;
+    }
+    if (seqDisposition !== "next") {
+      console.warn("Persistent replay gap detected", {
+        authoritativeSeq: Tools.authoritativeSeq,
+        incomingSeq: msg.seq,
+      });
+      Tools.beginAuthoritativeResync();
+      Tools.startConnection();
+      return false;
+    }
+  }
   if (
     BoardMessageReplay.shouldBufferLiveMessage(msg, Tools.awaitingBoardSnapshot)
   ) {
     Tools.preSnapshotMessages.push(Tools.cloneMessage(msg));
     return false;
   }
-
+  const replayMessage = /** @type {BoardMessage} */ (
+    BoardMessageReplay.unwrapReplayMessage(msg)
+  );
+  const isOwnSeqEnvelope =
+    isPersistentEnvelope && replayMessage.socket === Tools.socket?.id;
   if (
-    Tools.awaitingBoardSnapshot &&
-    BoardMessageReplay.isSnapshotMessage(msg)
+    isOwnSeqEnvelope &&
+    typeof replayMessage.clientMutationId === "string" &&
+    replayMessage.clientMutationId
   ) {
-    Tools.resetBoardViewport();
+    Tools.promoteOptimisticMutation(replayMessage.clientMutationId);
   }
-
-  await handleMessage(msg);
-  if (
-    Tools.awaitingBoardSnapshot &&
-    BoardMessageReplay.isSnapshotMessage(msg)
-  ) {
-    Tools.hasAuthoritativeBoardSnapshot = true;
-    Tools.snapshotRevision = BoardMessageReplay.normalizeRevision(msg.revision);
-    Tools.awaitingBoardSnapshot = false;
-    Tools.flushBufferedWrites();
-    Tools.incomingBroadcastQueue =
-      BoardMessageReplay.filterBufferedMessagesAfterSnapshot(
-        Tools.preSnapshotMessages,
-        Tools.snapshotRevision,
-      ).concat(Tools.incomingBroadcastQueue);
-    Tools.preSnapshotMessages = [];
-    Tools.restoreLocalCursor();
+  if (isPersistentEnvelope && !isOwnSeqEnvelope) {
+    Tools.pruneOptimisticMutationsForAuthoritativeMessage(replayMessage);
+  }
+  if (!isOwnSeqEnvelope) {
+    await handleMessage(replayMessage);
+  }
+  if (isPersistentEnvelope) {
+    Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(msg.seq);
   }
   return true;
 }
@@ -802,7 +1201,7 @@ function enqueueIncomingBroadcast(msg) {
   void drainIncomingBroadcastQueue();
 }
 
-Tools.scale = 1.0;
+Tools.scale = DEFAULT_BOARD_SCALE;
 Tools.drawToolsAllowed = null;
 
 if (Tools.server_config.TURNSTILE_SITE_KEY) {
@@ -891,6 +1290,7 @@ Tools.ensureTurnstileElements = function ensureTurnstileElements() {
 
 Tools.showTurnstileOverlayTimeout = null;
 const TURNSTILE_ACK_TIMEOUT_MS = 10_000;
+const TURNSTILE_ERROR_RELOAD_DELAY_MS = 2_000;
 
 /** @param {number} delay */
 Tools.showTurnstileOverlay = function showTurnstileOverlay(delay) {
@@ -915,8 +1315,19 @@ Tools.hideTurnstileOverlay = function hideTurnstileOverlay() {
 
 /** @param {unknown} errorCode */
 function handleTurnstileError(errorCode) {
-  alert(`Turnstile verification failed: ${errorCode}`);
-  location.reload();
+  const detail =
+    typeof errorCode === "string" && errorCode
+      ? `Please reload the board if this keeps happening. Error code: ${errorCode}.`
+      : "Please reload the board if this keeps happening.";
+  Tools.showBoardStatus({
+    hidden: false,
+    state: "paused",
+    title: "Security check failed",
+    detail: `${detail} Refreshing now...`,
+  });
+  setTimeout(() => {
+    location.reload();
+  }, TURNSTILE_ERROR_RELOAD_DELAY_MS);
 }
 
 /**
@@ -1029,7 +1440,7 @@ Tools.refreshTurnstile = function refreshTurnstile() {
 Tools.shouldDisableTool = function shouldDisableTool(toolName) {
   return (
     MessageCommon.isDrawTool(toolName) &&
-    !MessageCommon.isDrawToolAllowedAtScale(Tools.scale || 1)
+    !MessageCommon.isDrawToolAllowedAtScale(Tools.scale || DEFAULT_BOARD_SCALE)
   );
 };
 
@@ -1063,9 +1474,9 @@ Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
     !drawToolsAllowed &&
     Tools.curTool &&
     MessageCommon.isDrawTool(Tools.curTool.name) &&
-    Tools.list.Hand
+    Tools.list.hand
   ) {
-    Tools.change("Hand");
+    Tools.change("hand");
   }
 };
 
@@ -1095,43 +1506,20 @@ Tools.setBoardState = function setBoardState(state) {
     hideEditingTools &&
     Tools.curTool &&
     !Tools.shouldDisplayTool(Tools.curTool.name) &&
-    Tools.list.Hand
+    Tools.list.hand
   ) {
-    Tools.change("Hand");
+    Tools.change("hand");
   }
 };
 
 /** @param {string} toolName */
 Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
-  const hasServerRenderedToolbar =
-    document.querySelector("#tools > .tool[data-tool-name]") !== null;
-  if (hasServerRenderedToolbar) {
-    return getToolButton(toolName) !== null;
-  }
-  if (!getToolCatalogEntry(toolName)) return false;
-  return shouldDisplayBoardTool(
-    toolName,
-    Tools.boardState,
-    Tools.readOnlyToolNames,
-  );
+  return getToolButton(toolName) !== null;
 };
 
-Tools.setBoardState(
-  parseEmbeddedJson("board-state", {
-    readonly: false,
-    canWrite: true,
-  }),
-);
-
-Tools.resolveBoardName = function getBoardNameFromLocation() {
-  return resolveBoardName(window.location.pathname);
-};
-
-Tools.board = getRequiredElement("board");
-Tools.svg = /** @type {SVGSVGElement} */ (
-  /** @type {unknown} */ (getRequiredElement("canvas"))
-);
-Tools.drawingArea = Tools.svg.getElementById("drawingArea");
+Tools.board = null;
+Tools.svg = null;
+Tools.drawingArea = null;
 
 //Initialization
 Tools.curTool = null;
@@ -1145,39 +1533,6 @@ Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
 
 Tools.socket = null;
 Tools.hasConnectedOnce = false;
-Tools.socketIOExtraHeaders = (function loadSocketIOExtraHeaders() {
-  /** @type {SocketHeaders | null} */
-  let extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
-    window.socketio_extra_headers,
-  );
-  if (extraHeaders) {
-    window.socketio_extra_headers = extraHeaders;
-    return extraHeaders;
-  }
-  try {
-    const storedHeaders = sessionStorage.getItem("socketio_extra_headers");
-    if (storedHeaders) {
-      extraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
-        JSON.parse(storedHeaders),
-      );
-      if (extraHeaders) {
-        window.socketio_extra_headers = extraHeaders;
-        return extraHeaders;
-      }
-    }
-  } catch (err) {
-    console.warn("Unable to load Socket.IO extra headers", err);
-  }
-  return null;
-})();
-
-Tools.getInitialSocketQuery = function getInitialSocketQuery() {
-  return {
-    tool: "Hand",
-    color: getRequiredInput("chooseColor").value,
-    size: getRequiredInput("chooseSize").value,
-  };
-};
 
 Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
 Tools.connectedUsersPanelOpen = false;
@@ -1257,7 +1612,7 @@ function syncConnectedUsersToggleLabel() {
 function getConnectedUserDotSize(size) {
   const userSize = Number(size);
   if (!Number.isFinite(userSize) || userSize <= 0) return 8;
-  return Math.max(8, Math.min(18, 6 + userSize / 3));
+  return Math.max(8, Math.min(18, 6 + userSize / 30));
 }
 
 /**
@@ -1265,7 +1620,7 @@ function getConnectedUserDotSize(size) {
  * @returns {string}
  */
 function getConnectedUserToolLabel(user) {
-  return Tools.i18n.t(user.lastTool || "Hand");
+  return Tools.i18n.t(user.lastTool || "hand");
 }
 
 /**
@@ -1327,38 +1682,23 @@ function getRenderedElementBounds(element) {
 }
 
 /**
- * @param {string} elementId
- * @returns {{x: number, y: number} | null}
- */
-function getRenderedElementCenterById(elementId) {
-  const element = document.getElementById(elementId);
-  if (!(element instanceof SVGGraphicsElement)) return null;
-  return getBoundsCenter(getRenderedElementBounds(element));
-}
-
-/**
- * @param {BoardMessage} child
- * @returns {string | null}
- */
-function getHandChildTargetId(child) {
-  if (child.type === "update" && hasMessageId(child)) {
-    return child.id;
-  }
-  if (child.type === "copy" && hasMessageNewId(child)) {
-    return child.newid;
-  }
-  return null;
-}
-
-/**
  * @param {BoardMessage[]} children
  * @returns {{x: number, y: number} | null}
  */
-function getHandBatchFocusPoint(children) {
+function getBatchFocusPoint(children) {
   /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
   let bounds = null;
   children.forEach((child) => {
-    const targetId = getHandChildTargetId(child);
+    const targetId =
+      getMutationType(child) === MutationType.UPDATE
+        ? hasMessageId(child)
+          ? child.id
+          : null
+        : getMutationType(child) === MutationType.COPY
+          ? hasMessageNewId(child)
+            ? child.newid
+            : null
+          : null;
     if (!targetId) return;
     const element = document.getElementById(targetId);
     if (!(element instanceof SVGGraphicsElement)) return;
@@ -1384,22 +1724,26 @@ function getHandBatchFocusPoint(children) {
  */
 function getMessageFocusPoint(message) {
   if (BoardMessages.hasChildMessages(message)) {
-    if (message.tool === "Hand" && Array.isArray(message._children)) {
-      return getHandBatchFocusPoint(message._children);
+    if (Array.isArray(message._children)) {
+      return getBatchFocusPoint(message._children);
     }
     return null;
   }
 
-  if (message.tool === "Cursor" || message.tool === "Pencil") {
-    const pointX = toFiniteCoordinate(message.x);
-    const pointY = toFiniteCoordinate(message.y);
-    if (pointX !== null && pointY !== null) {
-      return { x: pointX, y: pointY };
-    }
+  const pointX = toFiniteCoordinate(message.x);
+  const pointY = toFiniteCoordinate(message.y);
+  if (pointX !== null && pointY !== null) {
+    return { x: pointX, y: pointY };
   }
 
-  if (isTextUpdateMessage(message)) {
-    return getRenderedElementCenterById(message.id);
+  if (
+    getMutationType(message) === MutationType.UPDATE &&
+    hasMessageId(message)
+  ) {
+    const element = document.getElementById(message.id);
+    return element instanceof SVGGraphicsElement
+      ? getBoundsCenter(getRenderedElementBounds(element))
+      : null;
   }
 
   return getBoundsCenter(
@@ -1452,7 +1796,7 @@ function getConnectedUserFocusHash(user) {
   return `#${Math.max(0, (x - window.innerWidth / (2 * scale)) | 0)},${Math.max(
     0,
     (y - window.innerHeight / (2 * scale)) | 0,
-  )},${scale.toFixed(1)}`;
+  )},${scale.toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
 }
 
 /**
@@ -1655,27 +1999,6 @@ function connectedUserMatchesActivity(user, userId, messageSocketId) {
 }
 
 /**
- * @param {BoardMessage} message
- * @param {{x: number, y: number} | null} focusPoint
- * @param {string | null} messageSocketId
- * @param {ConnectedUser} user
- * @returns {boolean}
- */
-function shouldUpdateConnectedUserFocus(
-  message,
-  focusPoint,
-  messageSocketId,
-  user,
-) {
-  return Boolean(
-    focusPoint &&
-      (message.tool !== "Cursor" ||
-        messageSocketId === null ||
-        messageSocketId === user.socketId),
-  );
-}
-
-/**
  * @param {ConnectedUser} user
  * @param {BoardMessage} message
  * @param {{x: number, y: number} | null} focusPoint
@@ -1689,8 +2012,9 @@ function applyConnectedUserActivity(
   messageSocketId,
 ) {
   let changed = false;
+  const runtimeToolId = getRuntimeToolId(message.tool);
 
-  if (message.tool !== "Cursor") {
+  if (!isRuntimeTool(message.tool, "cursor")) {
     markConnectedUserActivity(user);
     changed = true;
   }
@@ -1702,12 +2026,15 @@ function applyConnectedUserActivity(
     user.size = Number(message.size) || user.size;
     changed = true;
   }
-  if (message.tool && message.tool !== "Cursor") {
-    user.lastTool = message.tool;
+  if (runtimeToolId && runtimeToolId !== "cursor") {
+    user.lastTool = runtimeToolId;
     changed = true;
   }
   if (
-    shouldUpdateConnectedUserFocus(message, focusPoint, messageSocketId, user)
+    focusPoint &&
+    (!isRuntimeTool(message.tool, "cursor") ||
+      messageSocketId === null ||
+      messageSocketId === user.socketId)
   ) {
     user.lastFocusX = /** @type {{x: number, y: number}} */ (focusPoint).x;
     user.lastFocusY = /** @type {{x: number, y: number}} */ (focusPoint).y;
@@ -1757,34 +2084,66 @@ Tools.updateCurrentConnectedUserFromActivity =
   };
 
 Tools.initConnectedUsersUI = function initConnectedUsersUI() {
-  const toggle = getConnectedUsersToggle();
+  const toggle = document.getElementById("connectedUsersToggle");
+  const panel = document.getElementById("connectedUsersPanel");
+  if (!(toggle instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
+    return;
+  }
+  Tools.connectedUsersPanelOpen =
+    toggle.getAttribute("aria-expanded") === "true";
   syncConnectedUsersToggleLabel();
-  toggle.addEventListener("click", () => {
-    Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
-  });
-  toggle.addEventListener("blur", () => {
-    window.setTimeout(() => {
-      const panel = getConnectedUsersPanel();
-      if (
-        !panel.matches(":hover") &&
-        !panel.contains(document.activeElement) &&
-        document.activeElement !== toggle
-      ) {
+  if (toggle.dataset.connectedUsersUiBound !== "true") {
+    toggle.dataset.connectedUsersUiBound = "true";
+    toggle.addEventListener("click", () => {
+      Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
+    });
+    toggle.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (
+          !panel.matches(":hover") &&
+          !panel.contains(document.activeElement) &&
+          document.activeElement !== toggle
+        ) {
+          Tools.setConnectedUsersPanelOpen(false);
+        }
+      }, 0);
+    });
+    panel.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape") {
+        evt.preventDefault();
         Tools.setConnectedUsersPanelOpen(false);
+        toggle.focus();
       }
-    }, 0);
-  });
-  getConnectedUsersPanel().addEventListener("keydown", (evt) => {
-    if (evt.key === "Escape") {
-      evt.preventDefault();
-      Tools.setConnectedUsersPanelOpen(false);
-      toggle.focus();
-    }
-  });
+    });
+  }
   Tools.renderConnectedUsers();
 };
 
-Tools.initConnectedUsersUI();
+Tools.tryStartReplaySync = function tryStartReplaySync() {
+  if (
+    !Tools.pendingReplaySync ||
+    !Tools.socket?.connected ||
+    !Tools.board ||
+    !Tools.svg ||
+    !Tools.drawingArea
+  ) {
+    return;
+  }
+  const refreshBaseline = Tools.pendingReplaySync === "refresh";
+  Tools.pendingReplaySync = false;
+  void (async function startSeqReplay() {
+    if (refreshBaseline) {
+      try {
+        await Tools.refreshAuthoritativeBaseline();
+      } catch (error) {
+        console.error("Failed to refresh authoritative SVG baseline", error);
+      }
+    }
+    Tools.socket?.emit("sync_request", {
+      baselineSeq: Tools.authoritativeSeq,
+    });
+  })();
+};
 
 Tools.startConnection = () => {
   // Destroy socket if one already exists
@@ -1799,14 +2158,17 @@ Tools.startConnection = () => {
   Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
   Tools.renderConnectedUsers();
 
-  const url = new URL(window.location.href);
-  const params = new URLSearchParams(url.search);
   const socketParams = BoardConnection.buildSocketParams(
     window.location.pathname,
     Tools.socketIOExtraHeaders,
-    params.get("token"),
+    Tools.token,
     Tools.boardName,
-    Tools.getInitialSocketQuery(),
+    {
+      sync: "seq",
+      tool: Tools.initialPrefs?.tool || "hand",
+      color: Tools.getColor(),
+      size: String(Tools.getSize()),
+    },
   );
 
   const socket = io.connect("", socketParams);
@@ -1814,8 +2176,9 @@ Tools.startConnection = () => {
 
   //Receive draw instructions from the server
   socket.on("connect", function onConnection() {
+    const hadConnectedBefore = Tools.hasConnectedOnce;
     Tools.connectionState = "connected";
-    if (Tools.hasConnectedOnce && Tools.server_config.TURNSTILE_SITE_KEY) {
+    if (hadConnectedBefore && Tools.server_config.TURNSTILE_SITE_KEY) {
       Tools.setTurnstileValidation(null);
       BoardTurnstile.resetTurnstileWidget(
         typeof turnstile !== "undefined" ? turnstile : undefined,
@@ -1823,17 +2186,67 @@ Tools.startConnection = () => {
       );
     }
     Tools.hasConnectedOnce = true;
-    if (Tools.hasAuthoritativeBoardSnapshot) {
-      Tools.hideLoadingMessage();
-    } else {
-      Tools.showLoadingMessage();
-    }
+    Tools.awaitingBoardSnapshot = true;
+    Tools.awaitingSyncReplay = true;
+    Tools.pendingReplaySync = hadConnectedBefore ? "refresh" : "ready";
+    Tools.tryStartReplaySync();
     Tools.syncWriteStatusIndicator();
   });
   socket.on("broadcast", (/** @type {BoardMessage} */ msg) => {
     enqueueIncomingBroadcast(msg);
   });
   socket.on("boardstate", Tools.setBoardState);
+  socket.on(
+    "mutation_rejected",
+    function onMutationRejected(
+      /** @type {{clientMutationId?: unknown} | undefined} */ payload,
+    ) {
+      if (typeof payload?.clientMutationId !== "string") return;
+      Tools.rejectOptimisticMutation(payload.clientMutationId);
+    },
+  );
+  socket.on("sync_replay_start", function onSyncReplayStart() {
+    Tools.awaitingBoardSnapshot = true;
+    Tools.awaitingSyncReplay = true;
+  });
+  socket.on(
+    "sync_replay_end",
+    function onSyncReplayEnd(
+      /** @type {{toInclusiveSeq?: unknown} | undefined} */ payload,
+    ) {
+      Tools.hasAuthoritativeBoardSnapshot = true;
+      Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(
+        payload?.toInclusiveSeq,
+      );
+      Tools.awaitingBoardSnapshot = false;
+      Tools.awaitingSyncReplay = false;
+      Tools.flushBufferedWrites();
+      Tools.incomingBroadcastQueue =
+        BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(
+          Tools.preSnapshotMessages,
+          Tools.authoritativeSeq,
+        ).concat(Tools.incomingBroadcastQueue);
+      Tools.preSnapshotMessages = [];
+      Tools.restoreLocalCursor();
+      Tools.syncWriteStatusIndicator();
+    },
+  );
+  socket.on(
+    "resync_required",
+    function onResyncRequired(
+      /** @type {{latestSeq?: unknown, minReplayableSeq?: unknown} | undefined} */ payload,
+    ) {
+      console.warn("Server requested authoritative resync", {
+        authoritativeSeq: Tools.authoritativeSeq,
+        latestSeq: BoardMessageReplay.normalizeSeq(payload?.latestSeq),
+        minReplayableSeq: BoardMessageReplay.normalizeSeq(
+          payload?.minReplayableSeq,
+        ),
+      });
+      Tools.beginAuthoritativeResync();
+      Tools.startConnection();
+    },
+  );
   socket.on(
     "user_joined",
     function onUserJoined(/** @type {ConnectedUser} */ user) {
@@ -1864,22 +2277,18 @@ Tools.startConnection = () => {
       Tools.syncWriteStatusIndicator();
     },
   );
-  socket.on("disconnect", function onDisconnect() {
+  socket.on("disconnect", function onDisconnect(/** @type {string} */ reason) {
+    if (socket !== Tools.socket) return;
     Tools.connectionState = "disconnected";
     Tools.beginAuthoritativeResync();
+    if (reason === "io server disconnect") {
+      socket.connect();
+    }
   });
   if (typeof socket.connect === "function") {
     socket.connect();
   }
 };
-Tools.boardName = Tools.resolveBoardName();
-
-Tools.token = (() => {
-  const url = new URL(window.location.href);
-  const params = new URLSearchParams(url.search);
-  return params.get("token");
-})();
-
 function saveBoardNametoLocalStorage() {
   const boardName = Tools.boardName;
   const key = "recent-boards";
@@ -1905,7 +2314,7 @@ window.addEventListener("pageshow", saveBoardNametoLocalStorage);
  */
 function bindToolButton(button, toolName) {
   if (button.dataset.toolBound === "true") return;
-  button.dataset.toolName = toolName;
+  button.dataset.toolId = toolName;
   button.dataset.toolBound = "true";
   button.setAttribute("aria-label", toolName);
   button.addEventListener("click", () => {
@@ -1921,46 +2330,6 @@ function bindToolButton(button, toolName) {
 
 /**
  * @param {string} toolName
- * @returns {HTMLElement}
- */
-function createToolButton(toolName) {
-  const button = document.createElement("li");
-  button.className = "tool";
-  button.tabIndex = -1;
-  button.id = `toolID-${toolName}`;
-
-  const primaryIcon = document.createElement("img");
-  primaryIcon.className = "tool-icon";
-  primaryIcon.width = 35;
-  primaryIcon.height = 35;
-  primaryIcon.alt = "";
-  primaryIcon.setAttribute("aria-hidden", "true");
-  button.appendChild(primaryIcon);
-
-  const label = document.createElement("span");
-  label.className = "tool-name";
-  button.appendChild(label);
-
-  const secondaryIcon = document.createElement("img");
-  secondaryIcon.className = "tool-icon secondaryIcon";
-  secondaryIcon.width = 35;
-  secondaryIcon.height = 35;
-  secondaryIcon.src = "data:,";
-  secondaryIcon.alt = "";
-  secondaryIcon.setAttribute("aria-hidden", "true");
-  button.appendChild(secondaryIcon);
-
-  const toolsList = document.getElementById("tools");
-  if (!toolsList) {
-    throw new Error("Missing tools list.");
-  }
-  toolsList.appendChild(button);
-  bindToolButton(button, toolName);
-  return button;
-}
-
-/**
- * @param {string} toolName
  * @returns {HTMLElement | null}
  */
 function getToolButton(toolName) {
@@ -1970,20 +2339,18 @@ function getToolButton(toolName) {
 
 /**
  * @param {string} toolName
- * @param {AppTool} tool
+ * @param {MountedAppTool} tool
  * @returns {void}
  */
-function hydrateToolButton(toolName, tool) {
-  const button =
-    getToolButton(toolName) ||
-    (Tools.shouldDisplayTool(toolName) ? createToolButton(toolName) : null);
+function syncToolButton(toolName, tool) {
+  const button = getToolButton(toolName);
   if (!button) return;
   bindToolButton(button, toolName);
   const parts = getRequiredToolButtonParts(toolName);
   const translatedToolName = Tools.i18n.t(toolName);
   parts.label.textContent = translatedToolName;
   button.setAttribute("aria-label", translatedToolName);
-  parts.primaryIcon.src = Tools.versionAssetPath(tool.icon);
+  parts.primaryIcon.src = Tools.resolveAssetPath(tool.icon);
   parts.primaryIcon.alt = "";
   button.classList.toggle("oneTouch", tool.oneTouch === true);
   button.classList.toggle("hasSecondary", !!tool.secondary);
@@ -1992,7 +2359,7 @@ function hydrateToolButton(toolName, tool) {
     ? `${translatedToolName} (${Tools.i18n.t("keyboard shortcut")}: ${tool.shortcut})`
     : translatedToolName;
   if (tool.secondary && parts.secondaryIcon) {
-    parts.secondaryIcon.src = Tools.versionAssetPath(tool.secondary.icon);
+    parts.secondaryIcon.src = Tools.resolveAssetPath(tool.secondary.icon);
     parts.secondaryIcon.alt = "";
     button.title += ` [${Tools.i18n.t("click_to_toggle")}]`;
   } else if (parts.secondaryIcon) {
@@ -2003,331 +2370,375 @@ function hydrateToolButton(toolName, tool) {
 
 function bindRenderedToolButtons() {
   document
-    .querySelectorAll("#tools > .tool[data-tool-name]")
+    .querySelectorAll("#tools > .tool[data-tool-id]")
     .forEach((element) => {
       if (!(element instanceof HTMLElement)) return;
-      const toolName = element.dataset.toolName;
+      const toolName = element.dataset.toolId;
       if (!toolName) return;
       bindToolButton(element, toolName);
     });
 }
 
-Tools.HTML = /** @type {ToolPalette} */ ({
-  template: null,
-  addShortcut: function addShortcut(key, callback) {
-    window.addEventListener("keydown", (e) => {
-      if (e.key === key && !isTextEntryTarget(e.target)) {
-        callback();
-      }
-    });
-  },
-  addTool: function addTool(
-    toolName,
-    toolIcon,
-    toolIconHTML,
-    toolShortcut,
-    oneTouch,
-  ) {
-    const tool = Tools.list[toolName];
-    if (!tool) {
-      throw new Error(`Tool not registered before rendering: ${toolName}`);
+/**
+ * @param {string} key
+ * @param {() => void} callback
+ * @returns {void}
+ */
+function addToolShortcut(key, callback) {
+  window.addEventListener("keydown", (e) => {
+    if (e.key === key && !isTextEntryTarget(e.target)) {
+      callback();
     }
-    if (toolShortcut) {
-      this.addShortcut(toolShortcut, () => {
-        void Tools.activateTool(toolName);
-        blurActiveElement();
-      });
-    }
-    tool.icon = toolIcon;
-    tool.iconHTML = toolIconHTML;
-    tool.shortcut = toolShortcut || tool.shortcut;
-    tool.oneTouch = oneTouch;
-    hydrateToolButton(toolName, tool);
-    Tools.syncToolDisabledState(toolName);
-    return getToolButton(toolName);
-  },
-  changeTool: (oldToolName, newToolName) => {
-    const oldTool = document.getElementById(`toolID-${oldToolName}`);
-    const newTool = document.getElementById(`toolID-${newToolName}`);
-    if (oldTool) oldTool.classList.remove("curTool");
-    if (newTool) newTool.classList.add("curTool");
-  },
-  toggle: function toggle(toolName, name, icon) {
-    const parts = getRequiredToolButtonParts(toolName);
-    const secondaryIcon = parts.secondaryIcon;
-    if (!secondaryIcon) {
-      throw new Error(`Missing secondary icon for tool ${toolName}`);
-    }
+  });
+}
 
-    const primaryIconSrc = parts.primaryIcon.src;
-    const secondaryIconSrc = secondaryIcon.src;
-    parts.primaryIcon.src = secondaryIconSrc;
-    secondaryIcon.src = primaryIconSrc;
-    parts.primaryIcon.src = Tools.versionAssetPath(icon);
-    parts.label.textContent = Tools.i18n.t(name);
-  },
-  addStylesheet: function addStylesheet(href) {
-    const versionedHref = Tools.versionAssetPath(href);
-    const existing = Array.from(
-      document.querySelectorAll('link[rel="stylesheet"]'),
-    ).find((link) => link.getAttribute("href") === versionedHref);
-    if (existing) return existing;
-    const link = document.createElement("link");
-    link.href = versionedHref;
-    link.rel = "stylesheet";
-    link.type = "text/css";
-    document.head.appendChild(link);
-    return link;
-  },
-  colorPresetTemplate: new Minitpl("#colorPresetSel .colorPresetButton"),
-  addColorButton: function addColorButton(button) {
-    const setColor = Tools.setColor.bind(Tools, button.color);
-    if (button.key) this.addShortcut(button.key, setColor);
-    return this.colorPresetTemplate.add((/** @type {HTMLElement} */ elem) => {
-      elem.addEventListener("click", setColor);
-      elem.id = `color_${button.color.replace(/^#/, "")}`;
-      elem.style.backgroundColor = button.color;
-      if (button.key) {
-        elem.title = `${Tools.i18n.t("keyboard shortcut")}: ${button.key}`;
-      }
+/**
+ * @param {string} toolName
+ * @returns {HTMLElement | null}
+ */
+function syncMountedToolButton(toolName) {
+  const tool = Tools.list[toolName];
+  if (!tool) {
+    throw new Error(`Tool not registered before rendering: ${toolName}`);
+  }
+  if (tool.shortcut) {
+    addToolShortcut(tool.shortcut, () => {
+      void Tools.activateTool(toolName);
+      blurActiveElement();
     });
-  },
-});
+  }
+  syncToolButton(toolName, tool);
+  Tools.syncToolDisabledState(toolName);
+  return getToolButton(toolName);
+}
+
+/**
+ * @param {string} oldToolName
+ * @param {string} newToolName
+ * @returns {void}
+ */
+function changeActiveToolButton(oldToolName, newToolName) {
+  const oldTool = document.getElementById(`toolID-${oldToolName}`);
+  const newTool = document.getElementById(`toolID-${newToolName}`);
+  if (oldTool) oldTool.classList.remove("curTool");
+  if (newTool) newTool.classList.add("curTool");
+}
+
+/**
+ * @param {string} toolName
+ * @param {string} name
+ * @param {string} icon
+ * @returns {void}
+ */
+function toggleToolButtonMode(toolName, name, icon) {
+  const parts = getRequiredToolButtonParts(toolName);
+  const secondaryIcon = parts.secondaryIcon;
+  if (!secondaryIcon) {
+    throw new Error(`Missing secondary icon for tool ${toolName}`);
+  }
+  const primaryIconSrc = parts.primaryIcon.src;
+  parts.primaryIcon.src = secondaryIcon.src;
+  secondaryIcon.src = primaryIconSrc;
+  parts.primaryIcon.src = Tools.resolveAssetPath(icon);
+  parts.label.textContent = Tools.i18n.t(name);
+}
+
+/**
+ * @param {string} href
+ * @returns {HTMLLinkElement}
+ */
+function addToolStylesheet(href) {
+  const resolvedHref = Tools.resolveAssetPath(href);
+  const existing = Array.from(
+    document.querySelectorAll('link[rel="stylesheet"]'),
+  ).find((link) => link.getAttribute("href") === resolvedHref);
+  if (existing instanceof HTMLLinkElement) return existing;
+  const link = document.createElement("link");
+  link.href = resolvedHref;
+  link.rel = "stylesheet";
+  link.type = "text/css";
+  document.head.appendChild(link);
+  return link;
+}
+
+const colorPresetTemplate = new Minitpl("#colorPresetSel .colorPresetButton");
+
+/**
+ * @param {ColorPreset} button
+ * @returns {unknown}
+ */
+function addColorButton(button) {
+  const setColor = Tools.setColor.bind(Tools, button.color);
+  if (button.key) addToolShortcut(button.key, setColor);
+  return colorPresetTemplate.add((elem) => {
+    if (!(elem instanceof HTMLElement)) return;
+    elem.addEventListener("click", setColor);
+    elem.id = `color_${button.color.replace(/^#/, "")}`;
+    elem.style.backgroundColor = button.color;
+    if (button.key) {
+      elem.title = `${Tools.i18n.t("keyboard shortcut")}: ${button.key}`;
+    }
+  });
+}
 
 bindRenderedToolButtons();
 
 Tools.list = /** @type {AppToolsState["list"]} */ ({});
 
 /**
- * @param {ToolClass} ToolClass
- * @returns {void}
- */
-Tools.registerToolClass = function registerToolClass(ToolClass) {
-  if (!ToolClass.toolName) {
-    throw new Error("Tool classes must expose a static toolName.");
-  }
-  Tools.toolClasses[ToolClass.toolName] = ToolClass;
-};
-
-/**
  * @param {string} toolName
- * @returns {Promise<ToolClass>}
+ * @returns {Promise<ToolModule>}
  */
-Tools.ensureToolClassLoaded = async function ensureToolClassLoaded(toolName) {
-  const existing = Tools.toolClasses[toolName];
-  if (existing) return existing;
-
-  const namespace = /** @type {{default?: unknown}} */ (
-    await import(Tools.versionAssetPath(getToolModuleImportPath(toolName)))
+async function loadToolModule(toolName) {
+  const namespace = /** @type {ToolModule} */ (
+    await import(Tools.resolveAssetPath(getToolModuleImportPath(toolName)))
   );
-  if (!isToolClass(namespace.default)) {
-    throw new Error(`Missing default tool class export for ${toolName}.`);
+  if (typeof namespace.boot !== "function") {
+    throw new Error(`Missing boot export for ${toolName}.`);
   }
-  const ToolClass = namespace.default;
-  if (ToolClass.toolName !== toolName) {
+  if (namespace.toolId !== toolName) {
     throw new Error(
-      `Tool module for ${toolName} exported ${String(ToolClass.toolName)}.`,
+      `Tool module for ${toolName} exported ${String(namespace.toolId)}.`,
     );
   }
-  Tools.registerToolClass(/** @type {ToolClass} */ (ToolClass));
-  return ToolClass;
-};
+  return namespace;
+}
 
 /**
  * @param {string} toolName
  * @returns {ToolBootContext}
  */
 function createToolBootContext(toolName) {
-  /** @type {ToolRuntime} */
-  const runtime = {
-    Tools: Tools,
-    activateTool: (name) => {
-      void Tools.activateTool(name);
-    },
-    getButton: (name) => getToolButton(name),
-    registerShortcut: (name, key) => {
-      Tools.HTML.addShortcut(key, () => {
-        void Tools.activateTool(name);
-      });
-    },
-  };
+  /** @type {MountedAppToolsState} */
+  const mountedTools = (() => {
+    if (!Tools.board || !Tools.svg || !Tools.drawingArea) {
+      throw new Error("Tool boot requires board, svg, and drawing area.");
+    }
+    return /** @type {MountedAppToolsState} */ (Tools);
+  })();
   return {
-    toolName: toolName,
-    runtime: runtime,
-    button: getToolButton(toolName),
-    version: Tools.assetVersion,
+    Tools: mountedTools,
     assetUrl: (assetFile) => Tools.getToolAssetUrl(toolName, assetFile),
   };
 }
 
 /**
- * @param {AppTool} tool
- * @returns {ToolPointerListeners}
- */
-function deriveListeners(tool) {
-  return {
-    press: tool.press ? tool.press.bind(tool) : tool.listeners?.press,
-    move: tool.move ? tool.move.bind(tool) : tool.listeners?.move,
-    release: tool.release ? tool.release.bind(tool) : tool.listeners?.release,
-  };
-}
-
-/**
- * @param {AppTool} tool
- * @param {"onstart" | "onquit" | "onSocketDisconnect" | "onSizeChange"} key
- */
-function bindToolMethod(tool, key) {
-  switch (key) {
-    case "onstart":
-      if (tool.onstart) tool.onstart = tool.onstart.bind(tool);
-      return;
-    case "onquit":
-      if (tool.onquit) tool.onquit = tool.onquit.bind(tool);
-      return;
-    case "onSocketDisconnect":
-      if (tool.onSocketDisconnect) {
-        tool.onSocketDisconnect = tool.onSocketDisconnect.bind(tool);
-      }
-      return;
-    case "onSizeChange":
-      if (tool.onSizeChange) tool.onSizeChange = tool.onSizeChange.bind(tool);
-      return;
-  }
-}
-
-/** @param {AppTool} tool */
-function ensureToolDefaults(tool) {
-  if (!tool.name) throw new Error("A tool must have a name");
-  if (!tool.listeners) {
-    tool.listeners = {};
-  }
-  if (!tool.onstart) {
-    tool.onstart = () => {};
-  }
-  if (!tool.onquit) {
-    tool.onquit = () => {};
-  }
-  if (!tool.onMessage) {
-    tool.onMessage = () => {};
-  }
-  if (!tool.onSocketDisconnect) {
-    tool.onSocketDisconnect = () => {};
-  }
-}
-
-/** @param {AppTool} tool */
-function compileToolListeners(tool) {
-  const listeners = tool.listeners || {};
-  const compiled = tool.compiledListeners || {};
-  tool.compiledListeners = compiled;
-
-  /**
-   * @param {ToolPointerListener} listener
-   * @returns {CompiledToolListener}
-   */
-  function compile(listener) {
-    return function listen(evt) {
-      const mouseEvent = /** @type {MouseEvent} */ (evt);
-      const x = mouseEvent.pageX / Tools.getScale();
-      const y = mouseEvent.pageY / Tools.getScale();
-      return listener(x, y, mouseEvent, false);
-    };
-  }
-
-  /**
-   * @param {ToolPointerListener} listener
-   * @returns {CompiledToolListener}
-   */
-  function compileTouch(listener) {
-    return function touchListen(evt) {
-      const touchEvent = /** @type {TouchEvent} */ (evt);
-      if (touchEvent.changedTouches.length === 1) {
-        const touch = touchEvent.changedTouches[0];
-        if (!touch) return true;
-        const x = touch.pageX / Tools.getScale();
-        const y = touch.pageY / Tools.getScale();
-        return listener(x, y, touchEvent, true);
-      }
-      return true;
-    };
-  }
-
-  /**
-   * @param {CompiledToolListener} f
-   * @returns {CompiledToolListener}
-   */
-  function wrapUnsetHover(f) {
-    return function unsetHover(evt) {
-      blurActiveElement();
-      return f(evt);
-    };
-  }
-
-  if (listeners.press) {
-    compiled.mousedown = wrapUnsetHover(compile(listeners.press));
-    compiled.touchstart = wrapUnsetHover(compileTouch(listeners.press));
-  }
-  if (listeners.move) {
-    compiled.mousemove = compile(listeners.move);
-    compiled.touchmove = compileTouch(listeners.move);
-  }
-  if (listeners.release) {
-    const release = compile(listeners.release);
-    const releaseTouch = compileTouch(listeners.release);
-    compiled.mouseup = release;
-    if (!Tools.isIE) compiled.mouseleave = release;
-    compiled.touchleave = releaseTouch;
-    compiled.touchend = releaseTouch;
-    compiled.touchcancel = releaseTouch;
-  }
-}
-
-/**
- * @param {AppTool} tool
+ * @param {ToolModule} toolModule
+ * @param {unknown} toolState
+ * @param {string} toolName
  * @returns {MountedAppTool}
  */
-Tools.mountTool = function mountTool(tool) {
-  bindToolMethod(tool, "onstart");
-  bindToolMethod(tool, "onquit");
-  bindToolMethod(tool, "onSocketDisconnect");
-  bindToolMethod(tool, "onSizeChange");
-  if (!tool.listeners) {
-    tool.listeners = deriveListeners(tool);
+function createMountedTool(toolModule, toolState, toolName) {
+  if (typeof toolModule.draw !== "function") {
+    throw new Error(`Missing draw export for ${toolName}.`);
   }
-  if (tool.stylesheet) {
-    Tools.HTML.addStylesheet(tool.stylesheet);
+  const draw = toolModule.draw;
+  const normalizeServerRenderedElement =
+    toolModule.normalizeServerRenderedElement;
+  const press = toolModule.press;
+  const move = toolModule.move;
+  const release = toolModule.release;
+  const onMessage = toolModule.onMessage;
+  const onstart = toolModule.onstart;
+  const onquit = toolModule.onquit;
+  const onSocketDisconnect = toolModule.onSocketDisconnect;
+  const onSizeChange = toolModule.onSizeChange;
+  const toolStateObject =
+    /** @type {{mouseCursor?: string, secondary?: import("../../types/app-runtime").ToolSecondaryMode | null} | null} */ (
+      toolState && typeof toolState === "object" ? toolState : null
+    );
+  const toolDefinition = TOOL_BY_ID[toolName];
+  /** @type {MountedAppTool} */
+  const tool = {
+    name: toolName,
+    shortcut: toolModule.shortcut,
+    icon: "",
+    draw: (message, isLocal) => draw(toolState, message, isLocal),
+    normalizeServerRenderedElement:
+      typeof normalizeServerRenderedElement === "function"
+        ? (element) => normalizeServerRenderedElement(toolState, element)
+        : undefined,
+    serverRenderedElementSelector: toolModule.serverRenderedElementSelector,
+    press:
+      typeof press === "function"
+        ? (x, y, evt, isTouchEvent) => press(toolState, x, y, evt, isTouchEvent)
+        : undefined,
+    move:
+      typeof move === "function"
+        ? (x, y, evt, isTouchEvent) => move(toolState, x, y, evt, isTouchEvent)
+        : undefined,
+    release:
+      typeof release === "function"
+        ? (x, y, evt, isTouchEvent) =>
+            release(toolState, x, y, evt, isTouchEvent)
+        : undefined,
+    onMessage:
+      typeof onMessage === "function"
+        ? (message) => onMessage(toolState, message)
+        : () => {},
+    listeners: {},
+    compiledListeners: {},
+    onstart:
+      typeof onstart === "function"
+        ? (oldTool) => onstart(toolState, oldTool)
+        : () => {},
+    onquit:
+      typeof onquit === "function"
+        ? (newTool) => onquit(toolState, newTool)
+        : () => {},
+    onSocketDisconnect:
+      typeof onSocketDisconnect === "function"
+        ? () => onSocketDisconnect(toolState)
+        : () => {},
+    stylesheet: undefined,
+    oneTouch: toolModule.oneTouch,
+    alwaysOn: toolModule.alwaysOn,
+    mouseCursor: toolModule.mouseCursor ?? toolStateObject?.mouseCursor,
+    helpText: toolModule.helpText,
+    secondary: toolStateObject?.secondary ?? toolModule.secondary ?? null,
+    onSizeChange:
+      typeof onSizeChange === "function"
+        ? (size) => onSizeChange(toolState, size)
+        : undefined,
+    showMarker: toolModule.showMarker,
+    requiresWritableBoard: toolModule.requiresWritableBoard,
+  };
+  if (toolDefinition) {
+    tool.icon ||= getToolIconPath(toolDefinition.toolId);
+    tool.stylesheet ||=
+      getToolStylesheetPath(
+        toolDefinition.toolId,
+        toolDefinition.drawsOnBoard,
+      ) || undefined;
   }
-  Tools.register(tool);
-  if (Tools.shouldDisplayTool(tool.name) || getToolButton(tool.name)) {
-    Tools.HTML.addTool(
-      tool.name,
-      tool.icon,
-      tool.iconHTML,
-      tool.shortcut || "",
-      tool.oneTouch,
+  tool.listeners = {
+    press: tool.press,
+    move: tool.move,
+    release: tool.release,
+  };
+
+  /**
+   * @param {ToolPointerListener} listener
+   * @param {boolean} isTouchEvent
+   * @returns {CompiledToolListener}
+   */
+  function compilePointerListener(listener, isTouchEvent) {
+    return function handlePointer(evt) {
+      if (isTouchEvent) {
+        const touchEvent = /** @type {TouchEvent} */ (evt);
+        if (touchEvent.changedTouches.length !== 1) return true;
+        const touch = touchEvent.changedTouches[0];
+        if (!touch) return true;
+        return listener(
+          Tools.pageCoordinateToBoard(touch.pageX),
+          Tools.pageCoordinateToBoard(touch.pageY),
+          touchEvent,
+          true,
+        );
+      }
+      const mouseEvent = /** @type {MouseEvent} */ (evt);
+      return listener(
+        Tools.pageCoordinateToBoard(mouseEvent.pageX),
+        Tools.pageCoordinateToBoard(mouseEvent.pageY),
+        mouseEvent,
+        false,
+      );
+    };
+  }
+
+  /**
+   * @param {CompiledToolListener} listener
+   * @returns {CompiledToolListener}
+   */
+  function wrapUnsetHover(listener) {
+    return function unsetHover(evt) {
+      blurActiveElement();
+      return listener(evt);
+    };
+  }
+
+  const compiled = /** @type {CompiledToolListeners} */ ({});
+  if (tool.listeners.press) {
+    compiled.mousedown = wrapUnsetHover(
+      compilePointerListener(tool.listeners.press, false),
+    );
+    compiled.touchstart = wrapUnsetHover(
+      compilePointerListener(tool.listeners.press, true),
     );
   }
-  Tools.syncToolDisabledState(tool.name);
-  if (tool.alwaysOn === true) {
-    Tools.addToolListeners(tool);
+  if (tool.listeners.move) {
+    compiled.mousemove = compilePointerListener(tool.listeners.move, false);
+    compiled.touchmove = compilePointerListener(tool.listeners.move, true);
   }
-  return /** @type {MountedAppTool} */ (tool);
+  if (tool.listeners.release) {
+    compiled.mouseup = compilePointerListener(tool.listeners.release, false);
+    if (!Tools.isIE) compiled.mouseleave = compiled.mouseup;
+    const touchRelease = compilePointerListener(tool.listeners.release, true);
+    compiled.touchleave = touchRelease;
+    compiled.touchend = touchRelease;
+    compiled.touchcancel = touchRelease;
+  }
+  tool.compiledListeners = compiled;
+  return tool;
+}
+
+/**
+ * @param {ToolModule} toolModule
+ * @param {unknown} toolState
+ * @param {string} toolName
+ * @returns {MountedAppTool | null}
+ */
+Tools.mountTool = function mountTool(toolModule, toolState, toolName) {
+  const mountedTool = createMountedTool(toolModule, toolState, toolName);
+  if (mountedTool.stylesheet) {
+    addToolStylesheet(mountedTool.stylesheet);
+  }
+  if (Tools.isBlocked(mountedTool)) return null;
+
+  if (toolName in Tools.list) {
+    console.log(
+      `Tools.mountTool: The tool '${toolName}' is already in the list. Updating it...`,
+    );
+  }
+
+  Tools.list[toolName] = mountedTool;
+
+  if (mountedTool.onSizeChange) {
+    Tools.sizeChangeHandlers.push(mountedTool.onSizeChange);
+  }
+
+  const pending = drainPendingMessages(Tools.pendingMessages, toolName);
+  if (pending.length > 0) {
+    console.log("Drawing pending messages for '%s'.", toolName);
+    pending.forEach((/** @type {BoardMessage} */ msg) => {
+      mountedTool.draw(msg, false);
+    });
+  }
+  if (Tools.shouldDisplayTool(toolName)) {
+    syncMountedToolButton(toolName);
+  }
+  Tools.syncToolDisabledState(toolName);
+  if (mountedTool.alwaysOn === true) {
+    Tools.addToolListeners(mountedTool);
+  }
+  normalizeServerRenderedElementsForTool(mountedTool);
+  return mountedTool;
 };
 
 /**
  * @param {string} toolName
- * @returns {Promise<AppTool | null>}
+ * @returns {Promise<MountedAppTool | null>}
  */
-async function createBootPromise(toolName) {
-  const ToolClass = await Tools.ensureToolClassLoaded(toolName);
-  const bootedTool = await ToolClass.boot(createToolBootContext(toolName));
-  if (!bootedTool) return null;
-  return Tools.mountTool(bootedTool);
+async function bootToolPromise(toolName) {
+  const toolModule = await loadToolModule(toolName);
+  const toolState = await toolModule.boot(createToolBootContext(toolName));
+  if (toolState === null) return null;
+  return Tools.mountTool(toolModule, toolState, toolName);
 }
 
 /**
  * @param {string} toolName
- * @returns {Promise<AppTool | null>}
+ * @returns {Promise<MountedAppTool | null>}
  */
 Tools.bootTool = async function bootTool(toolName) {
   const existingTool = Tools.list[toolName];
@@ -2335,7 +2746,7 @@ Tools.bootTool = async function bootTool(toolName) {
   const inFlight = Tools.bootedToolPromises[toolName];
   if (inFlight) return inFlight;
 
-  const promise = createBootPromise(toolName);
+  const promise = bootToolPromise(toolName);
   Tools.bootedToolPromises[toolName] = promise;
   try {
     return await promise;
@@ -2346,59 +2757,22 @@ Tools.bootTool = async function bootTool(toolName) {
 
 /**
  * @param {string} toolName
- * @returns {Promise<AppTool | null>}
- */
-Tools.ensureToolBooted = function ensureToolBooted(toolName) {
-  return Tools.bootTool(toolName);
-};
-
-/**
- * @param {string} toolName
  * @returns {Promise<boolean>}
  */
 Tools.activateTool = async function activateTool(toolName) {
   if (!Tools.shouldDisplayTool(toolName)) return false;
-  const tool = await Tools.ensureToolBooted(toolName);
+  const tool = await Tools.bootTool(toolName);
   if (!tool || !Tools.canUseTool(toolName)) return false;
+  if (tool.requiresWritableBoard === true && !Tools.canBufferWrites()) {
+    await Tools.whenBoardWritable();
+    if (!Tools.canUseTool(toolName)) return false;
+  }
   return Tools.change(toolName) !== false;
 };
 
-/** @param {AppTool} tool */
+/** @param {MountedAppTool} tool */
 Tools.isBlocked = function toolIsBanned(tool) {
   return isBlockedToolName(tool.name, Tools.server_config.BLOCKED_TOOLS || []);
-};
-
-/**
- * Register a new tool, without touching the User Interface
- */
-/** @param {AppTool} newTool */
-Tools.register = function registerTool(newTool) {
-  if (Tools.isBlocked(newTool)) return;
-
-  if (newTool.name in Tools.list) {
-    console.log(
-      `Tools.register: The tool '${newTool.name}' is already in the list. Updating it...`,
-    );
-  }
-
-  ensureToolDefaults(newTool);
-  compileToolListeners(newTool);
-
-  //Add the tool to the list
-  Tools.list[newTool.name] = /** @type {MountedAppTool} */ (newTool);
-
-  // Register the change handlers
-  if (newTool.onSizeChange) Tools.sizeChangeHandlers.push(newTool.onSizeChange);
-
-  //There may be pending messages for the tool
-  const pending = drainPendingMessages(Tools.pendingMessages, newTool.name);
-  if (pending.length > 0) {
-    console.log("Drawing pending messages for '%s'.", newTool.name);
-    pending.forEach((/** @type {BoardMessage} */ msg) => {
-      //Transmit the message to the tool (precising that it comes from the network)
-      newTool.draw(msg, false);
-    });
-  }
 };
 
 /** @param {MountedAppTool} newTool */
@@ -2406,7 +2780,7 @@ function toggleSecondaryTool(newTool) {
   if (!newTool.secondary) return;
   newTool.secondary.active = !newTool.secondary.active;
   const props = newTool.secondary.active ? newTool.secondary : newTool;
-  Tools.HTML.toggle(newTool.name, props.name, props.icon);
+  toggleToolButtonMode(newTool.name, props.name, props.icon);
   if (newTool.secondary.switch) newTool.secondary.switch();
   syncActiveToolState();
 }
@@ -2417,14 +2791,17 @@ function toggleSecondaryTool(newTool) {
  * @returns {void}
  */
 function updateCurrentToolChrome(toolName, newTool) {
+  const svg = Tools.svg;
+  const board = Tools.board;
+  if (!svg || !board) return;
   const curToolName = Tools.curTool ? Tools.curTool.name : "";
   try {
-    Tools.HTML.changeTool(curToolName, toolName);
+    changeActiveToolButton(curToolName, toolName);
   } catch (e) {
     console.error(`Unable to update the GUI with the new tool. ${e}`);
   }
-  Tools.svg.style.cursor = newTool.mouseCursor || "auto";
-  Tools.board.title = Tools.i18n.t(newTool.helpText || "");
+  svg.style.cursor = newTool.mouseCursor || "auto";
+  board.title = Tools.i18n.t(newTool.helpText || "");
 }
 
 /** @param {MountedAppTool} newTool */
@@ -2476,24 +2853,26 @@ Tools.change = (toolName) => {
   return true;
 };
 
-/** @param {AppTool} tool */
+/** @param {MountedAppTool} tool */
 Tools.addToolListeners = function addToolListeners(tool) {
   if (!tool.compiledListeners) return;
   for (const event in tool.compiledListeners) {
     const listener = tool.compiledListeners[event];
     if (!listener) continue;
     const target = listener.target || Tools.board;
+    if (!target) continue;
     target.addEventListener(event, listener, { passive: false });
   }
 };
 
-/** @param {AppTool} tool */
+/** @param {MountedAppTool} tool */
 Tools.removeToolListeners = function removeToolListeners(tool) {
   if (!tool.compiledListeners) return;
   for (const event in tool.compiledListeners) {
     const listener = tool.compiledListeners[event];
     if (!listener) continue;
     const target = listener.target || Tools.board;
+    if (!target) continue;
     target.removeEventListener(event, listener);
     // also attempt to remove with capture = true in IE
     if (Tools.isIE) target.removeEventListener(event, listener, true);
@@ -2529,20 +2908,27 @@ Tools.send = (data, toolName) => {
     if (!Tools.curTool) throw new Error("No current tool selected");
     toolName = Tools.curTool.name;
   }
+  const toolCode = TOOL_BY_ID[toolName]?.id;
+  if (toolCode === undefined) {
+    throw new Error(`Unknown tool '${toolName}'.`);
+  }
   const outboundData = Tools.cloneMessage(data);
-  outboundData.tool = toolName;
+  outboundData.tool = toolCode;
   Tools.applyHooks(Tools.messageHooks, outboundData);
   return Tools.sendBufferedWrite(outboundData);
 };
 
 /**
  * @param {BoardMessage} data
- * @param {AppTool | null | undefined} tool
+ * @param {MountedAppTool | string | null | undefined} tool
  */
 Tools.drawAndSend = (data, tool) => {
   if (tool == null) tool = Tools.curTool;
   if (!tool) throw new Error("No active tool available");
-  if (tool && Tools.shouldDisableTool(tool.name)) return false;
+  const mountedTool = typeof tool === "string" ? Tools.list[tool] : tool;
+  if (!mountedTool) throw new Error(`Missing mounted tool '${tool}'.`);
+  const toolName = typeof tool === "string" ? tool : tool.name;
+  if (Tools.shouldDisableTool(toolName)) return false;
   if (
     !Tools.socket ||
     !Tools.socket.connected ||
@@ -2552,19 +2938,30 @@ Tools.drawAndSend = (data, tool) => {
     return false;
   }
 
+  const outboundData = Tools.cloneMessage(data);
+  if (toolName !== "cursor") {
+    outboundData.clientMutationId = Tools.generateUID("cm-");
+  }
+  const rollback = Tools.captureOptimisticRollback(outboundData);
+
   // Optimistically render the drawing immediately
-  tool.draw(data, true);
+  mountedTool.draw(outboundData, true);
 
   if (
-    MessageCommon.requiresTurnstile(Tools.boardName, tool.name) &&
+    MessageCommon.requiresTurnstile(Tools.boardName, toolName) &&
     Tools.server_config.TURNSTILE_SITE_KEY &&
     !Tools.isTurnstileValidated()
   ) {
-    Tools.queueProtectedWrite(data, tool);
+    Tools.trackOptimisticMutation(outboundData, rollback);
+    Tools.queueProtectedWrite(outboundData, mountedTool);
     return true;
   }
 
-  return Tools.send(data, tool.name) !== false;
+  const sent = Tools.send(outboundData, toolName) !== false;
+  if (sent) {
+    Tools.trackOptimisticMutation(outboundData, rollback);
+  }
+  return sent;
 };
 
 //Object containing the messages that have been received before the corresponding tool
@@ -2577,7 +2974,7 @@ Tools.pendingMessages = /** @type {PendingMessages} */ ({});
  * @returns {void}
  */
 function messageForTool(message) {
-  const name = message.tool;
+  const name = getRuntimeToolId(message.tool);
   const tool = name ? Tools.list[name] : undefined;
 
   if (tool) {
@@ -2590,11 +2987,11 @@ function messageForTool(message) {
       BoardMessages.queuePendingMessage(Tools.pendingMessages, name, message);
   }
 
-  if (message.tool !== "Hand" && message.transform != null) {
+  if (!isRuntimeTool(message.tool, "hand") && message.transform != null) {
     //this message has special info for the mover
     messageForTool({
-      tool: "Hand",
-      type: "update",
+      tool: Hand.id,
+      type: MutationType.UPDATE,
       transform: message.transform,
       id: message.id,
     });
@@ -2618,7 +3015,14 @@ function handleMessage(message) {
     BoardMessageReplay.shouldReplayChildrenIndividually(message)
   )
     return BoardMessages.batchCall(
-      childMessageHandler(message),
+      (child) =>
+        handleMessage(
+          BoardMessageReplay.prepareReplayChild(
+            message,
+            child,
+            BoardMessages.normalizeChildMessage,
+          ),
+        ),
       message._children,
     );
   if (BoardMessages.hasChildMessages(message)) {
@@ -2634,23 +3038,6 @@ function handleMessage(message) {
   return Promise.resolve();
 }
 
-/**
- * Takes a parent message, and returns a function that will handle a single child message.
- * @param {BoardMessage} parent
- * @returns {(child: BoardMessage) => Promise<void>}
- */
-function childMessageHandler(parent) {
-  return function handleChild(child) {
-    return handleMessage(
-      BoardMessageReplay.prepareReplayChild(
-        parent,
-        child,
-        BoardMessages.normalizeChildMessage,
-      ),
-    );
-  };
-}
-
 Tools.unreadMessagesCount = 0;
 Tools.newUnreadMessage = () => {
   Tools.unreadMessagesCount++;
@@ -2660,6 +3047,15 @@ Tools.newUnreadMessage = () => {
 window.addEventListener("focus", () => {
   Tools.unreadMessagesCount = 0;
   updateDocumentTitle();
+  if (Tools.bufferedWrites.length > 0) {
+    Tools.flushBufferedWrites();
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && Tools.bufferedWrites.length > 0) {
+    Tools.flushBufferedWrites();
+  }
 });
 
 function updateDocumentTitle() {
@@ -2668,68 +3064,80 @@ function updateDocumentTitle() {
     `${Tools.boardName} | WBO`;
 }
 
-(() => {
-  // Scroll and hash handling
-  /** @type {ReturnType<typeof setTimeout> | null} */
-  let scrollTimeout = null;
-  let lastStateUpdate = Date.now();
+/** @type {ReturnType<typeof setTimeout> | null} */
+let viewportHashScrollTimeout = null;
+let lastViewportHashStateUpdate = Date.now();
+let viewportHashObserversInstalled = false;
 
-  window.addEventListener("scroll", function onScroll() {
-    const scale = Tools.getScale();
-    const x = document.documentElement.scrollLeft / scale;
-    const y = document.documentElement.scrollTop / scale;
+function syncViewportHashFromScroll() {
+  const scale = Tools.getScale();
+  const x = document.documentElement.scrollLeft / scale;
+  const y = document.documentElement.scrollTop / scale;
 
-    if (scrollTimeout !== null) clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(function updateHistory() {
-      const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(1)}`;
-      if (
-        Date.now() - lastStateUpdate > 5000 &&
-        hash !== window.location.hash
-      ) {
-        window.history.pushState({}, "", hash);
-        lastStateUpdate = Date.now();
-      } else {
-        window.history.replaceState({}, "", hash);
-      }
-    }, 100);
-  });
-
-  function setScrollFromHash() {
-    const coords = window.location.hash.slice(1).split(",");
-    const x = Number(coords[0]) || 0;
-    const y = Number(coords[1]) || 0;
-    const scale = Number.parseFloat(coords[2] || "");
-    resizeCanvas({ x: x, y: y });
-    Tools.setScale(scale);
-    window.scrollTo(x * scale, y * scale);
+  if (viewportHashScrollTimeout !== null) {
+    clearTimeout(viewportHashScrollTimeout);
   }
+  viewportHashScrollTimeout = setTimeout(function updateViewportHistory() {
+    const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
+    if (
+      Date.now() - lastViewportHashStateUpdate > 5000 &&
+      hash !== window.location.hash
+    ) {
+      window.history.pushState({}, "", hash);
+      lastViewportHashStateUpdate = Date.now();
+    } else {
+      window.history.replaceState({}, "", hash);
+    }
+  }, 100);
+}
 
-  window.addEventListener("hashchange", setScrollFromHash, false);
-  window.addEventListener("popstate", setScrollFromHash, false);
-  if (document.readyState === "loading") {
-    window.addEventListener("DOMContentLoaded", setScrollFromHash, false);
-  } else {
-    queueMicrotask(setScrollFromHash);
-  }
-})();
+Tools.applyViewportFromHash = function applyViewportFromHash() {
+  const coords = window.location.hash.slice(1).split(",");
+  const x = Tools.toBoardCoordinate(coords[0]);
+  const y = Tools.toBoardCoordinate(coords[1]);
+  const scale = Number.parseFloat(coords[2] || "");
+  resizeCanvas({ x: x, y: y });
+  const appliedScale = Tools.setScale(scale);
+  window.scrollTo(x * appliedScale, y * appliedScale);
+};
+
+Tools.installViewportHashObservers = function installViewportHashObservers() {
+  if (viewportHashObserversInstalled) return;
+  viewportHashObserversInstalled = true;
+  window.addEventListener("scroll", syncViewportHashFromScroll);
+  window.addEventListener("hashchange", Tools.applyViewportFromHash, false);
+  window.addEventListener("popstate", Tools.applyViewportFromHash, false);
+};
 
 /** @param {BoardMessage} m */
 function resizeCanvas(m) {
+  if (!Tools.svg) return;
   //Enlarge the canvas whenever something is drawn near its border
   const x = Number(m.x) | 0;
   const y = Number(m.y) | 0;
-  const MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 65536; // Maximum value for any x or y on the board
-  if (x > Tools.svg.width.baseVal.value - 2000) {
-    Tools.svg.width.baseVal.value = Math.min(x + 2000, MAX_BOARD_SIZE);
+  const MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 655360; // Maximum value for any x or y on the board
+  if (x > Tools.svg.width.baseVal.value - RESIZE_CANVAS_MARGIN) {
+    Tools.svg.width.baseVal.value = Math.min(
+      x + RESIZE_CANVAS_MARGIN,
+      MAX_BOARD_SIZE,
+    );
   }
-  if (y > Tools.svg.height.baseVal.value - 2000) {
-    Tools.svg.height.baseVal.value = Math.min(y + 2000, MAX_BOARD_SIZE);
+  if (y > Tools.svg.height.baseVal.value - RESIZE_CANVAS_MARGIN) {
+    Tools.svg.height.baseVal.value = Math.min(
+      y + RESIZE_CANVAS_MARGIN,
+      MAX_BOARD_SIZE,
+    );
   }
 }
 
 /** @param {BoardMessage} m */
 function updateUnreadCount(m) {
-  if (document.hidden && m.type !== "child" && m.type !== "update") {
+  const mutationType = getMutationType(m);
+  if (
+    document.hidden &&
+    mutationType !== MutationType.APPEND &&
+    mutationType !== MutationType.UPDATE
+  ) {
     Tools.newUnreadMessage();
   }
 }
@@ -2737,7 +3145,7 @@ function updateUnreadCount(m) {
 /** @param {BoardMessage} m */
 function notifyToolsOfMessage(m) {
   Object.values(Tools.list || {}).forEach((tool) => {
-    if (tool) tool.onMessage(m);
+    tool?.onMessage?.(m);
   });
 }
 
@@ -2748,18 +3156,27 @@ Tools.messageHooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
 let scaleTimeout = null;
 /** @param {number} scale */
 Tools.setScale = function setScale(scale) {
+  if (!Tools.svg) {
+    Tools.scale = scale;
+    return scale;
+  }
   const fullScale =
     Math.max(window.innerWidth, window.innerHeight) /
-    (Number(Tools.server_config.MAX_BOARD_SIZE) || 65536);
-  const minScale = Math.max(0.1, fullScale);
-  const maxScale = 10;
-  if (Number.isNaN(scale)) scale = 1;
+    (Number(Tools.server_config.MAX_BOARD_SIZE) || 655360);
+  const minScale = Math.max(MIN_BOARD_SCALE, fullScale);
+  const maxScale = MAX_BOARD_SCALE;
+  if (Number.isNaN(scale)) scale = DEFAULT_BOARD_SCALE;
   scale = Math.max(minScale, Math.min(maxScale, scale));
-  Tools.svg.style.willChange = "transform";
-  Tools.svg.style.transform = `scale(${scale})`;
+  const svg = Tools.svg;
+  if (!svg) {
+    Tools.scale = scale;
+    return scale;
+  }
+  svg.style.willChange = "transform";
+  svg.style.transform = `scale(${scale})`;
   if (scaleTimeout !== null) clearTimeout(scaleTimeout);
   scaleTimeout = setTimeout(() => {
-    Tools.svg.style.willChange = "auto";
+    if (Tools.svg) Tools.svg.style.willChange = "auto";
   }, 1000);
   Tools.scale = scale;
   Tools.syncDrawToolAvailability(false);
@@ -2802,6 +3219,9 @@ Tools.generateUID = function generateUID(prefix, suffix) {
  * @returns {SVGElement}
  */
 Tools.createSVGElement = function createSVGElement(name, attrs) {
+  if (!Tools.svg) {
+    throw new Error("Board SVG is not attached.");
+  }
   const elem = /** @type {SVGElement} */ (
     document.createElementNS(Tools.svg.namespaceURI, name)
   );
@@ -2835,77 +3255,97 @@ Tools.colorPresets = [
   { color: "#AAAAAA", key: "0" },
   { color: "#E65194" },
 ];
-
-Tools.color_chooser = getRequiredInput("chooseColor");
+Tools.color_chooser = null;
+Tools.colorChangeHandlers =
+  /** @type {AppToolsState["colorChangeHandlers"]} */ ([]);
+Tools.sizeChangeHandlers = [];
 
 /** @param {string} color */
 Tools.setColor = function setColor(color) {
-  Tools.color_chooser.value = color;
+  Tools.currentColor = color;
+  if (Tools.color_chooser) {
+    Tools.color_chooser.value = color;
+  }
+  Tools.colorChangeHandlers.forEach((handler) => {
+    handler(color);
+  });
 };
 
-Tools.getColor = (function color() {
-  const colorIndex = (Math.random() * Tools.colorPresets.length) | 0;
-  const initialPreset = Tools.colorPresets[colorIndex] ||
-    Tools.colorPresets[0] || { color: "#001f3f" };
-  const initialColor = initialPreset.color;
-  Tools.setColor(initialColor);
-  return () => Tools.color_chooser.value;
-})();
+Tools.getColor = function getColor() {
+  return Tools.currentColor;
+};
 
-Tools.colorPresets.forEach(Tools.HTML.addColorButton.bind(Tools.HTML));
-
-Tools.sizeChangeHandlers = [];
-Tools.setSize = (function size() {
-  const chooser = getRequiredInput("chooseSize");
-
-  function update() {
-    const size = MessageCommon.clampSize(chooser.value);
-    chooser.value = String(size);
-    Tools.sizeChangeHandlers.forEach((handler) => {
-      handler(size);
-    });
+/**
+ * @param {number | string | null | undefined} value
+ * @returns {number}
+ */
+Tools.setSize = function setSize(value) {
+  if (value !== null && value !== undefined) {
+    Tools.currentSize = MessageCommon.clampSize(value);
   }
-  update();
+  const chooser = document.getElementById("chooseSize");
+  if (chooser instanceof HTMLInputElement) {
+    chooser.value = String(Tools.currentSize);
+  }
+  Tools.sizeChangeHandlers.forEach((handler) => {
+    handler(Tools.currentSize);
+  });
+  return Tools.currentSize;
+};
 
-  chooser.onchange = chooser.oninput = update;
-  /**
-   * @param {number | string | null | undefined} value
-   * @returns {number}
-   */
-  return (value) => {
-    if (value !== null && value !== undefined) {
-      chooser.value = String(value);
-      update();
+Tools.getSize = function getSize() {
+  return Tools.currentSize;
+};
+
+Tools.getOpacity = function getOpacity() {
+  return Tools.currentOpacity;
+};
+
+/** @type {SocketHeaders | null} */
+let socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+  window.socketio_extra_headers,
+);
+if (!socketIOExtraHeaders) {
+  try {
+    const storedHeaders = sessionStorage.getItem("socketio_extra_headers");
+    if (storedHeaders) {
+      socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+        JSON.parse(storedHeaders),
+      );
     }
-    return parseInt(chooser.value, 10);
-  };
-})();
-
-Tools.getSize = () => Tools.setSize(undefined);
-
-Tools.getOpacity = (function opacity() {
-  const chooser = getRequiredInput("chooseOpacity");
-  const opacityIndicator = getRequiredElement("opacityIndicator");
-
-  function update() {
-    chooser.value = String(MessageCommon.clampOpacity(chooser.value));
-    opacityIndicator.setAttribute("opacity", chooser.value);
+  } catch (err) {
+    console.warn("Unable to load Socket.IO extra headers", err);
   }
-  update();
-
-  chooser.onchange = chooser.oninput = update;
-  return () => MessageCommon.clampOpacity(chooser.value);
-})();
-
-// Initialize the canvas to cover the viewport without shrinking a hash-expanded board.
-Tools.svg.width.baseVal.value = Math.max(
-  Tools.svg.width.baseVal.value,
-  document.body.clientWidth,
+}
+if (socketIOExtraHeaders) {
+  window.socketio_extra_headers = socketIOExtraHeaders;
+}
+const colorIndex = (Math.random() * Tools.colorPresets.length) | 0;
+const initialPreset = Tools.colorPresets[colorIndex] || Tools.colorPresets[0];
+Tools.server_config = /** @type {ServerConfig} */ (
+  parseEmbeddedJson("configuration", {})
 );
-Tools.svg.height.baseVal.value = Math.max(
-  Tools.svg.height.baseVal.value,
-  document.body.clientHeight,
+Tools.boardName = resolveBoardName(window.location.pathname);
+Tools.token = new URL(window.location.href).searchParams.get("token");
+Tools.socketIOExtraHeaders = socketIOExtraHeaders;
+Tools.pendingReplaySync = false;
+Tools.initialPrefs = {
+  tool: "hand",
+  color: initialPreset?.color || "#001f3f",
+  size: DEFAULT_INITIAL_SIZE,
+  opacity: DEFAULT_INITIAL_OPACITY,
+};
+Tools.currentColor = Tools.initialPrefs.color;
+Tools.currentSize = MessageCommon.clampSize(Tools.initialPrefs.size);
+Tools.currentOpacity = MessageCommon.clampOpacity(Tools.initialPrefs.opacity);
+Tools.setBoardState(
+  parseEmbeddedJson("board-state", {
+    readonly: false,
+    canWrite: true,
+  }),
 );
+Tools.initConnectedUsersUI();
+initializeShellControls();
 
 /**
  What does a "tool" object look like?
@@ -2942,8 +3382,7 @@ Tools.svg.height.baseVal.value = Math.max(
     const dy = evt.clientY - pos.scroll;
     menu.scrollTop = pos.top - dy;
   }
-  /** @param {MouseEvent} evt */
-  function menu_mouseup(evt) {
+  function menu_mouseup() {
     menu.removeEventListener("mousemove", menu_mousemove);
     document.removeEventListener("mouseup", menu_mouseup);
   }
