@@ -11,12 +11,16 @@ const {
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Clear, Cursor, Text } = require("../client-data/tools/index.js");
 
-test("getClientIp resolves the first proxy hop from forwarding headers", () => {
+test("getClientIp resolves the first proxy hop from forwarding headers", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
+  const forwardedForConfig = await configFromEnv({
+    WBO_IP_SOURCE: "X-Forwarded-For",
+  });
+  const forwardedConfig = await configFromEnv({ WBO_IP_SOURCE: "Forwarded" });
 
   assert.equal(
     socketPolicy.getClientIp(
-      configFromEnv({ WBO_IP_SOURCE: "X-Forwarded-For" }),
+      forwardedForConfig,
       createSocket({
         headers: {
           "x-forwarded-for": "198.51.100.4, 203.0.113.7",
@@ -28,7 +32,7 @@ test("getClientIp resolves the first proxy hop from forwarding headers", () => {
 
   assert.equal(
     socketPolicy.getClientIp(
-      configFromEnv({ WBO_IP_SOURCE: "Forwarded" }),
+      forwardedConfig,
       createSocket({
         headers: {
           forwarded: 'for="198.51.100.9";proto=https, for=203.0.113.7',
@@ -40,7 +44,7 @@ test("getClientIp resolves the first proxy hop from forwarding headers", () => {
 
   assert.equal(
     socketPolicy.getClientIp(
-      configFromEnv({ WBO_IP_SOURCE: "X-Forwarded-For" }),
+      forwardedForConfig,
       createSocket({
         headers: {
           "x-forwarded-for": ["198.51.100.11, 203.0.113.7"],
@@ -52,7 +56,7 @@ test("getClientIp resolves the first proxy hop from forwarding headers", () => {
 
   assert.equal(
     socketPolicy.getClientIp(
-      configFromEnv({ WBO_IP_SOURCE: "Forwarded" }),
+      forwardedConfig,
       createSocket({
         headers: {
           forwarded: ['for="198.51.100.12";proto=https, for=203.0.113.7'],
@@ -63,15 +67,20 @@ test("getClientIp resolves the first proxy hop from forwarding headers", () => {
   );
 });
 
-test("getClientIp supports exact trusted proxy depth for forwarded chains", () => {
+test("getClientIp supports exact trusted proxy depth for forwarded chains", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
+  const forwardedForConfig = await configFromEnv({
+    WBO_IP_SOURCE: "X-Forwarded-For",
+    WBO_TRUST_PROXY_HOPS: "2",
+  });
+  const forwardedConfig = await configFromEnv({
+    WBO_IP_SOURCE: "Forwarded",
+    WBO_TRUST_PROXY_HOPS: "2",
+  });
 
   assert.equal(
     socketPolicy.getClientIp(
-      configFromEnv({
-        WBO_IP_SOURCE: "X-Forwarded-For",
-        WBO_TRUST_PROXY_HOPS: "2",
-      }),
+      forwardedForConfig,
       createSocket({
         remoteAddress: "203.0.113.7",
         headers: {
@@ -84,10 +93,7 @@ test("getClientIp supports exact trusted proxy depth for forwarded chains", () =
 
   assert.equal(
     socketPolicy.getClientIp(
-      configFromEnv({
-        WBO_IP_SOURCE: "Forwarded",
-        WBO_TRUST_PROXY_HOPS: "2",
-      }),
+      forwardedConfig,
       createSocket({
         remoteAddress: "203.0.113.7",
         headers: {
@@ -99,11 +105,12 @@ test("getClientIp supports exact trusted proxy depth for forwarded chains", () =
   );
 });
 
-test("getClientIp supports custom single-value headers such as CF-Connecting-IP", () => {
+test("getClientIp supports custom single-value headers such as CF-Connecting-IP", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
+  const config = await configFromEnv({ WBO_IP_SOURCE: "CF-Connecting-IP" });
   assert.equal(
     socketPolicy.getClientIp(
-      configFromEnv({ WBO_IP_SOURCE: "CF-Connecting-IP" }),
+      config,
       createSocket({
         remoteAddress: "203.0.113.7",
         headers: {
@@ -202,18 +209,15 @@ test("socket policy counts only mutations that should consume rate-limit budget"
   );
 });
 
-test("normalizeBroadcastData rejects blocked tools before persistence", () => {
+test("normalizeBroadcastData rejects blocked tools before persistence", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
-  const rejected = socketPolicy.normalizeBroadcastData(
-    configFromEnv({ WBO_BLOCKED_TOOLS: "text" }),
-    "anonymous",
-    {
-      tool: Text.id,
-      type: MutationType.UPDATE,
-      id: "text-1",
-      txt: "blocked",
-    },
-  );
+  const config = await configFromEnv({ WBO_BLOCKED_TOOLS: "text" });
+  const rejected = socketPolicy.normalizeBroadcastData(config, "anonymous", {
+    tool: Text.id,
+    type: MutationType.UPDATE,
+    id: "text-1",
+    txt: "blocked",
+  });
 
   assert.deepEqual(rejected, { ok: false, reason: "blocked tool" });
 });
@@ -227,10 +231,11 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
   await withEnv({ AUTH_SECRET_KEY: undefined }, async () => {
     const socketPolicy = require(SOCKET_POLICY_PATH);
     const { socket } = createSocket();
+    const config = await configFromEnv({ AUTH_SECRET_KEY: undefined });
 
     assert.equal(
       socketPolicy.canApplyBoardMessage(
-        configFromEnv({ AUTH_SECRET_KEY: undefined }),
+        config,
         readonlyBoard,
         {
           tool: Cursor.id,
@@ -248,6 +253,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
 
   await withEnv({ AUTH_SECRET_KEY: "test-secret" }, async () => {
     const socketPolicy = require(SOCKET_POLICY_PATH);
+    const config = await configFromEnv({ AUTH_SECRET_KEY: "test-secret" });
     const editorToken = jsonwebtoken.sign(
       { roles: ["editor"] },
       process.env.AUTH_SECRET_KEY,
@@ -259,7 +265,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
 
     assert.equal(
       socketPolicy.canApplyBoardMessage(
-        configFromEnv({ AUTH_SECRET_KEY: "test-secret" }),
+        config,
         readonlyBoard,
         { tool: Clear.id, type: MutationType.CLEAR },
         createSocket({ token: editorToken }).socket,
@@ -268,7 +274,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
     );
     assert.equal(
       socketPolicy.canApplyBoardMessage(
-        configFromEnv({ AUTH_SECRET_KEY: "test-secret" }),
+        config,
         readonlyBoard,
         { tool: Clear.id, type: MutationType.CLEAR },
         createSocket({ token: moderatorToken }).socket,

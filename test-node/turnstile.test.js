@@ -3,7 +3,9 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const {
+  CONFIG_PATH,
   withEnv,
   createSocket,
   loadSockets,
@@ -61,7 +63,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       });
 
       // Initialize socket state by calling handleSocketConnection
-      await sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
       disableSaves(await sockets.__test.getLoadedBoard("anonymous"));
 
       const broadcastHandler = handlers.broadcast;
@@ -144,7 +146,9 @@ test("server-side Turnstile token validation binds Siteverify to request context
       WBO_HISTORY_DIR: historyDir,
     },
     async () => {
-      const config = require("../server/configuration.mjs").readConfiguration();
+      const config = await import(
+        `${pathToFileURL(CONFIG_PATH).href}?cache-bust=${Date.now()}`
+      );
       const sockets = await loadSockets();
       const { socket, handlers } = createSocket({
         headers: { host: "board.example" },
@@ -179,7 +183,7 @@ test("server-side Turnstile token validation binds Siteverify to request context
       );
 
       try {
-        await sockets.__test.handleSocketConnection(socket);
+        await sockets.__test.handleSocketConnection(socket, sockets.__config);
         const tokenHandler = handlers.turnstile_token;
         assert.ok(tokenHandler, "turnstile_token handler should be registered");
 
@@ -241,8 +245,7 @@ test("server-side Turnstile token validation rejects hostname mismatches", async
       WBO_HISTORY_DIR: historyDir,
     },
     async () => {
-      const _config =
-        require("../server/configuration.mjs").readConfiguration();
+      const _config = require("../server/configuration.mjs");
       const sockets = await loadSockets();
       const { socket, handlers } = createSocket({
         headers: { host: "board.example:8080" },
@@ -251,7 +254,7 @@ test("server-side Turnstile token validation rejects hostname mismatches", async
 
       const originalFetch = globalThis.fetch;
       try {
-        await sockets.__test.handleSocketConnection(socket);
+        await sockets.__test.handleSocketConnection(socket, sockets.__config);
         const tokenHandler = handlers.turnstile_token;
         assert.ok(tokenHandler);
 

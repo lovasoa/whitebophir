@@ -16,12 +16,13 @@ const { MutationType } = await import("../client-data/js/mutation_type.js");
 const { Hand, Pencil, Rectangle, Text } = await import(
   "../client-data/tools/index.js"
 );
-const { readConfiguration } = await import("../server/configuration.mjs");
+const config = await import(
+  `../server/configuration.mjs?cache-bust=${encodeURIComponent(import.meta.url)}`
+);
 const { boardSvgPath, writeBoardState } = await import(
   "../server/svg_board_store.mjs"
 );
 
-const config = readConfiguration();
 const scenario = (process.argv[2] || "all").toLowerCase();
 const sampleCount = 3;
 const boardItems = config.MAX_ITEM_COUNT;
@@ -372,7 +373,7 @@ try {
         `${boardItems} items from ${formatMiB(loadBytes)}`,
         async () => {
           const startedAt = performance.now();
-          const board = await BoardData.load(loadBoardName);
+          const board = await BoardData.load(loadBoardName, config);
           clearPendingSave(board);
           return { timeMs: performance.now() - startedAt, retain: board };
         },
@@ -398,7 +399,7 @@ try {
             boardSvgPath(persistTemplateName, historyDir),
             boardSvgPath(persistBoardName, historyDir),
           );
-          const board = await BoardData.load(persistBoardName);
+          const board = await BoardData.load(persistBoardName, config);
           board.delaySave = () => {};
           clearPendingSave(board);
           for (const id of pencilIds.slice(0, persistPencilUpdates)) {
@@ -442,7 +443,7 @@ try {
         "server broadcast throughput",
         `${broadcastCount} mixed socket broadcasts`,
         async (index) => {
-          const board = new BoardData(`bench-broadcast-${index}`);
+          const board = new BoardData(`bench-broadcast-${index}`, config);
           board.delaySave = () => {};
           board.board = buildBroadcastSeed();
           const startedAt = performance.now();

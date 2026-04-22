@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 const BOARD_METADATA_KEY = "__wbo_meta__";
-const DEFAULT_HISTORY_DIR = path.join(process.cwd(), "server-data");
 const LEGACY_BOARD_UNIT_SCALE = 10;
 const LEGACY_GEOMETRY_KEYS = new Set([
   "x",
@@ -21,7 +20,7 @@ function resolveHistoryDir(historyDir) {
   if (typeof historyDir === "string" && historyDir !== "") {
     return historyDir;
   }
-  return process.env.WBO_HISTORY_DIR || DEFAULT_HISTORY_DIR;
+  throw new Error("historyDir is required");
 }
 
 /**

@@ -16,7 +16,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 /** @typedef {string | string[] | undefined} HeaderValue */
 /** @typedef {{blockedTools?: string[] | null, boardState?: {readonly?: boolean, canWrite?: boolean} | null, moderator?: boolean}} VisibleToolOptions */
 /** @typedef {NonNullable<typeof TOOLBAR_TOOLS[number]>} ToolbarTool */
-/** @typedef {ReturnType<import("./configuration.mjs").readConfiguration>} ServerConfig */
+/** @typedef {typeof import("./configuration.mjs")} ServerConfig */
 /** @typedef {ReturnType<typeof createClientConfiguration>} ClientConfig */
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));

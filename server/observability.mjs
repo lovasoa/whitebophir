@@ -39,18 +39,19 @@ import {
 } from "@opentelemetry/semantic-conventions";
 import packageJson from "../package.json" with { type: "json" };
 
-import { readConfiguration } from "./configuration.mjs";
 import {
   DEFAULT_SERVICE_NAME,
   flattenError,
   formatCanonicalLogLine,
   styleTerminalLogLine,
 } from "./logfmt.mjs";
+import { parseEnumEnv } from "./configuration_helpers.mjs";
 
 const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME;
 const SERVICE_VERSION = packageJson.version;
 const DEFAULT_TRACE_SAMPLE_RATIO = 0.05;
 const DEFAULT_RUNTIME_METRICS_PRECISION_MS = 5000;
+const LOG_LEVELS = ["debug", "info", "warn", "error"];
 const LOG_LEVEL_RANK = {
   debug: 10,
   info: 20,
@@ -58,7 +59,7 @@ const LOG_LEVEL_RANK = {
   error: 40,
 };
 const MIN_LOG_LEVEL = /** @type {"debug"|"info"|"warn"|"error"} */ (
-  readConfiguration().LOG_LEVEL
+  parseEnumEnv("LOG_LEVEL", LOG_LEVELS, "info")
 );
 const TEST_TRACE_EXPORTER = /** @type {{__WBO_TEST_TRACE_EXPORTER__?: any}} */ (
   globalThis

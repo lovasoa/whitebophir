@@ -5,7 +5,7 @@ import {
   normalizeBroadcastData,
 } from "./socket_policy.mjs";
 
-/** @typedef {ReturnType<import("./configuration.mjs").readConfiguration>} ServerConfig */
+/** @typedef {typeof import("./configuration.mjs")} ServerConfig */
 /** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
 /** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */

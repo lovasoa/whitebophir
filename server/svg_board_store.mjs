@@ -38,7 +38,6 @@ import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
 
 const DEFAULT_SVG_SIZE = 5000;
 const SVG_MARGIN = 4000;
-const DEFAULT_HISTORY_DIR = path.join(process.cwd(), "server-data");
 let tempSvgSuffixCounter = 0;
 const { logger } = observability;
 
@@ -77,7 +76,7 @@ function resolveHistoryDir(historyDir) {
   if (typeof historyDir === "string" && historyDir !== "") {
     return historyDir;
   }
-  return process.env.WBO_HISTORY_DIR || DEFAULT_HISTORY_DIR;
+  throw new Error("historyDir is required");
 }
 
 /**

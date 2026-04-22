@@ -2,7 +2,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import { createServer } from "node:http";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   ATTR_CLIENT_ADDRESS,
@@ -26,7 +26,6 @@ import {
   boundaryStatusCode,
 } from "./boundary_errors.mjs";
 import { check_output_directory } from "./check_output_directory.mjs";
-import { readConfiguration } from "./configuration.mjs";
 import { startCompressedResponse } from "./http_compression.mjs";
 import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
@@ -48,31 +47,43 @@ import {
 } from "./user_secret_cookie.mjs";
 
 const { createRequestId, logger, metrics, tracing } = observability;
-const config = readConfiguration();
 
 /** @typedef {import("http").IncomingMessage} HttpRequest */
 /** @typedef {import("http").ServerResponse} HttpResponse */
 /** @typedef {import("node:net").AddressInfo | string | null} ServerAddress */
+/** @typedef {typeof import("./configuration.mjs")} ServerConfig */
 
 const app = createServer(handler);
 app.on("clientError", handleClientError);
 let shutdownRequested = false;
+/** @type {ServerConfig} */
+let serverConfig = /** @type {ServerConfig} */ ({});
+/** @type {ReturnType<typeof serveStatic> | undefined} */
+let fileserver;
+/** @type {string | undefined} */
+let errorPage;
+/** @type {templating.BoardTemplate | undefined} */
+let boardTemplate;
+/** @type {templating.Template | undefined} */
+let indexTemplate;
 
 void (async function startServer() {
-  await check_output_directory(config.HISTORY_DIR);
+  serverConfig = await loadConfig();
+  initializeServerResources(serverConfig);
+  await check_output_directory(serverConfig.HISTORY_DIR);
   const sockets = await import(
     `./sockets.mjs?cache-bust=${crypto.randomUUID()}`
   );
-  sockets.start(app);
+  await sockets.start(app, serverConfig);
   if (isProcessEntrypoint()) {
     installShutdownHandlers(app, sockets);
   }
 
-  app.listen(config.PORT, config.HOST, () => {
+  app.listen(serverConfig.PORT, serverConfig.HOST, () => {
     const actualPort = getAddressPort(app.address());
     logger.info("server.started", {
       [ATTR_SERVER_PORT]: actualPort,
-      "log.level": config.LOG_LEVEL,
+      "log.level": serverConfig.LOG_LEVEL,
     });
     if (process.send)
       process.send({ type: "server-started", port: actualPort });
@@ -97,20 +108,57 @@ const STATIC_RESOURCE_EXTENSIONS = [
   ".gif",
 ];
 const STATIC_ASSET_CACHE_CONTROL = "public, max-age=60, must-revalidate";
-const BOARD_SVG_CACHE_CONTROL = config.IS_DEVELOPMENT
-  ? "no-store"
-  : "public, max-age=30";
+/**
+ * @returns {templating.BoardTemplate}
+ */
+function getBoardTemplate() {
+  if (!boardTemplate) throw new Error("Board template not initialized");
+  return boardTemplate;
+}
 
-const staticFileCacheControl =
-  /** @type {(filePath: string) => string | undefined} */
-  (filePath) => {
-    if (config.IS_DEVELOPMENT) return "no-store";
-    return STATIC_RESOURCE_EXTENSIONS.includes(
-      path.extname(filePath).toLowerCase(),
-    )
-      ? STATIC_ASSET_CACHE_CONTROL
-      : undefined;
-  };
+/**
+ * @returns {templating.Template}
+ */
+function getIndexTemplate() {
+  if (!indexTemplate) throw new Error("Index template not initialized");
+  return indexTemplate;
+}
+
+/**
+ * @returns {ReturnType<typeof serveStatic>}
+ */
+function getFileServer() {
+  if (!fileserver) throw new Error("Static file server not initialized");
+  return fileserver;
+}
+
+/**
+ * @returns {string}
+ */
+function getErrorPage() {
+  if (errorPage === undefined) throw new Error("Error page not initialized");
+  return errorPage;
+}
+
+/**
+ * @param {string} filePath
+ * @returns {string | undefined}
+ */
+function staticFileCacheControl(filePath) {
+  if (serverConfig.IS_DEVELOPMENT) return "no-store";
+  return STATIC_RESOURCE_EXTENSIONS.includes(
+    path.extname(filePath).toLowerCase(),
+  )
+    ? STATIC_ASSET_CACHE_CONTROL
+    : undefined;
+}
+
+/**
+ * @returns {string}
+ */
+function boardSvgCacheControl() {
+  return serverConfig.IS_DEVELOPMENT ? "no-store" : "public, max-age=30";
+}
 
 const startBoardSvgResponse =
   /** @type {(response: HttpResponse, acceptEncoding: string | string[] | undefined) => import("stream").Writable} */
@@ -118,33 +166,46 @@ const startBoardSvgResponse =
     startCompressedResponse(response, acceptEncoding, {
       "Content-Type": "image/svg+xml",
       "Content-Security-Policy": CSP,
-      "Cache-Control": BOARD_SVG_CACHE_CONTROL,
+      "Cache-Control": boardSvgCacheControl(),
     }).stream;
-
-const fileserver = serveStatic(config.WEBROOT, {
-  maxAge: 0,
-  /** @param {HttpResponse} res */
-  setHeaders: (res, /** @type {string} */ filePath) => {
-    res.setHeader("Content-Security-Policy", CSP);
-    const cacheValue = staticFileCacheControl(filePath || "");
-    if (cacheValue !== undefined) {
-      res.setHeader("Cache-Control", cacheValue);
-    }
-  },
-});
-
-const errorPage = fs.readFileSync(path.join(config.WEBROOT, "error.html"));
-
-const boardTemplate = new templating.BoardTemplate(
-  path.join(config.WEBROOT, "board.html"),
-  config,
-);
-const indexTemplate = new templating.Template(
-  path.join(config.WEBROOT, "index.html"),
-  config,
-);
 const SLOW_REQUEST_LOG_MS = 1000;
 const BOARD_SCOPED_ROUTES = new Set(["boards", "preview", "download"]);
+
+/**
+ * @param {ServerConfig} serverConfig
+ * @returns {void}
+ */
+function initializeServerResources(serverConfig) {
+  fileserver = serveStatic(serverConfig.WEBROOT, {
+    maxAge: 0,
+    /** @param {HttpResponse} res */
+    setHeaders: (res, /** @type {string} */ filePath) => {
+      res.setHeader("Content-Security-Policy", CSP);
+      const cacheValue = staticFileCacheControl(filePath || "");
+      if (cacheValue !== undefined) {
+        res.setHeader("Cache-Control", cacheValue);
+      }
+    },
+  });
+  errorPage = fs
+    .readFileSync(path.join(serverConfig.WEBROOT, "error.html"))
+    .toString("utf8");
+  boardTemplate = new templating.BoardTemplate(
+    path.join(serverConfig.WEBROOT, "board.html"),
+    serverConfig,
+  );
+  indexTemplate = new templating.Template(
+    path.join(serverConfig.WEBROOT, "index.html"),
+    serverConfig,
+  );
+}
+
+/** @returns {Promise<ServerConfig>} */
+function loadConfig() {
+  return import(
+    `${pathToFileURL(new URL("./configuration.mjs", import.meta.url).pathname).href}?cache-bust=${crypto.randomUUID()}`
+  );
+}
 
 /**
  * @param {import("http").Server} server
@@ -287,7 +348,7 @@ function parseBoardPageETagCandidates(ifNoneMatch) {
  * @returns {void}
  */
 function pinServedBoardBaseline(boardName, baselineSeq) {
-  const expiresAtMs = Date.now() + Math.max(0, config.MAX_SAVE_DELAY);
+  const expiresAtMs = Date.now() + Math.max(0, serverConfig.MAX_SAVE_DELAY);
   pinReplayBaseline(boardName, baselineSeq, expiresAtMs);
 }
 
@@ -295,7 +356,7 @@ const respondNotModified =
   /** @type {(response: HttpResponse, etag: string) => void} */
   (response, etag) => {
     response.writeHead(304, {
-      "Cache-Control": boardTemplate.cacheControl(),
+      "Cache-Control": getBoardTemplate().cacheControl(),
       ETag: etag,
     });
     response.end();
@@ -360,7 +421,7 @@ function requestServerAddress(request) {
       return new URL(`${requestScheme(request)}://${authority}`).hostname;
     } catch {}
   }
-  return config.HOST || request.socket.localAddress || "localhost";
+  return serverConfig.HOST || request.socket.localAddress || "localhost";
 }
 
 /**
@@ -380,7 +441,7 @@ function requestServerPort(request) {
   if (typeof request.socket.localPort === "number") {
     return request.socket.localPort;
   }
-  const configuredPort = Number(config.PORT);
+  const configuredPort = Number(serverConfig.PORT);
   return Number.isFinite(configuredPort) ? configuredPort : undefined;
 }
 
@@ -449,8 +510,9 @@ function requestErrorStatusCode(error) {
  * @returns {void}
  */
 function respondWithErrorPage(response, statusCode) {
-  response.writeHead(statusCode, { "Content-Length": errorPage.length });
-  response.end(errorPage);
+  const page = getErrorPage();
+  response.writeHead(statusCode, { "Content-Length": page.length });
+  response.end(page);
 }
 
 /**
@@ -936,7 +998,11 @@ function serveStaticFile(request, response, requestContext, nextUrl) {
   if (nextUrl !== undefined) {
     request.url = nextUrl;
   }
-  fileserver(request, response, serveError(request, response, requestContext));
+  getFileServer()(
+    request,
+    response,
+    serveError(request, response, requestContext),
+  );
 }
 
 /**
@@ -951,7 +1017,7 @@ function serveStaticFile(request, response, requestContext, nextUrl) {
 function handleBoardRedirectRoute(response, parsedUrl, requestContext) {
   const boardName = requireBoardQueryName(parsedUrl);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(serverConfig, parsedUrl, boardName);
   response.writeHead(301, {
     Location: `boards/${encodeURIComponent(boardName)}`,
   });
@@ -979,9 +1045,13 @@ async function handleBoardDocumentRoute(
 ) {
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(serverConfig, parsedUrl, boardName);
   const token = parsedUrl.searchParams.get("token");
-  const boardRole = jwtBoardName.roleInBoard(config, token || "", boardName);
+  const boardRole = jwtBoardName.roleInBoard(
+    serverConfig,
+    token || "",
+    boardName,
+  );
   const cachedSeqs = parseBoardPageETagCandidates(
     request.headers["if-none-match"],
   );
@@ -999,10 +1069,13 @@ async function handleBoardDocumentRoute(
     metadata: boardMetadata,
     inlineBoardSvg,
     source,
-  } = await readBoardDocumentState(boardName);
+  } = await readBoardDocumentState(boardName, {
+    historyDir: serverConfig.HISTORY_DIR,
+  });
   const canWrite =
     !boardMetadata.readonly ||
-    (config.AUTH_SECRET_KEY && ["editor", "moderator"].includes(boardRole));
+    (serverConfig.AUTH_SECRET_KEY &&
+      ["editor", "moderator"].includes(boardRole));
   const etag = boardPageETag(boardMetadata.seq || 0);
   if (matchesIfNoneMatch(request.headers["if-none-match"], etag)) {
     pinServedBoardBaseline(boardName, boardMetadata.seq || 0);
@@ -1012,7 +1085,9 @@ async function handleBoardDocumentRoute(
   pinServedBoardBaseline(boardName, boardMetadata.seq || 0);
   ensureBoardUserSecretCookie(request, response, parsedUrl);
   if (source === "svg" || source === "svg_backup") {
-    const svgStream = await streamServedBaseline(boardName);
+    const svgStream = await streamServedBaseline(boardName, {
+      historyDir: serverConfig.HISTORY_DIR,
+    });
     svgStream.on("error", (error) => {
       requestContext.noteError(error);
       if (!response.headersSent) {
@@ -1021,7 +1096,7 @@ async function handleBoardDocumentRoute(
         response.destroy(error);
       }
     });
-    boardTemplate.serveStream(
+    getBoardTemplate().serveStream(
       request,
       response,
       svgStream,
@@ -1036,7 +1111,7 @@ async function handleBoardDocumentRoute(
     );
     return;
   }
-  boardTemplate.serve(request, response, boardRole === "moderator", {
+  getBoardTemplate().serve(request, response, boardRole === "moderator", {
     etag,
     inlineBoardSvg: inlineBoardSvg || "",
     boardState: {
@@ -1067,8 +1142,10 @@ async function handleBoardSvgRoute(
 ) {
   const boardName = requireBoardSvgPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
-  const svgStream = await streamServedBaseline(boardName);
+  jwtBoardName.checkBoardnameInToken(serverConfig, parsedUrl, boardName);
+  const svgStream = await streamServedBaseline(boardName, {
+    historyDir: serverConfig.HISTORY_DIR,
+  });
   svgStream.on("error", (error) => {
     requestContext.noteError(error);
     if (!response.headersSent) {
@@ -1151,7 +1228,9 @@ async function respondWithBoardDownload(response, boardName) {
       },
     },
     function readBoardBaseline() {
-      return readServedBaseline(boardName);
+      return readServedBaseline(boardName, {
+        historyDir: serverConfig.HISTORY_DIR,
+      });
     },
   );
   response.writeHead(200, {
@@ -1185,7 +1264,7 @@ function handleDownloadRoute(
   requestContext.setRoute("download_board");
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(serverConfig, parsedUrl, boardName);
   void respondWithBoardDownload(response, boardName).catch(
     serveError(request, response, requestContext),
   );
@@ -1225,7 +1304,11 @@ async function renderPreviewSvg(boardName) {
     },
     async function renderPreview() {
       try {
-        if (!(await boardExists(boardName))) {
+        if (
+          !(await boardExists(boardName, {
+            historyDir: serverConfig.HISTORY_DIR,
+          }))
+        ) {
           tracing.setActiveSpanAttributes({
             "wbo.board": boardName,
             "wbo.board.operation": "preview_render",
@@ -1233,7 +1316,9 @@ async function renderPreviewSvg(boardName) {
           });
           return null;
         }
-        return await readServedBaseline(boardName);
+        return await readServedBaseline(boardName, {
+          historyDir: serverConfig.HISTORY_DIR,
+        });
       } catch (err) {
         if (isNotFoundError(err)) {
           tracing.setActiveSpanAttributes({
@@ -1270,10 +1355,11 @@ async function respondWithBoardPreview(
   const svg = await renderPreviewSvg(boardName);
   recordPreviewDuration(requestContext, startedAt);
   if (svg === null) {
+    const page = getErrorPage();
     response.writeHead(404, {
-      "Content-Length": errorPage.length,
+      "Content-Length": page.length,
     });
-    response.end(errorPage);
+    response.end(page);
     return;
   }
   startBoardSvgResponse(response, acceptEncoding).end(svg);
@@ -1302,7 +1388,7 @@ function handlePreviewRoute(
   requestContext.setRoute("preview_board");
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(serverConfig, parsedUrl, boardName);
   const startedAt = Date.now();
   void respondWithBoardPreview(
     response,
@@ -1337,15 +1423,16 @@ function handleRandomRoute(response) {
  * @returns {void}
  */
 function handleIndexRoute(request, response, requestContext) {
-  if (config.DEFAULT_BOARD) {
-    annotateBoardRequest(requestContext, config.DEFAULT_BOARD);
+  const defaultBoard = serverConfig.DEFAULT_BOARD;
+  if (defaultBoard) {
+    annotateBoardRequest(requestContext, defaultBoard);
     response.writeHead(302, {
-      Location: `boards/${encodeURIComponent(config.DEFAULT_BOARD)}`,
+      Location: `boards/${encodeURIComponent(defaultBoard)}`,
     });
-    response.end(config.DEFAULT_BOARD);
+    response.end(defaultBoard);
     return;
   }
-  indexTemplate.serve(request, response);
+  getIndexTemplate().serve(request, response);
 }
 
 /**
@@ -1369,7 +1456,7 @@ function handleRequest(request, response, requestContext) {
   const parts = normalizePathParts(parsedUrl.pathname.split("/"));
 
   if (shouldCheckUserPermissions(parsedUrl, parts)) {
-    jwtauth.checkUserPermission(parsedUrl, config);
+    jwtauth.checkUserPermission(parsedUrl, serverConfig);
   }
 
   switch (parts[0]) {

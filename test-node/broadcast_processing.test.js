@@ -41,7 +41,7 @@ function disableSaves(board) {
 test("broadcast processing includes general rate-limit bookkeeping in isolation", async () => {
   const { createBroadcastRateLimits, processBoardBroadcastMessage } =
     await loadBroadcastProcessing();
-  const config = configFromEnv({
+  const config = await configFromEnv({
     WBO_MAX_EMIT_COUNT: "*:1/60s",
     WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
     WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
@@ -101,7 +101,13 @@ test("broadcast processing applies board writes without the socket event wrapper
   const { createBroadcastRateLimits, processBoardBroadcastMessage } =
     await loadBroadcastProcessing();
   const BoardData = require(BOARD_DATA_PATH).BoardData;
-  const board = disableSaves(new BoardData("broadcast-board-write"));
+  const config = await configFromEnv({
+    WBO_MAX_EMIT_COUNT: "*:100/60s",
+    WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
+    WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
+    WBO_MAX_TEXT_CREATIONS_PER_IP: "*:100/60s",
+  });
+  const board = disableSaves(new BoardData("broadcast-board-write", config));
   board.processMessage({
     tool: Text.id,
     type: MutationType.CREATE,
@@ -110,12 +116,6 @@ test("broadcast processing applies board writes without the socket event wrapper
     size: 18,
     x: 10,
     y: 20,
-  });
-  const config = configFromEnv({
-    WBO_MAX_EMIT_COUNT: "*:100/60s",
-    WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
-    WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
-    WBO_MAX_TEXT_CREATIONS_PER_IP: "*:100/60s",
   });
   const { socket } = createSocket({ id: "socket-board-write" });
 

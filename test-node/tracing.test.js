@@ -392,7 +392,10 @@ test("connection bootstrap traces the root socket event and board load", async (
       });
 
       sockets.__test.resetRateLimitMaps();
-      await sockets.__test.handleSocketConnection(created.socket);
+      await sockets.__test.handleSocketConnection(
+        created.socket,
+        sockets.__config,
+      );
       await waitForSpans(exporter, ["socket.connect_board", "board.load"]);
 
       const rootSpan = getSpanByName(exporter, "socket.connect_board");
@@ -434,7 +437,10 @@ test("active traces correlate log records and board.save spans", async () => {
             "board.saved",
             { board: "trace-save" },
           );
-          const board = new BoardData("trace-save");
+          const config = await import(
+            `${pathToFileURL(CONFIG_PATH).href}?cache-bust=${Date.now()}`
+          );
+          const board = new BoardData("trace-save", config);
           board.board = {
             "shape-1": {
               id: "shape-1",
@@ -522,7 +528,10 @@ test("large standalone board loads create their own root span", async () => {
     },
     async ({ exporter }) => {
       const { BoardData } = require(BOARD_DATA_PATH);
-      const board = await BoardData.load("standalone-load");
+      const config = await import(
+        `${pathToFileURL(CONFIG_PATH).href}?cache-bust=${Date.now()}`
+      );
+      const board = await BoardData.load("standalone-load", config);
 
       clearTimeout(board.saveTimeoutId);
       await waitForSpans(exporter, ["board.load"]);
@@ -628,7 +637,10 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
       });
 
       sockets.__test.resetRateLimitMaps();
-      await sockets.__test.handleSocketConnection(created.socket);
+      await sockets.__test.handleSocketConnection(
+        created.socket,
+        sockets.__config,
+      );
 
       await getRequiredHandler(
         created.handlers,

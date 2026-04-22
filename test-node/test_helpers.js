@@ -46,6 +46,7 @@ const DEFAULT_CLEARED_MODULES = [
   JWT_BOARDNAME_AUTH_PATH,
 ];
 let socketsLoadSequence = 0;
+let configLoadSequence = 0;
 
 /**
  * @param {string} modulePath
@@ -60,8 +61,21 @@ function clearModuleCache(modulePath) {
  * @returns {Promise<any>}
  */
 async function loadSockets() {
-  return import(
+  const sockets = await import(
     `${pathToFileURL(SOCKETS_PATH).href}?cache-bust=${++socketsLoadSequence}`
+  );
+  return {
+    ...sockets,
+    __config: await loadConfig(),
+  };
+}
+
+/**
+ * @returns {Promise<any>}
+ */
+async function loadConfig() {
+  return import(
+    `${pathToFileURL(CONFIG_PATH).href}?cache-bust=${++configLoadSequence}`
   );
 }
 
@@ -132,9 +146,9 @@ async function withBoardHistoryDir(prefix, fn, envOverrides, extraModules) {
 
 /**
  * @param {Dict} overrides
- * @returns {any}
+ * @returns {Promise<any>}
  */
-function configFromEnv(overrides) {
+async function configFromEnv(overrides) {
   /** @type {Dict} */
   const saved = {};
 
@@ -148,9 +162,8 @@ function configFromEnv(overrides) {
     }
   }
 
-  clearModuleCache(CONFIG_PATH);
   try {
-    return require(CONFIG_PATH).readConfiguration();
+    return await loadConfig();
   } finally {
     for (const key of Object.keys(overrides)) {
       if (saved[key] === undefined) {
@@ -159,7 +172,6 @@ function configFromEnv(overrides) {
         process.env[key] = saved[key];
       }
     }
-    clearModuleCache(CONFIG_PATH);
   }
 }
 
@@ -289,7 +301,10 @@ async function createSocketScenario(options = {}, fn) {
             ...(resolvedOptions.query || {}),
           },
         });
-        await sockets.__test.handleSocketConnection(created.socket);
+        await sockets.__test.handleSocketConnection(
+          created.socket,
+          sockets.__config,
+        );
         return created;
       },
       handler(created, eventName) {
@@ -475,6 +490,7 @@ module.exports = {
   createSocket,
   getRequiredHandler,
   getTcpAddress,
+  loadConfig,
   loadBoardData,
   loadSockets,
   request,

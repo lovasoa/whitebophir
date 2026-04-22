@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const {
   BOARD_DATA_PATH,
+  loadConfig,
   loadBoardData,
   withBoardHistoryDir,
   withEnv,
@@ -26,6 +27,32 @@ const {
 
 function getBoardDataClass() {
   return loadBoardData();
+}
+
+/** @type {any} */
+let defaultBoardConfig;
+test.before(async () => {
+  defaultBoardConfig = await loadConfig();
+});
+
+/**
+ * @param {ReturnType<typeof loadBoardData>} BoardData
+ * @param {string} name
+ * @param {any} [config]
+ * @returns {any}
+ */
+function createBoard(BoardData, name, config = defaultBoardConfig) {
+  return new BoardData(name, config);
+}
+
+/**
+ * @param {ReturnType<typeof loadBoardData>} BoardData
+ * @param {string} name
+ * @param {any} [config]
+ * @returns {Promise<any>}
+ */
+function loadBoard(BoardData, name, config = defaultBoardConfig) {
+  return BoardData.load(name, config);
 }
 
 /**
@@ -211,6 +238,7 @@ function clearMessage() {
 async function withLoadedBoard(options) {
   const { historyDir, boardName, storedBoard, storedSvg } = options;
   const BoardData = getBoardDataClass();
+  const config = await loadConfig();
   const svgPath = path.join(
     historyDir,
     `board-${encodeURIComponent(boardName)}.svg`,
@@ -223,7 +251,7 @@ async function withLoadedBoard(options) {
   }
   return {
     BoardData,
-    board: await BoardData.load(boardName),
+    board: await loadBoard(BoardData, boardName, config),
     svgPath,
   };
 }
@@ -296,8 +324,10 @@ async function waitFor(predicate, timeoutMs = 2000) {
 
 test("BoardData processMessageBatch and per-message processing stay in sync", () => {
   const BoardData = getBoardDataClass();
-  const single = disableSaves(new BoardData("process-sequence-single"));
-  const batch = disableSaves(new BoardData("process-sequence-batch"));
+  const single = disableSaves(
+    createBoard(BoardData, "process-sequence-single"),
+  );
+  const batch = disableSaves(createBoard(BoardData, "process-sequence-batch"));
 
   const messages = [
     {
@@ -418,7 +448,9 @@ test("computeScheduledSaveDelayMs respects idle and max-delay deadlines", () => 
 
 test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("finalize-persisted-snapshot"));
+  const board = disableSaves(
+    createBoard(BoardData, "finalize-persisted-snapshot"),
+  );
 
   assert.equal(
     board.processMessage(
@@ -463,7 +495,9 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
 
 test("finalizePersistedItems folds newly persisted pencil children into the baseline", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("finalize-persisted-children"));
+  const board = disableSaves(
+    createBoard(BoardData, "finalize-persisted-children"),
+  );
 
   assertMessagesAccepted(
     board,
@@ -490,7 +524,7 @@ test("finalizePersistedItems folds newly persisted pencil children into the base
 
 test("finalizePersistedItems keeps omitted pencil creates dirty until they serialize", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("finalize-omitted-pencil"));
+  const board = disableSaves(createBoard(BoardData, "finalize-omitted-pencil"));
 
   assertMessagesAccepted(
     board,
@@ -518,7 +552,8 @@ test("finalizePersistedItems keeps omitted pencil creates dirty until they seria
 test("save schedules a fast follow-up when newer created items remain dirty", async () => {
   await withBoardHistoryDir("wbo-save-follow-up-", async ({ historyDir }) => {
     const BoardData = getBoardDataClass();
-    const board = new BoardData("follow-up-save-board");
+    const config = await loadConfig();
+    const board = createBoard(BoardData, "follow-up-save-board", config);
 
     assertMessagesAccepted(
       board,
@@ -563,7 +598,8 @@ test("save schedules a fast follow-up when newer created items remain dirty", as
 test("BoardData.save skips redundant clean saves once persisted state is current", async () => {
   await withBoardHistoryDir("wbo-save-skip-clean-", async ({ historyDir }) => {
     const BoardData = getBoardDataClass();
-    const board = new BoardData("skip-clean-save");
+    const config = await loadConfig();
+    const board = createBoard(BoardData, "skip-clean-save", config);
     const svgPath = path.join(historyDir, "board-skip-clean-save.svg");
 
     board.board = {
@@ -591,7 +627,7 @@ test("BoardData.save skips redundant clean saves once persisted state is current
 
 test("scheduleSaveTimeout does not queue an autosave while a save is in progress", async () => {
   const BoardData = getBoardDataClass();
-  const board = new BoardData("skip-timer-during-save");
+  const board = createBoard(BoardData, "skip-timer-during-save");
   let saveCalls = 0;
 
   board.saveInProgress = true;
@@ -608,7 +644,7 @@ test("scheduleSaveTimeout does not queue an autosave while a save is in progress
 
 test("BoardData replays batch updates, copies, and deletes consistently", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("replay-board"));
+  const board = disableSaves(createBoard(BoardData, "replay-board"));
 
   board.processMessage({
     _children: [
@@ -637,7 +673,7 @@ test("BoardData replays batch updates, copies, and deletes consistently", () => 
 
 test("BoardData keeps paint order stable when updating existing items", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("paint-order-stability"));
+  const board = disableSaves(createBoard(BoardData, "paint-order-stability"));
 
   assertMessagesAccepted(board, [
     rectangleMessage("rect-1", "#112233", 4, 0, 0, 10, 10),
@@ -668,7 +704,7 @@ test("BoardData keeps paint order stable when updating existing items", () => {
 
 test("BoardData applies parent tool metadata to batched Hand updates", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("hand-batch-board"));
+  const board = disableSaves(createBoard(BoardData, "hand-batch-board"));
 
   assertMessagesAccepted(board, [
     rectangleMessage("rect-1", "#112233", 4, 0, 0, 10, 10),
@@ -692,7 +728,9 @@ test("BoardData applies parent tool metadata to batched Hand updates", () => {
 
 test("BoardData authoritativeItemCount drops to zero after clear", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("authoritative-count-clear"));
+  const board = disableSaves(
+    createBoard(BoardData, "authoritative-count-clear"),
+  );
 
   assertMessagesAccepted(board, [
     rectangleMessage("rect-1", "#112233", 4, 0, 0, 10, 10),
@@ -710,7 +748,7 @@ test("BoardData authoritativeItemCount drops to zero after clear", () => {
 
 test("BoardData copy keeps pencil child arrays isolated", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("copy-pencil-isolation"));
+  const board = disableSaves(createBoard(BoardData, "copy-pencil-isolation"));
 
   assertMessagesAccepted(board, [
     ...buildPencilStrokeMutations("p-1", "#123456", 4, [{ x: 10, y: 20 }]),
@@ -728,7 +766,10 @@ test("BoardData copy keeps pencil child arrays isolated", () => {
 test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async () => {
   await withEnv({ WBO_MAX_CHILDREN: "1" }, async () => {
     const BoardData = getBoardDataClass();
-    const board = disableSaves(new BoardData("child-cap-board"));
+    const config = await loadConfig();
+    const board = disableSaves(
+      createBoard(BoardData, "child-cap-board", config),
+    );
 
     board.set("line-1", {
       tool: "pencil",
@@ -746,7 +787,7 @@ test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async () => {
 
 test("BoardData rejects the first pencil child that makes a stroke oversized", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("oversized-pencil-board"));
+  const board = disableSaves(createBoard(BoardData, "oversized-pencil-board"));
 
   assert.equal(
     board.set("line-1", {
@@ -770,7 +811,9 @@ test("BoardData rejects the first pencil child that makes a stroke oversized", (
 
 test("BoardData rejects transform updates that make a stored shape oversized", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("oversized-transform-board"));
+  const board = disableSaves(
+    createBoard(BoardData, "oversized-transform-board"),
+  );
 
   assertMessagesAccepted(board, [
     rectangleMessage("rect-1", "#112233", 4, 0, 0, 10000, 10000),
@@ -787,7 +830,9 @@ test("BoardData rejects transform updates that make a stored shape oversized", (
 
 test("BoardData drops zero-size seed shapes after an oversized update is rejected", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("oversized-seed-shape-board"));
+  const board = disableSaves(
+    createBoard(BoardData, "oversized-seed-shape-board"),
+  );
 
   assertMessagesAccepted(board, [
     rectangleMessage("rect-1", "#112233", 4, 10, 10, 10, 10),
@@ -809,7 +854,9 @@ test("BoardData drops zero-size seed shapes after an oversized update is rejecte
 
 test("BoardData.preparePersistentMutation preserves seed-drop followups and stays in sync after them", async () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("prepare-seed-followup-board"));
+  const board = disableSaves(
+    createBoard(BoardData, "prepare-seed-followup-board"),
+  );
 
   assertMessagesAccepted(board, [
     rectangleMessage("rect-1", "#112233", 4, 10, 10, 10, 10),
@@ -849,7 +896,7 @@ test("BoardData.preparePersistentMutation preserves seed-drop followups and stay
 
 test("BoardData rejects hand batches atomically when one transform is oversized", () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("atomic-hand-batch-board"));
+  const board = disableSaves(createBoard(BoardData, "atomic-hand-batch-board"));
 
   assertMessagesAccepted(board, [
     rectangleMessage("rect-1", "#112233", 4, 0, 0, 10000, 10000),
@@ -873,7 +920,8 @@ test("BoardData rejects hand batches atomically when one transform is oversized"
 test("BoardData trims overflow by paint order instead of recency", async () => {
   await withEnv({ WBO_MAX_ITEM_COUNT: "2" }, async () => {
     const BoardData = getBoardDataClass();
-    const board = disableSaves(new BoardData("cleanup-board"));
+    const config = await loadConfig();
+    const board = disableSaves(createBoard(BoardData, "cleanup-board", config));
 
     assert.equal(
       board.processMessage(
@@ -939,6 +987,7 @@ test("BoardData trims overflow by paint order instead of recency", async () => {
 test("BoardData.load normalizes stored board items from disk", async () => {
   await withBoardHistoryDir("wbo-board-data-load-", async ({ historyDir }) => {
     const BoardData = getBoardDataClass();
+    const config = await loadConfig();
     await writeBoard(historyDir, "normalized-load", {
       bad1: {
         ...rectangleMessage(
@@ -961,7 +1010,7 @@ test("BoardData.load normalizes stored board items from disk", async () => {
       },
     });
 
-    const board = await BoardData.load("normalized-load");
+    const board = await loadBoard(BoardData, "normalized-load", config);
 
     assert.equal(board.get("bad1"), undefined);
     assert.equal(board.get("bad2"), undefined);
@@ -973,6 +1022,7 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
     "wbo-board-json-migrate-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
+      const config = await loadConfig();
       await writeBoard(historyDir, "legacy-migrate", {
         __wbo_meta__: { readonly: true },
         rect: {
@@ -1006,7 +1056,7 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
         },
       });
 
-      const board = await BoardData.load("legacy-migrate");
+      const board = await loadBoard(BoardData, "legacy-migrate", config);
       const svgPath = path.join(historyDir, "board-legacy-migrate.svg");
       const svg = await fs.readFile(svgPath, "utf8");
 
@@ -1075,7 +1125,8 @@ test("BoardData eagerly loads canonical persisted svg items before applying upda
 test("BoardData records contiguous mutation seq values and persists them into svg baselines", async () => {
   await withBoardHistoryDir("wbo-board-seq-save-", async ({ historyDir }) => {
     const BoardData = getBoardDataClass();
-    const board = new BoardData("seq-save");
+    const config = await loadConfig();
+    const board = createBoard(BoardData, "seq-save", config);
 
     const message = {
       id: "rect-1",
@@ -1122,7 +1173,7 @@ test("BoardData records contiguous mutation seq values and persists them into sv
 
 test("BoardData does not mutate create messages while accepting them", async () => {
   const BoardData = getBoardDataClass();
-  const board = disableSaves(new BoardData("message-immutability"));
+  const board = disableSaves(createBoard(BoardData, "message-immutability"));
   const message = rectangleMessage("rect-1", "#123456", 4, 0, 0, 10, 10);
 
   assert.equal(board.processMessage(message).ok, true);
@@ -1136,7 +1187,10 @@ test("BoardData.save trims persisted replay history past the configured retentio
     "wbo-board-replay-retention-",
     async () => {
       const BoardData = getBoardDataClass();
-      const board = disableSaves(new BoardData("replay-retention"));
+      const config = await loadConfig();
+      const board = disableSaves(
+        createBoard(BoardData, "replay-retention", config),
+      );
       const first = rectangleMessage("rect-1", "#123456", 4, 0, 0, 10, 10);
       const second = rectangleMessage("rect-2", "#654321", 4, 20, 20, 30, 30);
 
@@ -1166,7 +1220,10 @@ test("BoardData.save keeps persisted replay history needed by pinned baselines",
       resetBoardRegistry();
       try {
         const BoardData = getBoardDataClass();
-        const board = disableSaves(new BoardData("pinned-replay-retention"));
+        const config = await loadConfig();
+        const board = disableSaves(
+          createBoard(BoardData, "pinned-replay-retention", config),
+        );
         const first = rectangleMessage("rect-1", "#123456", 4, 0, 0, 10, 10);
         const second = rectangleMessage("rect-2", "#654321", 4, 20, 20, 30, 30);
 
@@ -1200,7 +1257,8 @@ test("BoardData.save keeps writing to the board's original history dir after env
   await withBoardHistoryDir("wbo-board-sticky-history-", async (context) => {
     historyDir = context.historyDir;
     const BoardData = getBoardDataClass();
-    board = new BoardData("sticky-history");
+    const config = await loadConfig();
+    board = createBoard(BoardData, "sticky-history", config);
     const stickyBoard =
       /** @type {InstanceType<typeof import("../server/boardData.mjs").BoardData>} */ (
         board
@@ -1301,7 +1359,8 @@ test("BoardData.save replays recoverable mutations when the stored svg is missin
       assert.match(recreated, /id="rect-2"/);
       assert.equal(recreated.includes('id="text-1"'), false);
 
-      const reloaded = await BoardData.load("missing-baseline");
+      const config = await loadConfig();
+      const reloaded = await loadBoard(BoardData, "missing-baseline", config);
       assert.deepEqual(Object.keys(reloaded.board), ["rect-2"]);
     },
   );
@@ -1312,11 +1371,16 @@ test("BoardData.save tolerates a missing file while only unreconstructible items
     "wbo-board-save-missing-pencil-baseline-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
+      const config = await loadConfig();
       const svgPath = path.join(
         historyDir,
         "board-missing-pencil-baseline.svg",
       );
-      const board = await BoardData.load("missing-pencil-baseline");
+      const board = await loadBoard(
+        BoardData,
+        "missing-pencil-baseline",
+        config,
+      );
 
       await applyPersistentMutation(
         board,
@@ -1349,9 +1413,10 @@ test("BoardData.save recovers from a deleted baseline before a new pencil stroke
     "wbo-board-save-missing-baseline-seed-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
+      const config = await loadConfig();
       const svgBoardStore = require("../server/svg_board_store.mjs");
       const svgPath = path.join(historyDir, "board-missing-baseline-seed.svg");
-      const board = new BoardData("missing-baseline-seed");
+      const board = createBoard(BoardData, "missing-baseline-seed", config);
 
       await applyPersistentMutations(
         board,
@@ -1411,8 +1476,9 @@ test("BoardData.dispose prevents queued autosaves from a stale board instance", 
     "wbo-board-dispose-stale-save-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
+      const config = await loadConfig();
       const svgPath = path.join(historyDir, "board-anonymous.svg");
-      const staleBoard = new BoardData("anonymous");
+      const staleBoard = createBoard(BoardData, "anonymous", config);
 
       await applyPersistentMutations(
         staleBoard,
@@ -1432,7 +1498,7 @@ test("BoardData.dispose prevents queued autosaves from a stale board instance", 
       );
       staleBoard.dispose();
 
-      const currentBoard = await BoardData.load("anonymous");
+      const currentBoard = await loadBoard(BoardData, "anonymous", config);
       await applyPersistentMutation(
         currentBoard,
         rectangleMessage("rect-1", "#222222", 2, 1, 2, 3, 4),
@@ -1479,6 +1545,7 @@ test("BoardData.save preserves cold-loaded state when only the backup svg remain
     "wbo-board-save-cold-backup-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
+      const config = await loadConfig();
       const svgBoardStore = require("../server/svg_board_store.mjs");
       const boardName = "cold-backup";
       const svgPath = path.join(historyDir, "board-cold-backup.svg");
@@ -1503,13 +1570,13 @@ test("BoardData.save preserves cold-loaded state when only the backup svg remain
       );
       await fs.unlink(svgPath);
 
-      const board = await BoardData.load(boardName);
+      const board = await loadBoard(BoardData, boardName, config);
       assert.equal(board.loadSource, "svg_backup");
       assert.deepEqual(Object.keys(board.board), ["line-1"]);
 
       await board.save();
 
-      const reloaded = await BoardData.load(boardName);
+      const reloaded = await loadBoard(BoardData, boardName, config);
       assert.equal(reloaded.loadSource, "svg_backup");
       assert.deepEqual(Object.keys(reloaded.board), ["line-1"]);
     },
@@ -1521,7 +1588,8 @@ test("BoardData.save persists canonical test-injected board items through the bo
     "wbo-board-save-direct-memory-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
-      const board = new BoardData("direct-memory-save");
+      const config = await loadConfig();
+      const board = createBoard(BoardData, "direct-memory-save", config);
       board.board = {
         "text-1": {
           id: "text-1",
@@ -1550,6 +1618,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
     "wbo-board-save-streaming-sparse-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
+      const config = await loadConfig();
       const svgBoardStore = require("../server/svg_board_store.mjs");
       const boardName = "streaming-sparse";
 
@@ -1606,7 +1675,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
         { historyDir },
       );
 
-      const board = await BoardData.load(boardName);
+      const board = await loadBoard(BoardData, boardName, config);
       assert.deepEqual(Object.keys(board.board).sort(), [
         "item-0",
         "item-1",
@@ -1704,7 +1773,7 @@ test("BoardData.save leaves the stored svg unchanged on seq mismatch", async () 
 
 test("BoardData.save serializes concurrent saves and releases after failure", async () => {
   const BoardData = getBoardDataClass();
-  const board = new BoardData("serial-save-board");
+  const board = createBoard(BoardData, "serial-save-board");
   /** @type {string[]} */
   const calls = [];
   let shouldFail = true;

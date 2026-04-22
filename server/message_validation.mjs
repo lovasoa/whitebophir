@@ -4,15 +4,14 @@ import {
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
 import { Cursor, TOOL_BY_ID, TOOLS } from "../client-data/tools/index.js";
-import { readConfiguration } from "./configuration.mjs";
+import { parseIntegerEnv } from "./configuration_helpers.mjs";
+const MAX_BOARD_SIZE = parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360);
+const MAX_CHILDREN = parseIntegerEnv("WBO_MAX_CHILDREN", 500);
 
 // Capture config once at module load. The hot paths below (per-coordinate
 // clamping via `normalizeCoord`, per-child length checks) run thousands of
-// times per large-board load, so re-invoking `readConfiguration()` here
-// would dominate CPU. Tests that need to exercise alternate env must
-// re-import this module with a fresh URL (see `?cache-bust=` pattern in
-// test-node/message_validation.test.js).
-const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
+// times per large-board load, so module-scope capture remains required.
+// Tests that need alternate env must re-import this module with a fresh URL.
 
 /** @typedef {{[key: string]: unknown}} RawRecord */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */

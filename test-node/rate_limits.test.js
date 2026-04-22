@@ -11,50 +11,54 @@ const {
 } = require("./test_helpers.js");
 
 function loadConfig() {
-  return require(CONFIG_PATH).readConfiguration();
+  return import(
+    `${require("node:url").pathToFileURL(CONFIG_PATH).href}?cache-bust=${Date.now()}-${Math.random()}`
+  );
 }
 
-test("configuration provides sane default rate-limit ordering", () =>
+test("configuration provides sane default rate-limit ordering", async () =>
   withEnv({ WBO_IP_SOURCE: undefined }, () => {
-    const config = loadConfig();
-
-    assert.equal(config.IP_SOURCE, "remoteAddress");
-    assert.equal(config.TRUST_PROXY_HOPS, 0);
-    assert.ok(config.MAX_DESTRUCTIVE_ACTIONS_PER_IP > 0);
-    assert.ok(config.MAX_DESTRUCTIVE_ACTIONS_PERIOD_MS > 0);
-    assert.ok(config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP > 0);
-    assert.ok(config.MAX_CONSTRUCTIVE_ACTIONS_PERIOD_MS > 0);
-    assert.equal(config.MAX_TEXT_CREATIONS_PER_IP, 2);
-    assert.equal(config.MAX_TEXT_CREATIONS_PERIOD_MS, 1_000);
-    assert.equal(
-      config.ANONYMOUS_MAX_CONSTRUCTIVE_ACTIONS_PER_IP,
-      Math.floor(config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP / 2),
-    );
-    assert.equal(
-      config.ANONYMOUS_MAX_DESTRUCTIVE_ACTIONS_PER_IP,
-      Math.floor(config.MAX_DESTRUCTIVE_ACTIONS_PER_IP / 2),
-    );
-    assert.ok(config.GENERAL_RATE_LIMITS.limit > 0);
-    assert.ok(config.GENERAL_RATE_LIMITS.periodMs > 0);
-    assert.deepEqual(config.TEXT_CREATION_RATE_LIMITS, {
-      limit: 2,
-      periodMs: 1_000,
-      overrides: {
-        anonymous: {
-          limit: 30,
-          periodMs: 60_000,
+    return loadConfig().then((config) => {
+      assert.equal(config.IP_SOURCE, "remoteAddress");
+      assert.equal(config.TRUST_PROXY_HOPS, 0);
+      assert.ok(config.DESTRUCTIVE_ACTION_RATE_LIMITS.limit > 0);
+      assert.ok(config.DESTRUCTIVE_ACTION_RATE_LIMITS.periodMs > 0);
+      assert.ok(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit > 0);
+      assert.ok(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.periodMs > 0);
+      assert.equal(config.TEXT_CREATION_RATE_LIMITS.limit, 2);
+      assert.equal(config.TEXT_CREATION_RATE_LIMITS.periodMs, 1_000);
+      assert.equal(
+        config.CONSTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous?.limit,
+        Math.floor(config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit / 2),
+      );
+      assert.equal(
+        config.DESTRUCTIVE_ACTION_RATE_LIMITS.overrides.anonymous?.limit,
+        Math.floor(config.DESTRUCTIVE_ACTION_RATE_LIMITS.limit / 2),
+      );
+      assert.ok(config.GENERAL_RATE_LIMITS.limit > 0);
+      assert.ok(config.GENERAL_RATE_LIMITS.periodMs > 0);
+      assert.deepEqual(config.TEXT_CREATION_RATE_LIMITS, {
+        limit: 2,
+        periodMs: 1_000,
+        overrides: {
+          anonymous: {
+            limit: 30,
+            periodMs: 60_000,
+          },
         },
-      },
-    });
+      });
 
-    assert.ok(
-      config.GENERAL_RATE_LIMITS.limit > config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP,
-      "Emit limit should be higher than constructive limit",
-    );
-    assert.ok(
-      config.MAX_CONSTRUCTIVE_ACTIONS_PER_IP > config.MAX_TEXT_CREATIONS_PER_IP,
-      "Constructive limit should be higher than text creation limit",
-    );
+      assert.ok(
+        config.GENERAL_RATE_LIMITS.limit >
+          config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit,
+        "Emit limit should be higher than constructive limit",
+      );
+      assert.ok(
+        config.CONSTRUCTIVE_ACTION_RATE_LIMITS.limit >
+          config.TEXT_CREATION_RATE_LIMITS.limit,
+        "Constructive limit should be higher than text creation limit",
+      );
+    });
   }));
 
 test("configuration rejects trust proxy hops with incompatible ip sources", () =>
@@ -64,14 +68,12 @@ test("configuration rejects trust proxy hops with incompatible ip sources", () =
         WBO_IP_SOURCE: "CF-Connecting-IP",
         WBO_TRUST_PROXY_HOPS: "1",
       },
-      () => {
-        loadConfig();
-      },
+      () => loadConfig(),
     ),
     /WBO_TRUST_PROXY_HOPS requires WBO_IP_SOURCE to be X-Forwarded-For or Forwarded/,
   ));
 
-test("configuration parses compact rate-limit profiles", () =>
+test("configuration parses compact rate-limit profiles", async () =>
   withEnv(
     {
       WBO_MAX_EMIT_COUNT: "*:300/6s anonymous:150/6s",
@@ -79,8 +81,8 @@ test("configuration parses compact rate-limit profiles", () =>
       WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:180/2m anonymous:90/45s",
       WBO_MAX_TEXT_CREATIONS_PER_IP: "*:3/1500ms anonymous:9/90s",
     },
-    () => {
-      const config = loadConfig();
+    async () => {
+      const config = await loadConfig();
 
       assert.deepEqual(config.GENERAL_RATE_LIMITS, {
         limit: 300,
@@ -125,15 +127,15 @@ test("configuration parses compact rate-limit profiles", () =>
     },
   ));
 
-test("compact rate-limit profiles do not invent board overrides", () =>
+test("compact rate-limit profiles do not invent board overrides", async () =>
   withEnv(
     {
       WBO_MAX_EMIT_COUNT: "*:300/6s",
       WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:240/60s",
       WBO_MAX_TEXT_CREATIONS_PER_IP: "*:3/1500ms",
     },
-    () => {
-      const config = loadConfig();
+    async () => {
+      const config = await loadConfig();
       assert.deepEqual(config.GENERAL_RATE_LIMITS, {
         limit: 300,
         periodMs: 6_000,
@@ -165,7 +167,7 @@ test("general rate limit closes the socket when exceeded", async () => {
         remoteAddress: "203.0.113.10",
         query: { board: "anonymous" },
       });
-      await sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({});
@@ -196,7 +198,7 @@ test("destructive per-IP rate limit closes the socket when exceeded", async () =
         remoteAddress: "203.0.113.11",
         query: { board: "anonymous" },
       });
-      await sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
@@ -239,7 +241,7 @@ test("constructive per-IP rate limit closes the socket when exceeded", async () 
         remoteAddress: "203.0.113.13",
         query: { board: "anonymous" },
       });
-      await sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
@@ -285,7 +287,7 @@ test("text per-IP rate limit closes the socket when text creation is exceeded", 
         remoteAddress: "203.0.113.16",
         query: { board: "anonymous" },
       });
-      await sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
@@ -333,7 +335,7 @@ test("url-like text updates consume text rate-limit budget", async () => {
         remoteAddress: "203.0.113.17",
         query: { board: "anonymous" },
       });
-      await sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
@@ -390,7 +392,7 @@ test("plain text updates do not consume text rate-limit budget", async () => {
         remoteAddress: "203.0.113.18",
         query: { board: "anonymous" },
       });
-      await sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({
@@ -432,7 +434,10 @@ test("resetRateLimitMaps clears text rate-limit state", async () => {
         query: { board: "anonymous" },
         id: "socket-text-1",
       });
-      await sockets.__test.handleSocketConnection(first.socket);
+      await sockets.__test.handleSocketConnection(
+        first.socket,
+        sockets.__config,
+      );
       assert.ok(first.handlers.broadcast);
       await first.handlers.broadcast({
         tool: Text.id,
@@ -453,7 +458,10 @@ test("resetRateLimitMaps clears text rate-limit state", async () => {
         query: { board: "anonymous" },
         id: "socket-text-2",
       });
-      await sockets.__test.handleSocketConnection(second.socket);
+      await sockets.__test.handleSocketConnection(
+        second.socket,
+        sockets.__config,
+      );
       assert.ok(second.handlers.broadcast);
       await second.handlers.broadcast({
         tool: Text.id,
@@ -485,7 +493,7 @@ test("missing configured IP source falls back without disconnecting", async () =
         remoteAddress: "203.0.113.12",
         query: { board: "anonymous" },
       });
-      await sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
 
       assert.ok(handlers.broadcast);
       await handlers.broadcast({});
@@ -508,7 +516,7 @@ test("connection rejects missing handshake board without registering handlers", 
         headers: { "user-agent": "test-agent" },
         remoteAddress: "203.0.113.14",
       });
-      await sockets.__test.handleSocketConnection(socket);
+      await sockets.__test.handleSocketConnection(socket, sockets.__config);
 
       assert.equal(socket.disconnected, true);
       assert.deepEqual(broadcasted, []);
@@ -531,7 +539,10 @@ test("connection rejects malformed handshake board names", async () => {
         remoteAddress: "203.0.113.15",
         query: { board: /** @type {any} */ ({ bad: true }) },
       });
-      await sockets.__test.handleSocketConnection(created.socket);
+      await sockets.__test.handleSocketConnection(
+        created.socket,
+        sockets.__config,
+      );
 
       assert.equal(created.socket.disconnected, true);
       assert.equal(created.socket.rooms.size, 0);

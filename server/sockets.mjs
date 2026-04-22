@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import { createHash } from "node:crypto";
 import * as socketIO from "socket.io";
 import WBOMessageCommon from "../client-data/js/message_common.js";
 import { getToolId } from "../client-data/js/message_tool_metadata.js";
@@ -16,7 +16,6 @@ import {
   setLoadedBoard,
 } from "./board_registry.mjs";
 import { getBoardSession } from "./board_session.mjs";
-import { readConfiguration } from "./configuration.mjs";
 import observability from "./observability.mjs";
 import {
   canAccessBoard,
@@ -45,7 +44,7 @@ const SERVER_RATE_LIMIT_CONFIG_FIELDS =
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
-/** @typedef {ReturnType<typeof readConfiguration>} ServerConfig */
+/** @typedef {typeof import("./configuration.mjs")} ServerConfig */
 /** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {{
@@ -300,7 +299,7 @@ function getSocketRequest(socket) {
  * @returns {string}
  */
 function buildPronounceableName(seed, minParts, maxParts) {
-  const digest = crypto.createHash("sha256").update(seed).digest();
+  const digest = createHash("sha256").update(seed).digest();
   let partCount = minParts;
   if (maxParts > minParts) {
     partCount += (digest[0] || 0) % (maxParts - minParts + 1);
@@ -1830,7 +1829,7 @@ async function persistBoardBroadcast(
   config,
 ) {
   ensureSocketJoinedBoard(socket, boardName);
-  const board = await getBoard(boardName);
+  const board = await getBoard(boardName, config);
   if (!canApplyBoardMessage(config, board, data, socket)) {
     rejectBlockedBoardWrite(socket, board, boardName, data, clientIp, userName);
     return;
@@ -2089,10 +2088,10 @@ function handleReportUserMessage(socket, boardName, message) {
 
 /**
  * @param {any} app
- * @returns {import("socket.io").Server}
+ * @param {ServerConfig} config
+ * @returns {Promise<import("socket.io").Server>}
  */
-function startIO(app) {
-  const config = readConfiguration();
+async function startIO(app, config) {
   io = new Server(app);
   io.use(
     (
@@ -2118,9 +2117,10 @@ function startIO(app) {
 
 /** Returns a promise to a BoardData with the given name
  * @param {string} name
+ * @param {ServerConfig} config
  * @returns {Promise<BoardData>}
  */
-function getBoard(name) {
+function getBoard(name, config) {
   const loadedBoard = getLoadedBoard(name);
   if (loadedBoard) {
     if (logger.isEnabled("debug")) {
@@ -2130,7 +2130,7 @@ function getBoard(name) {
     }
     return loadedBoard;
   } else {
-    const board = BoardData.load(name);
+    const board = BoardData.load(name, config);
     setLoadedBoard(name, board);
     updateLoadedBoardsGauge();
     if (logger.isEnabled("debug")) {
@@ -2160,7 +2160,7 @@ async function bootstrapSocketBoard(socket, boardName, config) {
     },
     async function traceConnectBoard() {
       ensureSocketJoinedBoard(socket, boardName);
-      const board = await getBoard(boardName);
+      const board = await getBoard(boardName, config);
       if (logger.isEnabled("debug")) {
         logger.debug(
           "socket.board_bootstrap",
@@ -2207,11 +2207,12 @@ async function bootstrapSocketBoard(socket, boardName, config) {
  * @param {AppSocket} socket
  * @param {string} boardName
  * @param {{baselineSeq?: unknown} | undefined} request
+ * @param {ServerConfig} config
  * @returns {Promise<void>}
  */
-async function handleSyncRequestMessage(socket, boardName, request) {
+async function handleSyncRequestMessage(socket, boardName, request, config) {
   ensureSocketJoinedBoard(socket, boardName);
-  const board = await getBoard(boardName);
+  const board = await getBoard(boardName, config);
   const baselineSeq = normalizeSeq(request?.baselineSeq);
   const latestSeq = board.getSeq();
   const minReplayableSeq = board.minReplayableSeq();
@@ -2372,7 +2373,7 @@ async function handleSocketConnection(socket, config) {
           }),
         },
         async function traceSyncRequest() {
-          return handleSyncRequestMessage(socket, boardName, request);
+          return handleSyncRequestMessage(socket, boardName, request, config);
         },
       );
     },
@@ -2577,8 +2578,9 @@ export const __test = {
   buildUserName,
   handleSocketConnection: function handleSocketConnectionForTest(
     /** @type {AppSocket} */ socket,
+    /** @type {ServerConfig} */ config,
   ) {
-    return handleSocketConnection(socket, readConfiguration());
+    return handleSocketConnection(socket, config);
   },
   consumeFixedWindowRateLimit,
   countDestructiveActions,

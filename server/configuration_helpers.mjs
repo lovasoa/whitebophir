@@ -133,14 +133,26 @@ export function parseEnumEnv(name, allowedValues, defaultValue) {
 }
 
 /**
+ * @param {string} ipSourceName
+ * @param {string} trustProxyHopsName
+ * @param {string} defaultIpSource
+ * @param {number} defaultTrustProxyHops
  * @returns {{IP_SOURCE: string, TRUST_PROXY_HOPS: number}}
  */
-export function parseIpConfigurationEnv() {
-  const ipSource = parseStringEnv("WBO_IP_SOURCE", "remoteAddress")?.trim();
-  const trustProxyHops = parseIntegerEnv("WBO_TRUST_PROXY_HOPS", 0);
+export function parseIpConfigurationEnv(
+  ipSourceName,
+  trustProxyHopsName,
+  defaultIpSource,
+  defaultTrustProxyHops,
+) {
+  const ipSource = parseStringEnv(ipSourceName, defaultIpSource)?.trim();
+  const trustProxyHops = parseIntegerEnv(
+    trustProxyHopsName,
+    defaultTrustProxyHops,
+  );
 
   if (trustProxyHops < 0) {
-    throw new Error("Invalid WBO_TRUST_PROXY_HOPS: must be >= 0");
+    throw new Error(`Invalid ${trustProxyHopsName}: must be >= 0`);
   }
 
   const normalizedIpSource = (ipSource || "").toLowerCase();
@@ -150,12 +162,12 @@ export function parseIpConfigurationEnv() {
     normalizedIpSource !== "forwarded"
   ) {
     throw new Error(
-      "WBO_TRUST_PROXY_HOPS requires WBO_IP_SOURCE to be X-Forwarded-For or Forwarded",
+      `${trustProxyHopsName} requires ${ipSourceName} to be X-Forwarded-For or Forwarded`,
     );
   }
 
   return {
-    IP_SOURCE: ipSource || "remoteAddress",
+    IP_SOURCE: ipSource || defaultIpSource,
     TRUST_PROXY_HOPS: trustProxyHops,
   };
 }
