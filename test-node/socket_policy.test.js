@@ -4,23 +4,16 @@ const jsonwebtoken = require("jsonwebtoken");
 
 const {
   SOCKET_POLICY_PATH,
+  createConfig,
   createSocket,
-  parseConfig,
-  withEnv,
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Clear, Cursor, Text } = require("../client-data/tools/index.js");
 
 test("getClientIp resolves the first proxy hop from forwarding headers", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
-  const forwardedForConfig = await withEnv(
-    { WBO_IP_SOURCE: "X-Forwarded-For" },
-    async () => parseConfig(),
-  );
-  const forwardedConfig = await withEnv(
-    { WBO_IP_SOURCE: "Forwarded" },
-    async () => parseConfig(),
-  );
+  const forwardedForConfig = createConfig({ IP_SOURCE: "X-Forwarded-For" });
+  const forwardedConfig = createConfig({ IP_SOURCE: "Forwarded" });
 
   assert.equal(
     socketPolicy.getClientIp(
@@ -73,20 +66,14 @@ test("getClientIp resolves the first proxy hop from forwarding headers", async (
 
 test("getClientIp supports exact trusted proxy depth for forwarded chains", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
-  const forwardedForConfig = await withEnv(
-    {
-      WBO_IP_SOURCE: "X-Forwarded-For",
-      WBO_TRUST_PROXY_HOPS: "2",
-    },
-    async () => parseConfig(),
-  );
-  const forwardedConfig = await withEnv(
-    {
-      WBO_IP_SOURCE: "Forwarded",
-      WBO_TRUST_PROXY_HOPS: "2",
-    },
-    async () => parseConfig(),
-  );
+  const forwardedForConfig = createConfig({
+    IP_SOURCE: "X-Forwarded-For",
+    TRUST_PROXY_HOPS: 2,
+  });
+  const forwardedConfig = createConfig({
+    IP_SOURCE: "Forwarded",
+    TRUST_PROXY_HOPS: 2,
+  });
 
   assert.equal(
     socketPolicy.getClientIp(
@@ -117,10 +104,7 @@ test("getClientIp supports exact trusted proxy depth for forwarded chains", asyn
 
 test("getClientIp supports custom single-value headers such as CF-Connecting-IP", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
-  const config = await withEnv(
-    { WBO_IP_SOURCE: "CF-Connecting-IP" },
-    async () => parseConfig(),
-  );
+  const config = createConfig({ IP_SOURCE: "CF-Connecting-IP" });
   assert.equal(
     socketPolicy.getClientIp(
       config,
@@ -144,9 +128,7 @@ test("parseForwardedHeader rejects malformed forwarded headers", () => {
 
 test("normalizeBroadcastData rejects blocked tools before persistence", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
-  const config = await withEnv({ WBO_BLOCKED_TOOLS: "text" }, async () =>
-    parseConfig(),
-  );
+  const config = createConfig({ BLOCKED_TOOLS: ["text"] });
   const rejected = socketPolicy.normalizeBroadcastData(config, "anonymous", {
     tool: Text.id,
     type: MutationType.UPDATE,
@@ -163,58 +145,53 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
     isReadOnly: () => true,
   };
 
-  await withEnv({ AUTH_SECRET_KEY: undefined }, async () => {
-    const socketPolicy = require(SOCKET_POLICY_PATH);
-    const { socket } = createSocket();
-    const config = parseConfig();
+  const socketPolicy = require(SOCKET_POLICY_PATH);
+  const { socket } = createSocket();
+  const unauthenticatedConfig = createConfig({ AUTH_SECRET_KEY: "" });
 
-    assert.equal(
-      socketPolicy.canApplyBoardMessage(
-        config,
-        readonlyBoard,
-        {
-          tool: Cursor.id,
-          type: MutationType.UPDATE,
-          color: "#123456",
-          size: 4,
-          x: 1,
-          y: 2,
-        },
-        socket,
-      ),
-      true,
-    );
-  });
+  assert.equal(
+    socketPolicy.canApplyBoardMessage(
+      unauthenticatedConfig,
+      readonlyBoard,
+      {
+        tool: Cursor.id,
+        type: MutationType.UPDATE,
+        color: "#123456",
+        size: 4,
+        x: 1,
+        y: 2,
+      },
+      socket,
+    ),
+    true,
+  );
 
-  await withEnv({ AUTH_SECRET_KEY: "test-secret" }, async () => {
-    const socketPolicy = require(SOCKET_POLICY_PATH);
-    const config = parseConfig();
-    const editorToken = jsonwebtoken.sign(
-      { roles: ["editor"] },
-      process.env.AUTH_SECRET_KEY,
-    );
-    const moderatorToken = jsonwebtoken.sign(
-      { roles: ["moderator"] },
-      process.env.AUTH_SECRET_KEY,
-    );
+  const authenticatedConfig = createConfig({ AUTH_SECRET_KEY: "test-secret" });
+  const editorToken = jsonwebtoken.sign(
+    { roles: ["editor"] },
+    authenticatedConfig.AUTH_SECRET_KEY,
+  );
+  const moderatorToken = jsonwebtoken.sign(
+    { roles: ["moderator"] },
+    authenticatedConfig.AUTH_SECRET_KEY,
+  );
 
-    assert.equal(
-      socketPolicy.canApplyBoardMessage(
-        config,
-        readonlyBoard,
-        { tool: Clear.id, type: MutationType.CLEAR },
-        createSocket({ token: editorToken }).socket,
-      ),
-      false,
-    );
-    assert.equal(
-      socketPolicy.canApplyBoardMessage(
-        config,
-        readonlyBoard,
-        { tool: Clear.id, type: MutationType.CLEAR },
-        createSocket({ token: moderatorToken }).socket,
-      ),
-      true,
-    );
-  });
+  assert.equal(
+    socketPolicy.canApplyBoardMessage(
+      authenticatedConfig,
+      readonlyBoard,
+      { tool: Clear.id, type: MutationType.CLEAR },
+      createSocket({ token: editorToken }).socket,
+    ),
+    false,
+  );
+  assert.equal(
+    socketPolicy.canApplyBoardMessage(
+      authenticatedConfig,
+      readonlyBoard,
+      { tool: Clear.id, type: MutationType.CLEAR },
+      createSocket({ token: moderatorToken }).socket,
+    ),
+    true,
+  );
 });
