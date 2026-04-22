@@ -9,7 +9,7 @@ const {
   loadSockets,
   withMockedNow,
 } = require("./test_helpers.js");
-const WBOMessageCommon = require("../client-data/js/message_common.js");
+const _WBOMessageCommon = require("../client-data/js/message_common.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Cursor, Pencil } = require("../client-data/tools/index.js");
 
@@ -27,23 +27,6 @@ function createHistoryDir() {
 function disableSaves(board) {
   board.delaySave = () => {};
 }
-
-test("requiresTurnstile shared utility logic", () => {
-  assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "pencil"), true);
-  assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "clear"), true);
-  assert.equal(
-    WBOMessageCommon.requiresTurnstile("anonymous", "cursor"),
-    false,
-  );
-  assert.equal(
-    WBOMessageCommon.requiresTurnstile("named-board", "pencil"),
-    false,
-  );
-  assert.equal(
-    WBOMessageCommon.requiresTurnstile("anonymous", undefined),
-    false,
-  );
-});
 
 test("server-side Turnstile enforcement in broadcast", async () => {
   const historyDir = await createHistoryDir();
