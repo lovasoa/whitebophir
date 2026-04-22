@@ -6,11 +6,6 @@ const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(ROOT, "server", "configuration.mjs");
-const CONFIG_VALUES_PATH = path.join(
-  ROOT,
-  "server",
-  "configuration_values.mjs",
-);
 const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.mjs");
 const SOCKETS_PATH = path.join(ROOT, "server", "sockets.mjs");
 const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.mjs");
@@ -30,6 +25,11 @@ const JWT_BOARDNAME_AUTH_PATH = path.join(
   ROOT,
   "server",
   "jwtBoardnameAuth.mjs",
+);
+const CONFIGURATION_HELPERS_PATH = path.join(
+  ROOT,
+  "server",
+  "configuration_helpers.mjs",
 );
 
 /** @typedef {{[key: string]: any}} Dict */
@@ -80,7 +80,105 @@ function loadBoardData() {
  * @returns {any}
  */
 function parseConfig(env = process.env) {
-  return require(CONFIG_VALUES_PATH).parseConfigurationSnapshot(env);
+  const config = { ...require(CONFIG_PATH) };
+  const helpers = require(CONFIGURATION_HELPERS_PATH);
+
+  if (
+    env.WBO_IP_SOURCE !== undefined ||
+    env.WBO_TRUST_PROXY_HOPS !== undefined
+  ) {
+    const ipConfiguration = helpers.parseIpConfigurationEnv(
+      "WBO_IP_SOURCE",
+      "WBO_TRUST_PROXY_HOPS",
+      config.IP_SOURCE,
+      config.TRUST_PROXY_HOPS,
+      env,
+    );
+    config.IP_SOURCE = ipConfiguration.IP_SOURCE;
+    config.TRUST_PROXY_HOPS = ipConfiguration.TRUST_PROXY_HOPS;
+  }
+  if (env.WBO_MAX_EMIT_COUNT !== undefined) {
+    config.GENERAL_RATE_LIMITS = helpers.parseRateLimitProfileEnv(
+      "WBO_MAX_EMIT_COUNT",
+      "*:1/1s",
+      env,
+    );
+  }
+  if (env.WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP !== undefined) {
+    config.CONSTRUCTIVE_ACTION_RATE_LIMITS = helpers.parseRateLimitProfileEnv(
+      "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
+      "*:1/1s",
+      env,
+    );
+  }
+  if (env.WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP !== undefined) {
+    config.DESTRUCTIVE_ACTION_RATE_LIMITS = helpers.parseRateLimitProfileEnv(
+      "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
+      "*:1/1s",
+      env,
+    );
+  }
+  if (env.WBO_MAX_TEXT_CREATIONS_PER_IP !== undefined) {
+    config.TEXT_CREATION_RATE_LIMITS = helpers.parseRateLimitProfileEnv(
+      "WBO_MAX_TEXT_CREATIONS_PER_IP",
+      "*:1/1s",
+      env,
+    );
+  }
+  if (env.WBO_MAX_CHILDREN !== undefined) {
+    config.MAX_CHILDREN = helpers.parseIntegerEnv(
+      "WBO_MAX_CHILDREN",
+      config.MAX_CHILDREN,
+      env,
+    );
+  }
+  if (env.PORT !== undefined) {
+    config.PORT = helpers.parseIntegerEnv("PORT", config.PORT, env);
+  }
+  if (env.HOST !== undefined) {
+    config.HOST = helpers.parseStringEnv("HOST", config.HOST, env);
+  }
+  if (env.WBO_MAX_ITEM_COUNT !== undefined) {
+    config.MAX_ITEM_COUNT = helpers.parseIntegerEnv(
+      "WBO_MAX_ITEM_COUNT",
+      config.MAX_ITEM_COUNT,
+      env,
+    );
+  }
+  if (env.WBO_WEBROOT !== undefined) {
+    config.WEBROOT = helpers.parseStringEnv("WBO_WEBROOT", config.WEBROOT, env);
+  }
+  if (env.WBO_HISTORY_DIR !== undefined) {
+    config.HISTORY_DIR = helpers.parseStringEnv(
+      "WBO_HISTORY_DIR",
+      config.HISTORY_DIR,
+      env,
+    );
+  }
+  if (env.NODE_ENV !== undefined) {
+    config.IS_DEVELOPMENT = env.NODE_ENV !== "production";
+  }
+  if (env.WBO_BLOCKED_TOOLS !== undefined) {
+    config.BLOCKED_TOOLS = helpers.parseCommaSeparatedEnv(
+      "WBO_BLOCKED_TOOLS",
+      env,
+    );
+  }
+  if (env.AUTH_SECRET_KEY !== undefined) {
+    config.AUTH_SECRET_KEY = helpers.parseStringEnv(
+      "AUTH_SECRET_KEY",
+      config.AUTH_SECRET_KEY,
+      env,
+    );
+  }
+  if (env.WBO_DEFAULT_BOARD !== undefined) {
+    config.DEFAULT_BOARD = helpers.parseStringEnv(
+      "WBO_DEFAULT_BOARD",
+      config.DEFAULT_BOARD,
+      env,
+    );
+  }
+  return config;
 }
 
 /**

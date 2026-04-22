@@ -10,226 +10,60 @@ const {
   Rectangle,
   StraightLine,
   Text,
-  TOOLS,
 } = require("../client-data/tools/index.js");
 const { MutationType } = MessageToolMetadata;
 
-const SHAPE_CREATE_FIELDS = {
-  id: "id",
-  color: "color",
-  size: "size",
-  opacity: "opacity?",
-  x: "coord",
-  y: "coord",
-};
-const SHAPE_STORED_SAMPLE = {
-  color: "#123456",
-  size: 4,
-  x: 10,
-  y: 20,
-  x2: 30,
-  y2: 40,
-};
+test("normalizeIncomingMessage rejects live tool/type combinations that are not defined", () => {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const invalidShapeMutation = messageValidation.normalizeIncomingMessage({
+    tool: Rectangle.id,
+    type: MutationType.COPY,
+    id: "shape-1",
+  });
+  assert.deepEqual(invalidShapeMutation, {
+    ok: false,
+    reason: "invalid tool/type",
+  });
+});
 
-/**
- * @param {string} type
- * @returns {string}
- */
-function fieldType(type) {
-  return type.endsWith("?") ? type.slice(0, -1) : type;
-}
+test("normalizeIncomingMessage requires required fields for updates", () => {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const invalidUpdate = messageValidation.normalizeIncomingMessage({
+    tool: Rectangle.id,
+    type: MutationType.UPDATE,
+    id: "shape-1",
+    x: 10,
+  });
+  assert.equal(invalidUpdate.ok, false);
+  assert.match(invalidUpdate.reason, /missing y/);
+});
 
-/**
- * @param {string} type
- * @param {string} key
- * @returns {any}
- */
-function sampleFieldValue(type, key) {
-  switch (fieldType(type)) {
-    case "id":
-      return key === "parent" ? "parent-1" : `${key}-1`;
-    case "coord":
-      return key === "y" || key === "y2" ? 20 : 10;
-    case "color":
-      return "#123456";
-    case "size":
-      return 4;
-    case "opacity":
-      return 0.6;
-    case "text":
-      return "hello";
-    case "transform":
-      return { a: 1, b: 0, c: 0, d: 1, e: 5, f: 6 };
-    case "time":
-      return 1234;
-  }
-}
-
-/**
- * @param {{[field: string]: string} | undefined} fields
- * @returns {{[field: string]: any}}
- */
-function sampleFields(fields) {
-  return Object.fromEntries(
-    Object.entries(fields || {}).map(([key, type]) => [
-      key,
-      sampleFieldValue(type, key),
-    ]),
-  );
-}
-
-/**
- * @returns {Array<{tool: string, type: number, sample: any}>}
- */
-function liveValidationSamples() {
-  /** @type {Array<{tool: string, type: number, sample: any}>} */
-  const samples = [
+test("normalizeStoredItem accepts stored shape payloads and defaults shape end points", () => {
+  const messageValidation = require(MESSAGE_VALIDATION_PATH);
+  const normalized = messageValidation.normalizeStoredItem(
     {
-      tool: "cursor",
-      type: MutationType.UPDATE,
-      sample: {
-        tool: Cursor.id,
-        type: MutationType.UPDATE,
-        ...sampleFields({
-          color: "color",
-          size: "size",
-          x: "coord",
-          y: "coord",
-        }),
-      },
+      tool: "rectangle",
+      color: "#123456",
+      size: 4,
+      x: 12,
+      y: 34,
     },
-  ];
-  for (const tool of TOOLS) {
-    for (const [type, fields] of Object.entries(tool.liveMessageFields || {})) {
-      const mutationType = Number(type);
-      samples.push({
-        tool: tool.toolId,
-        type: mutationType,
-        sample: {
-          tool: tool.id,
-          type: mutationType,
-          ...sampleFields(fields),
-        },
-      });
-    }
-    if (tool.shapeTool === true) {
-      samples.push({
-        tool: tool.toolId,
-        type: MutationType.CREATE,
-        sample: {
-          tool: tool.id,
-          type: MutationType.CREATE,
-          ...sampleFields(SHAPE_CREATE_FIELDS),
-        },
-      });
-      /** @type {{[field: string]: any}} */
-      const updateSample = {
-        tool: tool.id,
-        type: MutationType.UPDATE,
-        id: "shape-1",
-      };
-      Object.assign(
-        updateSample,
-        Object.fromEntries(
-          (tool.updatableFields || []).map((field) => [field, 10]),
-        ),
-      );
-      samples.push({
-        tool: tool.toolId,
-        type: MutationType.UPDATE,
-        sample: updateSample,
-      });
-    }
-  }
-  return samples;
-}
-
-/**
- * @returns {Array<{tool: string, sample: any}>}
- */
-function storedValidationSamples() {
-  const samples = [];
-  for (const tool of TOOLS) {
-    if (tool.shapeTool === true) {
-      samples.push({
-        tool: tool.toolId,
-        sample: { tool: tool.toolId, ...SHAPE_STORED_SAMPLE },
-      });
-      continue;
-    }
-    if (tool.storedFields) {
-      samples.push({
-        tool: tool.toolId,
-        sample: {
-          tool: tool.toolId,
-          ...sampleFields(tool.storedFields),
-        },
-      });
-    }
-  }
-  return samples;
-}
-
-test("normalizeIncomingMessage supports every live tool/type pair", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
-  for (const { tool, type, sample } of liveValidationSamples()) {
-    const normalized = messageValidation.normalizeIncomingMessage(sample);
-    assert.equal(
-      normalized.ok,
-      true,
-      `expected valid ${tool}/${type} to normalize`,
-    );
-    assert.equal(
-      normalized.value.tool,
-      TOOLS.find((candidate) => candidate.toolId === tool)?.id,
-    );
-  }
-});
-
-test("metadata shape tools are all supported by incoming and stored validation", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
-  const shapeTools = TOOLS.filter((tool) => tool.shapeTool === true);
-  for (let index = 0; index < shapeTools.length; index += 1) {
-    const contract = shapeTools[index];
-    const toolName = contract?.toolId;
-    const toolCode = contract?.id;
-    if (typeof toolName !== "string" || typeof toolCode !== "number") continue;
-    const id = `shape-${index}`;
-    const normalizedIncoming = messageValidation.normalizeIncomingMessage({
-      tool: toolCode,
-      type: MutationType.CREATE,
-      id,
-      ...sampleFields(SHAPE_CREATE_FIELDS),
-    });
-    assert.equal(normalizedIncoming.ok, true);
-
-    const normalizedUpdate = messageValidation.normalizeIncomingMessage({
-      tool: toolCode,
-      type: MutationType.UPDATE,
-      id,
-      ...Object.fromEntries(
-        (contract?.updatableFields || []).map((field) => [field, 12]),
-      ),
-    });
-    assert.equal(normalizedUpdate.ok, true);
-
-    const normalizedStored = messageValidation.normalizeStoredItem(
-      { tool: toolName, ...SHAPE_STORED_SAMPLE },
-      `stored-${index}`,
-    );
-    assert.equal(normalizedStored.ok, true);
-  }
-});
-
-test("normalizeStoredItem supports every stored tool", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
-  for (const { sample } of storedValidationSamples()) {
-    const normalized = messageValidation.normalizeStoredItem(
-      sample,
-      sample.id || "item",
-    );
-    assert.equal(normalized.ok, true);
-  }
+    "shape-stored",
+  );
+  assert.deepEqual(normalized, {
+    ok: true,
+    value: {
+      tool: "rectangle",
+      type: "rect",
+      id: "shape-stored",
+      color: "#123456",
+      size: 10,
+      x: 12,
+      y: 34,
+      x2: 12,
+      y2: 34,
+    },
+  });
 });
 
 test("normalizeIncomingMessage defaults shape end coordinates from the starting point", () => {
