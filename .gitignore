@@ -19,6 +19,8 @@ npm-debug.log
 .DS_Store
 
 wbo-backup*
+server-data/board-*.svg
+server-data/board-*.json
 
 # Jetbrains
 .idea/

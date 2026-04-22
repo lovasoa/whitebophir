@@ -136,6 +136,10 @@ class LogfmtLogRecordExporter {
   shutdown() {
     return Promise.resolve();
   }
+
+  forceFlush() {
+    return Promise.resolve();
+  }
 }
 
 /**
