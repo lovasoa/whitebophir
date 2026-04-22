@@ -4,9 +4,8 @@ const path = require("node:path");
 
 const {
   BOARD_DATA_PATH,
+  createConfig,
   createSocket,
-  parseConfig,
-  withEnv,
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Cursor, Text } = require("../client-data/tools/index.js");
@@ -38,15 +37,24 @@ function disableSaves(board) {
 test("broadcast processing includes general rate-limit bookkeeping in isolation", async () => {
   const { createBroadcastRateLimits, processBoardBroadcastMessage } =
     await loadBroadcastProcessing();
-  const config = await withEnv(
-    {
-      WBO_MAX_EMIT_COUNT: "*:1/60s",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
-      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
-      WBO_MAX_TEXT_CREATIONS_PER_IP: "*:100/60s",
+  const config = createConfig({
+    GENERAL_RATE_LIMITS: { limit: 1, periodMs: 60_000, overrides: {} },
+    CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+      limit: 100,
+      periodMs: 60_000,
+      overrides: {},
     },
-    async () => parseConfig(),
-  );
+    DESTRUCTIVE_ACTION_RATE_LIMITS: {
+      limit: 100,
+      periodMs: 60_000,
+      overrides: {},
+    },
+    TEXT_CREATION_RATE_LIMITS: {
+      limit: 100,
+      periodMs: 60_000,
+      overrides: {},
+    },
+  });
   const { socket } = createSocket({ id: "socket-rate-limit" });
   const board = {
     name: "broadcast-rate-limit",
@@ -101,15 +109,24 @@ test("broadcast processing applies board writes without the socket event wrapper
   const { createBroadcastRateLimits, processBoardBroadcastMessage } =
     await loadBroadcastProcessing();
   const BoardData = require(BOARD_DATA_PATH).BoardData;
-  const config = await withEnv(
-    {
-      WBO_MAX_EMIT_COUNT: "*:100/60s",
-      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
-      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
-      WBO_MAX_TEXT_CREATIONS_PER_IP: "*:100/60s",
+  const config = createConfig({
+    GENERAL_RATE_LIMITS: { limit: 100, periodMs: 60_000, overrides: {} },
+    CONSTRUCTIVE_ACTION_RATE_LIMITS: {
+      limit: 100,
+      periodMs: 60_000,
+      overrides: {},
     },
-    async () => parseConfig(),
-  );
+    DESTRUCTIVE_ACTION_RATE_LIMITS: {
+      limit: 100,
+      periodMs: 60_000,
+      overrides: {},
+    },
+    TEXT_CREATION_RATE_LIMITS: {
+      limit: 100,
+      periodMs: 60_000,
+      overrides: {},
+    },
+  });
   const board = disableSaves(new BoardData("broadcast-board-write", config));
   board.processMessage({
     tool: Text.id,
