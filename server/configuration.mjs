@@ -17,121 +17,192 @@ const DEFAULT_WEBROOT = path.join(APP_ROOT, "client-data");
 const DEFAULT_TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
-/** True outside production. */
-export const IS_DEVELOPMENT = process.env.NODE_ENV !== "production";
+/**
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{
+ *   IS_DEVELOPMENT: boolean,
+ *   PORT: number,
+ *   HOST: string | undefined,
+ *   HISTORY_DIR: string,
+ *   LOG_LEVEL: string,
+ *   WEBROOT: string,
+ *   SAVE_INTERVAL: number,
+ *   MAX_SAVE_DELAY: number,
+ *   SEQ_REPLAY_RETENTION_MS: number,
+ *   MAX_ITEM_COUNT: number,
+ *   MAX_CHILDREN: number,
+ *   MAX_BOARD_SIZE: number,
+ *   GENERAL_RATE_LIMITS: {limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}},
+ *   CONSTRUCTIVE_ACTION_RATE_LIMITS: {limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}},
+ *   DESTRUCTIVE_ACTION_RATE_LIMITS: {limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}},
+ *   TEXT_CREATION_RATE_LIMITS: {limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}},
+ *   IP_SOURCE: string,
+ *   TRUST_PROXY_HOPS: number,
+ *   BLOCKED_TOOLS: string[],
+ *   BLOCKED_SELECTION_BUTTONS: string[],
+ *   AUTO_FINGER_WHITEOUT: boolean,
+ *   AUTH_SECRET_KEY: string,
+ *   TURNSTILE_SECRET_KEY: string | undefined,
+ *   TURNSTILE_SITE_KEY: string | undefined,
+ *   TURNSTILE_VERIFY_URL: string,
+ *   TURNSTILE_VALIDATION_WINDOW_MS: number,
+ *   DEFAULT_BOARD: string | undefined,
+ * }}
+ */
+export function parseConfigurationFromEnv(env = process.env) {
+  const ipConfiguration = parseIpConfigurationEnv(
+    "WBO_IP_SOURCE",
+    "WBO_TRUST_PROXY_HOPS",
+    "remoteAddress",
+    0,
+    env,
+  );
 
-/** Application listen port. */
-export const PORT = parseIntegerEnv("PORT", 8080);
+  return {
+    /** True outside production. */
+    IS_DEVELOPMENT: env.NODE_ENV !== "production",
 
-/** Application listen host. Empty means all interfaces. */
-export const HOST = parseStringEnv("HOST", undefined);
+    /** Application listen port. */
+    PORT: parseIntegerEnv("PORT", 8080, env),
 
-/** Board persistence directory. */
-export const HISTORY_DIR = parseStringEnv(
-  "WBO_HISTORY_DIR",
-  DEFAULT_HISTORY_DIR,
-);
+    /** Application listen host. Empty means all interfaces. */
+    HOST: parseStringEnv("HOST", undefined, env),
 
-/** Minimum emitted server log level: debug, info, warn, or error. */
-export const LOG_LEVEL = parseEnumEnv("LOG_LEVEL", LOG_LEVELS, "info");
+    /** Board persistence directory. */
+    HISTORY_DIR: parseStringEnv("WBO_HISTORY_DIR", DEFAULT_HISTORY_DIR, env),
 
-/** Static asset root. */
-export const WEBROOT = parseStringEnv("WBO_WEBROOT", DEFAULT_WEBROOT);
+    /** Minimum emitted server log level: debug, info, warn, or error. */
+    LOG_LEVEL: parseEnumEnv("LOG_LEVEL", LOG_LEVELS, "info", env),
 
-/** Inactivity delay before saving a board. */
-export const SAVE_INTERVAL = parseIntegerEnv("WBO_SAVE_INTERVAL", 2000);
+    /** Static asset root. */
+    WEBROOT: parseStringEnv("WBO_WEBROOT", DEFAULT_WEBROOT, env),
 
-/** Maximum active-use delay between saves. */
-export const MAX_SAVE_DELAY = parseIntegerEnv("WBO_MAX_SAVE_DELAY", 60 * 1000);
+    /** Inactivity delay before saving a board. */
+    SAVE_INTERVAL: parseIntegerEnv("WBO_SAVE_INTERVAL", 2000, env),
 
-/** Replay retention window after save. */
-export const SEQ_REPLAY_RETENTION_MS = parseIntegerEnv(
-  "WBO_SEQ_REPLAY_RETENTION_MS",
-  60 * 1000,
-);
+    /** Maximum active-use delay between saves. */
+    MAX_SAVE_DELAY: parseIntegerEnv("WBO_MAX_SAVE_DELAY", 60 * 1000, env),
 
-/** Maximum persisted item count per board. */
-export const MAX_ITEM_COUNT = parseIntegerEnv("WBO_MAX_ITEM_COUNT", 32768);
+    /** Replay retention window after save. */
+    SEQ_REPLAY_RETENTION_MS: parseIntegerEnv(
+      "WBO_SEQ_REPLAY_RETENTION_MS",
+      60 * 1000,
+      env,
+    ),
 
-/** Maximum child count inside one item payload. */
-export const MAX_CHILDREN = parseIntegerEnv("WBO_MAX_CHILDREN", 500);
+    /** Maximum persisted item count per board. */
+    MAX_ITEM_COUNT: parseIntegerEnv("WBO_MAX_ITEM_COUNT", 32768, env),
 
-/** Maximum absolute board coordinate. */
-export const MAX_BOARD_SIZE = parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360);
+    /** Maximum child count inside one item payload. */
+    MAX_CHILDREN: parseIntegerEnv("WBO_MAX_CHILDREN", 500, env),
 
-/** Per-socket general write rate limits. Example: `*:250/5s anonymous:125/5s`. */
-export const GENERAL_RATE_LIMITS = parseRateLimitProfileEnv(
-  "WBO_MAX_EMIT_COUNT",
-  "*:250/5s",
-);
+    /** Maximum absolute board coordinate. */
+    MAX_BOARD_SIZE: parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360, env),
 
-/** Per-IP constructive write rate limits. Example: `*:40/10s anonymous:20/10s`. */
-export const CONSTRUCTIVE_ACTION_RATE_LIMITS = parseRateLimitProfileEnv(
-  "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
-  "*:40/10s anonymous:20/10s",
-);
+    /** Per-socket general write rate limits. Example: `*:250/5s anonymous:125/5s`. */
+    GENERAL_RATE_LIMITS: parseRateLimitProfileEnv(
+      "WBO_MAX_EMIT_COUNT",
+      "*:250/5s",
+      env,
+    ),
 
-/** Per-IP destructive write rate limits. Example: `*:190/60s anonymous:95/60s`. */
-export const DESTRUCTIVE_ACTION_RATE_LIMITS = parseRateLimitProfileEnv(
-  "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
-  "*:190/60s anonymous:95/60s",
-);
+    /** Per-IP constructive write rate limits. Example: `*:40/10s anonymous:20/10s`. */
+    CONSTRUCTIVE_ACTION_RATE_LIMITS: parseRateLimitProfileEnv(
+      "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
+      "*:40/10s anonymous:20/10s",
+      env,
+    ),
 
-/** Per-IP text creation rate limits. Example: `*:2/1s anonymous:30/60s`. */
-export const TEXT_CREATION_RATE_LIMITS = parseRateLimitProfileEnv(
-  "WBO_MAX_TEXT_CREATIONS_PER_IP",
-  "*:2/1s anonymous:30/60s",
-);
+    /** Per-IP destructive write rate limits. Example: `*:190/60s anonymous:95/60s`. */
+    DESTRUCTIVE_ACTION_RATE_LIMITS: parseRateLimitProfileEnv(
+      "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
+      "*:190/60s anonymous:95/60s",
+      env,
+    ),
 
-/** IP resolution source: remoteAddress, Forwarded, X-Forwarded-For, or a header name. */
-const IP_CONFIGURATION = parseIpConfigurationEnv(
-  "WBO_IP_SOURCE",
-  "WBO_TRUST_PROXY_HOPS",
-  "remoteAddress",
-  0,
-);
-export const IP_SOURCE = IP_CONFIGURATION.IP_SOURCE;
-export const TRUST_PROXY_HOPS = IP_CONFIGURATION.TRUST_PROXY_HOPS;
+    /** Per-IP text creation rate limits. Example: `*:2/1s anonymous:30/60s`. */
+    TEXT_CREATION_RATE_LIMITS: parseRateLimitProfileEnv(
+      "WBO_MAX_TEXT_CREATIONS_PER_IP",
+      "*:2/1s anonymous:30/60s",
+      env,
+    ),
 
-/** Comma-separated blocked tool ids. */
-export const BLOCKED_TOOLS = parseCommaSeparatedEnv("WBO_BLOCKED_TOOLS");
+    /** IP resolution source: remoteAddress, Forwarded, X-Forwarded-For, or a header name. */
+    IP_SOURCE: ipConfiguration.IP_SOURCE,
+    TRUST_PROXY_HOPS: ipConfiguration.TRUST_PROXY_HOPS,
 
-/** Comma-separated blocked selection button ids. */
-export const BLOCKED_SELECTION_BUTTONS = parseCommaSeparatedEnv(
-  "WBO_BLOCKED_SELECTION_BUTTONS",
-);
+    /** Comma-separated blocked tool ids. */
+    BLOCKED_TOOLS: parseCommaSeparatedEnv("WBO_BLOCKED_TOOLS", env),
 
-/** Enables stylus-then-finger whiteout unless set to `disabled`. */
-export const AUTO_FINGER_WHITEOUT = parseDisabledFlagEnv(
-  "AUTO_FINGER_WHITEOUT",
-);
+    /** Comma-separated blocked selection button ids. */
+    BLOCKED_SELECTION_BUTTONS: parseCommaSeparatedEnv(
+      "WBO_BLOCKED_SELECTION_BUTTONS",
+      env,
+    ),
 
-/** JWT secret key. */
-export const AUTH_SECRET_KEY = parseStringEnv("AUTH_SECRET_KEY", "");
+    /** Enables stylus-then-finger whiteout unless set to `disabled`. */
+    AUTO_FINGER_WHITEOUT: parseDisabledFlagEnv("AUTO_FINGER_WHITEOUT", env),
 
-/** Cloudflare Turnstile secret key. */
-export const TURNSTILE_SECRET_KEY = parseStringEnv(
-  "TURNSTILE_SECRET_KEY",
-  undefined,
-);
+    /** JWT secret key. */
+    AUTH_SECRET_KEY: parseStringEnv("AUTH_SECRET_KEY", "", env),
 
-/** Cloudflare Turnstile site key. */
-export const TURNSTILE_SITE_KEY = parseStringEnv(
-  "TURNSTILE_SITE_KEY",
-  undefined,
-);
+    /** Cloudflare Turnstile secret key. */
+    TURNSTILE_SECRET_KEY: parseStringEnv(
+      "TURNSTILE_SECRET_KEY",
+      undefined,
+      env,
+    ),
 
-/** Turnstile verification endpoint override. */
-export const TURNSTILE_VERIFY_URL = parseStringEnv(
-  "TURNSTILE_VERIFY_URL",
-  DEFAULT_TURNSTILE_VERIFY_URL,
-);
+    /** Cloudflare Turnstile site key. */
+    TURNSTILE_SITE_KEY: parseStringEnv("TURNSTILE_SITE_KEY", undefined, env),
 
-/** Successful Turnstile validation lifetime. */
-export const TURNSTILE_VALIDATION_WINDOW_MS = parseIntegerEnv(
-  "TURNSTILE_VALIDATION_WINDOW_MS",
-  4 * 60 * 1000,
-);
+    /** Turnstile verification endpoint override. */
+    TURNSTILE_VERIFY_URL: parseStringEnv(
+      "TURNSTILE_VERIFY_URL",
+      DEFAULT_TURNSTILE_VERIFY_URL,
+      env,
+    ),
 
-/** Root-route board redirect target. */
-export const DEFAULT_BOARD = parseStringEnv("WBO_DEFAULT_BOARD", undefined);
+    /** Successful Turnstile validation lifetime. */
+    TURNSTILE_VALIDATION_WINDOW_MS: parseIntegerEnv(
+      "TURNSTILE_VALIDATION_WINDOW_MS",
+      4 * 60 * 1000,
+      env,
+    ),
+
+    /** Root-route board redirect target. */
+    DEFAULT_BOARD: parseStringEnv("WBO_DEFAULT_BOARD", undefined, env),
+  };
+}
+
+const configuration = parseConfigurationFromEnv();
+
+export const {
+  IS_DEVELOPMENT,
+  PORT,
+  HOST,
+  HISTORY_DIR,
+  LOG_LEVEL,
+  WEBROOT,
+  SAVE_INTERVAL,
+  MAX_SAVE_DELAY,
+  SEQ_REPLAY_RETENTION_MS,
+  MAX_ITEM_COUNT,
+  MAX_CHILDREN,
+  MAX_BOARD_SIZE,
+  GENERAL_RATE_LIMITS,
+  CONSTRUCTIVE_ACTION_RATE_LIMITS,
+  DESTRUCTIVE_ACTION_RATE_LIMITS,
+  TEXT_CREATION_RATE_LIMITS,
+  IP_SOURCE,
+  TRUST_PROXY_HOPS,
+  BLOCKED_TOOLS,
+  BLOCKED_SELECTION_BUTTONS,
+  AUTO_FINGER_WHITEOUT,
+  AUTH_SECRET_KEY,
+  TURNSTILE_SECRET_KEY,
+  TURNSTILE_SITE_KEY,
+  TURNSTILE_VERIFY_URL,
+  TURNSTILE_VALIDATION_WINDOW_MS,
+  DEFAULT_BOARD,
+} = configuration;

@@ -6,11 +6,6 @@ const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(ROOT, "server", "configuration.mjs");
-const CONFIG_PARSER_PATH = path.join(
-  ROOT,
-  "server",
-  "configuration_parser.mjs",
-);
 const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.mjs");
 const SOCKETS_PATH = path.join(ROOT, "server", "sockets.mjs");
 const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.mjs");
@@ -80,7 +75,7 @@ function loadBoardData() {
  * @returns {any}
  */
 function parseConfig(env = process.env) {
-  return require(CONFIG_PARSER_PATH).parseConfigurationFromEnv(env);
+  return require(CONFIG_PATH).parseConfigurationFromEnv(env);
 }
 
 /**
@@ -455,7 +450,6 @@ async function withMockedNow(value, fn) {
 module.exports = {
   BOARD_DATA_PATH,
   CONFIG_PATH,
-  CONFIG_PARSER_PATH,
   MESSAGE_VALIDATION_PATH,
   SOCKET_POLICY_PATH,
   SOCKETS_PATH,
