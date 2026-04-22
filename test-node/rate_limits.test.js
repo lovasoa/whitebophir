@@ -10,6 +10,11 @@ const {
   withBoardHistoryDir,
 } = require("./test_helpers.js");
 
+/**
+ * @param {{[key: string]: any}} overrides
+ * @param {(sockets: Awaited<ReturnType<typeof loadSockets>>) => any | Promise<any>} run
+ * @returns {Promise<any>}
+ */
 async function withSocketConfig(overrides, run) {
   return withBoardHistoryDir("wbo-rate-limits-", async ({ historyDir }) => {
     const sockets = await loadSockets(

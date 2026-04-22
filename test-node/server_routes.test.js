@@ -68,6 +68,7 @@ function createServerConfig(dirs, overrides = {}) {
 }
 
 /**
+ * @param {{[key: string]: any}} [configOverrides]
  * @returns {Promise<import("http").Server>}
  */
 async function createTestServer(configOverrides) {

@@ -79,7 +79,7 @@ export function resetTurnstileWidget(api, widgetId) {
 }
 
 /**
- * @param {(level: string, event: string, fields?: {[key: string]: unknown}) => void} logBoardEvent
+ * @param {(level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void} logBoardEvent
  * @returns {Promise<any>}
  */
 function loadTurnstileScript(logBoardEvent) {

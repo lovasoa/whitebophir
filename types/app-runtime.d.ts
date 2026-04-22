@@ -632,6 +632,7 @@ export type AppToolsState = {
   showTurnstileStatus: (detail: string) => void;
   refreshTurnstile: () => void;
   showTurnstileWidget: () => void;
+  showUnknownMutationError: (reason?: string) => void;
   shouldDisableTool: (toolName: string) => boolean;
   shouldDisplayTool: (toolName: string) => boolean;
   canUseTool: (toolName: string) => boolean;
