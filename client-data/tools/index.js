@@ -118,6 +118,7 @@ export const TOOLS = TOOL_IDS.map((toolId, index) =>
   ),
 );
 
+export const TOOL_BY_CODE = TOOLS;
 export const DRAW_TOOLS = TOOLS.filter((tool) => tool.drawsOnBoard === true);
 export const TOOL_BY_ID =
   /** @type {{[toolId: string]: (typeof TOOLS)[number] | undefined}} */ (

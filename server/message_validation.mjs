@@ -1,6 +1,5 @@
 import MessageCommon from "../client-data/js/message_common.js";
 import {
-  getToolCode,
   getMutationType,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
@@ -51,6 +50,7 @@ const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
 
 /** @type {string[]} */
 const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
+const MAX_TOOL_CODE = TOOLS.length;
 const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeTool === true);
 const SHAPE_CREATE_FIELDS = {
   id: "id",
@@ -133,9 +133,12 @@ function literal(expected) {
  * @returns {ValidationResult<ToolCode>}
  */
 function normalizeLiveToolCode(value) {
-  if (typeof value !== "number") return rejected("invalid tool");
-  const toolCode = getToolCode(value);
-  return toolCode === undefined ? rejected("invalid tool") : accepted(toolCode);
+  return typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 1 &&
+    value <= MAX_TOOL_CODE
+    ? accepted(/** @type {ToolCode} */ (value))
+    : rejected("invalid tool");
 }
 
 /**
