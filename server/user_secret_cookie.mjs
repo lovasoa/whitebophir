@@ -8,7 +8,7 @@ const USER_SECRET_PATTERN = /^[0-9a-f]{32}$/i;
  * @param {string | string[] | undefined} value
  * @returns {{[name: string]: string}}
  */
-export function parseCookieHeader(value) {
+function parseCookieHeader(value) {
   const headerValue = Array.isArray(value) ? value[0] : value;
   if (typeof headerValue !== "string" || headerValue.trim() === "") {
     return {};
@@ -34,7 +34,7 @@ export function parseCookieHeader(value) {
  * @param {unknown} value
  * @returns {string}
  */
-export function normalizeUserSecret(value) {
+function normalizeUserSecret(value) {
   if (typeof value !== "string") return "";
   const trimmed = value.trim();
   if (!USER_SECRET_PATTERN.test(trimmed)) return "";

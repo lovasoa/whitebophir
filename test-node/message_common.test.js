@@ -2,12 +2,12 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const MessageCommon = require("../client-data/js/message_common.js");
-const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
+const { TOOLS } = require("../client-data/tools/index.js");
 
 test("shared giant-shape policy exposes the draw zoom threshold", () => {
-  assert.equal(MessageCommon.getMaxShapeSpan(), 3200);
-  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.4), false);
-  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.41), true);
+  assert.equal(MessageCommon.getMaxShapeSpan(), 32000);
+  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.04), false);
+  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.041), true);
 });
 
 test("shared geometry helpers apply transforms to bounds", () => {
@@ -43,23 +43,10 @@ test("shared geometry helpers grow pencil bounds incrementally", () => {
   });
 });
 
-test("DRAW_TOOL_NAMES comes from shared metadata", () => {
-  const metadataTools = MessageToolMetadata.DRAW_TOOL_NAMES;
-  const injectedTool = "__metadata_probe_tool__";
-  metadataTools.push(injectedTool);
-
-  try {
-    assert.deepEqual(
-      MessageCommon.DRAW_TOOL_NAMES,
-      MessageToolMetadata.DRAW_TOOL_NAMES,
-    );
-  } finally {
-    metadataTools.pop();
-  }
-});
-
 test("shape tool bounds use straight-shape geometry consistently", () => {
-  const shapeToolNames = MessageToolMetadata.getShapeToolNames();
+  const shapeToolNames = TOOLS.filter((tool) => tool.shapeTool === true).map(
+    (tool) => tool.toolId,
+  );
   for (const toolName of shapeToolNames) {
     const bounds = MessageCommon.getLocalGeometryBounds({
       tool: toolName,
@@ -79,7 +66,7 @@ test("shape tool bounds use straight-shape geometry consistently", () => {
 
 test("getLocalGeometryBounds measures text", () => {
   const bounds = MessageCommon.getLocalGeometryBounds({
-    tool: "Text",
+    tool: "text",
     x: 100,
     y: 200,
     txt: "0123456789",

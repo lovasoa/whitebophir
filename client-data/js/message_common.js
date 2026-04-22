@@ -1,6 +1,5 @@
 /**
  * @typedef {{
- *   DRAW_TOOL_NAMES: string[],
  *   LIMITS: Record<string, number>,
  *   applyTransformToBounds: Function,
  *   clampOpacity: Function,
@@ -41,21 +40,35 @@
  *   _children?: Array<ChildPoint | null | undefined>
  * }} GeometryItem
  */
-import { DRAW_TOOL_NAMES, isShapeTool } from "./message_tool_metadata.js";
+import { DRAW_TOOL_IDS, TOOL_IDS } from "../tools/tool-order.js";
 
-export { DRAW_TOOL_NAMES };
+/**
+ * @param {unknown} tool
+ * @returns {string | undefined}
+ */
+function normalizeToolId(tool) {
+  if (typeof tool === "string") return tool;
+  if (
+    typeof tool === "number" &&
+    Number.isSafeInteger(tool) &&
+    tool >= 1 &&
+    tool <= TOOL_IDS.length
+  ) {
+    return TOOL_IDS[tool - 1];
+  }
+  return undefined;
+}
 
 export const LIMITS = {
-  MIN_SIZE: 1,
-  MAX_SIZE: 50,
+  MIN_SIZE: 10,
+  MAX_SIZE: 500,
   MIN_OPACITY: 0.1,
   MAX_OPACITY: 1,
-  MIN_DRAW_ZOOM: 0.4,
+  MIN_DRAW_ZOOM: 0.04,
   GIANT_SHAPE_VIEWPORT_WIDTH: 1280,
   GIANT_SHAPE_VIEWPORT_HEIGHT: 720,
-  DEFAULT_MAX_BOARD_SIZE: 65536,
+  DEFAULT_MAX_BOARD_SIZE: 655360,
   MAX_TEXT_LENGTH: 280,
-  COORDINATE_DECIMALS: 1,
   DEFAULT_MAX_CHILDREN: 192,
   MAX_ID_LENGTH: 128,
 };
@@ -78,18 +91,6 @@ export function toFiniteNumber(value) {
 function clamp(number, min, max) {
   return Math.min(Math.max(number, min), max);
 }
-
-/**
- * @param {number} number
- * @param {number} decimals
- * @returns {number}
- */
-function roundToDecimals(number, decimals) {
-  const factor = 10 ** decimals;
-  return Math.round(number * factor) / factor;
-}
-
-const COORDINATE_FACTOR = 10 ** LIMITS.COORDINATE_DECIMALS;
 
 /**
  * @param {unknown} maxBoardSize
@@ -133,7 +134,7 @@ export function clampCoord(value, maxBoardSize) {
       ? maxBoardSize
       : resolveMaxBoardSize(maxBoardSize);
   const clamped = clamp(coord, 0, resolvedMaxBoardSize);
-  return Math.round(clamped * COORDINATE_FACTOR) / COORDINATE_FACTOR;
+  return Math.round(clamped);
 }
 
 /**
@@ -194,22 +195,25 @@ export function isFiniteTransformNumber(value) {
 
 /**
  * @param {unknown} boardName
- * @param {unknown} toolName
+ * @param {unknown} toolId
  * @returns {boolean}
  */
-export function requiresTurnstile(boardName, toolName) {
+export function requiresTurnstile(boardName, toolId) {
   if (boardName !== "anonymous") return false;
-  if (!toolName || toolName === "Cursor") return false;
+  const normalizedToolId = normalizeToolId(toolId);
+  if (!normalizedToolId || normalizedToolId === "cursor") return false;
   return true;
 }
 
 /**
- * @param {unknown} toolName
+ * @param {unknown} toolId
  * @returns {boolean}
  */
-export function isDrawTool(toolName) {
+export function isDrawTool(toolId) {
+  const normalizedToolId = normalizeToolId(toolId);
   return (
-    typeof toolName === "string" && DRAW_TOOL_NAMES.indexOf(toolName) !== -1
+    typeof normalizedToolId === "string" &&
+    DRAW_TOOL_IDS.indexOf(normalizedToolId) !== -1
   );
 }
 
@@ -341,21 +345,12 @@ function getTextBounds(item) {
  * @returns {Bounds | null}
  */
 export function getLocalGeometryBounds(item) {
-  if (!item || typeof item.tool !== "string") return null;
-  switch (item.tool) {
-    case "Pencil":
-      return getPencilBounds(item);
-    default:
-      if (isShapeTool(item.tool)) {
-        return getStraightShapeBounds(item);
-      }
+  if (!item || !normalizeToolId(item.tool)) return null;
+  if (Array.isArray(item._children)) return getPencilBounds(item);
+  if (item.x2 !== undefined || item.y2 !== undefined) {
+    return getStraightShapeBounds(item);
   }
-  switch (item.tool) {
-    case "Text":
-      return getTextBounds(item);
-    default:
-      return null;
-  }
+  return getTextBounds(item);
 }
 
 /**
@@ -476,7 +471,6 @@ export function isBoundsTooLarge(bounds) {
 }
 
 const messageCommon = /** @type {MessageCommonApi} */ ({
-  DRAW_TOOL_NAMES,
   LIMITS,
   applyTransformToBounds,
   clampOpacity,

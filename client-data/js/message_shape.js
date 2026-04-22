@@ -1,7 +1,6 @@
 /** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
 /** @typedef {import("../../types/app-runtime").CopiedBoardMessage} CopiedBoardMessage */
 /** @typedef {import("../../types/app-runtime").IdentifiedBoardMessage} IdentifiedBoardMessage */
-/** @typedef {import("../../types/app-runtime").TextUpdateBoardMessage} TextUpdateBoardMessage */
 /** @typedef {import("../../types/app-runtime").ToolNamedBoardMessage} ToolNamedBoardMessage */
 
 /**
@@ -17,7 +16,12 @@ export function hasMessageChildren(message) {
  * @returns {message is ToolNamedBoardMessage}
  */
 export function hasMessageTool(message) {
-  return typeof message?.tool === "string" && message.tool !== "";
+  return (
+    (typeof message?.tool === "string" && message.tool !== "") ||
+    (typeof message?.tool === "number" &&
+      Number.isSafeInteger(message.tool) &&
+      message.tool > 0)
+  );
 }
 
 /**
@@ -35,26 +39,3 @@ export function hasMessageId(message) {
 export function hasMessageNewId(message) {
   return typeof message?.newid === "string" && message.newid !== "";
 }
-
-/**
- * @param {BoardMessage | null | undefined} message
- * @returns {message is TextUpdateBoardMessage}
- */
-export function isTextUpdateMessage(message) {
-  return (
-    !!message &&
-    message.tool === "Text" &&
-    message.type === "update" &&
-    hasMessageId(message)
-  );
-}
-
-const messageShape = {
-  hasMessageChildren,
-  hasMessageId,
-  hasMessageNewId,
-  hasMessageTool,
-  isTextUpdateMessage,
-};
-
-export default messageShape;

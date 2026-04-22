@@ -2,28 +2,24 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import handlebars from "handlebars";
-import packageJson from "../package.json" with { type: "json" };
 
 import client_config from "./client_configuration.mjs";
-import serverConfig from "./configuration.mjs";
-import {
-  getToolIconUrl,
-  getToolStylesheetUrl,
-} from "../client-data/js/tool_assets.js";
-import {
-  getVisibleToolCatalogEntries,
-  TOOL_CATALOG,
-} from "../client-data/js/tool_catalog.js";
+import { readConfiguration } from "./configuration.mjs";
+import { TOOLBAR_TOOLS, TOOL_BY_ID } from "../client-data/tools/index.js";
+import { startCompressedResponse } from "./http_compression.mjs";
 import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
-/** @typedef {{baseUrl: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, version: string, [name: string]: any}} TemplateParameters */
+/** @typedef {{baseUrl: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, [name: string]: any}} TemplateParameters */
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
+/** @typedef {{blockedTools?: string[] | null, boardState?: {readonly?: boolean, canWrite?: boolean} | null, moderator?: boolean}} VisibleToolOptions */
+/** @typedef {NonNullable<typeof TOOLBAR_TOOLS[number]>} ToolbarTool */
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
+const BOARD_PAGE_CACHE_HEADROOM_SECONDS = 5;
 
 /**
  * Associations from language to translation dictionnaries
@@ -38,6 +34,30 @@ const languages = Object.keys(TRANSLATIONS);
 handlebars.registerHelper({
   json: JSON.stringify.bind(JSON),
 });
+
+/**
+ * @param {ToolbarTool | undefined} tool
+ * @returns {tool is ToolbarTool}
+ */
+function isToolbarTool(tool) {
+  return tool !== undefined;
+}
+
+/**
+ * @param {VisibleToolOptions} options
+ * @returns {typeof TOOLBAR_TOOLS}
+ */
+function getVisibleTools(options) {
+  const blockedTools = new Set(options.blockedTools || []);
+  const readonly = options.boardState?.readonly === true;
+  const canWrite = options.boardState?.canWrite === true;
+  const moderator = options.moderator === true;
+  return TOOLBAR_TOOLS.filter(isToolbarTool).filter((tool) => {
+    if (blockedTools.has(tool.toolId)) return false;
+    if (tool.moderatorOnly && !moderator) return false;
+    return !readonly || canWrite || tool.visibleWhenReadOnly;
+  });
+}
 
 /**
  * @param {HeaderValue} value
@@ -142,6 +162,32 @@ function findBaseUrl(req) {
   return `${proto}://${host}`;
 }
 
+const cacheControl =
+  /** @type {(prodValue: string) => string} */
+  (prodValue) => (readConfiguration().IS_DEVELOPMENT ? "no-store" : prodValue);
+
+const startHtmlResponse =
+  /** @type {(response: TemplateResponse, request: TemplateRequest, parsedUrl: URL, parameters: TemplateParameters, cacheControlValue: string, contentLength?: number) => import("stream").Writable} */
+  (
+    response,
+    request,
+    parsedUrl,
+    parameters,
+    cacheControlValue,
+    contentLength,
+  ) =>
+    startCompressedResponse(response, request.headers["accept-encoding"], {
+      ...(contentLength === undefined
+        ? {}
+        : { "Content-Length": contentLength }),
+      "Content-Type": "text/html",
+      "Cache-Control": cacheControlValue,
+      ...(typeof parameters.etag === "string" ? { ETag: parameters.etag } : {}),
+      ...(!parsedUrl.searchParams.get("lang")
+        ? { Vary: "Accept-Language" }
+        : {}),
+    }).stream;
+
 class Template {
   /**
    * @param {string} path
@@ -185,7 +231,6 @@ class Template {
       : prefixPart;
     const baseUrl = findBaseUrl(request) + (prefix ? `/${prefix}/` : "");
     const moderator = isModerator;
-    const version = packageJson.version;
     return {
       baseUrl,
       languages,
@@ -193,7 +238,6 @@ class Template {
       translations,
       configuration,
       moderator,
-      version,
       ...extraParams,
     };
   }
@@ -213,28 +257,44 @@ class Template {
       extraParams,
     );
     const body = this.template(parameters);
-    /** @type {{[name: string]: string | number}} */
-    const headers = {
-      "Content-Length": Buffer.byteLength(body),
-      "Content-Type": "text/html",
-      "Cache-Control": this.cacheControl(),
-    };
-    if (!parsedUrl.searchParams.get("lang")) {
-      headers.Vary = "Accept-Language";
-    }
-    response.writeHead(200, headers);
-    response.end(body);
+    startHtmlResponse(
+      response,
+      request,
+      parsedUrl,
+      parameters,
+      this.cacheControl(),
+      Buffer.byteLength(body),
+    ).end(body);
   }
 
   /**
    * @returns {string}
    */
   cacheControl() {
-    return serverConfig.IS_DEVELOPMENT ? "no-store" : "public, max-age=3600";
+    return cacheControl("public, max-age=3600");
   }
 }
 
 class BoardTemplate extends Template {
+  /**
+   * @param {string} path
+   */
+  constructor(path) {
+    super(path);
+    const contents = fs.readFileSync(path, { encoding: "utf8" });
+    const marker = "{{{inlineBoardSvg}}}";
+    const markerIndex = contents.indexOf(marker);
+    if (markerIndex === -1) {
+      this.prefixTemplate = null;
+      this.suffixTemplate = null;
+      return;
+    }
+    this.prefixTemplate = handlebars.compile(contents.slice(0, markerIndex));
+    this.suffixTemplate = handlebars.compile(
+      contents.slice(markerIndex + marker.length),
+    );
+  }
+
   /**
    * @param {URL} parsedUrl
    * @param {TemplateRequest} request
@@ -261,31 +321,82 @@ class BoardTemplate extends Template {
     const blockedTools = Array.isArray(configuration.BLOCKED_TOOLS)
       ? configuration.BLOCKED_TOOLS
       : [];
-    const visibleTools = getVisibleToolCatalogEntries({
-      blockedTools: blockedTools,
-      boardState: params.boardState,
-      moderator: isModerator,
-    });
+    const visibleTools = /** @type {ToolbarTool[]} */ (
+      getVisibleTools({
+        blockedTools: blockedTools,
+        boardState: params.boardState,
+        moderator: isModerator,
+      })
+    );
     params.tools = visibleTools.map((tool) => ({
-      name: tool.name,
-      label:
-        params.translations[tool.name.toLowerCase().replace(/ /g, "_")] ||
-        tool.name,
-      iconUrl: getToolIconUrl(tool.name, params.version),
+      id: tool.toolId,
+      label: params.translations[tool.translationKey] || tool.label,
+      iconUrl: tool.getIconUrl(),
     }));
-    params.toolStylesheets = TOOL_CATALOG.map((tool) =>
-      getToolStylesheetUrl(tool.name, params.version),
-    ).filter((href) => typeof href === "string");
+    params.toolModulePreloads = Array.from(
+      new Set(visibleTools.map((tool) => tool.toolId).concat("cursor")),
+    )
+      .map((toolId) => TOOL_BY_ID[toolId])
+      .filter(isToolbarTool)
+      .map((tool) => tool.getModuleImportPath());
+    params.toolStylesheets = visibleTools
+      .map((tool) => tool.getStylesheetUrl())
+      .filter((href) => typeof href === "string");
     return params;
+  }
+
+  /**
+   * @param {TemplateRequest} request
+   * @param {TemplateResponse} response
+   * @param {NodeJS.ReadableStream} inlineBoardSvgStream
+   * @param {boolean} [isModerator]
+   * @param {object} [extraParams]
+   * @returns {void}
+   */
+  serveStream(
+    request,
+    response,
+    inlineBoardSvgStream,
+    isModerator,
+    extraParams,
+  ) {
+    if (!this.prefixTemplate || !this.suffixTemplate) {
+      throw new Error("Board template is not configured for streaming SVG.");
+    }
+    const parsedUrl = parseRequestUrl(request.url);
+    const parameters = this.parameters(
+      parsedUrl,
+      request,
+      isModerator === true,
+      extraParams,
+    );
+    const prefix = this.prefixTemplate(parameters);
+    const suffix = this.suffixTemplate(parameters);
+    const stream = startHtmlResponse(
+      response,
+      request,
+      parsedUrl,
+      parameters,
+      this.cacheControl(),
+    );
+    stream.write(prefix);
+    inlineBoardSvgStream.pipe(stream, { end: false });
+    inlineBoardSvgStream.on("end", () => {
+      stream.end(suffix);
+    });
   }
 
   /**
    * @returns {string}
    */
   cacheControl() {
-    return serverConfig.IS_DEVELOPMENT
-      ? "no-store"
-      : "public, max-age=0, must-revalidate";
+    const serverConfig = readConfiguration();
+    const maxAgeSeconds = Math.max(
+      0,
+      Math.floor(serverConfig.MAX_SAVE_DELAY / 1000) -
+        BOARD_PAGE_CACHE_HEADROOM_SECONDS,
+    );
+    return cacheControl(`public, max-age=${maxAgeSeconds}, must-revalidate`);
   }
 }
 

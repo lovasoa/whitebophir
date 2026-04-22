@@ -1,4 +1,8 @@
-# contributing guide
+# wbo online whiteboard
+
+This is an online collaborative drawing app.
+All code must be clean simple and minimal. Code duplication anywhere is forbidden, always check if similar logic exists before writing new code, and refactor when possible.
+Respect the single responsibility principle. Tool-specific logic should live inside each drawing tool code.
 
 ## baseline
 
@@ -16,25 +20,29 @@ section before making changes there.
 - Process boot + routes + socket server: [server startup](./server/server.mjs).
 - HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs).
 - Server-issued user identity cookie parsing + serialization: [user secret cookie helper](./server/user_secret_cookie.mjs).
-- Shared toolbar catalog + versioned tool asset helpers: [tool catalog](./client-data/js/tool_catalog.js), [tool assets](./client-data/js/tool_assets.js).
-- Realtime event handlers + broadcast path: [socket handlers](./server/sockets.mjs).
+- Shared ordered tool registry + convention-based tool defaults: [tool registry](./client-data/tools/index.js), [tool defaults](./client-data/tools/tool-defaults.js), [tool order](./client-data/tools/tool-order.js).
+- Realtime event handlers + broadcast/unload path: [socket handlers](./server/sockets.mjs); socket join/leave drives board lifetime, final save, and dispose timing. `WBO_MAX_ITEM_COUNT` is enforced as sequenced live follow-up deletes on accepted persistent writes, evicting the oldest surviving `paintOrder` entries immediately so connected clients observe trims in real time; save still performs final hard pruning as a fallback.
 - Socket auth, rate-limit enforcement, payload admission: [socket policy](./server/socket_policy.mjs).
 - Extracted broadcast admission core for isolated testing/benchmarking: [broadcast processing](./server/broadcast_processing.mjs); this covers normalization, rate-limit bookkeeping, board write policy, and board mutation without the Socket.IO wrapper.
 - Canonical inbound payload normalization **[hot]**: [message schema gate](./server/message_validation.mjs); `normalizeCoord` and its neighbors run for every coordinate in every persisted or broadcast item.
-- In-memory board model + apply rules + disk sync **[hot]**: [board state engine](./server/boardData.mjs); `load`, `processMessage`, and the per-item normalization loop dominate CPU during board open and save.
+- In-memory board model + apply rules **[hot]**: [board state engine](./server/boardData.mjs); loaded boards keep one canonical per-id item index plus paint order, with text and pencil payload compressed after persistence. `load`, `processMessage`, and save-time item materialization dominate CPU during board open and save.
+- Canonical item shape keeps scalar attrs in `attrs`, stores `transform` only once at the top level, and isolates pencil child arrays only when ownership changes (copy/public escape/full-write materialization).
+- Disk persistence + stored-SVG rewrite/load path: [svg board store](./server/svg_board_store.mjs), [stored SVG item codec](./server/stored_svg_item_codec.mjs), [streaming stored SVG scan](./server/streaming_stored_svg_scan.mjs). This layer owns primary-vs-`.svg.bak` fallback, streaming rewrites, and summary/full decode split; cold board load and canonical indexing must stay on summary-only decode.
 - Env parsing + rate-limit profile construction must stay cold. Never do unneeded work in the hot path.
 - Shared geometry/id/color/text clamps **[hot]**: [message primitives](./client-data/js/message_common.js); `clampCoord`, `clampColor`, and friends are invoked from every coordinate/field normalizer on the server.
-- Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js).
+- Live socket/runtime mutations use numeric `tool` codes from the ordered [tool registry](./client-data/tools/index.js) and numeric `type` codes from [mutation types](./client-data/js/mutation_type.js); stored SVG keeps string tool ids and tag names such as `rectangle`, `rect`, `pencil`, `path`, and `text` because that is document syntax, not the runtime protocol.
+- Native geometry model is integer board space with `scale = 1` as max zoom; legacy `.json` migration remains the only place that converts units from old coordinate semantics.
+- Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js). For stored `.svg` boards, the board document now streams the authoritative SVG baseline straight through the HTML response so the browser can render it progressively as bytes arrive, without materializing the full SVG in server JS; the head also provides `modulepreload` hints for the board runtime graph plus the visible board tool modules and the always-on `cursor` module, while the async board module entrypoint imports the runtime as soon as the shell is ready, opens Socket.IO from explicit boot inputs, and waits for the streamed board DOM only before starting seq replay and tool boot. Static app assets are served at stable URLs without version query params; production caching relies on normal HTTP revalidation headers for those assets rather than query-string cache busting. Board HTML, canonical SVG, and preview HTTP responses negotiate built-in Node compression from `Accept-Encoding`, preferring `zstd` when both sides support it, then `br`, then `gzip`. The board chrome (HUD, menu, JSON payloads, module entrypoint) must stay before the streamed board markup in the HTML so the visible UI can paint and react before the SVG finishes streaming. Legacy `.json` fallback boards still render a generated inline SVG. Board boot publishes explicit DOM phases on `document.documentElement.dataset.boardPhase` and dispatches `wbo:board-phase` events.
 - Client state machine + staged tool boot + send/receive plumbing: [board runtime](./client-data/js/board.js).
 - Shared socket transport utilities: [transport helpers](./client-data/js/board_transport.js).
 - Shared board-name allowlist + sanitization for landing-page inputs and server routes: [board name helpers](./client-data/js/board_name.js).
-- Tool implementations that mutate SVG/DOM: [tool modules](./client-data/tools/).
-- Tool modules now default-export a tool class for dynamic `import()` boot, while legacy named `register*Tool` exports may still exist during migration.
+- Tool implementations that mutate SVG/DOM live one per directory at [tool modules](./client-data/tools/), with entrypoints at `client-data/tools/<tool-id>/index.js`. Shape DOM tools share [shape helper](./client-data/tools/shape_tool.js) for pointer/update/create scaffolding. Persistent-tool SVG summary, serialize, and render logic live in the same tool module; Pencil's persisted contract is summary scan plus raw `d` append/serialize helpers, while full stored-item parse remains only for tools that need it (currently text). Server/shared code derives lookups from the ordered `TOOLS` list in [tool registry](./client-data/tools/index.js).
+- Tool modules use named exports for shared metadata plus top-level hooks, and `boot(ctx)` returns tool-local state for those hooks or a legacy mounted tool object while the migration is in progress. `ToolBootContext.runtime.Tools` is only created after the board DOM is attached, so `board`, `svg`, and `drawingArea` are non-null for booted tools and should not be re-checked defensively in each tool. Generic icon and stylesheet URLs come from path conventions (`icon.svg`, optional `<tool-id>.css`) in [tool defaults](./client-data/tools/tool-defaults.js) rather than per-tool declarations.
 
 ## performance-critical paths
 
-- Board load, snapshot materialization, and broadcast fan-out call `normalizeIncomingMessage` and coordinate/field clampers once per item and often once per child point. An 18k-item board translates to ~9× that many normalizer calls per load. Any per-call allocation, env parse, or config recompute at that depth is multiplied accordingly.
-- Treat the following as the performance budget for a single 18k-item dense board open (see [benchmark scenarios](./scripts/benchmark-server.mjs), `load dense persisted board`): target median well under 1 s. A measured regression past 1 s almost always means a non-O(1) call was added per item or per coordinate.
+- Board load, canonical item materialization, and broadcast fan-out call `normalizeIncomingMessage` and coordinate/field clampers once per item and often once per child point. A dense board near `WBO_MAX_ITEM_COUNT` translates to hundreds of thousands of normalizer calls per load. Any per-call allocation, env parse, config recompute, or payload cloning at that depth is multiplied accordingly.
+- Treat the following as the performance budget for a single dense board near `WBO_MAX_ITEM_COUNT` (see [benchmark scenarios](./scripts/benchmark-server.mjs), `load large board`): target average around or below 1 s. A measured regression materially past that almost always means a non-O(1) call was added per item or per coordinate.
 - `readConfiguration()` is a **pure** function: every call re-parses `process.env`. This is intentional — it keeps tests env-aware without any module-internal cache or reset escape hatch. The cost is per-call, not per-process, so anything on the hot path must not invoke it per item or per coordinate.
 - Hot-path capture contract:
   - Modules whose exports run on per-item, per-child, or per-coordinate code paths (currently [message schema gate](./server/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js)) **must capture the config fields they need at module scope**, e.g. `const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();`. The capture happens once at ESM evaluation time.
@@ -44,31 +52,39 @@ section before making changes there.
   - Call `readConfiguration()` (or the default config export) inside per-item, per-child, or per-coordinate loops. Capture the needed fields at module scope, or read them once above the loop and close over them.
   - Allocate new objects, arrays, or regexes inside per-coordinate normalizers. Module-scope constants are preferred over per-call literals.
   - Start a span with `withActiveSpan` per item. Prefer `withOptionalActiveSpan` (no-op when no parent span exists) or lift the span one level to the whole batch. `withExpensiveActiveSpan` short-circuits to `fn(undefined)` when tracing is not recording, which is the correct default for per-item work.
-- Before/after every change that might touch a hot path, run `npm run bench` and compare the median of the relevant scenario. If a scenario moves by more than ~10% without an intentional cause, profile with `npm run profile` and inspect the `.cpuprofile` top self-time frames before landing the change.
+- Before/after every change that might touch a hot path, run `npm run bench` and compare the average and individual samples for the relevant scenario. If a scenario moves by more than ~10% without an intentional cause, profile with `npm run profile` and inspect the `.cpuprofile` top self-time frames before landing the change.
+- `BoardData` no longer lazily hydrates full persisted items from SVG during live writes. If you find yourself reading SVG from a socket-message path, that is almost certainly a design bug. The source SVG may be read during board load and during streaming persistence only.
+- Stored SVG parsing is intentionally tiered:
+  - Structural scan locates root metadata, `#drawingArea`, and raw item boundaries.
+  - Summary decode extracts only the fields needed for canonical indexing and validation from the existing writer-owned attrs and payloads. Do not duplicate summary state into extra persisted attrs. For Pencil this means bounds plus `childCount`, not `_children`.
+  - Full materialization is for rewrite cases that must read full payloads, such as text content. Persisted Pencil rewrite/copy stays on raw `d` strings; do not hydrate point arrays there.
+- Do not route cold-load, canonical-index, or persisted-pencil rewrite code through full stored-SVG item materialization. Hydrating Pencil points on board open or save/rewrite is a regression.
+- Legacy `.json` boards are a migration edge path, not part of steady-state board logic. When a JSON board is encountered, convert it to SVG first, then continue through the normal SVG-backed load path.
 
 ## message lifecycle
 
 - A tool builds payload data from pointer/input handlers and calls `Tools.drawAndSend` or `Tools.send` (tool modules + runtime).
 - `Tools.drawAndSend` renders locally first with `tool.draw(data, true)`.
 - The board page HTTP response ensures the server-issued `wbo-user-secret-v1` cookie exists before the client starts Socket.IO.
-- The client opens Socket.IO with handshake query `board=<boardName>` plus tool/color/size metadata, and the server reads the user secret from the cookie before emitting `boardstate` plus the authoritative snapshot `broadcast`.
-- `Tools.send` clones payload, stamps `tool`, runs hooks, and sends the plain board message over the already-bound socket.
+- The client opens Socket.IO with handshake query `board=<boardName>` plus tool/color/size metadata as soon as the board runtime is initialized from embedded boot inputs; the first connect reuses the streamed inline baseline already in the page and asks the server only for seq replay once the board DOM is attached, while reconnects refresh the authoritative SVG baseline first. The server reads the user secret from the cookie before emitting `boardstate` plus the authoritative snapshot `broadcast`, while visible tool modules and the always-on `cursor` module are already being discovered from the document head via `modulepreload`.
+- `Tools.send` clones payload, stamps the numeric live `tool` code, runs hooks, and sends the plain board message over the already-bound socket.
+- Runtime create/update/delete/append/copy/clear routing must key off numeric `MutationType` values; do not reintroduce per-tool live string aliases such as `"rect"`, `"line"`, `"child"`, or `"new"` on the socket path.
 - `Tools.sendBufferedWrite` emits immediately with `socket.emit("broadcast", message)` or appends to `Tools.bufferedWrites`; `Tools.scheduleBufferedWriteFlush` and `Tools.flushBufferedWrites` drain later.
 - Server receives `socket.on("broadcast", data)` and runs board access + rate-limit checks against the board already bound to the socket.
 - Server calls `normalizeBroadcastData`, which calls `normalizeIncomingMessage`; rejects include explicit reasons.
 - Accepted payload is normalized, rate-limited, and passed through `processNormalizedBoardMessage(...)` before `board.processMessage(...)`.
 - Server relays normalized payload to peers with `socket.broadcast.to(boardName).emit("broadcast", normalizedData)`.
 - Client `socket.on("broadcast", msg)` calls `handleMessage(msg)`; child batches use `BoardMessages.hasChildMessages` + `normalizeChildMessage`.
-- `messageForTool` resolves `Tools.list[message.tool]` and calls `tool.draw(message, false)`; tool code mutates SVG/DOM.
+- `messageForTool` decodes the numeric live `tool` code back to the tool id, resolves `Tools.list[toolId]`, and calls `tool.draw(message, false)`; tool code mutates SVG/DOM.
 
 ## where to look by concern
 
-- Config/env behavior: [server configuration](./server/configuration.mjs). `readConfiguration` is a pure function (no memoization, no reset hook); it re-parses `process.env` on every call. `withEnv` in [test helpers](./test-node/test_helpers.js) swaps env vars for the scope of a test. Hot-path consumers capture the fields they need at module scope and rely on ESM cache-bust query strings to re-evaluate under a different env; see [performance-critical paths](#performance-critical-paths) for the full contract.
+- Config/env behavior: [server configuration](./server/configuration.mjs). `readConfiguration` is a pure function (no memoization, no reset hook); it re-parses `process.env` on every call. `LOG_LEVEL` controls the minimum emitted server log severity (`debug`, `info`, `warn`, `error`). `withEnv` in [test helpers](./test-node/test_helpers.js) swaps env vars for the scope of a test. Hot-path consumers capture the fields they need at module scope and rely on ESM cache-bust query strings to re-evaluate under a different env; see [performance-critical paths](#performance-critical-paths) for the full contract.
 - Browser integration coverage: [playwright specs](./playwright/tests).
 - Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
 - Browser runner setup: [playwright config](./playwright.config.ts).
 - Server-rendered toolbar/icon/cache coverage: [server route tests](./test-node/server_routes.test.js).
-- Throughput coverage: [benchmark harness](./scripts/benchmark-server.mjs); `load dense persisted board` is the canonical regression signal for per-coordinate hot-path changes, and `process heterogeneous socket broadcasts` is the canonical regression signal for live broadcast admission.
+- Throughput coverage: [benchmark harness](./scripts/benchmark-server.mjs); it times only the operation under test, not fixture construction. `load large board` is the canonical regression signal for cold-load hot-path changes, `persist modifications to large board` is the canonical regression signal for save/rewrite work, `server broadcast throughput` is the canonical regression signal for live broadcast admission, and `open large board to peer-visible erase` remains the browser-visible end-to-end signal.
 
 ## test commands
 
@@ -76,9 +92,10 @@ section before making changes there.
 - Node suite: `node --test test-node/*.test.js`.
 - Browser suite: `npx playwright test playwright/tests/<file>.spec.ts`.
   - When investigating flaky or failing browser tests, always try to fix the issue in the application and never write workarounds for application bugs in the tests. Browser tests should read like prose and the application must gracefully handle edge cases like fast sequences of network messages or user actions.
-- Throughput check: `npm run bench` before/after suspected performance changes.
+- Throughput check: `npm run bench` before/after suspected performance changes. Use `npm run bench -- <e2e|load|persist|broadcast>` or the shortcuts `npm run bench:e2e`, `npm run bench:load`, `npm run bench:persist`, `npm run bench:broadcast` when you only need one scenario.
 - Bench timeout: `npm run bench` enforces a hard wall-clock timeout via `WBO_BENCH_TIMEOUT_MS` (default `150000`).
-- CPU + memory profile: `npm run profile` writes `.profiles/benchmark-server.cpuprofile` and `.profiles/benchmark-server.heapprofile`.
+- CPU + memory profile: `npm run profile -- <e2e|load|persist|broadcast>` writes `.profiles/benchmark-server.cpuprofile` and `.profiles/benchmark-server.heapprofile` for that single scenario, with profiling started only around the measured benchmark work. Running `npm run profile` with no scenario writes per-scenario files such as `.profiles/benchmark-server-load.cpuprofile`.
+- Ad hoc browser load: `npm run generateload -- --help`; defaults to the anonymous board and can open multiple tabs on a specific board URL.
 - Full gate: `npm test` (Node tests, Playwright, Biome `lint` with warnings treated as failures).
 - Auto-format: `npm run format` (Biome `--write --unsafe`).
 
@@ -88,14 +105,16 @@ section before making changes there.
 - `npm test` requires local networking and browser process startup.
 - In Playwright specs, assert authoritative socket/app state; avoid sleep-based timing.
 - Treat HTTP and socket ingress as hostile input surfaces: malformed requests and malformed socket events must be rejected deterministically, never crash the process, and should prefer explicit 4xx-style handling over exception-driven fallthrough.
-- Socket rate limits now include a text-specific per-IP fixed window via `WBO_MAX_TEXT_CREATIONS_PER_IP`; it charges every `Text/new` plus `Text/update` payloads whose `txt` contains URL-like content.
+- Socket rate limits now include a text-specific per-IP fixed window via `WBO_MAX_TEXT_CREATIONS_PER_IP`; it charges every `text` create plus `text` update payload whose `txt` contains URL-like content.
 
 ## profiling
 
 - Run `npm run profile` to profile `scripts/benchmark-server.mjs`; `.profiles/` is gitignored and keeps local CPU and heap output together.
 - `npm run profile` raises `WBO_BENCH_TIMEOUT_MS` to `600000` unless you already set it, so profiling still has a strict but roomier budget.
-- CPU: open `.profiles/benchmark-server.cpuprofile` in DevTools Performance and look for hot frames with high self time or repeated stacks in `BoardData.load`, `BoardData.save`, `renderBoardToSVG`, `JSON.parse`, and `JSON.stringify`.
-- Memory: open `.profiles/benchmark-server.heapprofile` in DevTools Memory and look for large sampled allocations that survive GC, especially duplicated board objects, large `_children` arrays, and serialization strings.
+- CPU: use `jq` to rank app frames by sampled hit count, for example:
+  `jq -c '[.nodes[] | select(.callFrame.url | test("/(server|client-data|scripts)/")) | {hits: (.hitCount // 0), fn: .callFrame.functionName, loc: (.callFrame.url + ":" + ((.callFrame.lineNumber + 1) | tostring))}] | sort_by(-.hits) | .[:12][]' .profiles/benchmark-server.cpuprofile`
+- Memory: use `jq` to rank sampled heap sites by retained self size, for example:
+  `jq -c '[.head | recurse(.children[]?) | select(.selfSize > 0 and (.callFrame.url | test("/(server|client-data|scripts)/"))) | {bytes: .selfSize, fn: .callFrame.functionName, loc: (.callFrame.url + ":" + ((.callFrame.lineNumber + 1) | tostring))}] | sort_by(-.bytes) | .[:12][]' .profiles/benchmark-server.heapprofile`
 
 ## formatting
 
@@ -107,7 +126,7 @@ section before making changes there.
 
 - Message shape changes: update [server schema gate](./server/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests; if a normalizer is modified, also run `npm run bench` since both modules are on the hot path.
 - Rate-limit changes: update [shared rate-limit helpers](./client-data/js/rate_limit_common.js), [socket policy](./server/socket_policy.mjs), and [socket handlers](./server/sockets.mjs); rerun `node --test test-node/rate_limit_common.test.js test-node/socket_policy.test.js test-node/rate_limits.test.js`.
-- Persistence/replay changes: review [board state engine](./server/boardData.mjs); rerun `node --test test-node/rate_limits.test.js`, `npm test`, and `npm run bench`.
+- Persistence/replay changes: review [board state engine](./server/boardData.mjs) and [svg board store](./server/svg_board_store.mjs); rerun `node --test test-node/rate_limits.test.js`, `npm test`, and `npm run bench`.
 - Config/env changes: update [server configuration](./server/configuration.mjs); keep `readConfiguration` pure — do **not** reintroduce module-internal memoization or a reset hook. New config fields consumed on the per-item/per-coordinate hot path must be captured at module scope in [message schema gate](./server/message_validation.mjs) or [shared message primitives](./client-data/js/message_common.js); fields consumed in cold paths must be read per-invocation. Rerun [rate-limit tests](./test-node/rate_limits.test.js) and `npm run bench`.
 - Tool UX changes: start in [tool modules](./client-data/tools/); verify with Playwright.
 

@@ -1,9 +1,21 @@
 import crypto from "node:crypto";
 import * as socketIO from "socket.io";
 import WBOMessageCommon from "../client-data/js/message_common.js";
+import { getToolId } from "../client-data/js/message_tool_metadata.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
+import { Cursor } from "../client-data/tools/index.js";
 import { BoardData } from "./boardData.mjs";
-import { processNormalizedBoardMessage } from "./broadcast_processing.mjs";
+import {
+  deleteLoadedBoard,
+  discardPinnedReplayBaselinesBefore,
+  getLoadedBoard,
+  getMinPinnedReplayBaselineSeq,
+  getNextReplayPinExpiry,
+  listLoadedBoards,
+  resetBoardRegistry,
+  setLoadedBoard,
+} from "./board_registry.mjs";
+import { getBoardSession } from "./board_session.mjs";
 import { readConfiguration } from "./configuration.mjs";
 import observability from "./observability.mjs";
 import {
@@ -26,6 +38,10 @@ const getRateLimitRemainingMs = RateLimitCommon.getRateLimitRemainingMs;
 const getEffectiveRateLimitDefinition =
   RateLimitCommon.getEffectiveRateLimitDefinition;
 const isRateLimitStateStale = RateLimitCommon.isRateLimitStateStale;
+const SERVER_RATE_LIMIT_CONFIG_FIELDS =
+  /** @type {{[key in RateLimitKind]: keyof ServerConfig}} */ (
+    RateLimitCommon.SERVER_RATE_LIMIT_CONFIG_FIELDS
+  );
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
@@ -70,10 +86,6 @@ const { logger, metrics, tracing } = observability;
  * }} RateLimitState
  */
 
-/** Map from name to *promises* of BoardData
-  @type {{[boardName: string]: Promise<BoardData>}}
-*/
-const boards = {};
 /** @type {Map<string, RateLimitState>} */
 const destructiveRateLimits = new Map();
 /** @type {Map<string, RateLimitState>} */
@@ -84,11 +96,15 @@ const textRateLimits = new Map();
 const boardUsers = new Map();
 /** @type {Map<string, AppSocket>} */
 const activeSockets = new Map();
+/** @type {Set<string>} */
+const syncedPersistentSockets = new Set();
 let connectedUsersTotal = 0;
 /** @type {UserReportLog | null} */
 let lastUserReportLog = null;
 let invalidIpSourceLogged = false;
+/** @type {import("socket.io").Server | undefined} */
 let io;
+let shuttingDown = false;
 const NAME_SYLLABLES = [
   "al",
   "an",
@@ -164,6 +180,25 @@ const NAME_SYLLABLES = [
   "ze",
   "zi",
 ];
+
+/**
+ * @param {BoardData} board
+ * @param {{[key: string]: unknown}=} extras
+ * @returns {{[key: string]: unknown}}
+ */
+function boardDebugFields(board, extras) {
+  return {
+    board: board.name,
+    "wbo.board.instance": board.instanceId,
+    "wbo.board.seq": board.getSeq(),
+    "wbo.board.persisted_seq": board.getPersistedSeq(),
+    "wbo.board.min_replayable_seq": board.minReplayableSeq(),
+    "wbo.board.has_persisted_baseline": board.hasPersistedBaseline,
+    "wbo.board.users": board.users.size,
+    "file.path": board.file,
+    ...(extras || {}),
+  };
+}
 /**
  * Wraps a socket event handler with standard error logging and metrics.
  * @template {any[]} Args
@@ -218,7 +253,7 @@ function onSocketEvent(socket, eventName, handler) {
 }
 
 function updateLoadedBoardsGauge() {
-  metrics.setLoadedBoards(Object.keys(boards).length);
+  metrics.setLoadedBoards(listLoadedBoards().length);
 }
 
 function updateActiveSocketConnectionsGauge() {
@@ -362,7 +397,7 @@ function buildBoardUserRecord(socket, boardName, config, now) {
     language: getSocketHeaderValue(socket, "accept-language"),
     color: color || "#001f3f",
     size,
-    lastTool: getSocketQueryValue(socket, "tool") || "Hand",
+    lastTool: getSocketQueryValue(socket, "tool") || "hand",
     lastSeen: now || Date.now(),
   };
 }
@@ -494,8 +529,9 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
   user.lastSeen = now;
   if (data.color !== undefined) user.color = data.color;
   if (data.size !== undefined) user.size = Number(data.size) || user.size;
-  if (data.tool !== "Cursor") {
-    user.lastTool = data.tool;
+  const toolId = getToolId(data.tool);
+  if (data.tool !== Cursor.id && toolId) {
+    user.lastTool = toolId;
   }
   return user;
 }
@@ -505,10 +541,57 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
  * @param {BoardUser | undefined} user
  * @returns {NormalizedMessageData}
  */
-function attachLiveSocketId(data, user) {
+function withLiveSocketId(data, user) {
   if (!user) return data;
-  data.socket = user.socketId;
-  return data;
+  return { ...data, socket: user.socketId };
+}
+
+/**
+ * @param {ReturnType<BoardData["recordPersistentMutation"]>} envelope
+ * @returns {ReturnType<BoardData["recordPersistentMutation"]>}
+ */
+function clonePersistentEnvelope(envelope) {
+  const { socketId, ...nextEnvelope } = envelope || {};
+  void socketId;
+  return {
+    ...nextEnvelope,
+    mutation:
+      typeof envelope?.mutation === "object" && envelope.mutation !== null
+        ? { ...envelope.mutation }
+        : envelope.mutation,
+  };
+}
+
+/**
+ * @param {ReturnType<BoardData["recordPersistentMutation"]>} envelope
+ * @param {string | undefined} socketId
+ * @returns {ReturnType<BoardData["recordPersistentMutation"]>}
+ */
+function withPersistentEnvelopeSocketId(envelope, socketId) {
+  const internalSocketId =
+    typeof envelope?.socketId === "string" ? envelope.socketId : undefined;
+  const liveSocketId = socketId || internalSocketId;
+  if (
+    !liveSocketId ||
+    typeof envelope !== "object" ||
+    envelope === null ||
+    typeof envelope.mutation !== "object" ||
+    envelope.mutation === null
+  ) {
+    return internalSocketId ? clonePersistentEnvelope(envelope) : envelope;
+  }
+  const liveEnvelope = clonePersistentEnvelope(envelope);
+  liveEnvelope.mutation.socket = liveSocketId;
+  return liveEnvelope;
+}
+
+/**
+ * @param {ReturnType<BoardData["recordPersistentMutation"]>} envelope
+ * @param {BoardUser | undefined} user
+ * @returns {ReturnType<BoardData["recordPersistentMutation"]>}
+ */
+function withLivePersistentEnvelope(envelope, user) {
+  return withPersistentEnvelopeSocketId(envelope, user?.socketId);
 }
 
 /**
@@ -584,14 +667,14 @@ function socketTraceAttributes(eventName, extras) {
 /**
  * @param {string} boardName
  * @param {string | undefined} userName
- * @param {{tool?: string, type?: string}=} message
+ * @param {{tool?: string | number, type?: string | number}=} message
  * @returns {{[key: string]: unknown}}
  */
 function boardMutationTraceAttributes(boardName, userName, message) {
   return socketTraceAttributes("broadcast_write", {
     "wbo.board": boardName,
     "user.name": userName,
-    "wbo.tool": message?.tool,
+    "wbo.tool": getToolId(message?.tool),
     "wbo.message.type": message?.type,
   });
 }
@@ -655,7 +738,7 @@ function rejectSocketRequest(socket, eventName, reason, extras) {
  * @returns {boolean}
  */
 function shouldTraceBroadcast(data) {
-  return !data || data.tool !== "Cursor";
+  return !data || data.tool !== Cursor.id;
 }
 
 /**
@@ -665,28 +748,12 @@ function shouldTraceBroadcast(data) {
  * @returns {{limit: number, periodMs: number}}
  */
 function getEffectiveRateLimitConfig(kind, boardName, config) {
-  switch (kind) {
-    case "constructive":
-      return getEffectiveRateLimitDefinition(
-        config.CONSTRUCTIVE_ACTION_RATE_LIMITS,
-        boardName,
-      );
-    case "destructive":
-      return getEffectiveRateLimitDefinition(
-        config.DESTRUCTIVE_ACTION_RATE_LIMITS,
-        boardName,
-      );
-    case "text":
-      return getEffectiveRateLimitDefinition(
-        config.TEXT_CREATION_RATE_LIMITS,
-        boardName,
-      );
-    default:
-      return getEffectiveRateLimitDefinition(
-        config.GENERAL_RATE_LIMITS,
-        boardName,
-      );
-  }
+  return getEffectiveRateLimitDefinition(
+    /** @type {import("../types/app-runtime.d.ts").ConfiguredRateLimitDefinition | undefined} */ (
+      config[SERVER_RATE_LIMIT_CONFIG_FIELDS[kind]]
+    ),
+    boardName,
+  );
 }
 
 /**
@@ -1459,6 +1526,71 @@ function ensureSocketJoinedBoard(socket, boardName) {
 }
 
 /**
+ * @param {AppSocket} socket
+ * @returns {boolean}
+ */
+function requiresSeqCatchup(socket) {
+  return getSocketQueryValue(socket, "sync") === "seq";
+}
+
+/**
+ * @param {AppSocket} socket
+ * @returns {boolean}
+ */
+function canReceiveLivePersistentBroadcasts(socket) {
+  return !requiresSeqCatchup(socket) || syncedPersistentSockets.has(socket.id);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+function normalizeSeq(value) {
+  const seq = Number(value);
+  return Number.isSafeInteger(seq) && seq >= 0 ? seq : 0;
+}
+
+/**
+ * @param {BoardData} board
+ * @param {AppSocket} sourceSocket
+ * @param {ReturnType<BoardData["recordPersistentMutation"]>} envelope
+ * @returns {void}
+ */
+function emitPersistentBoardMutation(board, sourceSocket, envelope) {
+  for (const socketId of board.users) {
+    const targetSocket = getActiveSocket(socketId);
+    if (!targetSocket) continue;
+    if (targetSocket.id === sourceSocket.id) continue;
+    if (!canReceiveLivePersistentBroadcasts(targetSocket)) continue;
+    targetSocket.emit("broadcast", envelope);
+  }
+  sourceSocket.emit("broadcast", envelope);
+}
+
+/**
+ * @param {BoardData} board
+ * @param {AppSocket} sourceSocket
+ * @param {Array<{mutation: NormalizedMessageData, envelope: any}> | undefined} followup
+ * @returns {void}
+ */
+function emitPersistentBoardFollowupMutations(board, sourceSocket, followup) {
+  if (!Array.isArray(followup) || followup.length === 0) return;
+  followup.forEach((entry) => {
+    emitPersistentBoardMutation(board, sourceSocket, entry.envelope);
+  });
+}
+
+/**
+ * @param {string} boardName
+ * @param {AppSocket} sourceSocket
+ * @param {NormalizedMessageData} livePayload
+ * @returns {void}
+ */
+function emitEphemeralBoardMutation(boardName, sourceSocket, livePayload) {
+  sourceSocket.broadcast.to(boardName).emit("broadcast", livePayload);
+}
+
+/**
  * @param {string} reason
  * @returns {void}
  */
@@ -1466,6 +1598,23 @@ function rejectActiveBoardMutation(reason) {
   tracing.setActiveSpanAttributes({
     "wbo.board.result": "rejected",
     "wbo.rejection.reason": reason,
+  });
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {{clientMutationId?: unknown} | null | undefined} data
+ * @param {string} reason
+ * @returns {void}
+ */
+function emitMutationRejected(socket, data, reason) {
+  if (typeof data?.clientMutationId !== "string" || !data.clientMutationId) {
+    return;
+  }
+  socket.emit("mutation_rejected", {
+    type: "mutation_rejected",
+    clientMutationId: data.clientMutationId,
+    reason,
   });
 }
 
@@ -1573,13 +1722,14 @@ function rejectBlockedBoardWrite(
     board: board.name,
     "client.address": clientIp,
     "user.name": userName,
-    tool: data.tool,
+    tool: getToolId(data.tool),
     type: data.type,
   });
   metrics.recordBoardMessage(
     { board: boardName, ...data },
     boardMessageErrorType("write"),
   );
+  emitMutationRejected(socket, data, "write_blocked");
   return false;
 }
 
@@ -1608,7 +1758,7 @@ function rejectBoardMessageWrite(
     board: board.name,
     "client.address": clientIp,
     "user.name": userName,
-    tool: data.tool,
+    tool: getToolId(data.tool),
     type: data.type,
     reason,
   });
@@ -1616,38 +1766,48 @@ function rejectBoardMessageWrite(
     { board: boardName, ...data },
     boardMessageErrorType("board_message"),
   );
+  emitMutationRejected(socket, data, reason);
   return false;
 }
 
 /**
  * @param {AppSocket} socket
+ * @param {BoardData} board
  * @param {string} boardName
  * @param {NormalizedMessageData} data
  * @param {number} now
  * @param {string} userName
- * @param {number} revision
+ * @param {any} envelope
+ * @param {Array<{mutation: NormalizedMessageData, envelope: any}> | undefined} followup
  * @returns {void}
  */
 function finishSuccessfulBoardWrite(
   socket,
+  board,
   boardName,
   data,
   now,
   userName,
-  revision,
+  envelope,
+  followup,
 ) {
   const user = updateBoardUserFromMessage(socket, boardName, data, now);
-  attachLiveSocketId(data, user);
-  data.revision = revision;
+  const liveData = withLiveSocketId(data, user);
+  const liveEnvelope = withLivePersistentEnvelope(envelope, user);
   tracing.setActiveSpanAttributes({
     "wbo.board.result": "success",
     "user.name": user ? user.name : userName,
   });
   metrics.recordBoardMessage({
     board: boardName,
-    ...data,
+    ...liveData,
   });
-  socket.broadcast.to(boardName).emit("broadcast", data);
+  if (liveData.tool === Cursor.id) {
+    emitEphemeralBoardMutation(boardName, socket, liveData);
+    return;
+  }
+  emitPersistentBoardMutation(board, socket, liveEnvelope);
+  emitPersistentBoardFollowupMutations(board, socket, followup);
 }
 
 /**
@@ -1675,8 +1835,29 @@ async function persistBoardBroadcast(
     rejectBlockedBoardWrite(socket, board, boardName, data, clientIp, userName);
     return;
   }
+  if (data.tool === Cursor.id) {
+    finishSuccessfulBoardWrite(
+      socket,
+      board,
+      boardName,
+      data,
+      now,
+      userName,
+      {
+        seq: 0,
+        mutation: data,
+      },
+      undefined,
+    );
+    return;
+  }
 
-  const handleResult = processNormalizedBoardMessage(board, data, socket.id);
+  const handleResult = await getBoardSession(board).acceptPersistentMutation(
+    socket.id,
+    data,
+    data.clientMutationId,
+    now,
+  );
   if (handleResult.ok === false) {
     rejectBoardMessageWrite(
       socket,
@@ -1687,6 +1868,7 @@ async function persistBoardBroadcast(
       userName,
       handleResult.reason,
     );
+    emitPersistentBoardFollowupMutations(board, socket, handleResult.followup);
     return;
   }
   if (handleResult.value !== data) {
@@ -1694,11 +1876,13 @@ async function persistBoardBroadcast(
   }
   finishSuccessfulBoardWrite(
     socket,
+    board,
     boardName,
-    data,
+    handleResult.value,
     now,
     userName,
-    /** @type {number} */ (handleResult.revision),
+    handleResult.envelope,
+    handleResult.followup,
   );
 }
 
@@ -1937,12 +2121,23 @@ function startIO(app) {
  * @returns {Promise<BoardData>}
  */
 function getBoard(name) {
-  if (Object.hasOwn(boards, name)) {
-    return /** @type {Promise<BoardData>} */ (boards[name]);
+  const loadedBoard = getLoadedBoard(name);
+  if (loadedBoard) {
+    if (logger.isEnabled("debug")) {
+      logger.debug("board.cache_hit", {
+        board: name,
+      });
+    }
+    return loadedBoard;
   } else {
     const board = BoardData.load(name);
-    boards[name] = board;
+    setLoadedBoard(name, board);
     updateLoadedBoardsGauge();
+    if (logger.isEnabled("debug")) {
+      logger.debug("board.cache_miss", {
+        board: name,
+      });
+    }
     return board;
   }
 }
@@ -1966,6 +2161,15 @@ async function bootstrapSocketBoard(socket, boardName, config) {
     async function traceConnectBoard() {
       ensureSocketJoinedBoard(socket, boardName);
       const board = await getBoard(boardName);
+      if (logger.isEnabled("debug")) {
+        logger.debug(
+          "socket.board_bootstrap",
+          boardDebugFields(board, {
+            socket: socket.id,
+            "wbo.socket.requires_seq_catchup": requiresSeqCatchup(socket),
+          }),
+        );
+      }
       const wasJoined = board.users.has(socket.id);
       board.users.add(socket.id);
       if (!wasJoined || !hasBoardUser(socket, boardName)) {
@@ -1993,12 +2197,76 @@ async function bootstrapSocketBoard(socket, boardName, config) {
         readonly: board.isReadOnly(),
         canWrite: canWriteToBoard(config, board, socket),
       });
-      socket.emit("broadcast", {
-        _children: board.getAll(),
-        revision: board.getRevision(),
-      });
+      if (requiresSeqCatchup(socket)) syncedPersistentSockets.delete(socket.id);
+      else syncedPersistentSockets.add(socket.id);
     },
   );
+}
+
+/**
+ * @param {AppSocket} socket
+ * @param {string} boardName
+ * @param {{baselineSeq?: unknown} | undefined} request
+ * @returns {Promise<void>}
+ */
+async function handleSyncRequestMessage(socket, boardName, request) {
+  ensureSocketJoinedBoard(socket, boardName);
+  const board = await getBoard(boardName);
+  const baselineSeq = normalizeSeq(request?.baselineSeq);
+  const latestSeq = board.getSeq();
+  const minReplayableSeq = board.minReplayableSeq();
+  if (logger.isEnabled("debug")) {
+    logger.debug(
+      "socket.sync_request_received",
+      boardDebugFields(board, {
+        socket: socket.id,
+        "wbo.socket.baseline_seq": baselineSeq,
+        "wbo.socket.latest_seq": latestSeq,
+      }),
+    );
+  }
+  if (baselineSeq > latestSeq || baselineSeq < minReplayableSeq) {
+    logger.warn(
+      "socket.sync_request_resync_required",
+      boardDebugFields(board, {
+        socket: socket.id,
+        "wbo.socket.baseline_seq": baselineSeq,
+        "wbo.socket.latest_seq": latestSeq,
+      }),
+    );
+    socket.emit("resync_required", {
+      type: "resync_required",
+      latestSeq: latestSeq,
+      minReplayableSeq: minReplayableSeq,
+    });
+    return;
+  }
+  socket.emit("sync_replay_start", {
+    type: "sync_replay_start",
+    fromExclusiveSeq: baselineSeq,
+    toInclusiveSeq: latestSeq,
+  });
+  for (const envelope of board.readMutationRange(baselineSeq, latestSeq)) {
+    socket.emit(
+      "broadcast",
+      withPersistentEnvelopeSocketId(envelope, envelope.socketId),
+    );
+  }
+  syncedPersistentSockets.add(socket.id);
+  if (logger.isEnabled("debug")) {
+    logger.debug(
+      "socket.sync_request_completed",
+      boardDebugFields(board, {
+        socket: socket.id,
+        "wbo.socket.baseline_seq": baselineSeq,
+        "wbo.socket.latest_seq": latestSeq,
+      }),
+    );
+  }
+  socket.emit("sync_replay_end", {
+    type: "sync_replay_end",
+    toInclusiveSeq: latestSeq,
+  });
 }
 
 /**
@@ -2091,6 +2359,27 @@ async function handleSocketConnection(socket, config) {
 
   onSocketEvent(
     socket,
+    "sync_request",
+    async function onSyncRequest(
+      /** @type {{baselineSeq?: unknown} | undefined} */ request,
+    ) {
+      return tracing.withActiveSpan(
+        "socket.sync_request",
+        {
+          kind: tracing.SpanKind.INTERNAL,
+          attributes: socketTraceAttributes("sync_request", {
+            "wbo.board": boardName,
+          }),
+        },
+        async function traceSyncRequest() {
+          return handleSyncRequestMessage(socket, boardName, request);
+        },
+      );
+    },
+  );
+
+  onSocketEvent(
+    socket,
     "report_user",
     function onReportUser(
       /** @type {ReportUserPayload | undefined} */ message,
@@ -2116,14 +2405,22 @@ async function handleSocketConnection(socket, config) {
     function onDisconnecting(/** @type {string} */ _reason) {
       recordCompletedRateLimitWindow("general", generalRateLimit, "disconnect");
       activeSockets.delete(socket.id);
+      syncedPersistentSockets.delete(socket.id);
       updateActiveSocketConnectionsGauge();
       metrics.recordSocketConnection("disconnected");
       socket.rooms.forEach(
         async function disconnectFrom(/** @type {string} */ room) {
-          if (Object.hasOwn(boards, room)) {
-            const board = await /** @type {Promise<BoardData>} */ (
-              boards[room]
-            );
+          const boardPromise = getLoadedBoard(room);
+          if (boardPromise) {
+            const board = await boardPromise;
+            if (logger.isEnabled("debug")) {
+              logger.debug(
+                "socket.board_disconnecting",
+                boardDebugFields(board, {
+                  socket: socket.id,
+                }),
+              );
+            }
             const removed = board.users.delete(socket.id);
             removeBoardUser(socket, room);
             const userCount = board.users.size;
@@ -2131,7 +2428,16 @@ async function handleSocketConnection(socket, config) {
               connectedUsersTotal = Math.max(0, connectedUsersTotal - 1);
               updateConnectedUsersGauge();
             }
-            if (userCount === 0) unloadBoard(room);
+            if (logger.isEnabled("debug")) {
+              logger.debug(
+                "socket.board_disconnected",
+                boardDebugFields(board, {
+                  socket: socket.id,
+                  "wbo.board.user_removed": removed,
+                }),
+              );
+            }
+            if (userCount === 0 && !shuttingDown) unloadBoard(room);
           }
         },
       );
@@ -2146,7 +2452,8 @@ async function handleSocketConnection(socket, config) {
  * @param {string} boardName
  **/
 async function unloadBoard(boardName) {
-  if (Object.hasOwn(boards, boardName)) {
+  const loadedBoard = getLoadedBoard(boardName);
+  if (loadedBoard) {
     return tracing.withOptionalActiveSpan(
       "board.unload",
       {
@@ -2157,11 +2464,58 @@ async function unloadBoard(boardName) {
       },
       async function traceBoardUnload() {
         const startedAt = Date.now();
-        const board = await /** @type {Promise<BoardData>} */ (
-          boards[boardName]
-        );
+        const board = await loadedBoard;
+        if (logger.isEnabled("debug")) {
+          logger.debug("board.unload_started", boardDebugFields(board));
+        }
         try {
           await board.save();
+          if (board.users.size > 0) {
+            if (logger.isEnabled("debug")) {
+              logger.debug("board.unload_aborted", boardDebugFields(board));
+            }
+            return;
+          }
+          const minPinnedBaselineSeq = getMinPinnedReplayBaselineSeq(
+            boardName,
+            Date.now(),
+          );
+          if (
+            minPinnedBaselineSeq !== null &&
+            minPinnedBaselineSeq < board.getPersistedSeq()
+          ) {
+            const nextReplayPinExpiry = getNextReplayPinExpiry(
+              boardName,
+              Date.now(),
+            );
+            if (nextReplayPinExpiry !== null) {
+              const retryDelayMs = Math.max(
+                1,
+                nextReplayPinExpiry - Date.now(),
+              );
+              setTimeout(() => {
+                void unloadBoard(boardName);
+              }, retryDelayMs);
+            }
+            if (logger.isEnabled("debug")) {
+              logger.debug(
+                "board.unload_delayed_for_replay_pins",
+                boardDebugFields(board, {
+                  "wbo.board.min_pinned_baseline_seq": minPinnedBaselineSeq,
+                }),
+              );
+            }
+            return;
+          }
+          discardPinnedReplayBaselinesBefore(
+            boardName,
+            board.getPersistedSeq(),
+            Date.now(),
+          );
+          board.dispose();
+          if (logger.isEnabled("debug")) {
+            logger.debug("board.unload_completed", boardDebugFields(board));
+          }
           tracing.setActiveSpanAttributes({
             "wbo.board": boardName,
             "wbo.board.result": "success",
@@ -2171,7 +2525,7 @@ async function unloadBoard(boardName) {
             boardName,
             (Date.now() - startedAt) / 1000,
           );
-          delete boards[boardName];
+          deleteLoadedBoard(boardName);
           updateLoadedBoardsGauge();
         } catch (error) {
           tracing.recordActiveSpanError(error, {
@@ -2189,6 +2543,31 @@ async function unloadBoard(boardName) {
       },
     );
   }
+}
+
+/**
+ * Persist and unload every loaded board.
+ * @returns {Promise<void>}
+ */
+async function shutdownBoards() {
+  const currentIo = io;
+  shuttingDown = true;
+  io = undefined;
+  if (currentIo) {
+    currentIo.disconnectSockets(true);
+    currentIo.engine.close();
+  }
+  const loadedBoards = listLoadedBoards();
+  await Promise.all(
+    loadedBoards.map(async (boardName) => {
+      const board = await /** @type {Promise<BoardData>} */ (
+        getLoadedBoard(boardName)
+      );
+      board.users.clear();
+      return unloadBoard(boardName);
+    }),
+  );
+  resetBoardRegistry();
 }
 
 export const __test = {
@@ -2212,6 +2591,9 @@ export const __test = {
   pruneRateLimitMap,
   cleanupBoardUserMap,
   getBoardUserMap,
+  getLoadedBoard: function getLoadedBoardForTest(/** @type {string} */ name) {
+    return getLoadedBoard(name);
+  },
   getLastUserReportLog: function getLastUserReportLog() {
     return lastUserReportLog;
   },
@@ -2221,8 +2603,10 @@ export const __test = {
     textRateLimits.clear();
     boardUsers.clear();
     activeSockets.clear();
+    syncedPersistentSockets.clear();
     lastUserReportLog = null;
+    resetBoardRegistry();
   },
 };
 
-export { startIO as start };
+export { shutdownBoards as shutdown, startIO as start };

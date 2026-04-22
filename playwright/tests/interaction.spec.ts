@@ -1,4 +1,78 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "../fixtures/test";
+
+type BootPhaseSnapshot = {
+  phase: string;
+  left: number;
+  top: number;
+  boardPhase: string;
+};
+
+async function installBootPhaseRecorder(page: Page) {
+  await page.addInitScript(() => {
+    (window as any).__bootPhaseSnapshots = [];
+    document.addEventListener("wbo:board-phase", (event) => {
+      const detail =
+        event instanceof CustomEvent && event.detail
+          ? (event.detail as { phase?: unknown })
+          : null;
+      const phase = typeof detail?.phase === "string" ? detail.phase : "";
+      (window as any).__bootPhaseSnapshots.push({
+        phase,
+        left: window.scrollX || document.documentElement.scrollLeft,
+        top: window.scrollY || document.documentElement.scrollTop,
+        boardPhase: document.documentElement.dataset.boardPhase ?? "",
+      });
+    });
+  });
+}
+
+async function readBootPhaseSnapshots(
+  page: Page,
+): Promise<BootPhaseSnapshot[]> {
+  return page.evaluate(
+    () =>
+      ((window as any).__bootPhaseSnapshots as
+        | BootPhaseSnapshot[]
+        | undefined) ?? [],
+  );
+}
+
+async function waitForRecordedPhase(page: Page, phase: string) {
+  await page.waitForFunction(
+    (targetPhase) =>
+      Array.isArray((window as any).__bootPhaseSnapshots) &&
+      (window as any).__bootPhaseSnapshots.some(
+        (entry: { phase?: unknown } | undefined) =>
+          entry?.phase === targetPhase,
+      ),
+    phase,
+  );
+}
+
+async function expectViewportRestoreAfterConnect(
+  page: Page,
+  left: number,
+  top: number,
+) {
+  await waitForRecordedPhase(page, "viewport-restored");
+  const phases = await readBootPhaseSnapshots(page);
+  const viewportRestoredIndex = phases.findIndex(
+    (entry) => entry.phase === "viewport-restored",
+  );
+  const connectingIndex = phases.findIndex(
+    (entry) => entry.phase === "connecting",
+  );
+  expect(viewportRestoredIndex).toBeGreaterThanOrEqual(0);
+  expect(connectingIndex).toBeGreaterThanOrEqual(0);
+  expect(viewportRestoredIndex).toBeGreaterThan(connectingIndex);
+  expect(phases[viewportRestoredIndex]).toMatchObject({
+    phase: "viewport-restored",
+    left,
+    top,
+    boardPhase: "viewport-restored",
+  });
+}
 
 test.describe("single-page interactions", () => {
   test("selector moves existing rectangle", async ({
@@ -10,7 +84,7 @@ test.describe("single-page interactions", () => {
       "seed-rect": {
         type: "rect",
         id: "seed-rect",
-        tool: "Rectangle",
+        tool: "rectangle",
         x: 100,
         y: 100,
         x2: 160,
@@ -21,9 +95,9 @@ test.describe("single-page interactions", () => {
     });
 
     await boardPage.gotoBoard("selector-test");
-    await expect(boardPage.tool("Hand")).toBeVisible();
+    await expect(boardPage.tool("hand")).toBeVisible();
     await expect(page.locator("#seed-rect")).toBeVisible();
-    await boardPage.selectTool("Hand");
+    await boardPage.selectTool("hand");
 
     const result = await boardPage.moveSelection(
       "seed-rect",
@@ -64,12 +138,12 @@ test.describe("single-page interactions", () => {
 
   test("zoom clicks in and out", async ({ boardPage }) => {
     await boardPage.gotoBoard("zoom-test");
-    await expect(boardPage.tool("Zoom")).toBeVisible();
-    await boardPage.selectTool("Zoom");
+    await expect(boardPage.tool("zoom")).toBeVisible();
+    await boardPage.selectTool("zoom");
 
     const result = await boardPage.zoomClickInAndOut({ x: 200, y: 200 });
-    expect(Math.abs(result.scaleAfterZoomIn - 1.5)).toBeLessThan(0.01);
-    expect(Math.abs(result.scaleAfterZoomOut - 0.75)).toBeLessThan(0.01);
+    expect(Math.abs(result.scaleAfterZoomIn - 0.15)).toBeLessThan(0.01);
+    expect(Math.abs(result.scaleAfterZoomOut - 0.075)).toBeLessThan(0.01);
   });
 
   test("reload applies the viewport encoded in the URL hash", async ({
@@ -80,16 +154,20 @@ test.describe("single-page interactions", () => {
     const top = 1200;
     const url = `${boardPage.buildBoardUrl("hash-reload-test")}#${left},${top},1.0`;
 
+    await installBootPhaseRecorder(page);
+
     await page.goto(url);
+    await expectViewportRestoreAfterConnect(page, left, top);
     await page.waitForFunction(() => {
-      const state = document.documentElement.dataset.boardReady;
-      return state === "true" || state === "error";
+      const phase = document.documentElement.dataset.boardPhase;
+      return phase === "ready" || phase === "error";
     });
 
     await page.reload();
+    await expectViewportRestoreAfterConnect(page, left, top);
     await page.waitForFunction(() => {
-      const state = document.documentElement.dataset.boardReady;
-      return state === "true" || state === "error";
+      const phase = document.documentElement.dataset.boardPhase;
+      return phase === "ready" || phase === "error";
     });
 
     await expect
@@ -104,35 +182,35 @@ test.describe("single-page interactions", () => {
     boardPage,
   }) => {
     await boardPage.gotoBoard("zoom-threshold-test");
-    await expect(boardPage.tool("Hand")).toBeVisible();
-    await expect(boardPage.tool("Pencil")).toBeVisible();
-    await boardPage.selectTool("Pencil");
+    await expect(boardPage.tool("hand")).toBeVisible();
+    await expect(boardPage.tool("pencil")).toBeVisible();
+    await boardPage.selectTool("pencil");
     await boardPage.page.evaluate(() => {
-      (window as any).Tools.setScale(0.4);
+      window.Tools.setScale(0.04);
     });
 
-    await boardPage.expectCurrentTool("Hand");
-    await expect(boardPage.tool("Pencil")).toHaveAttribute(
+    await boardPage.expectCurrentTool("hand");
+    await expect(boardPage.tool("pencil")).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-    await expect(boardPage.tool("Rectangle")).toHaveAttribute(
+    await expect(boardPage.tool("rectangle")).toHaveAttribute(
       "aria-disabled",
       "true",
     );
 
-    await boardPage.tool("Pencil").click();
-    await boardPage.expectCurrentTool("Hand");
+    await boardPage.tool("pencil").click();
+    await boardPage.expectCurrentTool("hand");
 
     await boardPage.page.evaluate(() => {
-      (window as any).Tools.setScale(0.5);
+      window.Tools.setScale(0.05);
     });
-    await expect(boardPage.tool("Pencil")).toHaveAttribute(
+    await expect(boardPage.tool("pencil")).toHaveAttribute(
       "aria-disabled",
       "false",
     );
 
-    await boardPage.selectTool("Pencil");
+    await boardPage.selectTool("pencil");
   });
 
   test("download exports SVG content", async ({ boardPage, server }) => {
@@ -140,7 +218,7 @@ test.describe("single-page interactions", () => {
       "download-rect": {
         type: "rect",
         id: "download-rect",
-        tool: "Rectangle",
+        tool: "rectangle",
         x: 100,
         y: 100,
         x2: 160,
@@ -151,10 +229,10 @@ test.describe("single-page interactions", () => {
     });
 
     await boardPage.gotoBoard("download-test");
-    await expect(boardPage.tool("Download")).toBeVisible();
+    await expect(boardPage.tool("download")).toBeVisible();
     await expect(boardPage.page.locator("#download-rect")).toBeVisible();
     await boardPage.installDownloadCapture();
-    await boardPage.tool("Download").click();
+    await boardPage.tool("download").click();
 
     await expect
       .poll(() => boardPage.readDownloadCapture())
@@ -168,28 +246,6 @@ test.describe("single-page interactions", () => {
       });
   });
 
-  test("tool stylesheets include the current asset version", async ({
-    boardPage,
-    page,
-  }) => {
-    await boardPage.gotoBoard("tool-stylesheet-versioning");
-    await expect(boardPage.tool("Rectangle")).toBeVisible();
-    await boardPage.selectTool("Rectangle");
-
-    const stylesheets = await page.evaluate(() => {
-      return Array.from(
-        document.querySelectorAll("link[rel='stylesheet']"),
-      ).map((link) => link.getAttribute("href") ?? "");
-    });
-
-    expect(stylesheets.some((href) => /board\.css\?v=/.test(href))).toBe(true);
-    expect(
-      stylesheets.some((href) =>
-        /tools\/rectangle\/rectangle\.css\?v=/.test(href),
-      ),
-    ).toBe(true);
-  });
-
   test("selector duplicate and delete persist", async ({
     boardPage,
     server,
@@ -199,7 +255,7 @@ test.describe("single-page interactions", () => {
       "seed-rect": {
         type: "rect",
         id: "seed-rect",
-        tool: "Rectangle",
+        tool: "rectangle",
         x: 100,
         y: 100,
         x2: 160,
@@ -210,9 +266,9 @@ test.describe("single-page interactions", () => {
     });
 
     await boardPage.gotoBoard("selector-advanced-test");
-    await expect(boardPage.tool("Hand")).toBeVisible();
+    await expect(boardPage.tool("hand")).toBeVisible();
     await expect(page.locator("#seed-rect")).toBeVisible();
-    await boardPage.selectTool("Hand");
+    await boardPage.selectTool("hand");
 
     const result = await boardPage.duplicateSelectionAndDelete("seed-rect");
     expect(result.afterDuplicate).toHaveLength(2);

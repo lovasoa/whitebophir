@@ -5,9 +5,6 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { renderBoard } = require("../server/createSVG.mjs");
-const {
-  wboPencilPoint,
-} = require("../client-data/tools/pencil/wbo_pencil_point.js");
 
 /**
  * @param {any} storedBoard
@@ -42,18 +39,20 @@ function escapeRegExp(value) {
  * @returns {string}
  */
 function renderExpectedPencilPath(points) {
-  /** @type {{type: string, values: number[]}[]} */
-  const pathData = [];
-  for (const point of points) {
-    wboPencilPoint(pathData, point.x, point.y);
+  if (!points.length) return "";
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const point = points[i];
+    path += ` l ${point.x - prev.x} ${point.y - prev.y}`;
   }
-  return pathData.map((op) => `${op.type} ${op.values.join(" ")}`).join(" ");
+  return path;
 }
 
 test("renderBoard normalizes rectangle bounds for reverse-dragged shapes", async () => {
   const svg = await renderStoredBoard({
     rect1: {
-      tool: "Rectangle",
+      tool: "rectangle",
       type: "rect",
       id: "rect1",
       color: "#000000",
@@ -65,15 +64,15 @@ test("renderBoard normalizes rectangle bounds for reverse-dragged shapes", async
     },
   });
 
-  assert.match(svg, /<rect[^>]*x="5"/);
-  assert.match(svg, /<rect[^>]*y="1"/);
-  assert.match(svg, /<rect[^>]*width="5"/);
-  assert.match(svg, /<rect[^>]*height="19"/);
+  assert.match(svg, /<rect[^>]*x="50"/);
+  assert.match(svg, /<rect[^>]*y="10"/);
+  assert.match(svg, /<rect[^>]*width="50"/);
+  assert.match(svg, /<rect[^>]*height="190"/);
   assert.doesNotMatch(svg, /width="-/);
   assert.doesNotMatch(svg, /height="-/);
 });
 
-test("renderBoard keeps pencil path smoothing compatible with the client renderer", async () => {
+test("renderBoard stores raw pencil path points for client-side smoothing", async () => {
   const points = [
     { x: 1, y: 2 },
     { x: 10, y: 12 },
@@ -82,7 +81,7 @@ test("renderBoard keeps pencil path smoothing compatible with the client rendere
   ];
   const svg = await renderStoredBoard({
     line1: {
-      tool: "Pencil",
+      tool: "pencil",
       type: "line",
       id: "line1",
       color: "#000000",
@@ -91,6 +90,8 @@ test("renderBoard keeps pencil path smoothing compatible with the client rendere
     },
   });
 
-  const expectedPath = renderExpectedPencilPath(points);
+  const expectedPath = renderExpectedPencilPath(
+    points.map((point) => ({ x: point.x * 10, y: point.y * 10 })),
+  );
   assert.match(svg, new RegExp(`d="${escapeRegExp(expectedPath)}"`));
 });

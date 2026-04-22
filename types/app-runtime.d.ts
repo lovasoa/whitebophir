@@ -7,18 +7,23 @@ export type Transform = {
   f: number;
 };
 
+export type ToolCode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+export type MutationCode = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
 export type BoardMessage = {
-  tool?: string;
+  tool?: string | ToolCode;
   id?: string;
-  type?: string;
+  type?: string | MutationCode;
   parent?: string;
   newid?: string;
-  revision?: number;
+  seq?: number;
   socket?: string;
   userId?: string;
   color?: string;
   size?: number;
   txt?: string;
+  clientMutationId?: string;
+  mutation?: BoardMessage;
   transform?: Transform | unknown;
   _children?: BoardMessage[];
   x?: number;
@@ -27,7 +32,7 @@ export type BoardMessage = {
 };
 
 export type ToolNamedBoardMessage = BoardMessage & {
-  tool: string;
+  tool: string | ToolCode;
 };
 
 export type IdentifiedBoardMessage = BoardMessage & {
@@ -38,42 +43,23 @@ export type CopiedBoardMessage = BoardMessage & {
   newid: string;
 };
 
-export type HandChildUpdateMessage = BoardMessage & {
-  type: "update";
-  id: string;
-};
-
-export type HandChildCopyMessage = BoardMessage & {
-  type: "copy";
-  newid: string;
-};
-
-export type HandChildMessage = HandChildUpdateMessage | HandChildCopyMessage;
-
 export type BatchBoardMessage = ToolNamedBoardMessage & {
   _children: BoardMessage[];
 };
 
 export type ToolOwnedBatchMessage = BatchBoardMessage & {
-  tool: "Hand";
-};
-
-export type TextUpdateBoardMessage = ToolNamedBoardMessage & {
-  tool: "Text";
-  type: "update";
-  id: string;
-  txt?: string;
+  tool: string | ToolCode;
 };
 
 export type PendingWrite = {
   data?: BoardMessage;
   toolName?: string;
-  costs?: { general: number; constructive: number; destructive: number };
+  costs?: RateLimitCosts;
 };
 
 export type BufferedWrite = {
   message: BoardMessage;
-  costs: { general: number; constructive: number; destructive: number };
+  costs: RateLimitCosts;
 };
 
 export type RateLimitWindowState = {
@@ -82,7 +68,11 @@ export type RateLimitWindowState = {
   lastSeen: number;
 };
 
-export type RateLimitKind = "general" | "constructive" | "destructive";
+export type RateLimitKind = "general" | "constructive" | "destructive" | "text";
+
+export type RateLimitCosts = {
+  [key in RateLimitKind]: number;
+};
 
 export type BoardConnectionState =
   | "idle"
@@ -136,21 +126,22 @@ export type ToolSecondaryMode = {
   switch?: () => void;
 };
 
-export type AppTool = {
+export type MountedAppTool = {
   name: string;
   shortcut?: string;
   icon: string;
   draw: (message: BoardMessage, isLocal: boolean) => void;
+  normalizeServerRenderedElement?: (element: SVGElement) => void;
+  serverRenderedElementSelector?: string;
   press?: ToolPointerListener;
   move?: ToolPointerListener;
   release?: ToolPointerListener;
   onMessage?: (message: BoardMessage) => void;
-  iconHTML?: string;
-  listeners?: ToolPointerListeners;
-  compiledListeners?: CompiledToolListeners;
-  onstart?: (oldTool: AppTool | null) => void;
-  onquit?: (newTool: AppTool) => void;
-  onSocketDisconnect?: () => void;
+  listeners: ToolPointerListeners;
+  compiledListeners: CompiledToolListeners;
+  onstart: (oldTool: MountedAppTool | null) => void;
+  onquit: (newTool: MountedAppTool) => void;
+  onSocketDisconnect: () => void;
   stylesheet?: string;
   oneTouch?: boolean;
   alwaysOn?: boolean;
@@ -159,19 +150,7 @@ export type AppTool = {
   secondary?: ToolSecondaryMode | null;
   onSizeChange?: (size: number) => void;
   showMarker?: boolean;
-};
-
-export type ToolRegistry = {
-  [toolName: string]: AppTool;
-};
-
-export type MountedAppTool = AppTool & {
-  listeners: ToolPointerListeners;
-  compiledListeners: CompiledToolListeners;
-  onstart: (oldTool: AppTool | null) => void;
-  onquit: (newTool: AppTool) => void;
-  onMessage: (message: BoardMessage) => void;
-  onSocketDisconnect: () => void;
+  requiresWritableBoard?: boolean;
 };
 
 export type MountedToolRegistry = {
@@ -220,6 +199,59 @@ export type BoardStatusView = {
   detail: string;
 };
 
+export type ExplicitBoardStatus = BoardStatusView | null;
+
+export type AuthoritativeBaseline = {
+  seq: number;
+  readonly: boolean;
+  drawingAreaMarkup: string;
+};
+
+export type OptimisticItemSnapshot = {
+  id: string;
+  outerHTML: string | null;
+  nextSiblingId: string | null;
+};
+
+export type OptimisticRollback =
+  | {
+      kind: "drawing-area";
+      markup: string;
+    }
+  | {
+      kind: "items";
+      snapshots: OptimisticItemSnapshot[];
+    };
+
+export type OptimisticJournalEntry = {
+  clientMutationId: string;
+  affectedIds: string[];
+  dependsOn: string[];
+  dependencyItemIds: string[];
+  rollback: OptimisticRollback;
+  message: BoardMessage;
+};
+
+export type OptimisticJournalEntryInput = Omit<
+  OptimisticJournalEntry,
+  "dependencyItemIds"
+> & {
+  dependencyItemIds?: string[];
+};
+
+export type OptimisticJournalState = {
+  append: (entry: OptimisticJournalEntryInput) => OptimisticJournalEntry;
+  dependencyMutationIdsForItemIds: (itemIds: string[]) => string[];
+  promote: (clientMutationId: string) => OptimisticJournalEntry[];
+  reject: (clientMutationId: string) => OptimisticJournalEntry[];
+  rejectByInvalidatedIds: (
+    invalidatedIds: string[],
+  ) => OptimisticJournalEntry[];
+  reset: () => OptimisticJournalEntry[];
+  list: () => OptimisticJournalEntry[];
+  size: () => number;
+};
+
 export type ServerConfig = {
   RATE_LIMITS?: {
     general?: {
@@ -246,6 +278,14 @@ export type ServerConfig = {
         [boardName: string]: { limit?: number; periodMs?: number };
       };
     };
+    text?: {
+      limit?: number;
+      anonymousLimit?: number;
+      periodMs?: number;
+      overrides?: {
+        [boardName: string]: { limit?: number; periodMs?: number };
+      };
+    };
   };
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_VALIDATION_WINDOW_MS?: number | string;
@@ -256,42 +296,52 @@ export type ServerConfig = {
   AUTO_FINGER_WHITEOUT?: boolean;
 };
 
-export type ToolPalette = {
-  template: any;
-  addShortcut: (key: string, callback: () => void) => void;
-  addTool: (
-    toolName: string,
-    toolIcon: string,
-    toolIconHTML: string | undefined,
-    toolShortcut: string,
-    oneTouch: boolean | undefined,
-  ) => unknown;
-  changeTool: (oldToolName: string, newToolName: string) => void;
-  toggle: (toolName: string, name: string, icon: string) => void;
-  addStylesheet: (href: string) => void;
-  colorPresetTemplate: any;
-  addColorButton: (button: ColorPreset) => unknown;
-};
-
-export type ToolRuntime = {
-  Tools: AppToolsState;
-  activateTool: (toolName: string) => void;
-  getButton: (toolName: string) => HTMLElement | null;
-  registerShortcut: (toolName: string, key: string) => void;
-};
-
 export type ToolBootContext = {
-  toolName: string;
-  runtime: ToolRuntime;
-  button: HTMLElement | null;
-  version: string;
+  Tools: MountedAppToolsState;
   assetUrl: (assetFile: string) => string;
 };
 
-export type ToolClass<T extends AppTool = AppTool> = {
-  toolName: string;
+export type ToolModule<T = unknown> = {
+  toolId: string;
   replaySafe?: boolean;
+  shortcut?: string;
+  oneTouch?: boolean;
+  alwaysOn?: boolean;
+  mouseCursor?: string;
+  helpText?: string;
+  secondary?: ToolSecondaryMode | null;
+  showMarker?: boolean;
+  requiresWritableBoard?: boolean;
+  serverRenderedElementSelector?: string;
   boot: (ctx: ToolBootContext) => Promise<T> | T;
+  draw?: (state: T, message: BoardMessage, isLocal: boolean) => void;
+  normalizeServerRenderedElement?: (state: T, element: SVGElement) => void;
+  press?: (
+    state: T,
+    x: number,
+    y: number,
+    evt: MouseEvent | TouchEvent,
+    isTouchEvent: boolean,
+  ) => unknown;
+  move?: (
+    state: T,
+    x: number,
+    y: number,
+    evt: MouseEvent | TouchEvent,
+    isTouchEvent: boolean,
+  ) => unknown;
+  release?: (
+    state: T,
+    x: number,
+    y: number,
+    evt: MouseEvent | TouchEvent,
+    isTouchEvent: boolean,
+  ) => unknown;
+  onMessage?: (state: T, message: BoardMessage) => void;
+  onstart?: (state: T, oldTool: MountedAppTool | null) => void;
+  onquit?: (state: T, newTool: MountedAppTool) => void;
+  onSocketDisconnect?: (state: T) => void;
+  onSizeChange?: (state: T, size: number) => void;
 };
 
 export type AppBoardState = {
@@ -314,13 +364,17 @@ export type AppToolsState = {
   boardState: AppBoardState;
   readOnly: boolean;
   canWrite: boolean;
-  board: HTMLElement;
-  svg: SVGSVGElement;
+  board: HTMLElement | null;
+  svg: SVGSVGElement | null;
   drawingArea: Element | null;
   curTool: MountedAppTool | null;
   drawingEvent: boolean;
   hasAuthoritativeBoardSnapshot: boolean;
   snapshotRevision: number;
+  authoritativeSeq: number;
+  optimisticJournal: OptimisticJournalState;
+  optimisticMutationIdsByItemId: Map<string, string>;
+  awaitingSyncReplay: boolean;
   preSnapshotMessages: BoardMessage[];
   incomingBroadcastQueue: BoardMessage[];
   processingIncomingBroadcast: boolean;
@@ -330,11 +384,15 @@ export type AppToolsState = {
   isIE: boolean;
   socket: AppSocket | null;
   hasConnectedOnce: boolean;
+  useSeqSyncProtocol: boolean;
   bufferedWrites: BufferedWrite[];
   bufferedWriteTimer: ReturnType<typeof setTimeout> | null;
+  writeReadyWaiters: Array<() => void>;
   rateLimitedUntil: number;
+  localRateLimitedUntil: number;
   rateLimitNoticeTimer: ReturnType<typeof setTimeout> | null;
-  rateLimitNoticeMessage: string;
+  boardStatusTimer: ReturnType<typeof setTimeout> | null;
+  explicitBoardStatus: ExplicitBoardStatus;
   awaitingBoardSnapshot: boolean;
   connectionState: BoardConnectionState;
   localRateLimitStates: {
@@ -343,10 +401,9 @@ export type AppToolsState = {
   socketIOExtraHeaders: { [name: string]: string } | null;
   boardName: string;
   token: string | null;
-  HTML: ToolPalette;
+  pendingReplaySync: false | "refresh" | "ready";
   list: MountedToolRegistry;
-  toolClasses: { [toolName: string]: ToolClass };
-  bootedToolPromises: { [toolName: string]: Promise<AppTool | null> };
+  bootedToolPromises: { [toolName: string]: Promise<MountedAppTool | null> };
   bootedToolNames: Set<string>;
   pendingMessages: PendingMessages;
   connectedUsers: { [socketId: string]: ConnectedUser };
@@ -354,31 +411,56 @@ export type AppToolsState = {
   unreadMessagesCount: number;
   messageHooks: MessageHook[];
   colorPresets: ColorPreset[];
-  color_chooser: HTMLInputElement;
+  color_chooser: HTMLInputElement | null;
+  colorButtonsInitialized?: boolean;
+  currentColor: string;
+  currentSize: number;
+  currentOpacity: number;
+  initialPrefs?: {
+    tool: string;
+    color: string;
+    size: number;
+    opacity: number;
+  };
+  colorChangeHandlers: ((color: string) => void)[];
   sizeChangeHandlers: ((size: number) => void)[];
-  getInitialSocketQuery: () => { [name: string]: string };
   cloneMessage: (message: BoardMessage) => BoardMessage;
-  showLoadingMessage: () => void;
-  hideLoadingMessage: () => void;
   getRateLimitDefinition: (
     kind: RateLimitKind,
   ) => ConfiguredRateLimitDefinition;
-  getBufferedWriteCosts: (message: BoardMessage) => {
-    general: number;
-    constructive: number;
-    destructive: number;
-  };
+  getBufferedWriteCosts: (message: BoardMessage) => RateLimitCosts;
   clearBufferedWriteTimer: () => void;
   clearRateLimitNoticeTimer: () => void;
+  clearBoardStatusTimer: () => void;
   isWritePaused: (now?: number) => boolean;
   canBufferWrites: () => boolean;
+  whenBoardWritable: () => Promise<void>;
   showRateLimitNotice: (message: string, retryAfterMs: number) => void;
   hideRateLimitNotice: () => void;
+  showBoardStatus: (view: BoardStatusView, durationMs?: number) => void;
+  clearBoardStatus: () => void;
   getBoardStatusView: () => BoardStatusView;
   syncWriteStatusIndicator: () => void;
   clearBoardCursors: () => void;
   resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
+  rebuildOptimisticMutationIndex: () => void;
+  captureOptimisticRollback: (message: BoardMessage) => OptimisticRollback;
+  collectOptimisticDependencyMutationIds: (message: BoardMessage) => string[];
+  trackOptimisticMutation: (
+    message: BoardMessage,
+    rollback: OptimisticRollback,
+  ) => void;
+  restoreOptimisticRollback: (rollback: OptimisticRollback) => void;
+  applyRejectedOptimisticEntries: (rejected: OptimisticJournalEntry[]) => void;
+  promoteOptimisticMutation: (clientMutationId: string) => void;
+  rejectOptimisticMutation: (clientMutationId: string) => void;
+  pruneOptimisticMutationsForAuthoritativeMessage: (
+    message: BoardMessage,
+  ) => void;
+  applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
+  refreshAuthoritativeBaseline: () => Promise<void>;
+  tryStartReplaySync: () => void;
   resetLocalRateLimitState: (kind: RateLimitKind, now?: number) => void;
   resetAllLocalRateLimitStates: (now?: number) => void;
   canEmitBufferedWrite: (bufferedWrite: BufferedWrite, now: number) => boolean;
@@ -394,20 +476,22 @@ export type AppToolsState = {
   sendBufferedWrite: (message: BoardMessage) => boolean;
   discardBufferedWrites: () => void;
   beginAuthoritativeResync: () => void;
-  queueProtectedWrite: (data: BoardMessage, tool: AppTool) => void;
+  queueProtectedWrite: (data: BoardMessage, tool: MountedAppTool) => void;
   flushTurnstilePendingWrites: () => void;
   getToolAssetUrl: (toolName: string, assetFile: string) => string;
-  registerToolClass: (toolClass: ToolClass) => void;
-  ensureToolClassLoaded: (toolName: string) => Promise<ToolClass>;
-  mountTool: (tool: AppTool) => MountedAppTool;
-  bootTool: (toolName: string) => Promise<AppTool | null>;
-  ensureToolBooted: (toolName: string) => Promise<AppTool | null>;
+  mountTool: (
+    toolModule: ToolModule,
+    toolState: unknown,
+    toolName: string,
+  ) => MountedAppTool | null;
+  bootTool: (toolName: string) => Promise<MountedAppTool | null>;
   activateTool: (toolName: string) => Promise<boolean>;
-  add: (tool: AppTool) => void;
-  register: (tool: AppTool) => void;
-  addToolListeners: (tool: AppTool) => void;
-  removeToolListeners: (tool: AppTool) => void;
-  drawAndSend: (message: BoardMessage, tool?: AppTool) => boolean | undefined;
+  addToolListeners: (tool: MountedAppTool) => void;
+  removeToolListeners: (tool: MountedAppTool) => void;
+  drawAndSend: (
+    message: BoardMessage,
+    tool?: MountedAppTool | string,
+  ) => boolean | undefined;
   send: (message: BoardMessage, toolName?: string) => boolean | undefined;
   getColor: () => string;
   setColor: (color: string) => void;
@@ -416,6 +500,8 @@ export type AppToolsState = {
   getOpacity: () => number;
   getScale: () => number;
   setScale: (scale: number) => number;
+  applyViewportFromHash: () => void;
+  installViewportHashObservers: () => void;
   createSVGElement: (
     name: string,
     attrs?: { [key: string]: string | number | undefined },
@@ -438,7 +524,8 @@ export type AppToolsState = {
   syncToolDisabledState: (toolName: string) => void;
   syncDrawToolAvailability: (force: boolean) => void;
   setBoardState: (state: unknown) => void;
-  resolveBoardName: () => string;
+  toBoardCoordinate: (value: unknown) => number;
+  pageCoordinateToBoard: (value: unknown) => number;
   renderConnectedUsers: () => void;
   setConnectedUsersPanelOpen: (open: boolean) => void;
   upsertConnectedUser: (user: ConnectedUser) => void;
@@ -449,15 +536,20 @@ export type AppToolsState = {
   ) => void;
   updateCurrentConnectedUserFromActivity: (message: BoardMessage) => void;
   initConnectedUsersUI: () => void;
-  isBlocked: (tool: AppTool) => boolean;
+  isBlocked: (tool: MountedAppTool) => boolean;
   applyHooks: <T>(hooks: ((value: T) => void)[], object: T) => void;
   positionElement: (elem: HTMLElement, x: number, y: number) => void;
   change: (toolName: string) => boolean | undefined;
   messageForTool: (message: BoardMessage) => void;
   newUnreadMessage: () => void;
   startConnection: () => void;
-  versionAssetPath: (assetPath: string) => string;
-  assetVersion: string;
+  resolveAssetPath: (assetPath: string) => string;
+};
+
+export type MountedAppToolsState = AppToolsState & {
+  board: HTMLElement;
+  svg: SVGSVGElement;
+  drawingArea: Element;
 };
 
 export type SocketHeaders = {

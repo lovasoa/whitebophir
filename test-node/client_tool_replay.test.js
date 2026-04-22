@@ -3,7 +3,13 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { installTestConsole } = require("./test_console.js");
+const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
+const {
+  getToolModuleImportPath,
+  getToolRuntimeAssetPath,
+} = require("../client-data/tools/tool-defaults.js");
 installTestConsole();
+const { MutationType } = MessageToolMetadata;
 
 /**
  * @typedef {{type: string, values: number[]}} PathSegment
@@ -23,51 +29,6 @@ installTestConsole();
 
 const globalAny = /** @type {any} */ (global);
 let dynamicLoadSequence = 0;
-
-const TOOL_PATHS = {
-  Pencil: path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "pencil",
-    "pencil.js",
-  ),
-  "Straight line": path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "straight-line",
-    "straight-line.js",
-  ),
-  Rectangle: path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "rectangle",
-    "rectangle.js",
-  ),
-  Ellipse: path.join(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    "ellipse",
-    "ellipse.js",
-  ),
-  Text: path.join(__dirname, "..", "client-data", "tools", "text", "text.js"),
-  Hand: path.join(__dirname, "..", "client-data", "tools", "hand", "hand.js"),
-};
-
-/**
- * @param {string} toolName
- * @returns {string}
- */
-function toolStem(toolName) {
-  return toolName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-}
 
 /**
  * @param {PathSegment[]} pathData
@@ -462,9 +423,11 @@ function createHarness() {
     drawAndSend: function (/** @type {any} */ data, /** @type {any} */ tool) {
       if (tool == null) tool = this.curTool;
       if (!tool) throw new Error("No active tool available");
-      tool.draw(data, true);
+      const mountedTool = typeof tool === "string" ? tools[tool] : tool;
+      if (!mountedTool) throw new Error(`Missing mounted tool '${tool}'.`);
+      mountedTool.draw(data, true);
       this.sentMessages.push({
-        toolName: tool.name,
+        toolName: typeof tool === "string" ? tool : tool.name,
         data: JSON.parse(JSON.stringify(data)),
       });
       return true;
@@ -476,42 +439,88 @@ function createHarness() {
     clock: clock,
     windowListeners: windowListeners,
     loadTool: async (toolName) => {
-      const toolPaths = /** @type {{ [name: string]: string }} */ (TOOL_PATHS);
-      const toolPath = /** @type {string} */ (toolPaths[toolName]);
+      const toolPath = path.resolve(
+        __dirname,
+        "..",
+        "client-data",
+        "tools",
+        getToolModuleImportPath(toolName),
+      );
       const toolUrl = `${pathToFileURL(toolPath).href}?cache-bust=${++dynamicLoadSequence}`;
       const moduleNamespace = await import(toolUrl);
-      const ToolClass = moduleNamespace.default;
-      if (typeof ToolClass?.boot !== "function") {
-        throw new Error(`Missing default boot class for ${toolName}`);
+      if (typeof moduleNamespace.boot !== "function") {
+        throw new Error(`Missing boot export for ${toolName}`);
       }
-      const tool = await ToolClass.boot({
-        toolName,
-        runtime: {
-          Tools: globalAny.Tools,
-          activateTool: async (/** @type {string} */ name) => {
-            globalAny.Tools.change(name);
-            return true;
-          },
-          getButton: () => null,
-          registerShortcut: () => {},
-        },
-        button: null,
-        version: "",
+      const toolState = await moduleNamespace.boot({
+        Tools: globalAny.Tools,
         assetUrl: (/** @type {string} */ assetFile) =>
-          `tools/${toolStem(toolName)}/${assetFile}`,
+          getToolRuntimeAssetPath(toolName, assetFile),
+      });
+      const stateMetadata =
+        toolState && typeof toolState === "object" ? toolState : {};
+      const tool = /** @type {any} */ ({
+        name: toolName,
+        shortcut: moduleNamespace.shortcut || stateMetadata.shortcut,
+        oneTouch: moduleNamespace.oneTouch ?? stateMetadata.oneTouch,
+        alwaysOn: moduleNamespace.alwaysOn ?? stateMetadata.alwaysOn,
+        mouseCursor: moduleNamespace.mouseCursor || stateMetadata.mouseCursor,
+        helpText: moduleNamespace.helpText || stateMetadata.helpText,
+        showMarker: moduleNamespace.showMarker ?? stateMetadata.showMarker,
+        secondary: moduleNamespace.secondary || stateMetadata.secondary || null,
+        draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
+          moduleNamespace.draw(toolState, data, isLocal),
+        press:
+          typeof moduleNamespace.press === "function"
+            ? (
+                /** @type {number} */ x,
+                /** @type {number} */ y,
+                /** @type {any} */ evt,
+                /** @type {boolean} */ isTouchEvent,
+              ) => moduleNamespace.press(toolState, x, y, evt, isTouchEvent)
+            : undefined,
+        move:
+          typeof moduleNamespace.move === "function"
+            ? (
+                /** @type {number} */ x,
+                /** @type {number} */ y,
+                /** @type {any} */ evt,
+                /** @type {boolean} */ isTouchEvent,
+              ) => moduleNamespace.move(toolState, x, y, evt, isTouchEvent)
+            : undefined,
+        release:
+          typeof moduleNamespace.release === "function"
+            ? (
+                /** @type {number} */ x,
+                /** @type {number} */ y,
+                /** @type {any} */ evt,
+                /** @type {boolean} */ isTouchEvent,
+              ) => moduleNamespace.release(toolState, x, y, evt, isTouchEvent)
+            : undefined,
+        onstart:
+          typeof moduleNamespace.onstart === "function"
+            ? (/** @type {any} */ oldTool) =>
+                moduleNamespace.onstart(toolState, oldTool)
+            : undefined,
+        onMessage:
+          typeof moduleNamespace.onMessage === "function"
+            ? (/** @type {any} */ message) =>
+                moduleNamespace.onMessage(toolState, message)
+            : undefined,
+        onSocketDisconnect:
+          typeof moduleNamespace.onSocketDisconnect === "function"
+            ? () => moduleNamespace.onSocketDisconnect(toolState)
+            : undefined,
+        onSizeChange:
+          typeof moduleNamespace.onSizeChange === "function"
+            ? (/** @type {number} */ size) =>
+                moduleNamespace.onSizeChange(toolState, size)
+            : undefined,
       });
       if (!tool.listeners) {
         tool.listeners = {
-          press:
-            typeof tool.press === "function"
-              ? tool.press.bind(tool)
-              : undefined,
-          move:
-            typeof tool.move === "function" ? tool.move.bind(tool) : undefined,
-          release:
-            typeof tool.release === "function"
-              ? tool.release.bind(tool)
-              : undefined,
+          press: tool.press,
+          move: tool.move,
+          release: tool.release,
         };
       }
       tools[tool.name] = tool;
@@ -533,19 +542,29 @@ function expectedTwoPointStroke() {
  */
 function drawReplayStroke(pencilTool) {
   pencilTool.draw({
-    type: "line",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#123456",
     size: 4,
     opacity: 1,
   });
-  pencilTool.draw({ type: "child", parent: "line-1", x: 100, y: 200 });
-  pencilTool.draw({ type: "child", parent: "line-1", x: 300, y: 400 });
+  pencilTool.draw({
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 100,
+    y: 200,
+  });
+  pencilTool.draw({
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 300,
+    y: 400,
+  });
 }
 
 test("Pencil replay resets an existing path before reapplying children", async () => {
   const harness = createHarness();
-  const pencilTool = await harness.loadTool("Pencil");
+  const pencilTool = await harness.loadTool("pencil");
 
   drawReplayStroke(pencilTool);
   const line = harness.elementsById.get("line-1");
@@ -558,7 +577,7 @@ test("Pencil replay resets an existing path before reapplying children", async (
 
 test("Pencil replay drops stale cached path data after the DOM node is replaced", async () => {
   const harness = createHarness();
-  const pencilTool = await harness.loadTool("Pencil");
+  const pencilTool = await harness.loadTool("pencil");
 
   drawReplayStroke(pencilTool);
   const originalLine = harness.elementsById.get("line-1");
@@ -571,12 +590,38 @@ test("Pencil replay drops stale cached path data after the DOM node is replaced"
   assert.deepEqual(replayedLine.pathData, expectedTwoPointStroke());
 });
 
+test("Pencil replay reuses baseline paths found via document lookup when svg lookup misses", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+
+  drawReplayStroke(pencilTool);
+  const originalLine = harness.elementsById.get("line-1");
+  harness.elementsById.delete("line-1");
+  harness.elementsById.set("line-1", originalLine);
+  globalAny.Tools.svg.getElementById = () => null;
+
+  drawReplayStroke(pencilTool);
+
+  assert.equal(harness.elementsById.get("line-1"), originalLine);
+  assert.deepEqual(originalLine.pathData, expectedTwoPointStroke());
+});
+
 test("Pencil child messages build a missing line from scratch", async () => {
   const harness = createHarness();
-  const pencilTool = await harness.loadTool("Pencil");
+  const pencilTool = await harness.loadTool("pencil");
 
-  pencilTool.draw({ type: "child", parent: "line-1", x: 100, y: 200 });
-  pencilTool.draw({ type: "child", parent: "line-1", x: 300, y: 400 });
+  pencilTool.draw({
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 100,
+    y: 200,
+  });
+  pencilTool.draw({
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 300,
+    y: 400,
+  });
 
   assert.deepEqual(
     harness.elementsById.get("line-1").pathData,
@@ -586,10 +631,10 @@ test("Pencil child messages build a missing line from scratch", async () => {
 
 test("Pencil replay updates stroke styling on the reused DOM node", async () => {
   const harness = createHarness();
-  const pencilTool = await harness.loadTool("Pencil");
+  const pencilTool = await harness.loadTool("pencil");
 
   pencilTool.draw({
-    type: "line",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#123456",
     size: 4,
@@ -597,7 +642,7 @@ test("Pencil replay updates stroke styling on the reused DOM node", async () => 
   });
 
   pencilTool.draw({
-    type: "line",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#abcdef",
     size: 7,
@@ -613,7 +658,7 @@ test("Pencil replay updates stroke styling on the reused DOM node", async () => 
 
 test("Pencil input sends an initial child point without waiting for throttle", async () => {
   const harness = createHarness();
-  const pencilTool = await harness.loadTool("Pencil");
+  const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
 
   globalAny.Tools.curTool = pencilTool;
@@ -629,20 +674,38 @@ test("Pencil input sends an initial child point without waiting for throttle", a
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
     ),
-    ["line", "child"],
+    [MutationType.CREATE, MutationType.APPEND],
   );
   assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
-    type: "child",
+    type: MutationType.APPEND,
     parent: "l-1",
     x: 100,
     y: 100,
   });
 });
 
+test("Pencil marks only the active local line as non-interactive while drawing", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = { preventDefault: () => {} };
+
+  globalAny.Tools.curTool = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  const activeLine = harness.elementsById.get("l-1");
+  assert.equal(activeLine.getAttribute("class"), "wbo-pencil-drawing");
+
+  harness.clock.now = 2;
+  pencilTool.listeners.release(200, 200, event);
+
+  assert.equal(activeLine.getAttribute("class"), "");
+});
+
 test("Pencil input stops sending points after MAX_CHILDREN", async () => {
   const harness = createHarness();
   globalAny.Tools.server_config.MAX_CHILDREN = 2;
-  const pencilTool = await harness.loadTool("Pencil");
+  const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
 
   globalAny.Tools.curTool = pencilTool;
@@ -663,20 +726,20 @@ test("Pencil input stops sending points after MAX_CHILDREN", async () => {
     ),
     [
       {
-        type: "line",
+        type: MutationType.CREATE,
         id: "l-1",
         color: "#123456",
         size: 4,
         opacity: 1,
       },
       {
-        type: "child",
+        type: MutationType.APPEND,
         parent: "l-1",
         x: 100,
         y: 100,
       },
       {
-        type: "child",
+        type: MutationType.APPEND,
         parent: "l-1",
         x: 200,
         y: 200,
@@ -687,7 +750,7 @@ test("Pencil input stops sending points after MAX_CHILDREN", async () => {
 
 test("Pencil disconnect aborts the active stroke and removes the local line", async () => {
   const harness = createHarness();
-  const pencilTool = await harness.loadTool("Pencil");
+  const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
 
   globalAny.Tools.curTool = pencilTool;
@@ -706,20 +769,50 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
     ),
-    ["line", "child"],
+    [MutationType.CREATE, MutationType.APPEND],
   );
+});
+
+test("Pencil replay is idempotent for the same persisted stroke", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const replayStroke = [
+    {
+      type: MutationType.CREATE,
+      id: "line-1",
+      color: "#123456",
+      size: 4,
+      opacity: 1,
+    },
+    { type: MutationType.APPEND, parent: "line-1", x: 10, y: 20 },
+    { type: MutationType.APPEND, parent: "line-1", x: 25, y: 35 },
+    { type: MutationType.APPEND, parent: "line-1", x: 40, y: 15 },
+  ];
+
+  replayStroke.forEach((message) => {
+    pencilTool.draw(/** @type {any} */ (message));
+  });
+  const line = harness.elementsById.get("line-1");
+  const firstPathData = line.getPathData();
+
+  replayStroke.forEach((message) => {
+    pencilTool.draw(/** @type {any} */ (message));
+  });
+  const secondPathData = line.getPathData();
+
+  assert.deepEqual(secondPathData, firstPathData);
 });
 
 test("Pencil delete of the active line aborts the active stroke", async () => {
   const harness = createHarness();
-  const pencilTool = await harness.loadTool("Pencil");
+  const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
 
   globalAny.Tools.curTool = pencilTool;
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
-  pencilTool.onMessage({ type: "delete", id: "l-1" });
+  pencilTool.onMessage({ type: MutationType.DELETE, id: "l-1" });
 
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
@@ -728,20 +821,20 @@ test("Pencil delete of the active line aborts the active stroke", async () => {
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
     ),
-    ["line", "child"],
+    [MutationType.CREATE, MutationType.APPEND],
   );
 });
 
 test("Pencil clear aborts the active stroke", async () => {
   const harness = createHarness();
-  const pencilTool = await harness.loadTool("Pencil");
+  const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
 
   globalAny.Tools.curTool = pencilTool;
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
-  pencilTool.onMessage({ type: "clear" });
+  pencilTool.onMessage({ type: MutationType.CLEAR });
 
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
@@ -750,16 +843,16 @@ test("Pencil clear aborts the active stroke", async () => {
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
     ),
-    ["line", "child"],
+    [MutationType.CREATE, MutationType.APPEND],
   );
 });
 
 test("Straight line replay refreshes endpoints and styling on an existing node", async () => {
   const harness = createHarness();
-  const lineTool = await harness.loadTool("Straight line");
+  const lineTool = await harness.loadTool("straight-line");
 
   lineTool.draw({
-    type: "straight",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#111111",
     size: 3,
@@ -770,7 +863,7 @@ test("Straight line replay refreshes endpoints and styling on an existing node",
     y2: 40,
   });
   lineTool.draw({
-    type: "straight",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#abcdef",
     size: 7,
@@ -793,10 +886,10 @@ test("Straight line replay refreshes endpoints and styling on an existing node",
 
 test("Straight line update recreates a missing line before applying endpoints", async () => {
   const harness = createHarness();
-  const lineTool = await harness.loadTool("Straight line");
+  const lineTool = await harness.loadTool("straight-line");
 
   lineTool.draw({
-    type: "update",
+    type: MutationType.UPDATE,
     id: "line-1",
     x2: 300,
     y2: 400,
@@ -811,10 +904,10 @@ test("Straight line update recreates a missing line before applying endpoints", 
 
 [
   {
-    tool: "Straight line",
+    tool: "straight-line",
     updateMessage: {
-      tool: "Straight line",
-      type: "update",
+      tool: "straight-line",
+      type: MutationType.UPDATE,
       id: "line-1",
       x2: 300,
       y2: 400,
@@ -829,10 +922,10 @@ test("Straight line update recreates a missing line before applying endpoints", 
     },
   },
   {
-    tool: "Rectangle",
+    tool: "rectangle",
     updateMessage: {
-      tool: "Rectangle",
-      type: "update",
+      tool: "rectangle",
+      type: MutationType.UPDATE,
       id: "rect-1",
       x: 60,
       y: 30,
@@ -849,10 +942,10 @@ test("Straight line update recreates a missing line before applying endpoints", 
     },
   },
   {
-    tool: "Ellipse",
+    tool: "ellipse",
     updateMessage: {
-      tool: "Ellipse",
-      type: "update",
+      tool: "ellipse",
+      type: MutationType.UPDATE,
       id: "ellipse-1",
       x: 0,
       y: 30,
@@ -884,10 +977,10 @@ test("Straight line update recreates a missing line before applying endpoints", 
 
 test("Rectangle replay normalizes reverse-drag bounds on a reused node", async () => {
   const harness = createHarness();
-  const rectangleTool = await harness.loadTool("Rectangle");
+  const rectangleTool = await harness.loadTool("rectangle");
 
   rectangleTool.draw({
-    type: "rect",
+    type: MutationType.CREATE,
     id: "rect-1",
     color: "#123456",
     size: 4,
@@ -905,12 +998,57 @@ test("Rectangle replay normalizes reverse-drag bounds on a reused node", async (
   assert.equal(rect.height.baseVal.value, 130);
 });
 
+test("Rectangle press draws the optimistic seed shape before recording the send", async () => {
+  const harness = createHarness();
+  const rectangleTool = await harness.loadTool("rectangle");
+  /** @type {boolean[]} */
+  const localShapeVisibleAtSend = [];
+  globalAny.Tools.curTool = rectangleTool;
+  globalAny.Tools.drawAndSend = function (
+    /** @type {any} */ data,
+    /** @type {any} */ tool,
+  ) {
+    if (tool == null) tool = this.curTool;
+    if (!tool) throw new Error("No active tool available");
+    const mountedTool =
+      typeof tool === "string"
+        ? this.curTool && this.curTool.name === tool
+          ? this.curTool
+          : undefined
+        : tool;
+    if (!mountedTool) throw new Error(`Missing mounted tool '${tool}'.`);
+    mountedTool.draw(data, true);
+    localShapeVisibleAtSend.push(Boolean(this.svg.getElementById(data.id)));
+    this.sentMessages.push({
+      toolName: typeof tool === "string" ? tool : tool.name,
+      data: JSON.parse(JSON.stringify(data)),
+    });
+    return true;
+  };
+
+  rectangleTool.listeners.press(80, 20, { preventDefault: () => {} });
+
+  assert.deepEqual(localShapeVisibleAtSend, [true]);
+  assert.equal(harness.elementsById.has("r-1"), true);
+  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
+    type: MutationType.CREATE,
+    id: "r-1",
+    color: "#123456",
+    size: 4,
+    opacity: 1,
+    x: 80,
+    y: 20,
+    x2: 80,
+    y2: 20,
+  });
+});
+
 test("Rectangle update recreates a missing shape before applying bounds", async () => {
   const harness = createHarness();
-  const rectangleTool = await harness.loadTool("Rectangle");
+  const rectangleTool = await harness.loadTool("rectangle");
 
   rectangleTool.draw({
-    type: "update",
+    type: MutationType.UPDATE,
     id: "rect-1",
     x: 60,
     y: 90,
@@ -927,10 +1065,10 @@ test("Rectangle update recreates a missing shape before applying bounds", async 
 
 test("Ellipse replay updates center and radii on a reused node", async () => {
   const harness = createHarness();
-  const ellipseTool = await harness.loadTool("Ellipse");
+  const ellipseTool = await harness.loadTool("ellipse");
 
   ellipseTool.draw({
-    type: "ellipse",
+    type: MutationType.CREATE,
     id: "ellipse-1",
     color: "#123456",
     size: 4,
@@ -941,7 +1079,7 @@ test("Ellipse replay updates center and radii on a reused node", async () => {
     y2: 220,
   });
   ellipseTool.draw({
-    type: "update",
+    type: MutationType.UPDATE,
     id: "ellipse-1",
     x: 0,
     y: 30,
@@ -958,10 +1096,10 @@ test("Ellipse replay updates center and radii on a reused node", async () => {
 
 test("Ellipse update recreates a missing shape before applying radii", async () => {
   const harness = createHarness();
-  const ellipseTool = await harness.loadTool("Ellipse");
+  const ellipseTool = await harness.loadTool("ellipse");
 
   ellipseTool.draw({
-    type: "update",
+    type: MutationType.UPDATE,
     id: "ellipse-1",
     x: 0,
     y: 30,
@@ -978,10 +1116,10 @@ test("Ellipse update recreates a missing shape before applying radii", async () 
 
 test("Text replay creates and then updates the same text field", async () => {
   const harness = createHarness();
-  const textTool = await harness.loadTool("Text");
+  const textTool = await harness.loadTool("text");
 
   textTool.draw({
-    type: "new",
+    type: MutationType.CREATE,
     id: "text-1",
     color: "#123456",
     size: 24,
@@ -990,7 +1128,7 @@ test("Text replay creates and then updates the same text field", async () => {
     y: 120,
   });
   textTool.draw({
-    type: "update",
+    type: MutationType.UPDATE,
     id: "text-1",
     txt: "hello replay",
   });
@@ -1006,7 +1144,7 @@ test("Text replay creates and then updates the same text field", async () => {
 
 test("Hand selector sends a final transform on quick release", async () => {
   const harness = createHarness();
-  const handTool = await harness.loadTool("Hand");
+  const handTool = await harness.loadTool("hand");
 
   const rect = globalAny.Tools.createSVGElement("rect");
   rect.id = "seed-rect";
@@ -1032,11 +1170,11 @@ test("Hand selector sends a final transform on quick release", async () => {
   });
 
   assert.equal(globalAny.Tools.sentMessages.length, 1);
-  assert.equal(globalAny.Tools.sentMessages[0].toolName, "Hand");
+  assert.equal(globalAny.Tools.sentMessages[0].toolName, "hand");
   assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
     _children: [
       {
-        type: "update",
+        type: MessageToolMetadata.MutationType.UPDATE,
         id: "seed-rect",
         transform: {
           a: 1,
@@ -1053,7 +1191,7 @@ test("Hand selector sends a final transform on quick release", async () => {
 
 test("Hand selector keeps the original element selected after duplicate", async () => {
   const harness = createHarness();
-  const handTool = await harness.loadTool("Hand");
+  const handTool = await harness.loadTool("hand");
   let nextId = 1;
 
   globalAny.Tools.generateUID = (/** @type {string} */ prefix) => {
@@ -1103,7 +1241,13 @@ test("Hand selector keeps the original element selected after duplicate", async 
 
   assert.equal(globalAny.Tools.sentMessages.length, 1);
   assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
-    _children: [{ type: "copy", id: "r-1", newid: "r-2" }],
+    _children: [
+      {
+        type: MessageToolMetadata.MutationType.COPY,
+        id: "r-1",
+        newid: "r-2",
+      },
+    ],
   });
 
   const originalRect = harness.elementsById.get("r-1");
@@ -1124,7 +1268,7 @@ test("Hand selector keeps the original element selected after duplicate", async 
   assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
     _children: [
       {
-        type: "update",
+        type: MessageToolMetadata.MutationType.UPDATE,
         id: "r-1",
         transform: {
           a: 1,
@@ -1137,4 +1281,25 @@ test("Hand selector keeps the original element selected after duplicate", async 
       },
     ],
   });
+});
+
+test("Eraser replay removes only the targeted stable id", async () => {
+  const harness = createHarness();
+  const eraserTool = await harness.loadTool("eraser");
+
+  const rect1 = globalAny.Tools.createSVGElement("rect");
+  rect1.id = "r-1";
+  globalAny.Tools.drawingArea.appendChild(rect1);
+
+  const rect2 = globalAny.Tools.createSVGElement("rect");
+  rect2.id = "r-2";
+  globalAny.Tools.drawingArea.appendChild(rect2);
+
+  eraserTool.draw({
+    type: MutationType.DELETE,
+    id: "r-1",
+  });
+
+  assert.equal(harness.elementsById.get("r-1"), undefined);
+  assert.equal(harness.elementsById.get("r-2"), rect2);
 });

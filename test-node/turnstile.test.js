@@ -1,5 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 const {
   withEnv,
   createSocket,
@@ -7,16 +10,33 @@ const {
   withMockedNow,
 } = require("./test_helpers.js");
 const WBOMessageCommon = require("../client-data/js/message_common.js");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
+const { Cursor, Pencil } = require("../client-data/tools/index.js");
+
+/**
+ * @returns {Promise<string>}
+ */
+function createHistoryDir() {
+  return fs.mkdtemp(path.join(os.tmpdir(), "wbo-turnstile-"));
+}
+
+/**
+ * @param {any} board
+ * @returns {void}
+ */
+function disableSaves(board) {
+  board.delaySave = () => {};
+}
 
 test("requiresTurnstile shared utility logic", () => {
-  assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "Pencil"), true);
-  assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "Clear"), true);
+  assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "pencil"), true);
+  assert.equal(WBOMessageCommon.requiresTurnstile("anonymous", "clear"), true);
   assert.equal(
-    WBOMessageCommon.requiresTurnstile("anonymous", "Cursor"),
+    WBOMessageCommon.requiresTurnstile("anonymous", "cursor"),
     false,
   );
   assert.equal(
-    WBOMessageCommon.requiresTurnstile("named-board", "Pencil"),
+    WBOMessageCommon.requiresTurnstile("named-board", "pencil"),
     false,
   );
   assert.equal(
@@ -26,11 +46,13 @@ test("requiresTurnstile shared utility logic", () => {
 });
 
 test("server-side Turnstile enforcement in broadcast", async () => {
+  const historyDir = await createHistoryDir();
   await withEnv(
     {
       TURNSTILE_SECRET_KEY: "test-secret",
       TURNSTILE_SITE_KEY: "test-site-key",
       TURNSTILE_VALIDATION_WINDOW_MS: "1000",
+      WBO_HISTORY_DIR: historyDir,
     },
     async () => {
       const sockets = await loadSockets();
@@ -40,6 +62,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
 
       // Initialize socket state by calling handleSocketConnection
       await sockets.__test.handleSocketConnection(socket);
+      disableSaves(await sockets.__test.getLoadedBoard("anonymous"));
 
       const broadcastHandler = handlers.broadcast;
       assert.ok(broadcastHandler, "broadcast handler should be registered");
@@ -53,8 +76,8 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       });
 
       await broadcastHandler({
-        tool: "Pencil",
-        type: "line",
+        tool: Pencil.id,
+        type: MutationType.CREATE,
         id: "l1",
         color: "#123456",
         size: 4,
@@ -67,14 +90,19 @@ test("server-side Turnstile enforcement in broadcast", async () => {
 
       // 2. Allowed: Cursor tool, not validated
       // (This verifies the shared logic integration in the socket handler)
-      await broadcastHandler({ tool: "Cursor", type: "update", x: 10, y: 20 });
+      await broadcastHandler({
+        tool: Cursor.id,
+        type: MutationType.UPDATE,
+        x: 10,
+        y: 20,
+      });
 
       // 3. Allowed: Pencil tool, AFTER validation
       socket.turnstileValidatedUntil = 1000;
       await withMockedNow(500, async () => {
         await broadcastHandler({
-          tool: "Pencil",
-          type: "line",
+          tool: Pencil.id,
+          type: MutationType.CREATE,
           id: "l2",
           color: "#123456",
           size: 4,
@@ -90,8 +118,8 @@ test("server-side Turnstile enforcement in broadcast", async () => {
       socket.turnstileValidatedUntil = 1000;
       await withMockedNow(1001, async () => {
         await broadcastHandler({
-          tool: "Pencil",
-          type: "line",
+          tool: Pencil.id,
+          type: MutationType.CREATE,
           id: "l3",
           color: "#123456",
           size: 4,
@@ -107,11 +135,13 @@ test("server-side Turnstile enforcement in broadcast", async () => {
 });
 
 test("server-side Turnstile token validation binds Siteverify to request context", async () => {
+  const historyDir = await createHistoryDir();
   await withEnv(
     {
       TURNSTILE_SECRET_KEY: "test-secret",
       TURNSTILE_SITE_KEY: "test-site-key",
       TURNSTILE_VALIDATION_WINDOW_MS: "120000",
+      WBO_HISTORY_DIR: historyDir,
     },
     async () => {
       const config = require("../server/configuration.mjs").readConfiguration();
@@ -203,10 +233,12 @@ test("server-side Turnstile token validation binds Siteverify to request context
 });
 
 test("server-side Turnstile token validation rejects hostname mismatches", async () => {
+  const historyDir = await createHistoryDir();
   await withEnv(
     {
       TURNSTILE_SECRET_KEY: "test-secret",
       TURNSTILE_SITE_KEY: "test-site-key",
+      WBO_HISTORY_DIR: historyDir,
     },
     async () => {
       const _config =

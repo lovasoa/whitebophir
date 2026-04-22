@@ -36,9 +36,14 @@ const CLIENT_CONFIGURATION_PATH = path.join(
   "server",
   "client_configuration.mjs",
 );
+const COMPRESSION_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "http_compression.mjs",
+);
 const CLIENT_WEBROOT = path.join(__dirname, "..", "client-data");
 const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.mjs");
-const PACKAGE_PATH = path.join(__dirname, "..", "package.json");
 let serverLoadSequence = 0;
 
 /**
@@ -74,6 +79,47 @@ function getSingleSetCookie(headers) {
   if (Array.isArray(value)) return value[0] || "";
   return typeof value === "string" ? value : "";
 }
+
+/**
+ * @param {string} historyDir
+ * @param {string} name
+ * @returns {string}
+ */
+function boardSvgFile(historyDir, name) {
+  return path.join(historyDir, `board-${encodeURIComponent(name)}.svg`);
+}
+
+test("in-process server imports do not register process signal handlers", async () => {
+  const dirs = await createServerDirs();
+  const sigintBefore = process.listenerCount("SIGINT");
+  const sigtermBefore = process.listenerCount("SIGTERM");
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      assert.equal(process.listenerCount("SIGINT"), sigintBefore);
+      assert.equal(process.listenerCount("SIGTERM"), sigtermBefore);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
 
 test("server returns 400 for preview and download routes without a board name", async () => {
   const dirs = await createServerDirs();
@@ -396,9 +442,8 @@ test("server returns 400 for malformed low-level HTTP parser input", async () =>
   ]);
 });
 
-test("board pages are no-store in development and render versioned asset URLs", async () => {
+test("board pages are no-store in development and render plain asset URLs", async () => {
   const dirs = await createServerDirs();
-  const packageJson = JSON.parse(await fs.readFile(PACKAGE_PATH, "utf8"));
 
   await withEnv({
     HOST: "127.0.0.1",
@@ -415,19 +460,128 @@ test("board pages are no-store in development and render versioned asset URLs", 
 
       assert.equal(response.statusCode, 200);
       assert.equal(response.headers["cache-control"], "no-store");
+      assert.match(response.body, /\.\.\/board\.css(?:["'])/);
+      assert.match(response.body, /\.\.\/js\/board_main\.js(?:["'])/);
       assert.match(
         response.body,
-        new RegExp(`\\.\\./board\\.css\\?v=${packageJson.version}`),
+        /rel="modulepreload" href="\.\.\/js\/board\.js"/,
       );
       assert.match(
         response.body,
-        new RegExp(`\\.\\./js/board_main\\.js\\?v=${packageJson.version}`),
+        /rel="modulepreload" href="\.\.\/js\/path-data-polyfill\.js"/,
+      );
+      assert.match(response.body, /\.\.\/tools\/pencil\/icon\.svg(?:["'])/);
+      assert.match(response.body, /\.\.\/users\.svg(?:["'])/);
+      assert.match(response.body, /\.\.\/icon-size\.svg(?:["'])/);
+      assert.doesNotMatch(response.body, /\?v=/);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages use seq-based etag and return 304 on cache hit", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "etag-board"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    NODE_ENV: "production",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const firstResponse = await request(app, "/boards/etag-board");
+
+      assert.equal(firstResponse.statusCode, 200);
+      assert.equal(firstResponse.headers.etag, 'W/"wbo-seq-3"');
+
+      const cachedResponse = await request(app, "/boards/etag-board", {
+        "If-None-Match": firstResponse.headers.etag,
+      });
+
+      assert.equal(cachedResponse.statusCode, 304);
+      assert.equal(cachedResponse.headers.etag, firstResponse.headers.etag);
+
+      const staleResponse = await request(app, "/boards/etag-board", {
+        "If-None-Match": 'W/"wbo-seq-2"',
+      });
+
+      assert.equal(staleResponse.statusCode, 200);
+      assert.equal(staleResponse.headers.etag, 'W/"wbo-seq-3"');
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board pages inline the authoritative svg baseline before client boot", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "inline-baseline"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/inline-baseline");
+
+      assert.equal(response.statusCode, 200);
+      assert.equal(response.headers["content-length"], undefined);
+      assert.ok(
+        response.body.indexOf('id="loadingMessage"') <
+          response.body.indexOf('<div id="board">'),
+      );
+      assert.ok(
+        response.body.indexOf('id="menu"') <
+          response.body.indexOf('<div id="board">'),
+      );
+      assert.ok(
+        response.body.indexOf("window.__wboEarlyChrome") <
+          response.body.indexOf('<div id="board">'),
       );
       assert.match(
         response.body,
-        new RegExp(
-          `\\.\\./tools/pencil/icon\\.svg\\?v(?:=|&#x3D;)${packageJson.version}`,
-        ),
+        /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-seq="7"[\s\S]*<rect id="rect-1"/,
+      );
+      assert.doesNotMatch(
+        response.body,
+        /<div id="board">\s*<svg id="canvas" width="4000" height="4000" version="1\.1" xmlns="http:\/\/www\.w3\.org\/2000\/svg">\s*<defs id="defs"><\/defs>\s*<g id="drawingArea"><\/g>\s*<g id="cursors"><\/g>\s*<\/svg>/,
       );
     } finally {
       await closeServer(app);
@@ -443,9 +597,179 @@ test("board pages are no-store in development and render versioned asset URLs", 
   ]);
 });
 
-test("static assets are no-store in development and cache correctly in production", async () => {
+test("board pages fall back to legacy json metadata and inline baseline rendering", async () => {
   const dirs = await createServerDirs();
-  const packageJson = JSON.parse(await fs.readFile(PACKAGE_PATH, "utf8"));
+  await fs.writeFile(
+    path.join(dirs.historyDir, "board-legacy-inline.json"),
+    JSON.stringify({
+      __wbo_meta__: { readonly: true },
+      "rect-1": {
+        id: "rect-1",
+        tool: "rectangle",
+        type: "rect",
+        x: 1,
+        y: 2,
+        x2: 30,
+        y2: 40,
+        color: "#123456",
+        size: 4,
+      },
+    }),
+    "utf8",
+  );
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/legacy-inline");
+
+      assert.equal(response.statusCode, 200);
+      assert.match(response.body, /toolID-hand/);
+      assert.doesNotMatch(response.body, /toolID-pencil/);
+      assert.match(
+        response.body,
+        /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-readonly="true"[\s\S]*<rect id="rect-1"/,
+      );
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("canonical board svg endpoint serves the authoritative baseline with short cache headers", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "canonical-svg"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    NODE_ENV: "production",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const response = await request(app, "/boards/canonical-svg.svg");
+
+      assert.equal(response.statusCode, 200);
+      assert.equal(response.headers["content-type"], "image/svg+xml");
+      assert.equal(response.headers["cache-control"], "public, max-age=30");
+      assert.match(response.body, /data-wbo-seq="3"/);
+      assert.match(response.body, /<line id="line-1"/);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("board html svg and preview routes negotiate compression when requested", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "compressed-board"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="6" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+  const compressionModule = await import(
+    `${pathToFileURL(COMPRESSION_PATH).href}?cache-bust=${++serverLoadSequence}`
+  );
+  const expectedEncoding =
+    compressionModule.selectCompressionEncoding("zstd, br, gzip");
+  if (compressionModule.selectCompressionEncoding("zstd") === "zstd") {
+    assert.equal(expectedEncoding, "zstd");
+  }
+  const wildcardEncoding = compressionModule.selectCompressionEncoding("*");
+  if (expectedEncoding) {
+    assert.equal(wildcardEncoding, expectedEncoding);
+  }
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    NODE_ENV: "production",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: CLIENT_WEBROOT,
+    WBO_SILENT: "true",
+  }, async () => {
+    const { default: app } = await loadServer();
+    await waitForListening(app);
+    try {
+      const plainResponse = await request(app, "/boards/compressed-board");
+      assert.equal(plainResponse.statusCode, 200);
+      assert.equal(plainResponse.headers["content-encoding"], undefined);
+      assert.match(String(plainResponse.headers.vary || ""), /Accept-Encoding/);
+
+      const htmlResponse = await request(app, "/boards/compressed-board", {
+        "Accept-Encoding": "zstd, br, gzip",
+      });
+      assert.equal(htmlResponse.statusCode, 200);
+
+      const svgResponse = await request(app, "/boards/compressed-board.svg", {
+        "Accept-Encoding": "zstd, br, gzip",
+      });
+      assert.equal(svgResponse.statusCode, 200);
+
+      const previewResponse = await request(app, "/preview/compressed-board", {
+        "Accept-Encoding": "zstd, br, gzip",
+      });
+      assert.equal(previewResponse.statusCode, 200);
+
+      for (const response of [htmlResponse, svgResponse, previewResponse]) {
+        if (expectedEncoding === undefined) {
+          assert.equal(response.headers["content-encoding"], undefined);
+        } else {
+          assert.equal(response.headers["content-encoding"], expectedEncoding);
+          assert.equal(response.headers["content-length"], undefined);
+        }
+        assert.match(String(response.headers.vary || ""), /Accept-Encoding/);
+      }
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("static assets are no-store in development and revalidate in production", async () => {
+  const dirs = await createServerDirs();
 
   await withEnv({
     HOST: "127.0.0.1",
@@ -490,20 +814,21 @@ test("static assets are no-store in development and cache correctly in productio
       const response = await request(app, "/board.css");
 
       assert.equal(response.statusCode, 200);
-      assert.match(
-        String(response.headers["cache-control"] || ""),
-        /max-age=7200/,
-      );
-
-      const immutableResponse = await request(
-        app,
-        `/board.css?v=${encodeURIComponent(packageJson.version)}`,
-      );
-      assert.equal(immutableResponse.statusCode, 200);
       assert.equal(
-        immutableResponse.headers["cache-control"],
-        "public, max-age=31536000, immutable",
+        response.headers["cache-control"],
+        "public, max-age=60, must-revalidate",
       );
+      assert.ok(response.headers.etag);
+
+      const cachedResponse = await request(app, "/board.css", {
+        "If-None-Match": String(response.headers.etag),
+      });
+      assert.equal(cachedResponse.statusCode, 304);
+      assert.equal(
+        cachedResponse.headers["cache-control"],
+        "public, max-age=60, must-revalidate",
+      );
+      assert.equal(cachedResponse.headers.etag, response.headers.etag);
     } finally {
       await closeServer(app);
     }
@@ -552,7 +877,7 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
 
       assert.equal(readonlyResponse.statusCode, 200);
       assert.equal(editorResponse.statusCode, 200);
-      assert.match(readonlyResponse.body, /toolID-Hand/);
+      assert.match(readonlyResponse.body, /toolID-hand/);
       assert.match(editorResponse.body, /id="menu"/);
     } finally {
       await closeServer(app);

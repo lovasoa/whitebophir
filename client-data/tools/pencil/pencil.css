@@ -3,3 +3,7 @@ path {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+#drawingArea path.wbo-pencil-drawing {
+  pointer-events: none;
+}

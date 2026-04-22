@@ -1,68 +1,41 @@
-import { withVersion } from "./tool_assets.js";
+import { DRAW_TOOL_IDS } from "../tools/tool-order.js";
+const documentElement = document.documentElement;
+/** @type {string} */
+const PATH_DATA_POLYFILL_MODULE = "./path-data-polyfill.js";
 
-const assetVersion = document.documentElement.dataset.version || "";
-document.documentElement.dataset.boardReady = "booting";
-
-const CRITICAL_BOOT_TOOL_NAMES = ["Hand", "Pencil"];
+const CRITICAL_BOOT_TOOL_NAMES = ["hand", DRAW_TOOL_IDS[0] || ""];
 const REPLAY_SAFE_TOOL_NAMES = new Set([
-  "Pencil",
-  "Cursor",
-  "Straight line",
-  "Rectangle",
-  "Ellipse",
-  "Text",
-  "Eraser",
-  "Hand",
+  ...DRAW_TOOL_IDS,
+  "cursor",
+  "eraser",
+  "hand",
 ]);
 
 /**
- * @param {string} path
- * @returns {string}
+ * @typedef {"viewport-restored" | "connecting" | "ready" | "error"} BoardBootPhase
  */
-function withAssetVersion(path) {
-  return withVersion(path, assetVersion);
-}
 
 /**
- * @param {string} path
- * @returns {Promise<unknown>}
+ * @param {BoardBootPhase} phase
+ * @returns {void}
  */
-function importWithVersion(path) {
-  return import(withAssetVersion(path));
+function setBoardBootPhase(phase) {
+  if (documentElement.dataset.boardPhase === phase) return;
+  documentElement.dataset.boardPhase = phase;
+  document.dispatchEvent(
+    new CustomEvent("wbo:board-phase", {
+      detail: { phase: phase },
+    }),
+  );
 }
 
 /**
  * @returns {string[]}
  */
 function getRenderedToolNames() {
-  return Array.from(document.querySelectorAll("#tools > .tool[data-tool-name]"))
-    .map((element) => element.getAttribute("data-tool-name") || "")
+  return Array.from(document.querySelectorAll("#tools > .tool[data-tool-id]"))
+    .map((element) => element.getAttribute("data-tool-id") || "")
     .filter(Boolean);
-}
-
-/**
- * @returns {Promise<void>}
- */
-async function bootCriticalTools() {
-  const tools = window.Tools;
-  if (!tools) return;
-  const visibleTools = new Set(getRenderedToolNames());
-  for (const toolName of CRITICAL_BOOT_TOOL_NAMES) {
-    if (!visibleTools.has(toolName)) continue;
-    await tools.bootTool(toolName);
-  }
-}
-
-/**
- * @param {string[]} toolNames
- * @returns {Promise<void>}
- */
-async function bootToolNames(toolNames) {
-  const tools = window.Tools;
-  if (!tools) return;
-  for (const toolName of toolNames) {
-    await tools.bootTool(toolName);
-  }
 }
 
 /**
@@ -87,54 +60,53 @@ async function lazyBootRenderedTools() {
       );
     });
   const renderedToolNames = getRenderedToolNames().filter(
-    (toolName) => !CRITICAL_BOOT_TOOL_NAMES.includes(toolName),
+    (toolName) => !REPLAY_SAFE_TOOL_NAMES.has(toolName),
   );
   renderedToolNames.forEach((toolName) => {
     schedule(() => {
-      void tools.ensureToolBooted(toolName);
+      void tools.bootTool(toolName);
     });
   });
 }
 
 async function bootBoardPage() {
-  await Promise.all([
-    importWithVersion("./path-data-polyfill.js"),
-    importWithVersion("./board.js"),
-  ]);
-
+  const boardModule = await import("./board.js");
+  await import(PATH_DATA_POLYFILL_MODULE);
   const tools = window.Tools;
   if (!tools) {
-    throw new Error("Board runtime did not initialize window.Tools.");
+    throw new Error("Board runtime did not initialize the board app.");
   }
 
-  await Promise.all(
-    Array.from(REPLAY_SAFE_TOOL_NAMES).map((toolName) =>
-      tools.ensureToolClassLoaded(toolName),
-    ),
-  );
-
+  setBoardBootPhase("connecting");
   tools.startConnection();
 
-  await bootCriticalTools();
-  await bootToolNames(
-    Array.from(REPLAY_SAFE_TOOL_NAMES).filter(
-      (toolName) => !CRITICAL_BOOT_TOOL_NAMES.includes(toolName),
-    ),
-  );
-  if (!tools.curTool && tools.list.Hand && tools.canUseTool("Hand")) {
-    tools.change("Hand");
-  }
-  document.documentElement.dataset.boardReady = "true";
+  await boardModule.attachBoardDom(document);
+  tools.installViewportHashObservers();
+  tools.applyViewportFromHash();
+  setBoardBootPhase("viewport-restored");
 
-  const deferredToolNames = getRenderedToolNames().filter(
-    (toolName) => !REPLAY_SAFE_TOOL_NAMES.has(toolName),
-  );
-  await Promise.all(
-    deferredToolNames.map((toolName) => tools.ensureToolClassLoaded(toolName)),
-  );
+  const renderedToolNames = getRenderedToolNames();
+  const visibleToolNames = new Set(renderedToolNames);
+
+  for (const toolName of CRITICAL_BOOT_TOOL_NAMES) {
+    if (!visibleToolNames.has(toolName)) continue;
+    await tools.bootTool(toolName);
+  }
+  for (const toolName of REPLAY_SAFE_TOOL_NAMES) {
+    if (CRITICAL_BOOT_TOOL_NAMES.includes(toolName)) continue;
+    await tools.bootTool(toolName);
+  }
+  const pendingToolName = documentElement.dataset.pendingTool || "";
+  if (pendingToolName) {
+    await tools.activateTool(pendingToolName);
+  }
+  if (!tools.curTool && tools.list.hand && tools.canUseTool("hand")) {
+    tools.change("hand");
+  }
+  setBoardBootPhase("ready");
 
   const canvasColorModule = /** @type {{registerCanvasColor?: () => void}} */ (
-    await importWithVersion("./canvascolor.js")
+    await import("./canvascolor.js")
   );
   if (typeof canvasColorModule.registerCanvasColor === "function") {
     canvasColorModule.registerCanvasColor();
@@ -144,6 +116,6 @@ async function bootBoardPage() {
 }
 
 void bootBoardPage().catch((error) => {
-  document.documentElement.dataset.boardReady = "error";
+  setBoardBootPhase("error");
   console.error("Failed to boot board page:", error);
 });

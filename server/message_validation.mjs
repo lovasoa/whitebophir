@@ -1,6 +1,9 @@
 import MessageCommon from "../client-data/js/message_common.js";
-import { hasMessageTool } from "../client-data/js/message_shape.js";
-import MessageToolMetadata from "../client-data/js/message_tool_metadata.js";
+import {
+  getMutationType,
+  MutationType,
+} from "../client-data/js/message_tool_metadata.js";
+import { Cursor, TOOL_BY_ID, TOOLS } from "../client-data/tools/index.js";
 import { readConfiguration } from "./configuration.mjs";
 
 // Capture config once at module load. The hot paths below (per-coordinate
@@ -13,6 +16,7 @@ const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
 
 /** @typedef {{[key: string]: unknown}} RawRecord */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
+/** @typedef {import("../types/app-runtime.d.ts").ToolCode} ToolCode */
 /** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
 /** @typedef {{x: number, y: number}} ChildPoint */
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number} | null} Bounds */
@@ -39,11 +43,32 @@ const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
  * }} FieldSpec
  */
 /** @typedef {{[key: string]: FieldSpec}} FieldSchema */
-/** @typedef {{[tool: string]: {[type: string]: FieldSchema}}} LiveToolSchemas */
+/** @typedef {{[tool: number]: {[type: number]: FieldSchema}}} LiveToolSchemas */
 /** @typedef {{[tool: string]: FieldSchema}} StoredToolSchemas */
+/** @typedef {import("../client-data/tools/shape_contract.js").ToolContract} ToolContract */
+/** @typedef {"id" | "coord" | "color" | "size" | "opacity" | "text" | "transform" | "time"} SchemaFieldType */
 
 /** @type {string[]} */
 const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
+const MAX_TOOL_CODE = TOOLS.length;
+const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeTool === true);
+const SHAPE_CREATE_FIELDS = {
+  id: "id",
+  color: "color",
+  size: "size",
+  opacity: "opacity?",
+  x: "coord",
+  y: "coord",
+};
+const SHAPE_STORED_FIELDS = {
+  color: "color",
+  size: "size",
+  opacity: "opacity?",
+  x: "coord",
+  y: "coord",
+  transform: "transform?",
+  time: "time?",
+};
 
 /**
  * @template T
@@ -91,16 +116,29 @@ function optional(normalize, options) {
 }
 
 /**
- * @template {string} T
+ * @template {string | number} T
  * @param {T} expected
  * @returns {(value: unknown) => ValidationResult<T>}
  */
 function literal(expected) {
   return function normalizeLiteral(value) {
     return value === expected
-      ? accepted(expected)
+      ? accepted(/** @type {T} */ (value))
       : rejected(`expected ${JSON.stringify(expected)}`);
   };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<ToolCode>}
+ */
+function normalizeLiveToolCode(value) {
+  return typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 1 &&
+    value <= MAX_TOOL_CODE
+    ? accepted(/** @type {ToolCode} */ (value))
+    : rejected("invalid tool");
 }
 
 /**
@@ -152,6 +190,20 @@ function normalizeColor(value) {
  */
 function normalizeText(value) {
   return accepted(MessageCommon.truncateText(value));
+}
+
+/**
+ * @param {unknown} value
+ * @returns {ValidationResult<string>}
+ */
+function normalizeClientMutationId(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return rejected("invalid clientMutationId");
+  }
+  if (value.length > 128) {
+    return rejected("clientMutationId too long");
+  }
+  return accepted(value);
 }
 
 /**
@@ -240,222 +292,199 @@ function defaultCoordinateFromY(raw, normalized) {
 }
 
 /**
- * @param {string} toolName
- * @returns {FieldSchema}
+ * @param {string} spec
+ * @returns {{type: SchemaFieldType, optional: boolean}}
  */
-function makeLiveShapeCreateSchema(toolName) {
-  const type = MessageToolMetadata.getShapeToolType(toolName);
-  if (type === undefined) {
-    throw new Error("unsupported shape tool");
-  }
+function parseSchemaFieldSpec(spec) {
+  const optional = spec.endsWith("?");
   return {
-    tool: required(literal(toolName)),
-    type: required(literal(type)),
-    id: required(normalizeId),
-    color: required(normalizeColor),
-    size: required(normalizeSize),
-    opacity: optional(normalizeOpacity),
-    x: required(normalizeCoord),
-    y: required(normalizeCoord),
-    x2: optional(normalizeCoord, {
-      defaultValue: defaultCoordinateFromX,
-    }),
-    y2: optional(normalizeCoord, {
-      defaultValue: defaultCoordinateFromY,
-    }),
+    type: /** @type {SchemaFieldType} */ (optional ? spec.slice(0, -1) : spec),
+    optional,
   };
 }
 
 /**
- * @param {string} toolName
+ * @param {SchemaFieldType} type
+ * @param {boolean} optionalField
+ * @returns {FieldSpec}
+ */
+function buildSchemaField(type, optionalField) {
+  const make = optionalField ? optional : required;
+  switch (type) {
+    case "id":
+      return make(normalizeId);
+    case "coord":
+      return make(normalizeCoord);
+    case "color":
+      return make(normalizeColor);
+    case "size":
+      return make(normalizeSize);
+    case "opacity":
+      return make(normalizeOpacity);
+    case "text":
+      return make(normalizeText);
+    case "transform":
+      return make(normalizeTransform);
+    case "time":
+      return make(normalizeTime);
+  }
+}
+
+/**
+ * @param {{[field: string]: string} | undefined} fields
  * @returns {FieldSchema}
  */
-function makeLiveShapeUpdateSchema(toolName) {
+function buildSchemaFields(fields) {
   /** @type {FieldSchema} */
-  const schema = {
-    tool: required(literal(toolName)),
-    type: required(literal("update")),
-    id: required(normalizeId),
-  };
-
-  const fields = MessageToolMetadata.getUpdatableFieldNames(toolName);
-  for (let i = 0; i < fields.length; i++) {
-    const field = fields[i];
-    if (field === undefined) continue;
-    schema[field] = required(normalizeCoord);
+  const schema = {};
+  for (const [field, spec] of Object.entries(fields || {})) {
+    const parsed = parseSchemaFieldSpec(spec);
+    schema[field] = buildSchemaField(parsed.type, parsed.optional);
   }
-
   return schema;
 }
 
 /**
- * @param {string} toolName
+ * @param {number} toolCode
+ * @param {number} type
+ * @param {{[field: string]: string}} fields
  * @returns {FieldSchema}
  */
-function makeStoredShapeSchema(toolName) {
-  const type = MessageToolMetadata.getShapeToolType(toolName);
-  if (type === undefined) {
-    throw new Error("unsupported shape tool");
-  }
+function buildLiveSchema(toolCode, type, fields) {
   return {
-    tool: required(literal(toolName)),
-    type: optional(literal(type), { defaultValue: type }),
-    color: required(normalizeColor),
-    size: required(normalizeSize),
-    opacity: optional(normalizeOpacity),
-    x: required(normalizeCoord),
-    y: required(normalizeCoord),
-    x2: optional(normalizeCoord, {
-      defaultValue: defaultCoordinateFromX,
-    }),
-    y2: optional(normalizeCoord, {
-      defaultValue: defaultCoordinateFromY,
-    }),
-    transform: optional(normalizeTransform),
-    time: optional(normalizeTime),
+    tool: required(literal(toolCode)),
+    type: required(literal(type)),
+    ...buildSchemaFields(fields),
   };
 }
 
 /**
- * @returns {LiveToolSchemas}
+ * @param {string} toolId
+ * @param {string} type
+ * @param {{[field: string]: string} | undefined} fields
+ * @returns {FieldSchema}
  */
-function buildLiveShapeSchemas() {
-  /** @type {LiveToolSchemas} */
-  const shapeSchemas = {};
-  const shapeTools = MessageToolMetadata.getShapeToolNames();
-  for (let index = 0; index < shapeTools.length; index++) {
-    const toolName = shapeTools[index];
-    if (typeof toolName !== "string") continue;
-    const typeName = MessageToolMetadata.getShapeToolType(toolName);
-    if (typeName === undefined) continue;
-    shapeSchemas[toolName] = {
-      /** @type {FieldSchema} */
-      [typeName]: makeLiveShapeCreateSchema(toolName),
-      update: makeLiveShapeUpdateSchema(toolName),
-    };
-  }
-  return shapeSchemas;
+function buildStoredSchema(toolId, type, fields) {
+  return {
+    tool: required(literal(toolId)),
+    type: optional(literal(type), { defaultValue: type }),
+    ...buildSchemaFields(fields),
+  };
 }
 
 /**
- * @returns {StoredToolSchemas}
+ * @param {{[type: number]: {[field: string]: string}} | undefined} fieldsByType
+ * @param {(type: number, fields: {[field: string]: string}) => FieldSchema} build
+ * @returns {{[type: number]: FieldSchema}}
  */
-function buildStoredShapeSchemas() {
-  /** @type {StoredToolSchemas} */
-  const shapeSchemas = {};
-  for (const toolName of MessageToolMetadata.getShapeToolNames()) {
-    shapeSchemas[toolName] = makeStoredShapeSchema(toolName);
-  }
-  return shapeSchemas;
+function buildPerTypeSchemas(fieldsByType, build) {
+  return Object.fromEntries(
+    Object.entries(fieldsByType || {}).map(([type, fields]) => [
+      Number(type),
+      build(Number(type), fields),
+    ]),
+  );
 }
 
-/** @type {LiveToolSchemas} */
-const LIVE_MESSAGE_SCHEMAS = {
-  Pencil: {
-    line: {
-      tool: required(literal("Pencil")),
-      type: required(literal("line")),
-      id: required(normalizeId),
-      color: required(normalizeColor),
-      size: required(normalizeSize),
-      opacity: optional(normalizeOpacity),
-    },
-    child: {
-      tool: required(literal("Pencil")),
-      type: required(literal("child")),
-      parent: required(normalizeId),
-      x: required(normalizeCoord),
-      y: required(normalizeCoord),
-    },
-  },
-  Text: {
-    new: {
-      tool: required(literal("Text")),
-      type: required(literal("new")),
-      id: required(normalizeId),
-      color: required(normalizeColor),
-      size: required(normalizeSize),
-      opacity: optional(normalizeOpacity),
-      x: required(normalizeCoord),
-      y: required(normalizeCoord),
-    },
-    update: {
-      tool: required(literal("Text")),
-      type: required(literal("update")),
-      id: required(normalizeId),
-      txt: required(normalizeText),
-    },
-  },
-  Cursor: {
-    update: {
-      tool: required(literal("Cursor")),
-      type: required(literal("update")),
-      color: required(normalizeColor),
-      size: required(normalizeSize),
-      x: required(normalizeCoord),
-      y: required(normalizeCoord),
-    },
-  },
-  Eraser: {
-    delete: {
-      tool: required(literal("Eraser")),
-      type: required(literal("delete")),
-      id: required(normalizeId),
-    },
-  },
-  Clear: {
-    clear: {
-      tool: required(literal("Clear")),
-      type: required(literal("clear")),
-    },
-  },
-  ...buildLiveShapeSchemas(),
-};
+const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
+  SHAPE_CONTRACTS.map((contract) => {
+    return [
+      contract.id,
+      {
+        [MutationType.CREATE]: {
+          ...buildLiveSchema(
+            contract.id,
+            MutationType.CREATE,
+            SHAPE_CREATE_FIELDS,
+          ),
+          x2: optional(normalizeCoord, {
+            defaultValue: defaultCoordinateFromX,
+          }),
+          y2: optional(normalizeCoord, {
+            defaultValue: defaultCoordinateFromY,
+          }),
+        },
+        [MutationType.UPDATE]: buildLiveSchema(
+          contract.id,
+          MutationType.UPDATE,
+          {
+            id: "id",
+            ...Object.fromEntries(
+              (contract.updatableFields || []).map((field) => [field, "coord"]),
+            ),
+          },
+        ),
+      },
+    ];
+  }),
+);
 
-/** @type {{[tool: string]: {[type: string]: FieldSchema}}} */
-const LIVE_BATCH_CHILD_SCHEMAS = {
-  Hand: {
-    update: {
-      type: required(literal("update")),
-      id: required(normalizeId),
-      transform: required(normalizeTransform),
+/** @type {StoredToolSchemas} */
+const STORED_SHAPE_SCHEMAS = Object.fromEntries(
+  SHAPE_CONTRACTS.map((contract) => {
+    const schema = buildStoredSchema(
+      contract.toolId,
+      contract.storedTagName || "",
+      SHAPE_STORED_FIELDS,
+    );
+    schema.x2 = optional(normalizeCoord, {
+      defaultValue: defaultCoordinateFromX,
+    });
+    schema.y2 = optional(normalizeCoord, {
+      defaultValue: defaultCoordinateFromY,
+    });
+    return [contract.toolId, schema];
+  }),
+);
+
+/** @type {LiveToolSchemas} */
+const CONTRACT_LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
+  TOOLS.filter((tool) => tool.liveMessageFields).map((tool) => [
+    tool.id,
+    buildPerTypeSchemas(tool.liveMessageFields, (type, fields) =>
+      buildLiveSchema(tool.id, type, fields),
+    ),
+  ]),
+);
+
+/** @type {StoredToolSchemas} */
+const CONTRACT_STORED_ITEM_SCHEMAS = Object.fromEntries(
+  TOOLS.filter((tool) => tool.storedFields).map((tool) => [
+    tool.toolId,
+    buildStoredSchema(tool.toolId, tool.storedTagName || "", tool.storedFields),
+  ]),
+);
+
+/** @type {LiveToolSchemas} */
+const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
+  Object.entries({
+    [Cursor.id]: {
+      [MutationType.UPDATE]: buildLiveSchema(Cursor.id, MutationType.UPDATE, {
+        color: "color",
+        size: "size",
+        x: "coord",
+        y: "coord",
+      }),
     },
-    delete: {
-      type: required(literal("delete")),
-      id: required(normalizeId),
-    },
-    copy: {
-      type: required(literal("copy")),
-      id: required(normalizeId),
-      newid: required(normalizeId),
-    },
-  },
-};
+    ...CONTRACT_LIVE_MESSAGE_SCHEMAS,
+    ...LIVE_SHAPE_SCHEMAS,
+  }),
+);
+
+const LIVE_BATCH_CHILD_SCHEMAS = Object.fromEntries(
+  TOOLS.filter((tool) => tool.batchMessageFields).map((tool) => [
+    tool.id,
+    buildPerTypeSchemas(tool.batchMessageFields, (type, fields) => ({
+      type: required(literal(type)),
+      ...buildSchemaFields(fields),
+    })),
+  ]),
+);
 
 /** @type {{[tool: string]: FieldSchema}} */
 const STORED_ITEM_SCHEMAS = {
-  Pencil: {
-    tool: required(literal("Pencil")),
-    type: optional(literal("line"), { defaultValue: "line" }),
-    color: required(normalizeColor),
-    size: required(normalizeSize),
-    opacity: optional(normalizeOpacity),
-    transform: optional(normalizeTransform),
-    time: optional(normalizeTime),
-  },
-  Text: {
-    tool: required(literal("Text")),
-    type: optional(literal("new"), { defaultValue: "new" }),
-    color: required(normalizeColor),
-    size: required(normalizeSize),
-    opacity: optional(normalizeOpacity),
-    x: required(normalizeCoord),
-    y: required(normalizeCoord),
-    txt: optional(normalizeText),
-    transform: optional(normalizeTransform),
-    time: optional(normalizeTime),
-  },
-  ...buildStoredShapeSchemas(),
+  ...CONTRACT_STORED_ITEM_SCHEMAS,
+  ...STORED_SHAPE_SCHEMAS,
 };
 
 /**
@@ -464,9 +493,11 @@ const STORED_ITEM_SCHEMAS = {
  */
 function normalizeIncomingBatch(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
-  if (!hasMessageTool(raw)) return rejected("missing tool");
+  if (!Object.hasOwn(raw, "tool")) return rejected("missing tool");
+  const toolCode = normalizeLiveToolCode(raw.tool);
+  if (toolCode.ok === false) return toolCode;
 
-  const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[raw.tool];
+  const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[toolCode.value];
   if (!childSchemas) return rejected("unsupported batch tool");
   if (!Array.isArray(raw._children)) return rejected("invalid _children");
   if (raw._children.length > MAX_CHILDREN) {
@@ -476,9 +507,10 @@ function normalizeIncomingBatch(raw) {
   const children = [];
   for (let index = 0; index < raw._children.length; index++) {
     const child = raw._children[index];
-    const type = child?.type;
-    if (typeof type !== "string") return rejected(`_children[${index}]`);
-    const schema = childSchemas[type];
+    const schema =
+      child && typeof child.type === "number"
+        ? childSchemas[child.type]
+        : undefined;
     if (!schema) {
       return rejected(`_children[${index}]: invalid type`);
     }
@@ -490,10 +522,17 @@ function normalizeIncomingBatch(raw) {
     children.push(normalizedChild.value);
   }
 
-  return accepted({
-    tool: raw.tool,
+  /** @type {NormalizedMessageData} */
+  const normalized = {
+    tool: toolCode.value,
     _children: children,
-  });
+  };
+  if (Object.hasOwn(raw, "clientMutationId")) {
+    const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
+    if (!clientMutationId.ok) return clientMutationId;
+    normalized.clientMutationId = clientMutationId.value;
+  }
+  return accepted(normalized);
 }
 
 /**
@@ -503,19 +542,27 @@ function normalizeIncomingBatch(raw) {
 function normalizeIncomingMessage(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
   if (Array.isArray(raw._children)) return normalizeIncomingBatch(raw);
-  if (!hasMessageTool(raw)) return rejected("missing tool");
+  if (!Object.hasOwn(raw, "tool")) return rejected("missing tool");
+  const toolCode = normalizeLiveToolCode(raw.tool);
+  if (toolCode.ok === false) return toolCode;
 
-  const toolSchemas = LIVE_MESSAGE_SCHEMAS[raw.tool];
-  const schema = toolSchemas?.[typeof raw.type === "string" ? raw.type : ""];
+  const toolSchemas = LIVE_MESSAGE_SCHEMAS[toolCode.value];
+  const schema =
+    typeof raw.type === "number" ? toolSchemas?.[raw.type] : undefined;
   if (!schema) return rejected("invalid tool/type");
 
   const normalized = normalizeObject(raw, schema);
   if (!normalized.ok) return normalized;
   if (
-    normalized.value.type !== "update" &&
+    getMutationType(normalized.value) !== MutationType.UPDATE &&
     MessageCommon.isGeometryTooLarge(normalized.value)
   ) {
     return rejected("shape too large");
+  }
+  if (toolCode.value !== Cursor.id && Object.hasOwn(raw, "clientMutationId")) {
+    const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
+    if (!clientMutationId.ok) return clientMutationId;
+    normalized.value.clientMutationId = clientMutationId.value;
   }
   return accepted(/** @type {NormalizedMessageData} */ (normalized.value));
 }
@@ -569,11 +616,16 @@ function validateStoredGeometryBounds(item) {
  * @returns {void}
  */
 function assignNormalizedStoredChildren(item, rawChildren) {
-  if (item.tool !== "Pencil" || !Array.isArray(rawChildren)) return;
-  const children = normalizeStoredPencilChildren(
-    rawChildren.slice(0, MAX_CHILDREN),
+  const contract =
+    typeof item.tool === "string" ? TOOL_BY_ID[item.tool] : undefined;
+  contract?.normalizeStoredItemData?.(
+    item,
+    { _children: rawChildren },
+    {
+      maxChildren: MAX_CHILDREN,
+      normalizeStoredChildren: normalizeStoredPencilChildren,
+    },
   );
-  if (children.length) item._children = children;
 }
 
 /**
@@ -585,7 +637,9 @@ function normalizeStoredItemWithBounds(raw, storedId) {
   const normalizedId = MessageCommon.normalizeId(storedId);
   if (normalizedId === null) return rejected("invalid stored id");
   if (!isPlainObject(raw)) return rejected("invalid stored item");
-  if (!hasMessageTool(raw)) return rejected("unsupported stored tool");
+  if (typeof raw.tool !== "string" || raw.tool === "") {
+    return rejected("unsupported stored tool");
+  }
 
   const schema = STORED_ITEM_SCHEMAS[raw.tool];
   if (!schema) return rejected("unsupported stored tool");

@@ -1,5 +1,11 @@
+import {
+  getMutationType,
+  getToolId,
+  MutationType,
+} from "../client-data/js/message_tool_metadata.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { isValidBoardName } from "../client-data/js/board_name.js";
+import { Cursor } from "../client-data/tools/index.js";
 import { roleInBoard } from "./jwtBoardnameAuth.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
 import observability from "./observability.mjs";
@@ -260,7 +266,8 @@ function normalizeBroadcastData(config, boardName, data) {
   }
 
   const blockedTools = config.BLOCKED_TOOLS;
-  if (typeof data.tool === "string" && blockedTools.includes(data.tool)) {
+  const rawToolId = getToolId(data.tool);
+  if (rawToolId && blockedTools.includes(rawToolId)) {
     return rejectedBroadcast(boardName, "blocked tool");
   }
 
@@ -269,7 +276,8 @@ function normalizeBroadcastData(config, boardName, data) {
     return rejectedBroadcast(boardName, normalized.reason);
   }
 
-  if (blockedTools.includes(normalized.value.tool)) {
+  const normalizedToolId = getToolId(normalized.value.tool);
+  if (normalizedToolId && blockedTools.includes(normalizedToolId)) {
     return rejectedBroadcast(boardName, "blocked tool");
   }
 
@@ -288,14 +296,14 @@ function normalizeBroadcastData(config, boardName, data) {
           "wbo.socket.event": "broadcast_write",
           "wbo.board": rejectedBoardName,
           "wbo.rejection.reason": reason,
-          "wbo.tool": data?.tool,
+          "wbo.tool": getToolId(data?.tool),
           "wbo.message.type": data?.type,
         },
       },
       function recordRejectedBroadcast() {
         logger.warn("socket.message_invalid", {
           board: rejectedBoardName,
-          tool: data?.tool,
+          tool: getToolId(data?.tool),
           type: data?.type,
           reason: reason,
         });
@@ -379,15 +387,15 @@ function canWriteToBoard(config, board, socket) {
 /**
  * @param {SocketPolicyConfig} config
  * @param {BoardLike} board
- * @param {MessageData} data
+ * @param {import("../types/server-runtime.d.ts").NormalizedMessageData} data
  * @param {AppSocket} socket
  * @returns {boolean}
  */
 function canApplyBoardMessage(config, board, data, socket) {
-  if (data.tool === "Cursor") return true;
+  if (data.tool === Cursor.id) return true;
   if (!canWriteToBoard(config, board, socket)) return false;
   if (
-    data.type === "clear" &&
+    getMutationType(data) === MutationType.CLEAR &&
     writerRole(config, board.name, socket) !== "moderator"
   ) {
     return false;

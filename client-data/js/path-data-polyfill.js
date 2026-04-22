@@ -1,3 +1,4 @@
+// @ts-nocheck
 // @info
 //   Polyfill for SVG getPathData() and setPathData() methods. Based on:
 //   - SVGPathSeg polyfill by Philip Rogers (MIT License)

@@ -38,7 +38,6 @@ declare global {
     Tools: typeof Tools;
     WBOBoardState: {
       normalizeBoardState: typeof import("../client-data/js/board_page_state.js")["normalizeBoardState"];
-      parseBoardStateText: typeof import("../client-data/js/board_page_state.js")["parseBoardStateText"];
     };
     socketio_extra_headers?: import("../types/app-runtime").SocketHeaders;
     __downloadCapture?: import("../types/app-runtime").DownloadCapture | null;
