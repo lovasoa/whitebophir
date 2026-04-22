@@ -14,9 +14,9 @@ const {
   MESSAGE_VALIDATION_PATH,
   closeServer,
   SOCKET_POLICY_PATH,
+  createConfig,
   createSocket,
   loadSockets,
-  parseConfig,
   request,
   writeBoard,
 } = require("./test_helpers.js");
@@ -75,7 +75,7 @@ async function loadServer() {
  */
 async function createTestServer() {
   const { createServerApp } = await loadServer();
-  return createServerApp(parseConfig(), {
+  return createServerApp(createConfig(), {
     logStarted: false,
   });
 }
@@ -439,7 +439,7 @@ test("active traces correlate log records and board.save spans", async () => {
             "board.saved",
             { board: "trace-save" },
           );
-          const config = parseConfig();
+          const config = createConfig();
           const board = new BoardData("trace-save", config);
           board.board = {
             "shape-1": {
@@ -528,7 +528,7 @@ test("large standalone board loads create their own root span", async () => {
     },
     async ({ exporter }) => {
       const { BoardData } = require(BOARD_DATA_PATH);
-      const config = parseConfig();
+      const config = createConfig();
       const board = await BoardData.load("standalone-load", config);
 
       clearTimeout(board.saveTimeoutId);
