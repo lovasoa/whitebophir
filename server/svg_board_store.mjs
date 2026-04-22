@@ -139,6 +139,16 @@ function logSvgStoreDebug(event, fields) {
 }
 
 /**
+ * @param {string} event
+ * @param {{[key: string]: unknown}} fields
+ * @returns {void}
+ */
+function logSvgStoreInfo(event, fields) {
+  if (!logger.isEnabled("info")) return;
+  logger.info(event, fields);
+}
+
+/**
  * @param {string} file
  * @returns {Promise<boolean>}
  */
@@ -462,7 +472,7 @@ async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
     collectSerializedSvgItems(parsed.board, {
       normalizeLegacyTools: true,
     });
-  logSvgStoreDebug("svg.migration_started", {
+  logSvgStoreInfo("svg.migration_started", {
     board: boardName,
     "file.path": file,
     "wbo.legacy.item_count": sourceItemCount,
@@ -497,7 +507,7 @@ async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
   await writeFile(tmpFile, svg, { flag: "wx" });
   await rename(tmpFile, file);
   await copyFile(file, backupFile);
-  logSvgStoreDebug("svg.migration_completed", {
+  logSvgStoreInfo("svg.migration_completed", {
     board: boardName,
     "file.path": file,
     "wbo.legacy.item_count": sourceItemCount,
