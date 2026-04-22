@@ -6,6 +6,11 @@ const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(ROOT, "server", "configuration.mjs");
+const CONFIG_VALUES_PATH = path.join(
+  ROOT,
+  "server",
+  "configuration_values.mjs",
+);
 const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.mjs");
 const SOCKETS_PATH = path.join(ROOT, "server", "sockets.mjs");
 const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.mjs");
@@ -75,7 +80,7 @@ function loadBoardData() {
  * @returns {any}
  */
 function parseConfig(env = process.env) {
-  return require(CONFIG_PATH).parseConfigurationFromEnv(env);
+  return require(CONFIG_VALUES_PATH).parseConfigurationSnapshot(env);
 }
 
 /**
