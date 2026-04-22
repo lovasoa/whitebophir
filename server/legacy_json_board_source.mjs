@@ -1,9 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { readConfiguration } from "./configuration.mjs";
-
 const BOARD_METADATA_KEY = "__wbo_meta__";
+const DEFAULT_HISTORY_DIR = path.join(process.cwd(), "server-data");
 const LEGACY_BOARD_UNIT_SCALE = 10;
 const LEGACY_GEOMETRY_KEYS = new Set([
   "x",
@@ -14,13 +13,15 @@ const LEGACY_GEOMETRY_KEYS = new Set([
   "deltax",
   "deltay",
 ]);
-
 /**
  * @param {string | undefined} historyDir
  * @returns {string}
  */
 function resolveHistoryDir(historyDir) {
-  return historyDir || readConfiguration().HISTORY_DIR;
+  if (typeof historyDir === "string" && historyDir !== "") {
+    return historyDir;
+  }
+  return process.env.WBO_HISTORY_DIR || DEFAULT_HISTORY_DIR;
 }
 
 /**

@@ -53,7 +53,6 @@ import {
   upsertCanonicalItem,
 } from "./board_canonical_index.mjs";
 import { getMinPinnedReplayBaselineSeq } from "./board_registry.mjs";
-import { readConfiguration } from "./configuration.mjs";
 import { boardJsonPath } from "./legacy_json_board_source.mjs";
 import {
   normalizeStoredChildPoint,
@@ -112,6 +111,17 @@ let boardInstanceSequence = 0;
  * }} CanonicalBoardItem
  */
 /** @typedef {{mutation: NormalizedMessageData}} PendingMutationEffect */
+/**
+ * @typedef {Pick<
+ *   typeof import("./configuration.mjs"),
+ *   | "HISTORY_DIR"
+ *   | "MAX_CHILDREN"
+ *   | "MAX_ITEM_COUNT"
+ *   | "MAX_SAVE_DELAY"
+ *   | "SAVE_INTERVAL"
+ *   | "SEQ_REPLAY_RETENTION_MS"
+ * >} BoardConfig
+ */
 
 /**
  * @param {string} name
@@ -225,7 +235,7 @@ function eraserDeleteMutation(id) {
  * @returns {BoardData}
  */
 function replayRecoverableMutations(board, fromExclusiveSeq, toInclusiveSeq) {
-  const recovered = new BoardData(board.name);
+  const recovered = new BoardData(board.name, board.config);
   recovered.loadSource = board.loadSource;
   recovered.metadata = structuredClone(board.metadata);
   recovered.historyDir = board.historyDir;
@@ -262,13 +272,15 @@ function replaceBoardState(board, snapshot) {
 class BoardData {
   /**
    * @param {string} name
+   * @param {BoardConfig} config
    */
-  constructor(name) {
+  constructor(name, config) {
     this.name = name;
+    /** @type {BoardConfig} */
+    this.config = config;
     this.instanceId = ++boardInstanceSequence;
     this.loadSource = "empty";
     this.metadata = defaultBoardMetadata();
-    const config = readConfiguration();
     this.historyDir = config.HISTORY_DIR;
     this.maxChildren = config.MAX_CHILDREN;
     this.maxItemCount = config.MAX_ITEM_COUNT;
@@ -398,10 +410,7 @@ class BoardData {
    * @returns {void}
    */
   trimPersistedMutationLog(nowMs = Date.now()) {
-    const retentionMs = Math.max(
-      0,
-      readConfiguration().SEQ_REPLAY_RETENTION_MS,
-    );
+    const retentionMs = Math.max(0, this.config.SEQ_REPLAY_RETENTION_MS);
     const pinnedBaselineSeq = getMinPinnedReplayBaselineSeq(this.name, nowMs);
     this.mutationLog.trimPersistedOlderThan(
       nowMs - retentionMs,
@@ -1254,15 +1263,14 @@ class BoardData {
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
   delaySave() {
-    const config = readConfiguration();
     const nowMs = Date.now();
     this.lastActivityDate = nowMs;
     const delayMs = computeScheduledSaveDelayMs({
       nowMs,
       lastActivityAtMs: this.lastActivityDate,
       lastSaveAtMs: this.lastSaveDate,
-      saveIntervalMs: config.SAVE_INTERVAL,
-      maxSaveDelayMs: config.MAX_SAVE_DELAY,
+      saveIntervalMs: this.config.SAVE_INTERVAL,
+      maxSaveDelayMs: this.config.MAX_SAVE_DELAY,
       hasPersistedBaseline: this.hasPersistedBaseline,
       hasDirtyCreatedItems: this.dirtyCreatedIds.size > 0,
     });
@@ -1271,7 +1279,7 @@ class BoardData {
         "board.save_scheduled",
         boardLogFields(this, {
           "wbo.board.delay_ms": delayMs,
-          "wbo.board.max_save_delay_ms": config.MAX_SAVE_DELAY,
+          "wbo.board.max_save_delay_ms": this.config.MAX_SAVE_DELAY,
         }),
       );
     }
@@ -1558,13 +1566,12 @@ class BoardData {
                 }
               }
               if (this.getSeq() !== latestSeq) {
-                const config = readConfiguration();
                 const delayMs = computeScheduledSaveDelayMs({
                   nowMs: Date.now(),
                   lastActivityAtMs: this.lastActivityDate,
                   lastSaveAtMs: this.lastSaveDate,
-                  saveIntervalMs: config.SAVE_INTERVAL,
-                  maxSaveDelayMs: config.MAX_SAVE_DELAY,
+                  saveIntervalMs: this.config.SAVE_INTERVAL,
+                  maxSaveDelayMs: this.config.MAX_SAVE_DELAY,
                   hasPersistedBaseline: this.hasPersistedBaseline,
                   hasDirtyCreatedItems: this.dirtyCreatedIds.size > 0,
                 });
@@ -1685,9 +1692,10 @@ class BoardData {
 
   /** Load the data in the board from a file.
    * @param {string} name - name of the board
+   * @param {BoardConfig} config
    */
-  static async load(name) {
-    const boardData = new BoardData(name);
+  static async load(name, config) {
+    const boardData = new BoardData(name, config);
     let traceRoot = false;
     for (const candidateFile of [
       boardData.file,

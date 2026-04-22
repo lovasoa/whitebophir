@@ -11,6 +11,95 @@ const svgBoardStore = require("../server/svg_board_store.mjs");
 const legacyJsonBoardSource = require("../server/legacy_json_board_source.mjs");
 const storedSvgItemCodec = require("../server/stored_svg_item_codec.mjs");
 const { copyCanonicalItem } = require("../server/canonical_board_items.mjs");
+
+/**
+ * @param {string} boardName
+ * @param {string} historyDir
+ * @returns {string}
+ */
+function svgPath(boardName, historyDir) {
+  return svgBoardStore.boardSvgPath(boardName, historyDir);
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} historyDir
+ * @returns {string}
+ */
+function jsonPath(boardName, historyDir) {
+  return svgBoardStore.boardJsonPath(boardName, historyDir);
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} historyDir
+ * @returns {Promise<any>}
+ */
+function readCanonicalBoardState(boardName, historyDir) {
+  return svgBoardStore.readCanonicalBoardState(boardName, { historyDir });
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} historyDir
+ * @returns {Promise<string>}
+ */
+function readServedBaseline(boardName, historyDir) {
+  return svgBoardStore.readServedBaseline(boardName, { historyDir });
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} historyDir
+ * @returns {Promise<any>}
+ */
+function readBoardDocumentState(boardName, historyDir) {
+  return svgBoardStore.readBoardDocumentState(boardName, { historyDir });
+}
+
+/**
+ * @param {string} boardName
+ * @param {{[name: string]: any}} board
+ * @param {{readonly: boolean}} metadata
+ * @param {number} seq
+ * @param {string} historyDir
+ * @returns {Promise<void>}
+ */
+function writeBoardState(boardName, board, metadata, seq, historyDir) {
+  return svgBoardStore.writeBoardState(boardName, board, metadata, seq, {
+    historyDir,
+  });
+}
+
+/**
+ * @param {string} boardName
+ * @param {Map<string, any>} itemsById
+ * @param {string[]} paintOrder
+ * @param {{readonly: boolean, seq?: number}} metadata
+ * @param {number} persistedSeq
+ * @param {number} latestSeq
+ * @param {string} historyDir
+ * @returns {Promise<Set<string>>}
+ */
+function rewriteStoredSvgFromCanonical(
+  boardName,
+  itemsById,
+  paintOrder,
+  metadata,
+  persistedSeq,
+  latestSeq,
+  historyDir,
+) {
+  return svgBoardStore.rewriteStoredSvgFromCanonical(
+    boardName,
+    itemsById,
+    paintOrder,
+    metadata,
+    persistedSeq,
+    latestSeq,
+    { historyDir },
+  );
+}
 /**
  * @param {string} value
  * @returns {string}
@@ -243,12 +332,8 @@ test("writeBoardState preserves opaque shell while rewriting stored items", asyn
     "</svg>";
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await fs.writeFile(
-      svgBoardStore.boardSvgPath(boardName),
-      existingSvg,
-      "utf8",
-    );
-    await svgBoardStore.writeBoardState(
+    await fs.writeFile(svgPath(boardName, historyDir), existingSvg, "utf8");
+    await writeBoardState(
       boardName,
       {
         "line-1": {
@@ -275,12 +360,10 @@ test("writeBoardState preserves opaque shell while rewriting stored items", asyn
       },
       { readonly: true },
       12,
+      historyDir,
     );
 
-    const rewritten = await fs.readFile(
-      svgBoardStore.boardSvgPath(boardName),
-      "utf8",
-    );
+    const rewritten = await fs.readFile(svgPath(boardName, historyDir), "utf8");
     assert.match(
       rewritten,
       /<style>\.keep-me\{\}<\/style><marker id="m1"><\/marker><\/defs>/,
@@ -299,14 +382,16 @@ test("writeBoardState preserves opaque shell while rewriting stored items", asyn
   });
 });
 
-test("local persisted-board helper falls back to legacy json when svg is absent", async () => {
+test("local persisted-board helper falls back to legacy json when svg is absent", {
+  concurrency: false,
+}, async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-json-fallback-"),
   );
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
-      svgBoardStore.boardJsonPath("legacy-board"),
+      jsonPath("legacy-board", historyDir),
       JSON.stringify({
         __wbo_meta__: { readonly: true },
         "rect-1": {
@@ -333,14 +418,16 @@ test("local persisted-board helper falls back to legacy json when svg is absent"
   });
 });
 
-test("local persisted-board helper prefers authoritative svg over stale legacy json", async () => {
+test("local persisted-board helper prefers authoritative svg over stale legacy json", {
+  concurrency: false,
+}, async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-svg-preferred-"),
   );
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
-      svgBoardStore.boardJsonPath("svg-preferred"),
+      jsonPath("svg-preferred", historyDir),
       JSON.stringify({
         "rect-json": {
           id: "rect-json",
@@ -355,7 +442,7 @@ test("local persisted-board helper prefers authoritative svg over stale legacy j
       }),
       "utf8",
     );
-    await svgBoardStore.writeBoardState(
+    await writeBoardState(
       "svg-preferred",
       {
         "rect-svg": {
@@ -372,6 +459,7 @@ test("local persisted-board helper prefers authoritative svg over stale legacy j
       },
       { readonly: true },
       7,
+      historyDir,
     );
 
     const state = await readPersistedBoardState("svg-preferred", historyDir);
@@ -392,13 +480,9 @@ test("readCanonicalBoardState reports svg byte length and canonical items", asyn
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>';
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await fs.writeFile(
-      svgBoardStore.boardSvgPath(boardName),
-      storedSvg,
-      "utf8",
-    );
+    await fs.writeFile(svgPath(boardName, historyDir), storedSvg, "utf8");
 
-    const state = await svgBoardStore.readCanonicalBoardState(boardName);
+    const state = await readCanonicalBoardState(boardName, historyDir);
 
     assert.equal(state.source, "svg");
     assert.equal(state.byteLength, storedSvg.length);
@@ -416,13 +500,9 @@ test("readCanonicalBoardState streams root metadata for empty drawing areas", as
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="9" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"></g><g id="cursors"></g></svg>';
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await fs.writeFile(
-      svgBoardStore.boardSvgPath(boardName),
-      storedSvg,
-      "utf8",
-    );
+    await fs.writeFile(svgPath(boardName, historyDir), storedSvg, "utf8");
 
-    const state = await svgBoardStore.readCanonicalBoardState(boardName);
+    const state = await readCanonicalBoardState(boardName, historyDir);
 
     assert.equal(state.source, "svg");
     assert.equal(state.byteLength, storedSvg.length);
@@ -439,7 +519,7 @@ test("readCanonicalBoardState falls back to the backup svg when the primary file
   const boardName = "load-state-backup-svg";
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await svgBoardStore.writeBoardState(
+    await writeBoardState(
       boardName,
       {
         "rect-1": {
@@ -455,11 +535,12 @@ test("readCanonicalBoardState falls back to the backup svg when the primary file
       },
       { readonly: true },
       7,
+      historyDir,
     );
-    await fs.unlink(svgBoardStore.boardSvgPath(boardName));
+    await fs.unlink(svgPath(boardName, historyDir));
 
-    const state = await svgBoardStore.readCanonicalBoardState(boardName);
-    const servedBaseline = await svgBoardStore.readServedBaseline(boardName);
+    const state = await readCanonicalBoardState(boardName, historyDir);
+    const servedBaseline = await readServedBaseline(boardName, historyDir);
 
     assert.equal(state.source, "svg_backup");
     assert.deepEqual(state.paintOrder, ["rect-1"]);
@@ -477,13 +558,9 @@ test("readServedBaseline returns stored svg bytes unchanged when svg exists", as
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"><marker id="keep"></marker></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"><path id="cursor-template"></path></g></svg>';
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await fs.writeFile(
-      svgBoardStore.boardSvgPath(boardName),
-      storedSvg,
-      "utf8",
-    );
+    await fs.writeFile(svgPath(boardName, historyDir), storedSvg, "utf8");
 
-    assert.equal(await svgBoardStore.readServedBaseline(boardName), storedSvg);
+    assert.equal(await readServedBaseline(boardName, historyDir), storedSvg);
   });
 });
 
@@ -496,13 +573,9 @@ test("readBoardDocumentState returns metadata and streaming source details for s
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"><marker id="keep"></marker></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"><path id="cursor-template"></path></g></svg>';
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await fs.writeFile(
-      svgBoardStore.boardSvgPath(boardName),
-      storedSvg,
-      "utf8",
-    );
+    await fs.writeFile(svgPath(boardName, historyDir), storedSvg, "utf8");
 
-    const state = await svgBoardStore.readBoardDocumentState(boardName);
+    const state = await readBoardDocumentState(boardName, historyDir);
 
     assert.deepEqual(state.metadata, { readonly: true, seq: 7 });
     assert.equal(state.source, "svg");
@@ -518,7 +591,7 @@ test("readBoardDocumentState falls back to legacy json metadata and generated in
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
-      svgBoardStore.boardJsonPath(boardName),
+      jsonPath(boardName, historyDir),
       JSON.stringify({
         __wbo_meta__: { readonly: true },
         "rect-1": {
@@ -535,7 +608,7 @@ test("readBoardDocumentState falls back to legacy json metadata and generated in
       "utf8",
     );
 
-    const state = await svgBoardStore.readBoardDocumentState(boardName);
+    const state = await readBoardDocumentState(boardName, historyDir);
 
     assert.deepEqual(state.metadata, { readonly: true, seq: 0 });
     assert.equal(state.source, "generated");
@@ -561,13 +634,9 @@ test("readCanonicalBoardState eagerly loads canonical stored svg items", async (
     "</svg>";
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await fs.writeFile(
-      svgBoardStore.boardSvgPath(boardName),
-      storedSvg,
-      "utf8",
-    );
+    await fs.writeFile(svgPath(boardName, historyDir), storedSvg, "utf8");
 
-    const state = await svgBoardStore.readCanonicalBoardState(boardName);
+    const state = await readCanonicalBoardState(boardName, historyDir);
 
     assert.deepEqual(state.paintOrder, ["rect-1", "text-1"]);
     const item = state.itemsById.get("text-1");
@@ -637,11 +706,11 @@ test("readCanonicalBoardState migrates legacy json to svg before canonical load"
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
-      svgBoardStore.boardJsonPath("parse-items-json"),
+      jsonPath("parse-items-json", historyDir),
       JSON.stringify({
         "rect-1": {
           id: "rect-1",
-          tool: "rectangle",
+          tool: "Rectangle",
           x: 1,
           y: 2,
           x2: 3,
@@ -651,7 +720,7 @@ test("readCanonicalBoardState migrates legacy json to svg before canonical load"
         },
         "text-1": {
           id: "text-1",
-          tool: "text",
+          tool: "Text",
           x: 5,
           y: 6,
           txt: "hello",
@@ -662,15 +731,48 @@ test("readCanonicalBoardState migrates legacy json to svg before canonical load"
       "utf8",
     );
 
-    const state =
-      await svgBoardStore.readCanonicalBoardState("parse-items-json");
+    const state = await readCanonicalBoardState("parse-items-json", historyDir);
 
     assert.equal(state.source, "svg");
     assert.deepEqual(state.paintOrder, ["rect-1", "text-1"]);
     assert.equal(state.itemsById.get("rect-1")?.tool, "rectangle");
     assert.deepEqual(state.itemsById.get("text-1")?.payload, { kind: "text" });
     await assert.doesNotReject(() =>
-      fs.access(svgBoardStore.boardSvgPath("parse-items-json")),
+      fs.access(svgPath("parse-items-json", historyDir)),
+    );
+    await assert.doesNotReject(() =>
+      fs.access(jsonPath("parse-items-json", historyDir)),
+    );
+  });
+});
+
+test("readCanonicalBoardState keeps legacy json when migration cannot serialize items", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-parse-items-invalid-json-"),
+  );
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    const invalidJsonPath = jsonPath("parse-items-invalid-json", historyDir);
+    await fs.writeFile(
+      invalidJsonPath,
+      JSON.stringify({
+        "unknown-1": {
+          id: "unknown-1",
+          tool: "Unknown",
+          x: 1,
+          y: 2,
+        },
+      }),
+      "utf8",
+    );
+
+    await assert.rejects(
+      () => readCanonicalBoardState("parse-items-invalid-json", historyDir),
+      /produced no SVG items/,
+    );
+    await assert.doesNotReject(() => fs.access(invalidJsonPath));
+    await assert.rejects(() =>
+      fs.access(svgPath("parse-items-invalid-json", historyDir)),
     );
   });
 });
@@ -692,11 +794,11 @@ test("served svg baselines keep raw pencil paths for client-side smoothing", asy
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
-      legacyJsonBoardSource.boardJsonPath("served-pencil-json"),
+      legacyJsonBoardSource.boardJsonPath("served-pencil-json", historyDir),
       JSON.stringify({
         "line-1": {
           id: "line-1",
-          tool: "pencil",
+          tool: "Pencil",
           type: "line",
           color: "#123456",
           size: 4,
@@ -706,7 +808,7 @@ test("served svg baselines keep raw pencil paths for client-side smoothing", asy
       "utf8",
     );
 
-    const svg = await svgBoardStore.readServedBaseline("served-pencil-json");
+    const svg = await readServedBaseline("served-pencil-json", historyDir);
     assert.match(
       svg,
       new RegExp(
@@ -716,13 +818,15 @@ test("served svg baselines keep raw pencil paths for client-side smoothing", asy
   });
 });
 
-test("stored svg preserves style state needed for authoritative rendering", async () => {
+test("stored svg preserves style state needed for authoritative rendering", {
+  concurrency: false,
+}, async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-style-state-"),
   );
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await svgBoardStore.writeBoardState(
+    await writeBoardState(
       "style-state",
       {
         "rect-1": {
@@ -763,6 +867,7 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
       },
       { readonly: false },
       11,
+      historyDir,
     );
 
     const state = await readPersistedBoardState("style-state", historyDir);
@@ -805,7 +910,9 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
   });
 });
 
-test("rewriteStoredSvgFromCanonical reuses raw persisted pencil paths for copied entries", async () => {
+test("rewriteStoredSvgFromCanonical reuses raw persisted pencil paths for copied entries", {
+  concurrency: false,
+}, async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-persisted-pencil-copy-"),
   );
@@ -821,13 +928,9 @@ test("rewriteStoredSvgFromCanonical reuses raw persisted pencil paths for copied
     "</svg>";
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await fs.writeFile(
-      svgBoardStore.boardSvgPath(boardName),
-      storedSvg,
-      "utf8",
-    );
+    await fs.writeFile(svgPath(boardName, historyDir), storedSvg, "utf8");
 
-    const state = await svgBoardStore.readCanonicalBoardState(boardName);
+    const state = await readCanonicalBoardState(boardName, historyDir);
     const persistedPencil = state.itemsById.get("line-1");
     assert.ok(persistedPencil);
     persistedPencil.payload.appendedChildren.push({ x: 9, y: 10 });
@@ -840,18 +943,16 @@ test("rewriteStoredSvgFromCanonical reuses raw persisted pencil paths for copied
     persistedPencil.deleted = true;
     state.itemsById.set("line-1", persistedPencil);
 
-    const persistedIds = await svgBoardStore.rewriteStoredSvgFromCanonical(
+    const persistedIds = await rewriteStoredSvgFromCanonical(
       boardName,
       state.itemsById,
       state.paintOrder,
       state.metadata,
       state.seq,
       state.seq + 1,
+      historyDir,
     );
-    const rewritten = await fs.readFile(
-      svgBoardStore.boardSvgPath(boardName),
-      "utf8",
-    );
+    const rewritten = await fs.readFile(svgPath(boardName, historyDir), "utf8");
     const persistedState = await readPersistedBoardState(boardName, historyDir);
 
     assert.deepEqual([...persistedIds], ["line-2"]);
@@ -877,7 +978,7 @@ test("rewriteStoredSvg rejects stored svg base-seq mismatches", async () => {
   );
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await svgBoardStore.writeBoardState(
+    await writeBoardState(
       "rewrite-seq-mismatch",
       {
         "rect-1": {
@@ -894,20 +995,23 @@ test("rewriteStoredSvg rejects stored svg base-seq mismatches", async () => {
       },
       { readonly: false },
       1,
+      historyDir,
     );
 
-    const state = await svgBoardStore.readCanonicalBoardState(
+    const state = await readCanonicalBoardState(
       "rewrite-seq-mismatch",
+      historyDir,
     );
 
     await assert.rejects(
-      svgBoardStore.rewriteStoredSvgFromCanonical(
+      rewriteStoredSvgFromCanonical(
         "rewrite-seq-mismatch",
         state.itemsById,
         state.paintOrder,
         state.metadata,
         0,
         2,
+        historyDir,
       ),
       /stored svg seq mismatch/i,
     );
@@ -921,12 +1025,12 @@ test("writeBoardState removes stale svg and legacy json when board becomes empty
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
     await fs.writeFile(
-      svgBoardStore.boardSvgPath("empty-board"),
+      svgPath("empty-board", historyDir),
       '<svg id="canvas" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="1" data-wbo-readonly="false"><g id="drawingArea"></g></svg>',
       "utf8",
     );
     await fs.writeFile(
-      svgBoardStore.boardJsonPath("empty-board"),
+      jsonPath("empty-board", historyDir),
       JSON.stringify({
         "rect-1": {
           id: "rect-1",
@@ -942,14 +1046,15 @@ test("writeBoardState removes stale svg and legacy json when board becomes empty
       "utf8",
     );
 
-    await svgBoardStore.writeBoardState(
+    await writeBoardState(
       "empty-board",
       {},
       { readonly: false },
       0,
+      historyDir,
     );
 
-    await assert.rejects(fs.stat(svgBoardStore.boardSvgPath("empty-board")));
-    await assert.rejects(fs.stat(svgBoardStore.boardJsonPath("empty-board")));
+    await assert.rejects(fs.stat(svgPath("empty-board", historyDir)));
+    await assert.rejects(fs.stat(jsonPath("empty-board", historyDir)));
   });
 });

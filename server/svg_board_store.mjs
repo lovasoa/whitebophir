@@ -10,12 +10,12 @@ import {
   serializeStoredPencilPath,
 } from "../client-data/tools/pencil/index.js";
 import MessageCommon from "../client-data/js/message_common.js";
-import { readConfiguration } from "./configuration.mjs";
 import observability from "./observability.mjs";
 import {
   boardJsonPath,
   readLegacyBoardState,
 } from "./legacy_json_board_source.mjs";
+import { normalizeLegacyBoardForSvg } from "./legacy_json_svg_migration.mjs";
 import {
   canonicalItemFromStoredSvgEntry,
   currentText,
@@ -38,6 +38,7 @@ import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
 
 const DEFAULT_SVG_SIZE = 5000;
 const SVG_MARGIN = 4000;
+const DEFAULT_HISTORY_DIR = path.join(process.cwd(), "server-data");
 let tempSvgSuffixCounter = 0;
 const { logger } = observability;
 
@@ -73,7 +74,10 @@ function readStoredSvgRootMetadata(prefix) {
  * @returns {string}
  */
 function resolveHistoryDir(historyDir) {
-  return historyDir || readConfiguration().HISTORY_DIR;
+  if (typeof historyDir === "string" && historyDir !== "") {
+    return historyDir;
+  }
+  return process.env.WBO_HISTORY_DIR || DEFAULT_HISTORY_DIR;
 }
 
 /**
@@ -200,11 +204,32 @@ function createStoredSvgSeqMismatchError(expectedSeq, actualSeq) {
  * @returns {string}
  */
 function serializeStoredSvg(board, metadata, seq) {
-  const items = Object.values(board).map((item) =>
-    serializeStoredSvgItem(item),
-  );
+  const items = collectSerializedSvgItems(board).itemTags;
   const envelope = createDefaultStoredSvgEnvelope(metadata, seq);
   return serializeStoredSvgEnvelope(envelope.prefix, items, envelope.suffix);
+}
+
+/**
+ * @param {{[name: string]: any}} board
+ * @param {{normalizeLegacyTools?: boolean}=} [options]
+ * @returns {{itemTags: string[], sourceItemCount: number, serializedItemCount: number}}
+ */
+function collectSerializedSvgItems(board, options = {}) {
+  const sourceBoard =
+    options.normalizeLegacyTools === true
+      ? normalizeLegacyBoardForSvg(board)
+      : board;
+  const itemTags = [];
+  let sourceItemCount = 0;
+  let serializedItemCount = 0;
+  for (const item of Object.values(sourceBoard)) {
+    sourceItemCount += 1;
+    const serialized = serializeStoredSvgItem(item);
+    if (!serialized) continue;
+    itemTags.push(serialized);
+    serializedItemCount += 1;
+  }
+  return { itemTags, sourceItemCount, serializedItemCount };
 }
 
 /**
@@ -237,6 +262,9 @@ function computeBoardDimensions(board) {
  */
 function renderServedBaselineSvg(board, metadata, seq) {
   const dimensions = computeBoardDimensions(board);
+  const { itemTags } = collectSerializedSvgItems(board, {
+    normalizeLegacyTools: true,
+  });
   return (
     `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1"` +
     ` width="${dimensions.width}" height="${dimensions.height}"` +
@@ -250,9 +278,7 @@ function renderServedBaselineSvg(board, metadata, seq) {
     `line {fill:none}` +
     `]]></style></defs>` +
     `<g id="drawingArea">` +
-    Object.values(board)
-      .map((item) => serializeStoredSvgItem(item))
-      .join("") +
+    itemTags.join("") +
     `</g>` +
     `<g id="cursors"></g>` +
     `</svg>`
@@ -431,22 +457,53 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
 async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
   const historyDir = options?.historyDir;
   const file = boardSvgPath(boardName, historyDir);
+  const backupFile = boardSvgBackupPath(boardName, historyDir);
   const tmpFile = createTempSvgPath(file);
-  if (Object.keys(parsed.board).length === 0) {
-    await writeFile(tmpFile, serializeStoredSvg({}, parsed.metadata, 0), {
-      flag: "wx",
+  const { itemTags, sourceItemCount, serializedItemCount } =
+    collectSerializedSvgItems(parsed.board, {
+      normalizeLegacyTools: true,
     });
-    await rename(tmpFile, file);
-  } else {
-    await writeBoardState(boardName, parsed.board, parsed.metadata, 0, options);
+  logSvgStoreDebug("svg.migration_started", {
+    board: boardName,
+    "file.path": file,
+    "wbo.legacy.item_count": sourceItemCount,
+    "wbo.svg.item_count": serializedItemCount,
+  });
+  if (sourceItemCount > 0 && serializedItemCount === 0) {
+    logger.error("svg.migration_failed", {
+      board: boardName,
+      "file.path": file,
+      "wbo.legacy.item_count": sourceItemCount,
+      "wbo.svg.item_count": serializedItemCount,
+      reason: "legacy_items_not_serializable",
+    });
+    throw new Error(
+      `Legacy board migration produced no SVG items for "${boardName}"`,
+    );
   }
-  try {
-    await fs.promises.unlink(boardJsonPath(boardName, historyDir));
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") {
-      throw error;
-    }
+  if (sourceItemCount > serializedItemCount) {
+    logger.warn("svg.migration_partial", {
+      board: boardName,
+      "file.path": file,
+      "wbo.legacy.item_count": sourceItemCount,
+      "wbo.svg.item_count": serializedItemCount,
+    });
   }
+  const envelope = createDefaultStoredSvgEnvelope(parsed.metadata, 0);
+  const svg = serializeStoredSvgEnvelope(
+    envelope.prefix,
+    itemTags,
+    envelope.suffix,
+  );
+  await writeFile(tmpFile, svg, { flag: "wx" });
+  await rename(tmpFile, file);
+  await copyFile(file, backupFile);
+  logSvgStoreDebug("svg.migration_completed", {
+    board: boardName,
+    "file.path": file,
+    "wbo.legacy.item_count": sourceItemCount,
+    "wbo.svg.item_count": serializedItemCount,
+  });
 }
 
 /**
