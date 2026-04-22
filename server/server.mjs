@@ -1,4 +1,4 @@
-import * as crypto from "node:crypto";
+import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import { createServer } from "node:http";
 import * as path from "node:path";
@@ -32,6 +32,7 @@ import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
 import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
+import * as sockets from "./sockets.mjs";
 import {
   boardExists,
   readBoardDocumentState,
@@ -53,18 +54,13 @@ const { createRequestId, logger, metrics, tracing } = observability;
 /** @typedef {import("http").ServerResponse} HttpResponse */
 /** @typedef {import("node:net").AddressInfo | string | null} ServerAddress */
 /** @typedef {typeof import("./configuration.mjs")} ServerConfig */
-
-let shutdownRequested = false;
-/** @type {ServerConfig} */
-let serverConfig = /** @type {ServerConfig} */ ({});
-/** @type {ReturnType<typeof serveStatic> | undefined} */
-let fileserver;
-/** @type {string | undefined} */
-let errorPage;
-/** @type {templating.BoardTemplate | undefined} */
-let boardTemplate;
-/** @type {templating.Template | undefined} */
-let indexTemplate;
+/** @typedef {{
+ *   config: ServerConfig,
+ *   fileserver: ReturnType<typeof serveStatic>,
+ *   errorPage: string,
+ *   boardTemplate: templating.BoardTemplate,
+ *   indexTemplate: templating.Template,
+ * }} ServerRuntime */
 
 const CSP =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
@@ -80,43 +76,12 @@ const STATIC_RESOURCE_EXTENSIONS = [
 ];
 const STATIC_ASSET_CACHE_CONTROL = "public, max-age=60, must-revalidate";
 /**
- * @returns {templating.BoardTemplate}
- */
-function getBoardTemplate() {
-  if (!boardTemplate) throw new Error("Board template not initialized");
-  return boardTemplate;
-}
-
-/**
- * @returns {templating.Template}
- */
-function getIndexTemplate() {
-  if (!indexTemplate) throw new Error("Index template not initialized");
-  return indexTemplate;
-}
-
-/**
- * @returns {ReturnType<typeof serveStatic>}
- */
-function getFileServer() {
-  if (!fileserver) throw new Error("Static file server not initialized");
-  return fileserver;
-}
-
-/**
- * @returns {string}
- */
-function getErrorPage() {
-  if (errorPage === undefined) throw new Error("Error page not initialized");
-  return errorPage;
-}
-
-/**
+ * @param {ServerConfig} config
  * @param {string} filePath
  * @returns {string | undefined}
  */
-function staticFileCacheControl(filePath) {
-  if (serverConfig.IS_DEVELOPMENT) return "no-store";
+function staticFileCacheControl(config, filePath) {
+  if (config.IS_DEVELOPMENT) return "no-store";
   return STATIC_RESOURCE_EXTENSIONS.includes(
     path.extname(filePath).toLowerCase(),
   )
@@ -125,50 +90,43 @@ function staticFileCacheControl(filePath) {
 }
 
 /**
+ * @param {ServerConfig} config
  * @returns {string}
  */
-function boardSvgCacheControl() {
-  return serverConfig.IS_DEVELOPMENT ? "no-store" : "public, max-age=30";
+function boardSvgCacheControl(config) {
+  return config.IS_DEVELOPMENT ? "no-store" : "public, max-age=30";
 }
-
-const startBoardSvgResponse =
-  /** @type {(response: HttpResponse, acceptEncoding: string | string[] | undefined) => import("stream").Writable} */
-  (response, acceptEncoding) =>
-    startCompressedResponse(response, acceptEncoding, {
-      "Content-Type": "image/svg+xml",
-      "Content-Security-Policy": CSP,
-      "Cache-Control": boardSvgCacheControl(),
-    }).stream;
 const SLOW_REQUEST_LOG_MS = 1000;
 const BOARD_SCOPED_ROUTES = new Set(["boards", "preview", "download"]);
 
 /**
- * @param {ServerConfig} serverConfig
- * @returns {void}
+ * @param {ServerConfig} config
+ * @returns {ServerRuntime}
  */
-function initializeServerResources(serverConfig) {
-  fileserver = serveStatic(serverConfig.WEBROOT, {
+function createServerRuntime(config) {
+  const fileserver = serveStatic(config.WEBROOT, {
     maxAge: 0,
     /** @param {HttpResponse} res */
     setHeaders: (res, /** @type {string} */ filePath) => {
       res.setHeader("Content-Security-Policy", CSP);
-      const cacheValue = staticFileCacheControl(filePath || "");
+      const cacheValue = staticFileCacheControl(config, filePath || "");
       if (cacheValue !== undefined) {
         res.setHeader("Cache-Control", cacheValue);
       }
     },
   });
-  errorPage = fs
-    .readFileSync(path.join(serverConfig.WEBROOT, "error.html"))
+  const errorPage = fs
+    .readFileSync(path.join(config.WEBROOT, "error.html"))
     .toString("utf8");
-  boardTemplate = new templating.BoardTemplate(
-    path.join(serverConfig.WEBROOT, "board.html"),
-    serverConfig,
+  const boardTemplate = new templating.BoardTemplate(
+    path.join(config.WEBROOT, "board.html"),
+    config,
   );
-  indexTemplate = new templating.Template(
-    path.join(serverConfig.WEBROOT, "index.html"),
-    serverConfig,
+  const indexTemplate = new templating.Template(
+    path.join(config.WEBROOT, "index.html"),
+    config,
   );
+  return { config, fileserver, errorPage, boardTemplate, indexTemplate };
 }
 
 /**
@@ -177,6 +135,7 @@ function initializeServerResources(serverConfig) {
  * @returns {void}
  */
 function installShutdownHandlers(server, sockets) {
+  let shutdownRequested = false;
   /**
    * @param {NodeJS.Signals} signal
    * @returns {Promise<void>}
@@ -257,42 +216,39 @@ function getAddressPort(address) {
  * @returns {Promise<import("http").Server & {shutdown?: () => Promise<void>}>}
  */
 async function createServerApp(config, options = {}) {
-  shutdownRequested = false;
-  serverConfig = config;
-  initializeServerResources(serverConfig);
-  await check_output_directory(serverConfig.HISTORY_DIR);
-  const sockets =
-    options.socketsModule ||
-    (await import(`./sockets.mjs?cache-bust=${crypto.randomUUID()}`));
+  const runtime = createServerRuntime(config);
+  const requestHandler = createRequestHandler(runtime);
+  const socketModule = options.socketsModule || sockets;
+  await check_output_directory(config.HISTORY_DIR);
   const app =
     /** @type {import("http").Server & {shutdown?: () => Promise<void>}} */ (
-      createServer(handler)
+      createServer(requestHandler)
     );
   app.on("clientError", handleClientError);
-  await sockets.start(app, serverConfig);
+  await socketModule.start(app, config);
   if (options.installShutdownHandlers === true) {
-    installShutdownHandlers(app, sockets);
+    installShutdownHandlers(app, socketModule);
   }
   await new Promise(
     /**
      * @param {(value: void | PromiseLike<void>) => void} resolve
      */
     (resolve) => {
-      app.listen(serverConfig.PORT, serverConfig.HOST, resolve);
+      app.listen(config.PORT, config.HOST, resolve);
     },
   );
   if (options.logStarted !== false) {
     const actualPort = getAddressPort(app.address());
     logger.info("server.started", {
       [ATTR_SERVER_PORT]: actualPort,
-      "log.level": serverConfig.LOG_LEVEL,
+      "log.level": config.LOG_LEVEL,
     });
     if (process.send) {
       process.send({ type: "server-started", port: actualPort });
     }
   }
   app.shutdown = async () => {
-    await sockets.shutdown?.();
+    await socketModule.shutdown?.();
     await new Promise(
       /**
        * @param {(value: void | PromiseLike<void>) => void} resolve
@@ -378,22 +334,13 @@ function parseBoardPageETagCandidates(ifNoneMatch) {
 /**
  * @param {string} boardName
  * @param {number} baselineSeq
+ * @param {ServerConfig} config
  * @returns {void}
  */
-function pinServedBoardBaseline(boardName, baselineSeq) {
-  const expiresAtMs = Date.now() + Math.max(0, serverConfig.MAX_SAVE_DELAY);
+function pinServedBoardBaseline(boardName, baselineSeq, config) {
+  const expiresAtMs = Date.now() + Math.max(0, config.MAX_SAVE_DELAY);
   pinReplayBaseline(boardName, baselineSeq, expiresAtMs);
 }
-
-const respondNotModified =
-  /** @type {(response: HttpResponse, etag: string) => void} */
-  (response, etag) => {
-    response.writeHead(304, {
-      "Cache-Control": getBoardTemplate().cacheControl(),
-      ETag: etag,
-    });
-    response.end();
-  };
 
 /**
  * @param {HttpRequest} request
@@ -445,23 +392,25 @@ function requestAuthority(request) {
 
 /**
  * @param {HttpRequest} request
+ * @param {ServerConfig} config
  * @returns {string}
  */
-function requestServerAddress(request) {
+function requestServerAddress(request, config) {
   const authority = requestAuthority(request);
   if (authority) {
     try {
       return new URL(`${requestScheme(request)}://${authority}`).hostname;
     } catch {}
   }
-  return serverConfig.HOST || request.socket.localAddress || "localhost";
+  return config.HOST || request.socket.localAddress || "localhost";
 }
 
 /**
  * @param {HttpRequest} request
+ * @param {ServerConfig} config
  * @returns {number | undefined}
  */
-function requestServerPort(request) {
+function requestServerPort(request, config) {
   const authority = requestAuthority(request);
   const scheme = requestScheme(request);
   if (authority) {
@@ -474,7 +423,7 @@ function requestServerPort(request) {
   if (typeof request.socket.localPort === "number") {
     return request.socket.localPort;
   }
-  const configuredPort = Number(serverConfig.PORT);
+  const configuredPort = Number(config.PORT);
   return Number.isFinite(configuredPort) ? configuredPort : undefined;
 }
 
@@ -540,12 +489,12 @@ function requestErrorStatusCode(error) {
 /**
  * @param {HttpResponse} response
  * @param {number} statusCode
+ * @param {string} errorPage
  * @returns {void}
  */
-function respondWithErrorPage(response, statusCode) {
-  const page = getErrorPage();
-  response.writeHead(statusCode, { "Content-Length": page.length });
-  response.end(page);
+function respondWithErrorPage(response, statusCode, errorPage) {
+  response.writeHead(statusCode, { "Content-Length": errorPage.length });
+  response.end(errorPage);
 }
 
 /**
@@ -706,6 +655,7 @@ function finalizeObservedRequest(state) {
 /**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
+ * @param {ServerConfig} config
  * @returns {{
  *   requestId: string,
  *   run: (fn: () => void) => void,
@@ -715,7 +665,7 @@ function finalizeObservedRequest(state) {
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }}
  */
-function observeRequest(request, response) {
+function observeRequest(request, response, config) {
   const forwardedRequestId = request.headers["x-request-id"];
   const requestId =
     typeof forwardedRequestId === "string" && forwardedRequestId !== ""
@@ -726,8 +676,8 @@ function observeRequest(request, response) {
   const startedAt = Date.now();
   const method = request.method || "GET";
   const scheme = requestScheme(request);
-  const serverAddress = requestServerAddress(request);
-  const serverPort = requestServerPort(request);
+  const serverAddress = requestServerAddress(request, config);
+  const serverPort = requestServerPort(request, config);
   let route = "unknown";
   /** @type {unknown} */
   let requestError;
@@ -817,6 +767,7 @@ function observeRequest(request, response) {
 /**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
+ * @param {string} errorPage
  * @param {{
  *   setRoute: (route: string) => void,
  *   noteError: (error: unknown) => void,
@@ -824,7 +775,7 @@ function observeRequest(request, response) {
  * }} requestContext
  * @returns {(err?: unknown) => void}
  */
-function serveError(request, response, requestContext) {
+function serveError(request, response, errorPage, requestContext) {
   void request;
   return (err) => {
     const statusCode = err ? requestErrorStatusCode(err) || 500 : 404;
@@ -835,34 +786,8 @@ function serveError(request, response, requestContext) {
         rejection_reason: boundaryReason(err) || errorCode(err) || "rejected",
       });
     }
-    respondWithErrorPage(response, statusCode);
+    respondWithErrorPage(response, statusCode, errorPage);
   };
-}
-
-/**
- * @type {import('http').RequestListener}
- */
-function handler(request, response) {
-  const requestContext = observeRequest(request, response);
-  requestContext.run(async function runRequestHandler() {
-    try {
-      await handleRequest(request, response, requestContext);
-    } catch (err) {
-      const statusCode = requestErrorStatusCode(err) || 500;
-      if (statusCode >= 500) {
-        requestContext.noteError(err);
-        logger.error("http.request_unhandled", {
-          request_id: requestContext.requestId,
-          error: err,
-        });
-      } else {
-        requestContext.annotate({
-          rejection_reason: boundaryReason(err) || errorToString(err),
-        });
-      }
-      respondWithErrorPage(response, statusCode);
-    }
-  });
 }
 
 /**
@@ -1018,6 +943,7 @@ function requireBoardSvgPathName(parts, index = 1) {
 /**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
+ * @param {ServerRuntime} runtime
  * @param {{
  *   setRoute: (route: string) => void,
  *   noteError: (error: unknown) => void,
@@ -1026,31 +952,37 @@ function requireBoardSvgPathName(parts, index = 1) {
  * @param {string=} nextUrl
  * @returns {void}
  */
-function serveStaticFile(request, response, requestContext, nextUrl) {
+function serveStaticFile(request, response, runtime, requestContext, nextUrl) {
   requestContext.setRoute("static_file");
   if (nextUrl !== undefined) {
     request.url = nextUrl;
   }
-  getFileServer()(
+  runtime.fileserver(
     request,
     response,
-    serveError(request, response, requestContext),
+    serveError(request, response, runtime.errorPage, requestContext),
   );
 }
 
 /**
  * @param {HttpResponse} response
  * @param {URL} parsedUrl
+ * @param {ServerRuntime} runtime
  * @param {{
  *   annotate: (fields: {[key: string]: unknown}) => void,
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
  * @returns {void}
  */
-function handleBoardRedirectRoute(response, parsedUrl, requestContext) {
+function handleBoardRedirectRoute(
+  response,
+  parsedUrl,
+  runtime,
+  requestContext,
+) {
   const boardName = requireBoardQueryName(parsedUrl);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(serverConfig, parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
   response.writeHead(301, {
     Location: `boards/${encodeURIComponent(boardName)}`,
   });
@@ -1062,6 +994,7 @@ function handleBoardRedirectRoute(response, parsedUrl, requestContext) {
  * @param {HttpResponse} response
  * @param {URL} parsedUrl
  * @param {string[]} parts
+ * @param {ServerRuntime} runtime
  * @param {{
  *   annotate: (fields: {[key: string]: unknown}) => void,
  *   noteError: (error: unknown) => void,
@@ -1074,14 +1007,15 @@ async function handleBoardDocumentRoute(
   response,
   parsedUrl,
   parts,
+  runtime,
   requestContext,
 ) {
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(serverConfig, parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
   const token = parsedUrl.searchParams.get("token");
   const boardRole = jwtBoardName.roleInBoard(
-    serverConfig,
+    runtime.config,
     token || "",
     boardName,
   );
@@ -1093,8 +1027,12 @@ async function handleBoardDocumentRoute(
     const loadedBoard = await loadedBoardPromise;
     const persistedSeq = loadedBoard.getPersistedSeq();
     if (cachedSeqs.includes(persistedSeq)) {
-      pinServedBoardBaseline(boardName, persistedSeq);
-      respondNotModified(response, boardPageETag(persistedSeq));
+      pinServedBoardBaseline(boardName, persistedSeq, runtime.config);
+      response.writeHead(304, {
+        "Cache-Control": runtime.boardTemplate.cacheControl(),
+        ETag: boardPageETag(persistedSeq),
+      });
+      response.end();
       return;
     }
   }
@@ -1103,33 +1041,37 @@ async function handleBoardDocumentRoute(
     inlineBoardSvg,
     source,
   } = await readBoardDocumentState(boardName, {
-    historyDir: serverConfig.HISTORY_DIR,
+    historyDir: runtime.config.HISTORY_DIR,
   });
   const canWrite =
     !boardMetadata.readonly ||
-    (serverConfig.AUTH_SECRET_KEY &&
+    (runtime.config.AUTH_SECRET_KEY &&
       ["editor", "moderator"].includes(boardRole));
   const etag = boardPageETag(boardMetadata.seq || 0);
   if (matchesIfNoneMatch(request.headers["if-none-match"], etag)) {
-    pinServedBoardBaseline(boardName, boardMetadata.seq || 0);
-    respondNotModified(response, etag);
+    pinServedBoardBaseline(boardName, boardMetadata.seq || 0, runtime.config);
+    response.writeHead(304, {
+      "Cache-Control": runtime.boardTemplate.cacheControl(),
+      ETag: etag,
+    });
+    response.end();
     return;
   }
-  pinServedBoardBaseline(boardName, boardMetadata.seq || 0);
+  pinServedBoardBaseline(boardName, boardMetadata.seq || 0, runtime.config);
   ensureBoardUserSecretCookie(request, response, parsedUrl);
   if (source === "svg" || source === "svg_backup") {
     const svgStream = await streamServedBaseline(boardName, {
-      historyDir: serverConfig.HISTORY_DIR,
+      historyDir: runtime.config.HISTORY_DIR,
     });
     svgStream.on("error", (error) => {
       requestContext.noteError(error);
       if (!response.headersSent) {
-        respondWithErrorPage(response, 500);
+        respondWithErrorPage(response, 500, runtime.errorPage);
       } else {
         response.destroy(error);
       }
     });
-    getBoardTemplate().serveStream(
+    runtime.boardTemplate.serveStream(
       request,
       response,
       svgStream,
@@ -1144,7 +1086,7 @@ async function handleBoardDocumentRoute(
     );
     return;
   }
-  getBoardTemplate().serve(request, response, boardRole === "moderator", {
+  runtime.boardTemplate.serve(request, response, boardRole === "moderator", {
     etag,
     inlineBoardSvg: inlineBoardSvg || "",
     boardState: {
@@ -1159,6 +1101,7 @@ async function handleBoardDocumentRoute(
  * @param {HttpResponse} response
  * @param {URL} parsedUrl
  * @param {string[]} parts
+ * @param {ServerRuntime} runtime
  * @param {{
  *   noteError: (error: unknown) => void,
  *   annotate: (fields: {[key: string]: unknown}) => void,
@@ -1171,24 +1114,29 @@ async function handleBoardSvgRoute(
   response,
   parsedUrl,
   parts,
+  runtime,
   requestContext,
 ) {
   const boardName = requireBoardSvgPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(serverConfig, parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
   const svgStream = await streamServedBaseline(boardName, {
-    historyDir: serverConfig.HISTORY_DIR,
+    historyDir: runtime.config.HISTORY_DIR,
   });
   svgStream.on("error", (error) => {
     requestContext.noteError(error);
     if (!response.headersSent) {
-      respondWithErrorPage(response, 500);
+      respondWithErrorPage(response, 500, runtime.errorPage);
     } else {
       response.destroy(error);
     }
   });
   svgStream.pipe(
-    startBoardSvgResponse(response, request.headers["accept-encoding"]),
+    startCompressedResponse(response, request.headers["accept-encoding"], {
+      "Content-Type": "image/svg+xml",
+      "Content-Security-Policy": CSP,
+      "Cache-Control": boardSvgCacheControl(runtime.config),
+    }).stream,
   );
 }
 
@@ -1197,6 +1145,7 @@ async function handleBoardSvgRoute(
  * @param {HttpResponse} response
  * @param {URL} parsedUrl
  * @param {string[]} parts
+ * @param {ServerRuntime} runtime
  * @param {{
  *   setRoute: (route: string) => void,
  *   noteError: (error: unknown) => void,
@@ -1210,13 +1159,14 @@ function handleBoardsRoute(
   response,
   parsedUrl,
   parts,
+  runtime,
   requestContext,
 ) {
   requestContext.setRoute(
     parts.length === 1 ? "boards_redirect" : "board_page",
   );
   if (parts.length === 1) {
-    handleBoardRedirectRoute(response, parsedUrl, requestContext);
+    handleBoardRedirectRoute(response, parsedUrl, runtime, requestContext);
     return;
   }
   if (parts.length === 2 && getPathPart(parts, 1)?.endsWith(".svg")) {
@@ -1226,6 +1176,7 @@ function handleBoardsRoute(
       response,
       parsedUrl,
       parts,
+      runtime,
       requestContext,
     );
   }
@@ -1235,12 +1186,14 @@ function handleBoardsRoute(
       response,
       parsedUrl,
       parts,
+      runtime,
       requestContext,
     );
   }
   serveStaticFile(
     request,
     response,
+    runtime,
     requestContext,
     `/${parts.slice(1).join("/")}`,
   );
@@ -1249,9 +1202,10 @@ function handleBoardsRoute(
 /**
  * @param {HttpResponse} response
  * @param {string} boardName
+ * @param {ServerConfig} config
  * @returns {Promise<void>}
  */
-async function respondWithBoardDownload(response, boardName) {
+async function respondWithBoardDownload(response, boardName, config) {
   const data = await tracing.withActiveSpan(
     "board.download_read",
     {
@@ -1262,7 +1216,7 @@ async function respondWithBoardDownload(response, boardName) {
     },
     function readBoardBaseline() {
       return readServedBaseline(boardName, {
-        historyDir: serverConfig.HISTORY_DIR,
+        historyDir: config.HISTORY_DIR,
       });
     },
   );
@@ -1279,6 +1233,7 @@ async function respondWithBoardDownload(response, boardName) {
  * @param {string[]} parts
  * @param {HttpRequest} request
  * @param {HttpResponse} response
+ * @param {ServerRuntime} runtime
  * @param {{
  *   setRoute: (route: string) => void,
  *   noteError: (error: unknown) => void,
@@ -1292,14 +1247,15 @@ function handleDownloadRoute(
   parts,
   request,
   response,
+  runtime,
   requestContext,
 ) {
   requestContext.setRoute("download_board");
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(serverConfig, parsedUrl, boardName);
-  void respondWithBoardDownload(response, boardName).catch(
-    serveError(request, response, requestContext),
+  jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
+  void respondWithBoardDownload(response, boardName, runtime.config).catch(
+    serveError(request, response, runtime.errorPage, requestContext),
   );
 }
 
@@ -1324,9 +1280,10 @@ function recordPreviewDuration(requestContext, startedAt) {
 
 /**
  * @param {string} boardName
+ * @param {ServerConfig} config
  * @returns {Promise<string | null>}
  */
-async function renderPreviewSvg(boardName) {
+async function renderPreviewSvg(boardName, config) {
   return tracing.withActiveSpan(
     "preview.render",
     {
@@ -1339,7 +1296,7 @@ async function renderPreviewSvg(boardName) {
       try {
         if (
           !(await boardExists(boardName, {
-            historyDir: serverConfig.HISTORY_DIR,
+            historyDir: config.HISTORY_DIR,
           }))
         ) {
           tracing.setActiveSpanAttributes({
@@ -1350,7 +1307,7 @@ async function renderPreviewSvg(boardName) {
           return null;
         }
         return await readServedBaseline(boardName, {
-          historyDir: serverConfig.HISTORY_DIR,
+          historyDir: config.HISTORY_DIR,
         });
       } catch (err) {
         if (isNotFoundError(err)) {
@@ -1370,6 +1327,7 @@ async function renderPreviewSvg(boardName) {
 /**
  * @param {HttpResponse} response
  * @param {string} boardName
+ * @param {ServerRuntime} runtime
  * @param {{
  *   annotate: (fields: {[key: string]: unknown}) => void,
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
@@ -1381,21 +1339,26 @@ async function renderPreviewSvg(boardName) {
 async function respondWithBoardPreview(
   response,
   boardName,
+  runtime,
   requestContext,
   startedAt,
   acceptEncoding,
 ) {
-  const svg = await renderPreviewSvg(boardName);
+  const svg = await renderPreviewSvg(boardName, runtime.config);
   recordPreviewDuration(requestContext, startedAt);
   if (svg === null) {
-    const page = getErrorPage();
+    const page = runtime.errorPage;
     response.writeHead(404, {
       "Content-Length": page.length,
     });
     response.end(page);
     return;
   }
-  startBoardSvgResponse(response, acceptEncoding).end(svg);
+  startCompressedResponse(response, acceptEncoding, {
+    "Content-Type": "image/svg+xml",
+    "Content-Security-Policy": CSP,
+    "Cache-Control": boardSvgCacheControl(runtime.config),
+  }).stream.end(svg);
 }
 
 /**
@@ -1403,6 +1366,7 @@ async function respondWithBoardPreview(
  * @param {string[]} parts
  * @param {HttpRequest} request
  * @param {HttpResponse} response
+ * @param {ServerRuntime} runtime
  * @param {{
  *   setRoute: (route: string) => void,
  *   noteError: (error: unknown) => void,
@@ -1416,23 +1380,25 @@ function handlePreviewRoute(
   parts,
   request,
   response,
+  runtime,
   requestContext,
 ) {
   requestContext.setRoute("preview_board");
   const boardName = requireBoardPathName(parts);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(serverConfig, parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
   const startedAt = Date.now();
   void respondWithBoardPreview(
     response,
     boardName,
+    runtime,
     requestContext,
     startedAt,
     request.headers["accept-encoding"],
   ).catch((err) => {
     recordPreviewDuration(requestContext, startedAt);
     requestContext.noteError(err);
-    serveError(request, response, requestContext)(err);
+    serveError(request, response, runtime.errorPage, requestContext)(err);
   });
 }
 
@@ -1441,7 +1407,7 @@ function handlePreviewRoute(
  * @returns {void}
  */
 function handleRandomRoute(response) {
-  const name = crypto.randomBytes(24).toString("base64url");
+  const name = randomBytes(24).toString("base64url");
   response.writeHead(307, { Location: `boards/${name}` });
   response.end(name);
 }
@@ -1449,14 +1415,15 @@ function handleRandomRoute(response) {
 /**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
+ * @param {ServerRuntime} runtime
  * @param {{
  *   annotate: (fields: {[key: string]: unknown}) => void,
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
  * @returns {void}
  */
-function handleIndexRoute(request, response, requestContext) {
-  const defaultBoard = serverConfig.DEFAULT_BOARD;
+function handleIndexRoute(request, response, runtime, requestContext) {
+  const defaultBoard = runtime.config.DEFAULT_BOARD;
   if (defaultBoard) {
     annotateBoardRequest(requestContext, defaultBoard);
     response.writeHead(302, {
@@ -1465,12 +1432,13 @@ function handleIndexRoute(request, response, requestContext) {
     response.end(defaultBoard);
     return;
   }
-  getIndexTemplate().serve(request, response);
+  runtime.indexTemplate.serve(request, response);
 }
 
 /**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
+ * @param {ServerRuntime} runtime
  * @param {{
  *   requestId: string,
  *   setRoute: (route: string) => void,
@@ -1480,7 +1448,7 @@ function handleIndexRoute(request, response, requestContext) {
  * }} requestContext
  * @returns {void | Promise<void>}
  */
-function handleRequest(request, response, requestContext) {
+function handleRequest(request, response, runtime, requestContext) {
   const parsedUrlResult = validateRequestUrl(request.url);
   if (parsedUrlResult.ok === false) {
     throw badRequest(parsedUrlResult.reason);
@@ -1489,7 +1457,7 @@ function handleRequest(request, response, requestContext) {
   const parts = normalizePathParts(parsedUrl.pathname.split("/"));
 
   if (shouldCheckUserPermissions(parsedUrl, parts)) {
-    jwtauth.checkUserPermission(parsedUrl, serverConfig);
+    jwtauth.checkUserPermission(parsedUrl, runtime.config);
   }
 
   switch (parts[0]) {
@@ -1499,6 +1467,7 @@ function handleRequest(request, response, requestContext) {
         response,
         parsedUrl,
         parts,
+        runtime,
         requestContext,
       );
 
@@ -1508,6 +1477,7 @@ function handleRequest(request, response, requestContext) {
         parts,
         request,
         response,
+        runtime,
         requestContext,
       );
 
@@ -1518,6 +1488,7 @@ function handleRequest(request, response, requestContext) {
         parts,
         request,
         response,
+        runtime,
         requestContext,
       );
 
@@ -1527,11 +1498,50 @@ function handleRequest(request, response, requestContext) {
 
     case "":
       requestContext.setRoute("index");
-      return handleIndexRoute(request, response, requestContext);
+      return handleIndexRoute(request, response, runtime, requestContext);
 
     default:
-      return serveStaticFile(request, response, requestContext);
+      return serveStaticFile(request, response, runtime, requestContext);
   }
+}
+
+/**
+ * @param {HttpRequest} request
+ * @param {HttpResponse} response
+ * @param {ServerRuntime} runtime
+ * @returns {void}
+ */
+function handleObservedRequest(request, response, runtime) {
+  const requestContext = observeRequest(request, response, runtime.config);
+  requestContext.run(async function runRequestHandler() {
+    try {
+      await handleRequest(request, response, runtime, requestContext);
+    } catch (err) {
+      const statusCode = requestErrorStatusCode(err) || 500;
+      if (statusCode >= 500) {
+        requestContext.noteError(err);
+        logger.error("http.request_unhandled", {
+          request_id: requestContext.requestId,
+          error: err,
+        });
+      } else {
+        requestContext.annotate({
+          rejection_reason: boundaryReason(err) || errorToString(err),
+        });
+      }
+      respondWithErrorPage(response, statusCode, runtime.errorPage);
+    }
+  });
+}
+
+/**
+ * @param {ServerRuntime} runtime
+ * @returns {import("http").RequestListener}
+ */
+function createRequestHandler(runtime) {
+  return function requestHandler(request, response) {
+    handleObservedRequest(request, response, runtime);
+  };
 }
 
 if (isProcessEntrypoint()) {
