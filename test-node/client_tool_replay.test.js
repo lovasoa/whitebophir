@@ -542,14 +542,24 @@ function expectedTwoPointStroke() {
  */
 function drawReplayStroke(pencilTool) {
   pencilTool.draw({
-    type: "line",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#123456",
     size: 4,
     opacity: 1,
   });
-  pencilTool.draw({ type: "child", parent: "line-1", x: 100, y: 200 });
-  pencilTool.draw({ type: "child", parent: "line-1", x: 300, y: 400 });
+  pencilTool.draw({
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 100,
+    y: 200,
+  });
+  pencilTool.draw({
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 300,
+    y: 400,
+  });
 }
 
 test("Pencil replay resets an existing path before reapplying children", async () => {
@@ -600,8 +610,18 @@ test("Pencil child messages build a missing line from scratch", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
 
-  pencilTool.draw({ type: "child", parent: "line-1", x: 100, y: 200 });
-  pencilTool.draw({ type: "child", parent: "line-1", x: 300, y: 400 });
+  pencilTool.draw({
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 100,
+    y: 200,
+  });
+  pencilTool.draw({
+    type: MutationType.APPEND,
+    parent: "line-1",
+    x: 300,
+    y: 400,
+  });
 
   assert.deepEqual(
     harness.elementsById.get("line-1").pathData,
@@ -614,7 +634,7 @@ test("Pencil replay updates stroke styling on the reused DOM node", async () => 
   const pencilTool = await harness.loadTool("pencil");
 
   pencilTool.draw({
-    type: "line",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#123456",
     size: 4,
@@ -622,7 +642,7 @@ test("Pencil replay updates stroke styling on the reused DOM node", async () => 
   });
 
   pencilTool.draw({
-    type: "line",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#abcdef",
     size: 7,
@@ -654,10 +674,10 @@ test("Pencil input sends an initial child point without waiting for throttle", a
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
     ),
-    ["line", "child"],
+    [MutationType.CREATE, MutationType.APPEND],
   );
   assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
-    type: "child",
+    type: MutationType.APPEND,
     parent: "l-1",
     x: 100,
     y: 100,
@@ -706,20 +726,20 @@ test("Pencil input stops sending points after MAX_CHILDREN", async () => {
     ),
     [
       {
-        type: "line",
+        type: MutationType.CREATE,
         id: "l-1",
         color: "#123456",
         size: 4,
         opacity: 1,
       },
       {
-        type: "child",
+        type: MutationType.APPEND,
         parent: "l-1",
         x: 100,
         y: 100,
       },
       {
-        type: "child",
+        type: MutationType.APPEND,
         parent: "l-1",
         x: 200,
         y: 200,
@@ -749,7 +769,7 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
     ),
-    ["line", "child"],
+    [MutationType.CREATE, MutationType.APPEND],
   );
 });
 
@@ -757,10 +777,16 @@ test("Pencil replay is idempotent for the same persisted stroke", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
   const replayStroke = [
-    { type: "line", id: "line-1", color: "#123456", size: 4, opacity: 1 },
-    { type: "child", parent: "line-1", x: 10, y: 20 },
-    { type: "child", parent: "line-1", x: 25, y: 35 },
-    { type: "child", parent: "line-1", x: 40, y: 15 },
+    {
+      type: MutationType.CREATE,
+      id: "line-1",
+      color: "#123456",
+      size: 4,
+      opacity: 1,
+    },
+    { type: MutationType.APPEND, parent: "line-1", x: 10, y: 20 },
+    { type: MutationType.APPEND, parent: "line-1", x: 25, y: 35 },
+    { type: MutationType.APPEND, parent: "line-1", x: 40, y: 15 },
   ];
 
   replayStroke.forEach((message) => {
@@ -795,7 +821,7 @@ test("Pencil delete of the active line aborts the active stroke", async () => {
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
     ),
-    ["line", "child"],
+    [MutationType.CREATE, MutationType.APPEND],
   );
 });
 
@@ -817,7 +843,7 @@ test("Pencil clear aborts the active stroke", async () => {
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
     ),
-    ["line", "child"],
+    [MutationType.CREATE, MutationType.APPEND],
   );
 });
 
@@ -826,7 +852,7 @@ test("Straight line replay refreshes endpoints and styling on an existing node",
   const lineTool = await harness.loadTool("straight-line");
 
   lineTool.draw({
-    type: "straight",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#111111",
     size: 3,
@@ -837,7 +863,7 @@ test("Straight line replay refreshes endpoints and styling on an existing node",
     y2: 40,
   });
   lineTool.draw({
-    type: "straight",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#abcdef",
     size: 7,
@@ -954,7 +980,7 @@ test("Rectangle replay normalizes reverse-drag bounds on a reused node", async (
   const rectangleTool = await harness.loadTool("rectangle");
 
   rectangleTool.draw({
-    type: "rect",
+    type: MutationType.CREATE,
     id: "rect-1",
     color: "#123456",
     size: 4,
@@ -1005,7 +1031,7 @@ test("Rectangle press draws the optimistic seed shape before recording the send"
   assert.deepEqual(localShapeVisibleAtSend, [true]);
   assert.equal(harness.elementsById.has("r-1"), true);
   assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
-    type: "rect",
+    type: MutationType.CREATE,
     id: "r-1",
     color: "#123456",
     size: 4,
@@ -1042,7 +1068,7 @@ test("Ellipse replay updates center and radii on a reused node", async () => {
   const ellipseTool = await harness.loadTool("ellipse");
 
   ellipseTool.draw({
-    type: "ellipse",
+    type: MutationType.CREATE,
     id: "ellipse-1",
     color: "#123456",
     size: 4,
@@ -1093,7 +1119,7 @@ test("Text replay creates and then updates the same text field", async () => {
   const textTool = await harness.loadTool("text");
 
   textTool.draw({
-    type: "new",
+    type: MutationType.CREATE,
     id: "text-1",
     color: "#123456",
     size: 24,
@@ -1270,7 +1296,7 @@ test("Eraser replay removes only the targeted stable id", async () => {
   globalAny.Tools.drawingArea.appendChild(rect2);
 
   eraserTool.draw({
-    type: "delete",
+    type: MutationType.DELETE,
     id: "r-1",
   });
 

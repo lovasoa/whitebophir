@@ -36,7 +36,7 @@ export const oneTouch = true;
 export const requiresWritableBoard = true;
 export const mouseCursor = "crosshair";
 export const moderatorOnly = true;
-export const liveMessageFields = { clear: {} };
+export const liveMessageFields = { [MutationType.CLEAR]: {} };
 
 /** @param {MountedAppToolsState} tools */
 export function onstart(tools) {

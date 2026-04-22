@@ -21,6 +21,7 @@ const { BoardData } = await import("../server/boardData.mjs");
 const { processBoardBroadcastMessage } = await import(
   "../server/broadcast_processing.mjs"
 );
+const { MutationType } = await import("../client-data/js/mutation_type.js");
 const { readConfiguration } = await import("../server/configuration.mjs");
 const { writeBoardState } = await import("../server/svg_board_store.mjs");
 
@@ -137,7 +138,7 @@ function buildBoard(itemCount, pencilEvery, pencilPoints) {
       board[id] = {
         id,
         tool: "pencil",
-        type: "line",
+        type: "path",
         color: DEFAULT_COLOR,
         size: 4,
         _children: Array.from({ length: pencilPoints }, (_, pointIndex) => ({
@@ -191,7 +192,7 @@ function buildBoard(itemCount, pencilEvery, pencilPoints) {
     board[id] = {
       id,
       tool: "text",
-      type: "new",
+      type: "text",
       color: DEFAULT_COLOR,
       size: 18,
       x: baseX,
@@ -405,7 +406,7 @@ function createBroadcastMessages() {
     if (index % 4 === 0) {
       return {
         tool: "pencil",
-        type: "child",
+        type: MutationType.APPEND,
         parent: `pencil-${index % 100}`,
         x: index % 2000,
         y: (index * 3) % 2000,
@@ -414,7 +415,7 @@ function createBroadcastMessages() {
     if (index % 4 === 1) {
       return {
         tool: "rectangle",
-        type: "update",
+        type: MutationType.UPDATE,
         id: `rect-${index % 500}`,
         x: index % 3000,
         y: (index * 2) % 3000,
@@ -425,14 +426,14 @@ function createBroadcastMessages() {
     if (index % 4 === 2) {
       return {
         tool: "text",
-        type: "update",
+        type: MutationType.UPDATE,
         id: `text-${index % 500}`,
         txt: `bench-${index}`,
       };
     }
     return {
       tool: "rectangle",
-      type: "rect",
+      type: MutationType.CREATE,
       id: `shape-${index}`,
       color: DEFAULT_COLOR,
       size: 2,
@@ -462,7 +463,7 @@ function createBroadcastContext() {
     board.set(`text-${index}`, {
       id: `text-${index}`,
       tool: "text",
-      type: "new",
+      type: "text",
       color: DEFAULT_COLOR,
       size: 18,
       x: index,
@@ -474,7 +475,7 @@ function createBroadcastContext() {
     board.set(`pencil-${index}`, {
       id: `pencil-${index}`,
       tool: "pencil",
-      type: "line",
+      type: "path",
       color: DEFAULT_COLOR,
       size: 4,
       _children: [
@@ -541,18 +542,21 @@ async function runEndToEndEraseBenchmark() {
     fixture.lastPencilId,
     { timeout: 30_000 },
   );
-  const eraseSent = await main.evaluate((targetId) => {
-    const bench = /** @type {any} */ (window).__wboBench;
-    bench.eraseDispatchMs = performance.now() - bench.navStart;
-    return window.Tools.send(
-      {
-        type: "delete",
-        id: targetId,
-        clientMutationId: window.Tools.generateUID("cm-"),
-      },
-      "eraser",
-    );
-  }, fixture.lastPencilId);
+  const eraseSent = await main.evaluate(
+    ({ targetId, deleteType }) => {
+      const bench = /** @type {any} */ (window).__wboBench;
+      bench.eraseDispatchMs = performance.now() - bench.navStart;
+      return window.Tools.send(
+        {
+          type: deleteType,
+          id: targetId,
+          clientMutationId: window.Tools.generateUID("cm-"),
+        },
+        "eraser",
+      );
+    },
+    { targetId: fixture.lastPencilId, deleteType: MutationType.DELETE },
+  );
   if (eraseSent !== true) {
     throw new Error("failed to send erase request in end-to-end benchmark");
   }
@@ -660,7 +664,7 @@ async function runPersistBenchmark() {
     const bounds = board.itemsById.get(id)?.bounds;
     const result = board.processMessage({
       tool: "pencil",
-      type: "child",
+      type: MutationType.APPEND,
       parent: id,
       x: (bounds?.maxX ?? 0) + 1,
       y: (bounds?.maxY ?? 0) + 1,
@@ -671,7 +675,7 @@ async function runPersistBenchmark() {
   for (const id of fixture.shapeIds.slice(0, PERSIST_SHAPE_UPDATES)) {
     const result = board.processMessage({
       tool: "hand",
-      type: "update",
+      type: MutationType.UPDATE,
       id,
       transform: { a: 1, b: 0, c: 0, d: 1, e: 12, f: 18 },
     });

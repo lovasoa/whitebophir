@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const MessageCommon = require("../client-data/js/message_common.js");
-const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
+const { TOOLS } = require("../client-data/tools/index.js");
 
 test("shared giant-shape policy exposes the draw zoom threshold", () => {
   assert.equal(MessageCommon.getMaxShapeSpan(), 32000);
@@ -44,7 +44,9 @@ test("shared geometry helpers grow pencil bounds incrementally", () => {
 });
 
 test("shape tool bounds use straight-shape geometry consistently", () => {
-  const shapeToolNames = Object.keys(MessageToolMetadata.SHAPE_TOOL_TYPES);
+  const shapeToolNames = TOOLS.filter((tool) => tool.shapeTool === true).map(
+    (tool) => tool.toolId,
+  );
   for (const toolName of shapeToolNames) {
     const bounds = MessageCommon.getLocalGeometryBounds({
       tool: toolName,

@@ -4,7 +4,8 @@ const { pathToFileURL } = require("node:url");
 
 const { MESSAGE_VALIDATION_PATH, withEnv } = require("./test_helpers.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
-const { TOOLS, TOOL_BY_ID } = require("../client-data/tools/index.js");
+const { TOOLS } = require("../client-data/tools/index.js");
+const { MutationType } = MessageToolMetadata;
 
 const SHAPE_CREATE_FIELDS = {
   id: "id",
@@ -71,17 +72,17 @@ function sampleFields(fields) {
 }
 
 /**
- * @returns {Array<{tool: string, type: string, sample: any}>}
+ * @returns {Array<{tool: string, type: number, sample: any}>}
  */
 function liveValidationSamples() {
-  /** @type {Array<{tool: string, type: string, sample: any}>} */
+  /** @type {Array<{tool: string, type: number, sample: any}>} */
   const samples = [
     {
       tool: "cursor",
-      type: "update",
+      type: MutationType.UPDATE,
       sample: {
         tool: "cursor",
-        type: "update",
+        type: MutationType.UPDATE,
         ...sampleFields({
           color: "color",
           size: "size",
@@ -93,31 +94,31 @@ function liveValidationSamples() {
   ];
   for (const tool of TOOLS) {
     for (const [type, fields] of Object.entries(tool.liveMessageFields || {})) {
+      const mutationType = Number(type);
       samples.push({
         tool: tool.toolId,
-        type,
+        type: mutationType,
         sample: {
           tool: tool.toolId,
-          type,
+          type: mutationType,
           ...sampleFields(fields),
         },
       });
     }
-    if (tool.shapeType) {
-      if (typeof tool.liveCreateType !== "string") continue;
+    if (tool.shapeTool === true) {
       samples.push({
         tool: tool.toolId,
-        type: tool.liveCreateType,
+        type: MutationType.CREATE,
         sample: {
           tool: tool.toolId,
-          type: tool.liveCreateType,
+          type: MutationType.CREATE,
           ...sampleFields(SHAPE_CREATE_FIELDS),
         },
       });
       /** @type {{[field: string]: any}} */
       const updateSample = {
         tool: tool.toolId,
-        type: "update",
+        type: MutationType.UPDATE,
         id: "shape-1",
       };
       Object.assign(
@@ -128,7 +129,7 @@ function liveValidationSamples() {
       );
       samples.push({
         tool: tool.toolId,
-        type: "update",
+        type: MutationType.UPDATE,
         sample: updateSample,
       });
     }
@@ -142,7 +143,7 @@ function liveValidationSamples() {
 function storedValidationSamples() {
   const samples = [];
   for (const tool of TOOLS) {
-    if (tool.shapeType) {
+    if (tool.shapeTool === true) {
       samples.push({
         tool: tool.toolId,
         sample: { tool: tool.toolId, ...SHAPE_STORED_SAMPLE },
@@ -179,15 +180,15 @@ test("normalizeIncomingMessage supports every live tool/type pair", () => {
 
 test("metadata shape tools are all supported by incoming and stored validation", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
-  const shapeEntries = Object.entries(MessageToolMetadata.SHAPE_TOOL_TYPES);
-  for (let index = 0; index < shapeEntries.length; index += 1) {
-    const [toolName, typeName] = shapeEntries[index] || [];
-    if (typeof toolName !== "string" || typeof typeName !== "string") continue;
-    const contract = TOOL_BY_ID[toolName];
+  const shapeTools = TOOLS.filter((tool) => tool.shapeTool === true);
+  for (let index = 0; index < shapeTools.length; index += 1) {
+    const contract = shapeTools[index];
+    const toolName = contract?.toolId;
+    if (typeof toolName !== "string") continue;
     const id = `shape-${index}`;
     const normalizedIncoming = messageValidation.normalizeIncomingMessage({
       tool: toolName,
-      type: typeName,
+      type: MutationType.CREATE,
       id,
       ...sampleFields(SHAPE_CREATE_FIELDS),
     });
@@ -195,7 +196,7 @@ test("metadata shape tools are all supported by incoming and stored validation",
 
     const normalizedUpdate = messageValidation.normalizeIncomingMessage({
       tool: toolName,
-      type: "update",
+      type: MutationType.UPDATE,
       id,
       ...Object.fromEntries(
         (contract?.updatableFields || []).map((field) => [field, 12]),
@@ -226,7 +227,7 @@ test("normalizeIncomingMessage defaults shape end coordinates from the starting 
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
     tool: "straight-line",
-    type: "straight",
+    type: MutationType.CREATE,
     id: "line-1",
     color: "#123456",
     size: 4,
@@ -238,7 +239,7 @@ test("normalizeIncomingMessage defaults shape end coordinates from the starting 
     ok: true,
     value: {
       tool: "straight-line",
-      type: "straight",
+      type: MutationType.CREATE,
       id: "line-1",
       color: "#123456",
       size: 10,
@@ -254,7 +255,7 @@ test("normalizeIncomingMessage defaults x2 and y2 from distinct axes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
     tool: "rectangle",
-    type: "rect",
+    type: MutationType.CREATE,
     id: "rect-1",
     color: "#123456",
     size: 4,
@@ -272,12 +273,12 @@ test("normalizeIncomingMessage rejects malformed hand batches atomically", () =>
     tool: "hand",
     _children: [
       {
-        type: "update",
+        type: MutationType.UPDATE,
         id: "r1",
         transform: { a: 1, b: 0, c: 0, d: 1, e: 5, f: 6 },
       },
       {
-        type: "update",
+        type: MutationType.UPDATE,
         id: "r2",
         transform: { a: 1, b: 0, c: 0, d: 1, e: Infinity, f: 6 },
       },
@@ -291,7 +292,7 @@ test("normalizeIncomingMessage rejects malformed hand batches atomically", () =>
 test("normalizeIncomingMessage rejects messages without a tool", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
-    type: "rect",
+    type: MutationType.CREATE,
     id: "rect-1",
     color: "#123456",
     size: 4,
@@ -309,7 +310,7 @@ test("normalizeIncomingMessage rejects oversized live shapes", () => {
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
     tool: "rectangle",
-    type: "rect",
+    type: MutationType.CREATE,
     id: "rect-big",
     color: "#123456",
     size: 4,
@@ -348,7 +349,7 @@ test("normalizeIncomingMessage allows text updates but truncates long text", () 
   const longText = "A".repeat(500);
   const normalized = messageValidation.normalizeIncomingMessage({
     tool: "text",
-    type: "update",
+    type: MutationType.UPDATE,
     id: "text-1",
     txt: longText,
   });
@@ -361,7 +362,7 @@ test("normalizeIncomingMessage preserves clientMutationId for persistent message
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const normalized = messageValidation.normalizeIncomingMessage({
     tool: "rectangle",
-    type: "rect",
+    type: MutationType.CREATE,
     id: "rect-1",
     x: 1,
     y: 2,
@@ -380,7 +381,7 @@ test("normalizeIncomingMessage rejects invalid clientMutationId and strips it fr
   const messageValidation = require(MESSAGE_VALIDATION_PATH);
   const rejected = messageValidation.normalizeIncomingMessage({
     tool: "text",
-    type: "update",
+    type: MutationType.UPDATE,
     id: "text-1",
     txt: "hello",
     clientMutationId: "",
@@ -392,7 +393,7 @@ test("normalizeIncomingMessage rejects invalid clientMutationId and strips it fr
 
   const cursor = messageValidation.normalizeIncomingMessage({
     tool: "cursor",
-    type: "update",
+    type: MutationType.UPDATE,
     x: 10,
     y: 20,
     color: "#123456",
@@ -485,7 +486,7 @@ test("normalizeStoredItem sanitizes stored pencil children before replay", async
       ok: true,
       value: {
         tool: "pencil",
-        type: "line",
+        type: "path",
         id: "line-drop",
         color: "#123456",
         size: 10,
@@ -510,7 +511,7 @@ test("normalizeStoredItem sanitizes stored pencil children before replay", async
       ok: true,
       value: {
         tool: "pencil",
-        type: "line",
+        type: "path",
         id: "line-cap",
         color: "#123456",
         size: 10,

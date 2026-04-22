@@ -100,7 +100,7 @@ function assertMessagesAccepted(board, messages) {
 function rectangleMessage(id, color, size, x, y, x2, y2) {
   return {
     tool: "rectangle",
-    type: "rect",
+    type: MutationType.CREATE,
     id,
     color,
     size,
@@ -117,7 +117,7 @@ function rectangleMessage(id, color, size, x, y, x2, y2) {
  * @returns {any}
  */
 function rectangleUpdate(id, changes) {
-  return { tool: "rectangle", type: "update", id, ...changes };
+  return { tool: "rectangle", type: MutationType.UPDATE, id, ...changes };
 }
 
 /**
@@ -134,7 +134,7 @@ function rectangleUpdate(id, changes) {
 function textCreate(fields) {
   return {
     tool: "text",
-    type: "new",
+    type: MutationType.CREATE,
     ...fields,
   };
 }
@@ -147,7 +147,7 @@ function textCreate(fields) {
 function textUpdate(id, txt) {
   return {
     tool: "text",
-    type: "update",
+    type: MutationType.UPDATE,
     id,
     txt,
   };
@@ -161,7 +161,7 @@ function textUpdate(id, txt) {
 function handUpdate(id, transform) {
   return {
     tool: "hand",
-    type: "update",
+    type: MutationType.UPDATE,
     id,
     transform,
   };
@@ -174,7 +174,7 @@ function handUpdate(id, transform) {
 function handDelete(id) {
   return {
     tool: "hand",
-    type: "delete",
+    type: MutationType.DELETE,
     id,
   };
 }
@@ -187,7 +187,7 @@ function handDelete(id) {
 function handCopy(id, newid) {
   return {
     tool: "hand",
-    type: "copy",
+    type: MutationType.COPY,
     id,
     newid,
   };
@@ -200,14 +200,14 @@ function handCopy(id, newid) {
 function eraserDelete(id) {
   return {
     tool: "eraser",
-    type: "delete",
+    type: MutationType.DELETE,
     id,
   };
 }
 
 /** @returns {any} */
 function clearMessage() {
-  return { tool: "clear", type: "clear" };
+  return { tool: "clear", type: MutationType.CLEAR };
 }
 
 /**
@@ -279,14 +279,14 @@ function buildPencilStrokeMutations(id, color, size, points = []) {
   return [
     {
       tool: "pencil",
-      type: "line",
+      type: MutationType.CREATE,
       id,
       color,
       size,
     },
     ...points.map(({ x, y }) => ({
       tool: "pencil",
-      type: "child",
+      type: MutationType.APPEND,
       parent: id,
       x,
       y,
@@ -317,14 +317,14 @@ test("BoardData processMessageBatch and per-message processing stay in sync", ()
   const messages = [
     {
       tool: "pencil",
-      type: "line",
+      type: MutationType.CREATE,
       id: "p-1",
       color: "#123456",
       size: 4,
     },
     {
       tool: "pencil",
-      type: "child",
+      type: MutationType.APPEND,
       parent: "p-1",
       x: 10,
       y: 20,
@@ -464,7 +464,7 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
   assert.deepEqual(board.get("text-1"), {
     id: "text-1",
     tool: "text",
-    type: "new",
+    type: "text",
     color: "#111111",
     size: 18,
     x: 120,
@@ -747,7 +747,7 @@ test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async () => {
 
     board.set("line-1", {
       tool: "pencil",
-      type: "line",
+      type: "path",
       id: "line-1",
       color: "#123456",
       size: 4,
@@ -766,7 +766,7 @@ test("BoardData rejects the first pencil child that makes a stroke oversized", (
   assert.equal(
     board.set("line-1", {
       tool: "pencil",
-      type: "line",
+      type: "path",
       id: "line-1",
       color: "#123456",
       size: 4,
@@ -1089,7 +1089,7 @@ test("BoardData records contiguous mutation seq values and persists them into sv
     const message = {
       id: "rect-1",
       tool: "rectangle",
-      type: "rect",
+      type: MutationType.CREATE,
       color: "#123456",
       size: 4,
       x: 0,
@@ -1629,7 +1629,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
           textUpdate("item-2", "hello streaming"),
           {
             tool: "pencil",
-            type: "child",
+            type: MutationType.APPEND,
             parent: "item-0",
             x: 4,
             y: 2,

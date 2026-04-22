@@ -5,7 +5,7 @@ import { MutationType } from "../js/mutation_type.js";
 
 /**
  * @typedef {{
- *   contract: import("./shape_contract.js").ToolContract & {liveCreateType?: string, storedTagName: string},
+ *   contract: import("./shape_contract.js").ToolContract & {storedTagName: string},
  *   secondary?: {name: string, icon: string, active: boolean, switch?: (state: any) => void},
  *   uidPrefix: string,
  *   isShapeElement: (element: Element | null) => boolean,
@@ -83,7 +83,7 @@ function createShape(state, data) {
 export function drawShapeTool(state, data) {
   const { Tools, config } = state;
   Tools.drawingEvent = true;
-  if (data.type === config.contract.liveCreateType) {
+  if (data.type === MutationType.CREATE) {
     createShape(state, data);
     return;
   }

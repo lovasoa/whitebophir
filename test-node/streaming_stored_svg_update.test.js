@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 
 const { parseStoredSvgItem } = require("../server/stored_svg_item_codec.mjs");
 const {
@@ -98,7 +99,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     {
       mutation: {
         tool: "rectangle",
-        type: "update",
+        type: MutationType.UPDATE,
         id: "item-3",
         x2: 15,
         y2: 18,
@@ -107,7 +108,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     {
       mutation: {
         tool: "text",
-        type: "update",
+        type: MutationType.UPDATE,
         id: "item-2",
         txt: "hello streaming",
       },
@@ -115,7 +116,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     {
       mutation: {
         tool: "pencil",
-        type: "child",
+        type: MutationType.APPEND,
         parent: "item-0",
         x: 4,
         y: 2,
@@ -124,7 +125,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     {
       mutation: {
         tool: "hand",
-        type: "copy",
+        type: MutationType.COPY,
         id: "item-3",
         newid: "item-3-copy",
       },
@@ -132,7 +133,7 @@ test("streaming stored svg update rewrites touched items and appends creates wit
     {
       mutation: {
         tool: "rectangle",
-        type: "rect",
+        type: MutationType.CREATE,
         id: "item-new",
         color: "#abcdef",
         size: 3,
@@ -187,7 +188,7 @@ test("streaming stored svg update matches clear and same-batch followup semantic
     {
       mutation: {
         tool: "hand",
-        type: "copy",
+        type: MutationType.COPY,
         id: "line-1",
         newid: "line-2",
       },
@@ -195,7 +196,7 @@ test("streaming stored svg update matches clear and same-batch followup semantic
     {
       mutation: {
         tool: "pencil",
-        type: "child",
+        type: MutationType.APPEND,
         parent: "line-2",
         x: 9,
         y: 10,
@@ -204,13 +205,13 @@ test("streaming stored svg update matches clear and same-batch followup semantic
     {
       mutation: {
         tool: "clear",
-        type: "clear",
+        type: MutationType.CLEAR,
       },
     },
     {
       mutation: {
         tool: "rectangle",
-        type: "rect",
+        type: MutationType.CREATE,
         id: "rect-new",
         color: "#abcdef",
         size: 3,
@@ -223,7 +224,7 @@ test("streaming stored svg update matches clear and same-batch followup semantic
     {
       mutation: {
         tool: "rectangle",
-        type: "update",
+        type: MutationType.UPDATE,
         id: "rect-new",
         x2: 28,
         y2: 29,
@@ -268,7 +269,7 @@ test("streaming stored svg update preserves shell and paint order across create 
       {
         mutation: {
           tool: "ellipse",
-          type: "ellipse",
+          type: MutationType.CREATE,
           id: "ellipse-1",
           x: 7,
           y: 8,
@@ -281,7 +282,7 @@ test("streaming stored svg update preserves shell and paint order across create 
       {
         mutation: {
           tool: "rectangle",
-          type: "update",
+          type: MutationType.UPDATE,
           id: "rect-1",
           x2: 30,
           y2: 40,
@@ -290,7 +291,7 @@ test("streaming stored svg update preserves shell and paint order across create 
       {
         mutation: {
           tool: "hand",
-          type: "copy",
+          type: MutationType.COPY,
           id: "rect-1",
           newid: "rect-2",
         },
@@ -298,7 +299,7 @@ test("streaming stored svg update preserves shell and paint order across create 
       {
         mutation: {
           tool: "eraser",
-          type: "delete",
+          type: MutationType.DELETE,
           id: "text-1",
         },
       },
@@ -347,7 +348,7 @@ test("streaming stored svg update preserves untouched bytes and the opaque prefi
       {
         mutation: {
           tool: "rectangle",
-          type: "update",
+          type: MutationType.UPDATE,
           id: "rect-1",
           x2: 30,
           y2: 40,
@@ -356,7 +357,7 @@ test("streaming stored svg update preserves untouched bytes and the opaque prefi
       {
         mutation: {
           tool: "pencil",
-          type: "child",
+          type: MutationType.APPEND,
           parent: "line-1",
           x: 9,
           y: 10,

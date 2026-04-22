@@ -1,6 +1,7 @@
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test } from "@playwright/test";
+import { MutationType } from "../../client-data/js/mutation_type.js";
 import { startTestServer, stopTestServer } from "../helpers/testServer";
 import { BoardPage } from "../pages/BoardPage";
 
@@ -85,7 +86,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
 
     await peerBoard.emitBroadcast({
       tool: "cursor",
-      type: "update",
+      type: MutationType.UPDATE,
       x: 210,
       y: 220,
       color: "#00aa11",
@@ -95,7 +96,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
 
     await boardPage.emitBroadcast({
       tool: "cursor",
-      type: "update",
+      type: MutationType.UPDATE,
       x: 260,
       y: 280,
       color: "#123abc",

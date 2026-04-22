@@ -1,4 +1,5 @@
 import jsonwebtoken from "jsonwebtoken";
+import { MutationType } from "../../client-data/js/mutation_type.js";
 import { expect, test } from "../fixtures/test";
 import { AUTH_SECRET, TOKENS } from "../helpers/tokens";
 
@@ -38,7 +39,7 @@ test.describe("JWT auth and readonly flows", () => {
     await expect(boardPage.tool("pencil")).toHaveCount(0);
     await expect(boardPage.settings).toBeHidden();
     await boardPage.emitBroadcast({
-      type: "rect",
+      type: MutationType.CREATE,
       id: "readonly-viewer-rect",
       tool: "rectangle",
       x: 10,
@@ -58,7 +59,7 @@ test.describe("JWT auth and readonly flows", () => {
     await expect(boardPage.tool("pencil")).toBeVisible();
     await expect(boardPage.settings).toBeVisible();
     await boardPage.emitBroadcast({
-      type: "rect",
+      type: MutationType.CREATE,
       id: "readonly-editor-rect",
       tool: "rectangle",
       x: 10,
@@ -163,7 +164,7 @@ test.describe("public authless flows", () => {
     await expect(boardPage.tool("straight-line")).toHaveCount(0);
     await expect(boardPage.settings).toBeHidden();
     await boardPage.emitBroadcast({
-      type: "rect",
+      type: MutationType.CREATE,
       id: "readonly-public-rect",
       tool: "rectangle",
       x: 10,
@@ -191,12 +192,12 @@ test.describe("public authless flows", () => {
     await boardPage.waitForSocketConnected();
     await boardPage.waitForAuthoritativeResync();
 
-    const hadOptimisticRect = await page.evaluate(() => {
+    const hadOptimisticRect = await page.evaluate((createType) => {
       const rectangle = window.Tools.list.rectangle;
       if (!rectangle) throw new Error("rectangle tool is unavailable");
       window.Tools.drawAndSend(
         {
-          type: "rect",
+          type: createType,
           id: "readonly-public-optimistic-rect",
           x: 10,
           y: 10,
@@ -209,7 +210,7 @@ test.describe("public authless flows", () => {
         rectangle,
       );
       return !!document.getElementById("readonly-public-optimistic-rect");
-    });
+    }, MutationType.CREATE);
 
     expect(hadOptimisticRect).toBe(true);
     await expect(

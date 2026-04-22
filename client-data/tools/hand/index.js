@@ -25,7 +25,10 @@
  */
 
 import { messages as BoardMessages } from "../../js/board_transport.js";
-import { MutationType, getMutationTypeCode } from "../../js/mutation_type.js";
+import {
+  getMutationType,
+  MutationType,
+} from "../../js/message_tool_metadata.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {{a:number, b:number, c:number, d:number, e:number, f:number}} TransformState */
 /** @typedef {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
@@ -37,16 +40,6 @@ let pointInTransformedBBox = () => false;
 /** @type {(bboxA: TransformedBBox, bboxB: TransformedBBox) => boolean} */
 let transformedBBoxIntersects = () => false;
 
-/**
- * @param {{type?: string | number, _children?: unknown} | null | undefined} message
- * @returns {number | undefined}
- */
-function getMessageMutationType(message) {
-  if (!message || typeof message !== "object") return undefined;
-  if (Array.isArray(message._children)) return MutationType.BATCH;
-  return getMutationTypeCode(message.type);
-}
-
 export const toolId = "hand";
 export const shortcut = "h";
 export const mouseCursor = "move";
@@ -54,9 +47,9 @@ export const showMarker = true;
 export const visibleWhenReadOnly = true;
 export const updatableFields = ["transform"];
 export const batchMessageFields = {
-  update: { id: "id", transform: "transform" },
-  delete: { id: "id" },
-  copy: { id: "id", newid: "id" },
+  [MutationType.UPDATE]: { id: "id", transform: "transform" },
+  [MutationType.DELETE]: { id: "id" },
+  [MutationType.COPY]: { id: "id", newid: "id" },
 };
 
 /**
@@ -625,7 +618,7 @@ export function draw(state, data) {
     return;
   }
 
-  switch (getMessageMutationType(data)) {
+  switch (getMutationType(data)) {
     case MutationType.UPDATE: {
       const elem = state.Tools.svg.getElementById(data.id);
       if (!elem) {

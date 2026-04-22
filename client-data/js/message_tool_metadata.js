@@ -1,18 +1,8 @@
 import { getMutationTypeCode, MutationType } from "./mutation_type.js";
-import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
+import { TOOL_BY_ID } from "../tools/index.js";
 import { TOOL_IDS } from "../tools/tool-order.js";
 
 export { getMutationTypeCode, MutationType };
-
-/** @type {{[toolId: string]: string}} */
-export const SHAPE_TOOL_TYPES = /** @type {{[toolId: string]: string}} */ (
-  Object.fromEntries(
-    TOOLS.filter((tool) => typeof tool.shapeType === "string").map((tool) => [
-      tool.toolId,
-      tool.shapeType,
-    ]),
-  )
-);
 
 /** @param {string | undefined} toolId */
 export function getToolCode(toolId) {
@@ -23,7 +13,7 @@ export function getToolCode(toolId) {
 
 /** @param {string | undefined} toolId */
 export function isShapeTool(toolId) {
-  return typeof toolId === "string" && !!TOOL_BY_ID[toolId]?.shapeType;
+  return typeof toolId === "string" && TOOL_BY_ID[toolId]?.shapeTool === true;
 }
 
 /**
@@ -46,12 +36,7 @@ export function getUpdatableFields(toolId, data) {
 export function getMutationType(message) {
   if (!message || typeof message !== "object") return undefined;
   if (Array.isArray(message._children)) return MutationType.BATCH;
-  const mutationType = getMutationTypeCode(message.type);
-  if (mutationType !== undefined) return mutationType;
-  const toolId = /** @type {{tool?: string | undefined}} */ (message).tool;
-  return getToolCode(toolId) !== undefined && typeof message.id === "string"
-    ? MutationType.CREATE
-    : undefined;
+  return getMutationTypeCode(message.type);
 }
 
 /** @param {string | undefined} toolId */

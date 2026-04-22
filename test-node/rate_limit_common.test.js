@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const RateLimitCommon = require("../client-data/js/rate_limit_common.js");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 
 test("fixed-window helpers are stateless and reset after the period", () => {
   const initial = RateLimitCommon.createRateLimitState(1_000);
@@ -138,10 +139,10 @@ test("anonymous fixed-window limits reopen exactly after the remaining wait", ()
 test("action counters classify constructive and destructive batch costs", () => {
   const batch = {
     _children: [
-      { type: "delete", id: "shape-1" },
-      { type: "copy", id: "shape-2", newid: "shape-3" },
-      { type: "child", parent: "line-1", x: 10, y: 20 },
-      { type: "clear", id: "" },
+      { type: MutationType.DELETE, id: "shape-1" },
+      { type: MutationType.COPY, id: "shape-2", newid: "shape-3" },
+      { type: MutationType.APPEND, parent: "line-1", x: 10, y: 20 },
+      { type: MutationType.CLEAR, id: "" },
     ],
   };
 
@@ -149,14 +150,14 @@ test("action counters classify constructive and destructive batch costs", () => 
   assert.equal(RateLimitCommon.countConstructiveActions(batch), 1);
   assert.equal(
     RateLimitCommon.isConstructiveAction({
-      type: "rect",
+      type: MutationType.CREATE,
       id: "rect-1",
     }),
     true,
   );
   assert.equal(
     RateLimitCommon.isConstructiveAction({
-      type: "update",
+      type: MutationType.UPDATE,
       id: "rect-1",
     }),
     false,
@@ -166,21 +167,21 @@ test("action counters classify constructive and destructive batch costs", () => 
 test("text creation counters charge creates and url-like text updates", () => {
   const batch = {
     _children: [
-      { tool: "text", type: "new", id: "text-1" },
-      { tool: "text", type: "update", id: "text-1", txt: "hello" },
+      { tool: "text", type: MutationType.CREATE, id: "text-1" },
+      { tool: "text", type: MutationType.UPDATE, id: "text-1", txt: "hello" },
       {
         tool: "text",
-        type: "update",
+        type: MutationType.UPDATE,
         id: "text-1",
         txt: "https://example.com/demo",
       },
       {
         tool: "text",
-        type: "update",
+        type: MutationType.UPDATE,
         id: "text-2",
         txt: "www.example.com/demo",
       },
-      { tool: "pencil", type: "line", id: "line-1" },
+      { tool: "pencil", type: MutationType.CREATE, id: "line-1" },
     ],
   };
 
@@ -188,7 +189,7 @@ test("text creation counters charge creates and url-like text updates", () => {
   assert.equal(
     RateLimitCommon.countTextCreationActions({
       tool: "text",
-      type: "new",
+      type: MutationType.CREATE,
       id: "text-3",
     }),
     1,
@@ -196,7 +197,7 @@ test("text creation counters charge creates and url-like text updates", () => {
   assert.equal(
     RateLimitCommon.countTextCreationActions({
       tool: "text",
-      type: "update",
+      type: MutationType.UPDATE,
       id: "text-3",
       txt: "plain text",
     }),
@@ -205,7 +206,7 @@ test("text creation counters charge creates and url-like text updates", () => {
   assert.equal(
     RateLimitCommon.countTextCreationActions({
       tool: "text",
-      type: "update",
+      type: MutationType.UPDATE,
       id: "text-3",
       txt: "http://example.com",
     }),

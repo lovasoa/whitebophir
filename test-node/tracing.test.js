@@ -8,6 +8,7 @@ const { pathToFileURL } = require("node:url");
 const { context, metrics, propagation, trace } = require("@opentelemetry/api");
 const { logs } = require("@opentelemetry/api-logs");
 const { InMemorySpanExporter } = require("@opentelemetry/sdk-trace-base");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 
 const {
   CONFIG_PATH,
@@ -633,7 +634,7 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
         "broadcast",
       )({
         tool: "cursor",
-        type: "update",
+        type: MutationType.UPDATE,
         x: 10,
         y: 20,
         color: "#123456",
@@ -652,7 +653,7 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
         "broadcast",
       )({
         tool: "cursor",
-        type: "update",
+        type: MutationType.UPDATE,
         x: 10,
         y: 20,
       });

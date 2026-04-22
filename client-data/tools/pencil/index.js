@@ -231,16 +231,15 @@ export const drawsOnBoard = true;
 const contract = {
   toolId,
   payloadKind: "children",
-  liveCreateType: "line",
   storedTagName: "path",
   liveMessageFields: {
-    line: {
+    [MutationType.CREATE]: {
       id: "id",
       color: "color",
       size: "size",
       opacity: "opacity?",
     },
-    child: {
+    [MutationType.APPEND]: {
       parent: "id",
       x: "coord",
       y: "coord",
@@ -347,10 +346,10 @@ function computeMinPencilIntervalMs(Tools) {
  * @param {PencilState} state
  * @param {number} x
  * @param {number} y
- * @returns {{type: "child", parent: string, x: number, y: number}}
+ * @returns {{type: number, parent: string, x: number, y: number}}
  */
 function createPointMessage(state, x, y) {
-  return { type: "child", parent: state.curLineId, x, y };
+  return { type: MutationType.APPEND, parent: state.curLineId, x, y };
 }
 
 /**
@@ -468,7 +467,7 @@ function normalizeServerRenderedPathData(state, pathData) {
 
 /**
  * @param {PencilState} state
- * @param {{type: "line", id: string, color?: string, size?: number, opacity?: number}} lineData
+ * @param {{type: number, id: string, color?: string, size?: number, opacity?: number}} lineData
  * @returns {SVGPathElement & {id: string}}
  */
 function createLine(state, lineData) {
@@ -585,17 +584,17 @@ export function boot(ctx) {
 export function draw(state, data) {
   state.Tools.drawingEvent = true;
   switch (data.type) {
-    case "line":
+    case MutationType.CREATE:
       state.renderingLine = createLine(
         state,
-        /** @type {{type: "line", id: string, color?: string, size?: number, opacity?: number}} */ (
+        /** @type {{type: number, id: string, color?: string, size?: number, opacity?: number}} */ (
           data
         ),
       );
       return;
-    case "child": {
+    case MutationType.APPEND: {
       const childData =
-        /** @type {{type: "child", parent: string, x: number, y: number}} */ (
+        /** @type {{type: number, parent: string, x: number, y: number}} */ (
           data
         );
       let line =
@@ -608,7 +607,7 @@ export function draw(state, data) {
           childData.parent,
         );
         line = state.renderingLine = createLine(state, {
-          type: "line",
+          type: MutationType.CREATE,
           id: childData.parent,
         });
       }
@@ -617,8 +616,6 @@ export function draw(state, data) {
       );
       return;
     }
-    case "endline":
-      return;
     default:
       console.error("Pencil: Draw instruction with unknown type. ", data);
   }
@@ -644,7 +641,7 @@ export function press(state, x, y, evt) {
   state.currentLineChildCount = 0;
   state.Tools.drawAndSend(
     {
-      type: contract.liveCreateType,
+      type: MutationType.CREATE,
       id: state.curLineId,
       color: state.secondary.active ? "#ffffff" : state.Tools.getColor(),
       size: state.Tools.getSize(),

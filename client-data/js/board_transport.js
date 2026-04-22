@@ -1,3 +1,5 @@
+import { MutationType } from "./mutation_type.js";
+
 /** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
 /** @typedef {import("../../types/app-runtime").PendingMessages} PendingMessages */
 /** @typedef {{[name: string]: string}} SocketQueryParams */
@@ -130,7 +132,7 @@ function hasChildMessages(message) {
 function normalizeChildMessage(parent, child) {
   child.parent = parent.id;
   child.tool = parent.tool;
-  child.type = "child";
+  child.type = MutationType.APPEND;
   return child;
 }
 

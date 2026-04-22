@@ -8,6 +8,7 @@ const {
   createSocket,
   withEnv,
 } = require("./test_helpers.js");
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 
 test("getClientIp resolves the first proxy hop from forwarding headers", () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
@@ -125,36 +126,52 @@ test("socket policy counts only mutations that should consume rate-limit budget"
 
   assert.equal(
     socketPolicy.countDestructiveActions({
-      _children: [{ type: "delete" }, { type: "update" }, { type: "delete" }],
-    }),
-    2,
-  );
-  assert.equal(socketPolicy.countDestructiveActions({ type: "clear" }), 1);
-  assert.equal(socketPolicy.countDestructiveActions({ type: "update" }), 0);
-
-  assert.equal(
-    socketPolicy.countConstructiveActions({
       _children: [
-        { type: "line", id: "l1" },
-        { type: "update", id: "l1" },
-        { type: "rect", id: "r1" },
+        { type: MutationType.DELETE },
+        { type: MutationType.UPDATE },
+        { type: MutationType.DELETE },
       ],
     }),
     2,
   );
   assert.equal(
-    socketPolicy.countConstructiveActions({ type: "copy", id: "l2" }),
+    socketPolicy.countDestructiveActions({ type: MutationType.CLEAR }),
     1,
   );
   assert.equal(
-    socketPolicy.countConstructiveActions({ type: "child", id: "c1" }),
+    socketPolicy.countDestructiveActions({ type: MutationType.UPDATE }),
+    0,
+  );
+
+  assert.equal(
+    socketPolicy.countConstructiveActions({
+      _children: [
+        { type: MutationType.CREATE, id: "l1" },
+        { type: MutationType.UPDATE, id: "l1" },
+        { type: MutationType.CREATE, id: "r1" },
+      ],
+    }),
+    2,
+  );
+  assert.equal(
+    socketPolicy.countConstructiveActions({
+      type: MutationType.COPY,
+      id: "l2",
+    }),
+    1,
+  );
+  assert.equal(
+    socketPolicy.countConstructiveActions({
+      type: MutationType.APPEND,
+      id: "c1",
+    }),
     0,
   );
 
   assert.equal(
     socketPolicy.countTextCreationActions({
       tool: "text",
-      type: "new",
+      type: MutationType.CREATE,
       id: "text-1",
     }),
     1,
@@ -162,7 +179,7 @@ test("socket policy counts only mutations that should consume rate-limit budget"
   assert.equal(
     socketPolicy.countTextCreationActions({
       tool: "text",
-      type: "update",
+      type: MutationType.UPDATE,
       id: "text-1",
       txt: "plain text",
     }),
@@ -171,10 +188,10 @@ test("socket policy counts only mutations that should consume rate-limit budget"
   assert.equal(
     socketPolicy.countTextCreationActions({
       _children: [
-        { tool: "text", type: "new", id: "text-2" },
+        { tool: "text", type: MutationType.CREATE, id: "text-2" },
         {
           tool: "text",
-          type: "update",
+          type: MutationType.UPDATE,
           id: "text-2",
           txt: "https://example.com",
         },
@@ -191,7 +208,7 @@ test("normalizeBroadcastData rejects blocked tools before persistence", () => {
     "anonymous",
     {
       tool: "text",
-      type: "update",
+      type: MutationType.UPDATE,
       id: "text-1",
       txt: "blocked",
     },
@@ -216,7 +233,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
         readonlyBoard,
         {
           tool: "cursor",
-          type: "update",
+          type: MutationType.UPDATE,
           color: "#123456",
           size: 4,
           x: 1,
@@ -243,7 +260,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
       socketPolicy.canApplyBoardMessage(
         configFromEnv({ AUTH_SECRET_KEY: "test-secret" }),
         readonlyBoard,
-        { tool: "clear", type: "clear" },
+        { tool: "clear", type: MutationType.CLEAR },
         createSocket({ token: editorToken }).socket,
       ),
       false,
@@ -252,7 +269,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
       socketPolicy.canApplyBoardMessage(
         configFromEnv({ AUTH_SECRET_KEY: "test-secret" }),
         readonlyBoard,
-        { tool: "clear", type: "clear" },
+        { tool: "clear", type: MutationType.CLEAR },
         createSocket({ token: moderatorToken }).socket,
       ),
       true,

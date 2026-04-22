@@ -1,6 +1,7 @@
 import process from "node:process";
 
 import { chromium } from "playwright";
+import { MutationType } from "../client-data/js/mutation_type.js";
 
 const DEFAULT_URL = "http://127.0.0.1:8080/boards/anonymous";
 const DEFAULT_USERS = 1;
@@ -82,9 +83,15 @@ async function waitForBoardReady(page) {
 async function startDrawer(page, userIndex) {
   await page.evaluate(
     /**
-     * @param {{colorSeed: number, pointsPerLine: number, childIntervalMs: number}} options
+     * @param {{colorSeed: number, pointsPerLine: number, childIntervalMs: number, createType: number, appendType: number}} options
      */
-    async ({ colorSeed, pointsPerLine, childIntervalMs }) => {
+    async ({
+      colorSeed,
+      pointsPerLine,
+      childIntervalMs,
+      createType,
+      appendType,
+    }) => {
       /** @type {any} */
       const tools = window.Tools;
       await tools.bootTool?.("pencil");
@@ -137,7 +144,7 @@ async function startDrawer(page, userIndex) {
           tools.drawAndSend(
             {
               tool: "pencil",
-              type: "line",
+              type: createType,
               id,
               color,
               size: 4,
@@ -151,7 +158,7 @@ async function startDrawer(page, userIndex) {
             tools.drawAndSend(
               {
                 tool: "pencil",
-                type: "child",
+                type: appendType,
                 parent: id,
                 x: point.x,
                 y: point.y,
@@ -167,6 +174,8 @@ async function startDrawer(page, userIndex) {
       colorSeed: userIndex + 1,
       pointsPerLine: POINTS_PER_LINE,
       childIntervalMs: CHILD_INTERVAL_MS,
+      createType: MutationType.CREATE,
+      appendType: MutationType.APPEND,
     },
   );
 }

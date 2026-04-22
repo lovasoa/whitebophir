@@ -19,9 +19,6 @@ export const mouseCursor = "crosshair";
 
 const contract = defineShapeContract({
   toolId,
-  payloadKind: "inline",
-  shapeType: "rect",
-  liveCreateType: "rect",
   storedTagName: "rect",
   updatableFields: ["x", "y", "x2", "y2"],
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
@@ -112,7 +109,7 @@ const config = {
   isShapeElement: (element) =>
     String(element?.tagName).toLowerCase() === contract.storedTagName,
   makeCreateMessage: (state, id, x, y) => ({
-    type: contract.liveCreateType,
+    type: MutationType.CREATE,
     id,
     color: state.Tools.getColor(),
     size: state.Tools.getSize(),

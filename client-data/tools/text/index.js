@@ -30,8 +30,8 @@ import { MutationType } from "../../js/mutation_type.js";
 /** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
 /** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: ReturnType<typeof setTimeout> | null}} CurrentTextState */
-/** @typedef {{type: "new", id: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} NewTextMessage */
-/** @typedef {{type: number | "update", id: string, txt?: string}} TextUpdateMessage */
+/** @typedef {{type: number, id: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} NewTextMessage */
+/** @typedef {{type: number, id: string, txt?: string}} TextUpdateMessage */
 /** @typedef {NewTextMessage | TextUpdateMessage} TextMessage */
 /** @typedef {{Tools: MountedAppToolsState, board: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
 
@@ -59,11 +59,10 @@ export const mouseCursor = "text";
 const contract = {
   toolId,
   payloadKind: "text",
-  liveCreateType: "new",
   storedTagName: "text",
   updatableFields: ["txt"],
   liveMessageFields: {
-    new: {
+    [MutationType.CREATE]: {
       id: "id",
       color: "color",
       size: "size",
@@ -71,7 +70,7 @@ const contract = {
       x: "coord",
       y: "coord",
     },
-    update: {
+    [MutationType.UPDATE]: {
       id: "id",
       txt: "text",
     },
@@ -266,7 +265,7 @@ function textChangeHandler(state, evt) {
   if (state.curText.id === "") {
     state.curText.id = state.Tools.generateUID("t");
     state.Tools.drawAndSend({
-      type: contract.liveCreateType,
+      type: MutationType.CREATE,
       id: state.curText.id,
       color: state.curText.color,
       size: state.curText.size,
@@ -357,7 +356,7 @@ export function draw(state, data, isLocal) {
   void isLocal;
   const textMessage = /** @type {TextMessage} */ (data);
   state.Tools.drawingEvent = true;
-  if (textMessage.type === contract.liveCreateType) {
+  if (textMessage.type === MutationType.CREATE) {
     createTextField(state, /** @type {NewTextMessage} */ (textMessage));
     return;
   }

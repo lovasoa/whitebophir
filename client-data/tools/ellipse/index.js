@@ -18,9 +18,6 @@ export const mouseCursor = "crosshair";
 
 const contract = defineShapeContract({
   toolId,
-  payloadKind: "inline",
-  shapeType: "ellipse",
-  liveCreateType: "ellipse",
   storedTagName: "ellipse",
   updatableFields: ["x", "y", "x2", "y2"],
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
@@ -109,7 +106,7 @@ const config = {
   makeCreateMessage: (state, id, x, y) => {
     state.lastPos = { x, y };
     return {
-      type: contract.liveCreateType,
+      type: MutationType.CREATE,
       id,
       color: state.Tools.getColor(),
       size: state.Tools.getSize(),

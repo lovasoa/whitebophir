@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
+const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const {
   createOptimisticJournal,
 } = require("../client-data/js/optimistic_journal.js");
@@ -12,14 +13,14 @@ test("optimistic journal appends and promotes entries in order", () => {
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "rectangle", id: "shape-1" },
+    message: { tool: "rectangle", id: "shape-1", type: MutationType.CREATE },
   });
   journal.append({
     clientMutationId: "c2",
     affectedIds: ["shape-2"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "rectangle", id: "shape-2" },
+    message: { tool: "rectangle", id: "shape-2", type: MutationType.CREATE },
   });
 
   assert.deepEqual(
@@ -44,14 +45,14 @@ test("optimistic journal tracks the latest pending mutation per affected item", 
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "rectangle", id: "shape-1" },
+    message: { tool: "rectangle", id: "shape-1", type: MutationType.CREATE },
   });
   journal.append({
     clientMutationId: "c2",
     affectedIds: ["shape-1", "shape-2"],
     dependsOn: ["c1"],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "rectangle", id: "shape-1", type: "update" },
+    message: { tool: "rectangle", id: "shape-1", type: MutationType.UPDATE },
   });
 
   assert.deepEqual(
@@ -74,21 +75,21 @@ test("optimistic journal rejects dependent descendants together", () => {
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "rectangle", id: "shape-1" },
+    message: { tool: "rectangle", id: "shape-1", type: MutationType.CREATE },
   });
   journal.append({
     clientMutationId: "c2",
     affectedIds: ["shape-1"],
     dependsOn: ["c1"],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "rectangle", id: "shape-1", type: "update" },
+    message: { tool: "rectangle", id: "shape-1", type: MutationType.UPDATE },
   });
   journal.append({
     clientMutationId: "c3",
     affectedIds: ["shape-2"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "rectangle", id: "shape-2" },
+    message: { tool: "rectangle", id: "shape-2", type: MutationType.CREATE },
   });
 
   assert.deepEqual(
@@ -108,7 +109,7 @@ test("optimistic journal reset clears all pending entries", () => {
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "rectangle", id: "shape-1" },
+    message: { tool: "rectangle", id: "shape-1", type: MutationType.CREATE },
   });
 
   assert.equal(journal.size(), 1);
@@ -127,7 +128,12 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
     dependsOn: [],
     dependencyItemIds: ["seed-1"],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "hand", type: "copy", id: "seed-1", newid: "copy-1" },
+    message: {
+      tool: "hand",
+      type: MutationType.COPY,
+      id: "seed-1",
+      newid: "copy-1",
+    },
   });
   journal.append({
     clientMutationId: "copy-1-transform",
@@ -135,7 +141,7 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
     dependsOn: ["copy-1"],
     dependencyItemIds: ["copy-1"],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "hand", type: "update", id: "copy-1" },
+    message: { tool: "hand", type: MutationType.UPDATE, id: "copy-1" },
   });
   journal.append({
     clientMutationId: "shape-2-update",
@@ -143,7 +149,7 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
     dependsOn: [],
     dependencyItemIds: ["shape-2"],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: "rectangle", type: "update", id: "shape-2" },
+    message: { tool: "rectangle", type: MutationType.UPDATE, id: "shape-2" },
   });
 
   assert.deepEqual(

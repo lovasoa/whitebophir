@@ -33,6 +33,7 @@ import {
   isShapeTool,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
+import { TOOL_BY_ID } from "../client-data/tools/index.js";
 import {
   canonicalItemFromItem,
   cloneCanonicalItem,
@@ -457,7 +458,10 @@ class BoardData {
    * @returns {ValidatedStoredCandidate | ValidationFailure}
    */
   validateStoredCandidate(id, data) {
-    const normalized = normalizeStoredItemWithBounds(data, id);
+    const normalized = normalizeStoredItemWithBounds(
+      this.asStoredCandidateInput(data),
+      id,
+    );
     if (normalized.ok === false) {
       return { ok: false, reason: normalized.reason };
     }
@@ -466,6 +470,24 @@ class BoardData {
       ok: true,
       value: normalized.value.value,
       localBounds: normalized.value.localBounds,
+    };
+  }
+
+  /**
+   * Live create messages use numeric mutation codes, but canonical board items
+   * still store SVG tag names because persistence stays SVG-native.
+   *
+   * @param {BoardElem} data
+   * @returns {BoardElem}
+   */
+  asStoredCandidateInput(data) {
+    if (getMutationType(data) !== MutationType.CREATE) return data;
+    const contract =
+      typeof data?.tool === "string" ? TOOL_BY_ID[data.tool] : undefined;
+    if (!contract?.storedTagName) return data;
+    return {
+      ...data,
+      type: contract.storedTagName,
     };
   }
 

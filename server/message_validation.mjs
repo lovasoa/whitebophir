@@ -2,7 +2,6 @@ import MessageCommon from "../client-data/js/message_common.js";
 import { hasMessageTool } from "../client-data/js/message_shape.js";
 import {
   getMutationType,
-  getMutationTypeCode,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
 import { TOOL_BY_ID, TOOLS } from "../client-data/tools/index.js";
@@ -44,14 +43,14 @@ const { MAX_BOARD_SIZE, MAX_CHILDREN } = readConfiguration();
  * }} FieldSpec
  */
 /** @typedef {{[key: string]: FieldSpec}} FieldSchema */
-/** @typedef {{[tool: string]: {[type: string]: FieldSchema}}} LiveToolSchemas */
+/** @typedef {{[tool: string]: {[type: number]: FieldSchema}}} LiveToolSchemas */
 /** @typedef {{[tool: string]: FieldSchema}} StoredToolSchemas */
 /** @typedef {import("../client-data/tools/shape_contract.js").ToolContract} ToolContract */
 /** @typedef {"id" | "coord" | "color" | "size" | "opacity" | "text" | "transform" | "time"} SchemaFieldType */
 
 /** @type {string[]} */
 const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
-const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeType !== undefined);
+const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeTool === true);
 const SHAPE_CREATE_FIELDS = {
   id: "id",
   color: "color",
@@ -116,36 +115,15 @@ function optional(normalize, options) {
 }
 
 /**
- * @template {string} T
+ * @template {string | number} T
  * @param {T} expected
- * @returns {(value: unknown) => ValidationResult<T | number>}
+ * @returns {(value: unknown) => ValidationResult<T>}
  */
 function literal(expected) {
-  const expectedCode = getMutationTypeCode(expected);
   return function normalizeLiteral(value) {
-    return value === expected || value === expectedCode
-      ? accepted(
-          /** @type {T | number} */ (
-            expectedCode !== undefined ? expectedCode : value
-          ),
-        )
+    return value === expected
+      ? accepted(/** @type {T} */ (value))
       : rejected(`expected ${JSON.stringify(expected)}`);
-  };
-}
-
-/**
- * @param {string} primary
- * @param {string | undefined} secondary
- * @returns {(value: unknown) => ValidationResult<string | number>}
- */
-function literalAlias(primary, secondary) {
-  const normalizePrimary = literal(primary);
-  const normalizeSecondary =
-    secondary && secondary !== primary ? literal(secondary) : null;
-  return function normalizeLiteralAlias(value) {
-    const primaryResult = normalizePrimary(value);
-    if (primaryResult.ok || !normalizeSecondary) return primaryResult;
-    return normalizeSecondary(value);
   };
 }
 
@@ -354,7 +332,7 @@ function buildSchemaFields(fields) {
 
 /**
  * @param {string} toolId
- * @param {string} type
+ * @param {number} type
  * @param {{[field: string]: string}} fields
  * @returns {FieldSchema}
  */
@@ -381,41 +359,30 @@ function buildStoredSchema(toolId, type, fields) {
 }
 
 /**
- * @param {{[type: string]: FieldSchema}} schemas
- * @returns {{[type: string]: FieldSchema}}
- */
-function withMutationTypeAliases(schemas) {
-  /** @type {{[type: string]: FieldSchema}} */
-  const aliased = { ...schemas };
-  for (const [type, schema] of Object.entries(schemas)) {
-    const code = getMutationTypeCode(type);
-    if (code !== undefined) aliased[String(code)] = schema;
-  }
-  return aliased;
-}
-
-/**
- * @param {{[type: string]: {[field: string]: string}} | undefined} fieldsByType
- * @param {(type: string, fields: {[field: string]: string}) => FieldSchema} build
- * @returns {{[type: string]: FieldSchema}}
+ * @param {{[type: number]: {[field: string]: string}} | undefined} fieldsByType
+ * @param {(type: number, fields: {[field: string]: string}) => FieldSchema} build
+ * @returns {{[type: number]: FieldSchema}}
  */
 function buildPerTypeSchemas(fieldsByType, build) {
   return Object.fromEntries(
     Object.entries(fieldsByType || {}).map(([type, fields]) => [
-      type,
-      build(type, fields),
+      Number(type),
+      build(Number(type), fields),
     ]),
   );
 }
 
 const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
   SHAPE_CONTRACTS.map((contract) => {
-    const createType = contract.shapeType || contract.liveCreateType || "";
     return [
       contract.toolId,
       {
-        [createType]: {
-          ...buildLiveSchema(contract.toolId, createType, SHAPE_CREATE_FIELDS),
+        [MutationType.CREATE]: {
+          ...buildLiveSchema(
+            contract.toolId,
+            MutationType.CREATE,
+            SHAPE_CREATE_FIELDS,
+          ),
           x2: optional(normalizeCoord, {
             defaultValue: defaultCoordinateFromX,
           }),
@@ -423,12 +390,16 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
             defaultValue: defaultCoordinateFromY,
           }),
         },
-        update: buildLiveSchema(contract.toolId, "update", {
-          id: "id",
-          ...Object.fromEntries(
-            (contract.updatableFields || []).map((field) => [field, "coord"]),
-          ),
-        }),
+        [MutationType.UPDATE]: buildLiveSchema(
+          contract.toolId,
+          MutationType.UPDATE,
+          {
+            id: "id",
+            ...Object.fromEntries(
+              (contract.updatableFields || []).map((field) => [field, "coord"]),
+            ),
+          },
+        ),
       },
     ];
   }),
@@ -437,13 +408,10 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
 /** @type {StoredToolSchemas} */
 const STORED_SHAPE_SCHEMAS = Object.fromEntries(
   SHAPE_CONTRACTS.map((contract) => {
-    const schema = buildStoredSchema(contract.toolId, "", SHAPE_STORED_FIELDS);
-    schema.type = optional(
-      literalAlias(
-        contract.storedTagName || "",
-        contract.shapeType || contract.liveCreateType,
-      ),
-      { defaultValue: contract.storedTagName || "" },
+    const schema = buildStoredSchema(
+      contract.toolId,
+      contract.storedTagName || "",
+      SHAPE_STORED_FIELDS,
     );
     schema.x2 = optional(normalizeCoord, {
       defaultValue: defaultCoordinateFromX,
@@ -469,11 +437,7 @@ const CONTRACT_LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
 const CONTRACT_STORED_ITEM_SCHEMAS = Object.fromEntries(
   TOOLS.filter((tool) => tool.storedFields).map((tool) => [
     tool.toolId,
-    buildStoredSchema(
-      tool.toolId,
-      tool.liveCreateType || tool.storedTagName || "",
-      tool.storedFields,
-    ),
+    buildStoredSchema(tool.toolId, tool.storedTagName || "", tool.storedFields),
   ]),
 );
 
@@ -481,7 +445,7 @@ const CONTRACT_STORED_ITEM_SCHEMAS = Object.fromEntries(
 const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
   Object.entries({
     cursor: {
-      update: buildLiveSchema("cursor", "update", {
+      [MutationType.UPDATE]: buildLiveSchema("cursor", MutationType.UPDATE, {
         color: "color",
         size: "size",
         x: "coord",
@@ -490,18 +454,16 @@ const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
     },
     ...CONTRACT_LIVE_MESSAGE_SCHEMAS,
     ...LIVE_SHAPE_SCHEMAS,
-  }).map(([tool, schemas]) => [tool, withMutationTypeAliases(schemas)]),
+  }),
 );
 
 const LIVE_BATCH_CHILD_SCHEMAS = Object.fromEntries(
   TOOLS.filter((tool) => tool.batchMessageFields).map((tool) => [
     tool.toolId,
-    withMutationTypeAliases(
-      buildPerTypeSchemas(tool.batchMessageFields, (type, fields) => ({
-        type: required(literal(type)),
-        ...buildSchemaFields(fields),
-      })),
-    ),
+    buildPerTypeSchemas(tool.batchMessageFields, (type, fields) => ({
+      type: required(literal(type)),
+      ...buildSchemaFields(fields),
+    })),
   ]),
 );
 
@@ -530,9 +492,8 @@ function normalizeIncomingBatch(raw) {
   for (let index = 0; index < raw._children.length; index++) {
     const child = raw._children[index];
     const schema =
-      child &&
-      (typeof child.type === "string" || typeof child.type === "number")
-        ? childSchemas[String(child.type)]
+      child && typeof child.type === "number"
+        ? childSchemas[child.type]
         : undefined;
     if (!schema) {
       return rejected(`_children[${index}]: invalid type`);
@@ -569,9 +530,7 @@ function normalizeIncomingMessage(raw) {
 
   const toolSchemas = LIVE_MESSAGE_SCHEMAS[raw.tool];
   const schema =
-    typeof raw.type === "string" || typeof raw.type === "number"
-      ? toolSchemas?.[String(raw.type)]
-      : undefined;
+    typeof raw.type === "number" ? toolSchemas?.[raw.type] : undefined;
   if (!schema) return rejected("invalid tool/type");
 
   const normalized = normalizeObject(raw, schema);
