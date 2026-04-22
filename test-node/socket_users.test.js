@@ -4,9 +4,9 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const {
+  createConfig,
   createSocketScenario,
   createSocket,
-  parseConfig,
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/mutation_type.js");
 const {
@@ -102,7 +102,7 @@ test("user id and visible name are deterministic from the cookie-backed user sec
       const record = sockets.__test.buildBoardUserRecord(
         socket,
         "anonymous",
-        parseConfig(),
+        createConfig(),
         123,
       );
 
@@ -136,7 +136,7 @@ test("board user record seeds tool color and size from socket query", async () =
       const record = sockets.__test.buildBoardUserRecord(
         socket,
         "board-a",
-        parseConfig(),
+        createConfig(),
         456,
       );
       assert.equal(record.socketId, "socket-1");
@@ -1149,7 +1149,7 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
   await createSocketScenario(
     {
       historyDirPrefix: "wbo-users-live-item-trim-",
-      env: { WBO_MAX_ITEM_COUNT: "2" },
+      config: { MAX_ITEM_COUNT: 2 },
     },
     async ({ connect, getLoadedBoard, handler }) => {
       const writer = await connect({
@@ -1510,8 +1510,8 @@ test("report_user respects custom header ip sources for active board members", a
   await createSocketScenario(
     {
       historyDirPrefix: "wbo-users-report-header-",
+      config: { IP_SOURCE: "CF-Connecting-IP" },
       env: {
-        WBO_IP_SOURCE: "CF-Connecting-IP",
         WBO_SILENT: "true",
       },
     },
