@@ -5,8 +5,6 @@ import { MutationType } from "./mutation_type.js";
 /** @typedef {{[name: string]: string}} SocketQueryParams */
 /** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
 /** @typedef {import("../../types/app-runtime").SocketParams} SocketParams */
-/** @typedef {import("../../types/app-runtime").TurnstileAck} TurnstileAck */
-
 const BATCH_SIZE = 1024;
 
 /**
@@ -136,64 +134,6 @@ function normalizeChildMessage(parent, child) {
   return child;
 }
 
-/**
- * @param {unknown} result
- * @param {number | undefined} defaultValidationWindowMs
- * @returns {TurnstileAck}
- */
-function normalizeTurnstileAck(result, defaultValidationWindowMs) {
-  if (result === true) {
-    return {
-      success: true,
-      validationWindowMs: defaultValidationWindowMs,
-      validatedUntil: Date.now() + Number(defaultValidationWindowMs || 0),
-    };
-  }
-  if (result && typeof result === "object") {
-    return /** @type {TurnstileAck} */ (result);
-  }
-  return { success: false };
-}
-
-/**
- * @param {unknown} result
- * @param {number | undefined} defaultValidationWindowMs
- * @returns {{validatedUntil: number, validationWindowMs: number}}
- */
-function computeTurnstileValidation(result, defaultValidationWindowMs) {
-  const ack = normalizeTurnstileAck(result, defaultValidationWindowMs);
-  if (ack.success !== true) {
-    return { validatedUntil: 0, validationWindowMs: 0 };
-  }
-  const validationWindowMs =
-    Number(ack.validationWindowMs) || Number(defaultValidationWindowMs) || 0;
-  const safeWindowMs = Math.max(0, validationWindowMs - 5000);
-  return {
-    validatedUntil: safeWindowMs > 0 ? Date.now() + safeWindowMs : 0,
-    validationWindowMs: validationWindowMs,
-  };
-}
-
-/**
- * @param {unknown} api
- * @param {unknown} widgetId
- * @returns {boolean}
- */
-function resetTurnstileWidget(api, widgetId) {
-  if (
-    api &&
-    typeof api === "object" &&
-    "reset" in api &&
-    typeof api.reset === "function" &&
-    widgetId !== null &&
-    widgetId !== undefined
-  ) {
-    api.reset(widgetId);
-    return true;
-  }
-  return false;
-}
-
 export const connection = {
   normalizeSocketIOExtraHeaders: normalizeSocketIOExtraHeaders,
   buildSocketParams: buildSocketParams,
@@ -205,10 +145,4 @@ export const messages = {
   queuePendingMessage: queuePendingMessage,
   hasChildMessages: hasChildMessages,
   normalizeChildMessage: normalizeChildMessage,
-};
-
-export const turnstile = {
-  normalizeTurnstileAck: normalizeTurnstileAck,
-  computeTurnstileValidation: computeTurnstileValidation,
-  resetTurnstileWidget: resetTurnstileWidget,
 };

@@ -42,8 +42,8 @@ import {
 import {
   connection as BoardConnection,
   messages as BoardMessages,
-  turnstile as BoardTurnstile,
 } from "./board_transport.js";
+import * as BoardTurnstile from "./board_turnstile.js";
 import MessageCommon from "./message_common.js";
 import {
   getTool,
@@ -558,6 +558,24 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
 Tools.hideRateLimitNotice = function hideRateLimitNotice() {
   Tools.clearRateLimitNoticeTimer();
   Tools.clearBoardStatus();
+};
+
+/**
+ * @param {string | undefined} reason
+ * @returns {void}
+ */
+Tools.showUnknownMutationError = function showUnknownMutationError(reason) {
+  if (typeof reason === "string" && reason.length > 0) {
+    logBoardEvent("warn", "mutation_rejected_unknown", {
+      reason,
+    });
+  }
+  Tools.showBoardStatus({
+    hidden: false,
+    state: "paused",
+    title: Tools.i18n.t("unknown_error_reload_page"),
+    detail: "",
+  });
 };
 
 /**
@@ -1252,333 +1270,7 @@ function enqueueIncomingBroadcast(msg) {
 
 Tools.scale = DEFAULT_BOARD_SCALE;
 Tools.drawToolsAllowed = null;
-
-if (Tools.server_config.TURNSTILE_SITE_KEY) {
-  const script = document.createElement("script");
-  script.src =
-    "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-  script.async = true;
-  script.defer = true;
-  document.head.appendChild(script);
-}
-
-Tools.isTurnstileValidated = function isTurnstileValidated() {
-  return Tools.turnstileValidatedUntil > Date.now();
-};
-
-Tools.clearTurnstileRefreshTimeout = function clearTurnstileRefreshTimeout() {
-  if (Tools.turnstileRefreshTimeout) {
-    clearTimeout(Tools.turnstileRefreshTimeout);
-    Tools.turnstileRefreshTimeout = null;
-  }
-};
-
-/** @param {number} validationWindowMs */
-Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(
-  validationWindowMs,
-) {
-  if (!Tools.server_config.TURNSTILE_SITE_KEY || !(validationWindowMs > 0))
-    return;
-  Tools.clearTurnstileRefreshTimeout();
-  const refreshDelay = Math.floor(validationWindowMs * 0.8);
-  if (!(refreshDelay > 0)) return;
-  Tools.turnstileRefreshTimeout = setTimeout(function refreshTurnstileToken() {
-    Tools.refreshTurnstile();
-  }, refreshDelay);
-};
-
-/** @param {unknown} result */
-Tools.setTurnstileValidation = function setTurnstileValidation(result) {
-  Tools.clearTurnstileRefreshTimeout();
-  const ack = Tools.normalizeTurnstileAck(result);
-  if (ack.success !== true) {
-    Tools.turnstileValidatedUntil = 0;
-    return;
-  }
-
-  const validation = BoardTurnstile.computeTurnstileValidation(
-    ack,
-    Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS),
-  );
-  const validationWindowMs = validation.validationWindowMs;
-  Tools.turnstileValidatedUntil = validation.validatedUntil;
-  Tools.clearTurnstileRetryTimeout();
-
-  if (validationWindowMs > 0) {
-    Tools.scheduleTurnstileRefresh(validationWindowMs);
-  }
-};
-
-/** @param {unknown} result */
-Tools.normalizeTurnstileAck = function normalizeTurnstileAck(result) {
-  return BoardTurnstile.normalizeTurnstileAck(
-    result,
-    Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS),
-  );
-};
-
-Tools.ensureTurnstileElements = function ensureTurnstileElements() {
-  let overlay = document.getElementById("turnstile-overlay");
-  let widget = document.getElementById("turnstile-widget");
-  if (overlay && widget) return { overlay: overlay };
-
-  overlay = document.createElement("div");
-  overlay.id = "turnstile-overlay";
-  overlay.classList.add("turnstile-overlay-hidden");
-
-  const modal = document.createElement("div");
-  modal.id = "turnstile-modal";
-
-  widget = document.createElement("div");
-  widget.id = "turnstile-widget";
-  modal.appendChild(widget);
-
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-  return { overlay: overlay };
-};
-
-Tools.showTurnstileOverlayTimeout = null;
-const TURNSTILE_ACK_TIMEOUT_MS = 10_000;
-const TURNSTILE_RETRY_DELAY_MS = 1_500;
-const TURNSTILE_STATUS_TITLE = "Security check required";
-
-/** @param {number} delay */
-Tools.showTurnstileOverlay = function showTurnstileOverlay(delay) {
-  const elements = Tools.ensureTurnstileElements();
-  if (delay > 0) {
-    Tools.showTurnstileOverlayTimeout = setTimeout(() => {
-      elements.overlay.classList.remove("turnstile-overlay-hidden");
-    }, delay);
-  } else {
-    elements.overlay.classList.remove("turnstile-overlay-hidden");
-  }
-};
-
-Tools.hideTurnstileOverlay = function hideTurnstileOverlay() {
-  if (Tools.showTurnstileOverlayTimeout) {
-    clearTimeout(Tools.showTurnstileOverlayTimeout);
-    Tools.showTurnstileOverlayTimeout = null;
-  }
-  const overlay = document.getElementById("turnstile-overlay");
-  if (overlay) overlay.classList.add("turnstile-overlay-hidden");
-};
-
-Tools.clearTurnstileRetryTimeout = function clearTurnstileRetryTimeout() {
-  if (Tools.turnstileRetryTimeout) {
-    clearTimeout(Tools.turnstileRetryTimeout);
-    Tools.turnstileRetryTimeout = null;
-  }
-};
-
-/** @param {string} detail */
-Tools.showTurnstileStatus = function showTurnstileStatus(detail) {
-  Tools.showBoardStatus({
-    hidden: false,
-    state: "paused",
-    title: TURNSTILE_STATUS_TITLE,
-    detail,
-  });
-};
-
-/**
- * @param {string} reason
- * @param {number=} [delayMs]
- */
-Tools.scheduleTurnstileRetry = function scheduleTurnstileRetry(
-  reason,
-  delayMs = TURNSTILE_RETRY_DELAY_MS,
-) {
-  if (!Tools.server_config.TURNSTILE_SITE_KEY) return;
-  if (Tools.turnstilePendingWrites.length === 0) return;
-  Tools.clearTurnstileRetryTimeout();
-  logBoardEvent("warn", "turnstile.retry_scheduled", {
-    reason,
-    delayMs,
-  });
-  Tools.turnstileRetryTimeout = setTimeout(() => {
-    Tools.turnstileRetryTimeout = null;
-    Tools.refreshTurnstile();
-  }, delayMs);
-};
-
-/** @param {unknown} errorCode */
-function handleTurnstileError(errorCode) {
-  const detailPrefix =
-    typeof errorCode === "string" && errorCode
-      ? `Security check failed (${errorCode}).`
-      : "Security check failed.";
-  logBoardEvent("error", "turnstile.error", {
-    errorCode,
-  });
-  Tools.showTurnstileStatus(
-    `${detailPrefix} Your pending write is preserved while the client retries.`,
-  );
-  Tools.scheduleTurnstileRetry("widget_error");
-}
-
-/**
- * @param {string} token
- * @returns {Promise<unknown>}
- */
-function emitTurnstileToken(token) {
-  return new Promise((resolve, reject) => {
-    const socket = Tools.socket;
-    if (!socket) {
-      reject(new Error("Socket unavailable while submitting Turnstile token."));
-      return;
-    }
-    const timeoutId = setTimeout(() => {
-      reject(new Error("Timed out waiting for Turnstile acknowledgement."));
-    }, TURNSTILE_ACK_TIMEOUT_MS);
-
-    try {
-      socket.emit(
-        SocketEvents.TURNSTILE_TOKEN,
-        token,
-        (/** @type {unknown} */ result) => {
-          clearTimeout(timeoutId);
-          resolve(result);
-        },
-      );
-    } catch (error) {
-      clearTimeout(timeoutId);
-      reject(error);
-    }
-  });
-}
-
-/**
- * @param {string} token
- * @returns {Promise<void>}
- */
-async function submitTurnstileToken(token) {
-  try {
-    const result = await emitTurnstileToken(token);
-    const turnstileResult = Tools.normalizeTurnstileAck(result);
-    Tools.turnstilePending = false;
-    if (turnstileResult.success) {
-      logBoardEvent("log", "turnstile.submit_succeeded");
-      Tools.setTurnstileValidation(turnstileResult);
-      Tools.hideTurnstileOverlay();
-      Tools.flushTurnstilePendingWrites();
-      return;
-    }
-    logBoardEvent("warn", "turnstile.submit_rejected", {
-      result: turnstileResult,
-    });
-  } catch (error) {
-    Tools.turnstilePending = false;
-    Tools.setTurnstileValidation(null);
-    logBoardEvent("error", "turnstile.submit_failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    Tools.showTurnstileStatus(
-      "Security check could not be verified. Your pending write is preserved while the client retries.",
-    );
-    Tools.scheduleTurnstileRetry("submit_failed");
-    return;
-  }
-
-  Tools.setTurnstileValidation(null);
-  Tools.showTurnstileStatus(
-    "Security check was not accepted. Your pending write is preserved while the client retries.",
-  );
-  Tools.scheduleTurnstileRetry("submit_rejected");
-}
-
-Tools.refreshTurnstile = function refreshTurnstile() {
-  if (!Tools.server_config.TURNSTILE_SITE_KEY) return;
-  Tools.ensureTurnstileElements();
-  Tools.clearTurnstileRetryTimeout();
-
-  if (typeof turnstile !== "undefined") {
-    if (Tools.turnstilePending) return;
-
-    if (Tools.turnstileWidgetId === null) {
-      try {
-        Tools.turnstilePending = true;
-        Tools.turnstileWidgetId = turnstile.render("#turnstile-widget", {
-          sitekey: Tools.server_config.TURNSTILE_SITE_KEY,
-          appearance: "interaction-only",
-          theme: "light",
-          "refresh-expired": "manual",
-          /** @param {string} token */
-          callback: (token) => {
-            if (!Tools.socket) {
-              Tools.turnstilePending = false;
-              logBoardEvent("warn", "turnstile.submit_skipped", {
-                reason: "socket_unavailable",
-              });
-              Tools.scheduleTurnstileRetry("socket_unavailable");
-              return;
-            }
-            void submitTurnstileToken(token);
-          },
-          "before-interactive-callback": () => {
-            logBoardEvent("log", "turnstile.widget_shown");
-            Tools.showTurnstileOverlay(500);
-          },
-          "after-interactive-callback": () => {
-            if (Tools.isTurnstileValidated()) Tools.hideTurnstileOverlay();
-          },
-          "error-callback": (/** @type {unknown} */ err) => {
-            Tools.turnstilePending = false;
-            Tools.setTurnstileValidation(null);
-            handleTurnstileError(err);
-          },
-          "timeout-callback": () => {
-            Tools.turnstilePending = false;
-            Tools.setTurnstileValidation(null);
-            logBoardEvent("warn", "turnstile.widget_timeout");
-            Tools.showTurnstileStatus(
-              "Security check timed out. Your pending write is preserved while the client retries.",
-            );
-            Tools.scheduleTurnstileRetry("widget_timeout");
-          },
-          "expired-callback": () => {
-            Tools.turnstilePending = false;
-            Tools.setTurnstileValidation(null);
-            logBoardEvent("warn", "turnstile.widget_expired");
-            Tools.scheduleTurnstileRetry("widget_expired");
-          },
-        });
-      } catch (error) {
-        Tools.turnstilePending = false;
-        Tools.turnstileWidgetId = null;
-        logBoardEvent("error", "turnstile.render_failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        Tools.showTurnstileStatus(
-          "Security check could not start. Your pending write is preserved while the client retries.",
-        );
-        Tools.scheduleTurnstileRetry("render_failed");
-      }
-      return;
-    }
-
-    try {
-      Tools.turnstilePending = true;
-      turnstile.reset(Tools.turnstileWidgetId);
-    } catch (error) {
-      Tools.turnstilePending = false;
-      logBoardEvent("error", "turnstile.reset_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      Tools.showTurnstileStatus(
-        "Security check could not reset. Your pending write is preserved while the client retries.",
-      );
-      Tools.scheduleTurnstileRetry("reset_failed");
-    }
-  } else {
-    Tools.turnstilePending = false;
-    logBoardEvent("warn", "turnstile.script_unavailable");
-    Tools.showTurnstileStatus(
-      "Loading security check. Your pending write is preserved while the client retries.",
-    );
-    Tools.scheduleTurnstileRetry("script_unavailable");
-  }
-};
+BoardTurnstile.installTurnstile(Tools, { logBoardEvent });
 
 /** @param {string} toolName */
 Tools.shouldDisableTool = function shouldDisableTool(toolName) {
@@ -1622,11 +1314,6 @@ Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
   ) {
     Tools.change("hand");
   }
-};
-
-Tools.showTurnstileWidget = function showTurnstileWidget() {
-  logBoardEvent("log", "turnstile.widget_requested");
-  Tools.refreshTurnstile();
 };
 
 /** @param {unknown} state */
@@ -2352,7 +2039,13 @@ Tools.startConnection = () => {
     function onMutationRejected(
       /** @type {MutationRejectedPayload} */ payload,
     ) {
-      Tools.rejectOptimisticMutation(payload.clientMutationId);
+      if (
+        typeof payload?.clientMutationId === "string" &&
+        payload.clientMutationId
+      ) {
+        Tools.rejectOptimisticMutation(payload.clientMutationId);
+      }
+      Tools.showUnknownMutationError(payload.reason);
     },
   );
   socket.on(SocketEvents.SYNC_REPLAY_START, function onSyncReplayStart() {

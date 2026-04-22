@@ -225,17 +225,44 @@ export class BoardPage {
 
   async installTurnstileMock() {
     await this.page.context().addInitScript(() => {
-      window.__turnstileOptions = null;
-      window.turnstile = {
-        render(_: unknown, options: unknown) {
-          window.__turnstileOptions =
-            options as typeof window.__turnstileOptions;
-          return "test-turnstile-widget";
+      window.__turnstileMock = {
+        callbacks: null,
+        complete(token: string) {
+          this.callbacks?.callback?.(token);
         },
-        remove() {},
-        reset() {},
+        fail(errorCode: string) {
+          this.callbacks?.["error-callback"]?.(errorCode);
+        },
+        show() {
+          this.callbacks?.["before-interactive-callback"]?.();
+        },
       };
     });
+    await this.page.route(
+      "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit",
+      async (route) => {
+        await route.fulfill({
+          contentType: "application/javascript",
+          body: `
+window.turnstile = {
+  render: function render(_container, options) {
+    window.__turnstileMock.callbacks = options;
+    queueMicrotask(function showWidget() {
+      window.__turnstileMock.show();
+    });
+    return "test-turnstile-widget";
+  },
+  remove: function remove() {},
+  reset: function reset() {
+    queueMicrotask(function showWidget() {
+      window.__turnstileMock.show();
+    });
+  },
+};
+          `,
+        });
+      },
+    );
   }
 
   async trackBroadcasts() {
@@ -970,11 +997,6 @@ export class BoardPage {
           },
           window.Tools.list.rectangle,
         );
-
-        const options = window.__turnstileOptions;
-        if (options?.["before-interactive-callback"]) {
-          options["before-interactive-callback"]();
-        }
       },
       { rectId: id, createType: MutationType.CREATE },
     );
@@ -995,7 +1017,7 @@ export class BoardPage {
     token: string,
   ): Promise<ProtectedWriteState> {
     await this.page.evaluate((value) => {
-      window.__turnstileOptions?.callback?.(value);
+      window.__turnstileMock.complete(value);
     }, token);
     await this.page.waitForFunction(() => {
       const overlay = document.getElementById("turnstile-overlay");
@@ -1012,7 +1034,7 @@ export class BoardPage {
     errorCode: string,
   ): Promise<ProtectedWriteState> {
     await this.page.evaluate((value) => {
-      window.__turnstileOptions?.["error-callback"]?.(value);
+      window.__turnstileMock.fail(value);
     }, errorCode);
     return this.page.evaluate<ProtectedWriteState>(() => {
       const overlay = document.getElementById("turnstile-overlay");
