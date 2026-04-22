@@ -7,8 +7,8 @@ const jsonwebtoken = require("jsonwebtoken");
 
 const {
   closeServer,
+  createConfig,
   getTcpAddress,
-  parseConfig,
   request,
   requestRaw,
   withEnv,
@@ -56,7 +56,7 @@ async function loadServer() {
  */
 async function createTestServer() {
   const { createServerApp } = await loadServer();
-  return createServerApp(parseConfig(), {
+  return createServerApp(createConfig(), {
     logStarted: false,
   });
 }
