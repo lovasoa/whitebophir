@@ -860,7 +860,7 @@ test.describe("collaboration and rate limiting", () => {
         .poll(() => boardPage.readWriteStatus())
         .toMatchObject({
           bufferedWrites: 1,
-          indicatorClass: expect.stringContaining("board-status-buffering"),
+          indicatorClass: expect.stringContaining("board-status-paused"),
         });
 
       await page.bringToFront();
