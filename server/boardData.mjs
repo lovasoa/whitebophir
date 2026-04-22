@@ -90,6 +90,28 @@ let boardInstanceSequence = 0;
 /** @typedef {ValidationSuccess | ValidationFailure} BoardMutationResult */
 /** @typedef {{ok: true, value: BoardElem, localBounds: Bounds | null}} ValidatedStoredCandidate */
 /** @typedef {import("../types/app-runtime.d.ts").BoardMessage} BoardMessage */
+/** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
+/** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
+/** @typedef {{x: number, y: number}} ChildPoint */
+/** @typedef {{kind: "inline"} | {kind: "text", modifiedText?: string} | {kind: "children", persistedChildCount: number, appendedChildren: ChildPoint[]}} CanonicalPayload */
+/**
+ * @typedef {{
+ *   id: string,
+ *   tool: string,
+ *   paintOrder: number,
+ *   deleted: boolean,
+ *   attrs: {[key: string]: unknown},
+ *   bounds: Bounds | null,
+ *   transform?: Transform,
+ *   dirty: boolean,
+ *   createdAfterPersistedSeq: boolean,
+ *   time?: number,
+ *   payload: CanonicalPayload,
+ *   textLength?: number,
+ *   copySource?: {sourceId: string},
+ * }} CanonicalBoardItem
+ */
+/** @typedef {{mutation: NormalizedMessageData}} PendingMutationEffect */
 
 /**
  * @param {string} name
@@ -258,11 +280,11 @@ class BoardData {
     this.users = new Set();
     this.saveMutex = new SerialTaskQueue();
     this.mutationLog = createMutationLog(0);
-    /** @type {Array<{mutation: any}>} */
+    /** @type {PendingMutationEffect[]} */
     this.pendingRejectedMutationEffects = [];
-    /** @type {Array<{mutation: any}>} */
+    /** @type {PendingMutationEffect[]} */
     this.pendingAcceptedMutationEffects = [];
-    /** @type {Map<string, any>} */
+    /** @type {Map<string, CanonicalBoardItem>} */
     this.itemsById = new Map();
     /** @type {string[]} */
     this.paintOrder = [];
@@ -388,7 +410,7 @@ class BoardData {
   }
 
   /**
-   * @returns {Array<{mutation: any}>}
+   * @returns {PendingMutationEffect[]}
    */
   consumePendingRejectedMutationEffects() {
     const effects = this.pendingRejectedMutationEffects;
@@ -397,7 +419,7 @@ class BoardData {
   }
 
   /**
-   * @returns {Array<{mutation: any}>}
+   * @returns {PendingMutationEffect[]}
    */
   consumePendingAcceptedMutationEffects() {
     const effects = this.pendingAcceptedMutationEffects;
@@ -421,10 +443,10 @@ class BoardData {
   }
 
   /**
-   * @returns {Array<{mutation: BoardMessage}>}
+   * @returns {PendingMutationEffect[]}
    */
   trimOverflowItems() {
-    /** @type {Array<{mutation: BoardMessage}>} */
+    /** @type {PendingMutationEffect[]} */
     const followup = [];
     while (
       this.liveItemCount > this.maxItemCount &&
