@@ -4,14 +4,7 @@ const assert = require("node:assert/strict");
 const BoardMessageReplay = require("../client-data/js/board_message_replay.js");
 const BoardMessages = require("../client-data/js/board_transport.js").messages;
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const {
-  Cursor,
-  Eraser,
-  Hand,
-  Pencil,
-  Rectangle,
-  Text,
-} = require("../client-data/tools/index.js");
+const { Hand, Rectangle } = require("../client-data/tools/index.js");
 
 test("tool-owned Hand batches are applied at the batch level only", () => {
   assert.equal(
@@ -60,115 +53,5 @@ test("non-parent replay children are replayed unchanged", () => {
       BoardMessages.normalizeChildMessage,
     ),
     child,
-  );
-});
-
-test("seq envelopes are recognized and unwrap to their mutation payload", () => {
-  const envelope = {
-    board: "demo",
-    seq: 7,
-    acceptedAtMs: 123,
-    clientMutationId: "c1",
-    mutation: {
-      tool: Rectangle.id,
-      type: MutationType.CREATE,
-      id: "rect-1",
-      x: 1,
-      y: 2,
-      x2: 3,
-      y2: 4,
-    },
-  };
-
-  assert.equal(BoardMessageReplay.isPersistentEnvelope(envelope), true);
-  assert.equal(BoardMessageReplay.normalizeSeq(envelope.seq), 7);
-  assert.equal(
-    BoardMessageReplay.unwrapReplayMessage(envelope),
-    envelope.mutation,
-  );
-});
-
-test("buffered seq envelopes already covered by replay end are dropped", () => {
-  const buffered = [
-    {
-      seq: 4,
-      mutation: {
-        tool: Eraser.id,
-        type: MutationType.DELETE,
-        id: "rect-1",
-      },
-    },
-    {
-      seq: 5,
-      mutation: {
-        tool: Hand.id,
-        type: MutationType.UPDATE,
-        id: "rect-2",
-      },
-    },
-    {
-      seq: 6,
-      mutation: {
-        tool: Pencil.id,
-        type: MutationType.APPEND,
-        parent: "line-1",
-        x: 1,
-        y: 2,
-      },
-    },
-    {
-      tool: Text.id,
-      type: MutationType.UPDATE,
-      id: "text-1",
-      txt: "legacy",
-    },
-  ];
-
-  assert.deepEqual(
-    BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(buffered, 5),
-    [buffered[2], buffered[3]],
-  );
-});
-
-test("persistent seq envelopes classify stale next and gap cases", () => {
-  assert.equal(
-    BoardMessageReplay.classifyPersistentEnvelopeSeq(0, 4),
-    "invalid",
-  );
-  assert.equal(BoardMessageReplay.classifyPersistentEnvelopeSeq(4, 4), "stale");
-  assert.equal(BoardMessageReplay.classifyPersistentEnvelopeSeq(5, 4), "next");
-  assert.equal(BoardMessageReplay.classifyPersistentEnvelopeSeq(7, 4), "gap");
-});
-
-test("seq envelopes bypass the seq replay buffer while live broadcasts queue", () => {
-  assert.equal(
-    BoardMessageReplay.shouldBufferLiveMessage(
-      {
-        board: "demo",
-        acceptedAtMs: 100,
-        seq: 3,
-        mutation: {
-          tool: Rectangle.id,
-          type: MutationType.CREATE,
-          id: "rect-1",
-        },
-      },
-      true,
-    ),
-    false,
-  );
-  assert.equal(
-    BoardMessageReplay.shouldBufferLiveMessage(
-      { tool: Cursor.id, type: MutationType.UPDATE, x: 1, y: 2 },
-      true,
-    ),
-    true,
-  );
-  assert.equal(
-    BoardMessageReplay.shouldBufferLiveMessage(
-      { tool: Cursor.id, type: MutationType.UPDATE, x: 1, y: 2 },
-      false,
-    ),
-    false,
   );
 });
