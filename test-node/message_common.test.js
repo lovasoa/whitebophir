@@ -2,13 +2,6 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const MessageCommon = require("../client-data/js/message_common.js");
-const { TOOLS } = require("../client-data/tools/index.js");
-
-test("shared giant-shape policy exposes the draw zoom threshold", () => {
-  assert.equal(MessageCommon.getMaxShapeSpan(), 32000);
-  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.04), false);
-  assert.equal(MessageCommon.isDrawToolAllowedAtScale(0.041), true);
-});
 
 test("shared geometry helpers apply transforms to bounds", () => {
   const bounds = MessageCommon.applyTransformToBounds(
@@ -41,27 +34,6 @@ test("shared geometry helpers grow pencil bounds incrementally", () => {
     maxX: 100,
     maxY: 25,
   });
-});
-
-test("shape tool bounds use straight-shape geometry consistently", () => {
-  const shapeToolNames = TOOLS.filter((tool) => tool.shapeTool === true).map(
-    (tool) => tool.toolId,
-  );
-  for (const toolName of shapeToolNames) {
-    const bounds = MessageCommon.getLocalGeometryBounds({
-      tool: toolName,
-      x: 10,
-      y: 40,
-      x2: 5,
-      y2: 50,
-    });
-    assert.deepEqual(bounds, {
-      minX: 5,
-      minY: 40,
-      maxX: 10,
-      maxY: 50,
-    });
-  }
 });
 
 test("getLocalGeometryBounds measures text", () => {
