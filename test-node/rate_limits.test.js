@@ -4,15 +4,15 @@ const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Eraser, Pencil, Text } = require("../client-data/tools/index.js");
 
 const {
+  createConfig,
   createSocket,
   loadSockets,
-  parseConfig,
   withEnv,
 } = require("./test_helpers.js");
 
 test("configuration provides sane default rate-limit ordering", async () =>
   withEnv({ WBO_IP_SOURCE: undefined }, () => {
-    return Promise.resolve(parseConfig()).then((config) => {
+    return Promise.resolve(createConfig()).then((config) => {
       assert.equal(config.IP_SOURCE, "remoteAddress");
       assert.equal(config.TRUST_PROXY_HOPS, 0);
       assert.ok(config.DESTRUCTIVE_ACTION_RATE_LIMITS.limit > 0);
@@ -62,7 +62,7 @@ test("configuration rejects trust proxy hops with incompatible ip sources", () =
         WBO_IP_SOURCE: "CF-Connecting-IP",
         WBO_TRUST_PROXY_HOPS: "1",
       },
-      () => parseConfig(),
+      () => createConfig(),
     ),
     /WBO_TRUST_PROXY_HOPS requires WBO_IP_SOURCE to be X-Forwarded-For or Forwarded/,
   ));
@@ -76,7 +76,7 @@ test("configuration parses compact rate-limit profiles", async () =>
       WBO_MAX_TEXT_CREATIONS_PER_IP: "*:3/1500ms anonymous:9/90s",
     },
     async () => {
-      const config = parseConfig();
+      const config = createConfig();
 
       assert.deepEqual(config.GENERAL_RATE_LIMITS, {
         limit: 300,
@@ -129,7 +129,7 @@ test("compact rate-limit profiles do not invent board overrides", async () =>
       WBO_MAX_TEXT_CREATIONS_PER_IP: "*:3/1500ms",
     },
     async () => {
-      const config = parseConfig();
+      const config = createConfig();
       assert.deepEqual(config.GENERAL_RATE_LIMITS, {
         limit: 300,
         periodMs: 6_000,
