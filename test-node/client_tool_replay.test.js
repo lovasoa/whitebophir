@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { pathToFileURL } = require("node:url");
 const { installTestConsole } = require("./test_console.js");
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 const {
@@ -28,8 +27,6 @@ const { MutationType } = MessageToolMetadata;
  */
 
 const globalAny = /** @type {any} */ (global);
-let dynamicLoadSequence = 0;
-
 /**
  * @param {PathSegment[]} pathData
  * @returns {PathSegment[]}
@@ -446,8 +443,7 @@ function createHarness() {
         "tools",
         getToolModuleImportPath(toolName),
       );
-      const toolUrl = `${pathToFileURL(toolPath).href}?cache-bust=${++dynamicLoadSequence}`;
-      const moduleNamespace = await import(toolUrl);
+      const moduleNamespace = require(toolPath);
       if (typeof moduleNamespace.boot !== "function") {
         throw new Error(`Missing boot export for ${toolName}`);
       }

@@ -4,9 +4,9 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const {
-  configFromEnv,
   createSocketScenario,
   createSocket,
+  parseConfig,
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/mutation_type.js");
 const {
@@ -102,7 +102,7 @@ test("user id and visible name are deterministic from the cookie-backed user sec
       const record = sockets.__test.buildBoardUserRecord(
         socket,
         "anonymous",
-        configFromEnv({ WBO_IP_SOURCE: "remoteAddress" }),
+        parseConfig(),
         123,
       );
 
@@ -136,7 +136,7 @@ test("board user record seeds tool color and size from socket query", async () =
       const record = sockets.__test.buildBoardUserRecord(
         socket,
         "board-a",
-        configFromEnv({ WBO_IP_SOURCE: "remoteAddress" }),
+        parseConfig(),
         456,
       );
       assert.equal(record.socketId, "socket-1");

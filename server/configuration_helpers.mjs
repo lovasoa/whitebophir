@@ -1,10 +1,11 @@
 /**
  * @param {string} name
  * @param {number} defaultValue
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {number}
  */
-export function parseIntegerEnv(name, defaultValue) {
-  const value = process.env[name];
+export function parseIntegerEnv(name, defaultValue, env = process.env) {
+  const value = env[name];
   if (value === undefined || value === "") return defaultValue;
   const parsed = parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : defaultValue;
@@ -14,10 +15,11 @@ export function parseIntegerEnv(name, defaultValue) {
  * @template {string | undefined} T
  * @param {string} name
  * @param {T} defaultValue
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {T extends string ? string : string | undefined}
  */
-export function parseStringEnv(name, defaultValue) {
-  const value = process.env[name];
+export function parseStringEnv(name, defaultValue, env = process.env) {
+  const value = env[name];
   return /** @type {T extends string ? string : string | undefined} */ (
     value === undefined || value === "" ? defaultValue : value
   );
@@ -25,18 +27,20 @@ export function parseStringEnv(name, defaultValue) {
 
 /**
  * @param {string} name
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {string[]}
  */
-export function parseCommaSeparatedEnv(name) {
-  return (process.env[name] || "").split(",");
+export function parseCommaSeparatedEnv(name, env = process.env) {
+  return (env[name] || "").split(",");
 }
 
 /**
  * @param {string} name
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {boolean}
  */
-export function parseDisabledFlagEnv(name) {
-  return process.env[name] !== "disabled";
+export function parseDisabledFlagEnv(name, env = process.env) {
+  return env[name] !== "disabled";
 }
 
 /**
@@ -98,10 +102,15 @@ function parseRateLimitProfile(name, value) {
 /**
  * @param {string} name
  * @param {string} defaultValue
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {{limit: number, periodMs: number, overrides: {[boardName: string]: {limit: number, periodMs: number}}}}
  */
-export function parseRateLimitProfileEnv(name, defaultValue) {
-  const value = process.env[name];
+export function parseRateLimitProfileEnv(
+  name,
+  defaultValue,
+  env = process.env,
+) {
+  const value = env[name];
   return parseRateLimitProfile(
     name,
     value === undefined || value.trim() === "" ? defaultValue : value,
@@ -113,10 +122,16 @@ export function parseRateLimitProfileEnv(name, defaultValue) {
  * @param {string} name
  * @param {T[]} allowedValues
  * @param {T} defaultValue
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {T}
  */
-export function parseEnumEnv(name, allowedValues, defaultValue) {
-  const value = process.env[name];
+export function parseEnumEnv(
+  name,
+  allowedValues,
+  defaultValue,
+  env = process.env,
+) {
+  const value = env[name];
   if (value === undefined || value === "") return defaultValue;
 
   const normalizedValue = value.toLowerCase();
@@ -137,6 +152,7 @@ export function parseEnumEnv(name, allowedValues, defaultValue) {
  * @param {string} trustProxyHopsName
  * @param {string} defaultIpSource
  * @param {number} defaultTrustProxyHops
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {{IP_SOURCE: string, TRUST_PROXY_HOPS: number}}
  */
 export function parseIpConfigurationEnv(
@@ -144,11 +160,13 @@ export function parseIpConfigurationEnv(
   trustProxyHopsName,
   defaultIpSource,
   defaultTrustProxyHops,
+  env = process.env,
 ) {
-  const ipSource = parseStringEnv(ipSourceName, defaultIpSource)?.trim();
+  const ipSource = parseStringEnv(ipSourceName, defaultIpSource, env)?.trim();
   const trustProxyHops = parseIntegerEnv(
     trustProxyHopsName,
     defaultTrustProxyHops,
+    env,
   );
 
   if (trustProxyHops < 0) {

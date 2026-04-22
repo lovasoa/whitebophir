@@ -3,7 +3,6 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { pathToFileURL } = require("node:url");
 
 const { context, metrics, propagation, trace } = require("@opentelemetry/api");
 const { logs } = require("@opentelemetry/api-logs");
@@ -12,14 +11,13 @@ const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Cursor } = require("../client-data/tools/index.js");
 
 const {
-  CONFIG_PATH,
   MESSAGE_VALIDATION_PATH,
   closeServer,
-  configFromEnv,
   SOCKET_POLICY_PATH,
-  request,
-  loadSockets,
   createSocket,
+  loadSockets,
+  parseConfig,
+  request,
   writeBoard,
 } = require("./test_helpers.js");
 
@@ -41,7 +39,6 @@ const CLIENT_CONFIGURATION_PATH = path.join(
 );
 const JWTAUTH_PATH = path.join(ROOT, "server", "jwtauth.mjs");
 const TRACING_MODULES_TO_CLEAR = [
-  CONFIG_PATH,
   MESSAGE_VALIDATION_PATH,
   SOCKET_POLICY_PATH,
   SERVER_PATH,
@@ -52,7 +49,6 @@ const TRACING_MODULES_TO_CLEAR = [
   CLIENT_CONFIGURATION_PATH,
   JWTAUTH_PATH,
 ];
-let serverLoadSequence = 0;
 /** @type {{shutdownObservability: () => Promise<void>} | null} */
 let sharedObservability = null;
 /** @type {InMemorySpanExporter | null} */
@@ -71,9 +67,7 @@ function clearModuleCache(modulePath) {
  * @returns {Promise<{createServerApp: (config: any, options?: any) => Promise<import("http").Server>}>}
  */
 async function loadServer() {
-  return import(
-    `${pathToFileURL(SERVER_PATH).href}?cache-bust=${++serverLoadSequence}`
-  );
+  return require(SERVER_PATH);
 }
 
 /**
@@ -81,7 +75,7 @@ async function loadServer() {
  */
 async function createTestServer() {
   const { createServerApp } = await loadServer();
-  return createServerApp(await configFromEnv({}), {
+  return createServerApp(parseConfig(), {
     logStarted: false,
   });
 }
@@ -445,7 +439,7 @@ test("active traces correlate log records and board.save spans", async () => {
             "board.saved",
             { board: "trace-save" },
           );
-          const config = await configFromEnv({});
+          const config = parseConfig();
           const board = new BoardData("trace-save", config);
           board.board = {
             "shape-1": {
@@ -534,7 +528,7 @@ test("large standalone board loads create their own root span", async () => {
     },
     async ({ exporter }) => {
       const { BoardData } = require(BOARD_DATA_PATH);
-      const config = await configFromEnv({});
+      const config = parseConfig();
       const board = await BoardData.load("standalone-load", config);
 
       clearTimeout(board.saveTimeoutId);

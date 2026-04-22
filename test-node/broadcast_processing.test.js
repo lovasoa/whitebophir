@@ -1,12 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { pathToFileURL } = require("node:url");
 
 const {
   BOARD_DATA_PATH,
-  configFromEnv,
   createSocket,
+  parseConfig,
+  withEnv,
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Cursor, Text } = require("../client-data/tools/index.js");
@@ -17,15 +17,12 @@ const BROADCAST_PROCESSING_PATH = path.join(
   "server",
   "broadcast_processing.mjs",
 );
-let broadcastProcessingLoadSequence = 0;
 
 /**
  * @returns {Promise<any>}
  */
 async function loadBroadcastProcessing() {
-  return import(
-    `${pathToFileURL(BROADCAST_PROCESSING_PATH).href}?cache-bust=${++broadcastProcessingLoadSequence}`
-  );
+  return require(BROADCAST_PROCESSING_PATH);
 }
 
 /**
@@ -41,12 +38,15 @@ function disableSaves(board) {
 test("broadcast processing includes general rate-limit bookkeeping in isolation", async () => {
   const { createBroadcastRateLimits, processBoardBroadcastMessage } =
     await loadBroadcastProcessing();
-  const config = await configFromEnv({
-    WBO_MAX_EMIT_COUNT: "*:1/60s",
-    WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
-    WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
-    WBO_MAX_TEXT_CREATIONS_PER_IP: "*:100/60s",
-  });
+  const config = await withEnv(
+    {
+      WBO_MAX_EMIT_COUNT: "*:1/60s",
+      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
+      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
+      WBO_MAX_TEXT_CREATIONS_PER_IP: "*:100/60s",
+    },
+    async () => parseConfig(),
+  );
   const { socket } = createSocket({ id: "socket-rate-limit" });
   const board = {
     name: "broadcast-rate-limit",
@@ -101,12 +101,15 @@ test("broadcast processing applies board writes without the socket event wrapper
   const { createBroadcastRateLimits, processBoardBroadcastMessage } =
     await loadBroadcastProcessing();
   const BoardData = require(BOARD_DATA_PATH).BoardData;
-  const config = await configFromEnv({
-    WBO_MAX_EMIT_COUNT: "*:100/60s",
-    WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
-    WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
-    WBO_MAX_TEXT_CREATIONS_PER_IP: "*:100/60s",
-  });
+  const config = await withEnv(
+    {
+      WBO_MAX_EMIT_COUNT: "*:100/60s",
+      WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
+      WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP: "*:100/60s",
+      WBO_MAX_TEXT_CREATIONS_PER_IP: "*:100/60s",
+    },
+    async () => parseConfig(),
+  );
   const board = disableSaves(new BoardData("broadcast-board-write", config));
   board.processMessage({
     tool: Text.id,

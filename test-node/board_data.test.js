@@ -5,8 +5,8 @@ const path = require("node:path");
 
 const {
   BOARD_DATA_PATH,
-  loadConfig,
   loadBoardData,
+  parseConfig,
   withBoardHistoryDir,
   withEnv,
   writeBoard,
@@ -32,7 +32,7 @@ function getBoardDataClass() {
 /** @type {any} */
 let defaultBoardConfig;
 test.before(async () => {
-  defaultBoardConfig = await loadConfig();
+  defaultBoardConfig = parseConfig();
 });
 
 /**
@@ -238,7 +238,7 @@ function clearMessage() {
 async function withLoadedBoard(options) {
   const { historyDir, boardName, storedBoard, storedSvg } = options;
   const BoardData = getBoardDataClass();
-  const config = await loadConfig();
+  const config = parseConfig();
   const svgPath = path.join(
     historyDir,
     `board-${encodeURIComponent(boardName)}.svg`,
@@ -552,7 +552,7 @@ test("finalizePersistedItems keeps omitted pencil creates dirty until they seria
 test("save schedules a fast follow-up when newer created items remain dirty", async () => {
   await withBoardHistoryDir("wbo-save-follow-up-", async ({ historyDir }) => {
     const BoardData = getBoardDataClass();
-    const config = await loadConfig();
+    const config = parseConfig();
     const board = createBoard(BoardData, "follow-up-save-board", config);
 
     assertMessagesAccepted(
@@ -598,7 +598,7 @@ test("save schedules a fast follow-up when newer created items remain dirty", as
 test("BoardData.save skips redundant clean saves once persisted state is current", async () => {
   await withBoardHistoryDir("wbo-save-skip-clean-", async ({ historyDir }) => {
     const BoardData = getBoardDataClass();
-    const config = await loadConfig();
+    const config = parseConfig();
     const board = createBoard(BoardData, "skip-clean-save", config);
     const svgPath = path.join(historyDir, "board-skip-clean-save.svg");
 
@@ -766,7 +766,7 @@ test("BoardData copy keeps pencil child arrays isolated", () => {
 test("BoardData.addChild enforces MAX_CHILDREN on stored strokes", async () => {
   await withEnv({ WBO_MAX_CHILDREN: "1" }, async () => {
     const BoardData = getBoardDataClass();
-    const config = await loadConfig();
+    const config = parseConfig();
     const board = disableSaves(
       createBoard(BoardData, "child-cap-board", config),
     );
@@ -920,7 +920,7 @@ test("BoardData rejects hand batches atomically when one transform is oversized"
 test("BoardData trims overflow by paint order instead of recency", async () => {
   await withEnv({ WBO_MAX_ITEM_COUNT: "2" }, async () => {
     const BoardData = getBoardDataClass();
-    const config = await loadConfig();
+    const config = parseConfig();
     const board = disableSaves(createBoard(BoardData, "cleanup-board", config));
 
     assert.equal(
@@ -987,7 +987,7 @@ test("BoardData trims overflow by paint order instead of recency", async () => {
 test("BoardData.load normalizes stored board items from disk", async () => {
   await withBoardHistoryDir("wbo-board-data-load-", async ({ historyDir }) => {
     const BoardData = getBoardDataClass();
-    const config = await loadConfig();
+    const config = parseConfig();
     await writeBoard(historyDir, "normalized-load", {
       bad1: {
         ...rectangleMessage(
@@ -1022,7 +1022,7 @@ test("BoardData.load eagerly migrates legacy json boards to svg", async () => {
     "wbo-board-json-migrate-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
-      const config = await loadConfig();
+      const config = parseConfig();
       await writeBoard(historyDir, "legacy-migrate", {
         __wbo_meta__: { readonly: true },
         rect: {
@@ -1125,7 +1125,7 @@ test("BoardData eagerly loads canonical persisted svg items before applying upda
 test("BoardData records contiguous mutation seq values and persists them into svg baselines", async () => {
   await withBoardHistoryDir("wbo-board-seq-save-", async ({ historyDir }) => {
     const BoardData = getBoardDataClass();
-    const config = await loadConfig();
+    const config = parseConfig();
     const board = createBoard(BoardData, "seq-save", config);
 
     const message = {
@@ -1187,7 +1187,7 @@ test("BoardData.save trims persisted replay history past the configured retentio
     "wbo-board-replay-retention-",
     async () => {
       const BoardData = getBoardDataClass();
-      const config = await loadConfig();
+      const config = parseConfig();
       const board = disableSaves(
         createBoard(BoardData, "replay-retention", config),
       );
@@ -1220,7 +1220,7 @@ test("BoardData.save keeps persisted replay history needed by pinned baselines",
       resetBoardRegistry();
       try {
         const BoardData = getBoardDataClass();
-        const config = await loadConfig();
+        const config = parseConfig();
         const board = disableSaves(
           createBoard(BoardData, "pinned-replay-retention", config),
         );
@@ -1257,7 +1257,7 @@ test("BoardData.save keeps writing to the board's original history dir after env
   await withBoardHistoryDir("wbo-board-sticky-history-", async (context) => {
     historyDir = context.historyDir;
     const BoardData = getBoardDataClass();
-    const config = await loadConfig();
+    const config = parseConfig();
     board = createBoard(BoardData, "sticky-history", config);
     const stickyBoard =
       /** @type {InstanceType<typeof import("../server/boardData.mjs").BoardData>} */ (
@@ -1359,7 +1359,7 @@ test("BoardData.save replays recoverable mutations when the stored svg is missin
       assert.match(recreated, /id="rect-2"/);
       assert.equal(recreated.includes('id="text-1"'), false);
 
-      const config = await loadConfig();
+      const config = parseConfig();
       const reloaded = await loadBoard(BoardData, "missing-baseline", config);
       assert.deepEqual(Object.keys(reloaded.board), ["rect-2"]);
     },
@@ -1371,7 +1371,7 @@ test("BoardData.save tolerates a missing file while only unreconstructible items
     "wbo-board-save-missing-pencil-baseline-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
-      const config = await loadConfig();
+      const config = parseConfig();
       const svgPath = path.join(
         historyDir,
         "board-missing-pencil-baseline.svg",
@@ -1413,7 +1413,7 @@ test("BoardData.save recovers from a deleted baseline before a new pencil stroke
     "wbo-board-save-missing-baseline-seed-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
-      const config = await loadConfig();
+      const config = parseConfig();
       const svgBoardStore = require("../server/svg_board_store.mjs");
       const svgPath = path.join(historyDir, "board-missing-baseline-seed.svg");
       const board = createBoard(BoardData, "missing-baseline-seed", config);
@@ -1476,7 +1476,7 @@ test("BoardData.dispose prevents queued autosaves from a stale board instance", 
     "wbo-board-dispose-stale-save-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
-      const config = await loadConfig();
+      const config = parseConfig();
       const svgPath = path.join(historyDir, "board-anonymous.svg");
       const staleBoard = createBoard(BoardData, "anonymous", config);
 
@@ -1545,7 +1545,7 @@ test("BoardData.save preserves cold-loaded state when only the backup svg remain
     "wbo-board-save-cold-backup-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
-      const config = await loadConfig();
+      const config = parseConfig();
       const svgBoardStore = require("../server/svg_board_store.mjs");
       const boardName = "cold-backup";
       const svgPath = path.join(historyDir, "board-cold-backup.svg");
@@ -1588,7 +1588,7 @@ test("BoardData.save persists canonical test-injected board items through the bo
     "wbo-board-save-direct-memory-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
-      const config = await loadConfig();
+      const config = parseConfig();
       const board = createBoard(BoardData, "direct-memory-save", config);
       board.board = {
         "text-1": {
@@ -1618,7 +1618,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
     "wbo-board-save-streaming-sparse-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
-      const config = await loadConfig();
+      const config = parseConfig();
       const svgBoardStore = require("../server/svg_board_store.mjs");
       const boardName = "streaming-sparse";
 

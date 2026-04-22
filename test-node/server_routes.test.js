@@ -3,13 +3,12 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { pathToFileURL } = require("node:url");
 const jsonwebtoken = require("jsonwebtoken");
 
 const {
   closeServer,
-  configFromEnv,
   getTcpAddress,
+  parseConfig,
   request,
   requestRaw,
   withEnv,
@@ -44,15 +43,12 @@ const COMPRESSION_PATH = path.join(
 );
 const CLIENT_WEBROOT = path.join(__dirname, "..", "client-data");
 const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.mjs");
-let serverLoadSequence = 0;
 
 /**
  * @returns {Promise<{createServerApp: (config: any, options?: any) => Promise<import("http").Server>}>}
  */
 async function loadServer() {
-  return import(
-    `${pathToFileURL(SERVER_PATH).href}?cache-bust=${++serverLoadSequence}`
-  );
+  return require(SERVER_PATH);
 }
 
 /**
@@ -60,7 +56,7 @@ async function loadServer() {
  */
 async function createTestServer() {
   const { createServerApp } = await loadServer();
-  return createServerApp(await configFromEnv({}), {
+  return createServerApp(parseConfig(), {
     logStarted: false,
   });
 }
@@ -695,9 +691,7 @@ test("board html svg and preview routes negotiate compression when requested", a
     '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="6" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><line id="line-1" x1="0" y1="0" x2="10" y2="20" stroke="#000000" stroke-width="2" fill="none"></line></g><g id="cursors"></g></svg>',
     "utf8",
   );
-  const compressionModule = await import(
-    `${pathToFileURL(COMPRESSION_PATH).href}?cache-bust=${++serverLoadSequence}`
-  );
+  const compressionModule = require(COMPRESSION_PATH);
   const expectedEncoding =
     compressionModule.selectCompressionEncoding("zstd, br, gzip");
   if (compressionModule.selectCompressionEncoding("zstd") === "zstd") {

@@ -8,7 +8,6 @@ const {
   Text,
 } = require("../client-data/tools/index.js");
 const path = require("node:path");
-const { pathToFileURL } = require("node:url");
 
 const BOARD_SESSION_PATH = path.join(
   __dirname,
@@ -16,15 +15,12 @@ const BOARD_SESSION_PATH = path.join(
   "server",
   "board_session.mjs",
 );
-let boardSessionLoadSequence = 0;
 
 /**
  * @returns {Promise<any>}
  */
 async function loadBoardSession() {
-  return import(
-    `${pathToFileURL(BOARD_SESSION_PATH).href}?cache-bust=${++boardSessionLoadSequence}`
-  );
+  return require(BOARD_SESSION_PATH);
 }
 
 function createGate() {

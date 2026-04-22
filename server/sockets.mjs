@@ -2606,7 +2606,11 @@ export const __test = {
     boardUsers.clear();
     activeSockets.clear();
     syncedPersistentSockets.clear();
+    connectedUsersTotal = 0;
     lastUserReportLog = null;
+    invalidIpSourceLogged = false;
+    shuttingDown = false;
+    io = undefined;
     resetBoardRegistry();
   },
 };

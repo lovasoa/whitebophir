@@ -3,10 +3,14 @@ const net = require("node:net");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { pathToFileURL } = require("node:url");
 
 const ROOT = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(ROOT, "server", "configuration.mjs");
+const CONFIG_PARSER_PATH = path.join(
+  ROOT,
+  "server",
+  "configuration_parser.mjs",
+);
 const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.mjs");
 const SOCKETS_PATH = path.join(ROOT, "server", "sockets.mjs");
 const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.mjs");
@@ -45,8 +49,6 @@ const DEFAULT_CLEARED_MODULES = [
   MESSAGE_COMMON_PATH,
   JWT_BOARDNAME_AUTH_PATH,
 ];
-let socketsLoadSequence = 0;
-let configLoadSequence = 0;
 
 /**
  * @param {string} modulePath
@@ -61,26 +63,24 @@ function clearModuleCache(modulePath) {
  * @returns {Promise<any>}
  */
 async function loadSockets() {
-  const sockets = await import(
-    `${pathToFileURL(SOCKETS_PATH).href}?cache-bust=${++socketsLoadSequence}`
-  );
+  const sockets = require(SOCKETS_PATH);
+  sockets.__test.resetRateLimitMaps();
   return {
     ...sockets,
-    __config: await loadConfig(),
+    __config: parseConfig(),
   };
-}
-
-/**
- * @returns {Promise<any>}
- */
-async function loadConfig() {
-  return import(
-    `${pathToFileURL(CONFIG_PATH).href}?cache-bust=${++configLoadSequence}`
-  );
 }
 
 function loadBoardData() {
   return require(BOARD_DATA_PATH).BoardData;
+}
+
+/**
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {any}
+ */
+function parseConfig(env = process.env) {
+  return require(CONFIG_PARSER_PATH).parseConfigurationFromEnv(env);
 }
 
 /**
@@ -142,37 +142,6 @@ async function withBoardHistoryDir(prefix, fn, envOverrides, extraModules) {
     () => fn({ historyDir }),
     extraModules,
   );
-}
-
-/**
- * @param {Dict} overrides
- * @returns {Promise<any>}
- */
-async function configFromEnv(overrides) {
-  /** @type {Dict} */
-  const saved = {};
-
-  for (const key of Object.keys(overrides)) {
-    saved[key] = process.env[key];
-    const value = overrides[key];
-    if (value === undefined) {
-      delete process.env[key];
-    } else {
-      process.env[key] = value;
-    }
-  }
-
-  try {
-    return await loadConfig();
-  } finally {
-    for (const key of Object.keys(overrides)) {
-      if (saved[key] === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = saved[key];
-      }
-    }
-  }
 }
 
 /**
@@ -486,20 +455,21 @@ async function withMockedNow(value, fn) {
 module.exports = {
   BOARD_DATA_PATH,
   CONFIG_PATH,
+  CONFIG_PARSER_PATH,
   MESSAGE_VALIDATION_PATH,
   SOCKET_POLICY_PATH,
   SOCKETS_PATH,
   boardFile,
   closeServer,
+  clearModuleCache,
   collectIncomingMessage,
-  configFromEnv,
   createSocketScenario,
   createSocket,
   getRequiredHandler,
   getTcpAddress,
-  loadConfig,
   loadBoardData,
   loadSockets,
+  parseConfig,
   request,
   requestRaw,
   waitForListening,

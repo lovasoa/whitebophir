@@ -184,7 +184,7 @@ function installShutdownHandlers(server, sockets) {
 /**
  * Only the standalone server process should own process-global signal handlers.
  * In-process test imports close the server explicitly and must not accumulate
- * SIGINT/SIGTERM listeners across cache-busted module reloads.
+ * SIGINT/SIGTERM listeners across repeated test loads.
  *
  * @returns {boolean}
  */

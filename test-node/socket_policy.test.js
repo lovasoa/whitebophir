@@ -4,8 +4,8 @@ const jsonwebtoken = require("jsonwebtoken");
 
 const {
   SOCKET_POLICY_PATH,
-  configFromEnv,
   createSocket,
+  parseConfig,
   withEnv,
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
@@ -13,10 +13,14 @@ const { Clear, Cursor, Text } = require("../client-data/tools/index.js");
 
 test("getClientIp resolves the first proxy hop from forwarding headers", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
-  const forwardedForConfig = await configFromEnv({
-    WBO_IP_SOURCE: "X-Forwarded-For",
-  });
-  const forwardedConfig = await configFromEnv({ WBO_IP_SOURCE: "Forwarded" });
+  const forwardedForConfig = await withEnv(
+    { WBO_IP_SOURCE: "X-Forwarded-For" },
+    async () => parseConfig(),
+  );
+  const forwardedConfig = await withEnv(
+    { WBO_IP_SOURCE: "Forwarded" },
+    async () => parseConfig(),
+  );
 
   assert.equal(
     socketPolicy.getClientIp(
@@ -69,14 +73,20 @@ test("getClientIp resolves the first proxy hop from forwarding headers", async (
 
 test("getClientIp supports exact trusted proxy depth for forwarded chains", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
-  const forwardedForConfig = await configFromEnv({
-    WBO_IP_SOURCE: "X-Forwarded-For",
-    WBO_TRUST_PROXY_HOPS: "2",
-  });
-  const forwardedConfig = await configFromEnv({
-    WBO_IP_SOURCE: "Forwarded",
-    WBO_TRUST_PROXY_HOPS: "2",
-  });
+  const forwardedForConfig = await withEnv(
+    {
+      WBO_IP_SOURCE: "X-Forwarded-For",
+      WBO_TRUST_PROXY_HOPS: "2",
+    },
+    async () => parseConfig(),
+  );
+  const forwardedConfig = await withEnv(
+    {
+      WBO_IP_SOURCE: "Forwarded",
+      WBO_TRUST_PROXY_HOPS: "2",
+    },
+    async () => parseConfig(),
+  );
 
   assert.equal(
     socketPolicy.getClientIp(
@@ -107,7 +117,10 @@ test("getClientIp supports exact trusted proxy depth for forwarded chains", asyn
 
 test("getClientIp supports custom single-value headers such as CF-Connecting-IP", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
-  const config = await configFromEnv({ WBO_IP_SOURCE: "CF-Connecting-IP" });
+  const config = await withEnv(
+    { WBO_IP_SOURCE: "CF-Connecting-IP" },
+    async () => parseConfig(),
+  );
   assert.equal(
     socketPolicy.getClientIp(
       config,
@@ -211,7 +224,9 @@ test("socket policy counts only mutations that should consume rate-limit budget"
 
 test("normalizeBroadcastData rejects blocked tools before persistence", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
-  const config = await configFromEnv({ WBO_BLOCKED_TOOLS: "text" });
+  const config = await withEnv({ WBO_BLOCKED_TOOLS: "text" }, async () =>
+    parseConfig(),
+  );
   const rejected = socketPolicy.normalizeBroadcastData(config, "anonymous", {
     tool: Text.id,
     type: MutationType.UPDATE,
@@ -231,7 +246,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
   await withEnv({ AUTH_SECRET_KEY: undefined }, async () => {
     const socketPolicy = require(SOCKET_POLICY_PATH);
     const { socket } = createSocket();
-    const config = await configFromEnv({ AUTH_SECRET_KEY: undefined });
+    const config = parseConfig();
 
     assert.equal(
       socketPolicy.canApplyBoardMessage(
@@ -253,7 +268,7 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
 
   await withEnv({ AUTH_SECRET_KEY: "test-secret" }, async () => {
     const socketPolicy = require(SOCKET_POLICY_PATH);
-    const config = await configFromEnv({ AUTH_SECRET_KEY: "test-secret" });
+    const config = parseConfig();
     const editorToken = jsonwebtoken.sign(
       { roles: ["editor"] },
       process.env.AUTH_SECRET_KEY,
