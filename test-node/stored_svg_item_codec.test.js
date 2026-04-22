@@ -52,20 +52,6 @@ test("stored svg item codec parses canonical shape and text tags without shadow 
   });
 });
 
-test("stored svg item codec derives pencil points from the canonical d attribute", () => {
-  assert.deepEqual(parseStoredSvgItem(makeStoredPencilEntry()), {
-    id: "line-1",
-    tool: "pencil",
-    color: "#000000",
-    size: 3,
-    _children: [
-      { x: 1, y: 2 },
-      { x: 10, y: 12 },
-      { x: 18, y: 9 },
-    ],
-  });
-});
-
 test("stored svg item codec scans path summaries without hydrating points", () => {
   assert.deepEqual(scanPathSummary("M 1 2 l 0 0 l 9 10 l 8 -3"), {
     childCount: 3,

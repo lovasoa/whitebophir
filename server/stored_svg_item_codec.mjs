@@ -99,6 +99,12 @@ function readStoredSvgBase(entry) {
   };
 }
 
+const storedSvgSerializeHelpers = {
+  escapeHtml,
+  numberOrZero,
+  renderTransformAttribute,
+};
+
 /**
  * @param {object} data
  * @param {number | undefined} opacity
@@ -186,5 +192,6 @@ export {
   renderPencilPath,
   renderTransformAttribute,
   serializeStoredSvgItem,
+  storedSvgSerializeHelpers,
   summarizeStoredSvgItem,
 };

@@ -13,6 +13,7 @@ const profileFiles = [
   "benchmark-server.cpuprofile",
   "benchmark-server.heapprofile",
 ];
+const benchmarkArgs = process.argv.slice(2);
 const spawnArgs = [
   "--expose-gc",
   "--cpu-prof",
@@ -22,6 +23,7 @@ const spawnArgs = [
   `--heap-prof-dir=${profileDir}`,
   "--heap-prof-name=benchmark-server.heapprofile",
   benchmarkScript,
+  ...benchmarkArgs,
 ];
 const benchmarkTimeoutMs = process.env.WBO_BENCH_TIMEOUT_MS ?? "600000";
 

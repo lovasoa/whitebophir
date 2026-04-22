@@ -4,6 +4,11 @@ import { copyFile, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
+import {
+  appendPersistedPencilPath,
+  renderPencilPath,
+  serializeStoredPencilPath,
+} from "../client-data/tools/pencil/index.js";
 import MessageCommon from "../client-data/js/message_common.js";
 import { readConfiguration } from "./configuration.mjs";
 import observability from "./observability.mjs";
@@ -14,7 +19,7 @@ import {
 import {
   canonicalItemFromStoredSvgEntry,
   currentText,
-  materializeItemForSave,
+  publicItemFromCanonicalItem,
 } from "./canonical_board_items.mjs";
 import {
   STORED_SVG_FORMAT,
@@ -27,6 +32,7 @@ import {
 import {
   parseStoredSvgItem,
   serializeStoredSvgItem,
+  storedSvgSerializeHelpers,
 } from "./stored_svg_item_codec.mjs";
 import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
 
@@ -455,6 +461,44 @@ function collectPersistedCanonicalItems(itemsById, paintOrder) {
 }
 
 /**
+ * @param {any} item
+ * @param {{sourceText?: string, sourcePath?: string}=} [options]
+ * @returns {string}
+ */
+function serializeCanonicalItemForStorage(item, options = {}) {
+  const storedItem = publicItemFromCanonicalItem(item);
+  if (!storedItem) return "";
+  if (item.payload?.kind === "text") {
+    if (typeof storedItem.txt !== "string") {
+      storedItem.txt =
+        typeof options.sourceText === "string" ? options.sourceText : "";
+    }
+    return serializeStoredSvgItem(storedItem);
+  }
+  if (item.payload?.kind === "children") {
+    const sourceRequired = needsStoredPencilPath(item);
+    const pathData = sourceRequired
+      ? appendPersistedPencilPath(
+          options.sourcePath,
+          storedItem.appendedChildren,
+        )
+      : renderPencilPath(storedItem._children || []);
+    if (!pathData) {
+      if (!sourceRequired) return "";
+      throw new Error(
+        `Missing persisted pencil path data for item "${item.id || "(unknown)"}"`,
+      );
+    }
+    return serializeStoredPencilPath(
+      storedItem,
+      pathData,
+      storedSvgSerializeHelpers,
+    );
+  }
+  return serializeStoredSvgItem(storedItem);
+}
+
+/**
  * @param {string} boardName
  * @param {Map<string, any>} itemsById
  * @param {string[]} paintOrder
@@ -475,7 +519,16 @@ async function writeCanonicalBoardState(
   /** @type {{[name: string]: any}} */
   const fullBoard = {};
   for (const item of collectPersistedCanonicalItems(itemsById, paintOrder)) {
-    const materialized = materializeItemForSave(item);
+    if (needsStoredPencilPath(item)) {
+      throw new Error(
+        `Cannot rewrite persisted pencil "${item.id || "(unknown)"}" without a stored source path`,
+      );
+    }
+    const materialized = publicItemFromCanonicalItem(item);
+    if (!materialized) continue;
+    if (item.payload?.kind === "text" && typeof materialized.txt !== "string") {
+      materialized.txt = "";
+    }
     const serialized = serializeStoredSvgItem(materialized);
     if (!serialized) continue;
     persistedIds.add(item.id);
@@ -489,51 +542,63 @@ async function writeCanonicalBoardState(
 }
 
 /**
- * @param {any} record
+ * @param {any} item
  * @returns {boolean}
  */
-function needsSourcePayload(record) {
+function needsStoredTextSource(item) {
   return !!(
-    record &&
-    record.deleted !== true &&
-    ((record.payload?.kind === "children" &&
-      (record.payload.appendedChildren?.length || 0) > 0) ||
-      (record.payload?.kind === "text" && currentText(record) === undefined))
+    item &&
+    item.deleted !== true &&
+    item.payload?.kind === "text" &&
+    currentText(item) === undefined
+  );
+}
+
+/**
+ * @param {any} item
+ * @returns {boolean}
+ */
+function needsStoredPencilPath(item) {
+  return !!(
+    item &&
+    item.deleted !== true &&
+    item.payload?.kind === "children" &&
+    (item.createdAfterPersistedSeq !== true ||
+      typeof item.copySource?.sourceId === "string")
   );
 }
 
 /**
  * @param {{tagName: string, attributes?: {[name: string]: string}, rawAttributes?: string, content: string, raw: string, id?: string}} entry
- * @returns {{txt: string} | {_children: any[]} | undefined}
+ * @returns {string | undefined}
  */
-function readStoredSourcePayload(entry) {
+function readStoredTextContent(entry) {
   const sourceItem = parseStoredSvgItem(entry);
-  if (typeof sourceItem?.txt === "string") {
-    return { txt: sourceItem.txt };
-  }
-  if (Array.isArray(sourceItem?._children)) {
-    return { _children: sourceItem._children || [] };
-  }
-  return undefined;
+  return typeof sourceItem?.txt === "string" ? sourceItem.txt : undefined;
+}
+
+/**
+ * @param {{attributes?: {[name: string]: string}, rawAttributes?: string}} entry
+ * @returns {string | undefined}
+ */
+function readStoredPencilPath(entry) {
+  const value =
+    entry?.attributes?.d ?? readRawAttribute(entry?.rawAttributes, "d");
+  return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 /**
  * @param {Map<string, any>} itemsById
- * @returns {Map<string, string[]>}
+ * @returns {Set<string>}
  */
-function collectCopyTargetsBySourceId(itemsById) {
-  const targetsBySourceId = new Map();
+function collectCopySourceIds(itemsById) {
+  const sourceIds = new Set();
   for (const item of itemsById.values()) {
     const sourceId = item?.copySource?.sourceId;
     if (typeof sourceId !== "string" || item.deleted === true) continue;
-    const existing = targetsBySourceId.get(sourceId);
-    if (existing) {
-      existing.push(item.id);
-    } else {
-      targetsBySourceId.set(sourceId, [item.id]);
-    }
+    sourceIds.add(sourceId);
   }
-  return targetsBySourceId;
+  return sourceIds;
 }
 
 /**
@@ -566,8 +631,9 @@ async function rewriteStoredSvgFromCanonical(
     encoding: "utf8",
     flags: "wx",
   });
-  const copyTargetsBySourceId = collectCopyTargetsBySourceId(itemsById);
-  const bufferedPayloads = new Map();
+  const copySourceIds = collectCopySourceIds(itemsById);
+  const bufferedTextContents = new Map();
+  const bufferedPencilPaths = new Map();
   const persistedIds = new Set();
   const closeOutput = () =>
     new Promise((resolve, reject) => {
@@ -607,12 +673,14 @@ async function rewriteStoredSvgFromCanonical(
           ) {
             continue;
           }
-          const sourcePayload = item.copySource
-            ? bufferedPayloads.get(item.copySource.sourceId)
-            : undefined;
-          const tag = serializeStoredSvgItem(
-            materializeItemForSave(item, sourcePayload),
-          );
+          const tag = serializeCanonicalItemForStorage(item, {
+            sourceText: item.copySource
+              ? bufferedTextContents.get(item.copySource.sourceId)
+              : undefined,
+            sourcePath: item.copySource
+              ? bufferedPencilPaths.get(item.copySource.sourceId)
+              : undefined,
+          });
           if (!tag) continue;
           persistedIds.add(item.id);
           if (!output.write(tag)) {
@@ -633,16 +701,24 @@ async function rewriteStoredSvgFromCanonical(
         continue;
       }
 
+      if (copySourceIds.has(id)) {
+        const copyPayloadKind = itemsById.get(id)?.payload?.kind;
+        if (copyPayloadKind === "text") {
+          const sourceText = readStoredTextContent(event.entry);
+          if (sourceText !== undefined) {
+            bufferedTextContents.set(id, sourceText);
+          }
+        } else if (copyPayloadKind === "children") {
+          const sourcePath = readStoredPencilPath(event.entry);
+          if (sourcePath !== undefined) {
+            bufferedPencilPaths.set(id, sourcePath);
+          }
+        }
+      }
+
       const item = itemsById.get(id);
       if (!item || item.deleted === true) {
         continue;
-      }
-
-      if (copyTargetsBySourceId.has(id)) {
-        const sourcePayload = readStoredSourcePayload(event.entry);
-        if (sourcePayload) {
-          bufferedPayloads.set(id, sourcePayload);
-        }
       }
 
       if (item.dirty !== true || item.createdAfterPersistedSeq === true) {
@@ -652,12 +728,14 @@ async function rewriteStoredSvgFromCanonical(
         continue;
       }
 
-      const sourcePayload = needsSourcePayload(item)
-        ? bufferedPayloads.get(id) || readStoredSourcePayload(event.entry)
-        : undefined;
-      const rewrittenTag = serializeStoredSvgItem(
-        materializeItemForSave(item, sourcePayload),
-      );
+      const rewrittenTag = serializeCanonicalItemForStorage(item, {
+        sourceText: needsStoredTextSource(item)
+          ? bufferedTextContents.get(id) || readStoredTextContent(event.entry)
+          : undefined,
+        sourcePath: needsStoredPencilPath(item)
+          ? bufferedPencilPaths.get(id) || readStoredPencilPath(event.entry)
+          : undefined,
+      });
       if (!rewrittenTag) {
         continue;
       }

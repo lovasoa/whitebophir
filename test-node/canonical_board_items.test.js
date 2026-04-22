@@ -5,7 +5,6 @@ const {
   canonicalItemFromItem,
   canonicalItemFromStoredSvgEntry,
   copyCanonicalItem,
-  materializeItemForSave,
   publicItemFromCanonicalItem,
 } = require("../server/canonical_board_items.mjs");
 const {
@@ -69,7 +68,6 @@ test("copyCanonicalItem snapshots compressed payload state at copy time", () => 
 
   assert.deepEqual(textCopy.copySource, {
     sourceId: "text-1",
-    sourcePayloadKind: "text",
   });
   assert.equal(textCopy.payload.modifiedText, undefined);
 
@@ -89,45 +87,6 @@ test("copyCanonicalItem snapshots compressed payload state at copy time", () => 
     { x: 1, y: 2 },
     { x: 3, y: 4 },
   ]);
-});
-
-test("materializeItemForSave reconstructs compressed payloads from source payload only during save", () => {
-  const persistedText = canonicalItemFromItem(makeCanonicalTextItem(), 0, {
-    persisted: true,
-  });
-  const persistedPencil = canonicalItemFromItem(makeCanonicalPencilItem(), 1, {
-    persisted: true,
-  });
-  persistedPencil.payload.appendedChildren.push({ x: 5, y: 6 });
-
-  assert.deepEqual(materializeItemForSave(persistedText, { txt: "hello" }), {
-    id: "text-1",
-    tool: "text",
-    x: 10,
-    y: 20,
-    size: 18,
-    color: "#123456",
-    txt: "hello",
-  });
-  assert.deepEqual(
-    materializeItemForSave(persistedPencil, {
-      _children: [
-        { x: 1, y: 2 },
-        { x: 3, y: 4 },
-      ],
-    }),
-    {
-      id: "line-1",
-      tool: "pencil",
-      color: "#123456",
-      size: 4,
-      _children: [
-        { x: 1, y: 2 },
-        { x: 3, y: 4 },
-        { x: 5, y: 6 },
-      ],
-    },
-  );
 });
 
 test("publicItemFromCanonicalItem exposes canonical compressed state instead of pretending the full payload is loaded", () => {

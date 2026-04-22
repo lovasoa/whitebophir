@@ -44,8 +44,8 @@ function cloneAttrs(attrs) {
 }
 
 /**
- * @param {{sourceId: string, sourcePayloadKind: string} | undefined} copySource
- * @returns {{sourceId: string, sourcePayloadKind: string} | undefined}
+ * @param {{sourceId: string} | undefined} copySource
+ * @returns {{sourceId: string} | undefined}
  */
 function cloneCopySource(copySource) {
   return copySource ? { ...copySource } : undefined;
@@ -192,7 +192,6 @@ function canonicalItemFromItem(
           ? {
               copySource: {
                 sourceId: options.baselineSourceId,
-                sourcePayloadKind: "text",
               },
             }
           : {}),
@@ -330,10 +329,14 @@ function copyCanonicalItem(source, newId, paintOrder, time = Date.now()) {
       copied.payload.modifiedText = sourceText;
       delete copied.copySource;
     } else {
-      copied.copySource = {
-        sourceId: baselineSourceId(source),
-        sourcePayloadKind: "text",
-      };
+      const sourceBaseline = baselineSourceId(source);
+      if (sourceBaseline) {
+        copied.copySource = {
+          sourceId: sourceBaseline,
+        };
+      } else {
+        delete copied.copySource;
+      }
     }
     return copied;
   }
@@ -350,7 +353,6 @@ function copyCanonicalItem(source, newId, paintOrder, time = Date.now()) {
     if (sourceBaseline) {
       copied.copySource = {
         sourceId: sourceBaseline,
-        sourcePayloadKind: "children",
       };
     } else {
       delete copied.copySource;
@@ -388,26 +390,6 @@ function publicItemFromCanonicalItem(item) {
   return view;
 }
 
-/**
- * @param {any} item
- * @param {{txt?: string, _children?: Array<{x: number, y: number}>}=} [sourcePayload]
- * @returns {any}
- */
-function materializeItemForSave(item, sourcePayload = {}) {
-  if (!item || item.deleted) return null;
-  const materialized = publicBaseFromCanonicalItem(item);
-  if (item.payload?.kind === "text") {
-    materialized.txt =
-      currentText(item) ??
-      (typeof sourcePayload.txt === "string" ? sourcePayload.txt : "");
-  } else if (item.payload?.kind === "children") {
-    materialized._children = cloneChildren(sourcePayload._children).concat(
-      cloneChildren(item.payload.appendedChildren),
-    );
-  }
-  return materialized;
-}
-
 export {
   canonicalItemFromItem,
   canonicalItemFromStoredSvgEntry,
@@ -416,6 +398,5 @@ export {
   copyCanonicalItem,
   currentText,
   effectiveChildCount,
-  materializeItemForSave,
   publicItemFromCanonicalItem,
 };

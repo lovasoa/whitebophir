@@ -10,30 +10,13 @@ const svgEnvelope = require("../server/svg_envelope.mjs");
 const svgBoardStore = require("../server/svg_board_store.mjs");
 const legacyJsonBoardSource = require("../server/legacy_json_board_source.mjs");
 const storedSvgItemCodec = require("../server/stored_svg_item_codec.mjs");
+const { copyCanonicalItem } = require("../server/canonical_board_items.mjs");
 /**
  * @param {string} value
  * @returns {string}
  */
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * @param {{x: number, y: number}[]} points
- * @returns {string}
- */
-function renderExpectedPencilPath(points) {
-  if (!points.length) return "";
-  const firstPoint = points[0];
-  if (!firstPoint) return "";
-  let path = `M ${firstPoint.x} ${firstPoint.y}`;
-  for (let i = 1; i < points.length; i += 1) {
-    const prev = points[i - 1];
-    const point = points[i];
-    if (!prev || !point) continue;
-    path += ` l ${point.x - prev.x} ${point.y - prev.y}`;
-  }
-  return path;
 }
 
 /**
@@ -56,6 +39,19 @@ function parseStoredSvg(svg) {
   for (const itemEntry of svgEnvelope.parseStoredSvgItems(
     envelope.drawingAreaContent,
   )) {
+    const summary = storedSvgItemCodec.summarizeStoredSvgItem(itemEntry);
+    if (!summary?.id) continue;
+    if (summary.tool === "pencil") {
+      board[summary.id] = {
+        id: summary.id,
+        tool: summary.tool,
+        ...summary.data,
+        d: itemEntry.attributes?.d,
+        childCount: summary.childCount,
+        localBounds: summary.localBounds,
+      };
+      continue;
+    }
     const item = storedSvgItemCodec.parseStoredSvgItem(itemEntry);
     if (item?.id) board[item.id] = item;
   }
@@ -713,7 +709,9 @@ test("served svg baselines keep raw pencil paths for client-side smoothing", asy
     const svg = await svgBoardStore.readServedBaseline("served-pencil-json");
     assert.match(
       svg,
-      new RegExp(`d="${escapeRegExp(renderExpectedPencilPath(legacyPoints))}"`),
+      new RegExp(
+        `d="${escapeRegExp(storedSvgItemCodec.renderPencilPath(legacyPoints))}"`,
+      ),
     );
   });
 });
@@ -795,10 +793,80 @@ test("stored svg preserves style state needed for authoritative rendering", asyn
       color: "#abcdef",
       size: 5,
       opacity: 0.8,
-      _children: [
-        { x: 1, y: 2 },
-        { x: 3, y: 4 },
-      ],
+      d: "M 1 2 l 2 2",
+      childCount: 2,
+      localBounds: {
+        minX: 1,
+        minY: 2,
+        maxX: 3,
+        maxY: 4,
+      },
+    });
+  });
+});
+
+test("rewriteStoredSvgFromCanonical reuses raw persisted pencil paths for copied entries", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-persisted-pencil-copy-"),
+  );
+  const boardName = "persisted-pencil-copy";
+  const storedSvg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="4" data-wbo-readonly="false">' +
+    '<defs id="defs"></defs>' +
+    '<g id="drawingArea">' +
+    '<path id="line-1" d="M 1 2 l 0 0 l 2 2" stroke="#123456" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>' +
+    '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello</text>' +
+    "</g>" +
+    '<g id="cursors"></g>' +
+    "</svg>";
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(
+      svgBoardStore.boardSvgPath(boardName),
+      storedSvg,
+      "utf8",
+    );
+
+    const state = await svgBoardStore.readCanonicalBoardState(boardName);
+    const persistedPencil = state.itemsById.get("line-1");
+    assert.ok(persistedPencil);
+    persistedPencil.payload.appendedChildren.push({ x: 9, y: 10 });
+    persistedPencil.dirty = true;
+
+    const copiedPencil = copyCanonicalItem(persistedPencil, "line-2", 2, 123);
+    state.itemsById.set("line-2", copiedPencil);
+    state.paintOrder.push("line-2");
+
+    persistedPencil.deleted = true;
+    state.itemsById.set("line-1", persistedPencil);
+
+    const persistedIds = await svgBoardStore.rewriteStoredSvgFromCanonical(
+      boardName,
+      state.itemsById,
+      state.paintOrder,
+      state.metadata,
+      state.seq,
+      state.seq + 1,
+    );
+    const rewritten = await fs.readFile(
+      svgBoardStore.boardSvgPath(boardName),
+      "utf8",
+    );
+    const persistedState = await readPersistedBoardState(boardName, historyDir);
+
+    assert.deepEqual([...persistedIds], ["line-2"]);
+    assert.doesNotMatch(rewritten, /id="line-1"/);
+    assert.match(
+      rewritten,
+      /<path id="line-2" d="M 1 2 l 0 0 l 2 2 l 6 6" stroke="#123456" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"><\/path>/,
+    );
+    assert.equal(persistedState.board["line-2"]?.d, "M 1 2 l 0 0 l 2 2 l 6 6");
+    assert.equal(persistedState.board["line-2"]?.childCount, 3);
+    assert.deepEqual(persistedState.board["line-2"]?.localBounds, {
+      minX: 1,
+      minY: 2,
+      maxX: 9,
+      maxY: 10,
     });
   });
 });

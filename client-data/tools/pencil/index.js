@@ -70,29 +70,50 @@ function readCanonicalPathInteger(d, index) {
 
 /**
  * @param {string | undefined} d
- * @param {(x: number, y: number) => void} visit
- * @returns {boolean}
+ * @returns {{
+ *   childCount: number,
+ *   localBounds: {minX: number, minY: number, maxX: number, maxY: number} | null,
+ *   lastPoint: {x: number, y: number} | null,
+ * }}
  */
-function forEachCanonicalPencilPoint(d, visit) {
-  if (typeof d !== "string" || d === "") return true;
+const EMPTY_PERSISTED_PENCIL_SCAN = {
+  childCount: 0,
+  localBounds: null,
+  lastPoint: null,
+};
+
+/**
+ * @param {string | undefined} d
+ * @returns {{
+ *   childCount: number,
+ *   localBounds: {minX: number, minY: number, maxX: number, maxY: number} | null,
+ *   lastPoint: {x: number, y: number} | null,
+ * }}
+ */
+function scanPersistedPencilPath(d) {
+  if (typeof d !== "string" || d === "") return EMPTY_PERSISTED_PENCIL_SCAN;
   const length = d.length;
-  if (length < 5 || d.charCodeAt(0) !== 77 || d.charCodeAt(1) !== 32) {
-    return false;
-  }
+  if (length < 5 || d.charCodeAt(0) !== 77 || d.charCodeAt(1) !== 32)
+    return EMPTY_PERSISTED_PENCIL_SCAN;
 
   let index = 2;
   const firstX = readCanonicalPathInteger(d, index);
-  if (!firstX || firstX.index >= length || d.charCodeAt(firstX.index) !== 32) {
-    return false;
-  }
+  if (!firstX || firstX.index >= length || d.charCodeAt(firstX.index) !== 32)
+    return EMPTY_PERSISTED_PENCIL_SCAN;
   index = firstX.index + 1;
   const firstY = readCanonicalPathInteger(d, index);
-  if (!firstY) return false;
+  if (!firstY) return EMPTY_PERSISTED_PENCIL_SCAN;
   index = firstY.index;
 
   let currentX = firstX.value;
   let currentY = firstY.value;
-  visit(currentX, currentY);
+  let minX = currentX;
+  let minY = currentY;
+  let maxX = currentX;
+  let maxY = currentY;
+  let childCount = 1;
+  let previousDistinctX = currentX;
+  let previousDistinctY = currentY;
 
   while (index < length) {
     if (
@@ -101,27 +122,35 @@ function forEachCanonicalPencilPoint(d, visit) {
       d.charCodeAt(index + 1) !== 108 ||
       d.charCodeAt(index + 2) !== 32
     ) {
-      return false;
+      return EMPTY_PERSISTED_PENCIL_SCAN;
     }
     index += 3;
     const deltaX = readCanonicalPathInteger(d, index);
-    if (
-      !deltaX ||
-      deltaX.index >= length ||
-      d.charCodeAt(deltaX.index) !== 32
-    ) {
-      return false;
-    }
+    if (!deltaX || deltaX.index >= length || d.charCodeAt(deltaX.index) !== 32)
+      return EMPTY_PERSISTED_PENCIL_SCAN;
     index = deltaX.index + 1;
     const deltaY = readCanonicalPathInteger(d, index);
-    if (!deltaY) return false;
+    if (!deltaY) return EMPTY_PERSISTED_PENCIL_SCAN;
     index = deltaY.index;
     currentX += deltaX.value;
     currentY += deltaY.value;
-    visit(currentX, currentY);
+    if (previousDistinctX === currentX && previousDistinctY === currentY) {
+      continue;
+    }
+    previousDistinctX = currentX;
+    previousDistinctY = currentY;
+    childCount += 1;
+    if (currentX < minX) minX = currentX;
+    else if (currentX > maxX) maxX = currentX;
+    if (currentY < minY) minY = currentY;
+    else if (currentY > maxY) maxY = currentY;
   }
 
-  return true;
+  return {
+    childCount,
+    localBounds: { minX, minY, maxX, maxY },
+    lastPoint: { x: currentX, y: currentY },
+  };
 }
 
 /**
@@ -129,56 +158,39 @@ function forEachCanonicalPencilPoint(d, visit) {
  * @returns {{childCount: number, localBounds: {minX: number, minY: number, maxX: number, maxY: number} | null}}
  */
 function scanPathSummary(d) {
-  let childCount = 0;
-  let minX = 0;
-  let minY = 0;
-  let maxX = 0;
-  let maxY = 0;
-  /** @type {number | undefined} */
-  let previousX;
-  /** @type {number | undefined} */
-  let previousY;
-  const ok = forEachCanonicalPencilPoint(d, (x, y) => {
-    if (previousX === x && previousY === y) return;
-    previousX = x;
-    previousY = y;
-    if (childCount === 0) {
-      minX = x;
-      minY = y;
-      maxX = x;
-      maxY = y;
-      childCount = 1;
-      return;
-    }
-    childCount += 1;
-    if (x < minX) minX = x;
-    else if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    else if (y > maxY) maxY = y;
-  });
-  return ok && childCount > 0
-    ? { childCount, localBounds: { minX, minY, maxX, maxY } }
-    : { childCount: 0, localBounds: null };
+  const scanned = scanPersistedPencilPath(d);
+  return {
+    childCount: scanned.childCount,
+    localBounds: scanned.localBounds,
+  };
 }
 
 /**
  * @param {string | undefined} d
- * @returns {{x: number, y: number}[]}
+ * @param {{x: number, y: number}[]} points
+ * @returns {string}
  */
-function parsePersistedPencilPoints(d) {
-  /** @type {{x: number, y: number}[]} */
-  const points = [];
-  /** @type {number | undefined} */
-  let previousX;
-  /** @type {number | undefined} */
-  let previousY;
-  const ok = forEachCanonicalPencilPoint(d, (x, y) => {
-    if (previousX === x && previousY === y) return;
-    previousX = x;
-    previousY = y;
-    points.push({ x, y });
-  });
-  return ok ? points : [];
+function appendPersistedPencilPath(d, points) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return typeof d === "string" ? d : "";
+  }
+  const scanned = scanPersistedPencilPath(d);
+  if (!scanned.lastPoint) return "";
+  let lastX = scanned.lastPoint.x;
+  let lastY = scanned.lastPoint.y;
+  let pathData = d || "";
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      continue;
+    }
+    const x = roundPathValue(point.x);
+    const y = roundPathValue(point.y);
+    pathData += ` l ${x - lastX} ${y - lastY}`;
+    lastX = x;
+    lastY = y;
+  }
+  return pathData;
 }
 
 /**
@@ -213,7 +225,32 @@ function renderPencilPath(points) {
   return pathData;
 }
 
-export { renderPencilPath, scanPathSummary };
+/**
+ * @param {{id?: string, color?: string, size?: number, opacity?: number, transform?: any}} item
+ * @param {string} pathData
+ * @param {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: any) => string}} helpers
+ * @returns {string}
+ */
+function serializeStoredPencilPath(item, pathData, helpers) {
+  if (!pathData) return "";
+  const transform = helpers.renderTransformAttribute(item.transform);
+  const id = typeof item.id === "string" ? helpers.escapeHtml(item.id) : "";
+  const color = helpers.escapeHtml(item.color || "#000000");
+  const size = helpers.numberOrZero(item.size) | 0;
+  const opacity =
+    typeof item.opacity === "number" ? ` opacity="${item.opacity}"` : "";
+  return (
+    `<path id="${id}" d="${helpers.escapeHtml(pathData)}"` +
+    ` stroke="${color}" stroke-width="${size}" fill="none" stroke-linecap="round" stroke-linejoin="round"${opacity}${transform}></path>`
+  );
+}
+
+export {
+  appendPersistedPencilPath,
+  renderPencilPath,
+  scanPathSummary,
+  serializeStoredPencilPath,
+};
 
 export const toolId = "pencil";
 export const drawsOnBoard = true;
@@ -272,32 +309,10 @@ const contract = {
       localBounds: scanned.localBounds,
     };
   },
-  parseStoredSvgItem(summary, entry, helpers) {
-    const points = parsePersistedPencilPoints(
-      helpers.readStoredSvgAttribute(entry, "d"),
-    );
-    if (points.length === 0) return null;
-    return {
-      id: summary.id,
-      tool: contract.toolId,
-      ...summary.data,
-      _children: points,
-    };
-  },
   serializeStoredSvgItem(item, helpers) {
-    const transform = helpers.renderTransformAttribute(item.transform);
-    const id = typeof item.id === "string" ? helpers.escapeHtml(item.id) : "";
-    const color = helpers.escapeHtml(item.color || "#000000");
-    const size = helpers.numberOrZero(item.size) | 0;
-    const opacity =
-      typeof item.opacity === "number" ? ` opacity="${item.opacity}"` : "";
     const points = Array.isArray(item._children) ? item._children : [];
     const pathData = renderPencilPath(points);
-    if (!pathData) return "";
-    return (
-      `<path id="${id}" d="${helpers.escapeHtml(pathData)}"` +
-      ` stroke="${color}" stroke-width="${size}" fill="none" stroke-linecap="round" stroke-linejoin="round"${opacity}${transform}></path>`
-    );
+    return serializeStoredPencilPath(item, pathData, helpers);
   },
   renderBoardSvg(pencil, helpers) {
     const pathstring = renderPencilPath(pencil._children || []);

@@ -5,7 +5,10 @@ import {
   boardJsonPath,
   parseLegacyStoredBoard,
 } from "../../server/legacy_json_board_source.mjs";
-import { parseStoredSvgItem } from "../../server/stored_svg_item_codec.mjs";
+import {
+  parseStoredSvgItem,
+  summarizeStoredSvgItem,
+} from "../../server/stored_svg_item_codec.mjs";
 import { boardSvgPath } from "../../server/svg_board_store.mjs";
 import {
   parseStoredSvgEnvelope,
@@ -24,6 +27,19 @@ function parseStoredSvgBoard(svg: string): StoredBoard {
   const envelope = parseStoredSvgEnvelope(svg);
   const board: StoredBoard = {};
   for (const itemEntry of parseStoredSvgItems(envelope.drawingAreaContent)) {
+    const summary = summarizeStoredSvgItem(itemEntry);
+    if (!summary?.id) continue;
+    if (summary.tool === "pencil") {
+      board[summary.id] = {
+        id: summary.id,
+        tool: summary.tool,
+        ...summary.data,
+        d: itemEntry.attributes?.d,
+        childCount: summary.childCount,
+        localBounds: summary.localBounds,
+      };
+      continue;
+    }
     const item = parseStoredSvgItem(itemEntry);
     if (item?.id) {
       board[item.id] = item;
