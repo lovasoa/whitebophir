@@ -9,10 +9,11 @@ const {
   loadSockets,
   withEnv,
 } = require("./test_helpers.js");
+let configLoadSequence = 0;
 
 function loadConfig() {
   return import(
-    `${require("node:url").pathToFileURL(CONFIG_PATH).href}?cache-bust=${Date.now()}-${Math.random()}`
+    `${require("node:url").pathToFileURL(CONFIG_PATH).href}?cache-bust=rate-limits-${++configLoadSequence}`
   );
 }
 
