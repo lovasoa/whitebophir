@@ -3,8 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-
-const { parseConfig } = require("./test_helpers.js");
+const { createConfig } = require("./test_helpers.js");
 const { Template } = require("../server/templating.mjs");
 
 /**
@@ -14,7 +13,7 @@ async function createTemplate() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "wbo-template-"));
   const templatePath = path.join(directory, "template.hbs");
   await fs.writeFile(templatePath, "{{baseUrl}}", "utf8");
-  return new Template(templatePath, parseConfig());
+  return new Template(templatePath, createConfig());
 }
 
 test("Template.parameters uses the first forwarded host and proto values", async () => {
