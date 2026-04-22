@@ -1,6 +1,4 @@
 import {
-  parsePathData,
-  pointsFromPathData,
   renderPencilPath,
   scanPathSummary,
 } from "../client-data/tools/pencil/index.js";
@@ -182,11 +180,9 @@ function serializeStoredSvgItem(item) {
 }
 
 export {
-  parsePathData,
   parseStoredSvgItem,
   scanPathSummary,
   parseTransformAttribute,
-  pointsFromPathData,
   renderPencilPath,
   renderTransformAttribute,
   serializeStoredSvgItem,

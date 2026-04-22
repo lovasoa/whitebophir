@@ -40,82 +40,88 @@ function roundPathValue(value) {
 }
 
 /**
- * @param {number} code
- * @returns {boolean}
+ * Parse a canonical persisted pencil path emitted by renderPencilPath:
+ * `M <x> <y> l <dx> <dy> ...`
+ *
+ * @param {string} d
+ * @param {number} index
+ * @returns {{value: number, index: number} | null}
  */
-function isPathWhitespace(code) {
-  return code === 9 || code === 10 || code === 13 || code === 32 || code === 44;
-}
-
-/**
- * @param {number} code
- * @returns {boolean}
- */
-function isAsciiLetter(code) {
-  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
-}
-
-/**
- * @param {string | undefined} d
- * @param {(command: "M" | "l", x: number, y: number) => void} visit
- * @returns {boolean}
- */
-function forEachPathPair(d, visit) {
-  if (typeof d !== "string" || d.trim() === "") return true;
-  let index = 0;
-  /** @type {"M" | "l" | null} */
-  let command = null;
-  /** @type {number | undefined} */
-  let pendingX;
-
-  while (index < d.length) {
-    const code = d.charCodeAt(index);
-    if (Number.isNaN(code)) break;
-    if (isPathWhitespace(code)) {
-      index += 1;
-      continue;
-    }
-    if (code === 77 || code === 108) {
-      if (pendingX !== undefined) return false;
-      command = code === 77 ? "M" : "l";
-      index += 1;
-      continue;
-    }
-    if (isAsciiLetter(code) || !command) return false;
-    const start = index;
-    index += 1;
-    while (index < d.length) {
-      const nextCode = d.charCodeAt(index);
-      if (Number.isNaN(nextCode)) break;
-      if (isPathWhitespace(nextCode) || nextCode === 77 || nextCode === 108) {
-        break;
-      }
-      index += 1;
-      if (isAsciiLetter(nextCode)) return false;
-    }
-    const value = Number(d.slice(start, index));
-    if (!Number.isFinite(value)) return false;
-    if (pendingX === undefined) {
-      pendingX = value;
-      continue;
-    }
-    visit(command, pendingX, value);
-    pendingX = undefined;
+function readCanonicalPathInteger(d, index) {
+  const length = d.length;
+  let next = index;
+  let sign = 1;
+  if (next < length && d.charCodeAt(next) === 45) {
+    sign = -1;
+    next += 1;
   }
-  return pendingX === undefined;
+  if (next >= length) return null;
+  let code = d.charCodeAt(next) - 48;
+  if (code < 0 || code > 9) return null;
+  let value = 0;
+  while (next < length && code >= 0 && code <= 9) {
+    value = value * 10 + code;
+    next += 1;
+    if (next >= length) break;
+    code = d.charCodeAt(next) - 48;
+  }
+  return { value: sign * value, index: next };
 }
 
 /**
  * @param {string | undefined} d
- * @returns {{type: string, values: number[]}[]}
+ * @param {(x: number, y: number) => void} visit
+ * @returns {boolean}
  */
-function parsePathData(d) {
-  /** @type {{type: string, values: number[]}[]} */
-  const segments = [];
-  const ok = forEachPathPair(d, (command, x, y) => {
-    segments.push({ type: command, values: [x, y] });
-  });
-  return ok ? segments : [];
+function forEachCanonicalPencilPoint(d, visit) {
+  if (typeof d !== "string" || d === "") return true;
+  const length = d.length;
+  if (length < 5 || d.charCodeAt(0) !== 77 || d.charCodeAt(1) !== 32) {
+    return false;
+  }
+
+  let index = 2;
+  const firstX = readCanonicalPathInteger(d, index);
+  if (!firstX || firstX.index >= length || d.charCodeAt(firstX.index) !== 32) {
+    return false;
+  }
+  index = firstX.index + 1;
+  const firstY = readCanonicalPathInteger(d, index);
+  if (!firstY) return false;
+  index = firstY.index;
+
+  let currentX = firstX.value;
+  let currentY = firstY.value;
+  visit(currentX, currentY);
+
+  while (index < length) {
+    if (
+      index + 2 >= length ||
+      d.charCodeAt(index) !== 32 ||
+      d.charCodeAt(index + 1) !== 108 ||
+      d.charCodeAt(index + 2) !== 32
+    ) {
+      return false;
+    }
+    index += 3;
+    const deltaX = readCanonicalPathInteger(d, index);
+    if (
+      !deltaX ||
+      deltaX.index >= length ||
+      d.charCodeAt(deltaX.index) !== 32
+    ) {
+      return false;
+    }
+    index = deltaX.index + 1;
+    const deltaY = readCanonicalPathInteger(d, index);
+    if (!deltaY) return false;
+    index = deltaY.index;
+    currentX += deltaX.value;
+    currentY += deltaY.value;
+    visit(currentX, currentY);
+  }
+
+  return true;
 }
 
 /**
@@ -123,72 +129,56 @@ function parsePathData(d) {
  * @returns {{childCount: number, localBounds: {minX: number, minY: number, maxX: number, maxY: number} | null}}
  */
 function scanPathSummary(d) {
-  let currentX = 0;
-  let currentY = 0;
   let childCount = 0;
-  /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
-  let localBounds = null;
+  let minX = 0;
+  let minY = 0;
+  let maxX = 0;
+  let maxY = 0;
   /** @type {number | undefined} */
   let previousX;
   /** @type {number | undefined} */
   let previousY;
-  const ok = forEachPathPair(d, (command, x, y) => {
-    if (command === "M") {
-      currentX = x;
-      currentY = y;
-    } else {
-      currentX += x;
-      currentY += y;
-    }
-    if (previousX === currentX && previousY === currentY) return;
-    previousX = currentX;
-    previousY = currentY;
-    childCount += 1;
-    if (!localBounds) {
-      localBounds = {
-        minX: currentX,
-        minY: currentY,
-        maxX: currentX,
-        maxY: currentY,
-      };
+  const ok = forEachCanonicalPencilPoint(d, (x, y) => {
+    if (previousX === x && previousY === y) return;
+    previousX = x;
+    previousY = y;
+    if (childCount === 0) {
+      minX = x;
+      minY = y;
+      maxX = x;
+      maxY = y;
+      childCount = 1;
       return;
     }
-    localBounds.minX = Math.min(localBounds.minX, currentX);
-    localBounds.minY = Math.min(localBounds.minY, currentY);
-    localBounds.maxX = Math.max(localBounds.maxX, currentX);
-    localBounds.maxY = Math.max(localBounds.maxY, currentY);
+    childCount += 1;
+    if (x < minX) minX = x;
+    else if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    else if (y > maxY) maxY = y;
   });
-  if (!ok) return { childCount: 0, localBounds: null };
-  return { childCount, localBounds };
+  return ok && childCount > 0
+    ? { childCount, localBounds: { minX, minY, maxX, maxY } }
+    : { childCount: 0, localBounds: null };
 }
 
 /**
- * @param {{type: string, values: number[]}[]} pathData
+ * @param {string | undefined} d
  * @returns {{x: number, y: number}[]}
  */
-function pointsFromPathData(pathData) {
+function parsePersistedPencilPoints(d) {
   /** @type {{x: number, y: number}[]} */
   const points = [];
-  let currentX = 0;
-  let currentY = 0;
-  pathData.forEach((segment) => {
-    if (!segment || !Array.isArray(segment.values)) return;
-    if (segment.values.length < 2) return;
-    const x = segment.values[segment.values.length - 2];
-    const y = segment.values[segment.values.length - 1];
-    if (typeof x !== "number" || typeof y !== "number") return;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-
-    const pointX = segment.type === "l" ? currentX + x : x;
-    const pointY = segment.type === "l" ? currentY + y : y;
-    const previous = points[points.length - 1];
-    const point = { x: pointX, y: pointY };
-    if (previous && previous.x === point.x && previous.y === point.y) return;
-    points.push(point);
-    currentX = pointX;
-    currentY = pointY;
+  /** @type {number | undefined} */
+  let previousX;
+  /** @type {number | undefined} */
+  let previousY;
+  const ok = forEachCanonicalPencilPoint(d, (x, y) => {
+    if (previousX === x && previousY === y) return;
+    previousX = x;
+    previousY = y;
+    points.push({ x, y });
   });
-  return points;
+  return ok ? points : [];
 }
 
 /**
@@ -223,7 +213,7 @@ function renderPencilPath(points) {
   return pathData;
 }
 
-export { parsePathData, pointsFromPathData, renderPencilPath, scanPathSummary };
+export { renderPencilPath, scanPathSummary };
 
 export const toolId = "pencil";
 export const drawsOnBoard = true;
@@ -283,8 +273,8 @@ const contract = {
     };
   },
   parseStoredSvgItem(summary, entry, helpers) {
-    const points = pointsFromPathData(
-      parsePathData(helpers.readStoredSvgAttribute(entry, "d")),
+    const points = parsePersistedPencilPoints(
+      helpers.readStoredSvgAttribute(entry, "d"),
     );
     if (points.length === 0) return null;
     return {
