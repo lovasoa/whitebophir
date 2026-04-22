@@ -1,114 +1,139 @@
+import path from "node:path";
+
 import {
-  parseAuthSecretKey,
-  parseAutoFingerWhiteout,
-  parseBlockedSelectionButtons,
-  parseBlockedTools,
-  parseConstructiveActionRateLimits,
-  parseDefaultBoard,
-  parseDestructiveActionRateLimits,
-  parseGeneralRateLimits,
-  parseHistoryDir,
-  parseHost,
-  parseIpConfiguration,
-  parseIsDevelopment,
-  parseLogLevel,
-  parseMaxBoardSize,
-  parseMaxChildren,
-  parseMaxItemCount,
-  parseMaxSaveDelay,
-  parsePort,
-  parseSaveInterval,
-  parseSeqReplayRetentionMs,
-  parseTextCreationRateLimits,
-  parseTurnstileSecretKey,
-  parseTurnstileSiteKey,
-  parseTurnstileValidationWindowMs,
-  parseTurnstileVerifyUrl,
-  parseWebroot,
-} from "./configuration_values.mjs";
+  parseCommaSeparatedEnv,
+  parseDisabledFlagEnv,
+  parseEnumEnv,
+  parseIntegerEnv,
+  parseIpConfigurationEnv,
+  parseRateLimitProfileEnv,
+  parseStringEnv,
+} from "./configuration_helpers.mjs";
+
+const APP_ROOT = process.cwd();
+const LOG_LEVELS = ["debug", "info", "warn", "error"];
+const DEFAULT_HISTORY_DIR = path.join(APP_ROOT, "server-data");
+const DEFAULT_WEBROOT = path.join(APP_ROOT, "client-data");
+const DEFAULT_TURNSTILE_VERIFY_URL =
+  "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const IP_CONFIGURATION = parseIpConfigurationEnv(
+  "WBO_IP_SOURCE",
+  "WBO_TRUST_PROXY_HOPS",
+  "remoteAddress",
+  0,
+);
 
 /** True outside production. */
-export const IS_DEVELOPMENT = parseIsDevelopment();
+export const IS_DEVELOPMENT = process.env.NODE_ENV !== "production";
 
-/** Application listen port. */
-export const PORT = parsePort();
+/** Listen port for the HTTP server. */
+export const PORT = parseIntegerEnv("PORT", 8080);
 
-/** Application listen host. Empty means all interfaces. */
-export const HOST = parseHost();
+/** Listen host for the HTTP server. Empty means all interfaces. */
+export const HOST = parseStringEnv("HOST", undefined);
 
-/** Board persistence directory. */
-export const HISTORY_DIR = parseHistoryDir();
+/** Directory where board history and persisted SVG files are stored. */
+export const HISTORY_DIR = parseStringEnv(
+  "WBO_HISTORY_DIR",
+  DEFAULT_HISTORY_DIR,
+);
 
-/** Minimum emitted server log level: debug, info, warn, or error. */
-export const LOG_LEVEL = parseLogLevel();
+/** Minimum emitted server log level. Accepted values: `debug`, `info`, `warn`, `error`. */
+export const LOG_LEVEL = parseEnumEnv("LOG_LEVEL", LOG_LEVELS, "info");
 
-/** Static asset root. */
-export const WEBROOT = parseWebroot();
+/** Static web root used to serve the client application files. */
+export const WEBROOT = parseStringEnv("WBO_WEBROOT", DEFAULT_WEBROOT);
 
-/** Inactivity delay before saving a board. */
-export const SAVE_INTERVAL = parseSaveInterval();
+/** Idle delay before a dirty board is saved. */
+export const SAVE_INTERVAL = parseIntegerEnv("WBO_SAVE_INTERVAL", 2000);
 
-/** Maximum active-use delay between saves. */
-export const MAX_SAVE_DELAY = parseMaxSaveDelay();
+/** Maximum save delay while a board keeps receiving writes. */
+export const MAX_SAVE_DELAY = parseIntegerEnv("WBO_MAX_SAVE_DELAY", 60 * 1000);
 
-/** Replay retention window after save. */
-export const SEQ_REPLAY_RETENTION_MS = parseSeqReplayRetentionMs();
+/** How long persisted replay entries stay available after a save. */
+export const SEQ_REPLAY_RETENTION_MS = parseIntegerEnv(
+  "WBO_SEQ_REPLAY_RETENTION_MS",
+  60 * 1000,
+);
 
-/** Maximum persisted item count per board. */
-export const MAX_ITEM_COUNT = parseMaxItemCount();
+/** Hard cap on authoritative persisted items per board. */
+export const MAX_ITEM_COUNT = parseIntegerEnv("WBO_MAX_ITEM_COUNT", 32768);
 
-/** Maximum child count inside one item payload. */
-export const MAX_CHILDREN = parseMaxChildren();
+/** Hard cap on child payload entries inside one message or stored item. */
+export const MAX_CHILDREN = parseIntegerEnv("WBO_MAX_CHILDREN", 500);
 
-/** Maximum absolute board coordinate. */
-export const MAX_BOARD_SIZE = parseMaxBoardSize();
+/** Maximum absolute board coordinate accepted by the server. */
+export const MAX_BOARD_SIZE = parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360);
 
 /** Per-socket general write rate limits. Example: `*:250/5s anonymous:125/5s`. */
-export const GENERAL_RATE_LIMITS = parseGeneralRateLimits();
+export const GENERAL_RATE_LIMITS = parseRateLimitProfileEnv(
+  "WBO_MAX_EMIT_COUNT",
+  "*:250/5s",
+);
 
 /** Per-IP constructive write rate limits. Example: `*:40/10s anonymous:20/10s`. */
-export const CONSTRUCTIVE_ACTION_RATE_LIMITS =
-  parseConstructiveActionRateLimits();
+export const CONSTRUCTIVE_ACTION_RATE_LIMITS = parseRateLimitProfileEnv(
+  "WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP",
+  "*:40/10s anonymous:20/10s",
+);
 
 /** Per-IP destructive write rate limits. Example: `*:190/60s anonymous:95/60s`. */
-export const DESTRUCTIVE_ACTION_RATE_LIMITS =
-  parseDestructiveActionRateLimits();
+export const DESTRUCTIVE_ACTION_RATE_LIMITS = parseRateLimitProfileEnv(
+  "WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP",
+  "*:190/60s anonymous:95/60s",
+);
 
 /** Per-IP text creation rate limits. Example: `*:2/1s anonymous:30/60s`. */
-export const TEXT_CREATION_RATE_LIMITS = parseTextCreationRateLimits();
+export const TEXT_CREATION_RATE_LIMITS = parseRateLimitProfileEnv(
+  "WBO_MAX_TEXT_CREATIONS_PER_IP",
+  "*:2/1s anonymous:30/60s",
+);
 
-const IP_CONFIGURATION = parseIpConfiguration();
-
-/** IP resolution source: remoteAddress, Forwarded, X-Forwarded-For, or a header name. */
+/** Source used to resolve the client IP. Accepted values: `remoteAddress`, `Forwarded`, `X-Forwarded-For`, or a header name. */
 export const IP_SOURCE = IP_CONFIGURATION.IP_SOURCE;
 
-/** Trusted proxy hop count for forwarded headers. */
+/** Number of trusted proxy hops when `WBO_IP_SOURCE` uses forwarded headers. */
 export const TRUST_PROXY_HOPS = IP_CONFIGURATION.TRUST_PROXY_HOPS;
 
 /** Comma-separated blocked tool ids. */
-export const BLOCKED_TOOLS = parseBlockedTools();
+export const BLOCKED_TOOLS = parseCommaSeparatedEnv("WBO_BLOCKED_TOOLS");
 
 /** Comma-separated blocked selection button ids. */
-export const BLOCKED_SELECTION_BUTTONS = parseBlockedSelectionButtons();
+export const BLOCKED_SELECTION_BUTTONS = parseCommaSeparatedEnv(
+  "WBO_BLOCKED_SELECTION_BUTTONS",
+);
 
-/** Enables stylus-then-finger whiteout unless set to `disabled`. */
-export const AUTO_FINGER_WHITEOUT = parseAutoFingerWhiteout();
+/** Finger whiteout stays enabled unless this env var is explicitly set to `disabled`. */
+export const AUTO_FINGER_WHITEOUT = parseDisabledFlagEnv(
+  "AUTO_FINGER_WHITEOUT",
+);
 
-/** JWT secret key. */
-export const AUTH_SECRET_KEY = parseAuthSecretKey();
+/** Shared JWT secret used by board auth helpers. Empty disables JWT auth. */
+export const AUTH_SECRET_KEY = parseStringEnv("AUTH_SECRET_KEY", "");
 
 /** Cloudflare Turnstile secret key. */
-export const TURNSTILE_SECRET_KEY = parseTurnstileSecretKey();
+export const TURNSTILE_SECRET_KEY = parseStringEnv(
+  "TURNSTILE_SECRET_KEY",
+  undefined,
+);
 
 /** Cloudflare Turnstile site key. */
-export const TURNSTILE_SITE_KEY = parseTurnstileSiteKey();
+export const TURNSTILE_SITE_KEY = parseStringEnv(
+  "TURNSTILE_SITE_KEY",
+  undefined,
+);
 
 /** Turnstile verification endpoint override. */
-export const TURNSTILE_VERIFY_URL = parseTurnstileVerifyUrl();
+export const TURNSTILE_VERIFY_URL = parseStringEnv(
+  "TURNSTILE_VERIFY_URL",
+  DEFAULT_TURNSTILE_VERIFY_URL,
+);
 
-/** Successful Turnstile validation lifetime. */
-export const TURNSTILE_VALIDATION_WINDOW_MS =
-  parseTurnstileValidationWindowMs();
+/** How long a successful Turnstile validation remains valid for a socket. */
+export const TURNSTILE_VALIDATION_WINDOW_MS = parseIntegerEnv(
+  "TURNSTILE_VALIDATION_WINDOW_MS",
+  4 * 60 * 1000,
+);
 
-/** Root-route board redirect target. */
-export const DEFAULT_BOARD = parseDefaultBoard();
+/** Optional board name used by the root route redirect. */
+export const DEFAULT_BOARD = parseStringEnv("WBO_DEFAULT_BOARD", undefined);
