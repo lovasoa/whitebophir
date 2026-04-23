@@ -32,6 +32,7 @@ import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
 import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
+import { getRequestClientIp } from "./socket_policy.mjs";
 import * as sockets from "./sockets.mjs";
 import {
   boardExists,
@@ -98,6 +99,7 @@ function boardSvgCacheControl(config) {
 }
 const SLOW_REQUEST_LOG_MS = 1000;
 const BOARD_SCOPED_ROUTES = new Set(["boards", "preview", "download"]);
+const ROUTINE_CLIENT_ERROR_CODES = new Set(["ECONNRESET", "EPIPE"]);
 
 /**
  * @param {ServerConfig} config
@@ -501,7 +503,7 @@ function respondWithErrorPage(response, statusCode, errorPage) {
  * @param {string} route
  * @param {number} statusCode
  * @param {number} durationMs
- * @returns {{level: "warn" | "error", event: string} | null}
+ * @returns {{level: "info" | "warn" | "error", event: string} | null}
  */
 function classifyRequestLog(route, statusCode, durationMs) {
   if (statusCode >= 500) {
@@ -509,7 +511,7 @@ function classifyRequestLog(route, statusCode, durationMs) {
   }
   if (route === "static_file") return null;
   if (statusCode >= 400) {
-    return { level: "warn", event: "http.request_rejected" };
+    return { level: "info", event: "http.request_rejected" };
   }
   if (durationMs >= SLOW_REQUEST_LOG_MS) {
     return { level: "warn", event: "http.request_slow" };
@@ -584,6 +586,7 @@ function requestTraceAttributes(fields) {
  *   method: string,
  *   scheme: string,
  *   serverAddress: string,
+ *   clientAddress: string,
  *   route: string,
  *   startedAt: number,
  *   requestError: unknown,
@@ -641,9 +644,7 @@ function finalizeObservedRequest(state) {
       ...(routeTemplate ? { [ATTR_HTTP_ROUTE]: routeTemplate } : {}),
       ...state.logFields,
     };
-    if (statusCode >= 400) {
-      fields[ATTR_CLIENT_ADDRESS] = state.request.socket.remoteAddress;
-    }
+    if (statusCode >= 400) fields[ATTR_CLIENT_ADDRESS] = state.clientAddress;
     if (state.requestError) fields.error = state.requestError;
     logger[logTarget.level](logTarget.event, fields);
   }
@@ -679,10 +680,14 @@ function observeRequest(request, response, config) {
   const serverAddress = requestServerAddress(request, config);
   const serverPort = requestServerPort(request, config);
   let route = "unknown";
+  let clientAddress = request.socket.remoteAddress || "unknown";
   /** @type {unknown} */
   let requestError;
   /** @type {{[key: string]: unknown}} */
   let logFields = {};
+  try {
+    clientAddress = getRequestClientIp(config, request);
+  } catch {}
   const parentContext = tracing.extractContext(request.headers);
   const requestSpan = shouldTraceRequest(request.url || "/")
     ? tracing.startSpan(`${method} request`, {
@@ -718,6 +723,7 @@ function observeRequest(request, response, config) {
           method,
           scheme,
           serverAddress,
+          clientAddress,
           route,
           startedAt,
           requestError,
@@ -765,25 +771,27 @@ function observeRequest(request, response, config) {
 }
 
 /**
- * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @param {string} errorPage
  * @param {{
- *   setRoute: (route: string) => void,
- *   noteError: (error: unknown) => void,
+ *   noteError?: (error: unknown) => void,
  *   annotate: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
  * @returns {(err?: unknown) => void}
  */
-function serveError(request, response, errorPage, requestContext) {
-  void request;
+function serveError(response, errorPage, requestContext) {
   return (err) => {
     const statusCode = err ? requestErrorStatusCode(err) || 500 : 404;
-    if (err && statusCode >= 500) {
-      requestContext.noteError(err);
-    } else if (err) {
+    if (statusCode >= 500) {
+      if (err !== undefined) requestContext.noteError?.(err);
+    } else {
       requestContext.annotate({
-        rejection_reason: boundaryReason(err) || errorCode(err) || "rejected",
+        rejection_reason:
+          boundaryReason(err) ||
+          errorCode(err) ||
+          (statusCode === 404 ? "not_found" : undefined) ||
+          (err !== undefined ? errorToString(err) : undefined) ||
+          "rejected",
       });
     }
     respondWithErrorPage(response, statusCode, errorPage);
@@ -800,8 +808,13 @@ function handleClientError(error, socket) {
     typeof error === "object" && error !== null && "code" in error
       ? error.code
       : undefined;
-  logger.warn("http.client_error", {
-    code: typeof maybeCode === "string" ? maybeCode : undefined,
+  const code = typeof maybeCode === "string" ? maybeCode : undefined;
+  const log =
+    code !== undefined && ROUTINE_CLIENT_ERROR_CODES.has(code)
+      ? logger.debug
+      : logger.info;
+  log("http.client_error", {
+    code,
     message: error.message,
   });
   if (!socket.writable) {
@@ -960,7 +973,7 @@ function serveStaticFile(request, response, runtime, requestContext, nextUrl) {
   runtime.fileserver(
     request,
     response,
-    serveError(request, response, runtime.errorPage, requestContext),
+    serveError(response, runtime.errorPage, requestContext),
   );
 }
 
@@ -1231,7 +1244,6 @@ async function respondWithBoardDownload(response, boardName, config) {
 /**
  * @param {URL} parsedUrl
  * @param {string[]} parts
- * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @param {ServerRuntime} runtime
  * @param {{
@@ -1245,7 +1257,6 @@ async function respondWithBoardDownload(response, boardName, config) {
 function handleDownloadRoute(
   parsedUrl,
   parts,
-  request,
   response,
   runtime,
   requestContext,
@@ -1255,7 +1266,7 @@ function handleDownloadRoute(
   annotateBoardRequest(requestContext, boardName);
   jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
   void respondWithBoardDownload(response, boardName, runtime.config).catch(
-    serveError(request, response, runtime.errorPage, requestContext),
+    serveError(response, runtime.errorPage, requestContext),
   );
 }
 
@@ -1347,11 +1358,7 @@ async function respondWithBoardPreview(
   const svg = await renderPreviewSvg(boardName, runtime.config);
   recordPreviewDuration(requestContext, startedAt);
   if (svg === null) {
-    const page = runtime.errorPage;
-    response.writeHead(404, {
-      "Content-Length": page.length,
-    });
-    response.end(page);
+    serveError(response, runtime.errorPage, requestContext)();
     return;
   }
   startCompressedResponse(response, acceptEncoding, {
@@ -1397,8 +1404,7 @@ function handlePreviewRoute(
     request.headers["accept-encoding"],
   ).catch((err) => {
     recordPreviewDuration(requestContext, startedAt);
-    requestContext.noteError(err);
-    serveError(request, response, runtime.errorPage, requestContext)(err);
+    serveError(response, runtime.errorPage, requestContext)(err);
   });
 }
 
@@ -1475,7 +1481,6 @@ function handleRequest(request, response, runtime, requestContext) {
       return handleDownloadRoute(
         parsedUrl,
         parts,
-        request,
         response,
         runtime,
         requestContext,
@@ -1519,17 +1524,12 @@ function handleObservedRequest(request, response, runtime) {
     } catch (err) {
       const statusCode = requestErrorStatusCode(err) || 500;
       if (statusCode >= 500) {
-        requestContext.noteError(err);
         logger.error("http.request_unhandled", {
           request_id: requestContext.requestId,
           error: err,
         });
-      } else {
-        requestContext.annotate({
-          rejection_reason: boundaryReason(err) || errorToString(err),
-        });
       }
-      respondWithErrorPage(response, statusCode, runtime.errorPage);
+      serveError(response, runtime.errorPage, requestContext)(err);
     }
   });
 }
