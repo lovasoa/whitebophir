@@ -158,6 +158,7 @@ export type MountedAppTool = {
   onstart: (oldTool: MountedAppTool | null) => void;
   onquit: (newTool: MountedAppTool) => void;
   onSocketDisconnect: () => void;
+  onMutationRejected?: (message: BoardMessage, reason?: string) => void;
   stylesheet?: string;
   oneTouch?: boolean;
   alwaysOn?: boolean;
@@ -456,6 +457,11 @@ export type ToolModule<T = unknown> = {
   onstart?: (state: T, oldTool: MountedAppTool | null) => void;
   onquit?: (state: T, newTool: MountedAppTool) => void;
   onSocketDisconnect?: (state: T) => void;
+  onMutationRejected?: (
+    state: T,
+    message: BoardMessage,
+    reason?: string,
+  ) => void;
   onSizeChange?: (state: T, size: number) => void;
 };
 
@@ -565,7 +571,7 @@ export type AppToolsState = {
   restoreOptimisticRollback: (rollback: OptimisticRollback) => void;
   applyRejectedOptimisticEntries: (rejected: OptimisticJournalEntry[]) => void;
   promoteOptimisticMutation: (clientMutationId: string) => void;
-  rejectOptimisticMutation: (clientMutationId: string) => void;
+  rejectOptimisticMutation: (clientMutationId: string, reason?: string) => void;
   pruneOptimisticMutationsForAuthoritativeMessage: (
     message: BoardMessage,
   ) => void;

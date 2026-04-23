@@ -287,6 +287,9 @@ function createSVGElement(store, tagName, attrs) {
     element.rx = createAnimatedLength();
     element.ry = createAnimatedLength();
   }
+  if (tagName === "text" && globalAny.SVGTextElement) {
+    Object.setPrototypeOf(element, globalAny.SVGTextElement.prototype);
+  }
   if (tagName === "image") {
     element.x = createAnimatedLength();
     element.y = createAnimatedLength();
@@ -369,6 +372,8 @@ function createHarness() {
   globalAny.SVGPathElement = function SVGPathElement() {};
   globalAny.SVGGraphicsElement = function SVGGraphicsElement() {};
   globalAny.SVGSVGElement = function SVGSVGElement() {};
+  globalAny.SVGTextElement = function SVGTextElement() {};
+  globalAny.KeyboardEvent = function KeyboardEvent() {};
   globalAny.SVGTransform = {
     SVG_TRANSFORM_MATRIX: 1,
   };
@@ -505,6 +510,11 @@ function createHarness() {
         onSocketDisconnect:
           typeof moduleNamespace.onSocketDisconnect === "function"
             ? () => moduleNamespace.onSocketDisconnect(toolState)
+            : undefined,
+        onMutationRejected:
+          typeof moduleNamespace.onMutationRejected === "function"
+            ? (/** @type {any} */ message, /** @type {string} */ reason) =>
+                moduleNamespace.onMutationRejected(toolState, message, reason)
             : undefined,
         onSizeChange:
           typeof moduleNamespace.onSizeChange === "function"
@@ -761,6 +771,36 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
   pencilTool.listeners.move(200, 200, event);
 
   assert.equal(harness.elementsById.has("l-1"), false);
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [MutationType.CREATE, MutationType.APPEND],
+  );
+});
+
+test("Pencil rejection aborts the active stroke without removing the rolled-back line", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = { preventDefault: () => {} };
+
+  globalAny.Tools.curTool = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  const activeLine = harness.elementsById.get("l-1");
+  assert.equal(activeLine.getAttribute("class"), "wbo-pencil-drawing");
+
+  pencilTool.onMutationRejected(
+    { type: MutationType.APPEND, parent: "l-1" },
+    "shape too large",
+  );
+
+  harness.clock.now = 101;
+  pencilTool.listeners.move(200, 200, event);
+
+  assert.equal(harness.elementsById.has("l-1"), true);
+  assert.equal(activeLine.getAttribute("class"), "");
   assert.deepEqual(
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
@@ -1136,6 +1176,76 @@ test("Text replay creates and then updates the same text field", async () => {
   assert.equal(text.getAttribute("fill"), "#123456");
   assert.equal(text.getAttribute("opacity"), "0.7");
   assert.equal(text.textContent, "hello replay");
+});
+
+test("Text rejection clears the resend timer for the active editor", async () => {
+  const harness = createHarness();
+  const textPath = path.resolve(
+    __dirname,
+    "..",
+    "client-data",
+    "tools",
+    getToolModuleImportPath("text"),
+  );
+  const textModule = require(textPath);
+  const textState = await textModule.boot({
+    Tools: globalAny.Tools,
+    assetUrl: (/** @type {string} */ assetFile) =>
+      getToolRuntimeAssetPath("text", assetFile),
+  });
+  globalAny.Tools.curTool = {
+    name: "text",
+    draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
+      textModule.draw(textState, data, isLocal),
+  };
+  const event = { preventDefault: () => {}, target: null };
+  const originalSetTimeout = globalAny.setTimeout;
+  const originalClearTimeout = globalAny.clearTimeout;
+  const scheduled = new Map();
+  let nextTimeoutId = 1;
+
+  globalAny.setTimeout = (/** @type {Function} */ callback) => {
+    const timeoutId = nextTimeoutId++;
+    scheduled.set(timeoutId, callback);
+    return timeoutId;
+  };
+  globalAny.clearTimeout = (/** @type {number} */ timeoutId) => {
+    scheduled.delete(timeoutId);
+  };
+
+  try {
+    textModule.press(textState, 100, 100, event, false);
+    textState.input.value = "hello";
+
+    harness.clock.now = 200;
+    textState.boundTextChangeHandler({});
+
+    textState.input.value = "hello again";
+    harness.clock.now = 250;
+    textState.boundTextChangeHandler({});
+
+    assert.equal(scheduled.size, 1);
+    assert.equal(textState.curText.id, "t-1");
+
+    textModule.onMutationRejected(
+      textState,
+      { type: MutationType.UPDATE, id: "t-1" },
+      "shape too large",
+    );
+
+    assert.equal(textState.active, false);
+    assert.equal(textState.curText.timeout, null);
+    assert.equal(scheduled.size, 0);
+    assert.deepEqual(
+      globalAny.Tools.sentMessages.map(
+        (/** @type {any} */ message) => message.data.type,
+      ),
+      [MutationType.CREATE, MutationType.UPDATE],
+    );
+  } finally {
+    globalAny.setTimeout = originalSetTimeout;
+    globalAny.clearTimeout = originalClearTimeout;
+  }
 });
 
 test("Hand selector sends a final transform on quick release", async () => {

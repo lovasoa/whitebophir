@@ -413,3 +413,13 @@ export function onquit(state) {
   stopEdit(state);
   state.Tools.setSize(state.curText.oldSize);
 }
+
+/**
+ * @param {TextState} state
+ * @param {{id?: string}} message
+ */
+export function onMutationRejected(state, message) {
+  if (message.id === state.curText.id) {
+    stopEdit(state);
+  }
+}

@@ -744,6 +744,19 @@ export function onSocketDisconnect(state) {
   abortLine(state, true);
 }
 
+/**
+ * @param {PencilState} state
+ * @param {{id?: string, parent?: string}} message
+ */
+export function onMutationRejected(state, message) {
+  if (
+    state.curLineId !== "" &&
+    (message.id === state.curLineId || message.parent === state.curLineId)
+  ) {
+    abortLine(state, false);
+  }
+}
+
 /** @param {PencilState} state */
 export function onstart(state) {
   state.hasUsedStylus = false;
