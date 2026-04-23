@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import { createServer } from "node:http";
 import * as path from "node:path";
@@ -33,6 +32,7 @@ import { startCompressedResponse } from "./http_compression.mjs";
 import * as jwtauth from "./jwtauth.mjs";
 import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
+import { buildRandomBoardName } from "./pronounceable_name.mjs";
 import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
 import { getRequestClientIp } from "./socket_policy.mjs";
 import * as sockets from "./sockets.mjs";
@@ -855,17 +855,6 @@ function validateBoardPath(boardName) {
 }
 
 /**
- * @param {string | undefined} boardName
- * @returns {string | null}
- */
-function canonicalizeBoardPath(boardName) {
-  if (boardName === undefined) return null;
-  const decodedBoardName = decodeBoardName(boardName);
-  if (decodedBoardName === null) return null;
-  return canonicalizeBoardName(decodedBoardName);
-}
-
-/**
  * @param {string[]} parts
  * @param {number} index
  * @returns {string | undefined}
@@ -979,6 +968,23 @@ function requireBoardSvgPathName(parts, index = 1) {
 }
 
 /**
+ * @param {string[]} parts
+ * @param {number} [index]
+ * @returns {{requestedBoardName: string, boardName: string}}
+ */
+function requireBoardDocumentNames(parts, index = 1) {
+  const requestedBoardName = decodeBoardName(getPathPart(parts, index));
+  if (requestedBoardName === null) {
+    throw badRequest("invalid_board_name");
+  }
+  const boardName = canonicalizeBoardName(requestedBoardName);
+  if (boardName === "") {
+    throw badRequest("invalid_board_name");
+  }
+  return { requestedBoardName, boardName };
+}
+
+/**
  * @param {string} boardName
  * @param {string} [search]
  * @returns {string}
@@ -1031,7 +1037,7 @@ function handleBoardRedirectRoute(
   annotateBoardRequest(requestContext, boardName);
   jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
   response.writeHead(301, {
-    Location: `boards/${encodeURIComponent(boardName)}`,
+    Location: boardDocumentLocation(boardName),
   });
   response.end();
 }
@@ -1057,11 +1063,7 @@ async function handleBoardDocumentRoute(
   runtime,
   requestContext,
 ) {
-  const boardName = canonicalizeBoardPath(getPathPart(parts, 1));
-  if (boardName === null || boardName === "") {
-    throw badRequest("invalid_board_name");
-  }
-  const requestedBoardName = decodeBoardName(getPathPart(parts, 1));
+  const { requestedBoardName, boardName } = requireBoardDocumentNames(parts);
   if (requestedBoardName !== boardName) {
     annotateBoardRequest(requestContext, boardName);
     response.writeHead(301, {
@@ -1473,12 +1475,35 @@ function handlePreviewRoute(
 }
 
 /**
- * @param {HttpResponse} response
- * @returns {void}
+ * @param {ServerRuntime} runtime
+ * @returns {Promise<string>}
  */
-function handleRandomRoute(response) {
-  const name = randomBytes(24).toString("base64url");
-  response.writeHead(307, { Location: `boards/${name}` });
+async function allocateRandomBoardName(runtime) {
+  while (true) {
+    const boardName = buildRandomBoardName();
+    if (
+      !(await boardExists(boardName, {
+        historyDir: runtime.config.HISTORY_DIR,
+      }))
+    ) {
+      return boardName;
+    }
+  }
+}
+
+/**
+ * @param {HttpResponse} response
+ * @param {ServerRuntime} runtime
+ * @param {{
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @returns {Promise<void>}
+ */
+async function handleRandomRoute(response, runtime, requestContext) {
+  const name = await allocateRandomBoardName(runtime);
+  annotateBoardRequest(requestContext, name);
+  response.writeHead(307, { Location: boardDocumentLocation(name) });
   response.end(name);
 }
 
@@ -1493,11 +1518,11 @@ function handleRandomRoute(response) {
  * @returns {void}
  */
 function handleIndexRoute(request, response, runtime, requestContext) {
-  const defaultBoard = runtime.config.DEFAULT_BOARD;
-  if (defaultBoard) {
+  const defaultBoard = canonicalizeBoardName(runtime.config.DEFAULT_BOARD);
+  if (defaultBoard !== "") {
     annotateBoardRequest(requestContext, defaultBoard);
     response.writeHead(302, {
-      Location: `boards/${encodeURIComponent(defaultBoard)}`,
+      Location: boardDocumentLocation(defaultBoard),
     });
     response.end(defaultBoard);
     return;
@@ -1563,7 +1588,7 @@ function handleRequest(request, response, runtime, requestContext) {
 
     case "random":
       requestContext.setRoute("random_board");
-      return handleRandomRoute(response);
+      return handleRandomRoute(response, runtime, requestContext);
 
     case "":
       requestContext.setRoute("index");

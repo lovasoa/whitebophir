@@ -303,6 +303,59 @@ test("server rejects invalid non-board-page board names with 400 instead of 500"
   ]);
 });
 
+test("random route redirects to a canonical pronounceable board name", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const response = await request(app, "/random");
+      assert.equal(response.statusCode, 307);
+      assert.equal(typeof response.headers["x-request-id"], "string");
+      assert.match(
+        response.body,
+        /^(?:[a-z]{4}|[a-z]{6})(?:-(?:[a-z]{4}|[a-z]{6})){3}$/,
+      );
+      assert.equal(response.headers.location, `/boards/${response.body}`);
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("index route canonicalizes configured default board redirects", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer({
+    HISTORY_DIR: dirs.historyDir,
+    WEBROOT: dirs.webroot,
+    DEFAULT_BOARD: "Refugee Camp 2",
+  });
+  try {
+    const response = await request(app, "/");
+    assert.equal(response.statusCode, 302);
+    assert.equal(typeof response.headers["x-request-id"], "string");
+    assert.equal(response.headers.location, "/boards/refugee-camp-2");
+    assert.equal(response.body, "refugee-camp-2");
+  } finally {
+    await closeServer(app);
+  }
+});
+
 test("board pages set an httpOnly user secret cookie when missing", async () => {
   const dirs = await createServerDirs();
 

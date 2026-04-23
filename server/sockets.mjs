@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import * as socketIO from "socket.io";
 import WBOMessageCommon from "../client-data/js/message_common.js";
 import {
@@ -21,6 +20,7 @@ import {
 } from "./board_registry.mjs";
 import { getBoardSession } from "./board_session.mjs";
 import observability from "./observability.mjs";
+import { buildPronounceableName } from "./pronounceable_name.mjs";
 import {
   canAccessBoard,
   canApplyBoardMessage,
@@ -107,82 +107,6 @@ let invalidIpSourceLogged = false;
 /** @type {import("socket.io").Server | undefined} */
 let io;
 let shuttingDown = false;
-const NAME_SYLLABLES = [
-  "al",
-  "an",
-  "ar",
-  "ba",
-  "be",
-  "bi",
-  "bo",
-  "da",
-  "de",
-  "di",
-  "do",
-  "el",
-  "en",
-  "er",
-  "fa",
-  "fe",
-  "fi",
-  "ga",
-  "ge",
-  "gi",
-  "ha",
-  "he",
-  "hi",
-  "io",
-  "ka",
-  "ke",
-  "ki",
-  "ko",
-  "la",
-  "le",
-  "li",
-  "lo",
-  "lu",
-  "ma",
-  "me",
-  "mi",
-  "mo",
-  "na",
-  "ne",
-  "ni",
-  "no",
-  "oa",
-  "ol",
-  "or",
-  "pa",
-  "pe",
-  "pi",
-  "ra",
-  "re",
-  "ri",
-  "ro",
-  "sa",
-  "se",
-  "si",
-  "so",
-  "ta",
-  "te",
-  "ti",
-  "to",
-  "ul",
-  "ur",
-  "va",
-  "ve",
-  "vi",
-  "vo",
-  "wa",
-  "we",
-  "wi",
-  "ya",
-  "yo",
-  "za",
-  "ze",
-  "zi",
-];
-
 /**
  * @param {BoardData} board
  * @param {{[key: string]: unknown}=} extras
@@ -293,30 +217,6 @@ function pruneRateLimitMap(map, kind, periodMs, now) {
  */
 function getSocketRequest(socket) {
   return /** @type {SocketRequest} */ (socket.client.request);
-}
-
-/**
- * @param {string} seed
- * @param {number} minParts
- * @param {number} maxParts
- * @returns {string}
- */
-function buildPronounceableName(seed, minParts, maxParts) {
-  const digest = createHash("sha256").update(seed).digest();
-  let partCount = minParts;
-  if (maxParts > minParts) {
-    partCount += (digest[0] || 0) % (maxParts - minParts + 1);
-  }
-  let word = "";
-  for (let index = 0; index < partCount; index++) {
-    const offset = 1 + index * 2;
-    const value = digest.readUInt16BE(offset);
-    word +=
-      NAME_SYLLABLES[value % NAME_SYLLABLES.length] ||
-      NAME_SYLLABLES[0] ||
-      "na";
-  }
-  return word;
 }
 
 /**
