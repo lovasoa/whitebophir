@@ -18,13 +18,12 @@ function createState() {
     itemsById: new Map(),
     paintOrder: [],
     nextPaintOrder: 0,
-    dirtyCreatedIds: new Set(),
     liveItemCount: 0,
     trimPaintOrderIndex: 0,
   };
 }
 
-test("canonical index tracks paint order and dirty created ids through upsert/remove", () => {
+test("canonical index tracks paint order through upsert/remove", () => {
   const state = createState();
   const created = canonicalItemFromItem(
     {
@@ -46,12 +45,10 @@ test("canonical index tracks paint order and dirty created ids through upsert/re
   assert.equal(getCanonicalItem(state, "rect-1")?.id, "rect-1");
   assert.deepEqual(state.paintOrder, ["rect-1"]);
   assert.equal(state.nextPaintOrder, 1);
-  assert.deepEqual([...state.dirtyCreatedIds], ["rect-1"]);
 
   removeCanonicalItem(state, "rect-1");
 
   assert.equal(getCanonicalItem(state, "rect-1"), undefined);
-  assert.deepEqual([...state.dirtyCreatedIds], []);
   assert.equal(state.itemsById.get("rect-1")?.deleted, true);
 });
 
@@ -82,7 +79,6 @@ test("finalizePersistedCanonicalItems clears persisted dirtiness and folds child
 
   const finalized = state.itemsById.get("line-1");
   assert.equal(finalized.dirty, false);
-  assert.equal(finalized.createdAfterPersistedSeq, false);
   assert.equal(finalized.payload.persistedChildCount, 3);
   assert.deepEqual(finalized.payload.appendedChildren, []);
 });
@@ -103,6 +99,7 @@ test("finalizePersistedCanonicalItems preserves source-independent text copies",
     { persisted: true },
   );
   const copy = copyCanonicalItem(source, "text-2", 1, 123);
+  copy.copySource = { sourceId: "text-1" };
 
   upsertCanonicalItem(state, source);
   upsertCanonicalItem(state, copy);
@@ -111,6 +108,5 @@ test("finalizePersistedCanonicalItems preserves source-independent text copies",
 
   const finalized = state.itemsById.get("text-2");
   assert.equal(finalized.dirty, false);
-  assert.equal(finalized.createdAfterPersistedSeq, false);
   assert.equal(finalized.copySource, undefined);
 });

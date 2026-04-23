@@ -50,6 +50,12 @@ export const SAVE_INTERVAL = parseIntegerEnv("WBO_SAVE_INTERVAL", 2000);
 /** Maximum save delay while a board keeps receiving writes. */
 export const MAX_SAVE_DELAY = parseIntegerEnv("WBO_MAX_SAVE_DELAY", 60 * 1000);
 
+if (MAX_SAVE_DELAY < SAVE_INTERVAL) {
+  throw new Error(
+    `Invalid save timing config: WBO_MAX_SAVE_DELAY (${MAX_SAVE_DELAY}) must be greater than or equal to WBO_SAVE_INTERVAL (${SAVE_INTERVAL}).`,
+  );
+}
+
 /** How long persisted replay entries stay available after a save. */
 export const SEQ_REPLAY_RETENTION_MS = parseIntegerEnv(
   "WBO_SEQ_REPLAY_RETENTION_MS",

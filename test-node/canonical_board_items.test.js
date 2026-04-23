@@ -60,15 +60,13 @@ test("canonicalItemFromStoredSvgEntry derives canonical compressed payloads dire
   });
 });
 
-test("copyCanonicalItem snapshots compressed payload state at copy time", () => {
+test("copyCanonicalItem snapshots compressed payload state without inferring persisted sources", () => {
   const persistedText = canonicalItemFromItem(makeCanonicalTextItem(), 0, {
     persisted: true,
   });
   const textCopy = copyCanonicalItem(persistedText, "text-2", 1, 123);
 
-  assert.deepEqual(textCopy.copySource, {
-    sourceId: "text-1",
-  });
+  assert.equal(textCopy.copySource, undefined);
   assert.equal(textCopy.payload.modifiedText, undefined);
 
   const createdPencil = canonicalItemFromItem(makeCanonicalPencilItem(), 0, {

@@ -48,7 +48,7 @@ import {
   cloneBounds,
   finalizePersistedCanonicalItems,
   getCanonicalItem,
-  rebuildDirtyCreatedItems,
+  rebuildLiveItemCount,
   removeCanonicalItem,
   upsertCanonicalItem,
 } from "./board_canonical_index.mjs";
@@ -80,7 +80,6 @@ function defaultBoardMetadata() {
 const STANDALONE_BOARD_LOAD_BYTES_THRESHOLD = 1024 * 1024;
 const STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD = 2048;
 const STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD = 64;
-const INITIAL_BASELINE_SAVE_DELAY_MS = 50;
 let boardInstanceSequence = 0;
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds */
 /** @typedef {{readonly: boolean}} BoardMetadata */
@@ -93,6 +92,10 @@ let boardInstanceSequence = 0;
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {{x: number, y: number}} ChildPoint */
 /** @typedef {{kind: "inline"} | {kind: "text", modifiedText?: string} | {kind: "children", persistedChildCount: number, appendedChildren: ChildPoint[]}} CanonicalPayload */
+/** @typedef {"saved" | "skipped" | "stale" | "failed"} BoardSaveStatus */
+/** @typedef {{status: BoardSaveStatus}} BoardSaveResult */
+/** @typedef {{actualFileSeq?: number, durationMs?: number, saveTargetSeq?: number}} StaleSaveDetails */
+/** @typedef {(details: StaleSaveDetails) => void | Promise<void>} StaleSaveHandler */
 /**
  * @typedef {{
  *   id: string,
@@ -103,7 +106,6 @@ let boardInstanceSequence = 0;
  *   bounds: Bounds | null,
  *   transform?: Transform,
  *   dirty: boolean,
- *   createdAfterPersistedSeq: boolean,
  *   time?: number,
  *   payload: CanonicalPayload,
  *   textLength?: number,
@@ -173,7 +175,6 @@ function boardLogFields(board, extras) {
     "wbo.board.has_persisted_baseline": board.hasPersistedBaseline,
     "wbo.board.items": board.authoritativeItemCount(),
     "wbo.board.dirty_items": countDirtyItems(board),
-    "wbo.board.dirty_created_items": board.dirtyCreatedIds.size,
     "wbo.board.users": board.users.size,
     "wbo.board.readonly": board.metadata.readonly,
     "file.path": board.file,
@@ -182,41 +183,23 @@ function boardLogFields(board, extras) {
 }
 
 /**
- * @param {{saveIntervalMs: number, hasPersistedBaseline: boolean, hasDirtyCreatedItems?: boolean}} options
- * @returns {number}
- */
-function computeSaveDelayMs(options) {
-  const normalizedSaveInterval = Math.max(
-    0,
-    Number(options.saveIntervalMs) || 0,
-  );
-  if (options.hasPersistedBaseline && options.hasDirtyCreatedItems !== true) {
-    return normalizedSaveInterval;
-  }
-  return Math.min(normalizedSaveInterval, INITIAL_BASELINE_SAVE_DELAY_MS);
-}
-
-/**
  * @param {{
  *   nowMs: number,
- *   lastActivityAtMs: number,
- *   lastSaveAtMs: number,
+ *   dirtyFromMs: number | null,
+ *   lastWriteAtMs: number | null,
  *   saveIntervalMs: number,
  *   maxSaveDelayMs: number,
- *   hasPersistedBaseline: boolean,
- *   hasDirtyCreatedItems?: boolean,
  * }} options
  * @returns {number}
  */
 function computeScheduledSaveDelayMs(options) {
-  const saveDelayMs = computeSaveDelayMs({
-    saveIntervalMs: options.saveIntervalMs,
-    hasPersistedBaseline: options.hasPersistedBaseline,
-    hasDirtyCreatedItems: options.hasDirtyCreatedItems,
-  });
-  const idleDeadlineMs = options.lastActivityAtMs + saveDelayMs;
+  if (options.dirtyFromMs === null || options.lastWriteAtMs === null) {
+    return 0;
+  }
+  const idleDeadlineMs =
+    options.lastWriteAtMs + Math.max(0, Number(options.saveIntervalMs) || 0);
   const maxDelayDeadlineMs =
-    options.lastSaveAtMs + Math.max(0, Number(options.maxSaveDelayMs) || 0);
+    options.dirtyFromMs + Math.max(0, Number(options.maxSaveDelayMs) || 0);
   return Math.max(
     0,
     Math.min(idleDeadlineMs, maxDelayDeadlineMs) - options.nowMs,
@@ -226,43 +209,6 @@ function computeScheduledSaveDelayMs(options) {
 /** @param {string} id */
 function eraserDeleteMutation(id) {
   return { tool: Eraser.id, type: MutationType.DELETE, id };
-}
-
-/**
- * @param {BoardData} board
- * @param {number} fromExclusiveSeq
- * @param {number} toInclusiveSeq
- * @returns {BoardData}
- */
-function replayRecoverableMutations(board, fromExclusiveSeq, toInclusiveSeq) {
-  const recovered = new BoardData(board.name, board.config);
-  recovered.loadSource = board.loadSource;
-  recovered.metadata = structuredClone(board.metadata);
-  recovered.historyDir = board.historyDir;
-  recovered.file = board.file;
-  recovered.delaySave = () => {};
-  recovered.scheduleSaveTimeout = () => {};
-  for (const envelope of board.readMutationRange(
-    fromExclusiveSeq,
-    toInclusiveSeq,
-  )) {
-    recovered.processMessage(structuredClone(envelope.mutation));
-  }
-  return recovered;
-}
-
-/**
- * @param {BoardData} board
- * @param {BoardData} snapshot
- * @returns {void}
- */
-function replaceBoardState(board, snapshot) {
-  board.itemsById = new Map(snapshot.itemsById);
-  board.paintOrder = [...snapshot.paintOrder];
-  board.nextPaintOrder = snapshot.nextPaintOrder;
-  board.dirtyCreatedIds = new Set(snapshot.dirtyCreatedIds);
-  board.liveItemCount = snapshot.liveItemCount;
-  board.trimPaintOrderIndex = snapshot.trimPaintOrderIndex;
 }
 
 /**
@@ -285,10 +231,15 @@ class BoardData {
     this.maxChildren = config.MAX_CHILDREN;
     this.maxItemCount = config.MAX_ITEM_COUNT;
     this.file = boardFilePath(name, this.historyDir);
-    this.hasPersistedBaseline = false;
-    this.lastSaveDate = Date.now();
-    this.lastActivityDate = this.lastSaveDate;
+    /** @type {Set<string>} */
+    this.persistedItemIds = new Set();
+    this.dirtyFromMs = null;
+    this.lastWriteAtMs = null;
+    this.dirtyDuringSaveFromMs = null;
+    this.saveStartedAtMs = null;
+    this.saveTargetSeq = null;
     this.saveInProgress = false;
+    this.saveTimeoutId = undefined;
     this.users = new Set();
     this.saveMutex = new SerialTaskQueue();
     this.mutationLog = createMutationLog(0);
@@ -301,10 +252,15 @@ class BoardData {
     /** @type {string[]} */
     this.paintOrder = [];
     this.nextPaintOrder = 0;
-    this.dirtyCreatedIds = new Set();
     this.liveItemCount = 0;
     this.trimPaintOrderIndex = 0;
     this.disposed = false;
+    /** @type {StaleSaveHandler | undefined} */
+    this.onStaleSave = undefined;
+  }
+
+  get hasPersistedBaseline() {
+    return this.persistedItemIds.size > 0;
   }
 
   get board() {
@@ -319,7 +275,12 @@ class BoardData {
     this.itemsById = new Map();
     this.paintOrder = [];
     this.nextPaintOrder = 0;
-    this.dirtyCreatedIds = new Set();
+    this.persistedItemIds = new Set();
+    this.dirtyFromMs = null;
+    this.lastWriteAtMs = null;
+    this.dirtyDuringSaveFromMs = null;
+    this.saveStartedAtMs = null;
+    this.saveTargetSeq = null;
     this.liveItemCount = 0;
     this.trimPaintOrderIndex = 0;
     let paintOrder = 0;
@@ -814,6 +775,19 @@ class BoardData {
   }
 
   /**
+   * @param {any} item
+   * @returns {string | undefined}
+   */
+  baselineSourceIdForItem(item) {
+    const sourceId = item?.copySource?.sourceId;
+    if (typeof sourceId === "string") return sourceId;
+    if (typeof item?.id === "string" && this.persistedItemIds.has(item.id)) {
+      return item.id;
+    }
+    return undefined;
+  }
+
+  /**
    * Copies a stored item to a new id without re-running full stored-item
    * normalization. Board state is already normalized, so only the new id and
    * mutable containers need isolation.
@@ -834,6 +808,16 @@ class BoardData {
       normalizedId,
       existing?.paintOrder ?? this.nextPaintOrder,
     );
+    const baselineSourceId = this.baselineSourceIdForItem(item);
+    if (copied.payload?.kind === "children" && baselineSourceId) {
+      copied.copySource = { sourceId: baselineSourceId };
+    } else if (
+      copied.payload?.kind === "text" &&
+      currentText(copied) === undefined &&
+      baselineSourceId
+    ) {
+      copied.copySource = { sourceId: baselineSourceId };
+    }
     return {
       ok: true,
       value: copied,
@@ -887,9 +871,6 @@ class BoardData {
     );
     if (!canonical) {
       return { ok: false, reason: "invalid message" };
-    }
-    if (existing && existing.createdAfterPersistedSeq !== true) {
-      canonical.createdAfterPersistedSeq = false;
     }
     upsertCanonicalItem(this, canonical);
     this.delaySave();
@@ -1160,13 +1141,6 @@ class BoardData {
                 { persisted: false },
               );
               if (!next) return { ok: false, reason: "invalid message" };
-              if (
-                !clearAll &&
-                existing &&
-                existing.createdAfterPersistedSeq !== true
-              ) {
-                next.createdAfterPersistedSeq = false;
-              }
               overlay.set(id, next);
               break;
             }
@@ -1261,18 +1235,47 @@ class BoardData {
     return publicItemFromCanonicalItem(getCanonicalItem(this, id));
   }
 
-  /** Delays the triggering of auto-save by SAVE_INTERVAL seconds */
+  clearSaveTimeout() {
+    if (this.saveTimeoutId === undefined) return;
+    clearTimeout(this.saveTimeoutId);
+    this.saveTimeoutId = undefined;
+  }
+
+  /**
+   * @param {number} [nowMs]
+   * @returns {number | null}
+   */
+  dirtyAgeMs(nowMs = Date.now()) {
+    return this.dirtyFromMs === null
+      ? null
+      : Math.max(0, nowMs - this.dirtyFromMs);
+  }
+
+  /** Delays the triggering of auto-save by SAVE_INTERVAL milliseconds. */
   delaySave() {
     const nowMs = Date.now();
-    this.lastActivityDate = nowMs;
+    if (this.dirtyFromMs === null) {
+      this.dirtyFromMs = nowMs;
+    }
+    if (this.saveInProgress && this.dirtyDuringSaveFromMs === null) {
+      this.dirtyDuringSaveFromMs = nowMs;
+    }
+    this.lastWriteAtMs = nowMs;
+    if (this.saveInProgress) return;
+    this.scheduleDirtySave(nowMs);
+  }
+
+  /**
+   * @param {number} [nowMs]
+   * @returns {void}
+   */
+  scheduleDirtySave(nowMs = Date.now()) {
     const delayMs = computeScheduledSaveDelayMs({
       nowMs,
-      lastActivityAtMs: this.lastActivityDate,
-      lastSaveAtMs: this.lastSaveDate,
+      dirtyFromMs: this.dirtyFromMs,
+      lastWriteAtMs: this.lastWriteAtMs,
       saveIntervalMs: this.config.SAVE_INTERVAL,
       maxSaveDelayMs: this.config.MAX_SAVE_DELAY,
-      hasPersistedBaseline: this.hasPersistedBaseline,
-      hasDirtyCreatedItems: this.dirtyCreatedIds.size > 0,
     });
     if (logger.isEnabled("debug")) {
       logger.debug(
@@ -1291,8 +1294,16 @@ class BoardData {
    * @returns {void}
    */
   scheduleSaveTimeout(delayMs) {
-    if (this.disposed) return;
-    if (this.saveTimeoutId !== undefined) clearTimeout(this.saveTimeoutId);
+    if (
+      this.disposed ||
+      this.saveInProgress ||
+      this.dirtyFromMs === null ||
+      this.lastWriteAtMs === null
+    ) {
+      this.clearSaveTimeout();
+      return;
+    }
+    this.clearSaveTimeout();
     if (logger.isEnabled("debug")) {
       logger.debug(
         "board.save_timer_set",
@@ -1309,12 +1320,6 @@ class BoardData {
           logger.debug("board.save_timer_fired", boardLogFields(this));
         }
         if (this.saveInProgress) {
-          if (logger.isEnabled("debug")) {
-            logger.debug(
-              "board.save_timer_skipped_while_saving",
-              boardLogFields(this),
-            );
-          }
           return;
         }
         void this.save();
@@ -1328,10 +1333,7 @@ class BoardData {
       logger.debug("board.disposed", boardLogFields(this));
     }
     this.disposed = true;
-    if (this.saveTimeoutId !== undefined) {
-      clearTimeout(this.saveTimeoutId);
-      this.saveTimeoutId = undefined;
-    }
+    this.clearSaveTimeout();
   }
 
   hasDirtyItems() {
@@ -1350,12 +1352,12 @@ class BoardData {
 
   /** Saves the data in the board to a file. */
   async save() {
-    if (this.disposed) return;
+    if (this.disposed) return { status: "skipped" };
     // The mutex prevents multiple save operation to happen simultaneously
     return this.saveMutex.runExclusive(this._unsafe_save.bind(this));
   }
 
-  /** Save the board to disk without preventing multiple simultaneaous saves. Use save() instead */
+  /** Save the board to disk without preventing multiple simultaneous saves. Use save() instead. */
   async _unsafe_save() {
     return tracing.withExpensiveActiveSpan(
       "board.save",
@@ -1365,9 +1367,12 @@ class BoardData {
           this.itemsById.size >= STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD,
       },
       async () => {
+        let shouldScheduleAfterSave = false;
+        this.clearSaveTimeout();
         this.saveInProgress = true;
+        this.dirtyDuringSaveFromMs = null;
         try {
-          if (this.disposed) return;
+          if (this.disposed) return { status: "skipped" };
           if (
             this.hasDirtyItems() !== true &&
             this.getSeq() === this.getPersistedSeq()
@@ -1375,281 +1380,204 @@ class BoardData {
             if (logger.isEnabled("debug")) {
               logger.debug("board.save_skipped", boardLogFields(this));
             }
-            return;
+            return { status: "skipped" };
           }
           const startedAt = Date.now();
-          this.lastSaveDate = startedAt;
+          this.saveStartedAtMs = startedAt;
+          this.saveTargetSeq = this.getSeq();
           if (logger.isEnabled("debug")) {
-            logger.debug("board.save_started", boardLogFields(this));
+            logger.debug(
+              "board.save_started",
+              boardLogFields(this, {
+                "wbo.board.save_target_seq": this.saveTargetSeq,
+              }),
+            );
           }
           this.clean();
-          let savedItemsById = new Map(this.itemsById);
-          let savedPaintOrder = [...this.paintOrder];
+          const savedItemsById = new Map(this.itemsById);
+          const savedPaintOrder = [...this.paintOrder];
           const file = this.file;
-          let authoritativeItemCount = savedPaintOrder.filter(
+          const authoritativeItemCount = savedPaintOrder.filter(
             (id) => savedItemsById.get(id)?.deleted !== true,
           ).length;
-          if (authoritativeItemCount === 0) {
-            // empty board
-            try {
-              await writeCanonicalBoardState(
-                this.name,
-                savedItemsById,
-                savedPaintOrder,
-                this.metadata,
-                this.getSeq(),
-                { historyDir: this.historyDir },
-              );
-              this.hasPersistedBaseline = false;
-              this.markPersistedSeq(this.getSeq());
-              this.trimPersistedMutationLog(startedAt);
-              tracing.setActiveSpanAttributes(
-                boardTraceAttributes(this.name, "save", {
-                  "wbo.board.result": "removed_empty",
-                }),
-              );
-              metrics.recordBoardOperationDuration(
-                "save",
-                this.name,
-                (Date.now() - startedAt) / 1000,
-                "removed_empty",
-              );
-            } catch (err) {
-              if (errorCode(err) !== "ENOENT") {
-                // If the file already wasn't saved, this is not an error
-                tracing.recordActiveSpanError(err, {
-                  "wbo.board.result": "error",
-                });
-                logger.error("board.delete_failed", {
-                  board: this.name,
-                  error: err,
-                });
-                metrics.recordBoardOperationDuration(
-                  "save",
-                  this.name,
-                  (Date.now() - startedAt) / 1000,
-                  err,
-                );
-              }
-            }
-          } else {
-            try {
-              let latestSeq = this.getSeq();
-              if (this.hasPersistedBaseline) {
-                if (
-                  this.hasDirtyItems() ||
-                  latestSeq !== this.getPersistedSeq()
-                ) {
-                  let persistedIds;
-                  try {
-                    if (logger.isEnabled("debug")) {
-                      logger.debug(
-                        "board.save_rewrite_started",
-                        boardLogFields(this, {
-                          "wbo.board.save_target_seq": latestSeq,
-                        }),
-                      );
-                    }
-                    persistedIds = await rewriteStoredSvgFromCanonical(
-                      this.name,
-                      savedItemsById,
-                      savedPaintOrder,
-                      this.metadata,
-                      this.getPersistedSeq(),
-                      latestSeq,
-                      { historyDir: this.historyDir },
-                    );
-                    this.hasPersistedBaseline = true;
-                  } catch (error) {
-                    if (errorCode(error) !== "ENOENT") {
-                      throw error;
-                    }
-                    logger.warn("board.save_missing_baseline", {
-                      board: this.name,
-                      "file.path": file,
-                    });
-                    const replayFromSeq =
-                      this.loadSource === "empty"
-                        ? this.minReplayableSeq()
-                        : this.getPersistedSeq();
-                    let recoveredBoard;
-                    while (true) {
-                      recoveredBoard = replayRecoverableMutations(
-                        this,
-                        replayFromSeq,
-                        latestSeq,
-                      );
-                      const currentSeq = this.getSeq();
-                      if (currentSeq === latestSeq) break;
-                      latestSeq = currentSeq;
-                    }
-                    replaceBoardState(this, recoveredBoard);
-                    if (logger.isEnabled("debug")) {
-                      logger.debug(
-                        "board.save_recovered_from_mutations",
-                        boardLogFields(this, {
-                          "wbo.board.save_target_seq": latestSeq,
-                          "wbo.board.replay_from_seq": replayFromSeq,
-                        }),
-                      );
-                    }
-                    this.hasPersistedBaseline = false;
-                    latestSeq = this.getSeq();
-                    savedItemsById = new Map(this.itemsById);
-                    savedPaintOrder = [...this.paintOrder];
-                    authoritativeItemCount = savedPaintOrder.filter(
-                      (id) => savedItemsById.get(id)?.deleted !== true,
-                    ).length;
-                  }
-                  if (this.hasPersistedBaseline) {
-                    this.markPersistedSeq(latestSeq);
-                    this.finalizePersistedItems(savedItemsById, persistedIds);
-                  } else {
-                    const initialPersist = await writeCanonicalBoardState(
-                      this.name,
-                      savedItemsById,
-                      savedPaintOrder,
-                      this.metadata,
-                      latestSeq,
-                      { historyDir: this.historyDir },
-                    );
-                    this.hasPersistedBaseline = initialPersist.hasBaseline;
-                    if (logger.isEnabled("debug")) {
-                      logger.debug(
-                        "board.save_initial_persist_finished",
-                        boardLogFields(this, {
-                          "wbo.board.persisted_ids": [
-                            ...initialPersist.persistedIds,
-                          ],
-                        }),
-                      );
-                    }
-                    if (initialPersist.hasBaseline) {
-                      this.markPersistedSeq(latestSeq);
-                      this.finalizePersistedItems(
-                        savedItemsById,
-                        initialPersist.persistedIds,
-                      );
-                    }
-                  }
-                } else {
-                  this.hasPersistedBaseline = true;
-                  this.markPersistedSeq(latestSeq);
-                  this.finalizePersistedItems(savedItemsById);
-                }
-              } else {
-                const initialPersist = await writeCanonicalBoardState(
-                  this.name,
-                  savedItemsById,
-                  savedPaintOrder,
-                  this.metadata,
-                  latestSeq,
-                  { historyDir: this.historyDir },
-                );
-                this.hasPersistedBaseline = initialPersist.hasBaseline;
-                if (logger.isEnabled("debug")) {
-                  logger.debug(
-                    "board.save_initial_persist_finished",
-                    boardLogFields(this, {
-                      "wbo.board.persisted_ids": [
-                        ...initialPersist.persistedIds,
-                      ],
-                    }),
-                  );
-                }
-                if (initialPersist.hasBaseline) {
-                  this.markPersistedSeq(latestSeq);
-                  this.finalizePersistedItems(
+          const saveTargetSeq = this.saveTargetSeq ?? this.getSeq();
+          try {
+            const persistedIds =
+              this.persistedItemIds.size > 0
+                ? await rewriteStoredSvgFromCanonical(
+                    this.name,
                     savedItemsById,
-                    initialPersist.persistedIds,
-                  );
-                }
+                    savedPaintOrder,
+                    this.metadata,
+                    this.persistedItemIds,
+                    this.getPersistedSeq(),
+                    saveTargetSeq,
+                    { historyDir: this.historyDir },
+                  )
+                : (
+                    await writeCanonicalBoardState(
+                      this.name,
+                      savedItemsById,
+                      savedPaintOrder,
+                      this.metadata,
+                      saveTargetSeq,
+                      { historyDir: this.historyDir },
+                    )
+                  ).persistedIds;
+            this.persistedItemIds = new Set(persistedIds);
+            this.markPersistedSeq(saveTargetSeq);
+            this.finalizePersistedItems(savedItemsById, persistedIds);
+            const savedAllSnapshotLiveItems =
+              authoritativeItemCount === persistedIds.size;
+            if (this.hasDirtyItems() !== true) {
+              this.dirtyFromMs = null;
+              this.lastWriteAtMs = null;
+            } else if (
+              savedAllSnapshotLiveItems &&
+              this.dirtyDuringSaveFromMs !== null
+            ) {
+              this.dirtyFromMs = this.dirtyDuringSaveFromMs;
+            }
+            this.trimPersistedMutationLog(startedAt);
+            const savedFile = await stat(file).catch(async (error) => {
+              if (errorCode(error) !== "ENOENT") {
+                throw error;
               }
-              if (this.getSeq() !== latestSeq) {
-                const delayMs = computeScheduledSaveDelayMs({
-                  nowMs: Date.now(),
-                  lastActivityAtMs: this.lastActivityDate,
-                  lastSaveAtMs: this.lastSaveDate,
-                  saveIntervalMs: this.config.SAVE_INTERVAL,
-                  maxSaveDelayMs: this.config.MAX_SAVE_DELAY,
-                  hasPersistedBaseline: this.hasPersistedBaseline,
-                  hasDirtyCreatedItems: this.dirtyCreatedIds.size > 0,
-                });
-                this.scheduleSaveTimeout(delayMs);
-              }
-              this.trimPersistedMutationLog(startedAt);
-              if (!this.hasPersistedBaseline) {
-                if (logger.isEnabled("debug")) {
-                  logger.debug(
-                    "board.save_without_baseline",
-                    boardLogFields(this),
-                  );
-                }
-                tracing.setActiveSpanAttributes(
-                  boardTraceAttributes(this.name, "save", {
-                    "wbo.board.result": "warning",
-                    "wbo.board.items": authoritativeItemCount,
-                  }),
-                );
-                metrics.recordBoardOperationDuration(
-                  "save",
-                  this.name,
-                  (Date.now() - startedAt) / 1000,
-                  "warning",
-                );
-                return;
-              }
-              const savedFile = await stat(file).catch(async (error) => {
-                if (errorCode(error) !== "ENOENT") {
-                  throw error;
-                }
-                return stat(boardSvgBackupPath(this.name, this.historyDir));
+              return stat(boardSvgBackupPath(this.name, this.historyDir)).catch(
+                () => null,
+              );
+            });
+            const durationMs = Date.now() - startedAt;
+            tracing.setActiveSpanAttributes(
+              boardTraceAttributes(this.name, "save", {
+                "wbo.board.result": "success",
+                ...(savedFile
+                  ? {
+                      "file.path": file,
+                      "file.size": savedFile.size,
+                    }
+                  : {}),
+                "wbo.board.items": authoritativeItemCount,
+                "wbo.board.persisted_items": persistedIds.size,
+              }),
+            );
+            logger.info(
+              "board.saved",
+              boardLogFields(this, {
+                duration_ms: durationMs,
+                ...(savedFile ? { "file.size": savedFile.size } : {}),
+                items: authoritativeItemCount,
+                "wbo.board.persisted_items": persistedIds.size,
+              }),
+            );
+            metrics.recordBoardOperationDuration(
+              "save",
+              this.name,
+              durationMs / 1000,
+            );
+            if (this.getSeq() !== saveTargetSeq) {
+              shouldScheduleAfterSave = true;
+            }
+            return { status: "saved" };
+          } catch (err) {
+            const durationMs = Date.now() - startedAt;
+            const code = errorCode(err);
+            if (
+              this.persistedItemIds.size > 0 &&
+              (code === "ENOENT" || code === "WBO_STORED_SVG_SEQ_MISMATCH")
+            ) {
+              const actualFileSeq =
+                err &&
+                typeof err === "object" &&
+                "actualSeq" in err &&
+                typeof err.actualSeq === "number"
+                  ? err.actualSeq
+                  : undefined;
+              const staleFields = boardLogFields(this, {
+                duration_ms: durationMs,
+                "wbo.board.save_target_seq": saveTargetSeq,
+                "wbo.board.actual_file_seq": actualFileSeq,
+                "wbo.board.dropped_local_seq_count": Math.max(
+                  0,
+                  this.getSeq() - this.getPersistedSeq(),
+                ),
+                "wbo.board.dirty_age_ms": this.dirtyAgeMs(),
+                error: err,
               });
               tracing.setActiveSpanAttributes(
                 boardTraceAttributes(this.name, "save", {
-                  "wbo.board.result": "success",
-                  "file.path": file,
-                  "file.size": savedFile.size,
-                  "wbo.board.items": authoritativeItemCount,
+                  "wbo.board.result": "stale",
+                  "wbo.board.save_target_seq": saveTargetSeq,
+                  ...(actualFileSeq === undefined
+                    ? {}
+                    : { "wbo.board.actual_file_seq": actualFileSeq }),
+                  "wbo.board.dropped_local_seq_count": Math.max(
+                    0,
+                    this.getSeq() - this.getPersistedSeq(),
+                  ),
                 }),
               );
-              const durationMs = Date.now() - startedAt;
-              logger.info(
-                "board.saved",
-                boardLogFields(this, {
-                  duration_ms: durationMs,
-                  "file.size": savedFile.size,
-                  items: authoritativeItemCount,
-                }),
-              );
+              logger.warn("board.save_stale", staleFields);
               metrics.recordBoardOperationDuration(
                 "save",
                 this.name,
                 durationMs / 1000,
+                "stale",
               );
-            } catch (err) {
-              const durationMs = Date.now() - startedAt;
-              tracing.recordActiveSpanError(err, {
-                "wbo.board.result": "error",
-              });
-              logger.error(
-                "board.save_failed",
-                boardLogFields(this, {
-                  duration_ms: durationMs,
-                  error: err,
-                }),
-              );
-              metrics.recordBoardOperationDuration(
-                "save",
-                this.name,
-                durationMs / 1000,
-                err,
-              );
-              return;
+              if (typeof this.onStaleSave === "function") {
+                try {
+                  await this.onStaleSave({
+                    actualFileSeq,
+                    durationMs,
+                    saveTargetSeq,
+                  });
+                } catch (handlerError) {
+                  logger.error("board.stale_save_handler_failed", {
+                    board: this.name,
+                    error: handlerError,
+                  });
+                }
+              }
+              return { status: "stale" };
             }
+            tracing.recordActiveSpanError(err, {
+              "wbo.board.result": "error",
+            });
+            logger.error(
+              "board.save_failed",
+              boardLogFields(this, {
+                duration_ms: durationMs,
+                error: err,
+              }),
+            );
+            metrics.recordBoardOperationDuration(
+              "save",
+              this.name,
+              durationMs / 1000,
+              err,
+            );
+            if (
+              !this.disposed &&
+              (this.hasDirtyItems() === true ||
+                this.getSeq() !== this.getPersistedSeq())
+            ) {
+              shouldScheduleAfterSave = true;
+            }
+            return { status: "failed" };
           }
         } finally {
           this.saveInProgress = false;
+          this.dirtyDuringSaveFromMs = null;
+          this.saveStartedAtMs = null;
+          this.saveTargetSeq = null;
+          if (
+            shouldScheduleAfterSave &&
+            !this.disposed &&
+            (this.hasDirtyItems() === true ||
+              this.getSeq() !== this.getPersistedSeq())
+          ) {
+            this.scheduleDirtySave(Date.now());
+          }
         }
       },
     );
@@ -1677,7 +1605,7 @@ class BoardData {
           this.itemsById.has(id),
         );
         this.trimPaintOrderIndex = 0;
-        rebuildDirtyCreatedItems(this);
+        rebuildLiveItemCount(this);
       }
     }
   }
@@ -1732,9 +1660,14 @@ class BoardData {
             },
             0,
           );
-          rebuildDirtyCreatedItems(boardData);
+          rebuildLiveItemCount(boardData);
           boardData.trimPaintOrderIndex = 0;
-          boardData.hasPersistedBaseline = storedBoard.source !== "empty";
+          boardData.persistedItemIds = new Set(storedBoard.itemsById.keys());
+          boardData.dirtyFromMs = null;
+          boardData.lastWriteAtMs = null;
+          boardData.dirtyDuringSaveFromMs = null;
+          boardData.saveStartedAtMs = null;
+          boardData.saveTargetSeq = null;
           boardData.loadSource = storedBoard.source;
           boardData.metadata = storedBoard.metadata;
           boardData.mutationLog = createMutationLog(storedBoard.seq);
@@ -1821,6 +1754,12 @@ class BoardData {
           boardData.itemsById = new Map();
           boardData.paintOrder = [];
           boardData.nextPaintOrder = 0;
+          boardData.persistedItemIds = new Set();
+          boardData.dirtyFromMs = null;
+          boardData.lastWriteAtMs = null;
+          boardData.dirtyDuringSaveFromMs = null;
+          boardData.saveStartedAtMs = null;
+          boardData.saveTargetSeq = null;
           boardData.liveItemCount = 0;
           boardData.trimPaintOrderIndex = 0;
         }
@@ -1841,5 +1780,4 @@ function errorCode(error) {
 }
 
 export { BoardData };
-export { computeSaveDelayMs };
 export { computeScheduledSaveDelayMs };

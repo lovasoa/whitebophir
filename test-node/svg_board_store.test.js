@@ -76,6 +76,7 @@ function writeBoardState(boardName, board, metadata, seq, historyDir) {
  * @param {Map<string, any>} itemsById
  * @param {string[]} paintOrder
  * @param {{readonly: boolean, seq?: number}} metadata
+ * @param {Set<string>} persistedItemIds
  * @param {number} persistedSeq
  * @param {number} latestSeq
  * @param {string} historyDir
@@ -86,6 +87,7 @@ function rewriteStoredSvgFromCanonical(
   itemsById,
   paintOrder,
   metadata,
+  persistedItemIds,
   persistedSeq,
   latestSeq,
   historyDir,
@@ -95,6 +97,7 @@ function rewriteStoredSvgFromCanonical(
     itemsById,
     paintOrder,
     metadata,
+    persistedItemIds,
     persistedSeq,
     latestSeq,
     { historyDir },
@@ -967,12 +970,14 @@ test("rewriteStoredSvgFromCanonical reuses raw persisted pencil paths for copied
     await fs.writeFile(svgPath(boardName, historyDir), storedSvg, "utf8");
 
     const state = await readCanonicalBoardState(boardName, historyDir);
+    const persistedItemIds = new Set(state.itemsById.keys());
     const persistedPencil = state.itemsById.get("line-1");
     assert.ok(persistedPencil);
     persistedPencil.payload.appendedChildren.push({ x: 9, y: 10 });
     persistedPencil.dirty = true;
 
     const copiedPencil = copyCanonicalItem(persistedPencil, "line-2", 2, 123);
+    copiedPencil.copySource = { sourceId: "line-1" };
     state.itemsById.set("line-2", copiedPencil);
     state.paintOrder.push("line-2");
 
@@ -984,6 +989,7 @@ test("rewriteStoredSvgFromCanonical reuses raw persisted pencil paths for copied
       state.itemsById,
       state.paintOrder,
       state.metadata,
+      persistedItemIds,
       state.seq,
       state.seq + 1,
       historyDir,
@@ -991,7 +997,7 @@ test("rewriteStoredSvgFromCanonical reuses raw persisted pencil paths for copied
     const rewritten = await fs.readFile(svgPath(boardName, historyDir), "utf8");
     const persistedState = await readPersistedBoardState(boardName, historyDir);
 
-    assert.deepEqual([...persistedIds], ["line-2"]);
+    assert.deepEqual([...persistedIds], ["text-1", "line-2"]);
     assert.doesNotMatch(rewritten, /id="line-1"/);
     assert.match(
       rewritten,
@@ -1038,6 +1044,7 @@ test("rewriteStoredSvg rejects stored svg base-seq mismatches", async () => {
       "rewrite-seq-mismatch",
       historyDir,
     );
+    const persistedItemIds = new Set(state.itemsById.keys());
 
     await assert.rejects(
       rewriteStoredSvgFromCanonical(
@@ -1045,6 +1052,7 @@ test("rewriteStoredSvg rejects stored svg base-seq mismatches", async () => {
         state.itemsById,
         state.paintOrder,
         state.metadata,
+        persistedItemIds,
         0,
         2,
         historyDir,

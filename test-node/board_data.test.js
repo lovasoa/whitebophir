@@ -2,12 +2,15 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 const {
   BOARD_DATA_PATH,
+  CONFIG_PATH,
   createConfig,
   loadBoardData,
   withBoardHistoryDir,
+  withEnv,
   writeBoard,
 } = require("./test_helpers.js");
 const {
@@ -300,21 +303,6 @@ function buildPencilStrokeMutations(id, color, size, points = []) {
   ];
 }
 
-/**
- * @param {() => boolean | Promise<boolean>} predicate
- * @param {number} [timeoutMs]
- * @returns {Promise<void>}
- */
-async function waitFor(predicate, timeoutMs = 2000) {
-  const deadline = Date.now() + timeoutMs;
-  while (!(await predicate())) {
-    if (Date.now() >= deadline) {
-      throw new Error(`Timed out after ${timeoutMs}ms waiting for predicate`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-}
-
 test("BoardData processMessageBatch and per-message processing stay in sync", () => {
   const BoardData = getBoardDataClass();
   const single = disableSaves(
@@ -367,75 +355,55 @@ test("BoardData processMessageBatch and per-message processing stay in sync", ()
   );
 });
 
-test("computeSaveDelayMs accelerates the first svg baseline save only", () => {
-  const { computeSaveDelayMs } = require(BOARD_DATA_PATH);
-
-  assert.equal(
-    computeSaveDelayMs({
-      saveIntervalMs: 2000,
-      hasPersistedBaseline: false,
-    }),
-    50,
-  );
-  assert.equal(
-    computeSaveDelayMs({
-      saveIntervalMs: 100,
-      hasPersistedBaseline: false,
-    }),
-    50,
-  );
-  assert.equal(
-    computeSaveDelayMs({
-      saveIntervalMs: 2000,
-      hasPersistedBaseline: true,
-    }),
-    2000,
-  );
-  assert.equal(
-    computeSaveDelayMs({
-      saveIntervalMs: 2000,
-      hasPersistedBaseline: true,
-      hasDirtyCreatedItems: true,
-    }),
-    50,
-  );
-});
-
 test("computeScheduledSaveDelayMs respects idle and max-delay deadlines", () => {
   const { computeScheduledSaveDelayMs } = require(BOARD_DATA_PATH);
 
   assert.equal(
     computeScheduledSaveDelayMs({
       nowMs: 1_000,
-      lastActivityAtMs: 1_000,
-      lastSaveAtMs: 0,
+      dirtyFromMs: 1_000,
+      lastWriteAtMs: 1_000,
       saveIntervalMs: 2_000,
       maxSaveDelayMs: 60_000,
-      hasPersistedBaseline: true,
     }),
     2_000,
   );
   assert.equal(
     computeScheduledSaveDelayMs({
-      nowMs: 59_000,
-      lastActivityAtMs: 59_000,
-      lastSaveAtMs: 0,
+      nowMs: 60_000,
+      dirtyFromMs: 1_000,
+      lastWriteAtMs: 60_000,
       saveIntervalMs: 2_000,
       maxSaveDelayMs: 60_000,
-      hasPersistedBaseline: true,
     }),
     1_000,
   );
   assert.equal(
     computeScheduledSaveDelayMs({
-      nowMs: 61_950,
-      lastActivityAtMs: 61_940,
-      lastSaveAtMs: 60_000,
+      nowMs: 62_000,
+      dirtyFromMs: 1_000,
+      lastWriteAtMs: 61_990,
       saveIntervalMs: 2_000,
       maxSaveDelayMs: 60_000,
-      hasPersistedBaseline: true,
     }),
-    1_990,
+    0,
+  );
+});
+
+test("configuration rejects MAX_SAVE_DELAY below SAVE_INTERVAL", async () => {
+  await assert.rejects(
+    withEnv(
+      {
+        WBO_SAVE_INTERVAL: "2000",
+        WBO_MAX_SAVE_DELAY: "1999",
+      },
+      async () => {
+        await import(
+          `${pathToFileURL(CONFIG_PATH).href}?invalid-save-config=${Date.now()}`
+        );
+      },
+    ),
+    /Invalid save timing config/,
   );
 });
 
@@ -509,7 +477,6 @@ test("finalizePersistedItems folds newly persisted pencil children into the base
   board.finalizePersistedItems(persistedSnapshot);
 
   const line = board.itemsById.get("line-1");
-  assert.equal(line?.createdAfterPersistedSeq, false);
   assert.equal(line?.payload?.persistedChildCount, 1);
   assert.deepEqual(line?.payload?.appendedChildren, [{ x: 25, y: 35 }]);
   assert.equal(line?.dirty, true);
@@ -536,56 +503,9 @@ test("finalizePersistedItems keeps omitted pencil creates dirty until they seria
   board.finalizePersistedItems(persistedSnapshot, new Set());
 
   const line = board.itemsById.get("line-1");
-  assert.equal(line?.createdAfterPersistedSeq, true);
   assert.equal(line?.dirty, true);
   assert.equal(line?.payload?.persistedChildCount, 0);
   assert.deepEqual(line?.payload?.appendedChildren, [{ x: 10, y: 20 }]);
-});
-
-test("save schedules a fast follow-up when newer created items remain dirty", async () => {
-  await withBoardHistoryDir("wbo-save-follow-up-", async ({ historyDir }) => {
-    const BoardData = getBoardDataClass();
-    const config = createConfig({ HISTORY_DIR: historyDir });
-    const board = createBoard(BoardData, "follow-up-save-board", config);
-
-    assertMessagesAccepted(
-      board,
-      buildPencilStrokeMutations("pencil-1", "#123456", 4, [
-        { x: 100, y: 200 },
-        { x: 300, y: 400 },
-      ]),
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, 60));
-
-    assertMessagesAccepted(
-      board,
-      buildPencilStrokeMutations("pencil-2", "#abcdef", 4, [
-        { x: 0, y: 0 },
-        { x: 90, y: 120 },
-        { x: 180, y: 0 },
-      ]),
-    );
-
-    await waitFor(async () => {
-      try {
-        const saved = await fs.readFile(
-          path.join(historyDir, "board-follow-up-save-board.svg"),
-          "utf8",
-        );
-        return saved.includes("#123456") && saved.includes("#abcdef");
-      } catch (error) {
-        const code =
-          error && typeof error === "object" && "code" in error
-            ? error.code
-            : undefined;
-        if (code === "ENOENT") {
-          return false;
-        }
-        throw error;
-      }
-    }, 1000);
-  });
 });
 
 test("BoardData.save skips redundant clean saves once persisted state is current", async () => {
@@ -633,6 +553,31 @@ test("scheduleSaveTimeout does not queue an autosave while a save is in progress
 
   assert.equal(saveCalls, 0);
   assert.equal(board.saveTimeoutId, undefined);
+});
+
+test("BoardData.makeCopyCandidate derives copySource from persisted board membership", async () => {
+  await withBoardHistoryDir(
+    "wbo-copy-source-membership-",
+    async ({ historyDir }) => {
+      const { board } = await withLoadedBoard({
+        historyDir,
+        boardName: "copy-source-membership",
+        storedSvg: buildStoredSvg({
+          drawingArea:
+            '<text id="text-1" x="10" y="20" font-size="18" fill="#123456">hello</text>',
+        }),
+      });
+
+      const source = board.itemsById.get("text-1");
+      const copied = board.makeCopyCandidate("text-2", source);
+
+      assert.equal(copied.ok, true);
+      assert.deepEqual(copied.value.copySource, {
+        sourceId: "text-1",
+      });
+      assert.equal(copied.value.payload.modifiedText, undefined);
+    },
+  );
 });
 
 test("BoardData replays batch updates, copies, and deletes consistently", () => {
@@ -1322,18 +1267,18 @@ test("BoardData.save rewrites existing stored svg from queued mutations", async 
   );
 });
 
-test("BoardData.save replays recoverable mutations when the stored svg is missing", async () => {
+test("BoardData.save treats a missing persisted baseline as a stale writer", async () => {
   await withBoardHistoryDir(
-    "wbo-board-save-missing-baseline-",
+    "wbo-board-save-missing-baseline-stale-",
     async ({ historyDir }) => {
       const existingSvg = buildStoredSvg({
         defs: "<style>.keep-me{}</style>",
         drawingArea:
           '<text id="text-1" x="5" y="6" font-size="18" fill="#654321">hello</text>',
       });
-      const { BoardData, board, svgPath } = await withLoadedBoard({
+      const { board, svgPath } = await withLoadedBoard({
         historyDir,
-        boardName: "missing-baseline",
+        boardName: "missing-baseline-stale",
         storedSvg: existingSvg,
       });
       await fs.unlink(svgPath);
@@ -1343,16 +1288,13 @@ test("BoardData.save replays recoverable mutations when the stored svg is missin
         2,
       );
 
-      await board.save();
+      const result = await board.save();
 
-      const recreated = await fs.readFile(svgPath, "utf8");
-      assert.match(recreated, /data-wbo-seq="2"/);
-      assert.match(recreated, /id="rect-2"/);
-      assert.equal(recreated.includes('id="text-1"'), false);
-
-      const config = createConfig({ HISTORY_DIR: historyDir });
-      const reloaded = await loadBoard(BoardData, "missing-baseline", config);
-      assert.deepEqual(Object.keys(reloaded.board), ["rect-2"]);
+      assert.deepEqual(result, { status: "stale" });
+      await assert.rejects(fs.stat(svgPath), { code: "ENOENT" });
+      assert.equal(board.getPersistedSeq(), 1);
+      assert.equal(board.getSeq(), 2);
+      assert.deepEqual(Object.keys(board.board).sort(), ["rect-2", "text-1"]);
     },
   );
 });
@@ -1399,15 +1341,21 @@ test("BoardData.save tolerates a missing file while only unreconstructible items
   );
 });
 
-test("BoardData.save recovers from a deleted baseline before a new pencil stroke is complete", async () => {
+test("BoardData.save treats a missing baseline and backup before a new seed stroke completes as stale", async () => {
   await withBoardHistoryDir(
-    "wbo-board-save-missing-baseline-seed-",
+    "wbo-board-save-missing-baseline-seed-stale-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
       const config = createConfig({ HISTORY_DIR: historyDir });
-      const svgBoardStore = require("../server/svg_board_store.mjs");
-      const svgPath = path.join(historyDir, "board-missing-baseline-seed.svg");
-      const board = createBoard(BoardData, "missing-baseline-seed", config);
+      const svgPath = path.join(
+        historyDir,
+        "board-missing-baseline-seed-stale.svg",
+      );
+      const board = createBoard(
+        BoardData,
+        "missing-baseline-seed-stale",
+        config,
+      );
 
       await applyPersistentMutations(
         board,
@@ -1420,6 +1368,7 @@ test("BoardData.save recovers from a deleted baseline before a new pencil stroke
 
       await board.save();
       await fs.unlink(svgPath);
+      await fs.unlink(`${svgPath}.bak`);
 
       await applyPersistentMutation(
         board,
@@ -1427,37 +1376,15 @@ test("BoardData.save recovers from a deleted baseline before a new pencil stroke
         4,
       );
 
-      await board.save();
+      const result = await board.save();
 
+      assert.deepEqual(result, { status: "stale" });
+      await assert.rejects(fs.stat(svgPath), { code: "ENOENT" });
       assert.equal(board.hasPersistedBaseline, true);
       assert.deepEqual(Object.keys(board.board).sort(), [
         "pencil-1",
         "pencil-2",
       ]);
-      const savedAfterSeed = await svgBoardStore.readServedBaseline(
-        "missing-baseline-seed",
-        { historyDir },
-      );
-      assert.match(savedAfterSeed, /id="pencil-1"/);
-      assert.equal(savedAfterSeed.includes('id="pencil-2"'), false);
-
-      await applyPersistentMutations(
-        board,
-        buildPencilStrokeMutations("pencil-2", "#654321", 2, [
-          { x: 5, y: 6 },
-          { x: 7, y: 8 },
-        ]).slice(1),
-        5,
-      );
-
-      await board.save();
-
-      const savedSvg = await svgBoardStore.readServedBaseline(
-        "missing-baseline-seed",
-        { historyDir },
-      );
-      assert.match(savedSvg, /id="pencil-1"/);
-      assert.match(savedSvg, /id="pencil-2"/);
     },
   );
 });
@@ -1750,8 +1677,9 @@ test("BoardData.save leaves the stored svg unchanged on seq mismatch", async () 
       const updateRect = rectangleUpdate("rect-1", { x2: 30, y2: 40 });
       await applyPersistentMutation(board, updateRect, 2);
 
-      await board.save();
+      const result = await board.save();
 
+      assert.deepEqual(result, { status: "stale" });
       const rewritten = await fs.readFile(svgPath, "utf8");
       assert.match(rewritten, /data-wbo-seq="99"/);
       assert.match(

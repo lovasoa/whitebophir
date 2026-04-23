@@ -830,6 +830,72 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
   );
 });
 
+test("seq-sync resync_required warning includes client identity fields", async () => {
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-gap-resync-log-" },
+    async ({ connect, getLoadedBoard, invoke, sockets }) => {
+      const writer = await connect({
+        id: "socket-seq-gap-log-writer",
+        remoteAddress: "203.0.113.90",
+        headers: withUserSecretCookie("99999999999999999999999999999990"),
+        query: {
+          board: "board-seq-gap-log",
+          sync: "seq",
+          tool: "rectangle",
+          color: "#666666",
+          size: "4",
+        },
+      });
+      await invoke(writer, "broadcast", {
+        tool: Rectangle.id,
+        type: MutationType.CREATE,
+        id: "rect-log-1",
+        x: 0,
+        y: 0,
+        x2: 10,
+        y2: 10,
+        color: "#666666",
+        size: 4,
+      });
+
+      const loadedBoard = await getLoadedBoard("board-seq-gap-log");
+      loadedBoard.trimMutationLogBefore(1);
+
+      const reconnectSecret = "99999999999999999999999999999991";
+      const reconnect = await connect({
+        id: "socket-seq-gap-log-reconnect",
+        remoteAddress: "203.0.113.91",
+        headers: withUserSecretCookie(reconnectSecret),
+        query: {
+          board: "board-seq-gap-log",
+          sync: "seq",
+          tool: "hand",
+          color: "#777777",
+          size: "4",
+        },
+      });
+
+      await invoke(reconnect, "sync_request", {
+        baselineSeq: 0,
+      });
+
+      assert.deepEqual(
+        sockets.__test.boardUserDebugFields(
+          "board-seq-gap-log",
+          "socket-seq-gap-log-reconnect",
+        ),
+        {
+          "user.name": sockets.__test.buildUserName(
+            "203.0.113.91",
+            reconnectSecret,
+          ),
+          "client.address": "203.0.113.91",
+        },
+      );
+    },
+  );
+});
+
 test("persistent writes fan out as seq envelopes to every peer", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-fanout-" },
@@ -1565,21 +1631,20 @@ test("report_user respects custom header ip sources for active board members", a
   );
 });
 
-test("reconnect during missing-baseline recovery keeps newer recoverable creations", async () => {
+test("seq mismatch drops the stale board instance and disconnects attached sockets", async () => {
   await createSocketScenario(
     {
-      historyDirPrefix: "wbo-users-missing-baseline-race-",
-      boardName: "missing-baseline-race",
+      historyDirPrefix: "wbo-users-stale-save-drop-",
+      boardName: "stale-save-drop",
     },
-    async ({ historyDir, connect, invoke, handler, getLoadedBoard }) => {
-      const svgBoardStore = require("../server/svg_board_store.mjs");
+    async ({ historyDir, connect, invoke, handler, getLoadedBoard, test }) => {
       const first = await connect({
         id: "socket-first",
-        query: { board: "missing-baseline-race" },
+        query: { board: "stale-save-drop" },
       });
       const second = await connect({
         id: "socket-second",
-        query: { board: "missing-baseline-race" },
+        query: { board: "stale-save-drop" },
       });
 
       await invoke(
@@ -1596,14 +1661,19 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
         }),
       );
 
-      const board = await getLoadedBoard("missing-baseline-race");
-      await board.save();
+      const board = await getLoadedBoard("stale-save-drop");
+      assert.deepEqual(await board.save(), { status: "saved" });
 
       const svgPath = path.join(
         /** @type {string} */ (historyDir),
-        "board-missing-baseline-race.svg",
+        "board-stale-save-drop.svg",
       );
-      await fs.unlink(svgPath);
+      const persistedSvg = await fs.readFile(svgPath, "utf8");
+      await fs.writeFile(
+        svgPath,
+        persistedSvg.replace('data-wbo-seq="1"', 'data-wbo-seq="99"'),
+        "utf8",
+      );
 
       await invoke(
         first,
@@ -1619,51 +1689,23 @@ test("reconnect during missing-baseline recovery keeps newer recoverable creatio
         }),
       );
 
-      handler(first, "disconnecting")("transport close");
-      handler(second, "disconnecting")("transport close");
+      assert.deepEqual(await board.save(), { status: "stale" });
+      assert.equal(board.disposed, true);
+      assert.equal(first.socket.disconnected, true);
+      assert.equal(second.socket.disconnected, true);
+      assert.equal(test.getBoardUserMap("stale-save-drop").size, 0);
+      assert.equal(await getLoadedBoard("stale-save-drop"), undefined);
 
       const reconnect = await connect({
         id: "socket-reconnect",
-        query: { board: "missing-baseline-race" },
-      });
-      const peer = await connect({
-        id: "socket-peer",
-        query: { board: "missing-baseline-race" },
+        query: { board: "stale-save-drop" },
       });
 
-      await invoke(
-        reconnect,
-        "broadcast",
-        rectangleCreate({
-          id: "rect-3",
-          color: "#333333",
-          size: 2,
-          x: 9,
-          y: 10,
-          x2: 11,
-          y2: 12,
-        }),
-      );
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      assert.deepEqual(Object.keys(board.board).sort(), [
-        "rect-1",
-        "rect-2",
-        "rect-3",
-      ]);
+      const reloadedBoard = await getLoadedBoard("stale-save-drop");
+      assert.notEqual(reloadedBoard, board);
+      assert.deepEqual(Object.keys(reloadedBoard.board), ["rect-1"]);
 
       handler(reconnect, "disconnecting")("transport close");
-      handler(peer, "disconnecting")("transport close");
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      const savedSvg = await svgBoardStore.readServedBaseline(
-        "missing-baseline-race",
-        { historyDir },
-      );
-      assert.match(savedSvg, /id="rect-1"/);
-      assert.match(savedSvg, /id="rect-2"/);
-      assert.match(savedSvg, /id="rect-3"/);
     },
   );
 });

@@ -137,7 +137,7 @@ function readInlineAttrs(item) {
 /**
  * @param {any} item
  * @param {number} paintOrder
- * @param {{persisted: boolean, baselineSourceId?: string}=} [options]
+ * @param {{persisted: boolean}=} [options]
  * @returns {any}
  */
 function canonicalItemFromItem(
@@ -162,7 +162,6 @@ function canonicalItemFromItem(
     bounds: cloneBounds(bounds),
     ...(transform !== undefined ? { transform } : {}),
     dirty: !persisted,
-    createdAfterPersistedSeq: !persisted,
     time: attrs.time,
   };
 
@@ -188,13 +187,6 @@ function canonicalItemFromItem(
             ? {}
             : { modifiedText: typeof item.txt === "string" ? item.txt : "" }),
         },
-        ...(persisted && options.baselineSourceId
-          ? {
-              copySource: {
-                sourceId: options.baselineSourceId,
-              },
-            }
-          : {}),
       };
     default:
       return {
@@ -222,7 +214,6 @@ function canonicalItemFromStoredSvgEntry(entry, paintOrder) {
     bounds: cloneBounds(summary.localBounds),
     ...(transform !== undefined ? { transform } : {}),
     dirty: false,
-    createdAfterPersistedSeq: false,
     time: attrs.time,
   };
 
@@ -295,18 +286,6 @@ function currentText(item) {
 }
 
 /**
- * @param {any} item
- * @returns {string | undefined}
- */
-function baselineSourceId(item) {
-  return typeof item?.copySource?.sourceId === "string"
-    ? item.copySource.sourceId
-    : item?.createdAfterPersistedSeq
-      ? undefined
-      : item?.id;
-}
-
-/**
  * @param {any} source
  * @param {string} newId
  * @param {number} paintOrder
@@ -319,24 +298,14 @@ function copyCanonicalItem(source, newId, paintOrder, time = Date.now()) {
   copied.paintOrder = paintOrder;
   copied.deleted = false;
   copied.dirty = true;
-  copied.createdAfterPersistedSeq = true;
   copied.time = time;
   copied.attrs = { ...copied.attrs, id: newId, time };
+  delete copied.copySource;
 
   if (copied.payload?.kind === "text") {
     const sourceText = currentText(source);
     if (sourceText !== undefined) {
       copied.payload.modifiedText = sourceText;
-      delete copied.copySource;
-    } else {
-      const sourceBaseline = baselineSourceId(source);
-      if (sourceBaseline) {
-        copied.copySource = {
-          sourceId: sourceBaseline,
-        };
-      } else {
-        delete copied.copySource;
-      }
     }
     return copied;
   }
@@ -349,18 +318,9 @@ function copyCanonicalItem(source, newId, paintOrder, time = Date.now()) {
       typeof source.payload.persistedChildCount === "number"
         ? source.payload.persistedChildCount
         : 0;
-    const sourceBaseline = baselineSourceId(source);
-    if (sourceBaseline) {
-      copied.copySource = {
-        sourceId: sourceBaseline,
-      };
-    } else {
-      delete copied.copySource;
-    }
     return copied;
   }
 
-  delete copied.copySource;
   return copied;
 }
 

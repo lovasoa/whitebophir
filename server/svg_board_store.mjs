@@ -194,15 +194,18 @@ async function resolveReadableSvgFile(boardName, historyDir) {
 /**
  * @param {number} expectedSeq
  * @param {number} actualSeq
- * @returns {Error & {code: string}}
+ * @returns {Error & {code: string, expectedSeq: number, actualSeq: number}}
  */
 function createStoredSvgSeqMismatchError(expectedSeq, actualSeq) {
-  const error = /** @type {Error & {code: string}} */ (
-    new Error(
-      `Stored SVG seq mismatch: expected ${expectedSeq}, got ${actualSeq}`,
-    )
-  );
+  const error =
+    /** @type {Error & {code: string, expectedSeq: number, actualSeq: number}} */ (
+      new Error(
+        `Stored SVG seq mismatch: expected ${expectedSeq}, got ${actualSeq}`,
+      )
+    );
   error.code = "WBO_STORED_SVG_SEQ_MISMATCH";
+  error.expectedSeq = expectedSeq;
+  error.actualSeq = actualSeq;
   return error;
 }
 
@@ -548,7 +551,7 @@ function collectPersistedCanonicalItems(itemsById, paintOrder) {
 
 /**
  * @param {any} item
- * @param {{sourceText?: string, sourcePath?: string}=} [options]
+ * @param {{sourceText?: string, sourcePath?: string, isPersistedItem?: boolean}=} [options]
  * @returns {string}
  */
 function serializeCanonicalItemForStorage(item, options = {}) {
@@ -562,7 +565,10 @@ function serializeCanonicalItemForStorage(item, options = {}) {
     return serializeStoredSvgItem(storedItem);
   }
   if (item.payload?.kind === "children") {
-    const sourceRequired = needsStoredPencilPath(item);
+    const sourceRequired = needsStoredPencilPath(
+      item,
+      options.isPersistedItem === true,
+    );
     const pathData = sourceRequired
       ? appendPersistedPencilPath(
           options.sourcePath,
@@ -591,7 +597,7 @@ function serializeCanonicalItemForStorage(item, options = {}) {
  * @param {BoardMetadata} metadata
  * @param {number} seq
  * @param {{historyDir?: string}=} [options]
- * @returns {Promise<{persistedIds: Set<string>, hasBaseline: boolean}>}
+ * @returns {Promise<{persistedIds: Set<string>}>}
  */
 async function writeCanonicalBoardState(
   boardName,
@@ -605,7 +611,7 @@ async function writeCanonicalBoardState(
   /** @type {{[name: string]: any}} */
   const fullBoard = {};
   for (const item of collectPersistedCanonicalItems(itemsById, paintOrder)) {
-    if (needsStoredPencilPath(item)) {
+    if (needsStoredPencilPath(item, false)) {
       throw new Error(
         `Cannot rewrite persisted pencil "${item.id || "(unknown)"}" without a stored source path`,
       );
@@ -623,7 +629,6 @@ async function writeCanonicalBoardState(
   await writeBoardState(boardName, fullBoard, metadata, seq, options);
   return {
     persistedIds,
-    hasBaseline: persistedIds.size > 0,
   };
 }
 
@@ -642,15 +647,15 @@ function needsStoredTextSource(item) {
 
 /**
  * @param {any} item
+ * @param {boolean} isPersistedItem
  * @returns {boolean}
  */
-function needsStoredPencilPath(item) {
+function needsStoredPencilPath(item, isPersistedItem) {
   return !!(
     item &&
     item.deleted !== true &&
     item.payload?.kind === "children" &&
-    (item.createdAfterPersistedSeq !== true ||
-      typeof item.copySource?.sourceId === "string")
+    (isPersistedItem === true || typeof item.copySource?.sourceId === "string")
   );
 }
 
@@ -692,6 +697,7 @@ function collectCopySourceIds(itemsById) {
  * @param {Map<string, any>} itemsById
  * @param {string[]} paintOrder
  * @param {BoardMetadata} metadata
+ * @param {Set<string>} persistedItemIds
  * @param {number} persistedSeq
  * @param {number} latestSeq
  * @param {{historyDir?: string}=} [options]
@@ -702,6 +708,7 @@ async function rewriteStoredSvgFromCanonical(
   itemsById,
   paintOrder,
   metadata,
+  persistedItemIds,
   persistedSeq,
   latestSeq,
   options,
@@ -752,11 +759,7 @@ async function rewriteStoredSvgFromCanonical(
       if (event.type === "suffix") {
         for (const id of paintOrder) {
           const item = itemsById.get(id);
-          if (
-            !item ||
-            item.deleted === true ||
-            item.createdAfterPersistedSeq !== true
-          ) {
+          if (!item || item.deleted === true || persistedItemIds.has(id)) {
             continue;
           }
           const tag = serializeCanonicalItemForStorage(item, {
@@ -766,6 +769,7 @@ async function rewriteStoredSvgFromCanonical(
             sourcePath: item.copySource
               ? bufferedPencilPaths.get(item.copySource.sourceId)
               : undefined,
+            isPersistedItem: false,
           });
           if (!tag) continue;
           persistedIds.add(item.id);
@@ -807,7 +811,12 @@ async function rewriteStoredSvgFromCanonical(
         continue;
       }
 
-      if (item.dirty !== true || item.createdAfterPersistedSeq === true) {
+      if (!persistedItemIds.has(id)) {
+        continue;
+      }
+
+      if (item.dirty !== true) {
+        persistedIds.add(id);
         if (!output.write(event.leadingText + event.entry.raw)) {
           await once(output, "drain");
         }
@@ -818,9 +827,10 @@ async function rewriteStoredSvgFromCanonical(
         sourceText: needsStoredTextSource(item)
           ? bufferedTextContents.get(id) || readStoredTextContent(event.entry)
           : undefined,
-        sourcePath: needsStoredPencilPath(item)
+        sourcePath: needsStoredPencilPath(item, true)
           ? bufferedPencilPaths.get(id) || readStoredPencilPath(event.entry)
           : undefined,
+        isPersistedItem: true,
       });
       if (!rewrittenTag) {
         continue;

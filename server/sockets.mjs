@@ -511,12 +511,94 @@ function removeBoardUser(socket, boardName) {
 }
 
 /**
+ * @param {BoardData} board
+ * @returns {AppSocket[]}
+ */
+function detachBoardSockets(board) {
+  const socketIds = [...board.users];
+  board.users.clear();
+  if (socketIds.length > 0) {
+    connectedUsersTotal = Math.max(0, connectedUsersTotal - socketIds.length);
+    updateConnectedUsersGauge();
+  }
+  const users = boardUsers.get(board.name);
+  if (users) {
+    users.clear();
+    cleanupBoardUserMap(board.name);
+  }
+  /** @type {AppSocket[]} */
+  const sockets = [];
+  for (const socketId of socketIds) {
+    const socket = activeSockets.get(socketId);
+    if (socket) {
+      sockets.push(socket);
+      activeSockets.delete(socketId);
+    }
+    syncedPersistentSockets.delete(socketId);
+  }
+  updateActiveSocketConnectionsGauge();
+  return sockets;
+}
+
+/**
+ * @param {BoardData} board
+ * @param {{
+ *   actualFileSeq?: number,
+ *   durationMs?: number,
+ *   saveTargetSeq?: number,
+ * }=} details
+ * @returns {Promise<void>}
+ */
+async function handleStaleBoardSave(board, details) {
+  const loadedBoard = getLoadedBoard(board.name);
+  if (!loadedBoard) return;
+  const currentBoard = await loadedBoard;
+  if (currentBoard !== board) return;
+
+  const socketsToDisconnect = detachBoardSockets(board);
+  deleteLoadedBoard(board.name);
+  updateLoadedBoardsGauge();
+  board.dispose();
+
+  logger.warn(
+    "board.stale_instance_dropped",
+    boardDebugFields(board, {
+      "wbo.board.actual_file_seq": details?.actualFileSeq,
+      "wbo.board.save_target_seq": details?.saveTargetSeq,
+      duration_ms: details?.durationMs,
+      "wbo.board.disconnected_sockets": socketsToDisconnect.length,
+    }),
+  );
+
+  socketsToDisconnect.forEach((socket) => {
+    closeSocket(socket, "stale_board", {
+      board: board.name,
+      socket: socket.id,
+    });
+  });
+}
+
+/**
  * @param {string} boardName
  * @param {string} socketId
  * @returns {BoardUser | undefined}
  */
 function getBoardUser(boardName, socketId) {
   return getBoardUserMap(boardName).get(socketId);
+}
+
+/**
+ * @param {string} boardName
+ * @param {string} socketId
+ * @returns {{[key: string]: unknown}}
+ */
+function boardUserDebugFields(boardName, socketId) {
+  const user = getBoardUser(boardName, socketId);
+  if (!user) return {};
+  return {
+    "user.name": user.name,
+    "client.address": user.ip,
+  };
 }
 
 /**
@@ -2140,7 +2222,16 @@ function getBoard(name, config) {
     }
     return loadedBoard;
   } else {
-    const board = BoardData.load(name, config);
+    const board = BoardData.load(name, config).then((loaded) => {
+      /**
+       * @param {{actualFileSeq?: number, durationMs?: number, saveTargetSeq?: number}} details
+       * @returns {Promise<void>}
+       */
+      loaded.onStaleSave = function onStaleSave(details) {
+        return handleStaleBoardSave(loaded, details);
+      };
+      return loaded;
+    });
     setLoadedBoard(name, board);
     updateLoadedBoardsGauge();
     if (logger.isEnabled("debug")) {
@@ -2241,6 +2332,7 @@ async function handleSyncRequestMessage(socket, boardName, request, config) {
       "socket.sync_request_resync_required",
       boardDebugFields(board, {
         socket: socket.id,
+        ...boardUserDebugFields(boardName, socket.id),
         "wbo.socket.baseline_seq": baselineSeq,
         "wbo.socket.latest_seq": latestSeq,
       }),
@@ -2477,7 +2569,20 @@ async function unloadBoard(boardName) {
           logger.debug("board.unload_started", boardDebugFields(board));
         }
         try {
-          await board.save();
+          const saveResult = await board.save();
+          if (saveResult.status === "stale") {
+            if (logger.isEnabled("debug")) {
+              logger.debug("board.unload_stale", boardDebugFields(board));
+            }
+            return;
+          }
+          if (saveResult.status === "failed" && !shuttingDown) {
+            logger.warn(
+              "board.unload_aborted_save_failed",
+              boardDebugFields(board),
+            );
+            return;
+          }
           if (board.users.size > 0) {
             if (logger.isEnabled("debug")) {
               logger.debug("board.unload_aborted", boardDebugFields(board));
@@ -2599,6 +2704,7 @@ export const __test = {
   pruneRateLimitMap,
   cleanupBoardUserMap,
   getBoardUserMap,
+  boardUserDebugFields,
   getLoadedBoard: function getLoadedBoardForTest(/** @type {string} */ name) {
     return getLoadedBoard(name);
   },
