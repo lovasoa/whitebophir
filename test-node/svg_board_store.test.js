@@ -582,6 +582,7 @@ test("readBoardDocumentState returns metadata and streaming source details for s
 
     assert.deepEqual(state.metadata, { readonly: true, seq: 7 });
     assert.equal(state.source, "svg");
+    assert.equal(state.byteLength, Buffer.byteLength(storedSvg));
     assert.equal(state.inlineBoardSvg, null);
   });
 });
@@ -615,6 +616,7 @@ test("readBoardDocumentState falls back to legacy json metadata and generated in
 
     assert.deepEqual(state.metadata, { readonly: true, seq: 0 });
     assert.equal(state.source, "generated");
+    assert.equal(state.byteLength, 0);
     assert.ok(state.inlineBoardSvg);
     assert.match(state.inlineBoardSvg, /data-wbo-readonly="true"/);
     assert.match(state.inlineBoardSvg, /id="rect-1"/);

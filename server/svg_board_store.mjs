@@ -856,7 +856,7 @@ async function rewriteStoredSvgFromCanonical(
 /**
  * @param {string} boardName
  * @param {{historyDir?: string}=} [options]
- * @returns {Promise<{metadata: {readonly: boolean, seq?: number}, inlineBoardSvg: string | null, source: "svg" | "svg_backup" | "generated"}>}
+ * @returns {Promise<{metadata: {readonly: boolean, seq?: number}, inlineBoardSvg: string | null, source: "svg" | "svg_backup" | "generated", byteLength: number}>}
  */
 async function readBoardDocumentState(boardName, options) {
   const historyDir = options?.historyDir;
@@ -878,6 +878,7 @@ async function readBoardDocumentState(boardName, options) {
       metadata,
       inlineBoardSvg: null,
       source: readableSvg.source,
+      byteLength: readableSvg.byteLength,
     };
   }
 
@@ -896,6 +897,7 @@ async function readBoardDocumentState(boardName, options) {
       metadata,
       inlineBoardSvg: renderServedBaselineSvg(parsed.board, metadata, 0),
       source: "generated",
+      byteLength: 0,
     };
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
@@ -908,6 +910,7 @@ async function readBoardDocumentState(boardName, options) {
     metadata,
     inlineBoardSvg: renderServedBaselineSvg({}, metadata, 0),
     source: "generated",
+    byteLength: 0,
   };
 }
 

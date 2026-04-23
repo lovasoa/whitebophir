@@ -910,6 +910,18 @@ function annotateBoardRequest(requestContext, boardName) {
 }
 
 /**
+ * @param {{
+ *   annotate: (fields: {[key: string]: unknown}) => void,
+ * }} requestContext
+ * @param {string | undefined} encoding
+ * @returns {void}
+ */
+function annotateResponseCompression(requestContext, encoding) {
+  if (encoding === undefined) return;
+  requestContext.annotate({ http_response_encoding: encoding });
+}
+
+/**
  * @param {URL} parsedUrl
  * @returns {string}
  */
@@ -1053,8 +1065,13 @@ async function handleBoardDocumentRoute(
     metadata: boardMetadata,
     inlineBoardSvg,
     source,
+    byteLength,
   } = await readBoardDocumentState(boardName, {
     historyDir: runtime.config.HISTORY_DIR,
+  });
+  requestContext.annotate({
+    board_source: source,
+    board_bytes: byteLength,
   });
   const canWrite =
     !boardMetadata.readonly ||
@@ -1084,7 +1101,7 @@ async function handleBoardDocumentRoute(
         response.destroy(error);
       }
     });
-    runtime.boardTemplate.serveStream(
+    const { encoding } = runtime.boardTemplate.serveStream(
       request,
       response,
       svgStream,
@@ -1097,16 +1114,23 @@ async function handleBoardDocumentRoute(
         },
       },
     );
+    annotateResponseCompression(requestContext, encoding);
     return;
   }
-  runtime.boardTemplate.serve(request, response, boardRole === "moderator", {
-    etag,
-    inlineBoardSvg: inlineBoardSvg || "",
-    boardState: {
-      readonly: boardMetadata.readonly,
-      canWrite,
+  const { encoding } = runtime.boardTemplate.serve(
+    request,
+    response,
+    boardRole === "moderator",
+    {
+      etag,
+      inlineBoardSvg: inlineBoardSvg || "",
+      boardState: {
+        readonly: boardMetadata.readonly,
+        canWrite,
+      },
     },
-  });
+  );
+  annotateResponseCompression(requestContext, encoding);
 }
 
 /**
@@ -1144,13 +1168,17 @@ async function handleBoardSvgRoute(
       response.destroy(error);
     }
   });
-  svgStream.pipe(
-    startCompressedResponse(response, request.headers["accept-encoding"], {
+  const compressedResponse = startCompressedResponse(
+    response,
+    request.headers["accept-encoding"],
+    {
       "Content-Type": "image/svg+xml",
       "Content-Security-Policy": CSP,
       "Cache-Control": boardSvgCacheControl(runtime.config),
-    }).stream,
+    },
   );
+  annotateResponseCompression(requestContext, compressedResponse.encoding);
+  svgStream.pipe(compressedResponse.stream);
 }
 
 /**
@@ -1361,11 +1389,13 @@ async function respondWithBoardPreview(
     serveError(response, runtime.errorPage, requestContext)();
     return;
   }
-  startCompressedResponse(response, acceptEncoding, {
+  const compressedResponse = startCompressedResponse(response, acceptEncoding, {
     "Content-Type": "image/svg+xml",
     "Content-Security-Policy": CSP,
     "Cache-Control": boardSvgCacheControl(runtime.config),
-  }).stream.end(svg);
+  });
+  annotateResponseCompression(requestContext, compressedResponse.encoding);
+  compressedResponse.stream.end(svg);
 }
 
 /**

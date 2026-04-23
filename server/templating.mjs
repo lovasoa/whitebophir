@@ -18,6 +18,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 /** @typedef {NonNullable<typeof TOOLBAR_TOOLS[number]>} ToolbarTool */
 /** @typedef {typeof import("./configuration.mjs")} ServerConfig */
 /** @typedef {ReturnType<typeof createClientConfiguration>} ClientConfig */
+/** @typedef {"zstd" | "br" | "gzip"} CompressionEncoding */
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 const BOARD_PAGE_CACHE_HEADROOM_SECONDS = 5;
@@ -173,7 +174,7 @@ function cacheControl(isDevelopment, prodValue) {
 }
 
 const startHtmlResponse =
-  /** @type {(response: TemplateResponse, request: TemplateRequest, parsedUrl: URL, parameters: TemplateParameters, cacheControlValue: string, contentLength?: number) => import("stream").Writable} */
+  /** @type {(response: TemplateResponse, request: TemplateRequest, parsedUrl: URL, parameters: TemplateParameters, cacheControlValue: string, contentLength?: number) => { stream: import("stream").Writable, encoding: import("./http_compression.mjs").CompressionEncoding | undefined }} */
   (
     response,
     request,
@@ -192,7 +193,7 @@ const startHtmlResponse =
       ...(!parsedUrl.searchParams.get("lang")
         ? { Vary: "Accept-Language" }
         : {}),
-    }).stream;
+    });
 
 class Template {
   /** @type {ServerConfig} */
@@ -262,6 +263,7 @@ class Template {
    * @param {TemplateResponse} response
    * @param {boolean} [isModerator]
    * @param {object} [extraParams]
+   * @returns {{encoding: CompressionEncoding | undefined}}
    */
   serve(request, response, isModerator, extraParams) {
     const parsedUrl = parseRequestUrl(request.url);
@@ -272,14 +274,16 @@ class Template {
       extraParams,
     );
     const body = this.template(parameters);
-    startHtmlResponse(
+    const { stream, encoding } = startHtmlResponse(
       response,
       request,
       parsedUrl,
       parameters,
       this.cacheControl(),
       Buffer.byteLength(body),
-    ).end(body);
+    );
+    stream.end(body);
+    return { encoding };
   }
 
   /**
@@ -370,7 +374,7 @@ class BoardTemplate extends Template {
    * @param {NodeJS.ReadableStream} inlineBoardSvgStream
    * @param {boolean} [isModerator]
    * @param {object} [extraParams]
-   * @returns {void}
+   * @returns {{encoding: CompressionEncoding | undefined}}
    */
   serveStream(
     request,
@@ -391,7 +395,7 @@ class BoardTemplate extends Template {
     );
     const prefix = this.prefixTemplate(parameters);
     const suffix = this.suffixTemplate(parameters);
-    const stream = startHtmlResponse(
+    const { stream, encoding } = startHtmlResponse(
       response,
       request,
       parsedUrl,
@@ -403,6 +407,7 @@ class BoardTemplate extends Template {
     inlineBoardSvgStream.on("end", () => {
       stream.end(suffix);
     });
+    return { encoding };
   }
 
   /**
