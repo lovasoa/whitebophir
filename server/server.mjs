@@ -34,6 +34,7 @@ import * as jwtBoardName from "./jwtBoardnameAuth.mjs";
 import observability from "./observability.mjs";
 import { buildRandomBoardName } from "./pronounceable_name.mjs";
 import { parseRequestUrl, validateRequestUrl } from "./request_url.mjs";
+import { CONTENT_SECURITY_POLICY } from "./security_headers.mjs";
 import { getRequestClientIp } from "./socket_policy.mjs";
 import * as sockets from "./sockets.mjs";
 import {
@@ -64,9 +65,6 @@ const { createRequestId, logger, metrics, tracing } = observability;
  *   boardTemplate: templating.BoardTemplate,
  *   indexTemplate: templating.Template,
  * }} ServerRuntime */
-
-const CSP =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
 
 const STATIC_RESOURCE_EXTENSIONS = [
   ".js",
@@ -112,7 +110,7 @@ function createServerRuntime(config) {
     maxAge: 0,
     /** @param {HttpResponse} res */
     setHeaders: (res, /** @type {string} */ filePath) => {
-      res.setHeader("Content-Security-Policy", CSP);
+      res.setHeader("Content-Security-Policy", CONTENT_SECURITY_POLICY);
       const cacheValue = staticFileCacheControl(config, filePath || "");
       if (cacheValue !== undefined) {
         res.setHeader("Cache-Control", cacheValue);
@@ -1204,7 +1202,7 @@ async function handleBoardSvgRoute(
     request.headers["accept-encoding"],
     {
       "Content-Type": "image/svg+xml",
-      "Content-Security-Policy": CSP,
+      "Content-Security-Policy": CONTENT_SECURITY_POLICY,
       "Cache-Control": boardSvgCacheControl(runtime.config),
     },
   );
@@ -1423,7 +1421,7 @@ async function respondWithBoardPreview(
   }
   const compressedResponse = startCompressedResponse(response, acceptEncoding, {
     "Content-Type": "image/svg+xml",
-    "Content-Security-Policy": CSP,
+    "Content-Security-Policy": CONTENT_SECURITY_POLICY,
     "Cache-Control": boardSvgCacheControl(runtime.config),
   });
   annotateResponseCompression(requestContext, compressedResponse.encoding);
