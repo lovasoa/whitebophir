@@ -201,7 +201,7 @@ test.describe("collaboration and rate limiting", () => {
       x: 250,
       y: 150,
       color: "#00ff00",
-      size: 5,
+      size: 10,
     });
 
     await expect
@@ -349,7 +349,7 @@ test.describe("collaboration and rate limiting", () => {
       x: 1600,
       y: 1200,
       color: "#00ff00",
-      size: 5,
+      size: 10,
     });
 
     await expect
@@ -386,7 +386,7 @@ test.describe("collaboration and rate limiting", () => {
             x: 1600 + index * 8,
             y: 1200 + index * 6,
             color: "#00ff00",
-            size: 5,
+            size: 10,
           });
           await nextFrame();
         }
@@ -441,7 +441,7 @@ test.describe("collaboration and rate limiting", () => {
           x2: 120,
           y2: 100,
           color: "#224466",
-          size: 4,
+          size: 10,
           opacity: 1,
         },
         rectangle,
@@ -514,7 +514,7 @@ test.describe("collaboration and rate limiting", () => {
             type: createType,
             id: lineId,
             color: "#8844aa",
-            size: 4,
+            size: 10,
             opacity: 1,
           },
           pencil,
@@ -835,7 +835,7 @@ test.describe("collaboration and rate limiting", () => {
             x2: 90,
             y2: 90,
             color: "#aa0000",
-            size: 4,
+            size: 10,
             opacity: 1,
           },
           rectangle,
@@ -849,7 +849,7 @@ test.describe("collaboration and rate limiting", () => {
             x2: 170,
             y2: 90,
             color: "#00aa00",
-            size: 4,
+            size: 10,
             opacity: 1,
           },
           rectangle,
@@ -924,7 +924,7 @@ test.describe("collaboration and rate limiting", () => {
             x2: 90,
             y2: 170,
             color: "#112233",
-            size: 4,
+            size: 10,
             opacity: 1,
           },
           rectangle,
@@ -938,7 +938,7 @@ test.describe("collaboration and rate limiting", () => {
             x2: 170,
             y2: 170,
             color: "#445566",
-            size: 4,
+            size: 10,
             opacity: 1,
           },
           rectangle,

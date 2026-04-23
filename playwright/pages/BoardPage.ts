@@ -992,7 +992,7 @@ window.turnstile = {
             x2: 40,
             y2: 50,
             color: "#112233",
-            size: 4,
+            size: 10,
             opacity: 1,
           },
           window.Tools.list.rectangle,

@@ -48,7 +48,7 @@ test.describe("JWT auth and readonly flows", () => {
       x2: 30,
       y2: 30,
       color: "#123456",
-      size: 4,
+      size: 10,
     });
     await page.reload();
     await expect(boardPage.tool("hand")).toBeVisible();
@@ -68,7 +68,7 @@ test.describe("JWT auth and readonly flows", () => {
       x2: 30,
       y2: 30,
       color: "#123456",
-      size: 4,
+      size: 10,
     });
     await server.waitForStoredBoard(
       server.dataPath,
@@ -175,7 +175,7 @@ test.describe("public authless flows", () => {
       x2: 30,
       y2: 30,
       color: "#123456",
-      size: 4,
+      size: 10,
     });
     await page.reload();
     await expect(boardPage.tool("hand")).toBeVisible();
@@ -207,7 +207,7 @@ test.describe("public authless flows", () => {
           x2: 40,
           y2: 40,
           color: "#123456",
-          size: 4,
+          size: 10,
           opacity: 1,
         },
         rectangle,

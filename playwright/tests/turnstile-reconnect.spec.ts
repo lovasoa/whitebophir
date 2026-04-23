@@ -91,7 +91,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
       x: 210,
       y: 220,
       color: "#00aa11",
-      size: 6,
+      size: 10,
     });
     await boardPage.waitForBroadcastColor("#00aa11");
 
@@ -101,7 +101,7 @@ test("reconnect resets Turnstile and recovers protected writes", async ({
       x: 260,
       y: 280,
       color: "#123abc",
-      size: 8,
+      size: 10,
     });
     await peerBoard.waitForBroadcastColor("#123abc");
 
