@@ -1109,10 +1109,12 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
  * @param {MountedAppTool} tool
  */
 Tools.queueProtectedWrite = function queueProtectedWrite(data, tool) {
+  const hadPendingWrites = Tools.turnstilePendingWrites.length > 0;
   Tools.turnstilePendingWrites.push({
     data: Tools.cloneMessage(data),
     toolName: tool.name,
   });
+  if (hadPendingWrites) return;
   logBoardEvent("log", "turnstile.write_queued", {
     toolName: tool.name,
     clientMutationId:
