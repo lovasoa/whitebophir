@@ -27,9 +27,7 @@
 import { LIMITS } from "../../js/message_common.js";
 import { MutationType } from "../../js/mutation_type.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
-/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
-/** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
-/** @typedef {import("../../../types/app-runtime").MutationCode} MutationCode */
+/** @import { MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
 
 /**
  * @param {number} value

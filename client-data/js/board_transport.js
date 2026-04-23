@@ -1,10 +1,7 @@
 import { MutationType } from "./mutation_type.js";
 
-/** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
-/** @typedef {import("../../types/app-runtime").PendingMessages} PendingMessages */
+/** @import { BoardMessage, PendingMessages, SocketHeaders, SocketParams } from "../../types/app-runtime" */
 /** @typedef {{[name: string]: string}} SocketQueryParams */
-/** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
-/** @typedef {import("../../types/app-runtime").SocketParams} SocketParams */
 const BATCH_SIZE = 1024;
 
 /**

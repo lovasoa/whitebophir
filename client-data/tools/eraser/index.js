@@ -29,11 +29,9 @@ import {
   MutationType,
 } from "../../js/message_tool_metadata.js";
 
-/** @typedef {import("../../../types/app-runtime").MutationCode} MutationCode */
+/** @import { MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {{type: MutationCode, id: string}} EraserMessage */
 /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
-/** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
-/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {{tools: MountedAppToolsState, erasing: boolean}} EraserState */
 
 export const toolId = "eraser";

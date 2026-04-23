@@ -26,10 +26,8 @@
 
 import { MutationType } from "../../js/mutation_type.js";
 
-/** @typedef {import("../../../types/app-runtime").MutationCode} MutationCode */
+/** @import { MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {{type: MutationCode, id: string, token?: string | null}} ClearMessage */
-/** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
-/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
 
 export const toolId = "clear";
 export const shortcut = "c";

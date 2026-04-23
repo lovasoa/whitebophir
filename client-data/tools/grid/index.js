@@ -25,8 +25,7 @@
  */
 
 /** @typedef {"none" | "url(#grid)" | "url(#dots)"} GridFill */
-/** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
-/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {{tools: MountedAppToolsState, index: number, states: GridFill[], gridContainer: SVGElement}} GridState */
 
 export const toolId = "grid";

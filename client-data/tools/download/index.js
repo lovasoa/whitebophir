@@ -24,8 +24,7 @@
  * @licend
  */
 
-/** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
-/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
 
 export const toolId = "download";
 export const shortcut = "d";

@@ -1,8 +1,4 @@
-/** @typedef {import("../../types/app-runtime").IdentifiedBoardMessage} IdentifiedBoardMessage */
-/** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
-/** @typedef {import("../../types/app-runtime").IncomingBroadcast} IncomingBroadcast */
-/** @typedef {import("../../types/app-runtime").PersistentMutationEnvelope} PersistentMutationEnvelope */
-/** @typedef {import("../../types/app-runtime").ToolOwnedBatchMessage} ToolOwnedBatchMessage */
+/** @import { BoardMessage, IdentifiedBoardMessage, IncomingBroadcast, PersistentMutationEnvelope, ToolOwnedBatchMessage } from "../../types/app-runtime" */
 import { isToolOwnedBatchTool } from "./message_tool_metadata.js";
 import {
   hasMessageChildren,

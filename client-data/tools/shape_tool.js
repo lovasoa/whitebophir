@@ -1,7 +1,6 @@
 import { MutationType } from "../js/mutation_type.js";
 
-/** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
-/** @typedef {import("../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
+/** @import { MountedAppToolsState, ToolBootContext } from "../../types/app-runtime" */
 
 /**
  * @typedef {{

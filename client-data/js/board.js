@@ -68,33 +68,7 @@ import {
 } from "../tools/tool-defaults.js";
 import { Hand, TOOL_BY_ID, TOOLS } from "../tools/index.js";
 
-/** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
-/** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
-/** @typedef {import("../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
-/** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
-/** @typedef {import("../../types/app-runtime").BufferedWrite} BufferedWrite */
-/** @typedef {import("../../types/app-runtime").BoardStatusView} BoardStatusView */
-/** @typedef {import("../../types/app-runtime").ColorPreset} ColorPreset */
-/** @typedef {import("../../types/app-runtime").ConfiguredRateLimitDefinition} ConfiguredRateLimitDefinition */
-/** @typedef {import("../../types/app-runtime").ConnectedUser} ConnectedUser */
-/** @typedef {import("../../types/app-runtime").PendingMessages} PendingMessages */
-/** @typedef {import("../../types/app-runtime").PendingWrite} PendingWrite */
-/** @typedef {import("../../types/app-runtime").RateLimitKind} RateLimitKind */
-/** @typedef {import("../../types/app-runtime").ServerConfig} ServerConfig */
-/** @typedef {import("../../types/app-runtime").CompiledToolListener} CompiledToolListener */
-/** @typedef {import("../../types/app-runtime").CompiledToolListeners} CompiledToolListeners */
-/** @typedef {import("../../types/app-runtime").IncomingBroadcast} IncomingBroadcast */
-/** @typedef {import("../../types/app-runtime").MountedAppTool} MountedAppTool */
-/** @typedef {import("../../types/app-runtime").MutationRejectedPayload} MutationRejectedPayload */
-/** @typedef {import("../../types/app-runtime").ToolPointerListener} ToolPointerListener */
-/** @typedef {import("../../types/app-runtime").ToolPointerListeners} ToolPointerListeners */
-/** @typedef {import("../../types/app-runtime").ResyncRequiredPayload} ResyncRequiredPayload */
-/** @typedef {import("../../types/app-runtime").SyncReplayEndPayload} SyncReplayEndPayload */
-/** @typedef {import("../../types/app-runtime").ToolModule} ToolModule */
-/** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
-/** @typedef {import("../../types/app-runtime").SocketHeaders} SocketHeaders */
-/** @typedef {import("../../types/app-runtime").BoardConnectionState} BoardConnectionState */
-/** @typedef {import("../../types/app-runtime").OptimisticJournalEntry} OptimisticJournalEntry */
+/** @import { AppBoardState, AppToolsState, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, IncomingBroadcast, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, PendingMessages, PendingWrite, RateLimitKind, ResyncRequiredPayload, ServerConfig, SocketHeaders, SyncReplayEndPayload, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;

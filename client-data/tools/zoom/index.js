@@ -27,8 +27,7 @@
 /** @typedef {{scrollX: number, scrollY: number, x: number, y: number, clientY: number, scale: number, distance: number | null}} ZoomOrigin */
 /** @typedef {{preventDefault(): void, clientY?: number, pageX?: number, pageY?: number, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, deltaMode?: number, deltaX?: number, deltaY?: number, changedTouches?: TouchList, touches?: TouchList}} ZoomPointerEvent */
 /** @typedef {(evt: KeyboardEvent) => void} ZoomKeyHandler */
-/** @typedef {import("../../../types/app-runtime").MountedAppToolsState} MountedAppToolsState */
-/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {{tools: MountedAppToolsState, origin: ZoomOrigin, moved: boolean, pressed: boolean, animation: number | null, keydown: ZoomKeyHandler, keyup: ZoomKeyHandler}} ZoomState */
 
 const ZOOM_FACTOR = 0.5;

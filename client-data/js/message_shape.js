@@ -1,7 +1,4 @@
-/** @typedef {import("../../types/app-runtime").BoardMessage} BoardMessage */
-/** @typedef {import("../../types/app-runtime").CopiedBoardMessage} CopiedBoardMessage */
-/** @typedef {import("../../types/app-runtime").IdentifiedBoardMessage} IdentifiedBoardMessage */
-/** @typedef {import("../../types/app-runtime").ToolNamedBoardMessage} ToolNamedBoardMessage */
+/** @import { BoardMessage, CopiedBoardMessage, IdentifiedBoardMessage, ToolNamedBoardMessage } from "../../types/app-runtime" */
 
 /**
  * @param {{_children?: unknown} | null | undefined} message
