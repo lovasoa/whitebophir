@@ -363,7 +363,6 @@ export function installTurnstile(Tools, { logBoardEvent }) {
   function renderTurnstileWidget(api) {
     try {
       Tools.turnstilePending = true;
-      Tools.showTurnstileOverlay(0);
       Tools.turnstileWidgetId = api.render("#turnstile-widget", {
         sitekey: Tools.server_config.TURNSTILE_SITE_KEY,
         appearance: "interaction-only",
@@ -383,6 +382,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
         },
         "before-interactive-callback": () => {
           logBoardEvent("log", "turnstile.widget_shown");
+          Tools.showTurnstileOverlay(0);
         },
         "after-interactive-callback": () => {
           if (Tools.isTurnstileValidated()) Tools.hideTurnstileOverlay();
@@ -428,7 +428,6 @@ export function installTurnstile(Tools, { logBoardEvent }) {
   function resetTurnstileChallenge(api) {
     try {
       Tools.turnstilePending = true;
-      Tools.showTurnstileOverlay(0);
       api.reset(Tools.turnstileWidgetId);
     } catch (error) {
       Tools.turnstilePending = false;
