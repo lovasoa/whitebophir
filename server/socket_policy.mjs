@@ -29,22 +29,6 @@ const { logger, metrics, tracing } = observability;
  */
 
 /**
- * @param {AppSocket} socket
- * @returns {SocketRequest}
- */
-function getSocketRequest(socket) {
-  return socket.client.request;
-}
-
-/**
- * @param {AppSocket} socket
- * @returns {{[key: string]: string | string[] | undefined}}
- */
-function getSocketHeaders(socket) {
-  return getSocketRequest(socket).headers || {};
-}
-
-/**
  * @param {string | string[] | undefined} value
  * @returns {string | undefined}
  */
@@ -107,14 +91,6 @@ function parseForwardedChain(value) {
       return resolved;
     })
     .filter(Boolean);
-}
-
-/**
- * @param {string} value
- * @returns {string}
- */
-function parseForwardedHeader(value) {
-  return parseForwardedChain(value)[0] || "";
 }
 
 /**
@@ -214,15 +190,12 @@ function resolveCustomHeaderClientIp(headers, normalizedIpSource, ipSource) {
 
 /**
  * @param {SocketPolicyConfig} config
- * @param {AppSocket} socket
+ * @param {SocketRequest | {headers?: {[key: string]: string | string[] | undefined}, socket?: {remoteAddress?: string | undefined} | undefined}} request
  * @returns {string}
  */
-function getClientIp(config, socket) {
-  const request = getSocketRequest(socket);
-  const headers = getSocketHeaders(socket);
-  const directRemoteAddress = request.socket?.remoteAddress
-    ? request.socket.remoteAddress
-    : "";
+function getRequestClientIp(config, request) {
+  const headers = request.headers || {};
+  const directRemoteAddress = request.socket?.remoteAddress || "";
   const ipSource = config.IP_SOURCE || "remoteAddress";
   const normalizedIpSource = normalizeHeaderName(ipSource);
   const trustProxyHops = config.TRUST_PROXY_HOPS;
@@ -245,6 +218,15 @@ function getClientIp(config, socket) {
     default:
       return resolveCustomHeaderClientIp(headers, normalizedIpSource, ipSource);
   }
+}
+
+/**
+ * @param {SocketPolicyConfig} config
+ * @param {AppSocket} socket
+ * @returns {string}
+ */
+function getClientIp(config, socket) {
+  return getRequestClientIp(config, socket.client.request);
 }
 
 /**
@@ -304,6 +286,7 @@ function normalizeBroadcastData(config, boardName, data) {
       function recordRejectedBroadcast() {
         logger.warn("socket.message_invalid", {
           board: rejectedBoardName,
+          message: data,
           tool: getToolId(data?.tool),
           type: data?.type,
           reason: reason,
@@ -412,8 +395,8 @@ export {
   countDestructiveActions,
   countTextCreationActions,
   getClientIp,
+  getRequestClientIp,
   normalizeBoardName,
   normalizeBroadcastData,
   parseForwardedChain,
-  parseForwardedHeader,
 };

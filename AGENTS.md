@@ -79,7 +79,7 @@ section before making changes there.
 
 ## where to look by concern
 
-- Config/env behavior: [server configuration](./server/configuration.mjs). The module reads `process.env` at evaluation time with no memoization or reset hook. `LOG_LEVEL` controls the minimum emitted server log severity (`debug`, `info`, `warn`, `error`). `withEnv` in [test helpers](./test-node/test_helpers.js) swaps env vars for the scope of a test. Hot-path consumers capture the fields they need at module scope; see [performance-critical paths](#performance-critical-paths) for the full contract.
+- Config/env behavior, including proxy-aware client IP resolution for sockets and HTTP logs: [server configuration](./server/configuration.mjs). The module reads `process.env` at evaluation time with no memoization or reset hook. `LOG_LEVEL` controls the minimum emitted server log severity (`debug`, `info`, `warn`, `error`). `withEnv` in [test helpers](./test-node/test_helpers.js) swaps env vars for the scope of a test. Hot-path consumers capture the fields they need at module scope; see [performance-critical paths](#performance-critical-paths) for the full contract.
 - Browser integration coverage: [playwright specs](./playwright/tests).
 - Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
 - Browser runner setup: [playwright config](./playwright.config.ts).

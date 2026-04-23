@@ -16,13 +16,13 @@ test("getClientIp resolves the first proxy hop from forwarding headers", async (
   const forwardedConfig = createConfig({ IP_SOURCE: "Forwarded" });
 
   assert.equal(
-    socketPolicy.getClientIp(
+    socketPolicy.getRequestClientIp(
       forwardedForConfig,
       createSocket({
         headers: {
           "x-forwarded-for": "198.51.100.4, 203.0.113.7",
         },
-      }).socket,
+      }).socket.client.request,
     ),
     "198.51.100.4",
   );
@@ -119,10 +119,10 @@ test("getClientIp supports custom single-value headers such as CF-Connecting-IP"
   );
 });
 
-test("parseForwardedHeader rejects malformed forwarded headers", () => {
+test("parseForwardedChain rejects malformed forwarded headers", () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
   assert.throws(() => {
-    socketPolicy.parseForwardedHeader("proto=https;host=example.com");
+    socketPolicy.parseForwardedChain("proto=https;host=example.com");
   }, /Missing for=/);
 });
 
@@ -137,6 +137,51 @@ test("normalizeBroadcastData rejects blocked tools before persistence", async ()
   });
 
   assert.deepEqual(rejected, { ok: false, reason: "blocked tool" });
+});
+
+test("normalizeBroadcastData logs the invalid message payload", async () => {
+  const socketPolicy = require(SOCKET_POLICY_PATH);
+  const observability = await import("../server/observability.mjs");
+  const invalidMessage = {
+    tool: Text.id,
+    type: MutationType.UPDATE,
+    id: "text-1",
+    txt: "invalid",
+    clientMutationId: "",
+  };
+  /** @type {Array<{name: string, fields: any}>} */
+  const warnings = [];
+  const originalWarn = observability.logger.warn;
+  observability.logger.warn = (name, fields) => {
+    warnings.push({ name, fields });
+  };
+
+  try {
+    const rejected = socketPolicy.normalizeBroadcastData(
+      createConfig(),
+      "anonymous",
+      invalidMessage,
+    );
+
+    assert.deepEqual(rejected, {
+      ok: false,
+      reason: "invalid clientMutationId",
+    });
+    assert.deepEqual(warnings, [
+      {
+        name: "socket.message_invalid",
+        fields: {
+          board: "anonymous",
+          message: invalidMessage,
+          tool: "text",
+          type: MutationType.UPDATE,
+          reason: "invalid clientMutationId",
+        },
+      },
+    ]);
+  } finally {
+    observability.logger.warn = originalWarn;
+  }
 });
 
 test("readonly board policy allows cursor updates but reserves clear for moderators", async () => {

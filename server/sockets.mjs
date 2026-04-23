@@ -31,7 +31,6 @@ import {
   getClientIp,
   normalizeBoardName,
   normalizeBroadcastData,
-  parseForwardedHeader,
 } from "./socket_policy.mjs";
 import { getUserSecretFromCookieHeader } from "./user_secret_cookie.mjs";
 
@@ -2597,7 +2596,6 @@ export const __test = {
   createRateLimitState,
   getClientIp,
   normalizeBroadcastData,
-  parseForwardedHeader,
   pruneRateLimitMap,
   cleanupBoardUserMap,
   getBoardUserMap,
