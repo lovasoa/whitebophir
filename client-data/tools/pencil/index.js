@@ -25,6 +25,7 @@
  */
 
 import { LIMITS } from "../../js/message_common.js";
+import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
 /** @import { MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
@@ -592,10 +593,9 @@ export function draw(state, data) {
           ? state.renderingLine
           : getLineById(state, childData.parent);
       if (!line) {
-        console.error(
-          "Pencil: Hmmm... I received a point of a line that has not been created (%s).",
-          childData.parent,
-        );
+        logFrontendEvent("warn", "tool.pencil.append_missing_parent", {
+          parentId: childData.parent,
+        });
         line = state.renderingLine = createLine(state, {
           type: MutationType.CREATE,
           id: childData.parent,
@@ -607,7 +607,10 @@ export function draw(state, data) {
       return;
     }
     default:
-      console.error("Pencil: Draw instruction with unknown type. ", data);
+      logFrontendEvent("error", "tool.pencil.draw_invalid_type", {
+        mutationType: data?.type,
+        message: data,
+      });
   }
 }
 
@@ -693,10 +696,9 @@ export function normalizeServerRenderedElement(state, line) {
     getPathData(state, line),
   );
   if (!normalizedPathData || normalizedPathData.length === 0) {
-    console.error(
-      "Pencil: unable to normalize server-rendered path '%s'; dropping segment.",
-      line.id ?? "",
-    );
+    logFrontendEvent("warn", "tool.pencil.path_normalization_failed", {
+      id: line.id ?? "",
+    });
     const cachedPathData = getPathData(state, line);
     if (cachedPathData && cachedPathData.length > 0) {
       state.pathDataCache[line.id] = cachedPathData;

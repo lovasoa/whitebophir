@@ -1,4 +1,5 @@
 import { DRAW_TOOL_IDS } from "../tools/tool-order.js";
+import { errorLogFields, logFrontendEvent } from "./frontend_logging.js";
 const documentElement = document.documentElement;
 /** @type {string} */
 const PATH_DATA_POLYFILL_MODULE = "./path-data-polyfill.js";
@@ -117,5 +118,5 @@ async function bootBoardPage() {
 
 void bootBoardPage().catch((error) => {
   setBoardBootPhase("error");
-  console.error("Failed to boot board page:", error);
+  logFrontendEvent("error", "boot.page_failed", errorLogFields(error));
 });

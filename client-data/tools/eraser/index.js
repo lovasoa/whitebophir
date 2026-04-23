@@ -28,6 +28,7 @@ import {
   getMutationType,
   MutationType,
 } from "../../js/message_tool_metadata.js";
+import { logFrontendEvent } from "../../js/frontend_logging.js";
 
 /** @import { MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {{type: MutationCode, id: string}} EraserMessage */
@@ -133,16 +134,23 @@ export function release(state) {
  */
 export function draw(state, data) {
   if (getMutationType(data) !== MutationType.DELETE) {
-    console.error("Eraser: 'delete' instruction with unknown type. ", data);
+    logFrontendEvent("error", "tool.eraser.draw_invalid_type", {
+      mutationType: data?.type,
+      message: data,
+    });
     return;
   }
   if (!data.id) {
-    console.error("Eraser: Missing id for delete message.", data);
+    logFrontendEvent("error", "tool.eraser.delete_missing_id", {
+      message: data,
+    });
     return;
   }
   const elem = state.tools.svg.getElementById(data.id);
   if (elem === null) {
-    console.error("Eraser: Tried to delete an element that does not exist.");
+    logFrontendEvent("warn", "tool.eraser.delete_missing_target", {
+      id: data.id,
+    });
   } else {
     state.tools.drawingArea.removeChild(elem);
   }

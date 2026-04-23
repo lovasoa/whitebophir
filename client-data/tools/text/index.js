@@ -25,6 +25,7 @@
  */
 
 import { clampCoord, truncateText } from "../../js/message_common.js";
+import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
 /** @import { BoardMessage, MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: ReturnType<typeof setTimeout> | null}} CurrentTextState */
@@ -368,15 +369,18 @@ export function draw(state, data, isLocal) {
   if (textMessage.type === MutationType.UPDATE) {
     const textField = document.getElementById(textMessage.id);
     if (!textField || String(textField.tagName).toLowerCase() !== "text") {
-      console.error(
-        "Text: Hmmm... I received text that belongs to an unknown text field",
-      );
+      logFrontendEvent("warn", "tool.text.update_missing_target", {
+        id: textMessage.id,
+      });
       return false;
     }
     updateText(state, textField, textMessage.txt);
     return;
   }
-  console.error("Text: Draw instruction with unknown type. ", textMessage);
+  logFrontendEvent("error", "tool.text.draw_invalid_type", {
+    mutationType: textMessage.type,
+    message: textMessage,
+  });
   return;
 }
 

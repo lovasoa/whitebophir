@@ -1,4 +1,5 @@
 import { MutationType } from "../js/mutation_type.js";
+import { logFrontendEvent } from "../js/frontend_logging.js";
 
 /** @import { MountedAppToolsState, ToolBootContext } from "../../types/app-runtime" */
 
@@ -117,10 +118,11 @@ export function drawShapeTool(state, data) {
     config.applyShapeGeometry(shape, data);
     return;
   }
-  console.error(
-    `${config.contract.toolId}: Draw instruction with unknown type. `,
-    data,
-  );
+  logFrontendEvent("error", "tool.shape.draw_invalid_type", {
+    toolId: config.contract.toolId,
+    mutationType: data?.type,
+    message: data,
+  });
 }
 
 /**

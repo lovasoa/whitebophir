@@ -1,4 +1,5 @@
 import { isValidBoardName } from "./board_name.js";
+import { errorLogFields, logFrontendEvent } from "./frontend_logging.js";
 
 /** @typedef {{readonly: boolean, canWrite: boolean}} BoardState */
 
@@ -27,7 +28,10 @@ export function parseEmbeddedJson(elementId, fallback) {
   try {
     return /** @type {any} */ (JSON.parse(text));
   } catch (error) {
-    console.warn(`Invalid embedded JSON in #${elementId}`, error);
+    logFrontendEvent("warn", "boot.embedded_json_invalid", {
+      elementId,
+      ...errorLogFields(error),
+    });
     return fallback;
   }
 }

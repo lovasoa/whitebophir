@@ -35,6 +35,7 @@ import {
   resolveBoardName,
   updateRecentBoards,
 } from "./board_page_state.js";
+import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
 import {
   buildBoardSvgBaselineUrl,
   parseServedBaselineSvgText,
@@ -314,7 +315,6 @@ Tools.rateLimitNoticeTimer = null;
 Tools.boardStatusTimer = null;
 Tools.explicitBoardStatus = null;
 
-const BOARD_LOG_PREFIX = "[wbo]";
 Tools.awaitingBoardSnapshot = true;
 Tools.awaitingSyncReplay = false;
 Tools.hasAuthoritativeBoardSnapshot = false;
@@ -391,23 +391,6 @@ function getBoardStatusElements() {
 }
 
 /**
- * @param {{[key: string]: unknown}=} [fields]
- * @returns {{[key: string]: unknown}}
- */
-function boardLogFields(fields) {
-  return {
-    board: Tools.boardName,
-    socketId: Tools.socket?.id || null,
-    authoritativeSeq: Tools.authoritativeSeq,
-    connectionState: Tools.connectionState,
-    pendingProtectedWrites: Tools.turnstilePendingWrites.length,
-    turnstilePending: Tools.turnstilePending,
-    turnstileWidgetId: Tools.turnstileWidgetId,
-    ...(fields || {}),
-  };
-}
-
-/**
  * @returns {string}
  */
 function getAuthoritativeBaselineUrl() {
@@ -415,16 +398,6 @@ function getAuthoritativeBaselineUrl() {
     window.location.pathname,
     window.location.search,
   );
-}
-
-/**
- * @param {"log" | "warn" | "error"} level
- * @param {string} event
- * @param {{[key: string]: unknown}=} [fields]
- * @returns {void}
- */
-function logBoardEvent(level, event, fields) {
-  console[level](BOARD_LOG_PREFIX, event, boardLogFields(fields));
 }
 
 /**
