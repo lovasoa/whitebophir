@@ -434,6 +434,16 @@ function boardLogFields(fields) {
 }
 
 /**
+ * @returns {string}
+ */
+function getAuthoritativeBaselineUrl() {
+  return buildBoardSvgBaselineUrl(
+    window.location.pathname,
+    window.location.search,
+  );
+}
+
+/**
  * @param {"log" | "warn" | "error"} level
  * @param {string} event
  * @param {{[key: string]: unknown}=} [fields]
@@ -767,6 +777,20 @@ Tools.applyRejectedOptimisticEntries = function applyRejectedOptimisticEntries(
 };
 
 /**
+ * @param {OptimisticJournalEntry[]} rejected
+ * @param {string | undefined} reason
+ * @returns {void}
+ */
+function notifyRejectedTools(rejected, reason) {
+  if (!Array.isArray(rejected) || rejected.length === 0) return;
+  rejected.forEach((entry) => {
+    const toolName = getRuntimeToolId(entry.message.tool);
+    const tool = toolName ? Tools.list[toolName] : undefined;
+    tool?.onMutationRejected?.(entry.message, reason);
+  });
+}
+
+/**
  * @param {{kind: "drawing-area", markup: string} | {kind: "items", snapshots: Array<{id: string, outerHTML: string | null, nextSiblingId: string | null}>}} rollback
  * @returns {void}
  */
@@ -813,14 +837,16 @@ Tools.promoteOptimisticMutation = function promoteOptimisticMutation(
 
 /**
  * @param {string} clientMutationId
+ * @param {string | undefined} reason
  * @returns {void}
  */
 Tools.rejectOptimisticMutation = function rejectOptimisticMutation(
   clientMutationId,
+  reason,
 ) {
-  Tools.applyRejectedOptimisticEntries(
-    Tools.optimisticJournal.reject(clientMutationId),
-  );
+  const rejected = Tools.optimisticJournal.reject(clientMutationId);
+  Tools.applyRejectedOptimisticEntries(rejected);
+  notifyRejectedTools(rejected, reason);
 };
 
 /**
@@ -885,17 +911,11 @@ function normalizeServerRenderedElements() {
 
 Tools.refreshAuthoritativeBaseline =
   async function refreshAuthoritativeBaseline() {
-    const response = await fetch(
-      buildBoardSvgBaselineUrl(
-        window.location.pathname,
-        window.location.search,
-      ),
-      {
-        cache: "no-store",
-        credentials: "same-origin",
-        headers: { Accept: "image/svg+xml" },
-      },
-    );
+    const response = await fetch(getAuthoritativeBaselineUrl(), {
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { Accept: "image/svg+xml" },
+    });
     if (!response.ok) {
       throw new Error(`Baseline fetch failed with HTTP ${response.status}`);
     }
@@ -1962,6 +1982,7 @@ Tools.tryStartReplaySync = function tryStartReplaySync() {
     return;
   }
   const refreshBaseline = Tools.pendingReplaySync === "refresh";
+  const pendingReplaySync = Tools.pendingReplaySync;
   Tools.pendingReplaySync = false;
   void (async function startSeqReplay() {
     if (refreshBaseline) {
@@ -1970,6 +1991,10 @@ Tools.tryStartReplaySync = function tryStartReplaySync() {
       } catch (error) {
         logBoardEvent("error", "sync.baseline_refresh_failed", {
           error: error instanceof Error ? error.message : String(error),
+          baselineUrl: getAuthoritativeBaselineUrl(),
+          replaySync: pendingReplaySync,
+          awaitingSyncReplay: Tools.awaitingSyncReplay,
+          pendingPreSnapshotMessages: Tools.preSnapshotMessages.length,
         });
       }
     }
@@ -2043,7 +2068,10 @@ Tools.startConnection = () => {
         typeof payload?.clientMutationId === "string" &&
         payload.clientMutationId
       ) {
-        Tools.rejectOptimisticMutation(payload.clientMutationId);
+        Tools.rejectOptimisticMutation(
+          payload.clientMutationId,
+          payload.reason,
+        );
       }
       Tools.showUnknownMutationError(payload.reason);
     },
@@ -2388,6 +2416,7 @@ function createMountedTool(toolModule, toolState, toolName) {
   const onstart = toolModule.onstart;
   const onquit = toolModule.onquit;
   const onSocketDisconnect = toolModule.onSocketDisconnect;
+  const onMutationRejected = toolModule.onMutationRejected;
   const onSizeChange = toolModule.onSizeChange;
   const toolStateObject =
     /** @type {{mouseCursor?: string, secondary?: import("../../types/app-runtime").ToolSecondaryMode | null} | null} */ (
@@ -2436,6 +2465,10 @@ function createMountedTool(toolModule, toolState, toolName) {
       typeof onSocketDisconnect === "function"
         ? () => onSocketDisconnect(toolState)
         : () => {},
+    onMutationRejected:
+      typeof onMutationRejected === "function"
+        ? (message, reason) => onMutationRejected(toolState, message, reason)
+        : undefined,
     stylesheet: undefined,
     oneTouch: toolModule.oneTouch,
     alwaysOn: toolModule.alwaysOn,
