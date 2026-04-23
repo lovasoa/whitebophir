@@ -42,6 +42,7 @@ let tempSvgSuffixCounter = 0;
 const { logger } = observability;
 
 /** @typedef {{readonly: boolean, seq?: number}} BoardMetadata */
+/** @typedef {typeof import("./configuration.mjs")} ServerConfig */
 
 /** @returns {BoardMetadata} */
 function defaultBoardMetadata() {
@@ -382,11 +383,11 @@ async function readCanonicalBoardState(boardName, options) {
 
 /**
  * @param {string} boardName
- * @param {{historyDir?: string}=} [options]
+ * @param {ServerConfig} config
  * @returns {Promise<boolean>}
  */
-async function boardExists(boardName, options) {
-  const historyDir = options?.historyDir;
+async function boardExists(boardName, config) {
+  const historyDir = config.HISTORY_DIR;
   return (
     (await fileExists(boardSvgBackupPath(boardName, historyDir))) ||
     (await fileExists(boardSvgPath(boardName, historyDir))) ||

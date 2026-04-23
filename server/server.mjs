@@ -1020,22 +1020,17 @@ function serveStaticFile(request, response, runtime, requestContext, nextUrl) {
 /**
  * @param {HttpResponse} response
  * @param {URL} parsedUrl
- * @param {ServerRuntime} runtime
+ * @param {ServerConfig} config
  * @param {{
  *   annotate: (fields: {[key: string]: unknown}) => void,
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
  * @returns {void}
  */
-function handleBoardRedirectRoute(
-  response,
-  parsedUrl,
-  runtime,
-  requestContext,
-) {
+function handleBoardRedirectRoute(response, parsedUrl, config, requestContext) {
   const boardName = requireBoardQueryName(parsedUrl);
   annotateBoardRequest(requestContext, boardName);
-  jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
+  jwtBoardName.checkBoardnameInToken(config, parsedUrl, boardName);
   response.writeHead(301, {
     Location: boardDocumentLocation(boardName),
   });
@@ -1243,7 +1238,12 @@ function handleBoardsRoute(
     parts.length === 1 ? "boards_redirect" : "board_page",
   );
   if (parts.length === 1) {
-    handleBoardRedirectRoute(response, parsedUrl, runtime, requestContext);
+    handleBoardRedirectRoute(
+      response,
+      parsedUrl,
+      runtime.config,
+      requestContext,
+    );
     return;
   }
   if (parts.length === 2 && getPathPart(parts, 1)?.endsWith(".svg")) {
@@ -1369,11 +1369,7 @@ async function renderPreviewSvg(boardName, config) {
     },
     async function renderPreview() {
       try {
-        if (
-          !(await boardExists(boardName, {
-            historyDir: config.HISTORY_DIR,
-          }))
-        ) {
+        if (!(await boardExists(boardName, config))) {
           tracing.setActiveSpanAttributes({
             "wbo.board": boardName,
             "wbo.board.operation": "preview_render",
@@ -1475,17 +1471,13 @@ function handlePreviewRoute(
 }
 
 /**
- * @param {ServerRuntime} runtime
+ * @param {ServerConfig} config
  * @returns {Promise<string>}
  */
-async function allocateRandomBoardName(runtime) {
+async function allocateRandomBoardName(config) {
   while (true) {
     const boardName = buildRandomBoardName();
-    if (
-      !(await boardExists(boardName, {
-        historyDir: runtime.config.HISTORY_DIR,
-      }))
-    ) {
+    if (!(await boardExists(boardName, config))) {
       return boardName;
     }
   }
@@ -1493,15 +1485,15 @@ async function allocateRandomBoardName(runtime) {
 
 /**
  * @param {HttpResponse} response
- * @param {ServerRuntime} runtime
+ * @param {ServerConfig} config
  * @param {{
  *   annotate: (fields: {[key: string]: unknown}) => void,
  *   setTraceAttributes: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
  * @returns {Promise<void>}
  */
-async function handleRandomRoute(response, runtime, requestContext) {
-  const name = await allocateRandomBoardName(runtime);
+async function handleRandomRoute(response, config, requestContext) {
+  const name = await allocateRandomBoardName(config);
   annotateBoardRequest(requestContext, name);
   response.writeHead(307, { Location: boardDocumentLocation(name) });
   response.end(name);
@@ -1588,7 +1580,7 @@ function handleRequest(request, response, runtime, requestContext) {
 
     case "random":
       requestContext.setRoute("random_board");
-      return handleRandomRoute(response, runtime, requestContext);
+      return handleRandomRoute(response, runtime.config, requestContext);
 
     case "":
       requestContext.setRoute("index");
