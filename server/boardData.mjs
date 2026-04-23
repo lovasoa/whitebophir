@@ -54,10 +54,6 @@ import {
 } from "./board_canonical_index.mjs";
 import { getMinPinnedReplayBaselineSeq } from "./board_registry.mjs";
 import { boardJsonPath } from "./legacy_json_board_source.mjs";
-import {
-  normalizeStoredChildPoint,
-  normalizeStoredItemWithBounds,
-} from "./message_validation.mjs";
 import { createMutationLog } from "./mutation_log.mjs";
 import observability from "./observability.mjs";
 import { SerialTaskQueue } from "./serial_task_queue.mjs";
@@ -86,7 +82,7 @@ let boardInstanceSequence = 0;
 /** @typedef {{ok: false, reason: string}} ValidationFailure */
 /** @typedef {{ok: true}} ValidationSuccess */
 /** @typedef {ValidationSuccess | ValidationFailure} BoardMutationResult */
-/** @typedef {{ok: true, value: BoardElem, localBounds: Bounds | null}} ValidatedStoredCandidate */
+/** @typedef {{ok: true, value: BoardElem, canonical: CanonicalBoardItem, localBounds: Bounds | null}} ValidatedStoredCandidate */
 /** @typedef {import("../types/app-runtime.d.ts").BoardMessage} BoardMessage */
 /** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
@@ -117,6 +113,7 @@ let boardInstanceSequence = 0;
  * @typedef {Pick<
  *   typeof import("./configuration.mjs"),
  *   | "HISTORY_DIR"
+ *   | "MAX_BOARD_SIZE"
  *   | "MAX_CHILDREN"
  *   | "MAX_ITEM_COUNT"
  *   | "MAX_SAVE_DELAY"
@@ -212,6 +209,24 @@ function eraserDeleteMutation(id) {
 }
 
 /**
+ * @param {unknown} raw
+ * @param {number} maxBoardSize
+ * @returns {{ok: true, value: ChildPoint} | ValidationFailure}
+ */
+function validateChildPoint(raw, maxBoardSize) {
+  if (!raw || typeof raw !== "object") {
+    return { ok: false, reason: "expected object" };
+  }
+  const point = /** @type {{x?: unknown, y?: unknown}} */ (raw);
+  const x = MessageCommon.normalizeBoardCoord(point.x, maxBoardSize);
+  const y = MessageCommon.normalizeBoardCoord(point.y, maxBoardSize);
+  if (x === null || y === null) {
+    return { ok: false, reason: "invalid coord" };
+  }
+  return { ok: true, value: { x, y } };
+}
+
+/**
  * Represents a board.
  * @typedef {{[object_id:string]: any}} BoardElem
  */
@@ -228,6 +243,7 @@ class BoardData {
     this.loadSource = "empty";
     this.metadata = defaultBoardMetadata();
     this.historyDir = config.HISTORY_DIR;
+    this.maxBoardSize = config.MAX_BOARD_SIZE;
     this.maxChildren = config.MAX_CHILDREN;
     this.maxItemCount = config.MAX_ITEM_COUNT;
     this.file = boardFilePath(name, this.historyDir);
@@ -451,18 +467,21 @@ class BoardData {
    * @returns {ValidatedStoredCandidate | ValidationFailure}
    */
   validateStoredCandidate(id, data) {
-    const normalized = normalizeStoredItemWithBounds(
-      this.asStoredCandidateInput(data),
-      id,
-    );
-    if (normalized.ok === false) {
-      return { ok: false, reason: normalized.reason };
+    const candidate = this.asStoredCandidateInput(data);
+    const canonical = canonicalItemFromItem(candidate, this.nextPaintOrder, {
+      persisted: false,
+    });
+    if (!canonical) return { ok: false, reason: "invalid message" };
+    if (canonical.id !== id) return { ok: false, reason: "invalid id" };
+    if (this.isCandidateTooLarge(candidate, canonical.bounds)) {
+      return { ok: false, reason: "shape too large" };
     }
     /** @type {ValidatedStoredCandidate} */
     return {
       ok: true,
-      value: normalized.value.value,
-      localBounds: normalized.value.localBounds,
+      value: candidate,
+      canonical,
+      localBounds: canonical.bounds,
     };
   }
 
@@ -494,7 +513,7 @@ class BoardData {
       localBounds,
       candidate?.transform,
     );
-    return MessageCommon.isBoundsTooLarge(effectiveBounds);
+    return MessageCommon.isBoundsInvalid(effectiveBounds, this.maxBoardSize);
   }
 
   /**
@@ -821,6 +840,7 @@ class BoardData {
     return {
       ok: true,
       value: copied,
+      canonical: copied,
       localBounds: cloneBounds(copied.bounds),
     };
   }
@@ -862,16 +882,10 @@ class BoardData {
     });
     if (!validated.ok) return validated;
     const existing = this.itemsById.get(id);
-    const canonical = canonicalItemFromItem(
-      validated.value,
-      existing?.paintOrder ?? this.nextPaintOrder,
-      {
-        persisted: false,
-      },
-    );
-    if (!canonical) {
-      return { ok: false, reason: "invalid message" };
-    }
+    const canonical = {
+      ...validated.canonical,
+      paintOrder: existing?.paintOrder ?? this.nextPaintOrder,
+    };
     upsertCanonicalItem(this, canonical);
     this.delaySave();
     return this.commitMutation();
@@ -901,7 +915,7 @@ class BoardData {
     if (typeof current !== "object" || current.payload?.kind !== "children") {
       return { ok: false, reason: "invalid parent for child" };
     }
-    const normalizedChild = normalizeStoredChildPoint(child);
+    const normalizedChild = validateChildPoint(child, this.maxBoardSize);
     if (!normalizedChild.ok) return normalizedChild;
     if (effectiveChildCount(current) >= this.maxChildren) {
       return { ok: false, reason: "too many children" };
@@ -1133,14 +1147,12 @@ class BoardData {
               });
               if (!validated.ok) return validated;
               const existing = readItem(id);
-              const next = canonicalItemFromItem(
-                validated.value,
-                clearAll
+              const next = {
+                ...validated.canonical,
+                paintOrder: clearAll
                   ? this.nextPaintOrder
                   : (existing?.paintOrder ?? this.nextPaintOrder),
-                { persisted: false },
-              );
-              if (!next) return { ok: false, reason: "invalid message" };
+              };
               overlay.set(id, next);
               break;
             }
@@ -1608,14 +1620,6 @@ class BoardData {
         rebuildLiveItemCount(this);
       }
     }
-  }
-
-  /**
-   * @param {string} id
-   * @returns {boolean}
-   */
-  normalizeStoredElement(id) {
-    return this.itemsById.has(id);
   }
 
   /** Load the data in the board from a file.

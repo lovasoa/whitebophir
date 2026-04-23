@@ -228,6 +228,13 @@ function createBaseElement(store, tagName) {
 function createBBoxElement(store, tagName) {
   const element = createBaseElement(store, tagName);
   element.transform = { baseVal: createTransformList() };
+  element.getBBox = function () {
+    const x = this.x ? this.x.baseVal.value : 0;
+    const y = this.y ? this.y.baseVal.value : 0;
+    const width = this.width ? this.width.baseVal.value : 0;
+    const height = this.height ? this.height.baseVal.value : 0;
+    return { x, y, width, height };
+  };
   element.transformedBBox = function () {
     const matrix = this.transform.baseVal.numberOfItems
       ? this.transform.baseVal[0].matrix
@@ -1292,6 +1299,46 @@ test("Hand selector sends a final transform on quick release", async () => {
         },
       },
     ],
+  });
+});
+
+test("Hand selector stops at the last valid transform", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+
+  globalAny.Tools.server_config.MAX_BOARD_SIZE = 220;
+
+  const rect = globalAny.Tools.createSVGElement("rect");
+  rect.id = "bounded-rect";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
+
+  handTool.secondary.active = true;
+  handTool.listeners.press(110, 110, {
+    preventDefault: () => {},
+    target: rect,
+  });
+  handTool.listeners.move(200, 135, {
+    preventDefault: () => {},
+    target: rect,
+  });
+  handTool.listeners.release(200, 135, {
+    preventDefault: () => {},
+    target: rect,
+  });
+
+  assert.equal(globalAny.Tools.sentMessages.length, 0);
+  assert.equal(rect.transform.baseVal.numberOfItems, 1);
+  assert.deepEqual(rect.transform.baseVal[0].matrix, {
+    a: 1,
+    b: 0,
+    c: 0,
+    d: 1,
+    e: 0,
+    f: 0,
   });
 });
 

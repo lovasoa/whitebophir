@@ -1,4 +1,7 @@
-import { createShapeToolBoot } from "../shape_tool.js";
+import {
+  createShapeToolBoot,
+  makeSeedShapeCreateMessage,
+} from "../shape_tool.js";
 export {
   drawShapeTool as draw,
   moveShapeTool as move,
@@ -93,15 +96,7 @@ const config = {
   uidPrefix: "s",
   isShapeElement: (element) =>
     String(element?.tagName).toLowerCase() === contract.storedTagName,
-  makeCreateMessage: (state, id, x, y) => ({
-    type: MutationType.CREATE,
-    id,
-    color: state.Tools.getColor(),
-    size: state.Tools.getSize(),
-    opacity: state.Tools.getOpacity(),
-    x,
-    y,
-  }),
+  makeCreateMessage: makeSeedShapeCreateMessage,
   makeUpdateMessage: (state, x, y) => {
     const start = state.currentShape;
     if (!start) return null;
@@ -133,8 +128,8 @@ const config = {
       line.x1.baseVal.value = data.x;
       line.y1.baseVal.value = data.y;
     }
-    line.x2.baseVal.value = data.x2 ?? data.x;
-    line.y2.baseVal.value = data.y2 ?? data.y;
+    line.x2.baseVal.value = data.x2;
+    line.y2.baseVal.value = data.y2;
   },
 };
 

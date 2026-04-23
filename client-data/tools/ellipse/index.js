@@ -1,4 +1,8 @@
-import { createShapeToolBoot, moveShapeTool } from "../shape_tool.js";
+import {
+  createShapeToolBoot,
+  makeSeedShapeCreateMessage,
+  moveShapeTool,
+} from "../shape_tool.js";
 export {
   drawShapeTool as draw,
   moveShapeTool as move,
@@ -105,17 +109,7 @@ const config = {
     String(element?.tagName).toLowerCase() === contract.storedTagName,
   makeCreateMessage: (state, id, x, y) => {
     state.lastPos = { x, y };
-    return {
-      type: MutationType.CREATE,
-      id,
-      color: state.Tools.getColor(),
-      size: state.Tools.getSize(),
-      opacity: state.Tools.getOpacity(),
-      x,
-      y,
-      x2: x,
-      y2: y,
-    };
+    return makeSeedShapeCreateMessage(state, id, x, y);
   },
   makeUpdateMessage: (state, x, y, evt) => {
     const start = state.currentShape;

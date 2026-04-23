@@ -3,7 +3,7 @@ import {
   getMutationType,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
-import { Cursor, TOOL_BY_ID, TOOLS } from "../client-data/tools/index.js";
+import { Cursor, TOOLS } from "../client-data/tools/index.js";
 import { parseIntegerEnv } from "./configuration_helpers.mjs";
 const MAX_BOARD_SIZE = parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360);
 const MAX_CHILDREN = parseIntegerEnv("WBO_MAX_CHILDREN", 500);
@@ -17,9 +17,6 @@ const MAX_CHILDREN = parseIntegerEnv("WBO_MAX_CHILDREN", 500);
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {import("../types/app-runtime.d.ts").ToolCode} ToolCode */
 /** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
-/** @typedef {{x: number, y: number}} ChildPoint */
-/** @typedef {{minX: number, minY: number, maxX: number, maxY: number} | null} Bounds */
-/** @typedef {{value: RawRecord, localBounds: Bounds}} StoredItemWithBounds */
 /**
  * @template T
  * @typedef {{ok: true, value: T}} Accepted
@@ -38,17 +35,13 @@ const MAX_CHILDREN = parseIntegerEnv("WBO_MAX_CHILDREN", 500);
  * @typedef {{
  *   normalize: FieldNormalizer<T>,
  *   required: boolean,
- *   defaultValue?: unknown | ((raw: RawRecord, normalized: RawRecord) => unknown),
  * }} FieldSpec
  */
 /** @typedef {{[key: string]: FieldSpec}} FieldSchema */
 /** @typedef {{[tool: number]: {[type: number]: FieldSchema}}} LiveToolSchemas */
-/** @typedef {{[tool: string]: FieldSchema}} StoredToolSchemas */
 /** @typedef {import("../client-data/tools/shape_contract.js").ToolContract} ToolContract */
 /** @typedef {"id" | "coord" | "color" | "size" | "opacity" | "text" | "transform" | "time"} SchemaFieldType */
 
-/** @type {string[]} */
-const TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
 const MAX_TOOL_CODE = TOOLS.length;
 const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeTool === true);
 const SHAPE_CREATE_FIELDS = {
@@ -58,15 +51,8 @@ const SHAPE_CREATE_FIELDS = {
   opacity: "opacity?",
   x: "coord",
   y: "coord",
-};
-const SHAPE_STORED_FIELDS = {
-  color: "color",
-  size: "size",
-  opacity: "opacity?",
-  x: "coord",
-  y: "coord",
-  transform: "transform?",
-  time: "time?",
+  x2: "coord",
+  y2: "coord",
 };
 
 /**
@@ -151,27 +137,38 @@ function normalizeId(value) {
 
 /**
  * @param {unknown} value
- * @returns {Accepted<number>}
+ * @returns {ValidationResult<number>}
  */
 function normalizeSize(value) {
-  return accepted(MessageCommon.clampSize(value));
+  const size = MessageCommon.normalizeNumberInRange(
+    value,
+    MessageCommon.LIMITS.MIN_SIZE,
+    MessageCommon.LIMITS.MAX_SIZE,
+    true,
+  );
+  return size === null ? rejected("invalid size") : accepted(size);
 }
 
 /**
  * @param {unknown} value
- * @returns {Accepted<number | undefined>}
+ * @returns {ValidationResult<number | undefined>}
  */
 function normalizeOpacity(value) {
-  const opacity = MessageCommon.clampOpacity(value);
-  return opacity === 1 ? accepted(undefined) : accepted(opacity);
+  const opacity = MessageCommon.normalizeNumberInRange(
+    value,
+    MessageCommon.LIMITS.MIN_OPACITY,
+    MessageCommon.LIMITS.MAX_OPACITY,
+  );
+  return opacity === null ? rejected("invalid opacity") : accepted(opacity);
 }
 
 /**
  * @param {unknown} value
- * @returns {Accepted<number>}
+ * @returns {ValidationResult<number>}
  */
 function normalizeCoord(value) {
-  return accepted(MessageCommon.clampCoord(value, MAX_BOARD_SIZE));
+  const coord = MessageCommon.normalizeBoardCoord(value, MAX_BOARD_SIZE);
+  return coord === null ? rejected("invalid coord") : accepted(coord);
 }
 
 /**
@@ -185,10 +182,13 @@ function normalizeColor(value) {
 
 /**
  * @param {unknown} value
- * @returns {Accepted<string>}
+ * @returns {ValidationResult<string>}
  */
 function normalizeText(value) {
-  return accepted(MessageCommon.truncateText(value));
+  if (typeof value !== "string") return rejected("invalid text");
+  return value.length <= Number(MessageCommon.LIMITS.MAX_TEXT_LENGTH)
+    ? accepted(value)
+    : rejected("text too long");
 }
 
 /**
@@ -220,18 +220,9 @@ function normalizeTime(value) {
  */
 function normalizeTransform(value) {
   if (!isPlainObject(value)) return rejected("invalid transform");
-
-  /** @type {Transform} */
-  const transform = { a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 };
-  for (const key of TRANSFORM_KEYS) {
-    const number = MessageCommon.normalizeFiniteNumber(value[key]);
-    if (number === null) {
-      return rejected(`invalid transform.${key}`);
-    }
-    transform[/** @type {keyof Transform} */ (key)] = number;
-  }
-
-  return accepted(transform);
+  const transform = MessageCommon.normalizeTransformNumbers(value);
+  if (transform === null) return rejected("invalid transform");
+  return accepted(/** @type {Transform} */ (transform));
 }
 
 /**
@@ -253,11 +244,6 @@ function normalizeObject(raw, fields) {
 
     if (hasValue) {
       value = raw[key];
-    } else if (Object.hasOwn(field, "defaultValue")) {
-      value =
-        typeof field.defaultValue === "function"
-          ? field.defaultValue(raw, normalized)
-          : field.defaultValue;
     } else if (field.required) {
       return rejected(`missing ${key}`);
     } else {
@@ -270,24 +256,6 @@ function normalizeObject(raw, fields) {
   }
 
   return accepted(normalized);
-}
-
-/**
- * @param {RawRecord} raw
- * @param {RawRecord} normalized
- * @returns {unknown}
- */
-function defaultCoordinateFromX(raw, normalized) {
-  return normalized.x !== undefined ? normalized.x : raw.x;
-}
-
-/**
- * @param {RawRecord} raw
- * @param {RawRecord} normalized
- * @returns {unknown}
- */
-function defaultCoordinateFromY(raw, normalized) {
-  return normalized.y !== undefined ? normalized.y : raw.y;
 }
 
 /**
@@ -358,20 +326,6 @@ function buildLiveSchema(toolCode, type, fields) {
 }
 
 /**
- * @param {string} toolId
- * @param {string} type
- * @param {{[field: string]: string} | undefined} fields
- * @returns {FieldSchema}
- */
-function buildStoredSchema(toolId, type, fields) {
-  return {
-    tool: required(literal(toolId)),
-    type: optional(literal(type), { defaultValue: type }),
-    ...buildSchemaFields(fields),
-  };
-}
-
-/**
  * @param {{[type: number]: {[field: string]: string}} | undefined} fieldsByType
  * @param {(type: number, fields: {[field: string]: string}) => FieldSchema} build
  * @returns {{[type: number]: FieldSchema}}
@@ -390,19 +344,11 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
     return [
       contract.id,
       {
-        [MutationType.CREATE]: {
-          ...buildLiveSchema(
-            contract.id,
-            MutationType.CREATE,
-            SHAPE_CREATE_FIELDS,
-          ),
-          x2: optional(normalizeCoord, {
-            defaultValue: defaultCoordinateFromX,
-          }),
-          y2: optional(normalizeCoord, {
-            defaultValue: defaultCoordinateFromY,
-          }),
-        },
+        [MutationType.CREATE]: buildLiveSchema(
+          contract.id,
+          MutationType.CREATE,
+          SHAPE_CREATE_FIELDS,
+        ),
         [MutationType.UPDATE]: buildLiveSchema(
           contract.id,
           MutationType.UPDATE,
@@ -418,24 +364,6 @@ const LIVE_SHAPE_SCHEMAS = Object.fromEntries(
   }),
 );
 
-/** @type {StoredToolSchemas} */
-const STORED_SHAPE_SCHEMAS = Object.fromEntries(
-  SHAPE_CONTRACTS.map((contract) => {
-    const schema = buildStoredSchema(
-      contract.toolId,
-      contract.storedTagName || "",
-      SHAPE_STORED_FIELDS,
-    );
-    schema.x2 = optional(normalizeCoord, {
-      defaultValue: defaultCoordinateFromX,
-    });
-    schema.y2 = optional(normalizeCoord, {
-      defaultValue: defaultCoordinateFromY,
-    });
-    return [contract.toolId, schema];
-  }),
-);
-
 /** @type {LiveToolSchemas} */
 const CONTRACT_LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
   TOOLS.filter((tool) => tool.liveMessageFields).map((tool) => [
@@ -443,14 +371,6 @@ const CONTRACT_LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
     buildPerTypeSchemas(tool.liveMessageFields, (type, fields) =>
       buildLiveSchema(tool.id, type, fields),
     ),
-  ]),
-);
-
-/** @type {StoredToolSchemas} */
-const CONTRACT_STORED_ITEM_SCHEMAS = Object.fromEntries(
-  TOOLS.filter((tool) => tool.storedFields).map((tool) => [
-    tool.toolId,
-    buildStoredSchema(tool.toolId, tool.storedTagName || "", tool.storedFields),
   ]),
 );
 
@@ -479,12 +399,6 @@ const LIVE_BATCH_CHILD_SCHEMAS = Object.fromEntries(
     })),
   ]),
 );
-
-/** @type {{[tool: string]: FieldSchema}} */
-const STORED_ITEM_SCHEMAS = {
-  ...CONTRACT_STORED_ITEM_SCHEMAS,
-  ...STORED_SHAPE_SCHEMAS,
-};
 
 /**
  * @param {unknown} raw
@@ -554,7 +468,7 @@ function normalizeIncomingMessage(raw) {
   if (!normalized.ok) return normalized;
   if (
     getMutationType(normalized.value) !== MutationType.UPDATE &&
-    MessageCommon.isGeometryTooLarge(normalized.value)
+    MessageCommon.isGeometryInvalid(normalized.value, MAX_BOARD_SIZE)
   ) {
     return rejected("shape too large");
   }
@@ -566,111 +480,4 @@ function normalizeIncomingMessage(raw) {
   return accepted(/** @type {NormalizedMessageData} */ (normalized.value));
 }
 
-/**
- * @param {unknown} raw
- * @returns {ValidationResult<ChildPoint>}
- */
-function normalizeStoredChildPoint(raw) {
-  if (!isPlainObject(raw)) return rejected("expected object");
-
-  const x = normalizeCoord(raw.x);
-  const y = normalizeCoord(raw.y);
-
-  return accepted({ x: x.value, y: y.value });
-}
-
-/**
- * @param {unknown[]} rawChildren
- * @returns {ChildPoint[]}
- */
-function normalizeStoredPencilChildren(rawChildren) {
-  const children = [];
-  for (let index = 0; index < rawChildren.length; index++) {
-    const child = normalizeStoredChildPoint(rawChildren[index]);
-    if (!child.ok) continue;
-    children.push(child.value);
-  }
-  return children;
-}
-
-/**
- * @param {RawRecord} item
- * @returns {ValidationResult<Bounds>}
- */
-function validateStoredGeometryBounds(item) {
-  const localBounds = MessageCommon.getLocalGeometryBounds(item);
-  const effectiveBounds = MessageCommon.applyTransformToBounds(
-    localBounds,
-    item.transform,
-  );
-  if (MessageCommon.isBoundsTooLarge(effectiveBounds)) {
-    return rejected("shape too large");
-  }
-  return accepted(localBounds);
-}
-
-/**
- * @param {RawRecord} item
- * @param {unknown} rawChildren
- * @returns {void}
- */
-function assignNormalizedStoredChildren(item, rawChildren) {
-  const contract =
-    typeof item.tool === "string" ? TOOL_BY_ID[item.tool] : undefined;
-  contract?.normalizeStoredItemData?.(
-    item,
-    { _children: rawChildren },
-    {
-      maxChildren: MAX_CHILDREN,
-      normalizeStoredChildren: normalizeStoredPencilChildren,
-    },
-  );
-}
-
-/**
- * @param {unknown} raw
- * @param {unknown} storedId
- * @returns {ValidationResult<StoredItemWithBounds>}
- */
-function normalizeStoredItemWithBounds(raw, storedId) {
-  const normalizedId = MessageCommon.normalizeId(storedId);
-  if (normalizedId === null) return rejected("invalid stored id");
-  if (!isPlainObject(raw)) return rejected("invalid stored item");
-  if (typeof raw.tool !== "string" || raw.tool === "") {
-    return rejected("unsupported stored tool");
-  }
-
-  const schema = STORED_ITEM_SCHEMAS[raw.tool];
-  if (!schema) return rejected("unsupported stored tool");
-
-  const normalized = normalizeObject(raw, schema);
-  if (!normalized.ok) return normalized;
-
-  normalized.value.id = normalizedId;
-  assignNormalizedStoredChildren(normalized.value, raw._children);
-  const localBounds = validateStoredGeometryBounds(normalized.value);
-  if (!localBounds.ok) return localBounds;
-
-  return accepted({
-    value: normalized.value,
-    localBounds: localBounds.value,
-  });
-}
-
-/**
- * @param {unknown} raw
- * @param {unknown} storedId
- * @returns {ValidationResult<RawRecord>}
- */
-function normalizeStoredItem(raw, storedId) {
-  const normalized = normalizeStoredItemWithBounds(raw, storedId);
-  if (!normalized.ok) return normalized;
-  return accepted(normalized.value.value);
-}
-
-export {
-  normalizeIncomingMessage,
-  normalizeStoredChildPoint,
-  normalizeStoredItem,
-  normalizeStoredItemWithBounds,
-};
+export { normalizeIncomingMessage };

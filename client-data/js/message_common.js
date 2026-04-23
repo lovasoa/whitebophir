@@ -10,14 +10,20 @@
  *   getLocalGeometryBounds: Function,
  *   getMaxShapeSpan: Function,
  *   getPencilBounds: Function,
+ *   isBoundsInvalid: Function,
+ *   isBoundsOutsideBoard: Function,
  *   isFiniteTransformNumber: Function,
  *   isBoundsTooLarge: Function,
  *   isDrawTool: Function,
  *   isDrawToolAllowedAtScale: Function,
+ *   isGeometryInvalid: Function,
  *   isGeometryTooLarge: Function,
  *   normalizeColor: Function,
+ *   normalizeBoardCoord: Function,
  *   normalizeFiniteNumber: Function,
  *   normalizeId: Function,
+ *   normalizeNumberInRange: Function,
+ *   normalizeTransformNumbers: Function,
  *   resolveMaxBoardSize: Function,
  *   truncateText: Function,
  *   requiresTurnstile: Function,
@@ -72,6 +78,8 @@ export const LIMITS = {
   DEFAULT_MAX_CHILDREN: 192,
   MAX_ID_LENGTH: 128,
 };
+
+const MAX_TRANSFORM_KEYS = ["a", "b", "c", "d", "e", "f"];
 
 /**
  * @param {unknown} value
@@ -139,6 +147,21 @@ export function clampCoord(value, maxBoardSize) {
 
 /**
  * @param {unknown} value
+ * @param {unknown} maxBoardSize
+ * @returns {number | null}
+ */
+export function normalizeBoardCoord(value, maxBoardSize) {
+  const coord = toFiniteNumber(value);
+  if (coord === null || !Number.isInteger(coord)) return null;
+  const resolvedMaxBoardSize =
+    typeof maxBoardSize === "number"
+      ? maxBoardSize
+      : resolveMaxBoardSize(maxBoardSize);
+  return coord >= 0 && coord <= resolvedMaxBoardSize ? coord : null;
+}
+
+/**
+ * @param {unknown} value
  * @returns {string | null}
  */
 export function normalizeColor(value) {
@@ -183,6 +206,26 @@ export function normalizeId(value, maxLength) {
  */
 export function normalizeFiniteNumber(value) {
   return toFiniteNumber(value);
+}
+
+/**
+ * @param {unknown} value
+ * @param {number} min
+ * @param {number} max
+ * @param {boolean} [integerOnly]
+ * @returns {number | null}
+ */
+export function normalizeNumberInRange(value, min, max, integerOnly = false) {
+  const number = toFiniteNumber(value);
+  if (
+    number === null ||
+    number < min ||
+    number > max ||
+    (integerOnly && !Number.isInteger(number))
+  ) {
+    return null;
+  }
+  return number;
 }
 
 /**
@@ -366,26 +409,37 @@ export function isGeometryTooLarge(item) {
  * @returns {Point | null}
  */
 export function applyTransformToPoint(point, transform) {
-  const a = toFiniteNumber(transform?.a);
-  const b = toFiniteNumber(transform?.b);
-  const c = toFiniteNumber(transform?.c);
-  const d = toFiniteNumber(transform?.d);
-  const e = toFiniteNumber(transform?.e);
-  const f = toFiniteNumber(transform?.f);
-  if (
-    a === null ||
-    b === null ||
-    c === null ||
-    d === null ||
-    e === null ||
-    f === null
-  ) {
+  const normalizedTransform = normalizeTransformNumbers(transform);
+  if (!normalizedTransform) {
     return null;
   }
   return {
-    x: a * point.x + c * point.y + e,
-    y: b * point.x + d * point.y + f,
+    x:
+      normalizedTransform.a * point.x +
+      normalizedTransform.c * point.y +
+      normalizedTransform.e,
+    y:
+      normalizedTransform.b * point.x +
+      normalizedTransform.d * point.y +
+      normalizedTransform.f,
   };
+}
+
+/**
+ * @param {unknown} transform
+ * @returns {Transform | null}
+ */
+export function normalizeTransformNumbers(transform) {
+  if (!transform || typeof transform !== "object") return null;
+  const rawTransform = /** @type {Record<string, unknown>} */ (transform);
+  /** @type {Transform} */
+  const normalized = { a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 };
+  for (const key of MAX_TRANSFORM_KEYS) {
+    const value = toFiniteNumber(rawTransform[key]);
+    if (value === null) return null;
+    normalized[/** @type {keyof Transform} */ (key)] = value;
+  }
+  return normalized;
 }
 
 /**
@@ -397,20 +451,20 @@ export function applyTransformToBounds(bounds, transform) {
   if (!bounds) return null;
   if (!transform) return cloneBounds(bounds);
 
+  const normalizedTransform = normalizeTransformNumbers(transform);
+  if (!normalizedTransform) return null;
+
   const isTranslationOnly =
-    transform.a === 1 &&
-    transform.b === 0 &&
-    transform.c === 0 &&
-    transform.d === 1;
+    normalizedTransform.a === 1 &&
+    normalizedTransform.b === 0 &&
+    normalizedTransform.c === 0 &&
+    normalizedTransform.d === 1;
   if (isTranslationOnly) {
-    const translateX = toFiniteNumber(transform.e);
-    const translateY = toFiniteNumber(transform.f);
-    if (translateX === null || translateY === null) return null;
     return {
-      minX: bounds.minX + translateX,
-      minY: bounds.minY + translateY,
-      maxX: bounds.maxX + translateX,
-      maxY: bounds.maxY + translateY,
+      minX: bounds.minX + normalizedTransform.e,
+      minY: bounds.minY + normalizedTransform.f,
+      maxX: bounds.maxX + normalizedTransform.e,
+      maxY: bounds.maxY + normalizedTransform.f,
     };
   }
 
@@ -425,7 +479,7 @@ export function applyTransformToBounds(bounds, transform) {
   for (let i = 0; i < points.length; i++) {
     const sourcePoint = points[i];
     if (!sourcePoint) return null;
-    const point = applyTransformToPoint(sourcePoint, transform);
+    const point = applyTransformToPoint(sourcePoint, normalizedTransform);
     if (point === null) return null;
     transformed = extendBoundsWithPoint(transformed, point.x, point.y);
   }
@@ -470,6 +524,40 @@ export function isBoundsTooLarge(bounds) {
   );
 }
 
+/**
+ * @param {Bounds | null | undefined} bounds
+ * @param {unknown} maxBoardSize
+ * @returns {boolean}
+ */
+export function isBoundsOutsideBoard(bounds, maxBoardSize) {
+  if (!bounds) return false;
+  const resolvedMaxBoardSize = resolveMaxBoardSize(maxBoardSize);
+  return (
+    bounds.minX < 0 ||
+    bounds.minY < 0 ||
+    bounds.maxX > resolvedMaxBoardSize ||
+    bounds.maxY > resolvedMaxBoardSize
+  );
+}
+
+/**
+ * @param {Bounds | null | undefined} bounds
+ * @param {unknown} maxBoardSize
+ * @returns {boolean}
+ */
+export function isBoundsInvalid(bounds, maxBoardSize) {
+  return isBoundsTooLarge(bounds) || isBoundsOutsideBoard(bounds, maxBoardSize);
+}
+
+/**
+ * @param {GeometryItem | null | undefined} item
+ * @param {unknown} maxBoardSize
+ * @returns {boolean}
+ */
+export function isGeometryInvalid(item, maxBoardSize) {
+  return isBoundsInvalid(getEffectiveGeometryBounds(item), maxBoardSize);
+}
+
 const messageCommon = /** @type {MessageCommonApi} */ ({
   LIMITS,
   applyTransformToBounds,
@@ -481,14 +569,20 @@ const messageCommon = /** @type {MessageCommonApi} */ ({
   getLocalGeometryBounds,
   getMaxShapeSpan,
   getPencilBounds,
+  isBoundsInvalid,
+  isBoundsOutsideBoard,
   isFiniteTransformNumber,
   isBoundsTooLarge,
+  isGeometryInvalid,
   isDrawTool,
   isDrawToolAllowedAtScale,
   isGeometryTooLarge,
   normalizeColor,
+  normalizeBoardCoord,
   normalizeFiniteNumber,
   normalizeId,
+  normalizeNumberInRange,
+  normalizeTransformNumbers,
   resolveMaxBoardSize,
   truncateText,
   requiresTurnstile,

@@ -24,7 +24,7 @@
  * @licend
  */
 
-import { truncateText } from "../../js/message_common.js";
+import { clampCoord, truncateText } from "../../js/message_common.js";
 import { MutationType } from "../../js/mutation_type.js";
 /** @import { BoardMessage, MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: ReturnType<typeof setTimeout> | null}} CurrentTextState */
@@ -47,6 +47,22 @@ function textBoundsFromLength(x, y, size, textLength) {
     maxX: x + size * textLength,
     maxY: y,
   };
+}
+
+/**
+ * @param {TextState} state
+ * @returns {void}
+ */
+function normalizeCurrentTextPosition(state) {
+  const maxBoardSize = state.Tools.server_config.MAX_BOARD_SIZE;
+  state.curText.x =
+    typeof state.Tools.toBoardCoordinate === "function"
+      ? state.Tools.toBoardCoordinate(state.curText.x)
+      : clampCoord(state.curText.x, maxBoardSize);
+  state.curText.y = Math.min(
+    Math.max(state.curText.y, state.curText.size),
+    typeof maxBoardSize === "number" ? maxBoardSize : 655360,
+  );
 }
 
 export const toolId = "text";
@@ -72,16 +88,6 @@ const contract = {
       id: "id",
       txt: "text",
     },
-  },
-  storedFields: {
-    color: "color",
-    size: "size",
-    opacity: "opacity?",
-    x: "coord",
-    y: "coord",
-    txt: "text?",
-    transform: "transform?",
-    time: "time?",
   },
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
@@ -247,6 +253,7 @@ function editOldText(state, elem) {
 function textChangeHandler(state, evt) {
   if (evt instanceof KeyboardEvent && evt.key === "Enter") {
     state.curText.y += 1.5 * state.curText.size;
+    normalizeCurrentTextPosition(state);
     stopEdit(state);
     startEdit(state);
   } else if (evt instanceof KeyboardEvent && evt.key === "Escape") {
@@ -394,6 +401,7 @@ export function press(state, x, y, evt, isTouchEvent) {
   state.curText.color = state.Tools.getColor();
   state.curText.x = x;
   state.curText.y = y + state.curText.size / 2;
+  normalizeCurrentTextPosition(state);
   stopEdit(state);
   startEdit(state);
   evt.preventDefault();

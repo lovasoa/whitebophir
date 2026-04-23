@@ -44,10 +44,13 @@ function withUserSecretCookie(userSecret, headers) {
  * @returns {{[key: string]: any}}
  */
 function rectangleCreate(fields) {
+  const size =
+    typeof fields.size === "number" ? Math.max(10, fields.size) : fields.size;
   return {
     tool: Rectangle.id,
     type: MutationType.CREATE,
     ...fields,
+    ...(size === undefined ? {} : { size }),
   };
 }
 
@@ -68,10 +71,13 @@ function rectangleUpdate(fields) {
  * @returns {{[key: string]: any}}
  */
 function cursorUpdate(fields) {
+  const size =
+    typeof fields.size === "number" ? Math.max(10, fields.size) : fields.size;
   return {
     tool: Cursor.id,
     type: MutationType.UPDATE,
     ...fields,
+    ...(size === undefined ? {} : { size }),
   };
 }
 
@@ -855,7 +861,7 @@ test("seq-sync resync_required warning includes client identity fields", async (
         x2: 10,
         y2: 10,
         color: "#666666",
-        size: 4,
+        size: 10,
       });
 
       const loadedBoard = await getLoadedBoard("board-seq-gap-log");

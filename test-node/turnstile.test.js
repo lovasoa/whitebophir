@@ -63,7 +63,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
         type: MutationType.CREATE,
         id: "l1",
         color: "#123456",
-        size: 4,
+        size: 10,
       });
       assert.strictEqual(
         broadcastCalled,
@@ -88,7 +88,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
           type: MutationType.CREATE,
           id: "l2",
           color: "#123456",
-          size: 4,
+          size: 10,
         });
       });
       assert.equal(
@@ -105,7 +105,7 @@ test("server-side Turnstile enforcement in broadcast", async () => {
           type: MutationType.CREATE,
           id: "l3",
           color: "#123456",
-          size: 4,
+          size: 10,
         });
       });
       assert.equal(

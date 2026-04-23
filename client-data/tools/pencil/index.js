@@ -271,20 +271,6 @@ const contract = {
       y: "coord",
     },
   },
-  storedFields: {
-    color: "color",
-    size: "size",
-    opacity: "opacity?",
-    transform: "transform?",
-    time: "time?",
-  },
-  normalizeStoredItemData(item, raw, helpers) {
-    if (!Array.isArray(raw?._children)) return;
-    const children = helpers.normalizeStoredChildren(
-      raw._children.slice(0, helpers.maxChildren),
-    );
-    if (children.length) item._children = children;
-  },
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const size = helpers.parseNumber(
       helpers.readStoredSvgAttribute(entry, "stroke-width"),

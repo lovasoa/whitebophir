@@ -25,6 +25,7 @@
  */
 
 import { messages as BoardMessages } from "../../js/board_transport.js";
+import MessageCommon from "../../js/message_common.js";
 import {
   getMutationType,
   MutationType,
@@ -552,6 +553,9 @@ function scaleSelection(state, x, y, force) {
 
 /** @param {HandState} state @param {{ _children: any[] }} msg @param {boolean} force */
 function dispatchTransform(state, msg, force) {
+  if (!canApplyTransformBatch(state, msg)) {
+    return;
+  }
   const now = performance.now();
   if (force || now - state.lastSent > 70) {
     state.lastSent = now;
@@ -559,6 +563,53 @@ function dispatchTransform(state, msg, force) {
   } else {
     draw(state, msg);
   }
+}
+
+/**
+ * @param {SVGGraphicsElement & { id: string }} element
+ * @returns {{minX: number, minY: number, maxX: number, maxY: number} | null}
+ */
+function getElementLocalBounds(element) {
+  const bbox = element.getBBox();
+  if (
+    !Number.isFinite(bbox.x) ||
+    !Number.isFinite(bbox.y) ||
+    !Number.isFinite(bbox.width) ||
+    !Number.isFinite(bbox.height)
+  ) {
+    return null;
+  }
+  return {
+    minX: bbox.x,
+    minY: bbox.y,
+    maxX: bbox.x + bbox.width,
+    maxY: bbox.y + bbox.height,
+  };
+}
+
+/**
+ * @param {HandState} state
+ * @param {{_children?: any[]}} msg
+ * @returns {boolean}
+ */
+function canApplyTransformBatch(state, msg) {
+  if (!Array.isArray(msg?._children)) return true;
+  const maxBoardSize = state.Tools.server_config.MAX_BOARD_SIZE;
+  for (let index = 0; index < msg._children.length; index++) {
+    const child = msg._children[index];
+    if (getMutationType(child) !== MutationType.UPDATE) continue;
+    const element = state.Tools.svg.getElementById(child.id);
+    if (!isSelectableElement(element)) return false;
+    const localBounds = getElementLocalBounds(element);
+    const effectiveBounds = MessageCommon.applyTransformToBounds(
+      localBounds,
+      child.transform,
+    );
+    if (MessageCommon.isBoundsInvalid(effectiveBounds, maxBoardSize)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /** @param {HandState} state @param {number} x @param {number} y @param {SVGRectElement} rect */

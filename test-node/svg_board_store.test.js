@@ -506,6 +506,57 @@ test("readCanonicalBoardState reports svg byte length and canonical items", asyn
   });
 });
 
+test("readCanonicalBoardState skips malformed stored items and logs a warning", async () => {
+  await withEnv(
+    {
+      WBO_HISTORY_DIR: await fs.mkdtemp(
+        path.join(os.tmpdir(), "wbo-svg-store-skip-"),
+      ),
+    },
+    async () => {
+      const historyDir = process.env.WBO_HISTORY_DIR;
+      if (!historyDir) {
+        throw new Error("missing history dir");
+      }
+      const boardName = "skip-bad-item";
+      const observability = await import("../server/observability.mjs");
+      /** @type {Array<{name: string, fields: any}>} */
+      const warnings = [];
+      const originalWarn = observability.logger.warn;
+      observability.logger.warn = (name, fields) => {
+        warnings.push({ name, fields });
+      };
+      try {
+        await fs.writeFile(
+          svgPath(boardName, historyDir),
+          '<?xml version="1.0" encoding="UTF-8"?>' +
+            '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="3" data-wbo-readonly="false">' +
+            '<defs id="defs"></defs><g id="drawingArea">' +
+            '<rect id="rect-1" x="1" y="2" width="3" height="4" stroke="#123456" stroke-width="2" fill="none"></rect>' +
+            '<rect id="broken" x="oops" y="2" width="3" height="4" stroke="#123456" stroke-width="2" fill="none"></rect>' +
+            '</g><g id="cursors"></g></svg>',
+        );
+
+        const state = await readCanonicalBoardState(boardName, historyDir);
+        assert.deepEqual([...state.itemsById.keys()], ["rect-1"]);
+        assert.equal(warnings.length, 1);
+        assert.deepEqual(warnings[0], {
+          name: "board.load_item_skipped",
+          fields: {
+            board: boardName,
+            "wbo.board.source": "svg",
+            "wbo.board.paint_order": 1,
+            "wbo.board.item_tag": "rect",
+            "wbo.board.item_id": "broken",
+          },
+        });
+      } finally {
+        observability.logger.warn = originalWarn;
+      }
+    },
+  );
+});
+
 test("readCanonicalBoardState streams root metadata for empty drawing areas", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-load-state-empty-"),

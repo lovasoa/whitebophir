@@ -165,7 +165,7 @@ test("constructive per-IP rate limit closes the socket when exceeded", async () 
         type: MutationType.CREATE,
         id: "line-1",
         color: "#123456",
-        size: 4,
+        size: 10,
       });
 
       assert.equal(socket.disconnected, true);

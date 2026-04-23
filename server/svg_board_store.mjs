@@ -344,7 +344,16 @@ async function readCanonicalBoardState(boardName, options) {
       }
       if (event.type !== "item") continue;
       const item = canonicalItemFromStoredSvgEntry(event.entry, index);
-      if (!item) continue;
+      if (!item) {
+        logger.warn("board.load_item_skipped", {
+          board: boardName,
+          "wbo.board.source": readableSvg.source,
+          "wbo.board.paint_order": index,
+          "wbo.board.item_tag": event.entry?.tagName,
+          "wbo.board.item_id": event.entry?.id,
+        });
+        continue;
+      }
       itemsById.set(item.id, item);
       paintOrder.push(item.id);
       index += 1;

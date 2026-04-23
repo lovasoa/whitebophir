@@ -50,6 +50,27 @@ export function createShapeToolBoot(config) {
 
 /**
  * @param {any} state
+ * @param {string} id
+ * @param {number} x
+ * @param {number} y
+ * @returns {any}
+ */
+export function makeSeedShapeCreateMessage(state, id, x, y) {
+  return {
+    type: MutationType.CREATE,
+    id,
+    color: state.Tools.getColor(),
+    size: state.Tools.getSize(),
+    opacity: state.Tools.getOpacity(),
+    x,
+    y,
+    x2: x,
+    y2: y,
+  };
+}
+
+/**
+ * @param {any} state
  * @param {any} data
  * @returns {SVGElement}
  */

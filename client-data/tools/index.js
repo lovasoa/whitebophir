@@ -33,8 +33,6 @@ import {
  *   updatableFields?: string[],
  *   liveMessageFields?: {[type: number]: {[field: string]: string}},
  *   batchMessageFields?: {[type: number]: {[field: string]: string}},
- *   storedFields?: {[field: string]: string},
- *   normalizeStoredItemData?: Function,
  *   parseStoredSvgItem?: Function,
  *   summarizeStoredSvgItem?: Function,
  *   serializeStoredSvgItem?: Function,
