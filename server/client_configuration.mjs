@@ -1,7 +1,7 @@
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 
-/** @typedef {typeof import("./configuration.mjs")} ServerConfiguration */
-/** @typedef {Pick<ServerConfiguration, "MAX_BOARD_SIZE" | "GENERAL_RATE_LIMITS" | "CONSTRUCTIVE_ACTION_RATE_LIMITS" | "DESTRUCTIVE_ACTION_RATE_LIMITS" | "TEXT_CREATION_RATE_LIMITS" | "BLOCKED_TOOLS" | "BLOCKED_SELECTION_BUTTONS" | "AUTO_FINGER_WHITEOUT" | "TURNSTILE_SITE_KEY" | "TURNSTILE_VALIDATION_WINDOW_MS">} ClientConfigurationSource */
+/** @import { ServerConfig } from "../types/server-runtime.d.ts" */
+/** @typedef {Pick<ServerConfig, "MAX_BOARD_SIZE" | "GENERAL_RATE_LIMITS" | "CONSTRUCTIVE_ACTION_RATE_LIMITS" | "DESTRUCTIVE_ACTION_RATE_LIMITS" | "TEXT_CREATION_RATE_LIMITS" | "BLOCKED_TOOLS" | "BLOCKED_SELECTION_BUTTONS" | "AUTO_FINGER_WHITEOUT" | "TURNSTILE_SITE_KEY" | "TURNSTILE_VALIDATION_WINDOW_MS">} ClientConfigurationSource */
 
 const RATE_LIMIT_KINDS =
   /** @type {Array<"general" | "constructive" | "destructive" | "text">} */ (

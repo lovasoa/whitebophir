@@ -16,9 +16,9 @@ import { parseRequestUrl } from "./request_url.mjs";
 /** @typedef {string | string[] | undefined} HeaderValue */
 /** @typedef {{blockedTools?: string[] | null, boardState?: {readonly?: boolean, canWrite?: boolean} | null, moderator?: boolean}} VisibleToolOptions */
 /** @typedef {NonNullable<typeof TOOLBAR_TOOLS[number]>} ToolbarTool */
-/** @typedef {typeof import("./configuration.mjs")} ServerConfig */
 /** @typedef {ReturnType<typeof createClientConfiguration>} ClientConfig */
 /** @typedef {"zstd" | "br" | "gzip"} CompressionEncoding */
+/** @import { ServerConfig } from "../types/server-runtime.d.ts" */
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 const BOARD_PAGE_CACHE_HEADROOM_SECONDS = 5;

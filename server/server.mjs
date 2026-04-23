@@ -56,7 +56,7 @@ const { createRequestId, logger, metrics, tracing } = observability;
 /** @typedef {import("http").IncomingMessage} HttpRequest */
 /** @typedef {import("http").ServerResponse} HttpResponse */
 /** @typedef {import("node:net").AddressInfo | string | null} ServerAddress */
-/** @typedef {typeof import("./configuration.mjs")} ServerConfig */
+/** @import { ServerConfig } from "../types/server-runtime.d.ts" */
 /** @typedef {{
  *   config: ServerConfig,
  *   fileserver: ReturnType<typeof serveStatic>,

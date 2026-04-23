@@ -47,7 +47,7 @@ const SERVER_RATE_LIMIT_CONFIG_FIELDS =
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
-/** @typedef {typeof import("./configuration.mjs")} ServerConfig */
+/** @import { AppSocket, ConnectedUserPayload, MessageData, NormalizedMessageData, RateLimitState as BaseRateLimitState, ReportUserPayload, ServerConfig, SocketRequest, TurnstileAck, TurnstileAckCallback, TurnstileEventAck, TurnstileRejectedAck, TurnstileSiteverifyResult, ValidationStatus } from "../types/server-runtime.d.ts" */
 /** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {{
@@ -63,19 +63,6 @@ const { logger, metrics, tracing } = observability;
  *   reporter_name: string,
  *   reported_name: string,
  * }} UserReportLog */
-/** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
-/** @typedef {import("../types/server-runtime.d.ts").ConnectedUserPayload} ConnectedUserPayload */
-/** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
-/** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
-/** @typedef {import("../types/server-runtime.d.ts").RateLimitState} BaseRateLimitState */
-/** @typedef {import("../types/server-runtime.d.ts").ReportUserPayload} ReportUserPayload */
-/** @typedef {import("../types/server-runtime.d.ts").SocketRequest} SocketRequest */
-/** @typedef {import("../types/server-runtime.d.ts").TurnstileAck} TurnstileAck */
-/** @typedef {import("../types/server-runtime.d.ts").TurnstileAckCallback} TurnstileAckCallback */
-/** @typedef {import("../types/server-runtime.d.ts").TurnstileEventAck} TurnstileEventAck */
-/** @typedef {import("../types/server-runtime.d.ts").TurnstileRejectedAck} TurnstileRejectedAck */
-/** @typedef {import("../types/server-runtime.d.ts").TurnstileSiteverifyResult} TurnstileSiteverifyResult */
-/** @typedef {import("../types/server-runtime.d.ts").ValidationStatus} ValidationStatus */
 /** @typedef {"general" | "constructive" | "destructive" | "text"} RateLimitKind */
 /** @typedef {"disconnect" | "exceeded" | "expired" | "pruned"} RateLimitWindowOutcome */
 /** @typedef {"ip" | "socket"} RateLimitScope */

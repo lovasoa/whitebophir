@@ -42,7 +42,7 @@ let tempSvgSuffixCounter = 0;
 const { logger } = observability;
 
 /** @typedef {{readonly: boolean, seq?: number}} BoardMetadata */
-/** @typedef {typeof import("./configuration.mjs")} ServerConfig */
+/** @import { ServerConfig } from "../types/server-runtime.d.ts" */
 
 /** @returns {BoardMetadata} */
 function defaultBoardMetadata() {

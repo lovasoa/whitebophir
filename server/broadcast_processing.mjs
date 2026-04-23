@@ -5,10 +5,7 @@ import {
   normalizeBroadcastData,
 } from "./socket_policy.mjs";
 
-/** @typedef {typeof import("./configuration.mjs")} ServerConfig */
-/** @typedef {import("../types/server-runtime.d.ts").AppSocket} AppSocket */
-/** @typedef {import("../types/server-runtime.d.ts").MessageData} MessageData */
-/** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
+/** @import { AppSocket, MessageData, NormalizedMessageData, ServerConfig } from "../types/server-runtime.d.ts" */
 /** @typedef {{windowStart: number, count: number, lastSeen: number}} RateLimitState */
 /**
  * @typedef {{name: string, isReadOnly: () => boolean, processMessage: (message: any) => {ok: true} | {ok: false, reason: string}}} BroadcastBoard

@@ -5,6 +5,8 @@ import type {
   ToolCode,
 } from "./app-runtime";
 
+export type ServerConfig = typeof import("../server/configuration.mjs");
+
 export type MessageData = Partial<BoardMessage> & {
   [key: string]: any;
 };
