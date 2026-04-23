@@ -103,6 +103,18 @@ function rewriteStoredSvgFromCanonical(
     { historyDir },
   );
 }
+
+test("board file paths use board names directly", () => {
+  assert.equal(
+    path.basename(svgBoardStore.boardSvgPath("тест-board", "/tmp/history")),
+    "board-тест-board.svg",
+  );
+  assert.equal(
+    path.basename(svgBoardStore.boardJsonPath("тест-board", "/tmp/history")),
+    "board-тест-board.json",
+  );
+});
+
 /**
  * @param {string} value
  * @returns {string}

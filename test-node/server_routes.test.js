@@ -109,7 +109,7 @@ function getSingleSetCookie(headers) {
  * @returns {string}
  */
 function boardSvgFile(historyDir, name) {
-  return path.join(historyDir, `board-${encodeURIComponent(name)}.svg`);
+  return path.join(historyDir, `board-${name}.svg`);
 }
 
 test("in-process server imports do not register process signal handlers", async () => {
@@ -211,7 +211,60 @@ test("server returns 404 instead of 500 when preview board data is missing", asy
   ]);
 });
 
-test("server rejects invalid board names with 400 instead of 500", async () => {
+test("board pages redirect non-canonical board names to canonical urls", async () => {
+  const dirs = await createServerDirs();
+
+  await withEnv({
+    HOST: "127.0.0.1",
+    PORT: "0",
+    AUTH_SECRET_KEY: "",
+    WBO_HISTORY_DIR: dirs.historyDir,
+    WBO_WEBROOT: dirs.webroot,
+    WBO_SILENT: "true",
+  }, async () => {
+    const app = await createTestServer();
+    try {
+      const canonicalResponse = await request(
+        app,
+        "/boards/Refugee%20Camp%202?token=test-token",
+      );
+      assert.equal(canonicalResponse.statusCode, 301);
+      assert.equal(typeof canonicalResponse.headers["x-request-id"], "string");
+      assert.equal(
+        canonicalResponse.headers.location,
+        "/boards/refugee-camp-2?token=test-token",
+      );
+
+      const unicodeResponse = await request(
+        app,
+        "/boards/%D0%A2%D0%95%D0%A1%D0%A2",
+      );
+      assert.equal(unicodeResponse.statusCode, 301);
+      assert.equal(typeof unicodeResponse.headers["x-request-id"], "string");
+      assert.equal(
+        unicodeResponse.headers.location,
+        `/boards/${encodeURIComponent("тест")}`,
+      );
+
+      const emptyResponse = await request(app, "/boards/%3A%2F%3F%23");
+      assert.equal(emptyResponse.statusCode, 400);
+      assert.equal(typeof emptyResponse.headers["x-request-id"], "string");
+      assert.equal(emptyResponse.body, "error-page");
+    } finally {
+      await closeServer(app);
+    }
+  }, [
+    SERVER_PATH,
+    TEMPLATING_PATH,
+    CONFIGURATION_PATH,
+    CREATE_SVG_PATH,
+    CHECK_OUTPUT_DIRECTORY_PATH,
+    CLIENT_CONFIGURATION_PATH,
+    JWTAUTH_PATH,
+  ]);
+});
+
+test("server rejects invalid non-board-page board names with 400 instead of 500", async () => {
   const dirs = await createServerDirs();
 
   await withEnv({
@@ -226,8 +279,6 @@ test("server rejects invalid board names with 400 instead of 500", async () => {
     try {
       const invalidPaths = [
         "/boards?board=test:board",
-        "/boards/test:board",
-        "/boards/test%3Aboard",
         "/preview/test:board",
         "/download/test%3Aboard",
       ];

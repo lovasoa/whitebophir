@@ -85,10 +85,7 @@ function resolveHistoryDir(historyDir) {
  * @returns {string}
  */
 function boardSvgPath(name, historyDir) {
-  return path.join(
-    resolveHistoryDir(historyDir),
-    `board-${encodeURIComponent(name)}.svg`,
-  );
+  return path.join(resolveHistoryDir(historyDir), `board-${name}.svg`);
 }
 
 /**

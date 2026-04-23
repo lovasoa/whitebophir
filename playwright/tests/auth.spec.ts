@@ -138,15 +138,17 @@ test.describe("JWT auth and readonly flows", () => {
     });
     await expect(boardPage.menu).toHaveCount(0);
 
-    const colonModerator = jsonwebtoken.sign(
-      { sub: "moderator-colon", roles: ["moderator:test:board"] },
+    const unicodeModerator = jsonwebtoken.sign(
+      { sub: "moderator-unicode", roles: ["moderator:тест-board"] },
       AUTH_SECRET,
     );
-    await boardPage.gotoBoard("test:board", {
-      token: colonModerator,
+    await boardPage.gotoBoard("ТЕСТ Board", {
+      token: unicodeModerator,
     });
-    await expect(boardPage.menu).toHaveCount(0);
-    await expect(page.locator("text=Illegal board name")).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe(
+      `/boards/${encodeURIComponent("тест-board")}`,
+    );
+    await expect(boardPage.menu).toBeVisible();
   });
 });
 

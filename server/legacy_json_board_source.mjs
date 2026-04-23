@@ -29,10 +29,7 @@ function resolveHistoryDir(historyDir) {
  * @returns {string}
  */
 function boardJsonPath(name, historyDir) {
-  return path.join(
-    resolveHistoryDir(historyDir),
-    `board-${encodeURIComponent(name)}.json`,
-  );
+  return path.join(resolveHistoryDir(historyDir), `board-${name}.json`);
 }
 
 /**

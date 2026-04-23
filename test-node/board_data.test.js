@@ -235,10 +235,7 @@ async function withLoadedBoard(options) {
   const { historyDir, boardName, storedBoard, storedSvg } = options;
   const BoardData = getBoardDataClass();
   const config = createConfig({ HISTORY_DIR: historyDir });
-  const svgPath = path.join(
-    historyDir,
-    `board-${encodeURIComponent(boardName)}.svg`,
-  );
+  const svgPath = path.join(historyDir, `board-${boardName}.svg`);
   if (storedBoard !== undefined) {
     await writeBoard(historyDir, boardName, storedBoard);
   }

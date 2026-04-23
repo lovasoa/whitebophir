@@ -1,4 +1,4 @@
-import { BOARD_NAME_INPUT_PATTERN, sanitizeBoardName } from "./board_name.js";
+import { canonicalizeBoardName } from "./board_name.js";
 import { normalizeRecentBoards } from "./board_page_state.js";
 
 function setupNamedBoardForm() {
@@ -7,22 +7,8 @@ function setupNamedBoardForm() {
   if (!(form instanceof HTMLFormElement)) return;
   if (!(input instanceof HTMLInputElement)) return;
 
-  input.pattern = BOARD_NAME_INPUT_PATTERN;
-
-  input.addEventListener("input", () => {
-    const sanitizedValue = sanitizeBoardName(input.value);
-    if (sanitizedValue === input.value) return;
-
-    const selectionStart = input.selectionStart ?? input.value.length;
-    const removedCharacters = input.value.length - sanitizedValue.length;
-    input.value = sanitizedValue;
-
-    const nextSelection = Math.max(0, selectionStart - removedCharacters);
-    input.setSelectionRange(nextSelection, nextSelection);
-  });
-
   form.addEventListener("submit", (event) => {
-    input.value = sanitizeBoardName(input.value);
+    input.value = canonicalizeBoardName(input.value);
     if (input.value !== "") return;
 
     event.preventDefault();

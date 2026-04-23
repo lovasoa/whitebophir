@@ -16,6 +16,8 @@ import {
 } from "@opentelemetry/semantic-conventions";
 import serveStatic from "serve-static";
 import {
+  canonicalizeBoardName,
+  decodeBoardName,
   decodeAndValidateBoardName,
   isValidBoardName,
 } from "../client-data/js/board_name.js";
@@ -853,6 +855,17 @@ function validateBoardPath(boardName) {
 }
 
 /**
+ * @param {string | undefined} boardName
+ * @returns {string | null}
+ */
+function canonicalizeBoardPath(boardName) {
+  if (boardName === undefined) return null;
+  const decodedBoardName = decodeBoardName(boardName);
+  if (decodedBoardName === null) return null;
+  return canonicalizeBoardName(decodedBoardName);
+}
+
+/**
  * @param {string[]} parts
  * @param {number} index
  * @returns {string | undefined}
@@ -966,6 +979,15 @@ function requireBoardSvgPathName(parts, index = 1) {
 }
 
 /**
+ * @param {string} boardName
+ * @param {string} [search]
+ * @returns {string}
+ */
+function boardDocumentLocation(boardName, search = "") {
+  return `/boards/${encodeURIComponent(boardName)}${search}`;
+}
+
+/**
  * @param {HttpRequest} request
  * @param {HttpResponse} response
  * @param {ServerRuntime} runtime
@@ -1035,7 +1057,19 @@ async function handleBoardDocumentRoute(
   runtime,
   requestContext,
 ) {
-  const boardName = requireBoardPathName(parts);
+  const boardName = canonicalizeBoardPath(getPathPart(parts, 1));
+  if (boardName === null || boardName === "") {
+    throw badRequest("invalid_board_name");
+  }
+  const requestedBoardName = decodeBoardName(getPathPart(parts, 1));
+  if (requestedBoardName !== boardName) {
+    annotateBoardRequest(requestContext, boardName);
+    response.writeHead(301, {
+      Location: boardDocumentLocation(boardName, parsedUrl.search),
+    });
+    response.end();
+    return;
+  }
   annotateBoardRequest(requestContext, boardName);
   jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
   const token = parsedUrl.searchParams.get("token");

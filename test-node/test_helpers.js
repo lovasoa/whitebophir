@@ -303,7 +303,7 @@ async function createSocketScenario(options = {}, fn) {
  * @returns {string}
  */
 function boardFile(historyDir, name) {
-  return path.join(historyDir, `board-${encodeURIComponent(name)}.json`);
+  return path.join(historyDir, `board-${name}.json`);
 }
 
 /**

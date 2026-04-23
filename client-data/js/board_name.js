@@ -1,28 +1,44 @@
-const BOARD_NAME_ALLOWED_CHARACTERS = "A-Za-z0-9_%~()\\-";
+const BOARD_NAME_INVALID_RUN = /[^\p{L}\p{N}_~()-]+/gu;
+const BOARD_NAME_REPEATED_DASHES = /-+/g;
+const BOARD_NAME_TRIMMED_DASHES = /^-+|-+$/g;
 
-export const BOARD_NAME_INPUT_PATTERN = `[${BOARD_NAME_ALLOWED_CHARACTERS}]+`;
+/**
+ * @param {unknown} boardName
+ * @returns {string}
+ */
+export function canonicalizeBoardName(boardName) {
+  if (typeof boardName !== "string") return "";
+  return boardName
+    .normalize()
+    .toLowerCase()
+    .replace(BOARD_NAME_INVALID_RUN, "-")
+    .replace(BOARD_NAME_REPEATED_DASHES, "-")
+    .replace(BOARD_NAME_TRIMMED_DASHES, "");
+}
 
-const BOARD_NAME_PATTERN = new RegExp(`^[${BOARD_NAME_ALLOWED_CHARACTERS}]*$`);
-const BOARD_NAME_INVALID_CHARACTERS = new RegExp(
-  `[^${BOARD_NAME_ALLOWED_CHARACTERS}]+`,
-  "g",
-);
+/**
+ * @param {unknown} boardName
+ * @returns {string | null}
+ */
+export function decodeBoardName(boardName) {
+  if (typeof boardName !== "string") return null;
+  try {
+    return decodeURIComponent(boardName);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * @param {unknown} boardName
  * @returns {boardName is string}
  */
 export function isValidBoardName(boardName) {
-  return typeof boardName === "string" && BOARD_NAME_PATTERN.test(boardName);
-}
-
-/**
- * @param {unknown} boardName
- * @returns {string}
- */
-export function sanitizeBoardName(boardName) {
-  if (typeof boardName !== "string") return "";
-  return boardName.replace(BOARD_NAME_INVALID_CHARACTERS, "");
+  return (
+    typeof boardName === "string" &&
+    boardName !== "" &&
+    canonicalizeBoardName(boardName) === boardName
+  );
 }
 
 /**
@@ -30,11 +46,8 @@ export function sanitizeBoardName(boardName) {
  * @returns {string | null}
  */
 export function decodeAndValidateBoardName(boardName) {
-  if (typeof boardName !== "string") return null;
-  try {
-    const decodedBoardName = decodeURIComponent(boardName);
-    return isValidBoardName(decodedBoardName) ? decodedBoardName : null;
-  } catch {
-    return null;
-  }
+  const decodedBoardName = decodeBoardName(boardName);
+  return decodedBoardName !== null && isValidBoardName(decodedBoardName)
+    ? decodedBoardName
+    : null;
 }
