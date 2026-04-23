@@ -76,6 +76,7 @@ function defaultBoardMetadata() {
 const STANDALONE_BOARD_LOAD_BYTES_THRESHOLD = 1024 * 1024;
 const STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD = 2048;
 const STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD = 64;
+const boardSaveQueue = new SerialTaskQueue();
 let boardInstanceSequence = 0;
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds */
 /** @typedef {{readonly: boolean}} BoardMetadata */
@@ -257,7 +258,6 @@ class BoardData {
     this.saveInProgress = false;
     this.saveTimeoutId = undefined;
     this.users = new Set();
-    this.saveMutex = new SerialTaskQueue();
     this.mutationLog = createMutationLog(0);
     /** @type {PendingMutationEffect[]} */
     this.pendingRejectedMutationEffects = [];
@@ -1365,8 +1365,9 @@ class BoardData {
   /** Saves the data in the board to a file. */
   async save() {
     if (this.disposed) return { status: "skipped" };
-    // The mutex prevents multiple save operation to happen simultaneously
-    return this.saveMutex.runExclusive(this._unsafe_save.bind(this));
+    // Persisted board writes are serialized process-wide so only one board save
+    // mutates on-disk state at a time.
+    return boardSaveQueue.runExclusive(this._unsafe_save.bind(this));
   }
 
   /** Save the board to disk without preventing multiple simultaneous saves. Use save() instead. */

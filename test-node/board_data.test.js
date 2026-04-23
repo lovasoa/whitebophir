@@ -1726,3 +1726,48 @@ test("BoardData.save serializes concurrent saves and releases after failure", as
   assert.equal(calls[calls.length - 2], "ok");
   assert.equal(calls[calls.length - 1], "second-resolved");
 });
+
+test("BoardData.save serializes concurrent saves across boards", async () => {
+  const BoardData = getBoardDataClass();
+  const firstBoard = createBoard(BoardData, "global-save-queue-first");
+  const secondBoard = createBoard(BoardData, "global-save-queue-second");
+  /** @type {string[]} */
+  const calls = [];
+  /** @type {(value?: void) => void} */
+  let releaseFirstSave = () => {};
+  const firstSaveGate = new Promise((resolve) => {
+    releaseFirstSave = resolve;
+  });
+
+  firstBoard._unsafe_save = async () => {
+    calls.push("first:start");
+    await firstSaveGate;
+    calls.push("first:end");
+    return { status: "saved" };
+  };
+  secondBoard._unsafe_save = async () => {
+    calls.push("second:start");
+    calls.push("second:end");
+    return { status: "saved" };
+  };
+
+  const firstSave = firstBoard.save().then(() => {
+    calls.push("first:resolved");
+  });
+  const secondSave = secondBoard.save().then(() => {
+    calls.push("second:resolved");
+  });
+
+  await Promise.resolve();
+  assert.deepEqual(calls, ["first:start"]);
+
+  releaseFirstSave();
+  await Promise.all([firstSave, secondSave]);
+
+  assert.equal(calls[0], "first:start");
+  assert.equal(calls[1], "first:end");
+  assert.equal(calls[2], "second:start");
+  assert.equal(calls[3], "second:end");
+  assert.equal(calls.includes("first:resolved"), true);
+  assert.equal(calls[calls.length - 1], "second:resolved");
+});
