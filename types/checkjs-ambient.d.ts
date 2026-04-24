@@ -37,10 +37,6 @@ declare global {
     turnstile?: import("../types/app-runtime").TurnstileGlobal;
   }
 
-  interface Navigator {
-    msSaveBlob?: (blob: Blob, defaultName?: string) => boolean;
-  }
-
   interface HTMLElement {
     text?: string;
   }

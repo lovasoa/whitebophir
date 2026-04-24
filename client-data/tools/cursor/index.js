@@ -197,13 +197,6 @@ export function draw(state, message) {
     `cursor-${cursorMessage.socket || "me"}`,
   );
   cursor.style.transform = `translate(${cursorMessage.x}px, ${cursorMessage.y}px)`;
-  if (state.tools.isIE) {
-    cursor.setAttributeNS(
-      null,
-      "transform",
-      `translate(${cursorMessage.x} ${cursorMessage.y})`,
-    );
-  }
   cursor.setAttributeNS(null, "fill", cursorMessage.color);
   cursor.setAttributeNS(null, "r", String(cursorMessage.size / 2));
 }

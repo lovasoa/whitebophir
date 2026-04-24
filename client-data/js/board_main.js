@@ -106,13 +106,6 @@ async function bootBoardPage() {
   }
   setBoardBootPhase("ready");
 
-  const canvasColorModule = /** @type {{registerCanvasColor?: () => void}} */ (
-    await import("./canvascolor.js")
-  );
-  if (typeof canvasColorModule.registerCanvasColor === "function") {
-    canvasColorModule.registerCanvasColor();
-  }
-
   await lazyBootRenderedTools();
 }
 

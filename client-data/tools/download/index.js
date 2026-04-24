@@ -37,11 +37,6 @@ export const visibleWhenReadOnly = true;
  * @param {string} filename
  */
 function downloadContent(blob, filename) {
-  const msSaveBlob = window.navigator.msSaveBlob;
-  if (typeof msSaveBlob === "function") {
-    msSaveBlob.call(window.navigator, blob, filename);
-    return;
-  }
   const url = URL.createObjectURL(blob);
   const element = document.createElement("a");
   element.setAttribute("href", url);

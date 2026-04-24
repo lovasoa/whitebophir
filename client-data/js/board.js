@@ -1329,8 +1329,6 @@ Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 
-Tools.isIE = /MSIE|Trident/.test(window.navigator.userAgent);
-
 Tools.socket = null;
 Tools.hasConnectedOnce = false;
 
@@ -2509,7 +2507,7 @@ function createMountedTool(toolModule, toolState, toolName) {
   }
   if (tool.listeners.release) {
     compiled.mouseup = compilePointerListener(tool.listeners.release, false);
-    if (!Tools.isIE) compiled.mouseleave = compiled.mouseup;
+    compiled.mouseleave = compiled.mouseup;
     const touchRelease = compilePointerListener(tool.listeners.release, true);
     compiled.touchleave = touchRelease;
     compiled.touchend = touchRelease;
@@ -2717,8 +2715,6 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
     const target = listener.target || Tools.board;
     if (!target) continue;
     target.removeEventListener(event, listener);
-    // also attempt to remove with capture = true in IE
-    if (Tools.isIE) target.removeEventListener(event, listener, true);
   }
 };
 
