@@ -57,9 +57,10 @@ const { createRequestId, logger, metrics, tracing } = observability;
 /** @typedef {import("http").ServerResponse} HttpResponse */
 /** @typedef {import("node:net").AddressInfo | string | null} ServerAddress */
 /** @import { ServerConfig } from "../types/server-runtime.d.ts" */
+/** @typedef {(request: HttpRequest, response: HttpResponse, next: (error?: unknown) => void) => void} StaticFileServer */
 /** @typedef {{
  *   config: ServerConfig,
- *   fileserver: ReturnType<typeof serveStatic>,
+ *   fileserver: StaticFileServer,
  *   errorPage: string,
  *   boardTemplate: templating.BoardTemplate,
  *   indexTemplate: templating.Template,

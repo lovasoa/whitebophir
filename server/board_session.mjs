@@ -1,31 +1,50 @@
 import { SerialTaskQueue } from "./serial_task_queue.mjs";
+/** @typedef {import("../types/server-runtime.d.ts").MutationEnvelope} MutationEnvelope */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
+/** @typedef {{mutation: NormalizedMessageData}} MutationEffect */
+/** @typedef {{mutation: NormalizedMessageData, envelope: MutationEnvelope}} MutationFollowup */
+/** @typedef {{ok: true} | {ok: false, reason: string}} BoardMutationResult */
+/** @typedef {{ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string}} PreparedMutationResult */
+/**
+ * @typedef {{
+ *   name: string,
+ *   processMessage: (message: NormalizedMessageData) => BoardMutationResult,
+ *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string, socketId?: string) => MutationEnvelope,
+ *   consumePendingRejectedMutationEffects?: () => MutationEffect[],
+ *   consumePendingAcceptedMutationEffects?: () => MutationEffect[],
+ *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<PreparedMutationResult> | PreparedMutationResult,
+ * }} BoardSessionBoard
+ */
+/**
+ * @typedef {{
+ *   board: BoardSessionBoard,
+ *   acceptPersistentMutation: (
+ *     socketId: string,
+ *     mutation: NormalizedMessageData,
+ *     clientMutationId?: string,
+ *     nowMs?: number,
+ *   ) => Promise<
+ *     | {ok: true, value: NormalizedMessageData, envelope: MutationEnvelope, followup?: MutationFollowup[]}
+ *     | {ok: false, reason: string, followup?: MutationFollowup[]}
+ *   >,
+ * }} BoardSession
+ */
 
 /**
- * @param {object} board
- * @param {(() => Array<{mutation: NormalizedMessageData}>) | undefined} consumeEffects
- * @returns {Array<{mutation: NormalizedMessageData}>}
+ * @param {BoardSessionBoard} board
+ * @param {(() => MutationEffect[]) | undefined} consumeEffects
+ * @returns {MutationEffect[]}
  */
 function consumePendingMutationEffects(board, consumeEffects) {
   return typeof consumeEffects === "function" ? consumeEffects.call(board) : [];
 }
 
-/** @type {WeakMap<object, ReturnType<typeof createBoardSession>>} */
+/** @type {WeakMap<BoardSessionBoard, BoardSession>} */
 const BOARD_SESSIONS = new WeakMap();
 
 /**
- * @param {{
- *   name: string,
- *   processMessage: (message: NormalizedMessageData) => {ok: true} | {ok: false, reason: string},
- *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string, socketId?: string) => any,
- *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
- *   consumePendingAcceptedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
- *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: any} | {ok: false, reason: string}> | {ok: true, mutation?: any} | {ok: false, reason: string},
- * }} board
- * @returns {{
- *   board: object,
- *   acceptPersistentMutation: (socketId: string, mutation: NormalizedMessageData, clientMutationId?: string, nowMs?: number) => Promise<{ok: true, value: NormalizedMessageData, envelope: any, followup?: Array<{mutation: NormalizedMessageData, envelope: any}>} | {ok: false, reason: string, followup?: Array<{mutation: NormalizedMessageData, envelope: any}>}>
- * }}
+ * @param {BoardSessionBoard} board
+ * @returns {BoardSession}
  */
 export function createBoardSession(board) {
   const queue = new SerialTaskQueue();
@@ -103,15 +122,8 @@ export function createBoardSession(board) {
 }
 
 /**
- * @param {{
- *   name: string,
- *   processMessage: (message: NormalizedMessageData) => {ok: true} | {ok: false, reason: string},
- *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string, socketId?: string) => any,
- *   consumePendingRejectedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
- *   consumePendingAcceptedMutationEffects?: () => Array<{mutation: NormalizedMessageData}>,
- *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<{ok: true, mutation?: any} | {ok: false, reason: string}> | {ok: true, mutation?: any} | {ok: false, reason: string},
- * }} board
- * @returns {ReturnType<typeof createBoardSession>}
+ * @param {BoardSessionBoard} board
+ * @returns {BoardSession}
  */
 export function getBoardSession(board) {
   const existing = BOARD_SESSIONS.get(board);

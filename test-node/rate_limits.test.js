@@ -12,7 +12,7 @@ const {
 
 /**
  * @param {{[key: string]: any}} overrides
- * @param {(sockets: Awaited<ReturnType<typeof loadSockets>>) => any | Promise<any>} run
+ * @param {(sockets: any) => any | Promise<any>} run
  * @returns {Promise<any>}
  */
 async function withSocketConfig(overrides, run) {

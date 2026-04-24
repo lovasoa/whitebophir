@@ -86,6 +86,7 @@ let boardInstanceSequence = 0;
 /** @typedef {{ok: true, value: BoardElem, canonical: CanonicalBoardItem, localBounds: Bounds | null}} ValidatedStoredCandidate */
 /** @typedef {import("../types/app-runtime.d.ts").BoardMessage} BoardMessage */
 /** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
+/** @typedef {import("../types/server-runtime.d.ts").MutationEnvelope} MutationEnvelope */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {{x: number, y: number}} ChildPoint */
 /** @typedef {{kind: "inline"} | {kind: "text", modifiedText?: string} | {kind: "children", persistedChildCount: number, appendedChildren: ChildPoint[]}} CanonicalPayload */
@@ -338,7 +339,7 @@ class BoardData {
   /**
    * @param {number} fromExclusiveSeq
    * @param {number} toInclusiveSeq
-   * @returns {ReturnType<ReturnType<typeof createMutationLog>["readRange"]>}
+   * @returns {MutationEnvelope[]}
    */
   readMutationRange(fromExclusiveSeq, toInclusiveSeq) {
     return this.mutationLog.readRange(fromExclusiveSeq, toInclusiveSeq);
@@ -349,7 +350,7 @@ class BoardData {
    * @param {number} [acceptedAtMs]
    * @param {string | undefined} [clientMutationId]
    * @param {string | undefined} [socketId]
-   * @returns {ReturnType<ReturnType<typeof createMutationLog>["append"]>}
+   * @returns {MutationEnvelope}
    */
   recordPersistentMutation(
     mutation,
@@ -627,8 +628,8 @@ class BoardData {
   }
 
   /**
-   * @param {BoardMessage} message
-   * @returns {Promise<{ok: true, mutation: BoardMessage} | {ok: false, reason: string}>}
+   * @param {NormalizedMessageData} message
+   * @returns {Promise<{ok: true, mutation: NormalizedMessageData} | {ok: false, reason: string}>}
    */
   async preparePersistentMutation(message) {
     if (Array.isArray(message?._children)) {

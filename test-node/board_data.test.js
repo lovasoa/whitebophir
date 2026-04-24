@@ -32,7 +32,7 @@ function getBoardDataClass() {
 }
 
 /**
- * @param {ReturnType<typeof loadBoardData>} BoardData
+ * @param {any} BoardData
  * @param {string} name
  * @param {any} [config]
  * @returns {any}
@@ -42,7 +42,7 @@ function createBoard(BoardData, name, config) {
 }
 
 /**
- * @param {ReturnType<typeof loadBoardData>} BoardData
+ * @param {any} BoardData
  * @param {string} name
  * @param {any} [config]
  * @returns {Promise<any>}
@@ -226,7 +226,7 @@ function clearMessage() {
  *   storedSvg?: string,
  * }} options
  * @returns {Promise<{
- *   BoardData: ReturnType<typeof loadBoardData>,
+ *   BoardData: any,
  *   board: any,
  *   svgPath: string,
  * }>}

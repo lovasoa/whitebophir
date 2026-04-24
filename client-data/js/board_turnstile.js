@@ -148,7 +148,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
     Tools.clearTurnstileRefreshTimeout();
     const refreshDelay = Math.floor(validationWindowMs * 0.8);
     if (!(refreshDelay > 0)) return;
-    Tools.turnstileRefreshTimeout = setTimeout(
+    Tools.turnstileRefreshTimeout = window.setTimeout(
       function refreshTurnstileToken() {
         Tools.refreshTurnstile();
       },
@@ -213,7 +213,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
   Tools.showTurnstileOverlay = function showTurnstileOverlay(delay) {
     const elements = Tools.ensureTurnstileElements();
     if (delay > 0) {
-      Tools.showTurnstileOverlayTimeout = setTimeout(() => {
+      Tools.showTurnstileOverlayTimeout = window.setTimeout(() => {
         elements.overlay.classList.remove("turnstile-overlay-hidden");
       }, delay);
     } else {
@@ -262,7 +262,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
       reason,
       delayMs,
     });
-    Tools.turnstileRetryTimeout = setTimeout(() => {
+    Tools.turnstileRetryTimeout = window.setTimeout(() => {
       Tools.turnstileRetryTimeout = null;
       Tools.refreshTurnstile();
     }, delayMs);

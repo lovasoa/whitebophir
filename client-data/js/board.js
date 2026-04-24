@@ -505,9 +505,12 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
     detail: message,
   });
   if (retryAfterMs > 0) {
-    Tools.rateLimitNoticeTimer = setTimeout(function hideRateLimitNotice() {
-      Tools.hideRateLimitNotice();
-    }, retryAfterMs);
+    Tools.rateLimitNoticeTimer = window.setTimeout(
+      function hideRateLimitNotice() {
+        Tools.hideRateLimitNotice();
+      },
+      retryAfterMs,
+    );
   }
 };
 
@@ -543,7 +546,7 @@ Tools.showBoardStatus = function showBoardStatus(view, durationMs) {
   Tools.explicitBoardStatus = view;
   Tools.syncWriteStatusIndicator();
   if (durationMs && durationMs > 0) {
-    Tools.boardStatusTimer = setTimeout(() => {
+    Tools.boardStatusTimer = window.setTimeout(() => {
       Tools.clearBoardStatus();
     }, durationMs);
   }
@@ -999,7 +1002,7 @@ Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
   const now = Date.now();
   const waitMs = Tools.getBufferedWriteWaitMs(nextWrite, now);
   Tools.localRateLimitedUntil = waitMs > 0 ? now + waitMs : 0;
-  Tools.bufferedWriteTimer = setTimeout(
+  Tools.bufferedWriteTimer = window.setTimeout(
     function flushBufferedWrites() {
       Tools.flushBufferedWrites();
     },
@@ -1557,7 +1560,7 @@ function scheduleConnectedUserPulseEnd(user) {
     return;
   }
   const remainingMs = Math.max(0, user.pulseUntil - Date.now());
-  user.pulseTimeoutId = setTimeout(() => {
+  user.pulseTimeoutId = window.setTimeout(() => {
     if (user.pulseUntil && user.pulseUntil <= Date.now()) {
       user.pulseUntil = 0;
       user.pulseTimeoutId = null;
@@ -2897,7 +2900,7 @@ function updateDocumentTitle() {
     `${Tools.boardName} | WBO`;
 }
 
-/** @type {ReturnType<typeof setTimeout> | null} */
+/** @type {number | null} */
 let viewportHashScrollTimeout = null;
 let lastViewportHashStateUpdate = Date.now();
 let viewportHashObserversInstalled = false;
@@ -2910,18 +2913,21 @@ function syncViewportHashFromScroll() {
   if (viewportHashScrollTimeout !== null) {
     clearTimeout(viewportHashScrollTimeout);
   }
-  viewportHashScrollTimeout = setTimeout(function updateViewportHistory() {
-    const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
-    if (
-      Date.now() - lastViewportHashStateUpdate > 5000 &&
-      hash !== window.location.hash
-    ) {
-      window.history.pushState({}, "", hash);
-      lastViewportHashStateUpdate = Date.now();
-    } else {
-      window.history.replaceState({}, "", hash);
-    }
-  }, 100);
+  viewportHashScrollTimeout = window.setTimeout(
+    function updateViewportHistory() {
+      const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
+      if (
+        Date.now() - lastViewportHashStateUpdate > 5000 &&
+        hash !== window.location.hash
+      ) {
+        window.history.pushState({}, "", hash);
+        lastViewportHashStateUpdate = Date.now();
+      } else {
+        window.history.replaceState({}, "", hash);
+      }
+    },
+    100,
+  );
 }
 
 Tools.applyViewportFromHash = function applyViewportFromHash() {
@@ -2985,7 +2991,7 @@ function notifyToolsOfMessage(m) {
 // List of hook functions that will be applied to messages before sending or drawing them
 Tools.messageHooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
 
-/** @type {ReturnType<typeof setTimeout> | null} */
+/** @type {number | null} */
 let scaleTimeout = null;
 /** @param {number} scale */
 Tools.setScale = function setScale(scale) {
@@ -3008,7 +3014,7 @@ Tools.setScale = function setScale(scale) {
   svg.style.willChange = "transform";
   svg.style.transform = `scale(${scale})`;
   if (scaleTimeout !== null) clearTimeout(scaleTimeout);
-  scaleTimeout = setTimeout(() => {
+  scaleTimeout = window.setTimeout(() => {
     if (Tools.svg) Tools.svg.style.willChange = "auto";
   }, 1000);
   Tools.scale = scale;

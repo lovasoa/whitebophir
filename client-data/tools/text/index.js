@@ -32,7 +32,7 @@ import {
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
 /** @import { BoardMessage, MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
-/** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: ReturnType<typeof setTimeout> | null}} CurrentTextState */
+/** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: number | null}} CurrentTextState */
 /** @typedef {{type: MutationCode, id: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} NewTextMessage */
 /** @typedef {{type: MutationCode, id: string, txt?: string}} TextUpdateMessage */
 /** @typedef {NewTextMessage | TextUpdateMessage} TextMessage */
@@ -270,7 +270,7 @@ function textChangeHandler(state, evt) {
   }
   if (performance.now() - state.curText.lastSending <= 100) {
     if (state.curText.timeout !== null) clearTimeout(state.curText.timeout);
-    state.curText.timeout = setTimeout(() => {
+    state.curText.timeout = window.setTimeout(() => {
       textChangeHandler(state, evt);
     }, 500);
     return;

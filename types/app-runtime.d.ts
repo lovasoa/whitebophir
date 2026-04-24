@@ -211,7 +211,7 @@ export type ConnectedUser = {
   pulseMs?: number;
   pulseUntil?: number;
   reported?: boolean;
-  pulseTimeoutId?: ReturnType<typeof setTimeout> | null;
+  pulseTimeoutId?: number | null;
 };
 
 export type UserLeftPayload = {
@@ -471,11 +471,11 @@ export type AppToolsState = {
   readOnlyToolNames: Set<string>;
   turnstileValidatedUntil: number;
   turnstileWidgetId: unknown | null;
-  turnstileRefreshTimeout: ReturnType<typeof setTimeout> | null;
-  turnstileRetryTimeout: ReturnType<typeof setTimeout> | null;
+  turnstileRefreshTimeout: number | null;
+  turnstileRetryTimeout: number | null;
   turnstilePending: boolean;
   turnstilePendingWrites: PendingWrite[];
-  showTurnstileOverlayTimeout: ReturnType<typeof setTimeout> | null;
+  showTurnstileOverlayTimeout: number | null;
   scale: number;
   drawToolsAllowed: boolean | null;
   boardState: AppBoardState;
@@ -502,12 +502,12 @@ export type AppToolsState = {
   hasConnectedOnce: boolean;
   useSeqSyncProtocol: boolean;
   bufferedWrites: BufferedWrite[];
-  bufferedWriteTimer: ReturnType<typeof setTimeout> | null;
+  bufferedWriteTimer: number | null;
   writeReadyWaiters: Array<() => void>;
   rateLimitedUntil: number;
   localRateLimitedUntil: number;
-  rateLimitNoticeTimer: ReturnType<typeof setTimeout> | null;
-  boardStatusTimer: ReturnType<typeof setTimeout> | null;
+  rateLimitNoticeTimer: number | null;
+  boardStatusTimer: number | null;
   explicitBoardStatus: ExplicitBoardStatus;
   awaitingBoardSnapshot: boolean;
   connectionState: BoardConnectionState;
