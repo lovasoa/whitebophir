@@ -1157,6 +1157,28 @@ test("Ellipse update recreates a missing shape before applying radii", async () 
   assert.equal(ellipse.ry.baseVal.value, 30);
 });
 
+async function bootTextEditorHarness() {
+  const textPath = path.resolve(
+    __dirname,
+    "..",
+    "client-data",
+    "tools",
+    getToolModuleImportPath("text"),
+  );
+  const textModule = require(textPath);
+  const textState = await textModule.boot({
+    Tools: globalAny.Tools,
+    assetUrl: (/** @type {string} */ assetFile) =>
+      getToolRuntimeAssetPath("text", assetFile),
+  });
+  globalAny.Tools.curTool = {
+    name: "text",
+    draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
+      textModule.draw(textState, data, isLocal),
+  };
+  return { textModule, textState };
+}
+
 test("Text replay creates and then updates the same text field", async () => {
   const harness = createHarness();
   const textTool = await harness.loadTool("text");
@@ -1185,26 +1207,31 @@ test("Text replay creates and then updates the same text field", async () => {
   assert.equal(text.textContent, "hello replay");
 });
 
+test("Text create sends an integer baseline coordinate", async () => {
+  const harness = createHarness();
+  const { textModule, textState } = await bootTextEditorHarness();
+  globalAny.Tools.getSize = () => 70;
+
+  textModule.press(
+    textState,
+    100,
+    200,
+    { preventDefault: () => {}, target: null },
+    false,
+  );
+  textState.input.value = "hello";
+  harness.clock.now = 200;
+  textState.boundTextChangeHandler({});
+
+  const createMessage = globalAny.Tools.sentMessages[0].data;
+  assert.equal(createMessage.type, MutationType.CREATE);
+  assert.equal(createMessage.size, 225);
+  assert.equal(createMessage.y, 313);
+});
+
 test("Text rejection clears the resend timer for the active editor", async () => {
   const harness = createHarness();
-  const textPath = path.resolve(
-    __dirname,
-    "..",
-    "client-data",
-    "tools",
-    getToolModuleImportPath("text"),
-  );
-  const textModule = require(textPath);
-  const textState = await textModule.boot({
-    Tools: globalAny.Tools,
-    assetUrl: (/** @type {string} */ assetFile) =>
-      getToolRuntimeAssetPath("text", assetFile),
-  });
-  globalAny.Tools.curTool = {
-    name: "text",
-    draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
-      textModule.draw(textState, data, isLocal),
-  };
+  const { textModule, textState } = await bootTextEditorHarness();
   const event = { preventDefault: () => {}, target: null };
   const originalSetTimeout = globalAny.setTimeout;
   const originalClearTimeout = globalAny.clearTimeout;

@@ -60,8 +60,12 @@ function normalizeCurrentTextPosition(state) {
     typeof state.Tools.toBoardCoordinate === "function"
       ? state.Tools.toBoardCoordinate(state.curText.x)
       : clampCoord(state.curText.x, maxBoardSize);
+  const normalizedY =
+    typeof state.Tools.toBoardCoordinate === "function"
+      ? state.Tools.toBoardCoordinate(state.curText.y)
+      : clampCoord(state.curText.y, maxBoardSize);
   state.curText.y = Math.min(
-    Math.max(state.curText.y, state.curText.size),
+    Math.max(normalizedY, state.curText.size),
     typeof maxBoardSize === "number" ? maxBoardSize : 655360,
   );
 }
