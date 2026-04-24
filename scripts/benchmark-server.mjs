@@ -9,9 +9,10 @@ process.env.WBO_HISTORY_DIR = historyDir;
 process.env.WBO_SILENT ||= "true";
 
 const { BoardData } = await import("../server/boardData.mjs");
-const { processBoardBroadcastMessage } = await import(
-  "../server/broadcast_processing.mjs"
+const { setLoadedBoard, deleteLoadedBoard } = await import(
+  "../server/board_registry.mjs"
 );
+const { __test: socketsTest } = await import("../server/sockets.mjs");
 const { MutationType } = await import("../client-data/js/mutation_type.js");
 const { Hand, Pencil, Rectangle, Text } = await import(
   "../client-data/tools/index.js"
@@ -68,6 +69,71 @@ function forceGc() {
   if (typeof global.gc !== "function") return;
   global.gc();
   global.gc();
+}
+/** @returns {{limit: number, periodMs: number, overrides: {}}} */
+function highRateLimit() {
+  return { limit: broadcastCount * 2, periodMs: 60_000, overrides: {} };
+}
+const broadcastBenchmarkConfig = {
+  ...config,
+  GENERAL_RATE_LIMITS: highRateLimit(),
+  CONSTRUCTIVE_ACTION_RATE_LIMITS: highRateLimit(),
+  DESTRUCTIVE_ACTION_RATE_LIMITS: highRateLimit(),
+  TEXT_CREATION_RATE_LIMITS: highRateLimit(),
+  TURNSTILE_SECRET_KEY: "",
+};
+/**
+ * @param {string} boardName
+ * @param {string} socketId
+ * @returns {{socket: any, handlers: {[event: string]: (...args: any[]) => any}, getRejected: () => {event: string, payload: any} | null, clearRejected: () => void}}
+ */
+function createBenchmarkSocket(boardName, socketId) {
+  /** @type {{[event: string]: (...args: any[]) => any}} */
+  const handlers = {};
+  /** @type {{event: string, payload: any} | null} */
+  let rejected = null;
+  const socket = /** @type {any} */ ({
+    id: socketId,
+    handshake: { query: { board: boardName } },
+    rooms: new Set(),
+    client: {
+      request: {
+        headers: { "user-agent": "benchmark" },
+        socket: { remoteAddress: "127.0.0.1" },
+      },
+    },
+    broadcast: {
+      to: () => ({
+        emit: () => true,
+      }),
+    },
+    on: (
+      /** @type {string} */ event,
+      /** @type {(...args: any[]) => any} */ handler,
+    ) => {
+      handlers[event] = handler;
+    },
+    join: function (/** @type {string} */ room) {
+      this.rooms.add(room);
+    },
+    emit: (/** @type {string} */ event, /** @type {any} */ payload) => {
+      if (event === "mutation_rejected" || event === "rate-limited") {
+        rejected = { event, payload };
+      }
+      return true;
+    },
+    disconnect: function () {
+      this.disconnected = true;
+    },
+  });
+  return {
+    socket,
+    handlers,
+    getRejected: () => rejected,
+    clearRejected: () => {
+      rejected = null;
+    },
+  };
 }
 /** @param {Session} session @param {string} method @param {object} [params] */
 function postSession(session, method, params = {}) {
@@ -446,33 +512,33 @@ try {
           const board = new BoardData(`bench-broadcast-${index}`, config);
           board.delaySave = () => {};
           board.board = buildBroadcastSeed();
+          socketsTest.resetRateLimitMaps();
+          setLoadedBoard(board.name, Promise.resolve(board));
+          const socketContext = createBenchmarkSocket(
+            board.name,
+            `bench-socket-${index}`,
+          );
+          await socketsTest.handleSocketConnection(
+            socketContext.socket,
+            broadcastBenchmarkConfig,
+          );
+          const broadcast = socketContext.handlers.broadcast;
+          if (typeof broadcast !== "function") {
+            throw new Error("broadcast benchmark socket handler missing");
+          }
           const startedAt = performance.now();
           for (const message of broadcastMessages) {
-            const result = processBoardBroadcastMessage(
-              config,
-              board.name,
-              board,
-              message,
-              /** @type {any} */ ({
-                id: "bench-socket",
-                handshake: { query: {} },
-                client: { request: { socket: { remoteAddress: "127.0.0.1" } } },
-                emit: () => true,
-                disconnect: () => true,
-                rooms: new Set(),
-                boardName: board.name,
-                turnstileValidatedUntil: Date.now() + 60_000,
-                user: undefined,
-              }),
-              { now: Date.now() },
-            );
-            if (!result.ok)
+            socketContext.clearRejected();
+            await broadcast(message);
+            const rejected = socketContext.getRejected();
+            if (rejected)
               throw new Error(
-                `broadcast benchmark rejected message: ${result.reason}`,
+                `broadcast benchmark rejected message ${JSON.stringify(message)}: ${JSON.stringify(rejected)}`,
               );
           }
           const timeMs = performance.now() - startedAt;
           clearPendingSave(board);
+          deleteLoadedBoard(board.name);
           return { timeMs, retain: board };
         },
       );
