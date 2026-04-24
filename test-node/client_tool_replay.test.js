@@ -1229,6 +1229,27 @@ test("Text create sends an integer baseline coordinate", async () => {
   assert.equal(createMessage.y, 313);
 });
 
+test("Text create clamps the derived font size before sending", async () => {
+  const harness = createHarness();
+  const { textModule, textState } = await bootTextEditorHarness();
+  globalAny.Tools.getSize = () => 310;
+
+  textModule.press(
+    textState,
+    100,
+    200,
+    { preventDefault: () => {}, target: null },
+    false,
+  );
+  textState.input.value = "hello";
+  harness.clock.now = 200;
+  textState.boundTextChangeHandler({});
+
+  const createMessage = globalAny.Tools.sentMessages[0].data;
+  assert.equal(createMessage.type, MutationType.CREATE);
+  assert.equal(createMessage.size, 500);
+});
+
 test("Text rejection clears the resend timer for the active editor", async () => {
   const harness = createHarness();
   const { textModule, textState } = await bootTextEditorHarness();

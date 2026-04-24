@@ -24,7 +24,11 @@
  * @licend
  */
 
-import { clampCoord, truncateText } from "../../js/message_common.js";
+import {
+  clampCoord,
+  clampSize,
+  truncateText,
+} from "../../js/message_common.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
 /** @import { BoardMessage, MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
@@ -404,7 +408,7 @@ export function press(state, x, y, evt, isTouchEvent) {
     return;
   }
   state.curText.rawSize = state.Tools.getSize();
-  state.curText.size = Math.round(state.curText.rawSize * 1.5 + 120);
+  state.curText.size = clampSize(Math.round(state.curText.rawSize * 1.5 + 120));
   state.curText.opacity = state.Tools.getOpacity();
   state.curText.color = state.Tools.getColor();
   state.curText.x = x;
