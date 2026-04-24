@@ -1,4 +1,5 @@
 import {
+  constrainEqualSpanToBoard,
   createShapeToolBoot,
   makeSeedShapeCreateMessage,
 } from "../shape_tool.js";
@@ -116,11 +117,9 @@ const config = {
     const start = state.currentShape;
     if (!start) return null;
     if (state.secondary?.active) {
-      const dx = x - start.x;
-      const dy = y - start.y;
-      const d = Math.max(Math.abs(dx), Math.abs(dy));
-      x = start.x + (dx > 0 ? d : -d);
-      y = start.y + (dy > 0 ? d : -d);
+      const constrained = constrainEqualSpanToBoard(state, start, x, y);
+      x = constrained.x;
+      y = constrained.y;
     }
     return {
       type: MutationType.UPDATE,

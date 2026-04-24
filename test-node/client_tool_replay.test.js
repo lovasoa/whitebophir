@@ -474,7 +474,7 @@ function createHarness() {
         mouseCursor: moduleNamespace.mouseCursor || stateMetadata.mouseCursor,
         helpText: moduleNamespace.helpText || stateMetadata.helpText,
         showMarker: moduleNamespace.showMarker ?? stateMetadata.showMarker,
-        secondary: moduleNamespace.secondary || stateMetadata.secondary || null,
+        secondary: stateMetadata.secondary || moduleNamespace.secondary || null,
         draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
           moduleNamespace.draw(toolState, data, isLocal),
         press:
@@ -1083,6 +1083,34 @@ test("Rectangle press draws the optimistic seed shape before recording the send"
     y: 20,
     x2: 80,
     y2: 20,
+  });
+});
+
+/** @type {[string, string][]} */
+const equalSpanToolCases = [
+  ["rectangle", "r-1"],
+  ["ellipse", "e-1"],
+];
+
+equalSpanToolCases.forEach(([toolName, id]) => {
+  test(`${toolName} equal-span mode keeps update endpoints on the board`, async () => {
+    const harness = createHarness();
+    const tool = await harness.loadTool(toolName);
+
+    tool.listeners.press(17136, 9240, { preventDefault: () => {} });
+    tool.secondary.active = true;
+    harness.clock.now = 100;
+    tool.listeners.move(5105, 0, { preventDefault: () => {} });
+
+    const updateMessage = globalAny.Tools.sentMessages[1].data;
+    assert.deepEqual(updateMessage, {
+      type: MutationType.UPDATE,
+      id,
+      x: 17136,
+      y: 9240,
+      x2: 7896,
+      y2: 0,
+    });
   });
 });
 

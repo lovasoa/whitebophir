@@ -1,4 +1,5 @@
 import {
+  constrainEqualSpanToBoard,
   createShapeToolBoot,
   makeSeedShapeCreateMessage,
   moveShapeTool,
@@ -119,11 +120,9 @@ const config = {
     }
     state.lastPos = { x, y };
     if (state.secondary?.active) {
-      const deltaX = x - start.x;
-      const deltaY = y - start.y;
-      const diameter = Math.max(Math.abs(deltaX), Math.abs(deltaY));
-      x = start.x + (deltaX > 0 ? diameter : -diameter);
-      y = start.y + (deltaY > 0 ? diameter : -diameter);
+      const constrained = constrainEqualSpanToBoard(state, start, x, y);
+      x = constrained.x;
+      y = constrained.y;
     }
     return {
       type: MutationType.UPDATE,

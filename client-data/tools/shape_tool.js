@@ -1,5 +1,6 @@
 import { MutationType } from "../js/mutation_type.js";
 import { logFrontendEvent } from "../js/frontend_logging.js";
+import { clampCoord, LIMITS } from "../js/message_common.js";
 
 /** @import { MountedAppToolsState, ToolBootContext } from "../../types/app-runtime" */
 
@@ -67,6 +68,38 @@ export function makeSeedShapeCreateMessage(state, id, x, y) {
     y,
     x2: x,
     y2: y,
+  };
+}
+
+/**
+ * @param {any} state
+ * @param {{x: number, y: number}} start
+ * @param {number} x
+ * @param {number} y
+ * @returns {{x: number, y: number}}
+ */
+export function constrainEqualSpanToBoard(state, start, x, y) {
+  const configuredMaxBoardSize = Number(
+    state.Tools.server_config?.MAX_BOARD_SIZE,
+  );
+  const maxBoardSize = Number.isFinite(configuredMaxBoardSize)
+    ? configuredMaxBoardSize
+    : LIMITS.DEFAULT_MAX_BOARD_SIZE;
+  const startX = clampCoord(start.x, maxBoardSize);
+  const startY = clampCoord(start.y, maxBoardSize);
+  const dx = x - startX;
+  const dy = y - startY;
+  const xDirection = dx > 0 ? 1 : -1;
+  const yDirection = dy > 0 ? 1 : -1;
+  const maxXSpan = xDirection > 0 ? maxBoardSize - startX : startX;
+  const maxYSpan = yDirection > 0 ? maxBoardSize - startY : startY;
+  const span = Math.max(
+    0,
+    Math.min(Math.max(Math.abs(dx), Math.abs(dy)), maxXSpan, maxYSpan),
+  );
+  return {
+    x: startX + xDirection * span,
+    y: startY + yDirection * span,
   };
 }
 
