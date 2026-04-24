@@ -10,20 +10,6 @@ declare global {
     a: [number, number];
     b: [number, number];
   };
-  var Minitpl: {
-    new (
-      elem: string | Element,
-    ): {
-      elem: Element;
-      parent: ParentNode;
-      add(
-        data:
-          | string
-          | ((element: Element) => void)
-          | { [selector: string]: string | ((element: Element) => void) },
-      ): Element;
-    };
-  };
   const wboPencilPoint: any;
   var pointInTransformedBBox: (
     point: [number, number],
@@ -49,10 +35,6 @@ declare global {
       | import("../types/app-runtime").TurnstileRenderOptions
       | null;
     turnstile?: import("../types/app-runtime").TurnstileGlobal;
-  }
-
-  interface Navigator {
-    msSaveBlob?: (blob: Blob, defaultName?: string) => boolean;
   }
 
   interface HTMLElement {

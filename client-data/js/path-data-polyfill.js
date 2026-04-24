@@ -618,8 +618,6 @@
       this._skipOptionalSpaces();
     };
 
-    const isIE = window.navigator.userAgent.indexOf("MSIE ") !== -1;
-
     Source.prototype = {
       parseSegment: function () {
         const char = this._string[this._currentIndex];
@@ -1057,12 +1055,7 @@
 
     SVGPathElement.prototype.setPathData = function (pathData) {
       if (pathData.length === 0) {
-        if (isIE) {
-          // @bugfix https://github.com/mbostock/d3/issues/1737
-          this.setAttribute("d", "");
-        } else {
-          this.removeAttribute("d");
-        }
+        this.removeAttribute("d");
       } else {
         let d = "";
 

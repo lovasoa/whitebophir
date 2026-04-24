@@ -498,7 +498,6 @@ export type AppToolsState = {
   showMarker: boolean;
   showOtherCursors: boolean;
   showMyCursor: boolean;
-  isIE: boolean;
   socket: AppSocket | null;
   hasConnectedOnce: boolean;
   useSeqSyncProtocol: boolean;

@@ -310,6 +310,8 @@ export const shortcut = "p";
 export const serverRenderedElementSelector = "path";
 const ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
 /** @typedef {{Tools: MountedAppToolsState, AUTO_FINGER_WHITEOUT: boolean, MAX_PENCIL_CHILDREN: number, minPencilIntervalMs: number, hasUsedStylus: boolean, curLineId: string, lastTime: number, hasSentPoint: boolean, currentLineChildCount: number, renderingLine: SVGPathElement | null, pathDataCache: {[lineId: string]: any[]}, drawingSize: number, whiteOutSize: number, secondary: {name: string, icon: string, active: boolean, switch?: () => void}, mouseCursor: string}} PencilState */
+/** @typedef {{lineId: string, createMessage: {type: MutationCode, id: string, color: string, size: number, opacity: number}}} PencilPressEffect */
+/** @typedef {{appendMessage: {type: MutationCode, parent: string, x: number, y: number} | null, stopBefore: boolean, stopAfter: boolean, nextLastTime: number, nextHasSentPoint: boolean, nextChildCount: number}} PencilMoveEffect */
 
 /**
  * @param {unknown} value
@@ -341,6 +343,69 @@ function computeMinPencilIntervalMs(Tools) {
  */
 function createPointMessage(state, x, y) {
   return { type: MutationType.APPEND, parent: state.curLineId, x, y };
+}
+
+/**
+ * @param {PencilState} state
+ * @returns {PencilPressEffect}
+ */
+export function createPencilPressEffect(state) {
+  const lineId = state.Tools.generateUID("l");
+  return {
+    lineId,
+    createMessage: {
+      type: MutationType.CREATE,
+      id: lineId,
+      color: state.secondary.active ? "#ffffff" : state.Tools.getColor(),
+      size: state.Tools.getSize(),
+      opacity: state.secondary.active ? 1 : state.Tools.getOpacity(),
+    },
+  };
+}
+
+/**
+ * @param {PencilState} state
+ * @param {number} x
+ * @param {number} y
+ * @param {number} now
+ * @returns {PencilMoveEffect}
+ */
+export function createPencilMoveEffect(state, x, y, now) {
+  if (
+    state.curLineId !== "" &&
+    state.currentLineChildCount >= state.MAX_PENCIL_CHILDREN
+  ) {
+    return {
+      appendMessage: null,
+      stopBefore: true,
+      stopAfter: false,
+      nextLastTime: state.lastTime,
+      nextHasSentPoint: state.hasSentPoint,
+      nextChildCount: state.currentLineChildCount,
+    };
+  }
+  if (
+    state.curLineId === "" ||
+    (state.hasSentPoint && now - state.lastTime <= state.minPencilIntervalMs)
+  ) {
+    return {
+      appendMessage: null,
+      stopBefore: false,
+      stopAfter: false,
+      nextLastTime: state.lastTime,
+      nextHasSentPoint: state.hasSentPoint,
+      nextChildCount: state.currentLineChildCount,
+    };
+  }
+  const nextChildCount = state.currentLineChildCount + 1;
+  return {
+    appendMessage: createPointMessage(state, x, y),
+    stopBefore: false,
+    stopAfter: nextChildCount >= state.MAX_PENCIL_CHILDREN,
+    nextLastTime: now,
+    nextHasSentPoint: true,
+    nextChildCount,
+  };
 }
 
 /**
@@ -629,19 +694,11 @@ export function press(state, x, y, evt) {
   ) {
     handleAutoWhiteOut(state, evt);
   }
-  state.curLineId = state.Tools.generateUID("l");
+  const effect = createPencilPressEffect(state);
+  state.curLineId = effect.lineId;
   state.hasSentPoint = false;
   state.currentLineChildCount = 0;
-  state.Tools.drawAndSend(
-    {
-      type: MutationType.CREATE,
-      id: state.curLineId,
-      color: state.secondary.active ? "#ffffff" : state.Tools.getColor(),
-      size: state.Tools.getSize(),
-      opacity: state.secondary.active ? 1 : state.Tools.getOpacity(),
-    },
-    toolId,
-  );
+  state.Tools.drawAndSend(effect.createMessage, toolId);
   move(state, x, y, evt);
 }
 
@@ -652,24 +709,16 @@ export function press(state, x, y, evt) {
  * @param {MouseEvent | TouchEvent | undefined} evt
  */
 export function move(state, x, y, evt) {
-  if (
-    state.curLineId !== "" &&
-    state.currentLineChildCount >= state.MAX_PENCIL_CHILDREN
-  ) {
+  const effect = createPencilMoveEffect(state, x, y, performance.now());
+  if (effect.stopBefore) {
     stopLine(state);
   }
-  if (
-    state.curLineId !== "" &&
-    (!state.hasSentPoint ||
-      performance.now() - state.lastTime > state.minPencilIntervalMs)
-  ) {
-    state.Tools.drawAndSend(createPointMessage(state, x, y), toolId);
-    state.currentLineChildCount += 1;
-    state.hasSentPoint = true;
-    state.lastTime = performance.now();
-    if (state.currentLineChildCount >= state.MAX_PENCIL_CHILDREN) {
-      stopLine(state);
-    }
+  if (effect.appendMessage) {
+    state.Tools.drawAndSend(effect.appendMessage, toolId);
+    state.currentLineChildCount = effect.nextChildCount;
+    state.hasSentPoint = effect.nextHasSentPoint;
+    state.lastTime = effect.nextLastTime;
+    if (effect.stopAfter) stopLine(state);
   }
   if (evt) evt.preventDefault();
 }
