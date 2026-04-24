@@ -53,7 +53,6 @@ import {
   MutationType,
 } from "./message_tool_metadata.js";
 import { hasMessageId, hasMessageNewId } from "./message_shape.js";
-import Minitpl from "./minitpl.js";
 import { createOptimisticJournal } from "./optimistic_journal.js";
 import {
   collectOptimisticAffectedIds,
@@ -2284,24 +2283,34 @@ function addToolStylesheet(href) {
   return link;
 }
 
-const colorPresetTemplate = new Minitpl("#colorPresetSel .colorPresetButton");
+const colorPresetContainer = getRequiredElement("colorPresetSel");
+const colorPresetTemplateElement =
+  colorPresetContainer.querySelector(".colorPresetButton");
+if (!(colorPresetTemplateElement instanceof HTMLElement)) {
+  throw new Error("Missing required color preset template");
+}
+const colorPresetTemplate = colorPresetTemplateElement;
+colorPresetTemplate.remove();
 
 /**
  * @param {ColorPreset} button
- * @returns {unknown}
+ * @returns {HTMLElement}
  */
 function addColorButton(button) {
   const setColor = Tools.setColor.bind(Tools, button.color);
   if (button.key) addToolShortcut(button.key, setColor);
-  return colorPresetTemplate.add((elem) => {
-    if (!(elem instanceof HTMLElement)) return;
-    elem.addEventListener("click", setColor);
-    elem.id = `color_${button.color.replace(/^#/, "")}`;
-    elem.style.backgroundColor = button.color;
-    if (button.key) {
-      elem.title = `${Tools.i18n.t("keyboard shortcut")}: ${button.key}`;
-    }
-  });
+  const elem = colorPresetTemplate.cloneNode(true);
+  if (!(elem instanceof HTMLElement)) {
+    throw new Error("Color preset template clone must be an element");
+  }
+  elem.addEventListener("click", setColor);
+  elem.id = `color_${button.color.replace(/^#/, "")}`;
+  elem.style.backgroundColor = button.color;
+  if (button.key) {
+    elem.title = `${Tools.i18n.t("keyboard shortcut")}: ${button.key}`;
+  }
+  colorPresetContainer.appendChild(elem);
+  return elem;
 }
 
 bindRenderedToolButtons();

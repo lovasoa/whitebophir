@@ -10,20 +10,6 @@ declare global {
     a: [number, number];
     b: [number, number];
   };
-  var Minitpl: {
-    new (
-      elem: string | Element,
-    ): {
-      elem: Element;
-      parent: ParentNode;
-      add(
-        data:
-          | string
-          | ((element: Element) => void)
-          | { [selector: string]: string | ((element: Element) => void) },
-      ): Element;
-    };
-  };
   const wboPencilPoint: any;
   var pointInTransformedBBox: (
     point: [number, number],
