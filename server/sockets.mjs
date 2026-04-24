@@ -47,6 +47,8 @@ const SERVER_RATE_LIMIT_CONFIG_FIELDS =
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
+/** @typedef {"replayed" | "empty" | "resync_required" | "future_baseline" | "error"} SyncRequestOutcome */
+
 /** @import { AppSocket, ConnectedUserPayload, MessageData, NormalizedMessageData, RateLimitState as BaseRateLimitState, ReportUserPayload, ServerConfig, SocketRequest, TurnstileAck, TurnstileAckCallback, TurnstileEventAck, TurnstileRejectedAck, TurnstileSiteverifyResult, ValidationStatus } from "../types/server-runtime.d.ts" */
 /** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
@@ -1524,6 +1526,30 @@ function normalizeSeq(value) {
 }
 
 /**
+ * @param {string} boardName
+ * @param {SyncRequestOutcome} outcome
+ * @param {number} baselineSeq
+ * @param {number | undefined} latestSeq
+ * @param {number | undefined} minReplayableSeq
+ * @returns {void}
+ */
+function recordSyncRequestMetric(
+  boardName,
+  outcome,
+  baselineSeq,
+  latestSeq,
+  minReplayableSeq,
+) {
+  metrics.recordSocketSyncRequest({
+    board: boardName,
+    outcome,
+    baselineSeq,
+    latestSeq,
+    minReplayableSeq,
+  });
+}
+
+/**
  * @param {BoardData} board
  * @param {AppSocket} sourceSocket
  * @param {ReturnType<BoardData["recordPersistentMutation"]>} envelope
@@ -2199,61 +2225,80 @@ async function bootstrapSocketBoard(socket, boardName, config) {
  * @returns {Promise<void>}
  */
 async function handleSyncRequestMessage(socket, boardName, request, config) {
-  ensureSocketJoinedBoard(socket, boardName);
-  const board = await getBoard(boardName, config);
   const baselineSeq = normalizeSeq(request?.baselineSeq);
-  const latestSeq = board.getSeq();
-  const minReplayableSeq = board.minReplayableSeq();
-  if (logger.isEnabled("debug")) {
-    logger.debug(
-      "socket.sync_request_received",
-      boardDebugFields(board, {
-        socket: socket.id,
-        "wbo.socket.baseline_seq": baselineSeq,
-        "wbo.socket.latest_seq": latestSeq,
-      }),
-    );
-  }
-  if (baselineSeq > latestSeq || baselineSeq < minReplayableSeq) {
-    logger.warn(
-      "socket.sync_request_resync_required",
-      boardDebugFields(board, {
-        socket: socket.id,
-        ...boardUserDebugFields(boardName, socket.id),
-        "wbo.socket.baseline_seq": baselineSeq,
-        "wbo.socket.latest_seq": latestSeq,
-      }),
-    );
-    socket.emit(SocketEvents.RESYNC_REQUIRED, {
-      latestSeq: latestSeq,
-      minReplayableSeq: minReplayableSeq,
+  /** @type {SyncRequestOutcome} */
+  let outcome = "error";
+  /** @type {number | undefined} */
+  let latestSeq;
+  /** @type {number | undefined} */
+  let minReplayableSeq;
+  try {
+    ensureSocketJoinedBoard(socket, boardName);
+    const board = await getBoard(boardName, config);
+    latestSeq = board.getSeq();
+    minReplayableSeq = board.minReplayableSeq();
+    if (logger.isEnabled("debug")) {
+      logger.debug(
+        "socket.sync_request_received",
+        boardDebugFields(board, {
+          socket: socket.id,
+          "wbo.socket.baseline_seq": baselineSeq,
+          "wbo.socket.latest_seq": latestSeq,
+        }),
+      );
+    }
+    if (baselineSeq > latestSeq || baselineSeq < minReplayableSeq) {
+      logger.warn(
+        "socket.sync_request_resync_required",
+        boardDebugFields(board, {
+          socket: socket.id,
+          ...boardUserDebugFields(boardName, socket.id),
+          "wbo.socket.baseline_seq": baselineSeq,
+          "wbo.socket.latest_seq": latestSeq,
+        }),
+      );
+      socket.emit(SocketEvents.RESYNC_REQUIRED, {
+        latestSeq: latestSeq,
+        minReplayableSeq: minReplayableSeq,
+      });
+      outcome = baselineSeq > latestSeq ? "future_baseline" : "resync_required";
+      return;
+    }
+    socket.emit(SocketEvents.SYNC_REPLAY_START, {
+      fromExclusiveSeq: baselineSeq,
+      toInclusiveSeq: latestSeq,
     });
-    return;
-  }
-  socket.emit(SocketEvents.SYNC_REPLAY_START, {
-    fromExclusiveSeq: baselineSeq,
-    toInclusiveSeq: latestSeq,
-  });
-  for (const envelope of board.readMutationRange(baselineSeq, latestSeq)) {
-    socket.emit(
-      SocketEvents.BROADCAST,
-      withPersistentEnvelopeSocketId(envelope, envelope.socketId),
+    const replayEntries = board.readMutationRange(baselineSeq, latestSeq);
+    for (const envelope of replayEntries) {
+      socket.emit(
+        SocketEvents.BROADCAST,
+        withPersistentEnvelopeSocketId(envelope, envelope.socketId),
+      );
+    }
+    syncedPersistentSockets.add(socket.id);
+    if (logger.isEnabled("debug")) {
+      logger.debug(
+        "socket.sync_request_completed",
+        boardDebugFields(board, {
+          socket: socket.id,
+          "wbo.socket.baseline_seq": baselineSeq,
+          "wbo.socket.latest_seq": latestSeq,
+        }),
+      );
+    }
+    socket.emit(SocketEvents.SYNC_REPLAY_END, {
+      toInclusiveSeq: latestSeq,
+    });
+    outcome = replayEntries.length > 0 ? "replayed" : "empty";
+  } finally {
+    recordSyncRequestMetric(
+      boardName,
+      outcome,
+      baselineSeq,
+      latestSeq,
+      minReplayableSeq,
     );
   }
-  syncedPersistentSockets.add(socket.id);
-  if (logger.isEnabled("debug")) {
-    logger.debug(
-      "socket.sync_request_completed",
-      boardDebugFields(board, {
-        socket: socket.id,
-        "wbo.socket.baseline_seq": baselineSeq,
-        "wbo.socket.latest_seq": latestSeq,
-      }),
-    );
-  }
-  socket.emit(SocketEvents.SYNC_REPLAY_END, {
-    toInclusiveSeq: latestSeq,
-  });
 }
 
 /**

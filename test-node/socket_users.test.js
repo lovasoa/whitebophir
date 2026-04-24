@@ -360,6 +360,173 @@ test("seq-sync clients bootstrap without a snapshot and receive an explicit empt
   );
 });
 
+test("seq-sync requests record outcome metrics with seq gap inputs", async () => {
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-seq-sync-metrics-" },
+    async ({ connect, getLoadedBoard, invoke }) => {
+      const observability = await import("../server/observability.mjs");
+      const originalRecordSocketSyncRequest =
+        observability.metrics.recordSocketSyncRequest;
+      /** @type {any[]} */
+      const recorded = [];
+      observability.metrics.recordSocketSyncRequest = (sample) => {
+        recorded.push(sample);
+      };
+
+      try {
+        const writer = await connect({
+          id: "socket-seq-sync-metrics-writer",
+          remoteAddress: "203.0.113.92",
+          headers: withUserSecretCookie("99999999999999999999999999999989"),
+          query: {
+            board: "board-seq-sync-metrics",
+            sync: "seq",
+            tool: "rectangle",
+            color: "#666666",
+            size: "4",
+          },
+        });
+        await invoke(writer, "sync_request", {
+          baselineSeq: 0,
+        });
+        await invoke(
+          writer,
+          "broadcast",
+          rectangleCreate({
+            id: "rect-sync-metrics-1",
+            x: 0,
+            y: 0,
+            x2: 10,
+            y2: 10,
+            color: "#666666",
+            size: 4,
+          }),
+        );
+
+        const replay = await connect({
+          id: "socket-seq-sync-metrics-replay",
+          remoteAddress: "203.0.113.93",
+          headers: withUserSecretCookie("99999999999999999999999999999988"),
+          query: {
+            board: "board-seq-sync-metrics",
+            sync: "seq",
+            tool: "hand",
+            color: "#777777",
+            size: "4",
+          },
+        });
+        await invoke(replay, "sync_request", {
+          baselineSeq: 0,
+        });
+
+        const loadedBoard = await getLoadedBoard("board-seq-sync-metrics");
+        loadedBoard.trimMutationLogBefore(2);
+
+        const stale = await connect({
+          id: "socket-seq-sync-metrics-stale",
+          remoteAddress: "203.0.113.94",
+          headers: withUserSecretCookie("99999999999999999999999999999987"),
+          query: {
+            board: "board-seq-sync-metrics",
+            sync: "seq",
+            tool: "hand",
+            color: "#777777",
+            size: "4",
+          },
+        });
+        await invoke(stale, "sync_request", {
+          baselineSeq: 0,
+        });
+
+        const future = await connect({
+          id: "socket-seq-sync-metrics-future",
+          remoteAddress: "203.0.113.95",
+          headers: withUserSecretCookie("99999999999999999999999999999986"),
+          query: {
+            board: "board-seq-sync-metrics",
+            sync: "seq",
+            tool: "hand",
+            color: "#777777",
+            size: "4",
+          },
+        });
+        await invoke(future, "sync_request", {
+          baselineSeq: 9,
+        });
+
+        loadedBoard.readMutationRange = () => {
+          throw new Error("forced sync replay failure");
+        };
+        const failing = await connect({
+          id: "socket-seq-sync-metrics-error",
+          remoteAddress: "203.0.113.96",
+          headers: withUserSecretCookie("99999999999999999999999999999985"),
+          query: {
+            board: "board-seq-sync-metrics",
+            sync: "seq",
+            tool: "hand",
+            color: "#777777",
+            size: "4",
+          },
+        });
+        await invoke(failing, "sync_request", {
+          baselineSeq: 1,
+        });
+
+        assert.deepEqual(
+          recorded.map((sample) => sample.outcome),
+          ["empty", "replayed", "resync_required", "future_baseline", "error"],
+        );
+        assert.deepEqual(
+          recorded.map(
+            ({ baselineSeq, latestSeq, minReplayableSeq, outcome }) => ({
+              baselineSeq,
+              latestSeq,
+              minReplayableSeq,
+              outcome,
+            }),
+          ),
+          [
+            {
+              baselineSeq: 0,
+              latestSeq: 0,
+              minReplayableSeq: 0,
+              outcome: "empty",
+            },
+            {
+              baselineSeq: 0,
+              latestSeq: 1,
+              minReplayableSeq: 0,
+              outcome: "replayed",
+            },
+            {
+              baselineSeq: 0,
+              latestSeq: 1,
+              minReplayableSeq: 1,
+              outcome: "resync_required",
+            },
+            {
+              baselineSeq: 9,
+              latestSeq: 1,
+              minReplayableSeq: 1,
+              outcome: "future_baseline",
+            },
+            {
+              baselineSeq: 1,
+              latestSeq: 1,
+              minReplayableSeq: 1,
+              outcome: "error",
+            },
+          ],
+        );
+      } finally {
+        observability.metrics.recordSocketSyncRequest =
+          originalRecordSocketSyncRequest;
+      }
+    },
+  );
+});
+
 test("board sockets use seq replay and seq envelopes even without a legacy sync flag", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-default-" },

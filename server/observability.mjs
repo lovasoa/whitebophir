@@ -289,6 +289,35 @@ const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
     "Elapsed time, in seconds, spent handling each top-level Socket.IO event callback; histogram count is the number of handled events.",
   unit: "s",
 });
+const socketSyncRequests = meter.createCounter("wbo.socket.sync.request", {
+  description:
+    "Count of seq sync_request outcomes observed by the server; wbo.socket.sync.outcome distinguishes replayed, empty, resync_required, future_baseline, and error.",
+  unit: "{request}",
+});
+const socketSyncRequestedGap = meter.createHistogram(
+  "wbo.socket.sync.requested_gap",
+  {
+    description:
+      "Requested seq replay gap, recorded as max(0, latest_seq - baseline_seq), for each sync_request with known board seq state.",
+    unit: "{mutation}",
+  },
+);
+const socketSyncUnreplayableGap = meter.createHistogram(
+  "wbo.socket.sync.unreplayable_gap",
+  {
+    description:
+      "Unreplayable seq gap, recorded as max(0, min_replayable_seq - baseline_seq), for each sync_request with known board seq state.",
+    unit: "{mutation}",
+  },
+);
+const socketSyncFutureGap = meter.createHistogram(
+  "wbo.socket.sync.future_gap",
+  {
+    description:
+      "Future baseline seq gap, recorded as max(0, baseline_seq - latest_seq), for each sync_request with known board seq state.",
+    unit: "{mutation}",
+  },
+);
 const boardMessages = meter.createCounter("wbo.board.message", {
   description:
     "Count of board write-path messages processed by the server after validation and authorization; error.type is set for rejected or failed messages.",
@@ -973,6 +1002,15 @@ function metricBoardAnonymous(boardName) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {number | undefined}
+ */
+function normalizeMetricSeq(value) {
+  const seq = Number(value);
+  return Number.isSafeInteger(seq) && seq >= 0 ? seq : undefined;
+}
+
+/**
  * @param {number} limit
  * @param {number} periodMs
  * @returns {string}
@@ -1003,6 +1041,49 @@ function recordSocketConnection(event) {
   socketConnections.add(1, {
     "wbo.socket.connection.event": event,
   });
+}
+
+/**
+ * @param {{
+ *   board?: string,
+ *   outcome: "replayed" | "empty" | "resync_required" | "future_baseline" | "error",
+ *   baselineSeq?: number,
+ *   latestSeq?: number,
+ *   minReplayableSeq?: number,
+ * }} request
+ * @returns {void}
+ */
+function recordSocketSyncRequest(request) {
+  /** @type {{[key: string]: string | boolean}} */
+  const attributes = {
+    "wbo.socket.sync.outcome": request.outcome,
+  };
+  const boardAnonymous = metricBoardAnonymous(request.board);
+  if (boardAnonymous !== undefined) {
+    attributes["wbo.board.anonymous"] = boardAnonymous;
+  }
+  socketSyncRequests.add(1, attributes);
+
+  const baselineSeq = normalizeMetricSeq(request.baselineSeq);
+  const latestSeq = normalizeMetricSeq(request.latestSeq);
+  const minReplayableSeq = normalizeMetricSeq(request.minReplayableSeq);
+  if (
+    baselineSeq === undefined ||
+    latestSeq === undefined ||
+    minReplayableSeq === undefined
+  ) {
+    return;
+  }
+
+  socketSyncRequestedGap.record(
+    Math.max(0, latestSeq - baselineSeq),
+    attributes,
+  );
+  socketSyncUnreplayableGap.record(
+    Math.max(0, minReplayableSeq - baselineSeq),
+    attributes,
+  );
+  socketSyncFutureGap.record(Math.max(0, baselineSeq - latestSeq), attributes);
 }
 
 /**
@@ -1179,6 +1260,7 @@ const observabilityMetrics = {
   recordRateLimitWindowUtilization,
   recordSocketConnection,
   recordSocketEvent,
+  recordSocketSyncRequest,
   recordTurnstileVerification,
   setActiveSocketConnections,
   setConnectedUsers,
