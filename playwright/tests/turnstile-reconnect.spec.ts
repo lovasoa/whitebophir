@@ -168,6 +168,7 @@ test("turnstile widget errors preserve queued writes until a later success", asy
       pendingWrites: 1,
       validated: false,
     });
+    await expect(boardPage.statusIndicator).toBeHidden();
 
     await expect(
       await boardPage.failTurnstileChallenge("mock-widget-error"),
@@ -176,7 +177,12 @@ test("turnstile widget errors preserve queued writes until a later success", asy
       pendingWrites: 1,
       validated: false,
     });
-    await expect(boardPage.statusNotice).toContainText("pending write");
+    await expect(boardPage.statusIndicator).toBeVisible();
+    await expect(boardPage.statusTitle).toContainText("pending write");
+    await expect(boardPage.statusTitle).not.toContainText(
+      "Security check required",
+    );
+    await expect(boardPage.statusNotice).toBeHidden();
 
     await expect(
       await boardPage.completeTurnstileChallenge("turnstile-recovery-token"),

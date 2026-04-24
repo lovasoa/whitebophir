@@ -8,7 +8,6 @@ const TURNSTILE_SCRIPT_SRC =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const TURNSTILE_ACK_TIMEOUT_MS = 10_000;
 const TURNSTILE_RETRY_DELAY_MS = 1_500;
-const TURNSTILE_STATUS_TITLE = "Security check required";
 
 /** @type {Promise<unknown> | null} */
 let turnstileScriptPromise = null;
@@ -238,15 +237,15 @@ export function installTurnstile(Tools, { logBoardEvent }) {
     }
   };
 
-  /** @param {string} detail */
-  Tools.showTurnstileStatus = function showTurnstileStatus(detail) {
+  /** @param {string} message */
+  function showTurnstileFailureStatus(message) {
     Tools.showBoardStatus({
       hidden: false,
       state: "paused",
-      title: TURNSTILE_STATUS_TITLE,
-      detail,
+      title: message,
+      detail: "",
     });
-  };
+  }
 
   /**
    * @param {string} reason
@@ -278,7 +277,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
     logBoardEvent("error", "turnstile.error", {
       errorCode,
     });
-    Tools.showTurnstileStatus(
+    showTurnstileFailureStatus(
       `${detailPrefix} Your pending write is preserved while the client retries.`,
     );
     Tools.scheduleTurnstileRetry("widget_error");
@@ -342,7 +341,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
       logBoardEvent("error", "turnstile.submit_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      Tools.showTurnstileStatus(
+      showTurnstileFailureStatus(
         "Security check could not be verified. Your pending write is preserved while the client retries.",
       );
       Tools.scheduleTurnstileRetry("submit_failed");
@@ -350,7 +349,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
     }
 
     Tools.setTurnstileValidation(null);
-    Tools.showTurnstileStatus(
+    showTurnstileFailureStatus(
       "Security check was not accepted. Your pending write is preserved while the client retries.",
     );
     Tools.scheduleTurnstileRetry("submit_rejected");
@@ -396,7 +395,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
           Tools.turnstilePending = false;
           Tools.setTurnstileValidation(null);
           logBoardEvent("warn", "turnstile.widget_timeout");
-          Tools.showTurnstileStatus(
+          showTurnstileFailureStatus(
             "Security check timed out. Your pending write is preserved while the client retries.",
           );
           Tools.scheduleTurnstileRetry("widget_timeout");
@@ -414,7 +413,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
       logBoardEvent("error", "turnstile.render_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      Tools.showTurnstileStatus(
+      showTurnstileFailureStatus(
         "Security check could not start. Your pending write is preserved while the client retries.",
       );
       Tools.scheduleTurnstileRetry("render_failed");
@@ -434,7 +433,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
       logBoardEvent("error", "turnstile.reset_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      Tools.showTurnstileStatus(
+      showTurnstileFailureStatus(
         "Security check could not reset. Your pending write is preserved while the client retries.",
       );
       Tools.scheduleTurnstileRetry("reset_failed");
@@ -456,9 +455,6 @@ export function installTurnstile(Tools, { logBoardEvent }) {
     if (turnstileScriptPromise) return;
 
     logBoardEvent("warn", "turnstile.script_unavailable");
-    Tools.showTurnstileStatus(
-      "Loading security check. Your pending write is preserved while the client retries.",
-    );
     void loadTurnstileScript(logBoardEvent)
       .then((loadedApi) => {
         if (Tools.turnstilePendingWrites.length === 0) return;
@@ -472,7 +468,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
         logBoardEvent("error", "turnstile.script_load_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        Tools.showTurnstileStatus(
+        showTurnstileFailureStatus(
           "Security check could not load. Your pending write is preserved while the client retries.",
         );
         Tools.scheduleTurnstileRetry("script_load_failed");

@@ -1119,9 +1119,6 @@ Tools.queueProtectedWrite = function queueProtectedWrite(data, tool) {
     clientMutationId:
       typeof data.clientMutationId === "string" ? data.clientMutationId : null,
   });
-  Tools.showTurnstileStatus(
-    "Complete the security check to send your pending write.",
-  );
   Tools.showTurnstileWidget();
 };
 

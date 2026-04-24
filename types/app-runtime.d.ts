@@ -634,7 +634,6 @@ export type AppToolsState = {
   ensureTurnstileElements: () => { overlay: HTMLElement };
   showTurnstileOverlay: (delay: number) => void;
   hideTurnstileOverlay: () => void;
-  showTurnstileStatus: (detail: string) => void;
   refreshTurnstile: () => void;
   showTurnstileWidget: () => void;
   showUnknownMutationError: (reason?: string) => void;

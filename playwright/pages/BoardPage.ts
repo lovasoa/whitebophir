@@ -129,6 +129,10 @@ export class BoardPage {
     return this.page.locator("#boardStatusIndicator");
   }
 
+  get statusTitle() {
+    return this.page.locator("#boardStatusTitle");
+  }
+
   get statusNotice() {
     return this.page.locator("#boardStatusNotice");
   }
