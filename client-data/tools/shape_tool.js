@@ -14,6 +14,8 @@ import { logFrontendEvent } from "../js/frontend_logging.js";
  *   makeFallbackShape: (update: any) => any,
  *   applyShapeGeometry: (shape: SVGElement, data: any) => void,
  * }} ShapeToolConfig
+ * @typedef {{currentShape: any, message: any}} ShapePressEffect
+ * @typedef {{update: any | null, shouldSend: boolean, nextLastTime: number, preventDefault: boolean}} ShapeMoveEffect
  */
 
 /**
@@ -129,13 +131,61 @@ export function drawShapeTool(state, data) {
  * @param {any} state
  * @param {number} x
  * @param {number} y
+ * @returns {ShapePressEffect}
+ */
+export function createShapePressEffect(state, x, y) {
+  const id = state.Tools.generateUID(state.config.uidPrefix);
+  const currentShape = state.config.makeCreateMessage(state, id, x, y);
+  return { currentShape, message: currentShape };
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
  * @param {MouseEvent | TouchEvent} evt
  */
 export function pressShapeTool(state, x, y, evt) {
   evt.preventDefault();
-  const id = state.Tools.generateUID(state.config.uidPrefix);
-  state.currentShape = state.config.makeCreateMessage(state, id, x, y);
-  state.Tools.drawAndSend(state.currentShape, state.config.contract.toolId);
+  const effect = createShapePressEffect(state, x, y);
+  state.currentShape = effect.currentShape;
+  state.Tools.drawAndSend(effect.message, state.config.contract.toolId);
+}
+
+/**
+ * @param {any} state
+ * @param {number} x
+ * @param {number} y
+ * @param {MouseEvent | TouchEvent | undefined} evt
+ * @param {boolean} force
+ * @param {number} now
+ * @returns {ShapeMoveEffect}
+ */
+export function createShapeMoveEffect(state, x, y, evt, force, now) {
+  if (!state.currentShape) {
+    return {
+      update: null,
+      shouldSend: false,
+      nextLastTime: state.lastTime,
+      preventDefault: true,
+    };
+  }
+  const update = state.config.makeUpdateMessage(state, x, y, evt);
+  if (!update) {
+    return {
+      update: null,
+      shouldSend: false,
+      nextLastTime: state.lastTime,
+      preventDefault: false,
+    };
+  }
+  const shouldSend = now - state.lastTime > 70 || force;
+  return {
+    update,
+    shouldSend,
+    nextLastTime: shouldSend ? now : state.lastTime,
+    preventDefault: true,
+  };
 }
 
 /**
@@ -146,19 +196,26 @@ export function pressShapeTool(state, x, y, evt) {
  * @param {boolean} [force]
  */
 export function moveShapeTool(state, x, y, evt, force = false) {
-  if (!state.currentShape) {
-    if (evt) evt.preventDefault();
+  const effect = createShapeMoveEffect(
+    state,
+    x,
+    y,
+    evt,
+    force,
+    performance.now(),
+  );
+  if (!effect.update) {
+    if (evt && effect.preventDefault) evt.preventDefault();
     return;
   }
-  const update = state.config.makeUpdateMessage(state, x, y, evt);
-  if (!update) return;
-  if (performance.now() - state.lastTime > 70 || force) {
+  const update = effect.update;
+  if (effect.shouldSend) {
     state.Tools.drawAndSend(update, state.config.contract.toolId);
-    state.lastTime = performance.now();
+    state.lastTime = effect.nextLastTime;
   } else {
     drawShapeTool(state, update);
   }
-  if (evt) evt.preventDefault();
+  if (evt && effect.preventDefault) evt.preventDefault();
 }
 
 /**

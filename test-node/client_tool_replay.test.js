@@ -7,6 +7,9 @@ const {
   getToolModuleImportPath,
   getToolRuntimeAssetPath,
 } = require("../client-data/tools/tool-defaults.js");
+const PencilTool = require("../client-data/tools/pencil/index.js");
+const RectangleTool = require("../client-data/tools/rectangle/index.js");
+const ShapeTool = require("../client-data/tools/shape_tool.js");
 installTestConsole();
 const { MutationType } = MessageToolMetadata;
 
@@ -542,6 +545,43 @@ function createHarness() {
   };
 }
 
+/**
+ * @param {Partial<any>} [overrides]
+ * @returns {any}
+ */
+function createInputTools(overrides = {}) {
+  return {
+    sentMessages: [],
+    server_config: {
+      RATE_LIMITS: {
+        general: {
+          limit: 10,
+          periodMs: 1000,
+        },
+      },
+      AUTO_FINGER_WHITEOUT: false,
+    },
+    getColor: () => "#123456",
+    getSize: () => 4,
+    setSize: () => {},
+    getOpacity: () => 1,
+    generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
+    toBoardCoordinate: (/** @type {number} */ value) => Math.round(value),
+    change: () => true,
+    drawAndSend: function (
+      /** @type {any} */ data,
+      /** @type {string} */ toolName,
+    ) {
+      this.sentMessages.push({
+        toolName,
+        data: JSON.parse(JSON.stringify(data)),
+      });
+      return true;
+    },
+    ...overrides,
+  };
+}
+
 function expectedTwoPointStroke() {
   return [
     { type: "M", values: [100, 200] },
@@ -669,31 +709,68 @@ test("Pencil replay updates stroke styling on the reused DOM node", async () => 
   assert.deepEqual(line.pathData, []);
 });
 
-test("Pencil input sends an initial child point without waiting for throttle", async () => {
-  const harness = createHarness();
-  const pencilTool = await harness.loadTool("pencil");
-  const event = { preventDefault: () => {} };
+test("Pencil input sends an initial child point without DOM setup", () => {
+  const tools = createInputTools();
+  const state = PencilTool.boot({
+    Tools: tools,
+    assetUrl: (/** @type {string} */ assetFile) => assetFile,
+  });
+  state.lastTime = 0;
+  state.minPencilIntervalMs = 70;
+  let preventDefaultCount = 0;
+  const event = /** @type {any} */ ({
+    preventDefault: () => {
+      preventDefaultCount += 1;
+    },
+  });
 
-  globalAny.Tools.curTool = pencilTool;
-  harness.clock.now = 0;
+  PencilTool.press(state, 100, 100, event);
+  PencilTool.release(state, 200, 200);
 
-  pencilTool.listeners.press(100, 100, event);
-  harness.clock.now = 1;
-  pencilTool.listeners.move(200, 200, event);
-  harness.clock.now = 2;
-  pencilTool.listeners.release(200, 200, event);
-
+  assert.equal(preventDefaultCount, 2);
   assert.deepEqual(
-    globalAny.Tools.sentMessages.map(
-      (/** @type {any} */ message) => message.data.type,
-    ),
+    tools.sentMessages.map((/** @type {any} */ message) => message.data.type),
     [MutationType.CREATE, MutationType.APPEND],
   );
-  assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
+  assert.deepEqual(tools.sentMessages[1].data, {
     type: MutationType.APPEND,
     parent: "l-1",
     x: 100,
     y: 100,
+  });
+});
+
+test("Pencil move logic sends the first point and throttles follow-ups", () => {
+  const tools = createInputTools();
+  const state = PencilTool.boot({
+    Tools: tools,
+    assetUrl: (/** @type {string} */ assetFile) => assetFile,
+  });
+  state.curLineId = "l-1";
+  state.hasSentPoint = false;
+  state.currentLineChildCount = 0;
+  state.minPencilIntervalMs = 70;
+  state.lastTime = 0;
+
+  const first = PencilTool.createPencilMoveEffect(state, 100, 100, 0);
+  state.currentLineChildCount = first.nextChildCount;
+  state.hasSentPoint = first.nextHasSentPoint;
+  state.lastTime = first.nextLastTime;
+  const throttled = PencilTool.createPencilMoveEffect(state, 200, 200, 10);
+  const ready = PencilTool.createPencilMoveEffect(state, 300, 300, 71);
+
+  assert.deepEqual(first.appendMessage, {
+    type: MutationType.APPEND,
+    parent: "l-1",
+    x: 100,
+    y: 100,
+  });
+  assert.equal(throttled.appendMessage, null);
+  assert.deepEqual(ready.appendMessage, {
+    type: MutationType.APPEND,
+    parent: "l-1",
+    x: 300,
+    y: 300,
   });
 });
 
@@ -715,50 +792,36 @@ test("Pencil marks only the active local line as non-interactive while drawing",
   assert.equal(activeLine.getAttribute("class"), "");
 });
 
-test("Pencil input stops sending points after MAX_CHILDREN", async () => {
-  const harness = createHarness();
-  globalAny.Tools.server_config.MAX_CHILDREN = 2;
-  const pencilTool = await harness.loadTool("pencil");
-  const event = { preventDefault: () => {} };
+test("Pencil input logic stops at the configured child limit", () => {
+  const tools = createInputTools();
+  const state = PencilTool.boot({
+    Tools: tools,
+    assetUrl: (/** @type {string} */ assetFile) => assetFile,
+  });
+  state.curLineId = "l-1";
+  state.hasSentPoint = true;
+  state.currentLineChildCount = 1;
+  state.MAX_PENCIL_CHILDREN = 2;
+  state.minPencilIntervalMs = 70;
+  state.lastTime = 0;
 
-  globalAny.Tools.curTool = pencilTool;
-  harness.clock.now = 0;
-  pencilTool.listeners.press(100, 100, event);
-  harness.clock.now = 101;
-  pencilTool.listeners.move(200, 200, event);
-  harness.clock.now = 202;
-  pencilTool.listeners.move(300, 300, event);
-  harness.clock.now = 303;
-  pencilTool.listeners.move(400, 400, event);
-  harness.clock.now = 404;
-  pencilTool.listeners.release(500, 500, event);
+  const finalAppend = PencilTool.createPencilMoveEffect(state, 200, 200, 101);
 
-  assert.deepEqual(
-    globalAny.Tools.sentMessages.map(
-      (/** @type {any} */ message) => message.data,
-    ),
-    [
-      {
-        type: MutationType.CREATE,
-        id: "l-1",
-        color: "#123456",
-        size: 4,
-        opacity: 1,
-      },
-      {
-        type: MutationType.APPEND,
-        parent: "l-1",
-        x: 100,
-        y: 100,
-      },
-      {
-        type: MutationType.APPEND,
-        parent: "l-1",
-        x: 200,
-        y: 200,
-      },
-    ],
-  );
+  assert.deepEqual(finalAppend.appendMessage, {
+    type: MutationType.APPEND,
+    parent: "l-1",
+    x: 200,
+    y: 200,
+  });
+  assert.equal(finalAppend.stopAfter, true);
+  state.currentLineChildCount = finalAppend.nextChildCount;
+  state.hasSentPoint = finalAppend.nextHasSentPoint;
+  state.lastTime = finalAppend.nextLastTime;
+
+  const overflow = PencilTool.createPencilMoveEffect(state, 300, 300, 202);
+
+  assert.equal(overflow.appendMessage, null);
+  assert.equal(overflow.stopBefore, true);
 });
 
 test("Pencil disconnect aborts the active stroke and removes the local line", async () => {
@@ -1041,39 +1104,23 @@ test("Rectangle replay normalizes reverse-drag bounds on a reused node", async (
   assert.equal(rect.height.baseVal.value, 130);
 });
 
-test("Rectangle press draws the optimistic seed shape before recording the send", async () => {
-  const harness = createHarness();
-  const rectangleTool = await harness.loadTool("rectangle");
-  /** @type {boolean[]} */
-  const localShapeVisibleAtSend = [];
-  globalAny.Tools.curTool = rectangleTool;
-  globalAny.Tools.drawAndSend = function (
-    /** @type {any} */ data,
-    /** @type {any} */ tool,
-  ) {
-    if (tool == null) tool = this.curTool;
-    if (!tool) throw new Error("No active tool available");
-    const mountedTool =
-      typeof tool === "string"
-        ? this.curTool && this.curTool.name === tool
-          ? this.curTool
-          : undefined
-        : tool;
-    if (!mountedTool) throw new Error(`Missing mounted tool '${tool}'.`);
-    mountedTool.draw(data, true);
-    localShapeVisibleAtSend.push(Boolean(this.svg.getElementById(data.id)));
-    this.sentMessages.push({
-      toolName: typeof tool === "string" ? tool : tool.name,
-      data: JSON.parse(JSON.stringify(data)),
-    });
-    return true;
-  };
+test("Rectangle press creates the seed message without DOM setup", () => {
+  const tools = createInputTools();
+  const state = RectangleTool.boot({
+    Tools: tools,
+    assetUrl: (/** @type {string} */ assetFile) => assetFile,
+  });
+  let prevented = false;
 
-  rectangleTool.listeners.press(80, 20, { preventDefault: () => {} });
+  const event = /** @type {any} */ ({
+    preventDefault: () => {
+      prevented = true;
+    },
+  });
+  RectangleTool.press(state, 80, 20, event);
 
-  assert.deepEqual(localShapeVisibleAtSend, [true]);
-  assert.equal(harness.elementsById.has("r-1"), true);
-  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
+  assert.equal(prevented, true);
+  assert.deepEqual(tools.sentMessages[0].data, {
     type: MutationType.CREATE,
     id: "r-1",
     color: "#123456",
@@ -1084,6 +1131,45 @@ test("Rectangle press draws the optimistic seed shape before recording the send"
     x2: 80,
     y2: 20,
   });
+});
+
+test("Rectangle move logic separates throttled local draw from forced send", () => {
+  const tools = createInputTools();
+  const state = RectangleTool.boot({
+    Tools: tools,
+    assetUrl: (/** @type {string} */ assetFile) => assetFile,
+  });
+  state.lastTime = 0;
+  state.currentShape = ShapeTool.createShapePressEffect(state, 80, 20).message;
+
+  const throttled = ShapeTool.createShapeMoveEffect(
+    state,
+    120,
+    90,
+    undefined,
+    false,
+    10,
+  );
+  const forced = ShapeTool.createShapeMoveEffect(
+    state,
+    120,
+    90,
+    undefined,
+    true,
+    10,
+  );
+
+  assert.equal(throttled.shouldSend, false);
+  assert.deepEqual(throttled.update, {
+    type: MutationType.UPDATE,
+    id: "r-1",
+    x: 80,
+    y: 20,
+    x2: 120,
+    y2: 90,
+  });
+  assert.equal(forced.shouldSend, true);
+  assert.equal(forced.nextLastTime, 10);
 });
 
 test("Rectangle update recreates a missing shape before applying bounds", async () => {
