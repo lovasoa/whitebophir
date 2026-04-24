@@ -1479,7 +1479,7 @@ class BoardData {
               boardLogFields(this, {
                 duration_ms: durationMs,
                 ...(savedFile ? { "file.size": savedFile.size } : {}),
-                items: authoritativeItemCount,
+                "wbo.board.saved_items": authoritativeItemCount,
                 "wbo.board.persisted_items": persistedIds.size,
               }),
             );
