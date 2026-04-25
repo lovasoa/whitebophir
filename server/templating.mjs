@@ -7,6 +7,7 @@ import { TOOL_BY_ID, TOOLBAR_TOOLS } from "../client-data/tools/index.js";
 import { createClientConfiguration } from "./client_configuration.mjs";
 import { startCompressedResponse } from "./http_compression.mjs";
 import { parseRequestUrl } from "./request_url.mjs";
+import { CONTENT_SECURITY_POLICY } from "./security_headers.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
@@ -189,6 +190,7 @@ const startHtmlResponse =
         ? {}
         : { "Content-Length": contentLength }),
       "Content-Type": "text/html",
+      "Content-Security-Policy": CONTENT_SECURITY_POLICY,
       "Cache-Control": cacheControlValue,
       ...(typeof parameters.etag === "string" ? { ETag: parameters.etag } : {}),
       ...(!parsedUrl.searchParams.get("lang")

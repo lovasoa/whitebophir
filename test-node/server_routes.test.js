@@ -386,6 +386,10 @@ test("board pages set an httpOnly user secret cookie when missing", async () => 
       const setCookie = getSingleSetCookie(response.headers);
 
       assert.equal(response.statusCode, 200);
+      assert.equal(
+        response.headers["content-security-policy"],
+        "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; frame-src 'self' https://challenges.cloudflare.com;",
+      );
       assert.match(
         setCookie,
         /^wbo-user-secret-v1=[0-9a-f]{32}; Max-Age=31536000; Path=\/; HttpOnly; SameSite=Lax$/,
