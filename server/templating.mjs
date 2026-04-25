@@ -10,7 +10,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
-/** @typedef {{baseUrl: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, [name: string]: any}} TemplateParameters */
+/** @typedef {{baseUrl: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, htmlHeadSnippet: string, [name: string]: any}} TemplateParameters */
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
@@ -18,6 +18,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 /** @typedef {NonNullable<typeof TOOLBAR_TOOLS[number]>} ToolbarTool */
 /** @typedef {import("./client_configuration.mjs").ClientConfiguration} ClientConfig */
 /** @typedef {"zstd" | "br" | "gzip"} CompressionEncoding */
+/** @typedef {{htmlHeadSnippet?: string}} TemplateOptions */
 /** @import { ServerConfig } from "../types/server-runtime.d.ts" */
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -195,7 +196,40 @@ const startHtmlResponse =
         : {}),
     });
 
-class Template {
+class StaticTemplate {
+  /** @type {string} */
+  templateContents;
+
+  /** @type {string} */
+  htmlHeadSnippet;
+
+  /** @type {(parameters: {[name: string]: any}) => string} */
+  template;
+
+  /**
+   * @param {string} templatePath
+   * @param {TemplateOptions} [options]
+   */
+  constructor(templatePath, options) {
+    const contents = fs.readFileSync(templatePath, { encoding: "utf8" });
+    this.templateContents = contents;
+    this.htmlHeadSnippet = options?.htmlHeadSnippet || "";
+    this.template = handlebars.compile(contents);
+  }
+
+  /**
+   * @param {{[name: string]: any}} [parameters]
+   * @returns {string}
+   */
+  render(parameters = {}) {
+    return this.template({
+      htmlHeadSnippet: this.htmlHeadSnippet,
+      ...parameters,
+    });
+  }
+}
+
+class Template extends StaticTemplate {
   /** @type {ServerConfig} */
   serverConfig;
 
@@ -203,12 +237,12 @@ class Template {
   clientConfig;
 
   /**
-   * @param {string} path
+   * @param {string} templatePath
    * @param {ServerConfig} serverConfig
+   * @param {TemplateOptions} [options]
    */
-  constructor(path, serverConfig) {
-    const contents = fs.readFileSync(path, { encoding: "utf8" });
-    this.template = handlebars.compile(contents);
+  constructor(templatePath, serverConfig, options) {
+    super(templatePath, options);
     this.serverConfig = serverConfig;
     this.clientConfig = createClientConfiguration(serverConfig);
   }
@@ -254,6 +288,7 @@ class Template {
       translations,
       configuration,
       moderator,
+      htmlHeadSnippet: this.htmlHeadSnippet,
       ...extraParams,
     };
   }
@@ -273,7 +308,7 @@ class Template {
       isModerator === true,
       extraParams,
     );
-    const body = this.template(parameters);
+    const body = this.render(parameters);
     const { stream, encoding } = startHtmlResponse(
       response,
       request,
@@ -301,10 +336,11 @@ class BoardTemplate extends Template {
   /**
    * @param {string} path
    * @param {ServerConfig} serverConfig
+   * @param {TemplateOptions} [options]
    */
-  constructor(path, serverConfig) {
-    super(path, serverConfig);
-    const contents = fs.readFileSync(path, { encoding: "utf8" });
+  constructor(path, serverConfig, options) {
+    super(path, serverConfig, options);
+    const contents = this.templateContents;
     const marker = "{{{inlineBoardSvg}}}";
     const markerIndex = contents.indexOf(marker);
     if (markerIndex === -1) {
@@ -426,4 +462,4 @@ class BoardTemplate extends Template {
   }
 }
 
-export { BoardTemplate, Template };
+export { BoardTemplate, StaticTemplate, Template };

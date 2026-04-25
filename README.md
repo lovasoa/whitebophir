@@ -89,7 +89,7 @@ If you feel like contributing to this collaborative project, you can [translate 
 
 WBO supports authentication using [Json Web Tokens](https://jwt.io/introduction). Pass the token as a `token` query parameter, for example `http://myboard.com/boards/test?token={token}`.
 
-The `AUTH_SECRET_KEY` variable in [`configuration.js`](./server/configuration.js) should be filled with the secret key for the JWT.
+The `AUTH_SECRET_KEY` variable in [`configuration.mjs`](./server/configuration.mjs) should be filled with the secret key for the JWT.
 
 ### Roles
 
@@ -174,10 +174,11 @@ Read-only state is stored in the board JSON file itself under the reserved key `
 ## Configuration
 
 When you start a WBO server, it loads its configuration from several environment variables.
-You can see a list of these variables in [`configuration.js`](./server/configuration.js).
+You can see a list of these variables in [`configuration.mjs`](./server/configuration.mjs).
 Some important environment variables are :
 
 - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
+- `WBO_HTML_HEAD_SNIPPET_PATH` : optional path to an HTML snippet inserted raw before `</head>` on rendered HTML pages. This is useful for adding user analytics scripts or similar trusted snippets. The file is read once at server startup; relative paths resolve from the server working directory.
 - `WBO_MAX_EMIT_COUNT` : the general socket write limit profile. Use compact entries such as `*:250/5s anonymous:125/5s`. Increase this if you want smoother drawings, at the expense of making denial-of-service bursts cheaper for clients. The default is `*:250/5s`.
 - `WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP` : the constructive per-IP write limit profile. Use compact entries such as `*:40/10s anonymous:20/10s`.
 - `WBO_MAX_DESTRUCTIVE_ACTIONS_PER_IP` : the destructive per-IP write limit profile. Use compact entries such as `*:190/60s anonymous:95/60s`.

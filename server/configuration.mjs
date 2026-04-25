@@ -44,6 +44,12 @@ export const LOG_LEVEL = parseEnumEnv("LOG_LEVEL", LOG_LEVELS, "info");
 /** Static web root used to serve the client application files. */
 export const WEBROOT = parseStringEnv("WBO_WEBROOT", DEFAULT_WEBROOT);
 
+/** Optional HTML snippet inserted before `</head>` in rendered HTML pages. */
+export const HTML_HEAD_SNIPPET_PATH = parseStringEnv(
+  "WBO_HTML_HEAD_SNIPPET_PATH",
+  undefined,
+);
+
 /** Idle delay before a dirty board is saved. */
 export const SAVE_INTERVAL = parseIntegerEnv("WBO_SAVE_INTERVAL", 2000);
 

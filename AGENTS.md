@@ -16,7 +16,7 @@ so read the [performance-critical paths](#performance-critical-paths)
 section before making changes there.
 
 - Process boot + routes + socket server: [server startup](./server/server.mjs).
-- HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs).
+- HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs). `WBO_HTML_HEAD_SNIPPET_PATH` is a cold startup setting for inserting a trusted raw HTML snippet before `</head>` on rendered HTML pages.
 - Server-issued user identity cookie parsing + serialization: [user secret cookie helper](./server/user_secret_cookie.mjs).
 - Shared ordered tool registry + convention-based tool defaults: [tool registry](./client-data/tools/index.js), [tool defaults](./client-data/tools/tool-defaults.js), [tool order](./client-data/tools/tool-order.js).
 - Realtime event handlers + broadcast/unload path: [socket handlers](./server/sockets.mjs); socket join/leave drives board lifetime, final save, and dispose timing. `WBO_MAX_ITEM_COUNT` is enforced as sequenced live follow-up deletes on accepted persistent writes, evicting the oldest surviving `paintOrder` entries immediately so connected clients observe trims in real time; save still performs final hard pruning as a fallback. Seq mismatch during save is treated as a stale-writer signal: the local board instance is dropped, local sockets on that board are disconnected, and reconnect reloads persisted state rather than attempting merge/replay recovery.

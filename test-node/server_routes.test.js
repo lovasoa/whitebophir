@@ -112,6 +112,19 @@ function boardSvgFile(historyDir, name) {
   return path.join(historyDir, `board-${name}.svg`);
 }
 
+/**
+ * @param {string} body
+ * @param {string} snippet
+ * @returns {void}
+ */
+function assertSnippetBeforeHeadEnd(body, snippet) {
+  const snippetIndex = body.indexOf(snippet);
+  const headEndIndex = body.indexOf("</head>");
+  assert.notEqual(snippetIndex, -1);
+  assert.notEqual(headEndIndex, -1);
+  assert.ok(snippetIndex < headEndIndex);
+}
+
 test("in-process server imports do not register process signal handlers", async () => {
   const dirs = await createServerDirs();
   const sigintBefore = process.listenerCount("SIGINT");
@@ -585,6 +598,82 @@ test("board pages are no-store in development and render plain asset URLs", asyn
     assert.doesNotMatch(response.body, /\?v=/);
   } finally {
     await closeServer(app);
+  }
+});
+
+test("server inserts configured html head snippet into rendered html pages", async () => {
+  const dirs = await createServerDirs();
+  const snippetPath = path.join(dirs.webroot, "head-snippet.html");
+  const snippet =
+    '<script data-user-analytics>window.__wboTestAnalytics = "{{analyticsId}}";</script>';
+  await fs.writeFile(snippetPath, snippet, "utf8");
+
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      HTML_HEAD_SNIPPET_PATH: snippetPath,
+    }),
+  );
+  try {
+    await fs.writeFile(
+      snippetPath,
+      "<script data-user-analytics>window.__wboTestAnalytics = 'changed';</script>",
+      "utf8",
+    );
+
+    const indexResponse = await request(app, "/");
+    const boardResponse = await request(app, "/boards/head-snippet");
+    const errorResponse = await request(app, "/preview");
+
+    assert.equal(indexResponse.statusCode, 200);
+    assert.equal(boardResponse.statusCode, 200);
+    assert.equal(errorResponse.statusCode, 400);
+    assertSnippetBeforeHeadEnd(indexResponse.body, snippet);
+    assertSnippetBeforeHeadEnd(boardResponse.body, snippet);
+    assertSnippetBeforeHeadEnd(errorResponse.body, snippet);
+    assert.doesNotMatch(indexResponse.body, /changed/);
+    assert.doesNotMatch(boardResponse.body, /changed/);
+    assert.doesNotMatch(errorResponse.body, /changed/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("server logs and skips missing configured html head snippet", async () => {
+  const dirs = await createServerDirs();
+  const missingSnippetPath = path.join(dirs.webroot, "missing-snippet.html");
+  const observability = require("../server/observability.mjs");
+  const originalError = observability.logger.error;
+  /** @type {{name: string, fields: any}[]} */
+  const errorLogs = [];
+  /** @type {import("http").Server | undefined} */
+  let app;
+  observability.logger.error = (name, fields) => {
+    errorLogs.push({ name, fields });
+  };
+
+  try {
+    app = await createTestServer(
+      createServerConfig(dirs, {
+        WEBROOT: CLIENT_WEBROOT,
+        HTML_HEAD_SNIPPET_PATH: missingSnippetPath,
+      }),
+    );
+    const firstResponse = await request(app, "/");
+    const secondResponse = await request(app, "/");
+
+    assert.equal(firstResponse.statusCode, 200);
+    assert.equal(secondResponse.statusCode, 200);
+    assert.deepEqual(
+      errorLogs.map((entry) => entry.name),
+      ["html_head_snippet.read_failed"],
+    );
+    const errorLog = errorLogs[0];
+    assert.ok(errorLog);
+    assert.equal(errorLog.fields.path, missingSnippetPath);
+  } finally {
+    observability.logger.error = originalError;
+    if (app) await closeServer(app);
   }
 });
 
