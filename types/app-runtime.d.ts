@@ -48,7 +48,7 @@ export type CopiedBoardMessage = BoardMessage & {
   newid: string;
 };
 
-export type BatchBoardMessage = ToolNamedBoardMessage & {
+export type BatchBoardMessage = BoardMessage & {
   _children: BoardMessage[];
 };
 
@@ -65,7 +65,16 @@ export type PersistentMutationEnvelope = {
   seq: number;
 };
 
-export type IncomingBroadcast = BoardMessage | PersistentMutationEnvelope;
+export type AuthoritativeReplayBatch = BatchBoardMessage & {
+  type: typeof import("../client-data/js/mutation_type.js").MutationType.BATCH;
+  fromSeq: number;
+  seq: number;
+};
+
+export type IncomingBroadcast =
+  | BoardMessage
+  | PersistentMutationEnvelope
+  | AuthoritativeReplayBatch;
 
 export type PendingWrite = {
   data?: BoardMessage;
@@ -184,20 +193,6 @@ export type MutationRejectedPayload = {
   reason: string;
 };
 
-export type SyncReplayStartPayload = {
-  fromExclusiveSeq: number;
-  toInclusiveSeq: number;
-};
-
-export type SyncReplayEndPayload = {
-  toInclusiveSeq: number;
-};
-
-export type ResyncRequiredPayload = {
-  latestSeq: number;
-  minReplayableSeq: number;
-};
-
 export type ConnectedUser = {
   socketId: string;
   userId: string;
@@ -226,6 +221,15 @@ export type ClientSocketIncomingEventMap = {
   [typeof import("../client-data/js/socket_events.js").SocketEvents
     .CONNECT]: undefined;
   [typeof import("../client-data/js/socket_events.js").SocketEvents
+    .CONNECT_ERROR]: {
+    message?: string;
+    data?: {
+      reason?: string;
+      latestSeq?: number;
+      minReplayableSeq?: number;
+    };
+  };
+  [typeof import("../client-data/js/socket_events.js").SocketEvents
     .DISCONNECT]: string;
   [typeof import("../client-data/js/socket_events.js").SocketEvents
     .ERROR]: unknown;
@@ -236,12 +240,6 @@ export type ClientSocketIncomingEventMap = {
     retryAfterMs?: number;
     reason?: string;
   };
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .RESYNC_REQUIRED]: ResyncRequiredPayload;
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .SYNC_REPLAY_END]: SyncReplayEndPayload;
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .SYNC_REPLAY_START]: SyncReplayStartPayload;
   [typeof import("../client-data/js/socket_events.js").SocketEvents
     .USER_JOINED]: ConnectedUser;
   [typeof import("../client-data/js/socket_events.js").SocketEvents
@@ -270,8 +268,6 @@ export type ClientSocketOutgoingEventArgs = {
   [typeof import("../client-data/js/socket_events.js").SocketEvents
     .REPORT_USER]: [payload: ReportUserPayload];
   [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .SYNC_REQUEST]: [payload: { baselineSeq?: number }];
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
     .TURNSTILE_TOKEN]: [token: string, ack?: (result: unknown) => void];
 };
 
@@ -298,7 +294,7 @@ export type AppSocket = {
   disconnect?: () => void;
   destroy?: () => void;
   once?: (eventName: string, handler: (...args: any[]) => void) => void;
-  io?: { engine?: { close: () => void } };
+  io?: { engine?: { close: () => void }; opts?: { query?: string } };
 };
 
 export type MessageHook = (message: BoardMessage) => void;
@@ -491,7 +487,6 @@ export type AppToolsState = {
   authoritativeSeq: number;
   optimisticJournal: OptimisticJournalState;
   optimisticMutationIdsByItemId: Map<string, string>;
-  awaitingSyncReplay: boolean;
   preSnapshotMessages: IncomingBroadcast[];
   incomingBroadcastQueue: IncomingBroadcast[];
   processingIncomingBroadcast: boolean;
@@ -517,7 +512,7 @@ export type AppToolsState = {
   socketIOExtraHeaders: { [name: string]: string } | null;
   boardName: string;
   token: string | null;
-  pendingReplaySync: false | "refresh" | "ready";
+  refreshBaselineBeforeConnect: boolean;
   list: MountedToolRegistry;
   bootedToolPromises: { [toolName: string]: Promise<MountedAppTool | null> };
   bootedToolNames: Set<string>;
@@ -576,7 +571,6 @@ export type AppToolsState = {
   ) => void;
   applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
   refreshAuthoritativeBaseline: () => Promise<void>;
-  tryStartReplaySync: () => void;
   resetLocalRateLimitState: (kind: RateLimitKind, now?: number) => void;
   resetAllLocalRateLimitStates: (now?: number) => void;
   canEmitBufferedWrite: (bufferedWrite: BufferedWrite, now: number) => boolean;

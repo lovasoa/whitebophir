@@ -68,7 +68,7 @@ import {
 } from "../tools/tool-defaults.js";
 import { Hand, TOOL_BY_ID, TOOLS } from "../tools/index.js";
 
-/** @import { AppBoardState, AppToolsState, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, IncomingBroadcast, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, PendingMessages, PendingWrite, RateLimitKind, ResyncRequiredPayload, ServerConfig, SocketHeaders, SyncReplayEndPayload, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, IncomingBroadcast, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
@@ -222,7 +222,6 @@ export async function attachBoardDom(document) {
     document.body.clientHeight,
   );
   normalizeServerRenderedElements();
-  Tools.tryStartReplaySync();
 }
 
 Tools.i18n = (function i18n() {
@@ -315,7 +314,6 @@ Tools.boardStatusTimer = null;
 Tools.explicitBoardStatus = null;
 
 Tools.awaitingBoardSnapshot = true;
-Tools.awaitingSyncReplay = false;
 Tools.hasAuthoritativeBoardSnapshot = false;
 Tools.authoritativeSeq = 0;
 Tools.optimisticJournal = createOptimisticJournal();
@@ -323,6 +321,7 @@ Tools.preSnapshotMessages = [];
 Tools.incomingBroadcastQueue = [];
 Tools.processingIncomingBroadcast = false;
 Tools.connectionState = /** @type {BoardConnectionState} */ ("idle");
+Tools.refreshBaselineBeforeConnect = false;
 Tools.localRateLimitStates = {
   general: RateLimitCommon.createRateLimitState(Date.now()),
   constructive: RateLimitCommon.createRateLimitState(Date.now()),
@@ -459,6 +458,11 @@ Tools.clearBoardStatusTimer = function clearBoardStatusTimer() {
     Tools.boardStatusTimer = null;
   }
 };
+
+/** @param {number} [delayMs] */
+function scheduleSocketReconnect(delayMs = 250) {
+  window.setTimeout(() => Tools.startConnection(), Math.max(0, delayMs));
+}
 
 /**
  * @param {number} [now]
@@ -1086,7 +1090,7 @@ Tools.discardBufferedWrites = function discardBufferedWrites() {
 
 Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.awaitingBoardSnapshot = true;
-  Tools.awaitingSyncReplay = true;
+  Tools.refreshBaselineBeforeConnect = true;
   Tools.optimisticJournal.reset();
   Tools.preSnapshotMessages = [];
   Tools.incomingBroadcastQueue = [];
@@ -1158,10 +1162,74 @@ function finalizeIncomingBroadcast(msg, processed) {
 }
 
 /**
+ * @param {number} replayedToSeq
+ * @returns {void}
+ */
+function completeAuthoritativeReplay(replayedToSeq) {
+  Tools.hasAuthoritativeBoardSnapshot = true;
+  Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(replayedToSeq);
+  Tools.awaitingBoardSnapshot = false;
+  Tools.refreshBaselineBeforeConnect = false;
+  Tools.flushBufferedWrites();
+  Tools.incomingBroadcastQueue =
+    BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(
+      Tools.preSnapshotMessages,
+      Tools.authoritativeSeq,
+    ).concat(Tools.incomingBroadcastQueue);
+  Tools.preSnapshotMessages = [];
+  Tools.restoreLocalCursor();
+  Tools.syncWriteStatusIndicator();
+}
+
+/**
+ * @param {AuthoritativeReplayBatch} batch
+ * @returns {Promise<boolean>}
+ */
+async function processAuthoritativeReplayBatch(batch) {
+  const fromSeq = BoardMessageReplay.normalizeSeq(batch.fromSeq);
+  const toSeq = BoardMessageReplay.normalizeSeq(batch.seq);
+  if (
+    fromSeq !== Tools.authoritativeSeq ||
+    toSeq < fromSeq ||
+    batch._children.length !== toSeq - fromSeq
+  ) {
+    logBoardEvent("warn", "replay.batch_gap", {
+      authoritativeSeq: Tools.authoritativeSeq,
+      fromSeq,
+      toSeq,
+      childCount: batch._children.length,
+    });
+    Tools.beginAuthoritativeResync();
+    Tools.startConnection();
+    return false;
+  }
+
+  for (let index = 0; index < batch._children.length; index++) {
+    const child = batch._children[index];
+    if (child) await handleMessage(child);
+    Tools.authoritativeSeq = fromSeq + index + 1;
+  }
+  completeAuthoritativeReplay(toSeq);
+  return true;
+}
+
+/**
  * @param {IncomingBroadcast} msg
  * @returns {Promise<boolean>}
  */
 async function processIncomingBroadcast(msg) {
+  if (
+    "type" in msg &&
+    "fromSeq" in msg &&
+    "_children" in msg &&
+    msg?.type === MutationType.BATCH &&
+    typeof msg.fromSeq === "number" &&
+    Array.isArray(msg._children)
+  ) {
+    return processAuthoritativeReplayBatch(
+      /** @type {AuthoritativeReplayBatch} */ (msg),
+    );
+  }
   const isPersistentEnvelope = BoardMessageReplay.isPersistentEnvelope(msg);
   if (isPersistentEnvelope) {
     const seqDisposition = BoardMessageReplay.classifyPersistentEnvelopeSeq(
@@ -1172,7 +1240,7 @@ async function processIncomingBroadcast(msg) {
       return false;
     }
     if (seqDisposition !== "next") {
-      logBoardEvent("warn", "sync.replay_gap", {
+      logBoardEvent("warn", "replay.gap", {
         authoritativeSeq: Tools.authoritativeSeq,
         incomingSeq: msg.seq,
       });
@@ -1917,195 +1985,195 @@ Tools.initConnectedUsersUI = function initConnectedUsersUI() {
   Tools.renderConnectedUsers();
 };
 
-Tools.tryStartReplaySync = function tryStartReplaySync() {
-  if (
-    !Tools.pendingReplaySync ||
-    !Tools.socket?.connected ||
-    !Tools.board ||
-    !Tools.svg ||
-    !Tools.drawingArea
-  ) {
-    return;
-  }
-  const refreshBaseline = Tools.pendingReplaySync === "refresh";
-  const pendingReplaySync = Tools.pendingReplaySync;
-  Tools.pendingReplaySync = false;
-  void (async function startSeqReplay() {
-    if (refreshBaseline) {
-      try {
-        await Tools.refreshAuthoritativeBaseline();
-      } catch (error) {
-        logBoardEvent("error", "sync.baseline_refresh_failed", {
-          error: error instanceof Error ? error.message : String(error),
-          baselineUrl: getAuthoritativeBaselineUrl(),
-          replaySync: pendingReplaySync,
-          awaitingSyncReplay: Tools.awaitingSyncReplay,
-          pendingPreSnapshotMessages: Tools.preSnapshotMessages.length,
-        });
-      }
-    }
-    Tools.socket?.emit(SocketEvents.SYNC_REQUEST, {
-      baselineSeq: Tools.authoritativeSeq,
-    });
-  })();
-};
-
 Tools.startConnection = () => {
-  // Destroy socket if one already exists
-  if (Tools.socket) {
+  const reusableSocket =
+    Tools.socket && !Tools.socket.connected ? Tools.socket : null;
+  if (Tools.socket && !reusableSocket) {
     BoardConnection.closeSocket(Tools.socket);
     Tools.socket = null;
   }
   Tools.connectionState = "connecting";
+  Tools.awaitingBoardSnapshot = true;
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
   Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
   Tools.renderConnectedUsers();
 
-  const socketParams = BoardConnection.buildSocketParams(
-    window.location.pathname,
-    Tools.socketIOExtraHeaders,
-    Tools.token,
-    Tools.boardName,
-    {
-      sync: "seq",
-      tool: Tools.initialPrefs?.tool || "hand",
-      color: Tools.getColor(),
-      size: String(Tools.getSize()),
-    },
-  );
-
-  const socket = io.connect("", socketParams);
-  Tools.socket = socket;
-
-  //Receive draw instructions from the server
-  socket.on(SocketEvents.CONNECT, function onConnection() {
-    const hadConnectedBefore = Tools.hasConnectedOnce;
-    Tools.connectionState = "connected";
-    logBoardEvent(
-      "log",
-      hadConnectedBefore ? "socket.reconnected" : "socket.connected",
-    );
-    if (hadConnectedBefore && Tools.server_config.TURNSTILE_SITE_KEY) {
-      Tools.setTurnstileValidation(null);
-      BoardTurnstile.resetTurnstileWidget(
-        typeof turnstile !== "undefined" ? turnstile : undefined,
-        Tools.turnstileWidgetId,
-      );
+  void (async function openSocketWithBaseline() {
+    if (!Tools.board || !Tools.svg || !Tools.drawingArea) {
+      scheduleSocketReconnect();
+      return;
     }
-    Tools.hasConnectedOnce = true;
-    Tools.awaitingBoardSnapshot = true;
-    Tools.awaitingSyncReplay = true;
-    Tools.pendingReplaySync = hadConnectedBefore ? "refresh" : "ready";
-    Tools.tryStartReplaySync();
-    Tools.syncWriteStatusIndicator();
-  });
-  socket.on(SocketEvents.BROADCAST, (/** @type {IncomingBroadcast} */ msg) => {
-    enqueueIncomingBroadcast(msg);
-  });
-  socket.on(SocketEvents.BOARDSTATE, Tools.setBoardState);
-  socket.on(
-    SocketEvents.MUTATION_REJECTED,
-    function onMutationRejected(
-      /** @type {MutationRejectedPayload} */ payload,
-    ) {
-      if (
-        typeof payload?.clientMutationId === "string" &&
-        payload.clientMutationId
-      ) {
-        Tools.rejectOptimisticMutation(
-          payload.clientMutationId,
-          payload.reason,
+    if (Tools.refreshBaselineBeforeConnect) {
+      try {
+        await Tools.refreshAuthoritativeBaseline();
+        Tools.refreshBaselineBeforeConnect = false;
+      } catch (error) {
+        logBoardEvent("error", "replay.baseline_refresh_failed", {
+          error: error instanceof Error ? error.message : String(error),
+          baselineUrl: getAuthoritativeBaselineUrl(),
+          pendingPreSnapshotMessages: Tools.preSnapshotMessages.length,
+        });
+        scheduleSocketReconnect(1000);
+        return;
+      }
+    }
+
+    const socketParams = BoardConnection.buildSocketParams(
+      window.location.pathname,
+      Tools.socketIOExtraHeaders,
+      Tools.token,
+      Tools.boardName,
+      {
+        baselineSeq: String(Tools.authoritativeSeq),
+        tool: Tools.initialPrefs?.tool || "hand",
+        color: Tools.getColor(),
+        size: String(Tools.getSize()),
+      },
+    );
+
+    if (reusableSocket) {
+      if (reusableSocket.io) {
+        reusableSocket.io.opts = {
+          ...(reusableSocket.io.opts || {}),
+          query: socketParams.query || "",
+        };
+      }
+      reusableSocket.connect?.();
+      return;
+    }
+
+    const socket = io.connect("", socketParams);
+    Tools.socket = socket;
+
+    //Receive draw instructions from the server
+    socket.on(SocketEvents.CONNECT, function onConnection() {
+      const hadConnectedBefore = Tools.hasConnectedOnce;
+      Tools.connectionState = "connected";
+      logBoardEvent(
+        "log",
+        hadConnectedBefore ? "socket.reconnected" : "socket.connected",
+      );
+      if (hadConnectedBefore && Tools.server_config.TURNSTILE_SITE_KEY) {
+        Tools.setTurnstileValidation(null);
+        BoardTurnstile.resetTurnstileWidget(
+          typeof turnstile !== "undefined" ? turnstile : undefined,
+          Tools.turnstileWidgetId,
         );
       }
-      Tools.showUnknownMutationError(payload.reason);
-    },
-  );
-  socket.on(SocketEvents.SYNC_REPLAY_START, function onSyncReplayStart() {
-    Tools.awaitingBoardSnapshot = true;
-    Tools.awaitingSyncReplay = true;
-  });
-  socket.on(
-    SocketEvents.SYNC_REPLAY_END,
-    function onSyncReplayEnd(/** @type {SyncReplayEndPayload} */ payload) {
-      Tools.hasAuthoritativeBoardSnapshot = true;
-      Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(
-        payload.toInclusiveSeq,
-      );
-      Tools.awaitingBoardSnapshot = false;
-      Tools.awaitingSyncReplay = false;
-      Tools.flushBufferedWrites();
-      Tools.incomingBroadcastQueue =
-        BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(
-          Tools.preSnapshotMessages,
-          Tools.authoritativeSeq,
-        ).concat(Tools.incomingBroadcastQueue);
-      Tools.preSnapshotMessages = [];
-      Tools.restoreLocalCursor();
+      Tools.hasConnectedOnce = true;
       Tools.syncWriteStatusIndicator();
-    },
-  );
-  socket.on(
-    SocketEvents.RESYNC_REQUIRED,
-    function onResyncRequired(/** @type {ResyncRequiredPayload} */ payload) {
-      logBoardEvent("warn", "sync.resync_required", {
-        authoritativeSeq: Tools.authoritativeSeq,
-        latestSeq: BoardMessageReplay.normalizeSeq(payload.latestSeq),
-        minReplayableSeq: BoardMessageReplay.normalizeSeq(
-          payload.minReplayableSeq,
-        ),
-      });
-      Tools.beginAuthoritativeResync();
-      Tools.startConnection();
-    },
-  );
-  socket.on(
-    SocketEvents.USER_JOINED,
-    function onUserJoined(/** @type {ConnectedUser} */ user) {
-      Tools.upsertConnectedUser(user);
-    },
-  );
-  socket.on(
-    SocketEvents.USER_LEFT,
-    function onUserLeft(
-      /** @type {import("../../types/app-runtime").UserLeftPayload} */ user,
-    ) {
-      Tools.removeConnectedUser(user.socketId);
-    },
-  );
-  socket.on(
-    SocketEvents.RATE_LIMITED,
-    function onRateLimited(
-      /** @type {{retryAfterMs?: number} | null | undefined} */ payload,
-    ) {
-      const retryAfterMs =
-        payload && typeof payload.retryAfterMs === "number"
-          ? payload.retryAfterMs
-          : 60 * 1000;
-      Tools.rateLimitedUntil = Date.now() + Math.max(0, retryAfterMs);
-      Tools.showRateLimitNotice(
-        Tools.i18n.t("rate_limit_disconnect_message"),
-        retryAfterMs,
-      );
-      Tools.syncWriteStatusIndicator();
-    },
-  );
-  socket.on(
-    SocketEvents.DISCONNECT,
-    function onDisconnect(/** @type {string} */ reason) {
-      if (socket !== Tools.socket) return;
-      Tools.connectionState = "disconnected";
-      logBoardEvent("warn", "socket.disconnected", { reason });
-      Tools.beginAuthoritativeResync();
-      if (reason === "io server disconnect") {
-        socket.connect();
-      }
-    },
-  );
-  if (typeof socket.connect === "function") {
-    socket.connect();
-  }
+    });
+    socket.on(
+      SocketEvents.BROADCAST,
+      (/** @type {IncomingBroadcast} */ msg) => {
+        enqueueIncomingBroadcast(msg);
+      },
+    );
+    socket.on(SocketEvents.BOARDSTATE, Tools.setBoardState);
+    socket.on(
+      SocketEvents.MUTATION_REJECTED,
+      function onMutationRejected(
+        /** @type {MutationRejectedPayload} */ payload,
+      ) {
+        if (
+          typeof payload?.clientMutationId === "string" &&
+          payload.clientMutationId
+        ) {
+          Tools.rejectOptimisticMutation(
+            payload.clientMutationId,
+            payload.reason,
+          );
+        }
+        Tools.showUnknownMutationError(payload.reason);
+      },
+    );
+    socket.on(
+      SocketEvents.CONNECT_ERROR,
+      function onConnectError(/** @type {unknown} */ error) {
+        if (socket !== Tools.socket) return;
+        const data =
+          error && typeof error === "object" && "data" in error
+            ? /** @type {{reason?: string, latestSeq?: number, minReplayableSeq?: number}} */ (
+                error.data
+              )
+            : undefined;
+        const reason =
+          data?.reason ||
+          (error && typeof error === "object" && "message" in error
+            ? String(error.message)
+            : "connect_error");
+        logBoardEvent("warn", "socket.connect_error", {
+          reason,
+          ...(data?.latestSeq === undefined
+            ? {}
+            : { latestSeq: data.latestSeq }),
+          ...(data?.minReplayableSeq === undefined
+            ? {}
+            : { minReplayableSeq: data.minReplayableSeq }),
+          authoritativeSeq: Tools.authoritativeSeq,
+        });
+        Tools.connectionState = "disconnected";
+        if (reason === "baseline_not_replayable") {
+          logBoardEvent("warn", "replay.baseline_not_replayable", {
+            authoritativeSeq: Tools.authoritativeSeq,
+            latestSeq: BoardMessageReplay.normalizeSeq(data?.latestSeq),
+            minReplayableSeq: BoardMessageReplay.normalizeSeq(
+              data?.minReplayableSeq,
+            ),
+          });
+          Tools.beginAuthoritativeResync();
+        }
+        scheduleSocketReconnect();
+      },
+    );
+    socket.on(
+      SocketEvents.USER_JOINED,
+      function onUserJoined(/** @type {ConnectedUser} */ user) {
+        Tools.upsertConnectedUser(user);
+      },
+    );
+    socket.on(
+      SocketEvents.USER_LEFT,
+      function onUserLeft(
+        /** @type {import("../../types/app-runtime").UserLeftPayload} */ user,
+      ) {
+        Tools.removeConnectedUser(user.socketId);
+      },
+    );
+    socket.on(
+      SocketEvents.RATE_LIMITED,
+      function onRateLimited(
+        /** @type {{retryAfterMs?: number} | null | undefined} */ payload,
+      ) {
+        const retryAfterMs =
+          payload && typeof payload.retryAfterMs === "number"
+            ? payload.retryAfterMs
+            : 60 * 1000;
+        Tools.rateLimitedUntil = Date.now() + Math.max(0, retryAfterMs);
+        Tools.showRateLimitNotice(
+          Tools.i18n.t("rate_limit_disconnect_message"),
+          retryAfterMs,
+        );
+        Tools.syncWriteStatusIndicator();
+      },
+    );
+    socket.on(
+      SocketEvents.DISCONNECT,
+      function onDisconnect(/** @type {string} */ reason) {
+        if (socket !== Tools.socket) return;
+        if (reason === "io client disconnect") return;
+        Tools.connectionState = "disconnected";
+        logBoardEvent("warn", "socket.disconnected", { reason });
+        Tools.beginAuthoritativeResync();
+        scheduleSocketReconnect();
+      },
+    );
+    if (typeof socket.connect === "function") {
+      socket.connect();
+    }
+  })();
 };
 function saveBoardNametoLocalStorage() {
   const boardName = Tools.boardName;
@@ -3169,7 +3237,6 @@ Tools.server_config = /** @type {ServerConfig} */ (
 Tools.boardName = resolveBoardName(window.location.pathname);
 Tools.token = new URL(window.location.href).searchParams.get("token");
 Tools.socketIOExtraHeaders = socketIOExtraHeaders;
-Tools.pendingReplaySync = false;
 Tools.initialPrefs = {
   tool: "hand",
   color: initialPreset?.color || "#001f3f",

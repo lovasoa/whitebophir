@@ -289,33 +289,20 @@ const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
     "Elapsed time, in seconds, spent handling each top-level Socket.IO event callback; histogram count is the number of handled events.",
   unit: "s",
 });
-const socketSyncRequests = meter.createCounter("wbo.socket.sync.request", {
-  description:
-    "Count of seq sync_request outcomes observed by the server; wbo.socket.sync.outcome distinguishes replayed, empty, resync_required, future_baseline, and error.",
-  unit: "{request}",
-});
-const socketSyncRequestedGap = meter.createHistogram(
-  "wbo.socket.sync.requested_gap",
+const socketConnectionReplays = meter.createCounter(
+  "wbo.socket.connection_replay",
   {
     description:
-      "Requested seq replay gap, recorded as max(0, latest_seq - baseline_seq), for each sync_request with known board seq state.",
-    unit: "{mutation}",
+      "Counts each connection-time replay decision. The outcome attribute shows whether the server sent changes, had nothing to send, rejected a stale baseline, saw a browser baseline ahead of the server, or failed.",
+    unit: "{connection}",
   },
 );
-const socketSyncUnreplayableGap = meter.createHistogram(
-  "wbo.socket.sync.unreplayable_gap",
+const socketConnectionReplayGap = meter.createHistogram(
+  "wbo.socket.connection_replay.gap",
   {
     description:
-      "Unreplayable seq gap, recorded as max(0, min_replayable_seq - baseline_seq), for each sync_request with known board seq state.",
-    unit: "{mutation}",
-  },
-);
-const socketSyncFutureGap = meter.createHistogram(
-  "wbo.socket.sync.future_gap",
-  {
-    description:
-      "Future baseline seq gap, recorded as max(0, baseline_seq - latest_seq), for each sync_request with known board seq state.",
-    unit: "{mutation}",
+      "Records the server's latest board sequence number minus the browser's baseline sequence number for each connection-time replay decision.",
+    unit: "{sequence}",
   },
 );
 const boardMessages = meter.createCounter("wbo.board.message", {
@@ -1074,44 +1061,28 @@ function recordSocketConnection(event) {
 /**
  * @param {{
  *   board?: string,
- *   outcome: "replayed" | "empty" | "resync_required" | "future_baseline" | "error",
+ *   outcome: "replayed" | "empty" | "baseline_not_replayable" | "future_baseline" | "error",
  *   baselineSeq?: number,
  *   latestSeq?: number,
- *   minReplayableSeq?: number,
  * }} request
  * @returns {void}
  */
-function recordSocketSyncRequest(request) {
+function recordSocketConnectionReplay(request) {
   /** @type {{[key: string]: string | boolean}} */
   const attributes = {
-    "wbo.socket.sync.outcome": request.outcome,
+    "wbo.socket.connection_replay.outcome": request.outcome,
   };
   const boardAnonymous = metricBoardAnonymous(request.board);
   if (boardAnonymous !== undefined) {
     attributes["wbo.board.anonymous"] = boardAnonymous;
   }
-  socketSyncRequests.add(1, attributes);
+  socketConnectionReplays.add(1, attributes);
 
   const baselineSeq = normalizeMetricSeq(request.baselineSeq);
   const latestSeq = normalizeMetricSeq(request.latestSeq);
-  const minReplayableSeq = normalizeMetricSeq(request.minReplayableSeq);
-  if (
-    baselineSeq === undefined ||
-    latestSeq === undefined ||
-    minReplayableSeq === undefined
-  ) {
-    return;
-  }
+  if (baselineSeq === undefined || latestSeq === undefined) return;
 
-  socketSyncRequestedGap.record(
-    Math.max(0, latestSeq - baselineSeq),
-    attributes,
-  );
-  socketSyncUnreplayableGap.record(
-    Math.max(0, minReplayableSeq - baselineSeq),
-    attributes,
-  );
-  socketSyncFutureGap.record(Math.max(0, baselineSeq - latestSeq), attributes);
+  socketConnectionReplayGap.record(latestSeq - baselineSeq, attributes);
 }
 
 /**
@@ -1288,7 +1259,7 @@ const observabilityMetrics = {
   recordRateLimitWindowUtilization,
   recordSocketConnection,
   recordSocketEvent,
-  recordSocketSyncRequest,
+  recordSocketConnectionReplay,
   recordTurnstileVerification,
   setActiveSocketConnections,
   setConnectedUsers,

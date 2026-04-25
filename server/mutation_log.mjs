@@ -16,7 +16,7 @@ function normalizeSeq(value) {
  *   persistedSeq: () => number,
  *   minReplayableSeq: () => number,
  *   append: (envelope: Omit<MutationEnvelope, "seq">) => MutationEnvelope,
- *   readRange: (fromExclusiveSeq: number, toInclusiveSeq: number) => MutationEnvelope[],
+ *   readFrom: (fromExclusiveSeq: number) => MutationEnvelope[],
  *   markPersisted: (persistedSeq: number) => void,
  *   trimPersistedOlderThan: (cutoffMs: number, pinnedBaselineSeq?: number | null) => void,
  *   trimBefore: (seqInclusiveFloor: number) => void,
@@ -48,12 +48,13 @@ function createMutationLog(initialSeq = 0) {
       latestSeq = nextEntry.seq;
       return nextEntry;
     },
-    readRange(fromExclusiveSeq, toInclusiveSeq) {
+    readFrom(fromExclusiveSeq) {
       const fromSeq = normalizeSeq(fromExclusiveSeq);
-      const toSeq = normalizeSeq(toInclusiveSeq);
-      return entries.filter(
-        (entry) => entry.seq > fromSeq && entry.seq <= toSeq,
-      );
+      const firstEntry = entries[0];
+      if (!firstEntry || fromSeq >= latestSeq) return [];
+      // Entries are always a contiguous suffix, so seq arithmetic gives the offset.
+      const start = Math.max(0, fromSeq - firstEntry.seq + 1);
+      return start < entries.length ? entries.slice(start) : [];
     },
     markPersisted(nextPersistedSeq) {
       persistedSeq = Math.max(
@@ -67,16 +68,27 @@ function createMutationLog(initialSeq = 0) {
         : Number.POSITIVE_INFINITY;
       const protectedBaselineSeq =
         pinnedBaselineSeq === null ? null : normalizeSeq(pinnedBaselineSeq);
-      entries = entries.filter(
-        (entry) =>
+      let keepFrom = entries.length;
+      for (const [index, entry] of entries.entries()) {
+        if (
           (protectedBaselineSeq !== null && entry.seq > protectedBaselineSeq) ||
           entry.seq > persistedSeq ||
-          entry.acceptedAtMs >= normalizedCutoffMs,
-      );
+          entry.acceptedAtMs >= normalizedCutoffMs
+        ) {
+          keepFrom = index;
+          break;
+        }
+      }
+      // Replay history must stay a contiguous suffix; trimming only drops a prefix.
+      entries = entries.slice(keepFrom);
     },
     trimBefore(seqInclusiveFloor) {
       const floorSeq = normalizeSeq(seqInclusiveFloor);
-      entries = entries.filter((entry) => entry.seq >= floorSeq);
+      const firstEntry = entries[0];
+      if (firstEntry) {
+        const keepFrom = Math.max(0, floorSeq - firstEntry.seq);
+        entries = entries.slice(keepFrom);
+      }
       if (entries.length === 0 && persistedSeq > latestSeq) {
         persistedSeq = latestSeq;
       }

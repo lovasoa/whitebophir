@@ -23,6 +23,7 @@ export type SocketRequest = {
 
 export type AppSocket = import("socket.io").Socket & {
   boardName?: string;
+  replayBootstrap?: unknown;
   turnstileValidatedUntil?: number;
   client: { request: SocketRequest };
   handshake: {
@@ -32,6 +33,7 @@ export type AppSocket = import("socket.io").Socket & {
       tool?: string;
       color?: string;
       size?: string;
+      baselineSeq?: string;
     };
   };
 };

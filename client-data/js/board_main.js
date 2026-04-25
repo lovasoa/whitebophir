@@ -78,10 +78,10 @@ async function bootBoardPage() {
     throw new Error("Board runtime did not initialize the board app.");
   }
 
+  await boardModule.attachBoardDom(document);
   setBoardBootPhase("connecting");
   tools.startConnection();
 
-  await boardModule.attachBoardDom(document);
   tools.installViewportHashObservers();
   tools.applyViewportFromHash();
   setBoardBootPhase("viewport-restored");

@@ -1083,7 +1083,7 @@ test("BoardData records contiguous mutation seq values and persists them into sv
     assert.equal(board.minReplayableSeq(), 0);
     assert.deepEqual(
       board
-        .readMutationRange(0, 2)
+        .readMutationsAfter(0)
         .map((/** @type {{seq: number}} */ entry) => entry.seq),
       [1, 2],
     );
@@ -1136,7 +1136,7 @@ test("BoardData.save trims persisted replay history past the configured retentio
       assert.equal(board.minReplayableSeq(), 2);
       assert.deepEqual(
         board
-          .readMutationRange(0, 2)
+          .readMutationsAfter(0)
           .map((/** @type {{seq: number}} */ entry) => entry.seq),
         [],
       );
@@ -1173,7 +1173,7 @@ test("BoardData.save keeps persisted replay history needed by pinned baselines",
         assert.equal(board.minReplayableSeq(), 0);
         assert.deepEqual(
           board
-            .readMutationRange(0, 2)
+            .readMutationsAfter(0)
             .map((/** @type {{seq: number}} */ entry) => entry.seq),
           [1, 2],
         );

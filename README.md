@@ -193,7 +193,7 @@ If you experience an issue or want to propose a new feature in WBO, please [open
 If you are self-hosting a WBO instance, you may want to monitor its load,
 the number of connected users, request latency, and board lifecycle events.
 
-WBO now uses OpenTelemetry for metrics and logs on the server side.
+WBO now uses OpenTelemetry for metrics, logs, and traces on the server side.
 Configure a standard OTLP exporter with the usual `OTEL_*` environment variables.
 
 Example:
@@ -212,7 +212,24 @@ Common settings:
 - `OTEL_EXPORTER_OTLP_ENDPOINT`
 - `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`
 - `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`
+- `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`
 - `OTEL_EXPORTER_OTLP_HEADERS`
+
+Socket connection replay is reported with `wbo.socket.connection_replay` and
+`wbo.socket.connection_replay.gap`. The replay outcome attribute distinguishes
+empty replays, sent replay batches, stale baselines, future baselines, and
+internal errors.
+
+Traces default to a 5% parent-based sample rate when no standard
+`OTEL_TRACES_SAMPLER*` setting is provided. For short debugging sessions, force
+full trace capture explicitly:
+
+```sh
+OTEL_TRACES_SAMPLER=parentbased_traceidratio \
+OTEL_TRACES_SAMPLER_ARG=1.0 \
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 \
+npm start
+```
 
 If no OTLP endpoint is configured, WBO still emits canonical server log lines to stdout/stderr but does not attempt remote export.
 

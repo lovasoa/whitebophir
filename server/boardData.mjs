@@ -338,11 +338,10 @@ class BoardData {
 
   /**
    * @param {number} fromExclusiveSeq
-   * @param {number} toInclusiveSeq
    * @returns {MutationEnvelope[]}
    */
-  readMutationRange(fromExclusiveSeq, toInclusiveSeq) {
-    return this.mutationLog.readRange(fromExclusiveSeq, toInclusiveSeq);
+  readMutationsAfter(fromExclusiveSeq) {
+    return this.mutationLog.readFrom(fromExclusiveSeq);
   }
 
   /**

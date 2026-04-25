@@ -32,7 +32,7 @@ test("mutation logs append contiguous seq values from the initial baseline", () 
   assert.equal(log.latestSeq(), 6);
 });
 
-test("mutation logs read contiguous ranges and trim old replay entries", () => {
+test("mutation logs read contiguous suffixes and trim old replay entries", () => {
   const log = createMutationLog(0);
   for (let index = 0; index < 5; index++) {
     log.append({
@@ -47,16 +47,20 @@ test("mutation logs read contiguous ranges and trim old replay entries", () => {
   }
 
   assert.deepEqual(
-    log.readRange(2, 4).map((entry) => entry.seq),
-    [3, 4],
+    log.readFrom(2).map((entry) => entry.seq),
+    [3, 4, 5],
   );
 
   log.trimBefore(4);
 
   assert.equal(log.minReplayableSeq(), 3);
   assert.deepEqual(
-    log.readRange(0, 5).map((entry) => entry.seq),
+    log.readFrom(0).map((entry) => entry.seq),
     [4, 5],
+  );
+  assert.deepEqual(
+    log.readFrom(4).map((entry) => entry.seq),
+    [5],
   );
 });
 
@@ -77,7 +81,7 @@ test("mutation logs track the latest persisted baseline seq", () => {
   assert.equal(log.persistedSeq(), 3);
 });
 
-test("mutation logs trim only persisted entries older than the retention cutoff", () => {
+test("mutation logs trim retention as a contiguous replay suffix", () => {
   const log = createMutationLog(0);
   log.append({
     board: "demo",
@@ -90,7 +94,7 @@ test("mutation logs trim only persisted entries older than the retention cutoff"
   });
   log.append({
     board: "demo",
-    acceptedAtMs: 20,
+    acceptedAtMs: 100,
     mutation: {
       tool: Rectangle.id,
       type: MutationType.CREATE,
@@ -99,7 +103,7 @@ test("mutation logs trim only persisted entries older than the retention cutoff"
   });
   log.append({
     board: "demo",
-    acceptedAtMs: 30,
+    acceptedAtMs: 20,
     mutation: {
       tool: Rectangle.id,
       type: MutationType.CREATE,
@@ -107,13 +111,13 @@ test("mutation logs trim only persisted entries older than the retention cutoff"
     },
   });
 
-  log.markPersisted(2);
-  log.trimPersistedOlderThan(25);
+  log.markPersisted(3);
+  log.trimPersistedOlderThan(50);
 
-  assert.equal(log.minReplayableSeq(), 2);
+  assert.equal(log.minReplayableSeq(), 1);
   assert.deepEqual(
-    log.readRange(0, 3).map((entry) => entry.seq),
-    [3],
+    log.readFrom(0).map((entry) => entry.seq),
+    [2, 3],
   );
 });
 
@@ -152,7 +156,7 @@ test("mutation logs keep pinned replay history even after persisted retention ex
 
   assert.equal(log.minReplayableSeq(), 1);
   assert.deepEqual(
-    log.readRange(0, 3).map((entry) => entry.seq),
+    log.readFrom(0).map((entry) => entry.seq),
     [2, 3],
   );
 });

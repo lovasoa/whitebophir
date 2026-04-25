@@ -28,6 +28,50 @@ function getRequiredValue(value) {
 }
 
 /**
+ * @param {any} payload
+ * @returns {boolean}
+ */
+function isReplayBatch(payload) {
+  return (
+    payload &&
+    payload.type === MutationType.BATCH &&
+    Array.isArray(payload._children) &&
+    typeof payload.fromSeq === "number" &&
+    typeof payload.seq === "number"
+  );
+}
+
+/**
+ * @param {{emitted: Array<{event: string, payload: any}>}} created
+ * @returns {Array<{event: string, payload: any}>}
+ */
+function replayBatchEvents(created) {
+  return created.emitted.filter(
+    (event) => event.event === "broadcast" && isReplayBatch(event.payload),
+  );
+}
+
+/**
+ * @param {{emitted: Array<{event: string, payload: any}>}} created
+ * @returns {Array<{event: string, payload: any}>}
+ */
+function liveBroadcastEvents(created) {
+  return created.emitted.filter(
+    (event) => event.event === "broadcast" && !isReplayBatch(event.payload),
+  );
+}
+
+/**
+ * @param {any} message
+ * @returns {any}
+ */
+function withoutSocket(message) {
+  const { socket, ...rest } = message;
+  void socket;
+  return rest;
+}
+
+/**
  * @param {string} userSecret
  * @param {{[key: string]: string}=} headers
  * @returns {{[key: string]: string}}
@@ -233,7 +277,7 @@ test("joining a board replays joined users to the socket and broadcasts newcomer
   );
 });
 
-test("sync replay and live broadcasts carry contiguous seq for deterministic client replay", async () => {
+test("connection replay and live broadcasts carry contiguous seq for deterministic client replay", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-deterministic-" },
     async ({ connect, invoke }) => {
@@ -248,10 +292,6 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
           size: "4",
         },
       });
-      await invoke(created, "sync_request", {
-        baselineSeq: 0,
-      });
-
       await invoke(
         created,
         "broadcast",
@@ -267,7 +307,7 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
       );
 
       const liveBroadcast = getRequiredValue(
-        created.emitted.find((event) => event.event === "broadcast"),
+        liveBroadcastEvents(created)[0],
       ).payload;
       assert.equal(liveBroadcast.seq, 1);
       assert.deepEqual(liveBroadcast.mutation, {
@@ -294,106 +334,82 @@ test("sync replay and live broadcasts carry contiguous seq for deterministic cli
           size: "5",
         },
       });
-      await invoke(nextSocket, "sync_request", {
-        baselineSeq: 0,
-      });
 
-      const replayEvents = nextSocket.emitted.filter((event) =>
-        ["sync_replay_start", "broadcast", "sync_replay_end"].includes(
-          event.event,
-        ),
-      );
-      assert.deepEqual(
-        replayEvents.map((event) => event.event),
-        ["sync_replay_start", "broadcast", "sync_replay_end"],
-      );
-      assert.deepEqual(
-        getRequiredValue(replayEvents[1]).payload,
-        liveBroadcast,
-      );
+      const replayEvents = replayBatchEvents(nextSocket);
+      assert.equal(replayEvents.length, 1);
+      assert.deepEqual(getRequiredValue(replayEvents[0]).payload, {
+        type: MutationType.BATCH,
+        fromSeq: 0,
+        seq: 1,
+        _children: [withoutSocket(liveBroadcast.mutation)],
+      });
     },
   );
 });
 
-test("seq-sync clients bootstrap without a snapshot and receive an explicit empty replay", async () => {
+test("connection-replay clients bootstrap with an explicit empty replay batch", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-bootstrap-" },
-    async ({ connect, handler }) => {
+    async ({ connect }) => {
       const created = await connect({
         id: "socket-seq-empty",
         remoteAddress: "203.0.113.80",
         headers: withUserSecretCookie("55555555555555555555555555555555"),
         query: {
           board: "board-seq-empty",
-          sync: "seq",
           tool: "rectangle",
           color: "#333333",
           size: "4",
         },
       });
 
-      assert.equal(
-        created.emitted.some((event) => event.event === "broadcast"),
-        false,
-      );
-
-      const syncRequest = handler(created, "sync_request");
-      await syncRequest({ baselineSeq: 0 });
-
       const replayEvents = created.emitted.filter((event) =>
-        ["boardstate", "sync_replay_start", "sync_replay_end"].includes(
-          event.event,
-        ),
+        ["boardstate", "broadcast"].includes(event.event),
       );
       assert.deepEqual(
         replayEvents.map((event) => event.event),
-        ["boardstate", "sync_replay_start", "sync_replay_end"],
+        ["boardstate", "broadcast"],
       );
       assert.deepEqual(getRequiredValue(replayEvents[1]).payload, {
-        fromExclusiveSeq: 0,
-        toInclusiveSeq: 0,
-      });
-      assert.deepEqual(getRequiredValue(replayEvents[2]).payload, {
-        toInclusiveSeq: 0,
+        type: MutationType.BATCH,
+        fromSeq: 0,
+        seq: 0,
+        _children: [],
       });
     },
   );
 });
 
-test("seq-sync requests record outcome metrics with seq gap inputs", async () => {
+test("connection replay records outcome metrics with signed seq gap inputs", async () => {
   await createSocketScenario(
-    { historyDirPrefix: "wbo-users-seq-sync-metrics-" },
+    { historyDirPrefix: "wbo-users-connection-replay-metrics-" },
     async ({ connect, getLoadedBoard, invoke }) => {
       const observability = await import("../server/observability.mjs");
-      const originalRecordSocketSyncRequest =
-        observability.metrics.recordSocketSyncRequest;
+      const originalRecordSocketConnectionReplay =
+        observability.metrics.recordSocketConnectionReplay;
       /** @type {any[]} */
       const recorded = [];
-      observability.metrics.recordSocketSyncRequest = (sample) => {
+      observability.metrics.recordSocketConnectionReplay = (sample) => {
         recorded.push(sample);
       };
 
       try {
         const writer = await connect({
-          id: "socket-seq-sync-metrics-writer",
+          id: "socket-connection-replay-metrics-writer",
           remoteAddress: "203.0.113.92",
           headers: withUserSecretCookie("99999999999999999999999999999989"),
           query: {
-            board: "board-seq-sync-metrics",
-            sync: "seq",
+            board: "board-connection-replay-metrics",
             tool: "rectangle",
             color: "#666666",
             size: "4",
           },
         });
-        await invoke(writer, "sync_request", {
-          baselineSeq: 0,
-        });
         await invoke(
           writer,
           "broadcast",
           rectangleCreate({
-            id: "rect-sync-metrics-1",
+            id: "rect-replay-metrics-1",
             x: 0,
             y: 0,
             x2: 10,
@@ -403,204 +419,121 @@ test("seq-sync requests record outcome metrics with seq gap inputs", async () =>
           }),
         );
 
-        const replay = await connect({
-          id: "socket-seq-sync-metrics-replay",
+        await connect({
+          id: "socket-connection-replay-metrics-replay",
           remoteAddress: "203.0.113.93",
           headers: withUserSecretCookie("99999999999999999999999999999988"),
           query: {
-            board: "board-seq-sync-metrics",
-            sync: "seq",
+            board: "board-connection-replay-metrics",
             tool: "hand",
             color: "#777777",
             size: "4",
           },
         });
-        await invoke(replay, "sync_request", {
-          baselineSeq: 0,
-        });
 
-        const loadedBoard = await getLoadedBoard("board-seq-sync-metrics");
+        const loadedBoard = await getLoadedBoard(
+          "board-connection-replay-metrics",
+        );
         loadedBoard.trimMutationLogBefore(2);
 
         const stale = await connect({
-          id: "socket-seq-sync-metrics-stale",
+          id: "socket-connection-replay-metrics-stale",
           remoteAddress: "203.0.113.94",
           headers: withUserSecretCookie("99999999999999999999999999999987"),
           query: {
-            board: "board-seq-sync-metrics",
-            sync: "seq",
+            board: "board-connection-replay-metrics",
+            baselineSeq: "0",
             tool: "hand",
             color: "#777777",
             size: "4",
           },
         });
-        await invoke(stale, "sync_request", {
-          baselineSeq: 0,
-        });
+        assert.equal(stale.socket.disconnected, true);
 
         const future = await connect({
-          id: "socket-seq-sync-metrics-future",
+          id: "socket-connection-replay-metrics-future",
           remoteAddress: "203.0.113.95",
           headers: withUserSecretCookie("99999999999999999999999999999986"),
           query: {
-            board: "board-seq-sync-metrics",
-            sync: "seq",
+            board: "board-connection-replay-metrics",
+            baselineSeq: "9",
             tool: "hand",
             color: "#777777",
             size: "4",
           },
         });
-        await invoke(future, "sync_request", {
-          baselineSeq: 9,
-        });
+        assert.equal(future.socket.disconnected, true);
 
-        loadedBoard.readMutationRange = () => {
-          throw new Error("forced sync replay failure");
+        loadedBoard.readMutationsAfter = () => {
+          throw new Error("forced connection replay failure");
         };
         const failing = await connect({
-          id: "socket-seq-sync-metrics-error",
+          id: "socket-connection-replay-metrics-error",
           remoteAddress: "203.0.113.96",
           headers: withUserSecretCookie("99999999999999999999999999999985"),
           query: {
-            board: "board-seq-sync-metrics",
-            sync: "seq",
+            board: "board-connection-replay-metrics",
+            baselineSeq: "1",
             tool: "hand",
             color: "#777777",
             size: "4",
           },
         });
-        await invoke(failing, "sync_request", {
-          baselineSeq: 1,
-        });
+        assert.equal(failing.socket.disconnected, true);
 
         assert.deepEqual(
           recorded.map((sample) => sample.outcome),
-          ["empty", "replayed", "resync_required", "future_baseline", "error"],
+          [
+            "empty",
+            "replayed",
+            "baseline_not_replayable",
+            "future_baseline",
+            "error",
+          ],
         );
         assert.deepEqual(
-          recorded.map(
-            ({ baselineSeq, latestSeq, minReplayableSeq, outcome }) => ({
-              baselineSeq,
-              latestSeq,
-              minReplayableSeq,
-              outcome,
-            }),
-          ),
+          recorded.map(({ baselineSeq, latestSeq, outcome }) => ({
+            baselineSeq,
+            latestSeq,
+            outcome,
+          })),
           [
             {
               baselineSeq: 0,
               latestSeq: 0,
-              minReplayableSeq: 0,
               outcome: "empty",
             },
             {
               baselineSeq: 0,
               latestSeq: 1,
-              minReplayableSeq: 0,
               outcome: "replayed",
             },
             {
               baselineSeq: 0,
               latestSeq: 1,
-              minReplayableSeq: 1,
-              outcome: "resync_required",
+              outcome: "baseline_not_replayable",
             },
             {
               baselineSeq: 9,
               latestSeq: 1,
-              minReplayableSeq: 1,
               outcome: "future_baseline",
             },
             {
               baselineSeq: 1,
               latestSeq: 1,
-              minReplayableSeq: 1,
               outcome: "error",
             },
           ],
         );
       } finally {
-        observability.metrics.recordSocketSyncRequest =
-          originalRecordSocketSyncRequest;
+        observability.metrics.recordSocketConnectionReplay =
+          originalRecordSocketConnectionReplay;
       }
     },
   );
 });
 
-test("board sockets use seq replay and seq envelopes even without a legacy sync flag", async () => {
-  await createSocketScenario(
-    { historyDirPrefix: "wbo-users-seq-default-" },
-    async ({ connect, handler, invoke }) => {
-      const created = await connect({
-        id: "socket-seq-default",
-        remoteAddress: "203.0.113.80",
-        headers: withUserSecretCookie("55555555555555555555555555555550"),
-        query: {
-          board: "board-seq-default",
-          tool: "rectangle",
-          color: "#333333",
-          size: "4",
-        },
-      });
-
-      assert.equal(
-        created.emitted.some((event) => event.event === "broadcast"),
-        false,
-      );
-
-      const syncRequest = handler(created, "sync_request");
-      await syncRequest({ baselineSeq: 0 });
-
-      const replayEvents = created.emitted.filter((event) =>
-        ["boardstate", "sync_replay_start", "sync_replay_end"].includes(
-          event.event,
-        ),
-      );
-      assert.deepEqual(
-        replayEvents.map((event) => event.event),
-        ["boardstate", "sync_replay_start", "sync_replay_end"],
-      );
-
-      await invoke(
-        created,
-        "broadcast",
-        rectangleCreate({
-          id: "rect-default-seq-1",
-          color: "#123456",
-          size: 4,
-          x: 0,
-          y: 0,
-          x2: 20,
-          y2: 20,
-        }),
-      );
-
-      const seqBroadcasts = created.emitted.filter(
-        (event) => event.event === "broadcast",
-      );
-      assert.equal(seqBroadcasts.length, 1);
-      assert.equal(getRequiredValue(seqBroadcasts[0]).payload.seq, 1);
-      assert.deepEqual(getRequiredValue(seqBroadcasts[0]).payload.mutation, {
-        tool: Rectangle.id,
-        type: MutationType.CREATE,
-        id: "rect-default-seq-1",
-        color: "#123456",
-        size: 10,
-        x: 0,
-        y: 0,
-        x2: 20,
-        y2: 20,
-        socket: "socket-seq-default",
-      });
-      assert.equal(
-        "revision" in getRequiredValue(seqBroadcasts[0]).payload,
-        false,
-      );
-    },
-  );
-});
-
-test("seq-sync clients receive contiguous mutation envelopes and can replay them on reconnect", async () => {
+test("connection-replay clients receive contiguous mutation envelopes and can replay them on reconnect", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-replay-" },
     async ({ connect, handler }) => {
@@ -610,7 +543,6 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
         headers: withUserSecretCookie("66666666666666666666666666666666"),
         query: {
           board: "board-seq-live",
-          sync: "seq",
           tool: "rectangle",
           color: "#444444",
           size: "4",
@@ -623,7 +555,6 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
         headers: withUserSecretCookie("99999999999999999999999999999997"),
         query: {
           board: "board-seq-cursor",
-          sync: "seq",
           tool: "hand",
           color: "#777777",
           size: "4",
@@ -644,7 +575,7 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
       );
 
       const acceptedEnvelope = getRequiredValue(
-        writer.emitted.find((event) => event.event === "broadcast"),
+        liveBroadcastEvents(writer)[0],
       ).payload;
       assert.equal(acceptedEnvelope.seq, 1);
       assert.equal(acceptedEnvelope.mutation.id, "rect-1");
@@ -655,46 +586,39 @@ test("seq-sync clients receive contiguous mutation envelopes and can replay them
         headers: withUserSecretCookie("77777777777777777777777777777777"),
         query: {
           board: "board-seq-live",
-          sync: "seq",
           tool: "hand",
           color: "#555555",
           size: "4",
         },
       });
-      const syncRequest = handler(reconnect, "sync_request");
-      await syncRequest({ baselineSeq: 0 });
 
       const replayedEvents = reconnect.emitted.filter((event) =>
-        [
-          "boardstate",
-          "sync_replay_start",
-          "broadcast",
-          "sync_replay_end",
-        ].includes(event.event),
+        ["boardstate", "broadcast"].includes(event.event),
       );
       assert.deepEqual(
         replayedEvents.map((event) => event.event),
-        ["boardstate", "sync_replay_start", "broadcast", "sync_replay_end"],
+        ["boardstate", "broadcast"],
       );
-      assert.equal(getRequiredValue(replayedEvents[2]).payload.seq, 1);
-      assert.deepEqual(getRequiredValue(replayedEvents[3]).payload, {
-        toInclusiveSeq: 1,
+      assert.deepEqual(getRequiredValue(replayedEvents[1]).payload, {
+        type: MutationType.BATCH,
+        fromSeq: 0,
+        seq: 1,
+        _children: [withoutSocket(acceptedEnvelope.mutation)],
       });
     },
   );
 });
 
-test("seq-sync clients with a stale cached baseline replay only newer contiguous envelopes", async () => {
+test("connection-replay clients with a stale cached baseline replay only newer contiguous envelopes", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-stale-baseline-" },
-    async ({ connect, handler, invoke }) => {
+    async ({ connect, handler }) => {
       const writer = await connect({
         id: "socket-seq-stale-writer",
         remoteAddress: "203.0.113.85",
         headers: withUserSecretCookie("99999999999999999999999999999995"),
         query: {
           board: "board-seq-stale",
-          sync: "seq",
           tool: "rectangle",
           color: "#444444",
           size: "4",
@@ -730,52 +654,52 @@ test("seq-sync clients with a stale cached baseline replay only newer contiguous
         headers: withUserSecretCookie("99999999999999999999999999999994"),
         query: {
           board: "board-seq-stale",
-          sync: "seq",
+          baselineSeq: "1",
           tool: "hand",
           color: "#555555",
           size: "4",
         },
       });
-      await invoke(reconnect, "sync_request", {
-        baselineSeq: 1,
-      });
 
       const replayedEvents = reconnect.emitted.filter((event) =>
-        [
-          "boardstate",
-          "sync_replay_start",
-          "broadcast",
-          "sync_replay_end",
-        ].includes(event.event),
+        ["boardstate", "broadcast"].includes(event.event),
       );
       assert.deepEqual(
         replayedEvents.map((event) => event.event),
-        ["boardstate", "sync_replay_start", "broadcast", "sync_replay_end"],
+        ["boardstate", "broadcast"],
       );
       assert.deepEqual(getRequiredValue(replayedEvents[1]).payload, {
-        fromExclusiveSeq: 1,
-        toInclusiveSeq: 2,
+        type: MutationType.BATCH,
+        fromSeq: 1,
+        seq: 2,
+        _children: [
+          {
+            tool: Rectangle.id,
+            type: MutationType.CREATE,
+            id: "rect-2",
+            x: 20,
+            y: 20,
+            x2: 30,
+            y2: 30,
+            color: "#555555",
+            size: 10,
+          },
+        ],
       });
-      assert.equal(getRequiredValue(replayedEvents[2]).payload.seq, 2);
-      assert.equal(
-        getRequiredValue(replayedEvents[2]).payload.mutation.id,
-        "rect-2",
-      );
     },
   );
 });
 
-test("seq-sync replay stays correct when persistence finishes between baseline fetch and replay start", async () => {
+test("connection replay stays correct when persistence finishes between baseline fetch and replay start", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-persist-race-" },
-    async ({ connect, handler, getLoadedBoard, invoke }) => {
+    async ({ connect, handler, getLoadedBoard }) => {
       const writer = await connect({
         id: "socket-seq-race-writer",
         remoteAddress: "203.0.113.92",
         headers: withUserSecretCookie("99999999999999999999999999999992"),
         query: {
           board: "board-seq-race",
-          sync: "seq",
           tool: "rectangle",
           color: "#444444",
           size: "4",
@@ -814,52 +738,52 @@ test("seq-sync replay stays correct when persistence finishes between baseline f
         headers: withUserSecretCookie("99999999999999999999999999999993"),
         query: {
           board: "board-seq-race",
-          sync: "seq",
+          baselineSeq: "1",
           tool: "hand",
           color: "#555555",
           size: "4",
         },
       });
-      await invoke(reconnect, "sync_request", {
-        baselineSeq: 1,
-      });
 
       const replayedEvents = reconnect.emitted.filter((event) =>
-        [
-          "boardstate",
-          "sync_replay_start",
-          "broadcast",
-          "sync_replay_end",
-        ].includes(event.event),
+        ["boardstate", "broadcast"].includes(event.event),
       );
       assert.deepEqual(
         replayedEvents.map((event) => event.event),
-        ["boardstate", "sync_replay_start", "broadcast", "sync_replay_end"],
+        ["boardstate", "broadcast"],
       );
       assert.deepEqual(getRequiredValue(replayedEvents[1]).payload, {
-        fromExclusiveSeq: 1,
-        toInclusiveSeq: 2,
+        type: MutationType.BATCH,
+        fromSeq: 1,
+        seq: 2,
+        _children: [
+          {
+            tool: Rectangle.id,
+            type: MutationType.CREATE,
+            id: "rect-2",
+            x: 20,
+            y: 20,
+            x2: 30,
+            y2: 30,
+            color: "#555555",
+            size: 10,
+          },
+        ],
       });
-      assert.equal(getRequiredValue(replayedEvents[2]).payload.seq, 2);
-      assert.equal(
-        getRequiredValue(replayedEvents[2]).payload.mutation.id,
-        "rect-2",
-      );
     },
   );
 });
 
-test("seq-sync sockets do not receive live persistent broadcasts before replay catch-up completes", async () => {
+test("connection-replay sockets receive live persistent broadcasts after connection replay", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-live-gated-" },
-    async ({ connect, handler, invoke }) => {
+    async ({ connect, handler }) => {
       const writer = await connect({
         id: "socket-seq-gated-writer",
         remoteAddress: "203.0.113.185",
         headers: withUserSecretCookie("99999999999999999999999999999185"),
         query: {
           board: "board-seq-live-gated",
-          sync: "seq",
           tool: "rectangle",
           color: "#444444",
           size: "4",
@@ -871,7 +795,6 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
         headers: withUserSecretCookie("99999999999999999999999999999186"),
         query: {
           board: "board-seq-live-gated",
-          sync: "seq",
           tool: "hand",
           color: "#555555",
           size: "4",
@@ -879,9 +802,16 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
       });
 
       const broadcast = handler(writer, "broadcast");
+      assert.deepEqual(getRequiredValue(replayBatchEvents(peer)[0]).payload, {
+        type: MutationType.BATCH,
+        fromSeq: 0,
+        seq: 0,
+        _children: [],
+      });
+
       await broadcast(
         rectangleCreate({
-          id: "rect-before-sync",
+          id: "rect-before-replay",
           x: 0,
           y: 0,
           x2: 10,
@@ -892,23 +822,13 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
       );
 
       assert.equal(
-        peer.emitted.filter((event) => event.event === "broadcast").length,
-        0,
+        getRequiredValue(liveBroadcastEvents(peer)[0]).payload.seq,
+        1,
       );
-
-      await invoke(peer, "sync_request", {
-        baselineSeq: 0,
-      });
-
-      const replayedBroadcasts = peer.emitted.filter(
-        (event) => event.event === "broadcast",
-      );
-      assert.equal(replayedBroadcasts.length, 1);
-      assert.equal(getRequiredValue(replayedBroadcasts[0]).payload.seq, 1);
 
       await broadcast(
         rectangleCreate({
-          id: "rect-after-sync",
+          id: "rect-after-replay",
           x: 20,
           y: 20,
           x2: 30,
@@ -918,26 +838,23 @@ test("seq-sync sockets do not receive live persistent broadcasts before replay c
         }),
       );
 
-      const liveBroadcasts = peer.emitted.filter(
-        (event) => event.event === "broadcast",
-      );
+      const liveBroadcasts = liveBroadcastEvents(peer);
       assert.equal(liveBroadcasts.length, 2);
       assert.equal(getRequiredValue(liveBroadcasts[1]).payload.seq, 2);
     },
   );
 });
 
-test("seq-sync replay gaps force resync_required when the requested baseline is no longer replayable", async () => {
+test("connection replay gaps reject connections when the requested baseline is no longer replayable", async () => {
   await createSocketScenario(
-    { historyDirPrefix: "wbo-users-seq-gap-resync-" },
-    async ({ connect, getLoadedBoard, handler, invoke }) => {
+    { historyDirPrefix: "wbo-users-seq-gap-replay-reject-" },
+    async ({ connect, getLoadedBoard, handler, sockets }) => {
       const writer = await connect({
         id: "socket-seq-gap-writer",
         remoteAddress: "203.0.113.87",
         headers: withUserSecretCookie("99999999999999999999999999999993"),
         query: {
           board: "board-seq-gap",
-          sync: "seq",
           tool: "rectangle",
           color: "#666666",
           size: "4",
@@ -976,36 +893,41 @@ test("seq-sync replay gaps force resync_required when the requested baseline is 
         headers: withUserSecretCookie("99999999999999999999999999999992"),
         query: {
           board: "board-seq-gap",
-          sync: "seq",
+          baselineSeq: "0",
           tool: "hand",
           color: "#777777",
           size: "4",
         },
       });
-      await invoke(reconnect, "sync_request", {
-        baselineSeq: 0,
-      });
+      assert.equal(reconnect.socket.disconnected, true);
 
-      const replayedEvents = reconnect.emitted.filter((event) =>
-        ["boardstate", "sync_replay_start", "resync_required"].includes(
-          event.event,
-        ),
+      const replay = await sockets.__test.prepareConnectionReplay(
+        reconnect.socket,
+        sockets.__config,
       );
       assert.deepEqual(
-        replayedEvents.map((event) => event.event),
-        ["boardstate", "resync_required"],
+        {
+          ok: replay.ok,
+          reason: replay.reason,
+          baselineSeq: replay.baselineSeq,
+          latestSeq: replay.latestSeq,
+          minReplayableSeq: replay.minReplayableSeq,
+        },
+        {
+          ok: false,
+          reason: "baseline_not_replayable",
+          baselineSeq: 0,
+          latestSeq: 2,
+          minReplayableSeq: 1,
+        },
       );
-      assert.deepEqual(getRequiredValue(replayedEvents[1]).payload, {
-        latestSeq: 2,
-        minReplayableSeq: 1,
-      });
     },
   );
 });
 
-test("seq-sync resync_required warning includes client identity fields", async () => {
+test("connection replay baseline rejection does not join the stale socket to board users", async () => {
   await createSocketScenario(
-    { historyDirPrefix: "wbo-users-seq-gap-resync-log-" },
+    { historyDirPrefix: "wbo-users-seq-gap-replay-reject-log-" },
     async ({ connect, getLoadedBoard, invoke, sockets }) => {
       const writer = await connect({
         id: "socket-seq-gap-log-writer",
@@ -1013,7 +935,6 @@ test("seq-sync resync_required warning includes client identity fields", async (
         headers: withUserSecretCookie("99999999999999999999999999999990"),
         query: {
           board: "board-seq-gap-log",
-          sync: "seq",
           tool: "rectangle",
           color: "#666666",
           size: "4",
@@ -1032,7 +953,7 @@ test("seq-sync resync_required warning includes client identity fields", async (
       });
 
       const loadedBoard = await getLoadedBoard("board-seq-gap-log");
-      loadedBoard.trimMutationLogBefore(1);
+      loadedBoard.trimMutationLogBefore(2);
 
       const reconnectSecret = "99999999999999999999999999999991";
       const reconnect = await connect({
@@ -1041,29 +962,20 @@ test("seq-sync resync_required warning includes client identity fields", async (
         headers: withUserSecretCookie(reconnectSecret),
         query: {
           board: "board-seq-gap-log",
-          sync: "seq",
+          baselineSeq: "0",
           tool: "hand",
           color: "#777777",
           size: "4",
         },
       });
 
-      await invoke(reconnect, "sync_request", {
-        baselineSeq: 0,
-      });
-
+      assert.equal(reconnect.socket.disconnected, true);
       assert.deepEqual(
         sockets.__test.boardUserDebugFields(
           "board-seq-gap-log",
           "socket-seq-gap-log-reconnect",
         ),
-        {
-          "user.name": sockets.__test.buildUserName(
-            "203.0.113.91",
-            reconnectSecret,
-          ),
-          "client.address": "203.0.113.91",
-        },
+        {},
       );
     },
   );
@@ -1136,9 +1048,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
         }),
       );
 
-      const seqPeerBroadcasts = seqPeer.emitted.filter(
-        (event) => event.event === "broadcast",
-      );
+      const seqPeerBroadcasts = liveBroadcastEvents(seqPeer);
       assert.equal(seqPeerBroadcasts.length, 1);
       assert.equal(getRequiredValue(seqPeerBroadcasts[0]).payload.seq, 1);
       assert.deepEqual(
@@ -1165,9 +1075,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
         false,
       );
 
-      const defaultPeerBroadcasts = defaultPeer.emitted.filter(
-        (event) => event.event === "broadcast",
-      );
+      const defaultPeerBroadcasts = liveBroadcastEvents(defaultPeer);
       assert.equal(defaultPeerBroadcasts.length, 1);
       assert.deepEqual(
         getRequiredValue(defaultPeerBroadcasts[0]).payload,
@@ -1177,7 +1085,7 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
   );
 });
 
-test("seq-sync cursor updates stay ephemeral and are not replayed", async () => {
+test("connection-replay cursor updates stay ephemeral and are not replayed", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-cursor-" },
     async ({ connect, invoke }) => {
@@ -1187,7 +1095,6 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
         headers: withUserSecretCookie("88888888888888888888888888888888"),
         query: {
           board: "board-seq-cursor",
-          sync: "seq",
           tool: "hand",
           color: "#666666",
           size: "4",
@@ -1218,10 +1125,7 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
           socket: "socket-seq-cursor-writer",
         },
       );
-      assert.equal(
-        writer.emitted.some((event) => event.event === "broadcast"),
-        false,
-      );
+      assert.equal(liveBroadcastEvents(writer).length, 0);
 
       const reconnect = await connect({
         id: "socket-seq-cursor-reconnect",
@@ -1229,30 +1133,24 @@ test("seq-sync cursor updates stay ephemeral and are not replayed", async () => 
         headers: withUserSecretCookie("99999999999999999999999999999998"),
         query: {
           board: "board-seq-cursor",
-          sync: "seq",
           tool: "hand",
           color: "#777777",
           size: "4",
         },
       });
-      await invoke(reconnect, "sync_request", {
-        baselineSeq: 0,
-      });
 
       const replayedEvents = reconnect.emitted.filter((event) =>
-        [
-          "boardstate",
-          "sync_replay_start",
-          "broadcast",
-          "sync_replay_end",
-        ].includes(event.event),
+        ["boardstate", "broadcast"].includes(event.event),
       );
       assert.deepEqual(
         replayedEvents.map((event) => event.event),
-        ["boardstate", "sync_replay_start", "sync_replay_end"],
+        ["boardstate", "broadcast"],
       );
-      assert.deepEqual(getRequiredValue(replayedEvents[2]).payload, {
-        toInclusiveSeq: 0,
+      assert.deepEqual(getRequiredValue(replayedEvents[1]).payload, {
+        type: MutationType.BATCH,
+        fromSeq: 0,
+        seq: 0,
+        _children: [],
       });
     },
   );
@@ -1268,7 +1166,6 @@ test("rejected board mutations emit mutation_rejected with the clientMutationId"
         headers: withUserSecretCookie("99999999999999999999999999999996"),
         query: {
           board: "board-rejected",
-          sync: "seq",
           tool: "hand",
           color: "#888888",
           size: "4",
@@ -1294,10 +1191,7 @@ test("rejected board mutations emit mutation_rejected with the clientMutationId"
           reason: "invalid parent for child",
         },
       );
-      assert.equal(
-        writer.emitted.some((event) => event.event === "broadcast"),
-        false,
-      );
+      assert.equal(liveBroadcastEvents(writer).length, 0);
     },
   );
 });
@@ -1312,7 +1206,6 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         headers: withUserSecretCookie("99999999999999999999999999999995"),
         query: {
           board: "board-rejected-seed",
-          sync: "seq",
           tool: "rectangle",
           color: "#333333",
           size: "4",
@@ -1352,9 +1245,7 @@ test("rejected oversized seed updates emit a sequenced authoritative delete foll
         },
       );
 
-      const seqBroadcasts = writer.emitted.filter(
-        (event) => event.event === "broadcast",
-      );
+      const seqBroadcasts = liveBroadcastEvents(writer);
       assert.deepEqual(
         seqBroadcasts.map((event) => getRequiredValue(event).payload.seq),
         [1, 2],
@@ -1397,7 +1288,6 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         headers: withUserSecretCookie("99999999999999999999999999999994"),
         query: {
           board: "board-live-item-trim",
-          sync: "seq",
           tool: "rectangle",
           color: "#333333",
           size: "4",
@@ -1441,9 +1331,7 @@ test("accepted creates that overflow the item cap emit a sequenced live trim del
         }),
       );
 
-      const seqBroadcasts = writer.emitted.filter(
-        (event) => event.event === "broadcast",
-      );
+      const seqBroadcasts = liveBroadcastEvents(writer);
       assert.deepEqual(
         seqBroadcasts.map((event) => getRequiredValue(event).payload.seq),
         [1, 2, 3, 4],
@@ -1591,7 +1479,7 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
         test.getBoardUserMap("board-live").get("socket-live"),
       );
       const persistentEnvelope = getRequiredValue(
-        created.emitted.find((event) => event.event === "broadcast"),
+        liveBroadcastEvents(created)[0],
       ).payload;
       assert.equal(persistentEnvelope.mutation.socket, "socket-live");
       assert.equal(Object.hasOwn(persistentEnvelope.mutation, "userId"), false);
@@ -1667,9 +1555,7 @@ test("same-session sockets keep a shared userId in presence but live payload att
         }),
       );
 
-      const liveEnvelope = getRequiredValue(
-        second.emitted.find((event) => event.event === "broadcast"),
-      );
+      const liveEnvelope = getRequiredValue(liveBroadcastEvents(second)[0]);
       const payload = liveEnvelope.payload.mutation;
       assert.equal(payload.socket, "socket-a");
       assert.equal(Object.hasOwn(payload, "userId"), false);
@@ -1871,7 +1757,7 @@ test("seq mismatch drops the stale board instance and disconnects attached socke
 
       const reconnect = await connect({
         id: "socket-reconnect",
-        query: { board: "stale-save-drop" },
+        query: { board: "stale-save-drop", baselineSeq: "99" },
       });
 
       const reloadedBoard = await getLoadedBoard("stale-save-drop");

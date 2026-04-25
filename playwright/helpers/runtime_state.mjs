@@ -35,7 +35,6 @@ function isBufferedWriteDrainComplete(state) {
  *   connected?: unknown,
  *   bufferedWrites?: unknown,
  *   awaitingBoardSnapshot?: unknown,
- *   awaitingSyncReplay?: unknown,
  *   connectionState?: unknown,
  * } | null | undefined} state
  * @returns {boolean}
@@ -46,7 +45,6 @@ function isAuthoritativeResyncComplete(state) {
     typeof state === "object" &&
     state.connected === true &&
     state.awaitingBoardSnapshot === false &&
-    state.awaitingSyncReplay === false &&
     state.bufferedWrites === 0 &&
     state.connectionState === "connected"
   );

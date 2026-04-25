@@ -38,7 +38,7 @@ function buildSocketParams(
   /** @type {SocketParams} */
   const socketParams = {
     path: `${pathname.split("/boards/")[0]}/socket.io`,
-    reconnection: true,
+    reconnection: false,
     reconnectionDelay: 100,
     autoConnect: false,
     timeout: 1000 * 60 * 20,

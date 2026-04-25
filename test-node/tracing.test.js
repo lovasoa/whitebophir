@@ -366,7 +366,7 @@ test("static asset requests do not create spans", async () => {
   );
 });
 
-test("connection bootstrap traces the root socket event and board load", async () => {
+test("connection replay traces handshake board load and socket bootstrap", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-trace-socket-"),
   );
@@ -398,17 +398,34 @@ test("connection bootstrap traces the root socket event and board load", async (
         created.socket,
         sockets.__config,
       );
-      await waitForSpans(exporter, ["socket.connect_board", "board.load"]);
+      await waitForSpans(exporter, [
+        "socket.connection_replay",
+        "socket.connect_board",
+        "board.load",
+        "board.load_read",
+      ]);
 
-      const rootSpan = getSpanByName(exporter, "socket.connect_board");
+      const replaySpan = getSpanByName(exporter, "socket.connection_replay");
+      const connectSpan = getSpanByName(exporter, "socket.connect_board");
       const loadSpan = getSpanByName(exporter, "board.load");
+      const loadReadSpan = getSpanByName(exporter, "board.load_read");
 
-      assert.equal(rootSpan.attributes["wbo.board"], "trace-board");
-      assert.equal(typeof rootSpan.attributes["user.name"], "string");
+      assert.equal(replaySpan.attributes["wbo.board"], "trace-board");
+      assert.equal(
+        replaySpan.attributes["wbo.socket.connection_replay.outcome"],
+        "empty",
+      );
+      assert.equal(connectSpan.attributes["wbo.board"], "trace-board");
+      assert.equal(typeof connectSpan.attributes["user.name"], "string");
       assert.equal(
         loadSpan.parentSpanContext.spanId,
-        rootSpan.spanContext().spanId,
+        replaySpan.spanContext().spanId,
       );
+      assert.equal(
+        loadReadSpan.parentSpanContext.spanId,
+        loadSpan.spanContext().spanId,
+      );
+      assert.equal(loadReadSpan.attributes["wbo.board.result"], "success");
     },
   );
 });

@@ -66,7 +66,6 @@ type WriteStatusState = {
   connected: boolean;
   bufferedWrites: number;
   awaitingBoardSnapshot: boolean;
-  awaitingSyncReplay: boolean;
   hasAuthoritativeBoardSnapshot: boolean;
   connectionState: string;
   indicatorClass: string;
@@ -930,7 +929,6 @@ window.turnstile = {
         connected: !!window.Tools?.socket?.connected,
         bufferedWrites: window.Tools.bufferedWrites.length,
         awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
-        awaitingSyncReplay: !!window.Tools.awaitingSyncReplay,
         hasAuthoritativeBoardSnapshot:
           !!window.Tools.hasAuthoritativeBoardSnapshot,
         connectionState: String(window.Tools.connectionState ?? ""),
