@@ -533,7 +533,7 @@ test("connection replay records outcome metrics with signed seq gap inputs", asy
   );
 });
 
-test("connection-replay clients receive contiguous mutation envelopes and can replay them on reconnect", async () => {
+test("connection-replay clients receive contiguous replay entries and can replay them on reconnect", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-replay-" },
     async ({ connect, handler }) => {
@@ -574,11 +574,11 @@ test("connection-replay clients receive contiguous mutation envelopes and can re
         }),
       );
 
-      const acceptedEnvelope = getRequiredValue(
+      const acceptedBroadcast = getRequiredValue(
         liveBroadcastEvents(writer)[0],
       ).payload;
-      assert.equal(acceptedEnvelope.seq, 1);
-      assert.equal(acceptedEnvelope.mutation.id, "rect-1");
+      assert.equal(acceptedBroadcast.seq, 1);
+      assert.equal(acceptedBroadcast.mutation.id, "rect-1");
 
       const reconnect = await connect({
         id: "socket-seq-reconnect",
@@ -603,13 +603,13 @@ test("connection-replay clients receive contiguous mutation envelopes and can re
         type: MutationType.BATCH,
         fromSeq: 0,
         seq: 1,
-        _children: [withoutSocket(acceptedEnvelope.mutation)],
+        _children: [withoutSocket(acceptedBroadcast.mutation)],
       });
     },
   );
 });
 
-test("connection-replay clients with a stale cached baseline replay only newer contiguous envelopes", async () => {
+test("connection-replay clients with a stale cached baseline replay only newer contiguous entries", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-stale-baseline-" },
     async ({ connect, handler }) => {
@@ -981,7 +981,7 @@ test("connection replay baseline rejection does not join the stale socket to boa
   );
 });
 
-test("persistent writes fan out as seq envelopes to every peer", async () => {
+test("persistent writes fan out as sequenced mutation broadcasts to every peer", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-seq-fanout-" },
     async ({ connect, invoke }) => {
@@ -1069,6 +1069,18 @@ test("persistent writes fan out as seq envelopes to every peer", async () => {
       assert.equal(
         typeof getRequiredValue(seqPeerBroadcasts[0]).payload.acceptedAtMs,
         "number",
+      );
+      assert.equal(
+        "board" in getRequiredValue(seqPeerBroadcasts[0]).payload,
+        false,
+      );
+      assert.equal(
+        "clientMutationId" in getRequiredValue(seqPeerBroadcasts[0]).payload,
+        false,
+      );
+      assert.equal(
+        "socketId" in getRequiredValue(seqPeerBroadcasts[0]).payload,
+        false,
       );
       assert.equal(
         "revision" in getRequiredValue(seqPeerBroadcasts[0]).payload,
@@ -1478,11 +1490,11 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       const user = getRequiredValue(
         test.getBoardUserMap("board-live").get("socket-live"),
       );
-      const persistentEnvelope = getRequiredValue(
+      const sequencedBroadcast = getRequiredValue(
         liveBroadcastEvents(created)[0],
       ).payload;
-      assert.equal(persistentEnvelope.mutation.socket, "socket-live");
-      assert.equal(Object.hasOwn(persistentEnvelope.mutation, "userId"), false);
+      assert.equal(sequencedBroadcast.mutation.socket, "socket-live");
+      assert.equal(Object.hasOwn(sequencedBroadcast.mutation, "userId"), false);
       assert.equal(user.lastTool, "rectangle");
       assert.equal(user.color, "#123456");
       assert.equal(user.size, 10);
@@ -1555,8 +1567,8 @@ test("same-session sockets keep a shared userId in presence but live payload att
         }),
       );
 
-      const liveEnvelope = getRequiredValue(liveBroadcastEvents(second)[0]);
-      const payload = liveEnvelope.payload.mutation;
+      const liveBroadcast = getRequiredValue(liveBroadcastEvents(second)[0]);
+      const payload = liveBroadcast.payload.mutation;
       assert.equal(payload.socket, "socket-a");
       assert.equal(Object.hasOwn(payload, "userId"), false);
       assert.equal(firstUser.lastTool, "rectangle");

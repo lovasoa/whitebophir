@@ -51,24 +51,23 @@ test("board session serializes persistent mutation acceptance per board", async 
       steps.push(`process:${message.id}`);
       return { ok: true };
     },
-    recordPersistentMutation(/** @type {any} */ message) {
+    recordPersistentMutation(
+      /** @type {any} */ message,
+      /** @type {any} */ acceptedAtMs,
+    ) {
       seq += 1;
       steps.push(`record:${message.id}`);
-      return { seq, mutation: message };
+      return { seq, acceptedAtMs, mutation: message };
     },
   };
   const session = createBoardSession(board);
 
   const first = session.acceptPersistentMutation(
-    "socket-1",
     { tool: Rectangle.id, type: MutationType.CREATE, id: "first" },
-    "cm-1",
     10,
   );
   const second = session.acceptPersistentMutation(
-    "socket-1",
     { tool: Rectangle.id, type: MutationType.CREATE, id: "second" },
-    "cm-2",
     20,
   );
 
@@ -88,8 +87,8 @@ test("board session serializes persistent mutation acceptance per board", async 
     "process:second",
     "record:second",
   ]);
-  assert.equal(firstResult.envelope.seq, 1);
-  assert.equal(secondResult.envelope.seq, 2);
+  assert.equal(firstResult.entry.seq, 1);
+  assert.equal(secondResult.entry.seq, 2);
 });
 
 test("board session records the prepared mutation payload", async () => {
@@ -113,23 +112,19 @@ test("board session records the prepared mutation payload", async () => {
     recordPersistentMutation(
       /** @type {any} */ message,
       /** @type {any} */ acceptedAtMs,
-      /** @type {any} */ clientMutationId,
-      /** @type {any} */ socketId,
     ) {
-      recorded.push({ message, acceptedAtMs, clientMutationId, socketId });
-      return { seq: 5, mutation: message, clientMutationId, socketId };
+      recorded.push({ message, acceptedAtMs });
+      return { seq: 5, acceptedAtMs, mutation: message };
     },
   };
 
   const result = await createBoardSession(board).acceptPersistentMutation(
-    "socket-1",
     {
       tool: Text.id,
       type: MutationType.UPDATE,
       id: "text-1",
       txt: "draft",
     },
-    "cm-9",
     99,
   );
 
@@ -151,8 +146,6 @@ test("board session records the prepared mutation payload", async () => {
         txt: "prepared text",
       },
       acceptedAtMs: 99,
-      clientMutationId: "cm-9",
-      socketId: "socket-1",
     },
   ]);
 });
@@ -188,9 +181,7 @@ test("board session does not mutate or replace the accepted mutation when prepar
   };
 
   const result = await createBoardSession(board).acceptPersistentMutation(
-    "socket-1",
     mutation,
-    "cm-1",
     1,
   );
 
@@ -226,7 +217,6 @@ test("board session does not append to the mutation log after rejection", async 
 
   assert.deepEqual(
     await createBoardSession(board).acceptPersistentMutation(
-      "socket-1",
       {
         tool: Pencil.id,
         type: MutationType.APPEND,
@@ -234,7 +224,6 @@ test("board session does not append to the mutation log after rejection", async 
         x: 1,
         y: 2,
       },
-      "cm-reject",
       12,
     ),
     {
@@ -268,18 +257,17 @@ test("board session appends sequenced followups generated during rejection", asy
     recordPersistentMutation(
       /** @type {any} */ message,
       /** @type {any} */ acceptedAtMs,
-      /** @type {any} */ clientMutationId,
     ) {
-      recorded.push({ message, acceptedAtMs, clientMutationId });
+      recorded.push({ message, acceptedAtMs });
       return {
         seq: 9,
+        acceptedAtMs,
         mutation: message,
       };
     },
   };
 
   const result = await createBoardSession(board).acceptPersistentMutation(
-    "socket-1",
     {
       tool: Rectangle.id,
       type: MutationType.UPDATE,
@@ -289,7 +277,6 @@ test("board session appends sequenced followups generated during rejection", asy
       x2: 5000,
       y2: 20,
     },
-    "cm-reject-followup",
     55,
   );
 
@@ -301,7 +288,6 @@ test("board session appends sequenced followups generated during rejection", asy
         id: "rect-seed",
       },
       acceptedAtMs: 55,
-      clientMutationId: undefined,
     },
   ]);
   assert.deepEqual(result, {
@@ -309,14 +295,8 @@ test("board session appends sequenced followups generated during rejection", asy
     reason: "update rejected: shape too large",
     followup: [
       {
-        envelope: {
-          seq: 9,
-          mutation: {
-            tool: Eraser.id,
-            type: MutationType.DELETE,
-            id: "rect-seed",
-          },
-        },
+        seq: 9,
+        acceptedAtMs: 55,
         mutation: {
           tool: Eraser.id,
           type: MutationType.DELETE,
@@ -350,18 +330,17 @@ test("board session appends sequenced followups generated during successful acce
     recordPersistentMutation(
       /** @type {any} */ message,
       /** @type {any} */ acceptedAtMs,
-      /** @type {any} */ clientMutationId,
     ) {
-      recorded.push({ message, acceptedAtMs, clientMutationId });
+      recorded.push({ message, acceptedAtMs });
       return {
         seq: recorded.length,
+        acceptedAtMs,
         mutation: message,
       };
     },
   };
 
   const result = await createBoardSession(board).acceptPersistentMutation(
-    "socket-1",
     {
       tool: Rectangle.id,
       type: MutationType.CREATE,
@@ -373,7 +352,6 @@ test("board session appends sequenced followups generated during successful acce
       x2: 10,
       y2: 10,
     },
-    "cm-ok-followup",
     33,
   );
 
@@ -391,7 +369,6 @@ test("board session appends sequenced followups generated during successful acce
         y2: 10,
       },
       acceptedAtMs: 33,
-      clientMutationId: "cm-ok-followup",
     },
     {
       message: {
@@ -400,7 +377,6 @@ test("board session appends sequenced followups generated during successful acce
         id: "rect-1",
       },
       acceptedAtMs: 33,
-      clientMutationId: undefined,
     },
   ]);
   assert.deepEqual(result, {
@@ -416,8 +392,9 @@ test("board session appends sequenced followups generated during successful acce
       x2: 10,
       y2: 10,
     },
-    envelope: {
+    entry: {
       seq: 1,
+      acceptedAtMs: 33,
       mutation: {
         tool: Rectangle.id,
         type: MutationType.CREATE,
@@ -432,14 +409,8 @@ test("board session appends sequenced followups generated during successful acce
     },
     followup: [
       {
-        envelope: {
-          seq: 2,
-          mutation: {
-            tool: Eraser.id,
-            type: MutationType.DELETE,
-            id: "rect-1",
-          },
-        },
+        seq: 2,
+        acceptedAtMs: 33,
         mutation: {
           tool: Eraser.id,
           type: MutationType.DELETE,

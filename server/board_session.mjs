@@ -1,15 +1,14 @@
 import { SerialTaskQueue } from "./serial_task_queue.mjs";
-/** @typedef {import("../types/server-runtime.d.ts").MutationEnvelope} MutationEnvelope */
+/** @typedef {import("../types/server-runtime.d.ts").MutationLogEntry} MutationLogEntry */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {{mutation: NormalizedMessageData}} MutationEffect */
-/** @typedef {{mutation: NormalizedMessageData, envelope: MutationEnvelope}} MutationFollowup */
 /** @typedef {{ok: true} | {ok: false, reason: string}} BoardMutationResult */
 /** @typedef {{ok: true, mutation?: NormalizedMessageData} | {ok: false, reason: string}} PreparedMutationResult */
 /**
  * @typedef {{
  *   name: string,
  *   processMessage: (message: NormalizedMessageData) => BoardMutationResult,
- *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number, clientMutationId?: string, socketId?: string) => MutationEnvelope,
+ *   recordPersistentMutation: (message: NormalizedMessageData, acceptedAtMs?: number) => MutationLogEntry,
  *   consumePendingRejectedMutationEffects?: () => MutationEffect[],
  *   consumePendingAcceptedMutationEffects?: () => MutationEffect[],
  *   preparePersistentMutation?: (message: NormalizedMessageData) => Promise<PreparedMutationResult> | PreparedMutationResult,
@@ -19,13 +18,11 @@ import { SerialTaskQueue } from "./serial_task_queue.mjs";
  * @typedef {{
  *   board: BoardSessionBoard,
  *   acceptPersistentMutation: (
- *     socketId: string,
  *     mutation: NormalizedMessageData,
- *     clientMutationId?: string,
  *     nowMs?: number,
  *   ) => Promise<
- *     | {ok: true, value: NormalizedMessageData, envelope: MutationEnvelope, followup?: MutationFollowup[]}
- *     | {ok: false, reason: string, followup?: MutationFollowup[]}
+ *     | {ok: true, value: NormalizedMessageData, entry: MutationLogEntry, followup?: MutationLogEntry[]}
+ *     | {ok: false, reason: string, followup?: MutationLogEntry[]}
  *   >,
  * }} BoardSession
  */
@@ -50,12 +47,7 @@ export function createBoardSession(board) {
   const queue = new SerialTaskQueue();
   return {
     board,
-    async acceptPersistentMutation(
-      socketId,
-      mutation,
-      clientMutationId,
-      nowMs = Date.now(),
-    ) {
+    async acceptPersistentMutation(mutation, nowMs = Date.now()) {
       return queue.runExclusive(async () => {
         consumePendingMutationEffects(
           board,
@@ -81,39 +73,22 @@ export function createBoardSession(board) {
           const followup = consumePendingMutationEffects(
             board,
             board.consumePendingRejectedMutationEffects,
-          ).map((effect) => ({
-            mutation: effect.mutation,
-            envelope: board.recordPersistentMutation(
-              effect.mutation,
-              nowMs,
-              undefined,
-              socketId,
-            ),
-          }));
+          ).map((effect) =>
+            board.recordPersistentMutation(effect.mutation, nowMs),
+          );
           return followup.length > 0 ? { ...result, followup } : result;
         }
-        const envelope = board.recordPersistentMutation(
-          acceptedMutation,
-          nowMs,
-          clientMutationId,
-          socketId,
-        );
+        const entry = board.recordPersistentMutation(acceptedMutation, nowMs);
         const followup = consumePendingMutationEffects(
           board,
           board.consumePendingAcceptedMutationEffects,
-        ).map((effect) => ({
-          mutation: effect.mutation,
-          envelope: board.recordPersistentMutation(
-            effect.mutation,
-            nowMs,
-            undefined,
-            socketId,
-          ),
-        }));
+        ).map((effect) =>
+          board.recordPersistentMutation(effect.mutation, nowMs),
+        );
         return {
           ok: true,
           value: acceptedMutation,
-          envelope,
+          entry,
           ...(followup.length > 0 ? { followup } : {}),
         };
       });

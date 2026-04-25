@@ -1070,15 +1070,17 @@ test("BoardData records contiguous mutation seq values and persists them into sv
     };
 
     assert.equal(board.processMessage({ ...message }).ok, true);
-    const firstEnvelope = board.recordPersistentMutation(message, 100, "c1");
-    const secondEnvelope = board.recordPersistentMutation(
+    const firstEntry = board.recordPersistentMutation(message, 100);
+    const secondEntry = board.recordPersistentMutation(
       eraserDelete("rect-1"),
       200,
-      "c2",
     );
 
-    assert.equal(firstEnvelope.seq, 1);
-    assert.equal(secondEnvelope.seq, 2);
+    assert.equal(firstEntry.seq, 1);
+    assert.equal(secondEntry.seq, 2);
+    assert.equal(Object.hasOwn(firstEntry, "board"), false);
+    assert.equal(Object.hasOwn(firstEntry, "clientMutationId"), false);
+    assert.equal(Object.hasOwn(firstEntry, "socketId"), false);
     assert.equal(board.getSeq(), 2);
     assert.equal(board.minReplayableSeq(), 0);
     assert.deepEqual(

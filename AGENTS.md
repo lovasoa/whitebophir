@@ -70,9 +70,9 @@ section before making changes there.
 - `Tools.sendBufferedWrite` emits immediately with `socket.emit("broadcast", message)` or appends to `Tools.bufferedWrites`; `Tools.scheduleBufferedWriteFlush` and `Tools.flushBufferedWrites` drain later.
 - Server receives `socket.on("broadcast", data)` and runs board access + rate-limit checks against the board already bound to the socket.
 - Server calls `normalizeBroadcastData`, which calls `normalizeIncomingMessage`; rejects include explicit reasons.
-- Accepted payload is normalized, rate-limited, and passed through `processNormalizedBoardMessage(...)` before `board.processMessage(...)`.
-- Server relays normalized payload to peers with `socket.broadcast.to(boardName).emit("broadcast", normalizedData)`.
-- Client `socket.on("broadcast", msg)` calls `handleMessage(msg)`; child batches use `BoardMessages.hasChildMessages` + `normalizeChildMessage`.
+- Accepted payload is normalized, rate-limited, and serialized through the per-board session before `board.processMessage(...)` records a `MutationLogEntry` containing only `seq`, `acceptedAtMs`, and `mutation`.
+- Persistent live writes are emitted as sequenced mutation broadcasts shaped `{seq, acceptedAtMs, mutation}`. The primary live broadcast adds source identity only as `mutation.socket` so the sender can acknowledge its optimistic write; retained replay-log entries do not store board names, socket ids, or top-level client mutation ids.
+- Connection replay strips the live broadcast frame and emits one compact batch shaped `{type, fromSeq, seq, _children}`. Client `socket.on("broadcast", msg)` handles sequenced broadcasts, replay batches, and ephemeral messages; child batches use `BoardMessages.hasChildMessages` + `normalizeChildMessage`.
 - `messageForTool` decodes the numeric live `tool` code back to the tool id, resolves `Tools.list[toolId]`, and calls `tool.draw(message, false)`; tool code mutates SVG/DOM.
 
 ## where to look by concern

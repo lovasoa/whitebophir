@@ -1151,7 +1151,8 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
  * @returns {void}
  */
 function finalizeIncomingBroadcast(msg, processed) {
-  const activityMessage = BoardMessageReplay.unwrapReplayMessage(msg);
+  const activityMessage =
+    BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
   if (processed) {
     Tools.updateConnectedUsersFromActivity(
       activityMessage.userId,
@@ -1230,9 +1231,10 @@ async function processIncomingBroadcast(msg) {
       /** @type {AuthoritativeReplayBatch} */ (msg),
     );
   }
-  const isPersistentEnvelope = BoardMessageReplay.isPersistentEnvelope(msg);
-  if (isPersistentEnvelope) {
-    const seqDisposition = BoardMessageReplay.classifyPersistentEnvelopeSeq(
+  const isSequencedBroadcast =
+    BoardMessageReplay.isSequencedMutationBroadcast(msg);
+  if (isSequencedBroadcast) {
+    const seqDisposition = BoardMessageReplay.classifySequencedMutationSeq(
       msg.seq,
       Tools.authoritativeSeq,
     );
@@ -1255,23 +1257,24 @@ async function processIncomingBroadcast(msg) {
     Tools.preSnapshotMessages.push(Tools.cloneMessage(msg));
     return false;
   }
-  const replayMessage = BoardMessageReplay.unwrapReplayMessage(msg);
-  const isOwnSeqEnvelope =
-    isPersistentEnvelope && replayMessage.socket === Tools.socket?.id;
+  const replayMessage =
+    BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
+  const isOwnSequencedBroadcast =
+    isSequencedBroadcast && replayMessage.socket === Tools.socket?.id;
   if (
-    isOwnSeqEnvelope &&
+    isOwnSequencedBroadcast &&
     typeof replayMessage.clientMutationId === "string" &&
     replayMessage.clientMutationId
   ) {
     Tools.promoteOptimisticMutation(replayMessage.clientMutationId);
   }
-  if (isPersistentEnvelope && !isOwnSeqEnvelope) {
+  if (isSequencedBroadcast && !isOwnSequencedBroadcast) {
     Tools.pruneOptimisticMutationsForAuthoritativeMessage(replayMessage);
   }
-  if (!isOwnSeqEnvelope) {
+  if (!isOwnSequencedBroadcast) {
     await handleMessage(replayMessage);
   }
-  if (isPersistentEnvelope) {
+  if (isSequencedBroadcast) {
     Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(msg.seq);
   }
   return true;

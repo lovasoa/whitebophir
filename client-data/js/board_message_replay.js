@@ -1,4 +1,4 @@
-/** @import { BoardMessage, IdentifiedBoardMessage, IncomingBroadcast, PersistentMutationEnvelope, ToolOwnedBatchMessage } from "../../types/app-runtime" */
+/** @import { BoardMessage, IdentifiedBoardMessage, IncomingBroadcast, SequencedMutationBroadcast, ToolOwnedBatchMessage } from "../../types/app-runtime" */
 import { isToolOwnedBatchTool } from "./message_tool_metadata.js";
 import {
   hasMessageChildren,
@@ -20,7 +20,7 @@ export function normalizeSeq(value) {
  * @param {unknown} authoritativeSeq
  * @returns {"invalid" | "stale" | "next" | "gap"}
  */
-export function classifyPersistentEnvelopeSeq(messageSeq, authoritativeSeq) {
+export function classifySequencedMutationSeq(messageSeq, authoritativeSeq) {
   const normalizedMessageSeq = normalizeSeq(messageSeq);
   const normalizedAuthoritativeSeq = normalizeSeq(authoritativeSeq);
   if (normalizedMessageSeq === 0) return "invalid";
@@ -69,15 +69,15 @@ export function prepareReplayChild(parent, child, normalizeChildMessage) {
  */
 export function shouldBufferLiveMessage(message, awaitingBoardSnapshot) {
   if (awaitingBoardSnapshot !== true) return false;
-  if (isPersistentEnvelope(message || {})) return false;
+  if (isSequencedMutationBroadcast(message || {})) return false;
   return true;
 }
 
 /**
  * @param {{seq?: unknown, mutation?: unknown} | null | undefined} message
- * @returns {message is PersistentMutationEnvelope}
+ * @returns {message is SequencedMutationBroadcast}
  */
-export function isPersistentEnvelope(message) {
+export function isSequencedMutationBroadcast(message) {
   return (
     !!message &&
     typeof message === "object" &&
@@ -91,8 +91,8 @@ export function isPersistentEnvelope(message) {
  * @param {IncomingBroadcast} message
  * @returns {BoardMessage}
  */
-export function unwrapReplayMessage(message) {
-  return isPersistentEnvelope(message) ? message.mutation : message;
+export function unwrapSequencedMutationBroadcast(message) {
+  return isSequencedMutationBroadcast(message) ? message.mutation : message;
 }
 
 /**

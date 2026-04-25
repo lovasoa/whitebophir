@@ -1,7 +1,7 @@
 import type {
   BoardMessage,
   ConnectedUser,
-  PersistentMutationEnvelope,
+  SequencedMutationBroadcast,
   ToolCode,
 } from "./app-runtime";
 
@@ -94,6 +94,14 @@ export type BoardLike = {
   isReadOnly: () => boolean;
 };
 
-export type MutationEnvelope = PersistentMutationEnvelope & {
+// Retained per-board replay-log state. BoardData owns the board scope, and
+// sockets own source identity, so this type deliberately stores neither.
+export type MutationLogEntry = {
+  seq: number;
+  acceptedAtMs: number;
+  mutation: NormalizedMessageData;
+};
+
+export type SequencedMutationBroadcastData = SequencedMutationBroadcast & {
   mutation: NormalizedMessageData;
 };

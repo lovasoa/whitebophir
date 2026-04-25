@@ -9,7 +9,6 @@ test("mutation logs append contiguous seq values from the initial baseline", () 
   const log = createMutationLog(4);
 
   const first = log.append({
-    board: "demo",
     acceptedAtMs: 100,
     mutation: {
       tool: Rectangle.id,
@@ -18,7 +17,6 @@ test("mutation logs append contiguous seq values from the initial baseline", () 
     },
   });
   const second = log.append({
-    board: "demo",
     acceptedAtMs: 200,
     mutation: {
       tool: Eraser.id,
@@ -36,7 +34,6 @@ test("mutation logs read contiguous suffixes and trim old replay entries", () =>
   const log = createMutationLog(0);
   for (let index = 0; index < 5; index++) {
     log.append({
-      board: "demo",
       acceptedAtMs: index,
       mutation: {
         tool: Text.id,
@@ -67,7 +64,6 @@ test("mutation logs read contiguous suffixes and trim old replay entries", () =>
 test("mutation logs track the latest persisted baseline seq", () => {
   const log = createMutationLog(2);
   log.append({
-    board: "demo",
     acceptedAtMs: 3,
     mutation: {
       tool: Rectangle.id,
@@ -84,7 +80,6 @@ test("mutation logs track the latest persisted baseline seq", () => {
 test("mutation logs trim retention as a contiguous replay suffix", () => {
   const log = createMutationLog(0);
   log.append({
-    board: "demo",
     acceptedAtMs: 10,
     mutation: {
       tool: Rectangle.id,
@@ -93,7 +88,6 @@ test("mutation logs trim retention as a contiguous replay suffix", () => {
     },
   });
   log.append({
-    board: "demo",
     acceptedAtMs: 100,
     mutation: {
       tool: Rectangle.id,
@@ -102,7 +96,6 @@ test("mutation logs trim retention as a contiguous replay suffix", () => {
     },
   });
   log.append({
-    board: "demo",
     acceptedAtMs: 20,
     mutation: {
       tool: Rectangle.id,
@@ -124,7 +117,6 @@ test("mutation logs trim retention as a contiguous replay suffix", () => {
 test("mutation logs keep pinned replay history even after persisted retention expires", () => {
   const log = createMutationLog(0);
   log.append({
-    board: "demo",
     acceptedAtMs: 10,
     mutation: {
       tool: Rectangle.id,
@@ -133,7 +125,6 @@ test("mutation logs keep pinned replay history even after persisted retention ex
     },
   });
   log.append({
-    board: "demo",
     acceptedAtMs: 20,
     mutation: {
       tool: Rectangle.id,
@@ -142,7 +133,6 @@ test("mutation logs keep pinned replay history even after persisted retention ex
     },
   });
   log.append({
-    board: "demo",
     acceptedAtMs: 30,
     mutation: {
       tool: Rectangle.id,

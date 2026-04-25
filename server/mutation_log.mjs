@@ -1,4 +1,4 @@
-/** @typedef {import("../types/server-runtime.d.ts").MutationEnvelope} MutationEnvelope */
+/** @typedef {import("../types/server-runtime.d.ts").MutationLogEntry} MutationLogEntry */
 
 /**
  * @param {unknown} value
@@ -15,8 +15,8 @@ function normalizeSeq(value) {
  *   latestSeq: () => number,
  *   persistedSeq: () => number,
  *   minReplayableSeq: () => number,
- *   append: (envelope: Omit<MutationEnvelope, "seq">) => MutationEnvelope,
- *   readFrom: (fromExclusiveSeq: number) => MutationEnvelope[],
+ *   append: (entry: Omit<MutationLogEntry, "seq">) => MutationLogEntry,
+ *   readFrom: (fromExclusiveSeq: number) => MutationLogEntry[],
  *   markPersisted: (persistedSeq: number) => void,
  *   trimPersistedOlderThan: (cutoffMs: number, pinnedBaselineSeq?: number | null) => void,
  *   trimBefore: (seqInclusiveFloor: number) => void,
@@ -25,7 +25,7 @@ function normalizeSeq(value) {
 function createMutationLog(initialSeq = 0) {
   let latestSeq = normalizeSeq(initialSeq);
   let persistedSeq = latestSeq;
-  /** @type {MutationEnvelope[]} */
+  /** @type {MutationLogEntry[]} */
   let entries = [];
 
   return {
@@ -39,10 +39,11 @@ function createMutationLog(initialSeq = 0) {
       const firstEntry = entries[0];
       return firstEntry ? Math.max(0, firstEntry.seq - 1) : latestSeq;
     },
-    append(envelope) {
+    append(entry) {
       const nextEntry = {
-        ...envelope,
         seq: latestSeq + 1,
+        acceptedAtMs: entry.acceptedAtMs,
+        mutation: entry.mutation,
       };
       entries.push(nextEntry);
       latestSeq = nextEntry.seq;

@@ -52,7 +52,7 @@ const BASELINE_NOT_REPLAYABLE = "baseline_not_replayable";
 
 /** @typedef {"replayed" | "empty" | "baseline_not_replayable" | "future_baseline" | "error"} ConnectionReplayOutcome */
 
-/** @import { AppSocket, ConnectedUserPayload, MessageData, MutationEnvelope, NormalizedMessageData, RateLimitState as BaseRateLimitState, ReportUserPayload, ServerConfig, SocketRequest, TurnstileAck, TurnstileAckCallback, TurnstileEventAck, TurnstileRejectedAck, TurnstileSiteverifyResult, ValidationStatus } from "../types/server-runtime.d.ts" */
+/** @import { AppSocket, ConnectedUserPayload, MessageData, MutationLogEntry, NormalizedMessageData, RateLimitState as BaseRateLimitState, ReportUserPayload, SequencedMutationBroadcastData, ServerConfig, SocketRequest, TurnstileAck, TurnstileAckCallback, TurnstileEventAck, TurnstileRejectedAck, TurnstileSiteverifyResult, ValidationStatus } from "../types/server-runtime.d.ts" */
 /** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string, baselineSeq?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {{type: number, fromSeq: number, seq: number, _children: NormalizedMessageData[]}} ConnectionReplayBatch */
@@ -530,37 +530,21 @@ function withLiveSocketId(data, user) {
 }
 
 /**
- * @param {MutationEnvelope} envelope
- * @returns {MutationEnvelope}
+ * @param {MutationLogEntry} entry
+ * @param {string | undefined} liveSocketId
+ * @returns {SequencedMutationBroadcastData}
  */
-function clonePersistentEnvelope(envelope) {
-  const { socketId, mutation, ...nextEnvelope } = envelope;
+function buildSequencedMutationBroadcast(entry, liveSocketId = undefined) {
+  // The retained log entry has no source socket. Only the primary live
+  // broadcast gets one so the sender can acknowledge its optimistic write.
+  const mutation = liveSocketId
+    ? { ...entry.mutation, socket: liveSocketId }
+    : entry.mutation;
   return {
-    ...nextEnvelope,
-    mutation: { ...mutation },
+    seq: entry.seq,
+    acceptedAtMs: entry.acceptedAtMs,
+    mutation,
   };
-}
-
-/**
- * @param {MutationEnvelope} envelope
- * @param {string | undefined} socketId
- * @returns {MutationEnvelope}
- */
-function withPersistentEnvelopeSocketId(envelope, socketId) {
-  const liveSocketId = socketId || envelope.socketId;
-  if (!liveSocketId) return envelope;
-  const liveEnvelope = clonePersistentEnvelope(envelope);
-  liveEnvelope.mutation.socket = liveSocketId;
-  return liveEnvelope;
-}
-
-/**
- * @param {MutationEnvelope} envelope
- * @param {BoardUser | undefined} user
- * @returns {MutationEnvelope}
- */
-function withLivePersistentEnvelope(envelope, user) {
-  return withPersistentEnvelopeSocketId(envelope, user?.socketId);
 }
 
 /**
@@ -1514,7 +1498,7 @@ function normalizeSeq(value) {
 /**
  * @param {number} baselineSeq
  * @param {number} latestSeq
- * @param {MutationEnvelope[]} replayEntries
+ * @param {MutationLogEntry[]} replayEntries
  * @returns {ConnectionReplayBatch}
  */
 function buildConnectionReplayBatch(baselineSeq, latestSeq, replayEntries) {
@@ -1655,30 +1639,34 @@ async function prepareConnectionReplay(socket, config) {
 /**
  * @param {BoardData} board
  * @param {AppSocket} sourceSocket
- * @param {MutationEnvelope} envelope
+ * @param {SequencedMutationBroadcastData} broadcast
  * @returns {void}
  */
-function emitPersistentBoardMutation(board, sourceSocket, envelope) {
+function emitPersistentBoardMutation(board, sourceSocket, broadcast) {
   for (const socketId of board.users) {
     const targetSocket = getActiveSocket(socketId);
     if (!targetSocket) continue;
     if (targetSocket.id === sourceSocket.id) continue;
     if (!canReceiveLivePersistentBroadcasts(targetSocket)) continue;
-    targetSocket.emit(SocketEvents.BROADCAST, envelope);
+    targetSocket.emit(SocketEvents.BROADCAST, broadcast);
   }
-  sourceSocket.emit(SocketEvents.BROADCAST, envelope);
+  sourceSocket.emit(SocketEvents.BROADCAST, broadcast);
 }
 
 /**
  * @param {BoardData} board
  * @param {AppSocket} sourceSocket
- * @param {Array<{mutation: NormalizedMessageData, envelope: MutationEnvelope}> | undefined} followup
+ * @param {MutationLogEntry[] | undefined} followup
  * @returns {void}
  */
 function emitPersistentBoardFollowupMutations(board, sourceSocket, followup) {
   if (!Array.isArray(followup) || followup.length === 0) return;
   followup.forEach((entry) => {
-    emitPersistentBoardMutation(board, sourceSocket, entry.envelope);
+    emitPersistentBoardMutation(
+      board,
+      sourceSocket,
+      buildSequencedMutationBroadcast(entry),
+    );
   });
 }
 
@@ -1930,8 +1918,8 @@ function finishSuccessfulEphemeralBoardWrite(
  * @param {NormalizedMessageData} data
  * @param {number} now
  * @param {string} userName
- * @param {MutationEnvelope} envelope
- * @param {Array<{mutation: NormalizedMessageData, envelope: MutationEnvelope}> | undefined} followup
+ * @param {MutationLogEntry} entry
+ * @param {MutationLogEntry[] | undefined} followup
  * @returns {void}
  */
 function finishSuccessfulPersistentBoardWrite(
@@ -1941,7 +1929,7 @@ function finishSuccessfulPersistentBoardWrite(
   data,
   now,
   userName,
-  envelope,
+  entry,
   followup,
 ) {
   const { user } = recordSuccessfulBoardWrite(
@@ -1951,8 +1939,11 @@ function finishSuccessfulPersistentBoardWrite(
     now,
     userName,
   );
-  const liveEnvelope = withLivePersistentEnvelope(envelope, user);
-  emitPersistentBoardMutation(board, socket, liveEnvelope);
+  const liveBroadcast = buildSequencedMutationBroadcast(
+    entry,
+    user?.socketId || socket.id,
+  );
+  emitPersistentBoardMutation(board, socket, liveBroadcast);
   emitPersistentBoardFollowupMutations(board, socket, followup);
 }
 
@@ -1987,9 +1978,7 @@ async function persistBoardBroadcast(
   }
 
   const handleResult = await getBoardSession(board).acceptPersistentMutation(
-    socket.id,
     data,
-    data.clientMutationId,
     now,
   );
   if (handleResult.ok === false) {
@@ -2015,7 +2004,7 @@ async function persistBoardBroadcast(
     handleResult.value,
     now,
     userName,
-    handleResult.envelope,
+    handleResult.entry,
     handleResult.followup,
   );
 }

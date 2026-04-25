@@ -56,24 +56,24 @@ export type ToolOwnedBatchMessage = BatchBoardMessage & {
   tool: ToolRef;
 };
 
-export type PersistentMutationEnvelope = {
-  board: string;
+// Live single-mutation frame. Connection replay batches intentionally strip this
+// frame and send only ordered child mutations between fromSeq and seq.
+export type SequencedMutationBroadcast = {
+  seq: number;
   acceptedAtMs: number;
   mutation: BoardMessage;
-  clientMutationId?: string;
-  socketId?: string;
-  seq: number;
 };
 
-export type AuthoritativeReplayBatch = BatchBoardMessage & {
+export type AuthoritativeReplayBatch = {
   type: typeof import("../client-data/js/mutation_type.js").MutationType.BATCH;
   fromSeq: number;
   seq: number;
+  _children: BoardMessage[];
 };
 
 export type IncomingBroadcast =
   | BoardMessage
-  | PersistentMutationEnvelope
+  | SequencedMutationBroadcast
   | AuthoritativeReplayBatch;
 
 export type PendingWrite = {
