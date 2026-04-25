@@ -814,9 +814,50 @@ test("canonical board svg endpoint serves the authoritative baseline with short 
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-type"], "image/svg+xml");
-    assert.equal(response.headers["cache-control"], "public, max-age=30");
+    assert.equal(
+      response.headers["cache-control"],
+      "public, max-age=3, must-revalidate",
+    );
+    assert.equal(response.headers.etag, 'W/"wbo-seq-3"');
     assert.match(response.body, /data-wbo-seq="3"/);
     assert.match(response.body, /<line id="line-1"/);
+
+    const cachedResponse = await request(app, "/boards/canonical-svg.svg", {
+      "If-None-Match": String(response.headers.etag),
+    });
+
+    assert.equal(cachedResponse.statusCode, 304);
+    assert.equal(
+      cachedResponse.headers["cache-control"],
+      "public, max-age=3, must-revalidate",
+    );
+    assert.equal(cachedResponse.headers.etag, response.headers.etag);
+    assert.equal(cachedResponse.body, "");
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("canonical board svg endpoint remains no-store in development", async () => {
+  const dirs = await createServerDirs();
+  await fs.writeFile(
+    boardSvgFile(dirs.historyDir, "canonical-svg-dev"),
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="5000" height="5000" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="4" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"></g><g id="cursors"></g></svg>',
+    "utf8",
+  );
+
+  const app = await createTestServer(
+    createServerConfig(dirs, {
+      WEBROOT: CLIENT_WEBROOT,
+      IS_DEVELOPMENT: true,
+    }),
+  );
+  try {
+    const response = await request(app, "/boards/canonical-svg-dev.svg");
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["cache-control"], "no-store");
+    assert.equal(response.headers.etag, 'W/"wbo-seq-4"');
   } finally {
     await closeServer(app);
   }

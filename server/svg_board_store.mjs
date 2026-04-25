@@ -190,6 +190,59 @@ async function resolveReadableSvgFile(boardName, historyDir) {
 }
 
 /**
+ * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
+ * @returns {Promise<{metadata: BoardMetadata, seq: number, source: "svg" | "svg_backup" | "empty", byteLength: number}>}
+ */
+async function readStoredSvgMetadata(boardName, options) {
+  const historyDir = options?.historyDir;
+  const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
+  if (!readableSvg) {
+    return {
+      metadata: defaultBoardMetadata(),
+      seq: 0,
+      source: "empty",
+      byteLength: 0,
+    };
+  }
+
+  const stream = fs.createReadStream(readableSvg.file, { encoding: "utf8" });
+  /** @type {BoardMetadata} */
+  let metadata = defaultBoardMetadata();
+  let seq = 0;
+  try {
+    for await (const event of streamStoredSvgStructure(stream)) {
+      if (event.type !== "prefix") continue;
+      const rootMetadata = readStoredSvgRootMetadata(event.prefix);
+      seq = rootMetadata.seq;
+      metadata = {
+        readonly: rootMetadata.readonly,
+        seq,
+      };
+      break;
+    }
+  } finally {
+    stream.destroy();
+  }
+
+  return {
+    metadata,
+    seq,
+    source: readableSvg.source,
+    byteLength: readableSvg.byteLength,
+  };
+}
+
+/**
+ * @param {string} boardName
+ * @param {{historyDir?: string}=} [options]
+ * @returns {Promise<number>}
+ */
+async function readStoredSvgSeq(boardName, options) {
+  return (await readStoredSvgMetadata(boardName, options)).seq;
+}
+
+/**
  * @param {number} expectedSeq
  * @param {number} actualSeq
  * @returns {Error & {code: string, expectedSeq: number, actualSeq: number}}
@@ -867,25 +920,13 @@ async function rewriteStoredSvgFromCanonical(
  */
 async function readBoardDocumentState(boardName, options) {
   const historyDir = options?.historyDir;
-  const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
-  if (readableSvg) {
-    const stream = fs.createReadStream(readableSvg.file, { encoding: "utf8" });
-    /** @type {BoardMetadata} */
-    let metadata = defaultBoardMetadata();
-    try {
-      for await (const event of streamStoredSvgStructure(stream)) {
-        if (event.type !== "prefix") continue;
-        metadata = readStoredSvgRootMetadata(event.prefix);
-        break;
-      }
-    } finally {
-      stream.destroy();
-    }
+  const storedMetadata = await readStoredSvgMetadata(boardName, options);
+  if (storedMetadata.source !== "empty") {
     return {
-      metadata,
+      metadata: storedMetadata.metadata,
       inlineBoardSvg: null,
-      source: readableSvg.source,
-      byteLength: readableSvg.byteLength,
+      source: storedMetadata.source,
+      byteLength: storedMetadata.byteLength,
     };
   }
 
@@ -969,6 +1010,7 @@ export {
   readCanonicalBoardState,
   readBoardDocumentState,
   readServedBaseline,
+  readStoredSvgSeq,
   rewriteStoredSvgFromCanonical,
   streamServedBaseline,
   writeCanonicalBoardState,

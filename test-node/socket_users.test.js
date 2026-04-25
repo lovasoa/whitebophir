@@ -1780,3 +1780,106 @@ test("seq mismatch drops the stale board instance and disconnects attached socke
     },
   );
 });
+
+test("future baseline rejection does not reload when stored seq is not ahead", async () => {
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-future-baseline-no-reload-",
+      boardName: "future-baseline-no-reload",
+    },
+    async ({ connect, invoke, getLoadedBoard }) => {
+      const writer = await connect({
+        id: "socket-future-no-reload-writer",
+        query: { board: "future-baseline-no-reload" },
+      });
+
+      await invoke(
+        writer,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-1",
+          color: "#111111",
+          size: 2,
+          x: 1,
+          y: 2,
+          x2: 3,
+          y2: 4,
+        }),
+      );
+
+      const board = await getLoadedBoard("future-baseline-no-reload");
+      assert.deepEqual(await board.save(), { status: "saved" });
+
+      const firstFuture = await connect({
+        id: "socket-future-no-reload-first",
+        query: { board: "future-baseline-no-reload", baselineSeq: "99" },
+      });
+      assert.equal(firstFuture.socket.disconnected, true);
+      assert.equal(await getLoadedBoard("future-baseline-no-reload"), board);
+
+      const secondFuture = await connect({
+        id: "socket-future-no-reload-second",
+        query: { board: "future-baseline-no-reload", baselineSeq: "99" },
+      });
+      assert.equal(secondFuture.socket.disconnected, true);
+      assert.equal(await getLoadedBoard("future-baseline-no-reload"), board);
+    },
+  );
+});
+
+test("future baseline reloads stale board when stored seq is ahead", async () => {
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-future-baseline-reload-",
+      boardName: "future-baseline-reload",
+    },
+    async ({ historyDir, connect, invoke, handler, getLoadedBoard }) => {
+      const first = await connect({
+        id: "socket-future-reload-first",
+        query: { board: "future-baseline-reload" },
+      });
+
+      await invoke(
+        first,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-1",
+          color: "#111111",
+          size: 2,
+          x: 1,
+          y: 2,
+          x2: 3,
+          y2: 4,
+        }),
+      );
+
+      const board = await getLoadedBoard("future-baseline-reload");
+      assert.deepEqual(await board.save(), { status: "saved" });
+
+      const svgPath = path.join(
+        /** @type {string} */ (historyDir),
+        "board-future-baseline-reload.svg",
+      );
+      const persistedSvg = await fs.readFile(svgPath, "utf8");
+      await fs.writeFile(
+        svgPath,
+        persistedSvg.replace('data-wbo-seq="1"', 'data-wbo-seq="3"'),
+        "utf8",
+      );
+
+      const reconnect = await connect({
+        id: "socket-future-reload-reconnect",
+        query: { board: "future-baseline-reload", baselineSeq: "3" },
+      });
+
+      const reloadedBoard = await getLoadedBoard("future-baseline-reload");
+      assert.notEqual(reconnect.socket.disconnected, true);
+      assert.equal(first.socket.disconnected, true);
+      assert.equal(board.disposed, true);
+      assert.notEqual(reloadedBoard, board);
+      assert.equal(reloadedBoard.getSeq(), 3);
+
+      handler(reconnect, "disconnecting")("transport close");
+    },
+  );
+});

@@ -40,6 +40,7 @@ import {
   boardExists,
   readBoardDocumentState,
   readServedBaseline,
+  readStoredSvgSeq,
   streamServedBaseline,
 } from "./svg_board_store.mjs";
 import * as templating from "./templating.mjs";
@@ -98,7 +99,9 @@ function staticFileCacheControl(config, filePath) {
  * @returns {string}
  */
 function boardSvgCacheControl(config) {
-  return config.IS_DEVELOPMENT ? "no-store" : "public, max-age=30";
+  return config.IS_DEVELOPMENT
+    ? "no-store"
+    : "public, max-age=3, must-revalidate";
 }
 const SLOW_REQUEST_LOG_MS = 1000;
 const BOARD_SCOPED_ROUTES = new Set(["boards", "preview", "download"]);
@@ -1279,12 +1282,28 @@ async function handleBoardSvgRoute(
   const boardName = requireBoardSvgPathName(parts);
   annotateBoardRequest(requestContext, boardName);
   jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
+  const persistedSeq = await readStoredSvgSeq(boardName, {
+    historyDir: runtime.config.HISTORY_DIR,
+  });
+  const etag = boardPageETag(persistedSeq);
+  pinServedBoardBaseline(boardName, persistedSeq, runtime.config);
+  if (matchesIfNoneMatch(request.headers["if-none-match"], etag)) {
+    response.writeHead(304, {
+      "Cache-Control": boardSvgCacheControl(runtime.config),
+      ETag: etag,
+    });
+    response.end();
+    return;
+  }
   const svgStream = await tracing.withRecordingActiveSpan(
     "board.baseline_stream_open",
     {
       attributes: boardOperationTraceAttributes(
         boardName,
         "baseline_stream_open",
+        {
+          "wbo.board.seq": persistedSeq,
+        },
       ),
     },
     function traceBoardBaselineStreamOpen() {
@@ -1314,6 +1333,7 @@ async function handleBoardSvgRoute(
       "Content-Type": "image/svg+xml",
       "Content-Security-Policy": CSP,
       "Cache-Control": boardSvgCacheControl(runtime.config),
+      ETag: etag,
     },
   );
   annotateResponseCompression(requestContext, compressedResponse.encoding);

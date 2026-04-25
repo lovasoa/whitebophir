@@ -59,6 +59,15 @@ function readBoardDocumentState(boardName, historyDir) {
 
 /**
  * @param {string} boardName
+ * @param {string} historyDir
+ * @returns {Promise<number>}
+ */
+function readStoredSvgSeq(boardName, historyDir) {
+  return svgBoardStore.readStoredSvgSeq(boardName, { historyDir });
+}
+
+/**
+ * @param {string} boardName
  * @param {{[name: string]: any}} board
  * @param {{readonly: boolean}} metadata
  * @param {number} seq
@@ -113,6 +122,38 @@ test("board file paths use board names directly", () => {
     path.basename(svgBoardStore.boardJsonPath("тест-board", "/tmp/history")),
     "board-тест-board.json",
   );
+});
+
+test("readStoredSvgSeq reads seq from stored svg metadata", async () => {
+  const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "wbo-svg-seq-"));
+  await fs.writeFile(
+    svgPath("seq-board", historyDir),
+    '<svg id="canvas" data-wbo-seq="42" data-wbo-readonly="false"><g id="drawingArea"><rect id="rect-1"></rect></g></svg>',
+    "utf8",
+  );
+
+  assert.equal(await readStoredSvgSeq("seq-board", historyDir), 42);
+});
+
+test("readStoredSvgSeq stops after prefix metadata", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-seq-prefix-"),
+  );
+  await fs.writeFile(
+    svgPath("seq-prefix-board", historyDir),
+    '<svg id="canvas" data-wbo-seq="8" data-wbo-readonly="false"><g id="drawingArea"><unsupported id="should-not-parse"></unsupported></g></svg>',
+    "utf8",
+  );
+
+  assert.equal(await readStoredSvgSeq("seq-prefix-board", historyDir), 8);
+});
+
+test("readStoredSvgSeq returns zero when no stored svg exists", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-seq-missing-"),
+  );
+
+  assert.equal(await readStoredSvgSeq("missing-seq-board", historyDir), 0);
 });
 
 /**

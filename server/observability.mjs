@@ -1064,17 +1064,22 @@ function recordSocketConnection(event) {
  *   outcome: "replayed" | "empty" | "baseline_not_replayable" | "future_baseline" | "error",
  *   baselineSeq?: number,
  *   latestSeq?: number,
+ *   persistedFileSeq?: number,
  * }} request
  * @returns {void}
  */
 function recordSocketConnectionReplay(request) {
-  /** @type {{[key: string]: string | boolean}} */
+  /** @type {{[key: string]: string | number | boolean}} */
   const attributes = {
     "wbo.socket.connection_replay.outcome": request.outcome,
   };
   const boardAnonymous = metricBoardAnonymous(request.board);
   if (boardAnonymous !== undefined) {
     attributes["wbo.board.anonymous"] = boardAnonymous;
+  }
+  const persistedFileSeq = normalizeMetricSeq(request.persistedFileSeq);
+  if (persistedFileSeq !== undefined) {
+    attributes["wbo.board.persisted_file_seq"] = persistedFileSeq;
   }
   socketConnectionReplays.add(1, attributes);
 

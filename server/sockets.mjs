@@ -33,6 +33,7 @@ import {
   normalizeBoardName,
   normalizeBroadcastData,
 } from "./socket_policy.mjs";
+import { readStoredSvgSeq } from "./svg_board_store.mjs";
 import { getUserSecretFromCookieHeader } from "./user_secret_cookie.mjs";
 
 const createRateLimitState = RateLimitCommon.createRateLimitState;
@@ -441,16 +442,20 @@ function detachBoardSockets(board) {
  * @param {BoardData} board
  * @param {{
  *   actualFileSeq?: number,
+ *   baselineSeq?: number,
  *   durationMs?: number,
+ *   logEvent?: string,
+ *   persistedFileSeq?: number,
+ *   reason?: string,
  *   saveTargetSeq?: number,
  * }=} details
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>}
  */
-async function handleStaleBoardSave(board, details) {
+async function dropLoadedBoardInstance(board, details) {
   const loadedBoard = getLoadedBoard(board.name);
-  if (!loadedBoard) return;
+  if (!loadedBoard) return false;
   const currentBoard = await loadedBoard;
-  if (currentBoard !== board) return;
+  if (currentBoard !== board) return false;
 
   const socketsToDisconnect = detachBoardSockets(board);
   deleteLoadedBoard(board.name);
@@ -458,12 +463,15 @@ async function handleStaleBoardSave(board, details) {
   board.dispose();
 
   logger.warn(
-    "board.stale_instance_dropped",
+    details?.logEvent || "board.stale_instance_dropped",
     boardDebugFields(board, {
       "wbo.board.actual_file_seq": details?.actualFileSeq,
+      "wbo.board.persisted_file_seq": details?.persistedFileSeq,
       "wbo.board.save_target_seq": details?.saveTargetSeq,
+      "wbo.socket.baseline_seq": details?.baselineSeq,
       duration_ms: details?.durationMs,
       "wbo.board.disconnected_sockets": socketsToDisconnect.length,
+      reason: details?.reason,
     }),
   );
 
@@ -472,6 +480,23 @@ async function handleStaleBoardSave(board, details) {
       board: board.name,
       socket: socket.id,
     });
+  });
+  return true;
+}
+
+/**
+ * @param {BoardData} board
+ * @param {{
+ *   actualFileSeq?: number,
+ *   durationMs?: number,
+ *   saveTargetSeq?: number,
+ * }=} details
+ * @returns {Promise<void>}
+ */
+async function handleStaleBoardSave(board, details) {
+  await dropLoadedBoardInstance(board, {
+    ...details,
+    reason: "save_seq_mismatch",
   });
 }
 
@@ -1558,10 +1583,28 @@ async function prepareConnectionReplay(socket, config) {
       let minReplayableSeq;
       /** @type {number | undefined} */
       let replayCount;
+      /** @type {number | undefined} */
+      let persistedFileSeq;
       try {
-        const board = await getBoard(boardName, config);
+        let board = await getBoard(boardName, config);
         latestSeq = board.getSeq();
         minReplayableSeq = board.minReplayableSeq();
+        if (baselineSeq > latestSeq) {
+          persistedFileSeq = await readStoredSvgSeq(boardName, {
+            historyDir: config.HISTORY_DIR,
+          });
+          if (persistedFileSeq > latestSeq) {
+            await dropLoadedBoardInstance(board, {
+              baselineSeq,
+              logEvent: "board.stale_instance_dropped_after_future_baseline",
+              persistedFileSeq,
+              reason: "future_baseline_disk_seq_ahead",
+            });
+            board = await getBoard(boardName, config);
+            latestSeq = board.getSeq();
+            minReplayableSeq = board.minReplayableSeq();
+          }
+        }
         if (baselineSeq > latestSeq || baselineSeq < minReplayableSeq) {
           outcome =
             baselineSeq > latestSeq
@@ -1574,6 +1617,7 @@ async function prepareConnectionReplay(socket, config) {
               "wbo.socket.baseline_seq": baselineSeq,
               "wbo.socket.latest_seq": latestSeq,
               "wbo.socket.min_replayable_seq": minReplayableSeq,
+              "wbo.board.persisted_file_seq": persistedFileSeq,
               reason: BASELINE_NOT_REPLAYABLE,
             }),
           );
@@ -1623,6 +1667,7 @@ async function prepareConnectionReplay(socket, config) {
             "wbo.socket.latest_seq": latestSeq,
             "wbo.socket.min_replayable_seq": minReplayableSeq,
             "wbo.socket.replay.count": replayCount,
+            "wbo.board.persisted_file_seq": persistedFileSeq,
           });
         }
         metrics.recordSocketConnectionReplay({
@@ -1630,6 +1675,7 @@ async function prepareConnectionReplay(socket, config) {
           outcome,
           baselineSeq,
           latestSeq,
+          persistedFileSeq,
         });
       }
     },

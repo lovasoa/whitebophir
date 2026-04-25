@@ -389,13 +389,18 @@ function getBoardStatusElements() {
 }
 
 /**
+ * @param {number | undefined} [cacheBust]
  * @returns {string}
  */
-function getAuthoritativeBaselineUrl() {
-  return buildBoardSvgBaselineUrl(
-    window.location.pathname,
-    window.location.search,
+function getAuthoritativeBaselineUrl(cacheBust) {
+  const url = new URL(
+    buildBoardSvgBaselineUrl(window.location.pathname, window.location.search),
+    window.location.href,
   );
+  if (cacheBust !== undefined) {
+    url.searchParams.set("baselineRefresh", String(cacheBust));
+  }
+  return `${url.pathname}${url.search}`;
 }
 
 /**
@@ -864,7 +869,7 @@ function normalizeServerRenderedElements() {
 
 Tools.refreshAuthoritativeBaseline =
   async function refreshAuthoritativeBaseline() {
-    const response = await fetch(getAuthoritativeBaselineUrl(), {
+    const response = await fetch(getAuthoritativeBaselineUrl(Date.now()), {
       cache: "no-store",
       credentials: "same-origin",
       headers: { Accept: "image/svg+xml" },
@@ -2127,6 +2132,10 @@ Tools.startConnection = () => {
             ),
           });
           Tools.beginAuthoritativeResync();
+          if (socket === Tools.socket) {
+            Tools.socket = null;
+            BoardConnection.closeSocket(socket);
+          }
         }
         scheduleSocketReconnect();
       },
