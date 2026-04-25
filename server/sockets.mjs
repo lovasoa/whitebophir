@@ -2302,6 +2302,7 @@ function getBoard(name, config) {
  */
 async function bootstrapSocketBoard(socket, replay, config) {
   const { board, boardName } = replay;
+  const replayCount = replay.replayBatch._children.length;
   return tracing.withActiveSpan(
     "socket.connect_board",
     {
@@ -2336,6 +2337,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
           "user.name": user.name,
           "wbo.board.users": board.users.size,
           "wbo.board.result": "success",
+          "wbo.socket.replay.count": replayCount,
         });
         logger.info("board.joined", {
           board: boardName,
@@ -2343,6 +2345,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
           "user.name": user.name,
           "client.address": user.ip,
           users: board.users.size,
+          "wbo.socket.replay.count": replayCount,
         });
       }
       socket.emit(SocketEvents.BOARDSTATE, {
@@ -2354,7 +2357,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
       syncedPersistentSockets.add(socket.id);
       tracing.setActiveSpanAttributes({
         "wbo.socket.replay.outcome": replay.outcome,
-        "wbo.socket.replay.count": replay.replayBatch._children.length,
+        "wbo.socket.replay.count": replayCount,
         "wbo.socket.baseline_seq": replay.baselineSeq,
         "wbo.socket.latest_seq": replay.latestSeq,
       });
