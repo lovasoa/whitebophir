@@ -269,6 +269,12 @@ const httpServerRequestDuration = meter.createHistogram(
     description:
       "Elapsed time, in seconds, from the start of an HTTP request until its response finishes or closes.",
     unit: "s",
+    advice: {
+      explicitBucketBoundaries: [
+        0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25, 0.5, 1,
+        2.5, 5, 10, 30,
+      ],
+    },
   },
 );
 const httpServerActiveRequests = meter.createUpDownCounter(
@@ -288,6 +294,11 @@ const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
   description:
     "Elapsed time, in seconds, spent handling each top-level Socket.IO event callback; histogram count is the number of handled events.",
   unit: "s",
+  advice: {
+    explicitBucketBoundaries: [
+      0, 0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5,
+    ],
+  },
 });
 const socketConnectionReplays = meter.createCounter(
   "wbo.socket.connection_replay",
@@ -301,8 +312,13 @@ const socketConnectionReplayGap = meter.createHistogram(
   "wbo.socket.connection_replay.gap",
   {
     description:
-      "Records the server's latest board sequence number minus the browser's baseline sequence number for each connection-time replay decision.",
+      "Records the absolute sequence gap between the server's latest board sequence number and the browser's baseline sequence number for each connection-time replay decision.",
     unit: "{sequence}",
+    advice: {
+      explicitBucketBoundaries: [
+        0, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000,
+      ],
+    },
   },
 );
 const boardMessages = meter.createCounter("wbo.board.message", {
@@ -316,6 +332,12 @@ const boardOperationDuration = meter.createHistogram(
     description:
       "Elapsed time, in seconds, for board persistence operations such as load, save, and unload; histogram count is the number of operations and error.type marks non-success outcomes.",
     unit: "s",
+    advice: {
+      explicitBucketBoundaries: [
+        0, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25,
+        0.35, 0.5, 0.75, 1, 2.5, 5, 10,
+      ],
+    },
   },
 );
 const rateLimitWindowUtilization = meter.createHistogram(
@@ -324,6 +346,11 @@ const rateLimitWindowUtilization = meter.createHistogram(
     description:
       "Fraction of a completed fixed-window rate-limit allowance that was consumed before that window ended. Each histogram sample represents exactly one completed server-side rate-limit window for a single tracked subject: one socket connection for the general limit, or one resolved client IP for the constructive, destructive, and text limits. The recorded value is used_count / configured_limit for that completed window. A value of 0.5 means half of the allowance was used, 1.0 means the allowance was fully consumed, and values greater than 1.0 mean the window exceeded the configured limit before the server closed the socket or later pruned the stale state.",
     unit: "1",
+    advice: {
+      explicitBucketBoundaries: [
+        0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 1, 1.1, 1.25, 1.5, 2, 5,
+      ],
+    },
   },
 );
 const turnstileVerifications = meter.createCounter(
@@ -1087,7 +1114,10 @@ function recordSocketConnectionReplay(request) {
   const latestSeq = normalizeMetricSeq(request.latestSeq);
   if (baselineSeq === undefined || latestSeq === undefined) return;
 
-  socketConnectionReplayGap.record(latestSeq - baselineSeq, attributes);
+  socketConnectionReplayGap.record(
+    Math.abs(latestSeq - baselineSeq),
+    attributes,
+  );
 }
 
 /**
