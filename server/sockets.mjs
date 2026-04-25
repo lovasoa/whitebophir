@@ -1514,7 +1514,7 @@ function normalizeSeq(value) {
 /**
  * @param {number} baselineSeq
  * @param {number} latestSeq
- * @param {ReturnType<BoardData["readMutationsAfter"]>} replayEntries
+ * @param {MutationEnvelope[]} replayEntries
  * @returns {ConnectionReplayBatch}
  */
 function buildConnectionReplayBatch(baselineSeq, latestSeq, replayEntries) {
