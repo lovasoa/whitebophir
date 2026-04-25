@@ -472,7 +472,6 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
   const tmpFile = createTempSvgPath(file);
   logSvgStoreDebug("svg.write_started", {
     board: boardName,
-    "file.path": file,
     "file.tmp_path": tmpFile,
     "wbo.svg.item_count": Object.keys(board).length,
     "wbo.svg.seq": seq,
@@ -517,7 +516,6 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
   await writeFile(tmpFile, svg, { flag: "wx" });
   logSvgStoreDebug("svg.write_tmp_finished", {
     board: boardName,
-    "file.path": file,
     "file.tmp_path": tmpFile,
   });
   await rename(tmpFile, file);
@@ -528,7 +526,6 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
   });
   logSvgStoreDebug("svg.write_completed", {
     board: boardName,
-    "file.path": file,
     "file.size": savedFile.size,
     "wbo.svg.seq": seq,
   });
@@ -557,14 +554,12 @@ async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
     sourceItemCount - ignoredChildlessPencilCount;
   logSvgStoreInfo("svg.migration_started", {
     board: boardName,
-    "file.path": file,
     "wbo.legacy.item_count": sourceItemCount,
     "wbo.svg.item_count": serializedItemCount,
   });
   if (requiredSerializedItemCount > 0 && serializedItemCount === 0) {
     logger.error("svg.migration_failed", {
       board: boardName,
-      "file.path": file,
       "wbo.legacy.item_count": sourceItemCount,
       "wbo.svg.item_count": serializedItemCount,
       reason: "legacy_items_not_serializable",
@@ -576,7 +571,6 @@ async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
   if (requiredSerializedItemCount > serializedItemCount) {
     logger.warn("svg.migration_partial", {
       board: boardName,
-      "file.path": file,
       "wbo.legacy.item_count": sourceItemCount,
       "wbo.svg.item_count": serializedItemCount,
     });
@@ -592,7 +586,6 @@ async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
   await copyFile(file, backupFile);
   logSvgStoreInfo("svg.migration_completed", {
     board: boardName,
-    "file.path": file,
     "wbo.legacy.item_count": sourceItemCount,
     "wbo.svg.item_count": serializedItemCount,
   });

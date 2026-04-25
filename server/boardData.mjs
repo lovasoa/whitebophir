@@ -1409,7 +1409,6 @@ class BoardData {
               "board.save_write",
               {
                 attributes: boardTraceAttributes(this.name, "save_write", {
-                  "file.path": file,
                   "wbo.board.items": authoritativeItemCount,
                   "wbo.board.save_strategy": saveStrategy,
                   "wbo.board.save_target_seq": saveTargetSeq,
@@ -1482,7 +1481,6 @@ class BoardData {
                 "wbo.board.result": "success",
                 ...(savedFile
                   ? {
-                      "file.path": file,
                       "file.size": savedFile.size,
                     }
                   : {}),
@@ -1529,7 +1527,10 @@ class BoardData {
                   this.getSeq() - this.getPersistedSeq(),
                 ),
                 "wbo.board.dirty_age_ms": this.dirtyAgeMs(),
-                error: err,
+                "wbo.board.stale_reason":
+                  code === "WBO_STORED_SVG_SEQ_MISMATCH"
+                    ? "seq_mismatch"
+                    : "missing_baseline",
               });
               tracing.setActiveSpanAttributes(
                 boardTraceAttributes(this.name, "save", {
@@ -1741,7 +1742,6 @@ class BoardData {
           tracing.setActiveSpanAttributes(
             boardTraceAttributes(name, "load", {
               "wbo.board.result": "success",
-              "file.path": boardData.file,
               "file.size": storedBoard.byteLength || 0,
               "wbo.board.items": boardData.authoritativeItemCount(),
             }),

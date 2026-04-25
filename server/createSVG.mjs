@@ -165,7 +165,6 @@ export async function renderBoardToSVG(file) {
     "board.svg_render",
     {
       attributes: {
-        "file.path": file,
         "wbo.board.operation": "svg_render",
       },
       traceRoot: traceRoot,

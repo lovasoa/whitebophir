@@ -26,6 +26,7 @@ const {
   Rectangle,
   Text,
 } = require("../client-data/tools/index.js");
+const observability = require("../server/observability.mjs").default;
 
 function getBoardDataClass() {
   return loadBoardData();
@@ -1676,9 +1677,27 @@ test("BoardData.save leaves the stored svg unchanged on seq mismatch", async () 
       const updateRect = rectangleUpdate("rect-1", { x2: 30, y2: 40 });
       await applyPersistentMutation(board, updateRect, 2);
 
-      const result = await board.save();
+      /** @type {Array<{name: string, fields: any}>} */
+      const warnings = [];
+      const originalWarn = observability.logger.warn;
+      observability.logger.warn = (name, fields) => {
+        warnings.push({ name, fields });
+      };
+      let result;
+      try {
+        result = await board.save();
+      } finally {
+        observability.logger.warn = originalWarn;
+      }
 
       assert.deepEqual(result, { status: "stale" });
+      assert.equal(warnings.length, 1);
+      const warning = warnings[0];
+      assert.ok(warning);
+      assert.equal(warning.name, "board.save_stale");
+      assert.equal(warning.fields.error, undefined);
+      assert.equal(warning.fields["exception.stacktrace"], undefined);
+      assert.equal(warning.fields["wbo.board.stale_reason"], "seq_mismatch");
       const rewritten = await fs.readFile(svgPath, "utf8");
       assert.match(rewritten, /data-wbo-seq="99"/);
       assert.match(

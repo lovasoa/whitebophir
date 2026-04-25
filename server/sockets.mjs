@@ -118,7 +118,6 @@ function boardDebugFields(board, extras) {
     "wbo.board.min_replayable_seq": board.minReplayableSeq(),
     "wbo.board.has_persisted_baseline": board.hasPersistedBaseline,
     "wbo.board.users": board.users.size,
-    "file.path": board.file,
     ...(extras || {}),
   };
 }
