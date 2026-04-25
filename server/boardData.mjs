@@ -1415,29 +1415,57 @@ class BoardData {
             (id) => savedItemsById.get(id)?.deleted !== true,
           ).length;
           const saveTargetSeq = this.saveTargetSeq ?? this.getSeq();
+          const saveStrategy =
+            this.persistedItemIds.size > 0 ? "rewrite" : "write";
           try {
-            const persistedIds =
-              this.persistedItemIds.size > 0
-                ? await rewriteStoredSvgFromCanonical(
-                    this.name,
-                    savedItemsById,
-                    savedPaintOrder,
-                    this.metadata,
-                    this.persistedItemIds,
-                    this.getPersistedSeq(),
-                    saveTargetSeq,
-                    { historyDir: this.historyDir },
-                  )
-                : (
-                    await writeCanonicalBoardState(
-                      this.name,
-                      savedItemsById,
-                      savedPaintOrder,
-                      this.metadata,
-                      saveTargetSeq,
-                      { historyDir: this.historyDir },
-                    )
-                  ).persistedIds;
+            const persistedIds = await tracing.withRecordingActiveSpan(
+              "board.save_write",
+              {
+                attributes: boardTraceAttributes(this.name, "save_write", {
+                  "file.path": file,
+                  "wbo.board.items": authoritativeItemCount,
+                  "wbo.board.save_strategy": saveStrategy,
+                  "wbo.board.save_target_seq": saveTargetSeq,
+                }),
+              },
+              async (span) => {
+                const ids =
+                  saveStrategy === "rewrite"
+                    ? await rewriteStoredSvgFromCanonical(
+                        this.name,
+                        savedItemsById,
+                        savedPaintOrder,
+                        this.metadata,
+                        this.persistedItemIds,
+                        this.getPersistedSeq(),
+                        saveTargetSeq,
+                        { historyDir: this.historyDir },
+                      )
+                    : (
+                        await writeCanonicalBoardState(
+                          this.name,
+                          savedItemsById,
+                          savedPaintOrder,
+                          this.metadata,
+                          saveTargetSeq,
+                          { historyDir: this.historyDir },
+                        )
+                      ).persistedIds;
+                if (span) {
+                  tracing.setSpanAttributes(
+                    span,
+                    boardTraceAttributes(this.name, "save_write", {
+                      "wbo.board.result": "success",
+                      "wbo.board.items": authoritativeItemCount,
+                      "wbo.board.persisted_items": ids.size,
+                      "wbo.board.save_strategy": saveStrategy,
+                      "wbo.board.save_target_seq": saveTargetSeq,
+                    }),
+                  );
+                }
+                return ids;
+              },
+            );
             this.persistedItemIds = new Set(persistedIds);
             this.markPersistedSeq(saveTargetSeq);
             this.finalizePersistedItems(savedItemsById, persistedIds);
@@ -1636,9 +1664,8 @@ class BoardData {
       boardJsonPath(name, boardData.historyDir),
     ]) {
       try {
-        traceRoot =
-          (await stat(candidateFile)).size >=
-          STANDALONE_BOARD_LOAD_BYTES_THRESHOLD;
+        const candidate = await stat(candidateFile);
+        traceRoot = candidate.size >= STANDALONE_BOARD_LOAD_BYTES_THRESHOLD;
         if (traceRoot) break;
       } catch {}
     }
@@ -1654,12 +1681,41 @@ class BoardData {
           if (logger.isEnabled("debug")) {
             logger.debug("board.load_started", boardLogFields(boardData));
           }
-          const storedBoard = await readCanonicalBoardState(name, {
-            historyDir: boardData.historyDir,
-          });
+          /**
+           * @param {import("@opentelemetry/api").Span | undefined} span
+           */
+          const readStoredBoard = async (span) => {
+            const state = await readCanonicalBoardState(name, {
+              historyDir: boardData.historyDir,
+            });
+            if (span) {
+              tracing.setSpanAttributes(
+                span,
+                boardTraceAttributes(name, "load_read", {
+                  "wbo.board.result": "success",
+                  "wbo.board.load_source": state.source,
+                  "wbo.board.items": state.itemsById.size,
+                  "wbo.board.seq": state.seq,
+                  "file.size": state.byteLength || 0,
+                }),
+              );
+            }
+            return state;
+          };
+          const storedBoard = await tracing.withRecordingActiveSpan(
+            "board.load_read",
+            {
+              attributes: boardTraceAttributes(name, "load_read"),
+            },
+            readStoredBoard,
+          );
           boardData.itemsById = storedBoard.itemsById;
           boardData.paintOrder = storedBoard.paintOrder;
           boardData.nextPaintOrder = storedBoard.paintOrder.reduce(
+            /**
+             * @param {number} max
+             * @param {string} id
+             */
             (max, id) => {
               const item = storedBoard.itemsById.get(id);
               return item ? Math.max(max, item.paintOrder + 1) : max;

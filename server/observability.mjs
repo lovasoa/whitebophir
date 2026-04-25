@@ -760,14 +760,16 @@ function withActiveSpan(name, options, fn) {
         try {
           const result = fn(span);
           if (result && typeof result.then === "function") {
-            return Promise.resolve(result)
-              .catch(function recordAsyncSpanError(error) {
-                recordSpanError(span, error);
-                throw error;
-              })
-              .finally(function endAsyncSpan() {
-                span.end();
-              });
+            return withContext(parentContext, function restoreParentContext() {
+              return Promise.resolve(result)
+                .catch(function recordAsyncSpanError(error) {
+                  recordSpanError(span, error);
+                  throw error;
+                })
+                .finally(function endAsyncSpan() {
+                  span.end();
+                });
+            });
           }
           span.end();
           return result;
@@ -802,6 +804,32 @@ function withOptionalActiveSpan(name, options, fn) {
     function runOptionalSpan() {
       return fn();
     },
+  );
+}
+
+/**
+ * Create a child span only when the current trace is already recording. This
+ * keeps unsampled traffic and standalone work cheap while making sampled root
+ * traces easier to read.
+ *
+ * @param {string} name
+ * @param {{
+ *   kind?: number,
+ *   attributes?: {[key: string]: unknown},
+ * } | undefined} options
+ * @param {(span: import("@opentelemetry/api").Span | undefined) => any} fn
+ * @returns {any}
+ */
+function withRecordingActiveSpan(name, options, fn) {
+  const activeSpan = getActiveSpan();
+  if (!activeSpan?.isRecording()) return fn(undefined);
+  return withActiveSpan(
+    name,
+    {
+      kind: options?.kind,
+      attributes: options?.attributes,
+    },
+    fn,
   );
 }
 
@@ -1279,6 +1307,7 @@ const tracing = {
   withDetachedSpan,
   withExpensiveActiveSpan,
   withOptionalActiveSpan,
+  withRecordingActiveSpan,
   withSpanContext,
   SpanKind,
   SpanStatusCode,

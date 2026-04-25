@@ -913,6 +913,20 @@ function annotateBoardRequest(requestContext, boardName) {
 }
 
 /**
+ * @param {string} boardName
+ * @param {string} operation
+ * @param {{[key: string]: unknown}=} extras
+ * @returns {{[key: string]: unknown}}
+ */
+function boardOperationTraceAttributes(boardName, operation, extras) {
+  return {
+    "wbo.board": boardName,
+    "wbo.board.operation": operation,
+    ...(extras || {}),
+  };
+}
+
+/**
  * @param {{
  *   annotate: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
@@ -1098,9 +1112,33 @@ async function handleBoardDocumentRoute(
     inlineBoardSvg,
     source,
     byteLength,
-  } = await readBoardDocumentState(boardName, {
-    historyDir: runtime.config.HISTORY_DIR,
-  });
+  } = await tracing.withRecordingActiveSpan(
+    "board.document_state_read",
+    {
+      attributes: boardOperationTraceAttributes(
+        boardName,
+        "document_state_read",
+      ),
+    },
+    async function traceBoardDocumentStateRead(span) {
+      const state = await readBoardDocumentState(boardName, {
+        historyDir: runtime.config.HISTORY_DIR,
+      });
+      if (span) {
+        tracing.setSpanAttributes(
+          span,
+          boardOperationTraceAttributes(boardName, "document_state_read", {
+            "wbo.board.load_source": state.source,
+            "file.size": state.byteLength,
+            ...(state.metadata.seq === undefined
+              ? {}
+              : { "wbo.board.seq": state.metadata.seq }),
+          }),
+        );
+      }
+      return state;
+    },
+  );
   requestContext.annotate({
     board_source: source,
     board_bytes: byteLength,
@@ -1122,17 +1160,41 @@ async function handleBoardDocumentRoute(
   pinServedBoardBaseline(boardName, boardMetadata.seq || 0, runtime.config);
   ensureBoardUserSecretCookie(request, response, parsedUrl);
   if (source === "svg" || source === "svg_backup") {
-    const svgStream = await streamServedBaseline(boardName, {
-      historyDir: runtime.config.HISTORY_DIR,
-    });
-    svgStream.on("error", (error) => {
-      requestContext.noteError(error);
-      if (!response.headersSent) {
-        respondWithErrorPage(response, 500, runtime.errorPage);
-      } else {
-        response.destroy(error);
-      }
-    });
+    const svgStream = await tracing.withRecordingActiveSpan(
+      "board.baseline_stream_open",
+      {
+        attributes: boardOperationTraceAttributes(
+          boardName,
+          "baseline_stream_open",
+          {
+            "wbo.board.load_source": source,
+            "file.size": byteLength,
+            ...(boardMetadata.seq === undefined
+              ? {}
+              : { "wbo.board.seq": boardMetadata.seq }),
+          },
+        ),
+      },
+      function traceBoardBaselineStreamOpen() {
+        return streamServedBaseline(boardName, {
+          historyDir: runtime.config.HISTORY_DIR,
+        });
+      },
+    );
+    svgStream.on(
+      "error",
+      /**
+       * @param {Error} error
+       */
+      function handleBoardDocumentSvgStreamError(error) {
+        requestContext.noteError(error);
+        if (!response.headersSent) {
+          respondWithErrorPage(response, 500, runtime.errorPage);
+        } else {
+          response.destroy(error);
+        }
+      },
+    );
     const { encoding } = runtime.boardTemplate.serveStream(
       request,
       response,
@@ -1189,17 +1251,34 @@ async function handleBoardSvgRoute(
   const boardName = requireBoardSvgPathName(parts);
   annotateBoardRequest(requestContext, boardName);
   jwtBoardName.checkBoardnameInToken(runtime.config, parsedUrl, boardName);
-  const svgStream = await streamServedBaseline(boardName, {
-    historyDir: runtime.config.HISTORY_DIR,
-  });
-  svgStream.on("error", (error) => {
-    requestContext.noteError(error);
-    if (!response.headersSent) {
-      respondWithErrorPage(response, 500, runtime.errorPage);
-    } else {
-      response.destroy(error);
-    }
-  });
+  const svgStream = await tracing.withRecordingActiveSpan(
+    "board.baseline_stream_open",
+    {
+      attributes: boardOperationTraceAttributes(
+        boardName,
+        "baseline_stream_open",
+      ),
+    },
+    function traceBoardBaselineStreamOpen() {
+      return streamServedBaseline(boardName, {
+        historyDir: runtime.config.HISTORY_DIR,
+      });
+    },
+  );
+  svgStream.on(
+    "error",
+    /**
+     * @param {Error} error
+     */
+    function handleBoardSvgStreamError(error) {
+      requestContext.noteError(error);
+      if (!response.headersSent) {
+        respondWithErrorPage(response, 500, runtime.errorPage);
+      } else {
+        response.destroy(error);
+      }
+    },
+  );
   const compressedResponse = startCompressedResponse(
     response,
     request.headers["accept-encoding"],

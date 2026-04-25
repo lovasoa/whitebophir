@@ -457,10 +457,15 @@ test("active traces correlate log records and board.save spans", async () => {
           return correlated;
         },
       );
-      await waitForSpans(exporter, ["socket.broadcast_write", "board.save"]);
+      await waitForSpans(exporter, [
+        "socket.broadcast_write",
+        "board.save",
+        "board.save_write",
+      ]);
 
       const rootSpan = getSpanByName(exporter, "socket.broadcast_write");
       const saveSpan = getSpanByName(exporter, "board.save");
+      const saveWriteSpan = getSpanByName(exporter, "board.save_write");
       const savedBoard = await fs.readFile(saveSpan.attributes["file.path"]);
       const spanContext = trace.getSpanContext(record.context);
 
@@ -475,13 +480,30 @@ test("active traces correlate log records and board.save spans", async () => {
         saveSpan.parentSpanContext.spanId,
         rootSpan.spanContext().spanId,
       );
+      assert.equal(
+        saveWriteSpan.parentSpanContext.spanId,
+        saveSpan.spanContext().spanId,
+      );
+      assert.equal(saveWriteSpan.attributes["wbo.board.result"], "success");
     },
     [BOARD_DATA_PATH],
   );
 });
 
-test("withExpensiveActiveSpan only roots explicitly large work", async () => {
+test("recording-only and expensive spans avoid accidental roots", async () => {
   await withTracing({}, async ({ exporter, observability }) => {
+    await observability.tracing.withRecordingActiveSpan(
+      "child.work",
+      undefined,
+      /**
+       * @param {import("@opentelemetry/api").Span | undefined} span
+       */
+      async (span) => {
+        assert.equal(span, undefined);
+      },
+    );
+    assert.equal(exporter.getFinishedSpans().length, 0);
+
     await observability.tracing.withExpensiveActiveSpan(
       "small.work",
       {
@@ -500,6 +522,87 @@ test("withExpensiveActiveSpan only roots explicitly large work", async () => {
     );
     await waitForSpans(exporter, ["large.work"]);
   });
+});
+
+test("board page traces document state and SVG stream setup", async () => {
+  const dirs = await createServerDirs();
+  await fs.copyFile(
+    path.join(ROOT, "client-data", "board.html"),
+    path.join(dirs.webroot, "board.html"),
+  );
+  await withTracing(
+    {
+      HOST: "127.0.0.1",
+      PORT: "0",
+      AUTH_SECRET_KEY: "",
+      WBO_HISTORY_DIR: dirs.historyDir,
+      WBO_WEBROOT: dirs.webroot,
+    },
+    async ({ exporter }) => {
+      const { BoardData } = require(BOARD_DATA_PATH);
+      const config = createConfig({ HISTORY_DIR: dirs.historyDir });
+      const board = new BoardData("trace-page", config);
+      board.board = {
+        "shape-1": {
+          id: "shape-1",
+          tool: "text",
+          x: 1,
+          y: 2,
+          txt: "hi",
+          size: 12,
+          color: "#000000",
+          time: 1,
+        },
+      };
+      await board.save();
+      exporter.reset();
+
+      const { createServerApp } = await loadServer();
+      const app = await createServerApp(
+        createConfig({
+          HOST: "127.0.0.1",
+          PORT: 0,
+          AUTH_SECRET_KEY: "",
+          HISTORY_DIR: dirs.historyDir,
+          WEBROOT: dirs.webroot,
+        }),
+        {
+          logStarted: false,
+        },
+      );
+      try {
+        const response = await request(app, "/boards/trace-page");
+        await waitForSpans(exporter, [
+          "GET /boards/{board}",
+          "board.document_state_read",
+          "board.baseline_stream_open",
+        ]);
+
+        const requestSpan = getSpanByName(exporter, "GET /boards/{board}");
+        const stateSpan = getSpanByName(exporter, "board.document_state_read");
+        const streamSpan = getSpanByName(
+          exporter,
+          "board.baseline_stream_open",
+        );
+
+        assert.equal(response.statusCode, 200);
+        assert.equal(stateSpan.attributes["wbo.board"], "trace-page");
+        assert.equal(stateSpan.attributes["wbo.board.load_source"], "svg");
+        assert.equal(streamSpan.attributes["wbo.board.load_source"], "svg");
+        assert.equal(
+          stateSpan.parentSpanContext.spanId,
+          requestSpan.spanContext().spanId,
+        );
+        assert.equal(
+          streamSpan.parentSpanContext.spanId,
+          requestSpan.spanContext().spanId,
+        );
+      } finally {
+        await closeServer(app);
+      }
+    },
+    [BOARD_DATA_PATH],
+  );
 });
 
 test("large standalone board loads create their own root span", async () => {
