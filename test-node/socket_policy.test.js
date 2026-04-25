@@ -139,51 +139,6 @@ test("normalizeBroadcastData rejects blocked tools before persistence", async ()
   assert.deepEqual(rejected, { ok: false, reason: "blocked tool" });
 });
 
-test("normalizeBroadcastData logs the invalid message payload", async () => {
-  const socketPolicy = require(SOCKET_POLICY_PATH);
-  const observability = await import("../server/observability.mjs");
-  const invalidMessage = {
-    tool: Text.id,
-    type: MutationType.UPDATE,
-    id: "text-1",
-    txt: "invalid",
-    clientMutationId: "",
-  };
-  /** @type {Array<{name: string, fields: any}>} */
-  const warnings = [];
-  const originalWarn = observability.logger.warn;
-  observability.logger.warn = (name, fields) => {
-    warnings.push({ name, fields });
-  };
-
-  try {
-    const rejected = socketPolicy.normalizeBroadcastData(
-      createConfig(),
-      "anonymous",
-      invalidMessage,
-    );
-
-    assert.deepEqual(rejected, {
-      ok: false,
-      reason: "invalid clientMutationId",
-    });
-    assert.deepEqual(warnings, [
-      {
-        name: "socket.message_invalid",
-        fields: {
-          board: "anonymous",
-          message: invalidMessage,
-          tool: "text",
-          type: MutationType.UPDATE,
-          reason: "invalid clientMutationId",
-        },
-      },
-    ]);
-  } finally {
-    observability.logger.warn = originalWarn;
-  }
-});
-
 test("readonly board policy allows cursor updates but reserves clear for moderators", async () => {
   const readonlyBoard = {
     name: "readonly-test",

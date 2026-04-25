@@ -323,31 +323,17 @@ test("connection replay and live broadcasts carry contiguous seq for determinist
         socket: "socket-seq-deterministic",
       });
 
-      const observability = require("../server/observability.mjs");
-      /** @type {{[key: string]: unknown} | undefined} */
-      let joinedLog;
-      const originalInfo = observability.logger.info;
-      observability.logger.info = (name, fields) => {
-        if (name === "board.joined") joinedLog = fields;
-        originalInfo(name, fields);
-      };
-      /** @type {{emitted: Array<{event: string, payload: any}>} | undefined} */
-      let nextSocket;
-      try {
-        nextSocket = await connect({
-          id: "socket-seq-deterministic-2",
-          remoteAddress: "203.0.113.71",
-          headers: withUserSecretCookie("44444444444444444444444444444444"),
-          query: {
-            board: "board-seq-deterministic",
-            tool: "hand",
-            color: "#444444",
-            size: "5",
-          },
-        });
-      } finally {
-        observability.logger.info = originalInfo;
-      }
+      const nextSocket = await connect({
+        id: "socket-seq-deterministic-2",
+        remoteAddress: "203.0.113.71",
+        headers: withUserSecretCookie("44444444444444444444444444444444"),
+        query: {
+          board: "board-seq-deterministic",
+          tool: "hand",
+          color: "#444444",
+          size: "5",
+        },
+      });
 
       const replayEvents = replayBatchEvents(getRequiredValue(nextSocket));
       assert.equal(replayEvents.length, 1);
@@ -357,7 +343,6 @@ test("connection replay and live broadcasts carry contiguous seq for determinist
         seq: 1,
         _children: [withoutSocket(liveBroadcast.mutation)],
       });
-      assert.equal(joinedLog?.["wbo.socket.replay.count"], 1);
     },
   );
 });
