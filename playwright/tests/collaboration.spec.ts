@@ -577,6 +577,7 @@ test.describe("collaboration and rate limiting", () => {
     const delayedAssetPaths = new Set([
       "/js/board_main.js",
       "/js/board.js",
+      "/js/board_viewport.js",
       "/js/path-data-polyfill.js",
       "/socket.io/socket.io.js",
     ]);

@@ -461,6 +461,22 @@ export type ToolModule<T = unknown> = {
   onSizeChange?: (state: T, size: number) => void;
 };
 
+export type ViewportController = {
+  setScale: (scale: number) => number;
+  getScale: () => number;
+  pageCoordinateToBoard: (value: unknown) => number;
+  panBy: (dx: number, dy: number) => void;
+  panTo: (left: number, top: number) => void;
+  zoomAt: (scale: number, pageX: number, pageY: number) => number;
+  zoomBy: (factor: number, pageX: number, pageY: number) => number;
+  beginPan: (clientX: number, clientY: number) => void;
+  movePan: (clientX: number, clientY: number) => void;
+  endPan: () => void;
+  install: () => void;
+  installHashObservers: () => void;
+  applyFromHash: () => void;
+};
+
 export type AppToolsState = {
   i18n: { t: (s: string) => string };
   server_config: ServerConfig;
@@ -473,6 +489,7 @@ export type AppToolsState = {
   turnstilePendingWrites: PendingWrite[];
   showTurnstileOverlayTimeout: number | null;
   scale: number;
+  viewport: ViewportController;
   drawToolsAllowed: boolean | null;
   boardState: AppBoardState;
   readOnly: boolean;
@@ -612,6 +629,8 @@ export type AppToolsState = {
   setScale: (scale: number) => number;
   applyViewportFromHash: () => void;
   installViewportHashObservers: () => void;
+  installViewportController: () => void;
+  resizeCanvas: (message: { x?: unknown; y?: unknown }) => void;
   createSVGElement: (
     name: string,
     attrs?: { [key: string]: string | number | undefined },

@@ -146,6 +146,81 @@ test.describe("single-page interactions", () => {
     expect(Math.abs(result.scaleAfterZoomOut - 0.075)).toBeLessThan(0.01);
   });
 
+  test("wheel zoom is owned by the board viewport", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("wheel-viewport-test");
+    await boardPage.forceScrollTopLeft();
+    const before = await page.evaluate(() => window.Tools.getScale());
+
+    await page.mouse.move(300, 300);
+    await page.mouse.wheel(0, 400);
+
+    await page.waitForFunction((previousScale) => {
+      return window.Tools.getScale() < previousScale;
+    }, before);
+    await expect
+      .poll(() => boardPage.scrollPosition())
+      .toMatchObject({
+        top: 0,
+      });
+  });
+
+  test("shift wheel pans without zooming", async ({ boardPage, page }) => {
+    await boardPage.gotoBoard("shift-wheel-pan-test");
+    await page.evaluate(() => {
+      window.Tools.resizeCanvas({ x: 5000, y: 5000 });
+      window.Tools.setScale(1);
+      window.scrollTo(0, 0);
+    });
+    const before = await page.evaluate(() => window.Tools.getScale());
+
+    await page.mouse.move(500, 400);
+    await page.keyboard.down("Shift");
+    await page.mouse.wheel(0, 300);
+    await page.keyboard.up("Shift");
+
+    await expect
+      .poll(() => boardPage.scrollPosition())
+      .toMatchObject({
+        top: 300,
+      });
+    expect(await page.evaluate(() => window.Tools.getScale())).toBe(before);
+  });
+
+  test("hand drag pans through the central viewport controller", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("hand-pan-test");
+    await expect(boardPage.tool("hand")).toBeVisible();
+    await page.evaluate(() => {
+      if (window.Tools.curTool?.name !== "hand") window.Tools.change("hand");
+      if (window.Tools.curTool?.secondary?.active === true) {
+        window.Tools.change("hand");
+      }
+    });
+    await boardPage.expectCurrentTool("hand");
+    await page.evaluate(() => {
+      window.Tools.resizeCanvas({ x: 5000, y: 5000 });
+      window.Tools.setScale(1);
+      window.scrollTo(0, 0);
+    });
+
+    await page.mouse.move(800, 500);
+    await page.mouse.down();
+    await page.mouse.move(600, 350);
+    await page.mouse.up();
+
+    await expect
+      .poll(() => boardPage.scrollPosition())
+      .toMatchObject({
+        left: 200,
+        top: 150,
+      });
+  });
+
   test("reload applies the viewport encoded in the URL hash", async ({
     boardPage,
     page,

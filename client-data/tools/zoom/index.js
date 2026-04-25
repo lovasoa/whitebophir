@@ -24,7 +24,7 @@
  * @licend
  */
 
-/** @typedef {{scrollX: number, scrollY: number, x: number, y: number, clientY: number, scale: number, distance: number | null}} ZoomOrigin */
+/** @typedef {{pageX: number, pageY: number, clientY: number, scale: number}} ZoomOrigin */
 /** @typedef {{preventDefault(): void, clientY?: number, pageX?: number, pageY?: number, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, deltaMode?: number, deltaX?: number, deltaY?: number, changedTouches?: TouchList, touches?: TouchList}} ZoomPointerEvent */
 /** @typedef {(evt: KeyboardEvent) => void} ZoomKeyHandler */
 /** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
@@ -53,16 +53,30 @@ function getClientY(evt, isTouchEvent) {
 }
 
 /**
+ * @param {ZoomPointerEvent} evt
+ * @param {boolean} isTouchEvent
+ * @param {number} fallback
+ * @param {"pageX" | "pageY"} axis
+ * @returns {number}
+ */
+function getPageCoordinate(evt, isTouchEvent, fallback, axis) {
+  if (isTouchEvent) {
+    const touch = evt.changedTouches && evt.changedTouches[0];
+    const value = touch && touch[axis];
+    return typeof value === "number" && Number.isFinite(value)
+      ? value
+      : fallback;
+  }
+  const value = evt[axis];
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+/**
  * @param {ZoomState} state
  * @param {number} scale
  */
 function zoom(state, scale) {
-  const oldScale = state.origin.scale;
-  const newScale = state.tools.setScale(scale);
-  window.scrollTo(
-    state.origin.scrollX + state.origin.x * (newScale - oldScale),
-    state.origin.scrollY + state.origin.y * (newScale - oldScale),
-  );
+  state.tools.viewport.zoomAt(scale, state.origin.pageX, state.origin.pageY);
 }
 
 /**
@@ -84,58 +98,16 @@ function animate(state, scale) {
  * @param {boolean} isTouchEvent
  */
 function setOrigin(state, x, y, evt, isTouchEvent) {
-  state.origin.scrollX = document.documentElement.scrollLeft;
-  state.origin.scrollY = document.documentElement.scrollTop;
-  state.origin.x = x;
-  state.origin.y = y;
+  const scale = state.tools.getScale();
+  state.origin.pageX = getPageCoordinate(evt, isTouchEvent, x * scale, "pageX");
+  state.origin.pageY = getPageCoordinate(evt, isTouchEvent, y * scale, "pageY");
   state.origin.clientY = getClientY(evt, isTouchEvent);
-  state.origin.scale = state.tools.getScale();
-}
-
-/**
- * @param {ZoomState} state
- * @param {Event} evt
- */
-function onwheel(state, evt) {
-  const wheelEvent = /** @type {WheelEvent} */ (evt);
-  evt.preventDefault();
-  const multiplier =
-    wheelEvent.deltaMode === WheelEvent.DOM_DELTA_LINE
-      ? 30
-      : wheelEvent.deltaMode === WheelEvent.DOM_DELTA_PAGE
-        ? 1000
-        : 1;
-  const deltaX = wheelEvent.deltaX * multiplier;
-  const deltaY = wheelEvent.deltaY * multiplier;
-  if (!wheelEvent.ctrlKey) {
-    const x = state.tools.pageCoordinateToBoard(wheelEvent.pageX);
-    const y = state.tools.pageCoordinateToBoard(wheelEvent.pageY);
-    setOrigin(state, x, y, wheelEvent, false);
-    animate(state, (1 - deltaY / 800) * state.tools.getScale());
-    return;
-  }
-  if (wheelEvent.altKey) {
-    const change = wheelEvent.shiftKey ? 1 : 5;
-    state.tools.setSize(state.tools.getSize() - (deltaY / 100) * change);
-    return;
-  }
-  if (wheelEvent.shiftKey) {
-    window.scrollTo(
-      document.documentElement.scrollLeft + deltaY,
-      document.documentElement.scrollTop + deltaX,
-    );
-    return;
-  }
-  window.scrollTo(
-    document.documentElement.scrollLeft + deltaX,
-    document.documentElement.scrollTop + deltaY,
-  );
+  state.origin.scale = scale;
 }
 
 /** @param {ZoomState} state */
 function touchend(state) {
   state.pressed = false;
-  state.origin.distance = null;
 }
 
 /**
@@ -149,58 +121,16 @@ function handleShiftKey(state, down, evt) {
   }
 }
 
-/** @param {ZoomState} state */
-function installBoardListeners(state) {
-  const board = state.tools.board;
-  board.addEventListener("wheel", (evt) => onwheel(state, evt), {
-    passive: false,
-  });
-  board.addEventListener(
-    "touchmove",
-    (evt) => {
-      const touchEvent = /** @type {TouchEvent} */ (evt);
-      const touches = touchEvent.touches;
-      if (touches.length !== 2) return;
-      const firstTouch = touches[0];
-      const secondTouch = touches[1];
-      if (!firstTouch || !secondTouch) return;
-      const dx = firstTouch.clientX - secondTouch.clientX;
-      const dy = firstTouch.clientY - secondTouch.clientY;
-      const x = state.tools.pageCoordinateToBoard(
-        (firstTouch.pageX + secondTouch.pageX) / 2,
-      );
-      const y = state.tools.pageCoordinateToBoard(
-        (firstTouch.pageY + secondTouch.pageY) / 2,
-      );
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      if (!state.pressed) {
-        state.pressed = true;
-        setOrigin(state, x, y, touchEvent, true);
-        state.origin.distance = distance;
-      } else {
-        const delta = distance - (state.origin.distance || distance);
-        animate(state, state.origin.scale * (1 + (delta * ZOOM_FACTOR) / 100));
-      }
-    },
-    { passive: true },
-  );
-  board.addEventListener("touchend", () => touchend(state));
-  board.addEventListener("touchcancel", () => touchend(state));
-}
-
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
   /** @type {ZoomState} */
   const state = {
     tools: ctx.Tools,
     origin: {
-      scrollX: document.documentElement.scrollLeft,
-      scrollY: document.documentElement.scrollTop,
-      x: 0,
-      y: 0,
+      pageX: 0,
+      pageY: 0,
       clientY: 0,
       scale: 1,
-      distance: null,
     },
     moved: false,
     pressed: false,
@@ -210,7 +140,6 @@ export function boot(ctx) {
   };
   state.keydown = handleShiftKey.bind(null, state, true);
   state.keyup = handleShiftKey.bind(null, state, false);
-  installBoardListeners(state);
   return state;
 }
 
@@ -255,7 +184,11 @@ export function release(state, x, y, evt) {
   void y;
   if (state.pressed && !state.moved) {
     const delta = evt.shiftKey === true ? -1 : 1;
-    zoom(state, state.tools.getScale() * (1 + delta * ZOOM_FACTOR));
+    state.tools.viewport.zoomBy(
+      1 + delta * ZOOM_FACTOR,
+      state.origin.pageX,
+      state.origin.pageY,
+    );
   }
   touchend(state);
 }

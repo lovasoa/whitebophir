@@ -79,6 +79,7 @@ async function bootBoardPage() {
   }
 
   await boardModule.attachBoardDom(document);
+  tools.installViewportController();
   setBoardBootPhase("connecting");
   tools.startConnection();
 

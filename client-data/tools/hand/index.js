@@ -785,6 +785,10 @@ function moveSelector(state, x, y, _evt, force) {
 
 /** @param {MouseEvent | TouchEvent} evt @param {"clientX" | "clientY"} axis @returns {number} */
 function getPointerClientCoord(evt, axis) {
+  if ("changedTouches" in evt) {
+    const touch = evt.changedTouches[0];
+    return touch ? touch[axis] || 0 : 0;
+  }
   if (axis === "clientX" && "clientX" in evt) return evt.clientX || 0;
   if (axis === "clientY" && "clientY" in evt) return evt.clientY || 0;
   return 0;
@@ -798,16 +802,15 @@ function getPointerClientCoord(evt, axis) {
  * @param {boolean} isTouchEvent
  */
 function startHand(state, _x, _y, evt, isTouchEvent) {
-  if (!isTouchEvent) {
-    state.selected = {
-      x:
-        document.documentElement.scrollLeft +
-        getPointerClientCoord(evt, "clientX"),
-      y:
-        document.documentElement.scrollTop +
-        getPointerClientCoord(evt, "clientY"),
-    };
-  }
+  void _x;
+  void _y;
+  void isTouchEvent;
+  if (evt.cancelable) evt.preventDefault();
+  state.Tools.viewport.beginPan(
+    getPointerClientCoord(evt, "clientX"),
+    getPointerClientCoord(evt, "clientY"),
+  );
+  state.selected = { pan: true };
 }
 
 /**
@@ -818,12 +821,21 @@ function startHand(state, _x, _y, evt, isTouchEvent) {
  * @param {boolean} isTouchEvent
  */
 function moveHand(state, _x, _y, evt, isTouchEvent) {
-  if (state.selected && !("w" in state.selected) && !isTouchEvent) {
-    window.scrollTo(
-      state.selected.x - getPointerClientCoord(evt, "clientX"),
-      state.selected.y - getPointerClientCoord(evt, "clientY"),
+  void _x;
+  void _y;
+  void isTouchEvent;
+  if (state.selected && !("w" in state.selected)) {
+    if (evt.cancelable) evt.preventDefault();
+    state.Tools.viewport.movePan(
+      getPointerClientCoord(evt, "clientX"),
+      getPointerClientCoord(evt, "clientY"),
     );
   }
+}
+
+/** @param {HandState} state */
+function endHand(state) {
+  state.Tools.viewport.endPan();
 }
 
 /** @param {HandState} state */
@@ -863,8 +875,10 @@ export function move(state, x, y, evt, isTouchEvent) {
  * @param {boolean} isTouchEvent
  */
 export function release(state, x, y, evt, isTouchEvent) {
-  if (!isSelectorActive(state)) moveHand(state, x, y, evt, isTouchEvent);
-  else moveSelector(state, x, y, evt, true);
+  if (!isSelectorActive(state)) {
+    moveHand(state, x, y, evt, isTouchEvent);
+    endHand(state);
+  } else moveSelector(state, x, y, evt, true);
   if (isSelectorActive(state)) releaseSelector(state);
   state.selected = null;
 }

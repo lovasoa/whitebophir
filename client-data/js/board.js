@@ -41,6 +41,11 @@ import {
   parseServedBaselineSvgText,
 } from "./board_svg_baseline.js";
 import {
+  createViewportController,
+  DEFAULT_BOARD_SCALE,
+  VIEWPORT_HASH_SCALE_DECIMALS,
+} from "./board_viewport.js";
+import {
   connection as BoardConnection,
   messages as BoardMessages,
 } from "./board_transport.js";
@@ -98,10 +103,6 @@ const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 1500;
 const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
   RateLimitCommon.RATE_LIMIT_KINDS
 );
-const DEFAULT_BOARD_SCALE = 0.1;
-const MIN_BOARD_SCALE = 0.01;
-const MAX_BOARD_SCALE = 1;
-const VIEWPORT_HASH_SCALE_DECIMALS = 3;
 const RESIZE_CANVAS_MARGIN = 20000;
 const DEFAULT_INITIAL_SIZE = 40;
 const DEFAULT_INITIAL_OPACITY = 1;
@@ -252,6 +253,7 @@ Tools.toBoardCoordinate = function toBoardCoordinate(value) {
  * @returns {number}
  */
 Tools.pageCoordinateToBoard = function pageCoordinateToBoard(value) {
+  if (Tools.viewport) return Tools.viewport.pageCoordinateToBoard(value);
   const screenCoordinate = Number(value);
   if (!Number.isFinite(screenCoordinate)) return 0;
   return Tools.toBoardCoordinate(screenCoordinate / Tools.getScale());
@@ -1313,6 +1315,7 @@ function enqueueIncomingBroadcast(msg) {
 }
 
 Tools.scale = DEFAULT_BOARD_SCALE;
+Tools.viewport = createViewportController(Tools);
 Tools.drawToolsAllowed = null;
 BoardTurnstile.installTurnstile(Tools, { logBoardEvent });
 
@@ -2980,52 +2983,16 @@ function updateDocumentTitle() {
     `${Tools.boardName} | WBO`;
 }
 
-/** @type {number | null} */
-let viewportHashScrollTimeout = null;
-let lastViewportHashStateUpdate = Date.now();
-let viewportHashObserversInstalled = false;
-
-function syncViewportHashFromScroll() {
-  const scale = Tools.getScale();
-  const x = document.documentElement.scrollLeft / scale;
-  const y = document.documentElement.scrollTop / scale;
-
-  if (viewportHashScrollTimeout !== null) {
-    clearTimeout(viewportHashScrollTimeout);
-  }
-  viewportHashScrollTimeout = window.setTimeout(
-    function updateViewportHistory() {
-      const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
-      if (
-        Date.now() - lastViewportHashStateUpdate > 5000 &&
-        hash !== window.location.hash
-      ) {
-        window.history.pushState({}, "", hash);
-        lastViewportHashStateUpdate = Date.now();
-      } else {
-        window.history.replaceState({}, "", hash);
-      }
-    },
-    100,
-  );
-}
-
 Tools.applyViewportFromHash = function applyViewportFromHash() {
-  const coords = window.location.hash.slice(1).split(",");
-  const x = Tools.toBoardCoordinate(coords[0]);
-  const y = Tools.toBoardCoordinate(coords[1]);
-  const scale = Number.parseFloat(coords[2] || "");
-  resizeCanvas({ x: x, y: y });
-  const appliedScale = Tools.setScale(scale);
-  window.scrollTo(x * appliedScale, y * appliedScale);
+  Tools.viewport.applyFromHash();
 };
 
 Tools.installViewportHashObservers = function installViewportHashObservers() {
-  if (viewportHashObserversInstalled) return;
-  viewportHashObserversInstalled = true;
-  window.addEventListener("scroll", syncViewportHashFromScroll);
-  window.addEventListener("hashchange", Tools.applyViewportFromHash, false);
-  window.addEventListener("popstate", Tools.applyViewportFromHash, false);
+  Tools.viewport.installHashObservers();
+};
+
+Tools.installViewportController = function installViewportController() {
+  Tools.viewport.install();
 };
 
 /** @param {{x?: unknown, y?: unknown}} m */
@@ -3048,6 +3015,7 @@ function resizeCanvas(m) {
     );
   }
 }
+Tools.resizeCanvas = resizeCanvas;
 
 /** @param {BoardMessage} m */
 function updateUnreadCount(m) {
@@ -3071,38 +3039,12 @@ function notifyToolsOfMessage(m) {
 // List of hook functions that will be applied to messages before sending or drawing them
 Tools.messageHooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
 
-/** @type {number | null} */
-let scaleTimeout = null;
 /** @param {number} scale */
 Tools.setScale = function setScale(scale) {
-  if (!Tools.svg) {
-    Tools.scale = scale;
-    return scale;
-  }
-  const fullScale =
-    Math.max(window.innerWidth, window.innerHeight) /
-    (Number(Tools.server_config.MAX_BOARD_SIZE) || 655360);
-  const minScale = Math.max(MIN_BOARD_SCALE, fullScale);
-  const maxScale = MAX_BOARD_SCALE;
-  if (Number.isNaN(scale)) scale = DEFAULT_BOARD_SCALE;
-  scale = Math.max(minScale, Math.min(maxScale, scale));
-  const svg = Tools.svg;
-  if (!svg) {
-    Tools.scale = scale;
-    return scale;
-  }
-  svg.style.willChange = "transform";
-  svg.style.transform = `scale(${scale})`;
-  if (scaleTimeout !== null) clearTimeout(scaleTimeout);
-  scaleTimeout = window.setTimeout(() => {
-    if (Tools.svg) Tools.svg.style.willChange = "auto";
-  }, 1000);
-  Tools.scale = scale;
-  Tools.syncDrawToolAvailability(false);
-  return scale;
+  return Tools.viewport.setScale(scale);
 };
 Tools.getScale = function getScale() {
-  return Tools.scale;
+  return Tools.viewport.getScale();
 };
 
 /**

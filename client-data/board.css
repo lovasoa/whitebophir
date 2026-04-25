@@ -8,6 +8,11 @@ svg {
     sans-serif;
 }
 
+html,
+body {
+  overscroll-behavior: none;
+}
+
 :root {
   --board-shell-offset: 10px;
   --board-control-size: 40px;
@@ -57,6 +62,21 @@ svg {
 
 #canvas {
   transform-origin: 0 0;
+  touch-action: none;
+}
+
+#board {
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+#menu,
+#boardHud,
+input,
+textarea,
+button,
+select {
+  touch-action: auto;
 }
 
 .board-status-icon {
