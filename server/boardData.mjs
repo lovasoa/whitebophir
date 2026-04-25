@@ -175,8 +175,6 @@ function boardLogFields(board, extras) {
     "wbo.board.items": board.authoritativeItemCount(),
     "wbo.board.dirty_items": countDirtyItems(board),
     "wbo.board.users": board.users.size,
-    "wbo.board.readonly": board.metadata.readonly,
-    "file.path": board.file,
     ...(extras || {}),
   };
 }
@@ -1507,8 +1505,6 @@ class BoardData {
               boardLogFields(this, {
                 duration_ms: durationMs,
                 ...(savedFile ? { "file.size": savedFile.size } : {}),
-                "wbo.board.saved_items": authoritativeItemCount,
-                "wbo.board.persisted_items": persistedIds.size,
               }),
             );
             metrics.recordBoardOperationDuration(
