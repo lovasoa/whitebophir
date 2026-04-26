@@ -111,7 +111,13 @@ const contract = {
         helpers.transform,
       ),
       textLength,
-      localBounds: getLocalGeometryBounds({ tool: toolId, x, y, size }),
+      localBounds: getLocalGeometryBounds({
+        tool: toolId,
+        x,
+        y,
+        size,
+        textLength,
+      }),
     };
   },
   parseStoredSvgItem(summary, entry, helpers) {

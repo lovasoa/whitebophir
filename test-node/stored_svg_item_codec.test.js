@@ -89,7 +89,7 @@ test("stored svg item summaries stay payload-light for cold loads", () => {
       localBounds: {
         minX: 9,
         minY: -8,
-        maxX: 9,
+        maxX: 207,
         maxY: 10,
       },
     },

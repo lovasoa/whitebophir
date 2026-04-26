@@ -801,7 +801,7 @@ test("local stored-svg summary helper derives minimal pencil summaries", () => {
     localBounds: {
       minX: 5,
       minY: -12,
-      maxX: 5,
+      maxX: 95,
       maxY: 6,
     },
     paintOrder: 1,

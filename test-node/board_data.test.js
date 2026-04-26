@@ -784,6 +784,38 @@ test("BoardData rejects transform updates that make a stored shape oversized", (
   assert.equal(board.get("rect-1").transform, undefined);
 });
 
+test("BoardData rejects transform updates that make stored text oversized", () => {
+  const BoardData = getBoardDataClass();
+  const board = disableSaves(
+    createBoard(BoardData, "oversized-text-transform-board"),
+  );
+
+  assert.equal(
+    board.processMessage(
+      textCreate({
+        id: "text-1",
+        x: 0,
+        y: 500,
+        color: "#112233",
+        size: 500,
+      }),
+    ).ok,
+    true,
+  );
+  assert.equal(
+    board.processMessage(textUpdate("text-1", "x".repeat(280))).ok,
+    true,
+  );
+
+  assert.equal(
+    board.processMessage(
+      handUpdate("text-1", { a: 2, b: 0, c: 0, d: 1, e: 0, f: 0 }),
+    ).ok,
+    false,
+  );
+  assert.equal(board.get("text-1").transform, undefined);
+});
+
 test("BoardData drops zero-size seed shapes after an oversized update is rejected", () => {
   const BoardData = getBoardDataClass();
   const board = disableSaves(
