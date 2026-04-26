@@ -37,7 +37,7 @@ test("shared geometry helpers grow pencil bounds incrementally", () => {
   });
 });
 
-test("getLocalGeometryBounds measures text", () => {
+test("getLocalGeometryBounds measures bounded text extent", () => {
   const bounds = MessageCommon.getLocalGeometryBounds({
     tool: Text.id,
     x: 100,
@@ -49,6 +49,37 @@ test("getLocalGeometryBounds measures text", () => {
     minX: 100,
     minY: 200 - 55,
     maxX: 100 + 10 * 55,
+    maxY: 200,
+  });
+});
+
+test("getLocalGeometryBounds caps text extent at the maximum shape span", () => {
+  const bounds = MessageCommon.getLocalGeometryBounds({
+    tool: "text",
+    x: 0,
+    y: 500,
+    txt: "x".repeat(280),
+    size: 500,
+  });
+  assert.deepEqual(bounds, {
+    minX: 0,
+    minY: 0,
+    maxX: MessageCommon.getMaxShapeSpan(),
+    maxY: 500,
+  });
+});
+
+test("getLocalGeometryBounds keeps empty text seeds at the anchor", () => {
+  const bounds = MessageCommon.getLocalGeometryBounds({
+    tool: "text",
+    x: 100,
+    y: 200,
+    size: 55,
+  });
+  assert.deepEqual(bounds, {
+    minX: 100,
+    minY: 145,
+    maxX: 100,
     maxY: 200,
   });
 });

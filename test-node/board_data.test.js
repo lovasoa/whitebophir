@@ -452,6 +452,53 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
   assert.equal(board.itemsById.get("text-1")?.dirty, true);
 });
 
+test("BoardData keeps text content length separate from geometry admission", () => {
+  const BoardData = getBoardDataClass();
+  const board = disableSaves(createBoard(BoardData, "wide-text-content"));
+  const text = "x".repeat(280);
+
+  assert.equal(
+    board.processMessage(
+      textCreate({
+        id: "text-1",
+        x: 100,
+        y: 600,
+        color: "#111111",
+        size: 500,
+      }),
+    ).ok,
+    true,
+  );
+  assert.equal(board.processMessage(textUpdate("text-1", text)).ok, true);
+
+  const item = board.get("text-1");
+  assert.equal(item.txt, text);
+  assert.equal(item.textLength, text.length);
+});
+
+test("BoardData accepts text content updates at the right board edge", () => {
+  const BoardData = getBoardDataClass();
+  const board = disableSaves(createBoard(BoardData, "right-edge-text-content"));
+
+  assert.equal(
+    board.processMessage(
+      textCreate({
+        id: "text-1",
+        x: board.maxBoardSize,
+        y: 500,
+        color: "#111111",
+        size: 500,
+      }),
+    ).ok,
+    true,
+  );
+  assert.equal(board.processMessage(textUpdate("text-1", "edge")).ok, true);
+
+  const item = board.get("text-1");
+  assert.equal(item.txt, "edge");
+  assert.ok(board.itemsById.get("text-1")?.bounds?.maxX > board.maxBoardSize);
+});
+
 test("finalizePersistedItems folds newly persisted pencil children into the baseline", () => {
   const BoardData = getBoardDataClass();
   const board = disableSaves(
@@ -758,6 +805,38 @@ test("BoardData rejects transform updates that make a stored shape oversized", (
     false,
   );
   assert.equal(board.get("rect-1").transform, undefined);
+});
+
+test("BoardData rejects transform updates that make stored text oversized", () => {
+  const BoardData = getBoardDataClass();
+  const board = disableSaves(
+    createBoard(BoardData, "oversized-text-transform-board"),
+  );
+
+  assert.equal(
+    board.processMessage(
+      textCreate({
+        id: "text-1",
+        x: 0,
+        y: 500,
+        color: "#112233",
+        size: 500,
+      }),
+    ).ok,
+    true,
+  );
+  assert.equal(
+    board.processMessage(textUpdate("text-1", "x".repeat(280))).ok,
+    true,
+  );
+
+  assert.equal(
+    board.processMessage(
+      handUpdate("text-1", { a: 2, b: 0, c: 0, d: 1, e: 0, f: 0 }),
+    ).ok,
+    false,
+  );
+  assert.equal(board.get("text-1").transform, undefined);
 });
 
 test("BoardData drops zero-size seed shapes after an oversized update is rejected", () => {

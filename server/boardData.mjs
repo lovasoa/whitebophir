@@ -512,6 +512,38 @@ class BoardData {
   }
 
   /**
+   * @param {BoardElem} base
+   * @param {BoardElem} updateData
+   * @returns {boolean}
+   */
+  isTextContentOnlyUpdate(base, updateData) {
+    return !!(
+      base?.payload?.kind === "text" &&
+      updateData &&
+      typeof updateData === "object" &&
+      typeof updateData.txt === "string" &&
+      Object.keys(updateData).every((key) => key === "txt")
+    );
+  }
+
+  /**
+   * @param {BoardElem} base
+   * @param {BoardElem} updateData
+   * @param {{value: BoardElem, localBounds: Bounds | null}} candidate
+   * @returns {boolean}
+   */
+  isUpdateCandidateTooLarge(base, updateData, candidate) {
+    const effectiveBounds = MessageCommon.applyTransformToBounds(
+      candidate.localBounds,
+      candidate.value?.transform,
+    );
+    if (this.isTextContentOnlyUpdate(base, updateData)) {
+      return MessageCommon.isBoundsTooLarge(effectiveBounds);
+    }
+    return MessageCommon.isBoundsInvalid(effectiveBounds, this.maxBoardSize);
+  }
+
+  /**
    * @param {BoardElem} item
    * @param {string} id
    * @returns {boolean}
@@ -684,7 +716,7 @@ class BoardData {
     const candidate = this.makeUpdateCandidate(id, obj, updateData);
     if (!candidate) return false;
 
-    return !this.isCandidateTooLarge(candidate.value, candidate.localBounds);
+    return !this.isUpdateCandidateTooLarge(obj, updateData, candidate);
   }
 
   /**
@@ -1100,7 +1132,7 @@ class BoardData {
                 return { ok: false, reason: "object not found" };
               }
               if (
-                this.isCandidateTooLarge(candidate.value, candidate.localBounds)
+                this.isUpdateCandidateTooLarge(current, updateData, candidate)
               ) {
                 return { ok: false, reason: "shape too large" };
               }
