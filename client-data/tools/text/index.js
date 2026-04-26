@@ -27,6 +27,8 @@
 import {
   clampCoord,
   clampSize,
+  getLocalGeometryBounds,
+  resolveMaxBoardSize,
   truncateText,
 } from "../../js/message_common.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
@@ -39,27 +41,13 @@ import { MutationType } from "../../js/mutation_type.js";
 /** @typedef {{Tools: MountedAppToolsState, board: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
 
 /**
- * @param {number} x
- * @param {number} y
- * @param {number} size
- * @param {number} textLength
- * @returns {{minX: number, minY: number, maxX: number, maxY: number}}
- */
-function textBoundsFromLength(x, y, size, textLength) {
-  return {
-    minX: x,
-    minY: y - size,
-    maxX: x + size * textLength,
-    maxY: y,
-  };
-}
-
-/**
  * @param {TextState} state
  * @returns {void}
  */
 function normalizeCurrentTextPosition(state) {
-  const maxBoardSize = state.Tools.server_config.MAX_BOARD_SIZE;
+  const maxBoardSize = resolveMaxBoardSize(
+    state.Tools.server_config.MAX_BOARD_SIZE,
+  );
   state.curText.x =
     typeof state.Tools.toBoardCoordinate === "function"
       ? state.Tools.toBoardCoordinate(state.curText.x)
@@ -70,7 +58,7 @@ function normalizeCurrentTextPosition(state) {
       : clampCoord(state.curText.y, maxBoardSize);
   state.curText.y = Math.min(
     Math.max(normalizedY, state.curText.size),
-    typeof maxBoardSize === "number" ? maxBoardSize : 655360,
+    maxBoardSize,
   );
 }
 
@@ -123,7 +111,13 @@ const contract = {
         helpers.transform,
       ),
       textLength,
-      localBounds: textBoundsFromLength(x, y, size, textLength),
+      localBounds: getLocalGeometryBounds({
+        tool: toolId,
+        x,
+        y,
+        size,
+        textLength,
+      }),
     };
   },
   parseStoredSvgItem(summary, entry, helpers) {
@@ -275,7 +269,9 @@ function textChangeHandler(state, evt) {
     }, 500);
     return;
   }
-  if (state.curText.sentText === state.input.value) return;
+  const inputText = state.input.value;
+  if (state.curText.sentText === inputText) return;
+  const nextText = truncateText(inputText);
   if (state.curText.id === "") {
     state.curText.id = state.Tools.generateUID("t");
     state.Tools.drawAndSend({
@@ -291,9 +287,10 @@ function textChangeHandler(state, evt) {
   state.Tools.drawAndSend({
     type: MutationType.UPDATE,
     id: state.curText.id,
-    txt: truncateText(state.input.value),
+    txt: nextText,
   });
-  state.curText.sentText = state.input.value;
+  if (state.input.value !== nextText) state.input.value = nextText;
+  state.curText.sentText = nextText;
   state.curText.lastSending = performance.now();
 }
 

@@ -218,7 +218,7 @@ test("text per-IP rate limit closes the socket when text creation is exceeded", 
         color: "#123456",
         size: 24,
         x: 10,
-        y: 20,
+        y: 30,
       });
 
       assert.equal(socket.disconnected, true);
@@ -271,7 +271,7 @@ test("url-like text updates consume text rate-limit budget", async () => {
         color: "#123456",
         size: 24,
         x: 10,
-        y: 20,
+        y: 30,
       });
       assert.notEqual(socket.disconnected, true);
 
@@ -333,7 +333,7 @@ test("plain text updates do not consume text rate-limit budget", async () => {
         color: "#123456",
         size: 24,
         x: 10,
-        y: 20,
+        y: 30,
       });
       await handlers.broadcast({
         tool: Text.id,
@@ -382,7 +382,7 @@ test("resetRateLimitMaps clears text rate-limit state", async () => {
         color: "#123456",
         size: 24,
         x: 10,
-        y: 20,
+        y: 30,
       });
       assert.notEqual(first.socket.disconnected, true);
 
@@ -406,7 +406,7 @@ test("resetRateLimitMaps clears text rate-limit state", async () => {
         color: "#123456",
         size: 24,
         x: 10,
-        y: 20,
+        y: 30,
       });
 
       assert.notEqual(second.socket.disconnected, true);

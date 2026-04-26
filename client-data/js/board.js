@@ -1091,9 +1091,43 @@ Tools.sendBufferedWrite = function sendBufferedWrite(message) {
 
 Tools.discardBufferedWrites = function discardBufferedWrites() {
   Tools.bufferedWrites = [];
+  Tools.localRateLimitedUntil = 0;
   Tools.clearBufferedWriteTimer();
   Tools.syncWriteStatusIndicator();
 };
+
+/**
+ * @param {BoardMessage} message
+ * @param {Set<string>} invalidatedIds
+ * @returns {boolean}
+ */
+function messageReferencesInvalidatedId(message, invalidatedIds) {
+  return collectOptimisticAffectedIds(message)
+    .concat(collectOptimisticDependencyIds(message))
+    .some((itemId) => invalidatedIds.has(itemId));
+}
+
+/**
+ * @param {BoardMessage} message
+ * @returns {void}
+ */
+function pruneBufferedWritesForInvalidatingMessage(message) {
+  if (Tools.bufferedWrites.length === 0) return;
+  const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
+  if (prunePlan.reset) {
+    Tools.discardBufferedWrites();
+    return;
+  }
+  if (prunePlan.invalidatedIds.length === 0) return;
+  const invalidatedIds = new Set(prunePlan.invalidatedIds);
+  const nextBufferedWrites = Tools.bufferedWrites.filter(
+    (bufferedWrite) =>
+      !messageReferencesInvalidatedId(bufferedWrite.message, invalidatedIds),
+  );
+  if (nextBufferedWrites.length === Tools.bufferedWrites.length) return;
+  Tools.bufferedWrites = nextBufferedWrites;
+  Tools.scheduleBufferedWriteFlush();
+}
 
 Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.awaitingBoardSnapshot = true;
@@ -2924,8 +2958,8 @@ function messageForTool(message) {
   const name = getRuntimeToolId(message.tool);
   const tool = name ? Tools.list[name] : undefined;
 
+  Tools.applyHooks(Tools.messageHooks, message);
   if (tool) {
-    Tools.applyHooks(Tools.messageHooks, message);
     tool.draw(message, false);
   } else {
     ///We received a message destinated to a tool that we don't have
@@ -2956,6 +2990,7 @@ function handleMessage(message) {
   if (!message.tool && !message._children) {
     logBoardEvent("error", "broadcast.invalid_missing_tool", { message });
   }
+  pruneBufferedWritesForInvalidatingMessage(message);
   if (message.tool) messageForTool(message);
   if (
     BoardMessages.hasChildMessages(message) &&

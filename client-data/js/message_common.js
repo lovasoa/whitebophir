@@ -42,6 +42,7 @@
  *   y2?: unknown,
  *   size?: unknown,
  *   txt?: string | null | undefined,
+ *   textLength?: unknown,
  *   transform?: Transform | null | undefined,
  *   _children?: Array<ChildPoint | null | undefined>
  * }} GeometryItem
@@ -365,6 +366,19 @@ function getStraightShapeBounds(item) {
 }
 
 /**
+ * @param {GeometryItem} item
+ * @returns {number}
+ */
+function getTextBoundsLength(item) {
+  const length =
+    typeof item.txt === "string"
+      ? item.txt.length
+      : toFiniteNumber(item.textLength);
+  if (length === null) return 0;
+  return Math.min(LIMITS.MAX_TEXT_LENGTH, Math.max(0, Math.floor(length)));
+}
+
+/**
  * @param {GeometryItem | null | undefined} item
  * @returns {Bounds | null}
  */
@@ -373,12 +387,12 @@ function getTextBounds(item) {
   const x = toFiniteNumber(item.x);
   const y = toFiniteNumber(item.y);
   const size = toFiniteNumber(item.size);
-  const len = toFiniteNumber(item.txt?.length);
-  if (x === null || y === null || size === null || len === null) return null;
+  if (x === null || y === null || size === null) return null;
+  const width = Math.min(size * getTextBoundsLength(item), getMaxShapeSpan());
   return {
     minX: x,
     minY: y - size,
-    maxX: x + size * len,
+    maxX: x + width,
     maxY: y,
   };
 }
