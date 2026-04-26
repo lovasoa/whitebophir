@@ -1,4 +1,24 @@
-import { expect, test } from "../fixtures/test";
+import type { Page } from "@playwright/test";
+import { createBoardPage, expect, test } from "../fixtures/test";
+import { TOKENS } from "../helpers/tokens";
+import type { BoardPage } from "../pages/BoardPage";
+
+const bufferedModeratorTest = test.extend({
+  serverOptions: {
+    useJWT: true,
+    env: {
+      WBO_MAX_EMIT_COUNT: "*:2/1s",
+    },
+  },
+});
+
+async function drawMarkerRectangle(boardPage: BoardPage, page: Page) {
+  await boardPage.selectTool("rectangle");
+  await page.mouse.move(260, 260);
+  await page.mouse.down();
+  await page.mouse.move(320, 320);
+  await page.mouse.up();
+}
 
 test.describe("drawing and persistence", () => {
   test("pencil persists and renders in preview", async ({
@@ -117,6 +137,74 @@ test.describe("drawing and persistence", () => {
     await page.reload();
     await expect(page.locator("#drawingArea text")).toHaveText("Hello text");
   });
+
+  test("long text input stays within server admission bounds", async ({
+    boardPage,
+    server,
+    page,
+  }) => {
+    const boardName = "text-admission-long";
+    const longText =
+      "Long pasted text should not make the browser send a server-rejected text update. ".repeat(
+        3,
+      );
+
+    await boardPage.gotoBoard(boardName);
+    await boardPage.selectTool("text");
+    await page.mouse.click(240, 220);
+    await page.keyboard.insertText(longText);
+
+    await drawMarkerRectangle(boardPage, page);
+    const storedBoard = await server.waitForStoredBoard(
+      server.dataPath,
+      boardName,
+      (board) =>
+        Object.values(board).some((item) => item?.tool === "rectangle"),
+    );
+
+    await expect(boardPage.statusIndicator).toBeHidden();
+    expect(
+      Object.values(storedBoard).some(
+        (item) =>
+          item?.tool === "text" &&
+          typeof item.txt === "string" &&
+          item.txt.length > 0,
+      ),
+    ).toBe(true);
+  });
+
+  bufferedModeratorTest(
+    "remote clear drops buffered pencil appends for the removed line",
+    async ({ boardPage, context, server, page }) => {
+      const boardName = "clear-buffered-pencil";
+      const peerPage = await context.newPage();
+      const peerBoard = createBoardPage(peerPage, server);
+
+      await Promise.all([
+        boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
+        peerBoard.gotoBoard(boardName, { token: TOKENS.globalModerator }),
+      ]);
+      await Promise.all([
+        boardPage.waitForSocketConnected(),
+        peerBoard.waitForSocketConnected(),
+      ]);
+      await expect(peerBoard.tool("clear")).toBeVisible();
+      await boardPage.selectTool("pencil");
+
+      await page.mouse.move(300, 300);
+      await page.mouse.down();
+      await page.mouse.move(360, 300);
+      await page.mouse.move(420, 300);
+      await expect(page.locator("#drawingArea path")).toHaveCount(1);
+      await expect(boardPage.statusIndicator).toBeVisible();
+
+      await peerBoard.tool("clear").click();
+      await page.mouse.up();
+
+      await expect(boardPage.statusIndicator).toBeHidden();
+      await peerPage.close();
+    },
+  );
 
   test("straight line snap persists", async ({ boardPage, server, page }) => {
     await boardPage.gotoBoard("line-test");

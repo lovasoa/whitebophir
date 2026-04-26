@@ -25,8 +25,11 @@
  */
 
 import {
+  LIMITS,
   clampCoord,
   clampSize,
+  getMaxShapeSpan,
+  resolveMaxBoardSize,
   truncateText,
 } from "../../js/message_common.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
@@ -56,10 +59,45 @@ function textBoundsFromLength(x, y, size, textLength) {
 
 /**
  * @param {TextState} state
+ * @returns {number}
+ */
+function maxTextLengthForCurrentBounds(state) {
+  const maxBoardSize = resolveMaxBoardSize(
+    state.Tools.server_config.MAX_BOARD_SIZE,
+  );
+  const availableWidth = Math.max(
+    0,
+    Math.min(getMaxShapeSpan(), maxBoardSize - state.curText.x),
+  );
+  return Math.max(
+    0,
+    Math.min(
+      LIMITS.MAX_TEXT_LENGTH,
+      Math.floor(availableWidth / state.curText.size),
+    ),
+  );
+}
+
+/**
+ * @param {TextState} state
+ * @returns {string}
+ */
+function normalizeInputText(state) {
+  const maxLength = maxTextLengthForCurrentBounds(state);
+  const nextText =
+    maxLength <= 0 ? "" : truncateText(state.input.value, maxLength);
+  if (state.input.value !== nextText) state.input.value = nextText;
+  return nextText;
+}
+
+/**
+ * @param {TextState} state
  * @returns {void}
  */
 function normalizeCurrentTextPosition(state) {
-  const maxBoardSize = state.Tools.server_config.MAX_BOARD_SIZE;
+  const maxBoardSize = resolveMaxBoardSize(
+    state.Tools.server_config.MAX_BOARD_SIZE,
+  );
   state.curText.x =
     typeof state.Tools.toBoardCoordinate === "function"
       ? state.Tools.toBoardCoordinate(state.curText.x)
@@ -70,7 +108,7 @@ function normalizeCurrentTextPosition(state) {
       : clampCoord(state.curText.y, maxBoardSize);
   state.curText.y = Math.min(
     Math.max(normalizedY, state.curText.size),
-    typeof maxBoardSize === "number" ? maxBoardSize : 655360,
+    maxBoardSize,
   );
 }
 
@@ -275,7 +313,8 @@ function textChangeHandler(state, evt) {
     }, 500);
     return;
   }
-  if (state.curText.sentText === state.input.value) return;
+  const nextText = normalizeInputText(state);
+  if (state.curText.sentText === nextText) return;
   if (state.curText.id === "") {
     state.curText.id = state.Tools.generateUID("t");
     state.Tools.drawAndSend({
@@ -291,9 +330,9 @@ function textChangeHandler(state, evt) {
   state.Tools.drawAndSend({
     type: MutationType.UPDATE,
     id: state.curText.id,
-    txt: truncateText(state.input.value),
+    txt: nextText,
   });
-  state.curText.sentText = state.input.value;
+  state.curText.sentText = nextText;
   state.curText.lastSending = performance.now();
 }
 
