@@ -15,6 +15,7 @@ const MAX_CHILDREN = parseIntegerEnv("WBO_MAX_CHILDREN", 500);
 
 /** @typedef {{[key: string]: unknown}} RawRecord */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
+/** @typedef {import("../types/app-runtime.d.ts").ToolOwnedBatchMessage} ToolOwnedBatchMessage */
 /** @typedef {import("../types/app-runtime.d.ts").ToolCode} ToolCode */
 /** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
 /**
@@ -435,17 +436,17 @@ function normalizeIncomingBatch(raw) {
     children.push(normalizedChild.value);
   }
 
-  /** @type {NormalizedMessageData} */
+  /** @type {ToolOwnedBatchMessage} */
   const normalized = {
-    tool: toolCode.value,
-    _children: /** @type {NormalizedMessageData["_children"]} */ (children),
+    tool: /** @type {ToolOwnedBatchMessage["tool"]} */ (toolCode.value),
+    _children: /** @type {ToolOwnedBatchMessage["_children"]} */ (children),
   };
   if (Object.hasOwn(raw, "clientMutationId")) {
     const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
     if (!clientMutationId.ok) return clientMutationId;
     normalized.clientMutationId = clientMutationId.value;
   }
-  return accepted(normalized);
+  return accepted(/** @type {NormalizedMessageData} */ (normalized));
 }
 
 /**

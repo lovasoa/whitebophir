@@ -11,21 +11,6 @@ function normalizeStringArray(value) {
 }
 
 /**
- * @param {OptimisticJournalEntry} entry
- * @returns {OptimisticJournalEntry}
- */
-function cloneEntry(entry) {
-  return {
-    clientMutationId: entry.clientMutationId,
-    affectedIds: entry.affectedIds.slice(),
-    dependsOn: entry.dependsOn.slice(),
-    dependencyItemIds: entry.dependencyItemIds.slice(),
-    rollback: structuredClone(entry.rollback),
-    message: structuredClone(entry.message),
-  };
-}
-
-/**
  * @param {OptimisticJournalEntryInput} entry
  * @returns {OptimisticJournalEntry}
  */
@@ -44,8 +29,8 @@ function createEntry(entry) {
     affectedIds: normalizeStringArray(entry.affectedIds),
     dependsOn: normalizeStringArray(entry.dependsOn),
     dependencyItemIds: normalizeStringArray(entry.dependencyItemIds),
-    rollback: structuredClone(entry.rollback),
-    message: structuredClone(entry.message),
+    rollback: entry.rollback,
+    message: entry.message,
   };
 }
 
@@ -121,7 +106,7 @@ export function createOptimisticJournal() {
       if (!entryIds.has(id)) return true;
       const entry = entries.get(id);
       if (entry) {
-        removedEntries.push(cloneEntry(entry));
+        removedEntries.push(entry);
         removeEntryFromIndexes(entry);
       }
       entries.delete(id);
@@ -134,12 +119,14 @@ export function createOptimisticJournal() {
   function list() {
     return order.flatMap((clientMutationId) => {
       const entry = entries.get(clientMutationId);
-      return entry ? [cloneEntry(entry)] : [];
+      return entry ? [entry] : [];
     });
   }
 
   return {
     /**
+     * Takes ownership of entry.message and entry.rollback. Callers must not
+     * mutate them after append.
      * @param {OptimisticJournalEntryInput} entry
      * @returns {OptimisticJournalEntry}
      */
@@ -151,7 +138,7 @@ export function createOptimisticJournal() {
       order = order.filter((id) => id !== nextEntry.clientMutationId);
       order.push(nextEntry.clientMutationId);
       addEntryToIndexes(nextEntry);
-      return cloneEntry(nextEntry);
+      return nextEntry;
     },
     /**
      * @param {string} clientMutationId

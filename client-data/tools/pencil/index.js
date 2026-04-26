@@ -27,8 +27,39 @@
 import { LIMITS } from "../../js/message_common.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
+import { ToolCodes } from "../tool-order.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
-/** @import { MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
+/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
+/** @typedef {Omit<ReturnType<typeof createLineMessage>, "opacity"> & {opacity?: number}} PencilCreateMessage */
+/** @typedef {ReturnType<typeof createPointMessage>} PencilAppendMessage */
+/** @typedef {PencilCreateMessage | PencilAppendMessage} PencilMessage */
+/** @typedef {Pick<PencilCreateMessage, "type" | "id"> & Partial<Pick<PencilCreateMessage, "color" | "size" | "opacity">>} PencilLineData */
+/** @typedef {import("../shape_contract.js").SvgTransform} StoredPencilTransform */
+/** @typedef {{id?: string, color?: string, size?: number, opacity?: number, transform?: StoredPencilTransform}} StoredPencilPathItem */
+/** @typedef {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: StoredPencilTransform | undefined) => string}} StoredPencilPathSerializeHelpers */
+
+/**
+ * @param {unknown} data
+ * @returns {data is PencilMessage}
+ */
+function isPencilMessage(data) {
+  if (!data || typeof data !== "object") return false;
+  const message = /** @type {Partial<PencilMessage>} */ (data);
+  if (message.tool !== ToolCodes.PENCIL) return false;
+  if (message.type === MutationType.CREATE) {
+    return (
+      typeof message.id === "string" &&
+      typeof message.color === "string" &&
+      typeof message.size === "number"
+    );
+  }
+  return (
+    message.type === MutationType.APPEND &&
+    typeof message.parent === "string" &&
+    typeof message.x === "number" &&
+    typeof message.y === "number"
+  );
+}
 
 /**
  * @param {number} value
@@ -225,9 +256,9 @@ function renderPencilPath(points) {
 }
 
 /**
- * @param {{id?: string, color?: string, size?: number, opacity?: number, transform?: any}} item
+ * @param {StoredPencilPathItem} item
  * @param {string} pathData
- * @param {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: any) => string}} helpers
+ * @param {StoredPencilPathSerializeHelpers} helpers
  * @returns {string}
  */
 function serializeStoredPencilPath(item, pathData, helpers) {
@@ -257,9 +288,10 @@ export const drawsOnBoard = true;
 /** @type {import("../shape_contract.js").ToolContract} */
 const contract = {
   toolId,
+  toolCode: ToolCodes.PENCIL,
   payloadKind: "children",
   storedTagName: "path",
-  liveMessageFields: {
+  liveMessageFields: /** @type {const} */ ({
     [MutationType.CREATE]: {
       id: "id",
       color: "color",
@@ -271,7 +303,7 @@ const contract = {
       x: "coord",
       y: "coord",
     },
-  },
+  }),
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const size = helpers.parseNumber(
       helpers.readStoredSvgAttribute(entry, "stroke-width"),
@@ -310,8 +342,8 @@ export const shortcut = "p";
 export const serverRenderedElementSelector = "path";
 const ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
 /** @typedef {{Tools: MountedAppToolsState, AUTO_FINGER_WHITEOUT: boolean, MAX_PENCIL_CHILDREN: number, minPencilIntervalMs: number, hasUsedStylus: boolean, curLineId: string, lastTime: number, hasSentPoint: boolean, currentLineChildCount: number, renderingLine: SVGPathElement | null, pathDataCache: {[lineId: string]: any[]}, drawingSize: number, whiteOutSize: number, secondary: {name: string, icon: string, active: boolean, switch?: () => void}, mouseCursor: string}} PencilState */
-/** @typedef {{lineId: string, createMessage: {type: MutationCode, id: string, color: string, size: number, opacity: number}}} PencilPressEffect */
-/** @typedef {{appendMessage: {type: MutationCode, parent: string, x: number, y: number} | null, stopBefore: boolean, stopAfter: boolean, nextLastTime: number, nextHasSentPoint: boolean, nextChildCount: number}} PencilMoveEffect */
+/** @typedef {{lineId: string, createMessage: PencilCreateMessage}} PencilPressEffect */
+/** @typedef {{appendMessage: PencilAppendMessage | null, stopBefore: boolean, stopAfter: boolean, nextLastTime: number, nextHasSentPoint: boolean, nextChildCount: number}} PencilMoveEffect */
 
 /**
  * @param {unknown} value
@@ -339,10 +371,30 @@ function computeMinPencilIntervalMs(Tools) {
  * @param {PencilState} state
  * @param {number} x
  * @param {number} y
- * @returns {{type: MutationCode, parent: string, x: number, y: number}}
  */
 function createPointMessage(state, x, y) {
-  return { type: MutationType.APPEND, parent: state.curLineId, x, y };
+  return {
+    tool: ToolCodes.PENCIL,
+    type: MutationType.APPEND,
+    parent: state.curLineId,
+    x,
+    y,
+  };
+}
+
+/**
+ * @param {PencilState} state
+ * @param {string} lineId
+ */
+function createLineMessage(state, lineId) {
+  return {
+    tool: ToolCodes.PENCIL,
+    type: MutationType.CREATE,
+    id: lineId,
+    color: state.secondary.active ? "#ffffff" : state.Tools.getColor(),
+    size: state.Tools.getSize(),
+    opacity: state.secondary.active ? 1 : state.Tools.getOpacity(),
+  };
 }
 
 /**
@@ -353,13 +405,7 @@ export function createPencilPressEffect(state) {
   const lineId = state.Tools.generateUID("l");
   return {
     lineId,
-    createMessage: {
-      type: MutationType.CREATE,
-      id: lineId,
-      color: state.secondary.active ? "#ffffff" : state.Tools.getColor(),
-      size: state.Tools.getSize(),
-      opacity: state.secondary.active ? 1 : state.Tools.getOpacity(),
-    },
+    createMessage: createLineMessage(state, lineId),
   };
 }
 
@@ -523,7 +569,7 @@ function normalizeServerRenderedPathData(state, pathData) {
 
 /**
  * @param {PencilState} state
- * @param {{type: MutationCode, id: string, color?: string, size?: number, opacity?: number}} lineData
+ * @param {PencilLineData} lineData
  * @returns {SVGPathElement & {id: string}}
  */
 function createLine(state, lineData) {
@@ -635,24 +681,23 @@ export function boot(ctx) {
 
 /**
  * @param {PencilState} state
- * @param {any} data
+ * @param {unknown} data
  */
 export function draw(state, data) {
   state.Tools.drawingEvent = true;
+  if (!isPencilMessage(data)) {
+    logFrontendEvent("error", "tool.pencil.draw_invalid_type", {
+      mutationType: /** @type {{type?: unknown}} */ (data)?.type,
+      message: data,
+    });
+    return;
+  }
   switch (data.type) {
     case MutationType.CREATE:
-      state.renderingLine = createLine(
-        state,
-        /** @type {{type: MutationCode, id: string, color?: string, size?: number, opacity?: number}} */ (
-          data
-        ),
-      );
+      state.renderingLine = createLine(state, data);
       return;
     case MutationType.APPEND: {
-      const childData =
-        /** @type {{type: MutationCode, parent: string, x: number, y: number}} */ (
-          data
-        );
+      const childData = data;
       let line =
         state.renderingLine && state.renderingLine.id === childData.parent
           ? state.renderingLine
@@ -671,11 +716,6 @@ export function draw(state, data) {
       );
       return;
     }
-    default:
-      logFrontendEvent("error", "tool.pencil.draw_invalid_type", {
-        mutationType: data?.type,
-        message: data,
-      });
   }
 }
 
@@ -698,7 +738,7 @@ export function press(state, x, y, evt) {
   state.curLineId = effect.lineId;
   state.hasSentPoint = false;
   state.currentLineChildCount = 0;
-  state.Tools.drawAndSend(effect.createMessage, toolId);
+  state.Tools.drawAndSend(effect.createMessage);
   move(state, x, y, evt);
 }
 
@@ -714,7 +754,7 @@ export function move(state, x, y, evt) {
     stopLine(state);
   }
   if (effect.appendMessage) {
-    state.Tools.drawAndSend(effect.appendMessage, toolId);
+    state.Tools.drawAndSend(effect.appendMessage);
     state.currentLineChildCount = effect.nextChildCount;
     state.hasSentPoint = effect.nextHasSentPoint;
     state.lastTime = effect.nextLastTime;
@@ -762,7 +802,7 @@ export function normalizeServerRenderedElement(state, line) {
 
 /**
  * @param {PencilState} state
- * @param {{type?: string | number, id?: string}} message
+ * @param {{type?: unknown, id?: string}} message
  */
 export function onMessage(state, message) {
   if (message.type === MutationType.CLEAR) {

@@ -25,14 +25,24 @@
  */
 
 import { messages as BoardMessages } from "../../js/board_transport.js";
+import { logFrontendEvent } from "../../js/frontend_logging.js";
 import MessageCommon from "../../js/message_common.js";
-import {
-  getMutationType,
-  MutationType,
-} from "../../js/message_tool_metadata.js";
-import { Eraser } from "../index.js";
-/** @typedef {import("../../../types/app-runtime").ToolBootContext} ToolBootContext */
+import { MutationType } from "../../js/message_tool_metadata.js";
+import { ToolCodes } from "../tool-order.js";
+/** @import { ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {{a:number, b:number, c:number, d:number, e:number, f:number}} TransformState */
+/** @typedef {ReturnType<typeof createUpdateChildMessage>} HandUpdateChildMessage */
+/** @typedef {ReturnType<typeof createDeleteChildMessage>} HandDeleteChildMessage */
+/** @typedef {ReturnType<typeof createCopyChildMessage>} HandCopyChildMessage */
+/** @typedef {HandUpdateChildMessage | HandDeleteChildMessage | HandCopyChildMessage} HandChildMessage */
+/** @typedef {ReturnType<typeof createBatchMessage>} HandBatchMessage */
+/** @template {HandChildMessage} TChild @typedef {{tool: typeof ToolCodes.HAND} & TChild} HandSingleMessage */
+/** @typedef {HandSingleMessage<HandUpdateChildMessage>} HandUpdateMessage */
+/** @typedef {HandSingleMessage<HandDeleteChildMessage>} HandDeleteMessage */
+/** @typedef {HandSingleMessage<HandCopyChildMessage>} HandCopyMessage */
+/** @typedef {HandUpdateMessage | HandDeleteMessage | HandCopyMessage | HandBatchMessage} HandDrawMessage */
+/** @typedef {HandDrawMessage | HandChildMessage} HandRenderableMessage */
+/** @typedef {{type?: unknown, id?: unknown, transform?: unknown, newid?: unknown, _children?: unknown}} HandMessageCandidate */
 /** @typedef {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
 /** @typedef {import("../../js/intersect.js").Point2D} Point2D */
 /** @typedef {import("../../js/intersect.js").TransformedBBox} TransformedBBox */
@@ -48,12 +58,12 @@ export const mouseCursor = "move";
 export const showMarker = true;
 export const touchListenerOptions = { passive: true };
 export const visibleWhenReadOnly = true;
-export const updatableFields = ["transform"];
-export const batchMessageFields = {
+export const updatableFields = /** @type {const} */ (["transform"]);
+export const batchMessageFields = /** @type {const} */ ({
   [MutationType.UPDATE]: { id: "id", transform: "transform" },
   [MutationType.DELETE]: { id: "id" },
   [MutationType.COPY]: { id: "id", newid: "id" },
-};
+});
 
 /**
  * @param {EventTarget | null} target
@@ -79,10 +89,140 @@ function isMatchableTarget(target) {
 
 /**
  * @param {unknown} value
- * @returns {value is {_children: any[]}}
+ * @returns {HandMessageCandidate | null}
+ */
+function handMessageCandidate(value) {
+  return value && typeof value === "object"
+    ? /** @type {HandMessageCandidate} */ (value)
+    : null;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is TransformState}
+ */
+function isTransformState(value) {
+  if (!value || typeof value !== "object") return false;
+  const transform = /** @type {Partial<TransformState>} */ (value);
+  return (
+    typeof transform.a === "number" &&
+    typeof transform.b === "number" &&
+    typeof transform.c === "number" &&
+    typeof transform.d === "number" &&
+    typeof transform.e === "number" &&
+    typeof transform.f === "number"
+  );
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is HandBatchMessage}
  */
 function isBatchMessage(value) {
-  return !!(value && typeof value === "object" && "_children" in value);
+  const message = handMessageCandidate(value);
+  return !!message && Array.isArray(message._children);
+}
+
+/**
+ * @param {unknown} child
+ * @returns {child is HandUpdateChildMessage}
+ */
+function isHandUpdateChild(child) {
+  const message = handMessageCandidate(child);
+  return !!(
+    message &&
+    message.type === MutationType.UPDATE &&
+    typeof message.id === "string" &&
+    isTransformState(message.transform)
+  );
+}
+
+/**
+ * @param {unknown} child
+ * @returns {child is HandDeleteChildMessage}
+ */
+function isHandDeleteChild(child) {
+  const message = handMessageCandidate(child);
+  return !!(
+    message &&
+    message.type === MutationType.DELETE &&
+    typeof message.id === "string"
+  );
+}
+
+/**
+ * @param {unknown} child
+ * @returns {child is HandCopyChildMessage}
+ */
+function isHandCopyChild(child) {
+  const message = handMessageCandidate(child);
+  return !!(
+    message &&
+    message.type === MutationType.COPY &&
+    typeof message.id === "string" &&
+    typeof message.newid === "string"
+  );
+}
+
+/**
+ * @param {unknown} child
+ * @returns {child is HandChildMessage}
+ */
+function isHandChildMessage(child) {
+  return (
+    isHandUpdateChild(child) ||
+    isHandDeleteChild(child) ||
+    isHandCopyChild(child)
+  );
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is HandRenderableMessage}
+ */
+function isHandRenderableMessage(value) {
+  if (isBatchMessage(value)) return value._children.every(isHandChildMessage);
+  return isHandChildMessage(value);
+}
+
+/**
+ * @param {string} id
+ * @param {TransformState} transform
+ */
+function createUpdateChildMessage(id, transform) {
+  return {
+    type: MutationType.UPDATE,
+    id,
+    transform,
+  };
+}
+
+/** @param {string} id */
+function createDeleteChildMessage(id) {
+  return {
+    type: MutationType.DELETE,
+    id,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {string} newid
+ */
+function createCopyChildMessage(id, newid) {
+  return {
+    type: MutationType.COPY,
+    id,
+    newid,
+  };
+}
+
+/** @param {HandChildMessage[]} children */
+function createBatchMessage(children) {
+  return {
+    tool: ToolCodes.HAND,
+    _children: children,
+  };
 }
 
 /**
@@ -221,11 +361,9 @@ function getParentMathematics(el) {
 
 /** @param {HandState} state */
 function deleteSelection(state) {
-  const msgs = state.selectedEls.map((el) => ({
-    type: MutationType.DELETE,
-    id: el.id,
-  }));
-  state.Tools.drawAndSend({ _children: msgs }, toolId);
+  /** @type {HandDeleteChildMessage[]} */
+  const msgs = state.selectedEls.map((el) => createDeleteChildMessage(el.id));
+  state.Tools.drawAndSend(createBatchMessage(msgs));
   state.selectedEls = [];
   hideSelectionUI(state);
 }
@@ -238,18 +376,15 @@ function duplicateSelection(state) {
   ) {
     return;
   }
+  /** @type {HandCopyChildMessage[]} */
   const msgs = [];
   for (let i = 0; i < state.selectedEls.length; i++) {
     const selectedElement = state.selectedEls[i];
     if (!selectedElement) continue;
     const id = selectedElement.id;
-    msgs[i] = {
-      type: MutationType.COPY,
-      id: id,
-      newid: state.Tools.generateUID(id[0]),
-    };
+    msgs[i] = createCopyChildMessage(id, state.Tools.generateUID(id[0]));
   }
-  state.Tools.drawAndSend({ _children: msgs }, toolId);
+  state.Tools.drawAndSend(createBatchMessage(msgs));
 }
 
 /** @param {HandState} state @returns {SVGRectElement} */
@@ -459,28 +594,25 @@ function moveSelection(state, x, y, force) {
   );
   const dx = x - state.selected.x;
   const dy = y - state.selected.y;
+  /** @type {HandUpdateChildMessage[]} */
   const msgs = state.selectedEls.map((el, i) => {
     const oldTransform = state.transformElements[i];
     if (!oldTransform) {
       throw new Error("Mover: Missing transform state while moving.");
     }
-    return {
-      type: MutationType.UPDATE,
-      id: el.id,
-      transform: {
-        a: oldTransform.a,
-        b: oldTransform.b,
-        c: oldTransform.c,
-        d: oldTransform.d,
-        e: dx + oldTransform.e,
-        f: dy + oldTransform.f,
-      },
-    };
+    return createUpdateChildMessage(el.id, {
+      a: oldTransform.a,
+      b: oldTransform.b,
+      c: oldTransform.c,
+      d: oldTransform.d,
+      e: dx + oldTransform.e,
+      f: dy + oldTransform.f,
+    });
   });
   const tmatrix = getTransformMatrix(state, state.selectionRect);
   tmatrix.e = dx + rectTranslation.x;
   tmatrix.f = dy + rectTranslation.y;
-  dispatchTransform(state, { _children: msgs }, force);
+  dispatchTransform(state, createBatchMessage(msgs), force);
 }
 
 /**
@@ -509,6 +641,7 @@ function scaleSelection(state, x, y, force) {
     );
   const rx = (x - scaleSelectionState.x) / scaleSelectionState.w;
   const ry = (y - scaleSelectionState.y) / scaleSelectionState.h;
+  /** @type {HandUpdateChildMessage[]} */
   const msgs = state.selectedEls.map((el, i) => {
     const oldTransform = state.transformElements[i];
     if (!oldTransform) {
@@ -526,18 +659,14 @@ function scaleSelection(state, x, y, force) {
       scaleSelectionState.y * (1 - ry) -
       bboxY * d +
       (bboxY * oldTransform.d + oldTransform.f) * ry;
-    return {
-      type: MutationType.UPDATE,
-      id: el.id,
-      transform: {
-        a: a,
-        b: oldTransform.b,
-        c: oldTransform.c,
-        d: d,
-        e: e,
-        f: f,
-      },
-    };
+    return createUpdateChildMessage(el.id, {
+      a: a,
+      b: oldTransform.b,
+      c: oldTransform.c,
+      d: d,
+      e: e,
+      f: f,
+    });
   });
 
   const tmatrix = getTransformMatrix(state, state.selectionRect);
@@ -549,10 +678,10 @@ function scaleSelection(state, x, y, force) {
   tmatrix.f =
     rectTransform.f +
     state.selectionRect.y.baseVal.value * (rectTransform.d - ry);
-  dispatchTransform(state, { _children: msgs }, force);
+  dispatchTransform(state, createBatchMessage(msgs), force);
 }
 
-/** @param {HandState} state @param {{ _children: any[] }} msg @param {boolean} force */
+/** @param {HandState} state @param {HandBatchMessage} msg @param {boolean} force */
 function dispatchTransform(state, msg, force) {
   if (!canApplyTransformBatch(state, msg)) {
     return;
@@ -560,7 +689,7 @@ function dispatchTransform(state, msg, force) {
   const now = performance.now();
   if (force || now - state.lastSent > 70) {
     state.lastSent = now;
-    state.Tools.drawAndSend(msg, toolId);
+    state.Tools.drawAndSend(msg);
   } else {
     draw(state, msg);
   }
@@ -590,15 +719,14 @@ function getElementLocalBounds(element) {
 
 /**
  * @param {HandState} state
- * @param {{_children?: any[]}} msg
+ * @param {HandBatchMessage} msg
  * @returns {boolean}
  */
 function canApplyTransformBatch(state, msg) {
-  if (!Array.isArray(msg?._children)) return true;
   const maxBoardSize = state.Tools.server_config.MAX_BOARD_SIZE;
   for (let index = 0; index < msg._children.length; index++) {
     const child = msg._children[index];
-    if (getMutationType(child) !== MutationType.UPDATE) continue;
+    if (!isHandUpdateChild(child)) continue;
     const element = state.Tools.svg.getElementById(child.id);
     if (!isSelectableElement(element)) return false;
     const localBounds = getElementLocalBounds(element);
@@ -663,15 +791,22 @@ function getTransformMatrix(state, elem) {
 
 /**
  * @param {HandState} state
- * @param {{ type?: string | number, id?: string, transform?: any, newid?: string, tool?: string | number, _children?: any[] }} data
+ * @param {unknown} data
  */
 export function draw(state, data) {
+  if (!isHandRenderableMessage(data)) {
+    logFrontendEvent("error", "tool.hand.draw_invalid_type", {
+      mutationType: handMessageCandidate(data)?.type,
+      message: data,
+    });
+    return;
+  }
   if (isBatchMessage(data)) {
     BoardMessages.batchCall((msg) => draw(state, msg), data._children);
     return;
   }
 
-  switch (getMutationType(data)) {
+  switch (data.type) {
     case MutationType.UPDATE: {
       const elem = state.Tools.svg.getElementById(data.id);
       if (!elem) {
@@ -697,16 +832,17 @@ export function draw(state, data) {
       const newElement = /** @type {SVGGraphicsElement & { id: string }} */ (
         sourceElement.cloneNode(true)
       );
-      newElement.id = data.newid || "";
+      newElement.id = data.newid;
       state.Tools.drawingArea.appendChild(newElement);
       break;
     }
     case MutationType.DELETE:
-      data.tool = Eraser.id;
-      state.Tools.messageForTool(data);
+      state.Tools.messageForTool({
+        tool: ToolCodes.ERASER,
+        type: MutationType.DELETE,
+        id: data.id,
+      });
       break;
-    default:
-      throw new Error("Mover: 'move' instruction with unknown type.");
   }
 }
 

@@ -195,11 +195,12 @@ test.describe("public authless flows", () => {
     await boardPage.waitForSocketConnected();
     await boardPage.waitForAuthoritativeResync();
 
-    const hadOptimisticRect = await page.evaluate((createType) => {
-      const rectangle = window.Tools.list.rectangle;
-      if (!rectangle) throw new Error("rectangle tool is unavailable");
-      window.Tools.drawAndSend(
-        {
+    const hadOptimisticRect = await page.evaluate(
+      ({ createType, tool }) => {
+        const rectangle = window.Tools.list.rectangle;
+        if (!rectangle) throw new Error("rectangle tool is unavailable");
+        window.Tools.drawAndSend({
+          tool,
           type: createType,
           id: "readonly-public-optimistic-rect",
           x: 10,
@@ -209,11 +210,11 @@ test.describe("public authless flows", () => {
           color: "#123456",
           size: 10,
           opacity: 1,
-        },
-        rectangle,
-      );
-      return !!document.getElementById("readonly-public-optimistic-rect");
-    }, MutationType.CREATE);
+        });
+        return !!document.getElementById("readonly-public-optimistic-rect");
+      },
+      { createType: MutationType.CREATE, tool: Rectangle.id },
+    );
 
     expect(hadOptimisticRect).toBe(true);
     await expect(

@@ -1,38 +1,72 @@
-/** @import { BoardMessage, CopiedBoardMessage, IdentifiedBoardMessage, ToolNamedBoardMessage } from "../../types/app-runtime" */
+/** @import { CopiedMessageFields, IdentifiedMessageFields, MessageChildren, MessageWithColor, MessageWithPoint, MessageWithSize, ToolMessageFields } from "../../types/app-runtime" */
 
 /**
- * @param {{_children?: unknown} | null | undefined} message
- * @returns {message is BoardMessage & {_children: BoardMessage[]}}
+ * @param {unknown} message
+ * @returns {{[field: string]: unknown} | null}
+ */
+function messageRecord(message) {
+  return message && typeof message === "object"
+    ? /** @type {{[field: string]: unknown}} */ (message)
+    : null;
+}
+
+/**
+ * @param {unknown} message
+ * @returns {message is MessageChildren}
  */
 export function hasMessageChildren(message) {
-  return !!(message && Array.isArray(message._children));
+  const record = messageRecord(message);
+  return !!record && Array.isArray(record._children);
 }
 
 /**
- * @param {{tool?: unknown} | null | undefined} message
- * @returns {message is ToolNamedBoardMessage}
+ * @param {unknown} message
+ * @returns {message is ToolMessageFields}
  */
 export function hasMessageTool(message) {
-  return (
-    (typeof message?.tool === "string" && message.tool !== "") ||
-    (typeof message?.tool === "number" &&
-      Number.isSafeInteger(message.tool) &&
-      message.tool > 0)
-  );
+  const tool = messageRecord(message)?.tool;
+  return typeof tool === "number" && Number.isSafeInteger(tool) && tool > 0;
 }
 
 /**
- * @param {{id?: unknown} | null | undefined} message
- * @returns {message is IdentifiedBoardMessage}
+ * @param {unknown} message
+ * @returns {message is IdentifiedMessageFields}
  */
 export function hasMessageId(message) {
-  return typeof message?.id === "string" && message.id !== "";
+  const id = messageRecord(message)?.id;
+  return typeof id === "string" && id !== "";
 }
 
 /**
- * @param {{newid?: unknown} | null | undefined} message
- * @returns {message is CopiedBoardMessage}
+ * @param {unknown} message
+ * @returns {message is CopiedMessageFields}
  */
 export function hasMessageNewId(message) {
-  return typeof message?.newid === "string" && message.newid !== "";
+  const newid = messageRecord(message)?.newid;
+  return typeof newid === "string" && newid !== "";
+}
+
+/**
+ * @param {unknown} message
+ * @returns {message is MessageWithPoint}
+ */
+export function hasMessagePoint(message) {
+  const point = messageRecord(message);
+  return typeof point?.x === "number" && typeof point.y === "number";
+}
+
+/**
+ * @param {unknown} message
+ * @returns {message is MessageWithColor}
+ */
+export function hasMessageColor(message) {
+  return typeof messageRecord(message)?.color === "string";
+}
+
+/**
+ * @param {unknown} message
+ * @returns {message is MessageWithSize}
+ */
+export function hasMessageSize(message) {
+  return typeof messageRecord(message)?.size === "number";
 }

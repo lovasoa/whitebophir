@@ -1,21 +1,24 @@
 import {
   constrainEqualSpanToBoard,
   createShapeToolBoot,
+  makeBoxShapeUpdateMessage,
   makeSeedShapeCreateMessage,
 } from "../shape_tool.js";
+import { ToolCodes } from "../tool-order.js";
 export {
   drawShapeTool as draw,
   moveShapeTool as move,
   pressShapeTool as press,
   releaseShapeTool as release,
 } from "../shape_tool.js";
-import { MutationType } from "../../js/mutation_type.js";
 import {
   defineShapeContract,
   normalizeRectBounds,
   serializeStoredShapeTag,
   summarizeStoredShape,
 } from "../shape_contract.js";
+/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof ToolCodes.RECTANGLE>} RectangleCreateMessage */
+/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof ToolCodes.RECTANGLE>} RectangleUpdateMessage */
 
 export const toolId = "rectangle";
 export const drawsOnBoard = true;
@@ -23,8 +26,9 @@ export const mouseCursor = "crosshair";
 
 const contract = defineShapeContract({
   toolId,
+  toolCode: ToolCodes.RECTANGLE,
   storedTagName: "rect",
-  updatableFields: ["x", "y", "x2", "y2"],
+  updatableFields: /** @type {const} */ (["x", "y", "x2", "y2"]),
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
     const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));
@@ -121,14 +125,7 @@ const config = {
       x = constrained.x;
       y = constrained.y;
     }
-    return {
-      type: MutationType.UPDATE,
-      id: start.id,
-      x: start.x,
-      y: start.y,
-      x2: x,
-      y2: y,
-    };
+    return makeBoxShapeUpdateMessage(contract.toolCode, start.id, start, x, y);
   },
   makeFallbackShape: (data) => ({
     id: data.id,
@@ -137,12 +134,12 @@ const config = {
     x2: data.x2,
     y2: data.y2,
   }),
-  applyShapeGeometry: (shape, data) => {
-    const rect = /** @type {SVGRectElement} */ (shape);
-    rect.x.baseVal.value = Math.min(data.x2, data.x);
-    rect.y.baseVal.value = Math.min(data.y2, data.y);
-    rect.width.baseVal.value = Math.abs(data.x2 - data.x);
-    rect.height.baseVal.value = Math.abs(data.y2 - data.y);
+  applyShapeGeometry: (rect, data) => {
+    const rectangle = /** @type {SVGRectElement} */ (rect);
+    rectangle.x.baseVal.value = Math.min(data.x2, data.x);
+    rectangle.y.baseVal.value = Math.min(data.y2, data.y);
+    rectangle.width.baseVal.value = Math.abs(data.x2 - data.x);
+    rectangle.height.baseVal.value = Math.abs(data.y2 - data.y);
   },
 };
 

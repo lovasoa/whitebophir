@@ -5,16 +5,37 @@ const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Eraser, Rectangle, Text } = require("../client-data/tools/index.js");
 const { createMutationLog } = require("../server/mutation_log.mjs");
 
+/** @param {string} id */
+function rectCreate(id) {
+  return {
+    tool: Rectangle.id,
+    type: MutationType.CREATE,
+    id,
+    color: "#123456",
+    size: 4,
+    x: 0,
+    y: 0,
+    x2: 10,
+    y2: 10,
+  };
+}
+
+/** @param {string} id */
+function textUpdate(id) {
+  return {
+    tool: Text.id,
+    type: MutationType.UPDATE,
+    id,
+    txt: "updated",
+  };
+}
+
 test("mutation logs append contiguous seq values from the initial baseline", () => {
   const log = createMutationLog(4);
 
   const first = log.append({
     acceptedAtMs: 100,
-    mutation: {
-      tool: Rectangle.id,
-      type: MutationType.CREATE,
-      id: "rect-1",
-    },
+    mutation: rectCreate("rect-1"),
   });
   const second = log.append({
     acceptedAtMs: 200,
@@ -35,11 +56,7 @@ test("mutation logs read contiguous suffixes and trim old replay entries", () =>
   for (let index = 0; index < 5; index++) {
     log.append({
       acceptedAtMs: index,
-      mutation: {
-        tool: Text.id,
-        type: MutationType.UPDATE,
-        id: `text-${index}`,
-      },
+      mutation: textUpdate(`text-${index}`),
     });
   }
 
@@ -65,11 +82,7 @@ test("mutation logs track the latest persisted baseline seq", () => {
   const log = createMutationLog(2);
   log.append({
     acceptedAtMs: 3,
-    mutation: {
-      tool: Rectangle.id,
-      type: MutationType.CREATE,
-      id: "rect-1",
-    },
+    mutation: rectCreate("rect-1"),
   });
 
   assert.equal(log.persistedSeq(), 2);
@@ -81,27 +94,15 @@ test("mutation logs trim retention as a contiguous replay suffix", () => {
   const log = createMutationLog(0);
   log.append({
     acceptedAtMs: 10,
-    mutation: {
-      tool: Rectangle.id,
-      type: MutationType.CREATE,
-      id: "rect-1",
-    },
+    mutation: rectCreate("rect-1"),
   });
   log.append({
     acceptedAtMs: 100,
-    mutation: {
-      tool: Rectangle.id,
-      type: MutationType.CREATE,
-      id: "rect-2",
-    },
+    mutation: rectCreate("rect-2"),
   });
   log.append({
     acceptedAtMs: 20,
-    mutation: {
-      tool: Rectangle.id,
-      type: MutationType.CREATE,
-      id: "rect-3",
-    },
+    mutation: rectCreate("rect-3"),
   });
 
   log.markPersisted(3);
@@ -118,27 +119,15 @@ test("mutation logs keep pinned replay history even after persisted retention ex
   const log = createMutationLog(0);
   log.append({
     acceptedAtMs: 10,
-    mutation: {
-      tool: Rectangle.id,
-      type: MutationType.CREATE,
-      id: "rect-1",
-    },
+    mutation: rectCreate("rect-1"),
   });
   log.append({
     acceptedAtMs: 20,
-    mutation: {
-      tool: Rectangle.id,
-      type: MutationType.CREATE,
-      id: "rect-2",
-    },
+    mutation: rectCreate("rect-2"),
   });
   log.append({
     acceptedAtMs: 30,
-    mutation: {
-      tool: Rectangle.id,
-      type: MutationType.CREATE,
-      id: "rect-3",
-    },
+    mutation: rectCreate("rect-3"),
   });
 
   log.markPersisted(3);

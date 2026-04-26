@@ -29,9 +29,11 @@ import {
   MutationType,
 } from "../../js/message_tool_metadata.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
+import { ToolCodes } from "../tool-order.js";
 
-/** @import { MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
-/** @typedef {{type: MutationCode, id: string}} EraserMessage */
+/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
+/** @typedef {ReturnType<typeof createDeleteMessage>} EraserDeleteMessage */
+/** @typedef {EraserDeleteMessage} EraserMessage */
 /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
 /** @typedef {{tools: MountedAppToolsState, erasing: boolean}} EraserState */
 
@@ -39,7 +41,9 @@ export const toolId = "eraser";
 export const shortcut = "e";
 export const mouseCursor = "crosshair";
 export const showMarker = true;
-export const liveMessageFields = { [MutationType.DELETE]: { id: "id" } };
+export const liveMessageFields = /** @type {const} */ ({
+  [MutationType.DELETE]: { id: "id" },
+});
 
 /**
  * @param {EventTarget | null} elem
@@ -81,6 +85,15 @@ function resolveTarget(evt) {
   return target;
 }
 
+/** @param {string} id */
+function createDeleteMessage(id) {
+  return {
+    tool: ToolCodes.ERASER,
+    type: MutationType.DELETE,
+    id,
+  };
+}
+
 /**
  * @param {EraserState} state
  * @param {number} x
@@ -113,13 +126,7 @@ export function move(state, x, y, evt) {
     isErasableElement(target) &&
     inDrawingArea(state, target)
   ) {
-    state.tools.drawAndSend(
-      {
-        type: MutationType.DELETE,
-        id: target.id,
-      },
-      toolId,
-    );
+    state.tools.drawAndSend(createDeleteMessage(target.id));
   }
 }
 
@@ -130,7 +137,7 @@ export function release(state) {
 
 /**
  * @param {EraserState} state
- * @param {EraserMessage | {type?: string | number, id?: string}} data
+ * @param {EraserMessage | {type?: unknown, id?: string}} data
  */
 export function draw(state, data) {
   if (getMutationType(data) !== MutationType.DELETE) {

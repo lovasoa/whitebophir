@@ -5,7 +5,9 @@
  * @typedef {{id: string, tool: string, paintOrder?: number, data: object, localBounds: LocalBounds}} StoredShapeSummary
  * @typedef {{id?: string, color?: string, size?: number, opacity?: number, transform?: SvgTransform, x?: number, y?: number, x2?: number, y2?: number}} StoredShapeItem
  * @typedef {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: SvgTransform | undefined) => string}} StoredShapeSerializeHelpers
- * @typedef {{toolId: string, storedTagName?: string, shapeTool?: boolean, updatableFields?: string[], drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", liveMessageFields?: {[type: number]: {[field: string]: string}}, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: any) => any, serializeStoredSvgItem: (item: any, helpers: any) => string, parseStoredSvgItem?: (summary: any, entry: StoredSvgEntry, helpers: any) => any, renderBoardSvg?: (shape: any, helpers: any) => string}} ToolContract
+ * @typedef {ReadonlyArray<string>} UpdatableFields
+ * @typedef {Readonly<Record<number, Readonly<Record<string, string>>>>} LiveMessageFields
+ * @typedef {{toolId: string, toolCode: import("../../types/app-runtime").ToolCode, storedTagName?: string, shapeTool?: boolean, updatableFields?: UpdatableFields, drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", liveMessageFields?: LiveMessageFields, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: any) => any, serializeStoredSvgItem: (item: any, helpers: any) => string, parseStoredSvgItem?: (summary: any, entry: StoredSvgEntry, helpers: any) => any, renderBoardSvg?: (shape: any, helpers: any) => string}} ToolContract
  */
 
 /**
@@ -68,8 +70,9 @@ export function serializeStoredShapeTag(tagName, attrs, item, helpers) {
 }
 
 /**
- * @param {ToolContract & {storedTagName: string}} contract
- * @returns {ToolContract & {storedTagName: string, shapeTool: true}}
+ * @template {ToolContract & {storedTagName: string}} T
+ * @param {T} contract
+ * @returns {T & {shapeTool: true}}
  */
 export function defineShapeContract(contract) {
   return {

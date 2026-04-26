@@ -25,10 +25,10 @@
  */
 
 import { MutationType } from "../../js/mutation_type.js";
+import { ToolCodes } from "../tool-order.js";
 
-/** @import { MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
-/** @typedef {{type: MutationCode, x: number, y: number, color: string, size: number, socket?: string}} CursorMessage */
-/** @typedef {{tools: MountedAppToolsState, lastCursorUpdate: number, sending: boolean, message: CursorMessage, minCursorUpdateIntervalMs: number}} CursorState */
+/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
+/** @typedef {{tools: MountedAppToolsState, lastCursorUpdate: number, sending: boolean, x: number, y: number, color: string, size: number, minCursorUpdateIntervalMs: number}} CursorState */
 
 export const toolId = "cursor";
 export const mouseCursor = "crosshair";
@@ -115,6 +115,19 @@ function getCursor(tools, id) {
 }
 
 /** @param {CursorState} state */
+function makeCursorMessage(state) {
+  return {
+    tool: ToolCodes.CURSOR,
+    type: MutationType.UPDATE,
+    x: state.x,
+    y: state.y,
+    color: state.color,
+    size: state.size,
+  };
+}
+/** @typedef {ReturnType<typeof makeCursorMessage> & {socket?: string}} CursorMessage */
+
+/** @param {CursorState} state */
 function updateMarker(state) {
   const activeTool = /** @type {{showMarker?: boolean} | null} */ (
     state.tools.curTool
@@ -125,15 +138,16 @@ function updateMarker(state) {
     curTime - state.lastCursorUpdate > state.minCursorUpdateIntervalMs &&
     (state.sending || activeTool?.showMarker === true)
   ) {
-    const sent = state.tools.drawAndSend(state.message, toolId);
+    const message = makeCursorMessage(state);
+    const sent = state.tools.drawAndSend(message);
     if (sent !== true) {
-      draw(state, state.message);
+      draw(state, message);
     } else {
       state.lastCursorUpdate = curTime;
     }
     return;
   }
-  draw(state, state.message);
+  draw(state, makeCursorMessage(state));
 }
 
 /** @param {ToolBootContext} ctx */
@@ -143,13 +157,10 @@ export function boot(ctx) {
     tools,
     lastCursorUpdate: 0,
     sending: true,
-    message: {
-      type: MutationType.UPDATE,
-      x: 0,
-      y: 0,
-      color: tools.getColor(),
-      size: tools.getSize(),
-    },
+    x: 0,
+    y: 0,
+    color: tools.getColor(),
+    size: tools.getSize(),
     minCursorUpdateIntervalMs: computeMinCursorUpdateIntervalMs(tools),
   };
 }
@@ -165,10 +176,10 @@ export function press(state) {
  * @param {number} y
  */
 export function move(state, x, y) {
-  state.message.x = x;
-  state.message.y = y;
-  state.message.color = state.tools.getColor();
-  state.message.size = state.tools.getSize();
+  state.x = x;
+  state.y = y;
+  state.color = state.tools.getColor();
+  state.size = state.tools.getSize();
   updateMarker(state);
 }
 
@@ -182,21 +193,17 @@ export function release(state) {
  * @param {number} size
  */
 export function onSizeChange(state, size) {
-  state.message.size = size;
+  state.size = size;
   updateMarker(state);
 }
 
 /**
  * @param {CursorState} state
- * @param {import("../../../types/app-runtime").BoardMessage} message
+ * @param {CursorMessage} message
  */
 export function draw(state, message) {
-  const cursorMessage = /** @type {CursorMessage} */ (message);
-  const cursor = getCursor(
-    state.tools,
-    `cursor-${cursorMessage.socket || "me"}`,
-  );
-  cursor.style.transform = `translate(${cursorMessage.x}px, ${cursorMessage.y}px)`;
-  cursor.setAttributeNS(null, "fill", cursorMessage.color);
-  cursor.setAttributeNS(null, "r", String(cursorMessage.size / 2));
+  const cursor = getCursor(state.tools, `cursor-${message.socket || "me"}`);
+  cursor.style.transform = `translate(${message.x}px, ${message.y}px)`;
+  cursor.setAttributeNS(null, "fill", message.color);
+  cursor.setAttributeNS(null, "r", String(message.size / 2));
 }

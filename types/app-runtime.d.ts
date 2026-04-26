@@ -7,61 +7,180 @@ export type Transform = {
   f: number;
 };
 
-export type ToolCode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
-export type MessageType =
-  typeof import("../client-data/js/mutation_type.js").MutationType[keyof typeof import("../client-data/js/mutation_type.js").MutationType];
-export type MutationCode = MessageType;
+type ToolCodeMap =
+  typeof import("../client-data/tools/tool-order.js").ToolCodes;
+type MutationTypeMap =
+  typeof import("../client-data/js/mutation_type.js").MutationType;
+
+export type ToolCode =
+  typeof import("../client-data/tools/tool-order.js").ToolCodes[keyof ToolCodeMap];
+export type MessageType = MutationTypeMap[keyof MutationTypeMap];
 export type SocketEventName =
   typeof import("../client-data/js/socket_events.js").SocketEvents[keyof typeof import("../client-data/js/socket_events.js").SocketEvents];
 
-export type ToolRef = string | ToolCode;
-
-export type BoardMessage = {
-  tool?: ToolRef;
-  type?: MessageType;
-  id?: string;
-  parent?: string;
-  newid?: string;
+export type MessageMetadata = {
   seq?: number;
   socket?: string;
   userId?: string;
-  color?: string;
-  size?: number;
-  txt?: string;
   clientMutationId?: string;
-  transform?: Transform | unknown;
-  _children?: BoardMessage[];
-  x?: number;
-  y?: number;
-  [key: string]: unknown;
 };
 
-export type ToolNamedBoardMessage = BoardMessage & {
-  tool: ToolRef;
+export type RequiredPointMessageFields = {
+  x: number;
+  y: number;
 };
 
-export type IdentifiedBoardMessage = BoardMessage & {
+export type ToolMessageFields = {
+  tool: ToolCode;
+};
+
+export type IdentifiedMessageFields = {
   id: string;
 };
 
-export type CopiedBoardMessage = BoardMessage & {
+export type CopiedMessageFields = IdentifiedMessageFields & {
   newid: string;
 };
 
-export type BatchBoardMessage = BoardMessage & {
-  _children: BoardMessage[];
+export type MessageChildren<TChild = unknown> = {
+  _children: TChild[];
 };
 
-export type ToolOwnedBatchMessage = BatchBoardMessage & {
-  tool: ToolRef;
-};
+type WithMessageMetadata<T> = MessageMetadata & T;
+
+export type PencilCreateMessage = WithMessageMetadata<
+  import("../client-data/tools/pencil/index.js").PencilCreateMessage
+>;
+
+export type PencilAppendMessage = WithMessageMetadata<
+  import("../client-data/tools/pencil/index.js").PencilAppendMessage
+>;
+
+export type StraightLineCreateMessage = WithMessageMetadata<
+  import("../client-data/tools/straight-line/index.js").StraightLineCreateMessage
+>;
+
+export type StraightLineUpdateMessage = WithMessageMetadata<
+  import("../client-data/tools/straight-line/index.js").StraightLineUpdateMessage
+>;
+
+export type RectangleCreateMessage = WithMessageMetadata<
+  import("../client-data/tools/rectangle/index.js").RectangleCreateMessage
+>;
+
+export type RectangleUpdateMessage = WithMessageMetadata<
+  import("../client-data/tools/rectangle/index.js").RectangleUpdateMessage
+>;
+
+export type EllipseCreateMessage = WithMessageMetadata<
+  import("../client-data/tools/ellipse/index.js").EllipseCreateMessage
+>;
+
+export type EllipseUpdateMessage = WithMessageMetadata<
+  import("../client-data/tools/ellipse/index.js").EllipseUpdateMessage
+>;
+
+export type TextCreateMessage = WithMessageMetadata<
+  import("../client-data/tools/text/index.js").TextCreateMessage
+>;
+
+export type TextUpdateMessage = WithMessageMetadata<
+  import("../client-data/tools/text/index.js").TextUpdateMessage
+>;
+
+export type EraserDeleteMessage = WithMessageMetadata<
+  import("../client-data/tools/eraser/index.js").EraserDeleteMessage
+>;
+
+export type HandUpdateChildMessage =
+  import("../client-data/tools/hand/index.js").HandUpdateChildMessage;
+
+export type HandDeleteChildMessage =
+  import("../client-data/tools/hand/index.js").HandDeleteChildMessage;
+
+export type HandCopyChildMessage =
+  import("../client-data/tools/hand/index.js").HandCopyChildMessage;
+
+export type HandChildMessage =
+  import("../client-data/tools/hand/index.js").HandChildMessage;
+
+export type ToolOwnedChildMessage = HandChildMessage;
+
+export type HandUpdateMessage = WithMessageMetadata<
+  import("../client-data/tools/hand/index.js").HandUpdateMessage
+>;
+
+export type HandDeleteMessage = WithMessageMetadata<
+  import("../client-data/tools/hand/index.js").HandDeleteMessage
+>;
+
+export type HandCopyMessage = WithMessageMetadata<
+  import("../client-data/tools/hand/index.js").HandCopyMessage
+>;
+
+export type HandBatchMessage = WithMessageMetadata<
+  import("../client-data/tools/hand/index.js").HandBatchMessage
+>;
+
+export type HandDrawMessage =
+  import("../client-data/tools/hand/index.js").HandDrawMessage;
+
+export type HandRenderableMessage =
+  import("../client-data/tools/hand/index.js").HandRenderableMessage;
+
+export type ClearMessage = WithMessageMetadata<
+  import("../client-data/tools/clear/index.js").ClearMessage
+>;
+
+export type CursorMessage = WithMessageMetadata<
+  import("../client-data/tools/cursor/index.js").CursorMessage
+>;
+
+export type BoardMessage =
+  | PencilCreateMessage
+  | PencilAppendMessage
+  | StraightLineCreateMessage
+  | StraightLineUpdateMessage
+  | RectangleCreateMessage
+  | RectangleUpdateMessage
+  | EllipseCreateMessage
+  | EllipseUpdateMessage
+  | TextCreateMessage
+  | TextUpdateMessage
+  | EraserDeleteMessage
+  | HandUpdateMessage
+  | HandDeleteMessage
+  | HandCopyMessage
+  | HandBatchMessage
+  | ClearMessage
+  | CursorMessage;
+
+export type LiveBoardMessage = BoardMessage;
+
+export type ClientTrackedMessage = LiveBoardMessage &
+  Required<Pick<MessageMetadata, "clientMutationId">>;
+
+export type ToolOwnedBatchMessage = HandBatchMessage;
+
+export type MessageWithColor = Extract<BoardMessage, { color: string }>;
+
+export type MessageWithSize = Extract<BoardMessage, { size: number }>;
+
+export type MessageWithPoint = Extract<
+  BoardMessage,
+  RequiredPointMessageFields
+>;
+
+export type PencilReplayParent = Pick<PencilCreateMessage, "id" | "tool">;
+
+export type PencilChildPoint = RequiredPointMessageFields;
 
 // Live single-mutation frame. Connection replay batches intentionally strip this
 // frame and send only ordered child mutations between fromSeq and seq.
 export type SequencedMutationBroadcast = {
   seq: number;
   acceptedAtMs: number;
-  mutation: BoardMessage;
+  mutation: LiveBoardMessage;
 };
 
 export type AuthoritativeReplayBatch = {
@@ -71,19 +190,19 @@ export type AuthoritativeReplayBatch = {
   _children: BoardMessage[];
 };
 
+export type ReplayMessage = BoardMessage | AuthoritativeReplayBatch;
+
 export type IncomingBroadcast =
   | BoardMessage
   | SequencedMutationBroadcast
   | AuthoritativeReplayBatch;
 
 export type PendingWrite = {
-  data?: BoardMessage;
-  toolName?: string;
-  costs?: RateLimitCosts;
+  data: LiveBoardMessage;
 };
 
 export type BufferedWrite = {
-  message: BoardMessage;
+  message: LiveBoardMessage;
   costs: RateLimitCosts;
 };
 
@@ -267,7 +386,7 @@ export type TurnstileAck = TurnstileSuccessAck | TurnstileFailureAck;
 
 export type ClientSocketOutgoingEventArgs = {
   [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .BROADCAST]: [message: BoardMessage];
+    .BROADCAST]: [message: LiveBoardMessage];
   [typeof import("../client-data/js/socket_events.js").SocketEvents
     .REPORT_USER]: [payload: ReportUserPayload];
   [typeof import("../client-data/js/socket_events.js").SocketEvents
@@ -323,38 +442,39 @@ export type AuthoritativeBaseline = {
 };
 
 export type OptimisticItemSnapshot = {
-  id: string;
-  outerHTML: string | null;
-  nextSiblingId: string | null;
+  readonly id: string;
+  readonly outerHTML: string | null;
+  readonly nextSiblingId: string | null;
 };
 
 export type OptimisticRollback =
   | {
-      kind: "drawing-area";
-      markup: string;
+      readonly kind: "drawing-area";
+      readonly markup: string;
     }
   | {
-      kind: "items";
-      snapshots: OptimisticItemSnapshot[];
+      readonly kind: "items";
+      readonly snapshots: readonly OptimisticItemSnapshot[];
     };
 
 export type OptimisticJournalEntry = {
-  clientMutationId: string;
-  affectedIds: string[];
-  dependsOn: string[];
-  dependencyItemIds: string[];
-  rollback: OptimisticRollback;
-  message: BoardMessage;
+  readonly clientMutationId: string;
+  readonly affectedIds: readonly string[];
+  readonly dependsOn: readonly string[];
+  readonly dependencyItemIds: readonly string[];
+  readonly rollback: OptimisticRollback;
+  readonly message: LiveBoardMessage;
 };
 
 export type OptimisticJournalEntryInput = Omit<
   OptimisticJournalEntry,
   "dependencyItemIds"
 > & {
-  dependencyItemIds?: string[];
+  readonly dependencyItemIds?: readonly string[];
 };
 
 export type OptimisticJournalState = {
+  /** Takes ownership of entry.message and entry.rollback. Do not mutate them after append. */
   append: (entry: OptimisticJournalEntryInput) => OptimisticJournalEntry;
   dependencyMutationIdsForItemIds: (itemIds: string[]) => string[];
   promote: (clientMutationId: string) => OptimisticJournalEntry[];
@@ -557,11 +677,10 @@ export type AppToolsState = {
   };
   colorChangeHandlers: ((color: string) => void)[];
   sizeChangeHandlers: ((size: number) => void)[];
-  cloneMessage: <T extends IncomingBroadcast>(message: T) => T;
   getRateLimitDefinition: (
     kind: RateLimitKind,
   ) => ConfiguredRateLimitDefinition;
-  getBufferedWriteCosts: (message: BoardMessage) => RateLimitCosts;
+  getBufferedWriteCosts: (message: LiveBoardMessage) => RateLimitCosts;
   clearBufferedWriteTimer: () => void;
   clearRateLimitNoticeTimer: () => void;
   clearBoardStatusTimer: () => void;
@@ -578,10 +697,12 @@ export type AppToolsState = {
   resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
   rebuildOptimisticMutationIndex: () => void;
-  captureOptimisticRollback: (message: BoardMessage) => OptimisticRollback;
-  collectOptimisticDependencyMutationIds: (message: BoardMessage) => string[];
+  captureOptimisticRollback: (message: LiveBoardMessage) => OptimisticRollback;
+  collectOptimisticDependencyMutationIds: (
+    message: LiveBoardMessage,
+  ) => string[];
   trackOptimisticMutation: (
-    message: BoardMessage,
+    message: LiveBoardMessage,
     rollback: OptimisticRollback,
   ) => void;
   restoreOptimisticRollback: (rollback: OptimisticRollback) => void;
@@ -604,11 +725,14 @@ export type AppToolsState = {
   getBufferedWriteFlushSafetyMs: (waitMs: number) => number;
   scheduleBufferedWriteFlush: () => void;
   flushBufferedWrites: () => void;
-  enqueueBufferedWrite: (message: BoardMessage) => void;
-  sendBufferedWrite: (message: BoardMessage) => boolean;
+  /** Takes ownership of message. Callers must not mutate it after queueing. */
+  enqueueBufferedWrite: (message: LiveBoardMessage) => void;
+  /** Takes ownership of message. Callers must not mutate it after sending. */
+  sendBufferedWrite: (message: LiveBoardMessage) => boolean;
   discardBufferedWrites: () => void;
   beginAuthoritativeResync: () => void;
-  queueProtectedWrite: (data: BoardMessage, tool: MountedAppTool) => void;
+  /** Takes ownership of data. Callers must not mutate it after queueing. */
+  queueProtectedWrite: (data: LiveBoardMessage) => void;
   flushTurnstilePendingWrites: () => void;
   getToolAssetUrl: (toolName: string, assetFile: string) => string;
   mountTool: (
@@ -620,11 +744,10 @@ export type AppToolsState = {
   activateTool: (toolName: string) => Promise<boolean>;
   addToolListeners: (tool: MountedAppTool) => void;
   removeToolListeners: (tool: MountedAppTool) => void;
-  drawAndSend: (
-    message: BoardMessage,
-    tool?: MountedAppTool | string,
-  ) => boolean | undefined;
-  send: (message: BoardMessage, toolName?: string) => boolean | undefined;
+  /** Takes ownership of message. Callers must not mutate it after sending. */
+  drawAndSend: (message: LiveBoardMessage) => boolean | undefined;
+  /** Takes ownership of message. Callers must not mutate it after sending. */
+  send: (message: LiveBoardMessage) => boolean | undefined;
   getColor: () => string;
   setColor: (color: string) => void;
   getSize: () => number;
@@ -635,7 +758,7 @@ export type AppToolsState = {
   applyViewportFromHash: () => void;
   installViewportHashObservers: () => void;
   installViewportController: () => void;
-  resizeCanvas: (message: { x?: unknown; y?: unknown }) => void;
+  resizeCanvas: MessageHook;
   createSVGElement: (
     name: string,
     attrs?: { [key: string]: string | number | undefined },
@@ -699,9 +822,16 @@ export type DownloadCapture = {
 };
 
 export type TurnstileRenderOptions = {
+  sitekey?: string;
+  action?: string;
+  theme?: "auto" | "light" | "dark";
+  size?: "normal" | "compact" | "flexible";
   callback?: (token: string) => void;
   "before-interactive-callback"?: () => void;
-  [key: string]: unknown;
+  "after-interactive-callback"?: () => void;
+  "error-callback"?: (error: unknown) => void;
+  "timeout-callback"?: () => void;
+  "expired-callback"?: () => void;
 };
 
 export type TurnstileGlobal = {

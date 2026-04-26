@@ -61,11 +61,11 @@ section before making changes there.
 
 ## message lifecycle
 
-- A tool builds payload data from pointer/input handlers and calls `Tools.drawAndSend` or `Tools.send` (tool modules + runtime).
-- `Tools.drawAndSend` renders locally first with `tool.draw(data, true)`.
+- A tool builds a fresh numeric-tool payload data object from pointer/input handlers and calls `Tools.drawAndSend` or `Tools.send` (tool modules + runtime). Those APIs take ownership of the message object; callers must not mutate it after handing it to the runtime.
+- `Tools.drawAndSend` resolves the mounted tool from `data.tool` and renders locally first with `tool.draw(data, true)`.
 - The board page HTTP response ensures the server-issued `wbo-user-secret-v1` cookie exists before the client starts Socket.IO.
 - The client opens Socket.IO only after an authoritative SVG baseline is attached, with handshake query `board=<boardName>`, `baselineSeq=<seq>`, plus tool/color/size metadata; reconnects refresh the authoritative SVG baseline before opening a new socket. The server reads the user secret from the cookie, rejects stale/future baselines during the Socket.IO handshake with `connect_error` reason `baseline_not_replayable`, and otherwise emits `boardstate` plus one compact authoritative replay `broadcast` batch whose `fromSeq`/`seq` range covers the missing persistent mutations. If a browser presents a future baseline, the server first reads only stored SVG root metadata; when disk seq proves the loaded board stale, it drops that board instance, disconnects its sockets, reloads once, and then re-evaluates replayability. Visible tool modules and the always-on `cursor` module are already being discovered from the document head via `modulepreload`.
-- `Tools.send` clones payload, stamps the numeric live `tool` code, runs hooks, and sends the plain board message over the already-bound socket.
+- `Tools.send` requires the numeric live `tool` code to already be present, runs hooks, and sends the plain board message over the already-bound socket without cloning it.
 - Runtime create/update/delete/append/copy/clear routing must key off numeric `MutationType` values; do not reintroduce per-tool live string aliases such as `"rect"`, `"line"`, `"child"`, or `"new"` on the socket path.
 - `Tools.sendBufferedWrite` emits immediately with `socket.emit("broadcast", message)` or appends to `Tools.bufferedWrites`; `Tools.scheduleBufferedWriteFlush` and `Tools.flushBufferedWrites` drain later.
 - Server receives `socket.on("broadcast", data)` and runs board access + rate-limit checks against the board already bound to the socket.

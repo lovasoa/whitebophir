@@ -1,22 +1,24 @@
-/** @type {{CREATE: number, UPDATE: number, DELETE: number, APPEND: number, BATCH: number, CLEAR: number, COPY: number}} */
-export const MutationType = Object.freeze({
-  CREATE: 1,
-  UPDATE: 2,
-  DELETE: 3,
-  APPEND: 4,
-  BATCH: 5,
-  CLEAR: 6,
-  COPY: 7,
-});
+export const MutationType = Object.freeze(
+  /** @type {const} */ ({
+    CREATE: 1,
+    UPDATE: 2,
+    DELETE: 3,
+    APPEND: 4,
+    BATCH: 5,
+    CLEAR: 6,
+    COPY: 7,
+  }),
+);
+/** @typedef {typeof MutationType[keyof typeof MutationType]} MessageType */
 
 /**
  * @param {unknown} type
- * @returns {number | undefined}
+ * @returns {MessageType | undefined}
  */
 export function getMutationTypeCode(type) {
   return typeof type === "number" &&
     type >= MutationType.CREATE &&
     type <= MutationType.COPY
-    ? type
+    ? /** @type {MessageType} */ (type)
     : undefined;
 }
