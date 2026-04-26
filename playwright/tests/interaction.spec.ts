@@ -189,6 +189,75 @@ test.describe("single-page interactions", () => {
     expect(await page.evaluate(() => window.Tools.getScale())).toBe(before);
   });
 
+  test("zoomed-out board does not scroll past the scaled svg", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("zoomed-out-scroll-bounds-test");
+
+    const metrics = await page.evaluate(() => {
+      const tools = window.Tools;
+      if (!tools.svg || !tools.board) {
+        throw new Error("Board runtime is not attached.");
+      }
+      tools.resizeCanvas({ x: 10000, y: 8000 });
+      tools.setScale(1);
+      tools.setScale(0.5);
+      window.scrollTo(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
+
+      const scale = tools.getScale();
+      const expectedWidth = Math.max(
+        window.innerWidth,
+        tools.svg.width.baseVal.value * scale,
+      );
+      const expectedHeight = Math.max(
+        window.innerHeight,
+        tools.svg.height.baseVal.value * scale,
+      );
+      const boardRect = tools.board.getBoundingClientRect();
+      const svgRect = tools.svg.getBoundingClientRect();
+      return {
+        expectedWidth,
+        expectedHeight,
+        documentWidth: document.documentElement.scrollWidth,
+        documentHeight: document.documentElement.scrollHeight,
+        boardWidth: boardRect.width,
+        boardHeight: boardRect.height,
+        svgWidth: svgRect.width,
+        svgHeight: svgRect.height,
+        rightAfterMaxScroll:
+          document.documentElement.scrollLeft + window.innerWidth,
+        bottomAfterMaxScroll:
+          document.documentElement.scrollTop + window.innerHeight,
+      };
+    });
+
+    expect(
+      Math.abs(metrics.boardWidth - metrics.expectedWidth),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(metrics.boardHeight - metrics.expectedHeight),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(metrics.svgWidth - metrics.expectedWidth),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(metrics.svgHeight - metrics.expectedHeight),
+    ).toBeLessThanOrEqual(1);
+    expect(metrics.documentWidth).toBeLessThanOrEqual(
+      Math.ceil(metrics.expectedWidth) + 1,
+    );
+    expect(metrics.documentHeight).toBeLessThanOrEqual(
+      Math.ceil(metrics.expectedHeight) + 1,
+    );
+    expect(metrics.rightAfterMaxScroll).toBeLessThanOrEqual(
+      Math.ceil(metrics.expectedWidth) + 1,
+    );
+    expect(metrics.bottomAfterMaxScroll).toBeLessThanOrEqual(
+      Math.ceil(metrics.expectedHeight) + 1,
+    );
+  });
+
   test("hand drag pans through the central viewport controller", async ({
     boardPage,
     page,

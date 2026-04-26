@@ -3002,18 +3002,22 @@ function resizeCanvas(m) {
   const x = Number(m.x) | 0;
   const y = Number(m.y) | 0;
   const MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 655360; // Maximum value for any x or y on the board
+  let resized = false;
   if (x > Tools.svg.width.baseVal.value - RESIZE_CANVAS_MARGIN) {
     Tools.svg.width.baseVal.value = Math.min(
       x + RESIZE_CANVAS_MARGIN,
       MAX_BOARD_SIZE,
     );
+    resized = true;
   }
   if (y > Tools.svg.height.baseVal.value - RESIZE_CANVAS_MARGIN) {
     Tools.svg.height.baseVal.value = Math.min(
       y + RESIZE_CANVAS_MARGIN,
       MAX_BOARD_SIZE,
     );
+    resized = true;
   }
+  if (resized) Tools.viewport.syncLayoutSize();
 }
 Tools.resizeCanvas = resizeCanvas;
 

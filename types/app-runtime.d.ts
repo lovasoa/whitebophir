@@ -464,6 +464,7 @@ export type ToolModule<T = unknown> = {
 export type ViewportController = {
   setScale: (scale: number) => number;
   getScale: () => number;
+  syncLayoutSize: () => void;
   pageCoordinateToBoard: (value: unknown) => number;
   panBy: (dx: number, dy: number) => void;
   panTo: (left: number, top: number) => void;

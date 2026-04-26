@@ -70,6 +70,18 @@ body {
   overscroll-behavior: none;
 }
 
+#board[data-viewport-managed="true"] {
+  position: relative;
+  overflow: hidden;
+}
+
+#board[data-viewport-managed="true"] > #canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+}
+
 #menu,
 #boardHud,
 input,

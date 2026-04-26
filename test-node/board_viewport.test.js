@@ -75,3 +75,16 @@ test("viewport anchored zoom preserves the board point under the cursor", async 
     scale: 0.75,
   });
 });
+
+test("viewport layout size follows scaled svg while filling the viewport", async () => {
+  const { getScaledBoardLayoutSize } = await loadViewportModule();
+
+  assert.deepEqual(getScaledBoardLayoutSize(5000, 4000, 0.5, 1200, 800), {
+    width: 2500,
+    height: 2000,
+  });
+  assert.deepEqual(getScaledBoardLayoutSize(5000, 4000, 0.1, 1200, 800), {
+    width: 1200,
+    height: 800,
+  });
+});

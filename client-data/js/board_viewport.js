@@ -40,6 +40,7 @@ const PINCH_MIN_DISTANCE = 16;
  * @typedef {{
  *   setScale(scale: number): number,
  *   getScale(): number,
+ *   syncLayoutSize(): void,
  *   pageCoordinateToBoard(value: unknown): number,
  *   panBy(dx: number, dy: number): void,
  *   panTo(left: number, top: number): void,
@@ -123,6 +124,36 @@ export function screenToBoard(value, scale) {
  */
 export function boardToScroll(boardCoordinate, scale) {
   return boardCoordinate * scale;
+}
+
+/**
+ * @param {unknown} svgWidth
+ * @param {unknown} svgHeight
+ * @param {unknown} scale
+ * @param {unknown} viewportWidth
+ * @param {unknown} viewportHeight
+ * @returns {{width: number, height: number}}
+ */
+export function getScaledBoardLayoutSize(
+  svgWidth,
+  svgHeight,
+  scale,
+  viewportWidth,
+  viewportHeight,
+) {
+  const safeScale = Math.max(0, finiteOr(scale, DEFAULT_BOARD_SCALE));
+  return {
+    width: Math.max(
+      0,
+      finiteOr(viewportWidth, 0),
+      finiteOr(svgWidth, 0) * safeScale,
+    ),
+    height: Math.max(
+      0,
+      finiteOr(viewportHeight, 0),
+      finiteOr(svgHeight, 0) * safeScale,
+    ),
+  };
 }
 
 /**
@@ -241,6 +272,23 @@ export function createViewportController(Tools) {
   }
 
   /**
+   * @returns {void}
+   */
+  function syncLayoutSize() {
+    if (!Tools.board || !Tools.svg) return;
+    const size = getScaledBoardLayoutSize(
+      Tools.svg.width.baseVal.value,
+      Tools.svg.height.baseVal.value,
+      Tools.scale,
+      window.innerWidth,
+      window.innerHeight,
+    );
+    Tools.board.style.width = `${size.width}px`;
+    Tools.board.style.height = `${size.height}px`;
+    Tools.board.dataset.viewportManaged = "true";
+  }
+
+  /**
    * @param {number} scale
    * @returns {number}
    */
@@ -252,11 +300,12 @@ export function createViewportController(Tools) {
     }
     Tools.svg.style.willChange = "transform";
     Tools.svg.style.transform = `scale(${appliedScale})`;
+    Tools.scale = appliedScale;
+    syncLayoutSize();
     if (scaleTimeout !== null) clearTimeout(scaleTimeout);
     scaleTimeout = window.setTimeout(() => {
       if (Tools.svg) Tools.svg.style.willChange = "auto";
     }, SCALE_WILL_CHANGE_TIMEOUT_MS);
-    Tools.scale = appliedScale;
     Tools.syncDrawToolAvailability(false);
     return appliedScale;
   }
@@ -271,11 +320,13 @@ export function createViewportController(Tools) {
     const oldScale = Tools.getScale();
     const x = Tools.toBoardCoordinate(screenToBoard(pageX, oldScale));
     const y = Tools.toBoardCoordinate(screenToBoard(pageY, oldScale));
+    const scrollLeft = document.documentElement.scrollLeft;
+    const scrollTop = document.documentElement.scrollTop;
     const newScale = setScale(scale);
     const nextViewport = zoomAt(
       {
-        scrollLeft: document.documentElement.scrollLeft,
-        scrollTop: document.documentElement.scrollTop,
+        scrollLeft,
+        scrollTop,
         scale: oldScale,
         x,
         y,
@@ -416,6 +467,7 @@ export function createViewportController(Tools) {
   const controller = {
     setScale,
     getScale: () => Tools.scale,
+    syncLayoutSize,
     pageCoordinateToBoard(value) {
       return Tools.toBoardCoordinate(screenToBoard(value, Tools.getScale()));
     },
@@ -451,6 +503,7 @@ export function createViewportController(Tools) {
     install() {
       if (installed || !Tools.board) return;
       installed = true;
+      window.addEventListener("resize", syncLayoutSize);
       Tools.board.addEventListener("wheel", handleWheel, { passive: false });
       Tools.board.addEventListener("touchstart", handleTouchStart, {
         passive: false,
