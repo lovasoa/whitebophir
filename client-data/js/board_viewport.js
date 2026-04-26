@@ -9,7 +9,7 @@ const DOM_DELTA_PAGE = 2;
 const WHEEL_LINE_PIXELS = 30;
 const WHEEL_PAGE_PIXELS = 1000;
 const WHEEL_ZOOM_SENSITIVITY = 0.01;
-const WHEEL_MAX_FRAME_DELTA = 120;
+const WHEEL_MAX_FRAME_DELTA = 30;
 const SCALE_WILL_CHANGE_TIMEOUT_MS = 1000;
 const VIEWPORT_HASH_SYNC_DELAY_MS = 100;
 const VIEWPORT_HASH_PUSH_INTERVAL_MS = 5000;
@@ -418,7 +418,6 @@ export function createViewportController(Tools) {
     if (!touches) return;
     if (!activePinch) startPinch(event);
     if (!activePinch) return;
-    if (event.cancelable) event.preventDefault();
     event.stopPropagation();
     const distance = distanceBetween(touches[0], touches[1]);
     const anchor = midpoint(touches[0], touches[1]);
@@ -506,11 +505,11 @@ export function createViewportController(Tools) {
       window.addEventListener("resize", syncLayoutSize);
       Tools.board.addEventListener("wheel", handleWheel, { passive: false });
       Tools.board.addEventListener("touchstart", handleTouchStart, {
-        passive: false,
+        passive: true,
         capture: true,
       });
       Tools.board.addEventListener("touchmove", handleTouchMove, {
-        passive: false,
+        passive: true,
         capture: true,
       });
       Tools.board.addEventListener("touchend", handleTouchEnd, {

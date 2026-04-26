@@ -72,7 +72,6 @@ body {
 
 #board[data-viewport-managed="true"] {
   position: relative;
-  overflow: hidden;
 }
 
 #board[data-viewport-managed="true"] > #canvas {
