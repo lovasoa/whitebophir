@@ -989,7 +989,7 @@ async function streamServedBaseline(boardName, options) {
   const historyDir = options?.historyDir;
   const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
   if (readableSvg) {
-    return fs.createReadStream(readableSvg.file, "utf8");
+    return fs.createReadStream(readableSvg.file);
   }
   return Readable.from([await readServedBaseline(boardName, options)]);
 }

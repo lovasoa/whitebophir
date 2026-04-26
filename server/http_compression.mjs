@@ -12,6 +12,8 @@ const SUPPORTED_ENCODINGS = new Set([
 ]);
 
 const COMPRESSION_PREFERENCE = ["zstd", "br", "gzip"];
+const BROTLI_QUALITY = 4;
+const GZIP_LEVEL = 4;
 
 /**
  * @param {string} encoding
@@ -112,10 +114,14 @@ function createCompressionStream(encoding) {
     return zlib.createZstdCompress();
   }
   if (encoding === "br" && typeof zlib.createBrotliCompress === "function") {
-    return zlib.createBrotliCompress();
+    return zlib.createBrotliCompress({
+      params: {
+        [zlib.constants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY,
+      },
+    });
   }
   if (encoding === "gzip" && typeof zlib.createGzip === "function") {
-    return zlib.createGzip();
+    return zlib.createGzip({ level: GZIP_LEVEL });
   }
   return undefined;
 }
