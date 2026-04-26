@@ -804,7 +804,7 @@ function getPointerClientCoord(evt, axis) {
 function startHand(state, _x, _y, evt, isTouchEvent) {
   void _x;
   void _y;
-  void isTouchEvent;
+  if (isTouchEvent) return;
   if (evt.cancelable) evt.preventDefault();
   state.Tools.viewport.beginPan(
     getPointerClientCoord(evt, "clientX"),
@@ -823,7 +823,7 @@ function startHand(state, _x, _y, evt, isTouchEvent) {
 function moveHand(state, _x, _y, evt, isTouchEvent) {
   void _x;
   void _y;
-  void isTouchEvent;
+  if (isTouchEvent) return;
   if (state.selected && !("w" in state.selected)) {
     if (evt.cancelable) evt.preventDefault();
     state.Tools.viewport.movePan(
@@ -841,6 +841,34 @@ function endHand(state) {
 /** @param {HandState} state */
 function isSelectorActive(state) {
   return !!(state.secondary && state.secondary.active);
+}
+
+/**
+ * @param {HandState} state
+ * @returns {void}
+ */
+function syncHandTouchAction(state) {
+  const touchAction = isSelectorActive(state) ? "" : "pan-x pan-y";
+  if (state.Tools.board) state.Tools.board.style.touchAction = touchAction;
+  if (state.Tools.svg) state.Tools.svg.style.touchAction = touchAction;
+}
+
+/**
+ * @param {HandState} state
+ * @param {{resetTouchAction: boolean}} options
+ * @returns {void}
+ */
+function resetHandUiState(state, options) {
+  if (options.resetTouchAction) {
+    if (state.Tools.board) state.Tools.board.style.touchAction = "";
+    if (state.Tools.svg) state.Tools.svg.style.touchAction = "";
+  } else {
+    syncHandTouchAction(state);
+  }
+  state.selected = null;
+  hideSelectionUI(state);
+  window.removeEventListener("keydown", state.boundDeleteShortcut);
+  window.removeEventListener("keydown", state.boundDuplicateShortcut);
 }
 
 /**
@@ -876,8 +904,10 @@ export function move(state, x, y, evt, isTouchEvent) {
  */
 export function release(state, x, y, evt, isTouchEvent) {
   if (!isSelectorActive(state)) {
-    moveHand(state, x, y, evt, isTouchEvent);
-    endHand(state);
+    if (!isTouchEvent) {
+      moveHand(state, x, y, evt, false);
+      endHand(state);
+    }
   } else moveSelector(state, x, y, evt, true);
   if (isSelectorActive(state)) releaseSelector(state);
   state.selected = null;
@@ -907,7 +937,7 @@ function duplicateShortcut(state, e) {
 
 /** @param {HandState} state */
 function switchTool(state) {
-  onquit(state);
+  resetHandUiState(state, { resetTouchAction: false });
   if (isSelectorActive(state)) {
     window.addEventListener("keydown", state.boundDeleteShortcut);
     window.addEventListener("keydown", state.boundDuplicateShortcut);
@@ -924,10 +954,12 @@ export async function boot(ctx) {
 
 /** @param {HandState} state */
 export function onquit(state) {
-  state.selected = null;
-  hideSelectionUI(state);
-  window.removeEventListener("keydown", state.boundDeleteShortcut);
-  window.removeEventListener("keydown", state.boundDuplicateShortcut);
+  resetHandUiState(state, { resetTouchAction: true });
+}
+
+/** @param {HandState} state */
+export function onstart(state) {
+  syncHandTouchAction(state);
 }
 
 /** @param {HandState} state */

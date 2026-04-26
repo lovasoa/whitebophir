@@ -2545,6 +2545,20 @@ function createMountedTool(toolModule, toolState, toolName) {
       if (isTouchEvent) {
         const touchEvent = /** @type {TouchEvent} */ (evt);
         if (touchEvent.changedTouches.length !== 1) return true;
+        if (
+          (touchEvent.type === "touchstart" ||
+            touchEvent.type === "touchmove") &&
+          touchEvent.touches.length !== 1
+        ) {
+          return true;
+        }
+        if (
+          (touchEvent.type === "touchend" ||
+            touchEvent.type === "touchcancel") &&
+          touchEvent.touches.length !== 0
+        ) {
+          return true;
+        }
         const touch = touchEvent.changedTouches[0];
         if (!touch) return true;
         return listener(
