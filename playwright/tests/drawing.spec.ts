@@ -20,6 +20,14 @@ const bufferedWriteTest = test.extend({
   },
 });
 
+const edgeTextTest = test.extend({
+  serverOptions: {
+    env: {
+      WBO_MAX_BOARD_SIZE: "2000",
+    },
+  },
+});
+
 const CREATE_MUTATION = 1;
 const DELETE_MUTATION = 3;
 
@@ -191,6 +199,34 @@ test.describe("drawing and persistence", () => {
       ),
     ).toBe(true);
   });
+
+  edgeTextTest(
+    "text input near the right board edge is accepted",
+    async ({ boardPage, server, page }) => {
+      const boardName = "text-admission-right-edge";
+      const edgeText = "right edge text";
+
+      await boardPage.gotoBoard(boardName);
+      await boardPage.selectTool("text");
+      await page.mouse.click(1260, 260);
+      await page.keyboard.insertText(edgeText);
+
+      await drawMarkerRectangle(boardPage, page);
+      const storedBoard = await server.waitForStoredBoard(
+        server.dataPath,
+        boardName,
+        (board) =>
+          Object.values(board).some((item) => item?.tool === "rectangle"),
+      );
+
+      await expect(boardPage.statusIndicator).toBeHidden();
+      expect(
+        Object.values(storedBoard).some(
+          (item) => item?.tool === "text" && item.txt === edgeText,
+        ),
+      ).toBe(true);
+    },
+  );
 
   test("passive key on transformed text preserves stored content", async ({
     boardPage,

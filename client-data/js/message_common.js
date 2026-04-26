@@ -374,8 +374,8 @@ function getTextBoundsLength(item) {
     typeof item.txt === "string"
       ? item.txt.length
       : toFiniteNumber(item.textLength);
-  if (length === null) return 1;
-  return Math.min(LIMITS.MAX_TEXT_LENGTH, Math.max(1, Math.floor(length)));
+  if (length === null) return 0;
+  return Math.min(LIMITS.MAX_TEXT_LENGTH, Math.max(0, Math.floor(length)));
 }
 
 /**

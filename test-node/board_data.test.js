@@ -476,6 +476,29 @@ test("BoardData keeps text content length separate from geometry admission", () 
   assert.equal(item.textLength, text.length);
 });
 
+test("BoardData accepts text content updates at the right board edge", () => {
+  const BoardData = getBoardDataClass();
+  const board = disableSaves(createBoard(BoardData, "right-edge-text-content"));
+
+  assert.equal(
+    board.processMessage(
+      textCreate({
+        id: "text-1",
+        x: board.maxBoardSize,
+        y: 500,
+        color: "#111111",
+        size: 500,
+      }),
+    ).ok,
+    true,
+  );
+  assert.equal(board.processMessage(textUpdate("text-1", "edge")).ok, true);
+
+  const item = board.get("text-1");
+  assert.equal(item.txt, "edge");
+  assert.ok(board.itemsById.get("text-1")?.bounds?.maxX > board.maxBoardSize);
+});
+
 test("finalizePersistedItems folds newly persisted pencil children into the baseline", () => {
   const BoardData = getBoardDataClass();
   const board = disableSaves(

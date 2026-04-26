@@ -67,3 +67,18 @@ test("getLocalGeometryBounds caps text extent at the maximum shape span", () => 
     maxY: 500,
   });
 });
+
+test("getLocalGeometryBounds keeps empty text seeds at the anchor", () => {
+  const bounds = MessageCommon.getLocalGeometryBounds({
+    tool: "text",
+    x: 100,
+    y: 200,
+    size: 55,
+  });
+  assert.deepEqual(bounds, {
+    minX: 100,
+    minY: 145,
+    maxX: 100,
+    maxY: 200,
+  });
+});
