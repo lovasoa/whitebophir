@@ -1598,7 +1598,7 @@ test("Hand selector keeps the original element selected after duplicate", async 
   });
 });
 
-test("Hand tool enables native touch panning when selector mode is off", async () => {
+test("Hand tool enables native touch scrolling when selector mode is off", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
 
@@ -1606,8 +1606,8 @@ test("Hand tool enables native touch panning when selector mode is off", async (
   assert.equal(globalAny.Tools.svg.style.touchAction, undefined);
 
   handTool.onstart?.(null);
-  assert.equal(globalAny.Tools.board.style.touchAction, "pan-x pan-y");
-  assert.equal(globalAny.Tools.svg.style.touchAction, "pan-x pan-y");
+  assert.equal(globalAny.Tools.board.style.touchAction, "auto");
+  assert.equal(globalAny.Tools.svg.style.touchAction, "auto");
 
   handTool.secondary.active = true;
   handTool.secondary.switch();
@@ -1616,8 +1616,8 @@ test("Hand tool enables native touch panning when selector mode is off", async (
 
   handTool.secondary.active = false;
   handTool.secondary.switch();
-  assert.equal(globalAny.Tools.board.style.touchAction, "pan-x pan-y");
-  assert.equal(globalAny.Tools.svg.style.touchAction, "pan-x pan-y");
+  assert.equal(globalAny.Tools.board.style.touchAction, "auto");
+  assert.equal(globalAny.Tools.svg.style.touchAction, "auto");
 });
 
 test("Hand tool touch gestures do not run synthetic drag panning", async () => {

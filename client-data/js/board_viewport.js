@@ -418,7 +418,6 @@ export function createViewportController(Tools) {
     if (!touches) return;
     if (!activePinch) startPinch(event);
     if (!activePinch) return;
-    if (event.cancelable) event.preventDefault();
     event.stopPropagation();
     const distance = distanceBetween(touches[0], touches[1]);
     const anchor = midpoint(touches[0], touches[1]);
@@ -506,11 +505,11 @@ export function createViewportController(Tools) {
       window.addEventListener("resize", syncLayoutSize);
       Tools.board.addEventListener("wheel", handleWheel, { passive: false });
       Tools.board.addEventListener("touchstart", handleTouchStart, {
-        passive: false,
+        passive: true,
         capture: true,
       });
       Tools.board.addEventListener("touchmove", handleTouchMove, {
-        passive: false,
+        passive: true,
         capture: true,
       });
       Tools.board.addEventListener("touchend", handleTouchEnd, {

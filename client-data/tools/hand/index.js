@@ -46,6 +46,7 @@ export const toolId = "hand";
 export const shortcut = "h";
 export const mouseCursor = "move";
 export const showMarker = true;
+export const touchListenerOptions = { passive: true };
 export const visibleWhenReadOnly = true;
 export const updatableFields = ["transform"];
 export const batchMessageFields = {
@@ -848,7 +849,7 @@ function isSelectorActive(state) {
  * @returns {void}
  */
 function syncHandTouchAction(state) {
-  const touchAction = isSelectorActive(state) ? "" : "pan-x pan-y";
+  const touchAction = isSelectorActive(state) ? "" : "auto";
   if (state.Tools.board) state.Tools.board.style.touchAction = touchAction;
   if (state.Tools.svg) state.Tools.svg.style.touchAction = touchAction;
 }

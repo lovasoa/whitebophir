@@ -140,6 +140,8 @@ export type CompiledToolListener = ((evt: Event) => unknown) & {
   target?: EventTarget | null;
 };
 
+export type ToolListenerOptions = AddEventListenerOptions;
+
 export type CompiledToolListeners = {
   [eventName: string]: CompiledToolListener;
 };
@@ -177,6 +179,7 @@ export type MountedAppTool = {
   onSizeChange?: (size: number) => void;
   showMarker?: boolean;
   requiresWritableBoard?: boolean;
+  touchListenerOptions?: ToolListenerOptions;
 };
 
 export type MountedToolRegistry = {
@@ -424,6 +427,7 @@ export type ToolModule<T = unknown> = {
   secondary?: ToolSecondaryMode | null;
   showMarker?: boolean;
   requiresWritableBoard?: boolean;
+  touchListenerOptions?: ToolListenerOptions;
   serverRenderedElementSelector?: string;
   boot: (ctx: ToolBootContext) => Promise<T> | T;
   draw?: (state: T, message: BoardMessage, isLocal: boolean) => void;

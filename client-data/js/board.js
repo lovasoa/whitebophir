@@ -2457,6 +2457,7 @@ function createMountedTool(toolModule, toolState, toolName) {
   const onSocketDisconnect = toolModule.onSocketDisconnect;
   const onMutationRejected = toolModule.onMutationRejected;
   const onSizeChange = toolModule.onSizeChange;
+  const touchListenerOptions = toolModule.touchListenerOptions;
   const toolStateObject =
     /** @type {{mouseCursor?: string, secondary?: import("../../types/app-runtime").ToolSecondaryMode | null} | null} */ (
       toolState && typeof toolState === "object" ? toolState : null
@@ -2520,6 +2521,10 @@ function createMountedTool(toolModule, toolState, toolName) {
         : undefined,
     showMarker: toolModule.showMarker,
     requiresWritableBoard: toolModule.requiresWritableBoard,
+    touchListenerOptions:
+      touchListenerOptions && typeof touchListenerOptions === "object"
+        ? touchListenerOptions
+        : undefined,
   };
   if (toolDefinition) {
     tool.icon ||= getToolIconPath(toolDefinition.toolId);
@@ -2799,7 +2804,13 @@ Tools.addToolListeners = function addToolListeners(tool) {
     if (!listener) continue;
     const target = listener.target || Tools.board;
     if (!target) continue;
-    target.addEventListener(event, listener, { passive: false });
+    target.addEventListener(
+      event,
+      listener,
+      event.startsWith("touch")
+        ? tool.touchListenerOptions || { passive: false }
+        : { passive: false },
+    );
   }
 };
 
