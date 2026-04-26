@@ -2990,6 +2990,7 @@ function handleMessage(message) {
   if (!message.tool && !message._children) {
     logBoardEvent("error", "broadcast.invalid_missing_tool", { message });
   }
+  pruneBufferedWritesForInvalidatingMessage(message);
   if (message.tool) messageForTool(message);
   if (
     BoardMessages.hasChildMessages(message) &&
@@ -3099,18 +3100,8 @@ function notifyToolsOfMessage(m) {
   });
 }
 
-/** @param {BoardMessage} message */
-function pruneBufferedWritesForMessage(message) {
-  pruneBufferedWritesForInvalidatingMessage(message);
-}
-
 // List of hook functions that will be applied to messages before sending or drawing them
-Tools.messageHooks = [
-  resizeCanvas,
-  updateUnreadCount,
-  pruneBufferedWritesForMessage,
-  notifyToolsOfMessage,
-];
+Tools.messageHooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
 
 /** @param {number} scale */
 Tools.setScale = function setScale(scale) {

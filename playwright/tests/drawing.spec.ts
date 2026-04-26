@@ -12,11 +12,33 @@ const bufferedModeratorTest = test.extend({
   },
 });
 
+const bufferedWriteTest = test.extend({
+  serverOptions: {
+    env: {
+      WBO_MAX_EMIT_COUNT: "*:1/2s",
+    },
+  },
+});
+
+const CREATE_MUTATION = 1;
+const DELETE_MUTATION = 3;
+
 async function drawMarkerRectangle(boardPage: BoardPage, page: Page) {
   await boardPage.selectTool("rectangle");
   await page.mouse.move(260, 260);
   await page.mouse.down();
   await page.mouse.move(320, 320);
+  await page.mouse.up();
+}
+
+async function drawScreenRectangle(
+  page: Page,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+) {
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y);
   await page.mouse.up();
 }
 
@@ -203,6 +225,37 @@ test.describe("drawing and persistence", () => {
 
       await expect(boardPage.statusIndicator).toBeHidden();
       await peerPage.close();
+    },
+  );
+
+  bufferedWriteTest(
+    "local delete keeps the buffered create it depends on",
+    async ({ boardPage, page }) => {
+      await boardPage.gotoBoard("delete-buffered-create");
+      await boardPage.selectTool("rectangle");
+
+      await drawScreenRectangle(page, { x: 180, y: 180 }, { x: 230, y: 230 });
+      await drawScreenRectangle(page, { x: 320, y: 180 }, { x: 370, y: 230 });
+      await expect(page.locator("#drawingArea rect")).toHaveCount(2);
+      await expect(boardPage.statusIndicator).toBeVisible();
+      const deletedRectId = await page
+        .locator("#drawingArea rect")
+        .nth(1)
+        .evaluate((rect) => rect.id);
+
+      await boardPage.selectTool("eraser");
+      await page.mouse.click(320, 205);
+      await expect(page.locator("#drawingArea rect")).toHaveCount(1);
+      const bufferedMutationsForDeletedRect = await page.evaluate(
+        (targetId) =>
+          window.Tools.bufferedWrites
+            .map((write) => write.message)
+            .filter((message) => message.id === targetId)
+            .map((message) => message.type),
+        deletedRectId,
+      );
+      expect(bufferedMutationsForDeletedRect).toContain(CREATE_MUTATION);
+      expect(bufferedMutationsForDeletedRect.at(-1)).toBe(DELETE_MUTATION);
     },
   );
 
