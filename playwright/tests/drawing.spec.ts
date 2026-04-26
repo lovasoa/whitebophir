@@ -187,12 +187,54 @@ test.describe("drawing and persistence", () => {
     await expect(boardPage.statusIndicator).toBeHidden();
     expect(
       Object.values(storedBoard).some(
-        (item) =>
-          item?.tool === "text" &&
-          typeof item.txt === "string" &&
-          item.txt.length > 0,
+        (item) => item?.tool === "text" && item.txt === longText,
       ),
     ).toBe(true);
+  });
+
+  test("passive key on transformed text preserves stored content", async ({
+    boardPage,
+    server,
+    page,
+  }) => {
+    const boardName = "transformed-text-noop-edit";
+    const originalText =
+      "Transformed text must survive a passive edit event without being shortened. ".repeat(
+        3,
+      );
+
+    await server.writeBoard(server.dataPath, boardName, {
+      "scaled-text": {
+        type: "text",
+        id: "scaled-text",
+        tool: "text",
+        x: 24,
+        y: 40,
+        size: 36,
+        color: "#111111",
+        transform: { a: 0.8, b: 0, c: 0, d: 0.8, e: 4.8, f: 8 },
+        txt: originalText,
+      },
+    });
+
+    await boardPage.gotoBoard(boardName);
+    await expect(page.locator("#scaled-text")).toHaveText(originalText);
+
+    await boardPage.selectTool("text");
+    await page.locator("#scaled-text").click();
+    await expect(page.locator("#textToolInput")).toHaveValue(originalText);
+    await page.waitForFunction(() => performance.now() > 150);
+    await page.locator("#textToolInput").press("ArrowLeft");
+    await boardPage.selectTool("rectangle");
+    await drawScreenRectangle(page, { x: 260, y: 260 }, { x: 320, y: 320 });
+
+    const storedBoard = await server.waitForStoredBoard(
+      server.dataPath,
+      boardName,
+      (board) =>
+        Object.values(board).some((item) => item?.tool === "rectangle"),
+    );
+    expect(storedBoard["scaled-text"]?.txt).toBe(originalText);
   });
 
   bufferedModeratorTest(

@@ -25,10 +25,9 @@
  */
 
 import {
-  LIMITS,
   clampCoord,
   clampSize,
-  getMaxShapeSpan,
+  getLocalGeometryBounds,
   resolveMaxBoardSize,
   truncateText,
 } from "../../js/message_common.js";
@@ -40,55 +39,6 @@ import { MutationType } from "../../js/mutation_type.js";
 /** @typedef {{type: MutationCode, id: string, txt?: string}} TextUpdateMessage */
 /** @typedef {NewTextMessage | TextUpdateMessage} TextMessage */
 /** @typedef {{Tools: MountedAppToolsState, board: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
-
-/**
- * @param {number} x
- * @param {number} y
- * @param {number} size
- * @param {number} textLength
- * @returns {{minX: number, minY: number, maxX: number, maxY: number}}
- */
-function textBoundsFromLength(x, y, size, textLength) {
-  return {
-    minX: x,
-    minY: y - size,
-    maxX: x + size * textLength,
-    maxY: y,
-  };
-}
-
-/**
- * @param {TextState} state
- * @returns {number}
- */
-function maxTextLengthForCurrentBounds(state) {
-  const maxBoardSize = resolveMaxBoardSize(
-    state.Tools.server_config.MAX_BOARD_SIZE,
-  );
-  const availableWidth = Math.max(
-    0,
-    Math.min(getMaxShapeSpan(), maxBoardSize - state.curText.x),
-  );
-  return Math.max(
-    0,
-    Math.min(
-      LIMITS.MAX_TEXT_LENGTH,
-      Math.floor(availableWidth / state.curText.size),
-    ),
-  );
-}
-
-/**
- * @param {TextState} state
- * @returns {string}
- */
-function normalizeInputText(state) {
-  const maxLength = maxTextLengthForCurrentBounds(state);
-  const nextText =
-    maxLength <= 0 ? "" : truncateText(state.input.value, maxLength);
-  if (state.input.value !== nextText) state.input.value = nextText;
-  return nextText;
-}
 
 /**
  * @param {TextState} state
@@ -161,7 +111,7 @@ const contract = {
         helpers.transform,
       ),
       textLength,
-      localBounds: textBoundsFromLength(x, y, size, textLength),
+      localBounds: getLocalGeometryBounds({ tool: toolId, x, y, size }),
     };
   },
   parseStoredSvgItem(summary, entry, helpers) {
@@ -313,8 +263,9 @@ function textChangeHandler(state, evt) {
     }, 500);
     return;
   }
-  const nextText = normalizeInputText(state);
-  if (state.curText.sentText === nextText) return;
+  const inputText = state.input.value;
+  if (state.curText.sentText === inputText) return;
+  const nextText = truncateText(inputText);
   if (state.curText.id === "") {
     state.curText.id = state.Tools.generateUID("t");
     state.Tools.drawAndSend({
@@ -332,6 +283,7 @@ function textChangeHandler(state, evt) {
     id: state.curText.id,
     txt: nextText,
   });
+  if (state.input.value !== nextText) state.input.value = nextText;
   state.curText.sentText = nextText;
   state.curText.lastSending = performance.now();
 }

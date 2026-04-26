@@ -46,7 +46,7 @@ test("canonicalItemFromStoredSvgEntry derives canonical compressed payloads dire
   assert.deepEqual(text.bounds, {
     minX: 10,
     minY: 2,
-    maxX: 208,
+    maxX: 10,
     maxY: 20,
   });
   assert.deepEqual(pencil.attrs, {

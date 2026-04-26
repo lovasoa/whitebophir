@@ -36,7 +36,7 @@ test("shared geometry helpers grow pencil bounds incrementally", () => {
   });
 });
 
-test("getLocalGeometryBounds measures text", () => {
+test("getLocalGeometryBounds measures the stable text anchor box", () => {
   const bounds = MessageCommon.getLocalGeometryBounds({
     tool: "text",
     x: 100,
@@ -47,7 +47,7 @@ test("getLocalGeometryBounds measures text", () => {
   assert.deepEqual(bounds, {
     minX: 100,
     minY: 200 - 55,
-    maxX: 100 + 10 * 55,
+    maxX: 100,
     maxY: 200,
   });
 });

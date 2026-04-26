@@ -373,12 +373,11 @@ function getTextBounds(item) {
   const x = toFiniteNumber(item.x);
   const y = toFiniteNumber(item.y);
   const size = toFiniteNumber(item.size);
-  const len = toFiniteNumber(item.txt?.length);
-  if (x === null || y === null || size === null || len === null) return null;
+  if (x === null || y === null || size === null) return null;
   return {
     minX: x,
     minY: y - size,
-    maxX: x + size * len,
+    maxX: x,
     maxY: y,
   };
 }

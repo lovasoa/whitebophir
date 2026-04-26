@@ -452,6 +452,30 @@ test("finalizePersistedItems leaves newer canonical revisions dirty", () => {
   assert.equal(board.itemsById.get("text-1")?.dirty, true);
 });
 
+test("BoardData keeps text content length separate from geometry admission", () => {
+  const BoardData = getBoardDataClass();
+  const board = disableSaves(createBoard(BoardData, "wide-text-content"));
+  const text = "x".repeat(280);
+
+  assert.equal(
+    board.processMessage(
+      textCreate({
+        id: "text-1",
+        x: 100,
+        y: 600,
+        color: "#111111",
+        size: 500,
+      }),
+    ).ok,
+    true,
+  );
+  assert.equal(board.processMessage(textUpdate("text-1", text)).ok, true);
+
+  const item = board.get("text-1");
+  assert.equal(item.txt, text);
+  assert.equal(item.textLength, text.length);
+});
+
 test("finalizePersistedItems folds newly persisted pencil children into the baseline", () => {
   const BoardData = getBoardDataClass();
   const board = disableSaves(
