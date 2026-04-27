@@ -589,6 +589,11 @@ export type ViewportController = {
   setScale: (scale: number) => number;
   getScale: () => number;
   syncLayoutSize: () => void;
+  ensureBoardExtentAtLeast: (width: number, height: number) => boolean;
+  ensureBoardExtentForPoint: (x: number, y: number) => boolean;
+  ensureBoardExtentForBounds: (
+    bounds: { maxX: number; maxY: number } | null | undefined,
+  ) => boolean;
   pageCoordinateToBoard: (value: unknown) => number;
   panBy: (dx: number, dy: number) => void;
   panTo: (left: number, top: number) => void;

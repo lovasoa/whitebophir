@@ -14,6 +14,7 @@ const SCALE_WILL_CHANGE_TIMEOUT_MS = 1000;
 const VIEWPORT_HASH_SYNC_DELAY_MS = 100;
 const VIEWPORT_HASH_PUSH_INTERVAL_MS = 5000;
 const PINCH_MIN_DISTANCE = 16;
+const BOARD_EXTENT_MARGIN = 20000;
 
 /**
  * @typedef {{
@@ -41,6 +42,9 @@ const PINCH_MIN_DISTANCE = 16;
  *   setScale(scale: number): number,
  *   getScale(): number,
  *   syncLayoutSize(): void,
+ *   ensureBoardExtentAtLeast(width: number, height: number): boolean,
+ *   ensureBoardExtentForPoint(x: number, y: number): boolean,
+ *   ensureBoardExtentForBounds(bounds: {maxX: number, maxY: number} | null | undefined): boolean,
  *   pageCoordinateToBoard(value: unknown): number,
  *   panBy(dx: number, dy: number): void,
  *   panTo(left: number, top: number): void,
@@ -263,6 +267,23 @@ export function createViewportController(Tools) {
   }
 
   /**
+   * @returns {number}
+   */
+  function currentMaxBoardSize() {
+    return Number(Tools.server_config.MAX_BOARD_SIZE) || DEFAULT_MAX_BOARD_SIZE;
+  }
+
+  /**
+   * @param {unknown} value
+   * @returns {number | null}
+   */
+  function extentCoordinate(value) {
+    const coordinate = Number(value);
+    if (!Number.isFinite(coordinate)) return null;
+    return Math.max(0, Math.min(currentMaxBoardSize(), Math.ceil(coordinate)));
+  }
+
+  /**
    * @param {number} left
    * @param {number} top
    * @returns {void}
@@ -286,6 +307,52 @@ export function createViewportController(Tools) {
     Tools.board.style.width = `${size.width}px`;
     Tools.board.style.height = `${size.height}px`;
     Tools.board.dataset.viewportManaged = "true";
+  }
+
+  /**
+   * Root SVG dimensions are the canonical scroll extent. They only grow here;
+   * zoom and page layout are derived from them.
+   * @param {number} width
+   * @param {number} height
+   * @returns {boolean}
+   */
+  function ensureBoardExtentAtLeast(width, height) {
+    if (!Tools.svg) return false;
+    const targetWidth = extentCoordinate(width);
+    const targetHeight = extentCoordinate(height);
+    if (targetWidth === null || targetHeight === null) return false;
+    let resized = false;
+    if (targetWidth > Tools.svg.width.baseVal.value) {
+      Tools.svg.width.baseVal.value = targetWidth;
+      resized = true;
+    }
+    if (targetHeight > Tools.svg.height.baseVal.value) {
+      Tools.svg.height.baseVal.value = targetHeight;
+      resized = true;
+    }
+    if (resized) syncLayoutSize();
+    return resized;
+  }
+
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @returns {boolean}
+   */
+  function ensureBoardExtentForPoint(x, y) {
+    return ensureBoardExtentAtLeast(
+      Number(x) + BOARD_EXTENT_MARGIN,
+      Number(y) + BOARD_EXTENT_MARGIN,
+    );
+  }
+
+  /**
+   * @param {{maxX: number, maxY: number} | null | undefined} bounds
+   * @returns {boolean}
+   */
+  function ensureBoardExtentForBounds(bounds) {
+    if (!bounds) return false;
+    return ensureBoardExtentForPoint(bounds.maxX, bounds.maxY);
   }
 
   /**
@@ -467,6 +534,9 @@ export function createViewportController(Tools) {
     setScale,
     getScale: () => Tools.scale,
     syncLayoutSize,
+    ensureBoardExtentAtLeast,
+    ensureBoardExtentForPoint,
+    ensureBoardExtentForBounds,
     pageCoordinateToBoard(value) {
       return Tools.toBoardCoordinate(screenToBoard(value, Tools.getScale()));
     },
@@ -531,7 +601,7 @@ export function createViewportController(Tools) {
       const x = Tools.toBoardCoordinate(coords[0]);
       const y = Tools.toBoardCoordinate(coords[1]);
       const scale = Number.parseFloat(coords[2] || "");
-      Tools.resizeCanvas({ x: x, y: y });
+      ensureBoardExtentForPoint(x, y);
       const appliedScale = setScale(scale);
       panTo(boardToScroll(x, appliedScale), boardToScroll(y, appliedScale));
     },

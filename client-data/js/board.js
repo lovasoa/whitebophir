@@ -45,6 +45,7 @@ import {
   DEFAULT_BOARD_SCALE,
   VIEWPORT_HASH_SCALE_DECIMALS,
 } from "./board_viewport.js";
+import { getMessageBounds } from "./board_extent.js";
 import {
   connection as BoardConnection,
   messages as BoardMessages,
@@ -109,7 +110,6 @@ const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 1500;
 const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
   RateLimitCommon.RATE_LIMIT_KINDS
 );
-const RESIZE_CANVAS_MARGIN = 20000;
 const DEFAULT_INITIAL_SIZE = 40;
 const DEFAULT_INITIAL_OPACITY = 1;
 
@@ -3014,27 +3014,8 @@ Tools.installViewportController = function installViewportController() {
 
 /** @param {BoardMessage} m */
 function resizeCanvas(m) {
-  if (!Tools.svg || !hasMessagePoint(m)) return;
-  //Enlarge the canvas whenever something is drawn near its border
-  const x = m.x | 0;
-  const y = m.y | 0;
-  const MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 655360; // Maximum value for any x or y on the board
-  let resized = false;
-  if (x > Tools.svg.width.baseVal.value - RESIZE_CANVAS_MARGIN) {
-    Tools.svg.width.baseVal.value = Math.min(
-      x + RESIZE_CANVAS_MARGIN,
-      MAX_BOARD_SIZE,
-    );
-    resized = true;
-  }
-  if (y > Tools.svg.height.baseVal.value - RESIZE_CANVAS_MARGIN) {
-    Tools.svg.height.baseVal.value = Math.min(
-      y + RESIZE_CANVAS_MARGIN,
-      MAX_BOARD_SIZE,
-    );
-    resized = true;
-  }
-  if (resized) Tools.viewport.syncLayoutSize();
+  // Compatibility hook name; root SVG and page size mutation is owned by viewport.
+  Tools.viewport.ensureBoardExtentForBounds(getMessageBounds(m));
 }
 Tools.resizeCanvas = resizeCanvas;
 

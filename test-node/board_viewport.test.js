@@ -88,3 +88,49 @@ test("viewport layout size follows scaled svg while filling the viewport", async
     height: 800,
   });
 });
+
+test("viewport owns svg extent growth and layout sync", async () => {
+  const globalAny = /** @type {any} */ (global);
+  const previousWindow = globalAny.window;
+  globalAny.window = {
+    innerWidth: 320,
+    innerHeight: 240,
+  };
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const tools = /** @type {any} */ ({
+      scale: 0.5,
+      server_config: {
+        MAX_BOARD_SIZE: 1000,
+      },
+      svg: {
+        width: { baseVal: { value: 100 } },
+        height: { baseVal: { value: 200 } },
+      },
+      board: {
+        style: {},
+        dataset: {},
+      },
+    });
+    const viewport = createViewportController(tools);
+
+    assert.equal(
+      viewport.ensureBoardExtentForBounds({ maxX: 900.2, maxY: 1200 }),
+      true,
+    );
+    assert.equal(tools.svg.width.baseVal.value, 1000);
+    assert.equal(tools.svg.height.baseVal.value, 1000);
+    assert.deepEqual(tools.board.style, {
+      width: "500px",
+      height: "500px",
+    });
+    assert.equal(tools.board.dataset.viewportManaged, "true");
+
+    assert.equal(
+      viewport.ensureBoardExtentForBounds({ maxX: 10, maxY: 10 }),
+      false,
+    );
+  } finally {
+    globalAny.window = previousWindow;
+  }
+});

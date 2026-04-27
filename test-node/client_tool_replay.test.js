@@ -425,6 +425,13 @@ function createHarness() {
     getOpacity: () => 1,
     generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
     getScale: () => 1,
+    viewport: {
+      ensuredBounds: /** @type {any[]} */ ([]),
+      ensureBoardExtentForBounds: function (/** @type {any} */ bounds) {
+        this.ensuredBounds.push(bounds);
+        return true;
+      },
+    },
     createSVGElement: (
       /** @type {string} */ tagName,
       /** @type {Record<string, string | number>} */ attrs,
@@ -1511,6 +1518,55 @@ test("Hand selector sends a final transform on quick release", async () => {
       },
     ],
   });
+  assert.deepEqual(globalAny.Tools.viewport.ensuredBounds.at(-1), {
+    minX: 140,
+    minY: 125,
+    maxX: 200,
+    maxY: 165,
+  });
+});
+
+test("Hand replay expands viewport extent for transform-only updates", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+
+  const rect = globalAny.Tools.createSVGElement("rect");
+  rect.id = "remote-rect";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
+
+  handTool.draw(
+    {
+      tool: ToolCodes.HAND,
+      _children: [
+        {
+          type: MessageToolMetadata.MutationType.UPDATE,
+          id: "remote-rect",
+          transform: {
+            a: 1,
+            b: 0,
+            c: 0,
+            d: 1,
+            e: 400,
+            f: 250,
+          },
+        },
+      ],
+    },
+    false,
+  );
+
+  assert.deepEqual(globalAny.Tools.viewport.ensuredBounds, [
+    {
+      minX: 500,
+      minY: 350,
+      maxX: 560,
+      maxY: 390,
+    },
+  ]);
 });
 
 test("Hand selector stops at the last valid transform", async () => {

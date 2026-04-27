@@ -25,6 +25,10 @@
  */
 
 import { messages as BoardMessages } from "../../js/board_transport.js";
+import {
+  extendBoundsWithBounds,
+  measureSvgElementBoundsAfterTransform,
+} from "../../js/board_extent.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import MessageCommon from "../../js/message_common.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
@@ -683,62 +687,43 @@ function scaleSelection(state, x, y, force) {
 
 /** @param {HandState} state @param {HandBatchMessage} msg @param {boolean} force */
 function dispatchTransform(state, msg, force) {
-  if (!canApplyTransformBatch(state, msg)) {
-    return;
-  }
+  const validation = validateTransformBatch(state, msg);
+  if (!validation.ok) return;
   const now = performance.now();
   if (force || now - state.lastSent > 70) {
     state.lastSent = now;
-    state.Tools.drawAndSend(msg);
+    if (state.Tools.drawAndSend(msg) !== false) {
+      state.Tools.viewport.ensureBoardExtentForBounds(validation.bounds);
+    }
   } else {
-    draw(state, msg);
+    draw(state, msg, true);
+    state.Tools.viewport.ensureBoardExtentForBounds(validation.bounds);
   }
-}
-
-/**
- * @param {SVGGraphicsElement & { id: string }} element
- * @returns {{minX: number, minY: number, maxX: number, maxY: number} | null}
- */
-function getElementLocalBounds(element) {
-  const bbox = element.getBBox();
-  if (
-    !Number.isFinite(bbox.x) ||
-    !Number.isFinite(bbox.y) ||
-    !Number.isFinite(bbox.width) ||
-    !Number.isFinite(bbox.height)
-  ) {
-    return null;
-  }
-  return {
-    minX: bbox.x,
-    minY: bbox.y,
-    maxX: bbox.x + bbox.width,
-    maxY: bbox.y + bbox.height,
-  };
 }
 
 /**
  * @param {HandState} state
  * @param {HandBatchMessage} msg
- * @returns {boolean}
+ * @returns {{ok: true, bounds: {minX: number, minY: number, maxX: number, maxY: number} | null} | {ok: false}}
  */
-function canApplyTransformBatch(state, msg) {
+function validateTransformBatch(state, msg) {
   const maxBoardSize = state.Tools.server_config.MAX_BOARD_SIZE;
+  let bounds = null;
   for (let index = 0; index < msg._children.length; index++) {
     const child = msg._children[index];
     if (!isHandUpdateChild(child)) continue;
     const element = state.Tools.svg.getElementById(child.id);
-    if (!isSelectableElement(element)) return false;
-    const localBounds = getElementLocalBounds(element);
-    const effectiveBounds = MessageCommon.applyTransformToBounds(
-      localBounds,
+    if (!isSelectableElement(element)) return { ok: false };
+    const effectiveBounds = measureSvgElementBoundsAfterTransform(
+      element,
       child.transform,
     );
     if (MessageCommon.isBoundsInvalid(effectiveBounds, maxBoardSize)) {
-      return false;
+      return { ok: false };
     }
+    bounds = extendBoundsWithBounds(bounds, effectiveBounds);
   }
-  return true;
+  return { ok: true, bounds };
 }
 
 /** @param {HandState} state @param {number} x @param {number} y @param {SVGRectElement} rect */
@@ -792,8 +777,9 @@ function getTransformMatrix(state, elem) {
 /**
  * @param {HandState} state
  * @param {unknown} data
+ * @param {boolean} [isLocal]
  */
-export function draw(state, data) {
+export function draw(state, data, isLocal = false) {
   if (!isHandRenderableMessage(data)) {
     logFrontendEvent("error", "tool.hand.draw_invalid_type", {
       mutationType: handMessageCandidate(data)?.type,
@@ -802,7 +788,7 @@ export function draw(state, data) {
     return;
   }
   if (isBatchMessage(data)) {
-    BoardMessages.batchCall((msg) => draw(state, msg), data._children);
+    BoardMessages.batchCall((msg) => draw(state, msg, isLocal), data._children);
     return;
   }
 
@@ -822,6 +808,11 @@ export function draw(state, data) {
       tmatrix.d = data.transform.d;
       tmatrix.e = data.transform.e;
       tmatrix.f = data.transform.f;
+      if (!isLocal) {
+        state.Tools.viewport.ensureBoardExtentForBounds(
+          measureSvgElementBoundsAfterTransform(elem, data.transform),
+        );
+      }
       break;
     }
     case MutationType.COPY: {

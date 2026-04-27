@@ -290,6 +290,46 @@ test.describe("single-page interactions", () => {
       });
   });
 
+  test("hand transform expands the zoomed-out scroll extent", async ({
+    boardPage,
+    server,
+    page,
+  }) => {
+    await server.writeBoard(server.dataPath, "hand-transform-extent-test", {
+      "seed-rect": {
+        type: "rect",
+        id: "seed-rect",
+        tool: "rectangle",
+        x: 100,
+        y: 100,
+        x2: 160,
+        y2: 140,
+        color: "#123456",
+        size: 4,
+      },
+    });
+
+    await boardPage.gotoBoard("hand-transform-extent-test");
+    await boardPage.selectTool("hand");
+    await page.evaluate(() => {
+      window.Tools.setScale(0.02);
+      window.scrollTo(0, 0);
+    });
+
+    await boardPage.moveSelection(
+      "seed-rect",
+      { x: 110, y: 110 },
+      { x: 100110, y: 80110 },
+    );
+
+    await page.evaluate(() => {
+      window.scrollTo(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
+    });
+    const position = await boardPage.scrollPosition();
+    expect(position.left).toBeGreaterThan(0);
+    expect(position.top).toBeGreaterThan(0);
+  });
+
   test("reload applies the viewport encoded in the URL hash", async ({
     boardPage,
     page,
