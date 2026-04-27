@@ -93,6 +93,7 @@ function finalizePersistedCanonicalItems(
   persistedSnapshot = state.itemsById,
   persistedIds = new Set(persistedSnapshot.keys()),
 ) {
+  let removedItems = false;
   for (const [id, item] of state.itemsById.entries()) {
     const persistedItem = persistedSnapshot.get(id);
     if (!persistedItem) continue;
@@ -114,6 +115,7 @@ function finalizePersistedCanonicalItems(
     }
     if (item.deleted === true) {
       state.itemsById.delete(id);
+      removedItems = true;
       continue;
     }
     if (!persistedIds.has(id)) continue;
@@ -132,15 +134,17 @@ function finalizePersistedCanonicalItems(
     }
     state.itemsById.set(id, next);
   }
-  const paintOrder = state.paintOrder.filter((id) => state.itemsById.has(id));
-  const nextPaintOrder = paintOrder.reduce((max, id) => {
-    const item = state.itemsById.get(id);
-    return item ? Math.max(max, item.paintOrder + 1) : max;
-  }, 0);
-  state.paintOrder = paintOrder;
-  state.nextPaintOrder = nextPaintOrder;
-  rebuildLiveItemCount(state);
-  state.trimPaintOrderIndex = 0;
+  if (removedItems) {
+    const paintOrder = state.paintOrder.filter((id) => state.itemsById.has(id));
+    const nextPaintOrder = paintOrder.reduce((max, id) => {
+      const item = state.itemsById.get(id);
+      return item ? Math.max(max, item.paintOrder + 1) : max;
+    }, 0);
+    state.paintOrder = paintOrder;
+    state.nextPaintOrder = nextPaintOrder;
+    rebuildLiveItemCount(state);
+    state.trimPaintOrderIndex = 0;
+  }
   return {
     paintOrder: state.paintOrder,
     nextPaintOrder: state.nextPaintOrder,
