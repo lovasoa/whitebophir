@@ -28,6 +28,12 @@
 import { stat } from "node:fs/promises";
 import MessageCommon from "../client-data/js/message_common.js";
 import {
+  hasMessageChildren,
+  hasMessageId,
+  hasMessageNewId,
+  hasMessageTool,
+} from "../client-data/js/message_shape.js";
+import {
   getTool,
   getUpdatableFields,
   getMutationType,
@@ -85,6 +91,7 @@ let boardInstanceSequence = 0;
 /** @typedef {ValidationSuccess | ValidationFailure} BoardMutationResult */
 /** @typedef {{ok: true, value: BoardElem, canonical: CanonicalBoardItem, localBounds: Bounds | null}} ValidatedStoredCandidate */
 /** @typedef {import("../types/app-runtime.d.ts").BoardMessage} BoardMessage */
+/** @typedef {import("../types/app-runtime.d.ts").ToolOwnedChildMessage} ToolOwnedChildMessage */
 /** @typedef {import("../types/app-runtime.d.ts").Transform} Transform */
 /** @typedef {import("../types/server-runtime.d.ts").MutationLogEntry} MutationLogEntry */
 /** @typedef {import("../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
@@ -581,7 +588,10 @@ class BoardData {
    * @returns {boolean}
    */
   shouldDeferSeedDropRejectionToMutationEngine(message) {
-    if (getMutationType(message) !== MutationType.UPDATE || !message.id) {
+    if (
+      getMutationType(message) !== MutationType.UPDATE ||
+      !hasMessageId(message)
+    ) {
       return false;
     }
     const summary = getCanonicalItem(this, message.id);
@@ -594,53 +604,49 @@ class BoardData {
   }
 
   /**
-   * @param {BoardMessage} message
+   * @param {BoardMessage | ToolOwnedChildMessage} message
    * @returns {Set<string>}
    */
   collectReferencedMutationIds(message) {
     const ids = new Set();
     if (!message || typeof message !== "object") return ids;
-    if (Array.isArray(message._children)) {
+    if (hasMessageChildren(message)) {
       message._children.forEach((child) => {
-        this.collectReferencedMutationIds({
-          ...child,
-          tool: message.tool,
-        }).forEach((id) => ids.add(id));
+        this.collectReferencedMutationIds(child).forEach((id) => ids.add(id));
       });
       return ids;
     }
-    if (typeof message.id === "string") {
+    if (hasMessageId(message)) {
       ids.add(message.id);
     }
-    if (typeof message.parent === "string") {
+    if ("parent" in message && typeof message.parent === "string") {
       ids.add(message.parent);
     }
     return ids;
   }
 
   /**
-   * @param {BoardMessage} message
+   * @param {BoardMessage | ToolOwnedChildMessage} message
    * @returns {Set<string>}
    */
   collectHydrationIds(message) {
     const ids = new Set();
     if (!message || typeof message !== "object") return ids;
-    if (Array.isArray(message._children)) {
+    if (hasMessageChildren(message)) {
       message._children.forEach((child) => {
-        this.collectHydrationIds({
-          ...child,
-          tool: message.tool,
-        }).forEach((id) => ids.add(id));
+        this.collectHydrationIds(child).forEach((id) => ids.add(id));
       });
       return ids;
     }
     switch (getMutationType(message)) {
       case MutationType.UPDATE:
       case MutationType.COPY:
-        if (typeof message.id === "string") ids.add(message.id);
+        if (hasMessageId(message)) ids.add(message.id);
         break;
       case MutationType.APPEND:
-        if (typeof message.parent === "string") ids.add(message.parent);
+        if ("parent" in message && typeof message.parent === "string") {
+          ids.add(message.parent);
+        }
         break;
     }
     return ids;
@@ -651,24 +657,28 @@ class BoardData {
    * @returns {Promise<{ok: true, mutation: NormalizedMessageData} | {ok: false, reason: string}>}
    */
   async preparePersistentMutation(message) {
-    if (Array.isArray(message?._children)) {
+    if (hasMessageChildren(message)) {
       return { ok: true, mutation: message };
     }
     switch (getMutationType(message)) {
       case MutationType.COPY:
-        if (!message.id || !getCanonicalItem(this, message.id)) {
+        if (!hasMessageId(message) || !getCanonicalItem(this, message.id)) {
           return { ok: false, reason: "copied object does not exist" };
         }
         return { ok: true, mutation: message };
       case MutationType.APPEND:
-        if (!message.parent || !getCanonicalItem(this, message.parent)) {
+        if (
+          !("parent" in message) ||
+          typeof message.parent !== "string" ||
+          !getCanonicalItem(this, message.parent)
+        ) {
           return { ok: false, reason: "invalid parent for child" };
         }
         return this.canAddChild(message.parent, message)
           ? { ok: true, mutation: message }
           : { ok: false, reason: "shape too large" };
       case MutationType.UPDATE:
-        if (!message.id || !getCanonicalItem(this, message.id)) {
+        if (!hasMessageId(message) || !getCanonicalItem(this, message.id)) {
           return { ok: false, reason: "object not found" };
         }
         if (
@@ -870,7 +880,7 @@ class BoardData {
    * @returns {boolean}
    */
   canProcessMessage(message) {
-    const id = message.id;
+    const id = hasMessageId(message) ? message.id : "";
     switch (getMutationType(message)) {
       case MutationType.DELETE:
       case MutationType.CLEAR:
@@ -882,7 +892,7 @@ class BoardData {
       case MutationType.COPY:
         return id ? this.canCopy(id, message) : false;
       case MutationType.APPEND:
-        return message.parent
+        return "parent" in message && typeof message.parent === "string"
           ? this.canAddChild(message.parent, message)
           : false;
       default:
@@ -1058,7 +1068,7 @@ class BoardData {
   }
 
   /** Process a batch of messages
-   * @param {BoardMessage[]} children array of messages to be delegated to the other methods
+   * @param {(BoardMessage | ToolOwnedChildMessage)[]} children array of messages to be delegated to the other methods
    * @param {BoardMessage} [parentMessage]
    * @returns {BoardMutationResult | ValidationFailure}
    */
@@ -1074,10 +1084,14 @@ class BoardData {
           children.length >= STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD,
       },
       () => {
+        /** @type {BoardMessage[]} */
         const messages = children.map((childMessage) =>
-          parentMessage && childMessage.tool === undefined
-            ? { ...childMessage, tool: parentMessage.tool }
-            : childMessage,
+          parentMessage && !hasMessageTool(childMessage)
+            ? /** @type {BoardMessage} */ ({
+                ...childMessage,
+                tool: parentMessage.tool,
+              })
+            : /** @type {BoardMessage} */ (childMessage),
         );
         /** @type {Map<string, any | undefined>} */
         const overlay = new Map();
@@ -1094,7 +1108,7 @@ class BoardData {
         };
 
         for (const message of messages) {
-          const id = message.id;
+          const id = hasMessageId(message) ? message.id : "";
           switch (getMutationType(message)) {
             case MutationType.CLEAR:
               clearAll = true;
@@ -1131,7 +1145,7 @@ class BoardData {
               break;
             }
             case MutationType.COPY: {
-              if (!id || !message.newid) {
+              if (!id || !hasMessageNewId(message)) {
                 return { ok: false, reason: "missing id" };
               }
               const current = readItem(id);
@@ -1147,7 +1161,10 @@ class BoardData {
               break;
             }
             case MutationType.APPEND: {
-              if (!message.parent) {
+              if (
+                !("parent" in message) ||
+                typeof message.parent !== "string"
+              ) {
                 return { ok: false, reason: "invalid parent for child" };
               }
               const next = this.makeAppendCandidate(
@@ -1212,10 +1229,10 @@ class BoardData {
     this.pendingAcceptedMutationEffects = [];
     /** @type {BoardMutationResult | ValidationFailure} */
     let result;
-    if (message._children) {
+    if (hasMessageChildren(message)) {
       result = this.processMessageBatch(message._children, message);
     } else {
-      const id = message.id;
+      const id = hasMessageId(message) ? message.id : "";
       switch (getMutationType(message)) {
         case MutationType.DELETE:
           result = id ? this.delete(id) : { ok: false, reason: "missing id" };
@@ -1231,13 +1248,15 @@ class BoardData {
             : { ok: false, reason: "missing id" };
           break;
         case MutationType.APPEND: {
+          if (!("parent" in message) || typeof message.parent !== "string") {
+            result = { ok: false, reason: "invalid parent for child" };
+            break;
+          }
           // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
           const { parent, type, tool, ...childData } = message;
           void type;
           void tool;
-          result = parent
-            ? this.addChild(parent, childData)
-            : { ok: false, reason: "invalid parent for child" };
+          result = this.addChild(parent, childData);
           break;
         }
         case MutationType.CLEAR:

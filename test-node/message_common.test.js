@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const MessageCommon = require("../client-data/js/message_common.js");
+const { Text } = require("../client-data/tools/index.js");
 
 test("shared geometry helpers apply transforms to bounds", () => {
   const bounds = MessageCommon.applyTransformToBounds(
@@ -38,7 +39,7 @@ test("shared geometry helpers grow pencil bounds incrementally", () => {
 
 test("getLocalGeometryBounds measures bounded text extent", () => {
   const bounds = MessageCommon.getLocalGeometryBounds({
-    tool: "text",
+    tool: Text.id,
     x: 100,
     y: 200,
     txt: "0123456789",

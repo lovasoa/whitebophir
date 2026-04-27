@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 
 import { MutationType } from "../client-data/js/mutation_type.js";
+import { ToolCodes } from "../client-data/tools/tool-order.js";
 import { writeBoardState } from "../server/svg_board_store.mjs";
 
 const repoRoot = path.resolve(
@@ -189,20 +190,24 @@ export async function runPeerVisibleEraseBenchmark(maxChildren) {
     const peerApplyStartedAt = performance.now();
     const eraseSent = await main.evaluate(
       (params) => {
-        const { targetId, deleteType } =
-          /** @type {{targetId: string, deleteType: any}} */ (params);
+        const { eraserTool, targetId, deleteType } =
+          /** @type {{eraserTool: any, targetId: string, deleteType: any}} */ (
+            params
+          );
         const bench = /** @type {any} */ (window).__wboBench;
         bench.eraseDispatchMs = performance.now() - bench.navStart;
-        return window.Tools.send(
-          {
-            type: deleteType,
-            id: targetId,
-            clientMutationId: window.Tools.generateUID("cm-"),
-          },
-          "eraser",
-        );
+        return window.Tools.send({
+          tool: eraserTool,
+          type: deleteType,
+          id: targetId,
+          clientMutationId: window.Tools.generateUID("cm-"),
+        });
       },
-      { targetId: lastPencilId, deleteType: MutationType.DELETE },
+      {
+        eraserTool: ToolCodes.ERASER,
+        targetId: lastPencilId,
+        deleteType: MutationType.DELETE,
+      },
     );
     if (eraseSent !== true)
       throw new Error("failed to send erase request in end-to-end benchmark");

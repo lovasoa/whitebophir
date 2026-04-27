@@ -84,9 +84,10 @@ async function waitForBoardReady(page) {
 async function startDrawer(page, userIndex) {
   await page.evaluate(
     /**
-     * @param {{colorSeed: number, pointsPerLine: number, childIntervalMs: number, createType: number, appendType: number}} options
+     * @param {{pencilTool: number, colorSeed: number, pointsPerLine: number, childIntervalMs: number, createType: number, appendType: number}} options
      */
     async ({
+      pencilTool,
       colorSeed,
       pointsPerLine,
       childIntervalMs,
@@ -96,7 +97,7 @@ async function startDrawer(page, userIndex) {
       /** @type {any} */
       const tools = window.Tools;
       await tools.bootTool?.("pencil");
-      const pencil = tools.list?.Pencil;
+      const pencil = tools.list?.pencil;
       if (!pencil) throw new Error("Missing Pencil tool");
 
       const color = `#${(((colorSeed * 2654435761) >>> 0) & 0xffffff)
@@ -142,36 +143,31 @@ async function startDrawer(page, userIndex) {
             y: 200 + Math.round(Math.random() * 600),
           };
 
-          tools.drawAndSend(
-            {
-              tool: Pencil.id,
-              type: createType,
-              id,
-              color,
-              size: 4,
-              opacity: 1,
-            },
-            pencil,
-          );
+          tools.drawAndSend({
+            tool: pencilTool,
+            type: createType,
+            id,
+            color,
+            size: 4,
+            opacity: 1,
+          });
 
           for (let index = 0; index < pointsPerLine; index += 1) {
             point = randomPoint(point.x, point.y);
-            tools.drawAndSend(
-              {
-                tool: Pencil.id,
-                type: appendType,
-                parent: id,
-                x: point.x,
-                y: point.y,
-              },
-              pencil,
-            );
+            tools.drawAndSend({
+              tool: pencilTool,
+              type: appendType,
+              parent: id,
+              x: point.x,
+              y: point.y,
+            });
             await sleep(childIntervalMs);
           }
         }
       })();
     },
     {
+      pencilTool: Pencil.id,
       colorSeed: userIndex + 1,
       pointsPerLine: POINTS_PER_LINE,
       childIntervalMs: CHILD_INTERVAL_MS,

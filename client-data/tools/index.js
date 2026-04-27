@@ -19,6 +19,7 @@ import {
   getToolTranslationKey,
 } from "./tool-defaults.js";
 /** @typedef {import("../../types/app-runtime").ToolCode} ToolCode */
+/** @typedef {typeof import("./tool-order.js").ToolCodes} ToolCodeMap */
 
 /**
  * @typedef {{
@@ -30,9 +31,9 @@ import {
  *   storedTagName?: string,
  *   shapeTool?: boolean,
  *   payloadKind?: "inline" | "text" | "children",
- *   updatableFields?: string[],
- *   liveMessageFields?: {[type: number]: {[field: string]: string}},
- *   batchMessageFields?: {[type: number]: {[field: string]: string}},
+ *   updatableFields?: ReadonlyArray<string>,
+ *   liveMessageFields?: Readonly<Record<number, Readonly<Record<string, string>>>>,
+ *   batchMessageFields?: Readonly<Record<number, Readonly<Record<string, string>>>>,
  *   parseStoredSvgItem?: Function,
  *   summarizeStoredSvgItem?: Function,
  *   serializeStoredSvgItem?: Function,
@@ -128,18 +129,54 @@ function getRequiredTool(toolId) {
   return /** @type {(typeof TOOLS)[number]} */ (TOOL_BY_ID[toolId]);
 }
 
-export const Pencil = getRequiredTool("pencil");
-export const StraightLine = getRequiredTool("straight-line");
-export const Rectangle = getRequiredTool("rectangle");
-export const Ellipse = getRequiredTool("ellipse");
-export const Text = getRequiredTool("text");
-export const Eraser = getRequiredTool("eraser");
-export const Hand = getRequiredTool("hand");
-export const Grid = getRequiredTool("grid");
-export const Download = getRequiredTool("download");
-export const Zoom = getRequiredTool("zoom");
-export const Clear = getRequiredTool("clear");
-export const Cursor = getRequiredTool("cursor");
+export const Pencil =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["PENCIL"]}} */ (
+    getRequiredTool("pencil")
+  );
+export const StraightLine =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["STRAIGHT_LINE"]}} */ (
+    getRequiredTool("straight-line")
+  );
+export const Rectangle =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["RECTANGLE"]}} */ (
+    getRequiredTool("rectangle")
+  );
+export const Ellipse =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["ELLIPSE"]}} */ (
+    getRequiredTool("ellipse")
+  );
+export const Text =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["TEXT"]}} */ (
+    getRequiredTool("text")
+  );
+export const Eraser =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["ERASER"]}} */ (
+    getRequiredTool("eraser")
+  );
+export const Hand =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["HAND"]}} */ (
+    getRequiredTool("hand")
+  );
+export const Grid =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["GRID"]}} */ (
+    getRequiredTool("grid")
+  );
+export const Download =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["DOWNLOAD"]}} */ (
+    getRequiredTool("download")
+  );
+export const Zoom =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["ZOOM"]}} */ (
+    getRequiredTool("zoom")
+  );
+export const Clear =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["CLEAR"]}} */ (
+    getRequiredTool("clear")
+  );
+export const Cursor =
+  /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap["CURSOR"]}} */ (
+    getRequiredTool("cursor")
+  );
 export const TOOLBAR_TOOLS = TOOLBAR_TOOL_IDS.map((toolId) =>
   getRequiredTool(toolId),
 );

@@ -1,19 +1,22 @@
 import {
   createShapeToolBoot,
+  makeLineShapeUpdateMessage,
   makeSeedShapeCreateMessage,
 } from "../shape_tool.js";
+import { ToolCodes } from "../tool-order.js";
 export {
   drawShapeTool as draw,
   moveShapeTool as move,
   pressShapeTool as press,
   releaseShapeTool as release,
 } from "../shape_tool.js";
-import { MutationType } from "../../js/mutation_type.js";
 import {
   defineShapeContract,
   serializeStoredShapeTag,
   summarizeStoredShape,
 } from "../shape_contract.js";
+/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof ToolCodes.STRAIGHT_LINE>} StraightLineCreateMessage */
+/** @typedef {import("../shape_tool.js").ShapeLineUpdateMessage<typeof ToolCodes.STRAIGHT_LINE>} StraightLineUpdateMessage */
 
 export const toolId = "straight-line";
 export const drawsOnBoard = true;
@@ -21,8 +24,9 @@ export const mouseCursor = "crosshair";
 
 const contract = defineShapeContract({
   toolId,
+  toolCode: ToolCodes.STRAIGHT_LINE,
   storedTagName: "line",
-  updatableFields: ["x2", "y2"],
+  updatableFields: /** @type {const} */ (["x2", "y2"]),
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x1 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x1"));
     const y1 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y1"));
@@ -108,12 +112,7 @@ const config = {
       x = state.Tools.toBoardCoordinate(start.x + d * Math.cos(alpha));
       y = state.Tools.toBoardCoordinate(start.y + d * Math.sin(alpha));
     }
-    return {
-      type: MutationType.UPDATE,
-      id: start.id,
-      x2: x,
-      y2: y,
-    };
+    return makeLineShapeUpdateMessage(contract.toolCode, start.id, x, y);
   },
   makeFallbackShape: (data) => ({
     id: data.id,

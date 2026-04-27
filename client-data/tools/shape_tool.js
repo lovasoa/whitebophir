@@ -3,10 +3,32 @@ import { logFrontendEvent } from "../js/frontend_logging.js";
 import { clampCoord, LIMITS } from "../js/message_common.js";
 
 /** @import { MountedAppToolsState, ToolBootContext } from "../../types/app-runtime" */
+/** @typedef {typeof import("./tool-order.js").ToolCodes} ShapeToolCodeMap */
+/** @typedef {ShapeToolCodeMap["RECTANGLE"] | ShapeToolCodeMap["ELLIPSE"] | ShapeToolCodeMap["STRAIGHT_LINE"]} ShapeToolCode */
+/** @typedef {{config: {contract: {toolCode: ShapeToolCode}}, Tools: {getColor(): string, getSize(): number, getOpacity(): number}}} ShapeCreateMessageState */
+
+/**
+ * @template {ShapeToolCode} TTool
+ * @typedef {Omit<ReturnType<typeof makeSeedShapeCreateMessage>, "tool" | "opacity"> & {tool: TTool, opacity?: number}} ShapeCreateMessage
+ */
+
+/**
+ * @template {ShapeToolCode} TTool
+ * @typedef {Omit<ReturnType<typeof makeBoxShapeUpdateMessage>, "tool"> & {tool: TTool}} ShapeBoxUpdateMessage
+ */
+
+/**
+ * @template {ShapeToolCode} TTool
+ * @typedef {Omit<ReturnType<typeof makeLineShapeUpdateMessage>, "tool"> & {tool: TTool}} ShapeLineUpdateMessage
+ */
+
+/**
+ * @typedef {ShapeCreateMessage<ShapeToolCodeMap["RECTANGLE"]> | ShapeBoxUpdateMessage<ShapeToolCodeMap["RECTANGLE"]> | ShapeCreateMessage<ShapeToolCodeMap["ELLIPSE"]> | ShapeBoxUpdateMessage<ShapeToolCodeMap["ELLIPSE"]> | ShapeCreateMessage<ShapeToolCodeMap["STRAIGHT_LINE"]> | ShapeLineUpdateMessage<ShapeToolCodeMap["STRAIGHT_LINE"]>} ShapeToolMessage
+ */
 
 /**
  * @typedef {{
- *   contract: import("./shape_contract.js").ToolContract & {storedTagName: string},
+ *   contract: import("./shape_contract.js").ToolContract & {storedTagName: string, toolCode: import("../../types/app-runtime").ToolCode},
  *   secondary?: {name: string, icon: string, active: boolean, switch?: (state: any) => void},
  *   uidPrefix: string,
  *   isShapeElement: (element: Element | null) => boolean,
@@ -15,8 +37,14 @@ import { clampCoord, LIMITS } from "../js/message_common.js";
  *   makeFallbackShape: (update: any) => any,
  *   applyShapeGeometry: (shape: SVGElement, data: any) => void,
  * }} ShapeToolConfig
- * @typedef {{currentShape: any, message: any}} ShapePressEffect
- * @typedef {{update: any | null, shouldSend: boolean, nextLastTime: number, preventDefault: boolean}} ShapeMoveEffect
+ */
+
+/**
+ * @typedef {{currentShape: ShapeToolMessage, message: ShapeToolMessage}} ShapePressEffect
+ */
+
+/**
+ * @typedef {{update: ShapeToolMessage | null, shouldSend: boolean, nextLastTime: number, preventDefault: boolean}} ShapeMoveEffect
  */
 
 /**
@@ -53,14 +81,14 @@ export function createShapeToolBoot(config) {
 }
 
 /**
- * @param {any} state
+ * @param {ShapeCreateMessageState} state
  * @param {string} id
  * @param {number} x
  * @param {number} y
- * @returns {any}
  */
 export function makeSeedShapeCreateMessage(state, id, x, y) {
   return {
+    tool: state.config.contract.toolCode,
     type: MutationType.CREATE,
     id,
     color: state.Tools.getColor(),
@@ -68,6 +96,41 @@ export function makeSeedShapeCreateMessage(state, id, x, y) {
     opacity: state.Tools.getOpacity(),
     x,
     y,
+    x2: x,
+    y2: y,
+  };
+}
+
+/**
+ * @param {ShapeToolCode} tool
+ * @param {string} id
+ * @param {{x: number, y: number}} start
+ * @param {number} x
+ * @param {number} y
+ */
+export function makeBoxShapeUpdateMessage(tool, id, start, x, y) {
+  return {
+    tool,
+    type: MutationType.UPDATE,
+    id,
+    x: start.x,
+    y: start.y,
+    x2: x,
+    y2: y,
+  };
+}
+
+/**
+ * @param {ShapeToolCode} tool
+ * @param {string} id
+ * @param {number} x
+ * @param {number} y
+ */
+export function makeLineShapeUpdateMessage(tool, id, x, y) {
+  return {
+    tool,
+    type: MutationType.UPDATE,
+    id,
     x2: x,
     y2: y,
   };
@@ -182,7 +245,7 @@ export function pressShapeTool(state, x, y, evt) {
   evt.preventDefault();
   const effect = createShapePressEffect(state, x, y);
   state.currentShape = effect.currentShape;
-  state.Tools.drawAndSend(effect.message, state.config.contract.toolId);
+  state.Tools.drawAndSend(effect.message);
 }
 
 /**
@@ -243,7 +306,7 @@ export function moveShapeTool(state, x, y, evt, force = false) {
   }
   const update = effect.update;
   if (effect.shouldSend) {
-    state.Tools.drawAndSend(update, state.config.contract.toolId);
+    state.Tools.drawAndSend(update);
     state.lastTime = effect.nextLastTime;
   } else {
     drawShapeTool(state, update);

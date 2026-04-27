@@ -57,7 +57,13 @@ import {
   getToolId,
   MutationType,
 } from "./message_tool_metadata.js";
-import { hasMessageId, hasMessageNewId } from "./message_shape.js";
+import {
+  hasMessageColor,
+  hasMessageId,
+  hasMessageNewId,
+  hasMessagePoint,
+  hasMessageSize,
+} from "./message_shape.js";
 import { createOptimisticJournal } from "./optimistic_journal.js";
 import {
   collectOptimisticAffectedIds,
@@ -71,9 +77,9 @@ import {
   getToolRuntimeAssetPath,
   getToolStylesheetPath,
 } from "../tools/tool-defaults.js";
-import { Hand, TOOL_BY_ID, TOOLS } from "../tools/index.js";
+import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
 
-/** @import { AppBoardState, AppToolsState, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, IncomingBroadcast, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
@@ -83,7 +89,7 @@ window.Tools = Tools;
  * @returns {string | undefined}
  */
 function getRuntimeToolId(tool) {
-  return getToolId(/** @type {string | number | undefined} */ (tool));
+  return getToolId(tool);
 }
 
 /**
@@ -331,16 +337,6 @@ Tools.localRateLimitStates = {
   text: RateLimitCommon.createRateLimitState(Date.now()),
 };
 
-/**
- * @template {IncomingBroadcast} T
- * @param {T} message
- * @returns {T}
- */
-Tools.cloneMessage = function cloneMessage(message) {
-  if (typeof structuredClone === "function") return structuredClone(message);
-  return /** @type {T} */ (JSON.parse(JSON.stringify(message)));
-};
-
 function initializeShellControls() {
   const colorChooser = getRequiredInput("chooseColor");
   const sizeChooser = getRequiredInput("chooseSize");
@@ -432,7 +428,7 @@ Tools.getEffectiveRateLimit = function getEffectiveRateLimit(kind) {
 };
 
 /**
- * @param {BoardMessage} message
+ * @param {LiveBoardMessage} message
  * @returns {import("../../types/app-runtime").RateLimitCosts}
  */
 Tools.getBufferedWriteCosts = function getBufferedWriteCosts(message) {
@@ -653,8 +649,8 @@ Tools.restoreLocalCursor = function restoreLocalCursor() {
 };
 
 /**
- * @param {BoardMessage} message
- * @returns {{kind: "drawing-area", markup: string} | {kind: "items", snapshots: Array<{id: string, outerHTML: string | null, nextSiblingId: string | null}>}}
+ * @param {LiveBoardMessage} message
+ * @returns {OptimisticRollback}
  */
 Tools.captureOptimisticRollback = function captureOptimisticRollback(message) {
   if (getMutationType(message) === MutationType.CLEAR) {
@@ -688,7 +684,7 @@ Tools.captureOptimisticRollback = function captureOptimisticRollback(message) {
 };
 
 /**
- * @param {BoardMessage} message
+ * @param {LiveBoardMessage} message
  * @returns {string[]}
  */
 Tools.collectOptimisticDependencyMutationIds =
@@ -699,8 +695,8 @@ Tools.collectOptimisticDependencyMutationIds =
   };
 
 /**
- * @param {BoardMessage} message
- * @param {{kind: "drawing-area", markup: string} | {kind: "items", snapshots: Array<{id: string, outerHTML: string | null, nextSiblingId: string | null}>}} rollback
+ * @param {LiveBoardMessage} message
+ * @param {OptimisticRollback} rollback
  * @returns {void}
  */
 Tools.trackOptimisticMutation = function trackOptimisticMutation(
@@ -751,7 +747,7 @@ function notifyRejectedTools(rejected, reason) {
 }
 
 /**
- * @param {{kind: "drawing-area", markup: string} | {kind: "items", snapshots: Array<{id: string, outerHTML: string | null, nextSiblingId: string | null}>}} rollback
+ * @param {OptimisticRollback} rollback
  * @returns {void}
  */
 Tools.restoreOptimisticRollback = function restoreOptimisticRollback(rollback) {
@@ -830,7 +826,7 @@ Tools.pruneOptimisticMutationsForAuthoritativeMessage =
 
 Tools.applyAuthoritativeBaseline =
   /**
-   * @param {import("../../types/app-runtime").AuthoritativeBaseline} baseline
+   * @param {AuthoritativeBaseline} baseline
    */
   function applyAuthoritativeBaseline(baseline) {
     const svg = Tools.svg;
@@ -1049,7 +1045,8 @@ Tools.flushBufferedWrites = function flushBufferedWrites() {
 };
 
 /**
- * @param {BoardMessage} message
+ * Takes ownership of message. Callers must not mutate it after queueing.
+ * @param {LiveBoardMessage} message
  * @returns {void}
  */
 Tools.enqueueBufferedWrite = function enqueueBufferedWrite(message) {
@@ -1061,7 +1058,8 @@ Tools.enqueueBufferedWrite = function enqueueBufferedWrite(message) {
 };
 
 /**
- * @param {BoardMessage} message
+ * Takes ownership of message. Callers must not mutate it after sending.
+ * @param {LiveBoardMessage} message
  * @returns {boolean}
  */
 Tools.sendBufferedWrite = function sendBufferedWrite(message) {
@@ -1152,18 +1150,16 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
 };
 
 /**
- * @param {BoardMessage} data
- * @param {MountedAppTool} tool
+ * Takes ownership of data. Callers must not mutate it after queueing.
+ * @param {LiveBoardMessage} data
  */
-Tools.queueProtectedWrite = function queueProtectedWrite(data, tool) {
+Tools.queueProtectedWrite = function queueProtectedWrite(data) {
   const hadPendingWrites = Tools.turnstilePendingWrites.length > 0;
-  Tools.turnstilePendingWrites.push({
-    data: Tools.cloneMessage(data),
-    toolName: tool.name,
-  });
+  Tools.turnstilePendingWrites.push({ data });
   if (hadPendingWrites) return;
+  const toolName = getRuntimeToolId(data.tool) || "unknown";
   logBoardEvent("log", "turnstile.write_queued", {
-    toolName: tool.name,
+    toolName,
     clientMutationId:
       typeof data.clientMutationId === "string" ? data.clientMutationId : null,
   });
@@ -1179,10 +1175,7 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
   Tools.clearBoardStatus();
   pendingWrites.forEach(function replayPendingWrite(write) {
     const pendingWrite = /** @type {PendingWrite} */ (write);
-    if (!pendingWrite.toolName || !pendingWrite.data) return;
-    const tool = Tools.list[pendingWrite.toolName];
-    if (!tool) return;
-    Tools.send(pendingWrite.data, pendingWrite.toolName);
+    Tools.send(pendingWrite.data);
   });
 };
 
@@ -1194,7 +1187,7 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
 function finalizeIncomingBroadcast(msg, processed) {
   const activityMessage =
     BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
-  if (processed) {
+  if (processed && "tool" in activityMessage) {
     Tools.updateConnectedUsersFromActivity(
       activityMessage.userId,
       activityMessage,
@@ -1295,11 +1288,17 @@ async function processIncomingBroadcast(msg) {
   if (
     BoardMessageReplay.shouldBufferLiveMessage(msg, Tools.awaitingBoardSnapshot)
   ) {
-    Tools.preSnapshotMessages.push(Tools.cloneMessage(msg));
+    Tools.preSnapshotMessages.push(msg);
     return false;
   }
   const replayMessage =
     BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
+  if (!("tool" in replayMessage)) {
+    logBoardEvent("error", "broadcast.invalid_replay_payload", {
+      message: msg,
+    });
+    return false;
+  }
   const isOwnSequencedBroadcast =
     isSequencedBroadcast && replayMessage.socket === Tools.socket?.id;
   if (
@@ -1593,7 +1592,7 @@ function getRenderedElementBounds(element) {
 }
 
 /**
- * @param {BoardMessage[]} children
+ * @param {HandChildMessage[]} children
  * @returns {{x: number, y: number} | null}
  */
 function getBatchFocusPoint(children) {
@@ -1635,16 +1634,17 @@ function getBatchFocusPoint(children) {
  */
 function getMessageFocusPoint(message) {
   if (BoardMessages.hasChildMessages(message)) {
-    if (Array.isArray(message._children)) {
-      return getBatchFocusPoint(message._children);
-    }
-    return null;
+    return getBatchFocusPoint(
+      /** @type {HandChildMessage[]} */ (message._children),
+    );
   }
 
-  const pointX = toFiniteCoordinate(message.x);
-  const pointY = toFiniteCoordinate(message.y);
-  if (pointX !== null && pointY !== null) {
-    return { x: pointX, y: pointY };
+  if (hasMessagePoint(message)) {
+    const pointX = toFiniteCoordinate(message.x);
+    const pointY = toFiniteCoordinate(message.y);
+    if (pointX !== null && pointY !== null) {
+      return { x: pointX, y: pointY };
+    }
   }
 
   if (
@@ -1929,12 +1929,12 @@ function applyConnectedUserActivity(
     markConnectedUserActivity(user);
     changed = true;
   }
-  if (message.color !== undefined) {
+  if (hasMessageColor(message)) {
     user.color = message.color;
     changed = true;
   }
-  if (message.size !== undefined) {
-    user.size = Number(message.size) || user.size;
+  if (hasMessageSize(message)) {
+    user.size = message.size || user.size;
     changed = true;
   }
   if (runtimeToolId && runtimeToolId !== "cursor") {
@@ -2881,34 +2881,25 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
 })();
 
 /**
- * @param {BoardMessage} data
- * @param {string | undefined} toolName
+ * Takes ownership of data. Callers must not mutate it after sending.
+ * @param {LiveBoardMessage} data
  */
-Tools.send = (data, toolName) => {
-  if (!toolName) {
-    if (!Tools.curTool) throw new Error("No current tool selected");
-    toolName = Tools.curTool.name;
-  }
-  const toolCode = TOOL_BY_ID[toolName]?.id;
-  if (toolCode === undefined) {
-    throw new Error(`Unknown tool '${toolName}'.`);
-  }
-  const outboundData = Tools.cloneMessage(data);
-  outboundData.tool = toolCode;
-  Tools.applyHooks(Tools.messageHooks, outboundData);
-  return Tools.sendBufferedWrite(outboundData);
+Tools.send = (data) => {
+  Tools.applyHooks(Tools.messageHooks, data);
+  return Tools.sendBufferedWrite(data);
 };
 
 /**
- * @param {BoardMessage} data
- * @param {MountedAppTool | string | null | undefined} tool
+ * Takes ownership of data. Callers must create a fresh message object and must
+ * not mutate it after calling this function, because it may be queued and sent
+ * asynchronously.
+ * @param {LiveBoardMessage} data
  */
-Tools.drawAndSend = (data, tool) => {
-  if (tool == null) tool = Tools.curTool;
-  if (!tool) throw new Error("No active tool available");
-  const mountedTool = typeof tool === "string" ? Tools.list[tool] : tool;
-  if (!mountedTool) throw new Error(`Missing mounted tool '${tool}'.`);
-  const toolName = typeof tool === "string" ? tool : tool.name;
+Tools.drawAndSend = (data) => {
+  const toolName = getRuntimeToolId(data.tool);
+  if (!toolName) throw new Error(`Unknown tool code '${data.tool}'.`);
+  const mountedTool = Tools.list[toolName];
+  if (!mountedTool) throw new Error(`Missing mounted tool '${data.tool}'.`);
   if (Tools.shouldDisableTool(toolName)) return false;
   if (
     !Tools.socket ||
@@ -2919,28 +2910,27 @@ Tools.drawAndSend = (data, tool) => {
     return false;
   }
 
-  const outboundData = Tools.cloneMessage(data);
   if (toolName !== "cursor") {
-    outboundData.clientMutationId = Tools.generateUID("cm-");
+    data.clientMutationId = Tools.generateUID("cm-");
   }
-  const rollback = Tools.captureOptimisticRollback(outboundData);
+  const rollback = Tools.captureOptimisticRollback(data);
 
   // Optimistically render the drawing immediately
-  mountedTool.draw(outboundData, true);
+  mountedTool.draw(data, true);
 
   if (
     MessageCommon.requiresTurnstile(Tools.boardName, toolName) &&
     Tools.server_config.TURNSTILE_SITE_KEY &&
     !Tools.isTurnstileValidated()
   ) {
-    Tools.trackOptimisticMutation(outboundData, rollback);
-    Tools.queueProtectedWrite(outboundData, mountedTool);
+    Tools.trackOptimisticMutation(data, rollback);
+    Tools.queueProtectedWrite(data);
     return true;
   }
 
-  const sent = Tools.send(outboundData, toolName) !== false;
+  const sent = Tools.send(data) !== false;
   if (sent) {
-    Tools.trackOptimisticMutation(outboundData, rollback);
+    Tools.trackOptimisticMutation(data, rollback);
   }
   return sent;
 };
@@ -2967,16 +2957,6 @@ function messageForTool(message) {
     if (name)
       BoardMessages.queuePendingMessage(Tools.pendingMessages, name, message);
   }
-
-  if (!isRuntimeTool(message.tool, "hand") && message.transform != null) {
-    //this message has special info for the mover
-    messageForTool({
-      tool: Hand.id,
-      type: MutationType.UPDATE,
-      transform: message.transform,
-      id: message.id,
-    });
-  }
 }
 Tools.messageForTool = messageForTool;
 
@@ -2986,32 +2966,9 @@ Tools.messageForTool = messageForTool;
  * @returns {Promise<void>}
  */
 function handleMessage(message) {
-  //Check if the message is in the expected format
-  if (!message.tool && !message._children) {
-    logBoardEvent("error", "broadcast.invalid_missing_tool", { message });
-  }
   pruneBufferedWritesForInvalidatingMessage(message);
-  if (message.tool) messageForTool(message);
-  if (
-    BoardMessages.hasChildMessages(message) &&
-    BoardMessageReplay.shouldReplayChildrenIndividually(message)
-  )
-    return BoardMessages.batchCall(
-      (child) =>
-        handleMessage(
-          BoardMessageReplay.prepareReplayChild(
-            message,
-            child,
-            BoardMessages.normalizeChildMessage,
-          ),
-        ),
-      message._children,
-    );
+  messageForTool(message);
   if (BoardMessages.hasChildMessages(message)) {
-    return Promise.resolve();
-  }
-  if (message._children) {
-    logBoardEvent("error", "broadcast.invalid_children", { message });
     return Promise.resolve();
   }
   return Promise.resolve();
@@ -3055,12 +3012,12 @@ Tools.installViewportController = function installViewportController() {
   Tools.viewport.install();
 };
 
-/** @param {{x?: unknown, y?: unknown}} m */
+/** @param {BoardMessage} m */
 function resizeCanvas(m) {
-  if (!Tools.svg) return;
+  if (!Tools.svg || !hasMessagePoint(m)) return;
   //Enlarge the canvas whenever something is drawn near its border
-  const x = Number(m.x) | 0;
-  const y = Number(m.y) | 0;
+  const x = m.x | 0;
+  const y = m.y | 0;
   const MAX_BOARD_SIZE = Tools.server_config.MAX_BOARD_SIZE || 655360; // Maximum value for any x or y on the board
   let resized = false;
   if (x > Tools.svg.width.baseVal.value - RESIZE_CANVAS_MARGIN) {

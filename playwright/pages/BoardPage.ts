@@ -1,10 +1,10 @@
 import { expect, type Page } from "@playwright/test";
 import { MutationType } from "../../client-data/js/mutation_type.js";
-import { Eraser } from "../../client-data/tools/index.js";
+import { ToolCodes } from "../../client-data/tools/tool-order.js";
 import type {
   AppToolsState,
   BoardMessage,
-  MountedAppTool,
+  ToolCode,
 } from "../../types/app-runtime";
 import { withToken } from "../helpers/boardData";
 import { broadcastMessageColor } from "../helpers/broadcastMessage";
@@ -397,10 +397,12 @@ window.turnstile = {
     await this.page.evaluate(
       async ({
         inputPaths,
+        pencilToolCode,
         createType,
         appendType,
       }: {
         inputPaths: PencilPath[];
+        pencilToolCode: ToolCode;
         createType: number;
         appendType: number;
       }) => {
@@ -418,57 +420,49 @@ window.turnstile = {
           if (!pencilTool) throw new Error("Missing pencil tool");
           return { tools, pencilTool };
         };
-        const startPencilPath = (
-          tools: AppToolsState,
-          pencilTool: MountedAppTool,
-          path: PencilPath,
-        ) => {
+        const startPencilPath = (tools: AppToolsState, path: PencilPath) => {
           tools.setColor(path.color);
           const lineId = tools.generateUID("l");
-          tools.drawAndSend(
-            {
-              type: createType,
-              id: lineId,
-              color: path.color,
-              size: tools.getSize(),
-              opacity: tools.getOpacity(),
-            },
-            pencilTool,
-          );
+          tools.drawAndSend({
+            tool: pencilToolCode,
+            type: createType,
+            id: lineId,
+            color: path.color,
+            size: tools.getSize(),
+            opacity: tools.getOpacity(),
+          });
           return lineId;
         };
         const appendPencilPoint = async (
           tools: AppToolsState,
-          pencilTool: MountedAppTool,
           lineId: string,
           point: Point,
         ) => {
-          tools.drawAndSend(
-            {
-              type: appendType,
-              parent: lineId,
-              x: point.x,
-              y: point.y,
-            },
-            pencilTool,
-          );
+          tools.drawAndSend({
+            tool: pencilToolCode,
+            type: appendType,
+            parent: lineId,
+            x: point.x,
+            y: point.y,
+          });
           await nextFrame();
         };
 
         for (const path of inputPaths) {
           if (path.points.length === 0) continue;
-          const { tools, pencilTool } = await ensurePencilTool();
-          const lineId = startPencilPath(tools, pencilTool, path);
+          const { tools } = await ensurePencilTool();
+          const lineId = startPencilPath(tools, path);
           await nextFrame();
           for (let index = 0; index < path.points.length; index += 1) {
             const point = path.points[index];
             if (!point) continue;
-            await appendPencilPoint(tools, pencilTool, lineId, point);
+            await appendPencilPoint(tools, lineId, point);
           }
         }
       },
       {
         inputPaths: paths,
+        pencilToolCode: ToolCodes.PENCIL,
         createType: MutationType.CREATE,
         appendType: MutationType.APPEND,
       },
@@ -629,7 +623,11 @@ window.turnstile = {
           id: targetId,
         });
       },
-      { targetId: id, deleteType: MutationType.DELETE, toolId: Eraser.id },
+      {
+        targetId: id,
+        deleteType: MutationType.DELETE,
+        toolId: ToolCodes.ERASER,
+      },
     );
     await expect(shape).toHaveCount(0);
   }
@@ -802,15 +800,16 @@ window.turnstile = {
   async duplicateSelectionAndDelete(id: string) {
     await this.waitForBoardWritable();
     await this.page.evaluate(
-      ({ targetId, copyType }) => {
+      ({ handTool, targetId, copyType }) => {
         const rect = document.getElementById(targetId);
         if (!rect) throw new Error(`Missing shape ${targetId}`);
         const duplicateId = window.Tools.generateUID(targetId[0] ?? "s");
         window.Tools.drawAndSend({
+          tool: handTool,
           _children: [{ type: copyType, id: targetId, newid: duplicateId }],
         });
       },
-      { targetId: id, copyType: MutationType.COPY },
+      { handTool: ToolCodes.HAND, targetId: id, copyType: MutationType.COPY },
     );
     await expect(this.page.locator("#drawingArea rect")).toHaveCount(2);
     const afterDuplicate = await this.page.evaluate(() => {
@@ -819,12 +818,17 @@ window.turnstile = {
       );
     });
     await this.page.evaluate(
-      ({ targetId, deleteType }) => {
+      ({ handTool, targetId, deleteType }) => {
         window.Tools.drawAndSend({
+          tool: handTool,
           _children: [{ type: deleteType, id: targetId }],
         });
       },
-      { targetId: id, deleteType: MutationType.DELETE },
+      {
+        handTool: ToolCodes.HAND,
+        targetId: id,
+        deleteType: MutationType.DELETE,
+      },
     );
     await expect(this.page.locator("#drawingArea rect")).toHaveCount(1);
     const afterDelete = await this.page.evaluate(() => {
@@ -984,23 +988,25 @@ window.turnstile = {
   async queueProtectedRectangle(id: string) {
     await this.waitForBoardWritable();
     await this.page.evaluate(
-      ({ rectId, createType }) => {
-        window.Tools.drawAndSend(
-          {
-            type: createType,
-            id: rectId,
-            x: 10,
-            y: 20,
-            x2: 40,
-            y2: 50,
-            color: "#112233",
-            size: 10,
-            opacity: 1,
-          },
-          window.Tools.list.rectangle,
-        );
+      ({ rectangleTool, rectId, createType }) => {
+        window.Tools.drawAndSend({
+          tool: rectangleTool,
+          type: createType,
+          id: rectId,
+          x: 10,
+          y: 20,
+          x2: 40,
+          y2: 50,
+          color: "#112233",
+          size: 10,
+          opacity: 1,
+        });
       },
-      { rectId: id, createType: MutationType.CREATE },
+      {
+        rectangleTool: ToolCodes.RECTANGLE,
+        rectId: id,
+        createType: MutationType.CREATE,
+      },
     );
     await this.page.waitForFunction(() => {
       const overlay = document.getElementById("turnstile-overlay");

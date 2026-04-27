@@ -33,11 +33,12 @@ import {
 } from "../../js/message_common.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
-/** @import { BoardMessage, MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
+import { ToolCodes } from "../tool-order.js";
+/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: number | null}} CurrentTextState */
-/** @typedef {{type: MutationCode, id: string, txt?: string, color?: string, size?: number, opacity?: number, x?: number, y?: number}} NewTextMessage */
-/** @typedef {{type: MutationCode, id: string, txt?: string}} TextUpdateMessage */
-/** @typedef {NewTextMessage | TextUpdateMessage} TextMessage */
+/** @typedef {Omit<ReturnType<typeof createTextMessage>, "opacity"> & {opacity?: number}} TextCreateMessage */
+/** @typedef {ReturnType<typeof updateTextMessage>} TextUpdateMessage */
+/** @typedef {TextCreateMessage | TextUpdateMessage} TextMessage */
 /** @typedef {{Tools: MountedAppToolsState, board: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
 
 /**
@@ -66,13 +67,38 @@ export const toolId = "text";
 export const drawsOnBoard = true;
 export const mouseCursor = "text";
 
+/**
+ * @param {unknown} data
+ * @returns {data is TextMessage}
+ */
+function isTextMessage(data) {
+  if (!data || typeof data !== "object") return false;
+  const message = /** @type {Partial<TextMessage>} */ (data);
+  if (message.tool !== ToolCodes.TEXT) return false;
+  if (message.type === MutationType.CREATE) {
+    return (
+      typeof message.id === "string" &&
+      typeof message.color === "string" &&
+      typeof message.size === "number" &&
+      typeof message.x === "number" &&
+      typeof message.y === "number"
+    );
+  }
+  return (
+    message.type === MutationType.UPDATE &&
+    typeof message.id === "string" &&
+    typeof message.txt === "string"
+  );
+}
+
 /** @type {import("../shape_contract.js").ToolContract} */
 const contract = {
   toolId,
+  toolCode: ToolCodes.TEXT,
   payloadKind: "text",
   storedTagName: "text",
-  updatableFields: ["txt"],
-  liveMessageFields: {
+  updatableFields: /** @type {const} */ (["txt"]),
+  liveMessageFields: /** @type {const} */ ({
     [MutationType.CREATE]: {
       id: "id",
       color: "color",
@@ -85,7 +111,7 @@ const contract = {
       id: "id",
       txt: "text",
     },
-  },
+  }),
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
     const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
     const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));
@@ -249,6 +275,30 @@ function editOldText(state, elem) {
   state.input.value = elem.textContent || "";
 }
 
+/** @param {TextState} state */
+function createTextMessage(state) {
+  return {
+    tool: ToolCodes.TEXT,
+    type: MutationType.CREATE,
+    id: state.curText.id,
+    color: state.curText.color,
+    size: state.curText.size,
+    opacity: state.curText.opacity,
+    x: state.curText.x,
+    y: state.curText.y,
+  };
+}
+
+/** @param {TextState} state */
+function updateTextMessage(state) {
+  return {
+    tool: ToolCodes.TEXT,
+    type: MutationType.UPDATE,
+    id: state.curText.id,
+    txt: truncateText(state.input.value),
+  };
+}
+
 /**
  * @param {TextState} state
  * @param {Event | KeyboardEvent | FocusEvent} evt
@@ -274,21 +324,9 @@ function textChangeHandler(state, evt) {
   const nextText = truncateText(inputText);
   if (state.curText.id === "") {
     state.curText.id = state.Tools.generateUID("t");
-    state.Tools.drawAndSend({
-      type: MutationType.CREATE,
-      id: state.curText.id,
-      color: state.curText.color,
-      size: state.curText.size,
-      opacity: state.curText.opacity,
-      x: state.curText.x,
-      y: state.curText.y,
-    });
+    state.Tools.drawAndSend(createTextMessage(state));
   }
-  state.Tools.drawAndSend({
-    type: MutationType.UPDATE,
-    id: state.curText.id,
-    txt: nextText,
-  });
+  state.Tools.drawAndSend(updateTextMessage(state));
   if (state.input.value !== nextText) state.input.value = nextText;
   state.curText.sentText = nextText;
   state.curText.lastSending = performance.now();
@@ -297,16 +335,16 @@ function textChangeHandler(state, evt) {
 /**
  * @param {TextState} state
  * @param {Node & {textContent: string | null}} textField
- * @param {string | undefined} text
+ * @param {string} text
  */
 function updateText(state, textField, text) {
   void state;
-  textField.textContent = text ?? "";
+  textField.textContent = text;
 }
 
 /**
  * @param {TextState} state
- * @param {NewTextMessage} fieldData
+ * @param {TextCreateMessage} fieldData
  * @returns {SVGElement}
  */
 function createTextField(state, fieldData) {
@@ -320,7 +358,6 @@ function createTextField(state, fieldData) {
     "opacity",
     String(Math.max(0.1, Math.min(1, Number(fieldData.opacity) || 1))),
   );
-  if (fieldData.txt) elem.textContent = fieldData.txt;
   state.Tools.drawingArea.appendChild(elem);
   return elem;
 }
@@ -360,33 +397,34 @@ export function boot(ctx) {
 
 /**
  * @param {TextState} state
- * @param {TextMessage} data
+ * @param {unknown} data
  * @param {boolean} isLocal
  */
 export function draw(state, data, isLocal) {
   void isLocal;
-  const textMessage = /** @type {TextMessage} */ (data);
   state.Tools.drawingEvent = true;
-  if (textMessage.type === MutationType.CREATE) {
-    createTextField(state, /** @type {NewTextMessage} */ (textMessage));
+  if (!isTextMessage(data)) {
+    logFrontendEvent("error", "tool.text.draw_invalid_type", {
+      mutationType: /** @type {{type?: unknown}} */ (data)?.type,
+      message: data,
+    });
     return;
   }
-  if (textMessage.type === MutationType.UPDATE) {
-    const textField = document.getElementById(textMessage.id);
+  if (data.type === MutationType.CREATE) {
+    createTextField(state, data);
+    return;
+  }
+  if (data.type === MutationType.UPDATE) {
+    const textField = document.getElementById(data.id);
     if (!textField || String(textField.tagName).toLowerCase() !== "text") {
       logFrontendEvent("warn", "tool.text.update_missing_target", {
-        id: textMessage.id,
+        id: data.id,
       });
-      return false;
+      return;
     }
-    updateText(state, textField, textMessage.txt);
+    updateText(state, textField, data.txt);
     return;
   }
-  logFrontendEvent("error", "tool.text.draw_invalid_type", {
-    mutationType: textMessage.type,
-    message: textMessage,
-  });
-  return;
 }
 
 /**

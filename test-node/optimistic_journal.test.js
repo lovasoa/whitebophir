@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Hand, Rectangle } = require("../client-data/tools/index.js");
+const { ToolCodes } = require("../client-data/tools/tool-order.js");
 const { collectOptimisticAffectedIds, collectOptimisticDependencyIds } =
   require("../client-data/js/optimistic_mutation.js");
 const {
@@ -12,15 +13,56 @@ const {
   createOptimisticJournal,
 } = require("../client-data/js/optimistic_journal.js");
 
+/** @typedef {import("../types/app-runtime").ClientTrackedMessage} ClientTrackedMessage */
+/** @typedef {import("../types/app-runtime").OptimisticJournalState} OptimisticJournalState */
+
+const IDENTITY_TRANSFORM = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+
+/** @param {string} id */
+function rectCreate(id) {
+  return {
+    tool: Rectangle.id,
+    id,
+    type: MutationType.CREATE,
+    color: "#123456",
+    size: 4,
+    x: 0,
+    y: 0,
+    x2: 10,
+    y2: 10,
+  };
+}
+
+/** @param {string} id */
+function rectUpdate(id) {
+  return {
+    tool: Rectangle.id,
+    id,
+    type: MutationType.UPDATE,
+    x: 0,
+    y: 0,
+    x2: 20,
+    y2: 20,
+  };
+}
+
+/** @param {string} id */
+function handUpdate(id) {
+  return {
+    tool: Hand.id,
+    type: MutationType.UPDATE,
+    id,
+    transform: IDENTITY_TRANSFORM,
+  };
+}
+
 /**
- * @param {any} journal
- * @param {{tool: number, type: number, clientMutationId?: string, [key: string]: any}} message
+ * @param {OptimisticJournalState} journal
+ * @param {ClientTrackedMessage} message
  */
 function trackOptimisticMessage(journal, message) {
-  const clientMutationId = message.clientMutationId;
-  if (!clientMutationId) throw new Error("missing clientMutationId");
   journal.append({
-    clientMutationId,
+    clientMutationId: message.clientMutationId,
     affectedIds: collectOptimisticAffectedIds(message),
     dependsOn: journal.dependencyMutationIdsForItemIds(
       collectOptimisticDependencyIds(message),
@@ -38,22 +80,14 @@ test("optimistic journal appends and promotes entries in order", () => {
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: {
-      tool: Rectangle.id,
-      id: "shape-1",
-      type: MutationType.CREATE,
-    },
+    message: rectCreate("shape-1"),
   });
   journal.append({
     clientMutationId: "c2",
     affectedIds: ["shape-2"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: {
-      tool: Rectangle.id,
-      id: "shape-2",
-      type: MutationType.CREATE,
-    },
+    message: rectCreate("shape-2"),
   });
 
   assert.deepEqual(
@@ -78,22 +112,14 @@ test("optimistic journal tracks the latest pending mutation per affected item", 
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: {
-      tool: Rectangle.id,
-      id: "shape-1",
-      type: MutationType.CREATE,
-    },
+    message: rectCreate("shape-1"),
   });
   journal.append({
     clientMutationId: "c2",
     affectedIds: ["shape-1", "shape-2"],
     dependsOn: ["c1"],
     rollback: { kind: "items", snapshots: [] },
-    message: {
-      tool: Rectangle.id,
-      id: "shape-1",
-      type: MutationType.UPDATE,
-    },
+    message: rectUpdate("shape-1"),
   });
 
   assert.deepEqual(
@@ -116,33 +142,21 @@ test("optimistic journal rejects dependent descendants together", () => {
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: {
-      tool: Rectangle.id,
-      id: "shape-1",
-      type: MutationType.CREATE,
-    },
+    message: rectCreate("shape-1"),
   });
   journal.append({
     clientMutationId: "c2",
     affectedIds: ["shape-1"],
     dependsOn: ["c1"],
     rollback: { kind: "items", snapshots: [] },
-    message: {
-      tool: Rectangle.id,
-      id: "shape-1",
-      type: MutationType.UPDATE,
-    },
+    message: rectUpdate("shape-1"),
   });
   journal.append({
     clientMutationId: "c3",
     affectedIds: ["shape-2"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: {
-      tool: Rectangle.id,
-      id: "shape-2",
-      type: MutationType.CREATE,
-    },
+    message: rectCreate("shape-2"),
   });
 
   assert.deepEqual(
@@ -162,11 +176,7 @@ test("optimistic journal reset clears all pending entries", () => {
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
-    message: {
-      tool: Rectangle.id,
-      id: "shape-1",
-      type: MutationType.CREATE,
-    },
+    message: rectCreate("shape-1"),
   });
 
   assert.equal(journal.size(), 1);
@@ -175,6 +185,48 @@ test("optimistic journal reset clears all pending entries", () => {
     ["c1"],
   );
   assert.equal(journal.size(), 0);
+});
+
+test("optimistic journal does not require native structuredClone", () => {
+  const nativeStructuredClone = globalThis.structuredClone;
+  Reflect.set(globalThis, "structuredClone", undefined);
+  try {
+    const journal = createOptimisticJournal();
+    const rollback = {
+      kind: /** @type {"items"} */ ("items"),
+      snapshots: [
+        {
+          id: "shape-1",
+          outerHTML: '<rect id="shape-1"></rect>',
+          nextSiblingId: null,
+        },
+      ],
+    };
+    const message = rectCreate("shape-1");
+
+    const appended = journal.append({
+      clientMutationId: "c1",
+      affectedIds: ["shape-1"],
+      dependsOn: [],
+      rollback,
+      message,
+    });
+
+    const listed = journal.list()[0];
+    assert.equal(appended.message, message);
+    assert.equal(appended.rollback, rollback);
+    assert.equal(listed?.message, message);
+    assert.equal(listed?.rollback, rollback);
+    assert.equal(
+      listed?.rollback.kind === "items"
+        ? listed.rollback.snapshots[0]?.outerHTML
+        : undefined,
+      '<rect id="shape-1"></rect>',
+    );
+    assert.equal(appended.message.color, "#123456");
+  } finally {
+    Reflect.set(globalThis, "structuredClone", nativeStructuredClone);
+  }
 });
 
 test("optimistic journal prunes entries invalidated by authoritative deletes", () => {
@@ -198,7 +250,7 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
     dependsOn: ["copy-1"],
     dependencyItemIds: ["copy-1"],
     rollback: { kind: "items", snapshots: [] },
-    message: { tool: Hand.id, type: MutationType.UPDATE, id: "copy-1" },
+    message: handUpdate("copy-1"),
   });
   journal.append({
     clientMutationId: "shape-2-update",
@@ -206,11 +258,7 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
     dependsOn: [],
     dependencyItemIds: ["shape-2"],
     rollback: { kind: "items", snapshots: [] },
-    message: {
-      tool: Rectangle.id,
-      type: MutationType.UPDATE,
-      id: "shape-2",
-    },
+    message: rectUpdate("shape-2"),
   });
 
   assert.deepEqual(
@@ -299,7 +347,7 @@ test("optimistic journal uses authoritative prune plans with dependency-driven e
   );
 
   const clearPrunePlan = optimisticPrunePlanForAuthoritativeMessage({
-    tool: "clear",
+    tool: ToolCodes.CLEAR,
     type: MutationType.CLEAR,
   });
   assert.equal(clearPrunePlan.reset, true);

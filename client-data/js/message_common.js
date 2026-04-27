@@ -49,6 +49,10 @@
  */
 import { DRAW_TOOL_IDS, TOOL_IDS } from "../tools/tool-order.js";
 
+const DRAW_TOOL_ID_SET = /** @type {ReadonlySet<string>} */ (
+  new Set(DRAW_TOOL_IDS)
+);
+
 /**
  * @param {unknown} tool
  * @returns {string | undefined}
@@ -257,7 +261,7 @@ export function isDrawTool(toolId) {
   const normalizedToolId = normalizeToolId(toolId);
   return (
     typeof normalizedToolId === "string" &&
-    DRAW_TOOL_IDS.indexOf(normalizedToolId) !== -1
+    DRAW_TOOL_ID_SET.has(normalizedToolId)
   );
 }
 

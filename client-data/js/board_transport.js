@@ -1,6 +1,7 @@
 import { MutationType } from "./mutation_type.js";
+import { hasMessageChildren } from "./message_shape.js";
 
-/** @import { BoardMessage, PendingMessages, SocketHeaders, SocketParams } from "../../types/app-runtime" */
+/** @import { BoardMessage, MessageChildren, PencilAppendMessage, PencilChildPoint, PencilReplayParent, PendingMessages, SocketHeaders, SocketParams } from "../../types/app-runtime" */
 /** @typedef {{[name: string]: string}} SocketQueryParams */
 const BATCH_SIZE = 1024;
 
@@ -112,23 +113,26 @@ function queuePendingMessage(pendingMessages, toolName, message) {
 }
 
 /**
- * @param {BoardMessage} message
- * @returns {message is BoardMessage & {_children: BoardMessage[]}}
+ * @param {unknown} message
+ * @returns {message is MessageChildren}
  */
 function hasChildMessages(message) {
-  return Array.isArray(message._children);
+  return hasMessageChildren(message);
 }
 
 /**
- * @param {BoardMessage} parent
- * @param {{[key: string]: unknown}} child
- * @returns {BoardMessage}
+ * @param {PencilReplayParent} parent
+ * @param {PencilChildPoint} child
+ * @returns {PencilAppendMessage}
  */
 function normalizeChildMessage(parent, child) {
-  child.parent = parent.id;
-  child.tool = parent.tool;
-  child.type = MutationType.APPEND;
-  return child;
+  return {
+    tool: parent.tool,
+    type: MutationType.APPEND,
+    parent: parent.id,
+    x: child.x,
+    y: child.y,
+  };
 }
 
 export const connection = {

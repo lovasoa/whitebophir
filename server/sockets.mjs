@@ -2,9 +2,14 @@ import * as socketIO from "socket.io";
 import WBOMessageCommon from "../client-data/js/message_common.js";
 import {
   formatMessageTypeTag,
+  getMutationType,
   getToolId,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
+import {
+  hasMessageColor,
+  hasMessageSize,
+} from "../client-data/js/message_shape.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { SocketEvents } from "../client-data/js/socket_events.js";
 import { Cursor } from "../client-data/tools/index.js";
@@ -534,8 +539,8 @@ function updateBoardUserFromMessage(socket, boardName, data, now) {
   if (!user) return undefined;
 
   user.lastSeen = now;
-  if (data.color !== undefined) user.color = data.color;
-  if (data.size !== undefined) user.size = Number(data.size) || user.size;
+  if (hasMessageColor(data)) user.color = data.color;
+  if (hasMessageSize(data)) user.size = data.size || user.size;
   const toolId = getToolId(data.tool);
   if (data.tool !== Cursor.id && toolId) {
     user.lastTool = toolId;
@@ -644,7 +649,7 @@ function socketTraceAttributes(eventName, extras) {
 /**
  * @param {string} boardName
  * @param {string | undefined} userName
- * @param {{tool?: string | number, type?: string | number}=} message
+ * @param {{tool?: unknown, type?: unknown}=} message
  * @returns {{[key: string]: unknown}}
  */
 function boardMutationTraceAttributes(boardName, userName, message) {
@@ -1862,7 +1867,7 @@ function rejectBlockedBoardWrite(
     "client.address": clientIp,
     "user.name": userName,
     tool: getToolId(data.tool),
-    type: data.type,
+    type: getMutationType(data),
   });
   metrics.recordBoardMessage(
     { board: boardName, ...data },
@@ -1898,7 +1903,7 @@ function rejectBoardMessageWrite(
     "client.address": clientIp,
     "user.name": userName,
     tool: getToolId(data.tool),
-    type: data.type,
+    type: getMutationType(data),
     reason,
   });
   metrics.recordBoardMessage(

@@ -1121,7 +1121,7 @@ function recordSocketConnectionReplay(request) {
 }
 
 /**
- * @param {{board?: string, tool?: string | number, type?: string | number}} message
+ * @param {{board?: string, tool?: unknown, type?: unknown}} message
  * @param {string=} errorType
  * @returns {void}
  */

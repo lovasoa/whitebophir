@@ -25,9 +25,10 @@
  */
 
 import { MutationType } from "../../js/mutation_type.js";
+import { ToolCodes } from "../tool-order.js";
 
-/** @import { MountedAppToolsState, MutationCode, ToolBootContext } from "../../../types/app-runtime" */
-/** @typedef {{type: MutationCode, id: string, token?: string | null}} ClearMessage */
+/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
+/** @typedef {ReturnType<typeof createClearMessage>} ClearMessage */
 
 export const toolId = "clear";
 export const shortcut = "c";
@@ -35,17 +36,23 @@ export const oneTouch = true;
 export const requiresWritableBoard = true;
 export const mouseCursor = "crosshair";
 export const moderatorOnly = true;
-export const liveMessageFields = { [MutationType.CLEAR]: {} };
+export const liveMessageFields = /** @type {const} */ ({
+  [MutationType.CLEAR]: {},
+});
 
 /** @param {MountedAppToolsState} tools */
-export function onstart(tools) {
-  /** @type {ClearMessage} */
-  const msg = {
+function createClearMessage(tools) {
+  return {
+    tool: ToolCodes.CLEAR,
     type: MutationType.CLEAR,
     id: "",
     token: tools.token,
   };
-  tools.drawAndSend(msg, toolId);
+}
+
+/** @param {MountedAppToolsState} tools */
+export function onstart(tools) {
+  tools.drawAndSend(createClearMessage(tools));
 }
 
 /** @param {MountedAppToolsState} tools */

@@ -1,7 +1,12 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: Playwright tests frequently access global state on the window object.
 import { setTimeout as delay } from "node:timers/promises";
 import { MutationType } from "../../client-data/js/mutation_type.js";
-import { Cursor, Eraser } from "../../client-data/tools/index.js";
+import {
+  Cursor,
+  Eraser,
+  Pencil,
+  Rectangle,
+} from "../../client-data/tools/index.js";
 import { createBoardPage, expect, test } from "../fixtures/test";
 import { DEFAULT_FORWARDED_IP } from "../helpers/tokens";
 
@@ -430,10 +435,12 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.waitForSocketConnected();
     await boardPage.waitForAuthoritativeResync();
 
-    await page.evaluate((createType) => {
-      const rectangle = window.Tools.list.rectangle;
-      window.Tools.drawAndSend(
-        {
+    await page.evaluate(
+      ({ createType, tool }) => {
+        const rectangle = window.Tools.list.rectangle;
+        if (!rectangle) throw new Error("rectangle tool is unavailable");
+        window.Tools.drawAndSend({
+          tool,
           type: createType,
           id: "persisted-across-disconnect",
           x: 40,
@@ -443,10 +450,10 @@ test.describe("collaboration and rate limiting", () => {
           color: "#224466",
           size: 10,
           opacity: 1,
-        },
-        rectangle,
-      );
-    }, MutationType.CREATE);
+        });
+      },
+      { createType: MutationType.CREATE, tool: Rectangle.id },
+    );
 
     await server.waitForStoredBoard(
       server.dataPath,
@@ -502,23 +509,22 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.waitForAuthoritativeResync();
 
     await page.evaluate(
-      async ({ createType, appendType }) => {
+      async ({ pencilTool, createType, appendType }) => {
         const nextFrame = () =>
           new Promise<void>((resolve) =>
             requestAnimationFrame(() => resolve()),
           );
         const lineId = "reconnect-pencil-path";
         const pencil = window.Tools.list.pencil;
-        window.Tools.drawAndSend(
-          {
-            type: createType,
-            id: lineId,
-            color: "#8844aa",
-            size: 10,
-            opacity: 1,
-          },
-          pencil,
-        );
+        if (!pencil) throw new Error("pencil tool is unavailable");
+        window.Tools.drawAndSend({
+          tool: pencilTool,
+          type: createType,
+          id: lineId,
+          color: "#8844aa",
+          size: 10,
+          opacity: 1,
+        });
         await nextFrame();
         for (const point of [
           { x: 198, y: 658 },
@@ -526,19 +532,18 @@ test.describe("collaboration and rate limiting", () => {
           { x: 325, y: 697 },
           { x: 198, y: 658 },
         ]) {
-          window.Tools.drawAndSend(
-            {
-              type: appendType,
-              parent: lineId,
-              x: point.x,
-              y: point.y,
-            },
-            pencil,
-          );
+          window.Tools.drawAndSend({
+            tool: pencilTool,
+            type: appendType,
+            parent: lineId,
+            x: point.x,
+            y: point.y,
+          });
           await nextFrame();
         }
       },
       {
+        pencilTool: Pencil.id,
         createType: MutationType.CREATE,
         appendType: MutationType.APPEND,
       },
@@ -825,10 +830,12 @@ test.describe("collaboration and rate limiting", () => {
         expect(boardPage.tool("rectangle")).toBeVisible(),
       ]);
 
-      await page.evaluate((createType) => {
-        const rectangle = window.Tools.list.rectangle;
-        window.Tools.drawAndSend(
-          {
+      await page.evaluate(
+        ({ createType, tool }) => {
+          const rectangle = window.Tools.list.rectangle;
+          if (!rectangle) throw new Error("rectangle tool is unavailable");
+          window.Tools.drawAndSend({
+            tool,
             type: createType,
             id: "buffered-rect-1",
             x: 40,
@@ -838,11 +845,9 @@ test.describe("collaboration and rate limiting", () => {
             color: "#aa0000",
             size: 10,
             opacity: 1,
-          },
-          rectangle,
-        );
-        window.Tools.drawAndSend(
-          {
+          });
+          window.Tools.drawAndSend({
+            tool,
             type: createType,
             id: "buffered-rect-2",
             x: 120,
@@ -852,10 +857,10 @@ test.describe("collaboration and rate limiting", () => {
             color: "#00aa00",
             size: 10,
             opacity: 1,
-          },
-          rectangle,
-        );
-      }, MutationType.CREATE);
+          });
+        },
+        { createType: MutationType.CREATE, tool: Rectangle.id },
+      );
 
       await expect
         .poll(() => boardPage.readWriteStatus())
@@ -914,10 +919,12 @@ test.describe("collaboration and rate limiting", () => {
       await boardPage.waitForSocketConnected();
       await boardPage.waitForAuthoritativeResync();
 
-      await page.evaluate((createType) => {
-        const rectangle = window.Tools.list.rectangle;
-        window.Tools.drawAndSend(
-          {
+      await page.evaluate(
+        ({ createType, tool }) => {
+          const rectangle = window.Tools.list.rectangle;
+          if (!rectangle) throw new Error("rectangle tool is unavailable");
+          window.Tools.drawAndSend({
+            tool,
             type: createType,
             id: "persisted-before-disconnect",
             x: 40,
@@ -927,11 +934,9 @@ test.describe("collaboration and rate limiting", () => {
             color: "#112233",
             size: 10,
             opacity: 1,
-          },
-          rectangle,
-        );
-        window.Tools.drawAndSend(
-          {
+          });
+          window.Tools.drawAndSend({
+            tool,
             type: createType,
             id: "local-only-before-disconnect",
             x: 120,
@@ -941,10 +946,10 @@ test.describe("collaboration and rate limiting", () => {
             color: "#445566",
             size: 10,
             opacity: 1,
-          },
-          rectangle,
-        );
-      }, MutationType.CREATE);
+          });
+        },
+        { createType: MutationType.CREATE, tool: Rectangle.id },
+      );
 
       await expect(
         page.locator("rect#local-only-before-disconnect"),

@@ -1,10 +1,12 @@
-/** @import { BoardMessage, IdentifiedBoardMessage, IncomingBroadcast, SequencedMutationBroadcast, ToolOwnedBatchMessage } from "../../types/app-runtime" */
+/** @import { IncomingBroadcast, PencilChildPoint, PencilReplayParent, ReplayMessage, SequencedMutationBroadcast, ToolOwnedBatchMessage } from "../../types/app-runtime" */
 import { isToolOwnedBatchTool } from "./message_tool_metadata.js";
 import {
   hasMessageChildren,
   hasMessageId,
+  hasMessagePoint,
   hasMessageTool,
 } from "./message_shape.js";
+import { ToolCodes } from "../tools/tool-order.js";
 
 /**
  * @param {unknown} value
@@ -30,7 +32,7 @@ export function classifySequencedMutationSeq(messageSeq, authoritativeSeq) {
 }
 
 /**
- * @param {{tool?: unknown, _children?: unknown}} message
+ * @param {unknown} message
  * @returns {message is ToolOwnedBatchMessage}
  */
 export function isToolOwnedBatchMessage(message) {
@@ -41,7 +43,7 @@ export function isToolOwnedBatchMessage(message) {
 }
 
 /**
- * @param {{tool?: unknown, _children?: unknown}} message
+ * @param {unknown} message
  * @returns {boolean}
  */
 export function shouldReplayChildrenIndividually(message) {
@@ -49,14 +51,27 @@ export function shouldReplayChildrenIndividually(message) {
 }
 
 /**
- * @template T
- * @param {{id?: unknown, tool?: unknown, _children?: unknown}} parent
- * @param {T} child
- * @param {(parent: IdentifiedBoardMessage, child: T) => T} normalizeChildMessage
- * @returns {T}
+ * @param {unknown} message
+ * @returns {message is PencilReplayParent}
+ */
+function isPencilReplayParent(message) {
+  return (
+    hasMessageId(message) &&
+    hasMessageTool(message) &&
+    message.tool === ToolCodes.PENCIL
+  );
+}
+
+/**
+ * @template TChild
+ * @template TResult
+ * @param {unknown} parent
+ * @param {TChild} child
+ * @param {(parent: PencilReplayParent, child: PencilChildPoint) => TResult} normalizeChildMessage
+ * @returns {TResult | TChild}
  */
 export function prepareReplayChild(parent, child, normalizeChildMessage) {
-  if (parent && hasMessageId(parent)) {
+  if (isPencilReplayParent(parent) && hasMessagePoint(child)) {
     return normalizeChildMessage(parent, child);
   }
   return child;
@@ -89,7 +104,7 @@ export function isSequencedMutationBroadcast(message) {
 
 /**
  * @param {IncomingBroadcast} message
- * @returns {BoardMessage}
+ * @returns {ReplayMessage}
  */
 export function unwrapSequencedMutationBroadcast(message) {
   return isSequencedMutationBroadcast(message) ? message.mutation : message;

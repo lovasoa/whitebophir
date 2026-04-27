@@ -2,19 +2,28 @@ import type {
   BoardMessage,
   ConnectedUser,
   SequencedMutationBroadcast,
-  ToolCode,
 } from "./app-runtime";
 
 export type ServerConfig = typeof import("../server/configuration.mjs");
 
-export type MessageData = Partial<BoardMessage> & {
-  [key: string]: any;
-};
+export type MessageData = Partial<
+  Record<
+    | "tool"
+    | "type"
+    | "id"
+    | "parent"
+    | "newid"
+    | "color"
+    | "size"
+    | "txt"
+    | "clientMutationId"
+    | "transform"
+    | "_children",
+    unknown
+  >
+>;
 
-export type NormalizedMessageData = BoardMessage & {
-  tool: ToolCode;
-  [key: string]: any;
-};
+export type NormalizedMessageData = BoardMessage;
 
 export type SocketRequest = {
   headers: { [key: string]: string | string[] | undefined };
@@ -62,7 +71,6 @@ export type TurnstileSiteverifyResult = {
   success?: boolean;
   hostname?: unknown;
   "error-codes"?: unknown;
-  [key: string]: unknown;
 };
 
 export type ReportUserPayload = {
