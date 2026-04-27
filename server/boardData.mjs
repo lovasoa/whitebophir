@@ -25,14 +25,8 @@
  * @module boardData
  */
 
-import { stat } from "node:fs/promises";
 import MessageCommon from "../client-data/js/message_common.js";
-import {
-  hasMessageChildren,
-  hasMessageId,
-  hasMessageNewId,
-  hasMessageTool,
-} from "../client-data/js/message_shape.js";
+import { hasMessageId } from "../client-data/js/message_shape.js";
 import {
   getTool,
   getUpdatableFields,
@@ -52,26 +46,45 @@ import { Eraser } from "../client-data/tools/index.js";
 import {
   authoritativeItemCount,
   cloneBounds,
-  finalizePersistedCanonicalItems,
   getCanonicalItem,
   rebuildLiveItemCount,
   removeCanonicalItem,
   upsertCanonicalItem,
 } from "./board_canonical_index.mjs";
-import { getMinPinnedReplayBaselineSeq } from "./board_registry.mjs";
-import { boardJsonPath } from "./legacy_json_board_source.mjs";
+import {
+  canAddChild as canBoardAddChild,
+  canCopy as canBoardCopy,
+  canProcessMessage as canBoardProcessMessage,
+  canStore as canBoardStore,
+  canUpdate as canBoardUpdate,
+  collectHydrationIds as collectBoardHydrationIds,
+  collectReferencedMutationIds as collectBoardReferencedMutationIds,
+  commitMutation as commitBoardMutation,
+  preparePersistentMutation as prepareBoardPersistentMutation,
+  processMessage as processBoardMessage,
+  processMessageBatch as processBoardMessageBatch,
+  trimOverflowItems as trimBoardOverflowItems,
+} from "./board_message_processing.mjs";
+import {
+  clearSaveTimeout as clearBoardSaveTimeout,
+  computeScheduledSaveDelayMs,
+  delaySave as delayBoardSave,
+  dirtyAgeMs as boardDirtyAgeMs,
+  disposeBoard,
+  finalizePersistedItems as finalizeBoardPersistedItems,
+  hasDirtyItems as boardHasDirtyItems,
+  loadBoardData,
+  saveBoard,
+  scheduleDirtySave as scheduleBoardDirtySave,
+  scheduleSaveTimeout as scheduleBoardSaveTimeout,
+  trimPersistedMutationLog as trimBoardPersistedMutationLog,
+  unsafeSaveBoard,
+} from "./board_data_persistence.mjs";
 import { createMutationLog } from "./mutation_log.mjs";
 import observability from "./observability.mjs";
-import { SerialTaskQueue } from "./serial_task_queue.mjs";
-import {
-  boardSvgBackupPath,
-  boardSvgPath,
-  readCanonicalBoardState,
-  rewriteStoredSvgFromCanonical,
-  writeCanonicalBoardState,
-} from "./svg_board_store.mjs";
+import { boardSvgPath } from "./svg_board_paths.mjs";
 
-const { logger, metrics, tracing } = observability;
+const { logger } = observability;
 /** @returns {BoardMetadata} */
 function defaultBoardMetadata() {
   return {
@@ -79,10 +92,6 @@ function defaultBoardMetadata() {
   };
 }
 
-const STANDALONE_BOARD_LOAD_BYTES_THRESHOLD = 1024 * 1024;
-const STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD = 2048;
-const STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD = 64;
-const boardSaveQueue = new SerialTaskQueue();
 let boardInstanceSequence = 0;
 /** @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds */
 /** @typedef {{readonly: boolean}} BoardMetadata */
@@ -131,85 +140,6 @@ let boardInstanceSequence = 0;
  * >} BoardConfig
  */
 
-/**
- * @param {string} name
- * @param {string} [historyDir]
- * @returns {string}
- */
-function boardFilePath(name, historyDir) {
-  return boardSvgPath(name, historyDir);
-}
-
-/**
- * @param {string} boardName
- * @param {string} operation
- * @param {{[key: string]: unknown}=} extras
- * @returns {{[key: string]: unknown}}
- */
-function boardTraceAttributes(boardName, operation, extras) {
-  return {
-    "wbo.board": boardName,
-    "wbo.board.operation": operation,
-    ...extras,
-  };
-}
-
-/**
- * @param {BoardData} board
- * @returns {number}
- */
-function countDirtyItems(board) {
-  let count = 0;
-  for (const item of board.itemsById.values()) {
-    if (item?.dirty === true) count += 1;
-  }
-  return count;
-}
-
-/**
- * @param {BoardData} board
- * @param {{[key: string]: unknown}=} extras
- * @returns {{[key: string]: unknown}}
- */
-function boardLogFields(board, extras) {
-  return {
-    board: board.name,
-    "wbo.board.instance": board.instanceId,
-    "wbo.board.seq": board.getSeq(),
-    "wbo.board.persisted_seq": board.getPersistedSeq(),
-    "wbo.board.min_replayable_seq": board.minReplayableSeq(),
-    "wbo.board.has_persisted_baseline": board.hasPersistedBaseline,
-    "wbo.board.items": board.authoritativeItemCount(),
-    "wbo.board.dirty_items": countDirtyItems(board),
-    "wbo.board.users": board.users.size,
-    ...(extras || {}),
-  };
-}
-
-/**
- * @param {{
- *   nowMs: number,
- *   dirtyFromMs: number | null,
- *   lastWriteAtMs: number | null,
- *   saveIntervalMs: number,
- *   maxSaveDelayMs: number,
- * }} options
- * @returns {number}
- */
-function computeScheduledSaveDelayMs(options) {
-  if (options.dirtyFromMs === null || options.lastWriteAtMs === null) {
-    return 0;
-  }
-  const idleDeadlineMs =
-    options.lastWriteAtMs + Math.max(0, Number(options.saveIntervalMs) || 0);
-  const maxDelayDeadlineMs =
-    options.dirtyFromMs + Math.max(0, Number(options.maxSaveDelayMs) || 0);
-  return Math.max(
-    0,
-    Math.min(idleDeadlineMs, maxDelayDeadlineMs) - options.nowMs,
-  );
-}
-
 /** @param {string} id */
 function eraserDeleteMutation(id) {
   return { tool: Eraser.id, type: MutationType.DELETE, id };
@@ -253,15 +183,21 @@ class BoardData {
     this.maxBoardSize = config.MAX_BOARD_SIZE;
     this.maxChildren = config.MAX_CHILDREN;
     this.maxItemCount = config.MAX_ITEM_COUNT;
-    this.file = boardFilePath(name, this.historyDir);
+    this.file = boardSvgPath(name, this.historyDir);
     /** @type {Set<string>} */
     this.persistedItemIds = new Set();
+    /** @type {number | null} */
     this.dirtyFromMs = null;
+    /** @type {number | null} */
     this.lastWriteAtMs = null;
+    /** @type {number | null} */
     this.dirtyDuringSaveFromMs = null;
+    /** @type {number | null} */
     this.saveStartedAtMs = null;
+    /** @type {number | null} */
     this.saveTargetSeq = null;
     this.saveInProgress = false;
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
     this.saveTimeoutId = undefined;
     this.users = new Set();
     this.mutationLog = createMutationLog(0);
@@ -382,12 +318,7 @@ class BoardData {
    * @returns {void}
    */
   trimPersistedMutationLog(nowMs = Date.now()) {
-    const retentionMs = Math.max(0, this.config.SEQ_REPLAY_RETENTION_MS);
-    const pinnedBaselineSeq = getMinPinnedReplayBaselineSeq(this.name, nowMs);
-    this.mutationLog.trimPersistedOlderThan(
-      nowMs - retentionMs,
-      pinnedBaselineSeq,
-    );
+    trimBoardPersistedMutationLog(this, nowMs);
   }
 
   /**
@@ -412,8 +343,7 @@ class BoardData {
    * @returns {{ok: true}}
    */
   commitMutation() {
-    this.pendingAcceptedMutationEffects.push(...this.trimOverflowItems());
-    return { ok: true };
+    return commitBoardMutation(this);
   }
 
   /**
@@ -427,23 +357,7 @@ class BoardData {
    * @returns {PendingMutationEffect[]}
    */
   trimOverflowItems() {
-    /** @type {PendingMutationEffect[]} */
-    const followup = [];
-    while (
-      this.liveItemCount > this.maxItemCount &&
-      this.trimPaintOrderIndex < this.paintOrder.length
-    ) {
-      const id = this.paintOrder[this.trimPaintOrderIndex];
-      this.trimPaintOrderIndex += 1;
-      if (id === undefined) continue;
-      const item = this.itemsById.get(id);
-      if (!item || item.deleted === true) continue;
-      removeCanonicalItem(this, id);
-      followup.push({
-        mutation: eraserDeleteMutation(id),
-      });
-    }
-    return followup;
+    return trimBoardOverflowItems(this);
   }
 
   /**
@@ -608,21 +522,7 @@ class BoardData {
    * @returns {Set<string>}
    */
   collectReferencedMutationIds(message) {
-    const ids = new Set();
-    if (!message || typeof message !== "object") return ids;
-    if (hasMessageChildren(message)) {
-      message._children.forEach((child) => {
-        this.collectReferencedMutationIds(child).forEach((id) => ids.add(id));
-      });
-      return ids;
-    }
-    if (hasMessageId(message)) {
-      ids.add(message.id);
-    }
-    if ("parent" in message && typeof message.parent === "string") {
-      ids.add(message.parent);
-    }
-    return ids;
+    return collectBoardReferencedMutationIds(this, message);
   }
 
   /**
@@ -630,26 +530,7 @@ class BoardData {
    * @returns {Set<string>}
    */
   collectHydrationIds(message) {
-    const ids = new Set();
-    if (!message || typeof message !== "object") return ids;
-    if (hasMessageChildren(message)) {
-      message._children.forEach((child) => {
-        this.collectHydrationIds(child).forEach((id) => ids.add(id));
-      });
-      return ids;
-    }
-    switch (getMutationType(message)) {
-      case MutationType.UPDATE:
-      case MutationType.COPY:
-        if (hasMessageId(message)) ids.add(message.id);
-        break;
-      case MutationType.APPEND:
-        if ("parent" in message && typeof message.parent === "string") {
-          ids.add(message.parent);
-        }
-        break;
-    }
-    return ids;
+    return collectBoardHydrationIds(this, message);
   }
 
   /**
@@ -657,66 +538,15 @@ class BoardData {
    * @returns {Promise<{ok: true, mutation: NormalizedMessageData} | {ok: false, reason: string}>}
    */
   async preparePersistentMutation(message) {
-    if (hasMessageChildren(message)) {
-      return { ok: true, mutation: message };
-    }
-    switch (getMutationType(message)) {
-      case MutationType.COPY:
-        if (!hasMessageId(message) || !getCanonicalItem(this, message.id)) {
-          return { ok: false, reason: "copied object does not exist" };
-        }
-        return { ok: true, mutation: message };
-      case MutationType.APPEND:
-        if (
-          !("parent" in message) ||
-          typeof message.parent !== "string" ||
-          !getCanonicalItem(this, message.parent)
-        ) {
-          return { ok: false, reason: "invalid parent for child" };
-        }
-        return this.canAddChild(message.parent, message)
-          ? { ok: true, mutation: message }
-          : { ok: false, reason: "shape too large" };
-      case MutationType.UPDATE:
-        if (!hasMessageId(message) || !getCanonicalItem(this, message.id)) {
-          return { ok: false, reason: "object not found" };
-        }
-        if (
-          this.canUpdate(message.id, getUpdatableFields(message.tool, message))
-        ) {
-          return { ok: true, mutation: message };
-        }
-        if (this.shouldDeferSeedDropRejectionToMutationEngine(message)) {
-          return { ok: true, mutation: message };
-        }
-        return { ok: false, reason: "shape too large" };
-      default:
-        return { ok: true, mutation: message };
-    }
+    return prepareBoardPersistentMutation(this, message);
   }
 
-  /**
-   * @param {string} id
-   * @param {BoardElem} data
-   * @returns {boolean}
-   */
-  canStore(id, data) {
-    return this.validateStoredCandidate(id, data).ok;
+  canStore(/** @type {string} */ id, /** @type {BoardElem} */ data) {
+    return canBoardStore(this, id, data);
   }
 
-  /**
-   * @param {string} id
-   * @param {BoardElem} updateData
-   * @returns {boolean}
-   */
-  canUpdate(id, updateData) {
-    const obj = getCanonicalItem(this, id);
-    if (typeof obj !== "object") return false;
-
-    const candidate = this.makeUpdateCandidate(id, obj, updateData);
-    if (!candidate) return false;
-
-    return !this.isUpdateCandidateTooLarge(obj, updateData, candidate);
+  canUpdate(/** @type {string} */ id, /** @type {BoardElem} */ updateData) {
+    return canBoardUpdate(this, id, updateData);
   }
 
   /**
@@ -803,24 +633,12 @@ class BoardData {
     return next;
   }
 
-  /**
-   * @param {string} parentId
-   * @param {BoardElem} child
-   * @returns {boolean}
-   */
-  canAddChild(parentId, child) {
-    return this.makeAppendCandidate(parentId, child).ok;
+  canAddChild(/** @type {string} */ parentId, /** @type {BoardElem} */ child) {
+    return canBoardAddChild(this, parentId, child);
   }
 
-  /**
-   * @param {string} id
-   * @param {BoardElem} data
-   * @returns {boolean}
-   */
-  canCopy(id, data) {
-    const obj = getCanonicalItem(this, id);
-    if (!obj) return false;
-    return this.makeCopyCandidate(data.newid, obj).ok;
+  canCopy(/** @type {string} */ id, /** @type {BoardElem} */ data) {
+    return canBoardCopy(this, id, data);
   }
 
   /**
@@ -875,29 +693,8 @@ class BoardData {
     };
   }
 
-  /**
-   * @param {BoardMessage} message
-   * @returns {boolean}
-   */
-  canProcessMessage(message) {
-    const id = hasMessageId(message) ? message.id : "";
-    switch (getMutationType(message)) {
-      case MutationType.DELETE:
-      case MutationType.CLEAR:
-        return true;
-      case MutationType.UPDATE:
-        return id
-          ? this.canUpdate(id, getUpdatableFields(message.tool, message))
-          : false;
-      case MutationType.COPY:
-        return id ? this.canCopy(id, message) : false;
-      case MutationType.APPEND:
-        return "parent" in message && typeof message.parent === "string"
-          ? this.canAddChild(message.parent, message)
-          : false;
-      default:
-        return id ? this.canStore(id, message) : false;
-    }
+  canProcessMessage(/** @type {BoardMessage} */ message) {
+    return canBoardProcessMessage(this, message);
   }
 
   /** Adds data to the board
@@ -1073,151 +870,7 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure}
    */
   processMessageBatch(children, parentMessage) {
-    return tracing.withExpensiveActiveSpan(
-      "board.process_message_batch",
-      {
-        attributes: boardTraceAttributes(this.name, "process_message_batch", {
-          "wbo.message.count": children.length,
-          "wbo.message.tool": parentMessage?.tool,
-        }),
-        traceRoot:
-          children.length >= STANDALONE_BOARD_BATCH_CHILD_COUNT_THRESHOLD,
-      },
-      () => {
-        /** @type {BoardMessage[]} */
-        const messages = children.map((childMessage) =>
-          parentMessage && !hasMessageTool(childMessage)
-            ? /** @type {BoardMessage} */ ({
-                ...childMessage,
-                tool: parentMessage.tool,
-              })
-            : /** @type {BoardMessage} */ (childMessage),
-        );
-        /** @type {Map<string, any | undefined>} */
-        const overlay = new Map();
-        let clearAll = false;
-
-        /**
-         * @param {string} id
-         * @returns {any}
-         */
-        const readItem = (id) => {
-          if (overlay.has(id)) return overlay.get(id);
-          if (clearAll) return undefined;
-          return getCanonicalItem(this, id);
-        };
-
-        for (const message of messages) {
-          const id = hasMessageId(message) ? message.id : "";
-          switch (getMutationType(message)) {
-            case MutationType.CLEAR:
-              clearAll = true;
-              overlay.clear();
-              break;
-            case MutationType.DELETE:
-              if (!id) return { ok: false, reason: "missing id" };
-              overlay.set(id, undefined);
-              break;
-            case MutationType.UPDATE: {
-              if (!id) return { ok: false, reason: "missing id" };
-              const current = readItem(id);
-              if (!current) return { ok: false, reason: "object not found" };
-              const updateData = getUpdatableFields(message.tool, message);
-              const candidate = this.makeUpdateCandidate(
-                id,
-                current,
-                updateData,
-              );
-              if (!candidate) {
-                return { ok: false, reason: "object not found" };
-              }
-              if (
-                this.isUpdateCandidateTooLarge(current, updateData, candidate)
-              ) {
-                return { ok: false, reason: "shape too large" };
-              }
-              const next = this.applyUpdateToCanonicalItem(
-                current,
-                updateData,
-                candidate.localBounds,
-              );
-              overlay.set(id, next);
-              break;
-            }
-            case MutationType.COPY: {
-              if (!id || !hasMessageNewId(message)) {
-                return { ok: false, reason: "missing id" };
-              }
-              const current = readItem(id);
-              if (!current) {
-                return { ok: false, reason: "copied object does not exist" };
-              }
-              const existingTarget = readItem(message.newid);
-              const validated = this.makeCopyCandidate(message.newid, current);
-              if (!validated.ok) return validated;
-              validated.value.paintOrder =
-                existingTarget?.paintOrder ?? validated.value.paintOrder;
-              overlay.set(message.newid, validated.value);
-              break;
-            }
-            case MutationType.APPEND: {
-              if (
-                !("parent" in message) ||
-                typeof message.parent !== "string"
-              ) {
-                return { ok: false, reason: "invalid parent for child" };
-              }
-              const next = this.makeAppendCandidate(
-                message.parent,
-                message,
-                readItem(message.parent),
-              );
-              if (!next.ok) return next;
-              overlay.set(message.parent, next.value);
-              break;
-            }
-            default: {
-              if (!id) return { ok: false, reason: "missing id" };
-              const validated = this.validateStoredCandidate(id, {
-                ...message,
-                time: Date.now(),
-              });
-              if (!validated.ok) return validated;
-              const existing = readItem(id);
-              const next = {
-                ...validated.canonical,
-                paintOrder: clearAll
-                  ? this.nextPaintOrder
-                  : (existing?.paintOrder ?? this.nextPaintOrder),
-              };
-              overlay.set(id, next);
-              break;
-            }
-          }
-        }
-
-        if (clearAll) {
-          for (const [id, item] of this.itemsById.entries()) {
-            this.itemsById.set(id, {
-              ...item,
-              deleted: true,
-              dirty: true,
-            });
-          }
-          this.liveItemCount = 0;
-          this.trimPaintOrderIndex = this.paintOrder.length;
-        }
-        for (const [id, item] of overlay.entries()) {
-          if (item === undefined) {
-            removeCanonicalItem(this, id);
-          } else {
-            upsertCanonicalItem(this, item);
-          }
-        }
-        if (clearAll || overlay.size > 0) this.delaySave();
-        return this.commitMutation();
-      },
-    );
+    return processBoardMessageBatch(this, children, parentMessage);
   }
 
   /** Process a single message
@@ -1225,57 +878,7 @@ class BoardData {
    * @returns {BoardMutationResult | ValidationFailure}
    */
   processMessage(message) {
-    this.pendingRejectedMutationEffects = [];
-    this.pendingAcceptedMutationEffects = [];
-    /** @type {BoardMutationResult | ValidationFailure} */
-    let result;
-    if (hasMessageChildren(message)) {
-      result = this.processMessageBatch(message._children, message);
-    } else {
-      const id = hasMessageId(message) ? message.id : "";
-      switch (getMutationType(message)) {
-        case MutationType.DELETE:
-          result = id ? this.delete(id) : { ok: false, reason: "missing id" };
-          break;
-        case MutationType.UPDATE:
-          result = id
-            ? this.update(id, message)
-            : { ok: false, reason: "missing id" };
-          break;
-        case MutationType.COPY:
-          result = id
-            ? this.copy(id, message)
-            : { ok: false, reason: "missing id" };
-          break;
-        case MutationType.APPEND: {
-          if (!("parent" in message) || typeof message.parent !== "string") {
-            result = { ok: false, reason: "invalid parent for child" };
-            break;
-          }
-          // We don't need to store 'type', 'parent', and 'tool' for each child. They will be rehydrated from the parent on the client side
-          const { parent, type, tool, ...childData } = message;
-          void type;
-          void tool;
-          result = this.addChild(parent, childData);
-          break;
-        }
-        case MutationType.CLEAR:
-          result = this.clear();
-          break;
-        default:
-          //Add data
-          if (id) {
-            result = this.set(id, message);
-            break;
-          }
-          logger.error("board.message_invalid", {
-            message: message,
-          });
-          result = { ok: false, reason: "invalid message" };
-          break;
-      }
-    }
-    return result;
+    return processBoardMessage(this, message);
   }
 
   /** Reads data from the board
@@ -1287,9 +890,7 @@ class BoardData {
   }
 
   clearSaveTimeout() {
-    if (this.saveTimeoutId === undefined) return;
-    clearTimeout(this.saveTimeoutId);
-    this.saveTimeoutId = undefined;
+    clearBoardSaveTimeout(this);
   }
 
   /**
@@ -1297,23 +898,12 @@ class BoardData {
    * @returns {number | null}
    */
   dirtyAgeMs(nowMs = Date.now()) {
-    return this.dirtyFromMs === null
-      ? null
-      : Math.max(0, nowMs - this.dirtyFromMs);
+    return boardDirtyAgeMs(this, nowMs);
   }
 
   /** Delays the triggering of auto-save by SAVE_INTERVAL milliseconds. */
   delaySave() {
-    const nowMs = Date.now();
-    if (this.dirtyFromMs === null) {
-      this.dirtyFromMs = nowMs;
-    }
-    if (this.saveInProgress && this.dirtyDuringSaveFromMs === null) {
-      this.dirtyDuringSaveFromMs = nowMs;
-    }
-    this.lastWriteAtMs = nowMs;
-    if (this.saveInProgress) return;
-    this.scheduleDirtySave(nowMs);
+    delayBoardSave(this);
   }
 
   /**
@@ -1321,23 +911,7 @@ class BoardData {
    * @returns {void}
    */
   scheduleDirtySave(nowMs = Date.now()) {
-    const delayMs = computeScheduledSaveDelayMs({
-      nowMs,
-      dirtyFromMs: this.dirtyFromMs,
-      lastWriteAtMs: this.lastWriteAtMs,
-      saveIntervalMs: this.config.SAVE_INTERVAL,
-      maxSaveDelayMs: this.config.MAX_SAVE_DELAY,
-    });
-    if (logger.isEnabled("debug")) {
-      logger.debug(
-        "board.save_scheduled",
-        boardLogFields(this, {
-          "wbo.board.delay_ms": delayMs,
-          "wbo.board.max_save_delay_ms": this.config.MAX_SAVE_DELAY,
-        }),
-      );
-    }
-    this.scheduleSaveTimeout(delayMs);
+    scheduleBoardDirtySave(this, nowMs);
   }
 
   /**
@@ -1345,321 +919,32 @@ class BoardData {
    * @returns {void}
    */
   scheduleSaveTimeout(delayMs) {
-    if (
-      this.disposed ||
-      this.saveInProgress ||
-      this.dirtyFromMs === null ||
-      this.lastWriteAtMs === null
-    ) {
-      this.clearSaveTimeout();
-      return;
-    }
-    this.clearSaveTimeout();
-    if (logger.isEnabled("debug")) {
-      logger.debug(
-        "board.save_timer_set",
-        boardLogFields(this, {
-          "wbo.board.delay_ms": Math.max(0, delayMs),
-        }),
-      );
-    }
-    this.saveTimeoutId = setTimeout(
-      () => {
-        this.saveTimeoutId = undefined;
-        if (this.disposed) return;
-        if (logger.isEnabled("debug")) {
-          logger.debug("board.save_timer_fired", boardLogFields(this));
-        }
-        if (this.saveInProgress) {
-          return;
-        }
-        void this.save();
-      },
-      Math.max(0, delayMs),
-    );
+    scheduleBoardSaveTimeout(this, delayMs);
   }
 
   dispose() {
-    if (logger.isEnabled("debug")) {
-      logger.debug("board.disposed", boardLogFields(this));
-    }
-    this.disposed = true;
-    this.clearSaveTimeout();
+    disposeBoard(this);
   }
 
   hasDirtyItems() {
-    for (const item of this.itemsById.values()) {
-      if (item.dirty === true) return true;
-    }
-    return false;
+    return boardHasDirtyItems(this);
   }
 
   finalizePersistedItems(
     persistedSnapshot = this.itemsById,
     persistedIds = new Set(persistedSnapshot.keys()),
   ) {
-    finalizePersistedCanonicalItems(this, persistedSnapshot, persistedIds);
+    finalizeBoardPersistedItems(this, persistedSnapshot, persistedIds);
   }
 
   /** Saves the data in the board to a file. */
   async save() {
-    if (this.disposed) return { status: "skipped" };
-    // Persisted board writes are serialized process-wide so only one board save
-    // mutates on-disk state at a time.
-    return boardSaveQueue.runExclusive(this._unsafe_save.bind(this));
+    return saveBoard(this);
   }
 
   /** Save the board to disk without preventing multiple simultaneous saves. Use save() instead. */
   async _unsafe_save() {
-    return tracing.withExpensiveActiveSpan(
-      "board.save",
-      {
-        attributes: boardTraceAttributes(this.name, "save"),
-        traceRoot:
-          this.itemsById.size >= STANDALONE_BOARD_SAVE_ITEM_COUNT_THRESHOLD,
-      },
-      async () => {
-        let shouldScheduleAfterSave = false;
-        this.clearSaveTimeout();
-        this.saveInProgress = true;
-        this.dirtyDuringSaveFromMs = null;
-        try {
-          if (this.disposed) return { status: "skipped" };
-          if (
-            this.hasDirtyItems() !== true &&
-            this.getSeq() === this.getPersistedSeq()
-          ) {
-            if (logger.isEnabled("debug")) {
-              logger.debug("board.save_skipped", boardLogFields(this));
-            }
-            return { status: "skipped" };
-          }
-          const startedAt = Date.now();
-          this.saveStartedAtMs = startedAt;
-          this.saveTargetSeq = this.getSeq();
-          if (logger.isEnabled("debug")) {
-            logger.debug(
-              "board.save_started",
-              boardLogFields(this, {
-                "wbo.board.save_target_seq": this.saveTargetSeq,
-              }),
-            );
-          }
-          this.clean();
-          const savedItemsById = new Map(this.itemsById);
-          const savedPaintOrder = [...this.paintOrder];
-          const file = this.file;
-          const authoritativeItemCount = savedPaintOrder.filter(
-            (id) => savedItemsById.get(id)?.deleted !== true,
-          ).length;
-          const saveTargetSeq = this.saveTargetSeq ?? this.getSeq();
-          const saveStrategy =
-            this.persistedItemIds.size > 0 ? "rewrite" : "write";
-          try {
-            const persistedIds = await tracing.withRecordingActiveSpan(
-              "board.save_write",
-              {
-                attributes: boardTraceAttributes(this.name, "save_write", {
-                  "wbo.board.items": authoritativeItemCount,
-                  "wbo.board.save_strategy": saveStrategy,
-                  "wbo.board.save_target_seq": saveTargetSeq,
-                }),
-              },
-              async (span) => {
-                const ids =
-                  saveStrategy === "rewrite"
-                    ? await rewriteStoredSvgFromCanonical(
-                        this.name,
-                        savedItemsById,
-                        savedPaintOrder,
-                        this.metadata,
-                        this.persistedItemIds,
-                        this.getPersistedSeq(),
-                        saveTargetSeq,
-                        { historyDir: this.historyDir },
-                      )
-                    : (
-                        await writeCanonicalBoardState(
-                          this.name,
-                          savedItemsById,
-                          savedPaintOrder,
-                          this.metadata,
-                          saveTargetSeq,
-                          { historyDir: this.historyDir },
-                        )
-                      ).persistedIds;
-                if (span) {
-                  tracing.setSpanAttributes(
-                    span,
-                    boardTraceAttributes(this.name, "save_write", {
-                      "wbo.board.result": "success",
-                      "wbo.board.items": authoritativeItemCount,
-                      "wbo.board.persisted_items": ids.size,
-                      "wbo.board.save_strategy": saveStrategy,
-                      "wbo.board.save_target_seq": saveTargetSeq,
-                    }),
-                  );
-                }
-                return ids;
-              },
-            );
-            this.persistedItemIds = new Set(persistedIds);
-            this.markPersistedSeq(saveTargetSeq);
-            this.finalizePersistedItems(savedItemsById, persistedIds);
-            const savedAllSnapshotLiveItems =
-              authoritativeItemCount === persistedIds.size;
-            if (this.hasDirtyItems() !== true) {
-              this.dirtyFromMs = null;
-              this.lastWriteAtMs = null;
-            } else if (
-              savedAllSnapshotLiveItems &&
-              this.dirtyDuringSaveFromMs !== null
-            ) {
-              this.dirtyFromMs = this.dirtyDuringSaveFromMs;
-            }
-            this.trimPersistedMutationLog(startedAt);
-            const savedFile = await stat(file).catch(async (error) => {
-              if (errorCode(error) !== "ENOENT") {
-                throw error;
-              }
-              return stat(boardSvgBackupPath(this.name, this.historyDir)).catch(
-                () => null,
-              );
-            });
-            const durationMs = Date.now() - startedAt;
-            tracing.setActiveSpanAttributes(
-              boardTraceAttributes(this.name, "save", {
-                "wbo.board.result": "success",
-                ...(savedFile
-                  ? {
-                      "file.size": savedFile.size,
-                    }
-                  : {}),
-                "wbo.board.items": authoritativeItemCount,
-                "wbo.board.persisted_items": persistedIds.size,
-              }),
-            );
-            logger.info(
-              "board.saved",
-              boardLogFields(this, {
-                duration_ms: durationMs,
-                ...(savedFile ? { "file.size": savedFile.size } : {}),
-              }),
-            );
-            metrics.recordBoardOperationDuration(
-              "save",
-              this.name,
-              durationMs / 1000,
-            );
-            if (this.getSeq() !== saveTargetSeq) {
-              shouldScheduleAfterSave = true;
-            }
-            return { status: "saved" };
-          } catch (err) {
-            const durationMs = Date.now() - startedAt;
-            const code = errorCode(err);
-            if (
-              this.persistedItemIds.size > 0 &&
-              (code === "ENOENT" || code === "WBO_STORED_SVG_SEQ_MISMATCH")
-            ) {
-              const actualFileSeq =
-                err &&
-                typeof err === "object" &&
-                "actualSeq" in err &&
-                typeof err.actualSeq === "number"
-                  ? err.actualSeq
-                  : undefined;
-              const staleFields = boardLogFields(this, {
-                duration_ms: durationMs,
-                "wbo.board.save_target_seq": saveTargetSeq,
-                "wbo.board.actual_file_seq": actualFileSeq,
-                "wbo.board.dropped_local_seq_count": Math.max(
-                  0,
-                  this.getSeq() - this.getPersistedSeq(),
-                ),
-                "wbo.board.dirty_age_ms": this.dirtyAgeMs(),
-                "wbo.board.stale_reason":
-                  code === "WBO_STORED_SVG_SEQ_MISMATCH"
-                    ? "seq_mismatch"
-                    : "missing_baseline",
-              });
-              tracing.setActiveSpanAttributes(
-                boardTraceAttributes(this.name, "save", {
-                  "wbo.board.result": "stale",
-                  "wbo.board.save_target_seq": saveTargetSeq,
-                  ...(actualFileSeq === undefined
-                    ? {}
-                    : { "wbo.board.actual_file_seq": actualFileSeq }),
-                  "wbo.board.dropped_local_seq_count": Math.max(
-                    0,
-                    this.getSeq() - this.getPersistedSeq(),
-                  ),
-                }),
-              );
-              logger.warn("board.save_stale", staleFields);
-              metrics.recordBoardOperationDuration(
-                "save",
-                this.name,
-                durationMs / 1000,
-                "stale",
-              );
-              if (typeof this.onStaleSave === "function") {
-                try {
-                  await this.onStaleSave({
-                    actualFileSeq,
-                    durationMs,
-                    saveTargetSeq,
-                  });
-                } catch (handlerError) {
-                  logger.error("board.stale_save_handler_failed", {
-                    board: this.name,
-                    error: handlerError,
-                  });
-                }
-              }
-              return { status: "stale" };
-            }
-            tracing.recordActiveSpanError(err, {
-              "wbo.board.result": "error",
-            });
-            logger.error(
-              "board.save_failed",
-              boardLogFields(this, {
-                duration_ms: durationMs,
-                error: err,
-              }),
-            );
-            metrics.recordBoardOperationDuration(
-              "save",
-              this.name,
-              durationMs / 1000,
-              err,
-            );
-            if (
-              !this.disposed &&
-              (this.hasDirtyItems() === true ||
-                this.getSeq() !== this.getPersistedSeq())
-            ) {
-              shouldScheduleAfterSave = true;
-            }
-            return { status: "failed" };
-          }
-        } finally {
-          this.saveInProgress = false;
-          this.dirtyDuringSaveFromMs = null;
-          this.saveStartedAtMs = null;
-          this.saveTargetSeq = null;
-          if (
-            shouldScheduleAfterSave &&
-            !this.disposed &&
-            (this.hasDirtyItems() === true ||
-              this.getSeq() !== this.getPersistedSeq())
-          ) {
-            this.scheduleDirtySave(Date.now());
-          }
-        }
-      },
-    );
+    return unsafeSaveBoard(this);
   }
 
   /** Remove old elements from the board */
@@ -1694,187 +979,8 @@ class BoardData {
    * @param {BoardConfig} config
    */
   static async load(name, config) {
-    const boardData = new BoardData(name, config);
-    let traceRoot = false;
-    for (const candidateFile of [
-      boardData.file,
-      boardJsonPath(name, boardData.historyDir),
-    ]) {
-      try {
-        const candidate = await stat(candidateFile);
-        traceRoot = candidate.size >= STANDALONE_BOARD_LOAD_BYTES_THRESHOLD;
-        if (traceRoot) break;
-      } catch {}
-    }
-    return tracing.withExpensiveActiveSpan(
-      "board.load",
-      {
-        attributes: boardTraceAttributes(name, "load"),
-        traceRoot: traceRoot,
-      },
-      async function loadBoardData() {
-        const startedAt = Date.now();
-        try {
-          if (logger.isEnabled("debug")) {
-            logger.debug("board.load_started", boardLogFields(boardData));
-          }
-          /**
-           * @param {import("@opentelemetry/api").Span | undefined} span
-           */
-          const readStoredBoard = async (span) => {
-            const state = await readCanonicalBoardState(name, {
-              historyDir: boardData.historyDir,
-            });
-            if (span) {
-              tracing.setSpanAttributes(
-                span,
-                boardTraceAttributes(name, "load_read", {
-                  "wbo.board.result": "success",
-                  "wbo.board.load_source": state.source,
-                  "wbo.board.items": state.itemsById.size,
-                  "wbo.board.seq": state.seq,
-                  "file.size": state.byteLength || 0,
-                }),
-              );
-            }
-            return state;
-          };
-          const storedBoard = await tracing.withRecordingActiveSpan(
-            "board.load_read",
-            {
-              attributes: boardTraceAttributes(name, "load_read"),
-            },
-            readStoredBoard,
-          );
-          boardData.itemsById = storedBoard.itemsById;
-          boardData.paintOrder = storedBoard.paintOrder;
-          boardData.nextPaintOrder = storedBoard.paintOrder.reduce(
-            /**
-             * @param {number} max
-             * @param {string} id
-             */
-            (max, id) => {
-              const item = storedBoard.itemsById.get(id);
-              return item ? Math.max(max, item.paintOrder + 1) : max;
-            },
-            0,
-          );
-          rebuildLiveItemCount(boardData);
-          boardData.trimPaintOrderIndex = 0;
-          boardData.persistedItemIds = new Set(storedBoard.itemsById.keys());
-          boardData.dirtyFromMs = null;
-          boardData.lastWriteAtMs = null;
-          boardData.dirtyDuringSaveFromMs = null;
-          boardData.saveStartedAtMs = null;
-          boardData.saveTargetSeq = null;
-          boardData.loadSource = storedBoard.source;
-          boardData.metadata = storedBoard.metadata;
-          boardData.mutationLog = createMutationLog(storedBoard.seq);
-          if (logger.isEnabled("debug")) {
-            logger.debug(
-              "board.load_completed",
-              boardLogFields(boardData, {
-                "wbo.board.load_source": storedBoard.source,
-                "file.size": storedBoard.byteLength || 0,
-              }),
-            );
-          }
-          const durationMs = Date.now() - startedAt;
-          logger.info(
-            "board.loaded",
-            boardLogFields(boardData, {
-              duration_ms: durationMs,
-              "wbo.board.load_source": storedBoard.source,
-              "wbo.board.paint_order_entries": boardData.paintOrder.length,
-              "file.size": storedBoard.byteLength || 0,
-              items: boardData.authoritativeItemCount(),
-            }),
-          );
-          tracing.setActiveSpanAttributes(
-            boardTraceAttributes(name, "load", {
-              "wbo.board.result": "success",
-              "file.size": storedBoard.byteLength || 0,
-              "wbo.board.items": boardData.authoritativeItemCount(),
-            }),
-          );
-          metrics.recordBoardOperationDuration("load", name, durationMs / 1000);
-        } catch (e) {
-          // If the file doesn't exist, this is not an error
-          if (errorCode(e) === "ENOENT") {
-            if (logger.isEnabled("debug")) {
-              logger.debug(
-                "board.load_empty",
-                boardLogFields(boardData, {
-                  "wbo.board.load_source": "empty",
-                }),
-              );
-            }
-            const durationMs = Date.now() - startedAt;
-            logger.info(
-              "board.loaded",
-              boardLogFields(boardData, {
-                duration_ms: durationMs,
-                "wbo.board.load_source": "empty",
-                "wbo.board.result": "empty",
-                items: 0,
-              }),
-            );
-            tracing.setActiveSpanAttributes(
-              boardTraceAttributes(name, "load", {
-                "wbo.board.result": "empty",
-              }),
-            );
-            metrics.recordBoardOperationDuration(
-              "load",
-              name,
-              durationMs / 1000,
-              "empty",
-            );
-          } else {
-            const durationMs = Date.now() - startedAt;
-            tracing.recordActiveSpanError(e, {
-              "wbo.board.result": "error",
-            });
-            logger.error(
-              "board.load_failed",
-              boardLogFields(boardData, {
-                duration_ms: durationMs,
-                error: e,
-              }),
-            );
-            metrics.recordBoardOperationDuration(
-              "load",
-              name,
-              durationMs / 1000,
-              e,
-            );
-          }
-          boardData.itemsById = new Map();
-          boardData.paintOrder = [];
-          boardData.nextPaintOrder = 0;
-          boardData.persistedItemIds = new Set();
-          boardData.dirtyFromMs = null;
-          boardData.lastWriteAtMs = null;
-          boardData.dirtyDuringSaveFromMs = null;
-          boardData.saveStartedAtMs = null;
-          boardData.saveTargetSeq = null;
-          boardData.liveItemCount = 0;
-          boardData.trimPaintOrderIndex = 0;
-        }
-        return boardData;
-      },
-    );
+    return loadBoardData(BoardData, name, config);
   }
-}
-
-/**
- * @param {unknown} error
- * @returns {string | undefined}
- */
-function errorCode(error) {
-  if (!error || typeof error !== "object") return undefined;
-  if (!("code" in error)) return undefined;
-  return typeof error.code === "string" ? error.code : undefined;
 }
 
 export { BoardData };
