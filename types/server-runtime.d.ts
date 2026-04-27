@@ -6,6 +6,62 @@ import type {
 
 export type ServerConfig = typeof import("../server/configuration.mjs");
 
+export type HttpRequest = import("http").IncomingMessage;
+export type HttpResponse = import("http").ServerResponse;
+
+export type StaticFileServer = (
+  request: HttpRequest,
+  response: HttpResponse,
+  next: (error?: unknown) => void,
+) => void;
+
+export type ServerRuntime = {
+  config: ServerConfig;
+  fileserver: StaticFileServer;
+  errorPage: string;
+  boardTemplate: import("../server/templating.mjs").BoardTemplate;
+  indexTemplate: import("../server/templating.mjs").Template;
+};
+
+export type ObservedHttpRequest = {
+  requestId?: string;
+  run: (fn: () => void | Promise<void>) => void;
+  setRoute: (route: string) => void;
+  noteError: (error: unknown) => void;
+  annotate: (fields: { [key: string]: unknown }) => void;
+  setTraceAttributes: (fields: { [key: string]: unknown }) => void;
+};
+
+export type HttpRouteContext<
+  Params extends Record<string, string> = Record<string, string>,
+> = {
+  request: HttpRequest;
+  response: HttpResponse;
+  runtime: ServerRuntime;
+  observed: ObservedHttpRequest;
+  url: URL;
+  params: Params;
+};
+
+export type HttpRouteHandler<
+  Params extends Record<string, string> = Record<string, string>,
+> = (context: HttpRouteContext<Params>) => void | Promise<void>;
+
+export type HttpRequestHandler = (context: {
+  request: HttpRequest;
+  response: HttpResponse;
+  runtime: ServerRuntime;
+}) => void;
+
+export type SocketServerModule = {
+  start: (app: import("http").Server, config: ServerConfig) => Promise<unknown>;
+  shutdown?: () => Promise<void>;
+};
+
+export type ServerApp = import("http").Server & {
+  shutdown?: () => Promise<void>;
+};
+
 export type MessageData = Partial<
   Record<
     | "tool"
