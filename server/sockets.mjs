@@ -1,12 +1,5 @@
 import * as socketIO from "socket.io";
-import WBOMessageCommon from "../client-data/js/message_common.js";
-import {
-  formatMessageTypeTag,
-  getMutationType,
-  getToolId,
-} from "../client-data/js/message_tool_metadata.js";
 import { SocketEvents } from "../client-data/js/socket_events.js";
-import { Cursor } from "../client-data/tools/index.js";
 import {
   deleteLoadedBoard,
   discardPinnedReplayBaselinesBefore,
@@ -17,9 +10,13 @@ import {
   resetBoardRegistry,
   setLoadedBoard,
 } from "./board_registry.mjs";
-import { getBoardSession } from "./board_session.mjs";
 import { BoardData } from "./boardData.mjs";
 import observability from "./observability.mjs";
+import {
+  boardMutationTraceAttributes,
+  handleBroadcastWriteMessage,
+  shouldTraceBroadcast,
+} from "./socket_broadcasts.mjs";
 import {
   boardUserDebugFields,
   buildBoardUserRecord as createBoardUserRecord,
@@ -33,10 +30,8 @@ import {
   getBoardUserMap,
   removeBoardUser,
   resetBoardUserMaps,
-  updateBoardUserFromMessage,
 } from "./socket_presence.mjs";
 import {
-  canApplyBoardMessage,
   canWriteToBoard,
   getClientIp,
   normalizeBroadcastData,
@@ -47,8 +42,6 @@ import {
   countDestructiveActions,
   countTextCreationActions,
   createRateLimitState,
-  enforceBroadcastPostNormalization,
-  enforceBroadcastPreNormalization,
   pruneRateLimitMap,
   recordCompletedRateLimitWindow,
   resetRateLimitMaps as resetSocketRateLimitMaps,
@@ -63,17 +56,12 @@ import {
   createConnectionReplayError,
   prepareConnectionReplay,
 } from "./socket_replay.mjs";
-import {
-  handleTurnstileTokenMessage,
-  isTurnstileValidationActive,
-} from "./socket_turnstile.mjs";
+import { handleTurnstileTokenMessage } from "./socket_turnstile.mjs";
 
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
 
-/** @import { AppSocket, MessageData, MutationLogEntry, NormalizedMessageData, RateLimitState, ReportUserPayload, SequencedMutationBroadcastData, ServerConfig, TurnstileAckCallback } from "../types/server-runtime.d.ts" */
-/** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string, baselineSeq?: string}} SocketQuery */
-/** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
+/** @import { AppSocket, MessageData, NormalizedMessageData, ReportUserPayload, ServerConfig, TurnstileAckCallback } from "../types/server-runtime.d.ts" */
 /** @typedef {{type: number, fromSeq: number, seq: number, _children: NormalizedMessageData[]}} ConnectionReplayBatch */
 /** @typedef {{ok: true, boardName: string, board: BoardData, baselineSeq: number, latestSeq: number, minReplayableSeq: number, replayBatch: ConnectionReplayBatch, outcome: "empty" | "replayed"} | {ok: false, reason: string, boardName?: string, baselineSeq?: number, latestSeq?: number, minReplayableSeq?: number, error?: unknown}} ConnectionReplayBootstrap */
 /** @type {Map<string, AppSocket>} */
@@ -256,24 +244,6 @@ async function handleStaleBoardSave(board, details) {
 }
 
 /**
- * @param {MutationLogEntry} entry
- * @param {string | undefined} liveSocketId
- * @returns {SequencedMutationBroadcastData}
- */
-function buildSequencedMutationBroadcast(entry, liveSocketId = undefined) {
-  // The retained log entry has no source socket. Only the primary live
-  // broadcast gets one so the sender can acknowledge its optimistic write.
-  const mutation = liveSocketId
-    ? { ...entry.mutation, socket: liveSocketId }
-    : entry.mutation;
-  return {
-    seq: entry.seq,
-    acceptedAtMs: entry.acceptedAtMs,
-    mutation,
-  };
-}
-
-/**
  * @param {AppSocket} socket
  * @param {string} eventName
  * @param {{[key: string]: any}} infos
@@ -327,29 +297,6 @@ function socketTraceAttributes(eventName, extras) {
 }
 
 /**
- * @param {string} boardName
- * @param {string | undefined} userName
- * @param {{tool?: unknown, type?: unknown}=} message
- * @returns {{[key: string]: unknown}}
- */
-function boardMutationTraceAttributes(boardName, userName, message) {
-  return socketTraceAttributes("broadcast_write", {
-    "wbo.board": boardName,
-    "user.name": userName,
-    "wbo.tool": getToolId(message?.tool),
-    "wbo.message.type": formatMessageTypeTag(message?.type),
-  });
-}
-
-/**
- * @param {string} value
- * @returns {string}
- */
-function boardMessageErrorType(value) {
-  return value;
-}
-
-/**
  * @param {AppSocket} socket
  * @param {string} eventName
  * @param {string} reason
@@ -367,14 +314,6 @@ function rejectSocketRequest(socket, eventName, reason, extras) {
     reason,
     ...(extras || {}),
   });
-}
-
-/**
- * @param {MessageData | undefined} data
- * @returns {boolean}
- */
-function shouldTraceBroadcast(data) {
-  return !data || data.tool !== Cursor.id;
 }
 
 /**
@@ -412,408 +351,6 @@ function resolveClientIp(socket, boardName, config) {
     }
     return "unknown";
   }
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @returns {void}
- */
-function ensureSocketJoinedBoard(socket, boardName) {
-  if (!socket.rooms.has(boardName)) socket.join(boardName);
-}
-
-/**
- * @param {AppSocket} socket
- * @returns {boolean}
- */
-function canReceiveLivePersistentBroadcasts(socket) {
-  return syncedPersistentSockets.has(socket.id);
-}
-
-/**
- * @param {BoardData} board
- * @param {AppSocket} sourceSocket
- * @param {SequencedMutationBroadcastData} broadcast
- * @returns {void}
- */
-function emitPersistentBoardMutation(board, sourceSocket, broadcast) {
-  for (const socketId of board.users) {
-    const targetSocket = getActiveSocket(socketId);
-    if (!targetSocket) continue;
-    if (targetSocket.id === sourceSocket.id) continue;
-    if (!canReceiveLivePersistentBroadcasts(targetSocket)) continue;
-    targetSocket.emit(SocketEvents.BROADCAST, broadcast);
-  }
-  sourceSocket.emit(SocketEvents.BROADCAST, broadcast);
-}
-
-/**
- * @param {BoardData} board
- * @param {AppSocket} sourceSocket
- * @param {MutationLogEntry[] | undefined} followup
- * @returns {void}
- */
-function emitPersistentBoardFollowupMutations(board, sourceSocket, followup) {
-  if (!Array.isArray(followup) || followup.length === 0) return;
-  followup.forEach((entry) => {
-    emitPersistentBoardMutation(
-      board,
-      sourceSocket,
-      buildSequencedMutationBroadcast(entry),
-    );
-  });
-}
-
-/**
- * @param {string} boardName
- * @param {AppSocket} sourceSocket
- * @param {NormalizedMessageData} livePayload
- * @returns {void}
- */
-function emitEphemeralBoardMutation(boardName, sourceSocket, livePayload) {
-  sourceSocket.broadcast
-    .to(boardName)
-    .emit(SocketEvents.BROADCAST, livePayload);
-}
-
-/**
- * @param {string} reason
- * @returns {void}
- */
-function rejectActiveBoardMutation(reason) {
-  tracing.setActiveSpanAttributes({
-    "wbo.board.result": "rejected",
-    "wbo.rejection.reason": reason,
-  });
-}
-
-/**
- * @param {AppSocket} socket
- * @param {{clientMutationId?: unknown} | null | undefined} data
- * @param {string} reason
- * @returns {void}
- */
-function emitMutationRejected(socket, data, reason) {
-  const clientMutationId =
-    typeof data?.clientMutationId === "string" && data.clientMutationId
-      ? data.clientMutationId
-      : undefined;
-  /** @type {{reason: string, clientMutationId?: string}} */
-  const payload = { reason };
-  if (clientMutationId) {
-    payload.clientMutationId = clientMutationId;
-  }
-  socket.emit(SocketEvents.MUTATION_REJECTED, payload);
-}
-
-/**
- * @param {string} boardName
- * @param {MessageData | undefined} data
- * @returns {void}
- */
-function rejectTurnstileRequired(boardName, data) {
-  rejectActiveBoardMutation("turnstile_validation_required");
-  metrics.recordBoardMessage(
-    { board: boardName, ...(data || {}) },
-    boardMessageErrorType("turnstile.validation_required"),
-  );
-}
-
-/**
- * @param {AppSocket} socket
- * @param {BoardData} board
- * @param {string} boardName
- * @param {NormalizedMessageData} data
- * @param {string} clientIp
- * @param {string} userName
- * @returns {boolean}
- */
-function rejectBlockedBoardWrite(
-  socket,
-  board,
-  boardName,
-  data,
-  clientIp,
-  userName,
-) {
-  rejectActiveBoardMutation("write_blocked");
-  logger.warn("board.write_blocked", {
-    socket: socket.id,
-    board: board.name,
-    "client.address": clientIp,
-    "user.name": userName,
-    tool: getToolId(data.tool),
-    type: getMutationType(data),
-  });
-  metrics.recordBoardMessage(
-    { board: boardName, ...data },
-    boardMessageErrorType("write"),
-  );
-  emitMutationRejected(socket, data, "write_blocked");
-  return false;
-}
-
-/**
- * @param {AppSocket} socket
- * @param {BoardData} board
- * @param {string} boardName
- * @param {NormalizedMessageData} data
- * @param {string} clientIp
- * @param {string} userName
- * @param {string} reason
- * @returns {boolean}
- */
-function rejectBoardMessageWrite(
-  socket,
-  board,
-  boardName,
-  data,
-  clientIp,
-  userName,
-  reason,
-) {
-  rejectActiveBoardMutation(reason);
-  logger.warn("board.message_rejected", {
-    socket: socket.id,
-    board: board.name,
-    "client.address": clientIp,
-    "user.name": userName,
-    tool: getToolId(data.tool),
-    type: getMutationType(data),
-    reason,
-  });
-  metrics.recordBoardMessage(
-    { board: boardName, ...data },
-    boardMessageErrorType("board_message"),
-  );
-  emitMutationRejected(socket, data, reason);
-  return false;
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @param {NormalizedMessageData} data
- * @param {number} now
- * @param {string} userName
- * @returns {{user: BoardUser | undefined, liveData: NormalizedMessageData}}
- */
-function recordSuccessfulBoardWrite(socket, boardName, data, now, userName) {
-  const user = updateBoardUserFromMessage(socket, boardName, data, now);
-  const liveData = user ? { ...data, socket: user.socketId } : data;
-  tracing.setActiveSpanAttributes({
-    "wbo.board.result": "success",
-    "user.name": user ? user.name : userName,
-  });
-  metrics.recordBoardMessage({
-    board: boardName,
-    ...liveData,
-  });
-  return { user, liveData };
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @param {NormalizedMessageData} data
- * @param {number} now
- * @param {string} userName
- * @returns {void}
- */
-function finishSuccessfulEphemeralBoardWrite(
-  socket,
-  boardName,
-  data,
-  now,
-  userName,
-) {
-  const { liveData } = recordSuccessfulBoardWrite(
-    socket,
-    boardName,
-    data,
-    now,
-    userName,
-  );
-  emitEphemeralBoardMutation(boardName, socket, liveData);
-}
-
-/**
- * @param {AppSocket} socket
- * @param {BoardData} board
- * @param {string} boardName
- * @param {NormalizedMessageData} data
- * @param {number} now
- * @param {string} userName
- * @param {MutationLogEntry} entry
- * @param {MutationLogEntry[] | undefined} followup
- * @returns {void}
- */
-function finishSuccessfulPersistentBoardWrite(
-  socket,
-  board,
-  boardName,
-  data,
-  now,
-  userName,
-  entry,
-  followup,
-) {
-  const { user } = recordSuccessfulBoardWrite(
-    socket,
-    boardName,
-    data,
-    now,
-    userName,
-  );
-  const liveBroadcast = buildSequencedMutationBroadcast(
-    entry,
-    user?.socketId || socket.id,
-  );
-  emitPersistentBoardMutation(board, socket, liveBroadcast);
-  emitPersistentBoardFollowupMutations(board, socket, followup);
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @param {NormalizedMessageData} data
- * @param {string} clientIp
- * @param {string} userName
- * @param {number} now
- * @param {ServerConfig} config
- * @returns {Promise<void>}
- */
-async function persistBoardBroadcast(
-  socket,
-  boardName,
-  data,
-  clientIp,
-  userName,
-  now,
-  config,
-) {
-  ensureSocketJoinedBoard(socket, boardName);
-  const board = await getBoard(boardName, config);
-  if (!canApplyBoardMessage(config, board, data, socket)) {
-    rejectBlockedBoardWrite(socket, board, boardName, data, clientIp, userName);
-    return;
-  }
-  if (data.tool === Cursor.id) {
-    finishSuccessfulEphemeralBoardWrite(socket, boardName, data, now, userName);
-    return;
-  }
-
-  const handleResult = await getBoardSession(board).acceptPersistentMutation(
-    data,
-    now,
-  );
-  if (handleResult.ok === false) {
-    rejectBoardMessageWrite(
-      socket,
-      board,
-      boardName,
-      data,
-      clientIp,
-      userName,
-      handleResult.reason,
-    );
-    emitPersistentBoardFollowupMutations(board, socket, handleResult.followup);
-    return;
-  }
-  if (handleResult.value !== data) {
-    Object.assign(data, handleResult.value);
-  }
-  finishSuccessfulPersistentBoardWrite(
-    socket,
-    board,
-    boardName,
-    handleResult.value,
-    now,
-    userName,
-    handleResult.entry,
-    handleResult.followup,
-  );
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @param {MessageData | undefined} data
- * @param {RateLimitState} generalRateLimit
- * @param {number} now
- * @param {ServerConfig} config
- * @returns {Promise<void>}
- */
-async function handleBroadcastWriteMessage(
-  socket,
-  boardName,
-  data,
-  generalRateLimit,
-  now,
-  config,
-) {
-  const clientIp = resolveClientIp(socket, boardName, config);
-  const userName = getSocketUserName(socket, clientIp);
-  tracing.setActiveSpanAttributes(
-    boardMutationTraceAttributes(boardName, userName, data),
-  );
-  if (
-    config.TURNSTILE_SECRET_KEY &&
-    data &&
-    WBOMessageCommon.requiresTurnstile(boardName, data.tool) &&
-    !isTurnstileValidationActive(socket, now)
-  ) {
-    rejectTurnstileRequired(boardName, data);
-    return;
-  }
-  if (
-    !enforceBroadcastPreNormalization(
-      socket,
-      boardName,
-      data,
-      clientIp,
-      userName,
-      generalRateLimit,
-      now,
-      config,
-    )
-  ) {
-    return;
-  }
-
-  const normalized = normalizeBroadcastData(config, boardName, data);
-  if (normalized.ok === false) {
-    rejectActiveBoardMutation(normalized.reason);
-    emitMutationRejected(socket, data, normalized.reason);
-    return;
-  }
-  const normalizedData = normalized.value;
-  tracing.setActiveSpanAttributes(
-    boardMutationTraceAttributes(boardName, userName, normalizedData),
-  );
-  if (
-    !enforceBroadcastPostNormalization(
-      socket,
-      boardName,
-      normalizedData,
-      clientIp,
-      userName,
-      now,
-      config,
-    )
-  ) {
-    return;
-  }
-  await persistBoardBroadcast(
-    socket,
-    boardName,
-    normalizedData,
-    clientIp,
-    userName,
-    now,
-    config,
-  );
 }
 
 /**
@@ -893,6 +430,18 @@ function getBoard(name, config) {
   }
 }
 
+const socketBroadcastRuntime = {
+  getActiveSocket,
+  getBoard,
+  getSocketUserName,
+  resolveClientIp,
+  isSyncedPersistentSocket: function isSyncedPersistentSocket(
+    /** @type {AppSocket} */ socket,
+  ) {
+    return syncedPersistentSockets.has(socket.id);
+  },
+};
+
 /**
  * Executes on every new connection
  * @param {AppSocket} socket
@@ -912,7 +461,7 @@ async function bootstrapSocketBoard(socket, replay, config) {
       }),
     },
     async function traceConnectBoard() {
-      ensureSocketJoinedBoard(socket, boardName);
+      if (!socket.rooms.has(boardName)) socket.join(boardName);
       if (logger.isEnabled("debug")) {
         logger.debug(
           "socket.board_bootstrap",
@@ -1050,6 +599,7 @@ async function handleSocketConnection(socket, config) {
           generalRateLimit,
           now,
           config,
+          socketBroadcastRuntime,
         );
       }
 
