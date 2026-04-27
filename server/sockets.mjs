@@ -4,7 +4,6 @@ import {
   formatMessageTypeTag,
   getMutationType,
   getToolId,
-  MutationType,
 } from "../client-data/js/message_tool_metadata.js";
 import { SocketEvents } from "../client-data/js/socket_events.js";
 import { Cursor } from "../client-data/tools/index.js";
@@ -37,11 +36,9 @@ import {
   updateBoardUserFromMessage,
 } from "./socket_presence.mjs";
 import {
-  canAccessBoard,
   canApplyBoardMessage,
   canWriteToBoard,
   getClientIp,
-  normalizeBoardName,
   normalizeBroadcastData,
 } from "./socket_policy.mjs";
 import {
@@ -61,31 +58,24 @@ import {
   handleReportUserMessage,
   resetSocketReports,
 } from "./socket_reports.mjs";
+import { getSocketRequest, getSocketUserSecret } from "./socket_request.mjs";
 import {
-  getSocketQueryValue,
-  getSocketRequest,
-  getSocketUserSecret,
-} from "./socket_request.mjs";
+  createConnectionReplayError,
+  prepareConnectionReplay,
+} from "./socket_replay.mjs";
 import {
   handleTurnstileTokenMessage,
   isTurnstileValidationActive,
 } from "./socket_turnstile.mjs";
-import { readStoredSvgSeq } from "./svg_board_store.mjs";
 
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
-
-const BASELINE_NOT_REPLAYABLE = "baseline_not_replayable";
-
-/** @typedef {"replayed" | "empty" | "baseline_not_replayable" | "future_baseline" | "error"} ConnectionReplayOutcome */
 
 /** @import { AppSocket, MessageData, MutationLogEntry, NormalizedMessageData, RateLimitState, ReportUserPayload, SequencedMutationBroadcastData, ServerConfig, TurnstileAckCallback } from "../types/server-runtime.d.ts" */
 /** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string, baselineSeq?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {{type: number, fromSeq: number, seq: number, _children: NormalizedMessageData[]}} ConnectionReplayBatch */
 /** @typedef {{ok: true, boardName: string, board: BoardData, baselineSeq: number, latestSeq: number, minReplayableSeq: number, replayBatch: ConnectionReplayBatch, outcome: "empty" | "replayed"} | {ok: false, reason: string, boardName?: string, baselineSeq?: number, latestSeq?: number, minReplayableSeq?: number, error?: unknown}} ConnectionReplayBootstrap */
-/** @typedef {ConnectionReplayBootstrap & {ok: false}} ConnectionReplayFailure */
-/** @typedef {Error & {data?: {reason: string, latestSeq?: number, minReplayableSeq?: number}}} ConnectionReplayError */
 /** @type {Map<string, AppSocket>} */
 const activeSockets = new Map();
 /** @type {Set<string>} */
@@ -361,32 +351,6 @@ function boardMessageErrorType(value) {
 
 /**
  * @param {AppSocket} socket
- * @param {ServerConfig} config
- * @returns {{ok: true, boardName: string} | {ok: false, reason: string}}
- */
-function bindSocketBoard(socket, config) {
-  const rawBoardName =
-    typeof socket.boardName === "string"
-      ? socket.boardName
-      : socket.handshake.query?.board;
-  if (typeof rawBoardName !== "string" || rawBoardName === "") {
-    return { ok: false, reason: "missing_board_name" };
-  }
-
-  const boardName = normalizeBoardName(rawBoardName);
-  if (boardName === null) {
-    return { ok: false, reason: "invalid_board_name" };
-  }
-  if (!canAccessBoard(config, boardName, socket)) {
-    return { ok: false, reason: "access_forbidden" };
-  }
-
-  socket.boardName = boardName;
-  return { ok: true, boardName };
-}
-
-/**
- * @param {AppSocket} socket
  * @param {string} eventName
  * @param {string} reason
  * @param {{[key: string]: unknown}=} extras
@@ -465,177 +429,6 @@ function ensureSocketJoinedBoard(socket, boardName) {
  */
 function canReceiveLivePersistentBroadcasts(socket) {
   return syncedPersistentSockets.has(socket.id);
-}
-
-/**
- * @param {unknown} value
- * @returns {number}
- */
-function normalizeSeq(value) {
-  const seq = Number(value);
-  return Number.isSafeInteger(seq) && seq >= 0 ? seq : 0;
-}
-
-/**
- * @param {number} baselineSeq
- * @param {number} latestSeq
- * @param {MutationLogEntry[]} replayEntries
- * @returns {ConnectionReplayBatch}
- */
-function buildConnectionReplayBatch(baselineSeq, latestSeq, replayEntries) {
-  return {
-    type: MutationType.BATCH,
-    fromSeq: baselineSeq,
-    seq: latestSeq,
-    _children: replayEntries.map((entry) => entry.mutation),
-  };
-}
-
-/**
- * @param {ConnectionReplayFailure} replay
- * @returns {ConnectionReplayError}
- */
-function createConnectionReplayError(replay) {
-  const error = /** @type {ConnectionReplayError} */ (
-    new Error(replay.reason || BASELINE_NOT_REPLAYABLE)
-  );
-  error.data = {
-    reason: replay.reason || BASELINE_NOT_REPLAYABLE,
-    latestSeq: replay.latestSeq,
-    minReplayableSeq: replay.minReplayableSeq,
-  };
-  return error;
-}
-
-/**
- * @param {AppSocket} socket
- * @param {ServerConfig} config
- * @returns {Promise<ConnectionReplayBootstrap>}
- */
-async function prepareConnectionReplay(socket, config) {
-  const bound = bindSocketBoard(socket, config);
-  if (bound.ok === false) {
-    return { ok: false, reason: bound.reason };
-  }
-
-  const boardName = bound.boardName;
-  return tracing.withActiveSpan(
-    "socket.connection_replay",
-    {
-      kind: tracing.SpanKind.INTERNAL,
-      attributes: socketTraceAttributes("connection_replay", {
-        "wbo.board": boardName,
-      }),
-    },
-    async function traceConnectionReplay(span) {
-      const baselineSeq = normalizeSeq(
-        getSocketQueryValue(socket, "baselineSeq"),
-      );
-      /** @type {ConnectionReplayOutcome} */
-      let outcome = "error";
-      /** @type {number | undefined} */
-      let latestSeq;
-      /** @type {number | undefined} */
-      let minReplayableSeq;
-      /** @type {number | undefined} */
-      let replayCount;
-      /** @type {number | undefined} */
-      let persistedFileSeq;
-      try {
-        let board = await getBoard(boardName, config);
-        latestSeq = board.getSeq();
-        minReplayableSeq = board.minReplayableSeq();
-        if (baselineSeq > latestSeq) {
-          persistedFileSeq = await readStoredSvgSeq(boardName, {
-            historyDir: config.HISTORY_DIR,
-          });
-          if (persistedFileSeq > latestSeq) {
-            await dropLoadedBoardInstance(board, {
-              baselineSeq,
-              logEvent: "board.stale_instance_dropped_after_future_baseline",
-              persistedFileSeq,
-              reason: "future_baseline_disk_seq_ahead",
-            });
-            board = await getBoard(boardName, config);
-            latestSeq = board.getSeq();
-            minReplayableSeq = board.minReplayableSeq();
-          }
-        }
-        if (baselineSeq > latestSeq || baselineSeq < minReplayableSeq) {
-          outcome =
-            baselineSeq > latestSeq
-              ? "future_baseline"
-              : BASELINE_NOT_REPLAYABLE;
-          logger.warn(
-            "socket.connection_replay_rejected",
-            boardDebugFields(board, {
-              socket: socket.id,
-              "wbo.socket.baseline_seq": baselineSeq,
-              "wbo.socket.latest_seq": latestSeq,
-              "wbo.socket.min_replayable_seq": minReplayableSeq,
-              "wbo.board.persisted_file_seq": persistedFileSeq,
-              reason: BASELINE_NOT_REPLAYABLE,
-            }),
-          );
-          return {
-            ok: false,
-            reason: BASELINE_NOT_REPLAYABLE,
-            boardName,
-            baselineSeq,
-            latestSeq,
-            minReplayableSeq,
-          };
-        }
-
-        const replayEntries = board.readMutationsAfter(baselineSeq);
-        const replayBatch = buildConnectionReplayBatch(
-          baselineSeq,
-          latestSeq,
-          replayEntries,
-        );
-        replayCount = replayBatch._children.length;
-        outcome = replayCount > 0 ? "replayed" : "empty";
-        return {
-          ok: true,
-          boardName,
-          board,
-          baselineSeq,
-          latestSeq,
-          minReplayableSeq,
-          replayBatch,
-          outcome,
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          reason: "error",
-          boardName,
-          baselineSeq,
-          latestSeq,
-          minReplayableSeq,
-          error,
-        };
-      } finally {
-        if (span) {
-          tracing.setSpanAttributes(span, {
-            "wbo.socket.connection_replay.outcome": outcome,
-            "wbo.socket.baseline_seq": baselineSeq,
-            "wbo.socket.latest_seq": latestSeq,
-            "wbo.socket.min_replayable_seq": minReplayableSeq,
-            "wbo.socket.replay.count": replayCount,
-            "wbo.board.persisted_file_seq": persistedFileSeq,
-          });
-        }
-        metrics.recordSocketConnectionReplay({
-          board: boardName,
-          outcome,
-          baselineSeq,
-          latestSeq,
-          persistedFileSeq,
-        });
-      }
-    },
-  );
 }
 
 /**
@@ -1035,7 +828,13 @@ async function startIO(app, config) {
       /** @type {AppSocket} */ socket,
       /** @type {(error?: Error) => void} */ next,
     ) => {
-      prepareConnectionReplay(socket, config)
+      prepareConnectionReplay(
+        socket,
+        config,
+        getBoard,
+        dropLoadedBoardInstance,
+        boardDebugFields,
+      )
         .then((replay) => {
           if (replay.ok === true) {
             socket.replayBootstrap = replay;
@@ -1183,7 +982,13 @@ async function handleSocketConnection(socket, config) {
   const replay =
     replayBootstrap?.ok === true
       ? replayBootstrap
-      : await prepareConnectionReplay(socket, config);
+      : await prepareConnectionReplay(
+          socket,
+          config,
+          getBoard,
+          dropLoadedBoardInstance,
+          boardDebugFields,
+        );
   if (replay.ok === false) {
     rejectSocketRequest(socket, "connection", replay.reason);
     closeSocket(socket, "connection", { reason: replay.reason });
@@ -1508,7 +1313,18 @@ export const __test = {
   createRateLimitState,
   getClientIp,
   normalizeBroadcastData,
-  prepareConnectionReplay,
+  prepareConnectionReplay: function prepareConnectionReplayForTest(
+    /** @type {AppSocket} */ socket,
+    /** @type {ServerConfig} */ config,
+  ) {
+    return prepareConnectionReplay(
+      socket,
+      config,
+      getBoard,
+      dropLoadedBoardInstance,
+      boardDebugFields,
+    );
+  },
   pruneRateLimitMap,
   cleanupBoardUserMap,
   getBoardUserMap,
