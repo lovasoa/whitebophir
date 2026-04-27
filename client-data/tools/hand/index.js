@@ -24,15 +24,16 @@
  * @licend
  */
 
-import { messages as BoardMessages } from "../../js/board_transport.js";
 import {
   extendBoundsWithBounds,
   measureSvgElementBoundsAfterTransform,
 } from "../../js/board_extent.js";
+import { messages as BoardMessages } from "../../js/board_transport.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import MessageCommon from "../../js/message_common.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
 import { ToolCodes } from "../tool-order.js";
+
 /** @import { ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {{a:number, b:number, c:number, d:number, e:number, f:number}} TransformState */
 /** @typedef {ReturnType<typeof createUpdateChildMessage>} HandUpdateChildMessage */
@@ -53,8 +54,8 @@ import { ToolCodes } from "../tool-order.js";
 
 /** @type {(point: Point2D, box: TransformedBBox) => boolean} */
 let pointInTransformedBBox = () => false;
-/** @type {(bboxA: TransformedBBox, bboxB: TransformedBBox) => boolean} */
-let transformedBBoxIntersects = () => false;
+
+const INTERSECTION_SELECTION_TIMEOUT_MS = 120;
 
 export const toolId = "hand";
 export const shortcut = "h";
@@ -230,7 +231,7 @@ function createBatchMessage(children) {
 }
 
 /**
- * @typedef {{Tools: any, assetUrl: (assetFile: string) => string, selectorStates: {pointing: number, selecting: number, transform: number}, selected: any, selectedEls: (SVGGraphicsElement & { id: string })[], selectionRect: SVGRectElement, selectionRectTransform: any, currentTransform: ((x: number, y: number, force: boolean) => void) | null, transformElements: TransformState[], selectorState: number, lastSent: number, blockedSelectionButtons: (number | string)[], selectionButtons: SelectionButton[], boundDeleteShortcut: (e: { key: string, target: EventTarget | null }) => void, boundDuplicateShortcut: (e: { key: string, target: EventTarget | null }) => void, secondary: { name: string, icon: string, active: boolean, switch?: () => void } | null}} HandState
+ * @typedef {{Tools: any, assetUrl: (assetFile: string) => string, selectorStates: {pointing: number, selecting: number, transform: number}, selected: any, selectedEls: (SVGGraphicsElement & { id: string })[], selectionRect: SVGRectElement, selectionRectTransform: any, currentTransform: ((x: number, y: number, force: boolean) => void) | null, transformElements: TransformState[], selectorState: number, selectionRunId: number, lastSent: number, blockedSelectionButtons: (number | string)[], selectionButtons: SelectionButton[], boundDeleteShortcut: (e: { key: string, target: EventTarget | null }) => void, boundDuplicateShortcut: (e: { key: string, target: EventTarget | null }) => void, secondary: { name: string, icon: string, active: boolean, switch?: () => void } | null}} HandState
  */
 
 /**
@@ -257,6 +258,7 @@ function createState(Tools, assetUrl) {
     currentTransform: null,
     transformElements: [],
     selectorState: 0,
+    selectionRunId: 0,
     lastSent: 0,
     blockedSelectionButtons:
       Tools.server_config.BLOCKED_SELECTION_BUTTONS || [],
@@ -448,8 +450,15 @@ function createButton(
 }
 
 /** @param {HandState} state */
+function getCurrentScale(state) {
+  const rawScale =
+    typeof state.Tools.getScale === "function" ? state.Tools.getScale() : 1;
+  return Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1;
+}
+
+/** @param {HandState} state */
 function showSelectionButtons(state) {
-  const scale = state.Tools.getScale();
+  const scale = getCurrentScale(state);
   const selectionBBox = state.selectionRect.transformedBBox();
   for (let i = 0; i < state.selectionButtons.length; i++) {
     const button = state.selectionButtons[i];
@@ -548,6 +557,7 @@ function startScalingTransform(state, _x, _y, evt) {
  */
 function startSelector(state, x, y, evt) {
   evt.preventDefault();
+  state.selectionRunId += 1;
   state.selected = { x: x, y: y };
   state.selectedEls = [];
   state.selectorState = state.selectorStates.selecting;
@@ -561,22 +571,181 @@ function startSelector(state, x, y, evt) {
   tmatrix.f = 0;
 }
 
-/** @param {HandState} state */
-function calculateSelection(state) {
-  const selectionTBBox = state.selectionRect.transformedBBox();
+/** @param {HandState} state @returns {(SVGGraphicsElement & { id: string })[]} */
+function getSelectableElements(state) {
   const elements = state.Tools.drawingArea.children;
-  const selected = [];
+  const selectable = [];
   for (let i = 0; i < elements.length; i++) {
     const element = elements[i];
-    if (
-      element &&
-      isSelectableElement(element) &&
-      transformedBBoxIntersects(selectionTBBox, element.transformedBBox())
-    ) {
-      selected.push(element);
+    if (element && isSelectableElement(element)) {
+      selectable.push(element);
     }
   }
-  return selected;
+  return selectable;
+}
+
+/**
+ * @param {HandState} state
+ * @returns {{left: number, top: number, right: number, bottom: number} | null}
+ */
+function getSelectionViewportRect(state) {
+  const rect = state.selectionRect;
+  if (typeof rect.getBoundingClientRect === "function") {
+    const clientRect = rect.getBoundingClientRect();
+    if (
+      Number.isFinite(clientRect.left) &&
+      Number.isFinite(clientRect.top) &&
+      Number.isFinite(clientRect.right) &&
+      Number.isFinite(clientRect.bottom) &&
+      clientRect.right > clientRect.left &&
+      clientRect.bottom > clientRect.top
+    ) {
+      return {
+        left: clientRect.left,
+        top: clientRect.top,
+        right: clientRect.right,
+        bottom: clientRect.bottom,
+      };
+    }
+  }
+
+  const scale = getCurrentScale(state);
+  const scrollLeft = document.documentElement.scrollLeft || 0;
+  const scrollTop = document.documentElement.scrollTop || 0;
+  const left = rect.x.baseVal.value * scale - scrollLeft;
+  const top = rect.y.baseVal.value * scale - scrollTop;
+  const right = left + rect.width.baseVal.value * scale;
+  const bottom = top + rect.height.baseVal.value * scale;
+  return right > left && bottom > top ? { left, top, right, bottom } : null;
+}
+
+/**
+ * @param {{left: number, top: number, right: number, bottom: number}} rect
+ * @returns {string | null}
+ */
+function selectionRectRootMargin(rect) {
+  const viewportWidth =
+    document.documentElement.clientWidth || window.innerWidth || 0;
+  const viewportHeight =
+    document.documentElement.clientHeight || window.innerHeight || 0;
+  if (viewportWidth <= 0 || viewportHeight <= 0) return null;
+
+  const left = Math.max(0, Math.min(viewportWidth, rect.left));
+  const top = Math.max(0, Math.min(viewportHeight, rect.top));
+  const right = Math.max(0, Math.min(viewportWidth, rect.right));
+  const bottom = Math.max(0, Math.min(viewportHeight, rect.bottom));
+  if (right <= left || bottom <= top) return null;
+
+  return `${-top}px ${right - viewportWidth}px ${bottom - viewportHeight}px ${-left}px`;
+}
+
+/**
+ * @param {IntersectionObserverEntry} entry
+ * @returns {boolean}
+ */
+function isSelectionIntersection(entry) {
+  return entry.isIntersecting;
+}
+
+/**
+ * @param {HandState} state
+ * @param {(SVGGraphicsElement & { id: string })[]} selectable
+ * @returns {Promise<(SVGGraphicsElement & { id: string })[]>}
+ */
+function calculateSelectionWithIntersectionObserver(state, selectable) {
+  if (selectable.length === 0) return Promise.resolve([]);
+  if (typeof IntersectionObserver !== "function") return Promise.resolve([]);
+
+  const viewportRect = getSelectionViewportRect(state);
+  if (!viewportRect) return Promise.resolve([]);
+  const rootMargin = selectionRectRootMargin(viewportRect);
+  if (!rootMargin) return Promise.resolve([]);
+
+  return new Promise((resolve) => {
+    /** @type {Set<Element>} */
+    const selected = new Set();
+    let settled = false;
+    /** @type {Set<Element>} */
+    const seen = new Set();
+    /** @type {IntersectionObserver | null} */
+    let observer = null;
+    let timeout = 0;
+
+    /** @param {IntersectionObserverEntry[]} entries */
+    function collect(entries) {
+      for (let index = 0; index < entries.length; index++) {
+        const entry = entries[index];
+        if (!entry) continue;
+        seen.add(entry.target);
+        if (isSelectionIntersection(entry)) selected.add(entry.target);
+      }
+    }
+
+    /** @param {(SVGGraphicsElement & { id: string })[]} value */
+    function finish(value) {
+      if (settled) return;
+      settled = true;
+      if (observer) observer.disconnect();
+      window.clearTimeout(timeout);
+      resolve(value);
+    }
+
+    observer = new IntersectionObserver(
+      (entries) => {
+        collect(entries);
+        if (seen.size >= selectable.length) {
+          finish(selectable.filter((element) => selected.has(element)));
+        }
+      },
+      {
+        root: null,
+        rootMargin,
+        threshold: 0,
+      },
+    );
+    // Do not fall back to getBBox() here: a board-wide SVG bbox scan forces
+    // synchronous layout on dense boards and can freeze or crash the page.
+    timeout = window.setTimeout(() => {
+      if (!observer) {
+        finish([]);
+        return;
+      }
+      collect(observer.takeRecords());
+      finish(
+        seen.size >= selectable.length
+          ? selectable.filter((element) => selected.has(element))
+          : [],
+      );
+    }, INTERSECTION_SELECTION_TIMEOUT_MS);
+    for (let index = 0; index < selectable.length; index++) {
+      const element = selectable[index];
+      if (element) observer.observe(element);
+    }
+  });
+}
+
+/**
+ * @param {HandState} state
+ * @param {(SVGGraphicsElement & { id: string })[]} selected
+ * @param {number} runId
+ */
+function finishSelection(state, selected, runId) {
+  if (runId !== state.selectionRunId) return;
+  state.selectedEls = selected;
+  if (state.selectedEls.length === 0) hideSelectionUI(state);
+  else showSelectionButtons(state);
+}
+
+/**
+ * @param {HandState} state
+ * @param {number} runId
+ * @returns {Promise<void> | void}
+ */
+function selectElementsInSelectionRect(state, runId) {
+  return calculateSelectionWithIntersectionObserver(
+    state,
+    getSelectableElements(state),
+  ).then((selected) => finishSelection(state, selected, runId));
 }
 
 /**
@@ -880,11 +1049,13 @@ function clickSelector(state, x, y, evt) {
   }
 }
 
-/** @param {HandState} state */
+/** @param {HandState} state @returns {Promise<void> | void} */
 function releaseSelector(state) {
   if (state.selectorState === state.selectorStates.selecting) {
-    state.selectedEls = calculateSelection(state);
-    if (state.selectedEls.length === 0) hideSelectionUI(state);
+    const runId = state.selectionRunId;
+    state.transformElements = [];
+    state.selectorState = state.selectorStates.pointing;
+    return selectElementsInSelectionRect(state, runId);
   } else if (state.selectorState === state.selectorStates.transform) {
     resetSelectionRect(state);
   }
@@ -987,6 +1158,7 @@ function syncHandTouchAction(state) {
  * @returns {void}
  */
 function resetHandUiState(state, options) {
+  state.selectionRunId += 1;
   if (options.resetTouchAction) {
     if (state.Tools.board) state.Tools.board.style.touchAction = "";
     if (state.Tools.svg) state.Tools.svg.style.touchAction = "";
@@ -1037,8 +1209,9 @@ export function release(state, x, y, evt, isTouchEvent) {
       endHand(state);
     }
   } else moveSelector(state, x, y, evt, true);
-  if (isSelectorActive(state)) releaseSelector(state);
+  const result = isSelectorActive(state) ? releaseSelector(state) : undefined;
   state.selected = null;
+  return result;
 }
 
 /** @param {HandState} state @param {{ key: string, target: EventTarget | null }} e */
@@ -1074,9 +1247,7 @@ function switchTool(state) {
 
 /** @param {ToolBootContext} ctx */
 export async function boot(ctx) {
-  ({ pointInTransformedBBox, transformedBBoxIntersects } = await import(
-    "../../js/intersect.js"
-  ));
+  ({ pointInTransformedBBox } = await import("../../js/intersect.js"));
   return createState(ctx.Tools, ctx.assetUrl);
 }
 
