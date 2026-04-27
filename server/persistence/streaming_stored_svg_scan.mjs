@@ -69,17 +69,15 @@ function tryExtractItemOrSuffix(buffer) {
   const closeTagStart = buffer.indexOf(closeToken, openTagEnd + 1);
   if (closeTagStart === -1) return null;
   const closeTagEnd = closeTagStart + closeToken.length;
+  const rawAttributes = buffer.slice(offset + 1 + tagName.length, openTagEnd);
   return {
     type: "item",
     leadingText,
     entry: {
       raw: buffer.slice(offset, closeTagEnd),
       tagName,
-      rawAttributes: buffer.slice(offset + 1 + tagName.length, openTagEnd),
-      id: readRawAttribute(
-        buffer.slice(offset + 1 + tagName.length, openTagEnd),
-        "id",
-      ),
+      rawAttributes,
+      id: readRawAttribute(rawAttributes, "id"),
       content: buffer.slice(openTagEnd + 1, closeTagStart),
     },
     consumed: closeTagEnd,
