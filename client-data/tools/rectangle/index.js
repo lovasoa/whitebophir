@@ -15,6 +15,7 @@ import {
   defineShapeContract,
   normalizeRectBounds,
   serializeStoredShapeTag,
+  storedShapeAttributeNames,
   summarizeStoredShape,
 } from "../shape_contract.js";
 /** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof ToolCodes.RECTANGLE>} RectangleCreateMessage */
@@ -28,19 +29,20 @@ const contract = defineShapeContract({
   toolId,
   toolCode: ToolCodes.RECTANGLE,
   storedTagName: "rect",
+  storedAttributeNames: storedShapeAttributeNames([
+    "x",
+    "y",
+    "width",
+    "height",
+  ]),
   updatableFields: /** @type {const} */ (["x", "y", "x2", "y2"]),
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
-    const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
-    const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));
-    const width = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "width"),
-    );
-    const height = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "height"),
-    );
-    const size = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "stroke-width"),
-    );
+    const x = helpers.readStoredSvgNumberAttribute(entry, "x");
+    const y = helpers.readStoredSvgNumberAttribute(entry, "y");
+    const width = helpers.readStoredSvgNumberAttribute(entry, "width");
+    const height = helpers.readStoredSvgNumberAttribute(entry, "height");
+    const color = helpers.readStoredSvgAttribute(entry, "stroke") || "#000000";
+    const size = helpers.readStoredSvgNumberAttribute(entry, "stroke-width");
     if (
       x === undefined ||
       y === undefined ||
@@ -60,7 +62,7 @@ const contract = defineShapeContract({
           y,
           x2: x + width,
           y2: y + height,
-          color: helpers.readStoredSvgAttribute(entry, "stroke") || "#000000",
+          color,
           size,
         },
         localBounds: {

@@ -97,6 +97,15 @@ const contract = {
   toolCode: ToolCodes.TEXT,
   payloadKind: "text",
   storedTagName: "text",
+  storedAttributeNames: [
+    "id",
+    "x",
+    "y",
+    "font-size",
+    "fill",
+    "opacity",
+    "transform",
+  ],
   updatableFields: /** @type {const} */ (["txt"]),
   liveMessageFields: /** @type {const} */ ({
     [MutationType.CREATE]: {
@@ -113,15 +122,13 @@ const contract = {
     },
   }),
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
-    const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
-    const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));
-    const size = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "font-size"),
-    );
+    const x = helpers.readStoredSvgNumberAttribute(entry, "x");
+    const y = helpers.readStoredSvgNumberAttribute(entry, "y");
+    const size = helpers.readStoredSvgNumberAttribute(entry, "font-size");
     if (x === undefined || y === undefined || size === undefined) {
       return null;
     }
-    const textLength = helpers.decodedTextLength(entry.content || "");
+    const textLength = helpers.readStoredSvgDecodedTextLength(entry);
     return {
       id: helpers.id,
       tool: contract.toolId,
@@ -151,7 +158,7 @@ const contract = {
       id: summary.id,
       tool: contract.toolId,
       ...summary.data,
-      txt: helpers.unescapeHtml(entry.content || ""),
+      txt: helpers.readStoredSvgTextContent(entry),
     };
   },
   serializeStoredSvgItem(item, helpers) {

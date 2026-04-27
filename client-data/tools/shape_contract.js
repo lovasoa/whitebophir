@@ -1,5 +1,5 @@
 /**
- * @typedef {{attributes?: {[name: string]: string}, rawAttributes?: string, id?: string, content?: string}} StoredSvgEntry
+ * @typedef {{attributes?: {[name: string]: string}, rawAttributes?: string, id?: string, content?: string, readStringAttr?: (name: string) => string | undefined, readNumberAttr?: (name: string) => number | undefined, readSvgPathAttr?: () => IterableIterator<{x: number, y: number}>, scanSvgPathAttr?: () => {childCount: number, localBounds: LocalBounds | null, lastPoint?: {x: number, y: number} | null}, readTextContent?: () => string | undefined, readDecodedTextLength?: () => number}} StoredSvgEntry
  * @typedef {{a: number, b: number, c: number, d: number, e: number, f: number}} SvgTransform
  * @typedef {{minX: number, minY: number, maxX: number, maxY: number}} LocalBounds
  * @typedef {{id: string, tool: string, paintOrder?: number, data: object, localBounds: LocalBounds}} StoredShapeSummary
@@ -7,8 +7,28 @@
  * @typedef {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: SvgTransform | undefined) => string}} StoredShapeSerializeHelpers
  * @typedef {ReadonlyArray<string>} UpdatableFields
  * @typedef {Readonly<Record<number, Readonly<Record<string, string>>>>} LiveMessageFields
- * @typedef {{toolId: string, toolCode: import("../../types/app-runtime").ToolCode, storedTagName?: string, shapeTool?: boolean, updatableFields?: UpdatableFields, drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", liveMessageFields?: LiveMessageFields, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: any) => any, serializeStoredSvgItem: (item: any, helpers: any) => string, parseStoredSvgItem?: (summary: any, entry: StoredSvgEntry, helpers: any) => any, renderBoardSvg?: (shape: any, helpers: any) => string}} ToolContract
+ * @typedef {{toolId: string, toolCode: import("../../types/app-runtime").ToolCode, storedTagName?: string, storedAttributeNames?: ReadonlyArray<string>, shapeTool?: boolean, updatableFields?: UpdatableFields, drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", liveMessageFields?: LiveMessageFields, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: any) => any, serializeStoredSvgItem: (item: any, helpers: any) => string, parseStoredSvgItem?: (summary: any, entry: StoredSvgEntry, helpers: any) => any, renderBoardSvg?: (shape: any, helpers: any) => string}} ToolContract
  */
+
+const STORED_SHAPE_STYLE_ATTRIBUTE_NAMES = [
+  "stroke",
+  "stroke-width",
+  "fill",
+  "opacity",
+  "transform",
+];
+
+/**
+ * @param {ReadonlyArray<string>} geometryAttributeNames
+ * @returns {ReadonlyArray<string>}
+ */
+export function storedShapeAttributeNames(geometryAttributeNames) {
+  return [
+    "id",
+    ...geometryAttributeNames,
+    ...STORED_SHAPE_STYLE_ATTRIBUTE_NAMES,
+  ];
+}
 
 /**
  * @param {number} x1
