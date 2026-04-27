@@ -13,6 +13,7 @@ export {
 import {
   defineShapeContract,
   serializeStoredShapeTag,
+  storedShapeAttributeNames,
   summarizeStoredShape,
 } from "../shape_contract.js";
 /** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof ToolCodes.STRAIGHT_LINE>} StraightLineCreateMessage */
@@ -26,15 +27,15 @@ const contract = defineShapeContract({
   toolId,
   toolCode: ToolCodes.STRAIGHT_LINE,
   storedTagName: "line",
+  storedAttributeNames: storedShapeAttributeNames(["x1", "y1", "x2", "y2"]),
   updatableFields: /** @type {const} */ (["x2", "y2"]),
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
-    const x1 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x1"));
-    const y1 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y1"));
-    const x2 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x2"));
-    const y2 = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y2"));
-    const size = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "stroke-width"),
-    );
+    const x1 = helpers.readStoredSvgNumberAttribute(entry, "x1");
+    const y1 = helpers.readStoredSvgNumberAttribute(entry, "y1");
+    const x2 = helpers.readStoredSvgNumberAttribute(entry, "x2");
+    const y2 = helpers.readStoredSvgNumberAttribute(entry, "y2");
+    const color = helpers.readStoredSvgAttribute(entry, "stroke") || "#000000";
+    const size = helpers.readStoredSvgNumberAttribute(entry, "stroke-width");
     if (
       x1 === undefined ||
       y1 === undefined ||
@@ -54,7 +55,7 @@ const contract = defineShapeContract({
           y: y1,
           x2,
           y2,
-          color: helpers.readStoredSvgAttribute(entry, "stroke") || "#000000",
+          color,
           size,
         },
         localBounds: {

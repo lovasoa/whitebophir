@@ -71,18 +71,33 @@ function cloneTransform(transform) {
 }
 
 /**
- * @param {{attributes?: {[name: string]: string}, rawAttributes?: string}} entry
+ * @param {{attributes?: {[name: string]: string}, rawAttributes?: string, readStringAttr?: (name: string) => string | undefined}} entry
  * @param {string} name
  * @returns {string | undefined}
  */
 function readStoredSvgAttribute(entry, name) {
+  if (typeof entry?.readStringAttr === "function") {
+    return entry.readStringAttr(name);
+  }
   const value = entry?.attributes?.[name];
   if (typeof value === "string") return value;
   return readRawAttribute(entry?.rawAttributes, name);
 }
 
 /**
- * @param {{attributes?: {[name: string]: string}, rawAttributes?: string, id?: string}} entry
+ * @param {{attributes?: {[name: string]: string}, rawAttributes?: string, readNumberAttr?: (name: string) => number | undefined, readStringAttr?: (name: string) => string | undefined}} entry
+ * @param {string} name
+ * @returns {number | undefined}
+ */
+function readStoredSvgNumberAttribute(entry, name) {
+  if (typeof entry?.readNumberAttr === "function") {
+    return entry.readNumberAttr(name);
+  }
+  return parseNumber(readStoredSvgAttribute(entry, name));
+}
+
+/**
+ * @param {{attributes?: {[name: string]: string}, rawAttributes?: string, id?: string, readNumberAttr?: (name: string) => number | undefined, readStringAttr?: (name: string) => string | undefined}} entry
  * @returns {{id: string | undefined, opacity: number | undefined, transform: {a: number, b: number, c: number, d: number, e: number, f: number} | undefined}}
  */
 function readStoredSvgBase(entry) {
@@ -92,7 +107,7 @@ function readStoredSvgBase(entry) {
       : readStoredSvgAttribute(entry, "id");
   return {
     id,
-    opacity: parseNumber(readStoredSvgAttribute(entry, "opacity")),
+    opacity: readStoredSvgNumberAttribute(entry, "opacity"),
     transform: parseTransformAttribute(
       readStoredSvgAttribute(entry, "transform"),
     ),
@@ -122,7 +137,40 @@ function decorateStoredItemData(data, opacity, transform) {
 }
 
 /**
- * @param {{tagName: string, attributes?: {[name: string]: string}, rawAttributes?: string, content?: string, id?: string}} entry
+ * @param {{content?: string, readTextContent?: () => string | undefined}} entry
+ * @returns {string}
+ */
+function readStoredSvgTextContent(entry) {
+  if (typeof entry?.readTextContent === "function") {
+    return entry.readTextContent() || "";
+  }
+  return unescapeHtml(entry?.content || "");
+}
+
+/**
+ * @param {{content?: string, readDecodedTextLength?: () => number}} entry
+ * @returns {number}
+ */
+function readStoredSvgDecodedTextLength(entry) {
+  if (typeof entry?.readDecodedTextLength === "function") {
+    return entry.readDecodedTextLength();
+  }
+  return decodedTextLength(entry?.content || "");
+}
+
+/**
+ * @param {{attributes?: {[name: string]: string}, rawAttributes?: string, readStringAttr?: (name: string) => string | undefined, scanSvgPathAttr?: () => {childCount: number, localBounds: {minX: number, minY: number, maxX: number, maxY: number} | null}}} entry
+ * @returns {{childCount: number, localBounds: {minX: number, minY: number, maxX: number, maxY: number} | null}}
+ */
+function readStoredSvgPathSummary(entry) {
+  if (typeof entry?.scanSvgPathAttr === "function") {
+    return entry.scanSvgPathAttr();
+  }
+  return scanPathSummary(readStoredSvgAttribute(entry, "d"));
+}
+
+/**
+ * @param {{tagName?: string, toolContract?: StoredSvgContract, attributes?: {[name: string]: string}, rawAttributes?: string, content?: string, id?: string, readStringAttr?: (name: string) => string | undefined, readNumberAttr?: (name: string) => number | undefined}} entry
  * @returns {any | null}
  */
 function parseStoredSvgItem(entry) {
@@ -132,7 +180,7 @@ function parseStoredSvgItem(entry) {
   if (contract && typeof contract.parseStoredSvgItem === "function") {
     return contract.parseStoredSvgItem(summary, entry, {
       readStoredSvgAttribute,
-      unescapeHtml,
+      readStoredSvgTextContent,
     });
   }
   return {
@@ -143,24 +191,30 @@ function parseStoredSvgItem(entry) {
 }
 
 /**
- * @param {{tagName: string, attributes?: {[name: string]: string}, rawAttributes?: string, content?: string, id?: string}} entry
+ * @param {{tagName?: string, toolContract?: StoredSvgContract, attributes?: {[name: string]: string}, rawAttributes?: string, content?: string, id?: string, readStringAttr?: (name: string) => string | undefined, readNumberAttr?: (name: string) => number | undefined, scanSvgPathAttr?: () => any, readDecodedTextLength?: () => number}} entry
  * @param {number} [paintOrder]
  * @returns {any | null}
  */
 function summarizeStoredSvgItem(entry, paintOrder) {
-  if (!entry || typeof entry.tagName !== "string") return null;
+  if (!entry) return null;
   const { id, opacity, transform } = readStoredSvgBase(entry);
   if (!id) return null;
-  const contract = TOOL_BY_STORED_TAG_NAME[entry.tagName];
+  const contract =
+    entry.toolContract ||
+    (typeof entry.tagName === "string"
+      ? TOOL_BY_STORED_TAG_NAME[entry.tagName]
+      : undefined);
   if (contract) {
     return contract.summarizeStoredSvgItem(entry, paintOrder, {
       id,
       opacity,
       transform,
       decorateStoredItemData,
-      decodedTextLength,
       parseNumber,
       readStoredSvgAttribute,
+      readStoredSvgDecodedTextLength,
+      readStoredSvgNumberAttribute,
+      readStoredSvgPathSummary,
     });
   }
   return null;

@@ -291,6 +291,17 @@ const contract = {
   toolCode: ToolCodes.PENCIL,
   payloadKind: "children",
   storedTagName: "path",
+  storedAttributeNames: [
+    "id",
+    "d",
+    "stroke",
+    "stroke-width",
+    "fill",
+    "stroke-linecap",
+    "stroke-linejoin",
+    "opacity",
+    "transform",
+  ],
   liveMessageFields: /** @type {const} */ ({
     [MutationType.CREATE]: {
       id: "id",
@@ -305,17 +316,16 @@ const contract = {
     },
   }),
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
-    const size = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "stroke-width"),
-    );
-    const scanned = scanPathSummary(helpers.readStoredSvgAttribute(entry, "d"));
+    const scanned = helpers.readStoredSvgPathSummary(entry);
+    const color = helpers.readStoredSvgAttribute(entry, "stroke") || "#000000";
+    const size = helpers.readStoredSvgNumberAttribute(entry, "stroke-width");
     if (size === undefined || scanned.childCount === 0) return null;
     return {
       id: helpers.id,
       tool: contract.toolId,
       data: helpers.decorateStoredItemData(
         {
-          color: helpers.readStoredSvgAttribute(entry, "stroke") || "#000000",
+          color,
           size,
         },
         helpers.opacity,

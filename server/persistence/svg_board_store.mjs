@@ -30,7 +30,6 @@ import {
   createDefaultStoredSvgEnvelope,
   parseStoredSvgEnvelope,
   readRawAttribute,
-  readRawAttributeFromRange,
   serializeStoredSvgEnvelope,
   updateRootMetadata,
 } from "./svg_envelope.mjs";
@@ -38,11 +37,14 @@ import {
   serializeStoredSvgItem,
   storedSvgSerializeHelpers,
 } from "./stored_svg_item_codec.mjs";
-import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
-import { unescapeHtml } from "./xml_escape.mjs";
+import {
+  readBufferAttribute,
+  streamStoredSvgStructure,
+} from "./streaming_stored_svg_scan.mjs";
 
 const DEFAULT_SVG_SIZE = 5000;
 const SVG_MARGIN = 4000;
+const SVG_READ_STREAM_OPTIONS = { highWaterMark: 128 * 1024 };
 const { logger } = observability;
 
 /** @typedef {{readonly: boolean, seq?: number}} BoardMetadata */
@@ -57,10 +59,22 @@ function defaultBoardMetadata() {
 }
 
 /**
- * @param {string} prefix
+ * @param {string | Buffer} prefix
  * @returns {{readonly: boolean, seq: number}}
  */
 function readStoredSvgRootMetadata(prefix) {
+  if (Buffer.isBuffer(prefix)) {
+    const openTagStart = prefix.indexOf("<svg");
+    const openTagEnd = prefix.indexOf(">", openTagStart);
+    const rootAttrs = prefix.subarray(
+      openTagStart === -1 ? 0 : openTagStart + 4,
+      openTagEnd,
+    );
+    return {
+      readonly: readBufferAttribute(rootAttrs, "data-wbo-readonly") === "true",
+      seq: normalizeStoredSeq(readBufferAttribute(rootAttrs, "data-wbo-seq")),
+    };
+  }
   const openTagStart = prefix.indexOf("<svg");
   const openTagEnd = prefix.indexOf(">", openTagStart);
   const rawAttributes =
@@ -172,7 +186,7 @@ async function readStoredSvgMetadata(boardName, options) {
     };
   }
 
-  const stream = fs.createReadStream(readableSvg.file, { encoding: "utf8" });
+  const stream = fs.createReadStream(readableSvg.file, SVG_READ_STREAM_OPTIONS);
   /** @type {BoardMetadata} */
   let metadata = defaultBoardMetadata();
   let seq = 0;
@@ -347,7 +361,10 @@ async function readCanonicalBoardState(boardName, options) {
   const paintOrder = [];
   const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
   if (readableSvg) {
-    const stream = fs.createReadStream(readableSvg.file, { encoding: "utf8" });
+    const stream = fs.createReadStream(
+      readableSvg.file,
+      SVG_READ_STREAM_OPTIONS,
+    );
     /** @type {BoardMetadata} */
     let metadata = defaultBoardMetadata();
     let seq = 0;
@@ -362,14 +379,14 @@ async function readCanonicalBoardState(boardName, options) {
         continue;
       }
       if (event.type !== "item") continue;
-      const item = canonicalItemFromStoredSvgEntry(event.entry, index);
+      const item = canonicalItemFromStoredSvgEntry(event, index);
       if (!item) {
         logger.warn("board.load_item_skipped", {
           board: boardName,
           "wbo.board.source": readableSvg.source,
           "wbo.board.paint_order": index,
-          "wbo.board.item_tag": event.entry?.tagName,
-          "wbo.board.item_id": event.entry?.id,
+          "wbo.board.item_tag": event.tagName,
+          "wbo.board.item_id": event.id,
         });
         continue;
       }
@@ -679,57 +696,6 @@ function needsStoredPencilPath(item, isPersistedItem) {
 }
 
 /**
- * Reads text content from a streamed SVG entry. Rewrite mode leaves content
- * opaque for clean items, so this extracts the inner text from raw only when a
- * dirty or copied text item actually needs it.
- *
- * @param {{tagName: string, attributes?: {[name: string]: string}, rawAttributes?: string, content?: string, raw: string, id?: string}} entry
- * @returns {string | undefined}
- */
-function readStoredTextContent(entry) {
-  if (entry.tagName !== "text") return undefined;
-  if (typeof entry.content === "string") return unescapeHtml(entry.content);
-  if (typeof entry.raw !== "string" || typeof entry.tagName !== "string") {
-    return undefined;
-  }
-  const openTagEnd = entry.raw.indexOf(">");
-  const closeTagStart = entry.raw.lastIndexOf(`</${entry.tagName}>`);
-  if (openTagEnd === -1 || closeTagStart <= openTagEnd) return undefined;
-  return unescapeHtml(entry.raw.slice(openTagEnd + 1, closeTagStart));
-}
-
-/**
- * @param {{tagName?: string, raw?: string, attributes?: {[name: string]: string}, rawAttributes?: string}} entry
- * @param {string} name
- * @returns {string | undefined}
- */
-function readStoredEntryAttribute(entry, name) {
-  const value = entry?.attributes?.[name];
-  if (typeof value === "string") return value;
-  if (typeof entry?.rawAttributes === "string") {
-    return readRawAttribute(entry.rawAttributes, name);
-  }
-  if (typeof entry?.raw !== "string" || typeof entry.tagName !== "string") {
-    return undefined;
-  }
-  return readRawAttributeFromRange(
-    entry.raw,
-    name,
-    entry.tagName.length + 1,
-    entry.raw.indexOf(">"),
-  );
-}
-
-/**
- * @param {{tagName?: string, raw?: string, attributes?: {[name: string]: string}, rawAttributes?: string}} entry
- * @returns {string | undefined}
- */
-function readStoredPencilPath(entry) {
-  const value = readStoredEntryAttribute(entry, "d");
-  return typeof value === "string" && value !== "" ? value : undefined;
-}
-
-/**
  * @param {Map<string, any>} itemsById
  * @returns {Set<string>}
  */
@@ -770,42 +736,109 @@ async function rewriteStoredSvgFromCanonical(
   const tmpFile = createTempSvgPath(file);
   const sourceFile =
     (await resolveReadableSvgFile(boardName, historyDir))?.file || file;
-  const input = fs.createReadStream(sourceFile, { encoding: "utf8" });
+  const input = fs.createReadStream(sourceFile, SVG_READ_STREAM_OPTIONS);
   const output = fs.createWriteStream(tmpFile, {
-    encoding: "utf8",
     flags: "wx",
   });
   const copySourceIds = collectCopySourceIds(itemsById);
   const bufferedTextContents = new Map();
   const bufferedPencilPaths = new Map();
   const persistedIds = new Set();
+  /** @type {ArrayBufferLike | undefined} */
+  let preservedBuffer;
+  let preservedByteOffset = 0;
+  let preservedByteLength = 0;
   const closeOutput = () =>
     new Promise((resolve, reject) => {
       output.on("error", reject);
       output.end(resolve);
     });
+  /** @param {string | Buffer} chunk */
+  const writeDirectOutput = async (chunk) => {
+    if (chunk.length === 0) return;
+    if (!output.write(chunk)) {
+      await once(output, "drain");
+    }
+  };
+  const flushPreservedOutput = async () => {
+    if (!preservedBuffer || preservedByteLength <= 0) return;
+    const chunk = Buffer.from(
+      preservedBuffer,
+      preservedByteOffset,
+      preservedByteLength,
+    );
+    preservedBuffer = undefined;
+    preservedByteOffset = 0;
+    preservedByteLength = 0;
+    await writeDirectOutput(chunk);
+  };
+  /** @param {string | Buffer} chunk */
+  const writeOutput = async (chunk) => {
+    await flushPreservedOutput();
+    await writeDirectOutput(chunk);
+  };
+  /**
+   * @param {Buffer} chunk
+   */
+  const writeBufferOutput = async (chunk) => {
+    if (chunk.byteLength <= 0) return;
+    await writeOutput(chunk);
+  };
+  /**
+   * @param {Buffer} chunk
+   * @returns {Promise<void> | undefined}
+   */
+  const preserveOutput = (chunk) => {
+    const byteLength = chunk.byteLength;
+    if (byteLength <= 0) return undefined;
+    const byteOffset = chunk.byteOffset;
+    if (!preservedBuffer) {
+      preservedBuffer = chunk.buffer;
+      preservedByteOffset = byteOffset;
+      preservedByteLength = byteLength;
+      return undefined;
+    }
+    if (
+      preservedBuffer === chunk.buffer &&
+      preservedByteOffset + preservedByteLength === byteOffset
+    ) {
+      preservedByteLength += byteLength;
+      return undefined;
+    }
+    const flush = flushPreservedOutput();
+    preservedBuffer = chunk.buffer;
+    preservedByteOffset = byteOffset;
+    preservedByteLength = byteLength;
+    return flush;
+  };
+  /**
+   * @param {import("./streaming_stored_svg_scan.mjs").StoredSvgElement} element
+   * @param {Buffer | string} item
+   */
+  const writeItemWithLeading = async (element, item) => {
+    await writeBufferOutput(element.leadingBuffer);
+    await writeOutput(item);
+  };
 
   try {
-    for await (const event of streamStoredSvgStructure(input, {
-      materializeEntryDetails: false,
-    })) {
+    for await (const event of streamStoredSvgStructure(input)) {
       if (event.type === "prefix") {
         const currentSeq = readStoredSvgRootMetadata(event.prefix).seq;
         if (currentSeq !== persistedSeq) {
           throw createStoredSvgSeqMismatchError(persistedSeq, currentSeq);
         }
-        if (
-          !output.write(updateRootMetadata(event.prefix, metadata, latestSeq))
-        ) {
-          await once(output, "drain");
-        }
+        await writeOutput(
+          updateRootMetadata(
+            event.prefix.toString("utf8"),
+            metadata,
+            latestSeq,
+          ),
+        );
         continue;
       }
 
       if (event.type === "tail") {
-        if (!output.write(event.chunk)) {
-          await once(output, "drain");
-        }
+        await writeOutput(event.chunk);
         continue;
       }
 
@@ -826,33 +859,27 @@ async function rewriteStoredSvgFromCanonical(
           });
           if (!tag) continue;
           persistedIds.add(item.id);
-          if (!output.write(tag)) {
-            await once(output, "drain");
-          }
+          await writeOutput(tag);
         }
-        if (!output.write(event.leadingText + event.suffix)) {
-          await once(output, "drain");
-        }
+        await writeBufferOutput(event.sourceBuffer);
         continue;
       }
 
-      const id = event.entry.id;
+      const id = event.id;
       if (typeof id !== "string") {
-        if (!output.write(event.leadingText + event.entry.raw)) {
-          await once(output, "drain");
-        }
+        await preserveOutput(event.sourceBuffer);
         continue;
       }
 
-      if (copySourceIds.has(id)) {
+      if (copySourceIds.size > 0 && copySourceIds.has(id)) {
         const copyPayloadKind = itemsById.get(id)?.payload?.kind;
         if (copyPayloadKind === "text") {
-          const sourceText = readStoredTextContent(event.entry);
+          const sourceText = event.readTextContent();
           if (sourceText !== undefined) {
             bufferedTextContents.set(id, sourceText);
           }
         } else if (copyPayloadKind === "children") {
-          const sourcePath = readStoredPencilPath(event.entry);
+          const sourcePath = event.readStringAttr("d");
           if (sourcePath !== undefined) {
             bufferedPencilPaths.set(id, sourcePath);
           }
@@ -870,18 +897,16 @@ async function rewriteStoredSvgFromCanonical(
 
       if (item.dirty !== true) {
         persistedIds.add(id);
-        if (!output.write(event.leadingText + event.entry.raw)) {
-          await once(output, "drain");
-        }
+        await preserveOutput(event.sourceBuffer);
         continue;
       }
 
       const rewrittenTag = serializeCanonicalItemForStorage(item, {
         sourceText: needsStoredTextSource(item)
-          ? bufferedTextContents.get(id) || readStoredTextContent(event.entry)
+          ? bufferedTextContents.get(id) || event.readTextContent()
           : undefined,
         sourcePath: needsStoredPencilPath(item, true)
-          ? bufferedPencilPaths.get(id) || readStoredPencilPath(event.entry)
+          ? bufferedPencilPaths.get(id) || event.readStringAttr("d")
           : undefined,
         isPersistedItem: true,
       });
@@ -889,10 +914,9 @@ async function rewriteStoredSvgFromCanonical(
         continue;
       }
       persistedIds.add(id);
-      if (!output.write(event.leadingText + rewrittenTag)) {
-        await once(output, "drain");
-      }
+      await writeItemWithLeading(event, rewrittenTag);
     }
+    await flushPreservedOutput();
     await closeOutput();
   } catch (error) {
     input.destroy();
@@ -989,7 +1013,7 @@ async function streamServedBaseline(boardName, options) {
   const historyDir = options?.historyDir;
   const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
   if (readableSvg) {
-    return fs.createReadStream(readableSvg.file);
+    return fs.createReadStream(readableSvg.file, SVG_READ_STREAM_OPTIONS);
   }
   return Readable.from([await readServedBaseline(boardName, options)]);
 }

@@ -15,6 +15,7 @@ export {
 import {
   defineShapeContract,
   serializeStoredShapeTag,
+  storedShapeAttributeNames,
   summarizeStoredShape,
 } from "../shape_contract.js";
 /** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof ToolCodes.ELLIPSE>} EllipseCreateMessage */
@@ -28,15 +29,15 @@ const contract = defineShapeContract({
   toolId,
   toolCode: ToolCodes.ELLIPSE,
   storedTagName: "ellipse",
+  storedAttributeNames: storedShapeAttributeNames(["cx", "cy", "rx", "ry"]),
   updatableFields: /** @type {const} */ (["x", "y", "x2", "y2"]),
   summarizeStoredSvgItem(entry, paintOrder, helpers) {
-    const cx = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "cx"));
-    const cy = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "cy"));
-    const rx = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "rx"));
-    const ry = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "ry"));
-    const size = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "stroke-width"),
-    );
+    const cx = helpers.readStoredSvgNumberAttribute(entry, "cx");
+    const cy = helpers.readStoredSvgNumberAttribute(entry, "cy");
+    const rx = helpers.readStoredSvgNumberAttribute(entry, "rx");
+    const ry = helpers.readStoredSvgNumberAttribute(entry, "ry");
+    const color = helpers.readStoredSvgAttribute(entry, "stroke") || "#000000";
+    const size = helpers.readStoredSvgNumberAttribute(entry, "stroke-width");
     if (
       cx === undefined ||
       cy === undefined ||
@@ -56,7 +57,7 @@ const contract = defineShapeContract({
           y: cy - ry,
           x2: cx + rx,
           y2: cy + ry,
-          color: helpers.readStoredSvgAttribute(entry, "stroke") || "#000000",
+          color,
           size,
         },
         localBounds: {
