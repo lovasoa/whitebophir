@@ -117,6 +117,7 @@ function finalizePersistedCanonicalItems(
       continue;
     }
     if (!persistedIds.has(id)) continue;
+    if (item.dirty !== true && !item.copySource) continue;
     const next = cloneCanonicalItem(item);
     next.dirty = false;
     if (next.payload?.kind === "children") {
