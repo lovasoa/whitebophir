@@ -31,7 +31,6 @@ import {
   emitBoardUsersToSocket,
   emitUserJoinedToBoard,
   ensureBoardUser,
-  getBoardUser,
   getBoardUserMap,
   removeBoardUser,
   resetBoardUserMaps,
@@ -58,6 +57,11 @@ import {
   resetRateLimitMaps as resetSocketRateLimitMaps,
 } from "./socket_rate_limits.mjs";
 import {
+  getLastUserReportLog as getLastSocketUserReportLog,
+  handleReportUserMessage,
+  resetSocketReports,
+} from "./socket_reports.mjs";
+import {
   getSocketQueryValue,
   getSocketRequest,
   getSocketUserSecret,
@@ -82,26 +86,11 @@ const BASELINE_NOT_REPLAYABLE = "baseline_not_replayable";
 /** @typedef {{ok: true, boardName: string, board: BoardData, baselineSeq: number, latestSeq: number, minReplayableSeq: number, replayBatch: ConnectionReplayBatch, outcome: "empty" | "replayed"} | {ok: false, reason: string, boardName?: string, baselineSeq?: number, latestSeq?: number, minReplayableSeq?: number, error?: unknown}} ConnectionReplayBootstrap */
 /** @typedef {ConnectionReplayBootstrap & {ok: false}} ConnectionReplayFailure */
 /** @typedef {Error & {data?: {reason: string, latestSeq?: number, minReplayableSeq?: number}}} ConnectionReplayError */
-/** @typedef {{
- *   board: string,
- *   reporter_socket: string,
- *   reported_socket: string,
- *   reporter_ip: string,
- *   reported_ip: string,
- *   reporter_user_agent: string,
- *   reported_user_agent: string,
- *   reporter_language: string,
- *   reported_language: string,
- *   reporter_name: string,
- *   reported_name: string,
- * }} UserReportLog */
 /** @type {Map<string, AppSocket>} */
 const activeSockets = new Map();
 /** @type {Set<string>} */
 const syncedPersistentSockets = new Set();
 let connectedUsersTotal = 0;
-/** @type {UserReportLog | null} */
-let lastUserReportLog = null;
 let invalidIpSourceLogged = false;
 /** @type {import("socket.io").Server | undefined} */
 let io;
@@ -1035,130 +1024,6 @@ async function handleBroadcastWriteMessage(
 }
 
 /**
- * @param {ReportUserPayload | undefined} message
- * @returns {string}
- */
-function getReportedSocketId(message) {
-  return typeof message?.socketId === "string" ? message.socketId : "";
-}
-
-/**
- * @param {string} boardName
- * @param {string} reporterSocketId
- * @param {string} reportedSocketId
- * @returns {{reporter: BoardUser, reported: BoardUser} | null}
- */
-function resolveReportedUsers(boardName, reporterSocketId, reportedSocketId) {
-  const reporter = getBoardUser(boardName, reporterSocketId);
-  const reported = getBoardUser(boardName, reportedSocketId);
-  if (!reporter || !reported) return null;
-  return { reporter, reported };
-}
-
-/**
- * @returns {void}
- */
-function ignoreReportedUser() {
-  tracing.setActiveSpanAttributes({
-    "wbo.board.result": "ignored",
-  });
-}
-
-/**
- * @param {string} boardName
- * @param {BoardUser} reporter
- * @param {BoardUser} reported
- * @returns {UserReportLog}
- */
-function buildUserReportLog(boardName, reporter, reported) {
-  return {
-    board: boardName,
-    reporter_socket: reporter.socketId,
-    reported_socket: reported.socketId,
-    reporter_ip: reporter.ip,
-    reported_ip: reported.ip,
-    reporter_user_agent: reporter.userAgent,
-    reported_user_agent: reported.userAgent,
-    reporter_language: reporter.language,
-    reported_language: reported.language,
-    reporter_name: reporter.name,
-    reported_name: reported.name,
-  };
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @param {BoardUser} reported
- * @returns {void}
- */
-function disconnectReportedSockets(socket, boardName, reported) {
-  const socketsToDisconnect = [socket];
-  const reportedSocket = getActiveSocket(reported.socketId);
-  if (reportedSocket && reportedSocket !== socket) {
-    socketsToDisconnect.push(reportedSocket);
-  }
-  socketsToDisconnect.forEach(
-    function disconnectReportedUser(/** @type {AppSocket} */ targetSocket) {
-      closeSocket(targetSocket, "report_user", {
-        board: boardName,
-        socket: targetSocket.id,
-      });
-    },
-  );
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @param {ReportUserPayload | undefined} message
- * @returns {void}
- */
-function handleReportUserMessage(socket, boardName, message) {
-  const targetSocketId = getReportedSocketId(message);
-  if (!targetSocketId || !socket.rooms.has(boardName)) {
-    ignoreReportedUser();
-    return;
-  }
-
-  const resolvedUsers = resolveReportedUsers(
-    boardName,
-    socket.id,
-    targetSocketId,
-  );
-  if (!resolvedUsers) {
-    ignoreReportedUser();
-    return;
-  }
-
-  const reportLog = buildUserReportLog(
-    boardName,
-    resolvedUsers.reporter,
-    resolvedUsers.reported,
-  );
-  lastUserReportLog = reportLog;
-  tracing.setActiveSpanAttributes({
-    "wbo.board.result": "reported",
-    "user.name": resolvedUsers.reporter.name,
-    "wbo.reported_user.name": resolvedUsers.reported.name,
-  });
-  logger.warn("user.reported", {
-    board: reportLog.board,
-    reporter_socket: reportLog.reporter_socket,
-    reported_socket: reportLog.reported_socket,
-    reporter_ip: reportLog.reporter_ip,
-    reported_ip: reportLog.reported_ip,
-    reporter_user_agent: reportLog.reporter_user_agent,
-    reported_user_agent: reportLog.reported_user_agent,
-    reporter_language: reportLog.reporter_language,
-    reported_language: reportLog.reported_language,
-    reporter_name: reportLog.reporter_name,
-    reported_name: reportLog.reported_name,
-  });
-  disconnectReportedSockets(socket, boardName, resolvedUsers.reported);
-}
-
-/**
  * @param {any} app
  * @param {ServerConfig} config
  * @returns {Promise<import("socket.io").Server>}
@@ -1418,7 +1283,13 @@ async function handleSocketConnection(socket, config) {
           }),
         },
         function traceReportUser() {
-          handleReportUserMessage(socket, normalizedName, message);
+          handleReportUserMessage(
+            socket,
+            normalizedName,
+            message,
+            getActiveSocket,
+            closeSocket,
+          );
         },
       );
     },
@@ -1646,7 +1517,7 @@ export const __test = {
     return getLoadedBoard(name);
   },
   getLastUserReportLog: function getLastUserReportLog() {
-    return lastUserReportLog;
+    return getLastSocketUserReportLog();
   },
   resetRateLimitMaps: function resetRateLimitMaps() {
     resetSocketRateLimitMaps();
@@ -1654,7 +1525,7 @@ export const __test = {
     activeSockets.clear();
     syncedPersistentSockets.clear();
     connectedUsersTotal = 0;
-    lastUserReportLog = null;
+    resetSocketReports();
     invalidIpSourceLogged = false;
     shuttingDown = false;
     io = undefined;
