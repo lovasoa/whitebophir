@@ -16,6 +16,7 @@ so read the [performance-critical paths](#performance-critical-paths)
 section before making changes there.
 
 - Process boot: [server entrypoint](./server/server.mjs), [HTTP runtime](./server/http_runtime.mjs). HTTP request observation and error handling live in [HTTP observation](./server/http_observation.mjs), cache policy in [HTTP cache policy](./server/http_cache_policy.mjs), and board/static route dispatch in [HTTP routes](./server/http_routes.mjs).
+- Observability setup: [observability](./server/observability.mjs), with log record formatting/export helpers in [observability logging](./server/observability_logging.mjs) and metric attribute helpers in [observability metric helpers](./server/observability_metric_helpers.mjs).
 - HTML templating + client config payload: [templating](./server/templating.mjs), [client config](./server/client_configuration.mjs). `WBO_HTML_HEAD_SNIPPET_PATH` is a cold startup setting for inserting a trusted raw HTML snippet before `</head>` on rendered HTML pages.
 - Server-issued user identity cookie parsing + serialization: [user secret cookie helper](./server/user_secret_cookie.mjs).
 - Shared ordered tool registry + convention-based tool defaults: [tool registry](./client-data/tools/index.js), [tool defaults](./client-data/tools/tool-defaults.js), [tool order](./client-data/tools/tool-order.js).
