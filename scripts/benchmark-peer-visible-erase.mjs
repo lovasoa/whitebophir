@@ -9,7 +9,7 @@ import { chromium } from "@playwright/test";
 
 import { MutationType } from "../client-data/js/mutation_type.js";
 import { ToolCodes } from "../client-data/tools/tool-order.js";
-import { writeBoardState } from "../server/svg_board_store.mjs";
+import { writeBoardState } from "../server/persistence/svg_board_store.mjs";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

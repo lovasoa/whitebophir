@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const {
   buildPronounceableName,
   buildRandomBoardName,
-} = require("../server/pronounceable_name.mjs");
+} = require("../server/shared/pronounceable_name.mjs");
 
 test("buildPronounceableName stays deterministic for seeded names", () => {
   const seededName = buildPronounceableName("seed", 2, 3);

@@ -8,11 +8,11 @@ const historyDir = await fsp.mkdtemp(path.join(os.tmpdir(), "wbo-bench-"));
 process.env.WBO_HISTORY_DIR = historyDir;
 process.env.WBO_SILENT ||= "true";
 
-const { BoardData } = await import("../server/boardData.mjs");
+const { BoardData } = await import("../server/board/data.mjs");
 const { setLoadedBoard, deleteLoadedBoard } = await import(
-  "../server/board_registry.mjs"
+  "../server/board/registry.mjs"
 );
-const { __test: socketsTest } = await import("../server/sockets.mjs");
+const { __test: socketsTest } = await import("../server/socket/index.mjs");
 const { MutationType } = await import("../client-data/js/mutation_type.js");
 const { Hand, Pencil, Rectangle, Text } = await import(
   "../client-data/tools/index.js"
@@ -21,7 +21,7 @@ const config = await import(
   `../server/configuration.mjs?cache-bust=${encodeURIComponent(import.meta.url)}`
 );
 const { boardSvgPath, writeBoardState } = await import(
-  "../server/svg_board_store.mjs"
+  "../server/persistence/svg_board_store.mjs"
 );
 
 const scenario = (process.argv[2] || "all").toLowerCase();

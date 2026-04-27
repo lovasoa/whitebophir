@@ -15,8 +15,20 @@ const {
 } = require("./test_helpers.js");
 
 const SERVER_PATH = path.join(__dirname, "..", "server", "server.mjs");
-const TEMPLATING_PATH = path.join(__dirname, "..", "server", "templating.mjs");
-const CREATE_SVG_PATH = path.join(__dirname, "..", "server", "createSVG.mjs");
+const TEMPLATING_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "http",
+  "templating.mjs",
+);
+const CREATE_SVG_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "persistence",
+  "create_svg.mjs",
+);
 const CONFIGURATION_PATH = path.join(
   __dirname,
   "..",
@@ -27,28 +39,32 @@ const CHECK_OUTPUT_DIRECTORY_PATH = path.join(
   __dirname,
   "..",
   "server",
+  "runtime",
   "check_output_directory.mjs",
 );
 const CLIENT_CONFIGURATION_PATH = path.join(
   __dirname,
   "..",
   "server",
+  "http",
   "client_configuration.mjs",
 );
 const COMPRESSION_PATH = path.join(
   __dirname,
   "..",
   "server",
-  "http_compression.mjs",
+  "http",
+  "compression.mjs",
 );
 const OBSERVABILITY_PATH = path.join(
   __dirname,
   "..",
   "server",
-  "observability.mjs",
+  "observability",
+  "index.mjs",
 );
 const CLIENT_WEBROOT = path.join(__dirname, "..", "client-data");
-const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.mjs");
+const JWTAUTH_PATH = path.join(__dirname, "..", "server", "auth", "jwt.mjs");
 
 /**
  * @returns {Promise<{createServerApp: (config: any, options?: any) => Promise<import("http").Server>}>}
@@ -652,7 +668,7 @@ test("server inserts configured html head snippet into rendered html pages", asy
 test("server logs and skips missing configured html head snippet", async () => {
   const dirs = await createServerDirs();
   const missingSnippetPath = path.join(dirs.webroot, "missing-snippet.html");
-  const observability = require("../server/observability.mjs");
+  const observability = require("../server/observability/index.mjs");
   const originalError = observability.logger.error;
   /** @type {{name: string, fields: any}[]} */
   const errorLogs = [];

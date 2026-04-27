@@ -8,7 +8,7 @@ import {
   parseIpConfigurationEnv,
   parseRateLimitProfileEnv,
   parseStringEnv,
-} from "./configuration_helpers.mjs";
+} from "./configuration/helpers.mjs";
 
 const APP_ROOT = process.cwd();
 const LOG_LEVELS = ["debug", "info", "warn", "error"];

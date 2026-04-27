@@ -6,11 +6,11 @@ const path = require("node:path");
 
 const { withEnv } = require("./test_helpers.js");
 
-const svgEnvelope = require("../server/svg_envelope.mjs");
-const svgBoardStore = require("../server/svg_board_store.mjs");
-const legacyJsonBoardSource = require("../server/legacy_json_board_source.mjs");
-const storedSvgItemCodec = require("../server/stored_svg_item_codec.mjs");
-const { copyCanonicalItem } = require("../server/canonical_board_items.mjs");
+const svgEnvelope = require("../server/persistence/svg_envelope.mjs");
+const svgBoardStore = require("../server/persistence/svg_board_store.mjs");
+const legacyJsonBoardSource = require("../server/persistence/legacy_json_board_source.mjs");
+const storedSvgItemCodec = require("../server/persistence/stored_svg_item_codec.mjs");
+const { copyCanonicalItem } = require("../server/board/canonical_items.mjs");
 
 /**
  * @param {string} boardName
@@ -560,7 +560,7 @@ test("readCanonicalBoardState skips malformed stored items and logs a warning", 
         throw new Error("missing history dir");
       }
       const boardName = "skip-bad-item";
-      const observability = await import("../server/observability.mjs");
+      const observability = await import("../server/observability/index.mjs");
       /** @type {Array<{name: string, fields: any}>} */
       const warnings = [];
       const originalWarn = observability.logger.warn;

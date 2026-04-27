@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { createConfig } = require("./test_helpers.js");
-const { Template } = require("../server/templating.mjs");
+const { Template } = require("../server/http/templating.mjs");
 
 /**
  * @returns {Promise<Template>}

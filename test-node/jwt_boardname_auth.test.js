@@ -8,7 +8,8 @@ const JWT_BOARDNAME_AUTH_PATH = path.join(
   __dirname,
   "..",
   "server",
-  "jwtBoardnameAuth.mjs",
+  "auth",
+  "board_jwt.mjs",
 );
 
 test("roleInBoard allows board-scoped reader access without editor privileges", async () => {

@@ -82,7 +82,7 @@ See instructions on our Wiki about [how to setup a reverse proxy for WBO](https:
 
 ## Translations
 
-WBO is available in multiple languages. The translations are stored in [`server/translations.json`](./server/translations.json).
+WBO is available in multiple languages. The translations are stored in [`server/http/translations.json`](./server/http/translations.json).
 If you feel like contributing to this collaborative project, you can [translate WBO into your own language](https://github.com/lovasoa/whitebophir/wiki/How-to-translate-WBO-into-your-own-language).
 
 ## Authentication

@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   streamStoredSvgStructure,
-} = require("../server/streaming_stored_svg_scan.mjs");
+} = require("../server/persistence/streaming_stored_svg_scan.mjs");
 
 /**
  * @param {string} value

@@ -25,24 +25,36 @@ const {
 } = require("./test_helpers.js");
 
 const ROOT = path.join(__dirname, "..");
-const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.mjs");
+const OBSERVABILITY_PATH = path.join(
+  ROOT,
+  "server",
+  "observability",
+  "index.mjs",
+);
 const SERVER_PATH = path.join(ROOT, "server", "server.mjs");
-const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.mjs");
-const TEMPLATING_PATH = path.join(ROOT, "server", "templating.mjs");
-const CREATE_SVG_PATH = path.join(ROOT, "server", "createSVG.mjs");
+const BOARD_DATA_PATH = path.join(ROOT, "server", "board", "data.mjs");
+const TEMPLATING_PATH = path.join(ROOT, "server", "http", "templating.mjs");
+const CREATE_SVG_PATH = path.join(
+  ROOT,
+  "server",
+  "persistence",
+  "create_svg.mjs",
+);
 const CHECK_OUTPUT_DIRECTORY_PATH = path.join(
   ROOT,
   "server",
+  "runtime",
   "check_output_directory.mjs",
 );
 const CLIENT_CONFIGURATION_PATH = path.join(
   ROOT,
   "server",
+  "http",
   "client_configuration.mjs",
 );
 const HTTP_RESPONSE_CONTENT_ENCODING =
   ATTR_HTTP_RESPONSE_HEADER("content-encoding");
-const JWTAUTH_PATH = path.join(ROOT, "server", "jwtauth.mjs");
+const JWTAUTH_PATH = path.join(ROOT, "server", "auth", "jwt.mjs");
 const TRACING_MODULES_TO_CLEAR = [
   MESSAGE_VALIDATION_PATH,
   SOCKET_POLICY_PATH,

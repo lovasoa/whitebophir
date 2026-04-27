@@ -6,7 +6,7 @@ const {
   scanPathSummary,
   serializeStoredSvgItem,
   summarizeStoredSvgItem,
-} = require("../server/stored_svg_item_codec.mjs");
+} = require("../server/persistence/stored_svg_item_codec.mjs");
 const {
   makeStoredPencilEntry,
   makeStoredTextEntry,

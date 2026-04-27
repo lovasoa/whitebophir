@@ -384,7 +384,7 @@ test("connection replay records outcome metrics with signed seq gap inputs", asy
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-connection-replay-metrics-" },
     async ({ connect, getLoadedBoard, invoke }) => {
-      const observability = await import("../server/observability.mjs");
+      const observability = await import("../server/observability/index.mjs");
       const originalRecordSocketConnectionReplay =
         observability.metrics.recordSocketConnectionReplay;
       /** @type {any[]} */
@@ -1417,7 +1417,7 @@ test("socket shutdown persists and unloads boards even when users are still conn
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-shutdown-" },
     async ({ historyDir, connect, invoke, getLoadedBoard, sockets }) => {
-      const svgBoardStore = require("../server/svg_board_store.mjs");
+      const svgBoardStore = require("../server/persistence/svg_board_store.mjs");
       const created = await connect({
         id: "socket-shutdown",
         remoteAddress: "203.0.113.170",

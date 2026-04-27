@@ -16,7 +16,7 @@ const {
 const {
   pinReplayBaseline,
   resetBoardRegistry,
-} = require("../server/board_registry.mjs");
+} = require("../server/board/registry.mjs");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const {
   Clear,
@@ -26,7 +26,7 @@ const {
   Rectangle,
   Text,
 } = require("../client-data/tools/index.js");
-const observability = require("../server/observability.mjs").default;
+const observability = require("../server/observability/index.mjs").default;
 
 function getBoardDataClass() {
   return loadBoardData();
@@ -1268,7 +1268,7 @@ test("BoardData.save keeps persisted replay history needed by pinned baselines",
 });
 
 test("BoardData.save keeps writing to the board's original history dir after env changes", async () => {
-  /** @type {InstanceType<typeof import("../server/boardData.mjs").BoardData> | undefined} */
+  /** @type {InstanceType<typeof import("../server/board/data.mjs").BoardData> | undefined} */
   let board;
   let historyDir;
   await withBoardHistoryDir("wbo-board-sticky-history-", async (context) => {
@@ -1277,7 +1277,7 @@ test("BoardData.save keeps writing to the board's original history dir after env
     const config = createConfig({ HISTORY_DIR: context.historyDir });
     board = createBoard(BoardData, "sticky-history", config);
     const stickyBoard =
-      /** @type {InstanceType<typeof import("../server/boardData.mjs").BoardData>} */ (
+      /** @type {InstanceType<typeof import("../server/board/data.mjs").BoardData>} */ (
         board
       );
     const rect = rectangleMessage("rect-1", "#654321", 4, 0, 0, 10, 10);
@@ -1543,7 +1543,7 @@ test("BoardData.save preserves cold-loaded state when only the backup svg remain
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
       const config = createConfig({ HISTORY_DIR: historyDir });
-      const svgBoardStore = require("../server/svg_board_store.mjs");
+      const svgBoardStore = require("../server/persistence/svg_board_store.mjs");
       const boardName = "cold-backup";
       const svgPath = path.join(historyDir, "board-cold-backup.svg");
 
@@ -1616,7 +1616,7 @@ test("BoardData.save keeps eagerly loaded canonical items and applies streamed s
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
       const config = createConfig({ HISTORY_DIR: historyDir });
-      const svgBoardStore = require("../server/svg_board_store.mjs");
+      const svgBoardStore = require("../server/persistence/svg_board_store.mjs");
       const boardName = "streaming-sparse";
 
       await svgBoardStore.writeBoardState(

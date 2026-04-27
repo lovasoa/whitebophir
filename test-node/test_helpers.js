@@ -6,13 +6,19 @@ const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(ROOT, "server", "configuration.mjs");
-const OBSERVABILITY_PATH = path.join(ROOT, "server", "observability.mjs");
-const SOCKETS_PATH = path.join(ROOT, "server", "sockets.mjs");
-const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket_policy.mjs");
-const BOARD_DATA_PATH = path.join(ROOT, "server", "boardData.mjs");
+const OBSERVABILITY_PATH = path.join(
+  ROOT,
+  "server",
+  "observability",
+  "index.mjs",
+);
+const SOCKETS_PATH = path.join(ROOT, "server", "socket", "index.mjs");
+const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket", "policy.mjs");
+const BOARD_DATA_PATH = path.join(ROOT, "server", "board", "data.mjs");
 const MESSAGE_VALIDATION_PATH = path.join(
   ROOT,
   "server",
+  "socket",
   "message_validation.mjs",
 );
 const MESSAGE_COMMON_PATH = path.join(
@@ -24,7 +30,8 @@ const MESSAGE_COMMON_PATH = path.join(
 const JWT_BOARDNAME_AUTH_PATH = path.join(
   ROOT,
   "server",
-  "jwtBoardnameAuth.mjs",
+  "auth",
+  "board_jwt.mjs",
 );
 
 /** @typedef {{[key: string]: any}} Dict */

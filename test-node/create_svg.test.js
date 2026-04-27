@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const { renderBoard } = require("../server/createSVG.mjs");
+const { renderBoard } = require("../server/persistence/create_svg.mjs");
 
 /**
  * @param {any} storedBoard

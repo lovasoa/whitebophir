@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 
-const legacyJsonBoardSource = require("../server/legacy_json_board_source.mjs");
+const legacyJsonBoardSource = require("../server/persistence/legacy_json_board_source.mjs");
 
 test("legacy json board source parses board payload and metadata", () => {
   assert.deepEqual(

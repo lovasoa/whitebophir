@@ -2,24 +2,24 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import * as productionConfig from "./configuration.mjs";
-import { route, routeHttpRequests } from "./http_dispatch.mjs";
-import observability from "./observability.mjs";
+import { route, routeHttpRequests } from "./http/dispatch.mjs";
+import observability from "./observability/index.mjs";
 import {
   downloadBoard,
   rejectMissingBoardName,
   serveBoardPreview,
   serveBoardSvg,
-} from "./board_asset_routes.mjs";
-import { redirectBoardQuery, serveBoardPage } from "./board_page_route.mjs";
-import { startWhiteboardServer } from "./server_boot.mjs";
-import { createServerRuntime } from "./server_runtime.mjs";
-import * as sockets from "./sockets.mjs";
+} from "./routes/board_assets.mjs";
+import { redirectBoardQuery, serveBoardPage } from "./routes/board_page.mjs";
+import { startWhiteboardServer } from "./runtime/boot.mjs";
+import { createServerRuntime } from "./runtime/create_runtime.mjs";
+import * as sockets from "./socket/index.mjs";
 import {
   redirectToDefaultBoard,
   redirectToRandomBoard,
   serveBoardStaticAsset,
   serveStaticAsset,
-} from "./static_routes.mjs";
+} from "./routes/static.mjs";
 
 const { logger } = observability;
 

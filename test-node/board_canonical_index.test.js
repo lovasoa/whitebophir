@@ -6,12 +6,12 @@ const {
   getCanonicalItem,
   removeCanonicalItem,
   upsertCanonicalItem,
-} = require("../server/board_canonical_index.mjs");
+} = require("../server/board/canonical_index.mjs");
 const {
   cloneCanonicalItem,
   copyCanonicalItem,
   canonicalItemFromItem,
-} = require("../server/canonical_board_items.mjs");
+} = require("../server/board/canonical_items.mjs");
 
 function createState() {
   return {

@@ -4,16 +4,16 @@ import { setTimeout as delay } from "node:timers/promises";
 import {
   boardJsonPath,
   parseLegacyStoredBoard,
-} from "../../server/legacy_json_board_source.mjs";
+} from "../../server/persistence/legacy_json_board_source.mjs";
 import {
   parseStoredSvgItem,
   summarizeStoredSvgItem,
-} from "../../server/stored_svg_item_codec.mjs";
-import { boardSvgPath } from "../../server/svg_board_store.mjs";
+} from "../../server/persistence/stored_svg_item_codec.mjs";
+import { boardSvgPath } from "../../server/persistence/svg_board_store.mjs";
 import {
   parseStoredSvgEnvelope,
   parseStoredSvgItems,
-} from "../../server/svg_envelope.mjs";
+} from "../../server/persistence/svg_envelope.mjs";
 
 export type StoredBoard = Record<string, any>;
 

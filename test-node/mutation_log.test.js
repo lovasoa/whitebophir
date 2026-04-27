@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Eraser, Rectangle, Text } = require("../client-data/tools/index.js");
-const { createMutationLog } = require("../server/mutation_log.mjs");
+const { createMutationLog } = require("../server/board/mutation_log.mjs");
 
 /** @param {string} id */
 function rectCreate(id) {

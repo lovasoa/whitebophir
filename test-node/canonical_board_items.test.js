@@ -6,7 +6,7 @@ const {
   canonicalItemFromStoredSvgEntry,
   copyCanonicalItem,
   publicItemFromCanonicalItem,
-} = require("../server/canonical_board_items.mjs");
+} = require("../server/board/canonical_items.mjs");
 const {
   makeCanonicalPencilItem,
   makeCanonicalTextItem,

@@ -13,7 +13,8 @@ const BOARD_SESSION_PATH = path.join(
   __dirname,
   "..",
   "server",
-  "board_session.mjs",
+  "board",
+  "session.mjs",
 );
 
 /**
