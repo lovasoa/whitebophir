@@ -123,6 +123,7 @@ test("viewport owns svg extent growth and layout sync", async () => {
     assert.deepEqual(tools.board.style, {
       width: "500px",
       height: "500px",
+      touchAction: "",
     });
     assert.equal(tools.board.dataset.viewportManaged, "true");
 
@@ -169,6 +170,7 @@ test("viewport expands to the full board at minimum zoom", async () => {
     assert.deepEqual(tools.board.style, {
       width: "100px",
       height: "100px",
+      touchAction: "",
     });
   } finally {
     globalAny.window = previousWindow;

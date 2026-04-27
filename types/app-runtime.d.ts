@@ -272,6 +272,8 @@ export type ToolSecondaryMode = {
   switch?: () => void;
 };
 
+export type ToolTouchPolicy = "app-gesture" | "native-pan";
+
 export type MountedAppTool = {
   name: string;
   shortcut?: string;
@@ -296,6 +298,7 @@ export type MountedAppTool = {
   helpText?: string;
   secondary?: ToolSecondaryMode | null;
   onSizeChange?: (size: number) => void;
+  getTouchPolicy?: () => ToolTouchPolicy;
   showMarker?: boolean;
   requiresWritableBoard?: boolean;
   touchListenerOptions?: ToolListenerOptions;
@@ -583,12 +586,14 @@ export type ToolModule<T = unknown> = {
     reason?: string,
   ) => void;
   onSizeChange?: (state: T, size: number) => void;
+  getTouchPolicy?: (state: T) => ToolTouchPolicy;
 };
 
 export type ViewportController = {
   setScale: (scale: number) => number;
   getScale: () => number;
   syncLayoutSize: () => void;
+  setTouchPolicy: (policy: ToolTouchPolicy) => void;
   ensureBoardExtentAtLeast: (width: number, height: number) => boolean;
   ensureBoardExtentForPoint: (x: number, y: number) => boolean;
   ensureBoardExtentForBounds: (
@@ -749,6 +754,7 @@ export type AppToolsState = {
   activateTool: (toolName: string) => Promise<boolean>;
   addToolListeners: (tool: MountedAppTool) => void;
   removeToolListeners: (tool: MountedAppTool) => void;
+  syncActiveToolInputPolicy: () => void;
   /** Takes ownership of message. Callers must not mutate it after sending. */
   drawAndSend: (message: LiveBoardMessage) => boolean | undefined;
   /** Takes ownership of message. Callers must not mutate it after sending. */

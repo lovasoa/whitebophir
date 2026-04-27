@@ -37,11 +37,14 @@ const BOARD_EXTENT_MARGIN = 20000;
  * }} ViewportState
  */
 
+/** @typedef {"app-gesture" | "native-pan"} ViewportTouchPolicy */
+
 /**
  * @typedef {{
  *   setScale(scale: number): number,
  *   getScale(): number,
  *   syncLayoutSize(): void,
+ *   setTouchPolicy(policy: ViewportTouchPolicy): void,
  *   ensureBoardExtentAtLeast(width: number, height: number): boolean,
  *   ensureBoardExtentForPoint(x: number, y: number): boolean,
  *   ensureBoardExtentForBounds(bounds: {maxX: number, maxY: number} | null | undefined): boolean,
@@ -250,6 +253,8 @@ export function createViewportController(Tools) {
   let lastViewportHashStateUpdate = Date.now();
   let installed = false;
   let hashObserversInstalled = false;
+  /** @type {ViewportTouchPolicy} */
+  let touchPolicy = "app-gesture";
   /** @type {{x: number, y: number, scrollLeft: number, scrollTop: number} | null} */
   let activePan = null;
   /** @type {{distance: number, scale: number} | null} */
@@ -295,6 +300,15 @@ export function createViewportController(Tools) {
   /**
    * @returns {void}
    */
+  function applyTouchPolicy() {
+    const touchAction = touchPolicy === "native-pan" ? "auto" : "";
+    if (Tools.board) Tools.board.style.touchAction = touchAction;
+    if (Tools.svg?.style) Tools.svg.style.touchAction = touchAction;
+  }
+
+  /**
+   * @returns {void}
+   */
   function syncLayoutSize() {
     if (!Tools.board || !Tools.svg) return;
     const size = getScaledBoardLayoutSize(
@@ -307,6 +321,7 @@ export function createViewportController(Tools) {
     Tools.board.style.width = `${size.width}px`;
     Tools.board.style.height = `${size.height}px`;
     Tools.board.dataset.viewportManaged = "true";
+    applyTouchPolicy();
   }
 
   /**
@@ -542,6 +557,10 @@ export function createViewportController(Tools) {
     setScale,
     getScale: () => Tools.scale,
     syncLayoutSize,
+    setTouchPolicy(policy) {
+      touchPolicy = policy === "native-pan" ? "native-pan" : "app-gesture";
+      applyTouchPolicy();
+    },
     ensureBoardExtentAtLeast,
     ensureBoardExtentForPoint,
     ensureBoardExtentForBounds,

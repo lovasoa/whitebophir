@@ -74,6 +74,17 @@ async function expectViewportRestoreAfterConnect(
   });
 }
 
+async function readBoardTouchAction(page: Page) {
+  return page.evaluate(() => {
+    const board = document.getElementById("board");
+    const svg = document.getElementById("canvas");
+    return {
+      board: board ? getComputedStyle(board).touchAction : "",
+      svg: svg ? getComputedStyle(svg).touchAction : "",
+    };
+  });
+}
+
 test.describe("single-page interactions", () => {
   test("selector moves existing rectangle", async ({
     boardPage,
@@ -287,6 +298,50 @@ test.describe("single-page interactions", () => {
       .toMatchObject({
         left: 200,
         top: 150,
+      });
+  });
+
+  test("hand touch panning policy survives authoritative resync", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("hand-touch-policy-resync-test");
+    await expect(boardPage.tool("hand")).toBeVisible();
+    await boardPage.expectCurrentTool("hand");
+
+    await expect
+      .poll(() => readBoardTouchAction(page))
+      .toMatchObject({
+        board: "auto",
+        svg: "auto",
+      });
+
+    await page.evaluate(() => {
+      window.Tools.beginAuthoritativeResync();
+    });
+
+    await boardPage.expectCurrentTool("hand");
+    await expect
+      .poll(() => readBoardTouchAction(page))
+      .toMatchObject({
+        board: "auto",
+        svg: "auto",
+      });
+
+    await boardPage.tool("hand").click();
+    await expect
+      .poll(() => readBoardTouchAction(page))
+      .toMatchObject({
+        board: "none",
+        svg: "none",
+      });
+
+    await boardPage.tool("hand").click();
+    await expect
+      .poll(() => readBoardTouchAction(page))
+      .toMatchObject({
+        board: "auto",
+        svg: "auto",
       });
   });
 
