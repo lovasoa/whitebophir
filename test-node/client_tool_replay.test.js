@@ -543,6 +543,10 @@ function createHarness() {
             ? (/** @type {number} */ size) =>
                 moduleNamespace.onSizeChange(toolState, size)
             : undefined,
+        getTouchPolicy:
+          typeof moduleNamespace.getTouchPolicy === "function"
+            ? () => moduleNamespace.getTouchPolicy(toolState)
+            : undefined,
       });
       if (!tool.listeners) {
         tool.listeners = {
@@ -1884,7 +1888,7 @@ test("Hand box selection does not fall back to target bbox reads without Interse
   }
 });
 
-test("Hand tool enables native touch scrolling when selector mode is off", async () => {
+test("Hand tool declares native touch scrolling when selector mode is off", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
 
@@ -1892,18 +1896,21 @@ test("Hand tool enables native touch scrolling when selector mode is off", async
   assert.equal(globalAny.Tools.svg.style.touchAction, undefined);
 
   handTool.onstart?.(null);
-  assert.equal(globalAny.Tools.board.style.touchAction, "auto");
-  assert.equal(globalAny.Tools.svg.style.touchAction, "auto");
+  assert.equal(handTool.getTouchPolicy?.(), "native-pan");
+  assert.equal(globalAny.Tools.board.style.touchAction, undefined);
+  assert.equal(globalAny.Tools.svg.style.touchAction, undefined);
 
   handTool.secondary.active = true;
   handTool.secondary.switch();
-  assert.equal(globalAny.Tools.board.style.touchAction, "");
-  assert.equal(globalAny.Tools.svg.style.touchAction, "");
+  assert.equal(handTool.getTouchPolicy?.(), "app-gesture");
+  assert.equal(globalAny.Tools.board.style.touchAction, undefined);
+  assert.equal(globalAny.Tools.svg.style.touchAction, undefined);
 
   handTool.secondary.active = false;
   handTool.secondary.switch();
-  assert.equal(globalAny.Tools.board.style.touchAction, "auto");
-  assert.equal(globalAny.Tools.svg.style.touchAction, "auto");
+  assert.equal(handTool.getTouchPolicy?.(), "native-pan");
+  assert.equal(globalAny.Tools.board.style.touchAction, undefined);
+  assert.equal(globalAny.Tools.svg.style.touchAction, undefined);
 });
 
 test("Hand tool touch gestures do not run synthetic drag panning", async () => {

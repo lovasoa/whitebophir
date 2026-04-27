@@ -1146,25 +1146,8 @@ function isSelectorActive(state) {
  * @param {HandState} state
  * @returns {void}
  */
-function syncHandTouchAction(state) {
-  const touchAction = isSelectorActive(state) ? "" : "auto";
-  if (state.Tools.board) state.Tools.board.style.touchAction = touchAction;
-  if (state.Tools.svg) state.Tools.svg.style.touchAction = touchAction;
-}
-
-/**
- * @param {HandState} state
- * @param {{resetTouchAction: boolean}} options
- * @returns {void}
- */
-function resetHandUiState(state, options) {
+function resetHandUiState(state) {
   state.selectionRunId += 1;
-  if (options.resetTouchAction) {
-    if (state.Tools.board) state.Tools.board.style.touchAction = "";
-    if (state.Tools.svg) state.Tools.svg.style.touchAction = "";
-  } else {
-    syncHandTouchAction(state);
-  }
   state.selected = null;
   hideSelectionUI(state);
   window.removeEventListener("keydown", state.boundDeleteShortcut);
@@ -1238,7 +1221,7 @@ function duplicateShortcut(state, e) {
 
 /** @param {HandState} state */
 function switchTool(state) {
-  resetHandUiState(state, { resetTouchAction: false });
+  resetHandUiState(state);
   if (isSelectorActive(state)) {
     window.addEventListener("keydown", state.boundDeleteShortcut);
     window.addEventListener("keydown", state.boundDuplicateShortcut);
@@ -1253,12 +1236,12 @@ export async function boot(ctx) {
 
 /** @param {HandState} state */
 export function onquit(state) {
-  resetHandUiState(state, { resetTouchAction: true });
+  resetHandUiState(state);
 }
 
 /** @param {HandState} state */
-export function onstart(state) {
-  syncHandTouchAction(state);
+export function getTouchPolicy(state) {
+  return isSelectorActive(state) ? "app-gesture" : "native-pan";
 }
 
 /** @param {HandState} state */

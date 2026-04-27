@@ -229,6 +229,7 @@ export async function attachBoardDom(document) {
     document.body.clientHeight,
   );
   normalizeServerRenderedElements();
+  Tools.syncActiveToolInputPolicy();
 }
 
 Tools.i18n = (function i18n() {
@@ -1146,6 +1147,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Object.values(Tools.list || {}).forEach((tool) => {
     if (tool) tool.onSocketDisconnect();
   });
+  Tools.syncActiveToolInputPolicy();
   Tools.syncWriteStatusIndicator();
 };
 
@@ -2492,6 +2494,7 @@ function createMountedTool(toolModule, toolState, toolName) {
   const onMutationRejected = toolModule.onMutationRejected;
   const onSizeChange = toolModule.onSizeChange;
   const touchListenerOptions = toolModule.touchListenerOptions;
+  const getTouchPolicy = toolModule.getTouchPolicy;
   const toolStateObject =
     /** @type {{mouseCursor?: string, secondary?: import("../../types/app-runtime").ToolSecondaryMode | null} | null} */ (
       toolState && typeof toolState === "object" ? toolState : null
@@ -2552,6 +2555,10 @@ function createMountedTool(toolModule, toolState, toolName) {
     onSizeChange:
       typeof onSizeChange === "function"
         ? (size) => onSizeChange(toolState, size)
+        : undefined,
+    getTouchPolicy:
+      typeof getTouchPolicy === "function"
+        ? () => getTouchPolicy(toolState)
         : undefined,
     showMarker: toolModule.showMarker,
     requiresWritableBoard: toolModule.requiresWritableBoard,
@@ -2757,6 +2764,7 @@ function toggleSecondaryTool(newTool) {
   toggleToolButtonMode(newTool.name, props.name, props.icon);
   if (newTool.secondary.switch) newTool.secondary.switch();
   syncActiveToolState();
+  Tools.syncActiveToolInputPolicy();
 }
 
 /**
@@ -2810,6 +2818,12 @@ function syncActiveToolState() {
     currentTool.secondary && currentTool.secondary.active ? "true" : "false";
 }
 
+Tools.syncActiveToolInputPolicy = function syncActiveToolInputPolicy() {
+  Tools.viewport.setTouchPolicy(
+    Tools.curTool?.getTouchPolicy?.() || "app-gesture",
+  );
+};
+
 /** @param {string} toolName */
 Tools.change = (toolName) => {
   const newTool = Tools.list[toolName];
@@ -2827,6 +2841,7 @@ Tools.change = (toolName) => {
   }
 
   if (newTool.onstart) newTool.onstart(oldTool);
+  Tools.syncActiveToolInputPolicy();
   return true;
 };
 
