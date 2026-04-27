@@ -42,19 +42,9 @@ function createWhiteboardHttpHandler() {
     route("/boards/{board}", serveBoardPage, "board_page", {
       where: (params) => !hasDot(params.board),
     }),
-    route("/download/{board}", downloadBoard, "download_board"),
-    route("/download", rejectMissingBoardName, "download_board"),
-    route("/download/", rejectMissingBoardName, "download_board"),
-    route("/preview/{board}", serveBoardPreview, "preview_board"),
-    route("/preview", rejectMissingBoardName, "preview_board"),
-    route("/preview/", rejectMissingBoardName, "preview_board"),
-    route("/export/{board}", serveBoardPreview, "preview_board", {
-      access: "user",
-    }),
-    route("/export", rejectMissingBoardName, "preview_board", {
-      access: "user",
-    }),
-    route("/export/", rejectMissingBoardName, "preview_board", {
+    ...boardNameRouteGroup("/download", downloadBoard, "download_board"),
+    ...boardNameRouteGroup("/preview", serveBoardPreview, "preview_board"),
+    ...boardNameRouteGroup("/export", serveBoardPreview, "preview_board", {
       access: "user",
     }),
     route("/random", redirectToRandomBoard, "random_board", {
@@ -65,6 +55,31 @@ function createWhiteboardHttpHandler() {
     }),
     route("*", serveStaticAsset, "static_file"),
   ]);
+}
+
+/**
+ * @param {string} prefix
+ * @param {import("../types/server-runtime.d.ts").HttpRouteHandler} handler
+ * @param {string} routeName
+ * @param {{access?: "none" | "user"}=} options
+ */
+function boardNameRouteGroup(prefix, handler, routeName, options) {
+  return [
+    route(`${prefix}/{board}`, handler, routeName, options),
+    ...missingBoardNameRoutes(prefix, routeName, options),
+  ];
+}
+
+/**
+ * @param {string} prefix
+ * @param {string} routeName
+ * @param {{access?: "none" | "user"}=} options
+ */
+function missingBoardNameRoutes(prefix, routeName, options) {
+  return [
+    route(prefix, rejectMissingBoardName, routeName, options),
+    route(`${prefix}/`, rejectMissingBoardName, routeName, options),
+  ];
 }
 
 /**
@@ -98,4 +113,4 @@ if (entryArg && path.resolve(entryArg) === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { createServerApp, createWhiteboardHttpHandler };
+export { createServerApp };

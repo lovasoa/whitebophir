@@ -71,4 +71,4 @@ function createServerRuntime(config) {
   };
 }
 
-export { createServerRuntime, readHtmlHeadSnippet };
+export { createServerRuntime };

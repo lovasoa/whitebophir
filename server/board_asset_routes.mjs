@@ -211,10 +211,7 @@ async function renderPreviewSvg(boardName, config) {
     async function renderPreview() {
       try {
         if (!(await boardExists(boardName, config))) {
-          tracing.setActiveSpanAttributes({
-            ...boardOperationTraceAttributes(boardName, "preview_render"),
-            "wbo.board.result": "not_found",
-          });
+          markPreviewNotFound(boardName);
           return null;
         }
         return await readServedBaseline(boardName, {
@@ -222,10 +219,7 @@ async function renderPreviewSvg(boardName, config) {
         });
       } catch (error) {
         if (isNotFoundError(error)) {
-          tracing.setActiveSpanAttributes({
-            ...boardOperationTraceAttributes(boardName, "preview_render"),
-            "wbo.board.result": "not_found",
-          });
+          markPreviewNotFound(boardName);
           return null;
         }
         throw error;
@@ -240,6 +234,17 @@ async function renderPreviewSvg(boardName, config) {
  */
 function isNotFoundError(error) {
   return errorCode(error) === "ENOENT";
+}
+
+/**
+ * @param {string} boardName
+ * @returns {void}
+ */
+function markPreviewNotFound(boardName) {
+  tracing.setActiveSpanAttributes({
+    ...boardOperationTraceAttributes(boardName, "preview_render"),
+    "wbo.board.result": "not_found",
+  });
 }
 
 export {

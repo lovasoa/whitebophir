@@ -126,16 +126,7 @@ async function serveLoadedBoardCacheHit(ctx, pageRequest) {
   const persistedSeq = loadedBoard.getPersistedSeq();
   if (!pageRequest.cachedSeqs.includes(persistedSeq)) return false;
 
-  pinServedBoardBaseline(
-    pageRequest.boardName,
-    persistedSeq,
-    ctx.runtime.config,
-  );
-  ctx.response.writeHead(304, {
-    "Cache-Control": ctx.runtime.boardTemplate.cacheControl(),
-    ETag: boardPageETag(persistedSeq),
-  });
-  ctx.response.end();
+  respondWithBoardPageNotModified(ctx, pageRequest.boardName, persistedSeq);
   return true;
 }
 
@@ -189,17 +180,29 @@ function serveBoardDocumentCacheHit(ctx, pageRequest, document) {
   if (!matchesIfNoneMatch(ctx.request.headers["if-none-match"], etag)) {
     return false;
   }
-  pinServedBoardBaseline(
+  respondWithBoardPageNotModified(
+    ctx,
     pageRequest.boardName,
     document.metadata.seq || 0,
-    ctx.runtime.config,
+    etag,
   );
+  return true;
+}
+
+/**
+ * @param {HttpRouteContext} ctx
+ * @param {string} boardName
+ * @param {number} seq
+ * @param {string=} etag
+ * @returns {void}
+ */
+function respondWithBoardPageNotModified(ctx, boardName, seq, etag) {
+  pinServedBoardBaseline(boardName, seq, ctx.runtime.config);
   ctx.response.writeHead(304, {
     "Cache-Control": ctx.runtime.boardTemplate.cacheControl(),
-    ETag: etag,
+    ETag: etag || boardPageETag(seq),
   });
   ctx.response.end();
-  return true;
 }
 
 /**
