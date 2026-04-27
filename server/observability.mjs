@@ -29,6 +29,7 @@ import {
 import {
   ATTR_ERROR_TYPE,
   ATTR_HTTP_REQUEST_METHOD,
+  ATTR_HTTP_RESPONSE_HEADER,
   ATTR_HTTP_RESPONSE_STATUS_CODE,
   ATTR_HTTP_ROUTE,
   ATTR_SERVER_ADDRESS,
@@ -148,8 +149,7 @@ const runtimeState = {
 const httpServerRequestDuration = meter.createHistogram(
   "http.server.request.duration",
   {
-    description:
-      "Elapsed time, in seconds, from the start of an HTTP request until its response finishes or closes.",
+    description: "Elapsed time from HTTP request start until response finish.",
     unit: "s",
     advice: {
       explicitBucketBoundaries: [
@@ -159,22 +159,21 @@ const httpServerRequestDuration = meter.createHistogram(
     },
   },
 );
+const HTTP_RESPONSE_CONTENT_ENCODING =
+  ATTR_HTTP_RESPONSE_HEADER("content-encoding");
 const httpServerActiveRequests = meter.createUpDownCounter(
   "http.server.active_requests",
   {
-    description:
-      "Current number of HTTP requests that have started but whose responses have not yet finished or closed.",
+    description: "Current HTTP requests not yet finished or closed.",
     unit: "{request}",
   },
 );
 const socketConnections = meter.createCounter("wbo.socket.connection", {
-  description:
-    "Count of Socket.IO connection lifecycle events observed by the server; wbo.socket.connection.event distinguishes connected from disconnected.",
+  description: "Socket.IO connection lifecycle events observed by the server.",
   unit: "{connection}",
 });
 const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
-  description:
-    "Elapsed time, in seconds, spent handling each top-level Socket.IO event callback; histogram count is the number of handled events.",
+  description: "Elapsed time spent handling Socket.IO event callbacks.",
   unit: "s",
   advice: {
     explicitBucketBoundaries: [
@@ -185,16 +184,14 @@ const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
 const socketConnectionReplays = meter.createCounter(
   "wbo.socket.connection_replay",
   {
-    description:
-      "Counts each connection-time replay decision. The outcome attribute shows whether the server sent changes, had nothing to send, rejected a stale baseline, saw a browser baseline ahead of the server, or failed.",
+    description: "Connection-time replay decisions by outcome.",
     unit: "{connection}",
   },
 );
 const socketConnectionReplayGap = meter.createHistogram(
   "wbo.socket.connection_replay.gap",
   {
-    description:
-      "Records the absolute sequence gap between the server's latest board sequence number and the browser's baseline sequence number for each connection-time replay decision.",
+    description: "Absolute sequence gap for connection-time replay decisions.",
     unit: "{sequence}",
     advice: {
       explicitBucketBoundaries: [
@@ -690,6 +687,7 @@ function changeHttpActiveRequests(request) {
  *   scheme: string,
  *   statusCode: number,
  *   durationSeconds: number,
+ *   responseContentEncoding: string,
  *   errorType?: string,
  * }}
  * request
@@ -701,6 +699,7 @@ function recordHttpRequest(request) {
     [ATTR_HTTP_REQUEST_METHOD]: request.method,
     [ATTR_URL_SCHEME]: request.scheme,
     [ATTR_HTTP_RESPONSE_STATUS_CODE]: request.statusCode,
+    [HTTP_RESPONSE_CONTENT_ENCODING]: request.responseContentEncoding,
   };
   if (request.route) attributes[ATTR_HTTP_ROUTE] = request.route;
   if (request.errorType) attributes[ATTR_ERROR_TYPE] = request.errorType;

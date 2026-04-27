@@ -6,6 +6,9 @@ const path = require("node:path");
 
 const { context, metrics, propagation, trace } = require("@opentelemetry/api");
 const { logs } = require("@opentelemetry/api-logs");
+const {
+  ATTR_HTTP_RESPONSE_HEADER,
+} = require("@opentelemetry/semantic-conventions");
 const { InMemorySpanExporter } = require("@opentelemetry/sdk-trace-base");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Cursor } = require("../client-data/tools/index.js");
@@ -37,6 +40,8 @@ const CLIENT_CONFIGURATION_PATH = path.join(
   "server",
   "client_configuration.mjs",
 );
+const HTTP_RESPONSE_CONTENT_ENCODING =
+  ATTR_HTTP_RESPONSE_HEADER("content-encoding");
 const JWTAUTH_PATH = path.join(ROOT, "server", "jwtauth.mjs");
 const TRACING_MODULES_TO_CLEAR = [
   MESSAGE_VALIDATION_PATH,
@@ -604,6 +609,10 @@ test("board page traces document state and SVG stream setup", async () => {
         );
 
         assert.equal(response.statusCode, 200);
+        assert.equal(
+          requestSpan.attributes[HTTP_RESPONSE_CONTENT_ENCODING],
+          "identity",
+        );
         assert.equal(stateSpan.attributes["wbo.board"], "trace-page");
         assert.equal(stateSpan.attributes["wbo.board.load_source"], "svg");
         assert.equal(streamSpan.attributes["wbo.board.load_source"], "svg");

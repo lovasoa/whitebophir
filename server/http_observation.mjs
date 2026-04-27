@@ -3,6 +3,7 @@ import * as path from "node:path";
 import {
   ATTR_CLIENT_ADDRESS,
   ATTR_HTTP_REQUEST_METHOD,
+  ATTR_HTTP_RESPONSE_HEADER,
   ATTR_HTTP_RESPONSE_STATUS_CODE,
   ATTR_HTTP_ROUTE,
   ATTR_SERVER_ADDRESS,
@@ -20,6 +21,7 @@ import { getRequestClientIp } from "./socket_policy.mjs";
 const { createRequestId, logger, metrics, tracing } = observability;
 
 const SLOW_REQUEST_LOG_MS = 1000;
+const IDENTITY_CONTENT_ENCODING = "identity";
 const ROUTINE_CLIENT_ERROR_CODES = new Set(["ECONNRESET", "EPIPE"]);
 
 /** @typedef {import("http").IncomingMessage} HttpRequest */
@@ -152,6 +154,20 @@ function respondWithErrorPage(response, statusCode, errorPage) {
 }
 
 /**
+ * @param {HttpResponse} response
+ * @returns {string}
+ */
+function responseContentEncoding(response) {
+  const headerValue = response.getHeader("Content-Encoding");
+  const value = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+  if (typeof value !== "string" || value.trim() === "") {
+    return IDENTITY_CONTENT_ENCODING;
+  }
+  const encoding = value.split(",")[0]?.trim().toLowerCase();
+  return encoding || IDENTITY_CONTENT_ENCODING;
+}
+
+/**
  * @param {string} route
  * @param {number} statusCode
  * @param {number} durationMs
@@ -238,6 +254,7 @@ function finalizeObservedRequest(state) {
   const statusCode = state.response.statusCode || 200;
   const durationMs = Date.now() - state.startedAt;
   const routeTemplate = requestRouteTemplate(state.route);
+  const contentEncoding = responseContentEncoding(state.response);
   const errorType =
     state.requestError instanceof Error
       ? state.requestError.name || "Error"
@@ -254,6 +271,7 @@ function finalizeObservedRequest(state) {
   if (state.requestSpan) {
     tracing.setSpanAttributes(state.requestSpan, {
       [ATTR_HTTP_RESPONSE_STATUS_CODE]: statusCode,
+      [ATTR_HTTP_RESPONSE_HEADER("content-encoding")]: contentEncoding,
     });
     if (statusCode >= 500 && !state.requestError) {
       state.requestSpan.setStatus({ code: tracing.SpanStatusCode.ERROR });
@@ -266,6 +284,7 @@ function finalizeObservedRequest(state) {
     scheme: state.scheme,
     statusCode,
     durationSeconds: durationMs / 1000,
+    responseContentEncoding: contentEncoding,
     errorType,
   });
   const logTarget = classifyRequestLog(state.route, statusCode, durationMs);

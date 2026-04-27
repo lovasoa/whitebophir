@@ -41,6 +41,12 @@ const COMPRESSION_PATH = path.join(
   "server",
   "http_compression.mjs",
 );
+const OBSERVABILITY_PATH = path.join(
+  __dirname,
+  "..",
+  "server",
+  "observability.mjs",
+);
 const CLIENT_WEBROOT = path.join(__dirname, "..", "client-data");
 const JWTAUTH_PATH = path.join(__dirname, "..", "server", "jwtauth.mjs");
 
@@ -884,13 +890,22 @@ test("board html svg and preview routes negotiate compression when requested", a
   if (expectedEncoding) {
     assert.equal(wildcardEncoding, expectedEncoding);
   }
-
   const app = await createTestServer(
     createServerConfig(dirs, {
       WEBROOT: CLIENT_WEBROOT,
       IS_DEVELOPMENT: false,
     }),
   );
+  const observability = require(OBSERVABILITY_PATH);
+  const originalRecordHttpRequest = observability.metrics.recordHttpRequest;
+  /** @type {any[]} */
+  const httpRequestMetrics = [];
+  observability.metrics.recordHttpRequest = (
+    /** @type {Parameters<typeof originalRecordHttpRequest>[0]} */ sample,
+  ) => {
+    httpRequestMetrics.push(sample);
+    originalRecordHttpRequest(sample);
+  };
   try {
     const plainResponse = await request(app, "/boards/compressed-board");
     assert.equal(plainResponse.statusCode, 200);
@@ -921,7 +936,20 @@ test("board html svg and preview routes negotiate compression when requested", a
       }
       assert.match(String(response.headers.vary || ""), /Accept-Encoding/);
     }
+
+    const responseEncodings = httpRequestMetrics.map(
+      (sample) => sample.responseContentEncoding,
+    );
+    assert.ok(responseEncodings.includes("identity"));
+    if (expectedEncoding !== undefined) {
+      assert.equal(
+        responseEncodings.filter((encoding) => encoding === expectedEncoding)
+          .length,
+        3,
+      );
+    }
   } finally {
+    observability.metrics.recordHttpRequest = originalRecordHttpRequest;
     await closeServer(app);
   }
 });

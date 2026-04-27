@@ -182,7 +182,10 @@ export function applyCompressionForResponse(response, acceptEncoding, headers) {
  */
 export function startCompressedResponse(response, acceptEncoding, headers) {
   const result = applyCompressionForResponse(response, acceptEncoding, headers);
-  response.writeHead(200, headers);
+  for (const [name, value] of Object.entries(headers)) {
+    response.setHeader(name, value);
+  }
+  response.writeHead(200);
   return result;
 }
 
