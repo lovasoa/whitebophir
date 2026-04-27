@@ -38,10 +38,7 @@ import {
   serializeStoredSvgItem,
   storedSvgSerializeHelpers,
 } from "./stored_svg_item_codec.mjs";
-import {
-  readStoredSvgRootTag,
-  streamStoredSvgStructure,
-} from "./streaming_stored_svg_scan.mjs";
+import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
 
 const DEFAULT_SVG_SIZE = 5000;
 const SVG_MARGIN = 4000;
@@ -59,20 +56,16 @@ function defaultBoardMetadata() {
 }
 
 /**
- * Reads stored-board metadata from raw markup containing the root `<svg>` tag.
- * The caller may pass only the root tag or a larger prefix; item markup is not
- * needed for metadata.
- *
- * @param {string} rootMarkup
+ * @param {string} prefix
  * @returns {{readonly: boolean, seq: number}}
  */
-function readStoredSvgRootMetadata(rootMarkup) {
-  const openTagStart = rootMarkup.indexOf("<svg");
-  const openTagEnd = rootMarkup.indexOf(">", openTagStart);
+function readStoredSvgRootMetadata(prefix) {
+  const openTagStart = prefix.indexOf("<svg");
+  const openTagEnd = prefix.indexOf(">", openTagStart);
   const rawAttributes =
     openTagStart === -1 || openTagEnd === -1
       ? ""
-      : rootMarkup.slice(openTagStart + 4, openTagEnd);
+      : prefix.slice(openTagStart + 4, openTagEnd);
   return {
     readonly: readRawAttribute(rawAttributes, "data-wbo-readonly") === "true",
     seq: normalizeStoredSeq(readRawAttribute(rawAttributes, "data-wbo-seq")),
@@ -183,14 +176,16 @@ async function readStoredSvgMetadata(boardName, options) {
   let metadata = defaultBoardMetadata();
   let seq = 0;
   try {
-    const rootMetadata = readStoredSvgRootMetadata(
-      await readStoredSvgRootTag(stream),
-    );
-    seq = rootMetadata.seq;
-    metadata = {
-      readonly: rootMetadata.readonly,
-      seq,
-    };
+    for await (const event of streamStoredSvgStructure(stream)) {
+      if (event.type !== "prefix") continue;
+      const rootMetadata = readStoredSvgRootMetadata(event.prefix);
+      seq = rootMetadata.seq;
+      metadata = {
+        readonly: rootMetadata.readonly,
+        seq,
+      };
+      break;
+    }
   } finally {
     stream.destroy();
   }
@@ -356,10 +351,7 @@ async function readCanonicalBoardState(boardName, options) {
     let metadata = defaultBoardMetadata();
     let seq = 0;
     let index = 0;
-    for await (const event of streamStoredSvgStructure(stream, {
-      includeLeadingText: false,
-      includeRaw: false,
-    })) {
+    for await (const event of streamStoredSvgStructure(stream)) {
       if (event.type === "prefix") {
         const rootMetadata = readStoredSvgRootMetadata(event.prefix);
         metadata = {

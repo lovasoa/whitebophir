@@ -58,29 +58,3 @@ test("streamStoredSvgStructure tolerates chunked closing tags around the drawing
 
   assert.equal(rebuilt, svg);
 });
-
-test("streamStoredSvgStructure can skip rewrite-only raw text", async () => {
-  const svg =
-    '<svg id="canvas" data-wbo-seq="1">' +
-    '<g id="drawingArea">\n' +
-    '<text id="text-1" x="1" y="2" font-size="3" fill="#000000">hello</text>' +
-    "</g></svg>";
-
-  /** @type {Array<any>} */
-  const events = [];
-  for await (const event of streamStoredSvgStructure(chunkString(svg, 11), {
-    includeLeadingText: false,
-    includeRaw: false,
-  })) {
-    events.push(event);
-  }
-
-  const item = events.find((event) => event.type === "item");
-  const suffix = events.find((event) => event.type === "suffix");
-
-  assert.equal(item?.leadingText, "");
-  assert.equal(item?.entry.raw, "");
-  assert.equal(item?.entry.content, "hello");
-  assert.equal(item?.entry.id, "text-1");
-  assert.equal(suffix?.suffix, "");
-});
