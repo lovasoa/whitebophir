@@ -148,6 +148,19 @@ test("readStoredSvgSeq stops after prefix metadata", async () => {
   assert.equal(await readStoredSvgSeq("seq-prefix-board", historyDir), 8);
 });
 
+test("readStoredSvgSeq only requires root metadata", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-seq-root-"),
+  );
+  await fs.writeFile(
+    svgPath("seq-root-board", historyDir),
+    '<svg id="canvas" data-wbo-seq="9" data-wbo-readonly="true"><g',
+    "utf8",
+  );
+
+  assert.equal(await readStoredSvgSeq("seq-root-board", historyDir), 9);
+});
+
 test("readStoredSvgSeq returns zero when no stored svg exists", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-seq-missing-"),

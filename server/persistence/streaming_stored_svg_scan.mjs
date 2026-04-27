@@ -5,6 +5,44 @@ const STORED_ITEM_TAG_PATTERN = Object.keys(TOOL_BY_STORED_TAG_NAME).join("|");
 const STORED_ITEM_TAG_REGEX = new RegExp(`^<(${STORED_ITEM_TAG_PATTERN})\\b`);
 
 /**
+ * Finds the root `<svg ...>` start tag in the currently buffered input.
+ * This is intentionally narrower than structure scanning: callers that only
+ * need root metadata should not wait for, or validate, the drawing area.
+ *
+ * @param {string} buffer
+ * @returns {string | null}
+ */
+function tryExtractSvgRootTag(buffer) {
+  const openTagStart = buffer.indexOf("<svg");
+  if (openTagStart === -1) return null;
+  const openTagEnd = buffer.indexOf(">", openTagStart);
+  if (openTagEnd === -1) return null;
+  return buffer.slice(openTagStart, openTagEnd + 1);
+}
+
+/**
+ * Reads just enough of a stored SVG stream to return its root start tag.
+ * The returned tag contains root metadata such as `data-wbo-seq`; item
+ * structure and drawing-area validity are deliberately outside this function.
+ *
+ * @param {AsyncIterable<string>} input
+ * @returns {Promise<string>}
+ */
+async function readStoredSvgRootTag(input) {
+  let buffer = "";
+  for await (const chunk of input) {
+    buffer += chunk;
+    const rootTag = tryExtractSvgRootTag(buffer);
+    if (rootTag) return rootTag;
+  }
+
+  if (buffer.includes("<svg")) {
+    throw new Error("Unterminated <svg> root");
+  }
+  throw new Error("Missing <svg> root");
+}
+
+/**
  * @param {string} buffer
  * @returns {{prefix: string, rest: string} | null}
  */
@@ -145,4 +183,4 @@ async function* streamStoredSvgStructure(input) {
   throw new Error("Unterminated drawingArea group");
 }
 
-export { streamStoredSvgStructure };
+export { readStoredSvgRootTag, streamStoredSvgStructure };
