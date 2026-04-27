@@ -6,10 +6,6 @@ import {
   getToolId,
   MutationType,
 } from "../client-data/js/message_tool_metadata.js";
-import {
-  hasMessageColor,
-  hasMessageSize,
-} from "../client-data/js/message_shape.js";
 import RateLimitCommon from "../client-data/js/rate_limit_common.js";
 import { SocketEvents } from "../client-data/js/socket_events.js";
 import { Cursor } from "../client-data/tools/index.js";
@@ -26,7 +22,22 @@ import {
 import { getBoardSession } from "./board_session.mjs";
 import { BoardData } from "./boardData.mjs";
 import observability from "./observability.mjs";
-import { buildPronounceableName } from "./pronounceable_name.mjs";
+import {
+  boardUserDebugFields,
+  buildBoardUserRecord as createBoardUserRecord,
+  buildUserId,
+  buildUserName,
+  cleanupBoardUserMap,
+  clearBoardUsers,
+  emitBoardUsersToSocket,
+  emitUserJoinedToBoard,
+  ensureBoardUser,
+  getBoardUser,
+  getBoardUserMap,
+  removeBoardUser,
+  resetBoardUserMaps,
+  updateBoardUserFromMessage,
+} from "./socket_presence.mjs";
 import {
   canAccessBoard,
   canApplyBoardMessage,
@@ -38,8 +49,12 @@ import {
   normalizeBoardName,
   normalizeBroadcastData,
 } from "./socket_policy.mjs";
+import {
+  getSocketQueryValue,
+  getSocketRequest,
+  getSocketUserSecret,
+} from "./socket_request.mjs";
 import { readStoredSvgSeq } from "./svg_board_store.mjs";
-import { getUserSecretFromCookieHeader } from "./user_secret_cookie.mjs";
 
 const createRateLimitState = RateLimitCommon.createRateLimitState;
 const consumeFixedWindowRateLimit = RateLimitCommon.consumeFixedWindowRateLimit;
@@ -58,7 +73,7 @@ const BASELINE_NOT_REPLAYABLE = "baseline_not_replayable";
 
 /** @typedef {"replayed" | "empty" | "baseline_not_replayable" | "future_baseline" | "error"} ConnectionReplayOutcome */
 
-/** @import { AppSocket, ConnectedUserPayload, MessageData, MutationLogEntry, NormalizedMessageData, RateLimitState as BaseRateLimitState, ReportUserPayload, SequencedMutationBroadcastData, ServerConfig, SocketRequest, TurnstileAck, TurnstileAckCallback, TurnstileEventAck, TurnstileRejectedAck, TurnstileSiteverifyResult, ValidationStatus } from "../types/server-runtime.d.ts" */
+/** @import { AppSocket, MessageData, MutationLogEntry, NormalizedMessageData, RateLimitState as BaseRateLimitState, ReportUserPayload, SequencedMutationBroadcastData, ServerConfig, TurnstileAck, TurnstileAckCallback, TurnstileEventAck, TurnstileRejectedAck, TurnstileSiteverifyResult, ValidationStatus } from "../types/server-runtime.d.ts" */
 /** @typedef {{board?: string, token?: string, tool?: string, color?: string, size?: string, baselineSeq?: string}} SocketQuery */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {{type: number, fromSeq: number, seq: number, _children: NormalizedMessageData[]}} ConnectionReplayBatch */
@@ -96,8 +111,6 @@ const destructiveRateLimits = new Map();
 const constructiveRateLimits = new Map();
 /** @type {Map<string, RateLimitState>} */
 const textRateLimits = new Map();
-/** @type {Map<string, Map<string, BoardUser>>} */
-const boardUsers = new Map();
 /** @type {Map<string, AppSocket>} */
 const activeSockets = new Map();
 /** @type {Set<string>} */
@@ -213,206 +226,6 @@ function pruneRateLimitMap(map, kind, periodMs, now) {
 }
 
 /**
- * @param {AppSocket} socket
- * @returns {SocketRequest}
- */
-function getSocketRequest(socket) {
-  return /** @type {SocketRequest} */ (socket.client.request);
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} key
- * @returns {string}
- */
-function getSocketQueryValue(socket, key) {
-  const query = socket.handshake?.query;
-  if (!query) return "";
-  const value = query[key];
-  if (typeof value === "number") return String(value);
-  return typeof value === "string" ? value : "";
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} headerName
- * @returns {string}
- */
-function getSocketHeaderValue(socket, headerName) {
-  const headers = getSocketRequest(socket).headers || {};
-  const value = headers[headerName];
-  if (Array.isArray(value)) return value[0] || "";
-  return typeof value === "string" ? value : "";
-}
-
-/**
- * @param {AppSocket} socket
- * @returns {string}
- */
-function getSocketUserSecret(socket) {
-  return getUserSecretFromCookieHeader(getSocketHeaderValue(socket, "cookie"));
-}
-
-/**
- * @param {string} userSecret
- * @returns {string}
- */
-function buildUserId(userSecret) {
-  return buildPronounceableName(userSecret || "anonymous", 2, 3);
-}
-
-/**
- * @param {string} ip
- * @returns {string}
- */
-function buildIpWord(ip) {
-  return buildPronounceableName(ip || "unknown", 2, 2);
-}
-
-/**
- * @param {string} ip
- * @param {string} userSecret
- * @returns {string}
- */
-function buildUserName(ip, userSecret) {
-  return `${buildIpWord(ip)} ${buildUserId(userSecret)}`;
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @param {ServerConfig} config
- * @param {number} [now]
- * @returns {BoardUser}
- */
-function buildBoardUserRecord(socket, boardName, config, now) {
-  const userSecret = getSocketUserSecret(socket);
-  const ip = resolveClientIp(socket, boardName, config);
-  const size = WBOMessageCommon.clampSize(getSocketQueryValue(socket, "size"));
-  const color = WBOMessageCommon.normalizeColor(
-    getSocketQueryValue(socket, "color"),
-  );
-  return {
-    socketId: socket.id,
-    userId: buildUserId(userSecret),
-    name: buildUserName(ip, userSecret),
-    ip,
-    userAgent: getSocketHeaderValue(socket, "user-agent"),
-    language: getSocketHeaderValue(socket, "accept-language"),
-    color: color || "#001f3f",
-    size,
-    lastTool: getSocketQueryValue(socket, "tool") || "hand",
-    lastSeen: now || Date.now(),
-  };
-}
-
-/**
- * @param {string} boardName
- * @returns {Map<string, BoardUser>}
- */
-function getBoardUserMap(boardName) {
-  let users = boardUsers.get(boardName);
-  if (users) return users;
-  users = new Map();
-  boardUsers.set(boardName, users);
-  return users;
-}
-
-/**
- * @param {string} boardName
- * @returns {void}
- */
-function cleanupBoardUserMap(boardName) {
-  const users = boardUsers.get(boardName);
-  if (users && users.size === 0) {
-    boardUsers.delete(boardName);
-  }
-}
-
-/**
- * @param {BoardUser} user
- * @returns {ConnectedUserPayload}
- */
-function serializeBoardUser(user) {
-  return {
-    socketId: user.socketId,
-    userId: user.userId,
-    name: user.name,
-    color: user.color,
-    size: user.size,
-    lastTool: user.lastTool,
-  };
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @returns {boolean}
- */
-function hasBoardUser(socket, boardName) {
-  return getBoardUserMap(boardName).has(socket.id);
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @param {ServerConfig} config
- * @returns {BoardUser}
- */
-function ensureBoardUser(socket, boardName, config) {
-  const users = getBoardUserMap(boardName);
-  const existing = users.get(socket.id);
-  if (existing) return existing;
-
-  const user = buildBoardUserRecord(socket, boardName, config);
-  users.set(socket.id, user);
-  return user;
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @returns {void}
- */
-function emitBoardUsersToSocket(socket, boardName) {
-  const users = getBoardUserMap(boardName);
-  users.forEach(function emitUserJoined(user) {
-    socket.emit(SocketEvents.USER_JOINED, serializeBoardUser(user));
-  });
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @param {BoardUser} user
- * @returns {void}
- */
-function emitUserJoinedToBoard(socket, boardName, user) {
-  socket.broadcast
-    .to(boardName)
-    .emit(SocketEvents.USER_JOINED, serializeBoardUser(user));
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @returns {void}
- */
-function removeBoardUser(socket, boardName) {
-  const users = getBoardUserMap(boardName);
-  if (!users.delete(socket.id)) return;
-
-  /** @type {import("../types/server-runtime.d.ts").UserLeftPayload} */
-  const payload = {
-    socketId: socket.id,
-  };
-  socket.broadcast.to(boardName).emit(SocketEvents.USER_LEFT, {
-    socketId: payload.socketId,
-  });
-  cleanupBoardUserMap(boardName);
-}
-
-/**
  * @param {BoardData} board
  * @returns {AppSocket[]}
  */
@@ -423,11 +236,7 @@ function detachBoardSockets(board) {
     connectedUsersTotal = Math.max(0, connectedUsersTotal - socketIds.length);
     updateConnectedUsersGauge();
   }
-  const users = boardUsers.get(board.name);
-  if (users) {
-    users.clear();
-    cleanupBoardUserMap(board.name);
-  }
+  clearBoardUsers(board.name);
   /** @type {AppSocket[]} */
   const sockets = [];
   for (const socketId of socketIds) {
@@ -502,60 +311,6 @@ async function handleStaleBoardSave(board, details) {
     ...details,
     reason: "save_seq_mismatch",
   });
-}
-
-/**
- * @param {string} boardName
- * @param {string} socketId
- * @returns {BoardUser | undefined}
- */
-function getBoardUser(boardName, socketId) {
-  return getBoardUserMap(boardName).get(socketId);
-}
-
-/**
- * @param {string} boardName
- * @param {string} socketId
- * @returns {{[key: string]: unknown}}
- */
-function boardUserDebugFields(boardName, socketId) {
-  const user = getBoardUser(boardName, socketId);
-  if (!user) return {};
-  return {
-    "user.name": user.name,
-    "client.address": user.ip,
-  };
-}
-
-/**
- * @param {AppSocket} socket
- * @param {string} boardName
- * @param {NormalizedMessageData} data
- * @param {number} now
- * @returns {BoardUser | undefined}
- */
-function updateBoardUserFromMessage(socket, boardName, data, now) {
-  const user = getBoardUser(boardName, socket.id);
-  if (!user) return undefined;
-
-  user.lastSeen = now;
-  if (hasMessageColor(data)) user.color = data.color;
-  if (hasMessageSize(data)) user.size = data.size || user.size;
-  const toolId = getToolId(data.tool);
-  if (data.tool !== Cursor.id && toolId) {
-    user.lastTool = toolId;
-  }
-  return user;
-}
-
-/**
- * @param {NormalizedMessageData} data
- * @param {BoardUser | undefined} user
- * @returns {NormalizedMessageData}
- */
-function withLiveSocketId(data, user) {
-  if (!user) return data;
-  return { ...data, socket: user.socketId };
 }
 
 /**
@@ -1924,7 +1679,7 @@ function rejectBoardMessageWrite(
  */
 function recordSuccessfulBoardWrite(socket, boardName, data, now, userName) {
   const user = updateBoardUserFromMessage(socket, boardName, data, now);
-  const liveData = withLiveSocketId(data, user);
+  const liveData = user ? { ...data, socket: user.socketId } : data;
   tracing.setActiveSpanAttributes({
     "wbo.board.result": "success",
     "user.name": user ? user.name : userName,
@@ -2364,8 +2119,13 @@ async function bootstrapSocketBoard(socket, replay, config) {
       }
       const wasJoined = board.users.has(socket.id);
       board.users.add(socket.id);
-      if (!wasJoined || !hasBoardUser(socket, boardName)) {
-        const user = ensureBoardUser(socket, boardName, config);
+      if (!wasJoined || !getBoardUserMap(boardName).has(socket.id)) {
+        const user = ensureBoardUser(
+          socket,
+          boardName,
+          config,
+          resolveClientIp,
+        );
         if (!wasJoined) {
           connectedUsersTotal += 1;
           updateConnectedUsersGauge();
@@ -2704,8 +2464,20 @@ async function shutdownBoards() {
 }
 
 export const __test = {
-  buildBoardUserRecord,
-  buildIpWord,
+  buildBoardUserRecord: function buildBoardUserRecordForTest(
+    /** @type {AppSocket} */ socket,
+    /** @type {string} */ boardName,
+    /** @type {ServerConfig} */ config,
+    /** @type {number | undefined} */ now,
+  ) {
+    return createBoardUserRecord(
+      socket,
+      boardName,
+      config,
+      resolveClientIp,
+      now,
+    );
+  },
   buildUserId,
   buildUserName,
   handleSocketConnection: function handleSocketConnectionForTest(
@@ -2736,7 +2508,7 @@ export const __test = {
     destructiveRateLimits.clear();
     constructiveRateLimits.clear();
     textRateLimits.clear();
-    boardUsers.clear();
+    resetBoardUserMaps();
     activeSockets.clear();
     syncedPersistentSockets.clear();
     connectedUsersTotal = 0;
