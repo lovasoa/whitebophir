@@ -1,8 +1,15 @@
 import { TOOL_BY_STORED_TAG_NAME } from "../../client-data/tools/index.js";
-import { readRawAttribute } from "./svg_envelope.mjs";
+import {
+  readRawAttribute,
+  readRawAttributeFromRange,
+} from "./svg_envelope.mjs";
 
 const STORED_ITEM_TAG_PATTERN = Object.keys(TOOL_BY_STORED_TAG_NAME).join("|");
 const STORED_ITEM_TAG_REGEX = new RegExp(`^<(${STORED_ITEM_TAG_PATTERN})\\b`);
+
+/**
+ * @typedef {{raw: string, tagName: string, rawAttributes?: string, id: string | undefined, content?: string}} StoredSvgStreamEntry
+ */
 
 /**
  * @param {string} buffer
@@ -28,8 +35,26 @@ function tryExtractPrefix(buffer) {
 }
 
 /**
+ * Reads a direct child tag name from an already located SVG start tag.
+ *
  * @param {string} buffer
- * @returns {{type: "suffix", leadingText: string, suffix: string, consumed: number} | {type: "item", leadingText: string, entry: {raw: string, tagName: string, rawAttributes: string, id: string | undefined, content: string}, consumed: number} | null}
+ * @param {number} offset
+ * @param {number} openTagEnd
+ * @returns {string | undefined}
+ */
+function readStartTagName(buffer, offset, openTagEnd) {
+  let end = offset + 1;
+  while (end < openTagEnd) {
+    const char = buffer[end];
+    if (char === " " || char === "\n" || char === "\t" || char === "/") break;
+    end += 1;
+  }
+  return end > offset + 1 ? buffer.slice(offset + 1, end) : undefined;
+}
+
+/**
+ * @param {string} buffer
+ * @returns {{type: "suffix", leadingText: string, suffix: string, consumed: number} | {type: "item", leadingText: string, entry: StoredSvgStreamEntry, consumed: number} | null}
  */
 function tryExtractItemOrSuffix(buffer) {
   let offset = 0;
@@ -85,17 +110,78 @@ function tryExtractItemOrSuffix(buffer) {
 }
 
 /**
+ * Splits the next drawing-area child for rewrite. It returns enough structure
+ * to match items by id while keeping attributes/content opaque for clean items.
+ *
+ * @param {string} buffer
+ * @returns {{type: "suffix", leadingText: string, suffix: string, consumed: number} | {type: "item", leadingText: string, entry: StoredSvgStreamEntry, consumed: number} | null}
+ */
+function tryExtractOpaqueItemOrSuffix(buffer) {
+  let offset = 0;
+  while (offset < buffer.length && buffer[offset] !== "<") {
+    offset += 1;
+  }
+  const leadingText = buffer.slice(0, offset);
+  if (offset === buffer.length) return null;
+  if (buffer[offset + 1] === "/") {
+    const closeTagEnd = buffer.indexOf(">", offset + 2);
+    if (closeTagEnd === -1) return null;
+    if (buffer.slice(offset, closeTagEnd + 1) === "</g>") {
+      return {
+        type: "suffix",
+        leadingText,
+        suffix: buffer.slice(offset),
+        consumed: buffer.length,
+      };
+    }
+    throw new Error("Unexpected closing tag inside drawingArea");
+  }
+
+  const openTagEnd = buffer.indexOf(">", offset + 1);
+  if (openTagEnd === -1) return null;
+  const tagName = readStartTagName(buffer, offset, openTagEnd);
+  if (!tagName || !TOOL_BY_STORED_TAG_NAME[tagName]) {
+    throw new Error(`Unexpected direct child <${tagName}> inside drawingArea`);
+  }
+  const closeToken = `</${tagName}>`;
+  const closeTagStart = buffer.indexOf(closeToken, openTagEnd + 1);
+  if (closeTagStart === -1) return null;
+  const closeTagEnd = closeTagStart + closeToken.length;
+  const rawAttributesStart = offset + 1 + tagName.length;
+  return {
+    type: "item",
+    leadingText,
+    entry: {
+      raw: buffer.slice(offset, closeTagEnd),
+      tagName,
+      id: readRawAttributeFromRange(
+        buffer,
+        "id",
+        rawAttributesStart,
+        openTagEnd,
+      ),
+    },
+    consumed: closeTagEnd,
+  };
+}
+
+/**
  * @param {AsyncIterable<string | Buffer>} input
+ * @param {{materializeEntryDetails?: boolean}=} [options]
  * @returns {AsyncIterable<
  *   | {type: "prefix", prefix: string}
- *   | {type: "item", leadingText: string, entry: {raw: string, tagName: string, rawAttributes: string, id: string | undefined, content: string}}
+ *   | {type: "item", leadingText: string, entry: StoredSvgStreamEntry}
  *   | {type: "suffix", leadingText: string, suffix: string}
  *   | {type: "tail", chunk: string}
  * >}
  */
-async function* streamStoredSvgStructure(input) {
+async function* streamStoredSvgStructure(input, options) {
   let buffer = "";
   let prefixDone = false;
+  const extractItemOrSuffix =
+    options?.materializeEntryDetails === false
+      ? tryExtractOpaqueItemOrSuffix
+      : tryExtractItemOrSuffix;
   const iterator = input[Symbol.asyncIterator]();
 
   while (true) {
@@ -114,7 +200,7 @@ async function* streamStoredSvgStructure(input) {
     }
 
     while (prefixDone) {
-      const extracted = tryExtractItemOrSuffix(buffer);
+      const extracted = extractItemOrSuffix(buffer);
       if (!extracted) break;
       buffer = buffer.slice(extracted.consumed);
       if (extracted.type === "suffix") {

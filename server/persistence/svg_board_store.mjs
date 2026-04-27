@@ -30,15 +30,16 @@ import {
   createDefaultStoredSvgEnvelope,
   parseStoredSvgEnvelope,
   readRawAttribute,
+  readRawAttributeFromRange,
   serializeStoredSvgEnvelope,
   updateRootMetadata,
 } from "./svg_envelope.mjs";
 import {
-  parseStoredSvgItem,
   serializeStoredSvgItem,
   storedSvgSerializeHelpers,
 } from "./stored_svg_item_codec.mjs";
 import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
+import { unescapeHtml } from "./xml_escape.mjs";
 
 const DEFAULT_SVG_SIZE = 5000;
 const SVG_MARGIN = 4000;
@@ -678,21 +679,53 @@ function needsStoredPencilPath(item, isPersistedItem) {
 }
 
 /**
- * @param {{tagName: string, attributes?: {[name: string]: string}, rawAttributes?: string, content: string, raw: string, id?: string}} entry
+ * Reads text content from a streamed SVG entry. Rewrite mode leaves content
+ * opaque for clean items, so this extracts the inner text from raw only when a
+ * dirty or copied text item actually needs it.
+ *
+ * @param {{tagName: string, attributes?: {[name: string]: string}, rawAttributes?: string, content?: string, raw: string, id?: string}} entry
  * @returns {string | undefined}
  */
 function readStoredTextContent(entry) {
-  const sourceItem = parseStoredSvgItem(entry);
-  return typeof sourceItem?.txt === "string" ? sourceItem.txt : undefined;
+  if (entry.tagName !== "text") return undefined;
+  if (typeof entry.content === "string") return unescapeHtml(entry.content);
+  if (typeof entry.raw !== "string" || typeof entry.tagName !== "string") {
+    return undefined;
+  }
+  const openTagEnd = entry.raw.indexOf(">");
+  const closeTagStart = entry.raw.lastIndexOf(`</${entry.tagName}>`);
+  if (openTagEnd === -1 || closeTagStart <= openTagEnd) return undefined;
+  return unescapeHtml(entry.raw.slice(openTagEnd + 1, closeTagStart));
 }
 
 /**
- * @param {{attributes?: {[name: string]: string}, rawAttributes?: string}} entry
+ * @param {{tagName?: string, raw?: string, attributes?: {[name: string]: string}, rawAttributes?: string}} entry
+ * @param {string} name
+ * @returns {string | undefined}
+ */
+function readStoredEntryAttribute(entry, name) {
+  const value = entry?.attributes?.[name];
+  if (typeof value === "string") return value;
+  if (typeof entry?.rawAttributes === "string") {
+    return readRawAttribute(entry.rawAttributes, name);
+  }
+  if (typeof entry?.raw !== "string" || typeof entry.tagName !== "string") {
+    return undefined;
+  }
+  return readRawAttributeFromRange(
+    entry.raw,
+    name,
+    entry.tagName.length + 1,
+    entry.raw.indexOf(">"),
+  );
+}
+
+/**
+ * @param {{tagName?: string, raw?: string, attributes?: {[name: string]: string}, rawAttributes?: string}} entry
  * @returns {string | undefined}
  */
 function readStoredPencilPath(entry) {
-  const value =
-    entry?.attributes?.d ?? readRawAttribute(entry?.rawAttributes, "d");
+  const value = readStoredEntryAttribute(entry, "d");
   return typeof value === "string" && value !== "" ? value : undefined;
 }
 
@@ -753,7 +786,9 @@ async function rewriteStoredSvgFromCanonical(
     });
 
   try {
-    for await (const event of streamStoredSvgStructure(input)) {
+    for await (const event of streamStoredSvgStructure(input, {
+      materializeEntryDetails: false,
+    })) {
       if (event.type === "prefix") {
         const currentSeq = readStoredSvgRootMetadata(event.prefix).seq;
         if (currentSeq !== persistedSeq) {

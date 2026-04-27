@@ -33,6 +33,41 @@ function readRawAttribute(rawAttributes, name) {
 }
 
 /**
+ * Reads one XML attribute from a known string range without slicing the full
+ * attribute span first.
+ *
+ * @param {string | undefined} source
+ * @param {string} name
+ * @param {number} from
+ * @param {number} to
+ * @returns {string | undefined}
+ */
+function readRawAttributeFromRange(source, name, from, to) {
+  if (typeof source !== "string" || source.length === 0 || from >= to) {
+    return undefined;
+  }
+  const token = `${name}="`;
+  let start = source.indexOf(token, from);
+  while (start !== -1 && start < to) {
+    const previous = source[start - 1];
+    if (
+      start === from ||
+      previous === " " ||
+      previous === "\n" ||
+      previous === "\t"
+    ) {
+      const valueStart = start + token.length;
+      const valueEnd = source.indexOf('"', valueStart);
+      if (valueEnd === -1 || valueEnd > to) return undefined;
+      const value = source.slice(valueStart, valueEnd);
+      return value.includes("&") ? unescapeHtml(value) : value;
+    }
+    start = source.indexOf(token, start + token.length);
+  }
+  return undefined;
+}
+
+/**
  * @param {string} rawAttributes
  * @returns {{[name: string]: string}}
  */
@@ -232,6 +267,7 @@ export {
   parseStoredSvgEnvelope,
   parseStoredSvgItems,
   readRawAttribute,
+  readRawAttributeFromRange,
   serializeStoredSvgEnvelope,
   updateRootMetadata,
 };

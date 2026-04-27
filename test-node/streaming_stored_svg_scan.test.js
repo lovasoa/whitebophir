@@ -58,3 +58,23 @@ test("streamStoredSvgStructure tolerates chunked closing tags around the drawing
 
   assert.equal(rebuilt, svg);
 });
+
+test("streamStoredSvgStructure can leave untouched item details opaque", async () => {
+  const svg =
+    '<svg data-wbo-seq="1"><g id="drawingArea">' +
+    '<text id="text-1" x="1" y="2" font-size="3" fill="#000">hello</text>' +
+    "</g></svg>";
+
+  const events = [];
+  for await (const event of streamStoredSvgStructure(chunkString(svg, 11), {
+    materializeEntryDetails: false,
+  })) {
+    events.push(event);
+  }
+
+  const item = events.find((event) => event.type === "item")?.entry;
+  assert.equal(item?.id, "text-1");
+  assert.equal(item?.raw.includes(">hello<"), true);
+  assert.equal(item?.rawAttributes, undefined);
+  assert.equal(item?.content, undefined);
+});
