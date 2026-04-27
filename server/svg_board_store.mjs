@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import { once } from "node:events";
 import { copyFile, readFile, rename, stat, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { Readable } from "node:stream";
 
 import {
@@ -15,6 +14,11 @@ import {
   boardJsonPath,
   readLegacyBoardState,
 } from "./legacy_json_board_source.mjs";
+import {
+  boardSvgBackupPath,
+  boardSvgPath,
+  createTempSvgPath,
+} from "./svg_board_paths.mjs";
 import { normalizeLegacyBoardForSvg } from "./legacy_json_svg_migration.mjs";
 import {
   canonicalItemFromStoredSvgEntry,
@@ -38,7 +42,6 @@ import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
 
 const DEFAULT_SVG_SIZE = 5000;
 const SVG_MARGIN = 4000;
-let tempSvgSuffixCounter = 0;
 const { logger } = observability;
 
 /** @typedef {{readonly: boolean, seq?: number}} BoardMetadata */
@@ -70,35 +73,6 @@ function readStoredSvgRootMetadata(prefix) {
 }
 
 /**
- * @param {string | undefined} historyDir
- * @returns {string}
- */
-function resolveHistoryDir(historyDir) {
-  if (typeof historyDir === "string" && historyDir !== "") {
-    return historyDir;
-  }
-  throw new Error("historyDir is required");
-}
-
-/**
- * @param {string} name
- * @param {string} [historyDir]
- * @returns {string}
- */
-function boardSvgPath(name, historyDir) {
-  return path.join(resolveHistoryDir(historyDir), `board-${name}.svg`);
-}
-
-/**
- * @param {string} name
- * @param {string} [historyDir]
- * @returns {string}
- */
-function boardSvgBackupPath(name, historyDir) {
-  return `${boardSvgPath(name, historyDir)}.bak`;
-}
-
-/**
  * @param {unknown} value
  * @returns {number}
  */
@@ -115,15 +89,6 @@ function errorCode(error) {
   return error && typeof error === "object" && "code" in error
     ? String(error.code)
     : undefined;
-}
-
-/**
- * @param {string} file
- * @returns {string}
- */
-function createTempSvgPath(file) {
-  tempSvgSuffixCounter = (tempSvgSuffixCounter + 1) % Number.MAX_SAFE_INTEGER;
-  return `${file}.${Date.now()}.${tempSvgSuffixCounter}.tmp`;
 }
 
 /**
