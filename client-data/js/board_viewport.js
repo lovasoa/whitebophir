@@ -360,7 +360,12 @@ export function createViewportController(Tools) {
    * @returns {number}
    */
   function setScale(scale) {
-    const appliedScale = clampScale(scale, currentScaleLimits());
+    const scaleLimits = getScaleLimits(currentScaleLimits());
+    const value = finiteOr(scale, scaleLimits.defaultScale);
+    const appliedScale = Math.max(
+      scaleLimits.minScale,
+      Math.min(scaleLimits.maxScale, value),
+    );
     if (!Tools.svg) {
       Tools.scale = appliedScale;
       return appliedScale;
@@ -368,7 +373,10 @@ export function createViewportController(Tools) {
     Tools.svg.style.willChange = "transform";
     Tools.svg.style.transform = `scale(${appliedScale})`;
     Tools.scale = appliedScale;
-    syncLayoutSize();
+    const resized =
+      appliedScale <= scaleLimits.minScale &&
+      ensureBoardExtentAtLeast(currentMaxBoardSize(), currentMaxBoardSize());
+    if (!resized) syncLayoutSize();
     if (scaleTimeout !== null) clearTimeout(scaleTimeout);
     scaleTimeout = window.setTimeout(() => {
       if (Tools.svg) Tools.svg.style.willChange = "auto";

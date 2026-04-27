@@ -330,6 +330,50 @@ test.describe("single-page interactions", () => {
     expect(position.top).toBeGreaterThan(0);
   });
 
+  test("minimum zoom scrollbar reaches the full board end", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("minimum-zoom-scroll-end-test");
+
+    const metrics = await page.evaluate(() => {
+      const tools = window.Tools;
+      if (!tools.svg || !tools.board) {
+        throw new Error("Board runtime is not attached.");
+      }
+      tools.setScale(0);
+      window.scrollTo(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
+
+      const scale = tools.getScale();
+      const maxBoardSize = tools.server_config.MAX_BOARD_SIZE || 655360;
+      const expectedWidth = Math.max(window.innerWidth, maxBoardSize * scale);
+      const expectedHeight = Math.max(window.innerHeight, maxBoardSize * scale);
+      return {
+        expectedWidth,
+        expectedHeight,
+        documentWidth: document.documentElement.scrollWidth,
+        documentHeight: document.documentElement.scrollHeight,
+        rightAfterMaxScroll:
+          document.documentElement.scrollLeft + window.innerWidth,
+        bottomAfterMaxScroll:
+          document.documentElement.scrollTop + window.innerHeight,
+      };
+    });
+
+    expect(metrics.documentWidth).toBeGreaterThanOrEqual(
+      Math.floor(metrics.expectedWidth) - 1,
+    );
+    expect(metrics.documentHeight).toBeGreaterThanOrEqual(
+      Math.floor(metrics.expectedHeight) - 1,
+    );
+    expect(metrics.rightAfterMaxScroll).toBeGreaterThanOrEqual(
+      Math.floor(metrics.expectedWidth) - 1,
+    );
+    expect(metrics.bottomAfterMaxScroll).toBeGreaterThanOrEqual(
+      Math.floor(metrics.expectedHeight) - 1,
+    );
+  });
+
   test("reload applies the viewport encoded in the URL hash", async ({
     boardPage,
     page,

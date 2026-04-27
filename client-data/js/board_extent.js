@@ -1,5 +1,6 @@
 import MessageCommon from "./message_common.js";
 import { hasMessagePoint } from "./message_shape.js";
+import { ToolCodes } from "../tools/tool-order.js";
 
 /**
  * @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds
@@ -84,21 +85,25 @@ export function measureSvgElementBoundsAfterTransform(element, transform) {
 }
 
 /**
- * Computes extents from the message payload only. It intentionally does not
- * measure DOM elements, so transform-only updates return null.
+ * Computes content extents from the message payload only. It intentionally
+ * ignores ephemeral point messages such as cursor updates and does not measure
+ * DOM elements, so transform-only updates return null.
  * @param {unknown} message
  * @returns {Bounds | null}
  */
-export function getMessageBounds(message) {
+export function getContentMessageBounds(message) {
   if (!message || typeof message !== "object") return null;
   const record = /** @type {{[key: string]: unknown}} */ (message);
+  if (record.tool === ToolCodes.CURSOR || record.tool === "cursor") {
+    return null;
+  }
   if (Array.isArray(record._children)) {
     /** @type {Bounds | null} */
     let bounds = null;
     for (let index = 0; index < record._children.length; index++) {
       bounds = extendBoundsWithBounds(
         bounds,
-        getMessageBounds(record._children[index]),
+        getContentMessageBounds(record._children[index]),
       );
     }
     return bounds;

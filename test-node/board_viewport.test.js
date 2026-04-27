@@ -134,3 +134,43 @@ test("viewport owns svg extent growth and layout sync", async () => {
     globalAny.window = previousWindow;
   }
 });
+
+test("viewport expands to the full board at minimum zoom", async () => {
+  const globalAny = /** @type {any} */ (global);
+  const previousWindow = globalAny.window;
+  globalAny.window = {
+    innerWidth: 100,
+    innerHeight: 100,
+    setTimeout: () => 0,
+  };
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const tools = /** @type {any} */ ({
+      scale: 1,
+      server_config: {
+        MAX_BOARD_SIZE: 1000,
+      },
+      svg: {
+        style: {},
+        width: { baseVal: { value: 100 } },
+        height: { baseVal: { value: 100 } },
+      },
+      board: {
+        style: {},
+        dataset: {},
+      },
+      syncDrawToolAvailability: () => {},
+    });
+    const viewport = createViewportController(tools);
+
+    assert.equal(viewport.setScale(0), 0.1);
+    assert.equal(tools.svg.width.baseVal.value, 1000);
+    assert.equal(tools.svg.height.baseVal.value, 1000);
+    assert.deepEqual(tools.board.style, {
+      width: "100px",
+      height: "100px",
+    });
+  } finally {
+    globalAny.window = previousWindow;
+  }
+});

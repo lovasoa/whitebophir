@@ -45,7 +45,7 @@ import {
   DEFAULT_BOARD_SCALE,
   VIEWPORT_HASH_SCALE_DECIMALS,
 } from "./board_viewport.js";
-import { getMessageBounds } from "./board_extent.js";
+import { getContentMessageBounds } from "./board_extent.js";
 import {
   connection as BoardConnection,
   messages as BoardMessages,
@@ -3015,7 +3015,7 @@ Tools.installViewportController = function installViewportController() {
 /** @param {BoardMessage} m */
 function resizeCanvas(m) {
   // Compatibility hook name; root SVG and page size mutation is owned by viewport.
-  Tools.viewport.ensureBoardExtentForBounds(getMessageBounds(m));
+  Tools.viewport.ensureBoardExtentForBounds(getContentMessageBounds(m));
 }
 Tools.resizeCanvas = resizeCanvas;
 
