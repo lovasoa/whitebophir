@@ -356,7 +356,10 @@ async function readCanonicalBoardState(boardName, options) {
     let metadata = defaultBoardMetadata();
     let seq = 0;
     let index = 0;
-    for await (const event of streamStoredSvgStructure(stream)) {
+    for await (const event of streamStoredSvgStructure(stream, {
+      includeLeadingText: false,
+      includeRaw: false,
+    })) {
       if (event.type === "prefix") {
         const rootMetadata = readStoredSvgRootMetadata(event.prefix);
         metadata = {
