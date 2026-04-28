@@ -354,8 +354,11 @@ export type ClientSocketIncomingEventMap = {
   [SocketEvents.ERROR]: unknown;
   [SocketEvents.MUTATION_REJECTED]: MutationRejectedPayload;
   [SocketEvents.RATE_LIMITED]: {
-    retryAfterMs?: number;
-    reason?: string;
+    event: string;
+    kind: RateLimitKind;
+    limit: number;
+    periodMs: number;
+    retryAfterMs: number;
   };
   [SocketEvents.USER_JOINED]: ConnectedUser;
   [SocketEvents.USER_LEFT]: UserLeftPayload;

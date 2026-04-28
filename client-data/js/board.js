@@ -80,7 +80,7 @@ import {
 } from "../tools/tool-defaults.js";
 import { TOOL_BY_ID, TOOL_MODULES_BY_ID } from "../tools/index.js";
 
-/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ViewportController } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.WBOApp = Tools;
@@ -850,7 +850,7 @@ function trackOptimisticMutation(message, rollback) {
  * @returns {void}
  */
 function applyRejectedOptimisticEntries(rejected) {
-  if (!Array.isArray(rejected) || rejected.length === 0) return;
+  if (rejected.length === 0) return;
   rejected
     .slice()
     .reverse()
@@ -866,7 +866,7 @@ function applyRejectedOptimisticEntries(rejected) {
  * @returns {void}
  */
 function notifyRejectedTools(rejected, reason) {
-  if (!Array.isArray(rejected) || rejected.length === 0) return;
+  if (rejected.length === 0) return;
   rejected.forEach((entry) => {
     const toolName = getRuntimeToolId(entry.message.tool);
     const tool = toolName ? Tools.toolRegistry.mounted[toolName] : undefined;
@@ -1317,9 +1317,9 @@ function flushPendingWrites() {
  * @returns {void}
  */
 function finalizeIncomingBroadcast(msg, processed) {
-  const activityMessage =
-    BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
-  if (processed && "tool" in activityMessage) {
+  if (processed && !BoardMessageReplay.isAuthoritativeReplayBatch(msg)) {
+    const activityMessage =
+      BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
     Tools.presence.updateConnectedUsersFromActivity(
       activityMessage.userId,
       activityMessage,
@@ -1334,8 +1334,7 @@ function finalizeIncomingBroadcast(msg, processed) {
  */
 function completeAuthoritativeReplay(replayedToSeq) {
   Tools.replay.hasAuthoritativeSnapshot = true;
-  Tools.replay.authoritativeSeq =
-    BoardMessageReplay.normalizeSeq(replayedToSeq);
+  Tools.replay.authoritativeSeq = replayedToSeq;
   Tools.replay.awaitingSnapshot = false;
   Tools.replay.refreshBaselineBeforeConnect = false;
   Tools.writes.flushBufferedWrites();
@@ -1354,8 +1353,8 @@ function completeAuthoritativeReplay(replayedToSeq) {
  * @returns {Promise<boolean>}
  */
 async function processAuthoritativeReplayBatch(batch) {
-  const fromSeq = BoardMessageReplay.normalizeSeq(batch.fromSeq);
-  const toSeq = BoardMessageReplay.normalizeSeq(batch.seq);
+  const fromSeq = batch.fromSeq;
+  const toSeq = batch.seq;
   if (
     fromSeq !== Tools.replay.authoritativeSeq ||
     toSeq < fromSeq ||
@@ -1372,10 +1371,11 @@ async function processAuthoritativeReplayBatch(batch) {
     return false;
   }
 
-  for (let index = 0; index < batch._children.length; index++) {
-    const child = batch._children[index];
-    if (child) await handleMessage(child);
+  let index = 0;
+  for (const child of batch._children) {
+    await handleMessage(child);
     Tools.replay.authoritativeSeq = fromSeq + index + 1;
+    index += 1;
   }
   completeAuthoritativeReplay(toSeq);
   return true;
@@ -1386,17 +1386,8 @@ async function processAuthoritativeReplayBatch(batch) {
  * @returns {Promise<boolean>}
  */
 async function processIncomingBroadcast(msg) {
-  if (
-    "type" in msg &&
-    "fromSeq" in msg &&
-    "_children" in msg &&
-    msg?.type === MutationType.BATCH &&
-    typeof msg.fromSeq === "number" &&
-    Array.isArray(msg._children)
-  ) {
-    return processAuthoritativeReplayBatch(
-      /** @type {AuthoritativeReplayBatch} */ (msg),
-    );
+  if (BoardMessageReplay.isAuthoritativeReplayBatch(msg)) {
+    return processAuthoritativeReplayBatch(msg);
   }
   const isSequencedBroadcast =
     BoardMessageReplay.isSequencedMutationBroadcast(msg);
@@ -1429,12 +1420,6 @@ async function processIncomingBroadcast(msg) {
   }
   const replayMessage =
     BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
-  if (!("tool" in replayMessage)) {
-    logBoardEvent("error", "broadcast.invalid_replay_payload", {
-      message: msg,
-    });
-    return false;
-  }
   const isOwnSequencedBroadcast =
     isSequencedBroadcast &&
     replayMessage.socket === Tools.connection.socket?.id;
@@ -1448,7 +1433,7 @@ async function processIncomingBroadcast(msg) {
     await handleMessage(replayMessage);
   }
   if (isSequencedBroadcast) {
-    Tools.replay.authoritativeSeq = BoardMessageReplay.normalizeSeq(msg.seq);
+    Tools.replay.authoritativeSeq = msg.seq;
   }
   return true;
 }
@@ -2258,18 +2243,13 @@ function startConnection() {
       Tools.connection.hasConnectedOnce = true;
       Tools.status.syncWriteStatusIndicator();
     });
-    socket.on(
-      SocketEvents.BROADCAST,
-      (/** @type {IncomingBroadcast} */ msg) => {
-        enqueueIncomingBroadcast(msg);
-      },
-    );
+    socket.on(SocketEvents.BROADCAST, (msg) => {
+      enqueueIncomingBroadcast(msg);
+    });
     socket.on(SocketEvents.BOARDSTATE, Tools.access.applyBoardState);
     socket.on(
       SocketEvents.MUTATION_REJECTED,
-      function onMutationRejected(
-        /** @type {MutationRejectedPayload} */ payload,
-      ) {
+      function onMutationRejected(payload) {
         if (payload.clientMutationId) {
           Tools.optimistic.rejectMutation(
             payload.clientMutationId,
@@ -2279,92 +2259,59 @@ function startConnection() {
         Tools.status.showUnknownMutationError(payload.reason);
       },
     );
-    socket.on(
-      SocketEvents.CONNECT_ERROR,
-      function onConnectError(/** @type {unknown} */ error) {
-        if (socket !== Tools.connection.socket) return;
-        const data =
-          error && typeof error === "object" && "data" in error
-            ? /** @type {{reason?: string, latestSeq?: number, minReplayableSeq?: number}} */ (
-                error.data
-              )
-            : undefined;
-        const reason =
-          data?.reason ||
-          (error && typeof error === "object" && "message" in error
-            ? String(error.message)
-            : "connect_error");
-        logBoardEvent("warn", "socket.connect_error", {
-          reason,
-          ...(data?.latestSeq === undefined
-            ? {}
-            : { latestSeq: data.latestSeq }),
-          ...(data?.minReplayableSeq === undefined
-            ? {}
-            : { minReplayableSeq: data.minReplayableSeq }),
+    socket.on(SocketEvents.CONNECT_ERROR, function onConnectError(error) {
+      if (socket !== Tools.connection.socket) return;
+      const data = error.data;
+      const reason = data?.reason || error.message || "connect_error";
+      logBoardEvent("warn", "socket.connect_error", {
+        reason,
+        ...(data?.latestSeq === undefined ? {} : { latestSeq: data.latestSeq }),
+        ...(data?.minReplayableSeq === undefined
+          ? {}
+          : { minReplayableSeq: data.minReplayableSeq }),
+        authoritativeSeq: Tools.replay.authoritativeSeq,
+      });
+      Tools.connection.state = "disconnected";
+      if (reason === "baseline_not_replayable") {
+        logBoardEvent("warn", "replay.baseline_not_replayable", {
           authoritativeSeq: Tools.replay.authoritativeSeq,
+          latestSeq: BoardMessageReplay.normalizeSeq(data?.latestSeq),
+          minReplayableSeq: BoardMessageReplay.normalizeSeq(
+            data?.minReplayableSeq,
+          ),
         });
-        Tools.connection.state = "disconnected";
-        if (reason === "baseline_not_replayable") {
-          logBoardEvent("warn", "replay.baseline_not_replayable", {
-            authoritativeSeq: Tools.replay.authoritativeSeq,
-            latestSeq: BoardMessageReplay.normalizeSeq(data?.latestSeq),
-            minReplayableSeq: BoardMessageReplay.normalizeSeq(
-              data?.minReplayableSeq,
-            ),
-          });
-          Tools.replay.beginAuthoritativeResync();
-          if (socket === Tools.connection.socket) {
-            Tools.connection.socket = null;
-            BoardConnection.closeSocket(socket);
-          }
-        }
-        scheduleSocketReconnect();
-      },
-    );
-    socket.on(
-      SocketEvents.USER_JOINED,
-      function onUserJoined(/** @type {ConnectedUser} */ user) {
-        Tools.presence.upsertConnectedUser(user);
-      },
-    );
-    socket.on(
-      SocketEvents.USER_LEFT,
-      function onUserLeft(
-        /** @type {import("../../types/app-runtime").UserLeftPayload} */ user,
-      ) {
-        Tools.presence.removeConnectedUser(user.socketId);
-      },
-    );
-    socket.on(
-      SocketEvents.RATE_LIMITED,
-      function onRateLimited(
-        /** @type {{retryAfterMs?: number} | null | undefined} */ payload,
-      ) {
-        const retryAfterMs =
-          payload && typeof payload.retryAfterMs === "number"
-            ? payload.retryAfterMs
-            : 60 * 1000;
-        Tools.writes.serverRateLimitedUntil =
-          Date.now() + Math.max(0, retryAfterMs);
-        Tools.status.showRateLimitNotice(
-          Tools.i18n.t("rate_limit_disconnect_message"),
-          retryAfterMs,
-        );
-        Tools.status.syncWriteStatusIndicator();
-      },
-    );
-    socket.on(
-      SocketEvents.DISCONNECT,
-      function onDisconnect(/** @type {string} */ reason) {
-        if (socket !== Tools.connection.socket) return;
-        if (reason === "io client disconnect") return;
-        Tools.connection.state = "disconnected";
-        logBoardEvent("warn", "socket.disconnected", { reason });
         Tools.replay.beginAuthoritativeResync();
-        scheduleSocketReconnect();
-      },
-    );
+        if (socket === Tools.connection.socket) {
+          Tools.connection.socket = null;
+          BoardConnection.closeSocket(socket);
+        }
+      }
+      scheduleSocketReconnect();
+    });
+    socket.on(SocketEvents.USER_JOINED, function onUserJoined(user) {
+      Tools.presence.upsertConnectedUser(user);
+    });
+    socket.on(SocketEvents.USER_LEFT, function onUserLeft(user) {
+      Tools.presence.removeConnectedUser(user.socketId);
+    });
+    socket.on(SocketEvents.RATE_LIMITED, function onRateLimited(payload) {
+      const retryAfterMs = payload.retryAfterMs;
+      Tools.writes.serverRateLimitedUntil =
+        Date.now() + Math.max(0, retryAfterMs);
+      Tools.status.showRateLimitNotice(
+        Tools.i18n.t("rate_limit_disconnect_message"),
+        retryAfterMs,
+      );
+      Tools.status.syncWriteStatusIndicator();
+    });
+    socket.on(SocketEvents.DISCONNECT, function onDisconnect(reason) {
+      if (socket !== Tools.connection.socket) return;
+      if (reason === "io client disconnect") return;
+      Tools.connection.state = "disconnected";
+      logBoardEvent("warn", "socket.disconnected", { reason });
+      Tools.replay.beginAuthoritativeResync();
+      scheduleSocketReconnect();
+    });
     socket.connect();
   })();
 }
