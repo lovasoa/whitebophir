@@ -415,7 +415,14 @@ function createHarness() {
     drawingArea: drawingArea,
     drawingEvent: false,
     scale: 1,
-    canWrite: true,
+    access: {
+      boardState: {
+        readonly: false,
+        canWrite: true,
+      },
+      readOnly: false,
+      canWrite: true,
+    },
     showMarker: true,
     showMyCursor: true,
     sentMessages: [],
@@ -644,6 +651,14 @@ function createInputTools(overrides = {}) {
         AUTO_FINGER_WHITEOUT: false,
       },
     },
+    access: {
+      boardState: {
+        readonly: false,
+        canWrite: true,
+      },
+      readOnly: false,
+      canWrite: true,
+    },
     getColor: () => "#123456",
     getSize: () => 4,
     setSize: (/** @type {number | string | null | undefined} */ size) =>
@@ -780,7 +795,7 @@ function createInputToolRuntime(tools) {
       messageForTool: () => unavailableCapability("messages.messageForTool"),
     },
     permissions: {
-      canWrite: () => tools.canWrite !== false,
+      canWrite: () => tools.access.canWrite,
     },
   };
 }
@@ -838,7 +853,7 @@ function createHarnessToolRuntime(app) {
       messageForTool: (message) => app.messageForTool(message),
     },
     permissions: {
-      canWrite: () => app.canWrite,
+      canWrite: () => app.access.canWrite,
     },
   };
 }

@@ -1361,6 +1361,14 @@ Tools.scale = DEFAULT_BOARD_SCALE;
 Tools.viewport = createViewportController(Tools);
 Tools.drawToolsAllowed = null;
 BoardTurnstile.installTurnstile(Tools, { logBoardEvent });
+Tools.access = {
+  boardState: {
+    readonly: false,
+    canWrite: true,
+  },
+  readOnly: false,
+  canWrite: true,
+};
 
 /** @param {string} toolName */
 Tools.shouldDisableTool = function shouldDisableTool(toolName) {
@@ -1408,11 +1416,14 @@ Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
 
 /** @param {unknown} state */
 Tools.setBoardState = function setBoardState(state) {
-  Tools.boardState = /** @type {AppBoardState} */ (normalizeBoardState(state));
-  Tools.readOnly = Tools.boardState.readonly;
-  Tools.canWrite = Tools.boardState.canWrite;
+  const boardState = /** @type {AppBoardState} */ (normalizeBoardState(state));
+  Tools.access = {
+    boardState,
+    readOnly: boardState.readonly,
+    canWrite: boardState.canWrite,
+  };
 
-  const hideEditingTools = Tools.readOnly && !Tools.canWrite;
+  const hideEditingTools = Tools.access.readOnly && !Tools.access.canWrite;
   const settings = document.getElementById("settings");
   if (settings) settings.style.display = hideEditingTools ? "none" : "";
 
@@ -2514,7 +2525,7 @@ function createToolRuntimeModules(mountedTools) {
       messageForTool: (message) => mountedTools.messageForTool(message),
     },
     permissions: {
-      canWrite: () => mountedTools.canWrite,
+      canWrite: () => mountedTools.access.canWrite,
     },
   };
 }

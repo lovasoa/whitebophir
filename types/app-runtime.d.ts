@@ -584,6 +584,13 @@ export type AppConfigModule = {
   readonly serverConfig: ServerConfig;
 };
 
+/** Server-issued board access state and derived permissions. */
+export type AppAccessModule = {
+  readonly boardState: AppBoardState;
+  readonly readOnly: boolean;
+  readonly canWrite: boolean;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -673,6 +680,7 @@ export type AppToolsState = {
   i18n: { t: (s: string) => string };
   identity: AppIdentityModule;
   config: AppConfigModule;
+  access: AppAccessModule;
   turnstileValidatedUntil: number;
   turnstileWidgetId: unknown | null;
   turnstileRefreshTimeout: number | null;
@@ -683,9 +691,6 @@ export type AppToolsState = {
   scale: number;
   viewport: ViewportController;
   drawToolsAllowed: boolean | null;
-  boardState: AppBoardState;
-  readOnly: boolean;
-  canWrite: boolean;
   dom: BoardDomModule;
   board: HTMLElement | null;
   svg: SVGSVGElement | null;
