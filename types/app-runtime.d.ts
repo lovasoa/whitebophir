@@ -579,6 +579,11 @@ export type AppIdentityModule = {
   readonly token: string | null;
 };
 
+/** Boot-time server configuration exposed through a single runtime module. */
+export type AppConfigModule = {
+  readonly serverConfig: ServerConfig;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -621,9 +626,7 @@ export type ToolUiRuntimeModule = {
 };
 
 /** Tool-facing server configuration. */
-export type ToolConfigRuntimeModule = {
-  readonly serverConfig: ServerConfig;
-};
+export type ToolConfigRuntimeModule = AppConfigModule;
 
 /** Tool-facing id generation. */
 export type ToolIdRuntimeModule = {
@@ -668,8 +671,8 @@ export type ToolRuntimeModules = {
  */
 export type AppToolsState = {
   i18n: { t: (s: string) => string };
-  server_config: ServerConfig;
   identity: AppIdentityModule;
+  config: AppConfigModule;
   readOnlyToolNames: Set<string>;
   turnstileValidatedUntil: number;
   turnstileWidgetId: unknown | null;

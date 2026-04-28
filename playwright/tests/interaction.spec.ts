@@ -400,7 +400,7 @@ test.describe("single-page interactions", () => {
       window.scrollTo(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
 
       const scale = tools.getScale();
-      const maxBoardSize = tools.server_config.MAX_BOARD_SIZE || 655360;
+      const maxBoardSize = tools.config.serverConfig.MAX_BOARD_SIZE || 655360;
       const expectedWidth = Math.max(window.innerWidth, maxBoardSize * scale);
       const expectedHeight = Math.max(window.innerHeight, maxBoardSize * scale);
       return {

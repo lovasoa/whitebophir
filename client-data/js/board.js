@@ -251,14 +251,19 @@ Tools.i18n = (function i18n() {
   };
 })();
 
-Tools.server_config = /** @type {ServerConfig} */ ({});
+Tools.config = {
+  serverConfig: /** @type {ServerConfig} */ ({}),
+};
 
 /**
  * @param {unknown} value
  * @returns {number}
  */
 Tools.toBoardCoordinate = function toBoardCoordinate(value) {
-  return MessageCommon.clampCoord(value, Tools.server_config.MAX_BOARD_SIZE);
+  return MessageCommon.clampCoord(
+    value,
+    Tools.config.serverConfig.MAX_BOARD_SIZE,
+  );
 };
 
 /**
@@ -413,7 +418,7 @@ function getAuthoritativeBaselineUrl(cacheBust) {
  * @returns {ConfiguredRateLimitDefinition}
  */
 Tools.getRateLimitDefinition = function getRateLimitDefinition(kind) {
-  const configured = Tools.server_config.RATE_LIMITS || {};
+  const configured = Tools.config.serverConfig.RATE_LIMITS || {};
   if (configured && configured[kind]) return configured[kind];
 
   return {
@@ -2109,7 +2114,7 @@ Tools.startConnection = () => {
         "log",
         hadConnectedBefore ? "socket.reconnected" : "socket.connected",
       );
-      if (hadConnectedBefore && Tools.server_config.TURNSTILE_SITE_KEY) {
+      if (hadConnectedBefore && Tools.config.serverConfig.TURNSTILE_SITE_KEY) {
         Tools.setTurnstileValidation(null);
         BoardTurnstile.resetTurnstileWidget(
           typeof turnstile !== "undefined" ? turnstile : undefined,
@@ -2498,7 +2503,7 @@ function createToolRuntimeModules(mountedTools) {
       shouldShowMyCursor: () => mountedTools.showMyCursor,
     },
     config: {
-      serverConfig: mountedTools.server_config,
+      serverConfig: mountedTools.config.serverConfig,
     },
     ids: {
       generateUID: (prefix, suffix) => mountedTools.generateUID(prefix, suffix),
@@ -2817,7 +2822,10 @@ Tools.activateTool = async function activateTool(toolName) {
 
 /** @param {MountedAppTool} tool */
 Tools.isBlocked = function toolIsBanned(tool) {
-  return isBlockedToolName(tool.name, Tools.server_config.BLOCKED_TOOLS || []);
+  return isBlockedToolName(
+    tool.name,
+    Tools.config.serverConfig.BLOCKED_TOOLS || [],
+  );
 };
 
 /** @param {MountedAppTool} newTool */
@@ -2999,7 +3007,7 @@ Tools.drawAndSend = (data) => {
 
   if (
     MessageCommon.requiresTurnstile(Tools.identity.boardName, toolName) &&
-    Tools.server_config.TURNSTILE_SITE_KEY &&
+    Tools.config.serverConfig.TURNSTILE_SITE_KEY &&
     !Tools.isTurnstileValidated()
   ) {
     Tools.trackOptimisticMutation(data, rollback);
@@ -3266,9 +3274,11 @@ if (socketIOExtraHeaders) {
 }
 const colorIndex = (Math.random() * Tools.colorPresets.length) | 0;
 const initialPreset = Tools.colorPresets[colorIndex] || Tools.colorPresets[0];
-Tools.server_config = /** @type {ServerConfig} */ (
-  parseEmbeddedJson("configuration", {})
-);
+Tools.config = {
+  serverConfig: /** @type {ServerConfig} */ (
+    parseEmbeddedJson("configuration", {})
+  ),
+};
 Tools.identity = {
   boardName: resolveBoardName(window.location.pathname),
   token: new URL(window.location.href).searchParams.get("token"),

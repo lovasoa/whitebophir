@@ -419,15 +419,17 @@ function createHarness() {
     showMarker: true,
     showMyCursor: true,
     sentMessages: [],
-    server_config: {
-      RATE_LIMITS: {
-        general: {
-          limit: 10,
-          periodMs: 1000,
+    config: {
+      serverConfig: {
+        RATE_LIMITS: {
+          general: {
+            limit: 10,
+            periodMs: 1000,
+          },
         },
+        AUTO_FINGER_WHITEOUT: false,
+        BLOCKED_SELECTION_BUTTONS: [],
       },
-      AUTO_FINGER_WHITEOUT: false,
-      BLOCKED_SELECTION_BUTTONS: [],
     },
     curTool: { secondary: { active: false } },
     getColor: () => "#123456",
@@ -442,7 +444,7 @@ function createHarness() {
     pageCoordinateToBoard: (/** @type {unknown} */ value) =>
       Math.round(Number(value) || 0),
     getEffectiveRateLimit: (/** @type {string} */ kind) => {
-      const definition = globalAny.Tools.server_config.RATE_LIMITS[kind];
+      const definition = globalAny.Tools.config.serverConfig.RATE_LIMITS[kind];
       if (!definition) throw new Error(`Missing rate limit for ${kind}`);
       return definition;
     },
@@ -631,14 +633,16 @@ function createHarness() {
 function createInputTools(overrides = {}) {
   return {
     sentMessages: [],
-    server_config: {
-      RATE_LIMITS: {
-        general: {
-          limit: 10,
-          periodMs: 1000,
+    config: {
+      serverConfig: {
+        RATE_LIMITS: {
+          general: {
+            limit: 10,
+            periodMs: 1000,
+          },
         },
+        AUTO_FINGER_WHITEOUT: false,
       },
-      AUTO_FINGER_WHITEOUT: false,
     },
     getColor: () => "#123456",
     getSize: () => 4,
@@ -762,7 +766,7 @@ function createInputToolRuntime(tools) {
       shouldShowMyCursor: () => unavailableCapability("ui.shouldShowMyCursor"),
     },
     config: {
-      serverConfig: tools.server_config,
+      serverConfig: tools.config.serverConfig,
     },
     ids: {
       generateUID: (prefix, suffix) => tools.generateUID(prefix, suffix),
@@ -820,7 +824,7 @@ function createHarnessToolRuntime(app) {
       shouldShowMyCursor: () => app.showMyCursor,
     },
     config: {
-      serverConfig: app.server_config,
+      serverConfig: app.config.serverConfig,
     },
     ids: {
       generateUID: (prefix, suffix) => app.generateUID(prefix, suffix),
@@ -1923,7 +1927,7 @@ test("Hand selector stops at the last valid transform", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
 
-  globalAny.Tools.server_config.MAX_BOARD_SIZE = 220;
+  globalAny.Tools.config.serverConfig.MAX_BOARD_SIZE = 220;
 
   const rect = globalAny.Tools.createSVGElement("rect");
   rect.id = "bounded-rect";

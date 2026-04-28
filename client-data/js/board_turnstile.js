@@ -142,7 +142,10 @@ export function installTurnstile(Tools, { logBoardEvent }) {
   Tools.scheduleTurnstileRefresh = function scheduleTurnstileRefresh(
     validationWindowMs,
   ) {
-    if (!Tools.server_config.TURNSTILE_SITE_KEY || !(validationWindowMs > 0)) {
+    if (
+      !Tools.config.serverConfig.TURNSTILE_SITE_KEY ||
+      !(validationWindowMs > 0)
+    ) {
       return;
     }
     Tools.clearTurnstileRefreshTimeout();
@@ -167,7 +170,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
 
     const validation = computeTurnstileValidation(
       ack,
-      Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS),
+      Number(Tools.config.serverConfig.TURNSTILE_VALIDATION_WINDOW_MS),
     );
     const validationWindowMs = validation.validationWindowMs;
     Tools.turnstileValidatedUntil = validation.validatedUntil;
@@ -182,7 +185,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
   Tools.normalizeTurnstileAck = function normalizeTurnstileAckForTools(result) {
     return normalizeTurnstileAck(
       result,
-      Number(Tools.server_config.TURNSTILE_VALIDATION_WINDOW_MS),
+      Number(Tools.config.serverConfig.TURNSTILE_VALIDATION_WINDOW_MS),
     );
   };
 
@@ -255,7 +258,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
     reason,
     delayMs = TURNSTILE_RETRY_DELAY_MS,
   ) {
-    if (!Tools.server_config.TURNSTILE_SITE_KEY) return;
+    if (!Tools.config.serverConfig.TURNSTILE_SITE_KEY) return;
     if (Tools.turnstilePendingWrites.length === 0) return;
     Tools.clearTurnstileRetryTimeout();
     logBoardEvent("warn", "turnstile.retry_scheduled", {
@@ -363,7 +366,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
     try {
       Tools.turnstilePending = true;
       Tools.turnstileWidgetId = api.render("#turnstile-widget", {
-        sitekey: Tools.server_config.TURNSTILE_SITE_KEY,
+        sitekey: Tools.config.serverConfig.TURNSTILE_SITE_KEY,
         appearance: "interaction-only",
         theme: "light",
         "refresh-expired": "manual",
@@ -441,7 +444,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
   }
 
   Tools.refreshTurnstile = function refreshTurnstile() {
-    if (!Tools.server_config.TURNSTILE_SITE_KEY) return;
+    if (!Tools.config.serverConfig.TURNSTILE_SITE_KEY) return;
     Tools.ensureTurnstileElements();
     Tools.clearTurnstileRetryTimeout();
     if (Tools.turnstilePending) return;

@@ -232,7 +232,7 @@ function createBatchMessage(children) {
 
 /**
  * @typedef {{
- *   server_config: ToolRuntimeModules["config"]["serverConfig"],
+ *   serverConfig: ToolRuntimeModules["config"]["serverConfig"],
  *   canWrite: boolean,
  *   drawAndSend: ToolRuntimeModules["writes"]["drawAndSend"],
  *   generateUID: ToolRuntimeModules["ids"]["generateUID"],
@@ -275,8 +275,7 @@ function createState(Tools, assetUrl) {
     selectorState: 0,
     selectionRunId: 0,
     lastSent: 0,
-    blockedSelectionButtons:
-      Tools.server_config.BLOCKED_SELECTION_BUTTONS || [],
+    blockedSelectionButtons: Tools.serverConfig.BLOCKED_SELECTION_BUTTONS || [],
     selectionButtons: [],
     boundDeleteShortcut: () => {},
     boundDuplicateShortcut: () => {},
@@ -891,7 +890,7 @@ function dispatchTransform(state, msg, force) {
  * @returns {{ok: true, bounds: {minX: number, minY: number, maxX: number, maxY: number} | null} | {ok: false}}
  */
 function validateTransformBatch(state, msg) {
-  const maxBoardSize = state.Tools.server_config.MAX_BOARD_SIZE;
+  const maxBoardSize = state.Tools.serverConfig.MAX_BOARD_SIZE;
   let bounds = null;
   for (let index = 0; index < msg._children.length; index++) {
     const child = msg._children[index];
@@ -1250,7 +1249,7 @@ function switchTool(state) {
 function createHandRuntime(ctx) {
   const runtime = ctx.runtime;
   return {
-    server_config: runtime.config.serverConfig,
+    serverConfig: runtime.config.serverConfig,
     canWrite: runtime.permissions.canWrite(),
     drawAndSend: runtime.writes.drawAndSend,
     generateUID: runtime.ids.generateUID,

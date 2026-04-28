@@ -265,7 +265,8 @@ export function createViewportController(Tools) {
    */
   function currentScaleLimits() {
     return {
-      maxBoardSize: Number(Tools.server_config.MAX_BOARD_SIZE) || undefined,
+      maxBoardSize:
+        Number(Tools.config.serverConfig.MAX_BOARD_SIZE) || undefined,
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
     };
@@ -275,7 +276,9 @@ export function createViewportController(Tools) {
    * @returns {number}
    */
   function currentMaxBoardSize() {
-    return Number(Tools.server_config.MAX_BOARD_SIZE) || DEFAULT_MAX_BOARD_SIZE;
+    return (
+      Number(Tools.config.serverConfig.MAX_BOARD_SIZE) || DEFAULT_MAX_BOARD_SIZE
+    );
   }
 
   /**
