@@ -640,6 +640,12 @@ export type AppOptimisticModule = {
   journal: OptimisticJournalState;
 };
 
+/** Local message hooks and unread-message badge state. */
+export type AppMessageModule = {
+  hooks: MessageHook[];
+  unreadCount: number;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -735,6 +741,7 @@ export type AppToolsState = {
   turnstile: AppTurnstileModule;
   presence: AppPresenceModule;
   optimistic: AppOptimisticModule;
+  messages: AppMessageModule;
   scale: number;
   viewport: ViewportController;
   drawToolsAllowed: boolean | null;
@@ -768,8 +775,6 @@ export type AppToolsState = {
   bootedToolPromises: ToolNameMap<MountedAppToolPromise>;
   bootedToolNames: Set<string>;
   pendingMessages: PendingMessages;
-  unreadMessagesCount: number;
-  messageHooks: MessageHook[];
   getRateLimitDefinition: (
     kind: RateLimitKind,
   ) => ConfiguredRateLimitDefinition;

@@ -2995,7 +2995,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
  * @param {LiveBoardMessage} data
  */
 Tools.send = (data) => {
-  Tools.applyHooks(Tools.messageHooks, data);
+  Tools.applyHooks(Tools.messages.hooks, data);
   return Tools.sendBufferedWrite(data);
 };
 
@@ -3058,7 +3058,7 @@ function messageForTool(message) {
   const name = getRuntimeToolId(message.tool);
   const tool = name ? Tools.list[name] : undefined;
 
-  Tools.applyHooks(Tools.messageHooks, message);
+  Tools.applyHooks(Tools.messages.hooks, message);
   if (tool) {
     tool.draw(message, false);
   } else {
@@ -3084,14 +3084,17 @@ function handleMessage(message) {
   return Promise.resolve();
 }
 
-Tools.unreadMessagesCount = 0;
+Tools.messages = {
+  hooks: [],
+  unreadCount: 0,
+};
 Tools.newUnreadMessage = () => {
-  Tools.unreadMessagesCount++;
+  Tools.messages.unreadCount++;
   updateDocumentTitle();
 };
 
 window.addEventListener("focus", () => {
-  Tools.unreadMessagesCount = 0;
+  Tools.messages.unreadCount = 0;
   updateDocumentTitle();
   if (Tools.bufferedWrites.length > 0) {
     Tools.flushBufferedWrites();
@@ -3106,7 +3109,7 @@ document.addEventListener("visibilitychange", () => {
 
 function updateDocumentTitle() {
   document.title =
-    (Tools.unreadMessagesCount ? `(${Tools.unreadMessagesCount}) ` : "") +
+    (Tools.messages.unreadCount ? `(${Tools.messages.unreadCount}) ` : "") +
     `${Tools.identity.boardName} | WBO`;
 }
 
@@ -3149,7 +3152,7 @@ function notifyToolsOfMessage(m) {
 }
 
 // List of hook functions that will be applied to messages before sending or drawing them
-Tools.messageHooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
+Tools.messages.hooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
 
 /** @param {number} scale */
 Tools.setScale = function setScale(scale) {
