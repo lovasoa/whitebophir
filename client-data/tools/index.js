@@ -19,13 +19,16 @@ import {
   getToolTranslationKey,
 } from "./tool-defaults.js";
 /** @typedef {import("../../types/app-runtime").ToolCode} ToolCode */
+/** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
+/** @typedef {import("./shape_contract.js").ToolContract} ToolContract */
 /** @typedef {typeof import("./tool-order.js").TOOL_CODE_BY_ID} ToolCodeById */
 
 /**
  * @typedef {{
  *   toolId: string,
- *   boot: Function,
- *   draw: Function,
+ *   boot: (ctx: ToolBootContext) => any,
+ *   draw: (state: any, message: any, isLocal: any) => unknown,
+ *   contract?: ToolContract,
  *   id?: ToolCode,
  *   visibleWhenReadOnly?: boolean,
  *   moderatorOnly?: boolean,
@@ -61,10 +64,8 @@ import {
  * }}
  */
 function defineTool(tool, toolCode) {
-  const contract =
-    tool && typeof tool === "object" && "contract" in tool ? tool.contract : {};
-  const definition = /** @type {T & Partial<ToolModuleLike>} */ ({
-    ...(typeof contract === "object" && contract ? contract : {}),
+  const definition = /** @type {T & Partial<ToolContract>} */ ({
+    ...(tool.contract || {}),
     ...tool,
   });
   const translationKey = getToolTranslationKey(definition.toolId);
