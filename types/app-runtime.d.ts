@@ -833,73 +833,56 @@ export type AppCoordinateModule = {
   pageCoordinateToBoard: (value: unknown) => number;
 };
 
-/** Tool-facing attached board DOM. */
-export type ToolBoardRuntimeModule = AttachedBoardDomModule & BoardDomActions;
-
-/** Tool-facing board-space coordinate conversion. */
-export type ToolCoordinateRuntimeModule = AppCoordinateModule;
-
-/** Tool-facing write channel. Owns message send/queue semantics. */
-export type ToolWriteRuntimeModule = Pick<
-  AppWriteModule,
-  "drawAndSend" | "send" | "canBufferWrites" | "whenBoardWritable"
->;
-
-/** Tool-facing board identity. */
-export type ToolIdentityRuntimeModule = AppIdentityModule;
-
-/** Tool-facing current drawing preferences. */
-export type ToolPreferenceRuntimeModule = Pick<
-  AppPreferenceModule,
-  "getColor" | "getSize" | "setSize" | "getOpacity"
->;
-
-/** Tool-facing rate-limit lookup. */
-export type ToolRateLimitRuntimeModule = Pick<
-  AppRateLimitModule,
-  "getEffectiveRateLimit"
->;
-
-/** Tool-facing active-tool controls. */
-export type ToolRegistryRuntimeModule = Pick<
-  AppToolRegistryModule,
-  "current" | "change"
->;
-
-/** Tool-facing pointer interaction flags. */
-export type ToolInteractionRuntimeModule = Pick<
-  AppInteractionModule,
-  "drawingEvent" | "showMarker" | "showMyCursor"
->;
-
-/** Tool-facing server configuration. */
-export type ToolConfigRuntimeModule = AppConfigModule;
-
-/** Tool-facing id generation. */
-export type ToolIdRuntimeModule = AppIdModule;
-
-/** Tool-facing message replay helper for tools that synthesize child messages. */
-export type ToolMessageRuntimeModule = Pick<AppMessageModule, "messageForTool">;
-
-/** Tool-facing permission state. */
-export type ToolPermissionRuntimeModule = Pick<AppAccessModule, "canWrite">;
-
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = {
-  readonly board: ToolBoardRuntimeModule;
-  readonly coordinates: ToolCoordinateRuntimeModule;
+  /** Attached board DOM and DOM helpers. */
+  readonly board: AttachedBoardDomModule & BoardDomActions;
+  /** Board-space coordinate conversion. */
+  readonly coordinates: AppCoordinateModule;
   readonly viewport: ViewportController;
-  readonly writes: ToolWriteRuntimeModule;
-  readonly identity: ToolIdentityRuntimeModule;
-  readonly preferences: ToolPreferenceRuntimeModule;
-  readonly rateLimits: ToolRateLimitRuntimeModule;
-  readonly toolRegistry: ToolRegistryRuntimeModule;
-  readonly interaction: ToolInteractionRuntimeModule;
-  readonly config: ToolConfigRuntimeModule;
-  readonly ids: ToolIdRuntimeModule;
-  readonly messages: ToolMessageRuntimeModule;
-  readonly permissions: ToolPermissionRuntimeModule;
+  /** Write channel. Owns message send/queue semantics. */
+  readonly writes: Pick<
+    AppWriteModule,
+    "drawAndSend" | "send" | "canBufferWrites" | "whenBoardWritable"
+  >;
+  /** Stable board identity. */
+  readonly identity: AppIdentityModule;
+  /** Current drawing preferences. */
+  readonly preferences: Pick<
+    AppPreferenceModule,
+    "getColor" | "getSize" | "setSize" | "getOpacity"
+  >;
+  /** Rate-limit lookup. */
+  readonly rateLimits: Pick<AppRateLimitModule, "getEffectiveRateLimit">;
+  /** Active-tool controls. */
+  readonly toolRegistry: Pick<AppToolRegistryModule, "current" | "change">;
+  /** Pointer interaction flags. */
+  readonly interaction: Pick<
+    AppInteractionModule,
+    "drawingEvent" | "showMarker" | "showMyCursor"
+  >;
+  /** Server configuration. */
+  readonly config: AppConfigModule;
+  /** Id generation. */
+  readonly ids: AppIdModule;
+  /** Message replay helper for tools that synthesize child messages. */
+  readonly messages: Pick<AppMessageModule, "messageForTool">;
+  /** Permission state. */
+  readonly permissions: Pick<AppAccessModule, "canWrite">;
 };
+
+export type ToolBoardRuntimeModule = ToolRuntimeModules["board"];
+export type ToolCoordinateRuntimeModule = ToolRuntimeModules["coordinates"];
+export type ToolWriteRuntimeModule = ToolRuntimeModules["writes"];
+export type ToolIdentityRuntimeModule = ToolRuntimeModules["identity"];
+export type ToolPreferenceRuntimeModule = ToolRuntimeModules["preferences"];
+export type ToolRateLimitRuntimeModule = ToolRuntimeModules["rateLimits"];
+export type ToolRegistryRuntimeModule = ToolRuntimeModules["toolRegistry"];
+export type ToolInteractionRuntimeModule = ToolRuntimeModules["interaction"];
+export type ToolConfigRuntimeModule = ToolRuntimeModules["config"];
+export type ToolIdRuntimeModule = ToolRuntimeModules["ids"];
+export type ToolMessageRuntimeModule = ToolRuntimeModules["messages"];
+export type ToolPermissionRuntimeModule = ToolRuntimeModules["permissions"];
 
 /** Runtime root composed only of documented modules. */
 export type AppToolsState = {
