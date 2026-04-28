@@ -726,6 +726,10 @@ test("board pages are no-store in development and render plain asset URLs", asyn
       response.body,
       /rel="modulepreload" href="\.\.\/tools\/pencil\/index\.js"/,
     );
+    assert.match(
+      response.body,
+      /<li class="tool disabledTool"[^>]*id="toolID-pencil"[^>]*aria-disabled="true">/,
+    );
     assert.match(response.body, /\.\.\/tools\/pencil\/icon\.svg(?:["'])/);
     assert.match(response.body, /fetchpriority="low"/);
     assert.match(response.body, /\.\.\/users\.svg(?:["'])/);

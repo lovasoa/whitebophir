@@ -224,7 +224,8 @@ export class ToolRegistryModule {
   syncToolDisabledState(toolName) {
     const toolElem = document.getElementById(`toolID-${toolName}`);
     if (!toolElem) return;
-    const disabled = this.shouldDisableTool(toolName);
+    const disabled =
+      !this.mounted[toolName] || this.shouldDisableTool(toolName);
     toolElem.classList.toggle("disabledTool", disabled);
     toolElem.setAttribute("aria-disabled", disabled ? "true" : "false");
   }

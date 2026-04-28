@@ -513,6 +513,41 @@ test.describe("single-page interactions", () => {
     await boardPage.selectTool("pencil");
   });
 
+  test("toolbar tools stay disabled until their modules are mounted", async ({
+    boardPage,
+  }) => {
+    let releaseRectangleModule!: () => void;
+    const rectangleModuleCanLoad = new Promise<void>((resolve) => {
+      releaseRectangleModule = resolve;
+    });
+    const rectangleModuleRequested = new Promise<void>((resolve) => {
+      void boardPage.page.route(
+        "**/tools/rectangle/index.js",
+        async (route) => {
+          resolve();
+          await rectangleModuleCanLoad;
+          await route.continue();
+        },
+      );
+    });
+
+    await boardPage.gotoBoard("tool-ready-state-test");
+    await rectangleModuleRequested;
+
+    await expect(boardPage.tool("rectangle")).toHaveClass(/disabledTool/);
+    await expect(boardPage.tool("rectangle")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    releaseRectangleModule();
+    await expect(boardPage.tool("rectangle")).toHaveAttribute(
+      "aria-disabled",
+      "false",
+    );
+    await expect(boardPage.tool("rectangle")).not.toHaveClass(/disabledTool/);
+  });
+
   test("download exports SVG content", async ({ boardPage, server }) => {
     await server.writeBoard(server.dataPath, "download-test", {
       "download-rect": {
