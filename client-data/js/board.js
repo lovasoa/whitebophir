@@ -69,11 +69,12 @@ import {
 import RateLimitCommon from "./rate_limit_common.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
-const Tools = /** @type {AppToolsState} */ ({});
-window.WBOApp = Tools;
+/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences}} AppToolsOptions */
+/** @type {AppToolsState} */
+let Tools;
 
 // Keep a bounded safety margin between the client-side local budget and the
 // server's fixed window to absorb emit/receive skew. The buffer must be large
@@ -308,22 +309,12 @@ export class I18nModule {
   }
 }
 
-Tools.i18n = new I18nModule(
-  /** @type {{[key: string]: string}} */ (
-    parseEmbeddedJson("translations", {})
-  ),
-);
-
 export class ConfigModule {
   /** @param {ServerConfig} serverConfig */
   constructor(serverConfig) {
     this.serverConfig = serverConfig;
   }
 }
-
-Tools.config = new ConfigModule(
-  /** @type {ServerConfig} */ (parseEmbeddedJson("configuration", {})),
-);
 
 export class IdentityModule {
   /**
@@ -336,17 +327,12 @@ export class IdentityModule {
   }
 }
 
-Tools.identity = new IdentityModule(
-  resolveBoardName(window.location.pathname),
-  new URL(window.location.href).searchParams.get("token"),
-);
-
 const coordinateModuleState = new WeakMap();
 
 export class CoordinateModule {
   /**
-   * @param {AppToolsState["config"]} config
-   * @param {AppToolsState["viewportState"]} viewportState
+   * @param {ConfigModule} config
+   * @param {ViewportStateModule} viewportState
    */
   constructor(config, viewportState) {
     coordinateModuleState.set(this, { config, viewportState });
@@ -355,7 +341,7 @@ export class CoordinateModule {
   /** @param {unknown} value */
   toBoardCoordinate(value) {
     const state =
-      /** @type {{config: AppToolsState["config"], viewportState: AppToolsState["viewportState"]}} */ (
+      /** @type {{config: ConfigModule, viewportState: ViewportStateModule}} */ (
         coordinateModuleState.get(this)
       );
     return MessageCommon.clampCoord(
@@ -367,7 +353,7 @@ export class CoordinateModule {
   /** @param {unknown} value */
   pageCoordinateToBoard(value) {
     const state =
-      /** @type {{config: AppToolsState["config"], viewportState: AppToolsState["viewportState"]}} */ (
+      /** @type {{config: ConfigModule, viewportState: ViewportStateModule}} */ (
         coordinateModuleState.get(this)
       );
     return state.viewportState.controller.pageCoordinateToBoard(value);
@@ -406,8 +392,6 @@ export class AssetModule {
     return this.resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
   }
 }
-
-Tools.assets = new AssetModule(normalizeBoardAssetPath);
 
 export class ToolRegistryModule {
   constructor() {
@@ -620,12 +604,6 @@ export class ToolRegistryModule {
   }
 }
 
-Tools.toolRegistry = new ToolRegistryModule();
-Tools.turnstile = new BoardTurnstile.TurnstileModule(Tools, {
-  logBoardEvent,
-  queueProtectedWrite,
-  flushPendingWrites,
-});
 export class WriteModule {
   constructor() {
     this.bufferedWrites = /** @type {BufferedWrite[]} */ ([]);
@@ -934,7 +912,6 @@ export class WriteModule {
   }
 }
 
-Tools.writes = new WriteModule();
 export class StatusModule {
   constructor() {
     this.rateLimitNoticeTimer = null;
@@ -1089,8 +1066,6 @@ export class StatusModule {
   }
 }
 
-Tools.status = new StatusModule();
-
 export class ReplayModule {
   constructor() {
     this.awaitingSnapshot = true;
@@ -1153,8 +1128,6 @@ export class ReplayModule {
     Tools.status.syncWriteStatusIndicator();
   }
 }
-
-Tools.replay = new ReplayModule();
 
 export class OptimisticModule {
   constructor() {
@@ -1287,8 +1260,6 @@ export class OptimisticModule {
     );
   }
 }
-
-Tools.optimistic = new OptimisticModule();
 
 export class ConnectionModule {
   constructor() {
@@ -1455,7 +1426,6 @@ export class ConnectionModule {
   }
 }
 
-Tools.connection = new ConnectionModule();
 function initializeShellControls() {
   const colorChooser = getRequiredInput("chooseColor");
   const sizeChooser = getRequiredInput("chooseSize");
@@ -1529,8 +1499,8 @@ const rateLimitModuleState = new WeakMap();
 
 export class RateLimitModule {
   /**
-   * @param {AppToolsState["config"]} config
-   * @param {AppToolsState["identity"]} identity
+   * @param {ConfigModule} config
+   * @param {IdentityModule} identity
    */
   constructor(config, identity) {
     rateLimitModuleState.set(this, { config, identity });
@@ -1539,7 +1509,7 @@ export class RateLimitModule {
   /** @param {RateLimitKind} kind */
   getRateLimitDefinition(kind) {
     const state =
-      /** @type {{config: AppToolsState["config"], identity: AppToolsState["identity"]}} */ (
+      /** @type {{config: ConfigModule, identity: IdentityModule}} */ (
         rateLimitModuleState.get(this)
       );
     const configured = state.config.serverConfig.RATE_LIMITS || {};
@@ -1555,7 +1525,7 @@ export class RateLimitModule {
   /** @param {RateLimitKind} kind */
   getEffectiveRateLimit(kind) {
     const state =
-      /** @type {{config: AppToolsState["config"], identity: AppToolsState["identity"]}} */ (
+      /** @type {{config: ConfigModule, identity: IdentityModule}} */ (
         rateLimitModuleState.get(this)
       );
     return RateLimitCommon.getEffectiveRateLimitDefinition(
@@ -1575,8 +1545,6 @@ export class RateLimitModule {
     );
   }
 }
-
-Tools.rateLimits = new RateLimitModule(Tools.config, Tools.identity);
 
 /** @param {number} [delayMs] */
 function scheduleSocketReconnect(delayMs = 250) {
@@ -1854,9 +1822,6 @@ export class ViewportStateModule {
   }
 }
 
-Tools.viewportState = new ViewportStateModule(createViewportController(Tools));
-Tools.coordinates = new CoordinateModule(Tools.config, Tools.viewportState);
-
 export class AccessModule {
   constructor() {
     this.boardState = {
@@ -1898,10 +1863,6 @@ export class AccessModule {
   }
 }
 
-Tools.access = new AccessModule();
-
-Tools.dom = new DetachedBoardDomRuntimeModule();
-
 //Initialization
 document.documentElement.dataset.activeToolSecondary = "false";
 export class InteractionModule {
@@ -1912,8 +1873,6 @@ export class InteractionModule {
     this.showMyCursor = true;
   }
 }
-
-Tools.interaction = new InteractionModule();
 
 export class PresenceModule {
   constructor() {
@@ -2071,8 +2030,6 @@ export class PresenceModule {
     this.renderConnectedUsers();
   }
 }
-
-Tools.presence = new PresenceModule();
 
 function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
   return !!(
@@ -3099,8 +3056,8 @@ const messageModuleState = new WeakMap();
 
 export class MessageModule {
   /**
-   * @param {AppToolsState["toolRegistry"]} toolRegistry
-   * @param {AppToolsState["identity"]} identity
+   * @param {ToolRegistryModule} toolRegistry
+   * @param {IdentityModule} identity
    */
   constructor(toolRegistry, identity) {
     this.hooks = /** @type {MessageHook[]} */ ([]);
@@ -3122,7 +3079,7 @@ export class MessageModule {
   /** @param {BoardMessage} message */
   messageForTool(message) {
     const state =
-      /** @type {{toolRegistry: AppToolsState["toolRegistry"], identity: AppToolsState["identity"]}} */ (
+      /** @type {{toolRegistry: ToolRegistryModule, identity: IdentityModule}} */ (
         messageModuleState.get(this)
       );
     const name = TOOL_ID_BY_CODE[message.tool];
@@ -3142,7 +3099,7 @@ export class MessageModule {
 
   newUnreadMessage() {
     const state =
-      /** @type {{toolRegistry: AppToolsState["toolRegistry"], identity: AppToolsState["identity"]}} */ (
+      /** @type {{toolRegistry: ToolRegistryModule, identity: IdentityModule}} */ (
         messageModuleState.get(this)
       );
     this.unreadCount++;
@@ -3151,8 +3108,8 @@ export class MessageModule {
 }
 
 /**
- * @param {AppToolsState["messages"]} messages
- * @param {AppToolsState["identity"]} identity
+ * @param {MessageModule} messages
+ * @param {IdentityModule} identity
  */
 function updateDocumentTitle(messages, identity) {
   document.title =
@@ -3172,7 +3129,7 @@ function createResizeCanvasHook(viewport) {
 }
 
 /**
- * @param {AppToolsState["messages"]} messages
+ * @param {MessageModule} messages
  * @returns {MessageHook}
  */
 function createUnreadCountHook(messages) {
@@ -3189,7 +3146,7 @@ function createUnreadCountHook(messages) {
 }
 
 /**
- * @param {AppToolsState["toolRegistry"]} toolRegistry
+ * @param {ToolRegistryModule} toolRegistry
  * @returns {MessageHook}
  */
 function createToolNotificationHook(toolRegistry) {
@@ -3199,13 +3156,6 @@ function createToolNotificationHook(toolRegistry) {
     });
   };
 }
-
-Tools.messages = new MessageModule(Tools.toolRegistry, Tools.identity);
-Tools.messages.hooks = [
-  createResizeCanvasHook(Tools.viewportState.controller),
-  createUnreadCountHook(Tools.messages),
-  createToolNotificationHook(Tools.toolRegistry),
-];
 
 window.addEventListener("focus", () => {
   Tools.messages.unreadCount = 0;
@@ -3234,8 +3184,6 @@ export class IdModule {
     return uid;
   }
 }
-
-Tools.ids = new IdModule();
 
 const colorPresets = [
   { color: "#001f3f", key: "1" },
@@ -3306,6 +3254,51 @@ export class PreferenceModule {
   }
 }
 
+export class AppTools {
+  /** @param {AppToolsOptions} options */
+  constructor(options) {
+    this.i18n = new I18nModule(options.translations);
+    this.config = new ConfigModule(options.serverConfig);
+    this.identity = new IdentityModule(options.boardName, options.token);
+    this.assets = new AssetModule(normalizeBoardAssetPath);
+    this.toolRegistry = new ToolRegistryModule();
+    this.turnstile = new BoardTurnstile.TurnstileModule(this, {
+      logBoardEvent,
+      queueProtectedWrite,
+      flushPendingWrites,
+    });
+    this.writes = new WriteModule();
+    this.status = new StatusModule();
+    this.replay = new ReplayModule();
+    this.optimistic = new OptimisticModule();
+    this.connection = new ConnectionModule();
+    this.connection.socketIOExtraHeaders = options.socketIOExtraHeaders;
+    this.rateLimits = new RateLimitModule(this.config, this.identity);
+    const viewportController = createViewportController(
+      /** @type {AppToolsState} */ (/** @type {unknown} */ (this)),
+    );
+    this.viewportState = new ViewportStateModule(viewportController);
+    this.coordinates = new CoordinateModule(this.config, this.viewportState);
+    this.access = new AccessModule();
+    this.dom = /** @type {BoardDomModule} */ (
+      new DetachedBoardDomRuntimeModule()
+    );
+    this.interaction = new InteractionModule();
+    this.presence = new PresenceModule();
+    this.messages = new MessageModule(this.toolRegistry, this.identity);
+    this.messages.hooks = [
+      createResizeCanvasHook(this.viewportState.controller),
+      createUnreadCountHook(this.messages),
+      createToolNotificationHook(this.toolRegistry),
+    ];
+    this.ids = new IdModule();
+    this.preferences = new PreferenceModule(
+      options.colorPresets,
+      options.initialPreferences,
+    );
+  }
+}
+
 /** @type {SocketHeaders | null} */
 let socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
   window.socketio_extra_headers,
@@ -3329,14 +3322,26 @@ if (socketIOExtraHeaders) {
 }
 const colorIndex = (Math.random() * colorPresets.length) | 0;
 const initialPreset = colorPresets[colorIndex] || colorPresets[0];
-Tools.connection.socketIOExtraHeaders = socketIOExtraHeaders;
 const initialPreferences = {
   tool: "hand",
   color: initialPreset?.color || "#001f3f",
   size: DEFAULT_INITIAL_SIZE,
   opacity: DEFAULT_INITIAL_OPACITY,
 };
-Tools.preferences = new PreferenceModule(colorPresets, initialPreferences);
+Tools = new AppTools({
+  translations: /** @type {{[key: string]: string}} */ (
+    parseEmbeddedJson("translations", {})
+  ),
+  serverConfig: /** @type {ServerConfig} */ (
+    parseEmbeddedJson("configuration", {})
+  ),
+  boardName: resolveBoardName(window.location.pathname),
+  token: new URL(window.location.href).searchParams.get("token"),
+  socketIOExtraHeaders,
+  colorPresets,
+  initialPreferences,
+});
+window.WBOApp = Tools;
 Tools.access.applyBoardState(
   normalizeBoardState(
     parseEmbeddedJson("board-state", {

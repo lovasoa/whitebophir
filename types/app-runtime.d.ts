@@ -682,29 +682,7 @@ export type ToolRuntimeModules = ReturnType<
 >;
 
 /** Runtime root composed only of documented modules. */
-export type AppToolsState = {
-  i18n: import("../client-data/js/board.js").I18nModule;
-  identity: AppIdentityModule;
-  config: AppConfigModule;
-  access: AppAccessModule;
-  preferences: AppPreferenceModule;
-  status: AppStatusModule;
-  turnstile: AppTurnstileModule;
-  presence: AppPresenceModule;
-  optimistic: AppOptimisticModule;
-  messages: AppMessageModule;
-  viewportState: AppViewportModule;
-  replay: AppReplayModule;
-  connection: AppConnectionModule;
-  writes: AppWriteModule;
-  toolRegistry: AppToolRegistryModule;
-  interaction: AppInteractionModule;
-  assets: AppAssetModule;
-  ids: AppIdModule;
-  rateLimits: AppRateLimitModule;
-  coordinates: AppCoordinateModule;
-  dom: BoardDomModule;
-};
+export type AppToolsState = import("../client-data/js/board.js").AppTools;
 
 export type MountedAppToolsState = AppToolsState & {
   dom: AttachedBoardDomModule & BoardDomActions;
