@@ -1,3 +1,13 @@
+import type * as ClearTool from "../client-data/tools/clear/index.js";
+import type * as CursorTool from "../client-data/tools/cursor/index.js";
+import type * as EllipseTool from "../client-data/tools/ellipse/index.js";
+import type * as EraserTool from "../client-data/tools/eraser/index.js";
+import type * as HandTool from "../client-data/tools/hand/index.js";
+import type * as PencilTool from "../client-data/tools/pencil/index.js";
+import type * as RectangleTool from "../client-data/tools/rectangle/index.js";
+import type * as StraightLineTool from "../client-data/tools/straight-line/index.js";
+import type * as TextTool from "../client-data/tools/text/index.js";
+
 export type Transform = {
   a: number;
   b: number;
@@ -48,93 +58,62 @@ export type MessageChildren<TChild = unknown> = {
 
 type WithMessageMetadata<T> = MessageMetadata & T;
 
-export type PencilCreateMessage = WithMessageMetadata<
-  import("../client-data/tools/pencil/index.js").PencilCreateMessage
->;
+export type PencilCreateMessage =
+  WithMessageMetadata<PencilTool.PencilCreateMessage>;
 
-export type PencilAppendMessage = WithMessageMetadata<
-  import("../client-data/tools/pencil/index.js").PencilAppendMessage
->;
+export type PencilAppendMessage =
+  WithMessageMetadata<PencilTool.PencilAppendMessage>;
 
-export type StraightLineCreateMessage = WithMessageMetadata<
-  import("../client-data/tools/straight-line/index.js").StraightLineCreateMessage
->;
+export type StraightLineCreateMessage =
+  WithMessageMetadata<StraightLineTool.StraightLineCreateMessage>;
 
-export type StraightLineUpdateMessage = WithMessageMetadata<
-  import("../client-data/tools/straight-line/index.js").StraightLineUpdateMessage
->;
+export type StraightLineUpdateMessage =
+  WithMessageMetadata<StraightLineTool.StraightLineUpdateMessage>;
 
-export type RectangleCreateMessage = WithMessageMetadata<
-  import("../client-data/tools/rectangle/index.js").RectangleCreateMessage
->;
+export type RectangleCreateMessage =
+  WithMessageMetadata<RectangleTool.RectangleCreateMessage>;
 
-export type RectangleUpdateMessage = WithMessageMetadata<
-  import("../client-data/tools/rectangle/index.js").RectangleUpdateMessage
->;
+export type RectangleUpdateMessage =
+  WithMessageMetadata<RectangleTool.RectangleUpdateMessage>;
 
-export type EllipseCreateMessage = WithMessageMetadata<
-  import("../client-data/tools/ellipse/index.js").EllipseCreateMessage
->;
+export type EllipseCreateMessage =
+  WithMessageMetadata<EllipseTool.EllipseCreateMessage>;
 
-export type EllipseUpdateMessage = WithMessageMetadata<
-  import("../client-data/tools/ellipse/index.js").EllipseUpdateMessage
->;
+export type EllipseUpdateMessage =
+  WithMessageMetadata<EllipseTool.EllipseUpdateMessage>;
 
-export type TextCreateMessage = WithMessageMetadata<
-  import("../client-data/tools/text/index.js").TextCreateMessage
->;
+export type TextCreateMessage = WithMessageMetadata<TextTool.TextCreateMessage>;
 
-export type TextUpdateMessage = WithMessageMetadata<
-  import("../client-data/tools/text/index.js").TextUpdateMessage
->;
+export type TextUpdateMessage = WithMessageMetadata<TextTool.TextUpdateMessage>;
 
-export type EraserDeleteMessage = WithMessageMetadata<
-  import("../client-data/tools/eraser/index.js").EraserDeleteMessage
->;
+export type EraserDeleteMessage =
+  WithMessageMetadata<EraserTool.EraserDeleteMessage>;
 
-export type HandUpdateChildMessage =
-  import("../client-data/tools/hand/index.js").HandUpdateChildMessage;
+export type HandUpdateChildMessage = HandTool.HandUpdateChildMessage;
 
-export type HandDeleteChildMessage =
-  import("../client-data/tools/hand/index.js").HandDeleteChildMessage;
+export type HandDeleteChildMessage = HandTool.HandDeleteChildMessage;
 
-export type HandCopyChildMessage =
-  import("../client-data/tools/hand/index.js").HandCopyChildMessage;
+export type HandCopyChildMessage = HandTool.HandCopyChildMessage;
 
-export type HandChildMessage =
-  import("../client-data/tools/hand/index.js").HandChildMessage;
+export type HandChildMessage = HandTool.HandChildMessage;
 
 export type ToolOwnedChildMessage = HandChildMessage;
 
-export type HandUpdateMessage = WithMessageMetadata<
-  import("../client-data/tools/hand/index.js").HandUpdateMessage
->;
+export type HandUpdateMessage = WithMessageMetadata<HandTool.HandUpdateMessage>;
 
-export type HandDeleteMessage = WithMessageMetadata<
-  import("../client-data/tools/hand/index.js").HandDeleteMessage
->;
+export type HandDeleteMessage = WithMessageMetadata<HandTool.HandDeleteMessage>;
 
-export type HandCopyMessage = WithMessageMetadata<
-  import("../client-data/tools/hand/index.js").HandCopyMessage
->;
+export type HandCopyMessage = WithMessageMetadata<HandTool.HandCopyMessage>;
 
-export type HandBatchMessage = WithMessageMetadata<
-  import("../client-data/tools/hand/index.js").HandBatchMessage
->;
+export type HandBatchMessage = WithMessageMetadata<HandTool.HandBatchMessage>;
 
-export type HandDrawMessage =
-  import("../client-data/tools/hand/index.js").HandDrawMessage;
+export type HandDrawMessage = HandTool.HandDrawMessage;
 
-export type HandRenderableMessage =
-  import("../client-data/tools/hand/index.js").HandRenderableMessage;
+export type HandRenderableMessage = HandTool.HandRenderableMessage;
 
-export type ClearMessage = WithMessageMetadata<
-  import("../client-data/tools/clear/index.js").ClearMessage
->;
+export type ClearMessage = WithMessageMetadata<ClearTool.ClearMessage>;
 
-export type CursorMessage = WithMessageMetadata<
-  import("../client-data/tools/cursor/index.js").CursorMessage
->;
+export type CursorMessage = WithMessageMetadata<CursorTool.CursorMessage>;
 
 export type BoardMessage =
   | PencilCreateMessage
