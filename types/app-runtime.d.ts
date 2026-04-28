@@ -655,7 +655,8 @@ export type AppConnectionModule =
   import("../client-data/js/board.js").ConnectionModule;
 
 /** Buffered write queue and local/server write throttling state. */
-export type AppWriteModule = import("../client-data/js/board.js").WriteModule;
+export type AppWriteModule =
+  import("../client-data/js/board_write_module.js").WriteModule;
 
 /** Mounted tool registry, active tool, and boot/replay queues. */
 export type AppToolRegistryModule =
