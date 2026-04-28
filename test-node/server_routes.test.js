@@ -694,10 +694,7 @@ test("board pages are no-store in development and render plain asset URLs", asyn
       "board_runtime_core",
       "board_viewport",
       "frontend_logging",
-      "message_common",
-      "message_tool_metadata",
-      "mutation_type",
-      "rate_limit_common",
+      "message_limits",
     ].forEach((moduleName) => {
       assert.match(
         response.body,
@@ -706,20 +703,13 @@ test("board pages are no-store in development and render plain asset URLs", asyn
         ),
       );
     });
-    assert.match(
+    assert.doesNotMatch(
       response.body,
-      /rel="modulepreload" href="\.\.\/tools\/manifest\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/tools\/tool-defaults\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/tools\/tool-order\.js"/,
+      /rel="modulepreload" href="\.\.\/tools\//,
     );
     [
       "app_tools",
+      "board_full_runtime_modules",
       "board_access_module",
       "board_connection_module",
       "board",
@@ -731,7 +721,11 @@ test("board pages are no-store in development and render plain asset URLs", asyn
       "board_status_module",
       "board_tool_registry_module",
       "board_write_module",
+      "message_common",
+      "message_tool_metadata",
+      "mutation_type",
       "path-data-polyfill",
+      "rate_limit_common",
     ].forEach((moduleName) => {
       assert.doesNotMatch(
         response.body,

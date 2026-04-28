@@ -1,13 +1,7 @@
-import { getToolRuntimeAssetPath } from "../tools/tool-defaults.js";
 import { DEFAULT_BOARD_SCALE } from "./board_viewport.js";
-import MessageCommon from "./message_common.js";
-import RateLimitCommon from "./rate_limit_common.js";
+import { clampCoord, clampOpacity, clampSize } from "./message_limits.js";
 
-/** @import { AppInitialPreferences, ColorPreset, ConfiguredRateLimitDefinition, LiveBoardMessage, RateLimitKind, ServerConfig } from "../../types/app-runtime" */
-
-const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
-  RateLimitCommon.RATE_LIMIT_KINDS
-);
+/** @import { AppInitialPreferences, ColorPreset, ServerConfig } from "../../types/app-runtime" */
 
 /** @typedef {{status: "attached", svg: SVGSVGElement, drawingArea: SVGGElement}} AttachedBoardDomRuntimeThis */
 /** @typedef {{status: "detached"} | AttachedBoardDomRuntimeThis} BoardDomRuntimeThis */
@@ -140,10 +134,7 @@ export class CoordinateModule {
       /** @type {{config: ConfigModule, viewportState: ViewportStateModule}} */ (
         coordinateModuleState.get(this)
       );
-    return MessageCommon.clampCoord(
-      value,
-      state.config.serverConfig.MAX_BOARD_SIZE,
-    );
+    return clampCoord(value, state.config.serverConfig.MAX_BOARD_SIZE);
   }
 
   /** @param {unknown} value */
@@ -153,90 +144,6 @@ export class CoordinateModule {
         coordinateModuleState.get(this)
       );
     return state.viewportState.controller.pageCoordinateToBoard(value);
-  }
-}
-
-/**
- * @param {string} assetPath
- * @returns {string}
- */
-export function normalizeBoardAssetPath(assetPath) {
-  if (
-    assetPath.startsWith("./") ||
-    assetPath.startsWith("../") ||
-    assetPath.startsWith("/") ||
-    assetPath.startsWith("data:") ||
-    assetPath.startsWith("http://") ||
-    assetPath.startsWith("https://")
-  ) {
-    return assetPath;
-  }
-  return `../${assetPath}`;
-}
-
-export class AssetModule {
-  /** @param {(assetPath: string) => string} resolveAssetPath */
-  constructor(resolveAssetPath) {
-    this.resolveAssetPath = resolveAssetPath;
-  }
-
-  /**
-   * @param {string} toolName
-   * @param {string} assetFile
-   */
-  getToolAssetUrl(toolName, assetFile) {
-    return this.resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
-  }
-}
-
-const rateLimitModuleState = new WeakMap();
-
-export class RateLimitModule {
-  /**
-   * @param {ConfigModule} config
-   * @param {IdentityModule} identity
-   */
-  constructor(config, identity) {
-    rateLimitModuleState.set(this, { config, identity });
-  }
-
-  /** @param {RateLimitKind} kind */
-  getRateLimitDefinition(kind) {
-    const state =
-      /** @type {{config: ConfigModule, identity: IdentityModule}} */ (
-        rateLimitModuleState.get(this)
-      );
-    const configured = state.config.serverConfig.RATE_LIMITS || {};
-    if (configured && configured[kind]) return configured[kind];
-
-    return {
-      limit: 0,
-      anonymousLimit: 0,
-      periodMs: 0,
-    };
-  }
-
-  /** @param {RateLimitKind} kind */
-  getEffectiveRateLimit(kind) {
-    const state =
-      /** @type {{config: ConfigModule, identity: IdentityModule}} */ (
-        rateLimitModuleState.get(this)
-      );
-    return RateLimitCommon.getEffectiveRateLimitDefinition(
-      this.getRateLimitDefinition(kind),
-      state.identity.boardName,
-    );
-  }
-
-  /** @param {LiveBoardMessage} message */
-  getBufferedWriteCosts(message) {
-    return RATE_LIMIT_KINDS.reduce(
-      (costs, kind) => {
-        costs[kind] = RateLimitCommon.getRateLimitCost(kind, message);
-        return costs;
-      },
-      /** @type {import("../../types/app-runtime").RateLimitCosts} */ ({}),
-    );
   }
 }
 
@@ -258,29 +165,6 @@ export class ViewportStateModule {
   }
 }
 
-export class InteractionModule {
-  constructor() {
-    this.drawingEvent = true;
-    this.showMarker = true;
-    this.showOtherCursors = true;
-    this.showMyCursor = true;
-  }
-}
-
-export class IdModule {
-  /**
-   * @param {string} [prefix]
-   * @param {string} [suffix]
-   */
-  generateUID(prefix, suffix) {
-    let uid = Date.now().toString(36);
-    uid += Math.round(Math.random() * 36).toString(36);
-    if (prefix) uid = prefix + uid;
-    if (suffix) uid = uid + suffix;
-    return uid;
-  }
-}
-
 export class PreferenceModule {
   /**
    * @param {ColorPreset[]} presets
@@ -291,8 +175,8 @@ export class PreferenceModule {
     this.colorChooser = /** @type {HTMLInputElement | null} */ (null);
     this.colorButtonsInitialized = false;
     this.currentColor = initial.color;
-    this.currentSize = MessageCommon.clampSize(initial.size);
-    this.currentOpacity = MessageCommon.clampOpacity(initial.opacity);
+    this.currentSize = clampSize(initial.size);
+    this.currentOpacity = clampOpacity(initial.opacity);
     this.initial = initial;
     this.colorChangeHandlers = /** @type {((color: string) => void)[]} */ ([]);
     this.sizeChangeHandlers = /** @type {((size: number) => void)[]} */ ([]);
@@ -320,7 +204,7 @@ export class PreferenceModule {
   /** @param {number | string | null | undefined} value */
   setSize(value) {
     if (value !== null && value !== undefined) {
-      this.currentSize = MessageCommon.clampSize(value);
+      this.currentSize = clampSize(value);
     }
     const chooser = document.getElementById("chooseSize");
     if (chooser instanceof HTMLInputElement) {

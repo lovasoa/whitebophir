@@ -69,8 +69,15 @@ test("pan-ready boot graph excludes full app and tool implementations", () => {
     "client-data/js/board_status_module.js",
     "client-data/js/board_tool_registry_module.js",
     "client-data/js/board_write_module.js",
+    "client-data/js/message_common.js",
+    "client-data/js/message_tool_metadata.js",
+    "client-data/js/mutation_type.js",
     "client-data/js/path-data-polyfill.js",
+    "client-data/js/rate_limit_common.js",
     "client-data/tools/index.js",
+    "client-data/tools/manifest.js",
+    "client-data/tools/tool-defaults.js",
+    "client-data/tools/tool-order.js",
   ]);
   assert.equal(
     Array.from(closure).some((file) =>

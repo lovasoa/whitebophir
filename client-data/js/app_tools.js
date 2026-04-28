@@ -1,4 +1,11 @@
 import { initializeCoreRuntime } from "./app_tools_core.js";
+import {
+  AssetModule,
+  IdModule,
+  InteractionModule,
+  normalizeBoardAssetPath,
+  RateLimitModule,
+} from "./board_full_runtime_modules.js";
 import { AccessModule } from "./board_access_module.js";
 import { ConnectionModule } from "./board_connection_module.js";
 import {
@@ -38,6 +45,10 @@ export class AppTools {
  * @returns {import("../../types/app-runtime").AppToolsState}
  */
 export function attachFullRuntimeModules(tools, options) {
+  tools.assets = new AssetModule(normalizeBoardAssetPath);
+  tools.interaction = new InteractionModule();
+  tools.ids = new IdModule();
+  tools.rateLimits = new RateLimitModule(tools.config, tools.identity);
   tools.toolRegistry = new ToolRegistryModule(
     () => tools,
     options.logBoardEvent,

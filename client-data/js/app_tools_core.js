@@ -1,16 +1,11 @@
 import {
-  AssetModule,
   AttachedBoardDomRuntimeModule,
   ConfigModule,
   CoordinateModule,
   DetachedBoardDomRuntimeModule,
   I18nModule,
   IdentityModule,
-  IdModule,
-  InteractionModule,
-  normalizeBoardAssetPath,
   PreferenceModule,
-  RateLimitModule,
   ViewportStateModule,
 } from "./board_runtime_core.js";
 import { createViewportController } from "./board_viewport.js";
@@ -28,10 +23,7 @@ export function initializeCoreRuntime(target, options) {
     i18n: new I18nModule(options.translations),
     config: new ConfigModule(options.serverConfig),
     identity: new IdentityModule(options.boardName, options.token),
-    assets: new AssetModule(normalizeBoardAssetPath),
     dom: new DetachedBoardDomRuntimeModule(),
-    interaction: new InteractionModule(),
-    ids: new IdModule(),
     preferences: new PreferenceModule(
       options.colorPresets,
       options.initialPreferences,
@@ -45,7 +37,6 @@ export function initializeCoreRuntime(target, options) {
     },
   });
   const runtime = /** @type {any} */ (target);
-  runtime.rateLimits = new RateLimitModule(runtime.config, runtime.identity);
   const viewportController = createViewportController(runtime);
   runtime.viewportState = new ViewportStateModule(viewportController);
   runtime.coordinates = new CoordinateModule(

@@ -670,19 +670,19 @@ export type AppToolRegistryModule =
 
 /** Pointer interaction and cursor/marker visibility flags. */
 export type AppInteractionModule =
-  import("../client-data/js/board_runtime_core.js").InteractionModule;
+  import("../client-data/js/board_full_runtime_modules.js").InteractionModule;
 
 /** Runtime asset URL resolution for board and tool modules. */
 export type AppAssetModule =
-  import("../client-data/js/board_runtime_core.js").AssetModule;
+  import("../client-data/js/board_full_runtime_modules.js").AssetModule;
 
 /** Runtime id generation. */
 export type AppIdModule =
-  import("../client-data/js/board_runtime_core.js").IdModule;
+  import("../client-data/js/board_full_runtime_modules.js").IdModule;
 
 /** Config-derived rate-limit lookups and cost accounting. */
 export type AppRateLimitModule =
-  import("../client-data/js/board_runtime_core.js").RateLimitModule;
+  import("../client-data/js/board_full_runtime_modules.js").RateLimitModule;
 
 /** Board-space coordinate conversion. */
 export type AppCoordinateModule =
