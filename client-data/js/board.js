@@ -347,27 +347,218 @@ export class AssetModule {
 
 Tools.assets = new AssetModule(normalizeBoardAssetPath);
 
-Tools.toolRegistry = {
-  current: null,
-  mounted: /** @type {AppToolsState["toolRegistry"]["mounted"]} */ ({}),
-  bootPromises:
-    /** @type {AppToolsState["toolRegistry"]["bootPromises"]} */ ({}),
-  bootedNames: new Set(),
-  pendingMessages: /** @type {PendingMessages} */ ({}),
-  mountTool,
-  bootTool,
-  activateTool,
-  addToolListeners,
-  removeToolListeners,
-  syncActiveToolInputPolicy,
-  shouldDisableTool,
-  shouldDisplayTool,
-  canUseTool,
-  syncToolDisabledState,
-  syncDrawToolAvailability,
-  isBlocked,
-  change,
-};
+export class ToolRegistryModule {
+  constructor() {
+    this.current =
+      /** @type {import("../../types/app-runtime").MaybeMountedAppTool} */ (
+        null
+      );
+    this.mounted =
+      /** @type {import("../../types/app-runtime").MountedToolRegistry} */ ({});
+    this.bootPromises =
+      /** @type {import("../../types/app-runtime").ToolNameMap<import("../../types/app-runtime").MountedAppToolPromise>} */ ({});
+    this.bootedNames = new Set();
+    this.pendingMessages = /** @type {PendingMessages} */ ({});
+  }
+
+  /**
+   * @param {ToolModule} toolModule
+   * @param {ToolRuntimeState} toolState
+   * @param {string} toolName
+   */
+  mountTool(toolModule, toolState, toolName) {
+    const mountedTool = createMountedTool(toolModule, toolState, toolName);
+    if (mountedTool.stylesheet) {
+      addToolStylesheet(mountedTool.stylesheet);
+    }
+    if (this.isBlocked(mountedTool)) return null;
+
+    if (toolName in this.mounted) {
+      logBoardEvent("warn", "tool.mount_replaced", {
+        toolName,
+      });
+    }
+
+    this.mounted[toolName] = mountedTool;
+
+    if (mountedTool.onSizeChange) {
+      Tools.preferences.sizeChangeHandlers.push(mountedTool.onSizeChange);
+    }
+
+    const pending = drainPendingMessages(this.pendingMessages, toolName);
+    if (pending.length > 0) {
+      logBoardEvent("log", "tool.pending_replayed", {
+        toolName,
+        count: pending.length,
+      });
+      pending.forEach((/** @type {BoardMessage} */ msg) => {
+        mountedTool.draw(msg, false);
+      });
+    }
+    if (this.shouldDisplayTool(toolName)) {
+      syncMountedToolButton(toolName);
+    }
+    this.syncToolDisabledState(toolName);
+    if (mountedTool.alwaysOn === true) {
+      this.addToolListeners(mountedTool);
+    }
+    normalizeServerRenderedElementsForTool(mountedTool);
+    return mountedTool;
+  }
+
+  /** @param {string} toolName */
+  async bootTool(toolName) {
+    const existingTool = this.mounted[toolName];
+    if (existingTool) return existingTool;
+    const inFlight = this.bootPromises[toolName];
+    if (inFlight) return inFlight;
+
+    const promise = bootToolPromise(toolName);
+    this.bootPromises[toolName] = promise;
+    try {
+      return await promise;
+    } finally {
+      delete this.bootPromises[toolName];
+    }
+  }
+
+  /** @param {string} toolName */
+  async activateTool(toolName) {
+    if (!this.shouldDisplayTool(toolName)) return false;
+    const tool = await this.bootTool(toolName);
+    if (!tool || !this.canUseTool(toolName)) return false;
+    if (
+      tool.requiresWritableBoard === true &&
+      !Tools.writes.canBufferWrites()
+    ) {
+      await Tools.writes.whenBoardWritable();
+      if (!this.canUseTool(toolName)) return false;
+    }
+    return this.change(toolName) !== false;
+  }
+
+  /** @param {MountedAppTool} tool */
+  addToolListeners(tool) {
+    const dom = getAttachedBoardDom();
+    if (!tool.compiledListeners) return;
+    for (const event in tool.compiledListeners) {
+      const listener = tool.compiledListeners[event];
+      if (!listener) continue;
+      const target = listener.target || dom?.board;
+      if (!target) continue;
+      target.addEventListener(
+        event,
+        listener,
+        event.startsWith("touch")
+          ? tool.touchListenerOptions || { passive: false }
+          : { passive: false },
+      );
+    }
+  }
+
+  /** @param {MountedAppTool} tool */
+  removeToolListeners(tool) {
+    const dom = getAttachedBoardDom();
+    if (!tool.compiledListeners) return;
+    for (const event in tool.compiledListeners) {
+      const listener = tool.compiledListeners[event];
+      if (!listener) continue;
+      const target = listener.target || dom?.board;
+      if (!target) continue;
+      target.removeEventListener(event, listener);
+    }
+  }
+
+  syncActiveToolInputPolicy() {
+    Tools.viewportState.controller.setTouchPolicy(
+      this.current?.getTouchPolicy?.() || "app-gesture",
+    );
+  }
+
+  /** @param {string} toolName */
+  shouldDisableTool(toolName) {
+    return (
+      MessageCommon.isDrawTool(toolName) &&
+      !MessageCommon.isDrawToolAllowedAtScale(Tools.viewportState.scale)
+    );
+  }
+
+  /** @param {string} toolName */
+  shouldDisplayTool(toolName) {
+    return getToolButton(toolName) !== null;
+  }
+
+  /** @param {string} toolName */
+  canUseTool(toolName) {
+    return (
+      this.shouldDisplayTool(toolName) && !this.shouldDisableTool(toolName)
+    );
+  }
+
+  /** @param {string} toolName */
+  syncToolDisabledState(toolName) {
+    const toolElem = document.getElementById(`toolID-${toolName}`);
+    if (!toolElem) return;
+    const disabled = this.shouldDisableTool(toolName);
+    toolElem.classList.toggle("disabledTool", disabled);
+    toolElem.setAttribute("aria-disabled", disabled ? "true" : "false");
+  }
+
+  /** @param {boolean} force */
+  syncDrawToolAvailability(force) {
+    const drawToolsAllowed = MessageCommon.isDrawToolAllowedAtScale(
+      Tools.viewportState.scale,
+    );
+    if (!force && drawToolsAllowed === Tools.viewportState.drawToolsAllowed) {
+      return;
+    }
+    Tools.viewportState.drawToolsAllowed = drawToolsAllowed;
+
+    Object.keys(this.mounted || {}).forEach((toolName) => {
+      this.syncToolDisabledState(toolName);
+    });
+
+    if (
+      !drawToolsAllowed &&
+      this.current &&
+      MessageCommon.isDrawTool(this.current.name) &&
+      this.mounted.hand
+    ) {
+      this.change("hand");
+    }
+  }
+
+  /** @param {MountedAppTool} tool */
+  isBlocked(tool) {
+    return isBlockedToolName(
+      tool.name,
+      Tools.config.serverConfig.BLOCKED_TOOLS || [],
+    );
+  }
+
+  /** @param {string} toolName */
+  change(toolName) {
+    const newTool = this.mounted[toolName];
+    const oldTool = this.current;
+    if (!newTool)
+      throw new Error("Trying to select a tool that has never been added!");
+    if (this.shouldDisableTool(toolName)) return false;
+    if (newTool === oldTool) {
+      toggleSecondaryTool(newTool);
+      return;
+    }
+    if (!newTool.oneTouch) {
+      updateCurrentToolChrome(toolName, newTool);
+      replaceCurrentTool(newTool);
+    }
+
+    if (newTool.onstart) newTool.onstart(oldTool);
+    this.syncActiveToolInputPolicy();
+    return true;
+  }
+}
+
+Tools.toolRegistry = new ToolRegistryModule();
 Tools.turnstile = BoardTurnstile.createTurnstileModule(Tools, {
   logBoardEvent,
   queueProtectedWrite,
@@ -1036,13 +1227,173 @@ export class OptimisticModule {
 }
 
 Tools.optimistic = new OptimisticModule();
-Tools.connection = {
-  socket: null,
-  state: /** @type {BoardConnectionState} */ ("idle"),
-  hasConnectedOnce: false,
-  socketIOExtraHeaders: null,
-  start: startConnection,
-};
+
+export class ConnectionModule {
+  constructor() {
+    this.socket = null;
+    this.state = /** @type {BoardConnectionState} */ ("idle");
+    this.hasConnectedOnce = false;
+    this.socketIOExtraHeaders = /** @type {SocketHeaders | null} */ (null);
+  }
+
+  start() {
+    const reusableSocket =
+      this.socket && !this.socket.connected ? this.socket : null;
+    if (this.socket && !reusableSocket) {
+      BoardConnection.closeSocket(this.socket);
+      this.socket = null;
+    }
+    this.state = "connecting";
+    Tools.replay.awaitingSnapshot = true;
+    Tools.presence.clearConnectedUsers();
+
+    void (async () => {
+      if (!getAttachedBoardDom()) {
+        scheduleSocketReconnect();
+        return;
+      }
+      if (Tools.replay.refreshBaselineBeforeConnect) {
+        try {
+          await Tools.replay.refreshAuthoritativeBaseline();
+          Tools.replay.refreshBaselineBeforeConnect = false;
+        } catch (error) {
+          logBoardEvent("error", "replay.baseline_refresh_failed", {
+            error: error instanceof Error ? error.message : String(error),
+            baselineUrl: getAuthoritativeBaselineUrl(),
+            pendingPreSnapshotMessages: Tools.replay.preSnapshotMessages.length,
+          });
+          scheduleSocketReconnect(1000);
+          return;
+        }
+      }
+
+      const socketParams = BoardConnection.buildSocketParams(
+        window.location.pathname,
+        this.socketIOExtraHeaders,
+        Tools.identity.token,
+        Tools.identity.boardName,
+        {
+          baselineSeq: String(Tools.replay.authoritativeSeq),
+          tool: Tools.preferences.initial.tool,
+          color: Tools.preferences.getColor(),
+          size: String(Tools.preferences.getSize()),
+        },
+      );
+
+      if (reusableSocket) {
+        if (reusableSocket.io) {
+          reusableSocket.io.opts = {
+            ...(reusableSocket.io.opts || {}),
+            query: socketParams.query || "",
+          };
+        }
+        reusableSocket.connect();
+        return;
+      }
+
+      const socket = io.connect("", socketParams);
+      this.socket = socket;
+
+      //Receive draw instructions from the server
+      socket.on(SocketEvents.CONNECT, function onConnection() {
+        const hadConnectedBefore = Tools.connection.hasConnectedOnce;
+        Tools.connection.state = "connected";
+        logBoardEvent(
+          "log",
+          hadConnectedBefore ? "socket.reconnected" : "socket.connected",
+        );
+        if (
+          hadConnectedBefore &&
+          Tools.config.serverConfig.TURNSTILE_SITE_KEY
+        ) {
+          Tools.turnstile.setValidation(null);
+          BoardTurnstile.resetTurnstileWidget(
+            BoardTurnstile.getTurnstileApi(),
+            Tools.turnstile.widgetId,
+          );
+        }
+        Tools.connection.hasConnectedOnce = true;
+        Tools.status.syncWriteStatusIndicator();
+      });
+      socket.on(SocketEvents.BROADCAST, (msg) => {
+        enqueueIncomingBroadcast(msg);
+      });
+      socket.on(SocketEvents.BOARDSTATE, (boardState) => {
+        Tools.access.applyBoardState(boardState);
+      });
+      socket.on(
+        SocketEvents.MUTATION_REJECTED,
+        function onMutationRejected(payload) {
+          if (payload.clientMutationId) {
+            Tools.optimistic.rejectMutation(
+              payload.clientMutationId,
+              payload.reason,
+            );
+          }
+          Tools.status.showUnknownMutationError(payload.reason);
+        },
+      );
+      socket.on(SocketEvents.CONNECT_ERROR, function onConnectError(error) {
+        if (socket !== Tools.connection.socket) return;
+        const data = error.data;
+        const reason = data?.reason || error.message || "connect_error";
+        logBoardEvent("warn", "socket.connect_error", {
+          reason,
+          ...(data?.latestSeq === undefined
+            ? {}
+            : { latestSeq: data.latestSeq }),
+          ...(data?.minReplayableSeq === undefined
+            ? {}
+            : { minReplayableSeq: data.minReplayableSeq }),
+          authoritativeSeq: Tools.replay.authoritativeSeq,
+        });
+        Tools.connection.state = "disconnected";
+        if (reason === "baseline_not_replayable") {
+          logBoardEvent("warn", "replay.baseline_not_replayable", {
+            authoritativeSeq: Tools.replay.authoritativeSeq,
+            latestSeq: BoardMessageReplay.normalizeSeq(data?.latestSeq),
+            minReplayableSeq: BoardMessageReplay.normalizeSeq(
+              data?.minReplayableSeq,
+            ),
+          });
+          Tools.replay.beginAuthoritativeResync();
+          if (socket === Tools.connection.socket) {
+            Tools.connection.socket = null;
+            BoardConnection.closeSocket(socket);
+          }
+        }
+        scheduleSocketReconnect();
+      });
+      socket.on(SocketEvents.USER_JOINED, function onUserJoined(user) {
+        Tools.presence.upsertConnectedUser(user);
+      });
+      socket.on(SocketEvents.USER_LEFT, function onUserLeft(user) {
+        Tools.presence.removeConnectedUser(user.socketId);
+      });
+      socket.on(SocketEvents.RATE_LIMITED, function onRateLimited(payload) {
+        const retryAfterMs = payload.retryAfterMs;
+        Tools.writes.serverRateLimitedUntil =
+          Date.now() + Math.max(0, retryAfterMs);
+        Tools.status.showRateLimitNotice(
+          Tools.i18n.t("rate_limit_disconnect_message"),
+          retryAfterMs,
+        );
+        Tools.status.syncWriteStatusIndicator();
+      });
+      socket.on(SocketEvents.DISCONNECT, function onDisconnect(reason) {
+        if (socket !== Tools.connection.socket) return;
+        if (reason === "io client disconnect") return;
+        Tools.connection.state = "disconnected";
+        logBoardEvent("warn", "socket.disconnected", { reason });
+        Tools.replay.beginAuthoritativeResync();
+        scheduleSocketReconnect();
+      });
+      socket.connect();
+    })();
+  }
+}
+
+Tools.connection = new ConnectionModule();
 function initializeShellControls() {
   const colorChooser = getRequiredInput("chooseColor");
   const sizeChooser = getRequiredInput("chooseSize");
@@ -1500,60 +1851,6 @@ export class AccessModule {
 }
 
 Tools.access = new AccessModule();
-
-/** @param {string} toolName */
-function shouldDisableTool(toolName) {
-  return (
-    MessageCommon.isDrawTool(toolName) &&
-    !MessageCommon.isDrawToolAllowedAtScale(Tools.viewportState.scale)
-  );
-}
-
-/** @param {string} toolName */
-function canUseTool(toolName) {
-  return (
-    Tools.toolRegistry.shouldDisplayTool(toolName) &&
-    !Tools.toolRegistry.shouldDisableTool(toolName)
-  );
-}
-
-/** @param {string} toolName */
-function syncToolDisabledState(toolName) {
-  const toolElem = document.getElementById(`toolID-${toolName}`);
-  if (!toolElem) return;
-  const disabled = Tools.toolRegistry.shouldDisableTool(toolName);
-  toolElem.classList.toggle("disabledTool", disabled);
-  toolElem.setAttribute("aria-disabled", disabled ? "true" : "false");
-}
-
-/** @param {boolean} force */
-function syncDrawToolAvailability(force) {
-  const drawToolsAllowed = MessageCommon.isDrawToolAllowedAtScale(
-    Tools.viewportState.scale,
-  );
-  if (!force && drawToolsAllowed === Tools.viewportState.drawToolsAllowed) {
-    return;
-  }
-  Tools.viewportState.drawToolsAllowed = drawToolsAllowed;
-
-  Object.keys(Tools.toolRegistry.mounted || {}).forEach((toolName) => {
-    Tools.toolRegistry.syncToolDisabledState(toolName);
-  });
-
-  if (
-    !drawToolsAllowed &&
-    Tools.toolRegistry.current &&
-    MessageCommon.isDrawTool(Tools.toolRegistry.current.name) &&
-    Tools.toolRegistry.mounted.hand
-  ) {
-    Tools.toolRegistry.change("hand");
-  }
-}
-
-/** @param {string} toolName */
-function shouldDisplayTool(toolName) {
-  return getToolButton(toolName) !== null;
-}
 
 Tools.dom = withBoardDomActions({ status: "detached" });
 
@@ -2141,158 +2438,6 @@ function applyConnectedUserActivity(
   return changed;
 }
 
-function startConnection() {
-  const reusableSocket =
-    Tools.connection.socket && !Tools.connection.socket.connected
-      ? Tools.connection.socket
-      : null;
-  if (Tools.connection.socket && !reusableSocket) {
-    BoardConnection.closeSocket(Tools.connection.socket);
-    Tools.connection.socket = null;
-  }
-  Tools.connection.state = "connecting";
-  Tools.replay.awaitingSnapshot = true;
-  Tools.presence.clearConnectedUsers();
-
-  void (async function openSocketWithBaseline() {
-    if (!getAttachedBoardDom()) {
-      scheduleSocketReconnect();
-      return;
-    }
-    if (Tools.replay.refreshBaselineBeforeConnect) {
-      try {
-        await Tools.replay.refreshAuthoritativeBaseline();
-        Tools.replay.refreshBaselineBeforeConnect = false;
-      } catch (error) {
-        logBoardEvent("error", "replay.baseline_refresh_failed", {
-          error: error instanceof Error ? error.message : String(error),
-          baselineUrl: getAuthoritativeBaselineUrl(),
-          pendingPreSnapshotMessages: Tools.replay.preSnapshotMessages.length,
-        });
-        scheduleSocketReconnect(1000);
-        return;
-      }
-    }
-
-    const socketParams = BoardConnection.buildSocketParams(
-      window.location.pathname,
-      Tools.connection.socketIOExtraHeaders,
-      Tools.identity.token,
-      Tools.identity.boardName,
-      {
-        baselineSeq: String(Tools.replay.authoritativeSeq),
-        tool: Tools.preferences.initial.tool,
-        color: Tools.preferences.getColor(),
-        size: String(Tools.preferences.getSize()),
-      },
-    );
-
-    if (reusableSocket) {
-      if (reusableSocket.io) {
-        reusableSocket.io.opts = {
-          ...(reusableSocket.io.opts || {}),
-          query: socketParams.query || "",
-        };
-      }
-      reusableSocket.connect();
-      return;
-    }
-
-    const socket = io.connect("", socketParams);
-    Tools.connection.socket = socket;
-
-    //Receive draw instructions from the server
-    socket.on(SocketEvents.CONNECT, function onConnection() {
-      const hadConnectedBefore = Tools.connection.hasConnectedOnce;
-      Tools.connection.state = "connected";
-      logBoardEvent(
-        "log",
-        hadConnectedBefore ? "socket.reconnected" : "socket.connected",
-      );
-      if (hadConnectedBefore && Tools.config.serverConfig.TURNSTILE_SITE_KEY) {
-        Tools.turnstile.setValidation(null);
-        BoardTurnstile.resetTurnstileWidget(
-          BoardTurnstile.getTurnstileApi(),
-          Tools.turnstile.widgetId,
-        );
-      }
-      Tools.connection.hasConnectedOnce = true;
-      Tools.status.syncWriteStatusIndicator();
-    });
-    socket.on(SocketEvents.BROADCAST, (msg) => {
-      enqueueIncomingBroadcast(msg);
-    });
-    socket.on(SocketEvents.BOARDSTATE, (boardState) => {
-      Tools.access.applyBoardState(boardState);
-    });
-    socket.on(
-      SocketEvents.MUTATION_REJECTED,
-      function onMutationRejected(payload) {
-        if (payload.clientMutationId) {
-          Tools.optimistic.rejectMutation(
-            payload.clientMutationId,
-            payload.reason,
-          );
-        }
-        Tools.status.showUnknownMutationError(payload.reason);
-      },
-    );
-    socket.on(SocketEvents.CONNECT_ERROR, function onConnectError(error) {
-      if (socket !== Tools.connection.socket) return;
-      const data = error.data;
-      const reason = data?.reason || error.message || "connect_error";
-      logBoardEvent("warn", "socket.connect_error", {
-        reason,
-        ...(data?.latestSeq === undefined ? {} : { latestSeq: data.latestSeq }),
-        ...(data?.minReplayableSeq === undefined
-          ? {}
-          : { minReplayableSeq: data.minReplayableSeq }),
-        authoritativeSeq: Tools.replay.authoritativeSeq,
-      });
-      Tools.connection.state = "disconnected";
-      if (reason === "baseline_not_replayable") {
-        logBoardEvent("warn", "replay.baseline_not_replayable", {
-          authoritativeSeq: Tools.replay.authoritativeSeq,
-          latestSeq: BoardMessageReplay.normalizeSeq(data?.latestSeq),
-          minReplayableSeq: BoardMessageReplay.normalizeSeq(
-            data?.minReplayableSeq,
-          ),
-        });
-        Tools.replay.beginAuthoritativeResync();
-        if (socket === Tools.connection.socket) {
-          Tools.connection.socket = null;
-          BoardConnection.closeSocket(socket);
-        }
-      }
-      scheduleSocketReconnect();
-    });
-    socket.on(SocketEvents.USER_JOINED, function onUserJoined(user) {
-      Tools.presence.upsertConnectedUser(user);
-    });
-    socket.on(SocketEvents.USER_LEFT, function onUserLeft(user) {
-      Tools.presence.removeConnectedUser(user.socketId);
-    });
-    socket.on(SocketEvents.RATE_LIMITED, function onRateLimited(payload) {
-      const retryAfterMs = payload.retryAfterMs;
-      Tools.writes.serverRateLimitedUntil =
-        Date.now() + Math.max(0, retryAfterMs);
-      Tools.status.showRateLimitNotice(
-        Tools.i18n.t("rate_limit_disconnect_message"),
-        retryAfterMs,
-      );
-      Tools.status.syncWriteStatusIndicator();
-    });
-    socket.on(SocketEvents.DISCONNECT, function onDisconnect(reason) {
-      if (socket !== Tools.connection.socket) return;
-      if (reason === "io client disconnect") return;
-      Tools.connection.state = "disconnected";
-      logBoardEvent("warn", "socket.disconnected", { reason });
-      Tools.replay.beginAuthoritativeResync();
-      scheduleSocketReconnect();
-    });
-    socket.connect();
-  })();
-}
 function saveBoardNametoLocalStorage() {
   const boardName = Tools.identity.boardName;
   const key = "recent-boards";
@@ -2570,7 +2715,10 @@ export function createToolRuntimeModules(mountedTools) {
       get current() {
         return mountedTools.toolRegistry.current;
       },
-      change: mountedTools.toolRegistry.change,
+      /** @param {string} toolName */
+      change(toolName) {
+        return mountedTools.toolRegistry.change(toolName);
+      },
     },
     interaction: {
       get drawingEvent() {
@@ -2789,55 +2937,6 @@ function createMountedTool(toolModule, toolState, toolName) {
 }
 
 /**
- * @param {ToolModule} toolModule
- * @param {ToolRuntimeState} toolState
- * @param {string} toolName
- * @returns {MountedAppTool | null}
- */
-function mountTool(toolModule, toolState, toolName) {
-  const mountedTool = createMountedTool(toolModule, toolState, toolName);
-  if (mountedTool.stylesheet) {
-    addToolStylesheet(mountedTool.stylesheet);
-  }
-  if (Tools.toolRegistry.isBlocked(mountedTool)) return null;
-
-  if (toolName in Tools.toolRegistry.mounted) {
-    logBoardEvent("warn", "tool.mount_replaced", {
-      toolName,
-    });
-  }
-
-  Tools.toolRegistry.mounted[toolName] = mountedTool;
-
-  if (mountedTool.onSizeChange) {
-    Tools.preferences.sizeChangeHandlers.push(mountedTool.onSizeChange);
-  }
-
-  const pending = drainPendingMessages(
-    Tools.toolRegistry.pendingMessages,
-    toolName,
-  );
-  if (pending.length > 0) {
-    logBoardEvent("log", "tool.pending_replayed", {
-      toolName,
-      count: pending.length,
-    });
-    pending.forEach((/** @type {BoardMessage} */ msg) => {
-      mountedTool.draw(msg, false);
-    });
-  }
-  if (Tools.toolRegistry.shouldDisplayTool(toolName)) {
-    syncMountedToolButton(toolName);
-  }
-  Tools.toolRegistry.syncToolDisabledState(toolName);
-  if (mountedTool.alwaysOn === true) {
-    Tools.toolRegistry.addToolListeners(mountedTool);
-  }
-  normalizeServerRenderedElementsForTool(mountedTool);
-  return mountedTool;
-}
-
-/**
  * @param {string} toolName
  * @returns {Promise<MountedAppTool | null>}
  */
@@ -2846,49 +2945,7 @@ async function bootToolPromise(toolName) {
   const toolState = /** @type {ToolRuntimeState} */ (
     await toolModule.boot(createToolBootContext(toolName))
   );
-  return mountTool(toolModule, toolState, toolName);
-}
-
-/**
- * @param {string} toolName
- * @returns {Promise<MountedAppTool | null>}
- */
-async function bootTool(toolName) {
-  const existingTool = Tools.toolRegistry.mounted[toolName];
-  if (existingTool) return existingTool;
-  const inFlight = Tools.toolRegistry.bootPromises[toolName];
-  if (inFlight) return inFlight;
-
-  const promise = bootToolPromise(toolName);
-  Tools.toolRegistry.bootPromises[toolName] = promise;
-  try {
-    return await promise;
-  } finally {
-    delete Tools.toolRegistry.bootPromises[toolName];
-  }
-}
-
-/**
- * @param {string} toolName
- * @returns {Promise<boolean>}
- */
-async function activateTool(toolName) {
-  if (!Tools.toolRegistry.shouldDisplayTool(toolName)) return false;
-  const tool = await Tools.toolRegistry.bootTool(toolName);
-  if (!tool || !Tools.toolRegistry.canUseTool(toolName)) return false;
-  if (tool.requiresWritableBoard === true && !Tools.writes.canBufferWrites()) {
-    await Tools.writes.whenBoardWritable();
-    if (!Tools.toolRegistry.canUseTool(toolName)) return false;
-  }
-  return Tools.toolRegistry.change(toolName) !== false;
-}
-
-/** @param {MountedAppTool} tool */
-function isBlocked(tool) {
-  return isBlockedToolName(
-    tool.name,
-    Tools.config.serverConfig.BLOCKED_TOOLS || [],
-  );
+  return Tools.toolRegistry.mountTool(toolModule, toolState, toolName);
 }
 
 /** @param {MountedAppTool} newTool */
@@ -2952,65 +3009,6 @@ function syncActiveToolState() {
       : currentTool.name;
   document.documentElement.dataset.activeToolSecondary =
     currentTool.secondary && currentTool.secondary.active ? "true" : "false";
-}
-
-function syncActiveToolInputPolicy() {
-  Tools.viewportState.controller.setTouchPolicy(
-    Tools.toolRegistry.current?.getTouchPolicy?.() || "app-gesture",
-  );
-}
-
-/** @param {string} toolName */
-function change(toolName) {
-  const newTool = Tools.toolRegistry.mounted[toolName];
-  const oldTool = Tools.toolRegistry.current;
-  if (!newTool)
-    throw new Error("Trying to select a tool that has never been added!");
-  if (Tools.toolRegistry.shouldDisableTool(toolName)) return false;
-  if (newTool === oldTool) {
-    toggleSecondaryTool(newTool);
-    return;
-  }
-  if (!newTool.oneTouch) {
-    updateCurrentToolChrome(toolName, newTool);
-    replaceCurrentTool(newTool);
-  }
-
-  if (newTool.onstart) newTool.onstart(oldTool);
-  Tools.toolRegistry.syncActiveToolInputPolicy();
-  return true;
-}
-
-/** @param {MountedAppTool} tool */
-function addToolListeners(tool) {
-  const dom = getAttachedBoardDom();
-  if (!tool.compiledListeners) return;
-  for (const event in tool.compiledListeners) {
-    const listener = tool.compiledListeners[event];
-    if (!listener) continue;
-    const target = listener.target || dom?.board;
-    if (!target) continue;
-    target.addEventListener(
-      event,
-      listener,
-      event.startsWith("touch")
-        ? tool.touchListenerOptions || { passive: false }
-        : { passive: false },
-    );
-  }
-}
-
-/** @param {MountedAppTool} tool */
-function removeToolListeners(tool) {
-  const dom = getAttachedBoardDom();
-  if (!tool.compiledListeners) return;
-  for (const event in tool.compiledListeners) {
-    const listener = tool.compiledListeners[event];
-    if (!listener) continue;
-    const target = listener.target || dom?.board;
-    if (!target) continue;
-    target.removeEventListener(event, listener);
-  }
 }
 
 (() => {
