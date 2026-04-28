@@ -37,11 +37,8 @@ import {
   resolveBoardName,
   updateRecentBoards,
 } from "./board_page_state.js";
+import { getAuthoritativeBaselineUrl } from "./board_replay_module.js";
 import { AttachedBoardDomRuntimeModule } from "./board_runtime_core.js";
-import {
-  buildBoardSvgBaselineUrl,
-  parseServedBaselineSvgText,
-} from "./board_svg_baseline.js";
 import { VIEWPORT_HASH_SCALE_DECIMALS } from "./board_viewport.js";
 import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
 import "./intersect.js";
@@ -61,7 +58,7 @@ import {
 } from "./optimistic_mutation.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
 /** @type {AppToolsState} */
@@ -406,69 +403,6 @@ export class ToolRegistryModule {
   }
 }
 
-export class ReplayModule {
-  constructor() {
-    this.awaitingSnapshot = true;
-    this.hasAuthoritativeSnapshot = false;
-    this.refreshBaselineBeforeConnect = false;
-    this.authoritativeSeq = 0;
-    this.preSnapshotMessages = /** @type {IncomingBroadcast[]} */ ([]);
-    this.incomingBroadcastQueue = /** @type {IncomingBroadcast[]} */ ([]);
-    this.processingIncomingBroadcast = false;
-  }
-
-  /** @param {AuthoritativeBaseline} baseline */
-  applyAuthoritativeBaseline(baseline) {
-    const dom = getAttachedBoardDom();
-    if (!dom) return;
-    this.hasAuthoritativeSnapshot = true;
-    this.authoritativeSeq = baseline.seq;
-    Tools.optimistic.journal.reset();
-    dom.svg.setAttribute("data-wbo-seq", String(baseline.seq));
-    dom.svg.setAttribute(
-      "data-wbo-readonly",
-      baseline.readonly ? "true" : "false",
-    );
-    dom.drawingArea.innerHTML = baseline.drawingAreaMarkup;
-    normalizeServerRenderedElements();
-  }
-
-  async refreshAuthoritativeBaseline() {
-    const response = await fetch(getAuthoritativeBaselineUrl(Date.now()), {
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: { Accept: "image/svg+xml" },
-    });
-    if (!response.ok) {
-      throw new Error(`Baseline fetch failed with HTTP ${response.status}`);
-    }
-    const baseline = parseServedBaselineSvgText(
-      await response.text(),
-      new DOMParser(),
-    );
-    this.applyAuthoritativeBaseline(baseline);
-  }
-
-  beginAuthoritativeResync() {
-    this.awaitingSnapshot = true;
-    this.refreshBaselineBeforeConnect = true;
-    Tools.optimistic.journal.reset();
-    this.preSnapshotMessages = [];
-    this.incomingBroadcastQueue = [];
-    this.processingIncomingBroadcast = false;
-    Tools.writes.discardBufferedWrites();
-    Tools.turnstile.pendingWrites = [];
-    Tools.turnstile.hideOverlay();
-    Tools.presence.clearConnectedUsers();
-    Tools.dom.clearBoardCursors();
-    Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {
-      if (tool) tool.onSocketDisconnect();
-    });
-    Tools.toolRegistry.syncActiveToolInputPolicy();
-    Tools.status.syncWriteStatusIndicator();
-  }
-}
-
 export class ConnectionModule {
   constructor() {
     this.socket = null;
@@ -678,21 +612,6 @@ function initializeShellControls() {
   }
   Tools.preferences.setColor(Tools.preferences.currentColor);
   Tools.preferences.setSize(Tools.preferences.currentSize);
-}
-
-/**
- * @param {number | undefined} [cacheBust]
- * @returns {string}
- */
-function getAuthoritativeBaselineUrl(cacheBust) {
-  const url = new URL(
-    buildBoardSvgBaselineUrl(window.location.pathname, window.location.search),
-    window.location.href,
-  );
-  if (cacheBust !== undefined) {
-    url.searchParams.set("baselineRefresh", String(cacheBust));
-  }
-  return `${url.pathname}${url.search}`;
 }
 
 /** @param {number} [delayMs] */
@@ -2194,7 +2113,6 @@ Tools = new AppTools({
   queueProtectedWrite,
   flushPendingWrites,
   createToolRegistry: () => new ToolRegistryModule(),
-  createReplayModule: () => new ReplayModule(),
   createConnectionModule: () => new ConnectionModule(),
   createPresenceModule: () => new PresenceModule(),
 });

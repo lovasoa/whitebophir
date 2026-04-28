@@ -648,7 +648,8 @@ export type AppViewportModule =
   import("../client-data/js/board_runtime_core.js").ViewportStateModule;
 
 /** Authoritative baseline and incoming broadcast replay coordination. */
-export type AppReplayModule = import("../client-data/js/board.js").ReplayModule;
+export type AppReplayModule =
+  import("../client-data/js/board_replay_module.js").ReplayModule;
 
 /** Socket.IO connection handle and lifecycle metadata. */
 export type AppConnectionModule =
