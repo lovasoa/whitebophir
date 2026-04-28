@@ -662,6 +662,17 @@ export type AppPresenceModule = {
 /** Optimistic local mutation journal and rollback bookkeeping. */
 export type AppOptimisticModule = {
   journal: OptimisticJournalState;
+  captureRollback: (message: LiveBoardMessage) => OptimisticRollback;
+  collectDependencyMutationIds: (message: LiveBoardMessage) => string[];
+  trackMutation: (
+    message: LiveBoardMessage,
+    rollback: OptimisticRollback,
+  ) => void;
+  restoreRollback: (rollback: OptimisticRollback) => void;
+  applyRejectedEntries: (rejected: OptimisticJournalEntry[]) => void;
+  promoteMutation: (clientMutationId: string) => void;
+  rejectMutation: (clientMutationId: string, reason?: string) => void;
+  pruneForAuthoritativeMessage: (message: BoardMessage) => void;
 };
 
 /** Local message hooks and unread-message badge state. */
@@ -886,21 +897,6 @@ export type AppToolsState = {
   clearBoardCursors: () => void;
   resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
-  captureOptimisticRollback: (message: LiveBoardMessage) => OptimisticRollback;
-  collectOptimisticDependencyMutationIds: (
-    message: LiveBoardMessage,
-  ) => string[];
-  trackOptimisticMutation: (
-    message: LiveBoardMessage,
-    rollback: OptimisticRollback,
-  ) => void;
-  restoreOptimisticRollback: (rollback: OptimisticRollback) => void;
-  applyRejectedOptimisticEntries: (rejected: OptimisticJournalEntry[]) => void;
-  promoteOptimisticMutation: (clientMutationId: string) => void;
-  rejectOptimisticMutation: (clientMutationId: string, reason?: string) => void;
-  pruneOptimisticMutationsForAuthoritativeMessage: (
-    message: BoardMessage,
-  ) => void;
   applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
   refreshAuthoritativeBaseline: () => Promise<void>;
   beginAuthoritativeResync: () => void;
