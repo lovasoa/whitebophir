@@ -611,23 +611,14 @@ export type BoardDomModule = (DetachedBoardDomModule | AttachedBoardDomModule) &
   BoardDomActions;
 
 /** Stable board identity parsed from the current board URL. */
-export type AppIdentityModule = {
-  readonly boardName: string;
-  readonly token: string | null;
-};
+export type AppIdentityModule =
+  import("../client-data/js/board.js").IdentityModule;
 
 /** Boot-time server configuration exposed through a single runtime module. */
-export type AppConfigModule = {
-  readonly serverConfig: ServerConfig;
-};
+export type AppConfigModule = import("../client-data/js/board.js").ConfigModule;
 
 /** Server-issued board access state and derived permissions. */
-export type AppAccessModule = {
-  readonly boardState: AppBoardState;
-  readonly readOnly: boolean;
-  readonly canWrite: boolean;
-  applyBoardState: (state: AppBoardState) => void;
-};
+export type AppAccessModule = import("../client-data/js/board.js").AccessModule;
 
 export type AppInitialPreferences = {
   readonly tool: string;
@@ -728,11 +719,8 @@ export type AppMessageModule = {
 };
 
 /** Board viewport controller plus zoom-gated drawing-tool availability. */
-export type AppViewportModule = {
-  scale: number;
-  controller: ViewportController;
-  drawToolsAllowed: boolean | null;
-};
+export type AppViewportModule =
+  import("../client-data/js/board.js").ViewportStateModule;
 
 /** Authoritative baseline and incoming broadcast replay coordination. */
 export type AppReplayModule = {
@@ -818,12 +806,8 @@ export type AppToolRegistryModule = {
 };
 
 /** Pointer interaction and cursor/marker visibility flags. */
-export type AppInteractionModule = {
-  drawingEvent: boolean;
-  showMarker: boolean;
-  showOtherCursors: boolean;
-  showMyCursor: boolean;
-};
+export type AppInteractionModule =
+  import("../client-data/js/board.js").InteractionModule;
 
 /** Runtime asset URL resolution for board and tool modules. */
 export type AppAssetModule = import("../client-data/js/board.js").AssetModule;
@@ -832,19 +816,12 @@ export type AppAssetModule = import("../client-data/js/board.js").AssetModule;
 export type AppIdModule = import("../client-data/js/board.js").IdModule;
 
 /** Config-derived rate-limit lookups and cost accounting. */
-export type AppRateLimitModule = {
-  getRateLimitDefinition: (
-    kind: RateLimitKind,
-  ) => ConfiguredRateLimitDefinition;
-  getEffectiveRateLimit: (kind: RateLimitKind) => RateLimitDefinition;
-  getBufferedWriteCosts: (message: LiveBoardMessage) => RateLimitCosts;
-};
+export type AppRateLimitModule =
+  import("../client-data/js/board.js").RateLimitModule;
 
 /** Board-space coordinate conversion. */
-export type AppCoordinateModule = {
-  toBoardCoordinate: (value: unknown) => number;
-  pageCoordinateToBoard: (value: unknown) => number;
-};
+export type AppCoordinateModule =
+  import("../client-data/js/board.js").CoordinateModule;
 
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = ReturnType<
@@ -853,7 +830,7 @@ export type ToolRuntimeModules = ReturnType<
 
 /** Runtime root composed only of documented modules. */
 export type AppToolsState = {
-  i18n: { t: (s: string) => string };
+  i18n: import("../client-data/js/board.js").I18nModule;
   identity: AppIdentityModule;
   config: AppConfigModule;
   access: AppAccessModule;

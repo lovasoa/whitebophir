@@ -226,49 +226,89 @@ function getAttachedBoardDom() {
   return Tools.dom.status === "attached" ? Tools.dom : null;
 }
 
-Tools.i18n = (function i18n() {
-  const translations = /** @type {{[key: string]: string}} */ (
+const i18nModuleTranslations = new WeakMap();
+
+export class I18nModule {
+  /** @param {{[key: string]: string}} translations */
+  constructor(translations) {
+    i18nModuleTranslations.set(this, translations);
+  }
+
+  /** @param {string} s */
+  t(s) {
+    const key = s.toLowerCase().replace(/ /g, "_");
+    return (
+      /** @type {{[key: string]: string}} */ (i18nModuleTranslations.get(this))[
+        key
+      ] || s
+    );
+  }
+}
+
+Tools.i18n = new I18nModule(
+  /** @type {{[key: string]: string}} */ (
     parseEmbeddedJson("translations", {})
-  );
-  return {
-    /** @param {string} s */
-    t: function translate(s) {
-      const key = s.toLowerCase().replace(/ /g, "_");
-      return translations[key] || s;
-    },
-  };
-})();
-
-Tools.config = {
-  serverConfig: /** @type {ServerConfig} */ (
-    parseEmbeddedJson("configuration", {})
   ),
-};
-Tools.identity = {
-  boardName: resolveBoardName(window.location.pathname),
-  token: new URL(window.location.href).searchParams.get("token"),
-};
+);
 
-/**
- * @param {AppToolsState["config"]} config
- * @param {AppToolsState["viewportState"]} viewportState
- * @returns {AppToolsState["coordinates"]}
- */
-function createCoordinateModule(config, viewportState) {
-  return {
-    /** @param {unknown} value */
-    toBoardCoordinate(value) {
-      return MessageCommon.clampCoord(
-        value,
-        config.serverConfig.MAX_BOARD_SIZE,
+export class ConfigModule {
+  /** @param {ServerConfig} serverConfig */
+  constructor(serverConfig) {
+    this.serverConfig = serverConfig;
+  }
+}
+
+Tools.config = new ConfigModule(
+  /** @type {ServerConfig} */ (parseEmbeddedJson("configuration", {})),
+);
+
+export class IdentityModule {
+  /**
+   * @param {string} boardName
+   * @param {string | null} token
+   */
+  constructor(boardName, token) {
+    this.boardName = boardName;
+    this.token = token;
+  }
+}
+
+Tools.identity = new IdentityModule(
+  resolveBoardName(window.location.pathname),
+  new URL(window.location.href).searchParams.get("token"),
+);
+
+const coordinateModuleState = new WeakMap();
+
+export class CoordinateModule {
+  /**
+   * @param {AppToolsState["config"]} config
+   * @param {AppToolsState["viewportState"]} viewportState
+   */
+  constructor(config, viewportState) {
+    coordinateModuleState.set(this, { config, viewportState });
+  }
+
+  /** @param {unknown} value */
+  toBoardCoordinate(value) {
+    const state =
+      /** @type {{config: AppToolsState["config"], viewportState: AppToolsState["viewportState"]}} */ (
+        coordinateModuleState.get(this)
       );
-    },
+    return MessageCommon.clampCoord(
+      value,
+      state.config.serverConfig.MAX_BOARD_SIZE,
+    );
+  }
 
-    /** @param {unknown} value */
-    pageCoordinateToBoard(value) {
-      return viewportState.controller.pageCoordinateToBoard(value);
-    },
-  };
+  /** @param {unknown} value */
+  pageCoordinateToBoard(value) {
+    const state =
+      /** @type {{config: AppToolsState["config"], viewportState: AppToolsState["viewportState"]}} */ (
+        coordinateModuleState.get(this)
+      );
+    return state.viewportState.controller.pageCoordinateToBoard(value);
+  }
 }
 
 /**
@@ -476,48 +516,58 @@ function getAuthoritativeBaselineUrl(cacheBust) {
   return `${url.pathname}${url.search}`;
 }
 
-/**
- * @param {AppToolsState["config"]} config
- * @param {AppToolsState["identity"]} identity
- * @returns {AppToolsState["rateLimits"]}
- */
-function createRateLimitModule(config, identity) {
-  const module = {
-    /** @param {RateLimitKind} kind */
-    getRateLimitDefinition(kind) {
-      const configured = config.serverConfig.RATE_LIMITS || {};
-      if (configured && configured[kind]) return configured[kind];
+const rateLimitModuleState = new WeakMap();
 
-      return {
-        limit: 0,
-        anonymousLimit: 0,
-        periodMs: 0,
-      };
-    },
+export class RateLimitModule {
+  /**
+   * @param {AppToolsState["config"]} config
+   * @param {AppToolsState["identity"]} identity
+   */
+  constructor(config, identity) {
+    rateLimitModuleState.set(this, { config, identity });
+  }
 
-    /** @param {RateLimitKind} kind */
-    getEffectiveRateLimit(kind) {
-      return RateLimitCommon.getEffectiveRateLimitDefinition(
-        module.getRateLimitDefinition(kind),
-        identity.boardName,
+  /** @param {RateLimitKind} kind */
+  getRateLimitDefinition(kind) {
+    const state =
+      /** @type {{config: AppToolsState["config"], identity: AppToolsState["identity"]}} */ (
+        rateLimitModuleState.get(this)
       );
-    },
+    const configured = state.config.serverConfig.RATE_LIMITS || {};
+    if (configured && configured[kind]) return configured[kind];
 
-    /** @param {LiveBoardMessage} message */
-    getBufferedWriteCosts(message) {
-      return RATE_LIMIT_KINDS.reduce(
-        (costs, kind) => {
-          costs[kind] = RateLimitCommon.getRateLimitCost(kind, message);
-          return costs;
-        },
-        /** @type {import("../../types/app-runtime").RateLimitCosts} */ ({}),
+    return {
+      limit: 0,
+      anonymousLimit: 0,
+      periodMs: 0,
+    };
+  }
+
+  /** @param {RateLimitKind} kind */
+  getEffectiveRateLimit(kind) {
+    const state =
+      /** @type {{config: AppToolsState["config"], identity: AppToolsState["identity"]}} */ (
+        rateLimitModuleState.get(this)
       );
-    },
-  };
-  return module;
+    return RateLimitCommon.getEffectiveRateLimitDefinition(
+      this.getRateLimitDefinition(kind),
+      state.identity.boardName,
+    );
+  }
+
+  /** @param {LiveBoardMessage} message */
+  getBufferedWriteCosts(message) {
+    return RATE_LIMIT_KINDS.reduce(
+      (costs, kind) => {
+        costs[kind] = RateLimitCommon.getRateLimitCost(kind, message);
+        return costs;
+      },
+      /** @type {import("../../types/app-runtime").RateLimitCosts} */ ({}),
+    );
+  }
 }
 
-Tools.rateLimits = createRateLimitModule(Tools.config, Tools.identity);
+Tools.rateLimits = new RateLimitModule(Tools.config, Tools.identity);
 
 /** @this {AppToolsState["writes"]} */
 function clearBufferedWriteTimer() {
@@ -1418,21 +1468,60 @@ function enqueueIncomingBroadcast(msg) {
   void drainIncomingBroadcastQueue();
 }
 
-Tools.viewportState = {
-  scale: DEFAULT_BOARD_SCALE,
-  controller: createViewportController(Tools),
-  drawToolsAllowed: null,
-};
-Tools.coordinates = createCoordinateModule(Tools.config, Tools.viewportState);
-Tools.access = {
-  boardState: {
-    readonly: false,
-    canWrite: true,
-  },
-  readOnly: false,
-  canWrite: true,
-  applyBoardState,
-};
+export class ViewportStateModule {
+  /** @param {ViewportController} controller */
+  constructor(controller) {
+    this.scale = DEFAULT_BOARD_SCALE;
+    this.controller = controller;
+    this.drawToolsAllowed = /** @type {boolean | null} */ (null);
+  }
+}
+
+Tools.viewportState = new ViewportStateModule(createViewportController(Tools));
+Tools.coordinates = new CoordinateModule(Tools.config, Tools.viewportState);
+
+export class AccessModule {
+  constructor() {
+    this.boardState = {
+      readonly: false,
+      canWrite: true,
+    };
+    this.readOnly = false;
+    this.canWrite = true;
+  }
+
+  /** @param {AppBoardState} boardState */
+  applyBoardState(boardState) {
+    this.boardState = boardState;
+    this.readOnly = boardState.readonly;
+    this.canWrite = boardState.canWrite;
+
+    const hideEditingTools = this.readOnly && !this.canWrite;
+    const settings = document.getElementById("settings");
+    if (settings) settings.style.display = hideEditingTools ? "none" : "";
+
+    Object.keys(Tools.toolRegistry.mounted || {}).forEach((toolName) => {
+      const toolElem = document.getElementById(`toolID-${toolName}`);
+      if (!toolElem) return;
+      toolElem.style.display = Tools.toolRegistry.shouldDisplayTool(toolName)
+        ? ""
+        : "none";
+    });
+
+    Tools.toolRegistry.syncDrawToolAvailability(true);
+
+    if (
+      hideEditingTools &&
+      Tools.toolRegistry.current &&
+      !Tools.toolRegistry.shouldDisplayTool(Tools.toolRegistry.current.name) &&
+      Tools.toolRegistry.mounted.hand
+    ) {
+      Tools.toolRegistry.change("hand");
+    }
+  }
+}
+
+Tools.access = new AccessModule();
 
 /** @param {string} toolName */
 function shouldDisableTool(toolName) {
@@ -1483,39 +1572,6 @@ function syncDrawToolAvailability(force) {
   }
 }
 
-/** @param {AppBoardState} boardState */
-function applyBoardState(boardState) {
-  Tools.access = {
-    boardState,
-    readOnly: boardState.readonly,
-    canWrite: boardState.canWrite,
-    applyBoardState,
-  };
-
-  const hideEditingTools = Tools.access.readOnly && !Tools.access.canWrite;
-  const settings = document.getElementById("settings");
-  if (settings) settings.style.display = hideEditingTools ? "none" : "";
-
-  Object.keys(Tools.toolRegistry.mounted || {}).forEach((toolName) => {
-    const toolElem = document.getElementById(`toolID-${toolName}`);
-    if (!toolElem) return;
-    toolElem.style.display = Tools.toolRegistry.shouldDisplayTool(toolName)
-      ? ""
-      : "none";
-  });
-
-  Tools.toolRegistry.syncDrawToolAvailability(true);
-
-  if (
-    hideEditingTools &&
-    Tools.toolRegistry.current &&
-    !Tools.toolRegistry.shouldDisplayTool(Tools.toolRegistry.current.name) &&
-    Tools.toolRegistry.mounted.hand
-  ) {
-    Tools.toolRegistry.change("hand");
-  }
-}
-
 /** @param {string} toolName */
 function shouldDisplayTool(toolName) {
   return getToolButton(toolName) !== null;
@@ -1525,12 +1581,16 @@ Tools.dom = withBoardDomActions({ status: "detached" });
 
 //Initialization
 document.documentElement.dataset.activeToolSecondary = "false";
-Tools.interaction = {
-  drawingEvent: true,
-  showMarker: true,
-  showOtherCursors: true,
-  showMyCursor: true,
-};
+export class InteractionModule {
+  constructor() {
+    this.drawingEvent = true;
+    this.showMarker = true;
+    this.showOtherCursors = true;
+    this.showMyCursor = true;
+  }
+}
+
+Tools.interaction = new InteractionModule();
 
 export class PresenceModule {
   constructor() {
@@ -2184,7 +2244,9 @@ function startConnection() {
     socket.on(SocketEvents.BROADCAST, (msg) => {
       enqueueIncomingBroadcast(msg);
     });
-    socket.on(SocketEvents.BOARDSTATE, Tools.access.applyBoardState);
+    socket.on(SocketEvents.BOARDSTATE, (boardState) => {
+      Tools.access.applyBoardState(boardState);
+    });
     socket.on(
       SocketEvents.MUTATION_REJECTED,
       function onMutationRejected(payload) {
@@ -2506,7 +2568,10 @@ export function createToolRuntimeModules(mountedTools) {
       getOpacity: mountedTools.preferences.getOpacity,
     },
     rateLimits: {
-      getEffectiveRateLimit: mountedTools.rateLimits.getEffectiveRateLimit,
+      /** @param {RateLimitKind} kind */
+      getEffectiveRateLimit(kind) {
+        return mountedTools.rateLimits.getEffectiveRateLimit(kind);
+      },
     },
     toolRegistry: {
       get current() {
