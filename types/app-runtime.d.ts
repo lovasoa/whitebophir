@@ -1,3 +1,5 @@
+import { MutationType } from "../client-data/js/mutation_type.js";
+import { SocketEvents } from "../client-data/js/socket_events.js";
 import type * as ClearTool from "../client-data/tools/clear/index.js";
 import type * as CursorTool from "../client-data/tools/cursor/index.js";
 import type * as EllipseTool from "../client-data/tools/ellipse/index.js";
@@ -7,6 +9,7 @@ import type * as PencilTool from "../client-data/tools/pencil/index.js";
 import type * as RectangleTool from "../client-data/tools/rectangle/index.js";
 import type * as StraightLineTool from "../client-data/tools/straight-line/index.js";
 import type * as TextTool from "../client-data/tools/text/index.js";
+import { ToolCodes } from "../client-data/tools/tool-order.js";
 
 export type Transform = {
   a: number;
@@ -17,16 +20,13 @@ export type Transform = {
   f: number;
 };
 
-type ToolCodeMap =
-  typeof import("../client-data/tools/tool-order.js").ToolCodes;
-type MutationTypeMap =
-  typeof import("../client-data/js/mutation_type.js").MutationType;
+type ToolCodeMap = typeof ToolCodes;
+type MutationTypeMap = typeof MutationType;
+type SocketEventMap = typeof SocketEvents;
 
-export type ToolCode =
-  typeof import("../client-data/tools/tool-order.js").ToolCodes[keyof ToolCodeMap];
+export type ToolCode = ToolCodeMap[keyof ToolCodeMap];
 export type MessageType = MutationTypeMap[keyof MutationTypeMap];
-export type SocketEventName =
-  typeof import("../client-data/js/socket_events.js").SocketEvents[keyof typeof import("../client-data/js/socket_events.js").SocketEvents];
+export type SocketEventName = SocketEventMap[keyof SocketEventMap];
 
 export type MessageMetadata = {
   seq?: number;
@@ -163,7 +163,7 @@ export type SequencedMutationBroadcast = {
 };
 
 export type AuthoritativeReplayBatch = {
-  type: typeof import("../client-data/js/mutation_type.js").MutationType.BATCH;
+  type: MutationTypeMap["BATCH"];
   fromSeq: number;
   seq: number;
   _children: BoardMessage[];
@@ -193,8 +193,24 @@ export type RateLimitWindowState = {
 
 export type RateLimitKind = "general" | "constructive" | "destructive" | "text";
 
-export type RateLimitCosts = {
-  [key in RateLimitKind]: number;
+export type RateLimitKindMap<T> = {
+  [key in RateLimitKind]: T;
+};
+
+export type RateLimitCosts = RateLimitKindMap<number>;
+
+export type RateLimitOverride = {
+  limit?: number;
+  periodMs?: number;
+};
+
+export type RateLimitOverrides = {
+  [boardName: string]: RateLimitOverride;
+};
+
+export type RateLimitDefinitionOptions = {
+  anonymousLimit?: number;
+  overrides?: RateLimitOverrides;
 };
 
 export type BoardConnectionState =
@@ -203,22 +219,28 @@ export type BoardConnectionState =
   | "connected"
   | "disconnected";
 
-export type ConfiguredRateLimitDefinition = {
-  limit?: number;
-  periodMs?: number;
-  anonymousLimit?: number;
-  overrides?: { [boardName: string]: { limit?: number; periodMs?: number } };
+export type ConfiguredRateLimitDefinition = RateLimitOverride &
+  RateLimitDefinitionOptions;
+
+export type RateLimitDefinition = Required<RateLimitOverride> &
+  RateLimitDefinitionOptions;
+
+export type RateLimitConfig = Partial<
+  RateLimitKindMap<ConfiguredRateLimitDefinition>
+>;
+
+export type RateLimitStates = RateLimitKindMap<RateLimitWindowState>;
+
+export type ToolNameMap<T> = {
+  [toolName: string]: T;
 };
 
-export type RateLimitDefinition = {
-  limit: number;
-  periodMs: number;
-  anonymousLimit?: number;
-  overrides?: { [boardName: string]: { limit?: number; periodMs?: number } };
-};
+export type PendingMessages = ToolNameMap<BoardMessage[]>;
 
-export type PendingMessages = {
-  [toolName: string]: BoardMessage[];
+export type PointerListenerMap<TListener> = {
+  press?: TListener;
+  move?: TListener;
+  release?: TListener;
 };
 
 export type ToolPointerListener = (
@@ -228,11 +250,7 @@ export type ToolPointerListener = (
   isTouchEvent: boolean,
 ) => unknown;
 
-export type ToolPointerListeners = {
-  press?: ToolPointerListener;
-  move?: ToolPointerListener;
-  release?: ToolPointerListener;
-};
+export type ToolPointerListeners = PointerListenerMap<ToolPointerListener>;
 
 export type CompiledToolListener = ((evt: Event) => unknown) & {
   target?: EventTarget | null;
@@ -253,20 +271,19 @@ export type ToolSecondaryMode = {
 
 export type ToolTouchPolicy = "app-gesture" | "native-pan";
 
-export type MountedAppTool = {
+export type MaybeMountedAppTool = MountedAppTool | null;
+
+export type MountedAppTool = PointerListenerMap<ToolPointerListener> & {
   name: string;
   shortcut?: string;
   icon: string;
   draw: (message: BoardMessage, isLocal: boolean) => void;
   normalizeServerRenderedElement?: (element: SVGElement) => void;
   serverRenderedElementSelector?: string;
-  press?: ToolPointerListener;
-  move?: ToolPointerListener;
-  release?: ToolPointerListener;
   onMessage?: (message: BoardMessage) => void;
   listeners: ToolPointerListeners;
   compiledListeners: CompiledToolListeners;
-  onstart: (oldTool: MountedAppTool | null) => void;
+  onstart: (oldTool: MaybeMountedAppTool) => void;
   onquit: (newTool: MountedAppTool) => void;
   onSocketDisconnect: () => void;
   onMutationRejected?: (message: BoardMessage, reason?: string) => void;
@@ -283,9 +300,9 @@ export type MountedAppTool = {
   touchListenerOptions?: ToolListenerOptions;
 };
 
-export type MountedToolRegistry = {
-  [toolName: string]: MountedAppTool;
-};
+export type MountedAppToolPromise = Promise<MaybeMountedAppTool>;
+
+export type MountedToolRegistry = ToolNameMap<MountedAppTool>;
 
 export type AppBoardState = {
   readonly: boolean;
@@ -313,19 +330,19 @@ export type ConnectedUser = {
   pulseTimeoutId?: number | null;
 };
 
+export type ConnectedUserMap = {
+  [socketId: string]: ConnectedUser;
+};
+
 export type UserLeftPayload = {
   socketId: string;
 };
 
 export type ClientSocketIncomingEventMap = {
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .BOARDSTATE]: AppBoardState;
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .BROADCAST]: IncomingBroadcast;
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .CONNECT]: undefined;
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .CONNECT_ERROR]: {
+  [SocketEvents.BOARDSTATE]: AppBoardState;
+  [SocketEvents.BROADCAST]: IncomingBroadcast;
+  [SocketEvents.CONNECT]: undefined;
+  [SocketEvents.CONNECT_ERROR]: {
     message?: string;
     data?: {
       reason?: string;
@@ -333,21 +350,15 @@ export type ClientSocketIncomingEventMap = {
       minReplayableSeq?: number;
     };
   };
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .DISCONNECT]: string;
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .ERROR]: unknown;
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .MUTATION_REJECTED]: MutationRejectedPayload;
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .RATE_LIMITED]: {
+  [SocketEvents.DISCONNECT]: string;
+  [SocketEvents.ERROR]: unknown;
+  [SocketEvents.MUTATION_REJECTED]: MutationRejectedPayload;
+  [SocketEvents.RATE_LIMITED]: {
     retryAfterMs?: number;
     reason?: string;
   };
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .USER_JOINED]: ConnectedUser;
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .USER_LEFT]: UserLeftPayload;
+  [SocketEvents.USER_JOINED]: ConnectedUser;
+  [SocketEvents.USER_LEFT]: UserLeftPayload;
 };
 
 export type ReportUserPayload = {
@@ -367,12 +378,12 @@ export type TurnstileFailureAck = {
 export type TurnstileAck = TurnstileSuccessAck | TurnstileFailureAck;
 
 export type ClientSocketOutgoingEventArgs = {
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .BROADCAST]: [message: LiveBoardMessage];
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .REPORT_USER]: [payload: ReportUserPayload];
-  [typeof import("../client-data/js/socket_events.js").SocketEvents
-    .TURNSTILE_TOKEN]: [token: string, ack?: (result: unknown) => void];
+  [SocketEvents.BROADCAST]: [message: LiveBoardMessage];
+  [SocketEvents.REPORT_USER]: [payload: ReportUserPayload];
+  [SocketEvents.TURNSTILE_TOKEN]: [
+    token: string,
+    ack?: (result: unknown) => void,
+  ];
 };
 
 export type AppSocket = {
@@ -470,40 +481,7 @@ export type OptimisticJournalState = {
 };
 
 export type ServerConfig = {
-  RATE_LIMITS?: {
-    general?: {
-      limit?: number;
-      anonymousLimit?: number;
-      periodMs?: number;
-      overrides?: {
-        [boardName: string]: { limit?: number; periodMs?: number };
-      };
-    };
-    constructive?: {
-      limit?: number;
-      anonymousLimit?: number;
-      periodMs?: number;
-      overrides?: {
-        [boardName: string]: { limit?: number; periodMs?: number };
-      };
-    };
-    destructive?: {
-      limit?: number;
-      anonymousLimit?: number;
-      periodMs?: number;
-      overrides?: {
-        [boardName: string]: { limit?: number; periodMs?: number };
-      };
-    };
-    text?: {
-      limit?: number;
-      anonymousLimit?: number;
-      periodMs?: number;
-      overrides?: {
-        [boardName: string]: { limit?: number; periodMs?: number };
-      };
-    };
-  };
+  RATE_LIMITS?: RateLimitConfig;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_VALIDATION_WINDOW_MS?: number | string;
   BLOCKED_TOOLS?: string[];
@@ -518,7 +496,17 @@ export type ToolBootContext = {
   assetUrl: (assetFile: string) => string;
 };
 
-export type ToolModule<T = unknown> = {
+export type ToolModulePointerListener<T> = (
+  state: T,
+  x: number,
+  y: number,
+  evt: MouseEvent | TouchEvent,
+  isTouchEvent: boolean,
+) => unknown;
+
+export type ToolModule<T = unknown> = PointerListenerMap<
+  ToolModulePointerListener<T>
+> & {
   toolId: string;
   replaySafe?: boolean;
   shortcut?: string;
@@ -534,29 +522,8 @@ export type ToolModule<T = unknown> = {
   boot: (ctx: ToolBootContext) => Promise<T> | T;
   draw?: (state: T, message: BoardMessage, isLocal: boolean) => void;
   normalizeServerRenderedElement?: (state: T, element: SVGElement) => void;
-  press?: (
-    state: T,
-    x: number,
-    y: number,
-    evt: MouseEvent | TouchEvent,
-    isTouchEvent: boolean,
-  ) => unknown;
-  move?: (
-    state: T,
-    x: number,
-    y: number,
-    evt: MouseEvent | TouchEvent,
-    isTouchEvent: boolean,
-  ) => unknown;
-  release?: (
-    state: T,
-    x: number,
-    y: number,
-    evt: MouseEvent | TouchEvent,
-    isTouchEvent: boolean,
-  ) => unknown;
   onMessage?: (state: T, message: BoardMessage) => void;
-  onstart?: (state: T, oldTool: MountedAppTool | null) => void;
+  onstart?: (state: T, oldTool: MaybeMountedAppTool) => void;
   onquit?: (state: T, newTool: MountedAppTool) => void;
   onSocketDisconnect?: (state: T) => void;
   onMutationRejected?: (
@@ -611,7 +578,7 @@ export type AppToolsState = {
   board: HTMLElement | null;
   svg: SVGSVGElement | null;
   drawingArea: Element | null;
-  curTool: MountedAppTool | null;
+  curTool: MaybeMountedAppTool;
   drawingEvent: boolean;
   hasAuthoritativeBoardSnapshot: boolean;
   snapshotRevision: number;
@@ -637,18 +604,16 @@ export type AppToolsState = {
   explicitBoardStatus: ExplicitBoardStatus;
   awaitingBoardSnapshot: boolean;
   connectionState: BoardConnectionState;
-  localRateLimitStates: {
-    [key in RateLimitKind]: RateLimitWindowState;
-  };
-  socketIOExtraHeaders: { [name: string]: string } | null;
+  localRateLimitStates: RateLimitStates;
+  socketIOExtraHeaders: SocketHeaders | null;
   boardName: string;
   token: string | null;
   refreshBaselineBeforeConnect: boolean;
   list: MountedToolRegistry;
-  bootedToolPromises: { [toolName: string]: Promise<MountedAppTool | null> };
+  bootedToolPromises: ToolNameMap<MountedAppToolPromise>;
   bootedToolNames: Set<string>;
   pendingMessages: PendingMessages;
-  connectedUsers: { [socketId: string]: ConnectedUser };
+  connectedUsers: ConnectedUserMap;
   connectedUsersPanelOpen: boolean;
   unreadMessagesCount: number;
   messageHooks: MessageHook[];
@@ -728,8 +693,8 @@ export type AppToolsState = {
     toolModule: ToolModule,
     toolState: unknown,
     toolName: string,
-  ) => MountedAppTool | null;
-  bootTool: (toolName: string) => Promise<MountedAppTool | null>;
+  ) => MaybeMountedAppTool;
+  bootTool: (toolName: string) => MountedAppToolPromise;
   activateTool: (toolName: string) => Promise<boolean>;
   addToolListeners: (tool: MountedAppTool) => void;
   removeToolListeners: (tool: MountedAppTool) => void;
@@ -749,10 +714,7 @@ export type AppToolsState = {
   installViewportHashObservers: () => void;
   installViewportController: () => void;
   resizeCanvas: MessageHook;
-  createSVGElement: (
-    name: string,
-    attrs?: { [key: string]: string | number | undefined },
-  ) => SVGElement;
+  createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
   generateUID: (prefix?: string, suffix?: string) => string;
   getEffectiveRateLimit: (kind: RateLimitKind) => RateLimitDefinition;
   isTurnstileValidated: () => boolean;
@@ -804,6 +766,10 @@ export type MountedAppToolsState = AppToolsState & {
 
 export type SocketHeaders = {
   [name: string]: string;
+};
+
+export type SVGElementAttributes = {
+  [key: string]: string | number | undefined;
 };
 
 export type DownloadCapture = {
