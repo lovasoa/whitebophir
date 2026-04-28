@@ -1315,30 +1315,28 @@ function completeAuthoritativeReplay(replayedToSeq) {
  * @param {AuthoritativeReplayBatch} batch
  * @returns {Promise<boolean>}
  */
-async function processAuthoritativeReplayBatch(batch) {
-  const fromSeq = batch.fromSeq;
-  const toSeq = batch.seq;
+async function processAuthoritativeReplayBatch({ fromSeq, seq, _children }) {
   if (
     fromSeq !== Tools.replay.authoritativeSeq ||
-    toSeq < fromSeq ||
-    batch._children.length !== toSeq - fromSeq
+    seq < fromSeq ||
+    _children.length !== seq - fromSeq
   ) {
     logBoardEvent("warn", "replay.batch_gap", {
       authoritativeSeq: Tools.replay.authoritativeSeq,
       fromSeq,
-      toSeq,
-      childCount: batch._children.length,
+      toSeq: seq,
+      childCount: _children.length,
     });
     Tools.replay.beginAuthoritativeResync();
     Tools.connection.start();
     return false;
   }
 
-  for (const [index, child] of batch._children.entries()) {
+  for (const [index, child] of _children.entries()) {
     await handleMessage(child);
     Tools.replay.authoritativeSeq = fromSeq + index + 1;
   }
-  completeAuthoritativeReplay(toSeq);
+  completeAuthoritativeReplay(seq);
   return true;
 }
 
