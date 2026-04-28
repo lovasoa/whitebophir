@@ -633,7 +633,7 @@ export type AppTurnstileModule =
 
 /** Connected-user presence state for the board chrome. */
 export type AppPresenceModule =
-  import("../client-data/js/board.js").PresenceModule;
+  import("../client-data/js/board_presence_module.js").PresenceModule;
 
 /** Optimistic local mutation journal and rollback bookkeeping. */
 export type AppOptimisticModule =

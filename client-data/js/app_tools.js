@@ -7,6 +7,7 @@ import {
   MessageModule,
 } from "./board_message_module.js";
 import { OptimisticModule } from "./board_optimistic_module.js";
+import { PresenceModule } from "./board_presence_module.js";
 import { ReplayModule } from "./board_replay_module.js";
 import {
   AssetModule,
@@ -28,7 +29,7 @@ import { createViewportController } from "./board_viewport.js";
 import { WriteModule } from "./board_write_module.js";
 
 /** @import { AppInitialPreferences, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
-/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, enqueueIncomingBroadcast: (msg: import("../../types/app-runtime").IncomingBroadcast) => void, createToolRegistry: () => import("./board.js").ToolRegistryModule, createPresenceModule: () => import("./board.js").PresenceModule}} AppToolsOptions */
+/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, enqueueIncomingBroadcast: (msg: import("../../types/app-runtime").IncomingBroadcast) => void, createToolRegistry: () => import("./board.js").ToolRegistryModule}} AppToolsOptions */
 
 export class AppTools {
   /** @param {AppToolsOptions} options */
@@ -66,7 +67,7 @@ export class AppTools {
       new DetachedBoardDomRuntimeModule()
     );
     this.interaction = new InteractionModule();
-    this.presence = options.createPresenceModule();
+    this.presence = new PresenceModule(() => this);
     this.messages = new MessageModule(this.toolRegistry, this.identity);
     this.messages.hooks = [
       createResizeCanvasHook(this.viewportState.controller),
