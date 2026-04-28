@@ -2,12 +2,15 @@
 /** @typedef {import("../../types/app-runtime").OptimisticJournalEntryInput} OptimisticJournalEntryInput */
 
 /**
- * @param {unknown} value
+ * @param {readonly string[] | undefined} values
  * @returns {string[]}
  */
-function normalizeStringArray(value) {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((item) => typeof item === "string" && item))];
+function uniqueStrings(values) {
+  const unique = new Set();
+  for (const value of values ?? []) {
+    if (value) unique.add(value);
+  }
+  return [...unique];
 }
 
 /**
@@ -17,9 +20,9 @@ function normalizeStringArray(value) {
 function createEntry(entry) {
   return {
     clientMutationId: entry.message.clientMutationId,
-    affectedIds: normalizeStringArray(entry.affectedIds),
-    dependsOn: normalizeStringArray(entry.dependsOn),
-    dependencyItemIds: normalizeStringArray(entry.dependencyItemIds),
+    affectedIds: uniqueStrings(entry.affectedIds),
+    dependsOn: uniqueStrings(entry.dependsOn),
+    dependencyItemIds: uniqueStrings(entry.dependencyItemIds),
     rollback: entry.rollback,
     message: entry.message,
   };
@@ -151,11 +154,11 @@ export function createOptimisticJournal() {
       return removeEntries(rejectedIds);
     },
     /**
-     * @param {string[]} invalidatedIds
+     * @param {readonly string[]} invalidatedIds
      * @returns {OptimisticJournalEntry[]}
      */
     rejectByInvalidatedIds(invalidatedIds) {
-      const invalidatedIdSet = new Set(normalizeStringArray(invalidatedIds));
+      const invalidatedIdSet = new Set(uniqueStrings(invalidatedIds));
       if (invalidatedIdSet.size === 0) return [];
       const rejectedIds = new Set(
         order.filter((id) => {
@@ -175,13 +178,13 @@ export function createOptimisticJournal() {
       return removeEntries(rejectedIds);
     },
     /**
-     * @param {string[]} itemIds
+     * @param {readonly string[]} itemIds
      * @returns {string[]}
      */
     dependencyMutationIdsForItemIds(itemIds) {
       return [
         ...new Set(
-          normalizeStringArray(itemIds).flatMap((itemId) => {
+          uniqueStrings(itemIds).flatMap((itemId) => {
             const clientMutationId = latestMutationIdsByItemId
               .get(itemId)
               ?.at(-1);

@@ -472,11 +472,11 @@ export type OptimisticJournalEntryInput = Omit<
 export type OptimisticJournalState = {
   /** Takes ownership of entry.message and entry.rollback. Do not mutate them after append. */
   append: (entry: OptimisticJournalEntryInput) => OptimisticJournalEntry;
-  dependencyMutationIdsForItemIds: (itemIds: string[]) => string[];
+  dependencyMutationIdsForItemIds: (itemIds: readonly string[]) => string[];
   promote: (clientMutationId: string) => OptimisticJournalEntry[];
   reject: (clientMutationId: string) => OptimisticJournalEntry[];
   rejectByInvalidatedIds: (
-    invalidatedIds: string[],
+    invalidatedIds: readonly string[],
   ) => OptimisticJournalEntry[];
   reset: () => OptimisticJournalEntry[];
   list: () => OptimisticJournalEntry[];
