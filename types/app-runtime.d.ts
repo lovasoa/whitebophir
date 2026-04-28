@@ -939,7 +939,7 @@ export type AppToolsState = {
 };
 
 export type MountedAppToolsState = AppToolsState & {
-  dom: AttachedBoardDomModule;
+  dom: AttachedBoardDomModule & BoardDomActions;
 };
 
 export type SocketHeaders = {
