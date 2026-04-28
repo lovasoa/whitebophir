@@ -1,4 +1,4 @@
-import { getMutationType, MutationType } from "./message_tool_metadata.js";
+import { MutationType } from "./message_tool_metadata.js";
 
 /** @import { BoardMessage, ToolMessageFields, ToolOwnedChildMessage } from "../../types/app-runtime" */
 /** @typedef {BoardMessage | (ToolOwnedChildMessage & ToolMessageFields)} OptimisticMessage */
@@ -10,30 +10,6 @@ import { getMutationType, MutationType } from "./message_tool_metadata.js";
 function uniqueIds(value) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((item) => typeof item === "string" && item))];
-}
-
-/**
- * @param {OptimisticMessage} message
- * @returns {string | undefined}
- */
-function getMessageId(message) {
-  return "id" in message ? message.id : undefined;
-}
-
-/**
- * @param {OptimisticMessage} message
- * @returns {string | undefined}
- */
-function getMessageNewId(message) {
-  return "newid" in message ? message.newid : undefined;
-}
-
-/**
- * @param {OptimisticMessage} message
- * @returns {string | undefined}
- */
-function getMessageParent(message) {
-  return "parent" in message ? message.parent : undefined;
 }
 
 /**
@@ -51,15 +27,16 @@ export function collectOptimisticAffectedIds(message) {
       ),
     );
   }
-  switch (getMutationType(message)) {
+  if (!("type" in message)) return [];
+  switch (message.type) {
     case MutationType.COPY:
-      return uniqueIds([getMessageNewId(message)]);
+      return uniqueIds([message.newid]);
     case MutationType.APPEND:
-      return uniqueIds([getMessageParent(message)]);
+      return uniqueIds([message.parent]);
     case MutationType.CLEAR:
       return [];
     default:
-      return uniqueIds([getMessageId(message)]);
+      return "id" in message ? uniqueIds([message.id]) : [];
   }
 }
 
@@ -78,13 +55,14 @@ export function collectOptimisticDependencyIds(message) {
       ),
     );
   }
-  switch (getMutationType(message)) {
+  if (!("type" in message)) return [];
+  switch (message.type) {
     case MutationType.COPY:
     case MutationType.DELETE:
     case MutationType.UPDATE:
-      return uniqueIds([getMessageId(message)]);
+      return "id" in message ? uniqueIds([message.id]) : [];
     case MutationType.APPEND:
-      return uniqueIds([getMessageParent(message)]);
+      return uniqueIds([message.parent]);
     default:
       return [];
   }
