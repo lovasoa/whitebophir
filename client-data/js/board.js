@@ -260,19 +260,19 @@ Tools.config = {
  * @param {unknown} value
  * @returns {number}
  */
-Tools.toBoardCoordinate = function toBoardCoordinate(value) {
-  return MessageCommon.clampCoord(
-    value,
-    Tools.config.serverConfig.MAX_BOARD_SIZE,
-  );
-};
+Tools.coordinates = {
+  /** @param {unknown} value */
+  toBoardCoordinate(value) {
+    return MessageCommon.clampCoord(
+      value,
+      Tools.config.serverConfig.MAX_BOARD_SIZE,
+    );
+  },
 
-/**
- * @param {unknown} value
- * @returns {number}
- */
-Tools.pageCoordinateToBoard = function pageCoordinateToBoard(value) {
-  return Tools.viewportState.controller.pageCoordinateToBoard(value);
+  /** @param {unknown} value */
+  pageCoordinateToBoard(value) {
+    return Tools.viewportState.controller.pageCoordinateToBoard(value);
+  },
 };
 
 /**
@@ -2520,9 +2520,10 @@ function createToolRuntimeModules(mountedTools) {
       ...mountedTools.dom,
       createSVGElement: (name, attrs) =>
         mountedTools.createSVGElement(name, attrs),
-      toBoardCoordinate: (value) => mountedTools.toBoardCoordinate(value),
+      toBoardCoordinate: (value) =>
+        mountedTools.coordinates.toBoardCoordinate(value),
       pageCoordinateToBoard: (value) =>
-        mountedTools.pageCoordinateToBoard(value),
+        mountedTools.coordinates.pageCoordinateToBoard(value),
     },
     viewport: mountedTools.viewportState.controller,
     writes: {
@@ -2724,16 +2725,16 @@ function createMountedTool(toolModule, toolState, toolName) {
         const touch = touchEvent.changedTouches[0];
         if (!touch) return true;
         return listener(
-          Tools.pageCoordinateToBoard(touch.pageX),
-          Tools.pageCoordinateToBoard(touch.pageY),
+          Tools.coordinates.pageCoordinateToBoard(touch.pageX),
+          Tools.coordinates.pageCoordinateToBoard(touch.pageY),
           touchEvent,
           true,
         );
       }
       const mouseEvent = /** @type {MouseEvent} */ (evt);
       return listener(
-        Tools.pageCoordinateToBoard(mouseEvent.pageX),
-        Tools.pageCoordinateToBoard(mouseEvent.pageY),
+        Tools.coordinates.pageCoordinateToBoard(mouseEvent.pageX),
+        Tools.coordinates.pageCoordinateToBoard(mouseEvent.pageY),
         mouseEvent,
         false,
       );

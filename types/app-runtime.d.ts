@@ -724,6 +724,12 @@ export type AppRateLimitModule = {
   getBufferedWriteCosts: (message: LiveBoardMessage) => RateLimitCosts;
 };
 
+/** Board-space coordinate conversion. */
+export type AppCoordinateModule = {
+  toBoardCoordinate: (value: unknown) => number;
+  pageCoordinateToBoard: (value: unknown) => number;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -829,6 +835,7 @@ export type AppToolsState = {
   assets: AppAssetModule;
   ids: AppIdModule;
   rateLimits: AppRateLimitModule;
+  coordinates: AppCoordinateModule;
   dom: BoardDomModule;
   clearBufferedWriteTimer: () => void;
   clearRateLimitNoticeTimer: () => void;
@@ -916,8 +923,6 @@ export type AppToolsState = {
   syncToolDisabledState: (toolName: string) => void;
   syncDrawToolAvailability: (force: boolean) => void;
   setBoardState: (state: unknown) => void;
-  toBoardCoordinate: (value: unknown) => number;
-  pageCoordinateToBoard: (value: unknown) => number;
   renderConnectedUsers: () => void;
   setConnectedUsersPanelOpen: (open: boolean) => void;
   upsertConnectedUser: (user: ConnectedUser) => void;

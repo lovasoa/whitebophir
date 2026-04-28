@@ -453,10 +453,12 @@ function createHarness() {
     ids: {
       generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
     },
-    toBoardCoordinate: (/** @type {unknown} */ value) =>
-      Math.round(Number(value) || 0),
-    pageCoordinateToBoard: (/** @type {unknown} */ value) =>
-      Math.round(Number(value) || 0),
+    coordinates: {
+      toBoardCoordinate: (/** @type {unknown} */ value) =>
+        Math.round(Number(value) || 0),
+      pageCoordinateToBoard: (/** @type {unknown} */ value) =>
+        Math.round(Number(value) || 0),
+    },
     rateLimits: {
       getEffectiveRateLimit: (/** @type {string} */ kind) => {
         const definition =
@@ -484,7 +486,7 @@ function createHarness() {
           return true;
         },
         pageCoordinateToBoard: (/** @type {unknown} */ value) =>
-          globalAny.Tools.pageCoordinateToBoard(value),
+          globalAny.Tools.coordinates.pageCoordinateToBoard(value),
         panBy: () => {},
         panTo: () => {},
         zoomAt: (/** @type {number} */ scale) => {
@@ -685,8 +687,10 @@ function createInputTools(overrides = {}) {
     ids: {
       generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
     },
-    toBoardCoordinate: (/** @type {number} */ value) => Math.round(value),
-    pageCoordinateToBoard: (/** @type {number} */ value) => Math.round(value),
+    coordinates: {
+      toBoardCoordinate: (/** @type {number} */ value) => Math.round(value),
+      pageCoordinateToBoard: (/** @type {number} */ value) => Math.round(value),
+    },
     rateLimits: {
       getEffectiveRateLimit: (/** @type {string} */ kind) => {
         const definition = {
@@ -835,8 +839,9 @@ function createHarnessToolRuntime(app) {
     board: {
       ...app.dom,
       createSVGElement: (name, attrs) => app.createSVGElement(name, attrs),
-      toBoardCoordinate: (value) => app.toBoardCoordinate(value),
-      pageCoordinateToBoard: (value) => app.pageCoordinateToBoard(value),
+      toBoardCoordinate: (value) => app.coordinates.toBoardCoordinate(value),
+      pageCoordinateToBoard: (value) =>
+        app.coordinates.pageCoordinateToBoard(value),
     },
     viewport: app.viewportState.controller,
     writes: {

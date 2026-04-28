@@ -431,8 +431,12 @@ export function createViewportController(Tools) {
    */
   function zoomAtPagePoint(scale, pageX, pageY) {
     const oldScale = getScale();
-    const x = Tools.toBoardCoordinate(screenToBoard(pageX, oldScale));
-    const y = Tools.toBoardCoordinate(screenToBoard(pageY, oldScale));
+    const x = Tools.coordinates.toBoardCoordinate(
+      screenToBoard(pageX, oldScale),
+    );
+    const y = Tools.coordinates.toBoardCoordinate(
+      screenToBoard(pageY, oldScale),
+    );
     const scrollLeft = document.documentElement.scrollLeft;
     const scrollTop = document.documentElement.scrollTop;
     const newScale = setScale(scale);
@@ -589,7 +593,9 @@ export function createViewportController(Tools) {
     ensureBoardExtentForPoint,
     ensureBoardExtentForBounds,
     pageCoordinateToBoard(value) {
-      return Tools.toBoardCoordinate(screenToBoard(value, getScale()));
+      return Tools.coordinates.toBoardCoordinate(
+        screenToBoard(value, getScale()),
+      );
     },
     panBy(dx, dy) {
       panTo(
@@ -650,8 +656,8 @@ export function createViewportController(Tools) {
     },
     applyFromHash() {
       const coords = window.location.hash.slice(1).split(",");
-      const x = Tools.toBoardCoordinate(coords[0]);
-      const y = Tools.toBoardCoordinate(coords[1]);
+      const x = Tools.coordinates.toBoardCoordinate(coords[0]);
+      const y = Tools.coordinates.toBoardCoordinate(coords[1]);
       const scale = Number.parseFloat(coords[2] || "");
       ensureBoardExtentForPoint(x, y);
       const appliedScale = setScale(scale);
