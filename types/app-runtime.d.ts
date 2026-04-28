@@ -673,7 +673,6 @@ export type AppToolsState = {
   i18n: { t: (s: string) => string };
   identity: AppIdentityModule;
   config: AppConfigModule;
-  readOnlyToolNames: Set<string>;
   turnstileValidatedUntil: number;
   turnstileWidgetId: unknown | null;
   turnstileRefreshTimeout: number | null;

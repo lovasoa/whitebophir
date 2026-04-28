@@ -78,7 +78,7 @@ import {
   getToolRuntimeAssetPath,
   getToolStylesheetPath,
 } from "../tools/tool-defaults.js";
-import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
+import { TOOL_BY_ID } from "../tools/index.js";
 
 /** @import { AppBoardState, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeModules } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
@@ -312,9 +312,6 @@ Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
   return Tools.resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
 };
 
-Tools.readOnlyToolNames = new Set(
-  TOOLS.filter((tool) => tool.visibleWhenReadOnly).map((tool) => tool.toolId),
-);
 Tools.bootedToolPromises =
   /** @type {AppToolsState["bootedToolPromises"]} */ ({});
 Tools.bootedToolNames = new Set();
