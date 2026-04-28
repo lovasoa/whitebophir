@@ -903,9 +903,6 @@ export type AppToolsState = {
 
 export type MountedAppToolsState = AppToolsState & {
   dom: AttachedBoardDomModule;
-  board: HTMLElement;
-  svg: SVGSVGElement;
-  drawingArea: Element;
 };
 
 export type SocketHeaders = {
