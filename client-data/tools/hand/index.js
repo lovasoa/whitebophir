@@ -49,6 +49,14 @@ import { ToolCodes } from "../tool-order.js";
 /** @typedef {HandDrawMessage | HandChildMessage} HandRenderableMessage */
 /** @typedef {{type?: unknown, id?: unknown, transform?: unknown, newid?: unknown, _children?: unknown}} HandMessageCandidate */
 /** @typedef {SVGImageElement & { origWidth: number, origHeight: number, drawCallback: (button: SelectionButton, bbox: {r:[number,number], a:[number,number], b:[number,number]}, scale:number) => void, clickCallback: (x:number, y:number, evt: { preventDefault(): void }) => void }} SelectionButton */
+/** @typedef {{x: number, y: number}} HandPointSelection */
+/** @typedef {{x: number, y: number, w: number, h: number}} HandScaleSelection */
+/** @typedef {{pan: true}} HandPanSelection */
+/** @typedef {HandPointSelection | HandScaleSelection | HandPanSelection | null} HandSelection */
+/** @typedef {{x: number, y: number} | {a: number, d: number, e: number, f: number} | undefined} SelectionRectTransform */
+/** @typedef {(x: number, y: number, force: boolean) => void} HandTransformHandler */
+/** @typedef {(e: { key: string, target: EventTarget | null }) => void} HandShortcutHandler */
+/** @typedef {{ name: string, icon: string, active: boolean, switch?: () => void }} HandSecondary */
 /** @typedef {import("../../js/intersect.js").Point2D} Point2D */
 /** @typedef {import("../../js/intersect.js").TransformedBBox} TransformedBBox */
 
@@ -231,19 +239,14 @@ function createBatchMessage(children) {
 }
 
 /** @typedef {Pick<ToolRuntimeModules, "config" | "permissions" | "writes" | "ids" | "board" | "viewport" | "messages">} HandRuntime */
-
-/**
- * @typedef {{Tools: HandRuntime, assetUrl: (assetFile: string) => string, selectorStates: {pointing: number, selecting: number, transform: number}, selected: any, selectedEls: (SVGGraphicsElement & { id: string })[], selectionRect: SVGRectElement, selectionRectTransform: any, currentTransform: ((x: number, y: number, force: boolean) => void) | null, transformElements: TransformState[], selectorState: number, selectionRunId: number, lastSent: number, blockedSelectionButtons: (number | string)[], selectionButtons: SelectionButton[], boundDeleteShortcut: (e: { key: string, target: EventTarget | null }) => void, boundDuplicateShortcut: (e: { key: string, target: EventTarget | null }) => void, secondary: { name: string, icon: string, active: boolean, switch?: () => void } | null}} HandState
- */
+/** @typedef {ReturnType<typeof createInitialState>} HandState */
 
 /**
  * @param {HandRuntime} Tools
  * @param {(assetFile: string) => string} assetUrl
- * @returns {HandState}
  */
-function createState(Tools, assetUrl) {
-  /** @type {HandState} */
-  const state = {
+function createInitialState(Tools, assetUrl) {
+  return {
     Tools,
     assetUrl,
     selectorStates: {
@@ -251,24 +254,32 @@ function createState(Tools, assetUrl) {
       selecting: 1,
       transform: 2,
     },
-    selected: null,
-    selectedEls: [],
+    selected: /** @type {HandSelection} */ (null),
+    selectedEls: /** @type {(SVGGraphicsElement & { id: string })[]} */ ([]),
     selectionRect: /** @type {SVGRectElement} */ (
       /** @type {unknown} */ (null)
     ),
-    selectionRectTransform: undefined,
-    currentTransform: null,
-    transformElements: [],
+    selectionRectTransform: /** @type {SelectionRectTransform} */ (undefined),
+    currentTransform: /** @type {HandTransformHandler | null} */ (null),
+    transformElements: /** @type {TransformState[]} */ ([]),
     selectorState: 0,
     selectionRunId: 0,
     lastSent: 0,
     blockedSelectionButtons:
       Tools.config.serverConfig.BLOCKED_SELECTION_BUTTONS || [],
-    selectionButtons: [],
-    boundDeleteShortcut: () => {},
-    boundDuplicateShortcut: () => {},
-    secondary: null,
+    selectionButtons: /** @type {SelectionButton[]} */ ([]),
+    boundDeleteShortcut: /** @type {HandShortcutHandler} */ (() => {}),
+    boundDuplicateShortcut: /** @type {HandShortcutHandler} */ (() => {}),
+    secondary: /** @type {HandSecondary | null} */ (null),
   };
+}
+
+/**
+ * @param {HandRuntime} Tools
+ * @param {(assetFile: string) => string} assetUrl
+ */
+function createState(Tools, assetUrl) {
+  const state = createInitialState(Tools, assetUrl);
   state.selectionRect = createSelectorRect(state);
   state.selectionButtons = [
     createButton(
@@ -759,6 +770,7 @@ function moveSelection(state, x, y, force) {
   if (
     !state.selected ||
     !state.selectionRectTransform ||
+    !("x" in state.selected) ||
     !("x" in state.selectionRectTransform)
   ) {
     return;
@@ -898,7 +910,7 @@ function validateTransformBatch(state, msg) {
 
 /** @param {HandState} state @param {number} x @param {number} y @param {SVGRectElement} rect */
 function updateRect(state, x, y, rect) {
-  if (!state.selected) return;
+  if (!state.selected || !("x" in state.selected)) return;
   rect.x.baseVal.value = Math.min(x, state.selected.x);
   rect.y.baseVal.value = Math.min(y, state.selected.y);
   rect.width.baseVal.value = Math.abs(x - state.selected.x);
