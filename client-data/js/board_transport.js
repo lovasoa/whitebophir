@@ -1,7 +1,6 @@
 import { MutationType } from "./mutation_type.js";
-import { hasMessageChildren } from "./message_shape.js";
 
-/** @import { BoardMessage, MessageChildren, PencilAppendMessage, PencilChildPoint, PencilReplayParent, PendingMessages, SocketHeaders, SocketParams } from "../../types/app-runtime" */
+/** @import { BoardMessage, PencilAppendMessage, PencilChildPoint, PencilReplayParent, PendingMessages, SocketHeaders, SocketParams } from "../../types/app-runtime" */
 /** @typedef {{[name: string]: string}} SocketQueryParams */
 const BATCH_SIZE = 1024;
 
@@ -113,14 +112,6 @@ function queuePendingMessage(pendingMessages, toolName, message) {
 }
 
 /**
- * @param {unknown} message
- * @returns {message is MessageChildren}
- */
-function hasChildMessages(message) {
-  return hasMessageChildren(message);
-}
-
-/**
  * @param {PencilReplayParent} parent
  * @param {PencilChildPoint} child
  * @returns {PencilAppendMessage}
@@ -144,6 +135,5 @@ export const connection = {
 export const messages = {
   batchCall: batchCall,
   queuePendingMessage: queuePendingMessage,
-  hasChildMessages: hasChildMessages,
   normalizeChildMessage: normalizeChildMessage,
 };

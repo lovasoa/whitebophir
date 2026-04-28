@@ -54,13 +54,6 @@ import {
 import * as BoardTurnstile from "./board_turnstile.js";
 import MessageCommon from "./message_common.js";
 import { getMutationType, MutationType } from "./message_tool_metadata.js";
-import {
-  hasMessageColor,
-  hasMessageId,
-  hasMessageNewId,
-  hasMessagePoint,
-  hasMessageSize,
-} from "./message_shape.js";
 import { createOptimisticJournal } from "./optimistic_journal.js";
 import {
   collectOptimisticAffectedIds,
@@ -1711,14 +1704,10 @@ function getBatchFocusPoint(children) {
   let bounds = null;
   children.forEach((child) => {
     const targetId =
-      getMutationType(child) === MutationType.UPDATE
-        ? hasMessageId(child)
-          ? child.id
-          : null
-        : getMutationType(child) === MutationType.COPY
-          ? hasMessageNewId(child)
-            ? child.newid
-            : null
+      child.type === MutationType.UPDATE
+        ? child.id
+        : child.type === MutationType.COPY
+          ? child.newid
           : null;
     if (!targetId) return;
     const element = document.getElementById(targetId);
@@ -1744,13 +1733,11 @@ function getBatchFocusPoint(children) {
  * @returns {{x: number, y: number} | null}
  */
 function getMessageFocusPoint(message) {
-  if (BoardMessages.hasChildMessages(message)) {
-    return getBatchFocusPoint(
-      /** @type {HandChildMessage[]} */ (message._children),
-    );
+  if ("_children" in message) {
+    return getBatchFocusPoint(message._children);
   }
 
-  if (hasMessagePoint(message)) {
+  if ("x" in message) {
     const pointX = toFiniteCoordinate(message.x);
     const pointY = toFiniteCoordinate(message.y);
     if (pointX !== null && pointY !== null) {
@@ -1758,10 +1745,7 @@ function getMessageFocusPoint(message) {
     }
   }
 
-  if (
-    getMutationType(message) === MutationType.UPDATE &&
-    hasMessageId(message)
-  ) {
+  if (message.type === MutationType.UPDATE && "id" in message) {
     const element = document.getElementById(message.id);
     return element instanceof SVGGraphicsElement
       ? getBoundsCenter(getRenderedElementBounds(element))
@@ -2033,11 +2017,11 @@ function applyConnectedUserActivity(
     markConnectedUserActivity(user);
     changed = true;
   }
-  if (hasMessageColor(message)) {
+  if ("color" in message) {
     user.color = message.color;
     changed = true;
   }
-  if (hasMessageSize(message)) {
+  if ("size" in message) {
     user.size = message.size || user.size;
     changed = true;
   }
@@ -3071,9 +3055,6 @@ function drawAndSend(data) {
 function handleMessage(message) {
   pruneBufferedWritesForInvalidatingMessage(message);
   Tools.messages.messageForTool(message);
-  if (BoardMessages.hasChildMessages(message)) {
-    return Promise.resolve();
-  }
   return Promise.resolve();
 }
 
