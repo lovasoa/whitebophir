@@ -204,7 +204,7 @@ export class BoardPage {
       mode: document.documentElement.dataset.activeToolMode ?? "",
       secondary:
         document.documentElement.dataset.activeToolSecondary === "true",
-      currentTool: window.WBOApp?.curTool?.name ?? "",
+      currentTool: window.WBOApp?.toolRegistry?.current?.name ?? "",
     }));
   }
 
@@ -295,7 +295,8 @@ window.turnstile = {
     await expect
       .poll(() =>
         this.page.evaluate(
-          (targetToolName) => !!window.WBOApp?.list?.[targetToolName],
+          (targetToolName) =>
+            !!window.WBOApp?.toolRegistry?.mounted?.[targetToolName],
           name,
         ),
       )
@@ -423,7 +424,7 @@ window.turnstile = {
           if (typeof tools.bootTool === "function") {
             await tools.bootTool("pencil");
           }
-          const pencilTool = tools.list.pencil;
+          const pencilTool = tools.toolRegistry.mounted.pencil;
           if (!pencilTool) throw new Error("Missing pencil tool");
           return { tools, pencilTool };
         };
@@ -488,7 +489,7 @@ window.turnstile = {
     const circleSelector = `ellipse[cx='${center.x}'][cy='${center.y}'][rx='${radius}'][ry='${radius}'][stroke='${color}']`;
     await this.page.evaluate(
       ({ drawColor, drawCenter, drawRadius }) => {
-        const tool = window.WBOApp.curTool;
+        const tool = window.WBOApp.toolRegistry.current;
         if (!tool) throw new Error("Missing current tool");
         window.WBOApp.setColor(drawColor);
         tool.listeners.press?.(
@@ -521,7 +522,7 @@ window.turnstile = {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ targetX, targetY, targetText }) => {
-        const tool = window.WBOApp.curTool;
+        const tool = window.WBOApp.toolRegistry.current;
         if (!tool) throw new Error("Missing current tool");
         const pressEvent = new MouseEvent("mousedown");
         Object.defineProperty(pressEvent, "target", {
@@ -555,7 +556,7 @@ window.turnstile = {
             );
           }
         };
-        const tool = window.WBOApp.curTool;
+        const tool = window.WBOApp.toolRegistry.current;
         if (!tool) throw new Error("Missing current tool");
         const evt = new MouseEvent("mousemove");
         tool.listeners.press?.(lineStart.x, lineStart.y, evt, false);
@@ -576,7 +577,7 @@ window.turnstile = {
     return this.page.evaluate<LineDrawState>(() => {
       const line = document.querySelector("#drawingArea line");
       if (!line) throw new Error("Missing line after draw");
-      const currentTool = window.WBOApp.curTool;
+      const currentTool = window.WBOApp.toolRegistry.current;
       if (!currentTool) throw new Error("Missing current tool");
       return {
         secondaryActive: currentTool.secondary?.active === true,
@@ -592,7 +593,7 @@ window.turnstile = {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ squareStart, squareEnd }) => {
-        const tool = window.WBOApp.curTool;
+        const tool = window.WBOApp.toolRegistry.current;
         if (!tool) throw new Error("Missing current tool");
         const evt = new MouseEvent("mousemove");
         tool.listeners.press?.(squareStart.x, squareStart.y, evt, false);
@@ -605,7 +606,7 @@ window.turnstile = {
     return this.page.evaluate<ShapeDrawState>(() => {
       const rect = document.querySelector("#drawingArea rect");
       if (!rect) throw new Error("Missing rectangle after draw");
-      const currentTool = window.WBOApp.curTool;
+      const currentTool = window.WBOApp.toolRegistry.current;
       if (!currentTool) throw new Error("Missing current tool");
       return {
         secondaryActive: currentTool.secondary?.active === true,
@@ -622,7 +623,7 @@ window.turnstile = {
     const shape = this.page.locator(`#${id}`);
     await this.page.evaluate(
       ({ targetId, deleteType, toolId }) => {
-        const tool = window.WBOApp.curTool;
+        const tool = window.WBOApp.toolRegistry.current;
         if (!tool || tool.name !== "eraser") {
           throw new Error("Missing eraser tool");
         }
@@ -666,7 +667,7 @@ window.turnstile = {
       ({ targetId, fromPoint, toPoint }) => {
         const rect = document.getElementById(targetId);
         if (!rect) throw new Error(`Missing shape ${targetId}`);
-        const tool = window.WBOApp.curTool;
+        const tool = window.WBOApp.toolRegistry.current;
         if (!tool) throw new Error("Missing current tool");
         const evt = new MouseEvent("mousemove", {
           clientX: 0,
@@ -691,7 +692,7 @@ window.turnstile = {
         .split(/[ ,]+/)
         .filter(Boolean)
         .map(Number);
-      const currentTool = window.WBOApp.curTool;
+      const currentTool = window.WBOApp.toolRegistry.current;
       if (!currentTool) throw new Error("Missing current tool");
       return {
         selectorActive: currentTool.secondary?.active === true,
@@ -710,7 +711,7 @@ window.turnstile = {
     });
     await this.page.evaluate(({ x, y }) => {
       const tools = window.WBOApp;
-      const tool = tools.curTool;
+      const tool = tools.toolRegistry.current;
       if (!tool) throw new Error("Missing current tool");
       const zoomInEvent = {
         preventDefault() {},
@@ -736,7 +737,7 @@ window.turnstile = {
     });
     await this.page.evaluate(({ x, y }) => {
       const tools = window.WBOApp;
-      const tool = tools.curTool;
+      const tool = tools.toolRegistry.current;
       if (!tool) throw new Error("Missing current tool");
       const zoomOutEvent = {
         preventDefault() {},
@@ -863,7 +864,7 @@ window.turnstile = {
         window.WBOApp.setColor(drawColor);
         window.WBOApp.setSize(drawSize);
         window.WBOApp.change("rectangle");
-        const tool = window.WBOApp.curTool;
+        const tool = window.WBOApp.toolRegistry.current;
         if (!tool) throw new Error("Missing current tool");
         tool.listeners.press?.(
           drawStart.x,

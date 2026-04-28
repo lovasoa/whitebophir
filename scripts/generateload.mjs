@@ -97,7 +97,7 @@ async function startDrawer(page, userIndex) {
       /** @type {any} */
       const tools = window.WBOApp;
       await tools.bootTool?.("pencil");
-      const pencil = tools.list?.pencil;
+      const pencil = tools.toolRegistry.mounted?.pencil;
       if (!pencil) throw new Error("Missing Pencil tool");
 
       const color = `#${(((colorSeed * 2654435761) >>> 0) & 0xffffff)

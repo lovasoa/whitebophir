@@ -276,8 +276,9 @@ test.describe("single-page interactions", () => {
     await boardPage.gotoBoard("hand-pan-test");
     await expect(boardPage.tool("hand")).toBeVisible();
     await page.evaluate(() => {
-      if (window.WBOApp.curTool?.name !== "hand") window.WBOApp.change("hand");
-      if (window.WBOApp.curTool?.secondary?.active === true) {
+      if (window.WBOApp.toolRegistry.current?.name !== "hand")
+        window.WBOApp.change("hand");
+      if (window.WBOApp.toolRegistry.current?.secondary?.active === true) {
         window.WBOApp.change("hand");
       }
     });

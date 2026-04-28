@@ -490,7 +490,7 @@ test.describe("collaboration and rate limiting", () => {
 
     await page.evaluate(
       ({ createType, tool }) => {
-        const rectangle = window.WBOApp.list.rectangle;
+        const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
         if (!rectangle) throw new Error("rectangle tool is unavailable");
         window.WBOApp.drawAndSend({
           tool,
@@ -568,7 +568,7 @@ test.describe("collaboration and rate limiting", () => {
             requestAnimationFrame(() => resolve()),
           );
         const lineId = "reconnect-pencil-path";
-        const pencil = window.WBOApp.list.pencil;
+        const pencil = window.WBOApp.toolRegistry.mounted.pencil;
         if (!pencil) throw new Error("pencil tool is unavailable");
         window.WBOApp.drawAndSend({
           tool: pencilTool,
@@ -885,7 +885,7 @@ test.describe("collaboration and rate limiting", () => {
 
       await page.evaluate(
         ({ createType, tool }) => {
-          const rectangle = window.WBOApp.list.rectangle;
+          const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
           if (!rectangle) throw new Error("rectangle tool is unavailable");
           window.WBOApp.drawAndSend({
             tool,
@@ -974,7 +974,7 @@ test.describe("collaboration and rate limiting", () => {
 
       await page.evaluate(
         ({ createType, tool }) => {
-          const rectangle = window.WBOApp.list.rectangle;
+          const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
           if (!rectangle) throw new Error("rectangle tool is unavailable");
           window.WBOApp.drawAndSend({
             tool,

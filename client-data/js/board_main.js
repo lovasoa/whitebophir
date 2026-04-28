@@ -102,7 +102,11 @@ async function bootBoardPage() {
   if (pendingToolName) {
     await tools.activateTool(pendingToolName);
   }
-  if (!tools.curTool && tools.list.hand && tools.canUseTool("hand")) {
+  if (
+    !tools.toolRegistry.current &&
+    tools.toolRegistry.mounted.hand &&
+    tools.canUseTool("hand")
+  ) {
     tools.change("hand");
   }
   setBoardBootPhase("ready");

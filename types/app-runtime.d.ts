@@ -682,6 +682,15 @@ export type AppWriteModule = {
   localRateLimitStates: RateLimitStates;
 };
 
+/** Mounted tool registry, active tool, and boot/replay queues. */
+export type AppToolRegistryModule = {
+  current: MaybeMountedAppTool;
+  mounted: MountedToolRegistry;
+  bootPromises: ToolNameMap<MountedAppToolPromise>;
+  bootedNames: Set<string>;
+  pendingMessages: PendingMessages;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -782,16 +791,12 @@ export type AppToolsState = {
   replay: AppReplayModule;
   connection: AppConnectionModule;
   writes: AppWriteModule;
+  toolRegistry: AppToolRegistryModule;
   dom: BoardDomModule;
-  curTool: MaybeMountedAppTool;
   drawingEvent: boolean;
   showMarker: boolean;
   showOtherCursors: boolean;
   showMyCursor: boolean;
-  list: MountedToolRegistry;
-  bootedToolPromises: ToolNameMap<MountedAppToolPromise>;
-  bootedToolNames: Set<string>;
-  pendingMessages: PendingMessages;
   getRateLimitDefinition: (
     kind: RateLimitKind,
   ) => ConfiguredRateLimitDefinition;

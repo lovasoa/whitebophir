@@ -310,9 +310,14 @@ Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
   return Tools.resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
 };
 
-Tools.bootedToolPromises =
-  /** @type {AppToolsState["bootedToolPromises"]} */ ({});
-Tools.bootedToolNames = new Set();
+Tools.toolRegistry = {
+  current: null,
+  mounted: /** @type {AppToolsState["toolRegistry"]["mounted"]} */ ({}),
+  bootPromises:
+    /** @type {AppToolsState["toolRegistry"]["bootPromises"]} */ ({}),
+  bootedNames: new Set(),
+  pendingMessages: /** @type {PendingMessages} */ ({}),
+};
 Tools.turnstile = {
   validatedUntil: 0,
   widgetId: null,
@@ -669,7 +674,7 @@ Tools.resetBoardViewport = function resetBoardViewport() {
 };
 
 Tools.restoreLocalCursor = function restoreLocalCursor() {
-  const cursorTool = Tools.list.cursor;
+  const cursorTool = Tools.toolRegistry.mounted.cursor;
   if (!cursorTool) return;
   const message =
     "message" in cursorTool && cursorTool.message
@@ -772,7 +777,7 @@ function notifyRejectedTools(rejected, reason) {
   if (!Array.isArray(rejected) || rejected.length === 0) return;
   rejected.forEach((entry) => {
     const toolName = getRuntimeToolId(entry.message.tool);
-    const tool = toolName ? Tools.list[toolName] : undefined;
+    const tool = toolName ? Tools.toolRegistry.mounted[toolName] : undefined;
     tool?.onMutationRejected?.(entry.message, reason);
   });
 }
@@ -890,7 +895,7 @@ function normalizeServerRenderedElementsForTool(tool) {
 }
 
 function normalizeServerRenderedElements() {
-  Object.values(Tools.list).forEach((tool) => {
+  Object.values(Tools.toolRegistry.mounted).forEach((tool) => {
     normalizeServerRenderedElementsForTool(tool);
   });
 }
@@ -1177,7 +1182,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.presence.users = /** @type {ConnectedUserMap} */ ({});
   Tools.renderConnectedUsers();
   Tools.clearBoardCursors();
-  Object.values(Tools.list || {}).forEach((tool) => {
+  Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {
     if (tool) tool.onSocketDisconnect();
   });
   Tools.syncActiveToolInputPolicy();
@@ -1436,15 +1441,15 @@ Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
   }
   Tools.viewportState.drawToolsAllowed = drawToolsAllowed;
 
-  Object.keys(Tools.list || {}).forEach((toolName) => {
+  Object.keys(Tools.toolRegistry.mounted || {}).forEach((toolName) => {
     Tools.syncToolDisabledState(toolName);
   });
 
   if (
     !drawToolsAllowed &&
-    Tools.curTool &&
-    MessageCommon.isDrawTool(Tools.curTool.name) &&
-    Tools.list.hand
+    Tools.toolRegistry.current &&
+    MessageCommon.isDrawTool(Tools.toolRegistry.current.name) &&
+    Tools.toolRegistry.mounted.hand
   ) {
     Tools.change("hand");
   }
@@ -1463,7 +1468,7 @@ Tools.setBoardState = function setBoardState(state) {
   const settings = document.getElementById("settings");
   if (settings) settings.style.display = hideEditingTools ? "none" : "";
 
-  Object.keys(Tools.list || {}).forEach((toolName) => {
+  Object.keys(Tools.toolRegistry.mounted || {}).forEach((toolName) => {
     const toolElem = document.getElementById(`toolID-${toolName}`);
     if (!toolElem) return;
     toolElem.style.display = Tools.shouldDisplayTool(toolName) ? "" : "none";
@@ -1473,9 +1478,9 @@ Tools.setBoardState = function setBoardState(state) {
 
   if (
     hideEditingTools &&
-    Tools.curTool &&
-    !Tools.shouldDisplayTool(Tools.curTool.name) &&
-    Tools.list.hand
+    Tools.toolRegistry.current &&
+    !Tools.shouldDisplayTool(Tools.toolRegistry.current.name) &&
+    Tools.toolRegistry.mounted.hand
   ) {
     Tools.change("hand");
   }
@@ -1489,7 +1494,6 @@ Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
 Tools.dom = /** @type {AppToolsState["dom"]} */ ({ status: "detached" });
 
 //Initialization
-Tools.curTool = null;
 document.documentElement.dataset.activeToolSecondary = "false";
 Tools.drawingEvent = true;
 Tools.showMarker = true;
@@ -2392,7 +2396,7 @@ function addToolShortcut(key, callback) {
  * @returns {HTMLElement | null}
  */
 function syncMountedToolButton(toolName) {
-  const tool = Tools.list[toolName];
+  const tool = Tools.toolRegistry.mounted[toolName];
   if (!tool) {
     throw new Error(`Tool not registered before rendering: ${toolName}`);
   }
@@ -2488,8 +2492,6 @@ function addColorButton(button) {
 
 bindRenderedToolButtons();
 
-Tools.list = /** @type {AppToolsState["list"]} */ ({});
-
 /**
  * @param {string} toolName
  * @returns {Promise<ToolModule>}
@@ -2541,7 +2543,7 @@ function createToolRuntimeModules(mountedTools) {
       getEffectiveRateLimit: (kind) => mountedTools.getEffectiveRateLimit(kind),
     },
     ui: {
-      getCurrentTool: () => mountedTools.curTool,
+      getCurrentTool: () => mountedTools.toolRegistry.current,
       changeTool: (toolName) => mountedTools.change(toolName),
       shouldShowMarker: () => mountedTools.showMarker,
       shouldShowMyCursor: () => mountedTools.showMyCursor,
@@ -2786,19 +2788,22 @@ Tools.mountTool = function mountTool(toolModule, toolState, toolName) {
   }
   if (Tools.isBlocked(mountedTool)) return null;
 
-  if (toolName in Tools.list) {
+  if (toolName in Tools.toolRegistry.mounted) {
     logBoardEvent("warn", "tool.mount_replaced", {
       toolName,
     });
   }
 
-  Tools.list[toolName] = mountedTool;
+  Tools.toolRegistry.mounted[toolName] = mountedTool;
 
   if (mountedTool.onSizeChange) {
     Tools.preferences.sizeChangeHandlers.push(mountedTool.onSizeChange);
   }
 
-  const pending = drainPendingMessages(Tools.pendingMessages, toolName);
+  const pending = drainPendingMessages(
+    Tools.toolRegistry.pendingMessages,
+    toolName,
+  );
   if (pending.length > 0) {
     logBoardEvent("log", "tool.pending_replayed", {
       toolName,
@@ -2835,17 +2840,17 @@ async function bootToolPromise(toolName) {
  * @returns {Promise<MountedAppTool | null>}
  */
 Tools.bootTool = async function bootTool(toolName) {
-  const existingTool = Tools.list[toolName];
+  const existingTool = Tools.toolRegistry.mounted[toolName];
   if (existingTool) return existingTool;
-  const inFlight = Tools.bootedToolPromises[toolName];
+  const inFlight = Tools.toolRegistry.bootPromises[toolName];
   if (inFlight) return inFlight;
 
   const promise = bootToolPromise(toolName);
-  Tools.bootedToolPromises[toolName] = promise;
+  Tools.toolRegistry.bootPromises[toolName] = promise;
   try {
     return await promise;
   } finally {
-    delete Tools.bootedToolPromises[toolName];
+    delete Tools.toolRegistry.bootPromises[toolName];
   }
 };
 
@@ -2891,7 +2896,9 @@ function toggleSecondaryTool(newTool) {
 function updateCurrentToolChrome(toolName, newTool) {
   const dom = getAttachedBoardDom();
   if (!dom) return;
-  const curToolName = Tools.curTool ? Tools.curTool.name : "";
+  const curToolName = Tools.toolRegistry.current
+    ? Tools.toolRegistry.current.name
+    : "";
   try {
     changeActiveToolButton(curToolName, toolName);
   } catch (e) {
@@ -2906,18 +2913,18 @@ function updateCurrentToolChrome(toolName, newTool) {
 
 /** @param {MountedAppTool} newTool */
 function replaceCurrentTool(newTool) {
-  const currentTool = Tools.curTool;
+  const currentTool = Tools.toolRegistry.current;
   if (currentTool !== null) {
     Tools.removeToolListeners(currentTool);
     currentTool.onquit && currentTool.onquit(newTool);
   }
   Tools.addToolListeners(newTool);
-  Tools.curTool = newTool;
+  Tools.toolRegistry.current = newTool;
   syncActiveToolState();
 }
 
 function syncActiveToolState() {
-  const currentTool = Tools.curTool;
+  const currentTool = Tools.toolRegistry.current;
   if (!currentTool) {
     delete document.documentElement.dataset.activeTool;
     delete document.documentElement.dataset.activeToolMode;
@@ -2935,14 +2942,14 @@ function syncActiveToolState() {
 
 Tools.syncActiveToolInputPolicy = function syncActiveToolInputPolicy() {
   Tools.viewportState.controller.setTouchPolicy(
-    Tools.curTool?.getTouchPolicy?.() || "app-gesture",
+    Tools.toolRegistry.current?.getTouchPolicy?.() || "app-gesture",
   );
 };
 
 /** @param {string} toolName */
 Tools.change = (toolName) => {
-  const newTool = Tools.list[toolName];
-  const oldTool = Tools.curTool;
+  const newTool = Tools.toolRegistry.mounted[toolName];
+  const oldTool = Tools.toolRegistry.current;
   if (!newTool)
     throw new Error("Trying to select a tool that has never been added!");
   if (Tools.shouldDisableTool(toolName)) return false;
@@ -3001,11 +3008,11 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
   function handleShift(active, evt) {
     if (
       evt.keyCode === 16 &&
-      Tools.curTool &&
-      Tools.curTool.secondary &&
-      Tools.curTool.secondary.active !== active
+      Tools.toolRegistry.current &&
+      Tools.toolRegistry.current.secondary &&
+      Tools.toolRegistry.current.secondary.active !== active
     ) {
-      Tools.change(Tools.curTool.name);
+      Tools.change(Tools.toolRegistry.current.name);
     }
   }
   window.addEventListener("keydown", handleShift.bind(null, true));
@@ -3030,7 +3037,7 @@ Tools.send = (data) => {
 Tools.drawAndSend = (data) => {
   const toolName = getRuntimeToolId(data.tool);
   if (!toolName) throw new Error(`Unknown tool code '${data.tool}'.`);
-  const mountedTool = Tools.list[toolName];
+  const mountedTool = Tools.toolRegistry.mounted[toolName];
   if (!mountedTool) throw new Error(`Missing mounted tool '${data.tool}'.`);
   if (Tools.shouldDisableTool(toolName)) return false;
   if (
@@ -3067,10 +3074,6 @@ Tools.drawAndSend = (data) => {
   return sent;
 };
 
-//Object containing the messages that have been received before the corresponding tool
-//is loaded. keys : the name of the tool, values : array of messages for this tool
-Tools.pendingMessages = /** @type {PendingMessages} */ ({});
-
 /**
  * Send a message to the corresponding tool.
  * @param {BoardMessage} message
@@ -3078,7 +3081,7 @@ Tools.pendingMessages = /** @type {PendingMessages} */ ({});
  */
 function messageForTool(message) {
   const name = getRuntimeToolId(message.tool);
-  const tool = name ? Tools.list[name] : undefined;
+  const tool = name ? Tools.toolRegistry.mounted[name] : undefined;
 
   Tools.applyHooks(Tools.messages.hooks, message);
   if (tool) {
@@ -3087,7 +3090,11 @@ function messageForTool(message) {
     ///We received a message destinated to a tool that we don't have
     //So we add it to the pending messages
     if (name)
-      BoardMessages.queuePendingMessage(Tools.pendingMessages, name, message);
+      BoardMessages.queuePendingMessage(
+        Tools.toolRegistry.pendingMessages,
+        name,
+        message,
+      );
   }
 }
 Tools.messageForTool = messageForTool;
@@ -3170,7 +3177,7 @@ function updateUnreadCount(m) {
 
 /** @param {BoardMessage} m */
 function notifyToolsOfMessage(m) {
-  Object.values(Tools.list || {}).forEach((tool) => {
+  Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {
     tool?.onMessage?.(m);
   });
 }

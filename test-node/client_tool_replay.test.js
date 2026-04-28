@@ -438,7 +438,9 @@ function createHarness() {
         BLOCKED_SELECTION_BUTTONS: [],
       },
     },
-    curTool: { secondary: { active: false } },
+    toolRegistry: {
+      current: { secondary: { active: false } },
+    },
     getColor: () => "#123456",
     getSize: () => 4,
     setSize: (/** @type {number | string | null | undefined} */ size) =>
@@ -498,7 +500,7 @@ function createHarness() {
       /** @type {Record<string, string | number>} */ attrs,
     ) => createSVGElement(store, tagName, attrs),
     change: function (/** @type {string} */ toolName) {
-      this.curTool = tools[toolName];
+      this.toolRegistry.current = tools[toolName];
       return true;
     },
     drawAndSend: function (/** @type {any} */ data) {
@@ -506,7 +508,9 @@ function createHarness() {
       if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
       const mountedTool =
         tools[toolName] ||
-        (this.curTool?.name === toolName ? this.curTool : null);
+        (this.toolRegistry.current?.name === toolName
+          ? this.toolRegistry.current
+          : null);
       if (!mountedTool) throw new Error(`Missing mounted tool '${toolName}'.`);
       mountedTool.draw(data, true);
       this.sentMessages.push({
@@ -779,7 +783,7 @@ function createInputToolRuntime(tools) {
       getEffectiveRateLimit: (kind) => tools.getEffectiveRateLimit(kind),
     },
     ui: {
-      getCurrentTool: () => tools.curTool || null,
+      getCurrentTool: () => tools.toolRegistry.current || null,
       changeTool: (toolName) => tools.change(toolName),
       shouldShowMarker: () => unavailableCapability("ui.shouldShowMarker"),
       shouldShowMyCursor: () => unavailableCapability("ui.shouldShowMyCursor"),
@@ -837,7 +841,7 @@ function createHarnessToolRuntime(app) {
       getEffectiveRateLimit: (kind) => app.getEffectiveRateLimit(kind),
     },
     ui: {
-      getCurrentTool: () => app.curTool,
+      getCurrentTool: () => app.toolRegistry.current,
       changeTool: (toolName) => app.change(toolName),
       shouldShowMarker: () => app.showMarker,
       shouldShowMyCursor: () => app.showMyCursor,
@@ -1132,7 +1136,7 @@ test("Pencil marks only the active local line as non-interactive while drawing",
   const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
 
-  globalAny.Tools.curTool = pencilTool;
+  globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
@@ -1185,7 +1189,7 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
   const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
 
-  globalAny.Tools.curTool = pencilTool;
+  globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
@@ -1210,7 +1214,7 @@ test("Pencil rejection aborts the active stroke without removing the rolled-back
   const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
 
-  globalAny.Tools.curTool = pencilTool;
+  globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
@@ -1289,7 +1293,7 @@ test("Pencil delete of the active line aborts the active stroke", async () => {
   const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
 
-  globalAny.Tools.curTool = pencilTool;
+  globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
@@ -1315,7 +1319,7 @@ test("Pencil clear aborts the active stroke", async () => {
   const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
 
-  globalAny.Tools.curTool = pencilTool;
+  globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
@@ -1680,7 +1684,7 @@ async function bootTextEditorHarness() {
       (assetFile) => getToolRuntimeAssetPath("text", assetFile),
     ),
   );
-  globalAny.Tools.curTool = {
+  globalAny.Tools.toolRegistry.current = {
     name: "text",
     draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
       textModule.draw(textState, data, isLocal),
