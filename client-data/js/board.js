@@ -80,7 +80,7 @@ import {
 } from "../tools/tool-defaults.js";
 import { TOOL_BY_ID } from "../tools/index.js";
 
-/** @import { AppBoardState, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeModules } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeModules } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.WBOApp = Tools;
@@ -1161,7 +1161,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
-  Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
+  Tools.presence.users = /** @type {ConnectedUserMap} */ ({});
   Tools.renderConnectedUsers();
   Tools.clearBoardCursors();
   Object.values(Tools.list || {}).forEach((tool) => {
@@ -1478,8 +1478,10 @@ Tools.showMyCursor = true;
 Tools.socket = null;
 Tools.hasConnectedOnce = false;
 
-Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
-Tools.connectedUsersPanelOpen = false;
+Tools.presence = {
+  users: /** @type {ConnectedUserMap} */ ({}),
+  panelOpen: false,
+};
 
 function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
   return !!(Tools.socket?.id && user.socketId === Tools.socket.id);
@@ -1511,7 +1513,7 @@ function getConnectedUsersList() {
  */
 function getConnectedUsers() {
   return /** @type {{[socketId: string]: ConnectedUser}} */ (
-    Tools.connectedUsers
+    Tools.presence.users
   );
 }
 
@@ -1892,7 +1894,7 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
     row.remove();
   });
   panel.dataset.empty = users.length === 0 ? "true" : "false";
-  if (users.length === 0 && Tools.connectedUsersPanelOpen) {
+  if (users.length === 0 && Tools.presence.panelOpen) {
     Tools.setConnectedUsersPanelOpen(false);
   }
   syncConnectedUsersToggleLabel();
@@ -1904,7 +1906,7 @@ Tools.setConnectedUsersPanelOpen = function setConnectedUsersPanelOpen(
   const shouldOpen = open && getConnectedUsersCount() > 0;
   const panel = getConnectedUsersPanel();
   const toggle = getConnectedUsersToggle();
-  Tools.connectedUsersPanelOpen = shouldOpen;
+  Tools.presence.panelOpen = shouldOpen;
   panel.classList.toggle("connected-users-panel-hidden", !shouldOpen);
   toggle.classList.toggle("board-presence-toggle-open", shouldOpen);
   toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
@@ -2034,13 +2036,12 @@ Tools.initConnectedUsersUI = function initConnectedUsersUI() {
   if (!(toggle instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
     return;
   }
-  Tools.connectedUsersPanelOpen =
-    toggle.getAttribute("aria-expanded") === "true";
+  Tools.presence.panelOpen = toggle.getAttribute("aria-expanded") === "true";
   syncConnectedUsersToggleLabel();
   if (toggle.dataset.connectedUsersUiBound !== "true") {
     toggle.dataset.connectedUsersUiBound = "true";
     toggle.addEventListener("click", () => {
-      Tools.setConnectedUsersPanelOpen(!Tools.connectedUsersPanelOpen);
+      Tools.setConnectedUsersPanelOpen(!Tools.presence.panelOpen);
     });
     toggle.addEventListener("blur", () => {
       window.setTimeout(() => {
@@ -2076,7 +2077,7 @@ Tools.startConnection = () => {
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
-  Tools.connectedUsers = /** @type {AppToolsState["connectedUsers"]} */ ({});
+  Tools.presence.users = /** @type {ConnectedUserMap} */ ({});
   Tools.renderConnectedUsers();
 
   void (async function openSocketWithBaseline() {

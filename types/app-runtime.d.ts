@@ -629,6 +629,12 @@ export type AppTurnstileModule = {
   overlayTimeout: number | null;
 };
 
+/** Connected-user presence state for the board chrome. */
+export type AppPresenceModule = {
+  users: ConnectedUserMap;
+  panelOpen: boolean;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -722,6 +728,7 @@ export type AppToolsState = {
   preferences: AppPreferenceModule;
   status: AppStatusModule;
   turnstile: AppTurnstileModule;
+  presence: AppPresenceModule;
   scale: number;
   viewport: ViewportController;
   drawToolsAllowed: boolean | null;
@@ -756,8 +763,6 @@ export type AppToolsState = {
   bootedToolPromises: ToolNameMap<MountedAppToolPromise>;
   bootedToolNames: Set<string>;
   pendingMessages: PendingMessages;
-  connectedUsers: ConnectedUserMap;
-  connectedUsersPanelOpen: boolean;
   unreadMessagesCount: number;
   messageHooks: MessageHook[];
   getRateLimitDefinition: (
