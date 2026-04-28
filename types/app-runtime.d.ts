@@ -697,20 +697,8 @@ export type AppTurnstileModule = {
 };
 
 /** Connected-user presence state for the board chrome. */
-export type AppPresenceModule = {
-  users: ConnectedUserMap;
-  panelOpen: boolean;
-  renderConnectedUsers: () => void;
-  setConnectedUsersPanelOpen: (open: boolean) => void;
-  upsertConnectedUser: (user: ConnectedUser) => void;
-  removeConnectedUser: (socketId: string) => void;
-  updateConnectedUsersFromActivity: (
-    userId: string | undefined,
-    message: BoardMessage,
-  ) => void;
-  updateCurrentConnectedUserFromActivity: (message: BoardMessage) => void;
-  initConnectedUsersUI: () => void;
-};
+export type AppPresenceModule =
+  import("../client-data/js/board.js").PresenceModule;
 
 /** Optimistic local mutation journal and rollback bookkeeping. */
 export type AppOptimisticModule = {
@@ -838,15 +826,10 @@ export type AppInteractionModule = {
 };
 
 /** Runtime asset URL resolution for board and tool modules. */
-export type AppAssetModule = {
-  resolveAssetPath: (assetPath: string) => string;
-  getToolAssetUrl: (toolName: string, assetFile: string) => string;
-};
+export type AppAssetModule = import("../client-data/js/board.js").AssetModule;
 
 /** Runtime id generation. */
-export type AppIdModule = {
-  generateUID: (prefix?: string, suffix?: string) => string;
-};
+export type AppIdModule = import("../client-data/js/board.js").IdModule;
 
 /** Config-derived rate-limit lookups and cost accounting. */
 export type AppRateLimitModule = {

@@ -25,6 +25,7 @@
  */
 
 import { optimisticPrunePlanForAuthoritativeMessage } from "./authoritative_mutation_effects.js";
+import { getContentMessageBounds } from "./board_extent.js";
 import * as BoardMessageReplay from "./board_message_replay.js";
 import {
   drainPendingMessages,
@@ -35,7 +36,6 @@ import {
   resolveBoardName,
   updateRecentBoards,
 } from "./board_page_state.js";
-import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
 import {
   buildBoardSvgBaselineUrl,
   parseServedBaselineSvgText,
@@ -45,8 +45,15 @@ import {
   DEFAULT_BOARD_SCALE,
   VIEWPORT_HASH_SCALE_DECIMALS,
 } from "./board_viewport.js";
-import { getContentMessageBounds } from "./board_extent.js";
+import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
 import "./intersect.js";
+import { TOOL_BY_ID, TOOL_MODULES_BY_ID } from "../tools/index.js";
+import {
+  getToolIconPath,
+  getToolRuntimeAssetPath,
+  getToolStylesheetPath,
+} from "../tools/tool-defaults.js";
+import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import {
   connection as BoardConnection,
   messages as BoardMessages,
@@ -61,13 +68,6 @@ import {
 } from "./optimistic_mutation.js";
 import RateLimitCommon from "./rate_limit_common.js";
 import { SocketEvents } from "./socket_events.js";
-import {
-  getToolIconPath,
-  getToolRuntimeAssetPath,
-  getToolStylesheetPath,
-} from "../tools/tool-defaults.js";
-import { TOOL_BY_ID, TOOL_MODULES_BY_ID } from "../tools/index.js";
-import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 
 /** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
@@ -289,24 +289,22 @@ function normalizeBoardAssetPath(assetPath) {
   return `../${assetPath}`;
 }
 
-/**
- * @param {(assetPath: string) => string} resolveAssetPath
- * @returns {AppToolsState["assets"]}
- */
-function createAssetModule(resolveAssetPath) {
-  return {
-    resolveAssetPath,
-    /**
-     * @param {string} toolName
-     * @param {string} assetFile
-     */
-    getToolAssetUrl(toolName, assetFile) {
-      return resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
-    },
-  };
+export class AssetModule {
+  /** @param {(assetPath: string) => string} resolveAssetPath */
+  constructor(resolveAssetPath) {
+    this.resolveAssetPath = resolveAssetPath;
+  }
+
+  /**
+   * @param {string} toolName
+   * @param {string} assetFile
+   */
+  getToolAssetUrl(toolName, assetFile) {
+    return this.resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
+  }
 }
 
-Tools.assets = createAssetModule(normalizeBoardAssetPath);
+Tools.assets = new AssetModule(normalizeBoardAssetPath);
 
 Tools.toolRegistry = {
   current: null,
@@ -1233,11 +1231,7 @@ function beginAuthoritativeResync() {
   Tools.writes.discardBufferedWrites();
   Tools.turnstile.pendingWrites = [];
   Tools.turnstile.hideOverlay();
-  Object.values(getConnectedUsers()).forEach((user) => {
-    if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
-  });
-  Tools.presence.users = /** @type {ConnectedUserMap} */ ({});
-  Tools.presence.renderConnectedUsers();
+  Tools.presence.clearConnectedUsers();
   Tools.dom.clearBoardCursors();
   Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {
     if (tool) tool.onSocketDisconnect();
@@ -1538,17 +1532,164 @@ Tools.interaction = {
   showMyCursor: true,
 };
 
-Tools.presence = {
-  users: /** @type {ConnectedUserMap} */ ({}),
-  panelOpen: false,
-  renderConnectedUsers,
-  setConnectedUsersPanelOpen,
-  upsertConnectedUser,
-  removeConnectedUser,
-  updateConnectedUsersFromActivity,
-  updateCurrentConnectedUserFromActivity,
-  initConnectedUsersUI,
-};
+export class PresenceModule {
+  constructor() {
+    this.users = /** @type {ConnectedUserMap} */ ({});
+    this.panelOpen = false;
+  }
+
+  clearConnectedUsers() {
+    Object.values(this.users).forEach((user) => {
+      if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
+    });
+    this.users = /** @type {ConnectedUserMap} */ ({});
+    this.renderConnectedUsers();
+  }
+
+  renderConnectedUsers() {
+    const list = getConnectedUsersList();
+    const panel = getConnectedUsersPanel();
+    /** @type {{[socketId: string]: ConnectedUserRow}} */
+    const rowsBySocketId = {};
+    Array.from(list.children).forEach((child) => {
+      if (
+        child instanceof HTMLLIElement &&
+        child.dataset.socketId &&
+        child.classList.contains("connected-user-row")
+      ) {
+        rowsBySocketId[child.dataset.socketId] =
+          /** @type {ConnectedUserRow} */ (child);
+      }
+    });
+
+    const users = Object.values(this.users).sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
+
+    users.forEach((user, index) => {
+      const row = rowsBySocketId[user.socketId] || createConnectedUserRow(user);
+      delete rowsBySocketId[user.socketId];
+      updateConnectedUserRow(row, user);
+      const currentChild = list.children[index];
+      if (currentChild !== row) {
+        list.insertBefore(row, currentChild || null);
+      }
+    });
+
+    Object.values(rowsBySocketId).forEach((row) => {
+      row.remove();
+    });
+    panel.dataset.empty = users.length === 0 ? "true" : "false";
+    if (users.length === 0 && this.panelOpen) {
+      this.setConnectedUsersPanelOpen(false);
+    }
+    syncConnectedUsersToggleLabel();
+  }
+
+  /** @param {boolean} open */
+  setConnectedUsersPanelOpen(open) {
+    const shouldOpen = open && getConnectedUsersCount() > 0;
+    const panel = getConnectedUsersPanel();
+    const toggle = getConnectedUsersToggle();
+    this.panelOpen = shouldOpen;
+    panel.classList.toggle("connected-users-panel-hidden", !shouldOpen);
+    toggle.classList.toggle("board-presence-toggle-open", shouldOpen);
+    toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  }
+
+  /** @param {ConnectedUser} user */
+  upsertConnectedUser(user) {
+    this.users[user.socketId] = Object.assign(
+      {},
+      this.users[user.socketId] || {},
+      user,
+    );
+    this.renderConnectedUsers();
+  }
+
+  /** @param {string} socketId */
+  removeConnectedUser(socketId) {
+    const user = this.users[socketId];
+    if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
+    delete this.users[socketId];
+    this.renderConnectedUsers();
+  }
+
+  /**
+   * @param {string | undefined} userId
+   * @param {BoardMessage} message
+   */
+  updateConnectedUsersFromActivity(userId, message) {
+    // Presence has three layers:
+    // - `socketId`: one live browser tab/socket connection. This is the most precise activity target.
+    // - `userId`: derived server-side from the shared user-secret cookie, so multiple tabs from one browser profile can share it.
+    // - displayed name: combines an IP-derived word with the `userId`, so it is human-readable but not a stable routing key.
+    // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
+    const messageSocketId = message.socket || null;
+    if (!userId && messageSocketId === null) return;
+    let changed = false;
+    const focusPoint = getMessageFocusPoint(message);
+    Object.values(this.users).forEach((user) => {
+      if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
+      changed =
+        applyConnectedUserActivity(
+          user,
+          message,
+          focusPoint,
+          messageSocketId,
+        ) || changed;
+    });
+    if (changed) this.renderConnectedUsers();
+  }
+
+  /** @param {BoardMessage} message */
+  updateCurrentConnectedUserFromActivity(message) {
+    if (!Tools.connection.socket?.id) return;
+    const current = this.users[Tools.connection.socket.id];
+    if (!current) return;
+    this.updateConnectedUsersFromActivity(
+      current.userId,
+      Object.assign({}, message, { socket: current.socketId }),
+    );
+  }
+
+  initConnectedUsersUI() {
+    const toggle = document.getElementById("connectedUsersToggle");
+    const panel = document.getElementById("connectedUsersPanel");
+    if (!(toggle instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
+      return;
+    }
+    this.panelOpen = toggle.getAttribute("aria-expanded") === "true";
+    syncConnectedUsersToggleLabel();
+    if (toggle.dataset.connectedUsersUiBound !== "true") {
+      toggle.dataset.connectedUsersUiBound = "true";
+      toggle.addEventListener("click", () => {
+        this.setConnectedUsersPanelOpen(!this.panelOpen);
+      });
+      toggle.addEventListener("blur", () => {
+        window.setTimeout(() => {
+          if (
+            !panel.matches(":hover") &&
+            !panel.contains(document.activeElement) &&
+            document.activeElement !== toggle
+          ) {
+            this.setConnectedUsersPanelOpen(false);
+          }
+        }, 0);
+      });
+      panel.addEventListener("keydown", (evt) => {
+        if (evt.key === "Escape") {
+          evt.preventDefault();
+          this.setConnectedUsersPanelOpen(false);
+          toggle.focus();
+        }
+      });
+    }
+    this.renderConnectedUsers();
+  }
+}
+
+Tools.presence = new PresenceModule();
 
 function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
   return !!(
@@ -1903,73 +2044,6 @@ function createConnectedUserRow(user) {
   return row;
 }
 
-function renderConnectedUsers() {
-  const list = getConnectedUsersList();
-  const panel = getConnectedUsersPanel();
-  /** @type {{[socketId: string]: ConnectedUserRow}} */
-  const rowsBySocketId = {};
-  Array.from(list.children).forEach((child) => {
-    if (
-      child instanceof HTMLLIElement &&
-      child.dataset.socketId &&
-      child.classList.contains("connected-user-row")
-    ) {
-      rowsBySocketId[child.dataset.socketId] = /** @type {ConnectedUserRow} */ (
-        child
-      );
-    }
-  });
-
-  const users = Object.values(getConnectedUsers()).sort((left, right) =>
-    left.name.localeCompare(right.name),
-  );
-
-  users.forEach((user, index) => {
-    const row = rowsBySocketId[user.socketId] || createConnectedUserRow(user);
-    delete rowsBySocketId[user.socketId];
-    updateConnectedUserRow(row, user);
-    const currentChild = list.children[index];
-    if (currentChild !== row) {
-      list.insertBefore(row, currentChild || null);
-    }
-  });
-
-  Object.values(rowsBySocketId).forEach((row) => {
-    row.remove();
-  });
-  panel.dataset.empty = users.length === 0 ? "true" : "false";
-  if (users.length === 0 && Tools.presence.panelOpen) {
-    Tools.presence.setConnectedUsersPanelOpen(false);
-  }
-  syncConnectedUsersToggleLabel();
-}
-
-function setConnectedUsersPanelOpen(/** @type {boolean} */ open) {
-  const shouldOpen = open && getConnectedUsersCount() > 0;
-  const panel = getConnectedUsersPanel();
-  const toggle = getConnectedUsersToggle();
-  Tools.presence.panelOpen = shouldOpen;
-  panel.classList.toggle("connected-users-panel-hidden", !shouldOpen);
-  toggle.classList.toggle("board-presence-toggle-open", shouldOpen);
-  toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-}
-
-function upsertConnectedUser(/** @type {ConnectedUser} */ user) {
-  getConnectedUsers()[user.socketId] = Object.assign(
-    {},
-    getConnectedUsers()[user.socketId] || {},
-    user,
-  );
-  Tools.presence.renderConnectedUsers();
-}
-
-function removeConnectedUser(/** @type {string} */ socketId) {
-  const user = getConnectedUsers()[socketId];
-  if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
-  delete getConnectedUsers()[socketId];
-  Tools.presence.renderConnectedUsers();
-}
-
 /**
  * @param {ConnectedUser} user
  * @param {string | undefined} userId
@@ -2029,75 +2103,6 @@ function applyConnectedUserActivity(
   return changed;
 }
 
-function updateConnectedUsersFromActivity(
-  /** @type {string | undefined} */ userId,
-  /** @type {BoardMessage} */ message,
-) {
-  // Presence has three layers:
-  // - `socketId`: one live browser tab/socket connection. This is the most precise activity target.
-  // - `userId`: derived server-side from the shared user-secret cookie, so multiple tabs from one browser profile can share it.
-  // - displayed name: combines an IP-derived word with the `userId`, so it is human-readable but not a stable routing key.
-  // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
-  const messageSocketId = message.socket || null;
-  if (!userId && messageSocketId === null) return;
-  let changed = false;
-  const focusPoint = getMessageFocusPoint(message);
-  Object.values(getConnectedUsers()).forEach((user) => {
-    if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
-    changed =
-      applyConnectedUserActivity(user, message, focusPoint, messageSocketId) ||
-      changed;
-  });
-  if (changed) Tools.presence.renderConnectedUsers();
-}
-
-function updateCurrentConnectedUserFromActivity(
-  /** @type {BoardMessage} */ message,
-) {
-  if (!Tools.connection.socket?.id) return;
-  const current = getConnectedUsers()[Tools.connection.socket.id];
-  if (!current) return;
-  Tools.presence.updateConnectedUsersFromActivity(
-    current.userId,
-    Object.assign({}, message, { socket: current.socketId }),
-  );
-}
-
-function initConnectedUsersUI() {
-  const toggle = document.getElementById("connectedUsersToggle");
-  const panel = document.getElementById("connectedUsersPanel");
-  if (!(toggle instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
-    return;
-  }
-  Tools.presence.panelOpen = toggle.getAttribute("aria-expanded") === "true";
-  syncConnectedUsersToggleLabel();
-  if (toggle.dataset.connectedUsersUiBound !== "true") {
-    toggle.dataset.connectedUsersUiBound = "true";
-    toggle.addEventListener("click", () => {
-      Tools.presence.setConnectedUsersPanelOpen(!Tools.presence.panelOpen);
-    });
-    toggle.addEventListener("blur", () => {
-      window.setTimeout(() => {
-        if (
-          !panel.matches(":hover") &&
-          !panel.contains(document.activeElement) &&
-          document.activeElement !== toggle
-        ) {
-          Tools.presence.setConnectedUsersPanelOpen(false);
-        }
-      }, 0);
-    });
-    panel.addEventListener("keydown", (evt) => {
-      if (evt.key === "Escape") {
-        evt.preventDefault();
-        Tools.presence.setConnectedUsersPanelOpen(false);
-        toggle.focus();
-      }
-    });
-  }
-  Tools.presence.renderConnectedUsers();
-}
-
 function startConnection() {
   const reusableSocket =
     Tools.connection.socket && !Tools.connection.socket.connected
@@ -2109,11 +2114,7 @@ function startConnection() {
   }
   Tools.connection.state = "connecting";
   Tools.replay.awaitingSnapshot = true;
-  Object.values(getConnectedUsers()).forEach((user) => {
-    if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
-  });
-  Tools.presence.users = /** @type {ConnectedUserMap} */ ({});
-  Tools.presence.renderConnectedUsers();
+  Tools.presence.clearConnectedUsers();
 
   void (async function openSocketWithBaseline() {
     if (!getAttachedBoardDom()) {
@@ -3160,21 +3161,21 @@ function applyHooks(hooks, object) {
   });
 }
 
-// Utility functions
-
-/**
- * @param {string | undefined} prefix
- * @param {string | undefined} suffix
- */
-function generateUID(prefix, suffix) {
-  let uid = Date.now().toString(36); //Create the uids in chronological order
-  uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
-  if (prefix) uid = prefix + uid;
-  if (suffix) uid = uid + suffix;
-  return uid;
+export class IdModule {
+  /**
+   * @param {string} [prefix]
+   * @param {string} [suffix]
+   */
+  generateUID(prefix, suffix) {
+    let uid = Date.now().toString(36); //Create the uids in chronological order
+    uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
+    if (prefix) uid = prefix + uid;
+    if (suffix) uid = uid + suffix;
+    return uid;
+  }
 }
 
-Tools.ids = { generateUID };
+Tools.ids = new IdModule();
 
 /**
  * @param {string} name
