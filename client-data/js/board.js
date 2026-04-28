@@ -1556,15 +1556,6 @@ function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
   );
 }
 
-/**
- * @param {unknown} value
- * @returns {number | null}
- */
-function toFiniteCoordinate(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
 function getConnectedUsersToggle() {
   return getRequiredElement("connectedUsersToggle");
 }
@@ -1738,11 +1729,7 @@ function getMessageFocusPoint(message) {
   }
 
   if ("x" in message) {
-    const pointX = toFiniteCoordinate(message.x);
-    const pointY = toFiniteCoordinate(message.y);
-    if (pointX !== null && pointY !== null) {
-      return { x: pointX, y: pointY };
-    }
+    return { x: message.x, y: message.y };
   }
 
   if (message.type === MutationType.UPDATE && "id" in message) {
