@@ -137,7 +137,7 @@ async function startDrawer(page, userIndex) {
 
       (async () => {
         while (true) {
-          const id = tools.generateUID("load-");
+          const id = tools.ids.generateUID("load-");
           let point = {
             x: 200 + Math.round(Math.random() * 800),
             y: 200 + Math.round(Math.random() * 600),

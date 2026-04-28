@@ -200,7 +200,7 @@ export async function runPeerVisibleEraseBenchmark(maxChildren) {
           tool: eraserTool,
           type: deleteType,
           id: targetId,
-          clientMutationId: window.WBOApp.generateUID("cm-"),
+          clientMutationId: window.WBOApp.ids.generateUID("cm-"),
         });
       },
       {

@@ -704,6 +704,17 @@ export type AppInteractionModule = {
   showMyCursor: boolean;
 };
 
+/** Runtime asset URL resolution for board and tool modules. */
+export type AppAssetModule = {
+  resolveAssetPath: (assetPath: string) => string;
+  getToolAssetUrl: (toolName: string, assetFile: string) => string;
+};
+
+/** Runtime id generation. */
+export type AppIdModule = {
+  generateUID: (prefix?: string, suffix?: string) => string;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -806,6 +817,8 @@ export type AppToolsState = {
   writes: AppWriteModule;
   toolRegistry: AppToolRegistryModule;
   interaction: AppInteractionModule;
+  assets: AppAssetModule;
+  ids: AppIdModule;
   dom: BoardDomModule;
   getRateLimitDefinition: (
     kind: RateLimitKind,
@@ -863,7 +876,6 @@ export type AppToolsState = {
   /** Takes ownership of data. Callers must not mutate it after queueing. */
   queueProtectedWrite: (data: LiveBoardMessage) => void;
   flushTurnstilePendingWrites: () => void;
-  getToolAssetUrl: (toolName: string, assetFile: string) => string;
   mountTool: (
     toolModule: ToolModule,
     toolState: unknown,
@@ -879,7 +891,6 @@ export type AppToolsState = {
   /** Takes ownership of message. Callers must not mutate it after sending. */
   send: (message: LiveBoardMessage) => boolean | undefined;
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
-  generateUID: (prefix?: string, suffix?: string) => string;
   getEffectiveRateLimit: (kind: RateLimitKind) => RateLimitDefinition;
   isTurnstileValidated: () => boolean;
   clearTurnstileRefreshTimeout: () => void;
@@ -919,7 +930,6 @@ export type AppToolsState = {
   messageForTool: (message: BoardMessage) => void;
   newUnreadMessage: () => void;
   startConnection: () => void;
-  resolveAssetPath: (assetPath: string) => string;
 };
 
 export type MountedAppToolsState = AppToolsState & {

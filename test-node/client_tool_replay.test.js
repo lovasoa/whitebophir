@@ -450,7 +450,9 @@ function createHarness() {
         Number(size) || 4,
       getOpacity: () => 1,
     },
-    generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
+    ids: {
+      generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
+    },
     toBoardCoordinate: (/** @type {unknown} */ value) =>
       Math.round(Number(value) || 0),
     pageCoordinateToBoard: (/** @type {unknown} */ value) =>
@@ -677,7 +679,9 @@ function createInputTools(overrides = {}) {
         Number(size) || 4,
       getOpacity: () => 1,
     },
-    generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
+    ids: {
+      generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
+    },
     toBoardCoordinate: (/** @type {number} */ value) => Math.round(value),
     pageCoordinateToBoard: (/** @type {number} */ value) => Math.round(value),
     getEffectiveRateLimit: (/** @type {string} */ kind) => {
@@ -797,7 +801,7 @@ function createInputToolRuntime(tools) {
       serverConfig: tools.config.serverConfig,
     },
     ids: {
-      generateUID: (prefix, suffix) => tools.generateUID(prefix, suffix),
+      generateUID: (prefix, suffix) => tools.ids.generateUID(prefix, suffix),
     },
     rendering: {
       markDrawingEvent: () => {
@@ -855,11 +859,11 @@ function createHarnessToolRuntime(app) {
       serverConfig: app.config.serverConfig,
     },
     ids: {
-      generateUID: (prefix, suffix) => app.generateUID(prefix, suffix),
+      generateUID: (prefix, suffix) => app.ids.generateUID(prefix, suffix),
     },
     rendering: {
       markDrawingEvent: () => {
-        app.drawingEvent = true;
+        app.interaction.drawingEvent = true;
       },
     },
     messages: {
@@ -2003,7 +2007,7 @@ test("Hand selector keeps the original element selected after duplicate", async 
   let nextId = 1;
 
   try {
-    globalAny.Tools.generateUID = (/** @type {string} */ prefix) => {
+    globalAny.Tools.ids.generateUID = (/** @type {string} */ prefix) => {
       nextId += 1;
       return `${prefix}-${nextId}`;
     };
@@ -2103,7 +2107,7 @@ test("Hand box selection can use IntersectionObserver without target bbox reads"
   );
   try {
     let nextId = 1;
-    globalAny.Tools.generateUID = (/** @type {string} */ prefix) => {
+    globalAny.Tools.ids.generateUID = (/** @type {string} */ prefix) => {
       nextId += 1;
       return `${prefix}-${nextId}`;
     };

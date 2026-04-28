@@ -297,17 +297,17 @@ function normalizeBoardAssetPath(assetPath) {
  * @param {string} assetPath
  * @returns {string}
  */
-Tools.resolveAssetPath = function resolveAssetPath(assetPath) {
-  return normalizeBoardAssetPath(assetPath);
-};
-
-/**
- * @param {string} toolName
- * @param {string} assetFile
- * @returns {string}
- */
-Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
-  return Tools.resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
+Tools.assets = {
+  resolveAssetPath: normalizeBoardAssetPath,
+  /**
+   * @param {string} toolName
+   * @param {string} assetFile
+   */
+  getToolAssetUrl(toolName, assetFile) {
+    return Tools.assets.resolveAssetPath(
+      getToolRuntimeAssetPath(toolName, assetFile),
+    );
+  },
 };
 
 Tools.toolRegistry = {
@@ -2351,7 +2351,7 @@ function syncToolButton(toolName, tool) {
   const translatedToolName = Tools.i18n.t(toolName);
   parts.label.textContent = translatedToolName;
   button.setAttribute("aria-label", translatedToolName);
-  parts.primaryIcon.src = Tools.resolveAssetPath(tool.icon);
+  parts.primaryIcon.src = Tools.assets.resolveAssetPath(tool.icon);
   parts.primaryIcon.alt = "";
   button.classList.toggle("oneTouch", tool.oneTouch === true);
   button.classList.toggle("hasSecondary", !!tool.secondary);
@@ -2360,7 +2360,9 @@ function syncToolButton(toolName, tool) {
     ? `${translatedToolName} (${Tools.i18n.t("keyboard shortcut")}: ${tool.shortcut})`
     : translatedToolName;
   if (tool.secondary && parts.secondaryIcon) {
-    parts.secondaryIcon.src = Tools.resolveAssetPath(tool.secondary.icon);
+    parts.secondaryIcon.src = Tools.assets.resolveAssetPath(
+      tool.secondary.icon,
+    );
     parts.secondaryIcon.alt = "";
     button.title += ` [${Tools.i18n.t("click_to_toggle")}]`;
   } else if (parts.secondaryIcon) {
@@ -2440,7 +2442,7 @@ function toggleToolButtonMode(toolName, name, icon) {
   const primaryIconSrc = parts.primaryIcon.src;
   parts.primaryIcon.src = secondaryIcon.src;
   secondaryIcon.src = primaryIconSrc;
-  parts.primaryIcon.src = Tools.resolveAssetPath(icon);
+  parts.primaryIcon.src = Tools.assets.resolveAssetPath(icon);
   parts.label.textContent = Tools.i18n.t(name);
 }
 
@@ -2449,7 +2451,7 @@ function toggleToolButtonMode(toolName, name, icon) {
  * @returns {HTMLLinkElement}
  */
 function addToolStylesheet(href) {
-  const resolvedHref = Tools.resolveAssetPath(href);
+  const resolvedHref = Tools.assets.resolveAssetPath(href);
   const existing = Array.from(
     document.querySelectorAll('link[rel="stylesheet"]'),
   ).find((link) => link.getAttribute("href") === resolvedHref);
@@ -2500,7 +2502,9 @@ bindRenderedToolButtons();
  */
 async function loadToolModule(toolName) {
   const namespace = /** @type {ToolModule} */ (
-    await import(Tools.resolveAssetPath(getToolModuleImportPath(toolName)))
+    await import(
+      Tools.assets.resolveAssetPath(getToolModuleImportPath(toolName))
+    )
   );
   if (typeof namespace.boot !== "function") {
     throw new Error(`Missing boot export for ${toolName}.`);
@@ -2554,7 +2558,8 @@ function createToolRuntimeModules(mountedTools) {
       serverConfig: mountedTools.config.serverConfig,
     },
     ids: {
-      generateUID: (prefix, suffix) => mountedTools.generateUID(prefix, suffix),
+      generateUID: (prefix, suffix) =>
+        mountedTools.ids.generateUID(prefix, suffix),
     },
     rendering: {
       markDrawingEvent: () => {
@@ -2584,7 +2589,7 @@ function createToolBootContext(toolName) {
   })();
   return {
     runtime: createToolRuntimeModules(mountedTools),
-    assetUrl: (assetFile) => Tools.getToolAssetUrl(toolName, assetFile),
+    assetUrl: (assetFile) => Tools.assets.getToolAssetUrl(toolName, assetFile),
   };
 }
 
@@ -3052,7 +3057,7 @@ Tools.drawAndSend = (data) => {
   }
 
   if (toolName !== "cursor") {
-    data.clientMutationId = Tools.generateUID("cm-");
+    data.clientMutationId = Tools.ids.generateUID("cm-");
   }
   const rollback = Tools.captureOptimisticRollback(data);
 
@@ -3193,13 +3198,15 @@ Tools.applyHooks = function applyHooks(hooks, object) {
  * @param {string | undefined} prefix
  * @param {string | undefined} suffix
  */
-Tools.generateUID = function generateUID(prefix, suffix) {
+function generateUID(prefix, suffix) {
   let uid = Date.now().toString(36); //Create the uids in chronological order
   uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
   if (prefix) uid = prefix + uid;
   if (suffix) uid = uid + suffix;
   return uid;
-};
+}
+
+Tools.ids = { generateUID };
 
 /**
  * @param {string} name

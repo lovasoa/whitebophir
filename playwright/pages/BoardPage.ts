@@ -430,7 +430,7 @@ window.turnstile = {
         };
         const startPencilPath = (tools: AppToolsState, path: PencilPath) => {
           tools.preferences.setColor(path.color);
-          const lineId = tools.generateUID("l");
+          const lineId = tools.ids.generateUID("l");
           tools.drawAndSend({
             tool: pencilToolCode,
             type: createType,
@@ -814,7 +814,7 @@ window.turnstile = {
       ({ handTool, targetId, copyType }) => {
         const rect = document.getElementById(targetId);
         if (!rect) throw new Error(`Missing shape ${targetId}`);
-        const duplicateId = window.WBOApp.generateUID(targetId[0] ?? "s");
+        const duplicateId = window.WBOApp.ids.generateUID(targetId[0] ?? "s");
         window.WBOApp.drawAndSend({
           tool: handTool,
           _children: [{ type: copyType, id: targetId, newid: duplicateId }],
