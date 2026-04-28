@@ -240,7 +240,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
 
   /** @param {string} message */
   function showTurnstileFailureStatus(message) {
-    Tools.showBoardStatus({
+    Tools.status.showBoardStatus({
       hidden: false,
       state: "paused",
       title: message,

@@ -621,6 +621,15 @@ export type AppStatusModule = {
   rateLimitNoticeTimer: number | null;
   boardStatusTimer: number | null;
   explicitBoardStatus: ExplicitBoardStatus;
+  clearRateLimitNoticeTimer: () => void;
+  clearBoardStatusTimer: () => void;
+  showRateLimitNotice: (message: string, retryAfterMs: number) => void;
+  hideRateLimitNotice: () => void;
+  showUnknownMutationError: (reason?: string) => void;
+  showBoardStatus: (view: BoardStatusView, durationMs?: number) => void;
+  clearBoardStatus: () => void;
+  getBoardStatusView: () => BoardStatusView;
+  syncWriteStatusIndicator: () => void;
 };
 
 /** Turnstile validation state and protected-write queue. */
@@ -838,17 +847,9 @@ export type AppToolsState = {
   coordinates: AppCoordinateModule;
   dom: BoardDomModule;
   clearBufferedWriteTimer: () => void;
-  clearRateLimitNoticeTimer: () => void;
-  clearBoardStatusTimer: () => void;
   isWritePaused: (now?: number) => boolean;
   canBufferWrites: () => boolean;
   whenBoardWritable: () => Promise<void>;
-  showRateLimitNotice: (message: string, retryAfterMs: number) => void;
-  hideRateLimitNotice: () => void;
-  showBoardStatus: (view: BoardStatusView, durationMs?: number) => void;
-  clearBoardStatus: () => void;
-  getBoardStatusView: () => BoardStatusView;
-  syncWriteStatusIndicator: () => void;
   clearBoardCursors: () => void;
   resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
@@ -916,7 +917,6 @@ export type AppToolsState = {
   hideTurnstileOverlay: () => void;
   refreshTurnstile: () => void;
   showTurnstileWidget: () => void;
-  showUnknownMutationError: (reason?: string) => void;
   shouldDisableTool: (toolName: string) => boolean;
   shouldDisplayTool: (toolName: string) => boolean;
   canUseTool: (toolName: string) => boolean;
