@@ -175,7 +175,9 @@ test("viewport expands to the full board at minimum zoom", async () => {
         style: {},
         dataset: {},
       },
-      syncDrawToolAvailability: () => {},
+      toolRegistry: {
+        syncDrawToolAvailability: () => {},
+      },
     });
     tools.dom = {
       status: "attached",

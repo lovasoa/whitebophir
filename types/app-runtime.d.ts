@@ -597,6 +597,7 @@ export type AppAccessModule = {
   readonly boardState: AppBoardState;
   readonly readOnly: boolean;
   readonly canWrite: boolean;
+  applyBoardState: (state: unknown) => void;
 };
 
 export type AppInitialPreferences = {
@@ -734,6 +735,7 @@ export type AppConnectionModule = {
   state: BoardConnectionState;
   hasConnectedOnce: boolean;
   socketIOExtraHeaders: SocketHeaders | null;
+  start: () => void;
 };
 
 /** Buffered write queue and local/server write throttling state. */
@@ -911,11 +913,7 @@ export type ToolRuntimeModules = {
   readonly permissions: ToolPermissionRuntimeModule;
 };
 
-/**
- * Transitional root runtime while board.js is being split into modules.
- * New state should land inside a documented module instead of adding another
- * unrelated top-level field.
- */
+/** Runtime root composed only of documented modules. */
 export type AppToolsState = {
   i18n: { t: (s: string) => string };
   identity: AppIdentityModule;
@@ -938,8 +936,6 @@ export type AppToolsState = {
   rateLimits: AppRateLimitModule;
   coordinates: AppCoordinateModule;
   dom: BoardDomModule;
-  setBoardState: (state: unknown) => void;
-  startConnection: () => void;
 };
 
 export type MountedAppToolsState = AppToolsState & {

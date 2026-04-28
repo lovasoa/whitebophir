@@ -81,7 +81,7 @@ async function bootBoardPage() {
   await boardModule.attachBoardDom(document);
   tools.viewportState.controller.install();
   setBoardBootPhase("connecting");
-  tools.startConnection();
+  tools.connection.start();
 
   tools.viewportState.controller.installHashObservers();
   tools.viewportState.controller.applyFromHash();

@@ -424,6 +424,7 @@ Tools.connection = {
   state: /** @type {BoardConnectionState} */ ("idle"),
   hasConnectedOnce: false,
   socketIOExtraHeaders: null,
+  start: startConnection,
 };
 function initializeShellControls() {
   const colorChooser = getRequiredInput("chooseColor");
@@ -550,7 +551,7 @@ function clearBoardStatusTimer() {
 
 /** @param {number} [delayMs] */
 function scheduleSocketReconnect(delayMs = 250) {
-  window.setTimeout(() => Tools.startConnection(), Math.max(0, delayMs));
+  window.setTimeout(() => Tools.connection.start(), Math.max(0, delayMs));
 }
 
 /**
@@ -1308,7 +1309,7 @@ async function processAuthoritativeReplayBatch(batch) {
       childCount: batch._children.length,
     });
     Tools.replay.beginAuthoritativeResync();
-    Tools.startConnection();
+    Tools.connection.start();
     return false;
   }
 
@@ -1354,7 +1355,7 @@ async function processIncomingBroadcast(msg) {
         incomingSeq: msg.seq,
       });
       Tools.replay.beginAuthoritativeResync();
-      Tools.startConnection();
+      Tools.connection.start();
       return false;
     }
   }
@@ -1436,6 +1437,7 @@ Tools.access = {
   },
   readOnly: false,
   canWrite: true,
+  applyBoardState,
 };
 
 /** @param {string} toolName */
@@ -1488,12 +1490,13 @@ function syncDrawToolAvailability(force) {
 }
 
 /** @param {unknown} state */
-Tools.setBoardState = function setBoardState(state) {
+function applyBoardState(state) {
   const boardState = /** @type {AppBoardState} */ (normalizeBoardState(state));
   Tools.access = {
     boardState,
     readOnly: boardState.readonly,
     canWrite: boardState.canWrite,
+    applyBoardState,
   };
 
   const hideEditingTools = Tools.access.readOnly && !Tools.access.canWrite;
@@ -1518,7 +1521,7 @@ Tools.setBoardState = function setBoardState(state) {
   ) {
     Tools.toolRegistry.change("hand");
   }
-};
+}
 
 /** @param {string} toolName */
 function shouldDisplayTool(toolName) {
@@ -2120,7 +2123,7 @@ function initConnectedUsersUI() {
   Tools.presence.renderConnectedUsers();
 }
 
-Tools.startConnection = () => {
+function startConnection() {
   const reusableSocket =
     Tools.connection.socket && !Tools.connection.socket.connected
       ? Tools.connection.socket
@@ -2208,7 +2211,7 @@ Tools.startConnection = () => {
         enqueueIncomingBroadcast(msg);
       },
     );
-    socket.on(SocketEvents.BOARDSTATE, Tools.setBoardState);
+    socket.on(SocketEvents.BOARDSTATE, Tools.access.applyBoardState);
     socket.on(
       SocketEvents.MUTATION_REJECTED,
       function onMutationRejected(
@@ -2316,7 +2319,7 @@ Tools.startConnection = () => {
       socket.connect();
     }
   })();
-};
+}
 function saveBoardNametoLocalStorage() {
   const boardName = Tools.identity.boardName;
   const key = "recent-boards";
@@ -3385,7 +3388,7 @@ Tools.preferences = {
   setSize,
   getOpacity,
 };
-Tools.setBoardState(
+Tools.access.applyBoardState(
   parseEmbeddedJson("board-state", {
     readonly: false,
     canWrite: true,
