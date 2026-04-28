@@ -27,8 +27,9 @@
 import { MutationType } from "../../js/mutation_type.js";
 import { ToolCodes } from "../tool-order.js";
 
-/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
+/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof createClearMessage>} ClearMessage */
+/** @typedef {{board: ToolRuntimeModules["board"], identity: ToolRuntimeModules["identity"], writes: ToolRuntimeModules["writes"]}} ClearToolState */
 
 export const toolId = "clear";
 export const shortcut = "c";
@@ -40,27 +41,31 @@ export const liveMessageFields = /** @type {const} */ ({
   [MutationType.CLEAR]: {},
 });
 
-/** @param {MountedAppToolsState} tools */
-function createClearMessage(tools) {
+/** @param {ClearToolState} state */
+function createClearMessage(state) {
   return {
     tool: ToolCodes.CLEAR,
     type: MutationType.CLEAR,
     id: "",
-    token: tools.token,
+    token: state.identity.token,
   };
 }
 
-/** @param {MountedAppToolsState} tools */
-export function onstart(tools) {
-  tools.drawAndSend(createClearMessage(tools));
+/** @param {ClearToolState} state */
+export function onstart(state) {
+  state.writes.drawAndSend(createClearMessage(state));
 }
 
-/** @param {MountedAppToolsState} tools */
-export function draw(tools) {
-  tools.drawingArea.innerHTML = "";
+/** @param {ClearToolState} state */
+export function draw(state) {
+  state.board.drawingArea.innerHTML = "";
 }
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  return ctx.app;
+  return {
+    board: ctx.runtime.board,
+    identity: ctx.runtime.identity,
+    writes: ctx.runtime.writes,
+  };
 }

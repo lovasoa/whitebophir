@@ -619,6 +619,24 @@ function createToolBootContext(app, assetUrl) {
   return {
     app,
     board,
+    runtime: {
+      board: {
+        ...board,
+        createSVGElement: app.createSVGElement,
+        toBoardCoordinate: app.toBoardCoordinate,
+        pageCoordinateToBoard: app.pageCoordinateToBoard,
+      },
+      writes: {
+        drawAndSend: app.drawAndSend,
+        send: app.send,
+        canBufferWrites: app.canBufferWrites,
+        whenBoardWritable: app.whenBoardWritable,
+      },
+      identity: {
+        boardName: app.boardName || "",
+        token: app.token || null,
+      },
+    },
     assetUrl,
   };
 }

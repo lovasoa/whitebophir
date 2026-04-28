@@ -494,6 +494,7 @@ export type ServerConfig = {
 export type ToolBootContext = {
   app: MountedAppToolsState;
   board: AttachedBoardDomModule;
+  runtime: ToolRuntimeModules;
   assetUrl: (assetFile: string) => string;
 };
 
@@ -573,6 +574,36 @@ export type AttachedBoardDomModule = {
 };
 
 export type BoardDomModule = DetachedBoardDomModule | AttachedBoardDomModule;
+
+/** Tool-facing board access. Tool code gets attached DOM and board math only. */
+export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
+  createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
+  toBoardCoordinate: (value: unknown) => number;
+  pageCoordinateToBoard: (value: unknown) => number;
+};
+
+/** Tool-facing write channel. Owns message send/queue semantics. */
+export type ToolWriteRuntimeModule = {
+  /** Takes ownership of message. Callers must not mutate it after sending. */
+  drawAndSend: (message: LiveBoardMessage) => boolean | undefined;
+  /** Takes ownership of message. Callers must not mutate it after sending. */
+  send: (message: LiveBoardMessage) => boolean | undefined;
+  canBufferWrites: () => boolean;
+  whenBoardWritable: () => Promise<void>;
+};
+
+/** Tool-facing board identity. */
+export type ToolIdentityRuntimeModule = {
+  readonly boardName: string;
+  readonly token: string | null;
+};
+
+/** Restricted runtime modules passed to tool boot. */
+export type ToolRuntimeModules = {
+  readonly board: ToolBoardRuntimeModule;
+  readonly writes: ToolWriteRuntimeModule;
+  readonly identity: ToolIdentityRuntimeModule;
+};
 
 /**
  * Transitional root runtime while board.js is being split into modules.

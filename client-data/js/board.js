@@ -80,7 +80,7 @@ import {
 } from "../tools/tool-defaults.js";
 import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
 
-/** @import { AppBoardState, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeModules } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.Tools = Tools;
@@ -2461,6 +2461,31 @@ async function loadToolModule(toolName) {
 }
 
 /**
+ * @param {MountedAppToolsState} mountedTools
+ * @returns {ToolRuntimeModules}
+ */
+function createToolRuntimeModules(mountedTools) {
+  return {
+    board: {
+      ...mountedTools.dom,
+      createSVGElement: mountedTools.createSVGElement,
+      toBoardCoordinate: mountedTools.toBoardCoordinate,
+      pageCoordinateToBoard: mountedTools.pageCoordinateToBoard,
+    },
+    writes: {
+      drawAndSend: mountedTools.drawAndSend,
+      send: mountedTools.send,
+      canBufferWrites: mountedTools.canBufferWrites,
+      whenBoardWritable: mountedTools.whenBoardWritable,
+    },
+    identity: {
+      boardName: mountedTools.boardName,
+      token: mountedTools.token,
+    },
+  };
+}
+
+/**
  * @param {string} toolName
  * @returns {ToolBootContext}
  */
@@ -2475,6 +2500,7 @@ function createToolBootContext(toolName) {
   return {
     app: mountedTools,
     board: mountedTools.dom,
+    runtime: createToolRuntimeModules(mountedTools),
     assetUrl: (assetFile) => Tools.getToolAssetUrl(toolName, assetFile),
   };
 }
