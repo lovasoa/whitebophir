@@ -119,11 +119,12 @@ const config = {
   makeUpdateMessage: (state, x, y, evt) => {
     const start = state.currentShape;
     if (!start) return null;
-    if (evt) {
-      state.secondary.active = state.secondary.active || evt.shiftKey;
+    const secondary = state.secondary;
+    if (evt && secondary) {
+      secondary.active = secondary.active || evt.shiftKey;
     }
     state.lastPos = { x, y };
-    if (state.secondary?.active) {
+    if (secondary?.active) {
       const constrained = constrainEqualSpanToBoard(state, start, x, y);
       x = constrained.x;
       y = constrained.y;
@@ -139,10 +140,12 @@ const config = {
   }),
   applyShapeGeometry: (shape, data) => {
     const ellipse = /** @type {SVGEllipseElement} */ (shape);
-    ellipse.cx.baseVal.value = Math.round((data.x2 + data.x) / 2);
-    ellipse.cy.baseVal.value = Math.round((data.y2 + data.y) / 2);
-    ellipse.rx.baseVal.value = Math.abs(data.x2 - data.x) / 2;
-    ellipse.ry.baseVal.value = Math.abs(data.y2 - data.y) / 2;
+    const x = data.x ?? data.x2;
+    const y = data.y ?? data.y2;
+    ellipse.cx.baseVal.value = Math.round((data.x2 + x) / 2);
+    ellipse.cy.baseVal.value = Math.round((data.y2 + y) / 2);
+    ellipse.rx.baseVal.value = Math.abs(data.x2 - x) / 2;
+    ellipse.ry.baseVal.value = Math.abs(data.y2 - y) / 2;
   },
 };
 export const secondary = config.secondary;

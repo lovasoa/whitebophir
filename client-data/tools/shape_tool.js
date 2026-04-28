@@ -6,6 +6,11 @@ import { clampCoord, LIMITS } from "../js/message_common.js";
 /** @typedef {typeof import("./tool-order.js").ToolCodes} ShapeToolCodeMap */
 /** @typedef {ShapeToolCodeMap["RECTANGLE"] | ShapeToolCodeMap["ELLIPSE"] | ShapeToolCodeMap["STRAIGHT_LINE"]} ShapeToolCode */
 /** @typedef {{config: {contract: {toolCode: ShapeToolCode}}, preferences: ToolRuntimeModules["preferences"]}} ShapeCreateMessageState */
+/** @typedef {MouseEvent | TouchEvent | undefined} ShapePointerEvent */
+/** @typedef {{name: string, icon: string, active: boolean, switch?: (state: ShapeToolState) => void}} ShapeToolSecondary */
+/** @typedef {{tool?: ShapeToolCode, type?: number, id: string, x?: number, y?: number, x2: number, y2: number, color?: string, size?: number, opacity?: number}} ShapeRuntimeMessage */
+/** @typedef {Extract<ShapeToolMessage, {type: typeof MutationType.CREATE}> & {x: number, y: number, x2: number, y2: number}} ShapeCurrentMessage */
+/** @typedef {ReturnType<typeof createShapeToolStateCore> & {config: ShapeToolConfig}} ShapeToolState */
 
 /**
  * @template {ShapeToolCode} TTool
@@ -28,33 +33,28 @@ import { clampCoord, LIMITS } from "../js/message_common.js";
 
 /**
  * @typedef {{
- *   contract: import("./shape_contract.js").ToolContract & {storedTagName: string, toolCode: import("../../types/app-runtime").ToolCode},
- *   secondary?: {name: string, icon: string, active: boolean, switch?: (state: any) => void},
+ *   contract: import("./shape_contract.js").ToolContract & {storedTagName: string, toolCode: ShapeToolCode},
+ *   secondary?: ShapeToolSecondary,
  *   uidPrefix: string,
  *   isShapeElement: (element: Element | null) => boolean,
- *   makeCreateMessage: (state: any, id: string, x: number, y: number) => any,
- *   makeUpdateMessage: (state: any, x: number, y: number, evt: any) => any,
- *   makeFallbackShape: (update: any) => any,
- *   applyShapeGeometry: (shape: SVGElement, data: any) => void,
+ *   makeCreateMessage: (state: ShapeToolState, id: string, x: number, y: number) => ShapeCurrentMessage,
+ *   makeUpdateMessage: (state: ShapeToolState, x: number, y: number, evt: ShapePointerEvent) => ShapeToolMessage | null,
+ *   makeFallbackShape: (update: ShapeToolMessage) => ShapeRuntimeMessage,
+ *   applyShapeGeometry: (shape: SVGElement, data: ShapeRuntimeMessage) => void,
  * }} ShapeToolConfig
  */
 
 /**
- * @typedef {{currentShape: ShapeToolMessage, message: ShapeToolMessage}} ShapePressEffect
+ * @typedef {{currentShape: ShapeCurrentMessage, message: ShapeCurrentMessage}} ShapePressEffect
  */
 
 /**
  * @typedef {{update: ShapeToolMessage | null, shouldSend: boolean, nextLastTime: number, preventDefault: boolean}} ShapeMoveEffect
  */
 
-/**
- * @param {ShapeToolConfig} config
- * @param {ToolBootContext} ctx
- * @returns {any}
- */
-export function bootShapeTool(config, ctx) {
-  /** @type {any} */
-  const state = {
+/** @param {ToolBootContext} ctx */
+function createShapeToolStateCore(ctx) {
+  return {
     board: ctx.runtime.board,
     coordinates: ctx.runtime.coordinates,
     preferences: ctx.runtime.preferences,
@@ -62,11 +62,22 @@ export function bootShapeTool(config, ctx) {
     runtimeConfig: ctx.runtime.config,
     ids: ctx.runtime.ids,
     interaction: ctx.runtime.interaction,
-    currentShape: null,
+    currentShape: /** @type {ShapeCurrentMessage | null} */ (null),
     lastTime: performance.now(),
-    secondary: null,
-    config,
+    secondary: /** @type {ShapeToolSecondary | null} */ (null),
+    lastPos: { x: 0, y: 0 },
   };
+}
+
+/**
+ * @param {ShapeToolConfig} config
+ * @param {ToolBootContext} ctx
+ */
+export function bootShapeTool(config, ctx) {
+  const state = /** @type {ShapeToolState} */ ({
+    ...createShapeToolStateCore(ctx),
+    config,
+  });
   if (config.secondary) {
     const secondary = config.secondary;
     state.secondary = { ...secondary };
@@ -80,7 +91,7 @@ export function bootShapeTool(config, ctx) {
 
 /**
  * @param {ShapeToolConfig} config
- * @returns {(ctx: ToolBootContext) => any}
+ * @returns {(ctx: ToolBootContext) => ShapeToolState}
  */
 export function createShapeToolBoot(config) {
   return (ctx) => bootShapeTool(config, ctx);
@@ -108,7 +119,8 @@ export function makeSeedShapeCreateMessage(state, id, x, y) {
 }
 
 /**
- * @param {ShapeToolCode} tool
+ * @template {ShapeToolCode} TTool
+ * @param {TTool} tool
  * @param {string} id
  * @param {{x: number, y: number}} start
  * @param {number} x
@@ -127,7 +139,8 @@ export function makeBoxShapeUpdateMessage(tool, id, start, x, y) {
 }
 
 /**
- * @param {ShapeToolCode} tool
+ * @template {ShapeToolCode} TTool
+ * @param {TTool} tool
  * @param {string} id
  * @param {number} x
  * @param {number} y
@@ -143,7 +156,7 @@ export function makeLineShapeUpdateMessage(tool, id, x, y) {
 }
 
 /**
- * @param {any} state
+ * @param {ShapeToolState} state
  * @param {{x: number, y: number}} start
  * @param {number} x
  * @param {number} y
@@ -175,8 +188,8 @@ export function constrainEqualSpanToBoard(state, start, x, y) {
 }
 
 /**
- * @param {any} state
- * @param {any} data
+ * @param {ShapeToolState} state
+ * @param {ShapeRuntimeMessage} data
  * @returns {SVGElement}
  */
 function createShape(state, data) {
@@ -202,8 +215,8 @@ function createShape(state, data) {
 }
 
 /**
- * @param {any} state
- * @param {any} data
+ * @param {ShapeToolState} state
+ * @param {ShapeToolMessage} data
  */
 export function drawShapeTool(state, data) {
   const { board, config } = state;
@@ -224,13 +237,12 @@ export function drawShapeTool(state, data) {
   }
   logFrontendEvent("error", "tool.shape.draw_invalid_type", {
     toolId: config.contract.toolId,
-    mutationType: data?.type,
     message: data,
   });
 }
 
 /**
- * @param {any} state
+ * @param {ShapeToolState} state
  * @param {number} x
  * @param {number} y
  * @returns {ShapePressEffect}
@@ -242,7 +254,7 @@ export function createShapePressEffect(state, x, y) {
 }
 
 /**
- * @param {any} state
+ * @param {ShapeToolState} state
  * @param {number} x
  * @param {number} y
  * @param {MouseEvent | TouchEvent} evt
@@ -255,7 +267,7 @@ export function pressShapeTool(state, x, y, evt) {
 }
 
 /**
- * @param {any} state
+ * @param {ShapeToolState} state
  * @param {number} x
  * @param {number} y
  * @param {MouseEvent | TouchEvent | undefined} evt
@@ -291,7 +303,7 @@ export function createShapeMoveEffect(state, x, y, evt, force, now) {
 }
 
 /**
- * @param {any} state
+ * @param {ShapeToolState} state
  * @param {number} x
  * @param {number} y
  * @param {MouseEvent | TouchEvent | undefined} evt
@@ -321,7 +333,7 @@ export function moveShapeTool(state, x, y, evt, force = false) {
 }
 
 /**
- * @param {any} state
+ * @param {ShapeToolState} state
  * @param {number} x
  * @param {number} y
  */

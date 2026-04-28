@@ -136,10 +136,12 @@ const config = {
   }),
   applyShapeGeometry: (rect, data) => {
     const rectangle = /** @type {SVGRectElement} */ (rect);
-    rectangle.x.baseVal.value = Math.min(data.x2, data.x);
-    rectangle.y.baseVal.value = Math.min(data.y2, data.y);
-    rectangle.width.baseVal.value = Math.abs(data.x2 - data.x);
-    rectangle.height.baseVal.value = Math.abs(data.y2 - data.y);
+    const x = data.x ?? data.x2;
+    const y = data.y ?? data.y2;
+    rectangle.x.baseVal.value = Math.min(data.x2, x);
+    rectangle.y.baseVal.value = Math.min(data.y2, y);
+    rectangle.width.baseVal.value = Math.abs(data.x2 - x);
+    rectangle.height.baseVal.value = Math.abs(data.y2 - y);
   },
 };
 

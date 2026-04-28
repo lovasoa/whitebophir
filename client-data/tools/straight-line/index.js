@@ -123,7 +123,7 @@ const config = {
   }),
   applyShapeGeometry: (shape, data) => {
     const line = /** @type {SVGLineElement} */ (shape);
-    if ("x" in data) {
+    if (typeof data.x === "number" && typeof data.y === "number") {
       line.x1.baseVal.value = data.x;
       line.y1.baseVal.value = data.y;
     }
