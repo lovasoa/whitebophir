@@ -2610,18 +2610,8 @@ async function loadToolModule(toolName) {
  */
 function createToolRuntimeModules(mountedTools) {
   return {
-    board: {
-      status: mountedTools.dom.status,
-      board: mountedTools.dom.board,
-      svg: mountedTools.dom.svg,
-      drawingArea: mountedTools.dom.drawingArea,
-      createSVGElement: (name, attrs) =>
-        mountedTools.dom.createSVGElement(name, attrs),
-      toBoardCoordinate: (value) =>
-        mountedTools.coordinates.toBoardCoordinate(value),
-      pageCoordinateToBoard: (value) =>
-        mountedTools.coordinates.pageCoordinateToBoard(value),
-    },
+    board: mountedTools.dom,
+    coordinates: mountedTools.coordinates,
     viewport: mountedTools.viewportState.controller,
     writes: mountedTools.writes,
     identity: mountedTools.identity,

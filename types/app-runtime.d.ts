@@ -833,12 +833,11 @@ export type AppCoordinateModule = {
   pageCoordinateToBoard: (value: unknown) => number;
 };
 
-/** Tool-facing board access. Tool code gets attached DOM and board math only. */
-export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
-  createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
-  toBoardCoordinate: (value: unknown) => number;
-  pageCoordinateToBoard: (value: unknown) => number;
-};
+/** Tool-facing attached board DOM. */
+export type ToolBoardRuntimeModule = AttachedBoardDomModule & BoardDomActions;
+
+/** Tool-facing board-space coordinate conversion. */
+export type ToolCoordinateRuntimeModule = AppCoordinateModule;
 
 /** Tool-facing write channel. Owns message send/queue semantics. */
 export type ToolWriteRuntimeModule = Pick<
@@ -888,6 +887,7 @@ export type ToolPermissionRuntimeModule = Pick<AppAccessModule, "canWrite">;
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = {
   readonly board: ToolBoardRuntimeModule;
+  readonly coordinates: ToolCoordinateRuntimeModule;
   readonly viewport: ViewportController;
   readonly writes: ToolWriteRuntimeModule;
   readonly identity: ToolIdentityRuntimeModule;

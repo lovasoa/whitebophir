@@ -762,9 +762,21 @@ function createUnavailableBoardRuntime() {
     svg: unavailableElement,
     drawingArea: unavailableElement,
     createSVGElement: () => unavailableCapability("board.createSVGElement"),
-    toBoardCoordinate: () => unavailableCapability("board.toBoardCoordinate"),
+    positionElement: () => unavailableCapability("board.positionElement"),
+    clearBoardCursors: () => unavailableCapability("board.clearBoardCursors"),
+    resetBoardViewport: () => unavailableCapability("board.resetBoardViewport"),
+  };
+}
+
+/**
+ * @returns {ToolRuntimeModules["coordinates"]}
+ */
+function createUnavailableCoordinateRuntime() {
+  return {
+    toBoardCoordinate: () =>
+      unavailableCapability("coordinates.toBoardCoordinate"),
     pageCoordinateToBoard: () =>
-      unavailableCapability("board.pageCoordinateToBoard"),
+      unavailableCapability("coordinates.pageCoordinateToBoard"),
   };
 }
 
@@ -806,6 +818,7 @@ function createUnavailableViewportRuntime() {
 function createInputToolRuntime(tools) {
   return {
     board: createUnavailableBoardRuntime(),
+    coordinates: tools.coordinates || createUnavailableCoordinateRuntime(),
     viewport: createUnavailableViewportRuntime(),
     writes: {
       drawAndSend: tools.writes.drawAndSend,
@@ -840,16 +853,8 @@ function createHarnessToolRuntime(app) {
     throw new Error("Tool test runtime requires attached board DOM");
   }
   return {
-    board: {
-      status: app.dom.status,
-      board: app.dom.board,
-      svg: app.dom.svg,
-      drawingArea: app.dom.drawingArea,
-      createSVGElement: (name, attrs) => app.dom.createSVGElement(name, attrs),
-      toBoardCoordinate: (value) => app.coordinates.toBoardCoordinate(value),
-      pageCoordinateToBoard: (value) =>
-        app.coordinates.pageCoordinateToBoard(value),
-    },
+    board: app.dom,
+    coordinates: app.coordinates,
     viewport: app.viewportState.controller,
     writes: app.writes,
     identity: app.identity,

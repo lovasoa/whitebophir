@@ -38,7 +38,7 @@ import { ToolCodes } from "../tool-order.js";
 /** @typedef {Omit<ReturnType<typeof createTextMessage>, "opacity"> & {opacity?: number}} TextCreateMessage */
 /** @typedef {ReturnType<typeof updateTextMessage>} TextUpdateMessage */
 /** @typedef {TextCreateMessage | TextUpdateMessage} TextMessage */
-/** @typedef {{board: ToolRuntimeModules["board"], viewport: ToolRuntimeModules["viewport"], preferences: ToolRuntimeModules["preferences"], writes: ToolRuntimeModules["writes"], runtimeConfig: ToolRuntimeModules["config"], ids: ToolRuntimeModules["ids"], interaction: ToolRuntimeModules["interaction"], boardElement: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
+/** @typedef {{board: ToolRuntimeModules["board"], coordinates: ToolRuntimeModules["coordinates"], viewport: ToolRuntimeModules["viewport"], preferences: ToolRuntimeModules["preferences"], writes: ToolRuntimeModules["writes"], runtimeConfig: ToolRuntimeModules["config"], ids: ToolRuntimeModules["ids"], interaction: ToolRuntimeModules["interaction"], boardElement: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
 
 const TEXT_INPUT_BORDER_PX = 1;
 const TEXT_INPUT_CARET_ROOM_PX = 3;
@@ -61,8 +61,8 @@ function normalizeCurrentTextPosition(state) {
   const maxBoardSize = resolveMaxBoardSize(
     state.runtimeConfig.serverConfig.MAX_BOARD_SIZE,
   );
-  state.curText.x = state.board.toBoardCoordinate(state.curText.x);
-  const normalizedY = state.board.toBoardCoordinate(state.curText.y);
+  state.curText.x = state.coordinates.toBoardCoordinate(state.curText.x);
+  const normalizedY = state.coordinates.toBoardCoordinate(state.curText.y);
   state.curText.y = Math.min(
     Math.max(normalizedY, state.curText.size),
     maxBoardSize,
@@ -311,10 +311,10 @@ function startEdit(state) {
 function editOldText(state, elem) {
   state.curText.id = elem.id;
   const r = elem.getBoundingClientRect();
-  state.curText.x = state.board.pageCoordinateToBoard(
+  state.curText.x = state.coordinates.pageCoordinateToBoard(
     r.left + document.documentElement.scrollLeft,
   );
-  state.curText.y = state.board.pageCoordinateToBoard(
+  state.curText.y = state.coordinates.pageCoordinateToBoard(
     r.top + r.height + document.documentElement.scrollTop,
   );
   state.curText.sentText = elem.textContent || "";
@@ -433,6 +433,7 @@ export function boot(ctx) {
   /** @type {TextState} */
   const state = {
     board: ctx.runtime.board,
+    coordinates: ctx.runtime.coordinates,
     viewport: ctx.runtime.viewport,
     preferences: ctx.runtime.preferences,
     writes: ctx.runtime.writes,

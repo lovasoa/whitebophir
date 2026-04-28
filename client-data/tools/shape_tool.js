@@ -56,6 +56,7 @@ export function bootShapeTool(config, ctx) {
   /** @type {any} */
   const state = {
     board: ctx.runtime.board,
+    coordinates: ctx.runtime.coordinates,
     preferences: ctx.runtime.preferences,
     writes: ctx.runtime.writes,
     runtimeConfig: ctx.runtime.config,
