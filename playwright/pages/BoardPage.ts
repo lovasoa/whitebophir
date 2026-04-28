@@ -420,9 +420,7 @@ window.turnstile = {
         const getTools = () => window.WBOApp;
         const ensurePencilTool = async () => {
           const tools = getTools();
-          if (typeof tools.bootTool === "function") {
-            await tools.bootTool("pencil");
-          }
+          await tools.toolRegistry.bootTool("pencil");
           const pencilTool = tools.toolRegistry.mounted.pencil;
           if (!pencilTool) throw new Error("Missing pencil tool");
           return { tools, pencilTool };
@@ -647,9 +645,7 @@ window.turnstile = {
     await this.page.evaluate(
       async ({ cursorColor, cursorX, cursorY }) => {
         const tools = window.WBOApp;
-        if (typeof tools.bootTool === "function") {
-          await tools.bootTool("cursor");
-        }
+        await tools.toolRegistry.bootTool("cursor");
         tools.preferences.setColor(cursorColor);
         const event = new Event("mousemove");
         Object.defineProperty(event, "pageX", { value: cursorX });
@@ -865,7 +861,7 @@ window.turnstile = {
       ({ drawColor, drawStart, drawEnd, drawSize }) => {
         window.WBOApp.preferences.setColor(drawColor);
         window.WBOApp.preferences.setSize(drawSize);
-        window.WBOApp.change("rectangle");
+        window.WBOApp.toolRegistry.change("rectangle");
         const tool = window.WBOApp.toolRegistry.current;
         if (!tool) throw new Error("Missing current tool");
         tool.listeners.press?.(

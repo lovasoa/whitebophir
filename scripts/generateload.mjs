@@ -96,7 +96,7 @@ async function startDrawer(page, userIndex) {
     }) => {
       /** @type {any} */
       const tools = window.WBOApp;
-      await tools.bootTool?.("pencil");
+      await tools.toolRegistry.bootTool("pencil");
       const pencil = tools.toolRegistry.mounted?.pencil;
       if (!pencil) throw new Error("Missing Pencil tool");
 

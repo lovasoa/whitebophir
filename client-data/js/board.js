@@ -246,7 +246,7 @@ export async function attachBoardDom(document) {
     document.body.clientHeight,
   );
   normalizeServerRenderedElements();
-  Tools.syncActiveToolInputPolicy();
+  Tools.toolRegistry.syncActiveToolInputPolicy();
 }
 
 function getAttachedBoardDom() {
@@ -331,6 +331,20 @@ Tools.toolRegistry = {
     /** @type {AppToolsState["toolRegistry"]["bootPromises"]} */ ({}),
   bootedNames: new Set(),
   pendingMessages: /** @type {PendingMessages} */ ({}),
+  restoreLocalCursor,
+  mountTool,
+  bootTool,
+  activateTool,
+  addToolListeners,
+  removeToolListeners,
+  syncActiveToolInputPolicy,
+  shouldDisableTool,
+  shouldDisplayTool,
+  canUseTool,
+  syncToolDisabledState,
+  syncDrawToolAvailability,
+  isBlocked,
+  change,
 };
 Tools.turnstile = BoardTurnstile.createTurnstileModule(Tools, {
   logBoardEvent,
@@ -713,7 +727,7 @@ function resetBoardViewport() {
   Tools.dom.clearBoardCursors();
 }
 
-Tools.restoreLocalCursor = function restoreLocalCursor() {
+function restoreLocalCursor() {
   const cursorTool = Tools.toolRegistry.mounted.cursor;
   if (!cursorTool) return;
   const message =
@@ -722,7 +736,7 @@ Tools.restoreLocalCursor = function restoreLocalCursor() {
       : null;
   if (!message) return;
   cursorTool.draw(message, true);
-};
+}
 
 /**
  * @param {LiveBoardMessage} message
@@ -799,7 +813,7 @@ function applyRejectedOptimisticEntries(rejected) {
     .forEach((entry) => {
       Tools.optimistic.restoreRollback(entry.rollback);
     });
-  Tools.restoreLocalCursor();
+  Tools.toolRegistry.restoreLocalCursor();
 }
 
 /**
@@ -1203,7 +1217,7 @@ function beginAuthoritativeResync() {
   Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {
     if (tool) tool.onSocketDisconnect();
   });
-  Tools.syncActiveToolInputPolicy();
+  Tools.toolRegistry.syncActiveToolInputPolicy();
   Tools.status.syncWriteStatusIndicator();
 }
 
@@ -1271,7 +1285,7 @@ function completeAuthoritativeReplay(replayedToSeq) {
       Tools.replay.authoritativeSeq,
     ).concat(Tools.replay.incomingBroadcastQueue);
   Tools.replay.preSnapshotMessages = [];
-  Tools.restoreLocalCursor();
+  Tools.toolRegistry.restoreLocalCursor();
   Tools.status.syncWriteStatusIndicator();
 }
 
@@ -1425,31 +1439,32 @@ Tools.access = {
 };
 
 /** @param {string} toolName */
-Tools.shouldDisableTool = function shouldDisableTool(toolName) {
+function shouldDisableTool(toolName) {
   return (
     MessageCommon.isDrawTool(toolName) &&
     !MessageCommon.isDrawToolAllowedAtScale(Tools.viewportState.scale)
   );
-};
+}
 
 /** @param {string} toolName */
-Tools.canUseTool = function canUseTool(toolName) {
+function canUseTool(toolName) {
   return (
-    Tools.shouldDisplayTool(toolName) && !Tools.shouldDisableTool(toolName)
+    Tools.toolRegistry.shouldDisplayTool(toolName) &&
+    !Tools.toolRegistry.shouldDisableTool(toolName)
   );
-};
+}
 
 /** @param {string} toolName */
-Tools.syncToolDisabledState = function syncToolDisabledState(toolName) {
+function syncToolDisabledState(toolName) {
   const toolElem = document.getElementById(`toolID-${toolName}`);
   if (!toolElem) return;
-  const disabled = Tools.shouldDisableTool(toolName);
+  const disabled = Tools.toolRegistry.shouldDisableTool(toolName);
   toolElem.classList.toggle("disabledTool", disabled);
   toolElem.setAttribute("aria-disabled", disabled ? "true" : "false");
-};
+}
 
 /** @param {boolean} force */
-Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
+function syncDrawToolAvailability(force) {
   const drawToolsAllowed = MessageCommon.isDrawToolAllowedAtScale(
     Tools.viewportState.scale,
   );
@@ -1459,7 +1474,7 @@ Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
   Tools.viewportState.drawToolsAllowed = drawToolsAllowed;
 
   Object.keys(Tools.toolRegistry.mounted || {}).forEach((toolName) => {
-    Tools.syncToolDisabledState(toolName);
+    Tools.toolRegistry.syncToolDisabledState(toolName);
   });
 
   if (
@@ -1468,9 +1483,9 @@ Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
     MessageCommon.isDrawTool(Tools.toolRegistry.current.name) &&
     Tools.toolRegistry.mounted.hand
   ) {
-    Tools.change("hand");
+    Tools.toolRegistry.change("hand");
   }
-};
+}
 
 /** @param {unknown} state */
 Tools.setBoardState = function setBoardState(state) {
@@ -1488,25 +1503,27 @@ Tools.setBoardState = function setBoardState(state) {
   Object.keys(Tools.toolRegistry.mounted || {}).forEach((toolName) => {
     const toolElem = document.getElementById(`toolID-${toolName}`);
     if (!toolElem) return;
-    toolElem.style.display = Tools.shouldDisplayTool(toolName) ? "" : "none";
+    toolElem.style.display = Tools.toolRegistry.shouldDisplayTool(toolName)
+      ? ""
+      : "none";
   });
 
-  Tools.syncDrawToolAvailability(true);
+  Tools.toolRegistry.syncDrawToolAvailability(true);
 
   if (
     hideEditingTools &&
     Tools.toolRegistry.current &&
-    !Tools.shouldDisplayTool(Tools.toolRegistry.current.name) &&
+    !Tools.toolRegistry.shouldDisplayTool(Tools.toolRegistry.current.name) &&
     Tools.toolRegistry.mounted.hand
   ) {
-    Tools.change("hand");
+    Tools.toolRegistry.change("hand");
   }
 };
 
 /** @param {string} toolName */
-Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
+function shouldDisplayTool(toolName) {
   return getToolButton(toolName) !== null;
-};
+}
 
 Tools.dom = withBoardDomActions({ status: "detached" });
 
@@ -2331,12 +2348,12 @@ function bindToolButton(button, toolName) {
   button.dataset.toolBound = "true";
   button.setAttribute("aria-label", toolName);
   button.addEventListener("click", () => {
-    void Tools.activateTool(toolName);
+    void Tools.toolRegistry.activateTool(toolName);
   });
   button.addEventListener("keydown", (evt) => {
     if (evt.key === "Enter" || evt.key === " ") {
       evt.preventDefault();
-      void Tools.activateTool(toolName);
+      void Tools.toolRegistry.activateTool(toolName);
     }
   });
 }
@@ -2418,12 +2435,12 @@ function syncMountedToolButton(toolName) {
   }
   if (tool.shortcut) {
     addToolShortcut(tool.shortcut, () => {
-      void Tools.activateTool(toolName);
+      void Tools.toolRegistry.activateTool(toolName);
       blurActiveElement();
     });
   }
   syncToolButton(toolName, tool);
-  Tools.syncToolDisabledState(toolName);
+  Tools.toolRegistry.syncToolDisabledState(toolName);
   return getToolButton(toolName);
 }
 
@@ -2536,7 +2553,10 @@ async function loadToolModule(toolName) {
 function createToolRuntimeModules(mountedTools) {
   return {
     board: {
-      ...mountedTools.dom,
+      status: mountedTools.dom.status,
+      board: mountedTools.dom.board,
+      svg: mountedTools.dom.svg,
+      drawingArea: mountedTools.dom.drawingArea,
       createSVGElement: (name, attrs) =>
         mountedTools.dom.createSVGElement(name, attrs),
       toBoardCoordinate: (value) =>
@@ -2564,7 +2584,7 @@ function createToolRuntimeModules(mountedTools) {
     },
     ui: {
       getCurrentTool: () => mountedTools.toolRegistry.current,
-      changeTool: (toolName) => mountedTools.change(toolName),
+      changeTool: (toolName) => mountedTools.toolRegistry.change(toolName),
       shouldShowMarker: () => mountedTools.interaction.showMarker,
       shouldShowMyCursor: () => mountedTools.interaction.showMyCursor,
     },
@@ -2803,12 +2823,12 @@ function createMountedTool(toolModule, toolState, toolName) {
  * @param {string} toolName
  * @returns {MountedAppTool | null}
  */
-Tools.mountTool = function mountTool(toolModule, toolState, toolName) {
+function mountTool(toolModule, toolState, toolName) {
   const mountedTool = createMountedTool(toolModule, toolState, toolName);
   if (mountedTool.stylesheet) {
     addToolStylesheet(mountedTool.stylesheet);
   }
-  if (Tools.isBlocked(mountedTool)) return null;
+  if (Tools.toolRegistry.isBlocked(mountedTool)) return null;
 
   if (toolName in Tools.toolRegistry.mounted) {
     logBoardEvent("warn", "tool.mount_replaced", {
@@ -2835,16 +2855,16 @@ Tools.mountTool = function mountTool(toolModule, toolState, toolName) {
       mountedTool.draw(msg, false);
     });
   }
-  if (Tools.shouldDisplayTool(toolName)) {
+  if (Tools.toolRegistry.shouldDisplayTool(toolName)) {
     syncMountedToolButton(toolName);
   }
-  Tools.syncToolDisabledState(toolName);
+  Tools.toolRegistry.syncToolDisabledState(toolName);
   if (mountedTool.alwaysOn === true) {
-    Tools.addToolListeners(mountedTool);
+    Tools.toolRegistry.addToolListeners(mountedTool);
   }
   normalizeServerRenderedElementsForTool(mountedTool);
   return mountedTool;
-};
+}
 
 /**
  * @param {string} toolName
@@ -2854,14 +2874,14 @@ async function bootToolPromise(toolName) {
   const toolModule = await loadToolModule(toolName);
   const toolState = await toolModule.boot(createToolBootContext(toolName));
   if (toolState === null) return null;
-  return Tools.mountTool(toolModule, toolState, toolName);
+  return Tools.toolRegistry.mountTool(toolModule, toolState, toolName);
 }
 
 /**
  * @param {string} toolName
  * @returns {Promise<MountedAppTool | null>}
  */
-Tools.bootTool = async function bootTool(toolName) {
+async function bootTool(toolName) {
   const existingTool = Tools.toolRegistry.mounted[toolName];
   if (existingTool) return existingTool;
   const inFlight = Tools.toolRegistry.bootPromises[toolName];
@@ -2874,30 +2894,30 @@ Tools.bootTool = async function bootTool(toolName) {
   } finally {
     delete Tools.toolRegistry.bootPromises[toolName];
   }
-};
+}
 
 /**
  * @param {string} toolName
  * @returns {Promise<boolean>}
  */
-Tools.activateTool = async function activateTool(toolName) {
-  if (!Tools.shouldDisplayTool(toolName)) return false;
-  const tool = await Tools.bootTool(toolName);
-  if (!tool || !Tools.canUseTool(toolName)) return false;
+async function activateTool(toolName) {
+  if (!Tools.toolRegistry.shouldDisplayTool(toolName)) return false;
+  const tool = await Tools.toolRegistry.bootTool(toolName);
+  if (!tool || !Tools.toolRegistry.canUseTool(toolName)) return false;
   if (tool.requiresWritableBoard === true && !Tools.writes.canBufferWrites()) {
     await Tools.writes.whenBoardWritable();
-    if (!Tools.canUseTool(toolName)) return false;
+    if (!Tools.toolRegistry.canUseTool(toolName)) return false;
   }
-  return Tools.change(toolName) !== false;
-};
+  return Tools.toolRegistry.change(toolName) !== false;
+}
 
 /** @param {MountedAppTool} tool */
-Tools.isBlocked = function toolIsBanned(tool) {
+function isBlocked(tool) {
   return isBlockedToolName(
     tool.name,
     Tools.config.serverConfig.BLOCKED_TOOLS || [],
   );
-};
+}
 
 /** @param {MountedAppTool} newTool */
 function toggleSecondaryTool(newTool) {
@@ -2907,7 +2927,7 @@ function toggleSecondaryTool(newTool) {
   toggleToolButtonMode(newTool.name, props.name, props.icon);
   if (newTool.secondary.switch) newTool.secondary.switch();
   syncActiveToolState();
-  Tools.syncActiveToolInputPolicy();
+  Tools.toolRegistry.syncActiveToolInputPolicy();
 }
 
 /**
@@ -2937,10 +2957,10 @@ function updateCurrentToolChrome(toolName, newTool) {
 function replaceCurrentTool(newTool) {
   const currentTool = Tools.toolRegistry.current;
   if (currentTool !== null) {
-    Tools.removeToolListeners(currentTool);
+    Tools.toolRegistry.removeToolListeners(currentTool);
     currentTool.onquit && currentTool.onquit(newTool);
   }
-  Tools.addToolListeners(newTool);
+  Tools.toolRegistry.addToolListeners(newTool);
   Tools.toolRegistry.current = newTool;
   syncActiveToolState();
 }
@@ -2962,19 +2982,19 @@ function syncActiveToolState() {
     currentTool.secondary && currentTool.secondary.active ? "true" : "false";
 }
 
-Tools.syncActiveToolInputPolicy = function syncActiveToolInputPolicy() {
+function syncActiveToolInputPolicy() {
   Tools.viewportState.controller.setTouchPolicy(
     Tools.toolRegistry.current?.getTouchPolicy?.() || "app-gesture",
   );
-};
+}
 
 /** @param {string} toolName */
-Tools.change = (toolName) => {
+function change(toolName) {
   const newTool = Tools.toolRegistry.mounted[toolName];
   const oldTool = Tools.toolRegistry.current;
   if (!newTool)
     throw new Error("Trying to select a tool that has never been added!");
-  if (Tools.shouldDisableTool(toolName)) return false;
+  if (Tools.toolRegistry.shouldDisableTool(toolName)) return false;
   if (newTool === oldTool) {
     toggleSecondaryTool(newTool);
     return;
@@ -2985,12 +3005,12 @@ Tools.change = (toolName) => {
   }
 
   if (newTool.onstart) newTool.onstart(oldTool);
-  Tools.syncActiveToolInputPolicy();
+  Tools.toolRegistry.syncActiveToolInputPolicy();
   return true;
-};
+}
 
 /** @param {MountedAppTool} tool */
-Tools.addToolListeners = function addToolListeners(tool) {
+function addToolListeners(tool) {
   const dom = getAttachedBoardDom();
   if (!tool.compiledListeners) return;
   for (const event in tool.compiledListeners) {
@@ -3006,10 +3026,10 @@ Tools.addToolListeners = function addToolListeners(tool) {
         : { passive: false },
     );
   }
-};
+}
 
 /** @param {MountedAppTool} tool */
-Tools.removeToolListeners = function removeToolListeners(tool) {
+function removeToolListeners(tool) {
   const dom = getAttachedBoardDom();
   if (!tool.compiledListeners) return;
   for (const event in tool.compiledListeners) {
@@ -3019,7 +3039,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
     if (!target) continue;
     target.removeEventListener(event, listener);
   }
-};
+}
 
 (() => {
   // Handle secondary tool switch with shift (key code 16)
@@ -3034,7 +3054,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
       Tools.toolRegistry.current.secondary &&
       Tools.toolRegistry.current.secondary.active !== active
     ) {
-      Tools.change(Tools.toolRegistry.current.name);
+      Tools.toolRegistry.change(Tools.toolRegistry.current.name);
     }
   }
   window.addEventListener("keydown", handleShift.bind(null, true));
@@ -3061,7 +3081,7 @@ function drawAndSend(data) {
   if (!toolName) throw new Error(`Unknown tool code '${data.tool}'.`);
   const mountedTool = Tools.toolRegistry.mounted[toolName];
   if (!mountedTool) throw new Error(`Missing mounted tool '${data.tool}'.`);
-  if (Tools.shouldDisableTool(toolName)) return false;
+  if (Tools.toolRegistry.shouldDisableTool(toolName)) return false;
   if (
     !Tools.connection.socket ||
     !Tools.connection.socket.connected ||

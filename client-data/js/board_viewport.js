@@ -412,7 +412,7 @@ export function createViewportController(Tools) {
       const timeoutDom = getAttachedDom();
       if (timeoutDom) timeoutDom.svg.style.willChange = "auto";
     }, SCALE_WILL_CHANGE_TIMEOUT_MS);
-    Tools.syncDrawToolAvailability(false);
+    Tools.toolRegistry.syncDrawToolAvailability(false);
     return appliedScale;
   }
 

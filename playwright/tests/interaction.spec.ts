@@ -289,9 +289,9 @@ test.describe("single-page interactions", () => {
     await expect(boardPage.tool("hand")).toBeVisible();
     await page.evaluate(() => {
       if (window.WBOApp.toolRegistry.current?.name !== "hand")
-        window.WBOApp.change("hand");
+        window.WBOApp.toolRegistry.change("hand");
       if (window.WBOApp.toolRegistry.current?.secondary?.active === true) {
-        window.WBOApp.change("hand");
+        window.WBOApp.toolRegistry.change("hand");
       }
     });
     await boardPage.expectCurrentTool("hand");

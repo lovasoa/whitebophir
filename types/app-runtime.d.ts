@@ -777,6 +777,24 @@ export type AppToolRegistryModule = {
   bootPromises: ToolNameMap<MountedAppToolPromise>;
   bootedNames: Set<string>;
   pendingMessages: PendingMessages;
+  restoreLocalCursor: () => void;
+  mountTool: (
+    toolModule: ToolModule,
+    toolState: unknown,
+    toolName: string,
+  ) => MaybeMountedAppTool;
+  bootTool: (toolName: string) => MountedAppToolPromise;
+  activateTool: (toolName: string) => Promise<boolean>;
+  addToolListeners: (tool: MountedAppTool) => void;
+  removeToolListeners: (tool: MountedAppTool) => void;
+  syncActiveToolInputPolicy: () => void;
+  shouldDisableTool: (toolName: string) => boolean;
+  shouldDisplayTool: (toolName: string) => boolean;
+  canUseTool: (toolName: string) => boolean;
+  syncToolDisabledState: (toolName: string) => void;
+  syncDrawToolAvailability: (force: boolean) => void;
+  isBlocked: (tool: MountedAppTool) => boolean;
+  change: (toolName: string) => boolean | undefined;
 };
 
 /** Pointer interaction and cursor/marker visibility flags. */
@@ -920,25 +938,7 @@ export type AppToolsState = {
   rateLimits: AppRateLimitModule;
   coordinates: AppCoordinateModule;
   dom: BoardDomModule;
-  restoreLocalCursor: () => void;
-  mountTool: (
-    toolModule: ToolModule,
-    toolState: unknown,
-    toolName: string,
-  ) => MaybeMountedAppTool;
-  bootTool: (toolName: string) => MountedAppToolPromise;
-  activateTool: (toolName: string) => Promise<boolean>;
-  addToolListeners: (tool: MountedAppTool) => void;
-  removeToolListeners: (tool: MountedAppTool) => void;
-  syncActiveToolInputPolicy: () => void;
-  shouldDisableTool: (toolName: string) => boolean;
-  shouldDisplayTool: (toolName: string) => boolean;
-  canUseTool: (toolName: string) => boolean;
-  syncToolDisabledState: (toolName: string) => void;
-  syncDrawToolAvailability: (force: boolean) => void;
   setBoardState: (state: unknown) => void;
-  isBlocked: (tool: MountedAppTool) => boolean;
-  change: (toolName: string) => boolean | undefined;
   startConnection: () => void;
 };
 

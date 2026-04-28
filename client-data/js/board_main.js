@@ -65,7 +65,7 @@ async function lazyBootRenderedTools() {
   );
   renderedToolNames.forEach((toolName) => {
     schedule(() => {
-      void tools.bootTool(toolName);
+      void tools.toolRegistry.bootTool(toolName);
     });
   });
 }
@@ -92,22 +92,22 @@ async function bootBoardPage() {
 
   for (const toolName of CRITICAL_BOOT_TOOL_NAMES) {
     if (!visibleToolNames.has(toolName)) continue;
-    await tools.bootTool(toolName);
+    await tools.toolRegistry.bootTool(toolName);
   }
   for (const toolName of REPLAY_SAFE_TOOL_NAMES) {
     if (CRITICAL_BOOT_TOOL_NAMES.includes(toolName)) continue;
-    await tools.bootTool(toolName);
+    await tools.toolRegistry.bootTool(toolName);
   }
   const pendingToolName = documentElement.dataset.pendingTool || "";
   if (pendingToolName) {
-    await tools.activateTool(pendingToolName);
+    await tools.toolRegistry.activateTool(pendingToolName);
   }
   if (
     !tools.toolRegistry.current &&
     tools.toolRegistry.mounted.hand &&
-    tools.canUseTool("hand")
+    tools.toolRegistry.canUseTool("hand")
   ) {
-    tools.change("hand");
+    tools.toolRegistry.change("hand");
   }
   setBoardBootPhase("ready");
 

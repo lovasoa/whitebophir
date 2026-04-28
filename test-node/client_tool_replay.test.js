@@ -456,6 +456,10 @@ function createHarness() {
     },
     toolRegistry: {
       current: { secondary: { active: false } },
+      change: (/** @type {string} */ toolName) => {
+        globalAny.Tools.toolRegistry.current = tools[toolName];
+        return true;
+      },
     },
     preferences: {
       getColor: () => "#123456",
@@ -518,10 +522,6 @@ function createHarness() {
         installHashObservers: () => {},
         applyFromHash: () => {},
       },
-    },
-    change: function (/** @type {string} */ toolName) {
-      this.toolRegistry.current = tools[toolName];
-      return true;
     },
     writes: {
       drawAndSend: (/** @type {any} */ data) => {
@@ -720,7 +720,10 @@ function createInputTools(overrides = {}) {
         return definition;
       },
     },
-    change: () => true,
+    toolRegistry: {
+      current: null,
+      change: () => true,
+    },
     ...overrides,
   };
   tools.writes = {
@@ -827,7 +830,7 @@ function createInputToolRuntime(tools) {
     },
     ui: {
       getCurrentTool: () => tools.toolRegistry.current || null,
-      changeTool: (toolName) => tools.change(toolName),
+      changeTool: (toolName) => tools.toolRegistry.change(toolName),
       shouldShowMarker: () => unavailableCapability("ui.shouldShowMarker"),
       shouldShowMyCursor: () => unavailableCapability("ui.shouldShowMyCursor"),
     },
@@ -861,7 +864,10 @@ function createHarnessToolRuntime(app) {
   }
   return {
     board: {
-      ...app.dom,
+      status: app.dom.status,
+      board: app.dom.board,
+      svg: app.dom.svg,
+      drawingArea: app.dom.drawingArea,
       createSVGElement: (name, attrs) => app.dom.createSVGElement(name, attrs),
       toBoardCoordinate: (value) => app.coordinates.toBoardCoordinate(value),
       pageCoordinateToBoard: (value) =>
@@ -887,7 +893,7 @@ function createHarnessToolRuntime(app) {
     },
     ui: {
       getCurrentTool: () => app.toolRegistry.current,
-      changeTool: (toolName) => app.change(toolName),
+      changeTool: (toolName) => app.toolRegistry.change(toolName),
       shouldShowMarker: () => app.interaction.showMarker,
       shouldShowMyCursor: () => app.interaction.showMyCursor,
     },
