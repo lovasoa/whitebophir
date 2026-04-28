@@ -199,7 +199,7 @@ test.describe("public authless flows", () => {
       ({ createType, tool }) => {
         const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
         if (!rectangle) throw new Error("rectangle tool is unavailable");
-        window.WBOApp.drawAndSend({
+        window.WBOApp.writes.drawAndSend({
           tool,
           type: createType,
           id: "readonly-public-optimistic-rect",

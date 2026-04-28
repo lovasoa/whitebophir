@@ -694,6 +694,30 @@ export type AppWriteModule = {
   serverRateLimitedUntil: number;
   localRateLimitedUntil: number;
   localRateLimitStates: RateLimitStates;
+  clearBufferedWriteTimer: () => void;
+  isWritePaused: (now?: number) => boolean;
+  canBufferWrites: () => boolean;
+  whenBoardWritable: () => Promise<void>;
+  resetLocalRateLimitState: (kind: RateLimitKind, now?: number) => void;
+  resetAllLocalRateLimitStates: (now?: number) => void;
+  canEmitBufferedWrite: (bufferedWrite: BufferedWrite, now: number) => boolean;
+  consumeBufferedWriteBudget: (
+    bufferedWrite: BufferedWrite,
+    now: number,
+  ) => void;
+  getBufferedWriteWaitMs: (bufferedWrite: BufferedWrite, now: number) => number;
+  getBufferedWriteFlushSafetyMs: (waitMs: number) => number;
+  scheduleBufferedWriteFlush: () => void;
+  flushBufferedWrites: () => void;
+  /** Takes ownership of message. Callers must not mutate it after queueing. */
+  enqueueBufferedWrite: (message: LiveBoardMessage) => void;
+  /** Takes ownership of message. Callers must not mutate it after sending. */
+  sendBufferedWrite: (message: LiveBoardMessage) => boolean;
+  discardBufferedWrites: () => void;
+  /** Takes ownership of message. Callers must not mutate it after sending. */
+  drawAndSend: (message: LiveBoardMessage) => boolean | undefined;
+  /** Takes ownership of message. Callers must not mutate it after sending. */
+  send: (message: LiveBoardMessage) => boolean | undefined;
 };
 
 /** Mounted tool registry, active tool, and boot/replay queues. */
@@ -846,10 +870,6 @@ export type AppToolsState = {
   rateLimits: AppRateLimitModule;
   coordinates: AppCoordinateModule;
   dom: BoardDomModule;
-  clearBufferedWriteTimer: () => void;
-  isWritePaused: (now?: number) => boolean;
-  canBufferWrites: () => boolean;
-  whenBoardWritable: () => Promise<void>;
   clearBoardCursors: () => void;
   resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
@@ -870,22 +890,6 @@ export type AppToolsState = {
   ) => void;
   applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
   refreshAuthoritativeBaseline: () => Promise<void>;
-  resetLocalRateLimitState: (kind: RateLimitKind, now?: number) => void;
-  resetAllLocalRateLimitStates: (now?: number) => void;
-  canEmitBufferedWrite: (bufferedWrite: BufferedWrite, now: number) => boolean;
-  consumeBufferedWriteBudget: (
-    bufferedWrite: BufferedWrite,
-    now: number,
-  ) => void;
-  getBufferedWriteWaitMs: (bufferedWrite: BufferedWrite, now: number) => number;
-  getBufferedWriteFlushSafetyMs: (waitMs: number) => number;
-  scheduleBufferedWriteFlush: () => void;
-  flushBufferedWrites: () => void;
-  /** Takes ownership of message. Callers must not mutate it after queueing. */
-  enqueueBufferedWrite: (message: LiveBoardMessage) => void;
-  /** Takes ownership of message. Callers must not mutate it after sending. */
-  sendBufferedWrite: (message: LiveBoardMessage) => boolean;
-  discardBufferedWrites: () => void;
   beginAuthoritativeResync: () => void;
   /** Takes ownership of data. Callers must not mutate it after queueing. */
   queueProtectedWrite: (data: LiveBoardMessage) => void;
@@ -900,10 +904,6 @@ export type AppToolsState = {
   addToolListeners: (tool: MountedAppTool) => void;
   removeToolListeners: (tool: MountedAppTool) => void;
   syncActiveToolInputPolicy: () => void;
-  /** Takes ownership of message. Callers must not mutate it after sending. */
-  drawAndSend: (message: LiveBoardMessage) => boolean | undefined;
-  /** Takes ownership of message. Callers must not mutate it after sending. */
-  send: (message: LiveBoardMessage) => boolean | undefined;
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
   isTurnstileValidated: () => boolean;
   clearTurnstileRefreshTimeout: () => void;

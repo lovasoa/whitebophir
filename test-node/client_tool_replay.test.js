@@ -513,27 +513,29 @@ function createHarness() {
       this.toolRegistry.current = tools[toolName];
       return true;
     },
-    drawAndSend: function (/** @type {any} */ data) {
-      const toolName = MessageToolMetadata.getToolId(data.tool);
-      if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
-      const mountedTool =
-        tools[toolName] ||
-        (this.toolRegistry.current?.name === toolName
-          ? this.toolRegistry.current
-          : null);
-      if (!mountedTool) throw new Error(`Missing mounted tool '${toolName}'.`);
-      mountedTool.draw(data, true);
-      this.sentMessages.push({
-        toolName,
-        data,
-      });
-      return true;
+    writes: {
+      drawAndSend: (/** @type {any} */ data) => {
+        const toolName = MessageToolMetadata.getToolId(data.tool);
+        if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
+        const mountedTool =
+          tools[toolName] ||
+          (globalAny.Tools.toolRegistry.current?.name === toolName
+            ? globalAny.Tools.toolRegistry.current
+            : null);
+        if (!mountedTool)
+          throw new Error(`Missing mounted tool '${toolName}'.`);
+        mountedTool.draw(data, true);
+        globalAny.Tools.sentMessages.push({
+          toolName,
+          data,
+        });
+        return true;
+      },
+      send: (/** @type {any} */ data) =>
+        globalAny.Tools.writes.drawAndSend(data),
+      canBufferWrites: () => true,
+      whenBoardWritable: () => Promise.resolve(),
     },
-    send: function (/** @type {any} */ data) {
-      return this.drawAndSend(data);
-    },
-    canBufferWrites: () => true,
-    whenBoardWritable: () => Promise.resolve(),
     messageForTool: (/** @type {any} */ data) => {
       const toolName = MessageToolMetadata.getToolId(data.tool);
       if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
@@ -656,8 +658,10 @@ function createHarness() {
  * @returns {any}
  */
 function createInputTools(overrides = {}) {
-  return {
-    sentMessages: [],
+  const tools = {
+    sentMessages:
+      /** @type {{toolName: string | undefined, data: any}[]} */ ([]),
+    writes: /** @type {ToolRuntimeModules["writes"] | undefined} */ (undefined),
     config: {
       serverConfig: {
         RATE_LIMITS: {
@@ -704,16 +708,23 @@ function createInputTools(overrides = {}) {
       },
     },
     change: () => true,
-    drawAndSend: function (/** @type {any} */ data) {
+    ...overrides,
+  };
+  tools.writes = {
+    drawAndSend: (/** @type {any} */ data) => {
       const toolName = MessageToolMetadata.getToolId(data.tool);
-      this.sentMessages.push({
+      tools.sentMessages.push({
         toolName,
         data,
       });
       return true;
     },
-    ...overrides,
+    send: () => unavailableCapability("writes.send"),
+    canBufferWrites: () => true,
+    whenBoardWritable: () => Promise.resolve(),
+    ...tools.writes,
   };
+  return tools;
 }
 
 /**
@@ -781,7 +792,7 @@ function createInputToolRuntime(tools) {
     board: createUnavailableBoardRuntime(),
     viewport: createUnavailableViewportRuntime(),
     writes: {
-      drawAndSend: (message) => tools.drawAndSend(message),
+      drawAndSend: (message) => tools.writes.drawAndSend(message),
       send: () => unavailableCapability("writes.send"),
       canBufferWrites: () => unavailableCapability("writes.canBufferWrites"),
       whenBoardWritable: () =>
@@ -845,10 +856,10 @@ function createHarnessToolRuntime(app) {
     },
     viewport: app.viewportState.controller,
     writes: {
-      drawAndSend: (message) => app.drawAndSend(message),
-      send: (message) => app.send(message),
-      canBufferWrites: () => app.canBufferWrites(),
-      whenBoardWritable: () => app.whenBoardWritable(),
+      drawAndSend: (message) => app.writes.drawAndSend(message),
+      send: (message) => app.writes.send(message),
+      canBufferWrites: () => app.writes.canBufferWrites(),
+      whenBoardWritable: () => app.writes.whenBoardWritable(),
     },
     identity: app.identity,
     preferences: {

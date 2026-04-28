@@ -71,7 +71,7 @@ async function waitForBoardReady(page) {
       document.documentElement.dataset.boardPhase === "ready" &&
       tools.connection.socket?.connected &&
       tools.replay.awaitingSnapshot === false &&
-      !tools.isWritePaused?.()
+      !tools.writes.isWritePaused()
     );
   });
 }
@@ -143,7 +143,7 @@ async function startDrawer(page, userIndex) {
             y: 200 + Math.round(Math.random() * 600),
           };
 
-          tools.drawAndSend({
+          tools.writes.drawAndSend({
             tool: pencilTool,
             type: createType,
             id,
@@ -154,7 +154,7 @@ async function startDrawer(page, userIndex) {
 
           for (let index = 0; index < pointsPerLine; index += 1) {
             point = randomPoint(point.x, point.y);
-            tools.drawAndSend({
+            tools.writes.drawAndSend({
               tool: pencilTool,
               type: appendType,
               parent: id,

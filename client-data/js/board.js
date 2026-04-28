@@ -339,6 +339,23 @@ Tools.writes = {
     destructive: RateLimitCommon.createRateLimitState(Date.now()),
     text: RateLimitCommon.createRateLimitState(Date.now()),
   },
+  clearBufferedWriteTimer,
+  isWritePaused,
+  canBufferWrites,
+  whenBoardWritable,
+  resetLocalRateLimitState,
+  resetAllLocalRateLimitStates,
+  canEmitBufferedWrite,
+  consumeBufferedWriteBudget,
+  getBufferedWriteWaitMs,
+  getBufferedWriteFlushSafetyMs,
+  scheduleBufferedWriteFlush,
+  flushBufferedWrites,
+  enqueueBufferedWrite,
+  sendBufferedWrite,
+  discardBufferedWrites,
+  drawAndSend,
+  send,
 };
 Tools.status = {
   rateLimitNoticeTimer: null,
@@ -475,12 +492,12 @@ Tools.rateLimits = {
   },
 };
 
-Tools.clearBufferedWriteTimer = function clearBufferedWriteTimer() {
+function clearBufferedWriteTimer() {
   if (Tools.writes.bufferedWriteTimer) {
     clearTimeout(Tools.writes.bufferedWriteTimer);
     Tools.writes.bufferedWriteTimer = null;
   }
-};
+}
 
 function clearRateLimitNoticeTimer() {
   if (Tools.status.rateLimitNoticeTimer) {
@@ -505,21 +522,21 @@ function scheduleSocketReconnect(delayMs = 250) {
  * @param {number} [now]
  * @returns {boolean}
  */
-Tools.isWritePaused = function isWritePaused(now) {
+function isWritePaused(now) {
   return Tools.writes.serverRateLimitedUntil > (now || Date.now());
-};
+}
 
-Tools.canBufferWrites = function canBufferWrites() {
+function canBufferWrites() {
   return !!(
     Tools.connection.socket &&
     Tools.connection.socket.connected &&
     !Tools.replay.awaitingSnapshot &&
-    !Tools.isWritePaused()
+    !Tools.writes.isWritePaused()
   );
-};
+}
 
-Tools.whenBoardWritable = function whenBoardWritable() {
-  if (Tools.canBufferWrites()) return Promise.resolve();
+function whenBoardWritable() {
+  if (Tools.writes.canBufferWrites()) return Promise.resolve();
   return new Promise(
     /** @param {(value?: void | PromiseLike<void>) => void} resolve */ (
       resolve,
@@ -527,7 +544,7 @@ Tools.whenBoardWritable = function whenBoardWritable() {
       Tools.writes.writeReadyWaiters.push(() => resolve());
     },
   );
-};
+}
 
 /**
  * @param {string} message
@@ -634,7 +651,10 @@ function getBoardStatusView() {
 }
 
 function syncWriteStatusIndicator() {
-  if (Tools.canBufferWrites() && Tools.writes.writeReadyWaiters.length > 0) {
+  if (
+    Tools.writes.canBufferWrites() &&
+    Tools.writes.writeReadyWaiters.length > 0
+  ) {
     const waiters = Tools.writes.writeReadyWaiters.splice(0);
     waiters.forEach((resolve) => resolve());
   }
@@ -921,27 +941,25 @@ Tools.refreshAuthoritativeBaseline =
  * @param {number} [now]
  * @returns {void}
  */
-Tools.resetLocalRateLimitState = function resetLocalRateLimitState(kind, now) {
+function resetLocalRateLimitState(kind, now) {
   Tools.writes.localRateLimitStates[kind] =
     RateLimitCommon.createRateLimitState(now || Date.now());
-};
+}
 
 /** @param {number} [now] */
-Tools.resetAllLocalRateLimitStates = function resetAllLocalRateLimitStates(
-  now,
-) {
-  Tools.resetLocalRateLimitState("general", now);
-  Tools.resetLocalRateLimitState("constructive", now);
-  Tools.resetLocalRateLimitState("destructive", now);
-  Tools.resetLocalRateLimitState("text", now);
-};
+function resetAllLocalRateLimitStates(now) {
+  Tools.writes.resetLocalRateLimitState("general", now);
+  Tools.writes.resetLocalRateLimitState("constructive", now);
+  Tools.writes.resetLocalRateLimitState("destructive", now);
+  Tools.writes.resetLocalRateLimitState("text", now);
+}
 
 /**
  * @param {BufferedWrite} bufferedWrite
  * @param {number} now
  * @returns {boolean}
  */
-Tools.canEmitBufferedWrite = function canEmitBufferedWrite(bufferedWrite, now) {
+function canEmitBufferedWrite(bufferedWrite, now) {
   return RATE_LIMIT_KINDS.every((kind) => {
     const cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return true;
@@ -955,17 +973,14 @@ Tools.canEmitBufferedWrite = function canEmitBufferedWrite(bufferedWrite, now) {
       now,
     );
   });
-};
+}
 
 /**
  * @param {BufferedWrite} bufferedWrite
  * @param {number} now
  * @returns {void}
  */
-Tools.consumeBufferedWriteBudget = function consumeBufferedWriteBudget(
-  bufferedWrite,
-  now,
-) {
+function consumeBufferedWriteBudget(bufferedWrite, now) {
   RATE_LIMIT_KINDS.forEach((kind) => {
     const cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return;
@@ -979,17 +994,14 @@ Tools.consumeBufferedWriteBudget = function consumeBufferedWriteBudget(
         now,
       );
   });
-};
+}
 
 /**
  * @param {BufferedWrite} bufferedWrite
  * @param {number} now
  * @returns {number}
  */
-Tools.getBufferedWriteWaitMs = function getBufferedWriteWaitMs(
-  bufferedWrite,
-  now,
-) {
+function getBufferedWriteWaitMs(bufferedWrite, now) {
   return RATE_LIMIT_KINDS.reduce((waitMs, kind) => {
     const cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return waitMs;
@@ -1015,47 +1027,45 @@ Tools.getBufferedWriteWaitMs = function getBufferedWriteWaitMs(
       ),
     );
   }, 0);
-};
+}
 
 /**
  * @param {number} waitMs
  * @returns {number}
  */
-Tools.getBufferedWriteFlushSafetyMs = function getBufferedWriteFlushSafetyMs(
-  waitMs,
-) {
+function getBufferedWriteFlushSafetyMs(waitMs) {
   return Math.min(
     RATE_LIMIT_FLUSH_SAFETY_MAX_MS,
     Math.max(RATE_LIMIT_FLUSH_SAFETY_MIN_MS, Math.ceil(Math.max(0, waitMs))),
   );
-};
+}
 
 /** @returns {void} */
-Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
-  Tools.clearBufferedWriteTimer();
-  if (!Tools.writes.bufferedWrites.length || !Tools.canBufferWrites()) {
+function scheduleBufferedWriteFlush() {
+  Tools.writes.clearBufferedWriteTimer();
+  if (!Tools.writes.bufferedWrites.length || !Tools.writes.canBufferWrites()) {
     Tools.status.syncWriteStatusIndicator();
     return;
   }
   const nextWrite = Tools.writes.bufferedWrites[0];
   if (!nextWrite) return;
   const now = Date.now();
-  const waitMs = Tools.getBufferedWriteWaitMs(nextWrite, now);
+  const waitMs = Tools.writes.getBufferedWriteWaitMs(nextWrite, now);
   Tools.writes.localRateLimitedUntil = waitMs > 0 ? now + waitMs : 0;
   Tools.writes.bufferedWriteTimer = window.setTimeout(
     function flushBufferedWrites() {
-      Tools.flushBufferedWrites();
+      Tools.writes.flushBufferedWrites();
     },
-    Math.max(0, waitMs + Tools.getBufferedWriteFlushSafetyMs(waitMs)),
+    Math.max(0, waitMs + Tools.writes.getBufferedWriteFlushSafetyMs(waitMs)),
   );
   Tools.status.syncWriteStatusIndicator();
-};
+}
 
 /** @returns {void} */
-Tools.flushBufferedWrites = function flushBufferedWrites() {
-  Tools.clearBufferedWriteTimer();
+function flushBufferedWrites() {
+  Tools.writes.clearBufferedWriteTimer();
   Tools.writes.localRateLimitedUntil = 0;
-  if (!Tools.canBufferWrites()) {
+  if (!Tools.writes.canBufferWrites()) {
     Tools.status.syncWriteStatusIndicator();
     return;
   }
@@ -1063,12 +1073,12 @@ Tools.flushBufferedWrites = function flushBufferedWrites() {
     const bufferedWrite = Tools.writes.bufferedWrites[0];
     if (!bufferedWrite) break;
     const now = Date.now();
-    if (!Tools.canEmitBufferedWrite(bufferedWrite, now)) {
-      Tools.scheduleBufferedWriteFlush();
+    if (!Tools.writes.canEmitBufferedWrite(bufferedWrite, now)) {
+      Tools.writes.scheduleBufferedWriteFlush();
       return;
     }
     Tools.writes.bufferedWrites.shift();
-    Tools.consumeBufferedWriteBudget(bufferedWrite, now);
+    Tools.writes.consumeBufferedWriteBudget(bufferedWrite, now);
     Tools.updateCurrentConnectedUserFromActivity(bufferedWrite.message);
     if (Tools.connection.socket) {
       Tools.connection.socket.emit(
@@ -1078,41 +1088,41 @@ Tools.flushBufferedWrites = function flushBufferedWrites() {
     }
   }
   Tools.status.syncWriteStatusIndicator();
-};
+}
 
 /**
  * Takes ownership of message. Callers must not mutate it after queueing.
  * @param {LiveBoardMessage} message
  * @returns {void}
  */
-Tools.enqueueBufferedWrite = function enqueueBufferedWrite(message) {
+function enqueueBufferedWrite(message) {
   Tools.writes.bufferedWrites.push({
     message: message,
     costs: Tools.rateLimits.getBufferedWriteCosts(message),
   });
-  Tools.scheduleBufferedWriteFlush();
-};
+  Tools.writes.scheduleBufferedWriteFlush();
+}
 
 /**
  * Takes ownership of message. Callers must not mutate it after sending.
  * @param {LiveBoardMessage} message
  * @returns {boolean}
  */
-Tools.sendBufferedWrite = function sendBufferedWrite(message) {
+function sendBufferedWrite(message) {
   /** @type {BufferedWrite} */
   const bufferedWrite = {
     message: message,
     costs: Tools.rateLimits.getBufferedWriteCosts(message),
   };
-  if (!Tools.canBufferWrites()) {
+  if (!Tools.writes.canBufferWrites()) {
     return false;
   }
   const now = Date.now();
   if (
     Tools.writes.bufferedWrites.length === 0 &&
-    Tools.canEmitBufferedWrite(bufferedWrite, now)
+    Tools.writes.canEmitBufferedWrite(bufferedWrite, now)
   ) {
-    Tools.consumeBufferedWriteBudget(bufferedWrite, now);
+    Tools.writes.consumeBufferedWriteBudget(bufferedWrite, now);
     Tools.updateCurrentConnectedUserFromActivity(message);
     if (Tools.connection.socket) {
       Tools.connection.socket.emit(SocketEvents.BROADCAST, message);
@@ -1121,16 +1131,16 @@ Tools.sendBufferedWrite = function sendBufferedWrite(message) {
     return true;
   }
   Tools.writes.bufferedWrites.push(bufferedWrite);
-  Tools.scheduleBufferedWriteFlush();
+  Tools.writes.scheduleBufferedWriteFlush();
   return true;
-};
+}
 
-Tools.discardBufferedWrites = function discardBufferedWrites() {
+function discardBufferedWrites() {
   Tools.writes.bufferedWrites = [];
   Tools.writes.localRateLimitedUntil = 0;
-  Tools.clearBufferedWriteTimer();
+  Tools.writes.clearBufferedWriteTimer();
   Tools.status.syncWriteStatusIndicator();
-};
+}
 
 /**
  * @param {BoardMessage} message
@@ -1151,7 +1161,7 @@ function pruneBufferedWritesForInvalidatingMessage(message) {
   if (Tools.writes.bufferedWrites.length === 0) return;
   const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
   if (prunePlan.reset) {
-    Tools.discardBufferedWrites();
+    Tools.writes.discardBufferedWrites();
     return;
   }
   if (prunePlan.invalidatedIds.length === 0) return;
@@ -1162,7 +1172,7 @@ function pruneBufferedWritesForInvalidatingMessage(message) {
   );
   if (nextBufferedWrites.length === Tools.writes.bufferedWrites.length) return;
   Tools.writes.bufferedWrites = nextBufferedWrites;
-  Tools.scheduleBufferedWriteFlush();
+  Tools.writes.scheduleBufferedWriteFlush();
 }
 
 Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
@@ -1172,7 +1182,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.replay.preSnapshotMessages = [];
   Tools.replay.incomingBroadcastQueue = [];
   Tools.replay.processingIncomingBroadcast = false;
-  Tools.discardBufferedWrites();
+  Tools.writes.discardBufferedWrites();
   Tools.turnstile.pendingWrites = [];
   Tools.hideTurnstileOverlay();
   Object.values(getConnectedUsers()).forEach((user) => {
@@ -1214,7 +1224,7 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
   Tools.status.clearBoardStatus();
   pendingWrites.forEach(function replayPendingWrite(write) {
     const pendingWrite = /** @type {PendingWrite} */ (write);
-    Tools.send(pendingWrite.data);
+    Tools.writes.send(pendingWrite.data);
   });
 };
 
@@ -1245,7 +1255,7 @@ function completeAuthoritativeReplay(replayedToSeq) {
     BoardMessageReplay.normalizeSeq(replayedToSeq);
   Tools.replay.awaitingSnapshot = false;
   Tools.replay.refreshBaselineBeforeConnect = false;
-  Tools.flushBufferedWrites();
+  Tools.writes.flushBufferedWrites();
   Tools.replay.incomingBroadcastQueue =
     BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(
       Tools.replay.preSnapshotMessages,
@@ -2533,10 +2543,10 @@ function createToolRuntimeModules(mountedTools) {
     },
     viewport: mountedTools.viewportState.controller,
     writes: {
-      drawAndSend: (message) => mountedTools.drawAndSend(message),
-      send: (message) => mountedTools.send(message),
-      canBufferWrites: () => mountedTools.canBufferWrites(),
-      whenBoardWritable: () => mountedTools.whenBoardWritable(),
+      drawAndSend: (message) => mountedTools.writes.drawAndSend(message),
+      send: (message) => mountedTools.writes.send(message),
+      canBufferWrites: () => mountedTools.writes.canBufferWrites(),
+      whenBoardWritable: () => mountedTools.writes.whenBoardWritable(),
     },
     identity: mountedTools.identity,
     preferences: {
@@ -2870,8 +2880,8 @@ Tools.activateTool = async function activateTool(toolName) {
   if (!Tools.shouldDisplayTool(toolName)) return false;
   const tool = await Tools.bootTool(toolName);
   if (!tool || !Tools.canUseTool(toolName)) return false;
-  if (tool.requiresWritableBoard === true && !Tools.canBufferWrites()) {
-    await Tools.whenBoardWritable();
+  if (tool.requiresWritableBoard === true && !Tools.writes.canBufferWrites()) {
+    await Tools.writes.whenBoardWritable();
     if (!Tools.canUseTool(toolName)) return false;
   }
   return Tools.change(toolName) !== false;
@@ -3031,10 +3041,10 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
  * Takes ownership of data. Callers must not mutate it after sending.
  * @param {LiveBoardMessage} data
  */
-Tools.send = (data) => {
+function send(data) {
   Tools.applyHooks(Tools.messages.hooks, data);
-  return Tools.sendBufferedWrite(data);
-};
+  return Tools.writes.sendBufferedWrite(data);
+}
 
 /**
  * Takes ownership of data. Callers must create a fresh message object and must
@@ -3042,7 +3052,7 @@ Tools.send = (data) => {
  * asynchronously.
  * @param {LiveBoardMessage} data
  */
-Tools.drawAndSend = (data) => {
+function drawAndSend(data) {
   const toolName = getRuntimeToolId(data.tool);
   if (!toolName) throw new Error(`Unknown tool code '${data.tool}'.`);
   const mountedTool = Tools.toolRegistry.mounted[toolName];
@@ -3052,7 +3062,7 @@ Tools.drawAndSend = (data) => {
     !Tools.connection.socket ||
     !Tools.connection.socket.connected ||
     Tools.replay.awaitingSnapshot ||
-    Tools.isWritePaused()
+    Tools.writes.isWritePaused()
   ) {
     return false;
   }
@@ -3075,12 +3085,12 @@ Tools.drawAndSend = (data) => {
     return true;
   }
 
-  const sent = Tools.send(data) !== false;
+  const sent = Tools.writes.send(data) !== false;
   if (sent) {
     Tools.trackOptimisticMutation(data, rollback);
   }
   return sent;
-};
+}
 
 /**
  * Send a message to the corresponding tool.
@@ -3134,13 +3144,13 @@ window.addEventListener("focus", () => {
   Tools.messages.unreadCount = 0;
   updateDocumentTitle();
   if (Tools.writes.bufferedWrites.length > 0) {
-    Tools.flushBufferedWrites();
+    Tools.writes.flushBufferedWrites();
   }
 });
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && Tools.writes.bufferedWrites.length > 0) {
-    Tools.flushBufferedWrites();
+    Tools.writes.flushBufferedWrites();
   }
 });
 

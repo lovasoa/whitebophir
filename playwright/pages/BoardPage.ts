@@ -312,8 +312,7 @@ window.turnstile = {
             tools &&
             tools.connection.state === "connected" &&
             tools.replay.awaitingSnapshot === false &&
-            typeof tools.isWritePaused === "function" &&
-            !tools.isWritePaused()
+            !tools.writes.isWritePaused()
           );
         }),
       )
@@ -431,7 +430,7 @@ window.turnstile = {
         const startPencilPath = (tools: AppToolsState, path: PencilPath) => {
           tools.preferences.setColor(path.color);
           const lineId = tools.ids.generateUID("l");
-          tools.drawAndSend({
+          tools.writes.drawAndSend({
             tool: pencilToolCode,
             type: createType,
             id: lineId,
@@ -446,7 +445,7 @@ window.turnstile = {
           lineId: string,
           point: Point,
         ) => {
-          tools.drawAndSend({
+          tools.writes.drawAndSend({
             tool: pencilToolCode,
             type: appendType,
             parent: lineId,
@@ -818,7 +817,7 @@ window.turnstile = {
         const rect = document.getElementById(targetId);
         if (!rect) throw new Error(`Missing shape ${targetId}`);
         const duplicateId = window.WBOApp.ids.generateUID(targetId[0] ?? "s");
-        window.WBOApp.drawAndSend({
+        window.WBOApp.writes.drawAndSend({
           tool: handTool,
           _children: [{ type: copyType, id: targetId, newid: duplicateId }],
         });
@@ -833,7 +832,7 @@ window.turnstile = {
     });
     await this.page.evaluate(
       ({ handTool, targetId, deleteType }) => {
-        window.WBOApp.drawAndSend({
+        window.WBOApp.writes.drawAndSend({
           tool: handTool,
           _children: [{ type: deleteType, id: targetId }],
         });
@@ -1003,7 +1002,7 @@ window.turnstile = {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ rectangleTool, rectId, createType }) => {
-        window.WBOApp.drawAndSend({
+        window.WBOApp.writes.drawAndSend({
           tool: rectangleTool,
           type: createType,
           id: rectId,

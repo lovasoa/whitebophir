@@ -492,7 +492,7 @@ test.describe("collaboration and rate limiting", () => {
       ({ createType, tool }) => {
         const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
         if (!rectangle) throw new Error("rectangle tool is unavailable");
-        window.WBOApp.drawAndSend({
+        window.WBOApp.writes.drawAndSend({
           tool,
           type: createType,
           id: "persisted-across-disconnect",
@@ -570,7 +570,7 @@ test.describe("collaboration and rate limiting", () => {
         const lineId = "reconnect-pencil-path";
         const pencil = window.WBOApp.toolRegistry.mounted.pencil;
         if (!pencil) throw new Error("pencil tool is unavailable");
-        window.WBOApp.drawAndSend({
+        window.WBOApp.writes.drawAndSend({
           tool: pencilTool,
           type: createType,
           id: lineId,
@@ -585,7 +585,7 @@ test.describe("collaboration and rate limiting", () => {
           { x: 325, y: 697 },
           { x: 198, y: 658 },
         ]) {
-          window.WBOApp.drawAndSend({
+          window.WBOApp.writes.drawAndSend({
             tool: pencilTool,
             type: appendType,
             parent: lineId,
@@ -887,7 +887,7 @@ test.describe("collaboration and rate limiting", () => {
         ({ createType, tool }) => {
           const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
           if (!rectangle) throw new Error("rectangle tool is unavailable");
-          window.WBOApp.drawAndSend({
+          window.WBOApp.writes.drawAndSend({
             tool,
             type: createType,
             id: "buffered-rect-1",
@@ -899,7 +899,7 @@ test.describe("collaboration and rate limiting", () => {
             size: 10,
             opacity: 1,
           });
-          window.WBOApp.drawAndSend({
+          window.WBOApp.writes.drawAndSend({
             tool,
             type: createType,
             id: "buffered-rect-2",
@@ -976,7 +976,7 @@ test.describe("collaboration and rate limiting", () => {
         ({ createType, tool }) => {
           const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
           if (!rectangle) throw new Error("rectangle tool is unavailable");
-          window.WBOApp.drawAndSend({
+          window.WBOApp.writes.drawAndSend({
             tool,
             type: createType,
             id: "persisted-before-disconnect",
@@ -988,7 +988,7 @@ test.describe("collaboration and rate limiting", () => {
             size: 10,
             opacity: 1,
           });
-          window.WBOApp.drawAndSend({
+          window.WBOApp.writes.drawAndSend({
             tool,
             type: createType,
             id: "local-only-before-disconnect",

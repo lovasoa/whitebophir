@@ -196,7 +196,7 @@ export async function runPeerVisibleEraseBenchmark(maxChildren) {
           );
         const bench = /** @type {any} */ (window).__wboBench;
         bench.eraseDispatchMs = performance.now() - bench.navStart;
-        return window.WBOApp.send({
+        return window.WBOApp.writes.send({
           tool: eraserTool,
           type: deleteType,
           id: targetId,
