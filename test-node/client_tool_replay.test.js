@@ -457,10 +457,13 @@ function createHarness() {
       Math.round(Number(value) || 0),
     pageCoordinateToBoard: (/** @type {unknown} */ value) =>
       Math.round(Number(value) || 0),
-    getEffectiveRateLimit: (/** @type {string} */ kind) => {
-      const definition = globalAny.Tools.config.serverConfig.RATE_LIMITS[kind];
-      if (!definition) throw new Error(`Missing rate limit for ${kind}`);
-      return definition;
+    rateLimits: {
+      getEffectiveRateLimit: (/** @type {string} */ kind) => {
+        const definition =
+          globalAny.Tools.config.serverConfig.RATE_LIMITS[kind];
+        if (!definition) throw new Error(`Missing rate limit for ${kind}`);
+        return definition;
+      },
     },
     viewportState: {
       scale: 1,
@@ -684,15 +687,17 @@ function createInputTools(overrides = {}) {
     },
     toBoardCoordinate: (/** @type {number} */ value) => Math.round(value),
     pageCoordinateToBoard: (/** @type {number} */ value) => Math.round(value),
-    getEffectiveRateLimit: (/** @type {string} */ kind) => {
-      const definition = {
-        general: {
-          limit: 10,
-          periodMs: 1000,
-        },
-      }[kind];
-      if (!definition) throw new Error(`Missing rate limit for ${kind}`);
-      return definition;
+    rateLimits: {
+      getEffectiveRateLimit: (/** @type {string} */ kind) => {
+        const definition = {
+          general: {
+            limit: 10,
+            periodMs: 1000,
+          },
+        }[kind];
+        if (!definition) throw new Error(`Missing rate limit for ${kind}`);
+        return definition;
+      },
     },
     change: () => true,
     drawAndSend: function (/** @type {any} */ data) {
@@ -789,7 +794,8 @@ function createInputToolRuntime(tools) {
       getOpacity: () => tools.preferences.getOpacity(),
     },
     rateLimits: {
-      getEffectiveRateLimit: (kind) => tools.getEffectiveRateLimit(kind),
+      getEffectiveRateLimit: (kind) =>
+        tools.rateLimits.getEffectiveRateLimit(kind),
     },
     ui: {
       getCurrentTool: () => tools.toolRegistry.current || null,
@@ -847,7 +853,8 @@ function createHarnessToolRuntime(app) {
       getOpacity: () => app.preferences.getOpacity(),
     },
     rateLimits: {
-      getEffectiveRateLimit: (kind) => app.getEffectiveRateLimit(kind),
+      getEffectiveRateLimit: (kind) =>
+        app.rateLimits.getEffectiveRateLimit(kind),
     },
     ui: {
       getCurrentTool: () => app.toolRegistry.current,

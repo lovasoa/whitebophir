@@ -715,6 +715,15 @@ export type AppIdModule = {
   generateUID: (prefix?: string, suffix?: string) => string;
 };
 
+/** Config-derived rate-limit lookups and cost accounting. */
+export type AppRateLimitModule = {
+  getRateLimitDefinition: (
+    kind: RateLimitKind,
+  ) => ConfiguredRateLimitDefinition;
+  getEffectiveRateLimit: (kind: RateLimitKind) => RateLimitDefinition;
+  getBufferedWriteCosts: (message: LiveBoardMessage) => RateLimitCosts;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -819,11 +828,8 @@ export type AppToolsState = {
   interaction: AppInteractionModule;
   assets: AppAssetModule;
   ids: AppIdModule;
+  rateLimits: AppRateLimitModule;
   dom: BoardDomModule;
-  getRateLimitDefinition: (
-    kind: RateLimitKind,
-  ) => ConfiguredRateLimitDefinition;
-  getBufferedWriteCosts: (message: LiveBoardMessage) => RateLimitCosts;
   clearBufferedWriteTimer: () => void;
   clearRateLimitNoticeTimer: () => void;
   clearBoardStatusTimer: () => void;
@@ -891,7 +897,6 @@ export type AppToolsState = {
   /** Takes ownership of message. Callers must not mutate it after sending. */
   send: (message: LiveBoardMessage) => boolean | undefined;
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
-  getEffectiveRateLimit: (kind: RateLimitKind) => RateLimitDefinition;
   isTurnstileValidated: () => boolean;
   clearTurnstileRefreshTimeout: () => void;
   clearTurnstileRetryTimeout: () => void;

@@ -433,44 +433,37 @@ function getAuthoritativeBaselineUrl(cacheBust) {
   return `${url.pathname}${url.search}`;
 }
 
-/**
- * @param {RateLimitKind} kind
- * @returns {ConfiguredRateLimitDefinition}
- */
-Tools.getRateLimitDefinition = function getRateLimitDefinition(kind) {
-  const configured = Tools.config.serverConfig.RATE_LIMITS || {};
-  if (configured && configured[kind]) return configured[kind];
+Tools.rateLimits = {
+  /** @param {RateLimitKind} kind */
+  getRateLimitDefinition(kind) {
+    const configured = Tools.config.serverConfig.RATE_LIMITS || {};
+    if (configured && configured[kind]) return configured[kind];
 
-  return {
-    limit: 0,
-    anonymousLimit: 0,
-    periodMs: 0,
-  };
-};
+    return {
+      limit: 0,
+      anonymousLimit: 0,
+      periodMs: 0,
+    };
+  },
 
-/**
- * @param {RateLimitKind} kind
- * @returns {{limit: number, periodMs: number}}
- */
-Tools.getEffectiveRateLimit = function getEffectiveRateLimit(kind) {
-  return RateLimitCommon.getEffectiveRateLimitDefinition(
-    Tools.getRateLimitDefinition(kind),
-    Tools.identity.boardName,
-  );
-};
+  /** @param {RateLimitKind} kind */
+  getEffectiveRateLimit(kind) {
+    return RateLimitCommon.getEffectiveRateLimitDefinition(
+      Tools.rateLimits.getRateLimitDefinition(kind),
+      Tools.identity.boardName,
+    );
+  },
 
-/**
- * @param {LiveBoardMessage} message
- * @returns {import("../../types/app-runtime").RateLimitCosts}
- */
-Tools.getBufferedWriteCosts = function getBufferedWriteCosts(message) {
-  return RATE_LIMIT_KINDS.reduce(
-    (costs, kind) => {
-      costs[kind] = RateLimitCommon.getRateLimitCost(kind, message);
-      return costs;
-    },
-    /** @type {import("../../types/app-runtime").RateLimitCosts} */ ({}),
-  );
+  /** @param {LiveBoardMessage} message */
+  getBufferedWriteCosts(message) {
+    return RATE_LIMIT_KINDS.reduce(
+      (costs, kind) => {
+        costs[kind] = RateLimitCommon.getRateLimitCost(kind, message);
+        return costs;
+      },
+      /** @type {import("../../types/app-runtime").RateLimitCosts} */ ({}),
+    );
+  },
 };
 
 Tools.clearBufferedWriteTimer = function clearBufferedWriteTimer() {
@@ -946,7 +939,7 @@ Tools.canEmitBufferedWrite = function canEmitBufferedWrite(bufferedWrite, now) {
   return RATE_LIMIT_KINDS.every((kind) => {
     const cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return true;
-    const definition = Tools.getEffectiveRateLimit(kind);
+    const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
     if (!(definition.periodMs > 0) || !(definition.limit >= 0)) return true;
     return RateLimitCommon.canConsumeFixedWindowRateLimit(
       Tools.writes.localRateLimitStates[kind],
@@ -970,7 +963,7 @@ Tools.consumeBufferedWriteBudget = function consumeBufferedWriteBudget(
   RATE_LIMIT_KINDS.forEach((kind) => {
     const cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return;
-    const definition = Tools.getEffectiveRateLimit(kind);
+    const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
     if (!(definition.periodMs > 0)) return;
     Tools.writes.localRateLimitStates[kind] =
       RateLimitCommon.consumeFixedWindowRateLimit(
@@ -994,7 +987,7 @@ Tools.getBufferedWriteWaitMs = function getBufferedWriteWaitMs(
   return RATE_LIMIT_KINDS.reduce((waitMs, kind) => {
     const cost = bufferedWrite.costs[kind];
     if (!(cost > 0)) return waitMs;
-    const definition = Tools.getEffectiveRateLimit(kind);
+    const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
     if (!(definition.periodMs > 0)) return waitMs;
     if (
       RateLimitCommon.canConsumeFixedWindowRateLimit(
@@ -1089,7 +1082,7 @@ Tools.flushBufferedWrites = function flushBufferedWrites() {
 Tools.enqueueBufferedWrite = function enqueueBufferedWrite(message) {
   Tools.writes.bufferedWrites.push({
     message: message,
-    costs: Tools.getBufferedWriteCosts(message),
+    costs: Tools.rateLimits.getBufferedWriteCosts(message),
   });
   Tools.scheduleBufferedWriteFlush();
 };
@@ -1103,7 +1096,7 @@ Tools.sendBufferedWrite = function sendBufferedWrite(message) {
   /** @type {BufferedWrite} */
   const bufferedWrite = {
     message: message,
-    costs: Tools.getBufferedWriteCosts(message),
+    costs: Tools.rateLimits.getBufferedWriteCosts(message),
   };
   if (!Tools.canBufferWrites()) {
     return false;
@@ -2546,7 +2539,8 @@ function createToolRuntimeModules(mountedTools) {
       getOpacity: () => mountedTools.preferences.getOpacity(),
     },
     rateLimits: {
-      getEffectiveRateLimit: (kind) => mountedTools.getEffectiveRateLimit(kind),
+      getEffectiveRateLimit: (kind) =>
+        mountedTools.rateLimits.getEffectiveRateLimit(kind),
     },
     ui: {
       getCurrentTool: () => mountedTools.toolRegistry.current,
