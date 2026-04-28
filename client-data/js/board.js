@@ -24,6 +24,7 @@
  * @licend
  */
 
+import { AppTools } from "./app_tools.js";
 import { optimisticPrunePlanForAuthoritativeMessage } from "./authoritative_mutation_effects.js";
 import { getContentMessageBounds } from "./board_extent.js";
 import * as BoardMessageReplay from "./board_message_replay.js";
@@ -37,28 +38,14 @@ import {
   updateRecentBoards,
 } from "./board_page_state.js";
 import {
-  AssetModule,
   AttachedBoardDomRuntimeModule,
-  ConfigModule,
-  CoordinateModule,
-  DetachedBoardDomRuntimeModule,
-  I18nModule,
   IdentityModule,
-  IdModule,
-  InteractionModule,
-  normalizeBoardAssetPath,
-  PreferenceModule,
-  RateLimitModule,
-  ViewportStateModule,
 } from "./board_runtime_core.js";
 import {
   buildBoardSvgBaselineUrl,
   parseServedBaselineSvgText,
 } from "./board_svg_baseline.js";
-import {
-  createViewportController,
-  VIEWPORT_HASH_SCALE_DECIMALS,
-} from "./board_viewport.js";
+import { VIEWPORT_HASH_SCALE_DECIMALS } from "./board_viewport.js";
 import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
 import "./intersect.js";
 import { TOOL_BY_ID, TOOL_MODULES_BY_ID } from "../tools/index.js";
@@ -82,10 +69,9 @@ import {
 import RateLimitCommon from "./rate_limit_common.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
-/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences}} AppToolsOptions */
 /** @type {AppToolsState} */
 let Tools;
 
@@ -2951,51 +2937,6 @@ const colorPresets = [
   { color: "#E65194" },
 ];
 
-export class AppTools {
-  /** @param {AppToolsOptions} options */
-  constructor(options) {
-    this.i18n = new I18nModule(options.translations);
-    this.config = new ConfigModule(options.serverConfig);
-    this.identity = new IdentityModule(options.boardName, options.token);
-    this.assets = new AssetModule(normalizeBoardAssetPath);
-    this.toolRegistry = new ToolRegistryModule();
-    this.turnstile = new BoardTurnstile.TurnstileModule(this, {
-      logBoardEvent,
-      queueProtectedWrite,
-      flushPendingWrites,
-    });
-    this.writes = new WriteModule();
-    this.status = new StatusModule();
-    this.replay = new ReplayModule();
-    this.optimistic = new OptimisticModule();
-    this.connection = new ConnectionModule();
-    this.connection.socketIOExtraHeaders = options.socketIOExtraHeaders;
-    this.rateLimits = new RateLimitModule(this.config, this.identity);
-    const viewportController = createViewportController(
-      /** @type {AppToolsState} */ (/** @type {unknown} */ (this)),
-    );
-    this.viewportState = new ViewportStateModule(viewportController);
-    this.coordinates = new CoordinateModule(this.config, this.viewportState);
-    this.access = new AccessModule();
-    this.dom = /** @type {BoardDomModule} */ (
-      new DetachedBoardDomRuntimeModule()
-    );
-    this.interaction = new InteractionModule();
-    this.presence = new PresenceModule();
-    this.messages = new MessageModule(this.toolRegistry, this.identity);
-    this.messages.hooks = [
-      createResizeCanvasHook(this.viewportState.controller),
-      createUnreadCountHook(this.messages),
-      createToolNotificationHook(this.toolRegistry),
-    ];
-    this.ids = new IdModule();
-    this.preferences = new PreferenceModule(
-      options.colorPresets,
-      options.initialPreferences,
-    );
-  }
-}
-
 /** @type {SocketHeaders | null} */
 let socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
   window.socketio_extra_headers,
@@ -3037,6 +2978,24 @@ Tools = new AppTools({
   socketIOExtraHeaders,
   colorPresets,
   initialPreferences,
+  logBoardEvent,
+  queueProtectedWrite,
+  flushPendingWrites,
+  createToolRegistry: () => new ToolRegistryModule(),
+  createWriteModule: () => new WriteModule(),
+  createStatusModule: () => new StatusModule(),
+  createReplayModule: () => new ReplayModule(),
+  createOptimisticModule: () => new OptimisticModule(),
+  createConnectionModule: () => new ConnectionModule(),
+  createAccessModule: () => new AccessModule(),
+  createPresenceModule: () => new PresenceModule(),
+  createMessageModule: (toolRegistry, identity) =>
+    new MessageModule(toolRegistry, identity),
+  createMessageHooks: (tools) => [
+    createResizeCanvasHook(tools.viewportState.controller),
+    createUnreadCountHook(tools.messages),
+    createToolNotificationHook(tools.toolRegistry),
+  ],
 });
 window.WBOApp = Tools;
 Tools.access.applyBoardState(

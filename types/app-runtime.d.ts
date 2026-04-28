@@ -685,7 +685,7 @@ export type ToolRuntimeModules = ReturnType<
 >;
 
 /** Runtime root composed only of documented modules. */
-export type AppToolsState = import("../client-data/js/board.js").AppTools;
+export type AppToolsState = import("../client-data/js/app_tools.js").AppTools;
 
 export type MountedAppToolsState = AppToolsState & {
   dom: AttachedBoardDomModule & BoardDomActions;
