@@ -635,30 +635,8 @@ export type AppPreferenceModule =
 export type AppStatusModule = import("../client-data/js/board.js").StatusModule;
 
 /** Turnstile validation state and protected-write queue. */
-export type AppTurnstileModule = {
-  validatedUntil: number;
-  widgetId: unknown | null;
-  refreshTimeout: number | null;
-  retryTimeout: number | null;
-  pending: boolean;
-  pendingWrites: PendingWrite[];
-  overlayTimeout: number | null;
-  isValidated: () => boolean;
-  clearRefreshTimeout: () => void;
-  clearRetryTimeout: () => void;
-  scheduleRefresh: (validationWindowMs: number) => void;
-  scheduleRetry: (reason: string, delayMs?: number) => void;
-  setValidation: (result: unknown) => void;
-  normalizeAck: (result: unknown) => TurnstileAck;
-  ensureElements: () => { overlay: HTMLElement };
-  showOverlay: (delay: number) => void;
-  hideOverlay: () => void;
-  refresh: () => void;
-  showWidget: () => void;
-  /** Takes ownership of data. Callers must not mutate it after queueing. */
-  queueProtectedWrite: (data: ClientTrackedMessage) => void;
-  flushPendingWrites: () => void;
-};
+export type AppTurnstileModule =
+  import("../client-data/js/board_turnstile.js").TurnstileModule;
 
 /** Connected-user presence state for the board chrome. */
 export type AppPresenceModule =
