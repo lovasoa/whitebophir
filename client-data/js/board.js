@@ -380,6 +380,9 @@ Tools.replay = {
   preSnapshotMessages: [],
   incomingBroadcastQueue: [],
   processingIncomingBroadcast: false,
+  applyAuthoritativeBaseline,
+  refreshAuthoritativeBaseline,
+  beginAuthoritativeResync,
 };
 Tools.optimistic = {
   journal: createOptimisticJournal(),
@@ -872,24 +875,23 @@ function pruneOptimisticMutationsForAuthoritativeMessage(message) {
   );
 }
 
-Tools.applyAuthoritativeBaseline =
-  /**
-   * @param {AuthoritativeBaseline} baseline
-   */
-  function applyAuthoritativeBaseline(baseline) {
-    const dom = getAttachedBoardDom();
-    if (!dom) return;
-    Tools.replay.hasAuthoritativeSnapshot = true;
-    Tools.replay.authoritativeSeq = baseline.seq;
-    Tools.optimistic.journal.reset();
-    dom.svg.setAttribute("data-wbo-seq", String(baseline.seq));
-    dom.svg.setAttribute(
-      "data-wbo-readonly",
-      baseline.readonly ? "true" : "false",
-    );
-    dom.drawingArea.innerHTML = baseline.drawingAreaMarkup;
-    normalizeServerRenderedElements();
-  };
+/**
+ * @param {AuthoritativeBaseline} baseline
+ */
+function applyAuthoritativeBaseline(baseline) {
+  const dom = getAttachedBoardDom();
+  if (!dom) return;
+  Tools.replay.hasAuthoritativeSnapshot = true;
+  Tools.replay.authoritativeSeq = baseline.seq;
+  Tools.optimistic.journal.reset();
+  dom.svg.setAttribute("data-wbo-seq", String(baseline.seq));
+  dom.svg.setAttribute(
+    "data-wbo-readonly",
+    baseline.readonly ? "true" : "false",
+  );
+  dom.drawingArea.innerHTML = baseline.drawingAreaMarkup;
+  normalizeServerRenderedElements();
+}
 
 /**
  * @param {MountedAppTool} tool
@@ -915,22 +917,21 @@ function normalizeServerRenderedElements() {
   });
 }
 
-Tools.refreshAuthoritativeBaseline =
-  async function refreshAuthoritativeBaseline() {
-    const response = await fetch(getAuthoritativeBaselineUrl(Date.now()), {
-      cache: "no-store",
-      credentials: "same-origin",
-      headers: { Accept: "image/svg+xml" },
-    });
-    if (!response.ok) {
-      throw new Error(`Baseline fetch failed with HTTP ${response.status}`);
-    }
-    const baseline = parseServedBaselineSvgText(
-      await response.text(),
-      new DOMParser(),
-    );
-    Tools.applyAuthoritativeBaseline(baseline);
-  };
+async function refreshAuthoritativeBaseline() {
+  const response = await fetch(getAuthoritativeBaselineUrl(Date.now()), {
+    cache: "no-store",
+    credentials: "same-origin",
+    headers: { Accept: "image/svg+xml" },
+  });
+  if (!response.ok) {
+    throw new Error(`Baseline fetch failed with HTTP ${response.status}`);
+  }
+  const baseline = parseServedBaselineSvgText(
+    await response.text(),
+    new DOMParser(),
+  );
+  Tools.replay.applyAuthoritativeBaseline(baseline);
+}
 
 /**
  * @param {RateLimitKind} kind
@@ -1173,7 +1174,7 @@ function pruneBufferedWritesForInvalidatingMessage(message) {
   Tools.writes.scheduleBufferedWriteFlush();
 }
 
-Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
+function beginAuthoritativeResync() {
   Tools.replay.awaitingSnapshot = true;
   Tools.replay.refreshBaselineBeforeConnect = true;
   Tools.optimistic.journal.reset();
@@ -1194,7 +1195,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   });
   Tools.syncActiveToolInputPolicy();
   Tools.status.syncWriteStatusIndicator();
-};
+}
 
 /**
  * Takes ownership of data. Callers must not mutate it after queueing.
@@ -1282,7 +1283,7 @@ async function processAuthoritativeReplayBatch(batch) {
       toSeq,
       childCount: batch._children.length,
     });
-    Tools.beginAuthoritativeResync();
+    Tools.replay.beginAuthoritativeResync();
     Tools.startConnection();
     return false;
   }
@@ -1328,7 +1329,7 @@ async function processIncomingBroadcast(msg) {
         authoritativeSeq: Tools.replay.authoritativeSeq,
         incomingSeq: msg.seq,
       });
-      Tools.beginAuthoritativeResync();
+      Tools.replay.beginAuthoritativeResync();
       Tools.startConnection();
       return false;
     }
@@ -2117,7 +2118,7 @@ Tools.startConnection = () => {
     }
     if (Tools.replay.refreshBaselineBeforeConnect) {
       try {
-        await Tools.refreshAuthoritativeBaseline();
+        await Tools.replay.refreshAuthoritativeBaseline();
         Tools.replay.refreshBaselineBeforeConnect = false;
       } catch (error) {
         logBoardEvent("error", "replay.baseline_refresh_failed", {
@@ -2233,7 +2234,7 @@ Tools.startConnection = () => {
               data?.minReplayableSeq,
             ),
           });
-          Tools.beginAuthoritativeResync();
+          Tools.replay.beginAuthoritativeResync();
           if (socket === Tools.connection.socket) {
             Tools.connection.socket = null;
             BoardConnection.closeSocket(socket);
@@ -2281,7 +2282,7 @@ Tools.startConnection = () => {
         if (reason === "io client disconnect") return;
         Tools.connection.state = "disconnected";
         logBoardEvent("warn", "socket.disconnected", { reason });
-        Tools.beginAuthoritativeResync();
+        Tools.replay.beginAuthoritativeResync();
         scheduleSocketReconnect();
       },
     );

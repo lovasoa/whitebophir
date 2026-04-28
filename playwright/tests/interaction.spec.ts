@@ -333,7 +333,7 @@ test.describe("single-page interactions", () => {
       });
 
     await page.evaluate(() => {
-      window.WBOApp.beginAuthoritativeResync();
+      window.WBOApp.replay.beginAuthoritativeResync();
     });
 
     await boardPage.expectCurrentTool("hand");

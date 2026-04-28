@@ -700,6 +700,9 @@ export type AppReplayModule = {
   preSnapshotMessages: IncomingBroadcast[];
   incomingBroadcastQueue: IncomingBroadcast[];
   processingIncomingBroadcast: boolean;
+  applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
+  refreshAuthoritativeBaseline: () => Promise<void>;
+  beginAuthoritativeResync: () => void;
 };
 
 /** Socket.IO connection handle and lifecycle metadata. */
@@ -897,9 +900,6 @@ export type AppToolsState = {
   clearBoardCursors: () => void;
   resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
-  applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
-  refreshAuthoritativeBaseline: () => Promise<void>;
-  beginAuthoritativeResync: () => void;
   /** Takes ownership of data. Callers must not mutate it after queueing. */
   queueProtectedWrite: (data: LiveBoardMessage) => void;
   flushTurnstilePendingWrites: () => void;
