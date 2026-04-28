@@ -34,11 +34,51 @@ import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
 import { ToolCodes } from "../tool-order.js";
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
-/** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: number | null}} CurrentTextState */
+/** @typedef {(evt: Event | KeyboardEvent | FocusEvent) => void} TextChangeHandler */
+/** @typedef {ReturnType<typeof createInitialText>} CurrentTextState */
 /** @typedef {Omit<ReturnType<typeof createTextMessage>, "opacity"> & {opacity?: number}} TextCreateMessage */
 /** @typedef {ReturnType<typeof updateTextMessage>} TextUpdateMessage */
 /** @typedef {TextCreateMessage | TextUpdateMessage} TextMessage */
-/** @typedef {{board: ToolRuntimeModules["board"], coordinates: ToolRuntimeModules["coordinates"], viewport: ToolRuntimeModules["viewport"], preferences: ToolRuntimeModules["preferences"], writes: ToolRuntimeModules["writes"], runtimeConfig: ToolRuntimeModules["config"], ids: ToolRuntimeModules["ids"], interaction: ToolRuntimeModules["interaction"], boardElement: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
+/** @typedef {ReturnType<typeof createInitialState>} TextState */
+
+function createInitialText() {
+  return {
+    x: 0,
+    y: 0,
+    size: 360,
+    rawSize: 160,
+    oldSize: 0,
+    opacity: 1,
+    color: "#000",
+    id: "",
+    sentText: "",
+    lastSending: 0,
+    timeout: /** @type {number | null} */ (null),
+  };
+}
+
+/**
+ * @param {ToolBootContext} ctx
+ * @param {HTMLInputElement} input
+ */
+function createInitialState(ctx, input) {
+  return {
+    board: ctx.runtime.board,
+    coordinates: ctx.runtime.coordinates,
+    viewport: ctx.runtime.viewport,
+    preferences: ctx.runtime.preferences,
+    writes: ctx.runtime.writes,
+    runtimeConfig: ctx.runtime.config,
+    ids: ctx.runtime.ids,
+    interaction: ctx.runtime.interaction,
+    boardElement: ctx.runtime.board.board,
+    input,
+    curText: createInitialText(),
+    active: false,
+    boundTextChangeHandler: /** @type {TextChangeHandler} */ (() => {}),
+    boundBlur: () => {},
+  };
+}
 
 const TEXT_INPUT_BORDER_PX = 1;
 const TEXT_INPUT_CARET_ROOM_PX = 3;
@@ -430,35 +470,7 @@ export function boot(ctx) {
   input.id = "textToolInput";
   input.type = "text";
   input.setAttribute("autocomplete", "off");
-  /** @type {TextState} */
-  const state = {
-    board: ctx.runtime.board,
-    coordinates: ctx.runtime.coordinates,
-    viewport: ctx.runtime.viewport,
-    preferences: ctx.runtime.preferences,
-    writes: ctx.runtime.writes,
-    runtimeConfig: ctx.runtime.config,
-    ids: ctx.runtime.ids,
-    interaction: ctx.runtime.interaction,
-    boardElement: ctx.runtime.board.board,
-    input,
-    curText: {
-      x: 0,
-      y: 0,
-      size: 360,
-      rawSize: 160,
-      oldSize: 0,
-      opacity: 1,
-      color: "#000",
-      id: "",
-      sentText: "",
-      lastSending: 0,
-      timeout: null,
-    },
-    active: false,
-    boundTextChangeHandler: () => {},
-    boundBlur: () => {},
-  };
+  const state = createInitialState(ctx, input);
   state.boundTextChangeHandler = (evt) => textChangeHandler(state, evt);
   state.boundBlur = () => blurEditor(state);
   return state;

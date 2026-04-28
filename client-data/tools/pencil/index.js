@@ -341,9 +341,53 @@ export { contract };
 export const shortcut = "p";
 export const serverRenderedElementSelector = "path";
 const ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
-/** @typedef {{board: ToolRuntimeModules["board"], preferences: ToolRuntimeModules["preferences"], writes: ToolRuntimeModules["writes"], rateLimits: ToolRuntimeModules["rateLimits"], runtimeConfig: ToolRuntimeModules["config"], ids: ToolRuntimeModules["ids"], interaction: ToolRuntimeModules["interaction"], toolRegistry: ToolRuntimeModules["toolRegistry"], AUTO_FINGER_WHITEOUT: boolean, MAX_PENCIL_CHILDREN: number, minPencilIntervalMs: number, hasUsedStylus: boolean, curLineId: string, lastTime: number, hasSentPoint: boolean, currentLineChildCount: number, renderingLine: SVGPathElement | null, pathDataCache: {[lineId: string]: any[]}, drawingSize: number, whiteOutSize: number, secondary: {name: string, icon: string, active: boolean, switch?: () => void}, mouseCursor: string}} PencilState */
+/** @typedef {{type: string, values: number[]}} PencilPathSegment */
+/** @typedef {PencilPathSegment[]} PencilPathData */
+/** @typedef {{name: string, icon: string, active: boolean, switch?: () => void}} PencilSecondary */
+/** @typedef {ReturnType<typeof createInitialState>} PencilState */
 /** @typedef {{lineId: string, createMessage: PencilCreateMessage}} PencilPressEffect */
 /** @typedef {{appendMessage: PencilAppendMessage | null, stopBefore: boolean, stopAfter: boolean, nextLastTime: number, nextHasSentPoint: boolean, nextChildCount: number}} PencilMoveEffect */
+
+/** @param {ToolBootContext} ctx */
+function createInitialState(ctx) {
+  const runtime = ctx.runtime;
+  const serverConfig = runtime.config.serverConfig;
+  const defaultMaxPencilChildren =
+    Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
+      ? Number(LIMITS.DEFAULT_MAX_CHILDREN)
+      : Number.POSITIVE_INFINITY;
+  return {
+    board: runtime.board,
+    preferences: runtime.preferences,
+    writes: runtime.writes,
+    rateLimits: runtime.rateLimits,
+    runtimeConfig: runtime.config,
+    ids: runtime.ids,
+    interaction: runtime.interaction,
+    toolRegistry: runtime.toolRegistry,
+    AUTO_FINGER_WHITEOUT: serverConfig.AUTO_FINGER_WHITEOUT === true,
+    MAX_PENCIL_CHILDREN:
+      Number(serverConfig.MAX_CHILDREN) > 0
+        ? Number(serverConfig.MAX_CHILDREN)
+        : defaultMaxPencilChildren,
+    minPencilIntervalMs: computeMinPencilIntervalMs(runtime.rateLimits),
+    hasUsedStylus: false,
+    curLineId: "",
+    lastTime: performance.now(),
+    hasSentPoint: false,
+    currentLineChildCount: 0,
+    renderingLine: /** @type {SVGPathElement | null} */ (null),
+    pathDataCache: /** @type {Record<string, PencilPathData>} */ ({}),
+    drawingSize: -1,
+    whiteOutSize: -1,
+    secondary: /** @type {PencilSecondary} */ ({
+      name: "White-out",
+      icon: "tools/pencil/whiteout_tape.svg",
+      active: false,
+    }),
+    mouseCursor: `url('${ctx.assetUrl("cursor.svg")}'), crosshair`,
+  };
+}
 
 /**
  * @param {unknown} value
@@ -638,44 +682,7 @@ function handleAutoWhiteOut(state, evt) {
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  const runtime = ctx.runtime;
-  const serverConfig = runtime.config.serverConfig;
-  const defaultMaxPencilChildren =
-    Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
-      ? Number(LIMITS.DEFAULT_MAX_CHILDREN)
-      : Number.POSITIVE_INFINITY;
-  /** @type {PencilState} */
-  const state = {
-    board: runtime.board,
-    preferences: runtime.preferences,
-    writes: runtime.writes,
-    rateLimits: runtime.rateLimits,
-    runtimeConfig: runtime.config,
-    ids: runtime.ids,
-    interaction: runtime.interaction,
-    toolRegistry: runtime.toolRegistry,
-    AUTO_FINGER_WHITEOUT: serverConfig.AUTO_FINGER_WHITEOUT === true,
-    MAX_PENCIL_CHILDREN:
-      Number(serverConfig.MAX_CHILDREN) > 0
-        ? Number(serverConfig.MAX_CHILDREN)
-        : defaultMaxPencilChildren,
-    minPencilIntervalMs: computeMinPencilIntervalMs(runtime.rateLimits),
-    hasUsedStylus: false,
-    curLineId: "",
-    lastTime: performance.now(),
-    hasSentPoint: false,
-    currentLineChildCount: 0,
-    renderingLine: null,
-    pathDataCache: {},
-    drawingSize: -1,
-    whiteOutSize: -1,
-    secondary: {
-      name: "White-out",
-      icon: "tools/pencil/whiteout_tape.svg",
-      active: false,
-    },
-    mouseCursor: `url('${ctx.assetUrl("cursor.svg")}'), crosshair`,
-  };
+  const state = createInitialState(ctx);
   state.secondary.switch = () => {
     stopLine(state);
     toggleSize(state);
