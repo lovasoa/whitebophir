@@ -453,26 +453,32 @@ export type OptimisticRollback =
       readonly snapshots: readonly OptimisticItemSnapshot[];
     };
 
+export type OptimisticItemIdSet = ReadonlySet<string>;
+export type OptimisticMutationIdSet = ReadonlySet<string>;
+
 export type OptimisticJournalEntry = {
   readonly clientMutationId: string;
-  readonly affectedIds: readonly string[];
-  readonly dependsOn: readonly string[];
-  readonly dependencyItemIds: readonly string[];
+  readonly affectedIds: OptimisticItemIdSet;
+  readonly dependsOn: OptimisticMutationIdSet;
+  readonly dependencyItemIds: OptimisticItemIdSet;
   readonly rollback: OptimisticRollback;
   readonly message: ClientTrackedMessage;
 };
 
-export type OptimisticJournalEntryInput = Omit<
-  OptimisticJournalEntry,
-  "clientMutationId" | "dependencyItemIds"
-> & {
-  readonly dependencyItemIds?: readonly string[];
+export type OptimisticJournalEntryInput = {
+  readonly affectedIds: OptimisticItemIdSet;
+  readonly dependsOn: OptimisticMutationIdSet;
+  readonly dependencyItemIds?: OptimisticItemIdSet;
+  readonly rollback: OptimisticRollback;
+  readonly message: ClientTrackedMessage;
 };
 
 export type OptimisticJournalState = {
   /** Takes ownership of entry.message and entry.rollback. Do not mutate them after append. */
   append: (entry: OptimisticJournalEntryInput) => OptimisticJournalEntry;
-  dependencyMutationIdsForItemIds: (itemIds: readonly string[]) => string[];
+  dependencyMutationIdsForItemIds: (
+    itemIds: OptimisticItemIdSet,
+  ) => OptimisticMutationIdSet;
   promote: (clientMutationId: string) => OptimisticJournalEntry[];
   reject: (clientMutationId: string) => OptimisticJournalEntry[];
   rejectByInvalidatedIds: (
@@ -710,7 +716,9 @@ export type AppPresenceModule = {
 export type AppOptimisticModule = {
   journal: OptimisticJournalState;
   captureRollback: (message: LiveBoardMessage) => OptimisticRollback;
-  collectDependencyMutationIds: (message: LiveBoardMessage) => string[];
+  collectDependencyMutationIds: (
+    message: LiveBoardMessage,
+  ) => OptimisticMutationIdSet;
   trackMutation: (
     message: ClientTrackedMessage,
     rollback: OptimisticRollback,

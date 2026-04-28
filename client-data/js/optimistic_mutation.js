@@ -4,67 +4,76 @@ import { MutationType } from "./message_tool_metadata.js";
 /** @typedef {BoardMessage | (ToolOwnedChildMessage & ToolMessageFields)} OptimisticMessage */
 
 /**
- * @param {ReadonlyArray<string | undefined>} ids
- * @returns {string[]}
- */
-function uniqueIds(ids) {
-  const unique = new Set();
-  for (const id of ids) {
-    if (id) unique.add(id);
-  }
-  return [...unique];
-}
-
-/**
+ * @param {Set<string>} ids
  * @param {OptimisticMessage} message
- * @returns {string[]}
+ * @returns {void}
  */
-export function collectOptimisticAffectedIds(message) {
+function addOptimisticAffectedIds(ids, message) {
   if ("_children" in message) {
-    return uniqueIds(
-      message._children.flatMap((child) =>
-        collectOptimisticAffectedIds({
-          ...child,
-          tool: message.tool,
-        }),
-      ),
-    );
+    for (const child of message._children) {
+      addOptimisticAffectedIds(ids, {
+        ...child,
+        tool: message.tool,
+      });
+    }
+    return;
   }
   switch (message.type) {
     case MutationType.COPY:
-      return uniqueIds([message.newid]);
+      ids.add(message.newid);
+      return;
     case MutationType.APPEND:
-      return uniqueIds([message.parent]);
+      ids.add(message.parent);
+      return;
     case MutationType.CLEAR:
-      return [];
+      return;
     default:
-      return "id" in message ? uniqueIds([message.id]) : [];
+      if ("id" in message) ids.add(message.id);
   }
 }
 
 /**
+ * @param {Set<string>} ids
  * @param {OptimisticMessage} message
- * @returns {string[]}
+ * @returns {void}
  */
-export function collectOptimisticDependencyIds(message) {
+function addOptimisticDependencyIds(ids, message) {
   if ("_children" in message) {
-    return uniqueIds(
-      message._children.flatMap((child) =>
-        collectOptimisticDependencyIds({
-          ...child,
-          tool: message.tool,
-        }),
-      ),
-    );
+    for (const child of message._children) {
+      addOptimisticDependencyIds(ids, {
+        ...child,
+        tool: message.tool,
+      });
+    }
+    return;
   }
   switch (message.type) {
     case MutationType.COPY:
     case MutationType.DELETE:
     case MutationType.UPDATE:
-      return "id" in message ? uniqueIds([message.id]) : [];
+      if ("id" in message) ids.add(message.id);
+      return;
     case MutationType.APPEND:
-      return uniqueIds([message.parent]);
-    default:
-      return [];
+      ids.add(message.parent);
   }
+}
+
+/**
+ * @param {OptimisticMessage} message
+ * @returns {Set<string>}
+ */
+export function collectOptimisticAffectedIds(message) {
+  const ids = new Set();
+  addOptimisticAffectedIds(ids, message);
+  return ids;
+}
+
+/**
+ * @param {OptimisticMessage} message
+ * @returns {Set<string>}
+ */
+export function collectOptimisticDependencyIds(message) {
+  const ids = new Set();
+  addOptimisticDependencyIds(ids, message);
+  return ids;
 }

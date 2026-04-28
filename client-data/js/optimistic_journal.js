@@ -2,27 +2,15 @@
 /** @typedef {import("../../types/app-runtime").OptimisticJournalEntryInput} OptimisticJournalEntryInput */
 
 /**
- * @param {readonly string[] | undefined} values
- * @returns {string[]}
- */
-function uniqueStrings(values) {
-  const unique = new Set();
-  for (const value of values ?? []) {
-    if (value) unique.add(value);
-  }
-  return [...unique];
-}
-
-/**
  * @param {OptimisticJournalEntryInput} entry
  * @returns {OptimisticJournalEntry}
  */
 function createEntry(entry) {
   return {
     clientMutationId: entry.message.clientMutationId,
-    affectedIds: uniqueStrings(entry.affectedIds),
-    dependsOn: uniqueStrings(entry.dependsOn),
-    dependencyItemIds: uniqueStrings(entry.dependencyItemIds),
+    affectedIds: new Set(entry.affectedIds),
+    dependsOn: new Set(entry.dependsOn),
+    dependencyItemIds: new Set(entry.dependencyItemIds ?? []),
     rollback: entry.rollback,
     message: entry.message,
   };
@@ -41,11 +29,11 @@ export function createOptimisticJournal() {
    * @returns {void}
    */
   function addEntryToIndexes(entry) {
-    entry.affectedIds.forEach((itemId) => {
+    for (const itemId of entry.affectedIds) {
       const mutationIds = latestMutationIdsByItemId.get(itemId) || [];
       mutationIds.push(entry.clientMutationId);
       latestMutationIdsByItemId.set(itemId, mutationIds);
-    });
+    }
   }
 
   /**
@@ -53,18 +41,18 @@ export function createOptimisticJournal() {
    * @returns {void}
    */
   function removeEntryFromIndexes(entry) {
-    entry.affectedIds.forEach((itemId) => {
+    for (const itemId of entry.affectedIds) {
       const mutationIds = latestMutationIdsByItemId.get(itemId);
-      if (!mutationIds) return;
+      if (!mutationIds) continue;
       const nextMutationIds = mutationIds.filter(
         (clientMutationId) => clientMutationId !== entry.clientMutationId,
       );
       if (nextMutationIds.length === 0) {
         latestMutationIdsByItemId.delete(itemId);
-        return;
+        continue;
       }
       latestMutationIdsByItemId.set(itemId, nextMutationIds);
-    });
+    }
   }
 
   /**
@@ -78,11 +66,12 @@ export function createOptimisticJournal() {
       for (const id of order) {
         const entry = entries.get(id);
         if (!entry || rejectedIds.has(id)) continue;
-        if (
-          entry.dependsOn.some((dependencyId) => rejectedIds.has(dependencyId))
-        ) {
-          rejectedIds.add(id);
-          changed = true;
+        for (const dependencyId of entry.dependsOn) {
+          if (rejectedIds.has(dependencyId)) {
+            rejectedIds.add(id);
+            changed = true;
+            break;
+          }
         }
       }
     }
@@ -158,40 +147,42 @@ export function createOptimisticJournal() {
      * @returns {OptimisticJournalEntry[]}
      */
     rejectByInvalidatedIds(invalidatedIds) {
-      const invalidatedIdSet = new Set(uniqueStrings(invalidatedIds));
+      const invalidatedIdSet = new Set(invalidatedIds);
       if (invalidatedIdSet.size === 0) return [];
-      const rejectedIds = new Set(
-        order.filter((id) => {
-          const entry = entries.get(id);
-          return !!(
-            entry &&
-            (entry.affectedIds.some((affectedId) =>
-              invalidatedIdSet.has(affectedId),
-            ) ||
-              entry.dependencyItemIds.some((dependencyItemId) =>
-                invalidatedIdSet.has(dependencyItemId),
-              ))
-          );
-        }),
-      );
+      const rejectedIds = new Set();
+      for (const id of order) {
+        const entry = entries.get(id);
+        if (!entry) continue;
+        for (const affectedId of entry.affectedIds) {
+          if (invalidatedIdSet.has(affectedId)) {
+            rejectedIds.add(id);
+            break;
+          }
+        }
+        if (rejectedIds.has(id)) continue;
+        for (const dependencyItemId of entry.dependencyItemIds) {
+          if (invalidatedIdSet.has(dependencyItemId)) {
+            rejectedIds.add(id);
+            break;
+          }
+        }
+      }
       expandRejectedIds(rejectedIds);
       return removeEntries(rejectedIds);
     },
     /**
-     * @param {readonly string[]} itemIds
-     * @returns {string[]}
+     * @param {ReadonlySet<string>} itemIds
+     * @returns {Set<string>}
      */
     dependencyMutationIdsForItemIds(itemIds) {
-      return [
-        ...new Set(
-          uniqueStrings(itemIds).flatMap((itemId) => {
-            const clientMutationId = latestMutationIdsByItemId
-              .get(itemId)
-              ?.at(-1);
-            return clientMutationId === undefined ? [] : [clientMutationId];
-          }),
-        ),
-      ];
+      const dependencyMutationIds = new Set();
+      for (const itemId of itemIds) {
+        const clientMutationId = latestMutationIdsByItemId.get(itemId)?.at(-1);
+        if (clientMutationId !== undefined) {
+          dependencyMutationIds.add(clientMutationId);
+        }
+      }
+      return dependencyMutationIds;
     },
     reset() {
       const pending = list();

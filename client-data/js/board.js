@@ -751,7 +751,7 @@ function captureOptimisticRollback(message) {
   }
   return {
     kind: "items",
-    snapshots: collectOptimisticAffectedIds(message).map((itemId) => {
+    snapshots: [...collectOptimisticAffectedIds(message)].map((itemId) => {
       if (!dom) {
         return {
           id: itemId,
@@ -774,7 +774,7 @@ function captureOptimisticRollback(message) {
 
 /**
  * @param {LiveBoardMessage} message
- * @returns {string[]}
+ * @returns {ReadonlySet<string>}
  */
 function collectOptimisticDependencyMutationIds(message) {
   return Tools.optimistic.journal.dependencyMutationIdsForItemIds(
@@ -1192,9 +1192,13 @@ function discardBufferedWrites() {
  * @returns {boolean}
  */
 function messageReferencesInvalidatedId(message, invalidatedIds) {
-  return collectOptimisticAffectedIds(message)
-    .concat(collectOptimisticDependencyIds(message))
-    .some((itemId) => invalidatedIds.has(itemId));
+  for (const itemId of collectOptimisticAffectedIds(message)) {
+    if (invalidatedIds.has(itemId)) return true;
+  }
+  for (const itemId of collectOptimisticDependencyIds(message)) {
+    if (invalidatedIds.has(itemId)) return true;
+  }
+  return false;
 }
 
 /**
