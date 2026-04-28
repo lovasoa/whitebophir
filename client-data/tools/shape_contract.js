@@ -31,7 +31,7 @@ export function normalizeRectBounds(x1, y1, x2, y2) {
  * @param {number | undefined} opacity
  * @param {SvgTransform | undefined} transform
  * @param {(data: object, opacity: number | undefined, transform: SvgTransform | undefined) => object} decorateStoredItemData
- * @returns {any}
+ * @returns {StoredShapeSummary}
  */
 export function summarizeStoredShape(
   shape,
