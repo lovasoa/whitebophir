@@ -751,17 +751,18 @@ function syncWriteStatusIndicator() {
   indicator.classList.add(`board-status-${view.state}`);
 }
 
+/** @this {BoardDomModule} */
 function clearBoardCursors() {
-  const dom = getAttachedBoardDom();
-  if (!dom) return;
-  const cursors = dom.svg.getElementById("cursors");
+  if (this.status !== "attached") return;
+  const cursors = this.svg.getElementById("cursors");
   if (cursors) cursors.innerHTML = "";
 }
 
+/** @this {BoardDomModule} */
 function resetBoardViewport() {
-  const dom = getAttachedBoardDom();
-  if (dom) dom.drawingArea.innerHTML = "";
-  Tools.dom.clearBoardCursors();
+  if (this.status !== "attached") return;
+  this.drawingArea.innerHTML = "";
+  this.clearBoardCursors();
 }
 
 function restoreLocalCursor() {
@@ -2564,7 +2565,7 @@ colorPresetTemplate.remove();
  * @returns {HTMLElement}
  */
 function addColorButton(button) {
-  const setColor = Tools.preferences.setColor.bind(Tools, button.color);
+  const setColor = () => Tools.preferences.setColor(button.color);
   if (button.key) addToolShortcut(button.key, setColor);
   const elem = colorPresetTemplate.cloneNode(true);
   if (!(elem instanceof HTMLElement)) {
@@ -3275,14 +3276,14 @@ Tools.ids = { generateUID };
  * @param {string} name
  * @param {{[key: string]: string | number | undefined} | undefined} attrs
  * @returns {SVGElement}
+ * @this {BoardDomModule}
  */
 function createSVGElement(name, attrs) {
-  const dom = getAttachedBoardDom();
-  if (!dom) {
+  if (this.status !== "attached") {
     throw new Error("Board SVG is not attached.");
   }
   const elem = /** @type {SVGElement} */ (
-    document.createElementNS(dom.svg.namespaceURI, name)
+    document.createElementNS(this.svg.namespaceURI, name)
   );
   if (!attrs) return elem;
   Object.keys(attrs).forEach((key) => {
@@ -3314,45 +3315,57 @@ const colorPresets = [
   { color: "#AAAAAA", key: "0" },
   { color: "#E65194" },
 ];
-/** @param {string} color */
-function setColor(color) {
-  Tools.preferences.currentColor = color;
-  if (Tools.preferences.colorChooser) {
-    Tools.preferences.colorChooser.value = color;
-  }
-  Tools.preferences.colorChangeHandlers.forEach((handler) => {
-    handler(color);
-  });
-}
-
-function getColor() {
-  return Tools.preferences.currentColor;
-}
-
 /**
- * @param {number | string | null | undefined} value
- * @returns {number}
+ * @param {ColorPreset[]} presets
+ * @param {AppToolsState["preferences"]["initial"]} initial
+ * @returns {AppToolsState["preferences"]}
  */
-function setSize(value) {
-  if (value !== null && value !== undefined) {
-    Tools.preferences.currentSize = MessageCommon.clampSize(value);
-  }
-  const chooser = document.getElementById("chooseSize");
-  if (chooser instanceof HTMLInputElement) {
-    chooser.value = String(Tools.preferences.currentSize);
-  }
-  Tools.preferences.sizeChangeHandlers.forEach((handler) => {
-    handler(Tools.preferences.currentSize);
+function createPreferenceModule(presets, initial) {
+  const preferences = /** @type {AppToolsState["preferences"]} */ ({
+    colorPresets: presets,
+    colorChooser: null,
+    colorButtonsInitialized: false,
+    currentColor: initial.color,
+    currentSize: MessageCommon.clampSize(initial.size),
+    currentOpacity: MessageCommon.clampOpacity(initial.opacity),
+    initial,
+    colorChangeHandlers: [],
+    sizeChangeHandlers: [],
+    getColor() {
+      return preferences.currentColor;
+    },
+    /** @param {string} color */
+    setColor(color) {
+      preferences.currentColor = color;
+      if (preferences.colorChooser) {
+        preferences.colorChooser.value = color;
+      }
+      preferences.colorChangeHandlers.forEach((handler) => {
+        handler(color);
+      });
+    },
+    getSize() {
+      return preferences.currentSize;
+    },
+    /** @param {number | string | null | undefined} value */
+    setSize(value) {
+      if (value !== null && value !== undefined) {
+        preferences.currentSize = MessageCommon.clampSize(value);
+      }
+      const chooser = document.getElementById("chooseSize");
+      if (chooser instanceof HTMLInputElement) {
+        chooser.value = String(preferences.currentSize);
+      }
+      preferences.sizeChangeHandlers.forEach((handler) => {
+        handler(preferences.currentSize);
+      });
+      return preferences.currentSize;
+    },
+    getOpacity() {
+      return preferences.currentOpacity;
+    },
   });
-  return Tools.preferences.currentSize;
-}
-
-function getSize() {
-  return Tools.preferences.currentSize;
-}
-
-function getOpacity() {
-  return Tools.preferences.currentOpacity;
+  return preferences;
 }
 
 /** @type {SocketHeaders | null} */
@@ -3385,22 +3398,7 @@ const initialPreferences = {
   size: DEFAULT_INITIAL_SIZE,
   opacity: DEFAULT_INITIAL_OPACITY,
 };
-Tools.preferences = {
-  colorPresets,
-  colorChooser: null,
-  colorButtonsInitialized: false,
-  currentColor: initialPreferences.color,
-  currentSize: MessageCommon.clampSize(initialPreferences.size),
-  currentOpacity: MessageCommon.clampOpacity(initialPreferences.opacity),
-  initial: initialPreferences,
-  colorChangeHandlers: [],
-  sizeChangeHandlers: [],
-  getColor,
-  setColor,
-  getSize,
-  setSize,
-  getOpacity,
-};
+Tools.preferences = createPreferenceModule(colorPresets, initialPreferences);
 Tools.access.applyBoardState(
   parseEmbeddedJson("board-state", {
     readonly: false,
