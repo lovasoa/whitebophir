@@ -623,10 +623,24 @@ function createToolBootContext(app, assetUrl) {
       board: {
         ...board,
         createSVGElement: (name, attrs) => app.createSVGElement(name, attrs),
-        toBoardCoordinate: (value) => app.toBoardCoordinate(value),
-        pageCoordinateToBoard: (value) => app.pageCoordinateToBoard(value),
+        toBoardCoordinate: (value) =>
+          app.toBoardCoordinate
+            ? app.toBoardCoordinate(value)
+            : Math.round(Number(value) || 0),
+        pageCoordinateToBoard: (value) =>
+          app.pageCoordinateToBoard
+            ? app.pageCoordinateToBoard(value)
+            : Math.round(Number(value) || 0),
       },
-      viewport: app.viewport,
+      viewport: {
+        ...(app.viewport || {}),
+        getScale: () =>
+          app.viewport?.getScale
+            ? app.viewport.getScale()
+            : app.getScale
+              ? app.getScale()
+              : app.scale || 1,
+      },
       writes: {
         drawAndSend: (message) => app.drawAndSend(message),
         send: (message) => app.send(message),

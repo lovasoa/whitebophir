@@ -25,7 +25,6 @@
  */
 
 import {
-  clampCoord,
   clampSize,
   getLocalGeometryBounds,
   resolveMaxBoardSize,
@@ -34,12 +33,12 @@ import {
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
 import { ToolCodes } from "../tool-order.js";
-/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
+/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {{x: number, y: number, size: number, rawSize: number, oldSize: number, opacity: number, color: string, id: string, sentText: string, lastSending: number, timeout: number | null}} CurrentTextState */
 /** @typedef {Omit<ReturnType<typeof createTextMessage>, "opacity"> & {opacity?: number}} TextCreateMessage */
 /** @typedef {ReturnType<typeof updateTextMessage>} TextUpdateMessage */
 /** @typedef {TextCreateMessage | TextUpdateMessage} TextMessage */
-/** @typedef {{Tools: MountedAppToolsState, board: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
+/** @typedef {{board: ToolRuntimeModules["board"], viewport: ToolRuntimeModules["viewport"], preferences: ToolRuntimeModules["preferences"], writes: ToolRuntimeModules["writes"], runtimeConfig: ToolRuntimeModules["config"], ids: ToolRuntimeModules["ids"], rendering: ToolRuntimeModules["rendering"], boardElement: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
 
 const TEXT_INPUT_BORDER_PX = 1;
 const TEXT_INPUT_CARET_ROOM_PX = 3;
@@ -60,16 +59,10 @@ let textMeasurementContext = null;
  */
 function normalizeCurrentTextPosition(state) {
   const maxBoardSize = resolveMaxBoardSize(
-    state.Tools.server_config.MAX_BOARD_SIZE,
+    state.runtimeConfig.serverConfig.MAX_BOARD_SIZE,
   );
-  state.curText.x =
-    typeof state.Tools.toBoardCoordinate === "function"
-      ? state.Tools.toBoardCoordinate(state.curText.x)
-      : clampCoord(state.curText.x, maxBoardSize);
-  const normalizedY =
-    typeof state.Tools.toBoardCoordinate === "function"
-      ? state.Tools.toBoardCoordinate(state.curText.y)
-      : clampCoord(state.curText.y, maxBoardSize);
+  state.curText.x = state.board.toBoardCoordinate(state.curText.x);
+  const normalizedY = state.board.toBoardCoordinate(state.curText.y);
   state.curText.y = Math.min(
     Math.max(normalizedY, state.curText.size),
     maxBoardSize,
@@ -236,7 +229,7 @@ function measureTextWidth(text, fontSize) {
 
 /** @param {TextState} state */
 function syncEditorLayout(state) {
-  const scale = state.Tools.getScale();
+  const scale = state.viewport.getScale();
   const fontSize = Math.max(1, state.curText.size * scale);
   const input = state.input;
   const contentWidth = measureTextWidth(input.value, fontSize);
@@ -301,7 +294,7 @@ function stopEdit(state) {
 /** @param {TextState} state */
 function startEdit(state) {
   state.active = true;
-  if (!state.input.parentNode) state.board.appendChild(state.input);
+  if (!state.input.parentNode) state.boardElement.appendChild(state.input);
   syncEditorLayout(state);
   setEditedTextVisibility(state, false);
   state.input.focus();
@@ -318,10 +311,10 @@ function startEdit(state) {
 function editOldText(state, elem) {
   state.curText.id = elem.id;
   const r = elem.getBoundingClientRect();
-  state.curText.x = state.Tools.pageCoordinateToBoard(
+  state.curText.x = state.board.pageCoordinateToBoard(
     r.left + document.documentElement.scrollLeft,
   );
-  state.curText.y = state.Tools.pageCoordinateToBoard(
+  state.curText.y = state.board.pageCoordinateToBoard(
     r.top + r.height + document.documentElement.scrollTop,
   );
   state.curText.sentText = elem.textContent || "";
@@ -385,10 +378,10 @@ function textChangeHandler(state, evt) {
   if (state.curText.sentText === inputText) return;
   const nextText = truncateText(inputText);
   if (state.curText.id === "") {
-    state.curText.id = state.Tools.generateUID("t");
-    state.Tools.drawAndSend(createTextMessage(state));
+    state.curText.id = state.ids.generateUID("t");
+    state.writes.drawAndSend(createTextMessage(state));
   }
-  state.Tools.drawAndSend(updateTextMessage(state));
+  state.writes.drawAndSend(updateTextMessage(state));
   setEditedTextVisibility(state, false);
   if (state.input.value !== nextText) {
     state.input.value = nextText;
@@ -417,7 +410,7 @@ function updateActiveEditorText(state, id, text) {
  * @returns {SVGElement}
  */
 function createTextField(state, fieldData) {
-  const elem = state.Tools.createSVGElement("text");
+  const elem = state.board.createSVGElement("text");
   elem.id = fieldData.id;
   elem.setAttribute("x", String(fieldData.x || 0));
   elem.setAttribute("y", String(fieldData.y || 0));
@@ -427,7 +420,7 @@ function createTextField(state, fieldData) {
     "opacity",
     String(Math.max(0.1, Math.min(1, Number(fieldData.opacity) || 1))),
   );
-  state.Tools.drawingArea.appendChild(elem);
+  state.board.drawingArea.appendChild(elem);
   return elem;
 }
 
@@ -439,8 +432,14 @@ export function boot(ctx) {
   input.setAttribute("autocomplete", "off");
   /** @type {TextState} */
   const state = {
-    Tools: ctx.app,
-    board: ctx.board.board,
+    board: ctx.runtime.board,
+    viewport: ctx.runtime.viewport,
+    preferences: ctx.runtime.preferences,
+    writes: ctx.runtime.writes,
+    runtimeConfig: ctx.runtime.config,
+    ids: ctx.runtime.ids,
+    rendering: ctx.runtime.rendering,
+    boardElement: ctx.runtime.board.board,
     input,
     curText: {
       x: 0,
@@ -470,7 +469,7 @@ export function boot(ctx) {
  * @param {boolean} isLocal
  */
 export function draw(state, data, isLocal) {
-  state.Tools.drawingEvent = true;
+  state.rendering.markDrawingEvent();
   if (!isTextMessage(data)) {
     logFrontendEvent("error", "tool.text.draw_invalid_type", {
       mutationType: /** @type {{type?: unknown}} */ (data)?.type,
@@ -511,10 +510,10 @@ export function press(state, x, y, evt, isTouchEvent) {
     evt.preventDefault();
     return;
   }
-  state.curText.rawSize = state.Tools.getSize();
+  state.curText.rawSize = state.preferences.getSize();
   state.curText.size = clampSize(Math.round(state.curText.rawSize * 1.5 + 120));
-  state.curText.opacity = state.Tools.getOpacity();
-  state.curText.color = state.Tools.getColor();
+  state.curText.opacity = state.preferences.getOpacity();
+  state.curText.color = state.preferences.getColor();
   state.curText.x = x;
   state.curText.y = y + state.curText.size / 2;
   normalizeCurrentTextPosition(state);
@@ -525,14 +524,14 @@ export function press(state, x, y, evt, isTouchEvent) {
 
 /** @param {TextState} state */
 export function onstart(state) {
-  state.curText.oldSize = state.Tools.getSize();
-  state.Tools.setSize(state.curText.rawSize);
+  state.curText.oldSize = state.preferences.getSize();
+  state.preferences.setSize(state.curText.rawSize);
 }
 
 /** @param {TextState} state */
 export function onquit(state) {
   stopEdit(state);
-  state.Tools.setSize(state.curText.oldSize);
+  state.preferences.setSize(state.curText.oldSize);
 }
 
 /**
