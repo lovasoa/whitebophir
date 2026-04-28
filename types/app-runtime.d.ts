@@ -608,6 +608,10 @@ export type AppIdentityModule =
 export type AppConfigModule =
   import("../client-data/js/board_runtime_core.js").ConfigModule;
 
+/** Page chrome wiring and boot-time shell controls. */
+export type AppShellModule =
+  import("../client-data/js/board_shell_module.js").BoardShellModule;
+
 /** Server-issued board access state and derived permissions. */
 export type AppAccessModule =
   import("../client-data/js/board_access_module.js").AccessModule;

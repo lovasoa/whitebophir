@@ -644,6 +644,10 @@ test("board pages are no-store in development and render plain asset URLs", asyn
     );
     assert.match(
       response.body,
+      /rel="modulepreload" href="\.\.\/js\/board_shell_module\.js"/,
+    );
+    assert.match(
+      response.body,
       /rel="modulepreload" href="\.\.\/js\/board_status_module\.js"/,
     );
     assert.match(

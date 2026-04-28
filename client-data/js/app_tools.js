@@ -24,6 +24,7 @@ import {
   RateLimitModule,
   ViewportStateModule,
 } from "./board_runtime_core.js";
+import { BoardShellModule } from "./board_shell_module.js";
 import { StatusModule } from "./board_status_module.js";
 import { ToolRegistryModule } from "./board_tool_registry_module.js";
 import { TurnstileModule } from "./board_turnstile.js";
@@ -78,6 +79,7 @@ export class AppTools {
       options.colorPresets,
       options.initialPreferences,
     );
+    this.shell = new BoardShellModule(() => this, options.logBoardEvent);
   }
 
   /**
