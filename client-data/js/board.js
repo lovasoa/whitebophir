@@ -2483,6 +2483,20 @@ function createToolRuntimeModules(mountedTools) {
       boardName: mountedTools.boardName,
       token: mountedTools.token,
     },
+    preferences: {
+      getColor: mountedTools.getColor,
+      getSize: mountedTools.getSize,
+      setSize: mountedTools.setSize,
+      getOpacity: mountedTools.getOpacity,
+    },
+    rateLimits: {
+      getEffectiveRateLimit: mountedTools.getEffectiveRateLimit,
+    },
+    ui: {
+      getCurrentTool: () => mountedTools.curTool,
+      shouldShowMarker: () => mountedTools.showMarker,
+      shouldShowMyCursor: () => mountedTools.showMyCursor,
+    },
   };
 }
 

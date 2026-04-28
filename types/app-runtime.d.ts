@@ -598,12 +598,35 @@ export type ToolIdentityRuntimeModule = {
   readonly token: string | null;
 };
 
+/** Tool-facing current drawing preferences. */
+export type ToolPreferenceRuntimeModule = {
+  getColor: () => string;
+  getSize: () => number;
+  setSize: (size?: number | string | null | undefined) => number;
+  getOpacity: () => number;
+};
+
+/** Tool-facing rate-limit lookup. */
+export type ToolRateLimitRuntimeModule = {
+  getEffectiveRateLimit: (kind: RateLimitKind) => RateLimitDefinition;
+};
+
+/** Tool-facing UI state that may change during a session. */
+export type ToolUiRuntimeModule = {
+  getCurrentTool: () => MaybeMountedAppTool;
+  shouldShowMarker: () => boolean;
+  shouldShowMyCursor: () => boolean;
+};
+
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = {
   readonly board: ToolBoardRuntimeModule;
   readonly viewport: ViewportController;
   readonly writes: ToolWriteRuntimeModule;
   readonly identity: ToolIdentityRuntimeModule;
+  readonly preferences: ToolPreferenceRuntimeModule;
+  readonly rateLimits: ToolRateLimitRuntimeModule;
+  readonly ui: ToolUiRuntimeModule;
 };
 
 /**

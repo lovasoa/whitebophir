@@ -637,6 +637,25 @@ function createToolBootContext(app, assetUrl) {
         boardName: app.boardName || "",
         token: app.token || null,
       },
+      preferences: {
+        getColor: app.getColor || (() => "#123456"),
+        getSize: app.getSize || (() => 4),
+        setSize: app.setSize || (() => 4),
+        getOpacity: app.getOpacity || (() => 1),
+      },
+      rateLimits: {
+        getEffectiveRateLimit:
+          app.getEffectiveRateLimit ||
+          (() => ({
+            limit: 0,
+            periodMs: 0,
+          })),
+      },
+      ui: {
+        getCurrentTool: () => app.curTool || null,
+        shouldShowMarker: () => app.showMarker !== false,
+        shouldShowMyCursor: () => app.showMyCursor !== false,
+      },
     },
     assetUrl,
   };

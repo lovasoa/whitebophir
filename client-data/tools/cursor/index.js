@@ -27,8 +27,8 @@
 import { MutationType } from "../../js/mutation_type.js";
 import { ToolCodes } from "../tool-order.js";
 
-/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
-/** @typedef {{tools: MountedAppToolsState, lastCursorUpdate: number, sending: boolean, x: number, y: number, color: string, size: number, minCursorUpdateIntervalMs: number}} CursorState */
+/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
+/** @typedef {{board: ToolRuntimeModules["board"], writes: ToolRuntimeModules["writes"], preferences: ToolRuntimeModules["preferences"], rateLimits: ToolRuntimeModules["rateLimits"], ui: ToolRuntimeModules["ui"], lastCursorUpdate: number, sending: boolean, x: number, y: number, color: string, size: number, minCursorUpdateIntervalMs: number}} CursorState */
 
 export const toolId = "cursor";
 export const mouseCursor = "crosshair";
@@ -45,12 +45,9 @@ function getPositiveNumber(value, fallback) {
   return number > 0 ? number : fallback;
 }
 
-/** @param {MountedAppToolsState} tools */
-function computeMinCursorUpdateIntervalMs(tools) {
-  const generalLimit =
-    tools.getEffectiveRateLimit?.("general") ??
-    tools.server_config?.RATE_LIMITS?.general ??
-    {};
+/** @param {ToolRuntimeModules["rateLimits"]} rateLimits */
+function computeMinCursorUpdateIntervalMs(rateLimits) {
+  const generalLimit = rateLimits.getEffectiveRateLimit("general");
   return (
     (getPositiveNumber(generalLimit.periodMs, 4096) /
       getPositiveNumber(generalLimit.limit, 192)) *
@@ -66,25 +63,25 @@ function isCursorElement(element) {
   return String(element?.tagName).toLowerCase() === "circle";
 }
 
-/** @param {MountedAppToolsState} tools */
-function getCursorsLayer(tools) {
-  const existingLayer = tools.svg.getElementById("cursors");
+/** @param {ToolRuntimeModules["board"]} board */
+function getCursorsLayer(board) {
+  const existingLayer = board.svg.getElementById("cursors");
   if (existingLayer instanceof SVGGElement) return existingLayer;
   const createdLayer = document.createElementNS(
     "http://www.w3.org/2000/svg",
     "g",
   );
   createdLayer.setAttributeNS(null, "id", "cursors");
-  tools.svg.appendChild(createdLayer);
+  board.svg.appendChild(createdLayer);
   return createdLayer;
 }
 
 /**
- * @param {MountedAppToolsState} tools
+ * @param {ToolRuntimeModules["board"]} board
  * @param {string} id
  */
-function createCursor(tools, id) {
-  const cursorsElem = getCursorsLayer(tools);
+function createCursor(board, id) {
+  const cursorsElem = getCursorsLayer(board);
   const cursor = document.createElementNS(
     "http://www.w3.org/2000/svg",
     "circle",
@@ -104,14 +101,14 @@ function createCursor(tools, id) {
 }
 
 /**
- * @param {MountedAppToolsState} tools
+ * @param {ToolRuntimeModules["board"]} board
  * @param {string} id
  */
-function getCursor(tools, id) {
+function getCursor(board, id) {
   const existingCursor = document.getElementById(id);
   return isCursorElement(existingCursor)
     ? existingCursor
-    : createCursor(tools, id);
+    : createCursor(board, id);
 }
 
 /** @param {CursorState} state */
@@ -130,16 +127,16 @@ function makeCursorMessage(state) {
 /** @param {CursorState} state */
 function updateMarker(state) {
   const activeTool = /** @type {{showMarker?: boolean} | null} */ (
-    state.tools.curTool
+    state.ui.getCurrentTool()
   );
-  if (!state.tools.showMarker || !state.tools.showMyCursor) return;
+  if (!state.ui.shouldShowMarker() || !state.ui.shouldShowMyCursor()) return;
   const curTime = Date.now();
   if (
     curTime - state.lastCursorUpdate > state.minCursorUpdateIntervalMs &&
     (state.sending || activeTool?.showMarker === true)
   ) {
     const message = makeCursorMessage(state);
-    const sent = state.tools.drawAndSend(message);
+    const sent = state.writes.drawAndSend(message);
     if (sent !== true) {
       draw(state, message);
     } else {
@@ -152,16 +149,22 @@ function updateMarker(state) {
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  const tools = ctx.app;
+  const runtime = ctx.runtime;
   return {
-    tools,
+    board: runtime.board,
+    writes: runtime.writes,
+    preferences: runtime.preferences,
+    rateLimits: runtime.rateLimits,
+    ui: runtime.ui,
     lastCursorUpdate: 0,
     sending: true,
     x: 0,
     y: 0,
-    color: tools.getColor(),
-    size: tools.getSize(),
-    minCursorUpdateIntervalMs: computeMinCursorUpdateIntervalMs(tools),
+    color: runtime.preferences.getColor(),
+    size: runtime.preferences.getSize(),
+    minCursorUpdateIntervalMs: computeMinCursorUpdateIntervalMs(
+      runtime.rateLimits,
+    ),
   };
 }
 
@@ -178,8 +181,8 @@ export function press(state) {
 export function move(state, x, y) {
   state.x = x;
   state.y = y;
-  state.color = state.tools.getColor();
-  state.size = state.tools.getSize();
+  state.color = state.preferences.getColor();
+  state.size = state.preferences.getSize();
   updateMarker(state);
 }
 
@@ -202,7 +205,7 @@ export function onSizeChange(state, size) {
  * @param {CursorMessage} message
  */
 export function draw(state, message) {
-  const cursor = getCursor(state.tools, `cursor-${message.socket || "me"}`);
+  const cursor = getCursor(state.board, `cursor-${message.socket || "me"}`);
   cursor.style.transform = `translate(${message.x}px, ${message.y}px)`;
   cursor.setAttributeNS(null, "fill", message.color);
   cursor.setAttributeNS(null, "r", String(message.size / 2));
