@@ -96,7 +96,7 @@ function benchInitScript(targetId) {
   return `
     window.__wboBench = { navStart: performance.now(), renderCompleteMs: null, eraseDispatchMs: null };
     const markRenderComplete = () => {
-      const tools = window.Tools;
+      const tools = window.WBOApp;
       if (window.__wboBench.renderCompleteMs === null && tools && tools.awaitingBoardSnapshot === false && document.getElementById(${JSON.stringify(targetId)})) {
         window.__wboBench.renderCompleteMs = performance.now() - window.__wboBench.navStart;
         return;
@@ -196,11 +196,11 @@ export async function runPeerVisibleEraseBenchmark(maxChildren) {
           );
         const bench = /** @type {any} */ (window).__wboBench;
         bench.eraseDispatchMs = performance.now() - bench.navStart;
-        return window.Tools.send({
+        return window.WBOApp.send({
           tool: eraserTool,
           type: deleteType,
           id: targetId,
-          clientMutationId: window.Tools.generateUID("cm-"),
+          clientMutationId: window.WBOApp.generateUID("cm-"),
         });
       },
       {

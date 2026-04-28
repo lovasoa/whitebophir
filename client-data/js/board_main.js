@@ -43,7 +43,7 @@ function getRenderedToolNames() {
  * @returns {Promise<void>}
  */
 async function lazyBootRenderedTools() {
-  const tools = window.Tools;
+  const tools = window.WBOApp;
   if (!tools) return;
   const schedule =
     window.requestIdleCallback ||
@@ -73,7 +73,7 @@ async function lazyBootRenderedTools() {
 async function bootBoardPage() {
   const boardModule = await import("./board.js");
   await import(PATH_DATA_POLYFILL_MODULE);
-  const tools = window.Tools;
+  const tools = window.WBOApp;
   if (!tools) {
     throw new Error("Board runtime did not initialize the board app.");
   }

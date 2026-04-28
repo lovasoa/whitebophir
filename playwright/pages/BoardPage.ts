@@ -181,7 +181,7 @@ export class BoardPage {
     await this.page.waitForFunction(() => {
       if (!document.getElementById("board")) return false;
       return (
-        !!window.Tools ||
+        !!window.WBOApp ||
         document.documentElement.dataset.boardPhase === "error"
       );
     });
@@ -204,7 +204,7 @@ export class BoardPage {
       mode: document.documentElement.dataset.activeToolMode ?? "",
       secondary:
         document.documentElement.dataset.activeToolSecondary === "true",
-      currentTool: window.Tools?.curTool?.name ?? "",
+      currentTool: window.WBOApp?.curTool?.name ?? "",
     }));
   }
 
@@ -272,7 +272,7 @@ window.turnstile = {
     await this.waitForSocketConnected();
     await this.page.evaluate(() => {
       window.__receivedBroadcasts = [];
-      window.Tools.socket?.on("broadcast", (message: BoardMessage) => {
+      window.WBOApp.socket?.on("broadcast", (message: BoardMessage) => {
         window.__receivedBroadcasts?.push(message);
       });
     });
@@ -280,7 +280,7 @@ window.turnstile = {
 
   async waitForSocketConnected() {
     await expect
-      .poll(() => this.page.evaluate(() => !!window.Tools?.socket?.connected))
+      .poll(() => this.page.evaluate(() => !!window.WBOApp?.socket?.connected))
       .toBe(true);
   }
 
@@ -288,7 +288,7 @@ window.turnstile = {
     await expect
       .poll(() =>
         this.page.evaluate(
-          (targetToolName) => !!window.Tools?.list?.[targetToolName],
+          (targetToolName) => !!window.WBOApp?.list?.[targetToolName],
           name,
         ),
       )
@@ -299,7 +299,7 @@ window.turnstile = {
     await expect
       .poll(() =>
         this.page.evaluate(() => {
-          const tools = window.Tools;
+          const tools = window.WBOApp;
           return !!(
             tools &&
             tools.connectionState === "connected" &&
@@ -360,7 +360,7 @@ window.turnstile = {
 
   async waitForDisconnectThenReconnect() {
     return this.page.evaluate(async () => {
-      const socket = window.Tools.socket;
+      const socket = window.WBOApp.socket;
       if (!socket) throw new Error("Missing socket");
       if (!socket.once) throw new Error("Socket does not support once()");
       const socketOnce = socket.once.bind(socket);
@@ -384,7 +384,7 @@ window.turnstile = {
             clearTimeout(timeout);
             resolve({
               initialId,
-              nextId: window.Tools.socket?.id ?? null,
+              nextId: window.WBOApp.socket?.id ?? null,
             });
           });
         },
@@ -410,7 +410,7 @@ window.turnstile = {
           new Promise<void>((resolve) =>
             requestAnimationFrame(() => resolve()),
           );
-        const getTools = () => window.Tools;
+        const getTools = () => window.WBOApp;
         const ensurePencilTool = async () => {
           const tools = getTools();
           if (typeof tools.bootTool === "function") {
@@ -481,9 +481,9 @@ window.turnstile = {
     const circleSelector = `ellipse[cx='${center.x}'][cy='${center.y}'][rx='${radius}'][ry='${radius}'][stroke='${color}']`;
     await this.page.evaluate(
       ({ drawColor, drawCenter, drawRadius }) => {
-        const tool = window.Tools.curTool;
+        const tool = window.WBOApp.curTool;
         if (!tool) throw new Error("Missing current tool");
-        window.Tools.setColor(drawColor);
+        window.WBOApp.setColor(drawColor);
         tool.listeners.press?.(
           drawCenter.x + drawRadius,
           drawCenter.y + drawRadius,
@@ -514,11 +514,11 @@ window.turnstile = {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ targetX, targetY, targetText }) => {
-        const tool = window.Tools.curTool;
+        const tool = window.WBOApp.curTool;
         if (!tool) throw new Error("Missing current tool");
         const pressEvent = new MouseEvent("mousedown");
         Object.defineProperty(pressEvent, "target", {
-          value: window.Tools.board,
+          value: window.WBOApp.board,
         });
         tool.listeners.press?.(targetX, targetY, pressEvent, false);
         const input = document.getElementById(
@@ -545,7 +545,7 @@ window.turnstile = {
             );
           }
         };
-        const tool = window.Tools.curTool;
+        const tool = window.WBOApp.curTool;
         if (!tool) throw new Error("Missing current tool");
         const evt = new MouseEvent("mousemove");
         tool.listeners.press?.(lineStart.x, lineStart.y, evt, false);
@@ -566,7 +566,7 @@ window.turnstile = {
     return this.page.evaluate<LineDrawState>(() => {
       const line = document.querySelector("#drawingArea line");
       if (!line) throw new Error("Missing line after draw");
-      const currentTool = window.Tools.curTool;
+      const currentTool = window.WBOApp.curTool;
       if (!currentTool) throw new Error("Missing current tool");
       return {
         secondaryActive: currentTool.secondary?.active === true,
@@ -582,7 +582,7 @@ window.turnstile = {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ squareStart, squareEnd }) => {
-        const tool = window.Tools.curTool;
+        const tool = window.WBOApp.curTool;
         if (!tool) throw new Error("Missing current tool");
         const evt = new MouseEvent("mousemove");
         tool.listeners.press?.(squareStart.x, squareStart.y, evt, false);
@@ -595,7 +595,7 @@ window.turnstile = {
     return this.page.evaluate<ShapeDrawState>(() => {
       const rect = document.querySelector("#drawingArea rect");
       if (!rect) throw new Error("Missing rectangle after draw");
-      const currentTool = window.Tools.curTool;
+      const currentTool = window.WBOApp.curTool;
       if (!currentTool) throw new Error("Missing current tool");
       return {
         secondaryActive: currentTool.secondary?.active === true,
@@ -612,12 +612,12 @@ window.turnstile = {
     const shape = this.page.locator(`#${id}`);
     await this.page.evaluate(
       ({ targetId, deleteType, toolId }) => {
-        const tool = window.Tools.curTool;
+        const tool = window.WBOApp.curTool;
         if (!tool || tool.name !== "eraser") {
           throw new Error("Missing eraser tool");
         }
         tool.draw({ type: deleteType, id: targetId }, true);
-        window.Tools.socket?.emit("broadcast", {
+        window.WBOApp.socket?.emit("broadcast", {
           tool: toolId,
           type: deleteType,
           id: targetId,
@@ -636,7 +636,7 @@ window.turnstile = {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       async ({ cursorColor, cursorX, cursorY }) => {
-        const tools = window.Tools;
+        const tools = window.WBOApp;
         if (typeof tools.bootTool === "function") {
           await tools.bootTool("cursor");
         }
@@ -656,7 +656,7 @@ window.turnstile = {
       ({ targetId, fromPoint, toPoint }) => {
         const rect = document.getElementById(targetId);
         if (!rect) throw new Error(`Missing shape ${targetId}`);
-        const tool = window.Tools.curTool;
+        const tool = window.WBOApp.curTool;
         if (!tool) throw new Error("Missing current tool");
         const evt = new MouseEvent("mousemove", {
           clientX: 0,
@@ -681,7 +681,7 @@ window.turnstile = {
         .split(/[ ,]+/)
         .filter(Boolean)
         .map(Number);
-      const currentTool = window.Tools.curTool;
+      const currentTool = window.WBOApp.curTool;
       if (!currentTool) throw new Error("Missing current tool");
       return {
         selectorActive: currentTool.secondary?.active === true,
@@ -696,10 +696,10 @@ window.turnstile = {
 
   async zoomClickInAndOut(point: Point) {
     const initialScale = await this.page.evaluate(() => {
-      return window.Tools.getScale();
+      return window.WBOApp.getScale();
     });
     await this.page.evaluate(({ x, y }) => {
-      const tools = window.Tools;
+      const tools = window.WBOApp;
       const tool = tools.curTool;
       if (!tool) throw new Error("Missing current tool");
       const zoomInEvent = {
@@ -719,13 +719,13 @@ window.turnstile = {
       release?.(x, y, zoomInEvent as unknown as MouseEvent, false);
     }, point);
     await this.page.waitForFunction((previousScale) => {
-      return window.Tools.getScale() > previousScale;
+      return window.WBOApp.getScale() > previousScale;
     }, initialScale);
     const scaleAfterZoomIn = await this.page.evaluate(() => {
-      return window.Tools.getScale();
+      return window.WBOApp.getScale();
     });
     await this.page.evaluate(({ x, y }) => {
-      const tools = window.Tools;
+      const tools = window.WBOApp;
       const tool = tools.curTool;
       if (!tool) throw new Error("Missing current tool");
       const zoomOutEvent = {
@@ -750,10 +750,10 @@ window.turnstile = {
       release?.(x, y, zoomOutEvent as unknown as MouseEvent, false);
     }, point);
     await this.page.waitForFunction((previousScale) => {
-      return window.Tools.getScale() < previousScale;
+      return window.WBOApp.getScale() < previousScale;
     }, scaleAfterZoomIn);
     const scaleAfterZoomOut = await this.page.evaluate(() => {
-      return window.Tools.getScale();
+      return window.WBOApp.getScale();
     });
     return {
       scaleAfterZoomIn,
@@ -803,8 +803,8 @@ window.turnstile = {
       ({ handTool, targetId, copyType }) => {
         const rect = document.getElementById(targetId);
         if (!rect) throw new Error(`Missing shape ${targetId}`);
-        const duplicateId = window.Tools.generateUID(targetId[0] ?? "s");
-        window.Tools.drawAndSend({
+        const duplicateId = window.WBOApp.generateUID(targetId[0] ?? "s");
+        window.WBOApp.drawAndSend({
           tool: handTool,
           _children: [{ type: copyType, id: targetId, newid: duplicateId }],
         });
@@ -819,7 +819,7 @@ window.turnstile = {
     });
     await this.page.evaluate(
       ({ handTool, targetId, deleteType }) => {
-        window.Tools.drawAndSend({
+        window.WBOApp.drawAndSend({
           tool: handTool,
           _children: [{ type: deleteType, id: targetId }],
         });
@@ -842,7 +842,7 @@ window.turnstile = {
   async emitBroadcast(message: Record<string, unknown>) {
     await this.waitForBoardWritable();
     await this.page.evaluate((data) => {
-      window.Tools.socket?.emit("broadcast", data);
+      window.WBOApp.socket?.emit("broadcast", data);
     }, message);
   }
 
@@ -850,10 +850,10 @@ window.turnstile = {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ drawColor, drawStart, drawEnd, drawSize }) => {
-        window.Tools.setColor(drawColor);
-        window.Tools.setSize(drawSize);
-        window.Tools.change("rectangle");
-        const tool = window.Tools.curTool;
+        window.WBOApp.setColor(drawColor);
+        window.WBOApp.setSize(drawSize);
+        window.WBOApp.change("rectangle");
+        const tool = window.WBOApp.curTool;
         if (!tool) throw new Error("Missing current tool");
         tool.listeners.press?.(
           drawStart.x,
@@ -909,16 +909,16 @@ window.turnstile = {
           clearTimeout(timeout);
           requestAnimationFrame(() =>
             resolve({
-              connected: window.Tools.socket?.connected === true,
-              validated: window.Tools.isTurnstileValidated(),
+              connected: window.WBOApp.socket?.connected === true,
+              validated: window.WBOApp.isTurnstileValidated(),
             }),
           );
         };
 
-        window.Tools.socket?.once?.("reconnect", finish);
-        window.Tools.socket?.once?.("connect", finish);
+        window.WBOApp.socket?.once?.("reconnect", finish);
+        window.WBOApp.socket?.once?.("connect", finish);
 
-        window.Tools.socket?.io?.engine?.close();
+        window.WBOApp.socket?.io?.engine?.close();
       });
 
       return reconnect;
@@ -930,12 +930,12 @@ window.turnstile = {
       const indicator = document.getElementById("boardStatusIndicator");
       const notice = document.getElementById("boardStatusNotice");
       return {
-        connected: !!window.Tools?.socket?.connected,
-        bufferedWrites: window.Tools.bufferedWrites.length,
-        awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
+        connected: !!window.WBOApp?.socket?.connected,
+        bufferedWrites: window.WBOApp.bufferedWrites.length,
+        awaitingBoardSnapshot: !!window.WBOApp.awaitingBoardSnapshot,
         hasAuthoritativeBoardSnapshot:
-          !!window.Tools.hasAuthoritativeBoardSnapshot,
-        connectionState: String(window.Tools.connectionState ?? ""),
+          !!window.WBOApp.hasAuthoritativeBoardSnapshot,
+        connectionState: String(window.WBOApp.connectionState ?? ""),
         indicatorClass: indicator?.className ?? "",
         noticeText: notice?.textContent ?? "",
       };
@@ -960,7 +960,7 @@ window.turnstile = {
 
   async forceSocketDisconnect() {
     await this.page.evaluate(() => {
-      window.Tools.socket?.io?.engine?.close();
+      window.WBOApp.socket?.io?.engine?.close();
     });
   }
 
@@ -968,15 +968,15 @@ window.turnstile = {
     return this.page.evaluate((value) => {
       return new Promise<{ success: boolean; validated: boolean }>(
         (resolve) => {
-          window.Tools.socket?.emit(
+          window.WBOApp.socket?.emit(
             "turnstile_token",
             value,
             (result: unknown) => {
-              const ack = window.Tools.normalizeTurnstileAck(result);
-              if (ack.success) window.Tools.setTurnstileValidation(ack);
+              const ack = window.WBOApp.normalizeTurnstileAck(result);
+              if (ack.success) window.WBOApp.setTurnstileValidation(ack);
               resolve({
                 success: ack.success === true,
-                validated: window.Tools.isTurnstileValidated(),
+                validated: window.WBOApp.isTurnstileValidated(),
               });
             },
           );
@@ -989,7 +989,7 @@ window.turnstile = {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ rectangleTool, rectId, createType }) => {
-        window.Tools.drawAndSend({
+        window.WBOApp.drawAndSend({
           tool: rectangleTool,
           type: createType,
           id: rectId,
@@ -1016,8 +1016,8 @@ window.turnstile = {
     });
     return this.page.evaluate<ProtectedWriteState>(() => ({
       overlayPresent: true,
-      pendingWrites: window.Tools.turnstilePendingWrites.length,
-      validated: window.Tools.isTurnstileValidated(),
+      pendingWrites: window.WBOApp.turnstilePendingWrites.length,
+      validated: window.WBOApp.isTurnstileValidated(),
     }));
   }
 
@@ -1033,8 +1033,8 @@ window.turnstile = {
     });
     return this.page.evaluate<ProtectedWriteState>(() => ({
       overlayPresent: false,
-      pendingWrites: window.Tools.turnstilePendingWrites.length,
-      validated: window.Tools.isTurnstileValidated(),
+      pendingWrites: window.WBOApp.turnstilePendingWrites.length,
+      validated: window.WBOApp.isTurnstileValidated(),
     }));
   }
 
@@ -1050,8 +1050,8 @@ window.turnstile = {
         overlayPresent: !!(
           overlay && !overlay.classList.contains("turnstile-overlay-hidden")
         ),
-        pendingWrites: window.Tools.turnstilePendingWrites.length,
-        validated: window.Tools.isTurnstileValidated(),
+        pendingWrites: window.WBOApp.turnstilePendingWrites.length,
+        validated: window.WBOApp.isTurnstileValidated(),
       };
     });
   }

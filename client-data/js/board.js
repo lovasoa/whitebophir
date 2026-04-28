@@ -83,7 +83,7 @@ import { TOOL_BY_ID, TOOLS } from "../tools/index.js";
 /** @import { AppBoardState, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeModules } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
-window.Tools = Tools;
+window.WBOApp = Tools;
 
 /**
  * @param {unknown} tool

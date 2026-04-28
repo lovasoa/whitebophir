@@ -4,7 +4,6 @@ export {};
 declare global {
   const io: any;
   const turnstile: import("../types/app-runtime").TurnstileGlobal;
-  var Tools: import("../types/app-runtime").AppToolsState;
   type TransformedBBox = {
     r: [number, number];
     a: [number, number];
@@ -21,7 +20,7 @@ declare global {
   ) => boolean;
 
   interface Window {
-    Tools: typeof Tools;
+    WBOApp: import("../types/app-runtime").AppToolsState;
     WBOBoardState: {
       normalizeBoardState: typeof import("../client-data/js/board_page_state.js")["normalizeBoardState"];
     };

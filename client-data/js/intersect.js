@@ -33,7 +33,7 @@
  * @returns {MatrixState}
  */
 function getTransformMatrix(elem) {
-  const svg = window.Tools?.svg;
+  const svg = window.WBOApp?.svg;
   if (!svg) {
     throw new Error("Missing SVG canvas.");
   }

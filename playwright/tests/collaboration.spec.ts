@@ -438,7 +438,7 @@ test.describe("collaboration and rate limiting", () => {
             requestAnimationFrame(() => resolve()),
           );
         for (let index = 0; index < 12; index += 1) {
-          window.Tools.socket.emit("broadcast", {
+          window.WBOApp.socket.emit("broadcast", {
             tool,
             type: updateType,
             x: 1600 + index * 8,
@@ -490,9 +490,9 @@ test.describe("collaboration and rate limiting", () => {
 
     await page.evaluate(
       ({ createType, tool }) => {
-        const rectangle = window.Tools.list.rectangle;
+        const rectangle = window.WBOApp.list.rectangle;
         if (!rectangle) throw new Error("rectangle tool is unavailable");
-        window.Tools.drawAndSend({
+        window.WBOApp.drawAndSend({
           tool,
           type: createType,
           id: "persisted-across-disconnect",
@@ -524,10 +524,10 @@ test.describe("collaboration and rate limiting", () => {
         statusVisible: boolean;
         rectVisible: boolean;
       }>((resolve) => {
-        window.Tools.socket.once("disconnect", () => {
+        window.WBOApp.socket.once("disconnect", () => {
           resolve({
-            awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
-            connectionState: String(window.Tools.connectionState ?? ""),
+            awaitingBoardSnapshot: !!window.WBOApp.awaitingBoardSnapshot,
+            connectionState: String(window.WBOApp.connectionState ?? ""),
             statusVisible:
               !document.getElementById("boardStatusIndicator")?.hidden ?? false,
             rectVisible: !!document.getElementById(
@@ -535,7 +535,7 @@ test.describe("collaboration and rate limiting", () => {
             ),
           });
         });
-        window.Tools.socket.io.engine.close();
+        window.WBOApp.socket.io.engine.close();
       });
     });
 
@@ -568,9 +568,9 @@ test.describe("collaboration and rate limiting", () => {
             requestAnimationFrame(() => resolve()),
           );
         const lineId = "reconnect-pencil-path";
-        const pencil = window.Tools.list.pencil;
+        const pencil = window.WBOApp.list.pencil;
         if (!pencil) throw new Error("pencil tool is unavailable");
-        window.Tools.drawAndSend({
+        window.WBOApp.drawAndSend({
           tool: pencilTool,
           type: createType,
           id: lineId,
@@ -585,7 +585,7 @@ test.describe("collaboration and rate limiting", () => {
           { x: 325, y: 697 },
           { x: 198, y: 658 },
         ]) {
-          window.Tools.drawAndSend({
+          window.WBOApp.drawAndSend({
             tool: pencilTool,
             type: appendType,
             parent: lineId,
@@ -782,8 +782,8 @@ test.describe("collaboration and rate limiting", () => {
 
       return {
         boardPhase: document.documentElement.dataset.boardPhase,
-        connectionState: String(window.Tools.connectionState ?? ""),
-        awaitingBoardSnapshot: !!window.Tools.awaitingBoardSnapshot,
+        connectionState: String(window.WBOApp.connectionState ?? ""),
+        awaitingBoardSnapshot: !!window.WBOApp.awaitingBoardSnapshot,
         statusHidden: statusIndicator?.hidden ?? true,
         pencilCount: document.querySelectorAll("#drawingArea path#slow-pencil")
           .length,
@@ -842,7 +842,7 @@ test.describe("collaboration and rate limiting", () => {
       await page.evaluate(
         ({ deleteType, tool }) => {
           for (let index = 0; index < 101; index += 1) {
-            window.Tools.socket.emit("broadcast", {
+            window.WBOApp.socket.emit("broadcast", {
               tool,
               type: deleteType,
               id: `rate-limit-${index}`,
@@ -885,9 +885,9 @@ test.describe("collaboration and rate limiting", () => {
 
       await page.evaluate(
         ({ createType, tool }) => {
-          const rectangle = window.Tools.list.rectangle;
+          const rectangle = window.WBOApp.list.rectangle;
           if (!rectangle) throw new Error("rectangle tool is unavailable");
-          window.Tools.drawAndSend({
+          window.WBOApp.drawAndSend({
             tool,
             type: createType,
             id: "buffered-rect-1",
@@ -899,7 +899,7 @@ test.describe("collaboration and rate limiting", () => {
             size: 10,
             opacity: 1,
           });
-          window.Tools.drawAndSend({
+          window.WBOApp.drawAndSend({
             tool,
             type: createType,
             id: "buffered-rect-2",
@@ -974,9 +974,9 @@ test.describe("collaboration and rate limiting", () => {
 
       await page.evaluate(
         ({ createType, tool }) => {
-          const rectangle = window.Tools.list.rectangle;
+          const rectangle = window.WBOApp.list.rectangle;
           if (!rectangle) throw new Error("rectangle tool is unavailable");
-          window.Tools.drawAndSend({
+          window.WBOApp.drawAndSend({
             tool,
             type: createType,
             id: "persisted-before-disconnect",
@@ -988,7 +988,7 @@ test.describe("collaboration and rate limiting", () => {
             size: 10,
             opacity: 1,
           });
-          window.Tools.drawAndSend({
+          window.WBOApp.drawAndSend({
             tool,
             type: createType,
             id: "local-only-before-disconnect",

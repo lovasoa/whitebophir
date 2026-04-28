@@ -9,7 +9,7 @@ import type {
 
 declare global {
   interface Window {
-    Tools: AppToolsState;
+    WBOApp: AppToolsState;
     socketio_extra_headers?: SocketHeaders;
     __downloadCapture?: DownloadCapture | null;
     __downloadAnchorClicks?: number;

@@ -197,9 +197,9 @@ test.describe("public authless flows", () => {
 
     const hadOptimisticRect = await page.evaluate(
       ({ createType, tool }) => {
-        const rectangle = window.Tools.list.rectangle;
+        const rectangle = window.WBOApp.list.rectangle;
         if (!rectangle) throw new Error("rectangle tool is unavailable");
-        window.Tools.drawAndSend({
+        window.WBOApp.drawAndSend({
           tool,
           type: createType,
           id: "readonly-public-optimistic-rect",

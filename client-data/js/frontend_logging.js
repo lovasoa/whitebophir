@@ -5,7 +5,7 @@ const FRONTEND_LOG_PREFIX = "[wbo]";
  */
 function getRuntimeTools() {
   if (typeof window === "undefined") return null;
-  const tools = /** @type {unknown} */ (window.Tools);
+  const tools = /** @type {unknown} */ (window.WBOApp);
   if (!tools || typeof tools !== "object") return null;
   return /** @type {import("../../types/app-runtime").AppToolsState} */ (tools);
 }

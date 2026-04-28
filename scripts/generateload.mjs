@@ -65,7 +65,7 @@ function parseArgs(argv) {
  */
 async function waitForBoardReady(page) {
   await page.waitForFunction(() => {
-    const tools = window.Tools;
+    const tools = window.WBOApp;
     return !!(
       tools &&
       document.documentElement.dataset.boardPhase === "ready" &&
@@ -95,7 +95,7 @@ async function startDrawer(page, userIndex) {
       appendType,
     }) => {
       /** @type {any} */
-      const tools = window.Tools;
+      const tools = window.WBOApp;
       await tools.bootTool?.("pencil");
       const pencil = tools.list?.pencil;
       if (!pencil) throw new Error("Missing Pencil tool");

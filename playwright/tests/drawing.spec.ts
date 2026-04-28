@@ -177,8 +177,8 @@ test.describe("drawing and persistence", () => {
     await boardPage.gotoBoard("text-editor-overlay");
     await boardPage.selectTool("text");
     await page.evaluate(() => {
-      window.Tools.setColor("#ff4136");
-      window.Tools.setSize(40);
+      window.WBOApp.setColor("#ff4136");
+      window.WBOApp.setSize(40);
     });
     await page.mouse.click(260, 240);
     await page.keyboard.insertText(textValue);
@@ -192,11 +192,11 @@ test.describe("drawing and persistence", () => {
         throw new Error("Missing text editor state");
       }
       const inputStyle = getComputedStyle(input);
-      const textX = Number(text.getAttribute("x")) * window.Tools.scale;
-      const textBaseline = Number(text.getAttribute("y")) * window.Tools.scale;
+      const textX = Number(text.getAttribute("x")) * window.WBOApp.scale;
+      const textBaseline = Number(text.getAttribute("y")) * window.WBOApp.scale;
       const textFontSize =
-        Number(text.getAttribute("font-size")) * window.Tools.scale;
-      const textWidth = text.getComputedTextLength() * window.Tools.scale;
+        Number(text.getAttribute("font-size")) * window.WBOApp.scale;
+      const textWidth = text.getComputedTextLength() * window.WBOApp.scale;
       return {
         backgroundColor: inputStyle.backgroundColor,
         borderTopWidth: inputStyle.borderTopWidth,
@@ -392,7 +392,7 @@ test.describe("drawing and persistence", () => {
       await expect(page.locator("#drawingArea rect")).toHaveCount(1);
       const bufferedMutationsForDeletedRect = await page.evaluate(
         (targetId) =>
-          window.Tools.bufferedWrites
+          window.WBOApp.bufferedWrites
             .map((write) => write.message)
             .filter((message) => message.id === targetId)
             .map((message) => message.type),
