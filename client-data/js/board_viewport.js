@@ -11,7 +11,7 @@ const WHEEL_PAGE_PIXELS = 1000;
 const WHEEL_ZOOM_SENSITIVITY = 0.01;
 const WHEEL_MAX_FRAME_DELTA = 30;
 const SCALE_WILL_CHANGE_TIMEOUT_MS = 1000;
-const VIEWPORT_HASH_SYNC_DELAY_MS = 100;
+const VIEWPORT_HASH_SYNC_DELAY_MS = 200;
 const VIEWPORT_HASH_PUSH_INTERVAL_MS = 5000;
 const PINCH_MIN_DISTANCE = 16;
 const BOARD_EXTENT_MARGIN = 20000;
@@ -302,6 +302,7 @@ export function createViewportController(Tools) {
    */
   function panTo(left, top) {
     window.scrollTo(left, top);
+    scheduleViewportHashSync();
   }
 
   /**
@@ -516,6 +517,7 @@ export function createViewportController(Tools) {
     if (!touches) return;
     const distance = distanceBetween(touches[0], touches[1]);
     if (distance < PINCH_MIN_DISTANCE) return;
+    clearViewportHashSync();
     activePinch = {
       distance,
       scale: getScale(),
@@ -555,33 +557,57 @@ export function createViewportController(Tools) {
    * @returns {void}
    */
   function handleTouchEnd(event) {
-    if (event.touches.length < 2) activePinch = null;
+    if (event.touches.length < 2) {
+      const wasPinching = !!activePinch;
+      activePinch = null;
+      if (wasPinching) scheduleViewportHashSync();
+    }
   }
 
-  function syncViewportHashFromScroll() {
+  function clearViewportHashSync() {
+    if (viewportHashScrollTimeout !== null) {
+      window.clearTimeout(viewportHashScrollTimeout);
+      viewportHashScrollTimeout = null;
+    }
+  }
+
+  /**
+   * @returns {string}
+   */
+  function currentViewportHash() {
     const scale = getScale();
     const x = document.documentElement.scrollLeft / scale;
     const y = document.documentElement.scrollTop / scale;
 
-    if (viewportHashScrollTimeout !== null) {
-      clearTimeout(viewportHashScrollTimeout);
+    return `#${x | 0},${y | 0},${scale.toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
+  }
+
+  function updateViewportHistory() {
+    viewportHashScrollTimeout = null;
+    const hash = currentViewportHash();
+    if (hash === window.location.hash) return;
+    if (
+      Date.now() - lastViewportHashStateUpdate >
+      VIEWPORT_HASH_PUSH_INTERVAL_MS
+    ) {
+      window.history.pushState({}, "", hash);
+      lastViewportHashStateUpdate = Date.now();
+    } else {
+      window.history.replaceState({}, "", hash);
     }
+  }
+
+  function scheduleViewportHashSync() {
+    if (!hashObserversInstalled || activePan || activePinch) return;
+    clearViewportHashSync();
     viewportHashScrollTimeout = window.setTimeout(
-      function updateViewportHistory() {
-        const hash = `#${x | 0},${y | 0},${getScale().toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
-        if (
-          Date.now() - lastViewportHashStateUpdate >
-            VIEWPORT_HASH_PUSH_INTERVAL_MS &&
-          hash !== window.location.hash
-        ) {
-          window.history.pushState({}, "", hash);
-          lastViewportHashStateUpdate = Date.now();
-        } else {
-          window.history.replaceState({}, "", hash);
-        }
-      },
+      updateViewportHistory,
       VIEWPORT_HASH_SYNC_DELAY_MS,
     );
+  }
+
+  function syncViewportHashFromScroll() {
+    scheduleViewportHashSync();
   }
 
   /** @type {ViewportController} */
@@ -613,6 +639,7 @@ export function createViewportController(Tools) {
       return zoomAtPagePoint(getScale() * factor, pageX, pageY);
     },
     beginPan(clientX, clientY) {
+      clearViewportHashSync();
       activePan = {
         x: clientX,
         y: clientY,
@@ -628,7 +655,9 @@ export function createViewportController(Tools) {
       );
     },
     endPan() {
+      const wasPanning = !!activePan;
       activePan = null;
+      if (wasPanning) scheduleViewportHashSync();
     },
     install() {
       const dom = getAttachedDom();

@@ -5,6 +5,148 @@ async function loadViewportModule() {
   return import("../client-data/js/board_viewport.js");
 }
 
+/**
+ * @param {string} [initialHash]
+ */
+function createViewportHashTestEnvironment(initialHash = "#0,0,1.000") {
+  const globalAny = /** @type {any} */ (global);
+  const previousWindow = globalAny.window;
+  const previousDocument = globalAny.document;
+  /** @type {Map<string, Array<(event: {type: string}) => void>>} */
+  const listeners = new Map();
+  /** @type {Map<number, {fn: () => void, delay: number}>} */
+  const timers = new Map();
+  /** @type {Array<{type: string, url: unknown}>} */
+  const historyCalls = [];
+  let nextTimerId = 1;
+
+  const fakeDocument = {
+    documentElement: {
+      scrollLeft: 0,
+      scrollTop: 0,
+    },
+  };
+
+  /** @param {string} type */
+  function dispatch(type) {
+    for (const listener of listeners.get(type) || []) listener({ type });
+  }
+
+  /** @param {unknown} url */
+  function writeHash(url) {
+    if (typeof url === "string" && url.startsWith("#")) {
+      fakeWindow.location.hash = url;
+    }
+  }
+
+  const fakeWindow = {
+    innerWidth: 100,
+    innerHeight: 100,
+    location: {
+      hash: initialHash,
+    },
+    history: {
+      /**
+       * @param {unknown} _state
+       * @param {string} _title
+       * @param {unknown} url
+       */
+      pushState(_state, _title, url) {
+        historyCalls.push({ type: "pushState", url });
+        writeHash(url);
+      },
+      /**
+       * @param {unknown} _state
+       * @param {string} _title
+       * @param {unknown} url
+       */
+      replaceState(_state, _title, url) {
+        historyCalls.push({ type: "replaceState", url });
+        writeHash(url);
+      },
+    },
+    /**
+     * @param {string} type
+     * @param {(event: {type: string}) => void} listener
+     */
+    addEventListener(type, listener) {
+      const typeListeners = listeners.get(type) || [];
+      typeListeners.push(listener);
+      listeners.set(type, typeListeners);
+    },
+    /**
+     * @param {() => void} fn
+     * @param {number} delay
+     */
+    setTimeout(fn, delay) {
+      const id = nextTimerId;
+      nextTimerId += 1;
+      timers.set(id, { fn, delay });
+      return id;
+    },
+    /** @param {number} id */
+    clearTimeout(id) {
+      timers.delete(id);
+    },
+    /**
+     * @param {number} left
+     * @param {number} top
+     */
+    scrollTo(left, top) {
+      fakeDocument.documentElement.scrollLeft = left;
+      fakeDocument.documentElement.scrollTop = top;
+      dispatch("scroll");
+    },
+  };
+
+  globalAny.window = fakeWindow;
+  globalAny.document = fakeDocument;
+
+  return {
+    window: fakeWindow,
+    historyCalls,
+    timers,
+    /** @param {number} delay */
+    flushTimers(delay) {
+      for (const [id, timer] of [...timers]) {
+        if (timer.delay !== delay) continue;
+        timers.delete(id);
+        timer.fn();
+      }
+    },
+    restore() {
+      globalAny.window = previousWindow;
+      globalAny.document = previousDocument;
+    },
+  };
+}
+
+/**
+ * @param {number} [scale]
+ * @returns {any}
+ */
+function createViewportHashTestTools(scale = 1) {
+  return {
+    viewportState: {
+      scale,
+    },
+    config: {
+      serverConfig: {
+        MAX_BOARD_SIZE: 1000,
+      },
+    },
+    coordinates: {
+      /** @param {unknown} value */
+      toBoardCoordinate: (value) => Number(value) || 0,
+    },
+    preferences: {},
+    toolRegistry: {
+      syncDrawToolAvailability: () => {},
+    },
+    dom: null,
+  };
+}
+
 test("viewport scale clamping uses explicit dimensions without browser globals", async () => {
   const { clampScale } = await loadViewportModule();
 
@@ -87,6 +229,58 @@ test("viewport layout size follows scaled svg while filling the viewport", async
     width: 1200,
     height: 800,
   });
+});
+
+test("viewport hash sync waits until hand pan ends", async () => {
+  const env = createViewportHashTestEnvironment();
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const viewport = createViewportController(createViewportHashTestTools());
+    viewport.installHashObservers();
+
+    viewport.beginPan(0, 0);
+    viewport.movePan(-25, -40);
+    env.flushTimers(200);
+
+    assert.equal(env.window.location.hash, "#0,0,1.000");
+    assert.equal(env.historyCalls.length, 0);
+    assert.equal(env.timers.size, 0);
+
+    viewport.endPan();
+
+    assert.equal(env.timers.size, 1);
+    env.flushTimers(200);
+    assert.equal(env.window.location.hash, "#25,40,1.000");
+    assert.deepEqual(env.historyCalls, [
+      { type: "replaceState", url: "#25,40,1.000" },
+    ]);
+  } finally {
+    env.restore();
+  }
+});
+
+test("viewport hash sync waits for zoom debounce", async () => {
+  const env = createViewportHashTestEnvironment();
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const viewport = createViewportController(createViewportHashTestTools());
+    viewport.installHashObservers();
+
+    viewport.zoomBy(0.5, 0, 0);
+
+    assert.equal(env.window.location.hash, "#0,0,1.000");
+    assert.equal(env.historyCalls.length, 0);
+    assert.equal(env.timers.size, 1);
+
+    env.flushTimers(200);
+
+    assert.equal(env.window.location.hash, "#0,0,0.500");
+    assert.deepEqual(env.historyCalls, [
+      { type: "replaceState", url: "#0,0,0.500" },
+    ]);
+  } finally {
+    env.restore();
+  }
 });
 
 test("viewport owns svg extent growth and layout sync", async () => {
