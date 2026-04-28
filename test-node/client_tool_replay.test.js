@@ -13,6 +13,7 @@ const RectangleTool = require("../client-data/tools/rectangle/index.js");
 const ShapeTool = require("../client-data/tools/shape_tool.js");
 installTestConsole();
 const { MutationType } = MessageToolMetadata;
+/** @typedef {import("../types/app-runtime").ToolRuntimeModules} ToolRuntimeModules */
 
 /**
  * @typedef {{type: string, values: number[]}} PathSegment
@@ -415,6 +416,8 @@ function createHarness() {
     drawingEvent: false,
     scale: 1,
     canWrite: true,
+    showMarker: true,
+    showMyCursor: true,
     sentMessages: [],
     server_config: {
       RATE_LIMITS: {
@@ -429,16 +432,53 @@ function createHarness() {
     curTool: { secondary: { active: false } },
     getColor: () => "#123456",
     getSize: () => 4,
-    setSize: () => {},
+    setSize: (/** @type {number | string | null | undefined} */ size) =>
+      Number(size) || 4,
     getOpacity: () => 1,
     generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
     getScale: () => 1,
+    toBoardCoordinate: (/** @type {unknown} */ value) =>
+      Math.round(Number(value) || 0),
+    pageCoordinateToBoard: (/** @type {unknown} */ value) =>
+      Math.round(Number(value) || 0),
+    getEffectiveRateLimit: (/** @type {string} */ kind) => {
+      const definition = globalAny.Tools.server_config.RATE_LIMITS[kind];
+      if (!definition) throw new Error(`Missing rate limit for ${kind}`);
+      return definition;
+    },
     viewport: {
       ensuredBounds: /** @type {any[]} */ ([]),
+      setScale: (/** @type {number} */ scale) => {
+        globalAny.Tools.scale = scale;
+        return scale;
+      },
+      getScale: () => globalAny.Tools.getScale(),
+      syncLayoutSize: () => {},
+      setTouchPolicy: () => {},
+      ensureBoardExtentAtLeast: () => true,
+      ensureBoardExtentForPoint: () => true,
       ensureBoardExtentForBounds: function (/** @type {any} */ bounds) {
         this.ensuredBounds.push(bounds);
         return true;
       },
+      pageCoordinateToBoard: (/** @type {unknown} */ value) =>
+        globalAny.Tools.pageCoordinateToBoard(value),
+      panBy: () => {},
+      panTo: () => {},
+      zoomAt: (/** @type {number} */ scale) => {
+        globalAny.Tools.scale = scale;
+        return scale;
+      },
+      zoomBy: (/** @type {number} */ factor) => {
+        globalAny.Tools.scale *= factor;
+        return globalAny.Tools.scale;
+      },
+      beginPan: () => {},
+      movePan: () => {},
+      endPan: () => {},
+      install: () => {},
+      installHashObservers: () => {},
+      applyFromHash: () => {},
     },
     createSVGElement: (
       /** @type {string} */ tagName,
@@ -462,6 +502,20 @@ function createHarness() {
       });
       return true;
     },
+    send: function (/** @type {any} */ data) {
+      return this.drawAndSend(data);
+    },
+    canBufferWrites: () => true,
+    whenBoardWritable: () => Promise.resolve(),
+    messageForTool: (/** @type {any} */ data) => {
+      const toolName = MessageToolMetadata.getToolId(data.tool);
+      if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
+      const mountedTool = tools[toolName];
+      if (!mountedTool) throw new Error(`Missing mounted tool '${toolName}'.`);
+      mountedTool.draw(data, false);
+    },
+    boardName: "test-board",
+    token: null,
   };
 
   return {
@@ -481,8 +535,9 @@ function createHarness() {
         throw new Error(`Missing boot export for ${toolName}`);
       }
       const toolState = await moduleNamespace.boot(
-        createToolBootContext(globalAny.Tools, (assetFile) =>
-          getToolRuntimeAssetPath(toolName, assetFile),
+        createToolBootContext(
+          createHarnessToolRuntime(globalAny.Tools),
+          (assetFile) => getToolRuntimeAssetPath(toolName, assetFile),
         ),
       );
       const stateMetadata =
@@ -585,10 +640,22 @@ function createInputTools(overrides = {}) {
     },
     getColor: () => "#123456",
     getSize: () => 4,
-    setSize: () => {},
+    setSize: (/** @type {number | string | null | undefined} */ size) =>
+      Number(size) || 4,
     getOpacity: () => 1,
     generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
     toBoardCoordinate: (/** @type {number} */ value) => Math.round(value),
+    pageCoordinateToBoard: (/** @type {number} */ value) => Math.round(value),
+    getEffectiveRateLimit: (/** @type {string} */ kind) => {
+      const definition = {
+        general: {
+          limit: 10,
+          periodMs: 1000,
+        },
+      }[kind];
+      if (!definition) throw new Error(`Missing rate limit for ${kind}`);
+      return definition;
+    },
     change: () => true,
     drawAndSend: function (/** @type {any} */ data) {
       const toolName = MessageToolMetadata.getToolId(data.tool);
@@ -603,97 +670,184 @@ function createInputTools(overrides = {}) {
 }
 
 /**
+ * @param {string} capability
+ * @returns {never}
+ */
+function unavailableCapability(capability) {
+  throw new Error(`${capability} is not available in this test runtime`);
+}
+
+/**
+ * @returns {ToolRuntimeModules["board"]}
+ */
+function createUnavailableBoardRuntime() {
+  const unavailableElement = /** @type {any} */ ({});
+  return {
+    status: "attached",
+    board: unavailableElement,
+    svg: unavailableElement,
+    drawingArea: unavailableElement,
+    createSVGElement: () => unavailableCapability("board.createSVGElement"),
+    toBoardCoordinate: () => unavailableCapability("board.toBoardCoordinate"),
+    pageCoordinateToBoard: () =>
+      unavailableCapability("board.pageCoordinateToBoard"),
+  };
+}
+
+/**
+ * @returns {ToolRuntimeModules["viewport"]}
+ */
+function createUnavailableViewportRuntime() {
+  return {
+    setScale: () => unavailableCapability("viewport.setScale"),
+    getScale: () => unavailableCapability("viewport.getScale"),
+    syncLayoutSize: () => unavailableCapability("viewport.syncLayoutSize"),
+    setTouchPolicy: () => unavailableCapability("viewport.setTouchPolicy"),
+    ensureBoardExtentAtLeast: () =>
+      unavailableCapability("viewport.ensureBoardExtentAtLeast"),
+    ensureBoardExtentForPoint: () =>
+      unavailableCapability("viewport.ensureBoardExtentForPoint"),
+    ensureBoardExtentForBounds: () =>
+      unavailableCapability("viewport.ensureBoardExtentForBounds"),
+    pageCoordinateToBoard: () =>
+      unavailableCapability("viewport.pageCoordinateToBoard"),
+    panBy: () => unavailableCapability("viewport.panBy"),
+    panTo: () => unavailableCapability("viewport.panTo"),
+    zoomAt: () => unavailableCapability("viewport.zoomAt"),
+    zoomBy: () => unavailableCapability("viewport.zoomBy"),
+    beginPan: () => unavailableCapability("viewport.beginPan"),
+    movePan: () => unavailableCapability("viewport.movePan"),
+    endPan: () => unavailableCapability("viewport.endPan"),
+    install: () => unavailableCapability("viewport.install"),
+    installHashObservers: () =>
+      unavailableCapability("viewport.installHashObservers"),
+    applyFromHash: () => unavailableCapability("viewport.applyFromHash"),
+  };
+}
+
+/**
+ * @param {any} tools
+ * @returns {ToolRuntimeModules}
+ */
+function createInputToolRuntime(tools) {
+  return {
+    board: createUnavailableBoardRuntime(),
+    viewport: createUnavailableViewportRuntime(),
+    writes: {
+      drawAndSend: (message) => tools.drawAndSend(message),
+      send: () => unavailableCapability("writes.send"),
+      canBufferWrites: () => unavailableCapability("writes.canBufferWrites"),
+      whenBoardWritable: () =>
+        unavailableCapability("writes.whenBoardWritable"),
+    },
+    identity: {
+      boardName: "input-test",
+      token: null,
+    },
+    preferences: {
+      getColor: () => tools.getColor(),
+      getSize: () => tools.getSize(),
+      setSize: (size) => tools.setSize(size),
+      getOpacity: () => tools.getOpacity(),
+    },
+    rateLimits: {
+      getEffectiveRateLimit: (kind) => tools.getEffectiveRateLimit(kind),
+    },
+    ui: {
+      getCurrentTool: () => tools.curTool || null,
+      changeTool: (toolName) => tools.change(toolName),
+      shouldShowMarker: () => unavailableCapability("ui.shouldShowMarker"),
+      shouldShowMyCursor: () => unavailableCapability("ui.shouldShowMyCursor"),
+    },
+    config: {
+      serverConfig: tools.server_config,
+    },
+    ids: {
+      generateUID: (prefix, suffix) => tools.generateUID(prefix, suffix),
+    },
+    rendering: {
+      markDrawingEvent: () => {
+        tools.drawingEvent = true;
+      },
+    },
+    messages: {
+      messageForTool: () => unavailableCapability("messages.messageForTool"),
+    },
+    permissions: {
+      canWrite: () => tools.canWrite !== false,
+    },
+  };
+}
+
+/**
  * @param {any} app
+ * @returns {ToolRuntimeModules}
+ */
+function createHarnessToolRuntime(app) {
+  if (app.dom?.status !== "attached") {
+    throw new Error("Tool test runtime requires attached board DOM");
+  }
+  return {
+    board: {
+      ...app.dom,
+      createSVGElement: (name, attrs) => app.createSVGElement(name, attrs),
+      toBoardCoordinate: (value) => app.toBoardCoordinate(value),
+      pageCoordinateToBoard: (value) => app.pageCoordinateToBoard(value),
+    },
+    viewport: app.viewport,
+    writes: {
+      drawAndSend: (message) => app.drawAndSend(message),
+      send: (message) => app.send(message),
+      canBufferWrites: () => app.canBufferWrites(),
+      whenBoardWritable: () => app.whenBoardWritable(),
+    },
+    identity: {
+      boardName: app.boardName,
+      token: app.token,
+    },
+    preferences: {
+      getColor: () => app.getColor(),
+      getSize: () => app.getSize(),
+      setSize: (size) => app.setSize(size),
+      getOpacity: () => app.getOpacity(),
+    },
+    rateLimits: {
+      getEffectiveRateLimit: (kind) => app.getEffectiveRateLimit(kind),
+    },
+    ui: {
+      getCurrentTool: () => app.curTool,
+      changeTool: (toolName) => app.change(toolName),
+      shouldShowMarker: () => app.showMarker,
+      shouldShowMyCursor: () => app.showMyCursor,
+    },
+    config: {
+      serverConfig: app.server_config,
+    },
+    ids: {
+      generateUID: (prefix, suffix) => app.generateUID(prefix, suffix),
+    },
+    rendering: {
+      markDrawingEvent: () => {
+        app.drawingEvent = true;
+      },
+    },
+    messages: {
+      messageForTool: (message) => app.messageForTool(message),
+    },
+    permissions: {
+      canWrite: () => app.canWrite,
+    },
+  };
+}
+
+/**
+ * @param {ToolRuntimeModules} runtime
  * @param {(assetFile: string) => string} assetUrl
  * @returns {import("../types/app-runtime").ToolBootContext}
  */
-function createToolBootContext(app, assetUrl) {
-  const board =
-    app.dom ||
-    /** @type {import("../types/app-runtime").AttachedBoardDomModule} */ ({
-      status: "attached",
-      board: app.board || {},
-      svg: app.svg || {},
-      drawingArea: app.drawingArea || {},
-    });
+function createToolBootContext(runtime, assetUrl) {
   return {
-    app,
-    board,
-    runtime: {
-      board: {
-        ...board,
-        createSVGElement: (name, attrs) => app.createSVGElement(name, attrs),
-        toBoardCoordinate: (value) =>
-          app.toBoardCoordinate
-            ? app.toBoardCoordinate(value)
-            : Math.round(Number(value) || 0),
-        pageCoordinateToBoard: (value) =>
-          app.pageCoordinateToBoard
-            ? app.pageCoordinateToBoard(value)
-            : Math.round(Number(value) || 0),
-      },
-      viewport: {
-        ...(app.viewport || {}),
-        getScale: () =>
-          app.viewport?.getScale
-            ? app.viewport.getScale()
-            : app.getScale
-              ? app.getScale()
-              : app.scale || 1,
-      },
-      writes: {
-        drawAndSend: (message) => app.drawAndSend(message),
-        send: (message) => app.send(message),
-        canBufferWrites: () => app.canBufferWrites(),
-        whenBoardWritable: () => app.whenBoardWritable(),
-      },
-      identity: {
-        boardName: app.boardName || "",
-        token: app.token || null,
-      },
-      preferences: {
-        getColor: () => (app.getColor ? app.getColor() : "#123456"),
-        getSize: () => (app.getSize ? app.getSize() : 4),
-        setSize: (size) => (app.setSize ? app.setSize(size) : 4),
-        getOpacity: () => (app.getOpacity ? app.getOpacity() : 1),
-      },
-      rateLimits: {
-        getEffectiveRateLimit: (kind) =>
-          app.getEffectiveRateLimit
-            ? app.getEffectiveRateLimit(kind)
-            : {
-                limit: 0,
-                periodMs: 0,
-              },
-      },
-      ui: {
-        getCurrentTool: () => app.curTool || null,
-        changeTool: (toolName) =>
-          app.change ? app.change(toolName) : undefined,
-        shouldShowMarker: () => app.showMarker !== false,
-        shouldShowMyCursor: () => app.showMyCursor !== false,
-      },
-      config: {
-        serverConfig: app.server_config || {},
-      },
-      ids: {
-        generateUID: (prefix, suffix) =>
-          app.generateUID ? app.generateUID(prefix, suffix) : `${prefix}-1`,
-      },
-      rendering: {
-        markDrawingEvent: () => {
-          app.drawingEvent = true;
-        },
-      },
-      messages: {
-        messageForTool: (message) => {
-          if (app.messageForTool) app.messageForTool(message);
-        },
-      },
-      permissions: {
-        canWrite: () => app.canWrite !== false,
-      },
-    },
+    runtime,
     assetUrl,
   };
 }
@@ -882,7 +1036,10 @@ test("Pencil replay updates stroke styling on the reused DOM node", async () => 
 test("Pencil input sends an initial child point without DOM setup", () => {
   const tools = createInputTools();
   const state = PencilTool.boot(
-    createToolBootContext(tools, (assetFile) => assetFile),
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
   );
   state.lastTime = 0;
   state.minPencilIntervalMs = 70;
@@ -913,7 +1070,10 @@ test("Pencil input sends an initial child point without DOM setup", () => {
 test("Pencil move logic sends the first point and throttles follow-ups", () => {
   const tools = createInputTools();
   const state = PencilTool.boot(
-    createToolBootContext(tools, (assetFile) => assetFile),
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
   );
   state.curLineId = "l-1";
   state.hasSentPoint = false;
@@ -966,7 +1126,10 @@ test("Pencil marks only the active local line as non-interactive while drawing",
 test("Pencil input logic stops at the configured child limit", () => {
   const tools = createInputTools();
   const state = PencilTool.boot(
-    createToolBootContext(tools, (assetFile) => assetFile),
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
   );
   state.curLineId = "l-1";
   state.hasSentPoint = true;
@@ -1305,7 +1468,10 @@ test("Rectangle replay normalizes reverse-drag bounds on a reused node", async (
 test("Rectangle press creates the seed message without DOM setup", () => {
   const tools = createInputTools();
   const state = RectangleTool.boot(
-    createToolBootContext(tools, (assetFile) => assetFile),
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
   );
   let prevented = false;
 
@@ -1363,7 +1529,10 @@ equalSpanToolCases.forEach(([toolName, id]) => {
 test("Rectangle move logic separates throttled local draw from forced send", () => {
   const tools = createInputTools();
   const state = RectangleTool.boot(
-    createToolBootContext(tools, (assetFile) => assetFile),
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
   );
   state.lastTime = 0;
   state.currentShape = ShapeTool.createShapePressEffect(state, 80, 20).message;
@@ -1484,8 +1653,9 @@ async function bootTextEditorHarness() {
   );
   const textModule = require(textPath);
   const textState = await textModule.boot(
-    createToolBootContext(globalAny.Tools, (assetFile) =>
-      getToolRuntimeAssetPath("text", assetFile),
+    createToolBootContext(
+      createHarnessToolRuntime(globalAny.Tools),
+      (assetFile) => getToolRuntimeAssetPath("text", assetFile),
     ),
   );
   globalAny.Tools.curTool = {

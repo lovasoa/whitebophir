@@ -492,8 +492,6 @@ export type ServerConfig = {
 };
 
 export type ToolBootContext = {
-  app: MountedAppToolsState;
-  board: AttachedBoardDomModule;
   runtime: ToolRuntimeModules;
   assetUrl: (assetFile: string) => string;
 };

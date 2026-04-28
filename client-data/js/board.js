@@ -2533,8 +2533,6 @@ function createToolBootContext(toolName) {
     return /** @type {MountedAppToolsState} */ (Tools);
   })();
   return {
-    app: mountedTools,
-    board: mountedTools.dom,
     runtime: createToolRuntimeModules(mountedTools),
     assetUrl: (assetFile) => Tools.getToolAssetUrl(toolName, assetFile),
   };
