@@ -1,4 +1,10 @@
 import {
+  createResizeCanvasHook,
+  createToolNotificationHook,
+  createUnreadCountHook,
+  MessageModule,
+} from "./board_message_module.js";
+import {
   AssetModule,
   ConfigModule,
   CoordinateModule,
@@ -15,8 +21,8 @@ import {
 import { TurnstileModule } from "./board_turnstile.js";
 import { createViewportController } from "./board_viewport.js";
 
-/** @import { AppInitialPreferences, ColorPreset, MessageHook, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
-/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, createToolRegistry: () => import("./board.js").ToolRegistryModule, createWriteModule: () => import("./board.js").WriteModule, createStatusModule: () => import("./board.js").StatusModule, createReplayModule: () => import("./board.js").ReplayModule, createOptimisticModule: () => import("./board.js").OptimisticModule, createConnectionModule: () => import("./board.js").ConnectionModule, createAccessModule: () => import("./board.js").AccessModule, createPresenceModule: () => import("./board.js").PresenceModule, createMessageModule: (toolRegistry: import("./board.js").ToolRegistryModule, identity: IdentityModule) => import("./board.js").MessageModule, createMessageHooks: (tools: AppTools) => MessageHook[]}} AppToolsOptions */
+/** @import { AppInitialPreferences, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
+/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, createToolRegistry: () => import("./board.js").ToolRegistryModule, createWriteModule: () => import("./board.js").WriteModule, createStatusModule: () => import("./board.js").StatusModule, createReplayModule: () => import("./board.js").ReplayModule, createOptimisticModule: () => import("./board.js").OptimisticModule, createConnectionModule: () => import("./board.js").ConnectionModule, createAccessModule: () => import("./board.js").AccessModule, createPresenceModule: () => import("./board.js").PresenceModule}} AppToolsOptions */
 
 export class AppTools {
   /** @param {AppToolsOptions} options */
@@ -51,11 +57,12 @@ export class AppTools {
     );
     this.interaction = new InteractionModule();
     this.presence = options.createPresenceModule();
-    this.messages = options.createMessageModule(
-      this.toolRegistry,
-      this.identity,
-    );
-    this.messages.hooks = options.createMessageHooks(this);
+    this.messages = new MessageModule(this.toolRegistry, this.identity);
+    this.messages.hooks = [
+      createResizeCanvasHook(this.viewportState.controller),
+      createUnreadCountHook(this.messages),
+      createToolNotificationHook(this.toolRegistry),
+    ];
     this.ids = new IdModule();
     this.preferences = new PreferenceModule(
       options.colorPresets,

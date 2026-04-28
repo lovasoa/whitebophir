@@ -26,7 +26,7 @@
 
 import { AppTools } from "./app_tools.js";
 import { optimisticPrunePlanForAuthoritativeMessage } from "./authoritative_mutation_effects.js";
-import { getContentMessageBounds } from "./board_extent.js";
+import { updateDocumentTitle } from "./board_message_module.js";
 import * as BoardMessageReplay from "./board_message_replay.js";
 import {
   drainPendingMessages,
@@ -37,10 +37,7 @@ import {
   resolveBoardName,
   updateRecentBoards,
 } from "./board_page_state.js";
-import {
-  AttachedBoardDomRuntimeModule,
-  IdentityModule,
-} from "./board_runtime_core.js";
+import { AttachedBoardDomRuntimeModule } from "./board_runtime_core.js";
 import {
   buildBoardSvgBaselineUrl,
   parseServedBaselineSvgText,
@@ -54,10 +51,7 @@ import {
   getToolStylesheetPath,
 } from "../tools/tool-defaults.js";
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
-import {
-  connection as BoardConnection,
-  messages as BoardMessages,
-} from "./board_transport.js";
+import { connection as BoardConnection } from "./board_transport.js";
 import * as BoardTurnstile from "./board_turnstile.js";
 import MessageCommon from "./message_common.js";
 import { getMutationType, MutationType } from "./message_tool_metadata.js";
@@ -69,7 +63,7 @@ import {
 import RateLimitCommon from "./rate_limit_common.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
 /** @type {AppToolsState} */
@@ -2804,111 +2798,6 @@ function handleMessage(message) {
   return Promise.resolve();
 }
 
-const messageModuleState = new WeakMap();
-
-export class MessageModule {
-  /**
-   * @param {ToolRegistryModule} toolRegistry
-   * @param {IdentityModule} identity
-   */
-  constructor(toolRegistry, identity) {
-    this.hooks = /** @type {MessageHook[]} */ ([]);
-    this.unreadCount = 0;
-    messageModuleState.set(this, { toolRegistry, identity });
-  }
-
-  /**
-   * @template T
-   * @param {((value: T) => void)[]} hooks
-   * @param {T} object
-   */
-  applyHooks(hooks, object) {
-    hooks.forEach((hook) => {
-      hook(object);
-    });
-  }
-
-  /** @param {BoardMessage} message */
-  messageForTool(message) {
-    const state =
-      /** @type {{toolRegistry: ToolRegistryModule, identity: IdentityModule}} */ (
-        messageModuleState.get(this)
-      );
-    const name = TOOL_ID_BY_CODE[message.tool];
-    const tool = state.toolRegistry.mounted[name];
-
-    this.applyHooks(this.hooks, message);
-    if (tool) {
-      tool.draw(message, false);
-    } else {
-      BoardMessages.queuePendingMessage(
-        state.toolRegistry.pendingMessages,
-        name,
-        message,
-      );
-    }
-  }
-
-  newUnreadMessage() {
-    const state =
-      /** @type {{toolRegistry: ToolRegistryModule, identity: IdentityModule}} */ (
-        messageModuleState.get(this)
-      );
-    this.unreadCount++;
-    updateDocumentTitle(this, state.identity);
-  }
-}
-
-/**
- * @param {MessageModule} messages
- * @param {IdentityModule} identity
- */
-function updateDocumentTitle(messages, identity) {
-  document.title =
-    (messages.unreadCount ? `(${messages.unreadCount}) ` : "") +
-    `${identity.boardName} | WBO`;
-}
-
-/**
- * @param {ViewportController} viewport
- * @returns {MessageHook}
- */
-function createResizeCanvasHook(viewport) {
-  return function resizeCanvas(m) {
-    // Compatibility hook name; root SVG and page size mutation is owned by viewport.
-    viewport.ensureBoardExtentForBounds(getContentMessageBounds(m));
-  };
-}
-
-/**
- * @param {MessageModule} messages
- * @returns {MessageHook}
- */
-function createUnreadCountHook(messages) {
-  return function updateUnreadCount(m) {
-    const mutationType = getMutationType(m);
-    if (
-      document.hidden &&
-      mutationType !== MutationType.APPEND &&
-      mutationType !== MutationType.UPDATE
-    ) {
-      messages.newUnreadMessage();
-    }
-  };
-}
-
-/**
- * @param {ToolRegistryModule} toolRegistry
- * @returns {MessageHook}
- */
-function createToolNotificationHook(toolRegistry) {
-  return function notifyToolsOfMessage(m) {
-    Object.values(toolRegistry.mounted || {}).forEach((tool) => {
-      tool?.onMessage?.(m);
-    });
-  };
-}
-
 window.addEventListener("focus", () => {
   Tools.messages.unreadCount = 0;
   updateDocumentTitle(Tools.messages, Tools.identity);
@@ -2989,13 +2878,6 @@ Tools = new AppTools({
   createConnectionModule: () => new ConnectionModule(),
   createAccessModule: () => new AccessModule(),
   createPresenceModule: () => new PresenceModule(),
-  createMessageModule: (toolRegistry, identity) =>
-    new MessageModule(toolRegistry, identity),
-  createMessageHooks: (tools) => [
-    createResizeCanvasHook(tools.viewportState.controller),
-    createUnreadCountHook(tools.messages),
-    createToolNotificationHook(tools.toolRegistry),
-  ],
 });
 window.WBOApp = Tools;
 Tools.access.applyBoardState(

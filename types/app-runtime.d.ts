@@ -639,7 +639,7 @@ export type AppOptimisticModule =
 
 /** Local message hooks and unread-message badge state. */
 export type AppMessageModule =
-  import("../client-data/js/board.js").MessageModule;
+  import("../client-data/js/board_message_module.js").MessageModule;
 
 /** Board viewport controller plus zoom-gated drawing-tool availability. */
 export type AppViewportModule =
