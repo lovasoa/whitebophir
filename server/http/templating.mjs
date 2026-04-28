@@ -166,6 +166,41 @@ function findBaseUrl(req) {
 }
 
 /**
+ * @param {string} pathname
+ * @returns {string}
+ */
+function findPathPrefix(pathname) {
+  const prefixPart = pathname.split("/boards/", 1)[0] || "";
+  return prefixPart
+    .split("/")
+    .filter((part) => part.length > 0)
+    .join("/");
+}
+
+/**
+ * @param {string} baseUrl
+ * @param {string} language
+ * @returns {handlebars.SafeString}
+ */
+function localizedUrl(baseUrl, language) {
+  const url = new URL(baseUrl);
+  url.searchParams.set("lang", language);
+  return new handlebars.SafeString(url.href);
+}
+
+/**
+ * @param {string[]} supportedLanguages
+ * @param {(language: string) => handlebars.SafeString} hrefForLanguage
+ * @returns {{language: string, href: handlebars.SafeString}[]}
+ */
+function localizedLinks(supportedLanguages, hrefForLanguage) {
+  return supportedLanguages.map((supportedLanguage) => ({
+    language: supportedLanguage,
+    href: hrefForLanguage(supportedLanguage),
+  }));
+}
+
+/**
  * @param {boolean} isDevelopment
  * @param {string} prodValue
  * @returns {string}
@@ -274,17 +309,17 @@ class Template extends StaticTemplate {
     }
     const translations = TRANSLATIONS[language] || {};
     const configuration = this.clientConfig;
-    const requestUrl = request.url || "/";
-    const prefixPart = requestUrl.split("/boards/", 1)[0] || "";
-    const prefix = prefixPart.startsWith("/")
-      ? prefixPart.slice(1)
-      : prefixPart;
+    const prefix = findPathPrefix(parsedUrl.pathname);
     const baseUrl = findBaseUrl(request) + (prefix ? `/${prefix}/` : "");
     const moderator = isModerator;
     return {
       baseUrl,
       languages,
+      languageLinks: localizedLinks(languages, (linkLanguage) =>
+        localizedUrl(baseUrl, linkLanguage),
+      ),
       language,
+      canonicalUrl: localizedUrl(baseUrl, language),
       translations,
       configuration,
       moderator,
@@ -370,8 +405,14 @@ class BoardTemplate extends Template {
     );
     const parts = parsedUrl.pathname.split("boards/", 2);
     const boardUriComponent = parts[1] || "";
+    const boardBaseUrl = new URL(`boards/${boardUriComponent}`, params.baseUrl)
+      .href;
     params.boardUriComponent = boardUriComponent;
     params.board = decodeURIComponent(boardUriComponent);
+    params.canonicalUrl = localizedUrl(boardBaseUrl, params.language);
+    params.languageLinks = localizedLinks(params.languages, (linkLanguage) =>
+      localizedUrl(boardBaseUrl, linkLanguage),
+    );
     params.hideMenu =
       parsedUrl.searchParams.get("hideMenu") === "true" || false;
     const configuration = /** @type {{BLOCKED_TOOLS?: string[]}} */ (

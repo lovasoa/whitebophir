@@ -391,6 +391,40 @@ test("index route canonicalizes configured default board redirects", async () =>
   }
 });
 
+test("index route renders absolute canonical and hreflang urls", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const response = await request(app, "/");
+    const { port } = getTcpAddress(app);
+    const origin = `http://127.0.0.1:${port}`;
+
+    assert.equal(response.statusCode, 200);
+    assert.match(
+      response.body,
+      new RegExp(`<link rel="canonical" href="${origin}/\\?lang=en" />`),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<link rel="alternate" hreflang="vi" href="${origin}/\\?lang=vi" />`,
+      ),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<a href="${origin}/\\?lang=vi" hreflang="vi" rel="alternate">vi</a>`,
+      ),
+    );
+    assert.doesNotMatch(response.body, /hreflang="vn"/);
+    assert.doesNotMatch(response.body, /lang=vn/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
 test("board pages set an httpOnly user secret cookie when missing", async () => {
   const dirs = await createServerDirs();
 
@@ -604,6 +638,27 @@ test("board pages are no-store in development and render plain asset URLs", asyn
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["cache-control"], "no-store");
+    const { port } = getTcpAddress(app);
+    const origin = `http://127.0.0.1:${port}`;
+    assert.match(
+      response.body,
+      /<meta name="viewport" content="width=device-width, initial-scale=1" \/>/,
+    );
+    assert.doesNotMatch(response.body, /user-scalable=no/);
+    assert.match(
+      response.body,
+      new RegExp(
+        `<link rel="canonical" href="${origin}/boards/cache-test\\?lang=en" />`,
+      ),
+    );
+    assert.match(
+      response.body,
+      new RegExp(
+        `<link rel="alternate" hreflang="vi" href="${origin}/boards/cache-test\\?lang=vi" />`,
+      ),
+    );
+    assert.doesNotMatch(response.body, /hreflang="vn"/);
+    assert.doesNotMatch(response.body, /lang=vn/);
     assert.match(response.body, /\.\.\/board\.css(?:["'])/);
     assert.match(response.body, /\.\.\/js\/board_main\.js(?:["'])/);
     assert.match(

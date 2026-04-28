@@ -15,10 +15,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta property="og:url" content="https://wbo.ophir.dev" />
     <meta property="og:image" content="{{baseUrl}}/favicon.svg" />
-    <link rel="canonical" href="?lang={{language}}" />
-    {{#languages}}
-    <link rel="alternate" hreflang="{{.}}" href="?lang={{.}}" />
-    {{/languages}}
+    <link rel="canonical" href="{{canonicalUrl}}" />
+    {{#languageLinks}}
+    <link rel="alternate" hreflang="{{language}}" href="{{href}}" />
+    {{/languageLinks}}
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#C4DFFF" />
     {{{htmlHeadSnippet}}}
@@ -30,11 +30,11 @@
       <nav class="lang-selector">
         <span>{{language}}</span>
         <ul>
-          {{#languages}}
+          {{#languageLinks}}
           <li>
-            <a href="?lang={{.}}" hreflang="{{.}}" rel="alternate">{{.}}</a>
+            <a href="{{href}}" hreflang="{{language}}" rel="alternate">{{language}}</a>
           </li>
-          {{/languages}}
+          {{/languageLinks}}
         </ul>
       </nav>
     </header>
