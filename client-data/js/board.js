@@ -326,9 +326,11 @@ Tools.bufferedWriteTimer = null;
 Tools.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
 Tools.rateLimitedUntil = 0;
 Tools.localRateLimitedUntil = 0;
-Tools.rateLimitNoticeTimer = null;
-Tools.boardStatusTimer = null;
-Tools.explicitBoardStatus = null;
+Tools.status = {
+  rateLimitNoticeTimer: null,
+  boardStatusTimer: null,
+  explicitBoardStatus: null,
+};
 
 Tools.awaitingBoardSnapshot = true;
 Tools.hasAuthoritativeBoardSnapshot = false;
@@ -463,16 +465,16 @@ Tools.clearBufferedWriteTimer = function clearBufferedWriteTimer() {
 };
 
 Tools.clearRateLimitNoticeTimer = function clearRateLimitNoticeTimer() {
-  if (Tools.rateLimitNoticeTimer) {
-    clearTimeout(Tools.rateLimitNoticeTimer);
-    Tools.rateLimitNoticeTimer = null;
+  if (Tools.status.rateLimitNoticeTimer) {
+    clearTimeout(Tools.status.rateLimitNoticeTimer);
+    Tools.status.rateLimitNoticeTimer = null;
   }
 };
 
 Tools.clearBoardStatusTimer = function clearBoardStatusTimer() {
-  if (Tools.boardStatusTimer) {
-    clearTimeout(Tools.boardStatusTimer);
-    Tools.boardStatusTimer = null;
+  if (Tools.status.boardStatusTimer) {
+    clearTimeout(Tools.status.boardStatusTimer);
+    Tools.status.boardStatusTimer = null;
   }
 };
 
@@ -526,7 +528,7 @@ Tools.showRateLimitNotice = function showRateLimitNotice(
     detail: message,
   });
   if (retryAfterMs > 0) {
-    Tools.rateLimitNoticeTimer = window.setTimeout(
+    Tools.status.rateLimitNoticeTimer = window.setTimeout(
       function hideRateLimitNotice() {
         Tools.hideRateLimitNotice();
       },
@@ -564,10 +566,10 @@ Tools.showUnknownMutationError = function showUnknownMutationError(reason) {
  */
 Tools.showBoardStatus = function showBoardStatus(view, durationMs) {
   Tools.clearBoardStatusTimer();
-  Tools.explicitBoardStatus = view;
+  Tools.status.explicitBoardStatus = view;
   Tools.syncWriteStatusIndicator();
   if (durationMs && durationMs > 0) {
-    Tools.boardStatusTimer = window.setTimeout(() => {
+    Tools.status.boardStatusTimer = window.setTimeout(() => {
       Tools.clearBoardStatus();
     }, durationMs);
   }
@@ -575,13 +577,15 @@ Tools.showBoardStatus = function showBoardStatus(view, durationMs) {
 
 Tools.clearBoardStatus = function clearBoardStatus() {
   Tools.clearBoardStatusTimer();
-  Tools.explicitBoardStatus = null;
+  Tools.status.explicitBoardStatus = null;
   Tools.syncWriteStatusIndicator();
 };
 
 /** @returns {BoardStatusView} */
 Tools.getBoardStatusView = function getBoardStatusView() {
-  if (Tools.explicitBoardStatus) return Tools.explicitBoardStatus;
+  if (Tools.status.explicitBoardStatus) {
+    return Tools.status.explicitBoardStatus;
+  }
   if (Tools.connectionState !== "connected" || Tools.awaitingBoardSnapshot) {
     return {
       hidden: false,

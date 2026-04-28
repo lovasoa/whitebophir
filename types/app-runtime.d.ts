@@ -611,6 +611,13 @@ export type AppPreferenceModule = {
   readonly sizeChangeHandlers: ((size: number) => void)[];
 };
 
+/** Board status UI state and timers. */
+export type AppStatusModule = {
+  rateLimitNoticeTimer: number | null;
+  boardStatusTimer: number | null;
+  explicitBoardStatus: ExplicitBoardStatus;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -702,6 +709,7 @@ export type AppToolsState = {
   config: AppConfigModule;
   access: AppAccessModule;
   preferences: AppPreferenceModule;
+  status: AppStatusModule;
   turnstileValidatedUntil: number;
   turnstileWidgetId: unknown | null;
   turnstileRefreshTimeout: number | null;
@@ -734,9 +742,6 @@ export type AppToolsState = {
   writeReadyWaiters: Array<() => void>;
   rateLimitedUntil: number;
   localRateLimitedUntil: number;
-  rateLimitNoticeTimer: number | null;
-  boardStatusTimer: number | null;
-  explicitBoardStatus: ExplicitBoardStatus;
   awaitingBoardSnapshot: boolean;
   connectionState: BoardConnectionState;
   localRateLimitStates: RateLimitStates;
