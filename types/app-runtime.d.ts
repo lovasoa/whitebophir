@@ -653,7 +653,7 @@ export type AppReplayModule =
 
 /** Socket.IO connection handle and lifecycle metadata. */
 export type AppConnectionModule =
-  import("../client-data/js/board.js").ConnectionModule;
+  import("../client-data/js/board_connection_module.js").ConnectionModule;
 
 /** Buffered write queue and local/server write throttling state. */
 export type AppWriteModule =

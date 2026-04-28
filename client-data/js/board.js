@@ -37,7 +37,6 @@ import {
   resolveBoardName,
   updateRecentBoards,
 } from "./board_page_state.js";
-import { getAuthoritativeBaselineUrl } from "./board_replay_module.js";
 import { AttachedBoardDomRuntimeModule } from "./board_runtime_core.js";
 import { VIEWPORT_HASH_SCALE_DECIMALS } from "./board_viewport.js";
 import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
@@ -49,7 +48,6 @@ import {
 } from "../tools/tool-defaults.js";
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { connection as BoardConnection } from "./board_transport.js";
-import * as BoardTurnstile from "./board_turnstile.js";
 import MessageCommon from "./message_common.js";
 import { MutationType } from "./message_tool_metadata.js";
 import {
@@ -58,7 +56,7 @@ import {
 } from "./optimistic_mutation.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeReplayBatch, BoardMessage, BoardStatusView, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
 /** @type {AppToolsState} */
@@ -403,171 +401,6 @@ export class ToolRegistryModule {
   }
 }
 
-export class ConnectionModule {
-  constructor() {
-    this.socket = null;
-    this.state = /** @type {BoardConnectionState} */ ("idle");
-    this.hasConnectedOnce = false;
-    this.socketIOExtraHeaders = /** @type {SocketHeaders | null} */ (null);
-  }
-
-  start() {
-    const reusableSocket =
-      this.socket && !this.socket.connected ? this.socket : null;
-    if (this.socket && !reusableSocket) {
-      BoardConnection.closeSocket(this.socket);
-      this.socket = null;
-    }
-    this.state = "connecting";
-    Tools.replay.awaitingSnapshot = true;
-    Tools.presence.clearConnectedUsers();
-
-    void (async () => {
-      if (!getAttachedBoardDom()) {
-        scheduleSocketReconnect();
-        return;
-      }
-      if (Tools.replay.refreshBaselineBeforeConnect) {
-        try {
-          await Tools.replay.refreshAuthoritativeBaseline();
-          Tools.replay.refreshBaselineBeforeConnect = false;
-        } catch (error) {
-          logBoardEvent("error", "replay.baseline_refresh_failed", {
-            error: error instanceof Error ? error.message : String(error),
-            baselineUrl: getAuthoritativeBaselineUrl(),
-            pendingPreSnapshotMessages: Tools.replay.preSnapshotMessages.length,
-          });
-          scheduleSocketReconnect(1000);
-          return;
-        }
-      }
-
-      const socketParams = BoardConnection.buildSocketParams(
-        window.location.pathname,
-        this.socketIOExtraHeaders,
-        Tools.identity.token,
-        Tools.identity.boardName,
-        {
-          baselineSeq: String(Tools.replay.authoritativeSeq),
-          tool: Tools.preferences.initial.tool,
-          color: Tools.preferences.getColor(),
-          size: String(Tools.preferences.getSize()),
-        },
-      );
-
-      if (reusableSocket) {
-        if (reusableSocket.io) {
-          reusableSocket.io.opts = {
-            ...(reusableSocket.io.opts || {}),
-            query: socketParams.query || "",
-          };
-        }
-        reusableSocket.connect();
-        return;
-      }
-
-      const socket = io.connect("", socketParams);
-      this.socket = socket;
-
-      //Receive draw instructions from the server
-      socket.on(SocketEvents.CONNECT, function onConnection() {
-        const hadConnectedBefore = Tools.connection.hasConnectedOnce;
-        Tools.connection.state = "connected";
-        logBoardEvent(
-          "log",
-          hadConnectedBefore ? "socket.reconnected" : "socket.connected",
-        );
-        if (
-          hadConnectedBefore &&
-          Tools.config.serverConfig.TURNSTILE_SITE_KEY
-        ) {
-          Tools.turnstile.setValidation(null);
-          BoardTurnstile.resetTurnstileWidget(
-            BoardTurnstile.getTurnstileApi(),
-            Tools.turnstile.widgetId,
-          );
-        }
-        Tools.connection.hasConnectedOnce = true;
-        Tools.status.syncWriteStatusIndicator();
-      });
-      socket.on(SocketEvents.BROADCAST, (msg) => {
-        enqueueIncomingBroadcast(msg);
-      });
-      socket.on(SocketEvents.BOARDSTATE, (boardState) => {
-        Tools.access.applyBoardState(boardState);
-      });
-      socket.on(
-        SocketEvents.MUTATION_REJECTED,
-        function onMutationRejected(payload) {
-          if (payload.clientMutationId) {
-            Tools.optimistic.rejectMutation(
-              payload.clientMutationId,
-              payload.reason,
-            );
-          }
-          Tools.status.showUnknownMutationError(payload.reason);
-        },
-      );
-      socket.on(SocketEvents.CONNECT_ERROR, function onConnectError(error) {
-        if (socket !== Tools.connection.socket) return;
-        const data = error.data;
-        const reason = data?.reason || error.message || "connect_error";
-        logBoardEvent("warn", "socket.connect_error", {
-          reason,
-          ...(data?.latestSeq === undefined
-            ? {}
-            : { latestSeq: data.latestSeq }),
-          ...(data?.minReplayableSeq === undefined
-            ? {}
-            : { minReplayableSeq: data.minReplayableSeq }),
-          authoritativeSeq: Tools.replay.authoritativeSeq,
-        });
-        Tools.connection.state = "disconnected";
-        if (reason === "baseline_not_replayable") {
-          logBoardEvent("warn", "replay.baseline_not_replayable", {
-            authoritativeSeq: Tools.replay.authoritativeSeq,
-            latestSeq: BoardMessageReplay.normalizeSeq(data?.latestSeq),
-            minReplayableSeq: BoardMessageReplay.normalizeSeq(
-              data?.minReplayableSeq,
-            ),
-          });
-          Tools.replay.beginAuthoritativeResync();
-          if (socket === Tools.connection.socket) {
-            Tools.connection.socket = null;
-            BoardConnection.closeSocket(socket);
-          }
-        }
-        scheduleSocketReconnect();
-      });
-      socket.on(SocketEvents.USER_JOINED, function onUserJoined(user) {
-        Tools.presence.upsertConnectedUser(user);
-      });
-      socket.on(SocketEvents.USER_LEFT, function onUserLeft(user) {
-        Tools.presence.removeConnectedUser(user.socketId);
-      });
-      socket.on(SocketEvents.RATE_LIMITED, function onRateLimited(payload) {
-        const retryAfterMs = payload.retryAfterMs;
-        Tools.writes.serverRateLimitedUntil =
-          Date.now() + Math.max(0, retryAfterMs);
-        Tools.status.showRateLimitNotice(
-          Tools.i18n.t("rate_limit_disconnect_message"),
-          retryAfterMs,
-        );
-        Tools.status.syncWriteStatusIndicator();
-      });
-      socket.on(SocketEvents.DISCONNECT, function onDisconnect(reason) {
-        if (socket !== Tools.connection.socket) return;
-        if (reason === "io client disconnect") return;
-        Tools.connection.state = "disconnected";
-        logBoardEvent("warn", "socket.disconnected", { reason });
-        Tools.replay.beginAuthoritativeResync();
-        scheduleSocketReconnect();
-      });
-      socket.connect();
-    })();
-  }
-}
-
 function initializeShellControls() {
   const colorChooser = getRequiredInput("chooseColor");
   const sizeChooser = getRequiredInput("chooseSize");
@@ -612,11 +445,6 @@ function initializeShellControls() {
   }
   Tools.preferences.setColor(Tools.preferences.currentColor);
   Tools.preferences.setSize(Tools.preferences.currentSize);
-}
-
-/** @param {number} [delayMs] */
-function scheduleSocketReconnect(delayMs = 250) {
-  window.setTimeout(() => Tools.connection.start(), Math.max(0, delayMs));
 }
 
 /**
@@ -2112,8 +1940,8 @@ Tools = new AppTools({
   logBoardEvent,
   queueProtectedWrite,
   flushPendingWrites,
+  enqueueIncomingBroadcast,
   createToolRegistry: () => new ToolRegistryModule(),
-  createConnectionModule: () => new ConnectionModule(),
   createPresenceModule: () => new PresenceModule(),
 });
 window.WBOApp = Tools;

@@ -1,4 +1,5 @@
 import { AccessModule } from "./board_access_module.js";
+import { ConnectionModule } from "./board_connection_module.js";
 import {
   createResizeCanvasHook,
   createToolNotificationHook,
@@ -27,7 +28,7 @@ import { createViewportController } from "./board_viewport.js";
 import { WriteModule } from "./board_write_module.js";
 
 /** @import { AppInitialPreferences, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
-/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, createToolRegistry: () => import("./board.js").ToolRegistryModule, createConnectionModule: () => import("./board.js").ConnectionModule, createPresenceModule: () => import("./board.js").PresenceModule}} AppToolsOptions */
+/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, enqueueIncomingBroadcast: (msg: import("../../types/app-runtime").IncomingBroadcast) => void, createToolRegistry: () => import("./board.js").ToolRegistryModule, createPresenceModule: () => import("./board.js").PresenceModule}} AppToolsOptions */
 
 export class AppTools {
   /** @param {AppToolsOptions} options */
@@ -46,7 +47,11 @@ export class AppTools {
     this.status = new StatusModule(() => this, options.logBoardEvent);
     this.replay = new ReplayModule(() => this);
     this.optimistic = new OptimisticModule(() => this);
-    this.connection = options.createConnectionModule();
+    this.connection = new ConnectionModule(
+      () => this,
+      options.logBoardEvent,
+      options.enqueueIncomingBroadcast,
+    );
     this.connection.socketIOExtraHeaders = options.socketIOExtraHeaders;
     this.rateLimits = new RateLimitModule(this.config, this.identity);
     const viewportController = createViewportController(
