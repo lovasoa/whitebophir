@@ -507,9 +507,12 @@ export type ToolModulePointerListener<T> = (
   isTouchEvent: boolean,
 ) => unknown;
 
-export type ToolModule<T = unknown> = PointerListenerMap<
-  ToolModulePointerListener<T>
-> & {
+export type ToolRuntimeState = {
+  mouseCursor?: string;
+  secondary?: ToolSecondaryMode | null;
+};
+
+export type ToolModule<T = unknown> = {
   toolId: string;
   replaySafe?: boolean;
   shortcut?: string;
@@ -522,20 +525,37 @@ export type ToolModule<T = unknown> = PointerListenerMap<
   requiresWritableBoard?: boolean;
   touchListenerOptions?: ToolListenerOptions;
   serverRenderedElementSelector?: string;
-  boot: (ctx: ToolBootContext) => Promise<T> | T;
-  draw: (state: T, message: BoardMessage, isLocal: boolean) => void;
-  normalizeServerRenderedElement?: (state: T, element: SVGElement) => void;
-  onMessage?: (state: T, message: BoardMessage) => void;
-  onstart?: (state: T, oldTool: MaybeMountedAppTool) => void;
-  onquit?: (state: T, newTool: MountedAppTool) => void;
-  onSocketDisconnect?: (state: T) => void;
-  onMutationRejected?: (
+  press?(
     state: T,
-    message: BoardMessage,
-    reason?: string,
-  ) => void;
-  onSizeChange?: (state: T, size: number) => void;
-  getTouchPolicy?: (state: T) => ToolTouchPolicy;
+    x: number,
+    y: number,
+    evt: MouseEvent | TouchEvent,
+    isTouchEvent: boolean,
+  ): unknown;
+  move?(
+    state: T,
+    x: number,
+    y: number,
+    evt: MouseEvent | TouchEvent,
+    isTouchEvent: boolean,
+  ): unknown;
+  release?(
+    state: T,
+    x: number,
+    y: number,
+    evt: MouseEvent | TouchEvent,
+    isTouchEvent: boolean,
+  ): unknown;
+  boot(ctx: ToolBootContext): Promise<T> | T;
+  draw(state: T, message: BoardMessage, isLocal: boolean): void;
+  normalizeServerRenderedElement?(state: T, element: SVGElement): void;
+  onMessage?(state: T, message: BoardMessage): void;
+  onstart?(state: T, oldTool: MaybeMountedAppTool): void;
+  onquit?(state: T, newTool: MountedAppTool): void;
+  onSocketDisconnect?(state: T): void;
+  onMutationRejected?(state: T, message: BoardMessage, reason?: string): void;
+  onSizeChange?(state: T, size: number): void;
+  getTouchPolicy?(state: T): ToolTouchPolicy;
 };
 
 export type ViewportController = {
@@ -784,7 +804,7 @@ export type AppToolRegistryModule = {
   pendingMessages: PendingMessages;
   mountTool: (
     toolModule: ToolModule,
-    toolState: unknown,
+    toolState: ToolRuntimeState,
     toolName: string,
   ) => MaybeMountedAppTool;
   bootTool: (toolName: string) => MountedAppToolPromise;

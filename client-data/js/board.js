@@ -69,7 +69,7 @@ import {
 import { TOOL_BY_ID, TOOL_MODULES_BY_ID } from "../tools/index.js";
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 
-/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ViewportController } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.WBOApp = Tools;
@@ -2475,13 +2475,13 @@ bindRenderedToolButtons();
 
 /**
  * @param {string} toolName
- * @returns {Promise<ToolModule<unknown>>}
+ * @returns {Promise<ToolModule>}
  */
 async function loadToolModule(toolName) {
   if (!isRegisteredToolId(toolName)) {
     throw new Error(`Unknown tool module: ${toolName}.`);
   }
-  return /** @type {ToolModule<unknown>} */ (TOOL_MODULES_BY_ID[toolName]);
+  return /** @type {ToolModule} */ (TOOL_MODULES_BY_ID[toolName]);
 }
 
 /**
@@ -2580,8 +2580,8 @@ function createToolBootContext(toolName) {
 }
 
 /**
- * @param {ToolModule<unknown>} toolModule
- * @param {unknown} toolState
+ * @param {ToolModule} toolModule
+ * @param {ToolRuntimeState} toolState
  * @param {string} toolName
  * @returns {MountedAppTool}
  */
@@ -2600,10 +2600,6 @@ function createMountedTool(toolModule, toolState, toolName) {
   const onSizeChange = toolModule.onSizeChange;
   const touchListenerOptions = toolModule.touchListenerOptions;
   const getTouchPolicy = toolModule.getTouchPolicy;
-  const toolStateObject =
-    /** @type {{mouseCursor?: string, secondary?: import("../../types/app-runtime").ToolSecondaryMode | null} | null} */ (
-      toolState && typeof toolState === "object" ? toolState : null
-    );
   const toolDefinition = TOOL_BY_ID[toolName];
   /** @type {MountedAppTool} */
   const tool = {
@@ -2640,9 +2636,9 @@ function createMountedTool(toolModule, toolState, toolName) {
     stylesheet: undefined,
     oneTouch: toolModule.oneTouch,
     alwaysOn: toolModule.alwaysOn,
-    mouseCursor: toolModule.mouseCursor ?? toolStateObject?.mouseCursor,
+    mouseCursor: toolModule.mouseCursor ?? toolState.mouseCursor,
     helpText: toolModule.helpText,
-    secondary: toolStateObject?.secondary ?? toolModule.secondary ?? null,
+    secondary: toolState.secondary ?? toolModule.secondary ?? null,
     onSizeChange: onSizeChange
       ? (size) => onSizeChange(toolState, size)
       : undefined,
@@ -2747,8 +2743,8 @@ function createMountedTool(toolModule, toolState, toolName) {
 }
 
 /**
- * @param {ToolModule<unknown>} toolModule
- * @param {unknown} toolState
+ * @param {ToolModule} toolModule
+ * @param {ToolRuntimeState} toolState
  * @param {string} toolName
  * @returns {MountedAppTool | null}
  */
@@ -2801,9 +2797,10 @@ function mountTool(toolModule, toolState, toolName) {
  */
 async function bootToolPromise(toolName) {
   const toolModule = await loadToolModule(toolName);
-  const toolState = await toolModule.boot(createToolBootContext(toolName));
-  if (toolState === null) return null;
-  return Tools.toolRegistry.mountTool(toolModule, toolState, toolName);
+  const toolState = /** @type {ToolRuntimeState} */ (
+    await toolModule.boot(createToolBootContext(toolName))
+  );
+  return mountTool(toolModule, toolState, toolName);
 }
 
 /**
