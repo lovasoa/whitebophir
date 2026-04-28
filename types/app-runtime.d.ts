@@ -647,6 +647,16 @@ export type AppTurnstileModule = {
 export type AppPresenceModule = {
   users: ConnectedUserMap;
   panelOpen: boolean;
+  renderConnectedUsers: () => void;
+  setConnectedUsersPanelOpen: (open: boolean) => void;
+  upsertConnectedUser: (user: ConnectedUser) => void;
+  removeConnectedUser: (socketId: string) => void;
+  updateConnectedUsersFromActivity: (
+    userId: string | undefined,
+    message: BoardMessage,
+  ) => void;
+  updateCurrentConnectedUserFromActivity: (message: BoardMessage) => void;
+  initConnectedUsersUI: () => void;
 };
 
 /** Optimistic local mutation journal and rollback bookkeeping. */
@@ -923,16 +933,6 @@ export type AppToolsState = {
   syncToolDisabledState: (toolName: string) => void;
   syncDrawToolAvailability: (force: boolean) => void;
   setBoardState: (state: unknown) => void;
-  renderConnectedUsers: () => void;
-  setConnectedUsersPanelOpen: (open: boolean) => void;
-  upsertConnectedUser: (user: ConnectedUser) => void;
-  removeConnectedUser: (socketId: string) => void;
-  updateConnectedUsersFromActivity: (
-    userId: string | undefined,
-    message: BoardMessage,
-  ) => void;
-  updateCurrentConnectedUserFromActivity: (message: BoardMessage) => void;
-  initConnectedUsersUI: () => void;
   isBlocked: (tool: MountedAppTool) => boolean;
   applyHooks: <T>(hooks: ((value: T) => void)[], object: T) => void;
   positionElement: (elem: HTMLElement, x: number, y: number) => void;

@@ -1079,7 +1079,9 @@ function flushBufferedWrites() {
     }
     Tools.writes.bufferedWrites.shift();
     Tools.writes.consumeBufferedWriteBudget(bufferedWrite, now);
-    Tools.updateCurrentConnectedUserFromActivity(bufferedWrite.message);
+    Tools.presence.updateCurrentConnectedUserFromActivity(
+      bufferedWrite.message,
+    );
     if (Tools.connection.socket) {
       Tools.connection.socket.emit(
         SocketEvents.BROADCAST,
@@ -1123,7 +1125,7 @@ function sendBufferedWrite(message) {
     Tools.writes.canEmitBufferedWrite(bufferedWrite, now)
   ) {
     Tools.writes.consumeBufferedWriteBudget(bufferedWrite, now);
-    Tools.updateCurrentConnectedUserFromActivity(message);
+    Tools.presence.updateCurrentConnectedUserFromActivity(message);
     if (Tools.connection.socket) {
       Tools.connection.socket.emit(SocketEvents.BROADCAST, message);
     }
@@ -1189,7 +1191,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
   Tools.presence.users = /** @type {ConnectedUserMap} */ ({});
-  Tools.renderConnectedUsers();
+  Tools.presence.renderConnectedUsers();
   Tools.clearBoardCursors();
   Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {
     if (tool) tool.onSocketDisconnect();
@@ -1237,7 +1239,7 @@ function finalizeIncomingBroadcast(msg, processed) {
   const activityMessage =
     BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
   if (processed && "tool" in activityMessage) {
-    Tools.updateConnectedUsersFromActivity(
+    Tools.presence.updateConnectedUsersFromActivity(
       activityMessage.userId,
       activityMessage,
     );
@@ -1514,6 +1516,13 @@ Tools.interaction = {
 Tools.presence = {
   users: /** @type {ConnectedUserMap} */ ({}),
   panelOpen: false,
+  renderConnectedUsers,
+  setConnectedUsersPanelOpen,
+  upsertConnectedUser,
+  removeConnectedUser,
+  updateConnectedUsersFromActivity,
+  updateCurrentConnectedUserFromActivity,
+  initConnectedUsersUI,
 };
 
 function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
@@ -1748,7 +1757,7 @@ function scheduleConnectedUserPulseEnd(user) {
     if (user.pulseUntil && user.pulseUntil <= Date.now()) {
       user.pulseUntil = 0;
       user.pulseTimeoutId = null;
-      Tools.renderConnectedUsers();
+      Tools.presence.renderConnectedUsers();
     }
   }, remainingMs + 20);
 }
@@ -1894,7 +1903,7 @@ function createConnectedUserRow(user) {
   return row;
 }
 
-Tools.renderConnectedUsers = function renderConnectedUsers() {
+function renderConnectedUsers() {
   const list = getConnectedUsersList();
   const panel = getConnectedUsersPanel();
   /** @type {{[socketId: string]: ConnectedUserRow}} */
@@ -1930,14 +1939,12 @@ Tools.renderConnectedUsers = function renderConnectedUsers() {
   });
   panel.dataset.empty = users.length === 0 ? "true" : "false";
   if (users.length === 0 && Tools.presence.panelOpen) {
-    Tools.setConnectedUsersPanelOpen(false);
+    Tools.presence.setConnectedUsersPanelOpen(false);
   }
   syncConnectedUsersToggleLabel();
-};
+}
 
-Tools.setConnectedUsersPanelOpen = function setConnectedUsersPanelOpen(
-  /** @type {boolean} */ open,
-) {
+function setConnectedUsersPanelOpen(/** @type {boolean} */ open) {
   const shouldOpen = open && getConnectedUsersCount() > 0;
   const panel = getConnectedUsersPanel();
   const toggle = getConnectedUsersToggle();
@@ -1945,27 +1952,23 @@ Tools.setConnectedUsersPanelOpen = function setConnectedUsersPanelOpen(
   panel.classList.toggle("connected-users-panel-hidden", !shouldOpen);
   toggle.classList.toggle("board-presence-toggle-open", shouldOpen);
   toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-};
+}
 
-Tools.upsertConnectedUser = function upsertConnectedUser(
-  /** @type {ConnectedUser} */ user,
-) {
+function upsertConnectedUser(/** @type {ConnectedUser} */ user) {
   getConnectedUsers()[user.socketId] = Object.assign(
     {},
     getConnectedUsers()[user.socketId] || {},
     user,
   );
-  Tools.renderConnectedUsers();
-};
+  Tools.presence.renderConnectedUsers();
+}
 
-Tools.removeConnectedUser = function removeConnectedUser(
-  /** @type {string} */ socketId,
-) {
+function removeConnectedUser(/** @type {string} */ socketId) {
   const user = getConnectedUsers()[socketId];
   if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   delete getConnectedUsers()[socketId];
-  Tools.renderConnectedUsers();
-};
+  Tools.presence.renderConnectedUsers();
+}
 
 /**
  * @param {ConnectedUser} user
@@ -2025,47 +2028,41 @@ function applyConnectedUserActivity(
   return changed;
 }
 
-Tools.updateConnectedUsersFromActivity =
-  function updateConnectedUsersFromActivity(
-    /** @type {string | undefined} */ userId,
-    /** @type {BoardMessage} */ message,
-  ) {
-    // Presence has three layers:
-    // - `socketId`: one live browser tab/socket connection. This is the most precise activity target.
-    // - `userId`: derived server-side from the shared user-secret cookie, so multiple tabs from one browser profile can share it.
-    // - displayed name: combines an IP-derived word with the `userId`, so it is human-readable but not a stable routing key.
-    // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
-    const messageSocketId = message.socket || null;
-    if (!userId && messageSocketId === null) return;
-    let changed = false;
-    const focusPoint = getMessageFocusPoint(message);
-    Object.values(getConnectedUsers()).forEach((user) => {
-      if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
-      changed =
-        applyConnectedUserActivity(
-          user,
-          message,
-          focusPoint,
-          messageSocketId,
-        ) || changed;
-    });
-    if (changed) Tools.renderConnectedUsers();
-  };
+function updateConnectedUsersFromActivity(
+  /** @type {string | undefined} */ userId,
+  /** @type {BoardMessage} */ message,
+) {
+  // Presence has three layers:
+  // - `socketId`: one live browser tab/socket connection. This is the most precise activity target.
+  // - `userId`: derived server-side from the shared user-secret cookie, so multiple tabs from one browser profile can share it.
+  // - displayed name: combines an IP-derived word with the `userId`, so it is human-readable but not a stable routing key.
+  // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
+  const messageSocketId = message.socket || null;
+  if (!userId && messageSocketId === null) return;
+  let changed = false;
+  const focusPoint = getMessageFocusPoint(message);
+  Object.values(getConnectedUsers()).forEach((user) => {
+    if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
+    changed =
+      applyConnectedUserActivity(user, message, focusPoint, messageSocketId) ||
+      changed;
+  });
+  if (changed) Tools.presence.renderConnectedUsers();
+}
 
-Tools.updateCurrentConnectedUserFromActivity =
-  function updateCurrentConnectedUserFromActivity(
-    /** @type {BoardMessage} */ message,
-  ) {
-    if (!Tools.connection.socket?.id) return;
-    const current = getConnectedUsers()[Tools.connection.socket.id];
-    if (!current) return;
-    Tools.updateConnectedUsersFromActivity(
-      current.userId,
-      Object.assign({}, message, { socket: current.socketId }),
-    );
-  };
+function updateCurrentConnectedUserFromActivity(
+  /** @type {BoardMessage} */ message,
+) {
+  if (!Tools.connection.socket?.id) return;
+  const current = getConnectedUsers()[Tools.connection.socket.id];
+  if (!current) return;
+  Tools.presence.updateConnectedUsersFromActivity(
+    current.userId,
+    Object.assign({}, message, { socket: current.socketId }),
+  );
+}
 
-Tools.initConnectedUsersUI = function initConnectedUsersUI() {
+function initConnectedUsersUI() {
   const toggle = document.getElementById("connectedUsersToggle");
   const panel = document.getElementById("connectedUsersPanel");
   if (!(toggle instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
@@ -2076,7 +2073,7 @@ Tools.initConnectedUsersUI = function initConnectedUsersUI() {
   if (toggle.dataset.connectedUsersUiBound !== "true") {
     toggle.dataset.connectedUsersUiBound = "true";
     toggle.addEventListener("click", () => {
-      Tools.setConnectedUsersPanelOpen(!Tools.presence.panelOpen);
+      Tools.presence.setConnectedUsersPanelOpen(!Tools.presence.panelOpen);
     });
     toggle.addEventListener("blur", () => {
       window.setTimeout(() => {
@@ -2085,20 +2082,20 @@ Tools.initConnectedUsersUI = function initConnectedUsersUI() {
           !panel.contains(document.activeElement) &&
           document.activeElement !== toggle
         ) {
-          Tools.setConnectedUsersPanelOpen(false);
+          Tools.presence.setConnectedUsersPanelOpen(false);
         }
       }, 0);
     });
     panel.addEventListener("keydown", (evt) => {
       if (evt.key === "Escape") {
         evt.preventDefault();
-        Tools.setConnectedUsersPanelOpen(false);
+        Tools.presence.setConnectedUsersPanelOpen(false);
         toggle.focus();
       }
     });
   }
-  Tools.renderConnectedUsers();
-};
+  Tools.presence.renderConnectedUsers();
+}
 
 Tools.startConnection = () => {
   const reusableSocket =
@@ -2115,7 +2112,7 @@ Tools.startConnection = () => {
     if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
   Tools.presence.users = /** @type {ConnectedUserMap} */ ({});
-  Tools.renderConnectedUsers();
+  Tools.presence.renderConnectedUsers();
 
   void (async function openSocketWithBaseline() {
     if (!getAttachedBoardDom()) {
@@ -2252,7 +2249,7 @@ Tools.startConnection = () => {
     socket.on(
       SocketEvents.USER_JOINED,
       function onUserJoined(/** @type {ConnectedUser} */ user) {
-        Tools.upsertConnectedUser(user);
+        Tools.presence.upsertConnectedUser(user);
       },
     );
     socket.on(
@@ -2260,7 +2257,7 @@ Tools.startConnection = () => {
       function onUserLeft(
         /** @type {import("../../types/app-runtime").UserLeftPayload} */ user,
       ) {
-        Tools.removeConnectedUser(user.socketId);
+        Tools.presence.removeConnectedUser(user.socketId);
       },
     );
     socket.on(
@@ -3364,7 +3361,7 @@ Tools.setBoardState(
     canWrite: true,
   }),
 );
-Tools.initConnectedUsersUI();
+Tools.presence.initConnectedUsersUI();
 initializeShellControls();
 
 /**
