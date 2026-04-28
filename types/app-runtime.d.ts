@@ -609,7 +609,8 @@ export type AppConfigModule =
   import("../client-data/js/board_runtime_core.js").ConfigModule;
 
 /** Server-issued board access state and derived permissions. */
-export type AppAccessModule = import("../client-data/js/board.js").AccessModule;
+export type AppAccessModule =
+  import("../client-data/js/board_access_module.js").AccessModule;
 
 export type AppInitialPreferences = {
   readonly tool: string;
@@ -623,7 +624,8 @@ export type AppPreferenceModule =
   import("../client-data/js/board_runtime_core.js").PreferenceModule;
 
 /** Board status UI state and timers. */
-export type AppStatusModule = import("../client-data/js/board.js").StatusModule;
+export type AppStatusModule =
+  import("../client-data/js/board_status_module.js").StatusModule;
 
 /** Turnstile validation state and protected-write queue. */
 export type AppTurnstileModule =

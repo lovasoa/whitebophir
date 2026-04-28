@@ -1,3 +1,4 @@
+import { AccessModule } from "./board_access_module.js";
 import {
   createResizeCanvasHook,
   createToolNotificationHook,
@@ -18,11 +19,12 @@ import {
   RateLimitModule,
   ViewportStateModule,
 } from "./board_runtime_core.js";
+import { StatusModule } from "./board_status_module.js";
 import { TurnstileModule } from "./board_turnstile.js";
 import { createViewportController } from "./board_viewport.js";
 
 /** @import { AppInitialPreferences, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
-/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, createToolRegistry: () => import("./board.js").ToolRegistryModule, createWriteModule: () => import("./board.js").WriteModule, createStatusModule: () => import("./board.js").StatusModule, createReplayModule: () => import("./board.js").ReplayModule, createOptimisticModule: () => import("./board.js").OptimisticModule, createConnectionModule: () => import("./board.js").ConnectionModule, createAccessModule: () => import("./board.js").AccessModule, createPresenceModule: () => import("./board.js").PresenceModule}} AppToolsOptions */
+/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, createToolRegistry: () => import("./board.js").ToolRegistryModule, createWriteModule: () => import("./board.js").WriteModule, createReplayModule: () => import("./board.js").ReplayModule, createOptimisticModule: () => import("./board.js").OptimisticModule, createConnectionModule: () => import("./board.js").ConnectionModule, createPresenceModule: () => import("./board.js").PresenceModule}} AppToolsOptions */
 
 export class AppTools {
   /** @param {AppToolsOptions} options */
@@ -38,7 +40,7 @@ export class AppTools {
       flushPendingWrites: options.flushPendingWrites,
     });
     this.writes = options.createWriteModule();
-    this.status = options.createStatusModule();
+    this.status = new StatusModule(() => this, options.logBoardEvent);
     this.replay = options.createReplayModule();
     this.optimistic = options.createOptimisticModule();
     this.connection = options.createConnectionModule();
@@ -51,7 +53,7 @@ export class AppTools {
     );
     this.viewportState = new ViewportStateModule(viewportController);
     this.coordinates = new CoordinateModule(this.config, this.viewportState);
-    this.access = options.createAccessModule();
+    this.access = new AccessModule(() => this);
     this.dom = /** @type {import("../../types/app-runtime").BoardDomModule} */ (
       new DetachedBoardDomRuntimeModule()
     );
