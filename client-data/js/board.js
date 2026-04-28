@@ -222,20 +222,21 @@ export async function attachBoardDom(document) {
     svg: canvasElement,
     drawingArea: baseline.drawingArea,
   };
-  Tools.board = boardElement;
-  Tools.svg = canvasElement;
-  Tools.drawingArea = baseline.drawingArea;
   Tools.authoritativeSeq = baseline.authoritativeSeq;
-  Tools.svg.width.baseVal.value = Math.max(
-    Tools.svg.width.baseVal.value,
+  Tools.dom.svg.width.baseVal.value = Math.max(
+    Tools.dom.svg.width.baseVal.value,
     document.body.clientWidth,
   );
-  Tools.svg.height.baseVal.value = Math.max(
-    Tools.svg.height.baseVal.value,
+  Tools.dom.svg.height.baseVal.value = Math.max(
+    Tools.dom.svg.height.baseVal.value,
     document.body.clientHeight,
   );
   normalizeServerRenderedElements();
   Tools.syncActiveToolInputPolicy();
+}
+
+function getAttachedBoardDom() {
+  return Tools.dom.status === "attached" ? Tools.dom : null;
 }
 
 Tools.i18n = (function i18n() {
@@ -650,13 +651,15 @@ Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
 };
 
 Tools.clearBoardCursors = function clearBoardCursors() {
-  if (!Tools.svg) return;
-  const cursors = Tools.svg.getElementById("cursors");
+  const dom = getAttachedBoardDom();
+  if (!dom) return;
+  const cursors = dom.svg.getElementById("cursors");
   if (cursors) cursors.innerHTML = "";
 };
 
 Tools.resetBoardViewport = function resetBoardViewport() {
-  if (Tools.drawingArea) Tools.drawingArea.innerHTML = "";
+  const dom = getAttachedBoardDom();
+  if (dom) dom.drawingArea.innerHTML = "";
   Tools.clearBoardCursors();
 };
 
@@ -676,24 +679,24 @@ Tools.restoreLocalCursor = function restoreLocalCursor() {
  * @returns {OptimisticRollback}
  */
 Tools.captureOptimisticRollback = function captureOptimisticRollback(message) {
+  const dom = getAttachedBoardDom();
   if (getMutationType(message) === MutationType.CLEAR) {
     return {
       kind: "drawing-area",
-      markup: Tools.drawingArea?.innerHTML || "",
+      markup: dom?.drawingArea.innerHTML || "",
     };
   }
   return {
     kind: "items",
     snapshots: collectOptimisticAffectedIds(message).map((itemId) => {
-      const svg = Tools.svg;
-      if (!svg) {
+      if (!dom) {
         return {
           id: itemId,
           outerHTML: null,
           nextSiblingId: null,
         };
       }
-      const current = svg.getElementById(itemId);
+      const current = dom.svg.getElementById(itemId);
       return {
         id: itemId,
         outerHTML: current ? current.outerHTML : null,
@@ -774,15 +777,14 @@ function notifyRejectedTools(rejected, reason) {
  * @returns {void}
  */
 Tools.restoreOptimisticRollback = function restoreOptimisticRollback(rollback) {
-  if (!Tools.drawingArea) return;
+  const dom = getAttachedBoardDom();
+  if (!dom) return;
   if (rollback.kind === "drawing-area") {
-    Tools.drawingArea.innerHTML = rollback.markup;
+    dom.drawingArea.innerHTML = rollback.markup;
     return;
   }
   rollback.snapshots.forEach((snapshot) => {
-    const svg = Tools.svg;
-    if (!svg) return;
-    const current = svg.getElementById(snapshot.id);
+    const current = dom.svg.getElementById(snapshot.id);
     if (snapshot.outerHTML === null) {
       current?.remove();
       return;
@@ -792,14 +794,12 @@ Tools.restoreOptimisticRollback = function restoreOptimisticRollback(rollback) {
       return;
     }
     const nextSibling = snapshot.nextSiblingId
-      ? svg.getElementById(snapshot.nextSiblingId)
+      ? dom.svg.getElementById(snapshot.nextSiblingId)
       : null;
-    if (nextSibling?.parentElement === Tools.drawingArea) {
+    if (nextSibling?.parentElement === dom.drawingArea) {
       nextSibling.insertAdjacentHTML("beforebegin", snapshot.outerHTML);
     } else {
-      const drawingArea = Tools.drawingArea;
-      if (!drawingArea) return;
-      drawingArea.insertAdjacentHTML("beforeend", snapshot.outerHTML);
+      dom.drawingArea.insertAdjacentHTML("beforeend", snapshot.outerHTML);
     }
   });
 };
@@ -852,17 +852,18 @@ Tools.applyAuthoritativeBaseline =
    * @param {AuthoritativeBaseline} baseline
    */
   function applyAuthoritativeBaseline(baseline) {
-    const svg = Tools.svg;
-    if (!svg) return;
+    const dom = getAttachedBoardDom();
+    if (!dom) return;
     Tools.hasAuthoritativeBoardSnapshot = true;
     Tools.authoritativeSeq = baseline.seq;
     Tools.optimistic.journal.reset();
-    svg.setAttribute("data-wbo-seq", String(baseline.seq));
-    svg.setAttribute("data-wbo-readonly", baseline.readonly ? "true" : "false");
-    if (Tools.drawingArea) {
-      Tools.drawingArea.innerHTML = baseline.drawingAreaMarkup;
-      normalizeServerRenderedElements();
-    }
+    dom.svg.setAttribute("data-wbo-seq", String(baseline.seq));
+    dom.svg.setAttribute(
+      "data-wbo-readonly",
+      baseline.readonly ? "true" : "false",
+    );
+    dom.drawingArea.innerHTML = baseline.drawingAreaMarkup;
+    normalizeServerRenderedElements();
   };
 
 /**
@@ -870,12 +871,13 @@ Tools.applyAuthoritativeBaseline =
  * @returns {void}
  */
 function normalizeServerRenderedElementsForTool(tool) {
-  if (!Tools.drawingArea) return;
+  const dom = getAttachedBoardDom();
+  if (!dom) return;
   const selector = tool.serverRenderedElementSelector;
   const normalizeElement = tool.normalizeServerRenderedElement;
   if (!selector || typeof normalizeElement !== "function") return;
 
-  Tools.drawingArea.querySelectorAll(selector).forEach((element) => {
+  dom.drawingArea.querySelectorAll(selector).forEach((element) => {
     if (element instanceof SVGElement) {
       normalizeElement.call(tool, element);
     }
@@ -1464,9 +1466,6 @@ Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
   return getToolButton(toolName) !== null;
 };
 
-Tools.board = null;
-Tools.svg = null;
-Tools.drawingArea = null;
 Tools.dom = /** @type {AppToolsState["dom"]} */ ({ status: "detached" });
 
 //Initialization
@@ -2083,7 +2082,7 @@ Tools.startConnection = () => {
   Tools.renderConnectedUsers();
 
   void (async function openSocketWithBaseline() {
-    if (!Tools.board || !Tools.svg || !Tools.drawingArea) {
+    if (!getAttachedBoardDom()) {
       scheduleSocketReconnect();
       return;
     }
@@ -2868,9 +2867,8 @@ function toggleSecondaryTool(newTool) {
  * @returns {void}
  */
 function updateCurrentToolChrome(toolName, newTool) {
-  const svg = Tools.svg;
-  const board = Tools.board;
-  if (!svg || !board) return;
+  const dom = getAttachedBoardDom();
+  if (!dom) return;
   const curToolName = Tools.curTool ? Tools.curTool.name : "";
   try {
     changeActiveToolButton(curToolName, toolName);
@@ -2880,8 +2878,8 @@ function updateCurrentToolChrome(toolName, newTool) {
       error: e instanceof Error ? e.message : String(e),
     });
   }
-  svg.style.cursor = newTool.mouseCursor || "auto";
-  board.title = Tools.i18n.t(newTool.helpText || "");
+  dom.svg.style.cursor = newTool.mouseCursor || "auto";
+  dom.board.title = Tools.i18n.t(newTool.helpText || "");
 }
 
 /** @param {MountedAppTool} newTool */
@@ -2942,11 +2940,12 @@ Tools.change = (toolName) => {
 
 /** @param {MountedAppTool} tool */
 Tools.addToolListeners = function addToolListeners(tool) {
+  const dom = getAttachedBoardDom();
   if (!tool.compiledListeners) return;
   for (const event in tool.compiledListeners) {
     const listener = tool.compiledListeners[event];
     if (!listener) continue;
-    const target = listener.target || Tools.board;
+    const target = listener.target || dom?.board;
     if (!target) continue;
     target.addEventListener(
       event,
@@ -2960,11 +2959,12 @@ Tools.addToolListeners = function addToolListeners(tool) {
 
 /** @param {MountedAppTool} tool */
 Tools.removeToolListeners = function removeToolListeners(tool) {
+  const dom = getAttachedBoardDom();
   if (!tool.compiledListeners) return;
   for (const event in tool.compiledListeners) {
     const listener = tool.compiledListeners[event];
     if (!listener) continue;
-    const target = listener.target || Tools.board;
+    const target = listener.target || dom?.board;
     if (!target) continue;
     target.removeEventListener(event, listener);
   }
@@ -3195,11 +3195,12 @@ Tools.generateUID = function generateUID(prefix, suffix) {
  * @returns {SVGElement}
  */
 Tools.createSVGElement = function createSVGElement(name, attrs) {
-  if (!Tools.svg) {
+  const dom = getAttachedBoardDom();
+  if (!dom) {
     throw new Error("Board SVG is not attached.");
   }
   const elem = /** @type {SVGElement} */ (
-    document.createElementNS(Tools.svg.namespaceURI, name)
+    document.createElementNS(dom.svg.namespaceURI, name)
   );
   if (!attrs) return elem;
   Object.keys(attrs).forEach((key) => {
@@ -3341,7 +3342,7 @@ initializeShellControls();
 			"release" : function(x,y,evt){...},
 	  },
 	  "draw" : function(data, isLocal){
-			//Print the data on Tools.svg
+			//Print the data on the board SVG
 	  },
 	  "onstart" : function(oldTool){...},
 	  "onquit" : function(newTool){...},

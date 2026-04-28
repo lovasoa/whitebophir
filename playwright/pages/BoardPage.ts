@@ -518,7 +518,10 @@ window.turnstile = {
         if (!tool) throw new Error("Missing current tool");
         const pressEvent = new MouseEvent("mousedown");
         Object.defineProperty(pressEvent, "target", {
-          value: window.WBOApp.board,
+          value:
+            window.WBOApp.dom.status === "attached"
+              ? window.WBOApp.dom.board
+              : null,
         });
         tool.listeners.press?.(targetX, targetY, pressEvent, false);
         const input = document.getElementById(

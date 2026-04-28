@@ -746,9 +746,6 @@ export type AppToolsState = {
   viewport: ViewportController;
   drawToolsAllowed: boolean | null;
   dom: BoardDomModule;
-  board: HTMLElement | null;
-  svg: SVGSVGElement | null;
-  drawingArea: Element | null;
   curTool: MaybeMountedAppTool;
   drawingEvent: boolean;
   hasAuthoritativeBoardSnapshot: boolean;
