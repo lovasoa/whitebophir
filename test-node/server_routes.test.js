@@ -608,6 +608,10 @@ test("board pages are no-store in development and render plain asset URLs", asyn
     assert.match(response.body, /\.\.\/js\/board_main\.js(?:["'])/);
     assert.match(
       response.body,
+      /<script id="socketio-client" async src="\.\.\/socket\.io\/socket\.io\.js"><\/script>/,
+    );
+    assert.match(
+      response.body,
       /rel="modulepreload" href="\.\.\/js\/app_tools\.js"/,
     );
     assert.match(

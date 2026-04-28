@@ -6,6 +6,44 @@ import { SocketEvents } from "./socket_events.js";
 
 /** @import { AppToolsState, BoardConnectionState, SocketHeaders } from "../../types/app-runtime" */
 
+/** @type {Promise<typeof io> | null} */
+let socketIoReady = null;
+
+/**
+ * @returns {Promise<typeof io>}
+ */
+function whenSocketIoReady() {
+  if (typeof io !== "undefined") return Promise.resolve(io);
+  if (socketIoReady) return socketIoReady;
+
+  socketIoReady = new Promise((resolve, reject) => {
+    const script = document.getElementById("socketio-client");
+    if (!(script instanceof HTMLScriptElement)) {
+      reject(new Error("Missing Socket.IO client script."));
+      return;
+    }
+    script.addEventListener(
+      "load",
+      () => {
+        if (typeof io !== "undefined") {
+          resolve(io);
+        } else {
+          reject(
+            new Error("Socket.IO client script loaded without global io."),
+          );
+        }
+      },
+      { once: true },
+    );
+    script.addEventListener(
+      "error",
+      () => reject(new Error("Socket.IO client script failed to load.")),
+      { once: true },
+    );
+  });
+  return socketIoReady;
+}
+
 /** @param {AppToolsState} Tools */
 function getAttachedBoardDom(Tools) {
   return Tools.dom.status === "attached" ? Tools.dom : null;
@@ -115,7 +153,8 @@ export class ConnectionModule {
         return;
       }
 
-      const socket = io.connect("", socketParams);
+      const ioClient = await whenSocketIoReady();
+      const socket = ioClient.connect("", socketParams);
       this.socket = socket;
 
       // Receive draw instructions from the server.
