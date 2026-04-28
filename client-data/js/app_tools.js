@@ -5,6 +5,7 @@ import {
   createUnreadCountHook,
   MessageModule,
 } from "./board_message_module.js";
+import { OptimisticModule } from "./board_optimistic_module.js";
 import {
   AssetModule,
   ConfigModule,
@@ -25,7 +26,7 @@ import { createViewportController } from "./board_viewport.js";
 import { WriteModule } from "./board_write_module.js";
 
 /** @import { AppInitialPreferences, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
-/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, createToolRegistry: () => import("./board.js").ToolRegistryModule, createReplayModule: () => import("./board.js").ReplayModule, createOptimisticModule: () => import("./board.js").OptimisticModule, createConnectionModule: () => import("./board.js").ConnectionModule, createPresenceModule: () => import("./board.js").PresenceModule}} AppToolsOptions */
+/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, createToolRegistry: () => import("./board.js").ToolRegistryModule, createReplayModule: () => import("./board.js").ReplayModule, createConnectionModule: () => import("./board.js").ConnectionModule, createPresenceModule: () => import("./board.js").PresenceModule}} AppToolsOptions */
 
 export class AppTools {
   /** @param {AppToolsOptions} options */
@@ -43,7 +44,7 @@ export class AppTools {
     this.writes = new WriteModule(() => this);
     this.status = new StatusModule(() => this, options.logBoardEvent);
     this.replay = options.createReplayModule();
-    this.optimistic = options.createOptimisticModule();
+    this.optimistic = new OptimisticModule(() => this);
     this.connection = options.createConnectionModule();
     this.connection.socketIOExtraHeaders = options.socketIOExtraHeaders;
     this.rateLimits = new RateLimitModule(this.config, this.identity);

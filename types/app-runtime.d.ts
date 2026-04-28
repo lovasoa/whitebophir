@@ -637,7 +637,7 @@ export type AppPresenceModule =
 
 /** Optimistic local mutation journal and rollback bookkeeping. */
 export type AppOptimisticModule =
-  import("../client-data/js/board.js").OptimisticModule;
+  import("../client-data/js/board_optimistic_module.js").OptimisticModule;
 
 /** Local message hooks and unread-message badge state. */
 export type AppMessageModule =

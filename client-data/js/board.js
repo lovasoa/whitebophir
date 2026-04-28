@@ -54,15 +54,14 @@ import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { connection as BoardConnection } from "./board_transport.js";
 import * as BoardTurnstile from "./board_turnstile.js";
 import MessageCommon from "./message_common.js";
-import { getMutationType, MutationType } from "./message_tool_metadata.js";
-import { createOptimisticJournal } from "./optimistic_journal.js";
+import { MutationType } from "./message_tool_metadata.js";
 import {
   collectOptimisticAffectedIds,
   collectOptimisticDependencyIds,
 } from "./optimistic_mutation.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
 /** @type {AppToolsState} */
@@ -470,138 +469,6 @@ export class ReplayModule {
   }
 }
 
-export class OptimisticModule {
-  constructor() {
-    this.journal = createOptimisticJournal();
-  }
-
-  /**
-   * @param {LiveBoardMessage} message
-   * @returns {OptimisticRollback}
-   */
-  captureRollback(message) {
-    const dom = getAttachedBoardDom();
-    if (getMutationType(message) === MutationType.CLEAR) {
-      return {
-        kind: "drawing-area",
-        markup: dom?.drawingArea.innerHTML || "",
-      };
-    }
-    return {
-      kind: "items",
-      snapshots: [...collectOptimisticAffectedIds(message)].map((itemId) => {
-        if (!dom) {
-          return {
-            id: itemId,
-            outerHTML: null,
-            nextSiblingId: null,
-          };
-        }
-        const current = dom.svg.getElementById(itemId);
-        return {
-          id: itemId,
-          outerHTML: current ? current.outerHTML : null,
-          nextSiblingId:
-            current && current.nextElementSibling
-              ? current.nextElementSibling.id || null
-              : null,
-        };
-      }),
-    };
-  }
-
-  /** @param {LiveBoardMessage} message */
-  collectDependencyMutationIds(message) {
-    return this.journal.dependencyMutationIdsForItemIds(
-      collectOptimisticDependencyIds(message),
-    );
-  }
-
-  /**
-   * @param {ClientTrackedMessage} message
-   * @param {OptimisticRollback} rollback
-   */
-  trackMutation(message, rollback) {
-    this.journal.append({
-      affectedIds: collectOptimisticAffectedIds(message),
-      dependsOn: this.collectDependencyMutationIds(message),
-      dependencyItemIds: collectOptimisticDependencyIds(message),
-      rollback,
-      message,
-    });
-  }
-
-  /** @param {OptimisticJournalEntry[]} rejected */
-  applyRejectedEntries(rejected) {
-    if (rejected.length === 0) return;
-    rejected
-      .slice()
-      .reverse()
-      .forEach((entry) => {
-        this.restoreRollback(entry.rollback);
-      });
-  }
-
-  /** @param {OptimisticRollback} rollback */
-  restoreRollback(rollback) {
-    const dom = getAttachedBoardDom();
-    if (!dom) return;
-    if (rollback.kind === "drawing-area") {
-      dom.drawingArea.innerHTML = rollback.markup;
-      return;
-    }
-    rollback.snapshots.forEach((snapshot) => {
-      const current = dom.svg.getElementById(snapshot.id);
-      if (snapshot.outerHTML === null) {
-        current?.remove();
-        return;
-      }
-      if (current) {
-        current.outerHTML = snapshot.outerHTML;
-        return;
-      }
-      const nextSibling = snapshot.nextSiblingId
-        ? dom.svg.getElementById(snapshot.nextSiblingId)
-        : null;
-      if (nextSibling?.parentNode === dom.drawingArea) {
-        nextSibling.insertAdjacentHTML("beforebegin", snapshot.outerHTML);
-      } else {
-        dom.drawingArea.insertAdjacentHTML("beforeend", snapshot.outerHTML);
-      }
-    });
-  }
-
-  /** @param {string} clientMutationId */
-  promoteMutation(clientMutationId) {
-    if (this.journal.promote(clientMutationId).length === 0) return;
-  }
-
-  /**
-   * @param {string} clientMutationId
-   * @param {string | undefined} reason
-   */
-  rejectMutation(clientMutationId, reason) {
-    const rejected = this.journal.reject(clientMutationId);
-    this.applyRejectedEntries(rejected);
-    notifyRejectedTools(rejected, reason);
-  }
-
-  /** @param {BoardMessage} message */
-  pruneForAuthoritativeMessage(message) {
-    const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
-    if (prunePlan.reset) {
-      this.applyRejectedEntries(this.journal.reset());
-      return;
-    }
-    if (prunePlan.invalidatedIds.length === 0) {
-      return;
-    }
-    this.applyRejectedEntries(
-      this.journal.rejectByInvalidatedIds(prunePlan.invalidatedIds),
-    );
-  }
-}
-
 export class ConnectionModule {
   constructor() {
     this.socket = null;
@@ -831,20 +698,6 @@ function getAuthoritativeBaselineUrl(cacheBust) {
 /** @param {number} [delayMs] */
 function scheduleSocketReconnect(delayMs = 250) {
   window.setTimeout(() => Tools.connection.start(), Math.max(0, delayMs));
-}
-
-/**
- * @param {OptimisticJournalEntry[]} rejected
- * @param {string | undefined} reason
- * @returns {void}
- */
-function notifyRejectedTools(rejected, reason) {
-  if (rejected.length === 0) return;
-  rejected.forEach((entry) => {
-    const toolName = TOOL_ID_BY_CODE[entry.message.tool];
-    const tool = Tools.toolRegistry.mounted[toolName];
-    tool?.onMutationRejected?.(entry.message, reason);
-  });
 }
 
 /**
@@ -2342,7 +2195,6 @@ Tools = new AppTools({
   flushPendingWrites,
   createToolRegistry: () => new ToolRegistryModule(),
   createReplayModule: () => new ReplayModule(),
-  createOptimisticModule: () => new OptimisticModule(),
   createConnectionModule: () => new ConnectionModule(),
   createPresenceModule: () => new PresenceModule(),
 });
