@@ -1,9 +1,14 @@
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
+import { optimisticPrunePlanForAuthoritativeMessage } from "./authoritative_mutation_effects.js";
 import MessageCommon from "./message_common.js";
+import {
+  collectOptimisticAffectedIds,
+  collectOptimisticDependencyIds,
+} from "./optimistic_mutation.js";
 import RateLimitCommon from "./rate_limit_common.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppToolsState, BufferedWrite, ClientTrackedMessage, LiveBoardMessage, RateLimitKind } from "../../types/app-runtime" */
+/** @import { AppToolsState, BoardMessage, BufferedWrite, ClientTrackedMessage, LiveBoardMessage, RateLimitKind } from "../../types/app-runtime" */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
 
 // Keep a bounded safety margin between the client-side local budget and the
@@ -272,6 +277,46 @@ export class WriteModule {
     this.localRateLimitedUntil = 0;
     this.clearBufferedWriteTimer();
     Tools.status.syncWriteStatusIndicator();
+  }
+
+  /**
+   * @param {BoardMessage} message
+   * @param {Set<string>} invalidatedIds
+   * @returns {boolean}
+   */
+  messageReferencesInvalidatedId(message, invalidatedIds) {
+    for (const itemId of collectOptimisticAffectedIds(message)) {
+      if (invalidatedIds.has(itemId)) return true;
+    }
+    for (const itemId of collectOptimisticDependencyIds(message)) {
+      if (invalidatedIds.has(itemId)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * @param {BoardMessage} message
+   * @returns {void}
+   */
+  pruneBufferedWritesForInvalidatingMessage(message) {
+    if (this.bufferedWrites.length === 0) return;
+    const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
+    if (prunePlan.reset) {
+      this.discardBufferedWrites();
+      return;
+    }
+    if (prunePlan.invalidatedIds.length === 0) return;
+    const invalidatedIds = new Set(prunePlan.invalidatedIds);
+    const nextBufferedWrites = this.bufferedWrites.filter(
+      (bufferedWrite) =>
+        !this.messageReferencesInvalidatedId(
+          bufferedWrite.message,
+          invalidatedIds,
+        ),
+    );
+    if (nextBufferedWrites.length === this.bufferedWrites.length) return;
+    this.bufferedWrites = nextBufferedWrites;
+    this.scheduleBufferedWriteFlush();
   }
 
   /**

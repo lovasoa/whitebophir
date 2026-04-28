@@ -1,3 +1,4 @@
+import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { SocketEvents } from "./socket_events.js";
 
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
@@ -5,7 +6,7 @@ import { SocketEvents } from "./socket_events.js";
 /** @typedef {import("../../types/app-runtime").PendingWrite} PendingWrite */
 /** @typedef {import("../../types/app-runtime").TurnstileAck} TurnstileAck */
 /** @typedef {import("../../types/app-runtime").TurnstileGlobal} TurnstileGlobal */
-/** @typedef {{logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: ClientTrackedMessage) => void, flushPendingWrites: () => void}} TurnstileModuleOptions */
+/** @typedef {{logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void}} TurnstileModuleOptions */
 
 const TURNSTILE_SCRIPT_SRC =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
@@ -315,11 +316,30 @@ export class TurnstileModule {
 
   /** @param {ClientTrackedMessage} data */
   queueProtectedWrite(data) {
-    getTurnstileModuleState(this).queueProtectedWrite(data);
+    const { logBoardEvent } = getTurnstileModuleState(this);
+    const hadPendingWrites = this.pendingWrites.length > 0;
+    this.pendingWrites.push({ data });
+    if (hadPendingWrites) return;
+    const toolName = TOOL_ID_BY_CODE[data.tool];
+    logBoardEvent("log", "turnstile.write_queued", {
+      toolName,
+      clientMutationId: data.clientMutationId,
+    });
+    this.showWidget();
   }
 
   flushPendingWrites() {
-    getTurnstileModuleState(this).flushPendingWrites();
+    const { Tools, logBoardEvent } = getTurnstileModuleState(this);
+    const pendingWrites = this.pendingWrites;
+    this.pendingWrites = [];
+    logBoardEvent("log", "turnstile.write_flush", {
+      count: pendingWrites.length,
+    });
+    Tools.status.clearBoardStatus();
+    pendingWrites.forEach(function replayPendingWrite(write) {
+      const pendingWrite = /** @type {PendingWrite} */ (write);
+      Tools.writes.send(pendingWrite.data);
+    });
   }
 }
 

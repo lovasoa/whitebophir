@@ -31,7 +31,7 @@ import { createViewportController } from "./board_viewport.js";
 import { WriteModule } from "./board_write_module.js";
 
 /** @import { AppInitialPreferences, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
-/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, enqueueIncomingBroadcast: (msg: import("../../types/app-runtime").IncomingBroadcast) => void}} AppToolsOptions */
+/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void}} AppToolsOptions */
 
 export class AppTools {
   /** @param {AppToolsOptions} options */
@@ -46,18 +46,12 @@ export class AppTools {
     );
     this.turnstile = new TurnstileModule(this, {
       logBoardEvent: options.logBoardEvent,
-      queueProtectedWrite: options.queueProtectedWrite,
-      flushPendingWrites: options.flushPendingWrites,
     });
     this.writes = new WriteModule(() => this);
     this.status = new StatusModule(() => this, options.logBoardEvent);
-    this.replay = new ReplayModule(() => this);
+    this.replay = new ReplayModule(() => this, options.logBoardEvent);
     this.optimistic = new OptimisticModule(() => this);
-    this.connection = new ConnectionModule(
-      () => this,
-      options.logBoardEvent,
-      options.enqueueIncomingBroadcast,
-    );
+    this.connection = new ConnectionModule(() => this, options.logBoardEvent);
     this.connection.socketIOExtraHeaders = options.socketIOExtraHeaders;
     this.rateLimits = new RateLimitModule(this.config, this.identity);
     const viewportController = createViewportController(

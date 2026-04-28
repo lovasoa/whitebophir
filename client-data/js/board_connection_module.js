@@ -4,7 +4,7 @@ import { connection as BoardConnection } from "./board_transport.js";
 import * as BoardTurnstile from "./board_turnstile.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppToolsState, BoardConnectionState, IncomingBroadcast, SocketHeaders } from "../../types/app-runtime" */
+/** @import { AppToolsState, BoardConnectionState, SocketHeaders } from "../../types/app-runtime" */
 
 /** @param {AppToolsState} Tools */
 function getAttachedBoardDom(Tools) {
@@ -15,12 +15,10 @@ export class ConnectionModule {
   /**
    * @param {() => AppToolsState} getTools
    * @param {(level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void} logBoardEvent
-   * @param {(msg: IncomingBroadcast) => void} enqueueIncomingBroadcast
    */
-  constructor(getTools, logBoardEvent, enqueueIncomingBroadcast) {
+  constructor(getTools, logBoardEvent) {
     this.getTools = getTools;
     this.logBoardEvent = logBoardEvent;
-    this.enqueueIncomingBroadcast = enqueueIncomingBroadcast;
     this.socket = null;
     this.state = /** @type {BoardConnectionState} */ ("idle");
     this.hasConnectedOnce = false;
@@ -114,7 +112,7 @@ export class ConnectionModule {
         Tools.status.syncWriteStatusIndicator();
       });
       socket.on(SocketEvents.BROADCAST, (msg) => {
-        this.enqueueIncomingBroadcast(msg);
+        Tools.replay.enqueueIncomingBroadcast(msg);
       });
       socket.on(SocketEvents.BOARDSTATE, (boardState) => {
         Tools.access.applyBoardState(boardState);

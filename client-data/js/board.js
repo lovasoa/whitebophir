@@ -25,7 +25,6 @@
  */
 
 import { AppTools } from "./app_tools.js";
-import { optimisticPrunePlanForAuthoritativeMessage } from "./authoritative_mutation_effects.js";
 import { updateDocumentTitle } from "./board_message_module.js";
 import * as BoardMessageReplay from "./board_message_replay.js";
 import {
@@ -38,15 +37,10 @@ import {
 import { addToolShortcut } from "./board_tool_registry_module.js";
 import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
 import "./intersect.js";
-import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import { connection as BoardConnection } from "./board_transport.js";
 import MessageCommon from "./message_common.js";
-import {
-  collectOptimisticAffectedIds,
-  collectOptimisticDependencyIds,
-} from "./optimistic_mutation.js";
 
-/** @import { AppToolsState, AuthoritativeReplayBatch, BoardMessage, ClientTrackedMessage, ColorPreset, IncomingBroadcast, PendingWrite, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
+/** @import { AppToolsState, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
 /** @type {AppToolsState} */
 let Tools;
 
@@ -178,221 +172,6 @@ function initializeShellControls() {
   Tools.preferences.setSize(Tools.preferences.currentSize);
 }
 
-/**
- * @param {BoardMessage} message
- * @param {Set<string>} invalidatedIds
- * @returns {boolean}
- */
-function messageReferencesInvalidatedId(message, invalidatedIds) {
-  for (const itemId of collectOptimisticAffectedIds(message)) {
-    if (invalidatedIds.has(itemId)) return true;
-  }
-  for (const itemId of collectOptimisticDependencyIds(message)) {
-    if (invalidatedIds.has(itemId)) return true;
-  }
-  return false;
-}
-
-/**
- * @param {BoardMessage} message
- * @returns {void}
- */
-function pruneBufferedWritesForInvalidatingMessage(message) {
-  if (Tools.writes.bufferedWrites.length === 0) return;
-  const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
-  if (prunePlan.reset) {
-    Tools.writes.discardBufferedWrites();
-    return;
-  }
-  if (prunePlan.invalidatedIds.length === 0) return;
-  const invalidatedIds = new Set(prunePlan.invalidatedIds);
-  const nextBufferedWrites = Tools.writes.bufferedWrites.filter(
-    (bufferedWrite) =>
-      !messageReferencesInvalidatedId(bufferedWrite.message, invalidatedIds),
-  );
-  if (nextBufferedWrites.length === Tools.writes.bufferedWrites.length) return;
-  Tools.writes.bufferedWrites = nextBufferedWrites;
-  Tools.writes.scheduleBufferedWriteFlush();
-}
-
-/**
- * Takes ownership of data. Callers must not mutate it after queueing.
- * @param {ClientTrackedMessage} data
- */
-function queueProtectedWrite(data) {
-  const hadPendingWrites = Tools.turnstile.pendingWrites.length > 0;
-  Tools.turnstile.pendingWrites.push({ data });
-  if (hadPendingWrites) return;
-  const toolName = TOOL_ID_BY_CODE[data.tool];
-  logBoardEvent("log", "turnstile.write_queued", {
-    toolName,
-    clientMutationId: data.clientMutationId,
-  });
-  Tools.turnstile.showWidget();
-}
-
-function flushPendingWrites() {
-  const pendingWrites = Tools.turnstile.pendingWrites;
-  Tools.turnstile.pendingWrites = [];
-  logBoardEvent("log", "turnstile.write_flush", {
-    count: pendingWrites.length,
-  });
-  Tools.status.clearBoardStatus();
-  pendingWrites.forEach(function replayPendingWrite(write) {
-    const pendingWrite = /** @type {PendingWrite} */ (write);
-    Tools.writes.send(pendingWrite.data);
-  });
-}
-
-/**
- * @param {IncomingBroadcast} msg
- * @param {boolean} processed
- * @returns {void}
- */
-function finalizeIncomingBroadcast(msg, processed) {
-  if (processed && !BoardMessageReplay.isAuthoritativeReplayBatch(msg)) {
-    const activityMessage =
-      BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
-    Tools.presence.updateConnectedUsersFromActivity(
-      activityMessage.userId,
-      activityMessage,
-    );
-  }
-  Tools.status.syncWriteStatusIndicator();
-}
-
-/**
- * @param {number} replayedToSeq
- * @returns {void}
- */
-function completeAuthoritativeReplay(replayedToSeq) {
-  Tools.replay.hasAuthoritativeSnapshot = true;
-  Tools.replay.authoritativeSeq = replayedToSeq;
-  Tools.replay.awaitingSnapshot = false;
-  Tools.replay.refreshBaselineBeforeConnect = false;
-  Tools.writes.flushBufferedWrites();
-  Tools.replay.incomingBroadcastQueue =
-    BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(
-      Tools.replay.preSnapshotMessages,
-      Tools.replay.authoritativeSeq,
-    ).concat(Tools.replay.incomingBroadcastQueue);
-  Tools.replay.preSnapshotMessages = [];
-  Tools.status.syncWriteStatusIndicator();
-}
-
-/**
- * @param {AuthoritativeReplayBatch} batch
- * @returns {Promise<boolean>}
- */
-async function processAuthoritativeReplayBatch({ fromSeq, seq, _children }) {
-  if (
-    fromSeq !== Tools.replay.authoritativeSeq ||
-    seq < fromSeq ||
-    _children.length !== seq - fromSeq
-  ) {
-    logBoardEvent("warn", "replay.batch_gap", {
-      authoritativeSeq: Tools.replay.authoritativeSeq,
-      fromSeq,
-      toSeq: seq,
-      childCount: _children.length,
-    });
-    Tools.replay.beginAuthoritativeResync();
-    Tools.connection.start();
-    return false;
-  }
-
-  for (const [index, child] of _children.entries()) {
-    await handleMessage(child);
-    Tools.replay.authoritativeSeq = fromSeq + index + 1;
-  }
-  completeAuthoritativeReplay(seq);
-  return true;
-}
-
-/**
- * @param {IncomingBroadcast} msg
- * @returns {Promise<boolean>}
- */
-async function processIncomingBroadcast(msg) {
-  if (BoardMessageReplay.isAuthoritativeReplayBatch(msg)) {
-    return processAuthoritativeReplayBatch(msg);
-  }
-  const isSequencedBroadcast =
-    BoardMessageReplay.isSequencedMutationBroadcast(msg);
-  if (isSequencedBroadcast) {
-    const seqDisposition = BoardMessageReplay.classifySequencedMutationSeq(
-      msg.seq,
-      Tools.replay.authoritativeSeq,
-    );
-    if (seqDisposition === "stale") {
-      return false;
-    }
-    if (seqDisposition !== "next") {
-      logBoardEvent("warn", "replay.gap", {
-        authoritativeSeq: Tools.replay.authoritativeSeq,
-        incomingSeq: msg.seq,
-      });
-      Tools.replay.beginAuthoritativeResync();
-      Tools.connection.start();
-      return false;
-    }
-  }
-  if (
-    BoardMessageReplay.shouldBufferLiveMessage(
-      msg,
-      Tools.replay.awaitingSnapshot,
-    )
-  ) {
-    Tools.replay.preSnapshotMessages.push(msg);
-    return false;
-  }
-  const replayMessage =
-    BoardMessageReplay.unwrapSequencedMutationBroadcast(msg);
-  const isOwnSequencedBroadcast =
-    isSequencedBroadcast &&
-    replayMessage.socket === Tools.connection.socket?.id;
-  if (isOwnSequencedBroadcast && replayMessage.clientMutationId) {
-    Tools.optimistic.promoteMutation(replayMessage.clientMutationId);
-  }
-  if (isSequencedBroadcast && !isOwnSequencedBroadcast) {
-    Tools.optimistic.pruneForAuthoritativeMessage(replayMessage);
-  }
-  if (!isOwnSequencedBroadcast) {
-    await handleMessage(replayMessage);
-  }
-  if (isSequencedBroadcast) {
-    Tools.replay.authoritativeSeq = msg.seq;
-  }
-  return true;
-}
-
-async function drainIncomingBroadcastQueue() {
-  if (Tools.replay.processingIncomingBroadcast) return;
-  Tools.replay.processingIncomingBroadcast = true;
-  try {
-    while (true) {
-      const msg = Tools.replay.incomingBroadcastQueue.shift();
-      if (!msg) return;
-      const processed = await processIncomingBroadcast(msg);
-      finalizeIncomingBroadcast(msg, processed);
-    }
-  } finally {
-    Tools.replay.processingIncomingBroadcast = false;
-    if (Tools.replay.incomingBroadcastQueue.length > 0) {
-      void drainIncomingBroadcastQueue();
-    }
-  }
-}
-
-/**
- * @param {IncomingBroadcast} msg
- * @returns {void}
- */
-function enqueueIncomingBroadcast(msg) {
-  Tools.replay.incomingBroadcastQueue.push(msg);
-  void drainIncomingBroadcastQueue();
-}
-
 //Initialization
 document.documentElement.dataset.activeToolSecondary = "false";
 function saveBoardNametoLocalStorage() {
@@ -443,17 +222,6 @@ function addColorButton(button) {
   }
   colorPresetContainer.appendChild(elem);
   return elem;
-}
-
-/**
- * Call messageForTool recursively on the message and its children.
- * @param {BoardMessage} message
- * @returns {Promise<void>}
- */
-function handleMessage(message) {
-  pruneBufferedWritesForInvalidatingMessage(message);
-  Tools.messages.messageForTool(message);
-  return Promise.resolve();
 }
 
 window.addEventListener("focus", () => {
@@ -526,9 +294,6 @@ Tools = new AppTools({
   colorPresets,
   initialPreferences,
   logBoardEvent,
-  queueProtectedWrite,
-  flushPendingWrites,
-  enqueueIncomingBroadcast,
 });
 window.WBOApp = Tools;
 Tools.toolRegistry.bindRenderedToolButtons();
