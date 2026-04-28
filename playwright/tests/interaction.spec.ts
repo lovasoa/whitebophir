@@ -163,13 +163,15 @@ test.describe("single-page interactions", () => {
   }) => {
     await boardPage.gotoBoard("wheel-viewport-test");
     await boardPage.forceScrollTopLeft();
-    const before = await page.evaluate(() => window.WBOApp.getScale());
+    const before = await page.evaluate(() =>
+      window.WBOApp.viewportState.controller.getScale(),
+    );
 
     await page.mouse.move(300, 300);
     await page.mouse.wheel(0, 400);
 
     await page.waitForFunction((previousScale) => {
-      return window.WBOApp.getScale() < previousScale;
+      return window.WBOApp.viewportState.controller.getScale() < previousScale;
     }, before);
     await expect
       .poll(() => boardPage.scrollPosition())
@@ -181,11 +183,16 @@ test.describe("single-page interactions", () => {
   test("shift wheel pans without zooming", async ({ boardPage, page }) => {
     await boardPage.gotoBoard("shift-wheel-pan-test");
     await page.evaluate(() => {
-      window.WBOApp.resizeCanvas({ x: 5000, y: 5000 });
-      window.WBOApp.setScale(1);
+      window.WBOApp.viewportState.controller.ensureBoardExtentForPoint(
+        5000,
+        5000,
+      );
+      window.WBOApp.viewportState.controller.setScale(1);
       window.scrollTo(0, 0);
     });
-    const before = await page.evaluate(() => window.WBOApp.getScale());
+    const before = await page.evaluate(() =>
+      window.WBOApp.viewportState.controller.getScale(),
+    );
 
     await page.mouse.move(500, 400);
     await page.keyboard.down("Shift");
@@ -197,7 +204,11 @@ test.describe("single-page interactions", () => {
       .toMatchObject({
         top: 300,
       });
-    expect(await page.evaluate(() => window.WBOApp.getScale())).toBe(before);
+    expect(
+      await page.evaluate(() =>
+        window.WBOApp.viewportState.controller.getScale(),
+      ),
+    ).toBe(before);
   });
 
   test("zoomed-out board does not scroll past the scaled svg", async ({
@@ -211,12 +222,12 @@ test.describe("single-page interactions", () => {
       if (!tools.svg || !tools.board) {
         throw new Error("Board runtime is not attached.");
       }
-      tools.resizeCanvas({ x: 10000, y: 8000 });
-      tools.setScale(1);
-      tools.setScale(0.5);
+      tools.viewportState.controller.ensureBoardExtentForPoint(10000, 8000);
+      tools.viewportState.controller.setScale(1);
+      tools.viewportState.controller.setScale(0.5);
       window.scrollTo(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
 
-      const scale = tools.getScale();
+      const scale = tools.viewportState.controller.getScale();
       const expectedWidth = Math.max(
         window.innerWidth,
         tools.svg.width.baseVal.value * scale,
@@ -284,8 +295,11 @@ test.describe("single-page interactions", () => {
     });
     await boardPage.expectCurrentTool("hand");
     await page.evaluate(() => {
-      window.WBOApp.resizeCanvas({ x: 5000, y: 5000 });
-      window.WBOApp.setScale(1);
+      window.WBOApp.viewportState.controller.ensureBoardExtentForPoint(
+        5000,
+        5000,
+      );
+      window.WBOApp.viewportState.controller.setScale(1);
       window.scrollTo(0, 0);
     });
 
@@ -368,7 +382,7 @@ test.describe("single-page interactions", () => {
     await boardPage.gotoBoard("hand-transform-extent-test");
     await boardPage.selectTool("hand");
     await page.evaluate(() => {
-      window.WBOApp.setScale(0.02);
+      window.WBOApp.viewportState.controller.setScale(0.02);
       window.scrollTo(0, 0);
     });
 
@@ -397,10 +411,10 @@ test.describe("single-page interactions", () => {
       if (!tools.svg || !tools.board) {
         throw new Error("Board runtime is not attached.");
       }
-      tools.setScale(0);
+      tools.viewportState.controller.setScale(0);
       window.scrollTo(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
 
-      const scale = tools.getScale();
+      const scale = tools.viewportState.controller.getScale();
       const maxBoardSize = tools.config.serverConfig.MAX_BOARD_SIZE || 655360;
       const expectedWidth = Math.max(window.innerWidth, maxBoardSize * scale);
       const expectedHeight = Math.max(window.innerHeight, maxBoardSize * scale);
@@ -470,7 +484,7 @@ test.describe("single-page interactions", () => {
     await expect(boardPage.tool("pencil")).toBeVisible();
     await boardPage.selectTool("pencil");
     await boardPage.page.evaluate(() => {
-      window.WBOApp.setScale(0.04);
+      window.WBOApp.viewportState.controller.setScale(0.04);
     });
 
     await boardPage.expectCurrentTool("hand");
@@ -487,7 +501,7 @@ test.describe("single-page interactions", () => {
     await boardPage.expectCurrentTool("hand");
 
     await boardPage.page.evaluate(() => {
-      window.WBOApp.setScale(0.05);
+      window.WBOApp.viewportState.controller.setScale(0.05);
     });
     await expect(boardPage.tool("pencil")).toHaveAttribute(
       "aria-disabled",

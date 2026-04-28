@@ -707,7 +707,7 @@ window.turnstile = {
 
   async zoomClickInAndOut(point: Point) {
     const initialScale = await this.page.evaluate(() => {
-      return window.WBOApp.getScale();
+      return window.WBOApp.viewportState.controller.getScale();
     });
     await this.page.evaluate(({ x, y }) => {
       const tools = window.WBOApp;
@@ -730,10 +730,10 @@ window.turnstile = {
       release?.(x, y, zoomInEvent as unknown as MouseEvent, false);
     }, point);
     await this.page.waitForFunction((previousScale) => {
-      return window.WBOApp.getScale() > previousScale;
+      return window.WBOApp.viewportState.controller.getScale() > previousScale;
     }, initialScale);
     const scaleAfterZoomIn = await this.page.evaluate(() => {
-      return window.WBOApp.getScale();
+      return window.WBOApp.viewportState.controller.getScale();
     });
     await this.page.evaluate(({ x, y }) => {
       const tools = window.WBOApp;
@@ -761,10 +761,10 @@ window.turnstile = {
       release?.(x, y, zoomOutEvent as unknown as MouseEvent, false);
     }, point);
     await this.page.waitForFunction((previousScale) => {
-      return window.WBOApp.getScale() < previousScale;
+      return window.WBOApp.viewportState.controller.getScale() < previousScale;
     }, scaleAfterZoomIn);
     const scaleAfterZoomOut = await this.page.evaluate(() => {
-      return window.WBOApp.getScale();
+      return window.WBOApp.viewportState.controller.getScale();
     });
     return {
       scaleAfterZoomIn,

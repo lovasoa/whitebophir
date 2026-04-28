@@ -451,7 +451,6 @@ function createHarness() {
       getOpacity: () => 1,
     },
     generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
-    getScale: () => globalAny.Tools.viewportState.scale,
     toBoardCoordinate: (/** @type {unknown} */ value) =>
       Math.round(Number(value) || 0),
     pageCoordinateToBoard: (/** @type {unknown} */ value) =>
@@ -470,7 +469,7 @@ function createHarness() {
           globalAny.Tools.viewportState.scale = scale;
           return scale;
         },
-        getScale: () => globalAny.Tools.getScale(),
+        getScale: () => globalAny.Tools.viewportState.scale,
         syncLayoutSize: () => {},
         setTouchPolicy: () => {},
         ensureBoardExtentAtLeast: () => true,

@@ -878,12 +878,6 @@ export type AppToolsState = {
   drawAndSend: (message: LiveBoardMessage) => boolean | undefined;
   /** Takes ownership of message. Callers must not mutate it after sending. */
   send: (message: LiveBoardMessage) => boolean | undefined;
-  getScale: () => number;
-  setScale: (scale: number) => number;
-  applyViewportFromHash: () => void;
-  installViewportHashObservers: () => void;
-  installViewportController: () => void;
-  resizeCanvas: MessageHook;
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
   generateUID: (prefix?: string, suffix?: string) => string;
   getEffectiveRateLimit: (kind: RateLimitKind) => RateLimitDefinition;

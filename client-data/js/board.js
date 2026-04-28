@@ -1763,7 +1763,7 @@ function markConnectedUserActivity(user) {
  */
 function getConnectedUserFocusHash(user) {
   if (!hasConnectedUserFocus(user)) return "";
-  const scale = Tools.getScale();
+  const scale = Tools.viewportState.controller.getScale();
   const x = /** @type {number} */ (user.lastFocusX);
   const y = /** @type {number} */ (user.lastFocusY);
   return `#${Math.max(0, (x - window.innerWidth / (2 * scale)) | 0)},${Math.max(
@@ -3144,18 +3144,6 @@ function updateDocumentTitle() {
     `${Tools.identity.boardName} | WBO`;
 }
 
-Tools.applyViewportFromHash = function applyViewportFromHash() {
-  Tools.viewportState.controller.applyFromHash();
-};
-
-Tools.installViewportHashObservers = function installViewportHashObservers() {
-  Tools.viewportState.controller.installHashObservers();
-};
-
-Tools.installViewportController = function installViewportController() {
-  Tools.viewportState.controller.install();
-};
-
 /** @param {BoardMessage} m */
 function resizeCanvas(m) {
   // Compatibility hook name; root SVG and page size mutation is owned by viewport.
@@ -3163,7 +3151,6 @@ function resizeCanvas(m) {
     getContentMessageBounds(m),
   );
 }
-Tools.resizeCanvas = resizeCanvas;
 
 /** @param {BoardMessage} m */
 function updateUnreadCount(m) {
@@ -3186,14 +3173,6 @@ function notifyToolsOfMessage(m) {
 
 // List of hook functions that will be applied to messages before sending or drawing them
 Tools.messages.hooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
-
-/** @param {number} scale */
-Tools.setScale = function setScale(scale) {
-  return Tools.viewportState.controller.setScale(scale);
-};
-Tools.getScale = function getScale() {
-  return Tools.viewportState.controller.getScale();
-};
 
 /**
  * @template T

@@ -417,13 +417,20 @@ export function createViewportController(Tools) {
   }
 
   /**
+   * @returns {number}
+   */
+  function getScale() {
+    return Tools.viewportState.scale;
+  }
+
+  /**
    * @param {number} scale
    * @param {number} pageX
    * @param {number} pageY
    * @returns {number}
    */
   function zoomAtPagePoint(scale, pageX, pageY) {
-    const oldScale = Tools.getScale();
+    const oldScale = getScale();
     const x = Tools.toBoardCoordinate(screenToBoard(pageX, oldScale));
     const y = Tools.toBoardCoordinate(screenToBoard(pageY, oldScale));
     const scrollLeft = document.documentElement.scrollLeft;
@@ -450,7 +457,7 @@ export function createViewportController(Tools) {
     wheelAnimationFrame = null;
     const factor = wheelDeltaToScaleFactor(wheelDelta);
     wheelDelta = 0;
-    zoomAtPagePoint(Tools.getScale() * factor, wheelPageX, wheelPageY);
+    zoomAtPagePoint(getScale() * factor, wheelPageX, wheelPageY);
   }
 
   /**
@@ -503,7 +510,7 @@ export function createViewportController(Tools) {
     if (distance < PINCH_MIN_DISTANCE) return;
     activePinch = {
       distance,
-      scale: Tools.getScale(),
+      scale: getScale(),
     };
   }
 
@@ -544,7 +551,7 @@ export function createViewportController(Tools) {
   }
 
   function syncViewportHashFromScroll() {
-    const scale = Tools.getScale();
+    const scale = getScale();
     const x = document.documentElement.scrollLeft / scale;
     const y = document.documentElement.scrollTop / scale;
 
@@ -553,7 +560,7 @@ export function createViewportController(Tools) {
     }
     viewportHashScrollTimeout = window.setTimeout(
       function updateViewportHistory() {
-        const hash = `#${x | 0},${y | 0},${Tools.getScale().toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
+        const hash = `#${x | 0},${y | 0},${getScale().toFixed(VIEWPORT_HASH_SCALE_DECIMALS)}`;
         if (
           Date.now() - lastViewportHashStateUpdate >
             VIEWPORT_HASH_PUSH_INTERVAL_MS &&
@@ -572,7 +579,7 @@ export function createViewportController(Tools) {
   /** @type {ViewportController} */
   const controller = {
     setScale,
-    getScale: () => Tools.viewportState.scale,
+    getScale,
     syncLayoutSize,
     setTouchPolicy(policy) {
       touchPolicy = policy === "native-pan" ? "native-pan" : "app-gesture";
@@ -582,7 +589,7 @@ export function createViewportController(Tools) {
     ensureBoardExtentForPoint,
     ensureBoardExtentForBounds,
     pageCoordinateToBoard(value) {
-      return Tools.toBoardCoordinate(screenToBoard(value, Tools.getScale()));
+      return Tools.toBoardCoordinate(screenToBoard(value, getScale()));
     },
     panBy(dx, dy) {
       panTo(
@@ -593,7 +600,7 @@ export function createViewportController(Tools) {
     panTo,
     zoomAt: zoomAtPagePoint,
     zoomBy(factor, pageX, pageY) {
-      return zoomAtPagePoint(Tools.getScale() * factor, pageX, pageY);
+      return zoomAtPagePoint(getScale() * factor, pageX, pageY);
     },
     beginPan(clientX, clientY) {
       activePan = {

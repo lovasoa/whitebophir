@@ -465,8 +465,7 @@ function createButton(
 
 /** @param {HandState} state */
 function getCurrentScale(state) {
-  const rawScale =
-    typeof state.Tools.getScale === "function" ? state.Tools.getScale() : 1;
+  const rawScale = state.Tools.getScale();
   return Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1;
 }
 

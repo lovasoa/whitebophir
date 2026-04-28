@@ -79,12 +79,12 @@ async function bootBoardPage() {
   }
 
   await boardModule.attachBoardDom(document);
-  tools.installViewportController();
+  tools.viewportState.controller.install();
   setBoardBootPhase("connecting");
   tools.startConnection();
 
-  tools.installViewportHashObservers();
-  tools.applyViewportFromHash();
+  tools.viewportState.controller.installHashObservers();
+  tools.viewportState.controller.applyFromHash();
   setBoardBootPhase("viewport-restored");
 
   const renderedToolNames = getRenderedToolNames();

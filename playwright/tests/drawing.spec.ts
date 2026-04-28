@@ -192,7 +192,7 @@ test.describe("drawing and persistence", () => {
         throw new Error("Missing text editor state");
       }
       const inputStyle = getComputedStyle(input);
-      const scale = window.WBOApp.getScale();
+      const scale = window.WBOApp.viewportState.controller.getScale();
       const textX = Number(text.getAttribute("x")) * scale;
       const textBaseline = Number(text.getAttribute("y")) * scale;
       const textFontSize = Number(text.getAttribute("font-size")) * scale;
