@@ -2217,7 +2217,7 @@ function startConnection() {
           query: socketParams.query || "",
         };
       }
-      reusableSocket.connect?.();
+      reusableSocket.connect();
       return;
     }
 
@@ -2524,13 +2524,13 @@ bindRenderedToolButtons();
 
 /**
  * @param {string} toolName
- * @returns {Promise<ToolModule<any>>}
+ * @returns {Promise<ToolModule<unknown>>}
  */
 async function loadToolModule(toolName) {
   if (!isRegisteredToolId(toolName)) {
     throw new Error(`Unknown tool module: ${toolName}.`);
   }
-  return /** @type {ToolModule<any>} */ (TOOL_MODULES_BY_ID[toolName]);
+  return /** @type {ToolModule<unknown>} */ (TOOL_MODULES_BY_ID[toolName]);
 }
 
 /**
@@ -2629,7 +2629,7 @@ function createToolBootContext(toolName) {
 }
 
 /**
- * @param {ToolModule<any>} toolModule
+ * @param {ToolModule<unknown>} toolModule
  * @param {unknown} toolState
  * @param {string} toolName
  * @returns {MountedAppTool}
@@ -2796,7 +2796,7 @@ function createMountedTool(toolModule, toolState, toolName) {
 }
 
 /**
- * @param {ToolModule<any>} toolModule
+ * @param {ToolModule<unknown>} toolModule
  * @param {unknown} toolState
  * @param {string} toolName
  * @returns {MountedAppTool | null}

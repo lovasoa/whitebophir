@@ -13,9 +13,10 @@ const STANDALONE_SVG_RENDER_BYTES_THRESHOLD = 1024 * 1024;
 /** @typedef {{tool: string, id?: string, color?: string, size?: number, opacity?: number, deltax?: number, deltay?: number, txt?: string, _children?: Point[], x?: number, y?: number, x2?: number, y2?: number}} RenderableElement */
 /** @typedef {{[name: string]: RenderableElement}} RenderableBoard */
 /** @typedef {{write: (chunk: string) => void}} WritableTarget */
+/** @typedef {import("../../client-data/tools/shape_contract.js").StoredShapeItem} StoredShapeItem */
 
 /**
- * @param {number | undefined} value
+ * @param {unknown} value
  * @returns {number}
  */
 function numberOrZero(value) {
@@ -48,7 +49,7 @@ function htmlspecialchars(str) {
 }
 
 /**
- * @param {RenderableElement} el
+ * @param {StoredShapeItem} el
  * @returns {string}
  */
 function renderTranslate(el) {
@@ -59,7 +60,7 @@ function renderTranslate(el) {
 }
 
 /**
- * @param {RenderableElement} el
+ * @param {StoredShapeItem} el
  * @param {string} pathstring
  * @returns {string}
  */

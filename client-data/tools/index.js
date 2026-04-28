@@ -22,12 +22,11 @@ import {
 /** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("./shape_contract.js").ToolContract} ToolContract */
 /** @typedef {typeof import("./tool-order.js").TOOL_CODE_BY_ID} ToolCodeById */
-
 /**
  * @typedef {{
  *   toolId: string,
- *   boot: (ctx: ToolBootContext) => any,
- *   draw: (state: any, message: any, isLocal: any) => unknown,
+ *   boot: (ctx: ToolBootContext) => unknown,
+ *   draw: (state: never, message: never, isLocal: never) => unknown,
  *   contract?: ToolContract,
  *   id?: ToolCode,
  *   visibleWhenReadOnly?: boolean,
@@ -39,10 +38,6 @@ import {
  *   updatableFields?: ReadonlyArray<string>,
  *   liveMessageFields?: Readonly<Record<number, Readonly<Record<string, string>>>>,
  *   batchMessageFields?: Readonly<Record<number, Readonly<Record<string, string>>>>,
- *   parseStoredSvgItem?: Function,
- *   summarizeStoredSvgItem?: Function,
- *   serializeStoredSvgItem?: Function,
- *   renderBoardSvg?: Function,
  * }} ToolModuleLike
  */
 /** @typedef {{[TToolId in keyof ToolCodeById]: ToolModuleLike & {toolId: TToolId}}} ToolModulesById */
@@ -51,7 +46,7 @@ import {
  * @template {ToolModuleLike} T
  * @param {T} tool
  * @param {ToolCode} toolCode
- * @returns {T & {
+ * @returns {T & Partial<ToolContract> & {
  *   id: ToolCode,
  *   visibleWhenReadOnly: boolean,
  *   moderatorOnly: boolean,
