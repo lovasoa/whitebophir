@@ -782,7 +782,6 @@ export type AppToolRegistryModule = {
   bootPromises: ToolNameMap<MountedAppToolPromise>;
   bootedNames: Set<string>;
   pendingMessages: PendingMessages;
-  restoreLocalCursor: () => void;
   mountTool: (
     toolModule: ToolModule,
     toolState: unknown,

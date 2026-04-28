@@ -342,7 +342,6 @@ Tools.toolRegistry = {
     /** @type {AppToolsState["toolRegistry"]["bootPromises"]} */ ({}),
   bootedNames: new Set(),
   pendingMessages: /** @type {PendingMessages} */ ({}),
-  restoreLocalCursor,
   mountTool,
   bootTool,
   activateTool,
@@ -765,17 +764,6 @@ function resetBoardViewport() {
   this.clearBoardCursors();
 }
 
-function restoreLocalCursor() {
-  const cursorTool = Tools.toolRegistry.mounted.cursor;
-  if (!cursorTool) return;
-  const message =
-    "message" in cursorTool && cursorTool.message
-      ? /** @type {BoardMessage} */ (cursorTool.message)
-      : null;
-  if (!message) return;
-  cursorTool.draw(message, true);
-}
-
 /**
  * @param {LiveBoardMessage} message
  * @returns {OptimisticRollback}
@@ -857,7 +845,6 @@ function applyRejectedOptimisticEntries(rejected) {
     .forEach((entry) => {
       Tools.optimistic.restoreRollback(entry.rollback);
     });
-  Tools.toolRegistry.restoreLocalCursor();
 }
 
 /**
@@ -1344,7 +1331,6 @@ function completeAuthoritativeReplay(replayedToSeq) {
       Tools.replay.authoritativeSeq,
     ).concat(Tools.replay.incomingBroadcastQueue);
   Tools.replay.preSnapshotMessages = [];
-  Tools.toolRegistry.restoreLocalCursor();
   Tools.status.syncWriteStatusIndicator();
 }
 
