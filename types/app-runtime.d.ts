@@ -588,27 +588,17 @@ export type ViewportController = {
 };
 
 /** Board DOM before the streamed SVG baseline has been attached. */
-export type DetachedBoardDomModule = {
-  readonly status: "detached";
-};
+export type DetachedBoardDomModule =
+  import("../client-data/js/board.js").DetachedBoardDomRuntimeModule;
 
 /** Board DOM after the app can safely boot drawing tools. */
-export type AttachedBoardDomModule = {
-  readonly status: "attached";
-  readonly board: HTMLElement;
-  readonly svg: SVGSVGElement;
-  readonly drawingArea: Element;
-};
+export type AttachedBoardDomModule =
+  import("../client-data/js/board.js").AttachedBoardDomRuntimeModule;
 
-export type BoardDomActions = {
-  createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
-  positionElement: (elem: HTMLElement, x: number, y: number) => void;
-  clearBoardCursors: () => void;
-  resetBoardViewport: () => void;
-};
+export type BoardDomActions =
+  import("../client-data/js/board.js").BoardDomRuntimeActions;
 
-export type BoardDomModule = (DetachedBoardDomModule | AttachedBoardDomModule) &
-  BoardDomActions;
+export type BoardDomModule = DetachedBoardDomModule | AttachedBoardDomModule;
 
 /** Stable board identity parsed from the current board URL. */
 export type AppIdentityModule =

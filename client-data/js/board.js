@@ -69,7 +69,7 @@ import {
 import RateLimitCommon from "./rate_limit_common.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
 const Tools = /** @type {AppToolsState} */ ({});
@@ -154,18 +154,81 @@ function readInlineBaseline(svg) {
   };
 }
 
-/**
- * @template {DetachedBoardDomModule | AttachedBoardDomModule} T
- * @param {T} dom
- * @returns {T & BoardDomActions}
- */
-function withBoardDomActions(dom) {
-  return Object.assign(dom, {
-    createSVGElement,
-    positionElement,
-    clearBoardCursors,
-    resetBoardViewport,
-  });
+/** @typedef {{status: "attached", svg: SVGSVGElement, drawingArea: SVGGElement}} AttachedBoardDomRuntimeThis */
+/** @typedef {{status: "detached"} | AttachedBoardDomRuntimeThis} BoardDomRuntimeThis */
+
+/** @param {BoardDomRuntimeActions} actions */
+function getBoardDomRuntimeThis(actions) {
+  return /** @type {BoardDomRuntimeThis} */ (/** @type {unknown} */ (actions));
+}
+
+export class BoardDomRuntimeActions {
+  /**
+   * @param {string} name
+   * @param {{[key: string]: string | number | undefined}} [attrs]
+   */
+  createSVGElement(name, attrs) {
+    const dom = getBoardDomRuntimeThis(this);
+    if (dom.status !== "attached") {
+      throw new Error("Board SVG is not attached.");
+    }
+    const elem = /** @type {SVGElement} */ (
+      /** @type {unknown} */ (
+        document.createElementNS(dom.svg.namespaceURI, name)
+      )
+    );
+    if (!attrs) return elem;
+    Object.keys(attrs).forEach((key) => {
+      elem.setAttributeNS(null, key, String(attrs[key]));
+    });
+    return elem;
+  }
+
+  /**
+   * @param {HTMLElement} elem
+   * @param {number} x
+   * @param {number} y
+   */
+  positionElement(elem, x, y) {
+    elem.style.top = `${y}px`;
+    elem.style.left = `${x}px`;
+  }
+
+  clearBoardCursors() {
+    const dom = getBoardDomRuntimeThis(this);
+    if (dom.status !== "attached") return;
+    const cursors = dom.svg.getElementById("cursors");
+    if (cursors) cursors.innerHTML = "";
+  }
+
+  resetBoardViewport() {
+    const dom = getBoardDomRuntimeThis(this);
+    if (dom.status !== "attached") return;
+    dom.drawingArea.innerHTML = "";
+    this.clearBoardCursors();
+  }
+}
+
+export class DetachedBoardDomRuntimeModule extends BoardDomRuntimeActions {
+  constructor() {
+    super();
+    this.status = /** @type {"detached"} */ ("detached");
+  }
+}
+
+export class AttachedBoardDomRuntimeModule extends BoardDomRuntimeActions {
+  /**
+   * @param {HTMLElement} board
+   * @param {SVGSVGElement} svg
+   * @param {SVGGElement} drawingArea
+   */
+  constructor(board, svg, drawingArea) {
+    super();
+    this.status = /** @type {"attached"} */ ("attached");
+    this.board = board;
+    this.svg = svg;
+    this.drawingArea = drawingArea;
+  }
 }
 
 /**
@@ -204,12 +267,11 @@ export async function attachBoardDom(document) {
     throw new Error("Missing required element: #canvas");
   }
   const baseline = readInlineBaseline(canvasElement);
-  Tools.dom = withBoardDomActions({
-    status: "attached",
-    board: boardElement,
-    svg: canvasElement,
-    drawingArea: baseline.drawingArea,
-  });
+  Tools.dom = new AttachedBoardDomRuntimeModule(
+    boardElement,
+    canvasElement,
+    baseline.drawingArea,
+  );
   Tools.replay.authoritativeSeq = baseline.authoritativeSeq;
   Tools.dom.svg.width.baseVal.value = Math.max(
     Tools.dom.svg.width.baseVal.value,
@@ -559,7 +621,7 @@ export class ToolRegistryModule {
 }
 
 Tools.toolRegistry = new ToolRegistryModule();
-Tools.turnstile = BoardTurnstile.createTurnstileModule(Tools, {
+Tools.turnstile = new BoardTurnstile.TurnstileModule(Tools, {
   logBoardEvent,
   queueProtectedWrite,
   flushPendingWrites,
@@ -1187,7 +1249,7 @@ export class OptimisticModule {
       const nextSibling = snapshot.nextSiblingId
         ? dom.svg.getElementById(snapshot.nextSiblingId)
         : null;
-      if (nextSibling?.parentElement === dom.drawingArea) {
+      if (nextSibling?.parentNode === dom.drawingArea) {
         nextSibling.insertAdjacentHTML("beforebegin", snapshot.outerHTML);
       } else {
         dom.drawingArea.insertAdjacentHTML("beforeend", snapshot.outerHTML);
@@ -1521,20 +1583,6 @@ function scheduleSocketReconnect(delayMs = 250) {
   window.setTimeout(() => Tools.connection.start(), Math.max(0, delayMs));
 }
 
-/** @this {BoardDomModule} */
-function clearBoardCursors() {
-  if (this.status !== "attached") return;
-  const cursors = this.svg.getElementById("cursors");
-  if (cursors) cursors.innerHTML = "";
-}
-
-/** @this {BoardDomModule} */
-function resetBoardViewport() {
-  if (this.status !== "attached") return;
-  this.drawingArea.innerHTML = "";
-  this.clearBoardCursors();
-}
-
 /**
  * @param {LiveBoardMessage} message
  * @returns {ClientTrackedMessage}
@@ -1852,7 +1900,7 @@ export class AccessModule {
 
 Tools.access = new AccessModule();
 
-Tools.dom = withBoardDomActions({ status: "detached" });
+Tools.dom = new DetachedBoardDomRuntimeModule();
 
 //Initialization
 document.documentElement.dataset.activeToolSecondary = "false";
@@ -2743,7 +2791,12 @@ export function createToolRuntimeModules(mountedTools) {
     config: mountedTools.config,
     ids: mountedTools.ids,
     messages: {
-      messageForTool: mountedTools.messages.messageForTool,
+      /** @param {RuntimeBoardMessage} message */
+      messageForTool(message) {
+        return mountedTools.messages.messageForTool(
+          /** @type {BoardMessage} */ (/** @type {unknown} */ (message)),
+        );
+      },
     },
     permissions: {
       get canWrite() {
@@ -3183,36 +3236,6 @@ export class IdModule {
 }
 
 Tools.ids = new IdModule();
-
-/**
- * @param {string} name
- * @param {{[key: string]: string | number | undefined} | undefined} attrs
- * @returns {SVGElement}
- * @this {BoardDomModule}
- */
-function createSVGElement(name, attrs) {
-  if (this.status !== "attached") {
-    throw new Error("Board SVG is not attached.");
-  }
-  const elem = /** @type {SVGElement} */ (
-    document.createElementNS(this.svg.namespaceURI, name)
-  );
-  if (!attrs) return elem;
-  Object.keys(attrs).forEach((key) => {
-    elem.setAttributeNS(null, key, String(attrs[key]));
-  });
-  return elem;
-}
-
-/**
- * @param {HTMLElement} elem
- * @param {number} x
- * @param {number} y
- */
-function positionElement(elem, x, y) {
-  elem.style.top = `${y}px`;
-  elem.style.left = `${x}px`;
-}
 
 const colorPresets = [
   { color: "#001f3f", key: "1" },
