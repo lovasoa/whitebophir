@@ -1530,9 +1530,8 @@ function syncDrawToolAvailability(force) {
   }
 }
 
-/** @param {unknown} state */
-function applyBoardState(state) {
-  const boardState = /** @type {AppBoardState} */ (normalizeBoardState(state));
+/** @param {AppBoardState} boardState */
+function applyBoardState(boardState) {
   Tools.access = {
     boardState,
     readOnly: boardState.readonly,
@@ -3374,10 +3373,12 @@ const initialPreferences = {
 };
 Tools.preferences = createPreferenceModule(colorPresets, initialPreferences);
 Tools.access.applyBoardState(
-  parseEmbeddedJson("board-state", {
-    readonly: false,
-    canWrite: true,
-  }),
+  normalizeBoardState(
+    parseEmbeddedJson("board-state", {
+      readonly: false,
+      canWrite: true,
+    }),
+  ),
 );
 Tools.presence.initConnectedUsersUI();
 initializeShellControls();

@@ -600,7 +600,7 @@ export type AppAccessModule = {
   readonly boardState: AppBoardState;
   readonly readOnly: boolean;
   readonly canWrite: boolean;
-  applyBoardState: (state: unknown) => void;
+  applyBoardState: (state: AppBoardState) => void;
 };
 
 export type AppInitialPreferences = {
