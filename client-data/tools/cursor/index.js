@@ -152,7 +152,7 @@ function updateMarker(state) {
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  const tools = ctx.Tools;
+  const tools = ctx.app;
   return {
     tools,
     lastCursorUpdate: 0,

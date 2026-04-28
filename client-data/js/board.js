@@ -216,6 +216,12 @@ export async function attachBoardDom(document) {
     throw new Error("Missing required element: #canvas");
   }
   const baseline = readInlineBaseline(canvasElement);
+  Tools.dom = {
+    status: "attached",
+    board: boardElement,
+    svg: canvasElement,
+    drawingArea: baseline.drawingArea,
+  };
   Tools.board = boardElement;
   Tools.svg = canvasElement;
   Tools.drawingArea = baseline.drawingArea;
@@ -1434,6 +1440,7 @@ Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
 Tools.board = null;
 Tools.svg = null;
 Tools.drawingArea = null;
+Tools.dom = /** @type {AppToolsState["dom"]} */ ({ status: "detached" });
 
 //Initialization
 Tools.curTool = null;
@@ -2460,13 +2467,14 @@ async function loadToolModule(toolName) {
 function createToolBootContext(toolName) {
   /** @type {MountedAppToolsState} */
   const mountedTools = (() => {
-    if (!Tools.board || !Tools.svg || !Tools.drawingArea) {
+    if (Tools.dom.status !== "attached") {
       throw new Error("Tool boot requires board, svg, and drawing area.");
     }
     return /** @type {MountedAppToolsState} */ (Tools);
   })();
   return {
-    Tools: mountedTools,
+    app: mountedTools,
+    board: mountedTools.dom,
     assetUrl: (assetFile) => Tools.getToolAssetUrl(toolName, assetFile),
   };
 }

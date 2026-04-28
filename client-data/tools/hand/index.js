@@ -1231,7 +1231,7 @@ function switchTool(state) {
 /** @param {ToolBootContext} ctx */
 export async function boot(ctx) {
   ({ pointInTransformedBBox } = await import("../../js/intersect.js"));
-  return createState(ctx.Tools, ctx.assetUrl);
+  return createState(ctx.app, ctx.assetUrl);
 }
 
 /** @param {HandState} state */

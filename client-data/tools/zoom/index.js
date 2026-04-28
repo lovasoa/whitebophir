@@ -125,7 +125,7 @@ function handleShiftKey(state, down, evt) {
 export function boot(ctx) {
   /** @type {ZoomState} */
   const state = {
-    tools: ctx.Tools,
+    tools: ctx.app,
     origin: {
       pageX: 0,
       pageY: 0,

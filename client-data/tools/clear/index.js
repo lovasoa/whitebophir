@@ -62,5 +62,5 @@ export function draw(tools) {
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  return ctx.Tools;
+  return ctx.app;
 }

@@ -55,7 +55,7 @@ import { clampCoord, LIMITS } from "../js/message_common.js";
 export function bootShapeTool(config, ctx) {
   /** @type {any} */
   const state = {
-    Tools: /** @type {MountedAppToolsState} */ (ctx.Tools),
+    Tools: /** @type {MountedAppToolsState} */ (ctx.app),
     currentShape: null,
     lastTime: performance.now(),
     secondary: null,

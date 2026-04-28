@@ -168,5 +168,5 @@ export function draw(state, data) {
  * @returns {EraserState}
  */
 export function boot(ctx) {
-  return { tools: ctx.Tools, erasing: false };
+  return { tools: ctx.app, erasing: false };
 }

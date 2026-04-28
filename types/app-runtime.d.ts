@@ -492,7 +492,8 @@ export type ServerConfig = {
 };
 
 export type ToolBootContext = {
-  Tools: MountedAppToolsState;
+  app: MountedAppToolsState;
+  board: AttachedBoardDomModule;
   assetUrl: (assetFile: string) => string;
 };
 
@@ -558,6 +559,26 @@ export type ViewportController = {
   applyFromHash: () => void;
 };
 
+/** Board DOM before the streamed SVG baseline has been attached. */
+export type DetachedBoardDomModule = {
+  readonly status: "detached";
+};
+
+/** Board DOM after the app can safely boot drawing tools. */
+export type AttachedBoardDomModule = {
+  readonly status: "attached";
+  readonly board: HTMLElement;
+  readonly svg: SVGSVGElement;
+  readonly drawingArea: Element;
+};
+
+export type BoardDomModule = DetachedBoardDomModule | AttachedBoardDomModule;
+
+/**
+ * Transitional root runtime while board.js is being split into modules.
+ * New state should land inside a documented module instead of adding another
+ * unrelated top-level field.
+ */
 export type AppToolsState = {
   i18n: { t: (s: string) => string };
   server_config: ServerConfig;
@@ -575,16 +596,15 @@ export type AppToolsState = {
   boardState: AppBoardState;
   readOnly: boolean;
   canWrite: boolean;
+  dom: BoardDomModule;
   board: HTMLElement | null;
   svg: SVGSVGElement | null;
   drawingArea: Element | null;
   curTool: MaybeMountedAppTool;
   drawingEvent: boolean;
   hasAuthoritativeBoardSnapshot: boolean;
-  snapshotRevision: number;
   authoritativeSeq: number;
   optimisticJournal: OptimisticJournalState;
-  optimisticMutationIdsByItemId: Map<string, string>;
   preSnapshotMessages: IncomingBroadcast[];
   incomingBroadcastQueue: IncomingBroadcast[];
   processingIncomingBroadcast: boolean;
@@ -593,7 +613,6 @@ export type AppToolsState = {
   showMyCursor: boolean;
   socket: AppSocket | null;
   hasConnectedOnce: boolean;
-  useSeqSyncProtocol: boolean;
   bufferedWrites: BufferedWrite[];
   bufferedWriteTimer: number | null;
   writeReadyWaiters: Array<() => void>;
@@ -650,7 +669,6 @@ export type AppToolsState = {
   clearBoardCursors: () => void;
   resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
-  rebuildOptimisticMutationIndex: () => void;
   captureOptimisticRollback: (message: LiveBoardMessage) => OptimisticRollback;
   collectOptimisticDependencyMutationIds: (
     message: LiveBoardMessage,
@@ -759,6 +777,7 @@ export type AppToolsState = {
 };
 
 export type MountedAppToolsState = AppToolsState & {
+  dom: AttachedBoardDomModule;
   board: HTMLElement;
   svg: SVGSVGElement;
   drawingArea: Element;

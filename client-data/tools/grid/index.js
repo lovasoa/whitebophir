@@ -126,7 +126,7 @@ function createGridContainer(state) {
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  const tools = ctx.Tools;
+  const tools = ctx.app;
   /** @type {GridFill[]} */
   const states = ["none", "url(#grid)", "url(#dots)"];
   const gridContainer = createGridContainer({ tools, index: 0, states });

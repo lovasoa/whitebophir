@@ -77,7 +77,7 @@ function downloadSvgFile(tools) {
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  return ctx.Tools;
+  return ctx.app;
 }
 
 /** @param {MountedAppToolsState} tools */

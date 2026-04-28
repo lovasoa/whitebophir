@@ -403,6 +403,12 @@ function createHarness() {
   globalAny.innerHeight = 768;
 
   globalAny.Tools = {
+    dom: {
+      status: "attached",
+      board: board,
+      svg: svg,
+      drawingArea: drawingArea,
+    },
     svg: svg,
     board: board,
     drawingArea: drawingArea,
@@ -474,11 +480,11 @@ function createHarness() {
       if (typeof moduleNamespace.boot !== "function") {
         throw new Error(`Missing boot export for ${toolName}`);
       }
-      const toolState = await moduleNamespace.boot({
-        Tools: globalAny.Tools,
-        assetUrl: (/** @type {string} */ assetFile) =>
+      const toolState = await moduleNamespace.boot(
+        createToolBootContext(globalAny.Tools, (assetFile) =>
           getToolRuntimeAssetPath(toolName, assetFile),
-      });
+        ),
+      );
       const stateMetadata =
         toolState && typeof toolState === "object" ? toolState : {};
       const tool = /** @type {any} */ ({
@@ -593,6 +599,27 @@ function createInputTools(overrides = {}) {
       return true;
     },
     ...overrides,
+  };
+}
+
+/**
+ * @param {any} app
+ * @param {(assetFile: string) => string} assetUrl
+ * @returns {import("../types/app-runtime").ToolBootContext}
+ */
+function createToolBootContext(app, assetUrl) {
+  const board =
+    app.dom ||
+    /** @type {import("../types/app-runtime").AttachedBoardDomModule} */ ({
+      status: "attached",
+      board: app.board || {},
+      svg: app.svg || {},
+      drawingArea: app.drawingArea || {},
+    });
+  return {
+    app,
+    board,
+    assetUrl,
   };
 }
 
@@ -779,10 +806,9 @@ test("Pencil replay updates stroke styling on the reused DOM node", async () => 
 
 test("Pencil input sends an initial child point without DOM setup", () => {
   const tools = createInputTools();
-  const state = PencilTool.boot({
-    Tools: tools,
-    assetUrl: (/** @type {string} */ assetFile) => assetFile,
-  });
+  const state = PencilTool.boot(
+    createToolBootContext(tools, (assetFile) => assetFile),
+  );
   state.lastTime = 0;
   state.minPencilIntervalMs = 70;
   let preventDefaultCount = 0;
@@ -811,10 +837,9 @@ test("Pencil input sends an initial child point without DOM setup", () => {
 
 test("Pencil move logic sends the first point and throttles follow-ups", () => {
   const tools = createInputTools();
-  const state = PencilTool.boot({
-    Tools: tools,
-    assetUrl: (/** @type {string} */ assetFile) => assetFile,
-  });
+  const state = PencilTool.boot(
+    createToolBootContext(tools, (assetFile) => assetFile),
+  );
   state.curLineId = "l-1";
   state.hasSentPoint = false;
   state.currentLineChildCount = 0;
@@ -865,10 +890,9 @@ test("Pencil marks only the active local line as non-interactive while drawing",
 
 test("Pencil input logic stops at the configured child limit", () => {
   const tools = createInputTools();
-  const state = PencilTool.boot({
-    Tools: tools,
-    assetUrl: (/** @type {string} */ assetFile) => assetFile,
-  });
+  const state = PencilTool.boot(
+    createToolBootContext(tools, (assetFile) => assetFile),
+  );
   state.curLineId = "l-1";
   state.hasSentPoint = true;
   state.currentLineChildCount = 1;
@@ -1205,10 +1229,9 @@ test("Rectangle replay normalizes reverse-drag bounds on a reused node", async (
 
 test("Rectangle press creates the seed message without DOM setup", () => {
   const tools = createInputTools();
-  const state = RectangleTool.boot({
-    Tools: tools,
-    assetUrl: (/** @type {string} */ assetFile) => assetFile,
-  });
+  const state = RectangleTool.boot(
+    createToolBootContext(tools, (assetFile) => assetFile),
+  );
   let prevented = false;
 
   const event = /** @type {any} */ ({
@@ -1264,10 +1287,9 @@ equalSpanToolCases.forEach(([toolName, id]) => {
 
 test("Rectangle move logic separates throttled local draw from forced send", () => {
   const tools = createInputTools();
-  const state = RectangleTool.boot({
-    Tools: tools,
-    assetUrl: (/** @type {string} */ assetFile) => assetFile,
-  });
+  const state = RectangleTool.boot(
+    createToolBootContext(tools, (assetFile) => assetFile),
+  );
   state.lastTime = 0;
   state.currentShape = ShapeTool.createShapePressEffect(state, 80, 20).message;
 
@@ -1386,11 +1408,11 @@ async function bootTextEditorHarness() {
     getToolModuleImportPath("text"),
   );
   const textModule = require(textPath);
-  const textState = await textModule.boot({
-    Tools: globalAny.Tools,
-    assetUrl: (/** @type {string} */ assetFile) =>
+  const textState = await textModule.boot(
+    createToolBootContext(globalAny.Tools, (assetFile) =>
       getToolRuntimeAssetPath("text", assetFile),
-  });
+    ),
+  );
   globalAny.Tools.curTool = {
     name: "text",
     draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
