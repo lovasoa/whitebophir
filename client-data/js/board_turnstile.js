@@ -3,6 +3,7 @@ import { SocketEvents } from "./socket_events.js";
 /** @typedef {import("../../types/app-runtime").AppToolsState} AppToolsState */
 /** @typedef {import("../../types/app-runtime").AppTurnstileModule} AppTurnstileModule */
 /** @typedef {import("../../types/app-runtime").TurnstileAck} TurnstileAck */
+/** @typedef {import("../../types/app-runtime").TurnstileGlobal} TurnstileGlobal */
 /** @typedef {{logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: AppTurnstileModule["queueProtectedWrite"], flushPendingWrites: AppTurnstileModule["flushPendingWrites"]}} TurnstileModuleOptions */
 
 const TURNSTILE_SCRIPT_SRC =
@@ -10,11 +11,11 @@ const TURNSTILE_SCRIPT_SRC =
 const TURNSTILE_ACK_TIMEOUT_MS = 10_000;
 const TURNSTILE_RETRY_DELAY_MS = 1_500;
 
-/** @type {Promise<unknown> | null} */
+/** @type {Promise<TurnstileGlobal> | null} */
 let turnstileScriptPromise = null;
 
 /**
- * @returns {import("../../types/app-runtime").TurnstileGlobal | undefined}
+ * @returns {TurnstileGlobal | undefined}
  */
 export function getTurnstileApi() {
   return typeof turnstile !== "undefined" ? turnstile : undefined;
@@ -80,7 +81,7 @@ export function resetTurnstileWidget(api, widgetId) {
 
 /**
  * @param {(level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void} logBoardEvent
- * @returns {Promise<any>}
+ * @returns {Promise<TurnstileGlobal>}
  */
 function loadTurnstileScript(logBoardEvent) {
   const api = getTurnstileApi();
@@ -381,7 +382,7 @@ export function createTurnstileModule(
   }
 
   /**
-   * @param {any} api
+   * @param {TurnstileGlobal} api
    * @returns {void}
    */
   function renderTurnstileWidget(api) {
@@ -446,7 +447,7 @@ export function createTurnstileModule(
   }
 
   /**
-   * @param {any} api
+   * @param {TurnstileGlobal} api
    * @returns {void}
    */
   function resetTurnstileChallenge(api) {

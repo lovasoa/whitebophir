@@ -38,6 +38,7 @@ const BOARD_EXTENT_MARGIN = 20000;
  */
 
 /** @typedef {"app-gesture" | "native-pan"} ViewportTouchPolicy */
+/** @typedef {Pick<import("../../types/app-runtime").AppToolsState, "config" | "coordinates" | "dom" | "preferences" | "toolRegistry" | "viewportState">} ViewportRuntime */
 
 /**
  * @typedef {{
@@ -237,7 +238,7 @@ function midpoint(first, second) {
 }
 
 /**
- * @param {any} Tools
+ * @param {ViewportRuntime} Tools
  * @returns {ViewportController}
  */
 export function createViewportController(Tools) {

@@ -26,7 +26,7 @@ export function parseEmbeddedJson(elementId, fallback) {
     /** @type {{text?: string} | null} */ (element)?.text;
   if (!text) return fallback;
   try {
-    return /** @type {any} */ (JSON.parse(text));
+    return /** @type {T} */ (JSON.parse(text));
   } catch (error) {
     logFrontendEvent("warn", "boot.embedded_json_invalid", {
       elementId,

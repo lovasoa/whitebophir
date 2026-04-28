@@ -886,8 +886,10 @@ export type DownloadCapture = {
 export type TurnstileRenderOptions = {
   sitekey?: string;
   action?: string;
+  appearance?: "always" | "execute" | "interaction-only";
   theme?: "auto" | "light" | "dark";
   size?: "normal" | "compact" | "flexible";
+  "refresh-expired"?: "auto" | "manual" | "never";
   callback?: (token: string) => void;
   "before-interactive-callback"?: () => void;
   "after-interactive-callback"?: () => void;

@@ -1,35 +1,4 @@
 /**
- * @typedef {{
- *   LIMITS: Record<string, number>,
- *   applyTransformToBounds: Function,
- *   clampOpacity: Function,
- *   clampCoord: Function,
- *   clampSize: Function,
- *   extendBoundsWithPoint: Function,
- *   getEffectiveGeometryBounds: Function,
- *   getLocalGeometryBounds: Function,
- *   getMaxShapeSpan: Function,
- *   getPencilBounds: Function,
- *   isBoundsInvalid: Function,
- *   isBoundsOutsideBoard: Function,
- *   isFiniteTransformNumber: Function,
- *   isBoundsTooLarge: Function,
- *   isDrawTool: Function,
- *   isDrawToolAllowedAtScale: Function,
- *   isGeometryInvalid: Function,
- *   isGeometryTooLarge: Function,
- *   normalizeColor: Function,
- *   normalizeBoardCoord: Function,
- *   normalizeFiniteNumber: Function,
- *   normalizeId: Function,
- *   normalizeNumberInRange: Function,
- *   normalizeTransformNumbers: Function,
- *   resolveMaxBoardSize: Function,
- *   truncateText: Function,
- *   requiresTurnstile: Function,
- * }} MessageCommonApi
- */
-/**
  * @typedef {{ minX: number, minY: number, maxX: number, maxY: number }} Bounds
  * @typedef {{ x: number, y: number }} Point
  * @typedef {{ a: number, b: number, c: number, d: number, e: number, f: number }} Transform
@@ -462,7 +431,7 @@ export function normalizeTransformNumbers(transform) {
 
 /**
  * @param {Bounds | null | undefined} bounds
- * @param {Transform | null | undefined} transform
+ * @param {unknown} transform
  * @returns {Bounds | null}
  */
 export function applyTransformToBounds(bounds, transform) {
@@ -576,7 +545,7 @@ export function isGeometryInvalid(item, maxBoardSize) {
   return isBoundsInvalid(getEffectiveGeometryBounds(item), maxBoardSize);
 }
 
-const messageCommon = /** @type {MessageCommonApi} */ ({
+const messageCommon = {
   LIMITS,
   applyTransformToBounds,
   clampOpacity,
@@ -604,5 +573,5 @@ const messageCommon = /** @type {MessageCommonApi} */ ({
   resolveMaxBoardSize,
   truncateText,
   requiresTurnstile,
-});
+};
 export default messageCommon;

@@ -19,13 +19,17 @@ export function buildBoardSvgBaselineUrl(pathname, search) {
 }
 
 /**
- * @param {{
+ * @typedef {{
  *   documentElement?: {
  *     getAttribute?: (name: string) => string | null | undefined,
  *     querySelector?: (selector: string) => { innerHTML?: string } | null | undefined,
  *   } | null,
  *   querySelector?: (selector: string) => { innerHTML?: string } | null | undefined,
- * }} doc
+ * }} BaselineSvgDocument
+ */
+
+/**
+ * @param {BaselineSvgDocument} doc
  * @returns {{seq: number, readonly: boolean, drawingAreaMarkup: string}}
  */
 function parseServedBaselineSvgDocument(doc) {
@@ -52,7 +56,7 @@ function parseServedBaselineSvgDocument(doc) {
 
 /**
  * @param {string} svgMarkup
- * @param {{parseFromString(svg: string, mimeType: string): any}} domParser
+ * @param {{parseFromString(svg: string, mimeType: string): BaselineSvgDocument}} domParser
  * @returns {{seq: number, readonly: boolean, drawingAreaMarkup: string}}
  */
 export function parseServedBaselineSvgText(svgMarkup, domParser) {

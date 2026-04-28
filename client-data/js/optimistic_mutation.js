@@ -1,5 +1,8 @@
 import { getMutationType, MutationType } from "./message_tool_metadata.js";
 
+/** @import { BoardMessage, ToolMessageFields, ToolOwnedChildMessage } from "../../types/app-runtime" */
+/** @typedef {BoardMessage | (ToolOwnedChildMessage & ToolMessageFields)} OptimisticMessage */
+
 /**
  * @param {unknown} value
  * @returns {string[]}
@@ -10,14 +13,37 @@ function uniqueIds(value) {
 }
 
 /**
- * @param {any} message
+ * @param {OptimisticMessage} message
+ * @returns {string | undefined}
+ */
+function getMessageId(message) {
+  return "id" in message ? message.id : undefined;
+}
+
+/**
+ * @param {OptimisticMessage} message
+ * @returns {string | undefined}
+ */
+function getMessageNewId(message) {
+  return "newid" in message ? message.newid : undefined;
+}
+
+/**
+ * @param {OptimisticMessage} message
+ * @returns {string | undefined}
+ */
+function getMessageParent(message) {
+  return "parent" in message ? message.parent : undefined;
+}
+
+/**
+ * @param {OptimisticMessage} message
  * @returns {string[]}
  */
 export function collectOptimisticAffectedIds(message) {
-  if (!message || typeof message !== "object") return [];
-  if (Array.isArray(message._children)) {
+  if ("_children" in message && Array.isArray(message._children)) {
     return uniqueIds(
-      message._children.flatMap((/** @type {any} */ child) =>
+      message._children.flatMap((child) =>
         collectOptimisticAffectedIds({
           ...child,
           tool: message.tool,
@@ -27,25 +53,24 @@ export function collectOptimisticAffectedIds(message) {
   }
   switch (getMutationType(message)) {
     case MutationType.COPY:
-      return uniqueIds([message.newid]);
+      return uniqueIds([getMessageNewId(message)]);
     case MutationType.APPEND:
-      return uniqueIds([message.parent]);
+      return uniqueIds([getMessageParent(message)]);
     case MutationType.CLEAR:
       return [];
     default:
-      return uniqueIds([message.id]);
+      return uniqueIds([getMessageId(message)]);
   }
 }
 
 /**
- * @param {any} message
+ * @param {OptimisticMessage} message
  * @returns {string[]}
  */
 export function collectOptimisticDependencyIds(message) {
-  if (!message || typeof message !== "object") return [];
-  if (Array.isArray(message._children)) {
+  if ("_children" in message && Array.isArray(message._children)) {
     return uniqueIds(
-      message._children.flatMap((/** @type {any} */ child) =>
+      message._children.flatMap((child) =>
         collectOptimisticDependencyIds({
           ...child,
           tool: message.tool,
@@ -57,9 +82,9 @@ export function collectOptimisticDependencyIds(message) {
     case MutationType.COPY:
     case MutationType.DELETE:
     case MutationType.UPDATE:
-      return uniqueIds([message.id]);
+      return uniqueIds([getMessageId(message)]);
     case MutationType.APPEND:
-      return uniqueIds([message.parent]);
+      return uniqueIds([getMessageParent(message)]);
     default:
       return [];
   }
