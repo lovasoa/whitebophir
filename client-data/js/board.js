@@ -338,7 +338,9 @@ Tools.status = {
 Tools.awaitingBoardSnapshot = true;
 Tools.hasAuthoritativeBoardSnapshot = false;
 Tools.authoritativeSeq = 0;
-Tools.optimisticJournal = createOptimisticJournal();
+Tools.optimistic = {
+  journal: createOptimisticJournal(),
+};
 Tools.preSnapshotMessages = [];
 Tools.incomingBroadcastQueue = [];
 Tools.processingIncomingBroadcast = false;
@@ -710,7 +712,7 @@ Tools.captureOptimisticRollback = function captureOptimisticRollback(message) {
  */
 Tools.collectOptimisticDependencyMutationIds =
   function collectOptimisticDependencyMutationIds(message) {
-    return Tools.optimisticJournal.dependencyMutationIdsForItemIds(
+    return Tools.optimistic.journal.dependencyMutationIdsForItemIds(
       collectOptimisticDependencyIds(message),
     );
   };
@@ -726,7 +728,7 @@ Tools.trackOptimisticMutation = function trackOptimisticMutation(
 ) {
   if (typeof message.clientMutationId !== "string" || !message.clientMutationId)
     return;
-  Tools.optimisticJournal.append({
+  Tools.optimistic.journal.append({
     clientMutationId: message.clientMutationId,
     affectedIds: collectOptimisticAffectedIds(message),
     dependsOn: Tools.collectOptimisticDependencyMutationIds(message),
@@ -809,7 +811,7 @@ Tools.restoreOptimisticRollback = function restoreOptimisticRollback(rollback) {
 Tools.promoteOptimisticMutation = function promoteOptimisticMutation(
   clientMutationId,
 ) {
-  if (Tools.optimisticJournal.promote(clientMutationId).length === 0) return;
+  if (Tools.optimistic.journal.promote(clientMutationId).length === 0) return;
 };
 
 /**
@@ -821,7 +823,7 @@ Tools.rejectOptimisticMutation = function rejectOptimisticMutation(
   clientMutationId,
   reason,
 ) {
-  const rejected = Tools.optimisticJournal.reject(clientMutationId);
+  const rejected = Tools.optimistic.journal.reject(clientMutationId);
   Tools.applyRejectedOptimisticEntries(rejected);
   notifyRejectedTools(rejected, reason);
 };
@@ -834,14 +836,14 @@ Tools.pruneOptimisticMutationsForAuthoritativeMessage =
   function pruneOptimisticMutationsForAuthoritativeMessage(message) {
     const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
     if (prunePlan.reset) {
-      Tools.applyRejectedOptimisticEntries(Tools.optimisticJournal.reset());
+      Tools.applyRejectedOptimisticEntries(Tools.optimistic.journal.reset());
       return;
     }
     if (prunePlan.invalidatedIds.length === 0) {
       return;
     }
     Tools.applyRejectedOptimisticEntries(
-      Tools.optimisticJournal.rejectByInvalidatedIds(prunePlan.invalidatedIds),
+      Tools.optimistic.journal.rejectByInvalidatedIds(prunePlan.invalidatedIds),
     );
   };
 
@@ -854,7 +856,7 @@ Tools.applyAuthoritativeBaseline =
     if (!svg) return;
     Tools.hasAuthoritativeBoardSnapshot = true;
     Tools.authoritativeSeq = baseline.seq;
-    Tools.optimisticJournal.reset();
+    Tools.optimistic.journal.reset();
     svg.setAttribute("data-wbo-seq", String(baseline.seq));
     svg.setAttribute("data-wbo-readonly", baseline.readonly ? "true" : "false");
     if (Tools.drawingArea) {
@@ -1151,7 +1153,7 @@ function pruneBufferedWritesForInvalidatingMessage(message) {
 Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.awaitingBoardSnapshot = true;
   Tools.refreshBaselineBeforeConnect = true;
-  Tools.optimisticJournal.reset();
+  Tools.optimistic.journal.reset();
   Tools.preSnapshotMessages = [];
   Tools.incomingBroadcastQueue = [];
   Tools.processingIncomingBroadcast = false;

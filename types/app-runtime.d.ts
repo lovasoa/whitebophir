@@ -635,6 +635,11 @@ export type AppPresenceModule = {
   panelOpen: boolean;
 };
 
+/** Optimistic local mutation journal and rollback bookkeeping. */
+export type AppOptimisticModule = {
+  journal: OptimisticJournalState;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -729,6 +734,7 @@ export type AppToolsState = {
   status: AppStatusModule;
   turnstile: AppTurnstileModule;
   presence: AppPresenceModule;
+  optimistic: AppOptimisticModule;
   scale: number;
   viewport: ViewportController;
   drawToolsAllowed: boolean | null;
@@ -740,7 +746,6 @@ export type AppToolsState = {
   drawingEvent: boolean;
   hasAuthoritativeBoardSnapshot: boolean;
   authoritativeSeq: number;
-  optimisticJournal: OptimisticJournalState;
   preSnapshotMessages: IncomingBroadcast[];
   incomingBroadcastQueue: IncomingBroadcast[];
   processingIncomingBroadcast: boolean;
