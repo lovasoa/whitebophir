@@ -514,8 +514,10 @@ function createHarness() {
       if (!mountedTool) throw new Error(`Missing mounted tool '${toolName}'.`);
       mountedTool.draw(data, false);
     },
-    boardName: "test-board",
-    token: null,
+    identity: {
+      boardName: "test-board",
+      token: null,
+    },
   };
 
   return {
@@ -801,10 +803,7 @@ function createHarnessToolRuntime(app) {
       canBufferWrites: () => app.canBufferWrites(),
       whenBoardWritable: () => app.whenBoardWritable(),
     },
-    identity: {
-      boardName: app.boardName,
-      token: app.token,
-    },
+    identity: app.identity,
     preferences: {
       getColor: () => app.getColor(),
       getSize: () => app.getSize(),

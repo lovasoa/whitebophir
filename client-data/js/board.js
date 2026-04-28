@@ -430,7 +430,7 @@ Tools.getRateLimitDefinition = function getRateLimitDefinition(kind) {
 Tools.getEffectiveRateLimit = function getEffectiveRateLimit(kind) {
   return RateLimitCommon.getEffectiveRateLimitDefinition(
     Tools.getRateLimitDefinition(kind),
-    Tools.boardName,
+    Tools.identity.boardName,
   );
 };
 
@@ -2077,8 +2077,8 @@ Tools.startConnection = () => {
     const socketParams = BoardConnection.buildSocketParams(
       window.location.pathname,
       Tools.socketIOExtraHeaders,
-      Tools.token,
-      Tools.boardName,
+      Tools.identity.token,
+      Tools.identity.boardName,
       {
         baselineSeq: String(Tools.authoritativeSeq),
         tool: Tools.initialPrefs?.tool || "hand",
@@ -2234,7 +2234,7 @@ Tools.startConnection = () => {
   })();
 };
 function saveBoardNametoLocalStorage() {
-  const boardName = Tools.boardName;
+  const boardName = Tools.identity.boardName;
   const key = "recent-boards";
   let recentBoards;
   try {
@@ -2481,10 +2481,7 @@ function createToolRuntimeModules(mountedTools) {
       canBufferWrites: () => mountedTools.canBufferWrites(),
       whenBoardWritable: () => mountedTools.whenBoardWritable(),
     },
-    identity: {
-      boardName: mountedTools.boardName,
-      token: mountedTools.token,
-    },
+    identity: mountedTools.identity,
     preferences: {
       getColor: () => mountedTools.getColor(),
       getSize: () => mountedTools.getSize(),
@@ -3001,7 +2998,7 @@ Tools.drawAndSend = (data) => {
   mountedTool.draw(data, true);
 
   if (
-    MessageCommon.requiresTurnstile(Tools.boardName, toolName) &&
+    MessageCommon.requiresTurnstile(Tools.identity.boardName, toolName) &&
     Tools.server_config.TURNSTILE_SITE_KEY &&
     !Tools.isTurnstileValidated()
   ) {
@@ -3079,7 +3076,7 @@ document.addEventListener("visibilitychange", () => {
 function updateDocumentTitle() {
   document.title =
     (Tools.unreadMessagesCount ? `(${Tools.unreadMessagesCount}) ` : "") +
-    `${Tools.boardName} | WBO`;
+    `${Tools.identity.boardName} | WBO`;
 }
 
 Tools.applyViewportFromHash = function applyViewportFromHash() {
@@ -3272,8 +3269,10 @@ const initialPreset = Tools.colorPresets[colorIndex] || Tools.colorPresets[0];
 Tools.server_config = /** @type {ServerConfig} */ (
   parseEmbeddedJson("configuration", {})
 );
-Tools.boardName = resolveBoardName(window.location.pathname);
-Tools.token = new URL(window.location.href).searchParams.get("token");
+Tools.identity = {
+  boardName: resolveBoardName(window.location.pathname),
+  token: new URL(window.location.href).searchParams.get("token"),
+};
 Tools.socketIOExtraHeaders = socketIOExtraHeaders;
 Tools.initialPrefs = {
   tool: "hand",

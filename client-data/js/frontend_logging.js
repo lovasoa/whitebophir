@@ -33,7 +33,10 @@ export function errorLogFields(error) {
 export function frontendLogFields(fields) {
   const tools = getRuntimeTools();
   return {
-    board: typeof tools?.boardName === "string" ? tools.boardName : null,
+    board:
+      typeof tools?.identity?.boardName === "string"
+        ? tools.identity.boardName
+        : null,
     socketId: tools?.socket?.id || null,
     authoritativeSeq:
       typeof tools?.authoritativeSeq === "number"

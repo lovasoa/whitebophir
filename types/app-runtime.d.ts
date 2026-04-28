@@ -573,6 +573,12 @@ export type AttachedBoardDomModule = {
 
 export type BoardDomModule = DetachedBoardDomModule | AttachedBoardDomModule;
 
+/** Stable board identity parsed from the current board URL. */
+export type AppIdentityModule = {
+  readonly boardName: string;
+  readonly token: string | null;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -591,10 +597,7 @@ export type ToolWriteRuntimeModule = {
 };
 
 /** Tool-facing board identity. */
-export type ToolIdentityRuntimeModule = {
-  readonly boardName: string;
-  readonly token: string | null;
-};
+export type ToolIdentityRuntimeModule = AppIdentityModule;
 
 /** Tool-facing current drawing preferences. */
 export type ToolPreferenceRuntimeModule = {
@@ -666,6 +669,7 @@ export type ToolRuntimeModules = {
 export type AppToolsState = {
   i18n: { t: (s: string) => string };
   server_config: ServerConfig;
+  identity: AppIdentityModule;
   readOnlyToolNames: Set<string>;
   turnstileValidatedUntil: number;
   turnstileWidgetId: unknown | null;
@@ -709,8 +713,6 @@ export type AppToolsState = {
   connectionState: BoardConnectionState;
   localRateLimitStates: RateLimitStates;
   socketIOExtraHeaders: SocketHeaders | null;
-  boardName: string;
-  token: string | null;
   refreshBaselineBeforeConnect: boolean;
   list: MountedToolRegistry;
   bootedToolPromises: ToolNameMap<MountedAppToolPromise>;
