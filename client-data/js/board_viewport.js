@@ -461,8 +461,9 @@ export function createViewportController(Tools) {
     if (event.cancelable) event.preventDefault();
     if (event.altKey && !event.ctrlKey) {
       const change = event.shiftKey ? 1 : 5;
-      Tools.setSize(
-        Tools.getSize() - (normalizeWheelDelta(event) / 100) * change,
+      Tools.preferences.setSize(
+        Tools.preferences.getSize() -
+          (normalizeWheelDelta(event) / 100) * change,
       );
       return;
     }

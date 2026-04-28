@@ -443,11 +443,13 @@ function createHarness() {
     toolRegistry: {
       current: { secondary: { active: false } },
     },
-    getColor: () => "#123456",
-    getSize: () => 4,
-    setSize: (/** @type {number | string | null | undefined} */ size) =>
-      Number(size) || 4,
-    getOpacity: () => 1,
+    preferences: {
+      getColor: () => "#123456",
+      getSize: () => 4,
+      setSize: (/** @type {number | string | null | undefined} */ size) =>
+        Number(size) || 4,
+      getOpacity: () => 1,
+    },
     generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
     getScale: () => globalAny.Tools.viewportState.scale,
     toBoardCoordinate: (/** @type {unknown} */ value) =>
@@ -669,11 +671,13 @@ function createInputTools(overrides = {}) {
       readOnly: false,
       canWrite: true,
     },
-    getColor: () => "#123456",
-    getSize: () => 4,
-    setSize: (/** @type {number | string | null | undefined} */ size) =>
-      Number(size) || 4,
-    getOpacity: () => 1,
+    preferences: {
+      getColor: () => "#123456",
+      getSize: () => 4,
+      setSize: (/** @type {number | string | null | undefined} */ size) =>
+        Number(size) || 4,
+      getOpacity: () => 1,
+    },
     generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
     toBoardCoordinate: (/** @type {number} */ value) => Math.round(value),
     pageCoordinateToBoard: (/** @type {number} */ value) => Math.round(value),
@@ -776,10 +780,10 @@ function createInputToolRuntime(tools) {
       token: null,
     },
     preferences: {
-      getColor: () => tools.getColor(),
-      getSize: () => tools.getSize(),
-      setSize: (size) => tools.setSize(size),
-      getOpacity: () => tools.getOpacity(),
+      getColor: () => tools.preferences.getColor(),
+      getSize: () => tools.preferences.getSize(),
+      setSize: (size) => tools.preferences.setSize(size),
+      getOpacity: () => tools.preferences.getOpacity(),
     },
     rateLimits: {
       getEffectiveRateLimit: (kind) => tools.getEffectiveRateLimit(kind),
@@ -834,10 +838,10 @@ function createHarnessToolRuntime(app) {
     },
     identity: app.identity,
     preferences: {
-      getColor: () => app.getColor(),
-      getSize: () => app.getSize(),
-      setSize: (size) => app.setSize(size),
-      getOpacity: () => app.getOpacity(),
+      getColor: () => app.preferences.getColor(),
+      getSize: () => app.preferences.getSize(),
+      setSize: (size) => app.preferences.setSize(size),
+      getOpacity: () => app.preferences.getOpacity(),
     },
     rateLimits: {
       getEffectiveRateLimit: (kind) => app.getEffectiveRateLimit(kind),
@@ -845,8 +849,8 @@ function createHarnessToolRuntime(app) {
     ui: {
       getCurrentTool: () => app.toolRegistry.current,
       changeTool: (toolName) => app.change(toolName),
-      shouldShowMarker: () => app.showMarker,
-      shouldShowMyCursor: () => app.showMyCursor,
+      shouldShowMarker: () => app.interaction.showMarker,
+      shouldShowMyCursor: () => app.interaction.showMyCursor,
     },
     config: {
       serverConfig: app.config.serverConfig,
@@ -1727,7 +1731,7 @@ test("Text replay creates and then updates the same text field", async () => {
 test("Text create sends an integer baseline coordinate", async () => {
   const harness = createHarness();
   const { textModule, textState } = await bootTextEditorHarness();
-  globalAny.Tools.getSize = () => 70;
+  globalAny.Tools.preferences.getSize = () => 70;
 
   textModule.press(
     textState,
@@ -1749,7 +1753,7 @@ test("Text create sends an integer baseline coordinate", async () => {
 test("Text create clamps the derived font size before sending", async () => {
   const harness = createHarness();
   const { textModule, textState } = await bootTextEditorHarness();
-  globalAny.Tools.getSize = () => 310;
+  globalAny.Tools.preferences.getSize = () => 310;
 
   textModule.press(
     textState,

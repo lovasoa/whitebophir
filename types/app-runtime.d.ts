@@ -609,6 +609,11 @@ export type AppPreferenceModule = {
   readonly initial: AppInitialPreferences;
   readonly colorChangeHandlers: ((color: string) => void)[];
   readonly sizeChangeHandlers: ((size: number) => void)[];
+  getColor: () => string;
+  setColor: (color: string) => void;
+  getSize: () => number;
+  setSize: (size?: number | string | null | undefined) => number;
+  getOpacity: () => number;
 };
 
 /** Board status UI state and timers. */
@@ -873,11 +878,6 @@ export type AppToolsState = {
   drawAndSend: (message: LiveBoardMessage) => boolean | undefined;
   /** Takes ownership of message. Callers must not mutate it after sending. */
   send: (message: LiveBoardMessage) => boolean | undefined;
-  getColor: () => string;
-  setColor: (color: string) => void;
-  getSize: () => number;
-  setSize: (size?: number | string | null | undefined) => number;
-  getOpacity: () => number;
   getScale: () => number;
   setScale: (scale: number) => number;
   applyViewportFromHash: () => void;

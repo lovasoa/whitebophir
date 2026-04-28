@@ -375,12 +375,12 @@ function initializeShellControls() {
   Tools.preferences.colorChooser = colorChooser;
   colorChooser.value = Tools.preferences.currentColor;
   colorChooser.onchange = colorChooser.oninput = () => {
-    Tools.setColor(colorChooser.value);
+    Tools.preferences.setColor(colorChooser.value);
   };
 
   sizeChooser.value = String(Tools.preferences.currentSize);
   sizeChooser.onchange = sizeChooser.oninput = () => {
-    Tools.setSize(sizeChooser.value);
+    Tools.preferences.setSize(sizeChooser.value);
   };
 
   const updateOpacity = () => {
@@ -406,8 +406,8 @@ function initializeShellControls() {
     Tools.preferences.colorButtonsInitialized = true;
     Tools.preferences.colorPresets.forEach(addColorButton);
   }
-  Tools.setColor(Tools.preferences.currentColor);
-  Tools.setSize(Tools.preferences.currentSize);
+  Tools.preferences.setColor(Tools.preferences.currentColor);
+  Tools.preferences.setSize(Tools.preferences.currentSize);
 }
 
 function getBoardStatusElements() {
@@ -2136,8 +2136,8 @@ Tools.startConnection = () => {
       {
         baselineSeq: String(Tools.replay.authoritativeSeq),
         tool: Tools.preferences.initial.tool,
-        color: Tools.getColor(),
-        size: String(Tools.getSize()),
+        color: Tools.preferences.getColor(),
+        size: String(Tools.preferences.getSize()),
       },
     );
 
@@ -2476,7 +2476,7 @@ colorPresetTemplate.remove();
  * @returns {HTMLElement}
  */
 function addColorButton(button) {
-  const setColor = Tools.setColor.bind(Tools, button.color);
+  const setColor = Tools.preferences.setColor.bind(Tools, button.color);
   if (button.key) addToolShortcut(button.key, setColor);
   const elem = colorPresetTemplate.cloneNode(true);
   if (!(elem instanceof HTMLElement)) {
@@ -2536,10 +2536,10 @@ function createToolRuntimeModules(mountedTools) {
     },
     identity: mountedTools.identity,
     preferences: {
-      getColor: () => mountedTools.getColor(),
-      getSize: () => mountedTools.getSize(),
-      setSize: (size) => mountedTools.setSize(size),
-      getOpacity: () => mountedTools.getOpacity(),
+      getColor: () => mountedTools.preferences.getColor(),
+      getSize: () => mountedTools.preferences.getSize(),
+      setSize: (size) => mountedTools.preferences.setSize(size),
+      getOpacity: () => mountedTools.preferences.getOpacity(),
     },
     rateLimits: {
       getEffectiveRateLimit: (kind) => mountedTools.getEffectiveRateLimit(kind),
@@ -3266,7 +3266,7 @@ const colorPresets = [
   { color: "#E65194" },
 ];
 /** @param {string} color */
-Tools.setColor = function setColor(color) {
+function setColor(color) {
   Tools.preferences.currentColor = color;
   if (Tools.preferences.colorChooser) {
     Tools.preferences.colorChooser.value = color;
@@ -3274,17 +3274,17 @@ Tools.setColor = function setColor(color) {
   Tools.preferences.colorChangeHandlers.forEach((handler) => {
     handler(color);
   });
-};
+}
 
-Tools.getColor = function getColor() {
+function getColor() {
   return Tools.preferences.currentColor;
-};
+}
 
 /**
  * @param {number | string | null | undefined} value
  * @returns {number}
  */
-Tools.setSize = function setSize(value) {
+function setSize(value) {
   if (value !== null && value !== undefined) {
     Tools.preferences.currentSize = MessageCommon.clampSize(value);
   }
@@ -3296,15 +3296,15 @@ Tools.setSize = function setSize(value) {
     handler(Tools.preferences.currentSize);
   });
   return Tools.preferences.currentSize;
-};
+}
 
-Tools.getSize = function getSize() {
+function getSize() {
   return Tools.preferences.currentSize;
-};
+}
 
-Tools.getOpacity = function getOpacity() {
+function getOpacity() {
   return Tools.preferences.currentOpacity;
-};
+}
 
 /** @type {SocketHeaders | null} */
 let socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
@@ -3355,6 +3355,11 @@ Tools.preferences = {
   initial: initialPreferences,
   colorChangeHandlers: [],
   sizeChangeHandlers: [],
+  getColor,
+  setColor,
+  getSize,
+  setSize,
+  getOpacity,
 };
 Tools.setBoardState(
   parseEmbeddedJson("board-state", {

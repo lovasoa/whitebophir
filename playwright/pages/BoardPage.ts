@@ -429,15 +429,15 @@ window.turnstile = {
           return { tools, pencilTool };
         };
         const startPencilPath = (tools: AppToolsState, path: PencilPath) => {
-          tools.setColor(path.color);
+          tools.preferences.setColor(path.color);
           const lineId = tools.generateUID("l");
           tools.drawAndSend({
             tool: pencilToolCode,
             type: createType,
             id: lineId,
             color: path.color,
-            size: tools.getSize(),
-            opacity: tools.getOpacity(),
+            size: tools.preferences.getSize(),
+            opacity: tools.preferences.getOpacity(),
           });
           return lineId;
         };
@@ -491,7 +491,7 @@ window.turnstile = {
       ({ drawColor, drawCenter, drawRadius }) => {
         const tool = window.WBOApp.toolRegistry.current;
         if (!tool) throw new Error("Missing current tool");
-        window.WBOApp.setColor(drawColor);
+        window.WBOApp.preferences.setColor(drawColor);
         tool.listeners.press?.(
           drawCenter.x + drawRadius,
           drawCenter.y + drawRadius,
@@ -651,7 +651,7 @@ window.turnstile = {
         if (typeof tools.bootTool === "function") {
           await tools.bootTool("cursor");
         }
-        tools.setColor(cursorColor);
+        tools.preferences.setColor(cursorColor);
         const event = new Event("mousemove");
         Object.defineProperty(event, "pageX", { value: cursorX });
         Object.defineProperty(event, "pageY", { value: cursorY });
@@ -861,8 +861,8 @@ window.turnstile = {
     await this.waitForBoardWritable();
     await this.page.evaluate(
       ({ drawColor, drawStart, drawEnd, drawSize }) => {
-        window.WBOApp.setColor(drawColor);
-        window.WBOApp.setSize(drawSize);
+        window.WBOApp.preferences.setColor(drawColor);
+        window.WBOApp.preferences.setSize(drawSize);
         window.WBOApp.change("rectangle");
         const tool = window.WBOApp.toolRegistry.current;
         if (!tool) throw new Error("Missing current tool");

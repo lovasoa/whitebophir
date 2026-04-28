@@ -177,8 +177,8 @@ test.describe("drawing and persistence", () => {
     await boardPage.gotoBoard("text-editor-overlay");
     await boardPage.selectTool("text");
     await page.evaluate(() => {
-      window.WBOApp.setColor("#ff4136");
-      window.WBOApp.setSize(40);
+      window.WBOApp.preferences.setColor("#ff4136");
+      window.WBOApp.preferences.setSize(40);
     });
     await page.mouse.click(260, 240);
     await page.keyboard.insertText(textValue);
