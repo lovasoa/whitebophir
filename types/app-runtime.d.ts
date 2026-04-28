@@ -601,6 +601,7 @@ export type ToolIdentityRuntimeModule = {
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = {
   readonly board: ToolBoardRuntimeModule;
+  readonly viewport: ViewportController;
   readonly writes: ToolWriteRuntimeModule;
   readonly identity: ToolIdentityRuntimeModule;
 };

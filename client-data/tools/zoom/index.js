@@ -27,8 +27,8 @@
 /** @typedef {{pageX: number, pageY: number, clientY: number, scale: number}} ZoomOrigin */
 /** @typedef {{preventDefault(): void, clientY?: number, pageX?: number, pageY?: number, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, deltaMode?: number, deltaX?: number, deltaY?: number, changedTouches?: TouchList, touches?: TouchList}} ZoomPointerEvent */
 /** @typedef {(evt: KeyboardEvent) => void} ZoomKeyHandler */
-/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
-/** @typedef {{tools: MountedAppToolsState, origin: ZoomOrigin, moved: boolean, pressed: boolean, animation: number | null, keydown: ZoomKeyHandler, keyup: ZoomKeyHandler}} ZoomState */
+/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
+/** @typedef {{board: ToolRuntimeModules["board"], viewport: ToolRuntimeModules["viewport"], origin: ZoomOrigin, moved: boolean, pressed: boolean, animation: number | null, keydown: ZoomKeyHandler, keyup: ZoomKeyHandler}} ZoomState */
 
 const ZOOM_FACTOR = 0.5;
 
@@ -76,7 +76,7 @@ function getPageCoordinate(evt, isTouchEvent, fallback, axis) {
  * @param {number} scale
  */
 function zoom(state, scale) {
-  state.tools.viewport.zoomAt(scale, state.origin.pageX, state.origin.pageY);
+  state.viewport.zoomAt(scale, state.origin.pageX, state.origin.pageY);
 }
 
 /**
@@ -98,7 +98,7 @@ function animate(state, scale) {
  * @param {boolean} isTouchEvent
  */
 function setOrigin(state, x, y, evt, isTouchEvent) {
-  const scale = state.tools.getScale();
+  const scale = state.viewport.getScale();
   state.origin.pageX = getPageCoordinate(evt, isTouchEvent, x * scale, "pageX");
   state.origin.pageY = getPageCoordinate(evt, isTouchEvent, y * scale, "pageY");
   state.origin.clientY = getClientY(evt, isTouchEvent);
@@ -117,7 +117,7 @@ function touchend(state) {
  */
 function handleShiftKey(state, down, evt) {
   if (evt.key === "Shift") {
-    state.tools.svg.style.cursor = `zoom-${down ? "out" : "in"}`;
+    state.board.svg.style.cursor = `zoom-${down ? "out" : "in"}`;
   }
 }
 
@@ -125,7 +125,8 @@ function handleShiftKey(state, down, evt) {
 export function boot(ctx) {
   /** @type {ZoomState} */
   const state = {
-    tools: ctx.app,
+    board: ctx.runtime.board,
+    viewport: ctx.runtime.viewport,
     origin: {
       pageX: 0,
       pageY: 0,
@@ -184,7 +185,7 @@ export function release(state, x, y, evt) {
   void y;
   if (state.pressed && !state.moved) {
     const delta = evt.shiftKey === true ? -1 : 1;
-    state.tools.viewport.zoomBy(
+    state.viewport.zoomBy(
       1 + delta * ZOOM_FACTOR,
       state.origin.pageX,
       state.origin.pageY,

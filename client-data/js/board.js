@@ -2472,6 +2472,7 @@ function createToolRuntimeModules(mountedTools) {
       toBoardCoordinate: mountedTools.toBoardCoordinate,
       pageCoordinateToBoard: mountedTools.pageCoordinateToBoard,
     },
+    viewport: mountedTools.viewport,
     writes: {
       drawAndSend: mountedTools.drawAndSend,
       send: mountedTools.send,

@@ -626,6 +626,7 @@ function createToolBootContext(app, assetUrl) {
         toBoardCoordinate: app.toBoardCoordinate,
         pageCoordinateToBoard: app.pageCoordinateToBoard,
       },
+      viewport: app.viewport,
       writes: {
         drawAndSend: app.drawAndSend,
         send: app.send,
