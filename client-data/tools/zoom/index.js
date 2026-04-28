@@ -27,8 +27,8 @@
 /** @typedef {{pageX: number, pageY: number, clientY: number, scale: number}} ZoomOrigin */
 /** @typedef {{preventDefault(): void, clientY?: number, pageX?: number, pageY?: number, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, deltaMode?: number, deltaX?: number, deltaY?: number, changedTouches?: TouchList, touches?: TouchList}} ZoomPointerEvent */
 /** @typedef {(evt: KeyboardEvent) => void} ZoomKeyHandler */
-/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
-/** @typedef {{board: ToolRuntimeModules["board"], viewport: ToolRuntimeModules["viewport"], origin: ZoomOrigin, moved: boolean, pressed: boolean, animation: number | null, keydown: ZoomKeyHandler, keyup: ZoomKeyHandler}} ZoomState */
+/** @import { ToolBootContext } from "../../../types/app-runtime" */
+/** @typedef {ReturnType<typeof boot>} ZoomState */
 
 const ZOOM_FACTOR = 0.5;
 
@@ -123,7 +123,6 @@ function handleShiftKey(state, down, evt) {
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  /** @type {ZoomState} */
   const state = {
     board: ctx.runtime.board,
     viewport: ctx.runtime.viewport,
@@ -135,9 +134,9 @@ export function boot(ctx) {
     },
     moved: false,
     pressed: false,
-    animation: null,
-    keydown: () => {},
-    keyup: () => {},
+    animation: /** @type {number | null} */ (null),
+    keydown: /** @type {ZoomKeyHandler} */ (() => {}),
+    keyup: /** @type {ZoomKeyHandler} */ (() => {}),
   };
   state.keydown = handleShiftKey.bind(null, state, true);
   state.keyup = handleShiftKey.bind(null, state, false);

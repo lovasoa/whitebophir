@@ -28,7 +28,7 @@ import { MutationType } from "../../js/mutation_type.js";
 import { ToolCodes } from "../tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
-/** @typedef {{board: ToolRuntimeModules["board"], writes: ToolRuntimeModules["writes"], preferences: ToolRuntimeModules["preferences"], rateLimits: ToolRuntimeModules["rateLimits"], interaction: ToolRuntimeModules["interaction"], toolRegistry: ToolRuntimeModules["toolRegistry"], lastCursorUpdate: number, sending: boolean, x: number, y: number, color: string, size: number, minCursorUpdateIntervalMs: number}} CursorState */
+/** @typedef {ReturnType<typeof boot>} CursorState */
 
 export const toolId = "cursor";
 export const mouseCursor = "crosshair";

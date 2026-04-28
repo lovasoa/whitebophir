@@ -24,10 +24,11 @@
  * @licend
  */
 
-/** @typedef {"none" | "url(#grid)" | "url(#dots)"} GridFill */
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
+const GRID_STATES = /** @type {const} */ (["none", "url(#grid)", "url(#dots)"]);
+/** @typedef {(typeof GRID_STATES)[number]} GridFill */
 /** @typedef {ToolRuntimeModules["board"]} GridBoardRuntime */
-/** @typedef {{board: GridBoardRuntime, index: number, states: GridFill[], gridContainer: SVGElement}} GridState */
+/** @typedef {ReturnType<typeof boot>} GridState */
 
 export const toolId = "grid";
 export const shortcut = "g";
@@ -112,7 +113,7 @@ function createPatterns(board) {
   defs.appendChild(dots);
 }
 
-/** @param {{board: GridBoardRuntime, index: number, states: GridFill[]}} state */
+/** @param {{board: GridBoardRuntime, index: number, states: readonly GridFill[]}} state */
 function createGridContainer(state) {
   createPatterns(state.board);
   const gridContainer = state.board.createSVGElement("rect", {
@@ -128,17 +129,17 @@ function createGridContainer(state) {
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
   const board = ctx.runtime.board;
-  /** @type {GridFill[]} */
-  const states = ["none", "url(#grid)", "url(#dots)"];
-  const gridContainer = createGridContainer({ board, index: 0, states });
-  /** @type {GridState} */
-  const state = {
+  const gridContainer = createGridContainer({
     board,
     index: 0,
-    states,
+    states: GRID_STATES,
+  });
+  return {
+    board,
+    index: 0,
+    states: GRID_STATES,
     gridContainer,
   };
-  return state;
 }
 
 /** @param {GridState} state */

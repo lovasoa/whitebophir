@@ -31,11 +31,11 @@ import {
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { ToolCodes } from "../tool-order.js";
 
-/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
+/** @import { ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof createDeleteMessage>} EraserDeleteMessage */
 /** @typedef {EraserDeleteMessage} EraserMessage */
 /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
-/** @typedef {{board: ToolRuntimeModules["board"], writes: ToolRuntimeModules["writes"], erasing: boolean}} EraserState */
+/** @typedef {ReturnType<typeof boot>} EraserState */
 
 export const toolId = "eraser";
 export const shortcut = "e";
@@ -163,10 +163,7 @@ export function draw(state, data) {
   }
 }
 
-/**
- * @param {ToolBootContext} ctx
- * @returns {EraserState}
- */
+/** @param {ToolBootContext} ctx */
 export function boot(ctx) {
   return {
     board: ctx.runtime.board,

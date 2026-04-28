@@ -24,8 +24,8 @@
  * @licend
  */
 
-/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
-/** @typedef {{board: ToolRuntimeModules["board"], identity: ToolRuntimeModules["identity"]}} DownloadToolState */
+/** @import { ToolBootContext } from "../../../types/app-runtime" */
+/** @typedef {ReturnType<typeof boot>} DownloadToolState */
 
 export const toolId = "download";
 export const shortcut = "d";

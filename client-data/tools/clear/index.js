@@ -27,9 +27,9 @@
 import { MutationType } from "../../js/mutation_type.js";
 import { ToolCodes } from "../tool-order.js";
 
-/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
+/** @import { ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof createClearMessage>} ClearMessage */
-/** @typedef {{board: ToolRuntimeModules["board"], identity: ToolRuntimeModules["identity"], writes: ToolRuntimeModules["writes"]}} ClearToolState */
+/** @typedef {ReturnType<typeof boot>} ClearToolState */
 
 export const toolId = "clear";
 export const shortcut = "c";
