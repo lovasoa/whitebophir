@@ -531,9 +531,11 @@ test.describe("single-page interactions", () => {
       );
     });
 
-    await boardPage.gotoBoard("tool-ready-state-test");
+    await boardPage.gotoBoardShell("tool-ready-state-test");
     await rectangleModuleRequested;
 
+    await expect(boardPage.statusIndicator).toBeVisible();
+    await expect(boardPage.statusTitle).toHaveText("Loading");
     await expect(boardPage.tool("rectangle")).toHaveClass(/disabledTool/);
     await expect(boardPage.tool("rectangle")).toHaveAttribute(
       "aria-disabled",
@@ -541,11 +543,15 @@ test.describe("single-page interactions", () => {
     );
 
     releaseRectangleModule();
+    await boardPage.page.waitForFunction(
+      () => document.documentElement.dataset.boardPhase === "ready",
+    );
     await expect(boardPage.tool("rectangle")).toHaveAttribute(
       "aria-disabled",
       "false",
     );
     await expect(boardPage.tool("rectangle")).not.toHaveClass(/disabledTool/);
+    await expect(boardPage.statusIndicator).toBeHidden();
   });
 
   test("download exports SVG content", async ({ boardPage, server }) => {

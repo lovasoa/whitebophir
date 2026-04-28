@@ -307,10 +307,10 @@ export class ToolRegistryModule {
 
   /**
    * @param {ReadonlySet<string>} skippedToolNames
-   * @returns {void}
+   * @returns {Promise<void>}
    */
   scheduleLazyBootRenderedTools(skippedToolNames) {
-    this.scheduleLazyBootToolNames(
+    return this.scheduleLazyBootToolNames(
       [...this.getRenderedToolNames(), "cursor"],
       skippedToolNames,
     );
@@ -319,7 +319,7 @@ export class ToolRegistryModule {
   /**
    * @param {string[]} toolNames
    * @param {ReadonlySet<string>} skippedToolNames
-   * @returns {void}
+   * @returns {Promise<void>}
    */
   scheduleLazyBootToolNames(toolNames, skippedToolNames) {
     const schedule =
@@ -337,14 +337,17 @@ export class ToolRegistryModule {
           50,
         );
       });
-    toolNames
+    const pendingBoots = toolNames
       .filter((toolName, index) => toolNames.indexOf(toolName) === index)
       .filter((toolName) => !skippedToolNames.has(toolName))
-      .forEach((toolName) => {
-        schedule(() => {
-          void this.bootTool(toolName);
+      .map((toolName) => {
+        return new Promise((resolve, reject) => {
+          schedule(() => {
+            this.bootTool(toolName).then(resolve, reject);
+          });
         });
       });
+    return Promise.all(pendingBoots).then(() => {});
   }
 
   /**

@@ -44,11 +44,12 @@ async function bootBoardPage() {
     pendingToolName: documentElement.dataset.pendingTool || "",
   });
   stopTemporaryPan();
-  setBoardBootPhase("ready");
 
-  tools.toolRegistry.scheduleLazyBootRenderedTools(
+  await tools.toolRegistry.scheduleLazyBootRenderedTools(
     new Set(CRITICAL_BOOT_TOOL_NAMES),
   );
+  tools.status.clearInitialLoading();
+  setBoardBootPhase("ready");
 }
 
 void bootBoardPage().catch((error) => {

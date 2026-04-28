@@ -19,6 +19,7 @@ export class StatusModule {
     this.rateLimitNoticeTimer = null;
     this.boardStatusTimer = null;
     this.explicitBoardStatus = null;
+    this.initialLoading = true;
   }
 
   clearRateLimitNoticeTimer() {
@@ -101,6 +102,12 @@ export class StatusModule {
     this.syncWriteStatusIndicator();
   }
 
+  clearInitialLoading() {
+    if (!this.initialLoading) return;
+    this.initialLoading = false;
+    this.syncWriteStatusIndicator();
+  }
+
   /** @returns {BoardStatusView} */
   getBoardStatusView() {
     const Tools = this.getTools();
@@ -108,6 +115,7 @@ export class StatusModule {
       return this.explicitBoardStatus;
     }
     if (
+      this.initialLoading ||
       Tools.connection.state !== "connected" ||
       Tools.replay.awaitingSnapshot
     ) {

@@ -635,8 +635,10 @@ test("board pages are no-store in development and render plain asset URLs", asyn
   );
   try {
     const response = await request(app, "/boards/cache-test");
+    const frenchResponse = await request(app, "/boards/cache-test?lang=fr");
 
     assert.equal(response.statusCode, 200);
+    assert.equal(frenchResponse.statusCode, 200);
     assert.equal(response.headers["cache-control"], "no-store");
     const { port } = getTcpAddress(app);
     const origin = `http://127.0.0.1:${port}`;
@@ -659,6 +661,22 @@ test("board pages are no-store in development and render plain asset URLs", asyn
     );
     assert.doesNotMatch(response.body, /hreflang="vn"/);
     assert.doesNotMatch(response.body, /lang=vn/);
+    assert.match(
+      response.body,
+      /<div id="boardStatusIndicator" class="board-status-card board-status-reconnecting" role="status"\s+aria-live="polite" data-state="reconnecting">/,
+    );
+    assert.match(
+      response.body,
+      /<div id="boardStatusTitle" class="board-status-title">Loading<\/div>/,
+    );
+    assert.doesNotMatch(
+      response.body,
+      /<div id="boardStatusIndicator"[^>]* hidden/,
+    );
+    assert.match(
+      frenchResponse.body,
+      /<div id="boardStatusTitle" class="board-status-title">Chargement<\/div>/,
+    );
     assert.match(response.body, /\.\.\/board\.css(?:["'])/);
     assert.match(response.body, /\.\.\/js\/board_main\.js(?:["'])/);
     assert.match(
@@ -871,7 +889,7 @@ test("board pages inline the authoritative svg baseline before client boot", asy
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-length"], undefined);
     assert.ok(
-      response.body.indexOf('id="loadingMessage"') <
+      response.body.indexOf('id="boardStatusIndicator"') <
         response.body.indexOf('<div id="board">'),
     );
     assert.ok(

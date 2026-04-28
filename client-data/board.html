@@ -52,10 +52,11 @@
 				<ul id="connectedUsersList" class="connected-users-list"></ul>
 			</div>
 		</div>
-		<div id="boardStatusIndicator" class="board-status-card" role="status" aria-live="polite" hidden>
+		<div id="boardStatusIndicator" class="board-status-card board-status-reconnecting" role="status"
+			aria-live="polite" data-state="reconnecting">
 			<span class="board-status-icon" aria-hidden="true"></span>
 			<div class="board-status-copy">
-				<div id="boardStatusTitle" class="board-status-title"></div>
+				<div id="boardStatusTitle" class="board-status-title">{{translations.loading}}</div>
 				<div id="boardStatusNotice" class="board-status-detail board-status-detail-hidden"></div>
 			</div>
 		</div>
