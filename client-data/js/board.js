@@ -1334,11 +1334,9 @@ async function processAuthoritativeReplayBatch(batch) {
     return false;
   }
 
-  let index = 0;
-  for (const child of batch._children) {
+  for (const [index, child] of batch._children.entries()) {
     await handleMessage(child);
     Tools.replay.authoritativeSeq = fromSeq + index + 1;
-    index += 1;
   }
   completeAuthoritativeReplay(toSeq);
   return true;
