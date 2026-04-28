@@ -532,11 +532,3 @@ function resetTurnstileChallenge(module, api) {
     module.scheduleRetry("reset_failed");
   }
 }
-
-/**
- * @param {AppToolsState} Tools
- * @param {TurnstileModuleOptions} options
- */
-export function createTurnstileModule(Tools, options) {
-  return new TurnstileModule(Tools, options);
-}
