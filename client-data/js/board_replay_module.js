@@ -10,25 +10,6 @@ function getAttachedBoardDom(Tools) {
   return Tools.dom.status === "attached" ? Tools.dom : null;
 }
 
-/** @param {AppToolsState} Tools */
-function normalizeServerRenderedElements(Tools) {
-  const dom = getAttachedBoardDom(Tools);
-  if (!dom) return;
-  Object.values(Tools.toolRegistry.mounted).forEach((tool) => {
-    const selector = tool.serverRenderedElementSelector;
-    const normalizeElement = tool.normalizeServerRenderedElement;
-    if (!selector || !normalizeElement) return;
-
-    dom.drawingArea
-      .querySelectorAll(selector)
-      .forEach((/** @type {Element} */ element) => {
-        if (element instanceof SVGElement) {
-          normalizeElement.call(tool, element);
-        }
-      });
-  });
-}
-
 /**
  * @param {number | undefined} [cacheBust]
  * @returns {string}
@@ -71,7 +52,7 @@ export class ReplayModule {
       baseline.readonly ? "true" : "false",
     );
     dom.drawingArea.innerHTML = baseline.drawingAreaMarkup;
-    normalizeServerRenderedElements(Tools);
+    Tools.toolRegistry.normalizeServerRenderedElements();
   }
 
   async refreshAuthoritativeBaseline() {

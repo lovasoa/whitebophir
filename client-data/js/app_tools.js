@@ -11,6 +11,7 @@ import { PresenceModule } from "./board_presence_module.js";
 import { ReplayModule } from "./board_replay_module.js";
 import {
   AssetModule,
+  AttachedBoardDomRuntimeModule,
   ConfigModule,
   CoordinateModule,
   DetachedBoardDomRuntimeModule,
@@ -24,12 +25,13 @@ import {
   ViewportStateModule,
 } from "./board_runtime_core.js";
 import { StatusModule } from "./board_status_module.js";
+import { ToolRegistryModule } from "./board_tool_registry_module.js";
 import { TurnstileModule } from "./board_turnstile.js";
 import { createViewportController } from "./board_viewport.js";
 import { WriteModule } from "./board_write_module.js";
 
 /** @import { AppInitialPreferences, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
-/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, enqueueIncomingBroadcast: (msg: import("../../types/app-runtime").IncomingBroadcast) => void, createToolRegistry: () => import("./board.js").ToolRegistryModule}} AppToolsOptions */
+/** @typedef {{translations: {[key: string]: string}, serverConfig: ServerConfig, boardName: string, token: string | null, socketIOExtraHeaders: SocketHeaders | null, colorPresets: ColorPreset[], initialPreferences: AppInitialPreferences, logBoardEvent: (level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void, queueProtectedWrite: (data: import("../../types/app-runtime").ClientTrackedMessage) => void, flushPendingWrites: () => void, enqueueIncomingBroadcast: (msg: import("../../types/app-runtime").IncomingBroadcast) => void}} AppToolsOptions */
 
 export class AppTools {
   /** @param {AppToolsOptions} options */
@@ -38,7 +40,10 @@ export class AppTools {
     this.config = new ConfigModule(options.serverConfig);
     this.identity = new IdentityModule(options.boardName, options.token);
     this.assets = new AssetModule(normalizeBoardAssetPath);
-    this.toolRegistry = options.createToolRegistry();
+    this.toolRegistry = new ToolRegistryModule(
+      () => this,
+      options.logBoardEvent,
+    );
     this.turnstile = new TurnstileModule(this, {
       logBoardEvent: options.logBoardEvent,
       queueProtectedWrite: options.queueProtectedWrite,
@@ -79,5 +84,17 @@ export class AppTools {
       options.colorPresets,
       options.initialPreferences,
     );
+  }
+
+  /**
+   * @param {HTMLElement} board
+   * @param {SVGSVGElement} svg
+   * @param {SVGGElement} drawingArea
+   * @returns {AttachedBoardDomRuntimeModule}
+   */
+  attachDom(board, svg, drawingArea) {
+    const dom = new AttachedBoardDomRuntimeModule(board, svg, drawingArea);
+    this.dom = dom;
+    return dom;
   }
 }

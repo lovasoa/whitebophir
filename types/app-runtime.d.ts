@@ -661,7 +661,7 @@ export type AppWriteModule =
 
 /** Mounted tool registry, active tool, and boot/replay queues. */
 export type AppToolRegistryModule =
-  import("../client-data/js/board.js").ToolRegistryModule;
+  import("../client-data/js/board_tool_registry_module.js").ToolRegistryModule;
 
 /** Pointer interaction and cursor/marker visibility flags. */
 export type AppInteractionModule =
@@ -685,7 +685,7 @@ export type AppCoordinateModule =
 
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = ReturnType<
-  typeof import("../client-data/js/board.js").createToolRuntimeModules
+  typeof import("../client-data/js/board_tool_registry_module.js").createToolRuntimeModules
 >;
 
 /** Runtime root composed only of documented modules. */

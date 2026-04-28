@@ -5,7 +5,7 @@ import { getMutationType, MutationType } from "./message_tool_metadata.js";
 
 /** @import { BoardMessage, MessageHook, ViewportController } from "../../types/app-runtime" */
 /** @typedef {import("./board_runtime_core.js").IdentityModule} IdentityModule */
-/** @typedef {import("./board.js").ToolRegistryModule} ToolRegistryModule */
+/** @typedef {import("./board_tool_registry_module.js").ToolRegistryModule} ToolRegistryModule */
 
 const messageModuleState = new WeakMap();
 
