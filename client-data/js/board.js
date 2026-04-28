@@ -345,7 +345,12 @@ Tools.replay = {
 Tools.optimistic = {
   journal: createOptimisticJournal(),
 };
-Tools.connectionState = /** @type {BoardConnectionState} */ ("idle");
+Tools.connection = {
+  socket: null,
+  state: /** @type {BoardConnectionState} */ ("idle"),
+  hasConnectedOnce: false,
+  socketIOExtraHeaders: null,
+};
 Tools.localRateLimitStates = {
   general: RateLimitCommon.createRateLimitState(Date.now()),
   constructive: RateLimitCommon.createRateLimitState(Date.now()),
@@ -498,8 +503,8 @@ Tools.isWritePaused = function isWritePaused(now) {
 
 Tools.canBufferWrites = function canBufferWrites() {
   return !!(
-    Tools.socket &&
-    Tools.socket.connected &&
+    Tools.connection.socket &&
+    Tools.connection.socket.connected &&
     !Tools.replay.awaitingSnapshot &&
     !Tools.isWritePaused()
   );
@@ -591,7 +596,7 @@ Tools.getBoardStatusView = function getBoardStatusView() {
   if (Tools.status.explicitBoardStatus) {
     return Tools.status.explicitBoardStatus;
   }
-  if (Tools.connectionState !== "connected" || Tools.replay.awaitingSnapshot) {
+  if (Tools.connection.state !== "connected" || Tools.replay.awaitingSnapshot) {
     return {
       hidden: false,
       state: "reconnecting",
@@ -1061,8 +1066,11 @@ Tools.flushBufferedWrites = function flushBufferedWrites() {
     Tools.bufferedWrites.shift();
     Tools.consumeBufferedWriteBudget(bufferedWrite, now);
     Tools.updateCurrentConnectedUserFromActivity(bufferedWrite.message);
-    if (Tools.socket) {
-      Tools.socket.emit(SocketEvents.BROADCAST, bufferedWrite.message);
+    if (Tools.connection.socket) {
+      Tools.connection.socket.emit(
+        SocketEvents.BROADCAST,
+        bufferedWrite.message,
+      );
     }
   }
   Tools.syncWriteStatusIndicator();
@@ -1102,7 +1110,9 @@ Tools.sendBufferedWrite = function sendBufferedWrite(message) {
   ) {
     Tools.consumeBufferedWriteBudget(bufferedWrite, now);
     Tools.updateCurrentConnectedUserFromActivity(message);
-    if (Tools.socket) Tools.socket.emit(SocketEvents.BROADCAST, message);
+    if (Tools.connection.socket) {
+      Tools.connection.socket.emit(SocketEvents.BROADCAST, message);
+    }
     Tools.syncWriteStatusIndicator();
     return true;
   }
@@ -1329,7 +1339,8 @@ async function processIncomingBroadcast(msg) {
     return false;
   }
   const isOwnSequencedBroadcast =
-    isSequencedBroadcast && replayMessage.socket === Tools.socket?.id;
+    isSequencedBroadcast &&
+    replayMessage.socket === Tools.connection.socket?.id;
   if (
     isOwnSequencedBroadcast &&
     typeof replayMessage.clientMutationId === "string" &&
@@ -1485,16 +1496,15 @@ Tools.showMarker = true;
 Tools.showOtherCursors = true;
 Tools.showMyCursor = true;
 
-Tools.socket = null;
-Tools.hasConnectedOnce = false;
-
 Tools.presence = {
   users: /** @type {ConnectedUserMap} */ ({}),
   panelOpen: false,
 };
 
 function isCurrentSocketUser(/** @type {ConnectedUser} */ user) {
-  return !!(Tools.socket?.id && user.socketId === Tools.socket.id);
+  return !!(
+    Tools.connection.socket?.id && user.socketId === Tools.connection.socket.id
+  );
 }
 
 /**
@@ -1854,12 +1864,12 @@ function createConnectedUserRow(user) {
   report.addEventListener("click", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();
-    if (!Tools.socket || !row.dataset.socketId) return;
+    if (!Tools.connection.socket || !row.dataset.socketId) return;
     const connectedUser = getConnectedUsers()[row.dataset.socketId];
     if (!connectedUser || isCurrentSocketUser(connectedUser)) return;
     connectedUser.reported = true;
     updateConnectedUserRow(row, connectedUser);
-    Tools.socket.emit(SocketEvents.REPORT_USER, {
+    Tools.connection.socket.emit(SocketEvents.REPORT_USER, {
       socketId: connectedUser.socketId,
     });
   });
@@ -2031,8 +2041,8 @@ Tools.updateCurrentConnectedUserFromActivity =
   function updateCurrentConnectedUserFromActivity(
     /** @type {BoardMessage} */ message,
   ) {
-    if (!Tools.socket?.id) return;
-    const current = getConnectedUsers()[Tools.socket.id];
+    if (!Tools.connection.socket?.id) return;
+    const current = getConnectedUsers()[Tools.connection.socket.id];
     if (!current) return;
     Tools.updateConnectedUsersFromActivity(
       current.userId,
@@ -2077,12 +2087,14 @@ Tools.initConnectedUsersUI = function initConnectedUsersUI() {
 
 Tools.startConnection = () => {
   const reusableSocket =
-    Tools.socket && !Tools.socket.connected ? Tools.socket : null;
-  if (Tools.socket && !reusableSocket) {
-    BoardConnection.closeSocket(Tools.socket);
-    Tools.socket = null;
+    Tools.connection.socket && !Tools.connection.socket.connected
+      ? Tools.connection.socket
+      : null;
+  if (Tools.connection.socket && !reusableSocket) {
+    BoardConnection.closeSocket(Tools.connection.socket);
+    Tools.connection.socket = null;
   }
-  Tools.connectionState = "connecting";
+  Tools.connection.state = "connecting";
   Tools.replay.awaitingSnapshot = true;
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
@@ -2112,7 +2124,7 @@ Tools.startConnection = () => {
 
     const socketParams = BoardConnection.buildSocketParams(
       window.location.pathname,
-      Tools.socketIOExtraHeaders,
+      Tools.connection.socketIOExtraHeaders,
       Tools.identity.token,
       Tools.identity.boardName,
       {
@@ -2135,12 +2147,12 @@ Tools.startConnection = () => {
     }
 
     const socket = io.connect("", socketParams);
-    Tools.socket = socket;
+    Tools.connection.socket = socket;
 
     //Receive draw instructions from the server
     socket.on(SocketEvents.CONNECT, function onConnection() {
-      const hadConnectedBefore = Tools.hasConnectedOnce;
-      Tools.connectionState = "connected";
+      const hadConnectedBefore = Tools.connection.hasConnectedOnce;
+      Tools.connection.state = "connected";
       logBoardEvent(
         "log",
         hadConnectedBefore ? "socket.reconnected" : "socket.connected",
@@ -2152,7 +2164,7 @@ Tools.startConnection = () => {
           Tools.turnstile.widgetId,
         );
       }
-      Tools.hasConnectedOnce = true;
+      Tools.connection.hasConnectedOnce = true;
       Tools.syncWriteStatusIndicator();
     });
     socket.on(
@@ -2182,7 +2194,7 @@ Tools.startConnection = () => {
     socket.on(
       SocketEvents.CONNECT_ERROR,
       function onConnectError(/** @type {unknown} */ error) {
-        if (socket !== Tools.socket) return;
+        if (socket !== Tools.connection.socket) return;
         const data =
           error && typeof error === "object" && "data" in error
             ? /** @type {{reason?: string, latestSeq?: number, minReplayableSeq?: number}} */ (
@@ -2204,7 +2216,7 @@ Tools.startConnection = () => {
             : { minReplayableSeq: data.minReplayableSeq }),
           authoritativeSeq: Tools.replay.authoritativeSeq,
         });
-        Tools.connectionState = "disconnected";
+        Tools.connection.state = "disconnected";
         if (reason === "baseline_not_replayable") {
           logBoardEvent("warn", "replay.baseline_not_replayable", {
             authoritativeSeq: Tools.replay.authoritativeSeq,
@@ -2214,8 +2226,8 @@ Tools.startConnection = () => {
             ),
           });
           Tools.beginAuthoritativeResync();
-          if (socket === Tools.socket) {
-            Tools.socket = null;
+          if (socket === Tools.connection.socket) {
+            Tools.connection.socket = null;
             BoardConnection.closeSocket(socket);
           }
         }
@@ -2256,9 +2268,9 @@ Tools.startConnection = () => {
     socket.on(
       SocketEvents.DISCONNECT,
       function onDisconnect(/** @type {string} */ reason) {
-        if (socket !== Tools.socket) return;
+        if (socket !== Tools.connection.socket) return;
         if (reason === "io client disconnect") return;
-        Tools.connectionState = "disconnected";
+        Tools.connection.state = "disconnected";
         logBoardEvent("warn", "socket.disconnected", { reason });
         Tools.beginAuthoritativeResync();
         scheduleSocketReconnect();
@@ -3021,8 +3033,8 @@ Tools.drawAndSend = (data) => {
   if (!mountedTool) throw new Error(`Missing mounted tool '${data.tool}'.`);
   if (Tools.shouldDisableTool(toolName)) return false;
   if (
-    !Tools.socket ||
-    !Tools.socket.connected ||
+    !Tools.connection.socket ||
+    !Tools.connection.socket.connected ||
     Tools.replay.awaitingSnapshot ||
     Tools.isWritePaused()
   ) {
@@ -3316,7 +3328,7 @@ Tools.identity = {
   boardName: resolveBoardName(window.location.pathname),
   token: new URL(window.location.href).searchParams.get("token"),
 };
-Tools.socketIOExtraHeaders = socketIOExtraHeaders;
+Tools.connection.socketIOExtraHeaders = socketIOExtraHeaders;
 const initialPreferences = {
   tool: "hand",
   color: initialPreset?.color || "#001f3f",

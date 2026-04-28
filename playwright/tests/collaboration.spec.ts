@@ -438,7 +438,7 @@ test.describe("collaboration and rate limiting", () => {
             requestAnimationFrame(() => resolve()),
           );
         for (let index = 0; index < 12; index += 1) {
-          window.WBOApp.socket.emit("broadcast", {
+          window.WBOApp.connection.socket?.emit("broadcast", {
             tool,
             type: updateType,
             x: 1600 + index * 8,
@@ -524,10 +524,10 @@ test.describe("collaboration and rate limiting", () => {
         statusVisible: boolean;
         rectVisible: boolean;
       }>((resolve) => {
-        window.WBOApp.socket.once("disconnect", () => {
+        window.WBOApp.connection.socket?.once("disconnect", () => {
           resolve({
             awaitingBoardSnapshot: !!window.WBOApp.replay.awaitingSnapshot,
-            connectionState: String(window.WBOApp.connectionState ?? ""),
+            connectionState: String(window.WBOApp.connection.state ?? ""),
             statusVisible:
               !document.getElementById("boardStatusIndicator")?.hidden ?? false,
             rectVisible: !!document.getElementById(
@@ -535,7 +535,7 @@ test.describe("collaboration and rate limiting", () => {
             ),
           });
         });
-        window.WBOApp.socket.io.engine.close();
+        window.WBOApp.connection.socket?.io.engine.close();
       });
     });
 
@@ -782,7 +782,7 @@ test.describe("collaboration and rate limiting", () => {
 
       return {
         boardPhase: document.documentElement.dataset.boardPhase,
-        connectionState: String(window.WBOApp.connectionState ?? ""),
+        connectionState: String(window.WBOApp.connection.state ?? ""),
         awaitingBoardSnapshot: !!window.WBOApp.replay.awaitingSnapshot,
         statusHidden: statusIndicator?.hidden ?? true,
         pencilCount: document.querySelectorAll("#drawingArea path#slow-pencil")
@@ -842,7 +842,7 @@ test.describe("collaboration and rate limiting", () => {
       await page.evaluate(
         ({ deleteType, tool }) => {
           for (let index = 0; index < 101; index += 1) {
-            window.WBOApp.socket.emit("broadcast", {
+            window.WBOApp.connection.socket?.emit("broadcast", {
               tool,
               type: deleteType,
               id: `rate-limit-${index}`,

@@ -69,7 +69,7 @@ async function waitForBoardReady(page) {
     return !!(
       tools &&
       document.documentElement.dataset.boardPhase === "ready" &&
-      tools.socket?.connected &&
+      tools.connection.socket?.connected &&
       tools.replay.awaitingSnapshot === false &&
       !tools.isWritePaused?.()
     );

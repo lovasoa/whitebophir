@@ -290,7 +290,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
    */
   function emitTurnstileToken(token) {
     return new Promise((resolve, reject) => {
-      const socket = Tools.socket;
+      const socket = Tools.connection.socket;
       if (!socket) {
         reject(
           new Error("Socket unavailable while submitting Turnstile token."),
@@ -370,7 +370,7 @@ export function installTurnstile(Tools, { logBoardEvent }) {
         "refresh-expired": "manual",
         /** @param {string} token */
         callback: (token) => {
-          if (!Tools.socket) {
+          if (!Tools.connection.socket) {
             Tools.turnstile.pending = false;
             logBoardEvent("warn", "turnstile.submit_skipped", {
               reason: "socket_unavailable",

@@ -272,15 +272,22 @@ window.turnstile = {
     await this.waitForSocketConnected();
     await this.page.evaluate(() => {
       window.__receivedBroadcasts = [];
-      window.WBOApp.socket?.on("broadcast", (message: BoardMessage) => {
-        window.__receivedBroadcasts?.push(message);
-      });
+      window.WBOApp.connection.socket?.on(
+        "broadcast",
+        (message: BoardMessage) => {
+          window.__receivedBroadcasts?.push(message);
+        },
+      );
     });
   }
 
   async waitForSocketConnected() {
     await expect
-      .poll(() => this.page.evaluate(() => !!window.WBOApp?.socket?.connected))
+      .poll(() =>
+        this.page.evaluate(
+          () => !!window.WBOApp?.connection?.socket?.connected,
+        ),
+      )
       .toBe(true);
   }
 
@@ -302,7 +309,7 @@ window.turnstile = {
           const tools = window.WBOApp;
           return !!(
             tools &&
-            tools.connectionState === "connected" &&
+            tools.connection.state === "connected" &&
             tools.replay.awaitingSnapshot === false &&
             typeof tools.isWritePaused === "function" &&
             !tools.isWritePaused()
@@ -360,7 +367,7 @@ window.turnstile = {
 
   async waitForDisconnectThenReconnect() {
     return this.page.evaluate(async () => {
-      const socket = window.WBOApp.socket;
+      const socket = window.WBOApp.connection.socket;
       if (!socket) throw new Error("Missing socket");
       if (!socket.once) throw new Error("Socket does not support once()");
       const socketOnce = socket.once.bind(socket);
@@ -384,7 +391,7 @@ window.turnstile = {
             clearTimeout(timeout);
             resolve({
               initialId,
-              nextId: window.WBOApp.socket?.id ?? null,
+              nextId: window.WBOApp.connection.socket?.id ?? null,
             });
           });
         },
@@ -620,7 +627,7 @@ window.turnstile = {
           throw new Error("Missing eraser tool");
         }
         tool.draw({ type: deleteType, id: targetId }, true);
-        window.WBOApp.socket?.emit("broadcast", {
+        window.WBOApp.connection.socket?.emit("broadcast", {
           tool: toolId,
           type: deleteType,
           id: targetId,
@@ -845,7 +852,7 @@ window.turnstile = {
   async emitBroadcast(message: Record<string, unknown>) {
     await this.waitForBoardWritable();
     await this.page.evaluate((data) => {
-      window.WBOApp.socket?.emit("broadcast", data);
+      window.WBOApp.connection.socket?.emit("broadcast", data);
     }, message);
   }
 
@@ -912,16 +919,16 @@ window.turnstile = {
           clearTimeout(timeout);
           requestAnimationFrame(() =>
             resolve({
-              connected: window.WBOApp.socket?.connected === true,
+              connected: window.WBOApp.connection.socket?.connected === true,
               validated: window.WBOApp.isTurnstileValidated(),
             }),
           );
         };
 
-        window.WBOApp.socket?.once?.("reconnect", finish);
-        window.WBOApp.socket?.once?.("connect", finish);
+        window.WBOApp.connection.socket?.once?.("reconnect", finish);
+        window.WBOApp.connection.socket?.once?.("connect", finish);
 
-        window.WBOApp.socket?.io?.engine?.close();
+        window.WBOApp.connection.socket?.io?.engine?.close();
       });
 
       return reconnect;
@@ -933,12 +940,12 @@ window.turnstile = {
       const indicator = document.getElementById("boardStatusIndicator");
       const notice = document.getElementById("boardStatusNotice");
       return {
-        connected: !!window.WBOApp?.socket?.connected,
+        connected: !!window.WBOApp?.connection?.socket?.connected,
         bufferedWrites: window.WBOApp.bufferedWrites.length,
         awaitingBoardSnapshot: !!window.WBOApp.replay.awaitingSnapshot,
         hasAuthoritativeBoardSnapshot:
           !!window.WBOApp.replay.hasAuthoritativeSnapshot,
-        connectionState: String(window.WBOApp.connectionState ?? ""),
+        connectionState: String(window.WBOApp.connection.state ?? ""),
         indicatorClass: indicator?.className ?? "",
         noticeText: notice?.textContent ?? "",
       };
@@ -963,7 +970,7 @@ window.turnstile = {
 
   async forceSocketDisconnect() {
     await this.page.evaluate(() => {
-      window.WBOApp.socket?.io?.engine?.close();
+      window.WBOApp.connection.socket?.io?.engine?.close();
     });
   }
 
@@ -971,7 +978,7 @@ window.turnstile = {
     return this.page.evaluate((value) => {
       return new Promise<{ success: boolean; validated: boolean }>(
         (resolve) => {
-          window.WBOApp.socket?.emit(
+          window.WBOApp.connection.socket?.emit(
             "turnstile_token",
             value,
             (result: unknown) => {

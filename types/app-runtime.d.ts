@@ -664,6 +664,14 @@ export type AppReplayModule = {
   processingIncomingBroadcast: boolean;
 };
 
+/** Socket.IO connection handle and lifecycle metadata. */
+export type AppConnectionModule = {
+  socket: AppSocket | null;
+  state: BoardConnectionState;
+  hasConnectedOnce: boolean;
+  socketIOExtraHeaders: SocketHeaders | null;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -762,22 +770,19 @@ export type AppToolsState = {
   messages: AppMessageModule;
   viewportState: AppViewportModule;
   replay: AppReplayModule;
+  connection: AppConnectionModule;
   dom: BoardDomModule;
   curTool: MaybeMountedAppTool;
   drawingEvent: boolean;
   showMarker: boolean;
   showOtherCursors: boolean;
   showMyCursor: boolean;
-  socket: AppSocket | null;
-  hasConnectedOnce: boolean;
   bufferedWrites: BufferedWrite[];
   bufferedWriteTimer: number | null;
   writeReadyWaiters: Array<() => void>;
   rateLimitedUntil: number;
   localRateLimitedUntil: number;
-  connectionState: BoardConnectionState;
   localRateLimitStates: RateLimitStates;
-  socketIOExtraHeaders: SocketHeaders | null;
   list: MountedToolRegistry;
   bootedToolPromises: ToolNameMap<MountedAppToolPromise>;
   bootedToolNames: Set<string>;

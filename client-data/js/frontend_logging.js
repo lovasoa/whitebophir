@@ -37,13 +37,15 @@ export function frontendLogFields(fields) {
       typeof tools?.identity?.boardName === "string"
         ? tools.identity.boardName
         : null,
-    socketId: tools?.socket?.id || null,
+    socketId: tools?.connection?.socket?.id || null,
     authoritativeSeq:
       typeof tools?.replay?.authoritativeSeq === "number"
         ? tools.replay.authoritativeSeq
         : null,
     connectionState:
-      typeof tools?.connectionState === "string" ? tools.connectionState : null,
+      typeof tools?.connection?.state === "string"
+        ? tools.connection.state
+        : null,
     pendingProtectedWrites: Array.isArray(tools?.turnstile?.pendingWrites)
       ? tools.turnstile.pendingWrites.length
       : null,
