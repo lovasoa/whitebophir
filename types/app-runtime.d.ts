@@ -634,6 +634,16 @@ export type ToolRenderRuntimeModule = {
   markDrawingEvent: () => void;
 };
 
+/** Tool-facing message replay helper for tools that synthesize child messages. */
+export type ToolMessageRuntimeModule = {
+  messageForTool: (message: BoardMessage) => void;
+};
+
+/** Tool-facing permission state. */
+export type ToolPermissionRuntimeModule = {
+  canWrite: () => boolean;
+};
+
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = {
   readonly board: ToolBoardRuntimeModule;
@@ -646,6 +656,8 @@ export type ToolRuntimeModules = {
   readonly config: ToolConfigRuntimeModule;
   readonly ids: ToolIdRuntimeModule;
   readonly rendering: ToolRenderRuntimeModule;
+  readonly messages: ToolMessageRuntimeModule;
+  readonly permissions: ToolPermissionRuntimeModule;
 };
 
 /**

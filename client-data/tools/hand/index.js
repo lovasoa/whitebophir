@@ -34,7 +34,7 @@ import MessageCommon from "../../js/message_common.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
 import { ToolCodes } from "../tool-order.js";
 
-/** @import { ToolBootContext } from "../../../types/app-runtime" */
+/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {{a:number, b:number, c:number, d:number, e:number, f:number}} TransformState */
 /** @typedef {ReturnType<typeof createUpdateChildMessage>} HandUpdateChildMessage */
 /** @typedef {ReturnType<typeof createDeleteChildMessage>} HandDeleteChildMessage */
@@ -231,11 +231,26 @@ function createBatchMessage(children) {
 }
 
 /**
- * @typedef {{Tools: any, assetUrl: (assetFile: string) => string, selectorStates: {pointing: number, selecting: number, transform: number}, selected: any, selectedEls: (SVGGraphicsElement & { id: string })[], selectionRect: SVGRectElement, selectionRectTransform: any, currentTransform: ((x: number, y: number, force: boolean) => void) | null, transformElements: TransformState[], selectorState: number, selectionRunId: number, lastSent: number, blockedSelectionButtons: (number | string)[], selectionButtons: SelectionButton[], boundDeleteShortcut: (e: { key: string, target: EventTarget | null }) => void, boundDuplicateShortcut: (e: { key: string, target: EventTarget | null }) => void, secondary: { name: string, icon: string, active: boolean, switch?: () => void } | null}} HandState
+ * @typedef {{
+ *   server_config: ToolRuntimeModules["config"]["serverConfig"],
+ *   canWrite: boolean,
+ *   drawAndSend: ToolRuntimeModules["writes"]["drawAndSend"],
+ *   generateUID: ToolRuntimeModules["ids"]["generateUID"],
+ *   createSVGElement: ToolRuntimeModules["board"]["createSVGElement"],
+ *   svg: SVGSVGElement,
+ *   drawingArea: Element,
+ *   viewport: ToolRuntimeModules["viewport"],
+ *   getScale: () => number,
+ *   messageForTool: ToolRuntimeModules["messages"]["messageForTool"],
+ * }} HandRuntime
  */
 
 /**
- * @param {any} Tools
+ * @typedef {{Tools: HandRuntime, assetUrl: (assetFile: string) => string, selectorStates: {pointing: number, selecting: number, transform: number}, selected: any, selectedEls: (SVGGraphicsElement & { id: string })[], selectionRect: SVGRectElement, selectionRectTransform: any, currentTransform: ((x: number, y: number, force: boolean) => void) | null, transformElements: TransformState[], selectorState: number, selectionRunId: number, lastSent: number, blockedSelectionButtons: (number | string)[], selectionButtons: SelectionButton[], boundDeleteShortcut: (e: { key: string, target: EventTarget | null }) => void, boundDuplicateShortcut: (e: { key: string, target: EventTarget | null }) => void, secondary: { name: string, icon: string, active: boolean, switch?: () => void } | null}} HandState
+ */
+
+/**
+ * @param {HandRuntime} Tools
  * @param {(assetFile: string) => string} assetUrl
  * @returns {HandState}
  */
@@ -1228,10 +1243,30 @@ function switchTool(state) {
   }
 }
 
+/**
+ * @param {ToolBootContext} ctx
+ * @returns {HandRuntime}
+ */
+function createHandRuntime(ctx) {
+  const runtime = ctx.runtime;
+  return {
+    server_config: runtime.config.serverConfig,
+    canWrite: runtime.permissions.canWrite(),
+    drawAndSend: runtime.writes.drawAndSend,
+    generateUID: runtime.ids.generateUID,
+    createSVGElement: runtime.board.createSVGElement,
+    svg: runtime.board.svg,
+    drawingArea: runtime.board.drawingArea,
+    viewport: runtime.viewport,
+    getScale: () => runtime.viewport.getScale(),
+    messageForTool: runtime.messages.messageForTool,
+  };
+}
+
 /** @param {ToolBootContext} ctx */
 export async function boot(ctx) {
   ({ pointInTransformedBBox } = await import("../../js/intersect.js"));
-  return createState(ctx.app, ctx.assetUrl);
+  return createState(createHandRuntime(ctx), ctx.assetUrl);
 }
 
 /** @param {HandState} state */

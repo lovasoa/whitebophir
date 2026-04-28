@@ -2511,6 +2511,12 @@ function createToolRuntimeModules(mountedTools) {
         mountedTools.drawingEvent = true;
       },
     },
+    messages: {
+      messageForTool: (message) => mountedTools.messageForTool(message),
+    },
+    permissions: {
+      canWrite: () => mountedTools.canWrite,
+    },
   };
 }
 

@@ -685,6 +685,14 @@ function createToolBootContext(app, assetUrl) {
           app.drawingEvent = true;
         },
       },
+      messages: {
+        messageForTool: (message) => {
+          if (app.messageForTool) app.messageForTool(message);
+        },
+      },
+      permissions: {
+        canWrite: () => app.canWrite !== false,
+      },
     },
     assetUrl,
   };
