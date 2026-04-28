@@ -25,8 +25,9 @@
  */
 
 /** @typedef {"none" | "url(#grid)" | "url(#dots)"} GridFill */
-/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
-/** @typedef {{tools: MountedAppToolsState, index: number, states: GridFill[], gridContainer: SVGElement}} GridState */
+/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
+/** @typedef {ToolRuntimeModules["board"]} GridBoardRuntime */
+/** @typedef {{board: GridBoardRuntime, index: number, states: GridFill[], gridContainer: SVGElement}} GridState */
 
 export const toolId = "grid";
 export const shortcut = "g";
@@ -35,61 +36,61 @@ export const mouseCursor = "crosshair";
 export const visibleWhenReadOnly = true;
 
 /**
- * @param {MountedAppToolsState} tools
+ * @param {GridBoardRuntime} board
  * @returns {SVGDefsElement}
  */
-function getDefs(tools) {
-  const existingDefs = tools.svg.getElementById("defs");
+function getDefs(board) {
+  const existingDefs = board.svg.getElementById("defs");
   if (existingDefs instanceof SVGDefsElement) return existingDefs;
   const defs = /** @type {SVGDefsElement} */ (
-    tools.createSVGElement("defs", { id: "defs" })
+    board.createSVGElement("defs", { id: "defs" })
   );
-  if (tools.svg.firstChild) {
-    tools.svg.insertBefore(defs, tools.svg.firstChild);
+  if (board.svg.firstChild) {
+    board.svg.insertBefore(defs, board.svg.firstChild);
   } else {
-    tools.svg.appendChild(defs);
+    board.svg.appendChild(defs);
   }
   return defs;
 }
 
-/** @param {MountedAppToolsState} tools */
-function createPatterns(tools) {
-  const smallGrid = tools.createSVGElement("pattern", {
+/** @param {GridBoardRuntime} board */
+function createPatterns(board) {
+  const smallGrid = board.createSVGElement("pattern", {
     id: "smallGrid",
     width: "300",
     height: "300",
     patternUnits: "userSpaceOnUse",
   });
   smallGrid.appendChild(
-    tools.createSVGElement("path", {
+    board.createSVGElement("path", {
       d: "M 300 0 L 0 0 0 300",
       fill: "none",
       stroke: "gray",
       "stroke-width": "5",
     }),
   );
-  const grid = tools.createSVGElement("pattern", {
+  const grid = board.createSVGElement("pattern", {
     id: "grid",
     width: "3000",
     height: "3000",
     patternUnits: "userSpaceOnUse",
   });
   grid.appendChild(
-    tools.createSVGElement("rect", {
+    board.createSVGElement("rect", {
       width: "3000",
       height: "3000",
       fill: "url(#smallGrid)",
     }),
   );
   grid.appendChild(
-    tools.createSVGElement("path", {
+    board.createSVGElement("path", {
       d: "M 3000 0 L 0 0 0 3000",
       fill: "none",
       stroke: "gray",
       "stroke-width": "10",
     }),
   );
-  const dots = tools.createSVGElement("pattern", {
+  const dots = board.createSVGElement("pattern", {
     id: "dots",
     width: "300",
     height: "300",
@@ -98,41 +99,41 @@ function createPatterns(tools) {
     patternUnits: "userSpaceOnUse",
   });
   dots.appendChild(
-    tools.createSVGElement("circle", {
+    board.createSVGElement("circle", {
       fill: "gray",
       cx: "100",
       cy: "100",
       r: "20",
     }),
   );
-  const defs = getDefs(tools);
+  const defs = getDefs(board);
   defs.appendChild(smallGrid);
   defs.appendChild(grid);
   defs.appendChild(dots);
 }
 
-/** @param {{tools: MountedAppToolsState, index: number, states: GridFill[]}} state */
+/** @param {{board: GridBoardRuntime, index: number, states: GridFill[]}} state */
 function createGridContainer(state) {
-  createPatterns(state.tools);
-  const gridContainer = state.tools.createSVGElement("rect", {
+  createPatterns(state.board);
+  const gridContainer = state.board.createSVGElement("rect", {
     id: "gridContainer",
     width: "100%",
     height: "100%",
     fill: state.states[state.index] || "none",
   });
-  state.tools.svg.insertBefore(gridContainer, state.tools.drawingArea);
+  state.board.svg.insertBefore(gridContainer, state.board.drawingArea);
   return gridContainer;
 }
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  const tools = ctx.app;
+  const board = ctx.runtime.board;
   /** @type {GridFill[]} */
   const states = ["none", "url(#grid)", "url(#dots)"];
-  const gridContainer = createGridContainer({ tools, index: 0, states });
+  const gridContainer = createGridContainer({ board, index: 0, states });
   /** @type {GridState} */
   const state = {
-    tools,
+    board,
     index: 0,
     states,
     gridContainer,

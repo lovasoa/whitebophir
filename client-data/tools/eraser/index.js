@@ -31,11 +31,11 @@ import {
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { ToolCodes } from "../tool-order.js";
 
-/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
+/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof createDeleteMessage>} EraserDeleteMessage */
 /** @typedef {EraserDeleteMessage} EraserMessage */
 /** @typedef {{preventDefault(): void, target: EventTarget | null, type?: string, touches?: TouchList}} EraserPointerEvent */
-/** @typedef {{tools: MountedAppToolsState, erasing: boolean}} EraserState */
+/** @typedef {{board: ToolRuntimeModules["board"], writes: ToolRuntimeModules["writes"], erasing: boolean}} EraserState */
 
 export const toolId = "eraser";
 export const shortcut = "e";
@@ -67,7 +67,7 @@ function isErasableElement(elem) {
  * @returns {boolean}
  */
 function inDrawingArea(state, elem) {
-  return isElement(elem) && state.tools.drawingArea.contains(elem);
+  return isElement(elem) && state.board.drawingArea.contains(elem);
 }
 
 /**
@@ -121,12 +121,12 @@ export function move(state, x, y, evt) {
   if (
     state.erasing &&
     target !== null &&
-    target !== state.tools.svg &&
-    target !== state.tools.drawingArea &&
+    target !== state.board.svg &&
+    target !== state.board.drawingArea &&
     isErasableElement(target) &&
     inDrawingArea(state, target)
   ) {
-    state.tools.drawAndSend(createDeleteMessage(target.id));
+    state.writes.drawAndSend(createDeleteMessage(target.id));
   }
 }
 
@@ -153,13 +153,13 @@ export function draw(state, data) {
     });
     return;
   }
-  const elem = state.tools.svg.getElementById(data.id);
+  const elem = state.board.svg.getElementById(data.id);
   if (elem === null) {
     logFrontendEvent("warn", "tool.eraser.delete_missing_target", {
       id: data.id,
     });
   } else {
-    state.tools.drawingArea.removeChild(elem);
+    state.board.drawingArea.removeChild(elem);
   }
 }
 
@@ -168,5 +168,9 @@ export function draw(state, data) {
  * @returns {EraserState}
  */
 export function boot(ctx) {
-  return { tools: ctx.app, erasing: false };
+  return {
+    board: ctx.runtime.board,
+    writes: ctx.runtime.writes,
+    erasing: false,
+  };
 }
