@@ -32,7 +32,7 @@ import { messages as BoardMessages } from "../../js/board_transport.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import MessageCommon from "../../js/message_common.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
-import { ToolCodes } from "../tool-order.js";
+import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {{a:number, b:number, c:number, d:number, e:number, f:number}} TransformState */
@@ -41,7 +41,7 @@ import { ToolCodes } from "../tool-order.js";
 /** @typedef {ReturnType<typeof createCopyChildMessage>} HandCopyChildMessage */
 /** @typedef {HandUpdateChildMessage | HandDeleteChildMessage | HandCopyChildMessage} HandChildMessage */
 /** @typedef {ReturnType<typeof createBatchMessage>} HandBatchMessage */
-/** @template {HandChildMessage} TChild @typedef {{tool: typeof ToolCodes.HAND} & TChild} HandSingleMessage */
+/** @template {HandChildMessage} TChild @typedef {{tool: typeof TOOL_CODE_BY_ID.hand} & TChild} HandSingleMessage */
 /** @typedef {HandSingleMessage<HandUpdateChildMessage>} HandUpdateMessage */
 /** @typedef {HandSingleMessage<HandDeleteChildMessage>} HandDeleteMessage */
 /** @typedef {HandSingleMessage<HandCopyChildMessage>} HandCopyMessage */
@@ -233,7 +233,7 @@ function createCopyChildMessage(id, newid) {
 /** @param {HandChildMessage[]} children */
 function createBatchMessage(children) {
   return {
-    tool: ToolCodes.HAND,
+    tool: TOOL_CODE_BY_ID.hand,
     _children: children,
   };
 }
@@ -602,23 +602,21 @@ function getSelectableElements(state) {
  */
 function getSelectionViewportRect(state) {
   const rect = state.selectionRect;
-  if (typeof rect.getBoundingClientRect === "function") {
-    const clientRect = rect.getBoundingClientRect();
-    if (
-      Number.isFinite(clientRect.left) &&
-      Number.isFinite(clientRect.top) &&
-      Number.isFinite(clientRect.right) &&
-      Number.isFinite(clientRect.bottom) &&
-      clientRect.right > clientRect.left &&
-      clientRect.bottom > clientRect.top
-    ) {
-      return {
-        left: clientRect.left,
-        top: clientRect.top,
-        right: clientRect.right,
-        bottom: clientRect.bottom,
-      };
-    }
+  const clientRect = rect.getBoundingClientRect();
+  if (
+    Number.isFinite(clientRect.left) &&
+    Number.isFinite(clientRect.top) &&
+    Number.isFinite(clientRect.right) &&
+    Number.isFinite(clientRect.bottom) &&
+    clientRect.right > clientRect.left &&
+    clientRect.bottom > clientRect.top
+  ) {
+    return {
+      left: clientRect.left,
+      top: clientRect.top,
+      right: clientRect.right,
+      bottom: clientRect.bottom,
+    };
   }
 
   const scale = getCurrentScale(state);
@@ -1011,7 +1009,7 @@ export function draw(state, data, isLocal = false) {
     }
     case MutationType.DELETE:
       state.Tools.messages.messageForTool({
-        tool: ToolCodes.ERASER,
+        tool: TOOL_CODE_BY_ID.eraser,
         type: MutationType.DELETE,
         id: data.id,
       });

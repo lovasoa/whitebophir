@@ -27,7 +27,7 @@
 import { LIMITS } from "../../js/message_common.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
-import { ToolCodes } from "../tool-order.js";
+import { TOOL_CODE_BY_ID } from "../tool-order.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {Omit<ReturnType<typeof createLineMessage>, "opacity"> & {opacity?: number}} PencilCreateMessage */
@@ -45,7 +45,7 @@ import { wboPencilPoint } from "./wbo_pencil_point.js";
 function isPencilMessage(data) {
   if (!data || typeof data !== "object") return false;
   const message = /** @type {Partial<PencilMessage>} */ (data);
-  if (message.tool !== ToolCodes.PENCIL) return false;
+  if (message.tool !== toolCode) return false;
   if (message.type === MutationType.CREATE) {
     return (
       typeof message.id === "string" &&
@@ -283,12 +283,13 @@ export {
 };
 
 export const toolId = "pencil";
+const toolCode = TOOL_CODE_BY_ID[toolId];
 export const drawsOnBoard = true;
 
 /** @type {import("../shape_contract.js").ToolContract} */
 const contract = {
   toolId,
-  toolCode: ToolCodes.PENCIL,
+  toolCode,
   payloadKind: "children",
   storedTagName: "path",
   liveMessageFields: /** @type {const} */ ({
@@ -415,7 +416,7 @@ function computeMinPencilIntervalMs(rateLimits) {
  */
 function createPointMessage(state, x, y) {
   return {
-    tool: ToolCodes.PENCIL,
+    tool: toolCode,
     type: MutationType.APPEND,
     parent: state.curLineId,
     x,
@@ -429,7 +430,7 @@ function createPointMessage(state, x, y) {
  */
 function createLineMessage(state, lineId) {
   return {
-    tool: ToolCodes.PENCIL,
+    tool: toolCode,
     type: MutationType.CREATE,
     id: lineId,
     color: state.secondary.active ? "#ffffff" : state.preferences.getColor(),

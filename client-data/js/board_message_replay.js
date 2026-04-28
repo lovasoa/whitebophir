@@ -6,7 +6,7 @@ import {
   hasMessagePoint,
   hasMessageTool,
 } from "./message_shape.js";
-import { ToolCodes } from "../tools/tool-order.js";
+import { TOOL_CODE_BY_ID } from "../tools/tool-order.js";
 
 /**
  * @param {unknown} value
@@ -58,7 +58,7 @@ function isPencilReplayParent(message) {
   return (
     hasMessageId(message) &&
     hasMessageTool(message) &&
-    message.tool === ToolCodes.PENCIL
+    message.tool === TOOL_CODE_BY_ID.pencil
   );
 }
 

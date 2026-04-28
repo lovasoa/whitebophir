@@ -7,12 +7,13 @@ const {
   getToolModuleImportPath,
   getToolRuntimeAssetPath,
 } = require("../client-data/tools/tool-defaults.js");
-const { ToolCodes } = require("../client-data/tools/tool-order.js");
+const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
 const PencilTool = require("../client-data/tools/pencil/index.js");
 const RectangleTool = require("../client-data/tools/rectangle/index.js");
 const ShapeTool = require("../client-data/tools/shape_tool.js");
 installTestConsole();
 const { MutationType } = MessageToolMetadata;
+/** @typedef {import("../types/app-runtime").ToolModule} ToolModule */
 /** @typedef {import("../types/app-runtime").ToolRuntimeModules} ToolRuntimeModules */
 
 /**
@@ -574,10 +575,7 @@ function createHarness() {
         "tools",
         getToolModuleImportPath(toolName),
       );
-      const moduleNamespace = require(toolPath);
-      if (typeof moduleNamespace.boot !== "function") {
-        throw new Error(`Missing boot export for ${toolName}`);
-      }
+      const moduleNamespace = /** @type {ToolModule} */ (require(toolPath));
       const toolState = await moduleNamespace.boot(
         createToolBootContext(
           createHarnessToolRuntime(globalAny.Tools),
@@ -585,7 +583,18 @@ function createHarness() {
         ),
       );
       const stateMetadata =
-        toolState && typeof toolState === "object" ? toolState : {};
+        /** @type {{shortcut?: string, oneTouch?: boolean, alwaysOn?: boolean, mouseCursor?: string, helpText?: string, showMarker?: boolean, secondary?: import("../types/app-runtime").ToolSecondaryMode | null}} */ (
+          toolState && typeof toolState === "object" ? toolState : {}
+        );
+      const press = moduleNamespace.press;
+      const move = moduleNamespace.move;
+      const release = moduleNamespace.release;
+      const onstart = moduleNamespace.onstart;
+      const onMessage = moduleNamespace.onMessage;
+      const onSocketDisconnect = moduleNamespace.onSocketDisconnect;
+      const onMutationRejected = moduleNamespace.onMutationRejected;
+      const onSizeChange = moduleNamespace.onSizeChange;
+      const getTouchPolicy = moduleNamespace.getTouchPolicy;
       const tool = /** @type {any} */ ({
         name: toolName,
         shortcut: moduleNamespace.shortcut || stateMetadata.shortcut,
@@ -597,61 +606,49 @@ function createHarness() {
         secondary: stateMetadata.secondary || moduleNamespace.secondary || null,
         draw: (/** @type {any} */ data, /** @type {boolean} */ isLocal) =>
           moduleNamespace.draw(toolState, data, isLocal),
-        press:
-          typeof moduleNamespace.press === "function"
-            ? (
-                /** @type {number} */ x,
-                /** @type {number} */ y,
-                /** @type {any} */ evt,
-                /** @type {boolean} */ isTouchEvent,
-              ) => moduleNamespace.press(toolState, x, y, evt, isTouchEvent)
-            : undefined,
-        move:
-          typeof moduleNamespace.move === "function"
-            ? (
-                /** @type {number} */ x,
-                /** @type {number} */ y,
-                /** @type {any} */ evt,
-                /** @type {boolean} */ isTouchEvent,
-              ) => moduleNamespace.move(toolState, x, y, evt, isTouchEvent)
-            : undefined,
-        release:
-          typeof moduleNamespace.release === "function"
-            ? (
-                /** @type {number} */ x,
-                /** @type {number} */ y,
-                /** @type {any} */ evt,
-                /** @type {boolean} */ isTouchEvent,
-              ) => moduleNamespace.release(toolState, x, y, evt, isTouchEvent)
-            : undefined,
-        onstart:
-          typeof moduleNamespace.onstart === "function"
-            ? (/** @type {any} */ oldTool) =>
-                moduleNamespace.onstart(toolState, oldTool)
-            : undefined,
-        onMessage:
-          typeof moduleNamespace.onMessage === "function"
-            ? (/** @type {any} */ message) =>
-                moduleNamespace.onMessage(toolState, message)
-            : undefined,
-        onSocketDisconnect:
-          typeof moduleNamespace.onSocketDisconnect === "function"
-            ? () => moduleNamespace.onSocketDisconnect(toolState)
-            : undefined,
-        onMutationRejected:
-          typeof moduleNamespace.onMutationRejected === "function"
-            ? (/** @type {any} */ message, /** @type {string} */ reason) =>
-                moduleNamespace.onMutationRejected(toolState, message, reason)
-            : undefined,
-        onSizeChange:
-          typeof moduleNamespace.onSizeChange === "function"
-            ? (/** @type {number} */ size) =>
-                moduleNamespace.onSizeChange(toolState, size)
-            : undefined,
-        getTouchPolicy:
-          typeof moduleNamespace.getTouchPolicy === "function"
-            ? () => moduleNamespace.getTouchPolicy(toolState)
-            : undefined,
+        press: press
+          ? (
+              /** @type {number} */ x,
+              /** @type {number} */ y,
+              /** @type {any} */ evt,
+              /** @type {boolean} */ isTouchEvent,
+            ) => press(toolState, x, y, evt, isTouchEvent)
+          : undefined,
+        move: move
+          ? (
+              /** @type {number} */ x,
+              /** @type {number} */ y,
+              /** @type {any} */ evt,
+              /** @type {boolean} */ isTouchEvent,
+            ) => move(toolState, x, y, evt, isTouchEvent)
+          : undefined,
+        release: release
+          ? (
+              /** @type {number} */ x,
+              /** @type {number} */ y,
+              /** @type {any} */ evt,
+              /** @type {boolean} */ isTouchEvent,
+            ) => release(toolState, x, y, evt, isTouchEvent)
+          : undefined,
+        onstart: onstart
+          ? (/** @type {any} */ oldTool) => onstart(toolState, oldTool)
+          : undefined,
+        onMessage: onMessage
+          ? (/** @type {any} */ message) => onMessage(toolState, message)
+          : undefined,
+        onSocketDisconnect: onSocketDisconnect
+          ? () => onSocketDisconnect(toolState)
+          : undefined,
+        onMutationRejected: onMutationRejected
+          ? (/** @type {any} */ message, /** @type {string} */ reason) =>
+              onMutationRejected(toolState, message, reason)
+          : undefined,
+        onSizeChange: onSizeChange
+          ? (/** @type {number} */ size) => onSizeChange(toolState, size)
+          : undefined,
+        getTouchPolicy: getTouchPolicy
+          ? () => getTouchPolicy(toolState)
+          : undefined,
       });
       if (!tool.listeners) {
         tool.listeners = {
@@ -941,7 +938,7 @@ function expectedTwoPointStroke() {
  */
 function drawReplayStroke(pencilTool) {
   pencilTool.draw({
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.CREATE,
     id: "line-1",
     color: "#123456",
@@ -949,14 +946,14 @@ function drawReplayStroke(pencilTool) {
     opacity: 1,
   });
   pencilTool.draw({
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.APPEND,
     parent: "line-1",
     x: 100,
     y: 200,
   });
   pencilTool.draw({
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.APPEND,
     parent: "line-1",
     x: 300,
@@ -1013,14 +1010,14 @@ test("Pencil child messages build a missing line from scratch", async () => {
   const pencilTool = await harness.loadTool("pencil");
 
   pencilTool.draw({
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.APPEND,
     parent: "line-1",
     x: 100,
     y: 200,
   });
   pencilTool.draw({
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.APPEND,
     parent: "line-1",
     x: 300,
@@ -1038,7 +1035,7 @@ test("Pencil replay updates stroke styling on the reused DOM node", async () => 
   const pencilTool = await harness.loadTool("pencil");
 
   pencilTool.draw({
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.CREATE,
     id: "line-1",
     color: "#123456",
@@ -1047,7 +1044,7 @@ test("Pencil replay updates stroke styling on the reused DOM node", async () => 
   });
 
   pencilTool.draw({
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.CREATE,
     id: "line-1",
     color: "#abcdef",
@@ -1088,7 +1085,7 @@ test("Pencil input sends an initial child point without DOM setup", () => {
     [MutationType.CREATE, MutationType.APPEND],
   );
   assert.deepEqual(tools.sentMessages[1].data, {
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.APPEND,
     parent: "l-1",
     x: 100,
@@ -1118,7 +1115,7 @@ test("Pencil move logic sends the first point and throttles follow-ups", () => {
   const ready = PencilTool.createPencilMoveEffect(state, 300, 300, 71);
 
   assert.deepEqual(first.appendMessage, {
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.APPEND,
     parent: "l-1",
     x: 100,
@@ -1126,7 +1123,7 @@ test("Pencil move logic sends the first point and throttles follow-ups", () => {
   });
   assert.equal(throttled.appendMessage, null);
   assert.deepEqual(ready.appendMessage, {
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.APPEND,
     parent: "l-1",
     x: 300,
@@ -1170,7 +1167,7 @@ test("Pencil input logic stops at the configured child limit", () => {
   const finalAppend = PencilTool.createPencilMoveEffect(state, 200, 200, 101);
 
   assert.deepEqual(finalAppend.appendMessage, {
-    tool: ToolCodes.PENCIL,
+    tool: TOOL_CODE_BY_ID.pencil,
     type: MutationType.APPEND,
     parent: "l-1",
     x: 200,
@@ -1225,7 +1222,7 @@ test("Pencil rejection aborts the active stroke without removing the rolled-back
   assert.equal(activeLine.getAttribute("class"), "wbo-pencil-drawing");
 
   pencilTool.onMutationRejected(
-    { tool: ToolCodes.PENCIL, type: MutationType.APPEND, parent: "l-1" },
+    { tool: TOOL_CODE_BY_ID.pencil, type: MutationType.APPEND, parent: "l-1" },
     "shape too large",
   );
 
@@ -1247,7 +1244,7 @@ test("Pencil replay is idempotent for the same persisted stroke", async () => {
   const pencilTool = await harness.loadTool("pencil");
   const replayStroke = [
     {
-      tool: ToolCodes.PENCIL,
+      tool: TOOL_CODE_BY_ID.pencil,
       type: MutationType.CREATE,
       id: "line-1",
       color: "#123456",
@@ -1255,21 +1252,21 @@ test("Pencil replay is idempotent for the same persisted stroke", async () => {
       opacity: 1,
     },
     {
-      tool: ToolCodes.PENCIL,
+      tool: TOOL_CODE_BY_ID.pencil,
       type: MutationType.APPEND,
       parent: "line-1",
       x: 10,
       y: 20,
     },
     {
-      tool: ToolCodes.PENCIL,
+      tool: TOOL_CODE_BY_ID.pencil,
       type: MutationType.APPEND,
       parent: "line-1",
       x: 25,
       y: 35,
     },
     {
-      tool: ToolCodes.PENCIL,
+      tool: TOOL_CODE_BY_ID.pencil,
       type: MutationType.APPEND,
       parent: "line-1",
       x: 40,
@@ -1301,7 +1298,7 @@ test("Pencil delete of the active line aborts the active stroke", async () => {
   pencilTool.listeners.press(100, 100, event);
 
   pencilTool.onMessage({
-    tool: ToolCodes.ERASER,
+    tool: TOOL_CODE_BY_ID.eraser,
     type: MutationType.DELETE,
     id: "l-1",
   });
@@ -1326,7 +1323,10 @@ test("Pencil clear aborts the active stroke", async () => {
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
-  pencilTool.onMessage({ tool: ToolCodes.CLEAR, type: MutationType.CLEAR });
+  pencilTool.onMessage({
+    tool: TOOL_CODE_BY_ID.clear,
+    type: MutationType.CLEAR,
+  });
 
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
@@ -1344,7 +1344,7 @@ test("Straight line replay refreshes endpoints and styling on an existing node",
   const lineTool = await harness.loadTool("straight-line");
 
   lineTool.draw({
-    tool: ToolCodes.STRAIGHT_LINE,
+    tool: TOOL_CODE_BY_ID["straight-line"],
     type: MutationType.CREATE,
     id: "line-1",
     color: "#111111",
@@ -1356,7 +1356,7 @@ test("Straight line replay refreshes endpoints and styling on an existing node",
     y2: 40,
   });
   lineTool.draw({
-    tool: ToolCodes.STRAIGHT_LINE,
+    tool: TOOL_CODE_BY_ID["straight-line"],
     type: MutationType.CREATE,
     id: "line-1",
     color: "#abcdef",
@@ -1383,7 +1383,7 @@ test("Straight line update recreates a missing line before applying endpoints", 
   const lineTool = await harness.loadTool("straight-line");
 
   lineTool.draw({
-    tool: ToolCodes.STRAIGHT_LINE,
+    tool: TOOL_CODE_BY_ID["straight-line"],
     type: MutationType.UPDATE,
     id: "line-1",
     x2: 300,
@@ -1401,7 +1401,7 @@ test("Straight line update recreates a missing line before applying endpoints", 
   {
     toolName: "straight-line",
     updateMessage: {
-      tool: ToolCodes.STRAIGHT_LINE,
+      tool: TOOL_CODE_BY_ID["straight-line"],
       type: MutationType.UPDATE,
       id: "line-1",
       x2: 300,
@@ -1419,7 +1419,7 @@ test("Straight line update recreates a missing line before applying endpoints", 
   {
     toolName: "rectangle",
     updateMessage: {
-      tool: ToolCodes.RECTANGLE,
+      tool: TOOL_CODE_BY_ID.rectangle,
       type: MutationType.UPDATE,
       id: "rect-1",
       x: 60,
@@ -1439,7 +1439,7 @@ test("Straight line update recreates a missing line before applying endpoints", 
   {
     toolName: "ellipse",
     updateMessage: {
-      tool: ToolCodes.ELLIPSE,
+      tool: TOOL_CODE_BY_ID.ellipse,
       type: MutationType.UPDATE,
       id: "ellipse-1",
       x: 0,
@@ -1475,7 +1475,7 @@ test("Rectangle replay normalizes reverse-drag bounds on a reused node", async (
   const rectangleTool = await harness.loadTool("rectangle");
 
   rectangleTool.draw({
-    tool: ToolCodes.RECTANGLE,
+    tool: TOOL_CODE_BY_ID.rectangle,
     type: MutationType.CREATE,
     id: "rect-1",
     color: "#123456",
@@ -1513,7 +1513,7 @@ test("Rectangle press creates the seed message without DOM setup", () => {
 
   assert.equal(prevented, true);
   assert.deepEqual(tools.sentMessages[0].data, {
-    tool: ToolCodes.RECTANGLE,
+    tool: TOOL_CODE_BY_ID.rectangle,
     type: MutationType.CREATE,
     id: "r-1",
     color: "#123456",
@@ -1544,7 +1544,10 @@ equalSpanToolCases.forEach(([toolName, id]) => {
 
     const updateMessage = globalAny.Tools.sentMessages[1].data;
     assert.deepEqual(updateMessage, {
-      tool: toolName === "rectangle" ? ToolCodes.RECTANGLE : ToolCodes.ELLIPSE,
+      tool:
+        toolName === "rectangle"
+          ? TOOL_CODE_BY_ID.rectangle
+          : TOOL_CODE_BY_ID.ellipse,
       type: MutationType.UPDATE,
       id,
       x: 17136,
@@ -1585,7 +1588,7 @@ test("Rectangle move logic separates throttled local draw from forced send", () 
 
   assert.equal(throttled.shouldSend, false);
   assert.deepEqual(throttled.update, {
-    tool: ToolCodes.RECTANGLE,
+    tool: TOOL_CODE_BY_ID.rectangle,
     type: MutationType.UPDATE,
     id: "r-1",
     x: 80,
@@ -1602,7 +1605,7 @@ test("Rectangle update recreates a missing shape before applying bounds", async 
   const rectangleTool = await harness.loadTool("rectangle");
 
   rectangleTool.draw({
-    tool: ToolCodes.RECTANGLE,
+    tool: TOOL_CODE_BY_ID.rectangle,
     type: MutationType.UPDATE,
     id: "rect-1",
     x: 60,
@@ -1623,7 +1626,7 @@ test("Ellipse replay updates center and radii on a reused node", async () => {
   const ellipseTool = await harness.loadTool("ellipse");
 
   ellipseTool.draw({
-    tool: ToolCodes.ELLIPSE,
+    tool: TOOL_CODE_BY_ID.ellipse,
     type: MutationType.CREATE,
     id: "ellipse-1",
     color: "#123456",
@@ -1635,7 +1638,7 @@ test("Ellipse replay updates center and radii on a reused node", async () => {
     y2: 220,
   });
   ellipseTool.draw({
-    tool: ToolCodes.ELLIPSE,
+    tool: TOOL_CODE_BY_ID.ellipse,
     type: MutationType.UPDATE,
     id: "ellipse-1",
     x: 0,
@@ -1656,7 +1659,7 @@ test("Ellipse update recreates a missing shape before applying radii", async () 
   const ellipseTool = await harness.loadTool("ellipse");
 
   ellipseTool.draw({
-    tool: ToolCodes.ELLIPSE,
+    tool: TOOL_CODE_BY_ID.ellipse,
     type: MutationType.UPDATE,
     id: "ellipse-1",
     x: 0,
@@ -1700,7 +1703,7 @@ test("Text replay creates and then updates the same text field", async () => {
   const textTool = await harness.loadTool("text");
 
   textTool.draw({
-    tool: ToolCodes.TEXT,
+    tool: TOOL_CODE_BY_ID.text,
     type: MutationType.CREATE,
     id: "text-1",
     color: "#123456",
@@ -1710,7 +1713,7 @@ test("Text replay creates and then updates the same text field", async () => {
     y: 120,
   });
   textTool.draw({
-    tool: ToolCodes.TEXT,
+    tool: TOOL_CODE_BY_ID.text,
     type: MutationType.UPDATE,
     id: "text-1",
     txt: "hello replay",
@@ -1786,7 +1789,7 @@ test("Text remote update refreshes the active editor for the same field", async 
   textModule.draw(
     textState,
     {
-      tool: ToolCodes.TEXT,
+      tool: TOOL_CODE_BY_ID.text,
       type: MutationType.UPDATE,
       id: "t-1",
       txt: "remote draft",
@@ -1833,7 +1836,7 @@ test("Text rejection clears the resend timer for the active editor", async () =>
 
     textModule.onMutationRejected(
       textState,
-      { tool: ToolCodes.TEXT, type: MutationType.UPDATE, id: "t-1" },
+      { tool: TOOL_CODE_BY_ID.text, type: MutationType.UPDATE, id: "t-1" },
       "shape too large",
     );
 
@@ -1882,7 +1885,7 @@ test("Hand selector sends a final transform on quick release", async () => {
   assert.equal(globalAny.Tools.sentMessages.length, 1);
   assert.equal(globalAny.Tools.sentMessages[0].toolName, "hand");
   assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
-    tool: ToolCodes.HAND,
+    tool: TOOL_CODE_BY_ID.hand,
     _children: [
       {
         type: MessageToolMetadata.MutationType.UPDATE,
@@ -1923,7 +1926,7 @@ test("Hand replay expands viewport extent for transform-only updates", async () 
 
   handTool.draw(
     {
-      tool: ToolCodes.HAND,
+      tool: TOOL_CODE_BY_ID.hand,
       _children: [
         {
           type: MessageToolMetadata.MutationType.UPDATE,
@@ -2046,7 +2049,7 @@ test("Hand selector keeps the original element selected after duplicate", async 
 
     assert.equal(globalAny.Tools.sentMessages.length, 1);
     assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
-      tool: ToolCodes.HAND,
+      tool: TOOL_CODE_BY_ID.hand,
       _children: [
         {
           type: MessageToolMetadata.MutationType.COPY,
@@ -2072,7 +2075,7 @@ test("Hand selector keeps the original element selected after duplicate", async 
 
     assert.equal(globalAny.Tools.sentMessages.length, 2);
     assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
-      tool: ToolCodes.HAND,
+      tool: TOOL_CODE_BY_ID.hand,
       _children: [
         {
           type: MessageToolMetadata.MutationType.UPDATE,
@@ -2152,7 +2155,7 @@ test("Hand box selection can use IntersectionObserver without target bbox reads"
     });
 
     assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
-      tool: ToolCodes.HAND,
+      tool: TOOL_CODE_BY_ID.hand,
       _children: [
         {
           type: MessageToolMetadata.MutationType.COPY,
@@ -2305,7 +2308,7 @@ test("Eraser replay removes only the targeted stable id", async () => {
   globalAny.Tools.drawingArea.appendChild(rect2);
 
   eraserTool.draw({
-    tool: ToolCodes.ERASER,
+    tool: TOOL_CODE_BY_ID.eraser,
     type: MutationType.DELETE,
     id: "r-1",
   });

@@ -25,12 +25,13 @@
  */
 
 import { MutationType } from "../../js/mutation_type.js";
-import { ToolCodes } from "../tool-order.js";
+import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof boot>} CursorState */
 
 export const toolId = "cursor";
+const toolCode = TOOL_CODE_BY_ID[toolId];
 export const mouseCursor = "crosshair";
 export const showMarker = true;
 export const alwaysOn = true;
@@ -114,7 +115,7 @@ function getCursor(board, id) {
 /** @param {CursorState} state */
 function makeCursorMessage(state) {
   return {
-    tool: ToolCodes.CURSOR,
+    tool: toolCode,
     type: MutationType.UPDATE,
     x: state.x,
     y: state.y,

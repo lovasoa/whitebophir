@@ -75,11 +75,10 @@ import RateLimitCommon from "./rate_limit_common.js";
 import { SocketEvents } from "./socket_events.js";
 import {
   getToolIconPath,
-  getToolModuleImportPath,
   getToolRuntimeAssetPath,
   getToolStylesheetPath,
 } from "../tools/tool-defaults.js";
-import { TOOL_BY_ID } from "../tools/index.js";
+import { TOOL_BY_ID, TOOL_MODULES_BY_ID } from "../tools/index.js";
 
 /** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
@@ -971,7 +970,7 @@ function normalizeServerRenderedElementsForTool(tool) {
   if (!dom) return;
   const selector = tool.serverRenderedElementSelector;
   const normalizeElement = tool.normalizeServerRenderedElement;
-  if (!selector || typeof normalizeElement !== "function") return;
+  if (!selector || !normalizeElement) return;
 
   dom.drawingArea.querySelectorAll(selector).forEach((element) => {
     if (element instanceof SVGElement) {
@@ -2579,38 +2578,21 @@ bindRenderedToolButtons();
 
 /**
  * @param {string} toolName
- * @returns {Promise<ToolModule>}
+ * @returns {Promise<ToolModule<any>>}
  */
 async function loadToolModule(toolName) {
-  const namespace = await import(
-    Tools.assets.resolveAssetPath(getToolModuleImportPath(toolName))
-  );
-  if (!isToolModule(namespace)) {
-    throw new Error(`Invalid tool module exports for ${toolName}.`);
+  if (!isRegisteredToolId(toolName)) {
+    throw new Error(`Unknown tool module: ${toolName}.`);
   }
-  if (namespace.toolId !== toolName) {
-    throw new Error(
-      `Tool module for ${toolName} exported ${String(namespace.toolId)}.`,
-    );
-  }
-  return namespace;
+  return /** @type {ToolModule<any>} */ (TOOL_MODULES_BY_ID[toolName]);
 }
 
 /**
- * @param {unknown} value
- * @returns {value is ToolModule}
+ * @param {string} toolName
+ * @returns {toolName is keyof typeof TOOL_MODULES_BY_ID}
  */
-function isToolModule(value) {
-  return !!(
-    value &&
-    typeof value === "object" &&
-    "toolId" in value &&
-    typeof value.toolId === "string" &&
-    "boot" in value &&
-    typeof value.boot === "function" &&
-    "draw" in value &&
-    typeof value.draw === "function"
-  );
+function isRegisteredToolId(toolName) {
+  return Object.hasOwn(TOOL_MODULES_BY_ID, toolName);
 }
 
 /**
@@ -2701,7 +2683,7 @@ function createToolBootContext(toolName) {
 }
 
 /**
- * @param {ToolModule} toolModule
+ * @param {ToolModule<any>} toolModule
  * @param {unknown} toolState
  * @param {string} toolName
  * @returns {MountedAppTool}
@@ -2732,66 +2714,47 @@ function createMountedTool(toolModule, toolState, toolName) {
     shortcut: toolModule.shortcut,
     icon: "",
     draw: (message, isLocal) => draw(toolState, message, isLocal),
-    normalizeServerRenderedElement:
-      typeof normalizeServerRenderedElement === "function"
-        ? (element) => normalizeServerRenderedElement(toolState, element)
-        : undefined,
+    normalizeServerRenderedElement: normalizeServerRenderedElement
+      ? (element) => normalizeServerRenderedElement(toolState, element)
+      : undefined,
     serverRenderedElementSelector: toolModule.serverRenderedElementSelector,
-    press:
-      typeof press === "function"
-        ? (x, y, evt, isTouchEvent) => press(toolState, x, y, evt, isTouchEvent)
-        : undefined,
-    move:
-      typeof move === "function"
-        ? (x, y, evt, isTouchEvent) => move(toolState, x, y, evt, isTouchEvent)
-        : undefined,
-    release:
-      typeof release === "function"
-        ? (x, y, evt, isTouchEvent) =>
-            release(toolState, x, y, evt, isTouchEvent)
-        : undefined,
-    onMessage:
-      typeof onMessage === "function"
-        ? (message) => onMessage(toolState, message)
-        : () => {},
+    press: press
+      ? (x, y, evt, isTouchEvent) => press(toolState, x, y, evt, isTouchEvent)
+      : undefined,
+    move: move
+      ? (x, y, evt, isTouchEvent) => move(toolState, x, y, evt, isTouchEvent)
+      : undefined,
+    release: release
+      ? (x, y, evt, isTouchEvent) => release(toolState, x, y, evt, isTouchEvent)
+      : undefined,
+    onMessage: onMessage
+      ? (message) => onMessage(toolState, message)
+      : () => {},
     listeners: {},
     compiledListeners: {},
-    onstart:
-      typeof onstart === "function"
-        ? (oldTool) => onstart(toolState, oldTool)
-        : () => {},
-    onquit:
-      typeof onquit === "function"
-        ? (newTool) => onquit(toolState, newTool)
-        : () => {},
-    onSocketDisconnect:
-      typeof onSocketDisconnect === "function"
-        ? () => onSocketDisconnect(toolState)
-        : () => {},
-    onMutationRejected:
-      typeof onMutationRejected === "function"
-        ? (message, reason) => onMutationRejected(toolState, message, reason)
-        : undefined,
+    onstart: onstart ? (oldTool) => onstart(toolState, oldTool) : () => {},
+    onquit: onquit ? (newTool) => onquit(toolState, newTool) : () => {},
+    onSocketDisconnect: onSocketDisconnect
+      ? () => onSocketDisconnect(toolState)
+      : () => {},
+    onMutationRejected: onMutationRejected
+      ? (message, reason) => onMutationRejected(toolState, message, reason)
+      : undefined,
     stylesheet: undefined,
     oneTouch: toolModule.oneTouch,
     alwaysOn: toolModule.alwaysOn,
     mouseCursor: toolModule.mouseCursor ?? toolStateObject?.mouseCursor,
     helpText: toolModule.helpText,
     secondary: toolStateObject?.secondary ?? toolModule.secondary ?? null,
-    onSizeChange:
-      typeof onSizeChange === "function"
-        ? (size) => onSizeChange(toolState, size)
-        : undefined,
-    getTouchPolicy:
-      typeof getTouchPolicy === "function"
-        ? () => getTouchPolicy(toolState)
-        : undefined,
+    onSizeChange: onSizeChange
+      ? (size) => onSizeChange(toolState, size)
+      : undefined,
+    getTouchPolicy: getTouchPolicy
+      ? () => getTouchPolicy(toolState)
+      : undefined,
     showMarker: toolModule.showMarker,
     requiresWritableBoard: toolModule.requiresWritableBoard,
-    touchListenerOptions:
-      touchListenerOptions && typeof touchListenerOptions === "object"
-        ? touchListenerOptions
-        : undefined,
+    touchListenerOptions,
   };
   if (toolDefinition) {
     tool.icon ||= getToolIconPath(toolDefinition.toolId);
@@ -2887,7 +2850,7 @@ function createMountedTool(toolModule, toolState, toolName) {
 }
 
 /**
- * @param {ToolModule} toolModule
+ * @param {ToolModule<any>} toolModule
  * @param {unknown} toolState
  * @param {string} toolName
  * @returns {MountedAppTool | null}

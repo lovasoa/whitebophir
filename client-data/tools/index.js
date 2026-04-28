@@ -24,6 +24,8 @@ import {
 /**
  * @typedef {{
  *   toolId: string,
+ *   boot: Function,
+ *   draw: Function,
  *   id?: ToolCode,
  *   visibleWhenReadOnly?: boolean,
  *   moderatorOnly?: boolean,
@@ -40,6 +42,7 @@ import {
  *   renderBoardSvg?: Function,
  * }} ToolModuleLike
  */
+/** @typedef {{[TToolId in keyof ToolCodeById]: ToolModuleLike & {toolId: TToolId}}} ToolModulesById */
 
 /**
  * @template {ToolModuleLike} T
@@ -89,23 +92,20 @@ function defineTool(tool, toolCode) {
   };
 }
 
-const TOOL_MODULES_BY_ID =
-  /** @type {{[toolId: string]: ToolModuleLike | undefined}} */ (
-    /** @type {unknown} */ ({
-      pencil: PencilModule,
-      "straight-line": StraightLineModule,
-      rectangle: RectangleModule,
-      ellipse: EllipseModule,
-      text: TextModule,
-      eraser: EraserModule,
-      hand: HandModule,
-      grid: GridModule,
-      download: DownloadModule,
-      zoom: ZoomModule,
-      clear: ClearModule,
-      cursor: CursorModule,
-    })
-  );
+export const TOOL_MODULES_BY_ID = /** @satisfies {ToolModulesById} */ ({
+  pencil: PencilModule,
+  "straight-line": StraightLineModule,
+  rectangle: RectangleModule,
+  ellipse: EllipseModule,
+  text: TextModule,
+  eraser: EraserModule,
+  hand: HandModule,
+  grid: GridModule,
+  download: DownloadModule,
+  zoom: ZoomModule,
+  clear: ClearModule,
+  cursor: CursorModule,
+});
 
 export const TOOLS = TOOL_IDS.map((toolId) =>
   defineTool(

@@ -25,13 +25,14 @@
  */
 
 import { MutationType } from "../../js/mutation_type.js";
-import { ToolCodes } from "../tool-order.js";
+import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 /** @import { ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof createClearMessage>} ClearMessage */
 /** @typedef {ReturnType<typeof boot>} ClearToolState */
 
 export const toolId = "clear";
+const toolCode = TOOL_CODE_BY_ID[toolId];
 export const shortcut = "c";
 export const oneTouch = true;
 export const requiresWritableBoard = true;
@@ -44,7 +45,7 @@ export const liveMessageFields = /** @type {const} */ ({
 /** @param {ClearToolState} state */
 function createClearMessage(state) {
   return {
-    tool: ToolCodes.CLEAR,
+    tool: toolCode,
     type: MutationType.CLEAR,
     id: "",
     token: state.identity.token,

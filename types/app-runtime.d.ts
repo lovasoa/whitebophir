@@ -9,7 +9,7 @@ import type * as PencilTool from "../client-data/tools/pencil/index.js";
 import type * as RectangleTool from "../client-data/tools/rectangle/index.js";
 import type * as StraightLineTool from "../client-data/tools/straight-line/index.js";
 import type * as TextTool from "../client-data/tools/text/index.js";
-import { ToolCodes } from "../client-data/tools/tool-order.js";
+import { TOOL_CODE_BY_ID } from "../client-data/tools/tool-order.js";
 
 export type Transform = {
   a: number;
@@ -20,7 +20,7 @@ export type Transform = {
   f: number;
 };
 
-type ToolCodeMap = typeof ToolCodes;
+type ToolCodeMap = typeof TOOL_CODE_BY_ID;
 type MutationTypeMap = typeof MutationType;
 type SocketEventMap = typeof SocketEvents;
 

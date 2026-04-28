@@ -3,8 +3,8 @@ import { logFrontendEvent } from "../js/frontend_logging.js";
 import { clampCoord, LIMITS } from "../js/message_common.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../types/app-runtime" */
-/** @typedef {typeof import("./tool-order.js").ToolCodes} ShapeToolCodeMap */
-/** @typedef {ShapeToolCodeMap["RECTANGLE"] | ShapeToolCodeMap["ELLIPSE"] | ShapeToolCodeMap["STRAIGHT_LINE"]} ShapeToolCode */
+/** @typedef {typeof import("./tool-order.js").TOOL_CODE_BY_ID} ShapeToolCodeMap */
+/** @typedef {ShapeToolCodeMap["rectangle"] | ShapeToolCodeMap["ellipse"] | ShapeToolCodeMap["straight-line"]} ShapeToolCode */
 /** @typedef {{config: {contract: {toolCode: ShapeToolCode}}, preferences: ToolRuntimeModules["preferences"]}} ShapeCreateMessageState */
 /** @typedef {MouseEvent | TouchEvent | undefined} ShapePointerEvent */
 /** @typedef {{name: string, icon: string, active: boolean, switch?: (state: ShapeToolState) => void}} ShapeToolSecondary */
@@ -28,7 +28,7 @@ import { clampCoord, LIMITS } from "../js/message_common.js";
  */
 
 /**
- * @typedef {ShapeCreateMessage<ShapeToolCodeMap["RECTANGLE"]> | ShapeBoxUpdateMessage<ShapeToolCodeMap["RECTANGLE"]> | ShapeCreateMessage<ShapeToolCodeMap["ELLIPSE"]> | ShapeBoxUpdateMessage<ShapeToolCodeMap["ELLIPSE"]> | ShapeCreateMessage<ShapeToolCodeMap["STRAIGHT_LINE"]> | ShapeLineUpdateMessage<ShapeToolCodeMap["STRAIGHT_LINE"]>} ShapeToolMessage
+ * @typedef {ShapeCreateMessage<ShapeToolCodeMap["rectangle"]> | ShapeBoxUpdateMessage<ShapeToolCodeMap["rectangle"]> | ShapeCreateMessage<ShapeToolCodeMap["ellipse"]> | ShapeBoxUpdateMessage<ShapeToolCodeMap["ellipse"]> | ShapeCreateMessage<ShapeToolCodeMap["straight-line"]> | ShapeLineUpdateMessage<ShapeToolCodeMap["straight-line"]>} ShapeToolMessage
  */
 
 /**
@@ -82,7 +82,7 @@ export function bootShapeTool(config, ctx) {
     const secondary = config.secondary;
     state.secondary = { ...secondary };
     const switchSecondary = secondary.switch;
-    if (typeof switchSecondary === "function") {
+    if (switchSecondary) {
       state.secondary.switch = () => switchSecondary(state);
     }
   }

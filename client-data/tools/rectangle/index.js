@@ -4,7 +4,7 @@ import {
   makeBoxShapeUpdateMessage,
   makeSeedShapeCreateMessage,
 } from "../shape_tool.js";
-import { ToolCodes } from "../tool-order.js";
+import { TOOL_CODE_BY_ID } from "../tool-order.js";
 export {
   drawShapeTool as draw,
   moveShapeTool as move,
@@ -19,12 +19,13 @@ import {
 } from "../shape_contract.js";
 
 export const toolId = "rectangle";
+const toolCode = TOOL_CODE_BY_ID[toolId];
 export const drawsOnBoard = true;
 export const mouseCursor = "crosshair";
 
 const contract = defineShapeContract({
   toolId,
-  toolCode: ToolCodes.RECTANGLE,
+  toolCode,
   storedTagName: "rect",
   updatableFields: /** @type {const} */ (["x", "y", "x2", "y2"]),
   summarizeStoredSvgItem(entry, paintOrder, helpers) {

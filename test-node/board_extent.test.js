@@ -11,11 +11,11 @@ async function loadToolOrderModule() {
 
 test("content extents ignore cursor points", async () => {
   const { getContentMessageBounds } = await loadExtentModule();
-  const { ToolCodes } = await loadToolOrderModule();
+  const { TOOL_CODE_BY_ID } = await loadToolOrderModule();
 
   assert.equal(
     getContentMessageBounds({
-      tool: ToolCodes.CURSOR,
+      tool: TOOL_CODE_BY_ID.cursor,
       type: 2,
       x: 100000,
       y: 80000,

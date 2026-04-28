@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Hand, Rectangle } = require("../client-data/tools/index.js");
-const { ToolCodes } = require("../client-data/tools/tool-order.js");
+const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
 const { collectOptimisticAffectedIds, collectOptimisticDependencyIds } =
   require("../client-data/js/optimistic_mutation.js");
 const {
@@ -363,7 +363,7 @@ test("optimistic journal uses authoritative prune plans with dependency-driven e
   );
 
   const clearPrunePlan = optimisticPrunePlanForAuthoritativeMessage({
-    tool: ToolCodes.CLEAR,
+    tool: TOOL_CODE_BY_ID.clear,
     type: MutationType.CLEAR,
   });
   assert.equal(clearPrunePlan.reset, true);

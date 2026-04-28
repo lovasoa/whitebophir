@@ -32,7 +32,7 @@ import {
 } from "../../js/message_common.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
-import { ToolCodes } from "../tool-order.js";
+import { TOOL_CODE_BY_ID } from "../tool-order.js";
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {(evt: Event | KeyboardEvent | FocusEvent) => void} TextChangeHandler */
 /** @typedef {ReturnType<typeof createInitialText>} CurrentTextState */
@@ -110,6 +110,7 @@ function normalizeCurrentTextPosition(state) {
 }
 
 export const toolId = "text";
+const toolCode = TOOL_CODE_BY_ID[toolId];
 export const drawsOnBoard = true;
 export const mouseCursor = "text";
 
@@ -120,7 +121,7 @@ export const mouseCursor = "text";
 function isTextMessage(data) {
   if (!data || typeof data !== "object") return false;
   const message = /** @type {Partial<TextMessage>} */ (data);
-  if (message.tool !== ToolCodes.TEXT) return false;
+  if (message.tool !== toolCode) return false;
   if (message.type === MutationType.CREATE) {
     return (
       typeof message.id === "string" &&
@@ -140,7 +141,7 @@ function isTextMessage(data) {
 /** @type {import("../shape_contract.js").ToolContract} */
 const contract = {
   toolId,
-  toolCode: ToolCodes.TEXT,
+  toolCode,
   payloadKind: "text",
   storedTagName: "text",
   updatableFields: /** @type {const} */ (["txt"]),
@@ -371,7 +372,7 @@ function editOldText(state, elem) {
 /** @param {TextState} state */
 function createTextMessage(state) {
   return {
-    tool: ToolCodes.TEXT,
+    tool: toolCode,
     type: MutationType.CREATE,
     id: state.curText.id,
     color: state.curText.color,
@@ -385,7 +386,7 @@ function createTextMessage(state) {
 /** @param {TextState} state */
 function updateTextMessage(state) {
   return {
-    tool: ToolCodes.TEXT,
+    tool: toolCode,
     type: MutationType.UPDATE,
     id: state.curText.id,
     txt: truncateText(state.input.value),

@@ -29,7 +29,7 @@ import {
   MutationType,
 } from "../../js/message_tool_metadata.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
-import { ToolCodes } from "../tool-order.js";
+import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 /** @import { ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof createDeleteMessage>} EraserDeleteMessage */
@@ -38,6 +38,7 @@ import { ToolCodes } from "../tool-order.js";
 /** @typedef {ReturnType<typeof boot>} EraserState */
 
 export const toolId = "eraser";
+const toolCode = TOOL_CODE_BY_ID[toolId];
 export const shortcut = "e";
 export const mouseCursor = "crosshair";
 export const showMarker = true;
@@ -88,7 +89,7 @@ function resolveTarget(evt) {
 /** @param {string} id */
 function createDeleteMessage(id) {
   return {
-    tool: ToolCodes.ERASER,
+    tool: toolCode,
     type: MutationType.DELETE,
     id,
   };

@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { MutationType } from "../../client-data/js/mutation_type.js";
-import { ToolCodes } from "../../client-data/tools/tool-order.js";
+import { TOOL_CODE_BY_ID } from "../../client-data/tools/tool-order.js";
 import type {
   AppToolsState,
   BoardMessage,
@@ -467,7 +467,7 @@ window.turnstile = {
       },
       {
         inputPaths: paths,
-        pencilToolCode: ToolCodes.PENCIL,
+        pencilToolCode: TOOL_CODE_BY_ID.pencil,
         createType: MutationType.CREATE,
         appendType: MutationType.APPEND,
       },
@@ -634,7 +634,7 @@ window.turnstile = {
       {
         targetId: id,
         deleteType: MutationType.DELETE,
-        toolId: ToolCodes.ERASER,
+        toolId: TOOL_CODE_BY_ID.eraser,
       },
     );
     await expect(shape).toHaveCount(0);
@@ -818,7 +818,11 @@ window.turnstile = {
           _children: [{ type: copyType, id: targetId, newid: duplicateId }],
         });
       },
-      { handTool: ToolCodes.HAND, targetId: id, copyType: MutationType.COPY },
+      {
+        handTool: TOOL_CODE_BY_ID.hand,
+        targetId: id,
+        copyType: MutationType.COPY,
+      },
     );
     await expect(this.page.locator("#drawingArea rect")).toHaveCount(2);
     const afterDuplicate = await this.page.evaluate(() => {
@@ -834,7 +838,7 @@ window.turnstile = {
         });
       },
       {
-        handTool: ToolCodes.HAND,
+        handTool: TOOL_CODE_BY_ID.hand,
         targetId: id,
         deleteType: MutationType.DELETE,
       },
@@ -1012,7 +1016,7 @@ window.turnstile = {
         });
       },
       {
-        rectangleTool: ToolCodes.RECTANGLE,
+        rectangleTool: TOOL_CODE_BY_ID.rectangle,
         rectId: id,
         createType: MutationType.CREATE,
       },

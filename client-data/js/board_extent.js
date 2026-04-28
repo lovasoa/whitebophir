@@ -1,6 +1,6 @@
 import MessageCommon from "./message_common.js";
 import { hasMessagePoint } from "./message_shape.js";
-import { ToolCodes } from "../tools/tool-order.js";
+import { TOOL_CODE_BY_ID } from "../tools/tool-order.js";
 
 /**
  * @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds
@@ -94,7 +94,7 @@ export function measureSvgElementBoundsAfterTransform(element, transform) {
 export function getContentMessageBounds(message) {
   if (!message || typeof message !== "object") return null;
   const record = /** @type {{[key: string]: unknown}} */ (message);
-  if (record.tool === ToolCodes.CURSOR || record.tool === "cursor") {
+  if (record.tool === TOOL_CODE_BY_ID.cursor || record.tool === "cursor") {
     return null;
   }
   if (Array.isArray(record._children)) {

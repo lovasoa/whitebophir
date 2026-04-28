@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 
 import { MutationType } from "../client-data/js/mutation_type.js";
-import { ToolCodes } from "../client-data/tools/tool-order.js";
+import { TOOL_CODE_BY_ID } from "../client-data/tools/tool-order.js";
 import { writeBoardState } from "../server/persistence/svg_board_store.mjs";
 
 const repoRoot = path.resolve(
@@ -204,7 +204,7 @@ export async function runPeerVisibleEraseBenchmark(maxChildren) {
         });
       },
       {
-        eraserTool: ToolCodes.ERASER,
+        eraserTool: TOOL_CODE_BY_ID.eraser,
         targetId: lastPencilId,
         deleteType: MutationType.DELETE,
       },
