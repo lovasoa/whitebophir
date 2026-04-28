@@ -267,27 +267,36 @@ Tools.i18n = (function i18n() {
 })();
 
 Tools.config = {
-  serverConfig: /** @type {ServerConfig} */ ({}),
+  serverConfig: /** @type {ServerConfig} */ (
+    parseEmbeddedJson("configuration", {})
+  ),
+};
+Tools.identity = {
+  boardName: resolveBoardName(window.location.pathname),
+  token: new URL(window.location.href).searchParams.get("token"),
 };
 
 /**
- * @param {unknown} value
- * @returns {number}
+ * @param {AppToolsState["config"]} config
+ * @param {AppToolsState["viewportState"]} viewportState
+ * @returns {AppToolsState["coordinates"]}
  */
-Tools.coordinates = {
-  /** @param {unknown} value */
-  toBoardCoordinate(value) {
-    return MessageCommon.clampCoord(
-      value,
-      Tools.config.serverConfig.MAX_BOARD_SIZE,
-    );
-  },
+function createCoordinateModule(config, viewportState) {
+  return {
+    /** @param {unknown} value */
+    toBoardCoordinate(value) {
+      return MessageCommon.clampCoord(
+        value,
+        config.serverConfig.MAX_BOARD_SIZE,
+      );
+    },
 
-  /** @param {unknown} value */
-  pageCoordinateToBoard(value) {
-    return Tools.viewportState.controller.pageCoordinateToBoard(value);
-  },
-};
+    /** @param {unknown} value */
+    pageCoordinateToBoard(value) {
+      return viewportState.controller.pageCoordinateToBoard(value);
+    },
+  };
+}
 
 /**
  * @param {string} assetPath
@@ -308,21 +317,23 @@ function normalizeBoardAssetPath(assetPath) {
 }
 
 /**
- * @param {string} assetPath
- * @returns {string}
+ * @param {(assetPath: string) => string} resolveAssetPath
+ * @returns {AppToolsState["assets"]}
  */
-Tools.assets = {
-  resolveAssetPath: normalizeBoardAssetPath,
-  /**
-   * @param {string} toolName
-   * @param {string} assetFile
-   */
-  getToolAssetUrl(toolName, assetFile) {
-    return Tools.assets.resolveAssetPath(
-      getToolRuntimeAssetPath(toolName, assetFile),
-    );
-  },
-};
+function createAssetModule(resolveAssetPath) {
+  return {
+    resolveAssetPath,
+    /**
+     * @param {string} toolName
+     * @param {string} assetFile
+     */
+    getToolAssetUrl(toolName, assetFile) {
+      return resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
+    },
+  };
+}
+
+Tools.assets = createAssetModule(normalizeBoardAssetPath);
 
 Tools.toolRegistry = {
   current: null,
@@ -495,38 +506,48 @@ function getAuthoritativeBaselineUrl(cacheBust) {
   return `${url.pathname}${url.search}`;
 }
 
-Tools.rateLimits = {
-  /** @param {RateLimitKind} kind */
-  getRateLimitDefinition(kind) {
-    const configured = Tools.config.serverConfig.RATE_LIMITS || {};
-    if (configured && configured[kind]) return configured[kind];
+/**
+ * @param {AppToolsState["config"]} config
+ * @param {AppToolsState["identity"]} identity
+ * @returns {AppToolsState["rateLimits"]}
+ */
+function createRateLimitModule(config, identity) {
+  const module = {
+    /** @param {RateLimitKind} kind */
+    getRateLimitDefinition(kind) {
+      const configured = config.serverConfig.RATE_LIMITS || {};
+      if (configured && configured[kind]) return configured[kind];
 
-    return {
-      limit: 0,
-      anonymousLimit: 0,
-      periodMs: 0,
-    };
-  },
+      return {
+        limit: 0,
+        anonymousLimit: 0,
+        periodMs: 0,
+      };
+    },
 
-  /** @param {RateLimitKind} kind */
-  getEffectiveRateLimit(kind) {
-    return RateLimitCommon.getEffectiveRateLimitDefinition(
-      Tools.rateLimits.getRateLimitDefinition(kind),
-      Tools.identity.boardName,
-    );
-  },
+    /** @param {RateLimitKind} kind */
+    getEffectiveRateLimit(kind) {
+      return RateLimitCommon.getEffectiveRateLimitDefinition(
+        module.getRateLimitDefinition(kind),
+        identity.boardName,
+      );
+    },
 
-  /** @param {LiveBoardMessage} message */
-  getBufferedWriteCosts(message) {
-    return RATE_LIMIT_KINDS.reduce(
-      (costs, kind) => {
-        costs[kind] = RateLimitCommon.getRateLimitCost(kind, message);
-        return costs;
-      },
-      /** @type {import("../../types/app-runtime").RateLimitCosts} */ ({}),
-    );
-  },
-};
+    /** @param {LiveBoardMessage} message */
+    getBufferedWriteCosts(message) {
+      return RATE_LIMIT_KINDS.reduce(
+        (costs, kind) => {
+          costs[kind] = RateLimitCommon.getRateLimitCost(kind, message);
+          return costs;
+        },
+        /** @type {import("../../types/app-runtime").RateLimitCosts} */ ({}),
+      );
+    },
+  };
+  return module;
+}
+
+Tools.rateLimits = createRateLimitModule(Tools.config, Tools.identity);
 
 function clearBufferedWriteTimer() {
   if (Tools.writes.bufferedWriteTimer) {
@@ -1430,6 +1451,7 @@ Tools.viewportState = {
   controller: createViewportController(Tools),
   drawToolsAllowed: null,
 };
+Tools.coordinates = createCoordinateModule(Tools.config, Tools.viewportState);
 Tools.access = {
   boardState: {
     readonly: false,
@@ -3324,15 +3346,6 @@ if (socketIOExtraHeaders) {
 }
 const colorIndex = (Math.random() * colorPresets.length) | 0;
 const initialPreset = colorPresets[colorIndex] || colorPresets[0];
-Tools.config = {
-  serverConfig: /** @type {ServerConfig} */ (
-    parseEmbeddedJson("configuration", {})
-  ),
-};
-Tools.identity = {
-  boardName: resolveBoardName(window.location.pathname),
-  token: new URL(window.location.href).searchParams.get("token"),
-};
 Tools.connection.socketIOExtraHeaders = socketIOExtraHeaders;
 const initialPreferences = {
   tool: "hand",
