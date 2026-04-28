@@ -44,16 +44,16 @@ export function frontendLogFields(fields) {
         : null,
     connectionState:
       typeof tools?.connectionState === "string" ? tools.connectionState : null,
-    pendingProtectedWrites: Array.isArray(tools?.turnstilePendingWrites)
-      ? tools.turnstilePendingWrites.length
+    pendingProtectedWrites: Array.isArray(tools?.turnstile?.pendingWrites)
+      ? tools.turnstile.pendingWrites.length
       : null,
     turnstilePending:
-      typeof tools?.turnstilePending === "boolean"
-        ? tools.turnstilePending
+      typeof tools?.turnstile?.pending === "boolean"
+        ? tools.turnstile.pending
         : null,
     turnstileWidgetId:
-      typeof tools?.turnstileWidgetId === "string"
-        ? tools.turnstileWidgetId
+      typeof tools?.turnstile?.widgetId === "string"
+        ? tools.turnstile.widgetId
         : null,
     ...(fields || {}),
   };

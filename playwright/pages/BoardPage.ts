@@ -1016,7 +1016,7 @@ window.turnstile = {
     });
     return this.page.evaluate<ProtectedWriteState>(() => ({
       overlayPresent: true,
-      pendingWrites: window.WBOApp.turnstilePendingWrites.length,
+      pendingWrites: window.WBOApp.turnstile.pendingWrites.length,
       validated: window.WBOApp.isTurnstileValidated(),
     }));
   }
@@ -1033,7 +1033,7 @@ window.turnstile = {
     });
     return this.page.evaluate<ProtectedWriteState>(() => ({
       overlayPresent: false,
-      pendingWrites: window.WBOApp.turnstilePendingWrites.length,
+      pendingWrites: window.WBOApp.turnstile.pendingWrites.length,
       validated: window.WBOApp.isTurnstileValidated(),
     }));
   }
@@ -1050,7 +1050,7 @@ window.turnstile = {
         overlayPresent: !!(
           overlay && !overlay.classList.contains("turnstile-overlay-hidden")
         ),
-        pendingWrites: window.WBOApp.turnstilePendingWrites.length,
+        pendingWrites: window.WBOApp.turnstile.pendingWrites.length,
         validated: window.WBOApp.isTurnstileValidated(),
       };
     });

@@ -618,6 +618,17 @@ export type AppStatusModule = {
   explicitBoardStatus: ExplicitBoardStatus;
 };
 
+/** Turnstile validation state and protected-write queue. */
+export type AppTurnstileModule = {
+  validatedUntil: number;
+  widgetId: unknown | null;
+  refreshTimeout: number | null;
+  retryTimeout: number | null;
+  pending: boolean;
+  pendingWrites: PendingWrite[];
+  overlayTimeout: number | null;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -710,13 +721,7 @@ export type AppToolsState = {
   access: AppAccessModule;
   preferences: AppPreferenceModule;
   status: AppStatusModule;
-  turnstileValidatedUntil: number;
-  turnstileWidgetId: unknown | null;
-  turnstileRefreshTimeout: number | null;
-  turnstileRetryTimeout: number | null;
-  turnstilePending: boolean;
-  turnstilePendingWrites: PendingWrite[];
-  showTurnstileOverlayTimeout: number | null;
+  turnstile: AppTurnstileModule;
   scale: number;
   viewport: ViewportController;
   drawToolsAllowed: boolean | null;

@@ -315,12 +315,15 @@ Tools.getToolAssetUrl = function getToolAssetUrl(toolName, assetFile) {
 Tools.bootedToolPromises =
   /** @type {AppToolsState["bootedToolPromises"]} */ ({});
 Tools.bootedToolNames = new Set();
-Tools.turnstileValidatedUntil = 0;
-Tools.turnstileWidgetId = null;
-Tools.turnstileRefreshTimeout = null;
-Tools.turnstileRetryTimeout = null;
-Tools.turnstilePending = false;
-Tools.turnstilePendingWrites = [];
+Tools.turnstile = {
+  validatedUntil: 0,
+  widgetId: null,
+  refreshTimeout: null,
+  retryTimeout: null,
+  pending: false,
+  pendingWrites: [],
+  overlayTimeout: null,
+};
 Tools.bufferedWrites = [];
 Tools.bufferedWriteTimer = null;
 Tools.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
@@ -1153,7 +1156,7 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
   Tools.incomingBroadcastQueue = [];
   Tools.processingIncomingBroadcast = false;
   Tools.discardBufferedWrites();
-  Tools.turnstilePendingWrites = [];
+  Tools.turnstile.pendingWrites = [];
   Tools.hideTurnstileOverlay();
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
@@ -1173,8 +1176,8 @@ Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
  * @param {LiveBoardMessage} data
  */
 Tools.queueProtectedWrite = function queueProtectedWrite(data) {
-  const hadPendingWrites = Tools.turnstilePendingWrites.length > 0;
-  Tools.turnstilePendingWrites.push({ data });
+  const hadPendingWrites = Tools.turnstile.pendingWrites.length > 0;
+  Tools.turnstile.pendingWrites.push({ data });
   if (hadPendingWrites) return;
   const toolName = getRuntimeToolId(data.tool) || "unknown";
   logBoardEvent("log", "turnstile.write_queued", {
@@ -1186,8 +1189,8 @@ Tools.queueProtectedWrite = function queueProtectedWrite(data) {
 };
 
 Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
-  const pendingWrites = Tools.turnstilePendingWrites;
-  Tools.turnstilePendingWrites = [];
+  const pendingWrites = Tools.turnstile.pendingWrites;
+  Tools.turnstile.pendingWrites = [];
   logBoardEvent("log", "turnstile.write_flush", {
     count: pendingWrites.length,
   });
@@ -2135,7 +2138,7 @@ Tools.startConnection = () => {
         Tools.setTurnstileValidation(null);
         BoardTurnstile.resetTurnstileWidget(
           typeof turnstile !== "undefined" ? turnstile : undefined,
-          Tools.turnstileWidgetId,
+          Tools.turnstile.widgetId,
         );
       }
       Tools.hasConnectedOnce = true;
