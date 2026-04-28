@@ -14,9 +14,9 @@ const TURNSTILE_RETRY_DELAY_MS = 1_500;
 let turnstileScriptPromise = null;
 
 /**
- * @returns {any}
+ * @returns {import("../../types/app-runtime").TurnstileGlobal | undefined}
  */
-function getTurnstileApi() {
+export function getTurnstileApi() {
   return typeof turnstile !== "undefined" ? turnstile : undefined;
 }
 

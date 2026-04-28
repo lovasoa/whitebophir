@@ -177,7 +177,7 @@ export type IncomingBroadcast =
   | AuthoritativeReplayBatch;
 
 export type PendingWrite = {
-  data: LiveBoardMessage;
+  data: ClientTrackedMessage;
 };
 
 export type BufferedWrite = {
@@ -405,7 +405,7 @@ export type AppSocket = {
     ): void;
     (eventName: string, ...args: unknown[]): void;
   };
-  connect?: () => void;
+  connect: () => void;
   disconnect?: () => void;
   destroy?: () => void;
   once?: (eventName: string, handler: (...args: unknown[]) => void) => void;
@@ -456,12 +456,12 @@ export type OptimisticJournalEntry = {
   readonly dependsOn: readonly string[];
   readonly dependencyItemIds: readonly string[];
   readonly rollback: OptimisticRollback;
-  readonly message: LiveBoardMessage;
+  readonly message: ClientTrackedMessage;
 };
 
 export type OptimisticJournalEntryInput = Omit<
   OptimisticJournalEntry,
-  "dependencyItemIds"
+  "clientMutationId" | "dependencyItemIds"
 > & {
   readonly dependencyItemIds?: readonly string[];
 };
@@ -520,7 +520,7 @@ export type ToolModule<T = unknown> = PointerListenerMap<
   touchListenerOptions?: ToolListenerOptions;
   serverRenderedElementSelector?: string;
   boot: (ctx: ToolBootContext) => Promise<T> | T;
-  draw?: (state: T, message: BoardMessage, isLocal: boolean) => void;
+  draw: (state: T, message: BoardMessage, isLocal: boolean) => void;
   normalizeServerRenderedElement?: (state: T, element: SVGElement) => void;
   onMessage?: (state: T, message: BoardMessage) => void;
   onstart?: (state: T, oldTool: MaybeMountedAppTool) => void;
@@ -634,7 +634,7 @@ export type AppStatusModule = {
   clearBoardStatusTimer: () => void;
   showRateLimitNotice: (message: string, retryAfterMs: number) => void;
   hideRateLimitNotice: () => void;
-  showUnknownMutationError: (reason?: string) => void;
+  showUnknownMutationError: (reason: string) => void;
   showBoardStatus: (view: BoardStatusView, durationMs?: number) => void;
   clearBoardStatus: () => void;
   getBoardStatusView: () => BoardStatusView;
@@ -663,7 +663,7 @@ export type AppTurnstileModule = {
   refresh: () => void;
   showWidget: () => void;
   /** Takes ownership of data. Callers must not mutate it after queueing. */
-  queueProtectedWrite: (data: LiveBoardMessage) => void;
+  queueProtectedWrite: (data: ClientTrackedMessage) => void;
   flushPendingWrites: () => void;
 };
 
@@ -689,7 +689,7 @@ export type AppOptimisticModule = {
   captureRollback: (message: LiveBoardMessage) => OptimisticRollback;
   collectDependencyMutationIds: (message: LiveBoardMessage) => string[];
   trackMutation: (
-    message: LiveBoardMessage,
+    message: ClientTrackedMessage,
     rollback: OptimisticRollback,
   ) => void;
   restoreRollback: (rollback: OptimisticRollback) => void;

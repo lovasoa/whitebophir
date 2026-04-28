@@ -46,6 +46,7 @@ import {
   VIEWPORT_HASH_SCALE_DECIMALS,
 } from "./board_viewport.js";
 import { getContentMessageBounds } from "./board_extent.js";
+import "./intersect.js";
 import {
   connection as BoardConnection,
   messages as BoardMessages,
@@ -80,7 +81,7 @@ import {
 } from "../tools/tool-defaults.js";
 import { TOOL_BY_ID } from "../tools/index.js";
 
-/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ViewportController } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.WBOApp = Tools;
@@ -640,12 +641,12 @@ function hideRateLimitNotice() {
 }
 
 /**
- * @param {string | undefined} reason
+ * @param {string} reason
  * @returns {void}
  * @this {AppToolsState["status"]}
  */
 function showUnknownMutationError(reason) {
-  if (typeof reason === "string" && reason.length > 0) {
+  if (reason.length > 0) {
     logBoardEvent("warn", "mutation_rejected_unknown", {
       reason,
     });
@@ -823,14 +824,20 @@ function collectOptimisticDependencyMutationIds(message) {
 
 /**
  * @param {LiveBoardMessage} message
+ * @returns {ClientTrackedMessage}
+ */
+function assignClientMutationId(message) {
+  message.clientMutationId = Tools.ids.generateUID("cm-");
+  return /** @type {ClientTrackedMessage} */ (message);
+}
+
+/**
+ * @param {ClientTrackedMessage} message
  * @param {OptimisticRollback} rollback
  * @returns {void}
  */
 function trackOptimisticMutation(message, rollback) {
-  if (typeof message.clientMutationId !== "string" || !message.clientMutationId)
-    return;
   Tools.optimistic.journal.append({
-    clientMutationId: message.clientMutationId,
     affectedIds: collectOptimisticAffectedIds(message),
     dependsOn: Tools.optimistic.collectDependencyMutationIds(message),
     dependencyItemIds: collectOptimisticDependencyIds(message),
@@ -1278,7 +1285,7 @@ function beginAuthoritativeResync() {
 
 /**
  * Takes ownership of data. Callers must not mutate it after queueing.
- * @param {LiveBoardMessage} data
+ * @param {ClientTrackedMessage} data
  */
 function queueProtectedWrite(data) {
   const hadPendingWrites = Tools.turnstile.pendingWrites.length > 0;
@@ -1287,8 +1294,7 @@ function queueProtectedWrite(data) {
   const toolName = getRuntimeToolId(data.tool) || "unknown";
   logBoardEvent("log", "turnstile.write_queued", {
     toolName,
-    clientMutationId:
-      typeof data.clientMutationId === "string" ? data.clientMutationId : null,
+    clientMutationId: data.clientMutationId,
   });
   Tools.turnstile.showWidget();
 }
@@ -1433,11 +1439,7 @@ async function processIncomingBroadcast(msg) {
   const isOwnSequencedBroadcast =
     isSequencedBroadcast &&
     replayMessage.socket === Tools.connection.socket?.id;
-  if (
-    isOwnSequencedBroadcast &&
-    typeof replayMessage.clientMutationId === "string" &&
-    replayMessage.clientMutationId
-  ) {
+  if (isOwnSequencedBroadcast && replayMessage.clientMutationId) {
     Tools.optimistic.promoteMutation(replayMessage.clientMutationId);
   }
   if (isSequencedBroadcast && !isOwnSequencedBroadcast) {
@@ -1719,7 +1721,6 @@ function getBoundsCenter(bounds) {
  * @returns {{minX: number, minY: number, maxX: number, maxY: number} | null}
  */
 function getRenderedElementBounds(element) {
-  if (typeof element.transformedBBox !== "function") return null;
   const box = element.transformedBBox();
   /** @type {[number, number][]} */
   const points = [
@@ -2251,7 +2252,7 @@ function startConnection() {
       if (hadConnectedBefore && Tools.config.serverConfig.TURNSTILE_SITE_KEY) {
         Tools.turnstile.setValidation(null);
         BoardTurnstile.resetTurnstileWidget(
-          typeof turnstile !== "undefined" ? turnstile : undefined,
+          BoardTurnstile.getTurnstileApi(),
           Tools.turnstile.widgetId,
         );
       }
@@ -2270,10 +2271,7 @@ function startConnection() {
       function onMutationRejected(
         /** @type {MutationRejectedPayload} */ payload,
       ) {
-        if (
-          typeof payload?.clientMutationId === "string" &&
-          payload.clientMutationId
-        ) {
+        if (payload.clientMutationId) {
           Tools.optimistic.rejectMutation(
             payload.clientMutationId,
             payload.reason,
@@ -2368,9 +2366,7 @@ function startConnection() {
         scheduleSocketReconnect();
       },
     );
-    if (typeof socket.connect === "function") {
-      socket.connect();
-    }
+    socket.connect();
   })();
 }
 function saveBoardNametoLocalStorage() {
@@ -2586,13 +2582,11 @@ bindRenderedToolButtons();
  * @returns {Promise<ToolModule>}
  */
 async function loadToolModule(toolName) {
-  const namespace = /** @type {ToolModule} */ (
-    await import(
-      Tools.assets.resolveAssetPath(getToolModuleImportPath(toolName))
-    )
+  const namespace = await import(
+    Tools.assets.resolveAssetPath(getToolModuleImportPath(toolName))
   );
-  if (typeof namespace.boot !== "function") {
-    throw new Error(`Missing boot export for ${toolName}.`);
+  if (!isToolModule(namespace)) {
+    throw new Error(`Invalid tool module exports for ${toolName}.`);
   }
   if (namespace.toolId !== toolName) {
     throw new Error(
@@ -2600,6 +2594,23 @@ async function loadToolModule(toolName) {
     );
   }
   return namespace;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is ToolModule}
+ */
+function isToolModule(value) {
+  return !!(
+    value &&
+    typeof value === "object" &&
+    "toolId" in value &&
+    typeof value.toolId === "string" &&
+    "boot" in value &&
+    typeof value.boot === "function" &&
+    "draw" in value &&
+    typeof value.draw === "function"
+  );
 }
 
 /**
@@ -2696,9 +2707,6 @@ function createToolBootContext(toolName) {
  * @returns {MountedAppTool}
  */
 function createMountedTool(toolModule, toolState, toolName) {
-  if (typeof toolModule.draw !== "function") {
-    throw new Error(`Missing draw export for ${toolName}.`);
-  }
   const draw = toolModule.draw;
   const normalizeServerRenderedElement =
     toolModule.normalizeServerRenderedElement;
@@ -3152,27 +3160,30 @@ function drawAndSend(data) {
     return false;
   }
 
-  if (toolName !== "cursor") {
-    data.clientMutationId = Tools.ids.generateUID("cm-");
+  if (toolName === "cursor") {
+    mountedTool.draw(data, true);
+    return Tools.writes.send(data) !== false;
   }
-  const rollback = Tools.optimistic.captureRollback(data);
+
+  const trackedData = assignClientMutationId(data);
+  const rollback = Tools.optimistic.captureRollback(trackedData);
 
   // Optimistically render the drawing immediately
-  mountedTool.draw(data, true);
+  mountedTool.draw(trackedData, true);
 
   if (
     MessageCommon.requiresTurnstile(Tools.identity.boardName, toolName) &&
     Tools.config.serverConfig.TURNSTILE_SITE_KEY &&
     !Tools.turnstile.isValidated()
   ) {
-    Tools.optimistic.trackMutation(data, rollback);
-    Tools.turnstile.queueProtectedWrite(data);
+    Tools.optimistic.trackMutation(trackedData, rollback);
+    Tools.turnstile.queueProtectedWrite(trackedData);
     return true;
   }
 
-  const sent = Tools.writes.send(data) !== false;
+  const sent = Tools.writes.send(trackedData) !== false;
   if (sent) {
-    Tools.optimistic.trackMutation(data, rollback);
+    Tools.optimistic.trackMutation(trackedData, rollback);
   }
   return sent;
 }

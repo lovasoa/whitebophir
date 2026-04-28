@@ -15,17 +15,8 @@ function normalizeStringArray(value) {
  * @returns {OptimisticJournalEntry}
  */
 function createEntry(entry) {
-  if (!entry || typeof entry !== "object") {
-    throw new Error("Optimistic journal entry must be an object");
-  }
-  if (
-    typeof entry.clientMutationId !== "string" ||
-    entry.clientMutationId.length === 0
-  ) {
-    throw new Error("Optimistic journal entries require clientMutationId");
-  }
   return {
-    clientMutationId: entry.clientMutationId,
+    clientMutationId: entry.message.clientMutationId,
     affectedIds: normalizeStringArray(entry.affectedIds),
     dependsOn: normalizeStringArray(entry.dependsOn),
     dependencyItemIds: normalizeStringArray(entry.dependencyItemIds),
@@ -190,9 +181,12 @@ export function createOptimisticJournal() {
     dependencyMutationIdsForItemIds(itemIds) {
       return [
         ...new Set(
-          normalizeStringArray(itemIds)
-            .map((itemId) => latestMutationIdsByItemId.get(itemId)?.at(-1))
-            .filter((clientMutationId) => typeof clientMutationId === "string"),
+          normalizeStringArray(itemIds).flatMap((itemId) => {
+            const clientMutationId = latestMutationIdsByItemId
+              .get(itemId)
+              ?.at(-1);
+            return clientMutationId === undefined ? [] : [clientMutationId];
+          }),
         ),
       ];
     },

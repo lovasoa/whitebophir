@@ -14,6 +14,8 @@ const {
 } = require("../client-data/js/optimistic_journal.js");
 
 /** @typedef {import("../types/app-runtime").ClientTrackedMessage} ClientTrackedMessage */
+/** @typedef {import("../types/app-runtime").LiveBoardMessage} LiveBoardMessage */
+/** @typedef {import("../types/app-runtime").OptimisticRollback} OptimisticRollback */
 /** @typedef {import("../types/app-runtime").OptimisticJournalState} OptimisticJournalState */
 
 const IDENTITY_TRANSFORM = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
@@ -62,7 +64,6 @@ function handUpdate(id) {
  */
 function trackOptimisticMessage(journal, message) {
   journal.append({
-    clientMutationId: message.clientMutationId,
     affectedIds: collectOptimisticAffectedIds(message),
     dependsOn: journal.dependencyMutationIdsForItemIds(
       collectOptimisticDependencyIds(message),
@@ -73,16 +74,31 @@ function trackOptimisticMessage(journal, message) {
   });
 }
 
+/**
+ * @param {OptimisticJournalState} journal
+ * @param {{clientMutationId: string, affectedIds: string[], dependsOn: string[], dependencyItemIds?: string[], rollback: OptimisticRollback, message: LiveBoardMessage}} entry
+ */
+function appendOptimisticEntry(journal, entry) {
+  entry.message.clientMutationId = entry.clientMutationId;
+  return journal.append({
+    affectedIds: entry.affectedIds,
+    dependsOn: entry.dependsOn,
+    dependencyItemIds: entry.dependencyItemIds,
+    rollback: entry.rollback,
+    message: /** @type {ClientTrackedMessage} */ (entry.message),
+  });
+}
+
 test("optimistic journal appends and promotes entries in order", () => {
   const journal = createOptimisticJournal();
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "c1",
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
     message: rectCreate("shape-1"),
   });
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "c2",
     affectedIds: ["shape-2"],
     dependsOn: [],
@@ -107,14 +123,14 @@ test("optimistic journal appends and promotes entries in order", () => {
 
 test("optimistic journal tracks the latest pending mutation per affected item", () => {
   const journal = createOptimisticJournal();
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "c1",
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
     message: rectCreate("shape-1"),
   });
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "c2",
     affectedIds: ["shape-1", "shape-2"],
     dependsOn: ["c1"],
@@ -137,21 +153,21 @@ test("optimistic journal tracks the latest pending mutation per affected item", 
 
 test("optimistic journal rejects dependent descendants together", () => {
   const journal = createOptimisticJournal();
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "c1",
     affectedIds: ["shape-1"],
     dependsOn: [],
     rollback: { kind: "items", snapshots: [] },
     message: rectCreate("shape-1"),
   });
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "c2",
     affectedIds: ["shape-1"],
     dependsOn: ["c1"],
     rollback: { kind: "items", snapshots: [] },
     message: rectUpdate("shape-1"),
   });
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "c3",
     affectedIds: ["shape-2"],
     dependsOn: [],
@@ -171,7 +187,7 @@ test("optimistic journal rejects dependent descendants together", () => {
 
 test("optimistic journal reset clears all pending entries", () => {
   const journal = createOptimisticJournal();
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "c1",
     affectedIds: ["shape-1"],
     dependsOn: [],
@@ -204,7 +220,7 @@ test("optimistic journal does not require native structuredClone", () => {
     };
     const message = rectCreate("shape-1");
 
-    const appended = journal.append({
+    const appended = appendOptimisticEntry(journal, {
       clientMutationId: "c1",
       affectedIds: ["shape-1"],
       dependsOn: [],
@@ -231,7 +247,7 @@ test("optimistic journal does not require native structuredClone", () => {
 
 test("optimistic journal prunes entries invalidated by authoritative deletes", () => {
   const journal = createOptimisticJournal();
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "copy-1",
     affectedIds: ["copy-1"],
     dependsOn: [],
@@ -244,7 +260,7 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
       newid: "copy-1",
     },
   });
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "copy-1-transform",
     affectedIds: ["copy-1"],
     dependsOn: ["copy-1"],
@@ -252,7 +268,7 @@ test("optimistic journal prunes entries invalidated by authoritative deletes", (
     rollback: { kind: "items", snapshots: [] },
     message: handUpdate("copy-1"),
   });
-  journal.append({
+  appendOptimisticEntry(journal, {
     clientMutationId: "shape-2-update",
     affectedIds: ["shape-2"],
     dependsOn: [],

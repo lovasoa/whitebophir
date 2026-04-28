@@ -10,7 +10,7 @@ import * as RectangleModule from "./rectangle/index.js";
 import * as StraightLineModule from "./straight-line/index.js";
 import * as TextModule from "./text/index.js";
 import * as ZoomModule from "./zoom/index.js";
-import { TOOLBAR_TOOL_IDS, TOOL_IDS, ToolCodes } from "./tool-order.js";
+import { TOOLBAR_TOOL_IDS, TOOL_CODE_BY_ID, TOOL_IDS } from "./tool-order.js";
 import {
   getDefaultToolLabel,
   getToolIconPath,
@@ -19,7 +19,7 @@ import {
   getToolTranslationKey,
 } from "./tool-defaults.js";
 /** @typedef {import("../../types/app-runtime").ToolCode} ToolCode */
-/** @typedef {typeof import("./tool-order.js").ToolCodes} ToolCodeMap */
+/** @typedef {typeof import("./tool-order.js").TOOL_CODE_BY_ID} ToolCodeById */
 
 /**
  * @typedef {{
@@ -107,10 +107,10 @@ const TOOL_MODULES_BY_ID =
     })
   );
 
-export const TOOLS = TOOL_IDS.map((toolId, index) =>
+export const TOOLS = TOOL_IDS.map((toolId) =>
   defineTool(
     /** @type {ToolModuleLike} */ (TOOL_MODULES_BY_ID[toolId]),
-    /** @type {ToolCode} */ (index + 1),
+    TOOL_CODE_BY_ID[toolId],
   ),
 );
 
@@ -130,33 +130,28 @@ function getRequiredTool(toolId) {
 }
 
 /**
- * @template {keyof ToolCodeMap} TCodeName
- * @param {string} toolId
- * @param {TCodeName} codeName
- * @returns {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap[TCodeName]}}
+ * @template {keyof ToolCodeById} TToolId
+ * @param {TToolId} toolId
+ * @returns {ReturnType<typeof getRequiredTool> & {id: ToolCodeById[TToolId]}}
  */
-function getTypedTool(toolId, codeName) {
-  const tool = getRequiredTool(toolId);
-  if (tool.id !== ToolCodes[codeName]) {
-    throw new Error(`Tool ${toolId} is not registered as ${codeName}.`);
-  }
-  return /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeMap[TCodeName]}} */ (
-    tool
+function getTypedTool(toolId) {
+  return /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeById[TToolId]}} */ (
+    getRequiredTool(toolId)
   );
 }
 
-export const Pencil = getTypedTool("pencil", "PENCIL");
-export const StraightLine = getTypedTool("straight-line", "STRAIGHT_LINE");
-export const Rectangle = getTypedTool("rectangle", "RECTANGLE");
-export const Ellipse = getTypedTool("ellipse", "ELLIPSE");
-export const Text = getTypedTool("text", "TEXT");
-export const Eraser = getTypedTool("eraser", "ERASER");
-export const Hand = getTypedTool("hand", "HAND");
-export const Grid = getTypedTool("grid", "GRID");
-export const Download = getTypedTool("download", "DOWNLOAD");
-export const Zoom = getTypedTool("zoom", "ZOOM");
-export const Clear = getTypedTool("clear", "CLEAR");
-export const Cursor = getTypedTool("cursor", "CURSOR");
+export const Pencil = getTypedTool("pencil");
+export const StraightLine = getTypedTool("straight-line");
+export const Rectangle = getTypedTool("rectangle");
+export const Ellipse = getTypedTool("ellipse");
+export const Text = getTypedTool("text");
+export const Eraser = getTypedTool("eraser");
+export const Hand = getTypedTool("hand");
+export const Grid = getTypedTool("grid");
+export const Download = getTypedTool("download");
+export const Zoom = getTypedTool("zoom");
+export const Clear = getTypedTool("clear");
+export const Cursor = getTypedTool("cursor");
 export const TOOLBAR_TOOLS = TOOLBAR_TOOL_IDS.map((toolId) =>
   getRequiredTool(toolId),
 );
