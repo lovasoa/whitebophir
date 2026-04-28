@@ -52,6 +52,10 @@ import {
   upsertCanonicalItem,
 } from "./canonical_index.mjs";
 import {
+  createDefaultSvgExtent,
+  extendSvgExtentForItem,
+} from "./svg_extent.mjs";
+import {
   canAddChild as canBoardAddChild,
   canCopy as canBoardCopy,
   canProcessMessage as canBoardProcessMessage,
@@ -105,6 +109,7 @@ let boardInstanceSequence = 0;
 /** @typedef {import("../../types/server-runtime.d.ts").MutationLogEntry} MutationLogEntry */
 /** @typedef {import("../../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {{x: number, y: number}} ChildPoint */
+/** @typedef {import("./svg_extent.mjs").SvgExtent} SvgExtent */
 /** @typedef {{kind: "inline"} | {kind: "text", modifiedText?: string} | {kind: "children", persistedChildCount: number, appendedChildren: ChildPoint[]}} CanonicalPayload */
 /** @typedef {"saved" | "skipped" | "stale" | "failed"} BoardSaveStatus */
 /** @typedef {{status: BoardSaveStatus}} BoardSaveResult */
@@ -212,6 +217,8 @@ class BoardData {
     this.nextPaintOrder = 0;
     this.liveItemCount = 0;
     this.trimPaintOrderIndex = 0;
+    /** @type {SvgExtent} */
+    this.svgExtent = createDefaultSvgExtent();
     this.disposed = false;
     /** @type {StaleSaveHandler | undefined} */
     this.onStaleSave = undefined;
@@ -241,13 +248,14 @@ class BoardData {
     this.saveTargetSeq = null;
     this.liveItemCount = 0;
     this.trimPaintOrderIndex = 0;
+    this.svgExtent = createDefaultSvgExtent();
     let paintOrder = 0;
     for (const [id, item] of Object.entries(value || {})) {
       const canonical = canonicalItemFromItem({ ...item, id }, paintOrder, {
         persisted: false,
       });
       if (!canonical) continue;
-      upsertCanonicalItem(this, canonical);
+      this.upsertItem(canonical);
       paintOrder += 1;
     }
   }
@@ -351,6 +359,15 @@ class BoardData {
    */
   authoritativeItemCount() {
     return authoritativeItemCount(this);
+  }
+
+  /**
+   * @param {CanonicalBoardItem} item
+   * @returns {void}
+   */
+  upsertItem(item) {
+    upsertCanonicalItem(this, item);
+    extendSvgExtentForItem(this.svgExtent, item);
   }
 
   /**
@@ -713,7 +730,7 @@ class BoardData {
       ...validated.canonical,
       paintOrder: existing?.paintOrder ?? this.nextPaintOrder,
     };
-    upsertCanonicalItem(this, canonical);
+    this.upsertItem(canonical);
     this.delaySave();
     return this.commitMutation();
   }
@@ -726,7 +743,7 @@ class BoardData {
   addChild(parentId, child) {
     const next = this.makeAppendCandidate(parentId, child);
     if (!next.ok) return next;
-    upsertCanonicalItem(this, next.value);
+    this.upsertItem(next.value);
     this.delaySave();
     return this.commitMutation();
   }
@@ -795,7 +812,7 @@ class BoardData {
       updateData,
       this.makeUpdateCandidate(id, obj, updateData)?.localBounds,
     );
-    upsertCanonicalItem(this, next);
+    this.upsertItem(next);
     this.delaySave();
     return this.commitMutation();
   }
@@ -810,7 +827,7 @@ class BoardData {
     const next = cloneCanonicalItem(item);
     next.id = id;
     next.bounds = cloneBounds(localBounds);
-    upsertCanonicalItem(this, next);
+    this.upsertItem(next);
   }
 
   /** Copy elements in the board
@@ -824,7 +841,7 @@ class BoardData {
     if (obj) {
       const validated = this.makeCopyCandidate(newid, obj);
       if (!validated.ok) return validated;
-      upsertCanonicalItem(this, validated.value);
+      this.upsertItem(validated.canonical);
     } else {
       logger.warn("board.copy_missing_source", {
         board: this.name,
@@ -849,6 +866,7 @@ class BoardData {
     }
     this.liveItemCount = 0;
     this.trimPaintOrderIndex = this.paintOrder.length;
+    this.svgExtent = createDefaultSvgExtent();
     this.delaySave();
     return this.commitMutation();
   }

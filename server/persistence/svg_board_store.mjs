@@ -26,6 +26,13 @@ import {
   publicItemFromCanonicalItem,
 } from "../board/canonical_items.mjs";
 import {
+  DEFAULT_SVG_SIZE,
+  SVG_MARGIN,
+  createDefaultSvgExtent,
+  createSvgExtent,
+  extendSvgExtentForItem,
+} from "../board/svg_extent.mjs";
+import {
   STORED_SVG_FORMAT,
   createDefaultStoredSvgEnvelope,
   parseStoredSvgEnvelope,
@@ -41,11 +48,10 @@ import {
 import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
 import { unescapeHtml } from "./xml_escape.mjs";
 
-const DEFAULT_SVG_SIZE = 5000;
-const SVG_MARGIN = 4000;
 const { logger } = observability;
 
 /** @typedef {{readonly: boolean, seq?: number}} BoardMetadata */
+/** @typedef {import("../board/svg_extent.mjs").SvgExtent} SvgExtent */
 /** @import { ServerConfig } from "../../types/server-runtime.d.ts" */
 
 /** @returns {BoardMetadata} */
@@ -58,7 +64,7 @@ function defaultBoardMetadata() {
 
 /**
  * @param {string} prefix
- * @returns {{readonly: boolean, seq: number}}
+ * @returns {{readonly: boolean, seq: number, svgExtent: SvgExtent}}
  */
 function readStoredSvgRootMetadata(prefix) {
   const openTagStart = prefix.indexOf("<svg");
@@ -70,6 +76,10 @@ function readStoredSvgRootMetadata(prefix) {
   return {
     readonly: readRawAttribute(rawAttributes, "data-wbo-readonly") === "true",
     seq: normalizeStoredSeq(readRawAttribute(rawAttributes, "data-wbo-seq")),
+    svgExtent: createSvgExtent(
+      readRawAttribute(rawAttributes, "width"),
+      readRawAttribute(rawAttributes, "height"),
+    ),
   };
 }
 
@@ -230,11 +240,12 @@ function createStoredSvgSeqMismatchError(expectedSeq, actualSeq) {
  * @param {{[name: string]: any}} board
  * @param {BoardMetadata} metadata
  * @param {number} seq
+ * @param {SvgExtent=} [svgExtent]
  * @returns {string}
  */
-function serializeStoredSvg(board, metadata, seq) {
+function serializeStoredSvg(board, metadata, seq, svgExtent) {
   const items = collectSerializedSvgItems(board).itemTags;
-  const envelope = createDefaultStoredSvgEnvelope(metadata, seq);
+  const envelope = createDefaultStoredSvgEnvelope(metadata, seq, svgExtent);
   return serializeStoredSvgEnvelope(envelope.prefix, items, envelope.suffix);
 }
 
@@ -338,6 +349,7 @@ function renderServedBaselineSvg(board, metadata, seq) {
  *   seq: number,
  *   source: "svg" | "svg_backup" | "empty",
  *   byteLength: number,
+ *   svgExtent: SvgExtent,
  * }>}
  */
 async function readCanonicalBoardState(boardName, options) {
@@ -345,6 +357,7 @@ async function readCanonicalBoardState(boardName, options) {
   const itemsById = new Map();
   /** @type {string[]} */
   const paintOrder = [];
+  const svgExtent = createDefaultSvgExtent();
   const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
   if (readableSvg) {
     const stream = fs.createReadStream(readableSvg.file, { encoding: "utf8" });
@@ -359,6 +372,8 @@ async function readCanonicalBoardState(boardName, options) {
           readonly: rootMetadata.readonly,
         };
         seq = rootMetadata.seq;
+        svgExtent.width = rootMetadata.svgExtent.width;
+        svgExtent.height = rootMetadata.svgExtent.height;
         continue;
       }
       if (event.type !== "item") continue;
@@ -375,6 +390,7 @@ async function readCanonicalBoardState(boardName, options) {
       }
       itemsById.set(item.id, item);
       paintOrder.push(item.id);
+      extendSvgExtentForItem(svgExtent, item);
       index += 1;
     }
     return {
@@ -384,6 +400,7 @@ async function readCanonicalBoardState(boardName, options) {
       seq,
       source: readableSvg.source,
       byteLength: readableSvg.byteLength,
+      svgExtent,
     };
   }
 
@@ -406,6 +423,7 @@ async function readCanonicalBoardState(boardName, options) {
     seq: 0,
     source: "empty",
     byteLength: 0,
+    svgExtent,
   };
 }
 
@@ -428,7 +446,7 @@ async function boardExists(boardName, config) {
  * @param {{[name: string]: any}} board
  * @param {BoardMetadata} metadata
  * @param {number} seq
- * @param {{historyDir?: string}=} [options]
+ * @param {{historyDir?: string, svgExtent?: SvgExtent}=} [options]
  * @returns {Promise<void>}
  */
 async function writeBoardState(boardName, board, metadata, seq, options) {
@@ -463,7 +481,12 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
   try {
     const existingSvg = await readFile(file, "utf8");
     const parsed = parseStoredSvgEnvelope(existingSvg);
-    const prefix = updateRootMetadata(parsed.prefix, metadata, seq);
+    const prefix = updateRootMetadata(
+      parsed.prefix,
+      metadata,
+      seq,
+      options?.svgExtent,
+    );
     const itemTags = Object.values(board).map((item) =>
       serializeStoredSvgItem(item),
     );
@@ -471,12 +494,12 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
   } catch (error) {
     if (errorCode(error) !== "ENOENT") {
       try {
-        svg = serializeStoredSvg(board, metadata, seq);
+        svg = serializeStoredSvg(board, metadata, seq, options?.svgExtent);
       } catch {
         throw error;
       }
     } else {
-      svg = serializeStoredSvg(board, metadata, seq);
+      svg = serializeStoredSvg(board, metadata, seq, options?.svgExtent);
     }
   }
   await writeFile(tmpFile, svg, { flag: "wx" });
@@ -615,7 +638,7 @@ function serializeCanonicalItemForStorage(item, options = {}) {
  * @param {string[]} paintOrder
  * @param {BoardMetadata} metadata
  * @param {number} seq
- * @param {{historyDir?: string}=} [options]
+ * @param {{historyDir?: string, svgExtent?: SvgExtent}=} [options]
  * @returns {Promise<{persistedIds: Set<string>}>}
  */
 async function writeCanonicalBoardState(
@@ -751,7 +774,7 @@ function collectCopySourceIds(itemsById) {
  * @param {Set<string>} persistedItemIds
  * @param {number} persistedSeq
  * @param {number} latestSeq
- * @param {{historyDir?: string}=} [options]
+ * @param {{historyDir?: string, svgExtent?: SvgExtent}=} [options]
  * @returns {Promise<Set<string>>}
  */
 async function rewriteStoredSvgFromCanonical(
@@ -795,7 +818,14 @@ async function rewriteStoredSvgFromCanonical(
           throw createStoredSvgSeqMismatchError(persistedSeq, currentSeq);
         }
         if (
-          !output.write(updateRootMetadata(event.prefix, metadata, latestSeq))
+          !output.write(
+            updateRootMetadata(
+              event.prefix,
+              metadata,
+              latestSeq,
+              options?.svgExtent,
+            ),
+          )
         ) {
           await once(output, "drain");
         }

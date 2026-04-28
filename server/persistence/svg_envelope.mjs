@@ -1,4 +1,5 @@
 import { escapeHtml, unescapeHtml } from "./xml_escape.mjs";
+import { normalizeSvgExtent } from "../board/svg_extent.mjs";
 
 const STORED_SVG_FORMAT = "whitebophir-svg-v2";
 
@@ -203,17 +204,24 @@ function parseStoredSvgItems(drawingAreaContent) {
  * @param {string} prefix
  * @param {{readonly: boolean}} metadata
  * @param {number} seq
+ * @param {{width: number, height: number}=} [svgExtent]
  * @returns {string}
  */
-function updateRootMetadata(prefix, metadata, seq) {
+function updateRootMetadata(prefix, metadata, seq, svgExtent) {
   const root = parseSvgOpenTag(prefix);
   let openTag = prefix.slice(root.openTagStart, root.openTagEnd + 1);
+  /** @type {{[name: string]: string}} */
   const nextAttributes = {
     ...root.attributes,
     "data-wbo-format": STORED_SVG_FORMAT,
     "data-wbo-seq": String(seq),
     "data-wbo-readonly": metadata.readonly ? "true" : "false",
   };
+  if (svgExtent) {
+    const extent = normalizeSvgExtent(svgExtent);
+    nextAttributes.width = String(extent.width);
+    nextAttributes.height = String(extent.height);
+  }
   Object.entries(nextAttributes).forEach(([name, value]) => {
     const attributePattern = new RegExp(`\\s${name}="[^"]*"`);
     const encoded = ` ${name}="${escapeHtml(value)}"`;
@@ -247,13 +255,15 @@ function serializeStoredSvgEnvelope(prefix, itemTags, suffix) {
 /**
  * @param {{readonly: boolean}} metadata
  * @param {number} seq
+ * @param {{width: number, height: number}=} [svgExtent]
  * @returns {{prefix: string, suffix: string}}
  */
-function createDefaultStoredSvgEnvelope(metadata, seq) {
+function createDefaultStoredSvgEnvelope(metadata, seq, svgExtent) {
+  const extent = normalizeSvgExtent(svgExtent);
   return {
     prefix:
       `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" ` +
-      `width="5000" height="5000" data-wbo-format="${STORED_SVG_FORMAT}" ` +
+      `width="${extent.width}" height="${extent.height}" data-wbo-format="${STORED_SVG_FORMAT}" ` +
       `data-wbo-seq="${seq}" data-wbo-readonly="${metadata.readonly ? "true" : "false"}">` +
       `<defs id="defs"></defs><g id="drawingArea">`,
     suffix: `</g><g id="cursors"></g></svg>`,

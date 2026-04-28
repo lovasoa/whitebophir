@@ -301,6 +301,17 @@ function buildPencilStrokeMutations(id, color, size, points = []) {
   ];
 }
 
+/**
+ * @param {string} svg
+ * @param {"width" | "height"} name
+ * @returns {number}
+ */
+function readSvgRootDimension(svg, name) {
+  const match = svg.match(new RegExp(`\\s${name}="([0-9]+)"`));
+  if (!match) throw new Error(`missing svg ${name}`);
+  return Number(match[1]);
+}
+
 test("BoardData processMessageBatch and per-message processing stay in sync", () => {
   const BoardData = getBoardDataClass();
   const single = disableSaves(
@@ -1127,6 +1138,44 @@ test("BoardData eagerly loads canonical persisted svg items before applying upda
           time: undefined,
         },
       );
+    },
+  );
+});
+
+test("BoardData persists corrected svg root extent for deep-link reloads", async () => {
+  await withBoardHistoryDir(
+    "wbo-board-deep-link-extent-",
+    async ({ historyDir }) => {
+      const boardName = "deep-link-extent";
+      const { BoardData, board, svgPath } = await withLoadedBoard({
+        historyDir,
+        boardName,
+        storedSvg: buildStoredSvg({
+          width: 5000,
+          height: 5000,
+          drawingArea:
+            '<rect id="rect-1" x="103542" y="103542" width="1" height="2" stroke="#123456" stroke-width="4" fill="none"></rect>',
+        }),
+      });
+
+      assert.deepEqual(board.svgExtent, { width: 107543, height: 107544 });
+
+      const updateRect = rectangleUpdate("rect-1", { x2: 103544 });
+      await applyPersistentMutation(board, updateRect, 2);
+      assert.deepEqual(board.svgExtent, { width: 107544, height: 107544 });
+
+      await board.save();
+
+      const saved = await fs.readFile(svgPath, "utf8");
+      assert.equal(readSvgRootDimension(saved, "width"), 107544);
+      assert.equal(readSvgRootDimension(saved, "height"), 107544);
+
+      const reloaded = await loadBoard(
+        BoardData,
+        boardName,
+        createConfig({ HISTORY_DIR: historyDir }),
+      );
+      assert.deepEqual(reloaded.svgExtent, { width: 107544, height: 107544 });
     },
   );
 });

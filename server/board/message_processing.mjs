@@ -10,11 +10,8 @@ import {
   MutationType,
 } from "../../client-data/js/message_tool_metadata.js";
 import { Eraser } from "../../client-data/tools/index.js";
-import {
-  getCanonicalItem,
-  removeCanonicalItem,
-  upsertCanonicalItem,
-} from "./canonical_index.mjs";
+import { getCanonicalItem, removeCanonicalItem } from "./canonical_index.mjs";
+import { createDefaultSvgExtent } from "./svg_extent.mjs";
 import observability from "../observability/index.mjs";
 
 const { logger, tracing } = observability;
@@ -386,12 +383,13 @@ function processMessageBatch(board, children, parentMessage) {
         }
         board.liveItemCount = 0;
         board.trimPaintOrderIndex = board.paintOrder.length;
+        board.svgExtent = createDefaultSvgExtent();
       }
       for (const [id, item] of overlay.entries()) {
         if (item === undefined) {
           removeCanonicalItem(board, id);
         } else {
-          upsertCanonicalItem(board, item);
+          board.upsertItem(item);
         }
       }
       if (clearAll || overlay.size > 0) board.delaySave();

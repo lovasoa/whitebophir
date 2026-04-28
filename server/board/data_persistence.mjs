@@ -7,6 +7,7 @@ import { createMutationLog } from "./mutation_log.mjs";
 import observability from "../observability/index.mjs";
 import { SerialTaskQueue } from "./serial_task_queue.mjs";
 import { boardSvgBackupPath } from "../persistence/svg_board_paths.mjs";
+import { createDefaultSvgExtent } from "./svg_extent.mjs";
 import {
   readCanonicalBoardState,
   rewriteStoredSvgFromCanonical,
@@ -316,6 +317,7 @@ async function unsafeSaveBoard(board) {
         board.clean();
         const savedItemsById = new Map(board.itemsById);
         const savedPaintOrder = [...board.paintOrder];
+        const savedSvgExtent = { ...board.svgExtent };
         const file = board.file;
         const authoritativeItemCount = savedPaintOrder.filter(
           (id) => savedItemsById.get(id)?.deleted !== true,
@@ -344,7 +346,10 @@ async function unsafeSaveBoard(board) {
                       board.persistedItemIds,
                       board.getPersistedSeq(),
                       saveTargetSeq,
-                      { historyDir: board.historyDir },
+                      {
+                        historyDir: board.historyDir,
+                        svgExtent: savedSvgExtent,
+                      },
                     )
                   : (
                       await writeCanonicalBoardState(
@@ -353,7 +358,10 @@ async function unsafeSaveBoard(board) {
                         savedPaintOrder,
                         board.metadata,
                         saveTargetSeq,
-                        { historyDir: board.historyDir },
+                        {
+                          historyDir: board.historyDir,
+                          svgExtent: savedSvgExtent,
+                        },
                       )
                     ).persistedIds;
               if (span) {
@@ -605,6 +613,7 @@ async function loadBoardData(BoardDataClass, name, config) {
         rebuildLiveItemCount(boardData);
         boardData.trimPaintOrderIndex = 0;
         boardData.persistedItemIds = new Set(storedBoard.itemsById.keys());
+        boardData.svgExtent = storedBoard.svgExtent;
         boardData.dirtyFromMs = null;
         boardData.lastWriteAtMs = null;
         boardData.dirtyDuringSaveFromMs = null;
@@ -703,6 +712,7 @@ async function loadBoardData(BoardDataClass, name, config) {
         boardData.saveTargetSeq = null;
         boardData.liveItemCount = 0;
         boardData.trimPaintOrderIndex = 0;
+        boardData.svgExtent = createDefaultSvgExtent();
       }
       return boardData;
     },
