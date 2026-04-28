@@ -37,12 +37,26 @@ import {
   updateRecentBoards,
 } from "./board_page_state.js";
 import {
+  AssetModule,
+  AttachedBoardDomRuntimeModule,
+  ConfigModule,
+  CoordinateModule,
+  DetachedBoardDomRuntimeModule,
+  I18nModule,
+  IdentityModule,
+  IdModule,
+  InteractionModule,
+  normalizeBoardAssetPath,
+  PreferenceModule,
+  RateLimitModule,
+  ViewportStateModule,
+} from "./board_runtime_core.js";
+import {
   buildBoardSvgBaselineUrl,
   parseServedBaselineSvgText,
 } from "./board_svg_baseline.js";
 import {
   createViewportController,
-  DEFAULT_BOARD_SCALE,
   VIEWPORT_HASH_SCALE_DECIMALS,
 } from "./board_viewport.js";
 import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
@@ -50,7 +64,6 @@ import "./intersect.js";
 import { TOOL_BY_ID, TOOL_MODULES_BY_ID } from "../tools/index.js";
 import {
   getToolIconPath,
-  getToolRuntimeAssetPath,
   getToolStylesheetPath,
 } from "../tools/tool-defaults.js";
 import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
@@ -155,83 +168,6 @@ function readInlineBaseline(svg) {
   };
 }
 
-/** @typedef {{status: "attached", svg: SVGSVGElement, drawingArea: SVGGElement}} AttachedBoardDomRuntimeThis */
-/** @typedef {{status: "detached"} | AttachedBoardDomRuntimeThis} BoardDomRuntimeThis */
-
-/** @param {BoardDomRuntimeActions} actions */
-function getBoardDomRuntimeThis(actions) {
-  return /** @type {BoardDomRuntimeThis} */ (/** @type {unknown} */ (actions));
-}
-
-export class BoardDomRuntimeActions {
-  /**
-   * @param {string} name
-   * @param {{[key: string]: string | number | undefined}} [attrs]
-   */
-  createSVGElement(name, attrs) {
-    const dom = getBoardDomRuntimeThis(this);
-    if (dom.status !== "attached") {
-      throw new Error("Board SVG is not attached.");
-    }
-    const elem = /** @type {SVGElement} */ (
-      /** @type {unknown} */ (
-        document.createElementNS(dom.svg.namespaceURI, name)
-      )
-    );
-    if (!attrs) return elem;
-    Object.keys(attrs).forEach((key) => {
-      elem.setAttributeNS(null, key, String(attrs[key]));
-    });
-    return elem;
-  }
-
-  /**
-   * @param {HTMLElement} elem
-   * @param {number} x
-   * @param {number} y
-   */
-  positionElement(elem, x, y) {
-    elem.style.top = `${y}px`;
-    elem.style.left = `${x}px`;
-  }
-
-  clearBoardCursors() {
-    const dom = getBoardDomRuntimeThis(this);
-    if (dom.status !== "attached") return;
-    const cursors = dom.svg.getElementById("cursors");
-    if (cursors) cursors.innerHTML = "";
-  }
-
-  resetBoardViewport() {
-    const dom = getBoardDomRuntimeThis(this);
-    if (dom.status !== "attached") return;
-    dom.drawingArea.innerHTML = "";
-    this.clearBoardCursors();
-  }
-}
-
-export class DetachedBoardDomRuntimeModule extends BoardDomRuntimeActions {
-  constructor() {
-    super();
-    this.status = /** @type {"detached"} */ ("detached");
-  }
-}
-
-export class AttachedBoardDomRuntimeModule extends BoardDomRuntimeActions {
-  /**
-   * @param {HTMLElement} board
-   * @param {SVGSVGElement} svg
-   * @param {SVGGElement} drawingArea
-   */
-  constructor(board, svg, drawingArea) {
-    super();
-    this.status = /** @type {"attached"} */ ("attached");
-    this.board = board;
-    this.svg = svg;
-    this.drawingArea = drawingArea;
-  }
-}
-
 /**
  * @param {Document} document
  * @returns {Promise<void>}
@@ -288,109 +224,6 @@ export async function attachBoardDom(document) {
 
 function getAttachedBoardDom() {
   return Tools.dom.status === "attached" ? Tools.dom : null;
-}
-
-const i18nModuleTranslations = new WeakMap();
-
-export class I18nModule {
-  /** @param {{[key: string]: string}} translations */
-  constructor(translations) {
-    i18nModuleTranslations.set(this, translations);
-  }
-
-  /** @param {string} s */
-  t(s) {
-    const key = s.toLowerCase().replace(/ /g, "_");
-    return (
-      /** @type {{[key: string]: string}} */ (i18nModuleTranslations.get(this))[
-        key
-      ] || s
-    );
-  }
-}
-
-export class ConfigModule {
-  /** @param {ServerConfig} serverConfig */
-  constructor(serverConfig) {
-    this.serverConfig = serverConfig;
-  }
-}
-
-export class IdentityModule {
-  /**
-   * @param {string} boardName
-   * @param {string | null} token
-   */
-  constructor(boardName, token) {
-    this.boardName = boardName;
-    this.token = token;
-  }
-}
-
-const coordinateModuleState = new WeakMap();
-
-export class CoordinateModule {
-  /**
-   * @param {ConfigModule} config
-   * @param {ViewportStateModule} viewportState
-   */
-  constructor(config, viewportState) {
-    coordinateModuleState.set(this, { config, viewportState });
-  }
-
-  /** @param {unknown} value */
-  toBoardCoordinate(value) {
-    const state =
-      /** @type {{config: ConfigModule, viewportState: ViewportStateModule}} */ (
-        coordinateModuleState.get(this)
-      );
-    return MessageCommon.clampCoord(
-      value,
-      state.config.serverConfig.MAX_BOARD_SIZE,
-    );
-  }
-
-  /** @param {unknown} value */
-  pageCoordinateToBoard(value) {
-    const state =
-      /** @type {{config: ConfigModule, viewportState: ViewportStateModule}} */ (
-        coordinateModuleState.get(this)
-      );
-    return state.viewportState.controller.pageCoordinateToBoard(value);
-  }
-}
-
-/**
- * @param {string} assetPath
- * @returns {string}
- */
-function normalizeBoardAssetPath(assetPath) {
-  if (
-    assetPath.startsWith("./") ||
-    assetPath.startsWith("../") ||
-    assetPath.startsWith("/") ||
-    assetPath.startsWith("data:") ||
-    assetPath.startsWith("http://") ||
-    assetPath.startsWith("https://")
-  ) {
-    return assetPath;
-  }
-  return `../${assetPath}`;
-}
-
-export class AssetModule {
-  /** @param {(assetPath: string) => string} resolveAssetPath */
-  constructor(resolveAssetPath) {
-    this.resolveAssetPath = resolveAssetPath;
-  }
-
-  /**
-   * @param {string} toolName
-   * @param {string} assetFile
-   */
-  getToolAssetUrl(toolName, assetFile) {
-    return this.resolveAssetPath(getToolRuntimeAssetPath(toolName, assetFile));
-  }
 }
 
 export class ToolRegistryModule {
@@ -1495,57 +1328,6 @@ function getAuthoritativeBaselineUrl(cacheBust) {
   return `${url.pathname}${url.search}`;
 }
 
-const rateLimitModuleState = new WeakMap();
-
-export class RateLimitModule {
-  /**
-   * @param {ConfigModule} config
-   * @param {IdentityModule} identity
-   */
-  constructor(config, identity) {
-    rateLimitModuleState.set(this, { config, identity });
-  }
-
-  /** @param {RateLimitKind} kind */
-  getRateLimitDefinition(kind) {
-    const state =
-      /** @type {{config: ConfigModule, identity: IdentityModule}} */ (
-        rateLimitModuleState.get(this)
-      );
-    const configured = state.config.serverConfig.RATE_LIMITS || {};
-    if (configured && configured[kind]) return configured[kind];
-
-    return {
-      limit: 0,
-      anonymousLimit: 0,
-      periodMs: 0,
-    };
-  }
-
-  /** @param {RateLimitKind} kind */
-  getEffectiveRateLimit(kind) {
-    const state =
-      /** @type {{config: ConfigModule, identity: IdentityModule}} */ (
-        rateLimitModuleState.get(this)
-      );
-    return RateLimitCommon.getEffectiveRateLimitDefinition(
-      this.getRateLimitDefinition(kind),
-      state.identity.boardName,
-    );
-  }
-
-  /** @param {LiveBoardMessage} message */
-  getBufferedWriteCosts(message) {
-    return RATE_LIMIT_KINDS.reduce(
-      (costs, kind) => {
-        costs[kind] = RateLimitCommon.getRateLimitCost(kind, message);
-        return costs;
-      },
-      /** @type {import("../../types/app-runtime").RateLimitCosts} */ ({}),
-    );
-  }
-}
-
 /** @param {number} [delayMs] */
 function scheduleSocketReconnect(delayMs = 250) {
   window.setTimeout(() => Tools.connection.start(), Math.max(0, delayMs));
@@ -1585,11 +1367,13 @@ function normalizeServerRenderedElementsForTool(tool) {
   const normalizeElement = tool.normalizeServerRenderedElement;
   if (!selector || !normalizeElement) return;
 
-  dom.drawingArea.querySelectorAll(selector).forEach((element) => {
-    if (element instanceof SVGElement) {
-      normalizeElement.call(tool, element);
-    }
-  });
+  dom.drawingArea
+    .querySelectorAll(selector)
+    .forEach((/** @type {Element} */ element) => {
+      if (element instanceof SVGElement) {
+        normalizeElement.call(tool, element);
+      }
+    });
 }
 
 function normalizeServerRenderedElements() {
@@ -1813,15 +1597,6 @@ function enqueueIncomingBroadcast(msg) {
   void drainIncomingBroadcastQueue();
 }
 
-export class ViewportStateModule {
-  /** @param {ViewportController} controller */
-  constructor(controller) {
-    this.scale = DEFAULT_BOARD_SCALE;
-    this.controller = controller;
-    this.drawToolsAllowed = /** @type {boolean | null} */ (null);
-  }
-}
-
 export class AccessModule {
   constructor() {
     this.boardState = {
@@ -1865,15 +1640,6 @@ export class AccessModule {
 
 //Initialization
 document.documentElement.dataset.activeToolSecondary = "false";
-export class InteractionModule {
-  constructor() {
-    this.drawingEvent = true;
-    this.showMarker = true;
-    this.showOtherCursors = true;
-    this.showMyCursor = true;
-  }
-}
-
 export class PresenceModule {
   constructor() {
     this.users = /** @type {ConnectedUserMap} */ ({});
@@ -3171,20 +2937,6 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-export class IdModule {
-  /**
-   * @param {string} [prefix]
-   * @param {string} [suffix]
-   */
-  generateUID(prefix, suffix) {
-    let uid = Date.now().toString(36); //Create the uids in chronological order
-    uid += Math.round(Math.random() * 36).toString(36); //Add a random character at the end
-    if (prefix) uid = prefix + uid;
-    if (suffix) uid = uid + suffix;
-    return uid;
-  }
-}
-
 const colorPresets = [
   { color: "#001f3f", key: "1" },
   { color: "#FF4136", key: "2" },
@@ -3198,61 +2950,6 @@ const colorPresets = [
   { color: "#AAAAAA", key: "0" },
   { color: "#E65194" },
 ];
-export class PreferenceModule {
-  /**
-   * @param {ColorPreset[]} presets
-   * @param {AppInitialPreferences} initial
-   */
-  constructor(presets, initial) {
-    this.colorPresets = presets;
-    this.colorChooser = /** @type {HTMLInputElement | null} */ (null);
-    this.colorButtonsInitialized = false;
-    this.currentColor = initial.color;
-    this.currentSize = MessageCommon.clampSize(initial.size);
-    this.currentOpacity = MessageCommon.clampOpacity(initial.opacity);
-    this.initial = initial;
-    this.colorChangeHandlers = /** @type {((color: string) => void)[]} */ ([]);
-    this.sizeChangeHandlers = /** @type {((size: number) => void)[]} */ ([]);
-  }
-
-  getColor() {
-    return this.currentColor;
-  }
-
-  /** @param {string} color */
-  setColor(color) {
-    this.currentColor = color;
-    if (this.colorChooser) {
-      this.colorChooser.value = color;
-    }
-    this.colorChangeHandlers.forEach((handler) => {
-      handler(color);
-    });
-  }
-
-  getSize() {
-    return this.currentSize;
-  }
-
-  /** @param {number | string | null | undefined} value */
-  setSize(value) {
-    if (value !== null && value !== undefined) {
-      this.currentSize = MessageCommon.clampSize(value);
-    }
-    const chooser = document.getElementById("chooseSize");
-    if (chooser instanceof HTMLInputElement) {
-      chooser.value = String(this.currentSize);
-    }
-    this.sizeChangeHandlers.forEach((handler) => {
-      handler(this.currentSize);
-    });
-    return this.currentSize;
-  }
-
-  getOpacity() {
-    return this.currentOpacity;
-  }
-}
 
 export class AppTools {
   /** @param {AppToolsOptions} options */

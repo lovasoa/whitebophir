@@ -589,23 +589,24 @@ export type ViewportController = {
 
 /** Board DOM before the streamed SVG baseline has been attached. */
 export type DetachedBoardDomModule =
-  import("../client-data/js/board.js").DetachedBoardDomRuntimeModule;
+  import("../client-data/js/board_runtime_core.js").DetachedBoardDomRuntimeModule;
 
 /** Board DOM after the app can safely boot drawing tools. */
 export type AttachedBoardDomModule =
-  import("../client-data/js/board.js").AttachedBoardDomRuntimeModule;
+  import("../client-data/js/board_runtime_core.js").AttachedBoardDomRuntimeModule;
 
 export type BoardDomActions =
-  import("../client-data/js/board.js").BoardDomRuntimeActions;
+  import("../client-data/js/board_runtime_core.js").BoardDomRuntimeActions;
 
 export type BoardDomModule = DetachedBoardDomModule | AttachedBoardDomModule;
 
 /** Stable board identity parsed from the current board URL. */
 export type AppIdentityModule =
-  import("../client-data/js/board.js").IdentityModule;
+  import("../client-data/js/board_runtime_core.js").IdentityModule;
 
 /** Boot-time server configuration exposed through a single runtime module. */
-export type AppConfigModule = import("../client-data/js/board.js").ConfigModule;
+export type AppConfigModule =
+  import("../client-data/js/board_runtime_core.js").ConfigModule;
 
 /** Server-issued board access state and derived permissions. */
 export type AppAccessModule = import("../client-data/js/board.js").AccessModule;
@@ -619,7 +620,7 @@ export type AppInitialPreferences = {
 
 /** Current drawing preferences and their UI bindings. */
 export type AppPreferenceModule =
-  import("../client-data/js/board.js").PreferenceModule;
+  import("../client-data/js/board_runtime_core.js").PreferenceModule;
 
 /** Board status UI state and timers. */
 export type AppStatusModule = import("../client-data/js/board.js").StatusModule;
@@ -642,7 +643,7 @@ export type AppMessageModule =
 
 /** Board viewport controller plus zoom-gated drawing-tool availability. */
 export type AppViewportModule =
-  import("../client-data/js/board.js").ViewportStateModule;
+  import("../client-data/js/board_runtime_core.js").ViewportStateModule;
 
 /** Authoritative baseline and incoming broadcast replay coordination. */
 export type AppReplayModule = import("../client-data/js/board.js").ReplayModule;
@@ -660,21 +661,23 @@ export type AppToolRegistryModule =
 
 /** Pointer interaction and cursor/marker visibility flags. */
 export type AppInteractionModule =
-  import("../client-data/js/board.js").InteractionModule;
+  import("../client-data/js/board_runtime_core.js").InteractionModule;
 
 /** Runtime asset URL resolution for board and tool modules. */
-export type AppAssetModule = import("../client-data/js/board.js").AssetModule;
+export type AppAssetModule =
+  import("../client-data/js/board_runtime_core.js").AssetModule;
 
 /** Runtime id generation. */
-export type AppIdModule = import("../client-data/js/board.js").IdModule;
+export type AppIdModule =
+  import("../client-data/js/board_runtime_core.js").IdModule;
 
 /** Config-derived rate-limit lookups and cost accounting. */
 export type AppRateLimitModule =
-  import("../client-data/js/board.js").RateLimitModule;
+  import("../client-data/js/board_runtime_core.js").RateLimitModule;
 
 /** Board-space coordinate conversion. */
 export type AppCoordinateModule =
-  import("../client-data/js/board.js").CoordinateModule;
+  import("../client-data/js/board_runtime_core.js").CoordinateModule;
 
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = ReturnType<
