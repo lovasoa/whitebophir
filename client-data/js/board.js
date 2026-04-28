@@ -71,6 +71,7 @@ import { SocketEvents } from "./socket_events.js";
 
 /** @import { AppBoardState, AppInitialPreferences, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
+/** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
 const Tools = /** @type {AppToolsState} */ ({});
 window.WBOApp = Tools;
 
@@ -372,36 +373,315 @@ Tools.turnstile = BoardTurnstile.createTurnstileModule(Tools, {
   queueProtectedWrite,
   flushPendingWrites,
 });
-Tools.writes = {
-  bufferedWrites: [],
-  bufferedWriteTimer: null,
-  writeReadyWaiters: /** @type {Array<() => void>} */ ([]),
-  serverRateLimitedUntil: 0,
-  localRateLimitedUntil: 0,
-  localRateLimitStates: {
-    general: RateLimitCommon.createRateLimitState(Date.now()),
-    constructive: RateLimitCommon.createRateLimitState(Date.now()),
-    destructive: RateLimitCommon.createRateLimitState(Date.now()),
-    text: RateLimitCommon.createRateLimitState(Date.now()),
-  },
-  clearBufferedWriteTimer,
-  isWritePaused,
-  canBufferWrites,
-  whenBoardWritable,
-  resetLocalRateLimitState,
-  resetAllLocalRateLimitStates,
-  canEmitBufferedWrite,
-  consumeBufferedWriteBudget,
-  getBufferedWriteWaitMs,
-  getBufferedWriteFlushSafetyMs,
-  scheduleBufferedWriteFlush,
-  flushBufferedWrites,
-  enqueueBufferedWrite,
-  sendBufferedWrite,
-  discardBufferedWrites,
-  drawAndSend,
-  send,
-};
+export class WriteModule {
+  constructor() {
+    this.bufferedWrites = /** @type {BufferedWrite[]} */ ([]);
+    this.bufferedWriteTimer = /** @type {number | null} */ (null);
+    this.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
+    this.serverRateLimitedUntil = 0;
+    this.localRateLimitedUntil = 0;
+    this.localRateLimitStates = {
+      general: RateLimitCommon.createRateLimitState(Date.now()),
+      constructive: RateLimitCommon.createRateLimitState(Date.now()),
+      destructive: RateLimitCommon.createRateLimitState(Date.now()),
+      text: RateLimitCommon.createRateLimitState(Date.now()),
+    };
+  }
+
+  clearBufferedWriteTimer() {
+    if (this.bufferedWriteTimer) {
+      clearTimeout(this.bufferedWriteTimer);
+      this.bufferedWriteTimer = null;
+    }
+  }
+
+  /** @param {number} [now] */
+  isWritePaused(now) {
+    return this.serverRateLimitedUntil > (now || Date.now());
+  }
+
+  canBufferWrites() {
+    return !!(
+      Tools.connection.socket &&
+      Tools.connection.socket.connected &&
+      !Tools.replay.awaitingSnapshot &&
+      !this.isWritePaused()
+    );
+  }
+
+  whenBoardWritable() {
+    if (this.canBufferWrites()) return Promise.resolve();
+    return new Promise(
+      /** @param {(value?: void | PromiseLike<void>) => void} resolve */ (
+        resolve,
+      ) => {
+        this.writeReadyWaiters.push(() => resolve());
+      },
+    );
+  }
+
+  /**
+   * @param {RateLimitKind} kind
+   * @param {number} [now]
+   */
+  resetLocalRateLimitState(kind, now) {
+    this.localRateLimitStates[kind] = RateLimitCommon.createRateLimitState(
+      now || Date.now(),
+    );
+  }
+
+  /** @param {number} [now] */
+  resetAllLocalRateLimitStates(now) {
+    this.resetLocalRateLimitState("general", now);
+    this.resetLocalRateLimitState("constructive", now);
+    this.resetLocalRateLimitState("destructive", now);
+    this.resetLocalRateLimitState("text", now);
+  }
+
+  /**
+   * @param {BufferedWrite} bufferedWrite
+   * @param {number} now
+   */
+  canEmitBufferedWrite(bufferedWrite, now) {
+    return RATE_LIMIT_KINDS.every((kind) => {
+      const cost = bufferedWrite.costs[kind];
+      if (!(cost > 0)) return true;
+      const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
+      if (!(definition.periodMs > 0) || !(definition.limit >= 0)) return true;
+      return RateLimitCommon.canConsumeFixedWindowRateLimit(
+        this.localRateLimitStates[kind],
+        cost,
+        definition.limit,
+        definition.periodMs,
+        now,
+      );
+    });
+  }
+
+  /**
+   * @param {BufferedWrite} bufferedWrite
+   * @param {number} now
+   */
+  consumeBufferedWriteBudget(bufferedWrite, now) {
+    RATE_LIMIT_KINDS.forEach((kind) => {
+      const cost = bufferedWrite.costs[kind];
+      if (!(cost > 0)) return;
+      const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
+      if (!(definition.periodMs > 0)) return;
+      this.localRateLimitStates[kind] =
+        RateLimitCommon.consumeFixedWindowRateLimit(
+          this.localRateLimitStates[kind],
+          cost,
+          definition.periodMs,
+          now,
+        );
+    });
+  }
+
+  /**
+   * @param {BufferedWrite} bufferedWrite
+   * @param {number} now
+   */
+  getBufferedWriteWaitMs(bufferedWrite, now) {
+    return RATE_LIMIT_KINDS.reduce((waitMs, kind) => {
+      const cost = bufferedWrite.costs[kind];
+      if (!(cost > 0)) return waitMs;
+      const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
+      if (!(definition.periodMs > 0)) return waitMs;
+      if (
+        RateLimitCommon.canConsumeFixedWindowRateLimit(
+          this.localRateLimitStates[kind],
+          cost,
+          definition.limit,
+          definition.periodMs,
+          now,
+        )
+      ) {
+        return waitMs;
+      }
+      return Math.max(
+        waitMs,
+        RateLimitCommon.getRateLimitRemainingMs(
+          this.localRateLimitStates[kind],
+          definition.periodMs,
+          now,
+        ),
+      );
+    }, 0);
+  }
+
+  /** @param {number} waitMs */
+  getBufferedWriteFlushSafetyMs(waitMs) {
+    return Math.min(
+      RATE_LIMIT_FLUSH_SAFETY_MAX_MS,
+      Math.max(RATE_LIMIT_FLUSH_SAFETY_MIN_MS, Math.ceil(Math.max(0, waitMs))),
+    );
+  }
+
+  scheduleBufferedWriteFlush() {
+    this.clearBufferedWriteTimer();
+    if (!this.bufferedWrites.length || !this.canBufferWrites()) {
+      Tools.status.syncWriteStatusIndicator();
+      return;
+    }
+    const nextWrite = this.bufferedWrites[0];
+    if (!nextWrite) return;
+    const now = Date.now();
+    const waitMs = this.getBufferedWriteWaitMs(nextWrite, now);
+    this.localRateLimitedUntil = waitMs > 0 ? now + waitMs : 0;
+    this.bufferedWriteTimer = window.setTimeout(
+      function flushBufferedWrites() {
+        Tools.writes.flushBufferedWrites();
+      },
+      Math.max(0, waitMs + this.getBufferedWriteFlushSafetyMs(waitMs)),
+    );
+    Tools.status.syncWriteStatusIndicator();
+  }
+
+  flushBufferedWrites() {
+    this.clearBufferedWriteTimer();
+    this.localRateLimitedUntil = 0;
+    if (!this.canBufferWrites()) {
+      Tools.status.syncWriteStatusIndicator();
+      return;
+    }
+    while (this.bufferedWrites.length > 0) {
+      const bufferedWrite = this.bufferedWrites[0];
+      if (!bufferedWrite) break;
+      const now = Date.now();
+      if (!this.canEmitBufferedWrite(bufferedWrite, now)) {
+        this.scheduleBufferedWriteFlush();
+        return;
+      }
+      this.bufferedWrites.shift();
+      this.consumeBufferedWriteBudget(bufferedWrite, now);
+      Tools.presence.updateCurrentConnectedUserFromActivity(
+        bufferedWrite.message,
+      );
+      if (Tools.connection.socket) {
+        Tools.connection.socket.emit(
+          SocketEvents.BROADCAST,
+          bufferedWrite.message,
+        );
+      }
+    }
+    Tools.status.syncWriteStatusIndicator();
+  }
+
+  /**
+   * Takes ownership of message. Callers must not mutate it after queueing.
+   * @param {RuntimeBoardMessage} message
+   */
+  enqueueBufferedWrite(message) {
+    const liveMessage = /** @type {LiveBoardMessage} */ (message);
+    this.bufferedWrites.push({
+      message: liveMessage,
+      costs: Tools.rateLimits.getBufferedWriteCosts(liveMessage),
+    });
+    this.scheduleBufferedWriteFlush();
+  }
+
+  /**
+   * Takes ownership of message. Callers must not mutate it after sending.
+   * @param {RuntimeBoardMessage} message
+   */
+  sendBufferedWrite(message) {
+    const liveMessage = /** @type {LiveBoardMessage} */ (message);
+    /** @type {BufferedWrite} */
+    const bufferedWrite = {
+      message: liveMessage,
+      costs: Tools.rateLimits.getBufferedWriteCosts(liveMessage),
+    };
+    if (!this.canBufferWrites()) {
+      return false;
+    }
+    const now = Date.now();
+    if (
+      this.bufferedWrites.length === 0 &&
+      this.canEmitBufferedWrite(bufferedWrite, now)
+    ) {
+      this.consumeBufferedWriteBudget(bufferedWrite, now);
+      Tools.presence.updateCurrentConnectedUserFromActivity(liveMessage);
+      if (Tools.connection.socket) {
+        Tools.connection.socket.emit(SocketEvents.BROADCAST, liveMessage);
+      }
+      Tools.status.syncWriteStatusIndicator();
+      return true;
+    }
+    this.bufferedWrites.push(bufferedWrite);
+    this.scheduleBufferedWriteFlush();
+    return true;
+  }
+
+  discardBufferedWrites() {
+    this.bufferedWrites = [];
+    this.localRateLimitedUntil = 0;
+    this.clearBufferedWriteTimer();
+    Tools.status.syncWriteStatusIndicator();
+  }
+
+  /**
+   * Takes ownership of data. Callers must not mutate it after sending.
+   * @param {RuntimeBoardMessage} data
+   */
+  send(data) {
+    const liveData = /** @type {LiveBoardMessage} */ (data);
+    Tools.messages.applyHooks(Tools.messages.hooks, liveData);
+    return this.sendBufferedWrite(liveData);
+  }
+
+  /**
+   * Takes ownership of data. Callers must create a fresh message object and
+   * must not mutate it after calling this function, because it may be queued
+   * and sent asynchronously.
+   * @param {RuntimeBoardMessage} data
+   */
+  drawAndSend(data) {
+    const toolName = TOOL_ID_BY_CODE[data.tool];
+    const mountedTool = Tools.toolRegistry.mounted[toolName];
+    if (!mountedTool) throw new Error(`Missing mounted tool '${data.tool}'.`);
+    if (Tools.toolRegistry.shouldDisableTool(toolName)) return false;
+    if (
+      !Tools.connection.socket ||
+      !Tools.connection.socket.connected ||
+      Tools.replay.awaitingSnapshot ||
+      this.isWritePaused()
+    ) {
+      return false;
+    }
+
+    if (toolName === "cursor") {
+      mountedTool.draw(/** @type {LiveBoardMessage} */ (data), true);
+      return this.send(data) !== false;
+    }
+
+    const trackedData = assignClientMutationId(
+      /** @type {LiveBoardMessage} */ (data),
+    );
+    const rollback = Tools.optimistic.captureRollback(trackedData);
+
+    // Optimistically render the drawing immediately
+    mountedTool.draw(trackedData, true);
+
+    if (
+      MessageCommon.requiresTurnstile(Tools.identity.boardName, toolName) &&
+      Tools.config.serverConfig.TURNSTILE_SITE_KEY &&
+      !Tools.turnstile.isValidated()
+    ) {
+      Tools.optimistic.trackMutation(trackedData, rollback);
+      Tools.turnstile.queueProtectedWrite(trackedData);
+      return true;
+    }
+
+    const sent = this.send(trackedData) !== false;
+    if (sent) {
+      Tools.optimistic.trackMutation(trackedData, rollback);
+    }
+    return sent;
+  }
+}
+
+Tools.writes = new WriteModule();
 export class StatusModule {
   constructor() {
     this.rateLimitNoticeTimer = null;
@@ -558,29 +838,204 @@ export class StatusModule {
 
 Tools.status = new StatusModule();
 
-Tools.replay = {
-  awaitingSnapshot: true,
-  hasAuthoritativeSnapshot: false,
-  refreshBaselineBeforeConnect: false,
-  authoritativeSeq: 0,
-  preSnapshotMessages: [],
-  incomingBroadcastQueue: [],
-  processingIncomingBroadcast: false,
-  applyAuthoritativeBaseline,
-  refreshAuthoritativeBaseline,
-  beginAuthoritativeResync,
-};
-Tools.optimistic = {
-  journal: createOptimisticJournal(),
-  captureRollback: captureOptimisticRollback,
-  collectDependencyMutationIds: collectOptimisticDependencyMutationIds,
-  trackMutation: trackOptimisticMutation,
-  restoreRollback: restoreOptimisticRollback,
-  applyRejectedEntries: applyRejectedOptimisticEntries,
-  promoteMutation: promoteOptimisticMutation,
-  rejectMutation: rejectOptimisticMutation,
-  pruneForAuthoritativeMessage: pruneOptimisticMutationsForAuthoritativeMessage,
-};
+export class ReplayModule {
+  constructor() {
+    this.awaitingSnapshot = true;
+    this.hasAuthoritativeSnapshot = false;
+    this.refreshBaselineBeforeConnect = false;
+    this.authoritativeSeq = 0;
+    this.preSnapshotMessages = /** @type {IncomingBroadcast[]} */ ([]);
+    this.incomingBroadcastQueue = /** @type {IncomingBroadcast[]} */ ([]);
+    this.processingIncomingBroadcast = false;
+  }
+
+  /** @param {AuthoritativeBaseline} baseline */
+  applyAuthoritativeBaseline(baseline) {
+    const dom = getAttachedBoardDom();
+    if (!dom) return;
+    this.hasAuthoritativeSnapshot = true;
+    this.authoritativeSeq = baseline.seq;
+    Tools.optimistic.journal.reset();
+    dom.svg.setAttribute("data-wbo-seq", String(baseline.seq));
+    dom.svg.setAttribute(
+      "data-wbo-readonly",
+      baseline.readonly ? "true" : "false",
+    );
+    dom.drawingArea.innerHTML = baseline.drawingAreaMarkup;
+    normalizeServerRenderedElements();
+  }
+
+  async refreshAuthoritativeBaseline() {
+    const response = await fetch(getAuthoritativeBaselineUrl(Date.now()), {
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { Accept: "image/svg+xml" },
+    });
+    if (!response.ok) {
+      throw new Error(`Baseline fetch failed with HTTP ${response.status}`);
+    }
+    const baseline = parseServedBaselineSvgText(
+      await response.text(),
+      new DOMParser(),
+    );
+    this.applyAuthoritativeBaseline(baseline);
+  }
+
+  beginAuthoritativeResync() {
+    this.awaitingSnapshot = true;
+    this.refreshBaselineBeforeConnect = true;
+    Tools.optimistic.journal.reset();
+    this.preSnapshotMessages = [];
+    this.incomingBroadcastQueue = [];
+    this.processingIncomingBroadcast = false;
+    Tools.writes.discardBufferedWrites();
+    Tools.turnstile.pendingWrites = [];
+    Tools.turnstile.hideOverlay();
+    Tools.presence.clearConnectedUsers();
+    Tools.dom.clearBoardCursors();
+    Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {
+      if (tool) tool.onSocketDisconnect();
+    });
+    Tools.toolRegistry.syncActiveToolInputPolicy();
+    Tools.status.syncWriteStatusIndicator();
+  }
+}
+
+Tools.replay = new ReplayModule();
+
+export class OptimisticModule {
+  constructor() {
+    this.journal = createOptimisticJournal();
+  }
+
+  /**
+   * @param {LiveBoardMessage} message
+   * @returns {OptimisticRollback}
+   */
+  captureRollback(message) {
+    const dom = getAttachedBoardDom();
+    if (getMutationType(message) === MutationType.CLEAR) {
+      return {
+        kind: "drawing-area",
+        markup: dom?.drawingArea.innerHTML || "",
+      };
+    }
+    return {
+      kind: "items",
+      snapshots: [...collectOptimisticAffectedIds(message)].map((itemId) => {
+        if (!dom) {
+          return {
+            id: itemId,
+            outerHTML: null,
+            nextSiblingId: null,
+          };
+        }
+        const current = dom.svg.getElementById(itemId);
+        return {
+          id: itemId,
+          outerHTML: current ? current.outerHTML : null,
+          nextSiblingId:
+            current && current.nextElementSibling
+              ? current.nextElementSibling.id || null
+              : null,
+        };
+      }),
+    };
+  }
+
+  /** @param {LiveBoardMessage} message */
+  collectDependencyMutationIds(message) {
+    return this.journal.dependencyMutationIdsForItemIds(
+      collectOptimisticDependencyIds(message),
+    );
+  }
+
+  /**
+   * @param {ClientTrackedMessage} message
+   * @param {OptimisticRollback} rollback
+   */
+  trackMutation(message, rollback) {
+    this.journal.append({
+      affectedIds: collectOptimisticAffectedIds(message),
+      dependsOn: this.collectDependencyMutationIds(message),
+      dependencyItemIds: collectOptimisticDependencyIds(message),
+      rollback,
+      message,
+    });
+  }
+
+  /** @param {OptimisticJournalEntry[]} rejected */
+  applyRejectedEntries(rejected) {
+    if (rejected.length === 0) return;
+    rejected
+      .slice()
+      .reverse()
+      .forEach((entry) => {
+        this.restoreRollback(entry.rollback);
+      });
+  }
+
+  /** @param {OptimisticRollback} rollback */
+  restoreRollback(rollback) {
+    const dom = getAttachedBoardDom();
+    if (!dom) return;
+    if (rollback.kind === "drawing-area") {
+      dom.drawingArea.innerHTML = rollback.markup;
+      return;
+    }
+    rollback.snapshots.forEach((snapshot) => {
+      const current = dom.svg.getElementById(snapshot.id);
+      if (snapshot.outerHTML === null) {
+        current?.remove();
+        return;
+      }
+      if (current) {
+        current.outerHTML = snapshot.outerHTML;
+        return;
+      }
+      const nextSibling = snapshot.nextSiblingId
+        ? dom.svg.getElementById(snapshot.nextSiblingId)
+        : null;
+      if (nextSibling?.parentElement === dom.drawingArea) {
+        nextSibling.insertAdjacentHTML("beforebegin", snapshot.outerHTML);
+      } else {
+        dom.drawingArea.insertAdjacentHTML("beforeend", snapshot.outerHTML);
+      }
+    });
+  }
+
+  /** @param {string} clientMutationId */
+  promoteMutation(clientMutationId) {
+    if (this.journal.promote(clientMutationId).length === 0) return;
+  }
+
+  /**
+   * @param {string} clientMutationId
+   * @param {string | undefined} reason
+   */
+  rejectMutation(clientMutationId, reason) {
+    const rejected = this.journal.reject(clientMutationId);
+    this.applyRejectedEntries(rejected);
+    notifyRejectedTools(rejected, reason);
+  }
+
+  /** @param {BoardMessage} message */
+  pruneForAuthoritativeMessage(message) {
+    const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
+    if (prunePlan.reset) {
+      this.applyRejectedEntries(this.journal.reset());
+      return;
+    }
+    if (prunePlan.invalidatedIds.length === 0) {
+      return;
+    }
+    this.applyRejectedEntries(
+      this.journal.rejectByInvalidatedIds(prunePlan.invalidatedIds),
+    );
+  }
+}
+
+Tools.optimistic = new OptimisticModule();
 Tools.connection = {
   socket: null,
   state: /** @type {BoardConnectionState} */ ("idle"),
@@ -710,48 +1165,9 @@ export class RateLimitModule {
 
 Tools.rateLimits = new RateLimitModule(Tools.config, Tools.identity);
 
-/** @this {AppToolsState["writes"]} */
-function clearBufferedWriteTimer() {
-  if (this.bufferedWriteTimer) {
-    clearTimeout(this.bufferedWriteTimer);
-    this.bufferedWriteTimer = null;
-  }
-}
-
 /** @param {number} [delayMs] */
 function scheduleSocketReconnect(delayMs = 250) {
   window.setTimeout(() => Tools.connection.start(), Math.max(0, delayMs));
-}
-
-/**
- * @param {number} [now]
- * @returns {boolean}
- * @this {AppToolsState["writes"]}
- */
-function isWritePaused(now) {
-  return this.serverRateLimitedUntil > (now || Date.now());
-}
-
-/** @this {AppToolsState["writes"]} */
-function canBufferWrites() {
-  return !!(
-    Tools.connection.socket &&
-    Tools.connection.socket.connected &&
-    !Tools.replay.awaitingSnapshot &&
-    !this.isWritePaused()
-  );
-}
-
-/** @this {AppToolsState["writes"]} */
-function whenBoardWritable() {
-  if (this.canBufferWrites()) return Promise.resolve();
-  return new Promise(
-    /** @param {(value?: void | PromiseLike<void>) => void} resolve */ (
-      resolve,
-    ) => {
-      this.writeReadyWaiters.push(() => resolve());
-    },
-  );
 }
 
 /** @this {BoardDomModule} */
@@ -770,85 +1186,11 @@ function resetBoardViewport() {
 
 /**
  * @param {LiveBoardMessage} message
- * @returns {OptimisticRollback}
- */
-function captureOptimisticRollback(message) {
-  const dom = getAttachedBoardDom();
-  if (getMutationType(message) === MutationType.CLEAR) {
-    return {
-      kind: "drawing-area",
-      markup: dom?.drawingArea.innerHTML || "",
-    };
-  }
-  return {
-    kind: "items",
-    snapshots: [...collectOptimisticAffectedIds(message)].map((itemId) => {
-      if (!dom) {
-        return {
-          id: itemId,
-          outerHTML: null,
-          nextSiblingId: null,
-        };
-      }
-      const current = dom.svg.getElementById(itemId);
-      return {
-        id: itemId,
-        outerHTML: current ? current.outerHTML : null,
-        nextSiblingId:
-          current && current.nextElementSibling
-            ? current.nextElementSibling.id || null
-            : null,
-      };
-    }),
-  };
-}
-
-/**
- * @param {LiveBoardMessage} message
- * @returns {ReadonlySet<string>}
- */
-function collectOptimisticDependencyMutationIds(message) {
-  return Tools.optimistic.journal.dependencyMutationIdsForItemIds(
-    collectOptimisticDependencyIds(message),
-  );
-}
-
-/**
- * @param {LiveBoardMessage} message
  * @returns {ClientTrackedMessage}
  */
 function assignClientMutationId(message) {
   message.clientMutationId = Tools.ids.generateUID("cm-");
   return /** @type {ClientTrackedMessage} */ (message);
-}
-
-/**
- * @param {ClientTrackedMessage} message
- * @param {OptimisticRollback} rollback
- * @returns {void}
- */
-function trackOptimisticMutation(message, rollback) {
-  Tools.optimistic.journal.append({
-    affectedIds: collectOptimisticAffectedIds(message),
-    dependsOn: Tools.optimistic.collectDependencyMutationIds(message),
-    dependencyItemIds: collectOptimisticDependencyIds(message),
-    rollback,
-    message,
-  });
-}
-
-/**
- * @param {OptimisticJournalEntry[]} rejected
- * @returns {void}
- */
-function applyRejectedOptimisticEntries(rejected) {
-  if (rejected.length === 0) return;
-  rejected
-    .slice()
-    .reverse()
-    .forEach((entry) => {
-      Tools.optimistic.restoreRollback(entry.rollback);
-    });
 }
 
 /**
@@ -863,93 +1205,6 @@ function notifyRejectedTools(rejected, reason) {
     const tool = Tools.toolRegistry.mounted[toolName];
     tool?.onMutationRejected?.(entry.message, reason);
   });
-}
-
-/**
- * @param {OptimisticRollback} rollback
- * @returns {void}
- */
-function restoreOptimisticRollback(rollback) {
-  const dom = getAttachedBoardDom();
-  if (!dom) return;
-  if (rollback.kind === "drawing-area") {
-    dom.drawingArea.innerHTML = rollback.markup;
-    return;
-  }
-  rollback.snapshots.forEach((snapshot) => {
-    const current = dom.svg.getElementById(snapshot.id);
-    if (snapshot.outerHTML === null) {
-      current?.remove();
-      return;
-    }
-    if (current) {
-      current.outerHTML = snapshot.outerHTML;
-      return;
-    }
-    const nextSibling = snapshot.nextSiblingId
-      ? dom.svg.getElementById(snapshot.nextSiblingId)
-      : null;
-    if (nextSibling?.parentElement === dom.drawingArea) {
-      nextSibling.insertAdjacentHTML("beforebegin", snapshot.outerHTML);
-    } else {
-      dom.drawingArea.insertAdjacentHTML("beforeend", snapshot.outerHTML);
-    }
-  });
-}
-
-/**
- * @param {string} clientMutationId
- * @returns {void}
- */
-function promoteOptimisticMutation(clientMutationId) {
-  if (Tools.optimistic.journal.promote(clientMutationId).length === 0) return;
-}
-
-/**
- * @param {string} clientMutationId
- * @param {string | undefined} reason
- * @returns {void}
- */
-function rejectOptimisticMutation(clientMutationId, reason) {
-  const rejected = Tools.optimistic.journal.reject(clientMutationId);
-  Tools.optimistic.applyRejectedEntries(rejected);
-  notifyRejectedTools(rejected, reason);
-}
-
-/**
- * @param {BoardMessage} message
- * @returns {void}
- */
-function pruneOptimisticMutationsForAuthoritativeMessage(message) {
-  const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
-  if (prunePlan.reset) {
-    Tools.optimistic.applyRejectedEntries(Tools.optimistic.journal.reset());
-    return;
-  }
-  if (prunePlan.invalidatedIds.length === 0) {
-    return;
-  }
-  Tools.optimistic.applyRejectedEntries(
-    Tools.optimistic.journal.rejectByInvalidatedIds(prunePlan.invalidatedIds),
-  );
-}
-
-/**
- * @param {AuthoritativeBaseline} baseline
- */
-function applyAuthoritativeBaseline(baseline) {
-  const dom = getAttachedBoardDom();
-  if (!dom) return;
-  Tools.replay.hasAuthoritativeSnapshot = true;
-  Tools.replay.authoritativeSeq = baseline.seq;
-  Tools.optimistic.journal.reset();
-  dom.svg.setAttribute("data-wbo-seq", String(baseline.seq));
-  dom.svg.setAttribute(
-    "data-wbo-readonly",
-    baseline.readonly ? "true" : "false",
-  );
-  dom.drawingArea.innerHTML = baseline.drawingAreaMarkup;
-  normalizeServerRenderedElements();
 }
 
 /**
@@ -974,247 +1229,6 @@ function normalizeServerRenderedElements() {
   Object.values(Tools.toolRegistry.mounted).forEach((tool) => {
     normalizeServerRenderedElementsForTool(tool);
   });
-}
-
-async function refreshAuthoritativeBaseline() {
-  const response = await fetch(getAuthoritativeBaselineUrl(Date.now()), {
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: { Accept: "image/svg+xml" },
-  });
-  if (!response.ok) {
-    throw new Error(`Baseline fetch failed with HTTP ${response.status}`);
-  }
-  const baseline = parseServedBaselineSvgText(
-    await response.text(),
-    new DOMParser(),
-  );
-  Tools.replay.applyAuthoritativeBaseline(baseline);
-}
-
-/**
- * @param {RateLimitKind} kind
- * @param {number} [now]
- * @returns {void}
- * @this {AppToolsState["writes"]}
- */
-function resetLocalRateLimitState(kind, now) {
-  this.localRateLimitStates[kind] = RateLimitCommon.createRateLimitState(
-    now || Date.now(),
-  );
-}
-
-/**
- * @param {number} [now]
- * @this {AppToolsState["writes"]}
- */
-function resetAllLocalRateLimitStates(now) {
-  this.resetLocalRateLimitState("general", now);
-  this.resetLocalRateLimitState("constructive", now);
-  this.resetLocalRateLimitState("destructive", now);
-  this.resetLocalRateLimitState("text", now);
-}
-
-/**
- * @param {BufferedWrite} bufferedWrite
- * @param {number} now
- * @returns {boolean}
- * @this {AppToolsState["writes"]}
- */
-function canEmitBufferedWrite(bufferedWrite, now) {
-  return RATE_LIMIT_KINDS.every((kind) => {
-    const cost = bufferedWrite.costs[kind];
-    if (!(cost > 0)) return true;
-    const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
-    if (!(definition.periodMs > 0) || !(definition.limit >= 0)) return true;
-    return RateLimitCommon.canConsumeFixedWindowRateLimit(
-      this.localRateLimitStates[kind],
-      cost,
-      definition.limit,
-      definition.periodMs,
-      now,
-    );
-  });
-}
-
-/**
- * @param {BufferedWrite} bufferedWrite
- * @param {number} now
- * @returns {void}
- * @this {AppToolsState["writes"]}
- */
-function consumeBufferedWriteBudget(bufferedWrite, now) {
-  RATE_LIMIT_KINDS.forEach((kind) => {
-    const cost = bufferedWrite.costs[kind];
-    if (!(cost > 0)) return;
-    const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
-    if (!(definition.periodMs > 0)) return;
-    this.localRateLimitStates[kind] =
-      RateLimitCommon.consumeFixedWindowRateLimit(
-        this.localRateLimitStates[kind],
-        cost,
-        definition.periodMs,
-        now,
-      );
-  });
-}
-
-/**
- * @param {BufferedWrite} bufferedWrite
- * @param {number} now
- * @returns {number}
- * @this {AppToolsState["writes"]}
- */
-function getBufferedWriteWaitMs(bufferedWrite, now) {
-  return RATE_LIMIT_KINDS.reduce((waitMs, kind) => {
-    const cost = bufferedWrite.costs[kind];
-    if (!(cost > 0)) return waitMs;
-    const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
-    if (!(definition.periodMs > 0)) return waitMs;
-    if (
-      RateLimitCommon.canConsumeFixedWindowRateLimit(
-        this.localRateLimitStates[kind],
-        cost,
-        definition.limit,
-        definition.periodMs,
-        now,
-      )
-    ) {
-      return waitMs;
-    }
-    return Math.max(
-      waitMs,
-      RateLimitCommon.getRateLimitRemainingMs(
-        this.localRateLimitStates[kind],
-        definition.periodMs,
-        now,
-      ),
-    );
-  }, 0);
-}
-
-/**
- * @param {number} waitMs
- * @returns {number}
- */
-function getBufferedWriteFlushSafetyMs(waitMs) {
-  return Math.min(
-    RATE_LIMIT_FLUSH_SAFETY_MAX_MS,
-    Math.max(RATE_LIMIT_FLUSH_SAFETY_MIN_MS, Math.ceil(Math.max(0, waitMs))),
-  );
-}
-
-/**
- * @returns {void}
- * @this {AppToolsState["writes"]}
- */
-function scheduleBufferedWriteFlush() {
-  this.clearBufferedWriteTimer();
-  if (!this.bufferedWrites.length || !this.canBufferWrites()) {
-    Tools.status.syncWriteStatusIndicator();
-    return;
-  }
-  const nextWrite = this.bufferedWrites[0];
-  if (!nextWrite) return;
-  const now = Date.now();
-  const waitMs = this.getBufferedWriteWaitMs(nextWrite, now);
-  this.localRateLimitedUntil = waitMs > 0 ? now + waitMs : 0;
-  this.bufferedWriteTimer = window.setTimeout(
-    function flushBufferedWrites() {
-      Tools.writes.flushBufferedWrites();
-    },
-    Math.max(0, waitMs + this.getBufferedWriteFlushSafetyMs(waitMs)),
-  );
-  Tools.status.syncWriteStatusIndicator();
-}
-
-/**
- * @returns {void}
- * @this {AppToolsState["writes"]}
- */
-function flushBufferedWrites() {
-  this.clearBufferedWriteTimer();
-  this.localRateLimitedUntil = 0;
-  if (!this.canBufferWrites()) {
-    Tools.status.syncWriteStatusIndicator();
-    return;
-  }
-  while (this.bufferedWrites.length > 0) {
-    const bufferedWrite = this.bufferedWrites[0];
-    if (!bufferedWrite) break;
-    const now = Date.now();
-    if (!this.canEmitBufferedWrite(bufferedWrite, now)) {
-      this.scheduleBufferedWriteFlush();
-      return;
-    }
-    this.bufferedWrites.shift();
-    this.consumeBufferedWriteBudget(bufferedWrite, now);
-    Tools.presence.updateCurrentConnectedUserFromActivity(
-      bufferedWrite.message,
-    );
-    if (Tools.connection.socket) {
-      Tools.connection.socket.emit(
-        SocketEvents.BROADCAST,
-        bufferedWrite.message,
-      );
-    }
-  }
-  Tools.status.syncWriteStatusIndicator();
-}
-
-/**
- * Takes ownership of message. Callers must not mutate it after queueing.
- * @param {LiveBoardMessage} message
- * @returns {void}
- * @this {AppToolsState["writes"]}
- */
-function enqueueBufferedWrite(message) {
-  this.bufferedWrites.push({
-    message: message,
-    costs: Tools.rateLimits.getBufferedWriteCosts(message),
-  });
-  this.scheduleBufferedWriteFlush();
-}
-
-/**
- * Takes ownership of message. Callers must not mutate it after sending.
- * @param {LiveBoardMessage} message
- * @returns {boolean}
- * @this {AppToolsState["writes"]}
- */
-function sendBufferedWrite(message) {
-  /** @type {BufferedWrite} */
-  const bufferedWrite = {
-    message: message,
-    costs: Tools.rateLimits.getBufferedWriteCosts(message),
-  };
-  if (!this.canBufferWrites()) {
-    return false;
-  }
-  const now = Date.now();
-  if (
-    this.bufferedWrites.length === 0 &&
-    this.canEmitBufferedWrite(bufferedWrite, now)
-  ) {
-    this.consumeBufferedWriteBudget(bufferedWrite, now);
-    Tools.presence.updateCurrentConnectedUserFromActivity(message);
-    if (Tools.connection.socket) {
-      Tools.connection.socket.emit(SocketEvents.BROADCAST, message);
-    }
-    Tools.status.syncWriteStatusIndicator();
-    return true;
-  }
-  this.bufferedWrites.push(bufferedWrite);
-  this.scheduleBufferedWriteFlush();
-  return true;
-}
-
-/** @this {AppToolsState["writes"]} */
-function discardBufferedWrites() {
-  this.bufferedWrites = [];
-  this.localRateLimitedUntil = 0;
-  this.clearBufferedWriteTimer();
-  Tools.status.syncWriteStatusIndicator();
 }
 
 /**
@@ -1252,25 +1266,6 @@ function pruneBufferedWritesForInvalidatingMessage(message) {
   if (nextBufferedWrites.length === Tools.writes.bufferedWrites.length) return;
   Tools.writes.bufferedWrites = nextBufferedWrites;
   Tools.writes.scheduleBufferedWriteFlush();
-}
-
-function beginAuthoritativeResync() {
-  Tools.replay.awaitingSnapshot = true;
-  Tools.replay.refreshBaselineBeforeConnect = true;
-  Tools.optimistic.journal.reset();
-  Tools.replay.preSnapshotMessages = [];
-  Tools.replay.incomingBroadcastQueue = [];
-  Tools.replay.processingIncomingBroadcast = false;
-  Tools.writes.discardBufferedWrites();
-  Tools.turnstile.pendingWrites = [];
-  Tools.turnstile.hideOverlay();
-  Tools.presence.clearConnectedUsers();
-  Tools.dom.clearBoardCursors();
-  Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {
-    if (tool) tool.onSocketDisconnect();
-  });
-  Tools.toolRegistry.syncActiveToolInputPolicy();
-  Tools.status.syncWriteStatusIndicator();
 }
 
 /**
@@ -2534,8 +2529,14 @@ export function createToolRuntimeModules(mountedTools) {
     coordinates: mountedTools.coordinates,
     viewport: mountedTools.viewportState.controller,
     writes: {
-      drawAndSend: mountedTools.writes.drawAndSend,
-      send: mountedTools.writes.send,
+      /** @param {RuntimeBoardMessage} message */
+      drawAndSend(message) {
+        return mountedTools.writes.drawAndSend(message);
+      },
+      /** @param {RuntimeBoardMessage} message */
+      send(message) {
+        return mountedTools.writes.send(message);
+      },
       canBufferWrites() {
         return mountedTools.writes.canBufferWrites();
       },
@@ -3031,63 +3032,6 @@ function removeToolListeners(tool) {
   window.addEventListener("keydown", handleShift.bind(null, true));
   window.addEventListener("keyup", handleShift.bind(null, false));
 })();
-
-/**
- * Takes ownership of data. Callers must not mutate it after sending.
- * @param {LiveBoardMessage} data
- */
-function send(data) {
-  Tools.messages.applyHooks(Tools.messages.hooks, data);
-  return Tools.writes.sendBufferedWrite(data);
-}
-
-/**
- * Takes ownership of data. Callers must create a fresh message object and must
- * not mutate it after calling this function, because it may be queued and sent
- * asynchronously.
- * @param {LiveBoardMessage} data
- */
-function drawAndSend(data) {
-  const toolName = TOOL_ID_BY_CODE[data.tool];
-  const mountedTool = Tools.toolRegistry.mounted[toolName];
-  if (!mountedTool) throw new Error(`Missing mounted tool '${data.tool}'.`);
-  if (Tools.toolRegistry.shouldDisableTool(toolName)) return false;
-  if (
-    !Tools.connection.socket ||
-    !Tools.connection.socket.connected ||
-    Tools.replay.awaitingSnapshot ||
-    Tools.writes.isWritePaused()
-  ) {
-    return false;
-  }
-
-  if (toolName === "cursor") {
-    mountedTool.draw(data, true);
-    return Tools.writes.send(data) !== false;
-  }
-
-  const trackedData = assignClientMutationId(data);
-  const rollback = Tools.optimistic.captureRollback(trackedData);
-
-  // Optimistically render the drawing immediately
-  mountedTool.draw(trackedData, true);
-
-  if (
-    MessageCommon.requiresTurnstile(Tools.identity.boardName, toolName) &&
-    Tools.config.serverConfig.TURNSTILE_SITE_KEY &&
-    !Tools.turnstile.isValidated()
-  ) {
-    Tools.optimistic.trackMutation(trackedData, rollback);
-    Tools.turnstile.queueProtectedWrite(trackedData);
-    return true;
-  }
-
-  const sent = Tools.writes.send(trackedData) !== false;
-  if (sent) {
-    Tools.optimistic.trackMutation(trackedData, rollback);
-  }
-  return sent;
-}
 
 /**
  * Call messageForTool recursively on the message and its children.

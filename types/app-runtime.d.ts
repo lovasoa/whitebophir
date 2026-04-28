@@ -665,22 +665,8 @@ export type AppPresenceModule =
   import("../client-data/js/board.js").PresenceModule;
 
 /** Optimistic local mutation journal and rollback bookkeeping. */
-export type AppOptimisticModule = {
-  journal: OptimisticJournalState;
-  captureRollback: (message: LiveBoardMessage) => OptimisticRollback;
-  collectDependencyMutationIds: (
-    message: LiveBoardMessage,
-  ) => OptimisticMutationIdSet;
-  trackMutation: (
-    message: ClientTrackedMessage,
-    rollback: OptimisticRollback,
-  ) => void;
-  restoreRollback: (rollback: OptimisticRollback) => void;
-  applyRejectedEntries: (rejected: OptimisticJournalEntry[]) => void;
-  promoteMutation: (clientMutationId: string) => void;
-  rejectMutation: (clientMutationId: string, reason?: string) => void;
-  pruneForAuthoritativeMessage: (message: BoardMessage) => void;
-};
+export type AppOptimisticModule =
+  import("../client-data/js/board.js").OptimisticModule;
 
 /** Local message hooks and unread-message badge state. */
 export type AppMessageModule =
@@ -691,18 +677,7 @@ export type AppViewportModule =
   import("../client-data/js/board.js").ViewportStateModule;
 
 /** Authoritative baseline and incoming broadcast replay coordination. */
-export type AppReplayModule = {
-  hasAuthoritativeSnapshot: boolean;
-  awaitingSnapshot: boolean;
-  refreshBaselineBeforeConnect: boolean;
-  authoritativeSeq: number;
-  preSnapshotMessages: IncomingBroadcast[];
-  incomingBroadcastQueue: IncomingBroadcast[];
-  processingIncomingBroadcast: boolean;
-  applyAuthoritativeBaseline: (baseline: AuthoritativeBaseline) => void;
-  refreshAuthoritativeBaseline: () => Promise<void>;
-  beginAuthoritativeResync: () => void;
-};
+export type AppReplayModule = import("../client-data/js/board.js").ReplayModule;
 
 /** Socket.IO connection handle and lifecycle metadata. */
 export type AppConnectionModule = {
@@ -714,38 +689,7 @@ export type AppConnectionModule = {
 };
 
 /** Buffered write queue and local/server write throttling state. */
-export type AppWriteModule = {
-  bufferedWrites: BufferedWrite[];
-  bufferedWriteTimer: number | null;
-  writeReadyWaiters: Array<() => void>;
-  serverRateLimitedUntil: number;
-  localRateLimitedUntil: number;
-  localRateLimitStates: RateLimitStates;
-  clearBufferedWriteTimer: () => void;
-  isWritePaused: (now?: number) => boolean;
-  canBufferWrites: () => boolean;
-  whenBoardWritable: () => Promise<void>;
-  resetLocalRateLimitState: (kind: RateLimitKind, now?: number) => void;
-  resetAllLocalRateLimitStates: (now?: number) => void;
-  canEmitBufferedWrite: (bufferedWrite: BufferedWrite, now: number) => boolean;
-  consumeBufferedWriteBudget: (
-    bufferedWrite: BufferedWrite,
-    now: number,
-  ) => void;
-  getBufferedWriteWaitMs: (bufferedWrite: BufferedWrite, now: number) => number;
-  getBufferedWriteFlushSafetyMs: (waitMs: number) => number;
-  scheduleBufferedWriteFlush: () => void;
-  flushBufferedWrites: () => void;
-  /** Takes ownership of message. Callers must not mutate it after queueing. */
-  enqueueBufferedWrite: (message: LiveBoardMessage) => void;
-  /** Takes ownership of message. Callers must not mutate it after sending. */
-  sendBufferedWrite: (message: LiveBoardMessage) => boolean;
-  discardBufferedWrites: () => void;
-  /** Takes ownership of message. Callers must not mutate it after sending. */
-  drawAndSend: (message: LiveBoardMessage) => boolean | undefined;
-  /** Takes ownership of message. Callers must not mutate it after sending. */
-  send: (message: LiveBoardMessage) => boolean | undefined;
-};
+export type AppWriteModule = import("../client-data/js/board.js").WriteModule;
 
 /** Mounted tool registry, active tool, and boot/replay queues. */
 export type AppToolRegistryModule = {
