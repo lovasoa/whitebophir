@@ -655,7 +655,10 @@ window.turnstile = {
         const event = new Event("mousemove");
         Object.defineProperty(event, "pageX", { value: cursorX });
         Object.defineProperty(event, "pageY", { value: cursorY });
-        tools.board.dispatchEvent(event);
+        if (tools.dom.status !== "attached") {
+          throw new Error("Board runtime is not attached.");
+        }
+        tools.dom.board.dispatchEvent(event);
       },
       { cursorColor: color, cursorX: x, cursorY: y },
     );

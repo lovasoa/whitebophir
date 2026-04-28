@@ -219,9 +219,10 @@ test.describe("single-page interactions", () => {
 
     const metrics = await page.evaluate(() => {
       const tools = window.WBOApp;
-      if (!tools.svg || !tools.board) {
+      if (tools.dom.status !== "attached") {
         throw new Error("Board runtime is not attached.");
       }
+      const dom = tools.dom;
       tools.viewportState.controller.ensureBoardExtentForPoint(10000, 8000);
       tools.viewportState.controller.setScale(1);
       tools.viewportState.controller.setScale(0.5);
@@ -230,14 +231,14 @@ test.describe("single-page interactions", () => {
       const scale = tools.viewportState.controller.getScale();
       const expectedWidth = Math.max(
         window.innerWidth,
-        tools.svg.width.baseVal.value * scale,
+        dom.svg.width.baseVal.value * scale,
       );
       const expectedHeight = Math.max(
         window.innerHeight,
-        tools.svg.height.baseVal.value * scale,
+        dom.svg.height.baseVal.value * scale,
       );
-      const boardRect = tools.board.getBoundingClientRect();
-      const svgRect = tools.svg.getBoundingClientRect();
+      const boardRect = dom.board.getBoundingClientRect();
+      const svgRect = dom.svg.getBoundingClientRect();
       return {
         expectedWidth,
         expectedHeight,
@@ -408,7 +409,7 @@ test.describe("single-page interactions", () => {
 
     const metrics = await page.evaluate(() => {
       const tools = window.WBOApp;
-      if (!tools.svg || !tools.board) {
+      if (tools.dom.status !== "attached") {
         throw new Error("Board runtime is not attached.");
       }
       tools.viewportState.controller.setScale(0);
