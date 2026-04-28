@@ -641,6 +641,21 @@ export type AppTurnstileModule = {
   pending: boolean;
   pendingWrites: PendingWrite[];
   overlayTimeout: number | null;
+  isValidated: () => boolean;
+  clearRefreshTimeout: () => void;
+  clearRetryTimeout: () => void;
+  scheduleRefresh: (validationWindowMs: number) => void;
+  scheduleRetry: (reason: string, delayMs?: number) => void;
+  setValidation: (result: unknown) => void;
+  normalizeAck: (result: unknown) => TurnstileAck;
+  ensureElements: () => { overlay: HTMLElement };
+  showOverlay: (delay: number) => void;
+  hideOverlay: () => void;
+  refresh: () => void;
+  showWidget: () => void;
+  /** Takes ownership of data. Callers must not mutate it after queueing. */
+  queueProtectedWrite: (data: LiveBoardMessage) => void;
+  flushPendingWrites: () => void;
 };
 
 /** Connected-user presence state for the board chrome. */
@@ -900,9 +915,6 @@ export type AppToolsState = {
   clearBoardCursors: () => void;
   resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
-  /** Takes ownership of data. Callers must not mutate it after queueing. */
-  queueProtectedWrite: (data: LiveBoardMessage) => void;
-  flushTurnstilePendingWrites: () => void;
   mountTool: (
     toolModule: ToolModule,
     toolState: unknown,
@@ -914,18 +926,6 @@ export type AppToolsState = {
   removeToolListeners: (tool: MountedAppTool) => void;
   syncActiveToolInputPolicy: () => void;
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
-  isTurnstileValidated: () => boolean;
-  clearTurnstileRefreshTimeout: () => void;
-  clearTurnstileRetryTimeout: () => void;
-  scheduleTurnstileRefresh: (validationWindowMs: number) => void;
-  scheduleTurnstileRetry: (reason: string, delayMs?: number) => void;
-  setTurnstileValidation: (result: unknown) => void;
-  normalizeTurnstileAck: (result: unknown) => TurnstileAck;
-  ensureTurnstileElements: () => { overlay: HTMLElement };
-  showTurnstileOverlay: (delay: number) => void;
-  hideTurnstileOverlay: () => void;
-  refreshTurnstile: () => void;
-  showTurnstileWidget: () => void;
   shouldDisableTool: (toolName: string) => boolean;
   shouldDisplayTool: (toolName: string) => boolean;
   canUseTool: (toolName: string) => boolean;

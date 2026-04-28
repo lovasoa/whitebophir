@@ -318,15 +318,11 @@ Tools.toolRegistry = {
   bootedNames: new Set(),
   pendingMessages: /** @type {PendingMessages} */ ({}),
 };
-Tools.turnstile = {
-  validatedUntil: 0,
-  widgetId: null,
-  refreshTimeout: null,
-  retryTimeout: null,
-  pending: false,
-  pendingWrites: [],
-  overlayTimeout: null,
-};
+Tools.turnstile = BoardTurnstile.createTurnstileModule(Tools, {
+  logBoardEvent,
+  queueProtectedWrite,
+  flushPendingWrites,
+});
 Tools.writes = {
   bufferedWrites: [],
   bufferedWriteTimer: null,
@@ -1183,7 +1179,7 @@ function beginAuthoritativeResync() {
   Tools.replay.processingIncomingBroadcast = false;
   Tools.writes.discardBufferedWrites();
   Tools.turnstile.pendingWrites = [];
-  Tools.hideTurnstileOverlay();
+  Tools.turnstile.hideOverlay();
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
@@ -1201,7 +1197,7 @@ function beginAuthoritativeResync() {
  * Takes ownership of data. Callers must not mutate it after queueing.
  * @param {LiveBoardMessage} data
  */
-Tools.queueProtectedWrite = function queueProtectedWrite(data) {
+function queueProtectedWrite(data) {
   const hadPendingWrites = Tools.turnstile.pendingWrites.length > 0;
   Tools.turnstile.pendingWrites.push({ data });
   if (hadPendingWrites) return;
@@ -1211,10 +1207,10 @@ Tools.queueProtectedWrite = function queueProtectedWrite(data) {
     clientMutationId:
       typeof data.clientMutationId === "string" ? data.clientMutationId : null,
   });
-  Tools.showTurnstileWidget();
-};
+  Tools.turnstile.showWidget();
+}
 
-Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
+function flushPendingWrites() {
   const pendingWrites = Tools.turnstile.pendingWrites;
   Tools.turnstile.pendingWrites = [];
   logBoardEvent("log", "turnstile.write_flush", {
@@ -1225,7 +1221,7 @@ Tools.flushTurnstilePendingWrites = function flushTurnstilePendingWrites() {
     const pendingWrite = /** @type {PendingWrite} */ (write);
     Tools.writes.send(pendingWrite.data);
   });
-};
+}
 
 /**
  * @param {IncomingBroadcast} msg
@@ -1405,7 +1401,6 @@ Tools.viewportState = {
   controller: createViewportController(Tools),
   drawToolsAllowed: null,
 };
-BoardTurnstile.installTurnstile(Tools, { logBoardEvent });
 Tools.access = {
   boardState: {
     readonly: false,
@@ -2167,7 +2162,7 @@ Tools.startConnection = () => {
         hadConnectedBefore ? "socket.reconnected" : "socket.connected",
       );
       if (hadConnectedBefore && Tools.config.serverConfig.TURNSTILE_SITE_KEY) {
-        Tools.setTurnstileValidation(null);
+        Tools.turnstile.setValidation(null);
         BoardTurnstile.resetTurnstileWidget(
           typeof turnstile !== "undefined" ? turnstile : undefined,
           Tools.turnstile.widgetId,
@@ -3073,10 +3068,10 @@ function drawAndSend(data) {
   if (
     MessageCommon.requiresTurnstile(Tools.identity.boardName, toolName) &&
     Tools.config.serverConfig.TURNSTILE_SITE_KEY &&
-    !Tools.isTurnstileValidated()
+    !Tools.turnstile.isValidated()
   ) {
     Tools.optimistic.trackMutation(data, rollback);
-    Tools.queueProtectedWrite(data);
+    Tools.turnstile.queueProtectedWrite(data);
     return true;
   }
 

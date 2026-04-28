@@ -923,7 +923,7 @@ window.turnstile = {
           requestAnimationFrame(() =>
             resolve({
               connected: window.WBOApp.connection.socket?.connected === true,
-              validated: window.WBOApp.isTurnstileValidated(),
+              validated: window.WBOApp.turnstile.isValidated(),
             }),
           );
         };
@@ -985,11 +985,11 @@ window.turnstile = {
             "turnstile_token",
             value,
             (result: unknown) => {
-              const ack = window.WBOApp.normalizeTurnstileAck(result);
-              if (ack.success) window.WBOApp.setTurnstileValidation(ack);
+              const ack = window.WBOApp.turnstile.normalizeAck(result);
+              if (ack.success) window.WBOApp.turnstile.setValidation(ack);
               resolve({
                 success: ack.success === true,
-                validated: window.WBOApp.isTurnstileValidated(),
+                validated: window.WBOApp.turnstile.isValidated(),
               });
             },
           );
@@ -1030,7 +1030,7 @@ window.turnstile = {
     return this.page.evaluate<ProtectedWriteState>(() => ({
       overlayPresent: true,
       pendingWrites: window.WBOApp.turnstile.pendingWrites.length,
-      validated: window.WBOApp.isTurnstileValidated(),
+      validated: window.WBOApp.turnstile.isValidated(),
     }));
   }
 
@@ -1047,7 +1047,7 @@ window.turnstile = {
     return this.page.evaluate<ProtectedWriteState>(() => ({
       overlayPresent: false,
       pendingWrites: window.WBOApp.turnstile.pendingWrites.length,
-      validated: window.WBOApp.isTurnstileValidated(),
+      validated: window.WBOApp.turnstile.isValidated(),
     }));
   }
 
@@ -1064,7 +1064,7 @@ window.turnstile = {
           overlay && !overlay.classList.contains("turnstile-overlay-hidden")
         ),
         pendingWrites: window.WBOApp.turnstile.pendingWrites.length,
-        validated: window.WBOApp.isTurnstileValidated(),
+        validated: window.WBOApp.turnstile.isValidated(),
       };
     });
   }
