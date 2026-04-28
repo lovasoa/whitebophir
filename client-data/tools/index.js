@@ -19,14 +19,11 @@ import {
   getToolTranslationKey,
 } from "./tool-defaults.js";
 /** @typedef {import("../../types/app-runtime").ToolCode} ToolCode */
-/** @typedef {import("../../types/app-runtime").ToolBootContext} ToolBootContext */
 /** @typedef {import("./shape_contract.js").ToolContract} ToolContract */
 /** @typedef {typeof import("./tool-order.js").TOOL_CODE_BY_ID} ToolCodeById */
 /**
  * @typedef {{
  *   toolId: string,
- *   boot: (ctx: ToolBootContext) => unknown,
- *   draw: (state: never, message: never, isLocal: never) => unknown,
  *   contract?: ToolContract,
  *   id?: ToolCode,
  *   visibleWhenReadOnly?: boolean,
@@ -41,12 +38,13 @@ import {
  * }} ToolModuleLike
  */
 /** @typedef {{[TToolId in keyof ToolCodeById]: ToolModuleLike & {toolId: TToolId}}} ToolModulesById */
+/** @typedef {(typeof TOOLS)[number]} ToolDefinition */
+/** @typedef {{[TToolId in keyof ToolCodeById]: ToolDefinition & {toolId: TToolId, id: ToolCodeById[TToolId]}} & {[toolId: string]: ToolDefinition | undefined}} ToolDefinitionsById */
 
 /**
- * @template {ToolModuleLike} T
- * @param {T} tool
+ * @param {ToolModuleLike} tool
  * @param {ToolCode} toolCode
- * @returns {T & Partial<ToolContract> & {
+ * @returns {ToolModuleLike & Partial<ToolContract> & {
  *   id: ToolCode,
  *   visibleWhenReadOnly: boolean,
  *   moderatorOnly: boolean,
@@ -59,7 +57,7 @@ import {
  * }}
  */
 function defineTool(tool, toolCode) {
-  const definition = /** @type {T & Partial<ToolContract>} */ ({
+  const definition = /** @type {ToolModuleLike & Partial<ToolContract>} */ ({
     ...(tool.contract || {}),
     ...tool,
   });
@@ -104,52 +102,31 @@ export const TOOL_MODULES_BY_ID = /** @satisfies {ToolModulesById} */ ({
 });
 
 export const TOOLS = TOOL_IDS.map((toolId) =>
-  defineTool(
-    /** @type {ToolModuleLike} */ (TOOL_MODULES_BY_ID[toolId]),
-    TOOL_CODE_BY_ID[toolId],
-  ),
+  defineTool(TOOL_MODULES_BY_ID[toolId], TOOL_CODE_BY_ID[toolId]),
 );
 
 export const TOOL_BY_CODE = TOOLS;
 export const DRAW_TOOLS = TOOLS.filter((tool) => tool.drawsOnBoard === true);
-export const TOOL_BY_ID =
-  /** @type {{[toolId: string]: (typeof TOOLS)[number] | undefined}} */ (
-    Object.fromEntries(TOOLS.map((tool) => [tool.toolId, tool]))
-  );
+export const TOOL_BY_ID = /** @type {ToolDefinitionsById} */ (
+  Object.fromEntries(TOOLS.map((tool) => [tool.toolId, tool]))
+);
 
-/**
- * @param {string} toolId
- * @returns {(typeof TOOLS)[number]}
- */
-function getRequiredTool(toolId) {
-  return /** @type {(typeof TOOLS)[number]} */ (TOOL_BY_ID[toolId]);
-}
-
-/**
- * @template {keyof ToolCodeById} TToolId
- * @param {TToolId} toolId
- * @returns {ReturnType<typeof getRequiredTool> & {id: ToolCodeById[TToolId]}}
- */
-function getTypedTool(toolId) {
-  return /** @type {ReturnType<typeof getRequiredTool> & {id: ToolCodeById[TToolId]}} */ (
-    getRequiredTool(toolId)
-  );
-}
-
-export const Pencil = getTypedTool("pencil");
-export const StraightLine = getTypedTool("straight-line");
-export const Rectangle = getTypedTool("rectangle");
-export const Ellipse = getTypedTool("ellipse");
-export const Text = getTypedTool("text");
-export const Eraser = getTypedTool("eraser");
-export const Hand = getTypedTool("hand");
-export const Grid = getTypedTool("grid");
-export const Download = getTypedTool("download");
-export const Zoom = getTypedTool("zoom");
-export const Clear = getTypedTool("clear");
-export const Cursor = getTypedTool("cursor");
-export const TOOLBAR_TOOLS = TOOLBAR_TOOL_IDS.map((toolId) =>
-  getRequiredTool(toolId),
+export const Pencil = TOOL_BY_ID.pencil;
+export const StraightLine = TOOL_BY_ID["straight-line"];
+export const Rectangle = TOOL_BY_ID.rectangle;
+export const Ellipse = TOOL_BY_ID.ellipse;
+export const Text = TOOL_BY_ID.text;
+export const Eraser = TOOL_BY_ID.eraser;
+export const Hand = TOOL_BY_ID.hand;
+export const Grid = TOOL_BY_ID.grid;
+export const Download = TOOL_BY_ID.download;
+export const Zoom = TOOL_BY_ID.zoom;
+export const Clear = TOOL_BY_ID.clear;
+export const Cursor = TOOL_BY_ID.cursor;
+export const TOOLBAR_TOOLS = /** @type {ReadonlyArray<ToolDefinition>} */ (
+  TOOLBAR_TOOL_IDS.map(
+    (toolId) => /** @type {ToolDefinition} */ (TOOL_BY_ID[toolId]),
+  )
 );
 export const TOOL_BY_STORED_TAG_NAME = Object.fromEntries(
   TOOLS.filter((tool) => typeof tool.storedTagName === "string").map((tool) => [

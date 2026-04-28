@@ -393,7 +393,7 @@ class BoardTemplate extends Template {
       iconUrl: tool.getIconUrl(),
     }));
     params.toolModulePreloads = Array.from(
-      new Set(visibleTools.map((tool) => tool.toolId).concat("cursor")),
+      new Set([...visibleTools.map((tool) => tool.toolId), "cursor"]),
     )
       .map((toolId) => TOOL_BY_ID[toolId])
       .filter(isToolbarTool)
