@@ -571,7 +571,15 @@ export type AttachedBoardDomModule = {
   readonly drawingArea: Element;
 };
 
-export type BoardDomModule = DetachedBoardDomModule | AttachedBoardDomModule;
+export type BoardDomActions = {
+  createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
+  positionElement: (elem: HTMLElement, x: number, y: number) => void;
+  clearBoardCursors: () => void;
+  resetBoardViewport: () => void;
+};
+
+export type BoardDomModule = (DetachedBoardDomModule | AttachedBoardDomModule) &
+  BoardDomActions;
 
 /** Stable board identity parsed from the current board URL. */
 export type AppIdentityModule = {
@@ -912,8 +920,6 @@ export type AppToolsState = {
   rateLimits: AppRateLimitModule;
   coordinates: AppCoordinateModule;
   dom: BoardDomModule;
-  clearBoardCursors: () => void;
-  resetBoardViewport: () => void;
   restoreLocalCursor: () => void;
   mountTool: (
     toolModule: ToolModule,
@@ -925,7 +931,6 @@ export type AppToolsState = {
   addToolListeners: (tool: MountedAppTool) => void;
   removeToolListeners: (tool: MountedAppTool) => void;
   syncActiveToolInputPolicy: () => void;
-  createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
   shouldDisableTool: (toolName: string) => boolean;
   shouldDisplayTool: (toolName: string) => boolean;
   canUseTool: (toolName: string) => boolean;
@@ -933,7 +938,6 @@ export type AppToolsState = {
   syncDrawToolAvailability: (force: boolean) => void;
   setBoardState: (state: unknown) => void;
   isBlocked: (tool: MountedAppTool) => boolean;
-  positionElement: (elem: HTMLElement, x: number, y: number) => void;
   change: (toolName: string) => boolean | undefined;
   startConnection: () => void;
 };

@@ -409,6 +409,20 @@ function createHarness() {
       board: board,
       svg: svg,
       drawingArea: drawingArea,
+      createSVGElement: (
+        /** @type {string} */ tagName,
+        /** @type {Record<string, string | number>} */ attrs,
+      ) => createSVGElement(store, tagName, attrs),
+      positionElement: (
+        /** @type {HTMLElement} */ elem,
+        /** @type {number} */ x,
+        /** @type {number} */ y,
+      ) => {
+        elem.style.left = `${x}px`;
+        elem.style.top = `${y}px`;
+      },
+      clearBoardCursors: () => {},
+      resetBoardViewport: () => {},
     },
     svg: svg,
     board: board,
@@ -505,10 +519,6 @@ function createHarness() {
         applyFromHash: () => {},
       },
     },
-    createSVGElement: (
-      /** @type {string} */ tagName,
-      /** @type {Record<string, string | number>} */ attrs,
-    ) => createSVGElement(store, tagName, attrs),
     change: function (/** @type {string} */ toolName) {
       this.toolRegistry.current = tools[toolName];
       return true;
@@ -852,7 +862,7 @@ function createHarnessToolRuntime(app) {
   return {
     board: {
       ...app.dom,
-      createSVGElement: (name, attrs) => app.createSVGElement(name, attrs),
+      createSVGElement: (name, attrs) => app.dom.createSVGElement(name, attrs),
       toBoardCoordinate: (value) => app.coordinates.toBoardCoordinate(value),
       pageCoordinateToBoard: (value) =>
         app.coordinates.pageCoordinateToBoard(value),
@@ -1888,7 +1898,7 @@ test("Hand selector sends a final transform on quick release", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
 
-  const rect = globalAny.Tools.createSVGElement("rect");
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
   rect.id = "seed-rect";
   rect.x.baseVal.value = 100;
   rect.y.baseVal.value = 100;
@@ -1945,7 +1955,7 @@ test("Hand replay expands viewport extent for transform-only updates", async () 
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
 
-  const rect = globalAny.Tools.createSVGElement("rect");
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
   rect.id = "remote-rect";
   rect.x.baseVal.value = 100;
   rect.y.baseVal.value = 100;
@@ -1990,7 +2000,7 @@ test("Hand selector stops at the last valid transform", async () => {
 
   globalAny.Tools.config.serverConfig.MAX_BOARD_SIZE = 220;
 
-  const rect = globalAny.Tools.createSVGElement("rect");
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
   rect.id = "bounded-rect";
   rect.x.baseVal.value = 100;
   rect.y.baseVal.value = 100;
@@ -2037,7 +2047,7 @@ test("Hand selector keeps the original element selected after duplicate", async 
       nextId += 1;
       return `${prefix}-${nextId}`;
     };
-    const rect = globalAny.Tools.createSVGElement("rect");
+    const rect = globalAny.Tools.dom.createSVGElement("rect");
     rect.id = "r-1";
     rect.x.baseVal.value = 100;
     rect.y.baseVal.value = 100;
@@ -2138,7 +2148,7 @@ test("Hand box selection can use IntersectionObserver without target bbox reads"
       return `${prefix}-${nextId}`;
     };
 
-    const selectedRect = globalAny.Tools.createSVGElement("rect");
+    const selectedRect = globalAny.Tools.dom.createSVGElement("rect");
     selectedRect.id = "io-selected";
     selectedRect.x.baseVal.value = 100;
     selectedRect.y.baseVal.value = 100;
@@ -2152,7 +2162,7 @@ test("Hand box selection can use IntersectionObserver without target bbox reads"
     };
     globalAny.Tools.drawingArea.appendChild(selectedRect);
 
-    const rejectedRect = globalAny.Tools.createSVGElement("rect");
+    const rejectedRect = globalAny.Tools.dom.createSVGElement("rect");
     rejectedRect.id = "io-rejected";
     globalAny.Tools.drawingArea.appendChild(rejectedRect);
 
@@ -2204,7 +2214,7 @@ test("Hand box selection does not fall back to target bbox reads without Interse
   const originalIntersectionObserver = globalAny.IntersectionObserver;
   globalAny.IntersectionObserver = undefined;
   try {
-    const rect = globalAny.Tools.createSVGElement("rect");
+    const rect = globalAny.Tools.dom.createSVGElement("rect");
     rect.id = "no-io-rect";
     rect.x.baseVal.value = 100;
     rect.y.baseVal.value = 100;
@@ -2328,11 +2338,11 @@ test("Eraser replay removes only the targeted stable id", async () => {
   const harness = createHarness();
   const eraserTool = await harness.loadTool("eraser");
 
-  const rect1 = globalAny.Tools.createSVGElement("rect");
+  const rect1 = globalAny.Tools.dom.createSVGElement("rect");
   rect1.id = "r-1";
   globalAny.Tools.drawingArea.appendChild(rect1);
 
-  const rect2 = globalAny.Tools.createSVGElement("rect");
+  const rect2 = globalAny.Tools.dom.createSVGElement("rect");
   rect2.id = "r-2";
   globalAny.Tools.drawingArea.appendChild(rect2);
 

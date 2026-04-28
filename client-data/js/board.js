@@ -80,7 +80,7 @@ import {
 } from "../tools/tool-defaults.js";
 import { TOOL_BY_ID } from "../tools/index.js";
 
-/** @import { AppBoardState, AppToolsState, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeModules } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeModules } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.WBOApp = Tools;
@@ -181,6 +181,20 @@ function readInlineBaseline(svg) {
 }
 
 /**
+ * @template {DetachedBoardDomModule | AttachedBoardDomModule} T
+ * @param {T} dom
+ * @returns {T & BoardDomActions}
+ */
+function withBoardDomActions(dom) {
+  return Object.assign(dom, {
+    createSVGElement,
+    positionElement,
+    clearBoardCursors,
+    resetBoardViewport,
+  });
+}
+
+/**
  * @param {Document} document
  * @returns {Promise<void>}
  */
@@ -216,12 +230,12 @@ export async function attachBoardDom(document) {
     throw new Error("Missing required element: #canvas");
   }
   const baseline = readInlineBaseline(canvasElement);
-  Tools.dom = {
+  Tools.dom = withBoardDomActions({
     status: "attached",
     board: boardElement,
     svg: canvasElement,
     drawingArea: baseline.drawingArea,
-  };
+  });
   Tools.replay.authoritativeSeq = baseline.authoritativeSeq;
   Tools.dom.svg.width.baseVal.value = Math.max(
     Tools.dom.svg.width.baseVal.value,
@@ -686,18 +700,18 @@ function syncWriteStatusIndicator() {
   indicator.classList.add(`board-status-${view.state}`);
 }
 
-Tools.clearBoardCursors = function clearBoardCursors() {
+function clearBoardCursors() {
   const dom = getAttachedBoardDom();
   if (!dom) return;
   const cursors = dom.svg.getElementById("cursors");
   if (cursors) cursors.innerHTML = "";
-};
+}
 
-Tools.resetBoardViewport = function resetBoardViewport() {
+function resetBoardViewport() {
   const dom = getAttachedBoardDom();
   if (dom) dom.drawingArea.innerHTML = "";
-  Tools.clearBoardCursors();
-};
+  Tools.dom.clearBoardCursors();
+}
 
 Tools.restoreLocalCursor = function restoreLocalCursor() {
   const cursorTool = Tools.toolRegistry.mounted.cursor;
@@ -1185,7 +1199,7 @@ function beginAuthoritativeResync() {
   });
   Tools.presence.users = /** @type {ConnectedUserMap} */ ({});
   Tools.presence.renderConnectedUsers();
-  Tools.clearBoardCursors();
+  Tools.dom.clearBoardCursors();
   Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {
     if (tool) tool.onSocketDisconnect();
   });
@@ -1494,7 +1508,7 @@ Tools.shouldDisplayTool = function shouldDisplayTool(toolName) {
   return getToolButton(toolName) !== null;
 };
 
-Tools.dom = /** @type {AppToolsState["dom"]} */ ({ status: "detached" });
+Tools.dom = withBoardDomActions({ status: "detached" });
 
 //Initialization
 document.documentElement.dataset.activeToolSecondary = "false";
@@ -2524,7 +2538,7 @@ function createToolRuntimeModules(mountedTools) {
     board: {
       ...mountedTools.dom,
       createSVGElement: (name, attrs) =>
-        mountedTools.createSVGElement(name, attrs),
+        mountedTools.dom.createSVGElement(name, attrs),
       toBoardCoordinate: (value) =>
         mountedTools.coordinates.toBoardCoordinate(value),
       pageCoordinateToBoard: (value) =>
@@ -3217,7 +3231,7 @@ Tools.ids = { generateUID };
  * @param {{[key: string]: string | number | undefined} | undefined} attrs
  * @returns {SVGElement}
  */
-Tools.createSVGElement = function createSVGElement(name, attrs) {
+function createSVGElement(name, attrs) {
   const dom = getAttachedBoardDom();
   if (!dom) {
     throw new Error("Board SVG is not attached.");
@@ -3230,17 +3244,17 @@ Tools.createSVGElement = function createSVGElement(name, attrs) {
     elem.setAttributeNS(null, key, String(attrs[key]));
   });
   return elem;
-};
+}
 
 /**
  * @param {HTMLElement} elem
  * @param {number} x
  * @param {number} y
  */
-Tools.positionElement = function positionElement(elem, x, y) {
+function positionElement(elem, x, y) {
   elem.style.top = `${y}px`;
   elem.style.left = `${x}px`;
-};
+}
 
 const colorPresets = [
   { color: "#001f3f", key: "1" },
