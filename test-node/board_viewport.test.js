@@ -106,6 +106,7 @@ test("viewport owns svg extent growth and layout sync", async () => {
         },
       },
       svg: {
+        style: {},
         width: { baseVal: { value: 100 } },
         height: { baseVal: { value: 200 } },
       },
@@ -114,6 +115,12 @@ test("viewport owns svg extent growth and layout sync", async () => {
         dataset: {},
       },
     });
+    tools.dom = {
+      status: "attached",
+      board: tools.board,
+      svg: tools.svg,
+      drawingArea: {},
+    };
     const viewport = createViewportController(tools);
 
     assert.equal(
@@ -166,6 +173,12 @@ test("viewport expands to the full board at minimum zoom", async () => {
       },
       syncDrawToolAvailability: () => {},
     });
+    tools.dom = {
+      status: "attached",
+      board: tools.board,
+      svg: tools.svg,
+      drawingArea: {},
+    };
     const viewport = createViewportController(tools);
 
     assert.equal(viewport.setScale(0), 0.1);

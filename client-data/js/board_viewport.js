@@ -301,29 +301,39 @@ export function createViewportController(Tools) {
   }
 
   /**
+   * @returns {{board: HTMLElement, svg: SVGSVGElement, drawingArea: Element} | null}
+   */
+  function getAttachedDom() {
+    return Tools.dom?.status === "attached" ? Tools.dom : null;
+  }
+
+  /**
    * @returns {void}
    */
   function applyTouchPolicy() {
+    const dom = getAttachedDom();
+    if (!dom) return;
     const touchAction = touchPolicy === "native-pan" ? "auto" : "";
-    if (Tools.board) Tools.board.style.touchAction = touchAction;
-    if (Tools.svg?.style) Tools.svg.style.touchAction = touchAction;
+    dom.board.style.touchAction = touchAction;
+    dom.svg.style.touchAction = touchAction;
   }
 
   /**
    * @returns {void}
    */
   function syncLayoutSize() {
-    if (!Tools.board || !Tools.svg) return;
+    const dom = getAttachedDom();
+    if (!dom) return;
     const size = getScaledBoardLayoutSize(
-      Tools.svg.width.baseVal.value,
-      Tools.svg.height.baseVal.value,
+      dom.svg.width.baseVal.value,
+      dom.svg.height.baseVal.value,
       Tools.scale,
       window.innerWidth,
       window.innerHeight,
     );
-    Tools.board.style.width = `${size.width}px`;
-    Tools.board.style.height = `${size.height}px`;
-    Tools.board.dataset.viewportManaged = "true";
+    dom.board.style.width = `${size.width}px`;
+    dom.board.style.height = `${size.height}px`;
+    dom.board.dataset.viewportManaged = "true";
     applyTouchPolicy();
   }
 
@@ -335,17 +345,18 @@ export function createViewportController(Tools) {
    * @returns {boolean}
    */
   function ensureBoardExtentAtLeast(width, height) {
-    if (!Tools.svg) return false;
+    const dom = getAttachedDom();
+    if (!dom) return false;
     const targetWidth = extentCoordinate(width);
     const targetHeight = extentCoordinate(height);
     if (targetWidth === null || targetHeight === null) return false;
     let resized = false;
-    if (targetWidth > Tools.svg.width.baseVal.value) {
-      Tools.svg.width.baseVal.value = targetWidth;
+    if (targetWidth > dom.svg.width.baseVal.value) {
+      dom.svg.width.baseVal.value = targetWidth;
       resized = true;
     }
-    if (targetHeight > Tools.svg.height.baseVal.value) {
-      Tools.svg.height.baseVal.value = targetHeight;
+    if (targetHeight > dom.svg.height.baseVal.value) {
+      dom.svg.height.baseVal.value = targetHeight;
       resized = true;
     }
     if (resized) syncLayoutSize();
@@ -384,12 +395,13 @@ export function createViewportController(Tools) {
       scaleLimits.minScale,
       Math.min(scaleLimits.maxScale, value),
     );
-    if (!Tools.svg) {
+    const dom = getAttachedDom();
+    if (!dom) {
       Tools.scale = appliedScale;
       return appliedScale;
     }
-    Tools.svg.style.willChange = "transform";
-    Tools.svg.style.transform = `scale(${appliedScale})`;
+    dom.svg.style.willChange = "transform";
+    dom.svg.style.transform = `scale(${appliedScale})`;
     Tools.scale = appliedScale;
     const resized =
       appliedScale <= scaleLimits.minScale &&
@@ -397,7 +409,8 @@ export function createViewportController(Tools) {
     if (!resized) syncLayoutSize();
     if (scaleTimeout !== null) clearTimeout(scaleTimeout);
     scaleTimeout = window.setTimeout(() => {
-      if (Tools.svg) Tools.svg.style.willChange = "auto";
+      const timeoutDom = getAttachedDom();
+      if (timeoutDom) timeoutDom.svg.style.willChange = "auto";
     }, SCALE_WILL_CHANGE_TIMEOUT_MS);
     Tools.syncDrawToolAvailability(false);
     return appliedScale;
@@ -600,22 +613,23 @@ export function createViewportController(Tools) {
       activePan = null;
     },
     install() {
-      if (installed || !Tools.board) return;
+      const dom = getAttachedDom();
+      if (installed || !dom) return;
       installed = true;
       window.addEventListener("resize", syncLayoutSize);
-      Tools.board.addEventListener("wheel", handleWheel, { passive: false });
-      Tools.board.addEventListener("touchstart", handleTouchStart, {
+      dom.board.addEventListener("wheel", handleWheel, { passive: false });
+      dom.board.addEventListener("touchstart", handleTouchStart, {
         passive: true,
         capture: true,
       });
-      Tools.board.addEventListener("touchmove", handleTouchMove, {
+      dom.board.addEventListener("touchmove", handleTouchMove, {
         passive: true,
         capture: true,
       });
-      Tools.board.addEventListener("touchend", handleTouchEnd, {
+      dom.board.addEventListener("touchend", handleTouchEnd, {
         capture: true,
       });
-      Tools.board.addEventListener("touchcancel", handleTouchEnd, {
+      dom.board.addEventListener("touchcancel", handleTouchEnd, {
         capture: true,
       });
     },
