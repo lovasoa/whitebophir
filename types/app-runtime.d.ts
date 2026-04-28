@@ -618,6 +618,21 @@ export type ToolUiRuntimeModule = {
   shouldShowMyCursor: () => boolean;
 };
 
+/** Tool-facing server configuration. */
+export type ToolConfigRuntimeModule = {
+  readonly serverConfig: ServerConfig;
+};
+
+/** Tool-facing id generation. */
+export type ToolIdRuntimeModule = {
+  generateUID: (prefix?: string, suffix?: string) => string;
+};
+
+/** Tool-facing render side effects owned by the board runtime. */
+export type ToolRenderRuntimeModule = {
+  markDrawingEvent: () => void;
+};
+
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = {
   readonly board: ToolBoardRuntimeModule;
@@ -627,6 +642,9 @@ export type ToolRuntimeModules = {
   readonly preferences: ToolPreferenceRuntimeModule;
   readonly rateLimits: ToolRateLimitRuntimeModule;
   readonly ui: ToolUiRuntimeModule;
+  readonly config: ToolConfigRuntimeModule;
+  readonly ids: ToolIdRuntimeModule;
+  readonly rendering: ToolRenderRuntimeModule;
 };
 
 /**

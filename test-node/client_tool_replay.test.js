@@ -622,39 +622,52 @@ function createToolBootContext(app, assetUrl) {
     runtime: {
       board: {
         ...board,
-        createSVGElement: app.createSVGElement,
-        toBoardCoordinate: app.toBoardCoordinate,
-        pageCoordinateToBoard: app.pageCoordinateToBoard,
+        createSVGElement: (name, attrs) => app.createSVGElement(name, attrs),
+        toBoardCoordinate: (value) => app.toBoardCoordinate(value),
+        pageCoordinateToBoard: (value) => app.pageCoordinateToBoard(value),
       },
       viewport: app.viewport,
       writes: {
-        drawAndSend: app.drawAndSend,
-        send: app.send,
-        canBufferWrites: app.canBufferWrites,
-        whenBoardWritable: app.whenBoardWritable,
+        drawAndSend: (message) => app.drawAndSend(message),
+        send: (message) => app.send(message),
+        canBufferWrites: () => app.canBufferWrites(),
+        whenBoardWritable: () => app.whenBoardWritable(),
       },
       identity: {
         boardName: app.boardName || "",
         token: app.token || null,
       },
       preferences: {
-        getColor: app.getColor || (() => "#123456"),
-        getSize: app.getSize || (() => 4),
-        setSize: app.setSize || (() => 4),
-        getOpacity: app.getOpacity || (() => 1),
+        getColor: () => (app.getColor ? app.getColor() : "#123456"),
+        getSize: () => (app.getSize ? app.getSize() : 4),
+        setSize: (size) => (app.setSize ? app.setSize(size) : 4),
+        getOpacity: () => (app.getOpacity ? app.getOpacity() : 1),
       },
       rateLimits: {
-        getEffectiveRateLimit:
-          app.getEffectiveRateLimit ||
-          (() => ({
-            limit: 0,
-            periodMs: 0,
-          })),
+        getEffectiveRateLimit: (kind) =>
+          app.getEffectiveRateLimit
+            ? app.getEffectiveRateLimit(kind)
+            : {
+                limit: 0,
+                periodMs: 0,
+              },
       },
       ui: {
         getCurrentTool: () => app.curTool || null,
         shouldShowMarker: () => app.showMarker !== false,
         shouldShowMyCursor: () => app.showMyCursor !== false,
+      },
+      config: {
+        serverConfig: app.server_config || {},
+      },
+      ids: {
+        generateUID: (prefix, suffix) =>
+          app.generateUID ? app.generateUID(prefix, suffix) : `${prefix}-1`,
+      },
+      rendering: {
+        markDrawingEvent: () => {
+          app.drawingEvent = true;
+        },
       },
     },
     assetUrl,

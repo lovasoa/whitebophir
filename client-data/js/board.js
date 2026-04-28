@@ -2468,34 +2468,47 @@ function createToolRuntimeModules(mountedTools) {
   return {
     board: {
       ...mountedTools.dom,
-      createSVGElement: mountedTools.createSVGElement,
-      toBoardCoordinate: mountedTools.toBoardCoordinate,
-      pageCoordinateToBoard: mountedTools.pageCoordinateToBoard,
+      createSVGElement: (name, attrs) =>
+        mountedTools.createSVGElement(name, attrs),
+      toBoardCoordinate: (value) => mountedTools.toBoardCoordinate(value),
+      pageCoordinateToBoard: (value) =>
+        mountedTools.pageCoordinateToBoard(value),
     },
     viewport: mountedTools.viewport,
     writes: {
-      drawAndSend: mountedTools.drawAndSend,
-      send: mountedTools.send,
-      canBufferWrites: mountedTools.canBufferWrites,
-      whenBoardWritable: mountedTools.whenBoardWritable,
+      drawAndSend: (message) => mountedTools.drawAndSend(message),
+      send: (message) => mountedTools.send(message),
+      canBufferWrites: () => mountedTools.canBufferWrites(),
+      whenBoardWritable: () => mountedTools.whenBoardWritable(),
     },
     identity: {
       boardName: mountedTools.boardName,
       token: mountedTools.token,
     },
     preferences: {
-      getColor: mountedTools.getColor,
-      getSize: mountedTools.getSize,
-      setSize: mountedTools.setSize,
-      getOpacity: mountedTools.getOpacity,
+      getColor: () => mountedTools.getColor(),
+      getSize: () => mountedTools.getSize(),
+      setSize: (size) => mountedTools.setSize(size),
+      getOpacity: () => mountedTools.getOpacity(),
     },
     rateLimits: {
-      getEffectiveRateLimit: mountedTools.getEffectiveRateLimit,
+      getEffectiveRateLimit: (kind) => mountedTools.getEffectiveRateLimit(kind),
     },
     ui: {
       getCurrentTool: () => mountedTools.curTool,
       shouldShowMarker: () => mountedTools.showMarker,
       shouldShowMyCursor: () => mountedTools.showMyCursor,
+    },
+    config: {
+      serverConfig: mountedTools.server_config,
+    },
+    ids: {
+      generateUID: (prefix, suffix) => mountedTools.generateUID(prefix, suffix),
+    },
+    rendering: {
+      markDrawingEvent: () => {
+        mountedTools.drawingEvent = true;
+      },
     },
   };
 }

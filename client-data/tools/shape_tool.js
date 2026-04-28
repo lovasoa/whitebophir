@@ -2,10 +2,10 @@ import { MutationType } from "../js/mutation_type.js";
 import { logFrontendEvent } from "../js/frontend_logging.js";
 import { clampCoord, LIMITS } from "../js/message_common.js";
 
-/** @import { MountedAppToolsState, ToolBootContext } from "../../types/app-runtime" */
+/** @import { ToolBootContext, ToolRuntimeModules } from "../../types/app-runtime" */
 /** @typedef {typeof import("./tool-order.js").ToolCodes} ShapeToolCodeMap */
 /** @typedef {ShapeToolCodeMap["RECTANGLE"] | ShapeToolCodeMap["ELLIPSE"] | ShapeToolCodeMap["STRAIGHT_LINE"]} ShapeToolCode */
-/** @typedef {{config: {contract: {toolCode: ShapeToolCode}}, Tools: {getColor(): string, getSize(): number, getOpacity(): number}}} ShapeCreateMessageState */
+/** @typedef {{config: {contract: {toolCode: ShapeToolCode}}, preferences: ToolRuntimeModules["preferences"]}} ShapeCreateMessageState */
 
 /**
  * @template {ShapeToolCode} TTool
@@ -55,7 +55,12 @@ import { clampCoord, LIMITS } from "../js/message_common.js";
 export function bootShapeTool(config, ctx) {
   /** @type {any} */
   const state = {
-    Tools: /** @type {MountedAppToolsState} */ (ctx.app),
+    board: ctx.runtime.board,
+    preferences: ctx.runtime.preferences,
+    writes: ctx.runtime.writes,
+    runtimeConfig: ctx.runtime.config,
+    ids: ctx.runtime.ids,
+    rendering: ctx.runtime.rendering,
     currentShape: null,
     lastTime: performance.now(),
     secondary: null,
@@ -91,9 +96,9 @@ export function makeSeedShapeCreateMessage(state, id, x, y) {
     tool: state.config.contract.toolCode,
     type: MutationType.CREATE,
     id,
-    color: state.Tools.getColor(),
-    size: state.Tools.getSize(),
-    opacity: state.Tools.getOpacity(),
+    color: state.preferences.getColor(),
+    size: state.preferences.getSize(),
+    opacity: state.preferences.getOpacity(),
     x,
     y,
     x2: x,
@@ -145,7 +150,7 @@ export function makeLineShapeUpdateMessage(tool, id, x, y) {
  */
 export function constrainEqualSpanToBoard(state, start, x, y) {
   const configuredMaxBoardSize = Number(
-    state.Tools.server_config?.MAX_BOARD_SIZE,
+    state.runtimeConfig.serverConfig?.MAX_BOARD_SIZE,
   );
   const maxBoardSize = Number.isFinite(configuredMaxBoardSize)
     ? configuredMaxBoardSize
@@ -174,12 +179,12 @@ export function constrainEqualSpanToBoard(state, start, x, y) {
  * @returns {SVGElement}
  */
 function createShape(state, data) {
-  const { Tools, config } = state;
-  const existingShape = Tools.svg.getElementById(data.id);
+  const { board, config } = state;
+  const existingShape = board.svg.getElementById(data.id);
   const shape = /** @type {SVGElement} */ (
     config.isShapeElement(existingShape)
       ? existingShape
-      : Tools.createSVGElement(config.contract.storedTagName)
+      : board.createSVGElement(config.contract.storedTagName)
   );
   shape.id = data.id;
   config.applyShapeGeometry(shape, data);
@@ -189,8 +194,8 @@ function createShape(state, data) {
     "opacity",
     String(Math.max(0.1, Math.min(1, data.opacity || 1))),
   );
-  if (shape.parentNode !== Tools.drawingArea) {
-    Tools.drawingArea.appendChild(shape);
+  if (shape.parentNode !== board.drawingArea) {
+    board.drawingArea.appendChild(shape);
   }
   return shape;
 }
@@ -200,14 +205,14 @@ function createShape(state, data) {
  * @param {any} data
  */
 export function drawShapeTool(state, data) {
-  const { Tools, config } = state;
-  Tools.drawingEvent = true;
+  const { board, config } = state;
+  state.rendering.markDrawingEvent();
   if (data.type === MutationType.CREATE) {
     createShape(state, data);
     return;
   }
   if (data.type === MutationType.UPDATE) {
-    const existingShape = Tools.svg.getElementById(data.id);
+    const existingShape = board.svg.getElementById(data.id);
     const shape = /** @type {SVGElement} */ (
       config.isShapeElement(existingShape)
         ? existingShape
@@ -230,7 +235,7 @@ export function drawShapeTool(state, data) {
  * @returns {ShapePressEffect}
  */
 export function createShapePressEffect(state, x, y) {
-  const id = state.Tools.generateUID(state.config.uidPrefix);
+  const id = state.ids.generateUID(state.config.uidPrefix);
   const currentShape = state.config.makeCreateMessage(state, id, x, y);
   return { currentShape, message: currentShape };
 }
@@ -245,7 +250,7 @@ export function pressShapeTool(state, x, y, evt) {
   evt.preventDefault();
   const effect = createShapePressEffect(state, x, y);
   state.currentShape = effect.currentShape;
-  state.Tools.drawAndSend(effect.message);
+  state.writes.drawAndSend(effect.message);
 }
 
 /**
@@ -306,7 +311,7 @@ export function moveShapeTool(state, x, y, evt, force = false) {
   }
   const update = effect.update;
   if (effect.shouldSend) {
-    state.Tools.drawAndSend(update);
+    state.writes.drawAndSend(update);
     state.lastTime = effect.nextLastTime;
   } else {
     drawShapeTool(state, update);

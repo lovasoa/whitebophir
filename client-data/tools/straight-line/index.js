@@ -109,8 +109,8 @@ const config = {
       const d = Math.hypot(y - start.y, x - start.x);
       const increment = (2 * Math.PI) / 16;
       alpha = Math.round(alpha / increment) * increment;
-      x = state.Tools.toBoardCoordinate(start.x + d * Math.cos(alpha));
-      y = state.Tools.toBoardCoordinate(start.y + d * Math.sin(alpha));
+      x = state.board.toBoardCoordinate(start.x + d * Math.cos(alpha));
+      y = state.board.toBoardCoordinate(start.y + d * Math.sin(alpha));
     }
     return makeLineShapeUpdateMessage(contract.toolCode, start.id, x, y);
   },
