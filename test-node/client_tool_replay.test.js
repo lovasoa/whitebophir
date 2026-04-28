@@ -1472,6 +1472,37 @@ test("Text create clamps the derived font size before sending", async () => {
   assert.equal(createMessage.size, 500);
 });
 
+test("Text remote update refreshes the active editor for the same field", async () => {
+  const harness = createHarness();
+  const { textModule, textState } = await bootTextEditorHarness();
+
+  textModule.press(
+    textState,
+    100,
+    200,
+    { preventDefault: () => {}, target: null },
+    false,
+  );
+  textState.input.value = "local draft";
+  harness.clock.now = 200;
+  textState.boundTextChangeHandler({});
+
+  textModule.draw(
+    textState,
+    {
+      tool: ToolCodes.TEXT,
+      type: MutationType.UPDATE,
+      id: "t-1",
+      txt: "remote draft",
+    },
+    false,
+  );
+
+  assert.equal(textState.input.value, "remote draft");
+  assert.equal(textState.curText.sentText, "remote draft");
+  assert.equal(harness.elementsById.get("t-1").textContent, "remote draft");
+});
+
 test("Text rejection clears the resend timer for the active editor", async () => {
   const harness = createHarness();
   const { textModule, textState } = await bootTextEditorHarness();

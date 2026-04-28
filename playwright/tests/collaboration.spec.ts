@@ -126,6 +126,59 @@ test.describe("collaboration and rate limiting", () => {
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(1);
   });
 
+  test("people editing the same text field see each other's edits", async ({
+    boardPage,
+    server,
+    context,
+    page,
+  }) => {
+    const boardName = "shared-text-edit";
+    await server.writeBoard(server.dataPath, boardName, {
+      "shared-text": {
+        tool: "text",
+        type: "new",
+        id: "shared-text",
+        x: 2600,
+        y: 2200,
+        color: "#111111",
+        size: 120,
+        txt: "Initial text",
+      },
+    });
+
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await Promise.all([
+      boardPage.gotoBoard(boardName),
+      peerBoard.gotoBoard(boardName),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+    await Promise.all([
+      boardPage.selectTool("text"),
+      peerBoard.selectTool("text"),
+    ]);
+    await Promise.all([
+      page.locator("#shared-text").click(),
+      peerPage.locator("#shared-text").click(),
+    ]);
+    await Promise.all([
+      expect(page.locator("#textToolInput")).toHaveValue("Initial text"),
+      expect(peerPage.locator("#textToolInput")).toHaveValue("Initial text"),
+    ]);
+
+    await peerPage.locator("#textToolInput").fill("Peer edit");
+    await expect(page.locator("#textToolInput")).toHaveValue("Peer edit");
+
+    await page.locator("#textToolInput").fill("Main edit");
+    await expect(peerPage.locator("#textToolInput")).toHaveValue("Main edit");
+
+    await peerPage.close();
+  });
+
   test("reporting a user disconnects both sockets and they automatically reconnect", async ({
     boardPage,
     server,

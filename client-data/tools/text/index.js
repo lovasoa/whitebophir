@@ -41,6 +41,19 @@ import { ToolCodes } from "../tool-order.js";
 /** @typedef {TextCreateMessage | TextUpdateMessage} TextMessage */
 /** @typedef {{Tools: MountedAppToolsState, board: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
 
+const TEXT_INPUT_BORDER_PX = 1;
+const TEXT_INPUT_CARET_ROOM_PX = 3;
+const TEXT_INPUT_HORIZONTAL_PADDING_PX = 2;
+const TEXT_INPUT_EXTRA_WIDTH_PX =
+  TEXT_INPUT_HORIZONTAL_PADDING_PX * 2 +
+  TEXT_INPUT_BORDER_PX * 2 +
+  TEXT_INPUT_CARET_ROOM_PX;
+const TEXT_INPUT_FONT_FAMILY = "Arial, Helvetica, sans-serif";
+const TEXT_INPUT_MIN_WIDTH_PX = 12;
+
+/** @type {CanvasRenderingContext2D | null} */
+let textMeasurementContext = null;
+
 /**
  * @param {TextState} state
  * @returns {void}
@@ -204,6 +217,58 @@ function isExistingTextElement(target) {
   return target instanceof SVGTextElement;
 }
 
+/**
+ * @param {string} text
+ * @param {number} fontSize
+ * @returns {number}
+ */
+function measureTextWidth(text, fontSize) {
+  if (!textMeasurementContext) {
+    const canvas = document.createElement("canvas");
+    textMeasurementContext =
+      typeof canvas.getContext === "function" ? canvas.getContext("2d") : null;
+  }
+  const context = textMeasurementContext;
+  if (!context) return Math.max(1, text.length) * fontSize * 0.55;
+  context.font = `${fontSize}px ${TEXT_INPUT_FONT_FAMILY}`;
+  return context.measureText(text || " ").width;
+}
+
+/** @param {TextState} state */
+function syncEditorLayout(state) {
+  const scale = state.Tools.getScale();
+  const fontSize = Math.max(1, state.curText.size * scale);
+  const input = state.input;
+  const contentWidth = measureTextWidth(input.value, fontSize);
+  input.size = 1;
+  input.style.color = state.curText.color || "#000";
+  input.style.fontSize = `${fontSize}px`;
+  input.style.lineHeight = `${fontSize}px`;
+  input.style.height = `${fontSize + TEXT_INPUT_BORDER_PX * 2}px`;
+  input.style.width = `${Math.ceil(
+    Math.max(TEXT_INPUT_MIN_WIDTH_PX, contentWidth) + TEXT_INPUT_EXTRA_WIDTH_PX,
+  )}px`;
+  input.style.left = `${
+    state.curText.x * scale -
+    TEXT_INPUT_HORIZONTAL_PADDING_PX -
+    TEXT_INPUT_BORDER_PX
+  }px`;
+  input.style.top = `${
+    state.curText.y * scale - fontSize - TEXT_INPUT_BORDER_PX
+  }px`;
+}
+
+/**
+ * @param {TextState} state
+ * @param {boolean} visible
+ */
+function setEditedTextVisibility(state, visible) {
+  if (!state.curText.id) return;
+  const elem = document.getElementById(state.curText.id);
+  if (!elem || String(elem.tagName).toLowerCase() !== "text") return;
+  elem.style.visibility = visible ? "" : "hidden";
+}
+
 /** @param {TextState} state */
 function blurEditor(state) {
   if (state.active) return;
@@ -212,6 +277,7 @@ function blurEditor(state) {
 
 /** @param {TextState} state */
 function stopEdit(state) {
+  setEditedTextVisibility(state, true);
   state.input.removeEventListener("input", state.boundTextChangeHandler);
   state.input.removeEventListener("keyup", state.boundTextChangeHandler);
   state.input.removeEventListener("blur", state.boundTextChangeHandler);
@@ -236,16 +302,8 @@ function stopEdit(state) {
 function startEdit(state) {
   state.active = true;
   if (!state.input.parentNode) state.board.appendChild(state.input);
-  state.input.value = "";
-  const clientW = Math.max(
-    document.documentElement.clientWidth,
-    window.innerWidth ?? 0,
-  );
-  let x =
-    state.curText.x * state.Tools.scale - document.documentElement.scrollLeft;
-  if (x + 250 > clientW) x = Math.max(60, clientW - 260);
-  state.input.style.left = `${x}px`;
-  state.input.style.top = `${state.curText.y * state.Tools.scale - document.documentElement.scrollTop + 20}px`;
+  syncEditorLayout(state);
+  setEditedTextVisibility(state, false);
   state.input.focus();
   state.input.addEventListener("input", state.boundTextChangeHandler);
   state.input.addEventListener("keyup", state.boundTextChangeHandler);
@@ -271,8 +329,8 @@ function editOldText(state, elem) {
     Number(elem.getAttribute("font-size")) || state.curText.size;
   state.curText.opacity = Number(elem.getAttribute("opacity")) || 1;
   state.curText.color = elem.getAttribute("fill") || "#000";
-  startEdit(state);
   state.input.value = elem.textContent || "";
+  startEdit(state);
 }
 
 /** @param {TextState} state */
@@ -309,9 +367,13 @@ function textChangeHandler(state, evt) {
     normalizeCurrentTextPosition(state);
     stopEdit(state);
     startEdit(state);
-  } else if (evt instanceof KeyboardEvent && evt.key === "Escape") {
-    stopEdit(state);
+    return;
   }
+  if (evt instanceof KeyboardEvent && evt.key === "Escape") {
+    stopEdit(state);
+    return;
+  }
+  syncEditorLayout(state);
   if (performance.now() - state.curText.lastSending <= 100) {
     if (state.curText.timeout !== null) clearTimeout(state.curText.timeout);
     state.curText.timeout = window.setTimeout(() => {
@@ -327,19 +389,26 @@ function textChangeHandler(state, evt) {
     state.Tools.drawAndSend(createTextMessage(state));
   }
   state.Tools.drawAndSend(updateTextMessage(state));
-  if (state.input.value !== nextText) state.input.value = nextText;
+  setEditedTextVisibility(state, false);
+  if (state.input.value !== nextText) {
+    state.input.value = nextText;
+    syncEditorLayout(state);
+  }
   state.curText.sentText = nextText;
   state.curText.lastSending = performance.now();
 }
 
 /**
  * @param {TextState} state
- * @param {Node & {textContent: string | null}} textField
+ * @param {string} id
  * @param {string} text
  */
-function updateText(state, textField, text) {
-  void state;
-  textField.textContent = text;
+function updateActiveEditorText(state, id, text) {
+  if (!state.active || state.curText.id !== id) return;
+  state.input.value = text;
+  state.curText.sentText = text;
+  syncEditorLayout(state);
+  setEditedTextVisibility(state, false);
 }
 
 /**
@@ -401,7 +470,6 @@ export function boot(ctx) {
  * @param {boolean} isLocal
  */
 export function draw(state, data, isLocal) {
-  void isLocal;
   state.Tools.drawingEvent = true;
   if (!isTextMessage(data)) {
     logFrontendEvent("error", "tool.text.draw_invalid_type", {
@@ -422,7 +490,8 @@ export function draw(state, data, isLocal) {
       });
       return;
     }
-    updateText(state, textField, data.txt);
+    textField.textContent = data.txt;
+    if (!isLocal) updateActiveEditorText(state, data.id, data.txt);
     return;
   }
 }

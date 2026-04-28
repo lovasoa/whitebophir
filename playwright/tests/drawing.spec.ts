@@ -168,6 +168,72 @@ test.describe("drawing and persistence", () => {
     await expect(page.locator("#drawingArea text")).toHaveText("Hello text");
   });
 
+  test("text editor overlays the text being written", async ({
+    boardPage,
+    page,
+  }) => {
+    const textValue = "Overlay margin check";
+
+    await boardPage.gotoBoard("text-editor-overlay");
+    await boardPage.selectTool("text");
+    await page.evaluate(() => {
+      window.Tools.setColor("#ff4136");
+      window.Tools.setSize(40);
+    });
+    await page.mouse.click(260, 240);
+    await page.keyboard.insertText(textValue);
+
+    const editor = await page.evaluate(() => {
+      const input = document.getElementById(
+        "textToolInput",
+      ) as HTMLInputElement | null;
+      const text = document.querySelector("#drawingArea text");
+      if (!input || !(text instanceof SVGTextElement)) {
+        throw new Error("Missing text editor state");
+      }
+      const inputStyle = getComputedStyle(input);
+      const textX = Number(text.getAttribute("x")) * window.Tools.scale;
+      const textBaseline = Number(text.getAttribute("y")) * window.Tools.scale;
+      const textFontSize =
+        Number(text.getAttribute("font-size")) * window.Tools.scale;
+      const textWidth = text.getComputedTextLength() * window.Tools.scale;
+      return {
+        backgroundColor: inputStyle.backgroundColor,
+        borderTopWidth: inputStyle.borderTopWidth,
+        color: inputStyle.color,
+        inputFontSize: Number.parseFloat(inputStyle.fontSize),
+        inputLeft: Number.parseFloat(input.style.left),
+        inputTop: Number.parseFloat(input.style.top),
+        inputWidth: input.getBoundingClientRect().width,
+        position: inputStyle.position,
+        textFontSize,
+        textHidden: getComputedStyle(text).visibility === "hidden",
+        textValue: input.value,
+        textWidth,
+        textX,
+        textBaseline,
+      };
+    });
+
+    expect(editor.textValue).toBe(textValue);
+    expect(editor.position).toBe("absolute");
+    expect(editor.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    expect(editor.borderTopWidth).toBe("1px");
+    expect(editor.color).toBe("rgb(255, 65, 54)");
+    expect(editor.inputFontSize).toBeCloseTo(editor.textFontSize, 1);
+    expect(editor.inputWidth - editor.textWidth).toBeGreaterThanOrEqual(4);
+    expect(editor.inputWidth - editor.textWidth).toBeLessThanOrEqual(16);
+    expect(editor.inputLeft).toBeCloseTo(editor.textX - 3, 1);
+    expect(editor.inputTop).toBeCloseTo(
+      editor.textBaseline - editor.textFontSize - 1,
+      1,
+    );
+    expect(editor.textHidden).toBe(true);
+
+    await boardPage.selectTool("rectangle");
+    await expect(page.locator("#drawingArea text")).toBeVisible();
+  });
+
   test("long text input stays within server admission bounds", async ({
     boardPage,
     server,
