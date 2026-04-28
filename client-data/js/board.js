@@ -2575,7 +2575,8 @@ function createToolRuntimeModules(mountedTools) {
       },
     },
     messages: {
-      messageForTool: (message) => mountedTools.messageForTool(message),
+      messageForTool: (message) =>
+        mountedTools.messages.messageForTool(message),
     },
     permissions: {
       canWrite: () => mountedTools.access.canWrite,
@@ -3039,7 +3040,7 @@ Tools.removeToolListeners = function removeToolListeners(tool) {
  * @param {LiveBoardMessage} data
  */
 function send(data) {
-  Tools.applyHooks(Tools.messages.hooks, data);
+  Tools.messages.applyHooks(Tools.messages.hooks, data);
   return Tools.writes.sendBufferedWrite(data);
 }
 
@@ -3098,7 +3099,7 @@ function messageForTool(message) {
   const name = getRuntimeToolId(message.tool);
   const tool = name ? Tools.toolRegistry.mounted[name] : undefined;
 
-  Tools.applyHooks(Tools.messages.hooks, message);
+  Tools.messages.applyHooks(Tools.messages.hooks, message);
   if (tool) {
     tool.draw(message, false);
   } else {
@@ -3112,7 +3113,6 @@ function messageForTool(message) {
       );
   }
 }
-Tools.messageForTool = messageForTool;
 
 /**
  * Call messageForTool recursively on the message and its children.
@@ -3121,7 +3121,7 @@ Tools.messageForTool = messageForTool;
  */
 function handleMessage(message) {
   pruneBufferedWritesForInvalidatingMessage(message);
-  messageForTool(message);
+  Tools.messages.messageForTool(message);
   if (BoardMessages.hasChildMessages(message)) {
     return Promise.resolve();
   }
@@ -3131,11 +3131,15 @@ function handleMessage(message) {
 Tools.messages = {
   hooks: [],
   unreadCount: 0,
+  applyHooks,
+  messageForTool,
+  newUnreadMessage,
 };
-Tools.newUnreadMessage = () => {
+
+function newUnreadMessage() {
   Tools.messages.unreadCount++;
   updateDocumentTitle();
-};
+}
 
 window.addEventListener("focus", () => {
   Tools.messages.unreadCount = 0;
@@ -3173,7 +3177,7 @@ function updateUnreadCount(m) {
     mutationType !== MutationType.APPEND &&
     mutationType !== MutationType.UPDATE
   ) {
-    Tools.newUnreadMessage();
+    Tools.messages.newUnreadMessage();
   }
 }
 
@@ -3193,12 +3197,12 @@ Tools.messages.hooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
  * @param {T} object
  * @returns {void}
  */
-Tools.applyHooks = function applyHooks(hooks, object) {
+function applyHooks(hooks, object) {
   //Apply every hooks on the object
   hooks.forEach((hook) => {
     hook(object);
   });
-};
+}
 
 // Utility functions
 

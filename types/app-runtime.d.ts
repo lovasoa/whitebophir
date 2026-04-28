@@ -668,6 +668,9 @@ export type AppOptimisticModule = {
 export type AppMessageModule = {
   hooks: MessageHook[];
   unreadCount: number;
+  applyHooks: <T>(hooks: ((value: T) => void)[], object: T) => void;
+  messageForTool: (message: BoardMessage) => void;
+  newUnreadMessage: () => void;
 };
 
 /** Board viewport controller plus zoom-gated drawing-tool availability. */
@@ -934,11 +937,8 @@ export type AppToolsState = {
   syncDrawToolAvailability: (force: boolean) => void;
   setBoardState: (state: unknown) => void;
   isBlocked: (tool: MountedAppTool) => boolean;
-  applyHooks: <T>(hooks: ((value: T) => void)[], object: T) => void;
   positionElement: (elem: HTMLElement, x: number, y: number) => void;
   change: (toolName: string) => boolean | undefined;
-  messageForTool: (message: BoardMessage) => void;
-  newUnreadMessage: () => void;
   startConnection: () => void;
 };
 

@@ -536,12 +536,15 @@ function createHarness() {
       canBufferWrites: () => true,
       whenBoardWritable: () => Promise.resolve(),
     },
-    messageForTool: (/** @type {any} */ data) => {
-      const toolName = MessageToolMetadata.getToolId(data.tool);
-      if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
-      const mountedTool = tools[toolName];
-      if (!mountedTool) throw new Error(`Missing mounted tool '${toolName}'.`);
-      mountedTool.draw(data, false);
+    messages: {
+      messageForTool: (/** @type {any} */ data) => {
+        const toolName = MessageToolMetadata.getToolId(data.tool);
+        if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
+        const mountedTool = tools[toolName];
+        if (!mountedTool)
+          throw new Error(`Missing mounted tool '${toolName}'.`);
+        mountedTool.draw(data, false);
+      },
     },
     identity: {
       boardName: "test-board",
@@ -890,7 +893,7 @@ function createHarnessToolRuntime(app) {
       },
     },
     messages: {
-      messageForTool: (message) => app.messageForTool(message),
+      messageForTool: (message) => app.messages.messageForTool(message),
     },
     permissions: {
       canWrite: () => app.access.canWrite,
