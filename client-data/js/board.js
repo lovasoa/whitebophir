@@ -2638,7 +2638,9 @@ function createToolBootContext(toolName) {
   })();
   return {
     runtime: createToolRuntimeModules(mountedTools),
-    assetUrl: (assetFile) => Tools.assets.getToolAssetUrl(toolName, assetFile),
+    assetUrl(assetFile) {
+      return mountedTools.assets.getToolAssetUrl(toolName, assetFile);
+    },
   };
 }
 
