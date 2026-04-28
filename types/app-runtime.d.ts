@@ -614,6 +614,7 @@ export type ToolRateLimitRuntimeModule = {
 /** Tool-facing UI state that may change during a session. */
 export type ToolUiRuntimeModule = {
   getCurrentTool: () => MaybeMountedAppTool;
+  changeTool: (toolName: string) => boolean | undefined;
   shouldShowMarker: () => boolean;
   shouldShowMyCursor: () => boolean;
 };

@@ -654,6 +654,8 @@ function createToolBootContext(app, assetUrl) {
       },
       ui: {
         getCurrentTool: () => app.curTool || null,
+        changeTool: (toolName) =>
+          app.change ? app.change(toolName) : undefined,
         shouldShowMarker: () => app.showMarker !== false,
         shouldShowMyCursor: () => app.showMyCursor !== false,
       },

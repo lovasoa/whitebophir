@@ -29,7 +29,7 @@ import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
 import { ToolCodes } from "../tool-order.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
-/** @import { MountedAppToolsState, ToolBootContext } from "../../../types/app-runtime" */
+/** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {Omit<ReturnType<typeof createLineMessage>, "opacity"> & {opacity?: number}} PencilCreateMessage */
 /** @typedef {ReturnType<typeof createPointMessage>} PencilAppendMessage */
 /** @typedef {PencilCreateMessage | PencilAppendMessage} PencilMessage */
@@ -341,7 +341,7 @@ export { contract };
 export const shortcut = "p";
 export const serverRenderedElementSelector = "path";
 const ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
-/** @typedef {{Tools: MountedAppToolsState, AUTO_FINGER_WHITEOUT: boolean, MAX_PENCIL_CHILDREN: number, minPencilIntervalMs: number, hasUsedStylus: boolean, curLineId: string, lastTime: number, hasSentPoint: boolean, currentLineChildCount: number, renderingLine: SVGPathElement | null, pathDataCache: {[lineId: string]: any[]}, drawingSize: number, whiteOutSize: number, secondary: {name: string, icon: string, active: boolean, switch?: () => void}, mouseCursor: string}} PencilState */
+/** @typedef {{board: ToolRuntimeModules["board"], preferences: ToolRuntimeModules["preferences"], writes: ToolRuntimeModules["writes"], rateLimits: ToolRuntimeModules["rateLimits"], runtimeConfig: ToolRuntimeModules["config"], ids: ToolRuntimeModules["ids"], rendering: ToolRuntimeModules["rendering"], ui: ToolRuntimeModules["ui"], AUTO_FINGER_WHITEOUT: boolean, MAX_PENCIL_CHILDREN: number, minPencilIntervalMs: number, hasUsedStylus: boolean, curLineId: string, lastTime: number, hasSentPoint: boolean, currentLineChildCount: number, renderingLine: SVGPathElement | null, pathDataCache: {[lineId: string]: any[]}, drawingSize: number, whiteOutSize: number, secondary: {name: string, icon: string, active: boolean, switch?: () => void}, mouseCursor: string}} PencilState */
 /** @typedef {{lineId: string, createMessage: PencilCreateMessage}} PencilPressEffect */
 /** @typedef {{appendMessage: PencilAppendMessage | null, stopBefore: boolean, stopAfter: boolean, nextLastTime: number, nextHasSentPoint: boolean, nextChildCount: number}} PencilMoveEffect */
 
@@ -355,12 +355,9 @@ function getPositiveNumber(value, fallback) {
   return number > 0 ? number : fallback;
 }
 
-/** @param {MountedAppToolsState} Tools */
-function computeMinPencilIntervalMs(Tools) {
-  const generalLimit =
-    Tools.getEffectiveRateLimit?.("general") ??
-    Tools.server_config?.RATE_LIMITS?.general ??
-    {};
+/** @param {ToolRuntimeModules["rateLimits"]} rateLimits */
+function computeMinPencilIntervalMs(rateLimits) {
+  const generalLimit = rateLimits.getEffectiveRateLimit("general");
   return (
     getPositiveNumber(generalLimit.periodMs, 4096) /
     getPositiveNumber(generalLimit.limit, 192)
@@ -391,9 +388,9 @@ function createLineMessage(state, lineId) {
     tool: ToolCodes.PENCIL,
     type: MutationType.CREATE,
     id: lineId,
-    color: state.secondary.active ? "#ffffff" : state.Tools.getColor(),
-    size: state.Tools.getSize(),
-    opacity: state.secondary.active ? 1 : state.Tools.getOpacity(),
+    color: state.secondary.active ? "#ffffff" : state.preferences.getColor(),
+    size: state.preferences.getSize(),
+    opacity: state.secondary.active ? 1 : state.preferences.getOpacity(),
   };
 }
 
@@ -402,7 +399,7 @@ function createLineMessage(state, lineId) {
  * @returns {PencilPressEffect}
  */
 export function createPencilPressEffect(state) {
-  const lineId = state.Tools.generateUID("l");
+  const lineId = state.ids.generateUID("l");
   return {
     lineId,
     createMessage: createLineMessage(state, lineId),
@@ -475,8 +472,7 @@ function getPathData(state, line) {
 function getLineById(state, lineId) {
   if (!lineId) return null;
   const line =
-    document.getElementById(lineId) ||
-    (state.Tools.svg ? state.Tools.svg.getElementById(lineId) : null);
+    document.getElementById(lineId) || state.board.svg.getElementById(lineId);
   return line instanceof SVGPathElement
     ? /** @type {SVGPathElement & {id: string}} */ (line)
     : null;
@@ -514,8 +510,8 @@ function abortLine(state, removeCurrentLine) {
   stopLine(state);
   if (!removeCurrentLine || !lineId) return;
   const line = getLineById(state, lineId);
-  if (!line || line.parentNode !== state.Tools.drawingArea) return;
-  state.Tools.drawingArea.removeChild(line);
+  if (!line || line.parentNode !== state.board.drawingArea) return;
+  state.board.drawingArea.removeChild(line);
   delete state.pathDataCache[lineId];
 }
 
@@ -578,7 +574,7 @@ function createLine(state, lineData) {
   if (line) line.setPathData([]);
   else {
     line = /** @type {SVGPathElement & {id: string}} */ (
-      state.Tools.createSVGElement("path")
+      state.board.createSVGElement("path")
     );
   }
   line.id = lineData.id || "";
@@ -588,8 +584,8 @@ function createLine(state, lineData) {
     "opacity",
     String(Math.max(0.1, Math.min(1, Number(lineData.opacity) || 1))),
   );
-  if (line.parentNode !== state.Tools.drawingArea) {
-    state.Tools.drawingArea.appendChild(line);
+  if (line.parentNode !== state.board.drawingArea) {
+    state.board.drawingArea.appendChild(line);
   }
   updateActiveDrawingClass(line, line.id === state.curLineId);
   return line;
@@ -597,14 +593,14 @@ function createLine(state, lineData) {
 
 /** @param {PencilState} state */
 function restoreDrawingSize(state) {
-  state.whiteOutSize = state.Tools.getSize();
-  if (state.drawingSize !== -1) state.Tools.setSize(state.drawingSize);
+  state.whiteOutSize = state.preferences.getSize();
+  if (state.drawingSize !== -1) state.preferences.setSize(state.drawingSize);
 }
 
 /** @param {PencilState} state */
 function restoreWhiteOutSize(state) {
-  state.drawingSize = state.Tools.getSize();
-  if (state.whiteOutSize !== -1) state.Tools.setSize(state.whiteOutSize);
+  state.drawingSize = state.preferences.getSize();
+  if (state.whiteOutSize !== -1) state.preferences.setSize(state.whiteOutSize);
 }
 
 /** @param {PencilState} state */
@@ -624,38 +620,46 @@ function handleAutoWhiteOut(state, evt) {
       ? /** @type {{touchType?: string}} */ (touch).touchType
       : undefined;
   if (touchType === "stylus") {
-    if (state.hasUsedStylus && state.Tools.curTool?.secondary?.active) {
-      state.Tools.change(toolId);
+    if (state.hasUsedStylus && state.ui.getCurrentTool()?.secondary?.active) {
+      state.ui.changeTool(toolId);
     }
     state.hasUsedStylus = true;
   }
   if (touchType === "direct") {
     if (
       state.hasUsedStylus &&
-      state.Tools.curTool?.secondary &&
-      !state.Tools.curTool.secondary.active
+      state.ui.getCurrentTool()?.secondary &&
+      !state.ui.getCurrentTool()?.secondary?.active
     ) {
-      state.Tools.change(toolId);
+      state.ui.changeTool(toolId);
     }
   }
 }
 
 /** @param {ToolBootContext} ctx */
 export function boot(ctx) {
-  const Tools = ctx.app;
+  const runtime = ctx.runtime;
+  const serverConfig = runtime.config.serverConfig;
   const defaultMaxPencilChildren =
     Number(LIMITS.DEFAULT_MAX_CHILDREN) > 0
       ? Number(LIMITS.DEFAULT_MAX_CHILDREN)
       : Number.POSITIVE_INFINITY;
   /** @type {PencilState} */
   const state = {
-    Tools,
-    AUTO_FINGER_WHITEOUT: Tools.server_config.AUTO_FINGER_WHITEOUT === true,
+    board: runtime.board,
+    preferences: runtime.preferences,
+    writes: runtime.writes,
+    rateLimits: runtime.rateLimits,
+    runtimeConfig: runtime.config,
+    ids: runtime.ids,
+    rendering: runtime.rendering,
+    ui: runtime.ui,
+    AUTO_FINGER_WHITEOUT: serverConfig.AUTO_FINGER_WHITEOUT === true,
     MAX_PENCIL_CHILDREN:
-      Number(Tools.server_config.MAX_CHILDREN) > 0
-        ? Number(Tools.server_config.MAX_CHILDREN)
+      Number(serverConfig.MAX_CHILDREN) > 0
+        ? Number(serverConfig.MAX_CHILDREN)
         : defaultMaxPencilChildren,
-    minPencilIntervalMs: computeMinPencilIntervalMs(Tools),
+    minPencilIntervalMs: computeMinPencilIntervalMs(runtime.rateLimits),
     hasUsedStylus: false,
     curLineId: "",
     lastTime: performance.now(),
@@ -684,7 +688,7 @@ export function boot(ctx) {
  * @param {unknown} data
  */
 export function draw(state, data) {
-  state.Tools.drawingEvent = true;
+  state.rendering.markDrawingEvent();
   if (!isPencilMessage(data)) {
     logFrontendEvent("error", "tool.pencil.draw_invalid_type", {
       mutationType: /** @type {{type?: unknown}} */ (data)?.type,
@@ -738,7 +742,7 @@ export function press(state, x, y, evt) {
   state.curLineId = effect.lineId;
   state.hasSentPoint = false;
   state.currentLineChildCount = 0;
-  state.Tools.drawAndSend(effect.createMessage);
+  state.writes.drawAndSend(effect.createMessage);
   move(state, x, y, evt);
 }
 
@@ -754,7 +758,7 @@ export function move(state, x, y, evt) {
     stopLine(state);
   }
   if (effect.appendMessage) {
-    state.Tools.drawAndSend(effect.appendMessage);
+    state.writes.drawAndSend(effect.appendMessage);
     state.currentLineChildCount = effect.nextChildCount;
     state.hasSentPoint = effect.nextHasSentPoint;
     state.lastTime = effect.nextLastTime;

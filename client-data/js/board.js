@@ -2496,6 +2496,7 @@ function createToolRuntimeModules(mountedTools) {
     },
     ui: {
       getCurrentTool: () => mountedTools.curTool,
+      changeTool: (toolName) => mountedTools.change(toolName),
       shouldShowMarker: () => mountedTools.showMarker,
       shouldShowMyCursor: () => mountedTools.showMyCursor,
     },
