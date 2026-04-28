@@ -53,12 +53,7 @@ import {
 } from "./board_transport.js";
 import * as BoardTurnstile from "./board_turnstile.js";
 import MessageCommon from "./message_common.js";
-import {
-  getTool,
-  getMutationType,
-  getToolId,
-  MutationType,
-} from "./message_tool_metadata.js";
+import { getMutationType, MutationType } from "./message_tool_metadata.js";
 import {
   hasMessageColor,
   hasMessageId,
@@ -79,28 +74,13 @@ import {
   getToolStylesheetPath,
 } from "../tools/tool-defaults.js";
 import { TOOL_BY_ID, TOOL_MODULES_BY_ID } from "../tools/index.js";
+import { TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 
 /** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.WBOApp = Tools;
 
-/**
- * @param {unknown} tool
- * @returns {string | undefined}
- */
-function getRuntimeToolId(tool) {
-  return getToolId(tool);
-}
-
-/**
- * @param {unknown} tool
- * @param {string} expectedToolId
- * @returns {boolean}
- */
-function isRuntimeTool(tool, expectedToolId) {
-  return getTool(tool)?.id === TOOL_BY_ID[expectedToolId]?.id;
-}
 // Keep a bounded safety margin between the client-side local budget and the
 // server's fixed window to absorb emit/receive skew. The buffer must be large
 // enough that a queued write does not reconnect-loop under load by landing just
@@ -855,8 +835,8 @@ function applyRejectedOptimisticEntries(rejected) {
 function notifyRejectedTools(rejected, reason) {
   if (rejected.length === 0) return;
   rejected.forEach((entry) => {
-    const toolName = getRuntimeToolId(entry.message.tool);
-    const tool = toolName ? Tools.toolRegistry.mounted[toolName] : undefined;
+    const toolName = TOOL_ID_BY_CODE[entry.message.tool];
+    const tool = Tools.toolRegistry.mounted[toolName];
     tool?.onMutationRejected?.(entry.message, reason);
   });
 }
@@ -1277,7 +1257,7 @@ function queueProtectedWrite(data) {
   const hadPendingWrites = Tools.turnstile.pendingWrites.length > 0;
   Tools.turnstile.pendingWrites.push({ data });
   if (hadPendingWrites) return;
-  const toolName = getRuntimeToolId(data.tool) || "unknown";
+  const toolName = TOOL_ID_BY_CODE[data.tool];
   logBoardEvent("log", "turnstile.write_queued", {
     toolName,
     clientMutationId: data.clientMutationId,
@@ -2046,9 +2026,10 @@ function applyConnectedUserActivity(
   messageSocketId,
 ) {
   let changed = false;
-  const runtimeToolId = getRuntimeToolId(message.tool);
+  const runtimeToolId = TOOL_ID_BY_CODE[message.tool];
+  const isCursorMessage = runtimeToolId === "cursor";
 
-  if (!isRuntimeTool(message.tool, "cursor")) {
+  if (!isCursorMessage) {
     markConnectedUserActivity(user);
     changed = true;
   }
@@ -2060,13 +2041,13 @@ function applyConnectedUserActivity(
     user.size = message.size || user.size;
     changed = true;
   }
-  if (runtimeToolId && runtimeToolId !== "cursor") {
+  if (!isCursorMessage) {
     user.lastTool = runtimeToolId;
     changed = true;
   }
   if (
     focusPoint &&
-    (!isRuntimeTool(message.tool, "cursor") ||
+    (!isCursorMessage ||
       messageSocketId === null ||
       messageSocketId === user.socketId)
   ) {
@@ -3041,8 +3022,7 @@ function send(data) {
  * @param {LiveBoardMessage} data
  */
 function drawAndSend(data) {
-  const toolName = getRuntimeToolId(data.tool);
-  if (!toolName) throw new Error(`Unknown tool code '${data.tool}'.`);
+  const toolName = TOOL_ID_BY_CODE[data.tool];
   const mountedTool = Tools.toolRegistry.mounted[toolName];
   if (!mountedTool) throw new Error(`Missing mounted tool '${data.tool}'.`);
   if (Tools.toolRegistry.shouldDisableTool(toolName)) return false;
@@ -3109,13 +3089,13 @@ function createMessageModule(toolRegistry, identity) {
     applyHooks,
     /** @param {BoardMessage} message */
     messageForTool(message) {
-      const name = getRuntimeToolId(message.tool);
-      const tool = name ? toolRegistry.mounted[name] : undefined;
+      const name = TOOL_ID_BY_CODE[message.tool];
+      const tool = toolRegistry.mounted[name];
 
       messages.applyHooks(messages.hooks, message);
       if (tool) {
         tool.draw(message, false);
-      } else if (name) {
+      } else {
         BoardMessages.queuePendingMessage(
           toolRegistry.pendingMessages,
           name,
