@@ -4,12 +4,15 @@ import { MutationType } from "./message_tool_metadata.js";
 /** @typedef {BoardMessage | (ToolOwnedChildMessage & ToolMessageFields)} OptimisticMessage */
 
 /**
- * @param {unknown} value
+ * @param {ReadonlyArray<string | undefined>} ids
  * @returns {string[]}
  */
-function uniqueIds(value) {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((item) => typeof item === "string" && item))];
+function uniqueIds(ids) {
+  const unique = new Set();
+  for (const id of ids) {
+    if (id) unique.add(id);
+  }
+  return [...unique];
 }
 
 /**
@@ -17,7 +20,7 @@ function uniqueIds(value) {
  * @returns {string[]}
  */
 export function collectOptimisticAffectedIds(message) {
-  if ("_children" in message && Array.isArray(message._children)) {
+  if ("_children" in message) {
     return uniqueIds(
       message._children.flatMap((child) =>
         collectOptimisticAffectedIds({
@@ -27,7 +30,6 @@ export function collectOptimisticAffectedIds(message) {
       ),
     );
   }
-  if (!("type" in message)) return [];
   switch (message.type) {
     case MutationType.COPY:
       return uniqueIds([message.newid]);
@@ -45,7 +47,7 @@ export function collectOptimisticAffectedIds(message) {
  * @returns {string[]}
  */
 export function collectOptimisticDependencyIds(message) {
-  if ("_children" in message && Array.isArray(message._children)) {
+  if ("_children" in message) {
     return uniqueIds(
       message._children.flatMap((child) =>
         collectOptimisticDependencyIds({
@@ -55,7 +57,6 @@ export function collectOptimisticDependencyIds(message) {
       ),
     );
   }
-  if (!("type" in message)) return [];
   switch (message.type) {
     case MutationType.COPY:
     case MutationType.DELETE:
