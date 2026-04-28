@@ -272,10 +272,7 @@ Tools.toBoardCoordinate = function toBoardCoordinate(value) {
  * @returns {number}
  */
 Tools.pageCoordinateToBoard = function pageCoordinateToBoard(value) {
-  if (Tools.viewport) return Tools.viewport.pageCoordinateToBoard(value);
-  const screenCoordinate = Number(value);
-  if (!Number.isFinite(screenCoordinate)) return 0;
-  return Tools.toBoardCoordinate(screenCoordinate / Tools.getScale());
+  return Tools.viewportState.controller.pageCoordinateToBoard(value);
 };
 
 /**
@@ -1373,9 +1370,11 @@ function enqueueIncomingBroadcast(msg) {
   void drainIncomingBroadcastQueue();
 }
 
-Tools.scale = DEFAULT_BOARD_SCALE;
-Tools.viewport = createViewportController(Tools);
-Tools.drawToolsAllowed = null;
+Tools.viewportState = {
+  scale: DEFAULT_BOARD_SCALE,
+  controller: createViewportController(Tools),
+  drawToolsAllowed: null,
+};
 BoardTurnstile.installTurnstile(Tools, { logBoardEvent });
 Tools.access = {
   boardState: {
@@ -1390,7 +1389,7 @@ Tools.access = {
 Tools.shouldDisableTool = function shouldDisableTool(toolName) {
   return (
     MessageCommon.isDrawTool(toolName) &&
-    !MessageCommon.isDrawToolAllowedAtScale(Tools.scale || DEFAULT_BOARD_SCALE)
+    !MessageCommon.isDrawToolAllowedAtScale(Tools.viewportState.scale)
   );
 };
 
@@ -1412,9 +1411,13 @@ Tools.syncToolDisabledState = function syncToolDisabledState(toolName) {
 
 /** @param {boolean} force */
 Tools.syncDrawToolAvailability = function syncDrawToolAvailability(force) {
-  const drawToolsAllowed = MessageCommon.isDrawToolAllowedAtScale(Tools.scale);
-  if (!force && drawToolsAllowed === Tools.drawToolsAllowed) return;
-  Tools.drawToolsAllowed = drawToolsAllowed;
+  const drawToolsAllowed = MessageCommon.isDrawToolAllowedAtScale(
+    Tools.viewportState.scale,
+  );
+  if (!force && drawToolsAllowed === Tools.viewportState.drawToolsAllowed) {
+    return;
+  }
+  Tools.viewportState.drawToolsAllowed = drawToolsAllowed;
 
   Object.keys(Tools.list || {}).forEach((toolName) => {
     Tools.syncToolDisabledState(toolName);
@@ -2501,7 +2504,7 @@ function createToolRuntimeModules(mountedTools) {
       pageCoordinateToBoard: (value) =>
         mountedTools.pageCoordinateToBoard(value),
     },
-    viewport: mountedTools.viewport,
+    viewport: mountedTools.viewportState.controller,
     writes: {
       drawAndSend: (message) => mountedTools.drawAndSend(message),
       send: (message) => mountedTools.send(message),
@@ -2912,7 +2915,7 @@ function syncActiveToolState() {
 }
 
 Tools.syncActiveToolInputPolicy = function syncActiveToolInputPolicy() {
-  Tools.viewport.setTouchPolicy(
+  Tools.viewportState.controller.setTouchPolicy(
     Tools.curTool?.getTouchPolicy?.() || "app-gesture",
   );
 };
@@ -3114,21 +3117,23 @@ function updateDocumentTitle() {
 }
 
 Tools.applyViewportFromHash = function applyViewportFromHash() {
-  Tools.viewport.applyFromHash();
+  Tools.viewportState.controller.applyFromHash();
 };
 
 Tools.installViewportHashObservers = function installViewportHashObservers() {
-  Tools.viewport.installHashObservers();
+  Tools.viewportState.controller.installHashObservers();
 };
 
 Tools.installViewportController = function installViewportController() {
-  Tools.viewport.install();
+  Tools.viewportState.controller.install();
 };
 
 /** @param {BoardMessage} m */
 function resizeCanvas(m) {
   // Compatibility hook name; root SVG and page size mutation is owned by viewport.
-  Tools.viewport.ensureBoardExtentForBounds(getContentMessageBounds(m));
+  Tools.viewportState.controller.ensureBoardExtentForBounds(
+    getContentMessageBounds(m),
+  );
 }
 Tools.resizeCanvas = resizeCanvas;
 
@@ -3156,10 +3161,10 @@ Tools.messages.hooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
 
 /** @param {number} scale */
 Tools.setScale = function setScale(scale) {
-  return Tools.viewport.setScale(scale);
+  return Tools.viewportState.controller.setScale(scale);
 };
 Tools.getScale = function getScale() {
-  return Tools.viewport.getScale();
+  return Tools.viewportState.controller.getScale();
 };
 
 /**

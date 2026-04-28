@@ -646,6 +646,13 @@ export type AppMessageModule = {
   unreadCount: number;
 };
 
+/** Board viewport controller plus zoom-gated drawing-tool availability. */
+export type AppViewportModule = {
+  scale: number;
+  controller: ViewportController;
+  drawToolsAllowed: boolean | null;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -742,9 +749,7 @@ export type AppToolsState = {
   presence: AppPresenceModule;
   optimistic: AppOptimisticModule;
   messages: AppMessageModule;
-  scale: number;
-  viewport: ViewportController;
-  drawToolsAllowed: boolean | null;
+  viewportState: AppViewportModule;
   dom: BoardDomModule;
   curTool: MaybeMountedAppTool;
   drawingEvent: boolean;

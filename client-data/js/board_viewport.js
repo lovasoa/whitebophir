@@ -327,7 +327,7 @@ export function createViewportController(Tools) {
     const size = getScaledBoardLayoutSize(
       dom.svg.width.baseVal.value,
       dom.svg.height.baseVal.value,
-      Tools.scale,
+      Tools.viewportState.scale,
       window.innerWidth,
       window.innerHeight,
     );
@@ -397,12 +397,12 @@ export function createViewportController(Tools) {
     );
     const dom = getAttachedDom();
     if (!dom) {
-      Tools.scale = appliedScale;
+      Tools.viewportState.scale = appliedScale;
       return appliedScale;
     }
     dom.svg.style.willChange = "transform";
     dom.svg.style.transform = `scale(${appliedScale})`;
-    Tools.scale = appliedScale;
+    Tools.viewportState.scale = appliedScale;
     const resized =
       appliedScale <= scaleLimits.minScale &&
       ensureBoardExtentAtLeast(currentMaxBoardSize(), currentMaxBoardSize());
@@ -571,7 +571,7 @@ export function createViewportController(Tools) {
   /** @type {ViewportController} */
   const controller = {
     setScale,
-    getScale: () => Tools.scale,
+    getScale: () => Tools.viewportState.scale,
     syncLayoutSize,
     setTouchPolicy(policy) {
       touchPolicy = policy === "native-pan" ? "native-pan" : "app-gesture";

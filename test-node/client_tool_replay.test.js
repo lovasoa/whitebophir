@@ -445,7 +445,7 @@ function createHarness() {
       Number(size) || 4,
     getOpacity: () => 1,
     generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
-    getScale: () => 1,
+    getScale: () => globalAny.Tools.viewportState.scale,
     toBoardCoordinate: (/** @type {unknown} */ value) =>
       Math.round(Number(value) || 0),
     pageCoordinateToBoard: (/** @type {unknown} */ value) =>
@@ -455,39 +455,43 @@ function createHarness() {
       if (!definition) throw new Error(`Missing rate limit for ${kind}`);
       return definition;
     },
-    viewport: {
-      ensuredBounds: /** @type {any[]} */ ([]),
-      setScale: (/** @type {number} */ scale) => {
-        globalAny.Tools.scale = scale;
-        return scale;
+    viewportState: {
+      scale: 1,
+      drawToolsAllowed: null,
+      controller: {
+        ensuredBounds: /** @type {any[]} */ ([]),
+        setScale: (/** @type {number} */ scale) => {
+          globalAny.Tools.viewportState.scale = scale;
+          return scale;
+        },
+        getScale: () => globalAny.Tools.getScale(),
+        syncLayoutSize: () => {},
+        setTouchPolicy: () => {},
+        ensureBoardExtentAtLeast: () => true,
+        ensureBoardExtentForPoint: () => true,
+        ensureBoardExtentForBounds: function (/** @type {any} */ bounds) {
+          this.ensuredBounds.push(bounds);
+          return true;
+        },
+        pageCoordinateToBoard: (/** @type {unknown} */ value) =>
+          globalAny.Tools.pageCoordinateToBoard(value),
+        panBy: () => {},
+        panTo: () => {},
+        zoomAt: (/** @type {number} */ scale) => {
+          globalAny.Tools.viewportState.scale = scale;
+          return scale;
+        },
+        zoomBy: (/** @type {number} */ factor) => {
+          globalAny.Tools.viewportState.scale *= factor;
+          return globalAny.Tools.viewportState.scale;
+        },
+        beginPan: () => {},
+        movePan: () => {},
+        endPan: () => {},
+        install: () => {},
+        installHashObservers: () => {},
+        applyFromHash: () => {},
       },
-      getScale: () => globalAny.Tools.getScale(),
-      syncLayoutSize: () => {},
-      setTouchPolicy: () => {},
-      ensureBoardExtentAtLeast: () => true,
-      ensureBoardExtentForPoint: () => true,
-      ensureBoardExtentForBounds: function (/** @type {any} */ bounds) {
-        this.ensuredBounds.push(bounds);
-        return true;
-      },
-      pageCoordinateToBoard: (/** @type {unknown} */ value) =>
-        globalAny.Tools.pageCoordinateToBoard(value),
-      panBy: () => {},
-      panTo: () => {},
-      zoomAt: (/** @type {number} */ scale) => {
-        globalAny.Tools.scale = scale;
-        return scale;
-      },
-      zoomBy: (/** @type {number} */ factor) => {
-        globalAny.Tools.scale *= factor;
-        return globalAny.Tools.scale;
-      },
-      beginPan: () => {},
-      movePan: () => {},
-      endPan: () => {},
-      install: () => {},
-      installHashObservers: () => {},
-      applyFromHash: () => {},
     },
     createSVGElement: (
       /** @type {string} */ tagName,
@@ -815,7 +819,7 @@ function createHarnessToolRuntime(app) {
       toBoardCoordinate: (value) => app.toBoardCoordinate(value),
       pageCoordinateToBoard: (value) => app.pageCoordinateToBoard(value),
     },
-    viewport: app.viewport,
+    viewport: app.viewportState.controller,
     writes: {
       drawAndSend: (message) => app.drawAndSend(message),
       send: (message) => app.send(message),
@@ -1887,12 +1891,15 @@ test("Hand selector sends a final transform on quick release", async () => {
       },
     ],
   });
-  assert.deepEqual(globalAny.Tools.viewport.ensuredBounds.at(-1), {
-    minX: 140,
-    minY: 125,
-    maxX: 200,
-    maxY: 165,
-  });
+  assert.deepEqual(
+    globalAny.Tools.viewportState.controller.ensuredBounds.at(-1),
+    {
+      minX: 140,
+      minY: 125,
+      maxX: 200,
+      maxY: 165,
+    },
+  );
 });
 
 test("Hand replay expands viewport extent for transform-only updates", async () => {
@@ -1928,7 +1935,7 @@ test("Hand replay expands viewport extent for transform-only updates", async () 
     false,
   );
 
-  assert.deepEqual(globalAny.Tools.viewport.ensuredBounds, [
+  assert.deepEqual(globalAny.Tools.viewportState.controller.ensuredBounds, [
     {
       minX: 500,
       minY: 350,

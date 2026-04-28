@@ -99,7 +99,9 @@ test("viewport owns svg extent growth and layout sync", async () => {
   try {
     const { createViewportController } = await loadViewportModule();
     const tools = /** @type {any} */ ({
-      scale: 0.5,
+      viewportState: {
+        scale: 0.5,
+      },
       config: {
         serverConfig: {
           MAX_BOARD_SIZE: 1000,
@@ -156,7 +158,9 @@ test("viewport expands to the full board at minimum zoom", async () => {
   try {
     const { createViewportController } = await loadViewportModule();
     const tools = /** @type {any} */ ({
-      scale: 1,
+      viewportState: {
+        scale: 1,
+      },
       config: {
         serverConfig: {
           MAX_BOARD_SIZE: 1000,
