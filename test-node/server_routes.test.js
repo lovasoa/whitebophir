@@ -644,9 +644,8 @@ test("board pages are no-store in development and render plain asset URLs", asyn
     const origin = `http://127.0.0.1:${port}`;
     assert.match(
       response.body,
-      /<meta name="viewport" content="width=device-width, initial-scale=1" \/>/,
+      /<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" \/>/,
     );
-    assert.doesNotMatch(response.body, /user-scalable=no/);
     assert.match(
       response.body,
       new RegExp(
