@@ -489,8 +489,9 @@ test.describe("collaboration and rate limiting", () => {
     await boardPage.waitForAuthoritativeResync();
 
     await page.evaluate(
-      ({ createType, tool }) => {
-        const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
+      async ({ createType, tool }) => {
+        const rectangle =
+          await window.WBOApp.toolRegistry.bootTool("rectangle");
         if (!rectangle) throw new Error("rectangle tool is unavailable");
         window.WBOApp.writes.drawAndSend({
           tool,
@@ -568,7 +569,7 @@ test.describe("collaboration and rate limiting", () => {
             requestAnimationFrame(() => resolve()),
           );
         const lineId = "reconnect-pencil-path";
-        const pencil = window.WBOApp.toolRegistry.mounted.pencil;
+        const pencil = await window.WBOApp.toolRegistry.bootTool("pencil");
         if (!pencil) throw new Error("pencil tool is unavailable");
         window.WBOApp.writes.drawAndSend({
           tool: pencilTool,
@@ -884,8 +885,9 @@ test.describe("collaboration and rate limiting", () => {
       ]);
 
       await page.evaluate(
-        ({ createType, tool }) => {
-          const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
+        async ({ createType, tool }) => {
+          const rectangle =
+            await window.WBOApp.toolRegistry.bootTool("rectangle");
           if (!rectangle) throw new Error("rectangle tool is unavailable");
           window.WBOApp.writes.drawAndSend({
             tool,
@@ -973,8 +975,9 @@ test.describe("collaboration and rate limiting", () => {
       await boardPage.waitForAuthoritativeResync();
 
       await page.evaluate(
-        ({ createType, tool }) => {
-          const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
+        async ({ createType, tool }) => {
+          const rectangle =
+            await window.WBOApp.toolRegistry.bootTool("rectangle");
           if (!rectangle) throw new Error("rectangle tool is unavailable");
           window.WBOApp.writes.drawAndSend({
             tool,

@@ -58,6 +58,7 @@ const BOARD_EXTENT_MARGIN = 20000;
  *   movePan(clientX: number, clientY: number): void,
  *   endPan(): void,
  *   install(): void,
+ *   installTemporaryPan(): () => void,
  *   installHashObservers(): void,
  *   applyFromHash(): void,
  * }} ViewportController
@@ -260,6 +261,8 @@ export function createViewportController(Tools) {
   let activePan = null;
   /** @type {{distance: number, scale: number} | null} */
   let activePinch = null;
+  /** @type {(() => void) | null} */
+  let temporaryPanCleanup = null;
 
   /**
    * @returns {ScaleLimits}
@@ -647,6 +650,40 @@ export function createViewportController(Tools) {
       dom.board.addEventListener("touchcancel", handleTouchEnd, {
         capture: true,
       });
+    },
+    installTemporaryPan() {
+      const dom = getAttachedDom();
+      if (!dom || temporaryPanCleanup) return temporaryPanCleanup || (() => {});
+
+      /** @param {MouseEvent} event */
+      function handleMouseDown(event) {
+        if (event.button !== 0) return;
+        if (event.cancelable) event.preventDefault();
+        controller.beginPan(event.clientX, event.clientY);
+      }
+
+      /** @param {MouseEvent} event */
+      function handleMouseMove(event) {
+        controller.movePan(event.clientX, event.clientY);
+      }
+
+      function handleMouseUp() {
+        controller.endPan();
+      }
+
+      dom.board.addEventListener("mousedown", handleMouseDown);
+      dom.board.addEventListener("mousemove", handleMouseMove);
+      dom.board.addEventListener("mouseup", handleMouseUp);
+      dom.board.addEventListener("mouseleave", handleMouseUp);
+      temporaryPanCleanup = () => {
+        dom.board.removeEventListener("mousedown", handleMouseDown);
+        dom.board.removeEventListener("mousemove", handleMouseMove);
+        dom.board.removeEventListener("mouseup", handleMouseUp);
+        dom.board.removeEventListener("mouseleave", handleMouseUp);
+        controller.endPan();
+        temporaryPanCleanup = null;
+      };
+      return temporaryPanCleanup;
     },
     installHashObservers() {
       if (hashObserversInstalled) return;

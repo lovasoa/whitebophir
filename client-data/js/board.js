@@ -24,40 +24,32 @@
  * @licend
  */
 
-import { AppTools } from "./app_tools.js";
+import { attachFullRuntimeModules } from "./app_tools.js";
+import { createBoardRuntimeShellFromPage } from "./board_bootstrap.js";
 import { readSocketIOExtraHeaders } from "./board_connection_module.js";
-import { parseEmbeddedJson, resolveBoardName } from "./board_page_state.js";
-import {
-  createInitialPreferences,
-  DEFAULT_COLOR_PRESETS,
-} from "./board_shell_module.js";
 import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
-import "./intersect.js";
 
-/** @import { AppToolsState, ServerConfig } from "../../types/app-runtime" */
+/** @import { AppToolsState } from "../../types/app-runtime" */
+
+/**
+ * @param {AppToolsState} Tools
+ * @returns {AppToolsState}
+ */
+export function hydrateBoardRuntimeFromPage(Tools) {
+  attachFullRuntimeModules(Tools, {
+    logBoardEvent,
+    socketIOExtraHeaders: readSocketIOExtraHeaders(logBoardEvent),
+  });
+  Tools.shell.initializePageChrome();
+  if (Tools.dom.status === "attached") {
+    Tools.toolRegistry.normalizeServerRenderedElements();
+  }
+  return Tools;
+}
 
 /**
  * @returns {AppToolsState}
  */
 export function createBoardRuntimeFromPage() {
-  const socketIOExtraHeaders = readSocketIOExtraHeaders(logBoardEvent);
-  const colorPresets = DEFAULT_COLOR_PRESETS;
-  const initialPreferences = createInitialPreferences(colorPresets);
-  const Tools = new AppTools({
-    translations: /** @type {{[key: string]: string}} */ (
-      parseEmbeddedJson("translations", {})
-    ),
-    serverConfig: /** @type {ServerConfig} */ (
-      parseEmbeddedJson("configuration", {})
-    ),
-    boardName: resolveBoardName(window.location.pathname),
-    token: new URL(window.location.href).searchParams.get("token"),
-    socketIOExtraHeaders,
-    colorPresets,
-    initialPreferences,
-    logBoardEvent,
-  });
-  window.WBOApp = Tools;
-  Tools.shell.initializePageChrome();
-  return Tools;
+  return hydrateBoardRuntimeFromPage(createBoardRuntimeShellFromPage());
 }

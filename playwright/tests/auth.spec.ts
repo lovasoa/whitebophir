@@ -196,8 +196,9 @@ test.describe("public authless flows", () => {
     await boardPage.waitForAuthoritativeResync();
 
     const hadOptimisticRect = await page.evaluate(
-      ({ createType, tool }) => {
-        const rectangle = window.WBOApp.toolRegistry.mounted.rectangle;
+      async ({ createType, tool }) => {
+        const rectangle =
+          await window.WBOApp.toolRegistry.bootTool("rectangle");
         if (!rectangle) throw new Error("rectangle tool is unavailable");
         window.WBOApp.writes.drawAndSend({
           tool,

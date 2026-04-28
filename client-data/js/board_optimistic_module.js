@@ -134,6 +134,7 @@ export class OptimisticModule {
     if (rejected.length === 0) return;
     rejected.forEach((entry) => {
       const toolName = TOOL_ID_BY_CODE[entry.message.tool];
+      if (!toolName) return;
       const tool = Tools.toolRegistry.mounted[toolName];
       tool?.onMutationRejected?.(entry.message, reason);
     });

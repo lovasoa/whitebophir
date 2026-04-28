@@ -7,24 +7,23 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" type="text/css" href="../board.css" />
 	<link rel="modulepreload" href="../js/board_main.js" />
-	<link rel="modulepreload" href="../js/app_tools.js" />
-	<link rel="modulepreload" href="../js/board_access_module.js" />
-	<link rel="modulepreload" href="../js/board_connection_module.js" />
-	<link rel="modulepreload" href="../js/board.js" />
-	<link rel="modulepreload" href="../js/board_message_module.js" />
-	<link rel="modulepreload" href="../js/board_optimistic_module.js" />
-	<link rel="modulepreload" href="../js/board_presence_module.js" />
-	<link rel="modulepreload" href="../js/board_replay_module.js" />
+	<link rel="modulepreload" href="../js/board_bootstrap.js" />
+	<link rel="modulepreload" href="../js/app_tools_core.js" />
+	<link rel="modulepreload" href="../js/board_dom_bootstrap.js" />
+	<link rel="modulepreload" href="../js/board_message_replay.js" />
+	<link rel="modulepreload" href="../js/board_name.js" />
+	<link rel="modulepreload" href="../js/board_page_state.js" />
+	<link rel="modulepreload" href="../js/board_preferences.js" />
 	<link rel="modulepreload" href="../js/board_runtime_core.js" />
-	<link rel="modulepreload" href="../js/board_shell_module.js" />
-	<link rel="modulepreload" href="../js/board_status_module.js" />
-	<link rel="modulepreload" href="../js/board_tool_registry_module.js" />
 	<link rel="modulepreload" href="../js/board_viewport.js" />
-	<link rel="modulepreload" href="../js/board_write_module.js" />
-	<link rel="modulepreload" href="../js/path-data-polyfill.js" />
-	{{#toolModulePreloads}}
-	<link rel="modulepreload" href="{{.}}" />
-	{{/toolModulePreloads}}
+	<link rel="modulepreload" href="../js/frontend_logging.js" />
+	<link rel="modulepreload" href="../js/message_common.js" />
+	<link rel="modulepreload" href="../js/message_tool_metadata.js" />
+	<link rel="modulepreload" href="../js/mutation_type.js" />
+	<link rel="modulepreload" href="../js/rate_limit_common.js" />
+	<link rel="modulepreload" href="../tools/manifest.js" />
+	<link rel="modulepreload" href="../tools/tool-defaults.js" />
+	<link rel="modulepreload" href="../tools/tool-order.js" />
 	<script id="socketio-client" async src="../socket.io/socket.io.js"></script>
 	<meta name="description" content="{{translations.tagline}}" />
 	<meta name="keywords"
@@ -38,9 +37,6 @@
 	{{#languageLinks}}
 	<link rel="alternate" hreflang="{{language}}" href="{{href}}" />
 	{{/languageLinks}}
-	{{#toolStylesheets}}
-	<link rel="stylesheet" type="text/css" href="{{.}}" />
-	{{/toolStylesheets}}
 	{{{htmlHeadSnippet}}}
 </head>
 
@@ -70,7 +66,8 @@
 			<ul id="tools" class="tools">
 				{{#tools}}
 				<li class="tool" tabindex="-1" id="toolID-{{id}}" data-tool-id="{{id}}" aria-label="{{label}}">
-					<img class="tool-icon" width="35" height="35" src="{{iconUrl}}" alt="" aria-hidden="true" />
+					<img class="tool-icon" width="35" height="35" src="{{iconUrl}}" alt="" aria-hidden="true"
+						fetchpriority="low" />
 					<span class="tool-name">{{label}}</span>
 					<img class="tool-icon secondaryIcon" width="35" height="35" src="data:," alt="" aria-hidden="true" />
 				</li>

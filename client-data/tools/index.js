@@ -10,7 +10,12 @@ import * as RectangleModule from "./rectangle/index.js";
 import * as StraightLineModule from "./straight-line/index.js";
 import * as TextModule from "./text/index.js";
 import * as ZoomModule from "./zoom/index.js";
-import { TOOLBAR_TOOL_IDS, TOOL_CODE_BY_ID, TOOL_IDS } from "./tool-order.js";
+import {
+  TOOL_BY_ID as TOOL_METADATA_BY_ID,
+  TOOL_CODE_BY_ID,
+  TOOL_IDS,
+  TOOLBAR_TOOL_IDS,
+} from "./manifest.js";
 import {
   getDefaultToolLabel,
   getToolIconPath,
@@ -58,6 +63,7 @@ import {
  */
 function defineTool(tool, toolCode) {
   const definition = /** @type {ToolModuleLike & Partial<ToolContract>} */ ({
+    ...TOOL_METADATA_BY_ID[tool.toolId],
     ...(tool.contract || {}),
     ...tool,
   });

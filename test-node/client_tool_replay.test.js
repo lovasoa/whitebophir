@@ -802,6 +802,8 @@ function createUnavailableViewportRuntime() {
     movePan: () => unavailableCapability("viewport.movePan"),
     endPan: () => unavailableCapability("viewport.endPan"),
     install: () => unavailableCapability("viewport.install"),
+    installTemporaryPan: () =>
+      unavailableCapability("viewport.installTemporaryPan"),
     installHashObservers: () =>
       unavailableCapability("viewport.installHashObservers"),
     applyFromHash: () => unavailableCapability("viewport.applyFromHash"),

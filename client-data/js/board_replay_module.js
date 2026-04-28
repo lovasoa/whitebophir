@@ -100,11 +100,10 @@ export class ReplayModule {
    * @param {BoardMessage} message
    * @returns {Promise<void>}
    */
-  handleMessage(message) {
+  async handleMessage(message) {
     const Tools = this.getTools();
     Tools.writes.pruneBufferedWritesForInvalidatingMessage(message);
-    Tools.messages.messageForTool(message);
-    return Promise.resolve();
+    await Tools.messages.messageForTool(message);
   }
 
   /**

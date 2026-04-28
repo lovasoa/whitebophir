@@ -665,67 +665,69 @@ test("board pages are no-store in development and render plain asset URLs", asyn
       response.body,
       /<script id="socketio-client" async src="\.\.\/socket\.io\/socket\.io\.js"><\/script>/,
     );
+    [
+      "board_bootstrap",
+      "app_tools_core",
+      "board_dom_bootstrap",
+      "board_message_replay",
+      "board_name",
+      "board_page_state",
+      "board_preferences",
+      "board_runtime_core",
+      "board_viewport",
+      "frontend_logging",
+      "message_common",
+      "message_tool_metadata",
+      "mutation_type",
+      "rate_limit_common",
+    ].forEach((moduleName) => {
+      assert.match(
+        response.body,
+        new RegExp(
+          `rel="modulepreload" href="\\.\\.\\/js\\/${moduleName}\\.js"`,
+        ),
+      );
+    });
     assert.match(
       response.body,
-      /rel="modulepreload" href="\.\.\/js\/app_tools\.js"/,
+      /rel="modulepreload" href="\.\.\/tools\/manifest\.js"/,
     );
     assert.match(
       response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_access_module\.js"/,
+      /rel="modulepreload" href="\.\.\/tools\/tool-defaults\.js"/,
     );
     assert.match(
       response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_connection_module\.js"/,
+      /rel="modulepreload" href="\.\.\/tools\/tool-order\.js"/,
     );
-    assert.match(
+    [
+      "app_tools",
+      "board_access_module",
+      "board_connection_module",
+      "board",
+      "board_message_module",
+      "board_optimistic_module",
+      "board_presence_module",
+      "board_replay_module",
+      "board_shell_module",
+      "board_status_module",
+      "board_tool_registry_module",
+      "board_write_module",
+      "path-data-polyfill",
+    ].forEach((moduleName) => {
+      assert.doesNotMatch(
+        response.body,
+        new RegExp(
+          `rel="modulepreload" href="\\.\\.\\/js\\/${moduleName}\\.js"`,
+        ),
+      );
+    });
+    assert.doesNotMatch(
       response.body,
-      /rel="modulepreload" href="\.\.\/js\/board\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_message_module\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_optimistic_module\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_presence_module\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_replay_module\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_runtime_core\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_shell_module\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_status_module\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_tool_registry_module\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_viewport\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/board_write_module\.js"/,
-    );
-    assert.match(
-      response.body,
-      /rel="modulepreload" href="\.\.\/js\/path-data-polyfill\.js"/,
+      /rel="modulepreload" href="\.\.\/tools\/pencil\/index\.js"/,
     );
     assert.match(response.body, /\.\.\/tools\/pencil\/icon\.svg(?:["'])/);
+    assert.match(response.body, /fetchpriority="low"/);
     assert.match(response.body, /\.\.\/users\.svg(?:["'])/);
     assert.match(response.body, /\.\.\/icon-size\.svg(?:["'])/);
     assert.doesNotMatch(response.body, /\?v=/);

@@ -1,8 +1,9 @@
-import { TOOL_BY_ID, TOOL_MODULES_BY_ID } from "../tools/index.js";
 import {
   getToolIconPath,
+  getToolModuleImportPath,
   getToolStylesheetPath,
-} from "../tools/tool-defaults.js";
+  TOOL_BY_ID,
+} from "../tools/manifest.js";
 import {
   drainPendingMessages,
   getRequiredElement,
@@ -12,7 +13,7 @@ import MessageCommon from "./message_common.js";
 
 /** @import { AppToolsState, BoardMessage, CompiledToolListener, CompiledToolListeners, MountedAppTool, MountedAppToolsState, PendingMessages, RateLimitKind, ToolBootContext, ToolModule, ToolPointerListener, ToolRuntimeState } from "../../types/app-runtime" */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
-/** @typedef {{criticalToolNames: string[], replaySafeToolNames: ReadonlySet<string>, pendingToolName: string}} InitialToolBootOptions */
+/** @typedef {{criticalToolNames: string[], pendingToolName: string}} InitialToolBootOptions */
 
 /** @type {AppToolsState} */
 let Tools;
@@ -295,10 +296,6 @@ export class ToolRegistryModule {
       if (!visibleToolNames.has(toolName)) continue;
       await this.bootTool(toolName);
     }
-    for (const toolName of options.replaySafeToolNames) {
-      if (options.criticalToolNames.includes(toolName)) continue;
-      await this.bootTool(toolName);
-    }
     if (options.pendingToolName) {
       await this.activateTool(options.pendingToolName);
     }
@@ -308,10 +305,22 @@ export class ToolRegistryModule {
   }
 
   /**
-   * @param {ReadonlySet<string>} replaySafeToolNames
+   * @param {ReadonlySet<string>} skippedToolNames
    * @returns {void}
    */
-  scheduleLazyBootRenderedTools(replaySafeToolNames) {
+  scheduleLazyBootRenderedTools(skippedToolNames) {
+    this.scheduleLazyBootToolNames(
+      [...this.getRenderedToolNames(), "cursor"],
+      skippedToolNames,
+    );
+  }
+
+  /**
+   * @param {string[]} toolNames
+   * @param {ReadonlySet<string>} skippedToolNames
+   * @returns {void}
+   */
+  scheduleLazyBootToolNames(toolNames, skippedToolNames) {
     const schedule =
       window.requestIdleCallback ||
       /**
@@ -327,8 +336,9 @@ export class ToolRegistryModule {
           50,
         );
       });
-    this.getRenderedToolNames()
-      .filter((toolName) => !replaySafeToolNames.has(toolName))
+    toolNames
+      .filter((toolName, index) => toolNames.indexOf(toolName) === index)
+      .filter((toolName) => !skippedToolNames.has(toolName))
       .forEach((toolName) => {
         schedule(() => {
           void this.bootTool(toolName);
@@ -540,15 +550,20 @@ async function loadToolModule(toolName) {
   if (!isRegisteredToolId(toolName)) {
     throw new Error(`Unknown tool module: ${toolName}.`);
   }
-  return /** @type {ToolModule} */ (TOOL_MODULES_BY_ID[toolName]);
+  if (toolName === "pencil") {
+    await import("./path-data-polyfill.js");
+  }
+  return /** @type {ToolModule} */ (
+    await import(getToolModuleImportPath(toolName))
+  );
 }
 
 /**
  * @param {string} toolName
- * @returns {toolName is keyof typeof TOOL_MODULES_BY_ID}
+ * @returns {boolean}
  */
 function isRegisteredToolId(toolName) {
-  return Object.hasOwn(TOOL_MODULES_BY_ID, toolName);
+  return Object.hasOwn(TOOL_BY_ID, toolName);
 }
 
 /**
@@ -689,7 +704,7 @@ function createMountedTool(toolModule, toolState, toolName) {
   /** @type {MountedAppTool} */
   const tool = {
     name: toolName,
-    shortcut: toolModule.shortcut,
+    shortcut: toolModule.shortcut ?? toolDefinition?.shortcut,
     icon: "",
     draw: (message, isLocal) => draw(toolState, message, isLocal),
     normalizeServerRenderedElement: normalizeServerRenderedElement
@@ -719,10 +734,13 @@ function createMountedTool(toolModule, toolState, toolName) {
       ? (message, reason) => onMutationRejected(toolState, message, reason)
       : undefined,
     stylesheet: undefined,
-    oneTouch: toolModule.oneTouch,
-    alwaysOn: toolModule.alwaysOn,
-    mouseCursor: toolModule.mouseCursor ?? toolState.mouseCursor,
-    helpText: toolModule.helpText,
+    oneTouch: toolModule.oneTouch ?? toolDefinition?.oneTouch,
+    alwaysOn: toolModule.alwaysOn ?? toolDefinition?.alwaysOn,
+    mouseCursor:
+      toolModule.mouseCursor ??
+      toolState.mouseCursor ??
+      toolDefinition?.mouseCursor,
+    helpText: toolModule.helpText ?? toolDefinition?.helpText,
     secondary: toolState.secondary ?? toolModule.secondary ?? null,
     onSizeChange: onSizeChange
       ? (size) => onSizeChange(toolState, size)
@@ -730,8 +748,9 @@ function createMountedTool(toolModule, toolState, toolName) {
     getTouchPolicy: getTouchPolicy
       ? () => getTouchPolicy(toolState)
       : undefined,
-    showMarker: toolModule.showMarker,
-    requiresWritableBoard: toolModule.requiresWritableBoard,
+    showMarker: toolModule.showMarker ?? toolDefinition?.showMarker,
+    requiresWritableBoard:
+      toolModule.requiresWritableBoard ?? toolDefinition?.requiresWritableBoard,
     touchListenerOptions,
   };
   if (toolDefinition) {

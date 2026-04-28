@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import handlebars from "handlebars";
 
-import { TOOL_BY_ID, TOOLBAR_TOOLS } from "../../client-data/tools/index.js";
+import { TOOLBAR_TOOLS } from "../../client-data/tools/manifest.js";
 import { createClientConfiguration } from "./client_configuration.mjs";
 import { startCompressedResponse } from "./compression.mjs";
 import { parseRequestUrl } from "./request_url.mjs";
@@ -431,17 +431,8 @@ class BoardTemplate extends Template {
     params.tools = visibleTools.map((tool) => ({
       id: tool.toolId,
       label: params.translations[tool.translationKey] || tool.label,
-      iconUrl: tool.getIconUrl(),
+      iconUrl: `../${tool.iconPath}`,
     }));
-    params.toolModulePreloads = Array.from(
-      new Set([...visibleTools.map((tool) => tool.toolId), "cursor"]),
-    )
-      .map((toolId) => TOOL_BY_ID[toolId])
-      .filter(isToolbarTool)
-      .map((tool) => tool.getModuleImportPath());
-    params.toolStylesheets = visibleTools
-      .map((tool) => tool.getStylesheetUrl())
-      .filter((href) => typeof href === "string");
     return params;
   }
 

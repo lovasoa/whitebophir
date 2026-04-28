@@ -1,17 +1,12 @@
-import { DRAW_TOOL_IDS } from "../tools/tool-order.js";
+import {
+  attachPanReadyRuntime,
+  createBoardRuntimeShellFromPage,
+} from "./board_bootstrap.js";
 import { errorLogFields, logFrontendEvent } from "./frontend_logging.js";
 
 const documentElement = document.documentElement;
-/** @type {string} */
-const PATH_DATA_POLYFILL_MODULE = "./path-data-polyfill.js";
 
-const CRITICAL_BOOT_TOOL_NAMES = ["hand", DRAW_TOOL_IDS[0] || ""];
-const REPLAY_SAFE_TOOL_NAMES = new Set([
-  ...DRAW_TOOL_IDS,
-  "cursor",
-  "eraser",
-  "hand",
-]);
+const CRITICAL_BOOT_TOOL_NAMES = ["hand"];
 
 /**
  * @typedef {"viewport-restored" | "connecting" | "ready" | "error"} BoardBootPhase
@@ -35,26 +30,25 @@ function setBoardBootPhase(phase) {
  * @returns {Promise<void>}
  */
 async function bootBoardPage() {
-  const { createBoardRuntimeFromPage } = await import("./board.js");
-  await import(PATH_DATA_POLYFILL_MODULE);
-  const tools = createBoardRuntimeFromPage();
+  const tools = createBoardRuntimeShellFromPage();
+  const stopTemporaryPan = await attachPanReadyRuntime(tools, document);
+  setBoardBootPhase("viewport-restored");
 
-  await tools.shell.attachBoardDom(document);
-  tools.viewportState.install();
+  const { hydrateBoardRuntimeFromPage } = await import("./board.js");
+  hydrateBoardRuntimeFromPage(tools);
   setBoardBootPhase("connecting");
   tools.connection.start();
 
-  tools.viewportState.restoreFromHash();
-  setBoardBootPhase("viewport-restored");
-
   await tools.toolRegistry.bootInitialTools({
     criticalToolNames: CRITICAL_BOOT_TOOL_NAMES,
-    replaySafeToolNames: REPLAY_SAFE_TOOL_NAMES,
     pendingToolName: documentElement.dataset.pendingTool || "",
   });
+  stopTemporaryPan();
   setBoardBootPhase("ready");
 
-  tools.toolRegistry.scheduleLazyBootRenderedTools(REPLAY_SAFE_TOOL_NAMES);
+  tools.toolRegistry.scheduleLazyBootRenderedTools(
+    new Set(CRITICAL_BOOT_TOOL_NAMES),
+  );
 }
 
 void bootBoardPage().catch((error) => {

@@ -349,6 +349,7 @@ export class WriteModule {
   drawAndSend(data) {
     const Tools = this.getTools();
     const toolName = TOOL_ID_BY_CODE[data.tool];
+    if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
     const mountedTool = Tools.toolRegistry.mounted[toolName];
     if (!mountedTool) throw new Error(`Missing mounted tool '${data.tool}'.`);
     if (Tools.toolRegistry.shouldDisableTool(toolName)) return false;

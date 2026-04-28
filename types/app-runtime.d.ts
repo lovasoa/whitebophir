@@ -583,6 +583,7 @@ export type ViewportController = {
   movePan: (clientX: number, clientY: number) => void;
   endPan: () => void;
   install: () => void;
+  installTemporaryPan: () => () => void;
   installHashObservers: () => void;
   applyFromHash: () => void;
 };
@@ -693,7 +694,36 @@ export type ToolRuntimeModules = ReturnType<
 >;
 
 /** Runtime root composed only of documented modules. */
-export type AppToolsState = import("../client-data/js/app_tools.js").AppTools;
+export type AppToolsState = {
+  i18n: import("../client-data/js/board_runtime_core.js").I18nModule;
+  config: AppConfigModule;
+  identity: AppIdentityModule;
+  assets: AppAssetModule;
+  toolRegistry: AppToolRegistryModule;
+  turnstile: AppTurnstileModule;
+  writes: AppWriteModule;
+  status: AppStatusModule;
+  replay: AppReplayModule;
+  optimistic: AppOptimisticModule;
+  connection: AppConnectionModule;
+  rateLimits: AppRateLimitModule;
+  viewportState: AppViewportModule;
+  coordinates: AppCoordinateModule;
+  access: AppAccessModule;
+  dom: BoardDomModule;
+  interaction: AppInteractionModule;
+  presence: AppPresenceModule;
+  messages: AppMessageModule;
+  ids: AppIdModule;
+  preferences: AppPreferenceModule;
+  shell: AppShellModule;
+  initialAuthoritativeSeq: number;
+  attachDom: (
+    board: HTMLElement,
+    svg: SVGSVGElement,
+    drawingArea: SVGGElement,
+  ) => AttachedBoardDomModule;
+};
 
 export type MountedAppToolsState = AppToolsState & {
   dom: AttachedBoardDomModule & BoardDomActions;

@@ -585,7 +585,7 @@ function applyConnectedUserActivity(
     user.size = message.size || user.size;
     changed = true;
   }
-  if (!isCursorMessage) {
+  if (runtimeToolId && !isCursorMessage) {
     user.lastTool = runtimeToolId;
     changed = true;
   }

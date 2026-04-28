@@ -1,5 +1,5 @@
 import { getMutationType, MutationType } from "./message_tool_metadata.js";
-import { Text } from "../tools/index.js";
+import { TOOL_CODE_BY_ID } from "../tools/manifest.js";
 
 export const ANONYMOUS_BOARD_NAME = "anonymous";
 export const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;
@@ -255,7 +255,7 @@ export function countTextCreationActions(data) {
       return total + countTextCreationActions(child);
     }, 0);
   }
-  if (data.tool !== Text.id) {
+  if (data.tool !== TOOL_CODE_BY_ID.text) {
     return 0;
   }
   const mutationType = getMutationType(data);

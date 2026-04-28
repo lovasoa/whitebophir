@@ -1,5 +1,9 @@
 import { updateDocumentTitle } from "./board_message_module.js";
-import * as BoardMessageReplay from "./board_message_replay.js";
+import { attachBoardDomToRuntime } from "./board_dom_bootstrap.js";
+import {
+  DEFAULT_COLOR_PRESETS,
+  createInitialPreferences,
+} from "./board_preferences.js";
 import {
   getRequiredElement,
   normalizeBoardState,
@@ -9,39 +13,9 @@ import {
 import { addToolShortcut } from "./board_tool_registry_module.js";
 import MessageCommon from "./message_common.js";
 
-/** @import { AppInitialPreferences, AppToolsState, ColorPreset } from "../../types/app-runtime" */
+/** @import { AppToolsState, ColorPreset } from "../../types/app-runtime" */
 
-const DEFAULT_INITIAL_SIZE = 40;
-const DEFAULT_INITIAL_OPACITY = 1;
-
-export const DEFAULT_COLOR_PRESETS = [
-  { color: "#001f3f", key: "1" },
-  { color: "#FF4136", key: "2" },
-  { color: "#0074D9", key: "3" },
-  { color: "#FF851B", key: "4" },
-  { color: "#FFDC00", key: "5" },
-  { color: "#3D9970", key: "6" },
-  { color: "#91E99B", key: "7" },
-  { color: "#90468b", key: "8" },
-  { color: "#7FDBFF", key: "9" },
-  { color: "#AAAAAA", key: "0" },
-  { color: "#E65194" },
-];
-
-/**
- * @param {ColorPreset[]} colorPresets
- * @returns {AppInitialPreferences}
- */
-export function createInitialPreferences(colorPresets = DEFAULT_COLOR_PRESETS) {
-  const colorIndex = (Math.random() * colorPresets.length) | 0;
-  const initialPreset = colorPresets[colorIndex] || colorPresets[0];
-  return {
-    tool: "hand",
-    color: initialPreset?.color || "#001f3f",
-    size: DEFAULT_INITIAL_SIZE,
-    opacity: DEFAULT_INITIAL_OPACITY,
-  };
-}
+export { DEFAULT_COLOR_PRESETS, createInitialPreferences };
 
 /**
  * @param {string} elementId
@@ -49,45 +23,6 @@ export function createInitialPreferences(colorPresets = DEFAULT_COLOR_PRESETS) {
  */
 function getRequiredInput(elementId) {
   return /** @type {HTMLInputElement} */ (getRequiredElement(elementId));
-}
-
-/**
- * @param {Document} document
- * @param {string} elementId
- * @returns {Promise<Element>}
- */
-function waitForElement(document, elementId) {
-  const existing = document.getElementById(elementId);
-  if (existing) return Promise.resolve(existing);
-  return new Promise((resolve) => {
-    const observer = new MutationObserver(() => {
-      const element = document.getElementById(elementId);
-      if (!element) return;
-      observer.disconnect();
-      resolve(element);
-    });
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-  });
-}
-
-/**
- * @param {SVGSVGElement} svg
- * @returns {{authoritativeSeq: number, drawingArea: SVGGElement}}
- */
-function readInlineBaseline(svg) {
-  const drawingArea = svg.getElementById("drawingArea");
-  if (!(drawingArea instanceof SVGGElement)) {
-    throw new Error("Missing required element: #drawingArea");
-  }
-  return {
-    authoritativeSeq: BoardMessageReplay.normalizeSeq(
-      svg.getAttribute("data-wbo-seq"),
-    ),
-    drawingArea: drawingArea,
-  };
 }
 
 export class BoardShellModule {
@@ -106,31 +41,8 @@ export class BoardShellModule {
    */
   async attachBoardDom(document) {
     const Tools = this.getTools();
-    const [boardElement, canvasElement] = await Promise.all([
-      waitForElement(document, "board"),
-      waitForElement(document, "canvas"),
-    ]);
-    if (!(boardElement instanceof HTMLElement)) {
-      throw new Error("Missing required element: #board");
-    }
-    if (!(canvasElement instanceof SVGSVGElement)) {
-      throw new Error("Missing required element: #canvas");
-    }
-    const baseline = readInlineBaseline(canvasElement);
-    const dom = Tools.attachDom(
-      boardElement,
-      canvasElement,
-      baseline.drawingArea,
-    );
+    const baseline = await attachBoardDomToRuntime(Tools, document);
     Tools.replay.authoritativeSeq = baseline.authoritativeSeq;
-    dom.svg.width.baseVal.value = Math.max(
-      dom.svg.width.baseVal.value,
-      document.body.clientWidth,
-    );
-    dom.svg.height.baseVal.value = Math.max(
-      dom.svg.height.baseVal.value,
-      document.body.clientHeight,
-    );
     Tools.toolRegistry.normalizeServerRenderedElements();
     Tools.toolRegistry.syncActiveToolInputPolicy();
   }

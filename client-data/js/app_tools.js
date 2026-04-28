@@ -1,3 +1,4 @@
+import { initializeCoreRuntime } from "./app_tools_core.js";
 import { AccessModule } from "./board_access_module.js";
 import { ConnectionModule } from "./board_connection_module.js";
 import {
@@ -9,26 +10,10 @@ import {
 import { OptimisticModule } from "./board_optimistic_module.js";
 import { PresenceModule } from "./board_presence_module.js";
 import { ReplayModule } from "./board_replay_module.js";
-import {
-  AssetModule,
-  AttachedBoardDomRuntimeModule,
-  ConfigModule,
-  CoordinateModule,
-  DetachedBoardDomRuntimeModule,
-  I18nModule,
-  IdentityModule,
-  IdModule,
-  InteractionModule,
-  normalizeBoardAssetPath,
-  PreferenceModule,
-  RateLimitModule,
-  ViewportStateModule,
-} from "./board_runtime_core.js";
 import { BoardShellModule } from "./board_shell_module.js";
 import { StatusModule } from "./board_status_module.js";
 import { ToolRegistryModule } from "./board_tool_registry_module.js";
 import { TurnstileModule } from "./board_turnstile.js";
-import { createViewportController } from "./board_viewport.js";
 import { WriteModule } from "./board_write_module.js";
 
 /** @import { AppInitialPreferences, ColorPreset, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
@@ -37,60 +22,44 @@ import { WriteModule } from "./board_write_module.js";
 export class AppTools {
   /** @param {AppToolsOptions} options */
   constructor(options) {
-    this.i18n = new I18nModule(options.translations);
-    this.config = new ConfigModule(options.serverConfig);
-    this.identity = new IdentityModule(options.boardName, options.token);
-    this.assets = new AssetModule(normalizeBoardAssetPath);
-    this.toolRegistry = new ToolRegistryModule(
-      () => this,
-      options.logBoardEvent,
-    );
-    this.turnstile = new TurnstileModule(this, {
-      logBoardEvent: options.logBoardEvent,
-    });
-    this.writes = new WriteModule(() => this);
-    this.status = new StatusModule(() => this, options.logBoardEvent);
-    this.replay = new ReplayModule(() => this, options.logBoardEvent);
-    this.optimistic = new OptimisticModule(() => this);
-    this.connection = new ConnectionModule(() => this, options.logBoardEvent);
-    this.connection.socketIOExtraHeaders = options.socketIOExtraHeaders;
-    this.rateLimits = new RateLimitModule(this.config, this.identity);
-    const viewportController = createViewportController(
+    initializeCoreRuntime(this, options);
+    attachFullRuntimeModules(
       /** @type {import("../../types/app-runtime").AppToolsState} */ (
         /** @type {unknown} */ (this)
       ),
+      options,
     );
-    this.viewportState = new ViewportStateModule(viewportController);
-    this.coordinates = new CoordinateModule(this.config, this.viewportState);
-    this.access = new AccessModule(() => this);
-    this.dom = /** @type {import("../../types/app-runtime").BoardDomModule} */ (
-      new DetachedBoardDomRuntimeModule()
-    );
-    this.interaction = new InteractionModule();
-    this.presence = new PresenceModule(() => this);
-    this.messages = new MessageModule(this.toolRegistry, this.identity);
-    this.messages.hooks = [
-      createResizeCanvasHook(this.viewportState.controller),
-      createUnreadCountHook(this.messages),
-      createToolNotificationHook(this.toolRegistry),
-    ];
-    this.ids = new IdModule();
-    this.preferences = new PreferenceModule(
-      options.colorPresets,
-      options.initialPreferences,
-    );
-    this.shell = new BoardShellModule(() => this, options.logBoardEvent);
   }
+}
 
-  /**
-   * @param {HTMLElement} board
-   * @param {SVGSVGElement} svg
-   * @param {SVGGElement} drawingArea
-   * @returns {AttachedBoardDomRuntimeModule}
-   */
-  attachDom(board, svg, drawingArea) {
-    const dom = new AttachedBoardDomRuntimeModule(board, svg, drawingArea);
-    this.dom = dom;
-    return dom;
-  }
+/**
+ * @param {import("../../types/app-runtime").AppToolsState} tools
+ * @param {Pick<AppToolsOptions, "logBoardEvent" | "socketIOExtraHeaders">} options
+ * @returns {import("../../types/app-runtime").AppToolsState}
+ */
+export function attachFullRuntimeModules(tools, options) {
+  tools.toolRegistry = new ToolRegistryModule(
+    () => tools,
+    options.logBoardEvent,
+  );
+  tools.turnstile = new TurnstileModule(tools, {
+    logBoardEvent: options.logBoardEvent,
+  });
+  tools.writes = new WriteModule(() => tools);
+  tools.status = new StatusModule(() => tools, options.logBoardEvent);
+  tools.replay = new ReplayModule(() => tools, options.logBoardEvent);
+  tools.replay.authoritativeSeq = Number(tools.initialAuthoritativeSeq) || 0;
+  tools.optimistic = new OptimisticModule(() => tools);
+  tools.connection = new ConnectionModule(() => tools, options.logBoardEvent);
+  tools.connection.socketIOExtraHeaders = options.socketIOExtraHeaders;
+  tools.access = new AccessModule(() => tools);
+  tools.presence = new PresenceModule(() => tools);
+  tools.messages = new MessageModule(tools.toolRegistry, tools.identity);
+  tools.messages.hooks = [
+    createResizeCanvasHook(tools.viewportState.controller),
+    createUnreadCountHook(tools.messages),
+    createToolNotificationHook(tools.toolRegistry),
+  ];
+  tools.shell = new BoardShellModule(() => tools, options.logBoardEvent);
+  return tools;
 }

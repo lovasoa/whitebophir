@@ -50,12 +50,13 @@ async function waitForRecordedPhase(page: Page, phase: string) {
   );
 }
 
-async function expectViewportRestoreAfterConnect(
+async function expectViewportRestoreBeforeConnect(
   page: Page,
   left: number,
   top: number,
 ) {
   await waitForRecordedPhase(page, "viewport-restored");
+  await waitForRecordedPhase(page, "connecting");
   const phases = await readBootPhaseSnapshots(page);
   const viewportRestoredIndex = phases.findIndex(
     (entry) => entry.phase === "viewport-restored",
@@ -65,7 +66,7 @@ async function expectViewportRestoreAfterConnect(
   );
   expect(viewportRestoredIndex).toBeGreaterThanOrEqual(0);
   expect(connectingIndex).toBeGreaterThanOrEqual(0);
-  expect(viewportRestoredIndex).toBeGreaterThan(connectingIndex);
+  expect(viewportRestoredIndex).toBeLessThan(connectingIndex);
   expect(phases[viewportRestoredIndex]).toMatchObject({
     phase: "viewport-restored",
     left,
@@ -456,14 +457,14 @@ test.describe("single-page interactions", () => {
     await installBootPhaseRecorder(page);
 
     await page.goto(url);
-    await expectViewportRestoreAfterConnect(page, left, top);
+    await expectViewportRestoreBeforeConnect(page, left, top);
     await page.waitForFunction(() => {
       const phase = document.documentElement.dataset.boardPhase;
       return phase === "ready" || phase === "error";
     });
 
     await page.reload();
-    await expectViewportRestoreAfterConnect(page, left, top);
+    await expectViewportRestoreBeforeConnect(page, left, top);
     await page.waitForFunction(() => {
       const phase = document.documentElement.dataset.boardPhase;
       return phase === "ready" || phase === "error";

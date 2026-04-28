@@ -31,13 +31,17 @@ export class MessageModule {
     });
   }
 
-  /** @param {BoardMessage} message */
-  messageForTool(message) {
+  /**
+   * @param {BoardMessage} message
+   * @returns {Promise<void>}
+   */
+  async messageForTool(message) {
     const state =
       /** @type {{toolRegistry: ToolRegistryModule, identity: IdentityModule}} */ (
         messageModuleState.get(this)
       );
     const name = TOOL_ID_BY_CODE[message.tool];
+    if (!name) return;
     const tool = state.toolRegistry.mounted[name];
 
     this.applyHooks(this.hooks, message);
@@ -49,6 +53,7 @@ export class MessageModule {
         name,
         message,
       );
+      await state.toolRegistry.bootTool(name);
     }
   }
 
