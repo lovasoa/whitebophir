@@ -80,7 +80,7 @@ import {
 } from "../tools/tool-defaults.js";
 import { TOOL_BY_ID } from "../tools/index.js";
 
-/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeModules } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeModules, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.WBOApp = Tools;
@@ -3133,30 +3133,6 @@ function drawAndSend(data) {
 }
 
 /**
- * Send a message to the corresponding tool.
- * @param {BoardMessage} message
- * @returns {void}
- */
-function messageForTool(message) {
-  const name = getRuntimeToolId(message.tool);
-  const tool = name ? Tools.toolRegistry.mounted[name] : undefined;
-
-  Tools.messages.applyHooks(Tools.messages.hooks, message);
-  if (tool) {
-    tool.draw(message, false);
-  } else {
-    ///We received a message destinated to a tool that we don't have
-    //So we add it to the pending messages
-    if (name)
-      BoardMessages.queuePendingMessage(
-        Tools.toolRegistry.pendingMessages,
-        name,
-        message,
-      );
-  }
-}
-
-/**
  * Call messageForTool recursively on the message and its children.
  * @param {BoardMessage} message
  * @returns {Promise<void>}
@@ -3170,22 +3146,100 @@ function handleMessage(message) {
   return Promise.resolve();
 }
 
-Tools.messages = {
-  hooks: [],
-  unreadCount: 0,
-  applyHooks,
-  messageForTool,
-  newUnreadMessage,
-};
+/**
+ * @param {AppToolsState["toolRegistry"]} toolRegistry
+ * @param {AppToolsState["identity"]} identity
+ * @returns {AppToolsState["messages"]}
+ */
+function createMessageModule(toolRegistry, identity) {
+  const messages = /** @type {AppToolsState["messages"]} */ ({
+    hooks: [],
+    unreadCount: 0,
+    applyHooks,
+    /** @param {BoardMessage} message */
+    messageForTool(message) {
+      const name = getRuntimeToolId(message.tool);
+      const tool = name ? toolRegistry.mounted[name] : undefined;
 
-function newUnreadMessage() {
-  Tools.messages.unreadCount++;
-  updateDocumentTitle();
+      messages.applyHooks(messages.hooks, message);
+      if (tool) {
+        tool.draw(message, false);
+      } else if (name) {
+        BoardMessages.queuePendingMessage(
+          toolRegistry.pendingMessages,
+          name,
+          message,
+        );
+      }
+    },
+    newUnreadMessage() {
+      messages.unreadCount++;
+      updateDocumentTitle(messages, identity);
+    },
+  });
+  return messages;
 }
+
+/**
+ * @param {AppToolsState["messages"]} messages
+ * @param {AppToolsState["identity"]} identity
+ */
+function updateDocumentTitle(messages, identity) {
+  document.title =
+    (messages.unreadCount ? `(${messages.unreadCount}) ` : "") +
+    `${identity.boardName} | WBO`;
+}
+
+/**
+ * @param {ViewportController} viewport
+ * @returns {MessageHook}
+ */
+function createResizeCanvasHook(viewport) {
+  return function resizeCanvas(m) {
+    // Compatibility hook name; root SVG and page size mutation is owned by viewport.
+    viewport.ensureBoardExtentForBounds(getContentMessageBounds(m));
+  };
+}
+
+/**
+ * @param {AppToolsState["messages"]} messages
+ * @returns {MessageHook}
+ */
+function createUnreadCountHook(messages) {
+  return function updateUnreadCount(m) {
+    const mutationType = getMutationType(m);
+    if (
+      document.hidden &&
+      mutationType !== MutationType.APPEND &&
+      mutationType !== MutationType.UPDATE
+    ) {
+      messages.newUnreadMessage();
+    }
+  };
+}
+
+/**
+ * @param {AppToolsState["toolRegistry"]} toolRegistry
+ * @returns {MessageHook}
+ */
+function createToolNotificationHook(toolRegistry) {
+  return function notifyToolsOfMessage(m) {
+    Object.values(toolRegistry.mounted || {}).forEach((tool) => {
+      tool?.onMessage?.(m);
+    });
+  };
+}
+
+Tools.messages = createMessageModule(Tools.toolRegistry, Tools.identity);
+Tools.messages.hooks = [
+  createResizeCanvasHook(Tools.viewportState.controller),
+  createUnreadCountHook(Tools.messages),
+  createToolNotificationHook(Tools.toolRegistry),
+];
 
 window.addEventListener("focus", () => {
   Tools.messages.unreadCount = 0;
-  updateDocumentTitle();
+  updateDocumentTitle(Tools.messages, Tools.identity);
   if (Tools.writes.bufferedWrites.length > 0) {
     Tools.writes.flushBufferedWrites();
   }
@@ -3196,42 +3250,6 @@ document.addEventListener("visibilitychange", () => {
     Tools.writes.flushBufferedWrites();
   }
 });
-
-function updateDocumentTitle() {
-  document.title =
-    (Tools.messages.unreadCount ? `(${Tools.messages.unreadCount}) ` : "") +
-    `${Tools.identity.boardName} | WBO`;
-}
-
-/** @param {BoardMessage} m */
-function resizeCanvas(m) {
-  // Compatibility hook name; root SVG and page size mutation is owned by viewport.
-  Tools.viewportState.controller.ensureBoardExtentForBounds(
-    getContentMessageBounds(m),
-  );
-}
-
-/** @param {BoardMessage} m */
-function updateUnreadCount(m) {
-  const mutationType = getMutationType(m);
-  if (
-    document.hidden &&
-    mutationType !== MutationType.APPEND &&
-    mutationType !== MutationType.UPDATE
-  ) {
-    Tools.messages.newUnreadMessage();
-  }
-}
-
-/** @param {BoardMessage} m */
-function notifyToolsOfMessage(m) {
-  Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {
-    tool?.onMessage?.(m);
-  });
-}
-
-// List of hook functions that will be applied to messages before sending or drawing them
-Tools.messages.hooks = [resizeCanvas, updateUnreadCount, notifyToolsOfMessage];
 
 /**
  * @template T
