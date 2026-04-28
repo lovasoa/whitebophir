@@ -628,38 +628,11 @@ export type AppInitialPreferences = {
 };
 
 /** Current drawing preferences and their UI bindings. */
-export type AppPreferenceModule = {
-  readonly colorPresets: ColorPreset[];
-  colorChooser: HTMLInputElement | null;
-  colorButtonsInitialized: boolean;
-  currentColor: string;
-  currentSize: number;
-  currentOpacity: number;
-  readonly initial: AppInitialPreferences;
-  readonly colorChangeHandlers: ((color: string) => void)[];
-  readonly sizeChangeHandlers: ((size: number) => void)[];
-  getColor: () => string;
-  setColor: (color: string) => void;
-  getSize: () => number;
-  setSize: (size?: number | string | null | undefined) => number;
-  getOpacity: () => number;
-};
+export type AppPreferenceModule =
+  import("../client-data/js/board.js").PreferenceModule;
 
 /** Board status UI state and timers. */
-export type AppStatusModule = {
-  rateLimitNoticeTimer: number | null;
-  boardStatusTimer: number | null;
-  explicitBoardStatus: ExplicitBoardStatus;
-  clearRateLimitNoticeTimer: () => void;
-  clearBoardStatusTimer: () => void;
-  showRateLimitNotice: (message: string, retryAfterMs: number) => void;
-  hideRateLimitNotice: () => void;
-  showUnknownMutationError: (reason: string) => void;
-  showBoardStatus: (view: BoardStatusView, durationMs?: number) => void;
-  clearBoardStatus: () => void;
-  getBoardStatusView: () => BoardStatusView;
-  syncWriteStatusIndicator: () => void;
-};
+export type AppStatusModule = import("../client-data/js/board.js").StatusModule;
 
 /** Turnstile validation state and protected-write queue. */
 export type AppTurnstileModule = {
@@ -710,13 +683,8 @@ export type AppOptimisticModule = {
 };
 
 /** Local message hooks and unread-message badge state. */
-export type AppMessageModule = {
-  hooks: MessageHook[];
-  unreadCount: number;
-  applyHooks: <T>(hooks: ((value: T) => void)[], object: T) => void;
-  messageForTool: (message: BoardMessage) => void;
-  newUnreadMessage: () => void;
-};
+export type AppMessageModule =
+  import("../client-data/js/board.js").MessageModule;
 
 /** Board viewport controller plus zoom-gated drawing-tool availability. */
 export type AppViewportModule =

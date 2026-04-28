@@ -69,7 +69,7 @@ import {
 import RateLimitCommon from "./rate_limit_common.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppInitialPreferences, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ClientTrackedMessage, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeState, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.WBOApp = Tools;
@@ -402,20 +402,161 @@ Tools.writes = {
   drawAndSend,
   send,
 };
-Tools.status = {
-  rateLimitNoticeTimer: null,
-  boardStatusTimer: null,
-  explicitBoardStatus: null,
-  clearRateLimitNoticeTimer,
-  clearBoardStatusTimer,
-  showRateLimitNotice,
-  hideRateLimitNotice,
-  showUnknownMutationError,
-  showBoardStatus,
-  clearBoardStatus,
-  getBoardStatusView,
-  syncWriteStatusIndicator,
-};
+export class StatusModule {
+  constructor() {
+    this.rateLimitNoticeTimer = null;
+    this.boardStatusTimer = null;
+    this.explicitBoardStatus = null;
+  }
+
+  clearRateLimitNoticeTimer() {
+    if (this.rateLimitNoticeTimer) {
+      clearTimeout(this.rateLimitNoticeTimer);
+      this.rateLimitNoticeTimer = null;
+    }
+  }
+
+  clearBoardStatusTimer() {
+    if (this.boardStatusTimer) {
+      clearTimeout(this.boardStatusTimer);
+      this.boardStatusTimer = null;
+    }
+  }
+
+  /**
+   * @param {string} message
+   * @param {number} retryAfterMs
+   */
+  showRateLimitNotice(message, retryAfterMs) {
+    this.clearRateLimitNoticeTimer();
+    this.showBoardStatus({
+      hidden: false,
+      state: "paused",
+      title: Tools.i18n.t("slow_down_briefly"),
+      detail: message,
+    });
+    if (retryAfterMs > 0) {
+      this.rateLimitNoticeTimer = window.setTimeout(
+        function hideRateLimitNotice() {
+          Tools.status.hideRateLimitNotice();
+        },
+        retryAfterMs,
+      );
+    }
+  }
+
+  hideRateLimitNotice() {
+    this.clearRateLimitNoticeTimer();
+    this.clearBoardStatus();
+  }
+
+  /** @param {string} reason */
+  showUnknownMutationError(reason) {
+    if (reason.length > 0) {
+      logBoardEvent("warn", "mutation_rejected_unknown", {
+        reason,
+      });
+    }
+    this.showBoardStatus({
+      hidden: false,
+      state: "paused",
+      title: Tools.i18n.t("unknown_error_reload_page"),
+      detail: "",
+    });
+  }
+
+  /**
+   * @param {BoardStatusView} view
+   * @param {number} [durationMs]
+   */
+  showBoardStatus(view, durationMs) {
+    this.clearBoardStatusTimer();
+    this.explicitBoardStatus = view;
+    this.syncWriteStatusIndicator();
+    if (durationMs && durationMs > 0) {
+      this.boardStatusTimer = window.setTimeout(() => {
+        Tools.status.clearBoardStatus();
+      }, durationMs);
+    }
+  }
+
+  clearBoardStatus() {
+    this.clearBoardStatusTimer();
+    this.explicitBoardStatus = null;
+    this.syncWriteStatusIndicator();
+  }
+
+  /** @returns {BoardStatusView} */
+  getBoardStatusView() {
+    if (this.explicitBoardStatus) {
+      return this.explicitBoardStatus;
+    }
+    if (
+      Tools.connection.state !== "connected" ||
+      Tools.replay.awaitingSnapshot
+    ) {
+      return {
+        hidden: false,
+        state: "reconnecting",
+        title: Tools.i18n.t("loading"),
+        detail: "",
+      };
+    }
+    if (Tools.writes.localRateLimitedUntil > Date.now()) {
+      return {
+        hidden: false,
+        state: "paused",
+        title: Tools.i18n.t("slow_down_briefly"),
+        detail: "",
+      };
+    }
+    if (Tools.writes.bufferedWrites.length > 0) {
+      return {
+        hidden: false,
+        state: "buffering",
+        title: Tools.i18n.t("loading"),
+        detail: "",
+      };
+    }
+    return {
+      hidden: true,
+      state: "hidden",
+      title: "",
+      detail: "",
+    };
+  }
+
+  syncWriteStatusIndicator() {
+    if (
+      Tools.writes.canBufferWrites() &&
+      Tools.writes.writeReadyWaiters.length > 0
+    ) {
+      const waiters = Tools.writes.writeReadyWaiters.splice(0);
+      waiters.forEach((resolve) => resolve());
+    }
+    const { indicator, title, notice } = getBoardStatusElements();
+    if (!indicator || !title || !notice) return;
+
+    const view = this.getBoardStatusView();
+    indicator.classList.remove(
+      "board-status-buffering",
+      "board-status-paused",
+      "board-status-reconnecting",
+    );
+    indicator.dataset.state = view.state;
+    if (view.hidden) {
+      indicator.hidden = true;
+      return;
+    }
+    indicator.hidden = false;
+    title.textContent = view.title;
+    notice.textContent = view.detail;
+    notice.classList.toggle("board-status-detail-hidden", !view.detail);
+    indicator.classList.add(`board-status-${view.state}`);
+  }
+}
+
+Tools.status = new StatusModule();
 
 Tools.replay = {
   awaitingSnapshot: true,
@@ -577,22 +718,6 @@ function clearBufferedWriteTimer() {
   }
 }
 
-/** @this {AppToolsState["status"]} */
-function clearRateLimitNoticeTimer() {
-  if (this.rateLimitNoticeTimer) {
-    clearTimeout(this.rateLimitNoticeTimer);
-    this.rateLimitNoticeTimer = null;
-  }
-}
-
-/** @this {AppToolsState["status"]} */
-function clearBoardStatusTimer() {
-  if (this.boardStatusTimer) {
-    clearTimeout(this.boardStatusTimer);
-    this.boardStatusTimer = null;
-  }
-}
-
 /** @param {number} [delayMs] */
 function scheduleSocketReconnect(delayMs = 250) {
   window.setTimeout(() => Tools.connection.start(), Math.max(0, delayMs));
@@ -627,148 +752,6 @@ function whenBoardWritable() {
       this.writeReadyWaiters.push(() => resolve());
     },
   );
-}
-
-/**
- * @param {string} message
- * @param {number} retryAfterMs
- * @returns {void}
- * @this {AppToolsState["status"]}
- */
-function showRateLimitNotice(message, retryAfterMs) {
-  this.clearRateLimitNoticeTimer();
-  this.showBoardStatus({
-    hidden: false,
-    state: "paused",
-    title: Tools.i18n.t("slow_down_briefly"),
-    detail: message,
-  });
-  if (retryAfterMs > 0) {
-    this.rateLimitNoticeTimer = window.setTimeout(
-      function hideRateLimitNotice() {
-        Tools.status.hideRateLimitNotice();
-      },
-      retryAfterMs,
-    );
-  }
-}
-
-/** @this {AppToolsState["status"]} */
-function hideRateLimitNotice() {
-  this.clearRateLimitNoticeTimer();
-  this.clearBoardStatus();
-}
-
-/**
- * @param {string} reason
- * @returns {void}
- * @this {AppToolsState["status"]}
- */
-function showUnknownMutationError(reason) {
-  if (reason.length > 0) {
-    logBoardEvent("warn", "mutation_rejected_unknown", {
-      reason,
-    });
-  }
-  this.showBoardStatus({
-    hidden: false,
-    state: "paused",
-    title: Tools.i18n.t("unknown_error_reload_page"),
-    detail: "",
-  });
-}
-
-/**
- * @param {BoardStatusView} view
- * @param {number} [durationMs]
- * @this {AppToolsState["status"]}
- */
-function showBoardStatus(view, durationMs) {
-  this.clearBoardStatusTimer();
-  this.explicitBoardStatus = view;
-  this.syncWriteStatusIndicator();
-  if (durationMs && durationMs > 0) {
-    this.boardStatusTimer = window.setTimeout(() => {
-      Tools.status.clearBoardStatus();
-    }, durationMs);
-  }
-}
-
-/** @this {AppToolsState["status"]} */
-function clearBoardStatus() {
-  this.clearBoardStatusTimer();
-  this.explicitBoardStatus = null;
-  this.syncWriteStatusIndicator();
-}
-
-/**
- * @returns {BoardStatusView}
- * @this {AppToolsState["status"]}
- */
-function getBoardStatusView() {
-  if (this.explicitBoardStatus) {
-    return this.explicitBoardStatus;
-  }
-  if (Tools.connection.state !== "connected" || Tools.replay.awaitingSnapshot) {
-    return {
-      hidden: false,
-      state: "reconnecting",
-      title: Tools.i18n.t("loading"),
-      detail: "",
-    };
-  }
-  if (Tools.writes.localRateLimitedUntil > Date.now()) {
-    return {
-      hidden: false,
-      state: "paused",
-      title: Tools.i18n.t("slow_down_briefly"),
-      detail: "",
-    };
-  }
-  if (Tools.writes.bufferedWrites.length > 0) {
-    return {
-      hidden: false,
-      state: "buffering",
-      title: Tools.i18n.t("loading"),
-      detail: "",
-    };
-  }
-  return {
-    hidden: true,
-    state: "hidden",
-    title: "",
-    detail: "",
-  };
-}
-
-/** @this {AppToolsState["status"]} */
-function syncWriteStatusIndicator() {
-  if (
-    Tools.writes.canBufferWrites() &&
-    Tools.writes.writeReadyWaiters.length > 0
-  ) {
-    const waiters = Tools.writes.writeReadyWaiters.splice(0);
-    waiters.forEach((resolve) => resolve());
-  }
-  const { indicator, title, notice } = getBoardStatusElements();
-  if (!indicator || !title || !notice) return;
-
-  const view = this.getBoardStatusView();
-  indicator.classList.remove(
-    "board-status-buffering",
-    "board-status-paused",
-    "board-status-reconnecting",
-  );
-  indicator.dataset.state = view.state;
-  if (view.hidden) {
-    indicator.hidden = true;
-    return;
-  }
-  indicator.hidden = false;
-  title.textContent = view.title;
-  notice.textContent = view.detail;
-  notice.classList.toggle("board-status-detail-hidden", !view.detail);
-  indicator.classList.add(`board-status-${view.state}`);
 }
 
 /** @this {BoardDomModule} */
@@ -2562,10 +2545,19 @@ export function createToolRuntimeModules(mountedTools) {
     },
     identity: mountedTools.identity,
     preferences: {
-      getColor: mountedTools.preferences.getColor,
-      getSize: mountedTools.preferences.getSize,
-      setSize: mountedTools.preferences.setSize,
-      getOpacity: mountedTools.preferences.getOpacity,
+      getColor() {
+        return mountedTools.preferences.getColor();
+      },
+      getSize() {
+        return mountedTools.preferences.getSize();
+      },
+      /** @param {number | string | null | undefined} size */
+      setSize(size) {
+        return mountedTools.preferences.setSize(size);
+      },
+      getOpacity() {
+        return mountedTools.preferences.getOpacity();
+      },
     },
     rateLimits: {
       /** @param {RateLimitKind} kind */
@@ -3108,38 +3100,59 @@ function handleMessage(message) {
   return Promise.resolve();
 }
 
-/**
- * @param {AppToolsState["toolRegistry"]} toolRegistry
- * @param {AppToolsState["identity"]} identity
- * @returns {AppToolsState["messages"]}
- */
-function createMessageModule(toolRegistry, identity) {
-  const messages = /** @type {AppToolsState["messages"]} */ ({
-    hooks: [],
-    unreadCount: 0,
-    applyHooks,
-    /** @param {BoardMessage} message */
-    messageForTool(message) {
-      const name = TOOL_ID_BY_CODE[message.tool];
-      const tool = toolRegistry.mounted[name];
+const messageModuleState = new WeakMap();
 
-      messages.applyHooks(messages.hooks, message);
-      if (tool) {
-        tool.draw(message, false);
-      } else {
-        BoardMessages.queuePendingMessage(
-          toolRegistry.pendingMessages,
-          name,
-          message,
-        );
-      }
-    },
-    newUnreadMessage() {
-      messages.unreadCount++;
-      updateDocumentTitle(messages, identity);
-    },
-  });
-  return messages;
+export class MessageModule {
+  /**
+   * @param {AppToolsState["toolRegistry"]} toolRegistry
+   * @param {AppToolsState["identity"]} identity
+   */
+  constructor(toolRegistry, identity) {
+    this.hooks = /** @type {MessageHook[]} */ ([]);
+    this.unreadCount = 0;
+    messageModuleState.set(this, { toolRegistry, identity });
+  }
+
+  /**
+   * @template T
+   * @param {((value: T) => void)[]} hooks
+   * @param {T} object
+   */
+  applyHooks(hooks, object) {
+    hooks.forEach((hook) => {
+      hook(object);
+    });
+  }
+
+  /** @param {BoardMessage} message */
+  messageForTool(message) {
+    const state =
+      /** @type {{toolRegistry: AppToolsState["toolRegistry"], identity: AppToolsState["identity"]}} */ (
+        messageModuleState.get(this)
+      );
+    const name = TOOL_ID_BY_CODE[message.tool];
+    const tool = state.toolRegistry.mounted[name];
+
+    this.applyHooks(this.hooks, message);
+    if (tool) {
+      tool.draw(message, false);
+    } else {
+      BoardMessages.queuePendingMessage(
+        state.toolRegistry.pendingMessages,
+        name,
+        message,
+      );
+    }
+  }
+
+  newUnreadMessage() {
+    const state =
+      /** @type {{toolRegistry: AppToolsState["toolRegistry"], identity: AppToolsState["identity"]}} */ (
+        messageModuleState.get(this)
+      );
+    this.unreadCount++;
+    updateDocumentTitle(this, state.identity);
+  }
 }
 
 /**
@@ -3192,7 +3205,7 @@ function createToolNotificationHook(toolRegistry) {
   };
 }
 
-Tools.messages = createMessageModule(Tools.toolRegistry, Tools.identity);
+Tools.messages = new MessageModule(Tools.toolRegistry, Tools.identity);
 Tools.messages.hooks = [
   createResizeCanvasHook(Tools.viewportState.controller),
   createUnreadCountHook(Tools.messages),
@@ -3212,19 +3225,6 @@ document.addEventListener("visibilitychange", () => {
     Tools.writes.flushBufferedWrites();
   }
 });
-
-/**
- * @template T
- * @param {((value: T) => void)[]} hooks
- * @param {T} object
- * @returns {void}
- */
-function applyHooks(hooks, object) {
-  //Apply every hooks on the object
-  hooks.forEach((hook) => {
-    hook(object);
-  });
-}
 
 export class IdModule {
   /**
@@ -3285,57 +3285,60 @@ const colorPresets = [
   { color: "#AAAAAA", key: "0" },
   { color: "#E65194" },
 ];
-/**
- * @param {ColorPreset[]} presets
- * @param {AppToolsState["preferences"]["initial"]} initial
- * @returns {AppToolsState["preferences"]}
- */
-function createPreferenceModule(presets, initial) {
-  const preferences = /** @type {AppToolsState["preferences"]} */ ({
-    colorPresets: presets,
-    colorChooser: null,
-    colorButtonsInitialized: false,
-    currentColor: initial.color,
-    currentSize: MessageCommon.clampSize(initial.size),
-    currentOpacity: MessageCommon.clampOpacity(initial.opacity),
-    initial,
-    colorChangeHandlers: [],
-    sizeChangeHandlers: [],
-    getColor() {
-      return preferences.currentColor;
-    },
-    /** @param {string} color */
-    setColor(color) {
-      preferences.currentColor = color;
-      if (preferences.colorChooser) {
-        preferences.colorChooser.value = color;
-      }
-      preferences.colorChangeHandlers.forEach((handler) => {
-        handler(color);
-      });
-    },
-    getSize() {
-      return preferences.currentSize;
-    },
-    /** @param {number | string | null | undefined} value */
-    setSize(value) {
-      if (value !== null && value !== undefined) {
-        preferences.currentSize = MessageCommon.clampSize(value);
-      }
-      const chooser = document.getElementById("chooseSize");
-      if (chooser instanceof HTMLInputElement) {
-        chooser.value = String(preferences.currentSize);
-      }
-      preferences.sizeChangeHandlers.forEach((handler) => {
-        handler(preferences.currentSize);
-      });
-      return preferences.currentSize;
-    },
-    getOpacity() {
-      return preferences.currentOpacity;
-    },
-  });
-  return preferences;
+export class PreferenceModule {
+  /**
+   * @param {ColorPreset[]} presets
+   * @param {AppInitialPreferences} initial
+   */
+  constructor(presets, initial) {
+    this.colorPresets = presets;
+    this.colorChooser = /** @type {HTMLInputElement | null} */ (null);
+    this.colorButtonsInitialized = false;
+    this.currentColor = initial.color;
+    this.currentSize = MessageCommon.clampSize(initial.size);
+    this.currentOpacity = MessageCommon.clampOpacity(initial.opacity);
+    this.initial = initial;
+    this.colorChangeHandlers = /** @type {((color: string) => void)[]} */ ([]);
+    this.sizeChangeHandlers = /** @type {((size: number) => void)[]} */ ([]);
+  }
+
+  getColor() {
+    return this.currentColor;
+  }
+
+  /** @param {string} color */
+  setColor(color) {
+    this.currentColor = color;
+    if (this.colorChooser) {
+      this.colorChooser.value = color;
+    }
+    this.colorChangeHandlers.forEach((handler) => {
+      handler(color);
+    });
+  }
+
+  getSize() {
+    return this.currentSize;
+  }
+
+  /** @param {number | string | null | undefined} value */
+  setSize(value) {
+    if (value !== null && value !== undefined) {
+      this.currentSize = MessageCommon.clampSize(value);
+    }
+    const chooser = document.getElementById("chooseSize");
+    if (chooser instanceof HTMLInputElement) {
+      chooser.value = String(this.currentSize);
+    }
+    this.sizeChangeHandlers.forEach((handler) => {
+      handler(this.currentSize);
+    });
+    return this.currentSize;
+  }
+
+  getOpacity() {
+    return this.currentOpacity;
+  }
 }
 
 /** @type {SocketHeaders | null} */
@@ -3368,7 +3371,7 @@ const initialPreferences = {
   size: DEFAULT_INITIAL_SIZE,
   opacity: DEFAULT_INITIAL_OPACITY,
 };
-Tools.preferences = createPreferenceModule(colorPresets, initialPreferences);
+Tools.preferences = new PreferenceModule(colorPresets, initialPreferences);
 Tools.access.applyBoardState(
   normalizeBoardState(
     parseEmbeddedJson("board-state", {
