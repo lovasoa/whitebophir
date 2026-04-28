@@ -691,6 +691,14 @@ export type AppToolRegistryModule = {
   pendingMessages: PendingMessages;
 };
 
+/** Pointer interaction and cursor/marker visibility flags. */
+export type AppInteractionModule = {
+  drawingEvent: boolean;
+  showMarker: boolean;
+  showOtherCursors: boolean;
+  showMyCursor: boolean;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -792,11 +800,8 @@ export type AppToolsState = {
   connection: AppConnectionModule;
   writes: AppWriteModule;
   toolRegistry: AppToolRegistryModule;
+  interaction: AppInteractionModule;
   dom: BoardDomModule;
-  drawingEvent: boolean;
-  showMarker: boolean;
-  showOtherCursors: boolean;
-  showMyCursor: boolean;
   getRateLimitDefinition: (
     kind: RateLimitKind,
   ) => ConfiguredRateLimitDefinition;

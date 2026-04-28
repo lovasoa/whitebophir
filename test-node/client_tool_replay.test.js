@@ -413,8 +413,6 @@ function createHarness() {
     svg: svg,
     board: board,
     drawingArea: drawingArea,
-    drawingEvent: false,
-    scale: 1,
     access: {
       boardState: {
         readonly: false,
@@ -423,8 +421,12 @@ function createHarness() {
       readOnly: false,
       canWrite: true,
     },
-    showMarker: true,
-    showMyCursor: true,
+    interaction: {
+      drawingEvent: false,
+      showMarker: true,
+      showOtherCursors: true,
+      showMyCursor: true,
+    },
     sentMessages: [],
     config: {
       serverConfig: {
@@ -796,7 +798,7 @@ function createInputToolRuntime(tools) {
     },
     rendering: {
       markDrawingEvent: () => {
-        tools.drawingEvent = true;
+        tools.interaction.drawingEvent = true;
       },
     },
     messages: {

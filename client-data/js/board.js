@@ -1495,10 +1495,12 @@ Tools.dom = /** @type {AppToolsState["dom"]} */ ({ status: "detached" });
 
 //Initialization
 document.documentElement.dataset.activeToolSecondary = "false";
-Tools.drawingEvent = true;
-Tools.showMarker = true;
-Tools.showOtherCursors = true;
-Tools.showMyCursor = true;
+Tools.interaction = {
+  drawingEvent: true,
+  showMarker: true,
+  showOtherCursors: true,
+  showMyCursor: true,
+};
 
 Tools.presence = {
   users: /** @type {ConnectedUserMap} */ ({}),
@@ -2545,8 +2547,8 @@ function createToolRuntimeModules(mountedTools) {
     ui: {
       getCurrentTool: () => mountedTools.toolRegistry.current,
       changeTool: (toolName) => mountedTools.change(toolName),
-      shouldShowMarker: () => mountedTools.showMarker,
-      shouldShowMyCursor: () => mountedTools.showMyCursor,
+      shouldShowMarker: () => mountedTools.interaction.showMarker,
+      shouldShowMyCursor: () => mountedTools.interaction.showMyCursor,
     },
     config: {
       serverConfig: mountedTools.config.serverConfig,
@@ -2556,7 +2558,7 @@ function createToolRuntimeModules(mountedTools) {
     },
     rendering: {
       markDrawingEvent: () => {
-        mountedTools.drawingEvent = true;
+        mountedTools.interaction.drawingEvent = true;
       },
     },
     messages: {
