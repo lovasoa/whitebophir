@@ -2568,48 +2568,16 @@ function createToolRuntimeModules(mountedTools) {
         mountedTools.coordinates.pageCoordinateToBoard(value),
     },
     viewport: mountedTools.viewportState.controller,
-    writes: {
-      drawAndSend: (message) => mountedTools.writes.drawAndSend(message),
-      send: (message) => mountedTools.writes.send(message),
-      canBufferWrites: () => mountedTools.writes.canBufferWrites(),
-      whenBoardWritable: () => mountedTools.writes.whenBoardWritable(),
-    },
+    writes: mountedTools.writes,
     identity: mountedTools.identity,
-    preferences: {
-      getColor: () => mountedTools.preferences.getColor(),
-      getSize: () => mountedTools.preferences.getSize(),
-      setSize: (size) => mountedTools.preferences.setSize(size),
-      getOpacity: () => mountedTools.preferences.getOpacity(),
-    },
-    rateLimits: {
-      getEffectiveRateLimit: (kind) =>
-        mountedTools.rateLimits.getEffectiveRateLimit(kind),
-    },
-    ui: {
-      getCurrentTool: () => mountedTools.toolRegistry.current,
-      changeTool: (toolName) => mountedTools.toolRegistry.change(toolName),
-      shouldShowMarker: () => mountedTools.interaction.showMarker,
-      shouldShowMyCursor: () => mountedTools.interaction.showMyCursor,
-    },
-    config: {
-      serverConfig: mountedTools.config.serverConfig,
-    },
-    ids: {
-      generateUID: (prefix, suffix) =>
-        mountedTools.ids.generateUID(prefix, suffix),
-    },
-    rendering: {
-      markDrawingEvent: () => {
-        mountedTools.interaction.drawingEvent = true;
-      },
-    },
-    messages: {
-      messageForTool: (message) =>
-        mountedTools.messages.messageForTool(message),
-    },
-    permissions: {
-      canWrite: () => mountedTools.access.canWrite,
-    },
+    preferences: mountedTools.preferences,
+    rateLimits: mountedTools.rateLimits,
+    toolRegistry: mountedTools.toolRegistry,
+    interaction: mountedTools.interaction,
+    config: mountedTools.config,
+    ids: mountedTools.ids,
+    messages: mountedTools.messages,
+    permissions: mountedTools.access,
   };
 }
 

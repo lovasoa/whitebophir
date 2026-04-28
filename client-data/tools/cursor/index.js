@@ -28,7 +28,7 @@ import { MutationType } from "../../js/mutation_type.js";
 import { ToolCodes } from "../tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
-/** @typedef {{board: ToolRuntimeModules["board"], writes: ToolRuntimeModules["writes"], preferences: ToolRuntimeModules["preferences"], rateLimits: ToolRuntimeModules["rateLimits"], ui: ToolRuntimeModules["ui"], lastCursorUpdate: number, sending: boolean, x: number, y: number, color: string, size: number, minCursorUpdateIntervalMs: number}} CursorState */
+/** @typedef {{board: ToolRuntimeModules["board"], writes: ToolRuntimeModules["writes"], preferences: ToolRuntimeModules["preferences"], rateLimits: ToolRuntimeModules["rateLimits"], interaction: ToolRuntimeModules["interaction"], toolRegistry: ToolRuntimeModules["toolRegistry"], lastCursorUpdate: number, sending: boolean, x: number, y: number, color: string, size: number, minCursorUpdateIntervalMs: number}} CursorState */
 
 export const toolId = "cursor";
 export const mouseCursor = "crosshair";
@@ -127,9 +127,9 @@ function makeCursorMessage(state) {
 /** @param {CursorState} state */
 function updateMarker(state) {
   const activeTool = /** @type {{showMarker?: boolean} | null} */ (
-    state.ui.getCurrentTool()
+    state.toolRegistry.current
   );
-  if (!state.ui.shouldShowMarker() || !state.ui.shouldShowMyCursor()) return;
+  if (!state.interaction.showMarker || !state.interaction.showMyCursor) return;
   const curTime = Date.now();
   if (
     curTime - state.lastCursorUpdate > state.minCursorUpdateIntervalMs &&
@@ -155,7 +155,8 @@ export function boot(ctx) {
     writes: runtime.writes,
     preferences: runtime.preferences,
     rateLimits: runtime.rateLimits,
-    ui: runtime.ui,
+    interaction: runtime.interaction,
+    toolRegistry: runtime.toolRegistry,
     lastCursorUpdate: 0,
     sending: true,
     x: 0,

@@ -38,7 +38,7 @@ import { ToolCodes } from "../tool-order.js";
 /** @typedef {Omit<ReturnType<typeof createTextMessage>, "opacity"> & {opacity?: number}} TextCreateMessage */
 /** @typedef {ReturnType<typeof updateTextMessage>} TextUpdateMessage */
 /** @typedef {TextCreateMessage | TextUpdateMessage} TextMessage */
-/** @typedef {{board: ToolRuntimeModules["board"], viewport: ToolRuntimeModules["viewport"], preferences: ToolRuntimeModules["preferences"], writes: ToolRuntimeModules["writes"], runtimeConfig: ToolRuntimeModules["config"], ids: ToolRuntimeModules["ids"], rendering: ToolRuntimeModules["rendering"], boardElement: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
+/** @typedef {{board: ToolRuntimeModules["board"], viewport: ToolRuntimeModules["viewport"], preferences: ToolRuntimeModules["preferences"], writes: ToolRuntimeModules["writes"], runtimeConfig: ToolRuntimeModules["config"], ids: ToolRuntimeModules["ids"], interaction: ToolRuntimeModules["interaction"], boardElement: HTMLElement, input: HTMLInputElement, curText: CurrentTextState, active: boolean, boundTextChangeHandler: (evt: Event | KeyboardEvent | FocusEvent) => void, boundBlur: () => void}} TextState */
 
 const TEXT_INPUT_BORDER_PX = 1;
 const TEXT_INPUT_CARET_ROOM_PX = 3;
@@ -438,7 +438,7 @@ export function boot(ctx) {
     writes: ctx.runtime.writes,
     runtimeConfig: ctx.runtime.config,
     ids: ctx.runtime.ids,
-    rendering: ctx.runtime.rendering,
+    interaction: ctx.runtime.interaction,
     boardElement: ctx.runtime.board.board,
     input,
     curText: {
@@ -469,7 +469,7 @@ export function boot(ctx) {
  * @param {boolean} isLocal
  */
 export function draw(state, data, isLocal) {
-  state.rendering.markDrawingEvent();
+  state.interaction.drawingEvent = true;
   if (!isTextMessage(data)) {
     logFrontendEvent("error", "tool.text.draw_invalid_type", {
       mutationType: /** @type {{type?: unknown}} */ (data)?.type,

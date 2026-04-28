@@ -341,7 +341,7 @@ export { contract };
 export const shortcut = "p";
 export const serverRenderedElementSelector = "path";
 const ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
-/** @typedef {{board: ToolRuntimeModules["board"], preferences: ToolRuntimeModules["preferences"], writes: ToolRuntimeModules["writes"], rateLimits: ToolRuntimeModules["rateLimits"], runtimeConfig: ToolRuntimeModules["config"], ids: ToolRuntimeModules["ids"], rendering: ToolRuntimeModules["rendering"], ui: ToolRuntimeModules["ui"], AUTO_FINGER_WHITEOUT: boolean, MAX_PENCIL_CHILDREN: number, minPencilIntervalMs: number, hasUsedStylus: boolean, curLineId: string, lastTime: number, hasSentPoint: boolean, currentLineChildCount: number, renderingLine: SVGPathElement | null, pathDataCache: {[lineId: string]: any[]}, drawingSize: number, whiteOutSize: number, secondary: {name: string, icon: string, active: boolean, switch?: () => void}, mouseCursor: string}} PencilState */
+/** @typedef {{board: ToolRuntimeModules["board"], preferences: ToolRuntimeModules["preferences"], writes: ToolRuntimeModules["writes"], rateLimits: ToolRuntimeModules["rateLimits"], runtimeConfig: ToolRuntimeModules["config"], ids: ToolRuntimeModules["ids"], interaction: ToolRuntimeModules["interaction"], toolRegistry: ToolRuntimeModules["toolRegistry"], AUTO_FINGER_WHITEOUT: boolean, MAX_PENCIL_CHILDREN: number, minPencilIntervalMs: number, hasUsedStylus: boolean, curLineId: string, lastTime: number, hasSentPoint: boolean, currentLineChildCount: number, renderingLine: SVGPathElement | null, pathDataCache: {[lineId: string]: any[]}, drawingSize: number, whiteOutSize: number, secondary: {name: string, icon: string, active: boolean, switch?: () => void}, mouseCursor: string}} PencilState */
 /** @typedef {{lineId: string, createMessage: PencilCreateMessage}} PencilPressEffect */
 /** @typedef {{appendMessage: PencilAppendMessage | null, stopBefore: boolean, stopAfter: boolean, nextLastTime: number, nextHasSentPoint: boolean, nextChildCount: number}} PencilMoveEffect */
 
@@ -620,18 +620,18 @@ function handleAutoWhiteOut(state, evt) {
       ? /** @type {{touchType?: string}} */ (touch).touchType
       : undefined;
   if (touchType === "stylus") {
-    if (state.hasUsedStylus && state.ui.getCurrentTool()?.secondary?.active) {
-      state.ui.changeTool(toolId);
+    if (state.hasUsedStylus && state.toolRegistry.current?.secondary?.active) {
+      state.toolRegistry.change(toolId);
     }
     state.hasUsedStylus = true;
   }
   if (touchType === "direct") {
     if (
       state.hasUsedStylus &&
-      state.ui.getCurrentTool()?.secondary &&
-      !state.ui.getCurrentTool()?.secondary?.active
+      state.toolRegistry.current?.secondary &&
+      !state.toolRegistry.current?.secondary?.active
     ) {
-      state.ui.changeTool(toolId);
+      state.toolRegistry.change(toolId);
     }
   }
 }
@@ -652,8 +652,8 @@ export function boot(ctx) {
     rateLimits: runtime.rateLimits,
     runtimeConfig: runtime.config,
     ids: runtime.ids,
-    rendering: runtime.rendering,
-    ui: runtime.ui,
+    interaction: runtime.interaction,
+    toolRegistry: runtime.toolRegistry,
     AUTO_FINGER_WHITEOUT: serverConfig.AUTO_FINGER_WHITEOUT === true,
     MAX_PENCIL_CHILDREN:
       Number(serverConfig.MAX_CHILDREN) > 0
@@ -688,7 +688,7 @@ export function boot(ctx) {
  * @param {unknown} data
  */
 export function draw(state, data) {
-  state.rendering.markDrawingEvent();
+  state.interaction.drawingEvent = true;
   if (!isPencilMessage(data)) {
     logFrontendEvent("error", "tool.pencil.draw_invalid_type", {
       mutationType: /** @type {{type?: unknown}} */ (data)?.type,

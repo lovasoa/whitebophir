@@ -808,7 +808,7 @@ function createInputToolRuntime(tools) {
     board: createUnavailableBoardRuntime(),
     viewport: createUnavailableViewportRuntime(),
     writes: {
-      drawAndSend: (message) => tools.writes.drawAndSend(message),
+      drawAndSend: tools.writes.drawAndSend,
       send: () => unavailableCapability("writes.send"),
       canBufferWrites: () => unavailableCapability("writes.canBufferWrites"),
       whenBoardWritable: () =>
@@ -818,39 +818,16 @@ function createInputToolRuntime(tools) {
       boardName: "input-test",
       token: null,
     },
-    preferences: {
-      getColor: () => tools.preferences.getColor(),
-      getSize: () => tools.preferences.getSize(),
-      setSize: (size) => tools.preferences.setSize(size),
-      getOpacity: () => tools.preferences.getOpacity(),
-    },
-    rateLimits: {
-      getEffectiveRateLimit: (kind) =>
-        tools.rateLimits.getEffectiveRateLimit(kind),
-    },
-    ui: {
-      getCurrentTool: () => tools.toolRegistry.current || null,
-      changeTool: (toolName) => tools.toolRegistry.change(toolName),
-      shouldShowMarker: () => unavailableCapability("ui.shouldShowMarker"),
-      shouldShowMyCursor: () => unavailableCapability("ui.shouldShowMyCursor"),
-    },
-    config: {
-      serverConfig: tools.config.serverConfig,
-    },
-    ids: {
-      generateUID: (prefix, suffix) => tools.ids.generateUID(prefix, suffix),
-    },
-    rendering: {
-      markDrawingEvent: () => {
-        tools.interaction.drawingEvent = true;
-      },
-    },
+    preferences: tools.preferences,
+    rateLimits: tools.rateLimits,
+    toolRegistry: tools.toolRegistry,
+    interaction: tools.interaction,
+    config: tools.config,
+    ids: tools.ids,
     messages: {
       messageForTool: () => unavailableCapability("messages.messageForTool"),
     },
-    permissions: {
-      canWrite: () => tools.access.canWrite,
-    },
+    permissions: tools.access,
   };
 }
 
@@ -874,46 +851,16 @@ function createHarnessToolRuntime(app) {
         app.coordinates.pageCoordinateToBoard(value),
     },
     viewport: app.viewportState.controller,
-    writes: {
-      drawAndSend: (message) => app.writes.drawAndSend(message),
-      send: (message) => app.writes.send(message),
-      canBufferWrites: () => app.writes.canBufferWrites(),
-      whenBoardWritable: () => app.writes.whenBoardWritable(),
-    },
+    writes: app.writes,
     identity: app.identity,
-    preferences: {
-      getColor: () => app.preferences.getColor(),
-      getSize: () => app.preferences.getSize(),
-      setSize: (size) => app.preferences.setSize(size),
-      getOpacity: () => app.preferences.getOpacity(),
-    },
-    rateLimits: {
-      getEffectiveRateLimit: (kind) =>
-        app.rateLimits.getEffectiveRateLimit(kind),
-    },
-    ui: {
-      getCurrentTool: () => app.toolRegistry.current,
-      changeTool: (toolName) => app.toolRegistry.change(toolName),
-      shouldShowMarker: () => app.interaction.showMarker,
-      shouldShowMyCursor: () => app.interaction.showMyCursor,
-    },
-    config: {
-      serverConfig: app.config.serverConfig,
-    },
-    ids: {
-      generateUID: (prefix, suffix) => app.ids.generateUID(prefix, suffix),
-    },
-    rendering: {
-      markDrawingEvent: () => {
-        app.interaction.drawingEvent = true;
-      },
-    },
-    messages: {
-      messageForTool: (message) => app.messages.messageForTool(message),
-    },
-    permissions: {
-      canWrite: () => app.access.canWrite,
-    },
+    preferences: app.preferences,
+    rateLimits: app.rateLimits,
+    toolRegistry: app.toolRegistry,
+    interaction: app.interaction,
+    config: app.config,
+    ids: app.ids,
+    messages: app.messages,
+    permissions: app.access,
   };
 }
 

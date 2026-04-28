@@ -841,61 +841,49 @@ export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
 };
 
 /** Tool-facing write channel. Owns message send/queue semantics. */
-export type ToolWriteRuntimeModule = {
-  /** Takes ownership of message. Callers must not mutate it after sending. */
-  drawAndSend: (message: LiveBoardMessage) => boolean | undefined;
-  /** Takes ownership of message. Callers must not mutate it after sending. */
-  send: (message: LiveBoardMessage) => boolean | undefined;
-  canBufferWrites: () => boolean;
-  whenBoardWritable: () => Promise<void>;
-};
+export type ToolWriteRuntimeModule = Pick<
+  AppWriteModule,
+  "drawAndSend" | "send" | "canBufferWrites" | "whenBoardWritable"
+>;
 
 /** Tool-facing board identity. */
 export type ToolIdentityRuntimeModule = AppIdentityModule;
 
 /** Tool-facing current drawing preferences. */
-export type ToolPreferenceRuntimeModule = {
-  getColor: () => string;
-  getSize: () => number;
-  setSize: (size?: number | string | null | undefined) => number;
-  getOpacity: () => number;
-};
+export type ToolPreferenceRuntimeModule = Pick<
+  AppPreferenceModule,
+  "getColor" | "getSize" | "setSize" | "getOpacity"
+>;
 
 /** Tool-facing rate-limit lookup. */
-export type ToolRateLimitRuntimeModule = {
-  getEffectiveRateLimit: (kind: RateLimitKind) => RateLimitDefinition;
-};
+export type ToolRateLimitRuntimeModule = Pick<
+  AppRateLimitModule,
+  "getEffectiveRateLimit"
+>;
 
-/** Tool-facing UI state that may change during a session. */
-export type ToolUiRuntimeModule = {
-  getCurrentTool: () => MaybeMountedAppTool;
-  changeTool: (toolName: string) => boolean | undefined;
-  shouldShowMarker: () => boolean;
-  shouldShowMyCursor: () => boolean;
-};
+/** Tool-facing active-tool controls. */
+export type ToolRegistryRuntimeModule = Pick<
+  AppToolRegistryModule,
+  "current" | "change"
+>;
+
+/** Tool-facing pointer interaction flags. */
+export type ToolInteractionRuntimeModule = Pick<
+  AppInteractionModule,
+  "drawingEvent" | "showMarker" | "showMyCursor"
+>;
 
 /** Tool-facing server configuration. */
 export type ToolConfigRuntimeModule = AppConfigModule;
 
 /** Tool-facing id generation. */
-export type ToolIdRuntimeModule = {
-  generateUID: (prefix?: string, suffix?: string) => string;
-};
-
-/** Tool-facing render side effects owned by the board runtime. */
-export type ToolRenderRuntimeModule = {
-  markDrawingEvent: () => void;
-};
+export type ToolIdRuntimeModule = AppIdModule;
 
 /** Tool-facing message replay helper for tools that synthesize child messages. */
-export type ToolMessageRuntimeModule = {
-  messageForTool: (message: BoardMessage) => void;
-};
+export type ToolMessageRuntimeModule = Pick<AppMessageModule, "messageForTool">;
 
 /** Tool-facing permission state. */
-export type ToolPermissionRuntimeModule = {
-  canWrite: () => boolean;
-};
+export type ToolPermissionRuntimeModule = Pick<AppAccessModule, "canWrite">;
 
 /** Restricted runtime modules passed to tool boot. */
 export type ToolRuntimeModules = {
@@ -905,10 +893,10 @@ export type ToolRuntimeModules = {
   readonly identity: ToolIdentityRuntimeModule;
   readonly preferences: ToolPreferenceRuntimeModule;
   readonly rateLimits: ToolRateLimitRuntimeModule;
-  readonly ui: ToolUiRuntimeModule;
+  readonly toolRegistry: ToolRegistryRuntimeModule;
+  readonly interaction: ToolInteractionRuntimeModule;
   readonly config: ToolConfigRuntimeModule;
   readonly ids: ToolIdRuntimeModule;
-  readonly rendering: ToolRenderRuntimeModule;
   readonly messages: ToolMessageRuntimeModule;
   readonly permissions: ToolPermissionRuntimeModule;
 };

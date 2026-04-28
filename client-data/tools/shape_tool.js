@@ -60,7 +60,7 @@ export function bootShapeTool(config, ctx) {
     writes: ctx.runtime.writes,
     runtimeConfig: ctx.runtime.config,
     ids: ctx.runtime.ids,
-    rendering: ctx.runtime.rendering,
+    interaction: ctx.runtime.interaction,
     currentShape: null,
     lastTime: performance.now(),
     secondary: null,
@@ -206,7 +206,7 @@ function createShape(state, data) {
  */
 export function drawShapeTool(state, data) {
   const { board, config } = state;
-  state.rendering.markDrawingEvent();
+  state.interaction.drawingEvent = true;
   if (data.type === MutationType.CREATE) {
     createShape(state, data);
     return;

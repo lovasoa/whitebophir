@@ -230,20 +230,7 @@ function createBatchMessage(children) {
   };
 }
 
-/**
- * @typedef {{
- *   serverConfig: ToolRuntimeModules["config"]["serverConfig"],
- *   canWrite: boolean,
- *   drawAndSend: ToolRuntimeModules["writes"]["drawAndSend"],
- *   generateUID: ToolRuntimeModules["ids"]["generateUID"],
- *   createSVGElement: ToolRuntimeModules["board"]["createSVGElement"],
- *   svg: SVGSVGElement,
- *   drawingArea: Element,
- *   viewport: ToolRuntimeModules["viewport"],
- *   getScale: () => number,
- *   messageForTool: ToolRuntimeModules["messages"]["messageForTool"],
- * }} HandRuntime
- */
+/** @typedef {Pick<ToolRuntimeModules, "config" | "permissions" | "writes" | "ids" | "board" | "viewport" | "messages">} HandRuntime */
 
 /**
  * @typedef {{Tools: HandRuntime, assetUrl: (assetFile: string) => string, selectorStates: {pointing: number, selecting: number, transform: number}, selected: any, selectedEls: (SVGGraphicsElement & { id: string })[], selectionRect: SVGRectElement, selectionRectTransform: any, currentTransform: ((x: number, y: number, force: boolean) => void) | null, transformElements: TransformState[], selectorState: number, selectionRunId: number, lastSent: number, blockedSelectionButtons: (number | string)[], selectionButtons: SelectionButton[], boundDeleteShortcut: (e: { key: string, target: EventTarget | null }) => void, boundDuplicateShortcut: (e: { key: string, target: EventTarget | null }) => void, secondary: { name: string, icon: string, active: boolean, switch?: () => void } | null}} HandState
@@ -275,7 +262,8 @@ function createState(Tools, assetUrl) {
     selectorState: 0,
     selectionRunId: 0,
     lastSent: 0,
-    blockedSelectionButtons: Tools.serverConfig.BLOCKED_SELECTION_BUTTONS || [],
+    blockedSelectionButtons:
+      Tools.config.serverConfig.BLOCKED_SELECTION_BUTTONS || [],
     selectionButtons: [],
     boundDeleteShortcut: () => {},
     boundDuplicateShortcut: () => {},
@@ -337,7 +325,7 @@ function createState(Tools, assetUrl) {
   });
   state.boundDeleteShortcut = (e) => deleteShortcut(state, e);
   state.boundDuplicateShortcut = (e) => duplicateShortcut(state, e);
-  state.secondary = Tools.canWrite
+  state.secondary = Tools.permissions.canWrite
     ? {
         name: "Selector",
         icon: "tools/hand/selector.svg",
@@ -383,7 +371,7 @@ function getParentMathematics(el) {
 function deleteSelection(state) {
   /** @type {HandDeleteChildMessage[]} */
   const msgs = state.selectedEls.map((el) => createDeleteChildMessage(el.id));
-  state.Tools.drawAndSend(createBatchMessage(msgs));
+  state.Tools.writes.drawAndSend(createBatchMessage(msgs));
   state.selectedEls = [];
   hideSelectionUI(state);
 }
@@ -402,15 +390,15 @@ function duplicateSelection(state) {
     const selectedElement = state.selectedEls[i];
     if (!selectedElement) continue;
     const id = selectedElement.id;
-    msgs[i] = createCopyChildMessage(id, state.Tools.generateUID(id[0]));
+    msgs[i] = createCopyChildMessage(id, state.Tools.ids.generateUID(id[0]));
   }
-  state.Tools.drawAndSend(createBatchMessage(msgs));
+  state.Tools.writes.drawAndSend(createBatchMessage(msgs));
 }
 
 /** @param {HandState} state @returns {SVGRectElement} */
 function createSelectorRect(state) {
   const shape = /** @type {SVGRectElement} */ (
-    state.Tools.createSVGElement("rect")
+    state.Tools.board.createSVGElement("rect")
   );
   shape.id = "selectionRect";
   shape.x.baseVal.value = 0;
@@ -423,7 +411,7 @@ function createSelectorRect(state) {
   shape.setAttribute("fill", "none");
   shape.setAttribute("stroke-dasharray", "5 5");
   shape.setAttribute("opacity", "1");
-  state.Tools.svg.appendChild(shape);
+  state.Tools.board.svg.appendChild(shape);
   return shape;
 }
 
@@ -447,7 +435,7 @@ function createButton(
   clickCallback,
 ) {
   const shape = /** @type {SelectionButton} */ (
-    state.Tools.createSVGElement("image", {
+    state.Tools.board.createSVGElement("image", {
       href: state.assetUrl(`${icon}.svg`),
       width: width,
       height: height,
@@ -459,13 +447,13 @@ function createButton(
   shape.origHeight = height;
   shape.drawCallback = drawCallback;
   shape.clickCallback = clickCallback;
-  state.Tools.svg.appendChild(shape);
+  state.Tools.board.svg.appendChild(shape);
   return shape;
 }
 
 /** @param {HandState} state */
 function getCurrentScale(state) {
-  const rawScale = state.Tools.getScale();
+  const rawScale = state.Tools.viewport.getScale();
   return Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1;
 }
 
@@ -506,7 +494,7 @@ function startMovingElements(state, x, y, evt) {
     moveSelection(state, moveX, moveY, force);
   state.selected = { x: x, y: y };
   state.selectedEls = state.selectedEls.filter(
-    (el) => state.Tools.svg.getElementById(el.id) !== null,
+    (el) => state.Tools.board.svg.getElementById(el.id) !== null,
   );
   state.transformElements = state.selectedEls.map((el) => {
     const tmatrix = getTransformMatrix(state, el);
@@ -586,7 +574,7 @@ function startSelector(state, x, y, evt) {
 
 /** @param {HandState} state @returns {(SVGGraphicsElement & { id: string })[]} */
 function getSelectableElements(state) {
-  const elements = state.Tools.drawingArea.children;
+  const elements = state.Tools.board.drawingArea.children;
   const selectable = [];
   for (let i = 0; i < elements.length; i++) {
     const element = elements[i];
@@ -874,7 +862,7 @@ function dispatchTransform(state, msg, force) {
   const now = performance.now();
   if (force || now - state.lastSent > 70) {
     state.lastSent = now;
-    if (state.Tools.drawAndSend(msg) !== false) {
+    if (state.Tools.writes.drawAndSend(msg) !== false) {
       state.Tools.viewport.ensureBoardExtentForBounds(validation.bounds);
     }
   } else {
@@ -889,12 +877,12 @@ function dispatchTransform(state, msg, force) {
  * @returns {{ok: true, bounds: {minX: number, minY: number, maxX: number, maxY: number} | null} | {ok: false}}
  */
 function validateTransformBatch(state, msg) {
-  const maxBoardSize = state.Tools.serverConfig.MAX_BOARD_SIZE;
+  const maxBoardSize = state.Tools.config.serverConfig.MAX_BOARD_SIZE;
   let bounds = null;
   for (let index = 0; index < msg._children.length; index++) {
     const child = msg._children[index];
     if (!isHandUpdateChild(child)) continue;
-    const element = state.Tools.svg.getElementById(child.id);
+    const element = state.Tools.board.svg.getElementById(child.id);
     if (!isSelectableElement(element)) return { ok: false };
     const effectiveBounds = measureSvgElementBoundsAfterTransform(
       element,
@@ -949,7 +937,7 @@ function getTransformMatrix(state, elem) {
   }
   if (transform == null) {
     transform = elem.transform.baseVal.createSVGTransformFromMatrix(
-      state.Tools.svg.createSVGMatrix(),
+      state.Tools.board.svg.createSVGMatrix(),
     );
     elem.transform.baseVal.appendItem(transform);
   }
@@ -976,7 +964,7 @@ export function draw(state, data, isLocal = false) {
 
   switch (data.type) {
     case MutationType.UPDATE: {
-      const elem = state.Tools.svg.getElementById(data.id);
+      const elem = state.Tools.board.svg.getElementById(data.id);
       if (!elem) {
         throw new Error("Mover: Tried to move an element that does not exist.");
       }
@@ -998,7 +986,7 @@ export function draw(state, data, isLocal = false) {
       break;
     }
     case MutationType.COPY: {
-      const sourceElement = state.Tools.svg.getElementById(data.id);
+      const sourceElement = state.Tools.board.svg.getElementById(data.id);
       if (!isSelectableElement(sourceElement)) {
         throw new Error("Mover: Tried to copy an element that does not exist.");
       }
@@ -1006,11 +994,11 @@ export function draw(state, data, isLocal = false) {
         sourceElement.cloneNode(true)
       );
       newElement.id = data.newid;
-      state.Tools.drawingArea.appendChild(newElement);
+      state.Tools.board.drawingArea.appendChild(newElement);
       break;
     }
     case MutationType.DELETE:
-      state.Tools.messageForTool({
+      state.Tools.messages.messageForTool({
         tool: ToolCodes.ERASER,
         type: MutationType.DELETE,
         id: data.id,
@@ -1046,7 +1034,7 @@ function clickSelector(state, x, y, evt) {
     startMovingElements(state, x, y, evt);
   } else if (
     evt.target &&
-    state.Tools.drawingArea.contains(/** @type {Node} */ (evt.target))
+    state.Tools.board.drawingArea.contains(/** @type {Node} */ (evt.target))
   ) {
     hideSelectionUI(state);
     const parent = getParentMathematics(evt.target);
@@ -1241,30 +1229,10 @@ function switchTool(state) {
   }
 }
 
-/**
- * @param {ToolBootContext} ctx
- * @returns {HandRuntime}
- */
-function createHandRuntime(ctx) {
-  const runtime = ctx.runtime;
-  return {
-    serverConfig: runtime.config.serverConfig,
-    canWrite: runtime.permissions.canWrite(),
-    drawAndSend: runtime.writes.drawAndSend,
-    generateUID: runtime.ids.generateUID,
-    createSVGElement: runtime.board.createSVGElement,
-    svg: runtime.board.svg,
-    drawingArea: runtime.board.drawingArea,
-    viewport: runtime.viewport,
-    getScale: () => runtime.viewport.getScale(),
-    messageForTool: runtime.messages.messageForTool,
-  };
-}
-
 /** @param {ToolBootContext} ctx */
 export async function boot(ctx) {
   ({ pointInTransformedBBox } = await import("../../js/intersect.js"));
-  return createState(createHandRuntime(ctx), ctx.assetUrl);
+  return createState(ctx.runtime, ctx.assetUrl);
 }
 
 /** @param {HandState} state */
