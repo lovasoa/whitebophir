@@ -354,37 +354,42 @@ function initializeShellControls() {
   const opacityIndicatorFill =
     document.getElementById("opacityIndicatorFill") || opacityIndicator;
 
-  Tools.color_chooser = colorChooser;
-  colorChooser.value = Tools.currentColor;
+  Tools.preferences.colorChooser = colorChooser;
+  colorChooser.value = Tools.preferences.currentColor;
   colorChooser.onchange = colorChooser.oninput = () => {
     Tools.setColor(colorChooser.value);
   };
 
-  sizeChooser.value = String(Tools.currentSize);
+  sizeChooser.value = String(Tools.preferences.currentSize);
   sizeChooser.onchange = sizeChooser.oninput = () => {
     Tools.setSize(sizeChooser.value);
   };
 
   const updateOpacity = () => {
-    Tools.currentOpacity = MessageCommon.clampOpacity(opacityChooser.value);
-    opacityChooser.value = String(Tools.currentOpacity);
-    opacityIndicatorFill.setAttribute("opacity", String(Tools.currentOpacity));
+    Tools.preferences.currentOpacity = MessageCommon.clampOpacity(
+      opacityChooser.value,
+    );
+    opacityChooser.value = String(Tools.preferences.currentOpacity);
+    opacityIndicatorFill.setAttribute(
+      "opacity",
+      String(Tools.preferences.currentOpacity),
+    );
   };
-  Tools.colorChangeHandlers.push(
+  Tools.preferences.colorChangeHandlers.push(
     /** @param {string} color */ (color) => {
       opacityIndicatorFill.setAttribute("fill", color);
     },
   );
-  opacityChooser.value = String(Tools.currentOpacity);
+  opacityChooser.value = String(Tools.preferences.currentOpacity);
   updateOpacity();
   opacityChooser.onchange = opacityChooser.oninput = updateOpacity;
 
-  if (!Tools.colorButtonsInitialized) {
-    Tools.colorButtonsInitialized = true;
-    Tools.colorPresets.forEach(addColorButton);
+  if (!Tools.preferences.colorButtonsInitialized) {
+    Tools.preferences.colorButtonsInitialized = true;
+    Tools.preferences.colorPresets.forEach(addColorButton);
   }
-  Tools.setColor(Tools.currentColor);
-  Tools.setSize(Tools.currentSize);
+  Tools.setColor(Tools.preferences.currentColor);
+  Tools.setSize(Tools.preferences.currentSize);
 }
 
 function getBoardStatusElements() {
@@ -2094,7 +2099,7 @@ Tools.startConnection = () => {
       Tools.identity.boardName,
       {
         baselineSeq: String(Tools.authoritativeSeq),
-        tool: Tools.initialPrefs?.tool || "hand",
+        tool: Tools.preferences.initial.tool,
         color: Tools.getColor(),
         size: String(Tools.getSize()),
       },
@@ -2759,7 +2764,7 @@ Tools.mountTool = function mountTool(toolModule, toolState, toolName) {
   Tools.list[toolName] = mountedTool;
 
   if (mountedTool.onSizeChange) {
-    Tools.sizeChangeHandlers.push(mountedTool.onSizeChange);
+    Tools.preferences.sizeChangeHandlers.push(mountedTool.onSizeChange);
   }
 
   const pending = drainPendingMessages(Tools.pendingMessages, toolName);
@@ -3200,7 +3205,7 @@ Tools.positionElement = function positionElement(elem, x, y) {
   elem.style.left = `${x}px`;
 };
 
-Tools.colorPresets = [
+const colorPresets = [
   { color: "#001f3f", key: "1" },
   { color: "#FF4136", key: "2" },
   { color: "#0074D9", key: "3" },
@@ -3213,24 +3218,19 @@ Tools.colorPresets = [
   { color: "#AAAAAA", key: "0" },
   { color: "#E65194" },
 ];
-Tools.color_chooser = null;
-Tools.colorChangeHandlers =
-  /** @type {AppToolsState["colorChangeHandlers"]} */ ([]);
-Tools.sizeChangeHandlers = [];
-
 /** @param {string} color */
 Tools.setColor = function setColor(color) {
-  Tools.currentColor = color;
-  if (Tools.color_chooser) {
-    Tools.color_chooser.value = color;
+  Tools.preferences.currentColor = color;
+  if (Tools.preferences.colorChooser) {
+    Tools.preferences.colorChooser.value = color;
   }
-  Tools.colorChangeHandlers.forEach((handler) => {
+  Tools.preferences.colorChangeHandlers.forEach((handler) => {
     handler(color);
   });
 };
 
 Tools.getColor = function getColor() {
-  return Tools.currentColor;
+  return Tools.preferences.currentColor;
 };
 
 /**
@@ -3239,24 +3239,24 @@ Tools.getColor = function getColor() {
  */
 Tools.setSize = function setSize(value) {
   if (value !== null && value !== undefined) {
-    Tools.currentSize = MessageCommon.clampSize(value);
+    Tools.preferences.currentSize = MessageCommon.clampSize(value);
   }
   const chooser = document.getElementById("chooseSize");
   if (chooser instanceof HTMLInputElement) {
-    chooser.value = String(Tools.currentSize);
+    chooser.value = String(Tools.preferences.currentSize);
   }
-  Tools.sizeChangeHandlers.forEach((handler) => {
-    handler(Tools.currentSize);
+  Tools.preferences.sizeChangeHandlers.forEach((handler) => {
+    handler(Tools.preferences.currentSize);
   });
-  return Tools.currentSize;
+  return Tools.preferences.currentSize;
 };
 
 Tools.getSize = function getSize() {
-  return Tools.currentSize;
+  return Tools.preferences.currentSize;
 };
 
 Tools.getOpacity = function getOpacity() {
-  return Tools.currentOpacity;
+  return Tools.preferences.currentOpacity;
 };
 
 /** @type {SocketHeaders | null} */
@@ -3280,8 +3280,8 @@ if (!socketIOExtraHeaders) {
 if (socketIOExtraHeaders) {
   window.socketio_extra_headers = socketIOExtraHeaders;
 }
-const colorIndex = (Math.random() * Tools.colorPresets.length) | 0;
-const initialPreset = Tools.colorPresets[colorIndex] || Tools.colorPresets[0];
+const colorIndex = (Math.random() * colorPresets.length) | 0;
+const initialPreset = colorPresets[colorIndex] || colorPresets[0];
 Tools.config = {
   serverConfig: /** @type {ServerConfig} */ (
     parseEmbeddedJson("configuration", {})
@@ -3292,15 +3292,23 @@ Tools.identity = {
   token: new URL(window.location.href).searchParams.get("token"),
 };
 Tools.socketIOExtraHeaders = socketIOExtraHeaders;
-Tools.initialPrefs = {
+const initialPreferences = {
   tool: "hand",
   color: initialPreset?.color || "#001f3f",
   size: DEFAULT_INITIAL_SIZE,
   opacity: DEFAULT_INITIAL_OPACITY,
 };
-Tools.currentColor = Tools.initialPrefs.color;
-Tools.currentSize = MessageCommon.clampSize(Tools.initialPrefs.size);
-Tools.currentOpacity = MessageCommon.clampOpacity(Tools.initialPrefs.opacity);
+Tools.preferences = {
+  colorPresets,
+  colorChooser: null,
+  colorButtonsInitialized: false,
+  currentColor: initialPreferences.color,
+  currentSize: MessageCommon.clampSize(initialPreferences.size),
+  currentOpacity: MessageCommon.clampOpacity(initialPreferences.opacity),
+  initial: initialPreferences,
+  colorChangeHandlers: [],
+  sizeChangeHandlers: [],
+};
 Tools.setBoardState(
   parseEmbeddedJson("board-state", {
     readonly: false,

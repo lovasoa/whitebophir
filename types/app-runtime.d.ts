@@ -591,6 +591,26 @@ export type AppAccessModule = {
   readonly canWrite: boolean;
 };
 
+export type AppInitialPreferences = {
+  readonly tool: string;
+  readonly color: string;
+  readonly size: number;
+  readonly opacity: number;
+};
+
+/** Current drawing preferences and their UI bindings. */
+export type AppPreferenceModule = {
+  readonly colorPresets: ColorPreset[];
+  colorChooser: HTMLInputElement | null;
+  colorButtonsInitialized: boolean;
+  currentColor: string;
+  currentSize: number;
+  currentOpacity: number;
+  readonly initial: AppInitialPreferences;
+  readonly colorChangeHandlers: ((color: string) => void)[];
+  readonly sizeChangeHandlers: ((size: number) => void)[];
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -681,6 +701,7 @@ export type AppToolsState = {
   identity: AppIdentityModule;
   config: AppConfigModule;
   access: AppAccessModule;
+  preferences: AppPreferenceModule;
   turnstileValidatedUntil: number;
   turnstileWidgetId: unknown | null;
   turnstileRefreshTimeout: number | null;
@@ -729,20 +750,6 @@ export type AppToolsState = {
   connectedUsersPanelOpen: boolean;
   unreadMessagesCount: number;
   messageHooks: MessageHook[];
-  colorPresets: ColorPreset[];
-  color_chooser: HTMLInputElement | null;
-  colorButtonsInitialized?: boolean;
-  currentColor: string;
-  currentSize: number;
-  currentOpacity: number;
-  initialPrefs?: {
-    tool: string;
-    color: string;
-    size: number;
-    opacity: number;
-  };
-  colorChangeHandlers: ((color: string) => void)[];
-  sizeChangeHandlers: ((size: number) => void)[];
   getRateLimitDefinition: (
     kind: RateLimitKind,
   ) => ConfiguredRateLimitDefinition;
