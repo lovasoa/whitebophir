@@ -392,7 +392,7 @@ test.describe("drawing and persistence", () => {
       await expect(page.locator("#drawingArea rect")).toHaveCount(1);
       const bufferedMutationsForDeletedRect = await page.evaluate(
         (targetId) =>
-          window.WBOApp.bufferedWrites
+          window.WBOApp.writes.bufferedWrites
             .map((write) => write.message)
             .filter((message) => message.id === targetId)
             .map((message) => message.type),

@@ -941,7 +941,7 @@ window.turnstile = {
       const notice = document.getElementById("boardStatusNotice");
       return {
         connected: !!window.WBOApp?.connection?.socket?.connected,
-        bufferedWrites: window.WBOApp.bufferedWrites.length,
+        bufferedWrites: window.WBOApp.writes.bufferedWrites.length,
         awaitingBoardSnapshot: !!window.WBOApp.replay.awaitingSnapshot,
         hasAuthoritativeBoardSnapshot:
           !!window.WBOApp.replay.hasAuthoritativeSnapshot,

@@ -322,11 +322,19 @@ Tools.turnstile = {
   pendingWrites: [],
   overlayTimeout: null,
 };
-Tools.bufferedWrites = [];
-Tools.bufferedWriteTimer = null;
-Tools.writeReadyWaiters = /** @type {Array<() => void>} */ ([]);
-Tools.rateLimitedUntil = 0;
-Tools.localRateLimitedUntil = 0;
+Tools.writes = {
+  bufferedWrites: [],
+  bufferedWriteTimer: null,
+  writeReadyWaiters: /** @type {Array<() => void>} */ ([]),
+  serverRateLimitedUntil: 0,
+  localRateLimitedUntil: 0,
+  localRateLimitStates: {
+    general: RateLimitCommon.createRateLimitState(Date.now()),
+    constructive: RateLimitCommon.createRateLimitState(Date.now()),
+    destructive: RateLimitCommon.createRateLimitState(Date.now()),
+    text: RateLimitCommon.createRateLimitState(Date.now()),
+  },
+};
 Tools.status = {
   rateLimitNoticeTimer: null,
   boardStatusTimer: null,
@@ -351,13 +359,6 @@ Tools.connection = {
   hasConnectedOnce: false,
   socketIOExtraHeaders: null,
 };
-Tools.localRateLimitStates = {
-  general: RateLimitCommon.createRateLimitState(Date.now()),
-  constructive: RateLimitCommon.createRateLimitState(Date.now()),
-  destructive: RateLimitCommon.createRateLimitState(Date.now()),
-  text: RateLimitCommon.createRateLimitState(Date.now()),
-};
-
 function initializeShellControls() {
   const colorChooser = getRequiredInput("chooseColor");
   const sizeChooser = getRequiredInput("chooseSize");
@@ -468,9 +469,9 @@ Tools.getBufferedWriteCosts = function getBufferedWriteCosts(message) {
 };
 
 Tools.clearBufferedWriteTimer = function clearBufferedWriteTimer() {
-  if (Tools.bufferedWriteTimer) {
-    clearTimeout(Tools.bufferedWriteTimer);
-    Tools.bufferedWriteTimer = null;
+  if (Tools.writes.bufferedWriteTimer) {
+    clearTimeout(Tools.writes.bufferedWriteTimer);
+    Tools.writes.bufferedWriteTimer = null;
   }
 };
 
@@ -498,7 +499,7 @@ function scheduleSocketReconnect(delayMs = 250) {
  * @returns {boolean}
  */
 Tools.isWritePaused = function isWritePaused(now) {
-  return Tools.rateLimitedUntil > (now || Date.now());
+  return Tools.writes.serverRateLimitedUntil > (now || Date.now());
 };
 
 Tools.canBufferWrites = function canBufferWrites() {
@@ -516,7 +517,7 @@ Tools.whenBoardWritable = function whenBoardWritable() {
     /** @param {(value?: void | PromiseLike<void>) => void} resolve */ (
       resolve,
     ) => {
-      Tools.writeReadyWaiters.push(() => resolve());
+      Tools.writes.writeReadyWaiters.push(() => resolve());
     },
   );
 };
@@ -604,7 +605,7 @@ Tools.getBoardStatusView = function getBoardStatusView() {
       detail: "",
     };
   }
-  if (Tools.localRateLimitedUntil > Date.now()) {
+  if (Tools.writes.localRateLimitedUntil > Date.now()) {
     return {
       hidden: false,
       state: "paused",
@@ -612,7 +613,7 @@ Tools.getBoardStatusView = function getBoardStatusView() {
       detail: "",
     };
   }
-  if (Tools.bufferedWrites.length > 0) {
+  if (Tools.writes.bufferedWrites.length > 0) {
     return {
       hidden: false,
       state: "buffering",
@@ -629,8 +630,8 @@ Tools.getBoardStatusView = function getBoardStatusView() {
 };
 
 Tools.syncWriteStatusIndicator = function syncWriteStatusIndicator() {
-  if (Tools.canBufferWrites() && Tools.writeReadyWaiters.length > 0) {
-    const waiters = Tools.writeReadyWaiters.splice(0);
+  if (Tools.canBufferWrites() && Tools.writes.writeReadyWaiters.length > 0) {
+    const waiters = Tools.writes.writeReadyWaiters.splice(0);
     waiters.forEach((resolve) => resolve());
   }
   const { indicator, title, notice } = getBoardStatusElements();
@@ -917,9 +918,8 @@ Tools.refreshAuthoritativeBaseline =
  * @returns {void}
  */
 Tools.resetLocalRateLimitState = function resetLocalRateLimitState(kind, now) {
-  Tools.localRateLimitStates[kind] = RateLimitCommon.createRateLimitState(
-    now || Date.now(),
-  );
+  Tools.writes.localRateLimitStates[kind] =
+    RateLimitCommon.createRateLimitState(now || Date.now());
 };
 
 /** @param {number} [now] */
@@ -944,7 +944,7 @@ Tools.canEmitBufferedWrite = function canEmitBufferedWrite(bufferedWrite, now) {
     const definition = Tools.getEffectiveRateLimit(kind);
     if (!(definition.periodMs > 0) || !(definition.limit >= 0)) return true;
     return RateLimitCommon.canConsumeFixedWindowRateLimit(
-      Tools.localRateLimitStates[kind],
+      Tools.writes.localRateLimitStates[kind],
       cost,
       definition.limit,
       definition.periodMs,
@@ -967,9 +967,9 @@ Tools.consumeBufferedWriteBudget = function consumeBufferedWriteBudget(
     if (!(cost > 0)) return;
     const definition = Tools.getEffectiveRateLimit(kind);
     if (!(definition.periodMs > 0)) return;
-    Tools.localRateLimitStates[kind] =
+    Tools.writes.localRateLimitStates[kind] =
       RateLimitCommon.consumeFixedWindowRateLimit(
-        Tools.localRateLimitStates[kind],
+        Tools.writes.localRateLimitStates[kind],
         cost,
         definition.periodMs,
         now,
@@ -993,7 +993,7 @@ Tools.getBufferedWriteWaitMs = function getBufferedWriteWaitMs(
     if (!(definition.periodMs > 0)) return waitMs;
     if (
       RateLimitCommon.canConsumeFixedWindowRateLimit(
-        Tools.localRateLimitStates[kind],
+        Tools.writes.localRateLimitStates[kind],
         cost,
         definition.limit,
         definition.periodMs,
@@ -1005,7 +1005,7 @@ Tools.getBufferedWriteWaitMs = function getBufferedWriteWaitMs(
     return Math.max(
       waitMs,
       RateLimitCommon.getRateLimitRemainingMs(
-        Tools.localRateLimitStates[kind],
+        Tools.writes.localRateLimitStates[kind],
         definition.periodMs,
         now,
       ),
@@ -1029,16 +1029,16 @@ Tools.getBufferedWriteFlushSafetyMs = function getBufferedWriteFlushSafetyMs(
 /** @returns {void} */
 Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
   Tools.clearBufferedWriteTimer();
-  if (!Tools.bufferedWrites.length || !Tools.canBufferWrites()) {
+  if (!Tools.writes.bufferedWrites.length || !Tools.canBufferWrites()) {
     Tools.syncWriteStatusIndicator();
     return;
   }
-  const nextWrite = Tools.bufferedWrites[0];
+  const nextWrite = Tools.writes.bufferedWrites[0];
   if (!nextWrite) return;
   const now = Date.now();
   const waitMs = Tools.getBufferedWriteWaitMs(nextWrite, now);
-  Tools.localRateLimitedUntil = waitMs > 0 ? now + waitMs : 0;
-  Tools.bufferedWriteTimer = window.setTimeout(
+  Tools.writes.localRateLimitedUntil = waitMs > 0 ? now + waitMs : 0;
+  Tools.writes.bufferedWriteTimer = window.setTimeout(
     function flushBufferedWrites() {
       Tools.flushBufferedWrites();
     },
@@ -1050,20 +1050,20 @@ Tools.scheduleBufferedWriteFlush = function scheduleBufferedWriteFlush() {
 /** @returns {void} */
 Tools.flushBufferedWrites = function flushBufferedWrites() {
   Tools.clearBufferedWriteTimer();
-  Tools.localRateLimitedUntil = 0;
+  Tools.writes.localRateLimitedUntil = 0;
   if (!Tools.canBufferWrites()) {
     Tools.syncWriteStatusIndicator();
     return;
   }
-  while (Tools.bufferedWrites.length > 0) {
-    const bufferedWrite = Tools.bufferedWrites[0];
+  while (Tools.writes.bufferedWrites.length > 0) {
+    const bufferedWrite = Tools.writes.bufferedWrites[0];
     if (!bufferedWrite) break;
     const now = Date.now();
     if (!Tools.canEmitBufferedWrite(bufferedWrite, now)) {
       Tools.scheduleBufferedWriteFlush();
       return;
     }
-    Tools.bufferedWrites.shift();
+    Tools.writes.bufferedWrites.shift();
     Tools.consumeBufferedWriteBudget(bufferedWrite, now);
     Tools.updateCurrentConnectedUserFromActivity(bufferedWrite.message);
     if (Tools.connection.socket) {
@@ -1082,7 +1082,7 @@ Tools.flushBufferedWrites = function flushBufferedWrites() {
  * @returns {void}
  */
 Tools.enqueueBufferedWrite = function enqueueBufferedWrite(message) {
-  Tools.bufferedWrites.push({
+  Tools.writes.bufferedWrites.push({
     message: message,
     costs: Tools.getBufferedWriteCosts(message),
   });
@@ -1105,7 +1105,7 @@ Tools.sendBufferedWrite = function sendBufferedWrite(message) {
   }
   const now = Date.now();
   if (
-    Tools.bufferedWrites.length === 0 &&
+    Tools.writes.bufferedWrites.length === 0 &&
     Tools.canEmitBufferedWrite(bufferedWrite, now)
   ) {
     Tools.consumeBufferedWriteBudget(bufferedWrite, now);
@@ -1116,14 +1116,14 @@ Tools.sendBufferedWrite = function sendBufferedWrite(message) {
     Tools.syncWriteStatusIndicator();
     return true;
   }
-  Tools.bufferedWrites.push(bufferedWrite);
+  Tools.writes.bufferedWrites.push(bufferedWrite);
   Tools.scheduleBufferedWriteFlush();
   return true;
 };
 
 Tools.discardBufferedWrites = function discardBufferedWrites() {
-  Tools.bufferedWrites = [];
-  Tools.localRateLimitedUntil = 0;
+  Tools.writes.bufferedWrites = [];
+  Tools.writes.localRateLimitedUntil = 0;
   Tools.clearBufferedWriteTimer();
   Tools.syncWriteStatusIndicator();
 };
@@ -1144,7 +1144,7 @@ function messageReferencesInvalidatedId(message, invalidatedIds) {
  * @returns {void}
  */
 function pruneBufferedWritesForInvalidatingMessage(message) {
-  if (Tools.bufferedWrites.length === 0) return;
+  if (Tools.writes.bufferedWrites.length === 0) return;
   const prunePlan = optimisticPrunePlanForAuthoritativeMessage(message);
   if (prunePlan.reset) {
     Tools.discardBufferedWrites();
@@ -1152,12 +1152,12 @@ function pruneBufferedWritesForInvalidatingMessage(message) {
   }
   if (prunePlan.invalidatedIds.length === 0) return;
   const invalidatedIds = new Set(prunePlan.invalidatedIds);
-  const nextBufferedWrites = Tools.bufferedWrites.filter(
+  const nextBufferedWrites = Tools.writes.bufferedWrites.filter(
     (bufferedWrite) =>
       !messageReferencesInvalidatedId(bufferedWrite.message, invalidatedIds),
   );
-  if (nextBufferedWrites.length === Tools.bufferedWrites.length) return;
-  Tools.bufferedWrites = nextBufferedWrites;
+  if (nextBufferedWrites.length === Tools.writes.bufferedWrites.length) return;
+  Tools.writes.bufferedWrites = nextBufferedWrites;
   Tools.scheduleBufferedWriteFlush();
 }
 
@@ -2257,7 +2257,8 @@ Tools.startConnection = () => {
           payload && typeof payload.retryAfterMs === "number"
             ? payload.retryAfterMs
             : 60 * 1000;
-        Tools.rateLimitedUntil = Date.now() + Math.max(0, retryAfterMs);
+        Tools.writes.serverRateLimitedUntil =
+          Date.now() + Math.max(0, retryAfterMs);
         Tools.showRateLimitNotice(
           Tools.i18n.t("rate_limit_disconnect_message"),
           retryAfterMs,
@@ -3117,13 +3118,13 @@ Tools.newUnreadMessage = () => {
 window.addEventListener("focus", () => {
   Tools.messages.unreadCount = 0;
   updateDocumentTitle();
-  if (Tools.bufferedWrites.length > 0) {
+  if (Tools.writes.bufferedWrites.length > 0) {
     Tools.flushBufferedWrites();
   }
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && Tools.bufferedWrites.length > 0) {
+  if (!document.hidden && Tools.writes.bufferedWrites.length > 0) {
     Tools.flushBufferedWrites();
   }
 });

@@ -672,6 +672,16 @@ export type AppConnectionModule = {
   socketIOExtraHeaders: SocketHeaders | null;
 };
 
+/** Buffered write queue and local/server write throttling state. */
+export type AppWriteModule = {
+  bufferedWrites: BufferedWrite[];
+  bufferedWriteTimer: number | null;
+  writeReadyWaiters: Array<() => void>;
+  serverRateLimitedUntil: number;
+  localRateLimitedUntil: number;
+  localRateLimitStates: RateLimitStates;
+};
+
 /** Tool-facing board access. Tool code gets attached DOM and board math only. */
 export type ToolBoardRuntimeModule = AttachedBoardDomModule & {
   createSVGElement: (name: string, attrs?: SVGElementAttributes) => SVGElement;
@@ -771,18 +781,13 @@ export type AppToolsState = {
   viewportState: AppViewportModule;
   replay: AppReplayModule;
   connection: AppConnectionModule;
+  writes: AppWriteModule;
   dom: BoardDomModule;
   curTool: MaybeMountedAppTool;
   drawingEvent: boolean;
   showMarker: boolean;
   showOtherCursors: boolean;
   showMyCursor: boolean;
-  bufferedWrites: BufferedWrite[];
-  bufferedWriteTimer: number | null;
-  writeReadyWaiters: Array<() => void>;
-  rateLimitedUntil: number;
-  localRateLimitedUntil: number;
-  localRateLimitStates: RateLimitStates;
   list: MountedToolRegistry;
   bootedToolPromises: ToolNameMap<MountedAppToolPromise>;
   bootedToolNames: Set<string>;
