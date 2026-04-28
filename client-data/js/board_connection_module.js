@@ -11,6 +11,34 @@ function getAttachedBoardDom(Tools) {
   return Tools.dom.status === "attached" ? Tools.dom : null;
 }
 
+/**
+ * @param {(level: "error" | "log" | "warn", event: string, fields?: {[key: string]: unknown}) => void} logBoardEvent
+ * @returns {SocketHeaders | null}
+ */
+export function readSocketIOExtraHeaders(logBoardEvent) {
+  let socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+    window.socketio_extra_headers,
+  );
+  if (!socketIOExtraHeaders) {
+    try {
+      const storedHeaders = sessionStorage.getItem("socketio_extra_headers");
+      if (storedHeaders) {
+        socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
+          JSON.parse(storedHeaders),
+        );
+      }
+    } catch (err) {
+      logBoardEvent("warn", "boot.socket_headers_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  if (socketIOExtraHeaders) {
+    window.socketio_extra_headers = socketIOExtraHeaders;
+  }
+  return socketIOExtraHeaders;
+}
+
 export class ConnectionModule {
   /**
    * @param {() => AppToolsState} getTools

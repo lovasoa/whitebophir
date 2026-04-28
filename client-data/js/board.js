@@ -25,7 +25,7 @@
  */
 
 import { AppTools } from "./app_tools.js";
-import * as BoardMessageReplay from "./board_message_replay.js";
+import { readSocketIOExtraHeaders } from "./board_connection_module.js";
 import { parseEmbeddedJson, resolveBoardName } from "./board_page_state.js";
 import {
   createInitialPreferences,
@@ -33,119 +33,31 @@ import {
 } from "./board_shell_module.js";
 import { logFrontendEvent as logBoardEvent } from "./frontend_logging.js";
 import "./intersect.js";
-import { connection as BoardConnection } from "./board_transport.js";
 
-/** @import { AppToolsState, ServerConfig, SocketHeaders } from "../../types/app-runtime" */
-/** @type {AppToolsState} */
-let Tools;
+/** @import { AppToolsState, ServerConfig } from "../../types/app-runtime" */
 
 /**
- * @param {SVGSVGElement} svg
- * @returns {{authoritativeSeq: number, drawingArea: SVGGElement}}
+ * @returns {AppToolsState}
  */
-function readInlineBaseline(svg) {
-  const drawingArea = svg.getElementById("drawingArea");
-  if (!(drawingArea instanceof SVGGElement)) {
-    throw new Error("Missing required element: #drawingArea");
-  }
-  return {
-    authoritativeSeq: BoardMessageReplay.normalizeSeq(
-      svg.getAttribute("data-wbo-seq"),
+export function createBoardRuntimeFromPage() {
+  const socketIOExtraHeaders = readSocketIOExtraHeaders(logBoardEvent);
+  const colorPresets = DEFAULT_COLOR_PRESETS;
+  const initialPreferences = createInitialPreferences(colorPresets);
+  const Tools = new AppTools({
+    translations: /** @type {{[key: string]: string}} */ (
+      parseEmbeddedJson("translations", {})
     ),
-    drawingArea: drawingArea,
-  };
+    serverConfig: /** @type {ServerConfig} */ (
+      parseEmbeddedJson("configuration", {})
+    ),
+    boardName: resolveBoardName(window.location.pathname),
+    token: new URL(window.location.href).searchParams.get("token"),
+    socketIOExtraHeaders,
+    colorPresets,
+    initialPreferences,
+    logBoardEvent,
+  });
+  window.WBOApp = Tools;
+  Tools.shell.initializePageChrome();
+  return Tools;
 }
-
-/**
- * @param {Document} document
- * @returns {Promise<void>}
- */
-export async function attachBoardDom(document) {
-  /**
-   * @param {string} elementId
-   * @returns {Promise<Element>}
-   */
-  const waitForElement = (elementId) => {
-    const existing = document.getElementById(elementId);
-    if (existing) return Promise.resolve(existing);
-    return new Promise((resolve) => {
-      const observer = new MutationObserver(() => {
-        const element = document.getElementById(elementId);
-        if (!element) return;
-        observer.disconnect();
-        resolve(element);
-      });
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-      });
-    });
-  };
-  const [boardElement, canvasElement] = await Promise.all([
-    waitForElement("board"),
-    waitForElement("canvas"),
-  ]);
-  if (!(boardElement instanceof HTMLElement)) {
-    throw new Error("Missing required element: #board");
-  }
-  if (!(canvasElement instanceof SVGSVGElement)) {
-    throw new Error("Missing required element: #canvas");
-  }
-  const baseline = readInlineBaseline(canvasElement);
-  const dom = Tools.attachDom(
-    boardElement,
-    canvasElement,
-    baseline.drawingArea,
-  );
-  Tools.replay.authoritativeSeq = baseline.authoritativeSeq;
-  dom.svg.width.baseVal.value = Math.max(
-    dom.svg.width.baseVal.value,
-    document.body.clientWidth,
-  );
-  dom.svg.height.baseVal.value = Math.max(
-    dom.svg.height.baseVal.value,
-    document.body.clientHeight,
-  );
-  Tools.toolRegistry.normalizeServerRenderedElements();
-  Tools.toolRegistry.syncActiveToolInputPolicy();
-}
-
-/** @type {SocketHeaders | null} */
-let socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
-  window.socketio_extra_headers,
-);
-if (!socketIOExtraHeaders) {
-  try {
-    const storedHeaders = sessionStorage.getItem("socketio_extra_headers");
-    if (storedHeaders) {
-      socketIOExtraHeaders = BoardConnection.normalizeSocketIOExtraHeaders(
-        JSON.parse(storedHeaders),
-      );
-    }
-  } catch (err) {
-    logBoardEvent("warn", "boot.socket_headers_load_failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-}
-if (socketIOExtraHeaders) {
-  window.socketio_extra_headers = socketIOExtraHeaders;
-}
-const colorPresets = DEFAULT_COLOR_PRESETS;
-const initialPreferences = createInitialPreferences(colorPresets);
-Tools = new AppTools({
-  translations: /** @type {{[key: string]: string}} */ (
-    parseEmbeddedJson("translations", {})
-  ),
-  serverConfig: /** @type {ServerConfig} */ (
-    parseEmbeddedJson("configuration", {})
-  ),
-  boardName: resolveBoardName(window.location.pathname),
-  token: new URL(window.location.href).searchParams.get("token"),
-  socketIOExtraHeaders,
-  colorPresets,
-  initialPreferences,
-  logBoardEvent,
-});
-window.WBOApp = Tools;
-Tools.shell.initializePageChrome();

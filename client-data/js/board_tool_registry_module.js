@@ -12,6 +12,7 @@ import MessageCommon from "./message_common.js";
 
 /** @import { AppToolsState, BoardMessage, CompiledToolListener, CompiledToolListeners, MountedAppTool, MountedAppToolsState, PendingMessages, RateLimitKind, ToolBootContext, ToolModule, ToolPointerListener, ToolRuntimeState } from "../../types/app-runtime" */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
+/** @typedef {{criticalToolNames: string[], replaySafeToolNames: ReadonlySet<string>, pendingToolName: string}} InitialToolBootOptions */
 
 /** @type {AppToolsState} */
 let Tools;
@@ -284,6 +285,64 @@ export class ToolRegistryModule {
     bindRenderedToolButtons();
   }
 
+  /**
+   * @param {InitialToolBootOptions} options
+   * @returns {Promise<void>}
+   */
+  async bootInitialTools(options) {
+    const visibleToolNames = new Set(this.getRenderedToolNames());
+    for (const toolName of options.criticalToolNames) {
+      if (!visibleToolNames.has(toolName)) continue;
+      await this.bootTool(toolName);
+    }
+    for (const toolName of options.replaySafeToolNames) {
+      if (options.criticalToolNames.includes(toolName)) continue;
+      await this.bootTool(toolName);
+    }
+    if (options.pendingToolName) {
+      await this.activateTool(options.pendingToolName);
+    }
+    if (!this.current && this.mounted.hand && this.canUseTool("hand")) {
+      this.change("hand");
+    }
+  }
+
+  /**
+   * @param {ReadonlySet<string>} replaySafeToolNames
+   * @returns {void}
+   */
+  scheduleLazyBootRenderedTools(replaySafeToolNames) {
+    const schedule =
+      window.requestIdleCallback ||
+      /**
+       * @param {(deadline?: IdleDeadline) => void} callback
+       */
+      ((callback) => {
+        return window.setTimeout(
+          () =>
+            callback({
+              didTimeout: false,
+              timeRemaining: () => 0,
+            }),
+          50,
+        );
+      });
+    this.getRenderedToolNames()
+      .filter((toolName) => !replaySafeToolNames.has(toolName))
+      .forEach((toolName) => {
+        schedule(() => {
+          void this.bootTool(toolName);
+        });
+      });
+  }
+
+  /**
+   * @returns {string[]}
+   */
+  getRenderedToolNames() {
+    return getRenderedToolNames();
+  }
+
   /** @param {MountedAppTool} tool */
   normalizeServerRenderedElementsForTool(tool) {
     const dom = getAttachedBoardDom();
@@ -380,6 +439,15 @@ function bindRenderedToolButtons() {
       if (!toolName) return;
       bindToolButton(element, toolName);
     });
+}
+
+/**
+ * @returns {string[]}
+ */
+function getRenderedToolNames() {
+  return Array.from(document.querySelectorAll("#tools > .tool[data-tool-id]"))
+    .map((element) => element.getAttribute("data-tool-id") || "")
+    .filter(Boolean);
 }
 
 /**

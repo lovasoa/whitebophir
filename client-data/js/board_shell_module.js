@@ -1,4 +1,5 @@
 import { updateDocumentTitle } from "./board_message_module.js";
+import * as BoardMessageReplay from "./board_message_replay.js";
 import {
   getRequiredElement,
   normalizeBoardState,
@@ -50,6 +51,45 @@ function getRequiredInput(elementId) {
   return /** @type {HTMLInputElement} */ (getRequiredElement(elementId));
 }
 
+/**
+ * @param {Document} document
+ * @param {string} elementId
+ * @returns {Promise<Element>}
+ */
+function waitForElement(document, elementId) {
+  const existing = document.getElementById(elementId);
+  if (existing) return Promise.resolve(existing);
+  return new Promise((resolve) => {
+    const observer = new MutationObserver(() => {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      observer.disconnect();
+      resolve(element);
+    });
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+  });
+}
+
+/**
+ * @param {SVGSVGElement} svg
+ * @returns {{authoritativeSeq: number, drawingArea: SVGGElement}}
+ */
+function readInlineBaseline(svg) {
+  const drawingArea = svg.getElementById("drawingArea");
+  if (!(drawingArea instanceof SVGGElement)) {
+    throw new Error("Missing required element: #drawingArea");
+  }
+  return {
+    authoritativeSeq: BoardMessageReplay.normalizeSeq(
+      svg.getAttribute("data-wbo-seq"),
+    ),
+    drawingArea: drawingArea,
+  };
+}
+
 export class BoardShellModule {
   /**
    * @param {() => AppToolsState} getTools
@@ -58,6 +98,41 @@ export class BoardShellModule {
   constructor(getTools, logBoardEvent) {
     this.getTools = getTools;
     this.logBoardEvent = logBoardEvent;
+  }
+
+  /**
+   * @param {Document} document
+   * @returns {Promise<void>}
+   */
+  async attachBoardDom(document) {
+    const Tools = this.getTools();
+    const [boardElement, canvasElement] = await Promise.all([
+      waitForElement(document, "board"),
+      waitForElement(document, "canvas"),
+    ]);
+    if (!(boardElement instanceof HTMLElement)) {
+      throw new Error("Missing required element: #board");
+    }
+    if (!(canvasElement instanceof SVGSVGElement)) {
+      throw new Error("Missing required element: #canvas");
+    }
+    const baseline = readInlineBaseline(canvasElement);
+    const dom = Tools.attachDom(
+      boardElement,
+      canvasElement,
+      baseline.drawingArea,
+    );
+    Tools.replay.authoritativeSeq = baseline.authoritativeSeq;
+    dom.svg.width.baseVal.value = Math.max(
+      dom.svg.width.baseVal.value,
+      document.body.clientWidth,
+    );
+    dom.svg.height.baseVal.value = Math.max(
+      dom.svg.height.baseVal.value,
+      document.body.clientHeight,
+    );
+    Tools.toolRegistry.normalizeServerRenderedElements();
+    Tools.toolRegistry.syncActiveToolInputPolicy();
   }
 
   initializePageChrome() {

@@ -1,5 +1,6 @@
 import { DRAW_TOOL_IDS } from "../tools/tool-order.js";
 import { errorLogFields, logFrontendEvent } from "./frontend_logging.js";
+
 const documentElement = document.documentElement;
 /** @type {string} */
 const PATH_DATA_POLYFILL_MODULE = "./path-data-polyfill.js";
@@ -31,87 +32,29 @@ function setBoardBootPhase(phase) {
 }
 
 /**
- * @returns {string[]}
- */
-function getRenderedToolNames() {
-  return Array.from(document.querySelectorAll("#tools > .tool[data-tool-id]"))
-    .map((element) => element.getAttribute("data-tool-id") || "")
-    .filter(Boolean);
-}
-
-/**
  * @returns {Promise<void>}
  */
-async function lazyBootRenderedTools() {
-  const tools = window.WBOApp;
-  if (!tools) return;
-  const schedule =
-    window.requestIdleCallback ||
-    /**
-     * @param {(deadline?: IdleDeadline) => void} callback
-     */
-    ((callback) => {
-      return window.setTimeout(
-        () =>
-          callback({
-            didTimeout: false,
-            timeRemaining: () => 0,
-          }),
-        50,
-      );
-    });
-  const renderedToolNames = getRenderedToolNames().filter(
-    (toolName) => !REPLAY_SAFE_TOOL_NAMES.has(toolName),
-  );
-  renderedToolNames.forEach((toolName) => {
-    schedule(() => {
-      void tools.toolRegistry.bootTool(toolName);
-    });
-  });
-}
-
 async function bootBoardPage() {
-  const boardModule = await import("./board.js");
+  const { createBoardRuntimeFromPage } = await import("./board.js");
   await import(PATH_DATA_POLYFILL_MODULE);
-  const tools = window.WBOApp;
-  if (!tools) {
-    throw new Error("Board runtime did not initialize the board app.");
-  }
+  const tools = createBoardRuntimeFromPage();
 
-  await boardModule.attachBoardDom(document);
-  tools.viewportState.controller.install();
+  await tools.shell.attachBoardDom(document);
+  tools.viewportState.install();
   setBoardBootPhase("connecting");
   tools.connection.start();
 
-  tools.viewportState.controller.installHashObservers();
-  tools.viewportState.controller.applyFromHash();
+  tools.viewportState.restoreFromHash();
   setBoardBootPhase("viewport-restored");
 
-  const renderedToolNames = getRenderedToolNames();
-  const visibleToolNames = new Set(renderedToolNames);
-
-  for (const toolName of CRITICAL_BOOT_TOOL_NAMES) {
-    if (!visibleToolNames.has(toolName)) continue;
-    await tools.toolRegistry.bootTool(toolName);
-  }
-  for (const toolName of REPLAY_SAFE_TOOL_NAMES) {
-    if (CRITICAL_BOOT_TOOL_NAMES.includes(toolName)) continue;
-    await tools.toolRegistry.bootTool(toolName);
-  }
-  const pendingToolName = documentElement.dataset.pendingTool || "";
-  if (pendingToolName) {
-    await tools.toolRegistry.activateTool(pendingToolName);
-  }
-  if (
-    !tools.toolRegistry.current &&
-    tools.toolRegistry.mounted.hand &&
-    tools.toolRegistry.canUseTool("hand")
-  ) {
-    tools.toolRegistry.change("hand");
-  }
+  await tools.toolRegistry.bootInitialTools({
+    criticalToolNames: CRITICAL_BOOT_TOOL_NAMES,
+    replaySafeToolNames: REPLAY_SAFE_TOOL_NAMES,
+    pendingToolName: documentElement.dataset.pendingTool || "",
+  });
   setBoardBootPhase("ready");
 
-  await lazyBootRenderedTools();
+  tools.toolRegistry.scheduleLazyBootRenderedTools(REPLAY_SAFE_TOOL_NAMES);
 }
 
 void bootBoardPage().catch((error) => {

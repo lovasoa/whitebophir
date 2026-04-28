@@ -247,6 +247,15 @@ export class ViewportStateModule {
     this.controller = controller;
     this.drawToolsAllowed = /** @type {boolean | null} */ (null);
   }
+
+  install() {
+    this.controller.install();
+  }
+
+  restoreFromHash() {
+    this.controller.installHashObservers();
+    this.controller.applyFromHash();
+  }
 }
 
 export class InteractionModule {
