@@ -39,8 +39,8 @@ export function frontendLogFields(fields) {
         : null,
     socketId: tools?.socket?.id || null,
     authoritativeSeq:
-      typeof tools?.authoritativeSeq === "number"
-        ? tools.authoritativeSeq
+      typeof tools?.replay?.authoritativeSeq === "number"
+        ? tools.replay.authoritativeSeq
         : null,
     connectionState:
       typeof tools?.connectionState === "string" ? tools.connectionState : null,

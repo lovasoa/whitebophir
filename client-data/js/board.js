@@ -222,7 +222,7 @@ export async function attachBoardDom(document) {
     svg: canvasElement,
     drawingArea: baseline.drawingArea,
   };
-  Tools.authoritativeSeq = baseline.authoritativeSeq;
+  Tools.replay.authoritativeSeq = baseline.authoritativeSeq;
   Tools.dom.svg.width.baseVal.value = Math.max(
     Tools.dom.svg.width.baseVal.value,
     document.body.clientWidth,
@@ -333,17 +333,19 @@ Tools.status = {
   explicitBoardStatus: null,
 };
 
-Tools.awaitingBoardSnapshot = true;
-Tools.hasAuthoritativeBoardSnapshot = false;
-Tools.authoritativeSeq = 0;
+Tools.replay = {
+  awaitingSnapshot: true,
+  hasAuthoritativeSnapshot: false,
+  refreshBaselineBeforeConnect: false,
+  authoritativeSeq: 0,
+  preSnapshotMessages: [],
+  incomingBroadcastQueue: [],
+  processingIncomingBroadcast: false,
+};
 Tools.optimistic = {
   journal: createOptimisticJournal(),
 };
-Tools.preSnapshotMessages = [];
-Tools.incomingBroadcastQueue = [];
-Tools.processingIncomingBroadcast = false;
 Tools.connectionState = /** @type {BoardConnectionState} */ ("idle");
-Tools.refreshBaselineBeforeConnect = false;
 Tools.localRateLimitStates = {
   general: RateLimitCommon.createRateLimitState(Date.now()),
   constructive: RateLimitCommon.createRateLimitState(Date.now()),
@@ -498,7 +500,7 @@ Tools.canBufferWrites = function canBufferWrites() {
   return !!(
     Tools.socket &&
     Tools.socket.connected &&
-    !Tools.awaitingBoardSnapshot &&
+    !Tools.replay.awaitingSnapshot &&
     !Tools.isWritePaused()
   );
 };
@@ -589,7 +591,7 @@ Tools.getBoardStatusView = function getBoardStatusView() {
   if (Tools.status.explicitBoardStatus) {
     return Tools.status.explicitBoardStatus;
   }
-  if (Tools.connectionState !== "connected" || Tools.awaitingBoardSnapshot) {
+  if (Tools.connectionState !== "connected" || Tools.replay.awaitingSnapshot) {
     return {
       hidden: false,
       state: "reconnecting",
@@ -851,8 +853,8 @@ Tools.applyAuthoritativeBaseline =
   function applyAuthoritativeBaseline(baseline) {
     const dom = getAttachedBoardDom();
     if (!dom) return;
-    Tools.hasAuthoritativeBoardSnapshot = true;
-    Tools.authoritativeSeq = baseline.seq;
+    Tools.replay.hasAuthoritativeSnapshot = true;
+    Tools.replay.authoritativeSeq = baseline.seq;
     Tools.optimistic.journal.reset();
     dom.svg.setAttribute("data-wbo-seq", String(baseline.seq));
     dom.svg.setAttribute(
@@ -1150,12 +1152,12 @@ function pruneBufferedWritesForInvalidatingMessage(message) {
 }
 
 Tools.beginAuthoritativeResync = function beginAuthoritativeResync() {
-  Tools.awaitingBoardSnapshot = true;
-  Tools.refreshBaselineBeforeConnect = true;
+  Tools.replay.awaitingSnapshot = true;
+  Tools.replay.refreshBaselineBeforeConnect = true;
   Tools.optimistic.journal.reset();
-  Tools.preSnapshotMessages = [];
-  Tools.incomingBroadcastQueue = [];
-  Tools.processingIncomingBroadcast = false;
+  Tools.replay.preSnapshotMessages = [];
+  Tools.replay.incomingBroadcastQueue = [];
+  Tools.replay.processingIncomingBroadcast = false;
   Tools.discardBufferedWrites();
   Tools.turnstile.pendingWrites = [];
   Tools.hideTurnstileOverlay();
@@ -1224,17 +1226,18 @@ function finalizeIncomingBroadcast(msg, processed) {
  * @returns {void}
  */
 function completeAuthoritativeReplay(replayedToSeq) {
-  Tools.hasAuthoritativeBoardSnapshot = true;
-  Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(replayedToSeq);
-  Tools.awaitingBoardSnapshot = false;
-  Tools.refreshBaselineBeforeConnect = false;
+  Tools.replay.hasAuthoritativeSnapshot = true;
+  Tools.replay.authoritativeSeq =
+    BoardMessageReplay.normalizeSeq(replayedToSeq);
+  Tools.replay.awaitingSnapshot = false;
+  Tools.replay.refreshBaselineBeforeConnect = false;
   Tools.flushBufferedWrites();
-  Tools.incomingBroadcastQueue =
+  Tools.replay.incomingBroadcastQueue =
     BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(
-      Tools.preSnapshotMessages,
-      Tools.authoritativeSeq,
-    ).concat(Tools.incomingBroadcastQueue);
-  Tools.preSnapshotMessages = [];
+      Tools.replay.preSnapshotMessages,
+      Tools.replay.authoritativeSeq,
+    ).concat(Tools.replay.incomingBroadcastQueue);
+  Tools.replay.preSnapshotMessages = [];
   Tools.restoreLocalCursor();
   Tools.syncWriteStatusIndicator();
 }
@@ -1247,12 +1250,12 @@ async function processAuthoritativeReplayBatch(batch) {
   const fromSeq = BoardMessageReplay.normalizeSeq(batch.fromSeq);
   const toSeq = BoardMessageReplay.normalizeSeq(batch.seq);
   if (
-    fromSeq !== Tools.authoritativeSeq ||
+    fromSeq !== Tools.replay.authoritativeSeq ||
     toSeq < fromSeq ||
     batch._children.length !== toSeq - fromSeq
   ) {
     logBoardEvent("warn", "replay.batch_gap", {
-      authoritativeSeq: Tools.authoritativeSeq,
+      authoritativeSeq: Tools.replay.authoritativeSeq,
       fromSeq,
       toSeq,
       childCount: batch._children.length,
@@ -1265,7 +1268,7 @@ async function processAuthoritativeReplayBatch(batch) {
   for (let index = 0; index < batch._children.length; index++) {
     const child = batch._children[index];
     if (child) await handleMessage(child);
-    Tools.authoritativeSeq = fromSeq + index + 1;
+    Tools.replay.authoritativeSeq = fromSeq + index + 1;
   }
   completeAuthoritativeReplay(toSeq);
   return true;
@@ -1293,14 +1296,14 @@ async function processIncomingBroadcast(msg) {
   if (isSequencedBroadcast) {
     const seqDisposition = BoardMessageReplay.classifySequencedMutationSeq(
       msg.seq,
-      Tools.authoritativeSeq,
+      Tools.replay.authoritativeSeq,
     );
     if (seqDisposition === "stale") {
       return false;
     }
     if (seqDisposition !== "next") {
       logBoardEvent("warn", "replay.gap", {
-        authoritativeSeq: Tools.authoritativeSeq,
+        authoritativeSeq: Tools.replay.authoritativeSeq,
         incomingSeq: msg.seq,
       });
       Tools.beginAuthoritativeResync();
@@ -1309,9 +1312,12 @@ async function processIncomingBroadcast(msg) {
     }
   }
   if (
-    BoardMessageReplay.shouldBufferLiveMessage(msg, Tools.awaitingBoardSnapshot)
+    BoardMessageReplay.shouldBufferLiveMessage(
+      msg,
+      Tools.replay.awaitingSnapshot,
+    )
   ) {
-    Tools.preSnapshotMessages.push(msg);
+    Tools.replay.preSnapshotMessages.push(msg);
     return false;
   }
   const replayMessage =
@@ -1338,24 +1344,24 @@ async function processIncomingBroadcast(msg) {
     await handleMessage(replayMessage);
   }
   if (isSequencedBroadcast) {
-    Tools.authoritativeSeq = BoardMessageReplay.normalizeSeq(msg.seq);
+    Tools.replay.authoritativeSeq = BoardMessageReplay.normalizeSeq(msg.seq);
   }
   return true;
 }
 
 async function drainIncomingBroadcastQueue() {
-  if (Tools.processingIncomingBroadcast) return;
-  Tools.processingIncomingBroadcast = true;
+  if (Tools.replay.processingIncomingBroadcast) return;
+  Tools.replay.processingIncomingBroadcast = true;
   try {
     while (true) {
-      const msg = Tools.incomingBroadcastQueue.shift();
+      const msg = Tools.replay.incomingBroadcastQueue.shift();
       if (!msg) return;
       const processed = await processIncomingBroadcast(msg);
       finalizeIncomingBroadcast(msg, processed);
     }
   } finally {
-    Tools.processingIncomingBroadcast = false;
-    if (Tools.incomingBroadcastQueue.length > 0) {
+    Tools.replay.processingIncomingBroadcast = false;
+    if (Tools.replay.incomingBroadcastQueue.length > 0) {
       void drainIncomingBroadcastQueue();
     }
   }
@@ -1366,7 +1372,7 @@ async function drainIncomingBroadcastQueue() {
  * @returns {void}
  */
 function enqueueIncomingBroadcast(msg) {
-  Tools.incomingBroadcastQueue.push(msg);
+  Tools.replay.incomingBroadcastQueue.push(msg);
   void drainIncomingBroadcastQueue();
 }
 
@@ -2077,7 +2083,7 @@ Tools.startConnection = () => {
     Tools.socket = null;
   }
   Tools.connectionState = "connecting";
-  Tools.awaitingBoardSnapshot = true;
+  Tools.replay.awaitingSnapshot = true;
   Object.values(getConnectedUsers()).forEach((user) => {
     if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
   });
@@ -2089,15 +2095,15 @@ Tools.startConnection = () => {
       scheduleSocketReconnect();
       return;
     }
-    if (Tools.refreshBaselineBeforeConnect) {
+    if (Tools.replay.refreshBaselineBeforeConnect) {
       try {
         await Tools.refreshAuthoritativeBaseline();
-        Tools.refreshBaselineBeforeConnect = false;
+        Tools.replay.refreshBaselineBeforeConnect = false;
       } catch (error) {
         logBoardEvent("error", "replay.baseline_refresh_failed", {
           error: error instanceof Error ? error.message : String(error),
           baselineUrl: getAuthoritativeBaselineUrl(),
-          pendingPreSnapshotMessages: Tools.preSnapshotMessages.length,
+          pendingPreSnapshotMessages: Tools.replay.preSnapshotMessages.length,
         });
         scheduleSocketReconnect(1000);
         return;
@@ -2110,7 +2116,7 @@ Tools.startConnection = () => {
       Tools.identity.token,
       Tools.identity.boardName,
       {
-        baselineSeq: String(Tools.authoritativeSeq),
+        baselineSeq: String(Tools.replay.authoritativeSeq),
         tool: Tools.preferences.initial.tool,
         color: Tools.getColor(),
         size: String(Tools.getSize()),
@@ -2196,12 +2202,12 @@ Tools.startConnection = () => {
           ...(data?.minReplayableSeq === undefined
             ? {}
             : { minReplayableSeq: data.minReplayableSeq }),
-          authoritativeSeq: Tools.authoritativeSeq,
+          authoritativeSeq: Tools.replay.authoritativeSeq,
         });
         Tools.connectionState = "disconnected";
         if (reason === "baseline_not_replayable") {
           logBoardEvent("warn", "replay.baseline_not_replayable", {
-            authoritativeSeq: Tools.authoritativeSeq,
+            authoritativeSeq: Tools.replay.authoritativeSeq,
             latestSeq: BoardMessageReplay.normalizeSeq(data?.latestSeq),
             minReplayableSeq: BoardMessageReplay.normalizeSeq(
               data?.minReplayableSeq,
@@ -3017,7 +3023,7 @@ Tools.drawAndSend = (data) => {
   if (
     !Tools.socket ||
     !Tools.socket.connected ||
-    Tools.awaitingBoardSnapshot ||
+    Tools.replay.awaitingSnapshot ||
     Tools.isWritePaused()
   ) {
     return false;

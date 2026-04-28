@@ -526,7 +526,7 @@ test.describe("collaboration and rate limiting", () => {
       }>((resolve) => {
         window.WBOApp.socket.once("disconnect", () => {
           resolve({
-            awaitingBoardSnapshot: !!window.WBOApp.awaitingBoardSnapshot,
+            awaitingBoardSnapshot: !!window.WBOApp.replay.awaitingSnapshot,
             connectionState: String(window.WBOApp.connectionState ?? ""),
             statusVisible:
               !document.getElementById("boardStatusIndicator")?.hidden ?? false,
@@ -783,7 +783,7 @@ test.describe("collaboration and rate limiting", () => {
       return {
         boardPhase: document.documentElement.dataset.boardPhase,
         connectionState: String(window.WBOApp.connectionState ?? ""),
-        awaitingBoardSnapshot: !!window.WBOApp.awaitingBoardSnapshot,
+        awaitingBoardSnapshot: !!window.WBOApp.replay.awaitingSnapshot,
         statusHidden: statusIndicator?.hidden ?? true,
         pencilCount: document.querySelectorAll("#drawingArea path#slow-pencil")
           .length,

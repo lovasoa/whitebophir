@@ -303,7 +303,7 @@ window.turnstile = {
           return !!(
             tools &&
             tools.connectionState === "connected" &&
-            tools.awaitingBoardSnapshot === false &&
+            tools.replay.awaitingSnapshot === false &&
             typeof tools.isWritePaused === "function" &&
             !tools.isWritePaused()
           );
@@ -935,9 +935,9 @@ window.turnstile = {
       return {
         connected: !!window.WBOApp?.socket?.connected,
         bufferedWrites: window.WBOApp.bufferedWrites.length,
-        awaitingBoardSnapshot: !!window.WBOApp.awaitingBoardSnapshot,
+        awaitingBoardSnapshot: !!window.WBOApp.replay.awaitingSnapshot,
         hasAuthoritativeBoardSnapshot:
-          !!window.WBOApp.hasAuthoritativeBoardSnapshot,
+          !!window.WBOApp.replay.hasAuthoritativeSnapshot,
         connectionState: String(window.WBOApp.connectionState ?? ""),
         indicatorClass: indicator?.className ?? "",
         noticeText: notice?.textContent ?? "",

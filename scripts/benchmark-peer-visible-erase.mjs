@@ -97,7 +97,7 @@ function benchInitScript(targetId) {
     window.__wboBench = { navStart: performance.now(), renderCompleteMs: null, eraseDispatchMs: null };
     const markRenderComplete = () => {
       const tools = window.WBOApp;
-      if (window.__wboBench.renderCompleteMs === null && tools && tools.awaitingBoardSnapshot === false && document.getElementById(${JSON.stringify(targetId)})) {
+      if (window.__wboBench.renderCompleteMs === null && tools && tools.replay.awaitingSnapshot === false && document.getElementById(${JSON.stringify(targetId)})) {
         window.__wboBench.renderCompleteMs = performance.now() - window.__wboBench.navStart;
         return;
       }

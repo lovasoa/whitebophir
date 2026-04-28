@@ -70,7 +70,7 @@ async function waitForBoardReady(page) {
       tools &&
       document.documentElement.dataset.boardPhase === "ready" &&
       tools.socket?.connected &&
-      tools.awaitingBoardSnapshot === false &&
+      tools.replay.awaitingSnapshot === false &&
       !tools.isWritePaused?.()
     );
   });
