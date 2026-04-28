@@ -396,19 +396,19 @@ export type AppSocket = {
         ? () => void
         : (payload: ClientSocketIncomingEventMap[K]) => void,
     ): void;
-    (eventName: string, handler: (...args: any[]) => void): void;
+    (eventName: string, handler: (...args: unknown[]) => void): void;
   };
   emit: {
     <K extends keyof ClientSocketOutgoingEventArgs>(
       eventName: K,
       ...args: ClientSocketOutgoingEventArgs[K]
     ): void;
-    (eventName: string, ...args: any[]): void;
+    (eventName: string, ...args: unknown[]): void;
   };
   connect?: () => void;
   disconnect?: () => void;
   destroy?: () => void;
-  once?: (eventName: string, handler: (...args: any[]) => void) => void;
+  once?: (eventName: string, handler: (...args: unknown[]) => void) => void;
   io?: { engine?: { close: () => void }; opts?: { query?: string } };
 };
 

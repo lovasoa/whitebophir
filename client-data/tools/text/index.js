@@ -214,16 +214,18 @@ const contract = {
     );
   },
   renderBoardSvg(text, helpers) {
+    const x = helpers.numberOrZero(text.x);
+    const y = helpers.numberOrZero(text.y);
     return (
       "<text " +
       'id="' +
       helpers.htmlspecialchars(text.id || "t") +
       '" ' +
       'x="' +
-      (text.x | 0) +
+      (x | 0) +
       '" ' +
       'y="' +
-      (text.y | 0) +
+      (y | 0) +
       '" ' +
       'font-size="' +
       (helpers.numberOrZero(text.size) | 0) +

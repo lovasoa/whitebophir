@@ -2,12 +2,16 @@
  * @typedef {{attributes?: {[name: string]: string}, rawAttributes?: string, id?: string, content?: string}} StoredSvgEntry
  * @typedef {{a: number, b: number, c: number, d: number, e: number, f: number}} SvgTransform
  * @typedef {{minX: number, minY: number, maxX: number, maxY: number}} LocalBounds
- * @typedef {{id: string, tool: string, paintOrder?: number, data: object, localBounds: LocalBounds}} StoredShapeSummary
- * @typedef {{id?: string, color?: string, size?: number, opacity?: number, transform?: SvgTransform, x?: number, y?: number, x2?: number, y2?: number}} StoredShapeItem
+ * @typedef {{id: string, tool: string, paintOrder?: number, data: object, localBounds: LocalBounds | null}} StoredShapeSummary
+ * @typedef {{x: number, y: number}} StoredPoint
+ * @typedef {{[key: string]: unknown, id?: string, tool?: string, color?: string, size?: number, opacity?: number, transform?: SvgTransform, x?: number, y?: number, x2?: number, y2?: number, txt?: string, _children?: StoredPoint[], deltax?: number, deltay?: number}} StoredShapeItem
  * @typedef {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: SvgTransform | undefined) => string}} StoredShapeSerializeHelpers
+ * @typedef {{id: string, opacity?: number, transform?: SvgTransform, decorateStoredItemData: (data: object, opacity: number | undefined, transform: SvgTransform | undefined) => object, decodedTextLength: (value: string) => number, parseNumber: (value: unknown) => number | undefined, readStoredSvgAttribute: (entry: StoredSvgEntry, name: string) => string | undefined}} StoredShapeSummaryHelpers
+ * @typedef {{readStoredSvgAttribute: (entry: StoredSvgEntry, name: string) => string | undefined, unescapeHtml: (value: string) => string}} StoredShapeParseHelpers
+ * @typedef {{htmlspecialchars: (value: string) => string, numberOrZero: (value: unknown) => number, renderPath: (item: StoredShapeItem, pathString: string) => string, renderTranslate: (item: StoredShapeItem) => string}} StoredShapeRenderHelpers
  * @typedef {ReadonlyArray<string>} UpdatableFields
  * @typedef {Readonly<Record<number, Readonly<Record<string, string>>>>} LiveMessageFields
- * @typedef {{toolId: string, toolCode: import("../../types/app-runtime").ToolCode, storedTagName?: string, shapeTool?: boolean, updatableFields?: UpdatableFields, drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", liveMessageFields?: LiveMessageFields, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: any) => any, serializeStoredSvgItem: (item: any, helpers: any) => string, parseStoredSvgItem?: (summary: any, entry: StoredSvgEntry, helpers: any) => any, renderBoardSvg?: (shape: any, helpers: any) => string}} ToolContract
+ * @typedef {{toolId: string, toolCode: import("../../types/app-runtime").ToolCode, storedTagName?: string, shapeTool?: boolean, updatableFields?: UpdatableFields, drawsOnBoard?: boolean, payloadKind?: "inline" | "text" | "children", liveMessageFields?: LiveMessageFields, summarizeStoredSvgItem: (entry: StoredSvgEntry, paintOrder: number | undefined, helpers: StoredShapeSummaryHelpers) => StoredShapeSummary | null, serializeStoredSvgItem: (item: StoredShapeItem, helpers: StoredShapeSerializeHelpers) => string, parseStoredSvgItem?: (summary: StoredShapeSummary, entry: StoredSvgEntry, helpers: StoredShapeParseHelpers) => StoredShapeItem | null, renderBoardSvg?: (shape: StoredShapeItem, helpers: StoredShapeRenderHelpers) => string}} ToolContract
  */
 
 /**

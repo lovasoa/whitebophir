@@ -84,10 +84,14 @@ const contract = defineShapeContract({
     );
   },
   renderBoardSvg(shape, helpers) {
-    const cx = Math.round((shape.x2 + shape.x) / 2);
-    const cy = Math.round((shape.y2 + shape.y) / 2);
-    const rx = Math.abs(shape.x2 - shape.x) / 2;
-    const ry = Math.abs(shape.y2 - shape.y) / 2;
+    const x = helpers.numberOrZero(shape.x);
+    const y = helpers.numberOrZero(shape.y);
+    const x2 = helpers.numberOrZero(shape.x2);
+    const y2 = helpers.numberOrZero(shape.y2);
+    const cx = Math.round((x2 + x) / 2);
+    const cy = Math.round((y2 + y) / 2);
+    const rx = Math.abs(x2 - x) / 2;
+    const ry = Math.abs(y2 - y) / 2;
     return helpers.renderPath(
       shape,
       `M${cx - rx} ${cy}a${rx},${ry} 0 1,0 ${rx * 2},0a${rx},${ry} 0 1,0 ${rx * -2},0`,

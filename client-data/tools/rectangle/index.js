@@ -90,12 +90,17 @@ const contract = defineShapeContract({
     );
   },
   renderBoardSvg(shape, helpers) {
-    const bounds = normalizeRectBounds(shape.x, shape.y, shape.x2, shape.y2);
+    const bounds = normalizeRectBounds(
+      helpers.numberOrZero(shape.x),
+      helpers.numberOrZero(shape.y),
+      helpers.numberOrZero(shape.x2),
+      helpers.numberOrZero(shape.y2),
+    );
     return (
       "<rect " +
       (shape.id ? `id="${helpers.htmlspecialchars(shape.id)}" ` : "") +
       `x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" ` +
-      `stroke="${helpers.htmlspecialchars(shape.color)}" stroke-width="${helpers.numberOrZero(shape.size) | 0}" ` +
+      `stroke="${helpers.htmlspecialchars(shape.color || "#000")}" stroke-width="${helpers.numberOrZero(shape.size) | 0}" ` +
       helpers.renderTranslate(shape) +
       "/>"
     );

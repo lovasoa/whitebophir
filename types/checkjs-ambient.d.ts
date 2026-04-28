@@ -1,15 +1,36 @@
-// biome-ignore-all lint/suspicious/noExplicitAny: This file defines global types for untyped external libraries and internal global state.
 export {};
 
 declare global {
-  const io: any;
+  type WboPathDataSegment = { type: string; values: number[] };
+  type SelectionButtonElement = SVGImageElement & {
+    origWidth: number;
+    origHeight: number;
+    drawCallback: SelectionButtonDrawCallback;
+    clickCallback: SelectionButtonClickCallback;
+  };
+  type SelectionButtonDrawCallback = (
+    button: SelectionButtonElement,
+    bbox: TransformedBBox,
+    scale: number,
+  ) => void;
+  type SelectionButtonClickCallback = (
+    x: number,
+    y: number,
+    evt: { preventDefault(): void },
+  ) => void;
+
+  const io: {
+    connect(
+      path: string,
+      params: import("../types/app-runtime").SocketParams,
+    ): import("../types/app-runtime").AppSocket;
+  };
   const turnstile: import("../types/app-runtime").TurnstileGlobal;
   type TransformedBBox = {
     r: [number, number];
     a: [number, number];
     b: [number, number];
   };
-  const wboPencilPoint: any;
   var pointInTransformedBBox: (
     point: [number, number],
     bbox: TransformedBBox,
@@ -28,7 +49,7 @@ declare global {
     __downloadCapture?: import("../types/app-runtime").DownloadCapture | null;
     __downloadAnchorClicks?: number;
     __downloadBlob?: Blob;
-    __lastAlert?: any;
+    __lastAlert?: string | null;
     __receivedBroadcasts?: import("../types/app-runtime").BoardMessage[];
     __turnstileOptions?:
       | import("../types/app-runtime").TurnstileRenderOptions
@@ -41,39 +62,39 @@ declare global {
   }
 
   interface SVGPathElement {
-    getPathData(options?: { normalize?: boolean }): any[];
-    setPathData(pathData: any[]): void;
+    getPathData(options?: { normalize?: boolean }): WboPathDataSegment[];
+    setPathData(pathData: WboPathDataSegment[]): void;
   }
 
   interface SVGRectElement {
-    getPathData(options?: { normalize?: boolean }): any[];
+    getPathData(options?: { normalize?: boolean }): WboPathDataSegment[];
   }
 
   interface SVGCircleElement {
-    getPathData(options?: { normalize?: boolean }): any[];
+    getPathData(options?: { normalize?: boolean }): WboPathDataSegment[];
   }
 
   interface SVGEllipseElement {
-    getPathData(options?: { normalize?: boolean }): any[];
+    getPathData(options?: { normalize?: boolean }): WboPathDataSegment[];
   }
 
   interface SVGLineElement {
-    getPathData(options?: { normalize?: boolean }): any[];
+    getPathData(options?: { normalize?: boolean }): WboPathDataSegment[];
   }
 
   interface SVGPolylineElement {
-    getPathData(options?: { normalize?: boolean }): any[];
+    getPathData(options?: { normalize?: boolean }): WboPathDataSegment[];
   }
 
   interface SVGPolygonElement {
-    getPathData(options?: { normalize?: boolean }): any[];
+    getPathData(options?: { normalize?: boolean }): WboPathDataSegment[];
   }
 
   interface SVGGraphicsElement {
     origWidth?: number;
     origHeight?: number;
-    drawCallback?: any;
-    clickCallback?: any;
+    drawCallback?: SelectionButtonDrawCallback;
+    clickCallback?: SelectionButtonClickCallback;
     transformedBBox(scale?: number): TransformedBBox;
     transformedBBoxContains(x: number, y: number): boolean;
     transformedBBoxIntersects(bbox: TransformedBBox): boolean;
