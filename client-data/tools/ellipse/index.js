@@ -17,8 +17,6 @@ import {
   serializeStoredShapeTag,
   summarizeStoredShape,
 } from "../shape_contract.js";
-/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof ToolCodes.ELLIPSE>} EllipseCreateMessage */
-/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof ToolCodes.ELLIPSE>} EllipseUpdateMessage */
 
 export const toolId = "ellipse";
 export const drawsOnBoard = true;
@@ -98,6 +96,8 @@ const contract = defineShapeContract({
     );
   },
 });
+/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof contract.toolCode>} EllipseCreateMessage */
+/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof contract.toolCode>} EllipseUpdateMessage */
 export { contract };
 export const shortcut = "c";
 

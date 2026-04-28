@@ -834,55 +834,9 @@ export type AppCoordinateModule = {
 };
 
 /** Restricted runtime modules passed to tool boot. */
-export type ToolRuntimeModules = {
-  /** Attached board DOM and DOM helpers. */
-  readonly board: AttachedBoardDomModule & BoardDomActions;
-  /** Board-space coordinate conversion. */
-  readonly coordinates: AppCoordinateModule;
-  readonly viewport: ViewportController;
-  /** Write channel. Owns message send/queue semantics. */
-  readonly writes: Pick<
-    AppWriteModule,
-    "drawAndSend" | "send" | "canBufferWrites" | "whenBoardWritable"
-  >;
-  /** Stable board identity. */
-  readonly identity: AppIdentityModule;
-  /** Current drawing preferences. */
-  readonly preferences: Pick<
-    AppPreferenceModule,
-    "getColor" | "getSize" | "setSize" | "getOpacity"
-  >;
-  /** Rate-limit lookup. */
-  readonly rateLimits: Pick<AppRateLimitModule, "getEffectiveRateLimit">;
-  /** Active-tool controls. */
-  readonly toolRegistry: Pick<AppToolRegistryModule, "current" | "change">;
-  /** Pointer interaction flags. */
-  readonly interaction: Pick<
-    AppInteractionModule,
-    "drawingEvent" | "showMarker" | "showMyCursor"
-  >;
-  /** Server configuration. */
-  readonly config: AppConfigModule;
-  /** Id generation. */
-  readonly ids: AppIdModule;
-  /** Message replay helper for tools that synthesize child messages. */
-  readonly messages: Pick<AppMessageModule, "messageForTool">;
-  /** Permission state. */
-  readonly permissions: Pick<AppAccessModule, "canWrite">;
-};
-
-export type ToolBoardRuntimeModule = ToolRuntimeModules["board"];
-export type ToolCoordinateRuntimeModule = ToolRuntimeModules["coordinates"];
-export type ToolWriteRuntimeModule = ToolRuntimeModules["writes"];
-export type ToolIdentityRuntimeModule = ToolRuntimeModules["identity"];
-export type ToolPreferenceRuntimeModule = ToolRuntimeModules["preferences"];
-export type ToolRateLimitRuntimeModule = ToolRuntimeModules["rateLimits"];
-export type ToolRegistryRuntimeModule = ToolRuntimeModules["toolRegistry"];
-export type ToolInteractionRuntimeModule = ToolRuntimeModules["interaction"];
-export type ToolConfigRuntimeModule = ToolRuntimeModules["config"];
-export type ToolIdRuntimeModule = ToolRuntimeModules["ids"];
-export type ToolMessageRuntimeModule = ToolRuntimeModules["messages"];
-export type ToolPermissionRuntimeModule = ToolRuntimeModules["permissions"];
+export type ToolRuntimeModules = ReturnType<
+  typeof import("../client-data/js/board.js").createToolRuntimeModules
+>;
 
 /** Runtime root composed only of documented modules. */
 export type AppToolsState = {

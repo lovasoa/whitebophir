@@ -80,7 +80,7 @@ import {
 } from "../tools/tool-defaults.js";
 import { TOOL_BY_ID } from "../tools/index.js";
 
-/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ToolRuntimeModules, ViewportController } from "../../types/app-runtime" */
+/** @import { AppBoardState, AppToolsState, AttachedBoardDomModule, AuthoritativeBaseline, AuthoritativeReplayBatch, BoardConnectionState, BoardDomActions, BoardDomModule, BoardMessage, BoardStatusView, BufferedWrite, ColorPreset, CompiledToolListener, CompiledToolListeners, ConfiguredRateLimitDefinition, ConnectedUser, ConnectedUserMap, DetachedBoardDomModule, HandChildMessage, IncomingBroadcast, LiveBoardMessage, MessageHook, MountedAppTool, MountedAppToolsState, MutationRejectedPayload, OptimisticJournalEntry, OptimisticRollback, PendingMessages, PendingWrite, RateLimitKind, ReplayMessage, ServerConfig, SocketHeaders, ToolBootContext, ToolModule, ToolPointerListener, ToolPointerListeners, ViewportController } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 const Tools = /** @type {AppToolsState} */ ({});
 window.WBOApp = Tools;
@@ -2604,23 +2604,68 @@ async function loadToolModule(toolName) {
 
 /**
  * @param {MountedAppToolsState} mountedTools
- * @returns {ToolRuntimeModules}
  */
-function createToolRuntimeModules(mountedTools) {
+export function createToolRuntimeModules(mountedTools) {
   return {
     board: mountedTools.dom,
     coordinates: mountedTools.coordinates,
     viewport: mountedTools.viewportState.controller,
-    writes: mountedTools.writes,
+    writes: {
+      drawAndSend: mountedTools.writes.drawAndSend,
+      send: mountedTools.writes.send,
+      canBufferWrites() {
+        return mountedTools.writes.canBufferWrites();
+      },
+      whenBoardWritable() {
+        return mountedTools.writes.whenBoardWritable();
+      },
+    },
     identity: mountedTools.identity,
-    preferences: mountedTools.preferences,
-    rateLimits: mountedTools.rateLimits,
-    toolRegistry: mountedTools.toolRegistry,
-    interaction: mountedTools.interaction,
+    preferences: {
+      getColor: mountedTools.preferences.getColor,
+      getSize: mountedTools.preferences.getSize,
+      setSize: mountedTools.preferences.setSize,
+      getOpacity: mountedTools.preferences.getOpacity,
+    },
+    rateLimits: {
+      getEffectiveRateLimit: mountedTools.rateLimits.getEffectiveRateLimit,
+    },
+    toolRegistry: {
+      get current() {
+        return mountedTools.toolRegistry.current;
+      },
+      change: mountedTools.toolRegistry.change,
+    },
+    interaction: {
+      get drawingEvent() {
+        return mountedTools.interaction.drawingEvent;
+      },
+      set drawingEvent(value) {
+        mountedTools.interaction.drawingEvent = value;
+      },
+      get showMarker() {
+        return mountedTools.interaction.showMarker;
+      },
+      set showMarker(value) {
+        mountedTools.interaction.showMarker = value;
+      },
+      get showMyCursor() {
+        return mountedTools.interaction.showMyCursor;
+      },
+      set showMyCursor(value) {
+        mountedTools.interaction.showMyCursor = value;
+      },
+    },
     config: mountedTools.config,
     ids: mountedTools.ids,
-    messages: mountedTools.messages,
-    permissions: mountedTools.access,
+    messages: {
+      messageForTool: mountedTools.messages.messageForTool,
+    },
+    permissions: {
+      get canWrite() {
+        return mountedTools.access.canWrite;
+      },
+    },
   };
 }
 

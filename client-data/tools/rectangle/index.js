@@ -17,8 +17,6 @@ import {
   serializeStoredShapeTag,
   summarizeStoredShape,
 } from "../shape_contract.js";
-/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof ToolCodes.RECTANGLE>} RectangleCreateMessage */
-/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof ToolCodes.RECTANGLE>} RectangleUpdateMessage */
 
 export const toolId = "rectangle";
 export const drawsOnBoard = true;
@@ -106,6 +104,8 @@ const contract = defineShapeContract({
     );
   },
 });
+/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof contract.toolCode>} RectangleCreateMessage */
+/** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof contract.toolCode>} RectangleUpdateMessage */
 export { contract };
 export const shortcut = "r";
 export const secondary = {

@@ -15,8 +15,6 @@ import {
   serializeStoredShapeTag,
   summarizeStoredShape,
 } from "../shape_contract.js";
-/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof ToolCodes.STRAIGHT_LINE>} StraightLineCreateMessage */
-/** @typedef {import("../shape_tool.js").ShapeLineUpdateMessage<typeof ToolCodes.STRAIGHT_LINE>} StraightLineUpdateMessage */
 
 export const toolId = "straight-line";
 export const drawsOnBoard = true;
@@ -85,6 +83,8 @@ const contract = defineShapeContract({
     );
   },
 });
+/** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof contract.toolCode>} StraightLineCreateMessage */
+/** @typedef {import("../shape_tool.js").ShapeLineUpdateMessage<typeof contract.toolCode>} StraightLineUpdateMessage */
 export { contract };
 export const shortcut = "l";
 export const secondary = {
