@@ -5,7 +5,7 @@ import MessageCommon from "./message_common.js";
 import { MutationType } from "./message_tool_metadata.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppToolsState, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
+/** @import { AppToolsState, AttachedBoardDomModule, BoardMessage, ConnectedUser, ConnectedUserMap, HandChildMessage } from "../../types/app-runtime" */
 /** @typedef {HTMLLIElement} ConnectedUserRow */
 
 export class PresenceModule {
@@ -101,6 +101,7 @@ export class PresenceModule {
    * @param {BoardMessage} message
    */
   updateConnectedUsersFromActivity(userId, message) {
+    const Tools = this.getTools();
     // Presence has three layers:
     // - `socketId`: one live browser tab/socket connection. This is the most precise activity target.
     // - `userId`: derived server-side from the shared user-secret cookie, so multiple tabs from one browser profile can share it.
@@ -109,7 +110,8 @@ export class PresenceModule {
     const messageSocketId = message.socket || null;
     if (!userId && messageSocketId === null) return;
     let changed = false;
-    const focusPoint = getMessageFocusPoint(message);
+    const dom = getAttachedBoardDom(Tools);
+    const focusPoint = dom ? getMessageFocusPoint(dom, message) : null;
     const renderConnectedUsers = () => this.renderConnectedUsers();
     Object.values(this.users).forEach((user) => {
       if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
@@ -197,6 +199,14 @@ function getConnectedUsersList() {
 }
 
 /**
+ * @param {AppToolsState} Tools
+ * @returns {AttachedBoardDomModule | null}
+ */
+function getAttachedBoardDom(Tools) {
+  return Tools.dom.status === "attached" ? Tools.dom : null;
+}
+
+/**
  * @param {ConnectedUserMap} users
  * @returns {number}
  */
@@ -281,7 +291,14 @@ function getBoundsCenter(bounds) {
  * @returns {{minX: number, minY: number, maxX: number, maxY: number} | null}
  */
 function getRenderedElementBounds(element) {
-  const box = element.transformedBBox();
+  if (typeof element.transformedBBox !== "function") return null;
+  /** @type {{r: [number, number], a: [number, number], b: [number, number]} | null} */
+  let box = null;
+  try {
+    box = element.transformedBBox();
+  } catch {
+    return null;
+  }
   /** @type {[number, number][]} */
   const points = [
     box.r,
@@ -314,10 +331,22 @@ function getRenderedElementBounds(element) {
 }
 
 /**
+ * @param {AttachedBoardDomModule} dom
+ * @param {string} elementId
+ * @returns {SVGGraphicsElement | null}
+ */
+function getBoardFocusElementById(dom, elementId) {
+  const element = dom.svg.getElementById(elementId);
+  if (!(element instanceof SVGGraphicsElement)) return null;
+  return dom.drawingArea.contains(element) ? element : null;
+}
+
+/**
+ * @param {AttachedBoardDomModule} dom
  * @param {HandChildMessage[]} children
  * @returns {{x: number, y: number} | null}
  */
-function getBatchFocusPoint(children) {
+function getBatchFocusPoint(dom, children) {
   /** @type {{minX: number, minY: number, maxX: number, maxY: number} | null} */
   let bounds = null;
   children.forEach((child) => {
@@ -328,8 +357,8 @@ function getBatchFocusPoint(children) {
           ? child.newid
           : null;
     if (!targetId) return;
-    const element = document.getElementById(targetId);
-    if (!(element instanceof SVGGraphicsElement)) return;
+    const element = getBoardFocusElementById(dom, targetId);
+    if (!element) return;
     const elementBounds = getRenderedElementBounds(element);
     if (!elementBounds) return;
     if (!bounds) {
@@ -347,12 +376,13 @@ function getBatchFocusPoint(children) {
 }
 
 /**
+ * @param {AttachedBoardDomModule} dom
  * @param {BoardMessage} message
  * @returns {{x: number, y: number} | null}
  */
-function getMessageFocusPoint(message) {
+function getMessageFocusPoint(dom, message) {
   if ("_children" in message) {
-    return getBatchFocusPoint(message._children);
+    return getBatchFocusPoint(dom, message._children);
   }
 
   if ("x" in message) {
@@ -360,10 +390,8 @@ function getMessageFocusPoint(message) {
   }
 
   if (message.type === MutationType.UPDATE && "id" in message) {
-    const element = document.getElementById(message.id);
-    return element instanceof SVGGraphicsElement
-      ? getBoundsCenter(getRenderedElementBounds(element))
-      : null;
+    const element = getBoardFocusElementById(dom, message.id);
+    return element ? getBoundsCenter(getRenderedElementBounds(element)) : null;
   }
 
   return getBoundsCenter(MessageCommon.getEffectiveGeometryBounds(message));
