@@ -166,7 +166,7 @@ export function applyCompressionForResponse(response, acceptEncoding, headers) {
   }
 
   headers["Content-Encoding"] = encoding;
-  if (Object.hasOwn(headers, "Content-Length")) {
+  if ("Content-Length" in headers) {
     delete headers["Content-Length"];
   }
   stream.pipe(response);

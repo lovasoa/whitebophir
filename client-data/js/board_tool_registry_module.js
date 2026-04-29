@@ -567,7 +567,7 @@ async function loadToolModule(toolName) {
  * @returns {boolean}
  */
 function isRegisteredToolId(toolName) {
-  return Object.hasOwn(TOOL_BY_ID, toolName);
+  return Object.prototype.hasOwnProperty.call(TOOL_BY_ID, toolName);
 }
 
 /**

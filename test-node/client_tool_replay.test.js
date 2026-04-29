@@ -1903,15 +1903,13 @@ test("Hand selector sends a final transform on quick release", async () => {
       },
     ],
   });
-  assert.deepEqual(
-    globalAny.Tools.viewportState.controller.ensuredBounds.at(-1),
-    {
-      minX: 140,
-      minY: 125,
-      maxX: 200,
-      maxY: 165,
-    },
-  );
+  const ensuredBounds = globalAny.Tools.viewportState.controller.ensuredBounds;
+  assert.deepEqual(ensuredBounds[ensuredBounds.length - 1], {
+    minX: 140,
+    minY: 125,
+    maxX: 200,
+    maxY: 165,
+  });
 });
 
 test("Hand replay expands viewport extent for transform-only updates", async () => {

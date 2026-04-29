@@ -255,5 +255,5 @@ test("normalizeIncomingMessage rejects invalid clientMutationId and strips it fr
     clientMutationId: "cursor-cm",
   });
   assert.equal(cursor.ok, true);
-  assert.equal(Object.hasOwn(cursor.value, "clientMutationId"), false);
+  assert.equal("clientMutationId" in cursor.value, false);
 });

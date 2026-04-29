@@ -58,7 +58,9 @@ export function getUpdatableFields(tool, data) {
   const updatable = {};
   const fields = getTool(tool)?.updatableFields || [];
   for (const field of fields) {
-    if (Object.hasOwn(data, field)) updatable[field] = data[field];
+    if (Object.prototype.hasOwnProperty.call(data, field)) {
+      updatable[field] = data[field];
+    }
   }
   return updatable;
 }

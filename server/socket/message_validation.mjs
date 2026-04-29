@@ -239,7 +239,7 @@ function normalizeObject(raw, fields) {
   for (const key in fields) {
     const field = fields[key];
     if (!field) continue;
-    const hasValue = Object.hasOwn(raw, key);
+    const hasValue = Object.prototype.hasOwnProperty.call(raw, key);
     /** @type {unknown} */
     let value;
 
@@ -407,7 +407,9 @@ const LIVE_BATCH_CHILD_SCHEMAS = Object.fromEntries(
  */
 function normalizeIncomingBatch(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
-  if (!Object.hasOwn(raw, "tool")) return rejected("missing tool");
+  if (!Object.prototype.hasOwnProperty.call(raw, "tool")) {
+    return rejected("missing tool");
+  }
   const toolCode = normalizeLiveToolCode(raw.tool);
   if (toolCode.ok === false) return toolCode;
 
@@ -441,7 +443,7 @@ function normalizeIncomingBatch(raw) {
     tool: /** @type {ToolOwnedBatchMessage["tool"]} */ (toolCode.value),
     _children: /** @type {ToolOwnedBatchMessage["_children"]} */ (children),
   };
-  if (Object.hasOwn(raw, "clientMutationId")) {
+  if (Object.prototype.hasOwnProperty.call(raw, "clientMutationId")) {
     const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
     if (!clientMutationId.ok) return clientMutationId;
     normalized.clientMutationId = clientMutationId.value;
@@ -456,7 +458,9 @@ function normalizeIncomingBatch(raw) {
 function normalizeIncomingMessage(raw) {
   if (!isPlainObject(raw)) return rejected("expected object");
   if (Array.isArray(raw._children)) return normalizeIncomingBatch(raw);
-  if (!Object.hasOwn(raw, "tool")) return rejected("missing tool");
+  if (!Object.prototype.hasOwnProperty.call(raw, "tool")) {
+    return rejected("missing tool");
+  }
   const toolCode = normalizeLiveToolCode(raw.tool);
   if (toolCode.ok === false) return toolCode;
 
@@ -473,7 +477,10 @@ function normalizeIncomingMessage(raw) {
   ) {
     return rejected("shape too large");
   }
-  if (toolCode.value !== Cursor.id && Object.hasOwn(raw, "clientMutationId")) {
+  if (
+    toolCode.value !== Cursor.id &&
+    Object.prototype.hasOwnProperty.call(raw, "clientMutationId")
+  ) {
     const clientMutationId = normalizeClientMutationId(raw.clientMutationId);
     if (!clientMutationId.ok) return clientMutationId;
     normalized.value.clientMutationId = clientMutationId.value;

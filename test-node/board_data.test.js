@@ -1207,9 +1207,9 @@ test("BoardData records contiguous mutation seq values and persists them into sv
 
     assert.equal(firstEntry.seq, 1);
     assert.equal(secondEntry.seq, 2);
-    assert.equal(Object.hasOwn(firstEntry, "board"), false);
-    assert.equal(Object.hasOwn(firstEntry, "clientMutationId"), false);
-    assert.equal(Object.hasOwn(firstEntry, "socketId"), false);
+    assert.equal("board" in firstEntry, false);
+    assert.equal("clientMutationId" in firstEntry, false);
+    assert.equal("socketId" in firstEntry, false);
     assert.equal(board.getSeq(), 2);
     assert.equal(board.minReplayableSeq(), 0);
     assert.deepEqual(

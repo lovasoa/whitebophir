@@ -1494,7 +1494,7 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
         liveBroadcastEvents(created)[0],
       ).payload;
       assert.equal(sequencedBroadcast.mutation.socket, "socket-live");
-      assert.equal(Object.hasOwn(sequencedBroadcast.mutation, "userId"), false);
+      assert.equal("userId" in sequencedBroadcast.mutation, false);
       assert.equal(user.lastTool, "rectangle");
       assert.equal(user.color, "#123456");
       assert.equal(user.size, 10);
@@ -1513,9 +1513,16 @@ test("live broadcasts attach socket attribution and keep the user's latest non-c
       assert.equal(user.lastTool, "rectangle");
       assert.equal(user.color, "#abcdef");
       assert.equal(user.size, 12);
-      const cursorBroadcast = getRequiredValue(
-        created.broadcasted.findLast((event) => event.event === "broadcast"),
-      );
+      let cursorBroadcast;
+      for (let index = created.broadcasted.length - 1; index >= 0; index--) {
+        const event = created.broadcasted[index];
+        if (!event) continue;
+        if (event.event === "broadcast") {
+          cursorBroadcast = event;
+          break;
+        }
+      }
+      cursorBroadcast = getRequiredValue(cursorBroadcast);
       assert.equal(cursorBroadcast.payload.socket, user.socketId);
     },
   );
@@ -1570,7 +1577,7 @@ test("same-session sockets keep a shared userId in presence but live payload att
       const liveBroadcast = getRequiredValue(liveBroadcastEvents(second)[0]);
       const payload = liveBroadcast.payload.mutation;
       assert.equal(payload.socket, "socket-a");
-      assert.equal(Object.hasOwn(payload, "userId"), false);
+      assert.equal("userId" in payload, false);
       assert.equal(firstUser.lastTool, "rectangle");
       assert.equal(secondUser.lastTool, "hand");
     },

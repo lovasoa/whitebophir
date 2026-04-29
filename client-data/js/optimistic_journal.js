@@ -177,7 +177,11 @@ export function createOptimisticJournal() {
     dependencyMutationIdsForItemIds(itemIds) {
       const dependencyMutationIds = new Set();
       for (const itemId of itemIds) {
-        const clientMutationId = latestMutationIdsByItemId.get(itemId)?.at(-1);
+        const mutationIds = latestMutationIdsByItemId.get(itemId);
+        const clientMutationId =
+          mutationIds === undefined
+            ? undefined
+            : mutationIds[mutationIds.length - 1];
         if (clientMutationId !== undefined) {
           dependencyMutationIds.add(clientMutationId);
         }
