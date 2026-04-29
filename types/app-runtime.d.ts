@@ -281,6 +281,7 @@ export type MountedAppTool = PointerListenerMap<ToolPointerListener> & {
   normalizeServerRenderedElement?: (element: SVGElement) => void;
   serverRenderedElementSelector?: string;
   onMessage?: (message: BoardMessage) => void;
+  cancelTouchGesture?: (evt: TouchEvent) => void;
   listeners: ToolPointerListeners;
   compiledListeners: CompiledToolListeners;
   onstart: (oldTool: MaybeMountedAppTool) => void;
@@ -552,6 +553,7 @@ export type ToolModule<T = unknown> = {
     evt: MouseEvent | TouchEvent,
     isTouchEvent: boolean,
   ): unknown;
+  cancelTouchGesture?(state: T, evt: TouchEvent): unknown;
   boot(ctx: ToolBootContext): Promise<T> | T;
   draw(state: T, message: BoardMessage, isLocal: boolean): void;
   normalizeServerRenderedElement?(state: T, element: SVGElement): void;

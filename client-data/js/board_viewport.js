@@ -17,6 +17,17 @@ const PINCH_MIN_DISTANCE = 16;
 const BOARD_EXTENT_MARGIN = 20000;
 const APP_TOOL_TOUCH_ACTION = "none";
 const BROWSER_SCROLL_WITHOUT_ZOOM_TOUCH_ACTION = "pan-x pan-y";
+const TOUCH_EVENT_LISTENER_OPTIONS = {
+  passive: false,
+  capture: true,
+};
+/** @type {GestureCoordinatorEventName[]} */
+const TOUCH_EVENT_NAMES = [
+  "touchstart",
+  "touchmove",
+  "touchend",
+  "touchcancel",
+];
 
 /**
  * @typedef {{
@@ -40,7 +51,11 @@ const BROWSER_SCROLL_WITHOUT_ZOOM_TOUCH_ACTION = "pan-x pan-y";
  */
 
 /** @typedef {"app-gesture" | "native-pan"} ViewportTouchPolicy */
+/** @typedef {"none" | "browser" | "viewport-pinch"} TouchGestureOwner */
 /** @typedef {Pick<import("../../types/app-runtime").AppToolsState, "config" | "coordinates" | "dom" | "preferences" | "toolRegistry" | "viewportState">} ViewportRuntime */
+/** @typedef {{startPinch(event: TouchEvent): void, updatePinch(event: TouchEvent): void, endPinch(): void, cancelPinch(): void}} GestureCoordinatorHandlers */
+/** @typedef {"touchstart" | "touchmove" | "touchend" | "touchcancel"} GestureCoordinatorEventName */
+/** @typedef {Record<GestureCoordinatorEventName, (event: TouchEvent) => void>} GestureCoordinatorEventHandlers */
 
 /**
  * @typedef {{
@@ -238,6 +253,89 @@ function midpoint(first, second) {
     pageX: (first.pageX + second.pageX) / 2,
     pageY: (first.pageY + second.pageY) / 2,
   };
+}
+
+/**
+ * @param {Event} event
+ * @returns {boolean}
+ */
+export function safePreventDefault(event) {
+  if (!event.cancelable) return false;
+  event.preventDefault();
+  return true;
+}
+
+class GestureCoordinator {
+  /** @param {GestureCoordinatorHandlers} handlers */
+  constructor(handlers) {
+    this.handlers = handlers;
+    /** @type {TouchGestureOwner} */
+    this.owner = "none";
+
+    /** @type {GestureCoordinatorEventHandlers} */
+    this.eventHandlers = {
+      touchstart: (event) => {
+        if (!this.acceptCancelableTouchEvent(event)) return;
+        if (event.touches.length >= 2) {
+          this.claimViewportPinch(event);
+          this.handlers.startPinch(event);
+        }
+      },
+      touchmove: (event) => {
+        if (!this.acceptCancelableTouchEvent(event)) return;
+        if (this.owner === "browser") return;
+        if (event.touches.length >= 2) {
+          this.claimViewportPinch(event);
+          this.handlers.updatePinch(event);
+          return;
+        }
+        if (this.owner === "viewport-pinch") safePreventDefault(event);
+      },
+      touchend: (event) => {
+        if (!this.acceptCancelableTouchEvent(event)) return;
+        if (this.owner === "viewport-pinch") {
+          safePreventDefault(event);
+          if (event.touches.length === 0) {
+            this.handlers.endPinch();
+            this.reset();
+          }
+          return;
+        }
+        if (event.touches.length === 0) this.reset();
+      },
+      touchcancel: (event) => {
+        if (!this.acceptCancelableTouchEvent(event)) return;
+        if (this.owner === "viewport-pinch") {
+          safePreventDefault(event);
+          this.handlers.cancelPinch();
+        }
+        this.reset();
+      },
+    };
+  }
+
+  /** @returns {void} */
+  reset() {
+    this.owner = "none";
+  }
+
+  /**
+   * @param {TouchEvent} event
+   * @returns {boolean}
+   */
+  acceptCancelableTouchEvent(event) {
+    if (event.cancelable) return true;
+    if (this.owner === "viewport-pinch") this.handlers.cancelPinch();
+    this.owner = "browser";
+    if (event.touches.length === 0) this.reset();
+    return false;
+  }
+
+  /** @param {TouchEvent} event */
+  claimViewportPinch(event) {
+    this.owner = "viewport-pinch";
+    safePreventDefault(event);
+  }
 }
 
 /**
@@ -535,21 +633,12 @@ export function createViewportController(Tools) {
    * @param {TouchEvent} event
    * @returns {void}
    */
-  function handleTouchStart(event) {
-    if (event.touches.length === 2) startPinch(event);
-  }
-
-  /**
-   * @param {TouchEvent} event
-   * @returns {void}
-   */
-  function handleTouchMove(event) {
+  function updatePinch(event) {
     if (event.touches.length !== 2) return;
     const touches = getPinchTouches(event);
     if (!touches) return;
     if (!activePinch) startPinch(event);
     if (!activePinch) return;
-    event.stopPropagation();
     const distance = distanceBetween(touches[0], touches[1]);
     const anchor = midpoint(touches[0], touches[1]);
     zoomAtPagePoint(
@@ -559,17 +648,22 @@ export function createViewportController(Tools) {
     );
   }
 
-  /**
-   * @param {TouchEvent} event
-   * @returns {void}
-   */
-  function handleTouchEnd(event) {
-    if (event.touches.length < 2) {
-      const wasPinching = !!activePinch;
-      activePinch = null;
-      if (wasPinching) scheduleViewportHashSync();
-    }
+  function endPinch() {
+    const wasPinching = !!activePinch;
+    activePinch = null;
+    if (wasPinching) scheduleViewportHashSync();
   }
+
+  function cancelPinch() {
+    activePinch = null;
+  }
+
+  const gestureCoordinator = new GestureCoordinator({
+    startPinch,
+    updatePinch,
+    endPinch,
+    cancelPinch,
+  });
 
   function clearViewportHashSync() {
     if (viewportHashScrollTimeout !== null) {
@@ -672,20 +766,13 @@ export function createViewportController(Tools) {
       installed = true;
       window.addEventListener("resize", syncLayoutSize);
       dom.board.addEventListener("wheel", handleWheel, { passive: false });
-      dom.board.addEventListener("touchstart", handleTouchStart, {
-        passive: true,
-        capture: true,
-      });
-      dom.board.addEventListener("touchmove", handleTouchMove, {
-        passive: true,
-        capture: true,
-      });
-      dom.board.addEventListener("touchend", handleTouchEnd, {
-        capture: true,
-      });
-      dom.board.addEventListener("touchcancel", handleTouchEnd, {
-        capture: true,
-      });
+      for (const name of TOUCH_EVENT_NAMES) {
+        dom.board.addEventListener(
+          name,
+          gestureCoordinator.eventHandlers[name],
+          TOUCH_EVENT_LISTENER_OPTIONS,
+        );
+      }
     },
     installTemporaryPan() {
       const dom = getAttachedDom();

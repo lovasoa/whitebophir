@@ -1,6 +1,7 @@
 import { MutationType } from "../js/mutation_type.js";
 import { logFrontendEvent } from "../js/frontend_logging.js";
 import { clampCoord, LIMITS } from "../js/message_common.js";
+import { TOOL_CODE_BY_ID } from "./tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../types/app-runtime" */
 /** @typedef {typeof import("./tool-order.js").TOOL_CODE_BY_ID} ShapeToolCodeMap */
@@ -340,4 +341,25 @@ export function moveShapeTool(state, x, y, evt, force = false) {
 export function releaseShapeTool(state, x, y) {
   moveShapeTool(state, x, y, undefined, true);
   state.currentShape = null;
+}
+
+/** @param {string} shapeId */
+function createDeleteShapeMessage(shapeId) {
+  return {
+    tool: TOOL_CODE_BY_ID.eraser,
+    type: MutationType.DELETE,
+    id: shapeId,
+  };
+}
+
+/** @param {ShapeToolState} state */
+export function cancelShapeToolTouchGesture(state) {
+  const shapeId = state.currentShape?.id;
+  state.currentShape = null;
+  if (!shapeId) return;
+  const shape = state.board.svg.getElementById(shapeId);
+  if (shape?.parentNode === state.board.drawingArea) {
+    state.board.drawingArea.removeChild(shape);
+  }
+  state.writes.send(createDeleteShapeMessage(shapeId));
 }

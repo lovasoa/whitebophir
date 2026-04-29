@@ -194,6 +194,15 @@ export function release(state, x, y, evt) {
 }
 
 /** @param {ZoomState} state */
+export function cancelTouchGesture(state) {
+  if (state.animation !== null) {
+    cancelAnimationFrame(state.animation);
+    state.animation = null;
+  }
+  touchend(state);
+}
+
+/** @param {ZoomState} state */
 export function onstart(state) {
   window.addEventListener("keydown", state.keydown);
   window.addEventListener("keyup", state.keyup);

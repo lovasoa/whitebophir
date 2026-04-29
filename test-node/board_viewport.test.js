@@ -147,6 +147,78 @@ function createViewportHashTestTools(scale = 1) {
   };
 }
 
+function createBoardTouchTarget() {
+  /** @type {Map<string, Array<{listener: (event: any) => void, options: AddEventListenerOptions | boolean | undefined}>>} */
+  const listeners = new Map();
+  return {
+    style: {},
+    dataset: {},
+    listeners,
+    /**
+     * @param {string} type
+     * @param {(event: any) => void} listener
+     * @param {AddEventListenerOptions | boolean | undefined} options
+     */
+    addEventListener(type, listener, options) {
+      const typeListeners = listeners.get(type) || [];
+      typeListeners.push({ listener, options });
+      listeners.set(type, typeListeners);
+    },
+    /**
+     * @param {string} type
+     * @param {any} event
+     */
+    dispatch(type, event) {
+      for (const entry of listeners.get(type) || []) entry.listener(event);
+    },
+  };
+}
+
+/**
+ * @param {string} type
+ * @param {unknown[]} touches
+ * @param {unknown[]} changedTouches
+ * @param {boolean} [cancelable]
+ */
+function createTouchEvent(type, touches, changedTouches, cancelable = true) {
+  return {
+    type,
+    touches,
+    changedTouches,
+    cancelable,
+    defaultPrevented: false,
+    preventDefaultCalls: 0,
+    preventDefault() {
+      this.defaultPrevented = true;
+      this.preventDefaultCalls += 1;
+    },
+  };
+}
+
+/**
+ * @param {number} identifier
+ * @param {number} pageX
+ * @param {number} pageY
+ */
+function createTouch(identifier, pageX, pageY) {
+  return {
+    identifier,
+    pageX,
+    pageY,
+    clientX: pageX,
+    clientY: pageY,
+  };
+}
+
+/**
+ * @param {ReturnType<typeof createBoardTouchTarget>} board
+ * @param {string} eventName
+ * @returns {AddEventListenerOptions | boolean | undefined}
+ */
+function firstBoardListenerOptions(board, eventName) {
+  return board.listeners.get(eventName)?.[0]?.options;
+}
+
 test("viewport scale clamping uses explicit dimensions without browser globals", async () => {
   const { clampScale } = await loadViewportModule();
 
@@ -278,6 +350,139 @@ test("viewport hash sync waits for zoom debounce", async () => {
     assert.deepEqual(env.historyCalls, [
       { type: "replaceState", url: "#0,0,0.500" },
     ]);
+  } finally {
+    env.restore();
+  }
+});
+
+test("viewport pinch prevents default until all touches end", async () => {
+  const env = createViewportHashTestEnvironment("#0,0,0.100");
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const tools = createViewportHashTestTools(0.1);
+    const board = createBoardTouchTarget();
+    const svg = {
+      style: {},
+      width: { baseVal: { value: 1000 } },
+      height: { baseVal: { value: 1000 } },
+    };
+    tools.dom = {
+      status: "attached",
+      board,
+      svg,
+      drawingArea: {},
+    };
+    const viewport = createViewportController(tools);
+    viewport.installHashObservers();
+    viewport.install();
+
+    assert.deepEqual(firstBoardListenerOptions(board, "touchmove"), {
+      passive: false,
+      capture: true,
+    });
+
+    const first = createTouch(1, 100, 100);
+    const second = createTouch(2, 140, 100);
+    const movedFirst = createTouch(1, 80, 100);
+    const movedSecond = createTouch(2, 180, 100);
+
+    const start = createTouchEvent("touchstart", [first, second], [second]);
+    board.dispatch("touchstart", start);
+    assert.equal(start.defaultPrevented, true);
+
+    const move = createTouchEvent(
+      "touchmove",
+      [movedFirst, movedSecond],
+      [movedFirst, movedSecond],
+    );
+    board.dispatch("touchmove", move);
+    assert.equal(move.defaultPrevented, true);
+
+    const endOne = createTouchEvent("touchend", [movedFirst], [movedSecond]);
+    board.dispatch("touchend", endOne);
+    assert.equal(endOne.defaultPrevented, true);
+    env.flushTimers(200);
+    assert.equal(env.historyCalls.length, 0);
+
+    const endAll = createTouchEvent("touchend", [], [movedFirst]);
+    board.dispatch("touchend", endAll);
+    assert.equal(endAll.defaultPrevented, true);
+    env.flushTimers(200);
+    assert.equal(env.historyCalls.length, 1);
+  } finally {
+    env.restore();
+  }
+});
+
+test("viewport touchcancel aborts pinch without committing hash sync", async () => {
+  const env = createViewportHashTestEnvironment("#0,0,0.100");
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const tools = createViewportHashTestTools(0.1);
+    const board = createBoardTouchTarget();
+    tools.dom = {
+      status: "attached",
+      board,
+      svg: {
+        style: {},
+        width: { baseVal: { value: 1000 } },
+        height: { baseVal: { value: 1000 } },
+      },
+      drawingArea: {},
+    };
+    const viewport = createViewportController(tools);
+    viewport.installHashObservers();
+    viewport.install();
+
+    const first = createTouch(1, 100, 100);
+    const second = createTouch(2, 140, 100);
+
+    const start = createTouchEvent("touchstart", [first, second], [second]);
+    board.dispatch("touchstart", start);
+    assert.equal(start.defaultPrevented, true);
+
+    const cancel = createTouchEvent("touchcancel", [], [first, second]);
+    board.dispatch("touchcancel", cancel);
+    assert.equal(cancel.defaultPrevented, true);
+
+    env.flushTimers(200);
+    assert.equal(env.historyCalls.length, 0);
+  } finally {
+    env.restore();
+  }
+});
+
+test("viewport ignores browser-owned non-cancelable pinch events", async () => {
+  const env = createViewportHashTestEnvironment();
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const tools = createViewportHashTestTools();
+    const board = createBoardTouchTarget();
+    tools.dom = {
+      status: "attached",
+      board,
+      svg: {
+        style: {},
+        width: { baseVal: { value: 1000 } },
+        height: { baseVal: { value: 1000 } },
+      },
+      drawingArea: {},
+    };
+    const viewport = createViewportController(tools);
+    viewport.install();
+
+    const first = createTouch(1, 100, 100);
+    const second = createTouch(2, 140, 100);
+    const start = createTouchEvent(
+      "touchstart",
+      [first, second],
+      [second],
+      false,
+    );
+    board.dispatch("touchstart", start);
+
+    assert.equal(start.defaultPrevented, false);
+    assert.equal(viewport.getScale(), 1);
   } finally {
     env.restore();
   }

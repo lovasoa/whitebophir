@@ -5,6 +5,7 @@ import {
 } from "../shape_tool.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
 export {
+  cancelShapeToolTouchGesture as cancelTouchGesture,
   drawShapeTool as draw,
   moveShapeTool as move,
   pressShapeTool as press,

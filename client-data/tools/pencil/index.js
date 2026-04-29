@@ -424,6 +424,15 @@ function createPointMessage(state, x, y) {
   };
 }
 
+/** @param {string} lineId */
+function createDeleteLineMessage(lineId) {
+  return {
+    tool: TOOL_CODE_BY_ID.eraser,
+    type: MutationType.DELETE,
+    id: lineId,
+  };
+}
+
 /**
  * @param {PencilState} state
  * @param {string} lineId
@@ -558,6 +567,13 @@ function abortLine(state, removeCurrentLine) {
   if (!line || line.parentNode !== state.board.drawingArea) return;
   state.board.drawingArea.removeChild(line);
   delete state.pathDataCache[lineId];
+}
+
+/** @param {PencilState} state */
+function cancelLineGesture(state) {
+  const lineId = state.curLineId;
+  abortLine(state, true);
+  if (lineId) state.writes.send(createDeleteLineMessage(lineId));
 }
 
 /**
@@ -783,6 +799,11 @@ export function move(state, x, y, evt) {
 export function release(state, x, y) {
   move(state, x, y, undefined);
   stopLine(state);
+}
+
+/** @param {PencilState} state */
+export function cancelTouchGesture(state) {
+  cancelLineGesture(state);
 }
 
 /**

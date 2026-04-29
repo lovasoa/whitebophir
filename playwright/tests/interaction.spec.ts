@@ -235,6 +235,65 @@ test.describe("single-page interactions", () => {
     await expect(page.locator("#drawingArea path")).toHaveCount(0);
   });
 
+  test("pencil cancels an active stroke when touch becomes multi-touch", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("pencil-multitouch-cancel-test");
+    await boardPage.selectTool("pencil");
+
+    await page.evaluate(() => {
+      const board = document.getElementById("board");
+      if (!board) throw new Error("Missing board");
+      const first = {
+        identifier: 1,
+        target: board,
+        clientX: 200,
+        clientY: 200,
+        pageX: 200,
+        pageY: 200,
+      };
+      const second = {
+        identifier: 2,
+        target: board,
+        clientX: 260,
+        clientY: 200,
+        pageX: 260,
+        pageY: 200,
+      };
+      const movedFirst = {
+        ...first,
+        clientX: 240,
+        pageX: 240,
+      };
+      const dispatchTouch = (
+        type: string,
+        touches: unknown[],
+        changedTouches: unknown[],
+      ) => {
+        const event = new Event(type, {
+          bubbles: true,
+          cancelable: true,
+        });
+        Object.defineProperty(event, "touches", { value: touches });
+        Object.defineProperty(event, "targetTouches", { value: touches });
+        Object.defineProperty(event, "changedTouches", {
+          value: changedTouches,
+        });
+        board.dispatchEvent(event);
+      };
+
+      dispatchTouch("touchstart", [first], [first]);
+      dispatchTouch("touchstart", [first, second], [second]);
+      dispatchTouch("touchmove", [movedFirst, second], [movedFirst, second]);
+      dispatchTouch("touchend", [movedFirst], [second]);
+      dispatchTouch("touchmove", [movedFirst], [movedFirst]);
+      dispatchTouch("touchend", [], [movedFirst]);
+    });
+
+    await expect(page.locator("#drawingArea path")).toHaveCount(0);
+  });
+
   test("shift wheel pans without zooming", async ({ boardPage, page }) => {
     await boardPage.gotoBoard("shift-wheel-pan-test");
     await page.evaluate(() => {

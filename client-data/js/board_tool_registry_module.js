@@ -14,7 +14,7 @@ import MessageCommon from "./message_common.js";
 /** @import { AppToolsState, BoardMessage, CompiledToolListener, CompiledToolListeners, MountedAppTool, MountedAppToolsState, PendingMessages, RateLimitKind, ToolBootContext, ToolModule, ToolPointerListener, ToolRuntimeState } from "../../types/app-runtime" */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
 /** @typedef {{criticalToolNames: string[], pendingToolName: string}} InitialToolBootOptions */
-/** @typedef {{browserOwnsActiveTouchSequence: boolean}} TouchDispatchState */
+/** @typedef {{browserOwnsActiveTouchSequence: boolean, multiTouchOwnsActiveTouchSequence: boolean}} TouchDispatchState */
 
 /** @type {AppToolsState} */
 let Tools;
@@ -220,6 +220,11 @@ export class ToolRegistryModule {
     Tools.viewportState.controller.setTouchPolicy(
       this.current?.getTouchPolicy?.() || "app-gesture",
     );
+  }
+
+  /** @param {TouchEvent} event */
+  cancelActiveTouchGesture(event) {
+    this.current?.cancelTouchGesture?.(event);
   }
 
   /** @param {string} toolName */
@@ -718,6 +723,7 @@ function createMountedTool(toolModule, toolState, toolName) {
   const press = toolModule.press;
   const move = toolModule.move;
   const release = toolModule.release;
+  const cancelTouchGesture = toolModule.cancelTouchGesture;
   const onMessage = toolModule.onMessage;
   const onstart = toolModule.onstart;
   const onquit = toolModule.onquit;
@@ -745,6 +751,9 @@ function createMountedTool(toolModule, toolState, toolName) {
       : undefined,
     release: release
       ? (x, y, evt, isTouchEvent) => release(toolState, x, y, evt, isTouchEvent)
+      : undefined,
+    cancelTouchGesture: cancelTouchGesture
+      ? (evt) => cancelTouchGesture(toolState, evt)
       : undefined,
     onMessage: onMessage
       ? (message) => onMessage(toolState, message)
@@ -802,7 +811,20 @@ function createMountedTool(toolModule, toolState, toolName) {
     return function handlePointer(evt) {
       if (isTouchEvent) {
         const touchEvent = /** @type {TouchEvent} */ (evt);
-        if (touchEvent.changedTouches.length !== 1) return true;
+        if (
+          touchEvent.changedTouches.length !== 1 ||
+          touchEvent.touches.length > 1
+        ) {
+          if (
+            !toolCanReceiveBrowserOwnedTouch(tool) &&
+            !touchDispatchState.multiTouchOwnsActiveTouchSequence
+          ) {
+            cancelToolTouchGesture(touchEvent);
+            touchDispatchState.multiTouchOwnsActiveTouchSequence = true;
+          }
+          resetTouchDispatchStateIfDone(touchEvent);
+          return true;
+        }
         if (
           (touchEvent.type === "touchstart" ||
             touchEvent.type === "touchmove") &&
@@ -824,15 +846,16 @@ function createMountedTool(toolModule, toolState, toolName) {
           browserAlreadyOwnsTouchSequence(touchEvent) &&
           !toolCanReceiveBrowserOwnedTouch(tool)
         ) {
+          if (!touchDispatchState.browserOwnsActiveTouchSequence) {
+            cancelToolTouchGesture(touchEvent);
+          }
           touchDispatchState.browserOwnsActiveTouchSequence = true;
         }
-        if (touchDispatchState.browserOwnsActiveTouchSequence) {
-          if (
-            touchEvent.type === "touchend" ||
-            touchEvent.type === "touchcancel"
-          ) {
-            touchDispatchState.browserOwnsActiveTouchSequence = false;
-          }
+        if (
+          touchDispatchState.browserOwnsActiveTouchSequence ||
+          touchDispatchState.multiTouchOwnsActiveTouchSequence
+        ) {
+          resetTouchDispatchStateIfDone(touchEvent);
           return true;
         }
         const touch = touchEvent.changedTouches[0];
@@ -868,7 +891,25 @@ function createMountedTool(toolModule, toolState, toolName) {
   const compiled = /** @type {CompiledToolListeners} */ ({});
   const touchDispatchState = /** @type {TouchDispatchState} */ ({
     browserOwnsActiveTouchSequence: false,
+    multiTouchOwnsActiveTouchSequence: false,
   });
+
+  /** @param {TouchEvent} touchEvent */
+  function cancelToolTouchGesture(touchEvent) {
+    tool.cancelTouchGesture?.(touchEvent);
+  }
+
+  /** @param {TouchEvent} touchEvent */
+  function resetTouchDispatchStateIfDone(touchEvent) {
+    if (
+      (touchEvent.type === "touchend" || touchEvent.type === "touchcancel") &&
+      touchEvent.touches.length === 0
+    ) {
+      touchDispatchState.browserOwnsActiveTouchSequence = false;
+      touchDispatchState.multiTouchOwnsActiveTouchSequence = false;
+    }
+  }
+
   if (tool.listeners.press) {
     compiled.mousedown = wrapUnsetHover(
       compilePointerListener(tool.listeners.press, false),
