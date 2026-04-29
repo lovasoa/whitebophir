@@ -119,12 +119,21 @@ export class ConnectionModule {
           await Tools.replay.refreshAuthoritativeBaseline();
           Tools.replay.refreshBaselineBeforeConnect = false;
         } catch (error) {
-          this.logBoardEvent("error", "replay.baseline_refresh_failed", {
-            error: error instanceof Error ? error.message : String(error),
+          const nextReconnectDelayMs = 1000;
+          this.logBoardEvent("warn", "replay.baseline_refresh_failed", {
+            errorName: error instanceof Error ? error.name : typeof error,
+            errorMessage:
+              error instanceof Error ? error.message : String(error),
             baselineUrl: getAuthoritativeBaselineUrl(),
+            nextReconnectDelayMs,
+            navigatorOnline: navigator.onLine,
+            documentVisibility: document.visibilityState,
+            incomingBroadcastQueue: Tools.replay.incomingBroadcastQueue.length,
+            bufferedWrites: Tools.writes.bufferedWrites.length,
+            optimisticJournalSize: Tools.optimistic.journal.size(),
             pendingPreSnapshotMessages: Tools.replay.preSnapshotMessages.length,
           });
-          this.scheduleSocketReconnect(1000);
+          this.scheduleSocketReconnect(nextReconnectDelayMs);
           return;
         }
       }
