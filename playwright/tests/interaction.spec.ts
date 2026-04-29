@@ -181,6 +181,60 @@ test.describe("single-page interactions", () => {
       });
   });
 
+  test("app gesture tools ignore browser-owned touch sequences", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("browser-owned-touch-test");
+    await boardPage.selectTool("pencil");
+    await expect
+      .poll(() => readBoardTouchAction(page))
+      .toMatchObject({
+        board: "none",
+        svg: "none",
+      });
+
+    await page.evaluate(() => {
+      const board = document.getElementById("board");
+      if (!board) throw new Error("Missing board");
+      const touch = {
+        identifier: 1,
+        target: board,
+        clientX: 200,
+        clientY: 200,
+        pageX: 200,
+        pageY: 200,
+      };
+      const movedTouch = {
+        ...touch,
+        clientY: 240,
+        pageY: 240,
+      };
+      const dispatchTouch = (
+        type: string,
+        touches: unknown[],
+        changedTouches: unknown[],
+      ) => {
+        const event = new Event(type, {
+          bubbles: true,
+          cancelable: false,
+        });
+        Object.defineProperty(event, "touches", { value: touches });
+        Object.defineProperty(event, "targetTouches", { value: touches });
+        Object.defineProperty(event, "changedTouches", {
+          value: changedTouches,
+        });
+        board.dispatchEvent(event);
+      };
+
+      dispatchTouch("touchstart", [touch], [touch]);
+      dispatchTouch("touchmove", [movedTouch], [movedTouch]);
+      dispatchTouch("touchend", [], [movedTouch]);
+    });
+
+    await expect(page.locator("#drawingArea path")).toHaveCount(0);
+  });
+
   test("shift wheel pans without zooming", async ({ boardPage, page }) => {
     await boardPage.gotoBoard("shift-wheel-pan-test");
     await page.evaluate(() => {
@@ -329,8 +383,8 @@ test.describe("single-page interactions", () => {
     await expect
       .poll(() => readBoardTouchAction(page))
       .toMatchObject({
-        board: "auto",
-        svg: "auto",
+        board: "pan-x pan-y",
+        svg: "pan-x pan-y",
       });
 
     await page.evaluate(() => {
@@ -341,8 +395,8 @@ test.describe("single-page interactions", () => {
     await expect
       .poll(() => readBoardTouchAction(page))
       .toMatchObject({
-        board: "auto",
-        svg: "auto",
+        board: "pan-x pan-y",
+        svg: "pan-x pan-y",
       });
 
     await boardPage.tool("hand").click();
@@ -357,8 +411,8 @@ test.describe("single-page interactions", () => {
     await expect
       .poll(() => readBoardTouchAction(page))
       .toMatchObject({
-        board: "auto",
-        svg: "auto",
+        board: "pan-x pan-y",
+        svg: "pan-x pan-y",
       });
   });
 

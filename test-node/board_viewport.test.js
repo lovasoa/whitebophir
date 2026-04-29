@@ -328,7 +328,7 @@ test("viewport owns svg extent growth and layout sync", async () => {
     assert.deepEqual(tools.board.style, {
       width: "500px",
       height: "500px",
-      touchAction: "",
+      touchAction: "none",
     });
     assert.equal(tools.board.dataset.viewportManaged, "true");
 
@@ -339,6 +339,49 @@ test("viewport owns svg extent growth and layout sync", async () => {
   } finally {
     globalAny.window = previousWindow;
   }
+});
+
+test("viewport native pan policy permits browser scroll without browser zoom", async () => {
+  const { createViewportController } = await loadViewportModule();
+  const tools = /** @type {any} */ ({
+    viewportState: {
+      scale: 1,
+    },
+    config: {
+      serverConfig: {
+        MAX_BOARD_SIZE: 1000,
+      },
+    },
+    coordinates: {
+      toBoardCoordinate: (/** @type {unknown} */ value) => Number(value) || 0,
+    },
+    preferences: {},
+    toolRegistry: {
+      syncDrawToolAvailability: () => {},
+    },
+    board: {
+      style: {},
+      dataset: {},
+    },
+    svg: {
+      style: {},
+    },
+  });
+  tools.dom = {
+    status: "attached",
+    board: tools.board,
+    svg: tools.svg,
+    drawingArea: {},
+  };
+  const viewport = createViewportController(tools);
+
+  viewport.setTouchPolicy("native-pan");
+  assert.equal(tools.board.style.touchAction, "pan-x pan-y");
+  assert.equal(tools.svg.style.touchAction, "pan-x pan-y");
+
+  viewport.setTouchPolicy("app-gesture");
+  assert.equal(tools.board.style.touchAction, "none");
+  assert.equal(tools.svg.style.touchAction, "none");
 });
 
 test("viewport expands to the full board at minimum zoom", async () => {
@@ -387,7 +430,7 @@ test("viewport expands to the full board at minimum zoom", async () => {
     assert.deepEqual(tools.board.style, {
       width: "100px",
       height: "100px",
-      touchAction: "",
+      touchAction: "none",
     });
   } finally {
     globalAny.window = previousWindow;

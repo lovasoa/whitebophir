@@ -15,6 +15,8 @@ const VIEWPORT_HASH_SYNC_DELAY_MS = 200;
 const VIEWPORT_HASH_PUSH_INTERVAL_MS = 5000;
 const PINCH_MIN_DISTANCE = 16;
 const BOARD_EXTENT_MARGIN = 20000;
+const APP_TOOL_TOUCH_ACTION = "none";
+const BROWSER_SCROLL_WITHOUT_ZOOM_TOUCH_ACTION = "pan-x pan-y";
 
 /**
  * @typedef {{
@@ -318,7 +320,12 @@ export function createViewportController(Tools) {
   function applyTouchPolicy() {
     const dom = getAttachedDom();
     if (!dom) return;
-    const touchAction = touchPolicy === "native-pan" ? "auto" : "";
+    // Hand mode uses document scrolling as board panning. Other tools own
+    // touch input themselves, so browser panning and browser zoom stay off.
+    const touchAction =
+      touchPolicy === "native-pan"
+        ? BROWSER_SCROLL_WITHOUT_ZOOM_TOUCH_ACTION
+        : APP_TOOL_TOUCH_ACTION;
     dom.board.style.touchAction = touchAction;
     dom.svg.style.touchAction = touchAction;
   }

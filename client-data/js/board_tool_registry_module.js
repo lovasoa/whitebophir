@@ -14,6 +14,7 @@ import MessageCommon from "./message_common.js";
 /** @import { AppToolsState, BoardMessage, CompiledToolListener, CompiledToolListeners, MountedAppTool, MountedAppToolsState, PendingMessages, RateLimitKind, ToolBootContext, ToolModule, ToolPointerListener, ToolRuntimeState } from "../../types/app-runtime" */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
 /** @typedef {{criticalToolNames: string[], pendingToolName: string}} InitialToolBootOptions */
+/** @typedef {{browserOwnsActiveTouchSequence: boolean}} TouchDispatchState */
 
 /** @type {AppToolsState} */
 let Tools;
@@ -64,6 +65,27 @@ function blurActiveElement() {
 
 function getAttachedBoardDom() {
   return Tools.dom.status === "attached" ? Tools.dom : null;
+}
+
+/**
+ * @param {MountedAppTool} tool
+ * @returns {boolean}
+ */
+function toolCanReceiveBrowserOwnedTouch(tool) {
+  // Hand native-pan lets the browser scroll. Always-on tools such as cursor
+  // only observe pointer position alongside the active tool.
+  return tool.alwaysOn === true || tool.getTouchPolicy?.() === "native-pan";
+}
+
+/**
+ * @param {TouchEvent} event
+ * @returns {boolean}
+ */
+function browserAlreadyOwnsTouchSequence(event) {
+  return (
+    (event.type === "touchstart" || event.type === "touchmove") &&
+    event.cancelable === false
+  );
 }
 
 export class ToolRegistryModule {
@@ -795,6 +817,24 @@ function createMountedTool(toolModule, toolState, toolName) {
         ) {
           return true;
         }
+        // cancelable=false means the browser has taken over this touch
+        // sequence for scrolling or zooming. App tools must not also draw,
+        // erase, transform, or zoom from that same user gesture.
+        if (
+          browserAlreadyOwnsTouchSequence(touchEvent) &&
+          !toolCanReceiveBrowserOwnedTouch(tool)
+        ) {
+          touchDispatchState.browserOwnsActiveTouchSequence = true;
+        }
+        if (touchDispatchState.browserOwnsActiveTouchSequence) {
+          if (
+            touchEvent.type === "touchend" ||
+            touchEvent.type === "touchcancel"
+          ) {
+            touchDispatchState.browserOwnsActiveTouchSequence = false;
+          }
+          return true;
+        }
         const touch = touchEvent.changedTouches[0];
         if (!touch) return true;
         return listener(
@@ -826,6 +866,9 @@ function createMountedTool(toolModule, toolState, toolName) {
   }
 
   const compiled = /** @type {CompiledToolListeners} */ ({});
+  const touchDispatchState = /** @type {TouchDispatchState} */ ({
+    browserOwnsActiveTouchSequence: false,
+  });
   if (tool.listeners.press) {
     compiled.mousedown = wrapUnsetHover(
       compilePointerListener(tool.listeners.press, false),
