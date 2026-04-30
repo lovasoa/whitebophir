@@ -2,8 +2,8 @@
   "name": "WBO Online Whiteboard",
   "short_name": "WBO",
   "display": "standalone",
-  "background_color": "#8FA2BC",
-  "theme_color": "#C4DFFF",
+  "background_color": "#ffffff",
+  "theme_color": "#ccdfdf",
   "description": "A free and opensource online collaborative drawing tool.",
   "icons": [
     {
