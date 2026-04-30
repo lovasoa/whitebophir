@@ -169,8 +169,9 @@ const httpServerActiveRequests = meter.createUpDownCounter(
   },
 );
 const socketConnections = meter.createCounter("wbo.socket.connection", {
-  description: "Socket.IO connection lifecycle events observed by the server.",
-  unit: "{connection}",
+  description:
+    'Count of accepted Socket.IO connection and disconnection events, labeled by "wbo.socket.connection.event".',
+  unit: "{event}",
 });
 const socketEventDuration = meter.createHistogram("wbo.socket.event.duration", {
   description: "Elapsed time spent handling Socket.IO event callbacks.",
