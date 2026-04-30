@@ -2096,6 +2096,60 @@ test("Hand selector keeps the original element selected after duplicate", async 
   }
 });
 
+test("Hand selector ignores stale async selection after transform starts", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+  const restoreIntersectionObserver = installMockIntersectionObserver(
+    (target) => target.id === "r-1",
+  );
+
+  try {
+    const rect = globalAny.Tools.dom.createSVGElement("rect");
+    rect.id = "r-1";
+    rect.x.baseVal.value = 100;
+    rect.y.baseVal.value = 100;
+    rect.width.baseVal.value = 60;
+    rect.height.baseVal.value = 40;
+    globalAny.Tools.drawingArea.appendChild(rect);
+
+    handTool.secondary.active = true;
+    handTool.secondary.switch();
+
+    const outsideTarget = {
+      parentNode: null,
+      matches: () => false,
+    };
+
+    handTool.listeners.press(50, 50, {
+      preventDefault: () => {},
+      target: outsideTarget,
+    });
+    handTool.listeners.move(200, 200, {
+      preventDefault: () => {},
+      target: outsideTarget,
+    });
+    const pendingSelection = handTool.listeners.release(200, 200, {
+      preventDefault: () => {},
+      target: outsideTarget,
+    });
+
+    handTool.listeners.press(110, 110, {
+      preventDefault: () => {},
+      target: outsideTarget,
+    });
+    await pendingSelection;
+
+    assert.doesNotThrow(() => {
+      handTool.listeners.move(150, 135, {
+        preventDefault: () => {},
+        target: outsideTarget,
+      });
+    });
+  } finally {
+    restoreIntersectionObserver();
+  }
+});
+
 test("Hand box selection can use IntersectionObserver without target bbox reads", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");

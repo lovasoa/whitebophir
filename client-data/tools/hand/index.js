@@ -500,6 +500,7 @@ function hideSelectionUI(state) {
  */
 function startMovingElements(state, x, y, evt) {
   evt.preventDefault();
+  state.selectionRunId += 1;
   state.selectorState = state.selectorStates.transform;
   state.currentTransform = (moveX, moveY, force) =>
     moveSelection(state, moveX, moveY, force);
@@ -531,6 +532,7 @@ function startMovingElements(state, x, y, evt) {
 function startScalingTransform(state, _x, _y, evt) {
   evt.preventDefault();
   hideSelectionButtons(state);
+  state.selectionRunId += 1;
   state.selectorState = state.selectorStates.transform;
   const bbox = state.selectionRect.transformedBBox();
   state.selected = {
