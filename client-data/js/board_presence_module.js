@@ -14,6 +14,9 @@ export class PresenceModule {
     this.getTools = getTools;
     this.users = /** @type {ConnectedUserMap} */ ({});
     this.panelOpen = false;
+    this.renderScheduled = false;
+    this.pendingFullRender = false;
+    this.dirtyActivitySocketIds = new Set();
   }
 
   clearConnectedUsers() {
@@ -21,13 +24,53 @@ export class PresenceModule {
       if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
     });
     this.users = /** @type {ConnectedUserMap} */ ({});
+    this.dirtyActivitySocketIds.clear();
+    this.pendingFullRender = false;
     this.renderConnectedUsers();
+  }
+
+  /**
+   * @param {"activity" | "full"} reason
+   * @param {string} [socketId]
+   */
+  schedulePresenceRender(reason, socketId) {
+    if (!this.panelOpen) {
+      if (reason === "full") syncConnectedUsersSummary(this);
+      return;
+    }
+    if (reason === "full" || !socketId) {
+      this.pendingFullRender = true;
+    } else {
+      this.dirtyActivitySocketIds.add(socketId);
+    }
+    if (this.renderScheduled) return;
+    this.renderScheduled = true;
+    const schedule = window.requestAnimationFrame || window.setTimeout;
+    schedule(() => this.flushScheduledPresenceRender());
+  }
+
+  flushScheduledPresenceRender() {
+    this.renderScheduled = false;
+    if (this.pendingFullRender) {
+      this.pendingFullRender = false;
+      this.dirtyActivitySocketIds.clear();
+      this.renderConnectedUsers();
+      return;
+    }
+    if (!this.panelOpen) return;
+    const dirtySocketIds = Array.from(this.dirtyActivitySocketIds);
+    this.dirtyActivitySocketIds.clear();
+    if (
+      dirtySocketIds.length === 0 ||
+      !patchConnectedUserRows(this.getTools, this.users, dirtySocketIds)
+    ) {
+      this.renderConnectedUsers();
+    }
   }
 
   renderConnectedUsers() {
     const Tools = this.getTools();
     const list = getConnectedUsersList();
-    const panel = getConnectedUsersPanel();
     /** @type {{[socketId: string]: ConnectedUserRow}} */
     const rowsBySocketId = {};
     Array.from(list.children).forEach((child) => {
@@ -60,11 +103,7 @@ export class PresenceModule {
     Object.values(rowsBySocketId).forEach((row) => {
       row.remove();
     });
-    panel.dataset.empty = users.length === 0 ? "true" : "false";
-    if (users.length === 0 && this.panelOpen) {
-      this.setConnectedUsersPanelOpen(false);
-    }
-    syncConnectedUsersToggleLabel(Tools, this.users);
+    syncConnectedUsersSummary(this, Tools);
   }
 
   /** @param {boolean} open */
@@ -76,6 +115,7 @@ export class PresenceModule {
     panel.classList.toggle("connected-users-panel-hidden", !shouldOpen);
     toggle.classList.toggle("board-presence-toggle-open", shouldOpen);
     toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+    if (shouldOpen) this.renderConnectedUsers();
   }
 
   /** @param {ConnectedUser} user */
@@ -85,7 +125,7 @@ export class PresenceModule {
       this.users[user.socketId] || {},
       user,
     );
-    this.renderConnectedUsers();
+    this.schedulePresenceRender("full");
   }
 
   /** @param {string} socketId */
@@ -93,7 +133,8 @@ export class PresenceModule {
     const user = this.users[socketId];
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
     delete this.users[socketId];
-    this.renderConnectedUsers();
+    this.dirtyActivitySocketIds.delete(socketId);
+    this.schedulePresenceRender("full");
   }
 
   /**
@@ -109,22 +150,28 @@ export class PresenceModule {
     // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
     const messageSocketId = message.socket || null;
     if (!userId && messageSocketId === null) return;
-    let changed = false;
+    const changedSocketIds = /** @type {string[]} */ ([]);
     const dom = getAttachedBoardDom(Tools);
     const focusPoint = dom ? getMessageFocusPoint(dom, message) : null;
-    const renderConnectedUsers = () => this.renderConnectedUsers();
+    const scheduleActivityRender = (/** @type {string} */ socketId) =>
+      this.schedulePresenceRender("activity", socketId);
     Object.values(this.users).forEach((user) => {
       if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
-      changed =
+      if (
         applyConnectedUserActivity(
           user,
           message,
           focusPoint,
           messageSocketId,
-          renderConnectedUsers,
-        ) || changed;
+          scheduleActivityRender,
+        )
+      ) {
+        changedSocketIds.push(user.socketId);
+      }
     });
-    if (changed) this.renderConnectedUsers();
+    changedSocketIds.forEach((socketId) => {
+      this.schedulePresenceRender("activity", socketId);
+    });
   }
 
   /** @param {BoardMessage} message */
@@ -243,6 +290,21 @@ function syncConnectedUsersToggleLabel(Tools, users) {
       : badgeText.length === 2
         ? "double"
         : "capped";
+}
+
+/**
+ * @param {PresenceModule} presence
+ * @param {AppToolsState} [Tools]
+ */
+function syncConnectedUsersSummary(presence, Tools = presence.getTools()) {
+  const panel = getConnectedUsersPanel();
+  const users = presence.users;
+  const userCount = getConnectedUsersCount(users);
+  panel.dataset.empty = userCount === 0 ? "true" : "false";
+  if (userCount === 0 && presence.panelOpen) {
+    presence.setConnectedUsersPanelOpen(false);
+  }
+  syncConnectedUsersToggleLabel(Tools, users);
 }
 
 /**
@@ -399,37 +461,46 @@ function getMessageFocusPoint(dom, message) {
 
 /**
  * @param {ConnectedUser} user
- * @param {() => void} renderConnectedUsers
+ * @param {(socketId: string) => void} scheduleActivityRender
  * @returns {void}
  */
-function scheduleConnectedUserPulseEnd(user, renderConnectedUsers) {
-  if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
+function scheduleConnectedUserPulseEnd(user, scheduleActivityRender) {
+  if (user.pulseTimeoutId) return;
   if (!user.pulseUntil) {
     user.pulseTimeoutId = null;
     return;
   }
-  const remainingMs = Math.max(0, user.pulseUntil - Date.now());
-  user.pulseTimeoutId = window.setTimeout(() => {
-    if (user.pulseUntil && user.pulseUntil <= Date.now()) {
+  const checkPulseEnd = () => {
+    const remainingMs = Math.max(0, (user.pulseUntil || 0) - Date.now());
+    if (remainingMs > 0) {
+      user.pulseTimeoutId = window.setTimeout(checkPulseEnd, remainingMs + 20);
+      return;
+    }
+    if (user.pulseUntil) {
       user.pulseUntil = 0;
       user.pulseTimeoutId = null;
-      renderConnectedUsers();
+      scheduleActivityRender(user.socketId);
     }
-  }, remainingMs + 20);
+  };
+  user.pulseTimeoutId = window.setTimeout(
+    checkPulseEnd,
+    Math.max(0, user.pulseUntil - Date.now()) + 20,
+  );
 }
 
 /**
  * @param {ConnectedUser} user
- * @param {() => void} renderConnectedUsers
- * @returns {void}
+ * @param {(socketId: string) => void} scheduleActivityRender
+ * @returns {boolean}
  */
-function markConnectedUserActivity(user, renderConnectedUsers) {
+function markConnectedUserActivity(user, scheduleActivityRender) {
   const now = Date.now();
-  const interval = user.lastActivityAt ? now - user.lastActivityAt : 700;
+  const wasActive = !!(user.pulseUntil && user.pulseUntil > now);
   user.lastActivityAt = now;
-  user.pulseMs = Math.max(160, Math.min(1200, interval));
-  user.pulseUntil = now + user.pulseMs * 2;
-  scheduleConnectedUserPulseEnd(user, renderConnectedUsers);
+  user.pulseMs = 700;
+  user.pulseUntil = now + user.pulseMs;
+  scheduleConnectedUserPulseEnd(user, scheduleActivityRender);
+  return !wasActive;
 }
 
 /**
@@ -570,6 +641,41 @@ function createConnectedUserRow(getTools, user, users) {
 }
 
 /**
+ * @param {HTMLElement} list
+ * @param {string} socketId
+ * @returns {ConnectedUserRow | null}
+ */
+function findConnectedUserRow(list, socketId) {
+  for (const child of Array.from(list.children)) {
+    if (
+      child instanceof HTMLLIElement &&
+      child.dataset.socketId === socketId &&
+      child.classList.contains("connected-user-row")
+    ) {
+      return /** @type {ConnectedUserRow} */ (child);
+    }
+  }
+  return null;
+}
+
+/**
+ * @param {() => AppToolsState} getTools
+ * @param {ConnectedUserMap} users
+ * @param {string[]} dirtySocketIds
+ * @returns {boolean}
+ */
+function patchConnectedUserRows(getTools, users, dirtySocketIds) {
+  const list = getConnectedUsersList();
+  for (const socketId of dirtySocketIds) {
+    const row = findConnectedUserRow(list, socketId);
+    const user = users[socketId];
+    if (!row || !user) return false;
+    updateConnectedUserRow(getTools, row, user);
+  }
+  return true;
+}
+
+/**
  * @param {ConnectedUser} user
  * @param {string | undefined} userId
  * @param {string | null} messageSocketId
@@ -587,7 +693,7 @@ function connectedUserMatchesActivity(user, userId, messageSocketId) {
  * @param {BoardMessage} message
  * @param {{x: number, y: number} | null} focusPoint
  * @param {string | null} messageSocketId
- * @param {() => void} renderConnectedUsers
+ * @param {(socketId: string) => void} scheduleActivityRender
  * @returns {boolean}
  */
 function applyConnectedUserActivity(
@@ -595,25 +701,25 @@ function applyConnectedUserActivity(
   message,
   focusPoint,
   messageSocketId,
-  renderConnectedUsers,
+  scheduleActivityRender,
 ) {
   let changed = false;
   const runtimeToolId = TOOL_ID_BY_CODE[message.tool];
   const isCursorMessage = runtimeToolId === "cursor";
 
   if (!isCursorMessage) {
-    markConnectedUserActivity(user, renderConnectedUsers);
-    changed = true;
+    changed =
+      markConnectedUserActivity(user, scheduleActivityRender) || changed;
   }
-  if ("color" in message) {
+  if ("color" in message && user.color !== message.color) {
     user.color = message.color;
     changed = true;
   }
-  if ("size" in message) {
+  if ("size" in message && user.size !== message.size) {
     user.size = message.size || user.size;
     changed = true;
   }
-  if (runtimeToolId && !isCursorMessage) {
+  if (runtimeToolId && !isCursorMessage && user.lastTool !== runtimeToolId) {
     user.lastTool = runtimeToolId;
     changed = true;
   }
@@ -623,9 +729,13 @@ function applyConnectedUserActivity(
       messageSocketId === null ||
       messageSocketId === user.socketId)
   ) {
-    user.lastFocusX = /** @type {{x: number, y: number}} */ (focusPoint).x;
-    user.lastFocusY = /** @type {{x: number, y: number}} */ (focusPoint).y;
-    changed = true;
+    const nextFocusX = /** @type {{x: number, y: number}} */ (focusPoint).x;
+    const nextFocusY = /** @type {{x: number, y: number}} */ (focusPoint).y;
+    if (user.lastFocusX !== nextFocusX || user.lastFocusY !== nextFocusY) {
+      user.lastFocusX = nextFocusX;
+      user.lastFocusY = nextFocusY;
+      changed = true;
+    }
   }
   return changed;
 }

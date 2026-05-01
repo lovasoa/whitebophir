@@ -203,3 +203,66 @@ test("presence focus ignores elements outside the attached drawing area", async 
     env.restore();
   }
 });
+
+test("presence activity does not render rows while the panel is closed", async () => {
+  const env = createPresenceEnvironment();
+  try {
+    const { PresenceModule } = await import(
+      "../client-data/js/board_presence_module.js"
+    );
+    const tools = createPresenceTools(env.svg, env.drawingArea);
+    const presence = new PresenceModule(() => tools);
+    let renderCount = 0;
+    presence.renderConnectedUsers = () => {
+      renderCount += 1;
+    };
+    presence.panelOpen = false;
+    presence.users = { "sock-1": createConnectedUser() };
+
+    presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());
+    presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());
+
+    assert.equal(renderCount, 0);
+    assert.ok((presence.users["sock-1"]?.pulseUntil || 0) > 0);
+  } finally {
+    env.restore();
+  }
+});
+
+test("presence activity row rendering is coalesced while the panel is open", async () => {
+  const env = createPresenceEnvironment();
+  try {
+    const pendingFrames = /** @type {Function[]} */ ([]);
+    globalAny.window.requestAnimationFrame = (/** @type {Function} */ run) => {
+      pendingFrames.push(run);
+      return pendingFrames.length;
+    };
+    env.elementsById.set(
+      "connectedUsersList",
+      new FakeElement("connectedUsersList"),
+    );
+    const { PresenceModule } = await import(
+      "../client-data/js/board_presence_module.js"
+    );
+    const tools = createPresenceTools(env.svg, env.drawingArea);
+    const presence = new PresenceModule(() => tools);
+    let renderCount = 0;
+    presence.renderConnectedUsers = () => {
+      renderCount += 1;
+    };
+    presence.panelOpen = true;
+    presence.users = { "sock-1": createConnectedUser() };
+
+    presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());
+    presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());
+
+    assert.equal(renderCount, 0);
+    assert.equal(pendingFrames.length, 1);
+
+    pendingFrames.shift()?.();
+
+    assert.equal(renderCount, 1);
+  } finally {
+    env.restore();
+  }
+});
