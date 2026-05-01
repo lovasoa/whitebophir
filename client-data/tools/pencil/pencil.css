@@ -5,5 +5,22 @@ path {
 }
 
 #drawingArea path.wbo-pencil-drawing {
+  display: none;
   pointer-events: none;
+}
+
+.wbo-pencil-live-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 20;
+  overflow: hidden;
+}
+
+.wbo-pencil-live-path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }

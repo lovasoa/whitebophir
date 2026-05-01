@@ -177,6 +177,9 @@ function createBaseElement(store, tagName) {
     getAttribute: function (/** @type {string} */ name) {
       return this.attributes[name];
     },
+    removeAttribute: function (/** @type {string} */ name) {
+      delete this.attributes[name];
+    },
     addEventListener: () => {},
     removeEventListener: () => {},
     focus: () => {},
@@ -418,6 +421,7 @@ function createHarness() {
       clientHeight: 768,
     },
   };
+  globalAny.document.scrollingElement = globalAny.document.documentElement;
   globalAny.innerWidth = 1024;
   globalAny.innerHeight = 768;
 
@@ -976,6 +980,16 @@ function expectedTwoPointStroke() {
   ];
 }
 
+/** @returns {any | null} */
+function getPencilLiveOverlayPath() {
+  const board = globalAny.Tools.dom.board;
+  const overlay = board.children.find(
+    (/** @type {any} */ child) =>
+      child.attributes?.class === "wbo-pencil-live-overlay",
+  );
+  return overlay?.children?.[0] || null;
+}
+
 /**
  * @param {any} pencilTool
  */
@@ -1192,6 +1206,38 @@ test("Pencil marks only the active local line as non-interactive while drawing",
 
   assert.equal(activeLine.getAttribute("class"), "");
   assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
+  assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
+});
+
+test("Pencil live overlay coalesces active path updates into one frame", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = { preventDefault: () => {} };
+  const frames = /** @type {Function[]} */ ([]);
+  globalAny.window.requestAnimationFrame = (/** @type {Function} */ run) => {
+    frames.push(run);
+    return frames.length;
+  };
+  globalAny.window.cancelAnimationFrame = () => {};
+
+  globalAny.Tools.toolRegistry.current = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+  harness.clock.now = 101;
+  pencilTool.listeners.move(150, 150, event);
+  harness.clock.now = 202;
+  pencilTool.listeners.move(200, 200, event);
+
+  assert.equal(frames.length, 1);
+
+  frames.shift()?.();
+
+  const activeLine = harness.elementsById.get("l-1");
+  const overlayPath = getPencilLiveOverlayPath();
+  assert.ok(overlayPath);
+  assert.deepEqual(overlayPath.pathData, activeLine.pathData);
+  assert.equal(overlayPath.attributes.stroke, "#123456");
+  assert.equal(overlayPath.attributes.transform, "translate(0 0) scale(1)");
 });
 
 test("Cursor skips own marker updates while interaction suppresses it", async () => {

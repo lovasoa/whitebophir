@@ -342,12 +342,133 @@ export { contract };
 export const shortcut = "p";
 export const serverRenderedElementSelector = "path";
 const ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
+const LIVE_OVERLAY_CLASS = "wbo-pencil-live-overlay";
+const LIVE_PATH_CLASS = "wbo-pencil-live-path";
 /** @typedef {{type: string, values: number[]}} PencilPathSegment */
 /** @typedef {PencilPathSegment[]} PencilPathData */
 /** @typedef {{name: string, icon: string, active: boolean, switch?: () => void}} PencilSecondary */
 /** @typedef {ReturnType<typeof createInitialState>} PencilState */
 /** @typedef {{lineId: string, createMessage: PencilCreateMessage}} PencilPressEffect */
 /** @typedef {{appendMessage: PencilAppendMessage | null, stopBefore: boolean, stopAfter: boolean, nextLastTime: number, nextHasSentPoint: boolean, nextChildCount: number}} PencilMoveEffect */
+
+class PencilLiveOverlay {
+  /**
+   * @param {ToolRuntimeModules["board"]} board
+   * @param {ToolRuntimeModules["viewport"]} viewport
+   */
+  constructor(board, viewport) {
+    this.board = board;
+    this.viewport = viewport;
+    this.overlay = /** @type {SVGSVGElement | null} */ (null);
+    this.path = /** @type {SVGPathElement | null} */ (null);
+    this.pathData = /** @type {PencilPathData | null} */ (null);
+    this.sourceLine = /** @type {SVGPathElement | null} */ (null);
+    this.animationFrame = 0;
+    this.active = false;
+    this.refreshTransform = () => this.scheduleFlush();
+  }
+
+  ensureOverlay() {
+    if (this.overlay && this.path) return;
+    const namespace = this.board.svg.namespaceURI;
+    const overlay = /** @type {SVGSVGElement} */ (
+      document.createElementNS(namespace, "svg")
+    );
+    overlay.setAttribute("class", LIVE_OVERLAY_CLASS);
+    overlay.setAttribute("aria-hidden", "true");
+    const path = /** @type {SVGPathElement} */ (
+      document.createElementNS(namespace, "path")
+    );
+    path.setAttribute("class", LIVE_PATH_CLASS);
+    overlay.appendChild(path);
+    this.board.board.appendChild(overlay);
+    this.overlay = overlay;
+    this.path = path;
+  }
+
+  /** @param {SVGPathElement} line */
+  start(line) {
+    this.ensureOverlay();
+    this.sourceLine = line;
+    this.pathData = null;
+    if (!this.active) {
+      window.addEventListener("scroll", this.refreshTransform, {
+        passive: true,
+      });
+      window.addEventListener("resize", this.refreshTransform, {
+        passive: true,
+      });
+    }
+    this.active = true;
+    this.scheduleFlush();
+  }
+
+  /**
+   * @param {SVGPathElement} line
+   * @param {PencilPathData} pathData
+   */
+  update(line, pathData) {
+    this.ensureOverlay();
+    this.sourceLine = line;
+    this.pathData = pathData;
+    this.active = true;
+    this.scheduleFlush();
+  }
+
+  scheduleFlush() {
+    if (!this.active || this.animationFrame !== 0) return;
+    this.animationFrame = window.requestAnimationFrame(() => {
+      this.animationFrame = 0;
+      this.flush();
+    });
+  }
+
+  flush() {
+    if (!this.active || !this.path || !this.sourceLine) return;
+    copyOverlayStrokeAttributes(this.path, this.sourceLine);
+    this.path.setAttribute("transform", getOverlayPathTransform(this.viewport));
+    if (this.pathData) this.path.setPathData(this.pathData);
+  }
+
+  clear() {
+    this.active = false;
+    this.pathData = null;
+    this.sourceLine = null;
+    if (this.animationFrame !== 0) {
+      window.cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = 0;
+    }
+    window.removeEventListener("scroll", this.refreshTransform);
+    window.removeEventListener("resize", this.refreshTransform);
+    this.path?.setPathData([]);
+  }
+}
+
+/**
+ * @param {SVGPathElement} target
+ * @param {SVGPathElement} source
+ */
+function copyOverlayStrokeAttributes(target, source) {
+  target.setAttribute("fill", "none");
+  target.setAttribute("stroke-linecap", "round");
+  target.setAttribute("stroke-linejoin", "round");
+  target.setAttribute("stroke", source.getAttribute("stroke") || "black");
+  target.setAttribute(
+    "stroke-width",
+    source.getAttribute("stroke-width") || "10",
+  );
+  const opacity = source.getAttribute("opacity");
+  if (opacity === null) target.removeAttribute("opacity");
+  else target.setAttribute("opacity", opacity);
+}
+
+/** @param {ToolRuntimeModules["viewport"]} viewport */
+function getOverlayPathTransform(viewport) {
+  const scrollRoot = document.scrollingElement || document.documentElement;
+  const scrollLeft = scrollRoot ? scrollRoot.scrollLeft : window.scrollX || 0;
+  const scrollTop = scrollRoot ? scrollRoot.scrollTop : window.scrollY || 0;
+  return `translate(${-scrollLeft} ${-scrollTop}) scale(${viewport.getScale()})`;
+}
 
 /** @param {ToolBootContext} ctx */
 function createInitialState(ctx) {
@@ -359,6 +480,7 @@ function createInitialState(ctx) {
       : Number.POSITIVE_INFINITY;
   return {
     board: runtime.board,
+    viewport: runtime.viewport,
     preferences: runtime.preferences,
     writes: runtime.writes,
     rateLimits: runtime.rateLimits,
@@ -379,6 +501,7 @@ function createInitialState(ctx) {
     currentLineChildCount: 0,
     renderingLine: /** @type {SVGPathElement | null} */ (null),
     activeInteractionLease: /** @type {{release: () => void} | null} */ (null),
+    liveOverlay: new PencilLiveOverlay(runtime.board, runtime.viewport),
     pathDataCache: /** @type {Record<string, PencilPathData>} */ ({}),
     drawingSize: -1,
     whiteOutSize: -1,
@@ -565,6 +688,7 @@ function acquireInteractionLease(state) {
 
 /** @param {PencilState} state */
 function stopLine(state) {
+  state.liveOverlay.clear();
   updateActiveDrawingClass(state.renderingLine, false);
   releaseInteractionLease(state);
   state.curLineId = "";
@@ -741,6 +865,9 @@ export function draw(state, data) {
   switch (data.type) {
     case MutationType.CREATE:
       state.renderingLine = createLine(state, data);
+      if (state.renderingLine.id === state.curLineId) {
+        state.liveOverlay.start(state.renderingLine);
+      }
       return;
     case MutationType.APPEND: {
       const childData = data;
@@ -757,9 +884,15 @@ export function draw(state, data) {
           id: childData.parent,
         });
       }
-      line.setPathData(
-        wboPencilPoint(getPathData(state, line), childData.x, childData.y),
+      const pathData = wboPencilPoint(
+        getPathData(state, line),
+        childData.x,
+        childData.y,
       );
+      line.setPathData(pathData);
+      if (line.id === state.curLineId) {
+        state.liveOverlay.update(line, pathData);
+      }
       return;
     }
   }
