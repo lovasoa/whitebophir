@@ -87,6 +87,7 @@ export class ReplayModule {
     Tools.writes.discardBufferedWrites();
     Tools.turnstile.pendingWrites = [];
     Tools.turnstile.hideOverlay();
+    Tools.interaction.releaseAll();
     Tools.presence.clearConnectedUsers();
     Tools.dom.clearBoardCursors();
     Object.values(Tools.toolRegistry.mounted || {}).forEach((tool) => {

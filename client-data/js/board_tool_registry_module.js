@@ -599,8 +599,9 @@ function isRegisteredToolId(toolName) {
 
 /**
  * @param {MountedAppToolsState} mountedTools
+ * @param {string} [ownerToolName]
  */
-export function createToolRuntimeModules(mountedTools) {
+export function createToolRuntimeModules(mountedTools, ownerToolName = "") {
   return {
     board: mountedTools.dom,
     coordinates: mountedTools.coordinates,
@@ -671,6 +672,13 @@ export function createToolRuntimeModules(mountedTools) {
       set showMyCursor(value) {
         mountedTools.interaction.showMyCursor = value;
       },
+      /** @param {Parameters<MountedAppToolsState["interaction"]["acquire"]>[1]} options */
+      acquire(options) {
+        return mountedTools.interaction.acquire(ownerToolName, options);
+      },
+      isOwnCursorSuppressed() {
+        return mountedTools.interaction.isOwnCursorSuppressed();
+      },
     },
     config: mountedTools.config,
     ids: mountedTools.ids,
@@ -703,7 +711,7 @@ function createToolBootContext(toolName) {
     return /** @type {MountedAppToolsState} */ (Tools);
   })();
   return {
-    runtime: createToolRuntimeModules(mountedTools),
+    runtime: createToolRuntimeModules(mountedTools, toolName),
     assetUrl(assetFile) {
       return mountedTools.assets.getToolAssetUrl(toolName, assetFile);
     },
@@ -986,6 +994,7 @@ function replaceCurrentTool(newTool) {
   if (currentTool !== null) {
     Tools.toolRegistry.removeToolListeners(currentTool);
     currentTool.onquit && currentTool.onquit(newTool);
+    Tools.interaction.releaseOwner(currentTool.name);
   }
   Tools.toolRegistry.addToolListeners(newTool);
   Tools.toolRegistry.current = newTool;

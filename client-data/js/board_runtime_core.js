@@ -56,6 +56,13 @@ export class BoardDomRuntimeActions {
     dom.drawingArea.innerHTML = "";
     this.clearBoardCursors();
   }
+
+  /** @param {boolean} suppressed */
+  setDrawingAreaHitTestingSuppressed(suppressed) {
+    const dom = getBoardDomRuntimeThis(this);
+    if (dom.status !== "attached") return;
+    dom.drawingArea.classList.toggle("hit-test-suppressed", suppressed);
+  }
 }
 
 export class DetachedBoardDomRuntimeModule extends BoardDomRuntimeActions {

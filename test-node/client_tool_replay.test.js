@@ -762,6 +762,8 @@ function createUnavailableBoardRuntime() {
     positionElement: () => unavailableCapability("board.positionElement"),
     clearBoardCursors: () => unavailableCapability("board.clearBoardCursors"),
     resetBoardViewport: () => unavailableCapability("board.resetBoardViewport"),
+    setDrawingAreaHitTestingSuppressed: () =>
+      unavailableCapability("board.setDrawingAreaHitTestingSuppressed"),
   };
 }
 

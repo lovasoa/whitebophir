@@ -1,7 +1,7 @@
 import { getToolRuntimeAssetPath } from "../tools/tool-defaults.js";
 import RateLimitCommon from "./rate_limit_common.js";
 
-/** @import { ConfigModule, IdentityModule } from "./board_runtime_core.js" */
+/** @import { BoardDomRuntimeActions, ConfigModule, IdentityModule } from "./board_runtime_core.js" */
 /** @import { LiveBoardMessage, RateLimitKind } from "../../types/app-runtime" */
 
 const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
@@ -41,12 +41,102 @@ export class AssetModule {
   }
 }
 
+/**
+ * @typedef {{
+ *   suppressDrawingAreaHitTesting?: boolean,
+ *   suppressOwnCursor?: boolean,
+ * }} InteractionLeaseOptions
+ * @typedef {{
+ *   owner: string,
+ *   suppressDrawingAreaHitTesting: boolean,
+ *   suppressOwnCursor: boolean,
+ * }} InteractionLeaseEntry
+ */
+
 export class InteractionModule {
-  constructor() {
+  /** @param {() => (BoardDomRuntimeActions & {status?: string}) | null} [getDom] */
+  constructor(getDom = () => null) {
     this.drawingEvent = true;
     this.showMarker = true;
     this.showOtherCursors = true;
     this.showMyCursor = true;
+    this.getDom = getDom;
+    this.nextLeaseToken = 0;
+    this.leases = /** @type {Map<string, InteractionLeaseEntry>} */ (new Map());
+    this.drawingAreaHitTestingSuppressed = false;
+    this.ownCursorSuppressed = false;
+  }
+
+  /**
+   * @param {string} owner
+   * @param {InteractionLeaseOptions} options
+   * @returns {{release: () => void}}
+   */
+  acquire(owner, options) {
+    const token = `lease-${++this.nextLeaseToken}`;
+    this.leases.set(token, {
+      owner,
+      suppressDrawingAreaHitTesting:
+        options.suppressDrawingAreaHitTesting === true,
+      suppressOwnCursor: options.suppressOwnCursor === true,
+    });
+    this.syncLeaseEffects();
+    let released = false;
+    return {
+      release: () => {
+        if (released) return;
+        released = true;
+        if (this.leases.delete(token)) this.syncLeaseEffects();
+      },
+    };
+  }
+
+  /** @param {string} owner */
+  releaseOwner(owner) {
+    let changed = false;
+    this.leases.forEach((lease, token) => {
+      if (lease.owner !== owner) return;
+      this.leases.delete(token);
+      changed = true;
+    });
+    if (changed) this.syncLeaseEffects();
+  }
+
+  releaseAll() {
+    if (this.leases.size === 0) return;
+    this.leases.clear();
+    this.syncLeaseEffects();
+  }
+
+  /** @returns {boolean} */
+  isOwnCursorSuppressed() {
+    return this.ownCursorSuppressed;
+  }
+
+  /** @returns {boolean} */
+  isDrawingAreaHitTestingSuppressed() {
+    return this.drawingAreaHitTestingSuppressed;
+  }
+
+  syncLeaseEffects() {
+    let suppressDrawingAreaHitTesting = false;
+    let suppressOwnCursor = false;
+    this.leases.forEach((lease) => {
+      suppressDrawingAreaHitTesting =
+        suppressDrawingAreaHitTesting || lease.suppressDrawingAreaHitTesting;
+      suppressOwnCursor = suppressOwnCursor || lease.suppressOwnCursor;
+    });
+
+    this.ownCursorSuppressed = suppressOwnCursor;
+    if (
+      suppressDrawingAreaHitTesting === this.drawingAreaHitTestingSuppressed
+    ) {
+      return;
+    }
+    this.drawingAreaHitTestingSuppressed = suppressDrawingAreaHitTesting;
+    this.getDom()?.setDrawingAreaHitTestingSuppressed?.(
+      suppressDrawingAreaHitTesting,
+    );
   }
 }
 

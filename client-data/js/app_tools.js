@@ -46,7 +46,7 @@ export class AppTools {
  */
 export function attachFullRuntimeModules(tools, options) {
   tools.assets = new AssetModule(normalizeBoardAssetPath);
-  tools.interaction = new InteractionModule();
+  tools.interaction = new InteractionModule(() => tools.dom);
   tools.ids = new IdModule();
   tools.rateLimits = new RateLimitModule(tools.config, tools.identity);
   tools.toolRegistry = new ToolRegistryModule(
