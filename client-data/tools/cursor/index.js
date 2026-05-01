@@ -126,11 +126,25 @@ function makeCursorMessage(state) {
 /** @typedef {ReturnType<typeof makeCursorMessage> & {socket?: string}} CursorMessage */
 
 /** @param {CursorState} state */
+function isOwnCursorSuppressed(state) {
+  return (
+    typeof state.interaction.isOwnCursorSuppressed === "function" &&
+    state.interaction.isOwnCursorSuppressed()
+  );
+}
+
+/** @param {CursorState} state */
 function updateMarker(state) {
   const activeTool = /** @type {{showMarker?: boolean} | null} */ (
     state.toolRegistry.current
   );
-  if (!state.interaction.showMarker || !state.interaction.showMyCursor) return;
+  if (
+    !state.interaction.showMarker ||
+    !state.interaction.showMyCursor ||
+    isOwnCursorSuppressed(state)
+  ) {
+    return;
+  }
   const curTime = Date.now();
   if (
     curTime - state.lastCursorUpdate > state.minCursorUpdateIntervalMs &&
@@ -207,6 +221,7 @@ export function onSizeChange(state, size) {
  * @param {CursorMessage} message
  */
 export function draw(state, message) {
+  if (!message.socket && isOwnCursorSuppressed(state)) return;
   const cursor = getCursor(state.board, `cursor-${message.socket || "me"}`);
   cursor.style.transform = `translate(${message.x}px, ${message.y}px)`;
   cursor.setAttributeNS(null, "fill", message.color);

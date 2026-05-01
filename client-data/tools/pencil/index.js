@@ -378,6 +378,7 @@ function createInitialState(ctx) {
     hasSentPoint: false,
     currentLineChildCount: 0,
     renderingLine: /** @type {SVGPathElement | null} */ (null),
+    activeInteractionLease: /** @type {{release: () => void} | null} */ (null),
     pathDataCache: /** @type {Record<string, PencilPathData>} */ ({}),
     drawingSize: -1,
     whiteOutSize: -1,
@@ -547,8 +548,25 @@ function updateActiveDrawingClass(line, active) {
 }
 
 /** @param {PencilState} state */
+function releaseInteractionLease(state) {
+  state.activeInteractionLease?.release();
+  state.activeInteractionLease = null;
+}
+
+/** @param {PencilState} state */
+function acquireInteractionLease(state) {
+  releaseInteractionLease(state);
+  if (typeof state.interaction.acquire !== "function") return;
+  state.activeInteractionLease = state.interaction.acquire({
+    suppressDrawingAreaHitTesting: true,
+    suppressOwnCursor: true,
+  });
+}
+
+/** @param {PencilState} state */
 function stopLine(state) {
   updateActiveDrawingClass(state.renderingLine, false);
+  releaseInteractionLease(state);
   state.curLineId = "";
   state.hasSentPoint = false;
   state.currentLineChildCount = 0;
@@ -766,6 +784,7 @@ export function press(state, x, y, evt) {
   state.curLineId = effect.lineId;
   state.hasSentPoint = false;
   state.currentLineChildCount = 0;
+  acquireInteractionLease(state);
   state.writes.drawAndSend(effect.createMessage);
   move(state, x, y, evt);
 }
@@ -873,5 +892,6 @@ export function onstart(state) {
 
 /** @param {PencilState} state */
 export function onquit(state) {
+  stopLine(state);
   if (state.secondary.active) restoreDrawingSize(state);
 }

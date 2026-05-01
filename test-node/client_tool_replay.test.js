@@ -164,6 +164,15 @@ function createBaseElement(store, tagName) {
       /** @type {any} */ value,
     ) {
       this.attributes[name] = value;
+      if (name === "id") this.id = String(value);
+    },
+    setAttributeNS: function (
+      /** @type {string | null} */ namespace,
+      /** @type {string} */ name,
+      /** @type {any} */ value,
+    ) {
+      void namespace;
+      this.setAttribute(name, value);
     },
     getAttribute: function (/** @type {string} */ name) {
       return this.attributes[name];
@@ -385,6 +394,7 @@ function createHarness() {
   globalAny.SVGPathElement = function SVGPathElement() {};
   globalAny.SVGGraphicsElement = function SVGGraphicsElement() {};
   globalAny.SVGSVGElement = function SVGSVGElement() {};
+  globalAny.SVGGElement = function SVGGElement() {};
   globalAny.SVGTextElement = function SVGTextElement() {};
   globalAny.KeyboardEvent = function KeyboardEvent() {};
   globalAny.SVGTransform = {
@@ -393,6 +403,13 @@ function createHarness() {
   globalAny.document = {
     createElement: (/** @type {string} */ tagName) =>
       createBaseElement(store, tagName),
+    createElementNS: (
+      /** @type {string} */ namespace,
+      /** @type {string} */ tagName,
+    ) => {
+      void namespace;
+      return createSVGElement(store, tagName);
+    },
     getElementById: (/** @type {string} */ id) => store.get(id),
     documentElement: {
       scrollLeft: 0,
@@ -436,12 +453,7 @@ function createHarness() {
       readOnly: false,
       canWrite: true,
     },
-    interaction: {
-      drawingEvent: false,
-      showMarker: true,
-      showOtherCursors: true,
-      showMyCursor: true,
-    },
+    interaction: createTestInteraction(),
     sentMessages: [],
     config: {
       serverConfig: {
@@ -663,6 +675,32 @@ function createHarness() {
   };
 }
 
+function createTestInteraction() {
+  return {
+    drawingEvent: false,
+    showMarker: true,
+    showOtherCursors: true,
+    showMyCursor: true,
+    activeLeaseCount: 0,
+    /** @param {{suppressOwnCursor?: boolean}} options */
+    acquire(options) {
+      void options;
+      this.activeLeaseCount += 1;
+      let released = false;
+      return {
+        release: () => {
+          if (released) return;
+          released = true;
+          this.activeLeaseCount -= 1;
+        },
+      };
+    },
+    isOwnCursorSuppressed() {
+      return this.activeLeaseCount > 0;
+    },
+  };
+}
+
 /**
  * @param {Partial<any>} [overrides]
  * @returns {any}
@@ -701,6 +739,7 @@ function createInputTools(overrides = {}) {
     ids: {
       generateUID: (/** @type {string} */ prefix) => `${prefix}-1`,
     },
+    interaction: createTestInteraction(),
     coordinates: {
       toBoardCoordinate: (/** @type {number} */ value) => Math.round(value),
       pageCoordinateToBoard: (/** @type {number} */ value) => Math.round(value),
@@ -1146,11 +1185,56 @@ test("Pencil marks only the active local line as non-interactive while drawing",
 
   const activeLine = harness.elementsById.get("l-1");
   assert.equal(activeLine.getAttribute("class"), "wbo-pencil-drawing");
+  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 1);
 
   harness.clock.now = 2;
   pencilTool.listeners.release(200, 200, event);
 
   assert.equal(activeLine.getAttribute("class"), "");
+  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
+});
+
+test("Cursor skips own marker updates while interaction suppresses it", async () => {
+  const harness = createHarness();
+  const cursorTool = await harness.loadTool("cursor");
+  const originalSetTimeout = globalAny.setTimeout;
+  globalAny.setTimeout = (
+    /** @type {(...args: any[]) => void} */ callback,
+    /** @type {number | undefined} */ delay,
+  ) => {
+    if (delay === 5000) return 0;
+    return originalSetTimeout(callback, delay);
+  };
+  const lease = globalAny.Tools.interaction.acquire({
+    suppressOwnCursor: true,
+  });
+
+  try {
+    cursorTool.draw({
+      tool: TOOL_CODE_BY_ID.cursor,
+      type: MutationType.UPDATE,
+      x: 10,
+      y: 20,
+      color: "#123456",
+      size: 4,
+    });
+
+    assert.equal(harness.elementsById.has("cursor-me"), false);
+
+    lease.release();
+    cursorTool.draw({
+      tool: TOOL_CODE_BY_ID.cursor,
+      type: MutationType.UPDATE,
+      x: 10,
+      y: 20,
+      color: "#123456",
+      size: 4,
+    });
+
+    assert.equal(harness.elementsById.has("cursor-me"), true);
+  } finally {
+    globalAny.setTimeout = originalSetTimeout;
+  }
 });
 
 test("Pencil input logic stops at the configured child limit", () => {
@@ -1204,6 +1288,7 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
 
+  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
   assert.equal(harness.elementsById.has("l-1"), false);
   assert.deepEqual(
     globalAny.Tools.sentMessages.map(
@@ -1233,6 +1318,7 @@ test("Pencil rejection aborts the active stroke without removing the rolled-back
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
 
+  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
   assert.equal(harness.elementsById.has("l-1"), true);
   assert.equal(activeLine.getAttribute("class"), "");
   assert.deepEqual(
@@ -1310,6 +1396,7 @@ test("Pencil delete of the active line aborts the active stroke", async () => {
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
 
+  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
   assert.deepEqual(
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
@@ -1335,6 +1422,7 @@ test("Pencil clear aborts the active stroke", async () => {
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
 
+  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
   assert.deepEqual(
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
