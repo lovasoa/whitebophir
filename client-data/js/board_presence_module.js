@@ -34,10 +34,7 @@ export class PresenceModule {
    * @param {string} [socketId]
    */
   schedulePresenceRender(reason, socketId) {
-    if (!this.panelOpen) {
-      if (reason === "full") syncConnectedUsersSummary(this);
-      return;
-    }
+    if (!this.panelOpen && reason === "activity") return;
     if (reason === "full" || !socketId) {
       this.pendingFullRender = true;
     } else {
