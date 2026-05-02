@@ -1,7 +1,7 @@
 import { getToolRuntimeAssetPath } from "../tools/tool-defaults.js";
 import RateLimitCommon from "./rate_limit_common.js";
 
-/** @import { BoardDomRuntimeActions, ConfigModule, IdentityModule } from "./board_runtime_core.js" */
+/** @import { ConfigModule, IdentityModule } from "./board_runtime_core.js" */
 /** @import { LiveBoardMessage, RateLimitKind } from "../../types/app-runtime" */
 
 const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
@@ -43,27 +43,22 @@ export class AssetModule {
 
 /**
  * @typedef {{
- *   suppressDrawingAreaHitTesting?: boolean,
  *   suppressOwnCursor?: boolean,
  * }} InteractionLeaseOptions
  * @typedef {{
  *   owner: string,
- *   suppressDrawingAreaHitTesting: boolean,
  *   suppressOwnCursor: boolean,
  * }} InteractionLeaseEntry
  */
 
 export class InteractionModule {
-  /** @param {() => (BoardDomRuntimeActions & {status?: string}) | null} [getDom] */
-  constructor(getDom = () => null) {
+  constructor() {
     this.drawingEvent = true;
     this.showMarker = true;
     this.showOtherCursors = true;
     this.showMyCursor = true;
-    this.getDom = getDom;
     this.nextLeaseToken = 0;
     this.leases = /** @type {Map<string, InteractionLeaseEntry>} */ (new Map());
-    this.drawingAreaHitTestingSuppressed = false;
     this.ownCursorSuppressed = false;
   }
 
@@ -76,8 +71,6 @@ export class InteractionModule {
     const token = `lease-${++this.nextLeaseToken}`;
     this.leases.set(token, {
       owner,
-      suppressDrawingAreaHitTesting:
-        options.suppressDrawingAreaHitTesting === true,
       suppressOwnCursor: options.suppressOwnCursor === true,
     });
     this.syncLeaseEffects();
@@ -113,30 +106,13 @@ export class InteractionModule {
     return this.ownCursorSuppressed;
   }
 
-  /** @returns {boolean} */
-  isDrawingAreaHitTestingSuppressed() {
-    return this.drawingAreaHitTestingSuppressed;
-  }
-
   syncLeaseEffects() {
-    let suppressDrawingAreaHitTesting = false;
     let suppressOwnCursor = false;
     this.leases.forEach((lease) => {
-      suppressDrawingAreaHitTesting =
-        suppressDrawingAreaHitTesting || lease.suppressDrawingAreaHitTesting;
       suppressOwnCursor = suppressOwnCursor || lease.suppressOwnCursor;
     });
 
     this.ownCursorSuppressed = suppressOwnCursor;
-    if (
-      suppressDrawingAreaHitTesting === this.drawingAreaHitTestingSuppressed
-    ) {
-      return;
-    }
-    this.drawingAreaHitTestingSuppressed = suppressDrawingAreaHitTesting;
-    this.getDom()?.setDrawingAreaHitTestingSuppressed?.(
-      suppressDrawingAreaHitTesting,
-    );
   }
 }
 

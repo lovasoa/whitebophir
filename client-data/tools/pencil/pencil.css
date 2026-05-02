@@ -4,23 +4,25 @@ path {
   stroke-linejoin: round;
 }
 
-#drawingArea path.wbo-pencil-drawing {
-  display: none;
+.wbo-pencil-live-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  overflow: visible;
+  transform-origin: 0 0;
   pointer-events: none;
 }
 
-.wbo-pencil-live-overlay {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  pointer-events: none;
-  z-index: 20;
-  overflow: hidden;
+.wbo-pencil-live-overlay-active {
+  /* Use the existing overlay as Pencil's hit-test surface. This keeps pointer
+     targeting out of the dense board SVG without mutating #drawingArea. */
+  pointer-events: bounding-box;
 }
 
 .wbo-pencil-live-path {
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
+  pointer-events: none;
 }

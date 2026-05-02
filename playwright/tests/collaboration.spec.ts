@@ -86,6 +86,8 @@ test.describe("collaboration and rate limiting", () => {
       color: "#ff0000",
       size: 11,
     });
+    await peerBoard.connectedUsersToggle.click();
+    await expect(peerBoard.connectedUsersPanel).toBeVisible();
     await expect
       .poll(async () => {
         const rows = await peerBoard.readConnectedUsers();
@@ -94,8 +96,6 @@ test.describe("collaboration and rate limiting", () => {
       })
       .toMatch(/Cursor|Rectangle|Pencil/);
 
-    await peerBoard.connectedUsersToggle.click();
-    await expect(peerBoard.connectedUsersPanel).toBeVisible();
     await expect
       .poll(async () => {
         const rows = await peerBoard.readConnectedUsers();
@@ -219,6 +219,10 @@ test.describe("collaboration and rate limiting", () => {
       boardPage.waitForSocketConnected(),
       peerBoard.waitForSocketConnected(),
     ]);
+    await boardPage.connectedUsersToggle.click();
+    await peerBoard.connectedUsersToggle.click();
+    await expect(boardPage.connectedUsersPanel).toBeVisible();
+    await expect(peerBoard.connectedUsersPanel).toBeVisible();
     await expect.poll(() => boardPage.readConnectedUsers()).toHaveLength(2);
     await expect.poll(() => peerBoard.readConnectedUsers()).toHaveLength(2);
 

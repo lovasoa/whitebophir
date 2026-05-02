@@ -685,10 +685,6 @@ path {
   stroke-linejoin: round;
 }
 
-#drawingArea.hit-test-suppressed {
-  pointer-events: none;
-}
-
 text {
   font-family: "Arial", "Helvetica", sans-serif;
   user-select: none;

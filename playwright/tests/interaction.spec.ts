@@ -294,6 +294,36 @@ test.describe("single-page interactions", () => {
     await expect(page.locator("#drawingArea path")).toHaveCount(0);
   });
 
+  test("pencil renders active stroke and commits it on release", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("pencil-live-overlay-board-svg-test");
+    await boardPage.selectTool("pencil");
+    const stroke = "#13579b";
+    const strokeWidth = "12";
+    await page.evaluate(
+      ({ color, size }) => {
+        window.WBOApp.preferences.setColor(color);
+        window.WBOApp.preferences.setSize(size);
+      },
+      { color: stroke, size: Number(strokeWidth) },
+    );
+
+    await page.mouse.move(220, 220);
+    await page.mouse.down();
+    await page.mouse.move(280, 280, { steps: 4 });
+    await expect
+      .poll(() => boardPage.readVisibleStrokePaths(stroke))
+      .toEqual([expect.objectContaining({ stroke, strokeWidth })]);
+
+    await page.mouse.up();
+    const finalStroke = page.locator(`#drawingArea path[stroke='${stroke}']`);
+    await expect(finalStroke).toHaveCount(1);
+    await expect(finalStroke).toHaveAttribute("stroke-width", strokeWidth);
+    await expect(finalStroke).toHaveAttribute("d", /.+/);
+  });
+
   test("shift wheel pans without zooming", async ({ boardPage, page }) => {
     await boardPage.gotoBoard("shift-wheel-pan-test");
     await page.evaluate(() => {

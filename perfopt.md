@@ -18,7 +18,8 @@ strict wall-clock timing.
 
 - Keep the board architecture SVG-backed. Do not start a large rewrite.
 - Keep pencil-specific logic in `client-data/tools/pencil/`.
-- Centralize cross-tool interaction side effects so tools cannot leak global state after cancellation, rejection, socket disconnect, or tool switches.
+- Centralize cross-tool interaction side effects so tools cannot leak global
+  state after cancellation, rejection, socket disconnect, or tool switches.
 - Avoid adding a large general-purpose scheduler. Prefer narrow leases, RAF batching, and small helpers.
 - Preserve optimistic write semantics and existing socket protocol
 - Preserve eraser and hand hit-testing behavior outside active pencil strokes.
@@ -29,6 +30,11 @@ Chrome RenderingNG is organized around a document lifecycle: style, layout, pre-
 Updates that are only compositor transforms can skip much of that work, but SVG geometry mutations cannot. They invalidate paint and geometry data.
 
 The local Chromium geometry notes describe property trees for transforms, effects, clips, and scrolls, and emphasize caching geometry mapping and hit-test data when state does not change. The pencil path is currently the opposite case: every point changes SVG path geometry in the large board tree.
+
+SVG 2 defines `pointer-events: bounding-box` for container elements and graphics
+elements. That means the Pencil overlay `<svg>` itself can be the hit-test
+surface while the tool is selected; no separate rect and no `#drawingArea`
+pointer-events mutation are needed.
 
 ## Implementation phases
 
@@ -63,7 +69,6 @@ The lease API should be small:
 
 ```js
 const lease = runtime.interaction.acquire({
-  suppressDrawingAreaHitTesting: true,
   suppressOwnCursor: true,
 });
 lease.release();
@@ -80,52 +85,48 @@ Properties:
   release active leases, either through mounted tool hooks or an explicit
   runtime cleanup.
 
-DOM behavior:
-
-- Use a class, not inline style restoration, for drawing-area hit-testing suppression.
-- CSS owns the actual rule:
-
-```css
-#drawingArea.hit-test-suppressed {
-  pointer-events: none;
-}
-```
-
 Why this module:
 
 - `InteractionModule` already owns pointer/cursor visibility flags.
 - Tool registry owns tool lifecycle, so it can guarantee cleanup on tool
   switches.
-- The board DOM module owns actual DOM nodes and can keep DOM writes narrow.
+- Keeping drawing-area hit testing out of this lease avoids a dense-subtree
+  style invalidation at the start of a Pencil stroke.
 
 Acceptance criteria:
 
-- Pencil can acquire hit-test and cursor suppression on press and release them
-  on normal release.
-- Switching from pencil to any other tool clears the drawing-area suppression.
+- Pencil can acquire cursor suppression on press and release it on normal
+  release.
+- Switching from pencil to any other tool clears the cursor suppression.
 - Socket disconnect, mutation rejection, clear/delete of the active line, and
   touch cancellation clear suppression.
 - Eraser and hand still see normal hit targets when they are active.
 
-### Phase 2: Pointer-events quick win
+### Phase 2: Pencil overlay as the hit-test surface
 
-Use the interaction lease during active local pencil strokes:
+Use Pencil's existing live overlay for tool-lifetime hit testing:
 
-- Acquire `suppressDrawingAreaHitTesting` on pencil press.
-- Release it from the same paths that currently call `stopLine()` or
-  `abortLine()`.
-- Do not put pointer-events rules in `pencil.css` except for pencil-owned
-  overlay elements.
+- Create the overlay SVG in `client-data/tools/pencil/index.js`.
+- Add an active class while Pencil is the selected tool, not only while a stroke
+  is in progress.
+- In `client-data/tools/pencil/pencil.css`, set the active overlay to
+  `pointer-events: bounding-box`.
+- Keep the overlay path itself at `pointer-events: none` so the overlay SVG is
+  the stable event target.
+- Remove the old `#drawingArea` pointer-events suppression path.
 
 Expected impact:
 
-- Reduces browser hit-test work while pencil is active.
-- Does not solve paint/layerize by itself.
-- Small code footprint once the lease manager exists.
+- Empty board space targets the small overlay SVG instead of asking the browser
+  to hit-test the dense persisted drawing tree.
+- The pointer-down path no longer toggles a class on `#drawingArea`, which was
+  the trace-visible source of the giant start-of-stroke style recalculation.
+- No extra shield rect is needed.
 
 Risk:
 
-- Low, if lease cleanup is tested through tool switch, disconnect, and cancel.
+- Low in Chromium and spec-backed for SVG 2. Browser behavior remains
+  user-visible pencil drawing; tests should not need to name the overlay.
 
 ### Phase 3: Cursor and presence rendering policy
 
@@ -208,27 +209,36 @@ Risk:
 
 ### Phase 4: Main local rendering fix
 
-Render the active local stroke outside the main board SVG while keeping the
-canonical optimistic SVG path hidden and up to date.
+Render the active local stroke outside the main board SVG, and do not mutate
+`#drawingArea` for local pencil points until the stroke ends.
 
 This is the lowest-risk main fix because it preserves the existing message
-shape, optimistic journal behavior, and persistence model.
+shape, live send behavior, and persistence model while removing the trace-visible
+large-SVG paint/commit work from the local input path.
 
 #### Key idea
 
 During an active local pencil stroke:
 
-- The real board path still exists under `#drawingArea`.
-- The real board path still receives `d` updates, preserving current optimistic
-  rollback snapshots.
-- The real board path is hidden while active, so its per-point geometry updates
-  should not repaint the large SVG scene.
-- A tiny fixed overlay renders the visible active stroke.
-- On release, the overlay is cleared and the real path is revealed once.
+- `drawAndSend()` still sends the live create and append messages immediately.
+- The local create stores only stroke metadata and starts a pencil-owned
+  overlay.
+- Local appends update JS path data plus the overlay; they do not create a
+  `#drawingArea` path and do not set `d` on a board path.
+- On release or child-limit rollover, Pencil creates the real board path once
+  and writes the final `d`.
+- Remote and replay pencil messages still mutate `#drawingArea` immediately.
 
-This avoids the biggest risk in a pure overlay design: if local appends never
-update the canonical DOM path, existing per-append optimistic rollback snapshots
-become incorrect after release.
+The optimistic policy is intentionally simple:
+
+- While the stroke is active, generic rollback snapshots "no board item" for the
+  local create. A rejection discards the overlay and path cache.
+- A rejected append sends one cleanup delete for the stroke id, because the
+  server may have accepted an earlier prefix.
+- After release, a rejected append removes the materialized local path and uses
+  the same deduplicated cleanup delete.
+- Clear, delete, cancel, disconnect, and tool switch all clear overlay state and
+  local path cache.
 
 #### DOM structure
 
@@ -244,13 +254,13 @@ CSS:
 
 ```css
 .wbo-pencil-live-overlay {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
   pointer-events: none;
   z-index: 20; /* above the board, below the menu and HUD*/
-  overflow: hidden;
+  overflow: visible;
+  transform-origin: 0 0;
 }
 ```
 
@@ -259,85 +269,76 @@ the stroke above the board but below chrome.
 
 #### Coordinate model
 
-Keep the overlay path in board coordinates and transform it into viewport
-coordinates:
+Keep the overlay in board coordinates under the board container. Normal document
+scrolling moves it with the board, so the overlay must not read
+`scrollLeft`/`scrollTop` during active drawing.
+
+Use one CSS transform on the overlay SVG:
 
 ```text
-screen = board * scale - document scroll
-```
-
-Use one SVG transform on the overlay path:
-
-```text
-translate(-scrollLeft, -scrollTop) scale(currentScale)
+scale(currentScale)
 ```
 
 This preserves the current board zoom behavior, including scaled stroke width,
-without converting every point to screen coordinates.
+without converting every point to screen coordinates and without the forced
+layout trigger from reading document scroll state.
 
 During an active stroke, the overlay renderer should refresh the transform on:
 
 - point append RAF flush,
-- `scroll`,
 - `resize`,
 - scale changes if an API hook exists or if the transform is recomputed on each
   RAF while active.
 
-Pencil drawing owns app gestures, so scroll/scale changes during a stroke should
-be rare; the refresh path is mostly defensive.
+Pencil drawing owns app gestures, so scroll/scale changes during a stroke are
+rare; the refresh path is mostly defensive.
 
 #### Module split
 
-Add one small tool-local helper class inside the existing pencil index.js
+Keep pencil-specific rendering and optimistic policy in
+`client-data/tools/pencil/index.js`. The stylesheet remains in
+`client-data/tools/pencil/pencil.css`.
 
 Responsibilities:
 
 - Create/remove/reuse the overlay SVG and path.
-- Copy stroke style from the active line or pencil message.
+- Copy stroke style from pencil message metadata.
 - Accept latest `pathData`.
 - Schedule one RAF flush.
-- On flush, set overlay path `d`, stroke attrs, opacity, and transform.
+- On flush, set overlay path `d`, stroke attrs, opacity, size, and transform.
 - Clear overlay on release/cancel/rejection/disconnect.
 
-Keep smoothing and canonical path data in existing pencil code:
+Keep smoothing and active path data in existing pencil code:
 
 - `wboPencilPoint()` remains the single smoothing function.
-- `state.pathDataCache[line.id]` remains the canonical local path-data array.
-- The hidden board path and overlay path both render from that same data.
+- `state.pathDataCache[lineId]` is the active local path-data array.
+- The overlay and the one final committed board path both render from that same
+  data.
 
-#### Active board path behavior
+#### Board path behavior
 
-Change `.wbo-pencil-drawing` from pointer-only to hidden active geometry:
-
-```css
-#drawingArea path.wbo-pencil-drawing {
-  display: none;
-  pointer-events: none;
-}
-```
-
-`display: none` is intentional: the active path stays available for optimistic
-rollback and final reveal, but should not participate in visible SVG paint while
-points are appended.
+Active local drawing should not add a pencil path to `#drawingArea`, and should
+not mutate any existing board path `d` for that local stroke.
 
 On release:
 
 - Call `move()` once as today to include the release point.
+- Create the real board path once and set the final path data.
 - Clear the overlay.
-- Remove `wbo-pencil-drawing`, revealing the already-updated final SVG path.
 - Release interaction leases.
 
 On abort/cancel/rejection/disconnect:
 
 - Clear overlay.
-- Remove or restore the real path through existing abort/rollback paths.
+- Drop active path cache and remove any materialized local path if one exists.
 - Release interaction leases.
 
 ### Phase 5: RAF coalescing
 
 After the overlay exists, avoid redundant overlay updates:
 
-- Pencil append still updates canonical hidden path immediately.
+- Pencil append still sends the live socket message immediately.
+- Local active append updates only JS path cache and the overlay.
 - Overlay renderer flushes at most once per animation frame.
 - If multiple points arrive before the frame, only the latest path data is
   rendered in the overlay.
@@ -348,7 +349,7 @@ semantics unchanged.
 Expected impact:
 
 - Medium.
-- Small code footprint because it belongs inside `live_overlay.js`.
+- Small code footprint because the helper stays inside Pencil's tool module.
 
 ### Phase 6: Protocol batching: do not do it now
 
@@ -404,43 +405,39 @@ Add Node/browserless tests around runtime/tool behavior where possible:
   release the lease.
 - Releasing twice is safe.
 - Tool A cannot release Tool B's lease through the tool runtime facade.
+- Active local Pencil create/append messages update only JS path state plus the
+  live overlay; they do not add or mutate a local stroke under `#drawingArea`
+  until release.
+- A rejected Pencil append discards the whole local stroke and emits at most one
+  cleanup delete.
 
 These tests are deterministic and cheap.
 
-### 2. Playwright structural performance invariant
+### 2. Playwright visible behavior
 
-Add one Playwright spec for large-board pencil drawing.
+Add focused Playwright coverage for user-visible Pencil behavior.
 
 Setup:
 
-- Write a board with a few thousand simple SVG items using `server.writeBoard`.
-  It does not need the full production maximum; the test checks architecture,
-  not absolute throughput.
 - Navigate to the board, wait for ready/socket writable, select pencil.
-- Install a `MutationObserver` on `#drawingArea` before drawing.
-- Draw an active pencil stroke through the normal tool listener path.
+- Draw an active pencil stroke through normal pointer input.
 
 Assertions while the stroke is active:
 
-- The active board path has `wbo-pencil-drawing`.
-- `getComputedStyle(activePath).display === "none"`.
-- The pencil live overlay exists and contains a path with non-empty `d`.
-- `#drawingArea[data-wbo-hit-test-suppressed]` is present.
-- The local cursor marker is not updated during the active stroke.
-- Every observed `d` mutation on `#drawingArea path` during the active stroke
-  belonged to a hidden active pencil path. No visible board path receives
-  per-point `d` updates.
+- A visible path exists under the board with the expected stroke color,
+  non-empty `d`, and expected stroke width.
+- The assertion should be phrased as visible user output, not as knowledge of
+  the live overlay or any closed/internal UI subtree.
 
 Assertions after release:
 
-- The overlay is empty or removed.
 - The final board path is visible.
-- Drawing-area hit-test suppression is cleared.
 - Cursor suppression is cleared.
 - The final path persists as today.
 
-This fails when the known slow pattern returns: visible main-board path mutation
-on each pencil point.
+The structural performance invariant belongs in Node/browserless tests where it
+can inspect tool state without making browser tests depend on implementation
+details.
 
 ### 3. Optional relative browser-health smoke
 
@@ -500,14 +497,13 @@ Phase 3:
 
 Phase 4:
 
-- `client-data/tools/pencil/live_overlay.js`
 - `client-data/tools/pencil/index.js`
 - `client-data/tools/pencil/pencil.css`
 - Playwright large-board structural performance spec
 
 Phase 5:
 
-- `client-data/tools/pencil/live_overlay.js`
+- `client-data/tools/pencil/index.js`
 
 Phase 6+:
 
@@ -516,12 +512,14 @@ Phase 6+:
 ## Rollout order
 
 1. Add interaction leases and cleanup tests.
-2. Use the lease for pencil hit-test suppression and own-cursor suppression.
+2. Use the lease for own-cursor suppression only.
 3. Make presence rendering coalesced and idle-safe.
-4. Add the pencil live overlay with hidden canonical path.
-5. Add Playwright structural performance test.
-6. Measure local trace again on the same dense board.
-7. Consider protocol batching only if remote-peer traces still show repeated
+4. Add the pencil live overlay with one final board-SVG commit on stroke end.
+5. Make the overlay SVG Pencil's tool-lifetime hit-test surface with
+   `pointer-events: bounding-box`.
+6. Add Playwright visible-behavior coverage and Node structural tests.
+7. Measure local trace again on the same dense board.
+8. Consider protocol batching only if remote-peer traces still show repeated
    large-SVG paint/layerize during incoming pencil strokes.
 
 ## Source notes
@@ -538,3 +536,6 @@ Phase 6+:
   https://playwright.dev/docs/api/class-tracing
 - Playwright Chromium CDP sessions are available but Chromium-only:
   https://playwright.dev/docs/api/class-browser
+- SVG 2 `pointer-events` applies to container elements and includes
+  `bounding-box`:
+  https://www.w3.org/TR/SVG/interact.html#PointerEventsProperty

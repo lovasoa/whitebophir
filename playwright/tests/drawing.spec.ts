@@ -356,18 +356,32 @@ test.describe("drawing and persistence", () => {
       ]);
       await expect(peerBoard.tool("clear")).toBeVisible();
       await boardPage.selectTool("pencil");
+      const stroke = "#13579b";
+      const strokeWidth = "12";
+      await page.evaluate(
+        ({ color, size }) => {
+          window.WBOApp.preferences.setColor(color);
+          window.WBOApp.preferences.setSize(size);
+        },
+        { color: stroke, size: Number(strokeWidth) },
+      );
 
       await page.mouse.move(300, 300);
       await page.mouse.down();
       await page.mouse.move(360, 300);
       await page.mouse.move(420, 300);
-      await expect(page.locator("#drawingArea path")).toHaveCount(1);
+      await expect
+        .poll(() => boardPage.readVisibleStrokePaths(stroke))
+        .toEqual([expect.objectContaining({ stroke, strokeWidth })]);
       await expect(boardPage.statusIndicator).toBeVisible();
 
       await peerBoard.tool("clear").click();
       await page.mouse.up();
 
       await expect(boardPage.statusIndicator).toBeHidden();
+      await expect
+        .poll(() => boardPage.readVisibleStrokePaths(stroke))
+        .toHaveLength(0);
       await peerPage.close();
     },
   );

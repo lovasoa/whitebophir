@@ -80,6 +80,11 @@ type CursorState = {
   transform: string | null;
   fill: string | null;
 };
+type StrokePathState = {
+  d: string;
+  stroke: string;
+  strokeWidth: string;
+};
 type BoardUrlOptions = {
   lang?: string;
   token?: string;
@@ -134,6 +139,33 @@ export class BoardPage {
 
   get statusNotice() {
     return this.page.locator("#boardStatusNotice");
+  }
+
+  async readVisibleStrokePaths(stroke: string): Promise<StrokePathState[]> {
+    return this.page.evaluate((expectedStroke) => {
+      return Array.from(document.querySelectorAll("#board path")).flatMap(
+        (path) => {
+          if (!(path instanceof SVGPathElement)) return [];
+          const d = path.getAttribute("d") ?? "";
+          const style = getComputedStyle(path);
+          if (
+            d === "" ||
+            path.getAttribute("stroke") !== expectedStroke ||
+            style.display === "none" ||
+            style.visibility === "hidden"
+          ) {
+            return [];
+          }
+          return [
+            {
+              d,
+              stroke: path.getAttribute("stroke") ?? "",
+              strokeWidth: path.getAttribute("stroke-width") ?? "",
+            },
+          ];
+        },
+      );
+    }, stroke);
   }
 
   buildBoardUrl(boardName: string, options: BoardUrlOptions = {}) {

@@ -129,6 +129,48 @@ function attachElementId(element, store) {
 }
 
 /**
+ * @param {any} element
+ */
+function createElementClassList(element) {
+  const readNames = () =>
+    String(element.attributes.class || "")
+      .split(/\s+/)
+      .filter(Boolean);
+  /** @param {string[]} names */
+  const writeNames = (names) => {
+    element.attributes.class = names.join(" ");
+  };
+  return {
+    /** @param {string} name */
+    add(name) {
+      const names = readNames();
+      if (!names.includes(name)) {
+        names.push(name);
+        writeNames(names);
+      }
+    },
+    /** @param {string} name */
+    remove(name) {
+      writeNames(readNames().filter((candidate) => candidate !== name));
+    },
+    /** @param {string} name */
+    contains(name) {
+      return readNames().includes(name);
+    },
+    /**
+     * @param {string} name
+     * @param {boolean} [force]
+     */
+    toggle(name, force) {
+      const enabled = force === undefined ? !this.contains(name) : force;
+      if (enabled) this.add(name);
+      else this.remove(name);
+      return enabled;
+    },
+  };
+}
+
+/**
  * @param {ElementStore} store
  * @param {string} tagName
  * @returns {any}
@@ -234,6 +276,7 @@ function createBaseElement(store, tagName) {
       return clone;
     },
   });
+  element.classList = createElementClassList(element);
   attachElementId(element, store);
   return element;
 }
@@ -558,8 +601,15 @@ function createHarness() {
         });
         return true;
       },
-      send: (/** @type {any} */ data) =>
-        globalAny.Tools.writes.drawAndSend(data),
+      send: (/** @type {any} */ data) => {
+        const toolName = MessageToolMetadata.getToolId(data.tool);
+        if (!toolName) throw new Error(`Unknown tool '${data.tool}'.`);
+        globalAny.Tools.sentMessages.push({
+          toolName,
+          data,
+        });
+        return true;
+      },
       canBufferWrites: () => true,
       whenBoardWritable: () => Promise.resolve(),
     },
@@ -686,9 +736,10 @@ function createTestInteraction() {
     showOtherCursors: true,
     showMyCursor: true,
     activeLeaseCount: 0,
+    leaseOptions: /** @type {{suppressOwnCursor?: boolean}[]} */ ([]),
     /** @param {{suppressOwnCursor?: boolean}} options */
     acquire(options) {
-      void options;
+      this.leaseOptions.push({ ...options });
       this.activeLeaseCount += 1;
       let released = false;
       return {
@@ -805,8 +856,6 @@ function createUnavailableBoardRuntime() {
     positionElement: () => unavailableCapability("board.positionElement"),
     clearBoardCursors: () => unavailableCapability("board.clearBoardCursors"),
     resetBoardViewport: () => unavailableCapability("board.resetBoardViewport"),
-    setDrawingAreaHitTestingSuppressed: () =>
-      unavailableCapability("board.setDrawingAreaHitTestingSuppressed"),
   };
 }
 
@@ -981,13 +1030,30 @@ function expectedTwoPointStroke() {
 }
 
 /** @returns {any | null} */
-function getPencilLiveOverlayPath() {
+function getPencilLiveOverlay() {
   const board = globalAny.Tools.dom.board;
-  const overlay = board.children.find(
-    (/** @type {any} */ child) =>
-      child.attributes?.class === "wbo-pencil-live-overlay",
+  return (
+    board.children.find((/** @type {any} */ child) =>
+      child.classList?.contains("wbo-pencil-live-overlay"),
+    ) || null
   );
-  return overlay?.children?.[0] || null;
+}
+
+/** @returns {any | null} */
+function getPencilLiveOverlayPath() {
+  return getPencilLiveOverlay()?.children?.[0] || null;
+}
+
+/** @returns {any[]} */
+function drawingAreaChildren() {
+  return globalAny.Tools.dom.drawingArea.children;
+}
+
+/** @returns {any[]} */
+function drawingAreaPaths() {
+  return drawingAreaChildren().filter(
+    (/** @type {any} */ child) => child.tagName === "path",
+  );
 }
 
 /**
@@ -1188,7 +1254,7 @@ test("Pencil move logic sends the first point and throttles follow-ups", () => {
   });
 });
 
-test("Pencil marks only the active local line as non-interactive while drawing", async () => {
+test("Pencil keeps the active local line out of the board SVG until release", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
@@ -1197,14 +1263,22 @@ test("Pencil marks only the active local line as non-interactive while drawing",
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
-  const activeLine = harness.elementsById.get("l-1");
-  assert.equal(activeLine.getAttribute("class"), "wbo-pencil-drawing");
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.equal(drawingAreaPaths().length, 0);
   assert.equal(globalAny.Tools.interaction.activeLeaseCount, 1);
+  assert.deepEqual(globalAny.Tools.interaction.leaseOptions, [
+    { suppressOwnCursor: true },
+  ]);
 
   harness.clock.now = 2;
   pencilTool.listeners.release(200, 200, event);
 
-  assert.equal(activeLine.getAttribute("class"), "");
+  const committedLine = harness.elementsById.get("l-1");
+  assert.ok(committedLine);
+  assert.deepEqual(committedLine.pathData, [
+    { type: "M", values: [100, 100] },
+    { type: "L", values: [100, 100] },
+  ]);
   assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
   assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
 });
@@ -1229,15 +1303,48 @@ test("Pencil live overlay coalesces active path updates into one frame", async (
   pencilTool.listeners.move(200, 200, event);
 
   assert.equal(frames.length, 1);
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.equal(drawingAreaPaths().length, 0);
 
   frames.shift()?.();
 
-  const activeLine = harness.elementsById.get("l-1");
   const overlayPath = getPencilLiveOverlayPath();
   assert.ok(overlayPath);
-  assert.deepEqual(overlayPath.pathData, activeLine.pathData);
+  assert.equal(drawingAreaPaths().length, 0);
+  assert.ok(overlayPath.pathData.length > 0);
   assert.equal(overlayPath.attributes.stroke, "#123456");
-  assert.equal(overlayPath.attributes.transform, "translate(0 0) scale(1)");
+  assert.equal(getPencilLiveOverlay()?.style.transform, "scale(1)");
+});
+
+test("Pencil live overlay flush does not read document scroll", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = { preventDefault: () => {} };
+  const frames = /** @type {Function[]} */ ([]);
+  globalAny.window.requestAnimationFrame = (/** @type {Function} */ run) => {
+    frames.push(run);
+    return frames.length;
+  };
+  globalAny.window.cancelAnimationFrame = () => {};
+  Object.defineProperty(globalAny.document.documentElement, "scrollLeft", {
+    configurable: true,
+    get() {
+      throw new Error("scrollLeft should not be read during overlay flush");
+    },
+  });
+  Object.defineProperty(globalAny.document.documentElement, "scrollTop", {
+    configurable: true,
+    get() {
+      throw new Error("scrollTop should not be read during overlay flush");
+    },
+  });
+
+  globalAny.Tools.toolRegistry.current = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+
+  assert.equal(frames.length, 1);
+  assert.doesNotThrow(() => frames.shift()?.());
 });
 
 test("Cursor skips own marker updates while interaction suppresses it", async () => {
@@ -1327,7 +1434,8 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
-  assert.equal(harness.elementsById.has("l-1"), true);
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.equal(drawingAreaPaths().length, 0);
 
   pencilTool.onSocketDisconnect();
 
@@ -1336,6 +1444,7 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
 
   assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
   assert.equal(harness.elementsById.has("l-1"), false);
+  assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
   assert.deepEqual(
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
@@ -1344,7 +1453,7 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
   );
 });
 
-test("Pencil rejection aborts the active stroke without removing the rolled-back line", async () => {
+test("Pencil rejection aborts the active stroke and sends one cleanup delete", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
@@ -1353,8 +1462,7 @@ test("Pencil rejection aborts the active stroke without removing the rolled-back
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
 
-  const activeLine = harness.elementsById.get("l-1");
-  assert.equal(activeLine.getAttribute("class"), "wbo-pencil-drawing");
+  assert.equal(harness.elementsById.has("l-1"), false);
 
   pencilTool.onMutationRejected(
     { tool: TOOL_CODE_BY_ID.pencil, type: MutationType.APPEND, parent: "l-1" },
@@ -1365,13 +1473,49 @@ test("Pencil rejection aborts the active stroke without removing the rolled-back
   pencilTool.listeners.move(200, 200, event);
 
   assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
-  assert.equal(harness.elementsById.has("l-1"), true);
-  assert.equal(activeLine.getAttribute("class"), "");
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
   assert.deepEqual(
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
     ),
-    [MutationType.CREATE, MutationType.APPEND],
+    [MutationType.CREATE, MutationType.APPEND, MutationType.DELETE],
+  );
+  assert.equal(globalAny.Tools.sentMessages[2].toolName, "eraser");
+});
+
+test("Pencil rejection after release removes the materialized stroke once", async () => {
+  const harness = createHarness();
+  const pencilTool = await harness.loadTool("pencil");
+  const event = { preventDefault: () => {} };
+
+  globalAny.Tools.toolRegistry.current = pencilTool;
+  harness.clock.now = 0;
+  pencilTool.listeners.press(100, 100, event);
+  harness.clock.now = 101;
+  pencilTool.listeners.release(200, 200, event);
+
+  assert.equal(harness.elementsById.has("l-1"), true);
+
+  const rejectedAppend = {
+    tool: TOOL_CODE_BY_ID.pencil,
+    type: MutationType.APPEND,
+    parent: "l-1",
+  };
+  pencilTool.onMutationRejected(rejectedAppend, "shape too large");
+  pencilTool.onMutationRejected(rejectedAppend, "shape too large");
+
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [
+      MutationType.CREATE,
+      MutationType.APPEND,
+      MutationType.APPEND,
+      MutationType.DELETE,
+    ],
   );
 });
 

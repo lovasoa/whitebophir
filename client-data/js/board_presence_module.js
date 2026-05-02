@@ -26,7 +26,8 @@ export class PresenceModule {
     this.users = /** @type {ConnectedUserMap} */ ({});
     this.dirtyActivitySocketIds.clear();
     this.pendingFullRender = false;
-    this.renderConnectedUsers();
+    if (this.panelOpen) this.renderConnectedUsers();
+    else syncConnectedUsersSummary(this);
   }
 
   /**
@@ -34,7 +35,10 @@ export class PresenceModule {
    * @param {string} [socketId]
    */
   schedulePresenceRender(reason, socketId) {
-    if (!this.panelOpen && reason === "activity") return;
+    if (!this.panelOpen) {
+      if (reason === "full") syncConnectedUsersSummary(this);
+      return;
+    }
     if (reason === "full" || !socketId) {
       this.pendingFullRender = true;
     } else {

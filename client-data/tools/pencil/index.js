@@ -33,7 +33,7 @@ import { wboPencilPoint } from "./wbo_pencil_point.js";
 /** @typedef {Omit<ReturnType<typeof createLineMessage>, "opacity"> & {opacity?: number}} PencilCreateMessage */
 /** @typedef {ReturnType<typeof createPointMessage>} PencilAppendMessage */
 /** @typedef {PencilCreateMessage | PencilAppendMessage} PencilMessage */
-/** @typedef {Pick<PencilCreateMessage, "type" | "id"> & Partial<Pick<PencilCreateMessage, "color" | "size" | "opacity">>} PencilLineData */
+/** @typedef {{type: number, id: string, color?: string, size?: number, opacity?: number}} PencilLineData */
 /** @typedef {import("../shape_contract.js").SvgTransform} StoredPencilTransform */
 /** @typedef {{id?: string, color?: string, size?: number, opacity?: number, transform?: StoredPencilTransform}} StoredPencilPathItem */
 /** @typedef {{escapeHtml: (value: string) => string, numberOrZero: (value: unknown) => number, renderTransformAttribute: (transform: StoredPencilTransform | undefined) => string}} StoredPencilPathSerializeHelpers */
@@ -341,8 +341,8 @@ const contract = {
 export { contract };
 export const shortcut = "p";
 export const serverRenderedElementSelector = "path";
-const ACTIVE_DRAWING_CLASS = "wbo-pencil-drawing";
 const LIVE_OVERLAY_CLASS = "wbo-pencil-live-overlay";
+const LIVE_OVERLAY_ACTIVE_CLASS = "wbo-pencil-live-overlay-active";
 const LIVE_PATH_CLASS = "wbo-pencil-live-path";
 /** @typedef {{type: string, values: number[]}} PencilPathSegment */
 /** @typedef {PencilPathSegment[]} PencilPathData */
@@ -351,6 +351,14 @@ const LIVE_PATH_CLASS = "wbo-pencil-live-path";
 /** @typedef {{lineId: string, createMessage: PencilCreateMessage}} PencilPressEffect */
 /** @typedef {{appendMessage: PencilAppendMessage | null, stopBefore: boolean, stopAfter: boolean, nextLastTime: number, nextHasSentPoint: boolean, nextChildCount: number}} PencilMoveEffect */
 
+/**
+ * Renders the in-progress local pencil stroke outside `#drawingArea`.
+ *
+ * The dense board SVG is expensive to restyle, paint, and commit while a user
+ * is drawing. This overlay is the only DOM that should receive per-point
+ * updates for active local strokes; the canonical board path is written once
+ * when the stroke ends.
+ */
 class PencilLiveOverlay {
   /**
    * @param {ToolRuntimeModules["board"]} board
@@ -362,12 +370,14 @@ class PencilLiveOverlay {
     this.overlay = /** @type {SVGSVGElement | null} */ (null);
     this.path = /** @type {SVGPathElement | null} */ (null);
     this.pathData = /** @type {PencilPathData | null} */ (null);
-    this.sourceLine = /** @type {SVGPathElement | null} */ (null);
+    this.lineData = /** @type {PencilLineData | null} */ (null);
     this.animationFrame = 0;
-    this.active = false;
-    this.refreshTransform = () => this.scheduleFlush();
+    this.toolActive = false;
+    this.strokeActive = false;
+    this.refreshGeometry = () => this.syncGeometry();
   }
 
+  /** Lazily creates the overlay SVG used for active local stroke feedback. */
   ensureOverlay() {
     if (this.overlay && this.path) return;
     const namespace = this.board.svg.namespaceURI;
@@ -386,88 +396,175 @@ class PencilLiveOverlay {
     this.path = path;
   }
 
-  /** @param {SVGPathElement} line */
-  start(line) {
+  /**
+   * Enables the overlay as Pencil's input surface while the tool is selected.
+   *
+   * The SVG uses `pointer-events: bounding-box` in CSS so empty board space
+   * targets this small overlay instead of forcing hit-testing through the dense
+   * persisted SVG. Events still bubble to `#board`, where tools already listen.
+   */
+  activate() {
     this.ensureOverlay();
-    this.sourceLine = line;
-    this.pathData = null;
-    if (!this.active) {
-      window.addEventListener("scroll", this.refreshTransform, {
-        passive: true,
-      });
-      window.addEventListener("resize", this.refreshTransform, {
+    const wasActive = this.toolActive;
+    this.toolActive = true;
+    this.overlay?.classList.add(LIVE_OVERLAY_ACTIVE_CLASS);
+    this.syncGeometry();
+    if (!wasActive) {
+      window.addEventListener("resize", this.refreshGeometry, {
         passive: true,
       });
     }
-    this.active = true;
+  }
+
+  /** Disables Pencil's input surface when another tool owns the board. */
+  deactivate() {
+    this.clear();
+    this.toolActive = false;
+    this.overlay?.classList.remove(LIVE_OVERLAY_ACTIVE_CLASS);
+    window.removeEventListener("resize", this.refreshGeometry);
+  }
+
+  /**
+   * Keeps the overlay sized like the board without doing that work on the first
+   * stroke point. Width/height writes can trigger style work, so they belong to
+   * tool activation and resize, not pointer-down.
+   */
+  syncGeometry() {
+    if (!this.overlay) return;
+    syncOverlayGeometry(this.overlay, this.board.svg, this.viewport);
+  }
+
+  /**
+   * Starts local overlay rendering for a stroke before the stroke has any
+   * visible board-SVG representation.
+   * @param {PencilLineData} lineData
+   */
+  start(lineData) {
+    if (!this.toolActive) this.activate();
+    this.lineData = lineData;
+    this.pathData = null;
+    this.strokeActive = true;
     this.scheduleFlush();
   }
 
   /**
-   * @param {SVGPathElement} line
+   * Queues one visual overlay update. Multiple local points can arrive before
+   * RAF; only the latest path data needs to be painted.
+   * @param {PencilLineData} lineData
    * @param {PencilPathData} pathData
    */
-  update(line, pathData) {
-    this.ensureOverlay();
-    this.sourceLine = line;
+  update(lineData, pathData) {
+    if (!this.toolActive) this.activate();
+    this.lineData = lineData;
     this.pathData = pathData;
-    this.active = true;
+    this.strokeActive = true;
     this.scheduleFlush();
   }
 
+  /** Schedules a single overlay DOM write for the next animation frame. */
   scheduleFlush() {
-    if (!this.active || this.animationFrame !== 0) return;
+    if (!this.strokeActive || this.animationFrame !== 0) return;
     this.animationFrame = window.requestAnimationFrame(() => {
       this.animationFrame = 0;
       this.flush();
     });
   }
 
+  /** Applies the latest active local stroke data to the overlay only. */
   flush() {
-    if (!this.active || !this.path || !this.sourceLine) return;
-    copyOverlayStrokeAttributes(this.path, this.sourceLine);
-    this.path.setAttribute("transform", getOverlayPathTransform(this.viewport));
+    if (!this.strokeActive || !this.overlay || !this.path || !this.lineData) {
+      return;
+    }
+    syncOverlayTransform(this.overlay, this.viewport);
+    copyOverlayStrokeAttributes(this.path, this.lineData);
     if (this.pathData) this.path.setPathData(this.pathData);
   }
 
+  /** Clears the active stroke while keeping Pencil's input surface installed. */
   clear() {
-    this.active = false;
+    this.strokeActive = false;
     this.pathData = null;
-    this.sourceLine = null;
+    this.lineData = null;
     if (this.animationFrame !== 0) {
       window.cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
     }
-    window.removeEventListener("scroll", this.refreshTransform);
-    window.removeEventListener("resize", this.refreshTransform);
     this.path?.setPathData([]);
   }
 }
 
 /**
+ * Copies pencil stroke style into the overlay path without reading from a board
+ * SVG element. Active local strokes may not have one yet.
  * @param {SVGPathElement} target
- * @param {SVGPathElement} source
+ * @param {PencilLineData} source
  */
 function copyOverlayStrokeAttributes(target, source) {
   target.setAttribute("fill", "none");
   target.setAttribute("stroke-linecap", "round");
   target.setAttribute("stroke-linejoin", "round");
-  target.setAttribute("stroke", source.getAttribute("stroke") || "black");
-  target.setAttribute(
-    "stroke-width",
-    source.getAttribute("stroke-width") || "10",
-  );
-  const opacity = source.getAttribute("opacity");
-  if (opacity === null) target.removeAttribute("opacity");
-  else target.setAttribute("opacity", opacity);
+  target.setAttribute("stroke", source.color || "black");
+  target.setAttribute("stroke-width", String(source.size || 10));
+  if (typeof source.opacity === "number") {
+    target.setAttribute("opacity", String(source.opacity));
+  } else {
+    target.removeAttribute("opacity");
+  }
 }
 
-/** @param {ToolRuntimeModules["viewport"]} viewport */
-function getOverlayPathTransform(viewport) {
-  const scrollRoot = document.scrollingElement || document.documentElement;
-  const scrollLeft = scrollRoot ? scrollRoot.scrollLeft : window.scrollX || 0;
-  const scrollTop = scrollRoot ? scrollRoot.scrollTop : window.scrollY || 0;
-  return `translate(${-scrollLeft} ${-scrollTop}) scale(${viewport.getScale()})`;
+/**
+ * Reads an SVG animated length without forcing document scroll/layout state.
+ * @param {SVGAnimatedLength | undefined} length
+ * @returns {number | null}
+ */
+function getSvgLengthValue(length) {
+  const value = Number(length?.baseVal?.value);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
+ * Mirrors the board SVG scale without reading scroll/layout state. Stroke
+ * flushes call this because zoom can change while Pencil remains selected.
+ * @param {SVGSVGElement} overlay
+ * @param {ToolRuntimeModules["viewport"]} viewport
+ */
+function syncOverlayTransform(overlay, viewport) {
+  const transform = `scale(${viewport.getScale()})`;
+  if (overlay.style.transform !== transform)
+    overlay.style.transform = transform;
+}
+
+/**
+ * Keeps the overlay in board coordinates and lets normal document scrolling
+ * move it with the board. Do not read `scrollLeft`/`scrollTop` here; that was
+ * the trace-visible forced layout trigger.
+ * @param {SVGSVGElement} overlay
+ * @param {SVGSVGElement} boardSvg
+ * @param {ToolRuntimeModules["viewport"]} viewport
+ */
+function syncOverlayGeometry(overlay, boardSvg, viewport) {
+  const width =
+    getSvgLengthValue(boardSvg.width) || Number(boardSvg.getAttribute("width"));
+  const height =
+    getSvgLengthValue(boardSvg.height) ||
+    Number(boardSvg.getAttribute("height"));
+  if (Number.isFinite(width) && width > 0) {
+    const textWidth = String(width);
+    if (overlay.getAttribute("width") !== textWidth) {
+      overlay.setAttribute("width", textWidth);
+    }
+    const cssWidth = `${width}px`;
+    if (overlay.style.width !== cssWidth) overlay.style.width = cssWidth;
+  }
+  if (Number.isFinite(height) && height > 0) {
+    const textHeight = String(height);
+    if (overlay.getAttribute("height") !== textHeight) {
+      overlay.setAttribute("height", textHeight);
+    }
+    const cssHeight = `${height}px`;
+    if (overlay.style.height !== cssHeight) overlay.style.height = cssHeight;
+  }
+  syncOverlayTransform(overlay, viewport);
 }
 
 /** @param {ToolBootContext} ctx */
@@ -500,9 +597,11 @@ function createInitialState(ctx) {
     hasSentPoint: false,
     currentLineChildCount: 0,
     renderingLine: /** @type {SVGPathElement | null} */ (null),
+    activeLineData: /** @type {PencilLineData | null} */ (null),
     activeInteractionLease: /** @type {{release: () => void} | null} */ (null),
     liveOverlay: new PencilLiveOverlay(runtime.board, runtime.viewport),
     pathDataCache: /** @type {Record<string, PencilPathData>} */ ({}),
+    rejectedLineDeletes: new Set(),
     drawingSize: -1,
     whiteOutSize: -1,
     secondary: /** @type {PencilSecondary} */ ({
@@ -573,6 +672,8 @@ function createLineMessage(state, lineId) {
 }
 
 /**
+ * Builds the create message for a new stroke without touching DOM. Keeping
+ * this pure makes press behavior easy to unit-test separately from rendering.
  * @param {PencilState} state
  * @returns {PencilPressEffect}
  */
@@ -585,6 +686,8 @@ export function createPencilPressEffect(state) {
 }
 
 /**
+ * Decides whether a pointer move should send a pencil point, throttle it, or
+ * end the current stroke because it reached the configured child limit.
  * @param {PencilState} state
  * @param {number} x
  * @param {number} y
@@ -630,6 +733,9 @@ export function createPencilMoveEffect(state, x, y, now) {
 }
 
 /**
+ * Returns cached path data for a board SVG path. `getPathData()` allocates, so
+ * append handling keeps one mutable JS copy per line and writes it back after
+ * adding the next point.
  * @param {PencilState} state
  * @param {SVGPathElement & {id: string}} line
  */
@@ -657,68 +763,169 @@ function getLineById(state, lineId) {
 }
 
 /**
- * @param {SVGPathElement & {id: string} | null} line
- * @param {boolean} active
+ * Keeps only the style/id fields needed to render an active local stroke later.
+ * The live create message itself is owned by the write pipeline after send.
+ * @param {PencilCreateMessage} message
  */
-function updateActiveDrawingClass(line, active) {
-  if (!line) return;
-  const current = String(line.getAttribute("class") || "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((name) => name !== ACTIVE_DRAWING_CLASS);
-  if (active) current.push(ACTIVE_DRAWING_CLASS);
-  line.setAttribute("class", current.join(" "));
+function cloneLineData(message) {
+  return {
+    type: MutationType.CREATE,
+    id: message.id,
+    color: message.color,
+    size: message.size,
+    opacity: message.opacity,
+  };
 }
 
-/** @param {PencilState} state */
+/**
+ * Returns the JS-owned path data for an active local stroke.
+ *
+ * During local drawing this cache is canonical for the in-progress stroke. The
+ * board SVG path is intentionally absent until `commitActiveStroke()`.
+ * @param {PencilState} state
+ * @param {string} lineId
+ * @returns {PencilPathData}
+ */
+function getLocalPathData(state, lineId) {
+  let pathData = state.pathDataCache[lineId];
+  if (!pathData) {
+    pathData = [];
+    state.pathDataCache[lineId] = pathData;
+  }
+  return pathData;
+}
+
+/**
+ * Releases the short-lived interaction lease used while Pencil owns the
+ * pointer stream. The lease suppresses the local cursor while a stroke is
+ * active without touching the dense board SVG subtree.
+ * @param {PencilState} state
+ */
 function releaseInteractionLease(state) {
   state.activeInteractionLease?.release();
   state.activeInteractionLease = null;
 }
 
-/** @param {PencilState} state */
+/**
+ * Claims the active drawing interaction so the local cursor does not repaint
+ * over Pencil's own overlay feedback.
+ * @param {PencilState} state
+ */
 function acquireInteractionLease(state) {
   releaseInteractionLease(state);
   if (typeof state.interaction.acquire !== "function") return;
   state.activeInteractionLease = state.interaction.acquire({
-    suppressDrawingAreaHitTesting: true,
     suppressOwnCursor: true,
   });
 }
 
-/** @param {PencilState} state */
-function stopLine(state) {
+/**
+ * Clears active stroke bookkeeping after the stroke was committed, canceled,
+ * or rejected. This deliberately does not decide whether to create or remove a
+ * board SVG path; callers make that policy choice first.
+ * @param {PencilState} state
+ */
+function clearActiveStrokeState(state) {
   state.liveOverlay.clear();
-  updateActiveDrawingClass(state.renderingLine, false);
   releaseInteractionLease(state);
   state.curLineId = "";
+  state.activeLineData = null;
   state.hasSentPoint = false;
   state.currentLineChildCount = 0;
   state.renderingLine = null;
 }
 
 /**
+ * Materializes the active local stroke into `#drawingArea` exactly once.
+ *
+ * This is the deliberate handoff from overlay-only drawing to normal
+ * canonical SVG. It should run on release or child-limit rollover, not on
+ * every accepted pencil point.
+ * @param {PencilState} state
+ */
+function commitActiveStroke(state) {
+  const lineId = state.curLineId;
+  if (!lineId || !state.activeLineData) return;
+  const pathData = state.pathDataCache[lineId];
+  if (!pathData || pathData.length === 0) return;
+  const line = createLine(state, state.activeLineData);
+  line.setPathData(pathData);
+  state.pathDataCache[lineId] = pathData;
+}
+
+/**
+ * Completes an active local stroke by committing its final path and clearing
+ * overlay/lease state.
+ * @param {PencilState} state
+ */
+function finishActiveStroke(state) {
+  commitActiveStroke(state);
+  clearActiveStrokeState(state);
+}
+
+/**
+ * Cancels the active stroke and drops its JS path cache. `removeCurrentLine`
+ * only matters for older/materialized paths; overlay-only strokes may have no
+ * board SVG node to remove.
  * @param {PencilState} state
  * @param {boolean} removeCurrentLine
  */
-function abortLine(state, removeCurrentLine) {
+function abortActiveStroke(state, removeCurrentLine) {
   const lineId = state.curLineId;
-  stopLine(state);
-  if (!removeCurrentLine || !lineId) return;
-  const line = getLineById(state, lineId);
-  if (!line || line.parentNode !== state.board.drawingArea) return;
-  state.board.drawingArea.removeChild(line);
+  clearActiveStrokeState(state);
+  if (!lineId) return;
+  if (removeCurrentLine) {
+    const line = getLineById(state, lineId);
+    if (line && line.parentNode === state.board.drawingArea) {
+      state.board.drawingArea.removeChild(line);
+    }
+  }
   delete state.pathDataCache[lineId];
 }
 
-/** @param {PencilState} state */
+/**
+ * Removes local state and any materialized board path for a rejected stroke.
+ * This implements the simple optimistic policy: a pencil rejection discards
+ * the whole local stroke instead of trying to reconstruct a valid prefix.
+ * @param {PencilState} state
+ * @param {string} lineId
+ */
+function removeLocalLine(state, lineId) {
+  const line = getLineById(state, lineId);
+  if (line && line.parentNode === state.board.drawingArea) {
+    state.board.drawingArea.removeChild(line);
+  }
+  delete state.pathDataCache[lineId];
+}
+
+/**
+ * Sends one cleanup delete for a rejected append so the server drops any
+ * accepted prefix of the same stroke. Duplicate rejection notifications for
+ * the same line id must not emit repeated deletes.
+ * @param {PencilState} state
+ * @param {string} lineId
+ */
+function sendRejectedLineDelete(state, lineId) {
+  if (!lineId || state.rejectedLineDeletes.has(lineId)) return;
+  state.rejectedLineDeletes.add(lineId);
+  state.writes.send(createDeleteLineMessage(lineId));
+}
+
+/**
+ * Cancels a user gesture and tells the server to delete any accepted prefix of
+ * that stroke. This is used for touch cancellation, not normal release.
+ * @param {PencilState} state
+ */
 function cancelLineGesture(state) {
   const lineId = state.curLineId;
-  abortLine(state, true);
+  abortActiveStroke(state, true);
   if (lineId) state.writes.send(createDeleteLineMessage(lineId));
 }
 
 /**
+ * Converts server-rendered canonical pencil paths back into the browser's
+ * smoothed path representation. This runs on boot/normalization, not on the
+ * active local input path.
  * @param {PencilState} state
  * @param {{type: string, values: number[]}[]} pathData
  * @returns {{type: string, values: number[]}[] | null}
@@ -767,6 +974,8 @@ function normalizeServerRenderedPathData(state, pathData) {
 }
 
 /**
+ * Creates or resets the canonical board SVG path for one pencil stroke.
+ * Active local strokes call this only when they are committed at the end.
  * @param {PencilState} state
  * @param {PencilLineData} lineData
  * @returns {SVGPathElement & {id: string}}
@@ -790,8 +999,90 @@ function createLine(state, lineData) {
   if (line.parentNode !== state.board.drawingArea) {
     state.board.drawingArea.appendChild(line);
   }
-  updateActiveDrawingClass(line, line.id === state.curLineId);
   return line;
+}
+
+/**
+ * Handles a local create for the currently active stroke without adding a path
+ * to `#drawingArea`. Generic optimistic rollback will snapshot "no item" for
+ * this id, which is compatible with the whole-stroke rejection policy.
+ * @param {PencilState} state
+ * @param {PencilCreateMessage} message
+ */
+function drawActiveLocalCreate(state, message) {
+  state.activeLineData = cloneLineData(message);
+  state.pathDataCache[message.id] = [];
+  state.liveOverlay.start(state.activeLineData);
+}
+
+/**
+ * Handles a local append by updating only JS path state and the overlay.
+ * This is the hot local drawing path and must not mutate the dense board SVG.
+ * @param {PencilState} state
+ * @param {PencilAppendMessage} message
+ */
+function drawActiveLocalAppend(state, message) {
+  const pathData = wboPencilPoint(
+    getLocalPathData(state, message.parent),
+    message.x,
+    message.y,
+  );
+  state.liveOverlay.update(
+    /** @type {PencilLineData} */ (state.activeLineData),
+    pathData,
+  );
+}
+
+/**
+ * Renders a create message into the canonical board SVG. This path is for
+ * remote/replay messages and for the final local commit, never per-point local
+ * active feedback.
+ * @param {PencilState} state
+ * @param {PencilCreateMessage} message
+ */
+function drawBoardCreate(state, message) {
+  state.renderingLine = createLine(state, message);
+}
+
+/**
+ * Returns the board path that a non-local append should mutate, creating a
+ * minimal placeholder only for out-of-order or malformed replay recovery.
+ * @param {PencilState} state
+ * @param {string} parentId
+ * @returns {SVGPathElement & {id: string}}
+ */
+function getBoardLineForAppend(state, parentId) {
+  const existingLine =
+    state.renderingLine && state.renderingLine.id === parentId
+      ? state.renderingLine
+      : getLineById(state, parentId);
+  if (existingLine) return existingLine;
+  logFrontendEvent("warn", "tool.pencil.append_missing_parent", {
+    parentId,
+  });
+  const fallbackLine = createLine(state, {
+    type: MutationType.CREATE,
+    id: parentId,
+  });
+  state.renderingLine = fallbackLine;
+  return fallbackLine;
+}
+
+/**
+ * Applies a non-local append to the canonical board SVG. Remote/replay drawing
+ * still uses the board path immediately because it is not on the local input
+ * critical path.
+ * @param {PencilState} state
+ * @param {PencilAppendMessage} message
+ */
+function drawBoardAppend(state, message) {
+  const line = getBoardLineForAppend(state, message.parent);
+  const pathData = wboPencilPoint(
+    getPathData(state, line),
+    message.x,
+    message.y,
+  );
+  line.setPathData(pathData);
 }
 
 /** @param {PencilState} state */
@@ -843,17 +1134,23 @@ function handleAutoWhiteOut(state, evt) {
 export function boot(ctx) {
   const state = createInitialState(ctx);
   state.secondary.switch = () => {
-    stopLine(state);
+    finishActiveStroke(state);
     toggleSize(state);
   };
   return state;
 }
 
 /**
+ * Draws one pencil message.
+ *
+ * Local active strokes are special: they are visible through
+ * `PencilLiveOverlay` and stay out of `#drawingArea` until release. All
+ * remote/replay messages continue to mutate canonical board SVG immediately.
  * @param {PencilState} state
  * @param {unknown} data
+ * @param {boolean} [isLocal]
  */
-export function draw(state, data) {
+export function draw(state, data, isLocal = false) {
   state.interaction.drawingEvent = true;
   if (!isPencilMessage(data)) {
     logFrontendEvent("error", "tool.pencil.draw_invalid_type", {
@@ -862,43 +1159,27 @@ export function draw(state, data) {
     });
     return;
   }
-  switch (data.type) {
-    case MutationType.CREATE:
-      state.renderingLine = createLine(state, data);
-      if (state.renderingLine.id === state.curLineId) {
-        state.liveOverlay.start(state.renderingLine);
-      }
-      return;
-    case MutationType.APPEND: {
-      const childData = data;
-      let line =
-        state.renderingLine && state.renderingLine.id === childData.parent
-          ? state.renderingLine
-          : getLineById(state, childData.parent);
-      if (!line) {
-        logFrontendEvent("warn", "tool.pencil.append_missing_parent", {
-          parentId: childData.parent,
-        });
-        line = state.renderingLine = createLine(state, {
-          type: MutationType.CREATE,
-          id: childData.parent,
-        });
-      }
-      const pathData = wboPencilPoint(
-        getPathData(state, line),
-        childData.x,
-        childData.y,
-      );
-      line.setPathData(pathData);
-      if (line.id === state.curLineId) {
-        state.liveOverlay.update(line, pathData);
-      }
-      return;
+
+  if (data.type === MutationType.CREATE) {
+    if (isLocal && data.id === state.curLineId) {
+      drawActiveLocalCreate(state, data);
+    } else {
+      drawBoardCreate(state, data);
     }
+    return;
+  }
+
+  if (isLocal && data.parent === state.curLineId && state.activeLineData) {
+    drawActiveLocalAppend(state, data);
+  } else {
+    drawBoardAppend(state, data);
   }
 }
 
 /**
+ * Starts a local pencil stroke, sends the live create immediately, and lets
+ * `draw()` put the first visible feedback into the overlay instead of
+ * `#drawingArea`.
  * @param {PencilState} state
  * @param {number} x
  * @param {number} y
@@ -915,6 +1196,8 @@ export function press(state, x, y, evt) {
   }
   const effect = createPencilPressEffect(state);
   state.curLineId = effect.lineId;
+  state.activeLineData = null;
+  state.rejectedLineDeletes.delete(effect.lineId);
   state.hasSentPoint = false;
   state.currentLineChildCount = 0;
   acquireInteractionLease(state);
@@ -923,6 +1206,9 @@ export function press(state, x, y, evt) {
 }
 
 /**
+ * Sends live pencil append messages while throttling to the configured write
+ * rate. Local rendering still goes through `draw()`, so this stays focused on
+ * input policy rather than DOM mutation.
  * @param {PencilState} state
  * @param {number} x
  * @param {number} y
@@ -931,29 +1217,35 @@ export function press(state, x, y, evt) {
 export function move(state, x, y, evt) {
   const effect = createPencilMoveEffect(state, x, y, performance.now());
   if (effect.stopBefore) {
-    stopLine(state);
+    finishActiveStroke(state);
   }
   if (effect.appendMessage) {
     state.writes.drawAndSend(effect.appendMessage);
     state.currentLineChildCount = effect.nextChildCount;
     state.hasSentPoint = effect.nextHasSentPoint;
     state.lastTime = effect.nextLastTime;
-    if (effect.stopAfter) stopLine(state);
+    if (effect.stopAfter) finishActiveStroke(state);
   }
   if (evt) evt.preventDefault();
 }
 
 /**
+ * Ends the pointer stroke and performs the single overlay-to-board-SVG commit.
+ * Any live messages were already sent during press/move.
  * @param {PencilState} state
  * @param {number} x
  * @param {number} y
  */
 export function release(state, x, y) {
   move(state, x, y, undefined);
-  stopLine(state);
+  finishActiveStroke(state);
 }
 
-/** @param {PencilState} state */
+/**
+ * Handles browser gesture cancellation by dropping local feedback and sending a
+ * delete for any prefix the server may already have accepted.
+ * @param {PencilState} state
+ */
 export function cancelTouchGesture(state) {
   cancelLineGesture(state);
 }
@@ -986,45 +1278,60 @@ export function normalizeServerRenderedElement(state, line) {
 }
 
 /**
+ * Handles authoritative board events that invalidate the active local stroke.
+ * The overlay is local-only, so clear/delete must explicitly discard it.
  * @param {PencilState} state
  * @param {{type?: unknown, id?: string}} message
  */
 export function onMessage(state, message) {
   if (message.type === MutationType.CLEAR) {
-    abortLine(state, false);
+    abortActiveStroke(state, false);
     return;
   }
   if (message.type === MutationType.DELETE && message.id === state.curLineId) {
-    abortLine(state, false);
+    abortActiveStroke(state, false);
   }
-}
-
-/** @param {PencilState} state */
-export function onSocketDisconnect(state) {
-  abortLine(state, true);
 }
 
 /**
+ * Drops unacknowledged local feedback on disconnect. Reconnect reloads the
+ * authoritative board state instead of trying to preserve the overlay stroke.
  * @param {PencilState} state
- * @param {{id?: string, parent?: string}} message
+ */
+export function onSocketDisconnect(state) {
+  abortActiveStroke(state, true);
+}
+
+/**
+ * Handles the pencil optimistic policy after the generic write layer reports a
+ * rejection. A rejected append means the server may have accepted an earlier
+ * prefix, so the client sends one cleanup delete for the whole stroke.
+ * @param {PencilState} state
+ * @param {{type?: unknown, id?: string, parent?: string}} message
  */
 export function onMutationRejected(state, message) {
-  if (
-    state.curLineId !== "" &&
-    (message.id === state.curLineId || message.parent === state.curLineId)
-  ) {
-    abortLine(state, false);
+  const lineId = message.parent || message.id || "";
+  if (!lineId) return;
+  const isAppend =
+    message.type === MutationType.APPEND || typeof message.parent === "string";
+  if (lineId === state.curLineId) {
+    abortActiveStroke(state, false);
+  } else {
+    removeLocalLine(state, lineId);
   }
+  if (isAppend) sendRejectedLineDelete(state, lineId);
 }
 
 /** @param {PencilState} state */
 export function onstart(state) {
   state.hasUsedStylus = false;
+  state.liveOverlay.activate();
   if (state.secondary.active) restoreWhiteOutSize(state);
 }
 
 /** @param {PencilState} state */
 export function onquit(state) {
-  stopLine(state);
+  finishActiveStroke(state);
+  state.liveOverlay.deactivate();
   if (state.secondary.active) restoreDrawingSize(state);
 }
