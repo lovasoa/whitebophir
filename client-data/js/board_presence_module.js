@@ -15,8 +15,6 @@ export class PresenceModule {
     this.users = /** @type {ConnectedUserMap} */ ({});
     this.panelOpen = false;
     this.renderScheduled = false;
-    this.pendingFullRender = false;
-    this.dirtyActivitySocketIds = new Set();
   }
 
   clearConnectedUsers() {
@@ -24,49 +22,23 @@ export class PresenceModule {
       if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
     });
     this.users = /** @type {ConnectedUserMap} */ ({});
-    this.dirtyActivitySocketIds.clear();
-    this.pendingFullRender = false;
     if (this.panelOpen) this.renderConnectedUsers();
     else syncConnectedUsersSummary(this);
   }
 
-  /**
-   * @param {"activity" | "full"} reason
-   * @param {string} [socketId]
-   */
-  schedulePresenceRender(reason, socketId) {
+  /** @param {boolean} [syncSummaryWhenClosed] */
+  schedulePresenceRender(syncSummaryWhenClosed = true) {
     if (!this.panelOpen) {
-      if (reason === "full") syncConnectedUsersSummary(this);
+      if (syncSummaryWhenClosed) syncConnectedUsersSummary(this);
       return;
-    }
-    if (reason === "full" || !socketId) {
-      this.pendingFullRender = true;
-    } else {
-      this.dirtyActivitySocketIds.add(socketId);
     }
     if (this.renderScheduled) return;
     this.renderScheduled = true;
     const schedule = window.requestAnimationFrame || window.setTimeout;
-    schedule(() => this.flushScheduledPresenceRender());
-  }
-
-  flushScheduledPresenceRender() {
-    this.renderScheduled = false;
-    if (this.pendingFullRender) {
-      this.pendingFullRender = false;
-      this.dirtyActivitySocketIds.clear();
-      this.renderConnectedUsers();
-      return;
-    }
-    if (!this.panelOpen) return;
-    const dirtySocketIds = Array.from(this.dirtyActivitySocketIds);
-    this.dirtyActivitySocketIds.clear();
-    if (
-      dirtySocketIds.length === 0 ||
-      !patchConnectedUserRows(this.getTools, this.users, dirtySocketIds)
-    ) {
-      this.renderConnectedUsers();
-    }
+    schedule(() => {
+      this.renderScheduled = false;
+      if (this.panelOpen) this.renderConnectedUsers();
+    });
   }
 
   renderConnectedUsers() {
@@ -126,7 +98,7 @@ export class PresenceModule {
       this.users[user.socketId] || {},
       user,
     );
-    this.schedulePresenceRender("full");
+    this.schedulePresenceRender();
   }
 
   /** @param {string} socketId */
@@ -134,8 +106,7 @@ export class PresenceModule {
     const user = this.users[socketId];
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
     delete this.users[socketId];
-    this.dirtyActivitySocketIds.delete(socketId);
-    this.schedulePresenceRender("full");
+    this.schedulePresenceRender();
   }
 
   /**
@@ -151,28 +122,21 @@ export class PresenceModule {
     // When a live message includes `socket`, update that exact row only. Falling back to `userId` keeps older/non-live paths working.
     const messageSocketId = message.socket || null;
     if (!userId && messageSocketId === null) return;
-    const changedSocketIds = /** @type {string[]} */ ([]);
+    let changed = false;
     const dom = getAttachedBoardDom(Tools);
     const focusPoint = dom ? getMessageFocusPoint(dom, message) : null;
-    const scheduleActivityRender = (/** @type {string} */ socketId) =>
-      this.schedulePresenceRender("activity", socketId);
     Object.values(this.users).forEach((user) => {
       if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
-      if (
+      changed =
         applyConnectedUserActivity(
           user,
           message,
           focusPoint,
           messageSocketId,
-          scheduleActivityRender,
-        )
-      ) {
-        changedSocketIds.push(user.socketId);
-      }
+          () => this.schedulePresenceRender(false),
+        ) || changed;
     });
-    changedSocketIds.forEach((socketId) => {
-      this.schedulePresenceRender("activity", socketId);
-    });
+    if (changed) this.schedulePresenceRender(false);
   }
 
   /** @param {BoardMessage} message */
@@ -462,7 +426,7 @@ function getMessageFocusPoint(dom, message) {
 
 /**
  * @param {ConnectedUser} user
- * @param {(socketId: string) => void} scheduleActivityRender
+ * @param {() => void} scheduleActivityRender
  * @returns {void}
  */
 function scheduleConnectedUserPulseEnd(user, scheduleActivityRender) {
@@ -480,7 +444,7 @@ function scheduleConnectedUserPulseEnd(user, scheduleActivityRender) {
     if (user.pulseUntil) {
       user.pulseUntil = 0;
       user.pulseTimeoutId = null;
-      scheduleActivityRender(user.socketId);
+      scheduleActivityRender();
     }
   };
   user.pulseTimeoutId = window.setTimeout(
@@ -491,7 +455,7 @@ function scheduleConnectedUserPulseEnd(user, scheduleActivityRender) {
 
 /**
  * @param {ConnectedUser} user
- * @param {(socketId: string) => void} scheduleActivityRender
+ * @param {() => void} scheduleActivityRender
  * @returns {boolean}
  */
 function markConnectedUserActivity(user, scheduleActivityRender) {
@@ -642,41 +606,6 @@ function createConnectedUserRow(getTools, user, users) {
 }
 
 /**
- * @param {HTMLElement} list
- * @param {string} socketId
- * @returns {ConnectedUserRow | null}
- */
-function findConnectedUserRow(list, socketId) {
-  for (const child of Array.from(list.children)) {
-    if (
-      child instanceof HTMLLIElement &&
-      child.dataset.socketId === socketId &&
-      child.classList.contains("connected-user-row")
-    ) {
-      return /** @type {ConnectedUserRow} */ (child);
-    }
-  }
-  return null;
-}
-
-/**
- * @param {() => AppToolsState} getTools
- * @param {ConnectedUserMap} users
- * @param {string[]} dirtySocketIds
- * @returns {boolean}
- */
-function patchConnectedUserRows(getTools, users, dirtySocketIds) {
-  const list = getConnectedUsersList();
-  for (const socketId of dirtySocketIds) {
-    const row = findConnectedUserRow(list, socketId);
-    const user = users[socketId];
-    if (!row || !user) return false;
-    updateConnectedUserRow(getTools, row, user);
-  }
-  return true;
-}
-
-/**
  * @param {ConnectedUser} user
  * @param {string | undefined} userId
  * @param {string | null} messageSocketId
@@ -694,7 +623,7 @@ function connectedUserMatchesActivity(user, userId, messageSocketId) {
  * @param {BoardMessage} message
  * @param {{x: number, y: number} | null} focusPoint
  * @param {string | null} messageSocketId
- * @param {(socketId: string) => void} scheduleActivityRender
+ * @param {() => void} scheduleActivityRender
  * @returns {boolean}
  */
 function applyConnectedUserActivity(

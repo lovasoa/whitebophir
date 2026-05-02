@@ -309,13 +309,14 @@ test.describe("single-page interactions", () => {
       },
       { color: stroke, size: Number(strokeWidth) },
     );
+    const visibleStroke = page.locator(
+      `#board path[stroke='${stroke}'][stroke-width='${strokeWidth}'][d]:not([d=''])`,
+    );
 
     await page.mouse.move(220, 220);
     await page.mouse.down();
     await page.mouse.move(280, 280, { steps: 4 });
-    await expect
-      .poll(() => boardPage.readVisibleStrokePaths(stroke))
-      .toEqual([expect.objectContaining({ stroke, strokeWidth })]);
+    await expect(visibleStroke).toHaveCount(1);
 
     await page.mouse.up();
     const finalStroke = page.locator(`#drawingArea path[stroke='${stroke}']`);

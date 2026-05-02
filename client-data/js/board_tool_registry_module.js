@@ -672,9 +672,8 @@ export function createToolRuntimeModules(mountedTools, ownerToolName = "") {
       set showMyCursor(value) {
         mountedTools.interaction.showMyCursor = value;
       },
-      /** @param {Parameters<MountedAppToolsState["interaction"]["acquire"]>[1]} options */
-      acquire(options) {
-        return mountedTools.interaction.acquire(ownerToolName, options);
+      suppressOwnCursor() {
+        return mountedTools.interaction.suppressOwnCursor(ownerToolName);
       },
       isOwnCursorSuppressed() {
         return mountedTools.interaction.isOwnCursorSuppressed();

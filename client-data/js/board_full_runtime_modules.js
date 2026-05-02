@@ -41,78 +41,43 @@ export class AssetModule {
   }
 }
 
-/**
- * @typedef {{
- *   suppressOwnCursor?: boolean,
- * }} InteractionLeaseOptions
- * @typedef {{
- *   owner: string,
- *   suppressOwnCursor: boolean,
- * }} InteractionLeaseEntry
- */
-
 export class InteractionModule {
   constructor() {
     this.drawingEvent = true;
     this.showMarker = true;
     this.showOtherCursors = true;
     this.showMyCursor = true;
-    this.nextLeaseToken = 0;
-    this.leases = /** @type {Map<string, InteractionLeaseEntry>} */ (new Map());
-    this.ownCursorSuppressed = false;
+    this.ownCursorSuppressionOwners = new Set();
   }
 
   /**
    * @param {string} owner
-   * @param {InteractionLeaseOptions} options
    * @returns {{release: () => void}}
    */
-  acquire(owner, options) {
-    const token = `lease-${++this.nextLeaseToken}`;
-    this.leases.set(token, {
-      owner,
-      suppressOwnCursor: options.suppressOwnCursor === true,
-    });
-    this.syncLeaseEffects();
+  suppressOwnCursor(owner) {
+    this.ownCursorSuppressionOwners.add(owner);
     let released = false;
     return {
       release: () => {
         if (released) return;
         released = true;
-        if (this.leases.delete(token)) this.syncLeaseEffects();
+        this.ownCursorSuppressionOwners.delete(owner);
       },
     };
   }
 
   /** @param {string} owner */
   releaseOwner(owner) {
-    let changed = false;
-    this.leases.forEach((lease, token) => {
-      if (lease.owner !== owner) return;
-      this.leases.delete(token);
-      changed = true;
-    });
-    if (changed) this.syncLeaseEffects();
+    this.ownCursorSuppressionOwners.delete(owner);
   }
 
   releaseAll() {
-    if (this.leases.size === 0) return;
-    this.leases.clear();
-    this.syncLeaseEffects();
+    this.ownCursorSuppressionOwners.clear();
   }
 
   /** @returns {boolean} */
   isOwnCursorSuppressed() {
-    return this.ownCursorSuppressed;
-  }
-
-  syncLeaseEffects() {
-    let suppressOwnCursor = false;
-    this.leases.forEach((lease) => {
-      suppressOwnCursor = suppressOwnCursor || lease.suppressOwnCursor;
-    });
-
-    this.ownCursorSuppressed = suppressOwnCursor;
+    return this.ownCursorSuppressionOwners.size > 0;
   }
 }
 

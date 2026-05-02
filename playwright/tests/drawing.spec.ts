@@ -365,23 +365,22 @@ test.describe("drawing and persistence", () => {
         },
         { color: stroke, size: Number(strokeWidth) },
       );
+      const visibleStroke = page.locator(
+        `#board path[stroke='${stroke}'][stroke-width='${strokeWidth}'][d]:not([d=''])`,
+      );
 
       await page.mouse.move(300, 300);
       await page.mouse.down();
       await page.mouse.move(360, 300);
       await page.mouse.move(420, 300);
-      await expect
-        .poll(() => boardPage.readVisibleStrokePaths(stroke))
-        .toEqual([expect.objectContaining({ stroke, strokeWidth })]);
+      await expect(visibleStroke).toHaveCount(1);
       await expect(boardPage.statusIndicator).toBeVisible();
 
       await peerBoard.tool("clear").click();
       await page.mouse.up();
 
       await expect(boardPage.statusIndicator).toBeHidden();
-      await expect
-        .poll(() => boardPage.readVisibleStrokePaths(stroke))
-        .toHaveLength(0);
+      await expect(visibleStroke).toHaveCount(0);
       await peerPage.close();
     },
   );

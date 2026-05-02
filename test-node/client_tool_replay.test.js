@@ -735,23 +735,20 @@ function createTestInteraction() {
     showMarker: true,
     showOtherCursors: true,
     showMyCursor: true,
-    activeLeaseCount: 0,
-    leaseOptions: /** @type {{suppressOwnCursor?: boolean}[]} */ ([]),
-    /** @param {{suppressOwnCursor?: boolean}} options */
-    acquire(options) {
-      this.leaseOptions.push({ ...options });
-      this.activeLeaseCount += 1;
+    ownCursorSuppressionCount: 0,
+    suppressOwnCursor() {
+      this.ownCursorSuppressionCount += 1;
       let released = false;
       return {
         release: () => {
           if (released) return;
           released = true;
-          this.activeLeaseCount -= 1;
+          this.ownCursorSuppressionCount -= 1;
         },
       };
     },
     isOwnCursorSuppressed() {
-      return this.activeLeaseCount > 0;
+      return this.ownCursorSuppressionCount > 0;
     },
   };
 }
@@ -1254,69 +1251,7 @@ test("Pencil move logic sends the first point and throttles follow-ups", () => {
   });
 });
 
-test("Pencil keeps the active local line out of the board SVG until release", async () => {
-  const harness = createHarness();
-  const pencilTool = await harness.loadTool("pencil");
-  const event = { preventDefault: () => {} };
-
-  globalAny.Tools.toolRegistry.current = pencilTool;
-  harness.clock.now = 0;
-  pencilTool.listeners.press(100, 100, event);
-
-  assert.equal(harness.elementsById.has("l-1"), false);
-  assert.equal(drawingAreaPaths().length, 0);
-  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 1);
-  assert.deepEqual(globalAny.Tools.interaction.leaseOptions, [
-    { suppressOwnCursor: true },
-  ]);
-
-  harness.clock.now = 2;
-  pencilTool.listeners.release(200, 200, event);
-
-  const committedLine = harness.elementsById.get("l-1");
-  assert.ok(committedLine);
-  assert.deepEqual(committedLine.pathData, [
-    { type: "M", values: [100, 100] },
-    { type: "L", values: [100, 100] },
-  ]);
-  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
-  assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
-});
-
-test("Pencil live overlay coalesces active path updates into one frame", async () => {
-  const harness = createHarness();
-  const pencilTool = await harness.loadTool("pencil");
-  const event = { preventDefault: () => {} };
-  const frames = /** @type {Function[]} */ ([]);
-  globalAny.window.requestAnimationFrame = (/** @type {Function} */ run) => {
-    frames.push(run);
-    return frames.length;
-  };
-  globalAny.window.cancelAnimationFrame = () => {};
-
-  globalAny.Tools.toolRegistry.current = pencilTool;
-  harness.clock.now = 0;
-  pencilTool.listeners.press(100, 100, event);
-  harness.clock.now = 101;
-  pencilTool.listeners.move(150, 150, event);
-  harness.clock.now = 202;
-  pencilTool.listeners.move(200, 200, event);
-
-  assert.equal(frames.length, 1);
-  assert.equal(harness.elementsById.has("l-1"), false);
-  assert.equal(drawingAreaPaths().length, 0);
-
-  frames.shift()?.();
-
-  const overlayPath = getPencilLiveOverlayPath();
-  assert.ok(overlayPath);
-  assert.equal(drawingAreaPaths().length, 0);
-  assert.ok(overlayPath.pathData.length > 0);
-  assert.equal(overlayPath.attributes.stroke, "#123456");
-  assert.equal(getPencilLiveOverlay()?.style.transform, "scale(1)");
-});
-
-test("Pencil live overlay flush does not read document scroll", async () => {
+test("Pencil keeps active local drawing out of the board SVG until release", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
@@ -1342,9 +1277,28 @@ test("Pencil live overlay flush does not read document scroll", async () => {
   globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
   pencilTool.listeners.press(100, 100, event);
+  harness.clock.now = 101;
+  pencilTool.listeners.move(150, 150, event);
+  harness.clock.now = 202;
+  pencilTool.listeners.move(200, 200, event);
 
   assert.equal(frames.length, 1);
+  assert.equal(harness.elementsById.has("l-1"), false);
+  assert.equal(drawingAreaPaths().length, 0);
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 1);
   assert.doesNotThrow(() => frames.shift()?.());
+
+  const overlayPath = getPencilLiveOverlayPath();
+  assert.ok(overlayPath?.pathData.length > 0);
+  assert.equal(overlayPath.attributes.stroke, "#123456");
+  assert.equal(getPencilLiveOverlay()?.style.transform, "scale(1)");
+
+  harness.clock.now = 303;
+  pencilTool.listeners.release(250, 250, event);
+
+  assert.ok(harness.elementsById.get("l-1")?.pathData.length > 0);
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 0);
+  assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
 });
 
 test("Cursor skips own marker updates while interaction suppresses it", async () => {
@@ -1358,9 +1312,7 @@ test("Cursor skips own marker updates while interaction suppresses it", async ()
     if (delay === 5000) return 0;
     return originalSetTimeout(callback, delay);
   };
-  const lease = globalAny.Tools.interaction.acquire({
-    suppressOwnCursor: true,
-  });
+  const lease = globalAny.Tools.interaction.suppressOwnCursor();
 
   try {
     cursorTool.draw({
@@ -1442,7 +1394,7 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
 
-  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 0);
   assert.equal(harness.elementsById.has("l-1"), false);
   assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
   assert.deepEqual(
@@ -1472,7 +1424,7 @@ test("Pencil rejection aborts the active stroke and sends one cleanup delete", a
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
 
-  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 0);
   assert.equal(harness.elementsById.has("l-1"), false);
   assert.deepEqual(getPencilLiveOverlayPath()?.pathData, []);
   assert.deepEqual(
@@ -1586,7 +1538,7 @@ test("Pencil delete of the active line aborts the active stroke", async () => {
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
 
-  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 0);
   assert.deepEqual(
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
@@ -1612,7 +1564,7 @@ test("Pencil clear aborts the active stroke", async () => {
   harness.clock.now = 101;
   pencilTool.listeners.move(200, 200, event);
 
-  assert.equal(globalAny.Tools.interaction.activeLeaseCount, 0);
+  assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 0);
   assert.deepEqual(
     globalAny.Tools.sentMessages.map(
       (/** @type {any} */ message) => message.data.type,
