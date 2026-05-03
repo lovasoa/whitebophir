@@ -51,9 +51,9 @@ const TOUCH_EVENT_NAMES = [
  */
 
 /** @typedef {"app-gesture" | "native-pan"} ViewportTouchPolicy */
-/** @typedef {"none" | "browser" | "viewport-pinch"} TouchGestureOwner */
+/** @typedef {"none" | "browser" | "viewport-gesture"} TouchGestureOwner */
 /** @typedef {Pick<import("../../types/app-runtime").AppToolsState, "config" | "coordinates" | "dom" | "preferences" | "toolRegistry" | "viewportState">} ViewportRuntime */
-/** @typedef {{startPinch(event: TouchEvent): void, updatePinch(event: TouchEvent): void, endPinch(): void, cancelPinch(): void}} GestureCoordinatorHandlers */
+/** @typedef {{startPinchPan(event: TouchEvent): void, updatePinchPan(event: TouchEvent): void, endPinchPan(): void, cancelPinchPan(): void}} GestureCoordinatorHandlers */
 /** @typedef {"touchstart" | "touchmove" | "touchend" | "touchcancel"} GestureCoordinatorEventName */
 /** @typedef {Record<GestureCoordinatorEventName, (event: TouchEvent) => void>} GestureCoordinatorEventHandlers */
 
@@ -244,14 +244,14 @@ function distanceBetween(first, second) {
 }
 
 /**
- * @param {{pageX: number, pageY: number}} first
- * @param {{pageX: number, pageY: number}} second
- * @returns {{pageX: number, pageY: number}}
+ * @param {{clientX: number, clientY: number}} first
+ * @param {{clientX: number, clientY: number}} second
+ * @returns {{clientX: number, clientY: number}}
  */
 function midpoint(first, second) {
   return {
-    pageX: (first.pageX + second.pageX) / 2,
-    pageY: (first.pageY + second.pageY) / 2,
+    clientX: (first.clientX + second.clientX) / 2,
+    clientY: (first.clientY + second.clientY) / 2,
   };
 }
 
@@ -277,26 +277,26 @@ class GestureCoordinator {
       touchstart: (event) => {
         if (!this.acceptCancelableTouchEvent(event)) return;
         if (event.touches.length >= 2) {
-          this.claimViewportPinch(event);
-          this.handlers.startPinch(event);
+          this.claimViewportGesture(event);
+          this.handlers.startPinchPan(event);
         }
       },
       touchmove: (event) => {
         if (!this.acceptCancelableTouchEvent(event)) return;
         if (this.owner === "browser") return;
         if (event.touches.length >= 2) {
-          this.claimViewportPinch(event);
-          this.handlers.updatePinch(event);
+          this.claimViewportGesture(event);
+          this.handlers.updatePinchPan(event);
           return;
         }
-        if (this.owner === "viewport-pinch") safePreventDefault(event);
+        if (this.owner === "viewport-gesture") safePreventDefault(event);
       },
       touchend: (event) => {
         if (!this.acceptCancelableTouchEvent(event)) return;
-        if (this.owner === "viewport-pinch") {
+        if (this.owner === "viewport-gesture") {
           safePreventDefault(event);
           if (event.touches.length === 0) {
-            this.handlers.endPinch();
+            this.handlers.endPinchPan();
             this.reset();
           }
           return;
@@ -305,9 +305,9 @@ class GestureCoordinator {
       },
       touchcancel: (event) => {
         if (!this.acceptCancelableTouchEvent(event)) return;
-        if (this.owner === "viewport-pinch") {
+        if (this.owner === "viewport-gesture") {
           safePreventDefault(event);
-          this.handlers.cancelPinch();
+          this.handlers.cancelPinchPan();
         }
         this.reset();
       },
@@ -325,15 +325,15 @@ class GestureCoordinator {
    */
   acceptCancelableTouchEvent(event) {
     if (event.cancelable) return true;
-    if (this.owner === "viewport-pinch") this.handlers.cancelPinch();
+    if (this.owner === "viewport-gesture") this.handlers.cancelPinchPan();
     this.owner = "browser";
     if (event.touches.length === 0) this.reset();
     return false;
   }
 
   /** @param {TouchEvent} event */
-  claimViewportPinch(event) {
-    this.owner = "viewport-pinch";
+  claimViewportGesture(event) {
+    this.owner = "viewport-gesture";
     safePreventDefault(event);
   }
 }
@@ -359,8 +359,8 @@ export function createViewportController(Tools) {
   let touchPolicy = "app-gesture";
   /** @type {{x: number, y: number, scrollLeft: number, scrollTop: number} | null} */
   let activePan = null;
-  /** @type {{distance: number, scale: number} | null} */
-  let activePinch = null;
+  /** @type {{distance: number, scale: number, boardX: number, boardY: number} | null} */
+  let activePinchPan = null;
   /** @type {(() => void) | null} */
   let temporaryPanCleanup = null;
 
@@ -614,18 +614,15 @@ export function createViewportController(Tools) {
   }
 
   /**
-   * @param {TouchEvent} event
-   * @returns {void}
+   * @param {number} clientX
+   * @param {number} clientY
+   * @param {number} scale
+   * @returns {{x: number, y: number}}
    */
-  function startPinch(event) {
-    const touches = getPinchTouches(event);
-    if (!touches) return;
-    const distance = distanceBetween(touches[0], touches[1]);
-    if (distance < PINCH_MIN_DISTANCE) return;
-    clearViewportHashSync();
-    activePinch = {
-      distance,
-      scale: getScale(),
+  function clientPointToBoardPoint(clientX, clientY, scale) {
+    return {
+      x: screenToBoard(document.documentElement.scrollLeft + clientX, scale),
+      y: screenToBoard(document.documentElement.scrollTop + clientY, scale),
     };
   }
 
@@ -633,36 +630,65 @@ export function createViewportController(Tools) {
    * @param {TouchEvent} event
    * @returns {void}
    */
-  function updatePinch(event) {
+  function startPinchPan(event) {
+    const touches = getPinchTouches(event);
+    if (!touches) return;
+    const distance = distanceBetween(touches[0], touches[1]);
+    if (distance < PINCH_MIN_DISTANCE) return;
+    clearViewportHashSync();
+    const center = midpoint(touches[0], touches[1]);
+    const scale = getScale();
+    const boardPoint = clientPointToBoardPoint(
+      center.clientX,
+      center.clientY,
+      scale,
+    );
+    activePinchPan = {
+      distance,
+      scale,
+      boardX: boardPoint.x,
+      boardY: boardPoint.y,
+    };
+  }
+
+  /**
+   * @param {TouchEvent} event
+   * @returns {void}
+   */
+  function updatePinchPan(event) {
     if (event.touches.length !== 2) return;
     const touches = getPinchTouches(event);
     if (!touches) return;
-    if (!activePinch) startPinch(event);
-    if (!activePinch) return;
+    if (!activePinchPan) startPinchPan(event);
+    if (!activePinchPan) return;
     const distance = distanceBetween(touches[0], touches[1]);
-    const anchor = midpoint(touches[0], touches[1]);
-    zoomAtPagePoint(
-      activePinch.scale * (distance / activePinch.distance),
-      anchor.pageX,
-      anchor.pageY,
+    const center = midpoint(touches[0], touches[1]);
+    const scale = setScale(
+      activePinchPan.scale * (distance / activePinchPan.distance),
+    );
+    // Keep the board point that was under the initial midpoint under the
+    // current midpoint, so equal-distance two-finger moves pan without zooming.
+    panTo(
+      activePinchPan.boardX * scale - center.clientX,
+      activePinchPan.boardY * scale - center.clientY,
     );
   }
 
-  function endPinch() {
-    const wasPinching = !!activePinch;
-    activePinch = null;
+  function endPinchPan() {
+    const wasPinching = !!activePinchPan;
+    activePinchPan = null;
     if (wasPinching) scheduleViewportHashSync();
   }
 
-  function cancelPinch() {
-    activePinch = null;
+  function cancelPinchPan() {
+    activePinchPan = null;
   }
 
   const gestureCoordinator = new GestureCoordinator({
-    startPinch,
-    updatePinch,
-    endPinch,
-    cancelPinch,
+    startPinchPan,
+    updatePinchPan,
+    endPinchPan,
+    cancelPinchPan,
   });
 
   function clearViewportHashSync() {
@@ -699,7 +725,7 @@ export function createViewportController(Tools) {
   }
 
   function scheduleViewportHashSync() {
-    if (!hashObserversInstalled || activePan || activePinch) return;
+    if (!hashObserversInstalled || activePan || activePinchPan) return;
     clearViewportHashSync();
     viewportHashScrollTimeout = window.setTimeout(
       updateViewportHistory,

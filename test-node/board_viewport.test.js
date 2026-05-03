@@ -104,6 +104,7 @@ function createViewportHashTestEnvironment(initialHash = "#0,0,1.000") {
 
   return {
     window: fakeWindow,
+    document: fakeDocument,
     historyCalls,
     timers,
     /** @param {number} delay */
@@ -172,6 +173,25 @@ function createBoardTouchTarget() {
       for (const entry of listeners.get(type) || []) entry.listener(event);
     },
   };
+}
+
+/**
+ * @param {any} tools
+ * @param {ReturnType<typeof createBoardTouchTarget>} [board]
+ */
+function attachViewportDom(tools, board = createBoardTouchTarget()) {
+  const svg = {
+    style: {},
+    width: { baseVal: { value: 1000 } },
+    height: { baseVal: { value: 1000 } },
+  };
+  tools.dom = {
+    status: "attached",
+    board,
+    svg,
+    drawingArea: {},
+  };
+  return { board, svg };
 }
 
 /**
@@ -409,6 +429,76 @@ test("viewport pinch prevents default until all touches end", async () => {
     assert.equal(endAll.defaultPrevented, true);
     env.flushTimers(200);
     assert.equal(env.historyCalls.length, 1);
+  } finally {
+    env.restore();
+  }
+});
+
+test("viewport two-finger gesture pans when midpoint moves", async () => {
+  const env = createViewportHashTestEnvironment("#0,0,0.500");
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const tools = createViewportHashTestTools(0.5);
+    const { board } = attachViewportDom(tools);
+    env.document.documentElement.scrollLeft = 100;
+    env.document.documentElement.scrollTop = 200;
+    const viewport = createViewportController(tools);
+    viewport.install();
+
+    const first = createTouch(1, 100, 100);
+    const second = createTouch(2, 140, 100);
+    const movedFirst = createTouch(1, 150, 130);
+    const movedSecond = createTouch(2, 190, 130);
+
+    const start = createTouchEvent("touchstart", [first, second], [second]);
+    board.dispatch("touchstart", start);
+
+    const move = createTouchEvent(
+      "touchmove",
+      [movedFirst, movedSecond],
+      [movedFirst, movedSecond],
+    );
+    board.dispatch("touchmove", move);
+
+    assert.equal(move.defaultPrevented, true);
+    assert.equal(viewport.getScale(), 0.5);
+    assert.equal(env.document.documentElement.scrollLeft, 50);
+    assert.equal(env.document.documentElement.scrollTop, 170);
+  } finally {
+    env.restore();
+  }
+});
+
+test("viewport two-finger gesture pans and zooms together", async () => {
+  const env = createViewportHashTestEnvironment("#0,0,0.500");
+  try {
+    const { createViewportController } = await loadViewportModule();
+    const tools = createViewportHashTestTools(0.5);
+    const { board } = attachViewportDom(tools);
+    env.document.documentElement.scrollLeft = 100;
+    env.document.documentElement.scrollTop = 200;
+    const viewport = createViewportController(tools);
+    viewport.install();
+
+    const first = createTouch(1, 100, 100);
+    const second = createTouch(2, 140, 100);
+    const movedFirst = createTouch(1, 140, 120);
+    const movedSecond = createTouch(2, 220, 120);
+
+    const start = createTouchEvent("touchstart", [first, second], [second]);
+    board.dispatch("touchstart", start);
+
+    const move = createTouchEvent(
+      "touchmove",
+      [movedFirst, movedSecond],
+      [movedFirst, movedSecond],
+    );
+    board.dispatch("touchmove", move);
+
+    assert.equal(move.defaultPrevented, true);
+    assert.equal(viewport.getScale(), 1);
+    assert.equal(env.document.documentElement.scrollLeft, 260);
+    assert.equal(env.document.documentElement.scrollTop, 480);
   } finally {
     env.restore();
   }
