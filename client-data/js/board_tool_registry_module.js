@@ -450,6 +450,12 @@ function syncToolButton(toolName, tool) {
   const parts = getRequiredToolButtonParts(toolName);
   const translatedToolName = Tools.i18n.t(toolName);
   parts.label.textContent = translatedToolName;
+  if (tool.shortcut) {
+    const shortcutSpan = document.createElement("span");
+    shortcutSpan.className = "tool-shortcut";
+    shortcutSpan.textContent = `(${Tools.i18n.t("keyboard shortcut")}: ${tool.shortcut})`;
+    parts.label.appendChild(shortcutSpan);
+  }
   button.setAttribute("aria-label", translatedToolName);
   parts.primaryIcon.src = Tools.assets.resolveAssetPath(tool.icon);
   parts.primaryIcon.alt = "";

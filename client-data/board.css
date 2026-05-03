@@ -609,6 +609,7 @@ select {
   margin-bottom: 2.5px;
   display: inline-block;
   vertical-align: text-bottom;
+  position: relative;
 }
 #menu .tool-name.slider {
   display: inline-block;
@@ -618,6 +619,22 @@ select {
   line-height: 15px;
   vertical-align: top;
   padding: 6px;
+}
+
+#menu .tool-shortcut {
+  display: none;
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  font-size: 10px;
+  color: #6b7280;
+  line-height: 1;
+}
+
+#menu .tool:hover .tool-shortcut {
+  display: block;
 }
 
 #menu .tool.hasSecondary .tool-icon {
