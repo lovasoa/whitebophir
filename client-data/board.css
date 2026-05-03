@@ -38,6 +38,7 @@ body {
     0 0 0 1px rgba(171, 198, 198, 0.38), 0 2px 6px rgba(16, 24, 40, 0.1);
   --board-accent: #abc6c6;
   --board-accent-strong: #8fb4a8;
+  --board-error: #7c2d12;
 }
 
 #turnstile-overlay {
@@ -568,8 +569,12 @@ select {
 }
 
 #menu .tool.disabledTool.curTool {
-  box-shadow: none;
-  background: inherit;
+  opacity: 1;
+  border-color: var(--board-error);
+  background: #fff5f2;
+  box-shadow:
+    0 0 0 1px rgba(124, 45, 18, 0.24),
+    0 2px 6px rgba(16, 24, 40, 0.1);
 }
 
 #menu .tool-icon {

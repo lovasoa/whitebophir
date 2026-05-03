@@ -532,8 +532,14 @@ function syncMountedToolButton(toolName) {
 function changeActiveToolButton(oldToolName, newToolName) {
   const oldTool = document.getElementById(`toolID-${oldToolName}`);
   const newTool = document.getElementById(`toolID-${newToolName}`);
-  if (oldTool) oldTool.classList.remove("curTool");
-  if (newTool) newTool.classList.add("curTool");
+  if (oldTool) {
+    oldTool.classList.remove("curTool");
+    oldTool.removeAttribute("aria-current");
+  }
+  if (newTool) {
+    newTool.classList.add("curTool");
+    newTool.setAttribute("aria-current", "true");
+  }
 }
 
 /**

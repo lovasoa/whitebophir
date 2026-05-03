@@ -638,6 +638,10 @@ test.describe("single-page interactions", () => {
       "aria-disabled",
       "true",
     );
+    await expect(boardPage.tool("pencil")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
     await expect(boardPage.tool("rectangle")).toHaveAttribute(
       "aria-disabled",
       "true",
@@ -649,6 +653,13 @@ test.describe("single-page interactions", () => {
         ),
       )
       .toBe("not-allowed");
+    await expect
+      .poll(() =>
+        boardPage
+          .tool("pencil")
+          .evaluate((tool) => getComputedStyle(tool).borderColor),
+      )
+      .toContain("124, 45, 18");
 
     await boardPage.tool("pencil").click();
     await boardPage.expectCurrentTool("pencil");
