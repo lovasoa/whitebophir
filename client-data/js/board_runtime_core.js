@@ -90,7 +90,7 @@ export class I18nModule {
 
   /** @param {string} s */
   t(s) {
-    const key = s.toLowerCase().replace(/ /g, "_");
+    const key = s.toLowerCase().replace(/[ -]/g, "_");
     return (
       /** @type {{[key: string]: string}} */ (i18nModuleTranslations.get(this))[
         key
