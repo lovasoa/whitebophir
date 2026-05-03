@@ -602,14 +602,17 @@ select {
 }
 
 #menu .tool-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
   text-align: center;
   font-size: 15px;
   margin-right: 12px;
   margin-left: 12px;
   margin-bottom: 2.5px;
-  display: inline-block;
-  vertical-align: text-bottom;
-  position: relative;
+  line-height: 1;
+  vertical-align: top;
 }
 #menu .tool-name.slider {
   display: inline-block;
@@ -623,18 +626,24 @@ select {
 
 #menu .tool-shortcut {
   display: none;
-  position: absolute;
-  top: 26px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
+  align-items: center;
+  justify-content: center;
+  min-width: 12px;
+  height: 14px;
+  padding: 0 3px;
+  border: 1px solid var(--board-control-border-strong);
+  border-radius: var(--board-control-radius);
+  background: #f8fafc;
+  box-sizing: border-box;
   font-size: 10px;
+  font-weight: 600;
   color: #6b7280;
-  line-height: 1;
+  line-height: 12px;
 }
 
-#menu .tool:hover .tool-shortcut {
-  display: block;
+#menu .tool:hover .tool-shortcut,
+#menu .tool:focus .tool-shortcut {
+  display: inline-flex;
 }
 
 #menu .tool.hasSecondary .tool-icon {

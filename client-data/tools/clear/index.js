@@ -33,7 +33,6 @@ import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 export const toolId = "clear";
 const toolCode = TOOL_CODE_BY_ID[toolId];
-export const shortcut = "c";
 export const oneTouch = true;
 export const requiresWritableBoard = true;
 export const mouseCursor = "crosshair";

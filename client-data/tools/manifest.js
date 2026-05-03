@@ -258,7 +258,6 @@ export const TOOL_MANIFEST = Object.freeze([
     liveMessageFields: {
       [MutationType.CLEAR]: {},
     },
-    shortcut: "c",
     oneTouch: true,
     requiresWritableBoard: true,
     mouseCursor: "crosshair",

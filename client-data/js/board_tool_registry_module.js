@@ -453,7 +453,7 @@ function syncToolButton(toolName, tool) {
   if (tool.shortcut) {
     const shortcutSpan = document.createElement("span");
     shortcutSpan.className = "tool-shortcut";
-    shortcutSpan.textContent = `(${Tools.i18n.t("keyboard shortcut")}: ${tool.shortcut})`;
+    shortcutSpan.textContent = tool.shortcut.toUpperCase();
     parts.label.appendChild(shortcutSpan);
   }
   button.setAttribute("aria-label", translatedToolName);
@@ -462,15 +462,12 @@ function syncToolButton(toolName, tool) {
   button.classList.toggle("oneTouch", tool.oneTouch === true);
   button.classList.toggle("hasSecondary", !!tool.secondary);
   parts.primaryIcon.classList.toggle("primaryIcon", !!tool.secondary);
-  button.title = tool.shortcut
-    ? `${translatedToolName} (${Tools.i18n.t("keyboard shortcut")}: ${tool.shortcut})`
-    : translatedToolName;
+  button.removeAttribute("title");
   if (tool.secondary && parts.secondaryIcon) {
     parts.secondaryIcon.src = Tools.assets.resolveAssetPath(
       tool.secondary.icon,
     );
     parts.secondaryIcon.alt = "";
-    button.title += ` [${Tools.i18n.t("click_to_toggle")}]`;
   } else if (parts.secondaryIcon) {
     parts.secondaryIcon.src = "data:,";
     parts.secondaryIcon.alt = "";
