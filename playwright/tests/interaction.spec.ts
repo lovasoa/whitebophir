@@ -633,7 +633,7 @@ test.describe("single-page interactions", () => {
       window.WBOApp.viewportState.controller.setScale(0.04);
     });
 
-    await boardPage.expectCurrentTool("hand");
+    await boardPage.expectCurrentTool("pencil");
     await expect(boardPage.tool("pencil")).toHaveAttribute(
       "aria-disabled",
       "true",
@@ -642,9 +642,16 @@ test.describe("single-page interactions", () => {
       "aria-disabled",
       "true",
     );
+    await expect
+      .poll(() =>
+        boardPage.page.evaluate(
+          () => window.getComputedStyle(window.WBOApp.dom.svg).cursor,
+        ),
+      )
+      .toBe("not-allowed");
 
     await boardPage.tool("pencil").click();
-    await boardPage.expectCurrentTool("hand");
+    await boardPage.expectCurrentTool("pencil");
 
     await boardPage.page.evaluate(() => {
       window.WBOApp.viewportState.controller.setScale(0.05);
@@ -653,6 +660,13 @@ test.describe("single-page interactions", () => {
       "aria-disabled",
       "false",
     );
+    await expect
+      .poll(() =>
+        boardPage.page.evaluate(
+          () => window.getComputedStyle(window.WBOApp.dom.svg).cursor,
+        ),
+      )
+      .not.toBe("not-allowed");
 
     await boardPage.selectTool("pencil");
   });

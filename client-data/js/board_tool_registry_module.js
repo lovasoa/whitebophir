@@ -173,15 +173,15 @@ export class ToolRegistryModule {
   async activateTool(toolName) {
     if (!this.shouldDisplayTool(toolName)) return false;
     const tool = await this.bootTool(toolName);
-    if (!tool || !this.canUseTool(toolName)) return false;
+    if (!tool || !this.shouldDisplayTool(toolName)) return false;
     if (
       tool.requiresWritableBoard === true &&
       !Tools.writes.canBufferWrites()
     ) {
       await Tools.writes.whenBoardWritable();
-      if (!this.canUseTool(toolName)) return false;
+      if (!this.shouldDisplayTool(toolName)) return false;
     }
-    return this.change(toolName) !== false;
+    return this.change(toolName) === true;
   }
 
   /** @param {MountedAppTool} tool */
@@ -241,10 +241,15 @@ export class ToolRegistryModule {
   }
 
   /** @param {string} toolName */
-  canUseTool(toolName) {
+  canInteractWithTool(toolName) {
     return (
       this.shouldDisplayTool(toolName) && !this.shouldDisableTool(toolName)
     );
+  }
+
+  syncCurrentToolChrome() {
+    if (!this.current) return;
+    updateCurrentToolChrome(this.current.name, this.current);
   }
 
   /** @param {string} toolName */
@@ -270,15 +275,7 @@ export class ToolRegistryModule {
     Object.keys(this.mounted || {}).forEach((toolName) => {
       this.syncToolDisabledState(toolName);
     });
-
-    if (
-      !drawToolsAllowed &&
-      this.current &&
-      MessageCommon.isDrawTool(this.current.name) &&
-      this.mounted.hand
-    ) {
-      this.change("hand");
-    }
+    this.syncCurrentToolChrome();
   }
 
   /** @param {MountedAppTool} tool */
@@ -295,7 +292,6 @@ export class ToolRegistryModule {
     const oldTool = this.current;
     if (!newTool)
       throw new Error("Trying to select a tool that has never been added!");
-    if (this.shouldDisableTool(toolName)) return false;
     if (newTool === oldTool) {
       toggleSecondaryTool(newTool);
       return;
@@ -327,7 +323,11 @@ export class ToolRegistryModule {
     if (options.pendingToolName) {
       await this.activateTool(options.pendingToolName);
     }
-    if (!this.current && this.mounted.hand && this.canUseTool("hand")) {
+    if (
+      !this.current &&
+      this.mounted.hand &&
+      this.canInteractWithTool("hand")
+    ) {
       this.change("hand");
     }
   }
@@ -816,6 +816,12 @@ function createMountedTool(toolModule, toolState, toolName) {
    */
   function compilePointerListener(listener, isTouchEvent) {
     return function handlePointer(evt) {
+      if (
+        tool === Tools.toolRegistry.current &&
+        Tools.toolRegistry.shouldDisableTool(tool.name)
+      ) {
+        return true;
+      }
       if (isTouchEvent) {
         const touchEvent = /** @type {TouchEvent} */ (evt);
         if (
@@ -983,7 +989,9 @@ function updateCurrentToolChrome(toolName, newTool) {
       error: e instanceof Error ? e.message : String(e),
     });
   }
-  dom.svg.style.cursor = newTool.mouseCursor || "auto";
+  dom.svg.style.cursor = Tools.toolRegistry.shouldDisableTool(toolName)
+    ? "not-allowed"
+    : newTool.mouseCursor || "auto";
   dom.board.title = Tools.i18n.t(newTool.helpText || "");
 }
 
