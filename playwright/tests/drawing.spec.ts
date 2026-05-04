@@ -1,4 +1,6 @@
 import type { Page } from "@playwright/test";
+import { MutationType } from "../../client-data/js/mutation_type.js";
+import { TOOL_CODE_BY_ID } from "../../client-data/tools/tool-order.js";
 import { createBoardPage, expect, test } from "../fixtures/test";
 import { TOKENS } from "../helpers/tokens";
 import type { BoardPage } from "../pages/BoardPage";
@@ -182,6 +184,7 @@ test.describe("drawing and persistence", () => {
     });
     await page.mouse.click(260, 240);
     await page.keyboard.insertText(textValue);
+    await boardPage.expectTextEditorToCoverText();
 
     const editor = await page.evaluate(() => {
       const input = document.getElementById(
@@ -192,26 +195,21 @@ test.describe("drawing and persistence", () => {
         throw new Error("Missing text editor state");
       }
       const inputStyle = getComputedStyle(input);
-      const scale = window.WBOApp.viewportState.controller.getScale();
-      const textX = Number(text.getAttribute("x")) * scale;
-      const textBaseline = Number(text.getAttribute("y")) * scale;
-      const textFontSize = Number(text.getAttribute("font-size")) * scale;
-      const textWidth = text.getComputedTextLength() * scale;
+      const inputRect = input.getBoundingClientRect();
+      const textRect = text.getBoundingClientRect();
       return {
         backgroundColor: inputStyle.backgroundColor,
         borderTopWidth: inputStyle.borderTopWidth,
+        caretColor: inputStyle.caretColor,
         color: inputStyle.color,
-        inputFontSize: Number.parseFloat(inputStyle.fontSize),
-        inputLeft: Number.parseFloat(input.style.left),
-        inputTop: Number.parseFloat(input.style.top),
-        inputWidth: input.getBoundingClientRect().width,
+        coversText:
+          inputRect.left <= textRect.left + 1 &&
+          inputRect.top <= textRect.top + 1 &&
+          inputRect.right >= textRect.right - 1 &&
+          inputRect.bottom >= textRect.bottom - 1,
         position: inputStyle.position,
-        textFontSize,
         textHidden: getComputedStyle(text).visibility === "hidden",
         textValue: input.value,
-        textWidth,
-        textX,
-        textBaseline,
       };
     });
 
@@ -219,19 +217,77 @@ test.describe("drawing and persistence", () => {
     expect(editor.position).toBe("absolute");
     expect(editor.backgroundColor).toBe("rgba(0, 0, 0, 0)");
     expect(editor.borderTopWidth).toBe("1px");
-    expect(editor.color).toBe("rgb(255, 65, 54)");
-    expect(editor.inputFontSize).toBeCloseTo(editor.textFontSize, 1);
-    expect(editor.inputWidth - editor.textWidth).toBeGreaterThanOrEqual(4);
-    expect(editor.inputWidth - editor.textWidth).toBeLessThanOrEqual(16);
-    expect(editor.inputLeft).toBeCloseTo(editor.textX - 3, 1);
-    expect(editor.inputTop).toBeCloseTo(
-      editor.textBaseline - editor.textFontSize - 1,
-      1,
-    );
-    expect(editor.textHidden).toBe(true);
+    expect(editor.color).toBe("rgba(0, 0, 0, 0)");
+    expect(editor.caretColor).toBe("rgb(255, 65, 54)");
+    expect(editor.coversText).toBe(true);
+    expect(editor.textHidden).toBe(false);
 
     await boardPage.selectTool("rectangle");
     await expect(page.locator("#drawingArea text")).toBeVisible();
+  });
+
+  test("active new text editor follows zoom changes", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("text-editor-zoom");
+    await boardPage.selectTool("text");
+    await page.mouse.click(260, 240);
+    await page.keyboard.insertText("Zoom tracked text");
+
+    await boardPage.expectTextEditorToCoverText();
+
+    await page.evaluate(() => {
+      window.WBOApp.viewportState.controller.setScale(0.22);
+    });
+    await boardPage.expectTextEditorToCoverText();
+
+    await page.evaluate(() => {
+      window.WBOApp.viewportState.controller.setScale(0.06);
+    });
+    await boardPage.expectTextEditorToCoverText();
+  });
+
+  test("text editor overlays an existing moved text item", async ({
+    boardPage,
+    page,
+  }) => {
+    await boardPage.gotoBoard("text-editor-existing-moved");
+    await boardPage.selectTool("text");
+    await boardPage.createText(220, 180, "Moved text edit");
+    const textId = await page.evaluate(() => {
+      const text = document.querySelector("#drawingArea text");
+      if (!(text instanceof SVGTextElement)) {
+        throw new Error("Missing created text");
+      }
+      return text.id;
+    });
+
+    await boardPage.selectTool("hand");
+    await page.evaluate(
+      ({ handTool, targetId, updateType }) => {
+        window.WBOApp.writes.drawAndSend({
+          tool: handTool,
+          _children: [
+            {
+              type: updateType,
+              id: targetId,
+              transform: { a: 1, b: 0, c: 0, d: 1, e: 900, f: 520 },
+            },
+          ],
+        });
+      },
+      {
+        handTool: TOOL_CODE_BY_ID.hand,
+        targetId: textId,
+        updateType: MutationType.UPDATE,
+      },
+    );
+
+    await boardPage.selectTool("text");
+    await page.locator(`#${textId}`).click();
+    await expect(page.locator("#textToolInput")).toHaveValue("Moved text edit");
+    await boardPage.expectTextEditorToCoverText(`#${textId}`);
   });
 
   test("long text input stays within server admission bounds", async ({

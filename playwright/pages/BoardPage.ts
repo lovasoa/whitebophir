@@ -542,6 +542,31 @@ window.turnstile = {
     await expect(this.page.locator("#drawingArea text")).toHaveText(text);
   }
 
+  async expectTextEditorToCoverText(textSelector = "#drawingArea text") {
+    await expect
+      .poll(() =>
+        this.page.evaluate((selector) => {
+          const input = document.getElementById("textToolInput");
+          const text = document.querySelector(selector);
+          if (!(input instanceof HTMLInputElement)) return false;
+          if (!(text instanceof SVGTextElement)) return false;
+          const inputRect = input.getBoundingClientRect();
+          const textRect = text.getBoundingClientRect();
+          return (
+            inputRect.width > 0 &&
+            inputRect.height > 0 &&
+            textRect.width > 0 &&
+            textRect.height > 0 &&
+            inputRect.left <= textRect.left + 1 &&
+            inputRect.top <= textRect.top + 1 &&
+            inputRect.right >= textRect.right - 1 &&
+            inputRect.bottom >= textRect.bottom - 1
+          );
+        }, textSelector),
+      )
+      .toBe(true);
+  }
+
   async drawStraightLine(start: Point, end: Point) {
     await this.waitForBoardWritable();
     await this.page.evaluate(

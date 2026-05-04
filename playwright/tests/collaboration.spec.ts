@@ -4,6 +4,7 @@ import { MutationType } from "../../client-data/js/mutation_type.js";
 import {
   Cursor,
   Eraser,
+  Hand,
   Pencil,
   Rectangle,
 } from "../../client-data/tools/index.js";
@@ -172,10 +173,76 @@ test.describe("collaboration and rate limiting", () => {
 
     await peerPage.locator("#textToolInput").fill("Peer edit");
     await expect(page.locator("#textToolInput")).toHaveValue("Peer edit");
+    await expect(page.locator("#shared-text")).toHaveText("Peer edit");
 
     await page.locator("#textToolInput").fill("Main edit");
     await expect(peerPage.locator("#textToolInput")).toHaveValue("Main edit");
+    await expect(peerPage.locator("#shared-text")).toHaveText("Main edit");
 
+    await peerPage.close();
+  });
+
+  test("active text editor follows remote hand movement", async ({
+    boardPage,
+    server,
+    context,
+    page,
+  }) => {
+    const boardName = "shared-text-remote-move";
+    await server.writeBoard(server.dataPath, boardName, {
+      "remote-moved-text": {
+        tool: "text",
+        type: "new",
+        id: "remote-moved-text",
+        x: 2300,
+        y: 2100,
+        color: "#111111",
+        size: 120,
+        txt: "Move while editing",
+      },
+    });
+
+    const peerPage = await context.newPage();
+    const peerBoard = createBoardPage(peerPage, server);
+
+    await Promise.all([
+      boardPage.gotoBoard(boardName),
+      peerBoard.gotoBoard(boardName),
+    ]);
+    await Promise.all([
+      boardPage.waitForSocketConnected(),
+      peerBoard.waitForSocketConnected(),
+    ]);
+
+    await boardPage.selectTool("text");
+    await page.locator("#remote-moved-text").click();
+    await expect(page.locator("#textToolInput")).toHaveValue(
+      "Move while editing",
+    );
+    await boardPage.expectTextEditorToCoverText("#remote-moved-text");
+
+    await peerBoard.selectTool("hand");
+    await peerPage.evaluate(
+      ({ handTool, targetId, updateType }) => {
+        window.WBOApp.writes.drawAndSend({
+          tool: handTool,
+          _children: [
+            {
+              type: updateType,
+              id: targetId,
+              transform: { a: 1, b: 0, c: 0, d: 1, e: 850, f: 460 },
+            },
+          ],
+        });
+      },
+      {
+        handTool: Hand.id,
+        targetId: "remote-moved-text",
+        updateType: MutationType.UPDATE,
+      },
+    );
+
+    await boardPage.expectTextEditorToCoverText("#remote-moved-text");
     await peerPage.close();
   });
 

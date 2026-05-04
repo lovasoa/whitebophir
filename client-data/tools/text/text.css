@@ -7,9 +7,16 @@
   padding: 0 2px;
   border: 1px solid #4b5563;
   border-radius: 2px;
+  color: transparent;
+  caret-color: #000;
   background: transparent;
   font-family: "Arial", "Helvetica", sans-serif;
   outline: none;
+}
+
+#textToolInput::selection {
+  color: transparent;
+  background: rgba(37, 99, 235, 0.28);
 }
 
 text {

@@ -4,6 +4,7 @@ export const DEFAULT_BOARD_SCALE = 0.1;
 export const MIN_BOARD_SCALE = 0.01;
 export const MAX_BOARD_SCALE = 1;
 export const VIEWPORT_HASH_SCALE_DECIMALS = 3;
+export const VIEWPORT_LAYOUT_EVENT = "wbo:viewport-layout";
 
 const DEFAULT_MAX_BOARD_SIZE = 655360;
 const DOM_DELTA_LINE = 1;
@@ -473,6 +474,12 @@ export function createViewportController(Tools) {
     dom.svg.style.touchAction = touchAction;
   }
 
+  /** @param {{board: HTMLElement}} dom */
+  function dispatchViewportLayoutEvent(dom) {
+    if (typeof dom.board.dispatchEvent !== "function") return;
+    dom.board.dispatchEvent(new Event(VIEWPORT_LAYOUT_EVENT));
+  }
+
   /**
    * @returns {void}
    */
@@ -490,6 +497,7 @@ export function createViewportController(Tools) {
     dom.board.style.height = `${size.height}px`;
     dom.board.dataset.viewportManaged = "true";
     applyTouchPolicy();
+    dispatchViewportLayoutEvent(dom);
   }
 
   /**
