@@ -387,6 +387,9 @@ async function unsafeSaveBoard(board) {
           if (hasDirtyItems(board) !== true) {
             board.dirtyFromMs = null;
             board.lastWriteAtMs = null;
+          } else if (board.dirtyDuringSaveFromMs === null) {
+            board.dirtyFromMs = null;
+            board.lastWriteAtMs = null;
           } else if (
             savedAllSnapshotLiveItems &&
             board.dirtyDuringSaveFromMs !== null
