@@ -744,7 +744,8 @@ test("board pages are no-store in development and render plain asset URLs", asyn
     assert.match(response.body, /\.\.\/tools\/pencil\/icon\.svg(?:["'])/);
     assert.match(response.body, /fetchpriority="low"/);
     assert.match(response.body, /\.\.\/users\.svg(?:["'])/);
-    assert.match(response.body, /\.\.\/icon-size\.svg(?:["'])/);
+    assert.match(response.body, /id="styleTool"/);
+    assert.match(response.body, /id="stylePreviewDot"/);
     assert.doesNotMatch(response.body, /\?v=/);
   } finally {
     await closeServer(app);

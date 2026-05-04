@@ -382,6 +382,7 @@ const LIVE_MESSAGE_SCHEMAS = Object.fromEntries(
       [MutationType.UPDATE]: buildLiveSchema(Cursor.id, MutationType.UPDATE, {
         color: "color",
         size: "size",
+        opacity: "opacity?",
         x: "coord",
         y: "coord",
       }),

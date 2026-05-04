@@ -180,6 +180,8 @@ export class PreferenceModule {
     this.initial = initial;
     this.colorChangeHandlers = /** @type {((color: string) => void)[]} */ ([]);
     this.sizeChangeHandlers = /** @type {((size: number) => void)[]} */ ([]);
+    this.opacityChangeHandlers =
+      /** @type {((opacity: number) => void)[]} */ ([]);
   }
 
   getColor() {
@@ -217,6 +219,21 @@ export class PreferenceModule {
   }
 
   getOpacity() {
+    return this.currentOpacity;
+  }
+
+  /** @param {number | string | null | undefined} value */
+  setOpacity(value) {
+    if (value !== null && value !== undefined) {
+      this.currentOpacity = clampOpacity(value);
+    }
+    const chooser = document.getElementById("chooseOpacity");
+    if (chooser instanceof HTMLInputElement) {
+      chooser.value = String(this.currentOpacity);
+    }
+    this.opacityChangeHandlers.forEach((handler) => {
+      handler(this.currentOpacity);
+    });
     return this.currentOpacity;
   }
 }

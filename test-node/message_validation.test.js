@@ -256,4 +256,16 @@ test("normalizeIncomingMessage rejects invalid clientMutationId and strips it fr
   });
   assert.equal(cursor.ok, true);
   assert.equal("clientMutationId" in cursor.value, false);
+
+  const cursorWithOpacity = messageValidation.normalizeIncomingMessage({
+    tool: Cursor.id,
+    type: MutationType.UPDATE,
+    x: 10,
+    y: 20,
+    color: "#123456",
+    size: 10,
+    opacity: 0.5,
+  });
+  assert.equal(cursorWithOpacity.ok, true);
+  assert.equal(cursorWithOpacity.value.opacity, 0.5);
 });

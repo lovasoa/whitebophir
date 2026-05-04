@@ -10,6 +10,9 @@ import {
   isBlockedToolName,
 } from "./board_page_state.js";
 import MessageCommon from "./message_common.js";
+import { isTextEntryTarget } from "./text_entry_target.js";
+
+export { isTextEntryTarget };
 
 /** @import { AppToolsState, BoardMessage, CompiledToolListener, CompiledToolListeners, MountedAppTool, MountedAppToolsState, PendingMessages, RateLimitKind, ToolBootContext, ToolModule, ToolPointerListener, ToolRuntimeState } from "../../types/app-runtime" */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string}} RuntimeBoardMessage */
@@ -44,17 +47,6 @@ function getRequiredToolButtonParts(toolName) {
     ),
     label: label,
   };
-}
-
-/**
- * @param {EventTarget | null} target
- * @returns {target is HTMLInputElement | HTMLTextAreaElement}
- */
-function isTextEntryTarget(target) {
-  return (
-    (target instanceof HTMLInputElement && target.type === "text") ||
-    target instanceof HTMLTextAreaElement
-  );
 }
 
 function blurActiveElement() {
@@ -130,6 +122,9 @@ export class ToolRegistryModule {
 
     if (mountedTool.onSizeChange) {
       Tools.preferences.sizeChangeHandlers.push(mountedTool.onSizeChange);
+    }
+    if (mountedTool.onOpacityChange) {
+      Tools.preferences.opacityChangeHandlers.push(mountedTool.onOpacityChange);
     }
 
     const pending = drainPendingMessages(this.pendingMessages, toolName);
@@ -758,6 +753,7 @@ function createMountedTool(toolModule, toolState, toolName) {
   const onSocketDisconnect = toolModule.onSocketDisconnect;
   const onMutationRejected = toolModule.onMutationRejected;
   const onSizeChange = toolModule.onSizeChange;
+  const onOpacityChange = toolModule.onOpacityChange;
   const touchListenerOptions = toolModule.touchListenerOptions;
   const getTouchPolicy = toolModule.getTouchPolicy;
   const toolDefinition = TOOL_BY_ID[toolName];
@@ -807,6 +803,9 @@ function createMountedTool(toolModule, toolState, toolName) {
     secondary: toolState.secondary ?? toolModule.secondary ?? null,
     onSizeChange: onSizeChange
       ? (size) => onSizeChange(toolState, size)
+      : undefined,
+    onOpacityChange: onOpacityChange
+      ? (opacity) => onOpacityChange(toolState, opacity)
       : undefined,
     getTouchPolicy: getTouchPolicy
       ? () => getTouchPolicy(toolState)

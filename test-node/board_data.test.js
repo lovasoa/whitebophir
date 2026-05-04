@@ -1469,6 +1469,81 @@ test("BoardData.save tolerates a missing file while only unreconstructible items
   );
 });
 
+test("BoardData.save closes the scheduling window after saving an omitted transient pencil create", async () => {
+  await withBoardHistoryDir(
+    "wbo-board-save-transient-pencil-window-",
+    async ({ historyDir }) => {
+      const BoardData = getBoardDataClass();
+      const config = createConfig({ HISTORY_DIR: historyDir });
+      const board = createBoard(BoardData, "transient-pencil-window", config);
+
+      await applyPersistentMutation(
+        board,
+        buildPencilStrokeMutations("pencil-1", "#123456", 3)[0],
+        1,
+      );
+
+      const result = await board.save();
+
+      assert.deepEqual(result, { status: "saved" });
+      assert.equal(board.getSeq(), board.getPersistedSeq());
+      assert.equal(board.hasDirtyItems(), true);
+      assert.equal(board.dirtyFromMs, null);
+      assert.equal(board.lastWriteAtMs, null);
+    },
+  );
+});
+
+test("BoardData.save keeps only the during-save scheduling window when a transient pencil seed is omitted", async () => {
+  await withBoardHistoryDir(
+    "wbo-board-save-transient-pencil-during-save-window-",
+    async ({ historyDir }) => {
+      const BoardData = getBoardDataClass();
+      const config = createConfig({ HISTORY_DIR: historyDir });
+      const board = createBoard(
+        BoardData,
+        "transient-pencil-during-save-window",
+        config,
+      );
+      const [createPencil, appendPencil] = buildPencilStrokeMutations(
+        "pencil-1",
+        "#123456",
+        3,
+        [{ x: 10, y: 20 }],
+      );
+
+      await applyPersistentMutation(board, createPencil, 1);
+      board.dirtyFromMs = 1;
+      board.lastWriteAtMs = 1;
+
+      const unsafeSave = board._unsafe_save.bind(board);
+      /** @type {number | null} */
+      let duringSaveDirtyFrom = null;
+      board._unsafe_save = async () => {
+        const savePromise = unsafeSave();
+        assert.equal(board.saveInProgress, true);
+        assert.equal(board.saveTargetSeq, 1);
+        assert.equal(board.processMessage(appendPencil).ok, true);
+        board.recordPersistentMutation(appendPencil, 2);
+        duringSaveDirtyFrom = board.dirtyDuringSaveFromMs;
+        assert.notEqual(duringSaveDirtyFrom, null);
+        return savePromise;
+      };
+
+      try {
+        const result = await board.save();
+
+        assert.deepEqual(result, { status: "saved" });
+        assert.equal(board.getSeq(), 2);
+        assert.equal(board.getPersistedSeq(), 1);
+        assert.equal(board.dirtyFromMs, duringSaveDirtyFrom);
+      } finally {
+        board.clearSaveTimeout();
+      }
+    },
+  );
+});
+
 test("BoardData.save treats a missing baseline and backup before a new seed stroke completes as stale", async () => {
   await withBoardHistoryDir(
     "wbo-board-save-missing-baseline-seed-stale-",

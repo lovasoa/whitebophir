@@ -121,6 +121,7 @@ function makeCursorMessage(state) {
     y: state.y,
     color: state.color,
     size: state.size,
+    opacity: state.opacity,
   };
 }
 /** @typedef {ReturnType<typeof makeCursorMessage> & {socket?: string}} CursorMessage */
@@ -178,6 +179,7 @@ export function boot(ctx) {
     y: 0,
     color: runtime.preferences.getColor(),
     size: runtime.preferences.getSize(),
+    opacity: runtime.preferences.getOpacity(),
     minCursorUpdateIntervalMs: computeMinCursorUpdateIntervalMs(
       runtime.rateLimits,
     ),
@@ -199,6 +201,7 @@ export function move(state, x, y) {
   state.y = y;
   state.color = state.preferences.getColor();
   state.size = state.preferences.getSize();
+  state.opacity = state.preferences.getOpacity();
   updateMarker(state);
 }
 
@@ -218,6 +221,15 @@ export function onSizeChange(state, size) {
 
 /**
  * @param {CursorState} state
+ * @param {number} opacity
+ */
+export function onOpacityChange(state, opacity) {
+  state.opacity = opacity;
+  updateMarker(state);
+}
+
+/**
+ * @param {CursorState} state
  * @param {CursorMessage} message
  */
 export function draw(state, message) {
@@ -226,4 +238,9 @@ export function draw(state, message) {
   cursor.style.transform = `translate(${message.x}px, ${message.y}px)`;
   cursor.setAttributeNS(null, "fill", message.color);
   cursor.setAttributeNS(null, "r", String(message.size / 2));
+  const opacity =
+    typeof message.opacity === "number" && Number.isFinite(message.opacity)
+      ? message.opacity
+      : 1;
+  cursor.setAttributeNS(null, "fill-opacity", String(opacity));
 }

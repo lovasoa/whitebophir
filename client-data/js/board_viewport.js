@@ -1,3 +1,5 @@
+import { isTextEntryTarget } from "./text_entry_target.js";
+
 export const DEFAULT_BOARD_SCALE = 0.1;
 export const MIN_BOARD_SCALE = 0.01;
 export const MAX_BOARD_SCALE = 1;
@@ -15,6 +17,10 @@ const VIEWPORT_HASH_SYNC_DELAY_MS = 200;
 const VIEWPORT_HASH_PUSH_INTERVAL_MS = 5000;
 const PINCH_MIN_DISTANCE = 16;
 const BOARD_EXTENT_MARGIN = 20000;
+/** Opacity change per event is `wheelDelta / this` (smaller = stronger; was 1000). */
+const STYLE_WHEEL_OPACITY_DIVISOR = 500;
+/** Size change is `(wheelDelta / 100) * this` with S + wheel (was 5). */
+const STYLE_WHEEL_SIZE_FACTOR = 10;
 const APP_TOOL_TOUCH_ACTION = "none";
 const BROWSER_SCROLL_WITHOUT_ZOOM_TOUCH_ACTION = "pan-x pan-y";
 const TOUCH_EVENT_LISTENER_OPTIONS = {
@@ -207,6 +213,22 @@ function normalizeWheelAxisDelta(event, axis) {
 }
 
 /**
+ * Prefer vertical wheel delta; when it is zero or smaller than horizontal (common on Mac
+ * trackpads), use deltaX for S/O + wheel size and opacity adjustments.
+ *
+ * @param {WheelEvent} event
+ * @returns {number}
+ */
+export function wheelDeltaForStyleWheel(event) {
+  const dy = normalizeWheelAxisDelta(event, "deltaY");
+  const dx = normalizeWheelAxisDelta(event, "deltaX");
+  const absY = Math.abs(dy);
+  const absX = Math.abs(dx);
+  if (absY >= absX) return dy;
+  return dx;
+}
+
+/**
  * @param {number} delta
  * @returns {number}
  */
@@ -364,6 +386,8 @@ export function createViewportController(Tools) {
   let activePinchPan = null;
   /** @type {(() => void) | null} */
   let temporaryPanCleanup = null;
+  let styleWheelSizeKeyHeld = false;
+  let styleWheelOpacityKeyHeld = false;
 
   /**
    * @returns {ScaleLimits}
@@ -586,20 +610,68 @@ export function createViewportController(Tools) {
     zoomAtPagePoint(getScale() * factor, wheelPageX, wheelPageY);
   }
 
+  function resetStyleWheelModifierKeys() {
+    styleWheelSizeKeyHeld = false;
+    styleWheelOpacityKeyHeld = false;
+  }
+
+  /**
+   * @param {KeyboardEvent} event
+   * @returns {void}
+   */
+  function onStyleWheelModifierKeydown(event) {
+    if (isTextEntryTarget(event.target)) return;
+    if (event.key.length !== 1) return;
+    const lower = event.key.toLowerCase();
+    if (lower === "s") styleWheelSizeKeyHeld = true;
+    if (lower === "o") styleWheelOpacityKeyHeld = true;
+  }
+
+  /**
+   * @param {KeyboardEvent} event
+   * @returns {void}
+   */
+  function onStyleWheelModifierKeyup(event) {
+    if (event.key.length !== 1) return;
+    const lower = event.key.toLowerCase();
+    if (lower === "s") styleWheelSizeKeyHeld = false;
+    if (lower === "o") styleWheelOpacityKeyHeld = false;
+  }
+
+  /**
+   * S/O + wheel must run on window capture so it works over the toolbar/style
+   * panel (wheel on `#board` never fires there). Shift is excluded so Shift+wheel
+   * pan on the board still works when a key repeats focus state oddly.
+   * @param {WheelEvent} event
+   * @returns {void}
+   */
+  function handleStyleShortcutWheelCapture(event) {
+    if (event.shiftKey) return;
+    const prefDelta = wheelDeltaForStyleWheel(event);
+    if (styleWheelOpacityKeyHeld) {
+      Tools.preferences.setOpacity(
+        Tools.preferences.getOpacity() -
+          prefDelta / STYLE_WHEEL_OPACITY_DIVISOR,
+      );
+    } else if (styleWheelSizeKeyHeld) {
+      Tools.preferences.setSize(
+        Tools.preferences.getSize() -
+          (prefDelta / 100) * STYLE_WHEEL_SIZE_FACTOR,
+      );
+    } else {
+      return;
+    }
+    if (event.cancelable) event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
   /**
    * @param {WheelEvent} event
    * @returns {void}
    */
   function handleWheel(event) {
     if (event.cancelable) event.preventDefault();
-    if (event.altKey && !event.ctrlKey) {
-      const change = event.shiftKey ? 1 : 5;
-      Tools.preferences.setSize(
-        Tools.preferences.getSize() -
-          (normalizeWheelDelta(event) / 100) * change,
-      );
-      return;
-    }
+
     if (event.shiftKey && !event.ctrlKey) {
       controller.panBy(
         normalizeWheelAxisDelta(event, "deltaX"),
@@ -804,7 +876,17 @@ export function createViewportController(Tools) {
       if (installed || !dom) return;
       installed = true;
       window.addEventListener("resize", syncLayoutSize);
-      dom.board.addEventListener("wheel", handleWheel, { passive: false });
+      window.addEventListener("keydown", onStyleWheelModifierKeydown, true);
+      window.addEventListener("keyup", onStyleWheelModifierKeyup, true);
+      window.addEventListener("blur", resetStyleWheelModifierKeys);
+      window.addEventListener("wheel", handleStyleShortcutWheelCapture, {
+        passive: false,
+        capture: true,
+      });
+      dom.board.addEventListener("wheel", handleWheel, {
+        passive: false,
+        capture: true,
+      });
       for (const name of TOUCH_EVENT_NAMES) {
         dom.board.addEventListener(
           name,

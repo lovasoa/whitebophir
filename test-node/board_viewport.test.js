@@ -278,6 +278,31 @@ test("viewport wheel delta normalization handles pixel, line, and page modes", a
   assert.equal(normalizeWheelDelta({ deltaY: 2, deltaMode: 2 }), 2000);
 });
 
+test("S/O + wheel style shortcuts use dominant wheel axis (trackpad-friendly)", async () => {
+  const { wheelDeltaForStyleWheel } = await loadViewportModule();
+
+  assert.equal(
+    wheelDeltaForStyleWheel(
+      /** @type {any} */ ({
+        deltaY: 10,
+        deltaX: 3,
+        deltaMode: 0,
+      }),
+    ),
+    10,
+  );
+  assert.equal(
+    wheelDeltaForStyleWheel(
+      /** @type {any} */ ({
+        deltaY: 0,
+        deltaX: -8,
+        deltaMode: 0,
+      }),
+    ),
+    -8,
+  );
+});
+
 test("viewport wheel zoom factor is exponential and capped per frame", async () => {
   const { wheelDeltaToScaleFactor } = await loadViewportModule();
 

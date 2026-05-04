@@ -502,7 +502,7 @@ select {
 }
 
 #settings {
-  margin: calc(var(--board-control-gap) * 2) 0 20px;
+  margin: var(--board-control-gap) 0 20px;
 }
 
 #menu .tool {
@@ -616,16 +616,6 @@ select {
   line-height: 1;
   vertical-align: top;
 }
-#menu .tool-name.slider {
-  display: inline-block;
-  width: 150px;
-  height: 30px;
-  font-size: 12px;
-  line-height: 15px;
-  vertical-align: top;
-  padding: 6px;
-}
-
 #menu .tool-shortcut {
   display: none;
   align-items: center;
@@ -670,32 +660,159 @@ input {
   font-size: 16px;
 }
 
-#chooseColor {
+#menu #styleTool {
+  overflow: visible;
+}
+
+#menu #styleTool.style-tool-open,
+#menu #styleTool:focus,
+#menu #styleTool:focus-within {
+  max-width: var(--board-control-size);
+}
+
+#menu #stylePreview.tool-icon {
+  overflow: visible;
+}
+
+#stylePreview {
+  border-radius: var(--board-control-radius);
+  overflow: visible;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--board-control-border);
+}
+
+#stylePreview svg {
+  display: block;
   width: 100%;
   height: 100%;
-  border: 0;
-  border-radius: 0;
-  color: black;
-  display: block;
-  margin: 0;
+}
+
+.style-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+  pointer-events: none;
+}
+
+.style-panel {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 80;
+  width: 200px;
+  padding: 10px;
+  background: var(--board-control-bg);
+  border: 1px solid var(--board-control-border);
+  border-radius: 4px;
+  box-shadow: var(--board-control-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-4px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+  white-space: normal;
+  line-height: 1.2;
+  cursor: default;
+}
+
+#styleTool.style-tool-open .style-panel,
+#styleTool:focus-within .style-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
 }
 
 .colorPresets {
-  margin-right: 20px;
-  vertical-align: top;
-  display: inline-block;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
 }
 
 .colorPresetButton {
-  width: 30px;
-  height: 30px;
-  border: 1px solid black;
-  border-radius: 3px;
-  display: inline-block;
-  margin-right: 6px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--board-control-border-strong);
+  border-radius: var(--board-control-radius);
   padding: 0;
-  vertical-align: middle;
+  margin: 0;
+  background-clip: padding-box;
+  cursor: pointer;
+  position: relative;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease;
+}
+
+.colorPresetButton:hover {
+  transform: scale(1.06);
+}
+
+.colorPresetButton[aria-pressed="true"] {
+  border-color: var(--board-accent-strong);
+  box-shadow: 0 0 0 1px var(--board-accent-strong);
+}
+
+.colorPresetCustom {
+  background: conic-gradient(
+    from 0deg,
+    #ff4136,
+    #ffdc00,
+    #3d9970,
+    #0074d9,
+    #90468b,
+    #ff4136
+  );
+}
+
+.colorPresetCustom::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--board-control-bg);
+}
+
+.style-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.style-row-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  color: #1f2937;
+}
+
+.style-row-name {
+  font-weight: 500;
+}
+
+.style-row-shortcuts {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.style-row-shortcuts .tool-shortcut {
+  display: inline-flex;
+}
+
+.style-row-hint {
+  font-size: 10px;
+  color: #6b7280;
 }
 
 .rangeChooser {
@@ -703,6 +820,7 @@ input {
   border: 0;
   width: 100%;
   margin: 0;
+  padding: 0;
   background: transparent;
 }
 
@@ -731,13 +849,4 @@ circle.opcursor {
 
 #cursor-me {
   transition: 0s;
-}
-
-@media (forced-colors: active) {
-  #chooseColor {
-    color: transparent;
-  }
-  label.tool-name[for="chooseColor"] {
-    line-height: 10px;
-  }
 }
