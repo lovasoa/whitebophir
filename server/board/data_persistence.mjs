@@ -252,6 +252,19 @@ function finalizePersistedItems(
 
 /**
  * @param {BoardData} board
+ * @returns {void}
+ */
+function finishSuccessfulSaveSchedulingWindow(board) {
+  if (board.dirtyDuringSaveFromMs === null) {
+    board.dirtyFromMs = null;
+    board.lastWriteAtMs = null;
+    return;
+  }
+  board.dirtyFromMs = board.dirtyDuringSaveFromMs;
+}
+
+/**
+ * @param {BoardData} board
  * @param {number} [nowMs]
  * @returns {void}
  */
@@ -382,20 +395,7 @@ async function unsafeSaveBoard(board) {
           board.persistedItemIds = new Set(persistedIds);
           board.markPersistedSeq(saveTargetSeq);
           finalizePersistedItems(board, savedItemsById, persistedIds);
-          const savedAllSnapshotLiveItems =
-            authoritativeItemCount === persistedIds.size;
-          if (hasDirtyItems(board) !== true) {
-            board.dirtyFromMs = null;
-            board.lastWriteAtMs = null;
-          } else if (board.dirtyDuringSaveFromMs === null) {
-            board.dirtyFromMs = null;
-            board.lastWriteAtMs = null;
-          } else if (
-            savedAllSnapshotLiveItems &&
-            board.dirtyDuringSaveFromMs !== null
-          ) {
-            board.dirtyFromMs = board.dirtyDuringSaveFromMs;
-          }
+          finishSuccessfulSaveSchedulingWindow(board);
           board.trimPersistedMutationLog(startedAt);
           const savedFile = await stat(file).catch(async (error) => {
             if (errorCode(error) !== "ENOENT") {
