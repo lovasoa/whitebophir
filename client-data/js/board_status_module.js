@@ -142,6 +142,15 @@ export class StatusModule {
         detail: "",
       };
     }
+    const current = Tools.toolRegistry.current;
+    if (current && Tools.toolRegistry.shouldDisableTool(current.name)) {
+      return {
+        hidden: false,
+        state: "paused",
+        title: Tools.i18n.t("please_zoom_in_to_draw"),
+        detail: "",
+      };
+    }
     return {
       hidden: true,
       state: "hidden",

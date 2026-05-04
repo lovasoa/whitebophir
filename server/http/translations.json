@@ -42,7 +42,8 @@
     "rate_limit_disconnect_message": "أنت ترسل التعديلات بسرعة كبيرة. لحماية اللوحة، أوقفنا اتصالك مؤقتًا. يرجى الانتظار دقيقة ثم المحاولة مرة أخرى.",
     "users": "المستخدمون",
     "report": "إبلاغ",
-    "unknown_error_reload_page": "حدث خطأ غير متوقع، يُرجى إعادة تحميل الصفحة."
+    "unknown_error_reload_page": "حدث خطأ غير متوقع، يُرجى إعادة تحميل الصفحة.",
+    "please_zoom_in_to_draw": "يُرجى التقريب للرسم"
   },
   "be": {
     "white-out": "Замазка",
@@ -87,7 +88,8 @@
     "rate_limit_disconnect_message": "Вы адпраўляеце змены занадта хутка. Каб абараніць дошку, мы прыпынілі ваша злучэнне. Пачакайце хвіліну і паспрабуйце яшчэ раз.",
     "users": "Карыстальнікі",
     "report": "Паскардзіцца",
-    "unknown_error_reload_page": "Адбылася невядомая памылка, калі ласка, перазагрузіце старонку."
+    "unknown_error_reload_page": "Адбылася невядомая памылка, калі ласка, перазагрузіце старонку.",
+    "please_zoom_in_to_draw": "Калі ласка, павялічце маштаб, каб маляваць"
   },
   "ca": {
     "white-out": "Corrector blanc",
@@ -132,7 +134,8 @@
     "rate_limit_disconnect_message": "Esteu enviant canvis massa ràpid. Per protegir la pissarra, hem pausat la vostra connexió. Espereu un minut i torneu-ho a provar.",
     "users": "Usuaris",
     "report": "Denuncia",
-    "unknown_error_reload_page": "S’ha produït un error desconegut, torneu a carregar la pàgina"
+    "unknown_error_reload_page": "S’ha produït un error desconegut, torneu a carregar la pàgina",
+    "please_zoom_in_to_draw": "Apropa per dibuixar"
   },
   "de": {
     "board_name_placeholder": "Name des Whiteboards…",
@@ -177,7 +180,8 @@
     "rate_limit_disconnect_message": "Sie senden Änderungen zu schnell. Zum Schutz des Whiteboards haben wir Ihre Verbindung pausiert. Bitte warten Sie eine Minute und versuchen Sie es erneut.",
     "users": "Nutzer",
     "report": "Melden",
-    "unknown_error_reload_page": "Ein unbekannter Fehler ist aufgetreten, bitte lade die Seite neu."
+    "unknown_error_reload_page": "Ein unbekannter Fehler ist aufgetreten, bitte lade die Seite neu.",
+    "please_zoom_in_to_draw": "Bitte vergrößern, um zu zeichnen"
   },
   "en": {
     "white-out": "White-out",
@@ -222,7 +226,8 @@
     "rate_limit_disconnect_message": "You're sending changes too quickly, so we paused your connection to protect the board. Please wait a minute and try again.",
     "users": "Users",
     "report": "Report",
-    "unknown_error_reload_page": "An unknown error occurred, please reload the page"
+    "unknown_error_reload_page": "An unknown error occurred, please reload the page",
+    "please_zoom_in_to_draw": "Please zoom in to draw."
   },
   "es": {
     "board_name_placeholder": "Nombre de la pizarra …",
@@ -266,7 +271,8 @@
     "rate_limit_disconnect_message": "Estás enviando cambios demasiado rápido. Para proteger la pizarra, hemos pausado tu conexión. Espera un minuto y vuelve a intentarlo.",
     "users": "Usuarios",
     "report": "Denunciar",
-    "unknown_error_reload_page": "Se produjo un error desconocido, recarga la página"
+    "unknown_error_reload_page": "Se produjo un error desconocido, recarga la página",
+    "please_zoom_in_to_draw": "Acércate para dibujar"
   },
   "fr": {
     "board_name_placeholder": "Nom du tableau…",
@@ -309,7 +315,8 @@
     "rate_limit_disconnect_message": "Vous envoyez des modifications trop vite. Pour protéger le tableau, nous avons mis votre connexion en pause. Attendez une minute puis réessayez.",
     "users": "Utilisateurs",
     "report": "Signaler",
-    "unknown_error_reload_page": "Une erreur inconnue s’est produite, veuillez recharger la page"
+    "unknown_error_reload_page": "Une erreur inconnue s’est produite, veuillez recharger la page",
+    "please_zoom_in_to_draw": "Veuillez zoomer pour dessiner"
   },
   "hu": {
     "white-out": "Lefedő",
@@ -354,7 +361,8 @@
     "rate_limit_disconnect_message": "Túl gyorsan küldesz módosításokat. A tábla védelme érdekében szüneteltettük a kapcsolatodat. Várj egy percet, majd próbáld újra.",
     "users": "Felhasználók",
     "report": "Jelentés",
-    "unknown_error_reload_page": "Ismeretlen hiba történt, töltse újra az oldalt"
+    "unknown_error_reload_page": "Ismeretlen hiba történt, töltse újra az oldalt",
+    "please_zoom_in_to_draw": "Közelíts a rajzoláshoz"
   },
   "id": {
     "white-out": "Cairan koreksi",
@@ -399,7 +407,8 @@
     "rate_limit_disconnect_message": "Anda mengirim perubahan terlalu cepat. Untuk melindungi papan, kami menjeda koneksi Anda. Tunggu satu menit lalu coba lagi.",
     "users": "Pengguna",
     "report": "Laporkan",
-    "unknown_error_reload_page": "Terjadi kesalahan tak dikenal, silakan muat ulang halaman"
+    "unknown_error_reload_page": "Terjadi kesalahan tak dikenal, silakan muat ulang halaman",
+    "please_zoom_in_to_draw": "Perbesar tampilan untuk menggambar"
   },
   "it": {
     "board_name_placeholder": "Nome della lavagna…",
@@ -443,7 +452,8 @@
     "rate_limit_disconnect_message": "Stai inviando modifiche troppo velocemente. Per proteggere la lavagna, abbiamo messo in pausa la tua connessione. Attendi un minuto e riprova.",
     "users": "Utenti",
     "report": "Segnala",
-    "unknown_error_reload_page": "Si è verificato un errore sconosciuto, ricarica la pagina"
+    "unknown_error_reload_page": "Si è verificato un errore sconosciuto, ricarica la pagina",
+    "please_zoom_in_to_draw": "Avvicina per disegnare"
   },
   "ja": {
     "board_name_placeholder": "ボードの名前",
@@ -488,7 +498,8 @@
     "rate_limit_disconnect_message": "変更の送信が速すぎます。ボードを保護するため、接続を一時停止しました。1分ほど待ってからもう一度お試しください。",
     "users": "ユーザー",
     "report": "通報",
-    "unknown_error_reload_page": "予期しないエラーが発生しました。ページを再読み込みしてください。"
+    "unknown_error_reload_page": "予期しないエラーが発生しました。ページを再読み込みしてください。",
+    "please_zoom_in_to_draw": "描画するには拡大してください"
   },
   "my": {
     "board_name_placeholder": "ဝှိုက်ဘုတ်အမည် ... ",
@@ -533,7 +544,8 @@
     "rate_limit_disconnect_message": "သင်သည် ပြောင်းလဲမှုများကို မြန်လွန်းစွာ ပို့နေပါသည်။ ဘုတ်ကို ကာကွယ်ရန် သင့်ချိတ်ဆက်မှုကို ခဏရပ်ထားပါသည်။ တစ်မိနစ်စောင့်ပြီး ထပ်စမ်းပါ။",
     "users": "အသုံးပြုသူများ",
     "report": "တိုင်ကြားရန်",
-    "unknown_error_reload_page": "Ralat tidak diketahui berlaku, sila muat semula halaman"
+    "unknown_error_reload_page": "Ralat tidak diketahui berlaku, sila muat semula halaman",
+    "please_zoom_in_to_draw": "Zum masuk untuk melukis"
   },
   "pt": {
     "white-out": "Branquejar",
@@ -577,7 +589,8 @@
     "rate_limit_disconnect_message": "Você está enviando alterações rápido demais. Para proteger o quadro, pausamos sua conexão. Aguarde um minuto e tente novamente.",
     "users": "Utilizadores",
     "report": "Denunciar",
-    "unknown_error_reload_page": "Ocorreu um erro desconhecido, recarregue a página"
+    "unknown_error_reload_page": "Ocorreu um erro desconhecido, recarregue a página",
+    "please_zoom_in_to_draw": "Aproxime para desenhar"
   },
   "ru": {
     "board_name_placeholder": "Название доски",
@@ -621,7 +634,8 @@
     "rate_limit_disconnect_message": "Вы отправляете изменения слишком быстро. Чтобы защитить доску, мы приостановили ваше соединение. Подождите минуту и попробуйте снова.",
     "users": "Пользователи",
     "report": "Пожаловаться",
-    "unknown_error_reload_page": "Произошла неизвестная ошибка, пожалуйста, перезагрузите страницу."
+    "unknown_error_reload_page": "Произошла неизвестная ошибка, пожалуйста, перезагрузите страницу.",
+    "please_zoom_in_to_draw": "Приблизьте масштаб, чтобы рисовать"
   },
   "sw": {
     "board_name_placeholder": "Jina la ubao mweupe ...",
@@ -666,7 +680,8 @@
     "rate_limit_disconnect_message": "Unatuma mabadiliko haraka sana. Ili kulinda ubao, tumesitisha muunganisho wako kwa muda. Subiri dakika moja kisha ujaribu tena.",
     "users": "Watumiaji",
     "report": "Ripoti",
-    "unknown_error_reload_page": "Kuna hitilafu isiyojulikana imetokea, tafadhali pakia upya ukurasa."
+    "unknown_error_reload_page": "Kuna hitilafu isiyojulikana imetokea, tafadhali pakia upya ukurasa.",
+    "please_zoom_in_to_draw": "Tafadhali pana ili kuchora"
   },
   "th": {
     "board_name_placeholder": "ชื่อไวท์บอร์ด ...",
@@ -712,7 +727,8 @@
     "rate_limit_disconnect_message": "คุณส่งการเปลี่ยนแปลงเร็วเกินไป เพื่อปกป้องกระดาน เราได้หยุดการเชื่อมต่อของคุณชั่วคราว โปรดรอหนึ่งนาทีแล้วลองอีกครั้ง",
     "users": "ผู้ใช้",
     "report": "รายงาน",
-    "unknown_error_reload_page": "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ กรุณาโหลดหน้าใหม่อีกครั้ง"
+    "unknown_error_reload_page": "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ กรุณาโหลดหน้าใหม่อีกครั้ง",
+    "please_zoom_in_to_draw": "กรุณาซูมเข้าเพื่อวาด"
   },
   "uk": {
     "white-out": "Коректор",
@@ -757,7 +773,8 @@
     "rate_limit_disconnect_message": "Ви надсилаєте зміни занадто швидко. Щоб захистити дошку, ми призупинили ваше зʼєднання. Зачекайте хвилину й спробуйте ще раз.",
     "users": "Користувачі",
     "report": "Поскаржитися",
-    "unknown_error_reload_page": "Сталася невідома помилка, будь ласка, перезавантажте сторінку."
+    "unknown_error_reload_page": "Сталася невідома помилка, будь ласка, перезавантажте сторінку.",
+    "please_zoom_in_to_draw": "Наблизьте масштаб, щоб малювати"
   },
   "vi": {
     "white-out": "Bút xóa",
@@ -802,7 +819,8 @@
     "rate_limit_disconnect_message": "Bạn đang gửi thay đổi quá nhanh. Để bảo vệ bảng, chúng tôi đã tạm dừng kết nối của bạn. Hãy đợi một phút rồi thử lại.",
     "users": "Người dùng",
     "report": "Báo cáo",
-    "unknown_error_reload_page": "Đã xảy ra lỗi không xác định, vui lòng tải lại trang"
+    "unknown_error_reload_page": "Đã xảy ra lỗi không xác định, vui lòng tải lại trang",
+    "please_zoom_in_to_draw": "Hãy phóng to để vẽ"
   },
   "zh-CN": {
     "board_name_placeholder": "白板名称",
@@ -847,7 +865,8 @@
     "rate_limit_disconnect_message": "你发送更改的速度太快了。为了保护白板，我们已暂停你的连接。请稍等一分钟后再试。",
     "users": "用户",
     "report": "举报",
-    "unknown_error_reload_page": "发生未知错误，请重新加载页面"
+    "unknown_error_reload_page": "发生未知错误，请重新加载页面",
+    "please_zoom_in_to_draw": "请放大以进行绘制"
   },
   "zh-TW": {
     "board_name_placeholder": "白板名稱",
@@ -891,7 +910,8 @@
     "rate_limit_disconnect_message": "你送出變更的速度太快了。為了保護白板，我們已暫停你的連線。請等一分鐘後再試一次。",
     "users": "使用者",
     "report": "檢舉",
-    "unknown_error_reload_page": "發生未知錯誤，請重新載入頁面"
+    "unknown_error_reload_page": "發生未知錯誤，請重新載入頁面",
+    "please_zoom_in_to_draw": "請放大以繪圖"
   },
   "pl": {
     "board_name_placeholder": "Nazwa tablicy",
@@ -935,6 +955,7 @@
     "rate_limit_disconnect_message": "Wysyłasz zmiany zbyt szybko. Aby chronić tablicę, wstrzymaliśmy Twoje połączenie. Odczekaj minutę i spróbuj ponownie.",
     "users": "Użytkownicy",
     "report": "Zgłoś",
-    "unknown_error_reload_page": "Wystąpił nieznany błąd, proszę odświeżyć stronę."
+    "unknown_error_reload_page": "Wystąpił nieznany błąd, proszę odświeżyć stronę.",
+    "please_zoom_in_to_draw": "Przybliż, aby rysować"
   }
 }
