@@ -495,14 +495,32 @@ select {
   margin: 0;
 }
 
+/*
+ * Toolbar vertical spacing uses flex `gap` only:
+ * - `#menuItems` separates the #tools and #settings sections.
+ * - Each `ul.tools` stacks its `.tool` rows.
+ * Do not use `#menu .tool + .tool` for stack spacing (adjacent siblings only apply inside one
+ * `<ul>`). Section-to-section spacing is `#menuItems { gap }`; optional `#settings` margins are
+ * only for trailing inset when that block is visible, not for spacing between tool rows.
+ */
+#menuItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--board-control-gap);
+}
+
+#settings {
+  /* Trailing inset below the style block; hidden in read-only (no box, no margin). */
+  margin-bottom: 20px;
+}
+
 #menu .tools {
   list-style-type: none;
   margin: 0;
   padding: 0;
-}
-
-#settings {
-  margin: var(--board-control-gap) 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--board-control-gap);
 }
 
 #menu .tool {
@@ -524,10 +542,6 @@ select {
   transition-duration: 0.2s;
   overflow: hidden;
   width: max-content;
-}
-
-#menu .tool + .tool {
-  margin-top: var(--board-control-gap);
 }
 
 #menu .tool:hover {
