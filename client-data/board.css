@@ -704,7 +704,8 @@ input {
   left: 0;
   top: 0;
   z-index: 80;
-  width: 200px;
+  box-sizing: border-box;
+  width: min(200px, calc(100vw - 16px));
   padding: 10px;
   background: var(--board-control-bg);
   border: 1px solid var(--board-control-border);

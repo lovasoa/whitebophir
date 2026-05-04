@@ -212,6 +212,15 @@ export function release(state) {
 
 /**
  * @param {CursorState} state
+ * @param {string} color
+ */
+export function onColorChange(state, color) {
+  state.color = color;
+  updateMarker(state);
+}
+
+/**
+ * @param {CursorState} state
  * @param {number} size
  */
 export function onSizeChange(state, size) {

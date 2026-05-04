@@ -120,6 +120,9 @@ export class ToolRegistryModule {
 
     this.mounted[toolName] = mountedTool;
 
+    if (mountedTool.onColorChange) {
+      Tools.preferences.colorChangeHandlers.push(mountedTool.onColorChange);
+    }
     if (mountedTool.onSizeChange) {
       Tools.preferences.sizeChangeHandlers.push(mountedTool.onSizeChange);
     }
@@ -752,6 +755,7 @@ function createMountedTool(toolModule, toolState, toolName) {
   const onquit = toolModule.onquit;
   const onSocketDisconnect = toolModule.onSocketDisconnect;
   const onMutationRejected = toolModule.onMutationRejected;
+  const onColorChange = toolModule.onColorChange;
   const onSizeChange = toolModule.onSizeChange;
   const onOpacityChange = toolModule.onOpacityChange;
   const touchListenerOptions = toolModule.touchListenerOptions;
@@ -801,6 +805,9 @@ function createMountedTool(toolModule, toolState, toolName) {
       toolDefinition?.mouseCursor,
     helpText: toolModule.helpText ?? toolDefinition?.helpText,
     secondary: toolState.secondary ?? toolModule.secondary ?? null,
+    onColorChange: onColorChange
+      ? (color) => onColorChange(toolState, color)
+      : undefined,
     onSizeChange: onSizeChange
       ? (size) => onSizeChange(toolState, size)
       : undefined,

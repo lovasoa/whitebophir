@@ -139,13 +139,37 @@ export class BoardShellModule {
     const positionStylePanel = () => {
       const rect = styleTool.getBoundingClientRect();
       const gap = 8;
-      const panelWidth = stylePanel.offsetWidth || 200;
+      const margin = 8;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const panelRect = stylePanel.getBoundingClientRect();
+      const panelWidth = panelRect.width || stylePanel.offsetWidth || 200;
+      let panelHeight = panelRect.height || stylePanel.offsetHeight || 0;
+
       let left = rect.right + gap;
-      if (left + panelWidth > window.innerWidth - 8) {
-        left = Math.max(8, rect.left - gap - panelWidth);
+      if (left + panelWidth > vw - margin) {
+        left = rect.left - gap - panelWidth;
       }
+      left = Math.max(margin, Math.min(left, vw - margin - panelWidth));
+
+      const availH = vh - 2 * margin;
+      let top = rect.top;
+      if (panelHeight > availH) {
+        top = margin;
+        stylePanel.style.maxHeight = `${availH}px`;
+        stylePanel.style.overflowY = "auto";
+        panelHeight = availH;
+      } else {
+        stylePanel.style.maxHeight = "";
+        stylePanel.style.overflowY = "";
+        if (top + panelHeight > vh - margin) {
+          top = vh - margin - panelHeight;
+        }
+        top = Math.max(margin, top);
+      }
+
       stylePanel.style.left = `${left}px`;
-      stylePanel.style.top = `${rect.top}px`;
+      stylePanel.style.top = `${top}px`;
     };
 
     /** @type {ReturnType<typeof setTimeout> | null} */

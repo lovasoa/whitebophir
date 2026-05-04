@@ -294,6 +294,7 @@ export type MountedAppTool = PointerListenerMap<ToolPointerListener> & {
   mouseCursor?: string;
   helpText?: string;
   secondary?: ToolSecondaryMode | null;
+  onColorChange?: (color: string) => void;
   onSizeChange?: (size: number) => void;
   onOpacityChange?: (opacity: number) => void;
   getTouchPolicy?: () => ToolTouchPolicy;
@@ -563,6 +564,7 @@ export type ToolModule<T = unknown> = {
   onquit?(state: T, newTool: MountedAppTool): void;
   onSocketDisconnect?(state: T): void;
   onMutationRejected?(state: T, message: BoardMessage, reason?: string): void;
+  onColorChange?(state: T, color: string): void;
   onSizeChange?(state: T, size: number): void;
   onOpacityChange?(state: T, opacity: number): void;
   getTouchPolicy?(state: T): ToolTouchPolicy;
