@@ -1002,6 +1002,7 @@ function updateCurrentToolChrome(toolName, newTool) {
     ? "not-allowed"
     : newTool.mouseCursor || "auto";
   dom.board.title = Tools.i18n.t(newTool.helpText || "");
+  Tools.status.syncWriteStatusIndicator();
 }
 
 /** @param {MountedAppTool} newTool */

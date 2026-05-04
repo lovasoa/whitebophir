@@ -195,8 +195,11 @@ select {
 }
 
 .board-status-paused .board-status-icon {
-  border-color: #d7c2bc;
-  border-top-color: #c23b22;
+  border: none;
+  background: #c23b22;
+  animation: none;
+  width: 8px;
+  height: 8px;
 }
 
 .board-status-paused .board-status-title {
@@ -564,7 +567,6 @@ select {
 
 #menu .tool.disabledTool {
   opacity: 0.45;
-  filter: grayscale(1);
   cursor: not-allowed;
 }
 
