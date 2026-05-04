@@ -649,7 +649,7 @@ export function createToolRuntimeModules(mountedTools, ownerToolName = "") {
       getSize() {
         return mountedTools.preferences.getSize();
       },
-      /** @param {number | string | null | undefined} size */
+      /** @param {number} size */
       setSize(size) {
         return mountedTools.preferences.setSize(size);
       },

@@ -32,6 +32,7 @@ import { messages as BoardMessages } from "../../js/board_transport.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import MessageCommon from "../../js/message_common.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
+import { safePreventDefault } from "../../js/board_viewport.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
@@ -1117,7 +1118,7 @@ function startHand(state, _x, _y, evt, isTouchEvent) {
   void _x;
   void _y;
   if (isTouchEvent) return;
-  if (evt.cancelable) evt.preventDefault();
+  if (!safePreventDefault(evt)) return;
   state.Tools.viewport.beginPan(
     getPointerClientCoord(evt, "clientX"),
     getPointerClientCoord(evt, "clientY"),
@@ -1137,7 +1138,7 @@ function moveHand(state, _x, _y, evt, isTouchEvent) {
   void _y;
   if (isTouchEvent) return;
   if (state.selected && !("w" in state.selected)) {
-    if (evt.cancelable) evt.preventDefault();
+    if (!safePreventDefault(evt)) return;
     state.Tools.viewport.movePan(
       getPointerClientCoord(evt, "clientX"),
       getPointerClientCoord(evt, "clientY"),

@@ -175,11 +175,16 @@ export class PreferenceModule {
     this.colorChooser = /** @type {HTMLInputElement | null} */ (null);
     this.colorButtonsInitialized = false;
     this.currentColor = initial.color;
+    /** @type number */
     this.currentSize = clampSize(initial.size);
+    /** @type number */
     this.currentOpacity = clampOpacity(initial.opacity);
+    /** @type AppInitialPreferences */
     this.initial = initial;
-    this.colorChangeHandlers = /** @type {((color: string) => void)[]} */ ([]);
-    this.sizeChangeHandlers = /** @type {((size: number) => void)[]} */ ([]);
+    /** @type {((color: string) => void)[]} */
+    this.colorChangeHandlers = [];
+    /** @type {((size: number) => void)[]} */
+    this.sizeChangeHandlers = [];
     this.opacityChangeHandlers =
       /** @type {((opacity: number) => void)[]} */ ([]);
   }
@@ -203,11 +208,9 @@ export class PreferenceModule {
     return this.currentSize;
   }
 
-  /** @param {number | string | null | undefined} value */
+  /** @param {number} value */
   setSize(value) {
-    if (value !== null && value !== undefined) {
-      this.currentSize = clampSize(value);
-    }
+    this.currentSize = clampSize(value);
     const chooser = document.getElementById("chooseSize");
     if (chooser instanceof HTMLInputElement) {
       chooser.value = String(this.currentSize);
@@ -222,11 +225,9 @@ export class PreferenceModule {
     return this.currentOpacity;
   }
 
-  /** @param {number | string | null | undefined} value */
+  /** @param {number} value */
   setOpacity(value) {
-    if (value !== null && value !== undefined) {
-      this.currentOpacity = clampOpacity(value);
-    }
+    this.currentOpacity = clampOpacity(value);
     const chooser = document.getElementById("chooseOpacity");
     if (chooser instanceof HTMLInputElement) {
       chooser.value = String(this.currentOpacity);

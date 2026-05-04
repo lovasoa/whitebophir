@@ -50,7 +50,9 @@ function buildUserName(ip, userSecret) {
 function buildBoardUserRecord(socket, boardName, config, resolveClientIp, now) {
   const userSecret = getSocketUserSecret(socket);
   const ip = resolveClientIp(socket, boardName, config);
-  const size = WBOMessageCommon.clampSize(getSocketQueryValue(socket, "size"));
+  const size = WBOMessageCommon.clampSize(
+    parseInt(getSocketQueryValue(socket, "size"), 10),
+  );
   const color = WBOMessageCommon.normalizeColor(
     getSocketQueryValue(socket, "color"),
   );

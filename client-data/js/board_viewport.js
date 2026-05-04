@@ -17,10 +17,15 @@ const VIEWPORT_HASH_SYNC_DELAY_MS = 200;
 const VIEWPORT_HASH_PUSH_INTERVAL_MS = 5000;
 const PINCH_MIN_DISTANCE = 16;
 const BOARD_EXTENT_MARGIN = 20000;
-/** Opacity change per event is `wheelDelta / this` (smaller = stronger; was 1000). */
-const STYLE_WHEEL_OPACITY_DIVISOR = 500;
-/** Size change is `(wheelDelta / 100) * this` with S + wheel (was 5). */
-const STYLE_WHEEL_SIZE_FACTOR = 10;
+/** Opacity change per event is `wheelDelta / this` (smaller = stronger). */
+const STYLE_WHEEL_OPACITY_DIVISOR = 100;
+/** Size change is `wheelDelta / this` with S + wheel. */
+const STYLE_WHEEL_SIZE_FACTOR = 2;
+/** Physical keys for S+wheel / O+wheel (opacity wins if both). */
+const STYLE_WHEEL_KEY_MASK = Object.freeze({
+  KeyS: 1,
+  KeyO: 2,
+});
 const APP_TOOL_TOUCH_ACTION = "none";
 const BROWSER_SCROLL_WITHOUT_ZOOM_TOUCH_ACTION = "pan-x pan-y";
 const TOUCH_EVENT_LISTENER_OPTIONS = {
@@ -386,8 +391,23 @@ export function createViewportController(Tools) {
   let activePinchPan = null;
   /** @type {(() => void) | null} */
   let temporaryPanCleanup = null;
-  let styleWheelSizeKeyHeld = false;
-  let styleWheelOpacityKeyHeld = false;
+  /** Bitset: {@link STYLE_WHEEL_KEY_MASK} (O wins if both). */
+  let styleWheelKeysHeld = 0;
+
+  /**
+   * @param {string} code
+   * @param {boolean} held
+   * @returns {void}
+   */
+  function setStyleWheelKeyHeld(code, held) {
+    if (!(code in STYLE_WHEEL_KEY_MASK)) return;
+    const mask =
+      STYLE_WHEEL_KEY_MASK[
+        /** @type {keyof typeof STYLE_WHEEL_KEY_MASK} */ (code)
+      ];
+    if (held) styleWheelKeysHeld |= mask;
+    else styleWheelKeysHeld &= ~mask;
+  }
 
   /**
    * @returns {ScaleLimits}
@@ -611,8 +631,7 @@ export function createViewportController(Tools) {
   }
 
   function resetStyleWheelModifierKeys() {
-    styleWheelSizeKeyHeld = false;
-    styleWheelOpacityKeyHeld = false;
+    styleWheelKeysHeld = 0;
   }
 
   /**
@@ -621,10 +640,7 @@ export function createViewportController(Tools) {
    */
   function onStyleWheelModifierKeydown(event) {
     if (isTextEntryTarget(event.target)) return;
-    if (event.key.length !== 1) return;
-    const lower = event.key.toLowerCase();
-    if (lower === "s") styleWheelSizeKeyHeld = true;
-    if (lower === "o") styleWheelOpacityKeyHeld = true;
+    setStyleWheelKeyHeld(event.code, true);
   }
 
   /**
@@ -632,36 +648,33 @@ export function createViewportController(Tools) {
    * @returns {void}
    */
   function onStyleWheelModifierKeyup(event) {
-    if (event.key.length !== 1) return;
-    const lower = event.key.toLowerCase();
-    if (lower === "s") styleWheelSizeKeyHeld = false;
-    if (lower === "o") styleWheelOpacityKeyHeld = false;
+    setStyleWheelKeyHeld(event.code, false);
   }
 
   /**
    * S/O + wheel must run on window capture so it works over the toolbar/style
    * panel (wheel on `#board` never fires there). Shift is excluded so Shift+wheel
    * pan on the board still works when a key repeats focus state oddly.
+   * Letter keys are tracked from keydown/keyup: `WheelEvent` does not report which
+   * letter is held (unlike Shift/Ctrl), and `getModifierState` is not for this.
    * @param {WheelEvent} event
    * @returns {void}
    */
   function handleStyleShortcutWheelCapture(event) {
     if (event.shiftKey) return;
+    if (!styleWheelKeysHeld) return;
+    if (!safePreventDefault(event)) return;
     const prefDelta = wheelDeltaForStyleWheel(event);
-    if (styleWheelOpacityKeyHeld) {
+    if (styleWheelKeysHeld & STYLE_WHEEL_KEY_MASK.KeyO) {
       Tools.preferences.setOpacity(
         Tools.preferences.getOpacity() -
           prefDelta / STYLE_WHEEL_OPACITY_DIVISOR,
       );
-    } else if (styleWheelSizeKeyHeld) {
-      Tools.preferences.setSize(
-        Tools.preferences.getSize() -
-          (prefDelta / 100) * STYLE_WHEEL_SIZE_FACTOR,
-      );
     } else {
-      return;
+      Tools.preferences.setSize(
+        Tools.preferences.getSize() - prefDelta / STYLE_WHEEL_SIZE_FACTOR,
+      );
     }
-    if (event.cancelable) event.preventDefault();
     event.stopImmediatePropagation();
   }
 
@@ -670,7 +683,7 @@ export function createViewportController(Tools) {
    * @returns {void}
    */
   function handleWheel(event) {
-    if (event.cancelable) event.preventDefault();
+    if (!safePreventDefault(event)) return;
 
     if (event.shiftKey && !event.ctrlKey) {
       controller.panBy(
@@ -902,7 +915,7 @@ export function createViewportController(Tools) {
       /** @param {MouseEvent} event */
       function handleMouseDown(event) {
         if (event.button !== 0) return;
-        if (event.cancelable) event.preventDefault();
+        if (!safePreventDefault(event)) return;
         controller.beginPan(event.clientX, event.clientY);
       }
 

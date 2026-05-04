@@ -12,7 +12,7 @@ import {
 } from "./board_page_state.js";
 import { addToolShortcut } from "./board_tool_registry_module.js";
 import { isTextEntryTarget } from "./text_entry_target.js";
-import { LIMITS } from "./message_limits.js";
+import { clampOpacity, LIMITS } from "./message_limits.js";
 
 /** @import { AppToolsState, ColorPreset } from "../../types/app-runtime" */
 
@@ -231,12 +231,12 @@ export class BoardShellModule {
 
     sizeChooser.value = String(Tools.preferences.currentSize);
     sizeChooser.onchange = sizeChooser.oninput = () => {
-      Tools.preferences.setSize(sizeChooser.value);
+      Tools.preferences.setSize(parseInt(sizeChooser.value, 10));
     };
 
     opacityChooser.value = String(Tools.preferences.currentOpacity);
     opacityChooser.onchange = opacityChooser.oninput = () => {
-      Tools.preferences.setOpacity(opacityChooser.value);
+      Tools.preferences.setOpacity(clampOpacity(opacityChooser.value));
     };
 
     const syncStyleAriaLabel = () => {

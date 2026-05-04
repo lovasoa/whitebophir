@@ -41,13 +41,12 @@ export function resolveMaxBoardSize(maxBoardSize) {
 }
 
 /**
- * @param {unknown} value
+ * @param {number} size
  * @returns {number}
  */
-export function clampSize(value) {
-  let size = parseInt(String(value), 10);
+export function clampSize(size) {
   if (!Number.isFinite(size)) size = LIMITS.MIN_SIZE;
-  return clamp(size, LIMITS.MIN_SIZE, LIMITS.MAX_SIZE);
+  return clamp(Math.round(size), LIMITS.MIN_SIZE, LIMITS.MAX_SIZE);
 }
 
 /**
