@@ -580,6 +580,7 @@ export type ViewportController = {
   panBy: (dx: number, dy: number) => void;
   panTo: (left: number, top: number) => void;
   zoomAt: (scale: number, pageX: number, pageY: number) => number;
+  zoomAtBoardPoint: (scale: number, boardX: number, boardY: number) => number;
   zoomBy: (factor: number, pageX: number, pageY: number) => number;
   beginPan: (clientX: number, clientY: number) => void;
   movePan: (clientX: number, clientY: number) => void;

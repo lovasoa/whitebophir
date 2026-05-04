@@ -70,6 +70,7 @@ const TOUCH_EVENT_NAMES = [
  *   panBy(dx: number, dy: number): void,
  *   panTo(left: number, top: number): void,
  *   zoomAt(scale: number, pageX: number, pageY: number): number,
+ *   zoomAtBoardPoint(scale: number, boardX: number, boardY: number): number,
  *   zoomBy(factor: number, pageX: number, pageY: number): number,
  *   beginPan(clientX: number, clientY: number): void,
  *   movePan(clientX: number, clientY: number): void,
@@ -535,18 +536,14 @@ export function createViewportController(Tools) {
 
   /**
    * @param {number} scale
-   * @param {number} pageX
-   * @param {number} pageY
+   * @param {number} boardX
+   * @param {number} boardY
    * @returns {number}
    */
-  function zoomAtPagePoint(scale, pageX, pageY) {
+  function zoomAtBoardPoint(scale, boardX, boardY) {
     const oldScale = getScale();
-    const x = Tools.coordinates.toBoardCoordinate(
-      screenToBoard(pageX, oldScale),
-    );
-    const y = Tools.coordinates.toBoardCoordinate(
-      screenToBoard(pageY, oldScale),
-    );
+    const x = Tools.coordinates.toBoardCoordinate(boardX);
+    const y = Tools.coordinates.toBoardCoordinate(boardY);
     const scrollLeft = document.documentElement.scrollLeft;
     const scrollTop = document.documentElement.scrollTop;
     const newScale = setScale(scale);
@@ -562,6 +559,21 @@ export function createViewportController(Tools) {
     );
     panTo(nextViewport.left, nextViewport.top);
     return newScale;
+  }
+
+  /**
+   * @param {number} scale
+   * @param {number} pageX
+   * @param {number} pageY
+   * @returns {number}
+   */
+  function zoomAtPagePoint(scale, pageX, pageY) {
+    const oldScale = getScale();
+    return zoomAtBoardPoint(
+      scale,
+      screenToBoard(pageX, oldScale),
+      screenToBoard(pageY, oldScale),
+    );
   }
 
   /**
@@ -762,6 +774,7 @@ export function createViewportController(Tools) {
     },
     panTo,
     zoomAt: zoomAtPagePoint,
+    zoomAtBoardPoint,
     zoomBy(factor, pageX, pageY) {
       return zoomAtPagePoint(getScale() * factor, pageX, pageY);
     },

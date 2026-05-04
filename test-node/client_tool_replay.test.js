@@ -571,6 +571,10 @@ function createHarness() {
           globalAny.Tools.viewportState.scale = scale;
           return scale;
         },
+        zoomAtBoardPoint: (/** @type {number} */ scale) => {
+          globalAny.Tools.viewportState.scale = scale;
+          return scale;
+        },
         zoomBy: (/** @type {number} */ factor) => {
           globalAny.Tools.viewportState.scale *= factor;
           return globalAny.Tools.viewportState.scale;
@@ -888,6 +892,7 @@ function createUnavailableViewportRuntime() {
     panBy: () => unavailableCapability("viewport.panBy"),
     panTo: () => unavailableCapability("viewport.panTo"),
     zoomAt: () => unavailableCapability("viewport.zoomAt"),
+    zoomAtBoardPoint: () => unavailableCapability("viewport.zoomAtBoardPoint"),
     zoomBy: () => unavailableCapability("viewport.zoomBy"),
     beginPan: () => unavailableCapability("viewport.beginPan"),
     movePan: () => unavailableCapability("viewport.movePan"),

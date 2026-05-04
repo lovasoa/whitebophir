@@ -24,7 +24,7 @@
  * @licend
  */
 
-/** @typedef {{pageX: number, pageY: number, clientY: number, scale: number}} ZoomOrigin */
+/** @typedef {{pageX: number, pageY: number, anchorX: number, anchorY: number, clientY: number, scale: number}} ZoomOrigin */
 /** @typedef {{preventDefault(): void, clientY?: number, pageX?: number, pageY?: number, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, deltaMode?: number, deltaX?: number, deltaY?: number, changedTouches?: TouchList, touches?: TouchList}} ZoomPointerEvent */
 /** @typedef {(evt: KeyboardEvent) => void} ZoomKeyHandler */
 /** @import { ToolBootContext } from "../../../types/app-runtime" */
@@ -76,7 +76,11 @@ function getPageCoordinate(evt, isTouchEvent, fallback, axis) {
  * @param {number} scale
  */
 function zoom(state, scale) {
-  state.viewport.zoomAt(scale, state.origin.pageX, state.origin.pageY);
+  state.viewport.zoomAtBoardPoint(
+    scale,
+    state.origin.anchorX,
+    state.origin.anchorY,
+  );
 }
 
 /**
@@ -99,6 +103,8 @@ function animate(state, scale) {
  */
 function setOrigin(state, x, y, evt, isTouchEvent) {
   const scale = state.viewport.getScale();
+  state.origin.anchorX = x;
+  state.origin.anchorY = y;
   state.origin.pageX = getPageCoordinate(evt, isTouchEvent, x * scale, "pageX");
   state.origin.pageY = getPageCoordinate(evt, isTouchEvent, y * scale, "pageY");
   state.origin.clientY = getClientY(evt, isTouchEvent);
@@ -129,6 +135,8 @@ export function boot(ctx) {
     origin: {
       pageX: 0,
       pageY: 0,
+      anchorX: 0,
+      anchorY: 0,
       clientY: 0,
       scale: 1,
     },
