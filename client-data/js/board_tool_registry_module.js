@@ -439,6 +439,25 @@ function getToolButton(toolName) {
 }
 
 /**
+ * Fills `.tool-name` for a mounted tool row (label text + optional extras).
+ * Do not assign `label.textContent` elsewhere: it would drop sibling nodes.
+ *
+ * @param {HTMLElement} label
+ * @param {string} translatedName
+ * @param {string | undefined} shortcut
+ * @returns {void}
+ */
+function renderToolButtonLabel(label, translatedName, shortcut) {
+  label.textContent = translatedName;
+  if (shortcut) {
+    const shortcutSpan = document.createElement("span");
+    shortcutSpan.className = "tool-shortcut";
+    shortcutSpan.textContent = shortcut.toUpperCase();
+    label.appendChild(shortcutSpan);
+  }
+}
+
+/**
  * @param {string} toolName
  * @param {MountedAppTool} tool
  * @returns {void}
@@ -449,13 +468,7 @@ function syncToolButton(toolName, tool) {
   bindToolButton(button, toolName);
   const parts = getRequiredToolButtonParts(toolName);
   const translatedToolName = Tools.i18n.t(toolName);
-  parts.label.textContent = translatedToolName;
-  if (tool.shortcut) {
-    const shortcutSpan = document.createElement("span");
-    shortcutSpan.className = "tool-shortcut";
-    shortcutSpan.textContent = tool.shortcut.toUpperCase();
-    parts.label.appendChild(shortcutSpan);
-  }
+  renderToolButtonLabel(parts.label, translatedToolName, tool.shortcut);
   button.setAttribute("aria-label", translatedToolName);
   parts.primaryIcon.src = Tools.assets.resolveAssetPath(tool.icon);
   parts.primaryIcon.alt = "";
@@ -546,12 +559,11 @@ function changeActiveToolButton(oldToolName, newToolName) {
 }
 
 /**
- * @param {string} toolName
- * @param {string} name
- * @param {string} icon
+ * @param {{ toolName: string, labelKey: string, icon: string, shortcut?: string }} params
+ *   `labelKey` is the i18n id for the row label. `shortcut` is the primary key hint (same in secondary mode).
  * @returns {void}
  */
-function toggleToolButtonMode(toolName, name, icon) {
+function toggleToolButtonMode({ toolName, labelKey, icon, shortcut }) {
   const parts = getRequiredToolButtonParts(toolName);
   const secondaryIcon = parts.secondaryIcon;
   if (!secondaryIcon) {
@@ -561,7 +573,7 @@ function toggleToolButtonMode(toolName, name, icon) {
   parts.primaryIcon.src = secondaryIcon.src;
   secondaryIcon.src = primaryIconSrc;
   parts.primaryIcon.src = Tools.assets.resolveAssetPath(icon);
-  parts.label.textContent = Tools.i18n.t(name);
+  renderToolButtonLabel(parts.label, Tools.i18n.t(labelKey), shortcut);
 }
 
 /**
@@ -973,7 +985,12 @@ function toggleSecondaryTool(newTool) {
   if (!newTool.secondary) return;
   newTool.secondary.active = !newTool.secondary.active;
   const props = newTool.secondary.active ? newTool.secondary : newTool;
-  toggleToolButtonMode(newTool.name, props.name, props.icon);
+  toggleToolButtonMode({
+    toolName: newTool.name,
+    labelKey: props.name,
+    icon: props.icon,
+    shortcut: newTool.shortcut,
+  });
   if (newTool.secondary.switch) newTool.secondary.switch();
   syncActiveToolState();
   Tools.toolRegistry.syncActiveToolInputPolicy();
