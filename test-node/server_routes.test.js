@@ -147,6 +147,21 @@ function assertSnippetBeforeHeadEnd(body, snippet) {
   assert.ok(snippetIndex < headEndIndex);
 }
 
+/**
+ * @param {string} body
+ * @returns {{readonly: boolean, canEdit: boolean, canClear: boolean, canWrite?: boolean}}
+ */
+function parseRenderedBoardState(body) {
+  const match = body.match(
+    /<script type="application\/json" id="board-state">([^<]*)<\/script>/,
+  );
+  const json = match?.[1];
+  if (typeof json !== "string") {
+    assert.fail("board-state script is rendered");
+  }
+  return JSON.parse(json);
+}
+
 test("in-process server imports do not register process signal handlers", async () => {
   const dirs = await createServerDirs();
   const sigintBefore = process.listenerCount("SIGINT");
@@ -935,12 +950,40 @@ test("board pages fall back to legacy json metadata and inline baseline renderin
     const response = await request(app, "/boards/legacy-inline");
 
     assert.equal(response.statusCode, 200);
+    assert.deepEqual(parseRenderedBoardState(response.body), {
+      readonly: true,
+      canEdit: false,
+      canClear: false,
+      canWrite: false,
+    });
     assert.match(response.body, /toolID-hand/);
     assert.doesNotMatch(response.body, /toolID-pencil/);
     assert.match(
       response.body,
       /<div id="board">\s*<svg id="canvas"[\s\S]*data-wbo-readonly="true"[\s\S]*<rect id="rect-1"/,
     );
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("board pages render JWT-disabled writable capability state without Clear", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const response = await request(app, "/boards/capability-open");
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(parseRenderedBoardState(response.body), {
+      readonly: false,
+      canEdit: true,
+      canClear: false,
+      canWrite: true,
+    });
+    assert.match(response.body, /toolID-pencil/);
+    assert.doesNotMatch(response.body, /toolID-clear/);
   } finally {
     await closeServer(app);
   }
@@ -1143,12 +1186,29 @@ test("static assets are no-store in development and revalidate in production", a
 test("board-scoped JWTs can access their authorized board pages", async () => {
   const dirs = await createServerDirs();
   const authSecret = "test-secret";
+  await fs.writeFile(
+    path.join(dirs.historyDir, "board-readonly-auth.json"),
+    JSON.stringify({ __wbo_meta__: { readonly: true } }),
+    "utf8",
+  );
   const boardReaderToken = jsonwebtoken.sign(
     { sub: "reader", roles: ["reader:readonly-test"] },
     authSecret,
   );
   const boardEditorToken = jsonwebtoken.sign(
     { sub: "editor", roles: ["editor:testboard"] },
+    authSecret,
+  );
+  const readonlyEditorToken = jsonwebtoken.sign(
+    { sub: "readonly-editor", roles: ["editor:readonly-auth"] },
+    authSecret,
+  );
+  const boardModeratorToken = jsonwebtoken.sign(
+    { sub: "moderator", roles: ["moderator:testboard"] },
+    authSecret,
+  );
+  const unauthorizedToken = jsonwebtoken.sign(
+    { sub: "unauthorized", roles: ["reader:other-board"] },
     authSecret,
   );
 
@@ -1167,11 +1227,39 @@ test("board-scoped JWTs can access their authorized board pages", async () => {
       app,
       `/boards/testboard?token=${encodeURIComponent(boardEditorToken)}`,
     );
+    const readonlyEditorResponse = await request(
+      app,
+      `/boards/readonly-auth?token=${encodeURIComponent(readonlyEditorToken)}`,
+    );
+    const moderatorResponse = await request(
+      app,
+      `/boards/testboard?token=${encodeURIComponent(boardModeratorToken)}`,
+    );
+    const unauthorizedResponse = await request(
+      app,
+      `/boards/testboard?token=${encodeURIComponent(unauthorizedToken)}`,
+    );
 
     assert.equal(readonlyResponse.statusCode, 200);
     assert.equal(editorResponse.statusCode, 200);
+    assert.equal(readonlyEditorResponse.statusCode, 200);
+    assert.equal(moderatorResponse.statusCode, 200);
+    assert.equal(unauthorizedResponse.statusCode, 403);
     assert.match(readonlyResponse.body, /toolID-hand/);
     assert.match(editorResponse.body, /id="menu"/);
+    assert.deepEqual(parseRenderedBoardState(readonlyEditorResponse.body), {
+      readonly: true,
+      canEdit: true,
+      canClear: false,
+      canWrite: true,
+    });
+    assert.deepEqual(parseRenderedBoardState(moderatorResponse.body), {
+      readonly: false,
+      canEdit: true,
+      canClear: true,
+      canWrite: true,
+    });
+    assert.match(moderatorResponse.body, /toolID-clear/);
   } finally {
     await closeServer(app);
   }

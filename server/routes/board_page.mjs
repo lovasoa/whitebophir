@@ -11,8 +11,8 @@ import {
   requireBoardDocumentNames,
   requireBoardQueryName,
 } from "./board_http_helpers.mjs";
+import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import { respondWithErrorPage } from "../http/observation.mjs";
-import * as jwtBoardName from "../auth/board_jwt.mjs";
 import observability from "../observability/index.mjs";
 import {
   readBoardDocumentState,
@@ -22,15 +22,25 @@ import {
 const { tracing } = observability;
 
 /** @import { HttpRouteContext } from "../../types/server-runtime.d.ts" */
+/** @import { AppBoardState } from "../../types/app-runtime" */
 
 /**
  * @typedef {{
- *   redirect?: string,
+ *   kind: "redirect",
+ *   redirect: string,
  *   boardName: string,
- *   boardRole: string,
  *   cachedSeqs: number[],
- * }} BoardPageRequest
+ * }} BoardPageRedirectRequest
  */
+/**
+ * @typedef {{
+ *   kind: "document",
+ *   boardName: string,
+ *   boardPermissions: ReturnType<typeof BoardPermissions.forBoard>,
+ *   cachedSeqs: number[],
+ * }} BoardPageDocumentRequest
+ */
+/** @typedef {BoardPageRedirectRequest | BoardPageDocumentRequest} BoardPageRequest */
 
 /**
  * @param {HttpRouteContext} ctx
@@ -39,7 +49,11 @@ const { tracing } = observability;
 function redirectBoardQuery(ctx) {
   const boardName = requireBoardQueryName(ctx.url);
   annotateBoardRequest(ctx.observed, boardName);
-  jwtBoardName.checkBoardnameInToken(ctx.runtime.config, ctx.url, boardName);
+  BoardPermissions.forBoard({
+    config: ctx.runtime.config,
+    boardName,
+    userInfo: { token: ctx.url.searchParams.get("token") },
+  }).requireOpen();
   ctx.response.writeHead(301, {
     Location: boardDocumentLocation(boardName),
   });
@@ -52,7 +66,7 @@ function redirectBoardQuery(ctx) {
  */
 async function serveBoardPage(ctx) {
   const pageRequest = resolveBoardPageRequest(ctx);
-  if (pageRequest.redirect) {
+  if (pageRequest.kind === "redirect") {
     ctx.response.writeHead(301, { Location: pageRequest.redirect });
     ctx.response.end();
     return;
@@ -90,21 +104,22 @@ function resolveBoardPageRequest(ctx) {
   annotateBoardRequest(ctx.observed, boardName);
   if (requestedBoardName !== boardName) {
     return {
+      kind: "redirect",
       redirect: boardDocumentLocation(boardName, ctx.url.search),
       boardName,
-      boardRole: "",
       cachedSeqs: [],
     };
   }
-  jwtBoardName.checkBoardnameInToken(ctx.runtime.config, ctx.url, boardName);
-  const token = ctx.url.searchParams.get("token");
-  return {
+  const boardPermissions = BoardPermissions.forBoard({
+    config: ctx.runtime.config,
     boardName,
-    boardRole: jwtBoardName.roleInBoard(
-      ctx.runtime.config,
-      token || "",
-      boardName,
-    ),
+    userInfo: { token: ctx.url.searchParams.get("token") },
+  });
+  boardPermissions.requireOpen();
+  return {
+    kind: "document",
+    boardName,
+    boardPermissions,
     cachedSeqs: parseBoardPageETagCandidates(
       ctx.request.headers["if-none-match"],
     ),
@@ -116,7 +131,7 @@ function resolveBoardPageRequest(ctx) {
  * If-None-Match.
  *
  * @param {HttpRouteContext} ctx
- * @param {BoardPageRequest} pageRequest
+ * @param {BoardPageDocumentRequest} pageRequest
  * @returns {Promise<boolean>}
  */
 async function serveLoadedBoardCacheHit(ctx, pageRequest) {
@@ -132,7 +147,7 @@ async function serveLoadedBoardCacheHit(ctx, pageRequest) {
 
 /**
  * @param {HttpRouteContext} ctx
- * @param {BoardPageRequest} pageRequest
+ * @param {BoardPageDocumentRequest} pageRequest
  * @returns {ReturnType<typeof readBoardDocumentState>}
  */
 function readBoardDocumentForPage(ctx, pageRequest) {
@@ -171,7 +186,7 @@ function readBoardDocumentForPage(ctx, pageRequest) {
 
 /**
  * @param {HttpRouteContext} ctx
- * @param {BoardPageRequest} pageRequest
+ * @param {BoardPageDocumentRequest} pageRequest
  * @param {Awaited<ReturnType<typeof readBoardDocumentState>>} document
  * @returns {boolean}
  */
@@ -207,20 +222,18 @@ function respondWithBoardPageNotModified(ctx, boardName, seq, etag) {
 
 /**
  * @param {HttpRouteContext} ctx
- * @param {BoardPageRequest} pageRequest
+ * @param {BoardPageDocumentRequest} pageRequest
  * @param {Awaited<ReturnType<typeof readBoardDocumentState>>} document
  * @returns {Promise<void>}
  */
 async function renderBoardDocument(ctx, pageRequest, document) {
+  const boardState = pageRequest.boardPermissions.boardState({
+    name: pageRequest.boardName,
+    readonly: document.metadata.readonly,
+  });
   const renderOptions = {
     etag: boardPageETag(document.metadata.seq || 0),
-    boardState: {
-      readonly: document.metadata.readonly,
-      canWrite:
-        !document.metadata.readonly ||
-        (ctx.runtime.config.AUTH_SECRET_KEY &&
-          ["editor", "moderator"].includes(pageRequest.boardRole)),
-    },
+    boardState,
   };
 
   if (document.source === "svg" || document.source === "svg_backup") {
@@ -236,7 +249,7 @@ async function renderBoardDocument(ctx, pageRequest, document) {
   const { encoding } = ctx.runtime.boardTemplate.serve(
     ctx.request,
     ctx.response,
-    pageRequest.boardRole === "moderator",
+    boardState.canClear,
     {
       ...renderOptions,
       inlineBoardSvg: document.inlineBoardSvg || "",
@@ -252,9 +265,9 @@ async function renderBoardDocument(ctx, pageRequest, document) {
  * materialized in JS.
  *
  * @param {HttpRouteContext} ctx
- * @param {BoardPageRequest} pageRequest
+ * @param {BoardPageDocumentRequest} pageRequest
  * @param {Awaited<ReturnType<typeof readBoardDocumentState>>} document
- * @param {{etag: string, boardState: {readonly: boolean, canWrite: boolean | string}}} renderOptions
+ * @param {{etag: string, boardState: AppBoardState}} renderOptions
  * @returns {Promise<void>}
  */
 async function streamStoredSvgBoardDocument(
@@ -296,7 +309,7 @@ async function streamStoredSvgBoardDocument(
     ctx.request,
     ctx.response,
     svgStream,
-    pageRequest.boardRole === "moderator",
+    renderOptions.boardState.canClear,
     renderOptions,
   );
   if (encoding !== undefined) {

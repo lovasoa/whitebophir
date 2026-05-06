@@ -14,7 +14,7 @@ import {
   respondWithErrorPage,
   serveError,
 } from "../http/observation.mjs";
-import * as jwtBoardName from "../auth/board_jwt.mjs";
+import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import observability from "../observability/index.mjs";
 import {
   boardExists,
@@ -36,12 +36,25 @@ function rejectMissingBoardName() {
 
 /**
  * @param {HttpRouteContext} ctx
+ * @param {string} boardName
+ * @returns {void}
+ */
+function requireBoardOpenPermission(ctx, boardName) {
+  BoardPermissions.forBoard({
+    config: ctx.runtime.config,
+    boardName,
+    userInfo: { token: ctx.url.searchParams.get("token") },
+  }).requireOpen();
+}
+
+/**
+ * @param {HttpRouteContext} ctx
  * @returns {Promise<void>}
  */
 async function serveBoardSvg(ctx) {
   const boardName = requireBoardPathName(ctx.params);
   annotateBoardRequest(ctx.observed, boardName);
-  jwtBoardName.checkBoardnameInToken(ctx.runtime.config, ctx.url, boardName);
+  requireBoardOpenPermission(ctx, boardName);
   const persistedSeq = await readStoredSvgSeq(boardName, {
     historyDir: ctx.runtime.config.HISTORY_DIR,
   });
@@ -105,7 +118,7 @@ async function serveBoardSvg(ctx) {
 function downloadBoard(ctx) {
   const boardName = requireBoardPathName(ctx.params);
   annotateBoardRequest(ctx.observed, boardName);
-  jwtBoardName.checkBoardnameInToken(ctx.runtime.config, ctx.url, boardName);
+  requireBoardOpenPermission(ctx, boardName);
   void respondWithBoardDownload(ctx, boardName).catch(
     serveError(ctx.response, ctx.runtime.errorPage, ctx.observed),
   );
@@ -143,7 +156,7 @@ async function respondWithBoardDownload(ctx, boardName) {
 function serveBoardPreview(ctx) {
   const boardName = requireBoardPathName(ctx.params);
   annotateBoardRequest(ctx.observed, boardName);
-  jwtBoardName.checkBoardnameInToken(ctx.runtime.config, ctx.url, boardName);
+  requireBoardOpenPermission(ctx, boardName);
   const startedAt = Date.now();
   void respondWithBoardPreview(ctx, boardName, startedAt).catch((error) => {
     recordPreviewDuration(ctx, startedAt);

@@ -24,6 +24,7 @@ import {
   getToolTranslationKey,
 } from "./tool-defaults.js";
 /** @typedef {import("../../types/app-runtime").ToolCode} ToolCode */
+/** @typedef {import("../../types/app-runtime").ToolRequiredCapability} ToolRequiredCapability */
 /** @typedef {import("./shape_contract.js").ToolContract} ToolContract */
 /** @typedef {typeof import("./tool-order.js").TOOL_CODE_BY_ID} ToolCodeById */
 /**
@@ -32,7 +33,7 @@ import {
  *   contract?: ToolContract,
  *   id?: ToolCode,
  *   visibleWhenReadOnly?: boolean,
- *   moderatorOnly?: boolean,
+ *   requiredCapability?: ToolRequiredCapability | null,
  *   drawsOnBoard?: boolean,
  *   storedTagName?: string,
  *   shapeTool?: boolean,
@@ -52,7 +53,7 @@ import {
  * @returns {ToolModuleLike & Partial<ToolContract> & {
  *   id: ToolCode,
  *   visibleWhenReadOnly: boolean,
- *   moderatorOnly: boolean,
+ *   requiredCapability: ToolRequiredCapability | null,
  *   drawsOnBoard: boolean,
  *   getIconUrl: () => string,
  *   getStylesheetUrl: () => string | null,
@@ -72,7 +73,7 @@ function defineTool(tool, toolCode) {
     ...definition,
     id: toolCode,
     visibleWhenReadOnly: definition.visibleWhenReadOnly === true,
-    moderatorOnly: definition.moderatorOnly === true,
+    requiredCapability: definition.requiredCapability || null,
     drawsOnBoard: definition.drawsOnBoard === true,
     translationKey,
     label: getDefaultToolLabel(definition.toolId),

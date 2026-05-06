@@ -1,25 +1,36 @@
+import { DEFAULT_BOARD_STATE } from "./board_page_state.js";
+
 /** @import { AppBoardState, AppToolsState } from "../../types/app-runtime" */
 
 export class AccessModule {
   /** @param {() => AppToolsState} getTools */
   constructor(getTools) {
     this.getTools = getTools;
-    this.boardState = {
-      readonly: false,
-      canWrite: true,
-    };
-    this.readOnly = false;
-    this.canWrite = true;
+    this.boardState = DEFAULT_BOARD_STATE;
+  }
+
+  get readOnly() {
+    return this.boardState.readonly;
+  }
+
+  get canEdit() {
+    return this.boardState.canEdit;
+  }
+
+  get canClear() {
+    return this.boardState.canClear;
+  }
+
+  get canWrite() {
+    return this.boardState.canEdit;
   }
 
   /** @param {AppBoardState} boardState */
   applyBoardState(boardState) {
     const Tools = this.getTools();
     this.boardState = boardState;
-    this.readOnly = boardState.readonly;
-    this.canWrite = boardState.canWrite;
 
-    const hideEditingTools = this.readOnly && !this.canWrite;
+    const hideEditingTools = this.readOnly && !this.canEdit;
     const settings = document.getElementById("settings");
     if (settings) settings.style.display = hideEditingTools ? "none" : "";
 

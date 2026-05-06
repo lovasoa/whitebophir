@@ -495,9 +495,13 @@ function createHarness() {
     access: {
       boardState: {
         readonly: false,
+        canEdit: true,
+        canClear: false,
         canWrite: true,
       },
       readOnly: false,
+      canEdit: true,
+      canClear: false,
       canWrite: true,
     },
     interaction: createTestInteraction(),
@@ -780,9 +784,13 @@ function createInputTools(overrides = {}) {
     access: {
       boardState: {
         readonly: false,
+        canEdit: true,
+        canClear: false,
         canWrite: true,
       },
       readOnly: false,
+      canEdit: true,
+      canClear: false,
       canWrite: true,
     },
     preferences: {

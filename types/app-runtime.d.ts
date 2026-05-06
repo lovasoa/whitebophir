@@ -27,6 +27,15 @@ type SocketEventMap = typeof SocketEvents;
 export type ToolCode = ToolCodeMap[keyof ToolCodeMap];
 export type MessageType = MutationTypeMap[keyof MutationTypeMap];
 export type SocketEventName = SocketEventMap[keyof SocketEventMap];
+export type BoardCapability = "openBoard" | "editBoard" | "clearBoard";
+export type ToolRequiredCapability = Exclude<BoardCapability, "openBoard">;
+export type BoardCapabilityFlag = "canOpen" | "canEdit" | "canClear";
+
+export type BoardCapabilities = {
+  canOpen: boolean;
+  canEdit: boolean;
+  canClear: boolean;
+};
 
 export type MessageMetadata = {
   seq?: number;
@@ -299,7 +308,7 @@ export type MountedAppTool = PointerListenerMap<ToolPointerListener> & {
   onOpacityChange?: (opacity: number) => void;
   getTouchPolicy?: () => ToolTouchPolicy;
   showMarker?: boolean;
-  requiresWritableBoard?: boolean;
+  requiredCapability?: ToolRequiredCapability | null;
   touchListenerOptions?: ToolListenerOptions;
 };
 
@@ -309,6 +318,8 @@ export type MountedToolRegistry = ToolNameMap<MountedAppTool>;
 
 export type AppBoardState = {
   readonly: boolean;
+  canEdit: boolean;
+  canClear: boolean;
   canWrite: boolean;
 };
 
@@ -531,7 +542,7 @@ export type ToolModule<T = unknown> = {
   helpText?: string;
   secondary?: ToolSecondaryMode | null;
   showMarker?: boolean;
-  requiresWritableBoard?: boolean;
+  requiredCapability?: ToolRequiredCapability | null;
   touchListenerOptions?: ToolListenerOptions;
   serverRenderedElementSelector?: string;
   press?(

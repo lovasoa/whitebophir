@@ -91,14 +91,15 @@ WBO supports authentication using [Json Web Tokens](https://jwt.io/introduction)
 
 The `AUTH_SECRET_KEY` variable in [`configuration.mjs`](./server/configuration.mjs) should be filled with the secret key for the JWT.
 
-### Roles
+### Board Capabilities
 
-WBO recognizes two privileged roles:
+WBO evaluates board access as three capabilities:
 
-- `editor`: can modify accessible boards.
-- `moderator`: can modify accessible boards and use the Clear tool.
+- `canOpen`: the user may load or connect to the board.
+- `canEdit`: the user may send normal board changes.
+- `canClear`: the user may use the Clear tool, which wipes all content from the board.
 
-Roles are declared in the JWT payload:
+JWT role strings can define these capabilities. They are declared in the JWT payload:
 
 ```json
 {
@@ -108,13 +109,11 @@ Roles are declared in the JWT payload:
 }
 ```
 
-Moderators have access to the Clear tool, which wipes all content from the board.
-
 ### Board Visibility / Access
 
-If `AUTH_SECRET_KEY` is not set, boards are visible to anyone who knows the URL.
+If `AUTH_SECRET_KEY` is not set, any valid board URL has `canOpen`.
 
-If `AUTH_SECRET_KEY` is set, opening a board requires a valid token. You can then restrict which board names a token may open by adding `:<boardName>` to a claim:
+If `AUTH_SECRET_KEY` is set, `canOpen` requires a valid token. You can restrict which board names a token may open by adding `:<boardName>` to a claim:
 
 ```json
 {
@@ -122,9 +121,9 @@ If `AUTH_SECRET_KEY` is set, opening a board requires a valid token. You can the
 }
 ```
 
-- `editor:<boardName>` allows editing that board.
-- `moderator:<boardName>` allows moderating that board.
-- `reader:<boardName>` allows opening that board without granting editor or moderator privileges.
+- `reader:<boardName>` grants `canOpen` for that board.
+- `editor:<boardName>` grants `canOpen` for that board and is edit-capable on read-only boards.
+- `moderator:<boardName>` grants `canOpen` for that board, is edit-capable on read-only boards, and grants `canClear`.
 
 For example, `http://myboard.com/boards/mySecretBoardName?token={token}` with:
 
@@ -138,38 +137,38 @@ For example, `http://myboard.com/boards/mySecretBoardName?token={token}` with:
 
 If a token contains any board-scoped claims, it can only open the boards named in those claims.
 
+Phase 1 of the capability refactor does not add new permission types, board owners, administrators, sharing controls, or permission management UI. Existing JWT claim syntax remains unchanged.
+
 ### Board Editability / Read-Only
 
 Board visibility and board editability are separate.
 
-- A writable board accepts writes from users who can access it.
-- A read-only board can be opened by users who have access to it.
-- On a read-only board, only `editor` and `moderator` claims may write.
-- On instances without JWT authentication, a read-only board blocks all writes because there is no authenticated editor or moderator identity.
+- On a read-only board, only `editor` and `moderator` claims still grant `canEdit`.
+- On instances without JWT authentication, a read-only board does not grant `canEdit` because there is no authenticated edit-capable claim.
+- Without JWT authentication, `canClear` is never granted.
+- With JWT authentication, only `moderator` claims grant `canClear`.
 
-Read-only state is stored in the board JSON file itself under the reserved key `__wbo_meta__`:
+Read-only state is stored on the persisted board SVG root as `data-wbo-readonly`:
 
-```json
-{
-  "__wbo_meta__": {
-    "readonly": true
-  }
-}
+```xml
+<svg id="canvas" ... data-wbo-readonly="true">
 ```
+
+Legacy `.json` board files may still use `__wbo_meta__.readonly`; when they are loaded, WBO migrates that metadata into the stored SVG format.
 
 ### How To Change Board Visibility
 
 - Without JWT auth: visibility is controlled by sharing or not sharing the board URL.
 - With JWT auth: visibility is controlled by the token you issue. Add or remove board-scoped claims to decide which boards a token may open.
-- Use `editor` or `moderator` claims for users who should write.
+- Use `editor` or `moderator` claims for users who should edit read-only boards.
 - Use `reader:<boardName>` for users who should only view a read-only board.
 
 ### How To Change A Board Between Writable And Read-Only
 
-1. Find the board file in `WBO_HISTORY_DIR`. The filename is `board-${encodeURIComponent(boardName)}.json`.
-2. Add or update the `__wbo_meta__.readonly` flag in that file.
+1. Find the board SVG file in `WBO_HISTORY_DIR`. The filename is `board-${boardName}.svg`.
+2. Add or update the root `data-wbo-readonly` attribute in that file.
 3. Reload the board after it is unloaded from memory, or restart the server, so the new state is picked up.
-4. Remove the flag or set it to `false` to make the board writable.
+4. Set the attribute to `false` to make the board writable.
 
 ## Configuration
 

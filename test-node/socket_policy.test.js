@@ -139,7 +139,7 @@ test("normalizeBroadcastData rejects blocked tools before persistence", async ()
   assert.deepEqual(rejected, { ok: false, reason: "blocked tool" });
 });
 
-test("readonly board policy allows cursor updates but reserves clear for moderators", async () => {
+test("socket board policy uses capabilities for cursor, edit, and clear decisions", async () => {
   const readonlyBoard = {
     name: "readonly-test",
     isReadOnly: () => true,
@@ -165,6 +165,20 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
     ),
     true,
   );
+  assert.equal(
+    socketPolicy.canApplyBoardMessage(
+      unauthenticatedConfig,
+      readonlyBoard,
+      {
+        tool: Text.id,
+        type: MutationType.UPDATE,
+        id: "text-1",
+        txt: "blocked",
+      },
+      socket,
+    ),
+    false,
+  );
 
   const authenticatedConfig = createConfig({ AUTH_SECRET_KEY: "test-secret" });
   const editorToken = jsonwebtoken.sign(
@@ -176,6 +190,20 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
     authenticatedConfig.AUTH_SECRET_KEY,
   );
 
+  assert.equal(
+    socketPolicy.canApplyBoardMessage(
+      authenticatedConfig,
+      readonlyBoard,
+      {
+        tool: Text.id,
+        type: MutationType.UPDATE,
+        id: "text-1",
+        txt: "allowed",
+      },
+      createSocket({ token: editorToken }).socket,
+    ),
+    true,
+  );
   assert.equal(
     socketPolicy.canApplyBoardMessage(
       authenticatedConfig,
@@ -193,5 +221,18 @@ test("readonly board policy allows cursor updates but reserves clear for moderat
       createSocket({ token: moderatorToken }).socket,
     ),
     true,
+  );
+  assert.deepEqual(
+    socketPolicy.boardStateForSocket(
+      authenticatedConfig,
+      readonlyBoard,
+      createSocket({ token: moderatorToken }).socket,
+    ),
+    {
+      readonly: true,
+      canEdit: true,
+      canClear: true,
+      canWrite: true,
+    },
   );
 });

@@ -5,6 +5,7 @@ import {
   createInitialPreferences,
 } from "./board_preferences.js";
 import {
+  DEFAULT_BOARD_STATE,
   getRequiredElement,
   normalizeBoardState,
   parseEmbeddedJson,
@@ -114,10 +115,7 @@ export class BoardShellModule {
   applyInitialBoardState() {
     this.getTools().access.applyBoardState(
       normalizeBoardState(
-        parseEmbeddedJson("board-state", {
-          readonly: false,
-          canWrite: true,
-        }),
+        parseEmbeddedJson("board-state", DEFAULT_BOARD_STATE),
       ),
     );
   }
