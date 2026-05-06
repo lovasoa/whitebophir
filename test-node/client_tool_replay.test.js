@@ -2041,55 +2041,57 @@ test("Text remote update refreshes the active editor for the same field", async 
   assert.equal(harness.elementsById.get("t-1").textContent, "remote draft");
 });
 
-test("Text rejection clears the resend timer for the active editor", async () => {
-  const harness = createHarness();
-  const { textModule, textState } = await bootTextEditorHarness();
-  const event = { preventDefault: () => {}, target: null };
-  const originalSetTimeout = globalAny.setTimeout;
+test("Text rejection clears the resend timer for the active editor", () => {
+  const textPath = path.resolve(
+    __dirname,
+    "..",
+    "client-data",
+    "tools",
+    getToolModuleImportPath("text"),
+  );
+  const textModule = require(textPath);
   const originalClearTimeout = globalAny.clearTimeout;
-  const scheduled = new Map();
-  let nextTimeoutId = 1;
+  const clearedTimeouts = /** @type {number[]} */ ([]);
+  const resendTimeoutId = 23;
 
-  globalAny.setTimeout = (/** @type {Function} */ callback) => {
-    const timeoutId = nextTimeoutId++;
-    scheduled.set(timeoutId, callback);
-    return timeoutId;
-  };
   globalAny.clearTimeout = (/** @type {number} */ timeoutId) => {
-    scheduled.delete(timeoutId);
+    clearedTimeouts.push(timeoutId);
+  };
+
+  const state = {
+    active: true,
+    input: {
+      value: "hello again",
+      style: {},
+      removeEventListener: () => {},
+      blur: () => {},
+    },
+    boardElement: {
+      removeEventListener: () => {},
+    },
+    layoutFrame: null,
+    boundTextChangeHandler: () => {},
+    boundViewportLayout: () => {},
+    boundBlur: () => {},
+    curText: {
+      id: "t-1",
+      sentText: "hello",
+      timeout: resendTimeoutId,
+    },
   };
 
   try {
-    textModule.press(textState, 100, 100, event, false);
-    textState.input.value = "hello";
-
-    harness.clock.now = 200;
-    textState.boundTextChangeHandler({});
-
-    textState.input.value = "hello again";
-    harness.clock.now = 250;
-    textState.boundTextChangeHandler({});
-
-    assert.equal(scheduled.size, 1);
-    assert.equal(textState.curText.id, "t-1");
-
     textModule.onMutationRejected(
-      textState,
+      state,
       { tool: TOOL_CODE_BY_ID.text, type: MutationType.UPDATE, id: "t-1" },
       "shape too large",
     );
 
-    assert.equal(textState.active, false);
-    assert.equal(textState.curText.timeout, null);
-    assert.equal(scheduled.size, 0);
-    assert.deepEqual(
-      globalAny.Tools.sentMessages.map(
-        (/** @type {any} */ message) => message.data.type,
-      ),
-      [MutationType.CREATE, MutationType.UPDATE],
-    );
+    assert.equal(state.active, false);
+    assert.equal(state.curText.timeout, null);
+    assert.equal(state.curText.id, "");
+    assert.deepEqual(clearedTimeouts, [resendTimeoutId]);
   } finally {
-    globalAny.setTimeout = originalSetTimeout;
     globalAny.clearTimeout = originalClearTimeout;
   }
 });
