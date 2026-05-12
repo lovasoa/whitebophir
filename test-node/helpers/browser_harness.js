@@ -9,28 +9,6 @@ const globalAny = /** @type {any} */ (global);
  * }} HarnessTimer
  */
 
-/**
- * @typedef {{
- *   document?: any,
- *   performance?: any,
- *   setTimeout?: any,
- *   clearTimeout?: any,
- *   requestAnimationFrame?: any,
- *   cancelAnimationFrame?: any,
- *   innerWidth?: any,
- *   innerHeight?: any,
- *   Date?: any,
- *   Tools?: any,
- *   SVGPathElement?: any,
- *   SVGGraphicsElement?: any,
- *   SVGSVGElement?: any,
- *   SVGGElement?: any,
- *   SVGTextElement?: any,
- *   KeyboardEvent?: any,
- *   SVGTransform?: any,
- * }} BrowserGlobalSnapshot
- */
-
 /** @param {unknown} value */
 function toDelay(value) {
   const delay = Number(value);
@@ -44,19 +22,6 @@ function toDelay(value) {
 function toFiniteNumber(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
-}
-
-/**
- * @param {BrowserGlobalSnapshot} snapshot
- * @param {string} name
- * @param {unknown} value
- */
-function rememberAndAssign(snapshot, name, value) {
-  if (!(name in snapshot)) {
-    snapshot[/** @type {keyof BrowserGlobalSnapshot} */ (name)] =
-      globalAny[name];
-  }
-  globalAny[name] = value;
 }
 
 /**
@@ -102,7 +67,6 @@ function installBrowserHarness(options = {}) {
     globalAny,
     "window",
   );
-  /** @type {BrowserGlobalSnapshot} */
   const previous = {
     document: globalAny.document,
     performance: globalAny.performance,
@@ -389,7 +353,15 @@ function installBrowserHarness(options = {}) {
      * @param {unknown} value
      */
     setGlobal(name, value) {
-      rememberAndAssign(previous, name, value);
+      if (!Object.prototype.hasOwnProperty.call(previous, name)) {
+        Object.defineProperty(previous, name, {
+          value: globalAny[name],
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+      }
+      globalAny[name] = value;
     },
     /** @param {string} eventName */
     dispatchWindowEvent(eventName) {
