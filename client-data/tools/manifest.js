@@ -1,5 +1,11 @@
 import { MutationType } from "../js/mutation_type.js";
 
+/** @typedef {import("../../types/app-runtime").AppBoardState} AppBoardState */
+/** @typedef {import("../../types/app-runtime").BoardCapability} BoardCapability */
+/** @typedef {import("../../types/app-runtime").BoardCapabilityFlag} BoardCapabilityFlag */
+/** @typedef {import("../../types/app-runtime").ToolRequiredCapability} ToolRequiredCapability */
+/** @typedef {Partial<Pick<AppBoardState, "canEdit" | "canClear" | "canWrite">>} CapabilityBoardState */
+
 /**
  * @typedef {{
  *   toolId: string,
@@ -10,7 +16,7 @@ import { MutationType } from "../js/mutation_type.js";
  *   stylesheetPath: string | null,
  *   moduleImportPath: string,
  *   visibleWhenReadOnly: boolean,
- *   moderatorOnly: boolean,
+ *   requiredCapability: ToolRequiredCapability | null,
  *   drawsOnBoard: boolean,
  *   toolbar: boolean,
  *   shapeTool?: boolean,
@@ -22,12 +28,28 @@ import { MutationType } from "../js/mutation_type.js";
  *   shortcut?: string,
  *   oneTouch?: boolean,
  *   alwaysOn?: boolean,
- *   requiresWritableBoard?: boolean,
  *   mouseCursor?: string,
  *   helpText?: string,
  *   showMarker?: boolean,
  * }} ToolManifestEntry
  */
+
+export const BOARD_CAPABILITY = Object.freeze(
+  /** @type {const} */ ({
+    OPEN: "openBoard",
+    EDIT: "editBoard",
+    CLEAR: "clearBoard",
+  }),
+);
+
+export const BOARD_CAPABILITY_FLAG_BY_CAPABILITY =
+  /** @type {Readonly<Record<BoardCapability, BoardCapabilityFlag>>} */ (
+    Object.freeze({
+      [BOARD_CAPABILITY.OPEN]: "canOpen",
+      [BOARD_CAPABILITY.EDIT]: "canEdit",
+      [BOARD_CAPABILITY.CLEAR]: "canClear",
+    })
+  );
 
 export const TOOL_CODE_BY_ID = Object.freeze(
   /** @type {const} */ ({
@@ -47,6 +69,22 @@ export const TOOL_CODE_BY_ID = Object.freeze(
 );
 /** @typedef {keyof typeof TOOL_CODE_BY_ID} ToolId */
 /** @typedef {(typeof TOOL_CODE_BY_ID)[ToolId]} ToolCode */
+
+/**
+ * @param {CapabilityBoardState | null | undefined} boardState
+ * @param {ToolRequiredCapability | null | undefined} capability
+ * @returns {boolean}
+ */
+export function boardStateGrantsCapability(boardState, capability) {
+  if (!capability) return true;
+  if (!boardState) return capability === BOARD_CAPABILITY.EDIT;
+  const capabilityFlag = BOARD_CAPABILITY_FLAG_BY_CAPABILITY[capability];
+  if (capabilityFlag === "canEdit") {
+    return boardState?.canEdit === true || boardState?.canWrite === true;
+  }
+  if (capabilityFlag === "canClear") return boardState?.canClear === true;
+  return false;
+}
 
 /**
  * @param {string} toolId
@@ -106,7 +144,7 @@ export function getToolModuleImportPath(toolId) {
 }
 
 /**
- * @param {Omit<ToolManifestEntry, "translationKey" | "label" | "iconPath" | "stylesheetPath" | "moduleImportPath" | "visibleWhenReadOnly" | "moderatorOnly" | "drawsOnBoard" | "toolbar"> & Partial<Pick<ToolManifestEntry, "visibleWhenReadOnly" | "moderatorOnly" | "drawsOnBoard" | "toolbar">>} entry
+ * @param {Omit<ToolManifestEntry, "translationKey" | "label" | "iconPath" | "stylesheetPath" | "moduleImportPath" | "visibleWhenReadOnly" | "requiredCapability" | "drawsOnBoard" | "toolbar"> & Partial<Pick<ToolManifestEntry, "visibleWhenReadOnly" | "requiredCapability" | "drawsOnBoard" | "toolbar">>} entry
  * @returns {Readonly<ToolManifestEntry>}
  */
 function defineTool(entry) {
@@ -120,7 +158,7 @@ function defineTool(entry) {
     stylesheetPath: getToolStylesheetPath(toolId, drawsOnBoard),
     moduleImportPath: getToolModuleImportPath(toolId),
     visibleWhenReadOnly: entry.visibleWhenReadOnly === true,
-    moderatorOnly: entry.moderatorOnly === true,
+    requiredCapability: entry.requiredCapability || null,
     drawsOnBoard,
     toolbar: entry.toolbar !== false,
   });
@@ -130,6 +168,7 @@ export const TOOL_MANIFEST = Object.freeze([
   defineTool({
     toolId: "pencil",
     id: TOOL_CODE_BY_ID.pencil,
+    requiredCapability: BOARD_CAPABILITY.EDIT,
     drawsOnBoard: true,
     payloadKind: "children",
     storedTagName: "path",
@@ -151,6 +190,7 @@ export const TOOL_MANIFEST = Object.freeze([
   defineTool({
     toolId: "straight-line",
     id: TOOL_CODE_BY_ID["straight-line"],
+    requiredCapability: BOARD_CAPABILITY.EDIT,
     drawsOnBoard: true,
     shapeTool: true,
     storedTagName: "line",
@@ -161,6 +201,7 @@ export const TOOL_MANIFEST = Object.freeze([
   defineTool({
     toolId: "rectangle",
     id: TOOL_CODE_BY_ID.rectangle,
+    requiredCapability: BOARD_CAPABILITY.EDIT,
     drawsOnBoard: true,
     shapeTool: true,
     storedTagName: "rect",
@@ -171,6 +212,7 @@ export const TOOL_MANIFEST = Object.freeze([
   defineTool({
     toolId: "ellipse",
     id: TOOL_CODE_BY_ID.ellipse,
+    requiredCapability: BOARD_CAPABILITY.EDIT,
     drawsOnBoard: true,
     shapeTool: true,
     storedTagName: "ellipse",
@@ -181,6 +223,7 @@ export const TOOL_MANIFEST = Object.freeze([
   defineTool({
     toolId: "text",
     id: TOOL_CODE_BY_ID.text,
+    requiredCapability: BOARD_CAPABILITY.EDIT,
     drawsOnBoard: true,
     payloadKind: "text",
     storedTagName: "text",
@@ -205,6 +248,7 @@ export const TOOL_MANIFEST = Object.freeze([
   defineTool({
     toolId: "eraser",
     id: TOOL_CODE_BY_ID.eraser,
+    requiredCapability: BOARD_CAPABILITY.EDIT,
     liveMessageFields: {
       [MutationType.DELETE]: { id: "id" },
     },
@@ -254,12 +298,11 @@ export const TOOL_MANIFEST = Object.freeze([
   defineTool({
     toolId: "clear",
     id: TOOL_CODE_BY_ID.clear,
-    moderatorOnly: true,
+    requiredCapability: BOARD_CAPABILITY.CLEAR,
     liveMessageFields: {
       [MutationType.CLEAR]: {},
     },
     oneTouch: true,
-    requiresWritableBoard: true,
     mouseCursor: "crosshair",
   }),
   defineTool({

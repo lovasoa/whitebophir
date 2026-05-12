@@ -337,7 +337,7 @@ function createState(Tools, assetUrl) {
   });
   state.boundDeleteShortcut = (e) => deleteShortcut(state, e);
   state.boundDuplicateShortcut = (e) => duplicateShortcut(state, e);
-  state.secondary = Tools.permissions.canWrite
+  state.secondary = Tools.permissions.canEdit
     ? {
         name: "Selector",
         icon: "tools/hand/selector.svg",

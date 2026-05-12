@@ -1,7 +1,16 @@
 import { isValidBoardName } from "./board_name.js";
 import { errorLogFields, logFrontendEvent } from "./frontend_logging.js";
 
-/** @typedef {{readonly: boolean, canWrite: boolean}} BoardState */
+/** @typedef {import("../../types/app-runtime").AppBoardState} BoardState */
+
+export const DEFAULT_BOARD_STATE = /** @type {BoardState} */ (
+  Object.freeze({
+    readonly: false,
+    canEdit: true,
+    canClear: false,
+    canWrite: true,
+  })
+);
 
 /**
  * @param {string} elementId
@@ -42,12 +51,18 @@ export function parseEmbeddedJson(elementId, fallback) {
  */
 export function normalizeBoardState(value) {
   if (!value || typeof value !== "object") {
-    return { readonly: false, canWrite: true };
+    return DEFAULT_BOARD_STATE;
   }
-  const state = /** @type {{readonly?: boolean, canWrite?: boolean}} */ (value);
+  const state =
+    /** @type {{readonly?: boolean, canEdit?: boolean, canClear?: boolean, canWrite?: boolean}} */ (
+      value
+    );
+  const canEdit = state.canEdit === true || state.canWrite === true;
   return {
     readonly: state.readonly === true,
-    canWrite: state.canWrite === true,
+    canEdit,
+    canClear: state.canClear === true,
+    canWrite: canEdit,
   };
 }
 
@@ -101,20 +116,6 @@ export function isBlockedToolName(toolName, blockedTools) {
     throw new Error("Tool Names must not contain a comma");
   }
   return blockedTools.includes(toolName);
-}
-
-/**
- * @param {string} toolName
- * @param {BoardState} boardState
- * @param {Set<string>} readOnlyToolNames
- * @returns {boolean}
- */
-export function shouldDisplayTool(toolName, boardState, readOnlyToolNames) {
-  return (
-    !boardState.readonly ||
-    boardState.canWrite ||
-    readOnlyToolNames.has(toolName)
-  );
 }
 
 /**

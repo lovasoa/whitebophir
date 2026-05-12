@@ -1,13 +1,10 @@
 import {
   formatMessageTypeTag,
-  getMutationType,
   getToolId,
-  MutationType,
 } from "../../client-data/js/message_tool_metadata.js";
 import RateLimitCommon from "../../client-data/js/rate_limit_common.js";
 import { isValidBoardName } from "../../client-data/js/board_name.js";
-import { Cursor } from "../../client-data/tools/index.js";
-import { roleInBoard } from "../auth/board_jwt.mjs";
+import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
 import observability from "../observability/index.mjs";
 
@@ -19,6 +16,7 @@ const { logger, metrics, tracing } = observability;
 /** @typedef {import("../../types/server-runtime.d.ts").MessageData} MessageData */
 /** @typedef {import("../../types/server-runtime.d.ts").RejectedBroadcast} RejectedBroadcast */
 /** @typedef {import("../../types/server-runtime.d.ts").SocketRequest} SocketRequest */
+/** @typedef {import("../../types/app-runtime").AppBoardState} SocketBoardState */
 /**
  * @typedef {{
  *   AUTH_SECRET_KEY: string,
@@ -27,6 +25,7 @@ const { logger, metrics, tracing } = observability;
  *   TRUST_PROXY_HOPS: number,
  * }} SocketPolicyConfig
  */
+/** @typedef {ReturnType<typeof BoardPermissions.forBoard>} SocketBoardPermissions */
 
 /**
  * @param {string | string[] | undefined} value
@@ -325,14 +324,19 @@ function normalizeBoardName(boardName) {
  * @param {SocketPolicyConfig} config
  * @param {string} boardName
  * @param {AppSocket} socket
- * @returns {"editor" | "moderator" | "reader" | "forbidden"}
+ * @returns {SocketBoardPermissions}
  */
-function accessRole(config, boardName, socket) {
-  if (!config.AUTH_SECRET_KEY) return "editor";
-  const token = getSocketToken(socket);
-  return /** @type {"editor" | "moderator" | "reader" | "forbidden"} */ (
-    token ? roleInBoard(config, token, boardName) : "forbidden"
-  );
+function boardPermissionsForSocket(config, boardName, socket) {
+  const current = socket.boardPermissionContext;
+  if (current?.boardName === boardName) return current.permissions;
+
+  const permissions = BoardPermissions.forBoard({
+    config,
+    boardName,
+    userInfo: { token: getSocketToken(socket) },
+  });
+  socket.boardPermissionContext = { boardName, permissions };
+  return permissions;
 }
 
 /**
@@ -342,19 +346,19 @@ function accessRole(config, boardName, socket) {
  * @returns {boolean}
  */
 function canAccessBoard(config, boardName, socket) {
-  return accessRole(config, boardName, socket) !== "forbidden";
+  return boardPermissionsForSocket(config, boardName, socket).canOpen();
 }
 
 /**
  * @param {SocketPolicyConfig} config
- * @param {string} boardName
+ * @param {BoardLike} board
  * @param {AppSocket} socket
- * @returns {"editor" | "moderator" | "forbidden"}
+ * @returns {SocketBoardState}
  */
-function writerRole(config, boardName, socket) {
-  if (!config.AUTH_SECRET_KEY) return "forbidden";
-  const role = accessRole(config, boardName, socket);
-  return role === "editor" || role === "moderator" ? role : "forbidden";
+function boardStateForSocket(config, board, socket) {
+  return boardPermissionsForSocket(config, board.name, socket).boardState(
+    board,
+  );
 }
 
 /**
@@ -363,9 +367,8 @@ function writerRole(config, boardName, socket) {
  * @param {AppSocket} socket
  * @returns {boolean}
  */
-function canWriteToBoard(config, board, socket) {
-  if (!board.isReadOnly()) return true;
-  return writerRole(config, board.name, socket) !== "forbidden";
+function canEditBoard(config, board, socket) {
+  return boardStateForSocket(config, board, socket).canEdit;
 }
 
 /**
@@ -376,24 +379,21 @@ function canWriteToBoard(config, board, socket) {
  * @returns {boolean}
  */
 function canApplyBoardMessage(config, board, data, socket) {
-  if (data.tool === Cursor.id) return true;
-  if (!canWriteToBoard(config, board, socket)) return false;
-  if (
-    getMutationType(data) === MutationType.CLEAR &&
-    writerRole(config, board.name, socket) !== "moderator"
-  ) {
-    return false;
-  }
-  return true;
+  return boardPermissionsForSocket(
+    config,
+    board.name,
+    socket,
+  ).canApplyBoardMessage(board, data);
 }
 
 export {
   canAccessBoard,
   canApplyBoardMessage,
-  canWriteToBoard,
+  canEditBoard,
   countConstructiveActions,
   countDestructiveActions,
   countTextCreationActions,
+  boardStateForSocket,
   getClientIp,
   getRequestClientIp,
   normalizeBoardName,

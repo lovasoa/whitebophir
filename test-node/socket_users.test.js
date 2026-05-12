@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const jsonwebtoken = require("jsonwebtoken");
 
 const {
   createConfig,
@@ -375,6 +376,45 @@ test("connection-replay clients bootstrap with an explicit empty replay batch", 
         fromSeq: 0,
         seq: 0,
         _children: [],
+      });
+    },
+  );
+});
+
+test("socket boardstate uses the same capability-shaped state as rendered board pages", async () => {
+  const authSecret = "test-secret";
+  const token = jsonwebtoken.sign(
+    { sub: "moderator", roles: ["moderator:socket-capability"] },
+    authSecret,
+  );
+
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-capability-boardstate-",
+      config: { AUTH_SECRET_KEY: authSecret },
+    },
+    async ({ connect }) => {
+      const created = await connect({
+        id: "socket-capability",
+        remoteAddress: "203.0.113.80",
+        headers: withUserSecretCookie("55555555555555555555555555555556"),
+        token,
+        query: {
+          board: "socket-capability",
+          tool: "rectangle",
+          color: "#333333",
+          size: "4",
+        },
+      });
+
+      const boardStateEvent = created.emitted.find(
+        (event) => event.event === "boardstate",
+      );
+      assert.deepEqual(getRequiredValue(boardStateEvent).payload, {
+        readonly: false,
+        canEdit: true,
+        canClear: true,
+        canWrite: true,
       });
     },
   );

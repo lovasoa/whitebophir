@@ -32,7 +32,7 @@ import {
   resetBoardUserMaps,
 } from "./presence.mjs";
 import {
-  canWriteToBoard,
+  boardStateForSocket,
   getClientIp,
   normalizeBroadcastData,
 } from "./policy.mjs";
@@ -502,10 +502,10 @@ async function bootstrapSocketBoard(socket, replay, config) {
           "wbo.socket.replay.count": replayCount,
         });
       }
-      socket.emit(SocketEvents.BOARDSTATE, {
-        readonly: board.isReadOnly(),
-        canWrite: canWriteToBoard(config, board, socket),
-      });
+      socket.emit(
+        SocketEvents.BOARDSTATE,
+        boardStateForSocket(config, board, socket),
+      );
       syncedPersistentSockets.delete(socket.id);
       socket.emit(SocketEvents.BROADCAST, replay.replayBatch);
       syncedPersistentSockets.add(socket.id);

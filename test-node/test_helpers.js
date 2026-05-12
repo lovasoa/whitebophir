@@ -33,6 +33,12 @@ const JWT_BOARDNAME_AUTH_PATH = path.join(
   "auth",
   "board_jwt.mjs",
 );
+const BOARD_CAPABILITIES_PATH = path.join(
+  ROOT,
+  "server",
+  "auth",
+  "board_capabilities.mjs",
+);
 
 /** @typedef {{[key: string]: any}} Dict */
 /** @typedef {{headers?: {[key: string]: string | string[] | undefined}, remoteAddress?: string, token?: string, query?: {[key: string]: any}, id?: string}} SocketOptions */
@@ -50,6 +56,7 @@ const DEFAULT_CLEARED_MODULES = [
   MESSAGE_VALIDATION_PATH,
   MESSAGE_COMMON_PATH,
   JWT_BOARDNAME_AUTH_PATH,
+  BOARD_CAPABILITIES_PATH,
 ];
 
 /**
@@ -460,6 +467,7 @@ async function withMockedNow(value, fn) {
 
 module.exports = {
   BOARD_DATA_PATH,
+  BOARD_CAPABILITIES_PATH,
   CONFIG_PATH,
   MESSAGE_VALIDATION_PATH,
   SOCKET_POLICY_PATH,

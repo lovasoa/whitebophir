@@ -70,6 +70,14 @@ function toolCanReceiveBrowserOwnedTouch(tool) {
 }
 
 /**
+ * @param {MountedAppTool} tool
+ * @returns {boolean}
+ */
+function activationSendsCapabilityMutation(tool) {
+  return tool.oneTouch === true && tool.requiredCapability != null;
+}
+
+/**
  * @param {TouchEvent} event
  * @returns {boolean}
  */
@@ -173,7 +181,7 @@ export class ToolRegistryModule {
     const tool = await this.bootTool(toolName);
     if (!tool || !this.shouldDisplayTool(toolName)) return false;
     if (
-      tool.requiresWritableBoard === true &&
+      activationSendsCapabilityMutation(tool) &&
       !Tools.writes.canBufferWrites()
     ) {
       await Tools.writes.whenBoardWritable();
@@ -709,8 +717,14 @@ export function createToolRuntimeModules(mountedTools, ownerToolName = "") {
       },
     },
     permissions: {
+      get canEdit() {
+        return mountedTools.access.canEdit;
+      },
+      get canClear() {
+        return mountedTools.access.canClear;
+      },
       get canWrite() {
-        return mountedTools.access.canWrite;
+        return mountedTools.access.canEdit;
       },
     },
   };
@@ -818,8 +832,8 @@ function createMountedTool(toolModule, toolState, toolName) {
       ? () => getTouchPolicy(toolState)
       : undefined,
     showMarker: toolModule.showMarker ?? toolDefinition?.showMarker,
-    requiresWritableBoard:
-      toolModule.requiresWritableBoard ?? toolDefinition?.requiresWritableBoard,
+    requiredCapability:
+      toolModule.requiredCapability ?? toolDefinition?.requiredCapability,
     touchListenerOptions,
   };
   if (toolDefinition) {

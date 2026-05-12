@@ -1,154 +1,500 @@
 # wbo online whiteboard
 
-This is an online collaborative drawing app.
+WBO is an online collaborative drawing app. This file is the working guide for
+agents changing the repository.
 
-## baseline
+## general instructions
 
-- CI contract: [checks and order](./.github/workflows/CI.yml).
-- Standard flow: `npm install`, `npm test`.
+- Keep changes narrow, readable, and consistent with nearby code.
+- Treat HTTP and socket input as hostile. Malformed requests and socket messages must be rejected deterministically and must not crash the process.
+- When behavior, paths, protocol shape, test commands, or ownership documented here changes, update this file.
 
-## architecture
+## project contract
 
-Modules tagged **[hot]** sit on the per-item or per-coordinate path for
-board load, snapshot materialization, or broadcast fan-out. Every caller
-added to a hot module runs thousands to millions of times per board open,
-so read the [performance-critical paths](#performance-critical-paths)
-section before making changes there.
+- CI is the source of truth for required checks: [.github/workflows/CI.yml](./.github/workflows/CI.yml).
+- Local baseline: `npm install`, then `npm test`.
+- `npm test` runs the Node suite, Playwright suite, and Biome lint. It does not run typecheck or benchmarks.
+- Use `npm run typecheck` for the unified JS typecheck.
+- Use `npm run bench` before and after changes, only for suspected hot-path, persistence, replay, or broadcast-throughput changes.
 
-- Process boot and the top-level HTTP route table live in [server entrypoint](./server/server.mjs), with listen/shutdown mechanics in [runtime boot](./server/runtime/boot.mjs), cold template/static dependencies in [runtime creation](./server/runtime/create_runtime.mjs), and route matching in [HTTP dispatch](./server/http/dispatch.mjs). HTTP request observation and error handling live in [HTTP observation](./server/http/observation.mjs), cache policy in [HTTP cache policy](./server/http/cache_policy.mjs), board-page routing in [board page routes](./server/routes/board_page.mjs), board SVG/preview/download routing in [board asset routes](./server/routes/board_assets.mjs), static/index/random routing in [static routes](./server/routes/static.mjs), and shared board HTTP helpers in [board HTTP helpers](./server/routes/board_http_helpers.mjs).
-- Observability setup: [observability](./server/observability/index.mjs), with log record formatting/export helpers in [observability logging](./server/observability/logging.mjs) and metric attribute helpers in [observability metric helpers](./server/observability/metric_helpers.mjs).
-- HTML templating + client config payload: [templating](./server/http/templating.mjs), [client config](./server/http/client_configuration.mjs). `WBO_HTML_HEAD_SNIPPET_PATH` is a cold startup setting for inserting a trusted raw HTML snippet before `</head>` on rendered HTML pages.
-- Server-issued user identity cookie parsing + serialization: [user secret cookie helper](./server/auth/user_secret_cookie.mjs).
-- Shared metadata-only tool manifest + convention-based defaults: [tool manifest](./client-data/tools/manifest.js), [tool defaults](./client-data/tools/tool-defaults.js), [tool order](./client-data/tools/tool-order.js). The full [tool registry](./client-data/tools/index.js) imports tool implementations and must stay out of metadata-only client boot and server template paths.
-- Realtime event handlers + broadcast/unload path: [socket handlers](./server/socket/index.mjs), with live broadcast admission/fan-out in [socket broadcasts](./server/socket/broadcasts.mjs), socket request accessors in [socket request helpers](./server/socket/request.mjs), connected-user presence state in [socket presence](./server/socket/presence.mjs), socket connection replay in [socket replay](./server/socket/replay.mjs), socket write rate-limit state/enforcement in [socket rate limits](./server/socket/rate_limits.mjs), user report handling in [socket reports](./server/socket/reports.mjs), and socket Turnstile validation in [socket Turnstile](./server/socket/turnstile.mjs); socket join/leave drives board lifetime, final save, and dispose timing. `WBO_MAX_ITEM_COUNT` is enforced as sequenced live follow-up deletes on accepted persistent writes, evicting the oldest surviving `paintOrder` entries immediately so connected clients observe trims in real time; save still performs final hard pruning as a fallback. Seq mismatch during save is treated as a stale-writer signal: the local board instance is dropped, local sockets on that board are disconnected, and reconnect reloads persisted state rather than attempting merge/replay recovery.
-- Socket auth, payload admission, and socket message classification helpers: [socket policy](./server/socket/policy.mjs).
-- Canonical inbound live payload validation **[hot]**: [message schema gate](./server/socket/message_validation.mjs); live socket writes are validated and rejected, not silently normalized, and numeric/field validators there still run on every accepted coordinate in every broadcast item.
-- In-memory board model + apply rules **[hot]**: [board state engine](./server/board/data.mjs), with message dispatch/batch processing in [board message processing](./server/board/message_processing.mjs) and autosave/load/save orchestration in [board persistence](./server/board/data_persistence.mjs); loaded boards keep one canonical per-id item index plus paint order, with text and pencil payload compressed after persistence. Runtime autosave uses one dirty window per board: save at `min(dirtyFrom + WBO_MAX_SAVE_DELAY, lastWriteAt + WBO_SAVE_INTERVAL)`, rescheduling on each accepted write and guaranteeing a save attempt within `WBO_MAX_SAVE_DELAY` of the oldest dirty write while saves remain finite. A successful save closes the dirty window it started from; writes accepted during that save open the next dirty window. Persisted saves are serialized globally, so only one board save runs inside the process at a time. `load`, `processMessage`, and save-time item materialization dominate CPU during board open and save.
-- Canonical item shape keeps scalar attrs in `attrs`, stores `transform` only once at the top level, and isolates pencil child arrays only when ownership changes (copy/public escape/full-write materialization). Text content length is payload state; text admission/index bounds use a bounded logical extent derived from known text length and capped at the maximum shape span. Empty text seeds stay anchored with zero width, content edits may extend text past the board edge without client-side geometry truncation, and transform updates still validate against known nonzero text width.
-- Disk persistence + stored-SVG rewrite/load path: [svg board store](./server/persistence/svg_board_store.mjs), [stored SVG path helpers](./server/persistence/svg_board_paths.mjs), [stored SVG item codec](./server/persistence/stored_svg_item_codec.mjs), [streaming stored SVG scan](./server/persistence/streaming_stored_svg_scan.mjs). This layer owns primary-vs-`.svg.bak` fallback, streaming rewrites, and summary/full decode split; cold board load and canonical indexing must stay on summary-only decode. Stored SVG load is parse-only and per-item fault tolerant: malformed items are skipped with logging instead of being normalized or repaired.
-- Board state tracks stored SVG root extent incrementally from loaded root dimensions and accepted item writes; saves write that extent to root `width`/`height`. Ordinary deletes do not shrink it, and clear resets it to the default SVG size.
-- Env parsing + rate-limit profile construction must stay cold. Never do unneeded work in the hot path.
-- Shared geometry/id/color/text helpers **[hot]**: [message primitives](./client-data/js/message_common.js), with tiny numeric clamp/limit helpers split into [message limits](./client-data/js/message_limits.js) so pan-ready client boot can clamp viewport/preference values without importing the full validation surface; live server validation uses the non-repairing range/geometry checks there, while client tools own UX-side clamping/normalization before optimistic draw/send.
-- Live socket/runtime mutations use numeric `tool` codes from the ordered [tool registry](./client-data/tools/index.js) and numeric mutation `type` codes from [mutation types](./client-data/js/mutation_type.js); replay/control socket payloads are event-typed by their Socket.IO event name and do not carry redundant string `type` discriminators. Stored SVG keeps string tool ids and tag names such as `rectangle`, `rect`, `pencil`, `path`, and `text` because that is document syntax, not the runtime protocol.
-- Native geometry model is integer board space with `scale = 1` as max zoom; legacy `.json` migration remains the only place that converts units from old coordinate semantics.
-- Page shell that server-renders the toolbar and loads the module entrypoint for the board runtime: [board document](./client-data/board.html), [board module boot](./client-data/js/board_main.js). For stored `.svg` boards, the board document now streams the authoritative SVG baseline straight through the HTML response so the browser can render it progressively as bytes arrive, without materializing the full SVG in server JS; the head provides `modulepreload` hints only for the pan-ready boot closure, while tool implementation modules, tool stylesheets, the always-on `cursor` module, and Pencil's path-data polyfill are loaded on demand by the tool registry. The async board module entrypoint creates a metadata-only runtime shell as soon as the shell is ready, attaches the streamed board DOM, installs viewport/wheel/hash handling plus temporary mouse pan, restores the viewport, then hydrates the full runtime, opens Socket.IO with the attached baseline seq, boots the hand tool as the critical interactive tool, and lazy-boots rendered tools plus `cursor`; the server-rendered localized loading HUD remains visible until that lazy boot has completed and socket replay no longer needs it. Static app assets are served at stable URLs without version query params; production caching relies on normal HTTP revalidation headers for those assets rather than query-string cache busting. Board HTML, canonical SVG, and preview HTTP responses negotiate built-in Node compression from `Accept-Encoding`, preferring `zstd` when both sides support it, then `br`, then `gzip`; HTTP request-duration metrics classify the final response content coding with the standard `http.response.header.content-encoding` attribute, using `identity` for uncompressed responses. Canonical `/boards/*.svg` responses use seq-based weak ETags and short revalidation (`public, max-age=3, must-revalidate` in production, `no-store` in development); matching `If-None-Match` returns 304 without streaming the SVG body. The board chrome (HUD, menu, JSON payloads, module entrypoint) must stay before the streamed board markup in the HTML so the visible UI can paint and react before the SVG finishes streaming. Legacy `.json` fallback boards still render a generated inline SVG. Board boot publishes explicit DOM phases on `document.documentElement.dataset.boardPhase` and dispatches `wbo:board-phase` events.
-- Client state machine + staged tool boot + send/receive plumbing: [board runtime hydration](./client-data/js/board.js), with metadata-only runtime setup in [core app tools](./client-data/js/app_tools_core.js) and [board bootstrap](./client-data/js/board_bootstrap.js), the full runtime root in [app tools](./client-data/js/app_tools.js), full-runtime-only asset/id/interaction/rate-limit helpers in [full runtime modules](./client-data/js/board_full_runtime_modules.js), shared DOM attachment in [board DOM bootstrap](./client-data/js/board_dom_bootstrap.js), page chrome wiring in [board shell module](./client-data/js/board_shell_module.js), message hooks/routing in [board message module](./client-data/js/board_message_module.js), tool boot/registry state in [board tool registry module](./client-data/js/board_tool_registry_module.js), board access/status/write/optimistic/replay/connection/presence modules in [board access module](./client-data/js/board_access_module.js), [board status module](./client-data/js/board_status_module.js), [board write module](./client-data/js/board_write_module.js), [board optimistic module](./client-data/js/board_optimistic_module.js), [board replay module](./client-data/js/board_replay_module.js), [board connection module](./client-data/js/board_connection_module.js), and [board presence module](./client-data/js/board_presence_module.js), and pan-ready runtime module classes in [board runtime core](./client-data/js/board_runtime_core.js). Board viewport panning, zooming, scale math, wheel/two-finger pinch-pan ownership, cancelable touch-sequence ownership, URL hash sync, root SVG extent growth, and scaled document scroll bounds are centralized in [viewport controller](./client-data/js/board_viewport.js), with content-only board-space extent derivation in [board extent helpers](./client-data/js/board_extent.js). Hold **S** and use the mouse wheel to change stroke size, or **O** and scroll for opacity (works over the board and the left toolbar, including the style popover; not combined with **Shift** so **Shift**+wheel can still pan on the board). Non-cancelable touch events are browser-owned and must not drive app zoom or drawing; once a touch sequence becomes multi-touch, tool dispatch suppresses that sequence until all touches are lifted. Generic message hooks must derive extents from persistent/content payload data only; ephemeral messages such as cursor updates must not grow the scroll extent. Minimum zoom materializes the full logical board extent so browser scrollbar ends map to board ends. SVG layout measurement such as `getBBox()` is allowed only in narrow tool interaction paths that already operate on a small selected/updated element set and must be documented at the call helper. Gesture handlers there must stay O(1) and never traverse or measure board SVG contents.
-- Scale-disabled draw tools remain selectable. When the current tool is disabled by the zoom threshold, the toolbar keeps it selected, board interactions from that tool stay blocked, the board cursor switches to `not-allowed`, and the [board status module](./client-data/js/board_status_module.js) shows a translated “zoom in to draw” line in the top-right status card using the same `paused` warning styling as other status messages (below loading, reconnection, rate limit, and write-buffer states) until zoom or tool selection changes.
-- Shared socket transport utilities: [transport helpers](./client-data/js/board_transport.js).
-- Shared canonical board-name normalization + validation for landing-page input, board-page redirects, and valid-name checks: [board name helpers](./client-data/js/board_name.js). Canonical names are lowercase, Unicode letter/digit based, and persist directly to `board-<name>.{svg,json}` filenames.
-- Shared pronounceable name generator for readable socket user labels and random private board names: [pronounceable names](./server/shared/pronounceable_name.mjs).
-- Tool implementations that mutate SVG/DOM live one per directory at [tool modules](./client-data/tools/), with entrypoints at `client-data/tools/<tool-id>/index.js`. Shape DOM tools share [shape helper](./client-data/tools/shape_tool.js) for pointer/update/create scaffolding. Persistent-tool SVG summary, serialize, and render logic live in the same tool module; Pencil's persisted contract is summary scan plus raw `d` append/serialize helpers, while full stored-item parse remains only for tools that need it (currently text). Pencil renders active local strokes in its own overlay, uses that overlay as its tool-lifetime hit surface, and commits the board SVG path only when the stroke ends; remote/replay pencil messages still update `#drawingArea` immediately. Metadata-only code derives lookups from the ordered `TOOLS` list in [tool manifest](./client-data/tools/manifest.js); code that needs implementation contracts uses the full [tool registry](./client-data/tools/index.js).
-- Tool modules use named exports for shared metadata plus top-level hooks, including optional cleanup hooks such as `cancelTouchGesture`, `onSocketDisconnect`, and `onMutationRejected`, and `boot(ctx)` returns tool-local state for those hooks or a legacy mounted tool object while the migration is in progress. `ToolBootContext.runtime.Tools` is only created after the board DOM is attached, so `board`, `svg`, and `drawingArea` are non-null for booted tools and should not be re-checked defensively in each tool. Generic icon and stylesheet URLs come from path conventions (`icon.svg`, optional `<tool-id>.css`) in [tool defaults](./client-data/tools/tool-defaults.js) rather than per-tool declarations.
+## source of truth
 
-## performance-critical paths
+Read this section as the normal flow of a board page and a board write. Use
+these files as the first place to look, and avoid duplicating owned behavior in
+other modules.
 
-- Board load, canonical item materialization, and broadcast fan-out call `normalizeIncomingMessage` and coordinate/field clampers once per item and often once per child point. A dense board near `WBO_MAX_ITEM_COUNT` translates to hundreds of thousands of normalizer calls per load. Any per-call allocation, env parse, config recompute, or payload cloning at that depth is multiplied accordingly.
-- Treat the following as the performance budget for a single dense board near `WBO_MAX_ITEM_COUNT` (see [benchmark scenarios](./scripts/benchmark-server.mjs), `load large board`): target average around or below 1 s. A measured regression materially past that almost always means a non-O(1) call was added per item or per coordinate.
-- [server configuration](./server/configuration.mjs) exports values parsed from `process.env` at module load with no memoization layer or reset hook. Anything on the hot path must not re-read env per item or per coordinate.
-- Hot-path capture contract:
-  - Modules whose exports run on per-item, per-child, or per-coordinate code paths (currently [message schema gate](./server/socket/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js)) **must capture the config fields they need at module scope**, e.g. `import { MAX_BOARD_SIZE, MAX_CHILDREN } from "../configuration.mjs";`. The capture happens once at ESM evaluation time.
-  - Every other server module (socket handlers, auth, persistence ops, rate-limit config lookups) is cold-path and may import the configuration module normally. Do not add extra config assembly layers or hidden caches.
-  - Tests that mutate env for a hot-path module must re-import that module after clearing its module cache. See [message_validation.test.js](./test-node/message_validation.test.js) for the canonical pattern. Transitive imports keep their own cache entries, which is exactly why cold-path modules must not capture config at module scope.
-- When touching the hot path, do **not**:
-  - Re-read env or rebuild config inside per-item, per-child, or per-coordinate loops. Capture the needed fields at module scope, or read them once above the loop and close over them.
-  - Allocate new objects, arrays, or regexes inside per-coordinate normalizers. Module-scope constants are preferred over per-call literals.
-  - Start a span with `withActiveSpan` per item. Prefer `withOptionalActiveSpan` (no-op when no parent span exists) or lift the span one level to the whole batch. `withExpensiveActiveSpan` short-circuits to `fn(undefined)` when tracing is not recording, which is the correct default for per-item work.
-- Before/after every change that might touch a hot path, run `npm run bench` and compare the average and individual samples for the relevant scenario. If a scenario moves by more than ~10% without an intentional cause, profile with `npm run profile` and inspect the `.cpuprofile` top self-time frames before landing the change.
-- `BoardData` no longer lazily hydrates full persisted items from SVG during live writes. If you find yourself reading SVG from a socket-message path, that is almost certainly a design bug. The source SVG may be read during board load and during streaming persistence only.
-- Stored SVG parsing is intentionally tiered:
-  - Structural scan locates root metadata, `#drawingArea`, and raw item boundaries.
-  - Summary decode extracts only the fields needed for canonical indexing and validation from the existing writer-owned attrs and payloads. Do not duplicate summary state into extra persisted attrs. For Pencil this means bounds plus `childCount`, not `_children`.
-  - Full materialization is for rewrite cases that must read full payloads, such as text content. Persisted Pencil rewrite/copy stays on raw `d` strings; do not hydrate point arrays there.
-- Do not route cold-load, canonical-index, or persisted-pencil rewrite code through full stored-SVG item materialization. Hydrating Pencil points on board open or save/rewrite is a regression.
-- Legacy `.json` boards are a migration edge path, not part of steady-state board logic. When a JSON board is encountered, convert it to SVG first, then continue through the normal SVG-backed load path.
+### server startup and HTTP routing
 
-## message lifecycle
+Server startup begins in the [server entrypoint](./server/server.mjs), which
+defines the HTTP route list and passes it with a runtime from
+[create_runtime.mjs](./server/runtime/create_runtime.mjs) into
+[boot.mjs](./server/runtime/boot.mjs). Boot owns the Node HTTP server,
+history-directory checks, Socket.IO startup, listen, shutdown, and client-error
+handling.
 
-- A tool builds a fresh numeric-tool payload data object from pointer/input handlers and calls `Tools.drawAndSend` or `Tools.send` (tool modules + runtime). Those APIs take ownership of the message object; callers must not mutate it after handing it to the runtime.
-- `Tools.drawAndSend` resolves the mounted tool from `data.tool` and renders locally first with `tool.draw(data, true)`.
-- The board page HTTP response ensures the server-issued `wbo-user-secret-v1` cookie exists before the client starts Socket.IO.
-- The client opens Socket.IO only after an authoritative SVG baseline is attached and viewport state is restored, with handshake query `board=<boardName>`, `baselineSeq=<seq>`, plus tool/color/size metadata; reconnects refresh the authoritative SVG baseline before opening a new socket. The server reads the user secret from the cookie, rejects stale/future baselines during the Socket.IO handshake with `connect_error` reason `baseline_not_replayable`, and otherwise emits `boardstate` plus one compact authoritative replay `broadcast` batch whose `fromSeq`/`seq` range covers the missing persistent mutations. If a browser presents a future baseline, the server first reads only stored SVG root metadata; when disk seq proves the loaded board stale, it drops that board instance, disconnects its sockets, reloads once, and then re-evaluates replayability. Tool implementations are discovered by the tool registry through the metadata manifest and dynamic imports, not from document-head `modulepreload` hints.
-- `Tools.send` requires the numeric live `tool` code to already be present, runs hooks, and sends the plain board message over the already-bound socket without cloning it.
-- Runtime create/update/delete/append/copy/clear routing must key off numeric `MutationType` values; do not reintroduce per-tool live string aliases such as `"rect"`, `"line"`, `"child"`, or `"new"` on the socket path.
-- `Tools.sendBufferedWrite` emits immediately with `socket.emit("broadcast", message)` or appends to `Tools.bufferedWrites`; `Tools.scheduleBufferedWriteFlush` and `Tools.flushBufferedWrites` drain later.
-- Server receives `socket.on("broadcast", data)` and runs board access + rate-limit checks against the board already bound to the socket.
-- Server calls `normalizeBroadcastData`, which calls `normalizeIncomingMessage`; rejects include explicit reasons.
-- Accepted payload is normalized, rate-limited, and serialized through the per-board session before `board.processMessage(...)` records a `MutationLogEntry` containing only `seq`, `acceptedAtMs`, and `mutation`.
-- Persistent live writes are emitted as sequenced mutation broadcasts shaped `{seq, acceptedAtMs, mutation}`. The primary live broadcast adds source identity only as `mutation.socket` so the sender can acknowledge its optimistic write; retained replay-log entries do not store board names, socket ids, or top-level client mutation ids.
-- Connection replay strips the live broadcast frame and emits one compact batch shaped `{type, fromSeq, seq, _children}`. Client `socket.on("broadcast", msg)` handles sequenced broadcasts, replay batches, and ephemeral messages; child batches use `BoardMessages.hasChildMessages` + `normalizeChildMessage`.
-- Ephemeral **cursor** `UPDATE` messages include `x`, `y`, `color`, `size`, and optional normalized `opacity` so presence dots match local stroke transparency (older clients omit `opacity`, treated as fully opaque).
-- `messageForTool` decodes the numeric live `tool` code back to the tool id, resolves `Tools.list[toolId]`, and calls `tool.draw(message, false)`; tool code mutates SVG/DOM.
+Startup configuration is parsed by [configuration.mjs](./server/configuration.mjs)
+with shared env helpers from [helpers.mjs](./server/configuration/helpers.mjs).
+Runtime logging, metrics, and tracing start from
+[observability/index.mjs](./server/observability/index.mjs), with setup details
+in [logging.mjs](./server/observability/logging.mjs) and metric utilities in
+[metric_helpers.mjs](./server/observability/metric_helpers.mjs).
 
-## where to look by concern
+Every HTTP request passes through [dispatch.mjs](./server/http/dispatch.mjs),
+where URL validation, route matching, route-level access checks, request
+observation, and error responses are wired together. Supporting HTTP behavior is
+kept beside it: [cache_policy.mjs](./server/http/cache_policy.mjs) chooses cache
+headers, [compression.mjs](./server/http/compression.mjs) wraps compressed
+responses, [templating.mjs](./server/http/templating.mjs) renders HTML shells,
+and [observation.mjs](./server/http/observation.mjs) records and reports
+request outcomes.
 
-- Config/env behavior, including proxy-aware client IP resolution for sockets and HTTP logs: [server configuration](./server/configuration.mjs). The module reads `process.env` at evaluation time with no memoization or reset hook. `LOG_LEVEL` controls the minimum emitted server log severity (`debug`, `info`, `warn`, `error`). `withEnv` in [test helpers](./test-node/test_helpers.js) swaps env vars for the scope of a test. Hot-path consumers capture the fields they need at module scope; see [performance-critical paths](#performance-critical-paths) for the full contract.
-- Browser integration coverage: [playwright specs](./playwright/tests).
-- Node behavior coverage: [rate-limit tests](./test-node/rate_limits.test.js).
-- Browser runner setup: [playwright config](./playwright.config.ts).
-- Server-rendered toolbar/icon/cache coverage: [server route tests](./test-node/server_routes.test.js).
-- Throughput coverage: [benchmark harness](./scripts/benchmark-server.mjs); it times only the operation under test, not fixture construction. `load large board` is the canonical regression signal for cold-load hot-path changes, `persist modifications to large board` is the canonical regression signal for save/rewrite work, `server broadcast throughput` is the canonical regression signal for live broadcast admission, and `open large board to peer-visible erase` remains the browser-visible end-to-end signal.
+### serving a board page
 
-## test commands
+Serving `/boards/{board}` is handled by
+[board_page.mjs](./server/routes/board_page.mjs), with shared normalization,
+ETag, cookie, and replay-baseline helpers in
+[board_http_helpers.mjs](./server/routes/board_http_helpers.mjs). That route
+normalizes the board name, checks board access, handles redirects and ETags,
+reads the stored board document, pins the served baseline sequence for replay,
+sets the user-secret cookie, and streams the board HTML shell around the SVG
+baseline. Board SVG, preview, export, and download routes are in
+[board_assets.mjs](./server/routes/board_assets.mjs); index redirects,
+random-board redirects, and static fallbacks are in
+[static.mjs](./server/routes/static.mjs).
 
-- Unified JS typecheck: `npm run typecheck` (`tsconfig.checkjs.json` covers server, scripts, Node tests, client runtime, and tool modules).
-- Node suite: `node --test test-node/*.test.js`.
-- Browser suite: `npx playwright test playwright/tests/<file>.spec.ts`.
-  - When investigating flaky or failing browser tests, always try to fix the issue in the application and never write workarounds for application bugs in the tests. Browser tests should read like prose and the application must gracefully handle edge cases like fast sequences of network messages or user actions.
-- Throughput check: `npm run bench` before/after suspected performance changes. Use `npm run bench -- <e2e|load|persist|broadcast>` or the shortcuts `npm run bench:e2e`, `npm run bench:load`, `npm run bench:persist`, `npm run bench:broadcast` when you only need one scenario.
-- Bench timeout: `npm run bench` enforces a hard wall-clock timeout via `WBO_BENCH_TIMEOUT_MS` (default `150000`).
-- CPU + memory profile: `npm run profile -- <e2e|load|persist|broadcast>` writes `.profiles/benchmark-server.cpuprofile` and `.profiles/benchmark-server.heapprofile` for that single scenario, with profiling started only around the measured benchmark work. Running `npm run profile` with no scenario writes per-scenario files such as `.profiles/benchmark-server-load.cpuprofile`.
-- Ad hoc browser load: `npm run generateload -- --help`; defaults to the anonymous board and can open multiple tabs on a specific board URL.
-- Full gate: `npm test` (Node tests, Playwright, Biome `lint` with warnings treated as failures).
-- Auto-format: `npm run format` (Biome `--write --unsafe`).
+Board access decisions belong to
+[board_capabilities.mjs](./server/auth/board_capabilities.mjs). Board-scoped
+JWTs use [board_jwt.mjs](./server/auth/board_jwt.mjs) and the generic helpers in
+[jwt.mjs](./server/auth/jwt.mjs). The user-secret cookie is handled by
+[user_secret_cookie.mjs](./server/auth/user_secret_cookie.mjs), and board-name
+normalization shared with the browser is in
+[board_name.js](./client-data/js/board_name.js).
 
-## notes
+The board HTML shell in [board.html](./client-data/board.html) carries the
+chrome, embedded configuration/translations/board state, and inline
+authoritative `<svg id="canvas">` baseline with `<g id="drawingArea">`.
 
-- `npm test` needs Chromium (`npx playwright install chromium` when missing).
-- `npm test` requires local networking and browser process startup.
-- In Playwright specs, assert authoritative socket/app state; avoid sleep-based timing.
-- Treat HTTP and socket ingress as hostile input surfaces: malformed requests and malformed socket events must be rejected deterministically, never crash the process, and should prefer explicit 4xx-style handling over exception-driven fallthrough.
-- Socket rate limits now include a text-specific per-IP fixed window via `WBO_MAX_TEXT_CREATIONS_PER_IP`; it charges every `text` create plus `text` update payload whose `txt` contains URL-like content.
+### browser boot and runtime
 
-## profiling
+The browser starts in [board_main.js](./client-data/js/board_main.js). It uses
+[board_bootstrap.js](./client-data/js/board_bootstrap.js) and
+[app_tools_core.js](./client-data/js/app_tools_core.js) to create a minimal
+runtime shell, then [board_dom_bootstrap.js](./client-data/js/board_dom_bootstrap.js)
+attaches the server-rendered board DOM and reads the inline baseline sequence.
+After the viewport is restored, [board.js](./client-data/js/board.js) hydrates
+the full runtime.
+The board boot process is carefully crafted to prioritize which assets are loaded first in order to arrive at an interactive zoom+pan board ASAP. Be careful never to add unnecessary cruft on the critical path. Adding a new frontend file that has to be carefully considered for boot time impact.
 
-- Run `npm run profile` to profile `scripts/benchmark-server.mjs`; `.profiles/` is gitignored and keeps local CPU and heap output together.
-- `npm run profile` raises `WBO_BENCH_TIMEOUT_MS` to `600000` unless you already set it, so profiling still has a strict but roomier budget.
-- CPU: use `jq` to rank app frames by sampled hit count, for example:
-`jq -c '[.nodes[] | select(.callFrame.url | test("/(server|client-data|scripts)/")) | {hits: (.hitCount // 0), fn: .callFrame.functionName, loc: (.callFrame.url + ":" + ((.callFrame.lineNumber + 1) | tostring))}] | sort_by(-.hits) | .[:12][]' .profiles/benchmark-server.cpuprofile`
-- Memory: use `jq` to rank sampled heap sites by retained self size, for example:
-`jq -c '[.head | recurse(.children[]?) | select(.selfSize > 0 and (.callFrame.url | test("/(server|client-data|scripts)/"))) | {bytes: .selfSize, fn: .callFrame.functionName, loc: (.callFrame.url + ":" + ((.callFrame.lineNumber + 1) | tostring))}] | sort_by(-.bytes) | .[:12][]' .profiles/benchmark-server.heapprofile`
+[app_tools.js](./client-data/js/app_tools.js) assembles that full runtime from
+modules in [board_full_runtime_modules.js](./client-data/js/board_full_runtime_modules.js)
+and shared classes in [board_runtime_core.js](./client-data/js/board_runtime_core.js).
+Once hydrated, viewport, zoom, pan, and canvas growth are handled by
+[board_viewport.js](./client-data/js/board_viewport.js) and
+[board_extent.js](./client-data/js/board_extent.js). Page chrome, status, board
+access, and presence are handled by
+[board_shell_module.js](./client-data/js/board_shell_module.js),
+[board_status_module.js](./client-data/js/board_status_module.js),
+[board_access_module.js](./client-data/js/board_access_module.js), and
+[board_presence_module.js](./client-data/js/board_presence_module.js). Socket
+connection, replay, received-message dispatch, optimistic state, and outgoing
+writes are handled by
+[board_connection_module.js](./client-data/js/board_connection_module.js),
+[board_replay_module.js](./client-data/js/board_replay_module.js),
+[board_message_module.js](./client-data/js/board_message_module.js),
+[board_optimistic_module.js](./client-data/js/board_optimistic_module.js), and
+[board_write_module.js](./client-data/js/board_write_module.js).
 
-## formatting
+### tools and client messages
 
-- `npm run lint` runs the full Biome formatter+linter gate and fails on warnings.
-- `npm run format` applies Biome safe and unsafe autofixes.
-- Keep edits minimal and style-consistent unless doing full-module refactors.
+[manifest.js](./client-data/tools/manifest.js) defines tool identity, stable
+numeric tool codes, capability requirements, live-message fields, and stored SVG
+contracts. Tool order and defaults are split into
+[tool-order.js](./client-data/tools/tool-order.js) and
+[tool-defaults.js](./client-data/tools/tool-defaults.js). The runtime loads and
+mounts tools through
+[board_tool_registry_module.js](./client-data/js/board_tool_registry_module.js),
+which also drains pending messages for lazy-loaded tools and owns active-tool
+pointer dispatch. Shared tool exports live in
+[index.js](./client-data/tools/index.js), shape behavior is shared through
+[shape_contract.js](./client-data/tools/shape_contract.js) and
+[shape_tool.js](./client-data/tools/shape_tool.js), and each concrete tool keeps
+its interaction, DOM, rendering, cleanup, and stored-item behavior in
+`client-data/tools/<tool-id>/index.js`.
 
-## change strategy
+When a user interaction modifies the board, the active tool creates a live board
+message with primitives from [message_common.js](./client-data/js/message_common.js),
+limits from [message_limits.js](./client-data/js/message_limits.js), tool and
+mutation metadata from
+[message_tool_metadata.js](./client-data/js/message_tool_metadata.js), and
+mutation codes from [mutation_type.js](./client-data/js/mutation_type.js). The
+write module assigns a `clientMutationId` for persistent writes, captures
+optimistic rollback, draws locally, applies message hooks such as extent growth,
+and sends the message through
+[board_transport.js](./client-data/js/board_transport.js) as a Socket.IO
+`broadcast` event on the active socket.
 
-- Message shape changes: update [server schema gate](./server/socket/message_validation.mjs) and [shared message primitives](./client-data/js/message_common.js); rerun Node tests; if a normalizer is modified, also run `npm run bench` since both modules are on the hot path.
-- Rate-limit changes: update [shared rate-limit helpers](./client-data/js/rate_limit_common.js), [socket rate limits](./server/socket/rate_limits.mjs), [socket policy](./server/socket/policy.mjs), and [socket handlers](./server/socket/index.mjs) as needed; rerun `node --test test-node/rate_limit_common.test.js test-node/socket_policy.test.js test-node/rate_limits.test.js`.
-- Persistence/replay changes: review [board state engine](./server/board/data.mjs) and [svg board store](./server/persistence/svg_board_store.mjs); rerun `node --test test-node/rate_limits.test.js`, `npm test`, and `npm run bench`.
-- Config/env changes: update [server configuration](./server/configuration.mjs); do **not** reintroduce module-internal memoization, reset hooks, or config assembly layers. New config fields consumed on the per-item/per-coordinate hot path must be captured at module scope in [message schema gate](./server/socket/message_validation.mjs) or [shared message primitives](./client-data/js/message_common.js). Rerun [rate-limit tests](./test-node/rate_limits.test.js) and `npm run bench`.
-- Tool UX changes: start in [tool modules](./client-data/tools/); verify with Playwright.
+### socket connection, replay, and writes
+
+The Socket.IO server is started and wired in
+[socket/index.mjs](./server/socket/index.mjs). On connect,
+[replay.mjs](./server/socket/replay.mjs) binds and normalizes the board name,
+checks board access, loads or reuses the board, compares the client's
+`baselineSeq` with the board mutation log, and prepares a replay batch. The
+connection then emits `boardstate` followed by a `broadcast` replay batch before
+marking the socket as synced for persistent live broadcasts.
+
+Client `broadcast` messages enter
+[broadcasts.mjs](./server/socket/broadcasts.mjs) and are handled in this order:
+
+1. Resolve the client IP and board user, then enforce Turnstile when required.
+2. Apply pre-normalization rate limits with
+   [rate_limits.mjs](./server/socket/rate_limits.mjs).
+3. Use [policy.mjs](./server/socket/policy.mjs) and
+   [message_validation.mjs](./server/socket/message_validation.mjs) to normalize
+   and validate the message shape, including blocked-tool checks.
+4. Apply post-normalization rate limits with the same rate-limit module.
+5. Check board permissions for the normalized mutation.
+6. For cursor messages, update presence and rebroadcast the ephemeral message
+   without persistence.
+7. For persistent mutations, serialize acceptance through the per-board
+   queue in [session.mjs](./server/board/session.mjs), apply the mutation to
+   [data.mjs](./server/board/data.mjs) through
+   [message_processing.mjs](./server/board/message_processing.mjs), record it in
+   [mutation_log.mjs](./server/board/mutation_log.mjs), and emit sequenced
+   `broadcast` frames to synced clients and the sender.
+
+[presence.mjs](./server/socket/presence.mjs) tracks connected board users,
+[reports.mjs](./server/socket/reports.mjs) handles user reports, and
+[turnstile.mjs](./server/socket/turnstile.mjs) validates Turnstile tokens.
+Client and server share rate-limit math through
+[rate_limit_common.js](./client-data/js/rate_limit_common.js).
+
+On the browser side, socket `broadcast` frames are queued by the connection
+module and consumed by the replay module. Replay enforces sequence order,
+applies replay batches, refreshes the authoritative SVG baseline when replay is
+not possible, and then passes messages to the message module. The message module
+updates hooks and calls the owning tool's `draw` method; unknown tool messages
+are held until that tool is booted.
+
+### board state and persistence
+
+In memory, [data.mjs](./server/board/data.mjs) represents a board as a
+canonical item index. [canonical_items.mjs](./server/board/canonical_items.mjs)
+defines item shape, [canonical_index.mjs](./server/board/canonical_index.mjs)
+owns lookup and paint order, and [svg_extent.mjs](./server/board/svg_extent.mjs)
+tracks the SVG extent. Mutation application stays in
+[message_processing.mjs](./server/board/message_processing.mjs), while
+[data_persistence.mjs](./server/board/data_persistence.mjs) owns autosave
+scheduling, load, save, unload, and stale-save handling.
+
+On disk, stored SVG is authoritative. [svg_board_store.mjs](./server/persistence/svg_board_store.mjs)
+reads served baselines, loads canonical board state, writes fresh SVGs, and
+rewrites existing SVGs. It relies on
+[streaming_stored_svg_scan.mjs](./server/persistence/streaming_stored_svg_scan.mjs)
+for structural scans,
+[stored_svg_item_codec.mjs](./server/persistence/stored_svg_item_codec.mjs) for
+item decode/encode, [svg_envelope.mjs](./server/persistence/svg_envelope.mjs)
+for root metadata and drawing-area boundaries, and
+[legacy_json_svg_migration.mjs](./server/persistence/legacy_json_svg_migration.mjs)
+for legacy JSON conversion. Persistence paths and timing are configured through
+`WBO_HISTORY_DIR`, `WBO_SAVE_INTERVAL`, `WBO_MAX_SAVE_DELAY`, and
+`WBO_SEQ_REPLAY_RETENTION_MS`.
+
+### tests, benchmarks, and profiling
+
+Use [test-node](./test-node) for Node tests and
+[playwright/tests](./playwright/tests) with
+[playwright.config.ts](./playwright.config.ts) for browser integration tests.
+Server benchmarks are in [benchmark-server.mjs](./scripts/benchmark-server.mjs),
+profiling starts from
+[profile-benchmark-server.mjs](./scripts/profile-benchmark-server.mjs), and the
+peer-visible erase benchmark is
+[benchmark-peer-visible-erase.mjs](./scripts/benchmark-peer-visible-erase.mjs).
+
+## wire socket protocol
+
+WBO uses Socket.IO. Clients connect with query fields such as `board`,
+`baselineSeq`, `token`, `tool`, `color`, and `size`. The server immediately emits
+`boardstate`, then emits a `broadcast` replay batch from the requested
+`baselineSeq`.
+
+Live board writes are JSON messages sent on the `broadcast` event. They use
+numeric `tool` codes from [client-data/tools/manifest.js](./client-data/tools/manifest.js)
+and numeric mutation `type` codes from [client-data/js/mutation_type.js](./client-data/js/mutation_type.js):
+`1` create, `2` update, `3` delete, `4` append, `5` batch, `6` clear, `7` copy.
+The server validates client messages, rejects malformed writes with
+`mutation_rejected`, and rebroadcasts accepted persistent writes as sequenced
+`broadcast` frames.
+
+Client write messages normally have top-level `tool` and `type` fields.
+Tool-owned batches have top-level `tool` plus `_children`; each child carries its
+own mutation `type`. Server `broadcast` payloads are either bare ephemeral
+messages, sequenced persistent mutations, or replay batches with `type: 5`,
+`fromSeq`, `seq`, and `_children`.
+
+Client `broadcast` payload examples. Comments are explanatory; they are not sent
+on the wire.
+
+```jsonc
+{
+  // Rectangle tool.
+  "tool": 3,
+  // MutationType.CREATE.
+  "type": 1,
+  "id": "rmou34r3xa", // Rectangle IDs are generated as "r" + base36 timestamp + base36 suffix.
+  "color": "#1f2937",
+  "size": 10,
+  "opacity": 0.85,
+  "x": 120,
+  "y": 80,
+  "x2": 240,
+  "y2": 160,
+  // Generated by the write module as "cm-" + base36 timestamp + base36 suffix.
+  "clientMutationId": "cm-mou34r3xc"
+}
+```
+
+```jsonc
+{
+  // Hand tool batch. The parent carries the tool; children carry mutation types.
+  "tool": 7,
+  "clientMutationId": "cm-mou34r3xd",
+  "_children": [
+    {
+      // MutationType.UPDATE with an affine SVG transform.
+      "type": 2,
+      "id": "rmou34r3xa",
+      "transform": { "a": 1, "b": 0, "c": 0, "d": 1, "e": 10, "f": 20 }
+    },
+    {
+      // MutationType.COPY. Hand copies keep the source ID's first-character prefix.
+      "type": 7,
+      "id": "rmou34r3xa",
+      "newid": "rmou34r3xb"
+    }
+  ]
+}
+```
+
+Server `broadcast` payload examples:
+
+```jsonc
+{
+  // Server-assigned persistent sequence.
+  "seq": 42,
+  "acceptedAtMs": 1710000000000,
+  "mutation": {
+    "tool": 3,
+    "type": 1,
+    "id": "rmou34r3xa",
+    "color": "#1f2937",
+    "size": 10,
+    "opacity": 0.85,
+    "x": 120,
+    "y": 80,
+    "x2": 240,
+    "y2": 160,
+    "clientMutationId": "cm-mou34r3xc",
+    // The sender socket id is echoed only on the primary live broadcast.
+    "socket": "server-socket-id"
+  }
+}
+```
+
+```jsonc
+{
+  // Authoritative replay batch sent after connect.
+  "type": 5,
+  "fromSeq": 40,
+  "seq": 42,
+  "_children": [
+    {
+      "tool": 3,
+      "type": 1,
+      "id": "rmou34r3xa",
+      "color": "#1f2937",
+      "size": 10,
+      "opacity": 0.85,
+      "x": 120,
+      "y": 80,
+      "x2": 240,
+      "y2": 160,
+      "clientMutationId": "cm-mou34r3xc"
+    }
+  ]
+}
+```
+
+Important files:
+
+- Events and message codes: [client-data/js/socket_events.js](./client-data/js/socket_events.js),
+  [client-data/tools/manifest.js](./client-data/tools/manifest.js),
+  [client-data/js/mutation_type.js](./client-data/js/mutation_type.js), and
+  [client-data/js/message_tool_metadata.js](./client-data/js/message_tool_metadata.js).
+- Client connection/send/receive: [client-data/js/board_transport.js](./client-data/js/board_transport.js),
+  [client-data/js/board_write_module.js](./client-data/js/board_write_module.js), and
+  [client-data/js/board_connection_module.js](./client-data/js/board_connection_module.js).
+- Server admission and fan-out: [server/socket/message_validation.mjs](./server/socket/message_validation.mjs),
+  [server/socket/policy.mjs](./server/socket/policy.mjs),
+  [server/socket/replay.mjs](./server/socket/replay.mjs), and
+  [server/socket/broadcasts.mjs](./server/socket/broadcasts.mjs).
+
+## persisted board file format
+
+Persisted boards are SVG documents. The root SVG carries `data-wbo-format`,
+`data-wbo-seq`, `data-wbo-readonly`, `width`, and `height`; drawable items live
+under `<g id="drawingArea">`. Stored items use SVG tag names; those tag names map
+back to string tool ids when the server decodes the file.
+
+Minimal stored SVG example:
+
+```svg
+<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="1000" height="800" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="42" data-wbo-readonly="false">
+<defs id="defs"></defs>
+<g id="drawingArea">
+<!-- Rectangle item. The stored tag maps back to the "rectangle" tool. -->
+<rect id="rmou34r3xa" x="120" y="80" width="120" height="80" stroke="#1f2937" stroke-width="10" fill="none" opacity="0.85"></rect>
+<!-- Pencil item. Pencil IDs are generated with the "l" prefix in live tool code. -->
+<path id="lmou34r3xe" d="M 120 80 l 20 10" stroke="#1f2937" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+<!-- Text item. Text IDs are generated with the "t" prefix. -->
+<text id="tmou34r3xf" x="120" y="220" font-size="24" fill="#1f2937">Hello WBO</text>
+</g>
+<g id="cursors"></g>
+</svg>
+```
+
+Important files:
+
+- Envelope and root metadata: [server/persistence/svg_envelope.mjs](./server/persistence/svg_envelope.mjs)
+  and [server/persistence/svg_board_store.mjs](./server/persistence/svg_board_store.mjs).
+- Scan, load, and rewrite: [server/persistence/streaming_stored_svg_scan.mjs](./server/persistence/streaming_stored_svg_scan.mjs)
+  and [server/persistence/stored_svg_item_codec.mjs](./server/persistence/stored_svg_item_codec.mjs).
+- Tool stored-item contracts: [client-data/tools/index.js](./client-data/tools/index.js),
+  [client-data/tools/shape_contract.js](./client-data/tools/shape_contract.js), and
+  `client-data/tools/<tool-id>/index.js`.
+
+## core invariants
+
+- Server live-message admission validates and rejects. Client tools own
+  UX-side clamping and normalization before optimistic draw/send.
+- After a tool calls `Tools.drawAndSend`, `Tools.send`, or write-buffer APIs, the
+  runtime owns that message object. Callers must not mutate it.
+- Persistent socket writes flow through policy, rate limits, the per-board
+  session, board mutation application, mutation-log recording, and sequenced
+  broadcasts. Cursor messages are ephemeral and are not persisted or replayed.
+- Connection replay starts from the SVG baseline sequence attached to the page.
+  Reconnects refresh the authoritative SVG baseline before opening a new socket
+  when replay is not possible.
+- Canonical board items store scalar fields in `attrs`, `transform` once at the
+  item top level, and payload-specific state under `payload`.
+- Stored SVG is authoritative. `.svg.bak` is the fallback. Legacy `.json` boards
+  are migration inputs, not the steady-state format.
+- Stored SVG structural scan, summary decode, and full materialization are
+  separate. Bad recognized items may be skipped; broken SVG structure is an
+  error. Do not turn structural failures into silent repairs.
+- Board pages stream stored SVG baselines through the HTML shell. The board chrome
+  and boot payloads must remain before the streamed board markup.
+
+## hot paths
+
+Hot paths include live socket message validation, per-coordinate message
+helpers, board load, canonical item materialization, mutation application,
+stored-SVG summary scan, save/rewrite, and broadcast fan-out.
+
+When touching hot paths:
+
+- Do not read env or rebuild config inside per-item, per-child, or
+  per-coordinate work. Capture or pass values once at the boundary.
+- Avoid avoidable allocations, cloning, regex creation, and spans inside
+  per-coordinate loops.
+- Use summary decode for board load and canonical indexing. Do not hydrate Pencil
+  point arrays on board open, save, rewrite, or copy unless the active tool
+  interaction truly needs them.
+- Do not read source SVG from live socket-message paths. SVG source reads belong
+  to board load, served baseline reads, and persistence rewrite.
+- Use `withExpensiveActiveSpan` or a span around a batch for high-volume work.
+  Do not start `withActiveSpan` per item.
+- Run `npm run bench` before and after suspected hot-path changes. Use
+  `npm run bench -- <e2e|load|persist|broadcast>` or the matching shortcut when
+  one scenario is enough.
+
+## frontend rules
+
+- Preserve the existing whiteboard shell. Small UX fixes should not restyle
+  unrelated controls or introduce a new visual system.
+- The left tool rail is the primary anchor. HUD, presence, status, and popovers
+  must not cover it, intercept clicks meant for it, or force it to move.
+- Viewport, zoom, pan, URL hash, scroll bounds, and board extent logic belong in
+  [client-data/js/board_viewport.js](./client-data/js/board_viewport.js) and
+  [client-data/js/board_extent.js](./client-data/js/board_extent.js).
+- Generic message hooks must derive extent from persistent/content payloads only.
+  Ephemeral messages such as cursor updates must not grow the board extent.
+- SVG layout measurement such as `getBBox()` is allowed only in narrow tool
+  interaction paths over a small selected/updated element set. Do not traverse or
+  measure the whole board SVG from generic gesture or message handling.
+- Scale-disabled draw tools remain selectable; interaction is blocked, the board
+  cursor is `not-allowed`, and status explains that the user must zoom in.
+- Tool modules own tool-specific DOM behavior, stored-item summary/serialization,
+  rendering, boot hooks, cleanup hooks, and rejection/disconnect handling.
 
 ## design system
 
-- Reference style: technical minimalism for a collaborative whiteboard. The app should feel precise, calm, utilitarian, and slightly futuristic, like instrument-panel chrome around an infinite canvas, not a marketing site, toy, or soft productivity app.
-- Core surfaces: default to white and near-white surfaces such as `#ffffff`, `#fcfcfd`, and `#f3f4f6`. Avoid decorative gradients, tinted cards, glossy treatments, or dark-theme fragments unless the task explicitly asks for them.
-- Borders and depth: define structure with thin cool-gray borders first (`#d9dde3`, stronger `#b8c0cc`), then add very light shadows only when separation is needed. Prefer crisp edges over filled, pillowy panels.
-- Geometry: keep controls mostly square and compact. Use tight radii (`2px` for controls, `4px` for larger panels), avoid bubbly pills, oversized rounding, and inflated padding.
-- Typography and sizing: use compact UI text (`13px` primary, `11px`-`12px` secondary) with restrained hierarchy. Controls should read as dense tools, not spacious cards.
-- Accent and status colors: the default accent is a muted green in the existing family (`#abc6c6`, `#ccdfdf`). Use warning/success/destructive colors sparingly and always with text or icon support.
-- Icons and affordances: prefer simple monochrome or low-color tool icons with clear silhouettes. Keep iconography functional and schematic, not playful, mascot-like, or heavily illustrated.
-- Motion and behavior: transitions should be quiet and mechanical (`120ms`-`180ms`, subtle fade/slide/spinner). Avoid bounce, flourish, or constant pulsing in normal operation.
-- Preserve the existing whiteboard shell. For bug fixes or small UX changes, do not restyle unrelated controls, introduce new visual systems, or rewrite shared CSS unless the task explicitly asks for a broader design pass.
-- Make the smallest working change. Prefer the narrowest selector and the fewest edited rules; do not add tokens, merge components, or move layout anchors unless that is required by the bug.
-- The left tool rail is the primary anchor. HUD, presence, and status UI must adapt around it; they must never cover it, intercept clicks meant for it, or force it to move.
-- Persistent chrome must stay compact and utilitarian: white or near-white surfaces, thin cool-gray borders, subtle shadows, square geometry (`2px`-`4px` radii), compact type (`13px` primary, `11px`-`12px` secondary), and quiet motion.
-- Idle status stays hidden. Only show persistent board-state UI when there is meaningful state to communicate.
+- Style target: precise, calm, utilitarian whiteboard chrome around an infinite
+  canvas.
+- Default surfaces are white or near-white (`#ffffff`, `#fcfcfd`, `#f3f4f6`).
+  Avoid decorative gradients, tinted cards, glossy treatments, and dark-theme
+  fragments unless explicitly requested.
+- Use thin cool-gray borders first (`#d9dde3`, stronger `#b8c0cc`) and very
+  light shadows only when separation is needed.
+- Keep controls compact and mostly square. Use tight radii: `2px` for controls,
+  `4px` for larger panels.
+- Use compact UI type: `13px` primary, `11px` to `12px` secondary.
+- Default accent colors are the muted green family (`#abc6c6`, `#ccdfdf`).
+- Idle status stays hidden. Only show persistent board-state UI when there is
+  meaningful state to communicate.
 
-## required upkeep
+## test commands
 
-- **If behavior, paths, protocol shape, test commands, or architecture documented here changes, update this file in the same PR.**
-- All code must be clean simple and minimal. Code duplication anywhere is forbidden, always check if similar logic exists before writing new code, and refactor when possible. Respect the single responsibility principle. Tool-specific logic should live inside each drawing tool code.
+- Typecheck: `npm run typecheck`.
+- Node suite: `npm run test-node` or targeted `node --test test-node/<file>.test.js`.
+- Browser suite: `npm run test:pw` or targeted
+  `npx playwright test playwright/tests/<file>.spec.ts`.
+- Lint: `npm run lint`.
+- Format: `npm run format`.
+- Full local gate: `npm test`.
+- Benchmarks: `npm run bench`, `npm run bench:load`, `npm run bench:persist`,
+  `npm run bench:broadcast`, `npm run bench:e2e`.
+- Profiling: `npm run profile -- <e2e|load|persist|broadcast>`.
+
+`npm test` needs Chromium and local browser/network capability. If Chromium is
+missing, run `npx playwright install chromium`.
+
+In Playwright specs, assert authoritative app or socket state. Avoid sleeps. When
+browser tests fail or flake, prefer fixing the application behavior over adding
+test workarounds.
+
+## change checklist
+
+- Message shape or protocol: update the schema/metadata sources, shared message
+  helpers, client send/draw paths if needed, focused Node tests, and benchmarks
+  if a hot normalizer changed.
+- Config/env: update [server/configuration.mjs](./server/configuration.mjs) and
+  focused tests. Do not add memoization layers or reset hooks inside
+  configuration.
+- Rate limits: update shared rate-limit logic first, then server enforcement and
+  policy. Run `node --test test-node/rate_limit_common.test.js test-node/socket_policy.test.js test-node/rate_limits.test.js`.
+- Persistence, replay, or board state: review board data/session/persistence and
+  SVG store together. Run focused Node tests and benchmarks for affected load,
+  persist, or broadcast paths.
+- Auth or permissions: start in `server/auth`, then verify HTTP routes and socket
+  policy. Run relevant auth, route, and socket tests.
+- Tool UX: start in `client-data/tools/<tool-id>`, shared tool helpers only when
+  duplication is real, and verify with targeted Playwright or client-tool tests.
+- HTTP template, cache, compression, or routing: update the route/helper source
+  and server-route tests.
+
+## profiling notes
+
+- `npm run profile -- <scenario>` writes CPU and heap profiles under
+  `.profiles/`.
+- Use profiling after a benchmark regression, not as a routine check.

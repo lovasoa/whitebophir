@@ -86,8 +86,18 @@ export type SocketRequest = {
   socket?: { remoteAddress?: string };
 };
 
+export type BoardPermissionResolver = ReturnType<
+  typeof import("../server/auth/board_capabilities.mjs").BoardPermissions.forBoard
+>;
+
+export type SocketBoardPermissionContext = {
+  boardName: string;
+  permissions: BoardPermissionResolver;
+};
+
 export type AppSocket = import("socket.io").Socket & {
   boardName?: string;
+  boardPermissionContext?: SocketBoardPermissionContext;
   replayBootstrap?: unknown;
   turnstileValidatedUntil?: number;
   client: { request: SocketRequest };

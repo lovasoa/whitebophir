@@ -25,7 +25,7 @@
  */
 
 import { MutationType } from "../../js/mutation_type.js";
-import { TOOL_CODE_BY_ID } from "../tool-order.js";
+import { BOARD_CAPABILITY, TOOL_CODE_BY_ID } from "../manifest.js";
 
 /** @import { ToolBootContext } from "../../../types/app-runtime" */
 /** @typedef {ReturnType<typeof createClearMessage>} ClearMessage */
@@ -34,9 +34,8 @@ import { TOOL_CODE_BY_ID } from "../tool-order.js";
 export const toolId = "clear";
 const toolCode = TOOL_CODE_BY_ID[toolId];
 export const oneTouch = true;
-export const requiresWritableBoard = true;
 export const mouseCursor = "crosshair";
-export const moderatorOnly = true;
+export const requiredCapability = BOARD_CAPABILITY.CLEAR;
 export const liveMessageFields = /** @type {const} */ ({
   [MutationType.CLEAR]: {},
 });

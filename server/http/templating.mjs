@@ -3,7 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import handlebars from "handlebars";
 
-import { TOOLBAR_TOOLS } from "../../client-data/tools/manifest.js";
+import {
+  boardStateGrantsCapability,
+  TOOLBAR_TOOLS,
+} from "../../client-data/tools/manifest.js";
 import { createClientConfiguration } from "./client_configuration.mjs";
 import { startCompressedResponse } from "./compression.mjs";
 import { parseRequestUrl } from "./request_url.mjs";
@@ -14,7 +17,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
-/** @typedef {{blockedTools?: string[] | null, boardState?: {readonly?: boolean, canWrite?: boolean} | null, moderator?: boolean}} VisibleToolOptions */
+/** @typedef {{blockedTools?: string[] | null, boardState?: {canEdit?: boolean, canClear?: boolean, canWrite?: boolean} | null}} VisibleToolOptions */
 /** @typedef {NonNullable<typeof TOOLBAR_TOOLS[number]>} ToolbarTool */
 /** @typedef {import("./client_configuration.mjs").ClientConfiguration} ClientConfig */
 /** @typedef {"zstd" | "br" | "gzip"} CompressionEncoding */
@@ -52,13 +55,12 @@ function isToolbarTool(tool) {
  */
 function getVisibleTools(options) {
   const blockedTools = new Set(options.blockedTools || []);
-  const readonly = options.boardState?.readonly === true;
-  const canWrite = options.boardState?.canWrite === true;
-  const moderator = options.moderator === true;
   return TOOLBAR_TOOLS.filter(isToolbarTool).filter((tool) => {
     if (blockedTools.has(tool.toolId)) return false;
-    if (tool.moderatorOnly && !moderator) return false;
-    return !readonly || canWrite || tool.visibleWhenReadOnly;
+    return boardStateGrantsCapability(
+      options.boardState,
+      tool.requiredCapability,
+    );
   });
 }
 
@@ -425,7 +427,6 @@ class BoardTemplate extends Template {
       getVisibleTools({
         blockedTools: blockedTools,
         boardState: params.boardState,
-        moderator: isModerator,
       })
     );
     params.tools = visibleTools.map((tool) => ({
