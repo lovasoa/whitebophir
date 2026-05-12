@@ -7,7 +7,8 @@ const {
   createConfig,
   createSocket,
   loadSockets,
-  withBoardHistoryDir,
+  resetSocketTestState,
+  withTemporaryHistoryDir,
 } = require("./test_helpers.js");
 
 /**
@@ -16,15 +17,20 @@ const {
  * @returns {Promise<any>}
  */
 async function withSocketConfig(overrides, run) {
-  return withBoardHistoryDir("wbo-rate-limits-", async ({ historyDir }) => {
+  return withTemporaryHistoryDir("wbo-rate-limits-", async ({ historyDir }) => {
     const sockets = await loadSockets(
       createConfig({
+        IP_SOURCE: "remoteAddress",
         HISTORY_DIR: historyDir,
         ...overrides,
       }),
     );
     sockets.__test.resetRateLimitMaps();
-    return run(sockets);
+    try {
+      return await run(sockets);
+    } finally {
+      await resetSocketTestState(sockets);
+    }
   });
 }
 
@@ -386,7 +392,7 @@ test("resetRateLimitMaps clears text rate-limit state", async () => {
       });
       assert.notEqual(first.socket.disconnected, true);
 
-      sockets.__test.resetRateLimitMaps();
+      await resetSocketTestState(sockets);
 
       const second = createSocket({
         headers: { "user-agent": "test-agent" },

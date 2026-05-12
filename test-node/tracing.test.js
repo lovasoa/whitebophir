@@ -248,34 +248,16 @@ function getSpanByName(exporter, name) {
 }
 
 /**
- * @param {number} ms
- * @returns {Promise<void>}
- */
-function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-/**
  * @param {InMemorySpanExporter} exporter
  * @param {string[]} names
- * @param {number=} timeoutMs
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function waitForSpans(exporter, names, timeoutMs) {
-  const deadline = Date.now() + (timeoutMs || 1000);
-  while (Date.now() < deadline) {
-    const exportedNames = exporter.getFinishedSpans().map((span) => span.name);
-    const hasAllSpans = names.every((name) => exportedNames.includes(name));
-    if (hasAllSpans) return;
-    await sleep(20);
-  }
+function assertSpans(exporter, names) {
+  const exportedNames = exporter.getFinishedSpans().map((span) => span.name);
+  const hasAllSpans = names.every((name) => exportedNames.includes(name));
+  if (hasAllSpans) return;
   assert.fail(
-    `timed out waiting for spans: ${names.join(", ")}; got ${exporter
-      .getFinishedSpans()
-      .map((span) => span.name)
-      .join(", ")}`,
+    `expected spans: ${names.join(", ")}; got ${exportedNames.join(", ")}`,
   );
 }
 
@@ -300,17 +282,15 @@ test("preview requests continue traceparent and create a child render span", asy
       WBO_HISTORY_DIR: dirs.historyDir,
       WBO_WEBROOT: dirs.webroot,
     },
-    async ({ exporter }) => {
+    async ({ exporter, observability }) => {
       const app = await createTestServer();
       try {
         const response = await request(app, "/preview/missing-board", {
           traceparent:
             "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
         });
-        await waitForSpans(exporter, [
-          "GET /preview/{board}",
-          "preview.render",
-        ]);
+        await observability.tracing.flush();
+        assertSpans(exporter, ["GET /preview/{board}", "preview.render"]);
 
         const requestSpan = getSpanByName(exporter, "GET /preview/{board}");
         const renderSpan = getSpanByName(exporter, "preview.render");
@@ -362,10 +342,11 @@ test("static asset requests do not create spans", async () => {
       WBO_HISTORY_DIR: dirs.historyDir,
       WBO_WEBROOT: dirs.webroot,
     },
-    async ({ exporter }) => {
+    async ({ exporter, observability }) => {
       const app = await createTestServer();
       try {
         const response = await request(app, "/script.js");
+        await observability.tracing.flush();
         assert.equal(response.statusCode, 200);
         assert.equal(exporter.getFinishedSpans().length, 0);
       } finally {
@@ -394,7 +375,7 @@ test("connection replay traces handshake board load and socket bootstrap", async
       WBO_IP_SOURCE: "remoteAddress",
       WBO_HISTORY_DIR: historyDir,
     },
-    async ({ exporter }) => {
+    async ({ exporter, observability }) => {
       const sockets = await loadSockets();
       const created = createSocket({
         id: "socket-trace",
@@ -415,7 +396,8 @@ test("connection replay traces handshake board load and socket bootstrap", async
         created.socket,
         sockets.__config,
       );
-      await waitForSpans(exporter, [
+      await observability.tracing.flush();
+      assertSpans(exporter, [
         "socket.connection_replay",
         "socket.connect_board",
         "board.load",
@@ -491,7 +473,8 @@ test("active traces correlate log records and board.save spans", async () => {
           return correlated;
         },
       );
-      await waitForSpans(exporter, [
+      await observability.tracing.flush();
+      assertSpans(exporter, [
         "socket.broadcast_write",
         "board.save",
         "board.save_write",
@@ -555,7 +538,8 @@ test("recording-only and expensive spans avoid accidental roots", async () => {
       },
       async () => {},
     );
-    await waitForSpans(exporter, ["large.work"]);
+    await observability.tracing.flush();
+    assertSpans(exporter, ["large.work"]);
   });
 });
 
@@ -573,7 +557,7 @@ test("board page traces document state and SVG stream setup", async () => {
       WBO_HISTORY_DIR: dirs.historyDir,
       WBO_WEBROOT: dirs.webroot,
     },
-    async ({ exporter }) => {
+    async ({ exporter, observability }) => {
       const { BoardData } = require(BOARD_DATA_PATH);
       const config = createConfig({ HISTORY_DIR: dirs.historyDir });
       const board = new BoardData("trace-page", config);
@@ -607,7 +591,8 @@ test("board page traces document state and SVG stream setup", async () => {
       );
       try {
         const response = await request(app, "/boards/trace-page");
-        await waitForSpans(exporter, [
+        await observability.tracing.flush();
+        assertSpans(exporter, [
           "GET /boards/{board}",
           "board.document_state_read",
           "board.baseline_stream_open",
@@ -668,13 +653,14 @@ test("large standalone board loads create their own root span", async () => {
     {
       WBO_HISTORY_DIR: historyDir,
     },
-    async ({ exporter }) => {
+    async ({ exporter, observability }) => {
       const { BoardData } = require(BOARD_DATA_PATH);
       const config = createConfig({ HISTORY_DIR: historyDir });
       const board = await BoardData.load("standalone-load", config);
 
       clearTimeout(board.saveTimeoutId);
-      await waitForSpans(exporter, ["board.load"]);
+      await observability.tracing.flush();
+      assertSpans(exporter, ["board.load"]);
 
       const loadSpan = getSpanByName(exporter, "board.load");
       assert.equal(loadSpan.parentSpanContext, undefined);
@@ -748,7 +734,7 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
       WBO_IP_SOURCE: "remoteAddress",
       WBO_HISTORY_DIR: historyDir,
     },
-    async ({ exporter }) => {
+    async ({ exporter, observability }) => {
       const sockets = await loadSockets();
       const created = createSocket({
         id: "socket-cursor",
@@ -761,6 +747,7 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
         created.socket,
         sockets.__config,
       );
+      await observability.tracing.flush();
 
       await getRequiredHandler(
         created.handlers,
@@ -773,6 +760,7 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
         color: "#123456",
         size: 2,
       });
+      await observability.tracing.flush();
       assert.equal(
         exporter
           .getFinishedSpans()
@@ -790,6 +778,7 @@ test("successful and invalid cursor broadcasts stay untraced without a parent sp
         x: 10,
         y: 20,
       });
+      await observability.tracing.flush();
       assert.equal(
         exporter.getFinishedSpans().length,
         spanCountBeforeInvalidMessage,

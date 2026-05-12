@@ -147,6 +147,17 @@ async function withBoardHistoryDir(prefix, fn, envOverrides, extraModules) {
 }
 
 /**
+ * @template T
+ * @param {string} prefix
+ * @param {(context: {historyDir: string}) => T | Promise<T>} fn
+ * @returns {Promise<T>}
+ */
+async function withTemporaryHistoryDir(prefix, fn) {
+  const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  return fn({ historyDir });
+}
+
+/**
  * @param {SocketOptions} [options]
  * @returns {CreatedSocket}
  */
@@ -224,6 +235,23 @@ function getRequiredHandler(handlers, eventName) {
 }
 
 /**
+ * @param {any} sockets
+ * @returns {Promise<void>}
+ */
+async function resetSocketTestState(sockets) {
+  const loadedBoards = /** @type {string[]} */ (
+    sockets.__test.listLoadedBoards()
+  );
+  await Promise.allSettled(
+    loadedBoards.map(async (boardName) => {
+      const board = await sockets.__test.getLoadedBoard(boardName);
+      board.dispose();
+    }),
+  );
+  sockets.__test.resetRateLimitMaps();
+}
+
+/**
  * @template T
  * @param {{
  *   env?: Dict,
@@ -245,10 +273,7 @@ function getRequiredHandler(handlers, eventName) {
  */
 async function createSocketScenario(options = {}, fn) {
   const settings = options;
-  const env = {
-    WBO_IP_SOURCE: "remoteAddress",
-    ...(settings.env || {}),
-  };
+  const env = settings.env || {};
   /**
    * @param {string | undefined} historyDir
    * @returns {Promise<T>}
@@ -256,8 +281,12 @@ async function createSocketScenario(options = {}, fn) {
   const run = async (historyDir) => {
     const scenarioConfig =
       historyDir === undefined
-        ? createConfig(settings.config || {})
+        ? createConfig({
+            IP_SOURCE: "remoteAddress",
+            ...(settings.config || {}),
+          })
         : createConfig({
+            IP_SOURCE: "remoteAddress",
             ...(settings.config || {}),
             HISTORY_DIR: historyDir,
           });
@@ -266,37 +295,41 @@ async function createSocketScenario(options = {}, fn) {
       sockets.__test.resetRateLimitMaps();
     }
 
-    return fn({
-      historyDir,
-      sockets,
-      test: sockets.__test,
-      async connect(socketOptions) {
-        /** @type {SocketOptions} */
-        const resolvedOptions = socketOptions || {};
-        const created = createSocket({
-          ...resolvedOptions,
-          query: {
-            baselineSeq: "0",
-            ...(settings.boardName ? { board: settings.boardName } : {}),
-            ...(resolvedOptions.query || {}),
-          },
-        });
-        await sockets.__test.handleSocketConnection(
-          created.socket,
-          sockets.__config,
-        );
-        return created;
-      },
-      handler(created, eventName) {
-        return getRequiredHandler(created.handlers, eventName);
-      },
-      async invoke(created, eventName, ...args) {
-        return getRequiredHandler(created.handlers, eventName)(...args);
-      },
-      getLoadedBoard(boardName) {
-        return sockets.__test.getLoadedBoard(boardName);
-      },
-    });
+    try {
+      return await fn({
+        historyDir,
+        sockets,
+        test: sockets.__test,
+        async connect(socketOptions) {
+          /** @type {SocketOptions} */
+          const resolvedOptions = socketOptions || {};
+          const created = createSocket({
+            ...resolvedOptions,
+            query: {
+              baselineSeq: "0",
+              ...(settings.boardName ? { board: settings.boardName } : {}),
+              ...(resolvedOptions.query || {}),
+            },
+          });
+          await sockets.__test.handleSocketConnection(
+            created.socket,
+            sockets.__config,
+          );
+          return created;
+        },
+        handler(created, eventName) {
+          return getRequiredHandler(created.handlers, eventName);
+        },
+        async invoke(created, eventName, ...args) {
+          return getRequiredHandler(created.handlers, eventName)(...args);
+        },
+        getLoadedBoard(boardName) {
+          return sockets.__test.getLoadedBoard(boardName);
+        },
+      });
+    } finally {
+      await resetSocketTestState(sockets);
+    }
   };
 
   if (settings.historyDirPrefix === false) {
@@ -305,11 +338,14 @@ async function createSocketScenario(options = {}, fn) {
       : run(undefined);
   }
 
-  return withBoardHistoryDir(
-    settings.historyDirPrefix || "wbo-socket-scenario-",
-    ({ historyDir }) => run(historyDir),
-    env,
-  );
+  const runWithHistoryDir = () =>
+    withTemporaryHistoryDir(
+      settings.historyDirPrefix || "wbo-socket-scenario-",
+      ({ historyDir }) => run(historyDir),
+    );
+  return Object.keys(env).length > 0
+    ? withEnv(env, runWithHistoryDir)
+    : runWithHistoryDir();
 }
 
 /**
@@ -399,11 +435,49 @@ function collectIncomingMessage(response) {
 
 /**
  * @param {import("http").Server} server
+ * @returns {{finished: Promise<void>, cancel: () => void}}
+ */
+function nextServerResponseCompletion(server) {
+  /** @type {() => void} */
+  let cancel = () => {};
+  const finished = new Promise((resolve) => {
+    function complete() {
+      cancel();
+      resolve(undefined);
+    }
+
+    /**
+     * @param {import("http").IncomingMessage} _request
+     * @param {import("http").ServerResponse} response
+     */
+    function onRequest(_request, response) {
+      cancel = () => {
+        response.removeListener("finish", complete);
+      };
+      response.once("finish", complete);
+    }
+
+    cancel = () => {
+      server.removeListener("request", onRequest);
+    };
+    server.once("request", onRequest);
+  });
+  return {
+    finished,
+    cancel() {
+      cancel();
+    },
+  };
+}
+
+/**
+ * @param {import("http").Server} server
  * @param {string} requestPath
  * @param {{[key: string]: string}=} headers
  * @returns {Promise<{statusCode: number, headers: import("http").IncomingHttpHeaders, body: string}>}
  */
 function request(server, requestPath, headers) {
+  const serverResponse = nextServerResponseCompletion(server);
   return new Promise((resolve, reject) => {
     const address = getTcpAddress(server);
     const req = http.get(
@@ -414,10 +488,22 @@ function request(server, requestPath, headers) {
         headers: headers,
       },
       (response) => {
-        resolve(collectIncomingMessage(response));
+        collectIncomingMessage(response).then(
+          async (message) => {
+            await serverResponse.finished;
+            resolve(message);
+          },
+          (error) => {
+            serverResponse.cancel();
+            reject(error);
+          },
+        );
       },
     );
-    req.on("error", reject);
+    req.on("error", (error) => {
+      serverResponse.cancel();
+      reject(error);
+    });
   });
 }
 
@@ -485,8 +571,10 @@ module.exports = {
   loadSockets,
   request,
   requestRaw,
+  resetSocketTestState,
   waitForListening,
   withBoardHistoryDir,
+  withTemporaryHistoryDir,
   withMockedNow,
   withEnv,
   writeBoard,
