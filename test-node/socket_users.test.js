@@ -8,6 +8,7 @@ const {
   createConfig,
   createSocketScenario,
   createSocket,
+  SOCKETS_PATH,
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/mutation_type.js");
 const {
@@ -17,6 +18,8 @@ const {
   Rectangle,
 } = require("../client-data/tools/index.js");
 const USER_SECRET_COOKIE_NAME = "wbo-user-secret-v1";
+
+require(SOCKETS_PATH);
 
 /**
  * @template T

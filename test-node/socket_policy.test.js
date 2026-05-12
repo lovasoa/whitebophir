@@ -10,6 +10,8 @@ const {
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Clear, Cursor, Text } = require("../client-data/tools/index.js");
 
+require(SOCKET_POLICY_PATH);
+
 test("getClientIp resolves the first proxy hop from forwarding headers", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
   const forwardedForConfig = createConfig({ IP_SOURCE: "X-Forwarded-For" });

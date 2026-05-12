@@ -6,10 +6,13 @@ const { Eraser, Pencil, Text } = require("../client-data/tools/index.js");
 const {
   createConfig,
   createSocket,
+  SOCKETS_PATH,
   loadSockets,
   resetSocketTestState,
   withTemporaryHistoryDir,
 } = require("./test_helpers.js");
+
+require(SOCKETS_PATH);
 
 /**
  * @param {{[key: string]: any}} overrides

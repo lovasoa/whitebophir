@@ -1009,6 +1009,7 @@ test.describe("collaboration and rate limiting", () => {
         server.dataPath,
         "anonymous",
         (storedBoard) => storedBoard["buffered-rect-2"] != null,
+        10_000,
       );
       await boardPage.waitForSocketConnected();
       await boardPage.waitForAuthoritativeResync();

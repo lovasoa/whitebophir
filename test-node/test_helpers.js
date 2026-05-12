@@ -6,12 +6,6 @@ const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
 const CONFIG_PATH = path.join(ROOT, "server", "configuration.mjs");
-const OBSERVABILITY_PATH = path.join(
-  ROOT,
-  "server",
-  "observability",
-  "index.mjs",
-);
 const SOCKETS_PATH = path.join(ROOT, "server", "socket", "index.mjs");
 const SOCKET_POLICY_PATH = path.join(ROOT, "server", "socket", "policy.mjs");
 const BOARD_DATA_PATH = path.join(ROOT, "server", "board", "data.mjs");
@@ -20,18 +14,6 @@ const MESSAGE_VALIDATION_PATH = path.join(
   "server",
   "socket",
   "message_validation.mjs",
-);
-const MESSAGE_COMMON_PATH = path.join(
-  ROOT,
-  "client-data",
-  "js",
-  "message_common.js",
-);
-const JWT_BOARDNAME_AUTH_PATH = path.join(
-  ROOT,
-  "server",
-  "auth",
-  "board_jwt.mjs",
 );
 const BOARD_CAPABILITIES_PATH = path.join(
   ROOT,
@@ -47,17 +29,7 @@ const BOARD_CAPABILITIES_PATH = path.join(
 /** @typedef {{id: string, boardName?: string, replayBootstrap?: unknown, turnstileValidatedUntil?: number, disconnected?: boolean, handshake: {query: {board?: string, token?: string, tool?: string, color?: string, size?: string, baselineSeq?: string}}, rooms: Set<string>, client: {request: {headers: {[key: string]: string | string[] | undefined}, socket: {remoteAddress: string}}, conn: {closeCalls: number[], close: () => void}}, broadcast: {to: (room: string) => {emit: (event: string, payload: any) => void}}, disconnectCalls: boolean[], on: (event: string, handler: (...args: any[]) => any) => void, join: (room: string) => void, emit: (event: string, payload: any) => void, disconnect: (close: boolean) => void}} TestSocket */
 /** @typedef {{socket: TestSocket, handlers: HandlerMap, emitted: EmittedEvent[], broadcasted: EmittedEvent[]}} CreatedSocket */
 
-const DEFAULT_CLEARED_MODULES = [
-  CONFIG_PATH,
-  OBSERVABILITY_PATH,
-  SOCKETS_PATH,
-  SOCKET_POLICY_PATH,
-  BOARD_DATA_PATH,
-  MESSAGE_VALIDATION_PATH,
-  MESSAGE_COMMON_PATH,
-  JWT_BOARDNAME_AUTH_PATH,
-  BOARD_CAPABILITIES_PATH,
-];
+const DEFAULT_CLEARED_MODULES = [CONFIG_PATH];
 
 /**
  * @param {string} modulePath

@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  SOCKETS_PATH,
   withEnv,
   createSocket,
   loadSockets,
@@ -12,6 +13,8 @@ const {
 const _WBOMessageCommon = require("../client-data/js/message_common.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Cursor, Pencil } = require("../client-data/tools/index.js");
+
+require(SOCKETS_PATH);
 
 /**
  * @returns {Promise<string>}
