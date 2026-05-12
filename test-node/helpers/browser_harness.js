@@ -54,6 +54,32 @@ function createFrozenWindow(slots) {
 }
 
 /**
+ * @param {{innerWidth?: number, innerHeight?: number}} options
+ */
+function createDocumentElement(options) {
+  return {
+    scrollLeft: 0,
+    scrollTop: 0,
+    clientWidth: options.innerWidth || 1024,
+    clientHeight: options.innerHeight || 768,
+  };
+}
+
+function createDefaultDomGlobals() {
+  return {
+    SVGPathElement: function SVGPathElement() {},
+    SVGGraphicsElement: function SVGGraphicsElement() {},
+    SVGSVGElement: function SVGSVGElement() {},
+    SVGGElement: function SVGGElement() {},
+    SVGTextElement: function SVGTextElement() {},
+    KeyboardEvent: function KeyboardEvent() {},
+    SVGTransform: {
+      SVG_TRANSFORM_MATRIX: 1,
+    },
+  };
+}
+
+/**
  * Installs the browser globals used by client-side Node tests.
  *
  * The harness intentionally hides whether production code used timers or
@@ -96,12 +122,7 @@ function installBrowserHarness(options = {}) {
   /** @type {Map<string, Function[]>} */
   const listeners = new Map();
 
-  const documentElement = {
-    scrollLeft: 0,
-    scrollTop: 0,
-    clientWidth: options.innerWidth || 1024,
-    clientHeight: options.innerHeight || 768,
-  };
+  const documentElement = createDocumentElement(options);
 
   let activeDocument =
     options.document ||
@@ -334,6 +355,69 @@ function installBrowserHarness(options = {}) {
       setWindowSlot("document", document);
       globalAny.document = document;
     },
+    /** @param {Record<string, unknown>} [overrides] */
+    installDomGlobals(overrides = {}) {
+      for (const [name, value] of Object.entries({
+        ...createDefaultDomGlobals(),
+        ...overrides,
+      })) {
+        this.setGlobal(name, value);
+      }
+    },
+    /**
+     * @param {{createElement?: (tagName: string) => any, createElementNS?: (namespace: string, tagName: string) => any, getElementById?: (id: string) => any, documentElement?: any}} options
+     */
+    installTestDocument(options) {
+      const nextDocumentElement =
+        options.documentElement ||
+        createDocumentElement({
+          innerWidth: Number(windowSlots.innerWidth) || 1024,
+          innerHeight: Number(windowSlots.innerHeight) || 768,
+        });
+      const document = {
+        documentElement: nextDocumentElement,
+        scrollingElement: nextDocumentElement,
+        createElement:
+          options.createElement ||
+          function createElement() {
+            throw new Error("document.createElement is not configured");
+          },
+        createElementNS:
+          options.createElementNS ||
+          function createElementNS() {
+            throw new Error("document.createElementNS is not configured");
+          },
+        getElementById:
+          options.getElementById ||
+          function getElementById() {
+            return null;
+          },
+      };
+      this.setDocument(document);
+      return document;
+    },
+    /**
+     * @param {{innerWidth?: number, innerHeight?: number, createElement?: (tagName: string) => any, createElementNS?: (namespace: string, tagName: string) => any, getElementById?: (id: string) => any, documentElement?: any, globalOverrides?: Record<string, unknown>}} options
+     */
+    installClientDom(options = {}) {
+      this.setWindowProperties({
+        innerWidth: options.innerWidth || 1024,
+        innerHeight: options.innerHeight || 768,
+      });
+      this.installDomGlobals(options.globalOverrides);
+      return this.installTestDocument(options);
+    },
+    /** @param {string} reason */
+    rejectDocumentScrollReads(reason) {
+      for (const name of ["scrollLeft", "scrollTop"]) {
+        Object.defineProperty(activeDocument.documentElement, name, {
+          configurable: true,
+          get() {
+            throw new Error(`${name} ${reason}`);
+          },
+        });
+      }
+    },
     /**
      * @param {Record<string, unknown>} properties
      */
@@ -363,10 +447,60 @@ function installBrowserHarness(options = {}) {
       }
       globalAny[name] = value;
     },
-    /** @param {string} eventName */
-    dispatchWindowEvent(eventName) {
-      const eventListeners = listeners.get(eventName) || [];
-      for (const listener of eventListeners) listener({ type: eventName });
+    /** @param {any} app */
+    setTools(app) {
+      this.setGlobal("Tools", app);
+    },
+    /**
+     * @param {string | {type: string}} eventName
+     * @param {Record<string, unknown>} [eventInit]
+     */
+    dispatchWindowEvent(eventName, eventInit = {}) {
+      const event =
+        typeof eventName === "string"
+          ? { type: eventName, ...eventInit }
+          : eventName;
+      const eventListeners = listeners.get(event.type) || [];
+      for (const listener of eventListeners) listener(event);
+    },
+    /** @param {(target: any) => boolean} isIntersecting */
+    installIntersectionObserver(isIntersecting) {
+      class HarnessIntersectionObserver {
+        /** @param {(entries: any[]) => void} callback */
+        constructor(callback) {
+          this.callback = callback;
+          this.disconnected = false;
+        }
+
+        /** @param {any} target */
+        observe(target) {
+          Promise.resolve().then(() => {
+            if (this.disconnected) return;
+            const selected = isIntersecting(target);
+            this.callback([
+              {
+                target,
+                isIntersecting: selected,
+                intersectionRatio: selected ? 1 : 0,
+                boundingClientRect: { width: 20, height: 20 },
+              },
+            ]);
+          });
+        }
+
+        disconnect() {
+          this.disconnected = true;
+        }
+
+        takeRecords() {
+          return [];
+        }
+      }
+
+      this.setGlobal("IntersectionObserver", HarnessIntersectionObserver);
+    },
+    disableIntersectionObserver() {
+      this.setGlobal("IntersectionObserver", undefined);
     },
     restore() {
       if (restored) return;
@@ -383,6 +517,31 @@ function installBrowserHarness(options = {}) {
   };
 }
 
+/**
+ * @param {{beforeEach(hook: () => void): void, afterEach(hook: () => void): void}} testRunner
+ */
+function installBrowserHarnessForTest(testRunner) {
+  /** @type {ReturnType<typeof installBrowserHarness> | null} */
+  let active = null;
+
+  testRunner.beforeEach(() => {
+    active = installBrowserHarness();
+  });
+
+  testRunner.afterEach(() => {
+    active?.restore();
+    active = null;
+  });
+
+  return function getBrowserHarness() {
+    if (!active) {
+      throw new Error("Browser harness is not installed");
+    }
+    return active;
+  };
+}
+
 module.exports = {
   installBrowserHarness,
+  installBrowserHarnessForTest,
 };

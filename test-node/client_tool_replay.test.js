@@ -8,7 +8,9 @@ const {
   getToolRuntimeAssetPath,
 } = require("../client-data/tools/tool-defaults.js");
 const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
-const { installBrowserHarness } = require("./helpers/browser_harness.js");
+const {
+  installBrowserHarnessForTest,
+} = require("./helpers/browser_harness.js");
 const PencilTool = require("../client-data/tools/pencil/index.js");
 const RectangleTool = require("../client-data/tools/rectangle/index.js");
 const ShapeTool = require("../client-data/tools/shape_tool.js");
@@ -30,28 +32,11 @@ const { MutationType } = MessageToolMetadata;
  *   appendItem(transform: TransformEntry): TransformEntry,
  * }} TransformList
  * @typedef {{set(id: string, element: any): void, get(id: string): any, delete(id: string): void}} ElementStore
- * @typedef {{elementsById: Map<string, any>, clock: {now: number}, time: ReturnType<typeof installBrowserHarness>, windowListeners: Map<string, Function>, loadTool(toolName: string): any}} ReplayHarness
+ * @typedef {{elementsById: Map<string, any>, clock: {now: number}, time: ReturnType<typeof getBrowserHarness>, loadTool(toolName: string): any}} ReplayHarness
  */
 
 const globalAny = /** @type {any} */ (global);
-/** @type {ReturnType<typeof installBrowserHarness> | null} */
-let activeBrowserHarness = null;
-
-test.beforeEach(() => {
-  activeBrowserHarness = installBrowserHarness();
-});
-
-test.afterEach(() => {
-  activeBrowserHarness?.restore();
-  activeBrowserHarness = null;
-});
-
-function getActiveBrowserHarness() {
-  if (!activeBrowserHarness) {
-    throw new Error("Browser harness is not installed");
-  }
-  return activeBrowserHarness;
-}
+const getBrowserHarness = installBrowserHarnessForTest(test);
 
 /**
  * @param {PathSegment[]} pathData
@@ -425,56 +410,20 @@ function createHarness() {
   };
 
   const tools = /** @type {{[name: string]: any}} */ ({});
-  const browser = getActiveBrowserHarness();
+  const browser = getBrowserHarness();
   const clock = browser.clock;
-  const windowListeners = /** @type {Map<string, Function>} */ (new Map());
-  browser.setWindowProperties({
-    innerWidth: 1024,
-    innerHeight: 768,
-    addEventListener: (
-      /** @type {string} */ eventName,
-      /** @type {Function} */ listener,
-    ) => {
-      windowListeners.set(eventName, listener);
+  browser.installClientDom({
+    createElement(tagName) {
+      return createBaseElement(store, tagName);
     },
-    removeEventListener: (
-      /** @type {string} */ eventName,
-      /** @type {Function} */ listener,
-    ) => {
-      if (windowListeners.get(eventName) === listener) {
-        windowListeners.delete(eventName);
-      }
-    },
-    scrollTo: () => {},
-  });
-  browser.setGlobal("SVGPathElement", function SVGPathElement() {});
-  browser.setGlobal("SVGGraphicsElement", function SVGGraphicsElement() {});
-  browser.setGlobal("SVGSVGElement", function SVGSVGElement() {});
-  browser.setGlobal("SVGGElement", function SVGGElement() {});
-  browser.setGlobal("SVGTextElement", function SVGTextElement() {});
-  browser.setGlobal("KeyboardEvent", function KeyboardEvent() {});
-  browser.setGlobal("SVGTransform", {
-    SVG_TRANSFORM_MATRIX: 1,
-  });
-  browser.setDocument({
-    createElement: (/** @type {string} */ tagName) =>
-      createBaseElement(store, tagName),
-    createElementNS: (
-      /** @type {string} */ namespace,
-      /** @type {string} */ tagName,
-    ) => {
+    createElementNS(namespace, tagName) {
       void namespace;
       return createSVGElement(store, tagName);
     },
-    getElementById: (/** @type {string} */ id) => store.get(id),
-    documentElement: {
-      scrollLeft: 0,
-      scrollTop: 0,
-      clientWidth: 1024,
-      clientHeight: 768,
+    getElementById(id) {
+      return store.get(id);
     },
   });
-  globalAny.document.scrollingElement = globalAny.document.documentElement;
 
   const app = {
     dom: {
@@ -640,13 +589,12 @@ function createHarness() {
       token: null,
     },
   };
-  browser.setGlobal("Tools", app);
+  browser.setTools(app);
 
   return {
     elementsById: elementsById,
     clock: clock,
     time: browser,
-    windowListeners: windowListeners,
     loadTool: async (toolName) => {
       const toolPath = path.resolve(
         __dirname,
@@ -986,53 +934,6 @@ function createToolBootContext(runtime, assetUrl) {
   };
 }
 
-/**
- * @param {(target: any) => boolean} isSelected
- * @returns {() => void}
- */
-function installMockIntersectionObserver(isSelected) {
-  const originalIntersectionObserver = globalAny.IntersectionObserver;
-
-  class MockIntersectionObserver {
-    /**
-     * @param {(entries: any[]) => void} callback
-     */
-    constructor(callback) {
-      this.callback = callback;
-      this.disconnected = false;
-    }
-
-    /** @param {any} target */
-    observe(target) {
-      Promise.resolve().then(() => {
-        if (this.disconnected) return;
-        const selected = isSelected(target);
-        this.callback([
-          {
-            target,
-            isIntersecting: selected,
-            intersectionRatio: selected ? 1 : 0,
-            boundingClientRect: { width: 20, height: 20 },
-          },
-        ]);
-      });
-    }
-
-    disconnect() {
-      this.disconnected = true;
-    }
-
-    takeRecords() {
-      return [];
-    }
-  }
-
-  globalAny.IntersectionObserver = MockIntersectionObserver;
-  return () => {
-    globalAny.IntersectionObserver = originalIntersectionObserver;
-  };
-}
-
 function expectedTwoPointStroke() {
   return [
     { type: "M", values: [100, 200] },
@@ -1270,18 +1171,9 @@ test("Pencil keeps active local drawing out of the board SVG until release", asy
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
-  Object.defineProperty(globalAny.document.documentElement, "scrollLeft", {
-    configurable: true,
-    get() {
-      throw new Error("scrollLeft should not be read during overlay flush");
-    },
-  });
-  Object.defineProperty(globalAny.document.documentElement, "scrollTop", {
-    configurable: true,
-    get() {
-      throw new Error("scrollTop should not be read during overlay flush");
-    },
-  });
+  harness.time.rejectDocumentScrollReads(
+    "should not be read during overlay flush",
+  );
 
   globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
@@ -2216,281 +2108,256 @@ test("Hand selector stops at the last valid transform", async () => {
 test("Hand selector keeps the original element selected after duplicate", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
-  const restoreIntersectionObserver = installMockIntersectionObserver(
-    (target) => target.id === "r-1",
+  harness.time.installIntersectionObserver(
+    (/** @type {any} */ target) => target.id === "r-1",
   );
   let nextId = 1;
 
-  try {
-    globalAny.Tools.ids.generateUID = (/** @type {string} */ prefix) => {
-      nextId += 1;
-      return `${prefix}-${nextId}`;
-    };
-    const rect = globalAny.Tools.dom.createSVGElement("rect");
-    rect.id = "r-1";
-    rect.x.baseVal.value = 100;
-    rect.y.baseVal.value = 100;
-    rect.width.baseVal.value = 60;
-    rect.height.baseVal.value = 40;
-    globalAny.Tools.drawingArea.appendChild(rect);
+  globalAny.Tools.ids.generateUID = (/** @type {string} */ prefix) => {
+    nextId += 1;
+    return `${prefix}-${nextId}`;
+  };
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "r-1";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
 
-    handTool.secondary.active = true;
-    handTool.secondary.switch();
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
 
-    const outsideTarget = {
-      parentNode: null,
-      matches: () => false,
-    };
+  const outsideTarget = {
+    parentNode: null,
+    matches: () => false,
+  };
 
-    handTool.listeners.press(50, 50, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
-    handTool.listeners.move(200, 200, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
-    await handTool.listeners.release(200, 200, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
+  handTool.listeners.press(50, 50, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+  handTool.listeners.move(200, 200, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+  await handTool.listeners.release(200, 200, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
 
-    const duplicateShortcut = harness.windowListeners.get("keydown");
-    assert.ok(
-      duplicateShortcut,
-      "selector shortcut listener should be installed",
-    );
-    duplicateShortcut({
-      key: "d",
-      target: outsideTarget,
-    });
+  harness.time.dispatchWindowEvent("keydown", {
+    key: "d",
+    target: outsideTarget,
+  });
 
-    assert.equal(globalAny.Tools.sentMessages.length, 1);
-    assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
-      tool: TOOL_CODE_BY_ID.hand,
-      _children: [
-        {
-          type: MessageToolMetadata.MutationType.COPY,
-          id: "r-1",
-          newid: "r-2",
+  assert.equal(globalAny.Tools.sentMessages.length, 1);
+  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      {
+        type: MessageToolMetadata.MutationType.COPY,
+        id: "r-1",
+        newid: "r-2",
+      },
+    ],
+  });
+
+  const originalRect = harness.elementsById.get("r-1");
+  handTool.listeners.press(110, 110, {
+    preventDefault: () => {},
+    target: originalRect,
+  });
+  handTool.listeners.move(150, 135, {
+    preventDefault: () => {},
+    target: originalRect,
+  });
+  handTool.listeners.release(150, 135, {
+    preventDefault: () => {},
+    target: originalRect,
+  });
+
+  assert.equal(globalAny.Tools.sentMessages.length, 2);
+  assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      {
+        type: MessageToolMetadata.MutationType.UPDATE,
+        id: "r-1",
+        transform: {
+          a: 1,
+          b: 0,
+          c: 0,
+          d: 1,
+          e: 40,
+          f: 25,
         },
-      ],
-    });
-
-    const originalRect = harness.elementsById.get("r-1");
-    handTool.listeners.press(110, 110, {
-      preventDefault: () => {},
-      target: originalRect,
-    });
-    handTool.listeners.move(150, 135, {
-      preventDefault: () => {},
-      target: originalRect,
-    });
-    handTool.listeners.release(150, 135, {
-      preventDefault: () => {},
-      target: originalRect,
-    });
-
-    assert.equal(globalAny.Tools.sentMessages.length, 2);
-    assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
-      tool: TOOL_CODE_BY_ID.hand,
-      _children: [
-        {
-          type: MessageToolMetadata.MutationType.UPDATE,
-          id: "r-1",
-          transform: {
-            a: 1,
-            b: 0,
-            c: 0,
-            d: 1,
-            e: 40,
-            f: 25,
-          },
-        },
-      ],
-    });
-  } finally {
-    restoreIntersectionObserver();
-  }
+      },
+    ],
+  });
 });
 
 test("Hand selector ignores stale async selection after transform starts", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
-  const restoreIntersectionObserver = installMockIntersectionObserver(
-    (target) => target.id === "r-1",
+  harness.time.installIntersectionObserver(
+    (/** @type {any} */ target) => target.id === "r-1",
   );
 
-  try {
-    const rect = globalAny.Tools.dom.createSVGElement("rect");
-    rect.id = "r-1";
-    rect.x.baseVal.value = 100;
-    rect.y.baseVal.value = 100;
-    rect.width.baseVal.value = 60;
-    rect.height.baseVal.value = 40;
-    globalAny.Tools.drawingArea.appendChild(rect);
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "r-1";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  globalAny.Tools.drawingArea.appendChild(rect);
 
-    handTool.secondary.active = true;
-    handTool.secondary.switch();
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
 
-    const outsideTarget = {
-      parentNode: null,
-      matches: () => false,
-    };
+  const outsideTarget = {
+    parentNode: null,
+    matches: () => false,
+  };
 
-    handTool.listeners.press(50, 50, {
+  handTool.listeners.press(50, 50, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+  handTool.listeners.move(200, 200, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+  const pendingSelection = handTool.listeners.release(200, 200, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+
+  handTool.listeners.press(110, 110, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+  await pendingSelection;
+
+  assert.doesNotThrow(() => {
+    handTool.listeners.move(150, 135, {
       preventDefault: () => {},
       target: outsideTarget,
     });
-    handTool.listeners.move(200, 200, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
-    const pendingSelection = handTool.listeners.release(200, 200, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
-
-    handTool.listeners.press(110, 110, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
-    await pendingSelection;
-
-    assert.doesNotThrow(() => {
-      handTool.listeners.move(150, 135, {
-        preventDefault: () => {},
-        target: outsideTarget,
-      });
-    });
-  } finally {
-    restoreIntersectionObserver();
-  }
+  });
 });
 
 test("Hand box selection can use IntersectionObserver without target bbox reads", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
-  const restoreIntersectionObserver = installMockIntersectionObserver(
-    (target) => target.id === "io-selected",
+  harness.time.installIntersectionObserver(
+    (/** @type {any} */ target) => target.id === "io-selected",
   );
-  try {
-    let nextId = 1;
-    globalAny.Tools.ids.generateUID = (/** @type {string} */ prefix) => {
-      nextId += 1;
-      return `${prefix}-${nextId}`;
-    };
+  let nextId = 1;
+  globalAny.Tools.ids.generateUID = (/** @type {string} */ prefix) => {
+    nextId += 1;
+    return `${prefix}-${nextId}`;
+  };
 
-    const selectedRect = globalAny.Tools.dom.createSVGElement("rect");
-    selectedRect.id = "io-selected";
-    selectedRect.x.baseVal.value = 100;
-    selectedRect.y.baseVal.value = 100;
-    selectedRect.width.baseVal.value = 60;
-    selectedRect.height.baseVal.value = 40;
-    selectedRect.getBBox = () => {
-      throw new Error("target getBBox should not be called");
-    };
-    selectedRect.transformedBBox = () => {
-      throw new Error("target transformedBBox should not be called");
-    };
-    globalAny.Tools.drawingArea.appendChild(selectedRect);
+  const selectedRect = globalAny.Tools.dom.createSVGElement("rect");
+  selectedRect.id = "io-selected";
+  selectedRect.x.baseVal.value = 100;
+  selectedRect.y.baseVal.value = 100;
+  selectedRect.width.baseVal.value = 60;
+  selectedRect.height.baseVal.value = 40;
+  selectedRect.getBBox = () => {
+    throw new Error("target getBBox should not be called");
+  };
+  selectedRect.transformedBBox = () => {
+    throw new Error("target transformedBBox should not be called");
+  };
+  globalAny.Tools.drawingArea.appendChild(selectedRect);
 
-    const rejectedRect = globalAny.Tools.dom.createSVGElement("rect");
-    rejectedRect.id = "io-rejected";
-    globalAny.Tools.drawingArea.appendChild(rejectedRect);
+  const rejectedRect = globalAny.Tools.dom.createSVGElement("rect");
+  rejectedRect.id = "io-rejected";
+  globalAny.Tools.drawingArea.appendChild(rejectedRect);
 
-    handTool.secondary.active = true;
-    handTool.secondary.switch();
-    const outsideTarget = {
-      parentNode: null,
-      matches: () => false,
-    };
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
+  const outsideTarget = {
+    parentNode: null,
+    matches: () => false,
+  };
 
-    handTool.listeners.press(50, 50, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
-    handTool.listeners.move(200, 200, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
-    await handTool.listeners.release(200, 200, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
+  handTool.listeners.press(50, 50, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+  handTool.listeners.move(200, 200, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+  await handTool.listeners.release(200, 200, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
 
-    const duplicateShortcut = harness.windowListeners.get("keydown");
-    assert.ok(duplicateShortcut);
-    duplicateShortcut({
-      key: "d",
-      target: outsideTarget,
-    });
+  harness.time.dispatchWindowEvent("keydown", {
+    key: "d",
+    target: outsideTarget,
+  });
 
-    assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
-      tool: TOOL_CODE_BY_ID.hand,
-      _children: [
-        {
-          type: MessageToolMetadata.MutationType.COPY,
-          id: "io-selected",
-          newid: "i-2",
-        },
-      ],
-    });
-  } finally {
-    restoreIntersectionObserver();
-  }
+  assert.deepEqual(globalAny.Tools.sentMessages[0].data, {
+    tool: TOOL_CODE_BY_ID.hand,
+    _children: [
+      {
+        type: MessageToolMetadata.MutationType.COPY,
+        id: "io-selected",
+        newid: "i-2",
+      },
+    ],
+  });
 });
 
 test("Hand box selection does not fall back to target bbox reads without IntersectionObserver", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
-  const originalIntersectionObserver = globalAny.IntersectionObserver;
-  globalAny.IntersectionObserver = undefined;
-  try {
-    const rect = globalAny.Tools.dom.createSVGElement("rect");
-    rect.id = "no-io-rect";
-    rect.x.baseVal.value = 100;
-    rect.y.baseVal.value = 100;
-    rect.width.baseVal.value = 60;
-    rect.height.baseVal.value = 40;
-    rect.getBBox = () => {
-      throw new Error("target getBBox should not be called");
-    };
-    rect.transformedBBox = () => {
-      throw new Error("target transformedBBox should not be called");
-    };
-    globalAny.Tools.drawingArea.appendChild(rect);
+  harness.time.disableIntersectionObserver();
 
-    handTool.secondary.active = true;
-    handTool.secondary.switch();
-    const outsideTarget = {
-      parentNode: null,
-      matches: () => false,
-    };
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "no-io-rect";
+  rect.x.baseVal.value = 100;
+  rect.y.baseVal.value = 100;
+  rect.width.baseVal.value = 60;
+  rect.height.baseVal.value = 40;
+  rect.getBBox = () => {
+    throw new Error("target getBBox should not be called");
+  };
+  rect.transformedBBox = () => {
+    throw new Error("target transformedBBox should not be called");
+  };
+  globalAny.Tools.drawingArea.appendChild(rect);
 
-    handTool.listeners.press(50, 50, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
-    handTool.listeners.move(200, 200, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
-    await handTool.listeners.release(200, 200, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
+  handTool.secondary.active = true;
+  handTool.secondary.switch();
+  const outsideTarget = {
+    parentNode: null,
+    matches: () => false,
+  };
 
-    const duplicateShortcut = harness.windowListeners.get("keydown");
-    assert.ok(duplicateShortcut);
-    duplicateShortcut({
-      key: "d",
-      target: outsideTarget,
-    });
-    assert.equal(globalAny.Tools.sentMessages.length, 0);
-  } finally {
-    globalAny.IntersectionObserver = originalIntersectionObserver;
-  }
+  handTool.listeners.press(50, 50, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+  handTool.listeners.move(200, 200, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+  await handTool.listeners.release(200, 200, {
+    preventDefault: () => {},
+    target: outsideTarget,
+  });
+
+  harness.time.dispatchWindowEvent("keydown", {
+    key: "d",
+    target: outsideTarget,
+  });
+  assert.equal(globalAny.Tools.sentMessages.length, 0);
 });
 
 test("Hand tool declares native touch scrolling when selector mode is off", async () => {

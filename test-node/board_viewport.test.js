@@ -1,25 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { installBrowserHarness } = require("./helpers/browser_harness.js");
+const {
+  installBrowserHarnessForTest,
+} = require("./helpers/browser_harness.js");
 
-/** @type {ReturnType<typeof installBrowserHarness> | null} */
-let activeBrowserHarness = null;
-
-test.beforeEach(() => {
-  activeBrowserHarness = installBrowserHarness();
-});
-
-test.afterEach(() => {
-  activeBrowserHarness?.restore();
-  activeBrowserHarness = null;
-});
-
-function getActiveBrowserHarness() {
-  if (!activeBrowserHarness) {
-    throw new Error("Browser harness is not installed");
-  }
-  return activeBrowserHarness;
-}
+const getBrowserHarness = installBrowserHarnessForTest(test);
 
 async function loadViewportModule() {
   return import("../client-data/js/board_viewport.js");
@@ -29,7 +14,7 @@ async function loadViewportModule() {
  * @param {string} [initialHash]
  */
 function createViewportHashTestEnvironment(initialHash = "#0,0,1.000") {
-  const browser = getActiveBrowserHarness();
+  const browser = getBrowserHarness();
   browser.setWindowProperties({
     innerWidth: 100,
     innerHeight: 100,
@@ -573,7 +558,7 @@ test("viewport ignores browser-owned non-cancelable pinch events", async () => {
 });
 
 test("viewport owns svg extent growth and layout sync", async () => {
-  const browser = getActiveBrowserHarness();
+  const browser = getBrowserHarness();
   browser.setWindowProperties({
     innerWidth: 320,
     innerHeight: 240,
@@ -673,7 +658,7 @@ test("viewport native pan policy permits browser scroll without browser zoom", a
 });
 
 test("viewport expands to the full board at minimum zoom", async () => {
-  const browser = getActiveBrowserHarness();
+  const browser = getBrowserHarness();
   browser.setWindowProperties({
     innerWidth: 100,
     innerHeight: 100,

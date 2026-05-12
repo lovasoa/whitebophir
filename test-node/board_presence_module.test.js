@@ -3,26 +3,11 @@ const assert = require("node:assert/strict");
 
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
-const { installBrowserHarness } = require("./helpers/browser_harness.js");
+const {
+  installBrowserHarnessForTest,
+} = require("./helpers/browser_harness.js");
 
-/** @type {ReturnType<typeof installBrowserHarness> | null} */
-let activeBrowserHarness = null;
-
-test.beforeEach(() => {
-  activeBrowserHarness = installBrowserHarness();
-});
-
-test.afterEach(() => {
-  activeBrowserHarness?.restore();
-  activeBrowserHarness = null;
-});
-
-function getActiveBrowserHarness() {
-  if (!activeBrowserHarness) {
-    throw new Error("Browser harness is not installed");
-  }
-  return activeBrowserHarness;
-}
+const getBrowserHarness = installBrowserHarnessForTest(test);
 
 class FakeElement {
   /** @param {string} id */
@@ -77,18 +62,16 @@ class FakeSVGSVGElement extends FakeSVGGraphicsElement {
  * @param {(id: string) => FakeElement | null} [documentLookup]
  */
 function createPresenceEnvironment(documentLookup) {
-  const browser = getActiveBrowserHarness();
+  const browser = getBrowserHarness();
   const elementsById = /** @type {Map<string, FakeElement>} */ (new Map());
   const drawingArea = new FakeSVGGraphicsElement("drawingArea");
   const svg = new FakeSVGSVGElement(elementsById);
 
-  browser.setWindowProperties({
-    innerWidth: 1024,
-    innerHeight: 768,
-  });
-  browser.setGlobal("SVGGraphicsElement", FakeSVGGraphicsElement);
-  browser.setDocument({
-    getElementById: documentLookup || ((id) => elementsById.get(id) || null),
+  browser.installClientDom({
+    globalOverrides: { SVGGraphicsElement: FakeSVGGraphicsElement },
+    getElementById(id) {
+      return documentLookup ? documentLookup(id) : elementsById.get(id) || null;
+    },
   });
 
   return {
