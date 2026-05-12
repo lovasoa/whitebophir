@@ -3,8 +3,26 @@ const assert = require("node:assert/strict");
 
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
+const { installBrowserHarness } = require("./helpers/browser_harness.js");
 
-const globalAny = /** @type {any} */ (global);
+/** @type {ReturnType<typeof installBrowserHarness> | null} */
+let activeBrowserHarness = null;
+
+test.beforeEach(() => {
+  activeBrowserHarness = installBrowserHarness();
+});
+
+test.afterEach(() => {
+  activeBrowserHarness?.restore();
+  activeBrowserHarness = null;
+});
+
+function getActiveBrowserHarness() {
+  if (!activeBrowserHarness) {
+    throw new Error("Browser harness is not installed");
+  }
+  return activeBrowserHarness;
+}
 
 class FakeElement {
   /** @param {string} id */
@@ -59,32 +77,27 @@ class FakeSVGSVGElement extends FakeSVGGraphicsElement {
  * @param {(id: string) => FakeElement | null} [documentLookup]
  */
 function createPresenceEnvironment(documentLookup) {
-  const previous = {
-    window: globalAny.window,
-    document: globalAny.document,
-    SVGGraphicsElement: globalAny.SVGGraphicsElement,
-  };
+  const browser = getActiveBrowserHarness();
   const elementsById = /** @type {Map<string, FakeElement>} */ (new Map());
   const drawingArea = new FakeSVGGraphicsElement("drawingArea");
   const svg = new FakeSVGSVGElement(elementsById);
 
-  globalAny.window = {
+  browser.setWindowProperties({
     innerWidth: 1024,
     innerHeight: 768,
-    setTimeout: () => 0,
-    clearTimeout: () => {},
-  };
-  globalAny.SVGGraphicsElement = FakeSVGGraphicsElement;
-  globalAny.document = {
+  });
+  browser.setGlobal("SVGGraphicsElement", FakeSVGGraphicsElement);
+  browser.setDocument({
     getElementById: documentLookup || ((id) => elementsById.get(id) || null),
-  };
+  });
 
   return {
     elementsById,
     drawingArea,
     svg,
+    time: browser,
     restore() {
-      Object.assign(globalAny, previous);
+      browser.restore();
     },
   };
 }
@@ -232,11 +245,6 @@ test("presence activity does not render rows while the panel is closed", async (
 test("presence activity row rendering is coalesced while the panel is open", async () => {
   const env = createPresenceEnvironment();
   try {
-    const pendingFrames = /** @type {Function[]} */ ([]);
-    globalAny.window.requestAnimationFrame = (/** @type {Function} */ run) => {
-      pendingFrames.push(run);
-      return pendingFrames.length;
-    };
     env.elementsById.set(
       "connectedUsersList",
       new FakeElement("connectedUsersList"),
@@ -257,9 +265,8 @@ test("presence activity row rendering is coalesced while the panel is open", asy
     presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());
 
     assert.equal(renderCount, 0);
-    assert.equal(pendingFrames.length, 1);
 
-    pendingFrames.shift()?.();
+    env.time.flushUntilIdle();
 
     assert.equal(renderCount, 1);
   } finally {

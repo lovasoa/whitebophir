@@ -8,6 +8,7 @@ const {
   getToolRuntimeAssetPath,
 } = require("../client-data/tools/tool-defaults.js");
 const { TOOL_CODE_BY_ID } = require("../client-data/tools/tool-order.js");
+const { installBrowserHarness } = require("./helpers/browser_harness.js");
 const PencilTool = require("../client-data/tools/pencil/index.js");
 const RectangleTool = require("../client-data/tools/rectangle/index.js");
 const ShapeTool = require("../client-data/tools/shape_tool.js");
@@ -29,10 +30,29 @@ const { MutationType } = MessageToolMetadata;
  *   appendItem(transform: TransformEntry): TransformEntry,
  * }} TransformList
  * @typedef {{set(id: string, element: any): void, get(id: string): any, delete(id: string): void}} ElementStore
- * @typedef {{elementsById: Map<string, any>, clock: {now: number}, windowListeners: Map<string, Function>, loadTool(toolName: string): any}} ReplayHarness
+ * @typedef {{elementsById: Map<string, any>, clock: {now: number}, time: ReturnType<typeof installBrowserHarness>, windowListeners: Map<string, Function>, loadTool(toolName: string): any}} ReplayHarness
  */
 
 const globalAny = /** @type {any} */ (global);
+/** @type {ReturnType<typeof installBrowserHarness> | null} */
+let activeBrowserHarness = null;
+
+test.beforeEach(() => {
+  activeBrowserHarness = installBrowserHarness();
+});
+
+test.afterEach(() => {
+  activeBrowserHarness?.restore();
+  activeBrowserHarness = null;
+});
+
+function getActiveBrowserHarness() {
+  if (!activeBrowserHarness) {
+    throw new Error("Browser harness is not installed");
+  }
+  return activeBrowserHarness;
+}
+
 /**
  * @param {PathSegment[]} pathData
  * @returns {PathSegment[]}
@@ -405,48 +425,38 @@ function createHarness() {
   };
 
   const tools = /** @type {{[name: string]: any}} */ ({});
-  const clock = { now: 0 };
+  const browser = getActiveBrowserHarness();
+  const clock = browser.clock;
   const windowListeners = /** @type {Map<string, Function>} */ (new Map());
-  globalAny.performance = {
-    now: () => clock.now,
-  };
-  globalAny.window = globalAny;
-  globalAny.window.addEventListener = (
-    /** @type {string} */ eventName,
-    /** @type {Function} */ listener,
-  ) => {
-    windowListeners.set(eventName, listener);
-  };
-  globalAny.window.removeEventListener = (
-    /** @type {string} */ eventName,
-    /** @type {Function} */ listener,
-  ) => {
-    if (windowListeners.get(eventName) === listener) {
-      windowListeners.delete(eventName);
-    }
-  };
-  globalAny.window.scrollTo = () => {};
-  globalAny.window.requestAnimationFrame = (
-    /** @type {(time: number) => void} */ callback,
-  ) =>
-    globalAny.setTimeout(() => {
-      callback(globalAny.Tools.clock?.now || 0);
-    }, 0);
-  globalAny.window.cancelAnimationFrame = (/** @type {number} */ id) => {
-    globalAny.clearTimeout(id);
-  };
-  globalAny.requestAnimationFrame = globalAny.window.requestAnimationFrame;
-  globalAny.cancelAnimationFrame = globalAny.window.cancelAnimationFrame;
-  globalAny.SVGPathElement = function SVGPathElement() {};
-  globalAny.SVGGraphicsElement = function SVGGraphicsElement() {};
-  globalAny.SVGSVGElement = function SVGSVGElement() {};
-  globalAny.SVGGElement = function SVGGElement() {};
-  globalAny.SVGTextElement = function SVGTextElement() {};
-  globalAny.KeyboardEvent = function KeyboardEvent() {};
-  globalAny.SVGTransform = {
+  browser.setWindowProperties({
+    innerWidth: 1024,
+    innerHeight: 768,
+    addEventListener: (
+      /** @type {string} */ eventName,
+      /** @type {Function} */ listener,
+    ) => {
+      windowListeners.set(eventName, listener);
+    },
+    removeEventListener: (
+      /** @type {string} */ eventName,
+      /** @type {Function} */ listener,
+    ) => {
+      if (windowListeners.get(eventName) === listener) {
+        windowListeners.delete(eventName);
+      }
+    },
+    scrollTo: () => {},
+  });
+  browser.setGlobal("SVGPathElement", function SVGPathElement() {});
+  browser.setGlobal("SVGGraphicsElement", function SVGGraphicsElement() {});
+  browser.setGlobal("SVGSVGElement", function SVGSVGElement() {});
+  browser.setGlobal("SVGGElement", function SVGGElement() {});
+  browser.setGlobal("SVGTextElement", function SVGTextElement() {});
+  browser.setGlobal("KeyboardEvent", function KeyboardEvent() {});
+  browser.setGlobal("SVGTransform", {
     SVG_TRANSFORM_MATRIX: 1,
-  };
-  globalAny.document = {
+  });
+  browser.setDocument({
     createElement: (/** @type {string} */ tagName) =>
       createBaseElement(store, tagName),
     createElementNS: (
@@ -463,12 +473,10 @@ function createHarness() {
       clientWidth: 1024,
       clientHeight: 768,
     },
-  };
+  });
   globalAny.document.scrollingElement = globalAny.document.documentElement;
-  globalAny.innerWidth = 1024;
-  globalAny.innerHeight = 768;
 
-  globalAny.Tools = {
+  const app = {
     dom: {
       status: "attached",
       board: board,
@@ -632,10 +640,12 @@ function createHarness() {
       token: null,
     },
   };
+  browser.setGlobal("Tools", app);
 
   return {
     elementsById: elementsById,
     clock: clock,
+    time: browser,
     windowListeners: windowListeners,
     loadTool: async (toolName) => {
       const toolPath = path.resolve(
@@ -1260,12 +1270,6 @@ test("Pencil keeps active local drawing out of the board SVG until release", asy
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
   const event = { preventDefault: () => {} };
-  const frames = /** @type {Function[]} */ ([]);
-  globalAny.window.requestAnimationFrame = (/** @type {Function} */ run) => {
-    frames.push(run);
-    return frames.length;
-  };
-  globalAny.window.cancelAnimationFrame = () => {};
   Object.defineProperty(globalAny.document.documentElement, "scrollLeft", {
     configurable: true,
     get() {
@@ -1287,11 +1291,10 @@ test("Pencil keeps active local drawing out of the board SVG until release", asy
   harness.clock.now = 202;
   pencilTool.listeners.move(200, 200, event);
 
-  assert.equal(frames.length, 1);
   assert.equal(harness.elementsById.has("l-1"), false);
   assert.equal(drawingAreaPaths().length, 0);
   assert.equal(globalAny.Tools.interaction.ownCursorSuppressionCount, 1);
-  assert.doesNotThrow(() => frames.shift()?.());
+  assert.doesNotThrow(() => harness.time.flushAsync());
 
   const overlayPath = getPencilLiveOverlayPath();
   assert.ok(overlayPath?.pathData.length > 0);
@@ -1309,42 +1312,30 @@ test("Pencil keeps active local drawing out of the board SVG until release", asy
 test("Cursor skips own marker updates while interaction suppresses it", async () => {
   const harness = createHarness();
   const cursorTool = await harness.loadTool("cursor");
-  const originalSetTimeout = globalAny.setTimeout;
-  globalAny.setTimeout = (
-    /** @type {(...args: any[]) => void} */ callback,
-    /** @type {number | undefined} */ delay,
-  ) => {
-    if (delay === 5000) return 0;
-    return originalSetTimeout(callback, delay);
-  };
   const lease = globalAny.Tools.interaction.suppressOwnCursor();
 
-  try {
-    cursorTool.draw({
-      tool: TOOL_CODE_BY_ID.cursor,
-      type: MutationType.UPDATE,
-      x: 10,
-      y: 20,
-      color: "#123456",
-      size: 4,
-    });
+  cursorTool.draw({
+    tool: TOOL_CODE_BY_ID.cursor,
+    type: MutationType.UPDATE,
+    x: 10,
+    y: 20,
+    color: "#123456",
+    size: 4,
+  });
 
-    assert.equal(harness.elementsById.has("cursor-me"), false);
+  assert.equal(harness.elementsById.has("cursor-me"), false);
 
-    lease.release();
-    cursorTool.draw({
-      tool: TOOL_CODE_BY_ID.cursor,
-      type: MutationType.UPDATE,
-      x: 10,
-      y: 20,
-      color: "#123456",
-      size: 4,
-    });
+  lease.release();
+  cursorTool.draw({
+    tool: TOOL_CODE_BY_ID.cursor,
+    type: MutationType.UPDATE,
+    x: 10,
+    y: 20,
+    color: "#123456",
+    size: 4,
+  });
 
-    assert.equal(harness.elementsById.has("cursor-me"), true);
-  } finally {
-    globalAny.setTimeout = originalSetTimeout;
-  }
+  assert.equal(harness.elementsById.has("cursor-me"), true);
 });
 
 test("Pencil input logic stops at the configured child limit", () => {
@@ -2041,57 +2032,47 @@ test("Text remote update refreshes the active editor for the same field", async 
   assert.equal(harness.elementsById.get("t-1").textContent, "remote draft");
 });
 
-test("Text rejection clears the resend timer for the active editor", async () => {
+test("Text rejection stops the active editor from resending its draft", async () => {
   const harness = createHarness();
   const { textModule, textState } = await bootTextEditorHarness();
   const event = { preventDefault: () => {}, target: null };
-  const originalSetTimeout = globalAny.setTimeout;
-  const originalClearTimeout = globalAny.clearTimeout;
-  const scheduled = new Map();
-  let nextTimeoutId = 1;
 
-  globalAny.setTimeout = (/** @type {Function} */ callback) => {
-    const timeoutId = nextTimeoutId++;
-    scheduled.set(timeoutId, callback);
-    return timeoutId;
-  };
-  globalAny.clearTimeout = (/** @type {number} */ timeoutId) => {
-    scheduled.delete(timeoutId);
-  };
+  textModule.press(textState, 100, 100, event, false);
+  textState.input.value = "hello";
 
-  try {
-    textModule.press(textState, 100, 100, event, false);
-    textState.input.value = "hello";
+  harness.clock.now = 200;
+  textState.boundTextChangeHandler({});
 
-    harness.clock.now = 200;
-    textState.boundTextChangeHandler({});
+  textState.input.value = "hello again";
+  harness.clock.now = 250;
+  textState.boundTextChangeHandler({});
 
-    textState.input.value = "hello again";
-    harness.clock.now = 250;
-    textState.boundTextChangeHandler({});
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [MutationType.CREATE, MutationType.UPDATE],
+  );
+  const textId = globalAny.Tools.sentMessages[0].data.id;
 
-    assert.equal(scheduled.size, 1);
-    assert.equal(textState.curText.id, "t-1");
+  textModule.onMutationRejected(
+    textState,
+    { tool: TOOL_CODE_BY_ID.text, type: MutationType.UPDATE, id: textId },
+    "shape too large",
+  );
 
-    textModule.onMutationRejected(
-      textState,
-      { tool: TOOL_CODE_BY_ID.text, type: MutationType.UPDATE, id: "t-1" },
-      "shape too large",
-    );
+  harness.time.flushUntilIdle();
+  harness.time.advanceTime(1000);
+  harness.time.flushUntilIdle();
 
-    assert.equal(textState.active, false);
-    assert.equal(textState.curText.timeout, null);
-    assert.equal(scheduled.size, 0);
-    assert.deepEqual(
-      globalAny.Tools.sentMessages.map(
-        (/** @type {any} */ message) => message.data.type,
-      ),
-      [MutationType.CREATE, MutationType.UPDATE],
-    );
-  } finally {
-    globalAny.setTimeout = originalSetTimeout;
-    globalAny.clearTimeout = originalClearTimeout;
-  }
+  assert.equal(textState.active, false);
+  assert.equal(textState.input.value, "");
+  assert.deepEqual(
+    globalAny.Tools.sentMessages.map(
+      (/** @type {any} */ message) => message.data.type,
+    ),
+    [MutationType.CREATE, MutationType.UPDATE],
+  );
 });
 
 test("Hand selector sends a final transform on quick release", async () => {
