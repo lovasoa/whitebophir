@@ -934,6 +934,40 @@ function createToolBootContext(runtime, assetUrl) {
   };
 }
 
+/**
+ * @param {any} [target]
+ * @param {Record<string, unknown>} [eventInit]
+ * @returns {any}
+ */
+function createToolEvent(target = null, eventInit = {}) {
+  let preventDefaultCount = 0;
+  return {
+    ...eventInit,
+    target,
+    get defaultPrevented() {
+      return preventDefaultCount > 0;
+    },
+    get preventDefaultCount() {
+      return preventDefaultCount;
+    },
+    preventDefault() {
+      preventDefaultCount += 1;
+    },
+  };
+}
+
+/**
+ * @param {(x: number, y: number, evt: any) => any} listener
+ * @param {number} x
+ * @param {number} y
+ * @param {any} [target]
+ * @param {Record<string, unknown>} [eventInit]
+ * @returns {any}
+ */
+function dispatchToolEvent(listener, x, y, target = null, eventInit = {}) {
+  return listener(x, y, createToolEvent(target, eventInit));
+}
+
 function expectedTwoPointStroke() {
   return [
     { type: "M", values: [100, 200] },
@@ -1105,17 +1139,12 @@ test("Pencil input sends an initial child point without DOM setup", () => {
   );
   state.lastTime = 0;
   state.minPencilIntervalMs = 70;
-  let preventDefaultCount = 0;
-  const event = /** @type {any} */ ({
-    preventDefault: () => {
-      preventDefaultCount += 1;
-    },
-  });
+  const event = createToolEvent();
 
   PencilTool.press(state, 100, 100, event);
   PencilTool.release(state, 200, 200);
 
-  assert.equal(preventDefaultCount, 2);
+  assert.equal(event.preventDefaultCount, 2);
   assert.deepEqual(
     tools.sentMessages.map((/** @type {any} */ message) => message.data.type),
     [MutationType.CREATE, MutationType.APPEND],
@@ -1170,7 +1199,7 @@ test("Pencil move logic sends the first point and throttles follow-ups", () => {
 test("Pencil keeps active local drawing out of the board SVG until release", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
-  const event = { preventDefault: () => {} };
+  const event = createToolEvent();
   harness.time.rejectDocumentScrollReads(
     "should not be read during overlay flush",
   );
@@ -1268,7 +1297,7 @@ test("Pencil input logic stops at the configured child limit", () => {
 test("Pencil disconnect aborts the active stroke and removes the local line", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
-  const event = { preventDefault: () => {} };
+  const event = createToolEvent();
 
   globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
@@ -1296,7 +1325,7 @@ test("Pencil disconnect aborts the active stroke and removes the local line", as
 test("Pencil rejection aborts the active stroke and sends one cleanup delete", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
-  const event = { preventDefault: () => {} };
+  const event = createToolEvent();
 
   globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
@@ -1327,7 +1356,7 @@ test("Pencil rejection aborts the active stroke and sends one cleanup delete", a
 test("Pencil rejection after release removes the materialized stroke once", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
-  const event = { preventDefault: () => {} };
+  const event = createToolEvent();
 
   globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
@@ -1411,7 +1440,7 @@ test("Pencil replay is idempotent for the same persisted stroke", async () => {
 test("Pencil delete of the active line aborts the active stroke", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
-  const event = { preventDefault: () => {} };
+  const event = createToolEvent();
 
   globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
@@ -1438,7 +1467,7 @@ test("Pencil delete of the active line aborts the active stroke", async () => {
 test("Pencil clear aborts the active stroke", async () => {
   const harness = createHarness();
   const pencilTool = await harness.loadTool("pencil");
-  const event = { preventDefault: () => {} };
+  const event = createToolEvent();
 
   globalAny.Tools.toolRegistry.current = pencilTool;
   harness.clock.now = 0;
@@ -1624,16 +1653,11 @@ test("Rectangle press creates the seed message without DOM setup", () => {
       (assetFile) => assetFile,
     ),
   );
-  let prevented = false;
+  const event = createToolEvent();
 
-  const event = /** @type {any} */ ({
-    preventDefault: () => {
-      prevented = true;
-    },
-  });
   RectangleTool.press(state, 80, 20, event);
 
-  assert.equal(prevented, true);
+  assert.equal(event.preventDefaultCount, 1);
   assert.deepEqual(tools.sentMessages[0].data, {
     tool: TOOL_CODE_BY_ID.rectangle,
     type: MutationType.CREATE,
@@ -1659,10 +1683,10 @@ equalSpanToolCases.forEach(([toolName, id]) => {
     const harness = createHarness();
     const tool = await harness.loadTool(toolName);
 
-    tool.listeners.press(17136, 9240, { preventDefault: () => {} });
+    dispatchToolEvent(tool.listeners.press, 17136, 9240);
     tool.secondary.active = true;
     harness.clock.now = 100;
-    tool.listeners.move(5105, 0, { preventDefault: () => {} });
+    dispatchToolEvent(tool.listeners.move, 5105, 0);
 
     const updateMessage = globalAny.Tools.sentMessages[1].data;
     assert.deepEqual(updateMessage, {
@@ -1855,13 +1879,7 @@ test("Text create sends an integer baseline coordinate", async () => {
   const { textModule, textState } = await bootTextEditorHarness();
   globalAny.Tools.preferences.getSize = () => 70;
 
-  textModule.press(
-    textState,
-    100,
-    200,
-    { preventDefault: () => {}, target: null },
-    false,
-  );
+  textModule.press(textState, 100, 200, createToolEvent(), false);
   textState.input.value = "hello";
   harness.clock.now = 200;
   textState.boundTextChangeHandler({});
@@ -1877,13 +1895,7 @@ test("Text create clamps the derived font size before sending", async () => {
   const { textModule, textState } = await bootTextEditorHarness();
   globalAny.Tools.preferences.getSize = () => 310;
 
-  textModule.press(
-    textState,
-    100,
-    200,
-    { preventDefault: () => {}, target: null },
-    false,
-  );
+  textModule.press(textState, 100, 200, createToolEvent(), false);
   textState.input.value = "hello";
   harness.clock.now = 200;
   textState.boundTextChangeHandler({});
@@ -1897,13 +1909,7 @@ test("Text remote update refreshes the active editor for the same field", async 
   const harness = createHarness();
   const { textModule, textState } = await bootTextEditorHarness();
 
-  textModule.press(
-    textState,
-    100,
-    200,
-    { preventDefault: () => {}, target: null },
-    false,
-  );
+  textModule.press(textState, 100, 200, createToolEvent(), false);
   textState.input.value = "local draft";
   harness.clock.now = 200;
   textState.boundTextChangeHandler({});
@@ -1927,7 +1933,7 @@ test("Text remote update refreshes the active editor for the same field", async 
 test("Text rejection stops the active editor from resending its draft", async () => {
   const harness = createHarness();
   const { textModule, textState } = await bootTextEditorHarness();
-  const event = { preventDefault: () => {}, target: null };
+  const event = createToolEvent();
 
   textModule.press(textState, 100, 100, event, false);
   textState.input.value = "hello";
@@ -1981,18 +1987,9 @@ test("Hand selector sends a final transform on quick release", async () => {
 
   handTool.secondary.active = true;
   harness.clock.now = 10;
-  handTool.listeners.press(110, 110, {
-    preventDefault: () => {},
-    target: rect,
-  });
-  handTool.listeners.move(150, 135, {
-    preventDefault: () => {},
-    target: rect,
-  });
-  handTool.listeners.release(150, 135, {
-    preventDefault: () => {},
-    target: rect,
-  });
+  dispatchToolEvent(handTool.listeners.press, 110, 110, rect);
+  dispatchToolEvent(handTool.listeners.move, 150, 135, rect);
+  dispatchToolEvent(handTool.listeners.release, 150, 135, rect);
 
   assert.equal(globalAny.Tools.sentMessages.length, 1);
   assert.equal(globalAny.Tools.sentMessages[0].toolName, "hand");
@@ -2080,18 +2077,9 @@ test("Hand selector stops at the last valid transform", async () => {
   globalAny.Tools.drawingArea.appendChild(rect);
 
   handTool.secondary.active = true;
-  handTool.listeners.press(110, 110, {
-    preventDefault: () => {},
-    target: rect,
-  });
-  handTool.listeners.move(200, 135, {
-    preventDefault: () => {},
-    target: rect,
-  });
-  handTool.listeners.release(200, 135, {
-    preventDefault: () => {},
-    target: rect,
-  });
+  dispatchToolEvent(handTool.listeners.press, 110, 110, rect);
+  dispatchToolEvent(handTool.listeners.move, 200, 135, rect);
+  dispatchToolEvent(handTool.listeners.release, 200, 135, rect);
 
   assert.equal(globalAny.Tools.sentMessages.length, 0);
   assert.equal(rect.transform.baseVal.numberOfItems, 1);
@@ -2133,18 +2121,9 @@ test("Hand selector keeps the original element selected after duplicate", async 
     matches: () => false,
   };
 
-  handTool.listeners.press(50, 50, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
-  handTool.listeners.move(200, 200, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
-  await handTool.listeners.release(200, 200, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
+  dispatchToolEvent(handTool.listeners.press, 50, 50, outsideTarget);
+  dispatchToolEvent(handTool.listeners.move, 200, 200, outsideTarget);
+  await dispatchToolEvent(handTool.listeners.release, 200, 200, outsideTarget);
 
   harness.time.dispatchWindowEvent("keydown", {
     key: "d",
@@ -2164,18 +2143,9 @@ test("Hand selector keeps the original element selected after duplicate", async 
   });
 
   const originalRect = harness.elementsById.get("r-1");
-  handTool.listeners.press(110, 110, {
-    preventDefault: () => {},
-    target: originalRect,
-  });
-  handTool.listeners.move(150, 135, {
-    preventDefault: () => {},
-    target: originalRect,
-  });
-  handTool.listeners.release(150, 135, {
-    preventDefault: () => {},
-    target: originalRect,
-  });
+  dispatchToolEvent(handTool.listeners.press, 110, 110, originalRect);
+  dispatchToolEvent(handTool.listeners.move, 150, 135, originalRect);
+  dispatchToolEvent(handTool.listeners.release, 150, 135, originalRect);
 
   assert.equal(globalAny.Tools.sentMessages.length, 2);
   assert.deepEqual(globalAny.Tools.sentMessages[1].data, {
@@ -2220,30 +2190,20 @@ test("Hand selector ignores stale async selection after transform starts", async
     matches: () => false,
   };
 
-  handTool.listeners.press(50, 50, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
-  handTool.listeners.move(200, 200, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
-  const pendingSelection = handTool.listeners.release(200, 200, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
+  dispatchToolEvent(handTool.listeners.press, 50, 50, outsideTarget);
+  dispatchToolEvent(handTool.listeners.move, 200, 200, outsideTarget);
+  const pendingSelection = dispatchToolEvent(
+    handTool.listeners.release,
+    200,
+    200,
+    outsideTarget,
+  );
 
-  handTool.listeners.press(110, 110, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
+  dispatchToolEvent(handTool.listeners.press, 110, 110, outsideTarget);
   await pendingSelection;
 
   assert.doesNotThrow(() => {
-    handTool.listeners.move(150, 135, {
-      preventDefault: () => {},
-      target: outsideTarget,
-    });
+    dispatchToolEvent(handTool.listeners.move, 150, 135, outsideTarget);
   });
 });
 
@@ -2284,18 +2244,9 @@ test("Hand box selection can use IntersectionObserver without target bbox reads"
     matches: () => false,
   };
 
-  handTool.listeners.press(50, 50, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
-  handTool.listeners.move(200, 200, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
-  await handTool.listeners.release(200, 200, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
+  dispatchToolEvent(handTool.listeners.press, 50, 50, outsideTarget);
+  dispatchToolEvent(handTool.listeners.move, 200, 200, outsideTarget);
+  await dispatchToolEvent(handTool.listeners.release, 200, 200, outsideTarget);
 
   harness.time.dispatchWindowEvent("keydown", {
     key: "d",
@@ -2340,18 +2291,9 @@ test("Hand box selection does not fall back to target bbox reads without Interse
     matches: () => false,
   };
 
-  handTool.listeners.press(50, 50, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
-  handTool.listeners.move(200, 200, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
-  await handTool.listeners.release(200, 200, {
-    preventDefault: () => {},
-    target: outsideTarget,
-  });
+  dispatchToolEvent(handTool.listeners.press, 50, 50, outsideTarget);
+  dispatchToolEvent(handTool.listeners.move, 200, 200, outsideTarget);
+  await dispatchToolEvent(handTool.listeners.release, 200, 200, outsideTarget);
 
   harness.time.dispatchWindowEvent("keydown", {
     key: "d",
@@ -2388,50 +2330,33 @@ test("Hand tool declares native touch scrolling when selector mode is off", asyn
 test("Hand tool touch gestures do not run synthetic drag panning", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
-  let prevented = 0;
+  const pressEvent = createToolEvent(null, {
+    touches: [{ clientX: 100, clientY: 100 }],
+    changedTouches: [{ clientX: 100, clientY: 100 }],
+    cancelable: true,
+  });
+  const moveEvent = createToolEvent(null, {
+    touches: [{ clientX: 120, clientY: 120 }],
+    changedTouches: [{ clientX: 120, clientY: 120 }],
+    cancelable: true,
+  });
+  const releaseEvent = createToolEvent(null, {
+    touches: [],
+    changedTouches: [{ clientX: 120, clientY: 120 }],
+    cancelable: true,
+  });
 
   handTool.onstart?.(null);
-  handTool.listeners.press(
-    0,
-    0,
-    {
-      touches: [{ clientX: 100, clientY: 100 }],
-      changedTouches: [{ clientX: 100, clientY: 100 }],
-      cancelable: true,
-      preventDefault: () => {
-        prevented += 1;
-      },
-    },
-    true,
-  );
-  handTool.listeners.move(
-    0,
-    0,
-    {
-      touches: [{ clientX: 120, clientY: 120 }],
-      changedTouches: [{ clientX: 120, clientY: 120 }],
-      cancelable: true,
-      preventDefault: () => {
-        prevented += 1;
-      },
-    },
-    true,
-  );
-  handTool.listeners.release(
-    0,
-    0,
-    {
-      touches: [],
-      changedTouches: [{ clientX: 120, clientY: 120 }],
-      cancelable: true,
-      preventDefault: () => {
-        prevented += 1;
-      },
-    },
-    true,
-  );
+  handTool.listeners.press(0, 0, pressEvent, true);
+  handTool.listeners.move(0, 0, moveEvent, true);
+  handTool.listeners.release(0, 0, releaseEvent, true);
 
-  assert.equal(prevented, 0);
+  assert.equal(
+    pressEvent.preventDefaultCount +
+      moveEvent.preventDefaultCount +
+      releaseEvent.preventDefaultCount,
+    0,
+  );
 });
 
 test("Eraser replay removes only the targeted stable id", async () => {
