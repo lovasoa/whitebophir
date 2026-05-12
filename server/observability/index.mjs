@@ -892,6 +892,12 @@ function shutdownObservability() {
   return sdk.shutdown();
 }
 
+async function flushObservability() {
+  await Promise.all(
+    traceSpanProcessors.map((processor) => processor.forceFlush()),
+  );
+}
+
 const logger = {
   /**
    * @param {"debug"|"info"|"warn"|"error"} level
@@ -948,6 +954,7 @@ const observabilityMetrics = {
 const tracing = {
   addActiveSpanEvent,
   extractContext,
+  flush: flushObservability,
   recordActiveSpanError,
   recordSpanError,
   setSpanAttributes,

@@ -32,6 +32,27 @@ function getBoardDataClass() {
   return loadBoardData();
 }
 
+/** @type {Set<any>} */
+const trackedBoards = new Set();
+
+test.afterEach(() => {
+  for (const board of trackedBoards) {
+    board.dispose();
+  }
+  trackedBoards.clear();
+  resetBoardRegistry();
+});
+
+/**
+ * @template T
+ * @param {T} board
+ * @returns {T}
+ */
+function trackBoard(board) {
+  trackedBoards.add(board);
+  return board;
+}
+
 /**
  * @param {any} BoardData
  * @param {string} name
@@ -39,7 +60,7 @@ function getBoardDataClass() {
  * @returns {any}
  */
 function createBoard(BoardData, name, config) {
-  return new BoardData(name, config || createConfig());
+  return trackBoard(new BoardData(name, config || createConfig()));
 }
 
 /**
@@ -48,8 +69,8 @@ function createBoard(BoardData, name, config) {
  * @param {any} [config]
  * @returns {Promise<any>}
  */
-function loadBoard(BoardData, name, config) {
-  return BoardData.load(name, config || createConfig());
+async function loadBoard(BoardData, name, config) {
+  return trackBoard(await BoardData.load(name, config || createConfig()));
 }
 
 /**
@@ -583,14 +604,13 @@ test("BoardData.save skips redundant clean saves once persisted state is current
       },
     };
 
-    await board.save();
-    const firstStat = await fs.stat(svgPath);
+    assert.deepEqual(await board.save(), { status: "saved" });
+    const firstSavedSvg = await fs.readFile(svgPath, "utf8");
 
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    await board.save();
+    assert.deepEqual(await board.save(), { status: "skipped" });
 
-    const secondStat = await fs.stat(svgPath);
-    assert.equal(secondStat.mtimeMs, firstStat.mtimeMs);
+    const secondSavedSvg = await fs.readFile(svgPath, "utf8");
+    assert.equal(secondSavedSvg, firstSavedSvg);
   });
 });
 
@@ -605,7 +625,6 @@ test("scheduleSaveTimeout does not queue an autosave while a save is in progress
   };
 
   board.scheduleSaveTimeout(0);
-  await new Promise((resolve) => setTimeout(resolve, 25));
 
   assert.equal(saveCalls, 0);
   assert.equal(board.saveTimeoutId, undefined);
@@ -1626,7 +1645,7 @@ test("BoardData.dispose prevents queued autosaves from a stale board instance", 
         5,
       );
       await currentBoard.save();
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.deepEqual(await staleBoard.save(), { status: "skipped" });
 
       const savedSvg = await fs.readFile(svgPath, "utf8");
       assert.match(savedSvg, /id="rect-1"/);
@@ -1917,11 +1936,22 @@ test("BoardData.save serializes concurrent saves and releases after failure", as
   /** @type {string[]} */
   const calls = [];
   let shouldFail = true;
+  /** @type {() => void} */
+  let releaseFirstSave = () => {};
+  /** @type {() => void} */
+  let resolveFirstSaveStarted = () => {};
+  const firstSaveStarted = new Promise((resolve) => {
+    resolveFirstSaveStarted = () => resolve(undefined);
+  });
+  const firstSaveGate = new Promise((resolve) => {
+    releaseFirstSave = () => resolve(undefined);
+  });
 
   board._unsafe_save = async () => {
     calls.push("start");
-    await new Promise((resolve) => setTimeout(resolve, 0));
     if (shouldFail) {
+      resolveFirstSaveStarted();
+      await firstSaveGate;
       shouldFail = false;
       calls.push("fail");
       throw new Error("boom");
@@ -1937,18 +1967,26 @@ test("BoardData.save serializes concurrent saves and releases after failure", as
       calls.push("first-rejected");
     },
   );
+  await firstSaveStarted;
   const secondSave = board.save().then(() => {
     calls.push("second-resolved");
   });
+  releaseFirstSave();
 
   await Promise.all([firstSave, secondSave]);
 
-  assert.equal(calls[0], "start");
-  assert.equal(calls[1], "fail");
-  assert.equal(calls[2], "start");
+  const firstStartIndex = calls.indexOf("start");
+  const failIndex = calls.indexOf("fail");
+  const secondStartIndex = calls.indexOf("start", firstStartIndex + 1);
+  const okIndex = calls.indexOf("ok");
+  const secondResolvedIndex = calls.indexOf("second-resolved");
+
+  assert.ok(firstStartIndex >= 0);
+  assert.ok(failIndex > firstStartIndex);
+  assert.ok(secondStartIndex > failIndex);
+  assert.ok(okIndex > secondStartIndex);
   assert.equal(calls.includes("first-rejected"), true);
-  assert.equal(calls[calls.length - 2], "ok");
-  assert.equal(calls[calls.length - 1], "second-resolved");
+  assert.ok(secondResolvedIndex > okIndex);
 });
 
 test("BoardData.save serializes concurrent saves across boards", async () => {

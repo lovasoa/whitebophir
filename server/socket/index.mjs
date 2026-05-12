@@ -882,6 +882,7 @@ export const __test = {
   getLoadedBoard: function getLoadedBoardForTest(/** @type {string} */ name) {
     return getLoadedBoard(name);
   },
+  listLoadedBoards,
   getLastUserReportLog: function getLastUserReportLog() {
     return getLastSocketUserReportLog();
   },

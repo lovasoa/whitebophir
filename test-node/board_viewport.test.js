@@ -1,5 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const {
+  installBrowserHarnessForTest,
+} = require("./helpers/browser_harness.js");
+
+const getBrowserHarness = installBrowserHarnessForTest(test);
 
 async function loadViewportModule() {
   return import("../client-data/js/board_viewport.js");
@@ -9,16 +14,13 @@ async function loadViewportModule() {
  * @param {string} [initialHash]
  */
 function createViewportHashTestEnvironment(initialHash = "#0,0,1.000") {
-  const globalAny = /** @type {any} */ (global);
-  const previousWindow = globalAny.window;
-  const previousDocument = globalAny.document;
-  /** @type {Map<string, Array<(event: {type: string}) => void>>} */
-  const listeners = new Map();
-  /** @type {Map<number, {fn: () => void, delay: number}>} */
-  const timers = new Map();
+  const browser = getBrowserHarness();
+  browser.setWindowProperties({
+    innerWidth: 100,
+    innerHeight: 100,
+  });
   /** @type {Array<{type: string, url: unknown}>} */
   const historyCalls = [];
-  let nextTimerId = 1;
 
   const fakeDocument = {
     documentElement: {
@@ -27,19 +29,15 @@ function createViewportHashTestEnvironment(initialHash = "#0,0,1.000") {
     },
   };
 
-  /** @param {string} type */
-  function dispatch(type) {
-    for (const listener of listeners.get(type) || []) listener({ type });
-  }
-
   /** @param {unknown} url */
   function writeHash(url) {
     if (typeof url === "string" && url.startsWith("#")) {
-      fakeWindow.location.hash = url;
+      browser.window.location.hash = url;
     }
   }
 
-  const fakeWindow = {
+  browser.setDocument(fakeDocument);
+  browser.setWindowProperties({
     innerWidth: 100,
     innerHeight: 100,
     location: {
@@ -65,59 +63,18 @@ function createViewportHashTestEnvironment(initialHash = "#0,0,1.000") {
         writeHash(url);
       },
     },
-    /**
-     * @param {string} type
-     * @param {(event: {type: string}) => void} listener
-     */
-    addEventListener(type, listener) {
-      const typeListeners = listeners.get(type) || [];
-      typeListeners.push(listener);
-      listeners.set(type, typeListeners);
-    },
-    /**
-     * @param {() => void} fn
-     * @param {number} delay
-     */
-    setTimeout(fn, delay) {
-      const id = nextTimerId;
-      nextTimerId += 1;
-      timers.set(id, { fn, delay });
-      return id;
-    },
-    /** @param {number} id */
-    clearTimeout(id) {
-      timers.delete(id);
-    },
-    /**
-     * @param {number} left
-     * @param {number} top
-     */
-    scrollTo(left, top) {
-      fakeDocument.documentElement.scrollLeft = left;
-      fakeDocument.documentElement.scrollTop = top;
-      dispatch("scroll");
-    },
-  };
-
-  globalAny.window = fakeWindow;
-  globalAny.document = fakeDocument;
+  });
 
   return {
-    window: fakeWindow,
+    window: browser.window,
     document: fakeDocument,
     historyCalls,
-    timers,
-    /** @param {number} delay */
-    flushTimers(delay) {
-      for (const [id, timer] of [...timers]) {
-        if (timer.delay !== delay) continue;
-        timers.delete(id);
-        timer.fn();
-      }
+    settleHashSync() {
+      browser.flushTimersByDelay(200);
+      browser.flushUntilIdle();
     },
     restore() {
-      globalAny.window = previousWindow;
-      globalAny.document = previousDocument;
+      browser.restore();
     },
   };
 }
@@ -357,16 +314,14 @@ test("viewport hash sync waits until hand pan ends", async () => {
 
     viewport.beginPan(0, 0);
     viewport.movePan(-25, -40);
-    env.flushTimers(200);
+    env.settleHashSync();
 
     assert.equal(env.window.location.hash, "#0,0,1.000");
     assert.equal(env.historyCalls.length, 0);
-    assert.equal(env.timers.size, 0);
 
     viewport.endPan();
 
-    assert.equal(env.timers.size, 1);
-    env.flushTimers(200);
+    env.settleHashSync();
     assert.equal(env.window.location.hash, "#25,40,1.000");
     assert.deepEqual(env.historyCalls, [
       { type: "replaceState", url: "#25,40,1.000" },
@@ -387,9 +342,8 @@ test("viewport hash sync waits for zoom debounce", async () => {
 
     assert.equal(env.window.location.hash, "#0,0,1.000");
     assert.equal(env.historyCalls.length, 0);
-    assert.equal(env.timers.size, 1);
 
-    env.flushTimers(200);
+    env.settleHashSync();
 
     assert.equal(env.window.location.hash, "#0,0,0.500");
     assert.deepEqual(env.historyCalls, [
@@ -446,13 +400,13 @@ test("viewport pinch prevents default until all touches end", async () => {
     const endOne = createTouchEvent("touchend", [movedFirst], [movedSecond]);
     board.dispatch("touchend", endOne);
     assert.equal(endOne.defaultPrevented, true);
-    env.flushTimers(200);
+    env.settleHashSync();
     assert.equal(env.historyCalls.length, 0);
 
     const endAll = createTouchEvent("touchend", [], [movedFirst]);
     board.dispatch("touchend", endAll);
     assert.equal(endAll.defaultPrevented, true);
-    env.flushTimers(200);
+    env.settleHashSync();
     assert.equal(env.historyCalls.length, 1);
   } finally {
     env.restore();
@@ -560,7 +514,7 @@ test("viewport touchcancel aborts pinch without committing hash sync", async () 
     board.dispatch("touchcancel", cancel);
     assert.equal(cancel.defaultPrevented, true);
 
-    env.flushTimers(200);
+    env.settleHashSync();
     assert.equal(env.historyCalls.length, 0);
   } finally {
     env.restore();
@@ -604,12 +558,11 @@ test("viewport ignores browser-owned non-cancelable pinch events", async () => {
 });
 
 test("viewport owns svg extent growth and layout sync", async () => {
-  const globalAny = /** @type {any} */ (global);
-  const previousWindow = globalAny.window;
-  globalAny.window = {
+  const browser = getBrowserHarness();
+  browser.setWindowProperties({
     innerWidth: 320,
     innerHeight: 240,
-  };
+  });
   try {
     const { createViewportController } = await loadViewportModule();
     const tools = /** @type {any} */ ({
@@ -657,7 +610,7 @@ test("viewport owns svg extent growth and layout sync", async () => {
       false,
     );
   } finally {
-    globalAny.window = previousWindow;
+    browser.restore();
   }
 });
 
@@ -705,13 +658,11 @@ test("viewport native pan policy permits browser scroll without browser zoom", a
 });
 
 test("viewport expands to the full board at minimum zoom", async () => {
-  const globalAny = /** @type {any} */ (global);
-  const previousWindow = globalAny.window;
-  globalAny.window = {
+  const browser = getBrowserHarness();
+  browser.setWindowProperties({
     innerWidth: 100,
     innerHeight: 100,
-    setTimeout: () => 0,
-  };
+  });
   try {
     const { createViewportController } = await loadViewportModule();
     const tools = /** @type {any} */ ({
@@ -753,6 +704,6 @@ test("viewport expands to the full board at minimum zoom", async () => {
       touchAction: "none",
     });
   } finally {
-    globalAny.window = previousWindow;
+    browser.restore();
   }
 });

@@ -1628,7 +1628,6 @@ test("report_user logs reporter and reported user details for active board membe
   await createSocketScenario(
     {
       historyDirPrefix: "wbo-users-report-",
-      env: { WBO_SILENT: "true" },
     },
     async ({ connect, handler, test }) => {
       const reporter = await connect({
@@ -1695,9 +1694,6 @@ test("report_user respects custom header ip sources for active board members", a
     {
       historyDirPrefix: "wbo-users-report-header-",
       config: { IP_SOURCE: "CF-Connecting-IP" },
-      env: {
-        WBO_SILENT: "true",
-      },
     },
     async ({ connect, handler, test }) => {
       const reporter = await connect({
