@@ -568,25 +568,25 @@
     }
   };
 
-  let isPathDataSupported =
-    SVGPathElement.prototype.getPathData !== undefined &&
-    SVGPathElement.prototype.setPathData !== undefined;
+  const hasNativePathDataDictionaries = () => {
+    if (
+      typeof SVGPathElement.prototype.getPathData !== "function" ||
+      typeof SVGPathElement.prototype.setPathData !== "function"
+    ) {
+      return false;
+    }
 
-  // Apply the polyfill if the native implementation of setPathData() accepts only SVGPathSegment instances
-  // https://github.com/w3c/svgwg/issues/974
-  // https://github.com/w3c/editing/issues/483
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=1954044#c18
-  if (isPathDataSupported) {
     try {
       document
         .createElementNS("http://www.w3.org/2000/svg", "path")
         .setPathData([{ type: "M", values: [0, 0] }]);
+      return true;
     } catch (_error) {
-      isPathDataSupported = false;
+      return false;
     }
-  }
+  };
 
-  if (isPathDataSupported === false) {
+  if (!hasNativePathDataDictionaries()) {
     const commandsMap = {
       Z: "Z",
       M: "M",
