@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import {
+  parseBasePathEnv,
   parseCommaSeparatedEnv,
   parseDisabledFlagEnv,
   parseEnumEnv,
@@ -43,6 +44,9 @@ export const LOG_LEVEL = parseEnumEnv("LOG_LEVEL", LOG_LEVELS, "info");
 
 /** Static web root used to serve the client application files. */
 export const WEBROOT = parseStringEnv("WBO_WEBROOT", DEFAULT_WEBROOT);
+
+/** External URL path prefix used when WBO is mounted behind a reverse proxy. */
+export const BASE_PATH = parseBasePathEnv("WBO_BASE_PATH");
 
 /** Optional HTML snippet inserted before `</head>` in rendered HTML pages. */
 export const HTML_HEAD_SNIPPET_PATH = parseStringEnv(

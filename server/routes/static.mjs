@@ -34,7 +34,7 @@ function serveBoardStaticAsset(ctx) {
  * @returns {void}
  */
 function serveStaticFile(ctx, nextUrl) {
-  if (nextUrl !== undefined) ctx.request.url = nextUrl;
+  ctx.request.url = nextUrl || `${ctx.url.pathname}${ctx.url.search}`;
   ctx.runtime.fileserver(
     ctx.request,
     ctx.response,
@@ -49,7 +49,9 @@ function serveStaticFile(ctx, nextUrl) {
 async function redirectToRandomBoard(ctx) {
   const boardName = await allocateRandomBoardName(ctx.runtime.config);
   annotateBoardRequest(ctx.observed, boardName);
-  ctx.response.writeHead(307, { Location: boardDocumentLocation(boardName) });
+  ctx.response.writeHead(307, {
+    Location: boardDocumentLocation(ctx.runtime.config, boardName),
+  });
   ctx.response.end(boardName);
 }
 
@@ -73,7 +75,7 @@ function redirectToDefaultBoard(ctx) {
   if (defaultBoard !== "") {
     annotateBoardRequest(ctx.observed, defaultBoard);
     ctx.response.writeHead(302, {
-      Location: boardDocumentLocation(defaultBoard),
+      Location: boardDocumentLocation(ctx.runtime.config, defaultBoard),
     });
     ctx.response.end(defaultBoard);
     return;

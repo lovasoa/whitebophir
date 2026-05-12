@@ -359,7 +359,7 @@ function resolveClientIp(socket, boardName, config) {
  * @returns {Promise<import("socket.io").Server>}
  */
 async function startIO(app, config) {
-  io = new Server(app);
+  io = new Server(app, { path: "/socket.io" });
   io.use(
     (
       /** @type {AppSocket} */ socket,

@@ -7,6 +7,7 @@ import {
 import { pinReplayBaseline } from "../board/registry.mjs";
 import { badRequest } from "../http/boundary_errors.mjs";
 import { requestScheme } from "../http/observation.mjs";
+import { publicPath } from "../http/request_url.mjs";
 import {
   appendSetCookieHeader,
   generateUserSecret,
@@ -149,12 +150,13 @@ function requireBoardDocumentNames(params, name = "board") {
 }
 
 /**
+ * @param {ServerConfig} config
  * @param {string} boardName
  * @param {string} [search]
  * @returns {string}
  */
-function boardDocumentLocation(boardName, search = "") {
-  return `/boards/${encodeURIComponent(boardName)}${search}`;
+function boardDocumentLocation(config, boardName, search = "") {
+  return `${publicPath(config, `/boards/${encodeURIComponent(boardName)}`)}${search}`;
 }
 
 /**

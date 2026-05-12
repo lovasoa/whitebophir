@@ -47,15 +47,16 @@ const { tracing } = observability;
  * @returns {void}
  */
 function redirectBoardQuery(ctx) {
+  const config = ctx.runtime.config;
   const boardName = requireBoardQueryName(ctx.url);
   annotateBoardRequest(ctx.observed, boardName);
   BoardPermissions.forBoard({
-    config: ctx.runtime.config,
+    config,
     boardName,
     userInfo: { token: ctx.url.searchParams.get("token") },
   }).requireOpen();
   ctx.response.writeHead(301, {
-    Location: boardDocumentLocation(boardName),
+    Location: boardDocumentLocation(config, boardName),
   });
   ctx.response.end();
 }
@@ -86,7 +87,7 @@ async function serveBoardPage(ctx) {
     document.metadata.seq || 0,
     ctx.runtime.config,
   );
-  ensureBoardUserSecretCookie(ctx.request, ctx.response, ctx.url);
+  ensureBoardUserSecretCookie(ctx.request, ctx.response, ctx.publicUrl);
   await renderBoardDocument(ctx, pageRequest, document);
 }
 
@@ -98,6 +99,7 @@ async function serveBoardPage(ctx) {
  * @returns {BoardPageRequest}
  */
 function resolveBoardPageRequest(ctx) {
+  const config = ctx.runtime.config;
   const { requestedBoardName, boardName } = requireBoardDocumentNames(
     ctx.params,
   );
@@ -105,13 +107,13 @@ function resolveBoardPageRequest(ctx) {
   if (requestedBoardName !== boardName) {
     return {
       kind: "redirect",
-      redirect: boardDocumentLocation(boardName, ctx.url.search),
+      redirect: boardDocumentLocation(config, boardName, ctx.url.search),
       boardName,
       cachedSeqs: [],
     };
   }
   const boardPermissions = BoardPermissions.forBoard({
-    config: ctx.runtime.config,
+    config,
     boardName,
     userInfo: { token: ctx.url.searchParams.get("token") },
   });

@@ -28,6 +28,24 @@ export function parseStringEnv(name, defaultValue, env = process.env) {
 /**
  * @param {string} name
  * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string}
+ */
+export function parseBasePathEnv(name, env = process.env) {
+  const value = parseStringEnv(name, "", env).trim();
+  if (value === "") return "";
+  if (!value.startsWith("/") || value.startsWith("//")) {
+    throw new Error(`Invalid ${name}: must be a URL path`);
+  }
+  const parsed = new URL(value, "http://wbo");
+  if (parsed.origin !== "http://wbo" || parsed.search || parsed.hash) {
+    throw new Error(`Invalid ${name}: must be a URL path`);
+  }
+  return parsed.pathname.replace(/\/+$/, "");
+}
+
+/**
+ * @param {string} name
+ * @param {NodeJS.ProcessEnv} [env]
  * @returns {string[]}
  */
 export function parseCommaSeparatedEnv(name, env = process.env) {

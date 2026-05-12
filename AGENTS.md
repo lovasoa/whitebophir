@@ -38,6 +38,7 @@ Runtime logging, metrics, and tracing start from
 [observability/index.mjs](./server/observability/index.mjs), with setup details
 in [logging.mjs](./server/observability/logging.mjs) and metric utilities in
 [metric_helpers.mjs](./server/observability/metric_helpers.mjs).
+`WBO_BASE_PATH` public path handling lives with request URL parsing.
 
 Every HTTP request passes through [dispatch.mjs](./server/http/dispatch.mjs),
 where URL validation, route matching, route-level access checks, request

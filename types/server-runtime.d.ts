@@ -39,6 +39,7 @@ export type HttpRouteContext<
   response: HttpResponse;
   runtime: ServerRuntime;
   observed: ObservedHttpRequest;
+  publicUrl: URL;
   url: URL;
   params: Params;
 };

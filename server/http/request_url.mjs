@@ -47,3 +47,8 @@ export function parseRequestUrl(requestUrl) {
   if (validated.ok) return validated.value;
   return new URL(`${REQUEST_URL_BASE}/`);
 }
+
+/** @param {import("../../types/server-runtime.d.ts").ServerConfig} config @param {string} pathname */
+export function publicPath(config, pathname) {
+  return `${config.BASE_PATH}${pathname}`;
+}

@@ -13,7 +13,7 @@ import { parseRequestUrl } from "./request_url.mjs";
 
 /** @typedef {{[name: string]: string}} TranslationDictionary */
 /** @typedef {{[language: string]: TranslationDictionary}} TranslationMap */
-/** @typedef {{baseUrl: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, htmlHeadSnippet: string, [name: string]: any}} TemplateParameters */
+/** @typedef {{baseUrl: string, baseHref: string, languages: string[], language: string, translations: TranslationDictionary, configuration: object, moderator: boolean, htmlHeadSnippet: string, [name: string]: any}} TemplateParameters */
 /** @typedef {import("http").IncomingMessage} TemplateRequest */
 /** @typedef {import("http").ServerResponse} TemplateResponse */
 /** @typedef {string | string[] | undefined} HeaderValue */
@@ -311,11 +311,14 @@ class Template extends StaticTemplate {
     }
     const translations = TRANSLATIONS[language] || {};
     const configuration = this.clientConfig;
-    const prefix = findPathPrefix(parsedUrl.pathname);
+    const prefix =
+      findPathPrefix(parsedUrl.pathname) ||
+      this.serverConfig.BASE_PATH.slice(1);
     const baseUrl = findBaseUrl(request) + (prefix ? `/${prefix}/` : "");
     const moderator = isModerator;
     return {
       baseUrl,
+      baseHref: new URL(".", baseUrl).href,
       languages,
       languageLinks: localizedLinks(languages, (linkLanguage) =>
         localizedUrl(baseUrl, linkLanguage),
