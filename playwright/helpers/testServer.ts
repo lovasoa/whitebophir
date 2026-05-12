@@ -164,13 +164,17 @@ export async function startTestServer(
   const stopCollectingStderr = collectChildStderr(child, stderr);
 
   try {
-    const serverUrl = await waitForServerStarted(
+    const internalServerUrl = await waitForServerStarted(
       child,
       () => stdoutBuffer,
       (chunk) => {
         stdoutBuffer += chunk;
       },
     );
+    const serverUrl = new URL(
+      env.WBO_BASE_PATH || "",
+      `${internalServerUrl}/`,
+    ).href.replace(/\/$/, "");
 
     return {
       child,

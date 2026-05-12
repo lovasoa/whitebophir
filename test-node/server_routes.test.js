@@ -440,6 +440,36 @@ test("index route renders absolute canonical and hreflang urls", async () => {
   }
 });
 
+test("configured base path prefixes generated redirects and canonical urls", async () => {
+  const dirs = await createServerDirs();
+  const basePath = "/custom/base/path";
+  const app = await createTestServer(
+    createServerConfig(dirs, { BASE_PATH: basePath, WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const randomResponse = await request(app, `${basePath}/random`);
+    assert.match(
+      randomResponse.headers.location || "",
+      /^\/custom\/base\/path\/boards\//,
+    );
+    assert.equal(
+      (await request(app, `${basePath}/boards/Refugee%20Camp%202`)).headers
+        .location,
+      `${basePath}/boards/refugee-camp-2`,
+    );
+    assert.match(
+      (await request(app, `${basePath}/`)).body,
+      /<base href="http:\/\/127\.0\.0\.1:\d+\/custom\/base\/path\/" \/>/,
+    );
+    assert.match(
+      (await request(app, `${basePath}/boards/base-path-board`)).body,
+      /\/custom\/base\/path\/boards\/base-path-board\?lang=en/,
+    );
+  } finally {
+    await closeServer(app);
+  }
+});
+
 test("board pages set an httpOnly user secret cookie when missing", async () => {
   const dirs = await createServerDirs();
 

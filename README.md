@@ -78,6 +78,7 @@ to make whitebophir only listen on the loopback device. This is useful if you wa
 
 By default, WBO launches its own web server and serves all of its content at the root of the server (on `/`).
 If you want to make the server accessible with a different path like `https://your.domain.com/wbo/` you have to setup a reverse proxy.
+Set `WBO_BASE_PATH=/wbo` so generated links, redirects, and canonical URLs point at the external subfolder.
 See instructions on our Wiki about [how to setup a reverse proxy for WBO](https://github.com/lovasoa/whitebophir/wiki/Setup-behind-Reverse-Proxies).
 
 ## Translations
@@ -177,6 +178,7 @@ You can see a list of these variables in [`configuration.mjs`](./server/configur
 Some important environment variables are :
 
 - `WBO_HISTORY_DIR` : configures the directory where the boards are saved. Defaults to `./server-data/`.
+- `WBO_BASE_PATH` : optional external URL path prefix, such as `/wbo`, for deployments mounted under a reverse-proxy subfolder.
 - `WBO_HTML_HEAD_SNIPPET_PATH` : optional path to an HTML snippet inserted raw before `</head>` on rendered HTML pages. This is useful for adding user analytics scripts or similar trusted snippets. The file is read once at server startup; relative paths resolve from the server working directory.
 - `WBO_MAX_EMIT_COUNT` : the general socket write limit profile. Use compact entries such as `*:250/5s anonymous:125/5s`. Increase this if you want smoother drawings, at the expense of making denial-of-service bursts cheaper for clients. The default is `*:250/5s`.
 - `WBO_MAX_CONSTRUCTIVE_ACTIONS_PER_IP` : the constructive per-IP write limit profile. Use compact entries such as `*:40/10s anonymous:20/10s`.

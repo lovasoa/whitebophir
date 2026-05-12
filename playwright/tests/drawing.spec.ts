@@ -30,6 +30,10 @@ const edgeTextTest = test.extend({
   },
 });
 
+const basePathTest = test.extend({
+  serverOptions: { env: { WBO_BASE_PATH: "/custom/base/path" } },
+});
+
 const CREATE_MUTATION = 1;
 const DELETE_MUTATION = 3;
 
@@ -53,6 +57,16 @@ async function drawScreenRectangle(
 }
 
 test.describe("drawing and persistence", () => {
+  basePathTest(
+    "draws under a custom base path",
+    async ({ boardPage, page }) => {
+      await boardPage.gotoBoard("base-path-drawing");
+      await expect(page).toHaveURL(/\/custom\/base\/path\/boards\//);
+      await drawMarkerRectangle(boardPage, page);
+      await boardPage.waitForBufferedWritesDrained();
+    },
+  );
+
   test("pencil persists and renders in preview", async ({
     boardPage,
     page,

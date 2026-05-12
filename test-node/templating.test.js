@@ -38,6 +38,7 @@ test("Template.parameters uses the first forwarded host and proto values", async
   );
 
   assert.equal(parameters.baseUrl, "https://example.com/prefix/");
+  assert.equal(parameters.baseHref, "https://example.com/prefix/");
 });
 
 test("Template.parameters prefers an exact region match over a loose base-language match", async () => {

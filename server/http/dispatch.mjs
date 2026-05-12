@@ -6,7 +6,7 @@ import {
 } from "./observation.mjs";
 import * as jwtauth from "../auth/jwt.mjs";
 import observability from "../observability/index.mjs";
-import { validateRequestUrl } from "./request_url.mjs";
+import { stripConfiguredBasePath, validateRequestUrl } from "./request_url.mjs";
 
 const { logger } = observability;
 
@@ -106,7 +106,10 @@ function routeHttpRequests(routes) {
         if (parsedUrlResult.ok === false) {
           throw badRequest(parsedUrlResult.reason);
         }
-        const url = parsedUrlResult.value;
+        const url = stripConfiguredBasePath(
+          runtime.config,
+          parsedUrlResult.value,
+        );
         const { route, params } = matchHttpRoute(routes, url);
         observed.setRoute(route.routeName);
         if (route.access === "user") {
