@@ -52,15 +52,3 @@ export function parseRequestUrl(requestUrl) {
 export function publicPath(config, pathname) {
   return `${config.BASE_PATH}${pathname}`;
 }
-
-/** @param {import("../../types/server-runtime.d.ts").ServerConfig} config @param {URL} url */
-export function stripConfiguredBasePath(config, url) {
-  const basePath = config.BASE_PATH;
-  if (
-    basePath &&
-    (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`))
-  ) {
-    url.pathname = url.pathname.slice(basePath.length) || "/";
-  }
-  return url;
-}

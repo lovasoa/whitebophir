@@ -57,7 +57,6 @@ import {
   prepareConnectionReplay,
 } from "./replay.mjs";
 import { handleTurnstileTokenMessage } from "./turnstile.mjs";
-import { publicPath } from "../http/request_url.mjs";
 
 const { Server } = socketIO;
 const { logger, metrics, tracing } = observability;
@@ -360,7 +359,7 @@ function resolveClientIp(socket, boardName, config) {
  * @returns {Promise<import("socket.io").Server>}
  */
 async function startIO(app, config) {
-  io = new Server(app, { path: publicPath(config, "/socket.io") });
+  io = new Server(app, { path: "/socket.io" });
   io.use(
     (
       /** @type {AppSocket} */ socket,

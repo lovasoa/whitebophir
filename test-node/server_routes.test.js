@@ -447,23 +447,31 @@ test("configured base path prefixes generated redirects and canonical urls", asy
     createServerConfig(dirs, { BASE_PATH: basePath, WEBROOT: CLIENT_WEBROOT }),
   );
   try {
-    const randomResponse = await request(app, `${basePath}/random`);
+    const randomResponse = await request(app, "/random");
     assert.match(
       randomResponse.headers.location || "",
       /^\/custom\/base\/path\/boards\//,
     );
     assert.equal(
-      (await request(app, `${basePath}/boards/Refugee%20Camp%202`)).headers
-        .location,
+      (await request(app, "/boards/Refugee%20Camp%202")).headers.location,
       `${basePath}/boards/refugee-camp-2`,
     );
     assert.match(
-      (await request(app, `${basePath}/`)).body,
+      (await request(app, "/")).body,
       /<base href="http:\/\/127\.0\.0\.1:\d+\/custom\/base\/path\/" \/>/,
     );
+    const boardResponse = await request(app, "/boards/base-path-board");
     assert.match(
-      (await request(app, `${basePath}/boards/base-path-board`)).body,
+      boardResponse.body,
       /\/custom\/base\/path\/boards\/base-path-board\?lang=en/,
+    );
+    assert.match(
+      getSingleSetCookie(boardResponse.headers),
+      /^wbo-user-secret-v1=[0-9a-f]{32}; Max-Age=31536000; Path=\/custom\/base\/path\/; HttpOnly; SameSite=Lax$/,
+    );
+    assert.equal(
+      (await request(app, "/socket.io/socket.io.js")).statusCode,
+      200,
     );
   } finally {
     await closeServer(app);

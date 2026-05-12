@@ -6,7 +6,7 @@ import {
 } from "./observation.mjs";
 import * as jwtauth from "../auth/jwt.mjs";
 import observability from "../observability/index.mjs";
-import { stripConfiguredBasePath, validateRequestUrl } from "./request_url.mjs";
+import { publicPath, validateRequestUrl } from "./request_url.mjs";
 
 const { logger } = observability;
 
@@ -91,6 +91,21 @@ function matchHttpRoute(routes, url) {
 }
 
 /**
+ * Builds the configured public URL for route handlers from the internal route
+ * URL. Prefix-stripping proxies remove BASE_PATH before forwarding, but
+ * public-path consumers such as cookies still need the browser-visible path.
+ *
+ * @param {ServerRuntime["config"]} config
+ * @param {URL} url
+ * @returns {URL}
+ */
+function routePublicUrl(config, url) {
+  const publicUrl = new URL(url.href);
+  publicUrl.pathname = publicPath(config, url.pathname);
+  return publicUrl;
+}
+
+/**
  * Wraps route dispatch with request validation, request-scoped observation,
  * permission checks, error pages, and final metrics/logging.
  *
@@ -106,10 +121,8 @@ function routeHttpRequests(routes) {
         if (parsedUrlResult.ok === false) {
           throw badRequest(parsedUrlResult.reason);
         }
-        const url = stripConfiguredBasePath(
-          runtime.config,
-          parsedUrlResult.value,
-        );
+        const url = parsedUrlResult.value;
+        const publicUrl = routePublicUrl(runtime.config, url);
         const { route, params } = matchHttpRoute(routes, url);
         observed.setRoute(route.routeName);
         if (route.access === "user") {
@@ -122,6 +135,7 @@ function routeHttpRequests(routes) {
             runtime,
             observed,
             url,
+            publicUrl,
             params,
           }),
         );

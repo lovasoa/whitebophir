@@ -87,7 +87,7 @@ async function serveBoardPage(ctx) {
     document.metadata.seq || 0,
     ctx.runtime.config,
   );
-  ensureBoardUserSecretCookie(ctx.request, ctx.response, ctx.url);
+  ensureBoardUserSecretCookie(ctx.request, ctx.response, ctx.publicUrl);
   await renderBoardDocument(ctx, pageRequest, document);
 }
 
