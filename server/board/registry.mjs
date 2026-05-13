@@ -1,7 +1,7 @@
 /** @typedef {Promise<import("./data.mjs").BoardData>} BoardPromise */
 
-/** @type {{[boardName: string]: BoardPromise}} */
-const loadedBoards = {};
+/** @type {Map<string, BoardPromise>} */
+const loadedBoards = new Map();
 
 /** @type {Map<string, Map<number, number>>} */
 const replayPinsByBoard = new Map();
@@ -11,7 +11,7 @@ const replayPinsByBoard = new Map();
  * @returns {BoardPromise | undefined}
  */
 function getLoadedBoard(boardName) {
-  return loadedBoards[boardName];
+  return loadedBoards.get(boardName);
 }
 
 /**
@@ -20,7 +20,7 @@ function getLoadedBoard(boardName) {
  * @returns {void}
  */
 function setLoadedBoard(boardName, board) {
-  loadedBoards[boardName] = board;
+  loadedBoards.set(boardName, board);
 }
 
 /**
@@ -28,14 +28,14 @@ function setLoadedBoard(boardName, board) {
  * @returns {void}
  */
 function deleteLoadedBoard(boardName) {
-  delete loadedBoards[boardName];
+  loadedBoards.delete(boardName);
 }
 
 /**
  * @returns {string[]}
  */
 function listLoadedBoards() {
-  return Object.keys(loadedBoards);
+  return Array.from(loadedBoards.keys());
 }
 
 /**
@@ -160,9 +160,7 @@ function discardPinnedReplayBaselinesBefore(
  * @returns {void}
  */
 function resetBoardRegistry() {
-  for (const boardName of Object.keys(loadedBoards)) {
-    delete loadedBoards[boardName];
-  }
+  loadedBoards.clear();
   replayPinsByBoard.clear();
 }
 
