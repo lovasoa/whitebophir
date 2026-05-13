@@ -224,7 +224,7 @@ function getAttachedBoardDom(Tools) {
  * @returns {number}
  */
 function getConnectedUsersCount(users) {
-  return Object.keys(users).length;
+  return users.size;
 }
 
 /**
