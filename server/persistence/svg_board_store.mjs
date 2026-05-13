@@ -650,8 +650,8 @@ async function writeCanonicalBoardState(
   options,
 ) {
   const persistedIds = new Set();
-  /** @type {{[name: string]: any}} */
-  const fullBoard = {};
+  /** @type {Map<string, any>} */
+  const fullBoard = new Map();
   for (const item of collectPersistedCanonicalItems(itemsById, paintOrder)) {
     if (needsStoredPencilPath(item, false)) {
       throw new Error(
@@ -666,9 +666,15 @@ async function writeCanonicalBoardState(
     const serialized = serializeStoredSvgItem(materialized);
     if (!serialized) continue;
     persistedIds.add(item.id);
-    fullBoard[item.id] = materialized;
+    fullBoard.set(item.id, materialized);
   }
-  await writeBoardState(boardName, fullBoard, metadata, seq, options);
+  await writeBoardState(
+    boardName,
+    Object.fromEntries(fullBoard),
+    metadata,
+    seq,
+    options,
+  );
   return {
     persistedIds,
   };

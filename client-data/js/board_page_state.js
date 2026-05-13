@@ -95,11 +95,11 @@ export function normalizeRecentBoards(value) {
 export function updateRecentBoards(storedBoards, boardName) {
   if (boardName.toLowerCase() === "anonymous")
     return normalizeRecentBoards(storedBoards);
-  /** @type {{[name: string]: boolean}} */
-  const seen = {};
+  /** @type {Set<string>} */
+  const seen = new Set();
   const recentBoards = normalizeRecentBoards(storedBoards).filter((name) => {
-    if (seen[name]) return false;
-    seen[name] = true;
+    if (seen.has(name)) return false;
+    seen.add(name);
     return name !== boardName;
   });
   recentBoards.unshift(boardName);

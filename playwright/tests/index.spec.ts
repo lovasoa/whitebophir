@@ -32,4 +32,80 @@ test.describe("index page board naming", () => {
     await expect(page).toHaveURL(rootUrl(server.serverUrl));
     await expect(boardInput).toHaveValue("");
   });
+
+  test("__proto__ board name creates and loads a valid board without crashing", async ({
+    boardPage,
+  }) => {
+    boardPage.page.on("console", (msg) =>
+      console.log("BROWSER CONSOLE:", msg.text()),
+    );
+    await boardPage.gotoBoard("__proto__");
+    await expect(boardPage.page).toHaveURL(/\/boards\/__proto__/);
+
+    await boardPage.waitForBoardWritable();
+    await boardPage.selectTool("pencil");
+
+    try {
+      await boardPage.drawPencilPaths([
+        {
+          color: "#123456",
+          points: [
+            { x: 100, y: 200 },
+            { x: 300, y: 400 },
+          ],
+        },
+      ]);
+      await expect(
+        boardPage.page.locator("path[stroke='#123456']"),
+      ).toBeVisible();
+    } catch (e) {
+      console.log(
+        "WRITE STATUS:",
+        await boardPage.readWriteStatus(),
+        "canBuffer:",
+        await boardPage.page.evaluate(() =>
+          window.WBOApp.writes.canBufferWrites(),
+        ),
+      );
+      console.log(
+        "serverOverrides:",
+        await boardPage.page.evaluate(() =>
+          JSON.stringify(window.WBOApp.config.serverConfig.RATE_LIMITS),
+        ),
+      );
+      console.log(
+        "Object.prototype.periodMs:",
+        await boardPage.page.evaluate(() => Object.prototype.periodMs),
+      );
+      console.log(
+        "canEmit:",
+        await boardPage.page.evaluate(() => {
+          const writes = window.WBOApp.writes;
+          if (writes.bufferedWrites.length > 0) {
+            const w = writes.bufferedWrites[0];
+            return ["general", "text", "destructive", "constructive"].map(
+              (kind) => {
+                const cost = w.costs[kind];
+                const def =
+                  window.WBOApp.rateLimits.getEffectiveRateLimit(kind);
+                const state = writes.localRateLimitStates[kind];
+                const can = window.RateLimitCommon
+                  ? window.RateLimitCommon.canConsumeFixedWindowRateLimit(
+                      state,
+                      cost,
+                      def.limit,
+                      def.periodMs,
+                      Date.now(),
+                    )
+                  : "no_common";
+                return `${kind}: cost=${cost} def=${JSON.stringify(def)} can=${can}`;
+              },
+            );
+          }
+          return "empty";
+        }),
+      );
+      throw e;
+    }
+  });
 });

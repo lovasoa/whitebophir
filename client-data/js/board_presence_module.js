@@ -12,16 +12,16 @@ export class PresenceModule {
   /** @param {() => AppToolsState} getTools */
   constructor(getTools) {
     this.getTools = getTools;
-    this.users = /** @type {ConnectedUserMap} */ ({});
+    this.users = /** @type {ConnectedUserMap} */ (new Map());
     this.panelOpen = false;
     this.renderScheduled = false;
   }
 
   clearConnectedUsers() {
-    Object.values(this.users).forEach((user) => {
+    Array.from(this.users.values()).forEach((user) => {
       if (user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
     });
-    this.users = /** @type {ConnectedUserMap} */ ({});
+    this.users = /** @type {ConnectedUserMap} */ (new Map());
     if (this.panelOpen) this.renderConnectedUsers();
     else syncConnectedUsersSummary(this);
   }
@@ -44,28 +44,30 @@ export class PresenceModule {
   renderConnectedUsers() {
     const Tools = this.getTools();
     const list = getConnectedUsersList();
-    /** @type {{[socketId: string]: ConnectedUserRow}} */
-    const rowsBySocketId = {};
+    /** @type {Map<string, ConnectedUserRow>} */
+    const rowsBySocketId = new Map();
     Array.from(list.children).forEach((child) => {
       if (
         child instanceof HTMLLIElement &&
         child.dataset.socketId &&
         child.classList.contains("connected-user-row")
       ) {
-        rowsBySocketId[child.dataset.socketId] =
-          /** @type {ConnectedUserRow} */ (child);
+        rowsBySocketId.set(
+          child.dataset.socketId,
+          /** @type {ConnectedUserRow} */ (child),
+        );
       }
     });
 
-    const users = Object.values(this.users).sort((left, right) =>
+    const users = Array.from(this.users.values()).sort((left, right) =>
       left.name.localeCompare(right.name),
     );
 
     users.forEach((user, index) => {
       const row =
-        rowsBySocketId[user.socketId] ||
+        rowsBySocketId.get(user.socketId) ||
         createConnectedUserRow(this.getTools, user, this.users);
-      delete rowsBySocketId[user.socketId];
+      rowsBySocketId.delete(user.socketId);
       updateConnectedUserRow(this.getTools, row, user);
       const currentChild = list.children[index];
       if (currentChild !== row) {
@@ -73,7 +75,7 @@ export class PresenceModule {
       }
     });
 
-    Object.values(rowsBySocketId).forEach((row) => {
+    rowsBySocketId.forEach((row) => {
       row.remove();
     });
     syncConnectedUsersSummary(this, Tools);
@@ -93,19 +95,18 @@ export class PresenceModule {
 
   /** @param {ConnectedUser} user */
   upsertConnectedUser(user) {
-    this.users[user.socketId] = Object.assign(
-      {},
-      this.users[user.socketId] || {},
-      user,
+    this.users.set(
+      user.socketId,
+      Object.assign({}, this.users.get(user.socketId) || {}, user),
     );
     this.schedulePresenceRender();
   }
 
   /** @param {string} socketId */
   removeConnectedUser(socketId) {
-    const user = this.users[socketId];
+    const user = this.users.get(socketId);
     if (user && user.pulseTimeoutId) clearTimeout(user.pulseTimeoutId);
-    delete this.users[socketId];
+    this.users.delete(socketId);
     this.schedulePresenceRender();
   }
 
@@ -125,7 +126,7 @@ export class PresenceModule {
     let changed = false;
     const dom = getAttachedBoardDom(Tools);
     const focusPoint = dom ? getMessageFocusPoint(dom, message) : null;
-    Object.values(this.users).forEach((user) => {
+    Array.from(this.users.values()).forEach((user) => {
       if (!connectedUserMatchesActivity(user, userId, messageSocketId)) return;
       changed =
         applyConnectedUserActivity(
@@ -143,7 +144,7 @@ export class PresenceModule {
   updateCurrentConnectedUserFromActivity(message) {
     const Tools = this.getTools();
     if (!Tools.connection.socket?.id) return;
-    const current = this.users[Tools.connection.socket.id];
+    const current = this.users.get(Tools.connection.socket.id);
     if (!current) return;
     this.updateConnectedUsersFromActivity(
       current.userId,
@@ -591,7 +592,7 @@ function createConnectedUserRow(getTools, user, users) {
     evt.stopPropagation();
     const Tools = getTools();
     if (!Tools.connection.socket || !row.dataset.socketId) return;
-    const connectedUser = users[row.dataset.socketId];
+    const connectedUser = users.get(row.dataset.socketId);
     if (!connectedUser || isCurrentSocketUser(Tools, connectedUser)) return;
     connectedUser.reported = true;
     updateConnectedUserRow(getTools, row, connectedUser);

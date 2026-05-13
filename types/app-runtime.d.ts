@@ -344,9 +344,7 @@ export type ConnectedUser = {
   pulseTimeoutId?: number | null;
 };
 
-export type ConnectedUserMap = {
-  [socketId: string]: ConnectedUser;
-};
+export type ConnectedUserMap = Map<string, ConnectedUser>;
 
 export type UserLeftPayload = {
   socketId: string;

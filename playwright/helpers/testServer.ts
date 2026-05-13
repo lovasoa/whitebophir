@@ -23,6 +23,7 @@ export interface TestServer {
   serverUrl: string;
   tokenQuery: string;
   stderr: string[];
+  stdout: string[];
   useJWT: boolean;
   writeBoard: typeof writeBoard;
   readStoredBoard: typeof readStoredBoard;
@@ -182,6 +183,7 @@ export async function startTestServer(
       serverUrl,
       tokenQuery,
       stderr,
+      stdout: [],
       useJWT,
       writeBoard,
       readStoredBoard,

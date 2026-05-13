@@ -155,7 +155,14 @@ export function getEffectiveRateLimitDefinition(definition, boardName) {
   };
   if (typeof boardName !== "string") return baseDefinition;
   const normalizedBoardName = boardName.toLowerCase();
-  const override = definition.overrides?.[normalizedBoardName];
+  const override =
+    definition.overrides &&
+    Object.prototype.hasOwnProperty.call(
+      definition.overrides,
+      normalizedBoardName,
+    )
+      ? definition.overrides[normalizedBoardName]
+      : undefined;
   if (override) {
     return {
       limit: toPositiveInteger(override.limit),

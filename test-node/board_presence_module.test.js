@@ -158,12 +158,12 @@ test("presence activity treats rendered focus measurement as best-effort", async
     const tools = createPresenceTools(env.svg, env.drawingArea);
     const presence = new PresenceModule(() => tools);
     stubPresenceRendering(presence);
-    presence.users = { "sock-1": createConnectedUser() };
+    presence.users = new Map([["sock-1", createConnectedUser()]]);
 
     assert.doesNotThrow(() => {
       presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());
     });
-    const user = presence.users["sock-1"];
+    const user = presence.users.get("sock-1");
     assert.ok(user);
     assert.equal(user.lastTool, "hand");
     assert.equal(user.lastFocusX, undefined);
@@ -187,12 +187,12 @@ test("presence focus ignores elements outside the attached drawing area", async 
     const tools = createPresenceTools(env.svg, env.drawingArea);
     const presence = new PresenceModule(() => tools);
     stubPresenceRendering(presence);
-    presence.users = { "sock-1": createConnectedUser() };
+    presence.users = new Map([["sock-1", createConnectedUser()]]);
 
     assert.doesNotThrow(() => {
       presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());
     });
-    const user = presence.users["sock-1"];
+    const user = presence.users.get("sock-1");
     assert.ok(user);
     assert.equal(user.lastFocusX, undefined);
   } finally {
@@ -213,13 +213,13 @@ test("presence activity does not render rows while the panel is closed", async (
       renderCount += 1;
     };
     presence.panelOpen = false;
-    presence.users = { "sock-1": createConnectedUser() };
+    presence.users = new Map([["sock-1", createConnectedUser()]]);
 
     presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());
     presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());
 
     assert.equal(renderCount, 0);
-    assert.ok((presence.users["sock-1"]?.pulseUntil || 0) > 0);
+    assert.ok((presence.users.get("sock-1")?.pulseUntil || 0) > 0);
   } finally {
     env.restore();
   }
@@ -242,7 +242,7 @@ test("presence activity row rendering is coalesced while the panel is open", asy
       renderCount += 1;
     };
     presence.panelOpen = true;
-    presence.users = { "sock-1": createConnectedUser() };
+    presence.users = new Map([["sock-1", createConnectedUser()]]);
 
     presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());
     presence.updateConnectedUsersFromActivity("user-1", handUpdateMessage());

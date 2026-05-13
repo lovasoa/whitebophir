@@ -49,12 +49,12 @@ function normalizeLegacyBoardItemForSvg(item) {
  * @returns {{[name: string]: any}}
  */
 function normalizeLegacyBoardForSvg(board) {
-  /** @type {{[name: string]: any}} */
-  const normalizedBoard = {};
+  /** @type {Map<string, any>} */
+  const normalizedBoard = new Map();
   for (const [id, item] of Object.entries(board || {})) {
-    normalizedBoard[id] = normalizeLegacyBoardItemForSvg(item);
+    normalizedBoard.set(id, normalizeLegacyBoardItemForSvg(item));
   }
-  return normalizedBoard;
+  return Object.fromEntries(normalizedBoard);
 }
 
 export {

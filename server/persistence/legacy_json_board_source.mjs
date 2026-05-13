@@ -96,24 +96,24 @@ function scaleLegacyBoardItem(item) {
     return item;
   }
 
-  /** @type {{[name: string]: unknown}} */
-  const scaled = {};
+  /** @type {Map<string, unknown>} */
+  const scaled = new Map();
   for (const [key, value] of Object.entries(item)) {
     if (LEGACY_GEOMETRY_KEYS.has(key)) {
-      scaled[key] = scaleLegacyNumber(value);
+      scaled.set(key, scaleLegacyNumber(value));
       continue;
     }
     if (key === "_children" && Array.isArray(value)) {
-      scaled[key] = value.map(scaleLegacyChildPoint);
+      scaled.set(key, value.map(scaleLegacyChildPoint));
       continue;
     }
     if (key === "transform") {
-      scaled[key] = scaleLegacyTransform(value);
+      scaled.set(key, scaleLegacyTransform(value));
       continue;
     }
-    scaled[key] = value;
+    scaled.set(key, value);
   }
-  return scaled;
+  return Object.fromEntries(scaled);
 }
 
 /**
@@ -129,19 +129,19 @@ function parseLegacyStoredBoard(storedBoard) {
     throw new Error("Invalid board file format");
   }
 
-  /** @type {{[name: string]: any}} */
-  const board = {};
+  /** @type {Map<string, any>} */
+  const board = new Map();
   let metadata = normalizeLegacyBoardMetadata(null);
 
   for (const [key, value] of Object.entries(storedBoard)) {
     if (key === BOARD_METADATA_KEY) {
       metadata = normalizeLegacyBoardMetadata(value);
     } else {
-      board[key] = scaleLegacyBoardItem(value);
+      board.set(key, scaleLegacyBoardItem(value));
     }
   }
 
-  return { board, metadata };
+  return { board: Object.fromEntries(board), metadata };
 }
 
 /**
