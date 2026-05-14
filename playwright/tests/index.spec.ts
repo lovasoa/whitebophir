@@ -36,9 +36,6 @@ test.describe("index page board naming", () => {
   test("__proto__ board name creates and loads a valid board without crashing", async ({
     boardPage,
   }) => {
-    boardPage.page.on("console", (msg) =>
-      console.log("BROWSER CONSOLE:", msg.text()),
-    );
     await boardPage.gotoBoard("__proto__");
     await expect(boardPage.page).toHaveURL(/\/boards\/__proto__/);
 

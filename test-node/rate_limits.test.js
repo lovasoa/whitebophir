@@ -83,6 +83,7 @@ test("general rate limit closes the socket when exceeded", async () => {
   await withSocketConfig(
     {
       GENERAL_RATE_LIMITS: { limit: 0, periodMs: 4096, overrides: {} },
+      TURNSTILE_SECRET_KEY: "test-secret",
     },
     async (sockets) => {
       const { socket, handlers, emitted } = createSocket({
@@ -93,7 +94,7 @@ test("general rate limit closes the socket when exceeded", async () => {
       await sockets.__test.handleSocketConnection(socket, sockets.__config);
 
       assert.ok(handlers.broadcast);
-      await handlers.broadcast({});
+      await handlers.broadcast({ tool: Pencil.id, type: MutationType.CREATE });
 
       assert.equal(socket.disconnected, true);
       assert.equal(socket.disconnectCalls.length, 1);

@@ -10,7 +10,6 @@ const {
   loadSockets,
   withMockedNow,
 } = require("./test_helpers.js");
-const _WBOMessageCommon = require("../client-data/js/message_common.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
 const { Cursor, Pencil } = require("../client-data/tools/index.js");
 
@@ -46,14 +45,12 @@ test("server-side Turnstile enforcement in broadcast", async () => {
         query: { board: "anonymous" },
       });
 
-      // Initialize socket state by calling handleSocketConnection
       await sockets.__test.handleSocketConnection(socket, sockets.__config);
       disableSaves(await sockets.__test.getLoadedBoard("anonymous"));
 
       const broadcastHandler = handlers.broadcast;
       assert.ok(broadcastHandler, "broadcast handler should be registered");
 
-      // 1. Blocked: Anonymous board, Pencil tool, not validated
       let broadcastCalled = false;
       socket.broadcast.to = () => ({
         emit: () => {
@@ -74,8 +71,6 @@ test("server-side Turnstile enforcement in broadcast", async () => {
         "Should block unvalidated broadcast on anonymous board",
       );
 
-      // 2. Allowed: Cursor tool, not validated
-      // (This verifies the shared logic integration in the socket handler)
       await broadcastHandler({
         tool: Cursor.id,
         type: MutationType.UPDATE,
@@ -83,7 +78,6 @@ test("server-side Turnstile enforcement in broadcast", async () => {
         y: 20,
       });
 
-      // 3. Allowed: Pencil tool, AFTER validation
       socket.turnstileValidatedUntil = 1000;
       await withMockedNow(500, async () => {
         await broadcastHandler({
@@ -125,20 +119,21 @@ test("server-side Turnstile token validation binds Siteverify to request context
   await withEnv(
     {
       TURNSTILE_SECRET_KEY: "test-secret",
-      TURNSTILE_SITE_KEY: "test-site-key",
       TURNSTILE_VALIDATION_WINDOW_MS: "120000",
       WBO_HISTORY_DIR: historyDir,
     },
     async () => {
       const sockets = await loadSockets();
-      const config = sockets.__config;
+      const config = {
+        ...sockets.__config,
+        GENERAL_RATE_LIMITS: { limit: 3, periodMs: 60_000, overrides: {} },
+      };
       const { socket, handlers } = createSocket({
         headers: { host: "board.example" },
         remoteAddress: "203.0.113.10",
         query: { board: "anonymous" },
       });
 
-      // Mock global fetch
       const originalFetch = globalThis.fetch;
       let fetchCalled = false;
       globalThis.fetch = /** @type {any} */ (
@@ -165,9 +160,13 @@ test("server-side Turnstile token validation binds Siteverify to request context
       );
 
       try {
-        await sockets.__test.handleSocketConnection(socket, sockets.__config);
+        await sockets.__test.handleSocketConnection(socket, config);
         const tokenHandler = handlers.turnstile_token;
         assert.ok(tokenHandler, "turnstile_token handler should be registered");
+
+        // biome-ignore format: keep the malformed-token regression compact.
+        await tokenHandler(null, (/** @type {any} */ result) => assert.deepEqual(result, { success: false }));
+        assert.strictEqual(fetchCalled, false);
 
         let ackCalledWith = null;
         await tokenHandler("valid-token", (/** @type {any} */ result) => {
@@ -188,12 +187,12 @@ test("server-side Turnstile token validation binds Siteverify to request context
           validatedUntil: socket.turnstileValidatedUntil,
         });
 
-        // Test failed validation
         globalThis.fetch = /** @type {any} */ (
           async function failedFetch(
             /** @type {string} */ _url,
             /** @type {{body: URLSearchParams}} */ _options,
           ) {
+            fetchCalled = true;
             return {
               json: async () => ({
                 success: false,
@@ -211,6 +210,10 @@ test("server-side Turnstile token validation binds Siteverify to request context
           { success: false },
           "ack should be false on failure",
         );
+        fetchCalled = false;
+        await tokenHandler("rate-limited-token");
+        assert.strictEqual(fetchCalled, false);
+        assert.equal(socket.disconnected, true);
       } finally {
         globalThis.fetch = originalFetch;
       }

@@ -42,6 +42,7 @@ import {
   countDestructiveActions,
   countTextCreationActions,
   createRateLimitState,
+  enforceBroadcastPreNormalization,
   pruneRateLimitMap,
   recordCompletedRateLimitWindow,
   resetRateLimitMaps as resetSocketRateLimitMaps,
@@ -555,6 +556,7 @@ async function handleSocketConnection(socket, config) {
     });
   });
 
+  const generalRateLimit = createRateLimitState(Date.now());
   onSocketEvent(
     socket,
     "turnstile_token",
@@ -569,6 +571,9 @@ async function handleSocketConnection(socket, config) {
           attributes: socketTraceAttributes("turnstile_token"),
         },
         async function traceTurnstileToken() {
+          const clientIp = resolveClientIp(socket, boardName, config);
+          // biome-ignore format: keep the Turnstile token limiter patch compact.
+          if (!enforceBroadcastPreNormalization(socket, boardName, undefined, clientIp, getSocketUserName(socket, clientIp), generalRateLimit, Date.now(), config)) return;
           return handleTurnstileTokenMessage(
             socket,
             boardName,
@@ -583,7 +588,6 @@ async function handleSocketConnection(socket, config) {
     },
   );
 
-  const generalRateLimit = createRateLimitState(Date.now());
   onSocketEvent(
     socket,
     "broadcast",

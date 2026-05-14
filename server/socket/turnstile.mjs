@@ -209,6 +209,8 @@ async function handleTurnstileTokenMessage(
     sendTurnstileAck(ack, true);
     return;
   }
+  // biome-ignore format: keep the cheap token-shape guard compact.
+  if (typeof token !== "string" || token.length === 0 || token.length > 2048) return sendTurnstileAck(ack, /** @type {TurnstileRejectedAck} */ ({ success: false }));
 
   try {
     const clientIp = resolveClientIp(socket, boardName, config);

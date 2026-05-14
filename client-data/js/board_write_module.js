@@ -183,18 +183,18 @@ export class WriteModule {
     if (!nextWrite) return;
     const now = Date.now();
     const waitMs = this.getBufferedWriteWaitMs(nextWrite, now);
-    this.localRateLimitedUntil = waitMs > 0 ? now + waitMs : 0;
-    this.bufferedWriteTimer = window.setTimeout(
-      function flushBufferedWrites() {
-        Tools.writes.flushBufferedWrites();
-      },
-      Math.max(0, waitMs + this.getBufferedWriteFlushSafetyMs(waitMs)),
-    );
+    const flushDelayMs = waitMs + this.getBufferedWriteFlushSafetyMs(waitMs);
+    this.localRateLimitedUntil = flushDelayMs > 0 ? now + flushDelayMs : 0;
+    this.bufferedWriteTimer = window.setTimeout(function flushBufferedWrites() {
+      Tools.writes.flushBufferedWrites();
+    }, flushDelayMs);
     Tools.status.syncWriteStatusIndicator();
   }
 
   flushBufferedWrites() {
     const Tools = this.getTools();
+    if (this.bufferedWriteTimer && this.localRateLimitedUntil > Date.now())
+      return;
     this.clearBufferedWriteTimer();
     this.localRateLimitedUntil = 0;
     if (!this.canBufferWrites()) {

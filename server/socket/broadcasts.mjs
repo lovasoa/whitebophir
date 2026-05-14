@@ -412,15 +412,6 @@ async function handleBroadcastWriteMessage(
     boardMutationTraceAttributes(boardName, userName, data),
   );
   if (
-    config.TURNSTILE_SECRET_KEY &&
-    data &&
-    WBOMessageCommon.requiresTurnstile(boardName, data.tool) &&
-    !isTurnstileValidationActive(socket, now)
-  ) {
-    rejectTurnstileRequired(boardName, data);
-    return;
-  }
-  if (
     !enforceBroadcastPreNormalization(
       socket,
       boardName,
@@ -432,6 +423,15 @@ async function handleBroadcastWriteMessage(
       config,
     )
   ) {
+    return;
+  }
+  if (
+    config.TURNSTILE_SECRET_KEY &&
+    data &&
+    WBOMessageCommon.requiresTurnstile(boardName, data.tool) &&
+    !isTurnstileValidationActive(socket, now)
+  ) {
+    rejectTurnstileRequired(boardName, data);
     return;
   }
 
