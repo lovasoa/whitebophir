@@ -1,6 +1,7 @@
 import path from "node:path";
 
 let tempSvgSuffixCounter = 0;
+let quarantineSvgSuffixCounter = 0;
 
 /**
  * @param {string | undefined} historyDir
@@ -40,4 +41,19 @@ function createTempSvgPath(file) {
   return `${file}.${Date.now()}.${tempSvgSuffixCounter}.tmp`;
 }
 
-export { boardSvgBackupPath, boardSvgPath, createTempSvgPath };
+/**
+ * @param {string} file
+ * @returns {string}
+ */
+function createQuarantineSvgPath(file) {
+  quarantineSvgSuffixCounter =
+    (quarantineSvgSuffixCounter + 1) % Number.MAX_SAFE_INTEGER;
+  return `${file}.${Date.now()}.${quarantineSvgSuffixCounter}.quarantine`;
+}
+
+export {
+  boardSvgBackupPath,
+  boardSvgPath,
+  createQuarantineSvgPath,
+  createTempSvgPath,
+};

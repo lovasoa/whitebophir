@@ -619,32 +619,20 @@ test("readCanonicalBoardState streams root metadata for empty drawing areas", as
   });
 });
 
-test("readCanonicalBoardState falls back to the backup svg when the primary file is missing", async () => {
+test("readCanonicalBoardState promotes a staged backup svg when the primary file is missing", async () => {
   const historyDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "wbo-svg-store-load-backup-"),
   );
   const boardName = "load-state-backup-svg";
+  const stagedSvg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>';
 
   await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
-    await writeBoardState(
-      boardName,
-      {
-        "rect-1": {
-          id: "rect-1",
-          tool: "rectangle",
-          x: 1,
-          y: 2,
-          x2: 30,
-          y2: 40,
-          color: "#123456",
-          size: 4,
-        },
-      },
-      { readonly: true },
-      7,
-      historyDir,
+    await fs.writeFile(
+      `${svgPath(boardName, historyDir)}.bak`,
+      stagedSvg,
+      "utf8",
     );
-    await fs.unlink(svgPath(boardName, historyDir));
 
     const state = await readCanonicalBoardState(boardName, historyDir);
     const servedBaseline = await readServedBaseline(boardName, historyDir);
@@ -652,7 +640,48 @@ test("readCanonicalBoardState falls back to the backup svg when the primary file
     assert.equal(state.source, "svg_backup");
     assert.deepEqual(state.paintOrder, ["rect-1"]);
     assert.equal(state.itemsById.get("rect-1")?.tool, "rectangle");
+    assert.equal(
+      await fs.readFile(svgPath(boardName, historyDir), "utf8"),
+      stagedSvg,
+    );
+    await assert.rejects(fs.stat(`${svgPath(boardName, historyDir)}.bak`), {
+      code: "ENOENT",
+    });
     assert.match(servedBaseline, /id="rect-1"/);
+  });
+});
+
+test("readCanonicalBoardState quarantines an unreadable primary svg before falling back", async () => {
+  const historyDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "wbo-svg-store-quarantine-"),
+  );
+  const boardName = "quarantine-primary-svg";
+  const svgFile = svgPath(boardName, historyDir);
+  const stagedSvg =
+    '<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="640" height="480" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="true"><defs id="defs"></defs><g id="drawingArea"><rect id="rect-1" x="1" y="2" width="29" height="38" stroke="#123456" stroke-width="4" fill="none"></rect></g><g id="cursors"></g></svg>';
+
+  await withEnv({ WBO_HISTORY_DIR: historyDir }, async () => {
+    await fs.writeFile(svgFile, "not valid svg", "utf8");
+    await fs.writeFile(`${svgFile}.bak`, stagedSvg, "utf8");
+
+    const state = await readCanonicalBoardState(boardName, historyDir);
+
+    assert.equal(state.source, "svg_backup");
+    assert.deepEqual(state.paintOrder, ["rect-1"]);
+    /** @type {any} */
+    const config = { HISTORY_DIR: historyDir };
+    assert.equal(await svgBoardStore.boardExists(boardName, config), true);
+    const entries = await fs.readdir(historyDir);
+    assert.match(
+      entries.find(
+        (entry) =>
+          entry.startsWith("board-quarantine-primary-svg.svg.") &&
+          entry.endsWith(".quarantine"),
+      ) || "",
+      /board-quarantine-primary-svg\.svg\..*\.quarantine/,
+    );
+    assert.equal(await fs.readFile(svgFile, "utf8"), stagedSvg);
+    await assert.rejects(fs.stat(`${svgFile}.bak`), { code: "ENOENT" });
   });
 });
 

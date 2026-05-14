@@ -188,6 +188,9 @@ Some important environment variables are :
 
 ## Troubleshooting
 
+If a stored board SVG becomes unreadable, WBO quarantines the broken file and
+falls back to any readable board state it can still load.
+
 If you experience an issue or want to propose a new feature in WBO, please [open a github issue](https://github.com/lovasoa/whitebophir/issues/new).
 
 ## Monitoring

@@ -1590,7 +1590,7 @@ test("BoardData.save treats a missing baseline and backup before a new seed stro
 
       await board.save();
       await fs.unlink(svgPath);
-      await fs.unlink(`${svgPath}.bak`);
+      await fs.rm(`${svgPath}.bak`, { force: true });
 
       await applyPersistentMutation(
         board,
@@ -1680,35 +1680,19 @@ test("BoardData.save preserves cold-loaded stored svg when there are no pending 
   );
 });
 
-test("BoardData.save preserves cold-loaded state when only the backup svg remains", async () => {
+test("BoardData.save promotes a staged backup svg into the active file", async () => {
   await withBoardHistoryDir(
     "wbo-board-save-cold-backup-",
     async ({ historyDir }) => {
       const BoardData = getBoardDataClass();
       const config = createConfig({ HISTORY_DIR: historyDir });
-      const svgBoardStore = require("../server/persistence/svg_board_store.mjs");
       const boardName = "cold-backup";
       const svgPath = path.join(historyDir, "board-cold-backup.svg");
-
-      await svgBoardStore.writeBoardState(
-        boardName,
-        {
-          "line-1": {
-            id: "line-1",
-            tool: "pencil",
-            color: "#654321",
-            size: 5,
-            _children: [
-              { x: 1, y: 2 },
-              { x: 3, y: 4 },
-            ],
-          },
-        },
-        { readonly: false },
-        7,
-        { historyDir },
+      await fs.writeFile(
+        `${svgPath}.bak`,
+        `<svg id="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1" width="777" height="888" data-wbo-format="whitebophir-svg-v2" data-wbo-seq="7" data-wbo-readonly="false"><defs id="defs"></defs><g id="drawingArea"><path id="line-1" d="M 1 2 l 2 2" stroke="#654321" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></g><g id="cursors"></g></svg>`,
+        "utf8",
       );
-      await fs.unlink(svgPath);
 
       const board = await loadBoard(BoardData, boardName, config);
       assert.equal(board.loadSource, "svg_backup");
@@ -1717,8 +1701,9 @@ test("BoardData.save preserves cold-loaded state when only the backup svg remain
       await board.save();
 
       const reloaded = await loadBoard(BoardData, boardName, config);
-      assert.equal(reloaded.loadSource, "svg_backup");
+      assert.equal(reloaded.loadSource, "svg");
       assert.deepEqual(Object.keys(reloaded.board), ["line-1"]);
+      await assert.rejects(fs.stat(`${svgPath}.bak`), { code: "ENOENT" });
     },
   );
 });

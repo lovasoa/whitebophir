@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { once } from "node:events";
-import { copyFile, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { readFile, rename, stat, writeFile } from "node:fs/promises";
 import { Readable } from "node:stream";
 
 import {
@@ -17,6 +17,7 @@ import {
 import {
   boardSvgBackupPath,
   boardSvgPath,
+  createQuarantineSvgPath,
   createTempSvgPath,
 } from "./svg_board_paths.mjs";
 import { normalizeLegacyBoardForSvg } from "./legacy_json_svg_migration.mjs";
@@ -139,27 +140,80 @@ async function fileExists(file) {
 }
 
 /**
+ * @param {string} file
+ * @returns {boolean}
+ */
+function isPrimaryStoredSvgFile(file) {
+  return file.endsWith(".svg");
+}
+
+/**
  * @param {string} boardName
  * @param {string | undefined} historyDir
- * @returns {Promise<{file: string, byteLength: number, source: "svg" | "svg_backup"} | null>}
+ * @returns {Promise<boolean>}
  */
-async function resolveReadableSvgFile(boardName, historyDir) {
+async function hasQuarantinedSvg(boardName, historyDir) {
+  const file = boardSvgPath(boardName, historyDir);
+  const directory = file.slice(0, file.lastIndexOf("/"));
+  const prefix = `${file.slice(file.lastIndexOf("/") + 1)}.`;
+  const entries = await fs.promises.readdir(directory);
+  return entries.some(
+    (entry) => entry.startsWith(prefix) && entry.endsWith(".quarantine"),
+  );
+}
+
+/**
+ * @param {string} file
+ * @returns {Promise<void>}
+ */
+async function quarantineUnreadableSvg(file) {
+  await rename(file, createQuarantineSvgPath(file));
+}
+
+/**
+ * @param {string} boardName
+ * @param {string | undefined} historyDir
+ * @param {(readableSvg: {file: string, byteLength: number, source: "svg" | "svg_backup"}) => Promise<any>} readReadableSvg
+ * @returns {Promise<any>}
+ */
+async function readStoredSvgWithFallback(
+  boardName,
+  historyDir,
+  readReadableSvg,
+) {
   /** @type {Array<{file: string, source: "svg" | "svg_backup"}>} */
-  for (const candidate of [
+  const candidates = [
     { file: boardSvgPath(boardName, historyDir), source: "svg" },
     { file: boardSvgBackupPath(boardName, historyDir), source: "svg_backup" },
-  ]) {
+  ];
+  for (const candidate of candidates) {
     try {
       const fileStat = await stat(candidate.file);
-      return {
+      /** @type {{file: string, byteLength: number, source: "svg" | "svg_backup"}} */
+      const readableSvg = {
         file: candidate.file,
         byteLength: fileStat.size,
-        source: /** @type {"svg" | "svg_backup"} */ (candidate.source),
+        source: candidate.source,
       };
-    } catch (error) {
-      if (errorCode(error) !== "ENOENT") {
-        throw error;
+      const result = await readReadableSvg(readableSvg);
+      if (
+        candidate.source === "svg_backup" &&
+        candidate.file !== boardSvgPath(boardName, historyDir)
+      ) {
+        await rename(candidate.file, boardSvgPath(boardName, historyDir));
       }
+      return result;
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") continue;
+      if (isPrimaryStoredSvgFile(candidate.file)) {
+        try {
+          await quarantineUnreadableSvg(candidate.file);
+        } catch (quarantineError) {
+          if (errorCode(quarantineError) !== "ENOENT") throw quarantineError;
+        }
+        continue;
+      }
+      throw error;
     }
   }
   return null;
@@ -172,40 +226,44 @@ async function resolveReadableSvgFile(boardName, historyDir) {
  */
 async function readStoredSvgMetadata(boardName, options) {
   const historyDir = options?.historyDir;
-  const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
-  if (!readableSvg) {
-    return {
-      metadata: defaultBoardMetadata(),
-      seq: 0,
-      source: "empty",
-      byteLength: 0,
-    };
-  }
-
-  const stream = fs.createReadStream(readableSvg.file, { encoding: "utf8" });
-  /** @type {BoardMetadata} */
-  let metadata = defaultBoardMetadata();
-  let seq = 0;
-  try {
-    for await (const event of streamStoredSvgStructure(stream)) {
-      if (event.type !== "prefix") continue;
-      const rootMetadata = readStoredSvgRootMetadata(event.prefix);
-      seq = rootMetadata.seq;
-      metadata = {
-        readonly: rootMetadata.readonly,
+  const state = await readStoredSvgWithFallback(
+    boardName,
+    historyDir,
+    async (readableSvg) => {
+      const stream = fs.createReadStream(readableSvg.file, {
+        encoding: "utf8",
+      });
+      /** @type {BoardMetadata} */
+      let metadata = defaultBoardMetadata();
+      let seq = 0;
+      try {
+        for await (const event of streamStoredSvgStructure(stream)) {
+          if (event.type !== "prefix") continue;
+          const rootMetadata = readStoredSvgRootMetadata(event.prefix);
+          seq = rootMetadata.seq;
+          metadata = {
+            readonly: rootMetadata.readonly,
+            seq,
+          };
+          break;
+        }
+      } finally {
+        stream.destroy();
+      }
+      return {
+        metadata,
         seq,
+        source: readableSvg.source,
+        byteLength: readableSvg.byteLength,
       };
-      break;
-    }
-  } finally {
-    stream.destroy();
-  }
-
+    },
+  );
+  if (state) return state;
   return {
-    metadata,
-    seq,
-    source: readableSvg.source,
-    byteLength: readableSvg.byteLength,
+    metadata: defaultBoardMetadata(),
+    seq: 0,
+    source: "empty",
+    byteLength: 0,
   };
 }
 
@@ -358,51 +416,61 @@ async function readCanonicalBoardState(boardName, options) {
   /** @type {string[]} */
   const paintOrder = [];
   const svgExtent = createDefaultSvgExtent();
-  const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
-  if (readableSvg) {
-    const stream = fs.createReadStream(readableSvg.file, { encoding: "utf8" });
-    /** @type {BoardMetadata} */
-    let metadata = defaultBoardMetadata();
-    let seq = 0;
-    let index = 0;
-    for await (const event of streamStoredSvgStructure(stream)) {
-      if (event.type === "prefix") {
-        const rootMetadata = readStoredSvgRootMetadata(event.prefix);
-        metadata = {
-          readonly: rootMetadata.readonly,
-        };
-        seq = rootMetadata.seq;
-        svgExtent.width = rootMetadata.svgExtent.width;
-        svgExtent.height = rootMetadata.svgExtent.height;
-        continue;
+  const state = await readStoredSvgWithFallback(
+    boardName,
+    historyDir,
+    async (readableSvg) => {
+      const stream = fs.createReadStream(readableSvg.file, {
+        encoding: "utf8",
+      });
+      /** @type {BoardMetadata} */
+      let metadata = defaultBoardMetadata();
+      let seq = 0;
+      let index = 0;
+      try {
+        for await (const event of streamStoredSvgStructure(stream)) {
+          if (event.type === "prefix") {
+            const rootMetadata = readStoredSvgRootMetadata(event.prefix);
+            metadata = {
+              readonly: rootMetadata.readonly,
+            };
+            seq = rootMetadata.seq;
+            svgExtent.width = rootMetadata.svgExtent.width;
+            svgExtent.height = rootMetadata.svgExtent.height;
+            continue;
+          }
+          if (event.type !== "item") continue;
+          const item = canonicalItemFromStoredSvgEntry(event.entry, index);
+          if (!item) {
+            logger.warn("board.load_item_skipped", {
+              board: boardName,
+              "wbo.board.source": readableSvg.source,
+              "wbo.board.paint_order": index,
+              "wbo.board.item_tag": event.entry?.tagName,
+              "wbo.board.item_id": event.entry?.id,
+            });
+            continue;
+          }
+          itemsById.set(item.id, item);
+          paintOrder.push(item.id);
+          extendSvgExtentForItem(svgExtent, item);
+          index += 1;
+        }
+      } finally {
+        stream.destroy();
       }
-      if (event.type !== "item") continue;
-      const item = canonicalItemFromStoredSvgEntry(event.entry, index);
-      if (!item) {
-        logger.warn("board.load_item_skipped", {
-          board: boardName,
-          "wbo.board.source": readableSvg.source,
-          "wbo.board.paint_order": index,
-          "wbo.board.item_tag": event.entry?.tagName,
-          "wbo.board.item_id": event.entry?.id,
-        });
-        continue;
-      }
-      itemsById.set(item.id, item);
-      paintOrder.push(item.id);
-      extendSvgExtentForItem(svgExtent, item);
-      index += 1;
-    }
-    return {
-      itemsById,
-      paintOrder,
-      metadata,
-      seq,
-      source: readableSvg.source,
-      byteLength: readableSvg.byteLength,
-      svgExtent,
-    };
-  }
+      return {
+        itemsById,
+        paintOrder,
+        metadata,
+        seq,
+        source: readableSvg.source,
+        byteLength: readableSvg.byteLength,
+        svgExtent,
+      };
+    },
+  );
+  if (state) return state;
 
   try {
     const parsed = await readLegacyBoardState(boardName, {
@@ -435,8 +503,9 @@ async function readCanonicalBoardState(boardName, options) {
 async function boardExists(boardName, config) {
   const historyDir = config.HISTORY_DIR;
   return (
-    (await fileExists(boardSvgBackupPath(boardName, historyDir))) ||
     (await fileExists(boardSvgPath(boardName, historyDir))) ||
+    (await fileExists(boardSvgBackupPath(boardName, historyDir))) ||
+    (await hasQuarantinedSvg(boardName, historyDir)) ||
     (await fileExists(boardJsonPath(boardName, historyDir)))
   );
 }
@@ -453,7 +522,7 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
   const historyDir = options?.historyDir;
   const file = boardSvgPath(boardName, historyDir);
   const backupFile = boardSvgBackupPath(boardName, historyDir);
-  const tmpFile = createTempSvgPath(file);
+  const tmpFile = createTempSvgPath(backupFile);
   logSvgStoreDebug("svg.write_started", {
     board: boardName,
     "file.tmp_path": tmpFile,
@@ -507,15 +576,15 @@ async function writeBoardState(boardName, board, metadata, seq, options) {
     board: boardName,
     "file.tmp_path": tmpFile,
   });
-  await rename(tmpFile, file);
-  await copyFile(file, backupFile);
+  await rename(tmpFile, backupFile);
+  await rename(backupFile, file);
   const savedFile = await stat(file).catch(async (error) => {
     if (errorCode(error) !== "ENOENT") throw error;
-    return stat(backupFile);
+    return stat(backupFile).catch(() => null);
   });
   logSvgStoreDebug("svg.write_completed", {
     board: boardName,
-    "file.size": savedFile.size,
+    ...(savedFile ? { "file.size": savedFile.size } : {}),
     "wbo.svg.seq": seq,
   });
 }
@@ -530,7 +599,7 @@ async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
   const historyDir = options?.historyDir;
   const file = boardSvgPath(boardName, historyDir);
   const backupFile = boardSvgBackupPath(boardName, historyDir);
-  const tmpFile = createTempSvgPath(file);
+  const tmpFile = createTempSvgPath(backupFile);
   const {
     itemTags,
     sourceItemCount,
@@ -571,8 +640,8 @@ async function migrateLegacyJsonBoardToSvg(boardName, parsed, options) {
     envelope.suffix,
   );
   await writeFile(tmpFile, svg, { flag: "wx" });
-  await rename(tmpFile, file);
-  await copyFile(file, backupFile);
+  await rename(tmpFile, backupFile);
+  await rename(backupFile, file);
   logSvgStoreInfo("svg.migration_completed", {
     board: boardName,
     "wbo.legacy.item_count": sourceItemCount,
@@ -796,9 +865,8 @@ async function rewriteStoredSvgFromCanonical(
   const historyDir = options?.historyDir;
   const file = boardSvgPath(boardName, historyDir);
   const backupFile = boardSvgBackupPath(boardName, historyDir);
-  const tmpFile = createTempSvgPath(file);
-  const sourceFile =
-    (await resolveReadableSvgFile(boardName, historyDir))?.file || file;
+  const tmpFile = createTempSvgPath(backupFile);
+  const sourceFile = (await fileExists(file)) ? file : backupFile;
   const input = fs.createReadStream(sourceFile, { encoding: "utf8" });
   const output = fs.createWriteStream(tmpFile, {
     encoding: "utf8",
@@ -937,8 +1005,8 @@ async function rewriteStoredSvgFromCanonical(
     throw error;
   }
 
-  await rename(tmpFile, file);
-  await copyFile(file, backupFile);
+  await rename(tmpFile, backupFile);
+  await rename(backupFile, file);
   return persistedIds;
 }
 
@@ -998,9 +1066,13 @@ async function readBoardDocumentState(boardName, options) {
  */
 async function readServedBaseline(boardName, options) {
   const historyDir = options?.historyDir;
-  const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
-  if (readableSvg) {
-    return await readFile(readableSvg.file, "utf8");
+  const storedSvg = await readStoredSvgWithFallback(
+    boardName,
+    historyDir,
+    async (readableSvg) => readFile(readableSvg.file, "utf8"),
+  );
+  if (typeof storedSvg === "string") {
+    return storedSvg;
   }
 
   try {
@@ -1023,9 +1095,13 @@ async function readServedBaseline(boardName, options) {
  */
 async function streamServedBaseline(boardName, options) {
   const historyDir = options?.historyDir;
-  const readableSvg = await resolveReadableSvgFile(boardName, historyDir);
-  if (readableSvg) {
-    return fs.createReadStream(readableSvg.file);
+  const readableSvg = await readStoredSvgWithFallback(
+    boardName,
+    historyDir,
+    async (readable) => readable.file,
+  );
+  if (typeof readableSvg === "string") {
+    return fs.createReadStream(readableSvg);
   }
   return Readable.from([await readServedBaseline(boardName, options)]);
 }

@@ -388,8 +388,9 @@ Important files:
   when replay is not possible.
 - Canonical board items store scalar fields in `attrs`, `transform` once at the
   item top level, and payload-specific state under `payload`.
-- Stored SVG is authoritative. `.svg.bak` is the fallback. Legacy `.json` boards
-  are migration inputs, not the steady-state format.
+- Stored SVG is authoritative. `.svg.bak` is a transient save staging file, and
+  unreadable primary SVGs are quarantined before fallback. Legacy `.json`
+  boards are migration inputs, not the steady-state format.
 - Stored SVG structural scan, summary decode, and full materialization are
   separate. Bad recognized items may be skipped; broken SVG structure is an
   error. Do not turn structural failures into silent repairs.
