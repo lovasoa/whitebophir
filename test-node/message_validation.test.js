@@ -1,7 +1,18 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { MESSAGE_VALIDATION_PATH } = require("./test_helpers.js");
+const { MESSAGE_VALIDATION_PATH, createConfig } = require("./test_helpers.js");
+const messageValidation = require(MESSAGE_VALIDATION_PATH);
+const defaultConfig = createConfig();
+
+/**
+ * @param {any} data
+ * @param {any} [config]
+ * @returns {any}
+ */
+function normalizeIncomingMessage(data, config = defaultConfig) {
+  return messageValidation.normalizeIncomingMessage(config, data);
+}
 const MessageToolMetadata = require("../client-data/js/message_tool_metadata.js");
 const {
   Cursor,
@@ -13,9 +24,8 @@ const {
 const { MutationType } = MessageToolMetadata;
 
 test("normalizeIncomingMessage rejects live tool/type combinations that are not defined", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
   assert.deepEqual(
-    messageValidation.normalizeIncomingMessage({
+    normalizeIncomingMessage({
       tool: Rectangle.id,
       type: MutationType.COPY,
       id: "shape-1",
@@ -28,8 +38,7 @@ test("normalizeIncomingMessage rejects live tool/type combinations that are not 
 });
 
 test("normalizeIncomingMessage requires required fields for updates", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
-  const invalidUpdate = messageValidation.normalizeIncomingMessage({
+  const invalidUpdate = normalizeIncomingMessage({
     tool: Rectangle.id,
     type: MutationType.UPDATE,
     id: "shape-1",
@@ -40,9 +49,8 @@ test("normalizeIncomingMessage requires required fields for updates", () => {
 });
 
 test("normalizeIncomingMessage requires explicit live seed geometry", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
   assert.deepEqual(
-    messageValidation.normalizeIncomingMessage({
+    normalizeIncomingMessage({
       tool: StraightLine.id,
       type: MutationType.CREATE,
       id: "line-1",
@@ -60,10 +68,8 @@ test("normalizeIncomingMessage requires explicit live seed geometry", () => {
 });
 
 test("normalizeIncomingMessage rejects non-canonical live values instead of repairing them", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
-
   assert.deepEqual(
-    messageValidation.normalizeIncomingMessage({
+    normalizeIncomingMessage({
       tool: Rectangle.id,
       type: MutationType.CREATE,
       id: "rect-1",
@@ -82,7 +88,7 @@ test("normalizeIncomingMessage rejects non-canonical live values instead of repa
   );
 
   assert.deepEqual(
-    messageValidation.normalizeIncomingMessage({
+    normalizeIncomingMessage({
       tool: Rectangle.id,
       type: MutationType.CREATE,
       id: "rect-2",
@@ -102,8 +108,7 @@ test("normalizeIncomingMessage rejects non-canonical live values instead of repa
 });
 
 test("normalizeIncomingMessage rejects malformed hand batches atomically", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
-  const normalized = messageValidation.normalizeIncomingMessage({
+  const normalized = normalizeIncomingMessage({
     tool: Hand.id,
     _children: [
       {
@@ -124,9 +129,8 @@ test("normalizeIncomingMessage rejects malformed hand batches atomically", () =>
 });
 
 test("normalizeIncomingMessage rejects messages without a tool", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
   assert.deepEqual(
-    messageValidation.normalizeIncomingMessage({
+    normalizeIncomingMessage({
       type: MutationType.CREATE,
       id: "rect-1",
       color: "#123456",
@@ -145,9 +149,8 @@ test("normalizeIncomingMessage rejects messages without a tool", () => {
 });
 
 test("normalizeIncomingMessage rejects oversized live shapes", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
   assert.deepEqual(
-    messageValidation.normalizeIncomingMessage({
+    normalizeIncomingMessage({
       tool: Rectangle.id,
       type: MutationType.CREATE,
       id: "rect-big",
@@ -167,9 +170,8 @@ test("normalizeIncomingMessage rejects oversized live shapes", () => {
 });
 
 test("normalizeIncomingMessage rejects transforms that move live shapes outside the board", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
   assert.deepEqual(
-    messageValidation.normalizeIncomingMessage({
+    normalizeIncomingMessage({
       tool: Hand.id,
       _children: [
         {
@@ -196,9 +198,8 @@ test("normalizeIncomingMessage rejects transforms that move live shapes outside 
 });
 
 test("normalizeIncomingMessage rejects over-limit text instead of truncating it", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
   assert.deepEqual(
-    messageValidation.normalizeIncomingMessage({
+    normalizeIncomingMessage({
       tool: Text.id,
       type: MutationType.UPDATE,
       id: "text-1",
@@ -212,8 +213,7 @@ test("normalizeIncomingMessage rejects over-limit text instead of truncating it"
 });
 
 test("normalizeIncomingMessage preserves clientMutationId for persistent messages", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
-  const normalized = messageValidation.normalizeIncomingMessage({
+  const normalized = normalizeIncomingMessage({
     tool: Rectangle.id,
     type: MutationType.CREATE,
     id: "rect-1",
@@ -232,8 +232,7 @@ test("normalizeIncomingMessage preserves clientMutationId for persistent message
 });
 
 test("normalizeIncomingMessage rejects invalid clientMutationId and strips it from cursor updates", () => {
-  const messageValidation = require(MESSAGE_VALIDATION_PATH);
-  const rejected = messageValidation.normalizeIncomingMessage({
+  const rejected = normalizeIncomingMessage({
     tool: Text.id,
     type: MutationType.UPDATE,
     id: "text-1",
@@ -245,7 +244,7 @@ test("normalizeIncomingMessage rejects invalid clientMutationId and strips it fr
     reason: "invalid clientMutationId",
   });
 
-  const cursor = messageValidation.normalizeIncomingMessage({
+  const cursor = normalizeIncomingMessage({
     tool: Cursor.id,
     type: MutationType.UPDATE,
     x: 10,
@@ -257,7 +256,7 @@ test("normalizeIncomingMessage rejects invalid clientMutationId and strips it fr
   assert.equal(cursor.ok, true);
   assert.equal("clientMutationId" in cursor.value, false);
 
-  const cursorWithOpacity = messageValidation.normalizeIncomingMessage({
+  const cursorWithOpacity = normalizeIncomingMessage({
     tool: Cursor.id,
     type: MutationType.UPDATE,
     x: 10,

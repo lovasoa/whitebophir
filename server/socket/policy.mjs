@@ -22,6 +22,8 @@ const { logger, metrics, tracing } = observability;
  *   AUTH_SECRET_KEY: string,
  *   BLOCKED_TOOLS: string[],
  *   IP_SOURCE: string,
+ *   MAX_BOARD_SIZE: number,
+ *   MAX_CHILDREN: number,
  *   TRUST_PROXY_HOPS: number,
  * }} SocketPolicyConfig
  */
@@ -253,7 +255,7 @@ function normalizeBroadcastData(config, boardName, data) {
     return rejectedBroadcast(boardName, "blocked tool");
   }
 
-  const normalized = normalizeIncomingMessage(data);
+  const normalized = normalizeIncomingMessage(config, data);
   if (normalized.ok === false) {
     return rejectedBroadcast(boardName, normalized.reason);
   }

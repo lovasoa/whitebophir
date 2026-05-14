@@ -4,16 +4,9 @@ import {
   MutationType,
 } from "../../client-data/js/message_tool_metadata.js";
 import { Cursor, TOOLS } from "../../client-data/tools/index.js";
-import { parseIntegerEnv } from "../configuration/helpers.mjs";
-const MAX_BOARD_SIZE = parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360);
-const MAX_CHILDREN = parseIntegerEnv("WBO_MAX_CHILDREN", 500);
-
-// Capture config once at module load. The hot paths below (per-coordinate
-// clamping via `normalizeCoord`, per-child length checks) run thousands of
-// times per large-board load, so module-scope capture remains required.
-// Tests that need alternate env must re-import this module with a fresh URL.
 
 /** @typedef {{[key: string]: unknown}} RawRecord */
+/** @typedef {Pick<import("../../types/server-runtime.d.ts").ServerConfig, "MAX_BOARD_SIZE" | "MAX_CHILDREN">} MessageValidationConfig */
 /** @typedef {import("../../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {import("../../types/app-runtime.d.ts").ToolOwnedBatchMessage} ToolOwnedBatchMessage */
 /** @typedef {import("../../types/app-runtime.d.ts").ToolCode} ToolCode */
@@ -29,7 +22,7 @@ const MAX_CHILDREN = parseIntegerEnv("WBO_MAX_CHILDREN", 500);
  */
 /**
  * @template [T=unknown]
- * @typedef {(value: unknown, raw?: RawRecord, normalized?: RawRecord) => ValidationResult<T>} FieldNormalizer
+ * @typedef {(value: unknown, raw: RawRecord | undefined, normalized: RawRecord | undefined, maxBoardSize: number) => ValidationResult<T>} FieldNormalizer
  */
 /**
  * @template [T=unknown]
@@ -165,10 +158,13 @@ function normalizeOpacity(value) {
 
 /**
  * @param {unknown} value
+ * @param {RawRecord | undefined} _raw
+ * @param {RawRecord | undefined} _normalized
+ * @param {number} maxBoardSize
  * @returns {ValidationResult<number>}
  */
-function normalizeCoord(value) {
-  const coord = MessageCommon.normalizeBoardCoord(value, MAX_BOARD_SIZE);
+function normalizeCoord(value, _raw, _normalized, maxBoardSize) {
+  const coord = MessageCommon.normalizeBoardCoord(value, maxBoardSize);
   return coord === null ? rejected("invalid coord") : accepted(coord);
 }
 
@@ -229,9 +225,10 @@ function normalizeTransform(value) {
 /**
  * @param {unknown} raw
  * @param {FieldSchema} fields
+ * @param {number} maxBoardSize
  * @returns {ValidationResult<RawRecord>}
  */
-function normalizeObject(raw, fields) {
+function normalizeObject(raw, fields, maxBoardSize) {
   if (!isPlainObject(raw)) return rejected("expected object");
 
   /** @type {RawRecord} */
@@ -251,7 +248,7 @@ function normalizeObject(raw, fields) {
       continue;
     }
 
-    const result = field.normalize(value, raw, normalized);
+    const result = field.normalize(value, raw, normalized, maxBoardSize);
     if (result.ok === false) return rejected(`${key}: ${result.reason}`);
     if (result.value !== undefined) normalized[key] = result.value;
   }
@@ -404,9 +401,11 @@ const LIVE_BATCH_CHILD_SCHEMAS = Object.fromEntries(
 
 /**
  * @param {unknown} raw
+ * @param {number} maxBoardSize
+ * @param {number} maxChildren
  * @returns {ValidationResult<NormalizedMessageData>}
  */
-function normalizeIncomingBatch(raw) {
+function normalizeIncomingBatch(raw, maxBoardSize, maxChildren) {
   if (!isPlainObject(raw)) return rejected("expected object");
   if (!Object.prototype.hasOwnProperty.call(raw, "tool")) {
     return rejected("missing tool");
@@ -417,7 +416,7 @@ function normalizeIncomingBatch(raw) {
   const childSchemas = LIVE_BATCH_CHILD_SCHEMAS[toolCode.value];
   if (!childSchemas) return rejected("unsupported batch tool");
   if (!Array.isArray(raw._children)) return rejected("invalid _children");
-  if (raw._children.length > MAX_CHILDREN) {
+  if (raw._children.length > maxChildren) {
     return rejected("too many children");
   }
 
@@ -432,7 +431,7 @@ function normalizeIncomingBatch(raw) {
       return rejected(`_children[${index}]: invalid type`);
     }
 
-    const normalizedChild = normalizeObject(child, schema);
+    const normalizedChild = normalizeObject(child, schema, maxBoardSize);
     if (normalizedChild.ok === false) {
       return rejected(`_children[${index}]: ${normalizedChild.reason}`);
     }
@@ -453,12 +452,18 @@ function normalizeIncomingBatch(raw) {
 }
 
 /**
+ * @param {MessageValidationConfig} config
  * @param {unknown} raw
  * @returns {ValidationResult<NormalizedMessageData>}
  */
-function normalizeIncomingMessage(raw) {
+function normalizeIncomingMessage(config, raw) {
+  const maxBoardSize = config.MAX_BOARD_SIZE;
+  const maxChildren = config.MAX_CHILDREN;
+
   if (!isPlainObject(raw)) return rejected("expected object");
-  if (Array.isArray(raw._children)) return normalizeIncomingBatch(raw);
+  if (Array.isArray(raw._children)) {
+    return normalizeIncomingBatch(raw, maxBoardSize, maxChildren);
+  }
   if (!Object.prototype.hasOwnProperty.call(raw, "tool")) {
     return rejected("missing tool");
   }
@@ -470,11 +475,11 @@ function normalizeIncomingMessage(raw) {
     typeof raw.type === "number" ? toolSchemas?.[raw.type] : undefined;
   if (!schema) return rejected("invalid tool/type");
 
-  const normalized = normalizeObject(raw, schema);
+  const normalized = normalizeObject(raw, schema, maxBoardSize);
   if (!normalized.ok) return normalized;
   if (
     getMutationType(normalized.value) !== MutationType.UPDATE &&
-    MessageCommon.isGeometryInvalid(normalized.value, MAX_BOARD_SIZE)
+    MessageCommon.isGeometryInvalid(normalized.value, maxBoardSize)
   ) {
     return rejected("shape too large");
   }

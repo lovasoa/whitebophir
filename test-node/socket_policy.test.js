@@ -8,7 +8,13 @@ const {
   createSocket,
 } = require("./test_helpers.js");
 const { MutationType } = require("../client-data/js/message_tool_metadata.js");
-const { Clear, Cursor, Text } = require("../client-data/tools/index.js");
+const {
+  Clear,
+  Cursor,
+  Hand,
+  Rectangle,
+  Text,
+} = require("../client-data/tools/index.js");
 
 require(SOCKET_POLICY_PATH);
 
@@ -139,6 +145,72 @@ test("normalizeBroadcastData rejects blocked tools before persistence", async ()
   });
 
   assert.deepEqual(rejected, { ok: false, reason: "blocked tool" });
+});
+
+test("normalizeBroadcastData uses supplied runtime limits for socket validation", async () => {
+  const socketPolicy = require(SOCKET_POLICY_PATH);
+  const rectangleMessage = {
+    tool: Rectangle.id,
+    type: MutationType.CREATE,
+    id: "rect-1",
+    color: "#123456",
+    size: 10,
+    opacity: 1,
+    x: 0,
+    y: 0,
+    x2: 120,
+    y2: 20,
+  };
+
+  assert.equal(
+    socketPolicy.normalizeBroadcastData(
+      createConfig({ MAX_BOARD_SIZE: 120 }),
+      "anonymous",
+      rectangleMessage,
+    ).ok,
+    true,
+  );
+  assert.deepEqual(
+    socketPolicy.normalizeBroadcastData(
+      createConfig({ MAX_BOARD_SIZE: 100 }),
+      "anonymous",
+      rectangleMessage,
+    ),
+    { ok: false, reason: "x2: invalid coord" },
+  );
+
+  const handBatch = {
+    tool: Hand.id,
+    _children: [
+      {
+        type: MutationType.UPDATE,
+        id: "rect-1",
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 5, f: 6 },
+      },
+      {
+        type: MutationType.UPDATE,
+        id: "rect-2",
+        transform: { a: 1, b: 0, c: 0, d: 1, e: 7, f: 8 },
+      },
+    ],
+  };
+
+  assert.equal(
+    socketPolicy.normalizeBroadcastData(
+      createConfig({ MAX_CHILDREN: 2 }),
+      "anonymous",
+      handBatch,
+    ).ok,
+    true,
+  );
+  assert.deepEqual(
+    socketPolicy.normalizeBroadcastData(
+      createConfig({ MAX_CHILDREN: 1 }),
+      "anonymous",
+      handBatch,
+    ),
+    { ok: false, reason: "too many children" },
+  );
 });
 
 test("socket board policy uses capabilities for cursor, edit, and clear decisions", async () => {
