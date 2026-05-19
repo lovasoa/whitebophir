@@ -1268,7 +1268,20 @@ test("Cursor skips own marker updates while interaction suppresses it", async ()
 });
 
 test("Pencil input logic stops at the configured child limit", () => {
-  const tools = createInputTools();
+  const tools = createInputTools({
+    config: {
+      serverConfig: {
+        RATE_LIMITS: {
+          general: {
+            limit: 10,
+            periodMs: 1000,
+          },
+        },
+        AUTO_FINGER_WHITEOUT: false,
+        MAX_CHILDREN: 2,
+      },
+    },
+  });
   const state = PencilTool.boot(
     createToolBootContext(
       createInputToolRuntime(tools),
@@ -1278,7 +1291,6 @@ test("Pencil input logic stops at the configured child limit", () => {
   state.curLineId = "l-1";
   state.hasSentPoint = true;
   state.currentLineChildCount = 1;
-  state.MAX_PENCIL_CHILDREN = 2;
   state.minPencilIntervalMs = 70;
   state.lastTime = 0;
 
