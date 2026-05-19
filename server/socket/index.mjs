@@ -43,8 +43,7 @@ import {
   countTextCreationActions,
   createRateLimitState,
   enforceBroadcastPreNormalization,
-  pruneRateLimitMap,
-  recordCompletedRateLimitWindow,
+  rateLimitTestInternals,
   resetRateLimitMaps as resetSocketRateLimitMaps,
 } from "./rate_limits.mjs";
 import {
@@ -556,7 +555,6 @@ async function handleSocketConnection(socket, config) {
     });
   });
 
-  const generalRateLimit = createRateLimitState(Date.now());
   onSocketEvent(
     socket,
     "turnstile_token",
@@ -572,8 +570,19 @@ async function handleSocketConnection(socket, config) {
         },
         async function traceTurnstileToken() {
           const clientIp = resolveClientIp(socket, boardName, config);
-          // biome-ignore format: keep the Turnstile token limiter patch compact.
-          if (!enforceBroadcastPreNormalization(socket, boardName, undefined, clientIp, getSocketUserName(socket, clientIp), generalRateLimit, Date.now(), config)) return;
+          if (
+            !enforceBroadcastPreNormalization({
+              socket,
+              boardName,
+              data: undefined,
+              clientIp,
+              userName: getSocketUserName(socket, clientIp),
+              now: Date.now(),
+              config,
+            })
+          ) {
+            return;
+          }
           return handleTurnstileTokenMessage(
             socket,
             boardName,
@@ -600,7 +609,6 @@ async function handleSocketConnection(socket, config) {
           socket,
           normalizedName,
           data,
-          generalRateLimit,
           now,
           config,
           socketBroadcastRuntime,
@@ -657,7 +665,6 @@ async function handleSocketConnection(socket, config) {
   socket.on(
     "disconnecting",
     function onDisconnecting(/** @type {string} */ _reason) {
-      recordCompletedRateLimitWindow("general", generalRateLimit, "disconnect");
       activeSockets.delete(socket.id);
       syncedPersistentSockets.delete(socket.id);
       updateActiveSocketConnectionsGauge();
@@ -865,6 +872,7 @@ export const __test = {
   countConstructiveActions,
   countTextCreationActions,
   createRateLimitState,
+  rateLimitTestInternals,
   getClientIp,
   normalizeBroadcastData,
   prepareConnectionReplay: function prepareConnectionReplayForTest(
@@ -879,7 +887,6 @@ export const __test = {
       boardDebugFields,
     );
   },
-  pruneRateLimitMap,
   cleanupBoardUserMap,
   getBoardUserMap,
   boardUserDebugFields,

@@ -18,7 +18,7 @@ import { isTurnstileValidationActive } from "./turnstile.mjs";
 
 const { logger, metrics, tracing } = observability;
 
-/** @import { AppSocket, MessageData, MutationLogEntry, NormalizedMessageData, RateLimitState, SequencedMutationBroadcastData, ServerConfig } from "../../types/server-runtime.d.ts" */
+/** @import { AppSocket, MessageData, MutationLogEntry, NormalizedMessageData, SequencedMutationBroadcastData, ServerConfig } from "../../types/server-runtime.d.ts" */
 /** @import { BoardData } from "../board/data.mjs" */
 /** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /**
@@ -391,7 +391,6 @@ async function persistBoardBroadcast(
  * @param {AppSocket} socket
  * @param {string} boardName
  * @param {MessageData | undefined} data
- * @param {RateLimitState} generalRateLimit
  * @param {number} now
  * @param {ServerConfig} config
  * @param {SocketBroadcastRuntime} runtime
@@ -401,7 +400,6 @@ async function handleBroadcastWriteMessage(
   socket,
   boardName,
   data,
-  generalRateLimit,
   now,
   config,
   runtime,
@@ -412,16 +410,15 @@ async function handleBroadcastWriteMessage(
     boardMutationTraceAttributes(boardName, userName, data),
   );
   if (
-    !enforceBroadcastPreNormalization(
+    !enforceBroadcastPreNormalization({
       socket,
       boardName,
       data,
       clientIp,
       userName,
-      generalRateLimit,
       now,
       config,
-    )
+    })
   ) {
     return;
   }
@@ -446,15 +443,15 @@ async function handleBroadcastWriteMessage(
     boardMutationTraceAttributes(boardName, userName, normalizedData),
   );
   if (
-    !enforceBroadcastPostNormalization(
+    !enforceBroadcastPostNormalization({
       socket,
       boardName,
-      normalizedData,
+      data: normalizedData,
       clientIp,
       userName,
       now,
       config,
-    )
+    })
   ) {
     return;
   }

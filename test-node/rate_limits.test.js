@@ -107,6 +107,156 @@ test("general rate limit closes the socket when exceeded", async () => {
   );
 });
 
+test("general rate limit is shared by IP across boards", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 1, periodMs: 10_000, overrides: {} },
+    },
+    async (sockets) => {
+      const first = createSocket({
+        id: "socket-general-shared-1",
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.20",
+        query: { board: "shared-limit-a" },
+      });
+      const second = createSocket({
+        id: "socket-general-shared-2",
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.20",
+        query: { board: "shared-limit-b" },
+      });
+      await sockets.__test.handleSocketConnection(
+        first.socket,
+        sockets.__config,
+      );
+      await sockets.__test.handleSocketConnection(
+        second.socket,
+        sockets.__config,
+      );
+
+      assert.ok(first.handlers.broadcast);
+      assert.ok(second.handlers.broadcast);
+      await first.handlers.broadcast({});
+      await second.handlers.broadcast({});
+
+      assert.notEqual(first.socket.disconnected, true);
+      assert.equal(second.socket.disconnected, true);
+      assert.deepEqual(
+        second.emitted.find((event) => event.event === "rate-limited"),
+        {
+          event: "rate-limited",
+          payload: {
+            event: "GENERAL_RATE_LIMIT_EXCEEDED",
+            kind: "general",
+            limit: 1,
+            periodMs: 10_000,
+            retryAfterMs: second.emitted.find(
+              (event) => event.event === "rate-limited",
+            )?.payload?.retryAfterMs,
+          },
+        },
+      );
+    },
+  );
+});
+
+test("general rate limit keeps separate budgets for different IPs", async () => {
+  await withSocketConfig(
+    {
+      GENERAL_RATE_LIMITS: { limit: 1, periodMs: 10_000, overrides: {} },
+    },
+    async (sockets) => {
+      const first = createSocket({
+        id: "socket-general-ip-1",
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.21",
+        query: { board: "separate-limit-a" },
+      });
+      const second = createSocket({
+        id: "socket-general-ip-2",
+        headers: { "user-agent": "test-agent" },
+        remoteAddress: "203.0.113.22",
+        query: { board: "separate-limit-b" },
+      });
+      await sockets.__test.handleSocketConnection(
+        first.socket,
+        sockets.__config,
+      );
+      await sockets.__test.handleSocketConnection(
+        second.socket,
+        sockets.__config,
+      );
+
+      assert.ok(first.handlers.broadcast);
+      assert.ok(second.handlers.broadcast);
+      await first.handlers.broadcast({});
+      await second.handlers.broadcast({});
+
+      assert.notEqual(first.socket.disconnected, true);
+      assert.notEqual(second.socket.disconnected, true);
+      assert.equal(first.socket.disconnectCalls.length, 0);
+      assert.equal(second.socket.disconnectCalls.length, 0);
+    },
+  );
+});
+
+test("rate-limit maps cap stored IP states by evicting oldest entries", async () => {
+  await withSocketConfig({}, async (sockets) => {
+    const internals = sockets.__test.rateLimitTestInternals;
+    const cap = internals.RATE_LIMIT_MAP_MAX_SIZE;
+    const periodMs = 60_000;
+    const now = 100_000;
+
+    for (let index = 0; index < cap; index += 1) {
+      internals.touchState("general", `ip-${index}`, now + index, periodMs);
+    }
+    assert.equal(internals.getMapSize("general"), cap);
+
+    internals.touchState("general", "ip-new", now + cap, periodMs);
+
+    assert.equal(internals.getMapSize("general"), cap);
+    assert.equal(internals.hasState("general", "ip-0"), false);
+    assert.equal(internals.hasState("general", "ip-new"), true);
+  });
+});
+
+test("all rate-limit maps use bounded stale cleanup", async () => {
+  await withSocketConfig({}, async (sockets) => {
+    const internals = sockets.__test.rateLimitTestInternals;
+    const kinds = ["general", "constructive", "destructive", "text"];
+    const periodMs = 1_000;
+    const now = 10_000;
+
+    for (const kind of kinds) {
+      sockets.__test.resetRateLimitMaps();
+      for (
+        let index = 0;
+        index < internals.RATE_LIMIT_STALE_SCAN_LIMIT + 2;
+        index += 1
+      ) {
+        internals.setState(kind, `${kind}-stale-${index}`, {
+          windowStart: 0,
+          count: 1,
+          lastSeen: 0,
+        });
+      }
+
+      internals.touchState(kind, `${kind}-fresh`, now, periodMs);
+
+      assert.equal(internals.getMapSize(kind), 3);
+      assert.equal(internals.hasState(kind, `${kind}-stale-0`), false);
+      assert.equal(
+        internals.hasState(
+          kind,
+          `${kind}-stale-${internals.RATE_LIMIT_STALE_SCAN_LIMIT}`,
+        ),
+        true,
+      );
+      assert.equal(internals.hasState(kind, `${kind}-fresh`), true);
+    }
+  });
+});
+
 test("destructive per-IP rate limit closes the socket when exceeded", async () => {
   await withSocketConfig(
     {

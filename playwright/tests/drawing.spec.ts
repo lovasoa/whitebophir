@@ -402,6 +402,8 @@ test.describe("drawing and persistence", () => {
       const peerPage = await context.newPage();
       const peerBoard = createBoardPage(peerPage, server);
 
+      await boardPage.setSocketHeaders({ "X-Forwarded-For": "198.51.100.10" });
+      await peerBoard.setSocketHeaders({ "X-Forwarded-For": "198.51.100.11" });
       await Promise.all([
         boardPage.gotoBoard(boardName, { token: TOKENS.globalModerator }),
         peerBoard.gotoBoard(boardName, { token: TOKENS.globalModerator }),

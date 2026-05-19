@@ -224,7 +224,7 @@ const rateLimitWindowUtilization = meter.createHistogram(
   "wbo.rate_limit.window.utilization",
   {
     description:
-      "Fraction of a completed fixed-window rate-limit allowance that was consumed before that window ended. Each histogram sample represents exactly one completed server-side rate-limit window for a single tracked subject: one socket connection for the general limit, or one resolved client IP for the constructive, destructive, and text limits. The recorded value is used_count / configured_limit for that completed window. A value of 0.5 means half of the allowance was used, 1.0 means the allowance was fully consumed, and values greater than 1.0 mean the window exceeded the configured limit before the server closed the socket or later pruned the stale state.",
+      "Fraction of a completed fixed-window rate-limit allowance that was consumed before that window ended. Each histogram sample represents exactly one completed server-side rate-limit window for a single tracked resolved client IP. The recorded value is used_count / configured_limit for that completed window. A value of 0.5 means half of the allowance was used, 1.0 means the allowance was fully consumed, and values greater than 1.0 mean the window exceeded the configured limit before the server closed the socket or later pruned the stale state.",
     unit: "1",
     advice: {
       explicitBucketBoundaries: [

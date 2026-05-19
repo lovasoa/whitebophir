@@ -81,7 +81,7 @@ export const MAX_CHILDREN = parseIntegerEnv("WBO_MAX_CHILDREN", 500);
 /** Maximum absolute board coordinate accepted by the server. */
 export const MAX_BOARD_SIZE = parseIntegerEnv("WBO_MAX_BOARD_SIZE", 655360);
 
-/** Per-socket general write rate limits. Example: `*:250/5s anonymous:125/5s`. */
+/** Per-IP general write rate limits. Example: `*:250/5s anonymous:125/5s`. */
 export const GENERAL_RATE_LIMITS = parseRateLimitProfileEnv(
   "WBO_MAX_EMIT_COUNT",
   "*:250/5s",
