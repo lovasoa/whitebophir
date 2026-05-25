@@ -1,13 +1,9 @@
 import {
   canonicalizeBoardName,
-  decodeBoardName,
   decodeAndValidateBoardName,
+  decodeBoardName,
   isValidBoardName,
 } from "../../client-data/js/board_name.js";
-import { pinReplayBaseline } from "../board/registry.mjs";
-import { badRequest } from "../http/boundary_errors.mjs";
-import { requestScheme } from "../http/observation.mjs";
-import { publicPath } from "../http/request_url.mjs";
 import {
   appendSetCookieHeader,
   generateUserSecret,
@@ -15,6 +11,10 @@ import {
   getUserSecretFromCookieHeader,
   serializeUserSecretCookie,
 } from "../auth/user_secret_cookie.mjs";
+import { pinReplayBaseline } from "../board/registry.mjs";
+import { badRequest } from "../http/boundary_errors.mjs";
+import { requestScheme } from "../http/observation.mjs";
+import { publicPath } from "../http/request_url.mjs";
 
 /** @import { HttpRequest, HttpResponse, ObservedHttpRequest, ServerConfig } from "../../types/server-runtime.d.ts" */
 

@@ -10,9 +10,9 @@ import {
   MutationType,
 } from "../../client-data/js/message_tool_metadata.js";
 import { Eraser } from "../../client-data/tools/index.js";
+import observability from "../observability/index.mjs";
 import { getCanonicalItem, removeCanonicalItem } from "./canonical_index.mjs";
 import { createDefaultSvgExtent } from "./svg_extent.mjs";
-import observability from "../observability/index.mjs";
 
 const { logger, tracing } = observability;
 

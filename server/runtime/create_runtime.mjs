@@ -4,8 +4,8 @@ import * as path from "node:path";
 import serveStatic from "serve-static";
 
 import { CSP, staticFileCacheControl } from "../http/cache_policy.mjs";
-import observability from "../observability/index.mjs";
 import * as templating from "../http/templating.mjs";
+import observability from "../observability/index.mjs";
 
 const { logger } = observability;
 

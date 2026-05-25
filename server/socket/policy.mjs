@@ -1,12 +1,12 @@
+import { isValidBoardName } from "../../client-data/js/board_name.js";
 import {
   formatMessageTypeTag,
   getToolId,
 } from "../../client-data/js/message_tool_metadata.js";
 import RateLimitCommon from "../../client-data/js/rate_limit_common.js";
-import { isValidBoardName } from "../../client-data/js/board_name.js";
 import { BoardPermissions } from "../auth/board_capabilities.mjs";
-import { normalizeIncomingMessage } from "./message_validation.mjs";
 import observability from "../observability/index.mjs";
+import { normalizeIncomingMessage } from "./message_validation.mjs";
 
 const { logger, metrics, tracing } = observability;
 
@@ -370,7 +370,7 @@ function boardStateForSocket(config, board, socket) {
  * @returns {boolean}
  */
 function canEditBoard(config, board, socket) {
-  return boardStateForSocket(config, board, socket).canEdit;
+  return boardStateForSocket(config, board, socket).canEdit || false;
 }
 
 /**
@@ -389,13 +389,13 @@ function canApplyBoardMessage(config, board, data, socket) {
 }
 
 export {
+  boardStateForSocket,
   canAccessBoard,
   canApplyBoardMessage,
   canEditBoard,
   countConstructiveActions,
   countDestructiveActions,
   countTextCreationActions,
-  boardStateForSocket,
   getClientIp,
   getRequestClientIp,
   normalizeBoardName,

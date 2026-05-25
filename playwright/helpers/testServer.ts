@@ -198,6 +198,7 @@ export async function startTestServer(
         serverUrl: "",
         tokenQuery,
         stderr,
+        stdout: [],
         useJWT,
         writeBoard,
         readStoredBoard,

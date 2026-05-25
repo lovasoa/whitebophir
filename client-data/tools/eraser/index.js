@@ -24,11 +24,11 @@
  * @licend
  */
 
+import { logFrontendEvent } from "../../js/frontend_logging.js";
 import {
   getMutationType,
   MutationType,
 } from "../../js/message_tool_metadata.js";
-import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 /** @import { ToolBootContext } from "../../../types/app-runtime" */

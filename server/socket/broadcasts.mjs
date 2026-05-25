@@ -9,11 +9,11 @@ import { Cursor } from "../../client-data/tools/index.js";
 import { getBoardSession } from "../board/session.mjs";
 import observability from "../observability/index.mjs";
 import { canApplyBoardMessage, normalizeBroadcastData } from "./policy.mjs";
+import { updateBoardUserFromMessage } from "./presence.mjs";
 import {
   enforceBroadcastPostNormalization,
   enforceBroadcastPreNormalization,
 } from "./rate_limits.mjs";
-import { updateBoardUserFromMessage } from "./presence.mjs";
 import { isTurnstileValidationActive } from "./turnstile.mjs";
 
 const { logger, metrics, tracing } = observability;

@@ -1,9 +1,9 @@
 import WBOMessageCommon from "../../client-data/js/message_common.js";
-import { getToolId } from "../../client-data/js/message_tool_metadata.js";
 import {
   hasMessageColor,
   hasMessageSize,
 } from "../../client-data/js/message_shape.js";
+import { getToolId } from "../../client-data/js/message_tool_metadata.js";
 import { SocketEvents } from "../../client-data/js/socket_events.js";
 import { Cursor } from "../../client-data/tools/index.js";
 import { buildPronounceableName } from "../shared/pronounceable_name.mjs";

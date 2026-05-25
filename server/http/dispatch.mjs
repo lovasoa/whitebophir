@@ -1,11 +1,11 @@
+import * as jwtauth from "../auth/jwt.mjs";
+import observability from "../observability/index.mjs";
 import { badRequest } from "./boundary_errors.mjs";
 import {
   observeRequest,
   requestErrorStatusCode,
   serveError,
 } from "./observation.mjs";
-import * as jwtauth from "../auth/jwt.mjs";
-import observability from "../observability/index.mjs";
 import { publicPath, validateRequestUrl } from "./request_url.mjs";
 
 const { logger } = observability;

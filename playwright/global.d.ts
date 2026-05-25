@@ -1,3 +1,4 @@
+import type RateLimitCommonType from "../client-data/js/rate_limit_common.js";
 import type {
   AppToolsState,
   BoardMessage,
@@ -15,7 +16,14 @@ declare global {
     __downloadAnchorClicks?: number;
     __downloadBlob?: Blob;
     __receivedBroadcasts?: BoardMessage[];
+    __turnstileMock?: {
+      callbacks: TurnstileRenderOptions | null;
+      complete(token: string): void;
+      fail(errorCode: string): void;
+      show(): void;
+    };
     __turnstileOptions?: TurnstileRenderOptions | null;
     turnstile?: TurnstileGlobal;
+    RateLimitCommon?: typeof RateLimitCommonType;
   }
 }

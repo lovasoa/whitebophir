@@ -3,8 +3,8 @@ import path from "node:path";
 
 import MessageCommon from "../../client-data/js/message_common.js";
 import { TOOL_BY_ID } from "../../client-data/tools/index.js";
-import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
 import observability from "../observability/index.mjs";
+import { parseLegacyStoredBoard } from "./legacy_json_board_source.mjs";
 
 const { logger, tracing } = observability;
 const STANDALONE_SVG_RENDER_BYTES_THRESHOLD = 1024 * 1024;

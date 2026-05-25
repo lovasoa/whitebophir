@@ -5,17 +5,16 @@ import * as EllipseModule from "./ellipse/index.js";
 import * as EraserModule from "./eraser/index.js";
 import * as GridModule from "./grid/index.js";
 import * as HandModule from "./hand/index.js";
+import {
+  TOOL_CODE_BY_ID,
+  TOOL_IDS,
+  TOOL_BY_ID as TOOL_METADATA_BY_ID,
+  TOOLBAR_TOOL_IDS,
+} from "./manifest.js";
 import * as PencilModule from "./pencil/index.js";
 import * as RectangleModule from "./rectangle/index.js";
 import * as StraightLineModule from "./straight-line/index.js";
 import * as TextModule from "./text/index.js";
-import * as ZoomModule from "./zoom/index.js";
-import {
-  TOOL_BY_ID as TOOL_METADATA_BY_ID,
-  TOOL_CODE_BY_ID,
-  TOOL_IDS,
-  TOOLBAR_TOOL_IDS,
-} from "./manifest.js";
 import {
   getDefaultToolLabel,
   getToolIconPath,
@@ -23,6 +22,8 @@ import {
   getToolStylesheetPath,
   getToolTranslationKey,
 } from "./tool-defaults.js";
+import * as ZoomModule from "./zoom/index.js";
+
 /** @typedef {import("../../types/app-runtime").ToolCode} ToolCode */
 /** @typedef {import("../../types/app-runtime").ToolRequiredCapability} ToolRequiredCapability */
 /** @typedef {import("./shape_contract.js").ToolContract} ToolContract */

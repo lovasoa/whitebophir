@@ -1,11 +1,11 @@
 import {
-  renderPencilPath,
-  scanPathSummary,
-} from "../../client-data/tools/pencil/index.js";
-import {
   TOOL_BY_ID,
   TOOL_BY_STORED_TAG_NAME,
 } from "../../client-data/tools/index.js";
+import {
+  renderPencilPath,
+  scanPathSummary,
+} from "../../client-data/tools/pencil/index.js";
 import { readRawAttribute } from "./svg_envelope.mjs";
 import { decodedTextLength, escapeHtml, unescapeHtml } from "./xml_escape.mjs";
 
@@ -187,10 +187,10 @@ function serializeStoredSvgItem(item) {
 
 export {
   parseStoredSvgItem,
-  scanPathSummary,
   parseTransformAttribute,
   renderPencilPath,
   renderTransformAttribute,
+  scanPathSummary,
   serializeStoredSvgItem,
   storedSvgSerializeHelpers,
   summarizeStoredSvgItem,

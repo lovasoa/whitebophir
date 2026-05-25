@@ -1,52 +1,51 @@
-import fs from "node:fs";
 import { once } from "node:events";
+import fs from "node:fs";
 import { readFile, rename, stat, writeFile } from "node:fs/promises";
 import { Readable } from "node:stream";
-
+import MessageCommon from "../../client-data/js/message_common.js";
 import {
   appendPersistedPencilPath,
   renderPencilPath,
   serializeStoredPencilPath,
 } from "../../client-data/tools/pencil/index.js";
-import MessageCommon from "../../client-data/js/message_common.js";
-import observability from "../observability/index.mjs";
-import {
-  boardJsonPath,
-  readLegacyBoardState,
-} from "./legacy_json_board_source.mjs";
-import {
-  boardSvgBackupPath,
-  boardSvgPath,
-  createQuarantineSvgPath,
-  createTempSvgPath,
-} from "./svg_board_paths.mjs";
-import { normalizeLegacyBoardForSvg } from "./legacy_json_svg_migration.mjs";
 import {
   canonicalItemFromStoredSvgEntry,
   currentText,
   publicItemFromCanonicalItem,
 } from "../board/canonical_items.mjs";
 import {
-  DEFAULT_SVG_SIZE,
-  SVG_MARGIN,
   createDefaultSvgExtent,
   createSvgExtent,
+  DEFAULT_SVG_SIZE,
   extendSvgExtentForItem,
+  SVG_MARGIN,
 } from "../board/svg_extent.mjs";
+import observability from "../observability/index.mjs";
 import {
-  STORED_SVG_FORMAT,
-  createDefaultStoredSvgEnvelope,
-  parseStoredSvgEnvelope,
-  readRawAttribute,
-  readRawAttributeFromRange,
-  serializeStoredSvgEnvelope,
-  updateRootMetadata,
-} from "./svg_envelope.mjs";
+  boardJsonPath,
+  readLegacyBoardState,
+} from "./legacy_json_board_source.mjs";
+import { normalizeLegacyBoardForSvg } from "./legacy_json_svg_migration.mjs";
 import {
   serializeStoredSvgItem,
   storedSvgSerializeHelpers,
 } from "./stored_svg_item_codec.mjs";
 import { streamStoredSvgStructure } from "./streaming_stored_svg_scan.mjs";
+import {
+  boardSvgBackupPath,
+  boardSvgPath,
+  createQuarantineSvgPath,
+  createTempSvgPath,
+} from "./svg_board_paths.mjs";
+import {
+  createDefaultStoredSvgEnvelope,
+  parseStoredSvgEnvelope,
+  readRawAttribute,
+  readRawAttributeFromRange,
+  STORED_SVG_FORMAT,
+  serializeStoredSvgEnvelope,
+  updateRootMetadata,
+} from "./svg_envelope.mjs";
 import { unescapeHtml } from "./xml_escape.mjs";
 
 const { logger } = observability;
@@ -1107,17 +1106,17 @@ async function streamServedBaseline(boardName, options) {
 }
 
 export {
-  STORED_SVG_FORMAT,
-  boardJsonPath,
   boardExists,
+  boardJsonPath,
   boardSvgBackupPath,
   boardSvgPath,
-  readCanonicalBoardState,
   readBoardDocumentState,
+  readCanonicalBoardState,
   readServedBaseline,
   readStoredSvgSeq,
   rewriteStoredSvgFromCanonical,
+  STORED_SVG_FORMAT,
   streamServedBaseline,
-  writeCanonicalBoardState,
   writeBoardState,
+  writeCanonicalBoardState,
 };

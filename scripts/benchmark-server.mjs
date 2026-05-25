@@ -1,6 +1,6 @@
 import * as fsp from "node:fs/promises";
-import * as os from "node:os";
 import { Session } from "node:inspector";
+import * as os from "node:os";
 import * as path from "node:path";
 import { performance } from "node:perf_hooks";
 
