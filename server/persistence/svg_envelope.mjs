@@ -1,5 +1,5 @@
-import { escapeHtml, unescapeHtml } from "./xml_escape.mjs";
 import { normalizeSvgExtent } from "../board/svg_extent.mjs";
+import { escapeHtml, unescapeHtml } from "./xml_escape.mjs";
 
 const STORED_SVG_FORMAT = "whitebophir-svg-v2";
 
@@ -271,13 +271,13 @@ function createDefaultStoredSvgEnvelope(metadata, seq, svgExtent) {
 }
 
 export {
-  STORED_SVG_FORMAT,
   createDefaultStoredSvgEnvelope,
   parseAttributes,
   parseStoredSvgEnvelope,
   parseStoredSvgItems,
   readRawAttribute,
   readRawAttributeFromRange,
+  STORED_SVG_FORMAT,
   serializeStoredSvgEnvelope,
   updateRootMetadata,
 };

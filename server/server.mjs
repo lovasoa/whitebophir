@@ -11,15 +11,15 @@ import {
   serveBoardSvg,
 } from "./routes/board_assets.mjs";
 import { redirectBoardQuery, serveBoardPage } from "./routes/board_page.mjs";
-import { startWhiteboardServer } from "./runtime/boot.mjs";
-import { createServerRuntime } from "./runtime/create_runtime.mjs";
-import * as sockets from "./socket/index.mjs";
 import {
   redirectToDefaultBoard,
   redirectToRandomBoard,
   serveBoardStaticAsset,
   serveStaticAsset,
 } from "./routes/static.mjs";
+import { startWhiteboardServer } from "./runtime/boot.mjs";
+import { createServerRuntime } from "./runtime/create_runtime.mjs";
+import * as sockets from "./socket/index.mjs";
 
 const { logger } = observability;
 

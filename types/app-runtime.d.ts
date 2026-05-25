@@ -318,8 +318,8 @@ export type MountedToolRegistry = ToolNameMap<MountedAppTool>;
 
 export type AppBoardState = {
   readonly: boolean;
-  canEdit: boolean;
-  canClear: boolean;
+  canEdit?: boolean;
+  canClear?: boolean;
   canWrite: boolean;
 };
 
@@ -423,7 +423,7 @@ export type AppSocket = {
   connect: () => void;
   disconnect?: () => void;
   destroy?: () => void;
-  once?: (eventName: string, handler: (...args: unknown[]) => void) => void;
+  once: (eventName: string, handler: (...args: unknown[]) => void) => void;
   io?: { engine?: { close: () => void }; opts?: { query?: string } };
 };
 
@@ -606,7 +606,11 @@ export type ViewportController = {
 
 /** Board DOM before the streamed SVG baseline has been attached. */
 export type DetachedBoardDomModule =
-  import("../client-data/js/board_runtime_core.js").DetachedBoardDomRuntimeModule;
+  import("../client-data/js/board_runtime_core.js").DetachedBoardDomRuntimeModule & {
+    svg?: undefined;
+    board?: undefined;
+    drawingArea?: undefined;
+  };
 
 /** Board DOM after the app can safely boot drawing tools. */
 export type AttachedBoardDomModule =

@@ -1,18 +1,20 @@
 import { stat } from "node:fs/promises";
-import { rebuildLiveItemCount } from "./canonical_index.mjs";
-import { getMinPinnedReplayBaselineSeq } from "./registry.mjs";
-import { finalizePersistedCanonicalItems } from "./canonical_index.mjs";
-import { boardJsonPath } from "../persistence/legacy_json_board_source.mjs";
-import { createMutationLog } from "./mutation_log.mjs";
 import observability from "../observability/index.mjs";
-import { SerialTaskQueue } from "./serial_task_queue.mjs";
+import { boardJsonPath } from "../persistence/legacy_json_board_source.mjs";
 import { boardSvgBackupPath } from "../persistence/svg_board_paths.mjs";
-import { createDefaultSvgExtent } from "./svg_extent.mjs";
 import {
   readCanonicalBoardState,
   rewriteStoredSvgFromCanonical,
   writeCanonicalBoardState,
 } from "../persistence/svg_board_store.mjs";
+import {
+  finalizePersistedCanonicalItems,
+  rebuildLiveItemCount,
+} from "./canonical_index.mjs";
+import { createMutationLog } from "./mutation_log.mjs";
+import { getMinPinnedReplayBaselineSeq } from "./registry.mjs";
+import { SerialTaskQueue } from "./serial_task_queue.mjs";
+import { createDefaultSvgExtent } from "./svg_extent.mjs";
 
 const { logger, metrics, tracing } = observability;
 

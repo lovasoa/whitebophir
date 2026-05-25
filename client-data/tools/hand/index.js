@@ -29,10 +29,10 @@ import {
   measureSvgElementBoundsAfterTransform,
 } from "../../js/board_extent.js";
 import { messages as BoardMessages } from "../../js/board_transport.js";
+import { safePreventDefault } from "../../js/board_viewport.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
 import MessageCommon from "../../js/message_common.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
-import { safePreventDefault } from "../../js/board_viewport.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */

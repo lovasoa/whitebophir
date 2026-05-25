@@ -1,6 +1,6 @@
+import { TOOL_CODE_BY_ID } from "../tools/tool-order.js";
 import MessageCommon from "./message_common.js";
 import { hasMessagePoint } from "./message_shape.js";
-import { TOOL_CODE_BY_ID } from "../tools/tool-order.js";
 
 /**
  * @typedef {{minX: number, minY: number, maxX: number, maxY: number}} Bounds

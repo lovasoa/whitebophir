@@ -1,5 +1,6 @@
 import * as socketIO from "socket.io";
 import { SocketEvents } from "../../client-data/js/socket_events.js";
+import { BoardData } from "../board/data.mjs";
 import {
   deleteLoadedBoard,
   discardPinnedReplayBaselinesBefore,
@@ -10,7 +11,6 @@ import {
   resetBoardRegistry,
   setLoadedBoard,
 } from "../board/registry.mjs";
-import { BoardData } from "../board/data.mjs";
 import observability from "../observability/index.mjs";
 import {
   boardMutationTraceAttributes,
@@ -18,12 +18,17 @@ import {
   shouldTraceBroadcast,
 } from "./broadcasts.mjs";
 import {
+  boardStateForSocket,
+  getClientIp,
+  normalizeBroadcastData,
+} from "./policy.mjs";
+import {
   boardUserDebugFields,
-  buildBoardUserRecord as createBoardUserRecord,
   buildUserId,
   buildUserName,
   cleanupBoardUserMap,
   clearBoardUsers,
+  buildBoardUserRecord as createBoardUserRecord,
   emitBoardUsersToSocket,
   emitUserJoinedToBoard,
   ensureBoardUser,
@@ -31,11 +36,6 @@ import {
   removeBoardUser,
   resetBoardUserMaps,
 } from "./presence.mjs";
-import {
-  boardStateForSocket,
-  getClientIp,
-  normalizeBroadcastData,
-} from "./policy.mjs";
 import {
   consumeFixedWindowRateLimit,
   countConstructiveActions,
@@ -47,15 +47,15 @@ import {
   resetRateLimitMaps as resetSocketRateLimitMaps,
 } from "./rate_limits.mjs";
 import {
+  createConnectionReplayError,
+  prepareConnectionReplay,
+} from "./replay.mjs";
+import {
   getLastUserReportLog as getLastSocketUserReportLog,
   handleReportUserMessage,
   resetSocketReports,
 } from "./reports.mjs";
 import { getSocketRequest, getSocketUserSecret } from "./request.mjs";
-import {
-  createConnectionReplayError,
-  prepareConnectionReplay,
-} from "./replay.mjs";
 import { handleTurnstileTokenMessage } from "./turnstile.mjs";
 
 const { Server } = socketIO;

@@ -1,3 +1,19 @@
+import { BoardPermissions } from "../auth/board_capabilities.mjs";
+import { badRequest } from "../http/boundary_errors.mjs";
+import { boardSvgCacheControl, CSP } from "../http/cache_policy.mjs";
+import { startCompressedResponse } from "../http/compression.mjs";
+import {
+  errorCode,
+  respondWithErrorPage,
+  serveError,
+} from "../http/observation.mjs";
+import observability from "../observability/index.mjs";
+import {
+  boardExists,
+  readServedBaseline,
+  readStoredSvgSeq,
+  streamServedBaseline,
+} from "../persistence/svg_board_store.mjs";
 import {
   annotateBoardRequest,
   boardOperationTraceAttributes,
@@ -6,22 +22,6 @@ import {
   pinServedBoardBaseline,
   requireBoardPathName,
 } from "./board_http_helpers.mjs";
-import { badRequest } from "../http/boundary_errors.mjs";
-import { CSP, boardSvgCacheControl } from "../http/cache_policy.mjs";
-import { startCompressedResponse } from "../http/compression.mjs";
-import {
-  errorCode,
-  respondWithErrorPage,
-  serveError,
-} from "../http/observation.mjs";
-import { BoardPermissions } from "../auth/board_capabilities.mjs";
-import observability from "../observability/index.mjs";
-import {
-  boardExists,
-  readServedBaseline,
-  readStoredSvgSeq,
-  streamServedBaseline,
-} from "../persistence/svg_board_store.mjs";
 
 const { tracing } = observability;
 

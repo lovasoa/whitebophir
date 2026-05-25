@@ -28,21 +28,15 @@
 import MessageCommon from "../../client-data/js/message_common.js";
 import { hasMessageId } from "../../client-data/js/message_shape.js";
 import {
+  getMutationType,
   getTool,
   getUpdatableFields,
-  getMutationType,
   isShapeTool,
   MutationType,
 } from "../../client-data/js/message_tool_metadata.js";
-import {
-  canonicalItemFromItem,
-  cloneCanonicalItem,
-  copyCanonicalItem,
-  currentText,
-  effectiveChildCount,
-  publicItemFromCanonicalItem,
-} from "./canonical_items.mjs";
 import { Eraser } from "../../client-data/tools/index.js";
+import observability from "../observability/index.mjs";
+import { boardSvgPath } from "../persistence/svg_board_paths.mjs";
 import {
   authoritativeItemCount,
   cloneBounds,
@@ -52,9 +46,28 @@ import {
   upsertCanonicalItem,
 } from "./canonical_index.mjs";
 import {
-  createDefaultSvgExtent,
-  extendSvgExtentForItem,
-} from "./svg_extent.mjs";
+  canonicalItemFromItem,
+  cloneCanonicalItem,
+  copyCanonicalItem,
+  currentText,
+  effectiveChildCount,
+  publicItemFromCanonicalItem,
+} from "./canonical_items.mjs";
+import {
+  dirtyAgeMs as boardDirtyAgeMs,
+  hasDirtyItems as boardHasDirtyItems,
+  clearSaveTimeout as clearBoardSaveTimeout,
+  computeScheduledSaveDelayMs,
+  delaySave as delayBoardSave,
+  disposeBoard,
+  finalizePersistedItems as finalizeBoardPersistedItems,
+  loadBoardData,
+  saveBoard,
+  scheduleDirtySave as scheduleBoardDirtySave,
+  scheduleSaveTimeout as scheduleBoardSaveTimeout,
+  trimPersistedMutationLog as trimBoardPersistedMutationLog,
+  unsafeSaveBoard,
+} from "./data_persistence.mjs";
 import {
   canAddChild as canBoardAddChild,
   canCopy as canBoardCopy,
@@ -69,24 +82,11 @@ import {
   processMessageBatch as processBoardMessageBatch,
   trimOverflowItems as trimBoardOverflowItems,
 } from "./message_processing.mjs";
-import {
-  clearSaveTimeout as clearBoardSaveTimeout,
-  computeScheduledSaveDelayMs,
-  delaySave as delayBoardSave,
-  dirtyAgeMs as boardDirtyAgeMs,
-  disposeBoard,
-  finalizePersistedItems as finalizeBoardPersistedItems,
-  hasDirtyItems as boardHasDirtyItems,
-  loadBoardData,
-  saveBoard,
-  scheduleDirtySave as scheduleBoardDirtySave,
-  scheduleSaveTimeout as scheduleBoardSaveTimeout,
-  trimPersistedMutationLog as trimBoardPersistedMutationLog,
-  unsafeSaveBoard,
-} from "./data_persistence.mjs";
 import { createMutationLog } from "./mutation_log.mjs";
-import observability from "../observability/index.mjs";
-import { boardSvgPath } from "../persistence/svg_board_paths.mjs";
+import {
+  createDefaultSvgExtent,
+  extendSvgExtentForItem,
+} from "./svg_extent.mjs";
 
 const { logger } = observability;
 /** @returns {BoardMetadata} */
@@ -1001,5 +1001,4 @@ class BoardData {
   }
 }
 
-export { BoardData };
-export { computeScheduledSaveDelayMs };
+export { BoardData, computeScheduledSaveDelayMs };

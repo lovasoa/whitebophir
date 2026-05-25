@@ -72,7 +72,7 @@ test.describe("index page board naming", () => {
       );
       console.log(
         "Object.prototype.periodMs:",
-        await boardPage.page.evaluate(() => Object.prototype.periodMs),
+        await boardPage.page.evaluate(() => (Object.prototype as any).periodMs),
       );
       console.log(
         "canEmit:",
@@ -80,24 +80,28 @@ test.describe("index page board naming", () => {
           const writes = window.WBOApp.writes;
           if (writes.bufferedWrites.length > 0) {
             const w = writes.bufferedWrites[0];
-            return ["general", "text", "destructive", "constructive"].map(
-              (kind) => {
-                const cost = w.costs[kind];
-                const def =
-                  window.WBOApp.rateLimits.getEffectiveRateLimit(kind);
-                const state = writes.localRateLimitStates[kind];
-                const can = window.RateLimitCommon
-                  ? window.RateLimitCommon.canConsumeFixedWindowRateLimit(
-                      state,
-                      cost,
-                      def.limit,
-                      def.periodMs,
-                      Date.now(),
-                    )
-                  : "no_common";
-                return `${kind}: cost=${cost} def=${JSON.stringify(def)} can=${can}`;
-              },
-            );
+            if (!w) return "empty";
+            const kinds = [
+              "general",
+              "text",
+              "destructive",
+              "constructive",
+            ] as const;
+            return kinds.map((kind) => {
+              const cost = w.costs[kind];
+              const def = window.WBOApp.rateLimits.getEffectiveRateLimit(kind);
+              const state = writes.localRateLimitStates[kind];
+              const can = window.RateLimitCommon
+                ? window.RateLimitCommon.canConsumeFixedWindowRateLimit(
+                    state,
+                    cost,
+                    def.limit,
+                    def.periodMs,
+                    Date.now(),
+                  )
+                : "no_common";
+              return `${kind}: cost=${cost} def=${JSON.stringify(def)} can=${can}`;
+            });
           }
           return "empty";
         }),

@@ -1,4 +1,5 @@
 import { SerialTaskQueue } from "./serial_task_queue.mjs";
+
 /** @typedef {import("../../types/server-runtime.d.ts").MutationLogEntry} MutationLogEntry */
 /** @typedef {import("../../types/server-runtime.d.ts").NormalizedMessageData} NormalizedMessageData */
 /** @typedef {{mutation: NormalizedMessageData}} MutationEffect */

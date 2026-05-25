@@ -1,8 +1,8 @@
 import { MutationType } from "../../client-data/js/message_tool_metadata.js";
 import observability from "../observability/index.mjs";
+import { readStoredSvgSeq } from "../persistence/svg_board_store.mjs";
 import { canAccessBoard, normalizeBoardName } from "./policy.mjs";
 import { getSocketQueryValue } from "./request.mjs";
-import { readStoredSvgSeq } from "../persistence/svg_board_store.mjs";
 
 const { logger, metrics, tracing } = observability;
 const BASELINE_NOT_REPLAYABLE = "baseline_not_replayable";

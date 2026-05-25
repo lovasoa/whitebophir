@@ -649,7 +649,9 @@ test.describe("single-page interactions", () => {
     await expect
       .poll(() =>
         boardPage.page.evaluate(
-          () => window.getComputedStyle(window.WBOApp.dom.svg).cursor,
+          () =>
+            window.getComputedStyle(window.WBOApp.dom.svg as SVGSVGElement)
+              .cursor,
         ),
       )
       .toBe("not-allowed");
@@ -674,7 +676,9 @@ test.describe("single-page interactions", () => {
     await expect
       .poll(() =>
         boardPage.page.evaluate(
-          () => window.getComputedStyle(window.WBOApp.dom.svg).cursor,
+          () =>
+            window.getComputedStyle(window.WBOApp.dom.svg as SVGSVGElement)
+              .cursor,
         ),
       )
       .not.toBe("not-allowed");

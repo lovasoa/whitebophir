@@ -24,11 +24,12 @@
  * @licend
  */
 
-import { LIMITS } from "../../js/message_common.js";
 import { logFrontendEvent } from "../../js/frontend_logging.js";
+import { LIMITS } from "../../js/message_common.js";
 import { MutationType } from "../../js/mutation_type.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
 import { wboPencilPoint } from "./wbo_pencil_point.js";
+
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {Omit<ReturnType<typeof createLineMessage>, "opacity"> & {opacity?: number}} PencilCreateMessage */
 /** @typedef {ReturnType<typeof createPointMessage>} PencilAppendMessage */

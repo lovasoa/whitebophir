@@ -1,10 +1,9 @@
 import { createServer } from "node:http";
 
 import { ATTR_SERVER_PORT } from "@opentelemetry/semantic-conventions";
-
-import { check_output_directory } from "./check_output_directory.mjs";
 import { errorCode, handleClientError } from "../http/observation.mjs";
 import observability from "../observability/index.mjs";
+import { check_output_directory } from "./check_output_directory.mjs";
 
 const { logger } = observability;
 

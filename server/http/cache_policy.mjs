@@ -38,8 +38,8 @@ function boardSvgCacheControl(config) {
 }
 
 export {
+  boardSvgCacheControl,
   CSP,
   STATIC_RESOURCE_EXTENSIONS,
-  boardSvgCacheControl,
   staticFileCacheControl,
 };

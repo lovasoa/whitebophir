@@ -463,14 +463,18 @@ test.describe("drawing and persistence", () => {
       await expect(page.locator("#drawingArea rect")).toHaveCount(1);
       const bufferedMutationsForDeletedRect = await page.evaluate(
         (targetId) =>
-          window.WBOApp.writes.bufferedWrites
-            .map((write) => write.message)
-            .filter((message) => message.id === targetId)
-            .map((message) => message.type),
+          (window.WBOApp.writes.bufferedWrites as any[])
+            .map((write: any) => write.message)
+            .filter((message: any) => message.id === targetId)
+            .map((message: any) => message.type),
         deletedRectId,
       );
       expect(bufferedMutationsForDeletedRect).toContain(CREATE_MUTATION);
-      expect(bufferedMutationsForDeletedRect.at(-1)).toBe(DELETE_MUTATION);
+      expect(
+        bufferedMutationsForDeletedRect[
+          bufferedMutationsForDeletedRect.length - 1
+        ],
+      ).toBe(DELETE_MUTATION);
     },
   );
 
@@ -587,7 +591,7 @@ test.describe("drawing and persistence", () => {
     await server.waitForStoredBoard(
       server.dataPath,
       "eraser-test",
-      (storedBoard) => !Object.hasOwn(storedBoard, "erase-rect"),
+      (storedBoard) => !("erase-rect" in storedBoard),
     );
     await boardPage.gotoBoard("eraser-test");
     await expect(boardPage.tool("eraser")).toBeVisible();

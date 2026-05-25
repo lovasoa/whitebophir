@@ -272,12 +272,9 @@ window.turnstile = {
     await this.waitForSocketConnected();
     await this.page.evaluate(() => {
       window.__receivedBroadcasts = [];
-      window.WBOApp.connection.socket?.on(
-        "broadcast",
-        (message: BoardMessage) => {
-          window.__receivedBroadcasts?.push(message);
-        },
-      );
+      window.WBOApp.connection.socket?.on("broadcast", (message: unknown) => {
+        window.__receivedBroadcasts?.push(message as BoardMessage);
+      });
     });
   }
 
@@ -649,7 +646,7 @@ window.turnstile = {
         if (!tool || tool.name !== "eraser") {
           throw new Error("Missing eraser tool");
         }
-        tool.draw({ type: deleteType, id: targetId }, true);
+        tool.draw({ tool: toolId, type: deleteType, id: targetId }, true);
         window.WBOApp.connection.socket?.emit("broadcast", {
           tool: toolId,
           type: deleteType,
@@ -1063,7 +1060,7 @@ window.turnstile = {
     token: string,
   ): Promise<ProtectedWriteState> {
     await this.page.evaluate((value) => {
-      window.__turnstileMock.complete(value);
+      window.__turnstileMock?.complete(value);
     }, token);
     await this.page.waitForFunction(() => {
       const overlay = document.getElementById("turnstile-overlay");
@@ -1080,7 +1077,7 @@ window.turnstile = {
     errorCode: string,
   ): Promise<ProtectedWriteState> {
     await this.page.evaluate((value) => {
-      window.__turnstileMock.fail(value);
+      window.__turnstileMock?.fail(value);
     }, errorCode);
     return this.page.evaluate<ProtectedWriteState>(() => {
       const overlay = document.getElementById("turnstile-overlay");

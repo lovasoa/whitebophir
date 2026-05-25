@@ -6,6 +6,7 @@ import {
   moveShapeTool,
 } from "../shape_tool.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
+
 export {
   cancelShapeToolTouchGesture as cancelTouchGesture,
   drawShapeTool as draw,
@@ -13,6 +14,7 @@ export {
   pressShapeTool as press,
   releaseShapeTool as release,
 } from "../shape_tool.js";
+
 import {
   defineShapeContract,
   serializeStoredShapeTag,
@@ -98,6 +100,7 @@ const contract = defineShapeContract({
     );
   },
 });
+
 /** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof contract.toolCode>} EllipseCreateMessage */
 /** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof contract.toolCode>} EllipseUpdateMessage */
 export { contract };

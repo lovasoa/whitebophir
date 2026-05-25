@@ -1,4 +1,11 @@
+import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import { getLoadedBoard } from "../board/registry.mjs";
+import { respondWithErrorPage } from "../http/observation.mjs";
+import observability from "../observability/index.mjs";
+import {
+  readBoardDocumentState,
+  streamServedBaseline,
+} from "../persistence/svg_board_store.mjs";
 import {
   annotateBoardRequest,
   boardDocumentLocation,
@@ -11,13 +18,6 @@ import {
   requireBoardDocumentNames,
   requireBoardQueryName,
 } from "./board_http_helpers.mjs";
-import { BoardPermissions } from "../auth/board_capabilities.mjs";
-import { respondWithErrorPage } from "../http/observation.mjs";
-import observability from "../observability/index.mjs";
-import {
-  readBoardDocumentState,
-  streamServedBaseline,
-} from "../persistence/svg_board_store.mjs";
 
 const { tracing } = observability;
 

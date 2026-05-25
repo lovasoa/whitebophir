@@ -600,14 +600,14 @@ test.describe("collaboration and rate limiting", () => {
           resolve({
             awaitingBoardSnapshot: !!window.WBOApp.replay.awaitingSnapshot,
             connectionState: String(window.WBOApp.connection.state ?? ""),
-            statusVisible:
-              !document.getElementById("boardStatusIndicator")?.hidden ?? false,
+            statusVisible: !document.getElementById("boardStatusIndicator")
+              ?.hidden,
             rectVisible: !!document.getElementById(
               "persisted-across-disconnect",
             ),
           });
         });
-        window.WBOApp.connection.socket?.io.engine.close();
+        window.WBOApp.connection.socket?.io?.engine?.close();
       });
     });
 

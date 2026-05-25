@@ -11,12 +11,11 @@ import {
   ATTR_URL_PATH,
   ATTR_URL_SCHEME,
 } from "@opentelemetry/semantic-conventions";
-
+import observability from "../observability/index.mjs";
+import { getRequestClientIp } from "../socket/policy.mjs";
 import { boundaryReason, boundaryStatusCode } from "./boundary_errors.mjs";
 import { STATIC_RESOURCE_EXTENSIONS } from "./cache_policy.mjs";
-import observability from "../observability/index.mjs";
 import { parseRequestUrl } from "./request_url.mjs";
-import { getRequestClientIp } from "../socket/policy.mjs";
 
 const { createRequestId, logger, metrics, tracing } = observability;
 

@@ -1,9 +1,5 @@
-import { updateDocumentTitle } from "./board_message_module.js";
 import { attachBoardDomToRuntime } from "./board_dom_bootstrap.js";
-import {
-  DEFAULT_COLOR_PRESETS,
-  createInitialPreferences,
-} from "./board_preferences.js";
+import { updateDocumentTitle } from "./board_message_module.js";
 import {
   DEFAULT_BOARD_STATE,
   getRequiredElement,
@@ -11,13 +7,17 @@ import {
   parseEmbeddedJson,
   updateRecentBoards,
 } from "./board_page_state.js";
+import {
+  createInitialPreferences,
+  DEFAULT_COLOR_PRESETS,
+} from "./board_preferences.js";
 import { addToolShortcut } from "./board_tool_registry_module.js";
-import { isTextEntryTarget } from "./text_entry_target.js";
 import { clampOpacity, LIMITS } from "./message_limits.js";
+import { isTextEntryTarget } from "./text_entry_target.js";
 
 /** @import { AppToolsState, ColorPreset } from "../../types/app-runtime" */
 
-export { DEFAULT_COLOR_PRESETS, createInitialPreferences };
+export { createInitialPreferences, DEFAULT_COLOR_PRESETS };
 
 const STYLE_PREVIEW_MIN_RADIUS = 4;
 const STYLE_PREVIEW_MAX_RADIUS = 15;

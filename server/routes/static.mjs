@@ -1,11 +1,11 @@
 import { canonicalizeBoardName } from "../../client-data/js/board_name.js";
+import { serveError } from "../http/observation.mjs";
+import { boardExists } from "../persistence/svg_board_store.mjs";
+import { buildRandomBoardName } from "../shared/pronounceable_name.mjs";
 import {
   annotateBoardRequest,
   boardDocumentLocation,
 } from "./board_http_helpers.mjs";
-import { serveError } from "../http/observation.mjs";
-import { buildRandomBoardName } from "../shared/pronounceable_name.mjs";
-import { boardExists } from "../persistence/svg_board_store.mjs";
 
 /** @import { HttpRouteContext, ServerConfig } from "../../types/server-runtime.d.ts" */
 

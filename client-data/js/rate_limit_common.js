@@ -1,5 +1,5 @@
-import { getMutationType, MutationType } from "./message_tool_metadata.js";
 import { TOOL_CODE_BY_ID } from "../tools/manifest.js";
+import { getMutationType, MutationType } from "./message_tool_metadata.js";
 
 export const ANONYMOUS_BOARD_NAME = "anonymous";
 export const ANONYMOUS_RATE_LIMIT_DIVISOR = 2;

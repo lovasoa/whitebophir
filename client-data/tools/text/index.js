@@ -24,16 +24,17 @@
  * @licend
  */
 
+import { VIEWPORT_LAYOUT_EVENT } from "../../js/board_viewport.js";
+import { logFrontendEvent } from "../../js/frontend_logging.js";
 import {
   clampSize,
   getLocalGeometryBounds,
   resolveMaxBoardSize,
   truncateText,
 } from "../../js/message_common.js";
-import { VIEWPORT_LAYOUT_EVENT } from "../../js/board_viewport.js";
-import { logFrontendEvent } from "../../js/frontend_logging.js";
 import { MutationType } from "../../js/mutation_type.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
+
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {(evt: Event | KeyboardEvent | FocusEvent) => void} TextChangeHandler */
 /** @typedef {Omit<ReturnType<typeof createTextMessage>, "opacity"> & {opacity?: number}} TextCreateMessage */

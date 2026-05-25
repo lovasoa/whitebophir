@@ -62,11 +62,11 @@ function extendSvgExtentForItem(extent, item) {
 }
 
 export {
-  DEFAULT_SVG_SIZE,
-  SVG_MARGIN,
   createDefaultSvgExtent,
   createSvgExtent,
+  DEFAULT_SVG_SIZE,
   extendSvgExtentForItem,
   normalizeSvgDimension,
   normalizeSvgExtent,
+  SVG_MARGIN,
 };

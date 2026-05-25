@@ -1,6 +1,6 @@
-import { MutationType } from "../js/mutation_type.js";
 import { logFrontendEvent } from "../js/frontend_logging.js";
 import { clampCoord, LIMITS } from "../js/message_common.js";
+import { MutationType } from "../js/mutation_type.js";
 import { TOOL_CODE_BY_ID } from "./tool-order.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../types/app-runtime" */
