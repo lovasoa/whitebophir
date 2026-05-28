@@ -34,6 +34,7 @@ import { logFrontendEvent } from "../../js/frontend_logging.js";
 import MessageCommon from "../../js/message_common.js";
 import { MutationType } from "../../js/message_tool_metadata.js";
 import { TOOL_CODE_BY_ID } from "../tool-order.js";
+import { deleteBoardElementById } from "../eraser/index.js";
 
 /** @import { ToolBootContext, ToolRuntimeModules } from "../../../types/app-runtime" */
 /** @typedef {{a:number, b:number, c:number, d:number, e:number, f:number}} TransformState */
@@ -1011,11 +1012,10 @@ export function draw(state, data, isLocal = false) {
       break;
     }
     case MutationType.DELETE:
-      state.Tools.messages.messageForTool({
-        tool: TOOL_CODE_BY_ID.eraser,
-        type: MutationType.DELETE,
-        id: data.id,
-      });
+      // Apply the delete synchronously rather than re-entering the async
+      // messageForTool() pipeline, so a hand batch delete completes before
+      // sequence state advances and does not re-trigger generic message hooks.
+      deleteBoardElementById(state.Tools.board, data.id);
       break;
   }
 }

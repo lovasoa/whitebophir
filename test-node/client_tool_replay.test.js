@@ -2082,6 +2082,48 @@ test("Hand replay expands viewport extent for transform-only updates", async () 
   ]);
 });
 
+test("Hand batch delete removes the element synchronously without re-entering messageForTool", async () => {
+  const harness = createHarness();
+  const handTool = await harness.loadTool("hand");
+
+  const rect = globalAny.Tools.dom.createSVGElement("rect");
+  rect.id = "doomed-rect";
+  globalAny.Tools.drawingArea.appendChild(rect);
+  assert.ok(globalAny.Tools.dom.svg.getElementById("doomed-rect"));
+
+  // Spy on the generic async message pipeline. A hand child delete must not
+  // re-enter it (no derived child op, no duplicate generic side effects).
+  let messageForToolCalls = 0;
+  const originalMessageForTool = globalAny.Tools.messages.messageForTool;
+  globalAny.Tools.messages.messageForTool = (/** @type {any} */ data) => {
+    messageForToolCalls += 1;
+    return originalMessageForTool(data);
+  };
+
+  try {
+    const result = handTool.draw(
+      {
+        tool: TOOL_CODE_BY_ID.hand,
+        _children: [
+          {
+            type: MessageToolMetadata.MutationType.DELETE,
+            id: "doomed-rect",
+          },
+        ],
+      },
+      false,
+    );
+
+    // draw() returned and the element is already gone: applied synchronously
+    // before any sequence-advancing await could resolve.
+    assert.equal(result instanceof Promise, false);
+    assert.ok(!globalAny.Tools.dom.svg.getElementById("doomed-rect"));
+    assert.equal(messageForToolCalls, 0);
+  } finally {
+    globalAny.Tools.messages.messageForTool = originalMessageForTool;
+  }
+});
+
 test("Hand selector stops at the last valid transform", async () => {
   const harness = createHarness();
   const handTool = await harness.loadTool("hand");
