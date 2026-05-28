@@ -56,6 +56,7 @@ import {
   processMessageBatch as processBoardMessageBatch,
 } from "./message_processing.mjs";
 import { createMutationLog } from "./mutation_log.mjs";
+import { SerialTaskQueue } from "./serial_task_queue.mjs";
 import {
   createDefaultSvgExtent,
   extendSvgExtentForItem,
@@ -149,6 +150,9 @@ class BoardData {
     this.saveInProgress = false;
     /** @type {ReturnType<typeof setTimeout> | undefined} */
     this.saveTimeoutId = undefined;
+    // Serializes this board's own disk writes. Owned by the instance so it is
+    // GC'd with the board and never blocks saves of unrelated boards.
+    this.saveQueue = new SerialTaskQueue();
     this.users = new Set();
     this.mutationLog = createMutationLog(0);
     /** @type {Map<string, CanonicalBoardItem>} */
