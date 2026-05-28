@@ -87,6 +87,25 @@ test("pan-ready boot graph excludes full app and tool implementations", () => {
   );
 });
 
+test("server tool contracts stay independent from tool interaction modules", () => {
+  for (const entry of [
+    "client-data/tools/contracts.js",
+    "server/socket/message_validation.mjs",
+    "server/persistence/stored_svg_item_codec.mjs",
+    "server/board/canonical_items.mjs",
+  ]) {
+    const closure = staticImportClosure(entry);
+    assertClosureExcludes(closure, ["client-data/tools/index.js"]);
+    assert.equal(
+      Array.from(closure).some((file) =>
+        /^client-data\/tools\/[^/]+\/index\.js$/.test(file),
+      ),
+      false,
+      entry,
+    );
+  }
+});
+
 test("client tool metadata stays independent from tool implementations", () => {
   for (const entry of [
     "client-data/js/message_tool_metadata.js",

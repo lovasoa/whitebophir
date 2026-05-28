@@ -1,10 +1,10 @@
+import { RectangleContract } from "../contracts.js";
 import {
   constrainEqualSpanToBoard,
   createShapeToolBoot,
   makeBoxShapeUpdateMessage,
   makeSeedShapeCreateMessage,
 } from "../shape_tool.js";
-import { TOOL_CODE_BY_ID } from "../tool-order.js";
 
 export {
   cancelShapeToolTouchGesture as cancelTouchGesture,
@@ -14,100 +14,11 @@ export {
   releaseShapeTool as release,
 } from "../shape_tool.js";
 
-import {
-  defineShapeContract,
-  normalizeRectBounds,
-  serializeStoredShapeTag,
-  summarizeStoredShape,
-} from "../shape_contract.js";
-
 export const toolId = "rectangle";
-const toolCode = TOOL_CODE_BY_ID[toolId];
 export const drawsOnBoard = true;
 export const mouseCursor = "crosshair";
 
-const contract = defineShapeContract({
-  toolId,
-  toolCode,
-  storedTagName: "rect",
-  updatableFields: /** @type {const} */ (["x", "y", "x2", "y2"]),
-  summarizeStoredSvgItem(entry, paintOrder, helpers) {
-    const x = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "x"));
-    const y = helpers.parseNumber(helpers.readStoredSvgAttribute(entry, "y"));
-    const width = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "width"),
-    );
-    const height = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "height"),
-    );
-    const size = helpers.parseNumber(
-      helpers.readStoredSvgAttribute(entry, "stroke-width"),
-    );
-    if (
-      x === undefined ||
-      y === undefined ||
-      width === undefined ||
-      height === undefined ||
-      size === undefined
-    ) {
-      return null;
-    }
-    return summarizeStoredShape(
-      {
-        id: helpers.id,
-        tool: toolId,
-        paintOrder,
-        data: {
-          x,
-          y,
-          x2: x + width,
-          y2: y + height,
-          color: helpers.readStoredSvgAttribute(entry, "stroke") || "#000000",
-          size,
-        },
-        localBounds: {
-          minX: x,
-          minY: y,
-          maxX: x + width,
-          maxY: y + height,
-        },
-      },
-      helpers.opacity,
-      helpers.transform,
-      helpers.decorateStoredItemData,
-    );
-  },
-  serializeStoredSvgItem(item, helpers) {
-    const bounds = normalizeRectBounds(
-      helpers.numberOrZero(item.x),
-      helpers.numberOrZero(item.y),
-      helpers.numberOrZero(item.x2),
-      helpers.numberOrZero(item.y2),
-    );
-    return serializeStoredShapeTag(
-      "rect",
-      ` x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}"`,
-      item,
-      helpers,
-    );
-  },
-  renderBoardSvg(shape, helpers) {
-    const bounds = normalizeRectBounds(
-      helpers.numberOrZero(shape.x),
-      helpers.numberOrZero(shape.y),
-      helpers.numberOrZero(shape.x2),
-      helpers.numberOrZero(shape.y2),
-    );
-    return (
-      "<rect " +
-      (shape.id ? `id="${helpers.htmlspecialchars(shape.id)}" ` : "") +
-      `x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" ` +
-      `stroke="${helpers.htmlspecialchars(shape.color || "#000")}" stroke-width="${helpers.numberOrZero(shape.size) | 0}" ` +
-      helpers.renderTranslate(shape) +
-      "/>"
-    );
-  },
-});
+const contract = RectangleContract;
 
 /** @typedef {import("../shape_tool.js").ShapeCreateMessage<typeof contract.toolCode>} RectangleCreateMessage */
 /** @typedef {import("../shape_tool.js").ShapeBoxUpdateMessage<typeof contract.toolCode>} RectangleUpdateMessage */

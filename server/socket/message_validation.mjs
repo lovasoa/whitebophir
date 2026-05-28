@@ -3,7 +3,11 @@ import {
   getMutationType,
   MutationType,
 } from "../../client-data/js/message_tool_metadata.js";
-import { Cursor, TOOLS } from "../../client-data/tools/index.js";
+import {
+  Cursor,
+  TOOL_CONTRACTS as TOOLS,
+  TOOL_ID_BY_CODE,
+} from "../../client-data/tools/contracts.js";
 
 /** @typedef {{[key: string]: unknown}} RawRecord */
 /** @typedef {Pick<import("../../types/server-runtime.d.ts").ServerConfig, "MAX_BOARD_SIZE" | "MAX_CHILDREN">} MessageValidationConfig */
@@ -36,7 +40,6 @@ import { Cursor, TOOLS } from "../../client-data/tools/index.js";
 /** @typedef {import("../../client-data/tools/shape_contract.js").ToolContract} ToolContract */
 /** @typedef {"id" | "coord" | "color" | "size" | "opacity" | "text" | "transform" | "time"} SchemaFieldType */
 
-const MAX_TOOL_CODE = TOOLS.length;
 const SHAPE_CONTRACTS = TOOLS.filter((tool) => tool.shapeTool === true);
 const SHAPE_CREATE_FIELDS = {
   id: "id",
@@ -114,8 +117,7 @@ function literal(expected) {
 function normalizeLiveToolCode(value) {
   return typeof value === "number" &&
     Number.isSafeInteger(value) &&
-    value >= 1 &&
-    value <= MAX_TOOL_CODE
+    Object.prototype.hasOwnProperty.call(TOOL_ID_BY_CODE, value)
     ? accepted(/** @type {ToolCode} */ (value))
     : rejected("invalid tool");
 }

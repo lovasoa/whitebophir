@@ -16,7 +16,7 @@
  *   _children?: Array<ChildPoint | null | undefined>
  * }} GeometryItem
  */
-import { DRAW_TOOL_IDS, TOOL_IDS } from "../tools/tool-order.js";
+import { DRAW_TOOL_IDS, TOOL_ID_BY_CODE } from "../tools/tool-order.js";
 import {
   clampCoord,
   clampOpacity,
@@ -40,10 +40,9 @@ function normalizeToolId(tool) {
   if (
     typeof tool === "number" &&
     Number.isSafeInteger(tool) &&
-    tool >= 1 &&
-    tool <= TOOL_IDS.length
+    Object.prototype.hasOwnProperty.call(TOOL_ID_BY_CODE, tool)
   ) {
-    return TOOL_IDS[tool - 1];
+    return TOOL_ID_BY_CODE[tool];
   }
   return undefined;
 }
