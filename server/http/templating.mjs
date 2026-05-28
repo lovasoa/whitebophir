@@ -8,6 +8,7 @@ import {
   TOOLBAR_TOOLS,
 } from "../../client-data/tools/manifest.js";
 import { MODERATION_RULES } from "../../client-data/js/moderation_rules.js";
+import { trustsForwardedHeaders } from "../socket/policy.mjs";
 import { createClientConfiguration } from "./client_configuration.mjs";
 import { startCompressedResponse } from "./compression.mjs";
 import { parseRequestUrl } from "./request_url.mjs";
@@ -151,14 +152,15 @@ function pickLanguage(supportedLanguages, acceptedLanguages) {
 
 /**
  * @param {TemplateRequest} req
+ * @param {boolean} trustForwarded
  * @returns {string}
  */
-function findBaseUrl(req) {
+function findBaseUrl(req, trustForwarded) {
   const proto =
-    firstHeaderValue(req.headers["x-forwarded-proto"]) ||
+    (trustForwarded && firstHeaderValue(req.headers["x-forwarded-proto"])) ||
     ("encrypted" in req.socket && req.socket.encrypted ? "https" : "http");
   const host =
-    firstHeaderValue(req.headers["x-forwarded-host"]) ||
+    (trustForwarded && firstHeaderValue(req.headers["x-forwarded-host"])) ||
     firstHeaderValue(req.headers.host) ||
     "localhost";
   return `${proto}://${host}`;
@@ -324,7 +326,9 @@ class Template extends StaticTemplate {
     const prefix =
       findPathPrefix(parsedUrl.pathname) ||
       this.serverConfig.BASE_PATH.slice(1);
-    const baseUrl = findBaseUrl(request) + (prefix ? `/${prefix}/` : "");
+    const baseUrl =
+      findBaseUrl(request, trustsForwardedHeaders(this.serverConfig)) +
+      (prefix ? `/${prefix}/` : "");
     const moderator = isModerator;
     return {
       baseUrl,
