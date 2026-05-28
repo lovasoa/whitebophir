@@ -134,6 +134,27 @@ test("parseForwardedChain rejects malformed forwarded headers", () => {
   }, /Missing for=/);
 });
 
+test("trustsForwardedHeaders only trusts forwarded-header IP sources", () => {
+  const socketPolicy = require(SOCKET_POLICY_PATH);
+  assert.equal(
+    socketPolicy.trustsForwardedHeaders({ IP_SOURCE: "remoteAddress" }),
+    false,
+  );
+  assert.equal(socketPolicy.trustsForwardedHeaders({}), false);
+  assert.equal(
+    socketPolicy.trustsForwardedHeaders({ IP_SOURCE: "CF-Connecting-IP" }),
+    false,
+  );
+  assert.equal(
+    socketPolicy.trustsForwardedHeaders({ IP_SOURCE: "X-Forwarded-For" }),
+    true,
+  );
+  assert.equal(
+    socketPolicy.trustsForwardedHeaders({ IP_SOURCE: "Forwarded" }),
+    true,
+  );
+});
+
 test("normalizeBroadcastData rejects blocked tools before persistence", async () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
   const config = createConfig({ BLOCKED_TOOLS: ["text"] });

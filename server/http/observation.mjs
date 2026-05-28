@@ -12,7 +12,10 @@ import {
   ATTR_URL_SCHEME,
 } from "@opentelemetry/semantic-conventions";
 import observability from "../observability/index.mjs";
-import { getRequestClientIp } from "../socket/policy.mjs";
+import {
+  getRequestClientIp,
+  trustsForwardedHeaders,
+} from "../socket/policy.mjs";
 import { boundaryReason, boundaryStatusCode } from "./boundary_errors.mjs";
 import { STATIC_RESOURCE_EXTENSIONS } from "./cache_policy.mjs";
 import { parseRequestUrl } from "./request_url.mjs";
@@ -37,29 +40,34 @@ function firstHeaderValue(value) {
 
 /**
  * @param {HttpRequest} request
+ * @param {ServerConfig} config
  * @returns {string}
  */
-function requestScheme(request) {
-  const forwardedProto = firstHeaderValue(request.headers["x-forwarded-proto"]);
-  if (typeof forwardedProto === "string" && forwardedProto.trim() !== "") {
-    const protoValue = forwardedProto.split(",")[0];
-    if (protoValue) return protoValue.trim().toLowerCase();
-  }
+function requestScheme(request, config) {
+  if (trustsForwardedHeaders(config)) {
+    const forwardedProto = firstHeaderValue(
+      request.headers["x-forwarded-proto"],
+    );
+    if (typeof forwardedProto === "string" && forwardedProto.trim() !== "") {
+      const protoValue = forwardedProto.split(",")[0];
+      if (protoValue) return protoValue.trim().toLowerCase();
+    }
 
-  const forwarded = firstHeaderValue(request.headers.forwarded);
-  if (typeof forwarded === "string" && forwarded.trim() !== "") {
-    const forwardedValue = forwarded.split(",")[0];
-    const protoPart = forwardedValue
-      ? forwardedValue
-          .split(";")
-          .map((part) => part.trim())
-          .find((part) => /^proto=/i.test(part))
-      : undefined;
-    if (protoPart) {
-      return protoPart
-        .replace(/^proto=/i, "")
-        .trim()
-        .toLowerCase();
+    const forwarded = firstHeaderValue(request.headers.forwarded);
+    if (typeof forwarded === "string" && forwarded.trim() !== "") {
+      const forwardedValue = forwarded.split(",")[0];
+      const protoPart = forwardedValue
+        ? forwardedValue
+            .split(";")
+            .map((part) => part.trim())
+            .find((part) => /^proto=/i.test(part))
+        : undefined;
+      if (protoPart) {
+        return protoPart
+          .replace(/^proto=/i, "")
+          .trim()
+          .toLowerCase();
+      }
     }
   }
 
@@ -70,11 +78,13 @@ function requestScheme(request) {
 
 /**
  * @param {HttpRequest} request
+ * @param {ServerConfig} config
  * @returns {string | undefined}
  */
-function requestAuthority(request) {
+function requestAuthority(request, config) {
   const host =
-    firstHeaderValue(request.headers["x-forwarded-host"]) ||
+    (trustsForwardedHeaders(config) &&
+      firstHeaderValue(request.headers["x-forwarded-host"])) ||
     firstHeaderValue(request.headers.host);
   if (typeof host !== "string" || host.trim() === "") return undefined;
   const authority = host.split(",")[0];
@@ -87,10 +97,11 @@ function requestAuthority(request) {
  * @returns {string}
  */
 function requestServerAddress(request, config) {
-  const authority = requestAuthority(request);
+  const authority = requestAuthority(request, config);
   if (authority) {
     try {
-      return new URL(`${requestScheme(request)}://${authority}`).hostname;
+      return new URL(`${requestScheme(request, config)}://${authority}`)
+        .hostname;
     } catch {}
   }
   return config.HOST || request.socket.localAddress || "localhost";
@@ -102,8 +113,8 @@ function requestServerAddress(request, config) {
  * @returns {number | undefined}
  */
 function requestServerPort(request, config) {
-  const authority = requestAuthority(request);
-  const scheme = requestScheme(request);
+  const authority = requestAuthority(request, config);
+  const scheme = requestScheme(request, config);
   if (authority) {
     try {
       const parsed = new URL(`${scheme}://${authority}`);
@@ -328,7 +339,7 @@ function observeRequest(request, response, config) {
 
   const startedAt = Date.now();
   const method = request.method || "GET";
-  const scheme = requestScheme(request);
+  const scheme = requestScheme(request, config);
   const serverAddress = requestServerAddress(request, config);
   const serverPort = requestServerPort(request, config);
   let route = "unknown";
