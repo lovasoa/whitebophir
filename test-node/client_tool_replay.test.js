@@ -1166,6 +1166,31 @@ test("Pencil input sends an initial child point without DOM setup", () => {
   });
 });
 
+test("Pencil onMessage discards the active stroke deleted inside a hand batch", () => {
+  const tools = createInputTools();
+  const state = PencilTool.boot(
+    createToolBootContext(
+      createInputToolRuntime(tools),
+      (assetFile) => assetFile,
+    ),
+  );
+  state.curLineId = "l-7";
+
+  PencilTool.onMessage(state, {
+    _children: [
+      { type: MutationType.DELETE, id: "l-other" },
+      { type: MutationType.DELETE, id: "l-7" },
+    ],
+  });
+  assert.equal(state.curLineId, "");
+
+  state.curLineId = "l-8";
+  PencilTool.onMessage(state, {
+    _children: [{ type: MutationType.DELETE, id: "l-other" }],
+  });
+  assert.equal(state.curLineId, "l-8");
+});
+
 test("Pencil move logic sends the first point and throttles follow-ups", () => {
   const tools = createInputTools();
   const state = PencilTool.boot(
