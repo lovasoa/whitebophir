@@ -134,7 +134,7 @@ test("parseForwardedChain rejects malformed forwarded headers", () => {
   }, /Missing for=/);
 });
 
-test("trustsForwardedHeaders only trusts forwarded-header IP sources", () => {
+test("trustsForwardedHeaders trusts any configured proxy IP source", () => {
   const socketPolicy = require(SOCKET_POLICY_PATH);
   assert.equal(
     socketPolicy.trustsForwardedHeaders({ IP_SOURCE: "remoteAddress" }),
@@ -143,7 +143,7 @@ test("trustsForwardedHeaders only trusts forwarded-header IP sources", () => {
   assert.equal(socketPolicy.trustsForwardedHeaders({}), false);
   assert.equal(
     socketPolicy.trustsForwardedHeaders({ IP_SOURCE: "CF-Connecting-IP" }),
-    false,
+    true,
   );
   assert.equal(
     socketPolicy.trustsForwardedHeaders({ IP_SOURCE: "X-Forwarded-For" }),
