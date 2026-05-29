@@ -224,19 +224,17 @@ function getRequestClientIp(config, request) {
 /**
  * Whether the deployment is configured behind a trusted proxy, and forwarded
  * host/proto/IP headers may therefore be honored. Mirrors the IP trust model:
- * only `X-Forwarded-For` and `Forwarded` IP sources imply a trusted proxy.
- * Direct deployments (`remoteAddress`, the default) must ignore those headers.
+ * any configured `IP_SOURCE` other than the default `remoteAddress` means the
+ * operator put WBO behind a proxy whose forwarded headers are trusted, including
+ * custom client-IP headers such as `CF-Connecting-IP`. Direct deployments
+ * (`remoteAddress`, the default) must ignore those headers.
  *
  * @param {{IP_SOURCE?: string}} config
  * @returns {boolean}
  */
 function trustsForwardedHeaders(config) {
-  const normalizedIpSource = normalizeHeaderName(
-    config.IP_SOURCE || "remoteAddress",
-  );
   return (
-    normalizedIpSource === "x-forwarded-for" ||
-    normalizedIpSource === "forwarded"
+    normalizeHeaderName(config.IP_SOURCE || "remoteAddress") !== "remoteaddress"
   );
 }
 
