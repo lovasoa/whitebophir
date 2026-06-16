@@ -320,9 +320,9 @@ test("configured moderator secret grants edit clear and ban on readonly board", 
   };
   const config = createConfig({
     AUTH_SECRET_KEY: "",
-    BOARD_MODERATORS: {
-      "secret-mod-board": new Set([moderatorSecret]),
-    },
+    BOARD_MODERATORS: new Map([
+      ["secret-mod-board", new Set([moderatorSecret])],
+    ]),
   });
 
   const moderatorSocket = createSocket({

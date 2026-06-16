@@ -11,7 +11,7 @@ import { forbidden } from "../http/boundary_errors.mjs";
 import { roleInBoard } from "./board_jwt.mjs";
 import { isConfiguredModerator } from "./board_moderators.mjs";
 
-/** @typedef {{AUTH_SECRET_KEY: string, BOARD_MODERATORS?: {[boardName: string]: Set<string>}}} BoardCapabilityConfig */
+/** @typedef {{AUTH_SECRET_KEY: string, BOARD_MODERATORS?: Map<string, Set<string>>}} BoardCapabilityConfig */
 /** @typedef {{name: string, readonly?: boolean, isReadOnly?: () => boolean}} BoardCapabilityBoard */
 /** @typedef {{token?: string | null, userSecret?: string | null}} BoardCapabilityUserInfo */
 /** @typedef {import("../../types/app-runtime").BoardCapabilities} BoardCapabilities */

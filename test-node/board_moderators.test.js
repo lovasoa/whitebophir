@@ -20,9 +20,7 @@ test("configured board moderators match listed secrets case-insensitively by boa
   const { isConfiguredModerator } = require(BOARD_MODERATORS_PATH);
   const secret = "abcdefabcdefabcdefabcdefabcdefab";
   const config = {
-    BOARD_MODERATORS: {
-      myboard: new Set([secret]),
-    },
+    BOARD_MODERATORS: new Map([["myboard", new Set([secret])]]),
   };
 
   assert.equal(isConfiguredModerator(config, "MyBoard", secret), true);
@@ -38,6 +36,16 @@ test("configured board moderators match listed secrets case-insensitively by boa
   );
 });
 
+test("inherited board names never resolve to Object.prototype members", () => {
+  const { isConfiguredModerator } = require(BOARD_MODERATORS_PATH);
+  const secret = "abcdefabcdefabcdefabcdefabcdefab";
+  const config = { BOARD_MODERATORS: new Map() };
+
+  for (const boardName of ["__proto__", "constructor", "toString"]) {
+    assert.equal(isConfiguredModerator(config, boardName, secret), false);
+  }
+});
+
 test("parseBoardModeratorsEnv parses board secret groups and rejects malformed entries", () => {
   const { parseBoardModeratorsEnv } = require(CONFIG_HELPERS_PATH);
   const parsed = parseBoardModeratorsEnv("WBO_BOARD_MODERATORS", {
@@ -46,10 +54,13 @@ test("parseBoardModeratorsEnv parses board secret groups and rejects malformed e
   });
 
   assert.deepEqual(
-    [...parsed.myboard],
+    [...parsed.get("myboard")],
     ["abcdefabcdefabcdefabcdefabcdefab", "11111111111111111111111111111111"],
   );
-  assert.deepEqual([...parsed.other], ["22222222222222222222222222222222"]);
+  assert.deepEqual(
+    [...parsed.get("other")],
+    ["22222222222222222222222222222222"],
+  );
   assert.throws(
     () =>
       parseBoardModeratorsEnv("WBO_BOARD_MODERATORS", {

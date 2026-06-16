@@ -3,13 +3,13 @@ const BOARD_MODERATOR_SECRET_PATTERN = /^[0-9a-f]{32}$/i;
 /**
  * @param {string} name
  * @param {NodeJS.ProcessEnv} [env]
- * @returns {{[boardName: string]: Set<string>}}
+ * @returns {Map<string, Set<string>>}
  */
 export function parseBoardModeratorsEnv(name, env = process.env) {
+  /** @type {Map<string, Set<string>>} */
+  const parsed = new Map();
   const value = env[name];
-  if (value === undefined || value.trim() === "") return {};
-  /** @type {{[boardName: string]: Set<string>}} */
-  const parsed = {};
+  if (value === undefined || value.trim() === "") return parsed;
   for (const entry of value.trim().split(/\s+/)) {
     const parts = entry.split(":");
     if (parts.length !== 2 || !parts[0] || !parts[1]) {
@@ -19,14 +19,18 @@ export function parseBoardModeratorsEnv(name, env = process.env) {
     }
     const boardName = parts[0].toLowerCase();
     const secrets = parts[1].split(",");
-    if (!parsed[boardName]) parsed[boardName] = new Set();
+    let boardSecrets = parsed.get(boardName);
+    if (!boardSecrets) {
+      boardSecrets = new Set();
+      parsed.set(boardName, boardSecrets);
+    }
     for (const secret of secrets) {
       if (!BOARD_MODERATOR_SECRET_PATTERN.test(secret)) {
         throw new Error(
           `Invalid ${name}: malformed moderator secret for ${boardName}.`,
         );
       }
-      parsed[boardName].add(secret.toLowerCase());
+      boardSecrets.add(secret.toLowerCase());
     }
   }
   return parsed;

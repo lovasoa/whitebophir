@@ -1937,9 +1937,9 @@ test("moderator report bans reported secret and ip without disconnecting moderat
     {
       historyDirPrefix: "wbo-users-report-ban-",
       config: {
-        BOARD_MODERATORS: {
-          "board-report-ban": new Set([moderatorSecret]),
-        },
+        BOARD_MODERATORS: new Map([
+          ["board-report-ban", new Set([moderatorSecret])],
+        ]),
       },
     },
     async ({ connect, handler, invoke }) => {
@@ -2045,9 +2045,9 @@ test("moderator report ignores self targets without banning", async () => {
     {
       historyDirPrefix: "wbo-users-report-self-ban-",
       config: {
-        BOARD_MODERATORS: {
-          "board-report-self-ban": new Set([moderatorSecret]),
-        },
+        BOARD_MODERATORS: new Map([
+          ["board-report-self-ban", new Set([moderatorSecret])],
+        ]),
       },
     },
     async ({ connect, handler, invoke }) => {

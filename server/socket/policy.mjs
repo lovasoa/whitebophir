@@ -26,7 +26,7 @@ const { logger, metrics, tracing } = observability;
  *   MAX_BOARD_SIZE: number,
  *   MAX_CHILDREN: number,
  *   TRUST_PROXY_HOPS: number,
- *   BOARD_MODERATORS?: {[boardName: string]: Set<string>},
+ *   BOARD_MODERATORS?: Map<string, Set<string>>,
  * }} SocketPolicyConfig
  */
 /** @typedef {ReturnType<typeof BoardPermissions.forBoard>} SocketBoardPermissions */
