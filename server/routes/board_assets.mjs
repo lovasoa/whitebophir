@@ -1,4 +1,3 @@
-import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import { badRequest } from "../http/boundary_errors.mjs";
 import { boardSvgCacheControl, CSP } from "../http/cache_policy.mjs";
 import { startCompressedResponse } from "../http/compression.mjs";
@@ -16,6 +15,7 @@ import {
 } from "../persistence/svg_board_store.mjs";
 import {
   annotateBoardRequest,
+  boardPermissionsForRequest,
   boardOperationTraceAttributes,
   boardPageETag,
   matchesIfNoneMatch,
@@ -40,11 +40,7 @@ function rejectMissingBoardName() {
  * @returns {void}
  */
 function requireBoardOpenPermission(ctx, boardName) {
-  BoardPermissions.forBoard({
-    config: ctx.runtime.config,
-    boardName,
-    userInfo: { token: ctx.url.searchParams.get("token") },
-  }).requireOpen();
+  boardPermissionsForRequest(ctx, boardName).requireOpen();
 }
 
 /**

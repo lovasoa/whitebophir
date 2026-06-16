@@ -507,6 +507,7 @@ export type ServerConfig = {
   TURNSTILE_VALIDATION_WINDOW_MS?: number | string;
   BLOCKED_TOOLS?: string[];
   BLOCKED_SELECTION_BUTTONS?: number[] | string[];
+  BOARD_MODERATORS?: Map<string, Set<string>>;
   MAX_CHILDREN?: number;
   MAX_BOARD_SIZE?: number;
   AUTO_FINGER_WHITEOUT?: boolean;

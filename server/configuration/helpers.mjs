@@ -1,3 +1,41 @@
+const BOARD_MODERATOR_SECRET_PATTERN = /^[0-9a-f]{32}$/i;
+
+/**
+ * @param {string} name
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {Map<string, Set<string>>}
+ */
+export function parseBoardModeratorsEnv(name, env = process.env) {
+  /** @type {Map<string, Set<string>>} */
+  const parsed = new Map();
+  const value = env[name];
+  if (value === undefined || value.trim() === "") return parsed;
+  for (const entry of value.trim().split(/\s+/)) {
+    const parts = entry.split(":");
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      throw new Error(
+        `Invalid ${name}: ${value}. Expected entries like board:0123456789abcdef0123456789abcdef.`,
+      );
+    }
+    const boardName = parts[0].toLowerCase();
+    const secrets = parts[1].split(",");
+    let boardSecrets = parsed.get(boardName);
+    if (!boardSecrets) {
+      boardSecrets = new Set();
+      parsed.set(boardName, boardSecrets);
+    }
+    for (const secret of secrets) {
+      if (!BOARD_MODERATOR_SECRET_PATTERN.test(secret)) {
+        throw new Error(
+          `Invalid ${name}: malformed moderator secret for ${boardName}.`,
+        );
+      }
+      boardSecrets.add(secret.toLowerCase());
+    }
+  }
+  return parsed;
+}
+
 /**
  * @param {string} name
  * @param {number} defaultValue

@@ -66,7 +66,9 @@ random-board redirects, and static fallbacks are in
 Board access decisions belong to
 [board_capabilities.mjs](./server/auth/board_capabilities.mjs). Board-scoped
 JWTs use [board_jwt.mjs](./server/auth/board_jwt.mjs) and the generic helpers in
-[jwt.mjs](./server/auth/jwt.mjs). The user-secret cookie is handled by
+[jwt.mjs](./server/auth/jwt.mjs). `WBO_BOARD_MODERATORS` grants the existing
+moderator role to board-specific user-secret cookies through
+[board_moderators.mjs](./server/auth/board_moderators.mjs). The user-secret cookie is handled by
 [user_secret_cookie.mjs](./server/auth/user_secret_cookie.mjs), and board-name
 normalization shared with the browser is in
 [board_name.js](./client-data/js/board_name.js).
@@ -165,7 +167,8 @@ Client `broadcast` messages enter
    `broadcast` frames to synced clients and the sender.
 
 [presence.mjs](./server/socket/presence.mjs) tracks connected board users,
-[reports.mjs](./server/socket/reports.mjs) handles user reports, and
+[reports.mjs](./server/socket/reports.mjs) handles user reports,
+[ban store](./server/socket/bans.mjs) tracks moderator report-to-ban state, and
 [turnstile.mjs](./server/socket/turnstile.mjs) validates Turnstile tokens.
 Client and server share rate-limit math through
 [rate_limit_common.js](./client-data/js/rate_limit_common.js).
@@ -199,7 +202,8 @@ for root metadata and drawing-area boundaries, and
 [legacy_json_svg_migration.mjs](./server/persistence/legacy_json_svg_migration.mjs)
 for legacy JSON conversion. Persistence paths and timing are configured through
 `WBO_HISTORY_DIR`, `WBO_SAVE_INTERVAL`, `WBO_MAX_SAVE_DELAY`, and
-`WBO_SEQ_REPLAY_RETENTION_MS`.
+`WBO_SEQ_REPLAY_RETENTION_MS`. Board moderators are configured with
+`WBO_BOARD_MODERATORS` as space-separated `board:secret[,secret]` groups.
 
 ### tests, benchmarks, and profiling
 

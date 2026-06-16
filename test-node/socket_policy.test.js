@@ -310,3 +310,43 @@ test("socket board policy uses capabilities for cursor, edit, and clear decision
     },
   );
 });
+
+test("configured moderator secret grants edit clear and ban on readonly board", async () => {
+  const socketPolicy = require(SOCKET_POLICY_PATH);
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const readonlyBoard = {
+    name: "secret-mod-board",
+    isReadOnly: () => true,
+  };
+  const config = createConfig({
+    AUTH_SECRET_KEY: "",
+    BOARD_MODERATORS: new Map([
+      ["secret-mod-board", new Set([moderatorSecret])],
+    ]),
+  });
+
+  const moderatorSocket = createSocket({
+    headers: { cookie: `wbo-user-secret-v1=${moderatorSecret}` },
+  }).socket;
+  assert.deepEqual(
+    socketPolicy.boardStateForSocket(config, readonlyBoard, moderatorSocket),
+    {
+      readonly: true,
+      canEdit: true,
+      canClear: true,
+      canWrite: true,
+    },
+  );
+  assert.equal(
+    socketPolicy.canBanOnBoard(config, readonlyBoard.name, moderatorSocket),
+    true,
+  );
+
+  const unlistedSocket = createSocket({
+    headers: { cookie: "wbo-user-secret-v1=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+  }).socket;
+  assert.equal(
+    socketPolicy.canBanOnBoard(config, readonlyBoard.name, unlistedSocket),
+    false,
+  );
+});

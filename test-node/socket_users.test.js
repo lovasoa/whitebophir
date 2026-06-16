@@ -1929,3 +1929,207 @@ test("future baseline reloads stale board when stored seq is ahead", async () =>
     },
   );
 });
+
+test("moderator report bans reported secret and ip without disconnecting moderator", async () => {
+  const moderatorSecret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const targetSecret = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-report-ban-",
+      config: {
+        BOARD_MODERATORS: new Map([
+          ["board-report-ban", new Set([moderatorSecret])],
+        ]),
+      },
+    },
+    async ({ connect, handler, invoke }) => {
+      const moderator = await connect({
+        id: "socket-mod-report",
+        remoteAddress: "203.0.113.150",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: "board-report-ban", tool: "hand" },
+      });
+      const target = await connect({
+        id: "socket-target-report",
+        remoteAddress: "203.0.113.151",
+        headers: withUserSecretCookie(targetSecret),
+        query: { board: "board-report-ban", tool: "hand" },
+      });
+
+      handler(moderator, "report_user")({ socketId: "socket-target-report" });
+
+      assert.equal(target.socket.client.conn.closeCalls.length, 1);
+      assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
+
+      const sameIp = await connect({
+        id: "socket-target-same-ip",
+        remoteAddress: "203.0.113.151",
+        headers: withUserSecretCookie("cccccccccccccccccccccccccccccccc"),
+        query: { board: "board-report-ban", tool: "hand" },
+      });
+      await invoke(
+        sameIp,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-ip-ban",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 10,
+          clientMutationId: "cm-ip-ban",
+        }),
+      );
+      assert.deepEqual(
+        getRequiredValue(
+          sameIp.emitted.find((event) => event.event === "mutation_rejected"),
+        ).payload,
+        { clientMutationId: "cm-ip-ban", reason: "banned" },
+      );
+
+      const sameSecret = await connect({
+        id: "socket-target-same-secret",
+        remoteAddress: "203.0.113.152",
+        headers: withUserSecretCookie(targetSecret),
+        query: { board: "board-report-ban", tool: "hand" },
+      });
+      await invoke(
+        sameSecret,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-secret-ban",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 10,
+          clientMutationId: "cm-secret-ban",
+        }),
+      );
+      assert.deepEqual(
+        getRequiredValue(
+          sameSecret.emitted.find(
+            (event) => event.event === "mutation_rejected",
+          ),
+        ).payload,
+        { clientMutationId: "cm-secret-ban", reason: "banned" },
+      );
+
+      await invoke(
+        moderator,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-mod-ok",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 10,
+          clientMutationId: "cm-mod-ok",
+        }),
+      );
+      assert.equal(
+        moderator.emitted.some((event) => event.event === "mutation_rejected"),
+        false,
+      );
+    },
+  );
+});
+
+test("moderator report ignores self targets without banning", async () => {
+  const moderatorSecret = "abababababababababababababababab";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-report-self-ban-",
+      config: {
+        BOARD_MODERATORS: new Map([
+          ["board-report-self-ban", new Set([moderatorSecret])],
+        ]),
+      },
+    },
+    async ({ connect, handler, invoke }) => {
+      const moderator = await connect({
+        id: "socket-mod-self-report",
+        remoteAddress: "203.0.113.170",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: "board-report-self-ban", tool: "hand" },
+      });
+
+      handler(moderator, "report_user")({ socketId: "socket-mod-self-report" });
+
+      assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
+
+      await invoke(
+        moderator,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-self-report-ok",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 10,
+          clientMutationId: "cm-self-report-ok",
+        }),
+      );
+      assert.equal(
+        moderator.emitted.some((event) => event.event === "mutation_rejected"),
+        false,
+      );
+    },
+  );
+});
+
+test("non-moderator report disconnects both users without banning", async () => {
+  await createSocketScenario(
+    { historyDirPrefix: "wbo-users-report-no-ban-" },
+    async ({ connect, handler, invoke }) => {
+      const reporter = await connect({
+        id: "socket-nonmod-report",
+        remoteAddress: "203.0.113.160",
+        headers: withUserSecretCookie("dddddddddddddddddddddddddddddddd"),
+        query: { board: "board-report-no-ban", tool: "hand" },
+      });
+      const target = await connect({
+        id: "socket-nonmod-target",
+        remoteAddress: "203.0.113.161",
+        headers: withUserSecretCookie("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
+        query: { board: "board-report-no-ban", tool: "hand" },
+      });
+
+      handler(reporter, "report_user")({ socketId: "socket-nonmod-target" });
+
+      assert.equal(reporter.socket.client.conn.closeCalls.length, 1);
+      assert.equal(target.socket.client.conn.closeCalls.length, 1);
+
+      const fresh = await connect({
+        id: "socket-nonmod-fresh",
+        remoteAddress: "203.0.113.161",
+        headers: withUserSecretCookie("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
+        query: { board: "board-report-no-ban", tool: "hand" },
+      });
+      await invoke(
+        fresh,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-no-ban",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 10,
+          clientMutationId: "cm-no-ban",
+        }),
+      );
+      assert.equal(
+        fresh.emitted.some((event) => event.event === "mutation_rejected"),
+        false,
+      );
+    },
+  );
+});

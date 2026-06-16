@@ -4,6 +4,7 @@ import {
   decodeBoardName,
   isValidBoardName,
 } from "../../client-data/js/board_name.js";
+import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import {
   appendSetCookieHeader,
   generateUserSecret,
@@ -179,10 +180,31 @@ function ensureBoardUserSecretCookie(request, response, parsedUrl) {
   );
 }
 
+/**
+ * Resolves board permissions from the common HTTP token and user-secret cookie
+ * inputs. Routes should use this helper rather than re-reading auth inputs in
+ * each endpoint.
+ *
+ * @param {import("../../types/server-runtime.d.ts").HttpRouteContext} ctx
+ * @param {string} boardName
+ * @returns {ReturnType<typeof BoardPermissions.forBoard>}
+ */
+function boardPermissionsForRequest(ctx, boardName) {
+  return BoardPermissions.forBoard({
+    config: ctx.runtime.config,
+    boardName,
+    userInfo: {
+      token: ctx.url.searchParams.get("token"),
+      userSecret: getUserSecretFromCookieHeader(ctx.request.headers.cookie),
+    },
+  });
+}
+
 export {
   annotateBoardRequest,
   boardDocumentLocation,
   boardOperationTraceAttributes,
+  boardPermissionsForRequest,
   boardPageETag,
   ensureBoardUserSecretCookie,
   matchesIfNoneMatch,

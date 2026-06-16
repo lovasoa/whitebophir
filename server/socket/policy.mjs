@@ -7,6 +7,7 @@ import RateLimitCommon from "../../client-data/js/rate_limit_common.js";
 import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import observability from "../observability/index.mjs";
 import { normalizeIncomingMessage } from "./message_validation.mjs";
+import { getSocketUserSecret } from "./request.mjs";
 
 const { logger, metrics, tracing } = observability;
 
@@ -25,6 +26,7 @@ const { logger, metrics, tracing } = observability;
  *   MAX_BOARD_SIZE: number,
  *   MAX_CHILDREN: number,
  *   TRUST_PROXY_HOPS: number,
+ *   BOARD_MODERATORS?: Map<string, Set<string>>,
  * }} SocketPolicyConfig
  */
 /** @typedef {ReturnType<typeof BoardPermissions.forBoard>} SocketBoardPermissions */
@@ -335,7 +337,10 @@ function boardPermissionsForSocket(config, boardName, socket) {
   const permissions = BoardPermissions.forBoard({
     config,
     boardName,
-    userInfo: { token: getSocketToken(socket) },
+    userInfo: {
+      token: getSocketToken(socket),
+      userSecret: getSocketUserSecret(socket),
+    },
   });
   socket.boardPermissionContext = { boardName, permissions };
   return permissions;
@@ -349,6 +354,16 @@ function boardPermissionsForSocket(config, boardName, socket) {
  */
 function canAccessBoard(config, boardName, socket) {
   return boardPermissionsForSocket(config, boardName, socket).canOpen();
+}
+
+/**
+ * @param {SocketPolicyConfig} config
+ * @param {string} boardName
+ * @param {AppSocket} socket
+ * @returns {boolean}
+ */
+function canBanOnBoard(config, boardName, socket) {
+  return boardPermissionsForSocket(config, boardName, socket).canBan();
 }
 
 /**
@@ -392,6 +407,7 @@ export {
   boardStateForSocket,
   canAccessBoard,
   canApplyBoardMessage,
+  canBanOnBoard,
   canEditBoard,
   countConstructiveActions,
   countDestructiveActions,

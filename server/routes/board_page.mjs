@@ -1,4 +1,3 @@
-import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import { getLoadedBoard } from "../board/registry.mjs";
 import { respondWithErrorPage } from "../http/observation.mjs";
 import observability from "../observability/index.mjs";
@@ -10,6 +9,7 @@ import {
   annotateBoardRequest,
   boardDocumentLocation,
   boardOperationTraceAttributes,
+  boardPermissionsForRequest,
   boardPageETag,
   ensureBoardUserSecretCookie,
   matchesIfNoneMatch,
@@ -36,7 +36,7 @@ const { tracing } = observability;
  * @typedef {{
  *   kind: "document",
  *   boardName: string,
- *   boardPermissions: ReturnType<typeof BoardPermissions.forBoard>,
+ *   boardPermissions: ReturnType<typeof boardPermissionsForRequest>,
  *   cachedSeqs: number[],
  * }} BoardPageDocumentRequest
  */
@@ -50,11 +50,7 @@ function redirectBoardQuery(ctx) {
   const config = ctx.runtime.config;
   const boardName = requireBoardQueryName(ctx.url);
   annotateBoardRequest(ctx.observed, boardName);
-  BoardPermissions.forBoard({
-    config,
-    boardName,
-    userInfo: { token: ctx.url.searchParams.get("token") },
-  }).requireOpen();
+  boardPermissionsForRequest(ctx, boardName).requireOpen();
   ctx.response.writeHead(301, {
     Location: boardDocumentLocation(config, boardName),
   });
@@ -112,11 +108,7 @@ function resolveBoardPageRequest(ctx) {
       cachedSeqs: [],
     };
   }
-  const boardPermissions = BoardPermissions.forBoard({
-    config,
-    boardName,
-    userInfo: { token: ctx.url.searchParams.get("token") },
-  });
+  const boardPermissions = boardPermissionsForRequest(ctx, boardName);
   boardPermissions.requireOpen();
   return {
     kind: "document",
@@ -233,6 +225,10 @@ async function renderBoardDocument(ctx, pageRequest, document) {
     name: pageRequest.boardName,
     readonly: document.metadata.readonly,
   });
+  // Board HTML remains public and seq-cacheable. If a shared proxy serves a
+  // non-moderator shell to a cookie-configured moderator, the UI may initially
+  // omit admin-only tools, but socket permission checks still grant moderator
+  // abilities such as report-to-ban.
   const renderOptions = {
     etag: boardPageETag(document.metadata.seq || 0),
     boardState,
