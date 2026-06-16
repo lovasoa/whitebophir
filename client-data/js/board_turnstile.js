@@ -12,6 +12,8 @@ const TURNSTILE_SCRIPT_SRC =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const TURNSTILE_ACK_TIMEOUT_MS = 10_000;
 const TURNSTILE_RETRY_DELAY_MS = 1_500;
+const PENDING_WRITE_PRESERVED =
+  "Your pending write is preserved while the client retries.";
 
 /** @type {Promise<TurnstileGlobal> | null} */
 let turnstileScriptPromise = null;
@@ -300,10 +302,7 @@ export class TurnstileModule {
         logBoardEvent("error", "turnstile.script_load_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        showTurnstileFailureStatus(
-          this,
-          "Security check could not load. Your pending write is preserved while the client retries.",
-        );
+        showTurnstileFailureStatus(this, "Security check could not load.");
         this.scheduleRetry("script_load_failed");
       });
   }
@@ -355,15 +354,15 @@ function getTurnstileModuleState(module) {
 
 /**
  * @param {TurnstileModule} module
- * @param {string} message
+ * @param {string} reason
  */
-function showTurnstileFailureStatus(module, message) {
+function showTurnstileFailureStatus(module, reason) {
   const { Tools } = getTurnstileModuleState(module);
   Tools.status.showBoardStatus({
     hidden: false,
     state: "paused",
-    title: message,
-    detail: "",
+    title: `${Tools.i18n.t("turnstile_status_prefix")} ${reason}`,
+    detail: PENDING_WRITE_PRESERVED,
   });
 }
 
@@ -380,10 +379,7 @@ function handleTurnstileError(module, errorCode) {
   logBoardEvent("error", "turnstile.error", {
     errorCode,
   });
-  showTurnstileFailureStatus(
-    module,
-    `${detailPrefix} Your pending write is preserved while the client retries.`,
-  );
+  showTurnstileFailureStatus(module, detailPrefix);
   module.scheduleRetry("widget_error");
 }
 
@@ -447,19 +443,13 @@ async function submitTurnstileToken(module, token) {
     logBoardEvent("error", "turnstile.submit_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    showTurnstileFailureStatus(
-      module,
-      "Security check could not be verified. Your pending write is preserved while the client retries.",
-    );
+    showTurnstileFailureStatus(module, "Security check could not be verified.");
     module.scheduleRetry("submit_failed");
     return;
   }
 
   module.setValidation(null);
-  showTurnstileFailureStatus(
-    module,
-    "Security check was not accepted. Your pending write is preserved while the client retries.",
-  );
+  showTurnstileFailureStatus(module, "Security check was not accepted.");
   module.scheduleRetry("submit_rejected");
 }
 
@@ -504,10 +494,7 @@ function renderTurnstileWidget(module, api) {
         module.pending = false;
         module.setValidation(null);
         logBoardEvent("warn", "turnstile.widget_timeout");
-        showTurnstileFailureStatus(
-          module,
-          "Security check timed out. Your pending write is preserved while the client retries.",
-        );
+        showTurnstileFailureStatus(module, "Security check timed out.");
         module.scheduleRetry("widget_timeout");
       },
       "expired-callback": () => {
@@ -523,10 +510,7 @@ function renderTurnstileWidget(module, api) {
     logBoardEvent("error", "turnstile.render_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    showTurnstileFailureStatus(
-      module,
-      "Security check could not start. Your pending write is preserved while the client retries.",
-    );
+    showTurnstileFailureStatus(module, "Security check could not start.");
     module.scheduleRetry("render_failed");
   }
 }
@@ -545,10 +529,7 @@ function resetTurnstileChallenge(module, api) {
     logBoardEvent("error", "turnstile.reset_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    showTurnstileFailureStatus(
-      module,
-      "Security check could not reset. Your pending write is preserved while the client retries.",
-    );
+    showTurnstileFailureStatus(module, "Security check could not reset.");
     module.scheduleRetry("reset_failed");
   }
 }

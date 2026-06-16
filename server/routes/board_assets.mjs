@@ -84,7 +84,12 @@ async function serveBoardSvg(ctx) {
   svgStream.on("error", (/** @type {Error} */ error) => {
     ctx.observed.noteError(error);
     if (!ctx.response.headersSent) {
-      respondWithErrorPage(ctx.response, 500, ctx.runtime.errorPage);
+      respondWithErrorPage(
+        ctx.request,
+        ctx.response,
+        500,
+        ctx.runtime.errorPage,
+      );
     } else {
       ctx.response.destroy(error);
     }
@@ -116,7 +121,7 @@ function downloadBoard(ctx) {
   annotateBoardRequest(ctx.observed, boardName);
   requireBoardOpenPermission(ctx, boardName);
   void respondWithBoardDownload(ctx, boardName).catch(
-    serveError(ctx.response, ctx.runtime.errorPage, ctx.observed),
+    serveError(ctx.request, ctx.response, ctx.runtime.errorPage, ctx.observed),
   );
 }
 
@@ -156,7 +161,12 @@ function serveBoardPreview(ctx) {
   const startedAt = Date.now();
   void respondWithBoardPreview(ctx, boardName, startedAt).catch((error) => {
     recordPreviewDuration(ctx, startedAt);
-    serveError(ctx.response, ctx.runtime.errorPage, ctx.observed)(error);
+    serveError(
+      ctx.request,
+      ctx.response,
+      ctx.runtime.errorPage,
+      ctx.observed,
+    )(error);
   });
 }
 
@@ -170,7 +180,12 @@ async function respondWithBoardPreview(ctx, boardName, startedAt) {
   const svg = await renderPreviewSvg(boardName, ctx.runtime.config);
   recordPreviewDuration(ctx, startedAt);
   if (svg === null) {
-    serveError(ctx.response, ctx.runtime.errorPage, ctx.observed)();
+    serveError(
+      ctx.request,
+      ctx.response,
+      ctx.runtime.errorPage,
+      ctx.observed,
+    )();
     return;
   }
   const compressedResponse = startCompressedResponse(

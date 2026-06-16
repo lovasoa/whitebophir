@@ -18,9 +18,10 @@ export type StaticFileServer = (
 export type ServerRuntime = {
   config: ServerConfig;
   fileserver: StaticFileServer;
-  errorPage: string;
+  errorPage: import("../server/http/templating.mjs").Template;
   boardTemplate: import("../server/http/templating.mjs").BoardTemplate;
   indexTemplate: import("../server/http/templating.mjs").Template;
+  manifestTemplate: import("../server/http/templating.mjs").Template;
 };
 
 export type ObservedHttpRequest = {

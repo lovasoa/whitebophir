@@ -140,7 +140,7 @@ function routeHttpRequests(routes) {
           }),
         );
       } catch (error) {
-        handleRouteError(error, response, runtime, observed);
+        handleRouteError(error, request, response, runtime, observed);
       }
     });
   };
@@ -148,12 +148,13 @@ function routeHttpRequests(routes) {
 
 /**
  * @param {unknown} error
+ * @param {import("http").IncomingMessage} request
  * @param {import("http").ServerResponse} response
  * @param {ServerRuntime} runtime
  * @param {import("../../types/server-runtime.d.ts").ObservedHttpRequest} observed
  * @returns {void}
  */
-function handleRouteError(error, response, runtime, observed) {
+function handleRouteError(error, request, response, runtime, observed) {
   const statusCode = requestErrorStatusCode(error) || 500;
   if (statusCode >= 500) {
     logger.error("http.request_unhandled", {
@@ -161,7 +162,7 @@ function handleRouteError(error, response, runtime, observed) {
       error,
     });
   }
-  serveError(response, runtime.errorPage, observed)(error);
+  serveError(request, response, runtime.errorPage, observed)(error);
 }
 
 export { route, routeHttpRequests };

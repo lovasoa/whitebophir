@@ -18,6 +18,22 @@ function serveStaticAsset(ctx) {
 }
 
 /**
+ * @param {HttpRouteContext} ctx
+ * @returns {void}
+ */
+function serveManifest(ctx) {
+  const body = ctx.runtime.manifestTemplate.renderForRequest(ctx.request);
+  ctx.response.writeHead(200, {
+    "Content-Type": "application/manifest+json",
+    "Content-Length": Buffer.byteLength(body),
+    "Cache-Control": ctx.runtime.config.IS_DEVELOPMENT
+      ? "no-store"
+      : "public, max-age=3600",
+  });
+  ctx.response.end(body);
+}
+
+/**
  * Keeps legacy /boards/<asset> static URLs working by serving them from the
  * web root without the /boards prefix.
  *
@@ -38,7 +54,7 @@ function serveStaticFile(ctx, nextUrl) {
   ctx.runtime.fileserver(
     ctx.request,
     ctx.response,
-    serveError(ctx.response, ctx.runtime.errorPage, ctx.observed),
+    serveError(ctx.request, ctx.response, ctx.runtime.errorPage, ctx.observed),
   );
 }
 
@@ -86,6 +102,7 @@ function redirectToDefaultBoard(ctx) {
 export {
   redirectToDefaultBoard,
   redirectToRandomBoard,
+  serveManifest,
   serveBoardStaticAsset,
   serveStaticAsset,
 };

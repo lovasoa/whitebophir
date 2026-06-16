@@ -112,6 +112,7 @@ async function createServerDirs() {
   await fs.writeFile(path.join(webroot, "error.html"), "error-page", "utf8");
   await fs.writeFile(path.join(webroot, "board.html"), "board-page", "utf8");
   await fs.writeFile(path.join(webroot, "index.html"), "index-page", "utf8");
+  await fs.writeFile(path.join(webroot, "manifest.json"), "{}", "utf8");
   return { historyDir, webroot };
 }
 
@@ -729,6 +730,10 @@ test("board pages are no-store in development and render plain asset URLs", asyn
       frenchResponse.body,
       /<div id="boardStatusTitle" class="board-status-title">Chargement<\/div>/,
     );
+    assert.match(
+      frenchResponse.body,
+      /<meta property="og:title" content="cache-test \| WBO \| Tableau blanc collaboratif" \/>/,
+    );
     assert.match(response.body, /\.\.\/board\.css(?:["'])/);
     assert.match(response.body, /\.\.\/js\/board_main\.js(?:["'])/);
     assert.match(
@@ -800,6 +805,41 @@ test("board pages are no-store in development and render plain asset URLs", asyn
     assert.match(response.body, /id="styleTool"/);
     assert.match(response.body, /id="stylePreviewDot"/);
     assert.doesNotMatch(response.body, /\?v=/);
+  } finally {
+    await closeServer(app);
+  }
+});
+
+test("index, manifest, and fallback error pages localize UI strings", async () => {
+  const dirs = await createServerDirs();
+  const app = await createTestServer(
+    createServerConfig(dirs, { WEBROOT: CLIENT_WEBROOT }),
+  );
+  try {
+    const index = await request(app, "/?lang=fr");
+    const manifest = await request(app, "/manifest.json?lang=fr");
+    const missing = await request(app, "/missing-file.txt?lang=fr");
+
+    assert.equal(index.statusCode, 200);
+    assert.match(index.body, /alt="Tableau blanc collaboratif"/);
+    assert.match(index.body, /<input type="submit" value="Ouvrir" \/>/);
+    assert.doesNotMatch(index.body, /value="Go"/);
+
+    assert.equal(manifest.statusCode, 200);
+    assert.equal(manifest.headers["content-type"], "application/manifest+json");
+    const manifestJson = JSON.parse(manifest.body);
+    assert.equal(manifestJson.name, "WBO — Tableau blanc collaboratif");
+    assert.equal(
+      manifestJson.description,
+      "Logiciel libre pour collaborer en ligne sur un tableau blanc. Venez dessiner vos idées ensemble sur WBO !",
+    );
+
+    assert.equal(missing.statusCode, 404);
+    assert.match(
+      missing.body,
+      /<h2>Une erreur inconnue s’est produite, veuillez recharger la page<\/h2>/,
+    );
+    assert.doesNotMatch(missing.body, /Sorry, an error occured/);
   } finally {
     await closeServer(app);
   }

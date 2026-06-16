@@ -362,6 +362,16 @@ class Template extends StaticTemplate {
   }
 
   /**
+   * @param {TemplateRequest} request
+   * @param {object} [extraParams]
+   * @returns {string}
+   */
+  renderForRequest(request, extraParams) {
+    const parsedUrl = parseRequestUrl(request.url);
+    return this.render(this.parameters(parsedUrl, request, false, extraParams));
+  }
+
+  /**
    * @returns {string}
    */
   cacheControl() {

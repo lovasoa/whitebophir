@@ -298,7 +298,12 @@ async function streamStoredSvgBoardDocument(
   svgStream.on("error", (/** @type {Error} */ error) => {
     ctx.observed.noteError(error);
     if (!ctx.response.headersSent) {
-      respondWithErrorPage(ctx.response, 500, ctx.runtime.errorPage);
+      respondWithErrorPage(
+        ctx.request,
+        ctx.response,
+        500,
+        ctx.runtime.errorPage,
+      );
     } else {
       ctx.response.destroy(error);
     }

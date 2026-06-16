@@ -109,6 +109,7 @@ async function createServerDirs() {
   await fs.writeFile(path.join(webroot, "error.html"), "error-page", "utf8");
   await fs.writeFile(path.join(webroot, "board.html"), "board-page", "utf8");
   await fs.writeFile(path.join(webroot, "index.html"), "index-page", "utf8");
+  await fs.writeFile(path.join(webroot, "manifest.json"), "{}", "utf8");
   await fs.writeFile(
     path.join(webroot, "script.js"),
     "console.log('x');",

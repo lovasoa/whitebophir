@@ -178,11 +178,16 @@ test("turnstile widget errors preserve queued writes until a later success", asy
       validated: false,
     });
     await expect(boardPage.statusIndicator).toBeVisible();
-    await expect(boardPage.statusTitle).toContainText("pending write");
+    await expect(boardPage.statusTitle).toContainText(
+      "Le filtre anti-robot indique",
+    );
+    await expect(boardPage.statusTitle).toContainText(
+      "Security check failed (mock-widget-error).",
+    );
     await expect(boardPage.statusTitle).not.toContainText(
       "Security check required",
     );
-    await expect(boardPage.statusNotice).toBeHidden();
+    await expect(boardPage.statusNotice).toContainText("pending write");
 
     await expect(
       await boardPage.completeTurnstileChallenge("turnstile-recovery-token"),

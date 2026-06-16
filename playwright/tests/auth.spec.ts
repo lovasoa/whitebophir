@@ -102,9 +102,11 @@ test.describe("JWT auth and readonly flows", () => {
 
   jwtTest("JWT authorization matrix", async ({ boardPage, page }) => {
     await boardPage.gotoBoard("testboard", {
+      lang: "fr",
       token: TOKENS.globalModerator,
     });
     await expect(boardPage.tool("clear")).toBeVisible();
+    await expect(boardPage.tool("clear")).toContainText("Vider");
 
     await boardPage.gotoBoard("testboard123", {
       token: TOKENS.globalModerator,

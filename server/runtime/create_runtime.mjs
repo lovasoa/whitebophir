@@ -48,8 +48,9 @@ function createServerRuntime(config) {
       if (cacheValue !== undefined) res.setHeader("Cache-Control", cacheValue);
     },
   });
-  const errorTemplate = new templating.StaticTemplate(
+  const errorTemplate = new templating.Template(
     path.join(config.WEBROOT, "error.html"),
+    config,
     { htmlHeadSnippet },
   );
   const boardTemplate = new templating.BoardTemplate(
@@ -62,12 +63,18 @@ function createServerRuntime(config) {
     config,
     { htmlHeadSnippet },
   );
+  const manifestTemplate = new templating.Template(
+    path.join(config.WEBROOT, "manifest.json"),
+    config,
+    { htmlHeadSnippet },
+  );
   return {
     config,
     fileserver,
-    errorPage: errorTemplate.render(),
+    errorPage: errorTemplate,
     boardTemplate,
     indexTemplate,
+    manifestTemplate,
   };
 }
 

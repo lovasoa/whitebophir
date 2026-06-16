@@ -15,6 +15,7 @@ import {
   redirectToDefaultBoard,
   redirectToRandomBoard,
   serveBoardStaticAsset,
+  serveManifest,
   serveStaticAsset,
 } from "./routes/static.mjs";
 import { startWhiteboardServer } from "./runtime/boot.mjs";
@@ -50,6 +51,7 @@ function createWhiteboardHttpHandler() {
     route("/random", redirectToRandomBoard, "random_board", {
       access: "user",
     }),
+    route("/manifest.json", serveManifest, "manifest"),
     route("/", redirectToDefaultBoard, "index", {
       access: "user",
     }),

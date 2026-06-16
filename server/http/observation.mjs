@@ -142,14 +142,16 @@ function requestErrorStatusCode(error) {
 }
 
 /**
+ * @param {import("http").IncomingMessage} request
  * @param {HttpResponse} response
  * @param {number} statusCode
- * @param {string} errorPage
+ * @param {import("./templating.mjs").Template} errorPage
  * @returns {void}
  */
-function respondWithErrorPage(response, statusCode, errorPage) {
-  response.writeHead(statusCode, { "Content-Length": errorPage.length });
-  response.end(errorPage);
+function respondWithErrorPage(request, response, statusCode, errorPage) {
+  const body = errorPage.renderForRequest(request);
+  response.writeHead(statusCode, { "Content-Length": Buffer.byteLength(body) });
+  response.end(body);
 }
 
 /**
@@ -422,15 +424,16 @@ function observeRequest(request, response, config) {
 }
 
 /**
+ * @param {import("http").IncomingMessage} request
  * @param {HttpResponse} response
- * @param {string} errorPage
+ * @param {import("./templating.mjs").Template} errorPage
  * @param {{
  *   noteError?: (error: unknown) => void,
  *   annotate: (fields: {[key: string]: unknown}) => void,
  * }} requestContext
  * @returns {(err?: unknown) => void}
  */
-function serveError(response, errorPage, requestContext) {
+function serveError(request, response, errorPage, requestContext) {
   return (err) => {
     const statusCode = err ? requestErrorStatusCode(err) || 500 : 404;
     if (statusCode >= 500) {
@@ -445,7 +448,7 @@ function serveError(response, errorPage, requestContext) {
           "rejected",
       });
     }
-    respondWithErrorPage(response, statusCode, errorPage);
+    respondWithErrorPage(request, response, statusCode, errorPage);
   };
 }
 
