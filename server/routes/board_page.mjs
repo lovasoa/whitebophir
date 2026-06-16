@@ -7,8 +7,6 @@ import {
 } from "../persistence/svg_board_store.mjs";
 import {
   annotateBoardRequest,
-  boardAuthorizedCacheHeaders,
-  boardAuthorizedCachePolicy,
   boardDocumentLocation,
   boardOperationTraceAttributes,
   boardPermissionsForRequest,
@@ -210,10 +208,7 @@ function serveBoardDocumentCacheHit(ctx, pageRequest, document) {
 function respondWithBoardPageNotModified(ctx, boardName, seq, etag) {
   pinServedBoardBaseline(boardName, seq, ctx.runtime.config);
   ctx.response.writeHead(304, {
-    ...boardAuthorizedCacheHeaders(
-      ctx.runtime.config,
-      ctx.runtime.boardTemplate.cacheControl(),
-    ),
+    "Cache-Control": ctx.runtime.boardTemplate.cacheControl(),
     ETag: etag || boardPageETag(seq),
   });
   ctx.response.end();
@@ -230,12 +225,12 @@ async function renderBoardDocument(ctx, pageRequest, document) {
     name: pageRequest.boardName,
     readonly: document.metadata.readonly,
   });
+  // Board HTML remains public and seq-cacheable. If a shared proxy serves a
+  // non-moderator shell to a cookie-configured moderator, the UI may initially
+  // omit admin-only tools, but socket permission checks still grant moderator
+  // abilities such as report-to-ban.
   const renderOptions = {
     etag: boardPageETag(document.metadata.seq || 0),
-    ...boardAuthorizedCachePolicy(
-      ctx.runtime.config,
-      ctx.runtime.boardTemplate.cacheControl(),
-    ),
     boardState,
   };
 

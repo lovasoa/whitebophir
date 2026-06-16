@@ -15,7 +15,6 @@ import {
 } from "../persistence/svg_board_store.mjs";
 import {
   annotateBoardRequest,
-  boardAuthorizedCacheHeaders,
   boardPermissionsForRequest,
   boardOperationTraceAttributes,
   boardPageETag,
@@ -59,10 +58,7 @@ async function serveBoardSvg(ctx) {
   pinServedBoardBaseline(boardName, persistedSeq, ctx.runtime.config);
   if (matchesIfNoneMatch(ctx.request.headers["if-none-match"], etag)) {
     ctx.response.writeHead(304, {
-      ...boardAuthorizedCacheHeaders(
-        ctx.runtime.config,
-        boardSvgCacheControl(ctx.runtime.config),
-      ),
+      "Cache-Control": boardSvgCacheControl(ctx.runtime.config),
       ETag: etag,
     });
     ctx.response.end();
@@ -99,10 +95,7 @@ async function serveBoardSvg(ctx) {
     {
       "Content-Type": "image/svg+xml",
       "Content-Security-Policy": CSP,
-      ...boardAuthorizedCacheHeaders(
-        ctx.runtime.config,
-        boardSvgCacheControl(ctx.runtime.config),
-      ),
+      "Cache-Control": boardSvgCacheControl(ctx.runtime.config),
       ETag: etag,
     },
   );
@@ -186,10 +179,7 @@ async function respondWithBoardPreview(ctx, boardName, startedAt) {
     {
       "Content-Type": "image/svg+xml",
       "Content-Security-Policy": CSP,
-      ...boardAuthorizedCacheHeaders(
-        ctx.runtime.config,
-        boardSvgCacheControl(ctx.runtime.config),
-      ),
+      "Cache-Control": boardSvgCacheControl(ctx.runtime.config),
     },
   );
   if (compressedResponse.encoding !== undefined) {

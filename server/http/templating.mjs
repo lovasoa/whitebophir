@@ -211,20 +211,6 @@ function cacheControl(isDevelopment, prodValue) {
   return isDevelopment ? "no-store" : prodValue;
 }
 
-/**
- * @param {TemplateParameters} parameters
- * @param {URL} parsedUrl
- * @returns {string | undefined}
- */
-function htmlVaryHeader(parameters, parsedUrl) {
-  const values = [];
-  if (typeof parameters.vary === "string" && parameters.vary) {
-    values.push(parameters.vary);
-  }
-  if (!parsedUrl.searchParams.get("lang")) values.push("Accept-Language");
-  return values.length > 0 ? [...new Set(values)].join(", ") : undefined;
-}
-
 const startHtmlResponse =
   /** @type {(response: TemplateResponse, request: TemplateRequest, parsedUrl: URL, parameters: TemplateParameters, cacheControlValue: string, contentLength?: number) => { stream: import("stream").Writable, encoding: import("./compression.mjs").CompressionEncoding | undefined }} */
   (
@@ -242,8 +228,8 @@ const startHtmlResponse =
       "Content-Type": "text/html",
       "Cache-Control": cacheControlValue,
       ...(typeof parameters.etag === "string" ? { ETag: parameters.etag } : {}),
-      ...(htmlVaryHeader(parameters, parsedUrl)
-        ? { Vary: htmlVaryHeader(parameters, parsedUrl) }
+      ...(!parsedUrl.searchParams.get("lang")
+        ? { Vary: "Accept-Language" }
         : {}),
     });
 
@@ -368,9 +354,7 @@ class Template extends StaticTemplate {
       request,
       parsedUrl,
       parameters,
-      typeof parameters.cacheControl === "string"
-        ? parameters.cacheControl
-        : this.cacheControl(),
+      this.cacheControl(),
       Buffer.byteLength(body),
     );
     stream.end(body);
@@ -488,9 +472,7 @@ class BoardTemplate extends Template {
       request,
       parsedUrl,
       parameters,
-      typeof parameters.cacheControl === "string"
-        ? parameters.cacheControl
-        : this.cacheControl(),
+      this.cacheControl(),
     );
     stream.write(prefix);
     inlineBoardSvgStream.pipe(stream, { end: false });
