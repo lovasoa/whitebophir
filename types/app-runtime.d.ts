@@ -189,9 +189,14 @@ export type PendingWrite = {
   data: ClientTrackedMessage;
 };
 
+export type BufferedWriteState = "queued" | "inflight";
+
 export type BufferedWrite = {
   message: LiveBoardMessage;
   costs: RateLimitCosts;
+  state: BufferedWriteState;
+  notBeforeMs: number;
+  redrawOnSend?: boolean;
 };
 
 export type RateLimitWindowState = {

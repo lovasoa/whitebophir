@@ -426,14 +426,14 @@ export class BoardShellModule {
       Tools.messages.unreadCount = 0;
       updateDocumentTitle(Tools.messages, Tools.identity);
       if (Tools.writes.bufferedWrites.length > 0) {
-        Tools.writes.flushBufferedWrites();
+        Tools.writes.pumpBufferedWrites();
       }
     });
 
     document.addEventListener("visibilitychange", () => {
       const Tools = this.getTools();
       if (!document.hidden && Tools.writes.bufferedWrites.length > 0) {
-        Tools.writes.flushBufferedWrites();
+        Tools.writes.pumpBufferedWrites();
       }
     });
   }

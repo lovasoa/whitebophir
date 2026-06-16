@@ -8,7 +8,7 @@ import {
 import RateLimitCommon from "./rate_limit_common.js";
 import { SocketEvents } from "./socket_events.js";
 
-/** @import { AppToolsState, BoardMessage, BufferedWrite, ClientTrackedMessage, LiveBoardMessage, RateLimitKind } from "../../types/app-runtime" */
+/** @import { AppToolsState, BoardMessage, BufferedWrite, ClientTrackedMessage, LiveBoardMessage, RateLimitCosts, RateLimitKind } from "../../types/app-runtime" */
 /** @typedef {{tool: import("../tools/tool-order.js").ToolCode, type?: unknown, id?: unknown, parent?: string, txt?: unknown, _children?: unknown, clientMutationId?: string, socket?: string, userId?: string, color?: string, size?: number | string, opacity?: number, x?: number, y?: number, x2?: number, y2?: number, newid?: string, transform?: {a: number, b: number, c: number, d: number, e: number, f: number}}} RuntimeBoardMessage */
 
 // Keep a bounded safety margin between the client-side local budget and the
@@ -20,6 +20,28 @@ const RATE_LIMIT_FLUSH_SAFETY_MAX_MS = 1500;
 const RATE_LIMIT_KINDS = /** @type {RateLimitKind[]} */ (
   RateLimitCommon.RATE_LIMIT_KINDS
 );
+
+/** @param {LiveBoardMessage} message */
+function getClientMutationId(message) {
+  return typeof message.clientMutationId === "string" &&
+    message.clientMutationId.length > 0
+    ? message.clientMutationId
+    : null;
+}
+
+/**
+ * @param {LiveBoardMessage} message
+ * @param {RateLimitCosts} costs
+ * @returns {BufferedWrite}
+ */
+function createBufferedWrite(message, costs) {
+  return {
+    message,
+    costs,
+    state: "queued",
+    notBeforeMs: Date.now(),
+  };
+}
 
 export class WriteModule {
   /** @param {() => AppToolsState} getTools */
@@ -93,27 +115,6 @@ export class WriteModule {
    * @param {BufferedWrite} bufferedWrite
    * @param {number} now
    */
-  canEmitBufferedWrite(bufferedWrite, now) {
-    const Tools = this.getTools();
-    return RATE_LIMIT_KINDS.every((kind) => {
-      const cost = bufferedWrite.costs[kind];
-      if (!(cost > 0)) return true;
-      const definition = Tools.rateLimits.getEffectiveRateLimit(kind);
-      if (!(definition.periodMs > 0) || !(definition.limit >= 0)) return true;
-      return RateLimitCommon.canConsumeFixedWindowRateLimit(
-        this.localRateLimitStates[kind],
-        cost,
-        definition.limit,
-        definition.periodMs,
-        now,
-      );
-    });
-  }
-
-  /**
-   * @param {BufferedWrite} bufferedWrite
-   * @param {number} now
-   */
   consumeBufferedWriteBudget(bufferedWrite, now) {
     const Tools = this.getTools();
     RATE_LIMIT_KINDS.forEach((kind) => {
@@ -135,7 +136,7 @@ export class WriteModule {
    * @param {BufferedWrite} bufferedWrite
    * @param {number} now
    */
-  getBufferedWriteWaitMs(bufferedWrite, now) {
+  getBufferedWriteBudgetWaitMs(bufferedWrite, now) {
     const Tools = this.getTools();
     return RATE_LIMIT_KINDS.reduce((waitMs, kind) => {
       const cost = bufferedWrite.costs[kind];
@@ -164,6 +165,42 @@ export class WriteModule {
     }, 0);
   }
 
+  /**
+   * @param {BufferedWrite} bufferedWrite
+   * @param {number} now
+   * @returns {boolean}
+   */
+  deferBufferedWriteIfRateLimited(bufferedWrite, now) {
+    const waitMs = this.getBufferedWriteBudgetWaitMs(bufferedWrite, now);
+    if (!(waitMs > 0)) return false;
+    const deferMs = waitMs + this.getBufferedWriteFlushSafetyMs(waitMs);
+    bufferedWrite.notBeforeMs = Math.max(
+      bufferedWrite.notBeforeMs,
+      now + deferMs,
+    );
+    return true;
+  }
+
+  /**
+   * @param {number} notBeforeMs
+   * @param {boolean} [redrawOnSend]
+   */
+  deferBufferedWritesUntil(notBeforeMs, redrawOnSend) {
+    this.bufferedWrites.forEach((bufferedWrite) => {
+      bufferedWrite.state = "queued";
+      bufferedWrite.notBeforeMs = Math.max(
+        bufferedWrite.notBeforeMs,
+        notBeforeMs,
+      );
+      if (redrawOnSend && getClientMutationId(bufferedWrite.message)) {
+        bufferedWrite.redrawOnSend = true;
+      }
+    });
+    this.localRateLimitedUntil = 0;
+    this.clearBufferedWriteTimer();
+    this.scheduleBufferedWriteFlush();
+  }
+
   /** @param {number} waitMs */
   getBufferedWriteFlushSafetyMs(waitMs) {
     return Math.min(
@@ -172,26 +209,74 @@ export class WriteModule {
     );
   }
 
+  /** @returns {BufferedWrite | undefined} */
+  getNextQueuedWrite() {
+    return this.bufferedWrites.find(
+      (bufferedWrite) => bufferedWrite.state === "queued",
+    );
+  }
+
   scheduleBufferedWriteFlush() {
     const Tools = this.getTools();
     this.clearBufferedWriteTimer();
-    if (!this.bufferedWrites.length || !this.canBufferWrites()) {
+    const nextWrite = this.getNextQueuedWrite();
+    if (!nextWrite || !this.canBufferWrites()) {
       Tools.status.syncWriteStatusIndicator();
       return;
     }
-    const nextWrite = this.bufferedWrites[0];
-    if (!nextWrite) return;
     const now = Date.now();
-    const waitMs = this.getBufferedWriteWaitMs(nextWrite, now);
-    const flushDelayMs = waitMs + this.getBufferedWriteFlushSafetyMs(waitMs);
-    this.localRateLimitedUntil = flushDelayMs > 0 ? now + flushDelayMs : 0;
-    this.bufferedWriteTimer = window.setTimeout(function flushBufferedWrites() {
-      Tools.writes.flushBufferedWrites();
-    }, flushDelayMs);
+    this.deferBufferedWriteIfRateLimited(nextWrite, now);
+    const waitMs = Math.max(0, nextWrite.notBeforeMs - now);
+    this.localRateLimitedUntil = waitMs > 0 ? now + waitMs : 0;
+    this.bufferedWriteTimer = window.setTimeout(function pumpBufferedWrites() {
+      Tools.writes.pumpBufferedWrites();
+    }, waitMs);
     Tools.status.syncWriteStatusIndicator();
   }
 
-  flushBufferedWrites() {
+  /** @param {BufferedWrite} bufferedWrite */
+  redrawBufferedWriteIfNeeded(bufferedWrite) {
+    if (!bufferedWrite.redrawOnSend) return;
+    bufferedWrite.redrawOnSend = false;
+    const Tools = this.getTools();
+    const toolName = TOOL_ID_BY_CODE[bufferedWrite.message.tool];
+    const mountedTool = toolName ? Tools.toolRegistry.mounted[toolName] : null;
+    if (!mountedTool) return;
+
+    const trackedMessage = /** @type {ClientTrackedMessage} */ (
+      bufferedWrite.message
+    );
+    const rollback = Tools.optimistic.captureRollback(trackedMessage);
+    mountedTool.draw(trackedMessage, true);
+    Tools.optimistic.trackMutation(trackedMessage, rollback);
+  }
+
+  /**
+   * @param {BufferedWrite} bufferedWrite
+   * @param {number} now
+   */
+  emitBufferedWrite(bufferedWrite, now) {
+    const Tools = this.getTools();
+    this.consumeBufferedWriteBudget(bufferedWrite, now);
+    this.redrawBufferedWriteIfNeeded(bufferedWrite);
+    Tools.presence.updateCurrentConnectedUserFromActivity(
+      bufferedWrite.message,
+    );
+    if (Tools.connection.socket) {
+      Tools.connection.socket.emit(
+        SocketEvents.BROADCAST,
+        bufferedWrite.message,
+      );
+    }
+    if (getClientMutationId(bufferedWrite.message)) {
+      bufferedWrite.state = "inflight";
+      return;
+    }
+    const index = this.bufferedWrites.indexOf(bufferedWrite);
+    if (index >= 0) this.bufferedWrites.splice(index, 1);
+  }
+
+  pumpBufferedWrites() {
     const Tools = this.getTools();
     this.clearBufferedWriteTimer();
     this.localRateLimitedUntil = 0;
@@ -199,27 +284,37 @@ export class WriteModule {
       Tools.status.syncWriteStatusIndicator();
       return;
     }
-    while (this.bufferedWrites.length > 0) {
-      const bufferedWrite = this.bufferedWrites[0];
+    while (true) {
+      const bufferedWrite = this.getNextQueuedWrite();
       if (!bufferedWrite) break;
       const now = Date.now();
-      if (!this.canEmitBufferedWrite(bufferedWrite, now)) {
+      if (bufferedWrite.notBeforeMs > now) {
         this.scheduleBufferedWriteFlush();
         return;
       }
-      this.bufferedWrites.shift();
-      this.consumeBufferedWriteBudget(bufferedWrite, now);
-      Tools.presence.updateCurrentConnectedUserFromActivity(
-        bufferedWrite.message,
-      );
-      if (Tools.connection.socket) {
-        Tools.connection.socket.emit(
-          SocketEvents.BROADCAST,
-          bufferedWrite.message,
-        );
+      if (this.deferBufferedWriteIfRateLimited(bufferedWrite, now)) {
+        this.scheduleBufferedWriteFlush();
+        return;
       }
+      this.emitBufferedWrite(bufferedWrite, now);
     }
     Tools.status.syncWriteStatusIndicator();
+  }
+
+  /**
+   * @param {string | undefined} clientMutationId
+   * @returns {boolean}
+   */
+  resolveBufferedWrite(clientMutationId) {
+    if (!clientMutationId) return false;
+    const index = this.bufferedWrites.findIndex(
+      (bufferedWrite) =>
+        getClientMutationId(bufferedWrite.message) === clientMutationId,
+    );
+    if (index < 0) return false;
+    this.bufferedWrites.splice(index, 1);
+    this.scheduleBufferedWriteFlush();
+    return true;
   }
 
   /**
@@ -229,10 +324,12 @@ export class WriteModule {
   enqueueBufferedWrite(message) {
     const Tools = this.getTools();
     const liveMessage = /** @type {LiveBoardMessage} */ (message);
-    this.bufferedWrites.push({
-      message: liveMessage,
-      costs: Tools.rateLimits.getBufferedWriteCosts(liveMessage),
-    });
+    this.bufferedWrites.push(
+      createBufferedWrite(
+        liveMessage,
+        Tools.rateLimits.getBufferedWriteCosts(liveMessage),
+      ),
+    );
     this.scheduleBufferedWriteFlush();
   }
 
@@ -243,29 +340,16 @@ export class WriteModule {
   sendBufferedWrite(message) {
     const Tools = this.getTools();
     const liveMessage = /** @type {LiveBoardMessage} */ (message);
-    /** @type {BufferedWrite} */
-    const bufferedWrite = {
-      message: liveMessage,
-      costs: Tools.rateLimits.getBufferedWriteCosts(liveMessage),
-    };
     if (!this.canBufferWrites()) {
       return false;
     }
-    const now = Date.now();
-    if (
-      this.bufferedWrites.length === 0 &&
-      this.canEmitBufferedWrite(bufferedWrite, now)
-    ) {
-      this.consumeBufferedWriteBudget(bufferedWrite, now);
-      Tools.presence.updateCurrentConnectedUserFromActivity(liveMessage);
-      if (Tools.connection.socket) {
-        Tools.connection.socket.emit(SocketEvents.BROADCAST, liveMessage);
-      }
-      Tools.status.syncWriteStatusIndicator();
-      return true;
-    }
-    this.bufferedWrites.push(bufferedWrite);
-    this.scheduleBufferedWriteFlush();
+    this.bufferedWrites.push(
+      createBufferedWrite(
+        liveMessage,
+        Tools.rateLimits.getBufferedWriteCosts(liveMessage),
+      ),
+    );
+    this.pumpBufferedWrites();
     return true;
   }
 

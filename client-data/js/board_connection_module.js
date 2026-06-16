@@ -197,6 +197,7 @@ export class ConnectionModule {
         SocketEvents.MUTATION_REJECTED,
         function onMutationRejected(payload) {
           if (payload.clientMutationId) {
+            Tools.writes.resolveBufferedWrite(payload.clientMutationId);
             Tools.optimistic.rejectMutation(
               payload.clientMutationId,
               payload.reason,
@@ -243,9 +244,15 @@ export class ConnectionModule {
         Tools.presence.removeConnectedUser(user.socketId);
       });
       socket.on(SocketEvents.RATE_LIMITED, function onRateLimited(payload) {
-        const retryAfterMs = payload.retryAfterMs;
-        Tools.writes.serverRateLimitedUntil =
-          Date.now() + Math.max(0, retryAfterMs);
+        const retryAfterMs = Math.max(0, Number(payload.retryAfterMs) || 0);
+        Tools.writes.serverRateLimitedUntil = Date.now() + retryAfterMs;
+        Tools.writes.deferBufferedWritesUntil(
+          Tools.writes.serverRateLimitedUntil,
+          true,
+        );
+        window.setTimeout(() => {
+          Tools.writes.pumpBufferedWrites();
+        }, retryAfterMs);
         Tools.status.showRateLimitNotice(
           Tools.i18n.t("rate_limit_disconnect_message"),
           retryAfterMs,
@@ -257,7 +264,9 @@ export class ConnectionModule {
         if (reason === "io client disconnect") return;
         Tools.connection.state = "disconnected";
         this.logBoardEvent("warn", "socket.disconnected", { reason });
-        Tools.replay.beginAuthoritativeResync();
+        Tools.replay.beginAuthoritativeResync({
+          preserveBufferedWrites: Tools.writes.isWritePaused(),
+        });
         this.scheduleSocketReconnect();
       });
       socket.connect();

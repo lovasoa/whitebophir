@@ -76,7 +76,8 @@ export class ReplayModule {
     this.applyAuthoritativeBaseline(baseline);
   }
 
-  beginAuthoritativeResync() {
+  /** @param {{preserveBufferedWrites?: boolean}} [options] */
+  beginAuthoritativeResync(options) {
     const Tools = this.getTools();
     this.awaitingSnapshot = true;
     this.refreshBaselineBeforeConnect = true;
@@ -84,7 +85,9 @@ export class ReplayModule {
     this.preSnapshotMessages = [];
     this.incomingBroadcastQueue = [];
     this.processingIncomingBroadcast = false;
-    Tools.writes.discardBufferedWrites();
+    if (!options?.preserveBufferedWrites) {
+      Tools.writes.discardBufferedWrites();
+    }
     Tools.turnstile.pendingWrites = [];
     Tools.turnstile.hideOverlay();
     Tools.interaction.releaseAll();
@@ -103,6 +106,9 @@ export class ReplayModule {
    */
   async handleMessage(message) {
     const Tools = this.getTools();
+    if (message.clientMutationId) {
+      Tools.writes.resolveBufferedWrite(message.clientMutationId);
+    }
     Tools.writes.pruneBufferedWritesForInvalidatingMessage(message);
     await Tools.messages.messageForTool(message);
   }
@@ -135,7 +141,7 @@ export class ReplayModule {
     this.authoritativeSeq = replayedToSeq;
     this.awaitingSnapshot = false;
     this.refreshBaselineBeforeConnect = false;
-    Tools.writes.flushBufferedWrites();
+    Tools.writes.pumpBufferedWrites();
     this.incomingBroadcastQueue =
       BoardMessageReplay.filterBufferedMessagesAfterSeqReplay(
         this.preSnapshotMessages,
@@ -217,6 +223,7 @@ export class ReplayModule {
       replayMessage.socket === Tools.connection.socket?.id;
     if (isOwnSequencedBroadcast && replayMessage.clientMutationId) {
       Tools.optimistic.promoteMutation(replayMessage.clientMutationId);
+      Tools.writes.resolveBufferedWrite(replayMessage.clientMutationId);
     }
     if (isSequencedBroadcast && !isOwnSequencedBroadcast) {
       Tools.optimistic.pruneForAuthoritativeMessage(replayMessage);
