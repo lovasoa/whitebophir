@@ -29,13 +29,12 @@ export type MessageType = MutationTypeMap[keyof MutationTypeMap];
 export type SocketEventName = SocketEventMap[keyof SocketEventMap];
 export type BoardCapability = "openBoard" | "editBoard" | "clearBoard";
 export type ToolRequiredCapability = Exclude<BoardCapability, "openBoard">;
-export type BoardCapabilityFlag = "canOpen" | "canEdit" | "canClear" | "canBan";
+export type BoardCapabilityFlag = "canOpen" | "canEdit" | "canClear";
 
 export type BoardCapabilities = {
   canOpen: boolean;
   canEdit: boolean;
   canClear: boolean;
-  canBan: boolean;
 };
 
 export type MessageMetadata = {

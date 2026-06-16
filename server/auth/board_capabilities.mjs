@@ -103,7 +103,6 @@ function forBoard(input) {
         canOpen: true,
         canEdit: !readonly,
         canClear: false,
-        canBan: false,
       };
     }
 
@@ -112,7 +111,6 @@ function forBoard(input) {
       canOpen: open,
       canEdit: open && (!readonly || isEditCapableRole(role)),
       canClear: moderator,
-      canBan: moderator,
     };
   }
 
@@ -150,6 +148,8 @@ function forBoard(input) {
     boardState,
     requireOpen,
     canApplyBoardMessage,
+    // canBan currently mirrors canClear (both require the moderator role) but is
+    // kept as its own capability so banning and clearing can diverge later.
     canBan: () => isClearCapableRole(role),
   };
 }
@@ -220,13 +220,6 @@ const BoardPermissions = Object.freeze({
    */
   canClear(input) {
     return resolveCapabilities(input).canClear;
-  },
-  /**
-   * @param {{config: BoardCapabilityConfig, board: BoardCapabilityBoard, userInfo?: BoardCapabilityUserInfo}} input
-   * @returns {boolean}
-   */
-  canBan(input) {
-    return resolveCapabilities(input).canBan;
   },
 });
 

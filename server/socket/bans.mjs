@@ -1,15 +1,24 @@
-import RateLimitCommon from "../../client-data/js/rate_limit_common.js";
+// Per-board edit bans, keyed independently by user secret and by IP.
+//
+// A ban is just an expiry: the key may not perform persistent edits until
+// `expiresAt`. This is the "divergent" half of abuse prevention; the bounded,
+// self-pruning map it lives in is shared with rate limiting via
+// bounded_state_map.mjs.
+
 import {
   capToMaxSize,
   pruneStaleEntries,
   touchExisting,
-} from "./abuse_state_maps.mjs";
+} from "./bounded_state_map.mjs";
 
 const BAN_TTL_MS = 30 * 60 * 1000;
 const BAN_MAP_MAX_SIZE = 4096;
 const BAN_STALE_SCAN_LIMIT = 16;
 
-/** @type {Map<string, {secrets: Map<string, import("../../types/server-runtime.d.ts").RateLimitState>, ips: Map<string, import("../../types/server-runtime.d.ts").RateLimitState>}>} */
+/** @typedef {{ expiresAt: number }} BanEntry */
+/** @typedef {{ secrets: Map<string, BanEntry>, ips: Map<string, BanEntry> }} BoardBans */
+
+/** @type {Map<string, BoardBans>} */
 const boardBans = new Map();
 
 /**
@@ -22,7 +31,7 @@ function boardKey(boardName) {
 
 /**
  * @param {string} boardName
- * @returns {{secrets: Map<string, import("../../types/server-runtime.d.ts").RateLimitState>, ips: Map<string, import("../../types/server-runtime.d.ts").RateLimitState>}}
+ * @returns {BoardBans}
  */
 function getBoardBans(boardName) {
   const key = boardKey(boardName);
@@ -34,45 +43,46 @@ function getBoardBans(boardName) {
 }
 
 /**
- * @param {Map<string, import("../../types/server-runtime.d.ts").RateLimitState>} map
+ * @param {BanEntry} entry
+ * @param {number} now
+ * @returns {boolean}
+ */
+function isExpired(entry, now) {
+  return entry.expiresAt <= now;
+}
+
+/**
+ * Bans a single key until `now + ttlMs`, opportunistically dropping expired
+ * leading entries and capping the map so it stays bounded.
+ *
+ * @param {Map<string, BanEntry>} map
  * @param {string | undefined | null} key
  * @param {number} now
  * @param {number} ttlMs
  * @returns {void}
  */
-function setBan(map, key, now, ttlMs) {
+function banKey(map, key, now, ttlMs) {
   if (!key) return;
   pruneStaleEntries(
     map,
-    (state) => RateLimitCommon.isRateLimitStateStale(state, ttlMs, now),
+    (entry) => isExpired(entry, now),
     BAN_STALE_SCAN_LIMIT,
   );
-  map.set(
-    key,
-    RateLimitCommon.consumeFixedWindowRateLimit(
-      RateLimitCommon.createRateLimitState(now),
-      1,
-      ttlMs,
-      now,
-    ),
-  );
+  map.set(key, { expiresAt: now + ttlMs });
   capToMaxSize(map, BAN_MAP_MAX_SIZE);
 }
 
 /**
- * @param {Map<string, import("../../types/server-runtime.d.ts").RateLimitState>} map
+ * @param {Map<string, BanEntry>} map
  * @param {string | undefined | null} key
  * @param {number} now
- * @param {number} ttlMs
  * @returns {boolean}
  */
-function isBanned(map, key, now, ttlMs) {
+function isKeyBanned(map, key, now) {
   if (!key) return false;
-  const state = touchExisting(map, key);
-  if (!state) return false;
-  if (RateLimitCommon.getRateLimitRemainingMs(state, ttlMs, now) > 0) {
-    return true;
-  }
+  const entry = touchExisting(map, key);
+  if (!entry) return false;
+  if (!isExpired(entry, now)) return true;
   map.delete(key);
   return false;
 }
@@ -93,8 +103,8 @@ export function banBoardUser(
   ttlMs = BAN_TTL_MS,
 ) {
   const bans = getBoardBans(boardName);
-  setBan(bans.secrets, userSecret, now, ttlMs);
-  setBan(bans.ips, ip, now, ttlMs);
+  banKey(bans.secrets, userSecret, now, ttlMs);
+  banKey(bans.ips, ip, now, ttlMs);
 }
 
 /**
@@ -102,21 +112,13 @@ export function banBoardUser(
  * @param {string | undefined | null} userSecret
  * @param {string | undefined | null} ip
  * @param {number} now
- * @param {number} [ttlMs]
  * @returns {boolean}
  */
-export function isEditBanned(
-  boardName,
-  userSecret,
-  ip,
-  now,
-  ttlMs = BAN_TTL_MS,
-) {
+export function isEditBanned(boardName, userSecret, ip, now) {
   const bans = boardBans.get(boardKey(boardName));
   if (!bans) return false;
   return (
-    isBanned(bans.secrets, userSecret, now, ttlMs) ||
-    isBanned(bans.ips, ip, now, ttlMs)
+    isKeyBanned(bans.secrets, userSecret, now) || isKeyBanned(bans.ips, ip, now)
   );
 }
 

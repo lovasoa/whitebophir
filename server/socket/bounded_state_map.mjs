@@ -1,7 +1,12 @@
-// Shared bounded-map maintenance primitives for abuse-prevention state.
-// Rate limits and edit bans both use small per-key windows that should refresh
-// on access, drop stale leading entries opportunistically, and cap total memory
-// without coupling either feature to the other's domain rules.
+// Generic maintenance for small, self-expiring per-key state maps.
+//
+// This is the shared substrate for abuse-prevention features: rate limiting
+// (see rate_limits.mjs) and edit bans (see bans.mjs) both keep a bounded map of
+// per-key entries that must drop stale leading entries opportunistically, cap
+// total memory, and refresh access order. Each feature defines its own entry
+// shape and its own "stale" rule (a counting window vs. an expiry timestamp);
+// nothing here knows about either domain. Keep it that way: domain rules stay
+// in the feature modules, not here.
 
 /**
  * @template T
