@@ -2,6 +2,7 @@ import path from "node:path";
 
 import {
   parseBasePathEnv,
+  parseBoardModeratorsEnv,
   parseCommaSeparatedEnv,
   parseDisabledFlagEnv,
   parseEnumEnv,
@@ -123,6 +124,9 @@ export const BLOCKED_SELECTION_BUTTONS = parseCommaSeparatedEnv(
 export const AUTO_FINGER_WHITEOUT = parseDisabledFlagEnv(
   "AUTO_FINGER_WHITEOUT",
 );
+
+/** Board-scoped moderator user secrets. */
+export const BOARD_MODERATORS = parseBoardModeratorsEnv("WBO_BOARD_MODERATORS");
 
 /** Shared JWT secret used by board auth helpers. Empty disables JWT auth. */
 export const AUTH_SECRET_KEY = parseStringEnv("AUTH_SECRET_KEY", "");

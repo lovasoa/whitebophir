@@ -14,7 +14,7 @@ import {
 } from "./request.mjs";
 
 /** @import { AppSocket, ConnectedUserPayload, NormalizedMessageData, ServerConfig } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, userId: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
+/** @typedef {{socketId: string, userId: string, userSecret: string, name: string, ip: string, userAgent: string, language: string, color: string, size: number, lastTool: string, lastSeen: number}} BoardUser */
 /** @typedef {(socket: AppSocket, boardName: string, config: ServerConfig) => string} ResolveClientIp */
 
 /** @type {Map<string, Map<string, BoardUser>>} */
@@ -59,6 +59,7 @@ function buildBoardUserRecord(socket, boardName, config, resolveClientIp, now) {
   return {
     socketId: socket.id,
     userId: buildUserId(userSecret),
+    userSecret,
     name: buildUserName(ip, userSecret),
     ip,
     userAgent: getSocketHeaderValue(socket, "user-agent"),

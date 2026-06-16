@@ -9,10 +9,11 @@ import {
 } from "../../client-data/tools/manifest.js";
 import { forbidden } from "../http/boundary_errors.mjs";
 import { roleInBoard } from "./board_jwt.mjs";
+import { isConfiguredModerator } from "./board_moderators.mjs";
 
-/** @typedef {{AUTH_SECRET_KEY: string}} BoardCapabilityConfig */
+/** @typedef {{AUTH_SECRET_KEY: string, BOARD_MODERATORS?: {[boardName: string]: Set<string>}}} BoardCapabilityConfig */
 /** @typedef {{name: string, readonly?: boolean, isReadOnly?: () => boolean}} BoardCapabilityBoard */
-/** @typedef {{token?: string | null}} BoardCapabilityUserInfo */
+/** @typedef {{token?: string | null, userSecret?: string | null}} BoardCapabilityUserInfo */
 /** @typedef {import("../../types/app-runtime").BoardCapabilities} BoardCapabilities */
 /** @typedef {import("../../types/app-runtime").BoardCapability} BoardCapability */
 /** @typedef {import("../../types/app-runtime").AppBoardState} RenderedBoardState */
@@ -52,6 +53,8 @@ function isClearCapableRole(role) {
  * @returns {"moderator" | "editor" | "reader" | "forbidden"}
  */
 function roleForBoard(config, boardName, userInfo) {
+  if (isConfiguredModerator(config, boardName, userInfo?.userSecret))
+    return "moderator";
   if (config.AUTH_SECRET_KEY === "") return "editor";
   const token = userInfo?.token;
   return token ? roleInBoard(config, token, boardName) : "forbidden";
@@ -73,6 +76,7 @@ function capabilitiesGrant(capabilities, capability) {
  * @param {{config: BoardCapabilityConfig, boardName: string, userInfo?: BoardCapabilityUserInfo}} input
  * @returns {{
  *   canOpen: () => boolean,
+ *   canBan: () => boolean,
  *   resolveCapabilities: (board: BoardCapabilityBoard) => BoardCapabilities,
  *   boardState: (board: BoardCapabilityBoard) => RenderedBoardState,
  *   requireOpen: () => void,
@@ -93,11 +97,13 @@ function forBoard(input) {
    */
   function resolveCapabilities(board) {
     const readonly = isBoardReadOnly(board);
-    if (!jwtEnabled) {
+    const moderator = isClearCapableRole(role);
+    if (!jwtEnabled && !moderator) {
       return {
         canOpen: true,
         canEdit: !readonly,
         canClear: false,
+        canBan: false,
       };
     }
 
@@ -105,7 +111,8 @@ function forBoard(input) {
     return {
       canOpen: open,
       canEdit: open && (!readonly || isEditCapableRole(role)),
-      canClear: isClearCapableRole(role),
+      canClear: moderator,
+      canBan: moderator,
     };
   }
 
@@ -143,6 +150,7 @@ function forBoard(input) {
     boardState,
     requireOpen,
     canApplyBoardMessage,
+    canBan: () => isClearCapableRole(role),
   };
 }
 
@@ -212,6 +220,13 @@ const BoardPermissions = Object.freeze({
    */
   canClear(input) {
     return resolveCapabilities(input).canClear;
+  },
+  /**
+   * @param {{config: BoardCapabilityConfig, board: BoardCapabilityBoard, userInfo?: BoardCapabilityUserInfo}} input
+   * @returns {boolean}
+   */
+  canBan(input) {
+    return resolveCapabilities(input).canBan;
   },
 });
 

@@ -1,4 +1,5 @@
 import { BoardPermissions } from "../auth/board_capabilities.mjs";
+import { getUserSecretFromCookieHeader } from "../auth/user_secret_cookie.mjs";
 import { badRequest } from "../http/boundary_errors.mjs";
 import { boardSvgCacheControl, CSP } from "../http/cache_policy.mjs";
 import { startCompressedResponse } from "../http/compression.mjs";
@@ -43,7 +44,10 @@ function requireBoardOpenPermission(ctx, boardName) {
   BoardPermissions.forBoard({
     config: ctx.runtime.config,
     boardName,
-    userInfo: { token: ctx.url.searchParams.get("token") },
+    userInfo: {
+      token: ctx.url.searchParams.get("token"),
+      userSecret: getUserSecretFromCookieHeader(ctx.request.headers.cookie),
+    },
   }).requireOpen();
 }
 

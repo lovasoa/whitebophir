@@ -8,12 +8,18 @@ import { SocketEvents } from "../../client-data/js/socket_events.js";
 import { Cursor } from "../../client-data/tools/index.js";
 import { getBoardSession } from "../board/session.mjs";
 import observability from "../observability/index.mjs";
-import { canApplyBoardMessage, normalizeBroadcastData } from "./policy.mjs";
+import { isEditBanned } from "./bans.mjs";
+import {
+  canApplyBoardMessage,
+  canBanOnBoard,
+  normalizeBroadcastData,
+} from "./policy.mjs";
 import { updateBoardUserFromMessage } from "./presence.mjs";
 import {
   enforceBroadcastPostNormalization,
   enforceBroadcastPreNormalization,
 } from "./rate_limits.mjs";
+import { getSocketUserSecret } from "./request.mjs";
 import { isTurnstileValidationActive } from "./turnstile.mjs";
 
 const { logger, metrics, tracing } = observability;
@@ -346,6 +352,21 @@ async function persistBoardBroadcast(
   }
   if (data.tool === Cursor.id) {
     finishSuccessfulEphemeralBoardWrite(socket, boardName, data, now, userName);
+    return;
+  }
+  if (
+    isEditBanned(boardName, getSocketUserSecret(socket), clientIp, now) &&
+    !canBanOnBoard(config, boardName, socket)
+  ) {
+    rejectBoardMessageWrite(
+      socket,
+      board,
+      boardName,
+      data,
+      clientIp,
+      userName,
+      "banned",
+    );
     return;
   }
 

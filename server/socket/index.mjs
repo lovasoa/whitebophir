@@ -17,6 +17,7 @@ import {
   handleBroadcastWriteMessage,
   shouldTraceBroadcast,
 } from "./broadcasts.mjs";
+import { resetBans } from "./bans.mjs";
 import {
   boardStateForSocket,
   getClientIp,
@@ -654,6 +655,8 @@ async function handleSocketConnection(socket, config) {
             socket,
             normalizedName,
             message,
+            config,
+            Date.now(),
             getActiveSocket,
             closeSocket,
           );
@@ -899,6 +902,7 @@ export const __test = {
   },
   resetRateLimitMaps: function resetRateLimitMaps() {
     resetSocketRateLimitMaps();
+    resetBans();
     resetBoardUserMaps();
     activeSockets.clear();
     syncedPersistentSockets.clear();

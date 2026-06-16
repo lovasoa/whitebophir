@@ -6,6 +6,11 @@ import {
   countDestructiveActions,
   countTextCreationActions,
 } from "./policy.mjs";
+import {
+  capToMaxSize,
+  pruneStaleEntries,
+  touchExisting,
+} from "./bounded_state_map.mjs";
 
 const createRateLimitState = RateLimitCommon.createRateLimitState;
 const consumeFixedWindowRateLimit = RateLimitCommon.consumeFixedWindowRateLimit;
@@ -171,17 +176,12 @@ function buildSocketLogInfo(socket, boardName, extras) {
  */
 function pruneOldestStaleRateLimitEntries(map, kind, periodMs, now) {
   if (!(periodMs > 0)) return 0;
-  let checked = 0;
-  let pruned = 0;
-  for (const [key, state] of map) {
-    if (checked >= RATE_LIMIT_STALE_SCAN_LIMIT) break;
-    checked += 1;
-    if (!isRateLimitStateStale(state, periodMs, now)) break;
-    recordCompletedRateLimitWindow(kind, state, "pruned");
-    map.delete(key);
-    pruned += 1;
-  }
-  return pruned;
+  return pruneStaleEntries(
+    map,
+    (state) => isRateLimitStateStale(state, periodMs, now),
+    RATE_LIMIT_STALE_SCAN_LIMIT,
+    (state) => recordCompletedRateLimitWindow(kind, state, "pruned"),
+  );
 }
 
 /**
@@ -190,15 +190,9 @@ function pruneOldestStaleRateLimitEntries(map, kind, periodMs, now) {
  * @returns {number}
  */
 function capRateLimitMap(map, kind) {
-  let pruned = 0;
-  while (map.size > RATE_LIMIT_MAP_MAX_SIZE) {
-    const oldest = map.entries().next();
-    if (oldest.done) break;
-    recordCompletedRateLimitWindow(kind, oldest.value[1], "pruned");
-    map.delete(oldest.value[0]);
-    pruned += 1;
-  }
-  return pruned;
+  return capToMaxSize(map, RATE_LIMIT_MAP_MAX_SIZE, (state) =>
+    recordCompletedRateLimitWindow(kind, state, "pruned"),
+  );
 }
 
 /**
@@ -212,10 +206,8 @@ function getIpRateLimitState(kind, clientIp, now, periodMs) {
   const map = rateLimitMaps[kind];
   pruneOldestStaleRateLimitEntries(map, kind, periodMs, now);
 
-  const existing = map.get(clientIp);
+  const existing = touchExisting(map, clientIp);
   if (existing) {
-    map.delete(clientIp);
-    map.set(clientIp, existing);
     capRateLimitMap(map, kind);
     return existing;
   }

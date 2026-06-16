@@ -1,10 +1,12 @@
 import observability from "../observability/index.mjs";
+import { banBoardUser } from "./bans.mjs";
 import { getBoardUser } from "./presence.mjs";
+import { canBanOnBoard } from "./policy.mjs";
 
 const { logger, tracing } = observability;
 
-/** @import { AppSocket, ReportUserPayload } from "../../types/server-runtime.d.ts" */
-/** @typedef {{socketId: string, name: string, ip: string, userAgent: string, language: string}} BoardUser */
+/** @import { AppSocket, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
+/** @typedef {{socketId: string, name: string, ip: string, userSecret?: string, userAgent: string, language: string}} BoardUser */
 /** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
 /** @typedef {(socket: AppSocket, eventName: string, infos: {[key: string]: any}) => void} CloseSocket */
@@ -65,25 +67,16 @@ function buildUserReportLog(boardName, reporter, reported) {
 }
 
 /**
- * @param {AppSocket} socket
  * @param {string} boardName
- * @param {BoardUser} reported
- * @param {GetActiveSocket} getActiveSocket
+ * @param {AppSocket[]} socketsToDisconnect
  * @param {CloseSocket} closeSocket
  * @returns {void}
  */
 function disconnectReportedSockets(
-  socket,
   boardName,
-  reported,
-  getActiveSocket,
+  socketsToDisconnect,
   closeSocket,
 ) {
-  const socketsToDisconnect = [socket];
-  const reportedSocket = getActiveSocket(reported.socketId);
-  if (reportedSocket && reportedSocket !== socket) {
-    socketsToDisconnect.push(reportedSocket);
-  }
   socketsToDisconnect.forEach(
     function disconnectReportedUser(/** @type {AppSocket} */ targetSocket) {
       closeSocket(targetSocket, "report_user", {
@@ -98,6 +91,8 @@ function disconnectReportedSockets(
  * @param {AppSocket} socket
  * @param {string} boardName
  * @param {ReportUserPayload | undefined} message
+ * @param {ServerConfig} config
+ * @param {number} now
  * @param {GetActiveSocket} getActiveSocket
  * @param {CloseSocket} closeSocket
  * @returns {void}
@@ -106,6 +101,8 @@ function handleReportUserMessage(
   socket,
   boardName,
   message,
+  config,
+  now,
   getActiveSocket,
   closeSocket,
 ) {
@@ -149,11 +146,34 @@ function handleReportUserMessage(
     reporter_name: reportLog.reporter_name,
     reported_name: reportLog.reported_name,
   });
+  const reportedSocket = getActiveSocket(resolvedUsers.reported.socketId);
+  if (canBanOnBoard(config, boardName, socket)) {
+    banBoardUser(
+      boardName,
+      resolvedUsers.reported.userSecret,
+      resolvedUsers.reported.ip,
+      now,
+    );
+    logger.warn("user.banned", {
+      board: boardName,
+      reported_ip: resolvedUsers.reported.ip,
+      reported_name: resolvedUsers.reported.name,
+      by: resolvedUsers.reporter.name,
+    });
+    disconnectReportedSockets(
+      boardName,
+      reportedSocket ? [reportedSocket] : [],
+      closeSocket,
+    );
+    return;
+  }
+
   disconnectReportedSockets(
-    socket,
     boardName,
-    resolvedUsers.reported,
-    getActiveSocket,
+    [
+      socket,
+      ...(reportedSocket && reportedSocket !== socket ? [reportedSocket] : []),
+    ],
     closeSocket,
   );
 }

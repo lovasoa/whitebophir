@@ -1,4 +1,5 @@
 import { BoardPermissions } from "../auth/board_capabilities.mjs";
+import { getUserSecretFromCookieHeader } from "../auth/user_secret_cookie.mjs";
 import { getLoadedBoard } from "../board/registry.mjs";
 import { respondWithErrorPage } from "../http/observation.mjs";
 import observability from "../observability/index.mjs";
@@ -53,7 +54,10 @@ function redirectBoardQuery(ctx) {
   BoardPermissions.forBoard({
     config,
     boardName,
-    userInfo: { token: ctx.url.searchParams.get("token") },
+    userInfo: {
+      token: ctx.url.searchParams.get("token"),
+      userSecret: getUserSecretFromCookieHeader(ctx.request.headers.cookie),
+    },
   }).requireOpen();
   ctx.response.writeHead(301, {
     Location: boardDocumentLocation(config, boardName),
@@ -115,7 +119,10 @@ function resolveBoardPageRequest(ctx) {
   const boardPermissions = BoardPermissions.forBoard({
     config,
     boardName,
-    userInfo: { token: ctx.url.searchParams.get("token") },
+    userInfo: {
+      token: ctx.url.searchParams.get("token"),
+      userSecret: getUserSecretFromCookieHeader(ctx.request.headers.cookie),
+    },
   });
   boardPermissions.requireOpen();
   return {

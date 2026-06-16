@@ -29,12 +29,13 @@ export type MessageType = MutationTypeMap[keyof MutationTypeMap];
 export type SocketEventName = SocketEventMap[keyof SocketEventMap];
 export type BoardCapability = "openBoard" | "editBoard" | "clearBoard";
 export type ToolRequiredCapability = Exclude<BoardCapability, "openBoard">;
-export type BoardCapabilityFlag = "canOpen" | "canEdit" | "canClear";
+export type BoardCapabilityFlag = "canOpen" | "canEdit" | "canClear" | "canBan";
 
 export type BoardCapabilities = {
   canOpen: boolean;
   canEdit: boolean;
   canClear: boolean;
+  canBan: boolean;
 };
 
 export type MessageMetadata = {
@@ -507,6 +508,7 @@ export type ServerConfig = {
   TURNSTILE_VALIDATION_WINDOW_MS?: number | string;
   BLOCKED_TOOLS?: string[];
   BLOCKED_SELECTION_BUTTONS?: number[] | string[];
+  BOARD_MODERATORS?: { [boardName: string]: Set<string> };
   MAX_CHILDREN?: number;
   MAX_BOARD_SIZE?: number;
   AUTO_FINGER_WHITEOUT?: boolean;

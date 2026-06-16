@@ -36,6 +36,7 @@ test("board capabilities preserve JWT-disabled writable board behavior", () => {
       canOpen: true,
       canEdit: true,
       canClear: false,
+      canBan: false,
     },
   );
 });
@@ -51,6 +52,7 @@ test("board capabilities preserve JWT-disabled read-only board behavior", () => 
       canOpen: true,
       canEdit: false,
       canClear: false,
+      canBan: false,
     },
   );
 });
@@ -71,6 +73,7 @@ test("board capabilities reject JWT board claims that do not match the requested
       canOpen: false,
       canEdit: false,
       canClear: false,
+      canBan: false,
     },
   );
 });
@@ -91,6 +94,7 @@ test("board capabilities allow edit-capable JWT claims to edit read-only boards"
       canOpen: true,
       canEdit: true,
       canClear: false,
+      canBan: false,
     },
   );
 });
