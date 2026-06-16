@@ -134,7 +134,7 @@ export class StatusModule {
         detail: "",
       };
     }
-    if (Tools.writes.bufferedWrites.length > 0) {
+    if (Tools.writes.bufferedWrites.some((w) => w.state === "queued")) {
       return {
         hidden: false,
         state: "buffering",
