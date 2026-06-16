@@ -125,7 +125,9 @@ export const AUTO_FINGER_WHITEOUT = parseDisabledFlagEnv(
   "AUTO_FINGER_WHITEOUT",
 );
 
-/** Board-scoped moderator user secrets. */
+/** Board-scoped moderator user secrets, in the form: `boardname:usersecret1 boardname2:usersecret2`.
+ * The user secret is their wbo secret cookie.
+ */
 export const BOARD_MODERATORS = parseBoardModeratorsEnv("WBO_BOARD_MODERATORS");
 
 /** Shared JWT secret used by board auth helpers. Empty disables JWT auth. */
