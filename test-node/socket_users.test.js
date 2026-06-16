@@ -2039,6 +2039,51 @@ test("moderator report bans reported secret and ip without disconnecting moderat
   );
 });
 
+test("moderator report ignores self targets without banning", async () => {
+  const moderatorSecret = "abababababababababababababababab";
+  await createSocketScenario(
+    {
+      historyDirPrefix: "wbo-users-report-self-ban-",
+      config: {
+        BOARD_MODERATORS: {
+          "board-report-self-ban": new Set([moderatorSecret]),
+        },
+      },
+    },
+    async ({ connect, handler, invoke }) => {
+      const moderator = await connect({
+        id: "socket-mod-self-report",
+        remoteAddress: "203.0.113.170",
+        headers: withUserSecretCookie(moderatorSecret),
+        query: { board: "board-report-self-ban", tool: "hand" },
+      });
+
+      handler(moderator, "report_user")({ socketId: "socket-mod-self-report" });
+
+      assert.equal(moderator.socket.client.conn.closeCalls.length, 0);
+
+      await invoke(
+        moderator,
+        "broadcast",
+        rectangleCreate({
+          id: "rect-self-report-ok",
+          x: 0,
+          y: 0,
+          x2: 10,
+          y2: 10,
+          color: "#444444",
+          size: 10,
+          clientMutationId: "cm-self-report-ok",
+        }),
+      );
+      assert.equal(
+        moderator.emitted.some((event) => event.event === "mutation_rejected"),
+        false,
+      );
+    },
+  );
+});
+
 test("non-moderator report disconnects both users without banning", async () => {
   await createSocketScenario(
     { historyDirPrefix: "wbo-users-report-no-ban-" },

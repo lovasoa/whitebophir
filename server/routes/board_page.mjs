@@ -1,5 +1,3 @@
-import { BoardPermissions } from "../auth/board_capabilities.mjs";
-import { getUserSecretFromCookieHeader } from "../auth/user_secret_cookie.mjs";
 import { getLoadedBoard } from "../board/registry.mjs";
 import { respondWithErrorPage } from "../http/observation.mjs";
 import observability from "../observability/index.mjs";
@@ -9,8 +7,11 @@ import {
 } from "../persistence/svg_board_store.mjs";
 import {
   annotateBoardRequest,
+  boardAuthorizedCacheHeaders,
+  boardAuthorizedCachePolicy,
   boardDocumentLocation,
   boardOperationTraceAttributes,
+  boardPermissionsForRequest,
   boardPageETag,
   ensureBoardUserSecretCookie,
   matchesIfNoneMatch,
@@ -37,7 +38,7 @@ const { tracing } = observability;
  * @typedef {{
  *   kind: "document",
  *   boardName: string,
- *   boardPermissions: ReturnType<typeof BoardPermissions.forBoard>,
+ *   boardPermissions: ReturnType<typeof boardPermissionsForRequest>,
  *   cachedSeqs: number[],
  * }} BoardPageDocumentRequest
  */
@@ -51,14 +52,7 @@ function redirectBoardQuery(ctx) {
   const config = ctx.runtime.config;
   const boardName = requireBoardQueryName(ctx.url);
   annotateBoardRequest(ctx.observed, boardName);
-  BoardPermissions.forBoard({
-    config,
-    boardName,
-    userInfo: {
-      token: ctx.url.searchParams.get("token"),
-      userSecret: getUserSecretFromCookieHeader(ctx.request.headers.cookie),
-    },
-  }).requireOpen();
+  boardPermissionsForRequest(ctx, boardName).requireOpen();
   ctx.response.writeHead(301, {
     Location: boardDocumentLocation(config, boardName),
   });
@@ -116,14 +110,7 @@ function resolveBoardPageRequest(ctx) {
       cachedSeqs: [],
     };
   }
-  const boardPermissions = BoardPermissions.forBoard({
-    config,
-    boardName,
-    userInfo: {
-      token: ctx.url.searchParams.get("token"),
-      userSecret: getUserSecretFromCookieHeader(ctx.request.headers.cookie),
-    },
-  });
+  const boardPermissions = boardPermissionsForRequest(ctx, boardName);
   boardPermissions.requireOpen();
   return {
     kind: "document",
@@ -223,7 +210,10 @@ function serveBoardDocumentCacheHit(ctx, pageRequest, document) {
 function respondWithBoardPageNotModified(ctx, boardName, seq, etag) {
   pinServedBoardBaseline(boardName, seq, ctx.runtime.config);
   ctx.response.writeHead(304, {
-    "Cache-Control": ctx.runtime.boardTemplate.cacheControl(),
+    ...boardAuthorizedCacheHeaders(
+      ctx.runtime.config,
+      ctx.runtime.boardTemplate.cacheControl(),
+    ),
     ETag: etag || boardPageETag(seq),
   });
   ctx.response.end();
@@ -242,6 +232,10 @@ async function renderBoardDocument(ctx, pageRequest, document) {
   });
   const renderOptions = {
     etag: boardPageETag(document.metadata.seq || 0),
+    ...boardAuthorizedCachePolicy(
+      ctx.runtime.config,
+      ctx.runtime.boardTemplate.cacheControl(),
+    ),
     boardState,
   };
 

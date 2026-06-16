@@ -26,7 +26,7 @@ export function parseBoardModeratorsEnv(name, env = process.env) {
           `Invalid ${name}: malformed moderator secret for ${boardName}.`,
         );
       }
-      parsed[boardName].add(secret);
+      parsed[boardName].add(secret.toLowerCase());
     }
   }
   return parsed;

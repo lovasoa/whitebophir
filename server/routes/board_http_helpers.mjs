@@ -4,6 +4,7 @@ import {
   decodeBoardName,
   isValidBoardName,
 } from "../../client-data/js/board_name.js";
+import { BoardPermissions } from "../auth/board_capabilities.mjs";
 import {
   appendSetCookieHeader,
   generateUserSecret,
@@ -179,10 +180,73 @@ function ensureBoardUserSecretCookie(request, response, parsedUrl) {
   );
 }
 
+/**
+ * @param {ServerConfig} config
+ * @returns {boolean}
+ */
+function hasCookieAuthorizedBoardModerators(config) {
+  return Object.keys(config.BOARD_MODERATORS || {}).length > 0;
+}
+
+/**
+ * User-secret cookies can grant board moderator access. When that feature is
+ * configured, shared caches must not reuse board bytes across different Cookie
+ * headers.
+ *
+ * @param {ServerConfig} config
+ * @param {string} cacheControl
+ * @returns {{cacheControl: string, vary?: string}}
+ */
+function boardAuthorizedCachePolicy(config, cacheControl) {
+  if (!hasCookieAuthorizedBoardModerators(config)) {
+    return { cacheControl };
+  }
+  return {
+    cacheControl: "private, max-age=0, must-revalidate",
+    vary: "Cookie",
+  };
+}
+
+/**
+ * @param {ServerConfig} config
+ * @param {string} cacheControl
+ * @returns {{[header: string]: string}}
+ */
+function boardAuthorizedCacheHeaders(config, cacheControl) {
+  const policy = boardAuthorizedCachePolicy(config, cacheControl);
+  return {
+    "Cache-Control": policy.cacheControl,
+    ...(policy.vary ? { Vary: policy.vary } : {}),
+  };
+}
+
+/**
+ * Resolves board permissions from the common HTTP token and user-secret cookie
+ * inputs. Routes should use this helper rather than re-reading auth inputs in
+ * each endpoint.
+ *
+ * @param {import("../../types/server-runtime.d.ts").HttpRouteContext} ctx
+ * @param {string} boardName
+ * @returns {ReturnType<typeof BoardPermissions.forBoard>}
+ */
+function boardPermissionsForRequest(ctx, boardName) {
+  return BoardPermissions.forBoard({
+    config: ctx.runtime.config,
+    boardName,
+    userInfo: {
+      token: ctx.url.searchParams.get("token"),
+      userSecret: getUserSecretFromCookieHeader(ctx.request.headers.cookie),
+    },
+  });
+}
+
 export {
   annotateBoardRequest,
+  boardAuthorizedCacheHeaders,
+  boardAuthorizedCachePolicy,
   boardDocumentLocation,
   boardOperationTraceAttributes,
+  boardPermissionsForRequest,
   boardPageETag,
   ensureBoardUserSecretCookie,
   matchesIfNoneMatch,

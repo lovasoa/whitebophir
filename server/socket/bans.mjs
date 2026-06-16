@@ -3,7 +3,7 @@ import {
   capToMaxSize,
   pruneStaleEntries,
   touchExisting,
-} from "./bounded_state_map.mjs";
+} from "./abuse_state_maps.mjs";
 
 const BAN_TTL_MS = 30 * 60 * 1000;
 const BAN_MAP_MAX_SIZE = 4096;

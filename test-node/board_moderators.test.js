@@ -42,7 +42,7 @@ test("parseBoardModeratorsEnv parses board secret groups and rejects malformed e
   const { parseBoardModeratorsEnv } = require(CONFIG_HELPERS_PATH);
   const parsed = parseBoardModeratorsEnv("WBO_BOARD_MODERATORS", {
     WBO_BOARD_MODERATORS:
-      "MyBoard:abcdefabcdefabcdefabcdefabcdefab,11111111111111111111111111111111 other:22222222222222222222222222222222",
+      "MyBoard:ABCDEFABCDEFABCDEFABCDEFABCDEFAB,11111111111111111111111111111111 other:22222222222222222222222222222222",
   });
 
   assert.deepEqual(

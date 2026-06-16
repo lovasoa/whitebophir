@@ -1,3 +1,8 @@
+// Shared bounded-map maintenance primitives for abuse-prevention state.
+// Rate limits and edit bans both use small per-key windows that should refresh
+// on access, drop stale leading entries opportunistically, and cap total memory
+// without coupling either feature to the other's domain rules.
+
 /**
  * @template T
  * @param {Map<string, T>} map

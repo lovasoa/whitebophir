@@ -651,15 +651,15 @@ async function handleSocketConnection(socket, config) {
           }),
         },
         function traceReportUser() {
-          handleReportUserMessage(
+          handleReportUserMessage({
             socket,
-            normalizedName,
+            boardName: normalizedName,
             message,
             config,
-            Date.now(),
+            now: Date.now(),
             getActiveSocket,
             closeSocket,
-          );
+          });
         },
       );
     },

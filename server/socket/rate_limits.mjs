@@ -10,7 +10,7 @@ import {
   capToMaxSize,
   pruneStaleEntries,
   touchExisting,
-} from "./bounded_state_map.mjs";
+} from "./abuse_state_maps.mjs";
 
 const createRateLimitState = RateLimitCommon.createRateLimitState;
 const consumeFixedWindowRateLimit = RateLimitCommon.consumeFixedWindowRateLimit;

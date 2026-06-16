@@ -1,5 +1,3 @@
-import { BoardPermissions } from "../auth/board_capabilities.mjs";
-import { getUserSecretFromCookieHeader } from "../auth/user_secret_cookie.mjs";
 import { badRequest } from "../http/boundary_errors.mjs";
 import { boardSvgCacheControl, CSP } from "../http/cache_policy.mjs";
 import { startCompressedResponse } from "../http/compression.mjs";
@@ -17,6 +15,8 @@ import {
 } from "../persistence/svg_board_store.mjs";
 import {
   annotateBoardRequest,
+  boardAuthorizedCacheHeaders,
+  boardPermissionsForRequest,
   boardOperationTraceAttributes,
   boardPageETag,
   matchesIfNoneMatch,
@@ -41,14 +41,7 @@ function rejectMissingBoardName() {
  * @returns {void}
  */
 function requireBoardOpenPermission(ctx, boardName) {
-  BoardPermissions.forBoard({
-    config: ctx.runtime.config,
-    boardName,
-    userInfo: {
-      token: ctx.url.searchParams.get("token"),
-      userSecret: getUserSecretFromCookieHeader(ctx.request.headers.cookie),
-    },
-  }).requireOpen();
+  boardPermissionsForRequest(ctx, boardName).requireOpen();
 }
 
 /**
@@ -66,7 +59,10 @@ async function serveBoardSvg(ctx) {
   pinServedBoardBaseline(boardName, persistedSeq, ctx.runtime.config);
   if (matchesIfNoneMatch(ctx.request.headers["if-none-match"], etag)) {
     ctx.response.writeHead(304, {
-      "Cache-Control": boardSvgCacheControl(ctx.runtime.config),
+      ...boardAuthorizedCacheHeaders(
+        ctx.runtime.config,
+        boardSvgCacheControl(ctx.runtime.config),
+      ),
       ETag: etag,
     });
     ctx.response.end();
@@ -103,7 +99,10 @@ async function serveBoardSvg(ctx) {
     {
       "Content-Type": "image/svg+xml",
       "Content-Security-Policy": CSP,
-      "Cache-Control": boardSvgCacheControl(ctx.runtime.config),
+      ...boardAuthorizedCacheHeaders(
+        ctx.runtime.config,
+        boardSvgCacheControl(ctx.runtime.config),
+      ),
       ETag: etag,
     },
   );
@@ -187,7 +186,10 @@ async function respondWithBoardPreview(ctx, boardName, startedAt) {
     {
       "Content-Type": "image/svg+xml",
       "Content-Security-Policy": CSP,
-      "Cache-Control": boardSvgCacheControl(ctx.runtime.config),
+      ...boardAuthorizedCacheHeaders(
+        ctx.runtime.config,
+        boardSvgCacheControl(ctx.runtime.config),
+      ),
     },
   );
   if (compressedResponse.encoding !== undefined) {
