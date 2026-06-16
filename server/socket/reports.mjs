@@ -7,10 +7,11 @@ const { logger, tracing } = observability;
 
 /** @import { AppSocket, ReportUserPayload, ServerConfig } from "../../types/server-runtime.d.ts" */
 /** @typedef {{socketId: string, name: string, ip: string, userSecret?: string, userAgent: string, language: string}} BoardUser */
-/** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string}} UserReportLog */
+/** @typedef {{board: string, reporter_socket: string, reported_socket: string, reporter_ip: string, reported_ip: string, reporter_user_agent: string, reported_user_agent: string, reporter_language: string, reported_language: string, reporter_name: string, reported_name: string, banned: boolean}} UserReportLog */
 /** @typedef {(socketId: string) => AppSocket | undefined} GetActiveSocket */
 /** @typedef {(socket: AppSocket, eventName: string, infos: {[key: string]: any}) => void} CloseSocket */
 /** @typedef {{socket: AppSocket, boardName: string, message: ReportUserPayload | undefined, config: ServerConfig, now: number, getActiveSocket: GetActiveSocket, closeSocket: CloseSocket}} ReportUserContext */
+/** @typedef {{reporter: BoardUser, reported: BoardUser}} ReportUsers */
 
 /** @type {UserReportLog | null} */
 let lastUserReportLog = null;
@@ -27,7 +28,7 @@ function getReportedSocketId(message) {
  * @param {string} boardName
  * @param {string} reporterSocketId
  * @param {string} reportedSocketId
- * @returns {{reporter: BoardUser, reported: BoardUser} | null}
+ * @returns {ReportUsers | null}
  */
 function resolveReportedUsers(boardName, reporterSocketId, reportedSocketId) {
   const reporter = getBoardUser(boardName, reporterSocketId);
@@ -46,12 +47,13 @@ function ignoreReportedUser() {
 }
 
 /**
+ * Creates an object with properties to log a user report.
  * @param {string} boardName
- * @param {BoardUser} reporter
- * @param {BoardUser} reported
+ * @param {ReportUsers} users
+ * @param {boolean} banned
  * @returns {UserReportLog}
  */
-function buildUserReportLog(boardName, reporter, reported) {
+function buildUserReportLog(boardName, { reported, reporter }, banned) {
   return {
     board: boardName,
     reporter_socket: reporter.socketId,
@@ -64,6 +66,7 @@ function buildUserReportLog(boardName, reporter, reported) {
     reported_language: reported.language,
     reporter_name: reporter.name,
     reported_name: reported.name,
+    banned,
   };
 }
 
@@ -182,10 +185,16 @@ function handleReportUserMessage(context) {
     return;
   }
 
+  const banned = canBanOnBoard(
+    context.config,
+    context.boardName,
+    context.socket,
+  );
+
   const reportLog = buildUserReportLog(
     context.boardName,
-    resolvedUsers.reporter,
-    resolvedUsers.reported,
+    resolvedUsers,
+    banned,
   );
   lastUserReportLog = reportLog;
   tracing.setActiveSpanAttributes({
@@ -193,23 +202,13 @@ function handleReportUserMessage(context) {
     "user.name": resolvedUsers.reporter.name,
     "wbo.reported_user.name": resolvedUsers.reported.name,
   });
-  logger.warn("user.reported", {
-    board: reportLog.board,
-    reporter_socket: reportLog.reporter_socket,
-    reported_socket: reportLog.reported_socket,
-    reporter_ip: reportLog.reporter_ip,
-    reported_ip: reportLog.reported_ip,
-    reporter_user_agent: reportLog.reporter_user_agent,
-    reported_user_agent: reportLog.reported_user_agent,
-    reporter_language: reportLog.reporter_language,
-    reported_language: reportLog.reported_language,
-    reporter_name: reportLog.reporter_name,
-    reported_name: reportLog.reported_name,
-  });
-  if (canBanOnBoard(context.config, context.boardName, context.socket)) {
+
+  if (banned) {
     handleModeratorReport(context, resolvedUsers);
     return;
   }
+
+  logger.warn("user.reported", reportLog);
 
   handleLegacyReportDisconnect(context, resolvedUsers);
 }

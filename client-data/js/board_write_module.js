@@ -193,8 +193,6 @@ export class WriteModule {
 
   flushBufferedWrites() {
     const Tools = this.getTools();
-    if (this.bufferedWriteTimer && this.localRateLimitedUntil > Date.now())
-      return;
     this.clearBufferedWriteTimer();
     this.localRateLimitedUntil = 0;
     if (!this.canBufferWrites()) {
